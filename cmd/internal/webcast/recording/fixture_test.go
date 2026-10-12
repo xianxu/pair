@@ -89,6 +89,15 @@ func TestFixtureCoverage(t *testing.T) {
 			{"a tab switch", func(c *coverage) bool { return c.tabSegs > 0 }},
 			{"a same-document navigation", func(c *coverage) bool { return c.kinds["nav"] > 0 }},
 		},
+		"driven": {
+			{"grant, release, revoke, deny and leave", func(c *coverage) bool {
+				return c.ctl[CtlGrant] > 0 && c.ctl[CtlRelease] > 0 && c.ctl[CtlRevoke] > 0 && c.ctl[CtlDeny] > 0 && c.ctl[CtlLeave] > 0
+			}},
+			{"a driver's click and typing", func(c *coverage) bool { return c.by["click"] > 0 && c.by["input"] > 0 }},
+			{"the operator acting while a viewer drives", func(c *coverage) bool { return c.kinds["click"] > c.by["click"] }},
+			{"a navigation while driving", func(c *coverage) bool { return c.navigateDriven > 0 }},
+			{"a pause and resume while driving", func(c *coverage) bool { return c.resumeSegs > 0 }},
+		},
 	}
 	for _, name := range Fixtures {
 		r, err := ReadDir(Fixture(name))
@@ -126,11 +135,14 @@ type coverage struct {
 	frameDocs, closed, open, ownedSheets, svg, templates int
 	checked, selected, elementScroll, pageScroll         int
 	navigateSegs, resumeSegs, tabSegs                    int
+	ctl, by                                              map[string]int // ctl ops; attributed records by kind
+	navigateDriven                                       int
 	longText                                             bool
 }
 
 func measure(r *Recording) *coverage {
-	c := &coverage{kinds: map[string]int{}, mimes: map[string]int{}}
+	c := &coverage{kinds: map[string]int{}, mimes: map[string]int{}, ctl: map[string]int{}, by: map[string]int{}}
+	driving := false
 	docs := map[NodeID]bool{}
 	var walk func(n *Node)
 	walk = func(n *Node) {
@@ -157,6 +169,9 @@ func measure(r *Recording) *coverage {
 	}
 	for _, x := range r.Records {
 		c.kinds[x.Kind()]++
+		if a, ok := x.(attributed); ok && a.source() != "" {
+			c.by[x.Kind()]++
+		}
 		switch x := x.(type) {
 		case *Doc:
 			docs[x.Doc] = true
@@ -193,10 +208,16 @@ func measure(r *Recording) *coverage {
 			}
 		case *Asset:
 			c.mimes[x.MIME]++
+		case *Ctl:
+			c.ctl[x.Op]++
+			driving = x.Driver != nil
 		case *Seg:
 			switch x.Why {
 			case SegNavigate:
 				c.navigateSegs++
+				if driving {
+					c.navigateDriven++
+				}
 			case SegResume:
 				c.resumeSegs++
 			case SegTab:
