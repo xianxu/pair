@@ -1,10 +1,19 @@
 ---
 id: 000477
-status: working
+status: codecomplete
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours: 2.09
 github_issue:
+started: 2026-10-12T05:09:29-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:4
+    worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
+    repository: github.com/xianxu/pair
+actual_hours: 1.54
 tracker:
     version: 1
     handoff:
@@ -17,14 +26,11 @@ tracker:
         source_blob: f2bff232c01c30d1b4f9691c14a01af34617a54d
         destination: workshop/issues/000477-broadcast-web-replay-inside-a-running-couch-for-remote-viewers-mount-replayserver-on-the-shared-host.md
         main_commit: 7420b66dc8cb168957c169e58670a6753072edae
-started: 2026-10-12T05:09:29-07:00
-claimant:
-    operator: Xian Xu
-    machine: 4716879978a7b90f6b583da1716fd0e9
-    machine_name: MacBook Pro
-    workspace: pair:4
-    worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
-    repository: github.com/xianxu/pair
+    completion:
+        token: close-f10bbe1bdad7
+        repository: github.com/xianxu/pair
+        reviewed_head: 9b9a11d67fefd9568ef15fe89bebb4428e2ddf05
+        evidence_commit: 8cda7c6adba4819c43e47b68f3e0ea2a1f195d94
 ---
 
 # broadcast-web: replay inside a running Couch, for remote viewers (mount ReplayServer on the shared Host)
