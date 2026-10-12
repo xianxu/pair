@@ -15,7 +15,7 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "e6ce3ae1", done: "17982254"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # broadcast-web: notes model — anchors, focused context, structure-snapped crops
@@ -42,15 +42,20 @@ Implement #457's notes-model interface as a pure component over the reducer's DO
 
 Durable plan: `workshop/plans/000461-broadcast-web-notes-model-anchors-focused-context-structure-snapped-crops-plan.md`.
 
-- [ ] Selectors: make and match a stable CSS subset (ids, test attributes, nth-of-type paths, ` >>> ` across shadow/frame)
-- [ ] Landmarks and focused context (container rule table; 500-char window around the anchor)
-- [ ] Crops: pad, per-axis snap, cluster, clip, hints
-- [ ] `Structural` model: contract, fixture tests; atlas section
+- [x] Selectors: make and match a stable CSS subset (ids, test attributes, nth-of-type paths, ` >>> ` across shadow/frame)
+- [x] Landmarks and focused context (container rule table; 500-char window around the anchor)
+- [x] Crops: pad, per-axis snap, cluster, clip, hints
+- [x] `Structural` model: contract, fixture tests; atlas section
 
 ## Log
 
 ### 2026-10-11
 
 ### 2026-10-12
+- 2026-10-12: closed — notes.Structural runs notes.RunModelContract and fixture tests on all four fixtures (stress, app, blog, segments); blog cases pin header full-width snap, tall-li across-only snap, clustering. Round-1 BR-1 fixed as a rule (skip quote/> values; Anchor drops non-round-tripping selectors), each mutation-checked. go test -race ./cmd/internal/webcast/... green; make -k test (short TMPDIR, unsandboxed) green except artifactpath inventory, fixed in 6098f459; go test ./... -count=1 green after.; review verdict: SHIP
+- 2026-10-12: flow upgraded quick → full — 516 added lines in code files (limit 100); an earlier round of this close already ran the full review
 
 - Claimed at pair:5 (TL ops:0 dispatch). Seam question for the TL: `Crops` takes `[]NoteAt`, which can't carry a region note's `region`; not built here.
+- Built `notes.Structural` (selector.go, landmark.go, crop.go, structural.go); runs `RunModelContract` and fixture tests on all four fixtures (blog: header snapped full width, a tall `li` snapped across only, clustering of the three blog notes). Mutation-checked: removing the vertical-snap limit, the cluster gap, the clip widening, the resolve text preference, self-as-landmark, the leaf-card exclusion, or resolve-before-snap each fails a test.
+- Seam notes for the TL (no local fork): `Crops` can't take a region note's `region`; `notes.Context` has no JSON tags yet (the DOM submission, wave 3, will want a wire shape).
+- Close review round 1, FIX-THEN-SHIP, BR-1 (Important): a test-attribute value containing `>` made a selector the matcher can't parse. Fixed as a rule: values with a quote or `>` are skipped, and `Anchor` drops any selector that doesn't round-trip (both mutation-checked). Minors fixed too: the matcher steps into template content; an anchor without a box takes its resolved element's layout box; `model.go`'s `Context.Landmark` comment now says the fallback is the parent element (the fake did that already; a comment fix to #457's seam, reported to the TL); atlas cluster wording; plan checkboxes.
