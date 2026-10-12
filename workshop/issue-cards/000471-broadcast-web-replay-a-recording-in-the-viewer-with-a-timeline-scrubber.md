@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000471-broadcast-web-replay-a-recording-in-the-viewer-with-a-timeline-scrubber.md
         source_blob: 49edb4cac6445e1418b7da2d88794d06fb195ec3
         destination: workshop/issues/000471-broadcast-web-replay-a-recording-in-the-viewer-with-a-timeline-scrubber.md
+        main_commit: b9fe6e9dc3356f6a5c90203f972ac1808d55f717
 ---
 
 # broadcast-web: replay a recording in the viewer with a timeline scrubber
