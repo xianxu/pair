@@ -40,7 +40,7 @@ Implement #457's viewer contract as the live viewer page (replacing pair#454's s
 
 - Every #457 fixture replays in the viewer; renders compared to the fixtures' reference screenshots within a stated tolerance (headless).
 - Join-mid-cast and segment changes covered by tests.
-- The operator smoke-tested it on a desktop browser and an iPad once the recorder is live (ask the TL to schedule it; it may follow the recorder's landing).
+- ~~The operator smoke-tested it on a desktop browser and an iPad once the recorder is live.~~ Moved to a follow-up the TL schedules after #458 lands (see Revisions).
 
 ## Plan
 
@@ -51,7 +51,13 @@ Durable plan: `workshop/plans/000460-broadcast-web-live-viewer-sandboxed-script-
 - [x] `recording.Hub` (FakeHub promoted, TL decision), `Server` `rec` events + Presence, CSP; Go tests
 - [x] Headless fixture replay: canonical equality and screenshot comparison with a measured, stated tolerance; join-mid-cast and segments
 - [x] Atlas
-- [ ] Smoke test (operator; via the TL, after the recorder lands)
+- [ ] ~~Smoke test~~ moved to the TL's follow-up after #458 (see Revisions)
+
+## Revisions
+
+### 2026-10-12 — smoke test moves after #458 (TL, delivery 16887036)
+- Reason: the desktop + iPad smoke test needs a live recorder, which lands with #458.
+- Delta: `## Done when` drops the smoke test, and `## Plan` marks it moved. The TL runs it with the operator together with #458's first live cast. #460 lands on the headless evidence.
 
 ## Log
 
