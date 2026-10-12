@@ -27,6 +27,10 @@ type Event struct {
 	SessionID string
 	Method    string
 	Params    json.RawMessage
+	// Seq is the event's place among every message read (events and
+	// replies), counted from 1. CallSeq returns a reply's: an event with a
+	// smaller Seq was sent by Chrome before that reply.
+	Seq uint64
 }
 
 // Conn multiplexes Calls and Events over one pipe pair. One reader goroutine
@@ -38,6 +42,7 @@ type Conn struct {
 
 	mu        sync.Mutex
 	nextID    int64
+	seq       uint64 // messages read so far
 	pending   map[int64]chan Message
 	queue     []Event
 	maxQueued int
@@ -73,11 +78,18 @@ func New(r io.Reader, w io.WriteCloser) *Conn {
 // decoding the result into result when both are non-nil. An error reply is
 // returned as *Error.
 func (c *Conn) Call(ctx context.Context, sessionID, method string, params, result any) error {
+	_, err := c.CallSeq(ctx, sessionID, method, params, result)
+	return err
+}
+
+// CallSeq is Call, also returning the reply's place in the read order (see
+// Event.Seq); 0 when no reply came.
+func (c *Conn) CallSeq(ctx context.Context, sessionID, method string, params, result any) (uint64, error) {
 	m := Message{Method: method, SessionID: sessionID}
 	if params != nil {
 		raw, err := json.Marshal(params)
 		if err != nil {
-			return fmt.Errorf("cdp: %s: encode params: %w", method, err)
+			return 0, fmt.Errorf("cdp: %s: encode params: %w", method, err)
 		}
 		m.Params = raw
 	}
@@ -86,7 +98,7 @@ func (c *Conn) Call(ctx context.Context, sessionID, method string, params, resul
 	if c.err != nil {
 		err := c.err
 		c.mu.Unlock()
-		return fmt.Errorf("cdp: %s: %w", method, err)
+		return 0, fmt.Errorf("cdp: %s: %w", method, err)
 	}
 	c.nextID++
 	m.ID = c.nextID
@@ -96,7 +108,7 @@ func (c *Conn) Call(ctx context.Context, sessionID, method string, params, resul
 	frame, err := encode(m)
 	if err != nil {
 		c.forget(m.ID)
-		return fmt.Errorf("cdp: %s: encode: %w", method, err)
+		return 0, fmt.Errorf("cdp: %s: encode: %w", method, err)
 	}
 	c.wmu.Lock()
 	_, err = c.w.Write(frame)
@@ -104,24 +116,24 @@ func (c *Conn) Call(ctx context.Context, sessionID, method string, params, resul
 	if err != nil {
 		c.forget(m.ID)
 		c.fail(fmt.Errorf("cdp: write: %w", err))
-		return fmt.Errorf("cdp: %s: %w", method, c.Err())
+		return 0, fmt.Errorf("cdp: %s: %w", method, c.Err())
 	}
 
 	select {
 	case reply := <-ch:
-		return decodeReply(method, reply, result)
+		return reply.Seq, decodeReply(method, reply, result)
 	case <-ctx.Done():
 		c.forget(m.ID)
-		return ctx.Err()
+		return 0, ctx.Err()
 	case <-c.done:
 		// A reply routed just before the failure still wins.
 		select {
 		case reply := <-ch:
-			return decodeReply(method, reply, result)
+			return reply.Seq, decodeReply(method, reply, result)
 		default:
 		}
 		c.forget(m.ID)
-		return fmt.Errorf("cdp: %s: %w", method, c.Err())
+		return 0, fmt.Errorf("cdp: %s: %w", method, c.Err())
 	}
 }
 
@@ -216,6 +228,8 @@ func (c *Conn) dispatch(m Message) {
 	if c.err != nil {
 		return
 	}
+	c.seq++
+	m.Seq = c.seq
 	if m.ID != 0 {
 		// Unknown ids are replies to cancelled Calls.
 		if ch, ok := c.pending[m.ID]; ok {
@@ -232,7 +246,7 @@ func (c *Conn) dispatch(m Message) {
 		close(c.done)
 		return
 	}
-	c.queue = append(c.queue, Event{SessionID: m.SessionID, Method: m.Method, Params: m.Params})
+	c.queue = append(c.queue, Event{SessionID: m.SessionID, Method: m.Method, Params: m.Params, Seq: m.Seq})
 	select {
 	case c.signal <- struct{}{}:
 	default:

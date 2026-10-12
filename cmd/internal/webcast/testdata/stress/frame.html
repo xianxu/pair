@@ -1,0 +1,4 @@
+<!doctype html><html><head><style>body{margin:0;font:14px sans-serif;background:#fffbe0}#b{width:60px;height:40px;display:inline-block}</style></head>
+<body><div>cross-origin frame <b id="n">0</b></div><div id="b"></div><input id="fi">
+<script>let n=0;setInterval(()=>{n++;document.getElementById('n').textContent=n;document.getElementById('b').style.background=`hsl(${n*41%360} 80% 50%)`;document.getElementById('fi').value='frame '+n;},500);</script>
+</body></html>

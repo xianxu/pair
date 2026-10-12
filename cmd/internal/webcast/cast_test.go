@@ -17,7 +17,7 @@ func startCast(t *testing.T, tunnel broadcast.Tunnel) (*Cast, *FakeBrowser) {
 	f := NewFakeBrowser()
 	host := broadcast.NewHost(broadcast.HostConfig{Tunnel: tunnel, ProbeTimeout: 2 * time.Second})
 	c, err := StartCast(context.Background(), CastConfig{
-		Launch: func(context.Context) (Browser, error) { return f, nil },
+		Launch: func(context.Context, *RecordOptions) (Browser, error) { return f, nil },
 		Host:   host,
 		Ping:   time.Second,
 	})

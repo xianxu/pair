@@ -3,6 +3,7 @@ package couchtty
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/webcast"
@@ -45,7 +46,17 @@ var webcastShutdownWait = 6 * time.Second
 
 // SetWebcast enables the cast Chrome with this configuration. Without it the
 // key only explains why nothing happens.
-func (c *Console) SetWebcast(cfg webcast.CastConfig) { c.webcastCfg = &cfg }
+func (c *Console) SetWebcast(cfg webcast.CastConfig) {
+	// The recorder's problems (#458: a recording that can't be written, or
+	// that lost something) are the operator's to see while it runs. Posted
+	// asynchronously: Chrome's loop reports its recorder's end, and must
+	// never wait on the console.
+	cfg.Logf = func(format string, args ...any) {
+		msg := "Chrome cast: " + fmt.Sprintf(format, args...)
+		c.GoTracked(func() { c.setNotice(msg) })
+	}
+	c.webcastCfg = &cfg
+}
 
 func (c *Console) webcastCellLocked() WebcastCell {
 	if c.wcast.phase != webcastRunning && c.wcast.phase != webcastEnding {
