@@ -677,6 +677,7 @@ func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, ou
 	store := ""
 	if len(settings) > 0 {
 		store = settings[0].store
+		captureConfig.CloseTimeout = settings[0].captureCloseTimeout
 	}
 	broadcastConfig, err := broadcastSettings(getenv, store, guardArgv())
 	if err != nil {
@@ -757,6 +758,9 @@ type consoleTraceConfig struct {
 	getenv func(string) string
 	root   string
 	store  string
+	// captureCloseTimeout overrides the capture's drain bound; zero keeps
+	// terminalcapture's default. Only tests set it.
+	captureCloseTimeout time.Duration
 }
 
 func tracesForRuntime(rt Runtime) consoleTraceConfig {
