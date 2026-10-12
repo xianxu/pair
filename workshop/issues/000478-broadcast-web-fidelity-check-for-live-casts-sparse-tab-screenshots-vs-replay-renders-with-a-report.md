@@ -36,7 +36,14 @@ Principle 6 of couch-broadcast-web (ops `teams/devinfra/projects/couch-broadcast
 
 ## Plan
 
-- [ ]
+Durable plan: `workshop/plans/000478-broadcast-web-fidelity-check-for-live-casts-sparse-tab-screenshots-vs-replay-renders-with-a-report-plan.md`.
+
+- [ ] Pure `webcast/fidelity`: #453's diff (moved from the recorder's dev tool), tolerance, report, side-by-side crops
+- [ ] `web/replayer.js` (the harness's replay as product code); harness on it
+- [ ] `fidelity.html`/`fidelity.js` + `CheckFidelity` (headless, the viewer's renderer); live fixture + broken-render tests
+- [ ] `CastConfig.Check`: the check runs when a recorded cast ends
+- [ ] `couch --broadcast-web-fidelity [ID|DIR]`
+- [ ] Live blog cast within tolerance; atlas (webcast.md, webcast-format.md)
 
 ## Log
 
