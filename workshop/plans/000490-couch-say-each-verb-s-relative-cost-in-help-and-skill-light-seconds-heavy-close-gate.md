@@ -30,6 +30,27 @@ rounds:
       isolation: fenced
       reviewed: ad8c8828b2fc4d6f97afa522633f86f1684bbf76
       blocked: false
+    - "n": 2
+      timestamp: "2026-10-12T11:22:22-07:00"
+      dispatched: "2026-10-12T11:21:51-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Revisions entry records light as "under a second", and --prepare/--reload-context as heavy; matches cost.go verbCosts.
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: Revisions entry amends Done-when, naming the eight untimed verbs as tagged from a shared timed path.
+          round: 2
+        - id: BR-3
+          disposition: addressed
+          note: README now carries costGuidance verbatim and cost_test.go:100-106 asserts it. Base README fails the flattened containment (checked by hand; go test cannot build here without generated assets).
+          round: 2
+      recipe: fix-review
+      isolation: fenced
+      reviewed: 42a0a322c32fc8685371680be048dfe165051f4e
+      blocked: false
 ---
 
 # Gate ledger — pair#490 (boundary-review)
@@ -48,8 +69,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-3** [Minor] `unenforced-restatement-of-source` README rewords costGuidance by hand and no test checks it (ARCH-DRY)
   README.md:447-451 restates the tier meanings and the run-heavy-verbs-one-at-a-time advice. Only --help and the skill are checked against cost.go.
 
+## Round 2 — 2026-10-12T11:22:22-07:00 (claude) — passed
+
+### Disposed
+
+- BR-1 — addressed — Revisions entry records light as "under a second", and --prepare/--reload-context as heavy; matches cost.go verbCosts.
+- BR-2 — addressed — Revisions entry amends Done-when, naming the eight untimed verbs as tagged from a shared timed path.
+- BR-3 — addressed — README now carries costGuidance verbatim and cost_test.go:100-106 asserts it. Base README fails the flattened containment (checked by hand; go test cannot build here without generated assets).
+
 ## Open findings
 
-- **BR-1** [Minor] `spec-not-revised-after-design-change` Spec still puts --prepare and --reload-context in "seconds" and defines light as milliseconds; the code says heavy and under a second
-- **BR-2** [Minor] `done-when-overclaims-evidence` Done-when says the tags are backed by measured timings, but eight verbs were tagged by reasoning, not timed
-- **BR-3** [Minor] `unenforced-restatement-of-source` README rewords costGuidance by hand and no test checks it (ARCH-DRY)
+(none — every finding has been disposed)

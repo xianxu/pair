@@ -82,3 +82,68 @@ findings:
     detail: |
       README.md:447-451 restates the tier meanings and the run-heavy-verbs-one-at-a-time advice. Only --help and the skill are checked against cost.go.
 ```
+
+---
+
+## Re-review — 2026-10-12T11:22:22-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 490 — couch: say each verb's relative cost in --help and --skill (light, seconds, heavy) |
+| repo | pair |
+| issue file | workshop/issues/000490-couch-say-each-verb-s-relative-cost-in-help-and-skill-light-seconds-heavy.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 4d522ebb94c71b68a35812613ce299a53ce90fac..42a0a322c32fc8685371680be048dfe165051f4e |
+| command | sdlc close --issue 490 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-12T11:22:22-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+All three prior Minor findings are fixed, and the fixes add no new defect. The `## Revisions` entry only records corrections and does not change scope. The README now carries `costGuidance` word for word, and `TestHelpAndSkillCarryEveryVerbCost` enforces it.
+
+I could not run the Go test in this checkout: package setup fails because the generated `assets/runtime/files` don't exist here. So I checked the regression by hand, flattening whitespace the same way the test's `flat` helper does. The guidance sentence matches once in the new README and zero times in the base README. Without the fix, the new assertion would fail.
+
+1. **Strengths**
+   - `cmd/internal/couchcmd/cost_test.go:100-106`: the README now derives from the same `costGuidance` constant that `--help` and the skill are checked against. That closes the class the finding named (cost wording stated outside `cost.go`), not just the one site.
+   - The `## Revisions` entry lists every tier that moved from the Spec's guesses, plus the untimed verbs, and names `cost.go` as the source.
+   - `workshop/lessons.md` turns BR-1 and BR-2 into a general rule: when a measurement disagrees with the Spec, revise the Spec at once, and say in Done-when which values were reasoned rather than measured.
+
+2. **Critical:** none.
+
+3. **Important:** none.
+
+4. **Minor:** none new. The test reads `../../../README.md` by relative path. That is fine for `go test` run from the package directory, but the test is tied to the repo layout.
+
+5. **Test coverage:** The README check sits inside the existing sync test, so all three places that state the guidance (help, skill, README) are now checked. The README tier explanation that used to be hand-written was replaced by the constant's text, so nothing in the README restates the source unchecked.
+
+6. **Architecture (interdiff only)**
+   - **ARCH-DRY:** pass. The hand-written restatement is gone and the README is checked against `costGuidance`.
+   - **ARCH-PURE:** pass. The change is test-only.
+   - **ARCH-PURPOSE:** pass. All three consumers of the guidance now derive from the source.
+
+7. **Plan revisions:** none. The Revisions entry now matches `cost.go` (I checked the tiers in `verbCosts`).
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Revisions entry records light as "under a second", and --prepare/--reload-context as heavy; matches cost.go verbCosts.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Revisions entry amends Done-when, naming the eight untimed verbs as tagged from a shared timed path.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      README now carries costGuidance verbatim and cost_test.go:100-106 asserts it. Base README fails the flattened containment (checked by hand; go test cannot build here without generated assets).
+```

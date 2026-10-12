@@ -60,6 +60,7 @@ Keep it to one short tag per line, plus one sentence of guidance (run heavy verb
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed — Close-review fixes: README now carries costGuidance verbatim and cost_test checks it; Spec Revisions + Done-when name the untimed verbs. go test ./cmd/internal/couchcmd -run Cost|Readme green. (fixed-then-ship); review verdict: SHIP
 - 2026-10-12: closed — make -k test green except test-review (wrong-conversation-ack-refused under load 22; passes on rerun, untouched area); go test ./... green after adding cost.go to the artifactpath inventory, except couchcore TestRetentionExplicitResume (load flake, passes alone); TMPDIR=scratch make test-changelog green. cost_test: help tags and skill bullets equal verbCosts; verbLine panics on an untagged verb. Timings measured on this machine in the Log; heavy slot ops on parley.nvim:3 per the TL, which is left parked as the pair#489 reproduction.; review verdict: SHIP
 - 2026-10-12: flow upgraded quick → full — 110 added lines in code files (limit 100)
 
