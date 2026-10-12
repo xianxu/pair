@@ -58,6 +58,7 @@ One rule at two layers, plus the viewer (quick flow):
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed — make -k test exit 0 on b07d91a4 (+ main merge: issue files only). While paused, viewers do nothing: Board refuses stroke/note/note-state (ErrPaused, 409 'The cast is paused.'); OnDoc requires a live segment (recorder and board.Writer drop a record admitted before the pause; Writer answers ErrPaused); one paused rule: Go recording.State.Paused, JS Model.paused; annotate.js disables the rail and holds the note dialog (collab.js noteDialog.hold). Tests: TestDocumentRules, TestBoardRoutesRefuseWhilePaused, TestRecorderEmitDropsARecordDuringAPause, TestWriterRefusesARecordDuringAPause, node notes.test.mjs hold case (default run; fails without held in Save's rule), TestAnnotateLiveTwoViewers under WEBCAST_LIVE_CHROME (rail + dialog off while paused, on after resume; mutation-checked). Operator smoke test pending.; review verdict: SHIP
 - The 12:01 recording showed the bug: strokes at 13:26:23 were filed during the pause 13:25:41–13:26:42 (#493 Log).
 - **Close review round 1 (FIX-THEN-SHIP):** BR-1 (right): the note dialog's Save and Resolve stayed live while
   paused, including on a pin opened during the pause. Added `noteDialog.hold(reason)` (collab.js): Save and Resolve
