@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
-estimate_hours:
-card_mirror: 'd6504b76741ec18828bf5ac29914b2faa1028978' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 6.56
+card_mirror: '460386fa93946ddb1f012d216e97ed5ca10e667c' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T10:40:32-07:00
 claimant:
     operator: Xian Xu
@@ -15,6 +15,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: inferred}
 ---
 
 # broadcast: notes are bounding boxes — drag a box (or click for a default box); the box is the note's screenshot area, in the terminal cast and the web cast
