@@ -235,3 +235,8 @@ boxes are in the cast's own units.
   cell (the LIVE controls), the pin moves within the box to the nearest unguarded cell,
   first left and then down. Only a box with no unguarded 2-cell spot is refused. This is
   table-tested.
+
+### 2026-10-12: M1 as built
+- The shared gesture helper is `collab.js` `gestureBox(from, to, view, {min, cells})`, with `dragMin(unit,
+  pointerType)` and `boxCentre(b)`. Its tests are in `tests/broadcast-viewer/notebox.test.mjs`. The name changed
+  under M1's BR-4 to avoid a clash with annotate's display `noteBox`. Read "noteBox" above as `gestureBox`.
