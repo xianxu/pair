@@ -58,11 +58,13 @@ type State struct {
 	DocSeg int
 	Why    string
 	Live   bool
-	Tab    Tab
-	VP     Viewport
-	URL    string
-	Title  string
-	Top    *DOMNode
+	// Ended: a stop end came. The cast is over; no segment follows.
+	Ended bool
+	Tab   Tab
+	VP    Viewport
+	URL   string
+	Title string
+	Top   *DOMNode
 
 	Sheets    map[NodeID]*SheetState
 	Adopted   map[NodeID][]NodeID
@@ -169,6 +171,9 @@ func (s *State) apply(r Record) error {
 		}
 		s.Head = r
 	case *Seg:
+		if s.Ended {
+			return errors.New("a segment after stop end: the cast is over")
+		}
 		if r.Seg <= s.Seg {
 			return fmt.Errorf("segment %d after segment %d", r.Seg, s.Seg)
 		}
@@ -184,7 +189,7 @@ func (s *State) apply(r Record) error {
 		}
 		s.Live, s.awaitTop = false, false
 		if r.Why == StopEnd {
-			s.Control = Control{}
+			s.Control, s.Ended = Control{}, true
 		}
 	case *Ctl:
 		return s.applyCtl(r)

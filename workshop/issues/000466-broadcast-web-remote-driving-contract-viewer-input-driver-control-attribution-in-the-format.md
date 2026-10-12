@@ -58,3 +58,4 @@ Durable plan: `workshop/plans/000466-broadcast-web-remote-driving-contract-viewe
 - Discovery: a late joiner's catch-up starts at the latest `ctl`, with no prior state to check its transition against. Rule: the first `ctl` a reader sees is its baseline (consistent in itself); later ones must equal `NextControl(prev)`; `Validate` (whole recording) stays strict from the first. Tested both ways.
 - `drive.Answer`, `SeatHeader`, `DefaultGrace` added so the atlas's reverse-channel answers are code, not prose (#463's lesson).
 - Side change: `broadcast.decodeStrict` → `DecodeStrict`, shared by both reverse channels (ARCH-DRY).
+- Close review round 1 (FIX-THEN-SHIP): fixed BR-1 (injector follows the stream, typed ErrNotDriver, revoke step + composed fakes), BR-2/BR-3 (Confine: Meta+Y, Shift+Escape, Code), and minors (empty driver id, stop end final, ime sel, label chars, driver-note coverage). Grace-timer injection left advisory (see plan Revisions).

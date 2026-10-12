@@ -11,9 +11,19 @@ import (
 // insertText and imeSetComposition into the active tab, hit tests through
 // DOM.getNodeForLocation and the recorder's id map (Recorder.IDOf,
 // NodeOf), and what the observer reports while it dispatches carries by.
+//
+// An injector follows the record stream it injects into: it sees every
+// record, ctl included, in stream order (the real one is on the recorder's
+// queue; a fake is fed as a recording.Sink). So it knows who drives at the
+// moment it dispatches, and a batch overtaken by a revoke is refused there.
+//
+// Keys are dispatched from Key alone: the virtual key code and the text
+// derive from Key; Code only fills the DOM event's code, and Confine holds
+// it to Key's own key.
 type Injector interface {
 	// Inject dispatches b's acts in order, as viewer by. It refuses the
-	// whole batch, dispatching nothing, when the cast isn't live or b.Seg
+	// whole batch, dispatching nothing, when by isn't the driver in the
+	// stream it follows (ErrNotDriver), when the cast isn't live or b.Seg
 	// isn't the current segment (ErrNotLive), or when any act fails Confine
 	// (ErrRefused). A down, click or wheel whose element isn't at its point
 	// any more stops the batch there (ErrStale): the acts before it stand.

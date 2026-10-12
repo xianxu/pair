@@ -138,6 +138,21 @@ func TestCtlAppliesWhilePausedAndStopEndEndsControl(t *testing.T) {
 	if s, err = Reduce(b.Recs, 7); err != nil || s.Control.Driver != nil {
 		t.Fatalf("stop end left a driver: %v %+v", err, s.Control)
 	}
+	// End is terminal: a late joiner's catch-up can't start a new cast
+	// with a control state from before the end.
+	b.At(8).Add(&Seg{Seg: b.NextSeg(), Why: SegLive, Tab: Tab{ID: "tab1", URL: "http://x/"}, VP: Viewport{W: 1280, H: 800, DPR: 1}})
+	if _, err := Reduce(b.Recs, 8); err == nil || !strings.Contains(err.Error(), "the cast is over") {
+		t.Fatalf("a segment after stop end reduced: %v", err)
+	}
+}
+
+func TestCtlRefusesADriverWithoutAnID(t *testing.T) {
+	b := NewBuilder("ctl")
+	b.Page(SegLive, "http://x/")
+	b.At(5).Add(&Ctl{Op: CtlRelease, Who: ana, Control: Control{Driver: &Author{}}})
+	if _, err := Reduce(b.Recs, 5); err == nil {
+		t.Fatal("a ctl naming a driver without an id reduced")
+	}
 }
 
 func TestFirstCtlIsABaselineExceptForAWholeRecording(t *testing.T) {

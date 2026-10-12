@@ -172,6 +172,9 @@ func (s *State) applyCtl(r *Ctl) error {
 // consistent: the stated control is one the op can leave behind: no viewer
 // twice, and the viewer where the op puts it.
 func (r *Ctl) consistent() error {
+	if r.Driver != nil && r.Driver.ID == "" {
+		return fmt.Errorf("%w: a driver without an id", ErrControl)
+	}
 	seen := map[string]bool{r.Driving(): r.Driver != nil}
 	for _, p := range r.Pending {
 		if p.ID == "" || seen[p.ID] {

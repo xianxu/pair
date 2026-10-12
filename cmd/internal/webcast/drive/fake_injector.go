@@ -16,9 +16,10 @@ import (
 //   - a wheel: scroll of the top document;
 //   - down, up, move, key and ime: nothing a recording shows.
 //
-// Its own records are applied to its page too, so they must reduce: by
-// must be the driver, as in the real thing. Time advances 1 ms per record
-// from the page's last.
+// It follows the record stream as a recording.Sink: Put applies each record
+// (ctl included) to its page, so it knows who drives. Its own records are
+// applied too, and go to its out sink. Time advances 1 ms per record from
+// the page's last.
 type FakeInjector struct {
 	mu   sync.Mutex
 	page *recording.State
@@ -43,9 +44,22 @@ func (f *FakeInjector) Page() *recording.State {
 	return f.page
 }
 
+// Put follows the stream: one record of the cast, in order.
+func (f *FakeInjector) Put(r recording.Record) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.page.Apply(r)
+}
+
+// Close: the stream ended. Nothing to release.
+func (f *FakeInjector) Close() error { return nil }
+
 func (f *FakeInjector) Inject(ctx context.Context, by string, b Batch) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if by == "" || f.page.Control.Driving() != by {
+		return ErrNotDriver
+	}
 	if !f.page.Live || b.Seg != f.page.Seg {
 		return ErrNotLive
 	}

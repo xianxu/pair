@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
@@ -67,8 +68,10 @@ func (f *FakeController) Join(name string) (Seat, error) {
 
 // label is a viewer's name as shown: trimmed plain text, or "Viewer n".
 func label(name string, n int) string {
+	// No control, format (bidi overrides, zero-width) or separator
+	// characters: a label shows only what it holds, on one line.
 	name = strings.Map(func(r rune) rune {
-		if r < 0x20 || r == 0x7f {
+		if unicode.IsControl(r) || unicode.In(r, unicode.Cf, unicode.Zl, unicode.Zp) {
 			return -1
 		}
 		return r

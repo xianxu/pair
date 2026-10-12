@@ -49,8 +49,9 @@ func ElementByID(s *recording.State, id string) *recording.DOMNode {
 
 // RunInjectorContract checks an Injector. newInjector loads page (records
 // of recording.DrivenRecording: build the tab from them) and returns the
-// injector and what it has caused so far, as records.
-func RunInjectorContract(t recording.TB, newInjector func(page []recording.Record) (Injector, func() []recording.Record)) {
+// injector, the sink that feeds it later records of the stream it follows,
+// and what it has caused so far, as records.
+func RunInjectorContract(t recording.TB, newInjector func(page []recording.Record) (Injector, recording.Sink, func() []recording.Record)) {
 	t.Helper()
 	ctx := context.Background()
 	page := DrivenPage(drivenGrantedT)
@@ -69,7 +70,7 @@ func RunInjectorContract(t recording.TB, newInjector func(page []recording.Recor
 
 	// Paused: nothing reaches the page.
 	{
-		inj, observed := newInjector(DrivenPage(drivenPausedT))
+		inj, _, observed := newInjector(DrivenPage(drivenPausedT))
 		if err := inj.Inject(ctx, drivenDriver, Batch{Seg: 1, Acts: []Act{click(q.ID, qx, qy)}}); !errors.Is(err, ErrNotLive) {
 			t.Errorf("paused: got %v, want ErrNotLive", err)
 		}
@@ -78,7 +79,11 @@ func RunInjectorContract(t recording.TB, newInjector func(page []recording.Recor
 		}
 	}
 
-	inj, observed := newInjector(page)
+	inj, follow, observed := newInjector(page)
+	// Only the driver injects.
+	if err := inj.Inject(ctx, "v2", Batch{Seg: s.Seg, Acts: []Act{click(q.ID, qx, qy)}}); !errors.Is(err, ErrNotDriver) {
+		t.Errorf("a viewer who doesn't drive: got %v, want ErrNotDriver", err)
+	}
 	// A batch aimed at another segment's document.
 	if err := inj.Inject(ctx, drivenDriver, Batch{Seg: s.Seg + 1, Acts: []Act{click(q.ID, qx, qy)}}); !errors.Is(err, ErrNotLive) {
 		t.Errorf("another segment: got %v, want ErrNotLive", err)
@@ -124,7 +129,22 @@ func RunInjectorContract(t recording.TB, newInjector func(page []recording.Recor
 	}
 	// Everything caused reduces after the page: by is the driver's.
 	all := append(append([]recording.Record(nil), page...), observed()...)
-	if _, err := recording.Reduce(all, all[len(all)-1].Time()); err != nil {
+	end := all[len(all)-1].Time()
+	if _, err := recording.Reduce(all, end); err != nil {
 		t.Errorf("the caused records don't reduce after the page: %v", err)
+	}
+	// A revoke in the stream: the old driver's next batch is refused where
+	// it is dispatched, and causes nothing.
+	revoke := &recording.Ctl{Op: recording.CtlRevoke, Who: *s.Control.Driver, Control: recording.Control{}}
+	revoke.SetTime(end + 1)
+	if err := follow.Put(revoke); err != nil {
+		t.Fatalf("following a revoke: %v", err)
+	}
+	n := len(observed())
+	if err := inj.Inject(ctx, drivenDriver, Batch{Seg: s.Seg, Acts: []Act{click(save.ID, sx, sy)}}); !errors.Is(err, ErrNotDriver) {
+		t.Errorf("after a revoke: got %v, want ErrNotDriver", err)
+	}
+	if len(observed()) != n {
+		t.Errorf("a revoked driver's batch caused records")
 	}
 }

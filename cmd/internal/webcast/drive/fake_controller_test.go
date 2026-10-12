@@ -14,7 +14,7 @@ func TestFakeControllerContract(t *testing.T) {
 }
 
 func TestFakeControllerLabels(t *testing.T) {
-	for in, want := range map[string]string{"  Ana ": "Ana", "": "Viewer 1", "\x07": "Viewer 1", "Bo\x1b[31m": "Bo[31m"} {
+	for in, want := range map[string]string{"  Ana ": "Ana", "": "Viewer 1", "\x07": "Viewer 1", "Bo\x1b[31m": "Bo[31m", "Ana\u202e": "Ana", "A\u2028B": "AB"} {
 		if got := label(in, 1); got != want {
 			t.Errorf("label(%q) = %q, want %q", in, got, want)
 		}

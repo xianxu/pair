@@ -142,8 +142,12 @@ func (a *Act) normalize() error {
 		if !utf8.ValidString(a.V) || (a.A == ActText && a.V == "") {
 			return ErrBatchShape
 		}
-		if utf8.RuneCountInString(a.V) > MaxText {
+		n := utf8.RuneCountInString(a.V)
+		if n > MaxText {
 			return ErrBatchLimit
+		}
+		if a.Sel != nil && (a.A != ActIME || a.Sel[0] < 0 || a.Sel[0] > a.Sel[1] || a.Sel[1] > n) {
+			return ErrBatchShape
 		}
 	default:
 		return ErrBatchShape

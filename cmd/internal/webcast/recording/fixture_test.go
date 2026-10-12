@@ -97,6 +97,7 @@ func TestFixtureCoverage(t *testing.T) {
 			{"the operator acting while a viewer drives", func(c *coverage) bool { return c.kinds["click"] > c.by["click"] }},
 			{"a navigation while driving", func(c *coverage) bool { return c.navigateDriven > 0 }},
 			{"a pause and resume while driving", func(c *coverage) bool { return c.resumeSegs > 0 }},
+			{"a note by the driver", func(c *coverage) bool { return c.driverNotes > 0 }},
 		},
 	}
 	for _, name := range Fixtures {
@@ -136,13 +137,13 @@ type coverage struct {
 	checked, selected, elementScroll, pageScroll         int
 	navigateSegs, resumeSegs, tabSegs                    int
 	ctl, by                                              map[string]int // ctl ops; attributed records by kind
-	navigateDriven                                       int
+	navigateDriven, driverNotes                          int
 	longText                                             bool
 }
 
 func measure(r *Recording) *coverage {
 	c := &coverage{kinds: map[string]int{}, mimes: map[string]int{}, ctl: map[string]int{}, by: map[string]int{}}
-	driving := false
+	driving, driver := false, ""
 	docs := map[NodeID]bool{}
 	var walk func(n *Node)
 	walk = func(n *Node) {
@@ -208,9 +209,13 @@ func measure(r *Recording) *coverage {
 			}
 		case *Asset:
 			c.mimes[x.MIME]++
+		case *Note:
+			if driving && x.Author.ID == driver {
+				c.driverNotes++
+			}
 		case *Ctl:
 			c.ctl[x.Op]++
-			driving = x.Driver != nil
+			driving, driver = x.Driver != nil, x.Driving()
 		case *Seg:
 			switch x.Why {
 			case SegNavigate:
