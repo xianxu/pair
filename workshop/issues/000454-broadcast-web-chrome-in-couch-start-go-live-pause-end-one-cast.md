@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-11
 updated: 2026-10-11
-estimate_hours: 3.96
-card_mirror: '8defa623302212c72e2eaf5cbf248b6d86b14ffe' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 4.69
+card_mirror: '8036005b121ecb59e324522b9cbfc82711814909' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-11T20:08:38-07:00
 claimant:
     operator: Xian Xu
@@ -55,17 +55,19 @@ item: greenfield-go-module   design=0.1 impl=0.24
 item: greenfield-go-module   design=0.1 impl=0.2
 item: greenfield-go-module   design=0.2 impl=0.32
 item: real-api-discovery     design=0.0 impl=0.24
-item: cross-cutting-refactor design=0.1 impl=0.2
+item: cross-cutting-refactor design=0.2 impl=0.3
+item: smaller-go-module      design=0.04 impl=0.2
+item: smaller-go-module      design=0.06 impl=0.2
 item: smaller-go-module      design=0.06 impl=0.2
 item: tui-screen             design=0.2 impl=0.4
 item: atlas-docs             design=0.1 impl=0.08
 item: milestone-review       design=0.0 impl=0.4
 item: ux-rename-iteration    design=0.5 impl=0.12
 design-buffer: 0.15
-total: 3.96
+total: 4.69
 ```
 
-Items, in order: cdp pipe client; tab tracker + translate; real Chrome + inject.js; CDP/Chrome visibility discovery (live check); `broadcast.Host` extraction from Session; webcast server + viewer + Cast; Couch key/indicator/state machine; README + atlas; two milestone reviews (M1, M2); smoke-test iteration round. Design ×0.2 where the plan pre-resolves decisions (all but the UX round). Impl at 40% of v2 ranges.
+Items, in order: cdp pipe client; tab tracker + translate; real Chrome + inject.js; CDP/Chrome visibility discovery (live check); shared `broadcast.Host` (post-PQ-1: ref-counted, mounts by token); Browser seam + FakeBrowser + `latest[T]`; conformance harness (fake + live) incl. Task 9b; webcast server + viewer + Cast; Couch key/indicator/state machine; README + atlas; two milestone reviews (M1, M2); smoke-test iteration round. Design ×0.2 where the plan pre-resolves decisions (all but the UX round). Impl at 40% of v2 ranges.
 
 *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.* (Calibration source is flagged stale; numbers provisional.)
 
