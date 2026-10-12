@@ -15,6 +15,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "b00bd64d", done: "75e14700"}
 ---
 
 # couchtty: a notice repaint is lost when the child endpoint holds an incomplete sequence (TestEndpointChrome* hangs under load)
