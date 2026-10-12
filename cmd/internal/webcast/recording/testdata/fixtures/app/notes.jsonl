@@ -1,0 +1,4 @@
+{"t":6000,"k":"note","id":"app-n1","author":{"id":"viewer-1","name":"Pat (product)","color":"#e8590c"},"text":"Search should ignore case.","at":{"node":76,"sel":"#search","box":[256,150,992,42]}}
+{"t":12500,"k":"note","id":"app-n2","author":{"id":"viewer-2","name":"Ana (design)","color":"#1c7ed6"},"text":"The modal button needs more contrast.","at":{"node":108,"sel":"#open-modal","text":"Delete workspace…","box":[256,92,173.92,40]}}
+{"t":14000,"k":"note-state","id":"app-n2","state":"resolved"}
+{"t":19000,"k":"note","id":"app-n3","author":{"id":"viewer-1","name":"Pat (product)","color":"#e8590c"},"text":"Reports needs a date range.","at":{"node":277,"sel":"h1~Reports","text":"Reports","box":[40,40,1200,36]}}

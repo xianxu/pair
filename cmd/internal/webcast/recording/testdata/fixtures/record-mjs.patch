@@ -1,0 +1,61 @@
+--- record.orig.mjs	2026-10-11 23:22:43
++++ record.mjs	2026-10-11 23:27:40
+@@ -38,6 +38,8 @@
+   var lastScroll = new WeakMap();
+   document.addEventListener('scroll', function(e){ var t = e.target === document ? document.scrollingElement : e.target; if (!t) return;
+     var s = t.scrollLeft + ',' + t.scrollTop; if (lastScroll.get(t) !== s) { lastScroll.set(t, s); dirty.push({ el: t, k: 'scroll', v: s }); } }, true);
++  document.addEventListener('click', function(e){ dirty.push({ el: e.target, k: 'click', v: e.clientX + ',' + e.clientY }); if (typeof __bwB === 'function') __bwB(String(dirty.length)); }, true);
++  document.addEventListener('focusin', function(e){ dirty.push({ el: e.target, k: 'focus', v: '' }); }, true);
+   setInterval(function(){ if (document.documentElement) scan(document); if (dirty.length && typeof __bwB === 'function') __bwB(String(dirty.length)); }, 100);
+   window.__bwTake = function(){ var d = dirty; dirty = []; return d; };
+ })();`;
+@@ -109,9 +111,10 @@
+       else send('Runtime.runIfWaitingForDebugger', {}, params.sessionId).catch(() => {});
+       return;
+     }
++    if (method === 'Page.frameNavigated' && B) { bEmit({ t: Date.now(), s: sid, type: 'frameNavigated', frame: params.frame }); return; }
+     if (method === 'Runtime.bindingCalled') {
+       if (params.name === '__bwA') { for (const e of JSON.parse(params.payload)) aEvents.push(e); return; }
+-      if (params.name === '__bwB') { bTakeObserved(sid, params.executionContextId); return; }
++      if (params.name === '__bwB') { bTakeObserved(sid, params.executionContextId).catch(e => bEmit({ t: Date.now(), s: sid, type: 'observe-error', err: String(e.message) })); return; }
+     }
+     if (!B) return;
+     if (method.startsWith('DOM.')) {
+@@ -141,13 +144,15 @@
+     if (method === 'Runtime.executionContextCreated') { const c = params.context;
+       if (c.name === B_WORLD) isoCtx.set(sid + '|' + c.auxData.frameId, c.id); return; }
+     if (method === 'CSS.fontsUpdated') { if (params.font) bEmit({ t: Date.now(), s: sid, type: 'font', font: params.font }); return; }
+-    if (method === 'Network.responseReceived') { requests.set(params.requestId, { type: params.type, url: params.response.url }); return; }
++    if (method === 'Network.responseReceived') { requests.set(params.requestId, { type: params.type, url: params.response.url, mime: params.response.mimeType }); return; }
+     if (method === 'Network.loadingFinished') {
+-      const { type, url: aurl } = requests.get(params.requestId) || {};
++      const { type, url: aurl, mime } = requests.get(params.requestId) || {};
+       if (['Stylesheet', 'Image', 'Font'].includes(type)) {
+         try { const b = await send('Network.getResponseBody', { requestId: params.requestId }, sid);
+           const n = b.base64Encoded ? Math.floor(b.body.length * 3 / 4) : Buffer.byteLength(b.body);
+           assets.count++; assets.bytes += n; assets.byType[type] = (assets.byType[type] || 0) + n;
++          if (n > 2 * 1024 * 1024) bEmit({ t: Date.now(), s: sid, type: 'assetSkipped', url: aurl, bytes: n });
++          else bEmit({ t: Date.now(), s: sid, type: 'assetBody', url: aurl, mime, b64: b.base64Encoded ? b.body : Buffer.from(b.body).toString('base64') });
+           // Stylesheets go into the stream (the asset proxy's job in the product), url() made absolute.
+           if (type === 'Stylesheet') { const text = b.base64Encoded ? Buffer.from(b.body, 'base64').toString() : b.body;
+             bEmit({ t: Date.now(), s: sid, type: 'asset', url: aurl, text: text.replace(/url\(\s*(['"]?)([^'")]+)\1\s*\)/g,
+@@ -177,10 +182,18 @@
+   const buf = await lowres(page);
+   const t1 = Date.now(); const i = shots.length;
+   writeFileSync(`${out}/shots/${i}.png`, buf);
+-  shots.push({ i, t: Math.round((t0 + t1) / 2), took: t1 - t0 });
++  const t = Math.round((t0 + t1) / 2);
++  shots.push({ i, t, took: t1 - t0 });
++  if (B) try {
++    const snap = await page.DOMSnapshot.captureSnapshot({ computedStyles: [], includeDOMRects: true });
++    bEmit({ type: 'layout', t, s: '', shot: i, strings: snap.strings, docs: snap.documents.map(doc => ({
++      url: snap.strings[doc.documentURL], backend: doc.nodes.backendNodeId, layoutNode: doc.layout.nodeIndex,
++      bounds: doc.layout.bounds, scroll: [doc.scrollOffsetX, doc.scrollOffsetY] })) });
++  } catch (e) { console.error('layout', e.message); }
+ }
+ 
+ await page.Page.enable();
++if (B) bEmit({ t: Date.now(), s: '', type: 'viewport', w: W, h: H });
+ await setupTarget('', targetId);
+ const pm0 = await page.Performance.enable().then(() => page.Performance.getMetrics());
+ const navStart = Date.now();

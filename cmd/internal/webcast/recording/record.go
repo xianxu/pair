@@ -88,6 +88,7 @@ type Pos [2]int64
 type Record interface {
 	Kind() string
 	Time() int64
+	SetTime(int64)
 	header() *Header
 	check() error
 }
@@ -98,7 +99,10 @@ type Header struct {
 	K string `json:"k"`
 }
 
-func (h *Header) Time() int64     { return h.T }
+func (h *Header) Time() int64 { return h.T }
+
+// SetTime places a record on the timeline (ms since the recording began).
+func (h *Header) SetTime(t int64) { h.T = t }
 func (h *Header) header() *Header { return h }
 
 // need is a check's one line: nil when ok, else "missing f".
