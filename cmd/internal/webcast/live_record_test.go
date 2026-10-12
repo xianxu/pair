@@ -66,7 +66,10 @@ document.getElementById('chk').checked = true;
 func serveRec(t *testing.T) (main, other string) {
 	t.Helper()
 	big := ".x{color:red}\n" + strings.Repeat("/* padding to pass the 10k cut */\n", 400) + ".tail{color:blue}"
-	png, _ := os.ReadFile(filepath.Join("recording", "testdata", "fixtures", "app", "frames", "0.png"))
+	png, err := os.ReadFile(filepath.Join("recording", "testdata", "fixtures", "app", "frames", "0.png"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	frameMux := http.NewServeMux()
 	frameMux.HandleFunc("/frame", func(w http.ResponseWriter, _ *http.Request) {
 		fmt.Fprint(w, `<!doctype html><body style="margin:0"><p id=in>in the frame</p><button id=fb>frame button</button></body>`)
@@ -143,10 +146,18 @@ func (h liveHarness) eval(t *testing.T, expr string, out any) {
 	if err := h.c.call(h.session(t, ""), "Runtime.evaluate", map[string]any{"expression": expr, "returnByValue": true}, &r); err != nil {
 		t.Fatal(err)
 	}
-	if p, ok := out.(*map[string]float64); ok && r.Result.Value != nil {
+	if p, ok := out.(*map[string]float64); ok {
+		obj, ok := r.Result.Value.(map[string]any)
+		if !ok {
+			t.Fatalf("%s: %v is not an object", expr, r.Result.Value)
+		}
 		*p = map[string]float64{}
-		for k, v := range r.Result.Value.(map[string]any) {
-			(*p)[k], _ = v.(float64)
+		for k, v := range obj {
+			f, ok := v.(float64)
+			if !ok {
+				t.Fatalf("%s: %s is %v", expr, k, v)
+			}
+			(*p)[k] = f
 		}
 	}
 }
@@ -238,7 +249,10 @@ func TestLiveRecording(t *testing.T) {
 	if errs := recording.Errors(fs); len(errs) != 0 {
 		t.Fatalf("%d errors", len(errs))
 	}
-	r, _ := recording.ReadDir(dir)
+	r, err := recording.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
 	all := ""
 	for _, name := range []string{recording.FileEvents, recording.FileFrames} {
 		all += string(r.Files[name])

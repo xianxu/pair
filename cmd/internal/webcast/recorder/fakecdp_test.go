@@ -34,6 +34,7 @@ type fnode struct {
 	shadow               *fnode
 	shadowType           string
 	parent, host         *fnode
+	frame                string // an iframe element's frame id
 }
 
 type fevent struct {
@@ -94,6 +95,9 @@ func (p *fakePage) cdp(n *fnode) map[string]any {
 	}
 	if n.attrs != nil {
 		m["attributes"] = n.attrs
+	}
+	if n.frame != "" {
+		m["frameId"] = n.frame
 	}
 	kids := []any{}
 	for _, k := range n.kids {
@@ -400,4 +404,16 @@ func attrOf(n *fnode, name string) string {
 		}
 	}
 	return ""
+}
+
+// byBackend finds a node by backend id.
+func (p *fakePage) byBackend(b int) *fnode {
+	var all []*fnode
+	p.all(p.doc, &all)
+	for _, n := range all {
+		if n.backend == b {
+			return n
+		}
+	}
+	return nil
 }

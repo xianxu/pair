@@ -136,10 +136,14 @@ type Recorder struct {
 	mu       sync.Mutex
 	queue    []stamped
 	events   int
-	overflow int // events dropped since the last resync
-	signal   chan struct{}
-	closing  bool
-	done     chan struct{}
+	overflow int // DOM events dropped since the last resync
+	lost     int // DOM events dropped in all
+	// counted losses outside the mirror, for Stats
+	assetsLost, framesLost int
+	final                  *Stats // Stats as the recording ended
+	signal                 chan struct{}
+	closing                bool
+	done                   chan struct{}
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -163,7 +167,9 @@ type Recorder struct {
 	loader   map[string]string // session -> its main frame's loader id
 	contexts map[string]map[int64]string
 	snapSeq  map[string]uint64 // session -> reply number of its last snapshot
-	resync   bool
+	// dirty: sessions to snapshot again after this input (a resync, a
+	// document update, a desync).
+	dirty    map[string]bool
 	headers  map[string]sheetHeader
 	requests map[string]netReq
 	shotN    int
@@ -201,7 +207,7 @@ func Start(opts Options) *Recorder {
 		assetQ: make(chan assetJob, sideQueue), shotQ: make(chan shotJob, 1),
 		m: newMirror(), parents: map[string]string{}, frameIDs: map[string]string{}, loader: map[string]string{},
 		contexts: map[string]map[int64]string{}, snapSeq: map[string]uint64{}, headers: map[string]sheetHeader{},
-		requests: map[string]netReq{},
+		requests: map[string]netReq{}, dirty: map[string]bool{},
 	}
 	r.side.Add(2)
 	go r.assetWorker()
@@ -210,20 +216,26 @@ func Start(opts Options) *Recorder {
 	return r
 }
 
-// Send queues an input; it never blocks. CDP events past MaxQueue are
-// dropped and counted; the recorder resyncs from a fresh snapshot, which
-// includes them. Other inputs are never dropped.
-func (r *Recorder) Send(in any) {
+// Send queues an input; it never blocks. DOM events past MaxQueue are
+// dropped and counted, and the recorder resyncs from a fresh snapshot, which
+// includes them. Nothing else is dropped: a lost context or observer report
+// couldn't be recovered by a snapshot.
+func (r *Recorder) Send(in any) { r.enqueue(in, true) }
+
+// enqueue is the one way into the queue: Send, ask and the side workers'
+// results. False once closing.
+func (r *Recorder) enqueue(in any, bounded bool) bool {
 	at := r.opts.Now()
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.closing {
-		return
+		return false
 	}
-	if _, ok := in.(Event); ok {
+	if e, ok := in.(Event); ok && bounded && strings.HasPrefix(e.Method, "DOM.") {
 		if r.events >= r.opts.MaxQueue {
 			r.overflow++
-			return
+			r.lost++
+			return true
 		}
 		r.events++
 	}
@@ -232,10 +244,13 @@ func (r *Recorder) Send(in any) {
 	case r.signal <- struct{}{}:
 	default:
 	}
+	return true
 }
 
 // Close ends the recording (a live segment gets stop end), closes the sink,
-// and returns once the recorder's goroutines are done. Idempotent.
+// and returns once the recorder's goroutines are done. Its error says what
+// went wrong: opening or writing the recording, or what it lost (Stats).
+// Idempotent.
 func (r *Recorder) Close() error {
 	r.mu.Lock()
 	if !r.closing {
@@ -254,23 +269,59 @@ func (r *Recorder) Close() error {
 type Stats struct {
 	Dropped  map[string]int // records the reducer refused, by kind
 	Desync   int            // events and reports naming nodes the mirror lacked
-	Overflow int            // events dropped over MaxQueue
+	Overflow int            // DOM events dropped over MaxQueue, not yet resynced
+	Lost     int            // DOM events dropped over MaxQueue in all
+	Assets   int            // asset bodies not captured (queue full, fetch or store failed)
+	Frames   int            // screenshots not kept
 	Examples []string
 }
 
-// Stats is answered on the recorder's goroutine.
+// Losses says what was lost, or "" when nothing was. Desync alone is not a
+// loss: a report racing a change names a node already gone.
+func (s Stats) Losses() string {
+	var parts []string
+	n := 0
+	for _, v := range s.Dropped {
+		n += v
+	}
+	if n > 0 {
+		parts = append(parts, fmt.Sprintf("%d records refused", n))
+	}
+	if s.Lost > 0 {
+		parts = append(parts, fmt.Sprintf("%d DOM events over the queue bound (resynced)", s.Lost))
+	}
+	if s.Assets > 0 {
+		parts = append(parts, fmt.Sprintf("%d assets not captured", s.Assets))
+	}
+	if s.Frames > 0 {
+		parts = append(parts, fmt.Sprintf("%d screenshots not kept", s.Frames))
+	}
+	return strings.Join(parts, ", ")
+}
+
+// Stats is answered on the recorder's goroutine; after Close, it is the
+// recording's final account.
 func (r *Recorder) Stats(ctx context.Context) (Stats, error) {
 	var s Stats
-	err := r.ask(ctx, func() {
-		s = Stats{Dropped: map[string]int{}, Desync: r.m.Desync, Examples: append([]string(nil), r.m.Examples...)}
-		for k, v := range r.m.Dropped {
-			s.Dropped[k] = v
-		}
-		r.mu.Lock()
-		s.Overflow = r.overflow
-		r.mu.Unlock()
-	})
+	err := r.ask(ctx, func() { s = r.stats() })
+	if errors.Is(err, errClosed) {
+		<-r.done
+		return *r.final, nil
+	}
 	return s, err
+}
+
+// stats is the current account; the loop's.
+func (r *Recorder) stats() Stats {
+	s := Stats{Dropped: map[string]int{}, Desync: r.m.Desync, Examples: append([]string(nil), r.m.Examples...),
+		Assets: r.assetsLost, Frames: r.framesLost}
+	for k, v := range r.m.Dropped {
+		s.Dropped[k] = v
+	}
+	r.mu.Lock()
+	s.Overflow, s.Lost = r.overflow, r.lost
+	r.mu.Unlock()
+	return s
 }
 
 // IDOf is the recording id of a session's node by backendNodeId (#467's
@@ -292,17 +343,9 @@ var errClosed = errors.New("recorder: closed")
 
 func (r *Recorder) ask(ctx context.Context, fn func()) error {
 	q := query{fn: fn, done: make(chan struct{})}
-	r.mu.Lock()
-	if r.closing {
-		r.mu.Unlock()
+	if !r.enqueue(q, false) {
 		return errClosed
 	}
-	r.queue = append(r.queue, stamped{q, r.opts.Now()})
-	select {
-	case r.signal <- struct{}{}:
-	default:
-	}
-	r.mu.Unlock()
 	select {
 	case <-q.done:
 		return nil
@@ -335,13 +378,13 @@ func (r *Recorder) run() {
 		in := r.queue[0]
 		r.queue[0] = stamped{}
 		r.queue = r.queue[1:]
-		if _, ok := in.in.(Event); ok {
+		if e, ok := in.in.(Event); ok && strings.HasPrefix(e.Method, "DOM.") {
 			r.events--
 		}
-		resync := r.overflow > 0 && !r.resync
+		overflowed := r.overflow > 0
 		r.mu.Unlock()
-		if resync {
-			r.resync = true
+		if overflowed {
+			r.markAll()
 		}
 		r.handle(in)
 		r.afterInput(in.at)
@@ -360,6 +403,11 @@ func (r *Recorder) run() {
 	// closed.
 	if r.sink != nil {
 		r.err = errors.Join(r.err, r.sink.Close())
+	}
+	final := r.stats()
+	r.final = &final
+	if loss := final.Losses(); loss != "" && r.opened {
+		r.err = errors.Join(r.err, fmt.Errorf("recording %s lost: %s", r.opts.ID, loss))
 	}
 }
 
@@ -411,33 +459,44 @@ func (r *Recorder) handle(in stamped) {
 	case Event:
 		r.event(in.at, v)
 	case assetDone:
-		if r.live {
+		// Whatever the phase: the asset table outlives segments, and a
+		// body fetched as a pause began is still the page's.
+		if r.opened {
 			r.m.Emit(r.t(in.at), v.r)
 		}
 	case shotDone:
 		r.shotDone(v)
+	case assetFailed:
+		r.assetsLost++
 	}
 }
 
 // afterInput fetches what the mirror asked for, resyncs when events were
 // lost, and writes what the mirror emitted.
 func (r *Recorder) afterInput(at time.Time) {
-	if r.live && r.resync {
-		r.resync = false
+	if r.live && len(r.dirty) > 0 {
 		r.mu.Lock()
 		lost := r.overflow
 		r.overflow = 0
 		r.mu.Unlock()
 		if lost > 0 {
-			r.opts.Logf("recorder: %d events over the queue bound; resyncing", lost)
+			r.opts.Logf("recorder: %d DOM events over the queue bound; resynced from a snapshot", lost)
 		}
-		r.resnapshot(at, r.top)
-		for s := range r.parents {
-			if r.casts(s) {
+		// One snapshot per session however many reasons it had (a resync, a
+		// document update, a desync); the page first, as a new document
+		// there means every frame comes again.
+		if r.dirty[r.top] {
+			if r.resnapshot(at, r.top) {
+				r.markAll()
+			}
+		}
+		for _, s := range r.castSessions()[1:] {
+			if r.dirty[s] {
 				r.frameSnapshot(at, s)
 			}
 		}
 	}
+	clear(r.dirty)
 	for len(r.m.Expand) > 0 {
 		e := r.m.Expand[0]
 		r.m.Expand = r.m.Expand[1:]
@@ -536,8 +595,13 @@ func (r *Recorder) goLive(at time.Time, l Live) {
 func (r *Recorder) snapshotTop(at time.Time, why string) {
 	root, key, err := r.document(r.top)
 	if err != nil {
-		r.opts.Logf("recorder: snapshot: %v", err)
+		r.opts.Logf("recorder: no snapshot of the cast tab (%v); the cast is not recorded until it goes live again", err)
 		r.live = false
+		if r.m.st.Live {
+			// A tab switch whose new tab can't be read: the previous
+			// segment ends here, never left open.
+			r.m.Emit(r.t(at), &rec.Stop{Why: rec.StopPause})
+		}
 		return
 	}
 	if why == rec.SegNavigate && r.m.SameDocument(r.top, key) && !r.m.st.Live {
@@ -578,10 +642,12 @@ func (r *Recorder) document(session string) (*cnode, string, error) {
 	return res.Root, fmt.Sprintf("%s:%d", r.loader[session], res.Root.BackendNodeID), nil
 }
 
-func (r *Recorder) resnapshot(at time.Time, session string) {
+// resnapshot takes the cast page's document again: the same document's
+// children (kids), or a new document's segment. True for a new segment.
+func (r *Recorder) resnapshot(at time.Time, session string) bool {
 	root, key, err := r.document(session)
 	if err != nil {
-		return
+		return false
 	}
 	if !r.m.SameDocument(session, key) {
 		// A new document: the top one is a new segment.
@@ -594,9 +660,10 @@ func (r *Recorder) resnapshot(at time.Time, session string) {
 		r.observe(session, true)
 		r.goAssets()
 		r.nextShot = time.Time{}
-		return
+		return true
 	}
 	r.m.Resnapshot(r.t(at), session, root)
+	return false
 }
 
 func (r *Recorder) frameSnapshot(at time.Time, session string) {
@@ -729,11 +796,7 @@ func (r *Recorder) event(at time.Time, e Event) {
 	}
 	switch e.Method {
 	case "DOM.documentUpdated":
-		if e.Session == r.top {
-			r.resnapshot(at, e.Session)
-		} else {
-			r.frameSnapshot(at, e.Session)
-		}
+		r.dirty[e.Session] = true
 	case "DOM.inlineStyleInvalidated":
 		var p struct {
 			IDs []int `json:"nodeIds"`
@@ -753,7 +816,7 @@ func (r *Recorder) event(at time.Time, e Event) {
 				}
 			}
 			if r.m.InlineStyle(t, e.Session, id, v) == errDesync {
-				r.resync = true
+				r.dirty[e.Session] = true
 			}
 		}
 	case "CSS.styleSheetAdded":
@@ -838,7 +901,7 @@ func (r *Recorder) event(at time.Time, e Event) {
 	default:
 		if strings.HasPrefix(e.Method, "DOM.") {
 			if r.m.Event(t, e.Session, e.Method, e.Params) == errDesync {
-				r.resync = true
+				r.dirty[e.Session] = true
 			}
 		}
 	}
@@ -956,11 +1019,9 @@ func (r *Recorder) binding(at time.Time, e Event) {
 			}
 			off = o
 		}
-		if r.m.Observe(t, e.Session, frame, it, off) == errStale && it.K != "click" {
-			// A report racing a change is normal; a click is worth a note,
-			// which the mirror has made. Neither needs a resync.
-			continue
-		}
+		// A stale report (racing a change) is counted by the mirror; it
+		// needs no resync: the DOM events carry the change.
+		r.m.Observe(t, e.Session, frame, it, off)
 	}
 }
 
@@ -1010,3 +1071,10 @@ const (
 	worldName   = "couchcast"
 	bindingName = "__couchcast"
 )
+
+// markAll schedules a snapshot of the cast page and every frame under it.
+func (r *Recorder) markAll() {
+	for _, s := range r.castSessions() {
+		r.dirty[s] = true
+	}
+}

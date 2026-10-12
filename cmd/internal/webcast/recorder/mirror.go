@@ -68,16 +68,21 @@ type msession struct {
 	// doc is the current document's key (the shell's: its loader id and
 	// root backend id). Backend ids can repeat across a cross-process
 	// navigation, so they alone don't say a document is the same one.
-	doc    string
-	nodes  map[int]*cnode // CDP nodeId -> node, current tree
-	ids    map[int]rec.NodeID
-	grave  []int      // backendNodeIds removed, oldest first
-	owner  rec.NodeID // an out-of-process frame: its iframe element
-	sheets map[string]rec.NodeID
+	doc   string
+	nodes map[int]*cnode // CDP nodeId -> node, current tree
+	// byBackend and frames index the current tree too, so per-event work
+	// is O(change), never a scan of the document.
+	byBackend map[int]*cnode
+	frames    map[string]*cnode // frame id -> its iframe element
+	ids       map[int]rec.NodeID
+	grave     []int      // backendNodeIds removed, oldest first
+	owner     rec.NodeID // an out-of-process frame: its iframe element
+	sheets    map[string]rec.NodeID
 }
 
 func newSession(id, frameID string, top bool) *msession {
-	return &msession{id: id, frameID: frameID, top: top, nodes: map[int]*cnode{}, ids: map[int]rec.NodeID{}, sheets: map[string]rec.NodeID{}}
+	return &msession{id: id, frameID: frameID, top: top, nodes: map[int]*cnode{}, byBackend: map[int]*cnode{},
+		frames: map[string]*cnode{}, ids: map[int]rec.NodeID{}, sheets: map[string]rec.NodeID{}}
 }
 
 // TextFetch names a text node whose value CDP truncated: the shell reads the
@@ -208,14 +213,7 @@ func (s *msession) bury(n *cnode) {
 	}
 }
 
-func (s *msession) liveBackend(b int) bool {
-	for _, n := range s.nodes {
-		if n.BackendNodeID == b {
-			return true
-		}
-	}
-	return false
-}
+func (s *msession) liveBackend(b int) bool { return s.byBackend[b] != nil }
 
 func walk(n *cnode, f func(*cnode)) {
 	if n == nil {
@@ -238,6 +236,12 @@ func (m *mirror) index(s *msession, n, parent, host *cnode, hidden bool) {
 	n.parent, n.host = parent, host
 	n.hidden = hidden || (n.NodeType == 1 && attr(n, controlAttr) != nil)
 	s.nodes[n.NodeID] = n
+	if n.BackendNodeID != 0 {
+		s.byBackend[n.BackendNodeID] = n
+	}
+	if n.NodeType == 1 && n.FrameID != "" {
+		s.frames[n.FrameID] = n
+	}
 	if n.ChildNodeCount > 0 && len(n.Children) == 0 && !n.hidden {
 		m.Expand = append(m.Expand, Expand{Session: s.id, NodeID: n.NodeID})
 	}
@@ -259,6 +263,12 @@ func (s *msession) forget(n *cnode) {
 	walk(n, func(c *cnode) {
 		if s.nodes[c.NodeID] == c {
 			delete(s.nodes, c.NodeID)
+		}
+		if s.byBackend[c.BackendNodeID] == c {
+			delete(s.byBackend, c.BackendNodeID)
+		}
+		if c.FrameID != "" && s.frames[c.FrameID] == c {
+			delete(s.frames, c.FrameID)
 		}
 	})
 }
@@ -410,16 +420,10 @@ func (m *mirror) FullText(t int64, session string, backend int, text string) {
 	if s == nil {
 		return
 	}
-	for _, n := range s.nodes {
-		if n.BackendNodeID == backend && (n.NodeType == 3 || n.NodeType == 4) {
-			if n.NodeValue == text {
-				return
-			}
-			n.NodeValue = text
-			if m.visible(s, n) {
-				m.emit(t, &rec.Text{ID: m.idOf(s, n), V: text})
-			}
-			return
+	if n := s.byBackend[backend]; n != nil && (n.NodeType == 3 || n.NodeType == 4) && n.NodeValue != text {
+		n.NodeValue = text
+		if m.visible(s, n) {
+			m.emit(t, &rec.Text{ID: m.idOf(s, n), V: text})
 		}
 	}
 }
@@ -517,6 +521,11 @@ func (m *mirror) SameDocument(session, key string) bool {
 func (m *mirror) install(s *msession, root *cnode, key string) {
 	if s.root != nil {
 		s.forget(s.root)
+		if key != "" && key == s.doc {
+			// The same document again: nodes it no longer has go to the
+			// graveyard, so the id map stays bounded.
+			s.bury(s.root)
+		}
 	}
 	if key == "" || key != s.doc {
 		s.ids, s.grave, s.sheets = map[int]rec.NodeID{}, nil, map[string]rec.NodeID{}
@@ -526,9 +535,9 @@ func (m *mirror) install(s *msession, root *cnode, key string) {
 }
 
 // Seg emits a segment start and the top document's snapshot, then its
-// frames. Every session's tree is dropped: the segment starts from nothing
-// (the reducer drops all DOM state), and out-of-process frames come again
-// through FrameDoc.
+// in-process frames. Out-of-process frames' trees are dropped (the reducer
+// drops all DOM state at a segment): they come again through FrameDoc, once
+// each, after this.
 func (m *mirror) Seg(t int64, seg *rec.Seg, session string, root *cnode, key string) error {
 	s := m.sessions[session]
 	if s == nil || !s.top {
@@ -538,6 +547,10 @@ func (m *mirror) Seg(t int64, seg *rec.Seg, session string, root *cnode, key str
 		if o != s {
 			// One cast page at a time; frames come again through FrameDoc.
 			o.top, o.owner = false, 0
+			if o.root != nil {
+				o.forget(o.root)
+				o.root = nil
+			}
 		}
 	}
 	m.install(s, root, key)
@@ -594,11 +607,9 @@ func (m *mirror) frameOwner(frameID string) rec.NodeID {
 		if !m.visible(o, o.root) {
 			continue
 		}
-		for _, n := range o.nodes {
-			if n.FrameID == frameID && n.NodeType == 1 && m.visible(o, n) {
-				if id, ok := o.ids[n.BackendNodeID]; ok && m.st.Node(id) != nil {
-					return id
-				}
+		if n := o.frames[frameID]; n != nil && m.visible(o, n) {
+			if id, ok := o.ids[n.BackendNodeID]; ok && m.st.Node(id) != nil {
+				return id
 			}
 		}
 	}
@@ -648,9 +659,15 @@ func (m *mirror) Event(t int64, session, method string, params json.RawMessage) 
 		}
 		get("previousNodeId", &prevID)
 		at := 0
-		for i, k := range parent.Children {
-			if k.NodeID == prevID {
-				at = i + 1
+		if prevID != 0 {
+			at = -1
+			for i, k := range parent.Children {
+				if k.NodeID == prevID {
+					at = i + 1
+				}
+			}
+			if at < 0 {
+				return desync() // never guess a position
 			}
 		}
 		parent.Children = append(parent.Children[:at], append([]*cnode{&n}, parent.Children[at:]...)...)
@@ -693,6 +710,7 @@ func (m *mirror) Event(t int64, session, method string, params json.RawMessage) 
 		}
 		for _, k := range parent.Children {
 			s.forget(k)
+			s.bury(k)
 		}
 		parent.Children = kids
 		for _, k := range kids {

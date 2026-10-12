@@ -59,16 +59,14 @@ func (p *pathOffset) UnmarshalJSON(b []byte) error {
 // frameDoc is the document node of a frame in a session: the session's own,
 // or an in-process iframe's content document.
 func (s *msession) frameDoc(frameID string) *cnode {
-	if s.root == nil {
-		return nil
+	if s.root == nil || frameID == "" {
+		return nil // an unknown frame names nothing
 	}
-	if s.frameID == frameID || frameID == "" {
+	if s.frameID == frameID {
 		return s.root
 	}
-	for _, n := range s.nodes {
-		if n.NodeType == 1 && n.FrameID == frameID && n.ContentDocument != nil {
-			return n.ContentDocument
-		}
+	if n := s.frames[frameID]; n != nil {
+		return n.ContentDocument
 	}
 	return nil
 }

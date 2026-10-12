@@ -36,7 +36,7 @@ func TestCastRecordsToDirAndViewers(t *testing.T) {
 	if got == nil || got.ID == "" || got.Out == nil {
 		t.Fatalf("record options %+v", got)
 	}
-	if entries, _ := os.ReadDir(dir); len(entries) != 0 {
+	if entries, err := os.ReadDir(dir); err != nil || len(entries) != 0 {
 		t.Fatal("nothing is created before go-live")
 	}
 	srv := httptest.NewServer(c.server)

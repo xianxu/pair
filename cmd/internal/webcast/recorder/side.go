@@ -37,13 +37,13 @@ func (r *Recorder) queueAsset(j assetJob) {
 		return
 	}
 	j.store = r.assets
-	if a, ok := r.assets.Lookup(j.url); ok && a != nil && j.requestID == "" {
-		return // already stored, and not a fresh response
+	if _, ok := r.m.st.Assets[j.url]; ok && j.requestID == "" {
+		return // already in this recording, and not a fresh response
 	}
 	select {
 	case r.assetQ <- j:
 	default:
-		r.opts.Logf("recorder: asset queue full; %s not captured", j.url)
+		r.assetsLost++ // reported in Stats, not one line per asset
 	}
 }
 
@@ -95,9 +95,9 @@ func (r *Recorder) assetWorker() {
 	defer r.side.Done()
 	for j := range r.assetQ {
 		var res struct {
-			Body string `json:"body"`
-			// getResponseBody says base64Encoded, getResourceContent base64Encoded too.
-			B64 bool `json:"base64Encoded"`
+			Body    string `json:"body"`    // Network.getResponseBody
+			Content string `json:"content"` // Page.getResourceContent
+			B64     bool   `json:"base64Encoded"`
 		}
 		var err error
 		if j.requestID != "" {
@@ -105,18 +105,20 @@ func (r *Recorder) assetWorker() {
 		} else {
 			_, err = r.call(j.session, "Page.getResourceContent", map[string]any{"frameId": j.frameID, "url": j.url}, &res)
 		}
-		if err != nil {
-			continue
+		text := res.Body
+		if j.requestID == "" {
+			text = res.Content
 		}
-		body := []byte(res.Body)
-		if res.B64 {
-			if body, err = base64.StdEncoding.DecodeString(res.Body); err != nil {
-				continue
-			}
+		body := []byte(text)
+		if err == nil && res.B64 {
+			body, err = base64.StdEncoding.DecodeString(text)
 		}
-		a, err := j.store.Put(r.ctx, assets.Capture{URL: j.url, MIME: j.mime, Body: body})
+		var a *rec.Asset
+		if err == nil {
+			a, err = j.store.Put(r.ctx, assets.Capture{URL: j.url, MIME: j.mime, Body: body})
+		}
 		if err != nil {
-			r.opts.Logf("recorder: asset %s: %v", j.url, err)
+			r.post(assetFailed{})
 			continue
 		}
 		r.post(assetDone{a})
@@ -124,18 +126,10 @@ func (r *Recorder) assetWorker() {
 }
 
 // post queues a side worker's result.
-func (r *Recorder) post(in any) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.closing {
-		return
-	}
-	r.queue = append(r.queue, stamped{in, r.opts.Now()})
-	select {
-	case r.signal <- struct{}{}:
-	default:
-	}
-}
+func (r *Recorder) post(in any) { r.enqueue(in, false) }
+
+// assetFailed: a body couldn't be fetched or stored; counted.
+type assetFailed struct{}
 
 // maybeShot asks for a screenshot and layout when one is due.
 func (r *Recorder) maybeShot(now time.Time) {
@@ -239,7 +233,7 @@ func (r *Recorder) shotDone(d shotDone) {
 		return
 	}
 	if d.failed != nil {
-		r.opts.Logf("recorder: %v", d.failed)
+		r.framesLost++
 		return
 	}
 	t := r.t(d.at)
@@ -249,15 +243,21 @@ func (r *Recorder) shotDone(d shotDone) {
 	f := &rec.Frame{File: fmt.Sprintf("frames/%d.png", r.shotN), W: d.w, H: d.h, Scale: d.scale}
 	f.SetTime(t)
 	if err := r.frames.PutFrame(f, d.png); err != nil {
-		r.opts.Logf("recorder: frame: %v", err)
+		r.framesLost++
 		return
 	}
 	r.shotN++
 	boxes := map[rec.NodeID]rec.Box{}
 	for _, doc := range d.docs {
-		off, ok := r.frameOffset(doc.session, doc.frameID, 0)
-		if !ok {
-			continue
+		// The top document's bounds are page coordinates already; a frame's
+		// are its own document's, mapped through its viewport's place in
+		// the top page.
+		off := doc.scroll
+		if !(doc.session == r.top && doc.frameID == r.frameIDs[r.top]) {
+			var ok bool
+			if off, ok = r.frameOffset(doc.session, doc.frameID, 0); !ok {
+				continue
+			}
 		}
 		for i, b := range doc.backend {
 			id, ok := r.m.IDOf(doc.session, b)

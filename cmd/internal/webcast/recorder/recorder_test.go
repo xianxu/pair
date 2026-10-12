@@ -21,6 +21,9 @@ type fakeChrome struct {
 	pages  map[string]*fakePage
 	loader map[string]string
 	calls  []string
+	// more answers the methods a test needs beyond these (nil, false: the
+	// default empty reply).
+	more func(session, method string, params map[string]any, p *fakePage) (any, error, bool)
 }
 
 func newFakeChrome() *fakeChrome {
@@ -51,6 +54,18 @@ func (f *fakeChrome) CallSeq(ctx context.Context, session, method string, params
 		reply = map[string]any{"frameTree": map[string]any{"frame": map[string]any{"id": p.frameID, "loaderId": loader}}}
 	case "Page.getLayoutMetrics":
 		reply = map[string]any{"cssLayoutViewport": map[string]any{"clientWidth": 1000, "clientHeight": 700}}
+	default:
+		if f.more != nil {
+			var pm map[string]any
+			b, _ := json.Marshal(params)
+			json.Unmarshal(b, &pm)
+			if r, err, ok := f.more(session, method, pm, p); ok {
+				if err != nil {
+					return f.next(), err
+				}
+				reply = r
+			}
+		}
 	}
 	seq := f.next()
 	if result != nil {
@@ -129,7 +144,10 @@ func (h *harness) validate() {
 	if errs := rec.Errors(fs); len(errs) != 0 {
 		h.t.Fatalf("invalid recording: %v\n%s", errs, h.kinds())
 	}
-	st, _ := h.r.Stats(context.Background())
+	st, err := h.r.Stats(context.Background())
+	if err != nil {
+		h.t.Fatal(err)
+	}
 	if len(st.Dropped) != 0 {
 		h.t.Fatalf("dropped %v: %v", st.Dropped, st.Examples)
 	}
@@ -139,7 +157,7 @@ func (h *harness) validate() {
 // navigation while paused, a tab switch, end.
 func TestRecorderSegments(t *testing.T) {
 	h := newHarness(t)
-	a := h.page("A", "http://a/", "L1")
+	h.page("A", "http://a/", "L1")
 	h.page("B", "http://b/", "L9")
 	if h.settle(); h.out.opened != 0 {
 		t.Fatal("nothing opens before go-live")
@@ -154,7 +172,6 @@ func TestRecorderSegments(t *testing.T) {
 	h.fc.mu.Lock()
 	h.fc.loader["A"] = "L2"
 	h.fc.mu.Unlock()
-	_ = a
 	h.r.Send(Live{Tab: rec.Tab{ID: "T-A"}, Session: "A"})
 	h.r.Send(Live{Tab: rec.Tab{ID: "T-B"}, Session: "B"}) // tab switch while live
 	h.settle()
@@ -249,9 +266,9 @@ func TestRecorderOverflowResyncs(t *testing.T) {
 	close(gate)
 	h.r.Send(Live{Tab: rec.Tab{ID: "T-A"}, Session: "A"})
 	h.settle()
-	slow.hold() // the recorder is busy: events pile up
-	h.r.Send(Event{Session: "A", Method: "DOM.childNodeCountUpdated", Seq: h.fc.next(), Params: raw(map[string]any{})})
-	time.Sleep(20 * time.Millisecond)
+	slow.hold() // the recorder is busy in a call: events pile up
+	h.r.Send(Event{Session: "A", Method: "DOM.inlineStyleInvalidated", Seq: h.fc.next(), Params: raw(map[string]any{"nodeIds": []int{p.body().nodeID}})})
+	slow.waitEntered(t)
 	for i := 0; i < 20; i++ {
 		p.insert(p.body(), nil, p.el("li"))
 	}
@@ -259,40 +276,69 @@ func TestRecorderOverflowResyncs(t *testing.T) {
 	slow.release()
 	h.settle()
 	h.settle()
-	st, _ := h.r.Stats(context.Background())
-	if st.Overflow != 0 {
-		t.Fatalf("overflow not resynced: %+v", st)
+	st, err := h.r.Stats(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Lost == 0 || st.Overflow != 0 {
+		t.Fatalf("want events lost over the bound, then resynced: %+v", st)
+	}
+	if !strings.Contains(st.Losses(), "over the queue bound") {
+		t.Errorf("losses: %q", st.Losses())
 	}
 	h.validate()
-	s, _ := rec.Reduce(h.out.sink.Records(), 1<<62)
+	s, err := rec.Reduce(h.out.sink.Records(), 1<<62)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := sameTree(p.doc, s.Top, "doc"); err != nil {
 		t.Fatalf("after resync: %v\n%s", err, h.kinds())
 	}
 }
 
-// gatedCaller can hold every call until released.
+// gatedCaller can hold every call until released, and says when the
+// recorder is inside a held call: the injected interleaving (ARCH-ORDER).
 type gatedCaller struct {
 	*fakeChrome
-	mu   sync.Mutex
-	gate chan struct{}
+	mu      sync.Mutex
+	gate    chan struct{}
+	held    bool
+	entered chan struct{}
 }
 
 func (g *gatedCaller) hold() {
 	g.mu.Lock()
-	g.gate = make(chan struct{})
+	g.gate, g.held, g.entered = make(chan struct{}), true, make(chan struct{}, 1)
 	g.mu.Unlock()
 }
 
 func (g *gatedCaller) release() {
 	g.mu.Lock()
 	close(g.gate)
+	g.held = false
 	g.mu.Unlock()
+}
+
+// waitEntered returns once the recorder is blocked in a held call.
+func (g *gatedCaller) waitEntered(t *testing.T) {
+	t.Helper()
+	select {
+	case <-g.entered:
+	case <-time.After(3 * time.Second):
+		t.Fatal("the recorder never made a call")
+	}
 }
 
 func (g *gatedCaller) CallSeq(ctx context.Context, session, method string, params, result any) (uint64, error) {
 	g.mu.Lock()
-	gate := g.gate
+	gate, held, entered := g.gate, g.held, g.entered
 	g.mu.Unlock()
+	if held {
+		select {
+		case entered <- struct{}{}:
+		default:
+		}
+	}
 	<-gate
 	return g.fakeChrome.CallSeq(ctx, session, method, params, result)
 }

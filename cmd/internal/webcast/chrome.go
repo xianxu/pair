@@ -514,8 +514,13 @@ func (c *Chrome) tellRecorder(s *loopState, tab Tab, ok bool) {
 	if c.rec == nil {
 		return
 	}
+	if s.phase == PhaseLive && !ok {
+		// No page for a moment: a new one becomes the cast tab (seg tab),
+		// or Chrome ends after noPagesGrace (stop end). Not a pause.
+		return
+	}
 	cast := ""
-	if s.phase == PhaseLive && ok {
+	if s.phase == PhaseLive {
 		cast = tab.ID
 	}
 	if cast != s.recTab {
@@ -551,7 +556,7 @@ func (c *Chrome) finish(s *loopState) {
 	if c.rec != nil {
 		// Before the pipe closes: the recording ends with stop end.
 		if err := c.rec.Close(); err != nil && c.opts.Record.Logf != nil {
-			c.opts.Record.Logf("webcast: recording: %v", err)
+			c.opts.Record.Logf("%v", err)
 		}
 	}
 	c.conn.Close()

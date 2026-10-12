@@ -31,6 +31,9 @@ type CastConfig struct {
 	// NewAssets makes a recording's asset store (#459), persisting bodies
 	// through the recording's DirWriter; nil records no assets.
 	NewAssets func(recording.AssetWriter) castassets.Store
+	// Logf reports a recording's problems to the operator: one that can't
+	// be opened or written, a resync, and at its end what it lost.
+	Logf func(format string, args ...any)
 	// Host is the endpoint shared with the screen broadcast.
 	Host *broadcast.Host
 	// Ping is the viewers' keepalive; zero is broadcast.DefaultPing.
@@ -72,7 +75,7 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 			liveSink, live = cfg.NewLive()
 		}
 		id := recordingID(time.Now())
-		ro = &RecordOptions{ID: id, Out: recordingOutput(cfg, liveSink, id)}
+		ro = &RecordOptions{ID: id, Out: recordingOutput(cfg, liveSink, id), Logf: cfg.Logf}
 	}
 	b, err := cfg.Launch(ctx, ro)
 	if err != nil {
