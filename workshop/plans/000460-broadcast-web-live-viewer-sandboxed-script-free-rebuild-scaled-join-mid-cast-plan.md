@@ -120,3 +120,8 @@ Go side:
 - Fixes get tests that fail without them: `TestLiveRenderResolvesPerDocument` (a synthetic recording: a frame's
   `<style>` resolves against the frame's URL; `<feImage href>` goes through the asset table), mutation-checked.
 - The node test's JS copy of `CatchUp` is gone. Joining is checked against Go's `CatchUp` in headless Chrome.
+
+### 2026-10-12 — after close (review advisory BR-12)
+- Retracted: the Lifecycle line's "~1.4 MB/min on the stress page" for the Hub log. Within a segment the Hub keeps
+  every hover and ptr, so that figure (measured before those kinds existed) is no bound. It stays bounded by one
+  segment and freed at each `seg` and with the cast. Latest-only hover and ptr in `CatchUp` is #458's (TL, 10-12).

@@ -1150,5 +1150,6 @@ proof; record the surprising case so the next change starts from evidence.
 - **A contract changed in a fix round moves with every restatement (#460 close review).** BR-1 added a method to
   `recording.Live`, and the atlas still described the old behaviour on the next round. When a fix changes what a
   seam promises, grep the seam's name and its old wording across atlas, plan and doc comments, and rewrite each in
-  the same commit. The same holds for the reason a channel closed: the source records it under its lock rather than
-  leaving consumers to infer it from timing.
+  the same commit. The same holds for a retracted figure (a size bound, a measurement): grep its distinctive wording
+  ("1.4 MB") and correct every hit, the plan included, in the fix that retracts it. And the reason a channel closed
+  is recorded by the source under its lock, not inferred by consumers from timing.
