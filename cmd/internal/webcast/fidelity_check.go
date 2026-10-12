@@ -39,6 +39,12 @@ const ReplayWindow = 1000
 // recording through a ReplayServer on loopback and needs Chrome at
 // chromeBin; the Chrome and its profile are gone when it returns.
 func CheckFidelity(ctx context.Context, chromeBin, dir string) (fidelity.Report, error) {
+	return checkFidelity(ctx, chromeBin, dir, fidelity.Offsets)
+}
+
+// checkFidelity compares each frame at offsets (fidelity.Offsets; the
+// tests add the prototype fixtures' observer lag, as #472's do).
+func checkFidelity(ctx context.Context, chromeBin, dir string, offsets []int64) (fidelity.Report, error) {
 	abs, err := filepath.Abs(dir)
 	if err == nil {
 		abs, err = filepath.EvalSymlinks(abs)
@@ -85,7 +91,10 @@ func CheckFidelity(ctx context.Context, chromeBin, dir string) (fidelity.Report,
 		if err != nil {
 			return fidelity.Report{}, err
 		}
-		shot, got, live, err := b.score(ctx, f, tab)
+		// The moments to compare at, kept in the frame's own segment (#472's
+		// one rule): t first.
+		times := recording.FrameTimes(rec.Records, f.T, offsets)
+		shot, got, live, err := b.score(ctx, f, tab, times)
 		if err != nil {
 			return fidelity.Report{}, fmt.Errorf("fidelity: %s at t=%d: %w", f.File, f.T, err)
 		}
@@ -293,18 +302,24 @@ func (h *headless) open(ctx context.Context, url string) error {
 	}
 }
 
-// score replays f's moment and diffs it with the tab's frame; over the
-// tolerance, it tries fidelity.Retries and keeps the best. It returns the
-// shot and its replay; live is false when nothing live was drawn at t.
-func (h *headless) score(ctx context.Context, f *recording.Frame, tabPNG []byte) (fidelity.Shot, []byte, bool, error) {
+// score replays f's moments (times: t first, then the other offsets, as
+// recording.FrameTimes keeps them) and diffs each with the tab's frame,
+// stopping at the first within the tolerance and keeping the best. It
+// returns the shot and its replay; live is false when nothing live was
+// drawn at t.
+func (h *headless) score(ctx context.Context, f *recording.Frame, tabPNG []byte, times []int64) (fidelity.Shot, []byte, bool, error) {
 	shot := fidelity.Shot{File: f.File, T: f.T}
+	if len(times) == 0 || times[0] != f.T {
+		return shot, nil, false, nil // before any segment
+	}
 	tab, err := png.Decode(bytes.NewReader(tabPNG))
 	if err != nil {
 		return shot, nil, false, fmt.Errorf("the tab's frame: %w", err)
 	}
 	var best []byte
-	for _, off := range append([]int64{0}, fidelity.Retries...) {
-		got, live, err := h.replayFrame(ctx, f, f.T+off)
+	for _, at := range times {
+		off := at - f.T
+		got, live, err := h.replayFrame(ctx, f, at)
 		if err != nil {
 			return shot, nil, false, err
 		}

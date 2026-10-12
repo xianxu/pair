@@ -185,3 +185,8 @@ clock/feed, as `replay.test.mjs` does with fakes).
 - As built: `WriteReport` is `fidelity.Write` (plus `Report.Summary`, `Within`, `Markdown`). The hook's test is in
   `record_cast_test.go`. A segment that isn't a navigation finishes its document's animations (found on the live
   blog cast). The report keeps `offset` and `at_t`. Frame records are validated (`frameViewport`) before use.
+- 2026-10-12 (after merging #472): the retries above are superseded. Frames are compared at `fidelity.Offsets` =
+  t, t − 50 ms (#472's measured capture skew), through `recording.FrameTimes`. A later moment would hide a late
+  recorder (pair#475 on rec-stress frame 0). The live test covers every fixture with frames and honours #472's
+  `knownGaps`.
+

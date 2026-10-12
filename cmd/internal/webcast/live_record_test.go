@@ -2,6 +2,7 @@ package webcast
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -88,8 +89,9 @@ func serveRec(t *testing.T) (main, other string) {
 	return "http://" + l.Addr().String(), other
 }
 
-// liveRecordingChrome launches a recording Chrome into dir.
-func liveRecordingChrome(t *testing.T, dir string) *Chrome {
+// liveRecordingChrome launches a recording Chrome into dir, screenshotting
+// every shotEvery.
+func liveRecordingChrome(t *testing.T, dir string, shotEvery time.Duration) *Chrome {
 	t.Helper()
 	if os.Getenv("WEBCAST_LIVE_CHROME") == "" {
 		t.Skip("set WEBCAST_LIVE_CHROME=1 to drive a real Chrome")
@@ -108,7 +110,7 @@ func liveRecordingChrome(t *testing.T, dir string) *Chrome {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	c, err := Launch(ctx, LaunchOptions{Binary: bin, ProfileDir: t.TempDir(), Headless: true,
-		Record: &RecordOptions{ID: "live", Out: out, ShotEvery: time.Second, Logf: t.Logf}})
+		Record: &RecordOptions{ID: "live", Out: out, ShotEvery: shotEvery, Logf: t.Logf}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +182,7 @@ func (h liveHarness) typeText(t *testing.T, sel, text string) {
 //	WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run LiveRecording -v
 func TestLiveRecording(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "rec")
-	c := liveRecordingChrome(t, dir)
+	c := liveRecordingChrome(t, dir, time.Second)
 	h := liveHarness{c}
 	mainURL, _ := serveRec(t)
 	if err := c.call(h.session(t, ""), "Page.navigate", map[string]any{"url": mainURL + "/"}, nil); err != nil {
@@ -301,7 +303,95 @@ func TestLiveRecordURL(t *testing.T) {
 	if url == "stress" {
 		url = serveStress(t)
 	}
-	c := liveRecordingChrome(t, out)
+	scenario := scenarios[os.Getenv("WEBCAST_RECORD_SCENARIO")]
+	if scenario == nil {
+		scenario = scenarios["idle"]
+	}
+	recordScenario(t, url, out, secs, time.Second, scenario)
+}
+
+// A scenario drives the cast tab (#453's scenarios.mjs, plus segments).
+type scenario func(t *testing.T, h liveHarness, s string)
+
+var scenarios = map[string]scenario{
+	"idle": func(*testing.T, liveHarness, string) {},
+	"browse": func(t *testing.T, h liveHarness, s string) {
+		time.Sleep(1500 * time.Millisecond)
+		for i := 0; i < 6; i++ {
+			h.wheel(t, s, 500)
+			time.Sleep(900 * time.Millisecond)
+		}
+		h.wheel(t, s, -1500)
+	},
+	"app": func(t *testing.T, h liveHarness, s string) {
+		pause := func(ms int) { time.Sleep(time.Duration(ms) * time.Millisecond) }
+		pause(2000)
+		h.click(t, s, "#nav-tasks")
+		pause(800)
+		h.click(t, s, "#draft")
+		h.typeSlowly(t, s, "Review PR 42")
+		h.key(t, s, "Enter")
+		pause(1200)
+		h.click(t, s, "#search")
+		h.typeSlowly(t, s, "fix")
+		pause(1500)
+		for i := 0; i < 3; i++ {
+			h.key(t, s, "Backspace")
+			pause(100)
+		}
+		h.click(t, s, "li input[type=checkbox]")
+		pause(800)
+		h.click(t, s, "#nav-settings")
+		pause(800)
+		h.wheel(t, s, 400)
+		pause(800)
+		h.click(t, s, "#open-modal")
+		pause(1500)
+		h.click(t, s, "#close-modal")
+		pause(800)
+		h.click(t, s, "#nav-dashboard")
+		pause(2500)
+		h.click(t, s, "#next-doc")
+		pause(2500)
+	},
+	// segments: a same-document navigation, a pause with a change while
+	// paused, a resume, a new tab (the cast follows it), and a
+	// cross-document navigation there.
+	"segments": func(t *testing.T, h liveHarness, s string) {
+		time.Sleep(time.Second)
+		h.eval(t, `history.pushState({}, '', '#week-3')`, nil)
+		time.Sleep(time.Second)
+		if err := h.c.SetLive(false); err != nil {
+			t.Fatal(err)
+		}
+		h.eval(t, `document.querySelector('h1').textContent = 'Reports (changed while paused)'`, nil)
+		time.Sleep(700 * time.Millisecond)
+		if err := h.c.SetLive(true); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(time.Second)
+		var r struct {
+			TargetID string `json:"targetId"`
+		}
+		var u string
+		h.evalInto(t, s, `location.href.replace(/#.*/, '')`, &u)
+		if err := h.c.call("", "Target.createTarget", map[string]any{"url": u + "?tab=2"}, &r); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(1500 * time.Millisecond)
+		s2 := h.session(t, r.TargetID)
+		if err := h.c.call(s2, "Page.navigate", map[string]any{"url": strings.Replace(u, "app2.html", "app.html", 1)}, nil); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(2 * time.Second)
+	},
+}
+
+// recordScenario records url at #453's 1280×800 into out for secs while
+// the scenario runs, and holds the result to the validator.
+func recordScenario(t *testing.T, url, out string, secs, shotEvery time.Duration, run scenario) {
+	t.Helper()
+	c := liveRecordingChrome(t, out, shotEvery)
 	h := liveHarness{c}
 	s := h.session(t, "")
 	if err := c.call(s, "Emulation.setDeviceMetricsOverride", map[string]any{"width": 1280, "height": 800, "deviceScaleFactor": 1, "mobile": false}, nil); err != nil {
@@ -315,19 +405,7 @@ func TestLiveRecordURL(t *testing.T) {
 		t.Fatal(err)
 	}
 	start := time.Now()
-	if os.Getenv("WEBCAST_RECORD_SCENARIO") == "browse" {
-		wheel := func(dy float64) {
-			if err := c.call(s, "Input.dispatchMouseEvent", map[string]any{"type": "mouseWheel", "x": 640, "y": 400, "deltaX": 0, "deltaY": dy}, nil); err != nil {
-				t.Fatal(err)
-			}
-		}
-		time.Sleep(1500 * time.Millisecond)
-		for i := 0; i < 6; i++ {
-			wheel(500)
-			time.Sleep(900 * time.Millisecond)
-		}
-		wheel(-1500)
-	}
+	run(t, h, s)
 	time.Sleep(secs - time.Since(start))
 	stats, err := c.rec.Stats(context.Background())
 	if err != nil {
@@ -345,6 +423,130 @@ func TestLiveRecordURL(t *testing.T) {
 	if errs := recording.Errors(fs); len(errs) != 0 {
 		t.Fatalf("invalid: %v", errs)
 	}
+}
+
+func (h liveHarness) evalInto(t *testing.T, s, expr string, out any) {
+	t.Helper()
+	var r struct {
+		Result struct {
+			Value json.RawMessage `json:"value"`
+		} `json:"result"`
+	}
+	if err := h.c.call(s, "Runtime.evaluate", map[string]any{"expression": expr, "returnByValue": true}, &r); err != nil {
+		t.Fatal(err)
+	}
+	if out != nil {
+		if err := json.Unmarshal(r.Result.Value, out); err != nil {
+			t.Fatalf("%s: %v", expr, err)
+		}
+	}
+}
+
+func (h liveHarness) input(t *testing.T, s, method string, p map[string]any) {
+	t.Helper()
+	if err := h.c.call(s, method, p, nil); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func (h liveHarness) wheel(t *testing.T, s string, dy float64) {
+	h.input(t, s, "Input.dispatchMouseEvent", map[string]any{"type": "mouseWheel", "x": 640, "y": 400, "deltaX": 0, "deltaY": dy})
+}
+
+// click scrolls the element into view as #453's scenarios do and clicks
+// its center with real mouse input.
+func (h liveHarness) click(t *testing.T, s, sel string) {
+	t.Helper()
+	var p []float64
+	h.evalInto(t, s, fmt.Sprintf(`(() => { const e = document.querySelector(%q); if (!e) return null; e.scrollIntoView({block:'nearest'}); const b = e.getBoundingClientRect(); return [b.x + b.width/2, b.y + b.height/2]; })()`, sel), &p)
+	if len(p) != 2 {
+		t.Fatalf("no element %s", sel)
+	}
+	h.input(t, s, "Input.dispatchMouseEvent", map[string]any{"type": "mouseMoved", "x": p[0], "y": p[1]})
+	for _, typ := range []string{"mousePressed", "mouseReleased"} {
+		h.input(t, s, "Input.dispatchMouseEvent", map[string]any{"type": typ, "x": p[0], "y": p[1], "button": "left", "clickCount": 1})
+	}
+}
+
+func (h liveHarness) typeSlowly(t *testing.T, s, text string) {
+	for _, ch := range text {
+		h.input(t, s, "Input.insertText", map[string]any{"text": string(ch)})
+		time.Sleep(60 * time.Millisecond)
+	}
+}
+
+func (h liveHarness) key(t *testing.T, s, k string) {
+	code := map[string]int{"Enter": 13, "Backspace": 8}[k]
+	for _, typ := range []string{"keyDown", "keyUp"} {
+		h.input(t, s, "Input.dispatchKeyEvent", map[string]any{"type": typ, "key": k, "code": k, "windowsVirtualKeyCode": code})
+	}
+}
+
+// TestRecordFixtures records the raw runs behind the real-recorder
+// fixtures (rec-*, #472) into WEBCAST_FIXTURE_RUNS; fixturegen -recorded
+// turns each into a fixture (see the fixtures' README):
+//
+//	WEBCAST_LIVE_CHROME=1 WEBCAST_FIXTURE_RUNS=DIR WEBCAST_APP_PAGES=PAGES \
+//	  WEBCAST_BLOG_URL=http://localhost:4321/2026/10/ariadne-1-building-blocks-of-ai-coding \
+//	  go test ./cmd/internal/webcast -run RecordFixtures -v
+//
+// PAGES is #453's prototypes/broadcast-web-recorder/pages with its assets
+// set up. A run whose source isn't given is skipped.
+func TestRecordFixtures(t *testing.T) {
+	runs := os.Getenv("WEBCAST_FIXTURE_RUNS")
+	if runs == "" {
+		t.Skip("set WEBCAST_FIXTURE_RUNS")
+	}
+	if err := os.MkdirAll(runs, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	app := ""
+	if pages := os.Getenv("WEBCAST_APP_PAGES"); pages != "" {
+		app = serveDir(t, pages)
+	}
+	for _, r := range []struct {
+		name, url, scenario string
+		secs                time.Duration
+	}{
+		{"stress", "stress", "idle", 5 * time.Second},
+		{"app", app + "/app.html", "app", 22 * time.Second},
+		{"blog", os.Getenv("WEBCAST_BLOG_URL"), "browse", 12 * time.Second},
+		{"segments", app + "/app2.html", "segments", 9 * time.Second},
+	} {
+		t.Run(r.name, func(t *testing.T) {
+			url := r.url
+			switch {
+			case url == "stress":
+				url = serveStress(t)
+			case !strings.HasPrefix(url, "http"):
+				t.Skip("no source for this run")
+			}
+			out := filepath.Join(runs, r.name)
+			if err := os.RemoveAll(out); err != nil {
+				t.Fatal(err)
+			}
+			// Every 2 s: half the frames of a fidelity run keeps the
+			// fixtures small and still compares each page and moment.
+			recordScenario(t, url, out, r.secs, 2*time.Second, scenarios[r.scenario])
+		})
+	}
+}
+
+// serveDir serves a directory on 127.0.0.1 without caching.
+func serveDir(t *testing.T, dir string) string {
+	t.Helper()
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fs := http.FileServer(http.Dir(dir))
+	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		fs.ServeHTTP(w, r)
+	})}
+	go srv.Serve(l)
+	t.Cleanup(func() { srv.Close() })
+	return "http://" + l.Addr().String()
 }
 
 // serveStress serves testdata/stress on 127.0.0.1 and its frame on

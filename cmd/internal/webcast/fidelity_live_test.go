@@ -28,12 +28,14 @@ func TestLiveFidelityFixtures(t *testing.T) {
 	dirs := strings.Split(os.Getenv("FIDELITY_DIR"), ",")
 	if dirs[0] == "" {
 		dirs = nil
-		for _, name := range []string{"stress", "app", "blog"} {
-			dirs = append(dirs, copyRecording(t, recording.Fixture(name), name))
+		for _, name := range recording.Fixtures { // the hand-made ones have no frames
+			if _, err := os.Stat(filepath.Join(recording.Fixture(name), recording.FileFrames)); err == nil {
+				dirs = append(dirs, copyRecording(t, recording.Fixture(name), name))
+			}
 		}
 	}
 	for _, dir := range dirs {
-		rep, err := CheckFidelity(context.Background(), bin, dir)
+		rep, err := checkFidelity(context.Background(), bin, dir, frameOffsets(filepath.Base(dir)))
 		if err != nil {
 			t.Fatalf("%s: %v", dir, err)
 		}
@@ -41,8 +43,27 @@ func TestLiveFidelityFixtures(t *testing.T) {
 		for _, s := range rep.Shots {
 			t.Logf("  t=%d %s %.2f%%", s.T, s.File, s.Diff)
 		}
-		if !rep.Within() {
-			t.Errorf("%s: %s, over the %g%% tolerance (report in %s)", filepath.Base(dir), rep.Summary(), fidelity.Tolerance, filepath.Join(dir, fidelity.ReportDir))
+		// A frame over the tolerance must be a known gap (replay_test.go's
+		// knownGaps, by frame index), and a known gap must still be over.
+		name := filepath.Base(dir)
+		rec, err := recording.ReadDir(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		over := map[string]bool{}
+		for _, s := range rep.Shots {
+			over[s.File] = s.Over
+		}
+		for i, f := range rec.Frames {
+			switch gap, known := knownGaps[name][i]; {
+			case known && !over[f.File]:
+				t.Errorf("%s frame %d is within tolerance now: drop its known gap (%s)", name, i, gap)
+			case !known && over[f.File]:
+				t.Errorf("%s: %s over the %g%% tolerance: %s (report in %s)", name, f.File, fidelity.Tolerance, rep.Summary(), filepath.Join(dir, fidelity.ReportDir))
+			}
+		}
+		if len(rep.Shots) == 0 {
+			t.Errorf("%s: no frame compared", name)
 		}
 		for _, f := range []string{"report.json", "report.md", "worst-1.png"} {
 			if _, err := os.Stat(filepath.Join(dir, fidelity.ReportDir, f)); err != nil {

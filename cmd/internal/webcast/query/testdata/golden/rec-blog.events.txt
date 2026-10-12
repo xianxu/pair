@@ -1,0 +1,22 @@
+$ couch --broadcast-web-query <fixtures>/rec-blog events --from 0 --to 2500
+0 recording live started 2026-10-12T03:35:24.328556-07:00
+0 segment 1 starts (live) on http://localhost:4321/2026/10/ariadne-1-building-blocks-of-ai-coding, viewport 1280x800@1
+0 document http://localhost:4321/2026/10/ariadne-1-building-blocks-of-ai-coding
+0 frame document https://giscus.app/en/widget?origin=http%3A%2F%2Flocalhost%3A4321%2F2026%2F10%2Fariadne-1-building-blocks-of-ai-coding&session=&theme=transparent_dark&reactionsEnabled=1&emitMetadata=0&inputPosition=bottom&repo=xianxu%2Fxianxu.dev&repoId=R_kgDOSOfAyg&category=Comments&categoryId=DIC_kwDOSOfAys4C72Pb&strict=0&description=AI+coding+is+all+the+rage%3B+what+are+the+basic+building+blocks%3F+How+should+we+think+about+its+future%3F+This+is+the+first+installment+of+a+series+of+5+posts.&backLink=http%3A%2F%2Flocalhost%3A4321%2F2026%2F10%2Fariadne-1-building-blocks-of-ai-coding&term=2026%2F10%2Fariadne-1-building-blocks-of-ai-coding in @628 <iframe.giscus-frame>
+0 dom changes until 29: 3 text, 1 font; on @44 <style> ×1, @56 <style> ×1, @59 <style> ×1
+112 input @1345 <select> "Bottom left Bottom center Bottom right" selected [1]
+112 input @1367 <input> unchecked
+112 input @1383 <input> unchecked
+112 scroll @1 #document to 0,0
+112 selection cleared
+120 dom changes until 241: 5 asset, 1 kids, 1 layout; on @979 ×1
+561 input @1505 <textarea.form-control.input-contrast.…> value ""
+561 scroll @1409 #document to 0,0
+561 selection cleared
+1515 scroll @1 #document to 0,500
+1517 attr @87 <header#header.sticky.top-0.…> "Xian Xu Toggle Menu Highlights Projects…" class="sticky top-0 z-40 flex-none mx-auto w-full border-b border-gray-50/0 transition…"
+2041 layout boxes for 340 nodes
+2100 pointer stroke by Pat (product) (viewer-1) (4 points)
+2132 dom changes until 2376: 6 asset
+2416 scroll @1 #document to 0,1000
+2500 note rec-blog-n1 by Pat (product) (viewer-1) on @220 <h1.px-4.sm:px-6.…> "Building Blocks of AI Coding": "Title wraps awkwardly at this width."

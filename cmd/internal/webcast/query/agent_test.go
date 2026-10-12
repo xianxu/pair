@@ -56,6 +56,19 @@ func TestAgentCanTellWhatEachNoteRefersTo(t *testing.T) {
 					want = fmt.Sprintf("input @%d", a.ID)
 				case *recording.Scroll:
 					want = fmt.Sprintf("scroll @%d", a.ID)
+				case *recording.Selection:
+					// The real recorder reports selection (#472); the
+					// prototype's fixtures never had one before a note.
+					switch {
+					case a.Anchor != nil:
+						want = fmt.Sprintf("selection @%d", a.Anchor[0])
+					case a.Focus != nil:
+						want = "selection ? … "
+					default:
+						want = "selection cleared"
+					}
+				case *recording.Nav:
+					want = "navigate (same document) to " + a.URL
 				case *recording.Seg:
 					want = fmt.Sprintf("segment %d starts (%s) on %s", a.Seg, a.Why, a.Tab.URL)
 				case *recording.Stop:

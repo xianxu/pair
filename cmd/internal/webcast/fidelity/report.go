@@ -19,12 +19,20 @@ import (
 // 0.10% over 17 frames, and the blog without its stylesheets 81% median.
 const Tolerance = 3.0
 
-// Retries are the offsets (ms from a frame's t) a frame over the
-// tolerance is replayed at again, the best kept: a screenshot shows a
-// paint from around its capture, whose midpoint is the frame's t, so a
-// moment can be off by about the capture's length. A report shows the
-// offset, so a timing slip is told apart from a render that is wrong.
-var Retries = []int64{-300, -150, 150, 300}
+// CaptureSkew is how much earlier than its t a frame's pixels can be (ms):
+// a frame's t is its screenshot call's midpoint, but the pixels are a
+// compositor frame from inside the call, 40–90 ms early on a busy page.
+// Measured on rec-app frame 5: 77% off at t, 0.4% at t-50 (#472).
+const CaptureSkew = 50
+
+// Offsets are the moments (ms from a frame's t) a frame is compared at, in
+// order until one is within the tolerance; the best is kept. #458's recorder
+// reports synchronously, so its records never trail the tab: a frame is
+// tried only at t and CaptureSkew before it. A later moment would hide a
+// recorder that is late (pair#475's stylesheet bound after the screenshot
+// that shows it). recording.FrameTimes drops a moment outside the frame's
+// own segment, and the report shows a match's offset.
+var Offsets = []int64{0, -CaptureSkew}
 
 // MaxWorst bounds the moments a report shows side by side.
 const MaxWorst = 10
@@ -49,7 +57,7 @@ type Shot struct {
 	T    int64   `json:"t"`
 	Diff float64 `json:"diff"`
 	// Offset is when the replay matched the frame best, in ms from its
-	// t: a frame over the tolerance at t is retried at Retries.
+	// t: a frame over the tolerance at t is retried at Offsets.
 	Offset int64 `json:"offset,omitempty"`
 	// AtT is the diff at t itself when the best was at an offset.
 	AtT  float64 `json:"at_t,omitempty"`
@@ -123,7 +131,7 @@ func (r Report) Markdown() string {
 		fmt.Fprintf(&b, "%d frames had nothing live to replay.\n", r.Skipped)
 	}
 	b.WriteString("\nEach image is the real tab, the replay, and where they differ (red), cropped to the difference.\n\n")
-	b.WriteString("A frame over the tolerance is replayed again a little earlier and later; *matched at* is the best one's offset.\n\n")
+	b.WriteString("A frame over the tolerance is replayed again a little earlier (a screenshot's pixels can predate its t); *matched at* is the best one's offset.\n\n")
 	b.WriteString("## Worst moments\n\n| t (ms) | diff | over | matched at | tab frame | side by side |\n|---|---|---|---|---|---|\n")
 	for _, i := range r.Worst {
 		s := r.Shots[i]

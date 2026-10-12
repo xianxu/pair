@@ -1,0 +1,10 @@
+$ couch --broadcast-web-query <fixtures>/rec-segments events --from 0 --to 1500
+0 recording live started 2026-10-12T03:35:52.154408-07:00
+0 segment 1 starts (live) on http://127.0.0.1:62199/app2.html, viewport 1280x800@1
+0 document http://127.0.0.1:62199/app2.html
+75 scroll @1 #document to 0,0
+75 selection cleared
+101 layout boxes for 50 nodes
+1003 navigate (same document) to http://127.0.0.1:62199/app2.html#week-3
+1100 pointer stroke by Pat (product) (viewer-1) (4 points)
+1500 note rec-segments-n1 by Pat (product) (viewer-1) on @13 <h1.text-3xl.font-bold.…> "Reports": "Reports needs a date range."

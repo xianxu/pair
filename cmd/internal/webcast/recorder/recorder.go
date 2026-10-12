@@ -177,6 +177,7 @@ type Recorder struct {
 	opened   bool
 	live     bool
 	seg      int
+	segT     int64  // when the current segment started
 	top      string // the cast page's session
 	tab      rec.Tab
 	parents  map[string]string // frame session -> parent session
@@ -675,6 +676,7 @@ func (r *Recorder) snapshotTop(at time.Time, why string) {
 	if err := r.m.Seg(r.t(at), seg, r.top, root, key); err != nil {
 		r.opts.Logf("%v", err)
 	}
+	r.segT = r.m.st.T
 }
 
 // document snapshots a session's document and names it.
@@ -719,6 +721,7 @@ func (r *Recorder) resnapshot(at time.Time, session string) bool {
 		if err := r.m.Seg(r.t(at), seg, session, root, key); err != nil {
 			r.opts.Logf("%v", err)
 		}
+		r.segT = r.m.st.T
 		r.observe(session, true)
 		r.goAssets()
 		r.nextShot = time.Time{}

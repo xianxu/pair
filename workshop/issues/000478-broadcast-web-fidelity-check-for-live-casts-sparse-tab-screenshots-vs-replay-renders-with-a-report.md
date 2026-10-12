@@ -70,4 +70,11 @@ Durable plan: `workshop/plans/000478-broadcast-web-fidelity-check-for-live-casts
   0.10%. Test: `replayer.test.mjs`.
 - Retries: a frame over the tolerance is replayed at ±150/±300 ms and the best kept. The report keeps the offset and
   the diff at t, so a timing slip stays visible as one.
+- After merging main (#472 landed real-recorder fixtures and `recording.FrameTimes`, "one rule for frame
+  offsets"): the check's ±150/±300 ms retries passed `rec-stress` frame 0, which #472 lists as a known gap. It is
+  32.18% at t and matched at +150 ms once `stress.css` binds at t=103 (pair#475, a late recorder). #458's recorder
+  never trails the tab, so a later retry hides exactly the recorder bugs the check exists to find. The check now
+  uses #472's offsets: t, then t − `fidelity.CaptureSkew` (50 ms, their measurement), through `FrameTimes`. #472's
+  test now reads the same constant. Only the tests add the prototype fixtures' +150 ms observer lag
+  (`frameOffsets`).
 

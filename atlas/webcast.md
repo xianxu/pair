@@ -66,6 +66,9 @@ and strokes) enter its queue as `recorder.Emit`, stamped on arrival and checked 
 - **Frames:** a screenshot and layout at each segment start (go-live, resume, navigate, tab) and every 5 s while live
   (`Options.ShotEvery`), never streamed. Screenshots are the viewport at half its CSS size whatever the DPR
   (`recorder.LowRes`), the form #453's fixtures use. The fidelity check (#478, below) compares them with the replay.
+  A frame's `t` is its screenshot call's midpoint, but never before its segment: a call that straddles a navigation
+  is stamped at the new segment's start, though its pixels may show either page. The layout boxes captured after it
+  take the stream's time, which records may have moved past meanwhile (#472).
 - **Asset capture** (the recorder's; #459 stores, absolutizes CSS and serves): raw bodies to `assets.Store.Put`, one
   fetch per URL per recording, by the first source to claim it. A Network response claims its URL; so does a resource
   Chrome holds at a segment's start (`Page.getResourceContent`, else a load in the page's context with
@@ -90,8 +93,10 @@ what the viewer's renderer draws at the same moments.
   and opens `r/<id>/fidelity.html` in a headless Chrome on a throwaway profile. For each frame, in time order, it
   sets the frame's viewport at DPR 1, calls `fidelity.replayAt(t, ReplayWindow)`, screenshots the viewport,
   scales it with `recorder.LowRes` (the tab's own filter) and diffs it.
-  - A frame over the tolerance is replayed again at `fidelity.Retries` (±150, ±300 ms), and the best is kept. A
-    screenshot shows a paint from around its capture.
+  - A frame over the tolerance is replayed again at t − `fidelity.CaptureSkew` (50 ms), the best kept. A frame's
+    pixels can be from earlier than its t (#472). It is never replayed later than t: #458's recorder reports
+    synchronously, so a later match would hide a recorder that is late (pair#475). `recording.FrameTimes` keeps each
+    moment in the frame's own segment, the same rule #460's conformance test uses.
   - The report shows the offset and the diff at t, so a timing slip is told apart from a wrong render.
   - Only the 10 worst replays are held in memory.
 - **The page:** `web/fidelity.html` + `fidelity.js`, the frame alone at (0,0), unscaled at the operator's viewport.
@@ -192,7 +197,12 @@ what the viewer's renderer draws at the same moments.
 - **Viewer fidelity:** `replay_test.go` replays every fixture in headless Chrome (`WEBCAST_LIVE_CHROME=1`).
   - The drawn page's canonical equals the reducer's at every pin, and a join at any pin draws the same page.
   - Renders are within 3% of `frames/` (measured 0.2–2.3%). The last second before each frame is replayed in real
-    time so transitions are in phase, and the fixtures' polled observer gets 150 ms of slack.
+    time so transitions are in phase. The prototype's fixtures' polled observer gets 150 ms of slack; the recorder's
+    get none (#472). Any fixture's frame may also be compared 50 ms before its `t`: its pixels are a compositor frame from
+    inside the screenshot call. Offsets never leave the frame's own live segment (`recording.FrameTimes`, shared with the
+    fidelity tool). `knownGaps` lists frames that differ for a filed reason (#475), and fails once one passes.
+  - The harness sizes the drawn page to the segment's viewport, as `viewer.js` does, so a tab switch to a
+    different-sized tab compares at that size.
   - `viewer_live_test.go` drives the real page through `Server` and a `Hub` at tablet width: scaling, URL, hover,
     pointer, and `boxOf` against the tab's own layout boxes (215 of 217 on blog).
 - **Known transient:** for a moment after a navigation, the title can be Chrome's placeholder (the URL, as in
