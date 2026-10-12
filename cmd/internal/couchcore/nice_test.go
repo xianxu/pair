@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 )
@@ -43,28 +42,36 @@ func TestBlockedStartRunsTheTargetsDescendantsAtTheRunnersNiceness(t *testing.T)
 	}
 }
 
-// A niceness the kernel refuses (raising priority needs root) cancels the
-// launch before the target ever runs, and the error names the setting.
-func TestBlockedStartRefusedNicenessCancelsBeforeTheTargetRuns(t *testing.T) {
+// A Couch already nicer than the setting cannot lower its children's niceness
+// (only root may); the launch still runs, at the niceness Couch passed down.
+func TestBlockedStartBelowCouchsOwnNicenessKeepsTheInheritedOne(t *testing.T) {
 	t.Parallel()
 	if os.Geteuid() == 0 {
 		t.Skip("root may raise priority")
 	}
 
-	marker := filepath.Join(t.TempDir(), "target-ran")
-	r := ExecRunner{LaunchHelper: os.Args[0], Nice: ownNice(t) - 1}
-	h, err := r.StartBlocked(context.Background(), t.TempDir(), []string{"sh", "-c", "printf exec > \"$PAIR_TEST_TARGET_MARKER\""}, []string{
+	own := ownNice(t)
+	marker := filepath.Join(t.TempDir(), "nice")
+	r := ExecRunner{LaunchHelper: os.Args[0], Nice: own - 1}
+	h, err := r.StartBlocked(context.Background(), t.TempDir(), []string{"sh", "-c", "ps -o nice= -p $$ > \"$PAIR_TEST_TARGET_MARKER\""}, []string{
 		"PAIR_TEST_RUNNER_HELPER=1",
 		"PAIR_TEST_TARGET_MARKER=" + marker,
 	}, 2*time.Second)
-	if err == nil || h != nil {
-		t.Fatalf("StartBlocked = %v, %v; want a refusal and no handle", h, err)
+	if err != nil {
+		t.Fatalf("StartBlocked below own niceness %d: %v", own, err)
 	}
-	if !strings.Contains(err.Error(), "COUCH_SLOT_NICE") || !(strings.Contains(err.Error(), syscall.EACCES.Error()) || strings.Contains(err.Error(), syscall.EPERM.Error())) {
-		t.Fatalf("error = %v, want the kernel's refusal naming COUCH_SLOT_NICE", err)
+	if err := h.Acknowledge(); err != nil {
+		t.Fatalf("Acknowledge: %v", err)
 	}
-	if _, err := os.Stat(marker); !os.IsNotExist(err) {
-		t.Fatalf("refused launch ran its target: %v", err)
+	if code := h.Wait(); code != 0 {
+		t.Fatalf("Wait = %d", code)
+	}
+	raw, err := os.ReadFile(marker)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.TrimSpace(string(raw)); got != strconv.Itoa(own) {
+		t.Fatalf("target nice = %q, want the inherited %d", got, own)
 	}
 }
 

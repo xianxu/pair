@@ -531,7 +531,8 @@ across machines are unsupported.
 Couch starts each slot at nice +10, so the builds, test suites and agents a slot
 runs yield to Couch and your terminal when the machine is saturated; Couch itself
 keeps normal priority. Set `COUCH_SLOT_NICE` (0–20, `0` turns it off) before
-starting Couch to change it. It applies to slots started or relaunched after
+starting Couch to change it. A Couch that already runs nicer than that (started
+from a niced shell) passes its own niceness down instead, since only root can lower it. It applies to slots started or relaunched after
 that; running slots keep their priority until relaunched (or `renice`d by hand).
 
 **Adopt existing state before cutover.** Stop and upgrade all old Couch binaries

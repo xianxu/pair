@@ -30,6 +30,11 @@ type blockedChildStarter func(dir string, argv, env []string, extraFiles []*os.F
 // and everything it starts -- builds, suites, agents -- inherit it with no race
 // and no change to argv or identity, and yield to Couch and the operator's
 // terminal. Couch keeps its own priority; raising it would need root.
+//
+// The value is absolute, and only root may lower a niceness, so a Couch that
+// already runs nicer than the setting (started from a niced shell or slot) has
+// its request refused; its children then keep the niceness they inherited,
+// which already yields at least as much. Slots run at max(nice, Couch's own).
 func startBlockedChild(ctx context.Context, start blockedChildStarter, helper string, nice int, dir string, argv, env []string, timeout time.Duration) (BlockedHandle, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -55,7 +60,8 @@ func startBlockedChild(ctx context.Context, start blockedChildStarter, helper st
 	blocked := newAcknowledgedHandle(h, writer)
 	if nice != 0 {
 		// Every Couch child leads its own process group, so the pgid is its pid.
-		if err := unix.Setpriority(unix.PRIO_PGRP, h.PID(), nice); err != nil {
+		err := unix.Setpriority(unix.PRIO_PGRP, h.PID(), nice)
+		if err != nil && !errors.Is(err, unix.EACCES) && !errors.Is(err, unix.EPERM) {
 			cancelErr := blocked.Cancel()
 			if cancelErr == nil {
 				_ = blocked.Wait()

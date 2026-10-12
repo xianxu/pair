@@ -31,16 +31,22 @@ Couch starts each slot wrapper at nice +10 (configurable, default on); children 
 
 ## Done when
 
-- New and relaunched slots run at the configured niceness (verified by ps); under a heavy suite Couch stays responsive (measured: a light couch verb's latency); documented.
+- New and relaunched slots run at the configured niceness, or Couch's own when that is higher (verified by ps on a
+  real launch's grandchild in the suite); documented.
+- After the operator's batched Couch restart (post-merge, hub-owned): live slots checked by ps and a light couch
+  verb's latency measured under existing load, reported to the hub.
 - Renicing already-running slots, if wanted, is proposed to the operator, never done unasked.
 
 ## Plan
 
 Design: every slot launch goes through `Runner.StartBlocked`, which starts `pair-launch-helper` in its own process
-group and holds it before exec until Couch acknowledges. A `couchcore.NicedRunner` decorator lowers that group's
-priority (`setpriority(PRIO_PGRP, pid, n)`) inside that blocked window, so the target and everything it forks inherit
+group and holds it before exec until Couch acknowledges. `startBlockedChild`, shared by the two real runners
+(`ExecRunner`/`PtyRunner`, field `Nice`), lowers that group's priority (`setpriority(PRIO_PGRP, pid, n)`) inside that
+blocked window, so the target and everything it forks inherit
 it with no race and no change to the helper, argv or process identity. Couch's own process is untouched.
-`COUCH_SLOT_NICE` (0–20, default 10, 0 = off) is parsed once at composition; a bad value refuses to start.
+`COUCH_SLOT_NICE` (0–20, default 10, 0 = off) is parsed where the runners are built (and at singleton preflight); a
+bad value refuses to start. A Couch already nicer than the setting passes its own niceness down (kernel refusal is
+not an error).
 The `taskpolicy` QoS clamp is left out: the Spec makes it opt-in after measurement, and measuring it needs load this
 item may not generate.
 
@@ -74,3 +80,10 @@ item may not generate.
 - 2026-10-12: Done-when's live check (ps on a relaunched slot, `couch --actors` latency under load) moves after the
   operator's batched Couch restart, per the hub; close rests on the in-repo proof (a real launch's grandchild reads
   the configured nice through ps).
+- 2026-10-12 (close review round 1): Design said a `NicedRunner` decorator; it was dropped before landing (fakes must
+  not reach the kernel, see Log) for a `Nice` field on the real runners, applied in `startBlockedChild`. Design text
+  rewritten to match. Done-when split: the in-repo proof closes; the live check follows the restart (hub-owned).
+  BR-1: an EACCES/EPERM from `setpriority` (Couch already nicer than the setting) now keeps the inherited niceness
+  instead of cancelling every launch; test pins it and fails without the fix. Minor: couchcmd test no longer reads the
+  real environment. Kept `ps` in the couchcore tests: `getpriority` returns different encodings on darwin and linux,
+  and the grandchild probe needs an external reader anyway.

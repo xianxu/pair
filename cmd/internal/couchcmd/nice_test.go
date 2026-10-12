@@ -40,9 +40,10 @@ func TestConsoleRunnerCarriesSlotNiceness(t *testing.T) {
 	if exec, ok := runner.(couchcore.ExecRunner); !ok || exec.Nice != 7 {
 		t.Fatalf("fallback runner = %#v, want an ExecRunner at nice 7", runner)
 	}
-	_, runner, _ = consoleRunnerFor("start", strings.NewReader(""), false, nil, nil)
-	if exec := runner.(couchcore.ExecRunner); exec.Nice != defaultSlotNice {
-		t.Fatalf("default runner nice = %d, want %d", exec.Nice, defaultSlotNice)
+	delete(env, "COUCH_SLOT_NICE")
+	_, runner, _ = consoleRunnerFor("start", strings.NewReader(""), false, nil, nil, config)
+	if exec, ok := runner.(couchcore.ExecRunner); !ok || exec.Nice != defaultSlotNice {
+		t.Fatalf("default runner = %#v, want an ExecRunner at nice %d", runner, defaultSlotNice)
 	}
 	env["COUCH_SLOT_NICE"] = "loud"
 	if _, _, err := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil, config); err == nil {
