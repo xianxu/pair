@@ -435,3 +435,76 @@ teardown), `server.go` (export `SetSecurityHeaders`).
 - [ ] `sdlc close --issue 454 --verified '…'`, then merge main, `sdlc pr`, `sdlc merge --yes`.
 
 ## Revisions
+
+### 2026-10-11 — plan-quality round 1
+
+**PQ-1 (Important): concurrent screen broadcast and web cast on a named tunnel.** `Cloudflared.Open` claims
+`named-<Name>` exclusively (`records.go` → `ErrTunnelBusy`), so two casts that each open the configured tunnel
+collide. Policy: **one shared, reference-counted host per Couch, mounting each cast under its own token.** Both casts
+then run at once on one hostname, and the Recorder and later casts inherit it. Mutual exclusion would forbid
+demoing a terminal and a web app together, and a separate webcast hostname is more operator setup. This replaces
+the `broadcast.Endpoint` extraction (Task 6 and the Core concepts row) with:
+
+- **`broadcast.Host`** (`cmd/internal/broadcast/host.go`, new):
+  - **API:** `NewHost(HostConfig{Tunnel, ProbeTimeout, Resolve})` and
+    `Mount(ctx, token string, h http.Handler) (*Mount, error)`.
+  - **Mount:** `Link()` (`base/token/`), `Base()`, `Mode()`, `Exited() <-chan error` (the shared tunnel or server
+    died; every mount sees it), and `Unmount()`.
+  - **Mux:** the Host routes `/<segment>/…` to the handler mounted under that segment (constant-time compare, per
+    mount). An unknown segment gets 404 with the same security headers.
+  - **Ordering:** one mutex-guarded tagged state, `hostClosed | hostOpening{done chan} | hostOpen | hostClosing{done
+    chan}`. A Mount while opening waits on the same open. The probe runs once per open, against the first mount's
+    link; later mounts are reachable as soon as they're in the mux. The last Unmount moves to closing and tears down.
+    A Mount while closing waits for the close, then reopens. An open that fails reports to every waiter and returns
+    to closed. A cancelled waiter leaves the open running for the others; if no mount remains when the open
+    completes, it closes.
+  - **Tests** use `FakeTunnel` (`OpenDelay`, `CloseBlock`, stats) with a seam to order the interleavings (FakeTunnel's
+    delays, plus a gate channel the test releases). Each asserts against the stated invariant: *Opens − Closes ≤ 1
+    at all times, and a mounted handler is reachable iff its Mount is live.* Cases:
+    - two mounts share one Open;
+    - Mount during Opening;
+    - Mount during Closing reopens;
+    - the last Unmount closes;
+    - a failed open reaches all waiters;
+    - a cancelled waiter;
+    - a tunnel exit reaches all mounts.
+    Plus a collision regression with a named-style claim (a FakeTunnel mode that refuses a second concurrent Open with
+    `ErrTunnelBusy`, mirroring `records.go`): a screen broadcast and a web cast mounted together both answer.
+- **`broadcast.Session`** takes a `*Host` (`Config.Host`). When it is nil, `Start` makes a private Host from
+  `Config.Tunnel`, so the existing session tests keep their shape. The session mounts its hub server and its
+  pointer-token routes under their tokens. The pointer token is a second Mount on the same Host, made by
+  `EnablePointer` and removed by `DisablePointer`.
+- **Couch:** `couchcmd` builds one Host from the tunnel choice and hands it to both `broadcast.Config` and the webcast
+  `CastConfig`. Task 8's "reuse its tunnel builder" becomes an explicit extraction:
+  `broadcastTunnel(getenv, store, guard) (broadcast.Tunnel, error)` is split out of `broadcastSettings` (Minor 2),
+  and `webcastSettings` takes the built Host instead of re-reading env.
+- `Cast` takes a `*broadcast.Host` and Mounts on start, so `CastConfig.Endpoint` becomes `CastConfig.Host`.
+
+**Minors:**
+- **Renames** (naming collision): `ChromeCell` → `WebcastCell` (`WebcastOff|WebcastIdle|WebcastLive`),
+  `RenderedStatusRow.Chrome` → `.Webcast`, and the console field `statusWebcast`. "chrome" already means status-row UI
+  chrome (`commitChrome`).
+- **Test strategy** (in place of enumerated prose, which stays as the case list):
+  - `splitFrames` gets a fuzz test seeded with spike captures and truncated or oversized frames. Invariant: it never
+    panics, and re-encoding the decoded messages reproduces the input prefix.
+  - Tracker gets a generated-sequence property test against two invariants: the active tab is always a live page, and
+    when one exists it is a visible or never-reported one. Hand cases are kept for the named scenarios.
+- **Active-tab edge:** an uninjectable page (`chrome://…`) opened in the background counts as active until something
+  else reports, because it can never report "hidden". Accepted for MVP and stated in atlas: Chrome opens `chrome://`
+  pages in the background only on unusual paths (Cmd+T/NTP opens in the foreground). The Recorder task revisits it if
+  observed.
+- **Chrome stderr:** `LaunchOptions.Stderr` is a bounded in-memory ring (last 8 KiB). Its contents are quoted in a
+  `Launch` error only; nothing is written to disk.
+- **Live conformance cadence:** `WEBCAST_LIVE_CHROME=1` runs at each milestone close of an issue that touches
+  `cmd/internal/webcast` or `cmd/internal/cdp`, and after a Chrome major version change is noticed. This is stated in
+  atlas next to `BROADCAST_LIVE_CLOUDFLARED`.
+
+**Non-goals (this issue):**
+- recording anything: no DOM, no files (the Recorder task);
+- a CDP accessor on `Chrome` for the Recorder;
+- protecting the injected control from a page that forges a click (it can only toggle live/pause, which is visible
+  in the tab bar);
+- casting `file://` pages;
+- more than one cast Chrome;
+- remote driving;
+- privacy masking.

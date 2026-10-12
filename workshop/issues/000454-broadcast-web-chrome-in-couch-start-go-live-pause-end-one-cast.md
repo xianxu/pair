@@ -51,7 +51,7 @@ Durable plan: `workshop/plans/000454-broadcast-web-chrome-in-couch-start-go-live
 
 - [x] Key decoding check (Shift+Ctrl+Alt+B vs Ctrl+Alt+b): distinct; see Log
 - [ ] M1 — browser-control component: `cdp` pipe client; `webcast` State/Tracker/translate; Browser seam + FakeBrowser; in-page control (isolated world); real Chrome; conformance suite run against fake and live Chrome
-- [ ] M2 — Couch integration and stub stream: `broadcast.Endpoint` extracted; webcast viewer server + page; Cast; Shift+Ctrl+Alt+B, `Chrome ▶/⏸` cell with click / right-click / Ctrl+click; launcher wiring; README + atlas; operator smoke test
+- [ ] M2 — Couch integration and stub stream: shared `broadcast.Host` (one tunnel, casts mounted by token); webcast viewer server + page; Cast; Shift+Ctrl+Alt+B, `Chrome ▶/⏸` cell with click / right-click / Ctrl+click; launcher wiring; README + atlas; operator smoke test
 
 ## Log
 
