@@ -178,3 +178,62 @@ findings:
     detail: |
       This is the 2nd finding in family stale-concurrency-comment. console.go:1255-1261 claims the case is unreachable via the console's own transitions and names only showMenu and selection. console.go:542 (attach when c.active is empty and the attach is not background) sets c.focus=FocusActor without presenter.Select, so it may still reach this case. Rule for the family: a comment that says a state is unreachable must name the code that writes that state, so it can be checked. Instances in this window: console.go:1255 only (console.go:68-74 and terminal.go:154-156 now match the code).
 ```
+
+---
+
+## Re-review — 2026-10-12T12:57:56-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 484 — couchtty: a notice repaint is lost when the child endpoint holds an incomplete sequence (TestEndpointChrome* hangs under load) |
+| repo | pair |
+| issue file | workshop/issues/000484-couchtty-a-notice-repaint-is-lost-when-the-child-endpoint-holds-an-incomplete-sequence-testendpointchrome-hangs-under-load.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 7da888f2155ad2deb14fa31771f0aaddefb5b5a4..be0e87d795bbc1f9546834430b89842aadb63e86 |
+| command | sdlc close --issue 484 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-12T12:57:56-07:00 |
+| verdict | SHIP |
+
+## Review
+
+Checking whether a mid-run Attach is always followed by a selection, so I can verify the new comment's claim.
+
+Confirming whether a mid-run attach is followed by a switch (the "selection that follows" the comment relies on).
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+BR-4 is fixed, and this window contains no new defects. The only code change rewrites the comment on the `paintNow` routing-answer branch (`cmd/internal/couchtty/console.go:1256-1263`). The comment no longer claims the console's own transitions can never reach the branch. It now names the code that writes the state: `showMenu` and selection set `c.focus` together with the presentation under `publishMu`, so they can't reach it, but `Attach` still can. That follows the rule stated for the `stale-concurrency-comment` family. The other two files are generated gate and review records under `workshop/plans/`. The interdiff doesn't touch `## Spec`, `## Revisions` or `## Done when`, so there's no scope change. There are no conflict resolutions to judge.
+
+1. **Strengths**
+   - The comment names `Attach` as the writer. I checked it against the code: `console.go:542` sets `c.focus = FocusActor(handleID)` when `c.active == ""` and the attach isn't background, without calling `presenter.Select`. At startup, `Run` (`console.go:688-694`) then calls `switchTo(initial, ...)`, which is "the selection that follows" the comment describes.
+   - The reason for skipping is kept, and still correct: escalating here would cause the pair#265 exit with no input involved.
+
+2. **Critical findings:** none.
+
+3. **Important findings:** none.
+
+4. **Minor findings**
+   - Not raised, just for the record: the new wording says the attach reaches this branch "before Run's first selection". That describes startup only. An attach can also happen mid-run, through the `attach` operation (`console.go:2122-2146`), when the last pane has exited and `c.active` is empty. A non-background resume still gets a following selection (`forceSwitch`, `console.go:2042-2045`). I didn't trace whether every other non-background start is also followed by one. The comment correctly names the code that writes the state, which is what the family rule asks for, so I'm not raising this. If it's ever reworded, "before a selection presents the endpoint" would cover both cases.
+
+5. **Test coverage notes:** The change is comment-only, so no regression test is needed. The behavioural tests for the ordered sites were confirmed in round 2.
+
+6. **Architectural notes**
+   - **ARCH-DRY: pass.** The change is comment-only.
+   - **ARCH-PURE: pass.** No logic changed.
+   - **ARCH-PURPOSE: pass.** BR-4 named a single instance, and this window confirms the comment was the only one; it now follows the family rule.
+
+7. **Plan revision recommendations:** none.
+
+```findings
+dispose:
+  - id: BR-4
+    disposition: addressed
+    note: |
+      console.go:1256-1263 now names the writers: showMenu/selection commit focus under publishMu, and Attach (console.go:542) can still set FocusActor before a selection presents the endpoint. Verified against the Run path (console.go:688-694).
+```

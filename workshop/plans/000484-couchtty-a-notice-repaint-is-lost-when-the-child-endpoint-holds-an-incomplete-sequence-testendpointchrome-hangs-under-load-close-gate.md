@@ -57,6 +57,19 @@ rounds:
       isolation: fenced
       reviewed: b3980a69db28f0f627ceb120e23e780e7eda243e
       blocked: false
+    - "n": 3
+      timestamp: "2026-10-12T12:57:57-07:00"
+      dispatched: "2026-10-12T12:56:40-07:00"
+      agent: claude
+      dispose:
+        - id: BR-4
+          disposition: addressed
+          note: 'console.go:1256-1263 now names the writers: showMenu/selection commit focus under publishMu, and Attach (console.go:542) can still set FocusActor before a selection presents the endpoint. Verified against the Run path (console.go:688-694).'
+          round: 3
+      recipe: fix-review
+      isolation: fenced
+      reviewed: be0e87d795bbc1f9546834430b89842aadb63e86
+      blocked: false
 ---
 
 # Gate ledger — pair#484 (boundary-review)
@@ -88,6 +101,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-4** [Minor] `stale-concurrency-comment` paintNow routing-answer comment says the console's own transitions can no longer reach it, but the attach path sets FocusActor without a presenter Select
   This is the 2nd finding in family stale-concurrency-comment. console.go:1255-1261 claims the case is unreachable via the console's own transitions and names only showMenu and selection. console.go:542 (attach when c.active is empty and the attach is not background) sets c.focus=FocusActor without presenter.Select, so it may still reach this case. Rule for the family: a comment that says a state is unreachable must name the code that writes that state, so it can be checked. Instances in this window: console.go:1255 only (console.go:68-74 and terminal.go:154-156 now match the code).
 
+## Round 3 — 2026-10-12T12:57:57-07:00 (claude) — passed
+
+### Disposed
+
+- BR-4 — addressed — console.go:1256-1263 now names the writers: showMenu/selection commit focus under publishMu, and Attach (console.go:542) can still set FocusActor before a selection presents the endpoint. Verified against the Run path (console.go:688-694).
+
 ## Open findings
 
-- **BR-4** [Minor] `stale-concurrency-comment` paintNow routing-answer comment says the console's own transitions can no longer reach it, but the attach path sets FocusActor without a presenter Select
+(none — every finding has been disposed)

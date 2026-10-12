@@ -53,6 +53,7 @@ Fix: `Console.publishMu` is held from snapshot through publish and commit in eve
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed — Post-close delta is comment-only (console.go routing-answer comment names the Attach path, per the close review's advisory). go build ok; full make -k test exit 0 on the merged tree before it. (fixed-then-ship); review verdict: SHIP
 - 2026-10-12: closed — Root cause measured: unordered presentation; stale status-row snapshot published after the notice paint (trace computed false, computed true, published true, published false +18ms); also notice during resize -> incompatible chrome geometry -> couch exits. Fix: publishMu spans snapshot-to-commit in paintNow, showMenu, selection (through the focus commit, BR-1), onResize. Four hook tests (chrome, resize, select, panel) each fail on revert and pass fixed. Soak 200x -race under 12 CPU burners: 0 failures. couchtty+terminal -race green; make -k test exit 0 under the suite lock on the tree merged with origin/main. no-atlas: internal ordering fix, no new surface.; review verdict: SHIP
 
 - Trace (temporary `fmt.Fprintf` in `paintNow`, widened window): `computed notice=false` → `computed notice=true` → `published notice=true` → `published notice=false` (+18 ms). The stale snapshot published last.
