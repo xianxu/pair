@@ -401,6 +401,9 @@ couch --broadcast-list [--json]   the running broadcast and its viewer count (ne
 couch --broadcast-web-query DIR dom|events|notes ...
                          read-only: a broadcast-web recording's page at t, what happened in a window,
                          and every note with its element and the actions before it (pair#462)
+couch --broadcast-web-replay [ID|DIR] [--at MS]
+                         replay broadcast-web recordings in the viewer with a timeline scrubber, served on
+                         this machine only until Ctrl-C; prints the link (#t=MS opens at a moment) (pair#471)
 couch --session-sync read|write|diff|status ... FILE
                          the one way an agent changes a session-sync file it owns: refuses under the
                          operator's lock or when the section changed since `read` (write --if-hash), and
@@ -865,6 +868,13 @@ recording directory for a coding agent: the page at a moment, what happened
 in a window, and every note with its element, focused context and the actions
 just before it. It needs no running Couch; `couch --broadcast-web-query` alone
 prints its usage. See [atlas/webcast-format.md](atlas/webcast-format.md#agent-queries-462).
+
+`couch --broadcast-web-replay [ID|DIR] [--at MS]` plays recordings in the
+viewer: play, pause, speed, and a timeline that shows pauses as gaps, notes,
+strokes and who drove. With no argument it lists the recordings in Couch's
+store; an ID or a recording directory opens that one, and `--at MS` prints a
+`#t=MS` link to that moment. It serves on this machine only, until Ctrl-C.
+See [atlas/webcast.md](atlas/webcast.md#replay-471).
 
 Broadcasts reach viewers through [`cloudflared`](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/)
 (`brew install cloudflared`):
