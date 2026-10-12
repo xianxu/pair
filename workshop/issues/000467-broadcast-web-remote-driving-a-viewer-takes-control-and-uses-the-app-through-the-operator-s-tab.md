@@ -1,12 +1,12 @@
 ---
 id: 000467
-status: working
+status: codecomplete
 deps: [000466, 000458, 000460]
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours: 6.17
-card_mirror: 'b3ce5b18eaf59c4cc8243ceca5f562446cfc5a20' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '6b46373e5745fc00afc0025e5b1b327888dcc413' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T06:23:45-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 3.16
 ---
 
 # broadcast-web: remote driving — a viewer takes control and uses the app through the operator's tab
