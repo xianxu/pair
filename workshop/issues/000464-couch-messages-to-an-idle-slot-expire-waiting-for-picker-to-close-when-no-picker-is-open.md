@@ -75,3 +75,22 @@ delivery waits "for picker to close" until someone presses Enter in the pane.
   recognizer and composer state as the live replay.
 - Mutation-checked (`peer_picker_test.go`): dropping the feed hook, the arming
   read, the hidden-first rule or the profile flag each fails a test.
+- Close review round 1 (FIX-THEN-SHIP): BR-1 atlas still described the
+  Enter-only edge for every harness and called the two layers independent.
+  Fixed: the edge is now per profile, and the one coupling is named with its
+  test. BR-2 (sender-actionable reason) descoped to #465, see Revisions. The
+  Minor on the coupling got a fixture: a recorded question picker whose
+  free-text row (`❯ 4. Type something.`) sits at column 0 between rules. The
+  recognizer declines it, and the latch holds over it. The Minor on tracking
+  the live check is answered by the TL's deferral, recorded in the Plan.
+
+## Revisions
+
+### 2026-10-12, at close
+- **The Spec's "a message that can't be delivered says why in terms the
+  sender can act on" moves to #465.** #465, filed the same night, owns
+  exactly that: receipts reporting `blocked by a picker: <title>` and a hub
+  notice with the picker's text, built on this fix's picker state. Rewording
+  the detail here would leave a second, interim wording for #465 to replace.
+  What this issue delivers on that clause is the cause: the expiry no longer
+  names a picker that isn't on screen.

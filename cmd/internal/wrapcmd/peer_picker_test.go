@@ -2,6 +2,7 @@ package wrapcmd
 
 import (
 	"bytes"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -133,5 +134,28 @@ func TestPeerDeliveryAfterAutoDeniedPrompt(t *testing.T) {
 	f.proxy.dispatchPeer(&out)
 	if r := d.receipt(); r.Status != couchmessage.Submitted {
 		t.Fatalf("not submitted: %+v", r)
+	}
+}
+
+// The screen close leans on the composer recognizer, so a picker drawn in the
+// composer's shape would close the latch while it is open. The nearest
+// recorded one: a question picker's free-text row, `❯ 4. Type something.`,
+// at column 0 between two rules, with the cursor on it.
+func TestPickerLatchHoldsOverQuestionPickerTextRow(t *testing.T) {
+	raw, err := os.ReadFile("testdata/peer/claude/2026-08-31/question-picker.raw")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := pickerFake(t)
+	f.resize(80, 38)
+	f.output(string(raw) + claudePermissionOSC)
+	for i := 0; i < 3; i++ {
+		f.output(string(raw))
+	}
+	if !f.proxy.pickerActive.Load() {
+		t.Fatal("a question picker's free-text row read as the composer coming back")
+	}
+	if got := peerComposerState("claude", f.proxy.terminal.Snapshot()); got != PeerComposerUnknown {
+		t.Fatalf("question picker reads as composer %v", got)
 	}
 }
