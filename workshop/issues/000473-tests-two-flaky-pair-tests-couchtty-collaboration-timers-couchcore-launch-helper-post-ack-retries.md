@@ -15,6 +15,7 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "c8e89eab", done: "aacf646c"}
 ---
 
 # tests: two flaky pair tests (couchtty collaboration timers; couchcore launch-helper post-ack retries)
