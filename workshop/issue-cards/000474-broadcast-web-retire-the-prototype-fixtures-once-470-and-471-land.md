@@ -1,6 +1,6 @@
 ---
 id: 000474
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: d7c3d9621eebf05ac5ff680b63bab22379fe0b50
         evidence_commit: 6c22c538a870afe6d54c76e2d6cf2c39f14309a6
+        landed_commit: 5817ab6e033adc8e426c5ed5da460b7f80544016
 ---
 
 # broadcast-web: retire the prototype fixtures once #470 and #471 land
