@@ -536,7 +536,8 @@ func (m *mirror) Seg(t int64, seg *rec.Seg, session string, root *cnode, key str
 	}
 	for _, o := range m.sessions {
 		if o != s {
-			o.owner = 0
+			// One cast page at a time; frames come again through FrameDoc.
+			o.top, o.owner = false, 0
 		}
 	}
 	m.install(s, root, key)
