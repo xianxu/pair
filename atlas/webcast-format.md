@@ -35,6 +35,7 @@ family into files. Splitting and merging are pure functions of `k`:
   assets/<hash>        captured bodies (images resampled; CSS and fonts exact), named by content hash
   frames/index.jsonl   frame: the sparse low-res screenshots for the fidelity check (not in the live stream)
   frames/<n>.png
+  fidelity/            the fidelity check's report (#478): not records; written beside them
 ```
 
 Reading a recording merges the three record files into one stream by `t`. At equal `t`, events come first, then
@@ -312,9 +313,10 @@ serialization of the state. The viewer's conformance check compares it with what
   minute: about 1.4 MB/min gzipped on #453's busy stress page, before compact encoding. Assets are deduplicated by hash, and images are
   resampled to a resolution budget (#459). A retention sweep comes with the first upload or listing feature. It is not
   part of the format.
-- **The reducer** holds one recording's state in memory, and `Reduce(records, t)` replays from the first record. Seeking from
-  the latest `seg` before t (an index of segment offsets) is a later optimization. The index would be derived from the records,
-  never stored as a second truth.
+- **The reducer** holds one recording's state in memory, and `Reduce(records, t)` replays from the first record. The viewer's
+  replay (#471) seeks from the latest `seg` before t: it reduces the catch-up of the records up to t (`catchUp` in
+  `web/replay.js`, held to `recording.CatchUp`), so a seek replays at most one segment. Nothing is indexed or stored beside
+  the records.
 
 ## Components and seams (wave 1 starts here)
 
@@ -372,7 +374,10 @@ hash (`canonical.sha256`). The expected value itself is printed on demand
 ## Fixtures
 
 The fixtures are in `cmd/internal/webcast/recording/testdata/fixtures/`; their README says how to regenerate them, and
-what they leave out. The three real ones were recorded by #453's prototype recorder (branch `453-recorder-prototypes`,
+what they leave out. The `rec-*` ones are the real recorder's (#458) own output (#472): `TestRecordFixtures` records
+#453's pages in its scenarios, and `fixturegen -recorded` adds the notes and pins, converting nothing. Every
+component's tests run on both sets; #453's prototype fixtures retire once the components built on them land (#474).
+The three prototype ones were recorded by #453's prototype recorder (branch `453-recorder-prototypes`,
 mode B, headless Chrome 154). For #457 the recorder was patched to add layout boxes, click and focus capture, and asset
 bodies. `recording/internal/fixturegen` converted them to this format. The converter applies everything it emits to a
 reducer, so a fixture validates by construction. It counts every record the reducer refuses (none in these runs). A few
@@ -385,6 +390,10 @@ regenerated one can't silently lose a case.
 | `app` (22 s, 0.5 MB) | #453's React + Tailwind app | Typing, clicks, focus, a modal, Tailwind's runtime `<style>` over CDP's 10k text cut, and a cross-document navigation (a second segment). A note is resolved. |
 | `blog` (12 s, 2 MB) | The operator's blog post `ariadne-1-building-blocks-of-ai-coding` (Astro + Tailwind, `npm run dev`) | Images, the Inter woff2 font, stylesheets, page scrolling, layout, and the giscus cross-origin iframe |
 | `segments` (hand-made) | `fixturegen -segments` | Pause and resume with ids kept, an edit while paused, a tab switch, a same-document navigation; notes span the resume and clear on the switch |
+| `rec-stress` (5 s, 0.8 MB) | #453's stress page from `testdata/stress`, by the recorder | As `stress`, but no FontFace font (`testdata/stress` leaves the file out, so it never loads) |
+| `rec-app` (22 s, 0.5 MB) | #453's app scenario, by the recorder | As `app`, plus `selection` records |
+| `rec-blog` (12 s, 1.9 MB) | The blog post's `browse` scenario, by the recorder | As `blog` |
+| `rec-segments` (10 s, 0.3 MB) | #453's reports page, by the recorder | A same-document navigation, a pause with an edit, a resume, a new tab (the cast follows it, at that tab's own viewport), and a cross-document navigation there |
 | `driven` (hand-made) | `fixturegen -driven` (`recording.DrivenRecording`) | Viewers request and are granted control. A driver's attributed clicks, typing and scroll, interleaved with the operator's own click. Driving continues through a pause, a resume and a navigation. Release, revoke, deny and leave. A note by the driver. |
 
 Gaps found while recording, closed by the recorder (#458):
@@ -392,6 +401,22 @@ Gaps found while recording, closed by the recorder (#458):
   synchronously (`TestLiveRecording` holds a click before its `seg navigate`).
 - **Layout:** `DOMSnapshot` on the top session leaves out out-of-process frames; the recorder captures each frame
   session's own and maps its boxes into the top page.
+
+## The fidelity report (#478)
+
+`<recording>/fidelity/` is written by the fidelity check (`webcast.CheckFidelity`, mapped in
+[webcast.md](webcast.md#the-fidelity-check-478)), from the CLI or when a recorded cast ends. A rerun replaces it
+whole. It is not part of the record stream: readers and `ValidateDir` ignore it, and it goes when the recording's
+directory does. At most 10 crops at most the frame's size plus two small text files.
+
+- `report.json` is `fidelity.Report`: `recording`, `tolerance` (% of a frame's pixels), `frames`, `skipped` (frames
+  with nothing live to replay), `median`, `max`, `over` (frames over the tolerance), `worst` (indexes into `shots`,
+  worst first: every frame over the tolerance and at least 3, at most 10). Each shot has `file` (the tab's frame),
+  `t`, `diff` (%), `over`, the `offset` (ms) and `at_t` (its diff at t) when it matched best a little earlier or
+  later, and `crop` for a worst one.
+- `report.md` is the same for a person: the summary, the worst moments, and every frame.
+- `worst-<n>.png` is a worst moment at the frame's resolution: the tab, the replay, and where they differ (red),
+  cropped to the difference.
 
 ## Agent queries (#462)
 
@@ -524,3 +549,5 @@ recording. Seats and their keys are memory only: they end after the grace period
 - 2026-10-12 (#459, TL ops:0): the asset store, not the recorder, makes stored CSS bodies' URLs absolute (at
   `Put`, against the capture URL); `image-set()` plain strings are URLs to both the proxy and the viewer; the
   resample policy is written down under Assets. Additive: no record kind or field changes.
+- 2026-10-12 (#478, additive): `fidelity/` in the recording directory, the fidelity check's report. No record kind
+  or field changes; frames are as #457 defined them.

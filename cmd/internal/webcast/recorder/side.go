@@ -404,12 +404,14 @@ func (r *Recorder) shotDone(d shotDone) {
 		r.framesLost++
 		return
 	}
-	t := r.t(d.at)
-	if t < r.m.st.T {
-		t = r.m.st.T
-	}
+	// The frame is at the capture's midpoint (the format's frame t), never
+	// before its segment. Records kept arriving while the layout was
+	// captured after it, so the layout record alone takes the stream's
+	// time: clamping the frame there too stamped a busy page's pixels up to
+	// ~90ms after what they show (#472).
 	f := &rec.Frame{File: fmt.Sprintf("frames/%d.png", r.shotN), W: d.w, H: d.h, Scale: d.scale}
-	f.SetTime(t)
+	f.SetTime(max(r.t(d.at), r.segT))
+	t := max(f.T, r.m.st.T)
 	if err := r.frames.PutFrame(f, d.png); err != nil {
 		r.framesLost++
 		return

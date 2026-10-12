@@ -22,6 +22,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/cdp"
 	castassets "github.com/xianxu/pair/cmd/internal/webcast/assets"
+	"github.com/xianxu/pair/cmd/internal/webcast/fidelity"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
@@ -43,17 +44,34 @@ const (
 	renderTolerance = 0.03
 )
 
-// realTimeWindow is how much of the timeline before a frame is replayed in
-// real time, so transitions running at the frame are in the tab's phase
-// (their timing isn't recorded: the fidelity list's "animations and
-// transitions"). Tailwind's longest common duration is 1s.
-const realTimeWindow = 1000
+// observerLag is how late a fixture's scroll and input records can trail
+// the tab: up to 150ms for #453's prototype, whose observer polls every
+// 100ms and flushes every 50ms; 0 for #458's recorder, which reports
+// synchronously (#472).
+func observerLag(name string) int64 {
+	if slices.Contains(recording.PrototypeFixtures, name) {
+		return 150
+	}
+	return 0
+}
 
-// fixtureObserverLag: #453's prototype observer polls every 100ms and
-// flushes every 50ms, so a fixture's scroll and input records can trail the
-// tab by up to 150ms. #458's recorder reports synchronously; when its
-// recordings replace the fixtures this goes to 0.
-const fixtureObserverLag = 150
+// knownGaps are frames that differ for a filed reason, by fixture and frame
+// index. One that comes within tolerance fails, so its entry goes.
+var knownGaps = map[string]map[int]string{
+	"rec-stress": {0: "pair#475: stress.css binds after the segment's first screenshot, which shows it applied"},
+}
+
+// frameOffsets are where a frame's pixels may be instead of its t: the
+// product check's (its own, fidelity.CaptureSkew before), and observerLag
+// after (the prototype's). recording.FrameTimes keeps those in the frame's
+// segment.
+func frameOffsets(name string) []int64 {
+	offs := slices.Clone(fidelity.Offsets)
+	if lag := observerLag(name); lag > 0 {
+		offs = append(offs, lag)
+	}
+	return offs
+}
 
 func TestLiveReplayFixtures(t *testing.T) {
 	page := headlessPage(t)
@@ -74,18 +92,23 @@ func TestLiveReplayFixtures(t *testing.T) {
 				}
 			}
 			for i, f := range rec.Frames {
-				diff := page.renderDiff(t, rec, name, f, f.T)
-				t.Logf("frame %d (t=%d): %.2f%% of pixels differ", i, f.T, 100*diff)
-				if diff <= renderTolerance {
-					continue
+				var tried []string
+				ok := false
+				for _, at := range recording.FrameTimes(rec.Records, f.T, frameOffsets(name)) {
+					diff := page.renderDiff(t, rec, name, f, at)
+					tried = append(tried, fmt.Sprintf("%.2f%% at %+dms", 100*diff, at-f.T))
+					if ok = diff <= renderTolerance; ok {
+						break
+					}
 				}
-				// The fixtures' polled observer reports up to
-				// fixtureObserverLag late: the tab may already show what
-				// the recording has a little later.
-				late := page.renderDiff(t, rec, name, f, f.T+fixtureObserverLag)
-				t.Logf("frame %d (t=%d): %.2f%% at +%dms (observer lag)", i, f.T, 100*late, fixtureObserverLag)
-				if late > renderTolerance {
-					t.Errorf("frame %d (t=%d): %.2f%% of pixels differ (%.2f%% at +%dms), over the %.0f%% tolerance", i, f.T, 100*diff, 100*late, fixtureObserverLag, 100*renderTolerance)
+				t.Logf("frame %d (t=%d): %s", i, f.T, strings.Join(tried, ", "))
+				switch gap, known := knownGaps[name][i]; {
+				case ok && known:
+					t.Errorf("frame %d (t=%d) is within tolerance now: drop its known gap (%s)", i, f.T, gap)
+				case !ok && known:
+					t.Logf("frame %d: known gap, %s", i, gap)
+				case !ok:
+					t.Errorf("frame %d (t=%d): %s of pixels differ, over the %.0f%% tolerance", i, f.T, strings.Join(tried, ", "), 100*renderTolerance)
 				}
 			}
 		})
@@ -375,7 +398,7 @@ func (p *chromePage) evalString(t *testing.T, expr string) string {
 func (p *chromePage) renderDiff(t *testing.T, rec *recording.Recording, name string, f *recording.Frame, at int64) float64 {
 	t.Helper()
 	p.eval(t, fmt.Sprintf("load(%q)", name))
-	p.evalString(t, fmt.Sprintf("replayAt(%d, %d)", at, realTimeWindow))
+	p.evalString(t, fmt.Sprintf("replayAt(%d, %d)", at, ReplayWindow))
 	return p.compare(t, filepath.Join(rec.Dir, f.File), f)
 }
 

@@ -1181,6 +1181,17 @@ proof; record the surprising case so the next change starts from evidence.
   containment. When a second component accepts another's format, call the owner's reader for it (`notes.Match`) and
   fall back to your own grammar only outside it; scope every combinator to a tree as the platform does; test with
   identity against an oracle the owner provides (`Resolve` with no node id), never with "contains".
+- **A fixture corpus can leave out the very case a rule exists for (#471).** The catch-up rule keeps assets from before
+  the latest segment and drops notes from earlier documents, and no fixture had either. The invariant passed on every
+  fixture while exercising nothing. When a port is held to an invariant over fixtures, list the rule's branches first,
+  then check that some input reaches each one; add a synthetic recording for any branch no fixture reaches. And look at
+  a UI once (a headless screenshot): a layout bug that only shows while paused passed every DOM check.
+- **A held port needs a corpus the owner's test regenerates (#471 close, round 1).** #458 changed `recording.CatchUp`
+  (hover and ptr: only the latest) while #471's JS port was in flight. The merge was clean and every test passed: no
+  fixture had a hover or ptr, and the record-for-record check ran only in live Chrome. When code ports another
+  package's rule, check it in as a shared corpus. It needs every branch, plus the owner's answers. The owner's test
+  must fail when its rule moves (`TestCatchUpCorpus`), and the port's test must fail until it follows. After merging
+  main, grep main's diff for the ported function's name.
 - **A "what the user sees" rule has one walker; grep for its siblings (#469 close).** Fixing note context with a new
   `RenderedText` left #462's `spacedText` in `query/render.go`, a second visible-text walker with different
   rules beside it in the same output. When you add a function that defines how something reads (rendered text, a
@@ -1189,6 +1200,12 @@ proof; record the surprising case so the next change starts from evidence.
   hold: a select's live choice isn't in the DOM, so guessing it from the `selected` attribute contradicted the
   event beside it.
 
+- **Fixtures that share an accident hide every reader that depends on it (#472).** The prototype's fixtures were all
+  1280×800 with frames taken while the stream was quiet, so the replay harness and the fidelity tool hard-coded the
+  viewport, and the recorder's clamp of a frame's time to the stream's (43–87 ms late on a busy page, against the
+  format's "midpoint") never showed. When a reader takes a value the recording carries (a viewport, a time), read it
+  from the record, not from what the fixtures happen to share; and when a clamp keeps one stream monotonic, apply it
+  only to that stream's records, never to a timestamp another file defines. Add a fixture that varies the shared thing.
 - **A test that asserts "at once" needs a sync point with the goroutine doing the work (#473).** Two flakes had the
   same shape: the test read state from its own goroutine while another one was mid-step. couchtty polled the pointer
   phase, which flips before the same Run-loop step tears the timers down; couchcore gave a fake child's reaper 2ms of
@@ -1203,3 +1220,10 @@ proof; record the surprising case so the next change starts from evidence.
   bound is the test's subject. If not, lift it through a config seam (`Config.CloseTimeout`) and wait on the event.
   If the state the test holds already proves the property, wait with no window and let the binary's timeout catch
   a hang.
+
+- **A snapshot of a running page is not a fresh load (#478).** The fidelity replay started the blog's entry fade
+  when it drew the go-live snapshot, but the tab had finished it seconds before the cast went live, so the first
+  frame scored 2.15% for no render fault. When a replay or viewer draws a state captured mid-life (a segment that
+  isn't a navigation, a catch-up), ask what the browser's own clocks (animations, transitions) were doing at
+  capture, and settle them to the likeliest phase. Look at the worst moment's crop before tuning a tolerance: the
+  picture named the cause where the number couldn't.

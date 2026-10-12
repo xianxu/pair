@@ -1,0 +1,26 @@
+$ couch --broadcast-web-query <fixtures>/rec-app dom --at 6000
+t=6000  segment 1 (live)  http://127.0.0.1:62199/app.html  viewport 1280x800@1  title "TaskPilot"
+@1 #document http://127.0.0.1:62199/app.html {scrolled 0,0}
+  @3 <html>
+    @4 <head> (title "TaskPilot"; 1 meta; 4 script; 1 style)
+    @20 <body class=bg-slate-50>
+      @22 <div id=root>
+        @23 <div class="flex min-h-screen">
+          @24 <aside class="w-56 bg-slate-900 text-slate-100 p-4 space-y-2">
+            @25 <div class="text-xl font-bold mb-6"> TaskPilot
+            @27 <button class="block w-full text-left px-3 py-2 rounded-lg capitalize hover:bg-slate-700" id=nav-dashboard> dashboard
+            @29 <button class="block w-full text-left px-3 py-2 rounded-lg capitalize bg-indigo-600" id=nav-tasks> tasks
+            @31 <button class="block w-full text-left px-3 py-2 rounded-lg capitalize hover:bg-slate-700" id=nav-settings> settings
+            @33 <a class="block mt-8 text-indigo-300 underline" href=/app2.html id=next-doc> Reports (new page)
+          @35 <main class="flex-1 p-8 space-y-6">
+            @36 <h1 class="text-3xl font-semibold capitalize text-slate-800"> tasks
+            @66 <div class=space-y-4>
+              @68 <form class="flex gap-2">
+                @69 <input class="flex-1 border rounded-lg px-3 py-2" id=draft placeholder="New task" value="Review PR 42"> {value "Review PR 42"}
+                @70 <button class="bg-indigo-600 text-white px-4 rounded-lg"> Add
+              @72 <input class="w-full border rounded-lg px-3 py-2" id=search placeholder=Search value=fix> {value "fix", focused}
+              @73 <ul class="bg-white rounded-xl shadow divide-y">
+                @78 <li class="flex items-center gap-3 px-4 py-3">
+                  @79 <input checked type=checkbox> {checked}
+                  @80 <span class="line-through text-slate-400"> Fix billing webhook
+      @63 <script> (4454 chars)

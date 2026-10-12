@@ -5,6 +5,7 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 )
 
@@ -100,7 +101,18 @@ func TestFixtureCoverage(t *testing.T) {
 			{"a note by the driver", func(c *coverage) bool { return c.driverNotes > 0 }},
 		},
 	}
+	// The real recorder's fixtures (#472) cover what the prototype's did, on
+	// the same pages, but for the stress page's late font: testdata/stress
+	// leaves it out (a macOS system font), so its FontFace never loads.
+	want["rec-stress"] = slices.DeleteFunc(slices.Clone(want["stress"]), func(c check) bool { return c.what == "a FontFace font" })
+	want["rec-app"] = want["app"]
+	want["rec-blog"] = want["blog"]
+	want["rec-segments"] = append(slices.Clone(want["segments"]),
+		check{"a cross-document navigation", func(c *coverage) bool { return c.navigateSegs > 0 }})
 	for _, name := range Fixtures {
+		if want[name] == nil {
+			t.Errorf("%s: no coverage checks", name)
+		}
 		r, err := ReadDir(Fixture(name))
 		if err != nil {
 			t.Fatal(err)
@@ -125,7 +137,9 @@ func TestFixturesStayWithinTheirBudget(t *testing.T) {
 		}
 		return nil
 	})
-	if budget := int64(4_500_000); total > budget {
+	// 9 MB while the prototype's fixtures and the real recorder's coexist
+	// (#472); back to 4.5 MB when the prototype's retire.
+	if budget := int64(9_000_000); total > budget {
 		t.Fatalf("fixtures are %d bytes, over the %d budget; trim a run before adding to it", total, budget)
 	}
 }
@@ -231,4 +245,36 @@ func measure(r *Recording) *coverage {
 		}
 	}
 	return c
+}
+
+// An offset from a frame's time never leaves its segment: not into the
+// previous page, nor across a resume. A pause keeps its segment's page.
+func TestFrameTimesStayInTheFramesSegment(t *testing.T) {
+	b := NewBuilder("r")
+	b.Page(SegLive, "http://a/", b.El("p", nil))
+	b.At(1000).Add(&Stop{Why: StopPause})
+	b.At(1500)
+	b.Page(SegResume, "http://a/", b.El("p", nil))
+	b.At(3000)
+	b.Page(SegNavigate, "http://b/", b.El("p", nil))
+	b.At(4000).Add(&Stop{Why: StopEnd})
+	offs := []int64{0, -50, 150}
+	for _, c := range []struct {
+		t    int64
+		want []int64
+	}{
+		{500, []int64{500, 450, 650}},
+		{960, []int64{960, 910, 1110}},    // into the pause: the same page, frozen
+		{1400, []int64{1400, 1350}},       // 1550 is after the resume
+		{1500, []int64{1500, 1650}},       // 1450 is before it
+		{3020, []int64{3020, 3170}},       // 2970 is the previous page
+		{4100, []int64{4100, 4050, 4250}}, // after the end: the last page
+	} {
+		if got := FrameTimes(b.Recs, c.t, offs); !slices.Equal(got, c.want) {
+			t.Errorf("t=%d: %v, want %v", c.t, got, c.want)
+		}
+	}
+	if got := FrameTimes(nil, 100, offs); got != nil {
+		t.Errorf("before any segment: %v, want none", got)
+	}
 }

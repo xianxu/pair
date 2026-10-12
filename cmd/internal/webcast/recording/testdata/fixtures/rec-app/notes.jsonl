@@ -1,0 +1,4 @@
+{"t":6000,"k":"note","id":"rec-app-n1","author":{"id":"viewer-1","name":"Pat (product)","color":"#e8590c"},"text":"Search should ignore case.","at":{"node":72,"sel":"#search","box":[256,150,992,42]}}
+{"t":9800,"k":"note","id":"rec-app-n2","author":{"id":"viewer-2","name":"Ana (design)","color":"#1c7ed6"},"text":"The modal's close button needs more contrast.","at":{"node":233,"sel":"#close-modal","text":"Cancel"}}
+{"t":11000,"k":"note-state","id":"rec-app-n2","state":"resolved"}
+{"t":19000,"k":"note","id":"rec-app-n3","author":{"id":"viewer-1","name":"Pat (product)","color":"#e8590c"},"text":"Reports needs a date range.","at":{"node":271,"sel":"h1~Reports","text":"Reports","box":[40,40,1200,36]}}

@@ -12,8 +12,14 @@ import (
 )
 
 // Fixtures are the checked-in recordings wave-1 components test against
-// (atlas/webcast-format.md, Fixtures).
-var Fixtures = []string{"stress", "app", "blog", "segments", "driven"}
+// (atlas/webcast-format.md, Fixtures). The rec-* ones are the real
+// recorder's (#472); stress, app and blog are #453's prototype's, and
+// retire once the components built on them have landed.
+var Fixtures = []string{"stress", "app", "blog", "segments", "driven", "rec-stress", "rec-app", "rec-blog", "rec-segments"}
+
+// PrototypeFixtures are the fixtures #453's prototype recorded, whose
+// polled observer reports scroll and input up to 150ms late.
+var PrototypeFixtures = []string{"stress", "app", "blog"}
 
 // Fixture is the directory of a checked-in fixture, for tests in any
 // package.
@@ -46,6 +52,34 @@ func CanonicalTimes(r *Recording) []int64 {
 			case *Seg, *Stop, *Note:
 				ts = append(ts, x.Time())
 			}
+		}
+	}
+	return ts
+}
+
+// FrameTimes are the moments a frame at t may be compared at: t plus each
+// offset that stays in the segment last started at or before t (a pause or
+// the end keeps that segment's page, frozen). Another segment shows another
+// page, and maybe another viewport, so comparing there could only pass
+// falsely (#472).
+func FrameTimes(recs []Record, t int64, offsets []int64) []int64 {
+	seg := func(at int64) int {
+		n := 0
+		for _, r := range recs {
+			if r.Time() > at {
+				break
+			}
+			if x, ok := r.(*Seg); ok {
+				n = x.Seg
+			}
+		}
+		return n
+	}
+	own := seg(t)
+	var ts []int64
+	for _, off := range offsets {
+		if own != 0 && seg(t+off) == own {
+			ts = append(ts, t+off)
 		}
 	}
 	return ts

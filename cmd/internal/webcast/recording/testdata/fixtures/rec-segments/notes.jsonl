@@ -1,0 +1,2 @@
+{"t":1500,"k":"note","id":"rec-segments-n1","author":{"id":"viewer-1","name":"Pat (product)","color":"#e8590c"},"text":"Reports needs a date range.","at":{"node":13,"sel":"h1","text":"Reports","box":[40,40,1200,36]}}
+{"t":4200,"k":"note","id":"rec-segments-n2","author":{"id":"viewer-2","name":"Ana (design)","color":"#1c7ed6"},"text":"Week 3 looks low; is that a gap in the data?","at":{"node":126,"sel":"td~Week 3","text":"Week 3","box":[40.5,174.5,317.09,41]}}

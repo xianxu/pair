@@ -31,6 +31,12 @@ const (
 	// cliWebQuery is couch broadcast-web's agent queries (#462); args holds
 	// the argv after the flag, which query.Main parses.
 	cliWebQuery
+	// cliWebReplay serves broadcast-web recordings for replay (#471); args
+	// holds the argv after the flag.
+	cliWebReplay
+	// cliWebFidelity checks a broadcast-web recording against its frames
+	// (#478); args holds the argv after the flag.
+	cliWebFidelity
 )
 
 type adoptionArgs struct {
@@ -100,6 +106,16 @@ func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, e
 			return parseAdoptionCLI(args)
 		case query.Flag:
 			return cliInvocation{kind: cliWebQuery, args: args[1:]}, nil
+		case replayFlag:
+			if _, err := parseReplayArgs(args[1:]); err != nil {
+				return cliInvocation{}, fmt.Errorf("%s: %w", replayFlag, err)
+			}
+			return cliInvocation{kind: cliWebReplay, args: args[1:]}, nil
+		case fidelityFlag:
+			if _, err := parseFidelityArgs(args[1:]); err != nil {
+				return cliInvocation{}, fmt.Errorf("%s: %w", fidelityFlag, err)
+			}
+			return cliInvocation{kind: cliWebFidelity, args: args[1:]}, nil
 		case "--session-sync":
 			return parseSessionSyncCLI(args)
 		case "--actors", "--send-to", "--message-status", "--skill", "--broadcast-list":

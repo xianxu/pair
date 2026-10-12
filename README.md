@@ -401,6 +401,12 @@ couch --broadcast-list [--json]   the running broadcast and its viewer count (ne
 couch --broadcast-web-query DIR dom|events|notes ...
                          read-only: a broadcast-web recording's page at t, what happened in a window,
                          and every note with its element and the actions before it (pair#462)
+couch --broadcast-web-replay [ID|DIR] [--at MS]
+                         replay broadcast-web recordings in the viewer with a timeline scrubber, served on
+                         this machine only until Ctrl-C; prints the link (#t=MS opens at a moment) (pair#471)
+couch --broadcast-web-fidelity [ID|DIR]
+                         check a recording (default: the newest) against the tab's screenshots in a headless
+                         Chrome; writes DIR/fidelity/report.md; exit 3 when a frame is over tolerance (pair#478)
 couch --session-sync read|write|diff|status ... FILE
                          the one way an agent changes a session-sync file it owns: refuses under the
                          operator's lock or when the section changed since `read` (write --if-hash), and
@@ -865,6 +871,25 @@ recording directory for a coding agent: the page at a moment, what happened
 in a window, and every note with its element, focused context and the actions
 just before it. It needs no running Couch; `couch --broadcast-web-query` alone
 prints its usage. See [atlas/webcast-format.md](atlas/webcast-format.md#agent-queries-462).
+
+`couch --broadcast-web-replay [ID|DIR] [--at MS]` plays recordings in the
+viewer: play, pause, speed, and a timeline that shows pauses as gaps, notes,
+strokes and who drove. With no argument it lists the recordings in Couch's
+store; an ID or a recording directory opens that one, and `--at MS` prints a
+`#t=MS` link to that moment. It serves on this machine only, until Ctrl-C.
+
+`couch --broadcast-web-fidelity [ID|DIR]` checks a recording against the real
+tab. During a cast the recorder keeps sparse low-res screenshots of the tab
+(`frames/`, never streamed to viewers). The check replays the recording at each
+of those moments in a headless Chrome, with the viewer's own renderer, and
+compares the pixels. It writes `fidelity/report.md` (with `report.json` and the
+worst moments side by side) into the recording and prints the median and the
+max. With no argument it checks the newest recording in Couch's store. It exits
+0 when every frame is within the tolerance (3% of pixels), 3 when some frame is
+over it, and 1 on an error. Each recorded cast is also checked by itself when it
+ends, and the result shows as a notice. See
+[atlas/webcast.md](atlas/webcast.md#the-fidelity-check-478).
+See [atlas/webcast.md](atlas/webcast.md#replay-471).
 
 Broadcasts reach viewers through [`cloudflared`](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/)
 (`brew install cloudflared`):

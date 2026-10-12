@@ -14,7 +14,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
-//go:embed web/index.html web/viewer.js web/viewer.css web/model.js web/render.js web/css.js
+//go:embed web/index.html web/viewer.js web/viewer.css web/model.js web/render.js web/css.js web/replay.js web/replay.css web/replayer.js web/fidelity.html web/fidelity.js
 var webFS embed.FS
 
 // contentSecurityPolicy: the page runs only its own script, talks only to
@@ -31,6 +31,12 @@ var assets = map[string]struct{ file, contentType string }{
 	"model.js":   {"web/model.js", "text/javascript; charset=utf-8"},
 	"render.js":  {"web/render.js", "text/javascript; charset=utf-8"},
 	"css.js":     {"web/css.js", "text/javascript; charset=utf-8"},
+	"replay.js":  {"web/replay.js", "text/javascript; charset=utf-8"},
+	"replay.css": {"web/replay.css", "text/css; charset=utf-8"},
+	// The fidelity check's page (#478): the replay unscaled, no shell.
+	"replayer.js":   {"web/replayer.js", "text/javascript; charset=utf-8"},
+	"fidelity.html": {"web/fidelity.html", "text/html; charset=utf-8"},
+	"fidelity.js":   {"web/fidelity.js", "text/javascript; charset=utf-8"},
 }
 
 // endedReason is what viewers are told when the cast ends.
@@ -95,18 +101,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.proxy.Serve(w, r, hash)
 		return
 	}
-	a, ok := assets[rest]
-	if !ok {
-		http.NotFound(w, r)
-		return
-	}
-	body, err := webFS.ReadFile(a.file)
-	if err != nil {
-		http.Error(w, "unavailable", http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", a.contentType)
-	w.Write(body)
+	serveViewerFile(w, r, rest)
 }
 
 func (s *Server) events(w http.ResponseWriter, r *http.Request) {

@@ -63,10 +63,12 @@ and strokes) enter its queue as `recorder.Emit`, stamped on arrival and checked 
 - **Where recordings go:** `CastConfig.RecordingsDir` (`<couch store>/webcast/recordings/<id>/`), opened at the first
   go-live, teed into `CastConfig.NewLive`'s hub, whose records `Server` streams as `rec` events after the `state`
   ones. Kept until the operator deletes the directory.
-- **Fidelity:** `recorder/internal/fidelity` (a development tool) replays a recording at each screenshot in headless
-  Chrome and diffs the pixels; `TestLiveRecordURL` records any URL for it (#458's numbers are in its issue Log).
-  Screenshots are the viewport at half its CSS size whatever the DPR (`recorder.LowRes`), the form #453's fixtures
-  use.
+- **Frames:** a screenshot and layout at each segment start (go-live, resume, navigate, tab) and every 5 s while live
+  (`Options.ShotEvery`), never streamed. Screenshots are the viewport at half its CSS size whatever the DPR
+  (`recorder.LowRes`), the form #453's fixtures use. The fidelity check (#478, below) compares them with the replay.
+  A frame's `t` is its screenshot call's midpoint, but never before its segment: a call that straddles a navigation
+  is stamped at the new segment's start, though its pixels may show either page. The layout boxes captured after it
+  take the stream's time, which records may have moved past meanwhile (#472).
 - **Asset capture** (the recorder's; #459 stores, absolutizes CSS and serves): raw bodies to `assets.Store.Put`, one
   fetch per URL per recording, by the first source to claim it. A Network response claims its URL; so does a resource
   Chrome holds at a segment's start (`Page.getResourceContent`, else a load in the page's context with
@@ -76,6 +78,51 @@ and strokes) enter its queue as `recorder.Emit`, stamped on arrival and checked 
 - **Live check:** `TestLiveRecording` (`live_record_test.go`) casts a page with re-renders, open and closed roots, an
   out-of-process iframe, insertRule, a >10k `<style>`, a password, a click that navigates, pause and resume; the
   recording must validate, drop nothing, and hold each case.
+
+## The fidelity check (#478)
+
+Project Principle 6: fidelity is measured, not assumed. Each recording's frames (the real tab) are compared with
+what the viewer's renderer draws at the same moments.
+
+- **Pure core:** `webcast/fidelity`. `Diff` is #453's pixelmatch-style YIQ diff (the share of pixels that differ,
+  leaving out the cast control's corner). `Summarize` gives median, max and the frames over `Tolerance` (3% of a
+  frame's pixels). `DiffBox` and `SideBySide` make each worst moment's image: the tab, the replay, and where they
+  differ in red, cropped to the difference. `Write` puts the report in `<recording>/fidelity/`
+  (format: [webcast-format.md](webcast-format.md#the-fidelity-report-478)).
+- **Shell:** `webcast.CheckFidelity(ctx, chromeBin, dir)`. It serves the recording with a `ReplayServer` on loopback
+  and opens `r/<id>/fidelity.html` in a headless Chrome on a throwaway profile. For each frame, in time order, it
+  sets the frame's viewport at DPR 1, calls `fidelity.replayAt(t, ReplayWindow)`, screenshots the viewport,
+  scales it with `recorder.LowRes` (the tab's own filter) and diffs it.
+  - A frame over the tolerance is replayed again at t − `fidelity.CaptureSkew` (50 ms), the best kept. A frame's
+    pixels can be from earlier than its t (#472). It is never replayed later than t: #458's recorder reports
+    synchronously, so a later match would hide a recorder that is late (pair#475). `recording.FrameTimes` keeps each
+    moment in the frame's own segment, the same rule #460's conformance test uses.
+  - The report shows the offset and the diff at t, so a timing slip is told apart from a wrong render.
+  - Only the 10 worst replays are held in memory.
+- **The page:** `web/fidelity.html` + `fidelity.js`, the frame alone at (0,0), unscaled at the operator's viewport.
+  `web/replayer.js`'s `Replayer` is the replay. #460's conformance harness uses it too, so there is one
+  `replayAt`.
+  - Records up to t − 1 s are drawn at once, then the last second in real time, so a transition is in the tab's
+    phase.
+  - A moment shortly after the last one continues it: the animations paused at the last capture resume, so a
+    retry or a close frame is at its phase. A moment before it seeks through the catch-up (`catchUp`, the replay's
+    seek rule), so it replays at most one segment.
+  - A segment that isn't a navigation snapshots a document that was already running, so its animations are
+    finished, not started: on the live blog cast this took the first frame from 2.15% to 0.10%.
+- **When it runs:**
+  - `CastConfig.Check` runs once a recorded cast with frames has ended, in the background. couchcmd wires
+    `CheckFidelity` with one check at a time per Couch, and the summary line goes to the operator's notice.
+  - `couch --broadcast-web-fidelity [ID|DIR]` checks a recording (default: the store's newest). It prints the line
+    and exits 0 within the tolerance, 3 over it, 1 on an error.
+- **Measured** (`Tolerance`'s comment): the fixtures at most 0.74%; a live blog cast by #458's recorder at most 0.10%
+  over 17 frames; the blog without its stylesheets 81% median, every frame over.
+- **Tests:**
+  - `fidelity/fidelity_test.go` and `fidelity_check_test.go`: pure.
+  - `record_cast_test.go`: the hook, with a fake check.
+  - `couchcmd/fidelity_test.go`: the CLI, with a fake check.
+  - `tests/webcast/replayer.test.mjs`: the replay's timing, with a fake clock.
+  - `fidelity_live_test.go` (`WEBCAST_LIVE_CHROME=1`): every fixture within the tolerance, and a broken render
+    (no stylesheets) caught. `FIDELITY_DIR=` checks any recording in place, e.g. one from `TestLiveRecordURL`.
 
 ## Lifecycle
 
@@ -150,8 +197,67 @@ and strokes) enter its queue as `recorder.Emit`, stamped on arrival and checked 
 - **Viewer fidelity:** `replay_test.go` replays every fixture in headless Chrome (`WEBCAST_LIVE_CHROME=1`).
   - The drawn page's canonical equals the reducer's at every pin, and a join at any pin draws the same page.
   - Renders are within 3% of `frames/` (measured 0.2–2.3%). The last second before each frame is replayed in real
-    time so transitions are in phase, and the fixtures' polled observer gets 150 ms of slack.
+    time so transitions are in phase. The prototype's fixtures' polled observer gets 150 ms of slack; the recorder's
+    get none (#472). Any fixture's frame may also be compared 50 ms before its `t`: its pixels are a compositor frame from
+    inside the screenshot call. Offsets never leave the frame's own live segment (`recording.FrameTimes`, shared with the
+    fidelity tool). `knownGaps` lists frames that differ for a filed reason (#475), and fails once one passes.
+  - The harness sizes the drawn page to the segment's viewport, as `viewer.js` does, so a tab switch to a
+    different-sized tab compares at that size.
   - `viewer_live_test.go` drives the real page through `Server` and a `Hub` at tablet width: scaling, URL, hover,
     pointer, and `boxOf` against the tab's own layout boxes (215 of 217 on blog).
 - **Known transient:** for a moment after a navigation, the title can be Chrome's placeholder (the URL, as in
   Chrome's own tab) until the page reports its `<title>`; it is never the previous page's title (`DocumentChanged`).
+
+## Replay (#471)
+
+A recording plays in the same viewer, with the same model and renderer. Only its source differs: records come from disk
+instead of the event stream.
+
+- **Source:** `web/replay.js`. `mount` branches once, on the path (`<token>/r/<id>/`): `mountReplay` instead of
+  `connect`. Both return the surface `{model, renderer, onRecord}`, so layout, scaling, the pointer and
+  `window.couchViewer` are unchanged.
+- **Seek rule:** the state at t is the catch-up of the records up to t, reduced. `catchUp` is a port of
+  `recording.CatchUp`, which keeps only the latest `hover` and `ptr` of the latest segment.
+  - **Shared corpus:** `tests/webcast/catchup_corpus.json` reaches every branch of the rule and holds Go's answer at
+    every cut. `TestCatchUpCorpus` keeps the answers true to Go and requires every special-cased kind; regenerate them
+    with `-update-catchup`. The node test holds the port to the same answers, so a change to Go's rule fails at once
+    until the port follows.
+  - **Invariant:** node tests also check the format's catch-up invariant at every boundary cut of every fixture: the
+    same DOM, assets, `DocSeg` and current-document notes as the whole prefix.
+  - **Live:** the live check compares the port with Go's, record for record, on the fixtures. A forward seek within a stretch applies the records in
+  between. A seek backward or across a `seg` rebuilds from the catch-up, so it replays at most one segment.
+- **Player:** `Player` is the replay's state (`t`, playing, speed 0.5–4×, an error state for a refused record). It has
+  no clock: the shell ticks it on animation frames. Playback skips pauses, and it stops at the end.
+- **The bar** (`#timeline`, `replay.css`) shows play/pause, speed and the track:
+  - live segments, with a seam where one starts;
+  - pauses hatched, each squeezed to at most 3% of the width (`placer`), so an hour's pause doesn't flatten the rest;
+  - who drove, as bands from the `ctl` records' control state;
+  - notes and strokes, as ticks.
+  Click or drag seeks, and so do ←/→, Home/End and Space.
+- **`#t=` links:** `#t=<ms>` opens at that moment, paused. A seek or a pause rewrites the hash
+  (`history.replaceState`), and `hashchange` seeks. `webcast.ReplayLink(base, id, t)` builds a link.
+- **Marks over the page:** each note open on the current document shows as a pin at its element (`boxOf`, else the
+  box it carried). A stroke shows from its `t` through its last point, plus a 1.5 s fade. #470's live notes and pointer
+  UI should replace this once both have landed.
+- **Server:** `webcast.ReplayServer(token, root)`, a `broadcast.Mountable` with the viewer's CSP. It serves:
+  - `<token>/`: the listing, newest first, from each recording's head line and last line;
+  - `r/<id>/`: the viewer;
+  - `r/<id>/records`: the merged records, read per request, so a recording still being written replays as far as it
+    has got;
+  - `r/<id>/assets/<hash>`: the cast's `assets.Proxy`, bound to `assets.Reopen(rec)`, a read-only `Recorded` built
+    from the asset records.
+
+  An id is one path element (`ValidRecordingID`) naming a real directory directly under the root, never a symlink.
+- **Entry point:** `couch --broadcast-web-replay [ID|DIR] [--at MS]` (`couchcmd/replay.go`).
+  - It reads the store a running Couch uses (`<store>/webcast/recordings`, where #458 records), or the named directory.
+  - It serves on `127.0.0.1` under a fresh token until SIGINT or SIGTERM, and prints the link.
+  - It writes nothing (ARCH-FUNERAL: the listener and token die with the process).
+  - Mounting the replay on the shared `broadcast.Host` inside a running Couch, for remote viewers, is the TL's
+    follow-up after #458.
+- **Tests:**
+  - `tests/webcast/replay.test.mjs`: the seek rule, timeline, placer, `#t=`, `Player` and `replaySource`, with fakes.
+  - `replay_server_test.go`: the routes and confinement to the root.
+  - `couchcmd/replay_test.go`: the CLI.
+  - `replay_live_test.go` (`WEBCAST_LIVE_CHROME=1`): a `#t=` link and shuffled scrubbing draw the reducer's canonical
+    state at every pin of every fixture; JS `catchUp` takes the records Go's does; notes and strokes match the reducer
+    at their moments; drive bands; nothing is requested outside the server.

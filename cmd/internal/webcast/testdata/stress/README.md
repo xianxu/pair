@@ -8,5 +8,5 @@ out (as in #457's `stress` fixture): the font load fails the same way on every r
 ```sh
 WEBCAST_LIVE_CHROME=1 WEBCAST_RECORD_URL=stress WEBCAST_RECORD_OUT=DIR WEBCAST_RECORD_SCENARIO=idle \
   WEBCAST_RECORD_SECS=7 go test ./cmd/internal/webcast -run LiveRecordURL -v
-FIDELITY_DIR=DIR go test ./cmd/internal/webcast/recorder/internal/fidelity -run Dir -v
+couch --broadcast-web-fidelity DIR   # the fidelity check (#478): DIR/fidelity/report.md
 ```

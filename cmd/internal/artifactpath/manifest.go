@@ -708,6 +708,20 @@ var NonArtifactSources = []string{
 	"cmd/internal/webcast/notes/landmark.go",
 	"cmd/internal/webcast/notes/selector.go",
 	"cmd/internal/webcast/notes/structural.go",
+	// #471 replay: reads recordings under <store>/webcast/recordings (or a
+	// directory the caller names) and serves them on loopback; writes nothing.
+	"cmd/internal/couchcmd/replay.go",
+	"cmd/internal/webcast/assets/reopen.go",
+	"cmd/internal/webcast/replay.go",
+	// #478 fidelity check: reads a recording and writes its report into the
+	// recording's own fidelity/ (removed with the recording, which the
+	// operator deletes), plus a throwaway Chrome profile under the OS temp
+	// dir that it removes when it returns; no Pair artifact family.
+	"cmd/internal/couchcmd/fidelity.go",
+	"cmd/internal/webcast/fidelity/crop.go",
+	"cmd/internal/webcast/fidelity/diff.go",
+	"cmd/internal/webcast/fidelity/report.go",
+	"cmd/internal/webcast/fidelity_check.go",
 	// #462 agent queries: read a recording directory the caller names
 	// (couch --broadcast-web-query DIR) and write only to stdout.
 	"cmd/internal/webcast/query/cli.go",
@@ -740,15 +754,11 @@ var NonArtifactSources = []string{
 	// #458 recorder: writes records, screenshots and asset bodies into the
 	// recording its Output opens (Cast's DirWriter at
 	// <store>/webcast/recordings/<id>, kept until the operator deletes it);
-	// no Pair artifact family. The fidelity tool reads a recording and
-	// writes only a throwaway Chrome profile under the OS temp dir.
+	// no Pair artifact family.
 	"cmd/internal/webcast/recorder/mirror.go",
 	"cmd/internal/webcast/recorder/observe.go",
 	"cmd/internal/webcast/recorder/recorder.go",
 	"cmd/internal/webcast/recorder/side.go",
-	"cmd/internal/webcast/recorder/internal/fidelity/diff.go",
-	"cmd/internal/webcast/recorder/internal/fidelity/render.go",
-	"cmd/internal/webcast/recorder/internal/fidelity/run.go",
 	// #466 remote-driving contract: input wire, confinement, control and
 	// injection seams with fakes; seats are memory only, no artifact paths.
 	"cmd/internal/webcast/drive/act.go",
