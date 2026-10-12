@@ -80,6 +80,7 @@ Durable plan: `workshop/plans/000470-broadcast-web-pointer-and-notes-in-the-view
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed M1 — go test ./cmd/internal/webcast/... ./cmd/internal/broadcast/... ./cmd/internal/artifactpath green; board -race + fuzz; mutation checks; cast-level note to notes.jsonl + resolve; review round-1 fixes in HEAD; review verdict: FIX-THEN-SHIP
 
 - TL approved the seams (1f98c952): self-chosen viewer id + name (attribution, not authentication; #467 swaps in
   seats); one always-on link; strokes stream as several records sharing an id; the Board follows the stream as a Sink

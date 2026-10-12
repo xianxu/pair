@@ -140,3 +140,113 @@ findings:
     detail: |
       ARCH-MOCK: a shared contract run over both writers would catch drift.
 ```
+
+---
+
+## Re-review — 2026-10-12T03:26:36-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 470 — broadcast-web: pointer and notes in the viewer — anchored to element and time, multi-viewer |
+| repo | pair |
+| issue file | workshop/issues/000470-broadcast-web-pointer-and-notes-in-the-viewer-anchored-to-element-and-time-multi-viewer.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | e2d4f6d78340cdefe22317faef3a139f5039374e..b9e409c6697e10ab4f30010b3ea0be541955f2d6 |
+| command | sdlc milestone-close --issue 470 --milestone M1 |
+| reviewer | claude |
+| isolation | checkout |
+| timestamp | 2026-10-12T03:26:36-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+Prior-round fixes check out in the code so far. Next I'm checking that the tests exist and running them.
+
+Tests pass. Now reverting the board-before-Hub ordering to see whether any test catches it.
+
+Checking a few edge cases now: stroke-id collisions, and whether the recording can reopen after the board has closed.
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+**Summary.** M1 does what the plan, as revised, says it does. The `board` package is in place: strict parsing, the named refusals, pending entries that count toward a color's limit, and the document re-check at write time (`recording.State.OnDoc`). It is wired through `StartCast`, `Chrome.Emit` and `recorder.Emit{Doc}`, and `Server.WithBoard` serves the three POST routes. `go test -race ./cmd/internal/webcast/...` passes. Of the seven prior findings, four are fixed with evidence (BR-1, BR-2, BR-5, BR-6). Three stay open, all Minor:
+- **BR-3:** the sink order is fixed, but no test fails without it.
+- **BR-4:** deferred to wave 3, with a reason.
+- **BR-7:** declined, with a reason.
+
+Nothing blocks. The one cheap fix worth making first is a test that pins the board-before-Hub order.
+
+### 1. Strengths
+- **One ordering rule.** `recording.State.OnDoc` (`recording/reduce.go:123`) is used by both the recorder at dequeue (`recorder.go:506`) and `board.Writer.Emit` (`writer.go:40`). `TestRecorderEmitChecksTheDocument` also checks that a dropped record isn't counted as refused.
+- **Locking.** The board's lock is a leaf lock: emit and subscriber sends happen outside it, and `refreshLocked` empties the one-slot buffer before sending, so the deadlock the plan predicted through Tee → `Put` can't happen.
+- **A broken board fails visibly.** It answers `ErrBroken` (503, logged once through `Logf`, which is wired from `cfg.Logf` at `cast.go`). `Put` never fails the recording's Tee, including after `Close`. `TestBrokenBoardStopsAndSaysSo` pins all of this.
+- **One mapping from outcome to answer.** `boardAnswer` (`server_board.go:167`) holds fixed sentences that never echo input. The id regex excludes `.`, so the composed stroke id `<viewer>.<stroke>` can't collide.
+- **Region notes have a contract.** `NoteCrops` is covered by the shared `RunModelContract` (`notes/contract.go:108`), so the fake and `Structural` are held to the same region behavior.
+
+### 2. Critical
+None.
+
+### 3. Important
+None.
+
+### 4. Minor
+- **BR-3 (still open):** I swapped `bd` and `live` in the sink list in `recordingOutput` (`cast.go`), and `go test -race ./cmd/internal/webcast/` still passed. Nothing pins the order. Fix sketch: build the sinks list in a small helper, or expose the Tee's order, and assert `[dir, board, hub]`. Or write a test where a Hub subscriber posts a note as soon as it receives a `doc` record and expects 204.
+- **BR-4 (deferred, accepted as deferred):** `NoteCrops` has no production caller outside `notes/` yet, so the clamp belongs with wave 3's submission. It still needs doing there.
+- **BR-7 (declined):** the reasoning is sound for the rule they share, but the gap is real. Server and cast tests run against `board.Writer`, which answers a navigation race with 409. Production answers the same race with 204 and drops the note silently. Tests at this seam see a different answer than viewers do.
+- **Misleading answer (not filed as a finding):** an emit failure (`ErrNotRecording`, or a writer error) maps to 503 with the busy sentence "Too many requests. Wait a moment." (`server_board.go:186`), which tells the viewer the wrong cause.
+
+### 5. Test coverage notes
+I reverted fixes to check that tests catch them:
+- **BR-3 order swap:** stays green, so there is no regression evidence.
+- **BR-5:** pinned by the `len(r.bd.st.Strokes) == 0` check (`board_test.go:431`).
+- **BR-2:** pinned by the same test's `ErrBroken`, log-once and Put-after-Close assertions.
+
+The issue Log also reports two mutation checks I didn't re-run: the pending-count test and the silent-drop test.
+
+### 6. Architecture (ARCH-*)
+- **ARCH-DRY: pass.** One palette, the shared note limits (`broadcast.PlainText` is now exported for reuse), one OnDoc rule, and `Crops` defined as `NoteCrops` without regions.
+- **ARCH-PURE: pass.** `Parse*` functions are pure; the Board is pure apart from its lock; the routes are a thin admission layer.
+- **ARCH-PURPOSE: pass for M1's scope.** Viewer UI and Couch's `💭N` are M2 and M3 as planned.
+- **ARCH-MOCK: minor gap (BR-7).** The reference Writer's synchronous `ErrStale` differs from the recorder's silent drop.
+- **ARCH-CONSTRAINTS: pass.** Budgets are enforced per cast (strokes 60/s, notes and states 2/s with a burst of 5, 4 in flight, a body read deadline).
+- **ARCH-SECURE: pass.** Parsing is strict, `operator` is reserved, refusals never echo input; the box clamp is deferred (BR-4).
+- **ARCH-ORDER: pass on the race the plan named.** Pending entries end on seen-back, on emit error, or at a new document. The sink-order rule lacks a test (BR-3).
+- **ARCH-FUNERAL: pass.** The board keeps no strokes, pending entries die as listed, the board is closed with the recording or the cast, and `Out` is opened only once (`recorder.go:621`), so a closed board is never teed into a later recording.
+
+### 7. Plan revisions
+None needed. The 2026-10-12 Revisions entry matches the code: the wiring, `State.OnDoc`, `Cast.Notes`/`ResolveNote`, the stroke id, the answers and the budgets.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Plan Revisions 2026-10-12 covers the StartCast/WithBoard wiring, State.OnDoc, Cast.Notes/ResolveNote, the stroke id, the answers and budgets; all checked against cast.go, chrome.go, recorder.go and server_board.go.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      ErrBroken (503, logged once through Logf, wired from cfg.Logf); Put returns nil after Close; pinned by TestBrokenBoardStopsAndSaysSo.
+  - id: BR-3
+    disposition: not-addressed
+    note: |
+      The order is fixed in recordingOutput, but swapping bd and live back leaves go test ./cmd/internal/webcast green; add a test that pins dir, board, hub.
+  - id: BR-4
+    disposition: not-addressed
+    note: |
+      Deferred to wave 3 with a reason; NoteCrops has no production caller yet, so it is still open but not due at M1.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Board.Put truncates st.Strokes after each Apply (board.go:126); pinned by board_test.go:431.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      The atlas stroke row now says the id is the viewer id, a dot, then the shell's stroke id.
+  - id: BR-7
+    disposition: not-addressed
+    note: |
+      Declined with a reason; the gap remains: tests on board.Writer see 409 for a navigation race where production answers 204 and drops silently.
+```

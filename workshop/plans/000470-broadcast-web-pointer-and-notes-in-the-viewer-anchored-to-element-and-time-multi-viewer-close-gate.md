@@ -53,6 +53,44 @@ rounds:
       recipe: milestone-review
       isolation: checkout
       blocked: true
+    - "n": 2
+      timestamp: "2026-10-12T03:26:36-07:00"
+      dispatched: "2026-10-12T03:23:33-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Plan Revisions 2026-10-12 covers the StartCast/WithBoard wiring, State.OnDoc, Cast.Notes/ResolveNote, the stroke id, the answers and budgets; all checked against cast.go, chrome.go, recorder.go and server_board.go.
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: ErrBroken (503, logged once through Logf, wired from cfg.Logf); Put returns nil after Close; pinned by TestBrokenBoardStopsAndSaysSo.
+          round: 2
+        - id: BR-3
+          disposition: not-addressed
+          note: The order is fixed in recordingOutput, but swapping bd and live back leaves go test ./cmd/internal/webcast green; add a test that pins dir, board, hub.
+          round: 2
+        - id: BR-4
+          disposition: not-addressed
+          note: Deferred to wave 3 with a reason; NoteCrops has no production caller yet, so it is still open but not due at M1.
+          round: 2
+        - id: BR-5
+          disposition: addressed
+          note: Board.Put truncates st.Strokes after each Apply (board.go:126); pinned by board_test.go:431.
+          round: 2
+        - id: BR-6
+          disposition: addressed
+          note: The atlas stroke row now says the id is the viewer id, a dot, then the shell's stroke id.
+          round: 2
+        - id: BR-7
+          disposition: not-addressed
+          note: 'Declined with a reason; the gap remains: tests on board.Writer see 409 for a navigation race where production answers 204 and drops silently.'
+          round: 2
+      boundary: M1
+      recipe: milestone-review
+      isolation: checkout
+      reviewed: b9e409c6697e10ab4f30010b3ea0be541955f2d6
+      blocked: false
 ---
 
 # Gate ledger — pair#470 (boundary-review)
@@ -78,12 +116,20 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-7** [Minor] `fake-conformance` Nothing checks that board.Writer (synchronous, returns ErrStale) and recorder.Emit (asynchronous, drops silently) behave the same
   ARCH-MOCK: a shared contract run over both writers would catch drift.
 
+## Round 2 — 2026-10-12T03:26:36-07:00 (claude) — passed
+
+### Disposed
+
+- BR-1 — addressed — Plan Revisions 2026-10-12 covers the StartCast/WithBoard wiring, State.OnDoc, Cast.Notes/ResolveNote, the stroke id, the answers and budgets; all checked against cast.go, chrome.go, recorder.go and server_board.go.
+- BR-2 — addressed — ErrBroken (503, logged once through Logf, wired from cfg.Logf); Put returns nil after Close; pinned by TestBrokenBoardStopsAndSaysSo.
+- BR-3 — not-addressed — The order is fixed in recordingOutput, but swapping bd and live back leaves go test ./cmd/internal/webcast green; add a test that pins dir, board, hub.
+- BR-4 — not-addressed — Deferred to wave 3 with a reason; NoteCrops has no production caller yet, so it is still open but not due at M1.
+- BR-5 — addressed — Board.Put truncates st.Strokes after each Apply (board.go:126); pinned by board_test.go:431.
+- BR-6 — addressed — The atlas stroke row now says the id is the viewer id, a dot, then the shell's stroke id.
+- BR-7 — not-addressed — Declined with a reason; the gap remains: tests on board.Writer see 409 for a navigation race where production answers 204 and drops silently.
+
 ## Open findings
 
-- **BR-1** [Important] `plan-drift-after-rewire` Plan Architecture still describes CastConfig.Board, couchcmd construction and board.OnDoc; the code wires in StartCast/WithBoard and uses recording.State.OnDoc
-- **BR-2** [Minor] `silent-degradation` A broken board answers ErrStale forever with no log, and Put returns ErrClosed after Close despite the never-fails-the-Tee claim
 - **BR-3** [Minor] `sink-order-before-consumer-check` The Tee feeds the Hub before the board, so a viewer can act on a seg the board has not applied yet and get a spurious 409
 - **BR-4** [Minor] `untrusted-geometry-bound` A viewer-supplied note box is bounded only to 1e6 px and widens the page box in crops
-- **BR-5** [Minor] `duplicate-reducer-state-growth` The board keeps a second full recording.State, including every stroke for the cast's life, beside the recorder's mirror
-- **BR-6** [Minor] `atlas-wire-detail` The atlas stroke row does not say the record id is the viewer id plus "." plus the stroke id, which M2's JS store joins on
 - **BR-7** [Minor] `fake-conformance` Nothing checks that board.Writer (synchronous, returns ErrStale) and recorder.Emit (asynchronous, drops silently) behave the same
