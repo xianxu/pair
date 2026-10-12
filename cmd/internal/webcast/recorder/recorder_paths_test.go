@@ -350,3 +350,70 @@ func (h *harness) id(session string, backend int) rec.NodeID {
 	}
 	return id
 }
+
+// Assets Chrome no longer holds (a font, a memory-cached image) or never
+// listed are loaded in the page's context, once each: a listed resource it
+// can't read, an image the DOM references (src and srcset; never data:),
+// and a FontFace font's src.
+func TestRecorderLoadsAssetsChromeDoesntHold(t *testing.T) {
+	store := assets.NewMemStore()
+	h := &harness{t: t, fc: newFakeChrome(), out: &memOut{}}
+	h.r = Start(Options{ID: "t", Call: h.fc, ShotEvery: -1,
+		Out: func() (Opened, error) { return Opened{Sink: &h.out.sink, Assets: store}, nil }})
+	t.Cleanup(func() { h.r.Close() })
+	a := h.page("A", "http://a/post/", "L1")
+	a.insert(a.body(), nil, a.el("img", "src", "../avatar.png", "srcset", "/x1.png 1x, /x2.png 2x"))
+	a.insert(a.body(), nil, a.el("img", "src", "data:image/png;base64,AAAA"))
+	a.insert(a.body(), nil, a.el("img", "src", "/avatar.png")) // the same asset twice
+	a.take()
+	var mu sync.Mutex
+	loads := map[string]int{}
+	h.fc.more = func(session, method string, pm map[string]any, p *fakePage) (any, error, bool) {
+		mu.Lock()
+		defer mu.Unlock()
+		switch method {
+		case "Page.getResourceTree":
+			return map[string]any{"frameTree": map[string]any{"frame": map[string]any{"id": a.frameID},
+				"resources": []any{map[string]any{"url": "http://a/font.woff2", "type": "Font", "mimeType": "font/woff2"}}}}, nil, true
+		case "Page.getResourceContent":
+			return nil, fmt.Errorf("No resource with given URL found"), true
+		case "Network.loadNetworkResource":
+			u := fmt.Sprint(pm["url"])
+			loads[u]++
+			return map[string]any{"resource": map[string]any{"success": true, "httpStatusCode": 200, "stream": "s:" + u,
+				"headers": map[string]string{"Content-Type": "image/png; charset=binary"}}}, nil, true
+		case "IO.read":
+			// Two chunks, the second base64.
+			if loads[fmt.Sprint(pm["handle"])+"#"] == 0 {
+				loads[fmt.Sprint(pm["handle"])+"#"]++
+				return map[string]any{"data": "ab", "eof": false}, nil, true
+			}
+			return map[string]any{"data": base64.StdEncoding.EncodeToString([]byte("cd")), "base64Encoded": true, "eof": true}, nil, true
+		}
+		return nil, nil, false
+	}
+	h.r.Send(Live{Tab: rec.Tab{ID: a.frameID}, Session: "A"})
+	h.send("A", "CSS.fontsUpdated", map[string]any{"font": map[string]any{"fontFamily": "Late", "src": "http://a/late.woff2"}})
+	want := []string{"http://a/avatar.png", "http://a/x1.png", "http://a/x2.png", "http://a/font.woff2", "http://a/late.woff2"}
+	waitFor(t, func() bool { h.settle(); return h.count("asset") == len(want) }, "the loaded assets")
+	st := h.mustValidate()
+	for _, u := range want {
+		x := st.Assets[u]
+		if x == nil {
+			t.Fatalf("%s not captured: %v", u, st.Assets)
+		}
+		if body, err := store.Get(x.Hash); err != nil || string(body) != "abcd" || x.MIME != "image/png" {
+			t.Errorf("%s: %q %s %v", u, body, x.MIME, err)
+		}
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if loads["http://a/avatar.png"] != 1 {
+		t.Errorf("avatar loaded %d times", loads["http://a/avatar.png"])
+	}
+	for u := range loads {
+		if strings.HasPrefix(u, "data:") {
+			t.Errorf("a data: URL was loaded")
+		}
+	}
+}
