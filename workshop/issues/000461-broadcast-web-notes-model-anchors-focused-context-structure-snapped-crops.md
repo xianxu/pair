@@ -6,7 +6,7 @@ github_issue:
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours:
-card_mirror: 'bbc9ec439199d92f920c147d8097cac847bcd7f2' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '456c37eba4a4990d5660c6421aa3b6c0798d2b22' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # broadcast-web: notes model — anchors, focused context, structure-snapped crops
@@ -22,6 +22,7 @@ Implement #457's notes-model interface as a pure component over the reducer's DO
 - **Focused context** (the operator, 10-11): the element, its nearest meaningful ancestor (ARIA landmarks, roles, layout boxes) and nearby text; not the whole DOM.
 - **Crop rectangle:** the bounding box of the submitted notes plus a generous margin, snapped to structure (a nav bar or header at full width, a card, a form, a dialog); notes far apart become one crop per cluster. A hook for per-app/URL crop hints, interface only.
 - Keep the note shape compatible with pair#455 (terminal notes), so both submissions can share a format.
+- A viewer-made note's box is the one the viewer computed at click time (approved with #457, 10-12); the model takes it as given rather than re-capturing it in the operator's tab.
 
 ## Done when
 
