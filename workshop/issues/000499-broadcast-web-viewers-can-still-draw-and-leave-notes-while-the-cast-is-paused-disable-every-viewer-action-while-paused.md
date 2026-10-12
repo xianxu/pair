@@ -15,6 +15,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "e03b774e", done: "604cca88"}
 ---
 
 # broadcast-web: viewers can still draw and leave notes while the cast is paused; disable every viewer action while paused
