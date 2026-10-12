@@ -160,22 +160,25 @@ func TestViewerPageLoadsOnlySameOrigin(t *testing.T) {
 		t.Error("the page has a hint bar")
 	}
 	viewer := string(mustAsset(t, "viewer.js"))
+	collab := string(mustAsset(t, "collab.js"))
 	// The one thing a page keeps (#446): a pointer viewer's color pick, a
-	// palette index under one key, read and written only by colorStore.
-	if strings.Count(viewer, "localStorage") != 1 || strings.Count(viewer, "getItem(") != 1 || strings.Count(viewer, "setItem(") != 1 ||
-		!strings.Contains(viewer, "const COLOR_KEY = 'couch.pointerColor';") || !strings.Contains(viewer, "getItem(COLOR_KEY)") || !strings.Contains(viewer, "setItem(COLOR_KEY, String(i))") {
-		t.Error("viewer.js may keep only the pointer color pick in localStorage")
+	// palette index under one key, read and written only by collab.js's
+	// colorStore over the storage viewer.js hands it.
+	if strings.Count(viewer, "localStorage") != 1 || strings.Contains(viewer, "getItem(") || strings.Contains(viewer, "setItem(") ||
+		strings.Contains(collab, "localStorage") || strings.Count(collab, "getItem(") != 1 || strings.Count(collab, "setItem(") != 1 ||
+		!strings.Contains(collab, "const COLOR_KEY = 'couch.pointerColor';") || !strings.Contains(collab, "getItem(COLOR_KEY)") || !strings.Contains(collab, "setItem(COLOR_KEY, String(i))") {
+		t.Error("the viewer may keep only the pointer color pick in localStorage")
 	}
 	notes := string(mustAsset(t, "notes.js"))
-	for name, src := range map[string]string{"viewer.js": viewer, "notes.js": notes} {
+	for name, src := range map[string]string{"viewer.js": viewer, "notes.js": notes, "collab.js": collab} {
 		for _, api := range []string{"sessionStorage", "indexedDB", "caches", "serviceWorker", "document.cookie", "XMLHttpRequest", "WebSocket", "sendBeacon", "EventSource(\"http", "EventSource('http", "innerHTML", "outerHTML", "insertAdjacentHTML", "document.write"} {
 			if strings.Contains(src, api) {
 				t.Errorf("%s uses %s", name, api)
 			}
 		}
 	}
-	if strings.Contains(notes, "fetch(") || strings.Contains(notes, "localStorage") {
-		t.Error("notes.js makes no request and keeps nothing; viewer.js's postJSON does the posting")
+	if strings.Contains(notes, "fetch(") || strings.Contains(notes, "localStorage") || strings.Contains(collab, "fetch(") {
+		t.Error("notes.js and collab.js make no request and keep nothing; viewer.js's postJSON does the posting")
 	}
 	// Exactly one request function besides the page's own assets and stream:
 	// postJSON, to a relative route from a fixed list (the pointer POST,
