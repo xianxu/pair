@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000467-broadcast-web-remote-driving-a-viewer-takes-control-and-uses-the-app-through-the-operator-s-tab.md
         source_blob: 1eacf75a14e7a317160387ace5fa798022fe8316
         destination: workshop/issues/000467-broadcast-web-remote-driving-a-viewer-takes-control-and-uses-the-app-through-the-operator-s-tab.md
+        main_commit: 8b076419caa5cc3ea0d459b390b53d89f2136e2b
 ---
 
 # broadcast-web: remote driving — a viewer takes control and uses the app through the operator's tab
