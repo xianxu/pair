@@ -1,6 +1,6 @@
 ---
 id: 000493
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 4761073bbc46e2ee35a636f8e9fa134c5df9dd32
         evidence_commit: 22f77f55960164f248e5657e73e6685b54a4b1bd
+        landed_commit: c9326982fb9c7181e555be286b4da0ab66573b74
 ---
 
 # broadcast-web: notes and strokes aren't recorded (live viewers see them; replay and queries don't)
