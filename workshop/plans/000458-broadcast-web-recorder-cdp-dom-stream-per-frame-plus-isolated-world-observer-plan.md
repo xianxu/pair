@@ -87,12 +87,26 @@ what is recorded. Nothing runs in the page's main world (no measured gap needs i
 
 ## Plug-in (M2): Chrome loop and Cast
 
-- `LaunchOptions.Recorder *recorder.Recorder` (constructed by the caller with its sink). Chrome forwards inputs while
-  the recorder exists; `finish` ends it (`End`, then waits for its goroutine) before the process wait, so the last
-  record is written before `Done` (ARCH-FUNERAL for the goroutine).
-- `CastConfig.Recording func(id string) (recording.Sink, recording.FrameWriter, error)` plus optional
-  `NewLive func() (recording.Sink, recording.Live)` (#460's to supply) and `Assets` (#459's). Server.events streams
-  `rec` events from the Live when one is configured; the stub `state` events stay for the indicator.
+**The seam, stated:** the recorder is part of the real Browser (`*Chrome`), on the CDP side of the seam, as #457's
+format page already places it ("adds `LaunchOptions.Sink` to `webcast.Chrome`; the Chrome loop … feeds the active
+tab's CDP events to the recorder"). `Browser` is unchanged and still carries no CDP type; `browser.go`'s comment
+("the recorder uses only this") is out of date and is corrected. Couch's UI, the Cast and the Server still see only
+`Browser`; what crosses into the recorder is the Chrome loop's CDP event stream and its call function, both inside
+package `webcast`'s real implementation. A `FakeBrowser` records nothing; recording behaviour is tested on the
+recorder against its fake CDP page (M2) and live (M3), and the Cast wiring with `recording.FakeRecorder`.
+
+**Wiring:**
+- `recorder.Output` is what a recorder writes: `Open() (recording.Sink, FrameWriter, error)`, called at the first
+  go-live. `FrameWriter` is a consumer-side interface **in package recorder** (`PutFrame(*recording.Frame, []byte)
+  error`), satisfied by `*recording.DirWriter`; nothing is added to #457's contract package.
+- `CastConfig.Launch` becomes `func(ctx, out recorder.Output) (Browser, error)`; `StartCast` builds the Output from
+  `CastConfig.RecordingsDir` (a `DirWriter` at `<dir>/<id>`, `Tee`d with the Live's sink when `CastConfig.NewLive` is
+  set: #460 supplies the real Live) and `CastConfig.Assets` (#459). couchcmd passes it to `LaunchOptions.Output`;
+  `Launch` builds the recorder when it is set. A FakeBrowser ignores it.
+- Server.events streams `rec` events from the Live when one is configured; the stub `state` events stay for the
+  indicator.
+- Chrome's `finish` ends the recorder (`End`, then waits for its goroutine) before the process wait, so the last
+  record is written before `Done` (ARCH-FUNERAL for the goroutine); the Cast closes the sinks after `Done`.
 - couchcmd: recordings under `<store>/webcast/recordings/<id>/` (id = start time + random suffix).
 
 ## Lifecycle and envelope
@@ -100,9 +114,48 @@ what is recorded. Nothing runs in the page's main world (no measured gap needs i
 - **Recording directory:** created at the first go-live by the recorder's sink; last needed by the operator; removed by
   the operator (no sweep in the MVP, as the format page says). Size: ≈1.4 MB/min gzipped of records on the busy stress
   page (#453) plus frames at ≤12 per minute × ~60–120 KB; measured on the live run and recorded in the Log.
+- **Latency (PQ-5):** the recorder goroutine makes only the calls DOM correctness needs in order (`getDocument`,
+  `getStyleSheetText`, the rule read, `getAttributes`). Asset bodies and screenshots/layout run on two side workers
+  (one goroutine each, one call at a time, bounded queues of 256 that drop with a count); their results come back as
+  queue inputs, so the goroutine stays the single writer. Budget: records emitted ≤250 ms p95 after their CDP event
+  on the stress page, measured in M3 (the queue stamp vs the emission time).
+- **Id map (PQ-6):** per session, `backendNodeId` → id for live nodes, plus a graveyard of the last 50 000 removed
+  nodes so a move (remove, then insert) keeps its id; a session's map is dropped when its document is replaced
+  (`seg navigate`/`tab`, a frame's new `doc`); the counter never resets, so ids are never reused. Bound: live nodes +
+  50 000 entries per session.
 - **Queue:** bounded at 100 000 queued events. Over it, DOM events of the live sessions are dropped and the recorder
   marks a resync: it re-snapshots the top document (a `kids` of its root) once it catches up, and logs the overflow. Control inputs are never dropped.
 - **Goroutine:** owned by the Chrome; ends with it.
+
+## Ordering (PQ-3)
+
+CDP node ids belong to a snapshot: after `DOM.getDocument` replies, events Chrome sent before the reply describe the
+old tree, which the snapshot already includes. **Discriminator:** `cdp.Conn` numbers every inbound message in read
+order; `Event.Seq` carries it, and `Conn.CallSeq` returns the reply's number. A snapshot of session S at reply number
+R drops every queued event of S (and of the in-process frames it pierces) with `Seq < R` as already reflected. Other
+cases, each with a sequence test that injects the interleaving through the fake CDP:
+- an event naming a CDP node the mirror doesn't have (a missed `setChildNodes`, a race we didn't foresee): counted,
+  and a resync (re-snapshot as `kids` of the root) is scheduled; never applied blindly;
+- the active page's session detaches mid-segment (tab closed): the Chrome loop's tracker moves the active tab and the
+  recorder gets `Live{next tab}` → `seg tab`; with no page left, `stop end`;
+- a frame session detaches mid-segment: its mirror is dropped; the frame's last document stays in the recording
+  until its iframe element is removed or receives a new `doc` (a cross-origin navigation attaches a new session);
+- a document update arriving while a resync is pending: one snapshot serves both.
+
+## Tests per risky function (PQ-4)
+
+- **mirror translate:** the fake CDP page is a stateful DOM (insert, remove, move, attribute, text, shadow attach,
+  set children) that emits the events Chrome would. Property test: seeded random mutation sequences (moves included)
+  → `Reduce(output)` canonical DOM equals the fake's own serialization, and `ValidateDir` is clean; a reverted mirror
+  rule fails it.
+- **path resolver:** `go test -fuzz` target: arbitrary paths (negative, past the end, shadow steps on closed roots,
+  stale after a mutation) never panic and resolve to nothing or to exactly the node the fake says.
+- **password rules:** property test: random sequences that type values, flip `type` text↔password, set and remove
+  `value` attributes, and insert password inputs with values → no record of the recorder's output contains a planted
+  password string, and the reducer refuses every hand-made record that would carry one. Accepted (PQ-7): a value
+  typed while the control was `type=text` was shown on screen and is recorded; it isn't erased when the type flips.
+- **segments:** go-live, pause, resume same/new document, tab switch, end, as a table of input sequences → the
+  expected `seg`/`stop` reasons, validated.
 
 ## Milestones
 
@@ -126,8 +179,16 @@ what is recorded. Nothing runs in the page's main world (no measured gap needs i
 
 ## Room for remote driving (#466/#467; TL, 10-12)
 
-- Observer-made records may later carry an optional `by` (viewer id; absent = operator). Nothing here refuses it.
+- Observer-made records may later carry an optional `by` (viewer id; absent = operator) as an embedded
+  `recording.Source` (#466 lands the type). `Hover` and `Ptr` are plain `Header` + fields structs, so embedding it
+  is a no-op for this work.
 - The recorder's goroutine is the record stream's single writer. #467's control records and injections enter its
   queue as inputs, ordered with the DOM events (told the TL; the Chrome loop forwards, it doesn't write records).
 - The id map is exposed both ways: `Recorder.IDOf(session, backendNodeId)` and `Recorder.NodeOf(id)`, answered on
   the recorder goroutine (a request input with a reply), backed by the pure mirror's own accessors.
+
+## Revisions
+
+- 2026-10-12 — plan-quality round 1: the seam stated and wired (PQ-1); `FrameWriter` lives in package recorder (PQ-2);
+  ordering by CDP message sequence (PQ-3); adversarial tests per risky function (PQ-4); latency budget and side
+  workers (PQ-5); id-map bound (PQ-6); type-flip leak accepted (PQ-7). TL: `Source` embedded later in hover/ptr.
