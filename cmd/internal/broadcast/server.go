@@ -2,9 +2,7 @@ package broadcast
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"mime"
 	"net/http"
@@ -313,24 +311,12 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request, pointer bool) {
 		return
 	}
 	defer sub.Close()
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.WriteHeader(http.StatusOK)
-	rc := http.NewResponseController(w)
-	send := func(chunk string) bool {
-		// A viewer that stops reading must not hold its goroutine and viewer
-		// slot forever: every write gets a deadline, two pings long.
-		_ = rc.SetWriteDeadline(time.Now().Add(2 * s.opts.Ping))
-		if _, err := fmt.Fprint(w, chunk); err != nil {
-			return false
-		}
-		return rc.Flush() == nil
-	}
-	if !send(": connected\n\n") {
+	stream := OpenEventStream(w, s.opts.Ping)
+	if stream == nil {
 		return
 	}
 	if s.opts.Theme != nil {
-		theme, _ := json.Marshal(s.opts.Theme())
-		if !send("event: theme\ndata: " + string(theme) + "\n\n") {
+		if !stream.Event("theme", s.opts.Theme()) {
 			return
 		}
 	}
@@ -345,8 +331,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request, pointer bool) {
 	sendCaps := func() bool {
 		on, changed := s.opts.Pointer.On()
 		capsChanged = changed
-		caps, _ := json.Marshal(wireCaps{Pointer: on, Color: color, Palette: PointerPalette()})
-		return send("event: caps\ndata: " + string(caps) + "\n\n")
+		return stream.Event("caps", wireCaps{Pointer: on, Color: color, Palette: PointerPalette()})
 	}
 	if pointer && !sendCaps() {
 		return
@@ -357,8 +342,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request, pointer bool) {
 	sendNotes := func() bool {
 		notes, _, changed := s.opts.Pointer.Notes()
 		notesChanged = changed
-		data, _ := json.Marshal(wireNotes{Guard: StatusGuardCols, Notes: notes})
-		return send("event: notes\ndata: " + string(data) + "\n\n")
+		return stream.Event("notes", wireNotes{Guard: StatusGuardCols, Notes: notes})
 	}
 	if s.opts.Pointer != nil && !sendNotes() {
 		return
@@ -369,12 +353,10 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request, pointer bool) {
 		select {
 		case m, open := <-sub.Messages():
 			if !open {
-				end, _ := json.Marshal(wireEnd{Reason: EndReason(s.opts.Hub.Err())})
-				send("event: end\ndata: " + string(end) + "\n\n")
+				stream.Event("end", wireEnd{Reason: EndReason(s.opts.Hub.Err())})
 				return
 			}
-			frame, _ := json.Marshal(wireFrame{Cols: m.Cols, Rows: m.Rows, B: base64.StdEncoding.EncodeToString(m.Data)})
-			if !send("event: frame\ndata: " + string(frame) + "\n\n") {
+			if !stream.Event("frame", wireFrame{Cols: m.Cols, Rows: m.Rows, B: base64.StdEncoding.EncodeToString(m.Data)}) {
 				return
 			}
 		case <-capsChanged:
@@ -387,7 +369,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request, pointer bool) {
 			}
 		case <-ping.C:
 			// A failed ping ends this viewer, so a vanished one frees its slot.
-			if !send(": ping\n\n") {
+			if !stream.Comment("ping") {
 				return
 			}
 		case <-r.Context().Done():

@@ -89,7 +89,7 @@ func Start(ctx context.Context, cfg Config) (*Session, error) {
 		}
 		host = NewHost(HostConfig{Tunnel: cfg.Tunnel, ProbeTimeout: cfg.ProbeTimeout, Resolve: cfg.Resolve})
 	}
-	token, err := newToken()
+	token, err := NewToken()
 	if err != nil {
 		return nil, err
 	}
@@ -192,7 +192,9 @@ func (s *Session) teardown() {
 	s.mount.Unmount()
 }
 
-func newToken() (string, error) {
+// NewToken mints a capability token: 32 random bytes, URL-safe. A cast's
+// link carries it and it is the link's only credential.
+func NewToken() (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
 		return "", fmt.Errorf("broadcast: token: %w", err)
@@ -315,7 +317,7 @@ func resolvingDialer(resolve func(context.Context, string) ([]string, error)) fu
 // EnablePointer turns pointing on (#412), minting the pointer link on first
 // use; it returns the link, the same one on every later call.
 func (s *Session) EnablePointer() (string, error) {
-	token, changed, err := s.pointer.set(true, newToken)
+	token, changed, err := s.pointer.set(true, NewToken)
 	if err != nil {
 		return "", err
 	}
