@@ -43,13 +43,22 @@ it with no race and no change to the helper, argv or process identity. Couch's o
 The `taskpolicy` QoS clamp is left out: the Spec makes it opt-in after measurement, and measuring it needs load this
 item may not generate.
 
-- [ ] `couchcore.NicedRunner` + unit tests (fake seam: order before return, failure cancels the launch) and a real
-      helper test (the exec'd target reads its own niceness through `ps`).
-- [ ] `COUCH_SLOT_NICE` parsing + wiring in `NewCouchWith`; tests for default/off/invalid.
-- [ ] README + atlas/couch.md.
+- [x] `Nice` on ExecRunner/PtyRunner, applied in `startBlockedChild` + tests: a real launch whose grandchild reads its
+      own niceness, and a kernel-refused niceness that cancels before the target runs.
+- [x] `COUCH_SLOT_NICE` parsing in `consoleRunnerFor` (where both real runners are built) and the singleton preflight;
+      tests for default/off/invalid and the wiring.
+- [x] README + atlas/couch.md.
 - [ ] Propose to the hub: relaunching the live Couch on the new build, then verify slot niceness by ps and a light
       couch verb's latency under the existing load; renicing running slots only if the operator wants it.
 
 ## Log
 
 ### 2026-10-12
+- Design revision before code landed: a `NicedRunner` decorator in `NewCouchWith` would also have wrapped test
+  `FakeRunner`s, whose fake PIDs (1000+i) can name real process groups, so tests could renice unrelated processes on
+  the machine. Niceness is a field of the two real runners instead; a fake has no path to the kernel (ARCH-MOCK).
+- Mutation check: disabling the `setpriority` call fails both new couchcore tests (grandchild nice 0 vs 3; refused
+  niceness returns a handle).
+- Baseline before relaunch (slots at nice 0, load 7–16): `couch --actors` real 0.01–0.02s over 5 runs.
+- `taskpolicy` QoS clamp not built: the Spec makes it opt-in after measuring suite time on efficiency cores, which
+  needs load this item may not generate.

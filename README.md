@@ -528,6 +528,12 @@ After a crash, rerun Couch: the kernel releases the lease, and the selected stor
 and existing slots remain available. Use machine-local filesystems; shared homes
 across machines are unsupported.
 
+Couch starts each slot at nice +10, so the builds, test suites and agents a slot
+runs yield to Couch and your terminal when the machine is saturated; Couch itself
+keeps normal priority. Set `COUCH_SLOT_NICE` (0–20, `0` turns it off) before
+starting Couch to change it. It applies to slots started or relaunched after
+that; running slots keep their priority until relaunched (or `renice`d by hand).
+
 **Adopt existing state before cutover.** Stop and upgrade all old Couch binaries
 first. Couch keeps the chosen store in place, along with its Pair data directory
 and identity authority; it does not rename conversations, reset worktrees, or

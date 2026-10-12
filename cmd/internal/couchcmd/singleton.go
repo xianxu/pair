@@ -110,6 +110,9 @@ func (r OSRuntime) singletonManager() (couchsingleton.Manager, couchsingleton.Re
 	if _, _, err := captureSettings(r.Getenv); err != nil {
 		return m, q, "", err
 	}
+	if _, err := slotNiceSettings(r.Getenv); err != nil {
+		return m, q, "", err
+	}
 	isolated := r.Getenv("COUCH_ISOLATED_ROOT")
 	var home string
 	var err error
