@@ -97,6 +97,12 @@ Root cause: one fixed 15 s window (`pairRegistrationTimeout`) covers ALL of Pair
 - parley.nvim:3 inspected: parked, no live actor, no Pair/zellij process with its cwd: the old cleanup left a clean
   state. Not resumed yet: the fix lives in the Couch process, so the resume is the live check after Couch restarts
   onto this build.
+- **Close review round 1 (FIX-THEN-SHIP):** BR-1 (Important, right): `Alive` is process-group liveness and a
+  Couch-launched Pair's title poller stays in the group for up to 30 s, so a dead launch held the wait ~30 s. Fixed
+  the class: `Handle.Exited()` (direct child: exec `done`, pty `child.Exited()`, fake `exited`) is now part of the
+  Handle interface and the watch's only signal; the fake gained `SetChildExited` (group outlives child) and the exit
+  test uses it. BR-2: stale atlas cold-resume bullet rewritten. Minors: the adopt-late test counts looks instead of
+  wall clock and asserts the armed deadline (replacing the constant pin); the progress line names timed-out polls.
 
 ## Revisions
 

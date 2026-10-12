@@ -1336,3 +1336,12 @@ proof; record the surprising case so the next change starts from evidence.
   crashed the wrapper. Give each attempt its own local, close it on failure inside the loop, and hand only the
   accepted one to the defer; test the path where a retry's dial fails. Likewise, key a per-episode cache on an
   episode counter bumped at the transition, not on a reader happening to observe the gap between episodes.
+- **A launch's death is its direct child's exit, not its process group's (#489 close).** The registration wait
+  first watched `Alive` (kill(-pgid,0)), but a Couch-launched Pair's title poller stays in that group for up to its
+  30 s startup grace, so a Pair that died at birth still held the wait open. The fake's `SetExited` ended the whole
+  group and could not show it. When "did it die?" decides a wait, ask the process you started (`Handle.Exited`), keep
+  group liveness for cleanup, and give the fake a member that outlives the child.
+- **Every fixed window over load-dependent work moves with the load (#489).** Removing the 15 s registration budget
+  exposed the CLI's 2 s per-poll exchange timeout, which turned one late status answer into an "uncertain" outcome
+  while the operation went on. When fixing one stopwatch, grep the path end to end (launch, poll, report) for the
+  others; retry an idempotent read inside the outer budget instead of giving up on one slow answer.

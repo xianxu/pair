@@ -418,6 +418,27 @@ func TestSlotOperationCLIReportsProgressWhileRunning(t *testing.T) {
 	}
 }
 
+// After status polls time out, the progress line says its status is the last
+// answer received, not a fresh one (close review).
+func TestSlotOperationCLIProgressNamesTimedOutPolls(t *testing.T) {
+	quiet := int(20 * time.Second / slotOperationPollInterval)
+	script := func(n int, r couchmessage.Request) (couchmessage.Response, error) {
+		switch {
+		case n == 0:
+			return receiptResponse("accepted", couchmessage.ReceiptQueued), nil
+		case n == 1:
+			return receiptResponse("ok", couchmessage.ReceiptRunning), nil
+		case n <= quiet:
+			return couchmessage.Response{}, context.DeadlineExceeded
+		}
+		return receiptResponse("ok", couchmessage.ReceiptSucceeded), nil
+	}
+	run := runSlotScript(t, cliInvocation{kind: cliMessage, messageOp: "resume", ref: "pair:1"}, messageRuntime(), script)
+	if run.code != 0 || !strings.Contains(run.stderr, "still running after 15s (last answer before ") || !strings.Contains(run.stderr, " timed-out status polls)") {
+		t.Fatalf("exit %d, stderr %q", run.code, run.stderr)
+	}
+}
+
 // The admission and every poll carry the caller's identity, one request ID,
 // and a fresh per-call context: the 6th poll, past the 2 s a single
 // invocation-wide context allowed, still succeeds.

@@ -2039,14 +2039,18 @@ and couch's registration poll read liveness only (`SessionLive`). See
 
 **Registration waits on Pair, not a stopwatch (`pair#489`).** Every launch
 (spawn, cold resume, fresh, warm) waits for registration under
-`whileHelperAlive`: the wait ends at registration, when the helper's process
-group exits (a dead launch fails at once: "Pair exited before registering"), or
-at `pairRegistrationTimeout`, a 2-minute hang ceiling. Startup scales with load
+`whileHelperAlive`: the wait ends at registration, when the helper's DIRECT
+child exits (`Handle.Exited`; a dead launch fails at once: "Pair exited before
+registering", after one 1 s final look so registration already written still
+counts), or at `pairRegistrationTimeout`, a 2-minute hang ceiling. Startup scales with load
 (at load ~200, launch-to-pane took 9-11 s and PAIR_DEV's no-op `make build`
 9.6 s, so the old fixed 15 s failed five relaunches), so a slow start is waited
 for, and adopted, instead of failed. Any failure takes the same post-ack cleanup
 (the helper's group is ended, the thread rolls back to parked). The CLI prints
-"still running" every 15 s while it polls the receipt.
+"still running" every 15 s while it polls the receipt, and asks again when a
+status poll times out (a Couch busy launching can answer late); only the 5 min
+poll budget gives up. Group liveness (`Alive`) is the wrong exit signal: a
+Couch-launched Pair's title poller stays in its process group for up to 30 s.
 
 **A cold resume's registration waits for the pane's birth first (`pair#287`).**
 A cold resume starts a new zellij server, and zellij 0.45.1 panics when a
@@ -2098,8 +2102,8 @@ with archive refused until Couch restarted.
     incarnation. No Couch state was added.
   - The launcher's own message, which names zellij's log, is not shown in
     Couch.
-- **Cold resume.** Its wait still runs to its 15 s deadline even after the
-  helper has exited at about 10 s, then rolls back to `parked` as before.
+- **Cold resume.** Its wait ends when the helper's direct child exits (about
+  10 s in), not at a deadline (pair#489), then rolls back to `parked` as before.
 
 Where that lands differs by caller, and both matter:
 

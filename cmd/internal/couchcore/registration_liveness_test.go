@@ -13,17 +13,10 @@ import (
 
 // pair#489: the registration wait is a hang ceiling, not a latency budget. At
 // load ~200 a healthy start took ~20 s (a no-op make build 9.6 s, launch to
-// pane 9-11 s) and the old fixed 15 s failed five relaunches. The ceiling has to
-// clear that with room to spare; a dead launch no longer needs it, because its
-// process group exiting ends the wait (the next two tests).
-func TestRegistrationCeilingClearsAStartSlowedByLoad(t *testing.T) {
-	if pairRegistrationTimeout < time.Minute {
-		t.Fatalf("pairRegistrationTimeout = %s; a start measured at ~20 s under load needs a hang ceiling, not a latency budget", pairRegistrationTimeout)
-	}
-}
-
-// A start that is alive and slow is waited for and adopted: Pair's pane is born
-// only after an injected delay, many wait polls in, and the resume succeeds.
+// pane 9-11 s) and the old fixed 15 s failed five relaunches. A start that is
+// alive and slow is waited for and adopted: Pair's pane is born only many wait
+// polls in, under a deadline the launch armed at least a minute out. A dead
+// launch no longer needs that deadline; its exit ends the wait (next test).
 func TestColdResumeAdoptsALateStart(t *testing.T) {
 	t.Parallel()
 
@@ -31,6 +24,11 @@ func TestColdResumeAdoptsALateStart(t *testing.T) {
 	parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
 	address := parked.Address
 	env.Artifacts.SetNativeBinding(address, "claude", sessioninventory.BindingEstablished, "native-root-1")
+	var armed time.Duration
+	env.Couch.registrationDeadline = func(parent context.Context, d time.Duration) (context.Context, context.CancelFunc) {
+		armed = d
+		return context.WithTimeout(parent, d)
+	}
 	proposed, released := "", false
 	env.Runner.AfterAcknowledge = func(id string) error {
 		proposed = continuationChildSession(t, env.Runner, id)
@@ -38,19 +36,15 @@ func TestColdResumeAdoptsALateStart(t *testing.T) {
 		return nil
 	}
 	var mu sync.Mutex
-	var since time.Time
+	polls := 0
 	env.Artifacts.PaneSidecarsHook = func(ThreadAddress) error {
 		mu.Lock()
 		defer mu.Unlock()
 		if !released {
 			return nil
 		}
-		if since.IsZero() {
-			since = time.Now()
-		}
-		// The injected slow start: the pane appears only after several
-		// helper-liveness checks have run, so the wait must have kept going.
-		if time.Since(since) > 5*helperExitPoll {
+		// The injected slow start: the pane appears only on the 50th look.
+		if polls++; polls == 50 {
 			env.Artifacts.SetPaneSidecar(address, "claude")
 			env.Artifacts.SetPairSession(address, proposed, true)
 		}
@@ -60,11 +54,19 @@ func TestColdResumeAdoptsALateStart(t *testing.T) {
 	if _, _, err := env.Couch.Resume(address); err != nil {
 		t.Fatalf("a slow but live start failed: %v", err)
 	}
+	if polls < 50 {
+		t.Fatalf("registered after %d looks; the late start was not waited for", polls)
+	}
+	if armed < time.Minute {
+		t.Fatalf("registration deadline = %s; a start measured at ~20 s under load needs a hang ceiling", armed)
+	}
 }
 
 // A launch whose Pair exits before registering fails at once, says so, and
 // leaves the thread parked and resumable: the cleanup is the ordinary post-ack
-// one, so nothing is left for the operator to puzzle out.
+// one, so nothing is left for the operator to puzzle out. Only the direct child
+// dies: a Couch-launched Pair's title poller stays in its process group for up
+// to 30 s, and must not hold the wait open (close review BR-1).
 func TestColdResumeFailsAtOnceWhenPairExitsBeforeRegistering(t *testing.T) {
 	t.Parallel()
 
@@ -75,7 +77,7 @@ func TestColdResumeFailsAtOnceWhenPairExitsBeforeRegistering(t *testing.T) {
 	address := parked.Address
 	env.Artifacts.SetNativeBinding(address, "claude", sessioninventory.BindingEstablished, "native-root-1")
 	env.Runner.AfterAcknowledge = func(id string) error {
-		env.Runner.SetExited(id, 1) // Pair died during startup
+		env.Runner.SetChildExited(id) // Pair died; its sidecar's group lives on
 		return nil
 	}
 

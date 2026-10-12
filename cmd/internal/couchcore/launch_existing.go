@@ -439,42 +439,37 @@ func (c *Couch) awaitResumeRegistration(ctx context.Context, address ThreadAddre
 	}
 }
 
-// helperExitPoll is how often a registration wait checks that the launched
-// Pair's process group is still there: one kill(-pgid, 0) per tick.
-const helperExitPoll = 100 * time.Millisecond
-
 // exitedFinalLook bounds the registration check made after the helper has
 // exited. Nothing more can arrive, so it covers only the observation itself and
 // keeps a dead launch's failure prompt.
 const exitedFinalLook = time.Second
 
-// whileHelperAlive ends ctx as soon as the launched Pair's process group has
-// gone (pair#489). A slow start is still a live one, so the registration wait
-// can be a hang ceiling instead of a latency guess: the dead launch it used to
-// catch by timing out now ends here, at once. stop joins the watcher and
-// reports whether the exit is what ended the wait.
+// whileHelperAlive ends ctx as soon as the launched Pair has exited (pair#489).
+// A slow start is still a live one, so the registration wait can be a hang
+// ceiling instead of a latency guess: the dead launch it used to catch by
+// timing out now ends here, at once. stop joins the watcher and reports
+// whether the exit is what ended the wait.
 func whileHelperAlive(ctx context.Context, h Handle) (context.Context, func() bool) {
 	ctx, cancel := context.WithCancelCause(ctx)
 	errExited := errors.New("Pair exited before registering")
+	// The DIRECT child's exit, not group liveness (Alive): a Couch-launched
+	// Pair's sidecars stay in its group -- the title poller for up to its 30 s
+	// startup grace -- after Pair itself has died.
+	exited := h.Exited()
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		ticker := time.NewTicker(helperExitPoll)
-		defer ticker.Stop()
-		for h.Alive() {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-			}
+		select {
+		case <-ctx.Done():
+		case <-exited:
+			cancel(errExited)
 		}
-		cancel(errExited)
 	}()
 	return ctx, func() bool {
-		exited := errors.Is(context.Cause(ctx), errExited)
+		gone := errors.Is(context.Cause(ctx), errExited)
 		cancel(nil)
 		<-done
-		return exited
+		return gone
 	}
 }
 

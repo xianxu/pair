@@ -1114,6 +1114,8 @@ func (h *delayedQuiescenceHandle) after(time.Duration) <-chan time.Time {
 	return time.After(10 * time.Second)
 }
 
+func (h *delayedQuiescenceHandle) Exited() <-chan struct{} { return h.done }
+
 func (h *delayedQuiescenceHandle) Wait() int {
 	h.mu.Lock()
 	h.waits++
