@@ -1,6 +1,6 @@
 ---
 id: 000463
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 3c8791ab6240bb4862bec2b12802514de2d3cafd
         evidence_commit: 198a9130ab3bcb9166a5208ed17c240ad9d5f7ee
+        landed_commit: 99a431ee193421c53552ec7d7590b95fcecc0308
 ---
 
 # couch --send-to hub: a reserved target the supervisor resolves live to the hub slot
