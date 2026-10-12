@@ -1,10 +1,19 @@
 ---
 id: 000454
-status: working
+status: codecomplete
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours: 4.69
 github_issue:
+started: 2026-10-11T20:08:38-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:0
+    worktree: /Users/xianxu/workspace/pair
+    repository: github.com/xianxu/pair
+actual_hours: 0.05
 tracker:
     version: 1
     handoff:
@@ -17,14 +26,11 @@ tracker:
         source_blob: b0b3f0b7c38deef2953d50fbe5f4d64f85214c11
         destination: workshop/issues/000454-broadcast-web-chrome-in-couch-start-go-live-pause-end-one-cast.md
         main_commit: 1e941c926f0c345c15fdfbf4b28963967a77385b
-started: 2026-10-11T20:08:38-07:00
-claimant:
-    operator: Xian Xu
-    machine: 4716879978a7b90f6b583da1716fd0e9
-    machine_name: Xian’s MacBook Pro
-    workspace: pair:0
-    worktree: /Users/xianxu/workspace/pair
-    repository: github.com/xianxu/pair
+    completion:
+        token: close-9ce83ef745f2
+        repository: github.com/xianxu/pair
+        reviewed_head: d6e06046ceb2d3ee2dd5e56d3fb5717105728e14
+        evidence_commit: 3d8523e9f59fb59120447e3e4f35fee1e35b9d24
 ---
 
 # broadcast-web: Chrome in Couch — start, go live, pause, end; one cast
