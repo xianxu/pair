@@ -95,6 +95,7 @@ test('a stored name is read by the board\'s rules, else asked again', () => {
   assert.equal(validName('x'.repeat(41)), '');
   assert.equal(validName('A\nB'), '');
   assert.equal(validName('A\u202eB'), '');
+  for (const c of ['\u2067', '\u061c', '\u180e', '\ufff9', '\u{e0041}', '\u0085']) assert.equal(validName(`A${c}B`), '', `U+${c.codePointAt(0).toString(16)}`);
   const s = memStorage();
   s.setItem('couch.viewerName', 'n'.repeat(80));
   assert.equal(identityStore(s, crypto).name(), '');

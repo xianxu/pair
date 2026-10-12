@@ -1214,3 +1214,12 @@ proof; record the surprising case so the next change starts from evidence.
   event that makes it true and wait on that event: a no-op command through the loop that owns the state, or an
   injected clock (`Couch.after`) that ties the timeout to the fake's state. To prove a suspected window, widen it
   with a temporary sleep in the product or fake and watch the test fail every time.
+- **Nothing that takes input is rebuilt on the per-frame path (#470 M2, two review rounds).** The notes UI redrew its
+  pins and then its swatches with `replaceChildren` every animation frame, so a tap that spanned a frame landed on a
+  removed element. Frame work only moves and restyles; elements are created and removed when their data changes (keep
+  them in a map by id). Test with a human-length press (100 ms): a back-to-back synthetic press and release fits in one
+  frame and lets the per-frame mutant pass.
+- **An async mount starts from the state it mounts into (#470 M2).** The notes module mounted after a fetch, began
+  with "no document", and took the first record it saw for a navigation, ending the user's stroke after one chunk (4 of
+  6 runs). A late joiner of a stream initializes from the model's current values, not from zero; and a flaky e2e is a
+  bug to root-cause with state dumps from both sides, not a retry.

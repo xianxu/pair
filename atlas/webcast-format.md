@@ -408,8 +408,10 @@ region) with a 💭 chip in the author's color that opens the note with Resolve.
 the board's rules (else asked again). Controls that take input (swatches, mode buttons, pin chips) are rebuilt only
 when their data changes; each frame only places them. For replay (#477), the drawing is pure over the model at t:
 `liveNotes(model)`, `strokesAt(model, t)` (chunks joined by id, the points drawn by t, fading 1.5 s after the last),
-`paintStrokes(canvas, strokes, toClient, rect, dpr)` and `pinLayer(doc, container, open).draw(notes, boxOf, place)`,
-the same functions the live viewer draws with. In replay mode the notes module doesn't mount (the replay server
+`paintStrokes(canvas, strokes, toClient, rect, dpr)` and `pinLayer(doc, container, open).draw(notes, boxOf, place)`.
+The live viewer draws with `liveNotes`, `pinLayer` and `paintStrokes` (its strokes fade on arrival time, `strokeStore`);
+`strokesAt` is the at-t counterpart. #471's replay draws marks with its own `drawMarks` today (per chunk, region last);
+#477 converges it onto these. In replay mode the notes module doesn't mount (the replay server
 serves no `palette.json`).
 
 The viewer rewrites `url()`s and `image-set()` strings in streamed CSS (`sheet` records, `<style>` text, `style=`)

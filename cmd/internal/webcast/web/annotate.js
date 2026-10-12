@@ -62,8 +62,9 @@ export function identityStore(storage, crypto) {
 // validName is a name the board takes, trimmed, or '' for none.
 export function validName(v) {
   const n = String(v).trim();
-  // eslint-disable-next-line no-control-regex
-  return [...n].length <= MAX_NAME && !/[\u0000-\u001f\u007f-\u009f\u00ad\u200b-\u200f\u202a-\u202e\u2060-\u2064\ufeff]/.test(n) ? n : '';
+  // The board's predicate (wire.go nameText): no control or format
+  // character, at most MAX_NAME characters.
+  return [...n].length <= MAX_NAME && !/[\p{Cc}\p{Cf}]/u.test(n) ? n : '';
 }
 
 // chunker collects one stroke's points ([x, y] in page px, at ms) and cuts
@@ -338,6 +339,7 @@ export async function mountAnnotate(doc, win, v) {
     beforeSave: () => {
       const n = name.value.trim();
       if (!who.name() && !n) { msg.textContent = 'Add your name first.'; name.focus?.(); return null; }
+      if (n && validName(n) !== n) { msg.textContent = 'Use a plain name of at most 40 characters.'; name.focus?.(); return null; }
       if (n && n !== who.name()) who.setName(n);
       return { viewer: who.viewer() };
     },
