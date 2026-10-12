@@ -1,12 +1,21 @@
 ---
 id: 000453
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours:
-card_mirror: 'e907319babf16359144cc8987772e77bde0de860' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'b2f09a38ebafc8955bb90fe284d67412e187e050' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-11T20:08:33-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:4
+    worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
+    repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "471f3cb6", done: "866c3d8a"}
 ---
 
 # broadcast-web: decide the recorder base by prototype (rrweb vs our own on CDP)
