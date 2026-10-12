@@ -1,12 +1,20 @@
 ---
 id: 000462
-status: open
+status: working
 deps: [000457]
 github_issue:
 created: 2026-10-11
-updated: 2026-10-11
+updated: 2026-10-12
 estimate_hours:
-card_mirror: '4d1d1def47a8a16f57f4d8f8299f25e622b4374f' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '8c5ca8c4bc38c92712ffdcbd347d7bd5b412e1b0' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-12T01:55:15-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:6
+    worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
+    repository: github.com/xianxu/pair
 ---
 
 # broadcast-web: agent queries — DOM at t, events in a window, notes with context
@@ -30,10 +38,16 @@ Implement #457's query surface as a CLI agents use on a recording (built on the 
 
 ## Plan
 
-- [ ] DOM at t (text and --json)
-- [ ] Events in a window
-- [ ] Notes with context
-- [ ] Golden tests; agent check
+Durable plan: `workshop/plans/000462-broadcast-web-agent-queries-dom-at-t-events-in-a-window-notes-with-context-plan.md`. Single pass, one close.
+
+- [ ] Querier (real `query.Surface`) passes `RunSurfaceContract`
+- [ ] Selector subset + `@id`
+- [ ] Compact page text (state overlay, budgets)
+- [ ] Event lines (DOM runs summarized, `by` shown)
+- [ ] Notes text + `query.Main` CLI (`--json`)
+- [ ] Golden tests on every fixture
+- [ ] Agent check: scripted + one recorded subagent run
+- [ ] `couch --broadcast-web-query` wiring, usage, skill, atlas
 
 ## Log
 
