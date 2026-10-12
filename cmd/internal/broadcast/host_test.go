@@ -286,3 +286,49 @@ func TestHostCancelRacingOpenNeverLeaks(t *testing.T) {
 		}
 	}
 }
+
+// BR-16: a Mount arriving while an abandoned open is still in flight doesn't
+// inherit its cancellation; it waits that open out and opens afresh.
+// lateCancelTunnel notices a cancel only when its slow open finishes, as a
+// tunnel that can't be interrupted mid-handshake does.
+type lateCancelTunnel struct {
+	*FakeTunnel
+	delay time.Duration
+}
+
+func (l lateCancelTunnel) Open(ctx context.Context, ln net.Listener) (Handle, error) {
+	time.Sleep(l.delay)
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return l.FakeTunnel.Open(context.Background(), ln)
+}
+
+func TestHostMountAfterAnAbandonedOpenSucceeds(t *testing.T) {
+	f := &FakeTunnel{}
+	h := NewHost(HostConfig{Tunnel: lateCancelTunnel{f, 200 * time.Millisecond}, ProbeTimeout: time.Second})
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	abandoned := make(chan error)
+	go func() {
+		_, err := h.Mount(ctx, tokenHandler("aa"), "aa/")
+		abandoned <- err
+	}()
+	waitFor(t, func() bool {
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		return h.attempt != nil && h.attempt.abandoned
+	})
+	b, err := h.Mount(context.Background(), tokenHandler("bb"), "bb/")
+	if err != nil {
+		t.Fatalf("mount after an abandoned open: %v", err)
+	}
+	if err := <-abandoned; !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("abandoning mount: %v", err)
+	}
+	assertServes(t, f, b, "bb", true)
+	b.Unmount()
+	if s := f.Stats(); s.Opens != s.Closes {
+		t.Fatalf("tunnel left open: %+v", s)
+	}
+}

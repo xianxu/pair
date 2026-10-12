@@ -66,6 +66,9 @@ type hostAttempt struct {
 	done   chan struct{}
 	err    error
 	cancel context.CancelFunc
+	// abandoned: everyone gave up on this open. It can't be joined: its
+	// context is cancelled, so its error would be another caller's.
+	abandoned bool
 }
 
 // NewHost makes a closed Host; nothing is opened until the first Mount.
@@ -99,7 +102,9 @@ func (h *Host) Mount(ctx context.Context, m Mountable, probePath string) (*Mount
 		case hostClosed:
 			h.beginOpenLocked()
 		}
-		a, counted := h.attempt, h.state == hostOpening
+		// Join an open in progress; wait out a close, or an abandoned open,
+		// and try again.
+		a, counted := h.attempt, h.state == hostOpening && !h.attempt.abandoned
 		if counted {
 			h.waiting++
 		}
@@ -157,6 +162,7 @@ func (h *Host) releaseIfUnwantedLocked() *hostAttempt {
 	case hostOpen:
 		return h.beginCloseLocked()
 	case hostOpening:
+		h.attempt.abandoned = true
 		h.attempt.cancel()
 		return h.attempt
 	}
