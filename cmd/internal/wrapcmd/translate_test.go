@@ -294,6 +294,10 @@ func TestTranslateStdinHandlesSplitWorkbenchShortcut(t *testing.T) {
 		handled = append(handled, chord)
 		return true
 	}
+	// The flush's clock stands still, so "j" always arrives while the ESC is
+	// held: the split chord is reassembled, not flushed as two keys.
+	flush := newManualTimer()
+	p.newStdinFlushTimer = func() loopTimer { return flush }
 	reader, writer := io.Pipe()
 	var out bytes.Buffer
 	done := make(chan struct{})
@@ -303,7 +307,7 @@ func TestTranslateStdinHandlesSplitWorkbenchShortcut(t *testing.T) {
 	}()
 
 	_, _ = writer.Write([]byte("\x1b"))
-	time.Sleep(5 * time.Millisecond)
+	await(func() bool { armed, _ := flush.state(); return armed })
 	_, _ = writer.Write([]byte("j"))
 	_ = writer.Close()
 	<-done

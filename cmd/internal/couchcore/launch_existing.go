@@ -217,7 +217,11 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		registrationTimeout = c.resumeRegistrationTimeout
 	}
 	steps.mark("ack")
-	registrationContext, cancelRegistration := context.WithTimeout(ctx, registrationTimeout)
+	deadline := c.registrationDeadline
+	if deadline == nil {
+		deadline = context.WithTimeout
+	}
+	registrationContext, cancelRegistration := deadline(ctx, registrationTimeout)
 	if in.Fresh {
 		err = c.awaitFreshRegistration(registrationContext, thread.Address, in.Args.Stack, in.Nonce)
 		if err == nil {

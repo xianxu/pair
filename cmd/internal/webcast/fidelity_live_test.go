@@ -28,14 +28,14 @@ func TestLiveFidelityFixtures(t *testing.T) {
 	dirs := strings.Split(os.Getenv("FIDELITY_DIR"), ",")
 	if dirs[0] == "" {
 		dirs = nil
-		for _, name := range recording.Fixtures { // the hand-made ones have no frames
+		for _, name := range recording.Fixtures() { // the hand-made ones have no frames
 			if _, err := os.Stat(filepath.Join(recording.Fixture(name), recording.FileFrames)); err == nil {
 				dirs = append(dirs, copyRecording(t, recording.Fixture(name), name))
 			}
 		}
 	}
 	for _, dir := range dirs {
-		rep, err := checkFidelity(context.Background(), bin, dir, frameOffsets(filepath.Base(dir)))
+		rep, err := CheckFidelity(context.Background(), bin, dir)
 		if err != nil {
 			t.Fatalf("%s: %v", dir, err)
 		}
@@ -45,6 +45,9 @@ func TestLiveFidelityFixtures(t *testing.T) {
 		}
 		// A frame over the tolerance must be a known gap (replay_test.go's
 		// knownGaps, by frame index), and a known gap must still be over.
+		// Its ceiling is replay_test.go's: the check compares at the
+		// frame's own moments, where a viewer still holds the previous
+		// paint (#475), and the ceiling bounds the try at the release.
 		name := filepath.Base(dir)
 		rec, err := recording.ReadDir(dir)
 		if err != nil {
@@ -57,7 +60,7 @@ func TestLiveFidelityFixtures(t *testing.T) {
 		for i, f := range rec.Frames {
 			switch gap, known := knownGaps[name][i]; {
 			case known && !over[f.File]:
-				t.Errorf("%s frame %d is within tolerance now: drop its known gap (%s)", name, i, gap)
+				t.Errorf("%s frame %d is within tolerance now: drop its known gap (%s)", name, i, gap.why)
 			case !known && over[f.File]:
 				t.Errorf("%s: %s over the %g%% tolerance: %s (report in %s)", name, f.File, fidelity.Tolerance, rep.Summary(), filepath.Join(dir, fidelity.ReportDir))
 			}
@@ -81,7 +84,7 @@ func TestLiveFidelityFixtures(t *testing.T) {
 // the tolerance, and the report shows them side by side.
 func TestLiveFidelityCatchesBrokenRender(t *testing.T) {
 	bin := liveFidelityChrome(t)
-	dir := copyRecording(t, recording.Fixture("blog"), "blog-unstyled")
+	dir := copyRecording(t, recording.Fixture("rec-blog"), "blog-unstyled")
 	unstyle(t, dir)
 	rep, err := CheckFidelity(context.Background(), bin, dir)
 	if err != nil {

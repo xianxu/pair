@@ -27,12 +27,12 @@ import (
 func TestLiveViewerPage(t *testing.T) {
 	page := headlessPage(t)
 	page.call(t, page.session, "Emulation.setDeviceMetricsOverride", map[string]any{"width": 1024, "height": 700, "deviceScaleFactor": 1, "mobile": false}, nil)
-	rec, err := recording.ReadDir(recording.Fixture("blog"))
+	rec, err := recording.ReadDir(recording.Fixture("rec-blog"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	store, rec := throughStore(t, rec)
-	const at = 10041 // the last layout before the stop; the scroll has been still since 8536
+	const at = 8284 // the last layout before the stop; the scroll has been still since 6931
 	var upto []recording.Record
 	for _, r := range rec.Records {
 		if r.Time() <= at {

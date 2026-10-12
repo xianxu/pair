@@ -36,7 +36,7 @@ function fake() {
   return { deps, log, clock: () => now };
 }
 
-const name = fixtures.find((f) => f === 'blog') || fixtures[0];
+const name = 'rec-blog'; // assets, scrolling and a fade-in
 const recs = records(name);
 
 test('replayAt draws the records before the window at once and the window in real time', async () => {

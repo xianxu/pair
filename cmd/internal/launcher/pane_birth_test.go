@@ -2,6 +2,7 @@ package launcher
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"slices"
 	"strings"
@@ -210,18 +211,17 @@ func TestUnansweredProbeIsAskedAgainNotActedOn(t *testing.T) {
 }
 
 // A client that exits on its own ends the watch with it: no probe, and no
-// waiting out the bound.
+// waiting out the bound. The watch's clock stands still, so its bound never
+// lapses: the launcher returns only because the watch ended with the client,
+// and a watch that waited for its bound would hang the test (#480).
 func TestWatchEndsWithAClientThatExitsFirst(t *testing.T) {
 	rt := newFakeRuntime()
 	opts, _ := watchedCreate(t, rt)
 	opts.BirthBound = 0 // the production 10 s
+	opts.BirthClock = stoppedClock{}
 
-	start := time.Now()
 	if code, err := run(t, opts, rt); err != nil || code != 0 {
 		t.Fatalf("launch = %d, %v", code, err)
-	}
-	if elapsed := time.Since(start); elapsed > time.Second {
-		t.Fatalf("the launcher took %s to return after its client did", elapsed)
 	}
 	if rt.launchProbes != 0 {
 		t.Fatalf("probes = %d after the client had exited", rt.launchProbes)
@@ -258,3 +258,10 @@ func TestCleanQuitUnderTheWatchsCancelKeepsTheNormalPath(t *testing.T) {
 		t.Fatal("the clean quit skipped its quit cleanup")
 	}
 }
+
+// stoppedClock never advances: its sleeps end only with their context.
+type stoppedClock struct{}
+
+func (stoppedClock) Now() time.Time { return time.Unix(1_800_000_000, 0) }
+
+func (stoppedClock) Sleep(ctx context.Context, _ time.Duration) { <-ctx.Done() }

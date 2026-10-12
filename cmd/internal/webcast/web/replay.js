@@ -317,7 +317,11 @@ export function replaySource(deps) {
       deps.show({ status: 'Recording unavailable', live: false, title: '', url: '', page: false });
       throw err;
     }
-    player = new Player(recs, { renderer: deps.renderer, onRecord: (r, m) => { for (const fn of hooks) fn(r, m); } });
+    // A redraw outside a record (a held paint released, a stylesheet
+    // loaded, #475) goes through the whole draw, marks and layout too, as
+    // connect() routes it to its paint.
+    const renderer = (model) => { const r = deps.renderer(model); r.onDirty = draw; return r; };
+    player = new Player(recs, { renderer, onRecord: (r, m) => { for (const fn of hooks) fn(r, m); } });
     ui = deps.ui(player, {
       seek,
       toggle: () => { if (player.playing) { player.pause(); mark(); } else { player.play(); last = null; } draw(); },

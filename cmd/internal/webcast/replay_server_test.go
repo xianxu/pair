@@ -36,13 +36,13 @@ func replayGet(t *testing.T, s http.Handler, method, path string) (*http.Respons
 }
 
 func TestReplayServerRoutes(t *testing.T) {
-	root := replayRoot(t, "segments", "blog")
+	root := replayRoot(t, "segments", "rec-blog")
 	os.WriteFile(filepath.Join(root, "stray.txt"), []byte("not a recording"), 0o644)
 	os.Mkdir(filepath.Join(root, "empty"), 0o755)
 	s := NewReplayServer("tok", root)
 
 	res, body := replayGet(t, s, http.MethodGet, "/tok/")
-	if res.StatusCode != 200 || !strings.Contains(body, `href="r/segments/"`) || !strings.Contains(body, `href="r/blog/"`) || strings.Contains(body, "empty") || strings.Contains(body, "stray") {
+	if res.StatusCode != 200 || !strings.Contains(body, `href="r/segments/"`) || !strings.Contains(body, `href="r/rec-blog/"`) || strings.Contains(body, "empty") || strings.Contains(body, "stray") {
 		t.Fatalf("listing %d:\n%s", res.StatusCode, body)
 	}
 	if !strings.Contains(res.Header.Get("Content-Security-Policy"), "script-src 'self'") {
@@ -64,7 +64,7 @@ func TestReplayServerRoutes(t *testing.T) {
 		t.Fatalf("fidelity page %d", res.StatusCode)
 	}
 
-	rec, err := recording.ReadDir(recording.Fixture("blog"))
+	rec, err := recording.ReadDir(recording.Fixture("rec-blog"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,13 +73,13 @@ func TestReplayServerRoutes(t *testing.T) {
 		line, _ := recording.Encode(x)
 		want.Write(append(line, '\n'))
 	}
-	if res, body := replayGet(t, s, http.MethodGet, "/tok/r/blog/records"); res.StatusCode != 200 || body != want.String() {
+	if res, body := replayGet(t, s, http.MethodGet, "/tok/r/rec-blog/records"); res.StatusCode != 200 || body != want.String() {
 		t.Fatalf("records %d: %d bytes, want %d", res.StatusCode, len(body), want.Len())
 	}
 	served := 0
 	for _, x := range rec.Records {
 		if a, ok := x.(*recording.Asset); ok && strings.HasPrefix(a.MIME, "image/") {
-			if res, _ := replayGet(t, s, http.MethodGet, "/tok/r/blog/assets/"+a.Hash); res.StatusCode != 200 {
+			if res, _ := replayGet(t, s, http.MethodGet, "/tok/r/rec-blog/assets/"+a.Hash); res.StatusCode != 200 {
 				t.Errorf("asset %s: %d", a.URL, res.StatusCode)
 			}
 			served++
@@ -93,11 +93,11 @@ func TestReplayServerRoutes(t *testing.T) {
 // Assets are served before the records are asked for, too (a reload that
 // hits the cache for records).
 func TestReplayServerAssetsWithoutRecords(t *testing.T) {
-	s := NewReplayServer("tok", replayRoot(t, "blog"))
-	rec, _ := recording.ReadDir(recording.Fixture("blog"))
+	s := NewReplayServer("tok", replayRoot(t, "rec-blog"))
+	rec, _ := recording.ReadDir(recording.Fixture("rec-blog"))
 	for _, x := range rec.Records {
 		if a, ok := x.(*recording.Asset); ok && strings.HasPrefix(a.MIME, "image/") {
-			if res, _ := replayGet(t, s, http.MethodGet, "/tok/r/blog/assets/"+a.Hash); res.StatusCode != 200 {
+			if res, _ := replayGet(t, s, http.MethodGet, "/tok/r/rec-blog/assets/"+a.Hash); res.StatusCode != 200 {
 				t.Fatalf("asset %s: %d", a.URL, res.StatusCode)
 			}
 			return

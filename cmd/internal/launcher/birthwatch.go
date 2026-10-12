@@ -117,12 +117,12 @@ func watchBirth(ctx context.Context, rt Runtime, clock panebirth.Clock, evidence
 // launchWatched runs the create handoff under the birth watch. The watch starts
 // just before the blocking LaunchSession and is stopped and joined as soon as
 // it returns, so nothing it spawned outlives the call.
-func launchWatched(rt Runtime, evidence, session, configDir, layout string, bound time.Duration) (int, birthVerdict, error) {
+func launchWatched(rt Runtime, clock panebirth.Clock, evidence, session, configDir, layout string, bound time.Duration) (int, birthVerdict, error) {
 	launchCtx, abort := context.WithCancel(context.Background())
 	defer abort()
 	watchCtx, stopWatch := context.WithCancel(context.Background())
 	verdict := make(chan birthVerdict, 1)
-	go func() { verdict <- watchBirth(watchCtx, rt, panebirth.WallClock{}, evidence, session, bound, abort) }()
+	go func() { verdict <- watchBirth(watchCtx, rt, clock, evidence, session, bound, abort) }()
 	code, err := rt.LaunchSession(launchCtx, session, configDir, layout)
 	stopWatch()
 	return code, <-verdict, err

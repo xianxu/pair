@@ -432,28 +432,23 @@ hash (`canonical.sha256`). The expected value itself is printed on demand
 
 The fixtures are in `cmd/internal/webcast/recording/testdata/fixtures/`; their README says how to regenerate them, and
 what they leave out. The `rec-*` ones are the real recorder's (#458) own output (#472): `TestRecordFixtures` records
-#453's pages in its scenarios, and `fixturegen -recorded` adds the notes and pins, converting nothing. Every
-component's tests run on both sets; #453's prototype fixtures retire once the components built on them land (#474).
-The three prototype ones were recorded by #453's prototype recorder (branch `453-recorder-prototypes`,
-mode B, headless Chrome 154). For #457 the recorder was patched to add layout boxes, click and focus capture, and asset
-bodies. `recording/internal/fixturegen` converted them to this format. The converter applies everything it emits to a
-reducer, so a fixture validates by construction. It counts every record the reducer refuses (none in these runs). A few
-notes and strokes are placed on known elements. `TestFixtureCoverage` holds each fixture to the cases below, so a
-regenerated one can't silently lose a case.
+#453's pages in its scenarios, and `fixturegen -recorded` adds the notes and pins, converting nothing. #453's prototype
+recorder's fixtures (`stress`, `app`, `blog`) and its CDP-log converter retired once every component ran on these
+(#474). `recording.Fixtures()` is every directory there with a pin file, as the node tests' `fixtures.mjs` finds them,
+so nothing lists them by hand. A few notes and strokes are placed on known elements. `TestFixtureCoverage` holds each
+fixture to the cases below (and fails on checks for a fixture that's gone), so a regenerated one can't silently lose a
+case.
 
 | Fixture | Page | Covers |
 |---|---|---|
-| `stress` (7 s, 1.5 MB) | #453's stress page | Busy re-renders (3,000 inserts, 1,000 `kids`), a cross-origin iframe, open and closed shadow roots, `insertRule` (owned sheets), `adoptedStyleSheets`, checkbox and select state set by script, inner scroll, SVG, `<template>`, a FontFace font (its file is left out: a macOS system font) |
-| `app` (22 s, 0.5 MB) | #453's React + Tailwind app | Typing, clicks, focus, a modal, Tailwind's runtime `<style>` over CDP's 10k text cut, and a cross-document navigation (a second segment). A note is resolved. |
-| `blog` (12 s, 2 MB) | The operator's blog post `ariadne-1-building-blocks-of-ai-coding` (Astro + Tailwind, `npm run dev`) | Images, the Inter woff2 font, stylesheets, page scrolling, layout, and the giscus cross-origin iframe |
 | `segments` (hand-made) | `fixturegen -segments` | Pause and resume with ids kept, an edit while paused, a tab switch, a same-document navigation; notes span the resume and clear on the switch |
-| `rec-stress` (5 s, 0.8 MB) | #453's stress page from `testdata/stress`, by the recorder | As `stress`, but no FontFace font (`testdata/stress` leaves the file out, so it never loads) |
-| `rec-app` (22 s, 0.5 MB) | #453's app scenario, by the recorder | As `app`, plus `selection` records |
-| `rec-blog` (12 s, 1.9 MB) | The blog post's `browse` scenario, by the recorder | As `blog` |
+| `rec-stress` (5 s, 0.8 MB) | #453's stress page from `testdata/stress`, by the recorder | Busy re-renders (3,000 inserts, 1,000 `kids`), a cross-origin iframe, open and closed shadow roots, `insertRule` (owned sheets), `adoptedStyleSheets`, checkbox and select state set by script, inner scroll, SVG, `<template>`. No FontFace font: the page's late font is a macOS system font, which `testdata/stress` leaves out |
+| `rec-app` (22 s, 0.5 MB) | #453's React + Tailwind app, `app` scenario, by the recorder | Typing (with the caret's `selection` after each key), clicks, focus, a modal, Tailwind's runtime `<style>` over CDP's 10k text cut, and a cross-document navigation (a second segment). A note is resolved. |
+| `rec-blog` (12 s, 1.9 MB) | The operator's blog post `ariadne-1-building-blocks-of-ai-coding` (Astro + Tailwind, `npm run dev`), `browse` scenario, by the recorder | Images, the Inter woff2 font, stylesheets, page scrolling, layout, and the giscus cross-origin iframe |
 | `rec-segments` (10 s, 0.3 MB) | #453's reports page, by the recorder | A same-document navigation, a pause with an edit, a resume, a new tab (the cast follows it, at that tab's own viewport), and a cross-document navigation there |
 | `driven` (hand-made) | `fixturegen -driven` (`recording.DrivenRecording`) | Viewers request and are granted control. A driver's attributed clicks, typing and scroll, interleaved with the operator's own click. Driving continues through a pause, a resume and a navigation. Release, revoke, deny and leave. A note by the driver. |
 
-Gaps found while recording, closed by the recorder (#458):
+Gaps the prototype's recordings showed, closed by the recorder (#458):
 - **Clicks:** the prototype's polled observer lost the click that navigates; the recorder's observer reports clicks
   synchronously (`TestLiveRecording` holds a click before its `seg navigate`).
 - **Layout:** `DOMSnapshot` on the top session leaves out out-of-process frames; the recorder captures each frame
@@ -501,7 +496,9 @@ directory does. At most 10 crops at most the frame's size plus two small text fi
   refusal print; a selector outside it is refused, never matched loosely.
 - **Budgets:** a page stops at 300 lines (`--max-lines`) with a line saying how many more; a note's element at
   20 lines and its preceding actions at the latest 20; attribute values at 80 characters and text at 200.
-  Script and style bodies, a document's head and SVG internals fold to one line each. The text shows the
+  Script and style bodies, a document's head and SVG internals fold to one line each. `events` folds a field typed
+  a key at a time into one line with its final value, the framework's `value` attribute and the typist's collapsed
+  caret after each key included (#474: the recorder reports that caret; another person's caret or a range splits it). The text shows the
   attributes an agent reads structure by (id, class, role, aria-*, form and link attributes); `--json`
   keeps them all.
 - **The notes model** is `notes.Model` behind its interface; `Main` constructs #461's `notes.Structural`, and

@@ -12,7 +12,7 @@ import (
 var updatePins = flag.Bool("update-pins", false, "rewrite the fixtures' canonical.sha256 (after a deliberate reducer change)")
 
 func TestFixturesValidateAndReduce(t *testing.T) {
-	for _, name := range Fixtures {
+	for _, name := range Fixtures() {
 		t.Run(name, func(t *testing.T) {
 			dir := Fixture(name)
 			fs, _, err := ValidateDir(dir)
@@ -58,7 +58,9 @@ func TestFixtureCoverage(t *testing.T) {
 		ok   func(c *coverage) bool
 	}
 	want := map[string][]check{
-		"stress": {
+		// #453's stress page from testdata/stress, which leaves out the late
+		// FontFace font (a macOS system font), so the page never loads one.
+		"rec-stress": {
 			{"a cross-origin iframe document", func(c *coverage) bool { return c.frameDocs > 0 }},
 			{"a closed shadow root", func(c *coverage) bool { return c.closed > 0 }},
 			{"an open shadow root", func(c *coverage) bool { return c.open > 0 }},
@@ -68,17 +70,16 @@ func TestFixtureCoverage(t *testing.T) {
 			{"inner scroll", func(c *coverage) bool { return c.elementScroll > 0 }},
 			{"svg", func(c *coverage) bool { return c.svg > 0 }},
 			{"template content", func(c *coverage) bool { return c.templates > 0 }},
-			{"a FontFace font", func(c *coverage) bool { return c.kinds["font"] > 0 }},
 			{"busy re-renders", func(c *coverage) bool { return c.kinds["kids"] > 100 && c.kinds["ins"] > 1000 }},
 		},
-		"app": {
+		"rec-app": {
 			{"typing", func(c *coverage) bool { return c.kinds["input"] > 0 }},
 			{"clicks and focus", func(c *coverage) bool { return c.kinds["click"] > 0 && c.kinds["focus"] > 0 }},
 			{"a text node over CDP's 10k cut", func(c *coverage) bool { return c.longText }},
 			{"a cross-document navigation", func(c *coverage) bool { return c.navigateSegs > 0 }},
 			{"a resolved note", func(c *coverage) bool { return c.kinds["note-state"] > 0 }},
 		},
-		"blog": {
+		"rec-blog": {
 			{"images", func(c *coverage) bool { return c.mimes["image/png"] > 0 }},
 			{"a web font", func(c *coverage) bool { return c.mimes["font/woff2"] > 0 }},
 			{"stylesheets", func(c *coverage) bool { return c.mimes["text/css"] > 0 }},
@@ -89,6 +90,12 @@ func TestFixtureCoverage(t *testing.T) {
 			{"a pause and a resume", func(c *coverage) bool { return c.kinds["stop"] > 1 && c.resumeSegs > 0 }},
 			{"a tab switch", func(c *coverage) bool { return c.tabSegs > 0 }},
 			{"a same-document navigation", func(c *coverage) bool { return c.kinds["nav"] > 0 }},
+		},
+		"rec-segments": {
+			{"a pause and a resume", func(c *coverage) bool { return c.kinds["stop"] > 1 && c.resumeSegs > 0 }},
+			{"a tab switch", func(c *coverage) bool { return c.tabSegs > 0 }},
+			{"a same-document navigation", func(c *coverage) bool { return c.kinds["nav"] > 0 }},
+			{"a cross-document navigation", func(c *coverage) bool { return c.navigateSegs > 0 }},
 		},
 		"driven": {
 			{"grant, release, revoke, deny and leave", func(c *coverage) bool {
@@ -101,15 +108,12 @@ func TestFixtureCoverage(t *testing.T) {
 			{"a note by the driver", func(c *coverage) bool { return c.driverNotes > 0 }},
 		},
 	}
-	// The real recorder's fixtures (#472) cover what the prototype's did, on
-	// the same pages, but for the stress page's late font: testdata/stress
-	// leaves it out (a macOS system font), so its FontFace never loads.
-	want["rec-stress"] = slices.DeleteFunc(slices.Clone(want["stress"]), func(c check) bool { return c.what == "a FontFace font" })
-	want["rec-app"] = want["app"]
-	want["rec-blog"] = want["blog"]
-	want["rec-segments"] = append(slices.Clone(want["segments"]),
-		check{"a cross-document navigation", func(c *coverage) bool { return c.navigateSegs > 0 }})
-	for _, name := range Fixtures {
+	for name := range want {
+		if !slices.Contains(Fixtures(), name) {
+			t.Errorf("%s: coverage checks for no fixture", name)
+		}
+	}
+	for _, name := range Fixtures() {
 		if want[name] == nil {
 			t.Errorf("%s: no coverage checks", name)
 		}
@@ -137,9 +141,7 @@ func TestFixturesStayWithinTheirBudget(t *testing.T) {
 		}
 		return nil
 	})
-	// 9 MB while the prototype's fixtures and the real recorder's coexist
-	// (#472); back to 4.5 MB when the prototype's retire.
-	if budget := int64(9_000_000); total > budget {
+	if budget := int64(4_500_000); total > budget {
 		t.Fatalf("fixtures are %d bytes, over the %d budget; trim a run before adding to it", total, budget)
 	}
 }
