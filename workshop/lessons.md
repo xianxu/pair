@@ -1095,3 +1095,7 @@ proof; record the surprising case so the next change starts from evidence.
   unrequested end "closed by operator", hiding a broken connection. Collect the facts (who asked, the connection's
   error, the exit status) and derive the reason in one pure function with a precedence table, then test each row and
   drive the loop itself through a scripted peer so the facts are the real ones.
+- **Classify failures at their source, by kind (#454 M1 review round 2).** Excluding `io.EOF` and `ErrClosed` from
+  "connection failures" still let `os.ErrClosed` (our reaper closing the read end) and EPIPE through as "lost Chrome"
+  — a deny-list of transport errors is never complete. Mark the class you mean where it originates (`cdp.ErrProtocol`
+  for what the peer *sent*) and allow-list it; a pipe closing is what every ending looks like, including your own.

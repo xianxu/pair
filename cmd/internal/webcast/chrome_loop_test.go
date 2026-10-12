@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"os/exec"
 	"strings"
 	"sync"
 	"testing"
@@ -27,6 +29,11 @@ type peer struct {
 	ignore map[string]bool
 	// exitOnClose: Browser.close makes the peer exit, as Chrome does.
 	exitOnClose bool
+	// in is Couch's read end; closeReader makes an exit close it first, as
+	// Launch's reaper does, so the reader fails with a closed pipe rather
+	// than EOF.
+	in          *io.PipeReader
+	closeReader bool
 
 	mu       sync.Mutex
 	code     int
@@ -49,6 +56,9 @@ func (p *peer) exit(code int) {
 		p.mu.Lock()
 		p.code = code
 		p.mu.Unlock()
+		if p.closeReader {
+			p.in.Close()
+		}
 		p.out.Close()
 		close(p.exited)
 	})
@@ -121,7 +131,7 @@ func startPeer(t *testing.T, tweak func(*peer)) (*Chrome, *peer) {
 	t.Helper()
 	cmdR, cmdW := io.Pipe()
 	outR, outW := io.Pipe()
-	p := &peer{t: t, calls: make(chan cdp.Message, 256), out: outW, exitOnClose: true,
+	p := &peer{t: t, calls: make(chan cdp.Message, 256), out: outW, in: outR, exitOnClose: true,
 		failOn: map[string]bool{}, ignore: map[string]bool{}, exited: make(chan struct{})}
 	if tweak != nil {
 		tweak(p)
@@ -266,6 +276,16 @@ func TestChromeExitReasons(t *testing.T) {
 			t.Fatalf("err %v", c.Err())
 		}
 	})
+	// The reaper closing Couch's read end before the reader saw EOF is still
+	// a quit, not a lost connection.
+	t.Run("quit, reader closed first", func(t *testing.T) {
+		c, p := startPeer(t, func(p *peer) { p.closeReader = true })
+		p.exit(0)
+		waitDone(t, c)
+		if !errors.Is(c.Err(), ErrClosedByOperator) {
+			t.Fatalf("err %v", c.Err())
+		}
+	})
 	t.Run("crash", func(t *testing.T) {
 		c, p := startPeer(t, nil)
 		p.exit(11)
@@ -298,6 +318,9 @@ func TestEndError(t *testing.T) {
 		{notEnding, fmt.Errorf("cdp: read: %w", io.EOF), 0, ErrClosedByOperator, ""},
 		{notEnding, cdp.ErrClosed, 0, ErrClosedByOperator, ""},
 		{notEnding, cdp.ErrBacklog, 0, cdp.ErrBacklog, ""},
+		{notEnding, fmt.Errorf("cdp: read: %w", io.ErrClosedPipe), 0, ErrClosedByOperator, ""},
+		{notEnding, fmt.Errorf("cdp: read: %w", os.ErrClosed), 0, ErrClosedByOperator, ""},
+		{notEnding, errors.New("cdp: write: broken pipe"), 0, ErrClosedByOperator, ""},
 		{notEnding, nil, 9, nil, "status 9"},
 		{notEnding, nil, 0, ErrClosedByOperator, ""},
 	}
@@ -323,5 +346,28 @@ func TestProfileInUse(t *testing.T) {
 	other := "ERROR:process_singleton_posix.cc] Failed to create socket directory: Operation not permitted (1)"
 	if !profileInUse(inUse) || !profileInUse("Opening in existing browser session.") || profileInUse(other) {
 		t.Fatal("profileInUse misreads Chrome's output")
+	}
+}
+
+// A process that exits while a child it started still holds its output pipe
+// is reaped within processWaitDelay, so Close can't hang on Chrome's helpers.
+func TestStartProcessReapsDespiteInheritedOutput(t *testing.T) {
+	defer func(d time.Duration) { processWaitDelay = d }(processWaitDelay)
+	processWaitDelay = 200 * time.Millisecond
+	cmd := exec.Command("sh", "-c", "sleep 30 & exit 0")
+	out := &tail{max: 1024}
+	cmd.Stdout, cmd.Stderr = out, out
+	reaped := false
+	p, err := startProcess(cmd, func() { reaped = true })
+	if err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-p.Exited():
+	case <-time.After(5 * time.Second):
+		t.Fatal("not reaped while a child holds the output pipe")
+	}
+	if !reaped || p.ExitCode() != 0 {
+		t.Fatalf("reaped %v code %d", reaped, p.ExitCode())
 	}
 }

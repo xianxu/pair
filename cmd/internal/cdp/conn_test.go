@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"testing"
 	"time"
 )
@@ -268,4 +269,57 @@ func TestCallFromEventLoopWithQueuedEvents(t *testing.T) {
 		}
 	}
 	await(t, peerDone)
+}
+
+// After a failure that leaves the pipe open, the reader keeps draining: the
+// peer's writes never block, so it goes on to see its command pipe close.
+func TestReaderDrainsAfterProtocolFailure(t *testing.T) {
+	for name, poison := range map[string]string{
+		"malformed": `{not json`,
+		"oversized": `{"method":"` + strings.Repeat("x", 64) + `"}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			defer func(m int) { maxFrame = m }(maxFrame)
+			maxFrame = 32
+			c, p := newPair(t)
+			p.send(poison)
+			await(t, c.Done())
+			if !errors.Is(c.Err(), ErrProtocol) || (name == "oversized") != errors.Is(c.Err(), ErrFrameTooLarge) {
+				t.Fatalf("Err() = %v, want ErrProtocol", c.Err())
+			}
+			wrote := make(chan struct{})
+			go func() {
+				for i := 0; i < 1000; i++ {
+					p.out.Write([]byte(`{"method":"X.y","params":{}}` + "\x00"))
+				}
+				close(wrote)
+			}()
+			select {
+			case <-wrote:
+			case <-time.After(5 * time.Second):
+				t.Fatal("peer blocked writing after the failure")
+			}
+		})
+	}
+}
+
+// The transport closing is never ErrProtocol; the failures from what the
+// peer sent always are.
+func TestErrClasses(t *testing.T) {
+	c, p := newPair(t)
+	p.out.Close()
+	await(t, c.Done())
+	if errors.Is(c.Err(), ErrProtocol) || !errors.Is(c.Err(), io.EOF) {
+		t.Fatalf("peer close: %v", c.Err())
+	}
+	for _, err := range []error{ErrBacklog, ErrFrameTooLarge} {
+		if !errors.Is(err, ErrProtocol) {
+			t.Fatalf("%v is not ErrProtocol", err)
+		}
+	}
+	c2, _ := newPair(t)
+	c2.Close()
+	if errors.Is(c2.Err(), ErrProtocol) || !errors.Is(c2.Err(), ErrClosed) {
+		t.Fatalf("Close: %v", c2.Err())
+	}
 }

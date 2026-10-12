@@ -5,7 +5,6 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -68,7 +67,6 @@ type Chrome struct {
 	pub    *publisher[State]
 
 	requests  chan func(*loopState)
-	exited    chan struct{} // closed when the process has been reaped
 	ready     chan struct{} // closed when the first page's control is set up
 	readyOnce sync.Once
 	done      chan struct{}
@@ -142,7 +140,7 @@ func Launch(ctx context.Context, opts LaunchOptions) (*Chrome, error) {
 	cmd := exec.Command(opts.Binary, args...)
 	cmd.ExtraFiles = []*os.File{cmdR, outW}
 	cmd.Stdout, cmd.Stderr = output, output
-	err = cmd.Start()
+	proc, err := startProcess(cmd, func() { outR.Close() })
 	cmdR.Close()
 	outW.Close()
 	if err != nil {
@@ -150,15 +148,6 @@ func Launch(ctx context.Context, opts LaunchOptions) (*Chrome, error) {
 		outR.Close()
 		return nil, fmt.Errorf("webcast: start Chrome: %w", err)
 	}
-	// Chrome's helpers inherit its output pipe and can outlive it; WaitDelay
-	// stops Wait (and so Close) from waiting on them forever.
-	cmd.WaitDelay = 2 * time.Second
-	proc := &osProcess{cmd: cmd, exited: make(chan struct{})}
-	go func() {
-		cmd.Wait()
-		outR.Close()
-		close(proc.exited)
-	}()
 	c := start(cdp.New(outR, cmdW), proc, output, opts)
 	timer := time.NewTimer(opts.StartTimeout)
 	defer timer.Stop()
@@ -203,6 +192,27 @@ type process interface {
 type osProcess struct {
 	cmd    *exec.Cmd
 	exited chan struct{}
+}
+
+// processWaitDelay bounds reaping once the process has exited: a writer
+// other than an *os.File makes Wait also wait for every copy of the output
+// pipe to close, and Chrome's helpers inherit it and can outlive Chrome.
+var processWaitDelay = 2 * time.Second
+
+// startProcess starts cmd and reaps it in the background, running reaped
+// once it has been, before Exited closes.
+func startProcess(cmd *exec.Cmd, reaped func()) (*osProcess, error) {
+	cmd.WaitDelay = processWaitDelay
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+	p := &osProcess{cmd: cmd, exited: make(chan struct{})}
+	go func() {
+		cmd.Wait()
+		reaped()
+		close(p.exited)
+	}()
+	return p, nil
 }
 
 func (p *osProcess) Kill()                   { p.cmd.Process.Kill() }
@@ -444,10 +454,12 @@ func (c *Chrome) finish(s *loopState) {
 	close(c.done)
 }
 
-// endError says why a Chrome ended. A cause the loop chose wins; otherwise a
-// failed connection is the reason, then a failing exit status, and a clean
-// exit nobody asked for is the operator quitting Chrome. The pipe closing
-// because Chrome exited is not a connection failure.
+// endError says why a Chrome ended. A cause the loop chose wins; then a
+// protocol failure (Chrome sent something unreadable); then a failing exit
+// status; a clean exit nobody asked for is the operator quitting Chrome.
+// Only what Chrome sent counts as a connection failure: the pipe closing,
+// however it surfaces (EOF, a closed reader, a write after exit), is what
+// every ending looks like, including our own teardown.
 func endError(cause endCause, connErr error, exitCode int, output string) error {
 	switch cause {
 	case endRequested:
@@ -455,7 +467,7 @@ func endError(cause endCause, connErr error, exitCode int, output string) error 
 	case endLastWindow:
 		return ErrClosedByOperator
 	}
-	if connErr != nil && !errors.Is(connErr, io.EOF) && !errors.Is(connErr, cdp.ErrClosed) {
+	if errors.Is(connErr, cdp.ErrProtocol) {
 		return fmt.Errorf("webcast: lost Chrome: %w", connErr)
 	}
 	if exitCode != 0 {

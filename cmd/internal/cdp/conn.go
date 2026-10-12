@@ -14,7 +14,7 @@ var (
 	// reader never blocks on the consumer (that would deadlock a consumer
 	// making a synchronous Call from its event loop), so a stuck consumer
 	// must fail loudly rather than grow memory without bound.
-	ErrBacklog = errors.New("cdp: event backlog exceeded; consumer is not reading events")
+	ErrBacklog = fmt.Errorf("%w: event backlog exceeded; consumer is not reading events", ErrProtocol)
 	ErrClosed  = errors.New("cdp: connection closed")
 )
 
@@ -64,7 +64,7 @@ func New(r io.Reader, w io.WriteCloser) *Conn {
 		closed:    make(chan struct{}),
 		events:    make(chan Event),
 	}
-	go c.read(newFrameReader(r, maxFrame))
+	go c.read(r, newFrameReader(r, maxFrame))
 	go c.pump()
 	return c
 }
@@ -152,9 +152,10 @@ func (c *Conn) Events() <-chan Event { return c.events }
 // Done is closed when the Conn fails or is closed.
 func (c *Conn) Done() <-chan struct{} { return c.done }
 
-// Err is nil while the Conn runs, then the first failure: a read error
-// (wrapping io.EOF when the peer closed), ErrBacklog, ErrFrameTooLarge, a
-// malformed-message error, or ErrClosed after Close.
+// Err is nil while the Conn runs, then the first failure. Failures from what
+// the peer sent (oversized, malformed, a backlog) are ErrProtocol; the pipe
+// ending is a read error wrapping io.EOF (or the pipe's own close error), and
+// our Close is ErrClosed.
 func (c *Conn) Err() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -182,12 +183,16 @@ func (c *Conn) fail(err error) {
 	close(c.done)
 }
 
-func (c *Conn) read(fr *frameReader) {
+// read routes frames until the pipe ends. After a failure that leaves the
+// pipe open (oversized or malformed) it keeps reading and discarding bytes,
+// so the peer never blocks writing and sees its command pipe close instead.
+func (c *Conn) read(r io.Reader, fr *frameReader) {
 	for {
 		frame, err := fr.next()
 		if err != nil {
 			if errors.Is(err, ErrFrameTooLarge) {
 				c.fail(err)
+				io.Copy(io.Discard, r)
 			} else {
 				c.fail(fmt.Errorf("cdp: read: %w", err))
 			}
@@ -195,7 +200,8 @@ func (c *Conn) read(fr *frameReader) {
 		}
 		var m Message
 		if err := json.Unmarshal(frame, &m); err != nil {
-			c.fail(fmt.Errorf("cdp: malformed message: %w", err))
+			c.fail(fmt.Errorf("%w: malformed message: %v", ErrProtocol, err))
+			io.Copy(io.Discard, r)
 			return
 		}
 		c.dispatch(m)

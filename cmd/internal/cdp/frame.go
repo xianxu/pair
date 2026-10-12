@@ -16,7 +16,13 @@ const MaxFrame = 16 << 20
 // maxFrame is MaxFrame as a var so tests can exercise the limit cheaply.
 var maxFrame = MaxFrame
 
-var ErrFrameTooLarge = errors.New("cdp: frame exceeds size limit")
+var ErrFrameTooLarge = fmt.Errorf("%w: frame exceeds size limit", ErrProtocol)
+
+// ErrProtocol classes the failures that come from what the peer sent
+// (oversized, malformed, an event backlog), as opposed to the transport
+// closing. A consumer deciding why a connection ended treats only these as a
+// cause: a pipe closing is what any ending looks like.
+var ErrProtocol = errors.New("cdp: protocol failure")
 
 // Message is every CDP wire shape at once: a command (ID+Method), a reply
 // (ID+Result or Error) or an event (Method without ID).

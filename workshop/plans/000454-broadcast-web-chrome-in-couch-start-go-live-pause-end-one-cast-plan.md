@@ -535,3 +535,13 @@ Divergences from the tasks above, all measured against Chrome 154:
 - **Live harness:** headless, and never raises a window (operator instruction: don't take focus from Couch). Tab
   switching is emulated by focus; real switching under windows moves to the smoke test. The node tests live in
   `tests/webcast/`.
+- **M1 review round 2:**
+  - **Drain (BR-11):** the cdp reader drains raw bytes after every failure that leaves the pipe open, so Chrome never
+    blocks writing and exits cleanly when its command pipe closes. Each `Conn` doc-comment promise is pinned
+    (`TestReaderDrainsAfterProtocolFailure`, `TestErrClasses`).
+  - **End reason (BR-12):** `cdp.ErrProtocol` classes what Chrome *sent* (oversized, malformed, backlog), and
+    `endError` counts only that class as "lost Chrome". The pipe closing (EOF, a closed reader, a write after exit)
+    never is, since our own teardown produces it too. The scripted peer gains a mode where the reaper closes the
+    reader first.
+  - **Reaping (BR-4):** `startProcess` sets `WaitDelay` and is tested with a shell whose background child keeps the
+    output pipe open.
