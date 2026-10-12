@@ -57,3 +57,6 @@
 - [ ] Atlas: couch messaging / tab-bar pages name the picker report and the red state.
 - [ ] Full `make -k test`, then `go test ./...`. Live check on a scratch slot: a permission prompt turns its chip red within seconds and clears when answered, `--message-status` shows `held … blocked by a picker: …`, and the hub notice arrives at about 1m.
 - [ ] Ask ops:0 to arrange the operator's smoke test, then close.
+
+## Revisions
+- 2026-10-12, ops:0 approval asks: (a) Kind is **permission prompt** only for recognised permission wording (title starts with `Do you want to` or `Would you like to`). It is **question** only for Claude's selection footer (`Enter to select`). Anything else is plain **picker**, never a guess. (b) The options text in the notice is one line, truncated at 160 bytes in total with `…` (replaces "6 options × 80 bytes").
