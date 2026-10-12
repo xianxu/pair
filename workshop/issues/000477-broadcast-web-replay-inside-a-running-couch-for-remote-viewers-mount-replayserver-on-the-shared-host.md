@@ -1,7 +1,7 @@
 ---
 id: 000477
 status: working
-deps: []
+deps: [pair#470]
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
