@@ -17,6 +17,14 @@ tracker:
         source_blob: 49edb4cac6445e1418b7da2d88794d06fb195ec3
         destination: workshop/issues/000471-broadcast-web-replay-a-recording-in-the-viewer-with-a-timeline-scrubber.md
         main_commit: b9fe6e9dc3356f6a5c90203f972ac1808d55f717
+started: 2026-10-12T03:03:53-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:4
+    worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
+    repository: github.com/xianxu/pair
 ---
 
 # broadcast-web: replay a recording in the viewer with a timeline scrubber
