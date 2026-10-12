@@ -17,6 +17,9 @@ type FakeTunnel struct {
 	IgnoreCancel bool
 	// CloseBlock, when set, holds every Close until it is closed.
 	CloseBlock chan struct{}
+	// Exclusive refuses an Open while another is open with ErrTunnelBusy,
+	// as a named tunnel's claim does.
+	Exclusive bool
 
 	mu       sync.Mutex
 	stats    FakeTunnelStats
@@ -25,9 +28,10 @@ type FakeTunnel struct {
 	handles  []*fakeHandle
 }
 
-// FakeTunnelStats counts calls. DoubleCloses counts Close on a closed handle.
+// FakeTunnelStats counts calls. DoubleCloses counts Close on a closed handle;
+// MaxOpen is the most handles open at once.
 type FakeTunnelStats struct {
-	Listens, Opens, Closes, DoubleCloses int
+	Listens, Opens, Closes, DoubleCloses, MaxOpen int
 }
 
 func (f *FakeTunnel) Listen() (net.Listener, error) {
@@ -59,9 +63,14 @@ func (f *FakeTunnel) Open(ctx context.Context, l net.Listener) (Handle, error) {
 	}
 	h := &fakeHandle{f: f, localHandle: newLocalHandle("http://" + l.Addr().String())}
 	f.mu.Lock()
+	defer f.mu.Unlock()
+	open := f.stats.Opens - f.stats.Closes
+	if f.Exclusive && open > 0 {
+		return nil, ErrTunnelBusy
+	}
 	f.stats.Opens++
+	f.stats.MaxOpen = max(f.stats.MaxOpen, open+1)
 	f.handles = append(f.handles, h)
-	f.mu.Unlock()
 	return h, nil
 }
 

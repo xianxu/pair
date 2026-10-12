@@ -45,7 +45,7 @@ func liveRoundTrip(t *testing.T, named *NamedTunnel) {
 		t.Fatalf("start: %v", err)
 	}
 	t.Logf("link answered after %v (%s)", time.Since(start).Round(time.Millisecond), strings.SplitN(s.Link(), "/", 4)[2])
-	h := s.handle.(*cloudflaredHandle)
+	h := s.mount.host.currentHandle().(*cloudflaredHandle)
 	child := h.childPID()
 	s.Offer(live(t, "live conformance"), terminal.FramePublic)
 	client := &http.Client{Timeout: 10 * time.Second, Transport: &http.Transport{DialContext: resolvingDialer(PublicResolve)}}

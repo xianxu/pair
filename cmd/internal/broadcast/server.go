@@ -1,7 +1,6 @@
 package broadcast
 
 import (
-	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -75,12 +74,24 @@ func NewServer(opts ServerOptions) *Server {
 	return &Server{opts: opts}
 }
 
-func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	h := w.Header()
-	h.Set("Content-Security-Policy", contentSecurityPolicy)
+// SetSecurityHeaders sets what every cast response carries: csp, no caching,
+// no referrer, no sniffing.
+func SetSecurityHeaders(h http.Header, csp string) {
+	h.Set("Content-Security-Policy", csp)
 	h.Set("Cache-Control", "no-store")
 	h.Set("Referrer-Policy", "no-referrer")
 	h.Set("X-Content-Type-Options", "nosniff")
+}
+
+// Owns reports whether segment is one of this broadcast's tokens, for the
+// Host's routing.
+func (s *Server) Owns(segment string) bool {
+	return ownsToken(segment, s.opts.Token) || s.opts.Pointer.Match(segment)
+}
+
+func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	h := w.Header()
+	SetSecurityHeaders(h, contentSecurityPolicy)
 	segment, rest, ok := splitPath(r.URL.Path)
 	pointer := ok && s.opts.Pointer.Match(segment)
 	// The only routes that read a body: POST /<pointer-token>/point, note
@@ -103,7 +114,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	view := ok && s.opts.Token != "" && subtle.ConstantTimeCompare([]byte(segment), []byte(s.opts.Token)) == 1
+	view := ok && ownsToken(segment, s.opts.Token)
 	if !view && !pointer {
 		http.NotFound(w, r)
 		return
