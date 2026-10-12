@@ -45,7 +45,7 @@ One mechanism for both casts (the terminal viewer and the web viewer already sha
 
 Durable plan: `workshop/plans/000488-…-plan.md` (same slug).
 
-- [ ] M1 — shared `noteBox` (collab.js) + web cast: always-region with default box, BR-4 clamp, outlined pins, NoteAt kind/path, NoteCrops = padded box (snap + Hints retired, hub-coordinated with #483)
+- [x] M1 — shared `noteBox` (collab.js) + web cast: always-region with default box, BR-4 clamp, outlined pins, NoteAt kind/path, NoteCrops = padded box (snap + Hints retired, hub-coordinated with #483)
 - [ ] M2 — terminal boxes: wire `box` + derived pin, viewer drag, DrawNotes outline, `NoteCrop` seam for #455
 - [ ] M3 — terminal anchor: pure `AnchorFor` + async fresh list-panes resolver behind an injected PaneRects seam (stateful fake, live conformance) + nvim view.json
 - [ ] Operator smoke test in both casts
@@ -107,4 +107,5 @@ Items in order:
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed M1 — go test webcast/... broadcast/... green; node 165/165; WEBCAST_LIVE_CHROME=1 TestAnnotateLiveTwoViewers + live replay tests PASS (real Chrome, mouse tap default box + touch drag box); BR-7 + snapping wording swept; review verdict: SHIP
 - Claimed from pair:3 (TL dispatch). Plan drafted; sent to hub for UI choices A–D before building.
