@@ -6,7 +6,7 @@ github_issue:
 created: 2026-10-11
 updated: 2026-10-12
 estimate_hours:
-card_mirror: '602ba735afe7522cf5666888aa5f7e497f93ebcd' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '929e2cac54fc065a2a3b899cdd3beac89a4d985f' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T02:21:10-07:00
 claimant:
     operator: Xian Xu
@@ -16,7 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
-actual_hours: 0.55
+actual_hours: 0.56
 ---
 
 # broadcast-web: asset store and proxy — capture, content hash, resample, serve
