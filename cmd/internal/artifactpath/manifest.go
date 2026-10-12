@@ -233,6 +233,8 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/pairlog/retention.go", Kind: ResolvedConsumer, Families: []string{"log"}, BindingNames: []string{"scoped-log"}, Vocabulary: []VocabularyAllowance{goCallVocabulary("log", "prompt-log-writer", "github.com/xianxu/pair/cmd/internal/storagegc.AcquireSelectedProcess", 2, 1)}},
 	{Path: "cmd/internal/orientation/model.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/couchcmd/shortcut_focus.go", Kind: ResolvedConsumer},
+	// #488: a note's anchor reads the slot's draft through its resolved Paths.
+	{Path: "cmd/internal/couchcmd/note_panes.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/changelogcmd/changelogcmd.go", Kind: ResolvedConsumer, Families: []string{"changelog"}, BindingNames: []string{"matched-changelog-family"}, Vocabulary: []VocabularyAllowance{
 		goCallVocabulary("changelog", "changelog-render", "github.com/xianxu/pair/cmd/internal/storagegc.AcquireSelectedProcess", 2, 1),
 	}},
@@ -807,6 +809,9 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchtty/console_broadcast.go",
 	"cmd/internal/couchtty/console_pointer.go",
 	"cmd/internal/couchtty/console_notes.go",
+	// #488 note anchors: screen layout and pane geometry; no artifact paths.
+	"cmd/internal/couchtty/console_noteanchor.go",
+	"cmd/internal/couchtty/noteanchor.go",
 	"cmd/internal/couchtty/notes_menu.go",
 	"cmd/internal/couchcmd/broadcast.go",
 	"cmd/internal/couchcmd/broadcast_list.go",
