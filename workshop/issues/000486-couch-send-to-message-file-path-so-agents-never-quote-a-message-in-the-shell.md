@@ -1,12 +1,20 @@
 ---
 id: 000486
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: 'd759269b272c841ac52918f77c72dedc402fb6ee' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '63db27ebcabd5a6da19884f4b0a87511f174a999' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-12T07:53:53-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # couch --send-to: --message-file PATH, so agents never quote a message in the shell
@@ -37,7 +45,11 @@ Agents write markdown by habit, and code spans are backticks. So a rule against 
 
 ## Plan
 
-- [ ]
+- [ ] Parse `--message-file PATH` in the `--message TEXT` position (`couchcmd/cli.go`); the parser stays IO-free and records the path. Both or neither stays refused by the fixed shape.
+- [ ] Read the file at send time (`couchcmd/messages.go`), bounded to `MaxBodyBytes`+2, strip one trailing `\n`; refuse an empty/whitespace, oversized, missing or unreadable file before any RPC. The broker's body validation is unchanged.
+- [ ] Tests: parse forms + rejections (`cli_test.go`); verbatim body with backticks, `$(…)`, `<(…)`, newlines; empty, missing, unreadable, oversized (`messages_test.go`).
+- [ ] Document in `couch --help` and the couch skill (the default for a message containing code or shell syntax).
+- `--remove-after-send` (optional in the Spec) is left out: the scratch space owns the file's lifetime.
 
 ## Log
 
