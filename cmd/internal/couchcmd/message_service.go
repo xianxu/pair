@@ -668,6 +668,13 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 		if err != nil {
 			return couchmessage.Response{Code: "unavailable", Error: err.Error()}
 		}
+		if request.Op == "send" && request.Target == couchmessage.HubTarget {
+			hub, refusal := s.hubRecipient(binding)
+			if refusal != nil {
+				return *refusal
+			}
+			request.Target = hub
+		}
 		// An exact target whose session went dormant after failed admissions
 		// gets one more bounded attempt; this send does not wait for its
 		// result. Posting only waits for the loop to take the event (the loop
@@ -679,6 +686,24 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 		}
 	}
 	return couchmessage.Handle(ctx, s.broker, request)
+}
+
+// hubRecipient resolves the reserved `hub` target (pair#463) to the hub's
+// exact slot at send time, so a resumed thread never carries a stale address.
+// It runs before repository-name resolution: a repository named hub stays
+// reachable as hub:N.
+func (s *messageService) hubRecipient(from couchmessage.Binding) (string, *couchmessage.Response) {
+	if s.authority.hub == "" {
+		return "", &couchmessage.Response{Code: "refused", Error: "no hub: this Couch started outside a checkout"}
+	}
+	hub, ok := s.hubBinding()
+	if !ok {
+		return "", &couchmessage.Response{Code: "unavailable", Error: "the hub isn't connected: no live wrapper in " + s.authority.hub}
+	}
+	if hub.Slot == from.Slot {
+		return "", &couchmessage.Response{Code: "refused", Error: "you are the hub (" + hub.Slot + "): a message to hub would reach your own slot"}
+	}
+	return hub.Slot, nil
 }
 
 // handleBroadcastStatus answers the operator's `couch --broadcast-list`
