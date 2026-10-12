@@ -15,6 +15,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "6972e849", done: "c8233b80"}
 ---
 
 # couch: idle fading re-decodes session transcripts every tick (~1.5 cores at rest)
@@ -28,7 +29,7 @@ Live Couch (pid 31713, build c8770843) burns 1.25-1.8 cores with no cast running
 
 ## Spec
 
-- **Ledger parse cache.** `sessioninventory.OwnerLaunchCache` keeps `readOwnerLaunch`'s answer (current launch, ok, malformed-row diagnostics) per (ledger file, owner), keyed by the ledger's `ArtifactFingerprint` (stable id, generation, ctime mutation token, size, times), which the listing `readOwnerLaunch` already does provides. A changed fingerprint re-parses; nothing else does. It is an optional runtime capability (like `SessionCatalogAdvancer`), so callers without one, and the caller that needs every record, are unchanged. `threadactivity.NewOSRuntime` owns one cache for Couch's lifetime.
+- **Ledger parse cache.** `sessioninventory.OwnerLaunchCache` keeps `readOwnerLaunch`'s answer (current launch, ok, malformed-row diagnostics) per (ledger file, owner), keyed by the ledger's `ArtifactFingerprint` (stable id, generation, ctime mutation token, size, times), which the listing `readOwnerLaunch` already makes provides. A changed fingerprint re-parses; nothing else does. It is an optional runtime capability (like `SessionCatalogAdvancer`), so callers without one, and the caller that needs every record, are unchanged. `threadactivity.NewOSRuntime` owns one cache for Couch's lifetime.
 - **Continuation scan cache.** `Couch.ContinuationRequests` remembers, per address, the record file it read and that file's fingerprint (inode, size, mtime, ctime), taken under the store lock just before the read. Each tick `lstat`s that path; unchanged means the cached status stands, and anything else (changed, gone, migrated) re-reads through `GetThread`. `continuationStatus` is a pure function of the record, so this is exact.
 - Lifecycle: both caches are in memory, die with Couch, one entry per probed ledger or hosted thread (dozens); an entry for a thread no longer asked about stays until exit (bounded by threads seen in one Couch run).
 
