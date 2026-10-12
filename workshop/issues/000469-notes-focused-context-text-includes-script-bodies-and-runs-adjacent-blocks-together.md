@@ -57,3 +57,10 @@ Context text is the visible text a person would read: skip `script`, `style`, `t
   uses `TextContent`. Changing it would change stored anchors and their matching; Context is what agents read.
 - Merged main after #462 landed; `-update` changed only context `text:` lines in app/stress/segments notes
   goldens (e.g. `tasksAddShip…` → `tasks Add Ship…`, `Inboxone` → `Inbox one`); no golden carries script text.
+- Close round 1 (FIX-THEN-SHIP). BR-1 (Important): `query/render.go` `spacedText` was a second visible-text
+  walker (script/style only; split every text node, so `<a>A</a><a>B</a>` read "A B" and `<head>`'s title
+  labelled `head`). Fixed the class: removed it, `describe` uses `RenderedText`. #462's goldens moved only on
+  `<head>` (blog.events) and the `TestSelect` nav row is now "AB", which is how it renders. Minor: `visibility`
+  now inherits and a descendant's `visibility:visible` shows it again (test). The select half of the Minor was
+  tried and reverted: a closed select shows its live choice, which the DOM doesn't hold (the stress goldens read
+  "alpha" beside `selected [2]`), so a select lists all its options, documented on `RenderedText`.

@@ -32,6 +32,10 @@ func TestRenderedText(t *testing.T) {
 		{"tailwind hidden", el("div", nil, el("p", []string{"class", "hidden text-sm"}, txt("secret")), txt("shown")), "shown"},
 		{"tailwind hidden shown at md", el("div", nil, el("p", []string{"class", "hidden md:block"}, txt("wide")), txt("shown")), "wide shown"},
 		{"hover variant keeps hidden", el("div", nil, el("p", []string{"class", "hidden hover:bg-red-500"}, txt("secret")), txt("shown")), "shown"},
+		{"visibility inherits and can be set back", el("div", []string{"style", "visibility:hidden"}, txt("secret"),
+			el("p", []string{"style", "visibility: visible"}, txt("shown")), el("p", nil, txt("also secret"))), "shown"},
+		{"a select lists its options (the live choice is not in the DOM)", el("select", nil,
+			el("option", nil, txt("alpha")), el("optgroup", nil, el("option", []string{"selected", ""}, txt("beta")))), "alpha beta"},
 		{"whitespace collapses", el("p", nil, txt("  a \n\t b  ")), "a b"},
 	} {
 		if got := c.n.RenderedText(); got != c.want {

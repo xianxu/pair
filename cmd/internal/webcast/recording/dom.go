@@ -42,18 +42,24 @@ func (n *DOMNode) ParentElement() *DOMNode {
 // innerText, it skips what isn't rendered (script, style, … and elements
 // the recording marks hidden) and separates what renders apart (blocks,
 // table cells, line breaks, flex and grid items) with a space, where
-// TextContent runs them together. Shadow roots and frames are excluded, as
+// TextContent runs them together. A select lists all its options: its
+// live choice isn't in the DOM. Shadow roots and frames are excluded, as
 // in TextContent.
 func (n *DOMNode) RenderedText() string {
 	var b strings.Builder
-	var walk func(n *DOMNode, apart bool)
-	walk = func(n *DOMNode, apart bool) {
+	var walk func(n *DOMNode, apart, visible bool)
+	walk = func(n *DOMNode, apart, visible bool) {
 		switch {
 		case n.Y == YText:
-			b.WriteString(n.V)
+			if visible {
+				b.WriteString(n.V)
+			}
 			return
 		case n.Y == YEl && unrendered(n):
 			return
+		}
+		if v, ok := visibility(n); ok { // inherited, and a descendant can set it back
+			visible = v
 		}
 		apart = apart || n.Y == YEl && blockTags[n.N]
 		if apart {
@@ -61,14 +67,32 @@ func (n *DOMNode) RenderedText() string {
 		}
 		items := n.Y == YEl && laidOutApart(n.A["class"])
 		for _, k := range n.Kids {
-			walk(k, items)
+			walk(k, items, visible)
 		}
 		if apart {
 			b.WriteByte(' ')
 		}
 	}
-	walk(n, false)
+	walk(n, false, true)
 	return strings.Join(strings.Fields(b.String()), " ")
+}
+
+// visibility is an element's own inline visibility, if it sets one.
+func visibility(e *DOMNode) (visible, set bool) {
+	if e.Y != YEl {
+		return false, false
+	}
+	switch style := inlineStyle(e); {
+	case strings.Contains(style, "visibility:hidden"), strings.Contains(style, "visibility:collapse"):
+		return false, true
+	case strings.Contains(style, "visibility:visible"):
+		return true, true
+	}
+	return false, false
+}
+
+func inlineStyle(e *DOMNode) string {
+	return strings.ToLower(strings.Join(strings.Fields(e.A["style"]), ""))
 }
 
 var (
@@ -83,9 +107,8 @@ var (
 		"tr", "ul")
 )
 
-// unrendered: a non-rendered tag, the hidden attribute, an inline style
-// of display:none or visibility:hidden, or Tailwind's hidden class with
-// no variant (md:block, …) that could show it again.
+// unrendered: a non-rendered tag, the hidden attribute, an inline
+// display:none, or Tailwind's hidden class with no variant (md:block, …) that could show it again.
 func unrendered(e *DOMNode) bool {
 	if unrenderedTags[e.N] {
 		return true
@@ -93,8 +116,7 @@ func unrendered(e *DOMNode) bool {
 	if _, ok := e.A["hidden"]; ok {
 		return true
 	}
-	style := strings.ToLower(strings.Join(strings.Fields(e.A["style"]), ""))
-	if strings.Contains(style, "display:none") || strings.Contains(style, "visibility:hidden") {
+	if strings.Contains(inlineStyle(e), "display:none") {
 		return true
 	}
 	hidden, shown := false, false

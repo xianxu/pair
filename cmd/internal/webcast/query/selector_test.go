@@ -45,7 +45,7 @@ func TestSelect(t *testing.T) {
 		{`a[aria-label*="to B"]`, `<a.link.active> "B"`},
 		{"[name]", `<input>`},
 		{"input[type='text']", `<input>`},
-		{".top.main", `<nav.top.main> "A B"`},
+		{".top.main", `<nav.top.main> "AB"`},           // adjacent inline links render run together
 		{"#card span", ``},                             // a space doesn't cross into a shadow root
 		{"#card > span", ``},                           // nor does >
 		{"#card >>> span", `<span.badge> "in shadow"`}, // >>> does, closed or open
