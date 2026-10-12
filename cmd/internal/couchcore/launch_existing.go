@@ -225,18 +225,30 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	// cancellation reaches the wait loops directly.
 	registrationContext, stopExitWatch := whileHelperAlive(ctx, h)
 	registrationContext, cancelRegistration := deadline(registrationContext, registrationTimeout)
-	if in.Fresh {
-		err = c.awaitFreshRegistration(registrationContext, thread.Address, in.Args.Stack, in.Nonce)
-		if err == nil {
-			err = c.awaitResumeRegistration(registrationContext, thread.Address, nil)
+	await := func(ctx context.Context) error {
+		switch {
+		case in.Fresh:
+			if err := c.awaitFreshRegistration(ctx, thread.Address, in.Args.Stack, in.Nonce); err != nil {
+				return err
+			}
+			return c.awaitResumeRegistration(ctx, thread.Address, nil)
+		case in.Resume:
+			return c.awaitResumeRegistration(ctx, thread.Address, birth)
 		}
-	} else if in.Resume {
-		err = c.awaitResumeRegistration(registrationContext, thread.Address, birth)
-	} else {
-		err = c.awaitThreadRegistration(registrationContext, thread.Address)
+		return c.awaitThreadRegistration(ctx, thread.Address)
 	}
+	err = await(registrationContext)
 	cancelRegistration()
 	exited := stopExitWatch()
+	if exited {
+		// The exit can be seen before the wait's first look: registration
+		// already written still counts, so look once more before failing.
+		final, cancelFinal := context.WithTimeout(ctx, exitedFinalLook)
+		if await(final) == nil {
+			err, exited = nil, false
+		}
+		cancelFinal()
+	}
 	steps.mark("registration")
 	if err != nil {
 		diagnosis := c.diagnoseRegistrationFailure(err, thread.Address, registrationTimeout)
@@ -430,6 +442,11 @@ func (c *Couch) awaitResumeRegistration(ctx context.Context, address ThreadAddre
 // helperExitPoll is how often a registration wait checks that the launched
 // Pair's process group is still there: one kill(-pgid, 0) per tick.
 const helperExitPoll = 100 * time.Millisecond
+
+// exitedFinalLook bounds the registration check made after the helper has
+// exited. Nothing more can arrive, so it covers only the observation itself and
+// keeps a dead launch's failure prompt.
+const exitedFinalLook = time.Second
 
 // whileHelperAlive ends ctx as soon as the launched Pair's process group has
 // gone (pair#489). A slow start is still a live one, so the registration wait

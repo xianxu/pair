@@ -44,16 +44,16 @@ Investigate, then fix at the root:
 Root cause: one fixed 15 s window (`pairRegistrationTimeout`) covers ALL of Pair's startup, including PAIR_DEV's
 `make build`. Both scale with load, and at load ~200 their sum (~20 s measured) passes 15 s. Fix (quick flow):
 
-- [ ] Registration waits on Pair, not a stopwatch: the wait ends at registration, at the helper's process group
+- [x] Registration waits on Pair, not a stopwatch: the wait ends at registration, at the helper's process group
   exiting (a dead launch fails at once, named "Pair exited before registering"), or at a 2 min hang ceiling. The
   existing post-ack cleanup stays the one failure path (kills the group, rolls back to parked): a clean state.
   Late starts inside the ceiling are adopted by the same wait.
-- [ ] Couch-launched Pair skips `dev_rebuild`; relaunch's binary-freshness gate applies under PAIR_DEV too
+- [x] Couch-launched Pair skips `dev_rebuild`; relaunch's binary-freshness gate applies under PAIR_DEV too
   (refuses the binary already running: "run make build in <checkout>"), so a sweep builds once, by hand.
-- [ ] CLI progress: `couch --resume/--relaunch` prints a "still running" line every 15 s while it polls.
-- [ ] Pacing: no load check (load average misreads, see memory); each CLI call waits for its launch, so a sequential
+- [x] CLI progress: `couch --resume/--relaunch` prints a "still running" line every 15 s while it polls.
+- [x] Pacing: no load check (load average misreads, see memory); each CLI call waits for its launch, so a sequential
   sweep paces itself by real launch time.
-- [ ] Tests: late registration past the old window succeeds (injected delay); helper exits before registering →
+- [x] Tests: late registration past the old window succeeds (injected delay); helper exits before registering →
   fast, named failure + clean rollback; DevRebuild skipped for Couch-launched Pair; freshness under PAIR_DEV; CLI
   progress line.
 
@@ -72,6 +72,20 @@ Root cause: one fixed 15 s window (`pairRegistrationTimeout`) covers ALL of Pair
 - 10:27, load ~10: TL's `couch --resume` of the same five slots all succeeded (corroborates).
 - Residual risk noted, not changed: Pair's own birth watch probes zellij at 10 s and aborts only on proof of death
   (session not listed); birth at 11.1 s still passed in the loaded run.
+- **Implemented:** `whileHelperAlive` (launch_existing.go) watches the helper's process group (both runners'
+  `Alive` is `kill(-pgid,0)`) under the deadline, so a test's custom deadline context keeps synchronous
+  cancellation (the first ordering broke TestColdResumeRegistrationTimeoutNamesTheOwnershipPhase: a custom parent
+  makes WithCancelCause propagate on a goroutine). `pairRegistrationTimeout` 15 s → 2 min ceiling (ARCH-CONSTRAINTS:
+  a hang ceiling, with the unbounded-work caveat kept). Couch launches skip `dev_rebuild` (`Env.CouchHosted`);
+  `BinaryFacts.DevRebuild` removed, so relaunch's freshness gate applies under PAIR_DEV. CLI prints
+  "still running after Ns" every 15 s. ARCH-FUNERAL: creates nothing durable (the watcher goroutine is joined by
+  stop). Injected-delay tests: TestColdResumeAdoptsALateStart, TestColdResumeFailsAtOnceWhenPairExitsBeforeRegistering
+  (also asserts the thread is left parked and unoccupied), TestCreateRebuildsOnlyOutsideCouch,
+  TestSlotOperationCLIReportsProgressWhileRunning.
+- **Full suite caught:** TestResumeRunsAsTheNewLiveOwner — its fake helper is already gone when the wait starts,
+  with registration already written; the exit cancelled the wait before its first look. Rule: an exit ends the wait,
+  then one bounded final look (`exitedFinalLook`, 1 s: nothing more can arrive) decides, so registration already
+  written still counts and a dead launch still fails promptly.
 
 ## Revisions
 
