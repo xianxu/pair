@@ -22,16 +22,17 @@ type Capture struct {
 	MIME string
 	Body []byte
 	// Declared is the largest size the page shows the image at, in CSS px
-	// times the device pixel ratio; zero when unknown. The resample budget
-	// keeps at least this.
+	// times the device pixel ratio; zero when unknown. Meant to widen the
+	// resample budget to at least this; the recorder doesn't pass it yet and
+	// Recorded uses the budget alone (TL, #459).
 	DeclaredW, DeclaredH int
 }
 
 // Policy is the store's resolution budget. Images over it are resampled;
 // CSS and fonts are always exact.
 type Policy struct {
-	// MaxPixels caps an image's stored pixel count (w×h), unless its
-	// declared size needs more.
+	// MaxPixels caps an image's stored pixel count (w×h). (A declared size
+	// is meant to widen it; not yet, see Capture.Declared.)
 	MaxPixels int
 }
 

@@ -136,8 +136,15 @@ servers (Principle 4).
 - DOM attributes keep the page's own URLs, because an agent wants to see the real ones. The viewer resolves an attribute value
   (`src`, each `srcset` candidate, `href` of a stylesheet link, `poster`) against its document's URL, looks the absolute URL up in the asset table, and
   loads `assets/<hash>` through the proxy. A URL with no entry loads nothing. It is never fetched from the origin.
-- CSS bodies (`text/css` assets) and `sheet` text have absolute `url()`s; the proxy rewrites them for viewers at
-  serve time (#459).
+- CSS bodies (`text/css` assets) and `sheet` text have absolute URLs: in `url()`, `@import` strings and plain strings
+  inside `image-set()`. The asset store makes a body's URLs absolute against the stylesheet's own URL when it is
+  stored (`assets.Recorded.Put`), so a body shared by URLs in different directories means one thing; the recorder
+  does the same for `sheet` text. CSS is otherwise exact. At serve time the proxy (`assets.Proxy`) points each URL
+  that has an asset at `<hash>` (relative to `assets/`) and leaves the rest absolute, for the viewer to resolve when
+  the asset arrives (#459).
+- Images over the budget (`assets.Policy.MaxPixels`, about one 1920×1080 frame) are resampled, aspect kept: JPEG when
+  opaque, PNG with transparency, so the asset's `mime` can differ from the page's. SVG, GIF (mostly animations) and formats
+  the store can't decode (AVIF) are kept exact. A header claiming over 64 MP is refused unread.
 - Assets outlive segments: the table is per recording, and a later `asset` record for the same URL rebinds it.
 
 ## Observer state
@@ -338,8 +345,9 @@ same records out, and `Server.events` sends them as `rec` events. The route, the
   the target of a driver's act (#466). `toPage(clientX, clientY)` maps a point in the viewer's window to top-page CSS px.
 - `onRecord(fn)` sees each accepted record and the model, so another component (#467's control state) can follow the
   stream without touching the apply path.
-The viewer rewrites `url()`s in streamed CSS (`sheet` records, `<style>` text, `style=`) through `resolveAsset`. The
-proxy rewrites only the CSS bodies it serves.
+The viewer rewrites `url()`s and `image-set()` strings in streamed CSS (`sheet` records, `<style>` text, `style=`)
+through `resolveAsset`. The proxy rewrites only the CSS bodies it serves. Both find the same URL spans:
+`tests/webcast/css_urls.json` is the shared corpus (`css.js` and `assets.RewriteCSS`).
 
 Conformance means that, for every fixture at each pinned time (its `frame` times), `canonical()` equals the reducer's
 `State.Canonical()`, and the render is within tolerance of `frames/<n>.png`. The fixture pins each expected state by
@@ -490,3 +498,9 @@ in an isolated world and kept out of the recording.
 
 **Lifecycle (ARCH-FUNERAL).** A `ctl` record is about 100 bytes per human control action, and lives as long as its
 recording. Seats and their keys are memory only: they end after the grace period without a stream, or with the cast.
+
+## Revisions
+
+- 2026-10-12 (#459, TL ops:0): the asset store, not the recorder, makes stored CSS bodies' URLs absolute (at
+  `Put`, against the capture URL); `image-set()` plain strings are URLs to both the proxy and the viewer; the
+  resample policy is written down under Assets. Additive: no record kind or field changes.

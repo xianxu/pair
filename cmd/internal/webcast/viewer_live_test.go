@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -13,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	castassets "github.com/xianxu/pair/cmd/internal/webcast/assets"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
@@ -31,6 +31,7 @@ func TestLiveViewerPage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	store, rec := throughStore(t, rec)
 	const at = 10041 // the last layout before the stop; the scroll has been still since 8536
 	var upto []recording.Record
 	for _, r := range rec.Records {
@@ -43,9 +44,10 @@ func TestLiveViewerPage(t *testing.T) {
 	for _, r := range upto[:half] {
 		hub.Put(r)
 	}
-	srv := viewerServer(t, rec, hub)
+	srv := viewerServer(t, store, hub)
 	t.Cleanup(func() { hub.Close() }) // before the server's Close: it ends the open stream
 
+	page.call(t, page.session, "Network.enable", nil, nil)
 	page.call(t, page.session, "Page.navigate", map[string]any{"url": srv.URL + "/tok/?viewer=v1"}, nil)
 	for _, r := range upto[half:] { // the rest arrives live, after the join
 		hub.Put(r)
@@ -112,6 +114,27 @@ func TestLiveViewerPage(t *testing.T) {
 		t.Errorf("boxOf agrees with the tab on %.1f%% of boxes, want at least %.0f%%", 100*share, 100*boxAgreement)
 	}
 
+	// Principle 4: the viewer drew the blog, its Tailwind CSS, Inter and
+	// images, from the cast alone; nothing went to the product's origin.
+	requests := page.requests()
+	assets, kinds := 0, map[string]bool{}
+	for _, u := range requests {
+		switch {
+		case strings.HasPrefix(u, srv.URL+"/tok/assets/"):
+			assets++
+			typ, _ := store.TypeOf(strings.TrimPrefix(u, srv.URL+"/tok/assets/"))
+			kinds[strings.SplitN(typ, "/", 2)[0]] = true // text (Tailwind), font (Inter), image
+		case strings.HasPrefix(u, srv.URL+"/"), strings.HasPrefix(u, "data:"), strings.HasPrefix(u, "blob:"),
+			u == "about:invalid": // css.js's BLOCKED: a URL with no asset loads nothing
+		default:
+			t.Errorf("the viewer requested %s, outside the cast", u)
+		}
+	}
+	if !kinds["text"] || !kinds["font"] || !kinds["image"] {
+		t.Errorf("the blog's stylesheet, font and images must all come through the proxy; got %v from %q", kinds, requests)
+	}
+	t.Logf("%d requests, %d through the asset proxy", len(requests), assets)
+
 	if dir := os.Getenv("WEBCAST_REPLAY_SHOTS"); dir != "" {
 		var shot struct{ Data string }
 		page.call(t, page.session, "Page.captureScreenshot", map[string]any{"format": "png"}, &shot)
@@ -143,19 +166,11 @@ func TestLiveViewerPage(t *testing.T) {
 // stroke adds 2.02px.
 const boxAgreement = 0.98
 
-func viewerServer(t *testing.T, rec *recording.Recording, live recording.Live) *httptest.Server {
+func viewerServer(t *testing.T, store *castassets.Recorded, live recording.Live) *httptest.Server {
 	t.Helper()
 	viewer := NewServer("tok", NewFakeBrowser(), time.Second, live, nil)
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// The asset proxy (#459) is mounted at <cast>/assets/; the fixture
-		// stands in for it.
-		if hash, ok := strings.CutPrefix(r.URL.Path, "/tok/assets/"); ok {
-			w.Header().Set("Content-Security-Policy", contentSecurityPolicy)
-			serveFixtureAsset(w, r, rec, "", hash)
-			return
-		}
-		viewer.ServeHTTP(w, r)
-	}))
+	viewer.Assets().Bind(store) // as the cast does when the recording opens
+	srv := httptest.NewServer(viewer)
 	t.Cleanup(func() {
 		// A viewer's stream outlives the fan-out (it waits for end), so
 		// Chrome's connection is cut before the server closes.
