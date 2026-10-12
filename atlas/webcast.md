@@ -155,8 +155,10 @@ what the viewer's renderer draws at the same moments.
   either button ends (macOS terminals may send Ctrl+left as a right click with the Ctrl bit). Live, the cell is
   drawn in `broadcast.LiveSGR`, LIVE's own style, so the two cast indicators read as one family (#501);
   `IndicatorShown` matches LIVE's text, so it doesn't mistake one for the other.
-- **Go to Chrome (#501):** a `↗` button right after the cell (`RenderedStatusRow.WebFocus`) calls
-  `Browser.Focus`: the real Chrome sends `Target.activateTarget` for the cast tab, then activates its own
+- **The Chrome group (#501)** mirrors the screen broadcast's: `Chrome ⏸ ↗ 👆 👽 💭N 🕹Ana`, each button its own
+  `RenderedStatusRow` span (`WebFocus`, `WebViewLink`, `WebDriveLink`), so a hover can tell them apart (#495).
+  👆 copies the view link, 👽 the drive link (right-click and Alt+right-click on the cell stay as shortcuts).
+  `↗` calls `Browser.Focus`: the real Chrome sends `Target.activateTarget` for the cast tab, then activates its own
   process by PID (`activateProcess`, macOS JXA → `NSRunningApplication`; by PID because the cast Chrome
   shares its bundle id with the operator's own Chrome). Only `Launch` of a windowed Chrome sets the
   activator, so headless and scripted-pipe tests can never take the operator's focus.

@@ -42,20 +42,25 @@ func TestRenderWebcastCell(t *testing.T) {
 	}
 }
 
-// The ↗ button (#501) sits right after the Chrome cell, before 💭N, in both
-// phases; the live cell wears LIVE's style (#501 revision) without the
-// screen broadcast's indicator check reading it as LIVE.
+// The Chrome group (#501) reads `Chrome ⏸ ↗ 👆 👽 💭N`, in both phases, each
+// button its own span; the live cell wears LIVE's style without the screen
+// broadcast's indicator check reading it as LIVE.
 func TestRenderWebcastFocusButtonAndLiveStyle(t *testing.T) {
 	for _, cell := range []WebcastCell{WebcastIdle, WebcastLive} {
 		row := RenderStatusRow(80, StatusModel{Webcast: cell, WebNotes: 2})
-		if row.WebFocus.Start != row.Webcast.End+1 || row.WebFocus.End-row.WebFocus.Start != 1 || row.WebNotes.Start != row.WebFocus.End+1 {
-			t.Fatalf("cell %v: spans cell %+v focus %+v notes %+v in %q", cell, row.Webcast, row.WebFocus, row.WebNotes, row.Body)
+		spans := []ColumnSpan{row.Webcast, row.WebFocus, row.WebViewLink, row.WebDriveLink, row.WebNotes}
+		widths := []int{len([]rune(WebcastLiveLabel)), 1, 2, 2, 3}
+		for i, s := range spans {
+			if s.End-s.Start != widths[i] || (i > 0 && s.Start != spans[i-1].End+1) {
+				t.Fatalf("cell %v: span %d %+v in %+v (%q)", cell, i, s, spans, row.Body)
+			}
 		}
-		if !strings.Contains(row.Body, " "+WebcastFocusLabel+" ") {
-			t.Fatalf("no button: %q", row.Body)
+		want := " " + WebcastFocusLabel + " " + broadcast.PointerLabel + " " + broadcast.ControlLabel + " " + broadcast.NoteGlyph + "2"
+		if !strings.Contains(row.Body, want) {
+			t.Fatalf("group drawn as %q", row.Body)
 		}
 	}
-	if row := RenderStatusRow(80, StatusModel{}); row.WebFocus != (ColumnSpan{}) || strings.Contains(row.Body, WebcastFocusLabel) {
+	if row := RenderStatusRow(80, StatusModel{}); row.WebFocus != (ColumnSpan{}) || row.WebViewLink != (ColumnSpan{}) || row.WebDriveLink != (ColumnSpan{}) || strings.Contains(row.Body, WebcastFocusLabel) {
 		t.Fatalf("button without Chrome: %q", row.Body)
 	}
 	live := RenderStatusRow(80, StatusModel{Webcast: WebcastLive})

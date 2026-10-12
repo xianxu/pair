@@ -173,6 +173,11 @@ type RenderedStatusRow struct {
 	Webcast ColumnSpan
 	// WebFocus is the go-to-Chrome button's span (#501).
 	WebFocus ColumnSpan
+	// WebViewLink and WebDriveLink are the 👆 and 👽 that copy the view and
+	// drive links (#501), mirroring the screen broadcast's `LIVE ⏸ 👆 👽`.
+	// Each is its own span, so a hover can say which link it holds.
+	WebViewLink  ColumnSpan
+	WebDriveLink ColumnSpan
 	// WebNotes is the web cast's 💭N span (#470).
 	WebNotes ColumnSpan
 	// WebDrive is remote driving's span (#467).
@@ -259,7 +264,7 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 			}
 		}
 	}
-	var webcastSpan, webFocusSpan, webNotesSpan, webDriveSpan ColumnSpan
+	var webcastSpan, webFocusSpan, webViewLinkSpan, webDriveLinkSpan, webNotesSpan, webDriveSpan ColumnSpan
 	if label, sgr := webcastLabel(m.Webcast); label != "" {
 		if used > 0 {
 			appendText(" ", "")
@@ -269,14 +274,20 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 		if used > start {
 			webcastSpan = ColumnSpan{Start: start, End: used}
 		}
-		// The go-to-Chrome button (#501) sits right after the cell, so its
-		// column doesn't move with the note count.
-		appendText(" ", "")
-		start = used
-		appendText(WebcastFocusLabel, "")
-		if used > start {
-			webFocusSpan = ColumnSpan{Start: start, End: used}
+		// The go-to-Chrome button and the two link glyphs (#501) sit right
+		// after the cell, at columns that don't move with the note count.
+		button := func(label string) ColumnSpan {
+			appendText(" ", "")
+			start := used
+			appendText(label, "")
+			if used == start {
+				return ColumnSpan{}
+			}
+			return ColumnSpan{Start: start, End: used}
 		}
+		webFocusSpan = button(WebcastFocusLabel)
+		webViewLinkSpan = button(broadcast.PointerLabel)
+		webDriveLinkSpan = button(broadcast.ControlLabel)
 		if m.WebNotes > 0 {
 			appendText(" ", "")
 			start := used
@@ -365,7 +376,7 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 		}
 		appendText(n, "")
 	}
-	return RenderedStatusRow{Body: row.String(), Chips: chips, Control: control, Pointer: pointer, Remote: remote, Notes: notes, Webcast: webcastSpan, WebFocus: webFocusSpan, WebNotes: webNotesSpan, WebDrive: webDriveSpan}
+	return RenderedStatusRow{Body: row.String(), Chips: chips, Control: control, Pointer: pointer, Remote: remote, Notes: notes, Webcast: webcastSpan, WebFocus: webFocusSpan, WebViewLink: webViewLinkSpan, WebDriveLink: webDriveLinkSpan, WebNotes: webNotesSpan, WebDrive: webDriveSpan}
 }
 
 // WebcastCell is the cast Chrome's state on the tab bar (#454).

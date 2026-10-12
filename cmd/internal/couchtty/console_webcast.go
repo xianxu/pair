@@ -132,7 +132,7 @@ func (c *Console) webcastStarted(attempt uint64, cast *webcast.Cast, err error, 
 	}
 	c.wcast.phase, c.wcast.cast, c.wcast.update = webcastRunning, cast, cast.Current()
 	c.mu.Unlock()
-	c.setNotice("Chrome is open. Press Shift+Ctrl+Alt+b or click Chrome ▶ to go live; right-click it for the viewer link.")
+	c.setNotice("Chrome is open. Press Shift+Ctrl+Alt+b or click Chrome ▶ to go live; 👆 copies the view link, 👽 the drive link, ↗ brings Chrome to the front.")
 	c.syncOverlay(overlayWeb, true) // the notes menu draws in it
 	notes, stopNotes := cast.Notes()
 	c.GoTracked(func() {
@@ -266,7 +266,8 @@ func (c *Console) focusWebcast() {
 	})
 }
 
-// copyWebcastLink is a right-click on the Chrome cell. The notice never
+// copyWebcastLink is a click on the Chrome group's 👆, or a right-click on
+// the Chrome cell. The notice never
 // contains the link: a screen broadcast would draw it to viewers.
 func (c *Console) copyWebcastLink() {
 	c.mu.Lock()
@@ -276,7 +277,7 @@ func (c *Console) copyWebcastLink() {
 	case !running:
 	case u.Link != "":
 		c.copyLink(u.Link)
-		c.setNotice("Chrome cast view link copied (watch, point, notes). Alt+right-click for the drive link.")
+		c.setNotice("Chrome cast view link copied (watch, point, notes). 👽 copies the drive link.")
 	case u.LinkErr != nil:
 		c.setNotice("Chrome cast viewer link unavailable: " + u.LinkErr.Error())
 	default:
@@ -284,7 +285,8 @@ func (c *Console) copyWebcastLink() {
 	}
 }
 
-// copyWebcastDriveLink is an Alt+right-click on the Chrome cell (#467):
+// copyWebcastDriveLink is a click on the Chrome group's 👽, or an
+// Alt+right-click on the Chrome cell (#467):
 // the drive link, whose viewers can ask to drive the cast tab (the
 // operator still grants). Like the view link, never in the notice.
 func (c *Console) copyWebcastDriveLink() {

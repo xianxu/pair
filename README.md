@@ -989,8 +989,9 @@ server, an agent's mock, anything). While it runs the tab bar shows
 `Chrome ▶`; press `Shift+Ctrl+Alt+b` again, click `Chrome ▶`, or press the
 **Go live** button Couch puts at the bottom right of the page, and the active tab
 is cast (`Chrome ⏸`). The same three pause and resume it, and the browser stays
-open while paused. Click the `↗` beside the cell to bring the cast Chrome
-window and tab to the front. Right-click the cell to copy the **view link** (watch, point, leave
+open while paused. Beside the cell, `↗` brings the cast Chrome window and tab
+to the front, `👆` copies the **view link** and `👽` the **drive link**
+(`Chrome ⏸ ↗ 👆 👽`). Right-click the cell to copy the **view link** (watch, point, leave
 notes); `Alt` (Option)+right-click copies the **drive link** (below); `Ctrl`+click
 (left or right) ends the cast and closes Chrome. Closing Chrome yourself ends the
 cast too. The cast follows whichever tab is active, including tabs opened later.
@@ -1037,7 +1038,7 @@ write). The first note asks for a name; the page remembers it and the color in t
 browser. A note pins to its element (or region) for everyone, follows it as the page
 scrolls, stays through a pause, and leaves the page when the cast moves to another
 page; anyone can tap a pin to read it and resolve it. In Couch the open notes show as
-`💭N` after the Chrome cell (`Chrome ⏸ ↗ 💭2`); click it for the same notes box the screen
+`💭N` after the Chrome cell (`Chrome ⏸ ↗ 👆 👽 💭2`); click it for the same notes box the screen
 broadcast uses, with each note's author: click one to copy its text, right-click to copy
 and resolve it. Unlike the screen broadcast's
 notes, these are part of the recording: notes and strokes, with their authors, are

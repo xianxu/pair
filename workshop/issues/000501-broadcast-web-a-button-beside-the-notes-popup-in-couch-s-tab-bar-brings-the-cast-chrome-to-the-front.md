@@ -33,7 +33,7 @@ The operator (10-12): during a web cast they move between Couch and the cast Chr
 
 ## Done when
 
-- Clicking the button brings the cast Chrome window and tab to the front; tests for the cell and the action (fake browser); the operator smoke-tested it.
+- Clicking the button brings the cast Chrome window and tab to the front; clicking 👆 / 👽 copies the view / drive link (revision 3); tests for the cell and the action (fake browser); the operator smoke-tested it.
 
 ## Plan
 
@@ -46,6 +46,7 @@ The operator (10-12): during a web cast they move between Couch and the cast Chr
 
 - 2026-10-12 (TL, operator request): the Chrome ⏸ / Chrome ▶ cell gets the same style as the screen broadcast's LIVE ⏸ cell (colours, emphasis, spacing), so the two cast indicators look like one family. Applied to Chrome ⏸ (red background, the terminal's own foreground, no bold; the spacing already matches). Chrome ▶ stays plain: the screen broadcast draws nothing while it isn't live, so it has no idle look to copy, and a red ▶ would claim a cast that isn't happening. Raised with the hub.
 - 2026-10-12: "Also reachable from the Chrome cell's menu": the Chrome cell has no menu (click toggles live, right-click copies the link, Ctrl+click ends), so the button is the only way in. Not adding a menu for one item.
+- 2026-10-12 (TL, operator request): the Chrome group mirrors the terminal's `LIVE ⏸ 👆 👽` family: `Chrome ⏸ ↗ 👆 👽 💭N 🕹Ana`. 👆 copies the view link (watch, point, notes), 👽 the drive link (real here). Right-click and Alt+right-click on the cell stay as shortcuts. Each glyph is its own span (`WebViewLink`, `WebDriveLink`), the hook #495 needs for a hover tooltip with each link's code. The glyphs are the screen broadcast's own `PointerLabel`/`ControlLabel` constants. Done-when now includes: clicking 👆 / 👽 copies the view / drive link.
 
 ## Log
 
