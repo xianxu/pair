@@ -54,7 +54,7 @@ Durable plan: `workshop/plans/000457-broadcast-web-recording-format-and-componen
 - [x] Recorder-side seams and fakes (Sink, Live, FakeHub, FakeRecorder, live contract)
 - [x] assets / notes / query interfaces with fakes and contract suites
 - [x] Fixtures from #453's prototype and the blog (fixturegen), canonical pins
-- [ ] Operator review of the format; close
+- [x] Operator review of the format (approved 2026-10-12, no changes); close
 
 ## Log
 
@@ -67,4 +67,8 @@ Durable plan: `workshop/plans/000457-broadcast-web-recording-format-and-componen
 - Fixtures: the converter emits only what a live reducer accepts. 0 records dropped across 9.6k raw lines; regeneration is byte-identical. Sizes: stress 1.5 MB, blog 2.0 MB, app 0.5 MB.
 - Plan revisions (goldens → pins; resume = same document): see the plan's Revisions.
 - Not done here, by design: the fidelity render of fixtures against `frames/` belongs to the viewer (#460) and the recorder (#458). Both now have reference screenshots and pins to test against.
+
+### 2026-10-12
+- The operator reviewed `atlas/webcast-format.md` and approved it as is (in the pair:3 pane: "go ahead, approved").
+- Full `make -k test` green after merging main (#456): exit 0, 247 Go packages ok. The first run had found two misses of mine, now fixed: the artifact inventory and a `.gitignore` entry for the `fixturegen` main package. The couchcore deadline test that also failed in that run passes 3/3 alone, and the branch doesn't touch couchcore.
 
