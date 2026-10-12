@@ -1,0 +1,18 @@
+{"method":"Target.targetCreated","params":{"targetInfo":{"targetId":"0F72","type":"page","url":"about:blank","title":""}}}
+{"method":"Target.targetCreated","params":{"targetInfo":{"targetId":"16E5","type":"browser_ui","url":"chrome://omnibox-popup.top-chrome/","title":""}}}
+{"method":"Target.targetCreated","params":{"targetInfo":{"targetId":"F1F2","type":"service_worker","url":"chrome-extension://x/service_worker.js","title":"Service Worker"}}}
+{"method":"Target.attachedToTarget","params":{"sessionId":"5AF3","targetInfo":{"targetId":"0F72","type":"page","url":"about:blank","title":"about:blank"},"waitingForDebugger":false}}
+{"method":"Runtime.executionContextCreated","params":{"context":{"id":1,"origin":"://","name":"","auxData":{"isDefault":true,"type":"default","frameId":"0F72"}}},"sessionId":"5AF3"}
+{"method":"Runtime.executionContextCreated","params":{"context":{"id":2,"origin":"://","name":"couchcast","auxData":{"isDefault":false,"type":"isolated","frameId":"0F72"}}},"sessionId":"5AF3"}
+{"method":"Runtime.executionContextCreated","params":{"context":{"id":5,"origin":"://","name":"couchcast","auxData":{"isDefault":false,"type":"isolated","frameId":"SUBFRAME"}}},"sessionId":"5AF3"}
+{"method":"Runtime.bindingCalled","params":{"name":"__couchcast","payload":"{\"t\":\"vis\",\"visible\":true,\"focused\":false}","executionContextId":2},"sessionId":"5AF3"}
+{"method":"Runtime.bindingCalled","params":{"name":"__couchcast","payload":"{\"t\":\"toggle\"}","executionContextId":2},"sessionId":"5AF3"}
+{"method":"Runtime.bindingCalled","params":{"name":"__couchcast","payload":"{\"t\":\"hello\"}","executionContextId":4},"sessionId":"5AF3"}
+{"method":"Runtime.bindingCalled","params":{"name":"__couchcast","payload":"not json","executionContextId":2},"sessionId":"5AF3"}
+{"method":"Runtime.bindingCalled","params":{"name":"somethingElse","payload":"{\"t\":\"toggle\"}","executionContextId":2},"sessionId":"5AF3"}
+{"method":"Target.targetInfoChanged","params":{"targetInfo":{"targetId":"0F72","type":"page","url":"data:text/html,<title>hi</title><p>hello","title":"hi"}}}
+{"method":"Runtime.executionContextDestroyed","params":{"executionContextId":2},"sessionId":"5AF3"}
+{"method":"Runtime.executionContextsCleared","params":{},"sessionId":"5AF3"}
+{"method":"Target.detachedFromTarget","params":{"sessionId":"5AF3","targetId":"0F72"}}
+{"method":"Target.targetDestroyed","params":{"targetId":"0F72"}}
+{"method":"Page.frameNavigated","params":{"frame":{"id":"0F72"}},"sessionId":"5AF3"}
