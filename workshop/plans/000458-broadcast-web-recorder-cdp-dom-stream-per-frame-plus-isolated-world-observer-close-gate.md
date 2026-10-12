@@ -203,6 +203,65 @@ rounds:
       recipe: milestone-review
       isolation: checkout
       blocked: true
+    - "n": 4
+      timestamp: "2026-10-12T01:57:45-07:00"
+      dispatched: "2026-10-12T01:54:08-07:00"
+      agent: claude
+      dispose:
+        - id: BR-4
+          disposition: addressed
+          note: Reverting the loss join in run() fails TestCloseReportsLosses; dropping Logf from cast.go RecordOptions fails TestCastRecordsToDirAndViewers.
+          round: 4
+        - id: BR-6
+          disposition: addressed
+          note: Reverting frameDoc("") to return the root, or bounding all events, fails TestUnknownFrameIsStaleAndOverflowKeepsReports.
+          round: 4
+        - id: BR-7
+          disposition: addressed
+          note: 'go test -cover: FrameDoc 87.5, frameOwner 85.7, frameOffset 79.2, Drop 100, FullText 85.7, InlineStyle 100, sheets 80+, queueAsset 71.4, shotDone 66.7, captureLayout 88.9; TestFrameOffsets asserts exact coordinates.'
+          round: 4
+        - id: BR-12
+          disposition: addressed
+          note: Replacing the desync with at=0 fails TestInsertAfterUnknownSiblingIsADesync.
+          round: 4
+        - id: BR-13
+          disposition: addressed
+          note: Removing the Stop pause in snapshotTop's failure path fails TestUnreadableTabEndsTheSegment.
+          round: 4
+        - id: BR-14
+          disposition: not-addressed
+          note: Removing bury at install or at setChildNodes leaves the suite green; the map-bound assertion only follows childNodeRemoved. Add a step where Resnapshot/setChildNodes drops more than graveSize nodes, then assert len(ids) <= live+graveSize.
+          round: 4
+        - id: BR-17
+          disposition: addressed
+          note: Removing Seg's forget of other sessions' roots fails TestOneFrameDocPerSegment.
+          round: 4
+        - id: BR-19
+          disposition: addressed
+          note: Install-site reorder fails TestGraveyardKeepsLiveIDsAndBoundsTheMap. The setChildNodes reorder stays green (the test checks only divs[0], which is never pruned); tracked under BR-14.
+          round: 4
+        - id: BR-20
+          disposition: addressed
+          note: Disabling the non-DOM bound fails TestOtherEventsAreBoundedAndCounted; the plan Revisions entry states the bound and the rate argument.
+          round: 4
+      findings:
+        - id: BR-21
+          severity: Minor
+          title: Send and Options.MaxQueue docs still say only DOM events are dropped and that overflow resyncs
+          detail: '2nd finding in family comment-code-drift. recorder.go:223-226 says nothing else is dropped, and recorder.go:72-73 says a resync re-snapshots; since BR-20, non-DOM events are dropped and only counted. Rule: state the contract once at Options.MaxQueue (two bounds, DOM resynced, others counted) and have Send refer to it.'
+          family: comment-code-drift
+          round: 4
+        - id: BR-22
+          severity: Minor
+          title: The graveyard test's setChildNodes step checks only divs[0], which is never pruned, so the bury-order fix there is unpinned
+          detail: regress_test.go:53 checks only divs[0]. p.insert(nil) puts it last, so it is the newest grave entry. Checking all divs fails on the reverted code (div 57 id 36 -> 116) and passes on head.
+          family: order-test-oracle
+          round: 4
+      boundary: M2
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 7eaf5ec330f8d547109c44ff84cf447769b4043c
+      blocked: false
 ---
 
 # Gate ledger — pair#458 (boundary-review)
@@ -274,17 +333,32 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-20** [Minor] `queue-bound-per-input-class` Non-DOM CDP events and observer reports now queue unbounded while the recorder is stalled in a call
   After BR-6 only DOM.* is bounded; Network.*, CSS.* and Runtime.bindingCalled grow the queue without limit for as long as a call stalls (ARCH-CONSTRAINTS). The plan should state a bound or argue the input rate is bounded.
 
+## Round 4 — 2026-10-12T01:57:45-07:00 (claude) — passed
+
+### Disposed
+
+- BR-4 — addressed — Reverting the loss join in run() fails TestCloseReportsLosses; dropping Logf from cast.go RecordOptions fails TestCastRecordsToDirAndViewers.
+- BR-6 — addressed — Reverting frameDoc("") to return the root, or bounding all events, fails TestUnknownFrameIsStaleAndOverflowKeepsReports.
+- BR-7 — addressed — go test -cover: FrameDoc 87.5, frameOwner 85.7, frameOffset 79.2, Drop 100, FullText 85.7, InlineStyle 100, sheets 80+, queueAsset 71.4, shotDone 66.7, captureLayout 88.9; TestFrameOffsets asserts exact coordinates.
+- BR-12 — addressed — Replacing the desync with at=0 fails TestInsertAfterUnknownSiblingIsADesync.
+- BR-13 — addressed — Removing the Stop pause in snapshotTop's failure path fails TestUnreadableTabEndsTheSegment.
+- BR-14 — not-addressed — Removing bury at install or at setChildNodes leaves the suite green; the map-bound assertion only follows childNodeRemoved. Add a step where Resnapshot/setChildNodes drops more than graveSize nodes, then assert len(ids) <= live+graveSize.
+- BR-17 — addressed — Removing Seg's forget of other sessions' roots fails TestOneFrameDocPerSegment.
+- BR-19 — addressed — Install-site reorder fails TestGraveyardKeepsLiveIDsAndBoundsTheMap. The setChildNodes reorder stays green (the test checks only divs[0], which is never pruned); tracked under BR-14.
+- BR-20 — addressed — Disabling the non-DOM bound fails TestOtherEventsAreBoundedAndCounted; the plan Revisions entry states the bound and the rate argument.
+
+### Raised
+
+- **BR-21** [Minor] `comment-code-drift` Send and Options.MaxQueue docs still say only DOM events are dropped and that overflow resyncs
+  2nd finding in family comment-code-drift. recorder.go:223-226 says nothing else is dropped, and recorder.go:72-73 says a resync re-snapshots; since BR-20, non-DOM events are dropped and only counted. Rule: state the contract once at Options.MaxQueue (two bounds, DOM resynced, others counted) and have Send refer to it.
+- **BR-22** [Minor] `order-test-oracle` The graveyard test's setChildNodes step checks only divs[0], which is never pruned, so the bury-order fix there is unpinned
+  regress_test.go:53 checks only divs[0]. p.insert(nil) puts it last, so it is the newest grave entry. Checking all divs fails on the reverted code (div 57 id 36 -> 116) and passes on head.
+
 ## Open findings
 
 - **BR-1** [Minor] `hot-path-allocation` withAttr copies the attribute map on every attr record, even for elements that aren't inputs (reduce.go:306)
 - **BR-2** [Minor] `consumer-kind-classification` query.UserAction leaves out the new Hover kind with no recorded decision
 - **BR-3** [Minor] `test-ignores-setup-errors` TestValidateDirReportsStrayFrameFiles discards the errors from Put, PutFrame, Close and WriteFile
-- **BR-4** [Important] `silent-error-swallowing` Recorder errors, drops and overflow are invisible in production: Logf never wired, Stats unread, Close error dropped
-- **BR-6** [Important] `overflow-drops-non-dom-events` Queue overflow drops every CDP event (contexts, bindingCalled), not only DOM events; unknown frame then resolves against the root
-- **BR-7** [Important] `fake-coverage-gap` Frames, CSS sheets, truncated text, inline style, assets, screenshots/layout and detach have 0% unit coverage against fakes; PQ-3 sequence tests missing
-- **BR-12** [Minor] `desync-not-guessed` childNodeInserted with an unknown previousNodeId silently inserts at index 0 instead of reporting a desync
-- **BR-13** [Minor] `state-flag-constellation` snapshotTop failure sets recorder live=false while the reducer's segment stays open, with no stop (ARCH-ORDER)
 - **BR-14** [Minor] `id-map-bound` PQ-6 bound not held: setChildNodes and Resnapshot forget nodes without burying them, so their ids are never pruned
-- **BR-17** [Minor] `comment-code-drift` Seg comment says trees are dropped; attachFrames re-emits stale out-of-process frame docs that FrameDoc then emits again; dead errStale branch in binding
-- **BR-19** [Critical] `id-map-bound` Graveyard prune between forget and index deletes ids of live nodes; same-document resnapshot of a large page churns ids and its Kids is refused
-- **BR-20** [Minor] `queue-bound-per-input-class` Non-DOM CDP events and observer reports now queue unbounded while the recorder is stalled in a call
+- **BR-21** [Minor] `comment-code-drift` Send and Options.MaxQueue docs still say only DOM events are dropped and that overflow resyncs
+- **BR-22** [Minor] `order-test-oracle` The graveyard test's setChildNodes step checks only divs[0], which is never pruned, so the bury-order fix there is unpinned

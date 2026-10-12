@@ -366,3 +366,137 @@ findings:
     detail: |
       After BR-6 only DOM.* is bounded; Network.*, CSS.* and Runtime.bindingCalled grow the queue without limit for as long as a call stalls (ARCH-CONSTRAINTS). The plan should state a bound or argue the input rate is bounded.
 ```
+
+---
+
+## Re-review — 2026-10-12T01:57:45-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 458 — broadcast-web: recorder — CDP DOM stream per frame plus isolated-world observer |
+| repo | pair |
+| issue file | workshop/issues/000458-broadcast-web-recorder-cdp-dom-stream-per-frame-plus-isolated-world-observer.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 1a2cc4dca2a541cb60ff50326c7d7c157a84544f..7eaf5ec330f8d547109c44ff84cf447769b4043c |
+| command | sdlc milestone-close --issue 458 --milestone M2 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-12T01:57:45-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+Running revert-and-retest checks now to confirm each claimed fix has a test that fails without it.
+
+Now the reverts, one at a time.
+
+Variable expansion in zsh didn't split; rerunning with a function.
+
+I've finished the revert checks and am writing up the verdict.
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+All the Critical and Important findings from earlier rounds now have a regression test that fails without the fix. I checked each by reverting the fix in this disposable checkout and re-running `go test ./recorder/ ./`. That covers BR-19's install site, BR-6 (both halves), BR-4 (the loss join and the Logf wiring), BR-12, BR-13, BR-17 and BR-20. BR-7's coverage gap is also closed: every function that used to be at 0% is now between 66% and 100%, and `frameOffset` is at 79%. Two Minor items are left. BR-14's bound is still unpinned, and the setChildNodes half of the BR-19 fix is correct but untested: removing or reordering `bury` at either replace site leaves the suite green. There is also one new comment that now contradicts the code. Nothing blocks the boundary.
+
+The couchcmd and couchtty packages would not build here because the generated embed `assets/runtime/files` is missing from this checkout. That is an environment gap, not code in this range. All webcast and cdp packages pass with `-race`.
+
+**1. Strengths**
+- `msession.bury(gone []int)` (`mirror.go:204`) now takes the ids that left the tree and only runs after the update. The rule ("pruned only when absent after the update") is written in its doc comment, and both replace sites follow it.
+- `regress_test.go` has one test per finding, each named after it. The BR-6 test uses `gatedCaller` hold/release to force a real overflow and asserts `Lost > 0` before checking the outcome, so it is not timing-based.
+- `TestFrameOffsets` pins nested in-process and out-of-process offsets with exact coordinates (305,456 / 107,258 / ptr 101,251), using fake `getFrameOwner` and `getBoxModel`.
+- `Close` now reports losses in its error ("recording %s lost: …", `recorder.go:433`), and cast.go passes Logf to the recorder. A broken recording is no longer silent.
+
+**2. Critical**
+- None.
+
+**3. Important**
+- None.
+
+**4. Minor**
+- **Comments contradict the new bound** (`recorder.go:223-226`, `recorder.go:72-73`, family `comment-code-drift`):
+  - The `Send` doc still says "Nothing else is dropped".
+  - The `MaxQueue` doc still says that past the bound "a resync re-snapshots".
+  - Since BR-20, non-DOM events are dropped past their own bound and only counted, with no resync.
+  - **This is the 2nd finding in family `comment-code-drift`.** The rule: a behavior's contract is stated once, at its owning declaration (`Options.MaxQueue`), and other comments point to it rather than restating it. Apply it by rewriting `MaxQueue`'s doc for the two-class bound and cutting `Send`'s restatement down to a reference.
+- **BR-14 is still unpinned.** See the dispositions below.
+
+**5. Test coverage notes**
+- `TestGraveyardKeepsLiveIDsAndBoundsTheMap` only checks `divs[0]` after setChildNodes. `p.insert(..., nil, d)` puts each div first, so `divs[0]` is the newest and is never pruned.
+  - Moving `bury` before `index` in setChildNodes leaves the test green.
+  - Checking all 80 divs turns it red on the reverted code (`div 57 id 36 -> 116`) and green on the real code.
+  - The fix: loop over `divs`, as the Resnapshot rounds already do.
+- The test's map-bound check only runs after `childNodeRemoved`. No step has a Resnapshot or setChildNodes drop more nodes than `graveSize`, which is BR-14's case.
+- The cast-side Logf test calls `got.Logf` directly. That is enough to catch a missing wire, but it does not show a real recorder message reaching the operator.
+
+**6. Architecture notes**
+- **ARCH-DRY: pass.** BR-15's single `enqueue` path holds, and `backends()` is shared by all three bury sites.
+- **ARCH-PURE: pass.** The mirror stays pure and is tested without IO. The recorder shell is tested against the stateful fake Chrome.
+- **ARCH-PURPOSE: flag (Minor), in BR-14.** BR-19's class rule was applied at both sites, but only one site is pinned.
+- **ARCH-MOCK: pass.** `fakePage` now models `contentDocument` and per-document frame ids. The fake Chrome serves `getFrameOwner` and `getBoxModel` through the same `CallSeq` seam as production. The live check stays env-gated (`TestLiveRecording`).
+- **ARCH-CONSTRAINTS: pass.** Each input class now has its own queue bound, and the plan's Revisions entry justifies the non-DOM bound by input rate.
+  - Dropped non-DOM events are counted (`Stats.Other`), not resynced. A dropped `executionContextCreated` would leave reports from that frame unresolved (BR-6 made those stale, not misapplied), and that only happens after about 100k queued events.
+- **ARCH-SECURE: pass.** An unknown frame now resolves to nil rather than the session root (`observe.go:61`).
+- **ARCH-ORDER: pass, with a note.** BR-13's stop-on-failed-snapshot is pinned. `resyncTold` is one more boolean on `Recorder`. It is fine alone, but the next phase-like flag should push `live/opened/closing` into a tagged state.
+- **ARCH-FUNERAL: pass.** The graveyard bound is enforced on the writer side at every replace site, and recordings' retention is documented in the README.
+
+**7. Plan revision recommendations**
+- None needed. The 2026-10-12 "M2 review round 2" Revisions entry matches the code: two `MaxQueue` bounds, bury after the update, one resync notice.
+
+```findings
+dispose:
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Reverting the loss join in run() fails TestCloseReportsLosses; dropping Logf from cast.go RecordOptions fails TestCastRecordsToDirAndViewers.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      Reverting frameDoc("") to return the root, or bounding all events, fails TestUnknownFrameIsStaleAndOverflowKeepsReports.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      go test -cover: FrameDoc 87.5, frameOwner 85.7, frameOffset 79.2, Drop 100, FullText 85.7, InlineStyle 100, sheets 80+, queueAsset 71.4, shotDone 66.7, captureLayout 88.9; TestFrameOffsets asserts exact coordinates.
+  - id: BR-12
+    disposition: addressed
+    note: |
+      Replacing the desync with at=0 fails TestInsertAfterUnknownSiblingIsADesync.
+  - id: BR-13
+    disposition: addressed
+    note: |
+      Removing the Stop pause in snapshotTop's failure path fails TestUnreadableTabEndsTheSegment.
+  - id: BR-14
+    disposition: not-addressed
+    note: |
+      Removing bury at install or at setChildNodes leaves the suite green; the map-bound assertion only follows childNodeRemoved. Add a step where Resnapshot/setChildNodes drops more than graveSize nodes, then assert len(ids) <= live+graveSize.
+  - id: BR-17
+    disposition: addressed
+    note: |
+      Removing Seg's forget of other sessions' roots fails TestOneFrameDocPerSegment.
+  - id: BR-19
+    disposition: addressed
+    note: |
+      Install-site reorder fails TestGraveyardKeepsLiveIDsAndBoundsTheMap. The setChildNodes reorder stays green (the test checks only divs[0], which is never pruned); tracked under BR-14.
+  - id: BR-20
+    disposition: addressed
+    note: |
+      Disabling the non-DOM bound fails TestOtherEventsAreBoundedAndCounted; the plan Revisions entry states the bound and the rate argument.
+findings:
+  - id: new
+    severity: Minor
+    family: comment-code-drift
+    title: |
+      Send and Options.MaxQueue docs still say only DOM events are dropped and that overflow resyncs
+    detail: |
+      2nd finding in family comment-code-drift. recorder.go:223-226 says nothing else is dropped, and recorder.go:72-73 says a resync re-snapshots; since BR-20, non-DOM events are dropped and only counted. Rule: state the contract once at Options.MaxQueue (two bounds, DOM resynced, others counted) and have Send refer to it.
+  - id: new
+    severity: Minor
+    family: order-test-oracle
+    title: |
+      The graveyard test's setChildNodes step checks only divs[0], which is never pruned, so the bury-order fix there is unpinned
+    detail: |
+      regress_test.go:53 checks only divs[0]. p.insert(nil) puts it last, so it is the newest grave entry. Checking all divs fails on the reverted code (div 57 id 36 -> 116) and passes on head.
+```

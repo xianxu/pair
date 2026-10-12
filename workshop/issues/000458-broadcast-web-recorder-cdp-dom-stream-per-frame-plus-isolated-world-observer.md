@@ -70,12 +70,14 @@ Items in order: M1 format additions; the pure mirror; observer + Recorder shell;
 Durable plan: `workshop/plans/000458-broadcast-web-recorder-cdp-dom-stream-per-frame-plus-isolated-world-observer-plan.md`.
 
 - [x] M1 — format: `hover {id}`, `ptr {x,y}` (TL-coordinated shapes, outside Canonical), `input.secret` and the password rules in reducer + validator; `ValidateDir` reports strays in `frames/` (#457 advisory); format page Revisions
-- [ ] M2 — recorder: pure mirror (CDP DOM per session → records, path-resolved observer reports), isolated-world observer (sync clicks), Recorder shell, Chrome loop (iframe auto-attach) and Cast plug-in; unit tests on a stateful fake CDP page
+- [x] M2 — recorder: pure mirror (CDP DOM per session → records, path-resolved observer reports), isolated-world observer (sync clicks), Recorder shell, Chrome loop (iframe auto-attach) and Cast plug-in; unit tests on a stateful fake CDP page
 - [ ] M3 — live headless checks (stress page, blog) + fidelity tool vs `frames/`, compared with #453's own-on-CDP numbers; atlas
 
 ## Log
 
 
+
+- 2026-10-12: closed M2 — review round 2: BR-19 Critical fixed (bury after the update), each finding now has a regression test that fails when its fix is reverted (mutation-checked: graveyard, unknown sibling, unknown frame, DOM-only bound, Close losses, unreadable tab stop, one frame doc per seg, frame offsets OOP + nested in-process, Logf reaches recorder); non-DOM events bounded and counted; go test -race -count=5 webcast/... cdp green; WEBCAST_LIVE_CHROME=1 -run Live green; review verdict: FIX-THEN-SHIP
 - 2026-10-12: closed M1 — go test ./cmd/internal/webcast/... green; new tests: hover/ptr tracked, reset by seg, outside Canonical (pins unchanged); password value refused in input/attr/ins/kids/doc incl. type flip with value attr; ValidateDir reports frames/.tmp-* and unnamed pngs; review verdict: SHIP
 ### 2026-10-11
 - Claimed and started; plan written. TL (10-12) fixed the shapes: `{k:hover,id}` and `{k:ptr,x,y}` in events.jsonl, reducer-tracked, outside Canonical.
