@@ -134,3 +134,112 @@ findings:
     title: |
       The end-of-cast check goroutine runs on context.Background with no cancellation path
 ```
+
+---
+
+## Re-review — 2026-10-12T04:45:00-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 478 — broadcast-web: fidelity check for live casts — sparse tab screenshots vs replay renders, with a report |
+| repo | pair |
+| issue file | workshop/issues/000478-broadcast-web-fidelity-check-for-live-casts-sparse-tab-screenshots-vs-replay-renders-with-a-report.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 1da5c76c60b687fc25a90cb1dc9f1268daa9172e..8962e0777022f69014a7512cc676181e952b0336 |
+| command | sdlc close --issue 478 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-12T04:45:00-07:00 |
+| verdict | SHIP |
+
+## Review
+
+Let me see the round-1 fix commit and the close-gate doc.
+
+Reverting the BR-1 fix turns both new node tests red, so it's confirmed. Next I'm checking BR-3, BR-5 and BR-7, which the fix commit doesn't mention.
+
+I've finished my checks. Both Important findings from round 1 are fixed, and the remaining open items are Minor.
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+Both Important findings from round 1 are fixed. For BR-1, the replay now has two paths. When a capture comes shortly after the last one, it resumes the animations paused there (`replayer.js:106-111`). When a capture comes before the last one, it rebuilds the state from the recording's catch-up instead of replaying the whole recording (`replayer.js:61-71, 113`). Two new node tests check this, and I confirmed they matter: with the pre-fix `replayer.js` put back, both go red, and with the fix they pass. For BR-2, the README now documents the flag both in the usage block and in the prose section. Of the Minors, BR-4 (frame records from disk are now validated) and BR-6 (leftover temp dirs are now swept) are fixed and each has a test. BR-3 has a correct fix but no test. BR-5 and BR-7 weren't touched. Nothing left blocks the gate.
+
+**1. Strengths**
+- `replayer.js:61-71`: the backward seek reuses the viewer's own `catchUp` rule instead of a second copy of it. The test checks that the seek ends in the same state as feeding every record forward, and that it feeds only the catch-up plus the 1 s window (`replayer.test.mjs:118-138`). It also requires at least one fixture where the catch-up skips records, so the test can't pass trivially.
+- `fidelity_check.go:358-368`: `frameViewport` checks each frame record once and is used both at the input boundary and when sizing the viewport. `TestFrameViewport` covers path escape, absolute paths, a directory other than `frames/`, a zero size, scale > 1 and an oversized viewport.
+- `report.go:73`: `Summarize` now copies its input, and a test pins that it no longer writes into the caller's slice.
+- The plan gained a `## Revisions` entry with the real retry order (0, −300, −150, +150, +300) and its per-frame cost. That order matches `score` and the continue/seek logic.
+
+**2. Critical findings**
+None.
+
+**3. Important findings**
+None.
+
+**4. Minor findings**
+- `report.go:157-161` (new, from the BR-6 fix): `Write` deletes every `.fidelity-*` folder before writing. If the end-of-cast check and a manual `couch --broadcast-web-fidelity` run on the same recording at the same time, the second one deletes the first one's folder while it is still being written, and the first run fails. Fix: only sweep folders older than some age, or take a lock file in the recording directory.
+- README: the replay section's "See [atlas/webcast.md](#replay-471)" line now comes after the new fidelity paragraph, so it reads as if it belongs to the fidelity check. Move it back above.
+- BR-3, BR-5 and BR-7 are still open; see the dispositions below.
+
+**5. Test coverage notes**
+- `node --test tests/webcast/replayer.test.mjs`: all 6 pass. With the pre-fix `replayer.js` restored, the two new tests fail.
+- `go test ./cmd/internal/webcast/...` passes.
+- `cmd/internal/couchcmd` didn't run in this checkout: its setup fails because the embedded runtime files (`assets/runtime/files`) haven't been generated. That's a gap in this checkout, not a test failure. `make test` would normally generate them.
+- The Chrome-backed tests (`fidelity_live_test.go`, `headlessPage`) are skipped unless `WEBCAST_LIVE_CHROME=1` is set, so the real-browser fidelity path wasn't run here.
+
+**6. Architectural notes**
+- ARCH-DRY: pass. The seek reuses `catchUp`, and `ReplayWindow` replaces the test's own copy of the constant (`replay_test.go`). BR-5's duplicated Chrome launch remains as a Minor.
+- ARCH-PURE: pass. `frameViewport`, `Summarize` and `keepWorst` are pure functions with direct tests, and the Replayer runs against an injected `deps`.
+- ARCH-PURPOSE: pass. A recording gets one replay, with the retries continuing it; the check runs when a cast ends and from the CLI; the report is written.
+- ARCH-MOCK: pass. The real Chrome is behind `WEBCAST_LIVE_CHROME`, and the pure layer is tested through the page fake.
+- ARCH-CONSTRAINTS: pass. A frame over tolerance now costs one catch-up seek plus about 1.6 s of real-time replay, in line with the plan revision, and `keepWorst` caps memory.
+- ARCH-SECURE: pass. Frame records are now parsed and checked at the boundary.
+- ARCH-ORDER: pass with a note. The Replayer's position is now two explicit branches (continue or seek). The end-of-cast goroutine's lifetime is still unbounded (BR-7).
+- ARCH-FUNERAL: pass with the sweep-race note above. The Chrome profile in the OS temp dir is removed on close, and the OS cleans that dir anyway.
+
+**7. Plan revision recommendations**
+None. The round-1 Revisions entry matches the code.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      replayer.js continue branch play()s paused anims; backward seeks via catchUp. Both new node tests fail with the pre-fix replayer.js restored and pass with the fix.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      README.md usage block and prose section now cover --broadcast-web-fidelity, its report path and exit codes 0/3/1, matching run.go.
+  - id: BR-3
+    disposition: not-addressed
+    note: |
+      headless.open now selects on h.conn.Done(), which is correct by inspection, but no test fails without it.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      frameViewport validates File, W, H and Scale before the read; TestFrameViewport covers the escape and bounds cases.
+  - id: BR-5
+    disposition: not-addressed
+    note: |
+      replay_test.go headlessPage still repeats launchHeadless's pipe/exec sequence; untouched this round.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      Write sweeps stale .fidelity-* dirs; TestReportFiles plants .fidelity-crashed and asserts none are left.
+  - id: BR-7
+    disposition: not-addressed
+    note: |
+      cast.go checkRecording still runs c.check(context.Background(), ...) in an untracked goroutine; untouched this round.
+findings:
+  - id: new
+    severity: Minor
+    family: sweep-claims-unowned-work
+    title: |
+      fidelity.Write sweeps every .fidelity-* dir, including one a concurrent check of the same recording is still writing
+    detail: |
+      report.go:157-161 deletes all .fidelity-* dirs before MkdirTemp. If the end-of-cast check and a manual couch --broadcast-web-fidelity run on one recording at once, the second deletes the first one's in-progress dir and the first Write fails. Fix: sweep only dirs older than some age, or take a lock file in the recording dir.
+```

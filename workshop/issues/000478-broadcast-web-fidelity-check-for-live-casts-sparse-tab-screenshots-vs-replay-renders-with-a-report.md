@@ -15,7 +15,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "726046fc", done: "382f68cf"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # broadcast-web: fidelity check for live casts — sparse tab screenshots vs replay renders, with a report
@@ -49,6 +49,8 @@ Durable plan: `workshop/plans/000478-broadcast-web-fidelity-check-for-live-casts
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed — Round 1 fixes in 8962e077. BR-1: replayer continuation resumes paused animations, backward seeks through catchUp; node tests replayer.test.mjs 6/6 (both new tests fail on the old replayer, verified by stashing the fix), tests/webcast 68/68. BR-2: README documents the flag; couchcmd README test green. Minors fixed (frame validation TestFrameViewport, fail-fast on dead CDP, temp sweep, Summarize clone); not fixed: replay_test headlessPage duplication (it also records Network requests) and the end-of-cast goroutine context (it dies with Couch; Chrome exits on pipe close). Unsandboxed scrubbed go test termcmd couchcmd webcast/... artifactpath green; make -k test earlier green but for the godoc guard fixed in 575368d8. WEBCAST_LIVE_CHROME=1: LiveFidelity fixtures stress 0.74/app 0.41/blog 0.12 max, unstyled blog 81% median 5/5 over; LiveReplayFixtures pass; live blog cast (17 frames, #458 recorder) via couch --broadcast-web-fidelity: median 0.00% max 0.10%, exit 0.; review verdict: SHIP
+- 2026-10-12: flow upgraded quick → full — 1068 added lines in code files (limit 100); an earlier round of this close already ran the full review
 
 - Frames needed no recorder change: #458 already shoots at each segment start and every 5 s while live, into
   `frames/`, never streamed. No recorder change went through the TL.

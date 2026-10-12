@@ -48,6 +48,50 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - "n": 2
+      timestamp: "2026-10-12T04:45:00-07:00"
+      dispatched: "2026-10-12T04:43:25-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: replayer.js continue branch play()s paused anims; backward seeks via catchUp. Both new node tests fail with the pre-fix replayer.js restored and pass with the fix.
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: README.md usage block and prose section now cover --broadcast-web-fidelity, its report path and exit codes 0/3/1, matching run.go.
+          round: 2
+        - id: BR-3
+          disposition: not-addressed
+          note: headless.open now selects on h.conn.Done(), which is correct by inspection, but no test fails without it.
+          round: 2
+        - id: BR-4
+          disposition: addressed
+          note: frameViewport validates File, W, H and Scale before the read; TestFrameViewport covers the escape and bounds cases.
+          round: 2
+        - id: BR-5
+          disposition: not-addressed
+          note: replay_test.go headlessPage still repeats launchHeadless's pipe/exec sequence; untouched this round.
+          round: 2
+        - id: BR-6
+          disposition: addressed
+          note: Write sweeps stale .fidelity-* dirs; TestReportFiles plants .fidelity-crashed and asserts none are left.
+          round: 2
+        - id: BR-7
+          disposition: not-addressed
+          note: cast.go checkRecording still runs c.check(context.Background(), ...) in an untracked goroutine; untouched this round.
+          round: 2
+      findings:
+        - id: BR-8
+          severity: Minor
+          title: fidelity.Write sweeps every .fidelity-* dir, including one a concurrent check of the same recording is still writing
+          detail: 'report.go:157-161 deletes all .fidelity-* dirs before MkdirTemp. If the end-of-cast check and a manual couch --broadcast-web-fidelity run on one recording at once, the second deletes the first one''s in-progress dir and the first Write fails. Fix: sweep only dirs older than some age, or take a lock file in the recording dir.'
+          family: sweep-claims-unowned-work
+          round: 2
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 8962e0777022f69014a7512cc676181e952b0336
+      blocked: false
 ---
 
 # Gate ledger — pair#478 (boundary-review)
@@ -69,12 +113,26 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-6** [Minor] `residue-without-sweep` fidelity.Write's .fidelity-* temp dir inside the recording is left behind on a crash mid-write
 - **BR-7** [Minor] `unbounded-task-extent` The end-of-cast check goroutine runs on context.Background with no cancellation path
 
+## Round 2 — 2026-10-12T04:45:00-07:00 (claude) — passed
+
+### Disposed
+
+- BR-1 — addressed — replayer.js continue branch play()s paused anims; backward seeks via catchUp. Both new node tests fail with the pre-fix replayer.js restored and pass with the fix.
+- BR-2 — addressed — README.md usage block and prose section now cover --broadcast-web-fidelity, its report path and exit codes 0/3/1, matching run.go.
+- BR-3 — not-addressed — headless.open now selects on h.conn.Done(), which is correct by inspection, but no test fails without it.
+- BR-4 — addressed — frameViewport validates File, W, H and Scale before the read; TestFrameViewport covers the escape and bounds cases.
+- BR-5 — not-addressed — replay_test.go headlessPage still repeats launchHeadless's pipe/exec sequence; untouched this round.
+- BR-6 — addressed — Write sweeps stale .fidelity-* dirs; TestReportFiles plants .fidelity-crashed and asserts none are left.
+- BR-7 — not-addressed — cast.go checkRecording still runs c.check(context.Background(), ...) in an untracked goroutine; untouched this round.
+
+### Raised
+
+- **BR-8** [Minor] `sweep-claims-unowned-work` fidelity.Write sweeps every .fidelity-* dir, including one a concurrent check of the same recording is still writing
+  report.go:157-161 deletes all .fidelity-* dirs before MkdirTemp. If the end-of-cast check and a manual couch --broadcast-web-fidelity run on one recording at once, the second deletes the first one's in-progress dir and the first Write fails. Fix: sweep only dirs older than some age, or take a lock file in the recording dir.
+
 ## Open findings
 
-- **BR-1** [Important] `replay-continuation-state` Replayer.replayAt finishes paused animations on a clipped (continued) window, so retries and close frames are drawn at the wrong phase
-- **BR-2** [Important] `docs-gate-readme` README update appears missing for couch --broadcast-web-fidelity [ID|DIR]
 - **BR-3** [Minor] `fail-fast-on-dead-peer` headless.open polls for 30 s after Chrome has died instead of failing on the closed CDP connection
-- **BR-4** [Minor] `untrusted-persisted-input` CheckFidelity trusts frame records from disk: File joined unchecked, W/H/Scale unbounded
 - **BR-5** [Minor] `shared-helper-duplication` replay_test.go headlessPage repeats the launchHeadless pipe/launch sequence now in product code
-- **BR-6** [Minor] `residue-without-sweep` fidelity.Write's .fidelity-* temp dir inside the recording is left behind on a crash mid-write
 - **BR-7** [Minor] `unbounded-task-extent` The end-of-cast check goroutine runs on context.Background with no cancellation path
+- **BR-8** [Minor] `sweep-claims-unowned-work` fidelity.Write sweeps every .fidelity-* dir, including one a concurrent check of the same recording is still writing
