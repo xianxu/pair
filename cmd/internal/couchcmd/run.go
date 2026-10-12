@@ -1276,7 +1276,7 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "             Stop and upgrade old Couch supervisors first. Exclusions preserve data.")
 	fmt.Fprintln(w, "             One supervisor per OS account on local storage; a second launch refuses.")
 	fmt.Fprintln(w, "             COUCH_ISOLATED_ROOT explicitly separates diagnostic/test runtimes.")
-	fmt.Fprintln(w, "       couch --send-to repo[:N] [--agent NAME] --message TEXT")
+	fmt.Fprintln(w, "       couch --send-to repo[:N]|hub [--agent NAME] --message TEXT")
 	fmt.Fprintln(w, "       couch --message-status ID [--json]")
 	fmt.Fprintln(w, "       couch --skill")
 	fmt.Fprintln(w, "       couch --help")

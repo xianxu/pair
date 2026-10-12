@@ -30,6 +30,11 @@ type Candidate struct {
 // slots running one agent.
 type Route struct{ Target, Agent string }
 
+// HubTarget is the reserved send target the supervisor resolves, at send
+// time, to the slot Couch started from (pair#463). It is reserved ahead of
+// repository names; a repository named hub is still reachable as hub:N.
+const HubTarget = "hub"
+
 func validFamily(s string) bool {
 	return s != "" && s != "." && s != ".." && utf8.ValidString(s) && !strings.ContainsAny(s, "/\\:") && strings.IndexFunc(s, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsControl(r) }) < 0
 }
