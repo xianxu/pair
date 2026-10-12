@@ -17,6 +17,14 @@ tracker:
         source_blob: d753b8d8e4efc7a55a18d769b0927510f218ba71
         destination: workshop/issues/000465-couch-a-slot-blocked-by-a-picker-shows-red-in-the-tab-bar-notifies-the-hub-with-the-picker-s-text-and-receipts-say-so.md
         main_commit: 449fc17c389ce3065787595176bd5e216b6f2c5f
+started: 2026-10-12T00:27:53-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
 ---
 
 # couch: a slot blocked by a picker shows red in the tab bar, notifies the hub with the picker's text, and receipts say so
