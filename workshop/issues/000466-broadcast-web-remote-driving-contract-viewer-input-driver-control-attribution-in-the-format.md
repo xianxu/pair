@@ -1,12 +1,12 @@
 ---
 id: 000466
-status: working
+status: codecomplete
 deps: [000457]
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: '4a4b0130f7d74944de2387af2814e6c6dd77a6e5' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '71e2ecf807ff3e74600581e43bb18e2cda1af569' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T00:53:57-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 0.92
 ---
 
 # broadcast-web: remote-driving contract — viewer input, driver control, attribution in the format
