@@ -205,7 +205,7 @@ func TestSwitcherWarmSelectionCannotColdResumeAfterPark(t *testing.T) {
 
 func waitWarmAcceptance(t *testing.T, what string, ready func() bool) {
 	t.Helper()
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(testwait.Budget(t))
 	for time.Now().Before(deadline) {
 		if ready() {
 			return

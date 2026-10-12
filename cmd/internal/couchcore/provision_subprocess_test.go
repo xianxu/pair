@@ -46,13 +46,12 @@ func TestProvisionProcessOutputLimits(t *testing.T) {
 func TestProvisionProcessCancellation(t *testing.T) {
 	t.Parallel()
 
-	start := time.Now()
-	_, err := (OSProvisionIO{}).Run(context.Background(), ProvisionCommand{Program: "sh", Args: []string{"-c", "trap '' TERM; sleep 30 & wait"}, Timeout: 100 * time.Millisecond})
+	// A TERM-deaf child that would outlive the test: Run returning at all is
+	// the bounded stop (a lost escalation hangs into the binary timeout), and
+	// the error names the deadline that ended it, with no stopwatch (#479).
+	_, err := (OSProvisionIO{}).Run(context.Background(), ProvisionCommand{Program: "sh", Args: []string{"-c", "trap '' TERM; sleep 3600 & wait"}, Timeout: 100 * time.Millisecond})
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("error=%v", err)
-	}
-	if time.Since(start) > 5*time.Second {
-		t.Fatal("cancellation exceeded bounded stop")
 	}
 }
 

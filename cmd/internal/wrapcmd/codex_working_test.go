@@ -183,7 +183,7 @@ func TestCodexWorkingNotificationReachesCouchStatusAndSwitcher(t *testing.T) {
 
 func waitForCodexCouch(t *testing.T, ready func() bool, what string) {
 	t.Helper()
-	deadline := time.Now().Add(time.Second)
+	deadline := time.Now().Add(testwait.Budget(t))
 	for time.Now().Before(deadline) {
 		if ready() {
 			return

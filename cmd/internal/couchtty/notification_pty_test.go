@@ -26,7 +26,7 @@ func TestNotificationPTYHelper(t *testing.T) {
 	defer broker.Close()
 	for phase := 0; phase < 2; phase++ {
 		if phase == 1 {
-			deadline := time.Now().Add(5 * time.Second)
+			deadline := time.Now().Add(testwait.Budget(t))
 			for {
 				if _, err := os.Stat(os.Getenv("PAIR_NOTIFICATION_GATE")); err == nil {
 					break

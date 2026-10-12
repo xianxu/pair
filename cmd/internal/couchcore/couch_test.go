@@ -82,6 +82,7 @@ type realDescendantRunner struct {
 	marker         string
 	acknowledgeErr error
 	pty            bool
+	wait           time.Duration // how long Acknowledge may wait for the pidfile: the test's budget
 }
 
 func (r realDescendantRunner) Start(_ string, argv, env []string) (Handle, error) {
@@ -105,20 +106,21 @@ func (r realDescendantRunner) StartBlocked(ctx context.Context, _ string, _ []st
 	if err != nil {
 		return nil, err
 	}
-	return &realDescendantBlockedHandle{BlockedHandle: h, marker: r.marker, acknowledgeErr: r.acknowledgeErr}, nil
+	return &realDescendantBlockedHandle{BlockedHandle: h, marker: r.marker, acknowledgeErr: r.acknowledgeErr, wait: r.wait}, nil
 }
 
 type realDescendantBlockedHandle struct {
 	BlockedHandle
 	marker         string
 	acknowledgeErr error
+	wait           time.Duration
 }
 
 func (h *realDescendantBlockedHandle) Acknowledge() error {
 	if err := h.BlockedHandle.Acknowledge(); err != nil {
 		return err
 	}
-	if _, err := waitForPIDFile(h.marker, 2*time.Second); err != nil {
+	if _, err := waitForPIDFile(h.marker, h.wait); err != nil {
 		return err
 	}
 	return h.acknowledgeErr
@@ -1027,7 +1029,7 @@ func TestSpawnRetainsOwnershipAndRetriesUntilQuiescenceIsProven(t *testing.T) {
 		done <- err
 	}()
 
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(testwait.Budget(t))
 	for {
 		mu.Lock()
 		gotAttempts := attempts
@@ -1187,7 +1189,7 @@ func TestSpawnPostAckFailuresQuiesceRealPersistentDescendant(t *testing.T) {
 					env := newTestEnv(t, "/repo")
 					env.Couch.postAckQuiesceTimeout = 250 * time.Millisecond
 					marker := filepath.Join(t.TempDir(), "descendant.pid")
-					runner := realDescendantRunner{marker: marker, pty: runnerMode.pty}
+					runner := realDescendantRunner{marker: marker, pty: runnerMode.pty, wait: testwait.Budget(t)}
 					if mode == "acknowledgement ambiguous" {
 						runner.acknowledgeErr = errors.New("close after acknowledgement delivery")
 						env.Artifacts.AutoEstablish(false)
@@ -1236,7 +1238,7 @@ func TestSpawnPostAckFailuresQuiesceRealPersistentDescendant(t *testing.T) {
 					if err == nil || handle == nil {
 						t.Fatalf("Spawn = %T, %v", handle, err)
 					}
-					descendantPID, err = waitForPIDFile(marker, time.Second)
+					descendantPID, err = waitForPIDFile(marker, testwait.Budget(t))
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -1745,7 +1747,7 @@ func TestAliveIsFalseForAnExitedChildWithoutCallingWait(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(testwait.Budget(t))
 	for time.Now().Before(deadline) {
 		if !h.Alive() {
 			return // reaped without anyone calling Wait

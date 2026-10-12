@@ -197,7 +197,7 @@ func TestCouchProductionSoak(t *testing.T) {
 	}
 	wait := func(label string, predicate func() bool) {
 		t.Helper()
-		deadline := time.Now().Add(5 * time.Second)
+		deadline := time.Now().Add(testwait.Budget(t))
 		for time.Now().Before(deadline) {
 			if predicate() {
 				return

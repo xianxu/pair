@@ -58,3 +58,13 @@ func TestGiveUpPathsFailAndUnboundedNeverFires(t *testing.T) {
 		t.Fatal("After did not fire at a past give-up time")
 	}
 }
+
+func TestBudgetRunsToTheGiveUpTime(t *testing.T) {
+	now := time.Date(2026, 10, 12, 12, 0, 0, 0, time.UTC)
+	if got := budgetAt(now.Add(3*time.Second), true, now); got != 3*time.Second {
+		t.Fatalf("budget = %s, want 3s", got)
+	}
+	if got := budgetAt(time.Time{}, false, now); got < 50*365*24*time.Hour {
+		t.Fatalf("unbounded budget = %s, want effectively forever", got)
+	}
+}

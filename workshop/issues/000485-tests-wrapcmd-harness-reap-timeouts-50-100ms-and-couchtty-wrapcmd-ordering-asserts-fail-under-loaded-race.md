@@ -31,7 +31,7 @@ Found by the #479 soak (200 `-race` runs per touched package under parallel load
 - wrapcmd `TestCodexWorkingNotificationReachesCouchStatusAndSwitcher`: data race.
 - wrapcmd `TestHarnessTTYFixtureConformance`: ~9 min under `-race`, past a 9 m binary timeout.
 
-**Sweep the untouched packages (from #479's close review):** #479 converted every positive `case <-time.After(N): t.Fatal…` guard in the packages it touched to `testwait.After(t)`. Packages it didn't touch (broadcast, webcast, termcmd, couchmessage, and others; `grep -rn "case <-time.After" --include='*_test.go' cmd/internal`) still guard events with real-time windows.
+**Sweep the untouched packages (from #479's close review):** #479 converted every positive `case <-time.After(N): t.Fatal…` guard in the packages it touched to `testwait.After(t)`. Packages it didn't touch (broadcast, webcast, termcmd, couchmessage, and others; `grep -rn "case <-time.After" --include='*_test.go' cmd/internal`) still guard events with real-time windows. The same goes for polling deadlines (`deadline := time.Now().Add(N)` plus Fatal) in untouched files, which become `time.Now().Add(testwait.Budget(t))`: couchcmd message_deliveries:49, message_lifecycle:170, message_service:257/339/378/652, wait_notice:272/324/465; couchcore provision_lock:117, ptyrunner:17; couchsingleton subprocess:64; wrapcmd launch_watcher:139. And one stopwatch ceiling: launcher session_reap_test:175 (assert the outcome that proves the bound).
 
 Same family as #480: a test races a timer it doesn't own, or asserts an order the product doesn't guarantee.
 

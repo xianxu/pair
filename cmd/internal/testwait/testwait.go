@@ -29,6 +29,21 @@ func afterAt(at time.Time, bounded bool) <-chan time.Time {
 	return time.After(time.Until(at))
 }
 
+// Budget is how long a test may still wait: until its give-up time, or a
+// century with no deadline. It is for a polling loop or a helper that takes a
+// timeout: time.Now().Add(Budget(t)) replaces a latency guess.
+func Budget(t *testing.T) time.Duration {
+	at, bounded := giveUp(t)
+	return budgetAt(at, bounded, time.Now())
+}
+
+func budgetAt(at time.Time, bounded bool, now time.Time) time.Duration {
+	if !bounded {
+		return 100 * 365 * 24 * time.Hour
+	}
+	return at.Sub(now)
+}
+
 // Wait polls cond until it holds (true) or the test should stop waiting
 // (false), for callers that report their own failure detail.
 func Wait(t *testing.T, cond func() bool) bool {

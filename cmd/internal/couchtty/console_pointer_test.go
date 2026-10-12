@@ -69,7 +69,7 @@ func postPoint(t *testing.T, link string, col, row int) int {
 // again.
 func tapUntilMarked(t *testing.T, f *consoleFixture, link string, col, row int) {
 	t.Helper()
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(testwait.Budget(t))
 	for {
 		if code := postPoint(t, link, col, row); code != http.StatusNoContent {
 			t.Fatalf("POST %d", code)
@@ -218,7 +218,7 @@ func TestPointerClippedTurnsOff(t *testing.T) {
 func TestPointerMarksFade(t *testing.T) {
 	f, _, link := pointerOnFixture(t, nil)
 	tapUntilMarked(t, f, link, 7, 2)
-	deadline := time.Now().Add(broadcast.MarkLife + 3*time.Second)
+	deadline := time.Now().Add(testwait.Budget(t))
 	// Fading steps through dimmer tints; gone means the default background.
 	for f.screenBg(7, 2) != nil {
 		if time.Now().After(deadline) {

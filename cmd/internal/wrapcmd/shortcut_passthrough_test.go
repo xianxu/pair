@@ -57,7 +57,7 @@ func TestConsoleWrapperShortcutPassthrough(t *testing.T) {
 		t.Fatal(err)
 	}
 	var delivered []byte
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(testwait.Budget(t))
 	for time.Now().Before(deadline) {
 		delivered = bytes.Join(child.Writes(), nil)
 		if bytes.HasSuffix(delivered, []byte("END245")) {
@@ -219,7 +219,7 @@ func TestReservedShortcutPrefixProgressBeforeTimeout(t *testing.T) {
 				// flushes once. EOF must not duplicate it.
 				_, _ = writer.Write([]byte("\x1b["))
 				want = append(want, []byte("\x1b[")...)
-				deadline := time.Now().Add(time.Second)
+				deadline := time.Now().Add(testwait.Budget(t))
 				for !bytes.Equal(out.Bytes(), want) && time.Now().Before(deadline) {
 					time.Sleep(time.Millisecond)
 				}

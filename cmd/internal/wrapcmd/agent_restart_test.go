@@ -84,7 +84,7 @@ func TestSIGUSR2ReExecsWrapperWithoutReplacingPaneProcess(t *testing.T) {
 	}()
 
 	pidPath := filepath.Join(data, "pair-wrap-pid-restart-test")
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(testwait.Budget(t))
 	for {
 		raw, err := os.ReadFile(pidPath)
 		if err == nil {

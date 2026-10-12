@@ -232,7 +232,7 @@ func TestDetachBeforeFirstTurnAuthorizesRelaunch(t *testing.T) {
 
 func waitDetachCondition(t *testing.T, description string, ready func() bool) {
 	t.Helper()
-	deadline := time.Now().Add(8 * time.Second)
+	deadline := time.Now().Add(testwait.Budget(t))
 	for !ready() {
 		if time.Now().After(deadline) {
 			t.Fatalf("timed out waiting for %s", description)
