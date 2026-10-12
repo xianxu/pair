@@ -207,11 +207,17 @@ func ReadDir(dir string) (*Recording, error) {
 }
 
 // Asset reads a stored body by hash.
-func (r *Recording) Asset(hash string) ([]byte, error) {
+func (r *Recording) Asset(hash string) ([]byte, error) { return readAsset(r.Dir, hash) }
+
+// Asset reads back a body this writer stored, so the asset store (#459)
+// serves from disk instead of keeping bodies in memory.
+func (w *DirWriter) Asset(hash string) ([]byte, error) { return readAsset(w.dir, hash) }
+
+func readAsset(dir, hash string) ([]byte, error) {
 	if !ValidHash(hash) {
 		return nil, fmt.Errorf("asset hash %q is not 64 lowercase hex", hash)
 	}
-	return os.ReadFile(filepath.Join(r.Dir, AssetName(hash)))
+	return os.ReadFile(filepath.Join(dir, AssetName(hash)))
 }
 
 // ValidateDir validates a recording directory: its records (Validate), then
