@@ -3,7 +3,9 @@ package wrapcmd
 import (
 	"bytes"
 	"os"
+	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -157,5 +159,115 @@ func TestPickerLatchHoldsOverQuestionPickerTextRow(t *testing.T) {
 	}
 	if got := peerComposerState("claude", f.proxy.terminal.Snapshot()); got != PeerComposerUnknown {
 		t.Fatalf("question picker reads as composer %v", got)
+	}
+}
+
+// pickerReports records what the wrapper tells Couch about its picker.
+type pickerReports struct {
+	mu  sync.Mutex
+	got []bool
+}
+
+func (r *pickerReports) Picker(open bool) {
+	r.mu.Lock()
+	r.got = append(r.got, open)
+	r.mu.Unlock()
+}
+
+func (r *pickerReports) all() []bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]bool(nil), r.got...)
+}
+
+// pair#465: Couch hears the picker the moment the latch changes, not after a
+// quiet interval: the auto-deny countdown repaints every second, so a
+// quiet-gated report would never come while the prompt is up.
+func TestPickerReportedToCouchAtOnce(t *testing.T) {
+	f := pickerFake(t)
+	reports := &pickerReports{}
+	f.proxy.pickerSink = reports
+	f.output(peerBusyScreen(t, "permission-autodeny") + claudePermissionOSC)
+	if got := reports.all(); !reflect.DeepEqual(got, []bool{true}) {
+		t.Fatalf("after the picker opened, reports %v", got)
+	}
+	f.output(peerBusyScreen(t, "permission-autodeny") + claudePermissionOSC) // the countdown repaints
+	if got := reports.all(); !reflect.DeepEqual(got, []bool{true}) {
+		t.Fatalf("a repaint re-reported: %v", got)
+	}
+	f.output(peerBusyScreen(t, "permission-autodenied"))
+	if got := reports.all(); !reflect.DeepEqual(got, []bool{true, false}) {
+		t.Fatalf("after the auto-deny closed it, reports %v", got)
+	}
+}
+
+// pair#465: a message to a slot behind a picker is held, says which picker,
+// outlives its own deadline while the picker is up, and is pasted once the
+// picker closes.
+func TestPeerDeliveryHeldByAPickerNamesIt(t *testing.T) {
+	f := pickerFake(t)
+	now := time.Now()
+	d := newPeerDelivery(peerTestMessage(now).To, func() time.Time { return now })
+	f.proxy.peer = d
+	peerRender(f, d, peerBusyScreen(t, "permission-autodeny")+claudePermissionOSC)
+	peerIntegrationEnqueue(t, d)
+	var out bytes.Buffer
+	f.proxy.dispatchPeer(&out)
+	want := "blocked by a picker: Do you want to proceed?"
+	if r := d.receipt(); r.Status != couchmessage.Held || r.Detail != want || out.Len() != 0 {
+		t.Fatalf("receipt %+v, out %q; want held %q", r, out.String(), want)
+	}
+	// The countdown repaints past the message's own deadline: still held.
+	now = now.Add(couchmessage.DeliveryTimeout + time.Minute)
+	peerRender(f, d, peerBusyScreen(t, "permission-autodeny"))
+	f.proxy.dispatchPeer(&out)
+	if r := d.receipt(); r.Status != couchmessage.Held || r.Detail != want {
+		t.Fatalf("past its deadline behind the picker: %+v", r)
+	}
+	// The auto-deny closes the picker: the message goes in.
+	peerRender(f, d, peerBusyScreen(t, "permission-autodenied"))
+	now = now.Add(2 * time.Second)
+	f.proxy.dispatchPeer(&out)
+	if !strings.Contains(out.String(), "hello") {
+		t.Fatalf("no paste after the picker closed: %+v", d.receipt())
+	}
+}
+
+// A picker that outlasts the hold limit expires the message with its reason.
+func TestPeerDeliveryExpiresBehindAPickerWithItsReason(t *testing.T) {
+	f := pickerFake(t)
+	now := time.Now()
+	d := newPeerDelivery(peerTestMessage(now).To, func() time.Time { return now })
+	f.proxy.peer = d
+	peerRender(f, d, peerBusyScreen(t, "permission-autodeny")+claudePermissionOSC)
+	peerIntegrationEnqueue(t, d)
+	var out bytes.Buffer
+	f.proxy.dispatchPeer(&out)
+	now = now.Add(couchmessage.DeliveryTimeout + couchmessage.MaxHold + time.Second)
+	f.proxy.dispatchPeer(&out)
+	r := d.receipt()
+	if r.Status != couchmessage.Expired || !strings.Contains(r.Detail, "held past 30m0s, blocked by a picker: Do you want to proceed?") {
+		t.Fatalf("receipt %+v", r)
+	}
+}
+
+// pair#465 close review: the picker title is read once per picker episode. An
+// unrecognized title is not re-read on every dispatch, and a second picker the
+// dispatcher never saw close is read afresh instead of keeping the first title.
+func TestPickerHoldDetailReadsOncePerEpisode(t *testing.T) {
+	d := newPeerDelivery(peerTestMessage(time.Now()).To, time.Now)
+	screen, reads := []string{"no picker here"}, 0
+	tail := func(int) couchmessage.Tail { reads++; return couchmessage.Tail{Lines: screen} }
+	for range 3 {
+		if got := d.pickerHoldDetailLocked(1, tail); got != "blocked by a picker" {
+			t.Fatalf("unrecognized picker: %q", got)
+		}
+	}
+	if reads != 1 {
+		t.Fatalf("an unrecognized picker read the tail %d times, want 1", reads)
+	}
+	screen = []string{" Do you want to proceed?", " ❯ 1. Yes", "   2. No"}
+	if got, want := d.pickerHoldDetailLocked(2, tail), "blocked by a picker: Do you want to proceed?"; got != want || reads != 2 {
+		t.Fatalf("next picker: %q after %d reads, want %q after 2", got, reads, want)
 	}
 }

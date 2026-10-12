@@ -1311,3 +1311,8 @@ proof; record the surprising case so the next change starts from evidence.
   the broker refuses every control byte but `\n` and `\t`, so a CRLF file fails wherever its CRs sit, with an error
   that doesn't name the file. When an input source feeds an existing validator, read that validator first and decide
   one rule for the whole input (normalize it, or refuse it with the source named), not a fix at the site a reviewer saw.
+- **A retry loop owns each attempt's resource, not a variable the defer closes (#465 close review).** The hello
+  fallback reassigned the deferred `conn` from a redial, so a failed redial left it nil and the deferred `Close`
+  crashed the wrapper. Give each attempt its own local, close it on failure inside the loop, and hand only the
+  accepted one to the defer; test the path where a retry's dial fails. Likewise, key a per-episode cache on an
+  episode counter bumped at the transition, not on a reader happening to observe the gap between episodes.

@@ -29,9 +29,27 @@ type legacyFrame struct {
 	Error       string       `json:",omitempty"`
 }
 
+// v2Frame is the #421 SessionFrame field set, before Picker (pair#465).
+type v2Frame struct {
+	Op          string
+	Binding     *Binding       `json:",omitempty"`
+	Observation *Observation   `json:",omitempty"`
+	Code        string         `json:",omitempty"`
+	Error       string         `json:",omitempty"`
+	Build       *BuildIdentity `json:",omitempty"`
+	Settled     *bool          `json:",omitempty"`
+}
+
 // startLegacyBroker accepts connections the way a pre-#421 broker does and
 // records each frame it accepted after the ack.
 func startLegacyBroker(t *testing.T, socket string) (frames func() []string) {
+	return startOldBroker(t, socket, false)
+}
+
+// startOldBroker is a pre-#421 broker, or with v2 a #421 one: it accepts
+// hello-v2 and decodes frames strictly with v2Frame's fields. Each accepted
+// frame is recorded as its op, plus " settled" when it carried Settled.
+func startOldBroker(t *testing.T, socket string, v2 bool) (frames func() []string) {
 	t.Helper()
 	l, err := net.ListenUnix("unix", &net.UnixAddr{Name: socket, Net: "unix"})
 	if err != nil {
@@ -49,8 +67,8 @@ func startLegacyBroker(t *testing.T, socket string) (frames func() []string) {
 			go func(conn *net.UnixConn) {
 				defer conn.Close()
 				raw, err := transportReadFrameLimit(conn, MaxSessionFrameBytes)
-				var hello legacyFrame
-				if err != nil || strictjson.Decode(raw, &hello) != nil || hello.Op != FrameHello {
+				var hello v2Frame
+				if err != nil || strictjson.Decode(raw, &hello) != nil || !(hello.Op == FrameHello && hello.Build == nil || v2 && hello.Op == FrameHelloV2) {
 					return // the old broker: drop without an ack
 				}
 				ack, _ := json.Marshal(legacyFrame{Op: FrameAck, Code: "ok"})
@@ -59,12 +77,16 @@ func startLegacyBroker(t *testing.T, socket string) (frames func() []string) {
 				}
 				for {
 					raw, err := transportReadFrameLimit(conn, MaxSessionFrameBytes)
-					var f legacyFrame
-					if err != nil || strictjson.Decode(raw, &f) != nil {
+					var f v2Frame
+					if err != nil || strictjson.Decode(raw, &f) != nil || (!v2 && f.Settled != nil) {
 						return
 					}
+					op := f.Op
+					if f.Settled != nil {
+						op += " settled"
+					}
 					mu.Lock()
-					seen = append(seen, f.Op)
+					seen = append(seen, op)
 					mu.Unlock()
 				}
 			}(conn)
@@ -174,6 +196,101 @@ func TestNegotiationOldWrapperNewBroker(t *testing.T) {
 	log.waitFor(t, "closed 1")
 }
 
+// pair#465: a new wrapper and a #421 broker (Couch not yet restarted) settle
+// on hello-v2: Settled still flows, and Picker never reaches a broker whose
+// strict decoding would end the session over it.
+func TestNegotiationNewWrapperV2BrokerKeepsSettled(t *testing.T) {
+	socket := sessionSocket(t)
+	frames := startOldBroker(t, socket, true)
+	c := NewSessionClient()
+	c.SetBuild(testBuild)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go c.Run(ctx, socket, selfBinding("pair:1"), DefaultReconnectBackoff, time.Millisecond)
+	select {
+	case <-c.connected:
+	case <-time.After(5 * time.Second):
+		t.Fatal("never fell back to hello-v2")
+	}
+	c.Update(Observation{Sequence: 4})
+	c.Picker(true)
+	c.Settle(true)
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		got := frames()
+		if n := len(got); n > 0 && got[n-1] == FrameActivity+" settled" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("Settled never reached the hello-v2 broker: %v", got)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	select {
+	case <-c.connected:
+		t.Fatal("the session was lost and redialed: a frame broke the v2 broker's decoding")
+	default:
+	}
+}
+
+func TestNegotiationPickerReachesNewBroker(t *testing.T) {
+	socket := sessionSocket(t)
+	log := newSessionLog()
+	startSessionServer(t, socket, log)
+	c := NewSessionClient()
+	c.SetBuild(testBuild)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go c.Run(ctx, socket, selfBinding("pair:1"), DefaultReconnectBackoff, time.Millisecond)
+	log.waitFor(t, "open 1")
+	c.Update(Observation{Sequence: 3})
+	c.Picker(true)
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		log.mu.Lock()
+		var picker *bool
+		if n := len(log.frames); n > 0 {
+			picker = log.frames[n-1].Picker
+		}
+		log.mu.Unlock()
+		if picker != nil && *picker {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("Picker never reached the broker")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// A hello-v2 session that claims Picker is malformed: only that session ends.
+func TestHelloV2SessionClaimingPickerEnds(t *testing.T) {
+	socket := sessionSocket(t)
+	log := newSessionLog()
+	startSessionServer(t, socket, log)
+	conn, err := net.Dial("unix", socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	b := selfBinding("pair:1")
+	if err := writeSessionFrame(conn, SessionFrame{Op: FrameHelloV2, Binding: &b, Build: &testBuild}); err != nil {
+		t.Fatal(err)
+	}
+	if ack, err := readSessionFrame(conn); err != nil || ack.Code != "ok" {
+		t.Fatalf("ack %+v %v", ack, err)
+	}
+	yes := true
+	if err := writeSessionFrame(conn, SessionFrame{Op: FrameActivity, Observation: &Observation{Sequence: 5}, Settled: &yes}); err != nil {
+		t.Fatal(err)
+	}
+	log.waitFor(t, "activity 1 5")
+	if err := writeSessionFrame(conn, SessionFrame{Op: FrameActivity, Observation: &Observation{Sequence: 6}, Picker: &yes}); err != nil {
+		t.Fatal(err)
+	}
+	log.waitFor(t, "closed 1")
+}
+
 func TestHelloV2FrameValidation(t *testing.T) {
 	b := selfBinding("pair:1")
 	bad := testBuild
@@ -191,6 +308,11 @@ func TestHelloV2FrameValidation(t *testing.T) {
 		{SessionFrame{Op: FrameAck, Code: "ok", Settled: &yes}, false},
 		{SessionFrame{Op: FrameActivity, Observation: &Observation{}, Settled: &yes}, true},
 		{SessionFrame{Op: FrameActivity, Observation: &Observation{}, Build: &testBuild}, false},
+		{SessionFrame{Op: FrameHelloV3, Binding: &b, Build: &testBuild}, true},
+		{SessionFrame{Op: FrameHelloV3, Binding: &b}, false},
+		{SessionFrame{Op: FrameHelloV3, Binding: &b, Build: &testBuild, Picker: &yes}, false},
+		{SessionFrame{Op: FrameAck, Code: "ok", Picker: &yes}, false},
+		{SessionFrame{Op: FrameActivity, Observation: &Observation{}, Picker: &yes}, true},
 	} {
 		if err := tc.f.Validate(); (err == nil) != tc.ok {
 			t.Errorf("%+v: err=%v want ok=%v", tc.f, err, tc.ok)
@@ -205,8 +327,34 @@ func TestNegotiationTimeoutDoesNotFallBack(t *testing.T) {
 	defer client.Close()
 	defer server.Close()
 	go func() { _, _ = transportReadFrameLimit(server, MaxSessionFrameBytes) }() // read hello-v2, never ack
-	err := sessionHandshake(client, selfBinding("pair:1"), &testBuild)
+	err := sessionHandshake(client, selfBinding("pair:1"), &testBuild, FrameHelloV2)
 	if err == nil || errors.Is(err, errNoAck) {
 		t.Fatalf("timeout handled as an old broker: %v", err)
+	}
+}
+
+// A broker that drops the hello and is gone before the fallback redial: the
+// session ends with the dial error, and never closes a connection it does not
+// hold (pair#465 close review: the redial reassigned the deferred conn to nil).
+func TestNegotiationFallbackRedialFailureReturnsError(t *testing.T) {
+	socket := sessionSocket(t)
+	l, err := net.ListenUnix("unix", &net.UnixAddr{Name: socket, Net: "unix"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		conn, err := l.AcceptUnix()
+		if err != nil {
+			return
+		}
+		_, _ = transportReadFrameLimit(conn, MaxSessionFrameBytes)
+		l.Close() // removes the socket: the redial fails
+		conn.Close()
+	}()
+	c := NewSessionClient()
+	c.SetBuild(testBuild)
+	err = c.session(context.Background(), socket, selfBinding("pair:1"), time.Millisecond)
+	if err == nil || errors.Is(err, errNoAck) {
+		t.Fatalf("session = %v, want the redial's dial error", err)
 	}
 }

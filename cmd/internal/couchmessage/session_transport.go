@@ -105,10 +105,10 @@ func (s *SessionServer) serve(conn *net.UnixConn, token SessionToken, full bool)
 		return
 	}
 	hello, err := readSessionFrame(conn)
-	if err != nil || (hello.Op != FrameHello && hello.Op != FrameHelloV2) {
+	if err != nil || (hello.Op != FrameHello && hello.Op != FrameHelloV2 && hello.Op != FrameHelloV3) {
 		return
 	}
-	v2 := hello.Op == FrameHelloV2
+	v2, v3 := hello.Op != FrameHello, hello.Op == FrameHelloV3
 	refuse := func(code string, err error) {
 		_ = writeSessionFrame(conn, SessionFrame{Op: FrameAck, Code: code, Error: err.Error()})
 	}
@@ -135,7 +135,7 @@ func (s *SessionServer) serve(conn *net.UnixConn, token SessionToken, full bool)
 	}
 	for {
 		f, err := readSessionFrame(conn)
-		if err != nil || (f.Op != FrameActivity && f.Op != FrameSubmit) || (!v2 && f.Settled != nil) {
+		if err != nil || (f.Op != FrameActivity && f.Op != FrameSubmit) || (!v2 && f.Settled != nil) || (!v3 && f.Picker != nil) {
 			return // EOF is the wrapper's departure; a malformed frame ends only this session
 		}
 		s.handler.Frame(token, f)
@@ -176,6 +176,7 @@ type SessionClient struct {
 	submit    bool // a submission not yet sent
 	build     *BuildIdentity
 	settled   bool
+	picker    bool
 	wake      chan struct{}
 	connected chan struct{} // test hook: signalled after each ack
 }
@@ -204,6 +205,17 @@ func (c *SessionClient) Settle(settled bool) {
 	c.mu.Lock()
 	if c.settled != settled {
 		c.settled, c.dirty = settled, c.have || c.dirty
+	}
+	c.mu.Unlock()
+	c.signal()
+}
+
+// Picker records whether an input-holding picker is up (pair#465); it rides
+// the next activity frame, and only on a hello-v3 session.
+func (c *SessionClient) Picker(open bool) {
+	c.mu.Lock()
+	if c.picker != open {
+		c.picker, c.dirty = open, c.have || c.dirty
 	}
 	c.mu.Unlock()
 	c.signal()
@@ -252,21 +264,22 @@ func (c *SessionClient) Run(ctx context.Context, socket string, b Binding, backo
 
 var errNoAck = errors.New("broker closed before acknowledging hello")
 
-// sessionHandshake sends hello (build == nil) or hello-v2 and reads the ack.
-func sessionHandshake(conn net.Conn, b Binding, build *BuildIdentity) error {
+// sessionHandshake sends the hello op (build rides hello-v2 and hello-v3)
+// and reads the ack.
+func sessionHandshake(conn net.Conn, b Binding, build *BuildIdentity, op string) error {
 	if err := conn.SetDeadline(time.Now().Add(AdmissionTimeout)); err != nil {
 		return err
 	}
-	hello := SessionFrame{Op: FrameHello, Binding: &b}
-	if build != nil {
-		hello = SessionFrame{Op: FrameHelloV2, Binding: &b, Build: build}
+	hello := SessionFrame{Op: op, Binding: &b}
+	if op != FrameHello {
+		hello.Build = build
 	}
 	if err := writeSessionFrame(conn, hello); err != nil {
 		return err
 	}
 	ack, err := readSessionFrame(conn)
 	if err != nil {
-		// Only a close is an old broker's answer to hello-v2; a timeout is a
+		// Only a close is an old broker's answer to a newer hello; a timeout is a
 		// slow broker, and downgrading it would cost the session Settled.
 		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, syscall.ECONNRESET) {
 			return fmt.Errorf("%w: %v", errNoAck, err)
@@ -280,36 +293,39 @@ func sessionHandshake(conn net.Conn, b Binding, build *BuildIdentity) error {
 }
 
 func (c *SessionClient) session(ctx context.Context, socket string, b Binding, minInterval time.Duration) error {
-	dialCtx, cancel := context.WithTimeout(ctx, AdmissionTimeout)
-	conn, err := (&net.Dialer{}).DialContext(dialCtx, "unix", socket)
-	cancel()
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
 	c.mu.Lock()
 	build := c.build
 	c.mu.Unlock()
-	v2 := build != nil
-	if err := sessionHandshake(conn, b, build); err != nil {
-		if !v2 || !errors.Is(err, errNoAck) {
-			return err
-		}
-		// An old broker drops an unknown hello without an ack: redial once
-		// with plain hello, and never send Settled on this connection.
-		conn.Close()
+	// Newest hello first. An old broker drops a hello it doesn't know without
+	// an ack: redial with the next older one, which reports less (hello-v2
+	// never sends Picker, hello never sends Settled). Each attempt owns its
+	// own connection; only the one that took a hello outlives the loop.
+	hellos := []string{FrameHello}
+	if build != nil {
+		hellos = []string{FrameHelloV3, FrameHelloV2, FrameHello}
+	}
+	var conn net.Conn
+	var op string
+	for i := 0; ; i++ {
+		op = hellos[i]
 		dialCtx, cancel := context.WithTimeout(ctx, AdmissionTimeout)
-		conn, err = (&net.Dialer{}).DialContext(dialCtx, "unix", socket)
+		attempt, err := (&net.Dialer{}).DialContext(dialCtx, "unix", socket)
 		cancel()
 		if err != nil {
 			return err
 		}
-		defer conn.Close()
-		if err := sessionHandshake(conn, b, nil); err != nil {
+		err = sessionHandshake(attempt, b, build, op)
+		if err == nil {
+			conn = attempt
+			break
+		}
+		attempt.Close()
+		if i == len(hellos)-1 || !errors.Is(err, errNoAck) {
 			return err
 		}
-		v2 = false
 	}
+	defer conn.Close()
+	v2, v3 := op != FrameHello, op == FrameHelloV3
 	if err := conn.SetDeadline(time.Time{}); err != nil {
 		return err
 	}
@@ -345,20 +361,24 @@ func (c *SessionClient) session(ctx context.Context, socket string, b Binding, m
 		c.mu.Lock()
 		f := SessionFrame{}
 		obs := c.latest
-		var settled *bool
+		var settled, picker *bool
 		if v2 {
 			v := c.settled
 			settled = &v
 		}
+		if v3 {
+			v := c.picker
+			picker = &v
+		}
 		switch {
 		case c.submit:
-			f = SessionFrame{Op: FrameSubmit, Observation: &obs, Settled: settled}
+			f = SessionFrame{Op: FrameSubmit, Observation: &obs, Settled: settled, Picker: picker}
 			c.submit, c.dirty = false, false
 		case c.dirty && throttle == nil:
 			if wait := minInterval - time.Since(last); !last.IsZero() && wait > 0 {
 				throttle = time.After(wait)
 			} else {
-				f = SessionFrame{Op: FrameActivity, Observation: &obs, Settled: settled}
+				f = SessionFrame{Op: FrameActivity, Observation: &obs, Settled: settled, Picker: picker}
 				c.dirty = false
 			}
 		}

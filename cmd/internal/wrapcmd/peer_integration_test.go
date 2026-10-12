@@ -166,7 +166,12 @@ func TestPeerIntegrationBeforePasteObstaclesWaitAndAfterPasteAreUncertain(t *tes
 			}
 			var out bytes.Buffer
 			f.proxy.dispatchPeer(&out)
-			if out.Len() != 0 || d.receipt().Status != couchmessage.Queued {
+			// A picker holds the message, naming itself (pair#465).
+			want := couchmessage.Queued
+			if kind == "menu" {
+				want = couchmessage.Held
+			}
+			if out.Len() != 0 || d.receipt().Status != want {
 				t.Fatalf("obstacle failed to wait: %q %+v", out.String(), d.receipt())
 			}
 			if kind == "image" {

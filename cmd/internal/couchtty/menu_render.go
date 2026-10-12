@@ -554,6 +554,10 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 			outer, idle := "", IdleFresh
 			if !thread.Live() {
 				outer = ageColor(AgeBandFor(now, thread.LastActiveAt))
+			} else if state.Blocked[thread.Address] {
+				// Behind a picker (pair#465): red over attention and fading,
+				// as the tab bar draws it.
+				outer = blockedSGR
 			} else if len(state.Attention[thread.Address]) == 0 {
 				// Idle fading (pair#247) applies to live rows without attention;
 				// the selected row took the branch above. The tab bar states the

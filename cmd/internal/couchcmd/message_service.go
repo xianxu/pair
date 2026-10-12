@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -138,6 +139,14 @@ type messageService struct {
 	// liveness is the registry's per-slot self-report snapshot (#421),
 	// republished after every step like connected.
 	liveness atomic.Pointer[map[string]couchmessage.SlotLiveness]
+	// blocked hands the Console the threads behind a picker (pair#465). The
+	// mutex orders each change with the view's installation, so a stale set
+	// never lands after a newer one; the view itself never blocks.
+	blocked struct {
+		sync.Mutex
+		view func(map[couchcore.ThreadAddress]bool)
+		last map[couchcore.ThreadAddress]bool
+	}
 	// after schedules a retry; tests replace it to fire retries on demand.
 	after func(time.Duration, func())
 	// slotOps answers resume, reboot and operation-status (pair#367 M2);
@@ -362,11 +371,12 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 	probe.service.Store(service)
 	console.SetMessageBroker(service.broker)
 	service.SetBroadcastStatus(console.BroadcastStatus)
+	service.SetBlockedView(console.SetBlockedThreads)
 	service.SetReplay(console.ReplayShare, console.SharedReplays)
 	service.recordDeliveries(namespace)
 	watcher := newWaitWatcher(service, threshold, namespace)
 	service.workers.Add(1)
-	go func() { defer service.workers.Done(); watcher.run(service.lifetime, time.Minute) }()
+	go func() { defer service.workers.Done(); watcher.run(service.lifetime, waitTick) }()
 	// After the loop runs: the replay of already-attached panes lands in the
 	// mailbox the loop drains.
 	console.SubscribeMessageLifecycle(panes)
@@ -465,7 +475,7 @@ func newMessageService(parent context.Context, brokerSocket, registrySocket stri
 			if f.Op == couchmessage.FrameSubmit {
 				kind = couchmessage.SessionSubmit
 			}
-			_ = s.post(couchmessage.RegistryEvent{Kind: kind, Token: t, Observation: *f.Observation, Settled: f.Settled}, false)
+			_ = s.post(couchmessage.RegistryEvent{Kind: kind, Token: t, Observation: *f.Observation, Settled: f.Settled, Picker: f.Picker}, false)
 		},
 		Closed: func(t couchmessage.SessionToken) {
 			_ = s.post(couchmessage.RegistryEvent{Kind: couchmessage.SessionClosed, Token: t}, false)
@@ -517,6 +527,7 @@ func (s *messageService) loop() {
 		s.connected.Store(&connected)
 		liveness := registry.Liveness()
 		s.liveness.Store(&liveness)
+		s.publishBlocked(liveness)
 		var followUps []couchmessage.RegistryEvent
 		for _, effect := range fx {
 			if next := s.execute(effect); next != nil {
@@ -840,6 +851,35 @@ func (s *messageService) tailBinding(ctx context.Context, request couchmessage.R
 		return matches[0], "", nil
 	}
 	return couchmessage.Binding{}, "ambiguous", fmt.Errorf("%d wrappers are connected for this thread", len(matches))
+}
+
+// SetBlockedView installs the Console's picker view and hands it the current
+// set at once.
+func (s *messageService) SetBlockedView(view func(map[couchcore.ThreadAddress]bool)) {
+	s.blocked.Lock()
+	defer s.blocked.Unlock()
+	s.blocked.view = view
+	view(s.blocked.last)
+}
+
+// publishBlocked derives the threads whose wrapper reports a picker up and
+// hands the view the set when it changed.
+func (s *messageService) publishBlocked(liveness map[string]couchmessage.SlotLiveness) {
+	set := map[couchcore.ThreadAddress]bool{}
+	for _, l := range liveness {
+		if l.Picker != nil && *l.Picker {
+			set[couchcore.ThreadAddress{RepoScope: l.Binding.Scope, Tag: couchcore.ThreadTag(l.Binding.Tag)}] = true
+		}
+	}
+	s.blocked.Lock()
+	defer s.blocked.Unlock()
+	if maps.Equal(set, s.blocked.last) {
+		return
+	}
+	s.blocked.last = set
+	if s.blocked.view != nil {
+		s.blocked.view(set)
+	}
 }
 
 // SetReplay installs the console's replay shares: the requests, and the
