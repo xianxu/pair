@@ -27,10 +27,10 @@ tracker:
         destination: workshop/issues/000490-couch-say-each-verb-s-relative-cost-in-help-and-skill-light-seconds-heavy.md
         main_commit: 6a3ea808b9307298d96bc6b1014e3f1554a37f6b
     completion:
-        token: close-d42b949c8a5c
+        token: close-d0779bb41001
         repository: github.com/xianxu/pair
-        reviewed_head: ad8c8828b2fc4d6f97afa522633f86f1684bbf76
-        evidence_commit: 15803b9a2156c0f1342e2951af3ded9bd261fcd9
+        reviewed_head: 42a0a322c32fc8685371680be048dfe165051f4e
+        evidence_commit: 1d4f2d483007600721a7a74481a85f9e57551fda
 ---
 
 # couch: say each verb's relative cost in --help and --skill (light, seconds, heavy)
