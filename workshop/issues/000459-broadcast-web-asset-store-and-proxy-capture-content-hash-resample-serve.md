@@ -48,7 +48,7 @@ Durable plan: `workshop/plans/000459-broadcast-web-asset-store-and-proxy-capture
 - [x] `assets.Recorded` (the real Store) over `AssetWriter`; `DirWriter.Asset`
 - [x] `assets.Proxy` + the Server's `assets/<hash>` route
 - [x] Fixtures through the real store/proxy in the live viewer tests; no-origin check; atlas
-- [ ] Full verification
+- [x] Full verification
 
 ## Log
 
