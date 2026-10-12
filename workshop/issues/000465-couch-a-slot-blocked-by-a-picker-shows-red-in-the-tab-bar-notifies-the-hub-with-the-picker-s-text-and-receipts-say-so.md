@@ -1,21 +1,22 @@
 ---
 id: 000465
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours: 3.66
-card_mirror: '495720593b3184954a224e55499ee530fb4f468c' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'ede256c4363de9e37d0d27d38f102508880f38e9' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T00:27:53-07:00
 claimant:
     operator: Xian Xu
     machine: 4716879978a7b90f6b583da1716fd0e9
-    machine_name: MacBook Pro
-    workspace: pair:2
-    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:5
+    worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: 7.57
 ---
 
 # couch: a slot blocked by a picker shows red in the tab bar, notifies the hub with the picker's text, and receipts say so
