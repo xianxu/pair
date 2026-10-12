@@ -63,10 +63,10 @@ and strokes) enter its queue as `recorder.Emit`, stamped on arrival and checked 
 - **Where recordings go:** `CastConfig.RecordingsDir` (`<couch store>/webcast/recordings/<id>/`), opened at the first
   go-live, teed into `CastConfig.NewLive`'s hub, whose records `Server` streams as `rec` events after the `state`
   ones. Kept until the operator deletes the directory.
-- **Fidelity:** `recorder/internal/fidelity` (a development tool) replays a recording at each screenshot in headless
-  Chrome and diffs the pixels; `TestLiveRecordURL` records any URL for it (#458's numbers are in its issue Log).
-  Screenshots are the viewport at half its CSS size whatever the DPR (`recorder.LowRes`), the form #453's fixtures
-  use. A frame's `t` is its screenshot call's midpoint, but never before its segment: a call that straddles a navigation
+- **Frames:** a screenshot and layout at each segment start (go-live, resume, navigate, tab) and every 5 s while live
+  (`Options.ShotEvery`), never streamed. Screenshots are the viewport at half its CSS size whatever the DPR
+  (`recorder.LowRes`), the form #453's fixtures use. The fidelity check (#478, below) compares them with the replay.
+  A frame's `t` is its screenshot call's midpoint, but never before its segment: a call that straddles a navigation
   is stamped at the new segment's start, though its pixels may show either page. The layout boxes captured after it
   take the stream's time, which records may have moved past meanwhile (#472).
 - **Asset capture** (the recorder's; #459 stores, absolutizes CSS and serves): raw bodies to `assets.Store.Put`, one
@@ -78,6 +78,51 @@ and strokes) enter its queue as `recorder.Emit`, stamped on arrival and checked 
 - **Live check:** `TestLiveRecording` (`live_record_test.go`) casts a page with re-renders, open and closed roots, an
   out-of-process iframe, insertRule, a >10k `<style>`, a password, a click that navigates, pause and resume; the
   recording must validate, drop nothing, and hold each case.
+
+## The fidelity check (#478)
+
+Project Principle 6: fidelity is measured, not assumed. Each recording's frames (the real tab) are compared with
+what the viewer's renderer draws at the same moments.
+
+- **Pure core:** `webcast/fidelity`. `Diff` is #453's pixelmatch-style YIQ diff (the share of pixels that differ,
+  leaving out the cast control's corner). `Summarize` gives median, max and the frames over `Tolerance` (3% of a
+  frame's pixels). `DiffBox` and `SideBySide` make each worst moment's image: the tab, the replay, and where they
+  differ in red, cropped to the difference. `Write` puts the report in `<recording>/fidelity/`
+  (format: [webcast-format.md](webcast-format.md#the-fidelity-report-478)).
+- **Shell:** `webcast.CheckFidelity(ctx, chromeBin, dir)`. It serves the recording with a `ReplayServer` on loopback
+  and opens `r/<id>/fidelity.html` in a headless Chrome on a throwaway profile. For each frame, in time order, it
+  sets the frame's viewport at DPR 1, calls `fidelity.replayAt(t, ReplayWindow)`, screenshots the viewport,
+  scales it with `recorder.LowRes` (the tab's own filter) and diffs it.
+  - A frame over the tolerance is replayed again at t − `fidelity.CaptureSkew` (50 ms), the best kept. A frame's
+    pixels can be from earlier than its t (#472). It is never replayed later than t: #458's recorder reports
+    synchronously, so a later match would hide a recorder that is late (pair#475). `recording.FrameTimes` keeps each
+    moment in the frame's own segment, the same rule #460's conformance test uses.
+  - The report shows the offset and the diff at t, so a timing slip is told apart from a wrong render.
+  - Only the 10 worst replays are held in memory.
+- **The page:** `web/fidelity.html` + `fidelity.js`, the frame alone at (0,0), unscaled at the operator's viewport.
+  `web/replayer.js`'s `Replayer` is the replay. #460's conformance harness uses it too, so there is one
+  `replayAt`.
+  - Records up to t − 1 s are drawn at once, then the last second in real time, so a transition is in the tab's
+    phase.
+  - A moment shortly after the last one continues it: the animations paused at the last capture resume, so a
+    retry or a close frame is at its phase. A moment before it seeks through the catch-up (`catchUp`, the replay's
+    seek rule), so it replays at most one segment.
+  - A segment that isn't a navigation snapshots a document that was already running, so its animations are
+    finished, not started: on the live blog cast this took the first frame from 2.15% to 0.10%.
+- **When it runs:**
+  - `CastConfig.Check` runs once a recorded cast with frames has ended, in the background. couchcmd wires
+    `CheckFidelity` with one check at a time per Couch, and the summary line goes to the operator's notice.
+  - `couch --broadcast-web-fidelity [ID|DIR]` checks a recording (default: the store's newest). It prints the line
+    and exits 0 within the tolerance, 3 over it, 1 on an error.
+- **Measured** (`Tolerance`'s comment): the fixtures at most 0.74%; a live blog cast by #458's recorder at most 0.10%
+  over 17 frames; the blog without its stylesheets 81% median, every frame over.
+- **Tests:**
+  - `fidelity/fidelity_test.go` and `fidelity_check_test.go`: pure.
+  - `record_cast_test.go`: the hook, with a fake check.
+  - `couchcmd/fidelity_test.go`: the CLI, with a fake check.
+  - `tests/webcast/replayer.test.mjs`: the replay's timing, with a fake clock.
+  - `fidelity_live_test.go` (`WEBCAST_LIVE_CHROME=1`): every fixture within the tolerance, and a broken render
+    (no stylesheets) caught. `FIDELITY_DIR=` checks any recording in place, e.g. one from `TestLiveRecordURL`.
 
 ## Lifecycle
 

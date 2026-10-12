@@ -479,6 +479,7 @@ export class Renderer {
       this.frame.removeAttribute('id');
       this.frame = other;
     }
+    pair.current = this.frame;
     pair.owner = this;
     this.holding = true;
     clearTimeout(this.holdTimer);
@@ -669,6 +670,20 @@ export const HOLD_MS = 500;
 // HELD is the z-index that keeps the previous paint over the new document.
 const HELD = '1';
 
+// currentFrame is the frame holding the current document of the page frame
+// a renderer was given: frame itself until a paint hold swaps it (#475).
+export function currentFrame(frame) {
+  return frame.__couchPair ? frame.__couchPair.current : frame;
+}
+
+// blankFrames empties the page frame and its sibling: a fresh viewer holds
+// no previous paint.
+export function blankFrames(frame) {
+  for (const f of frame.__couchPair ? frame.__couchPair.frames : [frame]) {
+    try { f.contentDocument.replaceChildren(); } catch {}
+  }
+}
+
 // framePair is the page frame and its sibling holding the previous paint,
 // created beside it the first time, both placed at the box's origin and
 // opaque: a tab's canvas is white unless the page paints it, a frame's
@@ -680,7 +695,7 @@ function framePair(frame) {
     back.style.visibility = 'hidden';
     for (const f of [frame, back]) Object.assign(f.style, { position: 'absolute', left: '0', top: '0', background: '#fff' });
     frame.after(back);
-    const pair = { frames: [frame, back], owner: null };
+    const pair = { frames: [frame, back], current: frame, owner: null };
     for (const f of pair.frames) Object.defineProperty(f, '__couchPair', { value: pair });
   }
   return frame.__couchPair;

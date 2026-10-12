@@ -1219,3 +1219,10 @@ proof; record the surprising case so the next change starts from evidence.
   says "already done", check that every operation that undoes the work also clears the guard; prefer re-doing an
   idempotent setup each time over a flag. And when a render number changes only with run order, diff the same
   capture twice before suspecting the change under test (Chrome throttles a hidden frame's rendering too).
+
+- **A snapshot of a running page is not a fresh load (#478).** The fidelity replay started the blog's entry fade
+  when it drew the go-live snapshot, but the tab had finished it seconds before the cast went live, so the first
+  frame scored 2.15% for no render fault. When a replay or viewer draws a state captured mid-life (a segment that
+  isn't a navigation, a catch-up), ask what the browser's own clocks (animations, transitions) were doing at
+  capture, and settle them to the likeliest phase. Look at the worst moment's crop before tuning a tolerance: the
+  picture named the cause where the number couldn't.

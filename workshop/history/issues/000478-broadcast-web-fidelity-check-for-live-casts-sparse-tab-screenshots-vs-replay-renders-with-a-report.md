@@ -1,0 +1,81 @@
+---
+id: 000478
+status: done
+deps: []
+github_issue:
+created: 2026-10-12
+updated: 2026-10-12
+estimate_hours:
+card_mirror: 'b3f62870ee58ddd33b50106450ed0ceb72923020' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-12T04:00:08-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:4
+    worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
+    repository: github.com/xianxu/pair
+flow: {kind: full, provenance: inferred}
+actual_hours: 0.71
+---
+
+# broadcast-web: fidelity check for live casts — sparse tab screenshots vs replay renders, with a report
+
+## Problem
+
+Principle 6 of couch-broadcast-web (ops `teams/devinfra/projects/couch-broadcast-web/project.md`): fidelity is measured, not assumed. #453's harness and #458/#460 measured fixtures headless; a live cast has no check, and the recording format reserves `frames/` (sparse low-res screenshots of the real tab) for exactly this.
+
+## Spec
+
+- During a live cast the recorder takes sparse low-res screenshots of the tab (on navigation and every few seconds; `frame` records in `frames/`, never streamed), cheap enough not to disturb the page.
+- A check renders the replay at the same moments (headless, #460's renderer) and compares, reusing #453's diff; a report per recording (median/max, the worst moments with side-by-side crops).
+- Run it from the CLI on any recording and automatically at the end of a cast; desktop Chromium targets exact fidelity; record which moments exceed the tolerance so fidelity bugs become issues.
+
+## Done when
+
+- A live blog cast produces frames and a fidelity report within the stated tolerance; a deliberately broken render is caught.
+- Tests; the report format documented in the atlas.
+
+## Plan
+
+Durable plan: `workshop/plans/000478-broadcast-web-fidelity-check-for-live-casts-sparse-tab-screenshots-vs-replay-renders-with-a-report-plan.md`.
+
+- [x] Pure `webcast/fidelity`: #453's diff (moved from the recorder's dev tool), tolerance, report, side-by-side crops
+- [x] `web/replayer.js` (the harness's replay as product code); harness on it
+- [x] `fidelity.html`/`fidelity.js` + `CheckFidelity` (headless, the viewer's renderer); live fixture + broken-render tests
+- [x] `CastConfig.Check`: the check runs when a recorded cast ends
+- [x] `couch --broadcast-web-fidelity [ID|DIR]`
+- [x] Live blog cast within tolerance; atlas (webcast.md, webcast-format.md)
+
+## Log
+
+### 2026-10-12
+- 2026-10-12: closed — Merge resolution (5f85ad26): old dev tool stays deleted (main had edited it); replay_test.go takes main (#472 FrameTimes, knownGaps, observerLag) with realTimeWindow -> ReplayWindow and captureSkew -> fidelity.CaptureSkew; harness.js keeps the Replayer (it sizes the frame on seg/vp, which #472 added to the old harness). Semantic change: the product check now compares at fidelity.Offsets = t, t-50 through recording.FrameTimes; the earlier +150/+300 retries passed rec-stress frame 0 (pair#475 known gap, 32.18% at t). Live WEBCAST_LIVE_CHROME=1: LiveFidelityFixtures passes over every fixture with frames honouring knownGaps (rec-stress frame 0 over, as #472 expects), LiveFidelityCatchesBrokenRender passes, LiveReplayFixtures passes; couch --broadcast-web-fidelity: live blog cast median 0.00% max 0.10% exit 0, rec-stress max 32.18% exit 3. Node 80/80. Post-close 347daebe: sweep only stale .fidelity-* dirs (round-2 minor), tested. (fixed-then-ship; full suite: make -k test (scrubbed env, sandbox off) exit 0 after merging origin/main at 5f85ad26: shell/lua/node suites and go test ./... -count=1, 250 packages ok, no FAIL); review verdict: SHIP
+- 2026-10-12: closed — Round 1 fixes in 8962e077. BR-1: replayer continuation resumes paused animations, backward seeks through catchUp; node tests replayer.test.mjs 6/6 (both new tests fail on the old replayer, verified by stashing the fix), tests/webcast 68/68. BR-2: README documents the flag; couchcmd README test green. Minors fixed (frame validation TestFrameViewport, fail-fast on dead CDP, temp sweep, Summarize clone); not fixed: replay_test headlessPage duplication (it also records Network requests) and the end-of-cast goroutine context (it dies with Couch; Chrome exits on pipe close). Unsandboxed scrubbed go test termcmd couchcmd webcast/... artifactpath green; make -k test earlier green but for the godoc guard fixed in 575368d8. WEBCAST_LIVE_CHROME=1: LiveFidelity fixtures stress 0.74/app 0.41/blog 0.12 max, unstyled blog 81% median 5/5 over; LiveReplayFixtures pass; live blog cast (17 frames, #458 recorder) via couch --broadcast-web-fidelity: median 0.00% max 0.10%, exit 0.; review verdict: SHIP
+- 2026-10-12: flow upgraded quick → full — 1068 added lines in code files (limit 100); an earlier round of this close already ran the full review
+
+- Frames needed no recorder change: #458 already shoots at each segment start and every 5 s while live, into
+  `frames/`, never streamed. No recorder change went through the TL.
+- Retired `recorder/internal/fidelity` (a static Go renderer, i.e. not the renderer viewers see). Its #453 diff
+  moved to the pure `webcast/fidelity`. The harness's `replayAt` became `web/replayer.js`, shared by #460's
+  conformance test and the check (ARCH-DRY).
+- Measured with #453's diff, the 3% tolerance:
+  - fixtures: stress median 0.63% / max 0.74%; app 0.00 / 0.41; blog 0.06 / 0.12 (blog's frame at t=5810 matched
+    at an offset: 14.9% at t, the prototype observer's polled scroll lag, which #460's test allows +150 ms for).
+  - live blog cast (`TestLiveRecordURL`, localhost:4321, browse, 20 s, 17 frames, #458's recorder):
+    `couch --broadcast-web-fidelity` gave median 0.00%, max 0.10%, exit 0.
+  - the deliberately broken render (blog without stylesheets): median 81.33%, max 99.41%, 5 of 5 over.
+- Found via the first report's crop: the first live frame was 2.15%. The heading was mid fade-in in the replay but
+  done in the tab, because the page had loaded before go-live. A `live`/`resume`/`tab` segment's document was
+  already running, so the replayer now finishes its animations (`navigate` stays real-time). That brought it to
+  0.10%. Test: `replayer.test.mjs`.
+- Retries: a frame over the tolerance is replayed at ±150/±300 ms and the best kept. The report keeps the offset and
+  the diff at t, so a timing slip stays visible as one.
+- After merging main (#472 landed real-recorder fixtures and `recording.FrameTimes`, "one rule for frame
+  offsets"): the check's ±150/±300 ms retries passed `rec-stress` frame 0, which #472 lists as a known gap. It is
+  32.18% at t and matched at +150 ms once `stress.css` binds at t=103 (pair#475, a late recorder). #458's recorder
+  never trails the tab, so a later retry hides exactly the recorder bugs the check exists to find. The check now
+  uses #472's offsets: t, then t − `fidelity.CaptureSkew` (50 ms, their measurement), through `FrameTimes`. #472's
+  test now reads the same constant. Only the tests add the prototype fixtures' +150 ms observer lag
+  (`frameOffsets`).
+

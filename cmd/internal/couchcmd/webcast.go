@@ -12,6 +12,9 @@ import (
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
+// recordingsDir is where casts record (#458) and replay reads (#471).
+func recordingsDir(store string) string { return filepath.Join(store, "webcast", "recordings") }
+
 // webcastSettings configures the cast Chrome (#454) on the Host the screen
 // broadcast shares. COUCH_WEBCAST_CHROME, when set, must name an existing
 // file: checked now, so a typo refuses the start rather than surfacing at the
@@ -22,9 +25,6 @@ import (
 // casts, so logins to the app under test survive; delete the directory to
 // reset it. Each cast is recorded under <store>/webcast/recordings/<id>/
 // from its first go-live (#458), kept until the operator deletes it.
-// recordingsDir is where casts record (#458) and replay reads (#471).
-func recordingsDir(store string) string { return filepath.Join(store, "webcast", "recordings") }
-
 func webcastSettings(getenv func(string) string, store string, host *broadcast.Host, lookPath func(string) (string, error), exists func(string) bool) (webcast.CastConfig, error) {
 	find := func() (string, error) { return webcast.FindChrome(getenv, lookPath, exists) }
 	if getenv(webcast.ChromeEnv) != "" {
@@ -42,6 +42,9 @@ func webcastSettings(getenv func(string) string, store string, host *broadcast.H
 			h := recording.NewHub(liveBuffer)
 			return h, h
 		}
+		// Each recorded cast is checked against its frames when it ends
+		// (#478); the report lands in the recording's fidelity/.
+		cfg.Check = fidelityHook(find, webcast.CheckFidelity)
 	}
 	cfg.Launch = func(ctx context.Context, rec *webcast.RecordOptions) (webcast.Browser, error) {
 		if store == "" {
