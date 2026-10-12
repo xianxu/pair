@@ -1,6 +1,6 @@
 ---
 id: 000476
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: dafc05aada3cce72a18e5ca6b58de78685b1991e
         evidence_commit: 807694330e554dd474008de96a636440498858cc
+        landed_commit: b99a0c16da421170278efcbdef87df133aa19837
 ---
 
 # tests: two more flaky pair tests on real-time windows (couchcore retention nested locks; couchcmd capture PTY boundaries)
