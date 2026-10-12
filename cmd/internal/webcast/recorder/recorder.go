@@ -69,8 +69,11 @@ type Options struct {
 	// ShotEvery is the screenshot period while live (and one at each
 	// segment); zero is 5 s, negative is none.
 	ShotEvery time.Duration
-	// MaxQueue bounds queued CDP events; over it they are dropped and a
-	// resync re-snapshots. Zero is 100 000.
+	// MaxQueue is each of the queue's two bounds: on queued DOM events
+	// (bursty; ones dropped over it are resynced from a snapshot) and on
+	// every other CDP event (page-load and human rates; ones dropped over
+	// it are counted in Stats and reported). Inputs that aren't CDP events
+	// are never dropped. Zero is 100 000.
 	MaxQueue int
 	Now      func() time.Time
 	Logf     func(format string, args ...any)
@@ -220,10 +223,8 @@ func Start(opts Options) *Recorder {
 	return r
 }
 
-// Send queues an input; it never blocks. DOM events past MaxQueue are
-// dropped and counted, and the recorder resyncs from a fresh snapshot, which
-// includes them. Nothing else is dropped: a lost context or observer report
-// couldn't be recovered by a snapshot.
+// Send queues an input; it never blocks. CDP events over their bound are
+// dropped as Options.MaxQueue says.
 func (r *Recorder) Send(in any) { r.enqueue(in, true) }
 
 // enqueue is the one way into the queue: Send, ask and the side workers'

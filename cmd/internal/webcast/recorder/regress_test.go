@@ -49,8 +49,10 @@ func TestGraveyardKeepsLiveIDsAndBoundsTheMap(t *testing.T) {
 		kids = append(kids, p.cdp(k))
 	}
 	feed(t, m, 5, []fevent{{"DOM.setChildNodes", raw(map[string]any{"parentId": p.body().nodeID, "nodes": kids})}})
-	if got, _ := m.IDOf(sess, divs[0].backend); got != ids[divs[0].backend] {
-		t.Fatal("setChildNodes changed a kept child's id")
+	for _, d := range divs {
+		if got, ok := m.IDOf(sess, d.backend); !ok || got != ids[d.backend] {
+			t.Fatalf("setChildNodes changed kept child %d's id %d -> %d", d.backend, ids[d.backend], got)
+		}
 	}
 	if len(m.Dropped) != 0 {
 		t.Fatalf("dropped %v: %v", m.Dropped, m.Examples)
