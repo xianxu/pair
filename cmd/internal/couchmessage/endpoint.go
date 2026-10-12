@@ -119,6 +119,10 @@ func (e RemoteEndpoint) call(ctx context.Context, r EndpointRequest) (EndpointRe
 		return EndpointResponse{}, &AlreadyCommittedError{Receipt: *response.Receipt}
 	case response.Error == ErrUnknownDelivery.Error():
 		return EndpointResponse{}, ErrUnknownDelivery
+	case response.Error == ErrRecipientBusy.Error():
+		// A wrapper refusing a reservation holds the message in the broker's
+		// queue instead of refusing the sender (pair#492).
+		return EndpointResponse{}, ErrRecipientBusy
 	case response.Error != "":
 		return EndpointResponse{}, errors.New(response.Error)
 	}

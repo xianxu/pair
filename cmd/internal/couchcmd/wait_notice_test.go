@@ -10,6 +10,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 // Tails below are shaped on live `couch --peek` captures (2026-10-11).
@@ -173,6 +174,7 @@ type hubInbox struct {
 	tailEndpoint
 	got      *[]couchmessage.Message
 	refuse   *int            // admissions to refuse before accepting
+	refusal  *error          // what a refused reservation returns (nil: busy)
 	admitted map[string]bool // reservations accepted, less those released undelivered
 }
 
@@ -181,6 +183,9 @@ func (e hubInbox) Reserve(ctx context.Context, id string, _ uint64) error {
 	defer e.tailEndpoint.mu.Unlock()
 	if *e.refuse > 0 {
 		*e.refuse--
+		if *e.refusal != nil {
+			return *e.refusal
+		}
 		return couchmessage.ErrRecipientBusy
 	}
 	if err := ctx.Err(); err != nil {
@@ -220,6 +225,7 @@ type waitRig struct {
 	screen      []string
 	delivered   []couchmessage.Message
 	refuse      int
+	refusal     error
 	admitted    map[string]bool
 }
 
@@ -231,7 +237,7 @@ func newWaitRig(t *testing.T, settled, resting bool, screen []string) *waitRig {
 	w.hub = w.world.add(1)
 	w.worker = w.world.add(2)
 	hubScreen := claudePermissionTail
-	w.world.endpoints[w.hub] = hubInbox{tailEndpoint: tailEndpoint{lines: &hubScreen, mu: &w.mu}, got: &w.delivered, refuse: &w.refuse, admitted: w.admitted}
+	w.world.endpoints[w.hub] = hubInbox{tailEndpoint: tailEndpoint{lines: &hubScreen, mu: &w.mu}, got: &w.delivered, refuse: &w.refuse, refusal: &w.refusal, admitted: w.admitted}
 	w.world.endpoints[w.worker] = tailEndpoint{lines: &w.screen, mu: &w.mu}
 	w.serviceRig.mu.Lock()
 	w.slotGit["/repo1"] = couchcore.SlotGitStatus{Branch: "main-slot1"}
@@ -380,12 +386,27 @@ func TestWaitNoticeThreshold(t *testing.T) {
 	}
 }
 
-// A refused admission (hub busy, out of allowance) leaves the episode
+// A hub too busy to take the notice holds it in line (pair#492): it arrives
+// once, with no resend on a later tick.
+func TestWaitNoticeHeldByABusyHubArrivesOnce(t *testing.T) {
+	w := newWaitRig(t, false, false, claudePermissionTail)
+	w.mu.Lock()
+	w.refuse = 1
+	w.mu.Unlock()
+	w.tickAt(11 * time.Minute)
+	testwait.Until(t, "the held notice", func() bool { w.mu.Lock(); defer w.mu.Unlock(); return len(w.delivered) == 1 })
+	if got := w.tickAt(12 * time.Minute); len(got) != 1 {
+		t.Fatalf("held notice resent or lost: %d notices", len(got))
+	}
+}
+
+// A refused admission (the hub's wrapper unreachable) leaves the episode
 // unannounced; the next tick sends it.
 func TestWaitNoticeRetriesAfterARefusedAdmission(t *testing.T) {
 	w := newWaitRig(t, false, false, claudePermissionTail)
 	w.mu.Lock()
 	w.refuse = 1
+	w.refusal = couchmessage.ErrUnavailable
 	w.mu.Unlock()
 	if got := w.tickAt(11 * time.Minute); len(got) != 0 {
 		t.Fatalf("refused admission delivered: %+v", got)

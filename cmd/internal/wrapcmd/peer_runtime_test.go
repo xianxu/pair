@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -83,8 +82,9 @@ func TestPeerRuntimeBrokerToWrapperSubmitsOnce(t *testing.T) {
 	if err != nil {
 		t.Fatalf("admission %+v %v", accepted, err)
 	}
-	if _, err := broker.Send(lifetime, from, "runtime-second", couchmessage.Route{Target: to.Slot}, "Another instruction"); !errors.Is(err, couchmessage.ErrRecipientBusy) {
-		t.Fatalf("pending message not preserved: %v", err)
+	// A second message waits behind the first (pair#492).
+	if second, err := broker.Send(lifetime, from, "runtime-second", couchmessage.Route{Target: to.Slot}, "Another instruction"); err != nil || second.Status != couchmessage.Queued || second.Detail != "position 1" {
+		t.Fatalf("second message not queued behind the first: %+v %v", second, err)
 	}
 	if !waitFor(t, func() bool { return receiver.receipt().Message.ID == accepted.Message.ID }) {
 		t.Fatal("socket commit did not reach wrapper")

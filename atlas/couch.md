@@ -187,8 +187,15 @@ identity. The override is not persisted into saved agent arguments.
 use bounded Unix stream RPC, without constructing another mutable supervisor.
 `--message-file` (pair#486) reads the body from a file at send time, so an agent writes a message
 containing shell syntax with its editor and the call stays a bare `couch …` its sandbox exempts.
-`--actors` and `--message-status` support JSON. One pending delivery per actor,
-the inbound breaker, and bounded receipt retention limit the runtime. Family selection requires fresh resting
+`--actors` and `--message-status` support JSON. One delivery at a time per
+actor, a FIFO behind it (pair#492: `ActorState.queue`, at most `MaxQueued` = 32,
+each waiting at most `QueueWait` = 45 min), the inbound breaker, and bounded
+receipt retention limit the runtime. An exact send to a busy actor, or one
+whose wrapper refuses the reservation, is queued (`Enqueue`); the actor's worker
+promotes the head (`Broker.promote`: Observe, Reserve, `Promote` with a fresh
+paste-by) after each delivery, retrying every `PromoteRetry` while the wrapper
+is busy. A departing sender or recipient cancels its queued messages with an
+actionable detail. Family selection requires fresh resting
 branch and quiet-wrapper observations; exact sends allow occupied-slot
 coordination. Quietness is never acceptance of repository work.
 
