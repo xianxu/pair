@@ -262,3 +262,33 @@ func TestDriveSeatTableBounded(t *testing.T) {
 		t.Fatalf("a budgeted seat after the flood: %d", code)
 	}
 }
+
+// Once full, the table sweeps keys idle past seatIdle. Until then a new key
+// gets a budget that refuses at once, and the table doesn't grow; a key in
+// use survives the sweep.
+func TestDriveSeatTableSweepsIdleKeys(t *testing.T) {
+	f := newDriveFixture(t, time.Minute)
+	d := f.srv.drive
+	t0 := time.Now()
+	at := t0
+	d.now = func() time.Time { return at }
+	for i := 0; i < maxSeatLimits; i++ {
+		d.limits(fmt.Sprintf("old%d", i))
+	}
+	at = t0.Add(30 * time.Second)
+	refused := d.limits("hot")
+	if d.seats["hot"] != nil || len(d.seats) != maxSeatLimits {
+		t.Fatalf("a full table grew to %d", len(d.seats))
+	}
+	select {
+	case refused.inFlight <- struct{}{}:
+		t.Fatal("an unbudgeted key has a slot")
+	default:
+	}
+	d.limits("old0") // in use at 30 s
+	at = t0.Add(seatIdle + time.Second)
+	d.limits("new")
+	if d.seats["new"] == nil || d.seats["old1"] != nil || d.seats["old0"] == nil {
+		t.Fatalf("after the sweep: new %v, idle old1 %v, used old0 %v", d.seats["new"] != nil, d.seats["old1"] != nil, d.seats["old0"] != nil)
+	}
+}

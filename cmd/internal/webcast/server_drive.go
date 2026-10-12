@@ -43,6 +43,7 @@ type driveRoutes struct {
 	mu     sync.Mutex
 	hello  *broadcast.RateLimit
 	seats  map[string]*seatLimits // by key
+	now    func() time.Time
 }
 
 type seatLimits struct {
@@ -56,7 +57,7 @@ type seatLimits struct {
 func (s *Server) WithDrive(ctrl drive.Controller) *Server {
 	if ctrl != nil {
 		s.drive = &driveRoutes{ctrl: ctrl, hellos: make(chan struct{}, seatInFlight),
-			hello: broadcast.NewRateLimit(helloRatePerSec, helloBurst), seats: map[string]*seatLimits{}}
+			hello: broadcast.NewRateLimit(helloRatePerSec, helloBurst), seats: map[string]*seatLimits{}, now: time.Now}
 	}
 	return s
 }
@@ -152,7 +153,7 @@ func (d *driveRoutes) allowHello(now time.Time) bool {
 func (d *driveRoutes) limits(key string) *seatLimits {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	now := time.Now()
+	now := d.now()
 	if l := d.seats[key]; l != nil {
 		l.used = now
 		return l

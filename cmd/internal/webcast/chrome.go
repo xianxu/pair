@@ -137,7 +137,7 @@ type loopState struct {
 	dialogs map[string]bool
 	// tap sees every event first: the live tests' window on what Chrome
 	// said (nil in production).
-	tap func(cdp.Event)
+	tap     func(cdp.Event)
 	hadPage bool
 	noPages <-chan time.Time
 	ending  endCause
