@@ -15,7 +15,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "dd2b405e", done: "0231b5e5"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # broadcast-web: recording format and component seams (contracts, fixtures, reference reducer)
@@ -69,6 +69,8 @@ Durable plan: `workshop/plans/000457-broadcast-web-recording-format-and-componen
 - Not done here, by design: the fidelity render of fixtures against `frames/` belongs to the viewer (#460) and the recorder (#458). Both now have reference screenshots and pins to test against.
 
 ### 2026-10-12
+- 2026-10-12: closed — Operator approved the format 2026-10-12. Review round 1 (BR-1..BR-4) fixed, each with a test that fails when the fix is reverted: catch-up keeps the document segment (DocSeg and live notes equivalent at every cut and every fixture pin); sheets claim their ids and kids reuse only ids under the replaced children; Sink carries records only, bodies have one writer through AssetWriter (atomic), Live refuses frames (in RunLiveContract); deterministic join test at every point. Fixtures validate with zero findings and their pins match. make -k test: all suites pass except a Lua timing test (comment_codec linear-time) that failed under load and passes 3/3 alone (the branch touches no nvim code); then go test ./... -count=1 exit 0 with no failures.; review verdict: SHIP
+- 2026-10-12: flow upgraded quick → full — 4456 added lines in code files (limit 100); an earlier round of this close already ran the full review
 - The operator reviewed `atlas/webcast-format.md` and approved it as is (in the pair:3 pane: "go ahead, approved").
 - Full `make -k test` green after merging main (#456): exit 0, 247 Go packages ok. The first run had found two misses of mine, now fixed: the artifact inventory and a `.gitignore` entry for the `fixturegen` main package. The couchcore deadline test that also failed in that run passes 3/3 alone, and the branch doesn't touch couchcore.
 
