@@ -1,6 +1,6 @@
 ---
 id: 000486
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 706d4e020e28799d035b482c5af04939e09c226b
         evidence_commit: 94402fb996710a724147de282408551eb45bb1b0
+        landed_commit: 07f9e195933b989189c14dd5434caaa7d416e29f
 ---
 
 # couch --send-to: --message-file PATH, so agents never quote a message in the shell
