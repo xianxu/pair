@@ -8,6 +8,8 @@ import (
 	"github.com/xianxu/pair/cmd/internal/ansi"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/hostty"
+	"github.com/xianxu/pair/cmd/internal/ptychild"
 )
 
 // pair#491: the hub leads its section and is marked by position only.
@@ -157,5 +159,50 @@ func TestRenderStatusRowNarrowCollapsesFromTheRightAndKeepsRed(t *testing.T) {
 				t.Fatalf("width %d: the count is clickable", c.width)
 			}
 		}
+	}
+}
+
+// A group with no :0 keeps its first member when it collapses, so its count
+// reads as its own (`ops:1  +2`), not as the repository before it.
+func TestRenderStatusRowCollapsedCountFollowsItsOwnRepository(t *testing.T) {
+	hub := hubActor("ops", "ops", 0)
+	hub.Hub = true
+	actors := []StatusActor{hub, hubActor("blog", "blog", 0), hubActor("ops:1", "ops", 1), hubActor("ops:2", "ops", 2), hubActor("ops:3", "ops", 3)}
+	full := "ops  blog  ops:1  :2  :3"
+	if got := rowPlain(RenderStatusRow(80, StatusModel{Actors: actors})); got != full {
+		t.Fatalf("full row %q, want %q", got, full)
+	}
+	if got, want := rowPlain(RenderStatusRow(len(full)-1, StatusModel{Actors: actors})), "ops  blog  ops:1  +2"; got != want {
+		t.Fatalf("collapsed row %q, want %q", got, want)
+	}
+}
+
+// A count that doesn't fit whole is left out, never cut to a bare `+`.
+func TestRenderStatusRowDropsACountThatDoesNotFit(t *testing.T) {
+	collapsed := "ops  ariadne  +2  blog  pair  +2"
+	for width := len(collapsed) - 2; width < len(collapsed); width++ {
+		got := rowPlain(RenderStatusRow(width, StatusModel{Actors: hubModel()}))
+		if strings.HasSuffix(got, "+") || strings.HasSuffix(got, " ") {
+			t.Fatalf("width %d: %q ends in a cut count", width, got)
+		}
+	}
+}
+
+// The hub set at startup survives the menu's lazy first build and leads the
+// tab bar (pair#491): Couch may hand it over before any thread attaches.
+func TestConsoleHubLeadsTheTabBarAcrossTheFirstMenuBuild(t *testing.T) {
+	c := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), nil)
+	t.Cleanup(c.Stop)
+	c.SetHub("/src/pair")
+	ops, pair := presentationOrdinary("/src/ops", "o"), presentationOrdinary("/src/pair", "p")
+	c.attachThreadActor("ops", "ops", ops.Address, "/src/ops", "ops", ptychild.NewFakeChild(nil))
+	c.attachThreadActor("pair", "pair", pair.Address, "/src/pair", "pair", ptychild.NewFakeChild(nil))
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.ensureMenuLocked(ops.Address)
+	c.menu, _ = ReduceMenu(c.menu, MenuEvent{Kind: MenuEventInventory, Inventory: []couchcore.ActionableThreadSummary{ops, pair}})
+	actors := c.statusModelLocked().Actors
+	if len(actors) != 2 || actors[0].Label != "pair" || !actors[0].Hub || actors[1].Hub {
+		t.Fatalf("tab bar %+v, want the hub pair first", actors)
 	}
 }

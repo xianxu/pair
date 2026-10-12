@@ -82,3 +82,8 @@ A `+N` cell is not a click target. Clicking it does nothing, as clicking bare ro
   - **Switcher:** the hub is the first line, at indent 0. Every other row of its section, including the notification lines under it, is indented one more level (2 spaces). Repository primaries go to 2, slots to 4, and their message lines follow `entry.Indent`, so they shift with them. With no hub, today's indentation.
   - **Mechanics:** `ThreadPresentation` gains `Hub bool`. The extra indent is added in `PresentThreads`, the one place that sets `Indent`. `orderedMenuInventory` (switcher order) and both render paths pass `MenuState.Hub`.
   - **Narrow widths (§4)** are unchanged. The hub stays protected so it remains leftmost, along with the active, red and belled chips.
+- 2026-10-12, close review (round 1) fixes:
+  - **Membership:** there is no `hubOf(row)` function. With one hub nothing would vary it, so the rule ("every row belongs to the one hub") lives inside `hubSection`. A second hub's assignment source replaces that rule there.
+  - **§4 step 2:** a collapsing group folds all but its *first member* into `+N`, not its "unprotected `:N` chips". A group with no `:0` (`ops:1  ops:2  ops:3` while `ops` is the hub) otherwise drew a bare `+2` after the previous repository, which read as that repository's count. Now it reads `ops:1  +2`.
+  - A `+N` that doesn't fit whole is dropped instead of being clipped to a bare `+`. Drawing and measuring share `cellGap`.
+  - The hub's handoff is tested at both ends: `messageService.showHub` (couchcmd) and the Console keeping it across the menu's lazy first build (`ensureMenuLocked`).

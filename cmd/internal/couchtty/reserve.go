@@ -301,17 +301,19 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 		lead = 2
 	}
 	for _, cell := range fitChips(m.Actors, width-used-lead) {
+		gap := ""
 		if used > 0 {
-			gap := "  "
-			if cell.section {
-				gap = sectionGap
-			}
-			appendText(gap, "")
+			gap = cellGap(cell)
 		}
 		if cell.actor < 0 {
-			appendText(cell.label, "")
+			// A count is drawn whole or not at all: `+` alone reads as nothing.
+			if used+textwidth.Width(gap+cell.label) > width {
+				break
+			}
+			appendText(gap+cell.label, "")
 			continue
 		}
+		appendText(gap, "")
 		a := m.Actors[cell.actor]
 		label, tail := cell.label, chipTail(a, m.Spinner)
 		if a.Active {
@@ -426,6 +428,15 @@ func spinnerGlyph(phase uint8) string {
 // sectionGap separates one hub's section from the next (pair#491).
 const sectionGap = " │ "
 
+// cellGap is what goes before a cell that follows another: the drawer and the
+// width estimate both read it, so they can't disagree.
+func cellGap(cell chipCell) string {
+	if cell.section {
+		return sectionGap
+	}
+	return "  "
+}
+
 // chipCell is one cell of the actor run: an actor drawn with label, or, with
 // actor -1, a count of slots folded away for width (pair#491).
 type chipCell struct {
@@ -453,8 +464,9 @@ func chipKept(a StatusActor) bool { return a.Hub || a.Active || a.Blocked || a.B
 
 // fitChips lays the actors out in budget columns (pair#491). In full, a
 // group's first drawn member shows its label and later slots show `:N`. When
-// that is too wide, groups fold their numbered slots into a `+N` count, from
-// the right (`pair  :2  +1`). If a kept chip still lies past the edge, whole
+// that is too wide, groups fold all but their first member into a `+N` count,
+// from the right (`pair  :2  +1`, `ops:1  +1`): a count always follows a chip
+// of its own repository, so it can't read as the previous one's. If a kept chip still lies past the edge, whole
 // groups fold, from the right, into one trailing count until it is in view; a
 // kept chip whose group leader folded shows its full label. Otherwise the
 // drawer clips as before, so a plain tab cut short stays clickable.
@@ -505,7 +517,7 @@ func layoutChips(actors []StatusActor, groups [][2]int, collapsed, folded []bool
 		count, previous := 0, false
 		for i := span[0]; i < span[1]; i++ {
 			a := actors[i]
-			if !chipKept(a) && (folded[g] || collapsed[g] && a.SlotNumber > 0) {
+			if !chipKept(a) && (folded[g] || collapsed[g] && i > span[0]) {
 				if folded[g] {
 					hidden++
 				} else {
@@ -535,11 +547,7 @@ func chipsWidth(actors []StatusActor, cells []chipCell, n int) int {
 	total := 0
 	for i, cell := range cells[:n] {
 		if i > 0 {
-			gap := "  "
-			if cell.section {
-				gap = sectionGap
-			}
-			total += textwidth.Width(gap)
+			total += textwidth.Width(cellGap(cell))
 		}
 		total += textwidth.Width(cell.label)
 		if cell.actor >= 0 {

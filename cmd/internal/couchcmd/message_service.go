@@ -375,7 +375,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 	service.SetBroadcastStatus(console.BroadcastStatus)
 	service.SetShares(console.Shares)
 	service.SetBlockedView(console.SetBlockedThreads)
-	console.SetHub(service.authority.hub)
+	service.showHub(console)
 	service.SetReplay(console.ReplayShare, console.SharedReplays)
 	service.recordDeliveries(namespace)
 	watcher := newWaitWatcher(service, threshold, namespace)
@@ -385,6 +385,13 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 	// mailbox the loop drains.
 	console.SubscribeMessageLifecycle(panes)
 	return service, nil
+}
+
+// showHub hands the Console the hub's worktree root (pair#491): the same root
+// the message authority resolves "hub" to, so the tab bar leads with the slot
+// that messages to the hub reach.
+func (s *messageService) showHub(view interface{ SetHub(root string) }) {
+	view.SetHub(s.authority.hub)
 }
 
 // consoleSlotOperations runs slot operations on the console's queue;
