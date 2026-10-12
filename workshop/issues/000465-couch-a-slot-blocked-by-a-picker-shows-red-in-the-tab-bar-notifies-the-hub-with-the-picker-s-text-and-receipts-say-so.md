@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
-estimate_hours:
-card_mirror: '7e8c4b8de0a83194527ddecae43dd36cdcc849b8' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 3.66
+card_mirror: '495720593b3184954a224e55499ee530fb4f468c' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T00:27:53-07:00
 claimant:
     operator: Xian Xu
@@ -15,7 +15,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "1d5e52dd", done: "f3cb2a8f"}
+flow: {kind: full, provenance: operator}
 ---
 
 # couch: a slot blocked by a picker shows red in the tab bar, notifies the hub with the picker's text, and receipts say so
@@ -39,6 +39,27 @@ Couch reports facts; the hub and the operator decide (the operator's principle).
 - The hub gets one specific notice per episode after about a minute, with the picker's text.
 - `--message-status` for a held message names the picker; delivery happens when it closes.
 - The operator smoke-tested it before close.
+
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec           design=0.8 impl=0.08
+item: smaller-go-module    design=0.15 impl=0.14
+item: smaller-go-module    design=0.1 impl=0.14
+item: smaller-go-module    design=0.3 impl=0.25
+item: tui-screen           design=0.5 impl=0.25
+item: smaller-go-module    design=0.2 impl=0.14
+item: atlas-docs           design=0.1 impl=0.05
+item: milestone-review     design=0.0 impl=0.14
+design-buffer: 0.15
+total: 3.66
+```
+
+Items in order: issue/plan; `ReadPicker` parser; `Picker` on frame/registry/liveness; wrapper settle report + receipt hold; red chip + switcher row; watcher picker notice; atlas; close review.
+
+> *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.*
 
 ## Plan
 
