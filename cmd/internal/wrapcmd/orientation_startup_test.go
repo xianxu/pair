@@ -123,7 +123,7 @@ func TestOrientationAgyLongPromptSurvivesPostPasteFooterChange(t *testing.T) {
 		t.Fatal(err)
 	}
 	p.handleChunk(ready, &rolling)
-	if !waitFor(time.Second, func() bool { return bytes.Contains(out.Bytes(), []byte(body)) }) {
+	if !waitFor(t, func() bool { return bytes.Contains(out.Bytes(), []byte(body)) }) {
 		t.Fatal("no long body paste")
 	}
 	pasted, err := os.ReadFile("testdata/orientation/agy/1.1.25/pasted-no-color.raw")

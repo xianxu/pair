@@ -20,6 +20,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/broadcast"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/cmd/internal/terminal"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 const ctrlAltB = "\x1b[98;7u"
@@ -299,7 +300,7 @@ func TestBroadcastStoppedOnShutdown(t *testing.T) {
 	f.con.Stop()
 	select {
 	case <-f.done:
-	case <-time.After(10 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("console did not finish")
 	}
 	if end := v.waitEnd(); !strings.Contains(end, "operator stopped") {
@@ -350,7 +351,7 @@ func TestBroadcastShutdownBoundedByStuckTunnel(t *testing.T) {
 	f.con.Stop()
 	select {
 	case <-f.done:
-	case <-time.After(5 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("Couch's exit waited on a tunnel that never closes")
 	}
 	if d := time.Since(start); d > 3*time.Second {

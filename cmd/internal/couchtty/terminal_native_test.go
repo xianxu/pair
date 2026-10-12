@@ -21,6 +21,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/cmd/internal/runtimebundle"
 	"github.com/xianxu/pair/cmd/internal/terminal"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 // This is a real transport join: Console -> PtyRunner -> Zellij -> pair wrap
@@ -161,7 +162,7 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 			if code != 0 {
 				t.Errorf("native Console exit%d: %s", code, diagnostics.String())
 			}
-		case <-time.After(5 * time.Second):
+		case <-testwait.After(t):
 			t.Error("native Console did not join")
 		}
 		killCtx, cancelKill := context.WithTimeout(context.Background(), 5*time.Second)
@@ -171,7 +172,7 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 		_ = kill.Run()
 	})
 	readReceipts := func() string { b, _ := os.ReadFile(receipts); return string(b) }
-	waitUpTo(t, 15*time.Second, "wrapped native process and CPR", func() bool {
+	waitFor(t, "wrapped native process and CPR", func() bool {
 		return strings.Contains(readReceipts(), "CPR=") && strings.Contains(host.childArea(), "native 界 e ready")
 	})
 	if !strings.Contains(readReceipts(), "CPR=1b5b") || !strings.Contains(readReceipts(), "52\n") {
@@ -183,13 +184,13 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 	// Policy consumes the shortcut while the actual enhanced event is encoded
 	// separately by each terminal boundary. Paste carries embedded ESC intact.
 	_, _ = inputW.Write([]byte("\x1b[97;1u"))
-	waitUpTo(t, 3*time.Second, "enhanced key reaches wrapped agent", func() bool { return strings.Contains(readReceipts(), "61") })
+	waitFor(t, "enhanced key reaches wrapped agent", func() bool { return strings.Contains(readReceipts(), "61") })
 	_, _ = inputW.Write([]byte("\x1b[200~paste-界\x1b[31m\x1b[201~"))
 	wantPaste := hex.EncodeToString([]byte("\x1b[200~paste-界\x1b[31m\x1b[201~"))
-	waitUpTo(t, 3*time.Second, "paste reaches wrapped agent", func() bool { return strings.Contains(strings.ReplaceAll(readReceipts(), "\n", ""), wantPaste) })
+	waitFor(t, "paste reaches wrapped agent", func() bool { return strings.Contains(strings.ReplaceAll(readReceipts(), "\n", ""), wantPaste) })
 	// Focus and a complete drag cross the native transport, not a fake decoder.
 	_, _ = inputW.Write([]byte("\x1b[O\x1b[I\x1b[<0;4;4M\x1b[<32;6;4M\x1b[<0;6;4m"))
-	waitUpTo(t, 3*time.Second, "focus and drag receipts", func() bool {
+	waitFor(t, "focus and drag receipts", func() bool {
 		var raw []byte
 		for _, line := range strings.Split(readReceipts(), "\n") {
 			b, err := hex.DecodeString(line)
@@ -209,7 +210,7 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 	var nextNotification time.Time
 	if wrapped {
 		_, _ = inputW.Write([]byte("\r"))
-		waitUpTo(t, 3*time.Second, "one native notification through Zellij output", func() bool {
+		waitFor(t, "one native notification through Zellij output", func() bool {
 			return strings.Count(host.Written(), "\x1b]777;notify;pair;native-fixture-complete\x1b\\") == 1
 		})
 		assertPrivateNotificationSocket(t, filepath.Join(dir, "notify"))
@@ -223,19 +224,19 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 	secondChild := second.(couchcore.TerminalHandle).Terminal()
 	con.Attach(second.ID(), "native-shell", secondChild)
 	con.Switch(second.ID())
-	waitUpTo(t, 3*time.Second, "real shell actor", func() bool {
+	waitFor(t, "real shell actor", func() bool {
 		return con.presenter.View().Admitted == secondChild.Endpoint().ID() && strings.Contains(host.childArea(), "shell-counterpart-ready")
 	})
 	_, _ = inputW.Write([]byte{0})
-	waitUpTo(t, 3*time.Second, "panel", func() bool { con.mu.Lock(); defer con.mu.Unlock(); return con.focus.IsPanel() })
+	waitFor(t, "panel", func() bool { con.mu.Lock(); defer con.mu.Unlock(); return con.focus.IsPanel() })
 	host.SetSize(ptychild.Size{Rows: 28, Cols: 110})
-	waitUpTo(t, 3*time.Second, "both real endpoints resized", func() bool {
+	waitFor(t, "both real endpoints resized", func() bool {
 		a, ea := child.Endpoint().Snapshot(time.Now())
 		b, eb := secondChild.Endpoint().Snapshot(time.Now())
 		return ea == nil && eb == nil && a.Geometry == (terminal.Geometry{Rows: 27, Cols: 110}) && b.Geometry == (terminal.Geometry{Rows: 27, Cols: 110})
 	})
 	con.Switch(handle.ID())
-	waitUpTo(t, 3*time.Second, "native actor restored", func() bool {
+	waitFor(t, "native actor restored", func() bool {
 		return con.presenter.View().Admitted == child.Endpoint().ID() && strings.Contains(host.childArea(), "native 界 e ready")
 	})
 	if err := con.presenter.Flush(context.Background()); err != nil {
@@ -257,7 +258,7 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 		t.Fatal("fixture did not report process identity")
 	}
 	_, _ = inputW.Write([]byte("Q"))
-	waitUpTo(t, 3*time.Second, "original in-memory state", func() bool {
+	waitFor(t, "original in-memory state", func() bool {
 		return strings.Contains(readReceipts(), "STATE="+boot+":1\n") && strings.Contains(host.childArea(), "persistent-counter=1")
 	})
 	captureNativeReattachEvidence(t, evidenceDir, "before-detach", child)
@@ -271,7 +272,7 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 	}
 	oldChild, oldID := child, handle.ID()
 	con.Switch(second.ID())
-	waitUpTo(t, 3*time.Second, "shell holds Console during detach", func() bool { return con.presenter.View().Admitted == secondChild.Endpoint().ID() })
+	waitFor(t, "shell holds Console during detach", func() bool { return con.presenter.View().Admitted == secondChild.Endpoint().ID() })
 	detachCtx, cancelDetach := context.WithTimeout(context.Background(), 5*time.Second)
 	detach := exec.CommandContext(detachCtx, zellij, "--session", session, "action", "detach")
 	detach.Env = append(os.Environ(), env...)
@@ -282,10 +283,10 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 	}
 	select {
 	case <-oldChild.Exited():
-	case <-time.After(5 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("detached client did not drain and exit")
 	}
-	waitUpTo(t, 3*time.Second, "detached client retired and disposed", func() bool { _, err := oldChild.Endpoint().Snapshot(time.Now()); return errors.Is(err, os.ErrClosed) })
+	waitFor(t, "detached client retired and disposed", func() bool { _, err := oldChild.Endpoint().Snapshot(time.Now()); return errors.Is(err, os.ErrClosed) })
 	// No --create: the original server and agent must still exist. Notification
 	// output follows this fresh client naturally, without an outer-TTY sidecar.
 	handle, err = runner.Start(dir, []string{zellij, "--config", config, "--data-dir", filepath.Join(dir, "data"), "attach", session}, env)
@@ -298,7 +299,7 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 	}
 	con.Attach(handle.ID(), "native-agent", child)
 	con.Switch(handle.ID())
-	waitUpTo(t, 5*time.Second, "persistent native frame after reattach", func() bool {
+	waitFor(t, "persistent native frame after reattach", func() bool {
 		return con.presenter.View().Admitted == child.Endpoint().ID() && strings.Contains(host.childArea(), "persistent-counter=1") && (!wrapped || strings.Contains(host.childArea(), "native 界 e ready"))
 	})
 	captureNativeReattachEvidence(t, evidenceDir, "after-reattach", child)
@@ -307,7 +308,7 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 		t.Log("direct Zellij had already omitted earlier CJK row before detach after counter paint; exact pre/post traces preserved, not a detach-induced loss")
 	}
 	_, _ = inputW.Write([]byte("Q"))
-	waitUpTo(t, 3*time.Second, "same agent resumes interaction", func() bool {
+	waitFor(t, "same agent resumes interaction", func() bool {
 		return strings.Contains(readReceipts(), "STATE="+boot+":2\n") && strings.Contains(host.childArea(), "persistent-counter=2")
 	})
 	if wrapped {
@@ -320,7 +321,7 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 			time.Sleep(remaining)
 		}
 		_, _ = inputW.Write([]byte("\r"))
-		waitUpTo(t, 3*time.Second, "surviving wrapper notification follows reattached client", func() bool {
+		waitFor(t, "surviving wrapper notification follows reattached client", func() bool {
 			return strings.Count(host.Written(), "\x1b]777;notify;pair;native-fixture-complete\x1b\\") == 2
 		})
 		nextNotification = time.Now().Add(600 * time.Millisecond)
@@ -338,7 +339,7 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 	if err := os.WriteFile(receipts+".select", []byte("select"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	waitUpTo(t, 3*time.Second, "native no-mouse selection surface", func() bool { return strings.Contains(host.childArea(), "selectable-native-text") })
+	waitFor(t, "native no-mouse selection surface", func() bool { return strings.Contains(host.childArea(), "selectable-native-text") })
 	before, err := child.Endpoint().Snapshot(time.Now())
 	if err != nil {
 		t.Fatal(err)
@@ -351,7 +352,7 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 	host.mu.Unlock()
 	beforeWire := host.Written()
 	_, _ = inputW.Write([]byte("\x1b[<0;1;1M\x1b[<32;10;1M"))
-	waitUpTo(t, 3*time.Second, "native held-drag highlight before release", func() bool {
+	waitFor(t, "native held-drag highlight before release", func() bool {
 		now, err := child.Endpoint().Snapshot(time.Now())
 		if err != nil {
 			return false
@@ -365,7 +366,7 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 	})
 	// Endpoint ingestion precedes publication enqueue. Flush alone cannot
 	// acknowledge that generation: first observe highlight on the parent.
-	waitUpTo(t, 3*time.Second, "physical held-drag highlight before release", func() bool {
+	waitFor(t, "physical held-drag highlight before release", func() bool {
 		host.mu.Lock()
 		defer host.mu.Unlock()
 		for i := range beforeParent {
@@ -380,7 +381,7 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 	}
 	assertNativeHighlight(t, beforeWire, host.Written(), 110, 28)
 	_, _ = inputW.Write([]byte("\x1b[<0;10;1m"))
-	waitUpTo(t, 3*time.Second, "native selection clipboard", func() bool { return strings.Contains(host.Written(), "\x1b]52;") })
+	waitFor(t, "native selection clipboard", func() bool { return strings.Contains(host.Written(), "\x1b]52;") })
 	wire := host.Written()
 	start := strings.LastIndex(wire, "\x1b]52;")
 	payload := strings.SplitN(wire[start+5:], ";", 2)
@@ -409,14 +410,14 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 				target = second.ID()
 			}
 			con.Switch(target)
-			waitUpTo(t, 3*time.Second, "stress focus", func() bool { con.mu.Lock(); defer con.mu.Unlock(); return con.focus == FocusActor(target) })
+			waitFor(t, "stress focus", func() bool { con.mu.Lock(); defer con.mu.Unlock(); return con.focus == FocusActor(target) })
 			if cycle%8 == 0 {
 				rows, cols := uint16(28), uint16(110)
 				if cycle%16 == 0 {
 					rows, cols = 30, 112
 				}
 				host.SetSize(ptychild.Size{Rows: rows, Cols: cols})
-				waitUpTo(t, 3*time.Second, "stress geometry", func() bool {
+				waitFor(t, "stress geometry", func() bool {
 					return child.Size() == (ptychild.Size{Rows: rows - 1, Cols: cols}) && secondChild.Size() == (ptychild.Size{Rows: rows - 1, Cols: cols})
 				})
 			}
@@ -425,7 +426,7 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 				t.Fatal(err)
 			}
 			if hidden {
-				waitUpTo(t, 3*time.Second, "selected shell stress output", func() bool { return strings.Contains(host.childArea(), shellMarker) })
+				waitFor(t, "selected shell stress output", func() bool { return strings.Contains(host.childArea(), shellMarker) })
 			}
 			marker := fmt.Sprintf("stress-output-%02d", cycle)
 			if err := os.WriteFile(receipts+".output.tmp", []byte(marker), 0600); err != nil {
@@ -434,7 +435,7 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 			if err := os.Rename(receipts+".output.tmp", receipts+".output"); err != nil {
 				t.Fatal(err)
 			}
-			waitUpTo(t, 3*time.Second, "real native output", func() bool { return strings.Contains(readReceipts(), "OUTPUT="+marker+"\n") })
+			waitFor(t, "real native output", func() bool { return strings.Contains(readReceipts(), "OUTPUT="+marker+"\n") })
 			// Preserve the existing500ms emission cap across native and hook
 			// turns; no retry of a lost notification is allowed by this test.
 			if remaining := time.Until(nextNotification); remaining > 0 {
@@ -450,7 +451,7 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 			}
 			envelope := "\x1b]777;notify;pair;" + message + "\x1b\\"
 			hookEnvelopes = append(hookEnvelopes, envelope)
-			waitUpTo(t, 3*time.Second, "exact in-band hook notification and attention", func() bool {
+			waitFor(t, "exact in-band hook notification and attention", func() bool {
 				if strings.Count(host.Written(), envelope) != 1 {
 					return false
 				}
@@ -471,7 +472,7 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 			}
 		}
 		con.Switch(handle.ID())
-		waitUpTo(t, 3*time.Second, "final stress actor frame", func() bool { return strings.Contains(host.childArea(), "stress-output-31") })
+		waitFor(t, "final stress actor frame", func() bool { return strings.Contains(host.childArea(), "stress-output-31") })
 		if strings.Count(readReceipts(), "BOOT=") != 1 {
 			t.Fatal("stress restarted original agent")
 		}

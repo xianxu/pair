@@ -12,6 +12,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/notifyosc"
 	"github.com/xianxu/pair/cmd/internal/notifytransport"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func TestNotificationPTYHelper(t *testing.T) {
@@ -48,7 +49,7 @@ func TestNotificationPTYHelper(t *testing.T) {
 			if _, err := os.Stdout.Write(notifyosc.Encode(message)); err != nil {
 				t.Fatal(err)
 			}
-		case <-time.After(3 * time.Second):
+		case <-testwait.After(t):
 			t.Fatal("hook did not reach broker")
 		}
 	}

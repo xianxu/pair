@@ -18,6 +18,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/cmd/internal/terminal"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 	"golang.org/x/term"
 )
 
@@ -146,7 +147,7 @@ func TestCouchProductionSoak(t *testing.T) {
 		input.Close()
 		select {
 		case <-done:
-		case <-time.After(5 * time.Second):
+		case <-testwait.After(t):
 			t.Error("console did not join")
 		}
 		for _, c := range children {
@@ -331,7 +332,7 @@ func TestCouchProductionSoak(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("console exit%d: %s; presenter failure: %v", code, diagnostics.String(), con.presenter.Failure())
 		}
-	case <-time.After(5 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("console shutdown timeout")
 	}
 	var memory runtime.MemStats

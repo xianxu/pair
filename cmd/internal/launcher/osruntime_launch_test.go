@@ -19,13 +19,12 @@ func TestCancelledHandoffEndsAndReapsTheChild(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cmd := killOnCancel(exec.CommandContext(ctx, "sh", "-c", "exec sleep 60"))
 	time.AfterFunc(50*time.Millisecond, cancel)
-	start := time.Now()
 	code, err := runBlockingHandoff(cmd)
 	if err != nil || code != -1 {
 		t.Fatalf("handoff = %d, %v; want -1 (signalled), nil", code, err)
 	}
-	if elapsed := time.Since(start); elapsed > time.Second {
-		t.Fatalf("a SIGTERM-able child took %s to end", elapsed)
+	if sig := endingSignal(cmd); sig != syscall.SIGTERM {
+		t.Fatalf("a SIGTERM-able child ended by %v, want SIGTERM", sig)
 	}
 	if err := syscall.Kill(cmd.Process.Pid, 0); !errors.Is(err, syscall.ESRCH) {
 		t.Fatalf("child %d still exists after the handoff returned: %v", cmd.Process.Pid, err)
@@ -37,12 +36,11 @@ func TestCancelledHandoffKillsAChildThatIgnoresSIGTERM(t *testing.T) {
 	cmd := killOnCancel(exec.CommandContext(ctx, "sh", "-c", `trap "" TERM; exec sleep 60`))
 	cmd.WaitDelay = 200 * time.Millisecond
 	time.AfterFunc(50*time.Millisecond, cancel)
-	start := time.Now()
 	if _, err := runBlockingHandoff(cmd); err != nil {
 		t.Fatalf("handoff error = %v", err)
 	}
-	if elapsed := time.Since(start); elapsed > 1500*time.Millisecond {
-		t.Fatalf("a TERM-deaf child took %s to end; WaitDelay should escalate to SIGKILL", elapsed)
+	if sig := endingSignal(cmd); sig != syscall.SIGKILL {
+		t.Fatalf("a TERM-deaf child ended by %v; WaitDelay should escalate to SIGKILL", sig)
 	}
 	if err := syscall.Kill(cmd.Process.Pid, 0); !errors.Is(err, syscall.ESRCH) {
 		t.Fatalf("child %d still exists after the handoff returned: %v", cmd.Process.Pid, err)
@@ -77,4 +75,15 @@ func TestHandoffThatCannotStartReportsTheError(t *testing.T) {
 	if code, err := runBlockingHandoff(cmd); err == nil || code != 1 {
 		t.Fatalf("handoff = %d, %v; want 1 and the start error", code, err)
 	}
+}
+
+// endingSignal is the signal that ended cmd's process, or 0 if it exited on
+// its own: how a child ended, not how long it took, separates a kill from
+// sleep 60 running out (#479).
+func endingSignal(cmd *exec.Cmd) syscall.Signal {
+	status, ok := cmd.ProcessState.Sys().(syscall.WaitStatus)
+	if !ok || !status.Signaled() {
+		return 0
+	}
+	return status.Signal()
 }

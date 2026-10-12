@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func TestProjectActionableThreadsRequiresExactLifecycleProof(t *testing.T) {
@@ -349,7 +350,7 @@ func TestActionableThreadInventoryCancelsBlockedBindingResolution(t *testing.T) 
 		cancel()
 	case err := <-done:
 		t.Fatalf("inventory returned before entering context resolver: %v", err)
-	case <-time.After(250 * time.Millisecond):
+	case <-testwait.After(t):
 		t.Fatal("inventory did not enter binding resolver")
 	}
 	select {
@@ -357,7 +358,7 @@ func TestActionableThreadInventoryCancelsBlockedBindingResolution(t *testing.T) 
 		if !errors.Is(err, context.Canceled) {
 			t.Fatalf("inventory error = %v, want context canceled", err)
 		}
-	case <-time.After(250 * time.Millisecond):
+	case <-testwait.After(t):
 		t.Fatal("canceled inventory did not return")
 	}
 }

@@ -299,14 +299,14 @@ func TestMasterPumpForwardsPTYWhileLifecycleJournalIOIsBlocked(t *testing.T) {
 	if _, err := writer.Write([]byte("still-forwarded")); err != nil {
 		t.Fatal(err)
 	}
-	waitForStdoutBatch(t, 250*time.Millisecond, func() bool {
+	waitForStdoutBatch(t, func() bool {
 		return string(out.Bytes()) == "still-forwarded"
 	})
 	close(release)
 	if err := writer.Close(); err != nil {
 		t.Fatal(err)
 	}
-	waitForStdoutBatch(t, 250*time.Millisecond, func() bool {
+	waitForStdoutBatch(t, func() bool {
 		select {
 		case <-done:
 			return true

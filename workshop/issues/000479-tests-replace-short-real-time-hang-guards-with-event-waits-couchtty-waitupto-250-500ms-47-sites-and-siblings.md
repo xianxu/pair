@@ -1,12 +1,20 @@
 ---
 id: 000479
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: '39549c7ddb39442f78050a2d1aeb2bc77d05f3f7' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'ed05ba5ffb9bcc6c7d16641fcaa19992ac979d7d' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-12T07:00:54-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:5
+    worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
+    repository: github.com/xianxu/pair
 ---
 
 # tests: replace short real-time hang guards with event waits (couchtty waitUpTo 250/500ms, ~47 sites, and siblings)
@@ -28,6 +36,8 @@ These tests wait for an event with a short fixed bound (100 ms to 1.5 s), and fa
 
 As #476 did for the retention lock test: where the event is the assertion, wait on it with no real-time window, and let the test binary's timeout catch a hang (its goroutine dump names the blocked call). Where a bound is part of the subject, keep it and inject the clock. Don't just raise the constants. couchtty's `waitUpTo` helper is one change for most sites. Before changing a site, prove it is a window: widen it with a temporary sleep in the product and watch the test fail.
 
+Design (agreed with the TL, 2026-10-12): one shared helper, `cmd/internal/testwait`, bounds every wait by the test's own deadline minus a margin (10 s, or half the time left), not by a guess at event latency. A late event passes; a lost one fails with a message naming what the test waited for, before the binary's timeout. `testwait.After(t)` is the guard case of a select, `Until`/`Wait` poll. Sites that asserted a wall-clock ceiling (`elapsed > 1s`) assert the outcome that proves the bound instead: the product's own timeout error (`ErrThreadStoreBusy`, "lock timed out", "timed out") or how a child ended (SIGTERM vs SIGKILL). The binary timeout catches a lost bound. Absence windows (`case <-time.After(...):` with an empty body, "nothing happens in N ms") stay: under load they get less sensitive but never fail falsely.
+
 ## Done when
 
 - No test in the list fails because an awaited event arrived late; each site either waits on its event or injects the clock it asserts.
@@ -35,10 +45,13 @@ As #476 did for the retention lock test: where the event is the assertion, wait 
 
 ## Plan
 
-- [ ] Per site, prove the window: a temporary product sleep past the bound fails the test.
-- [ ] couchtty `waitUpTo`: wait on the condition with no window (binary timeout catches a hang); convert its callers.
-- [ ] Remaining listed select guards: wait on the event, or inject the clock where the bound is the subject.
-- [ ] 200 `-race` runs of each touched package under parallel load; full `make -k test`.
+- [x] Prove the window with a temporary product sleep: couchtty `paintNow` +300 ms fails 23 tests; wrapcmd stdin read +300 ms fails 3 `waitFor(200ms)` tests. The ceiling sites are windows by construction.
+- [x] `cmd/internal/testwait` (`After`, `Wait`, `Until`) plus its unit tests.
+- [x] couchtty: `waitFor`/`waitLong`/`waitUpTo` become one deadline-bounded `waitFor` (107 calls); 81 positive select guards use `testwait.After(t)`; the slot-git `settle` reads the schedule's idle state on the loop instead of waiting for a 20 ms quiet spell (the probe exposed it).
+- [x] Other listed select guards: couchcore actionableinventory, couchcmd run, wrapcmd overlay/terminal_model/composer, terminalqualify candidate.
+- [x] wrapcmd `waitFor`/`waitForStdoutBatch`: deadline-bounded; couchcore supervisorlease: `testwait.Wait`.
+- [x] Ceilings: launchhelper, harness_tty_live, notifytransport ×2, couchsingleton evidence, terminal_pressure, launcher ×2, each asserting the outcome instead.
+- [ ] 200 `-race` runs of the touched tests under parallel load; full `make -k test`.
 
 ## Log
 

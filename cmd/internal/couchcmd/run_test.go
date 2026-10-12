@@ -22,6 +22,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 // testRT builds the domain over fakes. There is deliberately NO production
@@ -1296,7 +1297,7 @@ func TestWireResolverPropagatesContextIntoActionableInventory(t *testing.T) {
 		if !errors.Is(err, context.Canceled) {
 			t.Fatalf("provider error = %v, want context canceled", err)
 		}
-	case <-time.After(250 * time.Millisecond):
+	case <-testwait.After(t):
 		close(artifacts.release)
 		<-done
 		t.Fatal("provider did not propagate cancellation into binding resolution")

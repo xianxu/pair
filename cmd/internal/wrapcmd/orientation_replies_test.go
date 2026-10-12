@@ -145,7 +145,7 @@ func TestOrientationDueSubmitSurvivesPrioritizedInput(t *testing.T) {
 			case <-time.After(time.Second):
 				t.Fatal("consumed settle event was lost after prioritized input")
 			}
-			if !waitFor(time.Second, func() bool { return bytes.Contains(out.Bytes(), []byte(tc.input)) }) {
+			if !waitFor(t, func() bool { return bytes.Contains(out.Bytes(), []byte(tc.input)) }) {
 				t.Fatalf("input lost %q", out.Bytes())
 			}
 			expected := []byte("\x1b[200~read context\x1b[201~" + tc.input)

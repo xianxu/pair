@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/charmbracelet/x/vt"
+
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func TestTerminalModelConstructorReturnsEmptySnapshot(t *testing.T) {
@@ -907,7 +909,7 @@ func TestTerminalModelConcurrentCloseWaitsForSharedResult(t *testing.T) {
 		if !errors.Is(err, io.ErrClosedPipe) {
 			t.Errorf("Feed while closing = %v, want io.ErrClosedPipe", err)
 		}
-	case <-time.After(200 * time.Millisecond):
+	case <-testwait.After(t):
 		t.Error("Feed blocked behind shutdown")
 	}
 	select {
@@ -915,7 +917,7 @@ func TestTerminalModelConcurrentCloseWaitsForSharedResult(t *testing.T) {
 		if !errors.Is(err, io.ErrClosedPipe) {
 			t.Errorf("Resize while closing = %v, want io.ErrClosedPipe", err)
 		}
-	case <-time.After(200 * time.Millisecond):
+	case <-testwait.After(t):
 		t.Error("Resize blocked behind shutdown")
 	}
 	select {
@@ -923,7 +925,7 @@ func TestTerminalModelConcurrentCloseWaitsForSharedResult(t *testing.T) {
 		if !reflect.DeepEqual(snapshot, wantSnapshot) {
 			t.Errorf("Snapshot while closing = %#v, want final %#v", snapshot, wantSnapshot)
 		}
-	case <-time.After(200 * time.Millisecond):
+	case <-testwait.After(t):
 		t.Error("Snapshot blocked behind shutdown")
 	}
 	select {

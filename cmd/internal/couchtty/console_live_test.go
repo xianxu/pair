@@ -11,6 +11,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/cmd/internal/runtimebundle"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 // Live conformance runs real applications on a PTY with the packaged virtual
@@ -67,7 +68,7 @@ func startLiveChild(t *testing.T, argv []string, rows, cols uint16) (*vtHost, *p
 			if code != 0 {
 				t.Errorf("live Console exit%d: %s", code, diagnostics.String())
 			}
-		case <-time.After(3 * time.Second):
+		case <-testwait.After(t):
 			t.Error("live Console did not join")
 		}
 	})
@@ -80,7 +81,7 @@ func TestLiveConsoleNvimPreservesContentAndChrome(t *testing.T) {
 	nvim := liveConsoleOnly(t)
 	host, child, _ := startLiveChild(t, []string{nvim, "-u", "NONE"}, 12, 60)
 
-	waitLong(t, "nvim to emit its first screen", func() bool {
+	waitFor(t, "nvim to emit its first screen", func() bool {
 		return len(child.Snapshot()) > 500
 	})
 	// Let it settle, then make it redraw so paints and output interleave.
@@ -92,7 +93,7 @@ func TestLiveConsoleNvimPreservesContentAndChrome(t *testing.T) {
 		time.Sleep(250 * time.Millisecond)
 	}
 
-	waitLong(t, "nvim buffer and reserved chrome", func() bool {
+	waitFor(t, "nvim buffer and reserved chrome", func() bool {
 		return strings.Contains(host.childArea(), "hello") && strings.Contains(host.row(12), "brain")
 	})
 	assertNativeOracle(t, host.Written(), 60, 12, "hello", "brain")
@@ -105,7 +106,7 @@ func TestLiveReservedRowSurvivesRealScrolling(t *testing.T) {
 	}
 	host, _, _ := startLiveChild(t, []string{"sh", "-c", "i=0; while [ $i -lt 200 ]; do echo real-scroll-$i; i=$((i+1)); done; sleep 5"}, 12, 60)
 
-	waitLong(t, "the child to scroll", func() bool {
+	waitFor(t, "the child to scroll", func() bool {
 		return strings.Contains(host.childArea(), "real-scroll-199")
 	})
 	if got := host.row(12); !strings.Contains(got, "brain") {

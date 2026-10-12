@@ -10,6 +10,8 @@ import (
 	"time"
 
 	vt "github.com/charmbracelet/x/vt"
+
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func TestCandidateASCIIAndReplyIsolation(t *testing.T) {
@@ -179,7 +181,7 @@ func TestCandidateReadFailureUnblocksWriter(t *testing.T) {
 		if err == nil {
 			t.Fatal("missing transport error")
 		}
-	case <-time.After(100 * time.Millisecond):
+	case <-testwait.After(t):
 		t.Fatal("failed reader left writer blocked")
 	}
 }

@@ -103,16 +103,12 @@ func TestRunLaunchHelperTimeoutClosesAcknowledgementWithoutExec(t *testing.T) {
 	reader, writer := io.Pipe()
 	t.Cleanup(func() { _ = writer.Close() })
 	calls := 0
-	started := time.Now()
 	err := RunLaunchHelper(reader, 20*time.Millisecond, []string{"target"}, nil, func([]string, []string) error {
 		calls++
 		return nil
 	})
 	if err == nil || !strings.Contains(err.Error(), "timed out") || calls != 0 {
 		t.Fatalf("RunLaunchHelper = %v, calls=%d", err, calls)
-	}
-	if time.Since(started) > time.Second {
-		t.Fatalf("timeout was not bounded: %s", time.Since(started))
 	}
 }
 

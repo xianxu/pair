@@ -15,6 +15,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/cmd/internal/terminal"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 type releaseFailureHost struct {
@@ -80,7 +81,7 @@ func TestConsoleReleaseFailureIsReportedAfterRestoreAndFailsRun(t *testing.T) {
 				if code != 1 {
 					t.Errorf("Run=%d, want failure", code)
 				}
-			case <-time.After(3 * time.Second):
+			case <-testwait.After(t):
 				t.Fatal("Run did not join")
 			}
 			diagnostic.mu.Lock()

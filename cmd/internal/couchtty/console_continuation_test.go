@@ -13,6 +13,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/orientation"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 // failedContinuationCouch is a Couch on a real temp-dir store whose one live
@@ -327,7 +328,7 @@ func TestContinuationWorkerPicksUpQuietActorAndJoinsOnStop(t *testing.T) {
 	c.Stop()
 	select {
 	case <-done:
-	case <-time.After(3 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("Console did not join continuation worker")
 	}
 }
@@ -510,7 +511,7 @@ func TestGoTrackedDoesNotBlockTheCallerAndIsJoined(t *testing.T) {
 	}()
 	select {
 	case <-returned:
-	case <-time.After(5 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("GoTracked blocked its caller")
 	}
 	joined := make(chan struct{})

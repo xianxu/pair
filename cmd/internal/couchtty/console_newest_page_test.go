@@ -49,7 +49,7 @@ func pagingFixture(t *testing.T) (*consoleFixture, [3]couchcore.ThreadAddress) {
 		}
 		return inventory, nil
 	})
-	waitUpTo(t, 250*time.Millisecond, "three-thread inventory", func() bool {
+	waitFor(t, "three-thread inventory", func() bool {
 		menu := f.con.menuSnapshot()
 		return menu.InventoryReady && len(menu.Inventory) == 3
 	})
@@ -127,18 +127,18 @@ func TestNewestPageLandsWhereCtrlSpaceThenReturnWould(t *testing.T) {
 
 	twoGesture, twoThreads := arrange()
 	_, _ = twoGesture.stdin.Write([]byte("\x00"))
-	waitUpTo(t, 250*time.Millisecond, "the switcher to open on the newest pager", func() bool {
+	waitFor(t, "the switcher to open on the newest pager", func() bool {
 		twoGesture.con.mu.Lock()
 		defer twoGesture.con.mu.Unlock()
 		return twoGesture.con.focus.IsPanel() && twoGesture.con.menu.CurrentFrame().SelectedAddress == twoThreads[2]
 	})
 	_, _ = twoGesture.stdin.Write([]byte("\r"))
-	waitUpTo(t, time.Second, "ctrl-space + Return to land", func() bool { return activeOf(twoGesture) == "c3" })
+	waitFor(t, "ctrl-space + Return to land", func() bool { return activeOf(twoGesture) == "c3" })
 
 	oneGesture, oneThreads := arrange()
 	oneGesture.host.Reset()
 	_, _ = oneGesture.stdin.Write([]byte(couchkeys.NewestPageSequence))
-	waitUpTo(t, time.Second, "ctrl+return to land", func() bool { return activeOf(oneGesture) == "c3" })
+	waitFor(t, "ctrl+return to land", func() bool { return activeOf(oneGesture) == "c3" })
 
 	if got, want := landingOf(oneGesture, oneThreads), landingOf(twoGesture, twoThreads); !reflect.DeepEqual(got, want) {
 		t.Fatalf("ctrl+return landed as\n  %+v\nctrl-space + Return as\n  %+v", got, want)
@@ -151,9 +151,9 @@ func TestNewestPageLandsWhereCtrlSpaceThenReturnWould(t *testing.T) {
 	// bell, so pressing again answers the next page, and neither hop spent the
 	// previous slot, so ctrl+backspace goes back to where they were working.
 	_, _ = oneGesture.stdin.Write([]byte(couchkeys.NewestPageSequence))
-	waitUpTo(t, time.Second, "a second ctrl+return to answer the older page", func() bool { return activeOf(oneGesture) == "c2" })
+	waitFor(t, "a second ctrl+return to answer the older page", func() bool { return activeOf(oneGesture) == "c2" })
 	_, _ = oneGesture.stdin.Write([]byte("\x08"))
-	waitUpTo(t, time.Second, "ctrl+backspace to return home past both pages", func() bool { return activeOf(oneGesture) == "c1" })
+	waitFor(t, "ctrl+backspace to return home past both pages", func() bool { return activeOf(oneGesture) == "c1" })
 }
 
 // Nothing paging: no switch, and the operator is told why. ctrl-space's fallback
@@ -165,7 +165,7 @@ func TestNewestPageWithNothingPagingSaysSo(t *testing.T) {
 	selection := selectionOf(f)
 
 	_, _ = f.stdin.Write([]byte(couchkeys.NewestPageSequence))
-	waitUpTo(t, time.Second, "the refusal", func() bool { return strings.Contains(noticeOf(f), "nothing is paging") })
+	waitFor(t, "the refusal", func() bool { return strings.Contains(noticeOf(f), "nothing is paging") })
 
 	if after := landingOf(f, threads); !reflect.DeepEqual(after, before) {
 		t.Fatalf("with nothing paging the landing moved:\n  before %+v\n  after  %+v", before, after)
@@ -188,7 +188,7 @@ func TestNewestPageOnTheCurrentActorAcknowledgesAndStays(t *testing.T) {
 	selection := selectionOf(f)
 
 	_, _ = f.stdin.Write([]byte(couchkeys.NewestPageSequence))
-	waitUpTo(t, time.Second, "the stay notice", func() bool {
+	waitFor(t, "the stay notice", func() bool {
 		return strings.Contains(noticeOf(f), "already on the paging thread")
 	})
 
@@ -244,14 +244,14 @@ func TestNewestPageInTheSwitcherIsItsReturn(t *testing.T) {
 	page(f, threads[2], "newest page")
 
 	_, _ = f.stdin.Write([]byte("\x00"))
-	waitUpTo(t, 250*time.Millisecond, "the switcher to open on the newest pager", func() bool {
+	waitFor(t, "the switcher to open on the newest pager", func() bool {
 		return f.con.menuSnapshot().CurrentFrame().SelectedAddress == threads[2]
 	})
 	_, _ = f.stdin.Write([]byte("\x1b[A"))
-	waitUpTo(t, 250*time.Millisecond, "the selection to move off it", func() bool {
+	waitFor(t, "the selection to move off it", func() bool {
 		return f.con.menuSnapshot().CurrentFrame().SelectedAddress == threads[1]
 	})
 
 	_, _ = f.stdin.Write([]byte(couchkeys.NewestPageSequence))
-	waitUpTo(t, time.Second, "Return on the selected row", func() bool { return activeOf(f) == "c2" })
+	waitFor(t, "Return on the selected row", func() bool { return activeOf(f) == "c2" })
 }

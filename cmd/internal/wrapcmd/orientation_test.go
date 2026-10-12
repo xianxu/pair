@@ -45,7 +45,7 @@ func TestOrientationSerializedInputScheduler(t *testing.T) {
 			go func() { p.translateStdinFrom(reader, out, time.Millisecond); close(done) }()
 			if action == "input-before" {
 				writer.Write([]byte("operator"))
-				if !waitFor(time.Second, func() bool { return len(out.Bytes()) > 0 }) {
+				if !waitFor(t, func() bool { return len(out.Bytes()) > 0 }) {
 					t.Fatal("input not forwarded")
 				}
 			}
@@ -54,7 +54,7 @@ func TestOrientationSerializedInputScheduler(t *testing.T) {
 				p.handleChunk([]byte(claudeLiveComposerPaint()), &rolling)
 			}
 			if action == "input-after-paste" || action == "overlay-after-paste" {
-				if !waitFor(time.Second, func() bool { return bytes.Contains(out.Bytes(), []byte("read context")) }) {
+				if !waitFor(t, func() bool { return bytes.Contains(out.Bytes(), []byte("read context")) }) {
 					t.Fatal("no paste")
 				}
 			}
@@ -82,7 +82,7 @@ func TestOrientationSerializedInputScheduler(t *testing.T) {
 					t.Fatalf("cancel %#v bytes %q", state, out.Bytes())
 				}
 			}
-			if action == "input-after-paste" && (!state.BodyWritten || !waitFor(time.Second, func() bool { return bytes.HasSuffix(out.Bytes(), []byte("operator")) })) {
+			if action == "input-after-paste" && (!state.BodyWritten || !waitFor(t, func() bool { return bytes.HasSuffix(out.Bytes(), []byte("operator")) })) {
 				t.Fatalf("operator text/body presence %#v %q", state, out.Bytes())
 			}
 			writer.Close()

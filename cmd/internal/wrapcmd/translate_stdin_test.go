@@ -6,6 +6,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 // drainBuffer is an io.Writer that records everything written and
@@ -41,18 +43,11 @@ func (d *drainBuffer) Bytes() []byte {
 	return b
 }
 
-// waitFor calls cond() until it returns true or `timeout` elapses.
-// Polls every 1 ms — cheap and avoids tying tests to specific
-// scheduling order.
-func waitFor(timeout time.Duration, cond func() bool) bool {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if cond() {
-			return true
-		}
-		time.Sleep(1 * time.Millisecond)
-	}
-	return cond()
+// waitFor polls cond until it holds, bounded by the test's own deadline, not
+// a guess at how fast the loop answers (#479); false means it gave up.
+func waitFor(t *testing.T, cond func() bool) bool {
+	t.Helper()
+	return testwait.Wait(t, cond)
 }
 
 // bracketedPasteOn is what every profiled harness writes at startup (DECSET
@@ -98,7 +93,7 @@ func TestTranslateStdin_PassthroughPlainBytes(t *testing.T) {
 		close(done)
 	}()
 	_, _ = w.Write([]byte("hello"))
-	if !waitFor(200*time.Millisecond, func() bool { return bytes.Equal(out.Bytes(), []byte("hello")) }) {
+	if !waitFor(t, func() bool { return bytes.Equal(out.Bytes(), []byte("hello")) }) {
 		t.Fatalf("got %q, want %q", out.Bytes(), "hello")
 	}
 	_ = w.Close()
@@ -118,7 +113,7 @@ func TestTranslateStdin_RewritesEnter(t *testing.T) {
 		close(done)
 	}()
 	_, _ = w.Write([]byte("hi\r"))
-	if !waitFor(200*time.Millisecond, func() bool { return bytes.Equal(out.Bytes(), []byte("hi\\\r")) }) {
+	if !waitFor(t, func() bool { return bytes.Equal(out.Bytes(), []byte("hi\\\r")) }) {
 		t.Fatalf("got %q, want %q", out.Bytes(), "hi\\\r")
 	}
 	_ = w.Close()

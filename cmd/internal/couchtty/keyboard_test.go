@@ -4,7 +4,8 @@ import (
 	"bytes"
 	"syscall"
 	"testing"
-	"time"
+
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func TestKeyboardShutdownPaths(t *testing.T) {
@@ -24,7 +25,7 @@ func TestKeyboardShutdownPaths(t *testing.T) {
 			}
 			select {
 			case <-f.done:
-			case <-time.After(3 * time.Second):
+			case <-testwait.After(t):
 				t.Fatal("Console did not complete teardown")
 			}
 			if h.flags() != 0 || h.RawDepth() != 0 || !h.Closed() {
