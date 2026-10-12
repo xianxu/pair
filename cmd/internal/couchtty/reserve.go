@@ -91,6 +91,9 @@ type StatusModel struct {
 	Capture terminalcapture.Status
 	Actors  []StatusActor
 	Notice  string
+	// Webcast is the cast Chrome's cell (#454), drawn after the screen
+	// broadcast's cells so their fixed columns never move.
+	Webcast WebcastCell
 	// Spinner is the loading placeholder's spinner frame (pair#206).
 	Spinner uint8
 	// Palette is what the host terminal told couch about its colours, which
@@ -153,6 +156,9 @@ type RenderedStatusRow struct {
 	Remote  ColumnSpan
 	// Notes is the 💭N count's span (#447 M4): a click opens the notes menu.
 	Notes ColumnSpan
+	// Webcast is the Chrome cell's span (#454); empty when Chrome isn't
+	// running or the cell was clipped.
+	Webcast ColumnSpan
 }
 
 // ColumnToActor maps a ZERO-BASED column on the drawn row to the actor whose
@@ -235,6 +241,17 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 			}
 		}
 	}
+	var webcastSpan ColumnSpan
+	if label, sgr := webcastLabel(m.Webcast); label != "" {
+		if used > 0 {
+			appendText(" ", "")
+		}
+		start := used
+		appendText(label, sgr)
+		if used > start {
+			webcastSpan = ColumnSpan{Start: start, End: used}
+		}
+	}
 	// Capture follows so actor chips and transient notices cannot hide a
 	// stopped recorder. It never receives an actor click target.
 	if badge := captureBadge(m.Capture); badge != "" {
@@ -304,7 +321,37 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 		}
 		appendText(n, "")
 	}
-	return RenderedStatusRow{Body: row.String(), Chips: chips, Control: control, Pointer: pointer, Remote: remote, Notes: notes}
+	return RenderedStatusRow{Body: row.String(), Chips: chips, Control: control, Pointer: pointer, Remote: remote, Notes: notes, Webcast: webcastSpan}
+}
+
+// WebcastCell is the cast Chrome's state on the tab bar (#454).
+type WebcastCell uint8
+
+const (
+	// WebcastOff: no cast Chrome; nothing drawn.
+	WebcastOff WebcastCell = iota
+	// WebcastIdle: Chrome runs, not cast: `Chrome ▶` (click to go live).
+	WebcastIdle
+	// WebcastLive: the active tab is cast: `Chrome ⏸` (click to pause).
+	WebcastLive
+)
+
+// Chrome cell labels and styles. Distinct from the screen broadcast's
+// LIVE red, which its indicator check reads.
+const (
+	WebcastIdleLabel = "Chrome ▶"
+	WebcastLiveLabel = "Chrome ⏸"
+	webcastLiveSGR   = "\x1b[1;31m"
+)
+
+func webcastLabel(c WebcastCell) (string, string) {
+	switch c {
+	case WebcastIdle:
+		return WebcastIdleLabel, ""
+	case WebcastLive:
+		return WebcastLiveLabel, webcastLiveSGR
+	}
+	return "", ""
 }
 
 func broadcastLabel(c BroadcastCell) string {

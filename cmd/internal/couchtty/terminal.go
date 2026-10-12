@@ -102,6 +102,7 @@ func (c *Console) commitChrome(row RenderedStatusRow) {
 	c.statusChips = row.Chips
 	c.statusControl = row.Control
 	c.statusPointer, c.statusRemote, c.statusNotes = row.Pointer, row.Remote, row.Notes
+	c.statusWebcast = row.Webcast
 	first := !c.framePainted
 	c.framePainted = true
 	var shown couchcore.ThreadAddress

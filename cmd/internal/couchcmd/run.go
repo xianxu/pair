@@ -649,6 +649,14 @@ func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, ou
 	if err != nil {
 		return nil, nil, err
 	}
+	// One public endpoint for every cast (#454): a named tunnel can be open
+	// only once, so the screen broadcast and the web cast share it.
+	castHost := broadcast.NewHost(broadcast.HostConfig{Tunnel: broadcastConfig.Tunnel, ProbeTimeout: broadcastConfig.ProbeTimeout, Resolve: broadcastConfig.Resolve})
+	broadcastConfig.Host = castHost
+	webcastConfig, err := webcastSettings(getenv, store, castHost, exec.LookPath, fileExists)
+	if err != nil {
+		return nil, nil, err
+	}
 	// A tunnel whose Couch and guard both died is cleared now, not at the
 	// next broadcast.
 	if c, ok := broadcastConfig.Tunnel.(broadcast.Cloudflared); ok && c.Records != "" {
@@ -672,6 +680,7 @@ func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, ou
 	console := couchtty.New(host, stdin)
 	console.SetCapture(recorder)
 	console.SetBroadcast(broadcastConfig)
+	console.SetWebcast(webcastConfig)
 	options := diagnosticlog.Options{Proof: diagnosticlog.DefaultProof}
 	if len(settings) > 0 {
 		config := settings[0]
