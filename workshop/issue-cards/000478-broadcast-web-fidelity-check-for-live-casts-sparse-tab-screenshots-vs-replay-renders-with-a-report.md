@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000478-broadcast-web-fidelity-check-for-live-casts-sparse-tab-screenshots-vs-replay-renders-with-a-report.md
         source_blob: 5651dd2394b6ff3cccaec7b85a16a249484a5fe3
         destination: workshop/issues/000478-broadcast-web-fidelity-check-for-live-casts-sparse-tab-screenshots-vs-replay-renders-with-a-report.md
+        main_commit: 1da5c76c60b687fc25a90cb1dc9f1268daa9172e
 ---
 
 # broadcast-web: fidelity check for live casts — sparse tab screenshots vs replay renders, with a report
