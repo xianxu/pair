@@ -1200,3 +1200,10 @@ proof; record the surprising case so the next change starts from evidence.
   hold: a select's live choice isn't in the DOM, so guessing it from the `selected` attribute contradicted the
   event beside it.
 
+- **A test that asserts "at once" needs a sync point with the goroutine doing the work (#473).** Two flakes had the
+  same shape: the test read state from its own goroutine while another one was mid-step. couchtty polled the pointer
+  phase, which flips before the same Run-loop step tears the timers down; couchcore gave a fake child's reaper 2ms of
+  real time after its death to deliver. Before writing an exact assertion (`timer == nil`, `kills == 3`), name the
+  event that makes it true and wait on that event: a no-op command through the loop that owns the state, or an
+  injected clock (`Couch.after`) that ties the timeout to the fake's state. To prove a suspected window, widen it
+  with a temporary sleep in the product or fake and watch the test fail every time.
