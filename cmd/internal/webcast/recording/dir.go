@@ -1,0 +1,222 @@
+package recording
+
+import (
+	"bufio"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
+	"sync"
+)
+
+// Sink is where a recorder's records go: a recording directory, the live
+// fan-out, or both (Tee). Put is called in record order from one goroutine.
+type Sink interface {
+	Put(Record) error
+	Close() error
+}
+
+// Tee puts every record into each sink in turn; the first error wins.
+func Tee(sinks ...Sink) Sink { return tee(sinks) }
+
+type tee []Sink
+
+func (t tee) Put(r Record) error {
+	var errs []error
+	for _, s := range t {
+		errs = append(errs, s.Put(r))
+	}
+	return errors.Join(errs...)
+}
+
+func (t tee) Close() error {
+	var errs []error
+	for _, s := range t {
+		errs = append(errs, s.Close())
+	}
+	return errors.Join(errs...)
+}
+
+// AssetName is an asset body's file name under assets/.
+func AssetName(hash string) string { return filepath.Join("assets", hash) }
+
+// HashOf is the content hash an asset body is stored under.
+func HashOf(body []byte) string {
+	h := sha256.Sum256(body)
+	return hex.EncodeToString(h[:])
+}
+
+var frameFile = regexp.MustCompile(`^frames/[0-9]+\.png$`)
+
+// DirWriter writes a recording directory: records to their files, asset
+// bodies under assets/, screenshots under frames/. Safe for one writer.
+type DirWriter struct {
+	dir   string
+	mu    sync.Mutex
+	files map[string]*bufio.Writer
+	osf   map[string]*os.File
+}
+
+// NewDirWriter creates dir (it must not exist yet: a recording is written
+// once).
+func NewDirWriter(dir string) (*DirWriter, error) {
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		return nil, err
+	}
+	for _, sub := range []string{"assets", "frames"} {
+		if err := os.Mkdir(filepath.Join(dir, sub), 0o700); err != nil {
+			return nil, err
+		}
+	}
+	return &DirWriter{dir: dir, files: map[string]*bufio.Writer{}, osf: map[string]*os.File{}}, nil
+}
+
+// Put appends a record to the file its kind lives in.
+func (w *DirWriter) Put(r Record) error {
+	line, err := Encode(r)
+	if err != nil {
+		return err
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	name := FileOf(r.Kind())
+	bw := w.files[name]
+	if bw == nil {
+		f, err := os.OpenFile(filepath.Join(w.dir, name), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+		if err != nil {
+			return err
+		}
+		w.osf[name], bw = f, bufio.NewWriter(f)
+		w.files[name] = bw
+	}
+	bw.Write(line)
+	return bw.WriteByte('\n')
+}
+
+// PutAsset stores a body under its hash; a body already stored is kept.
+func (w *DirWriter) PutAsset(body []byte) (string, error) {
+	hash := HashOf(body)
+	path := filepath.Join(w.dir, AssetName(hash))
+	if _, err := os.Stat(path); err == nil {
+		return hash, nil
+	}
+	return hash, os.WriteFile(path, body, 0o600)
+}
+
+// PutFrame stores a screenshot and its frame record; f.File must be
+// frames/<n>.png.
+func (w *DirWriter) PutFrame(f *Frame, png []byte) error {
+	if !frameFile.MatchString(f.File) {
+		return fmt.Errorf("frame file %q is not frames/<n>.png", f.File)
+	}
+	if err := os.WriteFile(filepath.Join(w.dir, f.File), png, 0o600); err != nil {
+		return err
+	}
+	return w.Put(f)
+}
+
+// Close flushes and closes every file.
+func (w *DirWriter) Close() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	var errs []error
+	for name, bw := range w.files {
+		errs = append(errs, bw.Flush(), w.osf[name].Close())
+	}
+	w.files, w.osf = map[string]*bufio.Writer{}, map[string]*os.File{}
+	return errors.Join(errs...)
+}
+
+// Recording is a recording directory read back.
+type Recording struct {
+	Dir     string
+	Files   map[string][]byte // record files by name
+	Records []Record          // events, notes and pointer, merged
+	Frames  []*Frame
+}
+
+// ReadDir reads a recording directory. It decodes and merges the records but
+// doesn't validate them; ValidateDir does.
+func ReadDir(dir string) (*Recording, error) {
+	rec := &Recording{Dir: dir, Files: map[string][]byte{}}
+	for _, name := range []string{FileEvents, FileNotes, FilePointer, FileFrames} {
+		data, err := os.ReadFile(filepath.Join(dir, name))
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		rec.Files[name] = data
+	}
+	located := map[string][]Located{}
+	for name, data := range rec.Files {
+		ls, bad := DecodeFile(name, data)
+		if len(bad) > 0 {
+			return nil, errors.New(bad[0].String())
+		}
+		located[name] = ls
+	}
+	rec.Records = Records(Merge(located))
+	for _, l := range located[FileFrames] {
+		rec.Frames = append(rec.Frames, l.Record.(*Frame))
+	}
+	return rec, nil
+}
+
+// Asset reads a stored body by hash.
+func (r *Recording) Asset(hash string) ([]byte, error) {
+	if !ValidHash(hash) {
+		return nil, fmt.Errorf("asset hash %q is not 64 lowercase hex", hash)
+	}
+	return os.ReadFile(filepath.Join(r.Dir, AssetName(hash)))
+}
+
+// ValidateDir validates a recording directory: its records (Validate), then
+// that every asset record's body is stored and hashes to its name, that
+// assets/ holds nothing else, and that every frame's screenshot exists.
+func ValidateDir(dir string) ([]Finding, *State, error) {
+	rec, err := ReadDir(dir)
+	if err != nil {
+		var fs []Finding
+		fs = append(fs, Finding{File: dir, Msg: err.Error()})
+		return fs, nil, nil
+	}
+	findings, st := Validate(rec.Files)
+	ls, _ := DecodeFile(FileEvents, rec.Files[FileEvents])
+	for _, l := range ls {
+		a, ok := l.Record.(*Asset)
+		if !ok || !ValidHash(a.Hash) {
+			continue
+		}
+		body, err := rec.Asset(a.Hash)
+		switch {
+		case err != nil:
+			findings = append(findings, Finding{File: l.File, Line: l.Line, Msg: "asset body missing: " + AssetName(a.Hash)})
+		case HashOf(body) != a.Hash:
+			findings = append(findings, Finding{File: AssetName(a.Hash), Msg: "body does not hash to its name"})
+		case int64(len(body)) != a.Size:
+			findings = append(findings, Finding{File: l.File, Line: l.Line, Msg: fmt.Sprintf("size %d, body is %d bytes", a.Size, len(body))})
+		}
+	}
+	entries, err := os.ReadDir(filepath.Join(dir, "assets"))
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, nil, err
+	}
+	for _, e := range entries {
+		if !ValidHash(e.Name()) {
+			findings = append(findings, Finding{File: filepath.Join("assets", e.Name()), Msg: "not a content hash"})
+		}
+	}
+	for _, f := range rec.Frames {
+		if !frameFile.MatchString(f.File) {
+			findings = append(findings, Finding{File: FileFrames, Msg: fmt.Sprintf("frame file %q is not frames/<n>.png", f.File)})
+		} else if _, err := os.Stat(filepath.Join(dir, f.File)); err != nil {
+			findings = append(findings, Finding{File: FileFrames, Msg: "missing " + f.File})
+		}
+	}
+	return findings, st, nil
+}

@@ -50,16 +50,19 @@ type StrokeView struct {
 // State is a recording reduced to one moment. Build it with Reduce, or with
 // NewState and Apply one record at a time.
 type State struct {
-	T     int64
-	Head  *Head
-	Seg   int
-	Why   string
-	Live  bool
-	Tab   Tab
-	VP    Viewport
-	URL   string
-	Title string
-	Top   *DOMNode
+	T    int64
+	Head *Head
+	Seg  int
+	// DocSeg is the segment the current document began in: the latest
+	// that isn't a resume. Notes since then are on the current document.
+	DocSeg int
+	Why    string
+	Live   bool
+	Tab    Tab
+	VP     Viewport
+	URL    string
+	Title  string
+	Top    *DOMNode
 
 	Sheets    map[NodeID]*SheetState
 	Adopted   map[NodeID][]NodeID
@@ -167,6 +170,9 @@ func (s *State) apply(r Record) error {
 		}
 		s.resetDOM()
 		s.Seg, s.Why, s.Live, s.Tab, s.VP = r.Seg, r.Why, true, r.Tab, r.VP
+		if r.Why != SegResume || s.DocSeg == 0 {
+			s.DocSeg = r.Seg
+		}
 		s.URL, s.Title, s.awaitTop = r.Tab.URL, r.Tab.Title, true
 	case *Stop:
 		if !s.Live {
