@@ -90,6 +90,61 @@ func TestStaleChromeSnapshotCannotOverwriteNotice(t *testing.T) {
 	}
 }
 
+// pair#484: the presenter's selection and the console's focus change as one
+// step. A paint between them read the old (menu) focus and re-panelled over
+// the endpoint just selected, leaving the menu up with focus on the actor.
+func TestPaintDuringSelectionCannotRestoreTheMenu(t *testing.T) {
+	host, child, con := newVTFixture(t, 8, 40)
+	child.Feed([]byte("SELECTED-ENDPOINT"))
+	waitFor(t, "endpoint content", func() bool { return strings.Contains(host.row(1), "SELECTED-ENDPOINT") })
+	con.showMenu()
+	waitFor(t, "the menu", func() bool { return !strings.Contains(host.row(1), "SELECTED-ENDPOINT") })
+	held, release := holdFirstPublish(t, con, "select")
+	selected := make(chan struct{})
+	go func() {
+		defer close(selected)
+		if _, err := con.selectActor("c1", true, arrivalOrdinary); err != nil {
+			t.Errorf("select: %v", err)
+		}
+	}()
+	waitClosed(t, "the selection to publish", held)
+	painted := make(chan struct{})
+	go func() { defer close(painted); con.repaint() }()
+	select {
+	case <-painted:
+	case <-time.After(50 * time.Millisecond):
+	}
+	release()
+	waitClosed(t, "the selection", selected)
+	waitClosed(t, "the repaint", painted)
+	if got := host.row(1); !strings.Contains(got, "SELECTED-ENDPOINT") {
+		t.Fatalf("the menu came back over the selected endpoint: %q", got)
+	}
+}
+
+// pair#484: the menu's status row is snapshotted with the menu. A notice that
+// overtook the menu's publication was painted onto the endpoint, and the menu
+// then covered it with its older row.
+func TestNoticeDuringMenuPublicationIsShown(t *testing.T) {
+	host, _, con := newVTFixture(t, 8, 40)
+	held, release := holdFirstPublish(t, con, "panel")
+	menu := make(chan struct{})
+	go func() { defer close(menu); con.showMenu() }()
+	waitClosed(t, "the menu to snapshot", held)
+	notice := make(chan struct{})
+	go func() { defer close(notice); con.setNotice("NOTICE-UNDER-MENU") }()
+	select {
+	case <-notice:
+	case <-time.After(50 * time.Millisecond):
+	}
+	release()
+	waitClosed(t, "the menu", menu)
+	waitClosed(t, "the notice paint", notice)
+	if got := host.row(8); !strings.Contains(got, "NOTICE-UNDER-MENU") {
+		t.Fatalf("the menu's older status row covered the notice: %q", got)
+	}
+}
+
 // pair#484: the console's size and the presenter's geometry change as one
 // step. A notice painted between them rendered a row of the new width against
 // the old geometry, and the presenter's refusal ended couch.

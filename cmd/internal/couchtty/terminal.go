@@ -115,11 +115,9 @@ func (c *Console) commitChrome(row RenderedStatusRow) {
 	}
 }
 
-// publishSelection presents pane's endpoint with a status row that already
-// marks it active, under publishMu like every other paint.
-func (c *Console) publishSelection(ctx context.Context, pane *pane) error {
-	c.publishMu.Lock()
-	defer c.publishMu.Unlock()
+// publishSelectionPublishing presents pane's endpoint with a status row that
+// already marks it active. The caller holds publishMu.
+func (c *Console) publishSelectionPublishing(ctx context.Context, pane *pane) error {
 	c.mu.Lock()
 	size, model := c.size, c.statusModelLocked()
 	c.mu.Unlock()
@@ -131,7 +129,6 @@ func (c *Console) publishSelection(ctx context.Context, pane *pane) error {
 	if err != nil {
 		return err
 	}
-	c.beforePublish("select")
 	c.traceCaptureTransition("select-start", pane.child.Endpoint().ID(), nil)
 	err = c.presenter.Select(ctx, pane.child.Endpoint(), terminal.Geometry{Cols: int(size.Cols), Rows: int(size.Rows)}, cells)
 	c.traceCaptureTransition("select-end", pane.child.Endpoint().ID(), err)
@@ -154,18 +151,25 @@ func (c *Console) selectActorContext(ctx context.Context, id string, force bool,
 	if err := ctx.Err(); err != nil {
 		return false, err
 	}
+	// The presenter's selection and the console's focus change as one step
+	// under publishMu: a paint between them would read the old focus and
+	// re-panel over the endpoint just selected (pair#484).
+	c.publishMu.Lock()
 	c.mu.Lock()
 	pane := c.panes[id]
 	already := c.focus == FocusActor(id) && c.active == id && !force
 	c.mu.Unlock()
 	if pane == nil {
+		c.publishMu.Unlock()
 		return false, fmt.Errorf("terminal %q is not attached", id)
 	}
 	if !already {
-		if err := c.publishSelection(ctx, pane); err != nil {
+		if err := c.publishSelectionPublishing(ctx, pane); err != nil {
+			c.publishMu.Unlock()
 			return false, err
 		}
 	}
+	c.beforePublish("select")
 	c.mu.Lock()
 	c.active, c.focus = id, FocusActor(id)
 	c.menu.ActiveAddress = pane.thread
@@ -173,6 +177,7 @@ func (c *Console) selectActorContext(ctx context.Context, id string, force bool,
 	c.attention.Acknowledge(c.attention.Capture(pane.thread))
 	c.syncAttentionLocked()
 	c.mu.Unlock()
+	c.publishMu.Unlock()
 	c.traceTerminal("select", nil)
 	// Selection changes the status model; updating chrome preserves the admitted
 	// endpoint and any gesture when this was a same-actor acknowledgment.

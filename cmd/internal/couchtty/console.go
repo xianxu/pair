@@ -73,8 +73,9 @@ type Console struct {
 	// snapshot-to-commit, the last publication is always the latest state. Never
 	// take it while holding c.mu.
 	publishMu sync.Mutex
-	// publishHook runs inside publishMu between snapshot and publish; tests use
-	// it to hold a paint at the interleaving that used to lose a notice.
+	// publishHook runs inside publishMu, inside a site's snapshot-to-commit span
+	// (chrome, panel, select, resize); tests use it to park a paint there while
+	// another tries to overtake it.
 	publishHook      func(site string)
 	terminalCommands chan terminalCommand
 	terminalFailure  error
@@ -1252,11 +1253,13 @@ func (c *Console) paintNow() {
 	}
 	if terminal.IsRoutingAnswer(err) {
 		c.traceDropped("chrome", err)
-		// Mid-transition: showMenu's presenter.Panel has cleared the endpoint and
-		// c.focus has not caught up yet, so this arm ran with nothing to paint
-		// chrome onto. The paint that follows the flip is the authoritative one,
-		// so skipping this one loses nothing -- and escalating it would be the
-		// pair#265 exit reached with no input involved at all.
+		// The presenter holds no endpoint to paint chrome onto. The console's
+		// own transitions can no longer show this: showMenu and selection flip
+		// c.focus with the presentation under publishMu (pair#484). Kept as the
+		// defence for a presenter that loses its endpoint some other way: the
+		// paint that follows is the authoritative one, so skipping this one loses
+		// nothing -- and escalating it would be the pair#265 exit reached with no
+		// input involved at all.
 		return
 	}
 	if err != nil {
