@@ -294,20 +294,22 @@ func TestPointerSlowBodyDoesNotStarve(t *testing.T) {
 		}()
 		pw.Write([]byte(`{"cols":`))
 	}
-	time.Sleep(100 * time.Millisecond)
+	// Wait on the slots themselves, not a guess at how long the posts take
+	// to reach the server (#480).
+	inFlight := func() int { return len(p.s.pointer.inFlight) }
+	for inFlight() < MaxPointInFlight {
+		time.Sleep(time.Millisecond)
+	}
 	if code, _ := post(t, link+"point", "application/json", tapBody); code != http.StatusTooManyRequests {
 		t.Fatalf("with every slot held, a post got %d, want 429", code)
 	}
-	deadline := time.Now().Add(pointReadBudget + 5*time.Second)
-	for {
-		code, _ := post(t, link+"point", "application/json", tapBody)
-		if code == http.StatusNoContent {
-			return
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("slow bodies held the slots past the read budget (last %d)", code)
-		}
-		time.Sleep(200 * time.Millisecond)
+	// The read deadline frees the slots; until it does, the slow bodies hold
+	// them all. A deadline that never fired would hang here.
+	for inFlight() > 0 {
+		time.Sleep(time.Millisecond)
+	}
+	if code, _ := post(t, link+"point", "application/json", tapBody); code != http.StatusNoContent {
+		t.Fatalf("after the read budget freed the slots, a post got %d, want 204", code)
 	}
 }
 

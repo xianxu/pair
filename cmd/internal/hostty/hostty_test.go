@@ -233,26 +233,22 @@ func TestOSHostCoalescesRealSIGWINCH(t *testing.T) {
 	for i := 0; i < 50; i++ {
 		_ = syscall.Kill(os.Getpid(), syscall.SIGWINCH)
 	}
-	time.Sleep(200 * time.Millisecond)
-
+	// Signals arrive asynchronously: wait for the first wake to be pending,
+	// however long that takes, instead of sleeping and hoping (#480). Close
+	// then joins the watcher, so what is buffered after it is final; a
+	// watcher wedged on a blocking send would hang Close instead.
+	for len(h.Resized()) == 0 {
+		time.Sleep(time.Millisecond)
+	}
+	if err := h.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
 	n := 0
-	for {
-		select {
-		case _, ok := <-h.Resized():
-			if !ok {
-				t.Fatal("Resized() closed early")
-			}
-			n++
-			continue
-		default:
-		}
-		break
+	for range h.Resized() {
+		n++
 	}
-	if n > 1 {
-		t.Fatalf("50 real SIGWINCHs delivered %d wakes; they must coalesce", n)
-	}
-	if n == 0 {
-		t.Fatal("50 real SIGWINCHs delivered no wake at all")
+	if n != 1 {
+		t.Fatalf("50 real SIGWINCHs delivered %d wakes; they must coalesce to one", n)
 	}
 }
 

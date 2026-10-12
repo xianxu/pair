@@ -84,6 +84,10 @@ type Couch struct {
 	// after is the post-ack cleanup's timeout source (time.After when nil),
 	// so a test decides when a wait for the child gives up (#473).
 	after func(time.Duration) <-chan time.Time
+	// registrationDeadline bounds a start's registration wait
+	// (context.WithTimeout when nil), so a test decides when the budget is
+	// spent instead of racing it (#480).
+	registrationDeadline func(context.Context, time.Duration) (context.Context, context.CancelFunc)
 
 	// threadGate admits one lifecycle operation per thread (pair#205); see
 	// threadgate.go. A pointer, so a copied Couch cannot split the gate.
