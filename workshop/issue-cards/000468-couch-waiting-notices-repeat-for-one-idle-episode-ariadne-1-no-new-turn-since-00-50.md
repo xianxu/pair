@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000468-couch-waiting-notices-repeat-for-one-idle-episode-ariadne-1-no-new-turn-since-00-50.md
         source_blob: d77fedbd0cf9d1ec4018cf0363dbcc0f6f5c3210
         destination: workshop/issues/000468-couch-waiting-notices-repeat-for-one-idle-episode-ariadne-1-no-new-turn-since-00-50.md
+        main_commit: f1fbac36ac8eb920629962f2152fb781634f37e5
 ---
 
 # couch: waiting notices repeat for one idle episode (ariadne:1, no new turn since 00:50)
