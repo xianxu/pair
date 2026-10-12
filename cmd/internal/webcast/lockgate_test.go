@@ -29,15 +29,16 @@ func newLockedCast(t *testing.T) *lockedCast {
 	f := newDriveFixture(t, time.Minute)
 	bd := board.New(notes.Structural{}, func(recording.Record, int) error { return nil })
 	t.Cleanup(func() { _ = bd.Close() })
-	view, err := broadcast.NewLinkLock(castlock.DefaultDigits, nil)
-	if err != nil {
+	locks := &broadcast.LinkLocks{}
+	if err := locks.Mint(broadcast.LinkView, "tok", castlock.DefaultDigits, nil); err != nil {
 		t.Fatal(err)
 	}
-	drv, err := broadcast.NewLinkLock(broadcast.DriveCodeDigits, nil)
-	if err != nil {
+	if err := locks.Mint(broadcast.LinkDrive, "drv", broadcast.DriveCodeDigits, nil); err != nil {
 		t.Fatal(err)
 	}
-	srv := f.srv.WithBoard(bd).WithLocks(view, drv)
+	t.Cleanup(locks.End)
+	view, drv := locks.LockFor("tok"), locks.LockFor("drv")
+	srv := f.srv.WithBoard(bd).WithLocks(locks)
 	host := broadcast.NewHost(broadcast.HostConfig{Tunnel: broadcast.LocalOnly{}, ProbeTimeout: 5 * time.Second})
 	m, err := host.Mount(context.Background(), srv, "tok/")
 	if err != nil {

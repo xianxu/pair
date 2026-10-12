@@ -24,10 +24,11 @@ const DefaultPing = 15 * time.Second
 
 type ServerOptions struct {
 	Token string
-	// ViewLock guards the view link (pair#495); nil serves it unlocked.
-	ViewLock *castlock.Lock
-	Hub      *Hub
-	Ping     time.Duration
+	// Locks guards the view and pointer links (pair#495); nil serves them
+	// unlocked.
+	Locks *LinkLocks
+	Hub   *Hub
+	Ping  time.Duration
 	// Theme, when set, is read for each new viewer and sent before its
 	// first frame.
 	Theme func() Theme
@@ -92,17 +93,9 @@ func (s *Server) Owns(segment string) bool {
 	return OwnsToken(segment, s.opts.Token) || s.opts.Pointer.Match(segment)
 }
 
-// LockFor is the lock guarding segment: the view link's or the pointer
+// LockFor is the lock guarding segment, the view link's or the pointer
 // link's.
-func (s *Server) LockFor(segment string) *castlock.Lock {
-	switch {
-	case OwnsToken(segment, s.opts.Token):
-		return s.opts.ViewLock
-	case s.opts.Pointer.Match(segment):
-		return s.opts.Pointer.Lock()
-	}
-	return nil
-}
+func (s *Server) LockFor(segment string) *castlock.Lock { return s.opts.Locks.LockFor(segment) }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h := w.Header()

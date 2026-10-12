@@ -34,11 +34,13 @@ func TestLiveLockPage(t *testing.T) {
 		}
 	}
 	t.Cleanup(func() { hub.Close() })
-	lock, err := broadcast.NewLinkLock(4, nil)
-	if err != nil {
+	locks := &broadcast.LinkLocks{}
+	if err := locks.Mint(broadcast.LinkView, "tok", 4, nil); err != nil {
 		t.Fatal(err)
 	}
-	viewer := NewServer("tok", NewFakeBrowser(), time.Second, hub, nil).WithLocks(lock, nil)
+	t.Cleanup(locks.End)
+	lock := locks.LockFor("tok")
+	viewer := NewServer("tok", NewFakeBrowser(), time.Second, hub, nil).WithLocks(locks)
 	viewer.Assets().Bind(store)
 	host := broadcast.NewHost(broadcast.HostConfig{Tunnel: broadcast.LocalOnly{}, ProbeTimeout: 5 * time.Second})
 	mount, err := host.Mount(context.Background(), viewer, "tok/")

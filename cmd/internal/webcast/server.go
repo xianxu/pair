@@ -71,26 +71,18 @@ type Server struct {
 	viewViewers, driveViewers atomic.Int32
 	board                     *boardRoutes // nil: no pointing or notes (WithBoard)
 	drive                     *driveRoutes // nil: no remote driving (WithDrive)
-	// viewLock and driveLock guard the two links (pair#495; WithLocks).
-	viewLock, driveLock *castlock.Lock
+	// locks guard the links (pair#495; WithLocks).
+	locks *broadcast.LinkLocks
 }
 
 // WithLocks sets the links' code locks; call it before the server is mounted.
-func (s *Server) WithLocks(view, drive *castlock.Lock) *Server {
-	s.viewLock, s.driveLock = view, drive
+func (s *Server) WithLocks(locks *broadcast.LinkLocks) *Server {
+	s.locks = locks
 	return s
 }
 
 // LockFor is the lock guarding segment: the view link's or the drive link's.
-func (s *Server) LockFor(segment string) *castlock.Lock {
-	switch {
-	case broadcast.OwnsToken(segment, s.token):
-		return s.viewLock
-	case s.drivesUnder(segment):
-		return s.driveLock
-	}
-	return nil
-}
+func (s *Server) LockFor(segment string) *castlock.Lock { return s.locks.LockFor(segment) }
 
 // Presence is told that viewer id's stream opened; leave is called when it
 // closes. It is how remote driving (#466, #467) knows who is watching.

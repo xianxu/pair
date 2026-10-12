@@ -287,16 +287,15 @@ func TestViewSessionNeverOpensThePointerLink(t *testing.T) {
 // before a token is routable, so even Mount's own probe met the lock page.
 func TestBroadcastLinksAreLockedFromTheirFirstRequest(t *testing.T) {
 	p := startPointerSession(t)
-	server := NewServer(ServerOptions{Token: p.s.token, ViewLock: p.s.viewLock, Pointer: p.s.pointer})
-	if server.LockFor(p.s.token) == nil {
+	if p.s.locks.LockFor(p.s.token) == nil {
 		t.Fatal("the view link has no lock")
 	}
-	if p.s.pointer.Lock() != nil {
+	if len(p.s.Codes()) != 1 {
 		t.Fatal("a pointer lock before the pointer link exists")
 	}
 	link, _ := p.s.EnablePointer()
 	segment := strings.TrimSuffix(strings.TrimPrefix(link, p.s.base+"/"), "/")
-	if server.LockFor(segment) == nil {
+	if p.s.locks.LockFor(segment) == nil {
 		t.Fatal("the pointer link was minted without its lock")
 	}
 }

@@ -97,10 +97,10 @@ type Cast struct {
 	// "" when the cast can't be driven.
 	server *Server
 	token  string
-	// viewLock and driveLock are the links' code locks (pair#495); driveLock
-	// is nil when the cast can't be driven. They end after the mount.
-	viewLock, driveLock *castlock.Lock
-	driveToken          string
+	// locks are the links' code locks (pair#495): view, and drive when the
+	// cast can be driven. They end after the mount.
+	locks      *broadcast.LinkLocks
+	driveToken string
 	// driveOff says why the cast can't be driven ("" when it can).
 	driveOff string
 }
@@ -108,19 +108,9 @@ type Cast struct {
 // StartCast launches the browser and returns once it runs; the viewer link
 // opens in the background, so the operator has Chrome at once.
 func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
-	rotated := func(link string) func(castlock.Rotation) {
-		return func(r castlock.Rotation) {
-			if cfg.OnCodeRotated != nil {
-				cfg.OnCodeRotated(link, r)
-			}
-		}
-	}
-	// The view link's lock exists before anything else, so a failure leaves
-	// nothing to undo, and before its token is routable (pair#495).
-	viewLock, err := broadcast.NewLinkLock(castlock.DefaultDigits, rotated(broadcast.LinkView))
-	if err != nil {
-		return nil, err
-	}
+	// The links' locks (pair#495), each minted with its token before the
+	// token is routable; they end after the mount.
+	locks := &broadcast.LinkLocks{}
 	var live recording.Live
 	var liveSink recording.Sink
 	var ro *RecordOptions
@@ -147,7 +137,7 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 		recDir = filepath.Join(cfg.RecordingsDir, id)
 		ro = &RecordOptions{ID: id, Out: recordingOutput(cfg, liveSink, bd, id, proxy), Logf: cfg.Logf}
 	}
-	b, err = cfg.Launch(ctx, ro)
+	b, err := cfg.Launch(ctx, ro)
 	if err != nil {
 		if bd != nil {
 			bd.Close()
@@ -158,6 +148,10 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 		return nil, err
 	}
 	token, err := broadcast.NewToken()
+	if err == nil {
+		// The view link's lock comes with its token (pair#495).
+		err = locks.Mint(broadcast.LinkView, token, castlock.DefaultDigits, cfg.OnCodeRotated)
+	}
 	if err != nil {
 		b.Close()
 		if bd != nil {
@@ -177,13 +171,13 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 		c.drive = drive.NewMemController(liveGate{d}, drive.NewTabInjector(d), func() int64 { return 0 }, grace)
 		go followDriving(c.drive, d)
 	}
-	c.viewLock = viewLock
+	c.locks = locks
 	var driveToken string
 	if c.drive != nil {
 		if driveToken, err = broadcast.NewToken(); err == nil {
 			// The drive lock is minted with its token; without it there is
 			// no drive link (pair#495).
-			c.driveLock, err = broadcast.NewLinkLock(broadcast.DriveCodeDigits, rotated(broadcast.LinkDrive))
+			err = locks.Mint(broadcast.LinkDrive, driveToken, broadcast.DriveCodeDigits, cfg.OnCodeRotated)
 		}
 		if err != nil {
 			driveToken = ""
@@ -198,7 +192,7 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 	} else {
 		c.driveOff = "the cast isn't recorded"
 	}
-	srv := NewServer(token, b, cfg.Ping, live, cfg.Presence).WithBoard(bd).WithDrive(c.drive, driveToken).WithLocks(c.viewLock, c.driveLock)
+	srv := NewServer(token, b, cfg.Ping, live, cfg.Presence).WithBoard(bd).WithDrive(c.drive, driveToken).WithLocks(locks)
 	srv.proxy = proxy
 	c.server, c.token, c.driveToken = srv, token, driveToken
 	go c.run(mountCtx, cfg.Host, srv, token)
@@ -311,7 +305,7 @@ func (c *Cast) run(ctx context.Context, host *broadcast.Host, srv *Server, token
 	}
 	// After the mount: ending a lock revokes its sessions, and nothing may
 	// cut a viewer's stream before the browser's end reached it.
-	c.endLocks()
+	c.locks.End()
 	c.pub.finish(Update{State: c.browser.State()})
 	c.checkRecording()
 }
@@ -394,38 +388,11 @@ func (c *Cast) Err() error {
 
 // Codes is each link's current code, view first. They are shown to the
 // operator only, never on a broadcast frame.
-func (c *Cast) Codes() []broadcast.LinkCode {
-	codes := []broadcast.LinkCode{{Link: broadcast.LinkView, Code: c.viewLock.Code()}}
-	if c.driveLock != nil {
-		codes = append(codes, broadcast.LinkCode{Link: broadcast.LinkDrive, Code: c.driveLock.Code()})
-	}
-	return codes
-}
+func (c *Cast) Codes() []broadcast.LinkCode { return c.locks.Codes() }
 
 // RotateCode gives link a new code and disconnects everyone who unlocked it
 // with the old one.
-func (c *Cast) RotateCode(link string) error {
-	var l *castlock.Lock
-	switch link {
-	case broadcast.LinkView:
-		l = c.viewLock
-	case broadcast.LinkDrive:
-		l = c.driveLock
-	}
-	if l == nil {
-		return fmt.Errorf("webcast: no %s link", link)
-	}
-	_, err := l.Rotate()
-	return err
-}
-
-func (c *Cast) endLocks() {
-	for _, l := range []*castlock.Lock{c.viewLock, c.driveLock} {
-		if l != nil {
-			l.End()
-		}
-	}
-}
+func (c *Cast) RotateCode(link string) error { return c.locks.Rotate(link) }
 
 // Drive is the cast's remote-driving controller (#467): Couch grants,
 // denies and revokes through it and shows its state. nil when the cast
