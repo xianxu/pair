@@ -72,14 +72,15 @@ var knownGaps = map[string]map[int]string{
 	"rec-stress": {0: "pair#475: stress.css binds after the segment's first screenshot, which shows it applied"},
 }
 
-// frameTimes are the times a frame is compared at: its own, then the
-// moments its pixels may show instead (captureSkew, observerLag).
-func frameTimes(name string, t int64) []int64 {
-	ts := []int64{t, t - captureSkew}
+// frameOffsets are where a frame's pixels may be instead of its t: its own,
+// captureSkew before (every recorder's screenshot), and observerLag after
+// (the prototype's). recording.FrameTimes keeps those in the frame's segment.
+func frameOffsets(name string) []int64 {
+	offs := []int64{0, -captureSkew}
 	if lag := observerLag(name); lag > 0 {
-		ts = append(ts, t+lag)
+		offs = append(offs, lag)
 	}
-	return ts
+	return offs
 }
 
 func TestLiveReplayFixtures(t *testing.T) {
@@ -103,7 +104,7 @@ func TestLiveReplayFixtures(t *testing.T) {
 			for i, f := range rec.Frames {
 				var tried []string
 				ok := false
-				for _, at := range frameTimes(name, f.T) {
+				for _, at := range recording.FrameTimes(rec.Records, f.T, frameOffsets(name)) {
 					diff := page.renderDiff(t, rec, name, f, at)
 					tried = append(tried, fmt.Sprintf("%.2f%% at %+dms", 100*diff, at-f.T))
 					if ok = diff <= renderTolerance; ok {

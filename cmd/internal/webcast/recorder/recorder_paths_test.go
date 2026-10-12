@@ -622,56 +622,73 @@ func TestRecorderFrameKeepsItsCaptureTime(t *testing.T) {
 	h.mustValidate()
 }
 
-// A screenshot whose call straddles a navigation is never stamped before
-// the new segment: its midpoint is, but the frame belongs to the segment
-// live when it lands (#472 BR-1). Which page its pixels show is the
-// straddle's ambiguity; a frame in the previous segment's time would claim
-// that page.
+// A screenshot whose call straddles a new segment (a navigation, a pause
+// and resume, a tab switch) is never stamped before it: its midpoint is,
+// but the frame belongs to the segment live when it lands (#472 BR-1).
+// Which page its pixels show is the straddle's ambiguity; a frame in the
+// previous segment's time, or in a pause, would claim that page.
 func TestRecorderFrameNeverBeforeItsSegment(t *testing.T) {
-	var ms atomic.Int64
-	base := time.Unix(1000, 0)
-	now := func() time.Time { return base.Add(time.Duration(ms.Load()) * time.Millisecond) }
-	frames := &frameRecorder{}
-	h := &harness{t: t, fc: newFakeChrome(), out: &memOut{}}
-	h.r = Start(Options{ID: "t", Call: h.fc, ShotEvery: time.Hour, Now: now,
-		Out: func() (Opened, error) { return Opened{Sink: &h.out.sink, Frames: frames}, nil }})
-	t.Cleanup(func() { h.r.Close() })
-	a := h.page("A", "http://a/", "L1")
-	var img bytes.Buffer
-	png.Encode(&img, image.NewRGBA(image.Rect(0, 0, 100, 80)))
-	navigated := false
-	h.fc.more = func(session, method string, pm map[string]any, p *fakePage) (any, error, bool) {
-		switch method {
-		case "Page.captureScreenshot":
-			if !navigated {
-				// The call runs 0..200 (midpoint 100); the page navigates
-				// at 200, inside it.
-				navigated = true
-				ms.Store(200)
-				h.fc.mu.Lock()
-				h.fc.loader["A"] = "L2"
-				h.fc.pages["A"] = newFakePage("http://a/next")
-				h.fc.pages["A"].frameID = a.frameID
-				h.fc.mu.Unlock()
-				h.r.Send(Event{Session: "A", Method: "DOM.documentUpdated", Seq: h.fc.next(), Params: raw(map[string]any{})})
+	for _, c := range []struct {
+		name, want string
+		straddle   func(h *harness, a *fakePage)
+	}{
+		{"navigate", "head seg:live doc seg:navigate doc", func(h *harness, a *fakePage) {
+			h.fc.mu.Lock()
+			h.fc.loader["A"] = "L2"
+			h.fc.pages["A"] = newFakePage("http://a/next")
+			h.fc.pages["A"].frameID = a.frameID
+			h.fc.mu.Unlock()
+			h.r.Send(Event{Session: "A", Method: "DOM.documentUpdated", Seq: h.fc.next(), Params: raw(map[string]any{})})
+		}},
+		{"resume", "head seg:live doc stop:pause seg:resume doc", func(h *harness, a *fakePage) {
+			h.r.Send(Pause{})
+			h.r.Send(Live{Tab: rec.Tab{ID: a.frameID}, Session: "A"})
+		}},
+		{"tab", "head seg:live doc seg:tab doc", func(h *harness, a *fakePage) {
+			h.r.Send(Live{Tab: rec.Tab{ID: "T-B"}, Session: "B"})
+		}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			var ms atomic.Int64
+			base := time.Unix(1000, 0)
+			now := func() time.Time { return base.Add(time.Duration(ms.Load()) * time.Millisecond) }
+			frames := &frameRecorder{}
+			h := &harness{t: t, fc: newFakeChrome(), out: &memOut{}}
+			h.r = Start(Options{ID: "t", Call: h.fc, ShotEvery: time.Hour, Now: now,
+				Out: func() (Opened, error) { return Opened{Sink: &h.out.sink, Frames: frames}, nil }})
+			t.Cleanup(func() { h.r.Close() })
+			a := h.page("A", "http://a/", "L1")
+			h.page("B", "http://b/", "L9")
+			var img bytes.Buffer
+			png.Encode(&img, image.NewRGBA(image.Rect(0, 0, 100, 80)))
+			var straddled atomic.Bool
+			h.fc.more = func(session, method string, pm map[string]any, p *fakePage) (any, error, bool) {
+				switch method {
+				case "Page.captureScreenshot":
+					if !straddled.Swap(true) {
+						// The call runs 0..200 (midpoint 100); the new
+						// segment starts at 200, inside it.
+						ms.Store(200)
+						c.straddle(h, a)
+					}
+					return map[string]any{"data": base64.StdEncoding.EncodeToString(img.Bytes())}, nil, true
+				case "DOMSnapshot.captureSnapshot":
+					return map[string]any{"strings": []string{}, "documents": []any{}}, nil, true
+				}
+				return nil, nil, false
 			}
-			return map[string]any{"data": base64.StdEncoding.EncodeToString(img.Bytes())}, nil, true
-		case "DOMSnapshot.captureSnapshot":
-			return map[string]any{"strings": []string{}, "documents": []any{}}, nil, true
-		}
-		return nil, nil, false
+			h.r.Send(Live{Tab: rec.Tab{ID: a.frameID}, Session: "A"})
+			waitFor(t, func() bool { h.settle(); return h.count("layout") >= 1 }, "a screenshot's layout")
+			if got := h.kinds(); !strings.HasPrefix(got, c.want) {
+				t.Fatalf("records %s, want them to start %s", got, c.want)
+			}
+			frames.mu.Lock()
+			f := frames.frames[0]
+			frames.mu.Unlock()
+			if seg := h.last("seg"); f.T != seg.Time() || f.T != 200 {
+				t.Errorf("frame at %d, want its segment's start %d (not the straddling call's midpoint 100)", f.T, seg.Time())
+			}
+			h.mustValidate()
+		})
 	}
-	h.r.Send(Live{Tab: rec.Tab{ID: a.frameID}, Session: "A"})
-	waitFor(t, func() bool { h.settle(); return h.count("layout") >= 1 }, "a screenshot's layout")
-	if got := h.kinds(); !strings.HasPrefix(got, "head seg:live doc seg:navigate doc") {
-		t.Fatalf("records %s", got)
-	}
-	nav := h.last("seg")
-	frames.mu.Lock()
-	f := frames.frames[0]
-	frames.mu.Unlock()
-	if f.T != nav.Time() || f.T != 200 {
-		t.Errorf("frame at %d, want its segment's start %d (not the straddling call's midpoint 100)", f.T, nav.Time())
-	}
-	h.mustValidate()
 }

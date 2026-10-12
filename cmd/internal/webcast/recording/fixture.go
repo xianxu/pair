@@ -57,6 +57,34 @@ func CanonicalTimes(r *Recording) []int64 {
 	return ts
 }
 
+// FrameTimes are the moments a frame at t may be compared at: t plus each
+// offset that stays in the segment last started at or before t (a pause or
+// the end keeps that segment's page, frozen). Another segment shows another
+// page, and maybe another viewport, so comparing there could only pass
+// falsely (#472).
+func FrameTimes(recs []Record, t int64, offsets []int64) []int64 {
+	seg := func(at int64) int {
+		n := 0
+		for _, r := range recs {
+			if r.Time() > at {
+				break
+			}
+			if x, ok := r.(*Seg); ok {
+				n = x.Seg
+			}
+		}
+		return n
+	}
+	own := seg(t)
+	var ts []int64
+	for _, off := range offsets {
+		if own != 0 && seg(t+off) == own {
+			ts = append(ts, t+off)
+		}
+	}
+	return ts
+}
+
 // PinCanonical reduces a recording at each canonical time.
 func PinCanonical(r *Recording) ([]Pin, error) {
 	var pins []Pin

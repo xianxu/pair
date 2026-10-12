@@ -27,6 +27,7 @@ prototype ones (`stress`, `app`, `blog`), so the components being built on the p
   replay, `viewer_live_test.go`, fidelity) to its `rec-*` twin; re-pin expectations that read a fixture's content.
 - Optionally rename `rec-*` to the bare names in the same change (one rename, goldens included).
 - Budget back to 4.5 MB.
+- Replace `testdata/replay/harness.js`'s copy of `viewer.js`'s viewport sizing with the viewer's own (one source), and derive the hand-listed fixture names (`recording.Fixtures`, the fidelity list, `TestFixtureCoverage`'s `want`) from one place.
 
 ## Done when
 
