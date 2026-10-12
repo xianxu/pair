@@ -1,12 +1,20 @@
 ---
 id: 000461
-status: open
+status: working
 deps: [000457]
 github_issue:
 created: 2026-10-11
-updated: 2026-10-11
+updated: 2026-10-12
 estimate_hours:
-card_mirror: '456c37eba4a4990d5660c6421aa3b6c0798d2b22' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'c46d4499251e069a84ca8018baa046ee274fbc99' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-12T00:54:11-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:5
+    worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
+    repository: github.com/xianxu/pair
 ---
 
 # broadcast-web: notes model — anchors, focused context, structure-snapped crops
@@ -31,11 +39,17 @@ Implement #457's notes-model interface as a pure component over the reducer's DO
 
 ## Plan
 
-- [ ] Anchor and resolve
-- [ ] Focused context extraction
-- [ ] Crop: bbox, margin, snapping, clustering; hint hook
-- [ ] Tests on fixtures; doc
+Durable plan: `workshop/plans/000461-broadcast-web-notes-model-anchors-focused-context-structure-snapped-crops-plan.md`.
+
+- [ ] Selectors: make and match a stable CSS subset (ids, test attributes, nth-of-type paths, ` >>> ` across shadow/frame)
+- [ ] Landmarks and focused context (container rule table; 500-char window around the anchor)
+- [ ] Crops: pad, per-axis snap, cluster, clip, hints
+- [ ] `Structural` model: contract, fixture tests; atlas section
 
 ## Log
 
 ### 2026-10-11
+
+### 2026-10-12
+
+- Claimed at pair:5 (TL ops:0 dispatch). Seam question for the TL: `Crops` takes `[]NoteAt`, which can't carry a region note's `region`; not built here.
