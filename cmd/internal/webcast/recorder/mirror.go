@@ -57,7 +57,7 @@ const maxCDPText = 10000
 
 // graveSize bounds the removed nodes a session remembers, so a move (a
 // remove, then an insert of the same node) keeps its id.
-const graveSize = 50000
+var graveSize = 50000 // a var so tests can reach it
 
 // msession is one CDP session: a page's, or an out-of-process frame's.
 type msession struct {
@@ -195,14 +195,18 @@ func (m *mirror) NodeOf(id rec.NodeID) (string, int, bool) {
 	return "", 0, false
 }
 
-// bury forgets a removed subtree's ids, keeping the last graveSize so a
-// move keeps its id.
-func (s *msession) bury(n *cnode) {
-	walk(n, func(c *cnode) {
-		if c.BackendNodeID != 0 {
-			s.grave = append(s.grave, c.BackendNodeID)
+// bury sends the backend ids that left the tree to the graveyard and
+// prunes it to graveSize, dropping the oldest ids. Call it after the update
+// is applied: an id is pruned only when its node is absent from the tree as
+// it now is, so a node a re-snapshot or set of children still has keeps its
+// id, and a moved node (removed, then inserted) keeps its id while its
+// removal is among the last graveSize.
+func (s *msession) bury(gone []int) {
+	for _, b := range gone {
+		if !s.liveBackend(b) {
+			s.grave = append(s.grave, b)
 		}
-	})
+	}
 	if over := len(s.grave) - graveSize; over > 0 {
 		for _, b := range s.grave[:over] {
 			if !s.liveBackend(b) {
@@ -211,6 +215,17 @@ func (s *msession) bury(n *cnode) {
 		}
 		s.grave = append(s.grave[:0], s.grave[over:]...)
 	}
+}
+
+// backends lists a subtree's backend ids.
+func backends(n *cnode) []int {
+	var out []int
+	walk(n, func(c *cnode) {
+		if c.BackendNodeID != 0 {
+			out = append(out, c.BackendNodeID)
+		}
+	})
+	return out
 }
 
 func (s *msession) liveBackend(b int) bool { return s.byBackend[b] != nil }
@@ -519,19 +534,22 @@ func (m *mirror) SameDocument(session, key string) bool {
 // install makes root, the document key names, the session's current tree. A
 // new document drops the old one's ids: they named its nodes only.
 func (m *mirror) install(s *msession, root *cnode, key string) {
+	same := s.root != nil && key != "" && key == s.doc
+	var old []int
 	if s.root != nil {
-		s.forget(s.root)
-		if key != "" && key == s.doc {
-			// The same document again: nodes it no longer has go to the
-			// graveyard, so the id map stays bounded.
-			s.bury(s.root)
+		if same {
+			old = backends(s.root)
 		}
+		s.forget(s.root)
 	}
-	if key == "" || key != s.doc {
+	if !same {
 		s.ids, s.grave, s.sheets = map[int]rec.NodeID{}, nil, map[string]rec.NodeID{}
 	}
 	s.root, s.doc = root, key
 	m.index(s, root, nil, nil, false)
+	// The same document again: nodes it no longer has go to the graveyard,
+	// so the id map stays bounded.
+	s.bury(old)
 }
 
 // Seg emits a segment start and the top document's snapshot, then its
@@ -698,7 +716,7 @@ func (m *mirror) Event(t int64, session, method string, params json.RawMessage) 
 			}
 		}
 		s.forget(n)
-		s.bury(n)
+		s.bury(backends(n))
 		if m.visible(s, n) && m.visible(s, par) {
 			m.emit(t, &rec.Rm{ID: m.idOf(s, n)})
 		}
@@ -708,14 +726,16 @@ func (m *mirror) Event(t int64, session, method string, params json.RawMessage) 
 		if parent == nil || !get("nodes", &kids) {
 			return desync()
 		}
+		var old []int
 		for _, k := range parent.Children {
+			old = append(old, backends(k)...)
 			s.forget(k)
-			s.bury(k)
 		}
 		parent.Children = kids
 		for _, k := range kids {
 			m.index(s, k, parent, nil, parent.hidden)
 		}
+		s.bury(old)
 		if !m.visible(s, parent) {
 			return nil
 		}

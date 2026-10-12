@@ -34,7 +34,8 @@ type fnode struct {
 	shadow               *fnode
 	shadowType           string
 	parent, host         *fnode
-	frame                string // an iframe element's frame id
+	frame                string // an iframe element's frame id, or a frame document's
+	content              *fnode // an in-process iframe's document
 }
 
 type fevent struct {
@@ -81,6 +82,9 @@ func (p *fakePage) cdp(n *fnode) map[string]any {
 	if n.typ == 9 {
 		m["documentURL"] = p.url
 		m["frameId"] = p.frameID
+		if n.frame != "" {
+			m["frameId"] = n.frame
+		}
 		m["nodeName"] = "#document"
 	}
 	if n.typ == 10 {
@@ -98,6 +102,9 @@ func (p *fakePage) cdp(n *fnode) map[string]any {
 	}
 	if n.frame != "" {
 		m["frameId"] = n.frame
+	}
+	if n.content != nil {
+		m["contentDocument"] = p.cdp(n.content)
 	}
 	kids := []any{}
 	for _, k := range n.kids {

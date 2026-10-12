@@ -51,6 +51,9 @@ func (f *fakeChrome) CallSeq(ctx context.Context, session, method string, params
 		}
 		reply = map[string]any{"root": p.cdp(p.doc)}
 	case "Page.getFrameTree":
+		if p == nil {
+			return f.next(), fmt.Errorf("no page %s", session)
+		}
 		reply = map[string]any{"frameTree": map[string]any{"frame": map[string]any{"id": p.frameID, "loaderId": loader}}}
 	case "Page.getLayoutMetrics":
 		reply = map[string]any{"cssLayoutViewport": map[string]any{"clientWidth": 1000, "clientHeight": 700}}
