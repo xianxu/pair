@@ -15,6 +15,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "cb2ab542", done: "da4898b1"}
 ---
 
 # broadcast-web: replay a recording in the viewer with a timeline scrubber
