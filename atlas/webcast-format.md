@@ -379,12 +379,17 @@ checks each request against that state: the cast is on a page and hasn't ended, 
 document (a resume keeps it), the node is a live element, a color has at most 8 open notes on the page (notes emitted
 and not yet seen back count). It anchors a note with `notes.Model.Anchor` and the viewer's box, and hands the record to
 the cast's recorder (`webcast.Emitter`, `recorder.Emit{Record, Doc}`), which stamps `t` and writes it **only if the
-document the board checked is still current when it orders it** (`recording.State.OnDoc`), so a navigation between the
-check and the write can't file a note on the new page. Answers are fixed sentences (`boardAnswer`): 204; 409 "The page
+document the board checked is still current, and live, when it orders it** (`recording.State.OnDoc`), so a navigation
+between the check and the write can't file a note on the new page, nor a pause file one during it. Answers are fixed sentences (`boardAnswer`): 204; 409 "The page
 changed. Try again.", "This color already has 8 notes. Resolve one first.", "That note is gone.", "The cast isn't
-showing a page yet."; 410 "The cast has ended."; 429 "Too many requests. Wait a moment."; 400 "That isn't valid.";
+showing a page yet.", "The cast is paused."; 410 "The cast has ended."; 429 "Too many requests. Wait a moment."; 400 "That isn't valid.";
 503 "Notes aren't working in this cast." (the board lost track of the page: a bug, logged once).
-Notes are allowed while paused. Couch follows the open notes with `Cast.Notes` and resolves as the operator with
+**While paused, viewers do nothing (pair#499, reversing #470's "notes allowed while paused"):** the board refuses
+`stroke`, `note` and `note-state` (`ErrPaused`, 409 "The cast is paused."), `OnDoc` drops a record admitted just before
+the pause, and the viewer's rail disables its swatches, ✏️ and 💭 until a `seg` resumes (annotate.js `paused()`), as does the
+note dialog's Save and Resolve (collab.js `noteDialog.hold`; a draft keeps its text). `board.Writer` answers a pause
+drop with `ErrPaused`. Notes
+made before the pause stay pinned through it. The terminal broadcast has no paused state. Couch follows the open notes with `Cast.Notes` and resolves as the operator with
 `Cast.ResolveNote`: `💭N` follows the Chrome cell (`StatusModel.WebNotes`, its own span), and a click opens #447's notes
 menu with the web notes (one menu with a source, screen or web; items show `name: text`, a click copies the text, a right
 click copies and resolves). The collaboration overlay the menu draws in is installed while the screen broadcast or a web

@@ -171,9 +171,13 @@ export function noteBytes(text) {
 //   update(list)               a new notes list: a viewed note that is gone
 //                              (resolved elsewhere, or pointing turned off)
 //                              closes its dialog
+//   hold(reason)               a non-empty reason disables Save and Resolve
+//                              and says why (a paused web cast, pair#499);
+//                              '' releases it. A draft keeps its text.
 //   close()
 export function noteDialog(els, deps) {
   let state = null; // {kind: 'draft', payload} | {kind: 'view', id}
+  let held = ''; // why Save and Resolve are off; '' when they are on
   const resolveRequest = deps.resolveRequest || ((id) => ['resolve', { id }]);
   // Each open bumps the generation; a request's answer applies only to the
   // dialog that sent it, not to one opened since.
@@ -185,7 +189,7 @@ export function noteDialog(els, deps) {
   const refreshCount = () => {
     const n = noteBytes(els.input.value);
     els.count.textContent = `${n} / ${MAX_NOTE_BYTES}`;
-    els.save.disabled = n === 0 || n > MAX_NOTE_BYTES || els.input.value.trim() === '';
+    els.save.disabled = held !== '' || n === 0 || n > MAX_NOTE_BYTES || els.input.value.trim() === '';
   };
   const close = () => {
     gen++;
@@ -222,7 +226,7 @@ export function noteDialog(els, deps) {
       .finally(() => state?.kind === 'draft' && refreshCount());
   });
   els.resolve.addEventListener('click', () => {
-    if (state?.kind === 'view') {
+    if (state?.kind === 'view' && held === '') {
       answer(deps.post(...resolveRequest(state.id)), close);
     }
   });
@@ -239,7 +243,7 @@ export function noteDialog(els, deps) {
       els.root.classList.remove('view');
       els.text.textContent = '';
       els.input.value = '';
-      say('');
+      say(held);
       els.resolve.classList.add('hidden');
       els.save.classList.remove('hidden');
       els.cancel.textContent = 'Cancel';
@@ -253,8 +257,9 @@ export function noteDialog(els, deps) {
       els.root.classList.add('view');
       els.root.classList.remove('draft');
       els.text.textContent = note.text;
-      say('');
+      say(held);
       els.resolve.classList.toggle('hidden', !resolvable);
+      els.resolve.disabled = held !== '';
       els.save.classList.add('hidden');
       els.cancel.textContent = 'Close';
       show(true);
@@ -264,6 +269,17 @@ export function noteDialog(els, deps) {
     update(list) {
       if (state?.kind === 'view' && !list.notes.some((n) => n.id === state.id)) {
         close();
+      }
+    },
+    hold(reason) {
+      const was = held;
+      held = reason || '';
+      els.resolve.disabled = held !== '';
+      if (state?.kind === 'draft') {
+        refreshCount();
+      }
+      if (state && held !== was) {
+        say(held);
       }
     },
     close,
