@@ -179,6 +179,50 @@ rule (#461): the notes "on" the current document are those since the document be
 resume keeps them and a navigation clears them. The shape is meant to be
 shared with the terminal notes of pair#455. `author` and `text` stay the same; `at` is where a DOM note and a grid note differ.
 
+## The notes model (#461)
+
+`notes.Structural` is the real `notes.Model` (`cmd/internal/webcast/notes`), pure over the reducer's state at a
+moment. It runs `notes.RunModelContract` like the fake.
+
+**A note** is `recording.Note`: `id`, `author` `{id,name,color}`, `text`, `t`, and the anchor `at`. A terminal note
+(pair#455) keeps `author`, `text` and `t` and replaces `at` with a grid position, so both submissions share
+everything but the anchor.
+
+**The anchor** `at` is `{node, sel, text, box}`:
+- `sel` is a stable selector in a small CSS subset, made and matched in one file (`selector.go`): `#id` for an id
+  that is unique and doesn't look generated (no `:`, no run of 4+ digits), `[data-testid="…"]` (also `data-test`,
+  `data-cy`), else `tag:nth-of-type(k)` steps joined by ` > ` from the nearest such ancestor or the tree's root
+  element. Inside a shadow root or an iframe's document it is the host's selector, ` >>> `, then the path inside
+  (our deep combinator, not CSS).
+- `Resolve` keeps the node while it lives (ids are never reused); after a re-render it takes the selector's match
+  whose text is the anchor's, else the only match. Several matches with nothing to tell them apart don't resolve.
+  A selector outside the subset matches nothing, and such a note resolves by its node id alone.
+- `box` is taken as given when the note carries one (a viewer computes it at click time); otherwise the latest
+  `layout` box is used.
+
+**The landmark** is the nearest meaningful container at or above the element, through shadow hosts and frame owners
+and below the top document's `body`. Meaningful means a sectioning or grouping tag (`header nav main aside footer form
+section article dialog fieldset figure table tr ul ol dl li details menu search`), an ARIA role of the same kinds,
+`aria-modal="true"`, or a layout box recognized by class on an element with element children: a `card`, `panel`,
+`modal`, `dialog`, `popover`, `toolbar`, `navbar`, `sidebar`, `drawer` or `tile` class, or Tailwind's `rounded*` with
+`border` or `shadow*`. With none, the landmark is the parent element (at most `body`), used for text but not for
+snapping.
+
+**The context** (`notes.Context`) is `{Node, Landmark, Text, Box}`: the resolved element, its landmark, the landmark's
+whitespace-collapsed text in a 500-character window centred on the element's own text, and the landmark's box. The
+full DOM at that moment stays available through the agent queries (#462).
+
+**Crops**, for a submission's anchors, in CSS px of the top page:
+1. each anchor's box padded by a margin (48 px by default);
+2. snapped to its meaningful landmark per axis: always across (a header or nav bar goes full width), and down only
+   when the landmark is at most half the viewport tall; otherwise the height stays the note plus its margin (the rule
+   #455 uses for a pane);
+3. clustered: crops less than a margin apart merge, until none do, so far-apart notes get a crop each;
+4. clipped to the page (the root element's box), widened to hold every note's own box;
+5. offered to `notes.Hints` (per app or URL), whose crop replaces the default when it returns true.
+
+Region notes (`region`) are not in `Crops` yet: `Crops` takes anchors, which carry no region.
+
 ## Joining mid-cast
 
 A viewer that joins late receives the **catch-up**, followed by the live records. The catch-up is:
@@ -224,7 +268,7 @@ it), never a local fork.
 | pair#458 | recorder | writes a `recording.Sink` (`DirWriter` for disk, `Tee` to also feed `Live`) | `recording.FakeRecorder` (plays a fixture into a sink, instantly or in real time) | `recording.ValidateDir` on its output; fidelity vs `frames/` |
 | pair#459 | asset store and proxy | `assets.Store` (`Put`, `Get`, `Lookup`; `Policy`) | `assets.MemStore` | `assets.RunStoreContract` |
 | pair#460 | live viewer | `recording.Live` (fan-out with catch-up); the JS viewer contract below | `recording.FakeHub` | `recording.RunLiveContract`; the fixtures' canonical pins |
-| pair#461 | notes model | `notes.Model` (`Anchor`, `Resolve`, `Context`, `Crops`, `Live`; `notes.Hints`) | `notes.FakeModel` | `notes.RunModelContract` |
+| pair#461 | notes model | `notes.Model` (`Anchor`, `Resolve`, `Context`, `Crops`, `Live`; `notes.Hints`); real: `notes.Structural` | `notes.FakeModel` | `notes.RunModelContract` |
 | pair#462 | agent queries | `query.Surface` (`DOMAt`, `Events`, `Notes`) | `query.FakeSurface` | `query.RunSurfaceContract` |
 
 Hand-written recordings for tests: `recording.Builder` (ids from one counter, `Page` for a segment and its document),

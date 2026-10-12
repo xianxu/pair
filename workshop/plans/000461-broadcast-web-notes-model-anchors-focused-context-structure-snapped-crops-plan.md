@@ -90,3 +90,10 @@ Creates nothing durable: every value is computed per call and dies with it. Cost
 - [ ] Every fixture note resolves at its time; resolve by selector after its element is replaced by a re-render (same selector, new id); ambiguity → unresolved.
 - [ ] Commit `#461: Structural model; atlas`.
 - [ ] Full verification: `go test ./cmd/internal/webcast/...`, then the full `make -k test` per repo practice.
+
+## Revisions
+
+- 2026-10-12 — built. Clustering merges crops whose gap (on the axis they are furthest apart on) is less than one
+  margin, not two margins on both axes: padded crops already carry a margin each, so notes within about three margins
+  share a crop. Clipping widens the page to every note's own box, so a crop never cuts its note. Crops resolve each
+  anchor first, so a re-rendered element still snaps to its landmark.
