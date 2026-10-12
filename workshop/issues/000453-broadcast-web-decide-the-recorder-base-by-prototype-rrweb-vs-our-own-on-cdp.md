@@ -63,7 +63,8 @@ The prototypes stay out of the product tree (a `prototypes/broadcast-web-recorde
 **Setup.** Chrome 154, headless (`--headless=new`, own `--user-data-dir`, `--site-per-process`), 1280×800, driven
 over CDP from Node. Both recorders ran **in the same session** on each page, so both replays are scored against the
 same screenshots. Overhead was measured in separate runs (none / A / B, two runs each). The prototypes live outside
-the product tree (session scratchpad, about 580 lines) and are not merged.
+the product tree, on the unmerged branch `453-recorder-prototypes`
+(`prototypes/broadcast-web-recorder/`, about 580 lines, with a README for re-running them).
 - **A, rrweb 2.1.6:** `Page.addScriptToEvaluateOnNewDocument` (main world) in the page and in every auto-attached
   out-of-process iframe target. Child frames forward their events to the top frame through rrweb's
   `recordCrossOriginIframes`, and the top frame hands batches to the driver through `Runtime.addBinding`. Replay
@@ -124,8 +125,8 @@ Fidelity list, item by item:
 
 - B's raw stream is the verbose CDP node format (on the stress page 53% of the bytes are `setChildNodes`, the
   subtree push for inserted rows). It also carries stylesheet bodies, which rrweb inlines only when they are
-  same-origin. A compact format of our own is the plan in any case. The difference after gzip (~1.5×) is the fairer
-  comparison.
+  same-origin. A compact format of our own is the plan in any case. After gzip, the fairer comparison, B is
+  1.15× A on the own app, 1.48× on stress, 1.63× on GitHub and 2.05× on Wikipedia.
 - Recorder overhead on the busy stress page, main-thread task time over 33.6s: none 1.05s, **A 1.56s (+0.51s,
   +1.5% of the main thread)**, **B 1.39s (+0.34s, +1.0%)**. No frames dropped in any mode (p95 16.7ms). B's
   round trips (`requestChildNodes` for each inserted subtree, `requestNode` for each observed value) cost the
@@ -135,7 +136,9 @@ Fidelity list, item by item:
 - **A:** closed shadow roots (a main-world hook plus a patch to rrweb's serializer); the late first snapshot (a
   config option); FontFace URLs (absolutize them, part of the asset proxy anyway); asset bodies (rrweb keeps URLs
   for cross-origin CSS and all images and fonts, so the CDP `Network` capture is needed regardless); hover/focus.
-- **B:** CSSOM rule content and form values need the isolated-world observer (built, ~30 lines); the 10k text
+- **B:** CSSOM rule content and form values need the isolated-world observer (built, ~30 lines); form values
+  inside closed shadow roots are out of the observer's reach (reading them takes `DOM.resolveNode` on each input
+  CDP shows there, or a main-world hook); the 10k text
   truncation (a general read path); dropping user-agent shadow trees; hover/focus; a replayer that keeps meeting
   edge cases rrweb has already solved (top layer/`<dialog>`, `srcset`/`<picture>`, CSS `url()`, selection, custom
   elements). None was a blocker on these five pages.
@@ -155,17 +158,23 @@ Fidelity list, item by item:
   viewer ~1d; deriving the agent index (a Go port of the apply semantics, or a headless query path) ~2–3d;
   closed-shadow patch and font/first-snapshot fixes ~1.5d. After that we carry a forked or patched vendored
   dependency.
-- **B:** ~7–8 days. A Go CDP recorder with event normalization, the observer and asset bodies ~3d; hardening the
+- **B:** ~7–7.5 days. A Go CDP recorder with event normalization, the observer and asset bodies ~3d; hardening the
   replayer from the prototype, using rrweb's code as a reference for edge cases, ~2.5–3d; agent queries on the
   same format ~1.5d. We own all of it from then on.
 
 **Recommendation: B, own on CDP, with a small isolated-world observer (a hybrid in the narrow sense).**
-- It was at least as faithful on every page, and better where it matters for our targets: closed shadow roots,
-  FontFace fonts, and the first snapshot on a heavy SPA (rrweb's replay was blank for the first ~3s on GitHub).
+- Its median fidelity equalled or beat A's on every page. It was worse only at mid-scroll moments on HN, where B's
+  scroll lagged at 3 moments and A's at 1, because B's observer round trips are slower than rrweb's in-page
+  sampling. It was better where it matters for our targets: closed shadow roots, FontFace fonts, and the first
+  snapshot on a heavy SPA (rrweb's replay was blank for the first ~3s on GitHub).
 - It is invisible to the product page, and it uses the asset bodies the proxy needs anyway.
 - It is one format from browser to agent, applied by the same code in the viewer and the CLI.
-- It has the lowest page overhead.
-- Its costs are known and bounded: roughly a day more of build, ~1.5× the gzipped bytes before a compact encoding,
+- It had the lower page overhead on the busy stress page, the only page where overhead was measured (+1.0% vs +1.5%
+  of main-thread time).
+- Its costs are known and bounded: about half a day more of build, 1.15–2.05× the gzipped bytes before a compact encoding,
   and a replayer we harden ourselves.
 - rrweb remains the reference for the replayer's edge cases, and the fallback if replayer hardening runs long.
 - The operator decides.
+
+Project Log summary: ops `teams/devinfra/projects/couch-broadcast-web/project.md`, entry "2026-10-11 — pair#453
+recorder base: prototypes compared" (commit in ops main).
