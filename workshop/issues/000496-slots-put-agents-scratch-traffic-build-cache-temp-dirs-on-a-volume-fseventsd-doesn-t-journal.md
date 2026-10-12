@@ -46,10 +46,10 @@ Configuration, not code (operator, 10-12). Each tool already has a per-user sett
 - Other agents (Codex etc.) need their own temp-dir equivalent; the runbook lists it.
 
 Steps:
-- [ ] (approved) create the volume; `no_log`; remount; `mdutil -i off`; tmutil exclusion; dirs
-- [ ] (approved) `go env -w`; Claude settings `env` + `allowWrite`
+- [x] (approved) create the volume; `no_log`; remount; `mdutil -i off`; tmutil exclusion; dirs
+- [x] (approved) `go env -w`; Claude settings `env` + `allowWrite`
 - [ ] Verify in a fresh session: `go env GOCACHE`, sandboxed and unsandboxed `TMPDIR`, a test run writing to the volume
-- [ ] atlas runbook: setup and teardown
+- [x] atlas runbook: setup and teardown (`atlas/agent-scratch-volume.md`)
 - [ ] Measure fseventsd after a multi-slot workload, compared with the baseline
 - [ ] (approved) remove the old 92 GB cache
 
@@ -66,3 +66,4 @@ Steps:
 - Spotlight Privacy already excludes `~/Library/Caches` and `~/workspace` (operator screenshot), and fseventsd still ran hot. A Spotlight exclusion is a downstream filter: fseventsd still journals each event and delivers it to mds, which drops it. So the cost sits in fseventsd itself, and the volume's `no_log` is the part that matters. Turning off journaling on the whole Data volume was rejected: Time Machine (local destination) would deep-scan 17M files per backup, Spotlight would rescan after a reboot, and live delivery, the likely source of the memory growth, would continue anyway.
 - 14:48: the operator created the volume: `diskutil apfs addVolume disk3 APFS AgentScratch -quota 200g`, `no_log`, remount, `mdutil -i off`, `tmutil addexclusion -v` (`-p` fails with EINVAL on a volume mount point; the runbook uses `-v`), and the `go-build`/`tmp` dirs. Verified: case-insensitive APFS in disk3, 200 GB quota with no reserve, Spotlight `Indexing and searching disabled`, TM `[Excluded]`, `.fseventsd` holds only `fseventsd-uuid` + `no_log` (no journal pages), dirs owned by the operator.
 - 14:58 (operator approved "do it for me"): `go env -w GOCACHE=/Volumes/AgentScratch/go-build GOTMPDIR=/Volumes/AgentScratch/tmp`. Edited `~/.claude/settings.json` to add `env.CLAUDE_CODE_TMPDIR=/Volumes/AgentScratch/tmp` and append `/Volumes/AgentScratch` to `sandbox.filesystem.allowWrite`; backup in the session scratchpad. A sandboxed `go build` in the live session then wrote 104 MB to the volume cache, so the allowWrite change applied without a restart. `CLAUDE_CODE_TMPDIR` also took effect live: sandboxed commands in this session now get `TMPDIR=/Volumes/AgentScratch/tmp/claude-501`, so it does move the sandbox TMPDIR (the open docs question is answered).
+- 15:00: the operator ran `sudo ls .fseventsd`: still only `fseventsd-uuid` + `no_log` after the cache reached 436 MB, so `no_log` holds. Baseline series 13:32–14:52 (80 min): fseventsd CPU 11:52 → 20:50 (8:58), about 11% average; RSS 13.2 → 14.5 MB, top MEM about 3.8 MB flat. No memory growth episode during the baseline window.
