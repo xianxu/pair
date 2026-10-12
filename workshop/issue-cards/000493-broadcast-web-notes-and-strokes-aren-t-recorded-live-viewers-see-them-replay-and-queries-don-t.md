@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000493-broadcast-web-notes-and-strokes-aren-t-recorded-live-viewers-see-them-replay-and-queries-don-t.md
         source_blob: 5b2380778a420bcc57754e6c0a774e2bc21cd7e5
         destination: workshop/issues/000493-broadcast-web-notes-and-strokes-aren-t-recorded-live-viewers-see-them-replay-and-queries-don-t.md
+        main_commit: eed4e2fb943a9cf4211f57b61c2f938227002c2b
 ---
 
 # broadcast-web: notes and strokes aren't recorded (live viewers see them; replay and queries don't)
