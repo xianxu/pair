@@ -1,12 +1,20 @@
 ---
 id: 000458
-status: open
+status: working
 deps: [000457]
 github_issue:
 created: 2026-10-11
-updated: 2026-10-11
+updated: 2026-10-12
 estimate_hours:
-card_mirror: '5e5c7776d2e4d1bf5f3302b3423d32713bac1779' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'a943dd52cf71c3371c28b52b9c262c0069845771' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-12T00:53:17-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # broadcast-web: recorder — CDP DOM stream per frame plus isolated-world observer
@@ -35,11 +43,13 @@ Implement #457's recorder interface on real Chrome, through pair#454's browser-c
 
 ## Plan
 
-- [ ] CDP DOM stream per frame, node-id mapping
-- [ ] Observer in the isolated world
-- [ ] Segments, tab switch, navigation
-- [ ] Plug into webcast.Cast; live check; fidelity run
+Durable plan: `workshop/plans/000458-broadcast-web-recorder-cdp-dom-stream-per-frame-plus-isolated-world-observer-plan.md`.
+
+- [ ] M1 — format: `hover {id}`, `ptr {x,y}` (TL-coordinated shapes, outside Canonical), `input.secret` and the password rules in reducer + validator; `ValidateDir` reports strays in `frames/` (#457 advisory); format page Revisions
+- [ ] M2 — recorder: pure mirror (CDP DOM per session → records, path-resolved observer reports), isolated-world observer (sync clicks), Recorder shell, Chrome loop (iframe auto-attach) and Cast plug-in; unit tests on a stateful fake CDP page
+- [ ] M3 — live headless checks (stress page, blog) + fidelity tool vs `frames/`, compared with #453's own-on-CDP numbers; atlas
 
 ## Log
 
 ### 2026-10-11
+- Claimed and started; plan written. TL (10-12) fixed the shapes: `{k:hover,id}` and `{k:ptr,x,y}` in events.jsonl, reducer-tracked, outside Canonical.
