@@ -8,6 +8,8 @@ import (
 	"github.com/xianxu/pair/cmd/internal/broadcast"
 	"github.com/xianxu/pair/cmd/internal/mouseinput"
 	"github.com/xianxu/pair/cmd/internal/terminal"
+	"github.com/xianxu/pair/cmd/internal/webcast"
+	"github.com/xianxu/pair/cmd/internal/webcast/board"
 )
 
 // pointerNotes is the broadcast's sticky notes (#447) as the console last
@@ -34,6 +36,40 @@ type pointerNotes struct {
 	menu     NotesMenu
 	hover    int
 	pressed  bool
+	// The web cast's notes (#470), as the cast last delivered them: the
+	// menu's items (ID is the position + 1, Text "name: text"), and per item
+	// the note's id and plain text. source is which list the menu shows.
+	webCast  *webcast.Cast
+	web      []broadcast.Note
+	webIDs   []string
+	webTexts []string
+	source   notesSource
+}
+
+// notesSource is the list the notes menu shows: the screen broadcast's
+// sticky notes (#447) or the web cast's (#470). One menu, one at a time.
+type notesSource uint8
+
+const (
+	screenNotes notesSource = iota
+	webNotes
+)
+
+// menuNotesLocked is the open menu's list. Callers hold pnotes.mu.
+func (c *Console) menuNotesLocked() []broadcast.Note {
+	if c.pnotes.source == webNotes {
+		return c.pnotes.web
+	}
+	return c.pnotes.notes
+}
+
+// screenHoverLocked is the hovered screen note, whose 💭 glows: none while
+// the menu shows the web cast's notes. Callers hold pnotes.mu.
+func (c *Console) screenHoverLocked() int {
+	if c.pnotes.source == webNotes {
+		return 0
+	}
+	return c.pnotes.hover
 }
 
 // onNotes is the session reporting a change. It runs on the changing
@@ -77,10 +113,11 @@ func (c *Console) applyNotes(s *broadcast.Session, notes []broadcast.Note, versi
 // settleMenuLocked keeps the menu consistent with the notes: closed with
 // none left, and no hover on a note that is gone. Callers hold pnotes.mu.
 func (c *Console) settleMenuLocked() {
-	if len(c.pnotes.notes) == 0 {
+	list := c.menuNotesLocked()
+	if len(list) == 0 {
 		c.pnotes.menuOpen, c.pnotes.menu = false, NotesMenu{}
 	}
-	if !slices.ContainsFunc(c.pnotes.notes, func(n broadcast.Note) bool { return n.ID == c.pnotes.hover }) {
+	if !slices.ContainsFunc(list, func(n broadcast.Note) bool { return n.ID == c.pnotes.hover }) {
 		c.pnotes.hover = 0
 	}
 }
@@ -119,7 +156,7 @@ func (c *Console) scheduleNotes() {
 		c.pnotes.timer.Stop()
 		c.pnotes.timer = nil
 	}
-	d, ok := broadcast.NoteNextChange(c.pnotes.notes, c.now(), c.pnotes.hover)
+	d, ok := broadcast.NoteNextChange(c.pnotes.notes, c.now(), c.screenHoverLocked())
 	if !ok {
 		return
 	}
@@ -151,11 +188,12 @@ func (c *Console) resyncNotes(s *broadcast.Session) {
 	c.scheduleNotes()
 }
 
-// forgetNotes drops the snapshot when the broadcast ends.
+// forgetNotes drops the snapshot when the broadcast ends; the web cast's
+// notes are its own.
 func (c *Console) forgetNotes() {
 	c.pnotes.mu.Lock()
 	c.pnotes.session, c.pnotes.notes, c.pnotes.version = nil, nil, 0
-	c.pnotes.menuOpen, c.pnotes.menu, c.pnotes.pressed, c.pnotes.hover = false, NotesMenu{}, false, 0
+	c.settleMenuLocked()
 	if c.pnotes.timer != nil {
 		c.pnotes.timer.Stop()
 		c.pnotes.timer = nil
@@ -194,7 +232,7 @@ func (c *Console) menuOverlay(f terminal.Frame, class terminal.FrameClass) termi
 		c.pnotes.menu = NotesMenu{}
 		return f
 	}
-	c.pnotes.menu = RenderNotesMenu(c.pnotes.notes, f.Geometry.Cols, f.Geometry.Rows)
+	c.pnotes.menu = RenderNotesMenu(c.menuNotesLocked(), f.Geometry.Cols, f.Geometry.Rows)
 	return c.pnotes.menu.Draw(f, c.pnotes.hover, c.drawStyleLocked())
 }
 
@@ -202,14 +240,20 @@ func (c *Console) menuOverlay(f terminal.Frame, class terminal.FrameClass) termi
 // clock and the hovered note. Callers hold pnotes.mu.
 func (c *Console) drawStyleLocked() broadcast.NoteStyle {
 	style := c.pnotes.style
-	style.Now, style.Hover = c.now(), c.pnotes.hover
+	style.Now, style.Hover = c.now(), c.screenHoverLocked()
 	return style
 }
 
-// toggleNotesMenu is a click on 💭N.
-func (c *Console) toggleNotesMenu() {
+// toggleNotesMenu is a click on a 💭N: the screen broadcast's or the web
+// cast's (src). A click on the other one's 💭N switches the menu to it.
+func (c *Console) toggleNotesMenu(src notesSource) {
 	c.pnotes.mu.Lock()
-	c.pnotes.menuOpen = !c.pnotes.menuOpen && len(c.pnotes.notes) > 0
+	open := c.pnotes.menuOpen && c.pnotes.source == src
+	if c.pnotes.source != src {
+		c.pnotes.hover = 0
+	}
+	c.pnotes.source = src
+	c.pnotes.menuOpen = !open && len(c.menuNotesLocked()) > 0
 	if !c.pnotes.menuOpen {
 		c.pnotes.menu, c.pnotes.hover = NotesMenu{}, 0
 	}
@@ -227,6 +271,12 @@ func (c *Console) refreshNotes() {
 // noteTextLocked is the text of the held note id, or "" when it is gone.
 // Callers hold pnotes.mu.
 func (c *Console) noteTextLocked(id int) string {
+	if c.pnotes.source == webNotes {
+		if id >= 1 && id <= len(c.pnotes.webTexts) {
+			return c.pnotes.webTexts[id-1]
+		}
+		return ""
+	}
 	for _, n := range c.pnotes.notes {
 		if n.ID == id {
 			return n.Text
@@ -291,7 +341,7 @@ func (c *Console) routeNotesMenu(raw []byte) bool {
 		c.pnotes.mu.Unlock()
 		switch {
 		case closing:
-			c.toggleNotesMenu()
+			c.toggleNotesMenu(c.pnotesSource())
 		case text != "":
 			c.copyLink(text)
 			c.setNotice("Note copied.")
@@ -301,11 +351,11 @@ func (c *Console) routeNotesMenu(raw []byte) bool {
 		// never loses its text. The session reports the emptied slot back
 		// through onNotes, like a viewer's Resolve.
 		c.pnotes.pressed = true
-		text, s := c.noteTextLocked(id), c.pnotes.session
+		text, resolve := c.noteTextLocked(id), c.resolverLocked(id)
 		c.pnotes.mu.Unlock()
-		if text != "" && s != nil {
+		if text != "" && resolve != nil {
 			c.copyLink(text)
-			if err := s.ResolveNote(id); err != nil {
+			if err := resolve(); err != nil {
 				c.setNotice("Couldn't resolve the note.")
 			} else {
 				c.setNotice("Note copied and resolved.")
@@ -316,4 +366,82 @@ func (c *Console) routeNotesMenu(raw []byte) bool {
 		c.pnotes.mu.Unlock()
 	}
 	return true
+}
+
+func (c *Console) pnotesSource() notesSource {
+	c.pnotes.mu.Lock()
+	defer c.pnotes.mu.Unlock()
+	return c.pnotes.source
+}
+
+// resolverLocked resolves the menu's item id in its source: the screen
+// broadcast's session, or the web cast's board as the operator. nil when
+// there is nothing to resolve it in. Callers hold pnotes.mu.
+func (c *Console) resolverLocked(id int) func() error {
+	if c.pnotes.source == webNotes {
+		cast := c.pnotes.webCast
+		if cast == nil || id < 1 || id > len(c.pnotes.webIDs) {
+			return nil
+		}
+		noteID := c.pnotes.webIDs[id-1]
+		return func() error { return cast.ResolveNote(noteID) }
+	}
+	s := c.pnotes.session
+	if s == nil {
+		return nil
+	}
+	return func() error { return s.ResolveNote(id) }
+}
+
+// applyWebNotes takes the web cast's open notes (#470) for its 💭N and the
+// menu; a delivery from a cast that has since ended is dropped.
+func (c *Console) applyWebNotes(cast *webcast.Cast, live []board.LiveNote) {
+	c.mu.Lock()
+	current := c.wcast.cast == cast
+	c.mu.Unlock()
+	if !current {
+		return
+	}
+	items, ids, texts := webMenuNotes(live)
+	c.pnotes.mu.Lock()
+	c.pnotes.webCast, c.pnotes.web, c.pnotes.webIDs, c.pnotes.webTexts = cast, items, ids, texts
+	c.settleMenuLocked()
+	c.pnotes.mu.Unlock()
+	c.repaint()
+	c.terminalError(c.presenter.Refresh(c.lifetime))
+}
+
+// forgetWebNotes drops the web cast's notes when it ends.
+func (c *Console) forgetWebNotes() {
+	c.pnotes.mu.Lock()
+	c.pnotes.webCast, c.pnotes.web, c.pnotes.webIDs, c.pnotes.webTexts = nil, nil, nil, nil
+	c.settleMenuLocked()
+	c.pnotes.mu.Unlock()
+}
+
+// webNoteCount is the 💭N the Chrome cell shows.
+func (c *Console) webNoteCount() int {
+	c.pnotes.mu.Lock()
+	defer c.pnotes.mu.Unlock()
+	return len(c.pnotes.web)
+}
+
+// webMenuNotes maps the web cast's notes onto the menu's items: ID is the
+// position + 1, the color the palette index (the same palette, #446), and
+// the text shows its author. ids and texts are each item's note id and
+// plain text (what a click copies).
+func webMenuNotes(live []board.LiveNote) (items []broadcast.Note, ids, texts []string) {
+	for i, n := range live {
+		color := n.Color
+		if color < 0 || color >= broadcast.PointerColors {
+			color = 0
+		}
+		text := n.Text
+		if n.Author.Name != "" {
+			text = n.Author.Name + ": " + n.Text
+		}
+		items = append(items, broadcast.Note{ID: i + 1, Color: color, Text: text})
+		ids, texts = append(ids, n.ID), append(texts, n.Text)
+	}
+	return items, ids, texts
 }

@@ -42,6 +42,34 @@ func (c *Console) screenOverlay(f terminal.Frame, class terminal.FrameClass) ter
 	return c.menuOverlay(c.markOverlay(c.noteOverlay(f, class), class), class)
 }
 
+// overlayUser is who needs the collaboration overlay on the screen: the
+// screen broadcast (its marks, notes and menu) or the web cast (the notes
+// menu for its notes, #470).
+type overlayUser uint8
+
+const (
+	overlayScreen overlayUser = 1 << iota
+	overlayWeb
+)
+
+// syncOverlay records whether user needs the overlay and installs it while
+// anyone does, removing it when nobody does.
+func (c *Console) syncOverlay(user overlayUser, on bool) {
+	c.mu.Lock()
+	if on {
+		c.overlayUsers |= user
+	} else {
+		c.overlayUsers &^= user
+	}
+	want := c.overlayUsers != 0
+	c.mu.Unlock()
+	var overlay func(terminal.Frame, terminal.FrameClass) terminal.Frame
+	if want {
+		overlay = c.screenOverlay
+	}
+	c.terminalError(c.presenter.SetOverlay(c.lifetime, overlay))
+}
+
 // markOverlay draws the marks on a public frame; a private frame (the
 // switcher) is never marked. It runs on the Presenter goroutine.
 func (c *Console) markOverlay(f terminal.Frame, class terminal.FrameClass) terminal.Frame {

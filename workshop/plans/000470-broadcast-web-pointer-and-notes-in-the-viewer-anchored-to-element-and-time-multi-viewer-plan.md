@@ -151,3 +151,9 @@ viewer shell ──POST <cast>/stroke|note|note-state──▶ webcast.Server �
     parted from the stream, logged once through `Board.Logf`). `Board.Put` never fails the Tee.
   - **Budgets:** strokes 60/s per cast (two viewers at the 50 ms cadence), notes and states 2/s, burst 5.
   - The board drops strokes from its own state (it never checks against them).
+- 2026-10-12 (M3). The notes menu takes a source (`notesSource`: screen or web) instead of a second menu; web items are
+  `broadcast.Note`s with ID = position + 1 and text `name: text`, and the console keeps each item's note id and plain
+  text (what a click copies). The collaboration overlay, installed only during a screen broadcast before, is now
+  installed while either the screen broadcast or a web cast needs it (`syncOverlay`), so the menu draws for a web cast
+  alone. For #477 the viewer's drawing is exported pure over the model at t (`strokesAt`, `paintStrokes`, `pinLayer`,
+  `liveNotes`).

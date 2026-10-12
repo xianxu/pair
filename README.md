@@ -966,7 +966,10 @@ the stroke fade after a moment) and 💭 (note: tap an element, or drag a region
 write). The first note asks for a name; the page remembers it and the color in this
 browser. A note pins to its element (or region) for everyone, follows it as the page
 scrolls, stays through a pause, and leaves the page when the cast moves to another
-page; anyone can tap a pin to read it and resolve it. Unlike the screen broadcast's
+page; anyone can tap a pin to read it and resolve it. In Couch the open notes show as
+`💭N` after the Chrome cell (`Chrome ⏸ 💭2`); click it for the same notes box the screen
+broadcast uses, with each note's author: click one to copy its text, right-click to copy
+and resolve it. Unlike the screen broadcast's
 notes, these are part of the recording: notes and strokes, with their authors, are
 saved in `notes.jsonl` and `pointer.jsonl`, and `couch --broadcast-web-query DIR
 notes` lists them. The name a viewer gives is theirs to choose: it attributes, it

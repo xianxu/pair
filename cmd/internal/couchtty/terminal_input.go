@@ -163,7 +163,7 @@ func (c *Console) routeMouseEvent(event terminal.InputEvent) {
 	if ok && !hit.Release && (hit.Button == 0 || hit.Button == 2) {
 		c.mu.Lock()
 		rows := int(c.size.Rows)
-		pointer, remote, control, notes := c.statusPointer, c.statusRemote, c.statusControl, c.statusNotes
+		pointer, remote, control, notes, webNotesSpan := c.statusPointer, c.statusRemote, c.statusControl, c.statusNotes, c.statusWebNotes
 		c.mu.Unlock()
 		// Right-click on LIVE re-copies the view-only link; a left click
 		// (below) still stops the broadcast.
@@ -180,7 +180,11 @@ func (c *Console) routeMouseEvent(event terminal.InputEvent) {
 			return
 		}
 		if hit.Button == 0 && hit.Y == rows && notes.Contains(hit.X-1) {
-			c.toggleNotesMenu()
+			c.toggleNotesMenu(screenNotes)
+			return
+		}
+		if hit.Button == 0 && hit.Y == rows && webNotesSpan.Contains(hit.X-1) {
+			c.toggleNotesMenu(webNotes)
 			return
 		}
 	}

@@ -378,7 +378,10 @@ changed. Try again.", "This color already has 8 notes. Resolve one first.", "Tha
 showing a page yet."; 410 "The cast has ended."; 429 "Too many requests. Wait a moment."; 400 "That isn't valid.";
 503 "Notes aren't working in this cast." (the board lost track of the page: a bug, logged once).
 Notes are allowed while paused. Couch follows the open notes with `Cast.Notes` and resolves as the operator with
-`Cast.ResolveNote`. Lifecycle: the board lives with the cast (the recorder closes it with the recording); its pending
+`Cast.ResolveNote`: `💭N` follows the Chrome cell (`StatusModel.WebNotes`, its own span), and a click opens #447's notes
+menu with the web notes (one menu with a source, screen or web; items show `name: text`, a click copies the text, a right
+click copies and resolves). The collaboration overlay the menu draws in is installed while the screen broadcast or a web
+cast needs it (`syncOverlay`). Lifecycle: the board lives with the cast (the recorder closes it with the recording); its pending
 entries end when their record is seen, the emit fails, or a new document begins.
 
 **The JS viewer contract (#460).** The viewer applies records to a sandboxed frame without `allow-scripts`

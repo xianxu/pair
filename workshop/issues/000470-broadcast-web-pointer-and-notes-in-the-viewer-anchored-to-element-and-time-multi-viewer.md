@@ -75,7 +75,7 @@ Durable plan: `workshop/plans/000470-broadcast-web-pointer-and-notes-in-the-view
 
 - [x] M1 — Go: `notes.Model.NoteCrops` (region crops); `board` package (wire, Board as a Sink with an emit func, rules); `POST <cast>/stroke|note|note-state` with admission; `CastConfig.Board`; atlas
 - [x] M2 — Viewer: `collab.js` shared with the terminal viewer; `annotate.js`; mode button, swatch rail, strokes canvas, pins, note dialog, touch; headless two-viewer e2e on the blog fixture
-- [ ] M3 — Couch: `💭N` after `Chrome ⏸`, #447's notes menu for web notes (copy, resolve)
+- [x] M3 — Couch: `💭N` after `Chrome ⏸`, #447's notes menu for web notes (copy, resolve)
 
 ## Log
 
@@ -128,3 +128,7 @@ Durable plan: `workshop/plans/000470-broadcast-web-pointer-and-notes-in-the-view
   per-frame mutant survive; with the held press the mutant fails 2/2). Minors: one `endGesture()` (stroke and drag) at
   every boundary; a resync landing on another document clears strokes; the e2e asserts notes survive a resume (the
   top document re-snapshotted with ids kept); a stored name is validated at read (`validName`).
+- M3 built: `Chrome ▶/⏸ 💭N`, #447's menu with a source (screen or web), copy and resolve through `Cast.ResolveNote`.
+  Found while testing: the overlay the menu draws in existed only during a screen broadcast, so the web menu opened
+  invisibly; `syncOverlay` installs it while either user needs it (without it `TestWebNotesInCouch` fails at "menu open").
+  couchtty suite green (unsandboxed: pty children).
