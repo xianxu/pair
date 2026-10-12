@@ -15,6 +15,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "e905b066", done: "1986943c"}
 ---
 
 # broadcast-web: real recorder output as fixtures (the integration guard)
