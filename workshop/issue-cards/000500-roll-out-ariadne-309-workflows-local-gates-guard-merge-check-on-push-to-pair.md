@@ -1,6 +1,6 @@
 ---
 id: 000500
-status: working
+status: codecomplete
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.01
+tracker:
+    version: 1
+    completion:
+        token: close-aa22c62c85b0
+        repository: github.com/xianxu/pair
+        reviewed_head: 73fc04ce0c455153a07e6bdb8ee55d446695c209
+        evidence_commit: 2562afe6ba272814ccb54e2ddb49568eaae07c70
 ---
 
 # roll out ariadne#309 workflows (local-gates-guard, merge-check on push) to pair
