@@ -83,8 +83,10 @@ func Run(ctx context.Context, chromeBin, dir string) (Report, error) {
 			return rep, err
 		}
 		var tries []Try
-		for _, off := range Offsets {
-			st, err := rec.Reduce(r.Records, f.T+off)
+		// Only moments in the shot's own live segment (#472).
+		for _, at := range rec.FrameTimes(r.Records, f.T, Offsets) {
+			off := at - f.T
+			st, err := rec.Reduce(r.Records, at)
 			if err != nil {
 				return rep, err
 			}

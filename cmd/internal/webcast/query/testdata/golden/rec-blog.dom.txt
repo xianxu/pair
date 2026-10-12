@@ -1,0 +1,303 @@
+$ couch --broadcast-web-query <fixtures>/rec-blog dom --at 2500
+t=2500  segment 1 (live)  http://localhost:4321/2026/10/ariadne-1-building-blocks-of-ai-coding  viewport 1280x800@1  title "Building Blocks of AI Coding — Xian Xu"
+@1 #document http://localhost:4321/2026/10/ariadne-1-building-blocks-of-ai-coding {scrolled 0,1000}
+  @3 <html class="2xl:text-[20px] dark motion-safe:scroll-smooth" lang=en>
+    @4 <head> (title "Building Blocks of AI Coding — Xian Xu"; 5 link; 13 meta; 14 script; 8 style)
+    @85 <body class="antialiased text-default bg-page tracking-tight">
+      @87 <header class="sticky top-0 z-40 flex-none mx-auto w-full border-b border-gray-50/0 transition…" id=header>
+        @89 <div class="absolute inset-0">
+        @91 <div class="relative text-default py-3 px-3 md:px-6 mx-auto w-full md:flex md:justify-betwe…">
+          @93 <div class="mr-auto rtl:mr-0 rtl:ml-auto flex justify-between">
+            @95 <a class="flex items-center" href=/>
+              @97 <span aria-label="Xian Xu logo" class="self-center ml-2 rtl:ml-0 rtl:mr-2 text-2xl md:text-3xl font-bold text-gray-900…">
+                @99 <span aria-hidden=true class="logo-symbol inline-flex items-center justify-center font-normal">
+                  @100 <img alt src=/@fs/Users/xianxu/workspace/xianxu.dev/src/assets/favicons/favicon.png?origWidt…>
+                @102 <span class=tracking-tight> Xian Xu
+              @106 <script src="/src/components/Logo.astro?astro&type=script&index=0&lang.ts" type=module>
+            @109 <div class="flex items-center md:hidden">
+              @111 <button aria-label="Toggle Menu" class="flex flex-col h-12 w-12 rounded justify-center items-center cursor-pointer group" type=button>
+                @113 <span class=sr-only> Toggle Menu
+                @116 <span aria-hidden=true class="h-0.5 w-6 my-1 rounded-full bg-black dark:bg-white transition ease transform du…">
+                @118 <span aria-hidden=true class="h-0.5 w-6 my-1 rounded-full bg-black dark:bg-white transition ease transform du…">
+                @120 <span aria-hidden=true class="h-0.5 w-6 my-1 rounded-full bg-black dark:bg-white transition ease transform du…">
+          @125 <nav aria-label="Main navigation" class="items-center w-full md:w-auto hidden md:flex md:mx-5 text-default overflow-y-au…">
+            @127 <ul class="flex flex-col md:flex-row md:items-center md:self-center w-full md:w-auto text-…">
+              @129 <li class>
+                @131 <a class="hover:text-link dark:hover:text-white px-4 py-3 flex items-center whitespace-no…" href=/highlights> Highlights
+              @134 <li class>
+                @136 <a class="hover:text-link dark:hover:text-white px-4 py-3 flex items-center whitespace-no…" href=/projects> Projects
+              @139 <li class>
+                @141 <a class="hover:text-link dark:hover:text-white px-4 py-3 flex items-center whitespace-no…" href=/blog> Archive
+              @144 <li class>
+                @146 <a class="hover:text-link dark:hover:text-white px-4 py-3 flex items-center whitespace-no…" href=/tags> Tags
+              @149 <li class>
+                @151 <a class="hover:text-link dark:hover:text-white px-4 py-3 flex items-center whitespace-no…" href=/about> About
+              @154 <li class>
+                @156 <a class="hover:text-link dark:hover:text-white px-4 py-3 flex items-center whitespace-no…" href=/drafts> Drafts
+          @162 <div class="hidden md:self-center md:flex items-center md:mb-0 fixed w-full md:w-auto md:st…">
+            @164 <div class="items-center flex justify-between w-full md:w-auto">
+              @166 <div class=flex>
+                @168 <button aria-label="Toggle between Dark and Light mode" class="text-muted dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 focus:ou…" type=button>
+                  @169 <svg class="w-6 h-6 md:w-5 md:h-5 md:inline-block"> (3 elements inside)
+                @176 <a aria-label="RSS Feed" class="text-muted dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 focus:ou…" href=/rss.xml>
+                  @178 <svg class="w-5 h-5"> (3 elements inside)
+      @191 <main>
+        @193 <section class="py-8 sm:py-16 lg:py-20 mx-auto">
+          @195 <article>
+            @197 <header class="intersect-once intersect-quarter motion-safe:md:opacity-0 motion-safe:md:inters…">
+              @199 <div class="flex justify-between flex-col sm:flex-row max-w-3xl mx-auto mt-0 mb-2 px-4 sm:p…">
+                @201 <p>
+                  @203 <svg class="w-4 h-4 inline-block -mt-0.5 dark:text-gray-400"> (5 elements inside)
+                  @212 <time class=inline-block> Oct 2, 2026
+                  ·
+                  @215 <span> 9
+                  min read
+              @220 <h1 class="px-4 sm:px-6 max-w-3xl mx-auto text-3xl md:text-4xl font-bold leading-tighter t…"> Building Blocks of AI Coding
+              @223 <p class="max-w-3xl mx-auto mt-4 mb-8 px-4 sm:px-6 text-lg md:text-xl text-muted dark:tex…"> AI coding is all the rage; what are the basic building blocks? How should we think about its future? This is the first installment of a series of 5 posts.
+              @226 <div class="max-w-3xl mx-auto px-4 sm:px-6">
+                @228 <div class="border-t dark:border-slate-700">
+            @232 <div class="mx-auto px-6 sm:px-6 max-w-3xl prose prose-lg md:prose-xl dark:prose-invert dar…">
+              @234 <p id=p-1>
+                In the
+                @236 <a href=/2026/09/parley-nvim-v1> previous post
+                , I announced
+                @239 <code> Parley
+                the app, which is constructed 100% with agentic coding. I didn’t even know the
+                @242 <code> Neovim
+                programming environment, or
+                @245 <code> lua
+                the programming language of that environment. I still don’t know them well today, but have acquired some intuition of their capabilities and mechanisms. Here I would like to talk about the stack I cr…
+                @248 <a aria-label="Link to paragraph" class=anchor-link href=#p-1> #
+              @251 <p id=p-2>
+                I’m thinking of organizing this into a series of posts, roughly:
+                @253 <a aria-label="Link to paragraph" class=anchor-link href=#p-2> #
+              @256 <ol>
+                @258 <li>
+                  @259 <strong>
+                    the 5-month journey of building the workflow that created
+                    @261 <code> Parley
+                    .
+                  (this post)
+                @266 <li>
+                  @267 <a href=/2026/10/ariadne-2-hot-takes> reflection on how to leverage AI in software product development.
+                  @270 <ol>
+                    @272 <li>
+                      @273 <a href=/2026/10/ariadne-2-5-couch-demo>
+                        a sneak peek of
+                        @275 <code> couch
+                        .
+                @281 <li>
+                  @282 <code> couch
+                  and
+                  @285 <code> pair
+                  , the coding environment I use daily. (TKTK)
+                @289 <li>
+                  @290 <code> ariadne
+                  , the skills and binaries that supported my workflow. (TKTK)
+                @294 <li> and lastly, where to go from here. (TKTK)
+              @298 <hr>
+              @300 <p id=p-3>
+                In this first post, I’d like to take a historical view on how this “AI-native” development stack was built conservatively from the ground up (reverse of
+                @302 <a href=https://steve-yegge.medium.com/welcome-to-gas-town-4f25ee16dd04> Gas Town
+                ), and came into its current shape. The key philosophy I follow in its design:
+                @305 <a aria-label="Link to paragraph" class=anchor-link href=#p-3> #
+              @308 <ol>
+                @310 <li> Keep all state in a single repository, in text format. This allows AI to access not only code, but design documents, issue history, past roadmaps etc., everything, using the standard set of Unix tool…
+                @313 <li> Construct a “hard deterministic shell” to constrain an LLM’s “soft stochastic core”. Ground often.
+                @316 <li> Human attention is scarce and single-threaded and it is diametrically opposed to what machines are good at. This AI-native stack tries to find that evolving contour of where, when, and how to leverag…
+              @320 <p id=p-4>
+                We will talk more about this in the next post.
+                @322 <a aria-label="Link to paragraph" class=anchor-link href=#p-4> #
+              @325 <hr>
+              @327 <p id=p-5>
+                Now, quick history recap. I took the anti-
+                @329 <code> Gas Town
+                approach and started very conservatively. I needed to know how building blocks work, and how well they work, before moving to construct more things on top of those building blocks. What’s extremely r…
+                @332 <a href=/2026/10/5-month-coding-stats> overall journey
+                produced about
+                @335 <strong> 1M
+                lines of code,
+                @338 <strong> 1M
+                lines of supporting documentation (issues, plans, reviews etc.).
+                @341 <a aria-label="Link to paragraph" class=anchor-link href=#p-5> #
+              @344 <ol>
+                @346 <li>
+                  @348 <p id=p-6>
+                    At the start, I was basically using the plain old coding agent.
+                    @350 <code> Claude Code
+                    ,
+                    @353 <code> Codex
+                    are the main players, but there are plenty of other companies also trying (I used
+                    @356 <code> agy
+                    ,
+                    @359 <code> muse
+                    ,
+                    @362 <code> qoder
+                    ). You type a prompt, and hope for the best, frequently back and forth in a really crappy editor. Those were the early days of my vibe coding, but AI showed great potential. I didn’t use too many age…
+                    @365 <code> superpowers
+                    . The reason being, if I don’t know how those skills work, and how well they work, I can’t trust them. Thus it seemed logical to limit how many of those I’d use. You can check my early notes
+                    @368 <a href=/2025/05/ai-coding-take-2> here
+                    and
+                    @371 <a href=/2025/04/reflection-on-ai-coding> here
+                    .
+                    @374 <a aria-label="Link to paragraph" class=anchor-link href=#p-6> #
+                @378 <li>
+                  @380 <p id=p-7>
+                    One of the early choices I made was that all state should be in a single repository, the issues, the plans, the projects, the roadmaps. All those should be text files in a repository so that changing…
+                    @382 <a aria-label="Link to paragraph" class=anchor-link href=#p-7> #
+                @386 <li>
+                  @388 <p id=p-8>
+                    And then, to manage those local text files, I used AI to make tools for me, e.g. a neovim plugin to list all open issue files, to open one of them nicely formatted, and to jump to interlinked issue I…
+                    @390 <a aria-label="Link to paragraph" class=anchor-link href=#p-8> #
+                  @393 <p>
+                    @394 <img alt="The issue tracker in Neovim, listing open and in-progress issues" src=/assets/images/2026-10-03-issue-tracker.png>
+                  @396 <p>
+                    @397 <img alt="One issue opened from the tracker, showing its front matter: status, dates, est…" src=/assets/images/2026-10-03-issue-detail.png>
+                @400 <li>
+                  @402 <p id=p-9>
+                    Soon, I realized it’s painful to use
+                    @404 <code> claude
+                    or
+                    @407 <code> codex
+                    really, the tiny input box, without mouse support, or any other editor goodies. I wanted something closer to a text editor, than a command line prompt. This led me to create
+                    @410 <a href=https://github.com/xianxu/pair> pair
+                    , which is a TTY terminal wrapper around any TUI program, but coding agents in particular, and gives you an input pane backed by nvim. With that, you get mouse support, all nvim goodies, spell checki…
+                    @413 <code> pair
+                    as a coding agent wrapper that gives you much more control over how you organize your thought. Another fundamental benefit is to allow you to use any coding agent without changing the user interface …
+                    @416 <code> claude
+                    outages surely motivated me to actually commit to it.
+                    @419 <a aria-label="Link to paragraph" class=anchor-link href=#p-9> #
+                  @422 <p>
+                    @423 <img alt="pair: Claude Code on top, with the nvim input pane below it" src=/assets/images/2026-10-03-pair-review.png>
+                @426 <li>
+                  @428 <p id=p-10>
+                    With the process documents (issues, projects, roadmaps etc. whatever you need to run a company’s product/engineering department) managed in the same repository, the other part is to get the agent to …
+                    @430 <a href=/2026/06/skill-binary-and-dynamic-skill> skill binaries
+                    ”, which operates around two intuitions: 1/ to move as many operations as possible to deterministic code; 2/ that deterministic code can also administer the skill prose. The result’s refreshing: the
+                    @433 <code> sdlc
+                    process (software development life cycle) is just a Golang binary, with
+                    @436 <code> sdlc --help
+                    being what the agent needs to read and understand. This basically converts an agent skill into just another local tool, just another
+                    @439 <code> grep
+                    ,
+                    @442 <code> rg
+                    etc. Other extensions involve the ability to dynamically customize skill content based on repository state, for example, I used it to construct a meta skill to instruct the agent on how to use the ev…
+                    @445 <code> datatype
+                    defined in different
+                    @448 <code> ariadne
+                    base layers (see point 6).
+                    @451 <a aria-label="Link to paragraph" class=anchor-link href=#p-10> #
+                @455 <li>
+                  @457 <p id=p-11>
+                    I called my AI-native workflow
+                    @459 <a href=https://github.com/xianxu/ariadne> ariadne
+                    , which is a provider of
+                    @462 <code> base layers
+                    .
+                    @465 <code> ariadne
+                    , the base layer, provides basic process around software development. There are other base layers, for example, I have a
+                    @468 <code> nous
+                    base layer that is layered on top of
+                    @471 <code> ariadne
+                    as a personal gateway to private information, imagine a repository full of your gmail downloaded, but with credentials guarded by the “hard shell”;
+                    @474 <code> metis
+                    which provides essentially what typical ML infra is about, organizing data, algorithms, experiments, to provide a reproducible workflow. Base layers like
+                    @477 <code> ariadne
+                    ,
+                    @480 <code> metis
+                    ,
+                    @483 <code> nous
+                    are meant to be used as follows: you start with your repository, and if you want to leverage AI’s capability in a base layer, you invoke
+                    @486 <code> weave link ../ariadne
+                    , or
+                    @489 <code> weave link ../metis
+                    in the repository root, then
+                    @492 <code> weave compile
+                    from there. That’s all you need. What do those two commands provide you? Two things: 1/ agent skills to manage some processes; 2/ a binary “hard shell” that makes those processes work. I created
+                    @495 <code> metis
+                    and
+                    @498 <code> nous
+                    not quite for fun, but as validation of this construct of base layers, in very different domains. For example, I got a Kaggle silver medal with
+                    @501 <code> metis
+                    in some oil drilling competition that I didn’t have any experience in.
+                    @504 <a aria-label="Link to paragraph" class=anchor-link href=#p-11> #
+                @508 <li>
+                  @510 <p id=p-12>
+                    After I created
+                    @512 <code> pair
+                    , the TTY wrapper, I used to use iTerm2, then Ghostty, and later cmux. None of them were satisfactory, because those environments don’t provide support of working on many threads at the same time. I …
+                    @515 <code> couch
+                    , a single program that supervises many
+                    @518 <code> pair
+                    programs. One way to think of
+                    @521 <code> couch
+                    is just the many tabs and panes in your favorite terminal emulators.
+                    @524 <code> couch
+                    does that, and provides many shortcuts you need in an agentic environment, that get your human attention at the right place at the right time, such as managing the different worktrees for you, showin…
+                    @527 <code> couch
+                    also provides a protocol through which different coding agents can talk to each other, so that you can work with
+                    @530 <code> claude
+                    in a slot triaging issues in a repository, and then just say “schedule it”, and
+                    @533 <code> couch
+                    will find a free slot (worktree), talk with the agent there, so that the free agent starts handling the task. After the agent’s done, it will send a smoke-test notification if needed, so the operator…
+                    @536 <code> couch
+                    is pretty usable now; the autonomous agent coordinator aspect is still being tested out.
+                    @539 <a aria-label="Link to paragraph" class=anchor-link href=#p-12> #
+                  @542 <p>
+                    @543 <img alt="couch: a pair session beside a terminal, with the bar of repositories and slots…" src=/assets/images/2026-10-03-couch.png>
+              @547 <hr>
+              @549 <p id=p-13>
+                And it’s on this stack that I find myself increasingly comfortable and confident to take on ever more complex software projects. That’s all for the long history rehash. In the next post, I’ll air som…
+                @551 <a aria-label="Link to paragraph" class=anchor-link href=#p-13> #
+            @555 <script src="/src/components/blog/CastEmbed.astro?astro&type=script&index=0&lang.ts" type=module>
+            @557 <div class="mx-auto px-6 sm:px-6 max-w-3xl mt-8 flex justify-between flex-col sm:flex-row">
+              @559 <ul class="mr-5 rtl:mr-0 rtl:ml-5">
+                @560 <li class="bg-gray-100 dark:bg-slate-700 inline-block mr-2 rtl:mr-0 rtl:ml-2 mb-2 py-0.5 p…">
+                  @561 <a class="text-muted dark:text-slate-300 hover:text-primary dark:hover:text-gray-200" href=/tag/tech> tech
+                @563 <li class="bg-gray-100 dark:bg-slate-700 inline-block mr-2 rtl:mr-0 rtl:ml-2 mb-2 py-0.5 p…">
+                  @564 <a class="text-muted dark:text-slate-300 hover:text-primary dark:hover:text-gray-200" href=/tag/ai> ai
+              @567 <div class="mt-5 sm:mt-1 align-middle text-gray-500 dark:text-slate-600">
+                @569 <span class="align-super font-bold text-slate-500 dark:text-slate-400"> Share:
+                @572 <button class="ml-2 rtl:ml-0 rtl:mr-2" title="Twitter Share">
+                  @573 <svg class="w-6 h-6 text-gray-400 dark:text-slate-500 hover:text-black dark:hover:text-slat…"> (3 elements inside)
+                @581 <button class="ml-2 rtl:ml-0 rtl:mr-2" title="Facebook Share">
+                  @582 <svg class="w-6 h-6 text-gray-400 dark:text-slate-500 hover:text-black dark:hover:text-slat…"> (3 elements inside)
+                @590 <button class="ml-2 rtl:ml-0 rtl:mr-2" title="Linkedin Share">
+                  @591 <svg class="w-6 h-6 text-gray-400 dark:text-slate-500 hover:text-black dark:hover:text-slat…"> (1 elements inside)
+                @597 <button class="ml-2 rtl:ml-0 rtl:mr-2" title="Whatsapp Share">
+                  @598 <svg class="w-6 h-6 text-gray-400 dark:text-slate-500 hover:text-black dark:hover:text-slat…"> (5 elements inside)
+                @608 <button class="ml-2 rtl:ml-0 rtl:mr-2" title="Email Share">
+                  @609 <svg class="w-6 h-6 text-gray-400 dark:text-slate-500 hover:text-black dark:hover:text-slat…"> (5 elements inside)
+            @621 <section class="max-w-3xl mx-auto px-6 sm:px-6 mt-12 mb-8">
+              @623 <div class="border-t dark:border-slate-700 pt-8">
+                @625 <div id=giscus-container>
+                  @626 <script src=https://giscus.app/client.js>
+                  @627 <div class=giscus>
+                    @628 <iframe class=giscus-frame src="https://giscus.app/en/widget?origin=http%3A%2F%2Flocalhost%3A4321%2F2026%2F10%2…" title=Comments>
+                      @1409 #document https://giscus.app/en/widget?origin=http%3A%2F%2Flocalhost%3A4321%2F2026%2F10%2Fariadne-1-building-blocks-of-ai-coding&session=&theme=transparent_dark&reactionsEnabled=1&emitMetadata=0&inputPosition=bottom&repo=xianxu%2Fxianxu.dev&repoId=R_kgDOSOfAyg&category=Comments&categoryId=DIC_kwDOSOfAys4C72Pb&strict=0&description=AI+coding+is+all+the+rage%3B+what+are+the+basic+building+blocks%3F+How+should+we+think+about+its+future%3F+This+is+the+first+installment+of+a+series+of+5+posts.&backLink=http%3A%2F%2Flocalhost%3A4321%2F2026%2F10%2Fariadne-1-building-blocks-of-ai-coding&term=2026%2F10%2Fariadne-1-building-blocks-of-ai-coding {scrolled 0,0}
+                        @1411 <html lang=en>
+                          @1412 <head> (title "giscus"; 1 base; 10 link; 4 meta; 1 noscript; 11 script)
+                          @1442 <body>
+                            @1443 <div id=__next>
+                              @1444 <main class="w-full mx-auto">
+                                @1445 <div class="color-text-primary gsc-main">
+                                  @1446 <div class=gsc-reactions>
+                                    @1447 <h4 class=gsc-reactions-count> 0 reactions
+                                    @1449 <div class="flex flex-auto items-center justify-center gap-2 text-sm mt-2">
+                                      @1450 <details class=gsc-reactions-menu>
+                                        @1451 <summary aria-label="Add reactions" class="link-secondary gsc-reactions-button gsc-social-reaction-summary-item">
+                                          @1452 <svg aria-hidden=true class="octicon octicon-smiley"> (1 elements inside)
+                                        @1454 <div class="color-border-primary color-text-secondary color-bg-overlay gsc-reactions-popove…">
+                                          @1455 <p class=m-2>
+                                            @1456 <a class=color-text-link href="/api/oauth/authorize?redirect_uri=http%3A%2F%2Flocalhost%3A4321%2F2026%2F10%2Fa…"> Sign in
+                                            to add your reaction.
+                                          @1459 <div class="color-border-primary my-2 border-t">
+                                          @1460 <div class=m-2>
+                                            @1461 <button aria-label="Add +1 reaction" class="gsc-emoji-button no-token" disabled type=button>
+                                              @1462 <span class=gsc-emoji> 👍
+                                            @1464 <button aria-label="Add -1 reaction" class="gsc-emoji-button no-token" disabled type=button>
+                                              @1465 <span class=gsc-emoji> 👎
+                                            @1467 <button aria-label="Add Laugh reaction" class="gsc-emoji-button no-token" disabled type=button>
+                                              @1468 <span class=gsc-emoji> 😄
+                                            @1470 <button aria-label="Add Hooray reaction" class="gsc-emoji-button no-token" disabled type=button>
+… 299 more lines; narrow it with a selector (--sel)

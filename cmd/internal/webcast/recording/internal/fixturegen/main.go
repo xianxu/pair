@@ -1,6 +1,7 @@
 // Command fixturegen writes couch broadcast-web's recording fixtures (#457).
 //
 //	go run ./cmd/internal/webcast/recording/internal/fixturegen -raw RUN -name NAME -out DIR
+//	go run ./cmd/internal/webcast/recording/internal/fixturegen -recorded RUN -name NAME -out DIR
 //	go run ./cmd/internal/webcast/recording/internal/fixturegen -segments -out DIR
 //	go run ./cmd/internal/webcast/recording/internal/fixturegen -driven -out DIR
 //	go run ./cmd/internal/webcast/recording/internal/fixturegen -canonical DIR -at T
@@ -8,7 +9,9 @@
 // RUN is a run directory of #453's prototype recorder (branch
 // 453-recorder-prototypes, mode B, extended for #457; see the fixtures'
 // README). The converter maps its CDP log to records; notes and strokes come
-// from a small spec per fixture (notes.go). -segments writes the hand-made
+// from a small spec per fixture (notes.go). -recorded takes a run of the
+// real recorder (#458) instead, whose records need no conversion, and adds
+// the notes (#472). -segments writes the hand-made
 // fixture of pauses, resumes and tab switches. -canonical prints a fixture's
 // canonical state at T (the viewer conformance check's expected value).
 //
@@ -33,6 +36,7 @@ import (
 
 func main() {
 	raw := flag.String("raw", "", "prototype run directory")
+	recorded := flag.String("recorded", "", "recorder (#458) run directory")
 	name := flag.String("name", "", "fixture name (selects the notes spec)")
 	out := flag.String("out", "", "fixture directory to (re)write")
 	segments := flag.Bool("segments", false, "write the hand-made segments fixture")
@@ -48,6 +52,8 @@ func main() {
 		err = write(*out, segmentsFixture(), nil, nil, nil)
 	case *driven && *out != "":
 		err = write(*out, rec.DrivenRecording(), nil, nil, nil)
+	case *recorded != "" && *name != "" && *out != "":
+		err = adopt(*recorded, *name, *out)
 	case *raw != "" && *name != "" && *out != "":
 		err = convert(*raw, *name, *out)
 	default:
@@ -149,6 +155,36 @@ func convert(runDir, name, out string) error {
 	}
 	recs = mergeByTime(recs, notes)
 	return write(out, recs, c.bodies, frames, pngs)
+}
+
+// adopt makes a fixture of a real recorder run: its records, assets and
+// frames as recorded, plus the fixture's notes.
+func adopt(runDir, name, out string) error {
+	r, err := rec.ReadDir(runDir)
+	if err != nil {
+		return err
+	}
+	bodies := map[string][]byte{}
+	for _, x := range r.Records {
+		if a, ok := x.(*rec.Asset); ok && bodies[a.Hash] == nil {
+			if bodies[a.Hash], err = r.Asset(a.Hash); err != nil {
+				return err
+			}
+		}
+	}
+	var pngs [][]byte
+	for _, f := range r.Frames {
+		png, err := os.ReadFile(filepath.Join(runDir, f.File))
+		if err != nil {
+			return err
+		}
+		pngs = append(pngs, png)
+	}
+	notes, err := annotate(name, r.Records)
+	if err != nil {
+		return err
+	}
+	return write(out, mergeByTime(r.Records, notes), bodies, r.Frames, pngs)
 }
 
 // mergeByTime inserts extra records (notes, strokes) after every record at

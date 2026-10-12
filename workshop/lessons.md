@@ -1207,6 +1207,12 @@ proof; record the surprising case so the next change starts from evidence.
   writer orders the result, send the checked fact with the record (here the document's first segment) and have the
   writer apply the one statement of the rule (`recording.State.OnDoc`) at ordering time; test the race by ordering
   the competing event inside the emit.
+- **Fixtures that share an accident hide every reader that depends on it (#472).** The prototype's fixtures were all
+  1280×800 with frames taken while the stream was quiet, so the replay harness and the fidelity tool hard-coded the
+  viewport, and the recorder's clamp of a frame's time to the stream's (43–87 ms late on a busy page, against the
+  format's "midpoint") never showed. When a reader takes a value the recording carries (a viewport, a time), read it
+  from the record, not from what the fixtures happen to share; and when a clamp keeps one stream monotonic, apply it
+  only to that stream's records, never to a timestamp another file defines. Add a fixture that varies the shared thing.
 - **A test that asserts "at once" needs a sync point with the goroutine doing the work (#473).** Two flakes had the
   same shape: the test read state from its own goroutine while another one was mid-step. couchtty polled the pointer
   phase, which flips before the same Run-loop step tears the timers down; couchcore gave a fake child's reaper 2ms of

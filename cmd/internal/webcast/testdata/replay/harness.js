@@ -21,9 +21,15 @@ async function fetchRecords(url) {
   return text.split('\n').filter(Boolean).map((l) => JSON.parse(l));
 }
 
+// feed applies a record and, as viewer.js does, sizes the page to the
+// tab's viewport, which a tab switch can change (#472's rec-segments).
 function feed(r) {
   model.apply(r);
   renderer.apply(r);
+  if (model.seg > 0) {
+    frame.style.width = `${model.vp.w}px`;
+    frame.style.height = `${model.vp.h}px`;
+  }
 }
 
 async function settle() {
