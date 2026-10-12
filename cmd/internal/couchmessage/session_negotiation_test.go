@@ -332,3 +332,29 @@ func TestNegotiationTimeoutDoesNotFallBack(t *testing.T) {
 		t.Fatalf("timeout handled as an old broker: %v", err)
 	}
 }
+
+// A broker that drops the hello and is gone before the fallback redial: the
+// session ends with the dial error, and never closes a connection it does not
+// hold (pair#465 close review: the redial reassigned the deferred conn to nil).
+func TestNegotiationFallbackRedialFailureReturnsError(t *testing.T) {
+	socket := sessionSocket(t)
+	l, err := net.ListenUnix("unix", &net.UnixAddr{Name: socket, Net: "unix"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		conn, err := l.AcceptUnix()
+		if err != nil {
+			return
+		}
+		_, _ = transportReadFrameLimit(conn, MaxSessionFrameBytes)
+		l.Close() // removes the socket: the redial fails
+		conn.Close()
+	}()
+	c := NewSessionClient()
+	c.SetBuild(testBuild)
+	err = c.session(context.Background(), socket, selfBinding("pair:1"), time.Millisecond)
+	if err == nil || errors.Is(err, errNoAck) {
+		t.Fatalf("session = %v, want the redial's dial error", err)
+	}
+}

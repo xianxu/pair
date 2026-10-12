@@ -250,3 +250,24 @@ func TestPeerDeliveryExpiresBehindAPickerWithItsReason(t *testing.T) {
 		t.Fatalf("receipt %+v", r)
 	}
 }
+
+// pair#465 close review: the picker title is read once per picker episode. An
+// unrecognized title is not re-read on every dispatch, and a second picker the
+// dispatcher never saw close is read afresh instead of keeping the first title.
+func TestPickerHoldDetailReadsOncePerEpisode(t *testing.T) {
+	d := newPeerDelivery(peerTestMessage(time.Now()).To, time.Now)
+	screen, reads := []string{"no picker here"}, 0
+	tail := func(int) couchmessage.Tail { reads++; return couchmessage.Tail{Lines: screen} }
+	for range 3 {
+		if got := d.pickerHoldDetailLocked(1, tail); got != "blocked by a picker" {
+			t.Fatalf("unrecognized picker: %q", got)
+		}
+	}
+	if reads != 1 {
+		t.Fatalf("an unrecognized picker read the tail %d times, want 1", reads)
+	}
+	screen = []string{" Do you want to proceed?", " ❯ 1. Yes", "   2. No"}
+	if got, want := d.pickerHoldDetailLocked(2, tail), "blocked by a picker: Do you want to proceed?"; got != want || reads != 2 {
+		t.Fatalf("next picker: %q after %d reads, want %q after 2", got, reads, want)
+	}
+}

@@ -267,6 +267,10 @@ type proxy struct {
 	// consumption serialize with overlayMu; the atomic value permits
 	// diagnostic reads without weakening that ownership.
 	pickerActive atomic.Bool
+	// pickerEpisode counts the latch's false→true flips (pair#465), so a
+	// reader can tell one picker from the next even when it never saw the
+	// latch go down between them.
+	pickerEpisode atomic.Uint64
 
 	// Text detectors watch newly arrived visible text plus this carryover for
 	// split picker labels. Keeping it separate from the OSC rolling tail avoids
@@ -2193,6 +2197,9 @@ func (p *proxy) consumeOverlayLocked() bool {
 // which orders the reports as the latch changed.
 func (p *proxy) setPickerLocked(open bool) (was bool) {
 	was = p.pickerActive.Swap(open)
+	if open && !was {
+		p.pickerEpisode.Add(1)
+	}
 	if was != open && p.pickerSink != nil {
 		p.pickerSink.Picker(open)
 	}

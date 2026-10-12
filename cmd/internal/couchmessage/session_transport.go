@@ -293,41 +293,38 @@ func sessionHandshake(conn net.Conn, b Binding, build *BuildIdentity, op string)
 }
 
 func (c *SessionClient) session(ctx context.Context, socket string, b Binding, minInterval time.Duration) error {
-	dialCtx, cancel := context.WithTimeout(ctx, AdmissionTimeout)
-	conn, err := (&net.Dialer{}).DialContext(dialCtx, "unix", socket)
-	cancel()
-	if err != nil {
-		return err
-	}
-	defer func() { conn.Close() }()
 	c.mu.Lock()
 	build := c.build
 	c.mu.Unlock()
 	// Newest hello first. An old broker drops a hello it doesn't know without
 	// an ack: redial with the next older one, which reports less (hello-v2
-	// never sends Picker, hello never sends Settled).
+	// never sends Picker, hello never sends Settled). Each attempt owns its
+	// own connection; only the one that took a hello outlives the loop.
 	hellos := []string{FrameHello}
 	if build != nil {
 		hellos = []string{FrameHelloV3, FrameHelloV2, FrameHello}
 	}
-	op := hellos[0]
+	var conn net.Conn
+	var op string
 	for i := 0; ; i++ {
 		op = hellos[i]
-		err := sessionHandshake(conn, b, build, op)
-		if err == nil {
-			break
-		}
-		if i == len(hellos)-1 || !errors.Is(err, errNoAck) {
-			return err
-		}
-		conn.Close()
 		dialCtx, cancel := context.WithTimeout(ctx, AdmissionTimeout)
-		conn, err = (&net.Dialer{}).DialContext(dialCtx, "unix", socket)
+		attempt, err := (&net.Dialer{}).DialContext(dialCtx, "unix", socket)
 		cancel()
 		if err != nil {
 			return err
 		}
+		err = sessionHandshake(attempt, b, build, op)
+		if err == nil {
+			conn = attempt
+			break
+		}
+		attempt.Close()
+		if i == len(hellos)-1 || !errors.Is(err, errNoAck) {
+			return err
+		}
 	}
+	defer conn.Close()
 	v2, v3 := op != FrameHello, op == FrameHelloV3
 	if err := conn.SetDeadline(time.Time{}); err != nil {
 		return err

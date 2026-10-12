@@ -78,8 +78,10 @@ type peerDelivery struct {
 	// terminal model, and then a tail request says so.
 	tailProbe func(lines int) couchmessage.Tail
 	// pickerTitle is the title of the picker holding the current message
-	// (pair#465), "" until read; dispatch clears it once the latch is down.
-	pickerTitle string
+	// (pair#465), read once for pickerTitleEpisode; "" when the screen showed
+	// none.
+	pickerTitle        string
+	pickerTitleEpisode uint64
 }
 
 type peerSessionSink interface {
@@ -409,9 +411,6 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 		return
 	}
 	d.chargeWaitLocked()
-	if !p.pickerActive.Load() {
-		d.pickerTitle = ""
-	}
 	// Only a full composer reading opens or closes an operator hold; a wait
 	// that can't judge it (input settling, forwarded input) leaves it as is.
 	judged, operatorHold := false, false
@@ -440,7 +439,7 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 		// A picker holds the message like the operator's draft (pair#465):
 		// held, the paste-by clock stopped, delivered when it closes.
 		judged, operatorHold = true, true
-		d.current.Detail = d.pickerHoldDetailLocked(p.agentTail)
+		d.current.Detail = d.pickerHoldDetailLocked(p.pickerEpisode.Load(), p.agentTail)
 		return
 	case !p.automaticInputAvailable(automaticInputPeer):
 		d.current.Detail = "waiting for previous automatic input to clear"
@@ -631,10 +630,11 @@ func (d *peerDelivery) waitSummaryLocked() string {
 const pickerTailLines = 60
 
 // pickerHoldDetailLocked (d.mu held) names the picker holding the message by
-// its title, read once per picker: the title, once the screen shows one, is
-// kept until the latch closes.
-func (d *peerDelivery) pickerHoldDetailLocked(tail func(int) couchmessage.Tail) string {
-	if d.pickerTitle == "" {
+// its title, read once per picker episode: a title the screen didn't show
+// stays unread until the next picker, and the next picker is read afresh.
+func (d *peerDelivery) pickerHoldDetailLocked(episode uint64, tail func(int) couchmessage.Tail) string {
+	if d.pickerTitleEpisode != episode {
+		d.pickerTitleEpisode = episode
 		d.pickerTitle = couchmessage.ReadPicker(tail(pickerTailLines).Lines).Title
 	}
 	return pickerHoldDetail(d.pickerTitle)
