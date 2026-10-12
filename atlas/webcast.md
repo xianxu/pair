@@ -208,8 +208,24 @@ what the viewer's renderer draws at the same moments.
       - a mouse with no button hovers, at most every 50 ms.
     - **Keyboard.** A hidden textarea holds the keyboard focus, so an iPad raises its keyboard. Named keys and
       Ctrl/Meta chords go as key acts (`keyAct`); typing goes as text, and compositions as ime.
-    - **Batches.** `batcher` keeps acts in order with one request in flight, coalesces moves and wheels, and
-      drops its queue at a refusal, showing the server's sentence (a 401 offers Rejoin).
+    - **Batches.** `batcher` is the one gate to the wire:
+      - acts go in order, one request in flight, 40 ms apart;
+      - moves and wheels coalesce;
+      - coordinates are clamped, text is cut by runes and bytes, and a body stays under 8 KiB;
+      - each act carries the segment it was made on, and a batch never mixes segments, so an act from a page that
+        has gone is refused rather than played into the new one.
+
+      A refusal drops the queue and shows the server's sentence (a 401 offers Rejoin). `driveView` holds every
+      shell state (none, asking, driving, paused, other, lost), and the shell only paints it.
+    - **Letting go.** The cast tab, not the shell, ends what a driver holds (`drive.TabInjector` tracks a held
+      button and keys). It releases them in these cases:
+      - before another driver's input;
+      - before input on another page;
+      - when the driver's own batch is refused;
+      - on every control change, through `drive.Releaser`: `MemController` calls it off its lock and names the
+        outgoing driver, so a late release never ends the next driver's press.
+
+      The shell resets its gestures and keys when control ends.
     - Pointing and notes wait while this viewer drives.
     - `viewer_drive_live_test.go` drives two headless viewers, one by mouse and one by touch, through a real
       `Server` and `MemController`.

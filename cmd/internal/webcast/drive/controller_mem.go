@@ -159,13 +159,14 @@ func (f *MemController) changeLocked(op string, who recording.Author) error {
 	if err := f.sink.Put(r); err != nil {
 		return err
 	}
-	if rel, ok := f.inj.(Releaser); ok && next.Driving() != f.control.Driving() {
+	if rel, ok := f.inj.(Releaser); ok && next.Driving() != f.control.Driving() && f.control.Driving() != "" {
 		// What the old driver held goes up at once (#467), off the lock:
 		// a revoke never waits on the tab. Bounded by releaseWait.
+		old := f.control.Driving()
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), releaseWait)
 			defer cancel()
-			rel.Release(ctx) // a closed tab has nothing held
+			rel.Release(ctx, old) // a closed tab has nothing held
 		}()
 	}
 	f.control = next

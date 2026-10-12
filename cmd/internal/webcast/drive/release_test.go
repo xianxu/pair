@@ -65,7 +65,7 @@ func TestTabInjectorLetsGo(t *testing.T) {
 	}
 	n := len(inj.Dispatched())
 	ctlRecord(t, inj, recording.CtlRevoke, *inj.Page().Control.Driver)
-	if err := inj.Release(ctx); err != nil {
+	if err := inj.Release(ctx, drivenDriver); err != nil {
 		t.Fatal(err)
 	}
 	if got := ups(inj.Dispatched(), n); len(got) != 2 || got[0] != "up" || got[1] != "keyup ArrowLeft" {
@@ -75,7 +75,7 @@ func TestTabInjectorLetsGo(t *testing.T) {
 		t.Errorf("the up is where the drag was: %+v", up)
 	}
 	n = len(inj.Dispatched())
-	inj.Release(ctx)
+	inj.Release(ctx, drivenDriver)
 	if got := ups(inj.Dispatched(), n); len(got) != 0 {
 		t.Fatalf("let go twice: %v", got)
 	}
@@ -94,6 +94,26 @@ func TestTabInjectorLetsGo(t *testing.T) {
 	}
 	if d := inj.Dispatched()[n:]; len(d) != 2 || d[0].A != ActUp || d[1].A != ActText {
 		t.Fatalf("Bo's batch after Ana's press: %+v", d)
+	}
+
+	// A late release names the hold it ends: Ana's release, reaching the tab
+	// after Bo's press, leaves Bo's press alone. An auto-repeated key is
+	// held, and let go, once.
+	inj, held = newInj()
+	ctlRecord(t, inj, recording.CtlRequest, bo)
+	ctlRecord(t, inj, recording.CtlGrant, bo)
+	press := held.Acts[0]
+	if err := inj.Inject(ctx, "v2", Batch{Seg: held.Seg, Acts: []Act{press, {A: ActKey, Type: KeyDown, Key: "End"}, {A: ActKey, Type: KeyDown, Key: "End"}}}); err != nil {
+		t.Fatal(err)
+	}
+	n = len(inj.Dispatched())
+	inj.Release(ctx, drivenDriver)
+	if got := ups(inj.Dispatched(), n); len(got) != 0 {
+		t.Fatalf("Ana's late release ended Bo's hold: %v", got)
+	}
+	inj.Release(ctx, "v2")
+	if got := ups(inj.Dispatched(), n); len(got) != 2 || got[0] != "up" || got[1] != "keyup End" {
+		t.Fatalf("Bo's release: %v", got)
 	}
 
 	// The driver's own batch refused (a stale target): the shell drops its

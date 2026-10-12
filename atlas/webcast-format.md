@@ -598,6 +598,10 @@ over a reduced page. The real tab is the recorder (`Recorder.WithTab`). A batch 
   shadow DOM: an input's inner editor isn't a recorded node.
 - **Take.** `__couchcastTake` returns what the observer queued meanwhile, recorded with `by`.
 
+What a driver holds down (a button, keys) is `TabInjector`'s to end. It lets go before another driver's input,
+before input on another page, when the driver's batch is refused, and on every control change (`drive.Releaser`,
+naming the outgoing driver).
+
 Every exit takes. A hold no take ends expires in the page after 1 s, and what it then sends has no `by`. What stays
 unattributed is whatever the page reports after the take: the scroll a wheel causes on the next frame, page script
 reacting later, and the items of a hold a dialog interrupted. A JavaScript dialog the driver opens returns

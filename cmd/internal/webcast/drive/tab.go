@@ -62,14 +62,26 @@ func (p pressed) empty() bool { return !p.button && len(p.keys) == 0 }
 func NewTabInjector(tabs TabRunner) *TabInjector { return &TabInjector{Tabs: tabs} }
 
 // Releaser is an injector that can let go of what a driver left pressed;
-// the controller calls it on every control change.
+// the controller calls it on every control change, naming the outgoing
+// driver.
 type Releaser interface {
-	Release(ctx context.Context) error
+	Release(ctx context.Context, by string) error
 }
 
-// Release ends whatever the last driver left pressed, as nobody's input.
-func (t *TabInjector) Release(ctx context.Context) error {
-	return t.Tabs.WithTab(ctx, "", func(tab Tab) error { return t.release(tab) })
+// Release ends what driver by left pressed, as nobody's input. It names
+// the hold it ends: by the time it reaches the tab, a newer driver's batch
+// may have run (and let go of by's hold itself), and that driver's press
+// isn't by's to end.
+func (t *TabInjector) Release(ctx context.Context, by string) error {
+	return t.Tabs.WithTab(ctx, "", func(tab Tab) error {
+		t.mu.Lock()
+		mine := t.held.by == by
+		t.mu.Unlock()
+		if !mine {
+			return nil
+		}
+		return t.release(tab)
+	})
 }
 
 // release dispatches the ups for what is held, then forgets it whatever
@@ -106,7 +118,8 @@ func (t *TabInjector) note(by string, seg int, a Act) {
 	case a.A == ActMove && h.button:
 		h.x, h.y = a.X, a.Y
 	case a.A == ActKey && a.Type == KeyDown:
-		h.keys = append(h.keys, a)
+		// Keyed by the key: an auto-repeated down holds it once.
+		h.keys = append(slices.DeleteFunc(h.keys, func(k Act) bool { return k.Key == a.Key }), a)
 	case a.A == ActKey && a.Type == KeyUp:
 		h.keys = slices.DeleteFunc(h.keys, func(k Act) bool { return k.Key == a.Key })
 	}
@@ -160,7 +173,6 @@ func (t *TabInjector) inject(ctx context.Context, tab Tab, by string, b Batch) e
 		}
 		t.note(by, page.Seg, a)
 	}
-	return nil
 	return nil
 }
 
