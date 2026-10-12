@@ -1,0 +1,15 @@
+[
+  {"name": "bare url", "css": "a{background:url(a.png)}", "base": "http://x/p/", "urls": ["http://x/p/a.png"]},
+  {"name": "quoted url with spaces", "css": "a{background:url( \"../a.png\" )}", "base": "http://x/p/", "urls": ["http://x/a.png"]},
+  {"name": "single-quoted url", "css": "@font-face{src:url('f/b.woff2') format('woff2')}", "base": "http://x/", "urls": ["http://x/f/b.woff2"]},
+  {"name": "upper-case URL(", "css": "a{background:URL(a.png)}", "base": "http://x/", "urls": ["http://x/a.png"]},
+  {"name": "import string", "css": "@import \"i.css\";", "base": "http://x/", "urls": ["http://x/i.css"]},
+  {"name": "import url", "css": "@import url(i.css) screen;", "base": "http://x/", "urls": ["http://x/i.css"]},
+  {"name": "image-set strings and url", "css": "a{background-image:image-set(\"a.png\" 1x, url(b.png) 2x)}", "base": "http://x/", "urls": ["http://x/a.png", "http://x/b.png"]},
+  {"name": "webkit image-set", "css": "a{background-image:-webkit-image-set('c.png' 1x)}", "base": "http://x/", "urls": ["http://x/c.png"]},
+  {"name": "image-set type() is not a URL", "css": "a{background-image:image-set(\"a.avif\" type(\"image/avif\"), \"a.png\" type(\"image/png\"))}", "base": "http://x/", "urls": ["http://x/a.avif", "http://x/a.png"]},
+  {"name": "plain strings elsewhere are not URLs", "css": "a::before{content:\"a.png\";font-family:\"Inter\"}", "base": "http://x/", "urls": []},
+  {"name": "data and fragments are kept", "css": "a{background:url(data:image/png;base64,AAAA)} b{filter:url(#f)} c{background:url()}", "base": "http://x/", "urls": []},
+  {"name": "absolute stays absolute", "css": "body{background:url(http://y/bg.png)}", "base": "http://x/", "urls": ["http://y/bg.png"]},
+  {"name": "several in one rule", "css": "a{background:url(a.png),url(\"b.png\")}", "base": "http://x/d/", "urls": ["http://x/d/a.png", "http://x/d/b.png"]}
+]

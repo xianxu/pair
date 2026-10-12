@@ -20,8 +20,42 @@ export function resolveURL(v, base) {
 const refs = /@import\s+(["'])((?:(?!\1).)*)\1|url\(\s*(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)'|([^)'"\s]*))\s*\)/gi;
 const hover = /:hover(?![\w-])/g;
 
-// rewriteCSS points every url() (and string @import) through resolve, and
-// rewrites :hover to the class that stands in for it.
+const imageSet = /(?<![\w-])(?:-webkit-)?image-set\(/gi;
+
+// urlImageSets wraps each plain string directly inside an image-set() in
+// url(), so the one url() pass below rewrites it: a string there is a URL,
+// one nested deeper (type("image/avif")) is not.
+function urlImageSets(text) {
+  let out = '', from = 0, m;
+  imageSet.lastIndex = 0;
+  while ((m = imageSet.exec(text))) {
+    let i = m.index + m[0].length, depth = 1;
+    out += text.slice(from, i);
+    while (i < text.length && depth > 0) {
+      const c = text[i];
+      if (c === '"' || c === "'") {
+        let j = i + 1;
+        while (j < text.length && text[j] !== c && text[j] !== '\n') j += text[j] === '\\' ? 2 : 1;
+        const str = text.slice(i, j + 1);
+        out += depth === 1 && text[j] === c ? `url(${str})` : str;
+        i = j + 1;
+        continue;
+      }
+      if (c === '(') depth++;
+      if (c === ')') depth--;
+      out += c;
+      i++;
+    }
+    from = i;
+    imageSet.lastIndex = i;
+  }
+  return out + text.slice(from);
+}
+
+// rewriteCSS points every url() (and string @import, and image-set()
+// string) through resolve, and rewrites :hover to the class that stands in
+// for it. The spans it treats as URLs are the asset proxy's too
+// (tests/webcast/css_urls.json).
 export function rewriteCSS(text, base, resolve, hoverClass) {
   const one = (raw) => {
     if (raw === '' || raw.startsWith('#') || /^data:/i.test(raw)) return raw;
@@ -29,7 +63,7 @@ export function rewriteCSS(text, base, resolve, hoverClass) {
     return (abs && resolve(abs)) || BLOCKED;
   };
   // One pass over both forms, so a rewritten URL is never rewritten again.
-  let out = String(text).replace(refs, (m, q, imp, dq, sq, bare) => {
+  let out = urlImageSets(String(text)).replace(refs, (m, q, imp, dq, sq, bare) => {
     if (imp !== undefined) return `@import url(${JSON.stringify(one(imp))})`;
     const raw = dq ?? sq ?? bare ?? '';
     const to = one(raw);
