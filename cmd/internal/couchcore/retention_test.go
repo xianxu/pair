@@ -12,6 +12,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/storagegc"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func retentionStore(t *testing.T) (*ThreadStore, *storagegc.Coordinator) {
@@ -336,7 +337,7 @@ func TestRetentionMembershipWaitsForRootCoordination(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-	case <-time.After(3 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("mutation did not resume")
 	}
 }

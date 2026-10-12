@@ -7,10 +7,10 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func TestConsoleStopCancelsOperationAndJoinsWorker(t *testing.T) {
@@ -51,7 +51,7 @@ func TestConsoleStopCancelsOperationAndJoinsWorker(t *testing.T) {
 			})
 			select {
 			case <-started:
-			case <-time.After(250 * time.Millisecond):
+			case <-testwait.After(t):
 				t.Fatal("accepted operation did not start")
 			}
 
@@ -62,13 +62,13 @@ func TestConsoleStopCancelsOperationAndJoinsWorker(t *testing.T) {
 					release()
 					t.Fatalf("blocked dispatcher finished with %v, want context cancellation", err)
 				}
-			case <-time.After(250 * time.Millisecond):
+			case <-testwait.After(t):
 				release()
 				t.Fatal("Console.Stop did not cancel blocked dispatcher")
 			}
 			select {
 			case <-f.done:
-			case <-time.After(250 * time.Millisecond):
+			case <-testwait.After(t):
 				release()
 				t.Fatal("Console.Run did not join blocked operation worker")
 			}
@@ -111,29 +111,29 @@ func TestMenuOpenDoesNotWaitForActionableProvider(t *testing.T) {
 	f.host.Reset()
 
 	_, _ = f.stdin.Write([]byte("\x00"))
-	waitUpTo(t, 250*time.Millisecond, "menu repaint while inventory is blocked", func() bool {
+	waitFor(t, "menu repaint while inventory is blocked", func() bool {
 		return strings.Contains(f.host.Written(), "threads")
 	})
 	select {
 	case <-started:
-	case <-time.After(250 * time.Millisecond):
+	case <-testwait.After(t):
 		t.Fatal("menu open did not request actionable inventory")
 	}
 
 	_, _ = f.stdin.Write([]byte("x"))
-	waitUpTo(t, 250*time.Millisecond, "filter repaint while inventory is blocked", func() bool {
+	waitFor(t, "filter repaint while inventory is blocked", func() bool {
 		return strings.Contains(f.host.Written(), "filter: x")
 	})
 	f.con.Stop()
 	_ = f.stdin.Close()
 	select {
 	case <-canceled:
-	case <-time.After(250 * time.Millisecond):
+	case <-testwait.After(t):
 		t.Fatal("Console.Stop did not cancel blocked actionable inventory")
 	}
 	select {
 	case <-f.done:
-	case <-time.After(250 * time.Millisecond):
+	case <-testwait.After(t):
 		t.Fatal("Console.Run did not join blocked actionable inventory")
 	}
 }
@@ -148,7 +148,7 @@ func TestConsoleActionableObservationResultEntersMenuReducer(t *testing.T) {
 		return want, nil
 	})
 
-	waitUpTo(t, 250*time.Millisecond, "actionable result", func() bool {
+	waitFor(t, "actionable result", func() bool {
 		state := f.con.menuSnapshot()
 		return state.InventoryReady && !state.RefreshPending && reflect.DeepEqual(state.Inventory, want)
 	})

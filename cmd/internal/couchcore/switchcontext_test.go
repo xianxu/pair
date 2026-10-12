@@ -9,7 +9,6 @@ import (
 	"strings"
 	"syscall"
 	"testing"
-	"time"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/orientation"
@@ -17,6 +16,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/readiness"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/storagegc"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func TestSwitchContextUsesExactOutgoingOwnerAndArchive(t *testing.T) {
@@ -260,7 +260,7 @@ func TestSwitchContextRejectsNonRegularEvidenceWithoutBlocking(t *testing.T) {
 		if readable {
 			t.Fatal("FIFO accepted")
 		}
-	case <-time.After(time.Second):
+	case <-testwait.After(t):
 		t.Fatal("context lookup blocked on FIFO")
 	}
 }

@@ -13,6 +13,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 const menuPerfRows = 100
@@ -263,15 +264,14 @@ func measureMenuLifecyclePath(t *testing.T, writes <-chan []byte, path menuLifec
 		path.prepare()
 		started := time.Now()
 		path.trigger()
-		deadline := time.NewTimer(time.Second)
-		defer deadline.Stop()
+		deadline := testwait.After(t)
 		for {
 			select {
 			case raw := <-writes:
 				if path.paint(string(raw)) {
 					return time.Since(started)
 				}
-			case <-deadline.C:
+			case <-deadline:
 				t.Fatal("timed out waiting for correlated menu frame")
 				return 0
 			}

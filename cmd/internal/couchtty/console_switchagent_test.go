@@ -7,7 +7,6 @@ import (
 	"github.com/xianxu/pair/cmd/internal/orientation"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestCopyOrientationUsesExactOSC52AndLeavesDraftUntouched(t *testing.T) {
@@ -45,11 +44,11 @@ func TestConsoleSwitchAgentInputPreviewAndWarningAdoptsOnPanel(t *testing.T) {
 		_, _ = f.stdin.Write([]byte("\x1b[B"))
 	}
 	_, _ = f.stdin.Write([]byte("\r\r"))
-	waitUpTo(t, time.Second, "switch prefill", func() bool {
+	waitFor(t, "switch prefill", func() bool {
 		return f.con.menuSnapshot().CurrentFrame().SwitchStage == 1 && f.con.menuSnapshot().CurrentFrame().PreviewPending == 0
 	})
 	_, _ = f.stdin.Write([]byte("\t\r"))
-	waitUpTo(t, time.Second, "switch adoption", func() bool {
+	waitFor(t, "switch adoption", func() bool {
 		f.con.mu.Lock()
 		defer f.con.mu.Unlock()
 		_, ok := f.con.panes[started.Handle.ID()]
@@ -80,7 +79,7 @@ func TestOrientationFailureRetainsExactManualRecoveryAndIgnoresStaleStatus(t *te
 	f.con.menuReady = true
 	f.con.mu.Unlock()
 	f.con.watchOrientation(address, "c1", request)
-	waitUpTo(t, time.Second, "orientation failure", func() bool { return strings.Contains(f.con.menuSnapshot().Notice.Text, "may already be") })
+	waitFor(t, "orientation failure", func() bool { return strings.Contains(f.con.menuSnapshot().Notice.Text, "may already be") })
 	state := f.con.menuSnapshot()
 	if state.Orientation[address].Body != request.Body || !containsMenuItem(menuActionsFor(state, state.Inventory[0]), "copy-orientation") {
 		t.Fatalf("lost recovery: %+v", state)
@@ -101,7 +100,7 @@ func TestOrientationStatusErrorDoesNotClaimPromptWasNotSubmitted(t *testing.T) {
 	f.con.menuReady = true
 	f.con.mu.Unlock()
 	f.con.watchOrientation(address, "c1", request)
-	waitUpTo(t, time.Second, "status read error", func() bool { return strings.Contains(f.con.menuSnapshot().Notice.Text, "status read failed") })
+	waitFor(t, "status read error", func() bool { return strings.Contains(f.con.menuSnapshot().Notice.Text, "status read failed") })
 	notice := f.con.menuSnapshot().Notice.Text
 	if strings.Contains(notice, "was not submitted") || !strings.Contains(notice, "not confirmed") || !strings.Contains(notice, "Inspect") {
 		t.Fatalf("uncertainty encourages duplicate submission: %s", notice)

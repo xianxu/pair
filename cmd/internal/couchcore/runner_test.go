@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func TestFakeRunnerSignalDoesNotKill(t *testing.T) {
@@ -69,7 +71,7 @@ func TestFakeRunnerSetExitedEndsChildAndUnblocksWait(t *testing.T) {
 		if code != 3 {
 			t.Fatalf("Wait = %d, want 3", code)
 		}
-	case <-time.After(2 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("SetExited did not unblock Wait")
 	}
 	if h.Alive() {

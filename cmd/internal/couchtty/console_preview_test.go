@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func previewFormState(t *testing.T, submit bool) (MenuState, []MenuEffect) {
@@ -47,7 +48,7 @@ func TestConsoleStartPreviewFeedsPreparedResultToReducer(t *testing.T) {
 	f.con.mu.Unlock()
 	f.con.dispatchMenuEffects(effects)
 
-	waitUpTo(t, 250*time.Millisecond, "prepared preview to enter reducer", func() bool {
+	waitFor(t, "prepared preview to enter reducer", func() bool {
 		got := f.con.menuSnapshot().CurrentFrame()
 		return got.PreviewAccepted == got.Generation && got.PreviewResolution.Fingerprint == want.Resolution.Fingerprint
 	})
@@ -75,25 +76,25 @@ func TestConsolePreviewCancellationRunsLatestPendingAndJoins(t *testing.T) {
 	f.con.dispatchMenuEffects([]MenuEffect{{Preview: &PreviewRequest{Generation: 1, Path: "/one", Agent: "claude"}}})
 	select {
 	case <-firstStarted:
-	case <-time.After(250 * time.Millisecond):
+	case <-testwait.After(t):
 		t.Fatal("first preview did not start")
 	}
 	f.con.dispatchMenuEffects([]MenuEffect{{Preview: &PreviewRequest{Generation: 2, Path: "/two", Agent: "codex"}}})
 	select {
 	case <-firstCanceled:
-	case <-time.After(250 * time.Millisecond):
+	case <-testwait.After(t):
 		t.Fatal("replacement preview did not cancel running generation")
 	}
 	select {
 	case <-secondStarted:
-	case <-time.After(250 * time.Millisecond):
+	case <-testwait.After(t):
 		t.Fatal("latest pending preview did not start after terminal cancellation")
 	}
 
 	f.con.Stop()
 	select {
 	case <-f.done:
-	case <-time.After(250 * time.Millisecond):
+	case <-testwait.After(t):
 		t.Fatal("Console.Run did not join preview workers")
 	}
 }
@@ -127,7 +128,7 @@ func TestConsolePendingSubmitDispatchesAcceptedTokenOnce(t *testing.T) {
 			if call.Name == "start" && !reflect.DeepEqual(call.Args, startCommitArgs("accepted")) {
 				t.Fatalf("start args = %#v, want the accepted resolution's commit args", call.Args)
 			}
-		case <-time.After(250 * time.Millisecond):
+		case <-testwait.After(t):
 			t.Fatalf("operation sequence = %v, want prepare-start then start", got)
 		}
 	}
@@ -159,12 +160,12 @@ func TestConsolePreviewCancellationOnStop(t *testing.T) {
 		if !errors.Is(err, context.Canceled) {
 			t.Fatalf("preview stopped with %v", err)
 		}
-	case <-time.After(250 * time.Millisecond):
+	case <-testwait.After(t):
 		t.Fatal("Stop did not cancel preview")
 	}
 	select {
 	case <-f.done:
-	case <-time.After(250 * time.Millisecond):
+	case <-testwait.After(t):
 		t.Fatal("Stop did not join preview worker")
 	}
 }

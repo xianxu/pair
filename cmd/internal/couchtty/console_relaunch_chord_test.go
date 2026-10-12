@@ -15,6 +15,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
 
@@ -49,7 +50,7 @@ func newChordFixtureWithChild(t *testing.T, child *ptychild.Child) (*Console, *i
 		_ = writer.Close()
 		select {
 		case <-done:
-		case <-time.After(3 * time.Second):
+		case <-testwait.After(t):
 			t.Error("chord console did not join")
 		}
 	})
@@ -302,7 +303,7 @@ func relaunchConfirmationRoundTrip(t *testing.T, arrowDown string) {
 		if name != "relaunch" {
 			t.Fatalf("dispatched %q, want %q", name, "relaunch")
 		}
-	case <-time.After(3 * time.Second):
+	case <-testwait.After(t):
 		t.Fatalf("Enter dispatched nothing; notice = %+v", con.menuSnapshot().Notice)
 	}
 }

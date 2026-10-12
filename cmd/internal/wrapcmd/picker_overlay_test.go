@@ -215,7 +215,7 @@ func TestTranslateStdin_OverlayActiveBypassesRemap(t *testing.T) {
 	}()
 
 	_, _ = w.Write([]byte{'\r'}) // user confirms picker
-	if !waitFor(200*time.Millisecond, func() bool { return bytes.Equal(out.Bytes(), []byte{'\r'}) }) {
+	if !waitFor(t, func() bool { return bytes.Equal(out.Bytes(), []byte{'\r'}) }) {
 		t.Fatalf("got %q, want bare \\r (overlay confirm)", out.Bytes())
 	}
 	if p.pickerActive.Load() {
@@ -225,7 +225,7 @@ func TestTranslateStdin_OverlayActiveBypassesRemap(t *testing.T) {
 	// Next Enter is back in the textarea — must use the remap.
 	_, _ = w.Write([]byte{'\r'})
 	want := []byte{'\r', '\\', '\r'}
-	if !waitFor(200*time.Millisecond, func() bool { return bytes.Equal(out.Bytes(), want) }) {
+	if !waitFor(t, func() bool { return bytes.Equal(out.Bytes(), want) }) {
 		t.Fatalf("got %q, want %q (overlay then textarea Enter)", out.Bytes(), want)
 	}
 

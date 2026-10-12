@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/cmd/internal/terminal"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func TestPtyRunnerObservesFirstBytesAndGeometryBeforeDelivery(t *testing.T) {
@@ -32,7 +32,7 @@ func TestPtyRunnerObservesFirstBytesAndGeometryBeforeDelivery(t *testing.T) {
 	defer c.Close()
 	select {
 	case <-c.Exited():
-	case <-time.After(5 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("child never exited")
 	}
 	mu.Lock()

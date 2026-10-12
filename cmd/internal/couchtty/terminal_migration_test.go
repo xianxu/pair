@@ -6,6 +6,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/cmd/internal/terminal"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 	"strings"
 	"testing"
 	"time"
@@ -77,7 +78,7 @@ func TestDeliverCancellationDoesNotWaitForStoppedConsumer(t *testing.T) {
 		if err != context.Canceled {
 			t.Fatalf("delivery error %v", err)
 		}
-	case <-time.After(time.Second):
+	case <-testwait.After(t):
 		t.Fatal("canceled sink remained blocked")
 	}
 }
@@ -131,13 +132,13 @@ func TestConsoleJoinsContextualInputBeforeTerminalRelease(t *testing.T) {
 	go func() { done <- con.Run() }()
 	select {
 	case <-host.reading:
-	case <-time.After(time.Second):
+	case <-testwait.After(t):
 		t.Fatal("reader never started")
 	}
 	con.Stop()
 	select {
 	case <-done:
-	case <-time.After(time.Second):
+	case <-testwait.After(t):
 		t.Fatal("input did not join")
 	}
 	select {

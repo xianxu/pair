@@ -3,6 +3,7 @@ package wrapcmd
 import (
 	"bytes"
 	"github.com/xianxu/pair/cmd/internal/orientation"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 	"io"
 	"testing"
 	"time"
@@ -26,7 +27,7 @@ func TestOrientationTerminalRepliesDoNotCancel(t *testing.T) {
 		if state.Phase != orientation.DeliverySubmitted {
 			t.Fatal(state)
 		}
-	case <-time.After(time.Second):
+	case <-testwait.After(t):
 		t.Fatal("no delivery")
 	}
 	w.Close()
@@ -47,13 +48,19 @@ func TestOrientationUnsolicitedReplyAndReplyWithInputCancel(t *testing.T) {
 			var rolling []byte
 			p.handleChunk([]byte("\x1b[c"), &rolling)
 			w.Write([]byte(input))
+			// The input reaches the child only after the reader admitted it:
+			// paint the composer once it has, or a slow reader lets the paste
+			// win (a lone ESC waits out its flush first) (#479).
+			if !waitFor(t, func() bool { return bytes.Contains(out.Bytes(), []byte(input)) }) {
+				t.Fatalf("input %q never reached the child: %q", input, out.Bytes())
+			}
 			p.handleChunk([]byte(claudeLiveComposerPaint()), &rolling)
 			select {
 			case state := <-states:
 				if state.Phase != orientation.DeliveryCancelled {
 					t.Fatal(state)
 				}
-			case <-time.After(time.Second):
+			case <-testwait.After(t):
 				t.Fatal("no cancellation")
 			}
 			w.Close()
@@ -119,7 +126,7 @@ func TestOrientationDueSubmitSurvivesPrioritizedInput(t *testing.T) {
 				close(reader.closed)
 				select {
 				case <-done:
-				case <-time.After(time.Second):
+				case <-testwait.After(t):
 					t.Error("input scheduler did not stop")
 				}
 			})
@@ -127,13 +134,13 @@ func TestOrientationDueSubmitSurvivesPrioritizedInput(t *testing.T) {
 			p.handleChunk([]byte("\x1b[6n"+claudeLiveComposerPaint()), &rolling)
 			select {
 			case <-consumed:
-			case <-time.After(time.Second):
+			case <-testwait.After(t):
 				t.Fatal("settle timer not consumed")
 			}
 			reader.reply <- []byte(tc.input)
 			select {
 			case <-reader.queued:
-			case <-time.After(time.Second):
+			case <-testwait.After(t):
 				t.Fatal("reply not queued")
 			}
 			close(release)
@@ -142,10 +149,10 @@ func TestOrientationDueSubmitSurvivesPrioritizedInput(t *testing.T) {
 				if state.Phase != tc.want {
 					t.Fatalf("state %#v want %s", state, tc.want)
 				}
-			case <-time.After(time.Second):
+			case <-testwait.After(t):
 				t.Fatal("consumed settle event was lost after prioritized input")
 			}
-			if !waitFor(time.Second, func() bool { return bytes.Contains(out.Bytes(), []byte(tc.input)) }) {
+			if !waitFor(t, func() bool { return bytes.Contains(out.Bytes(), []byte(tc.input)) }) {
 				t.Fatalf("input lost %q", out.Bytes())
 			}
 			expected := []byte("\x1b[200~read context\x1b[201~" + tc.input)

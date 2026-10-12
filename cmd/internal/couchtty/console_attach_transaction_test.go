@@ -4,9 +4,9 @@ import (
 	"context"
 	"reflect"
 	"testing"
-	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func attachStartResult(t *testing.T, id couchcore.ActorID, address couchcore.ThreadAddress) (couchcore.StartResult, *couchcore.FakeRunner) {
@@ -73,12 +73,12 @@ func TestConsoleStopDuringAttachRefusesPartialPaneAndKeepsTerminalRestored(t *te
 		if err == nil {
 			t.Fatal("stopped Console accepted a partial pane")
 		}
-	case <-time.After(250 * time.Millisecond):
+	case <-testwait.After(t):
 		t.Fatal("attach did not retire after concurrent Stop")
 	}
 	select {
 	case <-f.done:
-	case <-time.After(250 * time.Millisecond):
+	case <-testwait.After(t):
 		t.Fatal("Console.Run did not finish Stop before attach")
 	}
 	assertConsoleRestored(t, f)

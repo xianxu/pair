@@ -10,6 +10,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 // leaveFleet is n live, detachable threads under one Couch, in snapshot order.
@@ -82,7 +84,7 @@ func TestLeaveDetachesThreadsConcurrentlyUpToTheBound(t *testing.T) {
 	}()
 	select {
 	case <-reachedBound:
-	case <-time.After(5 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("Leave never had two detaches in flight at once")
 	}
 	time.Sleep(30 * time.Millisecond) // a third would arrive now if the bound leaked
@@ -194,7 +196,7 @@ func TestLeaveCancelledMidFanOutStartsNoFurtherThread(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		select {
 		case <-inFlight:
-		case <-time.After(5 * time.Second):
+		case <-testwait.After(t):
 			t.Fatalf("only %d of 2 detaches started", i)
 		}
 	}

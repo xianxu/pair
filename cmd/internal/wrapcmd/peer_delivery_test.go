@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func peerTestMessage(now time.Time) couchmessage.Message {
@@ -238,7 +239,7 @@ func TestPeerDeliveryUsesStdinOwnerAndDoesNotSubmitAfterTyping(t *testing.T) {
 		writer.Close()
 		select {
 		case <-done:
-		case <-time.After(time.Second):
+		case <-testwait.After(t):
 			t.Error("stdin owner did not exit")
 		}
 	}()
@@ -248,16 +249,16 @@ func TestPeerDeliveryUsesStdinOwnerAndDoesNotSubmitAfterTyping(t *testing.T) {
 	if err := d.enqueue(m); err != nil {
 		t.Fatal(err)
 	}
-	if !waitFor(time.Second, func() bool { return bytes.Contains(out.Bytes(), []byte("hello")) }) {
+	if !waitFor(t, func() bool { return bytes.Contains(out.Bytes(), []byte("hello")) }) {
 		t.Fatal("pending message never reached input writer")
 	}
 	if _, err := writer.Write([]byte("operator")); err != nil {
 		t.Fatal(err)
 	}
-	if !waitFor(time.Second, func() bool { return bytes.HasSuffix(out.Bytes(), []byte("operator")) }) {
+	if !waitFor(t, func() bool { return bytes.HasSuffix(out.Bytes(), []byte("operator")) }) {
 		t.Fatal("operator input not forwarded")
 	}
-	if !waitFor(time.Second, func() bool { return d.receipt().Status.Terminal() }) {
+	if !waitFor(t, func() bool { return d.receipt().Status.Terminal() }) {
 		t.Fatal("interruption did not terminate delivery")
 	}
 	// Typing after the paste leaves the text's fate unknown (pair#427).

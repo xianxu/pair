@@ -86,7 +86,7 @@ func TestPeerRuntimeBrokerToWrapperSubmitsOnce(t *testing.T) {
 	if _, err := broker.Send(lifetime, from, "runtime-second", couchmessage.Route{Target: to.Slot}, "Another instruction"); !errors.Is(err, couchmessage.ErrRecipientBusy) {
 		t.Fatalf("pending message not preserved: %v", err)
 	}
-	if !waitFor(time.Second, func() bool { return receiver.receipt().Message.ID == accepted.Message.ID }) {
+	if !waitFor(t, func() bool { return receiver.receipt().Message.ID == accepted.Message.ID }) {
 		t.Fatal("socket commit did not reach wrapper")
 	}
 	var input bytes.Buffer
@@ -111,7 +111,7 @@ func TestPeerRuntimeBrokerToWrapperSubmitsOnce(t *testing.T) {
 	peerRender(f, receiver, peerEmptyComposer())
 	f.proxy.dispatchPeer(&input)
 	var receipt couchmessage.Receipt
-	if !waitFor(2*time.Second, func() bool {
+	if !waitFor(t, func() bool {
 		var e error
 		receipt, e = broker.Status(from, accepted.Message.ID)
 		return e == nil && receipt.Status.Terminal()

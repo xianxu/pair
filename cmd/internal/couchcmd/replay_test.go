@@ -11,9 +11,9 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
@@ -126,7 +126,7 @@ func TestRunReplayServesTheLink(t *testing.T) {
 	case link = <-lines:
 	case code := <-done:
 		t.Fatalf("exited %d before printing a link", code)
-	case <-time.After(10 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("no link")
 	}
 	if !regexp.MustCompile(`^http://127\.0\.0\.1:\d+/[A-Za-z0-9_-]+/r/segments/#t=5500$`).MatchString(link) {
@@ -147,7 +147,7 @@ func TestRunReplayServesTheLink(t *testing.T) {
 		if code != 0 {
 			t.Errorf("exit %d", code)
 		}
-	case <-time.After(5 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("did not stop")
 	}
 }

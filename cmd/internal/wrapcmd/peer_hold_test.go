@@ -56,7 +56,7 @@ func TestPeerScrollbackHoldStopsTheDeadline(t *testing.T) {
 	read := func() {
 		t.Helper()
 		f.proxy.dispatchPeer(&out) // starts a reading
-		if !waitFor(time.Second, func() bool { d.mu.Lock(); defer d.mu.Unlock(); return !d.view.checking }) {
+		if !waitFor(t, func() bool { d.mu.Lock(); defer d.mu.Unlock(); return !d.view.checking }) {
 			t.Fatal("no viewport reading")
 		}
 		f.proxy.dispatchPeer(&out)

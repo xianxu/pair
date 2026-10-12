@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 // fakeSlotGitProbe is the stateful stand-in for `git status` across checkouts
@@ -97,7 +98,7 @@ func TestSlotGitRenderNeverBlocksOnSlowProbe(t *testing.T) {
 	f, _, _ := slotGitFixture(t, time.Hour, probe)
 	select {
 	case <-probe.entered:
-	case <-time.After(3 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("no probe started")
 	}
 	// A pass is stuck in git, held by the gate until the end of the test. The
@@ -122,7 +123,7 @@ func TestSlotGitRenderNeverBlocksOnSlowProbe(t *testing.T) {
 		t.Fatalf("glyph before any observation: %q", row)
 	}
 	_, _ = f.stdin.Write([]byte{0})
-	waitUpTo(t, 250*time.Millisecond, "switcher opens while git hangs", func() bool {
+	waitFor(t, "switcher opens while git hangs", func() bool {
 		return strings.Contains(f.screenText(), "threads")
 	})
 	_, _ = f.stdin.Write([]byte{0})
@@ -171,17 +172,21 @@ func TestSlotGitTriggers(t *testing.T) {
 	}
 	probe := newFakeSlotGitProbe(clean)
 	f, primary, _ := slotGitFixture(t, time.Hour, probe)
+	// settle waits for the schedule's own idle state, read on the loop that
+	// owns it, not for a quiet spell: a pass that starts late under load is
+	// still coming (#479).
 	settle := func(what string) int {
 		t.Helper()
-		last := -1
 		waitFor(t, what, func() bool {
-			n := probe.callsFor(primary.StartingPath)
-			stable := n == last && n > 0
-			last = n
-			time.Sleep(20 * time.Millisecond)
-			return stable
+			idle := false
+			_ = f.con.runTerminalCommand(context.Background(), func() error {
+				s := f.con.slotGitSchedule
+				idle = s.Running == 0 && !s.Dirty && len(f.con.slotGitRequests) == 0 && len(f.con.slotGitResults) == 0
+				return nil
+			})
+			return idle && probe.callsFor(primary.StartingPath) > 0
 		})
-		return last
+		return probe.callsFor(primary.StartingPath)
 	}
 	before := settle("startup passes")
 	_, _ = f.stdin.Write([]byte{0})
@@ -200,7 +205,7 @@ func TestSlotGitTriggers(t *testing.T) {
 	f.con.requestSlotGit()
 	select {
 	case <-probe.entered:
-	case <-time.After(3 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("gated pass did not start")
 	}
 	for i := 0; i < 5; i++ {
@@ -229,13 +234,13 @@ func TestSlotGitStopsWithConsole(t *testing.T) {
 	f, _, _ := slotGitFixture(t, time.Hour, probe)
 	select {
 	case <-probe.entered:
-	case <-time.After(3 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("no probe started")
 	}
 	f.con.Stop()
 	select {
 	case <-f.done:
-	case <-time.After(3 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("console did not stop behind a hung probe")
 	}
 	probe.mu.Lock()

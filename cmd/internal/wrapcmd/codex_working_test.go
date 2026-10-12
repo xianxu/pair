@@ -18,6 +18,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/notifyosc"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func TestRecognizeCodexWorkingCapturedRenderedFrame(t *testing.T) {
@@ -163,7 +164,7 @@ func TestCodexWorkingNotificationReachesCouchStatusAndSwitcher(t *testing.T) {
 		_ = writer.Close()
 		select {
 		case <-done:
-		case <-time.After(time.Second):
+		case <-testwait.After(t):
 			t.Error("Couch console did not stop")
 		}
 	})
@@ -182,7 +183,7 @@ func TestCodexWorkingNotificationReachesCouchStatusAndSwitcher(t *testing.T) {
 
 func waitForCodexCouch(t *testing.T, ready func() bool, what string) {
 	t.Helper()
-	deadline := time.Now().Add(time.Second)
+	deadline := time.Now().Add(testwait.Budget(t))
 	for time.Now().Before(deadline) {
 		if ready() {
 			return

@@ -7,10 +7,10 @@ import (
 	"io"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func keyboardFixture(t *testing.T) (*consoleFixture, *keyboardHost, *ptychild.Child) {
@@ -35,7 +35,7 @@ func keyboardFixture(t *testing.T) (*consoleFixture, *keyboardHost, *ptychild.Ch
 		_ = pw.Close()
 		select {
 		case <-f.done:
-		case <-time.After(3 * time.Second):
+		case <-testwait.After(t):
 			t.Error("keyboard console did not stop")
 		}
 	})
@@ -125,7 +125,7 @@ func TestKeyboardPhysicalAltDLeavesFromTheSwitcher(t *testing.T) {
 				if args["mode"] != string(couchcore.LeaveDetach) {
 					t.Fatalf("leave args = %+v, want mode=detach", args)
 				}
-			case <-time.After(time.Second):
+			case <-testwait.After(t):
 				t.Fatalf("physical Alt+d encoded %q (flags %d) and dispatched nothing", key, h.flags())
 			}
 		})
@@ -182,7 +182,7 @@ func TestKeyboardReleaseRejectsLatePresentation(t *testing.T) {
 	f.con.Stop()
 	select {
 	case <-f.done:
-	case <-time.After(3 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("Console did not complete teardown")
 	}
 	if got := h.ctrlReturn(); !bytes.Equal(got, []byte("\r")) {

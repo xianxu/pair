@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/broadcast"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 	"github.com/xianxu/pair/cmd/internal/webcast"
 )
 
@@ -262,7 +263,7 @@ func TestWebcastEndedOnShutdown(t *testing.T) {
 	r.con.Stop()
 	select {
 	case <-r.done:
-	case <-time.After(10 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("console did not finish")
 	}
 	select {
@@ -286,7 +287,7 @@ func TestWebcastLateLaunchAfterShutdownIsClosed(t *testing.T) {
 	close(gate)
 	select {
 	case <-r.done:
-	case <-time.After(10 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("console did not finish")
 	}
 	r.mu.Lock()

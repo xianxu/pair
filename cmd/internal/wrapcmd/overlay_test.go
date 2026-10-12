@@ -4,7 +4,8 @@ import (
 	"bytes"
 	"strings"
 	"testing"
-	"time"
+
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func TestEmitPlainCR_ConcurrentOverlayRearmRetainsNewStateAndTail(t *testing.T) {
@@ -69,7 +70,7 @@ func TestHandleChunk_PanickingOverlayDetectorDoesNotStrandReturn(t *testing.T) {
 		if !bytes.Equal(got, []byte{'\\', '\r'}) {
 			t.Fatalf("Return after recovered detector panic = %q, want remap", got)
 		}
-	case <-time.After(200 * time.Millisecond):
+	case <-testwait.After(t):
 		t.Fatal("Return blocked after recovered detector panic stranded overlay lock")
 	}
 }

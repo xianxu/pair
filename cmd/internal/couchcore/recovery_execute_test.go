@@ -15,6 +15,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func TestRecoverThreadWarmPreservesSessionWithoutNativeBinding(t *testing.T) {
@@ -552,7 +553,7 @@ func TestCanceledParkAwaitStillBlocksRecoveryAndArchiveUntilWorkerSettles(t *tes
 	go func() { _, err := c.PairLifecycle.Park(ctx, source.Address); returned <- err }()
 	select {
 	case <-reached:
-	case <-time.After(5 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("park did not enter blocked publication")
 	}
 	worker := c.PairLifecycle.worker
@@ -574,7 +575,7 @@ func TestCanceledParkAwaitStillBlocksRecoveryAndArchiveUntilWorkerSettles(t *tes
 		if !errors.Is(err, context.Canceled) {
 			t.Fatalf("park Await=%v", err)
 		}
-	case <-time.After(5 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("park Await ignored cancellation")
 	}
 	select {

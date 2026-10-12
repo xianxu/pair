@@ -13,6 +13,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func requireDisposed(t *testing.T, child *ptychild.Child) {
@@ -46,7 +47,7 @@ func TestConsoleDisposesLastChildAfterPresentingItsFinalFrame(t *testing.T) {
 	f.child.Exit(0)
 	select {
 	case <-f.done:
-	case <-time.After(2 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("last child exit did not finish")
 	}
 	if !strings.Contains(f.host.Written(), "LAST-FRAME-BEFORE-DISPOSAL") {
@@ -71,7 +72,7 @@ func TestConsoleReleaseDisposesOwnedChildrenWithPendingDelivery(t *testing.T) {
 	con.Stop()
 	select {
 	case <-done:
-	case <-time.After(2 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("pending delivery blocked teardown")
 	}
 	requireDisposed(t, child)
