@@ -65,3 +65,10 @@ One rule at two layers, plus the viewer (quick flow):
   TestAnnotateLiveTwoViewers checks Resolve on a viewed note and Save on a typed draft while paused (fails without
   the hold) and both enabled after resume. Minor: `board.Writer.Emit` answers a pause drop with ErrPaused
   (TestWriterRefusesARecordDuringAPause); the recorder's drop comment names the pause. README/atlas updated.
+- **Close review round 2:** BR-3 (right): `hold` had only the opt-in Chrome test. Added a default-run node case to
+  tests/broadcast-viewer/notes.test.mjs (notes.js re-exports collab.js's noteDialog; webcast/web/collab.js is a
+  symlink to it): held draft can't save, says why, keeps text; held view's Resolve posts nothing; release restores
+  both. Fails with `held` removed from Save's rule. Minors by rule: comments re-read on every touched function
+  (collab.js `held`, annotate.js rail comment now names pause/resume); one paused predicate: Go
+  `recording.State.Paused()` (board `pageLocked`, `board.Writer.Emit`), JS `Model.paused` (annotate.js).
+  viewer.js's `s.page && !s.live` reads the show-state shared by live casts and replays, not a Model, so it stays.

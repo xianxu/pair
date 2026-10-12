@@ -116,6 +116,11 @@ func (s *State) resetDOM() {
 // Node is the live node with that id, or nil.
 func (s *State) Node(id NodeID) *DOMNode { return s.nodes[id] }
 
+// Paused reports whether a page was cast and the cast is paused on it (not
+// ended): while it is, viewers do nothing (pair#499). The one rule the
+// board, its writer and the viewer (model.js's paused) share.
+func (s *State) Paused() bool { return s.Seg > 0 && !s.Live && !s.Ended }
+
 // OnDoc reports whether the document that began at segment doc is still
 // the current one and the cast is live on it: the check the stream's writer
 // makes when it orders a record a viewer made on that document (#470), so a

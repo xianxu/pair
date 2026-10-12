@@ -351,12 +351,13 @@ export async function mountAnnotate(doc, win, v) {
   // applied, so it starts from the model's, not from nothing.
   let docSeg = v.model ? v.model.docSeg : 0;
 
-  // The rail's controls are rendered only when their state changes (a pick,
-  // a mode); each frame only places the rail, so nothing that takes input is
-  // replaced under a click.
   // While the cast is paused viewers do nothing (pair#499): the rail's
-  // controls are disabled and say why; the server refuses the posts too.
-  const paused = () => !!(v.model && v.model.seg > 0 && !v.model.live && !v.model.ended);
+  // controls are disabled and say why, and the note dialog is held; the
+  // server refuses the posts too.
+  const paused = () => !!(v.model && v.model.paused);
+  // The rail's controls are rendered only when their state changes (a pick,
+  // a mode, a pause or a resume); each frame only places the rail, so
+  // nothing that takes input is replaced under a click.
   const renderRail = () => {
     renderSwatches(swatches, palette, color(), (i) => { picked = i; colors.set(i); renderRail(); }, (tag) => doc.createElement(tag));
     for (const [m, b] of Object.entries(modeButtons)) {

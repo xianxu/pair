@@ -281,7 +281,7 @@ func (b *Board) pageLocked(seg int) (int, error) {
 		return 0, ErrEnded
 	case b.st.Seg == 0:
 		return 0, ErrNotLive
-	case !b.st.Live:
+	case b.st.Paused():
 		return 0, ErrPaused
 	case seg < b.st.DocSeg || seg > b.st.Seg:
 		return 0, ErrStale

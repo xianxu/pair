@@ -177,7 +177,7 @@ export function noteBytes(text) {
 //   close()
 export function noteDialog(els, deps) {
   let state = null; // {kind: 'draft', payload} | {kind: 'view', id}
-  let held = ''; // why Save and Resolve are off, or 
+  let held = ''; // why Save and Resolve are off; '' when they are on
   const resolveRequest = deps.resolveRequest || ((id) => ['resolve', { id }]);
   // Each open bumps the generation; a request's answer applies only to the
   // dialog that sent it, not to one opened since.

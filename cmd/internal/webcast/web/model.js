@@ -62,6 +62,11 @@ const signature = (n) => `${n.y}:${n.ns || ''}:${n.n || ''}`;
 // record in atomically: it checks every reference first and throws on a
 // refusal, leaving the state as it was.
 export class Model {
+  // paused: a page was cast and the cast is paused on it (not ended). The
+  // one viewer-side rule for "viewers do nothing" (pair#499), as Go's
+  // recording.State.Paused.
+  get paused() { return this.seg > 0 && !this.live && !this.ended; }
+
   constructor() {
     this.head = null;
     this.t = 0;

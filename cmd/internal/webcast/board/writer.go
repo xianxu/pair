@@ -39,7 +39,7 @@ func (w *Writer) Emit(r recording.Record, doc int) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if !w.st.OnDoc(doc) {
-		if w.st.Seg > 0 && !w.st.Live && !w.st.Ended && w.st.DocSeg == doc {
+		if w.st.Paused() && w.st.DocSeg == doc {
 			return ErrPaused
 		}
 		return ErrStale
