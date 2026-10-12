@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000465-couch-a-slot-blocked-by-a-picker-shows-red-in-the-tab-bar-notifies-the-hub-with-the-picker-s-text-and-receipts-say-so.md
         source_blob: d753b8d8e4efc7a55a18d769b0927510f218ba71
         destination: workshop/issues/000465-couch-a-slot-blocked-by-a-picker-shows-red-in-the-tab-bar-notifies-the-hub-with-the-picker-s-text-and-receipts-say-so.md
+        main_commit: 449fc17c389ce3065787595176bd5e216b6f2c5f
 ---
 
 # couch: a slot blocked by a picker shows red in the tab bar, notifies the hub with the picker's text, and receipts say so
