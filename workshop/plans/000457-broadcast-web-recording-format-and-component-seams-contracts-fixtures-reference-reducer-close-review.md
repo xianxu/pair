@@ -264,3 +264,76 @@ findings:
     detail: |
       2nd finding in this family. Rule: when a revision moves or renames an entity, edit the Core-concepts and Task tables in place, and record only the why under Revisions, so the table stays greppable truth.
 ```
+
+---
+
+## Re-review — 2026-10-12T00:50:56-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 457 — broadcast-web: recording format and component seams (contracts, fixtures, reference reducer) |
+| repo | pair |
+| issue file | workshop/issues/000457-broadcast-web-recording-format-and-component-seams-contracts-fixtures-reference-reducer.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 28c92296717e3f95e858b8ab9434abb6c127e7d1..ffae0334f3ae699132e0b400e529cc31dcaa2491 |
+| command | sdlc close --issue 457 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-12T00:50:56-07:00 |
+| verdict | SHIP |
+
+## Review
+
+Checking the remaining claims (ValidateDir only scans assets/, so frames/ temp files aren't reported); now running tests and verifying the plan tables.
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+**Summary:** This round fixes the four open advisory findings by rule, not one site at a time. Every catch-up equivalence check now goes through one shared helper, `CheckCatchUp` (`contract.go:218`). Both the synthetic-cut test and the fixture-pin test call it. Both `DirWriter` file writes (assets and frames) go through one helper, `writeFileAtomic` (`dir.go:142`). The plan's Core-concepts, Integration and Task tables were edited in place, and I confirmed every entity they name exists at the stated path. `go test ./...` passes in both packages (`recording` and `fixturegen`). One small gap remains. The new `writeFileAtomic` comment says `ValidateDir` reports `.tmp-*` files a crash leaves behind. That is true for `assets/` but not for `frames/`, because `ValidateDir` never lists `frames/`. So BR-11 is only partly done. It is Minor and does not block. Nothing in this round changes the Spec or the Done-when list, and the window has no conflict resolutions to check.
+
+1. **Strengths**
+   - `CheckCatchUp` (`contract.go:218-244`) compares four things through one helper: the canonical page, the asset table (by hash, not just count, which is stronger than before), `DocSeg`, and the live notes together with their state.
+   - The fixture pins now check notes and assets, not only the DOM hash. The DOM check isn't lost: the pin list is compared to `PinCanonical` from a full `Reduce`, and `CheckCatchUp` compares the catch-up to that same `Reduce`.
+   - `writeFileAtomic` (`dir.go:142-158`) replaces two separate write paths. It cleans up the temp file on both the write error and the rename error.
+   - The plan tables now match the code: `Errors`, `Finding`/`DecodeFile`/`Split` (`files.go`), `Builder`, `DOMNode.TextContent`/`Element`, `Pin`/`CanonicalTimes`, `TB`, `converter`, and `fixturegen/notes.go` all exist.
+
+2. **Critical:** none.
+
+3. **Important:** none.
+
+4. **Minor**
+   - `dir.go:139` (comment) and `dir.go:244-252`: `ValidateDir` lists only `assets/`, so a crash-orphaned `frames/.tmp-*` file is never reported, despite what the comment says. The rule that would cover it: `ValidateDir` lists every directory `writeFileAtomic` writes into and reports any name that isn't a valid entry (a hash for assets, a `frames/<n>.png` for frames). This is the third finding in the `atomic-file-write` family, so I've recorded it as BR-11 `not-addressed` rather than as a new finding. `validate_test.go:183` checks for leftover temp files only under `assets/`.
+
+5. **Test coverage**
+   - BR-10: the change is itself the added coverage. Both call sites now check through `CheckCatchUp`, and the synthetic-cut notes check is stronger because it compares note state as well as ID.
+   - BR-8 and BR-11: there is no crash-injection test, which is reasonable for an atomic write. The existing no-leftover-temp-files assertion covers assets only.
+
+6. **Architecture**
+   - **ARCH-DRY:** pass. The duplicated catch-up comparison and the two write paths are each down to one helper, and `liveIDs` is gone.
+   - **ARCH-PURE:** pass. `CheckCatchUp` is pure. `writeFileAtomic` is a thin IO helper.
+   - **ARCH-PURPOSE:** pass, with the BR-11 gap above. The rules were applied across every site in the family, except the `frames/` half of the stray-file report.
+
+7. **Plan revisions:** none needed beyond what this round already did. Optionally, a Round-2 Revisions line could say that `ValidateDir` will cover `frames/` too once that's fixed.
+
+```findings
+dispose:
+  - id: BR-8
+    disposition: addressed
+    note: |
+      PutAsset writes through writeFileAtomic (temp file in the same directory, then rename), at dir.go:111-123.
+  - id: BR-10
+    disposition: addressed
+    note: |
+      Both catch-up checks (catchup_test.go cuts, fixture_test.go pins) call CheckCatchUp, which compares Canonical, Assets by hash, DocSeg and live notes with state.
+  - id: BR-11
+    disposition: not-addressed
+    note: |
+      PutFrame is now atomic, but ValidateDir lists only assets/, so a crash-orphaned frames/.tmp-* is never reported, contrary to the dir.go:139 comment.
+  - id: BR-12
+    disposition: addressed
+    note: |
+      Core-concepts, Integration and Task 3/4/5/7 Files lines edited in place; every named entity verified at its stated path.
+```

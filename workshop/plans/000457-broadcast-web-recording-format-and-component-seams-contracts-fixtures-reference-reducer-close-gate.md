@@ -124,6 +124,31 @@ rounds:
       isolation: fenced
       reviewed: 3cbaceb7e0f6fb7e2661e427281cf4ae0e1d5449
       blocked: false
+    - "n": 3
+      timestamp: "2026-10-12T00:50:56-07:00"
+      dispatched: "2026-10-12T00:50:03-07:00"
+      agent: claude
+      dispose:
+        - id: BR-8
+          disposition: addressed
+          note: PutAsset writes through writeFileAtomic (temp file in the same directory, then rename), at dir.go:111-123.
+          round: 3
+        - id: BR-10
+          disposition: addressed
+          note: Both catch-up checks (catchup_test.go cuts, fixture_test.go pins) call CheckCatchUp, which compares Canonical, Assets by hash, DocSeg and live notes with state.
+          round: 3
+        - id: BR-11
+          disposition: not-addressed
+          note: PutFrame is now atomic, but ValidateDir lists only assets/, so a crash-orphaned frames/.tmp-* is never reported, contrary to the dir.go:139 comment.
+          round: 3
+        - id: BR-12
+          disposition: addressed
+          note: Core-concepts, Integration and Task 3/4/5/7 Files lines edited in place; every named entity verified at its stated path.
+          round: 3
+      recipe: fix-review
+      isolation: fenced
+      reviewed: ffae0334f3ae699132e0b400e529cc31dcaa2491
+      blocked: false
 ---
 
 # Gate ledger — pair#457 (boundary-review)
@@ -172,9 +197,15 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-12** [Minor] `plan-table-drift` Plan Integration-points table still names live.go and PutAsset(hash, body); Task 3/4/5 Files lines name files that do not exist
   2nd finding in this family. Rule: when a revision moves or renames an entity, edit the Core-concepts and Task tables in place, and record only the why under Revisions, so the table stays greppable truth.
 
+## Round 3 — 2026-10-12T00:50:56-07:00 (claude) — passed
+
+### Disposed
+
+- BR-8 — addressed — PutAsset writes through writeFileAtomic (temp file in the same directory, then rename), at dir.go:111-123.
+- BR-10 — addressed — Both catch-up checks (catchup_test.go cuts, fixture_test.go pins) call CheckCatchUp, which compares Canonical, Assets by hash, DocSeg and live notes with state.
+- BR-11 — not-addressed — PutFrame is now atomic, but ValidateDir lists only assets/, so a crash-orphaned frames/.tmp-* is never reported, contrary to the dir.go:139 comment.
+- BR-12 — addressed — Core-concepts, Integration and Task 3/4/5/7 Files lines edited in place; every named entity verified at its stated path.
+
 ## Open findings
 
-- **BR-8** [Minor] `atomic-file-write` DirWriter.PutAsset skips existing files, so a crash-truncated body persists; write to a temp file and rename
-- **BR-10** [Minor] `catchup-state-equivalence` Atlas claims DocSeg/notes catch-up equivalence at every fixture pin, but fixture_test.go compares only the canonical DOM
 - **BR-11** [Minor] `atomic-file-write` DirWriter.PutFrame still writes frames/<n>.png with a plain os.WriteFile; crash-orphaned assets/.tmp-* files have no remover
-- **BR-12** [Minor] `plan-table-drift` Plan Integration-points table still names live.go and PutAsset(hash, body); Task 3/4/5 Files lines name files that do not exist
