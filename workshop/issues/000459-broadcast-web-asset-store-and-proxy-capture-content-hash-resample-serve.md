@@ -1,12 +1,20 @@
 ---
 id: 000459
-status: open
+status: working
 deps: [000457]
 github_issue:
 created: 2026-10-11
-updated: 2026-10-11
+updated: 2026-10-12
 estimate_hours:
-card_mirror: '5c3980aa6558fb76b495bce8085f45962d276313' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '6b9a7e0b82548d233a1da928d76b3f3628446d71' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-12T02:21:10-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:4
+    worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
+    repository: github.com/xianxu/pair
 ---
 
 # broadcast-web: asset store and proxy — capture, content hash, resample, serve
@@ -26,16 +34,26 @@ Implement #457's asset store interface and the proxy:
 
 ## Done when
 
-- The blog's assets (Tailwind CSS, the Inter variable font, images) are captured, deduplicated by hash, resampled, and served; a viewer page renders with no request to the origin.
-- Tests against the fake recorder sink and fixtures; a size bound test for resampling.
+- The blog's assets (Tailwind CSS, the Inter variable font, images) are deduplicated by hash, resampled, and served through the real store and proxy; a viewer page renders the blog fixture with no request outside its own origin.
+- Tests against the fixtures and the store contract; a size bound test for resampling.
+- (TL 10-12) Capture over CDP is #458's (it calls `Store.Put`); the live blog cast is checked once #458 merges or in the joint first-live-cast session, not as this issue's gate.
 
 ## Plan
 
-- [ ] Capture via CDP, content-hash store
-- [ ] Resample policy; CSS URL rewriting
-- [ ] Serve over the broadcast endpoint
-- [ ] Tests; live check on the blog
+Durable plan: `workshop/plans/000459-broadcast-web-asset-store-and-proxy-capture-content-hash-resample-serve-plan.md` (single pass, one close).
+
+- [ ] CSS URL scanner (Go) + shared corpus; `image-set()` strings in the viewer's `css.js`
+- [ ] Resample (budget, bomb ceiling, WebP via golang.org/x/image)
+- [ ] `assets.Recorded` (the real Store) over `AssetWriter`; `DirWriter.Asset`
+- [ ] `assets.Proxy` + the Server's `assets/<hash>` route
+- [ ] Fixtures through the real store/proxy in the live viewer tests; no-origin check; atlas
+- [ ] Full verification
 
 ## Log
 
 ### 2026-10-11
+
+### 2026-10-12
+
+- Claimed from pair:4 (TL ops:0). #458 (unlanded, M2 closed) already captures bodies over CDP and calls `Store.Put`, and creates the store lazily at first go-live (`CastConfig.NewAssets`). Asked the TL; decisions: capture stays #458's; #459 = real Store + `assets.Proxy` bound later; whichever of #458/#459 lands second wires `proxy.Bind` and couchcmd's `NewAssets`; the store absolutizes CSS URLs at `Put` (dedup by hash makes a serve-time base ambiguous), atlas to say so; budget only (no declared size yet); live blog check after #458 merges.
+- The blog (Astro) serves WebP from its image pipeline, so resampling needs a WebP decoder: `golang.org/x/image` (Go project; v0.47.0 on 10-09), pinned v0.46.0, with a DecodeConfig pixel ceiling before any decode.
