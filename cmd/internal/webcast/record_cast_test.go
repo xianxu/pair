@@ -2,6 +2,7 @@ package webcast
 
 import (
 	"context"
+	"fmt"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -19,11 +20,13 @@ func TestCastRecordsToDirAndViewers(t *testing.T) {
 	dir := t.TempDir()
 	f := NewFakeBrowser()
 	var got *RecordOptions
+	var logged []string
 	c, err := StartCast(context.Background(), CastConfig{
 		Launch:        func(_ context.Context, ro *RecordOptions) (Browser, error) { got = ro; return f, nil },
 		Host:          broadcast.NewHost(broadcast.HostConfig{Tunnel: &broadcast.FakeTunnel{}, ProbeTimeout: 2 * time.Second}),
 		Ping:          time.Second,
 		RecordingsDir: dir,
+		Logf:          func(format string, args ...any) { logged = append(logged, fmt.Sprintf(format, args...)) },
 		NewLive: func() (recording.Sink, recording.Live) {
 			h := recording.NewFakeHub(256)
 			return h, h
@@ -33,8 +36,13 @@ func TestCastRecordsToDirAndViewers(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(c.End)
-	if got == nil || got.ID == "" || got.Out == nil {
+	if got == nil || got.ID == "" || got.Out == nil || got.Logf == nil {
 		t.Fatalf("record options %+v", got)
+	}
+	// The recorder's reports reach the operator's Logf.
+	got.Logf("lost %d", 1)
+	if len(logged) != 1 || logged[0] != "lost 1" {
+		t.Fatalf("Logf: %v", logged)
 	}
 	if entries, err := os.ReadDir(dir); err != nil || len(entries) != 0 {
 		t.Fatal("nothing is created before go-live")

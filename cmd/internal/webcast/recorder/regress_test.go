@@ -96,10 +96,12 @@ func TestUnknownFrameIsStaleAndOverflowKeepsReports(t *testing.T) {
 		payload, _ := json.Marshal(map[string]any{"t": "obs", "items": []any{map[string]any{"k": "click", "p": []int{1, 2, 0}}}})
 		h.send("A", "Runtime.bindingCalled", map[string]any{"name": "__couchcast", "payload": string(payload), "executionContextId": ctx})
 	}
-	click(99) // no such context
+	// No such context: a hover (which needs no frame offset) names nothing.
+	payload, _ := json.Marshal(map[string]any{"t": "obs", "items": []any{map[string]any{"k": "hover", "p": []int{1, 2, 0}}}})
+	h.send("A", "Runtime.bindingCalled", map[string]any{"name": "__couchcast", "payload": string(payload), "executionContextId": 99})
 	h.settle()
-	if n := h.count("click"); n != 0 {
-		t.Fatalf("a report from an unknown frame was applied (%d clicks)", n)
+	if n := h.count("hover"); n != 0 {
+		t.Fatalf("a report from an unknown frame was applied (%d hovers)", n)
 	}
 	gc.hold()
 	h.send("A", "DOM.inlineStyleInvalidated", map[string]any{"nodeIds": []int{p.body().nodeID}})
@@ -129,7 +131,9 @@ func TestUnknownFrameIsStaleAndOverflowKeepsReports(t *testing.T) {
 func TestCloseReportsLosses(t *testing.T) {
 	h := &harness{t: t, fc: newFakeChrome(), out: &memOut{}}
 	h.r = Start(Options{ID: "rec1", Call: h.fc, ShotEvery: -1,
-		Out: func() (Opened, error) { return Opened{Sink: &h.out.sink, Assets: failingStore{assets.NewMemStore()}}, nil }})
+		Out: func() (Opened, error) {
+			return Opened{Sink: &h.out.sink, Assets: failingStore{assets.NewMemStore()}}, nil
+		}})
 	h.page("A", "http://a/", "L1")
 	h.r.Send(Live{Tab: rec.Tab{ID: "T-A"}, Session: "A"})
 	h.send("A", "Network.responseReceived", map[string]any{"requestId": "r", "type": "Image", "response": map[string]any{"url": "http://a/x.png"}})
@@ -276,4 +280,32 @@ func TestFrameOffsets(t *testing.T) {
 		t.Errorf("ptr %+v, want (101, 251)", *ptr)
 	}
 	h.mustValidate()
+}
+
+// Non-DOM events have a bound of their own; what is dropped over it is
+// counted and reported, never silently.
+func TestOtherEventsAreBoundedAndCounted(t *testing.T) {
+	h := &harness{t: t, fc: newFakeChrome(), out: &memOut{}}
+	gc := &gatedCaller{fakeChrome: h.fc, gate: make(chan struct{})}
+	close(gc.gate)
+	h.r = Start(Options{ID: "t", Call: gc, ShotEvery: -1, MaxQueue: 3, Out: func() (Opened, error) { return Opened{Sink: &h.out.sink}, nil }})
+	t.Cleanup(func() { h.r.Close() })
+	p := h.page("A", "http://a/", "L1")
+	h.r.Send(Live{Tab: rec.Tab{ID: p.frameID}, Session: "A"})
+	h.settle()
+	gc.hold()
+	h.send("A", "DOM.inlineStyleInvalidated", map[string]any{"nodeIds": []int{p.body().nodeID}})
+	gc.waitEntered(t)
+	for i := 0; i < 5; i++ {
+		h.send("A", "CSS.fontsUpdated", map[string]any{})
+	}
+	gc.release()
+	h.settle()
+	st, err := h.r.Stats(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Other != 2 || !strings.Contains(st.Losses(), "2 other events") {
+		t.Fatalf("stats %+v (%s)", st, st.Losses())
+	}
 }

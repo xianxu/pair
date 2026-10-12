@@ -138,6 +138,10 @@ type Recorder struct {
 	events   int
 	overflow int // DOM events dropped since the last resync
 	lost     int // DOM events dropped in all
+	// others counts queued non-DOM events; lostOther those dropped over
+	// their own bound.
+	others, lostOther int
+	resyncTold        bool // the operator has been told of a resync
 	// counted losses outside the mirror, for Stats
 	assetsLost, framesLost int
 	final                  *Stats // Stats as the recording ended
@@ -231,13 +235,25 @@ func (r *Recorder) enqueue(in any, bounded bool) bool {
 	if r.closing {
 		return false
 	}
-	if e, ok := in.(Event); ok && bounded && strings.HasPrefix(e.Method, "DOM.") {
-		if r.events >= r.opts.MaxQueue {
-			r.overflow++
-			r.lost++
-			return true
+	if e, ok := in.(Event); ok && bounded {
+		if strings.HasPrefix(e.Method, "DOM.") {
+			if r.events >= r.opts.MaxQueue {
+				r.overflow++
+				r.lost++
+				return true
+			}
+			r.events++
+		} else {
+			// Other events (contexts, observer reports, CSS, Network) come
+			// at page-load and human rates, far below DOM bursts; their own
+			// bound is reached only when the recorder has been stalled for
+			// minutes, and what is dropped then is counted and reported.
+			if r.others >= r.opts.MaxQueue {
+				r.lostOther++
+				return true
+			}
+			r.others++
 		}
-		r.events++
 	}
 	r.queue = append(r.queue, stamped{in, at})
 	select {
@@ -271,6 +287,7 @@ type Stats struct {
 	Desync   int            // events and reports naming nodes the mirror lacked
 	Overflow int            // DOM events dropped over MaxQueue, not yet resynced
 	Lost     int            // DOM events dropped over MaxQueue in all
+	Other    int            // other CDP events dropped over their bound
 	Assets   int            // asset bodies not captured (queue full, fetch or store failed)
 	Frames   int            // screenshots not kept
 	Examples []string
@@ -289,6 +306,9 @@ func (s Stats) Losses() string {
 	}
 	if s.Lost > 0 {
 		parts = append(parts, fmt.Sprintf("%d DOM events over the queue bound (resynced)", s.Lost))
+	}
+	if s.Other > 0 {
+		parts = append(parts, fmt.Sprintf("%d other events over the queue bound", s.Other))
 	}
 	if s.Assets > 0 {
 		parts = append(parts, fmt.Sprintf("%d assets not captured", s.Assets))
@@ -319,7 +339,7 @@ func (r *Recorder) stats() Stats {
 		s.Dropped[k] = v
 	}
 	r.mu.Lock()
-	s.Overflow, s.Lost = r.overflow, r.lost
+	s.Overflow, s.Lost, s.Other = r.overflow, r.lost, r.lostOther
 	r.mu.Unlock()
 	return s
 }
@@ -378,8 +398,12 @@ func (r *Recorder) run() {
 		in := r.queue[0]
 		r.queue[0] = stamped{}
 		r.queue = r.queue[1:]
-		if e, ok := in.in.(Event); ok && strings.HasPrefix(e.Method, "DOM.") {
-			r.events--
+		if e, ok := in.in.(Event); ok {
+			if strings.HasPrefix(e.Method, "DOM.") {
+				r.events--
+			} else {
+				r.others--
+			}
 		}
 		overflowed := r.overflow > 0
 		r.mu.Unlock()
@@ -479,8 +503,10 @@ func (r *Recorder) afterInput(at time.Time) {
 		lost := r.overflow
 		r.overflow = 0
 		r.mu.Unlock()
-		if lost > 0 {
-			r.opts.Logf("recorder: %d DOM events over the queue bound; resynced from a snapshot", lost)
+		if lost > 0 && !r.resyncTold {
+			// Once: later ones are in the end-of-recording account.
+			r.resyncTold = true
+			r.opts.Logf("recording fell behind the page (%d DOM events over the queue bound); resynced from a snapshot", lost)
 		}
 		// One snapshot per session however many reasons it had (a resync, a
 		// document update, a desync); the page first, as a new document

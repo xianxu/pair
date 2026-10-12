@@ -199,3 +199,7 @@ cases, each with a sequence test that injects the interleaving through the fake 
   ended at once: the next page becomes the cast tab (`seg tab`), or Chrome ends (`stop end`). Snapshots go through a
   per-session dirty set, so a resync, a document update and a desync after one input cost one snapshot. Problems
   reach the console notice (`CastConfig.Logf`); per-item losses are counted in `Stats` and summarized at the end.
+- 2026-10-12 — M2 review round 2: the queue has two bounds of `MaxQueue` (100 000) each: DOM events (bursty; dropped
+  ones are resynced from a snapshot) and every other CDP event (contexts, observer reports, CSS, Network: page-load
+  and human rates, reached only after a stall of minutes; dropped ones are counted and reported). The graveyard
+  takes only ids whose nodes are gone after the update is applied (BR-19). One resync notice per recording.
