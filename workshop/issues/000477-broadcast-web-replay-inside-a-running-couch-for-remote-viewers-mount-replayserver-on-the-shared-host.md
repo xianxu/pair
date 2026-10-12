@@ -63,3 +63,13 @@ Durable plan: `workshop/plans/000477-broadcast-web-replay-inside-a-running-couch
 ## Log
 
 ### 2026-10-12
+
+- M1 built. `webcast.ReplayShares` mounts one `NewRecordingServer` per recording on the shared Host. The broker ops
+  are `replay-share` and `replay-status`. `couch --broadcast-web-replay ID` prints the shared link and exits; with no
+  Couch, it serves on loopback. `couch --broadcast-web-query DIR link [--at]` prints the same link for agents. The
+  length advisory is fixed (`Listed.Ended`, `Length()` says `unknown`). See the plan's Revisions for the
+  `Share`/`Status` split (ARCH-ORDER: a poll must not restart a failure).
+- Pre-existing test race fixed in passing: `couchcmd/replay_test.go`'s `lineWriter` had its channel field read by
+  the test while `Write` cleared it. It failed under `-race`.
+- Live: `WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run 'LiveReplayShare|LiveReplayServerSeeks'` passes.
+  A real Chrome opens a share's link through a LocalOnly Host and seeks with `#t=`.

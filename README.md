@@ -398,12 +398,15 @@ couch --peek repo:N[:M...][,repo:N...] [--lines N] [--json] [--transcripts]
 couch --archived         threads removed from couch, with their records kept
 couch --actors [--json]  live peer-message receivers in this Couch namespace
 couch --broadcast-list [--json]   the running broadcast and its viewer count (never the link)
-couch --broadcast-web-query DIR dom|events|notes ...
+couch --broadcast-web-query DIR dom|events|notes|link ...
                          read-only: a broadcast-web recording's page at t, what happened in a window,
-                         and every note with its element and the actions before it (pair#462)
-couch --broadcast-web-replay [ID|DIR] [--at MS]
-                         replay broadcast-web recordings in the viewer with a timeline scrubber, served on
-                         this machine only until Ctrl-C; prints the link (#t=MS opens at a moment) (pair#471)
+                         and every note with its element and the actions before it (pair#462); link
+                         prints its shared replay link at a moment (pair#477)
+couch --broadcast-web-replay [ID|DIR] [--at MS] [--local]
+                         replay broadcast-web recordings in the viewer with a timeline scrubber; prints the
+                         link (#t=MS opens at a moment) (pair#471). A recording is shared through the running
+                         Couch's tunnel for other devices (pair#477); else, or --local, served on this
+                         machine only until Ctrl-C
 couch --broadcast-web-fidelity [ID|DIR]
                          check a recording (default: the newest) against the tab's screenshots in a headless
                          Chrome; writes DIR/fidelity/report.md; exit 3 when a frame is over tolerance (pair#478)
@@ -876,7 +879,12 @@ prints its usage. See [atlas/webcast-format.md](atlas/webcast-format.md#agent-qu
 viewer: play, pause, speed, and a timeline that shows pauses as gaps, notes,
 strokes and who drove. With no argument it lists the recordings in Couch's
 store; an ID or a recording directory opens that one, and `--at MS` prints a
-`#t=MS` link to that moment. It serves on this machine only, until Ctrl-C.
+`#t=MS` link to that moment. While Couch runs, a recording in its store is
+shared through Couch's broadcast tunnel under its own token, so the link opens
+on another device and grants only that recording; it stays shared until Couch
+exits. Otherwise, and with `--local` or no argument (the list), it serves on
+this machine only, until Ctrl-C. `couch --broadcast-web-query DIR link --at MS`
+prints the shared link for an agent.
 
 `couch --broadcast-web-fidelity [ID|DIR]` checks a recording against the real
 tab. During a cast the recorder keeps sparse low-res screenshots of the tab

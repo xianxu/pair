@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/broadcast"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
@@ -174,5 +175,36 @@ func TestLiveReplayServerDrivers(t *testing.T) {
 	json.Unmarshal(page.eval(t, `document.querySelectorAll('.replay-gap').length`), &gaps)
 	if gaps != 1 {
 		t.Errorf("%d gaps, want the one pause", gaps)
+	}
+}
+
+// A replay share (#477) in headless Chrome: the link a running Couch
+// prints, through the shared Host (a LocalOnly tunnel here; the real tunnel
+// is the operator's smoke test), opens at its #t= moment and seeks.
+//
+//	WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run LiveReplayShare -v
+func TestLiveReplayShareSeeks(t *testing.T) {
+	page := headlessPage(t)
+	host := broadcast.NewHost(broadcast.HostConfig{Tunnel: broadcast.LocalOnly{}, ProbeTimeout: 5 * time.Second})
+	shares := NewReplayShares(host, replayRoot(t, "segments"))
+	defer shares.Close()
+	st := awaitShare(t, shares, "segments")
+	if st.State != ShareReady || !st.Local {
+		t.Fatalf("share: %+v", st)
+	}
+	rec, err := recording.ReadDir(recording.Fixture("segments"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pins := recording.CanonicalTimes(rec)
+	page.openReplay(t, ReplayLink(st.Base, "segments", pins[len(pins)-1]))
+	if got, want := page.evalString(t, drawnJS), canonicalAt(t, rec, pins[len(pins)-1]); got != want {
+		t.Fatalf("opened: %s", firstDiff(got, want))
+	}
+	for _, at := range []int64{pins[0], pins[len(pins)/2]} {
+		page.eval(t, fmt.Sprintf("location.hash = '#t=%d'", at))
+		if got, want := page.evalString(t, drawnJS), canonicalAt(t, rec, at); got != want {
+			t.Fatalf("seeked to t=%d: %s", at, firstDiff(got, want))
+		}
 	}
 }

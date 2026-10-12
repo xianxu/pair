@@ -121,3 +121,18 @@ with #470's modules. It waits on #470 (pair:6). Merge main, then wire it.
   and skill text.
 - M2: merge main once #470 lands; the replay viewer draws notes and strokes with
   #470's modules; a live check that a note shows at its moment.
+
+## Revisions
+
+### 2026-10-12, during M1
+
+- **`Share` / `Status` split.** Reason: with one idempotent `Share`, the poll restarts a failed share on every call,
+  so the CLI could never see the failure. The test caught it: a Host with no tunnel stayed `opening`. Change: `Share`
+  starts a share unless it's opening or ready, and `Status` only reads. That's two broker ops, `replay-share` and
+  `replay-status`, mirroring slot operations and `operation-status`.
+- **A DIR outside Couch's store serves on loopback, with a note, instead of refusing.** Reason: refusing gave the
+  operator nothing they wouldn't get with `--local`. The query CLI's `link` still refuses, because it can't serve.
+- **`ShareStatus.Local`.** When the Host's tunnel is off (`COUCH_BROADCAST_TUNNEL=off`), the link works on Couch's
+  machine only. Both CLIs say so, rather than print a loopback link as if other devices could open it.
+- **Torn last line.** The `{"t":N` match now needs the digits to end at `,` or `}`, so a line cut off inside its `t`
+  doesn't read as an end.

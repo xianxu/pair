@@ -248,16 +248,36 @@ instead of the event stream.
     from the asset records.
 
   An id is one path element (`ValidRecordingID`) naming a real directory directly under the root, never a symlink.
-- **Entry point:** `couch --broadcast-web-replay [ID|DIR] [--at MS]` (`couchcmd/replay.go`).
-  - It reads the store a running Couch uses (`<store>/webcast/recordings`, where #458 records), or the named directory.
-  - It serves on `127.0.0.1` under a fresh token until SIGINT or SIGTERM, and prints the link.
-  - It writes nothing (ARCH-FUNERAL: the listener and token die with the process).
-  - Mounting the replay on the shared `broadcast.Host` inside a running Couch, for remote viewers, is the TL's
-    follow-up after #458.
+  `NewRecordingServer(token, root, id)` is scoped to one recording: no listing, every other id not found.
+  The listing's length is `unknown` when the events file's last line is torn (its `{"t":N,` envelope doesn't parse).
+- **Replay shares (#477):** `webcast.ReplayShares`, made in `couchcmd/run.go` beside the shared `broadcast.Host` and
+  held by the console, mounts each recording asked for on the Host, under its own token, as a `NewRecordingServer`.
+  A link grants the one recording it names (the cast token model).
+  - **States:** `opening → ready | failed`, `ready → lost` when the tunnel dies, and `failed | lost → opening` with a
+    new token on the next `Share`. `Close` (console teardown) abandons opens, unmounts every share, and so closes the
+    tunnel.
+  - **Lifecycle:** shares live in memory until Couch exits, one per recording asked for. The tunnel stays open while any
+    share is mounted. There's no expiry or unshare verb yet.
+  - **The broker ops** are `replay-share` (start it) and `replay-status` (read it). They need no slot identity, like
+    `broadcast-status`, because the socket is in the operator-only store. They never wait on the tunnel: the socket gives
+    each exchange 2 s, and an open takes up to the Host's 30 s probe. So the CLI asks, then polls every 300 ms, up to
+    45 s.
+- **Entry point:** `couch --broadcast-web-replay [ID|DIR] [--at MS] [--local]` (`couchcmd/replay.go`).
+  - **A recording in Couch's store, with a Couch running:** it asks for the share (`shareReplay`), prints the public
+    link and exits.
+  - **No Couch, an older Couch, a DIR outside the store, no ID (the listing), or `--local`:** it serves on `127.0.0.1`
+    under a fresh token until SIGINT or SIGTERM, and says so on stderr. It writes nothing (ARCH-FUNERAL: the listener
+    and token die with the process).
+  - **For agents:** `couch --broadcast-web-query DIR link [--at MS]` prints the shared link through the same
+    `shareReplay`. The query package takes it as a `query.Linker`. With no Couch it refuses and names the replay CLI.
+    It never serves itself.
 - **Tests:**
   - `tests/webcast/replay.test.mjs`: the seek rule, timeline, placer, `#t=`, `Player` and `replaySource`, with fakes.
   - `replay_server_test.go`: the routes and confinement to the root.
   - `couchcmd/replay_test.go`: the CLI.
+  - `shares_test.go`: the share states on a `FakeTunnel` Host.
+  - `couchcmd/replay_share_test.go`: share-and-poll against a scripted broker, the loopback fallbacks, `query link`,
+    and the whole chain: CLI → broker handler → console → shares → Host.
   - `replay_live_test.go` (`WEBCAST_LIVE_CHROME=1`): a `#t=` link and shuffled scrubbing draw the reducer's canonical
     state at every pin of every fixture; JS `catchUp` takes the records Go's does; notes and strokes match the reducer
     at their moments; drive bands; nothing is requested outside the server.

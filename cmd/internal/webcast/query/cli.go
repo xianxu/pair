@@ -19,7 +19,9 @@ const Flag = "--broadcast-web-query"
 const Usage = `couch ` + Flag + ` DIR dom [--at T] [--sel SELECTOR] [--max-lines N] [--json]
 couch ` + Flag + ` DIR events --from T1 --to T2 [--max-lines N] [--json]
 couch ` + Flag + ` DIR notes [--note ID] [--before MS] [--json]
-  DIR is a recording directory. Times are ms since the recording started; --at defaults
+couch ` + Flag + ` DIR link [--at T]
+  DIR is a recording directory. link prints its replay link at T (default 0),
+  shared through the running Couch's broadcast tunnel: point a reviewer at a moment. Times are ms since the recording started; --at defaults
   to its end, --before (the actions shown before each note) to 10000. Every element is
   named @N, its node id: pass --sel @N to see it.
   Selectors: ` + SelectorGrammar + `.
@@ -39,16 +41,17 @@ type args struct {
 func parseArgs(argv []string) (args, error) {
 	a := args{before: DefaultBefore}
 	if len(argv) < 2 {
-		return a, fmt.Errorf("needs a recording directory and a query (dom, events or notes)")
+		return a, fmt.Errorf("needs a recording directory and a query (dom, events, notes or link)")
 	}
 	a.dir, a.verb = argv[0], argv[1]
 	allowed := map[string]map[string]bool{
 		"dom":    {"--at": true, "--sel": true, "--max-lines": true, "--json": true},
 		"events": {"--from": true, "--to": true, "--max-lines": true, "--json": true},
 		"notes":  {"--note": true, "--before": true, "--json": true},
+		"link":   {"--at": true},
 	}[a.verb]
 	if allowed == nil {
-		return a, fmt.Errorf("unknown query %q (dom, events or notes)", a.verb)
+		return a, fmt.Errorf("unknown query %q (dom, events, notes or link)", a.verb)
 	}
 	seen := map[string]bool{}
 	rest := argv[2:]
@@ -106,13 +109,33 @@ func parseArgs(argv []string) (args, error) {
 	return a, nil
 }
 
-// Main runs one query: argv is what follows the couch flag. It exits 2 on a
-// usage error and 1 when the recording can't answer.
+// Linker is a recording's replay link at t ms: couch's, which asks the
+// running Couch to share it (#477). The queries themselves need no Couch.
+type Linker func(dir string, at int64) (string, error)
+
+// Main runs one query with no Couch to link through.
 func Main(argv []string, stdout, stderr io.Writer) int {
+	return Run(argv, func(string, int64) (string, error) {
+		return "", fmt.Errorf("no Couch to share the recording through")
+	}, stdout, stderr)
+}
+
+// Run runs one query: argv is what follows the couch flag. It exits 2 on a
+// usage error and 1 when the recording can't answer.
+func Run(argv []string, link Linker, stdout, stderr io.Writer) int {
 	a, err := parseArgs(argv)
 	if err != nil {
 		fmt.Fprintf(stderr, "couch: %s: %v\nusage:\n%s", Flag, err, Usage)
 		return 2
+	}
+	if a.verb == "link" {
+		url, err := link(a.dir, a.at)
+		if err != nil {
+			fmt.Fprintf(stderr, "couch: %s: %v\n", Flag, err)
+			return 1
+		}
+		fmt.Fprintln(stdout, url)
+		return 0
 	}
 	rec, err := recording.ReadDir(a.dir)
 	if err != nil {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/webcast"
 )
 
@@ -244,4 +245,27 @@ func (c *Console) endWebcastForShutdown() {
 		case <-time.After(webcastShutdownWait):
 		}
 	}
+}
+
+// SetReplayShares gives the console the replay shares (#477): it answers
+// replay-share and replay-status with them, and closes them at teardown.
+// Call before Run.
+func (c *Console) SetReplayShares(s *webcast.ReplayShares) { c.replays = s }
+
+// ReplayShare answers a replay request: replay-share asks for the
+// recording to be shared, replay-status reads where its share is.
+func (c *Console) ReplayShare(op, id string) couchmessage.ReplayShare {
+	if c.replays == nil {
+		return couchmessage.ReplayShare{State: string(webcast.ShareFailed), Error: "this Couch has no recordings store"}
+	}
+	read := c.replays.Status
+	if op == "replay-share" {
+		read = c.replays.Share
+	}
+	st := read(id)
+	out := couchmessage.ReplayShare{State: string(st.State), Base: st.Base, Local: st.Local}
+	if st.Err != nil {
+		out.Error = st.Err.Error()
+	}
+	return out
 }

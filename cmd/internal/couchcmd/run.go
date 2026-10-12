@@ -278,8 +278,17 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 		return 0
 	}
 	if invocation.kind == cliWebQuery {
-		// A pure read of a recording directory: no Couch runtime needed.
-		return query.Main(invocation.args, stdout, stderr)
+		// A pure read of a recording directory: no Couch runtime needed,
+		// except for link, which asks the running Couch to share it (#477).
+		store := func() (string, error) {
+			prepared, lease, err := prepareRuntime(rt, false)
+			if err != nil {
+				return "", err
+			}
+			lease.Close()
+			return prepared.StoreDir(), nil
+		}
+		return query.Run(invocation.args, replayLinker(store, couchmessage.Call, slotPollClock{now: time.Now, sleep: time.Sleep}), stdout, stderr)
 	}
 	if invocation.kind == cliWebReplay {
 		// Reads recordings in the store a running Couch records to, and
@@ -292,7 +301,7 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 		defer lease.Close()
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
-		return runReplay(ctx, invocation.args, prepared.StoreDir(), stdout, stderr)
+		return runReplay(ctx, invocation.args, prepared.StoreDir(), couchmessage.Call, slotPollClock{now: time.Now, sleep: time.Sleep}, stdout, stderr)
 	}
 	if invocation.kind == cliWebFidelity {
 		// Reads a recording in the store (or a named directory) and writes
@@ -714,6 +723,10 @@ func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, ou
 	console.SetCapture(recorder)
 	console.SetBroadcast(broadcastConfig)
 	console.SetWebcast(webcastConfig)
+	if store != "" {
+		// Recordings shared for replay on the same Host (#477), until Couch exits.
+		console.SetReplayShares(webcast.NewReplayShares(castHost, recordingsDir(store)))
+	}
 	options := diagnosticlog.Options{Proof: diagnosticlog.DefaultProof}
 	if len(settings) > 0 {
 		config := settings[0]
@@ -1311,13 +1324,16 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "             COUCH_ISOLATED_ROOT explicitly separates diagnostic/test runtimes.")
 	fmt.Fprintln(w, "       couch --send-to repo[:N]|hub [--agent NAME] --message TEXT")
 	fmt.Fprintln(w, "       couch --message-status ID [--json]")
-	fmt.Fprintln(w, "       couch "+query.Flag+" DIR dom|events|notes ...")
+	fmt.Fprintln(w, "       couch "+query.Flag+" DIR dom|events|notes|link ...")
 	fmt.Fprintln(w, "             Read-only: ask a broadcast-web recording for the page at t, what happened")
-	fmt.Fprintln(w, "             in a window, and every note with its element and the actions before it.")
+	fmt.Fprintln(w, "             in a window, and every note with its element and the actions before it;")
+	fmt.Fprintln(w, "             link prints its replay link at a moment, shared by the running Couch.")
 	fmt.Fprintln(w, "             `couch "+query.Flag+"` alone prints its usage.")
-	fmt.Fprintln(w, "       couch "+replayFlag+" [ID|DIR] [--at MS]")
-	fmt.Fprintln(w, "             Replay broadcast-web recordings in the viewer, served on this machine only")
-	fmt.Fprintln(w, "             until Ctrl-C. Prints the link: the recordings, or one at MS (#t=MS).")
+	fmt.Fprintln(w, "       couch "+replayFlag+" [ID|DIR] [--at MS] [--local]")
+	fmt.Fprintln(w, "             Replay a broadcast-web recording in the viewer: prints its link at MS (#t=MS),")
+	fmt.Fprintln(w, "             shared through the running Couch's broadcast tunnel for other devices. With")
+	fmt.Fprintln(w, "             no Couch running, no ID (the list), or --local: served on this machine only")
+	fmt.Fprintln(w, "             until Ctrl-C.")
 	fmt.Fprintln(w, "       couch "+fidelityFlag+" [ID|DIR]")
 	fmt.Fprintln(w, "             Check a broadcast-web recording (default: the newest) against the tab's")
 	fmt.Fprintln(w, "             screenshots in a headless Chrome; writes DIR/fidelity/report.md. Exit 3 when")

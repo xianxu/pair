@@ -34,9 +34,14 @@ import (
 //
 // A recording is read from disk when its records are asked for, so one
 // still being written replays as far as it has got. It writes nothing.
+//
+// One scoped to a recording (NewRecordingServer) serves only that one: no
+// listing, and every other id is not found, so its link grants what it
+// names (#477).
 type ReplayServer struct {
 	token string
 	root  string
+	only  string // the one recording served; "" serves every one and the listing
 
 	mu      sync.Mutex
 	proxies map[string]*castassets.Proxy // by recording id; at most one per directory under root
@@ -45,6 +50,13 @@ type ReplayServer struct {
 // NewReplayServer serves the recordings under root (each a directory).
 func NewReplayServer(token, root string) *ReplayServer {
 	return &ReplayServer{token: token, root: root, proxies: map[string]*castassets.Proxy{}}
+}
+
+// NewRecordingServer serves only the recording id under root.
+func NewRecordingServer(token, root, id string) *ReplayServer {
+	s := NewReplayServer(token, root)
+	s.only = id
+	return s
 }
 
 // recordingIDShape is the shape of a recording directory's name: one path
@@ -74,7 +86,7 @@ func (s *ReplayServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	if rest == "" {
+	if rest == "" && s.only == "" {
 		s.list(w)
 		return
 	}
@@ -98,13 +110,18 @@ func (s *ReplayServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// exists says whether id names a recording directory directly under root
-// (not a link out of it).
+// exists says whether id is a recording this server serves.
 func (s *ReplayServer) exists(id string) bool {
+	return (s.only == "" || id == s.only) && recordingExists(s.root, id)
+}
+
+// recordingExists says whether id names a recording directory directly
+// under root (not a link out of it).
+func recordingExists(root, id string) bool {
 	if !recordingIDShape.MatchString(id) {
 		return false
 	}
-	info, err := os.Lstat(filepath.Join(s.root, id))
+	info, err := os.Lstat(filepath.Join(root, id))
 	return err == nil && info.IsDir()
 }
 
@@ -176,12 +193,23 @@ func serveViewerFile(w http.ResponseWriter, r *http.Request, name string) {
 	w.Write(body)
 }
 
-// Listed is one recording in the listing.
+// Listed is one recording in the listing. Duration is known only when
+// Ended: a last line whose envelope doesn't parse (a torn write) leaves it
+// unknown, not 0.
 type Listed struct {
 	ID       string
 	Started  string
 	Duration time.Duration
+	Ended    bool
 	Notes    int
+}
+
+// Length is the listing's length column.
+func (l Listed) Length() string {
+	if !l.Ended {
+		return "unknown"
+	}
+	return l.Duration.String()
 }
 
 // ListRecordings reads what the listing shows of each recording under
@@ -198,11 +226,11 @@ func ListRecordings(root string) ([]Listed, error) {
 			continue
 		}
 		dir := filepath.Join(root, e.Name())
-		head, end, err := headAndEnd(filepath.Join(dir, recording.FileEvents))
+		head, end, ended, err := headAndEnd(filepath.Join(dir, recording.FileEvents))
 		if err != nil {
 			continue // not a recording
 		}
-		out = append(out, Listed{ID: e.Name(), Started: head, Duration: time.Duration(end) * time.Millisecond, Notes: countLines(filepath.Join(dir, recording.FileNotes))})
+		out = append(out, Listed{ID: e.Name(), Started: head, Duration: time.Duration(end) * time.Millisecond, Ended: ended, Notes: countLines(filepath.Join(dir, recording.FileNotes))})
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Started > out[j].Started })
 	return out, nil
@@ -213,42 +241,44 @@ func ListRecordings(root string) ([]Listed, error) {
 // between: the last line can be a whole document snapshot, so the file is
 // read backwards in chunks to that line's start, and only its envelope's
 // leading "t" is read (every record line begins {"t":N, as Encode writes it).
-func headAndEnd(path string) (started string, end int64, err error) {
+// ended is false when that line doesn't begin so (a torn write).
+func headAndEnd(path string) (started string, end int64, ended bool, err error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return "", 0, err
+		return "", 0, false, err
 	}
 	defer f.Close()
 	first, err := bufio.NewReaderSize(f, 4096).ReadSlice('\n')
 	if err != nil && err != io.EOF {
-		return "", 0, err // a head line is small: a longer first line isn't one
+		return "", 0, false, err // a head line is small: a longer first line isn't one
 	}
 	var head struct {
 		K       string `json:"k"`
 		Started string `json:"started"`
 	}
 	if json.Unmarshal(bytes.TrimSpace(first), &head) != nil || head.K != "head" {
-		return "", 0, errNotRecording
+		return "", 0, false, errNotRecording
 	}
 	info, err := f.Stat()
 	if err != nil {
-		return "", 0, err
+		return "", 0, false, err
 	}
 	start, err := lastLineStart(f, info.Size())
 	if err != nil {
-		return "", 0, err
+		return "", 0, false, err
 	}
 	lead := make([]byte, 32)
 	n, _ := f.ReadAt(lead, start)
 	if m := leadingT.FindSubmatch(lead[:n]); m != nil {
-		end, _ = strconv.ParseInt(string(m[1]), 10, 64)
+		end, err := strconv.ParseInt(string(m[1]), 10, 64)
+		return head.Started, end, err == nil, nil
 	}
-	return head.Started, end, nil
+	return head.Started, 0, false, nil
 }
 
 var (
 	errNotRecording = errors.New("not a recording")
-	leadingT        = regexp.MustCompile(`^\{"t":(\d+)`)
+	leadingT        = regexp.MustCompile(`^\{"t":(\d+)[,}]`) // the digits end: a torn "t" is not one
 )
 
 // lastLineStart is the offset where the file's last non-empty line begins.
@@ -294,7 +324,7 @@ var listTemplate = template.Must(template.New("list").Parse(`<!doctype html>
 <style>body{font:14px/1.5 system-ui,sans-serif;margin:24px 16px;color-scheme:light dark}table{border-collapse:collapse}td,th{padding:4px 12px;text-align:left}td.n{text-align:right;font-variant-numeric:tabular-nums}</style>
 </head><body><h1>Recordings</h1>
 {{if .}}<table><tr><th>Recording</th><th>Started</th><th>Length</th><th>Notes</th></tr>
-{{range .}}<tr><td><a href="r/{{.ID}}/">{{.ID}}</a></td><td>{{.Started}}</td><td class="n">{{.Duration}}</td><td class="n">{{.Notes}}</td></tr>
+{{range .}}<tr><td><a href="r/{{.ID}}/">{{.ID}}</a></td><td>{{.Started}}</td><td class="n">{{.Length}}</td><td class="n">{{.Notes}}</td></tr>
 {{end}}</table>{{else}}<p>No recordings yet.</p>{{end}}
 </body></html>
 `))

@@ -200,3 +200,49 @@ func TestListRecordingsLongLastLine(t *testing.T) {
 		t.Fatalf("listed %+v", got)
 	}
 }
+
+// A recording whose last line is torn (a write cut off mid-envelope) lists
+// its length as unknown, not 0 (#471's advisory, #477).
+func TestListRecordingsTornLastLineIsUnknown(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "torn")
+	os.Mkdir(dir, 0o755)
+	head := `{"t":0,"k":"head","format":"couch-webcast","v":1,"id":"torn","started":"2026-10-12T10:00:00Z"}`
+	for _, last := range []string{`{"t":12`, `{"t":`, `garbage`, `{"k":"text","t":5}`, `{"t":99999999999999999999999}`} {
+		os.WriteFile(filepath.Join(dir, recording.FileEvents), []byte(head+"\n"+`{"t":40,"k":"text","id":5,"v":"x"}`+"\n"+last), 0o644)
+		got, err := ListRecordings(root)
+		if err != nil || len(got) != 1 || got[0].Ended || got[0].Length() != "unknown" {
+			t.Fatalf("last line %q: %+v %v", last, got, err)
+		}
+		if _, body := replayGet(t, NewReplayServer("tok", root), http.MethodGet, "/tok/"); !strings.Contains(body, `<td class="n">unknown</td>`) {
+			t.Fatalf("last line %q: listing\n%s", last, body)
+		}
+	}
+	// A whole last line is known, a head-only recording too (length 0).
+	os.WriteFile(filepath.Join(dir, recording.FileEvents), []byte(head+"\n"+`{"t":40,"k":"text","id":5,"v":"x"}`+"\n"), 0o644)
+	if got, _ := ListRecordings(root); len(got) != 1 || !got[0].Ended || got[0].Length() != "40ms" {
+		t.Fatalf("whole line: %+v", got)
+	}
+	os.WriteFile(filepath.Join(dir, recording.FileEvents), []byte(head+"\n"), 0o644)
+	if got, _ := ListRecordings(root); len(got) != 1 || !got[0].Ended || got[0].Length() != "0s" {
+		t.Fatalf("head only: %+v", got)
+	}
+}
+
+// A server scoped to one recording (a replay share, #477) serves that one
+// and nothing else: no listing, no other recording, no way out of it.
+func TestRecordingServerServesOnlyItsRecording(t *testing.T) {
+	root := replayRoot(t, "segments", "blog")
+	s := NewRecordingServer("tok", root, "segments")
+	for _, p := range []string{"/tok/r/segments/", "/tok/r/segments/records", "/tok/r/segments/viewer.js"} {
+		if res, _ := replayGet(t, s, http.MethodGet, p); res.StatusCode != 200 {
+			t.Errorf("%s: %d", p, res.StatusCode)
+		}
+	}
+	for _, p := range []string{"/tok/", "/tok", "/tok/r/", "/tok/r/blog/", "/tok/r/blog/records", "/tok/r/../r/blog/",
+		"/tok/r/segments%2F..%2Fblog/records", "/tok/r/segments/../blog/records", "/other/r/segments/", "/tok/r/Segments/"} {
+		if res, body := replayGet(t, s, http.MethodGet, p); res.StatusCode != 404 {
+			t.Errorf("%s: %d %.80s", p, res.StatusCode, body)
+		}
+	}
+}
