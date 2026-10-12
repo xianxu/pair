@@ -129,7 +129,6 @@ const (
 	defaultMaxQueue  = 100000
 	callTimeout      = 5 * time.Second
 	sideQueue        = 256
-	shotScale        = 0.5
 )
 
 // Recorder records one cast. Start it, Send it inputs, Close it.
@@ -181,10 +180,12 @@ type Recorder struct {
 	requests map[string]netReq
 	shotN    int
 	nextShot time.Time
-	// asked: asset URLs this recording has queued, so each is fetched once
-	// (grows with the distinct assets a cast loads).
-	asked map[string]bool
-	err   error
+	// owned: asset URLs whose body this recording fetched or is fetching;
+	// pending: references waiting refSettle. Both grow with the distinct
+	// assets a cast loads, and die with the recording.
+	owned   map[string]bool
+	pending map[string]pendingRef
+	err     error
 }
 
 type sheetHeader struct {
@@ -217,7 +218,8 @@ func Start(opts Options) *Recorder {
 		assetQ: make(chan assetJob, sideQueue), shotQ: make(chan shotJob, 1),
 		m: newMirror(), parents: map[string]string{}, frameIDs: map[string]string{}, loader: map[string]string{},
 		contexts: map[string]map[int64]string{}, snapSeq: map[string]uint64{}, headers: map[string]sheetHeader{},
-		requests: map[string]netReq{}, dirty: map[string]bool{}, asked: map[string]bool{},
+		requests: map[string]netReq{}, dirty: map[string]bool{}, owned: map[string]bool{},
+		pending: map[string]pendingRef{},
 	}
 	r.side.Add(2)
 	go r.assetWorker()
@@ -395,7 +397,11 @@ func (r *Recorder) run() {
 			select {
 			case <-r.signal:
 			case <-tick.C:
-				r.maybeShot(r.opts.Now())
+				now := r.opts.Now()
+				r.maybeShot(now)
+				if r.live {
+					r.flushRefs(now)
+				}
 			}
 			continue
 		}
@@ -533,7 +539,7 @@ func (r *Recorder) afterInput(at time.Time) {
 		r.call(e.Session, "DOM.requestChildNodes", map[string]any{"nodeId": e.NodeID, "depth": -1, "pierce": true}, nil)
 	}
 	for _, ref := range r.m.Refs {
-		r.queueRef(ref)
+		r.queueRef(ref, at)
 	}
 	r.m.Refs = r.m.Refs[:0]
 	for len(r.m.Truncated) > 0 {
@@ -899,7 +905,7 @@ func (r *Recorder) event(at time.Time, e Event) {
 		if json.Unmarshal(e.Params, &p) == nil && p.Font != nil && p.Font.Src != "" && p.Font.Family != "" {
 			f := p.Font
 			r.m.Emit(t, &rec.Font{Family: f.Family, Src: f.Src, Style: f.Style, Weight: f.Weight, Stretch: f.Stretch, Range: f.Range})
-			r.queueURL(e.Session, f.Src, "")
+			r.queueURL(e.Session, f.Src, at)
 		}
 	case "Network.responseReceived":
 		var p struct {

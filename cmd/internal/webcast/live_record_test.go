@@ -300,10 +300,12 @@ func TestLiveRecording(t *testing.T) {
 // TestLiveRecordURL records a page with the real recorder for the fidelity
 // runs, in #453's scenarios at its 1280×800 viewport:
 //
-//	WEBCAST_LIVE_CHROME=1 WEBCAST_RECORD_URL=http://127.0.0.1:8801/stress.html WEBCAST_RECORD_OUT=DIR \
+//	WEBCAST_LIVE_CHROME=1 WEBCAST_RECORD_URL=stress WEBCAST_RECORD_OUT=DIR \
 //	  WEBCAST_RECORD_SCENARIO=idle WEBCAST_RECORD_SECS=7 go test ./cmd/internal/webcast -run LiveRecordURL -v
 //
 // then FIDELITY_DIR=DIR go test ./cmd/internal/webcast/recorder/internal/fidelity -run Dir -v.
+// The URL "stress" serves #453's stress page from testdata/stress, its
+// cross-origin frame from a second origin.
 func TestLiveRecordURL(t *testing.T) {
 	url, out := os.Getenv("WEBCAST_RECORD_URL"), os.Getenv("WEBCAST_RECORD_OUT")
 	if url == "" || out == "" {
@@ -312,6 +314,9 @@ func TestLiveRecordURL(t *testing.T) {
 	secs, _ := time.ParseDuration(os.Getenv("WEBCAST_RECORD_SECS") + "s")
 	if secs <= 0 {
 		secs = 10 * time.Second
+	}
+	if url == "stress" {
+		url = serveStress(t)
 	}
 	c := liveRecordingChrome(t, out)
 	h := liveHarness{c}
@@ -346,6 +351,9 @@ func TestLiveRecordURL(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Logf("recorder: %+v", stats)
+	if loss := stats.Losses(); loss != "" || stats.Desync != 0 {
+		t.Errorf("the recording lost %q (desync %d)", loss, stats.Desync)
+	}
 	c.Close()
 	fs, _, err := recording.ValidateDir(out)
 	if err != nil {
@@ -354,4 +362,34 @@ func TestLiveRecordURL(t *testing.T) {
 	if errs := recording.Errors(fs); len(errs) != 0 {
 		t.Fatalf("invalid: %v", errs)
 	}
+}
+
+// serveStress serves testdata/stress on 127.0.0.1 and its frame on
+// localhost (another site: an out-of-process frame), returning the page's URL.
+func serveStress(t *testing.T) string {
+	t.Helper()
+	dir := filepath.Join("testdata", "stress")
+	listen := func(h http.Handler) string {
+		l, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			t.Fatal(err)
+		}
+		srv := &http.Server{Handler: h}
+		go srv.Serve(l)
+		t.Cleanup(func() { srv.Close() })
+		return fmt.Sprint(l.Addr().(*net.TCPAddr).Port)
+	}
+	frame := "http://localhost:" + listen(http.FileServer(http.Dir(dir)))
+	page, err := os.ReadFile(filepath.Join(dir, "stress.html"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	page = []byte(strings.ReplaceAll(string(page), "{{FRAME}}", frame))
+	mux := http.NewServeMux()
+	mux.Handle("/assets/", http.FileServer(http.Dir(dir)))
+	mux.HandleFunc("/stress.html", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		w.Write(page)
+	})
+	return "http://127.0.0.1:" + listen(mux) + "/stress.html"
 }

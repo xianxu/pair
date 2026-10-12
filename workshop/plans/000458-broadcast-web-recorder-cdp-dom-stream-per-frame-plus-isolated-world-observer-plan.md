@@ -203,3 +203,11 @@ cases, each with a sequence test that injects the interleaving through the fake 
   ones are resynced from a snapshot) and every other CDP event (contexts, observer reports, CSS, Network: page-load
   and human rates, reached only after a stall of minutes; dropped ones are counted and reported). The graveyard
   takes only ids whose nodes are gone after the update is applied (BR-19). One resync notice per recording.
+- 2026-10-12 — M3 as built (boundary review BR-23..25): screenshots are the whole viewport halved per CSS pixel
+  (`recorder.LowRes`, box filter, DPR-aware; `frame.scale` is image px per CSS px), since CDP's clip is in document
+  coordinates; the fidelity tool scales its replays the same way. The recorder captures asset bodies itself (TL with
+  #459, 10-12: capture is #458's, `Store.Put` of raw bodies; #459 stores, absolutizes CSS and serves): responses,
+  resources Chrome holds at a segment's start, and, after a 2 s settle with nothing else claiming the URL, an element's
+  `src` or a font's `src` loaded in the page's context (`Network.loadNetworkResource`). One owner per URL; srcset
+  candidates and lazy images are never loaded this way. The stress page is `cmd/internal/webcast/testdata/stress`
+  (`WEBCAST_RECORD_URL=stress`), not served from #453's branch.

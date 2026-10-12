@@ -122,6 +122,7 @@ type mirror struct {
 type Ref struct {
 	Session, DocURL, Raw string
 	Srcset               bool // Raw is a srcset: comma-separated candidates
+	Lazy                 bool // a loading=lazy image: maybe never loaded
 }
 
 // Expand names a node whose children CDP hasn't sent.
@@ -455,7 +456,8 @@ func (m *mirror) refs(s *msession, n *cnode, a map[string]string) {
 	}
 	for _, k := range names {
 		if v := a[k]; v != "" {
-			m.Refs = append(m.Refs, Ref{Session: s.id, DocURL: doc, Raw: v, Srcset: k == "srcset"})
+			m.Refs = append(m.Refs, Ref{Session: s.id, DocURL: doc, Raw: v, Srcset: k == "srcset",
+				Lazy: strings.EqualFold(a["loading"], "lazy")})
 		}
 	}
 }

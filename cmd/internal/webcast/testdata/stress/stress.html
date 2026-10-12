@@ -1,0 +1,86 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>broadcast-web stress</title>
+<link rel="stylesheet" href="/assets/stress.css">
+<style id="cssinjs"></style>
+</head>
+<body>
+<header><h1>Stress <span id="clock">0</span></h1><span class="spin"></span>
+  <span class="late">Late font: The quick brown fox</span></header>
+<main>
+  <section class="grid">
+    <table><thead><tr><th>id</th><th>name</th><th>value</th><th>delta</th><th>state</th></tr></thead><tbody id="tb"></tbody></table>
+  </section>
+  <section class="side">
+    <iframe id="xo" src="{{FRAME}}/frame.html" width="300" height="120"></iframe>
+    <x-closed id="closed"></x-closed>
+    <x-open id="open"></x-open>
+    <div id="cij" class="box">CSS-in-JS (insertRule)</div>
+    <div id="adopt" class="box">adoptedStyleSheets</div>
+    <form>
+      <input id="txt" type="text"><input id="chk" type="checkbox">
+      <select id="sel"><option>alpha</option><option>beta</option><option>gamma</option></select>
+      <input id="rng" type="range" min="0" max="100"><br><textarea id="ta" rows="2"></textarea>
+    </form>
+    <div id="scroller"></div>
+    <img src="/assets/photo.png" srcset="/assets/photo.png 1x, /assets/photo2x.png 2x" width="200" height="120" alt="photo">
+    <svg width="200" height="60"><rect id="bar" x="0" y="10" width="50" height="40" fill="teal"/><text x="5" y="35" id="svgt">svg</text></svg>
+    <details id="det"><summary>details</summary><p>toggled by script</p></details>
+    <template id="tpl"><li class="tpl">from template</li></template><ul id="tl"></ul>
+  </section>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+// heavy re-render: 100 rows, 20 random cells every 100ms, full tbody rebuild every 1s
+const tb = $('tb'); let gen = 0;
+function rebuild() {
+  gen++;
+  const frag = document.createDocumentFragment();
+  for (let i = 0; i < 100; i++) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${i}</td><td>row-${i}-g${gen}</td><td>${(Math.random()*1000).toFixed(1)}</td><td class="d">0</td><td><span class="pill">${['ok','warn','err'][(i+gen)%3]}</span></td>`;
+    frag.appendChild(tr);
+  }
+  tb.replaceChildren(frag);
+}
+rebuild(); setInterval(rebuild, 1000);
+setInterval(() => {
+  for (let k = 0; k < 20; k++) {
+    const r = tb.rows[(Math.random()*100)|0]; if (!r) continue;
+    r.cells[2].textContent = (Math.random()*1000).toFixed(1);
+    r.cells[3].style.background = `hsl(${(Math.random()*360)|0} 70% 80%)`;
+  }
+}, 100);
+const t0 = performance.now();
+setInterval(() => { $('clock').textContent = ((performance.now()-t0)/1000).toFixed(1); }, 100);
+// closed + open shadow roots
+class XClosed extends HTMLElement { constructor() { super(); const r = this.attachShadow({mode:'closed'});
+  r.innerHTML = '<style>span{color:white;background:crimson;padding:2px 6px;font-weight:bold}</style><span>closed 0</span>';
+  let n = 0; setInterval(() => { r.querySelector('span').textContent = 'closed ' + (++n); }, 300); } }
+class XOpen extends HTMLElement { constructor() { super(); const r = this.attachShadow({mode:'open'});
+  r.innerHTML = '<style>b{color:white;background:navy;padding:2px 6px}</style><b>open 0</b>';
+  let n = 0; setInterval(() => { r.querySelector('b').textContent = 'open ' + (++n); }, 300); } }
+customElements.define('x-closed', XClosed); customElements.define('x-open', XOpen);
+// CSS-in-JS: insertRule into an empty <style>, then swap the class
+const sheet = $('cssinjs').sheet; let ci = 0;
+setInterval(() => { ci++; sheet.insertRule(`.cij-${ci}{background:hsl(${ci*37%360} 80% 60%);transform:translateX(${ci%5*6}px)}`, sheet.cssRules.length); $('cij').className = 'box cij-' + ci; }, 500);
+// adoptedStyleSheets
+const cs = new CSSStyleSheet(); document.adoptedStyleSheets = [cs]; let ai = 0;
+setInterval(() => { ai++; cs.replaceSync(`#adopt{border:6px solid hsl(${ai*53%360} 90% 45%)}`); }, 700);
+// inputs set by script (properties, not attributes)
+let ii = 0;
+setInterval(() => { ii++; $('txt').value = 'tick ' + ii; $('chk').checked = ii % 2 === 0; $('sel').selectedIndex = ii % 3;
+  $('rng').value = String(ii * 7 % 100); $('ta').value = 'line ' + ii + '\nnext ' + (ii*2); }, 400);
+// inner scroll container scrolled by script
+const sc = $('scroller'); sc.innerHTML = Array.from({length: 60}, (_, i) => `<div>scroll line ${i}</div>`).join('');
+let si = 0; setInterval(() => { si = (si + 7) % 900; sc.scrollTop = si; }, 200);
+// svg attribute changes, details toggle, template clones
+let vi = 0; setInterval(() => { vi++; $('bar').setAttribute('width', 20 + vi*13 % 180); $('svgt').textContent = 'svg ' + vi; }, 250);
+setInterval(() => { $('det').open = !$('det').open; }, 1500);
+setInterval(() => { const ul = $('tl'); if (ul.children.length > 4) ul.firstElementChild.remove(); ul.appendChild($('tpl').content.cloneNode(true)); }, 900);
+// late font through the FontFace API (no DOM change)
+setTimeout(async () => { const f = new FontFace('LateFace', 'url(/assets/late.ttf)'); await f.load(); document.fonts.add(f); }, 2000);
+// frame-time probe
+window.__frames = []; let last = performance.now();
+(function tick(now) { window.__frames.push(now - last); last = now; requestAnimationFrame(tick); })(performance.now());
+</script>
+</body></html>

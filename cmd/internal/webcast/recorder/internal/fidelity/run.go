@@ -41,9 +41,11 @@ type Shot struct {
 }
 
 // Report is a recording's fidelity: per shot, and median and max in %.
+// Skipped counts shots with no live replay to compare.
 type Report struct {
 	Shots       []Shot
 	Median, Max float64
+	Skipped     int
 }
 
 func (r Report) String() string {
@@ -51,7 +53,11 @@ func (r Report) String() string {
 	for _, s := range r.Shots {
 		per = append(per, fmt.Sprintf("%.2f", s.Diff))
 	}
-	return fmt.Sprintf("median %.2f%% max %.2f%% (%s)", r.Median, r.Max, strings.Join(per, " "))
+	out := fmt.Sprintf("median %.2f%% max %.2f%% (%s)", r.Median, r.Max, strings.Join(per, " "))
+	if r.Skipped > 0 {
+		out += fmt.Sprintf(", %d shots without a live replay", r.Skipped)
+	}
+	return out
 }
 
 // Run replays a recording directory at each of its frames in a headless
@@ -101,7 +107,16 @@ func Run(ctx context.Context, chromeBin, dir string) (Report, error) {
 				}
 			}
 		}
+		if best.Diff > 100 {
+			// No live replay near this shot (taken as a segment ended):
+			// nothing to compare, and not a 100% miss.
+			rep.Skipped++
+			continue
+		}
 		rep.Shots = append(rep.Shots, best)
+	}
+	if len(rep.Shots) == 0 {
+		return rep, errors.New("fidelity: no shot has a live replay")
 	}
 	ds := make([]float64, len(rep.Shots))
 	for i, s := range rep.Shots {
@@ -113,6 +128,8 @@ func Run(ctx context.Context, chromeBin, dir string) (Report, error) {
 }
 
 // browser is a headless Chrome on its debugging pipe, one page attached.
+// Not webcast.Chrome: that one owns its event loop, and the replay needs the
+// raw Fetch events to serve the recording's bodies.
 type browser struct {
 	cmd     *exec.Cmd
 	conn    *cdp.Conn
@@ -130,19 +147,26 @@ func launch(ctx context.Context, bin string) (*browser, error) {
 	if err != nil {
 		return nil, err
 	}
+	fail := func(err error, files ...*os.File) (*browser, error) {
+		for _, f := range files {
+			f.Close()
+		}
+		os.RemoveAll(profile)
+		return nil, err
+	}
 	cmdR, cmdW, err := os.Pipe()
 	if err != nil {
-		return nil, err
+		return fail(err)
 	}
 	outR, outW, err := os.Pipe()
 	if err != nil {
-		return nil, err
+		return fail(err, cmdR, cmdW)
 	}
 	cmd := exec.Command(bin, "--remote-debugging-pipe", "--headless=new", "--user-data-dir="+profile,
 		"--no-first-run", "--no-default-browser-check", "--hide-scrollbars", "--force-device-scale-factor=1", "about:blank")
 	cmd.ExtraFiles = []*os.File{cmdR, outW}
 	if err := cmd.Start(); err != nil {
-		return nil, err
+		return fail(err, cmdR, cmdW, outR, outW)
 	}
 	cmdR.Close()
 	outW.Close()
@@ -294,7 +318,7 @@ func (b *browser) shoot(ctx context.Context, r *rec.Recording, st *rec.State, f 
 	if err != nil {
 		return nil, err
 	}
-	low, _, _, err := recorder.LowRes(full)
+	low, _, _, err := recorder.LowRes(full, 1) // the replay runs at DPR 1
 	return low, err
 }
 

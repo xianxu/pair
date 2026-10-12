@@ -31,7 +31,8 @@ Implement #457's recorder interface on real Chrome, through pair#454's browser-c
 - The isolated-world observer #453 needed: CSS rule text, form values (including values set by script), scroll offsets, selection. Nothing in the page's main world unless a measured gap requires it (record why).
 - #453's CDP limits: text nodes truncated at 10k characters (Tailwind's runtime `<style>`; use `CSS.getStyleSheetText`), user-agent shadow noise filtered.
 - Segments: a full snapshot on go-live, on each new document, on each tab switch (the cast follows the active tab).
-- Asset references handed to the asset store's interface (capture and storage are pair#459's).
+- Asset references handed to the asset store's interface (capture and storage are pair#459's). *Revised 10-12 (TL
+  with #459): capture is the recorder's (raw bodies to `Store.Put`); #459 stores, absolutizes CSS `url()`s and serves.*
 - Plugs into `webcast.Cast` in place of the stub stream.
 - **Format additions approved by the operator with #457 (10-12), not yet in #457's page; add them to `atlas/webcast-format.md` as additive v1 kinds/fields (a Revisions note there), with validator and reducer support:**
   - password values are never recorded: for `input type=password` the `input` record says a value exists, never what it is;
@@ -84,7 +85,7 @@ same tool measures #457's fixtures (#453's prototype recordings) as the baseline
 
 | Page | This recorder | #453 prototype (fixture), same tool | #453's own report |
 |---|---|---|---|
-| stress (idle 7 s) | 0.05 / 0.20 and 0.04 / 0.21 (two runs) | 0.65 / 0.75 | 0.3 / 1.8 |
+| stress (idle 7 s) | 0.05 / 0.20 and 0.04 / 0.21 (two runs); 0.09 / 0.12 served from `testdata/stress` | 0.65 / 0.75 | 0.3 / 1.8 |
 | blog post (browse 12 s) | 0.06 / 2.97 | 0.11 / 2.94 | — |
 | app | not re-recorded (the fixture's scenario scripts #453's own app) | 0.00 / 0.41 | — |
 

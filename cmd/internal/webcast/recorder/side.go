@@ -5,9 +5,10 @@ import (
 	"encoding/base64"
 	"fmt"
 	"image"
-	"image/color"
+	"image/draw"
 	"image/png"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 
@@ -35,56 +36,91 @@ type shotJob struct {
 	scroll   [2]float64
 }
 
+// Asset ownership: one URL-keyed owner decides whether a body is fetched,
+// whatever order the sources arrive in.
+//   - A Network response always fetches (it is the body the page got),
+//     and takes the URL from a reference still waiting.
+//   - A resource Chrome already held at a segment's start fetches once.
+//   - A reference (an element's src, a FontFace font's src) waits
+//     refSettle: if no response or resource has claimed its URL by then, it
+//     is loaded in the page's context. Only what the page loaded eagerly is
+//     referenced this way: never srcset candidates (the browser's choice
+//     isn't known) or lazy images (not loaded yet; a response comes when
+//     they are).
+var refSettle = 2 * time.Second // a var so tests can shorten it
+
+// owned: a URL's body has been, or is being, fetched in this recording.
+func (r *Recorder) own(u string) bool {
+	if r.owned[u] {
+		return false
+	}
+	r.owned[u] = true
+	delete(r.pending, u)
+	return true
+}
+
 // queueAsset hands a body to fetch to the asset worker; a full queue drops
-// it (counted in the log), never blocking the recorder.
+// it (counted in Stats) and gives the URL up, never blocking the recorder.
 func (r *Recorder) queueAsset(j assetJob) {
 	if r.assets == nil {
 		return
 	}
 	j.store = r.assets
-	if _, ok := r.m.st.Assets[j.url]; ok && j.requestID == "" {
-		return // already in this recording, and not a fresh response
-	}
-	if j.requestID == "" && !j.load {
-		if r.asked[j.url] {
-			return
-		}
-		r.asked[j.url] = true
-	}
-	if j.requestID != "" {
-		r.asked[j.url] = true // its response is coming; no load needed
+	switch {
+	case j.requestID != "":
+		r.owned[j.url] = true // a response: always fetched
+		delete(r.pending, j.url)
+	case !r.own(j.url):
+		return
 	}
 	select {
 	case r.assetQ <- j:
 	default:
-		r.assetsLost++ // reported in Stats, not one line per asset
+		delete(r.owned, j.url) // a later sighting may try again
+		r.assetsLost++         // reported in Stats, not one line per asset
 	}
 }
 
-// queueRef queues the assets an element references, resolved against its
-// document's URL.
-func (r *Recorder) queueRef(ref Ref) {
-	if !ref.Srcset {
-		r.queueURL(ref.Session, resolveURL(ref.DocURL, ref.Raw), "")
+// queueRef notes the asset an element references, to load after refSettle
+// if nothing else brings it.
+func (r *Recorder) queueRef(ref Ref, now time.Time) {
+	if ref.Srcset || ref.Lazy {
 		return
 	}
-	for _, cand := range strings.Split(ref.Raw, ",") {
-		if f := strings.Fields(cand); len(f) > 0 {
-			r.queueURL(ref.Session, resolveURL(ref.DocURL, f[0]), "")
-		}
-	}
+	r.queueURL(ref.Session, resolveURL(ref.DocURL, ref.Raw), now)
 }
 
-// queueURL loads an asset the recording lacks in the page's context, once.
-func (r *Recorder) queueURL(session, u, mime string) {
-	if u == "" || !strings.HasPrefix(u, "http") || r.asked[u] {
+// queueURL waits refSettle, then loads an asset nothing else has brought.
+func (r *Recorder) queueURL(session, u string, now time.Time) {
+	if r.assets == nil || u == "" || !strings.HasPrefix(u, "http") || r.owned[u] {
 		return
 	}
 	if _, ok := r.m.st.Assets[u]; ok {
 		return
 	}
-	r.asked[u] = true
-	r.queueAsset(assetJob{session: session, frameID: r.frameIDs[session], url: u, mime: mime, load: true})
+	if _, ok := r.pending[u]; !ok {
+		r.pending[u] = pendingRef{session: session, due: now.Add(refSettle)}
+	}
+}
+
+type pendingRef struct {
+	session string
+	due     time.Time
+}
+
+// flushRefs loads the references whose wait is over.
+func (r *Recorder) flushRefs(now time.Time) {
+	var due []string
+	for u, p := range r.pending {
+		if !now.Before(p.due) {
+			due = append(due, u)
+		}
+	}
+	sort.Strings(due)
+	for _, u := range due {
+		p := r.pending[u]
+		r.queueAsset(assetJob{session: p.session, frameID: r.frameIDs[p.session], url: u, load: true})
+	}
 }
 
 // resolveURL makes a reference absolute; "" when it can't.
@@ -284,7 +320,7 @@ type layoutDoc struct {
 func (r *Recorder) shotWorker() {
 	defer r.side.Done()
 	for j := range r.shotQ {
-		d := shotDone{at: j.at, scale: shotScale}
+		d := shotDone{at: j.at}
 		var res struct {
 			Data string `json:"data"`
 		}
@@ -301,7 +337,10 @@ func (r *Recorder) shotWorker() {
 		var full []byte
 		full, err = base64.StdEncoding.DecodeString(res.Data)
 		if err == nil {
-			d.png, d.w, d.h, err = LowRes(full)
+			d.png, d.w, d.h, err = LowRes(full, j.vp.DPR)
+		}
+		if err == nil && j.vp.W > 0 {
+			d.scale = float64(d.w) / float64(j.vp.W) // image px per CSS px
 		}
 		if err != nil {
 			d.failed = fmt.Errorf("screenshot: %w", err)
@@ -411,30 +450,50 @@ func round2(f float64) float64 {
 	return float64(int64(f*100+0.5)) / 100
 }
 
-// LowRes is a viewport screenshot halved with a 2×2 box filter: the
+// LowRes is a viewport screenshot at half its CSS size, box-filtered: the
 // fidelity screenshots' form, as #453's harness made the fixtures' frames.
-// The viewport is captured whole and scaled here, because CDP's clip is in
-// document coordinates and offsets a scrolled page. The fidelity check
-// scales its replays the same way.
-func LowRes(full []byte) (out []byte, w, h int, err error) {
+// dpr is the screenshot's device pixels per CSS pixel, so a Retina cast's
+// frame is the same size as anyone's. The viewport is captured whole and
+// scaled here, because CDP's clip is in document coordinates and offsets a
+// scrolled page. The fidelity check scales its replays the same way.
+func LowRes(full []byte, dpr float64) (out []byte, w, h int, err error) {
 	src, err := png.Decode(bytes.NewReader(full))
 	if err != nil {
 		return nil, 0, 0, err
 	}
 	b := src.Bounds()
-	w, h = b.Dx()/2, b.Dy()/2
+	rgba := image.NewNRGBA(image.Rect(0, 0, b.Dx(), b.Dy()))
+	draw.Draw(rgba, rgba.Bounds(), src, b.Min, draw.Src)
+	if dpr <= 0 {
+		dpr = 1
+	}
+	f := 2 * dpr // device pixels per output pixel
+	w, h = int(float64(b.Dx())/f), int(float64(b.Dy())/f)
+	if w == 0 || h == 0 {
+		return nil, 0, 0, fmt.Errorf("screenshot %dx%d is too small", b.Dx(), b.Dy())
+	}
 	dst := image.NewNRGBA(image.Rect(0, 0, w, h))
 	for y := 0; y < h; y++ {
+		y0, y1 := int(float64(y)*f), int(float64(y+1)*f)
 		for x := 0; x < w; x++ {
-			var sum [4]uint32
-			for _, d := range [4][2]int{{0, 0}, {1, 0}, {0, 1}, {1, 1}} {
-				c := color.NRGBAModel.Convert(src.At(b.Min.X+2*x+d[0], b.Min.Y+2*y+d[1])).(color.NRGBA)
-				sum[0] += uint32(c.R)
-				sum[1] += uint32(c.G)
-				sum[2] += uint32(c.B)
-				sum[3] += uint32(c.A)
+			x0, x1 := int(float64(x)*f), int(float64(x+1)*f)
+			var sum [4]int
+			n := 0
+			for sy := y0; sy < y1; sy++ {
+				row := rgba.Pix[sy*rgba.Stride:]
+				for sx := x0; sx < x1; sx++ {
+					p := row[sx*4 : sx*4+4]
+					sum[0] += int(p[0])
+					sum[1] += int(p[1])
+					sum[2] += int(p[2])
+					sum[3] += int(p[3])
+					n++
+				}
 			}
-			dst.SetNRGBA(x, y, color.NRGBA{uint8(sum[0] >> 2), uint8(sum[1] >> 2), uint8(sum[2] >> 2), uint8(sum[3] >> 2)})
+			o := dst.Pix[y*dst.Stride+x*4:]
+			for c := 0; c < 4; c++ {
+				o[c] = uint8(sum[c] / n)
+			}
 		}
 	}
 	var buf bytes.Buffer

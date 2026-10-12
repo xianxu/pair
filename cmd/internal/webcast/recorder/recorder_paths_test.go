@@ -268,7 +268,7 @@ func TestRecorderScreenshotsAndLayout(t *testing.T) {
 	n := len(frames.frames)
 	f0 := frames.frames[0]
 	frames.mu.Unlock()
-	if n != 1 || f0.W != 250 || f0.H != 175 || f0.Scale != shotScale || f0.File != "frames/0.png" {
+	if n != 1 || f0.W != 250 || f0.H != 175 || f0.Scale != 0.25 || f0.File != "frames/0.png" {
 		t.Fatalf("frames %d %+v", n, f0)
 	}
 	l := h.last("layout").(*rec.Layout)
@@ -362,7 +362,11 @@ func TestRecorderLoadsAssetsChromeDoesntHold(t *testing.T) {
 		Out: func() (Opened, error) { return Opened{Sink: &h.out.sink, Assets: store}, nil }})
 	t.Cleanup(func() { h.r.Close() })
 	a := h.page("A", "http://a/post/", "L1")
+	old := refSettle
+	refSettle = 20 * time.Millisecond
+	t.Cleanup(func() { refSettle = old })
 	a.insert(a.body(), nil, a.el("img", "src", "../avatar.png", "srcset", "/x1.png 1x, /x2.png 2x"))
+	a.insert(a.body(), nil, a.el("img", "src", "/below-the-fold.png", "loading", "lazy"))
 	a.insert(a.body(), nil, a.el("img", "src", "data:image/png;base64,AAAA"))
 	a.insert(a.body(), nil, a.el("img", "src", "/avatar.png")) // the same asset twice
 	a.take()
@@ -394,7 +398,7 @@ func TestRecorderLoadsAssetsChromeDoesntHold(t *testing.T) {
 	}
 	h.r.Send(Live{Tab: rec.Tab{ID: a.frameID}, Session: "A"})
 	h.send("A", "CSS.fontsUpdated", map[string]any{"font": map[string]any{"fontFamily": "Late", "src": "http://a/late.woff2"}})
-	want := []string{"http://a/avatar.png", "http://a/x1.png", "http://a/x2.png", "http://a/font.woff2", "http://a/late.woff2"}
+	want := []string{"http://a/avatar.png", "http://a/font.woff2", "http://a/late.woff2"}
 	waitFor(t, func() bool { h.settle(); return h.count("asset") == len(want) }, "the loaded assets")
 	st := h.mustValidate()
 	for _, u := range want {
@@ -412,8 +416,98 @@ func TestRecorderLoadsAssetsChromeDoesntHold(t *testing.T) {
 		t.Errorf("avatar loaded %d times", loads["http://a/avatar.png"])
 	}
 	for u := range loads {
-		if strings.HasPrefix(u, "data:") {
-			t.Errorf("a data: URL was loaded")
+		if strings.HasPrefix(u, "data:") || strings.Contains(u, "x1.png") || strings.Contains(u, "below-the-fold") {
+			t.Errorf("%s was loaded: a srcset candidate, a lazy image or data: never is", u)
 		}
 	}
+}
+
+// A reference and a Network response for one URL, in either order: the
+// response's body is the one fetched, and the reference loads nothing.
+func TestRecorderAssetOwnerIndependentOfOrder(t *testing.T) {
+	old := refSettle
+	refSettle = 200 * time.Millisecond
+	t.Cleanup(func() { refSettle = old })
+	for _, order := range []string{"ref first", "response first"} {
+		t.Run(order, func(t *testing.T) {
+			store := assets.NewMemStore()
+			h := &harness{t: t, fc: newFakeChrome(), out: &memOut{}}
+			h.r = Start(Options{ID: "t", Call: h.fc, ShotEvery: -1,
+				Out: func() (Opened, error) { return Opened{Sink: &h.out.sink, Assets: store}, nil }})
+			t.Cleanup(func() { h.r.Close() })
+			a := h.page("A", "http://a/", "L1")
+			var mu sync.Mutex
+			calls := map[string]int{}
+			h.fc.more = func(session, method string, pm map[string]any, p *fakePage) (any, error, bool) {
+				mu.Lock()
+				defer mu.Unlock()
+				calls[method]++
+				switch method {
+				case "Network.getResponseBody":
+					return map[string]any{"body": "real"}, nil, true
+				case "Network.loadNetworkResource":
+					return nil, fmt.Errorf("must not load"), true
+				}
+				return nil, nil, false
+			}
+			h.r.Send(Live{Tab: rec.Tab{ID: a.frameID}, Session: "A"})
+			h.settle()
+			response := func() {
+				h.send("A", "Network.responseReceived", map[string]any{"requestId": "r", "type": "Image", "response": map[string]any{"url": "http://a/new.png", "mimeType": "image/png"}})
+				h.send("A", "Network.loadingFinished", map[string]any{"requestId": "r"})
+			}
+			ref := func() {
+				a.insert(a.body(), nil, a.el("img", "src", "/new.png"))
+				h.events("A", a)
+			}
+			if order == "ref first" {
+				ref()
+				response()
+			} else {
+				response()
+				ref()
+			}
+			time.Sleep(3 * refSettle)
+			waitFor(t, func() bool { h.settle(); return h.count("asset") == 1 }, "the asset")
+			mu.Lock()
+			defer mu.Unlock()
+			if calls["Network.loadNetworkResource"] != 0 || calls["Network.getResponseBody"] != 1 {
+				t.Fatalf("calls %v", calls)
+			}
+		})
+	}
+}
+
+// A Retina cast (DPR 2): the frame is half the viewport's CSS size, like
+// any other, and its scale says image pixels per CSS pixel.
+func TestRecorderScreenshotAtDPR2(t *testing.T) {
+	frames := &frameRecorder{}
+	h := &harness{t: t, fc: newFakeChrome(), out: &memOut{}}
+	h.r = Start(Options{ID: "t", Call: h.fc, ShotEvery: time.Hour,
+		Out: func() (Opened, error) { return Opened{Sink: &h.out.sink, Frames: frames}, nil }})
+	t.Cleanup(func() { h.r.Close() })
+	a := h.page("A", "http://a/", "L1")
+	var img bytes.Buffer
+	png.Encode(&img, image.NewRGBA(image.Rect(0, 0, 2000, 1400))) // 1000×700 CSS px at DPR 2
+	h.fc.more = func(session, method string, pm map[string]any, p *fakePage) (any, error, bool) {
+		switch method {
+		case "Runtime.evaluate":
+			if pm["expression"] == "devicePixelRatio" {
+				return map[string]any{"result": map[string]any{"value": 2}}, nil, true
+			}
+		case "Page.captureScreenshot":
+			return map[string]any{"data": base64.StdEncoding.EncodeToString(img.Bytes())}, nil, true
+		}
+		return nil, nil, false
+	}
+	h.ctxCreated("A", a.frameID, 1)
+	h.r.Send(Live{Tab: rec.Tab{ID: a.frameID}, Session: "A"})
+	waitFor(t, func() bool { frames.mu.Lock(); defer frames.mu.Unlock(); return len(frames.frames) == 1 }, "a screenshot")
+	frames.mu.Lock()
+	f := frames.frames[0]
+	frames.mu.Unlock()
+	if f.W != 500 || f.H != 350 || f.Scale != 0.5 {
+		t.Fatalf("frame %+v, want 500×350 at scale 0.5", *f)
+	}
+	h.mustValidate()
 }
