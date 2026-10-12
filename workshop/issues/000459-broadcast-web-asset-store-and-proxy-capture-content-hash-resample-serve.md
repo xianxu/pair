@@ -15,7 +15,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "e6177353", done: "ff10eccd"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # broadcast-web: asset store and proxy — capture, content hash, resample, serve
@@ -55,6 +55,8 @@ Durable plan: `workshop/plans/000459-broadcast-web-asset-store-and-proxy-capture
 ### 2026-10-11
 
 ### 2026-10-12
+- 2026-10-12: closed — make -k test exit 0 (incl. go test), TMPDIR=scratchpad make test-changelog PASS, go test ./... PASS (full PAIR_/COUCH_/ZELLIJ scrub, sandbox off). After round-1 fixes: WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast/... PASS (replay fidelity, join mid-cast, per-document, viewer page: boxOf 215/217, 82 requests, 7 via proxy incl. css+woff2+images, none outside the cast); node css/model/viewer tests 34/34; assets -race PASS; corpus mutation-checked against old css.js; decode re-check mutation-checked. Live blog cast deferred to #458 merge per TL.; review verdict: SHIP
+- 2026-10-12: flow upgraded quick → full — 659 added lines in code files (limit 100); an earlier round of this close already ran the full review
 
 - Claimed from pair:4 (TL ops:0). #458 (unlanded, M2 closed) already captures bodies over CDP and calls `Store.Put`, and creates the store lazily at first go-live (`CastConfig.NewAssets`). Asked the TL; decisions: capture stays #458's; #459 = real Store + `assets.Proxy` bound later; whichever of #458/#459 lands second wires `proxy.Bind` and couchcmd's `NewAssets`; the store absolutizes CSS URLs at `Put` (dedup by hash makes a serve-time base ambiguous), atlas to say so; budget only (no declared size yet); live blog check after #458 merges.
 - The blog (Astro) serves WebP from its image pipeline, so resampling needs a WebP decoder: `golang.org/x/image` (Go project; v0.47.0 on 10-09), pinned v0.46.0, with a DecodeConfig pixel ceiling before any decode.
