@@ -1,0 +1,8 @@
+$ couch --broadcast-web-query <fixtures>/segments events --from 0 --to 1500
+0 recording segments started 2026-10-11T00:00:00Z
+0 segment 1 starts (live) on http://app.local/, viewport 1280x800@1
+0 document http://app.local/
+500 layout boxes for 2 nodes
+800 focus @1 <input#q>
+1200 input @1 <input#q> value "inv"
+1500 note seg-n1 by Pat (product) (viewer-1) on @1 <input#q>: "Typing here lags."

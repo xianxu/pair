@@ -10,6 +10,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/broadcast"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/webcast/query"
 )
 
 func TestFormatBroadcastStatus(t *testing.T) {
@@ -136,5 +137,18 @@ func TestBroadcastListAgainstAnOlderCouchSaysRestart(t *testing.T) {
 		if code := runMessageCLIWithCall(inv, broadcastListRuntime(), &out, &errout, call); code == 0 || !strings.Contains(errout.String(), "restart Couch") {
 			t.Errorf("%q: code %d, stderr %q; want the restart hint", refusal, code, errout.String())
 		}
+	}
+}
+
+// `couch --broadcast-web-query` hands everything after it to the query CLI,
+// layout-looking words included: they are its arguments, not Couch's.
+func TestParseCLIBroadcastWebQuery(t *testing.T) {
+	inv, err := ParseCLI([]string{query.Flag, "/r", "dom", "--sel", "--layout2"}, nil)
+	if err != nil || inv.kind != cliWebQuery || strings.Join(inv.args, " ") != "/r dom --sel --layout2" {
+		t.Fatalf("%+v %v", inv, err)
+	}
+	var out, errOut bytes.Buffer
+	if code := Run([]string{query.Flag}, strings.NewReader(""), &out, &errOut); code != 2 || !strings.Contains(errOut.String(), "usage:") {
+		t.Errorf("bare flag: exit %d, %q", code, errOut.String())
 	}
 }

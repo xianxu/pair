@@ -1,0 +1,35 @@
+$ couch --broadcast-web-query <fixtures>/app dom --at 6000
+t=6000  segment 2 (live)  http://127.0.0.1:8801/app.html  viewport 1280x800@1  title "TaskPilot"
+@5 #document http://127.0.0.1:8801/app.html
+  @7 <html>
+    @8 <head> (title "TaskPilot"; 1 meta; 4 script; 1 style)
+    @23 <body class=bg-slate-50>
+      @26 <div id=root>
+        @27 <div class="flex min-h-screen">
+          @28 <aside class="w-56 bg-slate-900 text-slate-100 p-4 space-y-2">
+            @29 <div class="text-xl font-bold mb-6"> TaskPilot
+            @31 <button class="block w-full text-left px-3 py-2 rounded-lg capitalize hover:bg-slate-700" id=nav-dashboard> dashboard
+            @33 <button class="block w-full text-left px-3 py-2 rounded-lg capitalize bg-indigo-600" id=nav-tasks> tasks
+            @35 <button class="block w-full text-left px-3 py-2 rounded-lg capitalize hover:bg-slate-700" id=nav-settings> settings
+            @37 <a class="block mt-8 text-indigo-300 underline" href=/app2.html id=next-doc> Reports (new page)
+          @39 <main class="flex-1 p-8 space-y-6">
+            @40 <h1 class="text-3xl font-semibold capitalize text-slate-800"> tasks
+            @70 <div class=space-y-4>
+              @72 <form class="flex gap-2">
+                @73 <input class="flex-1 border rounded-lg px-3 py-2" id=draft placeholder="New task" value="Review PR 42"> {value "Review PR 42", focused}
+                @74 <button class="bg-indigo-600 text-white px-4 rounded-lg"> Add
+              @76 <input class="w-full border rounded-lg px-3 py-2" id=search placeholder=Search value> {value ""}
+              @77 <ul class="bg-white rounded-xl shadow divide-y">
+                @78 <li class="flex items-center gap-3 px-4 py-3">
+                  @79 <input type=checkbox> {unchecked}
+                  @80 <span class> Ship onboarding flow
+                @82 <li class="flex items-center gap-3 px-4 py-3">
+                  @83 <input checked type=checkbox> {checked}
+                  @84 <span class="line-through text-slate-400"> Fix billing webhook
+                @86 <li class="flex items-center gap-3 px-4 py-3">
+                  @87 <input type=checkbox> {unchecked}
+                  @88 <span class> Design pricing page
+                @90 <li class="flex items-center gap-3 px-4 py-3">
+                  @91 <input type=checkbox> {unchecked}
+                  @92 <span class> Write launch email
+      @67 <script> (4454 chars)
