@@ -64,3 +64,16 @@ A `+N` cell is not a click target. Clicking it does nothing, as clicking bare ro
 - [ ] `fitChips` degradation and spans, with tests.
 - [ ] Atlas (couch tab bar), README tab-bar colours (also folds in #465's advisory about the red state), couch SKILL if it describes the row.
 - [ ] Full suite, then a live check in a scratch Couch at several widths. Ask ops:0 to arrange the operator's smoke test, then close.
+
+## Revisions
+- 2026-10-12, operator review of the first proposal. The hub's repository is not grouped with it. The hub is a section header standing alone, and its section's slots follow in repository groups:
+  `[ops]  ariadne  :1  :2  blog  pair  :1  :2  [ops:1]  ariadne:3  :4  pair:3  :4`.
+  This replaces §2's "the hub's repository group first" and §3's `[ops:1]  ops  :2`.
+  - **Order (supersedes §2):** each section is its hub row first, then its member rows in repository groups, alphabetical, slots by number, as today. A group whose `:0` is not in the section leads with its full label (`ariadne:3`), the rule the renderer already follows. A non-hub slot of the hub's own repository (`ops:1` while only `ops` is a hub) is an ordinary member in its alphabetical group, drawn `ops:1`.
+  - **The hub concept (supersedes §3's membership rule):**
+    - A hub is a slot *designated* as one. Today that is only the slot Couch started from, which is implicit and can't be changed.
+    - A slot is *assigned* to one hub.
+    - A newly started slot inherits the hub of the slot it was started from: starting `pair:10` from `pair:1`, which reports to hub1, makes `pair:10` report to hub1, so no slot is ever without a hub.
+    - Designating and assigning become Couch UI actions in a later issue.
+  - **Built now:** one implicit hub. The data path is shaped for more: `PresentThreads` takes a membership function `hubOf(row) → hub path`, which today returns the single hub for every row. Sections are rendered from the hub flags, so a second hub needs only a designation source and an assignment source. With no hub (Couch started outside a checkout) there is one section with no header, as today.
+  - The hub's special display is the brackets. The active-chip marker question stands (reverse video proposed).
