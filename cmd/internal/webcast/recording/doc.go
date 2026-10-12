@@ -9,5 +9,6 @@
 // Pure: the records, codec, State/Reduce, Canonical, Validate, CatchUp, Merge.
 // IO: DirWriter and ReadDir (the on-disk layout). Seams for the wave-1
 // components: Sink (the recorder's output), Live (the fan-out to viewers),
-// with MemSink, FakeHub and FakeRecorder as their stateful doubles.
+// with MemSink, Hub (the production fan-out, its own double) and
+// FakeRecorder as their stateful doubles.
 package recording

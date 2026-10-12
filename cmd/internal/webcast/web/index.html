@@ -9,11 +9,18 @@
 <script type="module" src="viewer.js"></script>
 </head>
 <body>
-<main>
-  <p id="status" class="status">Connecting…</p>
-  <h1 id="title"></h1>
-  <p id="url" class="url"></p>
-  <p class="note">A preview of a Couch web cast: the page itself is shown here once the recorder lands.</p>
+<header class="bar">
+  <span id="status" class="status">Connecting…</span>
+  <span id="title" class="title"></span>
+  <span id="url" class="url"></span>
+</header>
+<main id="stage" class="stage">
+  <div id="box" class="box" hidden>
+    <iframe id="page" sandbox="allow-same-origin" title="The cast page" tabindex="-1"></iframe>
+    <div id="overlay" class="overlay"><div id="pointer" class="pointer" hidden></div></div>
+    <p class="paused-label">Paused</p>
+  </div>
+  <p id="message" class="message">The page shows here when the cast goes live.</p>
 </main>
 </body>
 </html>
