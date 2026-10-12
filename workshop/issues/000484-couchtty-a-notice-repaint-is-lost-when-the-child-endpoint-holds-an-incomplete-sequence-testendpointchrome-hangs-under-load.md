@@ -52,6 +52,7 @@ Fix: `Console.publishMu` is held from snapshot through publish and commit in eve
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed — Root cause measured: unordered presentation; stale status-row snapshot published after the notice paint (trace computed false, computed true, published true, published false +18ms); also notice during resize -> incompatible chrome geometry -> couch exits. Fix: publishMu spans snapshot-to-commit in paintNow, showMenu, selection (through the focus commit, BR-1), onResize. Four hook tests (chrome, resize, select, panel) each fail on revert and pass fixed. Soak 200x -race under 12 CPU burners: 0 failures. couchtty+terminal -race green; make -k test exit 0 under the suite lock on the tree merged with origin/main. no-atlas: internal ordering fix, no new surface.; review verdict: SHIP
 
 - Trace (temporary `fmt.Fprintf` in `paintNow`, widened window): `computed notice=false` → `computed notice=true` → `published notice=true` → `published notice=false` (+18 ms). The stale snapshot published last.
 - Tests: `TestStaleChromeSnapshotCannotOverwriteNotice` and `TestNoticeDuringResizeUsesOneGeometry` (`terminal_migration_test.go`) park the first paint at the hook and let the notice try to overtake. With `publishMu` disabled: the first fails with row `"[brain]"`, the second with `terminal: incompatible chrome geometry`. With the fix, both pass.
