@@ -5,8 +5,8 @@ deps: [pair#470]
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
-estimate_hours: 1.9
-card_mirror: '8ee1d31b75cedc1f7f4f6e1d132216c6a7fdd06e' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 2.09
+card_mirror: 'bafd6cb4963612e81306fcff3675fc27b03bf571' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T05:09:29-07:00
 claimant:
     operator: Xian Xu
@@ -15,6 +15,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: inferred}
 ---
 
 # broadcast-web: replay inside a running Couch, for remote viewers (mount ReplayServer on the shared Host)
