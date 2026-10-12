@@ -13,7 +13,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
-actual_hours: 0.55
+actual_hours: 0.56
 tracker:
     version: 1
     handoff:
@@ -27,10 +27,10 @@ tracker:
         destination: workshop/issues/000459-broadcast-web-asset-store-and-proxy-capture-content-hash-resample-serve.md
         main_commit: 26d8139221f7957d3736ec4541b42e92d4384e45
     completion:
-        token: close-3c3664d77304
+        token: close-fe91f58d9de7
         repository: github.com/xianxu/pair
-        reviewed_head: eeafaf89d62c111bc66ecb6b9814a648fe9d35b9
-        evidence_commit: 66341411b35b75698d31e6a830f4e27dc2fd0b68
+        reviewed_head: 625b9f5eeb186176ff504e18938480f40d328d38
+        evidence_commit: f1c1e93095b5cb4c9df01c99724bdecd5fcebcfc
 ---
 
 # broadcast-web: asset store and proxy — capture, content hash, resample, serve
