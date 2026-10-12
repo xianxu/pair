@@ -1,12 +1,12 @@
 ---
 id: 000481
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: 'a1e62a3caf06b2572cee64658d71fb71d8f5c545' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '76687fe4cb61b8872eb76b7e8006b0be176fee12' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T07:50:39-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "65cf7447", done: "dc6b205d"}
+actual_hours: 0.73
 ---
 
 # tests: gate wall-clock perf budgets out of the default suite (terminal tail 250ms, slot-git render 100ms, broadcast marks)
