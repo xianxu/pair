@@ -113,6 +113,19 @@ rounds:
       isolation: fenced
       reviewed: 8ec985d3f259f0ca2f2bf7d75ba6648bff4f180d
       blocked: false
+    - "n": 4
+      timestamp: "2026-10-12T13:07:15-07:00"
+      dispatched: "2026-10-12T13:06:22-07:00"
+      agent: claude
+      dispose:
+        - id: BR-9
+          disposition: addressed
+          note: receiptLocked (broker.go:350) now backs Status, Send replay (:462) and recordRecoveredLocked (:742); test at broker_queue_test.go:286 fails (Status queued) when the Send call is reverted to the raw map read.
+          round: 4
+      recipe: fix-review
+      isolation: fenced
+      reviewed: c3e9e8158ff93055e72c940aa8a3a959e513f79b
+      blocked: false
 ---
 
 # Gate ledger — pair#492 (boundary-review)
@@ -164,6 +177,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-9** [Minor] `queue-expiry-lazy` Send's same-ID replay (broker.go:456) returns a stale queued receipt past QueueWait
   This is the 2nd finding in family queue-expiry-lazy. Rule: every path that returns a stored receipt goes through one current-receipt helper that applies any due expiry. The enumeration is Status (fixed), StatusContext (delegates to Status), and Send's idempotent replay at broker.go:456-462 (not fixed). Extract the Status block into that helper and call it from both places.
 
+## Round 4 — 2026-10-12T13:07:15-07:00 (claude) — passed
+
+### Disposed
+
+- BR-9 — addressed — receiptLocked (broker.go:350) now backs Status, Send replay (:462) and recordRecoveredLocked (:742); test at broker_queue_test.go:286 fails (Status queued) when the Send call is reverted to the raw map read.
+
 ## Open findings
 
-- **BR-9** [Minor] `queue-expiry-lazy` Send's same-ID replay (broker.go:456) returns a stale queued receipt past QueueWait
+(none — every finding has been disposed)

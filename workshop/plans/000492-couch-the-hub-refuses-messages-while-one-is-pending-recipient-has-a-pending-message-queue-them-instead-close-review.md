@@ -324,3 +324,67 @@ findings:
     detail: |
       This is the 2nd finding in family queue-expiry-lazy. Rule: every path that returns a stored receipt goes through one current-receipt helper that applies any due expiry. The enumeration is Status (fixed), StatusContext (delegates to Status), and Send's idempotent replay at broker.go:456-462 (not fixed). Extract the Status block into that helper and call it from both places.
 ```
+
+---
+
+## Re-review — 2026-10-12T13:07:14-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 492 — couch: the hub refuses messages while one is pending ('recipient has a pending message'); queue them instead |
+| repo | pair |
+| issue file | workshop/issues/000492-couch-the-hub-refuses-messages-while-one-is-pending-recipient-has-a-pending-message-queue-them-instead.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 230292a3e21208ef79e5ae9e4c149e3d09dcc1e4..c3e9e8158ff93055e72c940aa8a3a959e513f79b |
+| command | sdlc close --issue 492 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-12T13:07:14-07:00 |
+| verdict | SHIP |
+
+## Review
+
+Checking the sweep loop and then running the tests.
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+**VERDICT: SHIP.** The one open finding, BR-9, is fixed at the level of the whole class, not just the one call site it named. `Status`'s inline expiry block became `receiptLocked` (`cmd/internal/couchmessage/broker.go:350`), and every path that returns a stored receipt now uses it:
+- `Status`, at `broker.go:341`
+- `StatusContext`, which calls `Status`
+- `Send`'s same-ID replay, at `broker.go:462`
+- `recordRecoveredLocked`, at `broker.go:742`. BR-9 didn't list this one; it was found and fixed in the same round.
+
+I checked the other direct reads of `b.receipts`:
+- `:136` is `apply`'s guard against overwriting a terminal receipt.
+- `:234` is a test for Delivering when a sender disconnects.
+- `:621` and `:634` return receipts written a moment earlier, with deadlines still in the future.
+- `:767` only checks whether an ID exists.
+- `sweep` handles only terminal receipts.
+
+None of these hand a possibly stale Queued receipt back to a caller, so the rule holds. The package tests pass. When I put the old `b.receipts[id]` read back into `Send`, the new assertion at `broker_queue_test.go:286` fails with `Status:queued`, so the test actually catches this regression. The other two files in the window are the close-gate and close-review records under `workshop/plans/`. They don't change the Spec, Revisions or Done-when, and there's no conflict resolution in the window.
+
+1. **Strengths**
+   - One helper is now the only path for reading a stored receipt (`broker.go:347-358`). The `ok &&` guard sits before the map dereference, so an unknown ID can't trigger a Tick.
+   - The fix covers `recordRecoveredLocked` as well as the site BR-9 named. That's sweeping the class, as ARCH-PURPOSE asks.
+   - The regression test checks the replay path and the status path in the same scenario, while the worker is busy.
+2. **Critical:** none.
+3. **Important:** none.
+4. **Minor:** none new.
+5. **Test coverage:** without the fix, the replay assertion fails (checked by reverting it). The full package passes in about 7s.
+6. **Architecture**
+   - ARCH-DRY: passes. The duplicated read-and-expire logic is now one helper.
+   - ARCH-PURE: passes. The helper is lock-scoped state logic and does no new IO.
+   - ARCH-PURPOSE: passes. The sweep of receipt-returning reads is complete.
+7. **Plan revisions:** none.
+
+```findings
+dispose:
+  - id: BR-9
+    disposition: addressed
+    note: |
+      receiptLocked (broker.go:350) now backs Status, Send replay (:462) and recordRecoveredLocked (:742); test at broker_queue_test.go:286 fails (Status queued) when the Send call is reverted to the raw map read.
+```

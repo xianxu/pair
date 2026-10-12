@@ -46,6 +46,7 @@ Durable plan: `workshop/plans/000492-…-plan.md` (Tasks 1-4, then verification)
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed — Round-3 advisory fixed by rule: receiptLocked is the one read of a stored receipt (Status, Send replay, recovered-receipt adoption) and applies due queue expiry; TestQueuedMessageReadsExpiredWhileTheWorkerIsBusy now covers the replayed send. couchmessage green under -race. (fixed-then-ship); review verdict: SHIP
 - 2026-10-12: closed — Round 3: BR-5 fixed by rule (the worker never wakes itself; promote frees its own attempt plainly and schedules PromoteRetry), mutation-checked in TestPromotionHoldsWhileWrapperBusy (fails with the self-wake). BR-6: FakeDeliveryEndpoint.Reserve refuses ErrRecipientBusy like peerDelivery.reserve. Lazy-expiry minor fixed in Status with a test; deadline-red minor kept per lessons #479. couchcmd, wrapcmd, couchmessage green (couchmessage -race).; review verdict: SHIP
 - 2026-10-12: flow upgraded quick → full — 322 added lines in code files (limit 100); an earlier round of this close already ran the full review
 Why the limit exists: one paste at a time. `ActorState.pending` is the one delivery
