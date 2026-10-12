@@ -15,6 +15,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "6e2165db", done: "e89856dc"}
 ---
 
 # couch: keep the UI at normal priority and everything agents spawn at nice 10 (a periodic renicer over each slot's process tree)
