@@ -1,0 +1,66 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>TaskPilot</title>
+<script src="/assets/index.global.js"></script>
+<script src="/assets/react.production.min.js"></script>
+<script src="/assets/react-dom.production.min.js"></script>
+<script src="/assets/htm.umd.js"></script>
+</head>
+<body class="bg-slate-50">
+<div id="root"></div>
+<script>
+const html = htm.bind(React.createElement);
+const { useState, useEffect } = React;
+const seed = ['Ship onboarding flow', 'Fix billing webhook', 'Design pricing page', 'Write launch email'];
+function Chart({ data }) {
+  return html`<div class="flex items-end gap-2 h-40 p-4 bg-white rounded-xl shadow">
+    ${data.map((v, i) => html`<div key=${i} class="flex-1 bg-indigo-500 rounded-t transition-all duration-500" style=${{ height: v + '%' }}></div>`)}
+  </div>`;
+}
+function App() {
+  const [page, setPage] = useState('dashboard');
+  const [tasks, setTasks] = useState(seed.map((t, i) => ({ id: i, t, done: i === 1 })));
+  const [draft, setDraft] = useState('');
+  const [q, setQ] = useState('');
+  const [modal, setModal] = useState(false);
+  const [toast, setToast] = useState(null);
+  const [data, setData] = useState([30, 50, 70, 40, 90, 60, 20]);
+  useEffect(() => { const t = setInterval(() => setData(d => d.map(() => 10 + Math.round(Math.random() * 90))), 1500); return () => clearInterval(t); }, []);
+  const add = e => { e.preventDefault(); if (!draft.trim()) return; setTasks(ts => [...ts, { id: Date.now(), t: draft, done: false }]); setDraft('');
+    setToast('Task added'); setTimeout(() => setToast(null), 1500); };
+  const nav = ['dashboard', 'tasks', 'settings'];
+  return html`<div class="flex min-h-screen">
+    <aside class="w-56 bg-slate-900 text-slate-100 p-4 space-y-2">
+      <div class="text-xl font-bold mb-6">TaskPilot</div>
+      ${nav.map(n => html`<button key=${n} id=${'nav-' + n} onClick=${() => setPage(n)}
+        class=${'block w-full text-left px-3 py-2 rounded-lg capitalize ' + (page === n ? 'bg-indigo-600' : 'hover:bg-slate-700')}>${n}</button>`)}
+      <a id="next-doc" href="/app2.html" class="block mt-8 text-indigo-300 underline">Reports (new page)</a>
+    </aside>
+    <main class="flex-1 p-8 space-y-6">
+      <h1 class="text-3xl font-semibold capitalize text-slate-800">${page}</h1>
+      ${page === 'dashboard' && html`<div class="grid grid-cols-3 gap-4">
+          ${['Open', 'Done', 'Overdue'].map((k, i) => html`<div key=${k} class="p-4 bg-white rounded-xl shadow"><div class="text-slate-500">${k}</div>
+            <div class="text-2xl font-bold">${[tasks.filter(t => !t.done).length, tasks.filter(t => t.done).length, 1][i]}</div></div>`)}
+        </div><${Chart} data=${data} />`}
+      ${page === 'tasks' && html`<div class="space-y-4">
+          <form onSubmit=${add} class="flex gap-2"><input id="draft" value=${draft} onInput=${e => setDraft(e.target.value)} placeholder="New task"
+            class="flex-1 border rounded-lg px-3 py-2"/><button class="bg-indigo-600 text-white px-4 rounded-lg">Add</button></form>
+          <input id="search" value=${q} onInput=${e => setQ(e.target.value)} placeholder="Search" class="w-full border rounded-lg px-3 py-2"/>
+          <ul class="bg-white rounded-xl shadow divide-y">${tasks.filter(t => t.t.toLowerCase().includes(q.toLowerCase())).map(t => html`
+            <li key=${t.id} class="flex items-center gap-3 px-4 py-3"><input type="checkbox" checked=${t.done}
+              onChange=${() => setTasks(ts => ts.map(x => x.id === t.id ? { ...x, done: !x.done } : x))}/>
+              <span class=${t.done ? 'line-through text-slate-400' : ''}>${t.t}</span></li>`)}</ul></div>`}
+      ${page === 'settings' && html`<div class="space-y-4 max-w-md">
+          <button id="open-modal" onClick=${() => setModal(true)} class="bg-rose-600 text-white px-4 py-2 rounded-lg">Delete workspace…</button>
+          ${Array.from({ length: 30 }, (_, i) => html`<p key=${i} class="text-slate-600">Setting row ${i}: lorem ipsum dolor sit amet.</p>`)}</div>`}
+    </main>
+    ${modal && html`<div class="fixed inset-0 bg-black/40 flex items-center justify-center"><div class="bg-white rounded-2xl p-6 w-96 shadow-xl">
+      <h2 class="text-xl font-semibold mb-2">Are you sure?</h2><p class="text-slate-600 mb-4">This cannot be undone.</p>
+      <button id="close-modal" onClick=${() => setModal(false)} class="bg-slate-200 px-4 py-2 rounded-lg">Cancel</button></div></div>`}
+    ${toast && html`<div class="fixed bottom-6 right-6 bg-emerald-600 text-white px-4 py-2 rounded-lg shadow-lg">${toast}</div>`}
+  </div>`;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(html`<${App}/>`);
+window.__frames = []; let last = performance.now();
+(function tick(now) { window.__frames.push(now - last); last = now; requestAnimationFrame(tick); })(performance.now());
+</script>
+</body></html>

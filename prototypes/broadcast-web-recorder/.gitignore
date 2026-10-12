@@ -1,0 +1,6 @@
+node_modules/
+runs/
+replay/rrweb.js
+replay/rrweb.css
+pages/assets/*.js
+pages/assets/late.ttf

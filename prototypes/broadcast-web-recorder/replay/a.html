@@ -1,0 +1,11 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="/replay/rrweb.css">
+<style>html,body{margin:0;overflow:hidden;background:#fff}.replayer-mouse,.replayer-mouse-tail{display:none!important}.replayer-wrapper{position:absolute;left:0;top:0}iframe{border:0}</style>
+<script>var module={exports:{}},exports=module.exports;</script><script src="/replay/rrweb.js"></script></head>
+<body><div id="stage"></div>
+<script>
+const rr = module.exports.Replayer ? module.exports : window.rrweb;
+window.aLoad = (events) => { window.rp = new rr.Replayer(events, { root: document.getElementById('stage'), mouseTail: false, showWarning: false,
+  triggerFocus: false, UNSAFE_replayCanvas: false, skipInactive: false, liveMode: false, useVirtualDom: false }); window.t0 = events[0].timestamp; };
+window.aSeek = async (t) => { rp.pause(Math.max(0, t - t0)); const d = rp.iframe.contentDocument;
+  await Promise.race([d.fonts.ready, new Promise(r => setTimeout(r, 1500))]); };
+</script></body></html>
