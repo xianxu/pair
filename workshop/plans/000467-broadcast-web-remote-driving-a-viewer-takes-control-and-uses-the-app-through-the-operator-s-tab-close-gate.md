@@ -265,6 +265,129 @@ rounds:
       isolation: fenced
       reviewed: 515639975d462d080c71d73aed630188d099ff34
       blocked: false
+    - "n": 7
+      timestamp: "2026-10-12T08:22:10-07:00"
+      dispatched: "2026-10-12T08:18:40-07:00"
+      agent: claude
+      findings:
+        - id: BR-22
+          severity: Important
+          title: M3 ships without drive_menu.go or a DriveMenu model and adds webcast.FakeDriven, but the plan has no M3 Revisions entry
+          detail: 'The Core concepts row and Task 10 Files name couchtty/drive_menu.go and a DriveMenu model; the code is driveSpan/driveMenuRows in console_drive.go, generalized only by RenderTitledMenu, and tests run over a new exported webcast.FakeDriven that no table lists. This is the 3rd finding in family plan-drift-unrecorded; the M2 rule (any deviation gets a Revisions line in the closing commit) was stated but not enforced. Rule to fix: the milestone close mechanically checks every path in the Core concepts table and each Task''s Files list against the tree and refuses the close unless a Revisions line names each mismatch.'
+          family: plan-drift-unrecorded
+          round: 7
+        - id: BR-23
+          severity: Important
+          title: driveResult reports every Grant/Deny/Revoke error as "that changed meanwhile", including a revoke that failed outright
+          detail: 'In console_drive.go:261, a sink failure (recorder or liveGate stopped) or ErrClosed on Revoke leaves the driver driving and the guards on, but the operator is told it was a race. Switch on the error class: keep the race sentence for ErrNoSeat and NextControl refusals, and give a failure sentence with the cause otherwise, ideally from drive.Answer''s table. Add a FakeDriven Emit-failure test that goes red without the fix.'
+          family: error-names-its-cause
+          round: 7
+        - id: BR-24
+          severity: Minor
+          title: TestDriveFromCouch skips the deny notice and Ctrl+click with askers only, and has a wrong comment at line 523
+          detail: The plan promised revoke from every state. The askers-only Ctrl+click no-op is untested, "Said no to Bo." is never asserted, and the comment "nobody drives" is wrong because Bo drives at that point.
+          family: test-gesture-coverage
+          round: 7
+      boundary: M3
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
+    - "n": 8
+      timestamp: "2026-10-12T08:59:18-07:00"
+      dispatched: "2026-10-12T08:49:26-07:00"
+      agent: claude
+      dispose:
+        - id: BR-22
+          disposition: addressed
+          note: Plan Revisions 2026-10-12 "M3 as built" names the missing drive_menu.go/DriveMenu (driveMenu source + RenderTitledMenu) and the exported webcast.FakeDriven; the two-links decision's new surface is also recorded.
+          round: 8
+        - id: BR-23
+          disposition: addressed
+          note: driveFailure classes errors (console_drive.go:223); reverting it to the race sentence turns TestDriveFromCouch red at console_drive_test.go:304 (FailEmits revoke).
+          round: 8
+        - id: BR-24
+          disposition: addressed
+          note: console_drive_test.go:244 asserts "Said no to Bo.", :274-282 covers askers-only Ctrl+click as a no-op, and :253's comment now follows control coming back.
+          round: 8
+      findings:
+        - id: BR-25
+          severity: Important
+          title: 'README not updated for M3 surface: drive span/menu, Ctrl+click take-back, Alt+right-click drive link, --broadcast-list shares'
+          detail: '2nd finding in this family. README.md:400/:864 still describe --broadcast-list as broadcast plus viewer count, :956 says right-click copies "the viewer link", and nothing covers the drive span or menu. Rule: a milestone commit that adds a gesture, flag, notice or output format updates README and atlas in the same commit; add README to Task 12 / the M3 close.'
+          family: atlas-tracks-surface
+          round: 8
+        - id: BR-26
+          severity: Minor
+          title: driveFailure repeats drive.Answer's error classification; only its default branch is tested
+          detail: '2nd finding in this family. Rule: one classification table per error set (drive.Answer''s), with per-audience sentences derived from it; driveFailure''s race, cast-ended and not-live sentences need a pure table test.'
+          family: shared-helper-reuse
+          round: 8
+        - id: BR-27
+          severity: Minor
+          title: Failure to mint the drive token silently turns driving off, and Couch then says the cast isn't recorded
+          detail: 'cast.go:236 drops the controller with no log; copyWebcastDriveLink then names the wrong cause. 2nd finding in this family; rule: every path that turns a feature off records the cause it gives the operator.'
+          family: error-names-its-cause
+          round: 8
+        - id: BR-28
+          severity: Minor
+          title: Server.Viewers reads two counters separately; the view count can briefly be off by one, even negative
+          detail: 'server.go:631 subtracts driveViewers from viewers read at a different moment; display only. 3rd finding in this family; rule: a count derived from two counters is read in one snapshot (one counter per link, or a mutex).'
+          family: state-scope-unmodelled
+          round: 8
+      boundary: M3
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
+    - "n": 9
+      timestamp: "2026-10-12T09:08:10-07:00"
+      dispatched: "2026-10-12T09:02:10-07:00"
+      agent: claude
+      dispose:
+        - id: BR-25
+          disposition: addressed
+          note: README.md:400, :864-869 and :958-980 now cover the shares by kind, view vs drive link (Alt+right-click), the drive span and menu (grant, deny, take back) and Ctrl+click on the span. Checked against terminal_input.go:149-170 and console_drive.go.
+          round: 9
+        - id: BR-26
+          disposition: not-addressed
+          note: TestDriveFailure now pins every class, but driveFailure (console_drive.go:226) still repeats drive.Answer's errors.Is table instead of deriving from one classification. Minor.
+          round: 9
+        - id: BR-27
+          disposition: addressed
+          note: cast.go:159-171 sets driveOff and logs it; copyWebcastDriveLink names DriveOff(); TestCastWithoutDriving pins the cause (fails to compile without the fix).
+          round: 9
+        - id: BR-28
+          disposition: addressed
+          note: server.go:67-69/:152-157 keep one counter per link and Viewers reads each directly, so no count is derived from two reads; the race isn't testable deterministically, and TestDriveOnlyUnderTheDriveLink checks the counts.
+          round: 9
+      findings:
+        - id: BR-29
+          severity: Important
+          title: copyWebcastDriveLink reads c.wcast.cast twice under separate locks; a cast ending in between panics on a nil DriveOff
+          detail: 'console_webcast.go:284 calls c.wcastCast() twice; if webcastEnded resets c.wcast between the two calls, (*Cast)(nil).DriveOff() dereferences nil. Read cast in the same locked snapshot as u at :275 and delete wcastCast. Same rule as BR-28: a decision over several fields of shared state reads them in one snapshot.'
+          family: read-in-one-snapshot
+          round: 9
+      boundary: M3
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
+    - "n": 10
+      timestamp: "2026-10-12T09:24:36-07:00"
+      dispatched: "2026-10-12T09:10:15-07:00"
+      agent: claude
+      dispose:
+        - id: BR-26
+          disposition: addressed
+          note: TestDriveFailure (console_drive_test.go:320-336) pins every branch exactly; the operator-side switch remains a distinct per-audience sentence table, acceptable for a Minor.
+          round: 10
+        - id: BR-29
+          disposition: addressed
+          note: console_webcast.go:275-276 reads update, phase and cast in one locked snapshot; wcastCast deleted, so no second read remains.
+          round: 10
+      boundary: M3
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 0204724cbeb2faaf5d4ef387e3a6fd1f2cc6cd8d
+      blocked: false
 ---
 
 # Gate ledger — pair#467 (boundary-review)
@@ -366,6 +489,57 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-19 — addressed — Release(ctx, by) is a no-op unless held.by==by (tab.go:75-85), and controller_mem.go:165 passes the outgoing driver. With the check reverted, release_test.go:112 fails.
 - BR-20 — addressed — The duplicate return is gone (tab.go:176), and go vet ./cmd/internal/webcast/... is clean.
 - BR-21 — addressed — note() dedups held keys by Key at the writer (tab.go:122). With the dedup reverted, release_test.go:116 fails with two keyups.
+
+## Round 7 — 2026-10-12T08:22:10-07:00 (claude) — BLOCKED
+
+### Raised
+
+- **BR-22** [Important] `plan-drift-unrecorded` M3 ships without drive_menu.go or a DriveMenu model and adds webcast.FakeDriven, but the plan has no M3 Revisions entry
+  The Core concepts row and Task 10 Files name couchtty/drive_menu.go and a DriveMenu model; the code is driveSpan/driveMenuRows in console_drive.go, generalized only by RenderTitledMenu, and tests run over a new exported webcast.FakeDriven that no table lists. This is the 3rd finding in family plan-drift-unrecorded; the M2 rule (any deviation gets a Revisions line in the closing commit) was stated but not enforced. Rule to fix: the milestone close mechanically checks every path in the Core concepts table and each Task's Files list against the tree and refuses the close unless a Revisions line names each mismatch.
+- **BR-23** [Important] `error-names-its-cause` driveResult reports every Grant/Deny/Revoke error as "that changed meanwhile", including a revoke that failed outright
+  In console_drive.go:261, a sink failure (recorder or liveGate stopped) or ErrClosed on Revoke leaves the driver driving and the guards on, but the operator is told it was a race. Switch on the error class: keep the race sentence for ErrNoSeat and NextControl refusals, and give a failure sentence with the cause otherwise, ideally from drive.Answer's table. Add a FakeDriven Emit-failure test that goes red without the fix.
+- **BR-24** [Minor] `test-gesture-coverage` TestDriveFromCouch skips the deny notice and Ctrl+click with askers only, and has a wrong comment at line 523
+  The plan promised revoke from every state. The askers-only Ctrl+click no-op is untested, "Said no to Bo." is never asserted, and the comment "nobody drives" is wrong because Bo drives at that point.
+
+## Round 8 — 2026-10-12T08:59:18-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-22 — addressed — Plan Revisions 2026-10-12 "M3 as built" names the missing drive_menu.go/DriveMenu (driveMenu source + RenderTitledMenu) and the exported webcast.FakeDriven; the two-links decision's new surface is also recorded.
+- BR-23 — addressed — driveFailure classes errors (console_drive.go:223); reverting it to the race sentence turns TestDriveFromCouch red at console_drive_test.go:304 (FailEmits revoke).
+- BR-24 — addressed — console_drive_test.go:244 asserts "Said no to Bo.", :274-282 covers askers-only Ctrl+click as a no-op, and :253's comment now follows control coming back.
+
+### Raised
+
+- **BR-25** [Important] `atlas-tracks-surface` README not updated for M3 surface: drive span/menu, Ctrl+click take-back, Alt+right-click drive link, --broadcast-list shares
+  2nd finding in this family. README.md:400/:864 still describe --broadcast-list as broadcast plus viewer count, :956 says right-click copies "the viewer link", and nothing covers the drive span or menu. Rule: a milestone commit that adds a gesture, flag, notice or output format updates README and atlas in the same commit; add README to Task 12 / the M3 close.
+- **BR-26** [Minor] `shared-helper-reuse` driveFailure repeats drive.Answer's error classification; only its default branch is tested
+  2nd finding in this family. Rule: one classification table per error set (drive.Answer's), with per-audience sentences derived from it; driveFailure's race, cast-ended and not-live sentences need a pure table test.
+- **BR-27** [Minor] `error-names-its-cause` Failure to mint the drive token silently turns driving off, and Couch then says the cast isn't recorded
+  cast.go:236 drops the controller with no log; copyWebcastDriveLink then names the wrong cause. 2nd finding in this family; rule: every path that turns a feature off records the cause it gives the operator.
+- **BR-28** [Minor] `state-scope-unmodelled` Server.Viewers reads two counters separately; the view count can briefly be off by one, even negative
+  server.go:631 subtracts driveViewers from viewers read at a different moment; display only. 3rd finding in this family; rule: a count derived from two counters is read in one snapshot (one counter per link, or a mutex).
+
+## Round 9 — 2026-10-12T09:08:10-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-25 — addressed — README.md:400, :864-869 and :958-980 now cover the shares by kind, view vs drive link (Alt+right-click), the drive span and menu (grant, deny, take back) and Ctrl+click on the span. Checked against terminal_input.go:149-170 and console_drive.go.
+- BR-26 — not-addressed — TestDriveFailure now pins every class, but driveFailure (console_drive.go:226) still repeats drive.Answer's errors.Is table instead of deriving from one classification. Minor.
+- BR-27 — addressed — cast.go:159-171 sets driveOff and logs it; copyWebcastDriveLink names DriveOff(); TestCastWithoutDriving pins the cause (fails to compile without the fix).
+- BR-28 — addressed — server.go:67-69/:152-157 keep one counter per link and Viewers reads each directly, so no count is derived from two reads; the race isn't testable deterministically, and TestDriveOnlyUnderTheDriveLink checks the counts.
+
+### Raised
+
+- **BR-29** [Important] `read-in-one-snapshot` copyWebcastDriveLink reads c.wcast.cast twice under separate locks; a cast ending in between panics on a nil DriveOff
+  console_webcast.go:284 calls c.wcastCast() twice; if webcastEnded resets c.wcast between the two calls, (*Cast)(nil).DriveOff() dereferences nil. Read cast in the same locked snapshot as u at :275 and delete wcastCast. Same rule as BR-28: a decision over several fields of shared state reads them in one snapshot.
+
+## Round 10 — 2026-10-12T09:24:36-07:00 (claude) — passed
+
+### Disposed
+
+- BR-26 — addressed — TestDriveFailure (console_drive_test.go:320-336) pins every branch exactly; the operator-side switch remains a distinct per-audience sentence table, acceptable for a Minor.
+- BR-29 — addressed — console_webcast.go:275-276 reads update, phase and cast in one locked snapshot; wcastCast deleted, so no second read remains.
 
 ## Open findings
 
