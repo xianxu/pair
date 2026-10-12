@@ -79,7 +79,7 @@ function dialog(respond = () => ({ status: 204, text: '' })) {
 
 test('a draft is saved with its cell, grid, color and text, then closes', async () => {
   const f = dialog();
-  f.d.draft([4, 2], { cols: 80, rows: 24 });
+  f.d.draft({ cols: 80, rows: 24, col: 4, row: 2 });
   assert.ok(!f.els.root.classList.has('hidden'));
   assert.ok(f.els.save.disabled, 'empty draft cannot be saved');
   f.type('look <b>here</b>');
@@ -94,7 +94,7 @@ test('a draft is saved with its cell, grid, color and text, then closes', async 
 
 test('Save is disabled for blank text and over the byte cap', () => {
   const f = dialog();
-  f.d.draft([0, 0], { cols: 80, rows: 24 });
+  f.d.draft({ cols: 80, rows: 24, col: 0, row: 0 });
   f.type('   ');
   assert.ok(f.els.save.disabled);
   f.type('é'.repeat(513));
@@ -105,7 +105,7 @@ test('Save is disabled for blank text and over the byte cap', () => {
 
 test('a refusal shows Couch\'s sentence as text and keeps the draft', async () => {
   const f = dialog(() => ({ status: 409, text: 'This color already has 8 notes. Resolve one first.\n' }));
-  f.d.draft([0, 0], { cols: 80, rows: 24 });
+  f.d.draft({ cols: 80, rows: 24, col: 0, row: 0 });
   f.type('hi');
   f.els.save.fire('click');
   await f.settle();
@@ -116,7 +116,7 @@ test('a refusal shows Couch\'s sentence as text and keeps the draft', async () =
 
 test('Cancel discards a draft without a request', () => {
   const f = dialog();
-  f.d.draft([0, 0], { cols: 80, rows: 24 });
+  f.d.draft({ cols: 80, rows: 24, col: 0, row: 0 });
   f.type('never sent');
   f.els.cancel.fire('click');
   assert.equal(f.posts.length, 0);
@@ -149,7 +149,7 @@ test('a viewed note resolved elsewhere closes its dialog', () => {
 
 test('Escape closes the dialog', () => {
   const f = dialog();
-  f.d.draft([0, 0], { cols: 80, rows: 24 });
+  f.d.draft({ cols: 80, rows: 24, col: 0, row: 0 });
   f.els.root.fire('keydown', { key: 'Escape' });
   assert.ok(!f.d.open);
 });
@@ -158,12 +158,12 @@ test('an answer applies only to the dialog that sent it (#447 M2 review)', async
   let release;
   const els = { root: el(), text: el(), input: el(), count: el(), msg: el(), save: el(), cancel: el(), resolve: el() };
   const d = noteDialog(els, { post: () => new Promise((r) => { release = r; }), color: () => 0 });
-  d.draft([0, 0], { cols: 80, rows: 24 });
+  d.draft({ cols: 80, rows: 24, col: 0, row: 0 });
   els.input.value = 'first';
   els.input.fire('input');
   els.save.fire('click');
   els.cancel.fire('click');
-  d.draft([5, 5], { cols: 80, rows: 24 });
+  d.draft({ cols: 80, rows: 24, col: 5, row: 5 });
   els.input.value = 'second draft';
   els.input.fire('input');
   release({ status: 204, text: '' });

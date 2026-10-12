@@ -110,6 +110,18 @@ func RunModelContract(t recording.TB, newModel func() Model) {
 		t.Errorf("a hint's crop must be used: %v", crops)
 	}
 
+	// A region note (#470): its crop holds the region and is not widened to
+	// its element (or the element's landmark); element notes keep theirs.
+	region := recording.Box{c.boxes[c.foot.ID][0] + 4, c.boxes[c.foot.ID][1] + 2, 30, 10}
+	rn := &recording.Note{At: recording.NoteAt{Node: c.foot.ID}, Region: &region}
+	crops, err := m.NoteCrops(st, []*recording.Note{{At: at}, rn}, nil)
+	if err != nil || !holds(crops, region) || !holds(crops, *at.Box) {
+		t.Errorf("note crops %v (%v) must hold the region %v and the element note's box %v", crops, err, region, *at.Box)
+	}
+	if crops, err := m.NoteCrops(st, []*recording.Note{rn}, nil); err != nil || len(crops) != 1 || crops[0][2] >= c.boxes[c.foot.ID][2] {
+		t.Errorf("a region note crops its region, not its element: %v (%v)", crops, err)
+	}
+
 	// The element goes: its anchor no longer resolves.
 	c.b.Add(&recording.Rm{ID: c.p1.ID})
 	if _, ok := m.Resolve(c.state(t), at); ok {
@@ -138,6 +150,15 @@ func RunModelContract(t recording.TB, newModel func() Model) {
 type fixedHint recording.Box
 
 func (h fixedHint) Crop(string, recording.Box) (recording.Box, bool) { return recording.Box(h), true }
+
+func holds(bs []recording.Box, b recording.Box) bool {
+	for _, x := range bs {
+		if x.Contains(b) {
+			return true
+		}
+	}
+	return false
+}
 
 func containsBox(bs []recording.Box, b recording.Box) bool {
 	for _, x := range bs {

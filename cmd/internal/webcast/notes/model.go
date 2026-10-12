@@ -45,7 +45,13 @@ type Model interface {
 	// Crops are the screenshot regions for a submission of these anchors:
 	// each holds its anchors' boxes plus a margin, snapped to structure;
 	// anchors far apart get separate crops. hints may be nil.
+	// It is NoteCrops over notes without regions.
 	Crops(st *recording.State, ats []recording.NoteAt, hints Hints) ([]recording.Box, error)
+	// NoteCrops are Crops for notes, which may be dragged regions (#470): a
+	// region note's crop holds its region plus the margin, not snapped to
+	// structure (the viewer drew it by hand); an element note's is as in
+	// Crops. Clustering, clipping and hints apply to both.
+	NoteCrops(st *recording.State, ns []*recording.Note, hints Hints) ([]recording.Box, error)
 	// Live is the notes on the current document: those since it began.
 	Live(st *recording.State) []*recording.NoteView
 }
