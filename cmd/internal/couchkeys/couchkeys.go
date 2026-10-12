@@ -100,7 +100,7 @@ var bindings = []Binding{
 	// Web cast (#454): enhanced encoding only, like Ctrl+Alt+b, which it
 	// differs from only by Shift. A terminal may report the shifted letter's
 	// code (66) instead of the base key's (98).
-	{Action: ActionWebcast, Scope: ScopeEveryPane, Key: "Shift+Ctrl+Alt+b", Help: "start the cast Chrome, then go live, pause or resume its cast",
+	{Action: ActionWebcast, Scope: ScopeEveryPane, Key: "Shift+Ctrl+Alt+b", Help: "open the cast Chrome; pressed again, go live or pause the cast",
 		Encodings: [][]byte{[]byte("\x1b[98;8u"), []byte("\x1b[66;8u")}},
 	pairChord(ScopeSwitcher, ActionDetach, workbenchshortcut.ChordAltD, "Alt+d", "detach every live thread and leave Couch; their sessions keep running"),
 	pairChord(ScopeSwitcher, ActionPark, workbenchshortcut.ChordAltX, "Alt+x", "shut down every live thread and leave Couch (asks first)"),
