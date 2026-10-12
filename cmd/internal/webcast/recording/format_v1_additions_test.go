@@ -105,15 +105,24 @@ func TestValidateDirReportsStrayFrameFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, r := range newPage().b.Recs {
-		w.Put(r)
+		if err := w.Put(r); err != nil {
+			t.Fatal(err)
+		}
 	}
-	w.PutFrame(&Frame{File: "frames/0.png", W: 2, H: 2, Scale: 1}, []byte("png"))
-	w.Close()
+	if err := w.PutFrame(&Frame{File: "frames/0.png", W: 2, H: 2, Scale: 1}, []byte("png")); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
 	if fs, _, _ := ValidateDir(dir); len(fs) != 0 {
 		t.Fatalf("clean: %v", fs)
 	}
-	os.WriteFile(filepath.Join(dir, "frames", ".tmp-123"), nil, 0o600)
-	os.WriteFile(filepath.Join(dir, "frames", "7.png"), nil, 0o600) // no frame record names it
+	for _, stray := range []string{".tmp-123", "7.png"} { // 7.png: no frame record names it
+		if err := os.WriteFile(filepath.Join(dir, "frames", stray), nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
 	fs, _, _ := ValidateDir(dir)
 	all := ""
 	for _, f := range fs {

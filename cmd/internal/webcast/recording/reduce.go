@@ -303,7 +303,7 @@ func (s *State) applyInSegment(r Record) error {
 		if err != nil {
 			return err
 		}
-		if after := withAttr(n.A, r.Name, r.V); isPassword(n.N, after) && after["value"] != "" {
+		if n.N == "input" && passwordWithValue(withAttr(n.A, r.Name, r.V)) {
 			return fmt.Errorf("element %d would be a password input with a value attribute; a password is never recorded", r.ID)
 		}
 		if r.V == nil {
@@ -478,7 +478,7 @@ func (s *State) checkNew(n *Node, replacing ...*DOMNode) error {
 		if err := s.claim(n.ID, signature(n)); err != nil {
 			return err
 		}
-		if n.Y == YEl && isPassword(n.N, n.A) && n.A["value"] != "" {
+		if n.Y == YEl && n.N == "input" && passwordWithValue(n.A) {
 			return fmt.Errorf("node %d is a password input with a value attribute; a password is never recorded", n.ID)
 		}
 		for _, sub := range []*Node{n.SR, n.TC} {
@@ -635,6 +635,12 @@ func (s *State) forget(n *DOMNode) {
 // isPassword: an input element whose type is password (any case).
 func isPassword(tag string, a map[string]string) bool {
 	return tag == "input" && strings.EqualFold(strings.TrimSpace(a["type"]), "password")
+}
+
+// passwordWithValue: an input's attributes make it a password input with a
+// non-empty value attribute.
+func passwordWithValue(a map[string]string) bool {
+	return isPassword("input", a) && a["value"] != ""
 }
 
 // withAttr is a's attributes with one set (v nil: removed), without
