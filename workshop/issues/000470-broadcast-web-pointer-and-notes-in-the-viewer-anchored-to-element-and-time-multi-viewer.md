@@ -1,12 +1,20 @@
 ---
 id: 000470
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: 'a315479db608d1bc6b4b64d60f5d14e1493c3e8d' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '8f0a6cc690acc530218175c7e42a03fc531327c5' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-12T02:54:30-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:6
+    worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
+    repository: github.com/xianxu/pair
 ---
 
 # broadcast-web: pointer and notes in the viewer — anchored to element and time, multi-viewer
@@ -31,8 +39,17 @@ Wave 2 of couch-broadcast-web (ops `teams/devinfra/projects/couch-broadcast-web/
 
 ## Plan
 
-- [ ]
+Durable plan: `workshop/plans/000470-broadcast-web-pointer-and-notes-in-the-viewer-anchored-to-element-and-time-multi-viewer-plan.md`.
+
+- [ ] M1 — Go: `notes.Model.NoteCrops` (region crops); `board` package (wire, Board as a Sink with an emit func, rules); `POST <cast>/stroke|note|note-state` with admission; `CastConfig.Board`; atlas
+- [ ] M2 — Viewer: `collab.js` shared with the terminal viewer; `annotate.js`; mode button, swatch rail, strokes canvas, pins, note dialog, touch; headless two-viewer e2e on the blog fixture
+- [ ] M3 — Couch: `💭N` after `Chrome ⏸`, #447's notes menu for web notes (copy, resolve)
 
 ## Log
 
 ### 2026-10-12
+
+- TL approved the seams (1f98c952): self-chosen viewer id + name (attribution, not authentication; #467 swaps in
+  seats); one always-on link; strokes stream as several records sharing an id; the Board follows the stream as a Sink
+  and emits through a func (#458 wires it to the recorder queue); `Model.NoteCrops` with region crops, no snap; notes
+  allowed while paused, refused after `stop end`.

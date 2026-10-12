@@ -1,0 +1,121 @@
+# pair#470 — pointer and notes in the web cast viewer: plan
+
+Issue: `workshop/issues/000470-…`. Project: ops `couch-broadcast-web` (wave 2). Seam decisions approved by the TL
+(10-12, 1f98c952): self-asserted viewer identity, one always-on link, chunked strokes, the Board as a Sink with an
+emit func, `Model.NoteCrops`.
+
+## Goal
+
+Viewers of a web cast point (colored strokes everyone sees) and leave notes pinned on an element or a dragged region.
+Notes and strokes are recording records, so they reach every viewer through the live stream, land on disk with the
+recording, survive pause/resume and clear (live) on a new document. The operator sees the live notes in Couch as
+`💭N` after `Chrome ⏸`, with #447's notes menu. A region note's region reaches `Crops`.
+
+## Architecture
+
+```
+viewer shell ──POST <cast>/stroke|note|note-state──▶ webcast.Server ──▶ board.Board ──emit──▶ the stream's one writer
+     ▲                                                  (admission:        (validates,          (#458: recorder queue,
+     │                                                   rate, in-flight,   anchors via          stamps t; tests: stamp
+     └──────────── SSE rec (note, note-state, stroke) ◀── Hub ◀── Tee ◀────  notes.Model)         + Put into the Hub)
+                                                                    │
+                                              Board follows the stream as a Sink (reducer State) ──▶ Couch 💭N + menu
+```
+
+- **`board` package** (`cmd/internal/webcast/board`, new): the collaboration layer's logic, pure but for its lock.
+  - `wire.go`: `ParseStroke`, `ParseNote`, `ParseNoteState` — strict JSON (no unknown fields, size caps from
+    `broadcast.MaxPointBody`/`MaxNoteBody`, finite coordinates within ±1e6 px, ≤ `broadcast.MaxPointsPerBatch` points,
+    text ≤ `broadcast.MaxNoteBytes` valid UTF-8 and not blank, color in `0..broadcast.PointerColors-1`). Each body
+    carries `viewer` `{id, name}`: id `^[A-Za-z0-9_-]{1,64}$` (the events route's `?viewer=` shape), name ≤ 40 runes,
+    control characters stripped. Errors never echo input.
+  - `Board`: `Put(rec)`/`Close()` (a `recording.Sink`: follows the stream into a `recording.State`), `Stroke(v,
+    in)`, `Note(v, in) (id, error)`, `SetState(v, id, state)`, `Live() []LiveNote`, `Subscribe()` (latest
+    live-notes snapshot, one-slot channel, never blocks the board — the `drive.Controller.Subscribe` shape).
+  - Rules, each a named error: ended (`stop end` seen) → `ErrEnded`; no segment yet → `ErrNotLive`; `in.Seg` older
+    than the current document (`State.DocSeg`) → `ErrStale` (the viewer was showing another page); note's node not
+    live in the state → `ErrStale`; a ninth open live note in one color → `ErrColorFull` (reuses
+    `broadcast.MaxNotesPerColor`); `SetState` on a note not live on this document → `ErrUnknown`. Paused is fine
+    (TL: notes while paused yes).
+  - Records built: `note{id, author{id,name,color hex from broadcast.PointerPalette()}, text, at, region?}` with
+    `at = model.Anchor(st, node)` and `at.Box` replaced by the viewer's `boxOf` box (approved 10-12); a region note's
+    node is the innermost element the viewer found at the region's centre. Note ids are 8 random bytes hex (unique
+    without coordination). `stroke{id: viewer's stroke id, author, color, pts}`: a stroke streams as several records
+    sharing an id, one per POST (~50 ms), each continuing it (format revision, additive). `note-state{id,state}`.
+  - Locking: `emit` is called **outside** the board's lock (a synchronous emit into a Tee that feeds this board's
+    own `Put` would deadlock). Notes emitted and not yet seen back are kept in `pending` and count toward the color
+    limit, so two concurrent notes can't both pass it; `Put` of the note clears its pending entry.
+- **Server** (`webcast.Server`): `POST <cast>/stroke`, `/note`, `/note-state` — the only body-reading routes. Same
+  admission as the terminal pointer routes: JSON content type, an in-flight slot (`broadcast.MaxPointInFlight`), a
+  rate budget (`broadcast.NewRateLimit`: strokes at `PointRatePerSec`, notes and states at `NoteRatePerSec`/`NoteBurst`),
+  a read deadline, `MaxBytesReader`. Answers: 204; fixed refusal sentences (the terminal's where they fit: "This color
+  already has 8 notes. Resolve one first.", "The page changed. Try again.", "Too many requests. Wait a moment.";
+  plus "The cast has ended.", "The cast isn't live yet.", "That note isn't valid."). One mapping function
+  `answer(err)`, as `drive.Answer`. Without a board the routes are 404. The CSP is unchanged (`connect-src 'self'`).
+- **Wiring**: `CastConfig.Board *board.Board` → `NewServer(..., board)`; `Cast` exposes the board's subscription to
+  Couch. `couchcmd` constructs a board only where a Live stream exists; on main today nothing feeds `Live`, and #458
+  (pair:1, TL told them) wires the board as a Sink beside the Hub on its Tee and `emit` into the recorder queue. If
+  #458 lands first I wire it on merge; if I land first, pair:1 does.
+- **NoteCrops** (`notes.Model`, additive): `NoteCrops(st, ns []*recording.Note, hints) ([]Box, error)`. A region note
+  crops `region` padded by the margin with no landmark snap (the viewer cropped by hand); an element note is as
+  `Crops`. Clustering, clipping and hints apply to both. `Crops(st, ats, h)` becomes `NoteCrops` over anchor-only
+  notes; `FakeModel` and `RunModelContract` gain the region case.
+- **Viewer** (`webcast/web/`):
+  - `collab.js`, shared with the terminal viewer (ARCH-DRY): `pointerColor`, `colorStore`, `renderSwatches`,
+    `railAt`, `noteBytes`/`MAX_NOTE_BYTES` and `noteDialog`, moved out of `broadcast/web/{viewer,notes}.js`;
+    `noteDialog.draft(payload)` takes an opaque payload merged into the note body (the terminal passes its cell and
+    grid). `broadcast` exports the file (`broadcast.CollabJS`) and both servers serve it at `collab.js`.
+  - `annotate.js` (new): pure helpers — stroke chunking into POSTs (50 ms, ≤ 64 points, dt relative to the chunk),
+    the stroke store joined by id with fade (drawn 1.5 s after a stroke's last chunk; strokes in a reconnect's
+    catch-up whose last point is > 1.5 s behind the newest record time are not drawn), live notes from the model
+    (`seg >= docSeg`, open), a note's pin place (`boxOf(node)` while the node is drawn, else its recorded box; a
+    region note at its region), region from a drag (normalized, min 8 px), and the identity store (id generated once
+    per browser, name asked once, both in localStorage behind try/catch).
+  - Shell: a mode button (watch / point / note, the terminal's MODE_TIPS idea) and the swatch rail docked to the box
+    (`railAt`). Point mode captures pointer events on the overlay (`toPage`) and posts strokes; strokes are drawn into
+    an overlay `<canvas>` scaled with the page. Note mode: tap/click → `nodeAt` → draft dialog; drag → region draft.
+    Pins: a 💭 chip in the author's color at the element's top-right (region: an outlined box), redrawn each frame
+    from `boxOf`/`fromPage`; tapping a pin opens the view dialog with Resolve. Touch: pointer events (tap to anchor,
+    drag to region, `touch-action: none` on the overlay in point/note modes only, so watching still scrolls the page
+    on iPad). Note text only ever as `textContent`.
+- **Couch**: `Chrome ⏸ 💭N` (`StatusModel.WebNotes`, a span `RenderedStatusRow.WebNotes`); clicking it opens #447's
+  notes menu fed with the web notes (mapped to the menu's `broadcast.Note` items: a console-local int id per note id,
+  color index, text); click copies the text, right click resolves (`Board.SetState` as the operator, author id
+  `operator`). The menu shows one source at a time (`notesMenuSource`: screen or web), so the two lists never mix.
+
+## ARCH notes
+
+- ARCH-FUNERAL: note and stroke records grow `notes.jsonl`/`pointer.jsonl` per viewer action, bounded by the rate
+  limits (strokes 30/s cast-wide, ≤ 64 points; notes 2/s) for the cast's life, removed with the recording directory
+  (#458's retention). The Hub keeps the current document's notes and strokes for catch-up and drops them at the next
+  document's catch-up compaction. The board's `pending` entries die when their record is seen or the board closes;
+  its `State` dies with the cast. localStorage: two keys per browser (`couch.viewerId`, `couch.viewerName`), plus the
+  existing color key.
+- ARCH-DRY: one palette (`broadcast.PointerPalette`), one set of note limits, one dialog and swatch module across
+  both viewers; anchors made only by `notes.Model.Anchor` (no selector logic in JS).
+- Identity is attribution, not authentication: anyone with the link can write as any id (atlas states it; #467 swaps
+  in seat identity).
+
+## Plan
+
+- [ ] M1 — Go: `NoteCrops` + contract; `board` package (wire, Board, errors) with tests over fixtures and a Hub;
+  server routes + admission + `answer`; `CastConfig.Board` wiring; atlas (format: chunked strokes, identity note, the
+  routes, NoteCrops). Tests: wire refusals table; board rules each a test (ended, not live, stale seg, dead node,
+  color full incl. concurrent pending, unknown note, paused OK); a board fed `segments` fixture records then notes →
+  emitted records reduce and validate, live notes clear on the tab switch, survive the resume; server route tests
+  (204, each refusal, 413, 415, 429, GET-only elsewhere, 404 without board); NoteCrops region tests.
+- [ ] M2 — Viewer: `collab.js` extraction (terminal viewer tests stay green), `annotate.js` + node tests, shell UI,
+  CSS. Headless e2e (`WEBCAST_LIVE_CHROME=1`): two viewer pages on the blog fixture through Server + Hub + Board
+  (emit stamps and Puts into the Hub): viewer A draws a stroke and B sees it; A notes an element (pin over the
+  element's box ± 2 px in B), B notes a region; a pause/resume keeps the pins; a navigation record clears them; the
+  Hub's records validate and contain both notes and the stroke chunks.
+- [ ] M3 — Couch: `💭N` after `Chrome ⏸`, the notes menu for web notes, copy and resolve; tests at the row/menu and
+  console levels. Smoke checklist for the operator's desktop + iPad test (scheduled by the TL).
+
+## Manual smoke (operator, after #458; TL schedules)
+
+1. Start a cast on the blog, go live, open the link on desktop Chrome and on iPad Safari.
+2. Each picks a different swatch; draw on the page — both see both strokes fade.
+3. Desktop: note mode, click a heading, write a note — the iPad shows the 💭 on the heading; Couch shows `💭1`.
+4. iPad: note mode, drag a region, write — both see the region; `💭2`.
+5. Pause, scroll in Chrome, resume — pins stay on their elements. Navigate — pins clear; `💭` count clears.
+6. `couch --broadcast-web-query <rec> notes` lists both notes with authors.
