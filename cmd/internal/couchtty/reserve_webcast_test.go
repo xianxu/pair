@@ -74,3 +74,17 @@ func TestRenderWebcastFocusButtonAndLiveStyle(t *testing.T) {
 		t.Fatalf("idle cell styled: %q", idle.Body)
 	}
 }
+
+// 👽 (#501) is plain while nobody drives or asks, lit while someone does.
+func TestRenderWebcastDriveGlyphShowsDriving(t *testing.T) {
+	plain := RenderStatusRow(80, StatusModel{Webcast: WebcastLive})
+	if !strings.Contains(plain.Body, " "+broadcast.ControlLabel) || strings.Contains(plain.Body, broadcast.PointerSGR) {
+		t.Fatalf("👽 lit with nobody driving: %q", plain.Body)
+	}
+	for _, drive := range []string{"🕹Ana", "✋Bo"} {
+		row := RenderStatusRow(80, StatusModel{Webcast: WebcastLive, WebDrive: drive})
+		if !strings.Contains(row.Body, broadcast.PointerSGR+broadcast.ControlLabel+"\x1b[0m "+webDriveSGR+drive) {
+			t.Fatalf("%s: 👽 not lit before the span: %q", drive, row.Body)
+		}
+	}
+}
