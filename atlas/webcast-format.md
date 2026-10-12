@@ -223,7 +223,7 @@ it), never a local fork.
 |---|---|---|---|---|
 | pair#458 | recorder | writes a `recording.Sink` (`DirWriter` for disk, `Tee` to also feed `Live`) | `recording.FakeRecorder` (plays a fixture into a sink, instantly or in real time) | `recording.ValidateDir` on its output; fidelity vs `frames/` |
 | pair#459 | asset store and proxy | `assets.Store` (`Put`, `Get`, `Lookup`; `Policy`) | `assets.MemStore` | `assets.RunStoreContract` |
-| pair#460 | live viewer | `recording.Live` (fan-out with catch-up); the JS viewer contract below | `recording.FakeHub` | `recording.RunLiveContract`; the fixtures' canonical pins |
+| pair#460 | live viewer | `recording.Live` (fan-out with catch-up); the JS viewer contract below | `recording.Hub`: the production fan-out is its own double (bounded by one segment; #458 constructs it next to its `Tee`) | `recording.RunLiveContract`; the fixtures' canonical pins |
 | pair#461 | notes model | `notes.Model` (`Anchor`, `Resolve`, `Context`, `Crops`, `Live`; `notes.Hints`) | `notes.FakeModel` | `notes.RunModelContract` |
 | pair#462 | agent queries | `query.Surface` (`DOMAt`, `Events`, `Notes`) | `query.FakeSurface` | `query.RunSurfaceContract` |
 
@@ -242,10 +242,19 @@ live phase, so it feeds the active tab's CDP events to the recorder while `Phase
 and a tab switch from `Tracker.Active` emits a new `seg`. `CastConfig` gains the `recording.Live` that fans the
 same records out, and `Server.events` sends them as `rec` events. The route, the token and the shared `broadcast.Host` stay.
 
-**The JS viewer contract (#460).** The viewer applies records to a sandboxed frame without `allow-scripts`:
-- `apply(record)` applies one record;
-- `resolveAsset(absURL)` returns the proxy URL for an asset, or nothing;
-- `canonical()` exports the rebuilt DOM in `State.Canonical()`'s shape.
+**The JS viewer contract (#460).** The viewer applies records to a sandboxed frame without `allow-scripts`
+(`webcast/web/`: `model.js` applies, `render.js` draws). On `window.couchViewer`:
+- `resolveAsset(absURL)` returns the proxy URL for an asset (`<cast>/assets/<hash>`), or nothing;
+- `canonical()` exports the rebuilt DOM in `State.Canonical()`'s shape (tree and ids from the drawn DOM, values from
+  the model), and `ready()` resolves once its stylesheets, fonts and images have loaded;
+- `boxOf(id)` is a node's box in top-page CSS px from the viewer's own unscaled layout. A note made in the viewer
+  carries this box from click time.
+- `nodeAt(pageX, pageY)` is the drawn node at a top-page point (into frames and shadow roots). `toPage(clientX,
+  clientY)` maps a point in the viewer's window to top-page CSS px. Remote driving (#466) uses both.
+- `onRecord(fn)` sees each accepted record and the model, so another component (#467's control state) can follow the
+  stream without touching the apply path.
+The viewer rewrites `url()`s in streamed CSS (`sheet` records, `<style>` text, `style=`) through `resolveAsset`. The
+proxy rewrites only the CSS bodies it serves.
 
 Conformance means that, for every fixture at each pinned time (its `frame` times), `canonical()` equals the reducer's
 `State.Canonical()`, and the render is within tolerance of `frames/<n>.png`. The fixture pins each expected state by
