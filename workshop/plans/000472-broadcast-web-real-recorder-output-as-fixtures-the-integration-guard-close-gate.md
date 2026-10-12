@@ -77,6 +77,31 @@ rounds:
       isolation: fenced
       reviewed: f82bd66c96e66f77ff6764b794bb001604de96f2
       blocked: false
+    - "n": 4
+      timestamp: "2026-10-12T04:32:11-07:00"
+      dispatched: "2026-10-12T04:31:34-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Disposed in prior rounds; the interdiff does not touch the recorder, and the recorder tests pass at the head.
+          round: 4
+        - id: BR-2
+          disposition: addressed
+          note: 'Disposed in prior rounds; #474''s plan now lists the cleanup (one source for viewport sizing and fixture-name lists).'
+          round: 4
+        - id: BR-3
+          disposition: addressed
+          note: Disposed in prior rounds; nothing in this interdiff changes it.
+          round: 4
+        - id: BR-4
+          disposition: addressed
+          note: Disposed in prior rounds; nothing in this interdiff changes it.
+          round: 4
+      recipe: fix-review
+      isolation: fenced
+      reviewed: dc6d4f1d146c33aa663bd5d656a2567b6fabe033
+      blocked: false
 ---
 
 # Gate ledger — pair#472 (boundary-review)
@@ -115,6 +140,15 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-1 — addressed — Table test covers navigate/resume/tab; I removed side.go:413, recorder.go:679 and recorder.go:724 one at a time and each fails TestRecorderFrameNeverBeforeItsSegment.
 - BR-2 — addressed — Minor; deferred with its trigger to #474, whose Spec names the harness.js sizing copy and the hand-listed fixture names, the change that rewrites all of them.
 - BR-4 — addressed — recording.FrameTimes (fixture.go:65) is the single rule, unit-tested in TestFrameTimesStayInTheFramesSegment and used by both fidelity/run.go and replay_test.go.
+
+## Round 4 — 2026-10-12T04:32:11-07:00 (claude) — passed
+
+### Disposed
+
+- BR-1 — addressed — Disposed in prior rounds; the interdiff does not touch the recorder, and the recorder tests pass at the head.
+- BR-2 — addressed — Disposed in prior rounds; #474's plan now lists the cleanup (one source for viewport sizing and fixture-name lists).
+- BR-3 — addressed — Disposed in prior rounds; nothing in this interdiff changes it.
+- BR-4 — addressed — Disposed in prior rounds; nothing in this interdiff changes it.
 
 ## Open findings
 

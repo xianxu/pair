@@ -261,3 +261,65 @@ dispose:
     note: |
       recording.FrameTimes (fixture.go:65) is the single rule, unit-tested in TestFrameTimesStayInTheFramesSegment and used by both fidelity/run.go and replay_test.go.
 ```
+
+---
+
+## Re-review — 2026-10-12T04:32:10-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 472 — broadcast-web: real recorder output as fixtures (the integration guard) |
+| repo | pair |
+| issue file | workshop/issues/000472-broadcast-web-real-recorder-output-as-fixtures-the-integration-guard.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | ddf011e0896b1ee24e656aeedd99edfec37db737..dc6d4f1d146c33aa663bd5d656a2567b6fabe033 |
+| command | sdlc close --issue 472 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-12T04:32:10-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+**Summary.** This window has no new behaviour, and all four prior findings were closed in earlier rounds. It contains three things. First, the `rec-*` notes goldens were regenerated after the merge with main, because main's #469 changed the rendered context text. Second, the merge conflict in `workshop/lessons.md` was resolved. Third, there are tracker-only edits: #472's status and log, the plan checklists for the follow-ups #474 and #475, and the gate and review plan files. I ran `go test ./cmd/internal/webcast/...` at the pinned head and every package passed, including `query`, which owns the regenerated goldens. #472's Spec, Revisions and Done-when are unchanged. The only edits to it are frontmatter (status, card mirror, flow, hours) and the close log entry, so the scope has not changed.
+
+1. **Strengths**
+   - The regenerated goldens (`cmd/internal/webcast/query/testdata/golden/rec-*.notes.txt`) show #469's rendering, not a hand edit. Words are separated where element boundaries used to run them together ("alpha beta gamma", "Week 3 274 tasks"). Inline `<script>` source no longer leaks into `rec-app` and `rec-segments`. The golden tests in `query` pass.
+   - The `workshop/lessons.md` conflict resolution keeps both sides. The #472 lesson and the #473 lesson are both present, word for word; only their order changed.
+   - The #474 and #475 plans write down the cleanup that BR-2 deferred: one place for the viewport sizing and one for the fixture-name lists. They also pin #475's test-first step, which is to drop the `knownGaps` entry. The follow-up work therefore has a concrete record.
+
+2. **Critical findings:** none.
+3. **Important findings:** none.
+4. **Minor findings:** none.
+5. **Test coverage notes:** the regenerated goldens are checked by the existing `query` golden tests, which are green at the head. There is no new executable code in this window, so no new regression test is needed.
+6. **Architectural notes:**
+   - **ARCH-DRY: pass.** The window adds no duplicated logic. BR-2's restatements are planned in #474.
+   - **ARCH-PURE: pass.** The window contains no code.
+   - **ARCH-PURPOSE: pass.** The follow-ups are separate pieces of work (retiring the prototype fixtures after #470 and #471 land, and the stylesheet gap), not the purpose of #472 pushed to later.
+7. **Plan revision recommendations:** none.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Disposed in prior rounds; the interdiff does not touch the recorder, and the recorder tests pass at the head.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Disposed in prior rounds; #474's plan now lists the cleanup (one source for viewport sizing and fixture-name lists).
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Disposed in prior rounds; nothing in this interdiff changes it.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Disposed in prior rounds; nothing in this interdiff changes it.
+```
