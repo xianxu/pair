@@ -1,12 +1,20 @@
 ---
 id: 000457
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours:
-card_mirror: '36be90e60e9811626f246f052af8eda008e219b1' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '6236bae1a7833f1798353b8d7788b98ad329be82' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-11T23:18:56-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
 ---
 
 # broadcast-web: recording format and component seams (contracts, fixtures, reference reducer)
@@ -36,12 +44,20 @@ Write the format as an atlas page (`atlas/webcast-format.md`).
 
 ## Plan
 
-- [ ] Format and node-id scheme (atlas page)
-- [ ] Go types, validator, reference reducer
-- [ ] Interfaces and fakes for each component; seam into webcast.Cast
-- [ ] Fixtures from #453's prototypes and the blog
+Durable plan: `workshop/plans/000457-broadcast-web-recording-format-and-component-seams-contracts-fixtures-reference-reducer-plan.md`. Format spec: `atlas/webcast-format.md`.
+
+- [x] Format and node-id scheme (atlas page)
+- [ ] Records and codec
+- [ ] Reference reducer and canonical state
+- [ ] Validator, directory layout, catch-up
+- [ ] Recorder-side seams and fakes (Sink, Live, FakeHub, FakeRecorder, live contract)
+- [ ] assets / notes / query interfaces with fakes and contract suites
+- [ ] Fixtures from #453's prototype and the blog (fixturegen), goldens
 - [ ] Operator review of the format; close
 
 ## Log
 
 ### 2026-10-11
+- Claimed at pair:3 from the TL's dispatch (ops:0). #454 landed meanwhile (PR #252); merged main, so the seam names `webcast.LaunchOptions`/`Server.events` directly.
+- #453's prototype runs were gitignored, so fixtures are re-recorded: prototype B in the scratchpad, extended with layout (`DOMSnapshot`), click/focus capture, `frameNavigated` and asset bodies. Chrome 154 headless. Blog page: `/2026/10/ariadne-1-building-blocks-of-ai-coding` on the dev server.
+- Found for #458: the prototype's 100ms observer poll loses a click that navigates (the page unloads first); `DOMSnapshot.captureSnapshot` on the top session leaves out OOPIF documents (layout for cross-origin frames needs a per-session capture).
