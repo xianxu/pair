@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000486-couch-send-to-message-file-path-so-agents-never-quote-a-message-in-the-shell.md
         source_blob: 1965cebd9c1e55d7339c668fd9c1abe666807a96
         destination: workshop/issues/000486-couch-send-to-message-file-path-so-agents-never-quote-a-message-in-the-shell.md
+        main_commit: 414e83e019fadb6e99d4dc941bfb4eb99a932fdf
 ---
 
 # couch --send-to: --message-file PATH, so agents never quote a message in the shell
