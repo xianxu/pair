@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/webcast/fidelity"
+	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
 // Only the replays a report can show are kept, however long the cast.
@@ -69,6 +70,37 @@ func TestSideBySideCrops(t *testing.T) {
 		}
 		if b := img.Bounds(); b.Dx() != c.w || b.Dy() != c.h {
 			t.Errorf("case %d: %v, want %dx%d", i, b, c.w, c.h)
+		}
+	}
+}
+
+// Frame records come from disk: a file outside frames/ or an implausible
+// size is refused before anything is read or laid out.
+func TestFrameViewport(t *testing.T) {
+	ok := []struct {
+		f    recording.Frame
+		want image.Point
+	}{
+		{recording.Frame{File: "frames/0.png", W: 640, H: 400, Scale: 0.5}, image.Pt(1280, 800)},
+		{recording.Frame{File: "frames/3.png", W: 640, H: 400}, image.Pt(1280, 800)}, // the fixtures carry no scale
+		{recording.Frame{File: "frames/1.png", W: 100, H: 50, Scale: 1.0 / 3}, image.Pt(300, 150)},
+	}
+	for _, c := range ok {
+		if got, err := frameViewport(&c.f); err != nil || got != c.want {
+			t.Errorf("%+v: %v %v", c.f, got, err)
+		}
+	}
+	for _, f := range []recording.Frame{
+		{File: "../events.jsonl", W: 640, H: 400, Scale: 0.5},
+		{File: "/etc/passwd", W: 640, H: 400, Scale: 0.5},
+		{File: "frames/../../x.png", W: 640, H: 400, Scale: 0.5},
+		{File: "assets/0.png", W: 640, H: 400, Scale: 0.5},
+		{File: "frames/0.png", W: 0, H: 400, Scale: 0.5},
+		{File: "frames/0.png", W: 640, H: 400, Scale: 2},
+		{File: "frames/0.png", W: 1 << 20, H: 400, Scale: 0.5},
+	} {
+		if _, err := frameViewport(&f); err == nil {
+			t.Errorf("%+v accepted", f)
 		}
 	}
 }

@@ -174,3 +174,14 @@ clock/feed, as `replay.test.mjs` does with fakes).
   `atlas/webcast-format.md`: `fidelity/` in the directory layout and the report format (report.json fields,
   report.md, crops), a `## Revisions` line (additive).
 - [ ] Full `make -k test` + `go test ./...`, then `sdlc close`.
+
+## Revisions
+
+- 2026-10-12 (close review round 1, BR-1): the retries are true replays at t±δ, in the order 0, −300, −150,
+  +150, +300 (stopping at the first within tolerance). −300 seeks back through the catch-up (one segment at most,
+  not the whole recording); the rest continue, and continuing resumes the animations paused at the last capture
+  instead of finishing them. So "a recording is replayed once" holds for frames within tolerance. A frame over it
+  costs one catch-up seek plus about 1.6 s of real-time windows.
+- As built: `WriteReport` is `fidelity.Write` (plus `Report.Summary`, `Within`, `Markdown`). The hook's test is in
+  `record_cast_test.go`. A segment that isn't a navigation finishes its document's animations (found on the live
+  blog cast). The report keeps `offset` and `at_t`. Frame records are validated (`frameViewport`) before use.

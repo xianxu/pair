@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -29,6 +30,9 @@ const MaxWorst = 10
 
 // minWorst moments are shown even when every frame is within tolerance.
 const minWorst = 3
+
+// tmpPrefix names a report being written, beside the recording's files.
+const tmpPrefix = ".fidelity-"
 
 // ReportDir is where a recording's report goes, beside its frames/.
 const ReportDir = "fidelity"
@@ -66,6 +70,7 @@ type Report struct {
 
 // Summarize scores the compared shots of recording id.
 func Summarize(id string, shots []Shot, skipped int) Report {
+	shots = slices.Clone(shots) // the report's own: Over and Crop are set here
 	rep := Report{Recording: id, Tolerance: Tolerance, Frames: len(shots) + skipped, Shots: shots, Skipped: skipped, Worst: []int{}}
 	if len(shots) == 0 {
 		return rep
@@ -147,7 +152,14 @@ func Write(dir string, r Report, crops [][]byte) error {
 	if len(crops) != len(r.Worst) {
 		return fmt.Errorf("fidelity: %d crops for %d worst moments", len(crops), len(r.Worst))
 	}
-	tmp, err := os.MkdirTemp(dir, ".fidelity-")
+	// A write a crash cut short leaves its temporary directory; the next
+	// one sweeps it.
+	if stale, _ := filepath.Glob(filepath.Join(dir, tmpPrefix+"*")); len(stale) > 0 {
+		for _, d := range stale {
+			os.RemoveAll(d)
+		}
+	}
+	tmp, err := os.MkdirTemp(dir, tmpPrefix)
 	if err != nil {
 		return err
 	}

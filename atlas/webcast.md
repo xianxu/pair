@@ -98,7 +98,10 @@ what the viewer's renderer draws at the same moments.
   `web/replayer.js`'s `Replayer` is the replay. #460's conformance harness uses it too, so there is one
   `replayAt`.
   - Records up to t − 1 s are drawn at once, then the last second in real time, so a transition is in the tab's
-    phase. It only moves forward, and a moment before what is drawn starts over.
+    phase.
+  - A moment shortly after the last one continues it: the animations paused at the last capture resume, so a
+    retry or a close frame is at its phase. A moment before it seeks through the catch-up (`catchUp`, the replay's
+    seek rule), so it replays at most one segment.
   - A segment that isn't a navigation snapshots a document that was already running, so its animations are
     finished, not started: on the live blog cast this took the first frame from 2.15% to 0.10%.
 - **When it runs:**

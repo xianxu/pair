@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Replayer } from '../../cmd/internal/webcast/web/replayer.js';
 import { Model, goJSON } from '../../cmd/internal/webcast/web/model.js';
+import { catchUp } from '../../cmd/internal/webcast/web/replay.js';
 import { fixtures, records } from './fixtures.mjs';
 
 // fake is a page: a clock that sleeps instantly, a renderer that notes when
@@ -13,7 +14,12 @@ import { fixtures, records } from './fixtures.mjs';
 function fake() {
   const log = { applied: [], layouts: [], anims: [] };
   let now = 0;
-  const anim = { finish: () => log.anims.push(['finish', now]), pause: () => log.anims.push(['pause', now]) };
+  const anim = {
+    playState: 'running',
+    finish() { log.anims.push(['finish', now]); },
+    pause() { this.playState = 'paused'; log.anims.push(['pause', now]); },
+    play() { this.playState = 'running'; log.anims.push(['play', now]); },
+  };
   const deps = {
     renderer: (model) => ({
       apply: (r) => log.applied.push([r.t, now]),
@@ -95,4 +101,39 @@ test('a segment that is not a navigation finishes the animations of the document
     const finishes = log.anims.filter(([k]) => k === 'finish').map(([, at]) => at);
     assert.deepEqual(finishes, finishedAtSeg ? [0, 700] : [0], why);
   }
+});
+
+test('a moment shortly after the last continues it: paused animations resume at their phase', async () => {
+  const { deps, log, clock } = fake();
+  const r = new Replayer(recs, (h) => `assets/${h}`, deps);
+  const a = Math.floor(recs[recs.length - 1].t / 2);
+  await r.replayAt(a, 1000);
+  log.anims.length = 0;
+  const before = clock();
+  await r.replayAt(a + 150, 1000);
+  assert.deepEqual(log.anims.map(([k]) => k), ['play', 'pause'], 'resumed, never finished');
+  assert.equal(clock() - before, 150, 'only the 150 ms since the last moment run');
+});
+
+test('a moment before the last seeks through the catch-up, one segment at most', async () => {
+  let shorter = false;
+  for (const name of fixtures) {
+    const all = records(name);
+    const { deps, log } = fake();
+    const r = new Replayer(all, (h) => `assets/${h}`, deps);
+    const end = all[all.length - 1].t;
+    await r.replayAt(end, 1000);
+    log.applied.length = 0;
+    const t = Math.floor(end * 0.6);
+    const out = await r.replayAt(t, 1000);
+    const m = new Model();
+    for (const x of all) if (x.t <= t) m.apply(x);
+    assert.equal(out.canonical, goJSON(m.canonical()), `${name}: the seek draws the state at ${t}`);
+    // The seek feeds the catch-up of the records up to the window's start,
+    // then the window: not the whole prefix again.
+    const before = all.filter((x) => x.t <= t - 1000), inWindow = all.filter((x) => x.t > t - 1000 && x.t <= t);
+    assert.equal(log.applied.length, catchUp(before).length + inWindow.length, name);
+    shorter ||= catchUp(before).length < before.length;
+  }
+  assert.ok(shorter, 'some fixture has a segment the seek skips');
 });

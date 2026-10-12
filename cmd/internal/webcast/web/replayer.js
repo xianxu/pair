@@ -1,7 +1,10 @@
 // Replayer draws a recording's records into the page frame with the
 // viewer's model and renderer, unscaled at the operator's viewport: the
 // fidelity check's replay (#478) and the conformance harness's (#460).
-// It moves forward; a replayAt before what is drawn starts over.
+// A replayAt after what is drawn continues from it: the animations paused
+// at the last capture resume, so a moment shortly after is at its phase.
+// One before what is drawn seeks: the catch-up of the records up to the
+// window's start (the format's seek rule), so it replays one segment.
 //
 // replayAt(t, windowMs) draws the page as the real tab looked at t:
 // records up to t - windowMs at once (their transitions finished), then the
@@ -11,6 +14,7 @@
 // was already running, so its animations are finished, not started.
 import { Model, goJSON } from './model.js';
 import { Renderer } from './render.js';
+import { catchUp } from './replay.js';
 
 // inBrowser is what a Replayer needs of a page that holds the frame.
 export function inBrowser(frame) {
@@ -52,6 +56,20 @@ export class Replayer {
     });
   }
 
+  // seek draws the state at t afresh from the catch-up of the records up
+  // to t, and goes on from the first record after it.
+  seek(t) {
+    let lo = 0, hi = this.recs.length; // the first record after t
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (this.recs[mid].t <= t) lo = mid + 1; else hi = mid;
+    }
+    this.reset();
+    for (const r of catchUp(this.recs.slice(0, lo))) this.feed(r);
+    this.next = lo;
+    this.at = t;
+  }
+
   feed(r) {
     this.model.apply(r);
     this.renderer.apply(r);
@@ -84,12 +102,19 @@ export class Replayer {
   // replayAt: see the file's comment. It returns what was drawn: whether
   // the cast was live at t, the viewport, and the canonical state.
   async replayAt(t, windowMs) {
-    if (t < this.at) this.reset(); // backward: from the start
-    // The window starts no earlier than what is drawn already.
-    const start = Math.max(t - windowMs, this.at);
-    while (this.next < this.recs.length && this.recs[this.next].t <= start) this.feed(this.recs[this.next++]);
-    await this.settle();
-    this.finishAnimations();
+    let start = t - windowMs;
+    if (start <= this.at && t >= this.at) {
+      // Continuing: the window starts at what is drawn, whose animations
+      // were paused there and run on from their phase.
+      start = this.at;
+      await this.settle();
+      for (const a of this.deps.animations()) if (a.playState === 'paused') a.play();
+    } else {
+      if (t < this.at) this.seek(start);
+      while (this.next < this.recs.length && this.recs[this.next].t <= start) this.feed(this.recs[this.next++]);
+      await this.settle();
+      this.finishAnimations();
+    }
     const t0 = this.deps.now();
     const until = (rt) => this.deps.sleep(rt - start - (this.deps.now() - t0));
     while (this.next < this.recs.length && this.recs[this.next].t <= t) {

@@ -104,6 +104,11 @@ func TestSummarize(t *testing.T) {
 	if got := Summarize("rec", many, 0); len(got.Worst) != MaxWorst || got.Shots[got.Worst[0]].Diff != 39 {
 		t.Errorf("many: %d worst, first %v", len(got.Worst), got.Shots[got.Worst[0]].Diff)
 	}
+	// The caller's shots are left as they were.
+	in := []Shot{{Diff: 9}}
+	if Summarize("rec", in, 0); in[0].Over || in[0].Crop != "" {
+		t.Errorf("Summarize wrote into its input: %+v", in[0])
+	}
 	if empty := Summarize("rec", nil, 3); len(empty.Shots) != 0 || empty.Skipped != 3 || empty.Within() {
 		t.Errorf("empty %+v", empty)
 	}
@@ -202,6 +207,10 @@ func TestReportFiles(t *testing.T) {
 			t.Error(err)
 		}
 	}
+	// A write a crash cut short is swept by the next one.
+	if err := os.Mkdir(filepath.Join(dir, ".fidelity-crashed"), 0o700); err != nil {
+		t.Fatal(err)
+	}
 	// A second run replaces the first: no stale crop survives.
 	small := Summarize("r", []Shot{{File: "frames/1.png", Diff: 0.1}}, 0)
 	if err := Write(dir, small, [][]byte{pngOf(t, fill(4, 4, white))}); err != nil {
@@ -209,6 +218,9 @@ func TestReportFiles(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, ReportDir, "worst-2.png")); !os.IsNotExist(err) {
 		t.Errorf("a stale crop survived a rerun: %v", err)
+	}
+	if left, _ := filepath.Glob(filepath.Join(dir, ".fidelity-*")); len(left) != 0 {
+		t.Errorf("temporary directories left: %v", left)
 	}
 	if err := Write(dir, small, nil); err == nil {
 		t.Error("crops must match the worst shots")

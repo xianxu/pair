@@ -78,6 +78,9 @@ func CheckFidelity(ctx context.Context, chromeBin, dir string) (fidelity.Report,
 	skipped := 0
 	replays := map[string][]byte{} // low-res replays of the worst shots so far, by frame file
 	for _, f := range frames {
+		if _, err := frameViewport(f); err != nil {
+			return fidelity.Report{}, err
+		}
 		tab, err := os.ReadFile(filepath.Join(abs, f.File))
 		if err != nil {
 			return fidelity.Report{}, err
@@ -283,6 +286,8 @@ func (h *headless) open(ctx context.Context, url string) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-h.conn.Done(): // Chrome is gone: no point waiting
+			return fmt.Errorf("fidelity page: Chrome: %v", h.conn.Err())
 		case <-time.After(100 * time.Millisecond):
 		}
 	}
@@ -334,17 +339,43 @@ func (h *headless) score(ctx context.Context, f *recording.Frame, tabPNG []byte)
 	return shot, best, true, nil
 }
 
+// maxViewport bounds a frame's viewport (CSS px per side): a frame record
+// is read from disk, and the replay lays a page out at its size.
+const maxViewport = 16384
+
+// frameScale is f's image px per CSS px; the fixtures' frames carry none
+// and are at the recorder's 0.5.
+func frameScale(f *recording.Frame) float64 {
+	if f.Scale <= 0 {
+		return 0.5
+	}
+	return f.Scale
+}
+
+// frameViewport is the viewport (CSS px) f was taken at, which the replay
+// lays out at. A frame naming a file outside frames/, or an implausible
+// size, is refused: frame records come from disk.
+func frameViewport(f *recording.Frame) (image.Point, error) {
+	if !filepath.IsLocal(f.File) || filepath.Dir(filepath.Clean(f.File)) != "frames" {
+		return image.Point{}, fmt.Errorf("fidelity: frame file %q is not in frames/", f.File)
+	}
+	scale := frameScale(f)
+	vp := image.Pt(int(math.Round(float64(f.W)/scale)), int(math.Round(float64(f.H)/scale)))
+	if f.W <= 0 || f.H <= 0 || scale > 1 || vp.X > maxViewport || vp.Y > maxViewport {
+		return image.Point{}, fmt.Errorf("fidelity: frame %s is %dx%d at scale %g, not a plausible viewport", f.File, f.W, f.H, f.Scale)
+	}
+	return vp, nil
+}
+
 // replayFrame draws the recording as the tab was at at (f's time, or
 // near it) and screenshots it
 // as the recorder screenshots the tab: the viewport, at f's scale. live is
 // false when nothing live was drawn there.
 func (h *headless) replayFrame(ctx context.Context, f *recording.Frame, at int64) (shot []byte, live bool, err error) {
-	scale := f.Scale
-	if scale <= 0 {
-		scale = 0.5 // the fixtures' frames carry none
+	vp, err := frameViewport(f)
+	if err != nil {
+		return nil, false, err
 	}
-	// The viewport in CSS px, from the frame: the replay lays out at it.
-	vp := image.Pt(int(math.Round(float64(f.W)/scale)), int(math.Round(float64(f.H)/scale)))
 	if vp != h.vp {
 		if err := h.call(ctx, h.session, "Emulation.setDeviceMetricsOverride", map[string]any{"width": vp.X, "height": vp.Y, "deviceScaleFactor": 1, "mobile": false}, nil); err != nil {
 			return nil, false, err
@@ -372,7 +403,7 @@ func (h *headless) replayFrame(ctx context.Context, f *recording.Frame, at int64
 	}
 	// LowRes halves per CSS px at a DPR; a DPR-1 replay scaled to the
 	// frame's scale s is LowRes at 1/(2s).
-	low, _, _, err := recorder.LowRes(full, 1/(2*scale))
+	low, _, _, err := recorder.LowRes(full, 1/(2*frameScale(f)))
 	return low, true, err
 }
 
