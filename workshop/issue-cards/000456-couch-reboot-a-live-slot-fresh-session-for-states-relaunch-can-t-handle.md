@@ -1,8 +1,8 @@
 ---
 id: 000456
-status: codecomplete
+status: done
 created: 2026-10-11
-updated: 2026-10-11
+updated: 2026-10-12
 estimate_hours:
 github_issue:
 started: 2026-10-11T20:52:33-07:00
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 282fba74043d8848c6878dd798b0845daabb829b
         evidence_commit: 4ce760724d7dd96de560593e6b73803a39c843ab
+        landed_commit: 4d0b1a6ef68aa86751605580bd23993b9c1f7096
 ---
 
 # couch: reboot a live slot (fresh session), for states relaunch can't handle
