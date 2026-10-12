@@ -192,7 +192,7 @@ top page by the recorder. The viewport position at time t is the top document's 
 |---|---|---|---|
 | `note` | notes | `id` (string), `author` `{id,name,color}`, `text`, `at` `{node,sel,text,box}`, optional `region` `[x,y,w,h]` | A note anchored on an element at its `t`. `at.node` is the element's id. `at.sel` is a stable CSS selector. `at.text` is the element's text, trimmed to 200 characters. `at.box` is its box. `region` is set for a dragged region. |
 | `note-state` | notes | `id`, `state`: `open` or `resolved` | A note was resolved or reopened. |
-| `stroke` | pointer | `id`, `author`, `color`, `pts` `[[x,y,dt],…]` | One pointer stroke, or one chunk of it; `dt` is ms after the record's `t`. A live stroke streams as several records sharing an `id` (#470: one per viewer POST, about every 50 ms), each continuing it. |
+| `stroke` | pointer | `id`, `author`, `color`, `pts` `[[x,y,dt],…]` | One pointer stroke, or one chunk of it; `dt` is ms after the record's `t`. A live stroke streams as several records sharing an `id` (#470: one per viewer POST, about every 50 ms), each continuing it; a viewer's stroke id is its viewer id, `.`, and the shell's own stroke id, so two viewers' strokes never join. |
 | `frame` | frames/index | `file`, `w`, `h`, `scale` | A screenshot of the real tab at `t` (the fidelity check), `w`×`h` image pixels; `scale` is image pixels per CSS pixel, the one source of that mapping for every consumer: 0.5 (the viewport at half its CSS size) whatever the device pixel ratio, except under a ratio of 0.5, where a screenshot isn't upsampled and `scale` is the ratio. `t` is the capture's midpoint. Not in the live stream. |
 
 **Who wrote it (#470).** A viewer's note or stroke carries the `author` the viewer's own shell names: an id it
@@ -363,7 +363,8 @@ a body (`webcast/server_board.go`), admitted like the terminal pointer routes: a
 budget per cast (strokes 60/s, notes and states 2/s with a burst of 5), a prompt body within 8 KiB. Bodies are parsed
 strictly by `board.Parse*` (each names its `viewer` `{id,name}` and the `seg` it was made on; a note its `node`, the
 `box` from `couchViewer.boxOf`, an optional `region`, a palette `color` and plain text of at most 1,024 bytes). The
-`board.Board` follows the recording as one of its sinks (the recorder's `Tee`, beside the directory and the Hub) and
+`board.Board` follows the recording as one of its sinks (the recorder's `Tee`: the directory, the board, then the Hub, so the board knows a
+page before any viewer can act on it) and
 checks each request against that state: the cast is on a page and hasn't ended, the `seg` is within the current
 document (a resume keeps it), the node is a live element, a color has at most 8 open notes on the page (notes emitted
 and not yet seen back count). It anchors a note with `notes.Model.Anchor` and the viewer's box, and hands the record to
@@ -371,7 +372,8 @@ the cast's recorder (`webcast.Emitter`, `recorder.Emit{Record, Doc}`), which sta
 document the board checked is still current when it orders it** (`recording.State.OnDoc`), so a navigation between the
 check and the write can't file a note on the new page. Answers are fixed sentences (`boardAnswer`): 204; 409 "The page
 changed. Try again.", "This color already has 8 notes. Resolve one first.", "That note is gone.", "The cast isn't
-showing a page yet."; 410 "The cast has ended."; 429 "Too many requests. Wait a moment."; 400 "That isn't valid.".
+showing a page yet."; 410 "The cast has ended."; 429 "Too many requests. Wait a moment."; 400 "That isn't valid.";
+503 "Notes aren't working in this cast." (the board lost track of the page: a bug, logged once).
 Notes are allowed while paused. Couch follows the open notes with `Cast.Notes` and resolves as the operator with
 `Cast.ResolveNote`. Lifecycle: the board lives with the cast (the recorder closes it with the recording); its pending
 entries end when their record is seen, the emit fails, or a new document begins.

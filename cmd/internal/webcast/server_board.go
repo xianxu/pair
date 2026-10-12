@@ -35,6 +35,7 @@ const (
 	refuseNotLive   = "The cast isn't showing a page yet."
 	refuseUnknown   = "That note is gone."
 	refuseInvalid   = "That isn't valid."
+	refuseBroken    = "Notes aren't working in this cast."
 )
 
 // boardRoutes is a cast's admission state for the board's routes.
@@ -177,6 +178,8 @@ func boardAnswer(err error) (int, string) {
 		return http.StatusConflict, refuseUnknown
 	case errors.Is(err, board.ErrEnded), errors.Is(err, board.ErrClosed):
 		return http.StatusGone, refuseEnded
+	case errors.Is(err, board.ErrBroken):
+		return http.StatusServiceUnavailable, refuseBroken
 	case errors.Is(err, board.ErrShape):
 		return http.StatusBadRequest, refuseInvalid
 	default: // the writer failed: nothing the viewer did

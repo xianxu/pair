@@ -30,7 +30,7 @@ func newBoardCast(t *testing.T) *boardCast {
 	t.Helper()
 	c := &boardCast{hub: recording.NewHub(256), b: recording.NewBuilder("rec")}
 	bd := board.New(notes.Structural{}, func(r recording.Record, doc int) error { return c.w.Emit(r, doc) })
-	c.w = board.NewWriter(recording.Tee(c.hub, bd), nil)
+	c.w = board.NewWriter(recording.Tee(bd, c.hub), nil)
 	srv := httptest.NewServer(NewServer("tok", NewFakeBrowser(), time.Second, c.hub, nil).WithBoard(bd))
 	t.Cleanup(srv.Close)
 	t.Cleanup(func() { c.hub.Close() })

@@ -95,3 +95,9 @@ Durable plan: `workshop/plans/000470-broadcast-web-pointer-and-notes-in-the-view
   recorded cast and tees it into the recording beside the directory and the Hub; `Cast.Notes`/`ResolveNote` for
   Couch. `Board.Put` never fails the recording's Tee (a divergence stops the board instead). Mutation checks: pending
   not counted → 40 of 40 concurrent notes land; pending not ended at a new document → the silent-drop test fails.
+- M1 review round 1: BR-1 (plan drift) → plan Revisions. Minors fixed: board before the Hub in the Tee; `ErrBroken`
+  (503, logged once) instead of a silent ErrStale; Put never fails after Close; the board keeps no strokes; atlas states
+  the composed stroke id. Deferred to wave 3 (DOM submission): clamping a viewer-supplied box before `NoteCrops`
+  widens the page with it. Not done: a shared contract over `board.Writer` and `recorder.Emit` — the one rule they
+  share is `State.OnDoc`, tested in both (`TestWriterStamps…`, `TestRecorderEmitChecksTheDocument`); their difference
+  (synchronous ErrStale vs a silent drop) is the `Emit` contract's stated allowance.

@@ -132,3 +132,22 @@ viewer shell ──POST <cast>/stroke|note|note-state──▶ webcast.Server �
 4. iPad: note mode, drag a region, write — both see the region; `💭2`.
 5. Pause, scroll in Chrome, resume — pins stay on their elements. Navigate — pins clear; `💭` count clears.
 6. `couch --broadcast-web-query <rec> notes` lists both notes with authors.
+
+## Revisions
+
+- 2026-10-12 (M1, after #458 landed; TL 110c6da0; M1 review BR-1). Delta from the Architecture above:
+  - **Wiring:** no `CastConfig.Board` and nothing in `couchcmd`. `StartCast` makes the board itself for a recorded cast
+    (`RecordingsDir` set) and tees it into the recording's sink after the directory and **before** the Hub (a viewer
+    acts on what it was shown, which the board must know first). `Server.WithBoard(bd)` serves the routes. The board's
+    emit is `webcast.Emitter.Emit(r, doc)`, which `Chrome` implements by sending `recorder.Emit{Record, Doc}` into the
+    recorder's queue; the recorder closes the board with the recording, the cast when the browser ends.
+  - **The ordering rule** is `recording.State.OnDoc(doc)` (not `board.OnDoc`): the recorder checks it at dequeue
+    (`Emit.Doc > 0`), and `board.Writer` checks it in tests. The recorder drops silently; the Writer returns `ErrStale`.
+  - **Couch API:** `Cast.Notes()` (the board's `Subscribe`) and `Cast.ResolveNote(id)` (as `board.Operator`).
+  - **Stroke record id:** `<viewer id>.<stroke id>`, so two viewers' strokes never join.
+  - **Answers:** 204; 409 "The page changed. Try again." / "This color already has 8 notes. Resolve one first." /
+    "That note is gone." / "The cast isn't showing a page yet."; 410 "The cast has ended."; 429 "Too many requests.
+    Wait a moment."; 400 "That isn't valid."; 503 "Notes aren't working in this cast." (`ErrBroken`: the board's state
+    parted from the stream, logged once through `Board.Logf`). `Board.Put` never fails the Tee.
+  - **Budgets:** strokes 60/s per cast (two viewers at the 50 ms cadence), notes and states 2/s, burst 5.
+  - The board drops strokes from its own state (it never checks against them).

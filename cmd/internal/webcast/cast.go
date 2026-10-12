@@ -95,6 +95,7 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 			}
 			return ErrNotRecording
 		})
+		bd.Logf = cfg.Logf
 		id := recordingID(time.Now())
 		ro = &RecordOptions{ID: id, Out: recordingOutput(cfg, liveSink, bd, id, proxy), Logf: cfg.Logf}
 	}
@@ -145,12 +146,14 @@ func recordingOutput(cfg CastConfig, live recording.Sink, bd *board.Board, id st
 			return recorder.Opened{}, fmt.Errorf("webcast: recording: %w", err)
 		}
 		o := recorder.Opened{Sink: w, Frames: w}
+		// The board before the viewers' fan-out: a viewer acts on what it
+		// was shown, which the board must already know.
 		sinks := []recording.Sink{w}
-		if live != nil {
-			sinks = append(sinks, live)
-		}
 		if bd != nil {
 			sinks = append(sinks, bd)
+		}
+		if live != nil {
+			sinks = append(sinks, live)
 		}
 		if len(sinks) > 1 {
 			o.Sink = recording.Tee(sinks...)

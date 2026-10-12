@@ -420,3 +420,31 @@ func firstElement(n *recording.DOMNode, tag string) *recording.DOMNode {
 	}
 	return nil
 }
+
+// A board whose state parts from the stream stops taking requests, says so
+// once, and never fails the recording's Tee; it keeps no strokes.
+func TestBrokenBoardStopsAndSaysSo(t *testing.T) {
+	r := newRig(t).page(recording.SegLive)
+	if err := r.bd.Stroke(StrokeIn{Viewer: ana, Seg: 1, ID: "s", Pts: [][3]float64{{1, 1, 0}}}); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(r.bd.st.Strokes); n != 0 {
+		t.Errorf("the board keeps %d strokes", n)
+	}
+	var logged []string
+	r.bd.Logf = func(f string, a ...any) { logged = append(logged, f) }
+	if err := r.bd.Put(&recording.Rm{ID: 9999}); err != nil {
+		t.Errorf("Put must never fail the Tee: %v", err)
+	}
+	r.bd.Put(&recording.Rm{ID: 9998})
+	if _, err := r.note(r.p1.ID, 0); !errors.Is(err, ErrBroken) {
+		t.Errorf("a broken board: %v", err)
+	}
+	if len(logged) != 1 {
+		t.Errorf("logged %d times, want once", len(logged))
+	}
+	r.bd.Close()
+	if err := r.bd.Put(&recording.Stop{}); err != nil {
+		t.Errorf("Put after Close: %v", err)
+	}
+}

@@ -41,6 +41,9 @@ var (
 	ErrUnknown = errors.New("board: no such note")
 	// ErrClosed: the board was closed.
 	ErrClosed = errors.New("board: closed")
+	// ErrBroken: the board's state parted from the stream it follows (a
+	// bug); it takes no more requests this cast.
+	ErrBroken = errors.New("board: lost track of the page")
 )
 
 // Emit writes r into the stream if the document that began at segment doc
@@ -70,6 +73,8 @@ type pending struct {
 // Board checks viewers' requests against the stream it follows. mu is a
 // leaf lock: Emit and subscribers are never called while it is held.
 type Board struct {
+	// Logf, when set, reports the board breaking, once.
+	Logf    func(format string, args ...any)
 	model   notes.Model
 	emit    Emit
 	palette []string
@@ -98,23 +103,27 @@ func randomID() string {
 
 // Put follows the stream: every record the writer wrote, in order.
 func (b *Board) Put(r recording.Record) error {
+	// Put never fails: the board rides on the recording's Tee, and a
+	// problem of its own must not fail the recording.
 	b.mu.Lock()
-	if b.closed {
-		b.mu.Unlock()
-		return ErrClosed
-	}
-	if b.broken != nil {
+	if b.closed || b.broken != nil {
 		b.mu.Unlock()
 		return nil
 	}
 	if err := b.st.Apply(r); err != nil {
 		// The writer applied r to its own reducer first, so this can't
-		// happen short of a bug; it must not fail the recording the board
-		// rides on, so the board stops taking requests instead.
+		// happen short of a bug: the board stops taking requests and says
+		// so, rather than check them against a page it no longer knows.
 		b.broken = err
 		b.mu.Unlock()
+		if b.Logf != nil {
+			b.Logf("web cast notes stopped: %v", err)
+		}
 		return nil
 	}
+	// The board needs no strokes (nothing checks against them), so it
+	// doesn't keep them for the cast's life.
+	b.st.Strokes = b.st.Strokes[:0]
 	if n, ok := r.(*recording.Note); ok {
 		delete(b.pending, n.ID)
 	}
@@ -258,7 +267,7 @@ func (b *Board) pageLocked(seg int) (int, error) {
 	case b.closed:
 		return 0, ErrClosed
 	case b.broken != nil:
-		return 0, ErrStale
+		return 0, ErrBroken
 	case b.st.Ended:
 		return 0, ErrEnded
 	case b.st.Seg == 0:
