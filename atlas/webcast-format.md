@@ -226,6 +226,7 @@ full DOM at that moment stays available through the agent queries (#462).
 5. offered to `notes.Hints` (per app or URL), whose crop replaces the default when it returns true.
 
 Region notes (`region`) are not in `Crops` yet: `Crops` takes anchors, which carry no region.
+
 ## Attribution and control (#466)
 
 A viewer the operator grants control to uses the cast tab through the cast (Remote driving, below). The recording
