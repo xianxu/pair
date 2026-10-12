@@ -1137,3 +1137,13 @@ proof; record the surprising case so the next change starts from evidence.
   still describing the old address grammar, and a TL-deferred Done-when clause stayed as written. When a change
   adds a form to a CLI grammar, grep every restatement of that grammar (`--help`, skill, README, atlas) in the
   same commit; when scope moves elsewhere, amend `## Done when` and `## Plan` in the commit that moves it.
+- **A state record a reader can start from mid-stream needs a baseline rule (#466).** `ctl` records carry the control
+  state after them so a late joiner's catch-up keeps only the latest one, but the reducer checked each against the
+  previous state, so the catch-up didn't reduce. When a record is meant to be self-contained for some readers and a
+  checked transition for others, write the rule for both in one place (first one seen is the baseline if consistent
+  in itself; a whole-recording reader stays strict) and run the catch-up check at every cut point.
+- **An allow-list's test must not derive its expectation from the allow-list (#466 close, 3 rounds).** `Confine` lost
+  four holes one round at a time (Meta+Y, Shift+Escape, Shift+Delete, modified Enter/Space) because each fix patched an
+  instance, and the "exhaustive" test compared `Confine` with the table it calls. Write the rule as one closed table
+  with its reason (no Chrome/Blink binding on any platform; an input's keyboard twin is refused with its pointer
+  form), and test it against a hand-written expectation plus a cited list of the bindings it must exclude.

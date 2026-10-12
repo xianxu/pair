@@ -38,6 +38,57 @@ func ContractRecording(changes int) []Record {
 	return b.Recs
 }
 
+// DrivenRecording is a small recording in which viewers drive (#466): a
+// request and a grant, the driver's attributed clicks and typing, a pause and
+// a resume and a navigation while driving, a release, a second driver
+// revoked, a denied request, a viewer leaving, and the end. The input of the
+// drive package's contracts, and handy for any component that reads control.
+func DrivenRecording() []Record {
+	ana, bo, cy := Author{ID: "v1", Name: "Ana", Color: "#e5484d"}, Author{ID: "v2", Name: "Bo", Color: "#3e63dd"}, Author{ID: "v3", Name: "Cy"}
+	var c Control
+	op := func(o string, who Author) *Ctl {
+		next, err := NextControl(c, o, who)
+		if err != nil {
+			panic(err) // a hand-written sequence: a bug here is the test's
+		}
+		c = next
+		return &Ctl{Op: o, Who: who, Control: next}
+	}
+	b := NewBuilder("driven")
+	q := b.El("input", []string{"id", "q", "type", "search"})
+	save := b.El("button", []string{"id", "save"}, b.Txt("Save"))
+	link := b.El("a", []string{"href", "/2"}, b.Txt("Next"))
+	doc := b.Page(SegLive, "http://app.local/", q, save, link)
+	b.At(100).Add(&Layout{Boxes: map[NodeID]Box{q.ID: {16, 16, 300, 32}, save.ID: {332, 16, 80, 32}, link.ID: {16, 64, 40, 20}}})
+	b.At(1000).Add(op(CtlRequest, ana))
+	b.At(1500).Add(op(CtlGrant, ana))
+	b.At(2000).Add(&Click{Source: Source{By: ana.ID}, ID: q.ID, X: 100, Y: 30}).Add(&Focus{Source: Source{By: ana.ID}, ID: q.ID})
+	b.At(2400).Add(&Input{Source: Source{By: ana.ID}, ID: q.ID, V: Str("invoice")})
+	b.At(2600).Add(&Note{ID: "drv-n1", Author: ana, Text: "Search should keep my query.", At: NoteAt{Node: q.ID, Sel: "#q", Box: &Box{16, 16, 300, 32}}})
+	// The operator acts too: unattributed.
+	b.At(3000).Add(&Click{ID: save.ID, X: 370, Y: 30})
+	b.At(3500).Add(&Stop{Why: StopPause})
+	b.At(4000).Add(op(CtlRequest, bo)) // asked while paused
+	b.At(5000).Add(&Seg{Seg: b.NextSeg(), Why: SegResume, Tab: Tab{ID: "tab1", URL: "http://app.local/"}, VP: Viewport{W: 1280, H: 800, DPR: 1}})
+	b.Snapshot("http://app.local/", doc.C[1])
+	b.At(5500).Add(&Click{Source: Source{By: ana.ID}, ID: link.ID, X: 30, Y: 70})
+	// The driver's click navigates: a new document, still driven.
+	b.At(5600)
+	p := b.El("p", nil, b.Txt("Page two"))
+	b.Page(SegNavigate, "http://app.local/2", p)
+	b.At(6000).Add(&Scroll{Source: Source{By: ana.ID}, ID: b.Recs[len(b.Recs)-1].(*Doc).Doc, Y: 200})
+	b.At(6500).Add(op(CtlRelease, ana))
+	b.At(7000).Add(op(CtlGrant, bo))
+	b.At(7200).Add(&Click{Source: Source{By: bo.ID}, ID: p.ID, X: 20, Y: 20})
+	b.At(7500).Add(op(CtlRevoke, bo))
+	b.At(8000).Add(op(CtlRequest, cy))
+	b.At(8200).Add(op(CtlDeny, cy))
+	b.At(8500).Add(op(CtlRequest, cy)).Add(op(CtlGrant, cy))
+	b.At(9000).Add(op(CtlLeave, cy))
+	b.At(9500).Add(&Stop{Why: StopEnd})
+	return b.Recs
+}
+
 // RunLiveContract checks a Live implementation. newLive returns a fresh
 // fan-out and the Sink that feeds it (often the same value), whose
 // subscribers may fall behind by at least 64 records before being dropped.
@@ -240,6 +291,9 @@ func CheckCatchUp(recs []Record, t int64) error {
 		return fmt.Errorf("the document began in segment %d, the catch-up says %d", all.DocSeg, cu.DocSeg)
 	case liveNotes(all) != liveNotes(cu):
 		return fmt.Errorf("current-document notes %q, the catch-up has %q", liveNotes(all), liveNotes(cu))
+	case !all.Control.Equal(cu.Control):
+		return fmt.Errorf("driver %q pending %v, the catch-up has %q %v",
+			all.Control.Driving(), ids(all.Control.Pending), cu.Control.Driving(), ids(cu.Control.Pending))
 	}
 	return nil
 }

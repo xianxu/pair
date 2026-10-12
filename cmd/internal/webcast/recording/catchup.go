@@ -9,6 +9,8 @@ package recording
 //     resume: a resume shows the same document as before its pause), as a
 //     bare seg record, so the notes keep their segment;
 //   - notes, note states and strokes since then;
+//   - the latest control change (ctl) before the latest segment: it
+//     carries the whole control state (#466);
 //   - every record from the latest segment on.
 //
 // Order is kept. Applied to a fresh state, the catch-up gives the same DOM,
@@ -25,6 +27,12 @@ func CatchUp(recs []Record) []Record {
 	}
 	if last < 0 {
 		return append([]Record(nil), recs...)
+	}
+	ctl := -1 // the latest control change before the latest segment
+	for i := last - 1; i >= 0 && ctl < 0; i-- {
+		if _, ok := recs[i].(*Ctl); ok {
+			ctl = i
+		}
 	}
 	if doc < 0 {
 		doc = 0
@@ -62,6 +70,11 @@ func CatchUp(recs []Record) []Record {
 				out = append(out, r)
 			}
 			continue
+		case *Ctl:
+			if i == ctl {
+				out = append(out, r)
+				continue
+			}
 		}
 		if i >= last {
 			out = append(out, r)
