@@ -41,9 +41,22 @@ viewer shell ──POST <cast>/stroke|note|note-state──▶ webcast.Server �
     node is the innermost element the viewer found at the region's centre. Note ids are 8 random bytes hex (unique
     without coordination). `stroke{id: viewer's stroke id, author, color, pts}`: a stroke streams as several records
     sharing an id, one per POST (~50 ms), each continuing it (format revision, additive). `note-state{id,state}`.
+  - **The writer re-checks the document (ordering).** A note's segment is the one current when the record is
+    reduced (`reduce.go`: `Seg: s.Seg`); the record carries none. So the Board's check can't be the last word: a
+    navigation ordered between the check and the write would file the note on the new page. The emit seam is
+    `Emit func(r recording.Record, doc int) error`: write `r` only if the document that began at segment `doc` is
+    still current **when the writer orders it**, else drop it. The rule has one statement, `board.OnDoc(st, doc)`
+    (`st.DocSeg == doc && !st.Ended`), which the recorder (#458) calls on its own reducer state at dequeue, and
+    `board.Writer` (the reference writer: follows a Sink's State, stamps `t`, applies `OnDoc`) calls in tests. Strokes
+    and note states use the same seam. A drop after the viewer's 204 is the price of an asynchronous queue: the note
+    is for a page nobody is on any more, which the new document would clear anyway.
   - Locking: `emit` is called **outside** the board's lock (a synchronous emit into a Tee that feeds this board's
-    own `Put` would deadlock). Notes emitted and not yet seen back are kept in `pending` and count toward the color
-    limit, so two concurrent notes can't both pass it; `Put` of the note clears its pending entry.
+    own `Put` would deadlock). Notes emitted and not yet seen back are kept in `pending` (tagged with their `doc`) and
+    count toward the color limit, so two concurrent notes can't both pass it. A pending entry ends when its record is
+    seen in `Put`; when `emit` returns an error (removed at once); or when `Put` sees a new document (every entry of
+    an older doc: the writer dropped it, or it is on a page that no longer counts). So a pending entry lives at most
+    one document.
+  - Reserved id: `operator` is Couch's own author id; the parsers refuse it as a viewer id.
 - **Server** (`webcast.Server`): `POST <cast>/stroke`, `/note`, `/note-state` — the only body-reading routes. Same
   admission as the terminal pointer routes: JSON content type, an in-flight slot (`broadcast.MaxPointInFlight`), a
   rate budget (`broadcast.NewRateLimit`: strokes at `PointRatePerSec`, notes and states at `NoteRatePerSec`/`NoteBurst`),
@@ -97,12 +110,12 @@ viewer shell ──POST <cast>/stroke|note|note-state──▶ webcast.Server �
 
 ## Plan
 
-- [ ] M1 — Go: `NoteCrops` + contract; `board` package (wire, Board, errors) with tests over fixtures and a Hub;
-  server routes + admission + `answer`; `CastConfig.Board` wiring; atlas (format: chunked strokes, identity note, the
-  routes, NoteCrops). Tests: wire refusals table; board rules each a test (ended, not live, stale seg, dead node,
-  color full incl. concurrent pending, unknown note, paused OK); a board fed `segments` fixture records then notes →
-  emitted records reduce and validate, live notes clear on the tab switch, survive the resume; server route tests
-  (204, each refusal, 413, 415, 429, GET-only elsewhere, 404 without board); NoteCrops region tests.
+- [ ] M1 — Go: `NoteCrops` + contract; `board` package (wire, Board, `OnDoc`, `Writer`, errors); server routes +
+  admission + `answer`; `CastConfig.Board` wiring; atlas (format: chunked strokes, identity note, the routes,
+  NoteCrops). Test strategy: `Parse*` over untrusted bodies → table + fuzz seeded with oversize, NaN/Inf, invalid
+  UTF-8, unknown fields, the reserved id; Board rules → one test per named error, over the `segments` fixture fed
+  through a Hub; the check/emit race → a test emit that orders a navigation before the note (the writer drops it,
+  pending clears) and concurrent notes at the color limit (`-race`, exactly 8 land); server → route tests per answer.
 - [ ] M2 — Viewer: `collab.js` extraction (terminal viewer tests stay green), `annotate.js` + node tests, shell UI,
   CSS. Headless e2e (`WEBCAST_LIVE_CHROME=1`): two viewer pages on the blog fixture through Server + Hub + Board
   (emit stamps and Puts into the Hub): viewer A draws a stroke and B sees it; A notes an element (pin over the

@@ -1,7 +1,7 @@
 ---
 id: 000470
 status: working
-deps: []
+deps: [000458]
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
@@ -53,3 +53,7 @@ Durable plan: `workshop/plans/000470-broadcast-web-pointer-and-notes-in-the-view
   seats); one always-on link; strokes stream as several records sharing an id; the Board follows the stream as a Sink
   and emits through a func (#458 wires it to the recorder queue); `Model.NoteCrops` with region crops, no snap; notes
   allowed while paused, refused after `stop end`.
+- plan-quality round 1 (PQ-1, Important): a note checked by the Board, then emitted outside its lock, could be filed
+  on a page a navigation brought in between. Fix: the emit seam carries the checked document and the writer
+  re-checks at ordering time with one rule (`board.OnDoc`); pending entries end on emit error or a new document.
+  `operator` reserved; deps gains #458.
