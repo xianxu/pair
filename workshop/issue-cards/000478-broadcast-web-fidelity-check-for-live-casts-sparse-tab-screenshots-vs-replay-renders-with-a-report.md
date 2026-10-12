@@ -13,7 +13,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
-actual_hours: 0.70
+actual_hours: 0.71
 tracker:
     version: 1
     handoff:
@@ -27,10 +27,10 @@ tracker:
         destination: workshop/issues/000478-broadcast-web-fidelity-check-for-live-casts-sparse-tab-screenshots-vs-replay-renders-with-a-report.md
         main_commit: 1da5c76c60b687fc25a90cb1dc9f1268daa9172e
     completion:
-        token: close-261bfd17c4f0
+        token: close-154946aadaa0
         repository: github.com/xianxu/pair
-        reviewed_head: 8962e0777022f69014a7512cc676181e952b0336
-        evidence_commit: ecdb8adc4eff1c04abc182c0d3862234db69fcdd
+        reviewed_head: 5f85ad2640e59a1bc7eb20f6ca83df0016821a75
+        evidence_commit: 999eef753f581988fceec2fb36610bf1abbd2cfe
 ---
 
 # broadcast-web: fidelity check for live casts — sparse tab screenshots vs replay renders, with a report
