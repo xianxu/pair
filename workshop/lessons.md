@@ -1196,3 +1196,10 @@ proof; record the surprising case so the next change starts from evidence.
   event that makes it true and wait on that event: a no-op command through the loop that owns the state, or an
   injected clock (`Couch.after`) that ties the timeout to the fake's state. To prove a suspected window, widen it
   with a temporary sleep in the product or fake and watch the test fail every time.
+- **A production bound a test inherits is a real-time window too (#476).** `TestCapturePTYBothBoundaries` never named
+  a duration. It failed because `Recorder.Close`'s production 2s drain bound is the default it ran with. And the
+  retention lock test timed a whole call, file I/O included, to prove it "didn't block", although the held lock
+  already proved that. Before asserting on a call that has a bound (a drain, a deadline, a poll), ask whether the
+  bound is the test's subject. If not, lift it through a config seam (`Config.CloseTimeout`) and wait on the event.
+  If the state the test holds already proves the property, wait with no window and let the binary's timeout catch
+  a hang.
