@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000497-storage-rotate-and-cap-pair-s-wrap-events-logs-41-gb-under-local-share-pair-repos.md
         source_blob: d0a3a636b8a83b2bbba3538598cdaf54f20c6a86
         destination: workshop/issues/000497-storage-rotate-and-cap-pair-s-wrap-events-logs-41-gb-under-local-share-pair-repos.md
+        main_commit: 5508725a578c58afa6de4a84f1f6a35030c5b3b5
 ---
 
 # storage: rotate and cap pair's wrap-events logs (41 GB under ~/.local/share/pair/repos)
