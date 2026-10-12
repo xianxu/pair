@@ -46,8 +46,62 @@ Durable plan: `workshop/plans/000488-…-plan.md` (same slug).
 
 - [ ] M1 — shared `noteBox` (collab.js) + web cast: always-region with default box, BR-4 clamp, outlined pins, NoteAt kind/path, NoteCrops = padded box (snap + Hints retired, hub-coordinated with #483)
 - [ ] M2 — terminal boxes: wire `box` + derived pin, viewer drag, DrawNotes outline, `NoteCrop` seam for #455
-- [ ] M3 — terminal anchor: pure `AnchorFor` + list-panes rect cache (fake) + nvim view.json
+- [ ] M3 — terminal anchor: pure `AnchorFor` + async fresh list-panes resolver behind an injected PaneRects seam (stateful fake, live conformance) + nvim view.json
 - [ ] Operator smoke test in both casts
+
+## Estimate
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.*
+
+**Derivation:**
+- **Design:** v2 ranges with the ×0.2 spec-quality discount. The durable plan settles every
+  decision (two plan-quality rounds plus the hub's answers to A–D).
+- **Undiscounted design:** `issue-spec` (the reading and planning already spent since the
+  claim) and `ux-rename-iteration` (the operator's smoke test in both casts).
+- **Implementation:** 40% of the v2 ranges (v3.1). The two node-tested viewer items, the
+  async resolver and the crops refactor are picked at the upper end.
+- **Familiarity 1.1:** the codebase is familiar; Couch's frame overlay and the zellij seam are
+  partly new.
+- **Design buffer +15%:** there is a thorough plan doc.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.1
+item: issue-spec               design=0.8 impl=0.0
+item: smaller-go-module        design=0.05 impl=0.16
+item: smaller-go-module        design=0.05 impl=0.2
+item: smaller-go-module        design=0.05 impl=0.2
+item: cross-cutting-refactor   design=0.1 impl=0.24
+item: tui-screen               design=0.2 impl=0.32
+item: smaller-go-module        design=0.05 impl=0.2
+item: smaller-go-module        design=0.05 impl=0.16
+item: greenfield-go-module     design=0.2 impl=0.32
+item: greenfield-go-module     design=0.3 impl=0.4
+item: lua-neovim               design=0.1 impl=0.16
+item: atlas-docs               design=0.05 impl=0.12
+item: milestone-review         design=0.1 impl=0.16
+item: milestone-review         design=0.1 impl=0.16
+item: milestone-review         design=0.1 impl=0.16
+item: ux-rename-iteration      design=0.5 impl=0.08
+design-buffer: 0.15
+total: 6.56
+```
+
+Items in order:
+1. spec
+2. collab `noteBox`
+3. web annotate
+4. board parse/clamp + NoteAt
+5. NoteCrops simplification
+6. terminal viewer drag
+7. broadcast box wire + pin
+8. DrawNotes outline
+9. `AnchorFor`
+10. async resolver + PaneRects seam/fake/conformance
+11. nvim view.json
+12. atlas
+13–15. three milestone reviews
+16. smoke test
 
 ## Log
 
