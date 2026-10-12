@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000459-broadcast-web-asset-store-and-proxy-capture-content-hash-resample-serve.md
         source_blob: 770b7ba1b11fdbc39879a911aa4784a6804a56aa
         destination: workshop/issues/000459-broadcast-web-asset-store-and-proxy-capture-content-hash-resample-serve.md
+        main_commit: 26d8139221f7957d3736ec4541b42e92d4384e45
 ---
 
 # broadcast-web: asset store and proxy — capture, content hash, resample, serve
