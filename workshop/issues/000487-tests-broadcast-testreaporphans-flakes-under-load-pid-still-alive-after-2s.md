@@ -15,6 +15,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "efc89ad3", done: "9e38085a"}
 ---
 
 # tests: broadcast TestReapOrphans flakes under load (pid still alive after 2s)
