@@ -162,3 +162,27 @@ live/pause/tab inputs into the recorder's FIFO queue, and the recorder calls CDP
 records and injections enter that queue. The id map is `Recorder.NodeOf(id) → (session, backendNodeId)` and
 `Recorder.IDOf(session, backendNodeId) → id`, request-with-reply on that goroutine. Passwords: `input {id, secret:true}`
 (#458); the fake injector follows it.
+
+### 2026-10-12: as built, and the close review's round-1 fixes
+- **Files:** `RunControllerContract` lives in `drive/controller_contract.go`, not `contract.go`. There is no separate
+  `drivenFixture`: `fixturegen -driven` writes `recording.DrivenRecording()` directly (one source). Also added:
+  `drive/answer.go` (`Answer`, `SeatHeader`, `DefaultGrace`), so the atlas's reverse-channel answers are code.
+- **The injector follows the stream** (BR-1). `RunInjectorContract`'s factory returns
+  `(Injector, recording.Sink, func() []recording.Record)`, and the Sink feeds it later records of the stream. `Inject`
+  refuses a viewer who isn't the driver in that stream with `ErrNotDriver`, before dispatching anything. The contract
+  revokes and then injects as the old driver; `TestFakesCompose` wires `FakeController` over `FakeInjector` with
+  `recording.Tee`.
+- **Confine** (BR-2, BR-3):
+  - Ctrl/Meta+Enter is allowed (page-handled).
+  - Meta+Y is refused (History on macOS); Y works with Ctrl only.
+  - Shift+Escape is refused (Chrome's task manager).
+  - Shift goes with Ctrl/Meta only on Z.
+  - `code` must name `key`'s own key, and dispatch derives from `key`.
+- **Minors fixed:**
+  - a driver without an id is refused;
+  - `stop end` is final (no `seg` after it), so a catch-up can't carry pre-end control into a new cast;
+  - `ime` `sel` is range-checked;
+  - labels drop format and separator characters;
+  - fixture coverage checks for a note by the driver.
+- **Advisory left open:** the fake's grace timers are real `time.AfterFunc` (no injectable timer). #467's real
+  controller runs on the recorder's queue with its own timer inputs, and that is where ordering gets tested.

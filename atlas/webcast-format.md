@@ -65,7 +65,7 @@ A cast is a sequence of **live segments** with gaps where it was paused (project
 |---|---|---|
 | `seg` | `seg` (1, 2, …), `why`, `tab` `{id,url,title}`, `vp` `{w,h,dpr}` | A segment starts. **All DOM state is dropped**: documents, nodes, sheets, form values, scroll, selection, focus, layout. The asset table and the notes are kept. `why` is `live` (first go-live), `resume` (going live again on **the same document** as before the pause), `navigate` (a new top document, including one loaded while paused), or `tab` (the operator switched tabs). The current document began at the latest segment that isn't a `resume`. |
 | `doc` | `doc`, `url`, `tree`, optional `host` | A full snapshot of one document. `tree` is a `doc` node, and `doc` is its id. Without `host` it is the top document; exactly one comes right after each `seg`, before any change. With `host` (an `iframe` element's id) it is that frame's document, replacing whatever the frame showed before. Cross-origin frames come the same way: the recorder stitches them by their owner element. |
-| `stop` | `why`: `pause` or `end` | The segment ends. The state is frozen as it was. |
+| `stop` | `why`: `pause` or `end` | The segment ends. The state is frozen as it was. `end` is final: no `seg` follows it (#466). |
 
 A cross-document navigation of the top document is a new segment (`why: navigate`): "each new document starts with a
 full snapshot" (project, step 4). A same-document navigation (`pushState`) is a `nav` record within the segment.
@@ -214,7 +214,7 @@ says who did what.
   the latest one, so a first `ctl` is taken as stated if it is consistent in itself (`who` where its op puts it, no
   viewer twice). `Validate` reads whole recordings and holds the first one to the rule too.
 - **Lifetime:** control is per recording, not per segment. It survives pause, resume and navigation (a driver's click
-  on a link keeps them driving on the new document). It ends at `stop` `end`. `State.Control` is the state at t.
+  on a link keeps them driving on the new document). It ends at `stop` `end`, which is final. `State.Control` is the state at t.
 
 ## Joining mid-cast
 
@@ -371,7 +371,11 @@ record. Viewers learn the state from the `ctl` records in their stream, and Couc
 what Chrome or the operator's machine would handle is not:
 - Only the left button, with no modifiers. The right button opens Chrome's context menu; middle and modified clicks
   open tabs or windows or download; Ctrl+wheel zooms.
-- The named editing keys and printable characters, with Shift. Ctrl or Meta only for select all, undo, redo and Enter.
+- The named editing keys and printable characters, with Shift, but not Shift+Escape (Chrome's task manager).
+- Ctrl or Meta only for select all, undo and redo (Shift+Z), and Enter. Y is allowed with Ctrl only: Meta+Y opens
+  History on macOS.
+- `code`, when given, must name `key`'s own key, so an injector can't be led to another (key `a` with code `KeyW`).
+  The injector dispatches from `key` alone; `code` only fills the DOM event's `code`.
 - No clipboard keys: copy and cut would write the operator's clipboard, and paste would read it.
 - No Alt (back and forward), no function keys, and no other accelerator (closing the tab, the address bar, DevTools).
 
@@ -382,9 +386,12 @@ window or tab). Permission prompts and JavaScript dialogs appear only to the ope
 **One writer.** The record stream has one writer, the recorder's goroutine (#458). The Chrome loop forwards CDP
 events and live/pause/tab inputs into its FIFO queue. Control changes and injections are inputs to the same queue, so
 `ctl` records, injected input and the DOM changes it causes are ordered together, and `by` is stamped in queue order.
+The injector follows that stream: it sees every record, `ctl` included, in order. A fake is fed as a
+`recording.Sink`, and `FakeController` over `FakeInjector` composes through `recording.Tee`.
 The injector hit-tests with `DOM.getNodeForLocation` and the recorder's id map (`Recorder.IDOf(session,
 backendNodeId)` and `Recorder.NodeOf(id)`, requests with a reply on that goroutine). It rechecks that `by` drives when
-it dispatches, so a batch overtaken by a revoke is refused there. Passwords follow #458's rule: typing into a
+it dispatches, so a batch overtaken by a revoke is refused there (`ErrNotDriver`, checked by
+`RunInjectorContract`). Passwords follow #458's rule: typing into a
 `type=password` field records `input {secret:true}`, never the value.
 
 **The operator sees who drives:** Couch's `Chrome ⏸` indicator names the driver and any pending request, from
