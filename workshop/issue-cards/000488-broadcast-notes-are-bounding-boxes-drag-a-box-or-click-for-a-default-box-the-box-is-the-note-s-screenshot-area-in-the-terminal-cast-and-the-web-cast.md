@@ -1,10 +1,19 @@
 ---
 id: 000488
-status: working
+status: codecomplete
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours: 6.56
 github_issue:
+started: 2026-10-12T10:40:32-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
+actual_hours: 2.93
 tracker:
     version: 1
     handoff:
@@ -17,14 +26,11 @@ tracker:
         source_blob: 644bb4793223fa672a02aa51451a2cbeb5d80199
         destination: workshop/issues/000488-broadcast-notes-are-bounding-boxes-drag-a-box-or-click-for-a-default-box-the-box-is-the-note-s-screenshot-area-in-the-terminal-cast-and-the-web-cast.md
         main_commit: 4efffe43cfd60a86e3f1f5a31efaecb8fcce8d03
-started: 2026-10-12T10:40:32-07:00
-claimant:
-    operator: Xian Xu
-    machine: 4716879978a7b90f6b583da1716fd0e9
-    machine_name: Xian’s MacBook Pro
-    workspace: pair:3
-    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
-    repository: github.com/xianxu/pair
+    completion:
+        token: close-8b5305e1a46a
+        repository: github.com/xianxu/pair
+        reviewed_head: 6b42e6edfd93f18ed25b7fb52ca8cacaca78667c
+        evidence_commit: 5fee7dde26d2c3621c8d2fc1b2b136a84b491e7f
 ---
 
 # broadcast: notes are bounding boxes — drag a box (or click for a default box); the box is the note's screenshot area, in the terminal cast and the web cast
