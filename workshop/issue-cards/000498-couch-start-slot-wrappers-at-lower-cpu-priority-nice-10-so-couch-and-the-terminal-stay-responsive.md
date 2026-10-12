@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000498-couch-start-slot-wrappers-at-lower-cpu-priority-nice-10-so-couch-and-the-terminal-stay-responsive.md
         source_blob: 7a3111994b3e29597933d69cf46c474fe2bd14a1
         destination: workshop/issues/000498-couch-start-slot-wrappers-at-lower-cpu-priority-nice-10-so-couch-and-the-terminal-stay-responsive.md
+        main_commit: d5fc7a2b445fa10abd7d7ea1dad207c52b08edce
 ---
 
 # couch: start slot wrappers at lower CPU priority (nice +10) so Couch and the terminal stay responsive
