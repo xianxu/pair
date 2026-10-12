@@ -45,6 +45,10 @@ Live Couch (pid 31713, build c8770843) burns 1.25-1.8 cores with no cast running
 - [ ] Tests (above), full suite.
 - [ ] Measure the harness before/after and live Couch after a rebuild (operator restart).
 
+## Revisions
+
+- 2026-10-12 (TL): the live after-number moves out of Done-when: it is taken by the TL at the operator's next restart onto main after this lands, since pair:0 holds #501 for its smoke test. The harness before/after on the operator's store (activity pass 8.4 s -> 0.34 s CPU warm; continuation tick ~100 ms -> 27 us warm) is the evidence at close.
+
 ## Log
 
 ### 2026-10-12
