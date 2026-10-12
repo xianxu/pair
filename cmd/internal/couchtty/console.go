@@ -57,14 +57,25 @@ type pane struct {
 // transitions as it drives hostty.Host. It never calls x/term or os/signal
 // directly, which keeps resize and teardown testable without a terminal.
 type Console struct {
-	messageBroker    *couchmessage.Broker
-	messagePanes     *couchmessage.PaneMailbox
-	messagePaneGen   uint64
-	host             hostty.Host
-	stdin            io.Reader
-	stderr           io.Writer
-	capture          *terminalcapture.Recorder
-	presenter        *terminal.Presenter
+	messageBroker  *couchmessage.Broker
+	messagePanes   *couchmessage.PaneMailbox
+	messagePaneGen uint64
+	host           hostty.Host
+	stdin          io.Reader
+	stderr         io.Writer
+	capture        *terminalcapture.Recorder
+	presenter      *terminal.Presenter
+	// publishMu orders presentation (pair#484). Each paint snapshots console
+	// state, publishes it to the presenter, then commits its hit-test row; paints
+	// run on Run and on other goroutines (a notice from a worker). Unordered, an
+	// older snapshot could publish after a newer one and stay on screen until
+	// something else repainted -- on an idle console, never. Held across
+	// snapshot-to-commit, the last publication is always the latest state. Never
+	// take it while holding c.mu.
+	publishMu sync.Mutex
+	// publishHook runs inside publishMu between snapshot and publish; tests use
+	// it to hold a paint at the interleaving that used to lose a notice.
+	publishHook      func(site string)
 	terminalCommands chan terminalCommand
 	terminalFailure  error
 	// exitFailure is teardown's one classification of why the terminal failed
@@ -1222,6 +1233,8 @@ func (c *Console) repaint() { c.paintNow() }
 
 // paintNow publishes chrome independently of child parsing and cursor state.
 func (c *Console) paintNow() {
+	c.publishMu.Lock()
+	defer c.publishMu.Unlock()
 	c.mu.Lock()
 	panel, started := c.focus.IsPanel(), c.started
 	c.mu.Unlock()
@@ -1229,10 +1242,11 @@ func (c *Console) paintNow() {
 		return
 	}
 	if panel {
-		c.showMenu()
+		c.showMenuPublishing()
 		return
 	}
 	row, cells, err := c.chrome()
+	c.beforePublish("chrome")
 	if err == nil {
 		err = c.presenter.UpdateChrome(c.lifetime, cells)
 	}
@@ -1250,6 +1264,16 @@ func (c *Console) paintNow() {
 		return
 	}
 	c.commitChrome(row)
+}
+
+// beforePublish runs the test hook, if any; the caller holds publishMu.
+func (c *Console) beforePublish(site string) {
+	c.mu.Lock()
+	hook := c.publishHook
+	c.mu.Unlock()
+	if hook != nil {
+		hook(site)
+	}
 }
 
 func (c *Console) syncAttentionLocked() {
@@ -1333,6 +1357,9 @@ func (c *Console) onResize() {
 		c.terminalError(err)
 		return
 	}
+	// The new size and the presenter's geometry change together under
+	// publishMu, so no paint snapshots one without the other (pair#484).
+	c.publishMu.Lock()
 	c.mu.Lock()
 	c.size = size
 	panel := c.focus.IsPanel()
@@ -1349,9 +1376,13 @@ func (c *Console) onResize() {
 	// old size (pair#265 BR-13).
 	presenterResized := false
 	if !panel && selected != nil {
+		c.beforePublish("resize")
 		err = c.presenter.Resize(c.lifetime, terminal.Geometry{Cols: int(size.Cols), Rows: int(size.Rows)}, func(g terminal.Geometry) error {
 			return selected.child.ResizePTY(ptychild.Size{Cols: uint16(g.Cols), Rows: uint16(g.Rows)})
 		})
+	}
+	c.publishMu.Unlock()
+	if !panel && selected != nil {
 		switch {
 		case err == nil:
 			presenterResized = true

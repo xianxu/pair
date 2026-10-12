@@ -8,6 +8,8 @@ import (
 	"github.com/xianxu/pair/cmd/internal/terminal"
 	"github.com/xianxu/pair/cmd/internal/testwait"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -32,6 +34,85 @@ func TestEndpointChromeDoesNotUseChildCursorSave(t *testing.T) {
 			waitFor(t, "chrome without child cursor ownership", func() bool { return strings.Contains(host.row(8), "INDEPENDENT-STATUS") })
 		})
 	}
+}
+
+// holdFirstPublish parks the first paint at site between its snapshot and its
+// publication, and lets every other paint through. release lets it go on.
+func holdFirstPublish(t *testing.T, con *Console, site string) (held <-chan struct{}, release func()) {
+	t.Helper()
+	parked, resume := make(chan struct{}), make(chan struct{})
+	var first atomic.Bool
+	con.mu.Lock()
+	con.publishHook = func(at string) {
+		if at == site && first.CompareAndSwap(false, true) {
+			close(parked)
+			<-resume
+		}
+	}
+	con.mu.Unlock()
+	var once sync.Once
+	release = func() { once.Do(func() { close(resume) }) }
+	t.Cleanup(release)
+	return parked, release
+}
+
+func waitClosed(t *testing.T, what string, ch <-chan struct{}) {
+	t.Helper()
+	select {
+	case <-ch:
+	case <-testwait.After(t):
+		t.Fatalf("timed out waiting for %s", what)
+	}
+}
+
+// pair#484: a paint that snapshotted the status row before a notice was
+// pushed used to publish AFTER the notice's own paint, so the stale row stayed
+// on screen and nothing repainted it (TestEndpointChrome* hung under load).
+func TestStaleChromeSnapshotCannotOverwriteNotice(t *testing.T) {
+	host, _, con := newVTFixture(t, 8, 40)
+	held, release := holdFirstPublish(t, con, "chrome")
+	stale := make(chan struct{})
+	go func() { defer close(stale); con.repaint() }()
+	waitClosed(t, "the stale paint to snapshot", held)
+	notice := make(chan struct{})
+	go func() { defer close(notice); con.setNotice("AFTER-STALE-SNAPSHOT") }()
+	// Unordered, the notice's paint completes while the stale one is parked;
+	// ordered, it waits for it. Either way, give it the chance to overtake.
+	select {
+	case <-notice:
+	case <-time.After(50 * time.Millisecond):
+	}
+	release()
+	waitClosed(t, "the stale paint", stale)
+	waitClosed(t, "the notice paint", notice)
+	if got := host.row(8); !strings.Contains(got, "AFTER-STALE-SNAPSHOT") {
+		t.Fatalf("a stale status row replaced the notice: %q", got)
+	}
+}
+
+// pair#484: the console's size and the presenter's geometry change as one
+// step. A notice painted between them rendered a row of the new width against
+// the old geometry, and the presenter's refusal ended couch.
+func TestNoticeDuringResizeUsesOneGeometry(t *testing.T) {
+	host, _, con := newVTFixture(t, 8, 40)
+	held, release := holdFirstPublish(t, con, "resize")
+	host.SetSize(ptychild.Size{Rows: 8, Cols: 50})
+	waitClosed(t, "the resize to snapshot", held)
+	notice := make(chan struct{})
+	go func() { defer close(notice); con.setNotice("DURING-RESIZE") }()
+	select {
+	case <-notice:
+	case <-time.After(50 * time.Millisecond):
+	}
+	release()
+	waitClosed(t, "the notice paint", notice)
+	con.mu.Lock()
+	failure := con.terminalFailure
+	con.mu.Unlock()
+	if failure != nil {
+		t.Fatalf("resize interleaving failed the terminal: %v", failure)
+	}
+	waitFor(t, "notice at the new width", func() bool { return strings.Contains(host.row(8), "DURING-RESIZE") })
 }
 
 func TestEndpointSwitchRestoresFrameWithoutResizingChild(t *testing.T) {

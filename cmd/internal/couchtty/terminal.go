@@ -115,6 +115,34 @@ func (c *Console) commitChrome(row RenderedStatusRow) {
 	}
 }
 
+// publishSelection presents pane's endpoint with a status row that already
+// marks it active, under publishMu like every other paint.
+func (c *Console) publishSelection(ctx context.Context, pane *pane) error {
+	c.publishMu.Lock()
+	defer c.publishMu.Unlock()
+	c.mu.Lock()
+	size, model := c.size, c.statusModelLocked()
+	c.mu.Unlock()
+	for i := range model.Actors {
+		model.Actors[i].Active = model.Actors[i].Thread == pane.thread
+	}
+	row := RenderStatusRow(int(size.Cols), model)
+	cells, err := terminal.StyledRows(row.Body, int(size.Cols), 1)
+	if err != nil {
+		return err
+	}
+	c.beforePublish("select")
+	c.traceCaptureTransition("select-start", pane.child.Endpoint().ID(), nil)
+	err = c.presenter.Select(ctx, pane.child.Endpoint(), terminal.Geometry{Cols: int(size.Cols), Rows: int(size.Rows)}, cells)
+	c.traceCaptureTransition("select-end", pane.child.Endpoint().ID(), err)
+	if err != nil {
+		c.traceTerminal("select", err)
+		return err
+	}
+	c.commitChrome(row)
+	return nil
+}
+
 func (c *Console) selectActor(id string, force bool, how arrival) (bool, error) {
 	return c.selectActorContext(c.lifetime, id, force, how)
 }
@@ -129,32 +157,14 @@ func (c *Console) selectActorContext(ctx context.Context, id string, force bool,
 	c.mu.Lock()
 	pane := c.panes[id]
 	already := c.focus == FocusActor(id) && c.active == id && !force
-	size := c.size
 	c.mu.Unlock()
 	if pane == nil {
 		return false, fmt.Errorf("terminal %q is not attached", id)
 	}
 	if !already {
-		c.mu.Lock()
-		model := c.statusModelLocked()
-		c.mu.Unlock()
-		for i := range model.Actors {
-			model.Actors[i].Active = model.Actors[i].Thread == pane.thread
-		}
-		row := RenderStatusRow(int(size.Cols), model)
-		cells, err := terminal.StyledRows(row.Body, int(size.Cols), 1)
-		if err != nil {
+		if err := c.publishSelection(ctx, pane); err != nil {
 			return false, err
 		}
-		c.traceCaptureTransition("select-start", pane.child.Endpoint().ID(), nil)
-		err = c.presenter.Select(ctx, pane.child.Endpoint(), terminal.Geometry{Cols: int(size.Cols), Rows: int(size.Rows)}, cells)
-		c.traceCaptureTransition("select-end", pane.child.Endpoint().ID(), err)
-		if err != nil {
-			c.traceTerminal("select", err)
-			return false, err
-		}
-		c.commitChrome(row)
-
 	}
 	c.mu.Lock()
 	c.active, c.focus = id, FocusActor(id)
