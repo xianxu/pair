@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000454-broadcast-web-chrome-in-couch-start-go-live-pause-end-one-cast.md
         source_blob: b0b3f0b7c38deef2953d50fbe5f4d64f85214c11
         destination: workshop/issues/000454-broadcast-web-chrome-in-couch-start-go-live-pause-end-one-cast.md
+        main_commit: 1e941c926f0c345c15fdfbf4b28963967a77385b
 ---
 
 # broadcast-web: Chrome in Couch — start, go live, pause, end; one cast
