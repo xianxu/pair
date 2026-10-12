@@ -16,6 +16,13 @@
 // observer lost it). Everything else is coalesced per animation frame. It
 // reports only while the recorder has switched it on (__couchcastRec), so a
 // page that isn't cast pays only idle listeners.
+//
+// Remote driving (#467) holds it around a viewer's injected input:
+// __couchcastHold returns what is pending (the operator's or the page's)
+// and stops sending; __couchcastTake returns what came meanwhile (the
+// driver's) and resumes. The recorder calls both inside one queue input,
+// so attribution is exact. A hold no take ends expires after HOLD_MAX and
+// the observer resumes sending as usual: it can never stay held.
 (() => {
   if (globalThis.__couchcastRecInstalled) return;
   globalThis.__couchcastRecInstalled = true;
@@ -23,6 +30,7 @@
   const SHADOW = -1;
   const PTR_EVERY = 250; // ms between pointer samples (a few per second)
   const SCAN_EVERY = 250; // ms between scans for values set by script
+  const HOLD_MAX = 1000; // ms a hold lasts without a take
   const send = (items) => {
     try { __couchcast(JSON.stringify({ t: 'obs', items })); } catch (_) { /* binding gone */ }
   };
@@ -32,6 +40,7 @@
   let scheduled = false;
   const scrolls = new Map(); // target -> true, coalesced per frame
   let selDirty = false;
+  let held = null; // the hold's expiry timer while held
 
   const isControlUI = (n) => n && n.nodeType === 1 && n.hasAttribute && n.hasAttribute('data-couchcast-ui');
 
@@ -55,13 +64,17 @@
   };
   const target = (e) => (e.composedPath && e.composedPath()[0]) || e.target;
 
-  const flush = () => {
-    scheduled = false;
-    if (!on) { pending = []; scrolls.clear(); selDirty = false; return; }
+  // collect turns coalesced scrolls and the selection into pending items.
+  const collect = () => {
     for (const t of scrolls.keys()) scrollItem(t);
     scrolls.clear();
     if (selDirty) { selDirty = false; selectionItem(); }
-    if (pending.length) { const items = pending; pending = []; send(items); }
+  };
+  const flush = () => {
+    scheduled = false;
+    if (!on) { pending = []; scrolls.clear(); selDirty = false; return; }
+    collect();
+    if (pending.length && !held) { const items = pending; pending = []; send(items); }
   };
   const schedule = () => {
     if (scheduled) return;
@@ -188,6 +201,27 @@
     selDirty = true;
     sheets();
     schedule();
+  };
+
+  const take = () => {
+    if (!on) { pending = []; return '[]'; }
+    collect();
+    return JSON.stringify(pending.splice(0));
+  };
+  const release = () => {
+    if (held) clearTimeout(held);
+    held = null;
+  };
+  globalThis.__couchcastHold = () => {
+    const out = take();
+    release();
+    held = setTimeout(() => { held = null; schedule(); }, HOLD_MAX);
+    return out;
+  };
+  globalThis.__couchcastTake = () => {
+    const out = take();
+    release();
+    return out;
   };
 
   globalThis.__couchcastRec = (v, sync) => {

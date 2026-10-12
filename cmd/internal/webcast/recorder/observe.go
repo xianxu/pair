@@ -125,9 +125,11 @@ func (m *mirror) TopScroll() [2]float64 {
 
 // Observe turns one observer report from a frame of a session into a
 // record. off maps the frame's viewport into top-page coordinates (the
-// shell computes it for a subframe; TopScroll for the top frame). Stale
-// reports are counted in Desync and dropped.
-func (m *mirror) Observe(t int64, session, frameID string, it Item, off [2]float64) error {
+// shell computes it for a subframe; TopScroll for the top frame). by is the
+// viewer whose injected input the report follows (#467), "" for the
+// operator's or the page's own. Stale reports are counted in Desync and
+// dropped.
+func (m *mirror) Observe(t int64, session, frameID string, it Item, off [2]float64, by string) error {
 	s := m.sessions[session]
 	if s == nil || s.root == nil {
 		return nil
@@ -138,6 +140,7 @@ func (m *mirror) Observe(t int64, session, frameID string, it Item, off [2]float
 		}
 		return m.nodeAt(s, frameID, *it.P)
 	}
+	src := rec.Source{By: by}
 	stale := func() error {
 		m.Desync++
 		m.note(fmt.Sprintf("t=%d observer %s: stale path", t, it.K))
@@ -149,13 +152,13 @@ func (m *mirror) Observe(t int64, session, frameID string, it Item, off [2]float
 		if err != nil {
 			return stale()
 		}
-		m.emit(t, &rec.Click{ID: id, X: it.X + off[0], Y: it.Y + off[1]})
+		m.emit(t, &rec.Click{Source: src, ID: id, X: it.X + off[0], Y: it.Y + off[1]})
 	case "input":
 		id, n, err := at()
 		if err != nil {
 			return stale()
 		}
-		in := &rec.Input{ID: id, Checked: it.Checked, Sel: it.Sel}
+		in := &rec.Input{Source: src, ID: id, Checked: it.Checked, Sel: it.Sel}
 		switch {
 		case isPassword(n):
 			// Whatever the report says, a password's value is never kept.
@@ -184,9 +187,9 @@ func (m *mirror) Observe(t int64, session, frameID string, it Item, off [2]float
 				id = did
 			}
 		}
-		m.emit(t, &rec.Scroll{ID: id, X: it.X, Y: it.Y})
+		m.emit(t, &rec.Scroll{Source: src, ID: id, X: it.X, Y: it.Y})
 	case "sel":
-		r := &rec.Selection{}
+		r := &rec.Selection{Source: src}
 		for _, end := range []struct {
 			po  *pathOffset
 			dst **rec.Pos
@@ -210,12 +213,12 @@ func (m *mirror) Observe(t int64, session, frameID string, it Item, off [2]float
 			}
 		}
 		if it.K == "focus" {
-			m.emit(t, &rec.Focus{ID: id})
+			m.emit(t, &rec.Focus{Source: src, ID: id})
 		} else if id != m.st.Hover {
-			m.emit(t, &rec.Hover{ID: id})
+			m.emit(t, &rec.Hover{Source: src, ID: id})
 		}
 	case "ptr":
-		m.emit(t, &rec.Ptr{X: it.X + off[0], Y: it.Y + off[1]})
+		m.emit(t, &rec.Ptr{Source: src, X: it.X + off[0], Y: it.Y + off[1]})
 	case "vp":
 		if s.top && s.frameDoc(frameID) == s.root && it.W > 0 && it.H > 0 {
 			vp := rec.Viewport{W: it.W, H: it.H, DPR: it.DPR}

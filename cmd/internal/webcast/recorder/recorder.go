@@ -1077,17 +1077,22 @@ func (r *Recorder) binding(at time.Time, e Event) {
 	if json.Unmarshal([]byte(p.Payload), &msg) != nil || msg.T != "obs" {
 		return
 	}
-	frame := r.contexts[e.Session][p.Context]
-	t := r.t(at)
-	for _, it := range msg.Items {
+	r.observeItems(r.t(at), e.Session, p.Context, msg.Items, "")
+}
+
+// observeItems records an observer's reports from one context: by is the
+// viewer whose injected input they follow, "" for anyone else's (#467).
+func (r *Recorder) observeItems(t int64, session string, context int64, items []Item, by string) {
+	frame := r.contexts[session][context]
+	for _, it := range items {
 		if it.K == "hello" {
 			// A new document's observer: switch it on.
-			r.call(e.Session, "Runtime.evaluate", map[string]any{"expression": "globalThis.__couchcastRec(true, true)", "contextId": p.Context}, nil)
+			r.call(session, "Runtime.evaluate", map[string]any{"expression": "globalThis.__couchcastRec(true, true)", "contextId": context}, nil)
 			continue
 		}
 		off := r.m.TopScroll()
-		if (it.K == "click" || it.K == "ptr") && !(e.Session == r.top && frame == r.frameIDs[r.top]) {
-			o, ok := r.frameOffset(e.Session, frame, 0)
+		if (it.K == "click" || it.K == "ptr") && !(session == r.top && frame == r.frameIDs[r.top]) {
+			o, ok := r.frameOffset(session, frame, 0)
 			if !ok {
 				continue
 			}
@@ -1095,7 +1100,7 @@ func (r *Recorder) binding(at time.Time, e Event) {
 		}
 		// A stale report (racing a change) is counted by the mirror; it
 		// needs no resync: the DOM events carry the change.
-		r.m.Observe(t, e.Session, frame, it, off)
+		r.m.Observe(t, session, frame, it, off, by)
 	}
 }
 
