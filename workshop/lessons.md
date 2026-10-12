@@ -1259,3 +1259,19 @@ proof; record the surprising case so the next change starts from evidence.
   fixture's own records; re-deriving then surfaced a case the old fixture never had (an open note whose element was
   removed). After retiring a data source, also sweep the tools that only produced it (`fixturegen -raw`) and any
   inventory that lists them.
+
+- **A client of a wire contract sends through one gate that holds every server limit (#467 M2).** The viewer's
+  drive shell capped acts and text runes but not body bytes, didn't clamp coordinates, and didn't pace. A paste over
+  8 KiB, or a drag captured past the frame's edge, was refused whole, and with it the button's up. When a server
+  parses strictly (sizes, ranges, rates), route everything the client sends through one function that applies all
+  of those rules (`batcher`: `wireAct`, `splitText`, a byte bound, pacing). Property-test it against the server's
+  constants: every sent body parses.
+- **The side that outlives an exit ends what was started (#467 M2, three rounds in one family).** A driver's
+  pressed button or held key was ended only by the driver's own later up. That up was lost when control moved, when
+  a refusal dropped the queue, when the page changed, and when a late release ran after the next driver's press.
+  When input has a down/up pairing, the component that survives every exit (here the cast tab's injector) tracks
+  what is held, keyed by identity, and releases it on each exit path. A release names the hold it ends.
+- **A real-browser conformance run finds what fakes agree on (#467 M1).** `DOM.getNodeForLocation` with
+  `includeUserAgentShadowDOM` returns an `<input>`'s inner editor, which no recording has, so every click on an
+  input read as stale. The fake injector hit-tests its own boxes and could never show it. A seam that maps between
+  a browser's ids and a model's ids needs one live run before its fake is trusted.
