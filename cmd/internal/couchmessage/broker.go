@@ -45,7 +45,9 @@ type SlotActor struct {
 	submission  uint64
 	reservation string
 	inbox       chan Message
-	cancel      context.CancelFunc
+	// wake tells the worker a message joined the queue (pair#492).
+	wake   chan struct{}
+	cancel context.CancelFunc
 	// The latest observation the wrapper pushed (#365), kept so an actor
 	// listing reads memory instead of probing every slot. It stays current
 	// while the actor is connected: the wrapper pushes every change.
@@ -178,7 +180,7 @@ func (b *Broker) RegisterWithAllowance(binding Binding, endpoint DeliveryEndpoin
 		return err
 	}
 	ctx, cancel := context.WithCancel(b.ctx)
-	a := &SlotActor{binding: binding, state: next, endpoint: endpoint, inbox: make(chan Message, 1), cancel: cancel}
+	a := &SlotActor{binding: binding, state: next, endpoint: endpoint, inbox: make(chan Message, 1), wake: make(chan struct{}, 1), cancel: cancel}
 	if old != nil {
 		a.submission = old.submission
 	}
@@ -229,6 +231,11 @@ func (b *Broker) disconnectLocked(a *SlotActor) {
 			status = Indeterminate
 		}
 		_ = b.apply(dest, Event{Kind: DeliveryFinished, Binding: m.To, Message: m, Status: status, Detail: "sender disconnected", At: b.now()})
+	}
+	for _, dest := range b.actors {
+		if dest != a && dest.state.Queued() > 0 {
+			_ = b.apply(dest, Event{Kind: Cancel, Binding: dest.state.Binding(), Message: Message{From: binding}, Detail: "sender disconnected before delivery", At: b.now()})
+		}
 	}
 }
 func (b *Broker) Disconnect(binding Binding) {
@@ -335,7 +342,7 @@ func (b *Broker) Status(caller Binding, id string) (Receipt, error) {
 }
 func actorCandidate(a *SlotActor, now time.Time) Candidate {
 	_, pending := a.state.Pending()
-	return Candidate{Binding: a.state.Binding(), LastActivity: a.state.LastActivity(), Pending: pending || a.reservation != "" || len(a.inbox) != 0, Remaining: a.state.RemainingAt(now), Capacity: a.state.Capacity(), Supported: a.endpoint != nil}
+	return Candidate{Binding: a.state.Binding(), LastActivity: a.state.LastActivity(), Pending: pending || a.reservation != "" || len(a.inbox) != 0 || a.state.Queued() > 0, Remaining: a.state.RemainingAt(now), Capacity: a.state.Capacity(), Supported: a.endpoint != nil}
 }
 func (b *Broker) observe(ctx context.Context, a *SlotActor) (Candidate, Observation, error) {
 	b.mu.Lock()
@@ -512,6 +519,11 @@ func (b *Broker) admit(ctx context.Context, from Binding, id string, route Route
 			return Receipt{}, err
 		}
 		a := b.actors[to]
+		if !family && (a.reservation != "" || len(a.inbox) != 0 || actorCandidate(a, b.now()).Pending) {
+			receipt, err := b.enqueueLocked(a, from, id, route, body)
+			b.mu.Unlock()
+			return receipt, err
+		}
 		a.reservation = id
 		seq := a.sequence
 		b.mu.Unlock()
@@ -522,6 +534,13 @@ func (b *Broker) admit(ctx context.Context, from Binding, id string, route Route
 		b.mu.Lock()
 		if a.reservation == id {
 			a.reservation = ""
+		}
+		// A busy wrapper (the operator typing, a delivery releasing) holds an
+		// exact message in the queue; the worker promotes it when it settles.
+		if !family && errors.Is(err, ErrRecipientBusy) && b.actors[to] == a && b.caller(to) && b.caller(from) {
+			receipt, qerr := b.enqueueLocked(a, from, id, route, body)
+			b.mu.Unlock()
+			return receipt, qerr
 		}
 		b.mu.Unlock()
 		releaseCtx, releaseCancel := context.WithTimeout(ctx, AdmissionTimeout)
@@ -569,7 +588,7 @@ func (b *Broker) tryAdmission(ctx context.Context, a *SlotActor, seq uint64, fro
 	if err = b.reconcileObservation(a, obs); err != nil {
 		return Receipt{}, err
 	}
-	if len(a.inbox) != 0 {
+	if len(a.inbox) != 0 || a.state.Queued() > 0 {
 		return Receipt{}, ErrRecipientBusy
 	}
 	now := b.now()
@@ -581,6 +600,82 @@ func (b *Broker) tryAdmission(ctx context.Context, a *SlotActor, seq uint64, fro
 	a.reservation = ""
 	a.inbox <- m
 	return b.receipts[id], nil
+}
+
+// enqueueLocked lines an exact message up behind the recipient's delivery
+// (pair#492) and wakes the worker that promotes it.
+func (b *Broker) enqueueLocked(a *SlotActor, from Binding, id string, route Route, body string) (Receipt, error) {
+	now := b.now()
+	m := Message{ID: id, From: from, To: a.binding, Body: body, Deadline: now.Add(QueueWait)}
+	if err := b.apply(a, Event{Kind: Enqueue, Binding: a.binding, Message: m, At: now}); err != nil {
+		return Receipt{}, err
+	}
+	b.destinations[id] = route
+	select {
+	case a.wake <- struct{}{}:
+	default:
+	}
+	return b.receipts[id], nil
+}
+
+// PromoteRetry is how long a queued message waits before the worker asks a
+// busy wrapper again: holding, never refusing.
+const PromoteRetry = time.Second
+
+// promote reserves the queue's head on the wrapper and makes it the delivery.
+// It reports whether to try again later: the wrapper was busy or unreachable.
+func (b *Broker) promote(ctx context.Context, a *SlotActor) bool {
+	b.mu.Lock()
+	_ = b.apply(a, Event{Kind: Tick, At: b.now()})
+	head, ok := a.state.QueueHead()
+	for ok && !b.caller(head.From) {
+		_ = b.apply(a, Event{Kind: Cancel, Binding: a.binding, Message: Message{ID: head.ID}, Detail: "sender disconnected before delivery", At: b.now()})
+		head, ok = a.state.QueueHead()
+	}
+	_, pending := a.state.Pending()
+	if !ok || pending || a.reservation != "" || len(a.inbox) != 0 || b.actors[a.binding] != a || !b.caller(a.binding) {
+		b.mu.Unlock()
+		return false
+	}
+	a.reservation = head.ID
+	seq := a.sequence
+	b.mu.Unlock()
+	obs, err := a.endpoint.Observe(ctx)
+	if err == nil {
+		err = a.endpoint.Reserve(ctx, head.ID, obs.Sequence)
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if a.reservation == head.ID {
+		a.reservation = ""
+	}
+	var committed *AlreadyCommittedError
+	if errors.As(err, &committed) {
+		// The wrapper already holds this ID: answer with its outcome.
+		route := b.destinations[head.ID]
+		_ = b.apply(a, Event{Kind: Cancel, Binding: a.binding, Message: Message{ID: head.ID}, At: b.now()})
+		delete(b.receipts, head.ID)
+		b.recordRecoveredLocked(committed.Receipt, route)
+		return false
+	}
+	if err == nil && (ctx.Err() != nil || a.sequence != seq || b.actors[a.binding] != a) {
+		err = ErrUnavailable
+	}
+	if err == nil {
+		err = b.reconcileObservation(a, obs)
+	}
+	if err == nil {
+		err = b.apply(a, Event{Kind: Promote, Binding: a.binding, Message: Message{ID: head.ID}, At: b.now()})
+	}
+	if err != nil {
+		releaseCtx, cancel := context.WithTimeout(context.Background(), AdmissionTimeout)
+		_ = a.endpoint.Release(releaseCtx, head.ID)
+		cancel()
+		return ctx.Err() == nil
+	}
+	m, _ := a.state.Pending()
+	a.inbox <- m
+	return false
 }
 
 // adoptRetained answers a reused ID with the recipient's own outcome instead
@@ -700,58 +795,70 @@ func (b *Broker) runActor(ctx context.Context, a *SlotActor) {
 			}
 		}
 	}()
+	var retry <-chan time.Time
 	for {
 		select {
 		case <-ctx.Done():
 			return
+		case <-a.wake:
+		case <-retry:
 		case m := <-a.inbox:
-			// The broker's clock dates the horizon; the job's timer is real.
-			deliveryCtx, cancel := context.WithTimeout(ctx, m.Horizon().Sub(b.now())+ReceiptTimeout)
-			job := &deliveryJob{cancel: cancel}
-			b.mu.Lock()
-			pending, ok := a.state.Pending()
-			valid := ok && pending == m && b.actors[m.To] == a && b.caller(m.To) && b.caller(m.From) && ctx.Err() == nil
-			if valid {
-				b.jobs[m.ID] = job
-				_ = b.apply(a, Event{Kind: DeliveryStarted, Binding: m.To, Message: m, At: b.now()})
-				pending, ok = a.state.Pending()
-				valid = ok && pending == m
-			}
-			b.mu.Unlock()
-			var result Receipt
-			var err error
-			progress := func(r Receipt) {
-				b.mu.Lock()
-				defer b.mu.Unlock()
-				_ = b.apply(a, Event{Kind: DeliveryProgress, Binding: m.To, Message: m, Status: r.Status, Detail: r.Detail, At: b.now()})
-			}
-			if valid {
-				result, err = a.endpoint.Deliver(deliveryCtx, m, progress)
-			} else {
-				result.Status = Cancelled
-				result.Detail = "delivery binding unavailable"
-			}
-			cancel()
-			status, detail := result.Status, result.Detail
-			if err != nil {
-				status = Indeterminate
-				detail = err.Error()
-			}
-			if !status.Terminal() {
-				status = Indeterminate
-				detail = "receiver returned no terminal delivery outcome"
-			}
-			releaseCtx, releaseCancel := context.WithTimeout(context.Background(), AdmissionTimeout)
-			_ = a.endpoint.Release(releaseCtx, m.ID)
-			releaseCancel()
-			b.mu.Lock()
-			if b.jobs[m.ID] == job {
-				delete(b.jobs, m.ID)
-			}
-			_ = b.apply(a, Event{Kind: DeliveryFinished, Binding: m.To, Message: m, Status: status, Detail: detail, At: b.now()})
-			b.mu.Unlock()
+			b.deliver(ctx, a, m)
+		}
+		retry = nil
+		if b.promote(ctx, a) {
+			retry = time.After(PromoteRetry)
 		}
 	}
+}
+
+// deliver runs one delivery to its terminal outcome.
+func (b *Broker) deliver(ctx context.Context, a *SlotActor, m Message) {
+	// The broker's clock dates the horizon; the job's timer is real.
+	deliveryCtx, cancel := context.WithTimeout(ctx, m.Horizon().Sub(b.now())+ReceiptTimeout)
+	job := &deliveryJob{cancel: cancel}
+	b.mu.Lock()
+	pending, ok := a.state.Pending()
+	valid := ok && pending == m && b.actors[m.To] == a && b.caller(m.To) && b.caller(m.From) && ctx.Err() == nil
+	if valid {
+		b.jobs[m.ID] = job
+		_ = b.apply(a, Event{Kind: DeliveryStarted, Binding: m.To, Message: m, At: b.now()})
+		pending, ok = a.state.Pending()
+		valid = ok && pending == m
+	}
+	b.mu.Unlock()
+	var result Receipt
+	var err error
+	progress := func(r Receipt) {
+		b.mu.Lock()
+		defer b.mu.Unlock()
+		_ = b.apply(a, Event{Kind: DeliveryProgress, Binding: m.To, Message: m, Status: r.Status, Detail: r.Detail, At: b.now()})
+	}
+	if valid {
+		result, err = a.endpoint.Deliver(deliveryCtx, m, progress)
+	} else {
+		result.Status = Cancelled
+		result.Detail = "delivery binding unavailable"
+	}
+	cancel()
+	status, detail := result.Status, result.Detail
+	if err != nil {
+		status = Indeterminate
+		detail = err.Error()
+	}
+	if !status.Terminal() {
+		status = Indeterminate
+		detail = "receiver returned no terminal delivery outcome"
+	}
+	releaseCtx, releaseCancel := context.WithTimeout(context.Background(), AdmissionTimeout)
+	_ = a.endpoint.Release(releaseCtx, m.ID)
+	releaseCancel()
+	b.mu.Lock()
+	if b.jobs[m.ID] == job {
+		delete(b.jobs, m.ID)
+	}
+	_ = b.apply(a, Event{Kind: DeliveryFinished, Binding: m.To, Message: m, Status: status, Detail: detail, At: b.now()})
+	b.mu.Unlock()
 }
 func (b *Broker) Close() error {
 	b.mu.Lock()

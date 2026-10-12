@@ -191,8 +191,12 @@ const (
 	// Promote makes the queue's head (Message.ID names it) the delivery once
 	// the recipient's wrapper reserved it (pair#492).
 	Promote EventKind = "promote"
-	// Cancel ends one queued message (Message.ID) with Detail.
+	// Cancel ends queued messages with Detail: the one Message.ID names, or
+	// with no ID, every one from Message.From.
 	Cancel EventKind = "cancel"
+	// Enqueue is Admit that always joins the queue: the wrapper refused a
+	// reservation, so the worker promotes it once the wrapper settles.
+	Enqueue EventKind = "enqueue"
 )
 
 type Event struct {
@@ -323,7 +327,7 @@ func Advance(s ActorState, e Event) (ActorState, []Effect, error) {
 	case OperatorSubmit:
 		s.remaining, s.refilledAt = s.capacity, e.At
 		activity()
-	case Admit:
+	case Admit, Enqueue:
 		m := e.Message
 		if !validMessageID(m.ID) || m.To != s.binding || m.From.Validate() != nil || ValidateBody(m.Body) != nil || !m.Deadline.After(e.At) {
 			return fail(errors.New("invalid message admission"))
@@ -336,7 +340,7 @@ func Advance(s ActorState, e Event) (ActorState, []Effect, error) {
 				return s, nil, nil
 			}
 		}
-		busy := s.pending.ID != "" || len(s.queue) > 0
+		busy := s.pending.ID != "" || len(s.queue) > 0 || e.Kind == Enqueue
 		if busy && len(s.queue) >= MaxQueued {
 			return fail(fmt.Errorf("%w: %d messages already wait", ErrRecipientBusy, MaxQueued))
 		}
@@ -374,7 +378,12 @@ func Advance(s ActorState, e Event) (ActorState, []Effect, error) {
 		emit(Queued, "")
 		positions(0)
 	case Cancel:
-		dequeue(func(m Message) bool { return m.ID == e.Message.ID }, Cancelled, e.Detail)
+		dequeue(func(m Message) bool {
+			if e.Message.ID != "" {
+				return m.ID == e.Message.ID
+			}
+			return e.Message.From != (Binding{}) && m.From == e.Message.From
+		}, Cancelled, e.Detail)
 	case DeliveryStarted:
 		if s.pending.ID == "" || e.Message != s.pending {
 			return s, nil, nil

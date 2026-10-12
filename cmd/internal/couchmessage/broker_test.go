@@ -115,8 +115,9 @@ func TestBrokerAdmissionIsImmediateAndMailboxIsBounded(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("worker did not deliver")
 	}
-	if _, err = b.Send(context.Background(), a, "id-2", Route{Target: "pair:1"}, "second"); !errors.Is(err, ErrRecipientBusy) {
-		t.Fatalf("second send: %v", err)
+	// A second message waits behind the delivery in progress (pair#492).
+	if q, err := b.Send(context.Background(), a, "id-2", Route{Target: "pair:1"}, "second"); err != nil || q.Status != Queued || q.Detail != "position 1" {
+		t.Fatalf("second send: %+v %v", q, err)
 	}
 	duplicate, err := b.Send(context.Background(), a, "id-1", Route{Target: "pair:1"}, "hello")
 	if err != nil || duplicate.Message.ID != r.Message.ID {

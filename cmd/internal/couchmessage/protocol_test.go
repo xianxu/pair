@@ -96,9 +96,11 @@ func TestProtocolHandleSendStatusAndNoFree(t *testing.T) {
 	request.ID = "second"
 	request.Target = to.Slot
 	request.Body = "work"
-	if result := Handle(context.Background(), b, request); result.Code != "busy" {
-		t.Fatalf("busy: %#v", result)
+	// A busy recipient queues it (pair#492).
+	if result := Handle(context.Background(), b, request); result.Code != "accepted" || result.Receipt == nil || result.Receipt.Status != Queued || result.Receipt.Detail != "position 1" {
+		t.Fatalf("queued: %#v", result)
 	}
+	request.ID = "third"
 	request.Target = "missing"
 	if result := Handle(context.Background(), b, request); result.Code != "not-dispatched" {
 		t.Fatalf("no-free: %#v", result)
