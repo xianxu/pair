@@ -14,9 +14,13 @@ func TestSelectorSteps(t *testing.T) {
 	dup1 := b.El("span", []string{"id", "twin"})
 	dup2 := b.El("span", []string{"id", "twin"})
 	tested := b.El("button", []string{"data-testid", "save"})
+	arrow := b.El("i", []string{"data-testid", "a > b"}) // a combinator in a value can't round-trip
+	inTemplate := b.El("b", nil)
+	tmpl := recording.Node{ID: b.ID(), Y: recording.YEl, N: "template", A: map[string]string{"id": "row"},
+		TC: &recording.Node{ID: b.ID(), Y: recording.YFrag, C: []recording.Node{inTemplate}}}
 	inner := b.El("em", nil)
 	under := b.El("div", []string{"id", "box"}, b.El("p", nil), b.El("p", nil, inner))
-	b.Page(recording.SegLive, "http://x/", stable, generated, numbered, dup1, dup2, tested, under)
+	b.Page(recording.SegLive, "http://x/", stable, generated, numbered, dup1, dup2, tested, under, arrow, tmpl)
 	st := reduceAll(t, b)
 
 	for _, c := range []struct {
@@ -29,6 +33,8 @@ func TestSelectorSteps(t *testing.T) {
 		{dup2, "html:nth-of-type(1) > body:nth-of-type(1) > span:nth-of-type(2)"},
 		{tested, `[data-testid="save"]`},
 		{inner, "#box > p:nth-of-type(2) > em:nth-of-type(1)"},
+		{arrow, "html:nth-of-type(1) > body:nth-of-type(1) > i:nth-of-type(1)"},
+		{inTemplate, "#row >>> b:nth-of-type(1)"},
 	} {
 		got := selectorFor(st.Node(c.node.ID))
 		if got != c.want {

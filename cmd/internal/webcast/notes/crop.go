@@ -18,13 +18,14 @@ func crops(st *recording.State, ats []recording.NoteAt, margin float64, hints Hi
 	var out []recording.Box
 	page := pageBox(st)
 	for _, at := range ats {
-		b, err := anchorBox(st, at)
+		id, live := resolve(st, at)
+		b, err := anchorBox(st, at, id)
 		if err != nil {
 			return nil, err
 		}
 		page = page.Union(b) // clipping never cuts a note's own box
 		c := pad(b, margin)
-		if id, ok := resolve(st, at); ok {
+		if live {
 			if land, ok := landmark(st.Node(id)); ok {
 				if lb, ok := st.Boxes[land.ID]; ok {
 					c = snap(c, lb, snapHeight(st))
@@ -46,12 +47,13 @@ func crops(st *recording.State, ats []recording.NoteAt, margin float64, hints Hi
 }
 
 // anchorBox is the box a note was made on: its own (a viewer-made note's box
-// is the viewer's, computed at click time), else the layout's.
-func anchorBox(st *recording.State, at recording.NoteAt) (recording.Box, error) {
+// is the viewer's, computed at click time), else the layout's for the
+// element it resolves to now (id).
+func anchorBox(st *recording.State, at recording.NoteAt, id recording.NodeID) (recording.Box, error) {
 	if at.Box != nil {
 		return *at.Box, nil
 	}
-	if b, ok := st.Boxes[at.Node]; ok {
+	if b, ok := st.Boxes[id]; ok {
 		return b, nil
 	}
 	return recording.Box{}, fmt.Errorf("notes: no box for node %d", at.Node)

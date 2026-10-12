@@ -2,6 +2,7 @@ package notes
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
@@ -23,6 +24,9 @@ func (Structural) Anchor(st *recording.State, node recording.NodeID) (recording.
 		return recording.NoteAt{}, fmt.Errorf("notes: node %d is not a live element", node)
 	}
 	at := recording.NoteAt{Node: node, Sel: selectorFor(n), Text: trim(n.TextContent())}
+	if !slices.Contains(matchSelector(st, at.Sel), n) { // never store a selector that can't find its element
+		at.Sel = ""
+	}
 	if b, ok := st.Boxes[node]; ok {
 		at.Box = &b
 	}

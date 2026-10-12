@@ -18,7 +18,7 @@ import (
 //
 // Steps join with " > " from the nearest ancestor that has a stable id or
 // test attribute, else from the tree's root element. A node inside a shadow
-// root or an iframe's document is its host's selector, " >>> ", then the path
+// root, an iframe's document or a template's content is its host's selector, " >>> ", then the path
 // inside (the deep combinator is ours, not CSS). Anything else matches
 // nothing.
 
@@ -65,7 +65,7 @@ func uniqueStep(root, e *recording.DOMNode) string {
 		}
 	}
 	for _, a := range testAttrs {
-		if v, ok := e.A[a]; ok && !strings.ContainsRune(v, '"') {
+		if v, ok := e.A[a]; ok && !strings.ContainsAny(v, `">`) { // a quote or a combinator can't round-trip
 			if s := fmt.Sprintf(`[%s="%s"]`, a, v); len(matchStep(root, s)) == 1 {
 				return s
 			}
@@ -85,7 +85,7 @@ func matchSelector(st *recording.State, sel string) []*recording.DOMNode {
 		if i > 0 { // step into each match's shadow root or frame document
 			var next []*recording.DOMNode
 			for _, h := range scopes {
-				for _, sub := range []*recording.DOMNode{h.Shadow, h.Frame} {
+				for _, sub := range []*recording.DOMNode{h.Shadow, h.Frame, h.Content} {
 					if sub != nil {
 						next = append(next, sub)
 					}

@@ -50,7 +50,7 @@ func fixtureEnd(t *testing.T, fixture string) *recording.State {
 }
 
 // walkElements calls f on every element of n's tree, through shadow roots
-// and frame documents.
+// frame documents and template contents.
 func walkElements(n *recording.DOMNode, f func(*recording.DOMNode)) {
 	if n == nil {
 		return
@@ -63,4 +63,5 @@ func walkElements(n *recording.DOMNode, f func(*recording.DOMNode)) {
 	}
 	walkElements(n.Shadow, f)
 	walkElements(n.Frame, f)
+	walkElements(n.Content, f)
 }

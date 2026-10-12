@@ -61,35 +61,35 @@ Creates nothing durable: every value is computed per call and dies with it. Cost
 
 **Files:** Create `notes/selector.go`, `notes/selector_test.go`.
 
-- [ ] Tests first: `#id` for a stable unique id; a generated id (`:r1:`, `row-12345`) and a duplicated id fall back to a path; `[data-testid=…]`; `tag:nth-of-type(k)` path from the nearest stable ancestor; a node in an open shadow root and in an iframe document (` >>> `); round trip: every element of the `blog` and `stress` fixtures at their last time matches its own selector uniquely; a non-subset selector matches nothing.
-- [ ] Implement `selectorFor(st, n) string` and `matchSelector(st, sel) []*DOMNode`.
-- [ ] `go test ./cmd/internal/webcast/notes`; commit `#461: selectors`.
+- [x] Tests first: `#id` for a stable unique id; a generated id (`:r1:`, `row-12345`) and a duplicated id fall back to a path; `[data-testid=…]`; `tag:nth-of-type(k)` path from the nearest stable ancestor; a node in an open shadow root and in an iframe document (` >>> `); round trip: every element of the `blog` and `stress` fixtures at their last time matches its own selector uniquely; a non-subset selector matches nothing.
+- [x] Implement `selectorFor(st, n) string` and `matchSelector(st, sel) []*DOMNode`.
+- [x] `go test ./cmd/internal/webcast/notes`; commit `#461: selectors`.
 
 ### Task 2: Landmarks and context
 
 **Files:** Create `notes/landmark.go`, `notes/landmark_test.go`.
 
-- [ ] Tests first, on the fixtures at each note's time: `blog-n1` (h1) → its `header`; `blog-n2` (img) → the `li`; `blog-n3` (ol) → itself; `stress-n2` (x-closed) and `stress-n1` → `section.side`; `app-n3` (h1 in body) → `body`, not meaningful. Builder cases: a role, `aria-modal`, a Tailwind card (`rounded-lg shadow`) container, and a bordered `input` that is not a card.
-- [ ] Context text window: a long landmark keeps the anchor's text inside the 500-character window.
-- [ ] Implement `landmark(n) (*DOMNode, bool)` and the window.
-- [ ] Commit `#461: landmarks and focused context`.
+- [x] Tests first, on the fixtures at each note's time: `blog-n1` (h1) → its `header`; `blog-n2` (img) → the `li`; `blog-n3` (ol) → itself; `stress-n2` (x-closed) and `stress-n1` → `section.side`; `app-n3` (h1 in body) → `body`, not meaningful. Builder cases: a role, `aria-modal`, a Tailwind card (`rounded-lg shadow`) container, and a bordered `input` that is not a card.
+- [x] Context text window: a long landmark keeps the anchor's text inside the 500-character window.
+- [x] Implement `landmark(n) (*DOMNode, bool)` and the window.
+- [x] Commit `#461: landmarks and focused context`.
 
 ### Task 3: Crops
 
 **Files:** Create `notes/crop.go`, `notes/crop_test.go`.
 
-- [ ] Tests first: `blog-n1` crop is full width (x 0, w 1280) and holds the header; `blog-n2` crop's x range is the `li`'s and its height is the image plus margins, not the `li`'s 1218 px; `blog-n1`+`blog-n3` give two crops, `blog-n1`+`blog-n2` two; two adjacent paragraphs give one; crops clip at x 0 and the page's right edge; a note with a given `at.Box` different from `st.Boxes` uses the given one; no box → error; a hint replaces each crop.
-- [ ] Implement.
-- [ ] Commit `#461: structure-snapped, clustered crops`.
+- [x] Tests first: `blog-n1` crop is full width (x 0, w 1280) and holds the header; `blog-n2` crop's x range is the `li`'s and its height is the image plus margins, not the `li`'s 1218 px; `blog-n1`+`blog-n3` give two crops, `blog-n1`+`blog-n2` two; two adjacent paragraphs give one; crops clip at x 0 and the page's right edge; a note with a given `at.Box` different from `st.Boxes` uses the given one; no box → error; a hint replaces each crop.
+- [x] Implement.
+- [x] Commit `#461: structure-snapped, clustered crops`.
 
 ### Task 4: The model, contract, fixtures, docs
 
 **Files:** Create `notes/structural.go`, `notes/structural_test.go`; modify `notes/fake.go` (`liveNotes`), `atlas/webcast-format.md` (a "Notes model (#461)" section: anchor, context and crop shapes and rules; the #455-compatible note shape), and `atlas/index.md` if needed.
 
-- [ ] `RunModelContract(t, func() Model { return Structural{} })`.
-- [ ] Every fixture note resolves at its time; resolve by selector after its element is replaced by a re-render (same selector, new id); ambiguity → unresolved.
-- [ ] Commit `#461: Structural model; atlas`.
-- [ ] Full verification: `go test ./cmd/internal/webcast/...`, then the full `make -k test` per repo practice.
+- [x] `RunModelContract(t, func() Model { return Structural{} })`.
+- [x] Every fixture note resolves at its time; resolve by selector after its element is replaced by a re-render (same selector, new id); ambiguity → unresolved.
+- [x] Commit `#461: Structural model; atlas`.
+- [x] Full verification: `go test ./cmd/internal/webcast/...`, then the full `make -k test` per repo practice.
 
 ## Revisions
 
@@ -97,3 +97,7 @@ Creates nothing durable: every value is computed per call and dies with it. Cost
   margin, not two margins on both axes: padded crops already carry a margin each, so notes within about three margins
   share a crop. Clipping widens the page to every note's own box, so a crop never cuts its note. Crops resolve each
   anchor first, so a re-rendered element still snaps to its landmark.
+- 2026-10-12 — close review round 1 (BR-1): a test-attribute value containing `>` made a selector the matcher
+  splits apart. Rule, not site: `uniqueStep` skips values with a quote or `>`, and `Anchor` drops any selector that
+  doesn't round-trip through `matchSelector`. The matcher also steps into template content, and an anchor with no
+  box of its own takes the layout box of the element it resolves to now.

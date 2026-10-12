@@ -192,8 +192,9 @@ everything but the anchor.
 - `sel` is a stable selector in a small CSS subset, made and matched in one file (`selector.go`): `#id` for an id
   that is unique and doesn't look generated (no `:`, no run of 4+ digits), `[data-testid="…"]` (also `data-test`,
   `data-cy`), else `tag:nth-of-type(k)` steps joined by ` > ` from the nearest such ancestor or the tree's root
-  element. Inside a shadow root or an iframe's document it is the host's selector, ` >>> `, then the path inside
-  (our deep combinator, not CSS).
+  element. Inside a shadow root, an iframe's document or a template's content it is the host's selector, ` >>> `,
+  then the path inside (our deep combinator, not CSS). A test-attribute value with a quote or `>` isn't used, and
+  `Anchor` drops any selector that doesn't find its own element, so a stored selector always round-trips.
 - `Resolve` keeps the node while it lives (ids are never reused); after a re-render it takes the selector's match
   whose text is the anchor's, else the only match. Several matches with nothing to tell them apart don't resolve.
   A selector outside the subset matches nothing, and such a note resolves by its node id alone.
@@ -217,7 +218,7 @@ full DOM at that moment stays available through the agent queries (#462).
 2. snapped to its meaningful landmark per axis: always across (a header or nav bar goes full width), and down only
    when the landmark is at most half the viewport tall; otherwise the height stays the note plus its margin (the rule
    #455 uses for a pane);
-3. clustered: crops less than a margin apart merge, until none do, so far-apart notes get a crop each;
+3. clustered: crops at most a margin apart merge, until none do, so far-apart notes get a crop each;
 4. clipped to the page (the root element's box), widened to hold every note's own box;
 5. offered to `notes.Hints` (per app or URL), whose crop replaces the default when it returns true.
 

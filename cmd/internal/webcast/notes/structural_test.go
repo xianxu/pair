@@ -91,6 +91,9 @@ func TestResolveAfterARerender(t *testing.T) {
 	// Its crop still snaps to the new element's landmark (the li itself).
 	b.Add(&recording.Layout{Boxes: map[recording.NodeID]recording.Box{id: {100, 140, 600, 30}}})
 	st = reduceAll(t, b)
+	if cs, err := m.Crops(st, []recording.NoteAt{at}, nil); err != nil || len(cs) != 1 || !cs[0].Contains(st.Boxes[id]) {
+		t.Errorf("an anchor with no box of its own takes the new element's: %v %v", cs, err)
+	}
 	at.Box = &recording.Box{110, 140, 300, 30}
 	if cs, _ := m.Crops(st, []recording.NoteAt{at}, nil); len(cs) != 1 || cs[0][0]+cs[0][2] != 700 {
 		t.Errorf("crop after a re-render %v must reach the li's right edge, 700", cs)
@@ -122,5 +125,19 @@ func TestResolveAmbiguity(t *testing.T) {
 	}
 	if _, ok := m.Resolve(st, recording.NoteAt{Node: 9999, Sel: "#x", Text: "neither"}); ok {
 		t.Errorf("two matches and no text to tell them apart must not resolve")
+	}
+}
+
+// Anchor never stores a selector that can't find its element: a tag outside
+// the subset's grammar leaves the selector empty, and the anchor resolves by
+// its node.
+func TestAnchorDropsASelectorThatCantRoundTrip(t *testing.T) {
+	b := recording.NewBuilder("odd")
+	odd := b.El("x.y", nil)
+	b.Page(recording.SegLive, "http://x/", odd)
+	st := reduceAll(t, b)
+	at, err := Structural{}.Anchor(st, odd.ID)
+	if err != nil || at.Sel != "" {
+		t.Errorf("anchor %+v %v: want no selector", at, err)
 	}
 }
