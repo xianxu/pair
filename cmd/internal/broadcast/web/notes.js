@@ -20,7 +20,7 @@ export function noteAt(list, col, row, cols, rows) {
   return list.notes.find((n) => noteVisible(n, cols, rows, list.guard) && n.row === row && (n.col === col || n.col + 1 === col)) || null;
 }
 
-// boxHasPin mirrors Couch's pinSpots: a box [col, row, w, h] on the grid
+// boxHasPin mirrors Couch's hasPin: a box [col, row, w, h] on the grid
 // has somewhere inside it for the 💭, off the controls. Couch places the
 // pin. Both run tests/broadcast-viewer/pinspots.json.
 export function boxHasPin(box, cols, rows, guard) {

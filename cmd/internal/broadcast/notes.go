@@ -38,7 +38,7 @@ var (
 // Note is one sticky note. Box is the area it is about, in cells (#488):
 // what Couch outlines, and what a submission crops (NoteCrop). Col, Row is
 // its pin, the left of the two cells NoteGlyph covers, which the board
-// places inside the box (pinSpots); a page never sends it. Color is the
+// places inside the box (firstPin); a page never sends it. Color is the
 // author's pointer palette index: the per-color limit counts it, and the
 // box, the 💭's chip and its glow are drawn in it. At is when it was saved,
 // which sets its flash phase; it isn't sent to pages.
@@ -107,24 +107,32 @@ func (b CellBox) within(cols, rows int) bool {
 		b.W >= 2 && b.H >= 1 && b.W <= cols-b.Col && b.H <= rows-b.Row
 }
 
-// pinSpots is where a box's pin may go, best first: the top-right corner
+// firstPin is where a box's pin goes: the first spot, best first, that
+// taken (nil: none is) doesn't refuse. Best first is the top-right corner
 // inside the box (the operator's choice, #488), then leftward along the
 // top row, then the rows below; only spots where NoteGlyph is visible (on
 // the grid, off the broadcast's controls). A box not within the grid has
-// none, so the loops below only ever run over the grid.
-func pinSpots(b CellBox, cols, rows int) []cell {
+// none, so the loops only ever run over the grid, and stop at the first
+// spot found (a large box costs nothing past it).
+func firstPin(b CellBox, cols, rows int, taken func(cell) bool) (cell, bool) {
 	if !b.within(cols, rows) {
-		return nil
+		return cell{}, false
 	}
-	var out []cell
 	for row := b.Row; row < b.Row+b.H; row++ {
 		for col := b.Col + b.W - 2; col >= b.Col; col-- {
-			if NoteVisible(Note{Col: col, Row: row}, cols, rows) {
-				out = append(out, cell{col, row})
+			c := cell{col, row}
+			if NoteVisible(Note{Col: col, Row: row}, cols, rows) && (taken == nil || !taken(c)) {
+				return c, true
 			}
 		}
 	}
-	return out
+	return cell{}, false
+}
+
+// hasPin reports whether a box has a spot for its pin at all.
+func hasPin(b CellBox, cols, rows int) bool {
+	_, ok := firstPin(b, cols, rows, nil)
+	return ok
 }
 
 // NoteCrop is the part of the screen a submission of n shows (#455): its
@@ -155,16 +163,11 @@ func (b *NoteBoard) Add(n Note, cols, rows int) (Note, error) {
 	if same >= MaxNotesPerColor {
 		return Note{}, ErrNoteColorFull
 	}
-	placed := false
-	for _, c := range pinSpots(n.Box, cols, rows) {
-		if !b.pinTaken(c) {
-			n.Col, n.Row, placed = c.col, c.row, true
-			break
-		}
-	}
-	if !placed {
+	pin, ok := firstPin(n.Box, cols, rows, b.pinTaken)
+	if !ok {
 		return Note{}, ErrNoteOverlap
 	}
+	n.Col, n.Row = pin.col, pin.row
 	n.On = terminal.Geometry{Cols: cols, Rows: rows}
 	b.nextID++
 	n.ID = b.nextID
@@ -252,7 +255,7 @@ func ParseNote(body []byte) (NoteRequest, error) {
 	cols, rows := *raw.Cols, *raw.Rows
 	n := Note{Box: CellBox{box[0], box[1], box[2], box[3]}, Color: *raw.Color, Text: *raw.Text}
 	if cols < 1 || rows < 1 || cols > maxPointGrid || rows > maxPointGrid ||
-		len(pinSpots(n.Box, cols, rows)) == 0 || n.Color < 0 || n.Color >= PointerColors {
+		!hasPin(n.Box, cols, rows) || n.Color < 0 || n.Color >= PointerColors {
 		return NoteRequest{}, ErrNoteRange
 	}
 	if !PlainText(n.Text) {

@@ -51,7 +51,7 @@ type noteAnchors struct {
 	running bool
 	// tried is the open notes already queued, so a note is asked about
 	// once; it keeps only the latest session's open notes (pruned on
-	// every snapshot).
+	// every snapshot) and nothing once the broadcast ends (forgetAnchors).
 	tried map[triedNote]bool
 }
 

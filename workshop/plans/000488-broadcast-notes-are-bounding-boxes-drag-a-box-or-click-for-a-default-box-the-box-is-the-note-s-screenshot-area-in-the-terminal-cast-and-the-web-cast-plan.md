@@ -283,3 +283,14 @@ boxes are in the cast's own units.
 - `pointerMode`'s `modes.show(current, pick)` replaces `modeButton.show(mode, toggle, tip)`.
 - Picking another mode ends a gesture in progress.
 - No second smoke test is needed (TL).
+
+### 2026-10-12: close review fixes (FIX-THEN-SHIP)
+- **Names as built** (read the Design above with these):
+  - `AnchorFor(box, frame, layout)` lives in `couchtty/noteanchor.go`.
+  - The shell is `couchtty/console_noteanchor.go`; there is no `noteanchor_io.go`.
+  - `firstPin`/`hasPin` replaced `pinSpots`. The pin search stops at the first spot, so a whole-grid box parses
+    without walking its million cells (BR-13).
+  - The resolver's `tried` set is also cleared when the broadcast ends (`forgetAnchors`, from `resetPointer`;
+    BR-22).
+- **Web pins (BR-5):** a box thinner than `CHIP_ROOM` (34 px) carries its 💭 chip outside its top-right corner.
+- **Retired-surface sweep:** CSS, JS and test comments no longer describe a single mode button.

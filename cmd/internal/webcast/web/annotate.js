@@ -211,6 +211,10 @@ export function paintStrokes(canvas, list, toClient, rect, dpr) {
   g.globalAlpha = 1;
 }
 
+// CHIP_ROOM is the size, in client px, a box needs to hold its 💭 chip
+// (26 px) inside its corner.
+export const CHIP_ROOM = 34;
+
 // pinLayer keeps one pin per note in container: draw(notes, boxOf, place)
 // adds and removes pins only when the set changes and otherwise moves them,
 // so a chip being tapped is never replaced under the finger. open(note,
@@ -243,7 +247,11 @@ export function pinLayer(doc, container, open) {
         els.set(n.id, pin);
         const b = noteBox(n, boxOf);
         pin.hidden = !b;
-        if (b) place(pin, b);
+        if (b) {
+          place(pin, b);
+          // A box too thin for the chip carries it outside its corner.
+          pin.classList.toggle('thin', parseFloat(pin.style.width) < CHIP_ROOM || parseFloat(pin.style.height) < CHIP_ROOM);
+        }
       }
     },
   };

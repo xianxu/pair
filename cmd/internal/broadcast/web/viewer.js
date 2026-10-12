@@ -387,8 +387,8 @@ export const MODE_TIPS = {
 };
 
 // pointerMode routes the viewer's taps. A tap on a 💭 opens that note, on
-// any page (#447). While the broadcast says pointing is on, the mode button
-// switches between pointer mode, where taps and drags become point batches
+// any page (#447). While the broadcast says pointing is on, the mode buttons
+// pick between pointer mode, where taps and drags become point batches
 // (flushed every 50ms), and comment mode, where a drag draws a note's box
 // and a tap gives it the default box (collab.js's gestureBox, #488), then a
 // draft opens. deps: notes() → {guard, notes}, dialog (noteDialog),

@@ -1,5 +1,5 @@
 {
-  "_": "Whether a terminal note's box has a spot for its pin (#488): Go's pinSpots and the viewer's boxHasPin both run these cases (notes_test.go, notes.test.mjs). guard is the controls' width the cases assume; Go checks it is StatusGuardCols.",
+  "_": "Whether a terminal note's box has a spot for its pin (#488): Go's hasPin and the viewer's boxHasPin both run these cases (notes_test.go, notes.test.mjs). guard is the controls' width the cases assume; Go checks it is StatusGuardCols.",
   "guard": 12,
   "cases": [
     { "name": "an open box", "box": [3, 3, 10, 2], "cols": 80, "rows": 24, "has": true },

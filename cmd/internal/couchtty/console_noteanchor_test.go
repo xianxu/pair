@@ -251,11 +251,13 @@ func TestQueueAnchorJobsPerSession(t *testing.T) {
 	}
 }
 
+// The broadcast ending (resetPointer, from its teardown) leaves nothing of
+// its session in the resolver.
 func TestForgetAnchorsLeavesNothingOfTheSession(t *testing.T) {
 	r := newAnchorRig(t)
 	r.open(1, cb(0, 0, 24, 3))
 	r.c.anchors.tried = map[triedNote]bool{{r.s, 1}: true}
-	r.c.forgetAnchors()
+	r.c.resetPointer()
 	if len(r.c.anchors.pending) != 0 || len(r.c.anchors.tried) != 0 {
 		t.Errorf("after the broadcast: %d jobs, %d tried", len(r.c.anchors.pending), len(r.c.anchors.tried))
 	}

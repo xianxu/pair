@@ -118,3 +118,26 @@ test('strokesAt: what a reader at t shows, for replay', () => {
   assert.deepEqual(strokesAt(model, 5000).map((s) => s.id), ['b']);
   assert.deepEqual(strokesAt({ docSeg: 0, strokes: [] }, 1), []);
 });
+
+// A pin is its note's box; a box too thin for the 💭 chip carries it
+// outside its corner (#488).
+test('pins: the box, and the chip outside a thin one', async () => {
+  const { pinLayer, CHIP_ROOM } = await import('../../cmd/internal/webcast/web/annotate.js');
+  const el = () => {
+    const cls = new Set();
+    return {
+      classList: { toggle: (c, on) => (on ? cls.add(c) : cls.delete(c)), contains: (c) => cls.has(c) },
+      set className(v) { cls.clear(); v.split(' ').filter(Boolean).forEach((c) => cls.add(c)); },
+      style: { setProperty() {} }, dataset: {}, append() {}, addEventListener() {}, setAttribute() {}, remove() {},
+    };
+  };
+  const doc = { createElement: el };
+  const pins = [];
+  const layer = pinLayer(doc, { append: (p) => pins.push(p) }, () => {});
+  const place = (p, b) => { p.style.width = `${b[2]}px`; p.style.height = `${b[3]}px`; };
+  const note = (id, region) => ({ id, region, text: 'x', author: { name: 'A', color: '#112233' } });
+  layer.draw([note('wide', [0, 0, 200, 80]), note('thin', [0, 0, 200, CHIP_ROOM - 1])], () => null, place);
+  assert.equal(pins.length, 2);
+  assert.ok(!pins[0].classList.contains('thin'));
+  assert.ok(pins[1].classList.contains('thin'));
+});

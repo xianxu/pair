@@ -109,7 +109,7 @@ func TestPinSpotsCaseTable(t *testing.T) {
 		t.Fatalf("the table assumes controls %d wide; they are %d", table.Guard, StatusGuardCols)
 	}
 	for _, c := range table.Cases {
-		if got := len(pinSpots(CellBox{c.Box[0], c.Box[1], c.Box[2], c.Box[3]}, c.Cols, c.Rows)) > 0; got != c.Has {
+		if got := hasPin(CellBox{c.Box[0], c.Box[1], c.Box[2], c.Box[3]}, c.Cols, c.Rows); got != c.Has {
 			t.Errorf("%s: %v, want %v", c.Name, got, c.Has)
 		}
 	}
@@ -246,7 +246,7 @@ var noteRefusals = []string{
 }
 
 // Every refusal is quick: no box makes the parser loop over more than the
-// grid (BR-10's overflow spun pinSpots for ~9e18 iterations).
+// grid (BR-10's overflow spun the pin search for ~9e18 iterations).
 func TestParseNoteRefusesQuickly(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
@@ -530,5 +530,19 @@ func TestNoteBoardSetAnchor(t *testing.T) {
 	b.Resolve(n.ID)
 	if b.SetAnchor(n.ID, NoteAnchor{}) {
 		t.Fatal("a resolved note took an anchor")
+	}
+}
+
+// A pin is found without walking a big box (BR-13): a 1000×1000 box on a
+// 1000×1000 grid parses in far less than its million cells would take.
+func TestHasPinStopsAtTheFirstSpot(t *testing.T) {
+	start := time.Now()
+	for range 1000 {
+		if !hasPin(CellBox{0, 0, 1000, 1000}, 1000, 1000) {
+			t.Fatal("no pin in a whole grid")
+		}
+	}
+	if d := time.Since(start); d > 200*time.Millisecond {
+		t.Errorf("1000 parses of a whole-grid box took %v", d)
 	}
 }

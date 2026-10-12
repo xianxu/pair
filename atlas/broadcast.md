@@ -343,7 +343,7 @@ watch) or the broadcast ends.
 
 - **Model** (`notes.go`, pure): `Note{ID, Col, Row, Box, Color, Text}`.
   - `Box` is a `CellBox` `[col,row,w,h]` on the grid, at least the pin's two cells wide.
-  - `Col, Row` is the pin. `NoteBoard.Add(n, cols, rows)` places it: the first of `pinSpots` (top-right inside
+  - `Col, Row` is the pin. `NoteBoard.Add(n, cols, rows)` places it: `firstPin`: the first spot (top-right inside
     the box, then leftward, then the rows below, never on the controls) that no open pin covers.
   - `NoteBoard` holds the limits: 8 open notes per pointer color, no two pins sharing a cell. A box with no free
     spot is refused.

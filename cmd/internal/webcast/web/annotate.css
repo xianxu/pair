@@ -13,6 +13,7 @@
    block a stroke or a new note elsewhere. */
 .pin { position: absolute; box-sizing: border-box; pointer-events: none; border: 2px dashed var(--pin); border-radius: 4px; background: color-mix(in srgb, var(--pin) 10%, transparent); }
 .pin[hidden] { display: none; }
+.pin.thin .chip { right: -12px; top: -12px; }
 .pin .chip {
   position: absolute; right: 2px; top: 2px; width: 26px; height: 26px; padding: 0;
   border: 2px solid var(--pin); border-radius: 50%; background: #fff; font-size: 14px; line-height: 22px;

@@ -1,5 +1,5 @@
 // The pointer page's wiring (#412 M4 review, BR-15): caps toggles capture
-// (#447: no hint bar; the mode button carries a tooltip); strokes become overlapping batches; release and turning off
+// (#447: no hint bar; the mode buttons carry tooltips); strokes become overlapping batches; release and turning off
 // end a stroke.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -236,7 +236,7 @@ test('a view page opens a 💭 read-only and posts nothing', () => {
   assert.equal(f.posts.length, 0);
   f.fire('pointerdown', f.at(3, 3));
   assert.equal(f.calls.length, 1, 'a tap elsewhere does nothing on a view page');
-  assert.equal(f.shownMode(), null, 'no mode button without pointing');
+  assert.equal(f.shownMode(), null, 'no mode buttons without pointing');
 });
 
 test('pointer mode: a 💭 opens resolvable and is not pointed at', () => {
