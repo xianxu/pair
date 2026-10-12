@@ -158,8 +158,6 @@ what the viewer's renderer draws at the same moments.
 - **The Chrome group (#501)** mirrors the screen broadcast's: `Chrome ⏸ ↗ 👆 👽 💭N 🕹Ana`, each button its own
   `RenderedStatusRow` span (`WebFocus`, `WebViewLink`, `WebDriveLink`), so a hover can tell them apart (#495).
   👆 copies the view link, 👽 the drive link (right-click and Alt+right-click on the cell stay as shortcuts).
-  👽 also shows driving at a glance: lit in `broadcast.PointerSGR` (the family's capability-on amber) while the
-  drive span is non-empty, i.e. someone drives or asks.
   `↗` calls `Browser.Focus`: the real Chrome sends `Target.activateTarget` for the cast tab, then activates its own
   process by PID (`activateProcess`, macOS JXA → `NSRunningApplication`; by PID because the cast Chrome
   shares its bundle id with the operator's own Chrome). Only `Launch` of a windowed Chrome sets the

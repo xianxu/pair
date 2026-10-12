@@ -991,8 +991,7 @@ server, an agent's mock, anything). While it runs the tab bar shows
 is cast (`Chrome ⏸`). The same three pause and resume it, and the browser stays
 open while paused. Beside the cell, `↗` brings the cast Chrome window and tab
 to the front, `👆` copies the **view link** and `👽` the **drive link**
-(`Chrome ⏸ ↗ 👆 👽`); `👽` lights up amber while a viewer drives or asks to.
-Right-click the cell to copy the **view link** (watch, point, leave
+(`Chrome ⏸ ↗ 👆 👽`). Right-click the cell to copy the **view link** (watch, point, leave
 notes); `Alt` (Option)+right-click copies the **drive link** (below); `Ctrl`+click
 (left or right) ends the cast and closes Chrome. Closing Chrome yourself ends the
 cast too. The cast follows whichever tab is active, including tabs opened later.

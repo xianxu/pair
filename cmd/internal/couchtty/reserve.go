@@ -276,24 +276,18 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 		}
 		// The go-to-Chrome button and the two link glyphs (#501) sit right
 		// after the cell, at columns that don't move with the note count.
-		button := func(label, sgr string) ColumnSpan {
+		button := func(label string) ColumnSpan {
 			appendText(" ", "")
 			start := used
-			appendText(label, sgr)
+			appendText(label, "")
 			if used == start {
 				return ColumnSpan{}
 			}
 			return ColumnSpan{Start: start, End: used}
 		}
-		webFocusSpan = button(WebcastFocusLabel, "")
-		webViewLinkSpan = button(broadcast.PointerLabel, "")
-		// 👽 also shows driving at a glance: lit, in the family's
-		// capability-on amber, while someone drives or asks.
-		driveSGR := ""
-		if m.WebDrive != "" {
-			driveSGR = broadcast.PointerSGR
-		}
-		webDriveLinkSpan = button(broadcast.ControlLabel, driveSGR)
+		webFocusSpan = button(WebcastFocusLabel)
+		webViewLinkSpan = button(broadcast.PointerLabel)
+		webDriveLinkSpan = button(broadcast.ControlLabel)
 		if m.WebNotes > 0 {
 			appendText(" ", "")
 			start := used
