@@ -1121,3 +1121,7 @@ proof; record the surprising case so the next change starts from evidence.
   each way that state ends (key, timeout, Esc, the other side's own decision) and clear the flag from observed
   evidence (here, the composer returning after the picker hid it), not from the one input you happen to see.
   Read the screen at arming too: the evidence can land before the signal that arms the flag.
+- pair#463: a new reserved name on an existing addressing surface (`couch --send-to hub`) left README and atlas
+  still describing the old address grammar, and a TL-deferred Done-when clause stayed as written. When a change
+  adds a form to a CLI grammar, grep every restatement of that grammar (`--help`, skill, README, atlas) in the
+  same commit; when scope moves elsewhere, amend `## Done when` and `## Plan` in the commit that moves it.
