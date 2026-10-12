@@ -445,8 +445,9 @@ the message service and tells the hub instead.
   operator's input or a branch change ends it by changing the wait or ending
   it. One notice per episode once admitted, a failed admission retries next
   tick. Not-waiting verdicts are cached per (activity, settled, resting,
-  pending), so an idle slot costs one tail per output burst. The map is pruned to the listing each tick and dies with
-  the service; a Couch restart re-announces a slot still waiting, once.
+  pending), so an idle slot costs one tail per output burst. The map is pruned
+  to the listing each tick and dies with the service; a Couch restart
+  re-announces a slot still waiting, once.
 - **Delivery:** `Broker.Send` from the waiting slot's binding to the hub's
   exact slot (`messageService.hubBinding`, the connected binding in
   `messageAuthority.hub`; the registry's newest incarnation of that slot),
