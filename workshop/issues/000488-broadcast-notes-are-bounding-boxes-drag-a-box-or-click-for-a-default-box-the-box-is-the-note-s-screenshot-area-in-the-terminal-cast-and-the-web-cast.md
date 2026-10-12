@@ -48,7 +48,7 @@ Durable plan: `workshop/plans/000488-…-plan.md` (same slug).
 - [x] M1 — shared `noteBox` (collab.js) + web cast: always-region with default box, BR-4 clamp, outlined pins, NoteAt kind/path, NoteCrops = padded box (snap + Hints retired, hub-coordinated with #483)
 - [x] M2 — terminal boxes: wire `box` + derived pin, viewer drag, DrawNotes outline, `NoteCrop` seam for #455
 - [x] M3 — terminal anchor: pure `AnchorFor` + async fresh list-panes resolver behind an injected PaneRects seam (stateful fake, live conformance) + nvim view.json
-- [ ] Operator smoke test in both casts
+- [x] Operator smoke test in both casts (passed 10-12, TL relay)
 
 ## Estimate
 
@@ -104,9 +104,16 @@ Items in order:
 13–15. three milestone reviews
 16. smoke test
 
+## Revisions
+
+- 2026-10-12, after the operator's smoke test passed in both casts: the terminal viewer shows both mode buttons
+  (👆, 💭) at once, the current one pressed, as the web cast does, instead of one toggle button. This is the
+  operator's nit, relayed by the TL. No second smoke test is needed.
+
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed — operator smoke-tested both casts on pair:0 build 1310e0b30 (TL relay: works well); smoke nit (both mode buttons) folded in with node test (71/71) + broadcast pkg green; full make -k test + go test ./... green after inventory fix (aad0b6fa4); M1-M3 SHIP; live Chrome annotate + live zellij conformance PASS; review verdict: FIX-THEN-SHIP
 - 2026-10-12: closed M3 — BR-15..19 fixed with tests: two-session queue test, slot-switch + resize mid-pass drop, queue decides under lock and starts after, TestNoteAnchorLifecycle (wire has no anchor; refine; drop on unknown/resolved/off), NoteBoard.SetAnchor snapshot test; reviewcmd.ReviewScript shared + round trip; prose-name sweep clean; broadcast pkg + couchtty notes/anchor suites green; live zellij conformance PASS; review verdict: SHIP
 - 2026-10-12: closed M2 — BR-10 fixed: box ints bounded at parse + overflow-safe within(), refusal table with 5s deadline, FuzzParseNote 20s clean w/ independent oracle; pinspots.json run by Go+node; pointerMode single tagged drag state; broadcast pkg green, node 70/70; review verdict: SHIP
 - 2026-10-12: closed M1 — go test webcast/... broadcast/... green; node 165/165; WEBCAST_LIVE_CHROME=1 TestAnnotateLiveTwoViewers + live replay tests PASS (real Chrome, mouse tap default box + touch drag box); BR-7 + snapping wording swept; review verdict: SHIP

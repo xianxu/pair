@@ -284,6 +284,50 @@ rounds:
       isolation: checkout
       reviewed: e1dac86e0588bac2b5d38bc86c73f866f89e602e
       blocked: false
+    - "n": 8
+      timestamp: "2026-10-12T15:05:31-07:00"
+      dispatched: "2026-10-12T14:39:26-07:00"
+      agent: claude
+      dispose:
+        - id: BR-2
+          disposition: addressed
+          note: 'M2/M3 built the referents: broadcast.NoteAnchor (notes.go), CellBox and AnchorFor exist at head, so the atlas line 217 and record.go present-tense wording now describe built surface.'
+          round: 8
+        - id: BR-5
+          disposition: not-addressed
+          note: 'annotate.css:17 is unchanged: the 26 px chip still sits at right:2px top:2px in every box, however thin.'
+          round: 8
+        - id: BR-9
+          disposition: addressed
+          note: Plan "M1 as built" (lines 239-242) names gestureBox, dragMin, boxCentre and notebox.test.mjs, and says to read noteBox above as gestureBox; it matches collab.js.
+          round: 8
+        - id: BR-13
+          disposition: not-addressed
+          note: notes.go:255 still calls len(pinSpots(...)) == 0 in ParseNote, and Add still builds the full list before taking the first free spot.
+          round: 8
+        - id: BR-14
+          disposition: addressed
+          note: Plan "M2 as built" (lines 244-254) says off-grid boxes are refused and NoteBoard.Add places the pin via pinSpots, matching notes.go:148-176.
+          round: 8
+        - id: BR-20
+          disposition: not-addressed
+          note: 'Plan lines 65/76 still say AnchorFor(box, l, frame) and noteanchor_io.go (code: AnchorFor(box, f, l), no _io file); plan line 268 and console_noteanchor.go:51-53 say tried is only pruned per snapshot, but forgetAnchors now also clears it.'
+          round: 8
+        - id: BR-22
+          disposition: not-addressed
+          note: forgetAnchors is wired into resetPointer, but deleting that call leaves every couchtty test green, because the test calls forgetAnchors directly; drive it through resetPointer/detachBroadcastScreen.
+          round: 8
+      findings:
+        - id: BR-23
+          severity: Minor
+          title: Comments still describe the retired single mode button at viewer.css:91, viewer.css:141-142 and pointermode.test.mjs:2
+          detail: 'This is the 3rd finding in family retired-surface-sweep (prevalence 3 across M1 to close). Rule, already in lessons.md from BR-7, widened: when a commit retires an element id, class or function, grep its old name in code, CSS, comments and tests (here the "#mode" id and "mode button" in the singular) in that same commit, and fix every hit. Apply that grep rather than fixing these three lines one by one.'
+          family: retired-surface-sweep
+          round: 8
+      recipe: milestone-review
+      isolation: checkout
+      reviewed: 6b42e6edfd93f18ed25b7fb52ca8cacaca78667c
+      blocked: false
 ---
 
 # Gate ledger — pair#488 (boundary-review)
@@ -401,12 +445,27 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-22** [Minor] `residue-outlives-owner` tried keeps a pointer to an ended broadcast Session until the next broadcast's first notes snapshot
   console_noteanchor.go:155 prunes only in queueAnchorJobs, which applyNotes skips once the broadcast ends. Size is bounded by that session's open notes; clear tried (and pending) when the broadcast ends, or accept it and note the bound in the plan.
 
+## Round 8 — 2026-10-12T15:05:31-07:00 (claude) — passed
+
+### Disposed
+
+- BR-2 — addressed — M2/M3 built the referents: broadcast.NoteAnchor (notes.go), CellBox and AnchorFor exist at head, so the atlas line 217 and record.go present-tense wording now describe built surface.
+- BR-5 — not-addressed — annotate.css:17 is unchanged: the 26 px chip still sits at right:2px top:2px in every box, however thin.
+- BR-9 — addressed — Plan "M1 as built" (lines 239-242) names gestureBox, dragMin, boxCentre and notebox.test.mjs, and says to read noteBox above as gestureBox; it matches collab.js.
+- BR-13 — not-addressed — notes.go:255 still calls len(pinSpots(...)) == 0 in ParseNote, and Add still builds the full list before taking the first free spot.
+- BR-14 — addressed — Plan "M2 as built" (lines 244-254) says off-grid boxes are refused and NoteBoard.Add places the pin via pinSpots, matching notes.go:148-176.
+- BR-20 — not-addressed — Plan lines 65/76 still say AnchorFor(box, l, frame) and noteanchor_io.go (code: AnchorFor(box, f, l), no _io file); plan line 268 and console_noteanchor.go:51-53 say tried is only pruned per snapshot, but forgetAnchors now also clears it.
+- BR-22 — not-addressed — forgetAnchors is wired into resetPointer, but deleting that call leaves every couchtty test green, because the test calls forgetAnchors directly; drive it through resetPointer/detachBroadcastScreen.
+
+### Raised
+
+- **BR-23** [Minor] `retired-surface-sweep` Comments still describe the retired single mode button at viewer.css:91, viewer.css:141-142 and pointermode.test.mjs:2
+  This is the 3rd finding in family retired-surface-sweep (prevalence 3 across M1 to close). Rule, already in lessons.md from BR-7, widened: when a commit retires an element id, class or function, grep its old name in code, CSS, comments and tests (here the "#mode" id and "mode button" in the singular) in that same commit, and fix every hit. Apply that grep rather than fixing these three lines one by one.
+
 ## Open findings
 
-- **BR-2** [Minor] `docs-describe-unbuilt-surface` Atlas and record.go doc comment reference broadcast.NoteAnchor and terminal cell boxes, which do not exist until M2/M3
 - **BR-5** [Minor] `ui-chip-fit` 26 px pin chip now sits inside the box and spills well outside thin boxes (e.g. a 12x1 px drag)
-- **BR-9** [Minor] `plan-names-match-code` The plan still names the shared helper noteBox and its test file notes.test.mjs; the code has gestureBox and notebox.test.mjs
 - **BR-13** [Minor] `untrusted-size-drives-work` pinSpots builds the full spot list (about 1M cells) just so ParseNote can check that one exists
-- **BR-14** [Minor] `plan-names-match-code` The plan says the terminal box is clamped to the grid; the code refuses it with ErrNoteRange
 - **BR-20** [Minor] `plan-names-match-code` noteanchor.go header names noteanchor_resolve.go (nonexistent); the plan's Design still names noteanchor_io.go, AnchorFor(box, l, frame) and view.json fuzzing
 - **BR-22** [Minor] `residue-outlives-owner` tried keeps a pointer to an ended broadcast Session until the next broadcast's first notes snapshot
+- **BR-23** [Minor] `retired-surface-sweep` Comments still describe the retired single mode button at viewer.css:91, viewer.css:141-142 and pointermode.test.mjs:2
