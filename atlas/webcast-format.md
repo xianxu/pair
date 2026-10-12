@@ -63,7 +63,7 @@ A cast is a sequence of **live segments** with gaps where it was paused (project
 
 | Kind | Fields | Meaning |
 |---|---|---|
-| `seg` | `seg` (1, 2, …), `why`, `tab` `{id,url,title}`, `vp` `{w,h,dpr}` | A segment starts. **All DOM state is dropped**: documents, nodes, sheets, form values, scroll, selection, focus, layout. The asset table and the notes are kept. `why` is `live` (first go-live), `resume`, `navigate` (a new top document), or `tab` (the operator switched tabs). |
+| `seg` | `seg` (1, 2, …), `why`, `tab` `{id,url,title}`, `vp` `{w,h,dpr}` | A segment starts. **All DOM state is dropped**: documents, nodes, sheets, form values, scroll, selection, focus, layout. The asset table and the notes are kept. `why` is `live` (first go-live), `resume` (going live again on **the same document** as before the pause), `navigate` (a new top document, including one loaded while paused), or `tab` (the operator switched tabs). The current document began at the latest segment that isn't a `resume`. |
 | `doc` | `doc`, `url`, `tree`, optional `host` | A full snapshot of one document. `tree` is a `doc` node, and `doc` is its id. Without `host` it is the top document; exactly one comes right after each `seg`, before any change. With `host` (an `iframe` element's id) it is that frame's document, replacing whatever the frame showed before. Cross-origin frames come the same way: the recorder stitches them by their owner element. |
 | `stop` | `why`: `pause` or `end` | The segment ends. The state is frozen as it was. |
 
@@ -175,14 +175,18 @@ top page by the recorder. The viewport position at time t is the top document's 
 | `frame` | frames/index | `file`, `w`, `h`, `scale` | A screenshot of the real tab at `t` (the fidelity check). Not in the live stream. |
 
 Notes stay in the recording after a reload. That live notes clear on reload (project, Direction) is the notes model's
-rule (#461): the notes "on" the current document are those since its segment began. The shape is meant to be
+rule (#461): the notes "on" the current document are those since the document began (`State.DocSeg`), so a pause and
+resume keeps them and a navigation clears them. The shape is meant to be
 shared with the terminal notes of pair#455. `author` and `text` stay the same; `at` is where a DOM note and a grid note differ.
 
 ## Joining mid-cast
 
-A viewer that joins late receives the **catch-up**, followed by the live records. The catch-up is `head`, every `asset` record so far, then everything
-from the latest `seg` on, notes included. While paused, it is that segment through its `stop`. `recording.CatchUp` is
-this rule; the live fan-out (#460) serves it, and the fake hub uses it.
+A viewer that joins late receives the **catch-up**, followed by the live records. The catch-up is `head`; every `asset`
+record so far; the notes, note states and strokes since the current document began; then everything from the latest
+`seg` on. While paused, that last part is the segment through its `stop`. Reduced, the catch-up gives the same DOM, assets and
+current-document notes as the whole recording (tested at every cut point). `recording.CatchUp` is this rule; the
+live fan-out (#460) serves it. The fake hub keeps only `CatchUp(log)` at each segment, so what it holds for late
+joiners is bounded by one segment.
 
 ## Reading rules (the reducer)
 
@@ -205,17 +209,21 @@ serialization of the state. The viewer's conformance check compares it with what
 ## Components and seams (wave 1 starts here)
 
 Each component is behind an interface with a stateful fake and a contract test suite. Run the suite against the fake and against the real
-implementation, so the two can't drift. Fixtures are in `cmd/internal/webcast/recording/testdata/fixtures/` and are
+implementation, so the two can't drift. Suites take `recording.TB` (a `*testing.T` satisfies it), so product packages
+don't import `testing`. Fixtures are in `cmd/internal/webcast/recording/testdata/fixtures/` and are
 named by `recording.Fixture(name)`. A format change found in wave 1 goes back through #457's contract (the TL coordinates
 it), never a local fork.
 
 | Issue | Component | Interface | Fake | Contract suite |
 |---|---|---|---|---|
-| pair#458 | recorder | writes `recording.Sink` | `recording.FakeRecorder` (replays a fixture into a sink, in real time or instantly) | `recording.Validate` on its output |
-| pair#459 | asset store and proxy | `assets.Store` | `assets.MemStore` | `assets.RunStoreContract` |
-| pair#460 | live viewer | `recording.Live` (fan-out with catch-up); JS viewer contract below | `recording.FakeHub` | `recording.RunLiveContract`; canonical goldens per fixture |
-| pair#461 | notes model | `notes.Model` | `notes.FakeModel` | `notes.RunModelContract` |
-| pair#462 | agent queries | `query.Surface` | `query.FakeSurface` | `query.RunSurfaceContract` |
+| pair#458 | recorder | writes a `recording.Sink` (`DirWriter` for disk, `Tee` to also feed `Live`) | `recording.FakeRecorder` (plays a fixture into a sink, instantly or in real time) | `recording.ValidateDir` on its output; fidelity vs `frames/` |
+| pair#459 | asset store and proxy | `assets.Store` (`Put`, `Get`, `Lookup`; `Policy`) | `assets.MemStore` | `assets.RunStoreContract` |
+| pair#460 | live viewer | `recording.Live` (fan-out with catch-up); the JS viewer contract below | `recording.FakeHub` | `recording.RunLiveContract`; the fixtures' canonical goldens |
+| pair#461 | notes model | `notes.Model` (`Anchor`, `Resolve`, `Context`, `Crops`, `Live`; `notes.Hints`) | `notes.FakeModel` | `notes.RunModelContract` |
+| pair#462 | agent queries | `query.Surface` (`DOMAt`, `Events`, `Notes`) | `query.FakeSurface` | `query.RunSurfaceContract` |
+
+Hand-written recordings for tests: `recording.Builder` (ids from one counter, `Page` for a segment and its document),
+`recording.ContractRecording`, `query.ContractRecording`.
 
 **Seam into `webcast.Cast` (#454).** Today `webcast.Server.events` streams the Browser's `state` (the stub). The recorder (#458)
 adds `LaunchOptions.Sink recording.Sink` to `webcast.Chrome`. The Chrome loop already owns every page session and the
