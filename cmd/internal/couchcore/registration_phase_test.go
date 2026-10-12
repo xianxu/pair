@@ -125,7 +125,7 @@ func errorText(err error) string {
 	return err.Error()
 }
 
-// spendableBudget is a registration deadline the test spends: its context
+// spendableBudget is a deadline the test spends: its context
 // reports DeadlineExceeded, as a lapsed WithTimeout would, once spend runs.
 type spendableBudget struct {
 	once  sync.Once

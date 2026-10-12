@@ -24,7 +24,7 @@ function fake() {
     renderer: (model) => ({
       apply: (r) => log.applied.push([r.t, now]),
       flush: () => {},
-      ready: async () => {},
+      ready: async () => { log.anims.push(['ready', now]); },
       canonical: () => model.canonical(),
     }),
     now: () => now,
@@ -49,8 +49,11 @@ test('replayAt draws the records before the window at once and the window in rea
     else assert.equal(drawn, rt - (t - 1000), `record at ${rt} drawn at its time in the window`);
   }
   assert.equal(log.applied.length, recs.filter((x) => x.t <= t).length);
-  assert.deepEqual(log.anims.map((a) => a[0]), ['finish', 'pause']);
-  assert.equal(log.anims[1][1], 1000, 'animations pause at t');
+  // Assets load before the window (finish) and again after the pause at t,
+  // so the capture has what the window's records load, at t's phase (#480).
+  assert.deepEqual(log.anims.map((a) => a[0]), ['ready', 'finish', 'pause', 'ready']);
+  assert.equal(log.anims[2][1], 1000, 'animations pause at t');
+  assert.equal(log.anims[3][1], 1000, 'the capture waits for assets with the phase held at t');
   // What was drawn is the reducer's state at t.
   const m = new Model();
   for (const x of recs) if (x.t <= t) m.apply(x);
@@ -111,7 +114,7 @@ test('a moment shortly after the last continues it: paused animations resume at 
   log.anims.length = 0;
   const before = clock();
   await r.replayAt(a + 150, 1000);
-  assert.deepEqual(log.anims.map(([k]) => k), ['play', 'pause'], 'resumed, never finished');
+  assert.deepEqual(log.anims.map(([k]) => k).filter((k) => k !== 'ready'), ['play', 'pause'], 'resumed, never finished');
   assert.equal(clock() - before, 150, 'only the 150 ms since the last moment run');
 });
 
