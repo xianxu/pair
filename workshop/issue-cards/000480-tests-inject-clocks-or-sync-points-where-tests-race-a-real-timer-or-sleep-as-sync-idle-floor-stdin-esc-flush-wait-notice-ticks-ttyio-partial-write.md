@@ -1,6 +1,6 @@
 ---
 id: 000480
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 8e94173bce9deb53ae2ff5e0548ce5640c968a50
         evidence_commit: 8981af5ccfee20296f05c0f33b0bd42f4df96e8e
+        landed_commit: 758f959e52bdff0de53d5bace74f9ffb0eb891f6
 ---
 
 # tests: inject clocks or sync points where tests race a real timer or sleep as sync (idle floor, stdin ESC flush, wait-notice ticks, ttyio partial write, ...)
