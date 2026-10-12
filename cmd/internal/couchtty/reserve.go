@@ -94,6 +94,9 @@ type StatusModel struct {
 	// Webcast is the cast Chrome's cell (#454), drawn after the screen
 	// broadcast's cells so their fixed columns never move.
 	Webcast WebcastCell
+	// WebNotes is the web cast's open notes (#470), drawn as 💭N after the
+	// Chrome cell; a click opens the notes menu with them.
+	WebNotes int
 	// Spinner is the loading placeholder's spinner frame (pair#206).
 	Spinner uint8
 	// Palette is what the host terminal told couch about its colours, which
@@ -159,6 +162,8 @@ type RenderedStatusRow struct {
 	// Webcast is the Chrome cell's span (#454); empty when Chrome isn't
 	// running or the cell was clipped.
 	Webcast ColumnSpan
+	// WebNotes is the web cast's 💭N span (#470).
+	WebNotes ColumnSpan
 }
 
 // ColumnToActor maps a ZERO-BASED column on the drawn row to the actor whose
@@ -241,7 +246,7 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 			}
 		}
 	}
-	var webcastSpan ColumnSpan
+	var webcastSpan, webNotesSpan ColumnSpan
 	if label, sgr := webcastLabel(m.Webcast); label != "" {
 		if used > 0 {
 			appendText(" ", "")
@@ -250,6 +255,14 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 		appendText(label, sgr)
 		if used > start {
 			webcastSpan = ColumnSpan{Start: start, End: used}
+		}
+		if m.WebNotes > 0 {
+			appendText(" ", "")
+			start := used
+			appendText(broadcast.NoteGlyph+strconv.Itoa(m.WebNotes), "")
+			if used > start {
+				webNotesSpan = ColumnSpan{Start: start, End: used}
+			}
 		}
 	}
 	// Capture follows so actor chips and transient notices cannot hide a
@@ -321,7 +334,7 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 		}
 		appendText(n, "")
 	}
-	return RenderedStatusRow{Body: row.String(), Chips: chips, Control: control, Pointer: pointer, Remote: remote, Notes: notes, Webcast: webcastSpan}
+	return RenderedStatusRow{Body: row.String(), Chips: chips, Control: control, Pointer: pointer, Remote: remote, Notes: notes, Webcast: webcastSpan, WebNotes: webNotesSpan}
 }
 
 // WebcastCell is the cast Chrome's state on the tab bar (#454).

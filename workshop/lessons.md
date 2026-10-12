@@ -1200,6 +1200,13 @@ proof; record the surprising case so the next change starts from evidence.
   hold: a select's live choice isn't in the DOM, so guessing it from the `selected` attribute contradicted the
   event beside it.
 
+- **A check made before handing a record to an asynchronous writer is re-made by the writer (#470 plan-quality).** The
+  board checked a viewer's note against the current document, then emitted it outside its lock into the recorder's
+  queue; a navigation ordered in between would have filed the note on the new page, because the reducer gives a note
+  the segment current when it is *reduced*. When a reader of a stream validates against state and a different
+  writer orders the result, send the checked fact with the record (here the document's first segment) and have the
+  writer apply the one statement of the rule (`recording.State.OnDoc`) at ordering time; test the race by ordering
+  the competing event inside the emit.
 - **Fixtures that share an accident hide every reader that depends on it (#472).** The prototype's fixtures were all
   1280×800 with frames taken while the stream was quiet, so the replay harness and the fidelity tool hard-coded the
   viewport, and the recorder's clamp of a frame's time to the stream's (43–87 ms late on a busy page, against the
@@ -1213,6 +1220,25 @@ proof; record the surprising case so the next change starts from evidence.
   event that makes it true and wait on that event: a no-op command through the loop that owns the state, or an
   injected clock (`Couch.after`) that ties the timeout to the fake's state. To prove a suspected window, widen it
   with a temporary sleep in the product or fake and watch the test fail every time.
+- **Nothing that takes input is rebuilt on the per-frame path (#470 M2, two review rounds).** The notes UI redrew its
+  pins and then its swatches with `replaceChildren` every animation frame, so a tap that spanned a frame landed on a
+  removed element. Frame work only moves and restyles; elements are created and removed when their data changes (keep
+  them in a map by id). Test with a human-length press (100 ms): a back-to-back synthetic press and release fits in one
+  frame and lets the per-frame mutant pass.
+- **An async mount starts from the state it mounts into (#470 M2).** The notes module mounted after a fetch, began
+  with "no document", and took the first record it saw for a navigation, ending the user's stroke after one chunk (4 of
+  6 runs). A late joiner of a stream initializes from the model's current values, not from zero; and a flaky e2e is a
+  bug to root-cause with state dumps from both sides, not a retry.
+- **A test writes loop-owned state on the loop, or through the real producer (#470 close, BR-25).** A Couch test set
+  the web-notes menu state directly while the cast's delivery goroutine wrote its first snapshot, failing 10 of 20
+  runs under `-race` and 0 of 50 without. When state has a single-writer rule, the test drives the real producer (post
+  through the board, wait for delivery) and makes any other change inside `runTerminalCommand`; run the new test with
+  `-race -count=20` before calling it done.
+- **Every server of a page serves every module the page imports (#470 meets #471).** The notes module imported
+  `collab.js`, which only the live server served; the replay server, landed meanwhile, served the same viewer from the
+  shared file table, and one missing ES module kills the whole module graph. Serve a page's files from one table both
+  servers use, and test the closure: walk the imports from the entry module and fetch each from that table. After a
+  merge that brings a second consumer of shared files, run the live (browser) suites, not only the unit ones.
 
 - **A snapshot of a running page is not a fresh load (#478).** The fidelity replay started the blog's entry fade
   when it drew the go-live snapshot, but the tab had finished it seconds before the cast went live, so the first

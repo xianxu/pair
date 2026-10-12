@@ -45,6 +45,7 @@ var assets = map[string]asset{
 	"":           {"web/index.html", "text/html; charset=utf-8"},
 	"viewer.js":  {"web/viewer.js", "text/javascript; charset=utf-8"},
 	"notes.js":   {"web/notes.js", "text/javascript; charset=utf-8"},
+	"collab.js":  {"web/collab.js", "text/javascript; charset=utf-8"},
 	"viewer.css": {"web/viewer.css", "text/css; charset=utf-8"},
 	"xterm.js":   {"web/vendor/xterm/xterm.js", "text/javascript; charset=utf-8"},
 	"xterm.css":  {"web/vendor/xterm/xterm.css", "text/css; charset=utf-8"},
