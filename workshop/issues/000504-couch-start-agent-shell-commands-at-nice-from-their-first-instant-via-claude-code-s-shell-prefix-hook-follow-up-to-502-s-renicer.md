@@ -51,3 +51,4 @@ for #502 and asked for this as an optional follow-up (10-12, via the TL).
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: unclaimed: filed for the TL as an unassigned follow-up to #502
