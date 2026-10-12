@@ -26,6 +26,9 @@ type (
 		ContextID int64
 	}
 	contextsCleared struct{ SessionID string }
+	// dialogOpened, dialogClosed: a page's JavaScript dialog (#467).
+	dialogOpened struct{ SessionID string }
+	dialogClosed struct{ SessionID string }
 	// toggleRequested: the in-page Go live / Pause control was clicked.
 	toggleRequested struct{ SessionID string }
 	// helloRequested: a new document's control asks for the current state.
@@ -40,6 +43,7 @@ type targetInfo struct {
 	Type     string `json:"type"`
 	URL      string `json:"url"`
 	Title    string `json:"title"`
+	OpenerID string `json:"openerId"`
 }
 
 // translate maps one CDP event to the inputs it means. targetOf maps an
@@ -57,9 +61,13 @@ func translate(sessionID, method string, params json.RawMessage, targetOf func(s
 		}
 		ti := p.TargetInfo
 		if method == "Target.targetCreated" {
-			return []any{TargetCreated{ID: ti.TargetID, URL: ti.URL, Title: ti.Title}}
+			return []any{TargetCreated{ID: ti.TargetID, URL: ti.URL, Title: ti.Title, Opener: ti.OpenerID}}
 		}
 		return []any{TargetChanged{ID: ti.TargetID, URL: ti.URL, Title: ti.Title}}
+	case "Page.javascriptDialogOpening":
+		return []any{dialogOpened{SessionID: sessionID}}
+	case "Page.javascriptDialogClosed":
+		return []any{dialogClosed{SessionID: sessionID}}
 	case "Target.targetDestroyed":
 		var p struct {
 			TargetID string `json:"targetId"`

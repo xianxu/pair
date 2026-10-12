@@ -85,3 +85,21 @@ func FuzzTranslate(f *testing.F) {
 		translate(session, method, params, func(string) (string, bool) { return "t", true })
 	})
 }
+
+// Remote driving's inputs (#467): a target's opener, the cast tab's dialog.
+func TestTranslateDriving(t *testing.T) {
+	none := func(string) (string, bool) { return "", false }
+	for _, c := range []struct {
+		method, params string
+		want           []any
+	}{
+		{"Target.targetCreated", `{"targetInfo":{"targetId":"T2","type":"page","url":"https://x/","openerId":"T1"}}`,
+			[]any{TargetCreated{ID: "T2", URL: "https://x/", Opener: "T1"}}},
+		{"Page.javascriptDialogOpening", `{"type":"alert","message":"hi"}`, []any{dialogOpened{SessionID: "S1"}}},
+		{"Page.javascriptDialogClosed", `{"result":true}`, []any{dialogClosed{SessionID: "S1"}}},
+	} {
+		if got := translate("S1", c.method, json.RawMessage(c.params), none); !reflect.DeepEqual(got, c.want) {
+			t.Errorf("%s: %#v, want %#v", c.method, got, c.want)
+		}
+	}
+}
