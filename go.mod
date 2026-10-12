@@ -8,7 +8,7 @@ require (
 	github.com/charmbracelet/x/vt v0.0.0-20260510215043-e3181689be6b
 	github.com/creack/pty v1.1.24
 	github.com/xianxu/ariadne v0.0.0-20261005230324-b9bc9f32f5ae
-	golang.org/x/sys v0.44.0
+	golang.org/x/sys v0.48.0
 	golang.org/x/term v0.43.0
 )
 
@@ -25,6 +25,7 @@ require (
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
+	golang.org/x/image v0.46.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
 )
 
