@@ -47,7 +47,7 @@ func ParsePointBatch(body []byte) (PointBatch, error) {
 		Color  *int             `json:"color"` // *int refuses strings and fractions
 		Points *[][]json.Number `json:"points"`
 	}
-	if !decodeStrict(body, &raw) {
+	if !DecodeStrict(body, &raw) {
 		return PointBatch{}, ErrPointShape
 	}
 	if raw.Cols == nil || raw.Rows == nil || raw.Down == nil || raw.Points == nil || len(*raw.Points) == 0 {
