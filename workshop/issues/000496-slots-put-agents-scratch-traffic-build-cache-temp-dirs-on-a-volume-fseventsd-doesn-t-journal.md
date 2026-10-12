@@ -1,12 +1,20 @@
 ---
 id: 000496
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: '65a32d3cd72b43fc6da52772c01c2e5d67f977b2' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'ab41b8d568c4af3b5e59d91ff5574b8fe7fd8879' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-12T13:29:47-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:7
+    worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
+    repository: github.com/xianxu/pair
 ---
 
 # slots: put agents' scratch traffic (build cache, temp dirs) on a volume fseventsd doesn't journal
@@ -31,8 +39,26 @@ Keep the churn where nothing watches it:
 
 ## Plan
 
-- [ ]
+Design (draft, pending operator review):
+- **Mechanism: an operator-owned session environment file, read by the pair launcher.** `$XDG_CONFIG_HOME/pair/env` (default `~/.config/pair/env`), `KEY=VALUE` lines (comments and blanks allowed). The launcher applies it next to its existing `PAIR_*` exports (`launcher/createflow.go:745`), so every pair session inherits it: Couch slots (Couch to `pair resume` to launcher) and hand-started `pair` alike. Pair stays free of knowledge about volumes, Go, or Claude (agent-agnostic, no hardcoded paths); the operator's shell profile is untouched. `PAIR_*`/`COUCH_*` keys are refused, because the launcher owns those. A missing file is a no-op. A malformed line fails the launch loudly with file:line (ARCH-SECURE: parse to typed pairs at the boundary).
+- Pure parser `ParseSessionEnv([]byte) ([]EnvPair, error)` with unit tests; a thin IO read in the launcher (ARCH-PURE). Couch needs no change, since `mergeChildEnvironment` passes inherited keys through.
+- **Operator's file content** (outside the repo, approval required):
+  `GOCACHE=/Volumes/AgentScratch/go-build`, `TMPDIR=/Volumes/AgentScratch/tmp`, `GOTMPDIR=/Volumes/AgentScratch/tmp`, `CLAUDE_CODE_TMPDIR=/Volumes/AgentScratch/tmp`. The last one should move Claude Code's sandbox temp area (today `/private/tmp/claude-501/...`); this needs live verification.
+- **Claude sandbox:** sandboxed commands get Claude's own `TMPDIR`, and writes outside the allowlist are denied. That needs `sandbox.filesystem.allowWrite: ["/Volumes/AgentScratch"]` in `~/.claude/settings.json`, which the operator edits.
+- **Lifecycle (ARCH-FUNERAL):** Go's cache trims itself (entries unused for 5 days). Leaked temp dirs have no sweep; the volume quota bounds them, and the documented teardown is deleting the volume. An optional periodic sweep stays a separate decision.
+- Constraints (ARCH-CONSTRAINTS): the file is read once per launch (a few lines; startup path). ARCH-ORDER: holds no state between events, because the file is read once at launch. ARCH-MOCK: N/A, no external dependency.
+
+Steps:
+- [ ] Parser + tests; launcher wiring + test that the env reaches the child exports
+- [ ] atlas: setup / teardown runbook (volume, `no_log`, `mdutil`, env file, sandbox allowWrite)
+- [ ] (approved) create the volume, `no_log`, `mdutil -i off`, env file, sandbox allowWrite
+- [ ] Relaunch slots; verify `go env GOCACHE` and `TMPDIR` inside a slot, sandboxed and not
+- [ ] Measure fseventsd after a multi-slot workload; compare with the baseline in Log
+- [ ] (approved) remove the old 92 GB cache
 
 ## Log
 
 ### 2026-10-12
+
+- 13:30 baseline: fseventsd (restarted 11:45 by the operator) 11:36 CPU over 105 min, about 11% average. RSS 13 MB; top MEM 3.7 MB. The operator saw 10+ GB before killing it, so memory grows episodically and needs a time series: sampler every 5 min to the scratchpad `fseventsd-baseline.log`. GOCACHE `~/Library/Caches/go-build` = 92 GB (one cache key per worktree path, many slots). Container disk3 has 427 GB unallocated.
+- Claude Code sandbox sets its own `TMPDIR` per command and ignores an inherited one; `CLAUDE_CODE_TMPDIR` relocates its temp base (docs unclear whether it moves the sandbox `TMPDIR`; verify live). `sandbox.filesystem.allowWrite` grants the volume.
