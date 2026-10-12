@@ -82,7 +82,7 @@ func matchSelector(st *recording.State, sel string) []*recording.DOMNode {
 	}
 	scopes := []*recording.DOMNode{st.Top}
 	for i, part := range strings.Split(sel, deepSep) {
-		if i > 0 { // step into each match's shadow root or frame document
+		if i > 0 { // step into each match's shadow root, frame document or template content
 			var next []*recording.DOMNode
 			for _, h := range scopes {
 				for _, sub := range []*recording.DOMNode{h.Shadow, h.Frame, h.Content} {
@@ -129,8 +129,8 @@ func matchPath(root *recording.DOMNode, steps []string) []*recording.DOMNode {
 	return cur
 }
 
-// matchStep is every element of root's tree (not crossing into shadow roots
-// or frames) that one step names.
+// matchStep is every element of root's tree (not crossing into shadow roots,
+// frames or template contents) that one step names.
 func matchStep(root *recording.DOMNode, step string) []*recording.DOMNode {
 	var out []*recording.DOMNode
 	var walk func(*recording.DOMNode)

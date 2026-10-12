@@ -83,7 +83,7 @@ func snapHeight(st *recording.State) float64 {
 	return 400
 }
 
-// cluster merges crops less than margin apart, repeatedly, so notes near
+// cluster merges crops at most margin apart, repeatedly, so notes near
 // each other share a crop and notes far apart get one each.
 func cluster(cs []recording.Box, margin float64) []recording.Box {
 	for merged := true; merged; {
