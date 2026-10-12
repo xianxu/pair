@@ -1162,4 +1162,10 @@ proof; record the surprising case so the next change starts from evidence.
   a regex and a tokenizer part ways. When two implementations share a test corpus, write the cases each one's
   technique gets wrong first, and run the corpus against the old version to see it fail. And a per-call resource
   (an image decode at a header-checked ceiling) needs a bound on concurrent calls too, not just on each call.
+- **A string two components read has one reader of record (#462 close, round 1).** The agent queries' CSS matcher
+  also read the notes model's anchor selectors, by its own rules: `>>>` as a plain descendant and `>` crossing shadow
+  and frame boundaries, so an anchor named 6 elements where the model named one, and the test only asked for
+  containment. When a second component accepts another's format, call the owner's reader for it (`notes.Match`) and
+  fall back to your own grammar only outside it; scope every combinator to a tree as the platform does; test with
+  identity against an oracle the owner provides (`Resolve` with no node id), never with "contains".
 

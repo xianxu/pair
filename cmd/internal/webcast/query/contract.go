@@ -20,6 +20,7 @@ func ContractRecording() (recs []recording.Record, save recording.NodeID) {
 	b.At(9000).Add(&recording.Scroll{ID: b.Recs[2].(*recording.Doc).Doc, Y: 100})
 	b.At(10000).Add(&recording.Note{ID: "n1", Author: recording.Author{ID: "pm"}, Text: "Save stays disabled",
 		At: recording.NoteAt{Node: btn.ID, Sel: "#save", Text: "Save"}})
+	b.At(11000).Add(&recording.NoteState{ID: "n1", State: recording.NoteResolved})
 	return b.Recs, btn.ID
 }
 
@@ -68,12 +69,28 @@ func RunSurfaceContract(t recording.TB, newSurface func(recs []recording.Record)
 	if n.Note.ID != "n1" || n.Note.T != 10000 || !strings.Contains(n.Element, "Save") || n.Context.Node != save {
 		t.Errorf("note view %+v", n)
 	}
+	// An agent asks whether a note is settled now, not as it was made.
+	if n.Note.State != recording.NoteResolved {
+		t.Errorf("a note resolved after it was made reads %q, want its final state", n.Note.State)
+	}
 	var before []string
 	for _, r := range n.Before {
 		before = append(before, r.Kind())
 	}
 	if got := strings.Join(before, ","); got != "focus,input,click,scroll" {
 		t.Errorf("actions before the note: %s, want focus,input,click,scroll", got)
+	}
+	// Every input the real surface takes, the fake answers the same way:
+	// an empty recording has no page, no events and no notes.
+	empty := newSurface(nil)
+	if _, err := empty.DOMAt(0, ""); err == nil {
+		t.Errorf("an empty recording has no page")
+	}
+	if evs, err := empty.Events(0, 1000); err != nil || len(evs) != 0 {
+		t.Errorf("an empty recording's events: %v %d", err, len(evs))
+	}
+	if ns, err := empty.Notes(1000); err != nil || len(ns) != 0 {
+		t.Errorf("an empty recording's notes: %v %d", err, len(ns))
 	}
 	if ns, _ := s.Notes(1500); len(ns[0].Before) != 1 {
 		t.Errorf("a shorter window keeps only the scroll: %d actions", len(ns[0].Before))

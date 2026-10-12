@@ -1,0 +1,9 @@
+$ couch --broadcast-web-query <fixtures>/driven dom --at 2600
+t=2600  segment 1 (live)  http://app.local/  viewport 1280x800@1  driven by Ana (v1)
+@9 #document http://app.local/
+  @8 <html>
+    @6 <head>
+    @7 <body>
+      @1 <input id=q type=search> {value "invoice", focused}
+      @3 <button id=save> Save
+      @5 <a href=/2> Next

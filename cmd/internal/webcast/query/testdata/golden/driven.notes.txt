@@ -1,0 +1,14 @@
+$ couch --broadcast-web-query <fixtures>/driven notes
+note drv-n1  t=2600  segment 1  open  by Ana (v1)
+  "Search should keep my query."
+  on @1  selector #q  box 16,16 300x32
+  page: t=2600  segment 1 (live)  http://app.local/  viewport 1280x800@1  driven by Ana (v1)
+  element:
+    @1 <input id=q type=search> {value "invoice", focused}
+  context: within @7 <body>
+    text: "SaveNext"
+  before (10000 ms):
+    0 segment 1 starts (live) on http://app.local/, viewport 1280x800@1
+    2000 click @1 <input#q> at 100,30 by Ana (v1)
+    2000 focus @1 <input#q> by Ana (v1)
+    2400 input @1 <input#q> value "invoice" by Ana (v1)

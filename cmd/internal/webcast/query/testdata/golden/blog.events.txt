@@ -1,0 +1,23 @@
+$ couch --broadcast-web-query <fixtures>/blog events --from 0 --to 2500
+0 recording blog started 2026-10-12T06:28:22.29Z
+11 segment 1 starts (live) on about:blank, viewport 1280x800@1
+11 document about:blank
+51 segment 2 starts (navigate) on http://localhost:4321/2026/10/ariadne-1-building-blocks-of-ai-coding, viewport 1280x800@1
+51 document http://localhost:4321/2026/10/ariadne-1-building-blocks-of-ai-coding
+100 insert @709 <link#giscus-css> under @8 <head> "Building Blocks of AI Coding — Xian Xu"
+101 insert @710 <div> under @623 <div#giscus-container>
+103 replace the children of @710 <div.giscus> (1 nodes)
+103 frame document about:blank in @711 <iframe.giscus-frame.giscus-frame--loading>
+135 dom changes until 207: 19 attr, 7 ins, 7 rm, 2 asset, 2 font, 1 kids; on @47 <style> ×2, @50 <style> ×2, @53 <style> ×2, 24 more elements
+207 frame document about:blank in @711 <iframe.giscus-frame.giscus-frame--loading>
+208 dom changes until 441: 225 attr, 4 kids, 2 text, 1 asset, 1 ins; on @195 <header.intersect-once.intersect-quarter.…> "Oct 2, 2026 · 9 min read Building Block…" ×5, @83 <body.antialiased.text-default.…> ×3, @85 <header#header.sticky.top-0.…> "Xian Xu Toggle Menu Highlights Projects…" ×2, 114 more elements
+441 input @772 <select> "Bottom left Bottom center Bottom right" selected [1]
+446 replace the children of @753 <label.setting-row> (2 nodes)
+446 replace the children of @781 #shadow-root (6 nodes)
+446 input @789 <input> unchecked
+448 replace the children of @755 <label.setting-row> (2 nodes)
+448 replace the children of @792 #shadow-root (6 nodes)
+448 input @800 <input> unchecked
+647 dom changes until 1579: 5 asset, 3 attr, 2 ins, 2 rm, 1 layout; on @97 <span.logo-symbol.inline-flex.…> ×2, @710 <div.giscus> ×2, @711 <iframe.giscus-frame.giscus-frame--loading> ×2, 1 more elements
+2100 pointer stroke by Pat (product) (viewer-1) (4 points)
+2500 note blog-n1 by Pat (product) (viewer-1) on @218 <h1.px-4.sm:px-6.…> "Building Blocks of AI Coding": "Title wraps awkwardly at this width."

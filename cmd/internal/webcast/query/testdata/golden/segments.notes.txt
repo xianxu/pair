@@ -1,0 +1,29 @@
+$ couch --broadcast-web-query <fixtures>/segments notes
+note seg-n1  t=1500  segment 1  open  by Pat (product) (viewer-1)
+  "Typing here lags."
+  on @1  selector #q  box 16,60 200x24
+  page: t=1500  segment 1 (live)  http://app.local/  viewport 1280x800@1
+  element:
+    @1 <input id=q> {value "inv", focused}
+  context: within @8 <body>
+    text: "Inboxone"
+  before (10000 ms):
+    0 segment 1 starts (live) on http://app.local/, viewport 1280x800@1
+    800 focus @1 <input#q>
+    1200 input @1 <input#q> value "inv"
+
+note seg-n2  t=5500  segment 2  open  by Ana (design) (viewer-2)
+  "Second item: wrong icon."
+  on @13
+  page: t=5500  segment 2 (live)  http://app.local/  viewport 1280x800@1
+  element:
+    @13 <li> two
+  context: within @13 <li> "two"
+    text: "two"
+  before (10000 ms):
+    0 segment 1 starts (live) on http://app.local/, viewport 1280x800@1
+    800 focus @1 <input#q>
+    1200 input @1 <input#q> value "inv"
+    2000 stop (pause)
+    5000 segment 2 starts (resume) on http://app.local/, viewport 1280x800@1
+    5200 input @1 <input#q> value "invoice"
