@@ -1,6 +1,6 @@
 ---
 id: 000447
-status: codecomplete
+status: done
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours: 6.3
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: cd5911909669681c42d2620b732b1e313ff4d9ae
         evidence_commit: 87a0993a7d391546f7453208421577036c1bca33
+        landed_commit: f94a229055dcf94a3c03ab09ba8bd8542117633a
 ---
 
 # Broadcast sticky notes: viewers pin comments on the screen
