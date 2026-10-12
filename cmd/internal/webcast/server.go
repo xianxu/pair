@@ -97,18 +97,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.proxy.Serve(w, r, hash)
 		return
 	}
-	a, ok := assets[rest]
-	if !ok {
-		http.NotFound(w, r)
-		return
-	}
-	body, err := webFS.ReadFile(a.file)
-	if err != nil {
-		http.Error(w, "unavailable", http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", a.contentType)
-	w.Write(body)
+	serveViewerFile(w, r, rest)
 }
 
 func (s *Server) events(w http.ResponseWriter, r *http.Request) {

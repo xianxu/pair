@@ -58,6 +58,9 @@ func (s *Recorded) Put(ctx context.Context, c Capture) (*recording.Asset, error)
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	if s.w == nil {
+		return nil, ErrReadOnly
+	}
 	key := recording.HashOf(c.Body) + " " + c.MIME
 	if c.isCSS() {
 		key += " " + c.URL // absolutizing depends on where it was loaded from
