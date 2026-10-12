@@ -253,3 +253,68 @@ findings:
     detail: |
       Rule: atlas text describing wiring owned by an unmerged dependency must mark it pending that issue. Sweep every #459 atlas claim about Bind or the recorder calling Store.Put, plus the Put doc comment's "the recorder calls it from one worker".
 ```
+
+---
+
+## Re-review — 2026-10-12T03:01:22-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 459 — broadcast-web: asset store and proxy — capture, content hash, resample, serve |
+| repo | pair |
+| issue file | workshop/issues/000459-broadcast-web-asset-store-and-proxy-capture-content-hash-resample-serve.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | e43e3f8dd98817c68625d9947013c8725aec9270..625b9f5eeb186176ff504e18938480f40d328d38 |
+| command | sdlc close --issue 459 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-12T03:01:22-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+I've checked all three changes in the window: the fix for the MIME mismatch, the atlas wording, and the merge-conflict fix in atlas/index.md. The verdict and findings follow.
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+BR-8 is fixed for the whole class, not just the one site. `store()` (`cmd/internal/webcast/assets/recorded.go:124-128`) is the only place an asset record gets its MIME, and the record now takes the first MIME stored for that hash. So the recorded MIME and the proxy's `TypeOf` can no longer disagree. I removed the fix and `TestRecordedFirstTypeWins` failed ("served as font/woff2, recorded as text/html"); with the fix back it passes. `go vet` and `go test ./cmd/internal/webcast/...` are clean. The conflict fix in `atlas/index.md` keeps both sides: main's "Agent queries (#462)" and #459's "the asset store and proxy (#459)". No conflict markers are left in `atlas/` or `cmd/`. BR-9 is only partly done. The atlas paragraph now says the bind waits on #458. But the `Put` doc comment, which the finding named, still says the recorder calls it, and `Server.Assets`' comment still says the cast binds the store. Both are Minor and quick to fix, so they don't block. Nothing in the window changes the scope: the plan edit only records the `Bind(Served)` change from round 1, and the lessons.md change just moves an entry.
+
+1. **Strengths**
+   - `recorded.go:124-128`: the BR-8 fix is in the one place records are created, so every path is covered. That includes the dedup path: `Put`'s key contains `c.MIME`, so a second label always reaches `store()`.
+   - `recorded_test.go:157-160`: the test now checks both the served MIME and the recorded MIME, and it fails when the fix is removed.
+   - `atlas/index.md`: the conflict fix keeps both sides correctly.
+
+2. **Critical:** none.
+
+3. **Important:** none.
+
+4. **Minor**
+   - BR-9, still open:
+     - `cmd/internal/webcast/assets/recorded.go:53`: "The recorder calls it from one worker" describes a caller that doesn't exist until #458.
+     - `cmd/internal/webcast/server.go:70-71`: "the cast binds the recording's store to it when the recording opens" says it happens today.
+     - Fix: in both comments, add "(once #458 wires it)" or similar, matching `atlas/webcast.md:86-88`.
+
+5. **Test coverage:** the BR-8 regression test is confirmed (fails without the fix). BR-9 changes wording only, so it needs no test.
+
+6. **Architecture (interdiff only)**
+   - **ARCH-DRY: pass.** No duplicated logic.
+   - **ARCH-PURE: pass.** The type choice stays inside `store()`'s locked section, and the I/O seam is unchanged.
+   - **ARCH-PURPOSE: flag (BR-9).** The finding asked for a sweep of every claim about the binding. Only the atlas instance was fixed; two code comments it named are left.
+
+7. **Plan revisions:** none needed. The plan's Proxy entry now matches the code (`Bind(Served)`).
+
+```findings
+dispose:
+  - id: BR-8
+    disposition: addressed
+    note: |
+      store() now sets typ to types[hash] when the hash exists, so Asset.MIME equals TypeOf for every path that mints a record; TestRecordedFirstTypeWins checks b.MIME and fails when the fix is removed (verified).
+  - id: BR-9
+    disposition: not-addressed
+    note: |
+      atlas/webcast.md:86-88 is fixed, but recorded.go:53 (the Put comment the finding named) and server.go:70-71 (Assets comment) still describe the recorder and bind as present-tense production wiring.
+```

@@ -101,6 +101,23 @@ rounds:
       isolation: fenced
       reviewed: eeafaf89d62c111bc66ecb6b9814a648fe9d35b9
       blocked: false
+    - "n": 3
+      timestamp: "2026-10-12T03:01:22-07:00"
+      dispatched: "2026-10-12T03:00:35-07:00"
+      agent: claude
+      dispose:
+        - id: BR-8
+          disposition: addressed
+          note: store() now sets typ to types[hash] when the hash exists, so Asset.MIME equals TypeOf for every path that mints a record; TestRecordedFirstTypeWins checks b.MIME and fails when the fix is removed (verified).
+          round: 3
+        - id: BR-9
+          disposition: not-addressed
+          note: atlas/webcast.md:86-88 is fixed, but recorded.go:53 (the Put comment the finding named) and server.go:70-71 (Assets comment) still describe the recorder and bind as present-tense production wiring.
+          round: 3
+      recipe: fix-review
+      isolation: fenced
+      reviewed: 625b9f5eeb186176ff504e18938480f40d328d38
+      blocked: false
 ---
 
 # Gate ledger — pair#459 (boundary-review)
@@ -144,7 +161,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-9** [Minor] `doc-contract-drift` atlas/webcast.md says the cast binds the store at go-live; no production caller exists until #458 lands
   Rule: atlas text describing wiring owned by an unmerged dependency must mark it pending that issue. Sweep every #459 atlas claim about Bind or the recorder calling Store.Put, plus the Put doc comment's "the recorder calls it from one worker".
 
+## Round 3 — 2026-10-12T03:01:22-07:00 (claude) — passed
+
+### Disposed
+
+- BR-8 — addressed — store() now sets typ to types[hash] when the hash exists, so Asset.MIME equals TypeOf for every path that mints a record; TestRecordedFirstTypeWins checks b.MIME and fails when the fix is removed (verified).
+- BR-9 — not-addressed — atlas/webcast.md:86-88 is fixed, but recorded.go:53 (the Put comment the finding named) and server.go:70-71 (Assets comment) still describe the recorder and bind as present-tense production wiring.
+
 ## Open findings
 
-- **BR-8** [Minor] `last-writer-wins-metadata` Asset record MIME can disagree with the proxy's TypeOf for the same hash
 - **BR-9** [Minor] `doc-contract-drift` atlas/webcast.md says the cast binds the store at go-live; no production caller exists until #458 lands

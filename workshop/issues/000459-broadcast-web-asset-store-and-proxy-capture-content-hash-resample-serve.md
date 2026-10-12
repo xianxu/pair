@@ -56,6 +56,7 @@ Durable plan: `workshop/plans/000459-broadcast-web-asset-store-and-proxy-capture
 ### 2026-10-11
 
 ### 2026-10-12
+- 2026-10-12: closed — Post-close advisory fixes (BR-8 record MIME = first served type; BR-9 atlas): go test ./cmd/internal/webcast/... ./cmd/internal/artifactpath ./cmd/couch/... PASS after merging origin/main (#462); TestRecordedFirstTypeWins asserts record MIME == TypeOf; go mod tidy -diff clean. (fixed-then-ship); review verdict: FIX-THEN-SHIP
 - 2026-10-12: closed — make -k test exit 0 (incl. go test), TMPDIR=scratchpad make test-changelog PASS, go test ./... PASS (full PAIR_/COUCH_/ZELLIJ scrub, sandbox off). After round-1 fixes: WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast/... PASS (replay fidelity, join mid-cast, per-document, viewer page: boxOf 215/217, 82 requests, 7 via proxy incl. css+woff2+images, none outside the cast); node css/model/viewer tests 34/34; assets -race PASS; corpus mutation-checked against old css.js; decode re-check mutation-checked. Live blog cast deferred to #458 merge per TL.; review verdict: SHIP
 - 2026-10-12: flow upgraded quick → full — 659 added lines in code files (limit 100); an earlier round of this close already ran the full review
 
