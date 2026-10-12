@@ -39,20 +39,10 @@ func TestFixturesValidateAndReduce(t *testing.T) {
 			if len(pins) == 0 {
 				t.Fatal("a fixture needs canonical times")
 			}
-			// Joining at any pinned moment gives the same page.
+			// Joining at any pinned moment gives the same page and notes.
 			for _, p := range pins {
-				var upto []Record
-				for _, x := range r.Records {
-					if x.Time() <= p.T {
-						upto = append(upto, x)
-					}
-				}
-				cu, err := Reduce(CatchUp(upto), p.T)
-				if err != nil {
+				if err := CheckCatchUp(r.Records, p.T); err != nil {
 					t.Fatalf("catch-up at %d: %v", p.T, err)
-				}
-				if HashOf(cu.Canonical()) != p.Hash {
-					t.Fatalf("catch-up at %d differs from the recording", p.T)
 				}
 			}
 		})

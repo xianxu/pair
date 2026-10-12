@@ -108,27 +108,15 @@ type AssetWriter interface {
 	PutAsset(body []byte) (hash string, err error)
 }
 
-// PutAsset stores a body under its hash; a body already stored is kept. The
-// write goes through a temporary file and a rename, so a crash never leaves
-// a truncated body under a hash name.
+// PutAsset stores a body under its hash, atomically; a body already stored
+// is kept.
 func (w *DirWriter) PutAsset(body []byte) (string, error) {
 	hash := HashOf(body)
 	path := filepath.Join(w.dir, AssetName(hash))
 	if _, err := os.Stat(path); err == nil {
 		return hash, nil
 	}
-	tmp, err := os.CreateTemp(filepath.Join(w.dir, "assets"), ".tmp-*")
-	if err != nil {
-		return "", err
-	}
-	_, werr := tmp.Write(body)
-	cerr := tmp.Close()
-	if err := errors.Join(werr, cerr); err != nil {
-		os.Remove(tmp.Name())
-		return "", err
-	}
-	if err := os.Rename(tmp.Name(), path); err != nil {
-		os.Remove(tmp.Name())
+	if err := writeFileAtomic(path, body); err != nil {
 		return "", err
 	}
 	return hash, nil
@@ -140,10 +128,33 @@ func (w *DirWriter) PutFrame(f *Frame, png []byte) error {
 	if !frameFile.MatchString(f.File) {
 		return fmt.Errorf("frame file %q is not frames/<n>.png", f.File)
 	}
-	if err := os.WriteFile(filepath.Join(w.dir, f.File), png, 0o600); err != nil {
+	if err := writeFileAtomic(filepath.Join(w.dir, f.File), png); err != nil {
 		return err
 	}
 	return w.Put(f)
+}
+
+// writeFileAtomic is every DirWriter body write: a temporary file beside the
+// target, then a rename, so a crash never leaves a truncated file under a
+// real name. A crash between the two can leave a .tmp-* file; ValidateDir
+// reports it, and it goes when the recording's directory does (a recording
+// is removed whole, by its owner).
+func writeFileAtomic(path string, body []byte) error {
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".tmp-*")
+	if err != nil {
+		return err
+	}
+	_, werr := tmp.Write(body)
+	cerr := tmp.Close()
+	if err := errors.Join(werr, cerr); err != nil {
+		os.Remove(tmp.Name())
+		return err
+	}
+	if err := os.Rename(tmp.Name(), path); err != nil {
+		os.Remove(tmp.Name())
+		return err
+	}
+	return nil
 }
 
 // Close flushes and closes every file.

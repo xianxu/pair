@@ -1,7 +1,9 @@
 package recording
 
 import (
+	"bytes"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 )
@@ -208,4 +210,60 @@ func sameRecords(a, b []Record) bool {
 		}
 	}
 	return true
+}
+
+// CheckCatchUp reports whether joining after recs, at t, gives a viewer
+// what the whole recording gives: the same canonical page, assets,
+// document start (DocSeg) and notes on the current document. Every
+// catch-up check uses it, so none compares less than consumers read.
+func CheckCatchUp(recs []Record, t int64) error {
+	all, err := Reduce(recs, t)
+	if err != nil {
+		return err
+	}
+	var upto []Record
+	for _, r := range recs {
+		if r.Time() <= t {
+			upto = append(upto, r)
+		}
+	}
+	cu, err := Reduce(CatchUp(upto), t)
+	if err != nil {
+		return fmt.Errorf("the catch-up doesn't reduce: %w", err)
+	}
+	switch {
+	case !bytes.Equal(all.Canonical(), cu.Canonical()):
+		return fmt.Errorf("the page differs")
+	case !sameAssets(all.Assets, cu.Assets):
+		return fmt.Errorf("the asset table differs")
+	case all.DocSeg != cu.DocSeg:
+		return fmt.Errorf("the document began in segment %d, the catch-up says %d", all.DocSeg, cu.DocSeg)
+	case liveNotes(all) != liveNotes(cu):
+		return fmt.Errorf("current-document notes %q, the catch-up has %q", liveNotes(all), liveNotes(cu))
+	}
+	return nil
+}
+
+func sameAssets(a, b map[string]*Asset) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for url, x := range a {
+		if y := b[url]; y == nil || y.Hash != x.Hash {
+			return false
+		}
+	}
+	return true
+}
+
+// liveNotes: the current document's notes with their states, as the notes
+// model reads them.
+func liveNotes(s *State) string {
+	var out []string
+	for _, n := range s.Notes {
+		if n.Seg >= s.DocSeg {
+			out = append(out, n.ID+":"+n.State)
+		}
+	}
+	return strings.Join(out, ",")
 }

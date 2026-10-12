@@ -1,7 +1,6 @@
 package recording
 
 import (
-	"bytes"
 	"strings"
 	"testing"
 )
@@ -41,28 +40,8 @@ func noteIDs(s *State) string {
 func TestCatchUpEquivalence(t *testing.T) {
 	b, _, _ := twoDocs()
 	for cut := 1; cut <= len(b.Recs); cut++ {
-		all, err := Reduce(b.Recs[:cut], 1<<62)
-		if err != nil {
-			t.Fatal(err)
-		}
-		cu, err := Reduce(CatchUp(b.Recs[:cut]), 1<<62)
-		if err != nil {
-			t.Fatalf("cut %d: the catch-up must reduce: %v", cut, err)
-		}
-		if !bytes.Equal(all.Canonical(), cu.Canonical()) {
-			t.Fatalf("cut %d: DOM differs", cut)
-		}
-		if len(all.Assets) != len(cu.Assets) {
-			t.Fatalf("cut %d: assets %d vs %d", cut, len(all.Assets), len(cu.Assets))
-		}
-		if cu.DocSeg != all.DocSeg {
-			t.Fatalf("cut %d: the catch-up's document began in segment %d, the recording's in %d", cut, cu.DocSeg, all.DocSeg)
-		}
-		// The current document's notes, as the notes model reads them
-		// (Seg >= DocSeg), are the same: BR-1, notes carried across a
-		// resume without their segment fell out of this view.
-		if got, want := liveIDs(cu), liveIDs(all); got != want {
-			t.Fatalf("cut %d: live notes %q, want %q", cut, got, want)
+		if err := CheckCatchUp(b.Recs[:cut], 1<<62); err != nil {
+			t.Fatalf("cut %d: %v", cut, err)
 		}
 	}
 }
@@ -94,14 +73,4 @@ func TestCatchUpWhilePaused(t *testing.T) {
 	if err != nil || cu.Live || cu.Node(p.div.ID) == nil {
 		t.Fatalf("paused catch-up: %v live=%v", err, cu.Live)
 	}
-}
-
-func liveIDs(s *State) string {
-	var ids []string
-	for _, n := range s.Notes {
-		if n.Seg >= s.DocSeg {
-			ids = append(ids, n.ID)
-		}
-	}
-	return strings.Join(ids, ",")
 }

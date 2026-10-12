@@ -31,13 +31,17 @@
 |------|----------|--------|
 | `Record` (+ one struct per kind) | `cmd/internal/webcast/recording/record.go` | new |
 | `Node` (wire node) | `cmd/internal/webcast/recording/record.go` | new |
-| `Decode` / `Encode` | `cmd/internal/webcast/recording/codec.go` | new |
+| `Decode` / `Encode` / `FileOf` | `cmd/internal/webcast/recording/codec.go` | new |
 | `State` / `Reduce` / `(*State).Apply` | `cmd/internal/webcast/recording/reduce.go` | new |
 | `(*State).Canonical` | `cmd/internal/webcast/recording/canonical.go` | new |
-| `Validate` / `Finding` | `cmd/internal/webcast/recording/validate.go` | new |
+| `Validate` / `Errors` | `cmd/internal/webcast/recording/validate.go` | new |
 | `CatchUp` | `cmd/internal/webcast/recording/catchup.go` | new |
-| `FileOf` / `Merge` | `cmd/internal/webcast/recording/files.go` | new |
-| `cdpconv.Converter` | `cmd/internal/webcast/recording/internal/fixturegen/cdpconv.go` | new |
+| `DecodeFile` / `Merge` / `Split` / `Finding` | `cmd/internal/webcast/recording/files.go` | new |
+| `Builder` | `cmd/internal/webcast/recording/builder.go` | new |
+| `TextContent` / `Element` | `cmd/internal/webcast/recording/dom.go` | new |
+| `CanonicalTimes` / `PinCanonical` / `Pin` | `cmd/internal/webcast/recording/fixture.go` | new |
+| `CheckCatchUp` | `cmd/internal/webcast/recording/contract.go` | new |
+| `converter` (CDP log → records) | `cmd/internal/webcast/recording/internal/fixturegen/cdpconv.go` | new |
 
 - **Record** — tagged union: `Record` interface (`Kind() string`, `Time() int64`) with a struct per kind (`Head`, `Seg`, `Stop`, `Doc`, `Ins`, `Rm`, `Kids`, `Attr`, `Text`, `Shadow`, `Sheet`, `Adopt`, `Font`, `Asset`, `Input`, `Scroll`, `Selection`, `Nav`, `Title`, `Viewport`, `Click`, `Focus`, `Layout`, `Note`, `NoteState`, `Stroke`, `Frame`) plus `Unknown` (kept raw, for forward compatibility). The kinds are listed once, in a `kinds` table that maps kind to constructor and file family. Decode, `FileOf` and the validator's "known kind" check all derive from it (ARCH-DRY).
   - **Relationships:** a recording is 1:N records. `Doc.Tree`, `Ins.Node`, `Kids.C` and `Shadow.Root` hold `Node` trees.
@@ -52,17 +56,17 @@
 
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
-| `Sink` / `DirWriter` | `cmd/internal/webcast/recording/dir.go` | new | filesystem |
-| `ReadDir` / `Fixture` | `cmd/internal/webcast/recording/dir.go`, `fixture.go` | new | filesystem |
+| `Sink` / `Tee` / `AssetWriter` / `DirWriter` | `cmd/internal/webcast/recording/dir.go` | new | filesystem |
+| `ReadDir` / `ValidateDir` / `Fixture` | `cmd/internal/webcast/recording/dir.go`, `fixture.go` | new | filesystem |
 | `MemSink` (fake Sink) | `cmd/internal/webcast/recording/fake.go` | new | — |
 | `FakeRecorder` | `cmd/internal/webcast/recording/fake.go` | new | the recorder (#458) |
-| `Live` / `FakeHub` / `RunLiveContract` | `cmd/internal/webcast/recording/live.go`, `fake.go`, `contract.go` | new | live fan-out (#460) |
+| `Live` / `FakeHub` / `RunLiveContract` | `cmd/internal/webcast/recording/fake.go`, `contract.go` | new | live fan-out (#460) |
 | `assets.Store` / `MemStore` / `RunStoreContract` | `cmd/internal/webcast/assets/` | new | asset store + proxy (#459) |
 | `notes.Model` / `FakeModel` / `RunModelContract` | `cmd/internal/webcast/notes/` | new | notes model (#461) |
 | `query.Surface` / `FakeSurface` / `RunSurfaceContract` | `cmd/internal/webcast/query/` | new | agent queries (#462) |
-| `fixturegen` main | `cmd/internal/webcast/recording/internal/fixturegen/main.go` | new | raw prototype runs on disk |
+| `fixturegen` main, notes spec | `cmd/internal/webcast/recording/internal/fixturegen/main.go`, `notes.go` | new | raw prototype runs on disk |
 
-- **Sink** — `Put(Record) error`, `Close() error`. `DirWriter` is the real file writer: it splits records by `FileOf`, writes asset bodies through `PutAsset(hash, body)`, and writes frames through `PutFrame`. `MemSink` keeps records in memory and enforces the same envelope checks.
+- **Sink** — `Put(Record) error`, `Close() error`; it carries records only. `DirWriter` is the real file writer. It splits records by `FileOf`, is the one writer of asset bodies (`PutAsset(body)`, the `AssetWriter` the store persists through) and writes frames (`PutFrame`), each atomically. `MemSink` keeps records in memory and enforces the same envelope checks.
   - **Injected into:** the recorder (#458) writes to a Sink (fan-out = `FakeHub` + `DirWriter` via `Tee`).
 - **Live** — `Subscribe() (<-chan Record, cancel func())`. The catch-up comes first, then the live records. A slow subscriber is dropped, not blocked (ARCH-CONSTRAINTS): the channel closes and the viewer reconnects and gets a fresh catch-up. `FakeHub` implements Sink + Live with `CatchUp`.
 - **assets.Store** — `Put(ctx, Capture{URL, MIME, Body, Declared}) (recording.Asset, error)`, `Get(hash) (Body, error)`, `Lookup(absURL) (recording.Asset, bool)`. `Policy` holds the image resolution budget. `MemStore` dedups by SHA-256 and leaves bodies exact: resampling is #459's, and the contract suite only checks that `orig` is set iff the stored body differs.
@@ -81,13 +85,13 @@
 ### Task 1: Format atlas page — DONE before this plan (`atlas/webcast-format.md`), linked from `atlas/index.md` and `atlas/webcast.md`.
 
 ### Task 2: Records and codec
-**Files:** create `recording/doc.go`, `record.go`, `codec.go`, `codec_test.go`.
+**Files:** `recording/doc.go`, `record.go`, `codec.go`, `codec_test.go`.
 - [ ] Test first: round-trip each kind (`Decode(Encode(r)) == r`). An unknown kind decodes to `Unknown` and re-encodes to the same bytes. Missing `k` or `t` is an error. `attr` with `"v":null` decodes to a nil `*string`.
 - [ ] Implement the `kinds` table and the structs. Node: `{ID, Y, N, NS, A map[string]string, C []Node, SR *Node, TC *Node, V *string, Mode}`.
 - [ ] `go test ./cmd/internal/webcast/recording/`, commit `#457: recording: records and codec`.
 
 ### Task 3: Reducer and canonical form
-**Files:** `reduce.go`, `reduce_test.go`, `canonical.go`, `canonical_test.go`.
+**Files:** `reduce.go`, `canonical.go`, `dom.go`, `builder.go`; tests in `reduce_test.go`.
 - [ ] Tests, hand-built records, one per rule:
   - `seg` drops the DOM and keeps the assets;
   - the top `doc` must follow `seg`;
@@ -109,7 +113,7 @@
 - [ ] Commit `#457: recording: reference reducer and canonical state`.
 
 ### Task 4: Validator, files, catch-up
-**Files:** `validate.go`, `validate_test.go`, `files.go`, `files_test.go`, `catchup.go`, `catchup_test.go`, `dir.go`, `dir_test.go`.
+**Files:** `validate.go`, `files.go`, `catchup.go`, `dir.go`; tests in `validate_test.go` and `catchup_test.go`.
 - [ ] Validator tests, one finding each: `head` not first, unsupported `v`, `t` decreasing, a missing required field, a change before the top `doc`, a tag change for an id, a dangling reference (with line), an unknown kind (warning only). A good recording gives zero findings.
 - [ ] `FileOf(kind)` from `kinds`; `Merge(events, notes, pointer)` is a stable merge by `t` with the fixed tie order (test the tie order).
 - [ ] `CatchUp` tests: assets from earlier segments kept; only the latest segment's DOM; works while paused.
@@ -117,7 +121,7 @@
 - [ ] Commit `#457: recording: validator, directory layout, catch-up`.
 
 ### Task 5: Recorder-side seams and fakes
-**Files:** `sink.go`, `live.go`, `fake.go`, `fake_test.go`, `contract.go`.
+**Files:** `fake.go` (Live, MemSink, FakeHub, FakeRecorder), `contract.go` (TB, RunLiveContract, CheckCatchUp), `dir.go` (Sink, Tee); tests in `fake_test.go`.
 - [ ] `Sink`, `Tee(sinks...)`, `MemSink`, `Live`, `FakeHub`, `FakeRecorder{Records, Speed}` with `Run(ctx, Sink)` (Speed 0 = instant).
 - [ ] `RunLiveContract(t, newHub)`:
   - a late subscriber's first records equal `CatchUp(all so far)`;
@@ -150,7 +154,7 @@
 - [ ] Commit `#457: webcast: assets, notes, query seams with fakes`.
 
 ### Task 7: Fixtures
-**Files:** `recording/internal/fixturegen/{main,cdpconv,cdpconv_test,notes}.go`, `recording/testdata/fixtures/{stress,app,blog,segments}/…`, `recording/fixture.go`, `recording/fixture_test.go`.
+**Files:** `recording/internal/fixturegen/{main,cdpconv,cdpconv_test,notes}.go`, `recording/testdata/fixtures/{stress,app,blog,segments}/…` with a README and `record-mjs.patch`, `recording/fixture.go`, `recording/fixture_test.go`.
 - [ ] Raw runs: #453's prototype in the scratchpad, mode B, with layout, click and focus capture added and `frameNavigated` logged, headless. Done by a subagent; it records stress, app and blog.
 - [ ] `cdpconv` tests on tiny synthetic CDP logs:
   - nodeId mapping;
@@ -184,7 +188,7 @@
 - **Stress fixture:** the FontFace font's body (Apple Chancery, a macOS system font) is excluded from the repository; the `font` record stays.
 
 ### 2026-10-12 — close review round 1 (REWORK, BR-1..BR-4)
-- **Where the Core-concepts files actually are** (BR-2):
+- **Where the Core-concepts files actually are** (BR-2; the tables above were edited in place in round 2):
   - `Live`, `FakeHub`, `MemSink` and `FakeRecorder` are in `recording/fake.go`;
   - `RunLiveContract`, `ContractRecording` and `TB` are in `recording/contract.go`;
   - `Sink`, `Tee`, `AssetWriter`, `DirWriter`, `ReadDir` and `ValidateDir` are in `recording/dir.go`;
@@ -206,3 +210,8 @@
   - `forget` scans sheets only for style and link elements;
   - `RunLiveContract` gained a deterministic sequential join at every point, and keeps the concurrent run as stress;
   - the atlas now says pins (not goldens) and that `Reduce` replays from record 0.
+
+### 2026-10-12 — close review round 2 (SHIP, 3 advisory, fixed by rule)
+- Every catch-up equivalence check now goes through `CheckCatchUp`: canonical page, assets, `DocSeg` and live notes. The synthetic cuts and the fixture pins both use it.
+- Every `DirWriter` body write (assets and frames) goes through `writeFileAtomic`. A `.tmp-*` file a crash left behind is reported by `ValidateDir`, and it goes with the recording's directory.
+- The Core-concepts and Task tables were edited in place; Revisions keeps only the why.
