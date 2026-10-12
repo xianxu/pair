@@ -1,6 +1,6 @@
 ---
 id: 000489
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 646773eb662bd25738bbc0f143cce4ef02d3aa18
         evidence_commit: 3ee84414ecaa2aac19b82c7668373999b32d115a
+        landed_commit: 52401670a3ab10c24469dd8f618b40a7a445b817
 ---
 
 # couch: relaunch/resume fails under load (pane not born in 15 s) and leaves the thread parked; make startup resilient
