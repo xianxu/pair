@@ -51,7 +51,8 @@ The `taskpolicy` QoS clamp is left out: the Spec makes it opt-in after measureme
 item may not generate.
 
 - [x] `Nice` on ExecRunner/PtyRunner, applied in `startBlockedChild` + tests: a real launch whose grandchild reads its
-      own niceness, and a kernel-refused niceness that cancels before the target runs.
+      own niceness, and a setting below Couch's own niceness that launches at the inherited one (revised in close
+      round 1; it first asserted a cancel).
 - [x] `COUCH_SLOT_NICE` parsing in `consoleRunnerFor` (where both real runners are built) and the singleton preflight;
       tests for default/off/invalid and the wiring.
 - [x] README + atlas/couch.md.
@@ -65,7 +66,8 @@ item may not generate.
   `FakeRunner`s, whose fake PIDs (1000+i) can name real process groups, so tests could renice unrelated processes on
   the machine. Niceness is a field of the two real runners instead; a fake has no path to the kernel (ARCH-MOCK).
 - Mutation check: disabling the `setpriority` call fails both new couchcore tests (grandchild nice 0 vs 3; refused
-  niceness returns a handle).
+  niceness returns a handle). Superseded for the second test by close round 1: a refused niceness now keeps the
+  inherited one, and dropping that tolerance fails the replacement test (`permission denied` at nice -1).
 - Baseline before relaunch (slots at nice 0, load 7–16): `couch --actors` real 0.01–0.02s over 5 runs.
 - `taskpolicy` QoS clamp not built: the Spec makes it opt-in after measuring suite time on efficiency cores, which
   needs load this item may not generate.

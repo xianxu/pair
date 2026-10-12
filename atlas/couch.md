@@ -2367,8 +2367,10 @@ an inherited close-on-exec descriptor. EOF, cancellation, or timeout exits the
 helper without starting any workspace writer. While the helper is parked,
 `startBlockedChild` lowers its process group to the runner's `Nice`
 (`COUCH_SLOT_NICE`, default 10, #498), so Pair and everything a slot forks
-inherit it and yield to Couch and the terminal; a refused `setpriority` cancels
-the launch before exec. Fakes carry no niceness: only the real runners reach the kernel.
+inherit it and yield to Couch and the terminal. A Couch already nicer than the
+setting gets EACCES/EPERM (only root lowers niceness) and its slots keep the
+niceness they inherited; any other `setpriority` error cancels the launch before
+exec. Fakes carry no niceness: only the real runners reach the kernel.
 
 After acknowledgement, Pair changes the same composite address claim from
 `reserved` to `established`; that is the registration oracle, not PID liveness
