@@ -569,6 +569,85 @@ func TestLiveRenderHoldsPaintUntilStylesheetsBind(t *testing.T) {
 	check("past the deadline", "C", "C")
 }
 
+// A paint hold is one state on the frame pair (#475), handed between
+// renderers: a renderer starting a hold while another's is in flight (a
+// resync, a seek) takes it over, the previous paint stays, and the old
+// deadline is cancelled; a new segment during a hold keeps the previous
+// paint; the owner's deadline releases it; a stylesheet that fails to
+// load stops blocking; and the held paint stays under what the shell
+// draws after the frames (the pointer, marks, the Paused label). Timers
+// are fake, so each ordering is driven, not waited for.
+func TestLiveRenderHoldHandOff(t *testing.T) {
+	page := headlessPage(t)
+	srv := fixtureServer(t)
+	page.open(t, srv.URL+"/harness.html")
+	got := page.evalString(t, `(async () => {
+		const { Model } = await import('/web/model.js');
+		const { Renderer, currentFrame } = await import('/web/render.js');
+		const box = document.createElement('div');
+		box.style.cssText = 'position:absolute;left:0;top:0;width:200px;height:200px';
+		const frame = document.createElement('iframe');
+		frame.setAttribute('sandbox', 'allow-same-origin');
+		frame.id = 'handoff';
+		const overlay = document.createElement('div');
+		overlay.style.cssText = 'position:absolute;left:150px;top:150px;width:50px;height:50px';
+		box.append(frame, overlay);
+		document.body.replaceChildren(box);
+		const timers = [], cleared = new Set();
+		const fake = { set: (fn) => timers.push(fn) - 1, clear: (id) => cleared.add(id) };
+		const fire = (id) => { if (!cleared.has(id)) timers[id](); };
+		const draw = (r, text, link) => {
+			const head = link ? [{ id: 4, y: 'el', n: 'link', a: { rel: 'stylesheet', href: link } }] : [];
+			for (const rec of [
+				...(r.model.head ? [] : [{ t: 0, k: 'head', format: 'couch-webcast', v: 1, id: 'h', started: 's' }]),
+				{ t: 0, k: 'seg', seg: (r.model.seg || 0) + 1, why: 'live', tab: { id: 'a', url: 'http://x/' }, vp: { w: 200, h: 200, dpr: 1 } },
+				{ t: 0, k: 'doc', doc: 1, url: 'http://x/', tree: { id: 1, y: 'doc', c: [{ id: 2, y: 'el', n: 'html', c: [{ id: 3, y: 'el', n: 'head', c: head }, { id: 5, y: 'el', n: 'body', c: [{ id: 6, y: 'text', v: text }] }] }] } },
+			]) { r.model.apply(rec); r.apply(rec); }
+		};
+		const renderer = () => new Renderer(currentFrame(frame), new Model(), () => '', fake);
+		const at = (x, y) => { const e = document.elementFromPoint(x, y); return e === overlay ? 'overlay' : (e.contentDocument && e.contentDocument.body ? e.contentDocument.body.textContent : '?'); };
+		const current = () => document.getElementById('handoff').contentDocument.body.textContent;
+		const seen = [];
+		const look = (what) => seen.push(what + ': shows ' + at(5, 5) + ', #page ' + current() + ', corner ' + at(175, 175));
+		const r0 = renderer();
+		draw(r0, 'P');
+		look('P drawn, nothing blocks');
+		const r1 = renderer();
+		draw(r1, 'Q', 'http://x/q.css');
+		look('Q waits for q.css');
+		const r2 = renderer();
+		draw(r2, 'R', 'http://x/r.css');
+		look('R takes the hold over');
+		seen.push('r1 holding ' + r1.holding + ', r2 holding ' + r2.holding);
+		fire(1); // r1's deadline: cancelled
+		look('r1 deadline');
+		draw(r2, 'S', 'http://x/s.css');
+		look('S during the hold');
+		fire(timers.length - 1);
+		look('r2 deadline');
+		const r3 = renderer();
+		draw(r3, 'T', 'http://x/t.css');
+		const link = document.getElementById('handoff').contentDocument.querySelector('link');
+		r3.setLinkCSS(4, link, 'p{}');
+		link.dispatchEvent(new Event('error'));
+		look('t.css failed');
+		return seen.join('\n');
+	})()`)
+	want := strings.Join([]string{
+		"P drawn, nothing blocks: shows P, #page P, corner overlay",
+		"Q waits for q.css: shows P, #page Q, corner overlay",
+		"R takes the hold over: shows P, #page R, corner overlay",
+		"r1 holding false, r2 holding true",
+		"r1 deadline: shows P, #page R, corner overlay",
+		"S during the hold: shows P, #page S, corner overlay",
+		"r2 deadline: shows S, #page S, corner overlay",
+		"t.css failed: shows T, #page T, corner overlay",
+	}, "\n")
+	if got != want {
+		t.Errorf("hand-off:\n%s\nwant:\n%s", got, want)
+	}
+}
+
 // URLs resolve against the document that holds them, and SVG's mixed-case
 // tags are matched: a <style> in a frame resolves its relative url()s
 // against the frame's URL, and an <feImage>'s href goes through the asset

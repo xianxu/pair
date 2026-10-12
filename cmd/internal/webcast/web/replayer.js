@@ -13,7 +13,7 @@
 // A document a segment snapshots mid-cast (go-live, resume, a tab switch)
 // was already running, so its animations are finished, not started.
 import { Model, goJSON } from './model.js';
-import { Renderer, currentFrame, blankFrames } from './render.js';
+import { Renderer, currentFrame, blankFrames, HOLD_MS } from './render.js';
 import { catchUp } from './replay.js';
 
 // inBrowser is what a Replayer needs of a page that holds the frame.
@@ -26,13 +26,7 @@ export function inBrowser(frame) {
     return [top, ...[...top.querySelectorAll('iframe')].map((f) => f.contentDocument).filter(Boolean)];
   };
   return {
-    renderer: (model, resolve) => {
-      const r = new Renderer(currentFrame(frame), model, resolve);
-      // As the shell does: a redraw outside a record (a held paint
-      // released, a stylesheet or image loaded) flushes before the next paint.
-      r.onDirty = () => requestAnimationFrame(() => r.flush());
-      return r;
-    },
+    renderer: (model, resolve) => new Renderer(currentFrame(frame), model, resolve),
     blank: () => blankFrames(frame),
     now: () => performance.now(),
     sleep: (ms) => new Promise((ok) => setTimeout(ok, Math.max(0, ms))),
@@ -103,6 +97,28 @@ export class Replayer {
     while (this.next < this.recs.length && this.recs[this.next].t <= t) this.feed(this.recs[this.next++]);
     this.at = Math.max(this.at, t);
     return this.settle();
+  }
+
+  // releaseAt is when a viewer that drew the recording up to t shows that
+  // moment's document (#475): t itself, or when the paint held over t is
+  // released, its stylesheets bound or HOLD_MS after its segment began. It
+  // draws from the start, applying records past t until then.
+  async releaseAt(t) {
+    this.reset();
+    let began = 0;
+    const step = async () => {
+      const r = this.recs[this.next++];
+      if (r.k === 'seg' || r.k === 'head') began = r.t;
+      this.feed(r);
+      this.renderer.flush();
+      if (this.renderer.holding) await this.renderer.bound();
+      return r.t;
+    };
+    while (this.next < this.recs.length && this.recs[this.next].t <= t) await step();
+    let at = t;
+    while (this.renderer.holding && this.next < this.recs.length && this.recs[this.next].t < began + HOLD_MS) at = await step();
+    this.at = at;
+    return this.renderer.holding ? Math.max(at, began + HOLD_MS) : at;
   }
 
   finishAnimations() {

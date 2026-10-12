@@ -45,6 +45,9 @@ func TestLiveFidelityFixtures(t *testing.T) {
 		}
 		// A frame over the tolerance must be a known gap (replay_test.go's
 		// knownGaps, by frame index), and a known gap must still be over.
+		// Its ceiling is replay_test.go's: the check compares at the
+		// frame's own moments, where a viewer still holds the previous
+		// paint (#475), and the ceiling bounds the try at the release.
 		name := filepath.Base(dir)
 		rec, err := recording.ReadDir(dir)
 		if err != nil {

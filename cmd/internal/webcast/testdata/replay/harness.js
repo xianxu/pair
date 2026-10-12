@@ -4,7 +4,6 @@
 // canonical() and capture the frame. Assets resolve to the fixture
 // server's assets/<hash>, as the proxy (#459) serves them.
 import { Replayer, inBrowser } from '/web/replayer.js';
-import { HOLD_MS } from '/web/render.js';
 
 const frame = document.getElementById('page');
 const deps = inBrowser(frame);
@@ -38,26 +37,8 @@ window.join = async (name, t, until) => {
 // replayAt draws the page as the real tab looked at t (Replayer.replayAt).
 window.replayAt = async (t, windowMs) => (await replayer.replayAt(t, windowMs)).canonical;
 
-// releaseAt is when a viewer that drew a fixture up to t shows that
-// moment's document (#475): t itself, or when the paint held over t is
-// released, the stylesheets bound or HOLD_MS after its segment began.
-window.releaseAt = async (name, t) => {
-  await window.load(name);
-  const r = replayer;
-  let began = 0;
-  const step = async () => {
-    const rec = r.recs[r.next++];
-    if (rec.k === 'seg' || rec.k === 'head') began = rec.t;
-    r.feed(rec);
-    r.renderer.flush();
-    if (r.renderer.holding) await r.renderer.bound();
-    return rec.t;
-  };
-  while (r.next < r.recs.length && r.recs[r.next].t <= t) await step();
-  let at = t;
-  while (r.renderer.holding && r.next < r.recs.length && r.recs[r.next].t < began + HOLD_MS) at = await step();
-  return r.renderer.holding ? Math.max(at, began + HOLD_MS) : at;
-};
+// releaseAt is when the viewer shows the document at t (Replayer.releaseAt).
+window.releaseAt = async (name, t) => { await window.load(name); return replayer.releaseAt(t); };
 
 window.boxOf = (id) => replayer.renderer.boxOf(id);
 window.nodeAt = (x, y) => replayer.renderer.nodeAt(x, y);

@@ -1226,3 +1226,8 @@ proof; record the surprising case so the next change starts from evidence.
   isn't a navigation, a catch-up), ask what the browser's own clocks (animations, transitions) were doing at
   capture, and settle them to the likeliest phase. Look at the worst moment's crop before tuning a tolerance: the
   picture named the cause where the number couldn't.
+- **A component that stacks its own elements must not reach past them (#475 close, round 1).** A `z-index` on the
+  held frame lifted it over the shell's overlay, which sits beside it with `z-index: auto`. Order layers by document
+  order inside the component, or give the component its own stacking context; never set a z-index the host doesn't
+  know about. And keep a lifecycle in one state value (`pair.hold = null | {owner, drawn, cancel}`), not in flags,
+  an inline style and a shared object; inject its clock so a test can drive each ordering.

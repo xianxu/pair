@@ -40,11 +40,12 @@ const DROP = new Set(['srcdoc', 'integrity', 'crossorigin', 'ping', 'action', 'f
 export class Renderer {
   // frame is the page iframe; resolveAsset(absURL) returns a URL to load
   // the asset from, or nothing.
-  constructor(frame, model, resolveAsset) {
+  // timers ({set, clear}) is the clock a paint hold's deadline runs on.
+  constructor(frame, model, resolveAsset, timers = { set: (fn, ms) => setTimeout(fn, ms), clear: (id) => clearTimeout(id) }) {
     this.frame = frame;
     this.model = model;
     this.resolveAsset = resolveAsset;
-    this.holding = false;
+    this.timers = timers;
     this.reset();
   }
 
@@ -182,9 +183,13 @@ export class Renderer {
     doc.__couchRenderer = this;
   }
 
-  // onDirty is called when the drawing needs a flush outside a record
-  // (the shell schedules one).
-  onDirty() {}
+  // onDirty is called when the drawing needs a flush outside a record (an
+  // image, stylesheet or font loaded; a held paint released). It flushes
+  // before the next paint; the live shell replaces it with its own paint.
+  onDirty() {
+    const win = this.frame.ownerDocument && this.frame.ownerDocument.defaultView;
+    if (win) win.requestAnimationFrame(() => this.flush());
+  }
 
   viewerSheet(doc) {
     if (!doc.__couchSheet) {
@@ -197,7 +202,7 @@ export class Renderer {
 
   drawDoc(r) {
     let doc;
-    if (!r.host) { doc = this.topDoc; this.topDrawn = true; }
+    if (!r.host) { doc = this.topDoc; if (this.hold) this.hold.drawn = true; }
     else {
       const host = this.dom.get(r.host);
       doc = host && host.contentDocument;
@@ -399,9 +404,9 @@ export class Renderer {
     if (text === null) { this.blobs.delete(id); el.removeAttribute('href'); return; }
     const url = URL.createObjectURL(new Blob([text], { type: 'text/css' }));
     this.blobs.set(id, { url, token: old && old.token });
-    const bound = () => this.checkHold();
-    el.addEventListener('load', bound, { once: true });
-    el.addEventListener('error', bound, { once: true });
+    sheetFailed.delete(el);
+    el.addEventListener('load', () => this.checkHold(), { once: true });
+    el.addEventListener('error', () => { sheetFailed.add(el); this.checkHold(); }, { once: true });
     el.setAttribute('href', url);
   }
 
@@ -456,64 +461,79 @@ export class Renderer {
   // A browser keeps showing the old page until a new document's
   // render-blocking stylesheets have loaded, and the recording says when
   // their bytes arrived, which can be after the document did. So the
-  // renderer draws a new top document into a second frame, under the first,
-  // which keeps the previous paint on top until the document's stylesheets
-  // are bound, or HOLD_MS after the hold began; then the first is hidden.
-  // (The new one is never hidden itself: Chrome throttles a hidden frame's
-  // rendering, which starts its animations late.) #page is always the frame
-  // with the current document (what canonical(), boxOf() and the shell's
-  // layout read); its sibling holds the previous paint.
+  // renderer draws a new top document into a second frame placed before
+  // the first in document order, so that the first, keeping the previous
+  // paint, covers it (and the shell's overlay, later still, covers both).
+  // The first is hidden once the document's stylesheets are bound, or
+  // HOLD_MS after the hold began. The new frame is never hidden itself:
+  // Chrome throttles a hidden frame's rendering, which starts its
+  // animations late. #page is always the frame with the current document
+  // (what canonical(), boxOf() and the shell's layout read).
+  //
+  // The hold is one state on the frame pair: pair.hold is null (the
+  // current frame shows its document) or {owner, drawn, cancel}: owner is
+  // the renderer drawing pair.current, drawn whether its top document has
+  // been drawn, cancel stops its deadline. A renderer that starts a hold
+  // while one is in flight (a new segment, a resync, a seek) takes it over:
+  // the previous paint stays, and the old deadline is cancelled.
 
-  // holdPaint begins a hold for the top document about to be drawn, with
-  // its own deadline. A document replacing one still held keeps the
-  // previous paint; a renderer that takes over a hold in flight (a resync,
-  // a seek) keeps drawing under the held paint and owns the release.
+  // holdPaint begins a hold for the top document about to be drawn.
   holdPaint() {
-    this.topDrawn = false;
     const pair = framePair(this.frame);
-    const other = pair.frames.find((f) => f !== this.frame);
-    if (other.style.zIndex !== HELD) {
-      Object.assign(this.frame.style, { zIndex: HELD });
-      Object.assign(other.style, { zIndex: '', visibility: '' });
-      other.id = this.frame.id;
-      this.frame.removeAttribute('id');
-      this.frame = other;
+    if (pair.hold) pair.hold.cancel();
+    else {
+      const held = pair.current, next = pair.frames.find((f) => f !== held);
+      held.before(next); // under the held paint; a moved frame starts with an empty document
+      next.style.visibility = '';
+      next.id = held.id;
+      held.removeAttribute('id');
+      pair.current = next;
     }
-    pair.current = this.frame;
-    pair.owner = this;
-    this.holding = true;
-    clearTimeout(this.holdTimer);
-    this.holdTimer = setTimeout(() => this.release(), HOLD_MS);
+    this.frame = pair.current;
+    const timer = this.timers.set(() => this.release(), HOLD_MS);
+    pair.hold = { owner: this, drawn: false, cancel: () => this.timers.clear(timer) };
   }
 
+  // hold is this renderer's hold, or null.
+  get hold() {
+    const h = this.frame.__couchPair && this.frame.__couchPair.hold;
+    return h && h.owner === this ? h : null;
+  }
+
+  get holding() { return !!this.hold; }
+
   // checkHold releases the hold once the document is drawn and every
-  // stylesheet that blocks its rendering is bound.
+  // stylesheet that blocks its rendering is bound (or failed, as a
+  // browser stops waiting for one).
   checkHold() {
-    if (this.holding && this.topDrawn && blockingSheets(this.topDoc).every((l) => l.sheet)) this.release();
+    const h = this.hold;
+    if (h && h.drawn && blockingSheets(this.topDoc).every(sheetSettled)) this.release();
   }
 
   // bound resolves once the stylesheets whose bytes have arrived are bound
-  // (the proxy fetch and the sheet's load), so a capture shows what a
-  // viewer shows once the stylesheet it already has applies.
+  // (the proxy fetch and the sheet's load), or after HOLD_MS, so a capture
+  // shows what a viewer shows once the stylesheet it already has applies.
   async bound() {
-    while (this.loads.size) await Promise.allSettled([...this.loads]);
-    const waits = blockingSheets(this.topDoc).filter((l) => !l.sheet && l.getAttribute('href'))
-      .map((l) => new Promise((ok) => { l.addEventListener('load', ok, { once: true }); l.addEventListener('error', ok, { once: true }); }));
-    await Promise.race([Promise.allSettled(waits), new Promise((ok) => setTimeout(ok, HOLD_MS))]);
+    const settled = (async () => {
+      while (this.loads.size) await Promise.allSettled([...this.loads]);
+      await Promise.allSettled(blockingSheets(this.topDoc).filter((l) => !sheetSettled(l) && l.getAttribute('href'))
+        .map((l) => new Promise((ok) => { l.addEventListener('load', ok, { once: true }); l.addEventListener('error', ok, { once: true }); })));
+    })();
+    let timer;
+    await Promise.race([settled, new Promise((ok) => { timer = this.timers.set(ok, HOLD_MS); })]);
+    this.timers.clear(timer);
     this.checkHold();
   }
 
+  // release ends this renderer's hold: the held paint is hidden and
+  // emptied, and the drawing redrawn.
   release() {
-    if (!this.holding) return;
-    this.holding = false;
-    clearTimeout(this.holdTimer);
-    const pair = framePair(this.frame);
-    if (pair.owner !== this) return; // a later renderer took the frames over
-    for (const f of pair.frames) {
-      if (f === this.frame) continue;
-      Object.assign(f.style, { zIndex: '', visibility: 'hidden' });
-      try { f.contentDocument.replaceChildren(); } catch {} // nothing runs in the hidden one
-    }
+    const h = this.hold;
+    if (!h) return;
+    h.cancel();
+    const pair = this.frame.__couchPair;
+    pair.hold = null;
+    hideHeld(pair);
     this.dirty = true;
     this.onDirty();
   }
@@ -667,22 +687,35 @@ export class Renderer {
 // leaves the page drawn without it.
 export const HOLD_MS = 500;
 
-// HELD is the z-index that keeps the previous paint over the new document.
-const HELD = '1';
-
 // currentFrame is the frame holding the current document of the page frame
 // a renderer was given: frame itself until a paint hold swaps it (#475).
 export function currentFrame(frame) {
   return frame.__couchPair ? frame.__couchPair.current : frame;
 }
 
-// blankFrames empties the page frame and its sibling: a fresh viewer holds
-// no previous paint.
+// blankFrames empties the page frame and drops a hold in flight: a fresh
+// viewer holds no previous paint.
 export function blankFrames(frame) {
-  for (const f of frame.__couchPair ? frame.__couchPair.frames : [frame]) {
+  const pair = frame.__couchPair;
+  if (pair && pair.hold) { pair.hold.cancel(); pair.hold = null; }
+  if (pair) hideHeld(pair);
+  try { currentFrame(frame).contentDocument.replaceChildren(); } catch {}
+}
+
+// hideHeld hides and empties the frame not showing the current document:
+// nothing runs in it.
+function hideHeld(pair) {
+  for (const f of pair.frames) {
+    if (f === pair.current) continue;
+    f.style.visibility = 'hidden';
     try { f.contentDocument.replaceChildren(); } catch {}
   }
 }
+
+// sheetFailed holds the <link>s whose stylesheet failed to load; a browser
+// stops blocking on them.
+const sheetFailed = new WeakSet();
+const sheetSettled = (l) => !!l.sheet || sheetFailed.has(l);
 
 // framePair is the page frame and its sibling holding the previous paint,
 // created beside it the first time, both placed at the box's origin and
@@ -695,7 +728,7 @@ function framePair(frame) {
     back.style.visibility = 'hidden';
     for (const f of [frame, back]) Object.assign(f.style, { position: 'absolute', left: '0', top: '0', background: '#fff' });
     frame.after(back);
-    const pair = { frames: [frame, back], current: frame, owner: null };
+    const pair = { frames: [frame, back], current: frame, hold: null };
     for (const f of pair.frames) Object.defineProperty(f, '__couchPair', { value: pair });
   }
   return frame.__couchPair;

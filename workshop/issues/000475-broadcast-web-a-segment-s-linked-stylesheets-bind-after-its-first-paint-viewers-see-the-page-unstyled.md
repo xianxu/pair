@@ -42,7 +42,7 @@ recording stays an honest record of when bytes arrived, and the recorder's singl
 replay both.
 
 - The renderer (`render.js`, "paint holding") draws a new top document (`head`/`seg`) into a second frame placed
-  under the first. The first frame keeps the previous paint on top until every render-blocking stylesheet of the new
+  before the first in document order, so the first covers it and the shell's overlay (later still) covers both. The first frame keeps the previous paint on top until every render-blocking stylesheet of the new
   document is bound, or `HOLD_MS` (500 ms) after the hold began; then the first frame is hidden and blanked.
 - A render-blocking stylesheet is a `<link rel=stylesheet>` that isn't alternate or disabled and whose media matches.
   The snapshot's own sheets (adopted, owned) are in the model before or with the snapshot (`adopt` of an unknown sheet
@@ -89,6 +89,16 @@ replay both.
   hold's harness pieces moved there: `inBrowser` draws into `currentFrame(frame)`, wires `onDirty`, and a fresh
   `Replayer` (or a seek) blanks the held paint (`blankFrames`); `replayAt` waits for stylesheets already in hand
   when holding. `releaseAt` stays in the harness.
+- Close review round 1 (FIX-THEN-SHIP), all fixed as classes:
+  - BR-1: a z-index on the held frame covered the shell's overlay (pointer, marks, Paused). Stacking now comes from
+    document order: the drawing frame is moved before the held one as its hold begins (it is reopened anyway).
+  - BR-2: the hold's state was spread over flags, a style and the pair. It is now one `pair.hold` (`null` or
+    `{owner, drawn, cancel}`), with an injected clock; `TestLiveRenderHoldHandOff` drives take-over, a stale deadline,
+    a segment during a hold, the owner's deadline, a failed stylesheet and the overlay with fake timers (mutation:
+    the frame after the held one fails it).
+  - Minor: a failed stylesheet stops blocking; `bound()` has a deadline; `onDirty` defaults to a scheduled flush, so
+    the replay page redraws too (the harness wiring went); `releaseAt` is a `Replayer` method; the fidelity test says
+    why the ceiling is replay_test.go's.
 - Pre-existing flake, not #475: #478's fidelity check puts rec-blog frame 0 at exactly 6.75% intermittently (main 1/8
   runs, this branch 2/8; otherwise 0.10%). Reported to TL.
 
