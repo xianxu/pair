@@ -280,6 +280,11 @@ func TestQueuedMessageReadsExpiredWhileTheWorkerIsBusy(t *testing.T) {
 	mu.Lock()
 	now = now.Add(QueueWait)
 	mu.Unlock()
+	// Every read of the receipt sees the expiry: a status query, and the
+	// same send replayed (close review round 3).
+	if r, err := b.Send(context.Background(), sender, "waiting", Route{Target: "ops:0"}, "second"); err != nil || r.Status != Expired {
+		t.Fatalf("replayed send past QueueWait: %+v %v", r, err)
+	}
 	if r, err := b.Status(sender, "waiting"); err != nil || r.Status != Expired {
 		t.Fatalf("past QueueWait: %+v %v", r, err)
 	}

@@ -338,17 +338,23 @@ func (b *Broker) Status(caller Binding, id string) (Receipt, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.sweep()
-	r, ok := b.receipts[id]
+	r, ok := b.receiptLocked(id)
 	if !b.caller(caller) || !ok || (r.Message.From != caller && r.Message.To != caller) {
 		return Receipt{}, errors.New("receipt unavailable for this actor")
 	}
-	// A queued message's expiry is due whether or not the worker is free to
-	// apply it: a read past QueueWait sees it expired (pair#492).
-	if a := b.actors[r.Message.To]; a != nil && r.Status == Queued && !b.now().Before(r.Message.Deadline) {
+	return r, nil
+}
+
+// receiptLocked is every read of a stored receipt. A queued message's expiry
+// is due whether or not the worker is free to apply it, so a read past
+// QueueWait sees it expired (pair#492).
+func (b *Broker) receiptLocked(id string) (Receipt, bool) {
+	r, ok := b.receipts[id]
+	if a := b.actors[r.Message.To]; ok && a != nil && r.Status == Queued && !b.now().Before(r.Message.Deadline) {
 		_ = b.apply(a, Event{Kind: Tick, At: b.now()})
 		r = b.receipts[id]
 	}
-	return r, nil
+	return r, ok
 }
 func actorCandidate(a *SlotActor, now time.Time) Candidate {
 	_, pending := a.state.Pending()
@@ -453,7 +459,7 @@ func (b *Broker) Send(parent context.Context, from Binding, id string, route Rou
 		b.mu.Unlock()
 		return Receipt{}, ErrUnavailable
 	}
-	if old, ok := b.receipts[id]; ok {
+	if old, ok := b.receiptLocked(id); ok {
 		same := old.Message.From == from && old.Message.Body == body && b.destinations[id] == route
 		b.mu.Unlock()
 		if !same {
@@ -733,7 +739,7 @@ func (b *Broker) adoptRetained(a *SlotActor, from Binding, id string, route Rout
 // in flight there has no broker job watching it any more, so it is recorded
 // as Indeterminate rather than left Delivering forever.
 func (b *Broker) recordRecoveredLocked(r Receipt, route Route) Receipt {
-	if old, ok := b.receipts[r.Message.ID]; ok {
+	if old, ok := b.receiptLocked(r.Message.ID); ok {
 		return old
 	}
 	if !r.Status.Terminal() {
