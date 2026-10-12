@@ -6,7 +6,7 @@ github_issue:
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours:
-card_mirror: 'a68943d45ffca52c452f43fa03309d8cbde42e63' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '5e5c7776d2e4d1bf5f3302b3423d32713bac1779' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # broadcast-web: recorder — CDP DOM stream per frame plus isolated-world observer
@@ -24,6 +24,9 @@ Implement #457's recorder interface on real Chrome, through pair#454's browser-c
 - Segments: a full snapshot on go-live, on each new document, on each tab switch (the cast follows the active tab).
 - Asset references handed to the asset store's interface (capture and storage are pair#459's).
 - Plugs into `webcast.Cast` in place of the stub stream.
+- **Format additions approved by the operator with #457 (10-12), not yet in #457's page; add them to `atlas/webcast-format.md` as additive v1 kinds/fields (a Revisions note there), with validator and reducer support:**
+  - password values are never recorded: for `input type=password` the `input` record says a value exists, never what it is;
+  - a `hover` record: the element under the operator's pointer (hover menus and tooltips are CSS `:hover` state the DOM doesn't hold), plus a sampled operator pointer position, so the viewer can show them and the agent sees hovered-then-clicked.
 
 ## Done when
 
