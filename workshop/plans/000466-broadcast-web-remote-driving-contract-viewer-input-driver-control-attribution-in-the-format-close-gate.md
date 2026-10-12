@@ -134,6 +134,30 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - "n": 4
+      timestamp: "2026-10-12T01:51:35-07:00"
+      dispatched: "2026-10-12T01:49:38-07:00"
+      agent: claude
+      dispose:
+        - id: BR-7
+          disposition: not-addressed
+          note: Still time.AfterFunc at fake_controller.go:117; deferred to issue 467 in plan Revisions; Minor, non-blocking.
+          round: 4
+        - id: BR-11
+          disposition: addressed
+          note: policy.go:30-31 Enter/Space take only ""; reverting policy.go to eb5f8af1 turns TestConfine and TestConfineAllowsExactlyTheseChords red on Ctrl/Meta/Shift+Enter and Shift+Space; atlas 374-383 and plan Revisions updated.
+          round: 4
+      findings:
+        - id: BR-12
+          severity: Minor
+          title: Chord table states an absolute rule (no Chrome/Blink binding at all) that plain Escape already breaks
+          detail: 5th in family. Chrome's accelerator table binds Escape to close-find/stop-loading and it exits fullscreen; the effects are harmless but the stated rule (policy.go:17-20, atlas) is false. Restate the rule as "no binding whose effect lands outside the page's document (history navigation, new tab/window, clipboard, browser UI, devtools, zoom)" and list Escape as a reviewed harmless binding, so future rounds check against a rule that can be met.
+          family: confinement-allowlist
+          round: 4
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 8e761007bb68939ffc431b150b68fcdf91fa6f55
+      blocked: false
 ---
 
 # Gate ledger — pair#466 (boundary-review)
@@ -190,7 +214,19 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-11** [Important] `confinement-allowlist` Chord table allows Ctrl/Meta/Shift+Enter and Shift+Space, keyboard twins of the modified clicks Confine refuses; the exhaustive test is tautological
   4th in family. Blink takes the navigation policy from the activating key event's modifiers, so Ctrl/Meta+Enter on a focused link opens a new tab, Shift+Enter opens a new window, and Shift+Space on a submit button sends the form result to a new window. The table's own rule ("no Chrome/Blink binding") is broken, and policy_test.go:55 pins Meta+Enter as allowed. TestConfineIsExactlyTheChordTable compares Confine to chordAllowed, which Confine calls, so it cannot catch a bad entry. Rule to fix: activation keys (Enter, Space) take no ctrl/meta/shift, and every refused pointer act is refused in its keyboard form too. Check each chord against a separate, cited binding list that includes Blink's activation rules, then correct the plan Revisions and atlas line 377.
 
+## Round 4 — 2026-10-12T01:51:35-07:00 (claude) — passed
+
+### Disposed
+
+- BR-7 — not-addressed — Still time.AfterFunc at fake_controller.go:117; deferred to issue 467 in plan Revisions; Minor, non-blocking.
+- BR-11 — addressed — policy.go:30-31 Enter/Space take only ""; reverting policy.go to eb5f8af1 turns TestConfine and TestConfineAllowsExactlyTheseChords red on Ctrl/Meta/Shift+Enter and Shift+Space; atlas 374-383 and plan Revisions updated.
+
+### Raised
+
+- **BR-12** [Minor] `confinement-allowlist` Chord table states an absolute rule (no Chrome/Blink binding at all) that plain Escape already breaks
+  5th in family. Chrome's accelerator table binds Escape to close-find/stop-loading and it exits fullscreen; the effects are harmless but the stated rule (policy.go:17-20, atlas) is false. Restate the rule as "no binding whose effect lands outside the page's document (history navigation, new tab/window, clipboard, browser UI, devtools, zoom)" and list Escape as a reviewed harmless binding, so future rounds check against a rule that can be met.
+
 ## Open findings
 
 - **BR-7** [Minor] `ordering-seam` Grace timers use real time.AfterFunc with no injectable timer; tests sleep and see one ordering of timer versus Attach
-- **BR-11** [Important] `confinement-allowlist` Chord table allows Ctrl/Meta/Shift+Enter and Shift+Space, keyboard twins of the modified clicks Confine refuses; the exhaustive test is tautological
+- **BR-12** [Minor] `confinement-allowlist` Chord table states an absolute rule (no Chrome/Blink binding at all) that plain Escape already breaks

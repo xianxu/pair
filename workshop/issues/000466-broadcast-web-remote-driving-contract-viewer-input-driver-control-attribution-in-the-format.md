@@ -15,7 +15,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "1d1a40ca", done: "1809e283"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # broadcast-web: remote-driving contract — viewer input, driver control, attribution in the format
@@ -53,6 +53,8 @@ Durable plan: `workshop/plans/000466-broadcast-web-remote-driving-contract-viewe
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed — go test ./... green unsandboxed before review; make -k test only failure artifactpath inventory, fixed c4e3747c; rounds 1-3 fixed (BR-1..3, BR-9, BR-11): injector follows the stream with typed ErrNotDriver; Confine is a closed chord table, activation keys take no modifier, test compares with a hand-written chord set plus cited Chrome/Blink bindings (mutation-checked); no seg/ctl after stop end; webcast/... broadcast artifactpath green; grace-timer injection advisory left (plan Revisions); TL approved (Done when); review verdict: SHIP
+- 2026-10-12: flow upgraded quick → full — 1678 added lines in code files (limit 100); an earlier round of this close already ran the full review
 - Early asks sent to the TL and agreed (by on interaction kinds incl. #458's hover/ptr; ctl carries post-state; routes; refusals). pair:1 correction: the single writer is the recorder's queue, the id map is `Recorder.NodeOf`/`IDOf`; `input {secret:true}` for passwords.
 - TL approved the plan; asked that Revoke and leave-on-grace be unconditional: RunControllerContract checks Revoke returns while a driver's batch is mid-dispatch, and a gone driver leaves on grace (both mutation-checked).
 - Discovery: a late joiner's catch-up starts at the latest `ctl`, with no prior state to check its transition against. Rule: the first `ctl` a reader sees is its baseline (consistent in itself); later ones must equal `NextControl(prev)`; `Validate` (whole recording) stays strict from the first. Tested both ways.

@@ -371,3 +371,82 @@ findings:
     detail: |
       4th in family. Blink takes the navigation policy from the activating key event's modifiers, so Ctrl/Meta+Enter on a focused link opens a new tab, Shift+Enter opens a new window, and Shift+Space on a submit button sends the form result to a new window. The table's own rule ("no Chrome/Blink binding") is broken, and policy_test.go:55 pins Meta+Enter as allowed. TestConfineIsExactlyTheChordTable compares Confine to chordAllowed, which Confine calls, so it cannot catch a bad entry. Rule to fix: activation keys (Enter, Space) take no ctrl/meta/shift, and every refused pointer act is refused in its keyboard form too. Check each chord against a separate, cited binding list that includes Blink's activation rules, then correct the plan Revisions and atlas line 377.
 ```
+
+---
+
+## Re-review — 2026-10-12T01:51:35-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 466 — broadcast-web: remote-driving contract — viewer input, driver control, attribution in the format |
+| repo | pair |
+| issue file | workshop/issues/000466-broadcast-web-remote-driving-contract-viewer-input-driver-control-attribution-in-the-format.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 26292514a113e10cb14354487c2ceb03fe688649..8e761007bb68939ffc431b150b68fcdf91fa6f55 |
+| command | sdlc close --issue 466 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-12T01:51:35-07:00 |
+| verdict | SHIP |
+
+## Review
+
+The open findings are BR-7 and BR-11. Let me look at the policy first, then the last commit.
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+Round 3 fixes BR-11 properly. The chord table now gives the activation keys (Enter, Space) no modifiers (`policy.go:30-31`). The exhaustive test now compares `Confine` with a hand-written expectation instead of the table it calls (`policy_test.go:89-131`). I checked that the test catches the bug: I put back the round-2 `policy.go` from `eb5f8af1`, and `TestConfine` plus `TestConfineAllowsExactlyTheseChords` both failed on Ctrl/Meta/Shift+Enter and Shift+Space. With the fix restored, everything under `./cmd/internal/webcast/...` passes. The atlas (`atlas/webcast-format.md:374-383`) and the plan's Revisions both describe the new rule. `./cmd/internal/artifactpath` fails in this checkout because the generated `runtimebundle/assets` directory is missing. That is a checkout problem, not this diff: none of the failing paths are in the drive package. BR-7 stays open as a Minor that was deliberately handed to #467. I'm raising one new Minor, in family `confinement-allowlist`, about the table's stated rule being too absolute. Neither blocks shipping.
+
+**1. Strengths**
+- `policy.go:17-46`: the closed chord table (each key with its exact modifier set) is the right rule for this family. It replaces round-by-round exceptions with one rule that refuses anything not listed.
+- `policy_test.go:89-131`: the expectation is written by hand, and the list of Chrome and Blink bindings cites its sources. This removes the self-confirming check the earlier test had.
+- `policy.go:26-29` and the atlas: the click-to-keyboard link (activation keys take the event's navigation policy) is written down as a rule, with its cost stated (no Shift+Enter soft newline).
+- `codeFits`: a key's `code` must name that key's own physical key when Ctrl/Meta is held, but other keyboard layouts are still allowed.
+
+**2. Critical:** none.
+
+**3. Important:** none.
+
+**4. Minor**
+- **This is the 5th finding in family `confinement-allowlist`.** The table's comment (`policy.go:17-20`) and the atlas both say a chord is allowed "only if no Chrome or Blink binding handles it on any platform". Plain Escape breaks that as written: Chrome's accelerator table maps it to close-find/stop-loading, and it also exits fullscreen. The effects are harmless, so don't remove Escape. Instead, restate the rule as what the code actually enforces: *no binding whose effect lands outside the page's document* (navigation history, new tab or window, clipboard, browser UI, devtools, zoom). Then list Escape as a reviewed, harmless binding. With the rule stated that way, later reviews can check against a criterion that can actually be met, rather than an absolute that keeps producing more instances.
+- BR-7 is still open: `fake_controller.go:117` uses real `time.AfterFunc`. It is deferred to #467 in the plan's Revisions.
+
+**5. Test coverage**
+The BR-11 regression is confirmed: the tests fail without the fix. The expectation map only samples printable characters (`q`, `1`, `/` and a few letters). That's enough, because `chordAllowed` treats every printable character the same way.
+
+**6. Architecture**
+- ARCH-DRY: pass.
+- ARCH-PURE: pass. `Confine` and the reducer are pure.
+- ARCH-PURPOSE: pass. This round fixed the rule, not just the instances.
+- ARCH-MOCK: pass. The fakes go through the production boundary (BR-1).
+- ARCH-CONSTRAINTS: pass.
+- ARCH-SECURE: pass, apart from the Minor rule wording above.
+- ARCH-ORDER: flag (Minor, BR-7). The grace-timer ordering against Attach can't be injected into the fake. That belongs with #467.
+- ARCH-FUNERAL: pass. Seats are collected after the grace period, and nothing durable is added beyond recording records.
+
+**7. Plan revisions**
+Optional: add a line to the round 2–3 Revisions saying the rule is "no effect outside the page", with Escape listed as a reviewed harmless binding.
+
+```findings
+dispose:
+  - id: BR-7
+    disposition: not-addressed
+    note: |
+      Still time.AfterFunc at fake_controller.go:117; deferred to issue 467 in plan Revisions; Minor, non-blocking.
+  - id: BR-11
+    disposition: addressed
+    note: |
+      policy.go:30-31 Enter/Space take only ""; reverting policy.go to eb5f8af1 turns TestConfine and TestConfineAllowsExactlyTheseChords red on Ctrl/Meta/Shift+Enter and Shift+Space; atlas 374-383 and plan Revisions updated.
+findings:
+  - id: new
+    severity: Minor
+    family: confinement-allowlist
+    title: |
+      Chord table states an absolute rule (no Chrome/Blink binding at all) that plain Escape already breaks
+    detail: |
+      5th in family. Chrome's accelerator table binds Escape to close-find/stop-loading and it exits fullscreen; the effects are harmless but the stated rule (policy.go:17-20, atlas) is false. Restate the rule as "no binding whose effect lands outside the page's document (history navigation, new tab/window, clipboard, browser UI, devtools, zoom)" and list Escape as a reviewed harmless binding, so future rounds check against a rule that can be met.
+```
