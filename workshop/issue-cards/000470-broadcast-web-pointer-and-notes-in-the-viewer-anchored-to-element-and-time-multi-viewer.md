@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000470-broadcast-web-pointer-and-notes-in-the-viewer-anchored-to-element-and-time-multi-viewer.md
         source_blob: d2f6d54c6c4156e63a94fba4ba67c4275ce5fde0
         destination: workshop/issues/000470-broadcast-web-pointer-and-notes-in-the-viewer-anchored-to-element-and-time-multi-viewer.md
+        main_commit: 39b04f31c51a906f21acb0ee6403a299f813cce9
 ---
 
 # broadcast-web: pointer and notes in the viewer — anchored to element and time, multi-viewer
