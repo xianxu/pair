@@ -8,6 +8,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/broadcast"
 	"github.com/xianxu/pair/cmd/internal/webcast"
+	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
 // webcastSettings configures the cast Chrome (#454) on the Host the screen
@@ -18,7 +19,8 @@ import (
 //
 // The profile lives at <store>/webcast/chrome-profile and is kept across
 // casts, so logins to the app under test survive; delete the directory to
-// reset it.
+// reset it. Each cast is recorded under <store>/webcast/recordings/<id>/
+// from its first go-live (#458), kept until the operator deletes it.
 func webcastSettings(getenv func(string) string, store string, host *broadcast.Host, lookPath func(string) (string, error), exists func(string) bool) (webcast.CastConfig, error) {
 	find := func() (string, error) { return webcast.FindChrome(getenv, lookPath, exists) }
 	if getenv(webcast.ChromeEnv) != "" {
@@ -27,7 +29,15 @@ func webcastSettings(getenv func(string) string, store string, host *broadcast.H
 		}
 	}
 	cfg := webcast.CastConfig{Host: host}
-	cfg.Launch = func(ctx context.Context) (webcast.Browser, error) {
+	if store != "" {
+		cfg.RecordingsDir = filepath.Join(store, "webcast", "recordings")
+		// The viewers' fan-out (#460 renames the hub and may replace it).
+		cfg.NewLive = func() (recording.Sink, recording.Live) {
+			h := recording.NewFakeHub(liveBuffer)
+			return h, h
+		}
+	}
+	cfg.Launch = func(ctx context.Context, rec *webcast.RecordOptions) (webcast.Browser, error) {
 		if store == "" {
 			return nil, errors.New("webcast: Couch has no store directory for the Chrome profile")
 		}
@@ -35,10 +45,14 @@ func webcastSettings(getenv func(string) string, store string, host *broadcast.H
 		if err != nil {
 			return nil, err
 		}
-		return webcast.Launch(ctx, webcast.LaunchOptions{Binary: bin, ProfileDir: filepath.Join(store, "webcast", "chrome-profile")})
+		return webcast.Launch(ctx, webcast.LaunchOptions{Binary: bin, ProfileDir: filepath.Join(store, "webcast", "chrome-profile"), Record: rec})
 	}
 	return cfg, nil
 }
+
+// liveBuffer is how far a viewer may fall behind the recording before the
+// fan-out drops it (it reconnects with a fresh catch-up).
+const liveBuffer = 4096
 
 func fileExists(path string) bool {
 	info, err := os.Stat(path)

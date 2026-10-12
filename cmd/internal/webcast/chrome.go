@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/cdp"
+	"github.com/xianxu/pair/cmd/internal/webcast/recorder"
+	rec "github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
 //go:embed inject.js
@@ -30,6 +32,18 @@ type LaunchOptions struct {
 	StartTimeout time.Duration
 	// Headless is for tests only: the cast is a window the operator uses.
 	Headless bool
+	// Record, when set, records the cast tab while live (#458).
+	Record *RecordOptions
+}
+
+// RecordOptions configure the cast's recorder.
+type RecordOptions struct {
+	ID  string          // the recording's id (its head)
+	Out recorder.Output // opened at the first go-live
+	// ShotEvery is the fidelity screenshots' period; zero is the
+	// recorder's default.
+	ShotEvery time.Duration
+	Logf      func(format string, args ...any)
 }
 
 const (
@@ -77,6 +91,10 @@ type Chrome struct {
 	// ctx is cancelled at the end, failing any call still in flight.
 	ctx    context.Context
 	cancel context.CancelFunc
+	// rec records the cast while live; nil when not recording. The loop
+	// forwards every CDP event and the live phase to it; it is the record
+	// stream's single writer (#466/#467 add their inputs to its queue).
+	rec *recorder.Recorder
 }
 
 // endCause is why the loop is closing Chrome, once it is.
@@ -96,10 +114,14 @@ type loopState struct {
 	phase    Phase
 	sessions map[string]string // session -> target
 	contexts map[string]int64  // session -> the control's world in its top frame
-	hadPage  bool
-	noPages  <-chan time.Time
-	ending   endCause
-	killAt   <-chan time.Time
+	frames   map[string]bool   // out-of-process frame sessions
+	// recTab is what the recorder was last told is cast ("" when not live)
+	// and recTitle its title.
+	recTab, recTitle string
+	hadPage          bool
+	noPages          <-chan time.Time
+	ending           endCause
+	killAt           <-chan time.Time
 }
 
 // Launch starts Chrome and returns once its first page is open with its
@@ -175,6 +197,10 @@ func start(conn *cdp.Conn, proc process, output *tail, opts LaunchOptions) *Chro
 		ready:    make(chan struct{}),
 		done:     make(chan struct{}),
 		ctx:      loopCtx, cancel: cancel,
+	}
+	if opts.Record != nil {
+		c.rec = recorder.Start(recorder.Options{ID: opts.Record.ID, Call: conn, Out: opts.Record.Out,
+			ShotEvery: opts.Record.ShotEvery, Logf: opts.Record.Logf})
 	}
 	go c.run()
 	return c
@@ -276,7 +302,7 @@ func (c *Chrome) Close() error {
 }
 
 func (c *Chrome) run() {
-	s := &loopState{phase: PhaseIdle, sessions: map[string]string{}, contexts: map[string]int64{}}
+	s := &loopState{phase: PhaseIdle, sessions: map[string]string{}, contexts: map[string]int64{}, frames: map[string]bool{}}
 	events := c.conn.Events()
 	// Every off-loop call starts on this goroutine, before finish waits for
 	// them all.
@@ -316,6 +342,9 @@ loop:
 }
 
 func (c *Chrome) handle(s *loopState, ev cdp.Event) {
+	if c.rec != nil {
+		c.rec.Send(recorder.Event{Session: ev.SessionID, Method: ev.Method, Params: ev.Params, Seq: ev.Seq})
+	}
 	targetOf := func(session string) (string, bool) {
 		t, ok := s.sessions[session]
 		return t, ok
@@ -335,9 +364,16 @@ func (c *Chrome) handle(s *loopState, ev cdp.Event) {
 		case pageAttached:
 			s.sessions[in.SessionID] = in.TargetID
 			c.goSetup(in.SessionID)
+		case frameAttached:
+			s.frames[in.SessionID] = true
+			c.goSetupFrame(in)
 		case pageDetached:
 			delete(s.sessions, in.SessionID)
 			delete(s.contexts, in.SessionID)
+			delete(s.frames, in.SessionID)
+			if c.rec != nil {
+				c.rec.Send(recorder.Detached{Session: in.SessionID})
+			}
 		case contextCreated:
 			s.contexts[in.SessionID] = in.ContextID
 		case contextDestroyed:
@@ -372,6 +408,10 @@ func (c *Chrome) goSetup(session string) {
 			// document only, never in the next one (measured, Chrome 154).
 			{"Page.enable", nil},
 			{"Page.addScriptToEvaluateOnNewDocument", map[string]any{"source": injectJS, "worldName": worldName, "runImmediately": true}},
+			{"Page.addScriptToEvaluateOnNewDocument", map[string]any{"source": recorder.ObserverJS, "worldName": worldName, "runImmediately": true}},
+			// Out-of-process iframes get sessions of their own, held until
+			// goSetupFrame releases them.
+			{"Target.setAutoAttach", frameAutoAttach},
 		} {
 			if c.call(session, step.method, step.params, nil) != nil {
 				// The page closed mid-setup; nothing else depends on it.
@@ -379,6 +419,38 @@ func (c *Chrome) goSetup(session string) {
 			}
 		}
 		c.readyOnce.Do(func() { close(c.ready) })
+	})
+}
+
+// frameAutoAttach attaches a session's out-of-process iframes, flattened.
+var frameAutoAttach = map[string]any{
+	"autoAttach": true, "waitForDebuggerOnStart": true, "flatten": true,
+	"filter": []map[string]any{{"type": "iframe", "exclude": false}, {"exclude": true}},
+}
+
+// goSetupFrame prepares an out-of-process iframe's session as goSetup does a
+// page's, with the recorder's observer and no control, and tells the
+// recorder. Released at the end whatever happened.
+func (c *Chrome) goSetupFrame(f frameAttached) {
+	if c.rec != nil {
+		c.rec.Send(recorder.FrameAttached{Session: f.SessionID, Parent: f.Parent, FrameID: f.TargetID})
+	}
+	c.work.Go(func() {
+		defer c.call(f.SessionID, "Runtime.runIfWaitingForDebugger", nil, nil)
+		for _, step := range []struct {
+			method string
+			params any
+		}{
+			{"Runtime.addBinding", map[string]any{"name": bindingName, "executionContextName": worldName}},
+			{"Runtime.enable", nil},
+			{"Page.enable", nil},
+			{"Page.addScriptToEvaluateOnNewDocument", map[string]any{"source": recorder.ObserverJS, "worldName": worldName, "runImmediately": true}},
+			{"Target.setAutoAttach", frameAutoAttach},
+		} {
+			if c.call(f.SessionID, step.method, step.params, nil) != nil {
+				return
+			}
+		}
 	})
 }
 
@@ -429,10 +501,46 @@ func (c *Chrome) publish(s *loopState) {
 		return
 	}
 	tab, ok := s.tracker.Active()
+	c.tellRecorder(s, tab, ok)
 	next := State{Phase: s.phase, Tab: tab, HasTab: ok}
 	if next != c.pub.get() {
 		c.pub.publish(next)
 	}
+}
+
+// tellRecorder keeps the recorder on the cast tab: live on the active tab,
+// a switch when it changes, its title, pause.
+func (c *Chrome) tellRecorder(s *loopState, tab Tab, ok bool) {
+	if c.rec == nil {
+		return
+	}
+	cast := ""
+	if s.phase == PhaseLive && ok {
+		cast = tab.ID
+	}
+	if cast != s.recTab {
+		if cast == "" {
+			c.rec.Send(recorder.Pause{})
+		} else if session := sessionOf(s, cast); session != "" {
+			c.rec.Send(recorder.Live{Tab: rec.Tab{ID: tab.ID, URL: tab.URL, Title: tab.Title}, Session: session})
+		} else {
+			return // its session isn't attached yet; the next publish tells it
+		}
+		s.recTab, s.recTitle = cast, tab.Title
+	}
+	if cast != "" && tab.Title != s.recTitle {
+		s.recTitle = tab.Title
+		c.rec.Send(recorder.Title{Title: tab.Title})
+	}
+}
+
+func sessionOf(s *loopState, target string) string {
+	for session, t := range s.sessions {
+		if t == target {
+			return session
+		}
+	}
+	return ""
 }
 
 // finish runs once the pipe is gone or Chrome exited: it makes sure the
@@ -440,6 +548,12 @@ func (c *Chrome) publish(s *loopState) {
 func (c *Chrome) finish(s *loopState) {
 	// Read before our own Close, which would mask it.
 	connErr := c.conn.Err()
+	if c.rec != nil {
+		// Before the pipe closes: the recording ends with stop end.
+		if err := c.rec.Close(); err != nil && c.opts.Record.Logf != nil {
+			c.opts.Record.Logf("webcast: recording: %v", err)
+		}
+	}
 	c.conn.Close()
 	select {
 	case <-c.proc.Exited():

@@ -36,7 +36,7 @@ func newWebcastRig(t *testing.T, tweak func(*webcastRig)) *webcastRig {
 	cfg := webcast.CastConfig{
 		Host: broadcast.NewHost(broadcast.HostConfig{Tunnel: r.tunnel, ProbeTimeout: 2 * time.Second}),
 		Ping: 50 * time.Millisecond,
-		Launch: func(ctx context.Context) (webcast.Browser, error) {
+		Launch: func(ctx context.Context, _ *webcast.RecordOptions) (webcast.Browser, error) {
 			if r.gate != nil {
 				select {
 				case <-r.gate:

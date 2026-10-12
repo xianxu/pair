@@ -16,6 +16,7 @@ import (
 // back as inputs, so the goroutine stays the stream's single writer.
 
 type assetJob struct {
+	store              assets.Store
 	session, requestID string // a response seen by the Network domain
 	frameID            string // or a resource already loaded (Page.getResourceContent)
 	url, mime          string
@@ -32,10 +33,11 @@ type shotJob struct {
 // queueAsset hands a body to fetch to the asset worker; a full queue drops
 // it (counted in the log), never blocking the recorder.
 func (r *Recorder) queueAsset(j assetJob) {
-	if r.opts.Assets == nil {
+	if r.assets == nil {
 		return
 	}
-	if a, ok := r.opts.Assets.Lookup(j.url); ok && a != nil && j.requestID == "" {
+	j.store = r.assets
+	if a, ok := r.assets.Lookup(j.url); ok && a != nil && j.requestID == "" {
 		return // already stored, and not a fresh response
 	}
 	select {
@@ -48,7 +50,7 @@ func (r *Recorder) queueAsset(j assetJob) {
 // goAssets queues the images, stylesheets and fonts a page already loaded
 // before it went live (the Network domain only sees later loads).
 func (r *Recorder) goAssets() {
-	if r.opts.Assets == nil {
+	if r.assets == nil {
 		return
 	}
 	for _, s := range r.castSessions() {
@@ -112,7 +114,7 @@ func (r *Recorder) assetWorker() {
 				continue
 			}
 		}
-		a, err := r.opts.Assets.Put(r.ctx, assets.Capture{URL: j.url, MIME: j.mime, Body: body})
+		a, err := j.store.Put(r.ctx, assets.Capture{URL: j.url, MIME: j.mime, Body: body})
 		if err != nil {
 			r.opts.Logf("recorder: asset %s: %v", j.url, err)
 			continue

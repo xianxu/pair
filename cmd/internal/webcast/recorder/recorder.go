@@ -47,17 +47,25 @@ type FrameWriter interface {
 	PutFrame(f *rec.Frame, png []byte) error
 }
 
-// Output opens where a recording goes, at the first go-live, so a cast never
-// live leaves nothing behind. The recorder closes the sink it opened when it
-// ends. frames may be nil (no screenshots).
-type Output func() (sink rec.Sink, frames FrameWriter, err error)
+// Opened is where a recording goes: its records, its screenshots (nil:
+// none) and its asset store (nil: no asset records; the real store, #459,
+// persists bodies through the recording's own DirWriter).
+type Opened struct {
+	Sink   rec.Sink
+	Frames FrameWriter
+	Assets assets.Store
+}
+
+// Output opens a recording's destination at the first go-live, so a cast
+// never live leaves nothing behind. The recorder closes the sink it opened
+// when it ends.
+type Output func() (Opened, error)
 
 // Options configures a Recorder.
 type Options struct {
-	ID     string // the head's id
-	Call   Caller
-	Out    Output
-	Assets assets.Store // nil: no asset records
+	ID   string // the head's id
+	Call Caller
+	Out  Output
 	// ShotEvery is the screenshot period while live (and one at each
 	// segment); zero is 5 s, negative is none.
 	ShotEvery time.Duration
@@ -143,6 +151,7 @@ type Recorder struct {
 	m        *mirror
 	sink     rec.Sink
 	frames   FrameWriter
+	assets   assets.Store
 	t0       time.Time
 	opened   bool
 	live     bool
@@ -338,7 +347,9 @@ func (r *Recorder) run() {
 		r.afterInput(in.at)
 	}
 	if r.live {
-		r.stop(r.opts.Now(), rec.StopEnd)
+		// Chrome is going: no calls to quiet the page, only the record.
+		r.live = false
+		r.m.Emit(r.t(r.opts.Now()), &rec.Stop{Why: rec.StopEnd})
 		r.write()
 	}
 	r.cancel()
@@ -479,13 +490,13 @@ func (r *Recorder) castSessions() []string {
 
 func (r *Recorder) goLive(at time.Time, l Live) {
 	if !r.opened {
-		sink, frames, err := r.opts.Out()
+		o, err := r.opts.Out()
 		if err != nil {
 			r.err = err
 			r.opts.Logf("recorder: open: %v", err)
 			return
 		}
-		r.sink, r.frames, r.t0, r.opened = sink, frames, at, true
+		r.sink, r.frames, r.assets, r.t0, r.opened = o.Sink, o.Frames, o.Assets, at, true
 		r.m.Emit(0, &rec.Head{Format: rec.Format, V: rec.Version, ID: r.opts.ID, Started: at.Format(time.RFC3339Nano)})
 	}
 	if r.live && l.Session == r.top {

@@ -2,12 +2,14 @@ package webcast
 
 import (
 	"embed"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"sync/atomic"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/broadcast"
+	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
 //go:embed web/index.html web/viewer.js web/viewer.css
@@ -36,6 +38,8 @@ type Server struct {
 	ping       time.Duration
 	maxViewers int32
 	viewers    atomic.Int32
+	// live is the recording's fan-out (#458); nil streams state only.
+	live recording.Live
 }
 
 func NewServer(token string, b Browser, ping time.Duration) *Server {
@@ -87,6 +91,15 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 	defer s.viewers.Add(-1)
 	states, cancel := s.browser.Subscribe()
 	defer cancel()
+	// The recording's records, as rec events: the catch-up, then live. A
+	// viewer the fan-out dropped (it fell behind) is ended here; its
+	// EventSource reconnects and gets a fresh catch-up.
+	var recs <-chan recording.Record
+	if s.live != nil {
+		var stop func()
+		recs, stop = s.live.Subscribe()
+		defer stop()
+	}
 	stream := broadcast.OpenEventStream(w, s.ping)
 	if stream == nil {
 		return
@@ -109,6 +122,17 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			last = &next
+		case r, open := <-recs:
+			if !open {
+				return
+			}
+			line, err := recording.Encode(r)
+			if err != nil {
+				continue
+			}
+			if !stream.Event("rec", json.RawMessage(line)) {
+				return
+			}
 		case <-ping.C:
 			if !stream.Comment("ping") {
 				return

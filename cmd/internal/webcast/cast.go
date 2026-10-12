@@ -2,15 +2,35 @@ package webcast
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/broadcast"
+	castassets "github.com/xianxu/pair/cmd/internal/webcast/assets"
+	"github.com/xianxu/pair/cmd/internal/webcast/recorder"
+	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
 // CastConfig starts a Cast.
 type CastConfig struct {
-	// Launch starts the cast Chrome (real, or a FakeBrowser in tests).
-	Launch func(ctx context.Context) (Browser, error)
+	// Launch starts the cast Chrome (real, or a FakeBrowser in tests),
+	// recording it as rec says when rec is non-nil. A FakeBrowser records
+	// nothing.
+	Launch func(ctx context.Context, rec *RecordOptions) (Browser, error)
+	// RecordingsDir, when set, records each cast to <dir>/<id>/ from its
+	// first go-live (#458). A recording is kept until the operator deletes
+	// its directory (atlas/webcast-format.md, Lifecycle).
+	RecordingsDir string
+	// NewLive makes a cast's viewer fan-out (#460's hub), fed the same
+	// records as the directory; nil streams only the cast's state.
+	NewLive func() (recording.Sink, recording.Live)
+	// NewAssets makes a recording's asset store (#459), persisting bodies
+	// through the recording's DirWriter; nil records no assets.
+	NewAssets func(recording.AssetWriter) castassets.Store
 	// Host is the endpoint shared with the screen broadcast.
 	Host *broadcast.Host
 	// Ping is the viewers' keepalive; zero is broadcast.DefaultPing.
@@ -32,13 +52,33 @@ type Cast struct {
 	pub     *publisher[Update]
 	cancel  context.CancelFunc
 	done    chan struct{}
+	// liveSink feeds the viewers' fan-out; the recorder closes it when its
+	// recording ends, and the cast does when the browser has (a cast never
+	// live). Closing twice is a no-op.
+	liveSink recording.Sink
+	// server and token: for tests.
+	server *Server
+	token  string
 }
 
 // StartCast launches the browser and returns once it runs; the viewer link
 // opens in the background, so the operator has Chrome at once.
 func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
-	b, err := cfg.Launch(ctx)
+	var live recording.Live
+	var liveSink recording.Sink
+	var ro *RecordOptions
+	if cfg.RecordingsDir != "" {
+		if cfg.NewLive != nil {
+			liveSink, live = cfg.NewLive()
+		}
+		id := recordingID(time.Now())
+		ro = &RecordOptions{ID: id, Out: recordingOutput(cfg, liveSink, id)}
+	}
+	b, err := cfg.Launch(ctx, ro)
 	if err != nil {
+		if liveSink != nil {
+			liveSink.Close()
+		}
 		return nil, err
 	}
 	token, err := broadcast.NewToken()
@@ -47,9 +87,42 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 		return nil, err
 	}
 	mountCtx, cancel := context.WithCancel(context.Background())
-	c := &Cast{browser: b, pub: newPublisher(Update{State: b.State()}), cancel: cancel, done: make(chan struct{})}
-	go c.run(mountCtx, cfg.Host, NewServer(token, b, cfg.Ping), token)
+	c := &Cast{browser: b, pub: newPublisher(Update{State: b.State()}), cancel: cancel, done: make(chan struct{}), liveSink: liveSink}
+	srv := NewServer(token, b, cfg.Ping)
+	srv.live = live
+	c.server, c.token = srv, token
+	go c.run(mountCtx, cfg.Host, srv, token)
 	return c, nil
+}
+
+// recordingID names a recording by its start, plus a random suffix.
+func recordingID(at time.Time) string {
+	var b [2]byte
+	rand.Read(b[:])
+	return at.Format("20060102T150405") + "-" + hex.EncodeToString(b[:])
+}
+
+// recordingOutput opens a recording at the first go-live: a DirWriter at
+// <dir>/<id>, teed into the viewers' fan-out when there is one. The
+// recorder closes both when the recording ends.
+func recordingOutput(cfg CastConfig, live recording.Sink, id string) recorder.Output {
+	return func() (recorder.Opened, error) {
+		if err := os.MkdirAll(cfg.RecordingsDir, 0o700); err != nil {
+			return recorder.Opened{}, fmt.Errorf("webcast: recordings dir: %w", err)
+		}
+		w, err := recording.NewDirWriter(filepath.Join(cfg.RecordingsDir, id))
+		if err != nil {
+			return recorder.Opened{}, fmt.Errorf("webcast: recording: %w", err)
+		}
+		o := recorder.Opened{Sink: w, Frames: w}
+		if live != nil {
+			o.Sink = recording.Tee(w, live)
+		}
+		if cfg.NewAssets != nil {
+			o.Assets = cfg.NewAssets(w)
+		}
+		return o, nil
+	}
 }
 
 type mountResult struct {
@@ -95,6 +168,9 @@ func (c *Cast) run(ctx context.Context, host *broadcast.Host, srv *Server, token
 		c.pub.publish(cur)
 	}
 	c.cancel()
+	if c.liveSink != nil {
+		c.liveSink.Close()
+	}
 	if mounted != nil {
 		if r := <-mounted; r.m != nil {
 			mount = r.m

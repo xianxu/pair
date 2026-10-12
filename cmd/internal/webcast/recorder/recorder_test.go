@@ -78,7 +78,7 @@ type harness struct {
 func newHarness(t *testing.T) *harness {
 	h := &harness{t: t, fc: newFakeChrome(), out: &memOut{}}
 	h.r = Start(Options{ID: "t", Call: h.fc, ShotEvery: -1,
-		Out: func() (rec.Sink, FrameWriter, error) { h.out.opened++; return &h.out.sink, nil, nil }})
+		Out: func() (Opened, error) { h.out.opened++; return Opened{Sink: &h.out.sink}, nil }})
 	t.Cleanup(func() { h.r.Close() })
 	return h
 }
@@ -243,7 +243,7 @@ func TestRecorderOverflowResyncs(t *testing.T) {
 	gate := make(chan struct{})
 	slow := &gatedCaller{fakeChrome: h.fc, gate: gate}
 	h.r = Start(Options{ID: "t", Call: slow, ShotEvery: -1, MaxQueue: 5,
-		Out: func() (rec.Sink, FrameWriter, error) { return &h.out.sink, nil, nil }})
+		Out: func() (Opened, error) { return Opened{Sink: &h.out.sink}, nil }})
 	t.Cleanup(func() { h.r.Close() })
 	p := h.page("A", "http://a/", "L1")
 	close(gate)
