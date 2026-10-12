@@ -1,6 +1,6 @@
 ---
 id: 000468
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 9fa31ab46ccae193bce10d2d7f354a8e69e458bd
         evidence_commit: fd4ed0aef922e4a37e5c574834451c6ae9302c27
+        landed_commit: c6c006d308f16d011744ac9da0b88c8e1528f9dc
 ---
 
 # couch: waiting notices repeat for one idle episode (ariadne:1, no new turn since 00:50)
