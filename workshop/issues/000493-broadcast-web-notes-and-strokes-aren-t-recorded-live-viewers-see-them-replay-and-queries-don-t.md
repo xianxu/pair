@@ -51,6 +51,7 @@ they reached disk only when the cast ended. Fix (quick flow):
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed — make -k test exit 0 on 4761073b (+ main merge, issue files only). Root cause: recording.DirWriter buffered each record file (4 KiB bufio), flushed only when full or at Close; a cast's notes reached disk only at stop (operator's 12:01 recording: notes from 12:03 written at 14:29). Fix: one unbuffered append per record; ReadDir decodes complete lines only (live readers race writes), ValidateDir still flags a torn tail. Tests red->green: TestCastBoardNotesAndStrokesReachDiskWhileLive (cast + DirWriter + Board via viewer routes; without closing, ReadDir holds note+stroke and query notes lists the note), TestLiveStrokeReachesDiskWhileLive (WEBCAST_LIVE_CHROME, real recorder: live-segment stroke in pointer.jsonl mid-cast; both fail with dir.go at db118ad89~1: no second cause), TestReadDirDecodesCompleteLinesOnly (fails without completeLines), TestDirWriterRecordIsOnDiskBeforeClose. Pending live check: the operator's next cast replays notes and strokes mid-cast and the query lists notes.; review verdict: SHIP
 - **The recording was not missing the notes, they were late:** 20261012T120120-7bc7 now holds 6 note lines
   (12:03:08, 12:03:30, 12:07:50, 13:25:46 + resolve, 13:26:38) and 15 stroke chunks (13:26:23). notes.jsonl and
   pointer.jsonl were last written 14:29, when the cast ended (`stop why=end`). events.jsonl has no note/stroke by
