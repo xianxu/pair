@@ -35,6 +35,7 @@ family into files. Splitting and merging are pure functions of `k`:
   assets/<hash>        captured bodies (images resampled; CSS and fonts exact), named by content hash
   frames/index.jsonl   frame: the sparse low-res screenshots for the fidelity check (not in the live stream)
   frames/<n>.png
+  fidelity/            the fidelity check's report (#478): not records; written beside them
 ```
 
 Reading a recording merges the three record files into one stream by `t`. At equal `t`, events come first, then
@@ -394,6 +395,22 @@ Gaps found while recording, closed by the recorder (#458):
 - **Layout:** `DOMSnapshot` on the top session leaves out out-of-process frames; the recorder captures each frame
   session's own and maps its boxes into the top page.
 
+## The fidelity report (#478)
+
+`<recording>/fidelity/` is written by the fidelity check (`webcast.CheckFidelity`, mapped in
+[webcast.md](webcast.md#the-fidelity-check-478)), from the CLI or when a recorded cast ends. A rerun replaces it
+whole. It is not part of the record stream: readers and `ValidateDir` ignore it, and it goes when the recording's
+directory does. At most 10 crops at most the frame's size plus two small text files.
+
+- `report.json` is `fidelity.Report`: `recording`, `tolerance` (% of a frame's pixels), `frames`, `skipped` (frames
+  with nothing live to replay), `median`, `max`, `over` (frames over the tolerance), `worst` (indexes into `shots`,
+  worst first: every frame over the tolerance and at least 3, at most 10). Each shot has `file` (the tab's frame),
+  `t`, `diff` (%), `over`, the `offset` (ms) and `at_t` (its diff at t) when it matched best a little earlier or
+  later, and `crop` for a worst one.
+- `report.md` is the same for a person: the summary, the worst moments, and every frame.
+- `worst-<n>.png` is a worst moment at the frame's resolution: the tab, the replay, and where they differ (red),
+  cropped to the difference.
+
 ## Agent queries (#462)
 
 `couch --broadcast-web-query DIR dom|events|notes` is what a coding agent runs on a recording. It reads the
@@ -525,3 +542,5 @@ recording. Seats and their keys are memory only: they end after the grace period
 - 2026-10-12 (#459, TL ops:0): the asset store, not the recorder, makes stored CSS bodies' URLs absolute (at
   `Put`, against the capture URL); `image-set()` plain strings are URLs to both the proxy and the viewer; the
   resample policy is written down under Assets. Additive: no record kind or field changes.
+- 2026-10-12 (#478, additive): `fidelity/` in the recording directory, the fidelity check's report. No record kind
+  or field changes; frames are as #457 defined them.

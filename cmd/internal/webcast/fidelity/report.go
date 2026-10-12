@@ -12,9 +12,9 @@ import (
 // Tolerance is the share of a frame's pixels, in %, the replay may differ
 // by. Desktop Chromium replaying in desktop Chromium targets exact
 // fidelity; what is left is anti-aliasing at scaled edges and a transition
-// caught at another phase. Measured with Diff (#478, the issue's Log):
-// the fixtures' frames and a live blog cast stay under it, and a render
-// without its stylesheets is far over.
+// caught at another phase. Measured with Diff (#478): the fixtures' frames
+// at most 0.74% (stress), a live blog cast by #458's recorder at most
+// 0.10% over 17 frames, and the blog without its stylesheets 81% median.
 const Tolerance = 3.0
 
 // Retries are the offsets (ms from a frame's t) a frame over the
@@ -41,9 +41,11 @@ type Shot struct {
 	Diff float64 `json:"diff"`
 	// Offset is when the replay matched the frame best, in ms from its
 	// t: a frame over the tolerance at t is retried at Retries.
-	Offset int64  `json:"offset,omitempty"`
-	Over   bool   `json:"over,omitempty"`
-	Crop   string `json:"crop,omitempty"`
+	Offset int64 `json:"offset,omitempty"`
+	// AtT is the diff at t itself when the best was at an offset.
+	AtT  float64 `json:"at_t,omitempty"`
+	Over bool    `json:"over,omitempty"`
+	Crop string  `json:"crop,omitempty"`
 }
 
 // Report is a recording's fidelity. Shots are the frames compared, in time
@@ -115,20 +117,20 @@ func (r Report) Markdown() string {
 	b.WriteString("## Worst moments\n\n| t (ms) | diff | over | matched at | tab frame | side by side |\n|---|---|---|---|---|---|\n")
 	for _, i := range r.Worst {
 		s := r.Shots[i]
-		fmt.Fprintf(&b, "| t=%d | %.2f%% | %s | %s | %s | %s |\n", s.T, s.Diff, yes(s.Over), offset(s.Offset), s.File, strings.TrimPrefix(s.Crop, ReportDir+"/"))
+		fmt.Fprintf(&b, "| t=%d | %.2f%% | %s | %s | %s | %s |\n", s.T, s.Diff, yes(s.Over), matched(s), s.File, strings.TrimPrefix(s.Crop, ReportDir+"/"))
 	}
 	b.WriteString("\n## Every frame\n\n| t (ms) | diff | matched at |\n|---|---|---|\n")
 	for _, s := range r.Shots {
-		fmt.Fprintf(&b, "| %d | %.2f%% | %s |\n", s.T, s.Diff, offset(s.Offset))
+		fmt.Fprintf(&b, "| %d | %.2f%% | %s |\n", s.T, s.Diff, matched(s))
 	}
 	return b.String()
 }
 
-func offset(ms int64) string {
-	if ms == 0 {
+func matched(s Shot) string {
+	if s.Offset == 0 {
 		return "t"
 	}
-	return fmt.Sprintf("t%+d ms", ms)
+	return fmt.Sprintf("t%+d ms (%.2f%% at t)", s.Offset, s.AtT)
 }
 
 func yes(b bool) string {

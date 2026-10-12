@@ -168,12 +168,12 @@ func TestDiffBoxAndSideBySide(t *testing.T) {
 func TestReportFiles(t *testing.T) {
 	rep := Summarize("20261012T101010-abcd", []Shot{
 		{File: "frames/1.png", T: 1200, Diff: 0.4},
-		{File: "frames/2.png", T: 5300, Diff: 7.25, Offset: 150},
+		{File: "frames/2.png", T: 5300, Diff: 7.25, Offset: 150, AtT: 12.5},
 		{File: "frames/3.png", T: 10400, Diff: 1.1},
 	}, 1)
 	md := rep.Markdown()
 	for _, want := range []string{"20261012T101010-abcd", "median 1.10%", "max 7.25%", "tolerance 3%", "1 of 3",
-		"t=5300", "t+150 ms", "worst-1.png", "frames/2.png", "1 frame had nothing live to replay"} {
+		"t=5300", "t+150 ms (12.50% at t)", "worst-1.png", "frames/2.png", "1 frame had nothing live to replay"} {
 		if !strings.Contains(md, want) {
 			t.Errorf("markdown lacks %q:\n%s", want, md)
 		}

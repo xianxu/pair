@@ -82,3 +82,17 @@ test('an asset resolves through the given URL', async () => {
   assert.equal(resolve(url), `assets/${asset.hash}`);
   assert.equal(resolve('http://nowhere.invalid/x.png'), '');
 });
+
+test('a segment that is not a navigation finishes the animations of the document it snapshots', async () => {
+  for (const [why, finishedAtSeg] of [['live', true], ['resume', true], ['tab', true], ['navigate', false]]) {
+    const { deps, log } = fake();
+    const seg = { t: 500, k: 'seg', seg: 1, why, tab: { id: 'a', url: 'http://x/' }, vp: { w: 800, h: 600, dpr: 1 } };
+    const doc = { t: 500, k: 'doc', doc: 1, url: 'http://x/', tree: { id: 1, y: 'doc', c: [{ id: 2, y: 'el', n: 'html', c: [] }] } };
+    const r = new Replayer([{ t: 0, k: 'head', format: 'couch-webcast', v: 1, id: 'x', started: '2026-10-12T00:00:00Z' }, seg, doc], (h) => h, deps);
+    await r.replayAt(800, 1000);
+    // finish before the window, and at the segment (t=500, 700 ms into the
+    // window from -200) unless it navigated.
+    const finishes = log.anims.filter(([k]) => k === 'finish').map(([, at]) => at);
+    assert.deepEqual(finishes, finishedAtSeg ? [0, 700] : [0], why);
+  }
+});

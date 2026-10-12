@@ -309,12 +309,19 @@ func (h *headless) score(ctx context.Context, f *recording.Frame, tab []byte) (f
 		if err != nil {
 			d = 1 // a replay at another size differs everywhere
 		}
-		if d = math.Round(d*1e4) / 100; best == nil || d < shot.Diff {
+		d = math.Round(d*1e4) / 100
+		if off == 0 {
+			shot.AtT = d
+		}
+		if best == nil || d < shot.Diff {
 			shot.Diff, shot.Offset, best = d, off, got
 		}
 		if shot.Diff <= fidelity.Tolerance {
 			break
 		}
+	}
+	if shot.Offset == 0 {
+		shot.AtT = 0 // the same as Diff
 	}
 	return shot, best, true, nil
 }

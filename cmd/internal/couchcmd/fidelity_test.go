@@ -110,7 +110,9 @@ func TestRunFidelity(t *testing.T) {
 	if code := runFidelity(context.Background(), nil, store, noChrome, report(0, 1), io.Discard, io.Discard); code != fidelityError {
 		t.Errorf("no Chrome: %d", code)
 	}
-	failing := func(context.Context, string, string) (fidelity.Report, error) { return fidelity.Report{}, errors.New("boom") }
+	failing := func(context.Context, string, string) (fidelity.Report, error) {
+		return fidelity.Report{}, errors.New("boom")
+	}
 	errs.Reset()
 	if code := runFidelity(context.Background(), nil, store, chrome, failing, io.Discard, &errs); code != fidelityError || !strings.Contains(errs.String(), "boom") {
 		t.Errorf("failing check: %d %s", code, errs.String())

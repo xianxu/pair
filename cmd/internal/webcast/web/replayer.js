@@ -7,6 +7,8 @@
 // records up to t - windowMs at once (their transitions finished), then the
 // last window in real time, so a transition or animation running at t is
 // at the phase it had in the tab; animations are paused at t for a capture.
+// A document a segment snapshots mid-cast (go-live, resume, a tab switch)
+// was already running, so its animations are finished, not started.
 import { Model, goJSON } from './model.js';
 import { Renderer } from './render.js';
 
@@ -73,6 +75,12 @@ export class Replayer {
     return this.settle();
   }
 
+  finishAnimations() {
+    for (const a of this.deps.animations()) {
+      try { a.finish(); } catch { /* an infinite animation has no end */ }
+    }
+  }
+
   // replayAt: see the file's comment. It returns what was drawn: whether
   // the cast was live at t, the viewport, and the canonical state.
   async replayAt(t, windowMs) {
@@ -81,16 +89,23 @@ export class Replayer {
     const start = Math.max(t - windowMs, this.at);
     while (this.next < this.recs.length && this.recs[this.next].t <= start) this.feed(this.recs[this.next++]);
     await this.settle();
-    for (const a of this.deps.animations()) {
-      try { a.finish(); } catch { /* an infinite animation has no end */ }
-    }
+    this.finishAnimations();
     const t0 = this.deps.now();
     const until = (rt) => this.deps.sleep(rt - start - (this.deps.now() - t0));
     while (this.next < this.recs.length && this.recs[this.next].t <= t) {
       const rt = this.recs[this.next].t;
       await until(rt);
-      while (this.next < this.recs.length && this.recs[this.next].t === rt) this.feed(this.recs[this.next++]);
+      let running = false;
+      while (this.next < this.recs.length && this.recs[this.next].t === rt) {
+        const r = this.recs[this.next++];
+        this.feed(r);
+        running = running || (r.k === 'seg' && r.why !== 'navigate');
+      }
       this.renderer.flush();
+      // A segment that isn't a navigation snapshots a document that was
+      // already running: its animations have run in the tab (their phase
+      // isn't recorded), so they are taken as finished, as before the window.
+      if (running) this.finishAnimations();
     }
     await until(t);
     this.at = Math.max(this.at, t);
