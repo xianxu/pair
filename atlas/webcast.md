@@ -1,8 +1,8 @@
 # Couch broadcast-web: the cast Chrome (#454)
 
 `couch broadcast-web` casts a Chrome tab from Couch as a DOM stream (project: ops
-`teams/devinfra/projects/couch-broadcast-web/project.md`). This file maps the browser-control component;
-the recorder and asset proxy plug into the same seam, and the live viewer (#460) is mapped below. The recording format, its reducer and the wave-1 seams are in
+`teams/devinfra/projects/couch-broadcast-web/project.md`). This file maps the browser-control component
+and the recorder (#458); the asset proxy plugs into the same seam, and the live viewer (#460) is mapped below. The recording format, its reducer and the wave-1 seams are in
 [webcast-format.md](webcast-format.md), which also names where the recorder plugs in here.
 
 ## Layers
@@ -12,7 +12,8 @@ the recorder and asset proxy plug into the same seam, and the live viewer (#460)
 | CDP client | `cmd/internal/cdp` | Chrome DevTools Protocol over `--remote-debugging-pipe` (fd 3 in, fd 4 out, NUL-framed JSON). The only package with CDP wire types. Bounded event queue (4096; `ErrBacklog` past it). |
 | Browser seam | `cmd/internal/webcast` `Browser` | State (`Phase` idle/live/ended, active `Tab`), `Subscribe` (latest value, never blocks), `SetLive`, `Close`, `Done`/`Err`. Nothing CDP crosses it. |
 | Real Chrome | `webcast.Chrome` (`chrome.go`, `inject.js`) | Launches Chrome on the cast profile, auto-attaches to every page, injects the control, owns all state on one loop goroutine. |
-| Fake | `webcast.FakeBrowser` | Stateful double with operator verbs (navigate, open/switch/close tabs, click the control, quit). Drives the same `Tracker`. |
+| Fake | `webcast.FakeBrowser` | Stateful double with operator verbs (navigate, open/switch/close tabs, click the control, quit). Drives the same `Tracker`. Records nothing. |
+| Recorder | `cmd/internal/webcast/recorder` | Part of the real Browser, on the CDP side of the seam (#458). See [The recorder](#the-recorder-458). |
 
 ## How the active tab is found
 
@@ -35,6 +36,46 @@ click the control (toggling live/pause, which Couch's tab bar shows); accepted f
 Setup per page (`goSetup`): auto-attach holds each new page before its first document runs; the binding, Runtime
 and Page domains, and the script (`runImmediately`) are set up, then the page is released — always, since a page
 left waiting is a frozen tab. Without `Page.enable` the script never reaches the next document.
+
+## The recorder (#458)
+
+`Chrome` starts it when `LaunchOptions.Record` is set, forwards **every** CDP event to it (`Send` never blocks the
+loop), and tells it the live phase from `publish` (`Live` on the active tab, a switch when the tab changes, `Title`,
+`Pause`). It is the record stream's **single writer**: records made elsewhere (#467's control and injected actions, #470's notes
+and strokes) enter its queue as `recorder.Emit`, stamped on arrival and checked by its reducer.
+
+- **Pure core:** `mirror` (`mirror.go`, `observe.go`) holds CDP's DOM per session (`getDocument` pierce, whitespace
+  included) and the id map (`backendNodeId` → id per session for one document, keyed by loader id, with a 50 000-node
+  graveyard so moves keep ids). Every record goes through its own reducer first, so the output validates by
+  construction; refusals are counted (`Stats`). It leaves out the control (`data-couchcast-ui`), user-agent shadow
+  trees, and password values. `IDOf`/`NodeOf` expose the map (#467).
+- **Shell:** `Recorder` (`recorder.go`): one goroutine, a FIFO of stamped inputs (record `t` = arrival), synchronous
+  CDP calls in queue order. CDP events carry `cdp.Event.Seq`; a snapshot drops queued events of its session read
+  before its reply (`Conn.CallSeq`). Over 100 000 queued events it drops and resyncs. Side workers (`side.go`) fetch
+  asset bodies (`Network.getResponseBody`; already-loaded ones via `Page.getResourceContent`) into the
+  `assets.Store`, and take a screenshot plus a `DOMSnapshot` per session every 5 s and at each segment.
+- **Observer:** `observer.js` runs in the `couchcast` world of **every frame** (installed with the control; frames
+  get it in `goSetupFrame`). It names nodes by path, reports clicks synchronously, coalesces the rest per animation
+  frame (scroll is event-driven), scans for values set by script, and reports only while switched on.
+- **Frames:** pages auto-attach their out-of-process iframes (`frameAutoAttach`), which are set up and released like
+  pages. A frame's document is a `doc` with `host`; click and pointer positions are mapped through the owner
+  iframe's box.
+- **Where recordings go:** `CastConfig.RecordingsDir` (`<couch store>/webcast/recordings/<id>/`), opened at the first
+  go-live, teed into `CastConfig.NewLive`'s hub, whose records `Server` streams as `rec` events after the `state`
+  ones. Kept until the operator deletes the directory.
+- **Fidelity:** `recorder/internal/fidelity` (a development tool) replays a recording at each screenshot in headless
+  Chrome and diffs the pixels; `TestLiveRecordURL` records any URL for it (#458's numbers are in its issue Log).
+  Screenshots are the viewport at half its CSS size whatever the DPR (`recorder.LowRes`), the form #453's fixtures
+  use.
+- **Asset capture** (the recorder's; #459 stores, absolutizes CSS and serves): raw bodies to `assets.Store.Put`, one
+  fetch per URL per recording, by the first source to claim it. A Network response claims its URL; so does a resource
+  Chrome holds at a segment's start (`Page.getResourceContent`, else a load in the page's context with
+  `Network.loadNetworkResource`, never from outside the browser). An element's `src` or a FontFace font's `src` waits
+  2 s so responses claim first, then is loaded the same way if nothing did. Images whose source the browser chooses
+  (a srcset, a `<picture>`) and lazy images are never loaded from references.
+- **Live check:** `TestLiveRecording` (`live_record_test.go`) casts a page with re-renders, open and closed roots, an
+  out-of-process iframe, insertRule, a >10k `<style>`, a password, a click that navigates, pause and resume; the
+  recording must validate, drop nothing, and hold each case.
 
 ## Lifecycle
 
@@ -76,7 +117,21 @@ left waiting is a frozen tab. Without `Page.enable` the script never reaches the
   closes, the fan-out says why (`Live.Ended`). A viewer dropped as too slow has its stream ended and reconnects for
   a fresh catch-up. Once the fan-out has ended, the viewer keeps its page and the stream goes on with `state` and
   `end`. `?viewer=ID` calls `CastConfig.Presence` for the stream's life (#466's seats). `<token>/assets/<hash>` is
-  the asset proxy's (#459).
+  the asset proxy's (#459, below).
+- **Asset store and proxy (#459):** `webcast/assets/`. The recorder (#458) captures bodies over CDP and calls
+  `Store.Put`; `assets.Recorded` is the real store: dedup by content hash (a repeated body is processed once),
+  images resampled to `Policy.MaxPixels` (`image.go`, WebP through `golang.org/x/image`), CSS URLs made absolute
+  (`css.go`'s `RewriteCSS`), bodies written through the recording's `DirWriter` and read back from disk.
+  Image decodes are admitted one at a time process-wide (about 256 MB at the 64 MP ceiling), and a body that arrives
+  twice is decoded once. `assets.Proxy` serves `<token>/assets/<hash>`: the `Server` owns one (`Server.Assets()`),
+  and the cast is to bind the recording's store to it when the recording opens (first go-live); until then it
+  answers 404. That bind, and couchcmd's `NewAssets`, land with #458's recorder (whichever of #458/#459 lands
+  second wires them); until then no production cast binds a store. `Bind` takes an `assets.Served` (a store that knows each body's MIME, as `Recorded` does), so the wiring keeps
+  the concrete store, not the `Store` interface. It serves only
+  images, stylesheets and fonts (a body a page labelled HTML or script is never served from the viewer's origin),
+  rewrites a stylesheet's URLs to `<hash>` at serve time (not cached; bindings change), and marks other bodies
+  immutable. The live viewer tests play the fixtures' assets through `Recorded` + `Proxy` (`throughStore`) and
+  check the viewer requests nothing outside the cast.
 - **Live viewer (#460):** `webcast/web/`, three ES modules plus the shell.
   - `model.js` is the reducer in JS: `recording.Reduce` and `State.Canonical()`, byte for byte. Node tests hold it to
     every fixture's pinned hash.

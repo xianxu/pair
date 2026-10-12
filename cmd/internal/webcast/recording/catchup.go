@@ -11,7 +11,9 @@ package recording
 //   - notes, note states and strokes since then;
 //   - the latest control change (ctl) before the latest segment: it
 //     carries the whole control state (#466);
-//   - every record from the latest segment on.
+//   - every record from the latest segment on, except hover and ptr: of
+//     those only the latest of each, in place (they are state, the
+//     operator's pointer now, not history a viewer replays; #458).
 //
 // Order is kept. Applied to a fresh state, the catch-up gives the same DOM,
 // assets, DocSeg and current-document notes as the whole recording.
@@ -36,6 +38,19 @@ func CatchUp(recs []Record) []Record {
 	}
 	if doc < 0 {
 		doc = 0
+	}
+	hover, ptr := -1, -1 // the latest of each in the latest segment
+	for i := len(recs) - 1; i >= last && (hover < 0 || ptr < 0); i-- {
+		switch recs[i].(type) {
+		case *Hover:
+			if hover < 0 {
+				hover = i
+			}
+		case *Ptr:
+			if ptr < 0 {
+				ptr = i
+			}
+		}
 	}
 	var out []Record
 	kept := map[string]bool{} // notes the catch-up carries
@@ -73,6 +88,14 @@ func CatchUp(recs []Record) []Record {
 		case *Ctl:
 			if i == ctl {
 				out = append(out, r)
+				continue
+			}
+		case *Hover:
+			if i != hover {
+				continue
+			}
+		case *Ptr:
+			if i != ptr {
 				continue
 			}
 		}

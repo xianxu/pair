@@ -13,13 +13,15 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
+	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/cdp"
+	castassets "github.com/xianxu/pair/cmd/internal/webcast/assets"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
@@ -158,6 +160,13 @@ func fixtureServer(t *testing.T, extra ...*recording.Recording) *httptest.Server
 		}
 		recs[name] = r
 	}
+	proxies := map[string]*castassets.Proxy{}
+	for name, r := range recs {
+		store, played := throughStore(t, r)
+		recs[name] = played
+		proxies[name] = castassets.NewProxy()
+		proxies[name].Bind(store)
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/web/", func(w http.ResponseWriter, r *http.Request) {
 		body, err := webFS.ReadFile("web/" + strings.TrimPrefix(r.URL.Path, "/web/"))
@@ -196,7 +205,7 @@ func fixtureServer(t *testing.T, extra ...*recording.Recording) *httptest.Server
 			}
 			writeRecords(w, recording.CatchUp(upto))
 		case parts[1] == "assets" && len(parts) == 3:
-			serveFixtureAsset(w, r, rec, parts[0], parts[2])
+			proxies[parts[0]].Serve(w, r, parts[2])
 		default:
 			http.NotFound(w, r)
 		}
@@ -219,41 +228,49 @@ func writeRecords(w http.ResponseWriter, recs []recording.Record) {
 	}
 }
 
-var cssURL = regexp.MustCompile(`url\(\s*["']?([^"')\s]+)["']?\s*\)`)
-
-func serveFixtureAsset(w http.ResponseWriter, r *http.Request, rec *recording.Recording, name, hash string) {
-	body, err := rec.Asset(hash)
-	if err != nil {
-		http.NotFound(w, r)
-		return
-	}
-	table := map[string]*recording.Asset{}
-	mime := ""
-	for _, x := range rec.Records {
-		if a, ok := x.(*recording.Asset); ok {
-			table[a.URL] = a
-			if a.Hash == hash {
-				mime = a.MIME
-			}
+// throughStore plays a fixture's assets through the real store, as the
+// recorder does: each body is Put, and the store's asset record stands in
+// the stream for the fixture's (an image over the budget comes back
+// resampled, under another hash). The reducer's canonical state holds no
+// asset table, so the fixture's pins still hold.
+func throughStore(t *testing.T, rec *recording.Recording) (*castassets.Recorded, *recording.Recording) {
+	t.Helper()
+	s := castassets.NewRecorded(discardWriter{}, castassets.DefaultPolicy)
+	out := *rec
+	out.Records = slices.Clone(rec.Records)
+	for i, x := range out.Records {
+		a, ok := x.(*recording.Asset)
+		if !ok {
+			continue
 		}
+		body, err := rec.Asset(a.Hash)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := s.Put(context.Background(), castassets.Capture{URL: a.URL, MIME: a.MIME, Body: body})
+		if err != nil {
+			t.Fatal(err)
+		}
+		got.Header = a.Header
+		out.Records[i] = got
 	}
-	if strings.HasPrefix(mime, "text/css") {
-		body = cssURL.ReplaceAllFunc(body, func(m []byte) []byte {
-			u := string(cssURL.FindSubmatch(m)[1])
-			if a := table[u]; a != nil {
-				return []byte(`url("` + assetPrefix(name) + a.Hash + `")`)
-			}
-			return m
-		})
-	}
-	w.Header().Set("Content-Type", mime)
-	w.Write(body)
+	return s, &out
 }
 
 // chromePage is one headless Chrome tab driven over CDP.
 type chromePage struct {
 	conn    *cdp.Conn
 	session string
+
+	mu        sync.Mutex
+	requested []string // URLs from Network.requestWillBeSent, once Network is enabled
+}
+
+// requests is every URL the page has requested since Network.enable.
+func (p *chromePage) requests() []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return slices.Clone(p.requested)
 }
 
 func headlessPage(t *testing.T) *chromePage {
@@ -288,8 +305,17 @@ func headlessPage(t *testing.T) *chromePage {
 	p.call(t, "", "Target.attachToTarget", map[string]any{"targetId": target.TargetID, "flatten": true}, &att)
 	p.session = att.SessionID
 	p.call(t, p.session, "Emulation.setDeviceMetricsOverride", map[string]any{"width": 1280, "height": 800, "deviceScaleFactor": 1, "mobile": false}, nil)
-	go func() { // events are not read here; keep the pump flowing
-		for range conn.Events() {
+	go func() { // keep the pump flowing; note requests
+		for ev := range conn.Events() {
+			if ev.Method != "Network.requestWillBeSent" {
+				continue
+			}
+			var r struct{ Request struct{ URL string } }
+			if json.Unmarshal(ev.Params, &r) == nil {
+				p.mu.Lock()
+				p.requested = append(p.requested, r.Request.URL)
+				p.mu.Unlock()
+			}
 		}
 	}()
 	return p
@@ -407,15 +433,6 @@ func pixelDiff(a, b image.Image) float64 {
 func far(a, b uint32) bool {
 	d := int(a>>8) - int(b>>8)
 	return d > pixelThreshold || -d > pixelThreshold
-}
-
-// assetPrefix is where a fixture's assets are served: under the harness's
-// /fx/<name>/, or, for the viewer page (name ""), the cast's assets/.
-func assetPrefix(name string) string {
-	if name == "" {
-		return "/tok/assets/"
-	}
-	return "/fx/" + name + "/assets/"
 }
 
 // URLs resolve against the document that holds them, and SVG's mixed-case

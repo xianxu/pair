@@ -93,3 +93,47 @@ func TestCatchUpCarriesControl(t *testing.T) {
 		t.Errorf("the catch-up carries %d ctl records from before the latest segment, want 1", before)
 	}
 }
+
+// The catch-up keeps only the latest hover and ptr of the current segment
+// (state, like the latest ctl), in place: a viewer joining gets the
+// operator's pointer now, not its history. Equivalent at every cut,
+// including one where the hovered element was removed after.
+func TestCatchUpKeepsLatestHoverAndPtr(t *testing.T) {
+	p := newPage()
+	li := p.b.El("li", nil)
+	p.b.Add(&Ins{P: p.ul.ID, Node: li})
+	for i := 0; i < 5; i++ {
+		p.b.At(int64(10 + i)).Add(&Hover{ID: p.div.ID}).Add(&Ptr{X: float64(i), Y: 1})
+	}
+	p.b.At(20).Add(&Hover{ID: li.ID}).Add(&Rm{ID: li.ID}).Add(&Ptr{X: 9, Y: 9})
+	recs := p.b.Recs
+	for cut := 1; cut <= len(recs); cut++ {
+		if err := CheckCatchUp(recs[:cut], 1<<62); err != nil {
+			t.Fatalf("cut %d: %v", cut, err)
+		}
+	}
+	hovers, ptrs := 0, 0
+	for _, r := range CatchUp(recs) {
+		switch r.(type) {
+		case *Hover:
+			hovers++
+		case *Ptr:
+			ptrs++
+		}
+	}
+	if hovers != 1 || ptrs != 1 {
+		t.Fatalf("the catch-up carries %d hovers and %d ptrs, want 1 each", hovers, ptrs)
+	}
+	// Only the current segment's: a new segment clears them.
+	p.b.At(30).Add(&Stop{Why: StopPause})
+	p.b.Add(&Seg{Seg: p.b.NextSeg(), Why: SegNavigate, Tab: Tab{ID: "t"}, VP: Viewport{W: 1, H: 1, DPR: 1}})
+	p.b.Snapshot("http://x/2", p.b.El("body", nil))
+	for _, r := range CatchUp(p.b.Recs) {
+		if r.Kind() == "hover" || r.Kind() == "ptr" {
+			t.Fatalf("a %s from an earlier segment was carried", r.Kind())
+		}
+	}
+	if err := CheckCatchUp(p.b.Recs, 1<<62); err != nil {
+		t.Fatal(err)
+	}
+}

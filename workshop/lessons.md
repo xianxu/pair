@@ -7,6 +7,19 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- A bounded cache or graveyard prunes only after the update it belongs to is applied: decide what is gone from the
+  structure as it now is, never between its teardown and its rebuild. #458's id map buried a re-snapshotted tree after
+  forgetting it, so every live node looked removed and lost its id once the graveyard filled. Test it above the bound.
+  (#458 BR-19)
+- When several sources can supply the same thing (a response, a cache, a reference), name one keyed owner that
+  decides, test every arrival order, and say what the later sources do. Deduping by "seen" flags set in arrival order
+  double-fetches the moment the order flips. (#458 BR-24)
+- A measuring tool's own error must be smaller than what it measures: a screenshot diff searched in 200 ms steps on a
+  page that changes every 50 ms measured the step. Check the tool against a known baseline (the prototype's recordings)
+  before comparing anything with it. (#458 M3)
+- A fix that adds a review-requested behavior ships with a test that fails when the fix is reverted; check it by
+  reverting. Five of #458's first-round fixes passed the suite reverted. (#458 BR-4..17)
+
 - A filter that keeps records by kind must also keep the context records that give the kept ones their meaning.
   #457's catch-up kept a document's notes but dropped the segment they were counted from, so a derived view
   (notes on the current document) emptied while the raw state matched. Assert equivalence on the derived views
@@ -1157,6 +1170,11 @@ proof; record the surprising case so the next change starts from evidence.
   the same commit. The same holds for a retracted figure (a size bound, a measurement): grep its distinctive wording
   ("1.4 MB") and correct every hit, the plan included, in the fix that retracts it. And the reason a channel closed
   is recorded by the source under its lock, not inferred by consumers from timing.
+- **A shared corpus has to include the cases where the implementations differ (#459 close review).** The Go and JS
+  CSS scanners were "held to one corpus", but the corpus left out comments, strings and name boundaries, exactly where
+  a regex and a tokenizer part ways. When two implementations share a test corpus, write the cases each one's
+  technique gets wrong first, and run the corpus against the old version to see it fail. And a per-call resource
+  (an image decode at a header-checked ceiling) needs a bound on concurrent calls too, not just on each call.
 - **A string two components read has one reader of record (#462 close, round 1).** The agent queries' CSS matcher
   also read the notes model's anchor selectors, by its own rules: `>>>` as a plain descendant and `>` crossing shadow
   and frame boundaries, so an anchor named 6 elements where the model named one, and the test only asked for

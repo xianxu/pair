@@ -13,7 +13,9 @@ const (
 // session it arrived on; Chrome's loop maps sessions to targets.
 type (
 	pageAttached struct{ TargetID, SessionID string }
-	pageDetached struct{ SessionID string }
+	// frameAttached: an out-of-process iframe's session, under Parent's.
+	frameAttached struct{ TargetID, SessionID, Parent string }
+	pageDetached  struct{ SessionID string }
 	// contextCreated is the control's world in a page's top frame.
 	contextCreated struct {
 		SessionID string
@@ -71,10 +73,16 @@ func translate(sessionID, method string, params json.RawMessage, targetOf func(s
 			SessionID  string     `json:"sessionId"`
 			TargetInfo targetInfo `json:"targetInfo"`
 		}
-		if json.Unmarshal(params, &p) != nil || p.TargetInfo.Type != "page" || p.SessionID == "" {
+		if json.Unmarshal(params, &p) != nil || p.SessionID == "" {
 			return nil
 		}
-		return []any{pageAttached{TargetID: p.TargetInfo.TargetID, SessionID: p.SessionID}}
+		switch p.TargetInfo.Type {
+		case "page":
+			return []any{pageAttached{TargetID: p.TargetInfo.TargetID, SessionID: p.SessionID}}
+		case "iframe":
+			return []any{frameAttached{TargetID: p.TargetInfo.TargetID, SessionID: p.SessionID, Parent: sessionID}}
+		}
+		return nil
 	case "Target.detachedFromTarget":
 		var p struct {
 			SessionID string `json:"sessionId"`

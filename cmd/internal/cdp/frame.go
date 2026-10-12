@@ -33,6 +33,8 @@ type Message struct {
 	Result    json.RawMessage `json:"result,omitempty"`
 	Error     *Error          `json:"error,omitempty"`
 	SessionID string          `json:"sessionId,omitempty"`
+	// Seq is the read order the Conn gave it; never on the wire.
+	Seq uint64 `json:"-"`
 }
 
 // Error is a CDP error reply.

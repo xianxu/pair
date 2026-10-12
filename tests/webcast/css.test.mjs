@@ -1,6 +1,7 @@
 // The viewer's URL and stylesheet rewriting (#460).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { rewriteCSS, rewriteSrcset, resolveURL, BLOCKED } from '../../cmd/internal/webcast/web/css.js';
 
 const table = { 'http://x/a.png': 'assets/aa', 'http://x/f/b.woff2': 'assets/bb', 'http://x/i.css': 'assets/cc' };
@@ -11,6 +12,22 @@ test('url()s go through the asset table; misses load nothing', () => {
   assert.equal(rewriteCSS('a{background:url( "../a.png" )}', 'http://x/p/', resolve), 'a{background:url("assets/aa")}');
   assert.equal(rewriteCSS("@font-face{src:url('http://x/f/b.woff2')}", '', resolve), '@font-face{src:url("assets/bb")}');
   assert.equal(rewriteCSS('@import "i.css";', 'http://x/', resolve), '@import url("assets/cc");');
+});
+
+test('the URL spans are the asset proxy\'s (shared corpus)', () => {
+  const cases = JSON.parse(readFileSync(new URL('./css_urls.json', import.meta.url), 'utf8'));
+  for (const c of cases) {
+    const got = [];
+    rewriteCSS(c.css, c.base, (abs) => { got.push(abs); return abs; });
+    assert.deepEqual(got, c.urls, c.name);
+  }
+});
+
+test('image-set() strings go through the asset table', () => {
+  assert.equal(rewriteCSS('a{b:image-set("a.png" 1x, "missing.png" 2x)}', 'http://x/', resolve),
+    `a{b:image-set(url("assets/aa") 1x, url("${BLOCKED}") 2x)}`);
+  assert.equal(rewriteCSS("a{b:-webkit-image-set('a.png' 1x)}", 'http://x/', resolve), 'a{b:-webkit-image-set(url("assets/aa") 1x)}');
+  assert.equal(rewriteCSS('a{b:image-set("a.png" type("image/png"))}', 'http://x/', resolve), 'a{b:image-set(url("assets/aa") type("image/png"))}');
 });
 
 test('data: URLs and fragments are kept as they are', () => {

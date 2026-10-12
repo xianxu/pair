@@ -216,7 +216,7 @@ func TestLiveCastEndToEnd(t *testing.T) {
 	h := liveHarness{c}
 	host := broadcast.NewHost(broadcast.HostConfig{Tunnel: broadcast.LocalOnly{}, ProbeTimeout: 5 * time.Second})
 	cast, err := StartCast(context.Background(), CastConfig{
-		Launch: func(context.Context) (Browser, error) { return c, nil },
+		Launch: func(context.Context, *RecordOptions) (Browser, error) { return c, nil },
 		Host:   host,
 		Ping:   time.Second,
 	})

@@ -693,6 +693,13 @@ var NonArtifactSources = []string{
 	"cmd/internal/webcast/assets/contract.go",
 	"cmd/internal/webcast/assets/fake.go",
 	"cmd/internal/webcast/assets/store.go",
+	// #459 asset store and proxy: Recorded writes bodies only through the
+	// recording's DirWriter (assets/<hash> in the recording directory, removed
+	// with it); css.go and image.go are pure; Proxy serves over HTTP.
+	"cmd/internal/webcast/assets/css.go",
+	"cmd/internal/webcast/assets/image.go",
+	"cmd/internal/webcast/assets/proxy.go",
+	"cmd/internal/webcast/assets/recorded.go",
 	"cmd/internal/webcast/notes/contract.go",
 	"cmd/internal/webcast/notes/fake.go",
 	"cmd/internal/webcast/notes/model.go",
@@ -730,6 +737,18 @@ var NonArtifactSources = []string{
 	"cmd/internal/webcast/recording/record.go",
 	"cmd/internal/webcast/recording/reduce.go",
 	"cmd/internal/webcast/recording/validate.go",
+	// #458 recorder: writes records, screenshots and asset bodies into the
+	// recording its Output opens (Cast's DirWriter at
+	// <store>/webcast/recordings/<id>, kept until the operator deletes it);
+	// no Pair artifact family. The fidelity tool reads a recording and
+	// writes only a throwaway Chrome profile under the OS temp dir.
+	"cmd/internal/webcast/recorder/mirror.go",
+	"cmd/internal/webcast/recorder/observe.go",
+	"cmd/internal/webcast/recorder/recorder.go",
+	"cmd/internal/webcast/recorder/side.go",
+	"cmd/internal/webcast/recorder/internal/fidelity/diff.go",
+	"cmd/internal/webcast/recorder/internal/fidelity/render.go",
+	"cmd/internal/webcast/recorder/internal/fidelity/run.go",
 	// #466 remote-driving contract: input wire, confinement, control and
 	// injection seams with fakes; seats are memory only, no artifact paths.
 	"cmd/internal/webcast/drive/act.go",

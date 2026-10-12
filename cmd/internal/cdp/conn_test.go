@@ -323,3 +323,32 @@ func TestErrClasses(t *testing.T) {
 		t.Fatalf("Close: %v", c2.Err())
 	}
 }
+
+// Seq orders events and replies as Chrome sent them: an event sent before a
+// reply has a smaller Seq than CallSeq returns, whatever order the consumer
+// reads them in (#458: a snapshot's reply marks which queued DOM events it
+// already includes).
+func TestSeqOrdersEventsAndReplies(t *testing.T) {
+	c, p := newPair(t)
+	type res struct {
+		seq uint64
+		err error
+	}
+	done := make(chan res, 1)
+	go func() {
+		seq, err := c.CallSeq(context.Background(), "S", "DOM.getDocument", nil, nil)
+		done <- res{seq, err}
+	}()
+	m := p.recv()
+	p.send(`{"method":"DOM.childNodeInserted","params":{},"sessionId":"S"}`)
+	p.send(fmt.Sprintf(`{"id":%d,"result":{},"sessionId":"S"}`, m.ID))
+	p.send(`{"method":"DOM.attributeModified","params":{},"sessionId":"S"}`)
+	r := <-done
+	if r.err != nil {
+		t.Fatal(r.err)
+	}
+	before, after := await(t, c.Events()), await(t, c.Events())
+	if !(before.Seq < r.seq && r.seq < after.Seq) || before.Seq == 0 {
+		t.Fatalf("seqs: event %d, reply %d, event %d", before.Seq, r.seq, after.Seq)
+	}
+}
