@@ -784,3 +784,16 @@ func TestCtrlAltBBroadcastsAndLegacyPassesThrough(t *testing.T) {
 		t.Fatalf("ESC ^B: hit=%v forwarded=%q", hit, before)
 	}
 }
+
+func TestShiftCtrlAltBIsTheWebcastKey(t *testing.T) {
+	for _, seq := range []string{"\x1b[98;8u", "\x1b[66;8u"} {
+		var it Interceptor
+		if _, hit, _ := it.FeedHit([]byte(seq)); hit != HitWebcast || !hit.actorReserved() {
+			t.Fatalf("%q framed as %v", seq, hit)
+		}
+	}
+	var it Interceptor
+	if _, hit, _ := it.FeedHit([]byte("\x1b[98;7u")); hit != HitBroadcast {
+		t.Fatalf("Ctrl+Alt+b framed as %v", hit)
+	}
+}

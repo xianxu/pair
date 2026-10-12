@@ -1,0 +1,236 @@
+package couchtty
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"github.com/xianxu/pair/cmd/internal/webcast"
+)
+
+// The cast Chrome (#454): one per Couch.
+//
+//	off      --key-->                    starting
+//	starting --Chrome up, adopted-->     running (cell Chrome ▶ / ⏸)
+//	starting --failed-->                 off + notice
+//	starting --key-->                    starting + notice (Chrome is coming)
+//	running  --key / click-->            running, live toggled
+//	running  --Ctrl+click-->             ending
+//	running  --Chrome closed by hand-->  off + notice
+//	ending   --cast done-->              off
+//
+// Couch shutdown ends the cast, bounded, beside the screen broadcast.
+type webcastPhase uint8
+
+const (
+	webcastOff webcastPhase = iota
+	webcastStarting
+	webcastRunning
+	webcastEnding
+)
+
+// webcastState is guarded by Console.mu and mutated on the Run loop.
+type webcastState struct {
+	phase   webcastPhase
+	attempt uint64
+	cancel  context.CancelFunc
+	cast    *webcast.Cast
+	// update is the cast's latest, as last delivered to the loop.
+	update webcast.Update
+}
+
+// webcastShutdownWait bounds how long Couch's exit waits for Chrome and the
+// viewer link to close. A variable so tests can shorten it.
+var webcastShutdownWait = 6 * time.Second
+
+// SetWebcast enables the cast Chrome with this configuration. Without it the
+// key only explains why nothing happens.
+func (c *Console) SetWebcast(cfg webcast.CastConfig) { c.webcastCfg = &cfg }
+
+func (c *Console) webcastCellLocked() WebcastCell {
+	if c.wcast.phase != webcastRunning && c.wcast.phase != webcastEnding {
+		return WebcastOff
+	}
+	if c.wcast.update.State.Phase == webcast.PhaseLive {
+		return WebcastLive
+	}
+	return WebcastIdle
+}
+
+// toggleWebcast is Shift+Ctrl+Alt+b and a click on the Chrome cell.
+func (c *Console) toggleWebcast() {
+	c.mu.Lock()
+	cfg, state := c.webcastCfg, c.wcast
+	c.mu.Unlock()
+	switch state.phase {
+	case webcastOff:
+		if cfg == nil {
+			c.setNotice("Web casting is not configured in this Couch.")
+			return
+		}
+		c.startWebcast(*cfg)
+	case webcastStarting:
+		c.setNotice("Chrome is starting…")
+	case webcastRunning:
+		if err := state.cast.ToggleLive(); err != nil {
+			c.setNotice("Chrome cast: " + err.Error())
+		}
+	case webcastEnding:
+		c.setNotice("Chrome is closing.")
+	}
+}
+
+func (c *Console) startWebcast(cfg webcast.CastConfig) {
+	ctx, cancel := context.WithCancel(c.lifetime)
+	c.mu.Lock()
+	c.wcast = webcastState{phase: webcastStarting, attempt: c.wcast.attempt + 1, cancel: cancel}
+	attempt := c.wcast.attempt
+	c.mu.Unlock()
+	c.setNotice("Starting Chrome…")
+	c.GoTracked(func() {
+		cast, err := webcast.StartCast(ctx, cfg)
+		cancel()
+		claim := &startClaim{}
+		_ = c.runTerminalCommand(c.lifetime, func() error {
+			c.webcastStarted(attempt, cast, err, claim)
+			return nil
+		})
+		if cast != nil && claim.abandon() {
+			cast.End()
+		}
+	})
+}
+
+// webcastStarted runs on the loop when a start finishes; a cast it doesn't
+// adopt, the start goroutine ends.
+func (c *Console) webcastStarted(attempt uint64, cast *webcast.Cast, err error, claim *startClaim) {
+	c.mu.Lock()
+	current := c.wcast.attempt == attempt && c.wcast.phase == webcastStarting
+	if !current {
+		c.mu.Unlock()
+		return
+	}
+	if err != nil || !claim.adopt() {
+		c.wcast = webcastState{attempt: attempt}
+		c.mu.Unlock()
+		if err != nil {
+			c.setNotice("Chrome failed to start: " + err.Error())
+		}
+		return
+	}
+	c.wcast.phase, c.wcast.cast, c.wcast.update = webcastRunning, cast, cast.Current()
+	c.mu.Unlock()
+	c.setNotice("Chrome is open. Press Shift+Ctrl+Alt+b or click Chrome ▶ to go live; right-click it for the viewer link.")
+	updates, unsubscribe := cast.Subscribe()
+	c.GoTracked(func() {
+		defer unsubscribe()
+		for {
+			select {
+			case u, open := <-updates:
+				if !open {
+					<-cast.Done()
+					_ = c.runTerminalCommand(c.lifetime, func() error {
+						c.webcastEnded(cast)
+						return nil
+					})
+					return
+				}
+				_ = c.runTerminalCommand(c.lifetime, func() error {
+					c.webcastUpdated(cast, u)
+					return nil
+				})
+			case <-c.stop:
+				// Shutdown ends the cast itself, with a bounded wait.
+				return
+			}
+		}
+	})
+}
+
+func (c *Console) webcastUpdated(cast *webcast.Cast, u webcast.Update) {
+	c.mu.Lock()
+	if c.wcast.cast != cast {
+		c.mu.Unlock()
+		return
+	}
+	c.wcast.update = u
+	c.mu.Unlock()
+	c.repaint()
+}
+
+// endWebcast is a Ctrl+click on the Chrome cell: end the cast, close Chrome.
+func (c *Console) endWebcast() {
+	c.mu.Lock()
+	cast := c.wcast.cast
+	running := c.wcast.phase == webcastRunning
+	if running {
+		c.wcast.phase = webcastEnding
+	}
+	c.mu.Unlock()
+	if !running {
+		return
+	}
+	c.setNotice("Closing Chrome…")
+	c.GoTracked(cast.End)
+}
+
+// webcastEnded runs on the loop once a cast is fully down.
+func (c *Console) webcastEnded(cast *webcast.Cast) {
+	c.mu.Lock()
+	if c.wcast.cast != cast {
+		c.mu.Unlock()
+		return
+	}
+	byOperator := c.wcast.phase == webcastEnding
+	c.wcast = webcastState{attempt: c.wcast.attempt}
+	c.mu.Unlock()
+	switch err := cast.Err(); {
+	case byOperator || err == nil:
+		c.setNotice("Chrome cast ended.")
+	case errors.Is(err, webcast.ErrClosedByOperator):
+		c.setNotice("Chrome closed — cast ended.")
+	default:
+		c.setNotice("Chrome cast ended: " + err.Error())
+	}
+}
+
+// copyWebcastLink is a right-click on the Chrome cell. The notice never
+// contains the link: a screen broadcast would draw it to viewers.
+func (c *Console) copyWebcastLink() {
+	c.mu.Lock()
+	u, running := c.wcast.update, c.wcast.phase == webcastRunning
+	c.mu.Unlock()
+	switch {
+	case !running:
+	case u.Link != "":
+		c.copyLink(u.Link)
+		c.setNotice("Chrome cast viewer link copied.")
+	case u.LinkErr != nil:
+		c.setNotice("Chrome cast viewer link unavailable: " + u.LinkErr.Error())
+	default:
+		c.setNotice("Chrome cast viewer link is not ready yet.")
+	}
+}
+
+// endWebcastForShutdown ends a running or starting cast before the presenter
+// is released, and waits, bounded, for Chrome and the link to close.
+func (c *Console) endWebcastForShutdown() {
+	c.mu.Lock()
+	state := c.wcast
+	c.wcast = webcastState{attempt: state.attempt + 1}
+	c.mu.Unlock()
+	if state.cancel != nil {
+		state.cancel()
+	}
+	if cast := state.cast; cast != nil {
+		ended := make(chan struct{})
+		go func() {
+			cast.End()
+			close(ended)
+		}()
+		select {
+		case <-ended:
+		case <-time.After(webcastShutdownWait):
+		}
+	}
+}

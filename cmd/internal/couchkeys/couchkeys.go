@@ -62,6 +62,7 @@ const (
 	ActionPark
 	ActionRelaunch
 	ActionBroadcast
+	ActionWebcast
 )
 
 // Binding is one chord Couch declares. Chord is the Pair chord it shares (a
@@ -96,6 +97,11 @@ var bindings = []Binding{
 	// exposes the screen.
 	{Action: ActionBroadcast, Scope: ScopeEveryPane, Key: "Ctrl+Alt+b", Help: "broadcast this screen view-only, or end the broadcast",
 		Encodings: [][]byte{[]byte("\x1b[98;7u")}},
+	// Web cast (#454): enhanced encoding only, like Ctrl+Alt+b, which it
+	// differs from only by Shift. A terminal may report the shifted letter's
+	// code (66) instead of the base key's (98).
+	{Action: ActionWebcast, Scope: ScopeEveryPane, Key: "Shift+Ctrl+Alt+b", Help: "open the cast Chrome; pressed again, go live or pause the cast",
+		Encodings: [][]byte{[]byte("\x1b[98;8u"), []byte("\x1b[66;8u")}},
 	pairChord(ScopeSwitcher, ActionDetach, workbenchshortcut.ChordAltD, "Alt+d", "detach every live thread and leave Couch; their sessions keep running"),
 	pairChord(ScopeSwitcher, ActionPark, workbenchshortcut.ChordAltX, "Alt+x", "shut down every live thread and leave Couch (asks first)"),
 }

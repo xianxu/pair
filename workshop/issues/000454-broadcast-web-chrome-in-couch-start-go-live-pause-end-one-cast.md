@@ -1,12 +1,22 @@
 ---
 id: 000454
-status: open
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-11
 updated: 2026-10-11
-estimate_hours:
-card_mirror: '3ed97d5e7e4da5577a3c48febbb95351f5c3b562' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 4.69
+card_mirror: '52edf1aea8ded518bdc911840f56bfd0b1ed2f47' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-11T20:08:38-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:0
+    worktree: /Users/xianxu/workspace/pair
+    repository: github.com/xianxu/pair
+flow: {kind: full, provenance: inferred}
+actual_hours: 0.05
 ---
 
 # broadcast-web: Chrome in Couch — start, go live, pause, end; one cast
@@ -37,15 +47,52 @@ The operator flow, from the project:
 - The browser-control component has a fake and tests; a live check drives a real Chrome.
 - The operator smoke-tested it in Couch before close.
 
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: greenfield-go-module   design=0.1 impl=0.24
+item: greenfield-go-module   design=0.1 impl=0.2
+item: greenfield-go-module   design=0.2 impl=0.32
+item: real-api-discovery     design=0.0 impl=0.24
+item: cross-cutting-refactor design=0.2 impl=0.3
+item: smaller-go-module      design=0.04 impl=0.2
+item: smaller-go-module      design=0.06 impl=0.2
+item: smaller-go-module      design=0.06 impl=0.2
+item: tui-screen             design=0.2 impl=0.4
+item: atlas-docs             design=0.1 impl=0.08
+item: milestone-review       design=0.0 impl=0.4
+item: ux-rename-iteration    design=0.5 impl=0.12
+design-buffer: 0.15
+total: 4.69
+```
+
+Items, in order: cdp pipe client; tab tracker + translate; real Chrome + inject.js; CDP/Chrome visibility discovery (live check); shared `broadcast.Host` (post-PQ-1: ref-counted, mounts by token); Browser seam + FakeBrowser + `latest[T]`; conformance harness (fake + live) incl. Task 9b; webcast server + viewer + Cast; Couch key/indicator/state machine; README + atlas; two milestone reviews (M1, M2); smoke-test iteration round. Design ×0.2 where the plan pre-resolves decisions (all but the UX round). Impl at 40% of v2 ranges.
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.* (Calibration source is flagged stale; numbers provisional.)
+
 ## Plan
 
-- [ ] Key decoding check (Shift+Ctrl+Alt+B vs Ctrl+Alt+b)
-- [ ] Browser-control component: launch, CDP connect, tab tracking, active tab, go-live state, events; fake + tests
-- [ ] Injected Go-live and in-page pause controls (isolated world)
-- [ ] Tab-bar indicator and its click / right-click / Ctrl+click
-- [ ] Stub stream and viewer page over the broadcast transport
-- [ ] Live check against real Chrome; operator smoke test
+Durable plan: `workshop/plans/000454-broadcast-web-chrome-in-couch-start-go-live-pause-end-one-cast-plan.md`.
+
+- [x] Key decoding check (Shift+Ctrl+Alt+B vs Ctrl+Alt+b): distinct; see Log
+- [x] M1 — browser-control component: `cdp` pipe client; `webcast` State/Tracker/translate; Browser seam + FakeBrowser; in-page control (isolated world); real Chrome; conformance suite run against fake and live Chrome
+- [x] M2 — Couch integration and stub stream: shared `broadcast.Host` (one tunnel, casts mounted by token); webcast viewer server + page; Cast; Shift+Ctrl+Alt+B, `Chrome ▶/⏸` cell with click / right-click / Ctrl+click; launcher wiring; README + atlas; operator smoke test
 
 ## Log
 
 ### 2026-10-11
+- 2026-10-11: closed — Operator smoke test in Couch at d6e06046 passed all steps (relayed by TL ops:0): Shift+Ctrl+Alt+B opens Chrome and toggles live/pause; right-click copies link, viewer follows navigation and tab switches incl. new tabs; pause hides URL; in-page Go live resumes; Ctrl+click ends; hand-quit clears the cell. make -k test exit 0; live Chrome suite (headless) 3/3; M1 and M2 closed SHIP.; review verdict: SHIP
+- 2026-10-11: closed M2 — broadcast + webcast -race green; Host tests -count=3 green; BR-16 regression (late-cancel tunnel) mutation-checked; BR-14 fixes kept; make -k test exit 0 at f2a41a3b+guards; review verdict: SHIP
+- 2026-10-11: closed M1 — go test -race -count=10 webcast + -count=5 cdp green; mutation-checked WaitDelay/ErrProtocol class/drain (all caught); WEBCAST_LIVE_CHROME=1 live suite green unsandboxed (headless Chrome 154); review verdict: SHIP
+
+- **Key decoding check: passed.** Couch pushes kitty flags 3; measured through `terminal.Decoder` + `productKey`: Ctrl+Alt+b → `\x1b[98;7u`, Shift+Ctrl+Alt+B → `\x1b[98;8u` (also `66;8u`, `98;8:1u`, `98:66;8u` canonicalise distinctly). Legacy `ESC ^B` was never a broadcast binding (#395). Operator's Ghostty config binds nothing on ctrl+alt+shift. Real-terminal confirmation goes in the smoke test.
+- **CDP spike (Chrome 154):** `--remote-debugging-pipe` works; isolated-world binding invisible to the page's main world; `runImmediately` injects into the current document; URL/title from `Target.targetInfoChanged`; closing the pipe makes Chrome exit (owner death collects it — ARCH-FUNERAL). Chrome can't launch inside the agent sandbox (exit 21); live checks run unsandboxed.
+- Design choices: pipe over port (no network surface, no websocket dep — ARCH-SECURE); `broadcast.Endpoint` extracted so both casts share one tunnel lifecycle (ARCH-DRY); viewers get URL/title only while live.
+
+- **M1 live findings (Chrome 154, measured):** (1) `targetInfoChanged` carries a new `<title>` only much later (>15s, at detach) → the page reports its own title. (2) Setup after attach raced the first navigation → browser-level `Target.setAutoAttach{waitForDebuggerOnStart, filter: page}` (also covers the already-open page) and release with `runIfWaitingForDebugger`, always. (3) Without `Page.enable`, `addScriptToEvaluateOnNewDocument` never reaches the next document. (4) Headless second launch on a held profile exits 21 (profile in use), windowed prints the handoff. Live runs switched to headless per the operator (never steal focus from Couch); real tab switching moves to the smoke test.
+- **M1 review round 1 (FIX-THEN-SHIP, 5 Important):** all fixed — BR-2 `endError` precedence; BR-3 run loop tested via scripted CDP peer + fake process (mutation-checked: release, grace cancel, conn error, SetLive-while-ending, Page.enable); BR-4 `WaitDelay`; BR-5 `DocumentChanged` clears the page title; BR-6 profile-in-use read from output, measured text `SingletonLock: File exists`. Minors: deterministic tie-break, SetLive while ending → ErrEnded, plan Revisions entry. Fake fidelity (PageTitle / grace) left: the fake models titles through Navigate and closes at once on the last tab; the scripted-peer tests cover the real paths.
+- **M1 review round 2 (3 Important):** fixed by rule — BR-11 cdp reader drains after any failure (test: peer writes never block); BR-12 `cdp.ErrProtocol` class, endError allow-lists it (peer mode closing the reader first); BR-4 `startProcess` WaitDelay tested with a background child holding the pipe. Mutation-checked (WaitDelay, class, drain). lost-connection test now 10/10.
+- **M2 review round 1 (BR-14 Important):** Host cancel-vs-open-complete race leaked a tunnel (1/300). Fixed by rule: one `releaseIfUnwantedLocked` for every loss of interest; deterministic losing-state test + 300-iteration stress; mutation-checked. Minor: webcast.Server.Owns now constant-time via exported `broadcast.OwnsToken`.
+- **M2 review round 2 (BR-16 Important):** a Mount arriving during an abandoned open joined it and returned another caller's context.Canceled. Rule: an abandoned attempt is unjoinable — newcomers wait it out and open afresh. Regression uses a late-cancel tunnel (the cloudflared shape); mutation-checked.

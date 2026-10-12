@@ -662,6 +662,30 @@ var NonArtifactSources = []string{
 	"cmd/internal/broadcast/tunnel.go",
 	"cmd/internal/broadcast/tunnel_fake.go",
 	"cmd/internal/broadcast/web.go",
+	// #454 shared cast endpoint and its event stream; in memory, no paths.
+	"cmd/internal/broadcast/host.go",
+	"cmd/internal/broadcast/sse.go",
+	// #454 web cast: a CDP client over Chrome's pipe, and Couch's control of
+	// the cast Chrome. Its profile lives in Couch's store
+	// (<store>/webcast/chrome-profile), like the broadcast's run records; no
+	// Pair artifact family.
+	"cmd/internal/cdp/conn.go",
+	"cmd/internal/cdp/doc.go",
+	"cmd/internal/cdp/frame.go",
+	"cmd/internal/couchcmd/webcast.go",
+	"cmd/internal/couchtty/console_webcast.go",
+	"cmd/internal/webcast/browser.go",
+	"cmd/internal/webcast/cast.go",
+	"cmd/internal/webcast/chrome.go",
+	"cmd/internal/webcast/chrome_find.go",
+	"cmd/internal/webcast/doc.go",
+	"cmd/internal/webcast/fake.go",
+	"cmd/internal/webcast/publish.go",
+	"cmd/internal/webcast/server.go",
+	"cmd/internal/webcast/state.go",
+	"cmd/internal/webcast/stream.go",
+	"cmd/internal/webcast/tracker.go",
+	"cmd/internal/webcast/translate.go",
 	"cmd/internal/ptychild/publication.go",
 	"cmd/internal/ptychild/terminal.go",
 	"cmd/internal/runtimebundle/terminal.go",

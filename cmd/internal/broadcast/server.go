@@ -1,11 +1,8 @@
 package broadcast
 
 import (
-	"crypto/subtle"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"mime"
 	"net/http"
@@ -75,12 +72,24 @@ func NewServer(opts ServerOptions) *Server {
 	return &Server{opts: opts}
 }
 
-func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	h := w.Header()
-	h.Set("Content-Security-Policy", contentSecurityPolicy)
+// SetSecurityHeaders sets what every cast response carries: csp, no caching,
+// no referrer, no sniffing.
+func SetSecurityHeaders(h http.Header, csp string) {
+	h.Set("Content-Security-Policy", csp)
 	h.Set("Cache-Control", "no-store")
 	h.Set("Referrer-Policy", "no-referrer")
 	h.Set("X-Content-Type-Options", "nosniff")
+}
+
+// Owns reports whether segment is one of this broadcast's tokens, for the
+// Host's routing.
+func (s *Server) Owns(segment string) bool {
+	return OwnsToken(segment, s.opts.Token) || s.opts.Pointer.Match(segment)
+}
+
+func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	h := w.Header()
+	SetSecurityHeaders(h, contentSecurityPolicy)
 	segment, rest, ok := splitPath(r.URL.Path)
 	pointer := ok && s.opts.Pointer.Match(segment)
 	// The only routes that read a body: POST /<pointer-token>/point, note
@@ -103,7 +112,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	view := ok && s.opts.Token != "" && subtle.ConstantTimeCompare([]byte(segment), []byte(s.opts.Token)) == 1
+	view := ok && OwnsToken(segment, s.opts.Token)
 	if !view && !pointer {
 		http.NotFound(w, r)
 		return
@@ -302,24 +311,12 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request, pointer bool) {
 		return
 	}
 	defer sub.Close()
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.WriteHeader(http.StatusOK)
-	rc := http.NewResponseController(w)
-	send := func(chunk string) bool {
-		// A viewer that stops reading must not hold its goroutine and viewer
-		// slot forever: every write gets a deadline, two pings long.
-		_ = rc.SetWriteDeadline(time.Now().Add(2 * s.opts.Ping))
-		if _, err := fmt.Fprint(w, chunk); err != nil {
-			return false
-		}
-		return rc.Flush() == nil
-	}
-	if !send(": connected\n\n") {
+	stream := OpenEventStream(w, s.opts.Ping)
+	if stream == nil {
 		return
 	}
 	if s.opts.Theme != nil {
-		theme, _ := json.Marshal(s.opts.Theme())
-		if !send("event: theme\ndata: " + string(theme) + "\n\n") {
+		if !stream.Event("theme", s.opts.Theme()) {
 			return
 		}
 	}
@@ -334,8 +331,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request, pointer bool) {
 	sendCaps := func() bool {
 		on, changed := s.opts.Pointer.On()
 		capsChanged = changed
-		caps, _ := json.Marshal(wireCaps{Pointer: on, Color: color, Palette: PointerPalette()})
-		return send("event: caps\ndata: " + string(caps) + "\n\n")
+		return stream.Event("caps", wireCaps{Pointer: on, Color: color, Palette: PointerPalette()})
 	}
 	if pointer && !sendCaps() {
 		return
@@ -346,8 +342,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request, pointer bool) {
 	sendNotes := func() bool {
 		notes, _, changed := s.opts.Pointer.Notes()
 		notesChanged = changed
-		data, _ := json.Marshal(wireNotes{Guard: StatusGuardCols, Notes: notes})
-		return send("event: notes\ndata: " + string(data) + "\n\n")
+		return stream.Event("notes", wireNotes{Guard: StatusGuardCols, Notes: notes})
 	}
 	if s.opts.Pointer != nil && !sendNotes() {
 		return
@@ -358,12 +353,10 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request, pointer bool) {
 		select {
 		case m, open := <-sub.Messages():
 			if !open {
-				end, _ := json.Marshal(wireEnd{Reason: EndReason(s.opts.Hub.Err())})
-				send("event: end\ndata: " + string(end) + "\n\n")
+				stream.Event("end", wireEnd{Reason: EndReason(s.opts.Hub.Err())})
 				return
 			}
-			frame, _ := json.Marshal(wireFrame{Cols: m.Cols, Rows: m.Rows, B: base64.StdEncoding.EncodeToString(m.Data)})
-			if !send("event: frame\ndata: " + string(frame) + "\n\n") {
+			if !stream.Event("frame", wireFrame{Cols: m.Cols, Rows: m.Rows, B: base64.StdEncoding.EncodeToString(m.Data)}) {
 				return
 			}
 		case <-capsChanged:
@@ -376,7 +369,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request, pointer bool) {
 			}
 		case <-ping.C:
 			// A failed ping ends this viewer, so a vanished one frees its slot.
-			if !send(": ping\n\n") {
+			if !stream.Comment("ping") {
 				return
 			}
 		case <-r.Context().Done():
