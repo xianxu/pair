@@ -15,6 +15,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "3cdae29c", done: "4149f073"}
 ---
 
 # broadcast-web: notes and strokes aren't recorded (live viewers see them; replay and queries don't)
