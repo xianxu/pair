@@ -791,6 +791,17 @@ their thread. The focused tab, the selected switcher row, and a thread with a
 pending notification never fade. If the terminal doesn't report its colours,
 both idle levels use the same theme grey; `NO_COLOR` turns fading off.
 
+A thread whose agent is waiting on a picker (a permission prompt or a question)
+shows red in the tabs and the switcher until the picker closes, even when it's
+the focused tab, and never fades.
+
+The tab bar starts with the hub, the checkout you started Couch from, and then
+lists every other slot grouped by repository:
+`ops  ariadne  :1  :2  blog  pair  :1  :2`. In the switcher the hub is the first line and the rest sit indented
+under it. When the tabs don't fit, a repository's numbered slots fold into a
+count (`pair  +2`), starting from the right. A red, belled or focused tab is
+never folded away, and the switcher always lists everything.
+
 Each numbered slot keeps its Couch metadata in its environment's `.couch/`
 directory. Opening it resumes its conversation; **Start fresh** replaces the
 conversation in the same slot after confirming its managed sessions are stopped.
@@ -1041,7 +1052,9 @@ further than a tap). The first note asks for a name; the page remembers it and t
 browser. Every note is its box: everyone sees it outlined in the author's color with
 the 💭 inside its top-right corner, and the box is the part of the page a submission
 shows the agent. It follows the page as it scrolls, stays through a pause, and leaves the page when the cast moves to another
-page; anyone can tap a pin to read it and resolve it. In Couch the open notes show as
+page; anyone can tap a pin to read it and resolve it. While the cast is paused, viewers can't point, leave, or resolve
+notes: the rail's controls and an open note's Save and Resolve are greyed out ("The cast is paused.") until it
+resumes; a draft keeps its text. In Couch the open notes show as
 `💭N` after the Chrome cell (`Chrome ⏸ 💭2`); click it for the same notes box the screen
 broadcast uses, with each note's author: click one to copy its text, right-click to copy
 and resolve it. Unlike the screen broadcast's

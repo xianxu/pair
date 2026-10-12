@@ -31,6 +31,9 @@ var (
 	ErrEnded = errors.New("board: the cast has ended")
 	// ErrNotLive: no page has been cast yet.
 	ErrNotLive = errors.New("board: the cast hasn't shown a page yet")
+	// ErrPaused: the cast is paused; viewers do nothing until it resumes
+	// (pair#499).
+	ErrPaused = errors.New("board: the cast is paused")
 	// ErrStale: the viewer was showing another document, the element is
 	// gone, or a note's box is off the page.
 	ErrStale = errors.New("board: the page changed")
@@ -264,8 +267,8 @@ func (b *Board) Subscribe() (<-chan []LiveNote, func()) {
 	}
 }
 
-// pageLocked admits a request made on segment seg: the cast is on a page,
-// hasn't ended, and seg is within the current document (a resume keeps the
+// pageLocked admits a request made on segment seg: the cast is live on a
+// page (not paused, not ended), and seg is within the current document (a resume keeps the
 // document, so a viewer a pause behind is still on it). It returns the
 // document's first segment, for the writer's check.
 func (b *Board) pageLocked(seg int) (int, error) {
@@ -278,6 +281,8 @@ func (b *Board) pageLocked(seg int) (int, error) {
 		return 0, ErrEnded
 	case b.st.Seg == 0:
 		return 0, ErrNotLive
+	case b.st.Paused():
+		return 0, ErrPaused
 	case seg < b.st.DocSeg || seg > b.st.Seg:
 		return 0, ErrStale
 	}

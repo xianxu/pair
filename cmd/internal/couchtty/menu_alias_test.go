@@ -74,7 +74,7 @@ func TestPresentThreadsLabelsAliasedRepository(t *testing.T) {
 	key, _ := target.RowKey()
 	slotRow := couchcore.ActionableThreadSummary{Target: target, RowKey: key, Address: couchcore.ThreadAddress{RepoScope: "slot-scope", Tag: "couch-slot"}, State: couchcore.ThreadLive, RepositoryAlias: "blog"}
 	labels := map[string]bool{}
-	for _, p := range PresentThreads([]couchcore.ActionableThreadSummary{primary, slotRow}, nil) {
+	for _, p := range PresentThreads([]couchcore.ActionableThreadSummary{primary, slotRow}, nil, "") {
 		labels[p.Label] = true
 	}
 	if !labels["blog"] || !labels["blog:1"] {
@@ -95,7 +95,7 @@ func TestAliasBeatsThreadNameAndPaneLabelWithoutSlots(t *testing.T) {
 	if got := row.Label(); got != "blog" {
 		t.Fatalf("row label %q", got)
 	}
-	for _, p := range PresentThreads([]couchcore.ActionableThreadSummary{row}, nil) {
+	for _, p := range PresentThreads([]couchcore.ActionableThreadSummary{row}, nil, "") {
 		if p.Label != "blog" {
 			t.Fatalf("switcher label %q", p.Label)
 		}
