@@ -392,6 +392,14 @@ func (s stubHandle) Alive() bool            { return true }
 func (s stubHandle) Signal(os.Signal) error { return nil }
 func (s stubHandle) Wait() int              { return 0 }
 
+// Exited reports the stub's child as already gone: a nil channel would block
+// any waiter forever.
+func (s stubHandle) Exited() <-chan struct{} {
+	gone := make(chan struct{})
+	close(gone)
+	return gone
+}
+
 // The expectedExits bridge marks the child a lifecycle operation deliberately
 // ended, so its exit does not raise a spurious notice. Relaunch has ALREADY
 // adopted its replacement child by the time it runs, so marking every pane on

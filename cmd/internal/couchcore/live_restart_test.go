@@ -96,7 +96,6 @@ func TestDecideBinaryFreshness(t *testing.T) {
 		{"dirty build", BinaryFacts{RunningSHA: "a", OnDiskSHA: "b", OnDiskModified: true}, false, false, "", "dirty tree"},
 		{"slot reports no build", BinaryFacts{OnDiskSHA: "b"}, false, false, "", "unverified"},
 		{"binary unreadable", BinaryFacts{RunningSHA: "a"}, false, false, "", "unverified"},
-		{"PAIR_DEV rebuilds", BinaryFacts{DevRebuild: true, RunningSHA: "a", OnDiskSHA: "a"}, false, false, "", "PAIR_DEV"},
 	} {
 		stale, detail, note := DecideBinaryFreshness(tc.b, tc.same)
 		if stale != tc.stale || !strings.Contains(detail, tc.detailHas) || !strings.Contains(note, tc.noteHas) {

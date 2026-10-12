@@ -23,7 +23,7 @@ const prepareRefreshTimeout = 20 * time.Minute
 // stderr; the report goes to stdout. Only a fully successful run exits 0.
 func runPrepareCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer, call messageCall, clock slotPollClock, commands couchcore.ProvisionIO) int {
 	remote := func(op string) (couchmessage.OperationReceipt, error) {
-		receipt, err := exchangeSlotOperation(inv, op, rt, call, clock)
+		receipt, err := exchangeSlotOperation(inv, op, rt, call, clock, stderr)
 		if err != nil {
 			return receipt, err
 		}

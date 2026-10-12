@@ -49,6 +49,9 @@ type Handle interface {
 	// sessionwatch/run.go:143 re-authorizes for exactly this reason.
 	Identity() string
 	Alive() bool
+	// Exited closes when the direct child has exited. Alive answers for its
+	// whole process group, which can outlive it.
+	Exited() <-chan struct{}
 	Signal(os.Signal) error
 	Wait() int
 }
@@ -174,6 +177,9 @@ func (h *execHandle) Identity() string { return h.identity }
 func (h *execHandle) Alive() bool { return ownedProcessGroupAlive(h.pid) }
 
 func (h *execHandle) Signal(sig os.Signal) error { return signalOwnedProcessGroup(h.pid, sig) }
+
+// Exited closes once the direct child has been reaped.
+func (h *execHandle) Exited() <-chan struct{} { return h.done }
 
 func (h *execHandle) Wait() int {
 	<-h.done

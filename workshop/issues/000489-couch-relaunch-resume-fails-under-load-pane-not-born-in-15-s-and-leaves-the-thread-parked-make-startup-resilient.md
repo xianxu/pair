@@ -1,12 +1,22 @@
 ---
 id: 000489
-status: open
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: '86dcc3e03f89078bb7760f78c41cc52e093c810f' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '1c6344d02d7b258a715ac778eea5cd230e2eb1f6' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-12T10:28:10-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:6
+    worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
+    repository: github.com/xianxu/pair
+flow: {kind: full, provenance: inferred}
+actual_hours: 2.36
 ---
 
 # couch: relaunch/resume fails under load (pane not born in 15 s) and leaves the thread parked; make startup resilient
@@ -32,8 +42,83 @@ Investigate, then fix at the root:
 
 ## Plan
 
-- [ ]
+Root cause: one fixed 15 s window (`pairRegistrationTimeout`) covers ALL of Pair's startup, including PAIR_DEV's
+`make build`. Both scale with load, and at load ~200 their sum (~20 s measured) passes 15 s. Fix (quick flow):
+
+- [x] Registration waits on Pair, not a stopwatch: the wait ends at registration, at the helper's direct child
+  exiting (see Revisions; a dead launch fails at once, named "Pair exited before registering"), or at a 2 min hang ceiling. The
+  existing post-ack cleanup stays the one failure path (kills the group, rolls back to parked): a clean state.
+  Late starts inside the ceiling are adopted by the same wait.
+- [x] Couch-launched Pair skips `dev_rebuild`; relaunch's binary-freshness gate applies under PAIR_DEV too
+  (refuses the binary already running: "run make build in <checkout>"), so a sweep builds once, by hand.
+- [x] CLI progress: `couch --resume/--relaunch` prints a "still running" line every 15 s while it polls.
+- [x] Pacing: no load check (load average misreads, see memory); each CLI call waits for its launch, so a sequential
+  sweep paces itself by real launch time.
+- [x] Tests: late registration past the old window succeeds (injected delay); helper exits before registering →
+  fast, named failure + clean rollback; DevRebuild skipped for Couch-launched Pair; freshness under PAIR_DEV; CLI
+  progress line.
 
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed — make -k test exit 0 on HEAD 646773eb (after merging origin/main through 397bb752, incl. #492). Round-2 fixes: exit signal described once (whileHelperAlive + atlas couch.md pair#489), BR-7 red test TestColdResumeRegistrationWrittenBeforeTheExitStillCounts fails with the final look disabled; staleness from last answer; live conformance TestRealRunnersExitedPrecedesTheGroup (exec+pty). Injected-delay tests: TestColdResumeAdoptsALateStart, TestColdResumeFailsAtOnceWhenPairExitsBeforeRegistering (direct child dies, group lives; named failure; thread left parked, unoccupied), TestCreateRebuildsOnlyOutsideCouch, CLI progress/timeout tests. Cause measured: 08:40 steps (registration 15.0s, pane never born); zellij log; one synthetic run (make build 9.6s + launch-to-pane 9.3-11.1s at load ~200); TL live runs at load 11-17 (uncertain at 12s/24s from the 2s poll timeout, fixed). Real-load Done-when line replaced per TL revision. Live check: resume parked parley.nvim:3 after Couch restarts onto this build. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
+- 2026-10-12: flow upgraded quick → full — 171 added lines in code files (limit 100); an earlier round of this close already ran the full review
+- **08:3x measured (ops:0 transcript, pair:0 resume 08:40):** `claim 4.0s, checkout 61ms, prepare 1.4s, spawn 81ms,
+  record+baseline 2.0s, ack 0s, registration 15.0s`, pane never born, no session live. Couch's own steps before the
+  window took ~7.5 s (not in the budget); the remote job's prepare (inventory) took 9–16 s, also outside it.
+- **zellij log 08:32–08:38:** only three new servers started (08:32:26 pair:2 OK, 08:36:53, 08:37:52); the other
+  failed relaunches never reached zellij: Couch's deadline ended Pair while it was still before its zellij launch
+  (dev_rebuild + startup).
+- **Synthetic run (one, 90 s, 200 self-bounded spinners; TL then forbade real load — injected delay from here):**
+  no-op `make build` 9.6 s (1.0 s at load ~12); `pair resume` → pane birth (probes/zellijbirthrace, no rebuild)
+  9.3–11.1 s (0.9–1.1 s at load ~12). Sum ≈ 20 s > 15 s: the budget, not a launch bug. All three trials were born.
+- 10:27, load ~10: TL's `couch --resume` of the same five slots all succeeded (corroborates).
+- Residual risk noted, not changed: Pair's own birth watch probes zellij at 10 s and aborts only on proof of death
+  (session not listed); birth at 11.1 s still passed in the loaded run.
+- **Implemented:** `whileHelperAlive` (launch_existing.go) watches the helper's process group (both runners'
+  `Alive` is `kill(-pgid,0)`) under the deadline, so a test's custom deadline context keeps synchronous
+  cancellation (the first ordering broke TestColdResumeRegistrationTimeoutNamesTheOwnershipPhase: a custom parent
+  makes WithCancelCause propagate on a goroutine). `pairRegistrationTimeout` 15 s → 2 min ceiling (ARCH-CONSTRAINTS:
+  a hang ceiling, with the unbounded-work caveat kept). Couch launches skip `dev_rebuild` (`Env.CouchHosted`);
+  `BinaryFacts.DevRebuild` removed, so relaunch's freshness gate applies under PAIR_DEV. CLI prints
+  "still running after Ns" every 15 s. ARCH-FUNERAL: creates nothing durable (the watcher goroutine is joined by
+  stop). Injected-delay tests: TestColdResumeAdoptsALateStart, TestColdResumeFailsAtOnceWhenPairExitsBeforeRegistering
+  (also asserts the thread is left parked and unoccupied), TestCreateRebuildsOnlyOutsideCouch,
+  TestSlotOperationCLIReportsProgressWhileRunning.
+- **Full suite caught:** TestResumeRunsAsTheNewLiveOwner — its fake helper is already gone when the wait starts,
+  with registration already written; the exit cancelled the wait before its first look. Rule: an exit ends the wait,
+  then one bounded final look (`exitedFinalLook`, 1 s: nothing more can arrive) decides, so registration already
+  written still counts and a dead launch still fails promptly.
+- **Live evidence from TL (pair:1 timing parley.nvim:3, load 11–17):** relaunches succeeded at 15.1 s and 22.3 s;
+  runs 3 and 4 ended *uncertain* at 12 s and 24 s (CLI context deadline), and run 4 left the slot parked; a resume
+  then failed: `claim 3.6s, prepare 0.7s, record 1.0s, registration 15.0s`, pane not born, PAIR_DEV rebuilt every run.
+  Second fixed window found: every status poll had a 2 s exchange timeout (`AdmissionTimeout`), so ONE late answer
+  from a Couch busy launching ended the CLI uncertain while the operation went on. Folded in (same rule): a timed-out
+  status poll is asked again; only the 5 min poll budget gives up. Dial errors, an unavailable caller, an unknown
+  receipt stay immediately uncertain. Test: "per-call timeouts mid-poll are retried" / "timeouts until the budget
+  are uncertain" (TestSlotOperationCLIPollLoop).
+- parley.nvim:3 inspected: parked, no live actor, no Pair/zellij process with its cwd: the old cleanup left a clean
+  state. Not resumed yet: the fix lives in the Couch process, so the resume is the live check after Couch restarts
+  onto this build.
+- **Close review round 1 (FIX-THEN-SHIP):** BR-1 (Important, right): `Alive` is process-group liveness and a
+  Couch-launched Pair's title poller stays in the group for up to 30 s, so a dead launch held the wait ~30 s. Fixed
+  the class: `Handle.Exited()` (direct child: exec `done`, pty `child.Exited()`, fake `exited`) is now part of the
+  Handle interface and the watch's only signal; the fake gained `SetChildExited` (group outlives child) and the exit
+  test uses it. BR-2: stale atlas cold-resume bullet rewritten. Minors: the adopt-late test counts looks instead of
+  wall clock and asserts the armed deadline (replacing the constant pin); the progress line names timed-out polls.
+- **Close review round 2 (FIX-THEN-SHIP):** BR-6 swept by rule: the exit signal is described at `whileHelperAlive`
+  and atlas/couch.md's pair#489 section only; couch.go, birthwatch.go and architecture.md now point there, and the
+  Plan line was revised (Revisions). BR-7: TestColdResumeRegistrationWrittenBeforeTheExitStillCounts makes the pane
+  unobservable until the exit cancels the wait; it FAILS with the final look disabled (run once, `if false &&`) and
+  passes with it. Minors: status lines derive staleness from the last answer's time (progress and budget messages,
+  and the note clears once Couch answers); live conformance TestRealRunnersExitedPrecedesTheGroup (exec + pty:
+  Exited closes while a HUP-immune group member keeps Alive true); the couchtty stub's Exited is a closed channel.
+
+## Revisions
+
+- 2026-10-12 10:35 (TL, ops:0): no real machine load (the one 200-spinner run froze the operator's Couch for a
+  minute). The Done-when's "synthetic load matching ~200" line is satisfied by an injected-delay test plus the 10:27
+  evidence (all five resumes succeeded at load ~10).
+- 2026-10-12 (close review BR-1/BR-6): the exit signal is the helper's DIRECT child (`Handle.Exited`), not its
+  process group; the Plan line now says so. The signal is described once, at `whileHelperAlive` and atlas/couch.md's
+  pair#489 section; every other site names it rather than restating it.
