@@ -1,19 +1,19 @@
 ---
 id: 000502
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: '0d459f417630af937d129e20540f9e04a1857a47' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'e73b5f44b2e697473944b3937323d8c1736ed354' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T15:10:04-07:00
 claimant:
     operator: Xian Xu
     machine: 4716879978a7b90f6b583da1716fd0e9
     machine_name: Xian’s MacBook Pro
-    workspace: pair:5
-    worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
 ---
 
@@ -43,8 +43,16 @@ Operator rule: changes to the live machine (applying the renicer to running slot
 
 ## Plan
 
-- [ ]
+Durable plan: `workshop/plans/000502-…-plan.md` (same slug). Single pass (no milestones):
+- [ ] procutil.Table reads Nice
+- [ ] couchcore.PlanRenice (pure) + table tests incl. the name decoy
+- [ ] couchcmd renicer loop behind a procSource seam (stateful fake, live conformance on own tree)
+- [ ] #498 launch nice removed; COUCH_SLOT_NICE is the renicer's level
+- [ ] --actors facts + one notice; atlas/README
+- [ ] scan cost measured, in the Log
+- [ ] live verification on one slot after the operator's OK (via TL)
 
 ## Log
 
 ### 2026-10-12
+- Claimed at pair:3 after the TL unclaimed pair:5's filing slip. Plan sent to the hub before building.
