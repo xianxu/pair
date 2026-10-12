@@ -17,7 +17,11 @@ const (
 	// session into Settled on activity frames (#421). Frames decode strictly,
 	// so an old broker drops the connection without an ack and the wrapper
 	// falls back to FrameHello; an old wrapper never sends it.
-	FrameHelloV2  = "hello-v2"
+	FrameHelloV2 = "hello-v2"
+	// FrameHelloV3 is hello-v2 that also opts into Picker on activity frames
+	// (pair#465). A broker that drops it without an ack gets hello-v2, then
+	// hello, the same way.
+	FrameHelloV3  = "hello-v3"
 	FrameAck      = "ack"      // broker → wrapper, once, answers hello
 	FrameActivity = "activity" // wrapper → broker, coalesced observation change
 	FrameSubmit   = "submit"   // wrapper → broker, a genuine operator submission
@@ -38,6 +42,9 @@ type SessionFrame struct {
 	// key) nor of Observation (which also crosses the delivery endpoint).
 	Build   *BuildIdentity `json:",omitempty"`
 	Settled *bool          `json:",omitempty"`
+	// Picker rides activity and submit frames on a hello-v3 session only:
+	// whether an input-holding picker is up (pair#465).
+	Picker *bool `json:",omitempty"`
 }
 
 // BuildIdentity names the executable a wrapper runs: its content hash is the
@@ -66,20 +73,20 @@ func (b BuildIdentity) Validate() error {
 func (f SessionFrame) Validate() error {
 	switch f.Op {
 	case FrameHello:
-		if f.Binding == nil || f.Observation != nil || f.Build != nil || f.Settled != nil {
+		if f.Binding == nil || f.Observation != nil || f.Build != nil || f.Settled != nil || f.Picker != nil {
 			return errors.New("hello carries exactly a binding")
 		}
 		return f.Binding.Validate()
-	case FrameHelloV2:
-		if f.Binding == nil || f.Build == nil || f.Observation != nil || f.Settled != nil {
-			return errors.New("hello-v2 carries exactly a binding and a build")
+	case FrameHelloV2, FrameHelloV3:
+		if f.Binding == nil || f.Build == nil || f.Observation != nil || f.Settled != nil || f.Picker != nil {
+			return errors.New(f.Op + " carries exactly a binding and a build")
 		}
 		if err := f.Build.Validate(); err != nil {
 			return err
 		}
 		return f.Binding.Validate()
 	case FrameAck:
-		if f.Code == "" || f.Binding != nil || f.Observation != nil || f.Build != nil || f.Settled != nil {
+		if f.Code == "" || f.Binding != nil || f.Observation != nil || f.Build != nil || f.Settled != nil || f.Picker != nil {
 			return errors.New("ack carries only a code")
 		}
 	case FrameActivity, FrameSubmit:

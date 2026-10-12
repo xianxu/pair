@@ -39,6 +39,9 @@ type StatusActor struct {
 	// looked at it. Before #147's transport it is the only real activity
 	// signal available, which is why the row carries it at all.
 	Bell bool
+	// Blocked: the thread's agent is behind an input-holding picker (pair#465).
+	// It draws red even on the active chip, so the operator sees it at a glance.
+	Blocked bool
 	// Placeholder marks a thread the reattach pass has not attached yet
 	// (pair#206). It is drawn greyed, and it records NO chip span, so a click on
 	// it resolves to no actor: unclickable by construction, not by a check at
@@ -110,6 +113,9 @@ type StatusModel struct {
 const (
 	attentionSGR   = "\x1b[38;5;220m"
 	placeholderSGR = "\x1b[38;5;240m"
+	// blockedSGR is the terminal's own red: its theme decides the shade. Not
+	// the screen broadcast's LIVE red, which its indicator check reads.
+	blockedSGR = "\x1b[31m"
 )
 
 // slotGlyphBase is the one styling decision for slot glyphs, shared by the tab
@@ -315,7 +321,7 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 		// switcher's live-row branch in renderRootMenuFrame states the same
 		// precedence from its own inputs (selection, attention); keep the two
 		// in step (pair#247).
-		faded := !a.Placeholder && !a.Active && !a.Bell
+		faded := !a.Placeholder && !a.Active && !a.Bell && !a.Blocked
 		idle := IdleFresh
 		if faded {
 			idle = a.Idle
@@ -323,6 +329,8 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 		switch {
 		case a.Placeholder:
 			style = placeholderSGR
+		case a.Blocked:
+			style = blockedSGR
 		case a.Bell && !a.Active:
 			style = attentionSGR
 		case faded:

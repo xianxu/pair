@@ -23,7 +23,7 @@ func (c *Console) statusModelLocked() StatusModel {
 		p := c.panes[id]
 		at, known := c.menu.Activity[p.thread]
 		actor := StatusActor{Thread: p.thread, Active: id == c.active, Bell: len(c.attention.Projection(p.thread)) > 0,
-			Idle: IdleLevelFor(now, at, known)}
+			Blocked: c.menu.Blocked[p.thread], Idle: IdleLevelFor(now, at, known)}
 		members[p.thread] = actor
 		index, found := byAddress[p.thread]
 		if !found {
