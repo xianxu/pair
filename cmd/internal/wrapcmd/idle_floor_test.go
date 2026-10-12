@@ -13,15 +13,66 @@ import (
 // The idle floor's master-loop behaviour (#171). These rows enter through the
 // production scheduling owner — p.masterPump() over an os.Pipe ptmx, the same
 // seam TestMasterPumpForwardsPTYWhileLifecycleJournalIOIsBlocked uses — and
-// observe the emit in the production stdout stream. p.idleS is milliseconds, so
-// nothing here waits on wall-clock.
+// observe the emit in the production stdout stream. The floor's timer is a
+// manualTimer, so its expiry is an event the test causes, never a wall-clock
+// race with a loaded scheduler (#480).
 
 type idleFloorHarness struct {
 	proxy   *proxy
 	writer  *os.File
+	timer   *manualTimer
 	done    chan struct{}
 	mu      sync.Mutex
 	emitted []string
+	chunks  int // output chunks the loop has passed to stdout
+}
+
+// manualTimer is a loopTimer on a clock only the test advances.
+type manualTimer struct {
+	mu            sync.Mutex
+	c             chan time.Time
+	now, deadline time.Duration
+	armed         bool
+	resets        int
+}
+
+func newManualTimer() *manualTimer { return &manualTimer{c: make(chan time.Time, 1)} }
+
+func (m *manualTimer) Expired() <-chan time.Time { return m.c }
+
+func (m *manualTimer) Reset(d time.Duration) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	was := m.armed
+	m.armed, m.deadline = true, m.now+d
+	m.resets++
+	return was
+}
+
+func (m *manualTimer) Stop() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	was := m.armed
+	m.armed = false
+	return was
+}
+
+// advance moves the clock by d and fires the timer if that reaches its
+// deadline, as a wall timer would.
+func (m *manualTimer) advance(d time.Duration) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.now += d
+	if m.armed && m.now >= m.deadline {
+		m.armed = false
+		m.c <- time.Time{}
+	}
+}
+
+func (m *manualTimer) state() (armed bool, resets int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.armed, m.resets
 }
 
 func newIdleFloorHarness(t *testing.T, agent, mode string, idle time.Duration) *idleFloorHarness {
@@ -30,7 +81,7 @@ func newIdleFloorHarness(t *testing.T, agent, mode string, idle time.Duration) *
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := &idleFloorHarness{writer: writer, done: make(chan struct{})}
+	h := &idleFloorHarness{writer: writer, timer: newManualTimer(), done: make(chan struct{})}
 	// An advancing clock: every read is a second later than the last, so the
 	// 500ms emit limiter can never collapse two notifications into one and
 	// silently make a count assertion unfalsifiable (BR-18).
@@ -51,13 +102,20 @@ func newIdleFloorHarness(t *testing.T, agent, mode string, idle time.Duration) *
 		// Injected rather than debounced: this test's emit lands after a live
 		// timer, so a wall-clock debounce could lapse on a loaded machine and
 		// spawn a real slug run against the operator's machine (BR-11).
-		spawnSlug: func() {},
+		spawnSlug:    func() {},
+		newIdleTimer: func() loopTimer { return h.timer },
 	}
-	h.proxy.stdoutPump = newStdoutPump(notificationWriter(func(data []byte) (int, error) {
+	notifications := notificationWriter(func(data []byte) (int, error) {
 		h.mu.Lock()
 		h.emitted = append(h.emitted, string(data))
 		h.mu.Unlock()
 		return len(data), nil
+	})
+	h.proxy.stdoutPump = newStdoutPump(writerFunc(func(data []byte) (int, error) {
+		h.mu.Lock()
+		h.chunks += strings.Count(string(data), "working")
+		h.mu.Unlock()
+		return notifications.Write(data)
 	}))
 	go func() {
 		h.proxy.masterPump()
@@ -81,8 +139,22 @@ func (h *idleFloorHarness) notifications() []string {
 	return append([]string(nil), h.emitted...)
 }
 
-// settle waits out several idle intervals so a second (unwanted) alert would
-// have had time to fire, then reports what was emitted.
+// await polls cond until it holds. Each condition is an event the loop
+// will reach; one that never comes is the test binary's timeout.
+func await(cond func() bool) {
+	for !cond() {
+		time.Sleep(time.Millisecond)
+	}
+}
+
+// armed waits until the loop has armed the floor resets times in all.
+func (h *idleFloorHarness) armed(resets int) {
+	await(func() bool { armed, n := h.timer.state(); return armed && n >= resets })
+}
+
+// settle gives the loop time to emit anything it wrongly would, then reports
+// what was emitted. It only proves an absence: a slow machine can delay an
+// emit past it, never invent one.
 func (h *idleFloorHarness) settle(d time.Duration) []string {
 	time.Sleep(d)
 	return h.notifications()
@@ -98,7 +170,14 @@ func TestIdleFloorArmsForEveryNotifyModeNotJustOneNothingSelects(t *testing.T) {
 		t.Run(agent.name+"/"+agent.mode, func(t *testing.T) {
 			h := newIdleFloorHarness(t, agent.name, agent.mode, 40*time.Millisecond)
 			h.proxy.publishLifecycleObservation(TurnObservation{Kind: ObservationUserSubmission})
-			got := h.settle(400 * time.Millisecond)
+			h.armed(1)
+			h.timer.advance(40 * time.Millisecond)
+			await(func() bool { return len(h.notifications()) > 0 })
+			// The alert latches the turn: ten more floors raise nothing.
+			for range 10 {
+				h.timer.advance(40 * time.Millisecond)
+			}
+			got := h.settle(50 * time.Millisecond)
 			if len(got) != 1 {
 				t.Fatalf("notifications = %d (%q), want exactly 1", len(got), got)
 			}
@@ -116,20 +195,27 @@ func TestIdleFloorStaysSilentWhenTheIntervalIsZero(t *testing.T) {
 	if got := h.settle(200 * time.Millisecond); len(got) != 0 {
 		t.Fatalf("PAIR_WRAP_IDLE_S=0 still notified: %q", got)
 	}
+	if _, resets := h.timer.state(); resets != 0 {
+		t.Fatalf("PAIR_WRAP_IDLE_S=0 armed the floor %d times", resets)
+	}
 }
 
 func TestIdleFloorStaysSilentWhileTheAgentIsProducingOutput(t *testing.T) {
 	// Output pushes the deadline out, so a working pane is never alerted on.
+	// Twenty chunks 15ms apart on the floor's clock span five floors; a chunk
+	// on stdout means the loop step that read it, and bumped the deadline,
+	// is done.
 	h := newIdleFloorHarness(t, "claude", "marker", 60*time.Millisecond)
 	h.proxy.publishLifecycleObservation(TurnObservation{Kind: ObservationUserSubmission})
-	deadline := time.Now().Add(300 * time.Millisecond)
-	for time.Now().Before(deadline) {
+	h.armed(1)
+	for i := 1; i <= 20; i++ {
 		if _, err := h.writer.Write([]byte("working\r\n")); err != nil {
 			t.Fatal(err)
 		}
-		time.Sleep(15 * time.Millisecond)
+		await(func() bool { h.mu.Lock(); defer h.mu.Unlock(); return h.chunks >= i })
+		h.timer.advance(15 * time.Millisecond)
 	}
-	if got := h.notifications(); len(got) != 0 {
+	if got := h.settle(50 * time.Millisecond); len(got) != 0 {
 		t.Fatalf("floor alerted on a pane that was still producing output: %q", got)
 	}
 }
@@ -149,10 +235,9 @@ func newIdleExpiryProxy(t *testing.T) (*proxy, func() []string) {
 		emitted = append(emitted, string(data))
 		return len(data), nil
 	})
-	p.idleTimer = time.NewTimer(time.Hour)
-	drainStop(p.idleTimer)
+	p.idleTimer = stoppedWallTimer()
 	p.lifecycleTimer = time.NewTimer(time.Hour)
-	drainStop(p.lifecycleTimer)
+	drainStop(wallTimer{p.lifecycleTimer})
 	t.Cleanup(func() { p.idleTimer.Stop(); p.lifecycleTimer.Stop() })
 	return p, func() []string { return emitted }
 }
@@ -214,7 +299,7 @@ func TestIdleExpiryGivesTheLifecycleDeadlinePrecedenceWhenBothAreReady(t *testin
 	p.processLifecycleObservation(TurnObservation{Kind: ObservationStopped})
 	expired := p.idleTimerToken
 	// Make the grace deadline genuinely ready alongside the idle one.
-	drainStop(p.lifecycleTimer)
+	drainStop(wallTimer{p.lifecycleTimer})
 	p.lifecycleTimer.Reset(0)
 	time.Sleep(10 * time.Millisecond)
 
@@ -428,7 +513,7 @@ func TestSyncIdleTimerDoesNotRestartAnArmedDeadlineWithinTheSameEpoch(t *testing
 		t.Fatalf("epoch changed: %d -> %d", epoch, p.idleTimerToken)
 	}
 	select {
-	case <-p.idleTimer.C:
+	case <-p.idleTimer.Expired():
 	case <-time.After(500 * time.Millisecond):
 		t.Fatal("a non-output observation restarted an already-expired deadline")
 	}
