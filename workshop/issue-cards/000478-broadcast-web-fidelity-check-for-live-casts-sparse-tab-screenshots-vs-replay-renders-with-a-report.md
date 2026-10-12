@@ -1,6 +1,6 @@
 ---
 id: 000478
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 5f85ad2640e59a1bc7eb20f6ca83df0016821a75
         evidence_commit: 999eef753f581988fceec2fb36610bf1abbd2cfe
+        landed_commit: 42c4389e2a644d11d4c26a2e7f2d396113ac2c07
 ---
 
 # broadcast-web: fidelity check for live casts — sparse tab screenshots vs replay renders, with a report
