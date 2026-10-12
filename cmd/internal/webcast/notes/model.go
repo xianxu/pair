@@ -17,7 +17,8 @@ type Context struct {
 	// Landmark is the nearest meaningful ancestor (an ARIA landmark, a
 	// role, a card or form, a layout box); with none, the parent element.
 	Landmark recording.NodeID
-	// Text is the landmark's text, trimmed to a budget.
+	// Text is the landmark's rendered text (what a person reads: no script
+	// bodies, blocks kept apart), trimmed to a budget.
 	Text string
 	// Box is the landmark's box when layout is known.
 	Box *recording.Box

@@ -37,3 +37,94 @@ func (n *DOMNode) ParentElement() *DOMNode {
 	}
 	return nil
 }
+
+// RenderedText is the text a person reads in n, whitespace-collapsed: like
+// innerText, it skips what isn't rendered (script, style, … and elements
+// the recording marks hidden) and separates what renders apart (blocks,
+// table cells, line breaks, flex and grid items) with a space, where
+// TextContent runs them together. Shadow roots and frames are excluded, as
+// in TextContent.
+func (n *DOMNode) RenderedText() string {
+	var b strings.Builder
+	var walk func(n *DOMNode, apart bool)
+	walk = func(n *DOMNode, apart bool) {
+		switch {
+		case n.Y == YText:
+			b.WriteString(n.V)
+			return
+		case n.Y == YEl && unrendered(n):
+			return
+		}
+		apart = apart || n.Y == YEl && blockTags[n.N]
+		if apart {
+			b.WriteByte(' ')
+		}
+		items := n.Y == YEl && laidOutApart(n.A["class"])
+		for _, k := range n.Kids {
+			walk(k, items)
+		}
+		if apart {
+			b.WriteByte(' ')
+		}
+	}
+	walk(n, false)
+	return strings.Join(strings.Fields(b.String()), " ")
+}
+
+var (
+	// unrenderedTags never show their content.
+	unrenderedTags = setOf("script", "style", "template", "noscript", "head", "title", "meta", "link", "base")
+	// blockTags render on their own line or in their own cell (the HTML
+	// spec's default display of block, list-item, table-*, plus br).
+	blockTags = setOf("address", "article", "aside", "blockquote", "body", "br", "caption", "dd", "details",
+		"dialog", "div", "dl", "dt", "fieldset", "figcaption", "figure", "footer", "form", "h1", "h2", "h3",
+		"h4", "h5", "h6", "header", "hgroup", "hr", "html", "legend", "li", "main", "menu", "nav", "ol",
+		"option", "p", "pre", "search", "section", "summary", "table", "tbody", "td", "tfoot", "th", "thead",
+		"tr", "ul")
+)
+
+// unrendered: a non-rendered tag, the hidden attribute, an inline style
+// of display:none or visibility:hidden, or Tailwind's hidden class with
+// no variant (md:block, …) that could show it again.
+func unrendered(e *DOMNode) bool {
+	if unrenderedTags[e.N] {
+		return true
+	}
+	if _, ok := e.A["hidden"]; ok {
+		return true
+	}
+	style := strings.ToLower(strings.Join(strings.Fields(e.A["style"]), ""))
+	if strings.Contains(style, "display:none") || strings.Contains(style, "visibility:hidden") {
+		return true
+	}
+	hidden, shown := false, false
+	for _, tok := range strings.Fields(e.A["class"]) {
+		i := strings.LastIndexByte(tok, ':')
+		hidden = hidden || tok == "hidden"
+		shown = shown || i >= 0 && displayClasses[tok[i+1:]]
+	}
+	return hidden && !shown
+}
+
+var displayClasses = setOf("block", "inline-block", "inline", "flex", "inline-flex", "grid", "inline-grid",
+	"table", "table-row", "table-cell", "contents", "list-item", "flow-root")
+
+// laidOutApart: a flex or grid container (Tailwind's class), whose
+// children are blockified, so each renders apart from its neighbours.
+func laidOutApart(class string) bool {
+	for _, tok := range strings.Fields(class) {
+		switch tok[strings.LastIndexByte(tok, ':')+1:] {
+		case "flex", "inline-flex", "grid", "inline-grid":
+			return true
+		}
+	}
+	return false
+}
+
+func setOf(xs ...string) map[string]bool {
+	m := make(map[string]bool, len(xs))
+	for _, x := range xs {
+		m[x] = true
+	}
+	return m
+}

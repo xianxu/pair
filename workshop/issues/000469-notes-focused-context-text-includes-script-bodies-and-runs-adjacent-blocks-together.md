@@ -1,12 +1,20 @@
 ---
 id: 000469
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: '040ab4f70e106aa9f06d297c2dc3e9dc09362b21' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'db8f651d138b74e27d2bb177ef4871b5bc86dc2a' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-12T02:35:38-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:5
+    worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
+    repository: github.com/xianxu/pair
 ---
 
 # notes: focused-context text includes script bodies and runs adjacent blocks together
@@ -26,8 +34,23 @@ Context text is the visible text a person would read: skip `script`, `style`, `t
 
 ## Plan
 
-- [ ]
+- [x] `recording.DOMNode.RenderedText()` beside `TextContent` (ARCH-DRY: one walker both models use): skip
+  non-rendered tags (script, style, template, noscript, head metadata) and elements the recording marks hidden
+  (`hidden` attribute, inline `display:none`/`visibility:hidden`, Tailwind `hidden` with no display variant);
+  space-separate HTML-default blocks, table cells, list items, `br`, and the children of a Tailwind flex/grid
+  container (blockified); collapse whitespace.
+- [x] `Structural.Context` and `FakeModel.Context` take landmark and focus text from it; the 500-rune window stays.
+- [x] Model contract: the contract page's article carries a script whose body names the anchor's text, and the
+  context must hold no script and keep the heading apart from the paragraph. Mutation-checked: either model
+  reverted to `TextContent` fails it.
+- [x] Unit table `TestRenderedText`; fixture test `TestContextOfAppReportsIsRenderedText` (app-n3).
+- [ ] Merge main once #462 lands; regenerate its goldens (`app.notes.txt` et al.), check they read cleanly.
 
 ## Log
 
 ### 2026-10-12
+
+- Before: app-n3's context was `Reports Week 10 tasksWeek 2137 tasks…const r=document.getElementById('r');…`.
+  After: `Reports Week 1 0 tasks Week 2 137 tasks …`, no script.
+- Out of scope, noted: `NoteAt.Text` (the anchor's text, stored in recordings and compared in `Resolve`) still
+  uses `TextContent`. Changing it would change stored anchors and their matching; Context is what agents read.
