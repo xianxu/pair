@@ -115,25 +115,16 @@ func (s *Server) boardRoute(w http.ResponseWriter, r *http.Request, rest string)
 	return true
 }
 
-// boardAsset serves the GETs the notes module needs: the shared collab.js,
-// and palette.json, the swatches' colors (broadcast.PointerPalette, the
-// board's one source). palette.json answers only when the cast takes notes,
-// so the viewer mounts the notes module only then.
+// boardAsset serves palette.json, the swatches' colors
+// (broadcast.PointerPalette, the board's one source), only when the cast
+// takes notes, so the viewer mounts the notes module only then.
 func (s *Server) boardAsset(w http.ResponseWriter, rest string) bool {
-	switch rest {
-	case "collab.js":
-		w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
-		w.Write(broadcast.CollabJS())
-		return true
-	case "palette.json":
-		if s.board == nil {
-			return false
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(broadcast.PointerPalette())
-		return true
+	if rest != "palette.json" || s.board == nil {
+		return false
 	}
-	return false
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(broadcast.PointerPalette())
+	return true
 }
 
 func (b *boardRoutes) allowStroke(now time.Time) bool {

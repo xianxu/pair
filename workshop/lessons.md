@@ -1234,3 +1234,8 @@ proof; record the surprising case so the next change starts from evidence.
   runs under `-race` and 0 of 50 without. When state has a single-writer rule, the test drives the real producer (post
   through the board, wait for delivery) and makes any other change inside `runTerminalCommand`; run the new test with
   `-race -count=20` before calling it done.
+- **Every server of a page serves every module the page imports (#470 meets #471).** The notes module imported
+  `collab.js`, which only the live server served; the replay server, landed meanwhile, served the same viewer from the
+  shared file table, and one missing ES module kills the whole module graph. Serve a page's files from one table both
+  servers use, and test the closure: walk the imports from the entry module and fetch each from that table. After a
+  merge that brings a second consumer of shared files, run the live (browser) suites, not only the unit ones.

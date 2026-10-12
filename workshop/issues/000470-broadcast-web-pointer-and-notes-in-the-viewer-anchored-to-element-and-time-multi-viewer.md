@@ -143,3 +143,7 @@ Durable plan: `workshop/plans/000470-broadcast-web-pointer-and-notes-in-the-view
 - Full suite before close: `make -k test` green but `tests/workbench-route-nvim-test.sh` (passes alone 2/2; no Lua
   touched); `test-changelog` green; `go test ./...` green but termcmd `TestNoDeclarationCarriesTwoStackedGodocs`
   (flags `couchcmd/webcast.go`, identical to main: arrived with #471) and the couchcore deadline test (known on main).
+- After close, merging main (#472) and running the live suites: #471's replay server serves the viewer's files from
+  the shared table, which lacked `collab.js` (the live server served it on the side), so the notes module's import
+  404'd and the replay page never ran (`TestLiveReplayServerSeeks`). `collab.js` is now in `serveViewerFile`, used by
+  both servers; `TestViewerImportsAreServed` walks every module the viewer imports and fetches each from it.

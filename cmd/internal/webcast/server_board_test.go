@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -209,5 +210,32 @@ func TestBoardAssets(t *testing.T) {
 		if code, _, _ := get(c.url + f); code != 200 {
 			t.Errorf("%s: %d", f, code)
 		}
+	}
+}
+
+// Every module a viewer script imports is served by serveViewerFile, which
+// the live and the replay servers both use: a module only one of them
+// served broke the other's whole module graph (#470 met #471 that way).
+func TestViewerImportsAreServed(t *testing.T) {
+	importRE := regexp.MustCompile(`(?m)^\s*import\s[^;]*?from\s+'\./([A-Za-z0-9_-]+\.js)'`)
+	seen, queue := map[string]bool{"viewer.js": true}, []string{"viewer.js"}
+	for len(queue) > 0 {
+		name := queue[0]
+		queue = queue[1:]
+		rec := httptest.NewRecorder()
+		serveViewerFile(rec, httptest.NewRequest("GET", "/"+name, nil), name)
+		if rec.Code != 200 || !strings.HasPrefix(rec.Header().Get("Content-Type"), "text/javascript") {
+			t.Errorf("%s: %d %s", name, rec.Code, rec.Header().Get("Content-Type"))
+			continue
+		}
+		for _, m := range importRE.FindAllStringSubmatch(rec.Body.String(), -1) {
+			if !seen[m[1]] {
+				seen[m[1]] = true
+				queue = append(queue, m[1])
+			}
+		}
+	}
+	if !seen["annotate.js"] || !seen["collab.js"] || !seen["replay.js"] {
+		t.Errorf("the walk missed modules: %v", seen)
 	}
 }
