@@ -38,6 +38,17 @@ Keep it to one short tag per line, plus one sentence of guidance (run heavy verb
 - Every verb in `couch --help` and `couch --skill` carries a cost tag, backed by measured timings in the Log.
 - A test keeps the help and the skill in sync on the tags.
 
+## Revisions
+
+- 2026-10-12, close review: the measurements moved tiers from the Spec's guesses.
+  light is "under a second", not milliseconds. --prepare and --reload-context are
+  heavy, not seconds: both stop the agent and boot a fresh one. --adopt-store,
+  --broadcast-web-query and --broadcast-web-replay are light, --broadcast-web-fidelity
+  is seconds, and --recover-plan-from-sdlc is heavy (22-57 s). cost.go is the source.
+  Done-when: verbs that were not timed are tagged from the path they share with a
+  timed verb, as the Log says per verb: --reconcile, --reap, --reload-context,
+  --prepare, --reboot, --recover, --send-to and the bare launch.
+
 ## Plan
 
 - [x] Measure every public verb on this machine (load noted per batch); record the timings below.

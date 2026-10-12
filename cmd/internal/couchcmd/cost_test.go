@@ -2,6 +2,7 @@ package couchcmd
 
 import (
 	"bytes"
+	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -95,6 +96,13 @@ func TestHelpAndSkillCarryEveryVerbCost(t *testing.T) {
 	}
 	if !strings.Contains(flat(section), flat(costGuidance)) {
 		t.Error("the skill's cost section lacks the cost guidance")
+	}
+	readme, err := os.ReadFile("../../../README.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(flat(string(readme)), flat(costGuidance)) {
+		t.Error("README lacks the cost guidance")
 	}
 }
 
