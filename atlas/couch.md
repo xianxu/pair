@@ -183,8 +183,10 @@ Couch-launched Codex disables shell snapshots for that process so tool shells
 inherit the current slot environment instead of restoring an older slot's
 identity. The override is not persisted into saved agent arguments.
 
-`couch --actors`, `--send-to repo[:N]|hub [--agent NAME] --message TEXT` and `--message-status ID`
+`couch --actors`, `--send-to repo[:N]|hub [--agent NAME] --message TEXT|--message-file PATH` and `--message-status ID`
 use bounded Unix stream RPC, without constructing another mutable supervisor.
+`--message-file` (pair#486) reads the body from a file at send time, so an agent writes a message
+containing shell syntax with its editor and the call stays a bare `couch …` its sandbox exempts.
 `--actors` and `--message-status` support JSON. One pending delivery per actor,
 the inbound breaker, and bounded receipt retention limit the runtime. Family selection requires fresh resting
 branch and quiet-wrapper observations; exact sends allow occupied-slot

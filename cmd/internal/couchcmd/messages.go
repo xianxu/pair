@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"time"
 
@@ -52,6 +53,12 @@ func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writ
 		r.Target = inv.ref
 		r.Agent = inv.messageAgent
 		r.Body = inv.messageBody
+		if inv.messageFile != "" {
+			if r.Body, err = readMessageFile(inv.messageFile); err != nil {
+				fmt.Fprintln(stderr, "couch:", err)
+				return 1
+			}
+		}
 	case "status":
 		r.ID = inv.ref
 	}
@@ -113,6 +120,35 @@ func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writ
 		return 1
 	}
 	return 0
+}
+
+// readMessageFile is --message-file's body (pair#486): the file verbatim,
+// less one trailing newline (LF or CRLF), so an agent writes a message with its editor and
+// sends it without quoting it in a shell. The read is bounded just past the
+// broker's body limit, which validation then refuses with the rest.
+func readMessageFile(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", fmt.Errorf("--message-file: %w", err)
+	}
+	defer f.Close()
+	data, err := io.ReadAll(io.LimitReader(f, couchmessage.MaxBodyBytes+2))
+	if err != nil {
+		return "", fmt.Errorf("--message-file: %w", err)
+	}
+	body := string(data)
+	if b, ok := strings.CutSuffix(body, "\r\n"); ok {
+		body = b
+	} else {
+		body = strings.TrimSuffix(body, "\n")
+	}
+	if strings.TrimSpace(body) == "" {
+		return "", fmt.Errorf("--message-file %s is empty", path)
+	}
+	if len(body) > couchmessage.MaxBodyBytes {
+		return "", fmt.Errorf("--message-file %s exceeds the %d-byte message limit", path, couchmessage.MaxBodyBytes)
+	}
+	return body, nil
 }
 
 // callerIdentity is a request from this slot's conversation: the identity

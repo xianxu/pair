@@ -1,12 +1,22 @@
 ---
 id: 000486
-status: open
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: 'd759269b272c841ac52918f77c72dedc402fb6ee' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '827fbfcfa3eb785a70b7274c501be8b697091293' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-12T07:53:53-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "1fd560c9", done: "c349bbf2"}
+actual_hours: 0.47
 ---
 
 # couch --send-to: --message-file PATH, so agents never quote a message in the shell
@@ -37,9 +47,17 @@ Agents write markdown by habit, and code spans are backticks. So a rule against 
 
 ## Plan
 
-- [ ]
+- [x] Parse `--message-file PATH` in the `--message TEXT` position (`couchcmd/cli.go`); the parser stays IO-free and records the path. Both or neither stays refused by the fixed shape.
+- [x] Read the file at send time (`couchcmd/messages.go`), bounded to `MaxBodyBytes`+2, strip one trailing `\n`; refuse an empty/whitespace, oversized, missing or unreadable file before any RPC. The broker's body validation is unchanged.
+- [x] Tests: parse forms + rejections (`cli_test.go`); verbatim body with backticks, `$(…)`, `<(…)`, newlines; empty, missing, unreadable, oversized (`messages_test.go`).
+- [x] Document in `couch --help` and the couch skill (the default for a message containing code or shell syntax).
+- `--remove-after-send` (optional in the Spec) is left out: the scratch space owns the file's lifetime.
 
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed — go test ./... -count=1 green (unsandboxed, five-var scrub); couchcmd + cmd/couch re-run green after round-1 fixes. make -k test green except test-perf-capture (wall-clock budget, fails identically on origin/main). New tests: verbatim body (backticks, $(), $(()), <(), >(), quotes, tabs, newlines; one trailing LF or CRLF stripped), unusable files (empty, newline-only, whitespace, missing, directory, unreadable, oversized) refused before RPC, at-limit file sent, parse forms + both/neither/misplaced rejections. Round 1 BR-1 fixed (README). Live sandboxed-slot check deferred to TL ops:0 after the operator Couch restart, per TL instruction.; review verdict: SHIP
 - Filed from ariadne#336 (ariadne:1) at the TL's (ops:0) request. Once this ships, ariadne's AGENTS §15 names `--message-file` as the default way to send a message containing code.
+- Implemented (pair:1). The parser stays IO-free: `--message-file PATH` takes `--message`'s place in the fixed `--send-to` shape, so both, or neither, fall to the existing shape refusal. `readMessageFile` reads at send time, bounded at `MaxBodyBytes`+2, strips one `\n`, and refuses empty, whitespace-only, missing, unreadable, directory and oversized files before any RPC. A CR or other control byte is still refused by the broker's existing body validation, unchanged.
+- The live Done-when check (a sandboxed slot delivering backticks, `$(…)`, `<(…)` and newlines verbatim) is left to the TL (ops:0). It needs the operator's next Couch restart, so this item lands on unit tests (TL's instruction).
+- Close round 1 (FIX-THEN-SHIP): BR-1 README usage lines lacked --message-file; added. The class is every place that lists the --send-to usage: help, skill, atlas and README now all carry it (grep for "--message TEXT" finds no other). The minor fix: a CRLF file now strips its trailing CRLF as the one newline, and a test covers it.
