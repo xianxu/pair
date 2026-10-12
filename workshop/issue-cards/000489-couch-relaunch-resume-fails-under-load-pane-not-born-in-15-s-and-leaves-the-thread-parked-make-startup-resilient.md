@@ -17,6 +17,14 @@ tracker:
         source_blob: 89e7d44e0838794627e9bb39da0bc69710a91784
         destination: workshop/issues/000489-couch-relaunch-resume-fails-under-load-pane-not-born-in-15-s-and-leaves-the-thread-parked-make-startup-resilient.md
         main_commit: 0ce9aeebb9fa89ad9e3c36b0ac6ab5ab998bee9f
+started: 2026-10-12T10:28:10-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:6
+    worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
+    repository: github.com/xianxu/pair
 ---
 
 # couch: relaunch/resume fails under load (pane not born in 15 s) and leaves the thread parked; make startup resilient
