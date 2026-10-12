@@ -1,12 +1,20 @@
 ---
 id: 000501
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: 'd807d4e18bee4e9f3a30222f2850725aa3480325' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '0dc5a0254998dc3ad847da650f943156b7d788f6' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-12T14:38:05-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # broadcast-web: a button beside the notes popup in Couch's tab bar brings the cast Chrome to the front
