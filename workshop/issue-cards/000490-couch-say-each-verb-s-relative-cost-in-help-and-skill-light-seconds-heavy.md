@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000490-couch-say-each-verb-s-relative-cost-in-help-and-skill-light-seconds-heavy.md
         source_blob: 77e4748ba28ab64b1d52e3f95aae43a1088a8d5a
         destination: workshop/issues/000490-couch-say-each-verb-s-relative-cost-in-help-and-skill-light-seconds-heavy.md
+        main_commit: 6a3ea808b9307298d96bc6b1014e3f1554a37f6b
 ---
 
 # couch: say each verb's relative cost in --help and --skill (light, seconds, heavy)
