@@ -1,6 +1,6 @@
 ---
 id: 000481
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: c3496125f19c3f5e9b7d4a67c5a2f0d96c89cdaf
         evidence_commit: 5f495d630960050ba8ce2e2c5d42c011cd817763
+        landed_commit: bd275cb30af08ad4b8c5ef4880c0e06768892d04
 ---
 
 # tests: gate wall-clock perf budgets out of the default suite (terminal tail 250ms, slot-git render 100ms, broadcast marks)
