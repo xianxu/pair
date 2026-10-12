@@ -90,7 +90,7 @@ func TestValidateFindings(t *testing.T) {
 func TestUnknownKindIsAWarning(t *testing.T) {
 	p := newPage()
 	files := filesOf(t, p.b.Recs)
-	files[FileEvents] = append(files[FileEvents], []byte(`{"t":0,"k":"hover","id":3}`+"\n")...)
+	files[FileEvents] = append(files[FileEvents], []byte(`{"t":0,"k":"wiggle","id":3}`+"\n")...)
 	fs, _ := Validate(files)
 	if len(fs) != 1 || !fs[0].Warning || len(Errors(fs)) != 0 {
 		t.Fatalf("findings %v", fs)

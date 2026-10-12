@@ -45,12 +45,12 @@ func NewReplayServer(token, root string) *ReplayServer {
 	return &ReplayServer{token: token, root: root, proxies: map[string]*castassets.Proxy{}}
 }
 
-// recordingID is the shape of a recording directory's name: one path
+// recordingIDShape is the shape of a recording directory's name: one path
 // element, no traversal.
-var recordingID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
+var recordingIDShape = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
 
 // ValidRecordingID says whether id can name a recording directory.
-func ValidRecordingID(id string) bool { return recordingID.MatchString(id) }
+func ValidRecordingID(id string) bool { return recordingIDShape.MatchString(id) }
 
 // ReplayLink is the URL of a recording at t ms: base is the server's
 // <scheme>://<host>/<token>.
@@ -99,7 +99,7 @@ func (s *ReplayServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // exists says whether id names a recording directory directly under root
 // (not a link out of it).
 func (s *ReplayServer) exists(id string) bool {
-	if !recordingID.MatchString(id) {
+	if !recordingIDShape.MatchString(id) {
 		return false
 	}
 	info, err := os.Lstat(filepath.Join(s.root, id))
@@ -192,7 +192,7 @@ func ListRecordings(root string) ([]Listed, error) {
 	}
 	var out []Listed
 	for _, e := range entries {
-		if !e.IsDir() || !recordingID.MatchString(e.Name()) {
+		if !e.IsDir() || !recordingIDShape.MatchString(e.Name()) {
 			continue
 		}
 		dir := filepath.Join(root, e.Name())

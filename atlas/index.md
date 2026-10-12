@@ -113,7 +113,7 @@
 
 - [Terminal ownership](terminal.md) — Shared endpoint, presenter, profile, transport and qualification boundaries.
 - [Couch broadcast](broadcast.md) — view-only streaming of the composed Couch screen: Presenter tap, LIVE-gated hub, switcher privacy (#395).
-- [Couch broadcast-web](webcast.md) — the cast Chrome (#454): CDP over the debugging pipe, the `Browser` seam and its fake, active-tab inference, the isolated-world in-page control; the asset store and proxy (#459).
+- [Couch broadcast-web](webcast.md) — the cast Chrome (#454): CDP over the debugging pipe, the `Browser` seam and its fake, active-tab inference, the isolated-world in-page control; the recorder (#458) on the CDP side of the seam; the asset store and proxy (#459).
 - [Broadcast-web recording format](webcast-format.md) — the recording (#457): one record stream live and on disk, stable node ids, the reference reducer and validator, the seams, fakes and fixtures each wave-1 component builds against, and the notes model (#461): anchors, focused context, snapped crops. Agent queries (#462): `couch --broadcast-web-query`; replay with a scrubber (#471): `couch --broadcast-web-replay`, in [webcast.md](webcast.md#replay-471). Remote driving (#466): `ctl` control records, `by` attribution, and `drive`'s input wire, confinement, `Injector` and `Controller` seams.
 
 - [Opt-in Couch live capture](couch-live-capture.md) — opt-in display-boundary recording and replay evidence for #379.

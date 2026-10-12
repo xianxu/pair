@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
@@ -161,5 +162,15 @@ func TestReplayLink(t *testing.T) {
 	}
 	if got := ReplayLink("http://h/tok", "a", -3); got != "http://h/tok/r/a/#t=0" {
 		t.Errorf("%s", got)
+	}
+}
+
+// Every id the recorder names a recording with (#458) is one the replay
+// serves.
+func TestReplayAcceptsTheRecordersIDs(t *testing.T) {
+	for _, at := range []time.Time{time.Now(), time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)} {
+		if id := recordingID(at); !ValidRecordingID(id) {
+			t.Errorf("the recorder's id %q is not a replayable id", id)
+		}
 	}
 }

@@ -100,7 +100,7 @@ func runReplay(ctx context.Context, args []string, store string, stdout, stderr 
 		fmt.Fprintf(stderr, "couch %s: Couch has no store directory; name a recording directory\n", replayFlag)
 		return 2
 	}
-	root, id, err := resolveReplay(a.target, filepath.Join(store, "webcast", "recordings"))
+	root, id, err := resolveReplay(a.target, recordingsDir(store))
 	if err != nil {
 		fmt.Fprintf(stderr, "couch %s: %v\n", replayFlag, err)
 		return 1

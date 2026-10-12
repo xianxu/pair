@@ -7,6 +7,19 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- A bounded cache or graveyard prunes only after the update it belongs to is applied: decide what is gone from the
+  structure as it now is, never between its teardown and its rebuild. #458's id map buried a re-snapshotted tree after
+  forgetting it, so every live node looked removed and lost its id once the graveyard filled. Test it above the bound.
+  (#458 BR-19)
+- When several sources can supply the same thing (a response, a cache, a reference), name one keyed owner that
+  decides, test every arrival order, and say what the later sources do. Deduping by "seen" flags set in arrival order
+  double-fetches the moment the order flips. (#458 BR-24)
+- A measuring tool's own error must be smaller than what it measures: a screenshot diff searched in 200 ms steps on a
+  page that changes every 50 ms measured the step. Check the tool against a known baseline (the prototype's recordings)
+  before comparing anything with it. (#458 M3)
+- A fix that adds a review-requested behavior ships with a test that fails when the fix is reverted; check it by
+  reverting. Five of #458's first-round fixes passed the suite reverted. (#458 BR-4..17)
+
 - A filter that keeps records by kind must also keep the context records that give the kept ones their meaning.
   #457's catch-up kept a document's notes but dropped the segment they were counted from, so a derived view
   (notes on the current document) emptied while the raw state matched. Assert equivalence on the derived views
@@ -1173,4 +1186,11 @@ proof; record the surprising case so the next change starts from evidence.
   fixture while exercising nothing. When a port is held to an invariant over fixtures, list the rule's branches first,
   then check that some input reaches each one; add a synthetic recording for any branch no fixture reaches. And look at
   a UI once (a headless screenshot): a layout bug that only shows while paused passed every DOM check.
+- **A "what the user sees" rule has one walker; grep for its siblings (#469 close).** Fixing note context with a new
+  `RenderedText` left #462's `spacedText` in `query/render.go`, a second visible-text walker with different
+  rules beside it in the same output. When you add a function that defines how something reads (rendered text, a
+  selector, a label), grep the codebase for every other function doing the same job (`TextContent`, `textContent`,
+  "what a reader sees") and route them through yours in the same change. And don't derive state the source doesn't
+  hold: a select's live choice isn't in the DOM, so guessing it from the `selected` attribute contradicted the
+  event beside it.
 
