@@ -1,6 +1,6 @@
 ---
 id: 000470
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours: 5.22
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 6c98f0479540ed28a6433911c36752be42e35255
         evidence_commit: 006dd36b214238a0d7908d12ef51d86259220fe9
+        landed_commit: 35c54ee75ed52cc3b1a65ad4dbd4c47843e4a64b
 ---
 
 # broadcast-web: pointer and notes in the viewer — anchored to element and time, multi-viewer
