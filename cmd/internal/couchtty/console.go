@@ -1253,13 +1253,14 @@ func (c *Console) paintNow() {
 	}
 	if terminal.IsRoutingAnswer(err) {
 		c.traceDropped("chrome", err)
-		// The presenter holds no endpoint to paint chrome onto. The console's
-		// own transitions can no longer show this: showMenu and selection flip
-		// c.focus with the presentation under publishMu (pair#484). Kept as the
-		// defence for a presenter that loses its endpoint some other way: the
-		// paint that follows is the authoritative one, so skipping this one loses
-		// nothing -- and escalating it would be the pair#265 exit reached with no
-		// input involved at all.
+		// The presenter holds no endpoint to paint chrome onto while c.focus
+		// names an actor. showMenu and selection flip c.focus with the
+		// presentation under publishMu (pair#484), so they no longer show this;
+		// Attach still can: it sets FocusActor before Run's first selection
+		// presents the endpoint. The selection that follows is the
+		// authoritative paint, so skipping this one loses nothing -- and
+		// escalating it would be the pair#265 exit reached with no input
+		// involved at all.
 		return
 	}
 	if err != nil {
