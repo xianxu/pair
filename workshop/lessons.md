@@ -1087,3 +1087,8 @@ proof; record the surprising case so the next change starts from evidence.
   concepts bullets (1.5s, 10 steps, 11 repaints) and a README sentence ("resolved from a viewer's page") stating the
   old behavior. Before committing a constant or capability change, grep the old number and the verb across README,
   atlas and the plan, and rewrite each hit; state tests in terms of the constants so tuning can't stale them.
+- **A summary figure is computed from its table, endpoints included (#453 close review).** The write-up said
+  "~1.5× the gzipped bytes" over measured ratios of 1.15–2.05×, "at least as faithful on every page" where one
+  page had more lagging moments, and "lowest overhead" measured on only one page. When a recommendation restates a
+  measurement, quote the range from the table and name the scope it was measured on; don't round toward the
+  option being recommended.
