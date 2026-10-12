@@ -163,3 +163,9 @@ Status: decided; M1 closed. The body below is the original draft, and Revisions 
   - **Rotation order (BR-4).** Each `castlock.Rotation` carries a `Gen` that only increases. Callbacks run outside the mutex, so receivers keep the highest `Gen` (Couch, in M3).
   - **Fail closed.** A spent code whose rotation fails refuses every attempt until the operator rotates. A session-minting failure is `Failed` (500, "try again"), never "ended".
   - **Interim state.** M1 locks the terminal links, but Couch shows no code until M3. The branch lands only after M3, so no operator ever runs the interim state.
+- 2026-10-12, operator via the hub: tooltip anchors.
+  - #501 (pair:1) adds visible link controls to the Chrome cell: `Chrome ⏸ ↗ 👆 👽 💭N`, where 👆 copies the view link and 👽 the drive link.
+  - The code tooltips hang on those controls:
+    - Chrome's 👆 shows the view code; Chrome's 👽 shows the drive code;
+    - LIVE's 👆 shows the terminal code.
+  - M3 builds the operator-only layer and the code machinery against the current cells, then merges main for #501's cell code.
