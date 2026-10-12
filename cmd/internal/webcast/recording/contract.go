@@ -66,6 +66,46 @@ func RunLiveContract(t TB, newLive func() (Sink, Live)) {
 		sink.Close()
 	}
 
+	// Every sequential join point: subscribing after k records gives exactly
+	// CatchUp(first k) followed by the rest. Deterministic; the concurrent
+	// run below is the stress version of the same property.
+	for k := 0; k <= len(recs); k++ {
+		sink, live := newLive()
+		for _, r := range recs[:k] {
+			sink.Put(r)
+		}
+		ch, _ := live.Subscribe()
+		for _, r := range recs[k:] {
+			sink.Put(r)
+		}
+		sink.Close()
+		var got []Record
+		for r := range ch {
+			got = append(got, r)
+		}
+		want := append(CatchUp(recs[:k]), recs[k:]...)
+		if !sameRecords(got, want) {
+			t.Fatalf("joining after %d records: got %d records, want CatchUp + rest (%d)", k, len(got), len(want))
+		}
+	}
+
+	// Frames never reach viewers.
+	{
+		sink, live := newLive()
+		ch, cancel := live.Subscribe()
+		f := &Frame{File: "frames/0.png", W: 1, H: 1}
+		if err := sink.Put(f); err == nil {
+			t.Errorf("a live fan-out must refuse a frame")
+		}
+		sink.Close()
+		for r := range ch {
+			if r == Record(f) {
+				t.Errorf("a frame reached a viewer")
+			}
+		}
+		cancel()
+	}
+
 	// Under a concurrent writer, each subscriber sees CatchUp(prefix)
 	// followed by the rest: no record lost between the two, none twice.
 	sink, live := newLive()
@@ -151,20 +191,21 @@ func drain(ch <-chan Record) <-chan Record {
 
 func isCatchUpThenRest(got, all []Record) bool {
 	for k := 0; k <= len(all); k++ {
-		want := append(CatchUp(all[:k]), all[k:]...)
-		if len(want) != len(got) {
-			continue
-		}
-		same := true
-		for i := range want {
-			if want[i] != got[i] {
-				same = false
-				break
-			}
-		}
-		if same {
+		if sameRecords(got, append(CatchUp(all[:k]), all[k:]...)) {
 			return true
 		}
 	}
 	return false
+}
+
+func sameRecords(a, b []Record) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }

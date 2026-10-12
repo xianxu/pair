@@ -14,13 +14,17 @@ import (
 // Subscribe's channel closes when cancel is called, when the hub closes, or
 // when the subscriber falls behind: a slow viewer is dropped, never allowed
 // to hold the recorder back. A dropped viewer reconnects and gets a fresh
-// catch-up. cancel is idempotent.
+// catch-up. cancel is idempotent. Its Sink refuses frames (ErrNotLive).
 type Live interface {
 	Subscribe() (recs <-chan Record, cancel func())
 }
 
 // ErrClosed: a record was put after Close.
 var ErrClosed = errors.New("recording: sink closed")
+
+// ErrNotLive: a record that never goes to viewers (a frame: pixels never
+// reach them) was put into a live fan-out.
+var ErrNotLive = errors.New("recording: frames are not streamed to viewers")
 
 // MemSink is the stateful fake Sink: it keeps what it was given, in order,
 // and refuses what a real sink would (a put after close, time going back).
@@ -86,6 +90,9 @@ func (h *FakeHub) Put(r Record) error {
 	defer h.mu.Unlock()
 	if h.closed {
 		return ErrClosed
+	}
+	if _, ok := r.(*Frame); ok {
+		return ErrNotLive
 	}
 	if _, ok := r.(*Seg); ok {
 		h.log = CatchUp(h.log)

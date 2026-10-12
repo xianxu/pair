@@ -212,7 +212,7 @@ func (s *State) applyDoc(r *Doc) error {
 		if !s.awaitTop {
 			return errors.New("a top doc comes only right after seg")
 		}
-		if err := s.checkNew(&r.Tree, nil); err != nil {
+		if err := s.checkNew(&r.Tree); err != nil {
 			return err
 		}
 		s.Top = s.build(&r.Tree, nil)
@@ -229,7 +229,7 @@ func (s *State) applyDoc(r *Doc) error {
 	if host.N != "iframe" && host.N != "frame" {
 		return fmt.Errorf("host %d is a %s, not an iframe", r.Host, host.N)
 	}
-	if err := s.checkNew(&r.Tree, host.Frame); err != nil {
+	if err := s.checkNew(&r.Tree, host.Frame); err != nil { // nil Frame: none replaced
 		return err
 	}
 	if host.Frame != nil {
@@ -255,7 +255,7 @@ func (s *State) applyInSegment(r Record) error {
 			}
 			at = i + 1
 		}
-		if err := s.checkNew(&r.Node, nil); err != nil {
+		if err := s.checkNew(&r.Node); err != nil {
 			return err
 		}
 		n := s.build(&r.Node, p)
@@ -276,7 +276,9 @@ func (s *State) applyInSegment(r Record) error {
 			return err
 		}
 		for i := range r.C {
-			if err := s.checkNew(&r.C[i], p); err != nil {
+			// Only p's children are replaced: its shadow root and
+			// template content stay, so their ids stay taken.
+			if err := s.checkNew(&r.C[i], p.Kids...); err != nil {
 				return err
 			}
 		}
@@ -317,7 +319,7 @@ func (s *State) applyInSegment(r Record) error {
 		if host.Shadow != nil {
 			return fmt.Errorf("element %d already has a shadow root", r.Host)
 		}
-		if err := s.checkNew(&r.Root, nil); err != nil {
+		if err := s.checkNew(&r.Root); err != nil {
 			return err
 		}
 		host.Shadow = s.build(&r.Root, nil)
@@ -332,9 +334,13 @@ func (s *State) applyInSegment(r Record) error {
 				return fmt.Errorf("sheet owner %d is a %s, not a style or link", r.Owner, o.N)
 			}
 		}
+		if s.nodes[r.ID] != nil {
+			return fmt.Errorf("id %d names a live node, not a sheet", r.ID)
+		}
 		if err := s.claim(r.ID, "sheet"); err != nil {
 			return err
 		}
+		s.types[r.ID] = "sheet"
 		s.Sheets[r.ID] = &SheetState{Owner: r.Owner, Text: r.Text}
 	case *Adopt:
 		n := s.nodes[r.ID]
@@ -436,9 +442,9 @@ func (s *State) claim(id NodeID, sig string) error {
 }
 
 // checkNew checks a subtree about to be added: every id is new to the live
-// DOM (or, for a replacement, lives under replacing), unique within the
+// DOM (or lives inside one of the subtrees it replaces), unique within the
 // subtree, and keeps its recording-wide signature.
-func (s *State) checkNew(n *Node, replacing *DOMNode) error {
+func (s *State) checkNew(n *Node, replacing ...*DOMNode) error {
 	seen := map[NodeID]bool{}
 	var walk func(n *Node) error
 	walk = func(n *Node) error {
@@ -446,7 +452,7 @@ func (s *State) checkNew(n *Node, replacing *DOMNode) error {
 			return fmt.Errorf("id %d appears twice in one subtree", n.ID)
 		}
 		seen[n.ID] = true
-		if live := s.nodes[n.ID]; live != nil && !under(live, replacing) {
+		if live := s.nodes[n.ID]; live != nil && !underAny(live, replacing) {
 			return fmt.Errorf("id %d is already live", n.ID)
 		}
 		if err := s.claim(n.ID, signature(n)); err != nil {
@@ -498,6 +504,15 @@ func dupIDs(c []Node, parent NodeID) error {
 		}
 	}
 	return nil
+}
+
+func underAny(n *DOMNode, roots []*DOMNode) bool {
+	for _, r := range roots {
+		if under(n, r) {
+			return true
+		}
+	}
+	return false
 }
 
 // under reports whether n is inside root's subtree (through children, shadow
@@ -571,9 +586,11 @@ func (s *State) forget(n *DOMNode) {
 	delete(s.Scrolls, n.ID)
 	delete(s.Boxes, n.ID)
 	delete(s.Adopted, n.ID)
-	for id, sh := range s.Sheets {
-		if sh.Owner == n.ID {
-			delete(s.Sheets, id)
+	if n.N == "style" || n.N == "link" { // the only owners: no scan per node
+		for id, sh := range s.Sheets {
+			if sh.Owner == n.ID {
+				delete(s.Sheets, id)
+			}
 		}
 	}
 	if s.Focus == n.ID {

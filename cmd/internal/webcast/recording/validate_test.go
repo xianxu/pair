@@ -177,6 +177,12 @@ func TestDirRoundTrip(t *testing.T) {
 			t.Errorf("ValidateDir lacks %q:\n%s", want, all)
 		}
 	}
+	if again, err := w.PutAsset(body); err != nil || again != hash {
+		t.Errorf("a stored body put again: %s %v", again, err)
+	}
+	if left, _ := filepath.Glob(filepath.Join(dir, "assets", ".tmp-*")); len(left) != 0 {
+		t.Errorf("temporary files left: %v", left)
+	}
 	if _, err := NewDirWriter(dir); err == nil {
 		t.Error("a recording directory is written once")
 	}

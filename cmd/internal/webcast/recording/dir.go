@@ -14,6 +14,11 @@ import (
 
 // Sink is where a recorder's records go: a recording directory, the live
 // fan-out, or both (Tee). Put is called in record order from one goroutine.
+//
+// Records only. Asset bodies and screenshots are not records. A body is
+// stored once, through the AssetWriter the asset store (#459) persists into,
+// and only its asset record goes through the Sink. A screenshot goes to
+// DirWriter.PutFrame, and never to a Live, because pixels never reach viewers.
 type Sink interface {
 	Put(Record) error
 	Close() error
@@ -96,14 +101,37 @@ func (w *DirWriter) Put(r Record) error {
 	return bw.WriteByte('\n')
 }
 
-// PutAsset stores a body under its hash; a body already stored is kept.
+// AssetWriter persists asset bodies by content hash. DirWriter is the one
+// on-disk writer of a recording's assets/; the asset store (#459) decides
+// what to store (dedup, resample) and persists through this.
+type AssetWriter interface {
+	PutAsset(body []byte) (hash string, err error)
+}
+
+// PutAsset stores a body under its hash; a body already stored is kept. The
+// write goes through a temporary file and a rename, so a crash never leaves
+// a truncated body under a hash name.
 func (w *DirWriter) PutAsset(body []byte) (string, error) {
 	hash := HashOf(body)
 	path := filepath.Join(w.dir, AssetName(hash))
 	if _, err := os.Stat(path); err == nil {
 		return hash, nil
 	}
-	return hash, os.WriteFile(path, body, 0o600)
+	tmp, err := os.CreateTemp(filepath.Join(w.dir, "assets"), ".tmp-*")
+	if err != nil {
+		return "", err
+	}
+	_, werr := tmp.Write(body)
+	cerr := tmp.Close()
+	if err := errors.Join(werr, cerr); err != nil {
+		os.Remove(tmp.Name())
+		return "", err
+	}
+	if err := os.Rename(tmp.Name(), path); err != nil {
+		os.Remove(tmp.Name())
+		return "", err
+	}
+	return hash, nil
 }
 
 // PutFrame stores a screenshot and its frame record; f.File must be

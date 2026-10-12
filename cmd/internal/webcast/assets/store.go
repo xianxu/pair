@@ -41,7 +41,11 @@ var DefaultPolicy = Policy{MaxPixels: 1920 * 1080}
 // ErrNotFound: no body is stored under that hash.
 var ErrNotFound = errors.New("assets: not found")
 
-// Store keeps a recording's asset bodies.
+// Store keeps a recording's asset bodies. It is their one owner: the real
+// store (#459) decides what to keep (dedup, resample) and persists each body
+// through the recording's recording.AssetWriter (its DirWriter), the one
+// writer of assets/<hash>. The recorder emits only the returned asset record,
+// through its Sink.
 type Store interface {
 	// Put stores a captured body (resampled when it is an image over the
 	// budget) and binds its URL to it. The returned record is what the

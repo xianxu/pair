@@ -182,3 +182,27 @@
 - **Contract suites take `recording.TB`**, not `*testing.T`, so product packages don't import `testing`.
 - **Fixture coverage is asserted** (`TestFixtureCoverage`), and the fixtures have a size budget (4.5 MB; 4.0 MB used). A regenerated fixture therefore can't silently lose a case or grow without notice.
 - **Stress fixture:** the FontFace font's body (Apple Chancery, a macOS system font) is excluded from the repository; the `font` record stays.
+
+### 2026-10-12 — close review round 1 (REWORK, BR-1..BR-4)
+- **Where the Core-concepts files actually are** (BR-2):
+  - `Live`, `FakeHub`, `MemSink` and `FakeRecorder` are in `recording/fake.go`;
+  - `RunLiveContract`, `ContractRecording` and `TB` are in `recording/contract.go`;
+  - `Sink`, `Tee`, `AssetWriter`, `DirWriter`, `ReadDir` and `ValidateDir` are in `recording/dir.go`;
+  - `Located`, `DecodeFile`, `Merge`, `Split` and `Finding` are in `recording/files.go`;
+  - `Builder` is in `recording/builder.go`, `TextContent`/`Element`/`ParentElement` in `recording/dom.go`, and the pins in `recording/fixture.go`;
+  - there are no `live.go` or `sink.go`;
+  - the reducer and canonical tests are in `reduce_test.go`, and the file, dir and validator tests in `validate_test.go`;
+  - `fixturegen` is `main.go`, `cdpconv.go` and `notes.go`.
+- **BR-1:** `CatchUp` lost where the current document began, so after a resume, a late joiner's notes had segment 0 and fell out of `notes.Live`. It now keeps that `seg` as a bare record. `TestCatchUpEquivalence` compares `DocSeg` and the live notes.
+- **BR-3 and the kids minor (one namespace, enforced):**
+  - a sheet now claims its id, and a sheet can't take a live node's id;
+  - `kids` may reuse only ids under the children it replaces, not ids in the parent's shadow root or template content.
+- **BR-4 (seam ownership):**
+  - a `Sink` carries records only;
+  - asset bodies have one writer, `DirWriter` through `recording.AssetWriter`, into which the store persists;
+  - a `Live` refuses frames (`ErrNotLive`), and `RunLiveContract` checks it.
+- **Minors:**
+  - `PutAsset` writes through a temporary file and a rename;
+  - `forget` scans sheets only for style and link elements;
+  - `RunLiveContract` gained a deterministic sequential join at every point, and keeps the concurrent run as stress;
+  - the atlas now says pins (not goldens) and that `Reduce` replays from record 0.

@@ -181,10 +181,14 @@ shared with the terminal notes of pair#455. `author` and `text` stay the same; `
 
 ## Joining mid-cast
 
-A viewer that joins late receives the **catch-up**, followed by the live records. The catch-up is `head`; every `asset`
-record so far; the notes, note states and strokes since the current document began; then everything from the latest
-`seg` on. While paused, that last part is the segment through its `stop`. Reduced, the catch-up gives the same DOM, assets and
-current-document notes as the whole recording (tested at every cut point). `recording.CatchUp` is this rule; the
+A viewer that joins late receives the **catch-up**, followed by the live records. The catch-up is:
+- `head`;
+- every `asset` record so far;
+- the `seg` the current document began in, as a bare record, so the document's notes keep their segment;
+- the notes, note states and strokes since then;
+- everything from the latest `seg` on. While paused, that last part is the segment through its `stop`. Reduced, the catch-up gives the same DOM, assets,
+`DocSeg` and current-document notes as the whole recording. This is tested at every cut point, and at every pinned
+time of every fixture. `recording.CatchUp` is this rule; the
 live fan-out (#460) serves it. The fake hub keeps only `CatchUp(log)` at each segment, so what it holds for late
 joiners is bounded by one segment.
 
@@ -203,8 +207,9 @@ serialization of the state. The viewer's conformance check compares it with what
   minute: about 1.4 MB/min gzipped on #453's busy stress page, before compact encoding. Assets are deduplicated by hash, and images are
   resampled to a resolution budget (#459). A retention sweep comes with the first upload or listing feature. It is not
   part of the format.
-- **The reducer** holds one recording's state in memory and seeks by replaying from the latest `seg` before t. An index of
-  segment offsets is a later optimization, derived from the records and never stored as a second truth.
+- **The reducer** holds one recording's state in memory, and `Reduce(records, t)` replays from the first record. Seeking from
+  the latest `seg` before t (an index of segment offsets) is a later optimization. The index would be derived from the records,
+  never stored as a second truth.
 
 ## Components and seams (wave 1 starts here)
 
@@ -218,12 +223,18 @@ it), never a local fork.
 |---|---|---|---|---|
 | pair#458 | recorder | writes a `recording.Sink` (`DirWriter` for disk, `Tee` to also feed `Live`) | `recording.FakeRecorder` (plays a fixture into a sink, instantly or in real time) | `recording.ValidateDir` on its output; fidelity vs `frames/` |
 | pair#459 | asset store and proxy | `assets.Store` (`Put`, `Get`, `Lookup`; `Policy`) | `assets.MemStore` | `assets.RunStoreContract` |
-| pair#460 | live viewer | `recording.Live` (fan-out with catch-up); the JS viewer contract below | `recording.FakeHub` | `recording.RunLiveContract`; the fixtures' canonical goldens |
+| pair#460 | live viewer | `recording.Live` (fan-out with catch-up); the JS viewer contract below | `recording.FakeHub` | `recording.RunLiveContract`; the fixtures' canonical pins |
 | pair#461 | notes model | `notes.Model` (`Anchor`, `Resolve`, `Context`, `Crops`, `Live`; `notes.Hints`) | `notes.FakeModel` | `notes.RunModelContract` |
 | pair#462 | agent queries | `query.Surface` (`DOMAt`, `Events`, `Notes`) | `query.FakeSurface` | `query.RunSurfaceContract` |
 
 Hand-written recordings for tests: `recording.Builder` (ids from one counter, `Page` for a segment and its document),
 `recording.ContractRecording`, `query.ContractRecording`.
+
+**Records, bodies and frames.** A `Sink` carries records only, and `Tee` fans them out to the recording directory and
+the live fan-out. An asset body is stored once: the asset store (#459) decides what to keep and persists it through
+the recording's `recording.AssetWriter` (its `DirWriter`, the one writer of `assets/<hash>`, which writes atomically). Only the
+asset record goes through the Sink. Screenshots go to `DirWriter.PutFrame`. A `Live` refuses frames
+(`ErrNotLive`), because pixels never reach viewers; `RunLiveContract` checks this.
 
 **Seam into `webcast.Cast` (#454).** Today `webcast.Server.events` streams the Browser's `state` (the stub). The recorder (#458)
 adds `LaunchOptions.Sink recording.Sink` to `webcast.Chrome`. The Chrome loop already owns every page session and the

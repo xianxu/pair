@@ -55,14 +55,14 @@ func TestCatchUpEquivalence(t *testing.T) {
 		if len(all.Assets) != len(cu.Assets) {
 			t.Fatalf("cut %d: assets %d vs %d", cut, len(all.Assets), len(cu.Assets))
 		}
-		var want []string
-		for _, n := range all.Notes {
-			if n.Seg >= all.DocSeg {
-				want = append(want, n.ID)
-			}
+		if cu.DocSeg != all.DocSeg {
+			t.Fatalf("cut %d: the catch-up's document began in segment %d, the recording's in %d", cut, cu.DocSeg, all.DocSeg)
 		}
-		if got := noteIDs(cu); got != strings.Join(want, ",") {
-			t.Fatalf("cut %d: notes %q, want the current document's %q", cut, got, want)
+		// The current document's notes, as the notes model reads them
+		// (Seg >= DocSeg), are the same: BR-1, notes carried across a
+		// resume without their segment fell out of this view.
+		if got, want := liveIDs(cu), liveIDs(all); got != want {
+			t.Fatalf("cut %d: live notes %q, want %q", cut, got, want)
 		}
 	}
 }
@@ -94,4 +94,14 @@ func TestCatchUpWhilePaused(t *testing.T) {
 	if err != nil || cu.Live || cu.Node(p.div.ID) == nil {
 		t.Fatalf("paused catch-up: %v live=%v", err, cu.Live)
 	}
+}
+
+func liveIDs(s *State) string {
+	var ids []string
+	for _, n := range s.Notes {
+		if n.Seg >= s.DocSeg {
+			ids = append(ids, n.ID)
+		}
+	}
+	return strings.Join(ids, ",")
 }

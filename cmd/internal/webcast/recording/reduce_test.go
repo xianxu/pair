@@ -130,7 +130,7 @@ func TestKidsReplaces(t *testing.T) {
 	if got := kidIDs(s.Node(p.ul.ID)); !equalIDs(got, []NodeID{n1.ID, n2.ID, old.ID}) {
 		t.Fatalf("children %v", got)
 	}
-	mustFail(t, s, &Kids{P: p.ul.ID, C: []Node{{ID: p.ul.ID, Y: YEl, N: "ul"}}}, "twice")
+	mustFail(t, s, &Kids{P: p.ul.ID, C: []Node{{ID: p.ul.ID, Y: YEl, N: "ul"}}}, "already live")
 	mustFail(t, s, &Kids{P: p.ul.ID, C: []Node{{ID: p.div.ID, Y: YEl, N: "div"}}}, "already live")
 }
 
@@ -260,7 +260,7 @@ func TestStylesheets(t *testing.T) {
 	mustFail(t, s, &Sheet{ID: p.b.ID(), Owner: p.div.ID, Text: ""}, "not a style or link")
 	mustFail(t, s, &Adopt{ID: p.doc.ID, Sheets: []NodeID{4242}}, "unknown")
 	mustFail(t, s, &Adopt{ID: p.div.ID}, "not a document or shadow root")
-	mustFail(t, s, &Sheet{ID: p.div.ID, Text: ""}, "names one thing")
+	mustFail(t, s, &Sheet{ID: p.div.ID, Text: ""}, "live node")
 }
 
 func TestObserverAndContext(t *testing.T) {
@@ -351,4 +351,24 @@ func TestCanonicalIsDeterministicAndComplete(t *testing.T) {
 	if i, j := bytes.Index(a, []byte(`"a": "1"`)), bytes.Index(a, []byte(`"b": "2"`)); i < 0 || j < i {
 		t.Error("attributes must be in name order")
 	}
+}
+
+// One namespace: a sheet id is never a node's, and a node's never a sheet's.
+func TestSheetAndNodeIDsShareOneNamespace(t *testing.T) {
+	p := newPage()
+	sid := p.b.ID()
+	p.b.Add(&Sheet{ID: sid, Text: "a{}"})
+	s := p.reduce(t)
+	mustFail(t, s, &Ins{P: p.ul.ID, Node: Node{ID: sid, Y: YEl, N: "li"}}, "names one thing")
+	mustFail(t, s, &Sheet{ID: p.div.ID, Text: ""}, "live node")
+}
+
+// kids replaces p's children only: ids in p's shadow root or template
+// content stay taken.
+func TestKidsCannotReuseIDsOutsideTheReplacedChildren(t *testing.T) {
+	p := newPage()
+	inner := p.b.Txt("in shadow")
+	p.b.Add(&Shadow{Host: p.ul.ID, Root: Node{ID: p.b.ID(), Y: YShadow, Mode: "open", C: []Node{inner}}})
+	s := p.reduce(t)
+	mustFail(t, s, &Kids{P: p.ul.ID, C: []Node{inner}}, "already live")
 }
