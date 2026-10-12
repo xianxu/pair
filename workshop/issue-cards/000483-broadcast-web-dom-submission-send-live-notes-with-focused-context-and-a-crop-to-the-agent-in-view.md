@@ -5,6 +5,17 @@ created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
 github_issue:
+tracker:
+    version: 1
+    handoff:
+        token: move-640861c2a9b1
+        repository: github.com/xianxu/pair
+        source_branch: refs/heads/main-slot5
+        source_base: e2ca35ae5987b840684faca4f99c4e4cb2386cb9
+        source_head: e2ca35ae5987b840684faca4f99c4e4cb2386cb9
+        source_path: workshop/issues/000483-broadcast-web-dom-submission-send-live-notes-with-focused-context-and-a-crop-to-the-agent-in-view.md
+        source_blob: 9ae3eea1ed33736d6f55209a5bafef2a5eed979a
+        destination: workshop/issues/000483-broadcast-web-dom-submission-send-live-notes-with-focused-context-and-a-crop-to-the-agent-in-view.md
 ---
 
 # broadcast-web: DOM submission — send live notes with focused context and a crop to the agent in view
