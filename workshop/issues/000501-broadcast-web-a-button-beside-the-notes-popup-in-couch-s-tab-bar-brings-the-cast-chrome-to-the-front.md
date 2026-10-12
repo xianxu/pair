@@ -15,6 +15,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "9e6b5a6a", done: "33f2818f"}
 ---
 
 # broadcast-web: a button beside the notes popup in Couch's tab bar brings the cast Chrome to the front
