@@ -1082,3 +1082,8 @@ proof; record the surprising case so the next change starts from evidence.
   claims, assert its visible effect through the console (the drawn cells), with a control that differs only by the
   input, and mutation-check by deleting the wiring line. When the visible path can't show a difference (the
   presenter dropping a stray drag), assert the routing decision directly and say why.
+- **A tuning change sweeps every sentence that states the old value (#447 close review).** Smoke tuning changed the
+  flash constants and added right-click resolve; the commits updated atlas and Revisions but left the plan's Core
+  concepts bullets (1.5s, 10 steps, 11 repaints) and a README sentence ("resolved from a viewer's page") stating the
+  old behavior. Before committing a constant or capability change, grep the old number and the verb across README,
+  atlas and the plan, and rewrite each hit; state tests in terms of the constants so tuning can't stale them.

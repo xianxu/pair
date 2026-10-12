@@ -370,6 +370,52 @@ rounds:
       isolation: checkout
       reviewed: 826bd20866b4eec74189ab3c63377679ccdc7484
       blocked: false
+    - "n": 11
+      timestamp: "2026-10-11T19:34:23-07:00"
+      dispatched: "2026-10-11T19:31:39-07:00"
+      agent: claude
+      dispose:
+        - id: BR-7
+          disposition: addressed
+          note: M2 viewer UI (notes.js, mode button, dialog) is present at head, so README's viewer-page note actions now describe shipped surface.
+          round: 11
+        - id: BR-13
+          disposition: addressed
+          note: viewer.js:182,195,215 gate caps-off on sawCaps; connect.test.mjs view-page end test asserts no caps, red without the guard.
+          round: 11
+        - id: BR-16
+          disposition: not-addressed
+          note: Config.Now still wired (console_broadcast.go:155) but no test drives a note stamp and its drawing through the console's fake clock.
+          round: 11
+        - id: BR-18
+          disposition: addressed
+          note: Core concepts plan:285 now states paletteTint in t (0 = full) with a Revisions entry at plan:389; Task 12's stale wording is covered by the new plan-tracks-code finding.
+          round: 11
+        - id: BR-19
+          disposition: addressed
+          note: restyleNotes runs on every palette reply (terminal_input.go:66) and the test at console_notes_test.go:249 pins the immediate restyle.
+          round: 11
+        - id: BR-27
+          disposition: not-addressed
+          note: pnotes.pressed is still a bool; button-held motion from a press outside the box is taken as hover at console_notes.go:276-283.
+          round: 11
+      findings:
+        - id: BR-28
+          severity: Minor
+          title: README says notes are resolved from a viewer's page, but the terminal menu's right click now resolves them too
+          detail: '4th in this family. README.md:903-904 contradicts the right-click sentence added at 902. Rule: a commit that changes a capability sweeps every README/atlas sentence describing it (grep the verb) in the same commit.'
+          family: docs-gate-user-surface
+          round: 11
+        - id: BR-29
+          severity: Minor
+          title: Plan Flash and NoteNextChange bullets still state a 1.5s hold, 10 steps and about 11 repaints per beat; code is 300ms, 25x20ms, about 26
+          detail: '3rd in this family. plan:287-288 and Task 12 (297, 301) are stale; only Revisions plan:401 records the smoke change, and the peak of about 50 repaints/s during a fade is unstated. Rule: a commit that changes a constant a Core concepts bullet states rewrites that bullet in the same commit.'
+          family: plan-tracks-code
+          round: 11
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: cd5911909669681c42d2620b732b1e313ff4d9ae
+      blocked: false
 ---
 
 # Gate ledger — pair#447 (boundary-review)
@@ -529,11 +575,27 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-27** [Minor] `hit-region-tracks-drawn-frame` A drag that starts outside the notes menu loses its motion while crossing the box
   3rd in this family. routeNotesMenu takes button-held motion over the box as hover whenever the press was elsewhere, so a child's drag-select passing over the menu loses those events. Rule: the press decides who owns a gesture, and that owner keeps it until the release. Make pnotes.pressed an owner value (none/menu/elsewhere), set elsewhere on a press outside the box, pass motion and release through while it is elsewhere, and extend TestNotesMenuDragStaysTheMenus.
 
+## Round 11 — 2026-10-11T19:34:23-07:00 (claude) — passed
+
+### Disposed
+
+- BR-7 — addressed — M2 viewer UI (notes.js, mode button, dialog) is present at head, so README's viewer-page note actions now describe shipped surface.
+- BR-13 — addressed — viewer.js:182,195,215 gate caps-off on sawCaps; connect.test.mjs view-page end test asserts no caps, red without the guard.
+- BR-16 — not-addressed — Config.Now still wired (console_broadcast.go:155) but no test drives a note stamp and its drawing through the console's fake clock.
+- BR-18 — addressed — Core concepts plan:285 now states paletteTint in t (0 = full) with a Revisions entry at plan:389; Task 12's stale wording is covered by the new plan-tracks-code finding.
+- BR-19 — addressed — restyleNotes runs on every palette reply (terminal_input.go:66) and the test at console_notes_test.go:249 pins the immediate restyle.
+- BR-27 — not-addressed — pnotes.pressed is still a bool; button-held motion from a press outside the box is taken as hover at console_notes.go:276-283.
+
+### Raised
+
+- **BR-28** [Minor] `docs-gate-user-surface` README says notes are resolved from a viewer's page, but the terminal menu's right click now resolves them too
+  4th in this family. README.md:903-904 contradicts the right-click sentence added at 902. Rule: a commit that changes a capability sweeps every README/atlas sentence describing it (grep the verb) in the same commit.
+- **BR-29** [Minor] `plan-tracks-code` Plan Flash and NoteNextChange bullets still state a 1.5s hold, 10 steps and about 11 repaints per beat; code is 300ms, 25x20ms, about 26
+  3rd in this family. plan:287-288 and Task 12 (297, 301) are stale; only Revisions plan:401 records the smoke change, and the peak of about 50 repaints/s during a fade is unstated. Rule: a commit that changes a constant a Core concepts bullet states rewrites that bullet in the same commit.
+
 ## Open findings
 
-- **BR-7** [Minor] `docs-gate-user-surface` README describes viewer-page note actions that only land in M2
-- **BR-13** [Minor] `stream-end-resets-derived-state` End sends a made-up caps-off to view links, which never get caps, so they show the "Pointing is off" hint band
 - **BR-16** [Minor] `single-clock-source` Note.At stamped with wall-clock time.Now in session.go while the console draws with injectable c.now
-- **BR-18** [Minor] `plan-tracks-code` Plan Core concepts describe paletteTint with a strength argument (1 = full) but the code takes t (0 = full)
-- **BR-19** [Minor] `snapshot-captures-mutable-input` The notes' blend background is captured only when a snapshot is accepted, so a later OSC 11 report or theme change is ignored until the next note change
 - **BR-27** [Minor] `hit-region-tracks-drawn-frame` A drag that starts outside the notes menu loses its motion while crossing the box
+- **BR-28** [Minor] `docs-gate-user-surface` README says notes are resolved from a viewer's page, but the terminal menu's right click now resolves them too
+- **BR-29** [Minor] `plan-tracks-code` Plan Flash and NoteNextChange bullets still state a 1.5s hold, 10 steps and about 11 repaints per beat; code is 300ms, 25x20ms, about 26

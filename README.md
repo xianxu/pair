@@ -902,8 +902,9 @@ notes in a box over your screen: hovering one highlights it and makes its `💭`
 glow so you can tell which is which, clicking one copies its text,
 right-clicking one copies it and resolves it, and `×` or
 another click on `💭2` closes the box (Shift- or Option-drag selects text in it,
-as anywhere in Couch). Notes are resolved from a viewer's page: anyone on either
-link can tap a `💭` to read it, and anyone on the pointer link can resolve it. A note stays on the cell where it was placed, whatever scrolls
+as anywhere in Couch). On a viewer's page, anyone on either link can tap a `💭`
+to read it, and anyone on the pointer link can resolve it; you resolve one by
+right-clicking it in the box. A note stays on the cell where it was placed, whatever scrolls
 underneath. Turning pointing off deletes every note, as it clears the marks,
 and stopping the broadcast ends them too; nothing is saved to disk.
 
