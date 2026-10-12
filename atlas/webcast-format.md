@@ -386,9 +386,23 @@ entries end when their record is seen, the emit fails, or a new document begins.
 - `boxOf(id)` is a node's box in top-page CSS px from the viewer's own unscaled layout. A note made in the viewer
   carries this box from click time.
 - `nodeAt(pageX, pageY)` is the id of the innermost drawn element at a top-page point (into frames and shadow roots):
-  the target of a driver's act (#466). `toPage(clientX, clientY)` maps a point in the viewer's window to top-page CSS px.
+  the target of a driver's act (#466). `toPage(clientX, clientY)` maps a point in the viewer's window to top-page CSS px,
+  and `fromPage(pageX, pageY)` back (#470's pins and strokes).
 - `onRecord(fn)` sees each accepted record and the model, so another component (#467's control state) can follow the
   stream without touching the apply path.
+**Pointing and notes in the viewer (#470).** `web/annotate.js` (styles in `annotate.css`), mounted by one call from
+`viewer.js` when the cast takes notes (`palette.json` answers only with a board). It owns its own elements: a layer over
+the scaled page (input only in point or note mode, `touch-action: none` there, so watching leaves touches alone), the
+swatch rail with ✏️ and 💭 mode buttons docked to the page box, a strokes canvas, the pins and the note dialog. The rail's
+swatches and the dialog are `collab.js`, shared with the terminal viewer (`broadcast.CollabJS`; the file in
+`webcast/web/` is a symlink for the node tests). Point mode posts a stroke's points every 50 ms and draws them at once
+(its echo is skipped); others' strokes fade 1.5 s after their last point, and a reconnect's catch-up strokes (more than
+1.5 s behind the newest record) are not drawn. Note mode: a tap anchors on `nodeAt`'s element with its `boxOf` box; a
+drag of 8 px or more is a region, anchored on the element at its centre. Pins are the model's live notes (since
+`docSeg`, open), placed each frame on the element's box as drawn (`boxOf`; else the box it was made on; a region at its
+region) with a 💭 chip in the author's color that opens the note with Resolve. The identity (`couch.viewerId`, made once;
+`couch.viewerName`, asked in the first draft) is kept in localStorage behind try/catch.
+
 The viewer rewrites `url()`s and `image-set()` strings in streamed CSS (`sheet` records, `<style>` text, `style=`)
 through `resolveAsset`. The proxy rewrites only the CSS bodies it serves. Both find the same URL spans:
 `tests/webcast/css_urls.json` is the shared corpus (`css.js` and `assets.RewriteCSS`).

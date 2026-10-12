@@ -74,7 +74,7 @@ v2 ranges.
 Durable plan: `workshop/plans/000470-broadcast-web-pointer-and-notes-in-the-viewer-anchored-to-element-and-time-multi-viewer-plan.md`.
 
 - [x] M1 — Go: `notes.Model.NoteCrops` (region crops); `board` package (wire, Board as a Sink with an emit func, rules); `POST <cast>/stroke|note|note-state` with admission; `CastConfig.Board`; atlas
-- [ ] M2 — Viewer: `collab.js` shared with the terminal viewer; `annotate.js`; mode button, swatch rail, strokes canvas, pins, note dialog, touch; headless two-viewer e2e on the blog fixture
+- [x] M2 — Viewer: `collab.js` shared with the terminal viewer; `annotate.js`; mode button, swatch rail, strokes canvas, pins, note dialog, touch; headless two-viewer e2e on the blog fixture
 - [ ] M3 — Couch: `💭N` after `Chrome ⏸`, #447's notes menu for web notes (copy, resolve)
 
 ## Log
@@ -102,3 +102,8 @@ Durable plan: `workshop/plans/000470-broadcast-web-pointer-and-notes-in-the-view
   widens the page with it. Not done: a shared contract over `board.Writer` and `recorder.Emit` — the one rule they
   share is `State.OnDoc`, tested in both (`TestWriterStamps…`, `TestRecorderEmitChecksTheDocument`); their difference
   (synchronous ErrStale vs a silent drop) is the `Emit` contract's stated allowance.
+- M2 built. `collab.js` extracted (terminal node tests 60/60, broadcast Go tests green; the storage policy test now
+  reads collab.js). `annotate.js` + `annotate.css`, mounted from viewer.js by one call; viewer.js otherwise gains only
+  `couchViewer.fromPage` (TL b33316a8: #471 edits the same files). `TestAnnotateLiveTwoViewers` (headless, two
+  Chromes, B by emulated touch): A's stroke on B's canvas, A's note pinned on its element in B within 2 px, B's region in
+  A, both kept while paused, cleared by a navigation, recording reduces with both authors. Chrome needs the sandbox off.
