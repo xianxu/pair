@@ -169,3 +169,8 @@ Status: decided; M1 closed. The body below is the original draft, and Revisions 
     - Chrome's 👆 shows the view code; Chrome's 👽 shows the drive code;
     - LIVE's 👆 shows the terminal code.
   - M3 builds the operator-only layer and the code machinery against the current cells, then merges main for #501's cell code.
+- 2026-10-12, operator via the hub: the web cast gets three links, as the terminal has.
+  - The links: view-only (right-click on `Chrome ⏸`), pointer (👆), drive (👽). pair:5 builds the split after #503.
+  - So the web cast gets three codes.
+  - **M3 first step:** a shared `broadcast.LinkLocks` registry (label + token → lock), with `LockFor`, `Codes`, `Rotate` and `End`. Both the terminal `Session` and the web `Cast` use it, so a new link is one `Add`.
+  - Coordination with pair:5 goes through the hub.
