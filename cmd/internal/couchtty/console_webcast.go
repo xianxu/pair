@@ -151,6 +151,28 @@ func (c *Console) webcastStarted(attempt uint64, cast *webcast.Cast, err error, 
 			}
 		}
 	})
+	if ctrl := cast.Drive(); ctrl != nil {
+		// Remote driving (#467): who drives and who asks, for the tab bar
+		// and the drive menu. The channel closes with the cast.
+		states, stopStates := ctrl.Subscribe()
+		c.GoTracked(func() {
+			defer stopStates()
+			for {
+				select {
+				case st, open := <-states:
+					if !open {
+						return
+					}
+					_ = c.runTerminalCommand(c.lifetime, func() error {
+						c.applyDrive(cast, st)
+						return nil
+					})
+				case <-c.stop:
+					return
+				}
+			}
+		})
+	}
 	updates, unsubscribe := cast.Subscribe()
 	c.GoTracked(func() {
 		defer unsubscribe()
@@ -215,6 +237,7 @@ func (c *Console) webcastEnded(cast *webcast.Cast) {
 	c.wcast = webcastState{attempt: c.wcast.attempt}
 	c.mu.Unlock()
 	c.forgetWebNotes()
+	c.forgetDrive()
 	c.syncOverlay(overlayWeb, false)
 	switch err := cast.Err(); {
 	case byOperator || err == nil:

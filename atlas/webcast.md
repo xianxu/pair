@@ -150,6 +150,19 @@ what the viewer's renderer draws at the same moments.
   `WebcastCell` draws `Chrome ▶` / `Chrome ⏸` **after** the screen broadcast's `LIVE ⏸ 👆 👽 💭N`, so the
   broadcast's fixed-column indicator check never moves. Click toggles, right-click copies the link, Ctrl with
   either button ends (macOS terminals may send Ctrl+left as a right click with the Ctrl bit).
+- **Remote driving (#467, `couchtty/console_drive.go`):**
+  - **The span.** After the Chrome cell and its `💭N` comes a span: `🕹Ana` while Ana drives, `✋Bo` when Bo asks
+    (`✋2` for more). It follows `Cast.Drive().Subscribe()`.
+  - **The drive menu.** A click on the span opens it: the notes menu's box and gesture router, as a third source,
+    titled "Remote driving".
+    - On the driver's row, "uploads and downloads off while Ana drives", any click takes control back.
+    - On an asker's row, a left click grants and a right click denies.
+  - **Revoke.** Ctrl with either button on the span revokes, from any state, with the menu open or closed.
+  - **Notices.** Couch says when someone asks, what a grant turns off ("Uploads and downloads are off until control
+    comes back"), and when control is back.
+  - **The banner.** The in-page control in the operator's tab names the driver.
+  - **Tests.** `webcast.FakeDriven` is the Driven fake: the fake injector as the recorder, `Open`, `HoldBatches`.
+    `TestDriveFromCouch` drives it through the cast's real HTTP routes.
 - **State machine:** `couchtty/console_webcast.go`, mirroring `console_broadcast.go` (off → starting → running →
   ending, `startClaim` adoption, a bounded shutdown beside the broadcast's).
 - **Cast:** `webcast.Cast` = Browser + the viewer `Server` mounted on the shared `broadcast.Host`. Chrome comes
@@ -163,7 +176,7 @@ what the viewer's renderer draws at the same moments.
   set, `rec`: each record line of the recording, a `recording.Hub`'s catch-up first. When the record channel
   closes, the fan-out says why (`Live.Ended`). A viewer dropped as too slow has its stream ended and reconnects for
   a fresh catch-up. Once the fan-out has ended, the viewer keeps its page and the stream goes on with `state` and
-  `end`. `?viewer=ID` calls `CastConfig.Presence` for the stream's life (#466's seats). `<token>/assets/<hash>` is
+  `end`. `?viewer=ID` calls `CastConfig.Presence` for the stream's life, and with a controller holds that remote-driving seat (`Controller.Attach`, #467). `<token>/assets/<hash>` is
   the asset proxy's (#459, below).
 - **Asset store and proxy (#459):** `webcast/assets/`. The recorder (#458) captures bodies over CDP and calls
   `Store.Put`; `assets.Recorded` is the real store: dedup by content hash (a repeated body is processed once),

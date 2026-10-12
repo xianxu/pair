@@ -144,8 +144,18 @@ func (c *Console) routeMouseEvent(event terminal.InputEvent) {
 	if ok && !hit.Release {
 		button := mouseinput.BaseButton(hit.Button)
 		c.mu.Lock()
-		rows, cell := int(c.size.Rows), c.statusWebcast
+		rows, cell, driveSpan := int(c.size.Rows), c.statusWebcast, c.statusWebDrive
 		c.mu.Unlock()
+		// Remote driving's span (#467): a click opens the drive menu;
+		// Ctrl with either button takes control back, whatever is open.
+		if (button == 0 || button == 2) && hit.Y == rows && driveSpan.Contains(hit.X-1) {
+			if hit.Button&mouseinput.ModCtrl != 0 {
+				c.revokeDrive()
+			} else {
+				c.toggleNotesMenu(driveMenu)
+			}
+			return
+		}
 		if (button == 0 || button == 2) && hit.Y == rows && cell.Contains(hit.X-1) {
 			switch {
 			case hit.Button&mouseinput.ModCtrl != 0:

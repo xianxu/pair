@@ -3,8 +3,6 @@ package webcast
 import (
 	"context"
 	"errors"
-	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -13,67 +11,12 @@ import (
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
-// drivenBrowser is a FakeBrowser that can be driven: its "recorder" is a
-// fake injector following the stream of what was emitted, opened when the
-// test says (as the real one opens at its first go-live).
-type drivenBrowser struct {
-	*FakeBrowser
-	inj    *drive.FakeInjector
-	stream *recording.MemSink
-	opened atomic.Bool
-	hold   chan struct{} // while set, a batch waits on it
-
-	mu      sync.Mutex
-	driving []string
-}
-
-func newDrivenBrowser(t *testing.T) *drivenBrowser {
-	stream := &recording.MemSink{}
-	page := drive.DrivenPage(100)
-	inj, err := drive.NewFakeInjector(page, stream)
+func startDrivenCast(t *testing.T, mem *recording.MemSink) (*Cast, *FakeDriven) {
+	t.Helper()
+	d, err := NewFakeDriven(NewFakeBrowser(), drive.DrivenPage(100), mem)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &drivenBrowser{FakeBrowser: NewFakeBrowser(), inj: inj, stream: stream}
-}
-
-func (d *drivenBrowser) Opened() bool { return d.opened.Load() }
-
-func (d *drivenBrowser) Emit(r recording.Record, doc int) error {
-	r.SetTime(d.inj.Page().T + 1)
-	d.stream.Put(r)
-	return d.inj.Put(r)
-}
-
-func (d *drivenBrowser) WithTab(ctx context.Context, by string, fn func(drive.Tab) error) error {
-	d.mu.Lock()
-	hold := d.hold
-	d.mu.Unlock()
-	if hold != nil && by != "" { // a driver's batch; a release (by "") isn't held
-		<-hold
-	}
-	return d.inj.Tabs.WithTab(ctx, by, fn)
-}
-
-func (d *drivenBrowser) SetDriving(name string) error {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	d.driving = append(d.driving, name)
-	return nil
-}
-
-func (d *drivenBrowser) lastDriving() string {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	if len(d.driving) == 0 {
-		return "?"
-	}
-	return d.driving[len(d.driving)-1]
-}
-
-func startDrivenCast(t *testing.T) (*Cast, *drivenBrowser) {
-	t.Helper()
-	d := newDrivenBrowser(t)
 	host := broadcast.NewHost(broadcast.HostConfig{Tunnel: &broadcast.FakeTunnel{}, ProbeTimeout: 2 * time.Second})
 	c, err := StartCast(context.Background(), CastConfig{
 		Launch:        func(context.Context, *RecordOptions) (Browser, error) { return d, nil },
@@ -106,7 +49,8 @@ func eventually(t *testing.T, what string, ok func() bool) {
 // drives; a revoke returns while a batch is stuck; the controller ends
 // with the cast.
 func TestCastDriving(t *testing.T) {
-	c, d := startDrivenCast(t)
+	mem := &recording.MemSink{}
+	c, d := startDrivenCast(t, mem)
 	ctrl := c.Drive()
 	if ctrl == nil {
 		t.Fatal("a recorded, drivable cast has no controller")
@@ -120,20 +64,17 @@ func TestCastDriving(t *testing.T) {
 	if err := ctrl.Request(seat.Key); !errors.Is(err, drive.ErrNotLive) {
 		t.Fatalf("before the recorder opened: %v", err)
 	}
-	d.opened.Store(true)
+	d.Open()
 	if err := ctrl.Request(seat.Key); err != nil {
 		t.Fatal(err)
 	}
 	if err := ctrl.Grant(seat.Viewer.ID); err != nil {
 		t.Fatal(err)
 	}
-	eventually(t, "Chrome told Ana drives", func() bool { return d.lastDriving() == "Ana" })
+	eventually(t, "Chrome told Ana drives", func() bool { return d.Driving() == "Ana" })
 
-	hold := make(chan struct{})
-	d.mu.Lock()
-	d.hold = hold
-	d.mu.Unlock()
-	s := d.inj.Page()
+	release := d.HoldBatches()
+	s := d.Injector().Page()
 	q := drive.ElementByID(s, "q")
 	box := s.Boxes[q.ID]
 	batch := drive.Batch{Seg: s.Seg, Acts: []drive.Act{{A: drive.ActClick, ID: q.ID, X: box[0] + 1, Y: box[1] + 1, Button: drive.ButtonLeft, Count: 1}}}
@@ -150,12 +91,12 @@ func TestCastDriving(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("revoke waited on a stuck batch")
 	}
-	close(hold)
+	release()
 	if err := <-stuck; !errors.Is(err, drive.ErrNotDriver) {
 		t.Fatalf("the overtaken batch: %v", err)
 	}
-	eventually(t, "Chrome told nobody drives", func() bool { return d.lastDriving() == "" })
-	recs := d.stream.Records()
+	eventually(t, "Chrome told nobody drives", func() bool { return d.Driving() == "" })
+	recs := mem.Records()
 	all := append(drive.DrivenPage(100), recs...)
 	if _, err := recording.Reduce(all, all[len(all)-1].Time()); err != nil {
 		t.Fatalf("the stream doesn't reduce: %v", err)
