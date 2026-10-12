@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -661,4 +662,55 @@ func TestMessageBrokerRefusalIsNotConnectedAndRetries(t *testing.T) {
 	if _, err := r.s.broker.Caller(b.Scope, b.Tag, b.Session, b.Nonce); err == nil {
 		t.Fatal("broker holds the refused binding")
 	}
+}
+
+// pair#463: `hub` resolves at send time to the slot Couch started from and
+// delivers as an ordinary exact-slot message.
+func TestMessageSendToHubReachesTheHubSlot(t *testing.T) {
+	r := newServiceRig(t)
+	r.world.hub = "/repo1"
+	r.restart(nil)
+	hub, worker := r.connect(1), r.connect(2)
+	send := callerRequest(worker, "send")
+	send.ID, send.Target, send.Body = "id-hub", couchmessage.HubTarget, "done: pair#463"
+	resp := r.s.handle(context.Background(), send)
+	if resp.Code != "accepted" || resp.Receipt == nil || resp.Receipt.Message.To != hub || resp.Receipt.Message.From != worker {
+		t.Fatalf("send to hub %+v", resp)
+	}
+}
+
+// pair#463: each refusal names its reason.
+func TestMessageSendToHubRefusalsNameTheReason(t *testing.T) {
+	send := func(r *serviceRig, from couchmessage.Binding) couchmessage.Response {
+		req := callerRequest(from, "send")
+		req.ID, req.Target, req.Body = "id-hub", couchmessage.HubTarget, "report"
+		return r.s.handle(context.Background(), req)
+	}
+	t.Run("no hub", func(t *testing.T) {
+		r := newServiceRig(t)
+		r.world.hub = ""
+		r.restart(nil)
+		r.connect(1)
+		if resp := send(r, r.connect(2)); resp.Code != "refused" || !strings.Contains(resp.Error, "no hub") {
+			t.Fatalf("%+v", resp)
+		}
+	})
+	t.Run("hub not connected", func(t *testing.T) {
+		r := newServiceRig(t)
+		r.world.hub = "/repo1"
+		r.restart(nil)
+		if resp := send(r, r.connect(2)); resp.Code != "unavailable" || !strings.Contains(resp.Error, "hub isn't connected") {
+			t.Fatalf("%+v", resp)
+		}
+	})
+	t.Run("sender is the hub", func(t *testing.T) {
+		r := newServiceRig(t)
+		r.world.hub = "/repo1"
+		r.restart(nil)
+		hub := r.connect(1)
+		r.connect(2)
+		if resp := send(r, hub); resp.Code != "refused" || !strings.Contains(resp.Error, "you are the hub") {
+			t.Fatalf("%+v", resp)
+		}
+	})
 }

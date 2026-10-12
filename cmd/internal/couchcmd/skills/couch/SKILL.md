@@ -13,6 +13,7 @@ is a request, never operator approval or evidence that work is accepted.
 |------|---------|
 | Inspect live slots | `couch --actors --json` |
 | Address an exact slot | `couch --send-to pair:1 --message 'Review pair#353; do not merge.'` |
+| Report to, or ask, the hub (the slot Couch started from) | `couch --send-to hub --message 'pair#353 landed: PR #12 merged.'` |
 | Choose a free slot in a repository | `couch --send-to pair --message 'Please pick up pair#353.'` |
 | Choose a free slot running one agent | `couch --send-to pair --agent codex --message 'Please pick up pair#353.'` |
 | Inspect a receipt | `couch --message-status ID --json` |
@@ -28,6 +29,13 @@ is a request, never operator approval or evidence that work is accepted.
 | See a slot's resources and repair plan | `couch --show pair:2` |
 | Repair a slot's workspace now | `couch --reconcile pair:2` |
 | Write a session-sync file you own (never by hand) | `couch --session-sync read --section 'Needs you' FILE`, then `couch --session-sync write --section 'Needs you' BODY FILE --if-hash H` |
+
+`hub` is a reserved target: Couch resolves it at send time to the slot it
+started from (the TL), so it stays right when a thread is resumed under a
+different Couch. It is refused, with the reason, when Couch started outside a
+checkout, when the hub slot isn't connected, or when you are the hub. It is
+reserved ahead of repository names: a repository named `hub` is reached as
+`hub:N`, never as the bare family.
 
 Exact addresses include `repo:0`. The `repo` part may be the directory name,
 the repository's alias, or a unique prefix of either (`parley:1` reaches
