@@ -231,6 +231,27 @@ rounds:
       recipe: fix-review
       isolation: fenced
       blocked: true
+    - "n": 8
+      timestamp: "2026-10-12T07:48:03-07:00"
+      dispatched: "2026-10-12T07:46:12-07:00"
+      agent: claude
+      dispose:
+        - id: BR-15
+          disposition: not-addressed
+          note: replay.js is not in this window; devicePixelRatio is still read once at mount.
+          round: 8
+        - id: BR-16
+          disposition: addressed
+          note: Grep of cmd/ for retired fixture names in Fixture/replayRoot/sharesOn finds nothing; /r/blog/ paths moved to rec-blog; go test ./cmd/internal/webcast passes at head.
+          round: 8
+        - id: BR-17
+          disposition: not-addressed
+          note: 'lessons.md still has no blank line between the #477 M2 bullet and the #480 bullet.'
+          round: 8
+      recipe: fix-review
+      isolation: fenced
+      reviewed: 763ec0464fdac28feb9c6db35c2f8ed7797a6416
+      blocked: false
 ---
 
 # Gate ledger — pair#477 (boundary-review)
@@ -327,8 +348,15 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   Main's #474 (bb95a35af) deleted the app/blog/stress fixtures. The resolution moved only replay_live_test.go to rec-app; shares_test.go:62,171,244 and replay_server_test.go:235 still call replayRoot/sharesOn with "blog", and os.CopyFS fails with "stat .: no such file or directory" (TestReplaySharesShareOneRecordingPerToken, TestReplaySharesCloseWhileOpening, TestReplaySharesSharedAndOnReady, TestRecordingServerServesOnlyItsRecording). Rule: when a merge brings in a retired name, sweep the whole tree for it (grep -rnE '(Fixture|replayRoot|sharesOn)\([^)]*"(app|blog|stress)"' cmd), not just the files that conflicted. Fix: switch to rec-blog, including the /r/blog/ URL paths at shares_test.go:77,81 and replay_server_test.go:242-243.
 - **BR-17** [Minor] `doc-formatting` lessons.md: the moved #477 bullets have no blank line before the #480 bullet
 
+## Round 8 — 2026-10-12T07:48:03-07:00 (claude) — passed
+
+### Disposed
+
+- BR-15 — not-addressed — replay.js is not in this window; devicePixelRatio is still read once at mount.
+- BR-16 — addressed — Grep of cmd/ for retired fixture names in Fixture/replayRoot/sharesOn finds nothing; /r/blog/ paths moved to rec-blog; go test ./cmd/internal/webcast passes at head.
+- BR-17 — not-addressed — lessons.md still has no blank line between the #477 M2 bullet and the #480 bullet.
+
 ## Open findings
 
 - **BR-15** [Minor] `captured-environment-value` replayMarks reads devicePixelRatio once, at mount, so the stroke canvas goes stale after a zoom or a move to another display
-- **BR-16** [Critical] `merge-sweep-retired-references` Merge with main leaves four #477 tests on the retired "blog" fixture; go test ./cmd/internal/webcast fails at head
 - **BR-17** [Minor] `doc-formatting` lessons.md: the moved #477 bullets have no blank line before the #480 bullet

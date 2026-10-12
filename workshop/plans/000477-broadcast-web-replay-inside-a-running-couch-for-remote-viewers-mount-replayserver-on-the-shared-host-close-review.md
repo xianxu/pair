@@ -151,3 +151,66 @@ findings:
     title: |
       lessons.md: the moved #477 bullets have no blank line before the #480 bullet
 ```
+
+---
+
+## Re-review — 2026-10-12T07:48:02-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 477 — broadcast-web: replay inside a running Couch, for remote viewers (mount ReplayServer on the shared Host) |
+| repo | pair |
+| issue file | workshop/issues/000477-broadcast-web-replay-inside-a-running-couch-for-remote-viewers-mount-replayserver-on-the-shared-host.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | ab270639baac60b954b18c4684c00983a2f426a4..763ec0464fdac28feb9c6db35c2f8ed7797a6416 |
+| command | sdlc close --issue 477 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-12T07:48:02-07:00 |
+| verdict | SHIP |
+
+## Review
+
+Webcast tests pass. The live Chrome tests fail before any test logic runs, and the cause is this environment. Writing up the verdict now.
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+This window repairs the merge with main and fixes nothing else. The conflict in `replay_live_test.go` is resolved and keeps both sides' intent. From main (#474): the `rec-app` fixture, mark times read from the recording, and a pin needs its region, element or box. From #477: the comment saying the replay uses the live viewer's modules. The tap and resize checks used fixed times (`19100`, `12400`) tied to the retired `app` fixture. They now use `withNote`, the first moment that shows a note, and fail loudly if no such moment exists.
+
+BR-16 is fixed for the whole class, not just the cited site. Grepping all of `cmd/` for `(Fixture|replayRoot|sharesOn)("app"|"blog"|"stress")` finds nothing left. `go test ./cmd/internal/webcast` and `go vet` pass at the head, and no conflict markers remain under `cmd/`. Nothing in the window changes Spec, Revisions or Done when.
+
+I could not run the live Chrome tests here. With `WEBCAST_LIVE_CHROME=1`, every live test fails inside `headlessPage` with `Emulation.setDeviceMetricsOverride: cdp: read: EOF`. That includes `TestLiveReplayServerDrivers`, which this window doesn't touch, so the cause is this machine's Chrome, not the diff. The rewritten `TestLiveReplayServerMarks` needs a live-Chrome run before merge. That is why confidence is medium.
+
+1. **Strengths**
+   - `replay_live_test.go:203-214`: the tap check now takes its moment from the recording (`withNote`) and stops with an error if none exists. This applies the #474 lesson that a re-recorded fixture keeps the test working.
+   - `replay_server_test.go:242-243` and `shares_test.go:81`: the path-escape checks were updated along with the fixture name (`/tok/r/rec-blog/`, `segments%2F..%2Frec-blog`). The 404 checks still test real paths, not names that no longer exist.
+   - The conflict resolution merges the two comments into one and drops neither side's meaning.
+2. **Critical:** none.
+3. **Important:** none.
+4. **Minor**
+   - BR-17 is still open: `workshop/lessons.md` has no blank line between the "#477 M2" bullet ("…the fix removed).") and the "#480" bullet.
+   - BR-15 is still open. Nothing in this window touches `replay.js`.
+   - `shares_test.go:79` still prints the failure label `"blog: %+v"`. It's cosmetic.
+5. **Test coverage:** The four tests BR-16 named now pass. Before the fix they failed on a missing fixture, so they are their own regression evidence. The live-Chrome marks test could not be run here (see above).
+6. **Architecture:** All three apply only to this window. ARCH-DRY passes: there's no new logic. ARCH-PURE passes: the changes are tests only. ARCH-PURPOSE passes: the sweep covered every retired fixture name, not only the sites BR-16 cited.
+7. **Plan revisions:** none.
+
+```findings
+dispose:
+  - id: BR-15
+    disposition: not-addressed
+    note: |
+      replay.js is not in this window; devicePixelRatio is still read once at mount.
+  - id: BR-16
+    disposition: addressed
+    note: |
+      Grep of cmd/ for retired fixture names in Fixture/replayRoot/sharesOn finds nothing; /r/blog/ paths moved to rec-blog; go test ./cmd/internal/webcast passes at head.
+  - id: BR-17
+    disposition: not-addressed
+    note: |
+      lessons.md still has no blank line between the #477 M2 bullet and the #480 bullet.
+```
