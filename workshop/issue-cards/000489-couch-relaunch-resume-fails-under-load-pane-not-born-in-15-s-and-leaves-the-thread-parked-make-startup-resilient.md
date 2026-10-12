@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000489-couch-relaunch-resume-fails-under-load-pane-not-born-in-15-s-and-leaves-the-thread-parked-make-startup-resilient.md
         source_blob: 89e7d44e0838794627e9bb39da0bc69710a91784
         destination: workshop/issues/000489-couch-relaunch-resume-fails-under-load-pane-not-born-in-15-s-and-leaves-the-thread-parked-make-startup-resilient.md
+        main_commit: 0ce9aeebb9fa89ad9e3c36b0ac6ab5ab998bee9f
 ---
 
 # couch: relaunch/resume fails under load (pane not born in 15 s) and leaves the thread parked; make startup resilient
