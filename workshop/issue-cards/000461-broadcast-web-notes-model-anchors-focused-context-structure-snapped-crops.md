@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000461-broadcast-web-notes-model-anchors-focused-context-structure-snapped-crops.md
         source_blob: ca30fc0c6c9b599565986b4afdab5ef8df5927c1
         destination: workshop/issues/000461-broadcast-web-notes-model-anchors-focused-context-structure-snapped-crops.md
+        main_commit: cf766cbcf1f0a2dd0391489865155a2dbba9aaea
 ---
 
 # broadcast-web: notes model — anchors, focused context, structure-snapped crops
