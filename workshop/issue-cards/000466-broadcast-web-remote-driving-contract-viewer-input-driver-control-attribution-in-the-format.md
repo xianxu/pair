@@ -1,6 +1,6 @@
 ---
 id: 000466
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 38a1369bc124dc3c505d338861971a3574531ec5
         evidence_commit: 66ecb616f2e921ac4f0740ff1b9b4cad63f98799
+        landed_commit: 4bb7303c575e2844dc3b77bb378486c87063ea3d
 ---
 
 # broadcast-web: remote-driving contract — viewer input, driver control, attribution in the format
