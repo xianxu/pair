@@ -146,6 +146,8 @@ type messageService struct {
 	// broadcastStatus answers broadcast-status (pair#413). Installed after the
 	// service is serving, so it is an atomic pointer; nil answers unsupported.
 	broadcastStatus atomic.Pointer[func() (couchmessage.BroadcastStatus, bool)]
+	// shares answers broadcast-status's list of every link out (pair#467).
+	shares atomic.Pointer[func() []couchmessage.ShareStatus]
 	// deliveries records each landed delivery for session-sync owed events
 	// (pair#437); nil records nothing.
 	deliveries atomic.Pointer[deliveryRecorder]
@@ -357,6 +359,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 	probe.service.Store(service)
 	console.SetMessageBroker(service.broker)
 	service.SetBroadcastStatus(console.BroadcastStatus)
+	service.SetShares(console.Shares)
 	service.recordDeliveries(namespace)
 	watcher := newWaitWatcher(service, threshold, namespace)
 	service.workers.Add(1)
@@ -717,11 +720,14 @@ func (s *messageService) handleBroadcastStatus(request couchmessage.Request) cou
 	if status == nil {
 		return couchmessage.Response{Code: "unsupported", Error: "this Couch reports no broadcast status"}
 	}
-	snapshot, running := (*status)()
-	if !running {
-		return couchmessage.Response{Code: "ok"}
+	resp := couchmessage.Response{Code: "ok"}
+	if snapshot, running := (*status)(); running {
+		resp.Broadcast = &snapshot
 	}
-	return couchmessage.Response{Code: "ok", Broadcast: &snapshot}
+	if shares := s.shares.Load(); shares != nil {
+		resp.Shares = (*shares)()
+	}
+	return resp
 }
 
 // handleTail answers a peek's tail read (pair#425) from the connected
@@ -817,6 +823,11 @@ func (s *messageService) tailBinding(ctx context.Context, request couchmessage.R
 // SetBroadcastStatus installs the console's broadcast snapshot.
 func (s *messageService) SetBroadcastStatus(status func() (couchmessage.BroadcastStatus, bool)) {
 	s.broadcastStatus.Store(&status)
+}
+
+// SetShares installs the console's list of links out (pair#467).
+func (s *messageService) SetShares(shares func() []couchmessage.ShareStatus) {
+	s.shares.Store(&shares)
 }
 
 // handleSlotOperation authenticates a slot operation's caller by Couch's own

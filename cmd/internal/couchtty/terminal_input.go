@@ -160,6 +160,10 @@ func (c *Console) routeMouseEvent(event terminal.InputEvent) {
 			switch {
 			case hit.Button&mouseinput.ModCtrl != 0:
 				c.endWebcast()
+			case button == 2 && hit.Button&mouseinput.ModAlt != 0:
+				// Alt (Option) + right-click: the drive link (#467). Not
+				// Shift: terminals keep Shift+click for their own selection.
+				c.copyWebcastDriveLink()
 			case button == 2:
 				c.copyWebcastLink()
 			default:

@@ -64,8 +64,10 @@ type Server struct {
 	ping       time.Duration
 	maxViewers int32
 	viewers    atomic.Int32
-	board      *boardRoutes // nil: no pointing or notes (WithBoard)
-	drive      *driveRoutes // nil: no remote driving (WithDrive)
+	// driveViewers: of viewers, those on the drive link (#467).
+	driveViewers atomic.Int32
+	board        *boardRoutes // nil: no pointing or notes (WithBoard)
+	drive        *driveRoutes // nil: no remote driving (WithDrive)
 }
 
 // Presence is told that viewer id's stream opened; leave is called when it
@@ -89,8 +91,18 @@ func NewServer(token string, b Browser, ping time.Duration, live recording.Live,
 // recorder, and until then the proxy answers 404.
 func (s *Server) Assets() *castassets.Proxy { return s.proxy }
 
-// Owns is the Host's routing: this cast answers only its token.
-func (s *Server) Owns(segment string) bool { return broadcast.OwnsToken(segment, s.token) }
+// Owns is the Host's routing: this cast answers only its tokens, the view
+// link's and, with remote driving, the drive link's (#467).
+func (s *Server) Owns(segment string) bool {
+	return broadcast.OwnsToken(segment, s.token) || s.drivesUnder(segment)
+}
+
+// drivesUnder: segment is the drive link's token. Only that link offers a
+// seat and takes control and input (operator, 10-12): the view link is for
+// watching, pointing and notes.
+func (s *Server) drivesUnder(segment string) bool {
+	return s.drive != nil && broadcast.OwnsToken(segment, s.drive.token)
+}
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	broadcast.SetSecurityHeaders(w.Header(), contentSecurityPolicy)
@@ -98,7 +110,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// The only routes that read a body are the board's (#470) and remote
 	// driving's (#467) POSTs; every
 	// other path is GET-only and never reads one.
-	if r.Method == http.MethodPost && ok && s.Owns(segment) && (s.boardRoute(w, r, rest) || s.driveRoute(w, r, rest)) {
+	if r.Method == http.MethodPost && ok && s.Owns(segment) && (s.boardRoute(w, r, rest) || s.driveRoute(w, r, rest, s.drivesUnder(segment))) {
 		return
 	}
 	if r.Method != http.MethodGet {
@@ -111,7 +123,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if rest == "events" {
-		s.events(w, r)
+		s.events(w, r, s.drivesUnder(segment))
 		return
 	}
 	if hash, ok := strings.CutPrefix(rest, "assets/"); ok {
@@ -124,7 +136,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	serveViewerFile(w, r, rest)
 }
 
-func (s *Server) events(w http.ResponseWriter, r *http.Request) {
+func (s *Server) events(w http.ResponseWriter, r *http.Request, driveLink bool) {
 	id := r.URL.Query().Get("viewer")
 	if id != "" && !viewerID.MatchString(id) {
 		http.Error(w, "bad viewer id", http.StatusBadRequest)
@@ -136,12 +148,16 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer s.viewers.Add(-1)
+	if driveLink {
+		s.driveViewers.Add(1)
+		defer s.driveViewers.Add(-1)
+	}
 	if id != "" && s.presence != nil {
 		defer s.presence(id)()
 	}
 	// A seat's stream keeps the seat (#467). An id that is no seat still
 	// watches: watching needs none.
-	if id != "" && s.drive != nil {
+	if id != "" && driveLink {
 		if detach, err := s.drive.ctrl.Attach(id); err == nil {
 			defer detach()
 		}
@@ -204,4 +220,11 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+}
+
+// Viewers is how many streams are open, by link: the view link's and the
+// drive link's (#467, `couch --broadcast-list`).
+func (s *Server) Viewers() (view, drive int) {
+	d := int(s.driveViewers.Load())
+	return int(s.viewers.Load()) - d, d
 }

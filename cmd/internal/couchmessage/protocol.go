@@ -41,6 +41,9 @@ type Response struct {
 	Operation *OperationReceipt `json:",omitempty"`
 	// Broadcast answers broadcast-status (pair#413); nil means no broadcast.
 	Broadcast *BroadcastStatus `json:",omitempty"`
+	// Shares are every link out, by kind (pair#467): the screen broadcast,
+	// the web cast's view link and its drive link.
+	Shares []ShareStatus `json:",omitempty"`
 	// Tail answers tail (pair#425); TailThread names whose it is (pair#429).
 	Tail       *Tail       `json:",omitempty"`
 	TailThread *TailThread `json:",omitempty"`
@@ -56,6 +59,26 @@ type BroadcastStatus struct {
 	Mode      string    `json:"mode,omitempty"`
 	Viewers   int       `json:"viewers"`
 }
+
+// ShareStatus is one link out, as `couch --broadcast-list` lists it
+// (pair#467): which kind it is, its state and who is on it. Like
+// BroadcastStatus it has no field for the link or its token.
+type ShareStatus struct {
+	// Kind is ShareScreen, ShareWebView or ShareWebDrive.
+	Kind    string `json:"kind"`
+	State   string `json:"state"`
+	Viewers int    `json:"viewers"`
+	// Driver and Asking: the drive link's control (a viewer's own name).
+	Driver string `json:"driver,omitempty"`
+	Asking int    `json:"asking,omitempty"`
+}
+
+// Share kinds.
+const (
+	ShareScreen   = "screen"
+	ShareWebView  = "web view"
+	ShareWebDrive = "web drive"
+)
 
 func validMessageID(id string) bool {
 	return id != "" && len(id) <= 128 && utf8.ValidString(id) && strings.IndexFunc(id, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsControl(r) }) < 0

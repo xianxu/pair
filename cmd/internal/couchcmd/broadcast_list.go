@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/rowtext"
 )
 
 // runBroadcastListCLI answers `couch --broadcast-list [--json]` (pair#413):
@@ -42,14 +43,49 @@ func runBroadcastListCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer
 	if inv.jsonOutput {
 		if err := json.NewEncoder(stdout).Encode(struct {
 			Broadcast *couchmessage.BroadcastStatus `json:"broadcast"`
-		}{result.Broadcast}); err != nil {
+			Shares    []couchmessage.ShareStatus    `json:"shares"`
+		}{result.Broadcast, result.Shares}); err != nil {
 			fmt.Fprintln(stderr, "couch:", err)
 			return 1
 		}
 		return 0
 	}
-	fmt.Fprintln(stdout, formatBroadcastStatus(result.Broadcast))
+	fmt.Fprintln(stdout, formatShares(result.Broadcast, result.Shares))
 	return 0
+}
+
+// formatShares is one line per link out, by kind (pair#467): the screen
+// broadcast as before, then the web cast's view and drive links. A Couch
+// that reports no shares lists its broadcast alone.
+func formatShares(screen *couchmessage.BroadcastStatus, shares []couchmessage.ShareStatus) string {
+	if len(shares) == 0 {
+		return formatBroadcastStatus(screen)
+	}
+	var lines []string
+	for _, s := range shares {
+		if s.Kind == couchmessage.ShareScreen && screen != nil {
+			lines = append(lines, s.Kind+": "+formatBroadcastStatus(screen))
+			continue
+		}
+		line := fmt.Sprintf("%s: %s — %s", s.Kind, s.State, viewerCount(s.Viewers))
+		if s.Kind == couchmessage.ShareWebDrive {
+			if s.Driver != "" {
+				line += "; " + rowtext.Sanitize(s.Driver) + " driving"
+			}
+			if s.Asking > 0 {
+				line += fmt.Sprintf("; %d asking", s.Asking)
+			}
+		}
+		lines = append(lines, line)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func viewerCount(n int) string {
+	if n == 1 {
+		return "1 viewer"
+	}
+	return fmt.Sprintf("%d viewers", n)
 }
 
 // formatBroadcastStatus is the one-line listing; nil means no broadcast.

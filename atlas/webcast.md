@@ -158,6 +158,12 @@ what the viewer's renderer draws at the same moments.
     - On the driver's row, "uploads and downloads off while Ana drives", any click takes control back.
     - On an asker's row, a left click grants and a right click denies.
   - **Revoke.** Ctrl with either button on the span revokes, from any state, with the menu open or closed.
+  - **Two links.** Right-click on the Chrome cell copies the view link (watch, point, notes);
+    Alt (Option)+right-click copies the drive link, the only one that offers a seat. Shift+click is the
+    terminal's own selection. `couch --broadcast-list` lists `screen`, `web view` and `web drive` shares
+    (`Console.Shares`, `couchmessage.ShareStatus`), the drive one with who drives and how many ask.
+  - **Failures.** A control change that fails says why (`driveFailure`): a race, the cast ended, not recording
+    yet, or a failure with its cause.
   - **Notices.** Couch says when someone asks, what a grant turns off ("Uploads and downloads are off until control
     comes back"), and when control is back.
   - **The banner.** The in-page control in the operator's tab names the driver.

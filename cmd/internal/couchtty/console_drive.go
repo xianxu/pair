@@ -1,10 +1,13 @@
 package couchtty
 
 import (
+	"errors"
 	"strconv"
 
 	"github.com/xianxu/pair/cmd/internal/broadcast"
+	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/webcast"
+	"github.com/xianxu/pair/cmd/internal/webcast/drive"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
@@ -203,14 +206,59 @@ func (c *Console) revokeDrive() {
 	c.driveResult(cast.Drive().Revoke(), "")
 }
 
-// driveResult tells the operator a control change that didn't happen (the
-// state moved under the click: the viewer gave up or left); one that did
-// is told by applyDrive, from the state that results.
+// driveResult tells the operator a control change that didn't happen;
+// one that did is told by applyDrive, from the state that results.
 func (c *Console) driveResult(err error, done string) {
-	switch {
-	case err != nil:
-		c.setNotice("Remote driving: that changed meanwhile.")
-	case done != "":
+	if err != nil {
+		c.setNotice(driveFailure(err))
+	} else if done != "" {
 		c.setNotice(done)
 	}
+}
+
+// driveFailure is what the operator is told when a control change fails:
+// a race (the viewer gave up or left, the state moved under the click) is
+// said as one; anything else is a failure, with its cause, and control is
+// as it was.
+func driveFailure(err error) string {
+	switch {
+	case errors.Is(err, drive.ErrNoSeat), errors.Is(err, drive.ErrControlOp):
+		return "Remote driving: that changed meanwhile."
+	case errors.Is(err, drive.ErrClosed):
+		return "Remote driving: the cast has ended."
+	case errors.Is(err, drive.ErrNotLive):
+		return "Remote driving: go live first; control changes once the cast is recording."
+	}
+	return "Remote driving failed, control is unchanged: " + err.Error()
+}
+
+// Shares is every link out, by kind, as `couch --broadcast-list` lists them
+// (#467): the screen broadcast, the web cast's view link and its drive
+// link. Never a link or a token. Counts are read after c.mu is released.
+func (c *Console) Shares() []couchmessage.ShareStatus {
+	var out []couchmessage.ShareStatus
+	if b, ok := c.BroadcastStatus(); ok {
+		out = append(out, couchmessage.ShareStatus{Kind: couchmessage.ShareScreen, State: b.State, Viewers: b.Viewers})
+	}
+	c.mu.Lock()
+	cast, running, u := c.wcast.cast, c.wcast.phase == webcastRunning, c.wcast.update
+	c.mu.Unlock()
+	if !running || cast == nil || u.Link == "" {
+		return out
+	}
+	state := "idle"
+	if u.State.Phase == webcast.PhaseLive {
+		state = "live"
+	}
+	view, drive := cast.Viewers()
+	out = append(out, couchmessage.ShareStatus{Kind: couchmessage.ShareWebView, State: state, Viewers: view})
+	if u.DriveLink != "" && cast.Drive() != nil {
+		ctl := cast.Drive().Control()
+		s := couchmessage.ShareStatus{Kind: couchmessage.ShareWebDrive, State: state, Viewers: drive, Asking: len(ctl.Pending)}
+		if ctl.Driver != nil {
+			s.Driver = ctl.Driver.Name
+		}
+		out = append(out, s)
+	}
+	return out
 }

@@ -56,9 +56,12 @@ type CastConfig struct {
 // Update is what Couch shows of a cast: the browser's state and the viewer
 // link. Link is "" until it answers; LinkErr says why there is none.
 type Update struct {
-	State   State
-	Link    string
-	LinkErr error
+	State State
+	Link  string
+	// DriveLink is the drive link (#467): the same viewer, offering a seat
+	// to drive. "" until the link answers, or when the cast can't be driven.
+	DriveLink string
+	LinkErr   error
 }
 
 // Cast is one web cast: a Browser, served to viewers under a token on the
@@ -85,9 +88,11 @@ type Cast struct {
 	recDir string
 	check  func(context.Context, string) (string, error)
 	logf   func(string, ...any)
-	// server and token: for tests.
-	server *Server
-	token  string
+	// server and token: for tests. driveToken is the drive link's (#467),
+	// "" when the cast can't be driven.
+	server     *Server
+	token      string
+	driveToken string
 }
 
 // StartCast launches the browser and returns once it runs; the viewer link
@@ -149,9 +154,16 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 		c.drive = drive.NewMemController(liveGate{d}, drive.NewTabInjector(d), func() int64 { return 0 }, grace)
 		go followDriving(c.drive, d)
 	}
-	srv := NewServer(token, b, cfg.Ping, live, cfg.Presence).WithBoard(bd).WithDrive(c.drive)
+	var driveToken string
+	if c.drive != nil {
+		if driveToken, err = broadcast.NewToken(); err != nil {
+			c.drive.Close()
+			c.drive = nil
+		}
+	}
+	srv := NewServer(token, b, cfg.Ping, live, cfg.Presence).WithBoard(bd).WithDrive(c.drive, driveToken)
 	srv.proxy = proxy
-	c.server, c.token = srv, token
+	c.server, c.token, c.driveToken = srv, token, driveToken
 	go c.run(mountCtx, cfg.Host, srv, token)
 	return c, nil
 }
@@ -232,10 +244,13 @@ func (c *Cast) run(ctx context.Context, host *broadcast.Host, srv *Server, token
 			} else {
 				mount, lost = r.m, r.m.Exited()
 				cur.Link = r.m.Base() + "/" + token + "/"
+				if c.driveToken != "" {
+					cur.DriveLink = r.m.Base() + "/" + c.driveToken + "/"
+				}
 			}
 		case <-lost:
 			lost = nil
-			cur.Link, cur.LinkErr = "", mount.Err()
+			cur.Link, cur.DriveLink, cur.LinkErr = "", "", mount.Err()
 		}
 		c.pub.publish(cur)
 	}
@@ -341,3 +356,6 @@ func (c *Cast) Err() error {
 // denies and revokes through it and shows its state. nil when the cast
 // can't be driven.
 func (c *Cast) Drive() drive.Controller { return c.drive }
+
+// Viewers is how many viewers are on the cast's links, by link (#467).
+func (c *Cast) Viewers() (view, drive int) { return c.server.Viewers() }

@@ -259,11 +259,32 @@ func (c *Console) copyWebcastLink() {
 	case !running:
 	case u.Link != "":
 		c.copyLink(u.Link)
-		c.setNotice("Chrome cast viewer link copied.")
+		c.setNotice("Chrome cast view link copied (watch, point, notes). Alt+right-click for the drive link.")
 	case u.LinkErr != nil:
 		c.setNotice("Chrome cast viewer link unavailable: " + u.LinkErr.Error())
 	default:
 		c.setNotice("Chrome cast viewer link is not ready yet.")
+	}
+}
+
+// copyWebcastDriveLink is an Alt+right-click on the Chrome cell (#467):
+// the drive link, whose viewers can ask to drive the cast tab (the
+// operator still grants). Like the view link, never in the notice.
+func (c *Console) copyWebcastDriveLink() {
+	c.mu.Lock()
+	u, running := c.wcast.update, c.wcast.phase == webcastRunning
+	c.mu.Unlock()
+	switch {
+	case !running:
+	case u.DriveLink != "":
+		c.copyLink(u.DriveLink)
+		c.setNotice("Chrome cast drive link copied: its viewers can ask to drive; you grant.")
+	case u.LinkErr != nil:
+		c.setNotice("Chrome cast drive link unavailable: " + u.LinkErr.Error())
+	case u.Link != "":
+		c.setNotice("This cast can't be driven (it isn't recorded).")
+	default:
+		c.setNotice("Chrome cast drive link is not ready yet.")
 	}
 }
 

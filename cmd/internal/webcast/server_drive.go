@@ -39,6 +39,7 @@ const (
 
 type driveRoutes struct {
 	ctrl   drive.Controller
+	token  string // the drive link's
 	hellos chan struct{}
 	mu     sync.Mutex
 	hello  *broadcast.RateLimit
@@ -53,23 +54,33 @@ type seatLimits struct {
 	input    *broadcast.RateLimit
 }
 
-// WithDrive serves remote driving through ctrl (nil: no driving).
-func (s *Server) WithDrive(ctrl drive.Controller) *Server {
-	if ctrl != nil {
-		s.drive = &driveRoutes{ctrl: ctrl, hellos: make(chan struct{}, seatInFlight),
+// WithDrive serves remote driving through ctrl under its own link's token
+// (nil: no driving).
+func (s *Server) WithDrive(ctrl drive.Controller, token string) *Server {
+	if ctrl != nil && token != "" {
+		s.drive = &driveRoutes{ctrl: ctrl, token: token, hellos: make(chan struct{}, seatInFlight),
 			hello: broadcast.NewRateLimit(helloRatePerSec, helloBurst), seats: map[string]*seatLimits{}, now: time.Now}
 	}
 	return s
 }
 
-// driveRoute serves one POST; false when rest isn't a drive route.
-func (s *Server) driveRoute(w http.ResponseWriter, r *http.Request, rest string) bool {
+// DriveToken is the drive link's token ("" without remote driving).
+func (s *Server) DriveToken() string {
+	if s.drive == nil {
+		return ""
+	}
+	return s.drive.token
+}
+
+// driveRoute serves one POST; false when rest isn't a drive route. Under
+// the view link's token (driveLink false) the routes are not found.
+func (s *Server) driveRoute(w http.ResponseWriter, r *http.Request, rest string, driveLink bool) bool {
 	switch rest {
 	case "drive/hello", "drive/control", "drive/input":
 	default:
 		return false
 	}
-	if s.drive == nil {
+	if !driveLink {
 		http.NotFound(w, r)
 		return true
 	}

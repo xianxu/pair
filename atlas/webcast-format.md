@@ -508,7 +508,13 @@ it (and can revoke it at any moment), and the driver gives it back. Internal vie
 driving). Package `cmd/internal/webcast/drive` is the contract; #467 builds the HTTP routes, the CDP injector and the
 UI against it.
 
-**Seats.** Anyone with the viewer link can watch. Driving needs a seat and a grant:
+**Two links (operator, 10-12, #467).** The view link (the cast's token) is for watching, pointing and notes. The
+drive link (its own token, `Server.DriveToken`, `Update.DriveLink`) serves the same viewer plus the drive routes
+below, which answer 404 under the view link. A stream holds a seat only under the drive link. Couch copies the view
+link with a right-click on the Chrome cell and the drive link with Alt+right-click. `couch --broadcast-list` lists
+each share by kind (`screen`, `web view`, `web drive`), never with its token.
+
+**Seats.** Anyone with the drive link can watch and take a seat; driving needs a grant:
 - `POST <cast>/drive/hello` `{"name":"Ana"}` returns `{"viewer":"v3","key":"<64 hex>","name":"Ana"}`, from
   `Controller.Join`. The key stays in the shell and authenticates the seat's requests (header
   `drive.SeatHeader`, `X-Couch-Seat: <key>`).

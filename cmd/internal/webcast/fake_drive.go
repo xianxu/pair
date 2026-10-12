@@ -24,6 +24,14 @@ type FakeDriven struct {
 	mu      sync.Mutex
 	hold    chan struct{}
 	driving []string
+	failing error // Emit refuses with it, as a stopped recorder would
+}
+
+// FailEmits makes every later Emit fail with err (nil: succeed again).
+func (d *FakeDriven) FailEmits(err error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.failing = err
 }
 
 // NewFakeDriven drives f's tab, showing page; what the cast records goes
@@ -46,6 +54,12 @@ func (d *FakeDriven) Opened() bool { return d.opened.Load() }
 func (d *FakeDriven) Injector() *drive.FakeInjector { return d.inj }
 
 func (d *FakeDriven) Emit(r recording.Record, _ int) error {
+	d.mu.Lock()
+	failing := d.failing
+	d.mu.Unlock()
+	if failing != nil {
+		return failing
+	}
 	r.SetTime(d.inj.Page().T + 1)
 	if err := d.inj.Put(r); err != nil {
 		return err

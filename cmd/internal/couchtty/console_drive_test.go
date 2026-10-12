@@ -2,10 +2,12 @@ package couchtty
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/webcast"
 	"github.com/xianxu/pair/cmd/internal/webcast/drive"
@@ -82,8 +84,8 @@ func TestRenderDriveSpan(t *testing.T) {
 // and viewers that take seats and ask over the cast link.
 type driveCast struct {
 	*webcastRig
-	d    *webcast.FakeDriven
-	link string
+	d              *webcast.FakeDriven
+	link, viewLink string
 }
 
 func newDriveCast(t *testing.T) *driveCast {
@@ -106,7 +108,7 @@ func newDriveCast(t *testing.T) *driveCast {
 	waitFor(t, "link", func() bool {
 		r.con.mu.Lock()
 		defer r.con.mu.Unlock()
-		c.link = r.con.wcast.update.Link
+		c.link, c.viewLink = r.con.wcast.update.DriveLink, r.con.wcast.update.Link
 		return c.link != ""
 	})
 	return c
@@ -164,9 +166,10 @@ func (c *driveCast) clickRow(t *testing.T, span ColumnSpan, prefix string, butto
 	t.Helper()
 	// Couch has the controller's state (its delivery can lag a change).
 	waitFor(t, "Couch caught up with control", func() bool {
+		want := c.control() // takes c.mu: never under pnotes.mu, a leaf lock
 		c.con.pnotes.mu.Lock()
 		defer c.con.pnotes.mu.Unlock()
-		return c.con.pnotes.drive.control.Equal(c.control())
+		return c.con.pnotes.drive.control.Equal(want)
 	})
 	if open, m, _ := c.notesMenu(); !open || !m.Open() {
 		c.clickStatus(span.Start + 1)
@@ -201,6 +204,27 @@ func (c *driveCast) clickRow(t *testing.T, span ColumnSpan, prefix string, butto
 // closed; Couch says when someone asks and what a grant turns off.
 func TestDriveFromCouch(t *testing.T) {
 	c := newDriveCast(t)
+	// Two links (operator, 10-12): right-click copies the view link,
+	// Alt+right-click the drive link; only the drive link takes a seat.
+	if c.link == c.viewLink || !strings.HasSuffix(c.link, "/") {
+		t.Fatalf("links: view %q drive %q", c.viewLink, c.link)
+	}
+	c.clickCell(t, 2)
+	waitFor(t, "view link copied", func() bool { return copies(c.consoleFixture, c.viewLink) == 1 })
+	c.clickCell(t, 2|8)
+	waitFor(t, "drive link copied", func() bool { return copies(c.consoleFixture, c.link) == 1 })
+	waitFor(t, "the drive link's notice", func() bool { return strings.Contains(c.notice(), "drive link copied") })
+	if strings.Contains(c.notice(), c.link) {
+		t.Fatalf("the notice shows the link: %q", c.notice())
+	}
+	resp, err := http.Post(c.viewLink+"drive/hello", "application/json", strings.NewReader(`{"name":"x"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("a seat by the view link: %d", resp.StatusCode)
+	}
 	v1 := c.viewer(t, "Ana")
 	span := c.span(t, "✋Ana")
 	waitFor(t, "the request said", func() bool { return strings.Contains(c.notice(), "Ana asks to drive") })
@@ -217,6 +241,7 @@ func TestDriveFromCouch(t *testing.T) {
 	span = c.span(t, "🕹Ana ✋Bo")
 	c.clickRow(t, span, "Bo asks", 2)
 	waitFor(t, "Bo turned down", func() bool { return len(c.control().Pending) == 0 })
+	waitFor(t, "the deny said", func() bool { return strings.Contains(c.notice(), "Said no to Bo.") })
 	if c.control().Driving() != v1 {
 		t.Fatal("saying no to Bo moved control")
 	}
@@ -246,8 +271,16 @@ func TestDriveFromCouch(t *testing.T) {
 	if p := c.control().Pending; len(p) != 1 || p[0].ID != v2 {
 		t.Fatalf("Bo's request survives a revoke: %+v", p)
 	}
-	// And with the menu open on Bo: Ctrl+right on the span still revokes
-	// (nobody drives: nothing to do, no error).
+	// With only an asker, Ctrl+click on the span changes nothing and says
+	// nothing went wrong.
+	before := c.notice()
+	c.mouse(16, c.span(t, "✋Bo").Start, 23, false)
+	c.mouse(16, c.span(t, "✋Bo").Start, 23, true)
+	time.Sleep(50 * time.Millisecond)
+	if p := c.control().Pending; c.control().Driver != nil || len(p) != 1 || strings.Contains(c.notice(), "Remote driving") && c.notice() != before {
+		t.Fatalf("Ctrl+click with only an asker: %+v, notice %q", c.control(), c.notice())
+	}
+	// Bo drives; with the menu open, Ctrl+right on the span revokes.
 	c.clickRow(t, c.span(t, "✋Bo"), "Bo asks", 0)
 	waitFor(t, "Bo drives", func() bool { return c.control().Driving() == v2 })
 	if open, _, _ := c.notesMenu(); !open { // it stays open on Bo's driver row
@@ -258,6 +291,21 @@ func TestDriveFromCouch(t *testing.T) {
 	c.mouse(18, sp.Start, 23, false) // Ctrl+right
 	c.mouse(18, sp.Start, 23, true)
 	waitFor(t, "revoked with the menu open", func() bool { return c.control().Driver == nil })
+
+	// A revoke that fails (the recorder stopped) is said as a failure,
+	// not as a race, and control stays.
+	c.viewer(t, "Ana")
+	c.clickRow(t, c.span(t, "✋Ana"), "Ana asks", 0)
+	waitFor(t, "Ana drives again", func() bool { return c.control().Driver != nil })
+	c.d.FailEmits(errors.New("recorder stopped"))
+	sp = c.span(t, "🕹Ana")
+	c.mouse(16, sp.Start, 23, false)
+	c.mouse(16, sp.Start, 23, true)
+	waitFor(t, "the failure said", func() bool { return strings.Contains(c.notice(), "control is unchanged: recorder stopped") })
+	if c.control().Driver == nil {
+		t.Fatal("a failed revoke changed control")
+	}
+	c.d.FailEmits(nil)
 
 	// The cast's end clears the span.
 	c.clickCell(t, 16)

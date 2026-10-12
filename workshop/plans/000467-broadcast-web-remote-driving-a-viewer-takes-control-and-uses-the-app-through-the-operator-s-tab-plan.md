@@ -433,3 +433,28 @@ over the recording Chrome, grace 1 s); `recording/testdata/fixtures/driven/` (re
     across pages. A late batch is refused (409 paused), never played into the new page.
   - **The Minor.** `driveView` now returns every shell state (none, asking, driving, paused, other, lost) with its
     action and capture, and `render` only paints it.
+- 2026-10-12, M3 as built and the M3 review round 1:
+  - **Deviations.** There is no `drive_menu.go` or `DriveMenu` model. The drive menu is the notes menu's third
+    source (`driveMenu`), and the title is `RenderTitledMenu`'s parameter, so one box and one gesture router serve
+    both (ARCH-DRY). The pure parts (`driveMenuRows`, `driveSpan`, `driveNotices`, `driveFailure`) live in
+    `couchtty/console_drive.go`.
+  - **New fake.** `webcast.FakeDriven` is exported as Driven's stateful fake: the fake injector as the recorder,
+    with `Open`, `HoldBatches` and `FailEmits`. It replaces the cast test's private one, so Couch's tests drive the
+    real cast routes.
+  - **BR-23.** A control change that fails is reported by its class (`driveFailure`): a race ("that changed
+    meanwhile"), the cast ended, not recording yet, or a failure with its cause ("control is unchanged").
+  - **Test syncs.** `clickRow` waits until Couch's delivered control equals the controller's and the drawn menu
+    shows the delivered rows, and reads the controller outside `pnotes.mu`, a leaf lock. A 1-in-25 hang was a
+    test lock-order inversion, not the product's.
+- 2026-10-12, operator decision via the TL (ops:0, ddc0fc5a): two links.
+  - **The view link** (today's token) is for watching, pointing and notes. `drive/hello`, `control` and `input`
+    answer 404 under it, so the shell gets no seat and shows no request button, and its stream holds no seat.
+  - **The drive link** has its own token (`Server.WithDrive(ctrl, token)`, `Server.DriveToken`,
+    `Update.DriveLink`). It serves the same viewer plus the drive routes. The operator still grants and revokes
+    from any state.
+  - **Couch.** Alt (Option)+right-click on the Chrome cell copies the drive link (told to the TL). Shift isn't
+    usable: terminals keep Shift+click for their own selection while an app tracks the mouse. Right-click still
+    copies the view link, and both notices say which link was copied.
+  - **`couch --broadcast-list`.** It lists every link out by kind: `screen`, `web view` and `web drive`, each with
+    its state and viewers, and the drive link also with who drives and how many ask (`couchmessage.ShareStatus`,
+    `Console.Shares`, `Server.Viewers` by link). It never prints a token.

@@ -37,12 +37,12 @@ func newDriveFixture(t *testing.T, grace time.Duration) *driveFixture {
 	clock := func() int64 { return inj.Page().T + 1 }
 	ctrl := drive.NewMemController(recording.Tee(stream, inj), inj, clock, grace)
 	t.Cleanup(func() { ctrl.Close() })
-	return &driveFixture{srv: NewServer("tok", NewFakeBrowser(), time.Second, nil, nil).WithDrive(ctrl), ctrl: ctrl, inj: inj, stream: stream}
+	return &driveFixture{srv: NewServer("tok", NewFakeBrowser(), time.Second, nil, nil).WithDrive(ctrl, "drv"), ctrl: ctrl, inj: inj, stream: stream}
 }
 
 // post sends one drive request straight to the server.
 func (f *driveFixture) post(route, key, body string) (int, string) {
-	r := httptest.NewRequest(http.MethodPost, "/tok/drive/"+route, strings.NewReader(body))
+	r := httptest.NewRequest(http.MethodPost, "/drv/drive/"+route, strings.NewReader(body))
 	r.Header.Set("Content-Type", "application/json")
 	if key != "" {
 		r.Header.Set(drive.SeatHeader, key)
@@ -152,7 +152,7 @@ func TestDriveRoutesShape(t *testing.T) {
 		}
 	}
 	f := newDriveFixture(t, time.Minute)
-	r := httptest.NewRequest(http.MethodPost, "/tok/drive/hello", strings.NewReader(`{"name":"x"}`))
+	r := httptest.NewRequest(http.MethodPost, "/drv/drive/hello", strings.NewReader(`{"name":"x"}`))
 	w := httptest.NewRecorder()
 	f.srv.ServeHTTP(w, r)
 	if w.Code != http.StatusUnsupportedMediaType {
@@ -190,7 +190,7 @@ func TestDriveSeatFollowsItsStream(t *testing.T) {
 	t.Cleanup(func() { srv.CloseClientConnections(); srv.Close() })
 	viewer, key := f.hello(t, "Ana")
 	ctx, cancel := context.WithCancel(context.Background())
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/tok/events?viewer="+viewer, nil)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/drv/events?viewer="+viewer, nil)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -290,5 +290,39 @@ func TestDriveSeatTableSweepsIdleKeys(t *testing.T) {
 	d.limits("new")
 	if d.seats["new"] == nil || d.seats["old1"] != nil || d.seats["old0"] == nil {
 		t.Fatalf("after the sweep: new %v, idle old1 %v, used old0 %v", d.seats["new"] != nil, d.seats["old1"] != nil, d.seats["old0"] != nil)
+	}
+}
+
+// Two links (operator, 10-12): the view link watches, points and notes;
+// only the drive link takes a seat, control and input, and only its stream
+// holds a seat.
+func TestDriveOnlyUnderTheDriveLink(t *testing.T) {
+	f := newDriveFixture(t, 100*time.Millisecond)
+	if !f.srv.Owns("drv") || !f.srv.Owns("tok") || f.srv.Owns("nope") || f.srv.DriveToken() != "drv" {
+		t.Fatal("the cast answers both links, and nothing else")
+	}
+	for _, route := range []string{"hello", "control", "input"} {
+		r := httptest.NewRequest(http.MethodPost, "/tok/drive/"+route, strings.NewReader(`{}`))
+		r.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		f.srv.ServeHTTP(w, r)
+		if w.Code != http.StatusNotFound {
+			t.Errorf("%s under the view link: %d", route, w.Code)
+		}
+	}
+	srv := httptest.NewServer(f.srv)
+	t.Cleanup(func() { srv.CloseClientConnections(); srv.Close() })
+	viewer, key := f.hello(t, "Ana")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/tok/events?viewer="+viewer, nil)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		t.Fatalf("watching by the view link: %v %v", resp, err)
+	}
+	defer resp.Body.Close()
+	time.Sleep(300 * time.Millisecond) // past the grace: a view stream holds no seat
+	if err := f.ctrl.Request(key); err != drive.ErrNoSeat {
+		t.Fatalf("a seat held by a view-link stream: %v", err)
 	}
 }

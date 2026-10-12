@@ -102,7 +102,7 @@ func TestDriveLiveTwoViewers(t *testing.T) {
 	spy := &spyInjector{next: inj}
 	ctrl := drive.NewMemController(&serialSink{sink: recording.Tee(stream, inj)}, spy, func() int64 { return inj.Page().T + 1 }, time.Minute)
 	t.Cleanup(func() { ctrl.Close() })
-	viewer := NewServer("tok", NewFakeBrowser(), time.Second, hub, nil).WithDrive(ctrl)
+	viewer := NewServer("tok", NewFakeBrowser(), time.Second, hub, nil).WithDrive(ctrl, "drv")
 	viewer.Assets().Bind(store)
 	srv := httptest.NewServer(viewer)
 	t.Cleanup(func() { srv.CloseClientConnections(); srv.Close() })
@@ -114,7 +114,7 @@ func TestDriveLiveTwoViewers(t *testing.T) {
 		return p.evalString(t, `couchViewer.drive ? couchViewer.drive.seat.viewer : ''`)
 	}
 	for _, p := range []*chromePage{a, b} {
-		p.call(t, p.session, "Page.navigate", map[string]any{"url": srv.URL + "/tok/"}, nil)
+		p.call(t, p.session, "Page.navigate", map[string]any{"url": srv.URL + "/drv/"}, nil)
 		waitEval(t, p, "the drive button", button, "Ask to drive")
 		p.eval(t, `(async () => { await couchViewer.ready(); await new Promise((ok) => requestAnimationFrame(() => requestAnimationFrame(ok))); return ''; })()`)
 	}
@@ -212,6 +212,13 @@ func TestDriveLiveTwoViewers(t *testing.T) {
 	clickButton(t, a, `.drive-button`)
 	eventually(t, "A gave control back", func() bool { return ctrl.Control().Driver == nil })
 	waitEval(t, a, "A's layer off", layerOn, "off")
+
+	// The view link watches, points and notes: no seat, no drive button.
+	a.call(t, a.session, "Page.navigate", map[string]any{"url": srv.URL + "/tok/"}, nil)
+	a.eval(t, `(async () => { for (let i = 0; i < 100 && !window.couchViewer; i++) await new Promise((ok) => setTimeout(ok, 50)); await couchViewer.ready(); return ''; })()`)
+	if got := a.evalString(t, `document.querySelector('.drive-button') ? 'button' : 'none'`); got != "none" {
+		t.Error("the view link offers driving")
+	}
 
 	// The stream reduces: every ctl states what its op gives.
 	recs := mem.Records()
