@@ -386,7 +386,9 @@ showing a page yet.", "The cast is paused."; 410 "The cast has ended."; 429 "Too
 503 "Notes aren't working in this cast." (the board lost track of the page: a bug, logged once).
 **While paused, viewers do nothing (pair#499, reversing #470's "notes allowed while paused"):** the board refuses
 `stroke`, `note` and `note-state` (`ErrPaused`, 409 "The cast is paused."), `OnDoc` drops a record admitted just before
-the pause, and the viewer's rail disables its swatches, ✏️ and 💭 until a `seg` resumes (annotate.js `paused()`). Notes
+the pause, and the viewer's rail disables its swatches, ✏️ and 💭 until a `seg` resumes (annotate.js `paused()`), as does the
+note dialog's Save and Resolve (collab.js `noteDialog.hold`; a draft keeps its text). `board.Writer` answers a pause
+drop with `ErrPaused`. Notes
 made before the pause stay pinned through it. The terminal broadcast has no paused state. Couch follows the open notes with `Cast.Notes` and resolves as the operator with
 `Cast.ResolveNote`: `💭N` follows the Chrome cell (`StatusModel.WebNotes`, its own span), and a click opens #447's notes
 menu with the web notes (one menu with a source, screen or web; items show `name: text`, a click copies the text, a right

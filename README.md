@@ -1042,7 +1042,8 @@ browser. Every note is its box: everyone sees it outlined in the author's color 
 the 💭 inside its top-right corner, and the box is the part of the page a submission
 shows the agent. It follows the page as it scrolls, stays through a pause, and leaves the page when the cast moves to another
 page; anyone can tap a pin to read it and resolve it. While the cast is paused, viewers can't point, leave, or resolve
-notes: the rail's controls are greyed out ("The cast is paused.") until it resumes. In Couch the open notes show as
+notes: the rail's controls and an open note's Save and Resolve are greyed out ("The cast is paused.") until it
+resumes; a draft keeps its text. In Couch the open notes show as
 `💭N` after the Chrome cell (`Chrome ⏸ 💭2`); click it for the same notes box the screen
 broadcast uses, with each note's author: click one to copy its text, right-click to copy
 and resolve it. Unlike the screen broadcast's

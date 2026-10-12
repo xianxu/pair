@@ -59,3 +59,9 @@ One rule at two layers, plus the viewer (quick flow):
 
 ### 2026-10-12
 - The 12:01 recording showed the bug: strokes at 13:26:23 were filed during the pause 13:25:41–13:26:42 (#493 Log).
+- **Close review round 1 (FIX-THEN-SHIP):** BR-1 (right): the note dialog's Save and Resolve stayed live while
+  paused, including on a pin opened during the pause. Added `noteDialog.hold(reason)` (collab.js): Save and Resolve
+  disabled with the reason shown, a draft keeps its text; annotate.js holds it whenever it renders the paused rail.
+  TestAnnotateLiveTwoViewers checks Resolve on a viewed note and Save on a typed draft while paused (fails without
+  the hold) and both enabled after resume. Minor: `board.Writer.Emit` answers a pause drop with ErrPaused
+  (TestWriterRefusesARecordDuringAPause); the recorder's drop comment names the pause. README/atlas updated.

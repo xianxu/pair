@@ -197,12 +197,23 @@ func TestAnnotateLiveTwoViewers(t *testing.T) {
 	// clear in both.
 	railOff := `(() => String([...document.querySelectorAll('.annotate-rail button')].every((b) => b.disabled)))()`
 	railAnyOff := `(() => String([...document.querySelectorAll('.annotate-rail button')].some((b) => b.disabled)))()`
+	// The note dialog too (close review): Resolve on a viewed note and Save
+	// on a typed draft, as [resolve off, save off].
+	dialogOff := `(() => { const d = window.couchViewer.annotate.dialog;
+		d.view({id: 'n', text: 't'}, {resolvable: true});
+		const res = document.querySelectorAll('.note-buttons button')[0].disabled;
+		d.draft({});
+		const inp = document.querySelector('.note-input'); inp.value = 'hello'; inp.dispatchEvent(new Event('input'));
+		const save = document.querySelectorAll('.note-buttons button')[2].disabled;
+		d.close();
+		return String([res, save]); })()`
 	pins := fmt.Sprintf(`(() => String([%q, %q].filter((id) => { const p = document.querySelector('.pin[data-note="' + id + '"]'); return p && !p.hidden; }).length))()`, noted.ID, region.ID)
 	w.Put(decode(t, fmt.Sprintf(`{"t":%d,"k":"stop","why":"pause"}`, at+100)))
 	time.Sleep(300 * time.Millisecond)
 	for _, p := range []*chromePage{a, b} {
 		waitEval(t, p, "notes while paused", pins, "1")
 		waitEval(t, p, "the rail disabled while paused", railOff, "true")
+		waitEval(t, p, "the note dialog's Resolve and Save while paused", dialogOff, "true,true")
 	}
 	// Resume (the same document, ids kept): the notes stay.
 	w.Put(decode(t, fmt.Sprintf(`{"t":%d,"k":"seg","seg":%d,"why":"resume","tab":{"id":"tab1","url":%q},"vp":{"w":1280,"h":800,"dpr":1}}`, at+150, st.Seg+1, st.URL)))
@@ -221,6 +232,7 @@ func TestAnnotateLiveTwoViewers(t *testing.T) {
 	for _, p := range []*chromePage{a, b} {
 		waitEval(t, p, "notes after a resume", pins, "1")
 		waitEval(t, p, "the rail enabled after a resume", railAnyOff, "false")
+		waitEval(t, p, "the note dialog's Resolve and Save after a resume", dialogOff, "false,false")
 	}
 
 	seg := st.Seg + 2

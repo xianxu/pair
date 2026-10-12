@@ -32,12 +32,16 @@ func (w *Writer) Put(r recording.Record) error {
 	return w.writeLocked(r)
 }
 
-// Emit is a Board's Emit: it writes r stamped now, or returns ErrStale when
-// the document that began at doc isn't current any more.
+// Emit is a Board's Emit: it writes r stamped now, or refuses it when the
+// document that began at doc isn't current and live any more: ErrPaused
+// during a pause (pair#499), ErrStale otherwise.
 func (w *Writer) Emit(r recording.Record, doc int) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if !w.st.OnDoc(doc) {
+		if w.st.Seg > 0 && !w.st.Live && !w.st.Ended && w.st.DocSeg == doc {
+			return ErrPaused
+		}
 		return ErrStale
 	}
 	t := w.st.T

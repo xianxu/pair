@@ -367,6 +367,7 @@ export async function mountAnnotate(doc, win, v) {
     rail.classList.toggle('paused', off);
     for (const b of rail.querySelectorAll('button')) b.disabled = off;
     for (const [m, b] of Object.entries(modeButtons)) b.title = off ? 'The cast is paused.' : MODE_TIPS[m];
+    dialog.hold(off ? 'The cast is paused.' : ''); // an open note, or a pin opened while paused
   };
   const placeRail = () => {
     const r = box.getBoundingClientRect();

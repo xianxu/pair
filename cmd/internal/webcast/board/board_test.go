@@ -469,3 +469,22 @@ func TestBrokenBoardStopsAndSaysSo(t *testing.T) {
 		t.Errorf("Put after Close: %v", err)
 	}
 }
+
+// A record the board admitted just before a pause reaches the writer after
+// it: the writer drops it and says the cast is paused, not that the page
+// changed (pair#499 close review); after a navigation it is stale.
+func TestWriterRefusesARecordDuringAPause(t *testing.T) {
+	r := newRig(t).page(recording.SegLive)
+	r.add(&recording.Stop{Why: recording.StopPause})
+	stroke := &recording.Stroke{ID: "ana.s", Author: recording.Author{ID: "ana"}, Pts: [][3]float64{{1, 2, 0}}}
+	if err := r.w.Emit(stroke, 1); !errors.Is(err, ErrPaused) {
+		t.Errorf("an emit during a pause: %v", err)
+	}
+	r.page(recording.SegNavigate)
+	if err := r.w.Emit(stroke, 1); !errors.Is(err, ErrStale) {
+		t.Errorf("an emit for a document that has gone: %v", err)
+	}
+	if n := len(r.kinds("stroke")); n != 0 {
+		t.Errorf("%d strokes written", n)
+	}
+}
