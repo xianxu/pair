@@ -604,3 +604,71 @@ func TestRebootLiveUnboundThread(t *testing.T) {
 		t.Fatalf("a refused reboot acted: %+v %v ops %v", current, err, env.Runner.Ops)
 	}
 }
+
+// liveSlotRebootEnv is liveSlotFixture's live slot with a park that completes
+// and a never-bound conversation (pair#456's case).
+func liveSlotRebootEnv(t *testing.T) (*relaunchEnv, ThreadRecord, *fakeLiveRestartProbe) {
+	t.Helper()
+	env, _, live := liveSlotFixture(t)
+	renv := withParkLifecycle(t, env, live, 5151, "slot-live")
+	env.Artifacts.SetNativeBinding(live.Address, "claude", sessioninventory.BindingUnbound, "")
+	probe := &fakeLiveRestartProbe{}
+	env.Couch.LiveRestart = probe
+	return renv, live, probe
+}
+
+// pair#456 BR-2: the slot path (rebootSlot) admits a live slot under its
+// hold, parks it, and starts fresh through startFreshSlot's re-observation.
+func TestRebootLiveSlotByPath(t *testing.T) {
+	t.Parallel()
+
+	env, live, probe := liveSlotRebootEnv(t)
+	args := map[string]string{"path": live.StartingPath, "repo-scope": live.Address.RepoScope, requireSettledArg: settledKnownValue}
+	result, err := dispatchReboot(env.testEnv, args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	started, ok := result.Started()
+	if !ok || started.Record.Thread == live.Address || result.Archived != live.Address {
+		t.Fatalf("result %+v", result)
+	}
+	if len(probe.busyChecks) != 1 || probe.forced[0] {
+		t.Fatalf("busy re-check %v forced %v", probe.busyChecks, probe.forced)
+	}
+	if env.Proc.Exists(5151) == Live {
+		t.Fatal("the old Pair is still running")
+	}
+	// Without a verdict, the same live slot is refused (recover's route).
+	env2, live2, _ := liveSlotRebootEnv(t)
+	if _, err := dispatchReboot(env2.testEnv, map[string]string{"path": live2.StartingPath, "repo-scope": live2.Address.RepoScope}); err == nil || env2.Proc.Exists(5151) != Live {
+		t.Fatalf("a live slot without a verdict: %v", err)
+	}
+}
+
+// pair#456 BR-1 (ARCH-ORDER): a live reboot whose fresh profile cannot
+// resolve refuses with the agent still running and nothing parked, on both
+// kinds.
+func TestLiveRebootProfileFailureStopsNothing(t *testing.T) {
+	t.Parallel()
+
+	check := func(t *testing.T, env *relaunchEnv, live ThreadRecord, args map[string]string, pid int) {
+		args["agent"] = "no-such-agent"
+		args[requireSettledArg] = settledForcedValue
+		if _, err := dispatchReboot(env.testEnv, args); err == nil || !strings.Contains(err.Error(), "nothing was stopped") {
+			t.Fatalf("reboot of an unlaunchable agent: %v", err)
+		}
+		current, err := env.Couch.Threads.GetThread(live.Address)
+		if err != nil || current.Park != nil || current.VerifiedPark != nil || env.Proc.Exists(pid) != Live {
+			t.Fatalf("the live agent was stopped: %+v %v", current, err)
+		}
+	}
+	t.Run("primary", func(t *testing.T) {
+		env, live := switchEnvWithLiveThread(t)
+		env.Couch.LiveRestart = &fakeLiveRestartProbe{}
+		check(t, env, live, rebootArgs(live.Address), 42)
+	})
+	t.Run("slot", func(t *testing.T) {
+		env, live, _ := liveSlotRebootEnv(t)
+		check(t, env, live, map[string]string{"path": live.StartingPath, "repo-scope": live.Address.RepoScope}, 5151)
+	})
+}

@@ -77,31 +77,36 @@ func (c *Couch) Reboot(ctx context.Context, t RebootTarget) (RebootResult, error
 }
 
 // rebootAdmit is step 1: the classification, through the same admission rule
-// the switcher's offer reads. Runs under the thread's hold.
-//
-// A live thread (pair#456) is admitted only with requireSettled: it is parked
-// first -- the Pair lifecycle's own stop, as relaunch's -- and the parked
-// thread then passes the ordinary rule, so the retirement below is the one a
-// parked row's reboot runs. Park needs no conversation binding, which is the
-// point: a session that never finished a turn cannot be relaunched.
-func (c *Couch) rebootAdmit(ctx context.Context, address ThreadAddress, requireSettled string) error {
+// the switcher's offer reads. Runs under the thread's hold and has no effect.
+// live reports a live thread admitted with an idle verdict (pair#456), which
+// rebootStopLive stops once the fresh profile has resolved.
+func (c *Couch) rebootAdmit(ctx context.Context, address ThreadAddress, requireSettled string) (live bool, err error) {
 	state, reason, err := c.classifyForAction(ctx, address)
 	if err != nil {
-		return fmt.Errorf("reboot %s: its state could not be classified; inspect and retry: %w", address.Tag, err)
+		return false, fmt.Errorf("reboot %s: its state could not be classified; inspect and retry: %w", address.Tag, err)
 	}
 	if !RebootAdmitted(state, reason, requireSettled != "") {
-		return fmt.Errorf("reboot %s: %s", address.Tag, archiveRefusal(state, reason))
+		return false, fmt.Errorf("reboot %s: %s", address.Tag, archiveRefusal(state, reason))
 	}
-	if state == ThreadLive {
-		if err := c.parkForReboot(ctx, address, requireSettled == settledForcedValue); err != nil {
-			return err
-		}
-		if state, reason, err = c.classifyForAction(ctx, address); err != nil {
-			return fmt.Errorf("reboot %s: parked, but its state could not be classified; reboot it again: %w", address.Tag, err)
-		}
+	return state == ThreadLive, nil
+}
+
+// rebootStopLive is the live half of admission (pair#456), run AFTER the
+// fresh-profile preflight so a profile that cannot resolve leaves the agent
+// running (ARCH-ORDER). It parks -- the Pair lifecycle's own stop, as
+// relaunch's; park needs no conversation binding, which is the point -- and
+// the parked thread must then pass the ordinary rule, so the retirement that
+// follows is the one a parked row's reboot runs.
+func (c *Couch) rebootStopLive(ctx context.Context, address ThreadAddress, requireSettled string) error {
+	if err := c.parkForReboot(ctx, address, requireSettled == settledForcedValue); err != nil {
+		return err
+	}
+	state, reason, err := c.classifyForAction(ctx, address)
+	if err != nil {
+		return fmt.Errorf("reboot %s: parked, but its state could not be classified; reboot it again: %w", address.Tag, err)
 	}
 	if !RebootableState(state, reason) {
-		return fmt.Errorf("reboot %s: %s", address.Tag, archiveRefusal(state, reason))
+		return fmt.Errorf("reboot %s: parked, but %s", address.Tag, archiveRefusal(state, reason))
 	}
 	return nil
 }
@@ -147,6 +152,7 @@ func (c *Couch) rebootPrimary(ctx context.Context, t RebootTarget) (RebootResult
 	}
 	defer release()
 	facts := RebootFacts{Record: RebootRecordReadable}
+	live := false
 	old, readErr := c.Threads.GetThread(address)
 	switch {
 	case errors.Is(readErr, ErrThreadNotFound):
@@ -156,7 +162,7 @@ func (c *Couch) rebootPrimary(ctx context.Context, t RebootTarget) (RebootResult
 		// cannot be classified, so it is never grounds to stop a session.
 		facts.Record = RebootRecordUnreadable
 	default:
-		if err := c.rebootAdmit(ctx, address, t.RequireSettled); err != nil {
+		if live, err = c.rebootAdmit(ctx, address, t.RequireSettled); err != nil {
 			return RebootResult{}, err
 		}
 		facts.DirectoryPresent = c.directoryPresent(old.StartingPath)
@@ -184,7 +190,13 @@ func (c *Couch) rebootPrimary(ctx context.Context, t RebootTarget) (RebootResult
 			return RebootResult{}, err
 		}
 	}
-	// Step 3: archive's admission and quiesce.
+	// Step 3: a live thread stops only now (pair#456), then archive's
+	// admission and quiesce.
+	if live {
+		if err := c.rebootStopLive(ctx, address, t.RequireSettled); err != nil {
+			return RebootResult{}, err
+		}
+	}
 	r, err := c.prepareRetirement(ctx, address)
 	if err != nil {
 		return RebootResult{}, err
@@ -267,6 +279,7 @@ func (c *Couch) rebootSlot(ctx context.Context, t RebootTarget) (RebootResult, e
 	}
 	facts := RebootFacts{Slot: true, Record: RebootRecordNone, DirectoryPresent: true}
 	var address ThreadAddress
+	live := false
 	switch {
 	case observed.Record != nil:
 		facts.Record, address = RebootRecordReadable, observed.Record.Address
@@ -286,8 +299,8 @@ func (c *Couch) rebootSlot(ctx context.Context, t RebootTarget) (RebootResult, e
 			return RebootResult{}, err
 		}
 		defer release()
-		// Admitted under the hold, since a live slot's admission parks it.
-		if err := c.rebootAdmit(ctx, address, t.RequireSettled); err != nil {
+		// Admitted under the hold, which the live stop below needs.
+		if live, err = c.rebootAdmit(ctx, address, t.RequireSettled); err != nil {
 			return RebootResult{}, err
 		}
 	}
@@ -314,6 +327,11 @@ func (c *Couch) rebootSlot(ctx context.Context, t RebootTarget) (RebootResult, e
 		return RebootResult{}, fmt.Errorf("reboot %s: the fresh agent cannot be resolved, so nothing was stopped: %w", t.Path, err)
 	}
 	var result RebootResult
+	if live {
+		if err := c.rebootStopLive(ctx, address, t.RequireSettled); err != nil {
+			return RebootResult{}, err
+		}
+	}
 	if facts.Record == RebootRecordReadable {
 		r, err := c.prepareRetirement(ctx, address)
 		if err != nil {

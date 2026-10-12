@@ -99,7 +99,10 @@ func ActorOperationArgs(row ActionableThreadSummary, op string) map[string]strin
 // liveRebootArgs: the switcher's reboot of a live row (pair#456). The
 // operator is looking at it and confirmed, so an unknown idle state passes
 // and a known busy still refuses. Remote admission overwrites this with its
-// own verdict (prepareLiveRestart).
+// own verdict (prepareLiveRestart). Recover also builds its steps' arguments
+// here, and is kept off live rows only because ActorActions never offers it
+// on one (a live orphan gets reap); the core's live admission is what a
+// verdict-carrying call reaches, so that offer table is the guard.
 func liveRebootArgs(row ActionableThreadSummary, op string, args map[string]string) {
 	if op == OpReboot && row.Live() {
 		args[requireSettledArg] = settledForcedValue

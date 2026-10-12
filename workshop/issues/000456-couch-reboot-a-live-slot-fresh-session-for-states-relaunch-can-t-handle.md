@@ -66,3 +66,11 @@ Calls without a verdict (recover's reboot step) still refuse live rows.
 - Moved to pair:0 at 10c02586 (main merged), built couch/pair (vcs.revision verified). Operator smoke: Tab → reboot on pair:6 (live, never finished a turn) worked. Remote: `couch --reboot pair:6 --confirm` → "pair:6 reboot succeeded (tag 1-pair-42); archived 1-pair-36".
 - Sandbox: `couch --reboot` from the agent shell failed `dial unix …sock: connect: operation not permitted`; unsandboxed it worked (evidence for ariadne#334).
 - `go test ./...` (unsandboxed, PAIR_* retention env scrubbed): all ok after rewording my help line, which tripped `TestPublicHelpListsOnlyPublicSurface` with the word "start".
+- Close review round 1 (FIX-THEN-SHIP): BR-1 live reboot parked inside admission, before the fresh-profile preflight (ARCH-ORDER). Split into effect-free `rebootAdmit` + `rebootStopLive` run after the preflight, just before `prepareRetirement`, on both kinds; `TestLiveRebootProfileFailureStopsNothing` (mutation-checked by moving the stop back: fails). BR-2: `TestRebootLiveSlotByPath` covers the slot path, with and without the verdict (`withParkLifecycle` extracted from `envWithLiveThread`). BR-3: comment on `liveRebootArgs` naming the offer table as recover's guard. BR-4 (Codex): the core path is agent-agnostic (park + fresh profile); the live Codex case was not exercised.
+- `TestOrientationSessionObservationHonorsCallerDeadline` failed once under full-package load, passed 5/5 alone and on the rerun; untouched by this diff.
+
+## Revisions
+
+### 2026-10-11 — close review
+- Live reboot runs the fresh-profile preflight before parking; the park and reclassification sit between the preflight and `prepareRetirement`, so reboot's ORDER contract (never stop then start nothing) holds.
+
