@@ -63,3 +63,7 @@ var (
 	// ErrClosed: the cast ended.
 	ErrClosed = errors.New("drive: the cast has ended")
 )
+
+// ErrControlOp is recording.ErrControl: a control op the state doesn't allow
+// (asking twice, granting a viewer who didn't ask).
+var ErrControlOp = recording.ErrControl
