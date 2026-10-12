@@ -46,8 +46,11 @@ func (d *drivenBrowser) Emit(r recording.Record, doc int) error {
 }
 
 func (d *drivenBrowser) WithTab(ctx context.Context, by string, fn func(drive.Tab) error) error {
-	if d.hold != nil {
-		<-d.hold
+	d.mu.Lock()
+	hold := d.hold
+	d.mu.Unlock()
+	if hold != nil && by != "" { // a driver's batch; a release (by "") isn't held
+		<-hold
 	}
 	return d.inj.Tabs.WithTab(ctx, by, fn)
 }
@@ -126,7 +129,10 @@ func TestCastDriving(t *testing.T) {
 	}
 	eventually(t, "Chrome told Ana drives", func() bool { return d.lastDriving() == "Ana" })
 
-	d.hold = make(chan struct{})
+	hold := make(chan struct{})
+	d.mu.Lock()
+	d.hold = hold
+	d.mu.Unlock()
 	s := d.inj.Page()
 	q := drive.ElementByID(s, "q")
 	box := s.Boxes[q.ID]
@@ -144,7 +150,7 @@ func TestCastDriving(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("revoke waited on a stuck batch")
 	}
-	close(d.hold)
+	close(hold)
 	if err := <-stuck; !errors.Is(err, drive.ErrNotDriver) {
 		t.Fatalf("the overtaken batch: %v", err)
 	}

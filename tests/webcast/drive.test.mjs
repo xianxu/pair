@@ -317,14 +317,52 @@ test('keyAct: named keys and chords are sent; typing and compositions are not', 
   assert.equal(keyAct(k({ key: 'Shift' }), 'down'), null);
 });
 
-test('driveView: from the latest ctl', () => {
+test('driveView: every shell state, from the latest ctl, liveness and the seat', () => {
   const ana = { id: 'v1', name: 'Ana' }, bo = { id: 'v2', name: 'Bo' };
-  assert.equal(driveView(null, 'v1').state, 'none');
-  assert.equal(driveView({ k: 'ctl', pending: [ana] }, 'v1').state, 'asking');
-  assert.deepEqual(driveView({ k: 'ctl', driver: ana }, 'v1'), { state: 'driving', button: 'Give back control', note: "You're driving." });
-  assert.deepEqual(driveView({ k: 'ctl', driver: bo, pending: [ana] }, 'v1').state, 'asking');
-  assert.deepEqual(driveView({ k: 'ctl', driver: bo }, 'v1'), { state: 'other', button: 'Ask to drive', note: 'Bo is driving.' });
-  assert.equal(driveView({ k: 'ctl', op: 'revoke' }, 'v1').state, 'none');
+  const row = (ctl, opts) => { const v = driveView(ctl, 'v1', opts); return [v.state, v.action, v.capture, v.button, v.note]; };
+  for (const [ctl, opts, want] of [
+    [null, {}, ['none', 'request', false, 'Ask to drive', '']],
+    [{ k: 'ctl', pending: [ana] }, {}, ['asking', 'release', false, 'Cancel request', 'Waiting for the operator…']],
+    [{ k: 'ctl', driver: ana }, { live: true }, ['driving', 'release', true, 'Give back control', "You're driving."]],
+    [{ k: 'ctl', driver: ana }, { live: false }, ['paused', 'release', false, 'Give back control', 'The cast is paused.']],
+    [{ k: 'ctl', driver: bo, pending: [ana] }, {}, ['asking', 'release', false, 'Cancel request', 'Waiting for the operator…']],
+    [{ k: 'ctl', driver: bo }, {}, ['other', 'request', false, 'Ask to drive', 'Bo is driving.']],
+    [{ k: 'ctl', op: 'revoke' }, {}, ['none', 'request', false, 'Ask to drive', '']],
+    [{ k: 'ctl', driver: ana }, { live: true, lost: true }, ['lost', 'rejoin', false, 'Rejoin', '']],
+  ]) assert.deepEqual(row(ctl, opts), want, JSON.stringify([ctl, opts]));
+});
+
+test('batcher: an act carries the page it was made on; a batch never mixes pages', async () => {
+  const sent = [];
+  const c = clock();
+  let seg = 1, answer = { status: 204 };
+  const b = batcher({ send: (x) => { sent.push(x); return Promise.resolve(answer); }, seg: () => seg, later: c.later, now: c.now, refused: () => {} });
+  answer = new Promise(() => {}); // the first request hangs: the rest queue
+  b.push({ a: 'click', id: 1, x: 1, y: 1 });
+  b.push({ a: 'text', v: 'on page 1' });
+  seg = 2; // a navigation arrives before they are sent
+  b.push({ a: 'text', v: 'on page 2' });
+  assert.deepEqual(sent.map((x) => [x.seg, x.acts.length]), [[1, 1]]);
+  const queued = [];
+  const b2 = batcher({ send: (x) => { queued.push(x); return Promise.resolve({ status: 204 }); }, seg: () => seg, later: c.later, now: c.now, refused: () => {} });
+  seg = 1;
+  b2.push({ a: 'move', x: 1, y: 1 });
+  seg = 2;
+  b2.push({ a: 'move', x: 2, y: 2 }); // not coalesced across pages
+  for (let i = 0; i < 5; i++) { c.fire(); await tick(); }
+  assert.deepEqual(queued.map((x) => [x.seg, x.acts.map((a) => a.x)]), [[1, [1]], [2, [2]]]);
+});
+
+test('gestures: reset forgets a press, so the next drive starts clean', () => {
+  const out = [];
+  const g = gestures(deps(out));
+  g.down(ev({ clientX: 50, clientY: 60 }));
+  g.move(ev({ clientX: 80, clientY: 60, buttons: 1 }));
+  g.reset();
+  out.length = 0;
+  g.move(ev({ clientX: 90, clientY: 60, timeStamp: 1000 }));
+  g.up(ev({ clientX: 90, clientY: 60 }));
+  assert.deepEqual(out, [{ a: 'move', x: 180, y: 120 }], 'a hover, no drag and no up');
 });
 
 test('joinSeat and seatPoster: the seat, or none; the key in its header', async () => {

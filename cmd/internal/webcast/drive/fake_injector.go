@@ -31,6 +31,9 @@ type fakeTab struct {
 	page *recording.State
 	sink recording.Sink
 	src  recording.Source // the running batch's by
+	// dispatched is every act dispatched, records or not (#467's tests of
+	// what is let go).
+	dispatched []Act
 }
 
 // NewFakeInjector reduces page and puts what injection causes into sink.
@@ -89,7 +92,15 @@ func (t *fakeTab) At(x, y float64) (recording.NodeID, error) {
 	return hit, nil
 }
 
+// Dispatched is every act the fake tab has dispatched, in order.
+func (f *FakeInjector) Dispatched() []Act {
+	f.tab.mu.Lock()
+	defer f.tab.mu.Unlock()
+	return append([]Act(nil), f.tab.dispatched...)
+}
+
 func (t *fakeTab) Dispatch(a Act) error {
+	t.dispatched = append(t.dispatched, a)
 	src := t.src
 	switch a.A {
 	case ActClick:

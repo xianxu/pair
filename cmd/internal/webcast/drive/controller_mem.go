@@ -17,6 +17,9 @@ import (
 // MaxName bounds a viewer's label, in runes.
 const MaxName = 40
 
+// releaseWait bounds letting go of what a driver held when control changes.
+const releaseWait = 10 * time.Second
+
 // MemController is the Controller (#467): seats in memory, the control
 // state machine (recording.NextControl), ctl records into a sink at the
 // clock's time, and grace timers. In a cast the sink is the recorder's
@@ -155,6 +158,15 @@ func (f *MemController) changeLocked(op string, who recording.Author) error {
 	r.SetTime(f.clock())
 	if err := f.sink.Put(r); err != nil {
 		return err
+	}
+	if rel, ok := f.inj.(Releaser); ok && next.Driving() != f.control.Driving() {
+		// What the old driver held goes up at once (#467), off the lock:
+		// a revoke never waits on the tab. Bounded by releaseWait.
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), releaseWait)
+			defer cancel()
+			rel.Release(ctx) // a closed tab has nothing held
+		}()
 	}
 	f.control = next
 	for ch := range f.subs {

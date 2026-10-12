@@ -420,3 +420,16 @@ over the recording Chrome, grace 1 s); `recording/testdata/fixtures/driven/` (re
     - The toast and the request options come from collab.js (`sayer`, `poster`'s headers).
     - The page's stylesheets are walked by the served-files test.
     - Rejoin stays shown until the page reloads.
+- 2026-10-12, M2 review round 2:
+  - **BR-16 (input pairing, second in its family).** The cast tab owns letting go. `TabInjector` tracks what the
+    driver holds (a button, keys) and releases it in these cases:
+    - before another driver's input;
+    - before input on another page;
+    - when the driver's own batch is refused (the shell drops its queued ups);
+    - at once on any control change: `drive.Releaser`, which `MemController` calls off its lock, bounded at 10 s.
+
+    The shell resets its gestures and key tracker whenever control ends or a batch is refused.
+  - **BR-15.** Every act carries the segment it was made on, a batch never mixes segments, and moves don't coalesce
+    across pages. A late batch is refused (409 paused), never played into the new page.
+  - **The Minor.** `driveView` now returns every shell state (none, asking, driving, paused, other, lost) with its
+    action and capture, and `render` only paints it.

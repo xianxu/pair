@@ -97,19 +97,22 @@ export function splitText(v) {
 // acts and the segment seg() says when it is sent. A refusal (anything but
 // 204) drops what is queued, since the acts after a refused one would land
 // on a page the driver didn't see, and is reported with the server's
-// sentence.
+// sentence (the cast tab lets go of whatever the driver held). Each act
+// carries the segment seg() said when it was pushed, the page the driver
+// was looking at: a batch holds acts of one segment, so acts made on a
+// page that has since gone are refused, never played into the new one.
 //   deps: send(batch) → Promise<{status, text}>, seg(), later(fn, ms),
 //   now() → ms, refused(status, text)
 export function batcher(deps) {
   let queue = [];
   let inFlight = false, timer = null, stopped = false, last = -Infinity;
   const take = () => {
-    const batch = { seg: deps.seg(), acts: [] };
+    const batch = { seg: queue[0].seg, acts: [] };
     let size = bytes(batch);
-    while (queue.length && batch.acts.length < MAX_ACTS) {
-      const add = bytes(queue[0]) + (batch.acts.length ? 1 : 0); // and its comma
+    while (queue.length && batch.acts.length < MAX_ACTS && queue[0].seg === batch.seg) {
+      const add = bytes(queue[0].a) + (batch.acts.length ? 1 : 0); // and its comma
       if (batch.acts.length && size + add > MAX_BODY) break;
-      batch.acts.push(queue.shift());
+      batch.acts.push(queue.shift().a);
       size += add;
     }
     return batch;
@@ -136,16 +139,16 @@ export function batcher(deps) {
   return {
     push(act) {
       if (stopped) return;
-      const a = wireAct(act);
-      const prev = queue.at(-1);
+      const a = wireAct(act), seg = deps.seg();
+      const last = queue.at(-1), prev = last && last.seg === seg ? last.a : null;
       if (a.a === 'move' && prev && prev.a === 'move' && (prev.button || '') === (a.button || '')) {
-        queue[queue.length - 1] = a;
+        last.a = a;
       } else if (a.a === 'wheel' && prev && prev.a === 'wheel' && prev.id === a.id) {
-        queue[queue.length - 1] = { ...a, dx: prev.dx + a.dx, dy: prev.dy + a.dy };
+        last.a = { ...a, dx: prev.dx + a.dx, dy: prev.dy + a.dy };
       } else if (a.a === 'text') {
-        for (const v of splitText(a.v)) queue.push({ a: 'text', v });
+        for (const v of splitText(a.v)) queue.push({ a: { a: 'text', v }, seg });
       } else {
-        queue.push(a);
+        queue.push({ a, seg });
       }
       if (a.a === 'move' || a.a === 'wheel') soon();
       else go();
@@ -243,6 +246,9 @@ export function gestures(deps) {
       if (touches.size === 0) pinch = null;
       endPress();
     },
+    // reset forgets every press and finger: control ended, and the cast tab
+    // lets go of what it held.
+    reset() { touches.clear(); press = null; pinch = null; },
     // wheel: a mouse wheel or trackpad over the page, in window px.
     wheel(e) {
       const p = at(e), q = deps.toPage(e.clientX + e.deltaX, e.clientY + e.deltaY);
@@ -295,17 +301,25 @@ export function keyTracker() {
   };
 }
 
-// driveView is this viewer's place in control, from the latest ctl record
-// (null: none yet) and its own viewer id.
-//   state: 'none' (may ask), 'asking', 'driving', or 'other' (someone else
-//   drives; may ask)
-export function driveView(ctl, me) {
+// driveView is everything the shell shows of control, from the latest ctl
+// record (null: none yet), this viewer's id, whether the cast is live, and
+// whether the seat is lost (a 401). The shell only paints it.
+//   state: 'none' (may ask), 'asking', 'driving' (live: input captured),
+//   'paused' (driving, the cast paused), 'other' (someone else drives; may
+//   ask), 'lost' (rejoin)
+//   action: what the button does: 'request', 'release' or 'rejoin'
+export function driveView(ctl, me, { live = true, lost = false } = {}) {
   const driver = ctl && ctl.driver ? ctl.driver : null;
   const pending = (ctl && ctl.pending) || [];
-  if (driver && driver.id === me) return { state: 'driving', button: 'Give back control', note: "You're driving." };
-  if (pending.some((p) => p.id === me)) return { state: 'asking', button: 'Cancel request', note: 'Waiting for the operator…' };
-  if (driver) return { state: 'other', button: 'Ask to drive', note: `${driver.name} is driving.` };
-  return { state: 'none', button: 'Ask to drive', note: '' };
+  if (lost) return { state: 'lost', button: 'Rejoin', action: 'rejoin', note: '', capture: false };
+  if (driver && driver.id === me) {
+    return live
+      ? { state: 'driving', button: 'Give back control', action: 'release', note: "You're driving.", capture: true }
+      : { state: 'paused', button: 'Give back control', action: 'release', note: 'The cast is paused.', capture: false };
+  }
+  if (pending.some((p) => p.id === me)) return { state: 'asking', button: 'Cancel request', action: 'release', note: 'Waiting for the operator…', capture: false };
+  if (driver) return { state: 'other', button: 'Ask to drive', action: 'request', note: `${driver.name} is driving.`, capture: false };
+  return { state: 'none', button: 'Ask to drive', action: 'request', note: '', capture: false };
 }
 
 // mountDrive adds remote driving to the viewer. v is the viewer's surface
@@ -332,40 +346,38 @@ export function mountDrive(doc, win, v, seat) {
   keys.spellcheck = false;
 
   let ctl = null, view = driveView(null, seat.viewer), batch = null, composing = false, lost = false;
+  const driving = (s) => s === 'driving' || s === 'paused';
   const tracked = keyTracker();
   const send = (a) => { if (batch) batch.push(a); };
   const g = gestures({ toPage: (x, y) => v.toPage(x, y), nodeAt: (x, y) => v.nodeAt(x, y), emit: send });
 
   const refused = (status, text) => {
     say(text || "That didn't work.");
+    // The queue is gone and the cast tab let go: start the next gesture
+    // fresh.
+    g.reset();
+    tracked.clear();
     if (status === 401) offerRejoin();
   };
   // A lost seat (401) can't be repaired in place: the stream holds the
   // seat, so rejoining reopens the page.
   const offerRejoin = () => { lost = true; render(); };
   const render = () => {
-    view = driveView(ctl, seat.viewer);
-    if (lost) {
-      button.textContent = 'Rejoin';
-      button.onclick = () => win.location.reload();
-      note.textContent = '';
-      layer.classList.remove('on');
-      if (batch) { batch.stop(); batch = null; }
-      return;
-    }
-    const driving = view.state === 'driving' && !!(v.model && v.model.live);
+    view = driveView(ctl, seat.viewer, { live: !!(v.model && v.model.live), lost });
     button.textContent = view.button;
-    button.onclick = () => control(view.state === 'driving' || view.state === 'asking' ? 'release' : 'request');
-    button.classList.toggle('on', view.state === 'driving');
-    note.textContent = view.state === 'driving' && !driving ? 'The cast is paused.' : view.note;
-    layer.classList.toggle('on', driving);
-    doc.body.classList.toggle('driving', view.state === 'driving');
-    if (view.state === 'driving' && !batch) {
+    button.onclick = () => (view.action === 'rejoin' ? win.location.reload() : control(view.action));
+    button.classList.toggle('on', driving(view.state));
+    note.textContent = view.note;
+    layer.classList.toggle('on', view.capture);
+    doc.body.classList.toggle('driving', driving(view.state));
+    if (driving(view.state) && !batch) {
       batch = batcher({ send: (b) => post('input', b), seg: () => v.model.seg, later: (fn, ms) => win.setTimeout(fn, ms), now: () => win.performance.now(), refused });
       v.annotate?.setMode('watch'); // pointing and notes wait while driving
-    } else if (view.state !== 'driving' && batch) {
+    } else if (!driving(view.state) && batch) {
+      // Control ended: forget every press and key (the cast tab lets go).
       batch.stop();
       batch = null;
+      g.reset();
       tracked.clear();
       keys.blur();
     }
