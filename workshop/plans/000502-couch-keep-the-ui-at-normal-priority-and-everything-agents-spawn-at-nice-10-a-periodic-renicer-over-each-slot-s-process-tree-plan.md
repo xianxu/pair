@@ -129,3 +129,11 @@ func PlanRenice(table []ReniceProc, roots []ReniceRoot, level int, never []int) 
 - [ ] Measure the scan cost and record it in the Log.
 - [ ] Live verification on one slot, **after the operator's OK through the TL**: the agent, wrapper and zellij
   stay at 0, while a test suite the slot starts runs at 10 within a few seconds.
+
+## Revisions
+
+### 2026-10-12: TL approval notes
+- **The "agent below normal" notice** states the fact and the fix. An agent launched under #498 is at 10 and
+  can't be raised without root, so the notice reads like: "pair:3's agent runs at nice 10 (lowered at launch);
+  relaunch the slot to restore its priority." It is shown once per binding.
+- **Shell-prefix follow-up:** filed as #504, unassigned.
