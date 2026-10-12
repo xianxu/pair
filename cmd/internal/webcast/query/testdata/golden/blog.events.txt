@@ -4,7 +4,7 @@ $ couch --broadcast-web-query <fixtures>/blog events --from 0 --to 2500
 11 document about:blank
 51 segment 2 starts (navigate) on http://localhost:4321/2026/10/ariadne-1-building-blocks-of-ai-coding, viewport 1280x800@1
 51 document http://localhost:4321/2026/10/ariadne-1-building-blocks-of-ai-coding
-100 insert @709 <link#giscus-css> under @8 <head> "Building Blocks of AI Coding — Xian Xu"
+100 insert @709 <link#giscus-css> under @8 <head>
 101 insert @710 <div> under @623 <div#giscus-container>
 103 replace the children of @710 <div.giscus> (1 nodes)
 103 frame document about:blank in @711 <iframe.giscus-frame.giscus-frame--loading>

@@ -231,8 +231,10 @@ section article dialog fieldset figure table tr ul ol dl li details menu search`
 snapping.
 
 **The context** (`notes.Context`) is `{Node, Landmark, Text, Box}`: the resolved element, its landmark, the landmark's
-whitespace-collapsed text in a 500-character window centred on the element's own text, and the landmark's box. The
-full DOM at that moment stays available through the agent queries (#462).
+rendered text (`DOMNode.RenderedText`, #469: what a person reads, unlike `textContent` it skips script, style,
+template and noscript bodies and elements the recording marks hidden, and keeps blocks, cells, list items, `br`
+and flex/grid items apart by a space) in a 500-character window centred on the element's own text, and the
+landmark's box. The full DOM at that moment stays available through the agent queries (#462).
 
 **Crops**, for a submission's anchors, in CSS px of the top page:
 1. each anchor's box padded by a margin (48 px by default);
@@ -310,9 +312,10 @@ serialization of the state. The viewer's conformance check compares it with what
   minute: about 1.4 MB/min gzipped on #453's busy stress page, before compact encoding. Assets are deduplicated by hash, and images are
   resampled to a resolution budget (#459). A retention sweep comes with the first upload or listing feature. It is not
   part of the format.
-- **The reducer** holds one recording's state in memory, and `Reduce(records, t)` replays from the first record. Seeking from
-  the latest `seg` before t (an index of segment offsets) is a later optimization. The index would be derived from the records,
-  never stored as a second truth.
+- **The reducer** holds one recording's state in memory, and `Reduce(records, t)` replays from the first record. The viewer's
+  replay (#471) seeks from the latest `seg` before t: it reduces the catch-up of the records up to t (`catchUp` in
+  `web/replay.js`, held to `recording.CatchUp`), so a seek replays at most one segment. Nothing is indexed or stored beside
+  the records.
 
 ## Components and seams (wave 1 starts here)
 
