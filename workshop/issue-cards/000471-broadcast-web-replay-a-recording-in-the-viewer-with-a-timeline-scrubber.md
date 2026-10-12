@@ -1,6 +1,6 @@
 ---
 id: 000471
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 664ebbd789f60ddc4368343f95b1f7978e0b9e8e
         evidence_commit: 89e8a64f63b028c93371eafc69d73f970fb390a0
+        landed_commit: 5c72abe5e9af7abc088caa171d5f59e01b29a2a9
 ---
 
 # broadcast-web: replay a recording in the viewer with a timeline scrubber
