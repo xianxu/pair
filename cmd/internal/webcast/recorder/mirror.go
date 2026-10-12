@@ -19,8 +19,8 @@ import (
 //
 // It makes no CDP calls. What it needs from Chrome (a snapshot, a full text
 // CDP truncated) it reports through its fields, and the shell brings the
-// answer back. #457's fixturegen/cdpconv.go is the reference this mapping
-// was ported from.
+// answer back. It was ported from #457's fixturegen/cdpconv.go, retired
+// with the prototype's fixtures (#474; git history has it).
 
 // cnode is CDP's DOM.Node, the fields the mirror reads.
 type cnode struct {

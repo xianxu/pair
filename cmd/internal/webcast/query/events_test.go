@@ -27,7 +27,7 @@ func TestEventLinesWriteShortRunsOut(t *testing.T) {
 // A busy re-render is one line: counts by kind and the most-touched
 // elements, never thousands of lines.
 func TestEventLinesFoldBusyRuns(t *testing.T) {
-	r, err := recording.ReadDir(recording.Fixture("stress"))
+	r, err := recording.ReadDir(recording.Fixture("rec-stress"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,17 +52,61 @@ func TestEventLinesFoldBusyRuns(t *testing.T) {
 // A field typed a key at a time is one line with its final value, the
 // framework's value attribute folded in.
 func TestEventLinesFoldTyping(t *testing.T) {
-	r, err := recording.ReadDir(recording.Fixture("app"))
+	r, err := recording.ReadDir(recording.Fixture("rec-app"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	lines, err := EventLines(r.Records, 4400, 5200)
+	lines, err := EventLines(r.Records, 2830, 3600)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `4414-5116 input @73 <input#draft.flex-1.border.…> value "Review PR 42" (19 changes)`
+	// The recorder's caret after each key (a selection) folds in too.
+	want := `2834-3514 input @69 <input#draft.flex-1.border.…> value "Review PR 42" (24 changes)`
 	if !strings.Contains(strings.Join(lines, "\n"), want) {
 		t.Errorf("want %q in\n%s", want, strings.Join(lines, "\n"))
+	}
+}
+
+// A collapsed caret folds into the typing it follows, and only the same
+// person's: another's caret, or a selection that isn't a caret, splits it.
+func TestEventLinesFoldCaret(t *testing.T) {
+	b := recording.NewBuilder("caret")
+	field := b.El("input", []string{"id", "q"})
+	b.Page(recording.SegLive, "http://app/", field)
+	ana := recording.Author{ID: "v1", Name: "Ana"}
+	var c recording.Control
+	for _, op := range []string{recording.CtlRequest, recording.CtlGrant} {
+		next, err := recording.NextControl(c, op, ana)
+		if err != nil {
+			t.Fatal(err)
+		}
+		c = next
+		b.At(5).Add(&recording.Ctl{Op: op, Who: ana, Control: next})
+	}
+	at := func(off int64) *recording.Pos { return &recording.Pos{int64(field.ID), off} }
+	typed := func(t int64, v, by string) {
+		b.At(t).Add(&recording.Input{ID: field.ID, V: &v, Source: recording.Source{By: by}})
+	}
+	caret := func(t int64, from, to int64, by string) {
+		b.At(t).Add(&recording.Selection{Anchor: at(from), Focus: at(to), Source: recording.Source{By: by}})
+	}
+	typed(10, "a", "")
+	caret(11, 0, 0, "")
+	typed(20, "ab", "")
+	caret(21, 0, 0, "v1") // not the typist's
+	typed(30, "abc", "")
+	caret(31, 0, 2, "") // a range, not a caret
+	typed(40, "abcd", "")
+	typed(50, "abcde", "v1")
+	caret(51, 0, 0, "v1") // the driver's own, after their key
+	typed(60, "abcdef", "v1")
+	lines, err := EventLines(b.Recs, 10, 60)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(lines) != 6 || !strings.HasPrefix(lines[0], `10-20 input`) || !strings.Contains(lines[0], `value "ab" (2 changes)`) ||
+		!strings.HasPrefix(lines[5], `50-60 input`) || !strings.Contains(lines[5], `value "abcdef" by Ana (v1) (2 changes)`) {
+		t.Errorf("%q", lines)
 	}
 }
 

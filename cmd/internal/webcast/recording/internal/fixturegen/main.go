@@ -1,41 +1,32 @@
 // Command fixturegen writes couch broadcast-web's recording fixtures (#457).
 //
-//	go run ./cmd/internal/webcast/recording/internal/fixturegen -raw RUN -name NAME -out DIR
 //	go run ./cmd/internal/webcast/recording/internal/fixturegen -recorded RUN -name NAME -out DIR
 //	go run ./cmd/internal/webcast/recording/internal/fixturegen -segments -out DIR
 //	go run ./cmd/internal/webcast/recording/internal/fixturegen -driven -out DIR
 //	go run ./cmd/internal/webcast/recording/internal/fixturegen -canonical DIR -at T
 //
-// RUN is a run directory of #453's prototype recorder (branch
-// 453-recorder-prototypes, mode B, extended for #457; see the fixtures'
-// README). The converter maps its CDP log to records; notes and strokes come
-// from a small spec per fixture (notes.go). -recorded takes a run of the
-// real recorder (#458) instead, whose records need no conversion, and adds
-// the notes (#472). -segments writes the hand-made
-// fixture of pauses, resumes and tab switches. -canonical prints a fixture's
-// canonical state at T (the viewer conformance check's expected value).
+// -recorded takes a run of the real recorder (#458), whose records need no
+// conversion, and adds the fixture's notes and strokes from a small spec per
+// fixture (notes.go, #472). -segments writes the hand-made fixture of
+// pauses, resumes and tab switches. -canonical prints a fixture's canonical
+// state at T (the viewer conformance check's expected value).
 //
-// Not product code: the recorder is pair#458. The converter is a reference
-// for its CDP-to-record mapping.
+// Not product code. #453's prototype recorder's CDP-log converter (-raw)
+// retired with its fixtures (#474).
 package main
 
 import (
-	"bufio"
-	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 
 	rec "github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
 func main() {
-	raw := flag.String("raw", "", "prototype run directory")
 	recorded := flag.String("recorded", "", "recorder (#458) run directory")
 	name := flag.String("name", "", "fixture name (selects the notes spec)")
 	out := flag.String("out", "", "fixture directory to (re)write")
@@ -54,8 +45,6 @@ func main() {
 		err = write(*out, rec.DrivenRecording(), nil, nil, nil)
 	case *recorded != "" && *name != "" && *out != "":
 		err = adopt(*recorded, *name, *out)
-	case *raw != "" && *name != "" && *out != "":
-		err = convert(*raw, *name, *out)
 	default:
 		flag.Usage()
 		os.Exit(2)
@@ -77,84 +66,6 @@ func printCanonical(dir string, t int64) error {
 	}
 	_, err = os.Stdout.Write(append(st.Canonical(), '\n'))
 	return err
-}
-
-type shot struct {
-	I int   `json:"i"`
-	T int64 `json:"t"`
-}
-
-func convert(runDir, name, out string) error {
-	f, err := os.Open(filepath.Join(runDir, "cdp.jsonl"))
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	var lines []raw
-	sc := bufio.NewScanner(f)
-	sc.Buffer(make([]byte, 64<<20), 64<<20)
-	for n := 1; sc.Scan(); n++ {
-		var r raw
-		if err := json.Unmarshal(sc.Bytes(), &r); err != nil {
-			return fmt.Errorf("line %d: %w", n, err)
-		}
-		r.Line, r.Extra = n, append([]byte(nil), sc.Bytes()...)
-		lines = append(lines, r)
-	}
-	if err := sc.Err(); err != nil {
-		return err
-	}
-	if len(lines) == 0 {
-		return errors.New("empty run")
-	}
-	t0 := lines[0].T
-	c := newConverter(name, t0)
-	c.exclude = excluded[name]
-	skipped := 0
-	for _, r := range lines {
-		if err := c.event(r); errors.Is(err, errSkip) {
-			skipped++
-		} else if err != nil {
-			return fmt.Errorf("line %d (%s): %w", r.Line, r.Type, err)
-		}
-	}
-	end := lines[len(lines)-1].T
-	c.emit(end, &rec.Stop{Why: rec.StopEnd})
-
-	var meta struct {
-		Shots []shot `json:"shots"`
-	}
-	mb, err := os.ReadFile(filepath.Join(runDir, "meta.json"))
-	if err != nil {
-		return err
-	}
-	if err := json.Unmarshal(mb, &meta); err != nil {
-		return err
-	}
-	var frames []*rec.Frame
-	var pngs [][]byte
-	for _, s := range meta.Shots {
-		png, err := os.ReadFile(filepath.Join(runDir, "shots", strconv.Itoa(s.I)+".png"))
-		if err != nil {
-			return err
-		}
-		fr := &rec.Frame{File: fmt.Sprintf("frames/%d.png", s.I), W: c.vp.W / 2, H: c.vp.H / 2, Scale: 0.5}
-		fr.SetTime(s.T - t0)
-		frames, pngs = append(frames, fr), append(pngs, png)
-	}
-
-	fmt.Fprintf(os.Stderr, "%s: %d raw lines, %d records, %d skipped (mirror gaps), dropped: %s\n",
-		name, len(lines), len(c.out), skipped, c.summary())
-	for _, e := range c.examples {
-		fmt.Fprintln(os.Stderr, "  e.g.", e)
-	}
-	recs := c.out
-	notes, err := annotate(name, recs)
-	if err != nil {
-		return err
-	}
-	recs = mergeByTime(recs, notes)
-	return write(out, recs, c.bodies, frames, pngs)
 }
 
 // adopt makes a fixture of a real recorder run: its records, assets and

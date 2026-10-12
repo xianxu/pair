@@ -16,7 +16,7 @@ func TestFakeSurfaceMeetsTheSurfaceContract(t *testing.T) {
 // Every fixture's notes come back with their element through the fakes: what
 // #462 starts from.
 func TestFakeSurfaceOnFixtures(t *testing.T) {
-	for _, name := range recording.Fixtures {
+	for _, name := range recording.Fixtures() {
 		r, err := recording.ReadDir(recording.Fixture(name))
 		if err != nil {
 			t.Fatal(err)

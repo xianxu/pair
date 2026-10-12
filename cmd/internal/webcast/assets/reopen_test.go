@@ -15,7 +15,7 @@ import (
 // A reopened recording serves what its asset records bind, from disk, and
 // takes nothing new.
 func TestReopenServesTheRecordingsAssets(t *testing.T) {
-	rec, err := recording.ReadDir(recording.Fixture("blog"))
+	rec, err := recording.ReadDir(recording.Fixture("rec-blog"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -15,7 +15,7 @@ func TestStructuralMeetsTheModelContract(t *testing.T) {
 // and crops that hold its box.
 func TestStructuralOnFixtures(t *testing.T) {
 	m := Structural{}
-	for _, name := range recording.Fixtures {
+	for _, name := range recording.Fixtures() {
 		r, err := recording.ReadDir(recording.Fixture(name))
 		if err != nil {
 			t.Fatal(err)
@@ -49,7 +49,7 @@ func TestStructuralOnFixtures(t *testing.T) {
 }
 
 func TestContextOfABlogHeading(t *testing.T) {
-	n, st := fixtureNote(t, "blog", "blog-n1")
+	n, st := fixtureNote(t, "rec-blog", "rec-blog-n1")
 	ctx, err := Structural{}.Context(st, n.At)
 	if err != nil {
 		t.Fatal(err)
@@ -145,7 +145,7 @@ func TestAnchorDropsASelectorThatCantRoundTrip(t *testing.T) {
 // pair#469: the app's Reports heading sits beside a table its script fills.
 // The context is what a person reads: the cells apart, the script absent.
 func TestContextOfAppReportsIsRenderedText(t *testing.T) {
-	n, st := fixtureNote(t, "app", "app-n3")
+	n, st := fixtureNote(t, "rec-app", "rec-app-n3")
 	ctx, err := Structural{}.Context(st, n.At)
 	if err != nil {
 		t.Fatal(err)
