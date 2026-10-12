@@ -169,3 +169,14 @@
 - `go test ./cmd/internal/webcast/... ./cmd/internal/couchcmd/ ./cmd/internal/artifactpath/` (TestNode runs `tests/webcast/*.test.mjs`).
 - `WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run 'Live' -v`, unsandboxed.
 - Manual: `couch --broadcast-web-replay <fixture dir> --at <pin>` opens at the moment, scrubbing works, and pauses show as gaps.
+
+## Revisions
+
+- 2026-10-12, close round 1 (BR-1, BR-2): after the merge of #458, `recording.CatchUp` keeps only the latest `hover` and
+  `ptr` of the latest segment. `catchUp` ports that. Parity is now a shared corpus, `tests/webcast/catchup_corpus.json`:
+  a recording that reaches every branch of the rule, with Go's answer at every cut. `TestCatchUpCorpus` holds the answers
+  to Go's rule and checks the corpus has every kind the rule special-cases. The node test holds the JS port to the same
+  answers. A change to Go's rule now fails without Chrome, at the Go change. The live index check stays.
+- 2026-10-12 (BR-5): the listing shows id, started, length and notes, but no segment count. Counting segments needs a
+  full scan of the events file, and the listing reads only the head line and the last line.
+

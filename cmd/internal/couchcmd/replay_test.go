@@ -60,11 +60,16 @@ func TestResolveReplay(t *testing.T) {
 	os.MkdirAll(filepath.Join(recs, "rec-1"), 0o755)
 	other := filepath.Join(t.TempDir(), "elsewhere")
 	os.Mkdir(other, 0o755)
+	other, _ = filepath.EvalSymlinks(other) // macOS's temp dir is under a link
+	link := filepath.Join(t.TempDir(), "linked")
+	os.Symlink(other, link)
 	os.WriteFile(filepath.Join(recs, "plain"), []byte("x"), 0o644)
 	for _, c := range []struct{ target, root, id, err string }{
 		{"", recs, "", ""},
 		{"rec-1", recs, "rec-1", ""},
 		{other, filepath.Dir(other), "elsewhere", ""},
+		// A link resolves to the directory the server will serve.
+		{link, filepath.Dir(other), "elsewhere", ""},
 		{"missing", "", "", "no recording"},
 		{"plain", "", "", "no recording"},
 		{"../x", "", "", "not a recording directory"},

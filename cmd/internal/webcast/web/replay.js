@@ -11,8 +11,10 @@ import { Model } from './model.js';
 // catchUp is recording.CatchUp (catchup.go), record for record: head and
 // the assets before the latest seg, the bare seg the current document began
 // in, the notes, note states and strokes since then, the latest ctl before
-// the latest seg, and everything from the latest seg on. Go's is the rule;
-// replay_live_test.go holds this port to it at every pin.
+// the latest seg, and everything from the latest seg on except hover and
+// ptr, of which only the latest of each. Go's is the rule: the shared
+// corpus tests/webcast/catchup_corpus.json holds Go's answers at every cut
+// (TestCatchUpCorpus), and replay.test.mjs holds this port to them.
 export function catchUp(recs) {
   let last = -1, doc = -1;
   recs.forEach((r, i) => {
@@ -24,6 +26,11 @@ export function catchUp(recs) {
   let ctl = -1;
   for (let i = last - 1; i >= 0 && ctl < 0; i--) if (recs[i].k === 'ctl') ctl = i;
   if (doc < 0) doc = 0;
+  let hover = -1, ptr = -1; // the latest of each in the latest segment
+  for (let i = recs.length - 1; i >= last && (hover < 0 || ptr < 0); i--) {
+    if (recs[i].k === 'hover' && hover < 0) hover = i;
+    if (recs[i].k === 'ptr' && ptr < 0) ptr = i;
+  }
   const out = [], kept = new Set();
   recs.forEach((r, i) => {
     if (i === doc && doc < last) { out.push(r); return; }
@@ -42,6 +49,12 @@ export function catchUp(recs) {
         return;
       case 'ctl':
         if (i === ctl) { out.push(r); return; }
+        break;
+      case 'hover':
+        if (i !== hover) return;
+        break;
+      case 'ptr':
+        if (i !== ptr) return;
         break;
     }
     if (i >= last) out.push(r);

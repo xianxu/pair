@@ -174,3 +174,24 @@ func TestReplayAcceptsTheRecordersIDs(t *testing.T) {
 		}
 	}
 }
+
+// The end of a recording is read from its last line however long that line
+// is (a document snapshot can be megabytes), and trailing newlines don't
+// hide it.
+func TestListRecordingsLongLastLine(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "long")
+	os.Mkdir(dir, 0o755)
+	head := `{"t":0,"k":"head","format":"couch-webcast","v":1,"id":"long","started":"2026-10-12T10:00:00Z"}`
+	big := `{"t":987654,"k":"text","id":5,"v":"` + strings.Repeat("x", 200_000) + `"}`
+	os.WriteFile(filepath.Join(dir, recording.FileEvents), []byte(head+"\n"+big+"\n\n"), 0o644)
+	got, err := ListRecordings(root)
+	if err != nil || len(got) != 1 || got[0].Duration.Milliseconds() != 987654 {
+		t.Fatalf("%+v %v", got, err)
+	}
+	// A file whose first line isn't a head is not a recording.
+	os.WriteFile(filepath.Join(dir, recording.FileEvents), []byte(big+"\n"), 0o644)
+	if got, _ := ListRecordings(root); len(got) != 0 {
+		t.Fatalf("listed %+v", got)
+	}
+}

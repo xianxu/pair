@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"io"
@@ -12,6 +13,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -196,51 +198,86 @@ func ListRecordings(root string) ([]Listed, error) {
 			continue
 		}
 		dir := filepath.Join(root, e.Name())
-		first, last, err := endLines(filepath.Join(dir, recording.FileEvents))
+		head, end, err := headAndEnd(filepath.Join(dir, recording.FileEvents))
 		if err != nil {
 			continue // not a recording
 		}
-		var head struct {
-			K       string `json:"k"`
-			Started string `json:"started"`
-		}
-		var end struct {
-			T int64 `json:"t"`
-		}
-		if json.Unmarshal(first, &head) != nil || head.K != "head" {
-			continue
-		}
-		json.Unmarshal(last, &end)
-		out = append(out, Listed{ID: e.Name(), Started: head.Started, Duration: time.Duration(end.T) * time.Millisecond, Notes: countLines(filepath.Join(dir, recording.FileNotes))})
+		out = append(out, Listed{ID: e.Name(), Started: head, Duration: time.Duration(end) * time.Millisecond, Notes: countLines(filepath.Join(dir, recording.FileNotes))})
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Started > out[j].Started })
 	return out, nil
 }
 
-// endLines reads a file's first and last non-empty lines.
-func endLines(path string) (first, last []byte, err error) {
+// headAndEnd reads an events file's start (its head record, the first
+// line) and its end (the last record's t), without reading the records in
+// between: the last line can be a whole document snapshot, so the file is
+// read backwards in chunks to that line's start, and only its envelope's
+// leading "t" is read (every record line begins {"t":N, as Encode writes it).
+func headAndEnd(path string) (started string, end int64, err error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, nil, err
+		return "", 0, err
 	}
 	defer f.Close()
-	sc := bufio.NewScanner(f)
-	sc.Buffer(make([]byte, 64*1024), 1<<20)
-	if !sc.Scan() {
-		return nil, nil, io.ErrUnexpectedEOF
+	first, err := bufio.NewReaderSize(f, 4096).ReadSlice('\n')
+	if err != nil && err != io.EOF {
+		return "", 0, err // a head line is small: a longer first line isn't one
 	}
-	first = bytes.Clone(sc.Bytes())
+	var head struct {
+		K       string `json:"k"`
+		Started string `json:"started"`
+	}
+	if json.Unmarshal(bytes.TrimSpace(first), &head) != nil || head.K != "head" {
+		return "", 0, errNotRecording
+	}
 	info, err := f.Stat()
 	if err != nil {
-		return nil, nil, err
+		return "", 0, err
 	}
-	const tail = 64 * 1024
-	buf := make([]byte, min(info.Size(), tail))
-	if _, err := f.ReadAt(buf, info.Size()-int64(len(buf))); err != nil && err != io.EOF {
-		return nil, nil, err
+	start, err := lastLineStart(f, info.Size())
+	if err != nil {
+		return "", 0, err
 	}
-	lines := bytes.Split(bytes.TrimRight(buf, "\n"), []byte("\n"))
-	return first, lines[len(lines)-1], nil
+	lead := make([]byte, 32)
+	n, _ := f.ReadAt(lead, start)
+	if m := leadingT.FindSubmatch(lead[:n]); m != nil {
+		end, _ = strconv.ParseInt(string(m[1]), 10, 64)
+	}
+	return head.Started, end, nil
+}
+
+var (
+	errNotRecording = errors.New("not a recording")
+	leadingT        = regexp.MustCompile(`^\{"t":(\d+)`)
+)
+
+// lastLineStart is the offset where the file's last non-empty line begins.
+func lastLineStart(f *os.File, size int64) (int64, error) {
+	const chunk = 64 * 1024
+	end := size
+	// Skip trailing newlines.
+	for end > 0 {
+		b := make([]byte, 1)
+		if _, err := f.ReadAt(b, end-1); err != nil {
+			return 0, err
+		}
+		if b[0] != '\n' {
+			break
+		}
+		end--
+	}
+	for at := end; at > 0; {
+		from := max(0, at-chunk)
+		buf := make([]byte, at-from)
+		if _, err := f.ReadAt(buf, from); err != nil && err != io.EOF {
+			return 0, err
+		}
+		if i := bytes.LastIndexByte(buf, '\n'); i >= 0 {
+			return from + int64(i) + 1, nil
+		}
+		at = from
+	}
+	return 0, nil
 }
 
 func countLines(path string) int {

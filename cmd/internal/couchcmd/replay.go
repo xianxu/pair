@@ -66,9 +66,14 @@ func resolveReplay(target, recordings string) (root, id string, err error) {
 		return recordings, "", nil
 	}
 	if info, statErr := os.Stat(target); strings.ContainsRune(target, os.PathSeparator) || (statErr == nil && info.IsDir()) {
+		// The real directory: the server serves only directories under its
+		// root, never a link out of it, so a link given here is resolved.
 		abs, err := filepath.Abs(target)
+		if err == nil {
+			abs, err = filepath.EvalSymlinks(abs)
+		}
 		if err != nil {
-			return "", "", err
+			return "", "", fmt.Errorf("%s is not a recording directory", target)
 		}
 		if info, err := os.Stat(abs); err != nil || !info.IsDir() {
 			return "", "", fmt.Errorf("%s is not a recording directory", target)

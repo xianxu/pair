@@ -4,6 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { Model, goJSON } from '../../cmd/internal/webcast/web/model.js';
 import { catchUp, timeline, placer, parseMoment, momentHash, Player, GAP_SHARE, replaySource, replayPath, clock } from '../../cmd/internal/webcast/web/replay.js';
 import { fixtures, records, pins } from './fixtures.mjs';
@@ -24,6 +25,8 @@ function promised(m) {
     docSeg: m.docSeg,
     notes: m.notes.filter((n) => n.seg >= m.docSeg).map((n) => [n.note.id, n.state]),
     assets: [...m.assets].map(([u, a]) => [u, a.hash]).sort(),
+    hover: m.hover,
+    ptr: m.ptr && [m.ptr.x, m.ptr.y],
   };
 }
 
@@ -54,34 +57,21 @@ for (const name of fixtures) {
   });
 }
 
-// synthetic covers what no fixture has: assets before a later segment, a
-// note (and its state) on an earlier document, control before the latest
-// segment, and a resume keeping the document's notes.
-const H = 'a'.repeat(64), H2 = 'b'.repeat(64);
-const vp = { w: 800, h: 600, dpr: 1 };
-const page = (t, id, url) => ({ t, k: 'doc', doc: id, url, tree: { id, y: 'doc', c: [{ id: id + 1, y: 'el', n: 'html', c: [{ id: id + 2, y: 'el', n: 'body', c: [{ id: id + 3, y: 'el', n: 'img', a: { src: 'pic.png' } }] }] }] } });
-const who = { id: 'v1', name: 'Ana' };
-const synthetic = [
-  { t: 0, k: 'head', format: 'couch-webcast', v: 1, id: 'syn', started: 's' },
-  { t: 0, k: 'seg', seg: 1, why: 'live', tab: { id: 't', url: 'http://x/' }, vp },
-  page(0, 10, 'http://x/'),
-  { t: 5, k: 'asset', url: 'http://x/pic.png', hash: H, mime: 'image/png', size: 1 },
-  { t: 6, k: 'note', id: 'n1', author: who, text: 'old', at: { node: 13 } },
-  { t: 7, k: 'note-state', id: 'n1', state: 'resolved' },
-  { t: 8, k: 'ctl', op: 'request', who, pending: [who] },
-  { t: 9, k: 'ctl', op: 'grant', who, driver: who },
-  { t: 10, k: 'stop', why: 'pause' },
-  { t: 20, k: 'seg', seg: 2, why: 'navigate', tab: { id: 't', url: 'http://x/2' }, vp },
-  page(20, 20, 'http://x/2'),
-  { t: 21, k: 'asset', url: 'http://x/pic.png', hash: H2, mime: 'image/png', size: 1 },
-  { t: 22, k: 'note', id: 'n2', author: who, text: 'new', at: { node: 23 } },
-  { t: 23, k: 'stroke', id: 's1', author: who, color: '#f00', pts: [[1, 1, 0], [2, 2, 40]] },
-  { t: 24, k: 'stop', why: 'pause' },
-  { t: 30, k: 'seg', seg: 3, why: 'resume', tab: { id: 't', url: 'http://x/2' }, vp },
-  page(30, 20, 'http://x/2'),
-  { t: 31, k: 'note-state', id: 'n2', state: 'resolved' },
-  { t: 32, k: 'stop', why: 'end' },
-];
+// The catch-up corpus covers what no fixture has: assets before a later
+// segment, a note (and its state) on an earlier document, control before
+// the latest segment, a resume keeping the document's notes, and hover and
+// ptr (only the latest of each is kept). It carries Go's answers at every
+// cut (TestCatchUpCorpus keeps them true to recording.CatchUp).
+const corpus = JSON.parse(readFileSync(new URL('./catchup_corpus.json', import.meta.url), 'utf8'));
+const synthetic = corpus.records;
+
+test('catchUp keeps exactly what recording.CatchUp keeps, at every cut of the corpus', () => {
+  assert.equal(corpus.kept.length, synthetic.length, 'Go\'s answers cover every cut');
+  for (let i = 1; i <= synthetic.length; i++) {
+    const upto = synthetic.slice(0, i);
+    assert.deepEqual(catchUp(upto).map((r) => upto.indexOf(r)), corpus.kept[i - 1], `cut ${i}`);
+  }
+});
 
 test('synthetic: the catch-up of every prefix reduces to what the prefix does', () => {
   for (let i = 1; i <= synthetic.length; i++) {
@@ -98,7 +88,7 @@ test('a catch-up that leaves out earlier assets breaks the invariant (the check 
 test('the player over synthetic: a seek back across a navigation drops the new note', () => {
   const p = new Player(synthetic, { renderer: fakeRenderer({ renderers: 0, revoked: 0 }) });
   p.seek(31);
-  assert.deepEqual(promised(p.model), promised(reduce(synthetic.slice(0, 18))));
+  assert.deepEqual(promised(p.model), promised(reduce(synthetic.filter((r) => r.t <= 31))));
   p.seek(6);
   assert.deepEqual(promised(p.model).notes, [['n1', 'open']]);
 });

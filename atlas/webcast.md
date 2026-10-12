@@ -165,9 +165,14 @@ instead of the event stream.
   `connect`. Both return the surface `{model, renderer, onRecord}`, so layout, scaling, the pointer and
   `window.couchViewer` are unchanged.
 - **Seek rule:** the state at t is the catch-up of the records up to t, reduced. `catchUp` is a port of
-  `recording.CatchUp`. Node tests hold it to the format's invariant (same DOM, assets, `DocSeg` and current-document notes
-  as the whole prefix) at every boundary cut of every fixture, plus a synthetic recording for the cases no fixture has.
-  The live check compares it with Go's, record for record. A forward seek within a stretch applies the records in
+  `recording.CatchUp`, which keeps only the latest `hover` and `ptr` of the latest segment.
+  - **Shared corpus:** `tests/webcast/catchup_corpus.json` reaches every branch of the rule and holds Go's answer at
+    every cut. `TestCatchUpCorpus` keeps the answers true to Go and requires every special-cased kind; regenerate them
+    with `-update-catchup`. The node test holds the port to the same answers, so a change to Go's rule fails at once
+    until the port follows.
+  - **Invariant:** node tests also check the format's catch-up invariant at every boundary cut of every fixture: the
+    same DOM, assets, `DocSeg` and current-document notes as the whole prefix.
+  - **Live:** the live check compares the port with Go's, record for record, on the fixtures. A forward seek within a stretch applies the records in
   between. A seek backward or across a `seg` rebuilds from the catch-up, so it replays at most one segment.
 - **Player:** `Player` is the replay's state (`t`, playing, speed 0.5–4×, an error state for a refused record). It has
   no clock: the shell ticks it on animation frames. Playback skips pauses, and it stops at the end.
