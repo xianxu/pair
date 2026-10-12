@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000482-broadcast-web-fidelity-flake-on-rec-blog-frame-0-a-web-font-bound-1-ms-before-the-screenshot-moment.md
         source_blob: 4e0432b6e8adb2b3ed359b055f00eafcb50d3ea7
         destination: workshop/issues/000482-broadcast-web-fidelity-flake-on-rec-blog-frame-0-a-web-font-bound-1-ms-before-the-screenshot-moment.md
+        main_commit: 1ab3e8cfe3183e8a2bd36232311e875b15e7a51c
 ---
 
 # broadcast-web: fidelity flake on rec-blog frame 0 — a web font bound 1 ms before the screenshot moment
