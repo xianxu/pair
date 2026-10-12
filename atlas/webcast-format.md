@@ -191,7 +191,7 @@ top page by the recorder. The viewport position at time t is the top document's 
 
 | Kind | File | Fields | Meaning |
 |---|---|---|---|
-| `note` | notes | `id` (string), `author` `{id,name,color}`, `text`, `at` `{node,sel,text,box}`, optional `region` `[x,y,w,h]` | A note anchored on an element at its `t`. `at.node` is the element's id. `at.sel` is a stable CSS selector. `at.text` is the element's text, trimmed to 200 characters. `at.box` is its box. `region` is set for a dragged region. |
+| `note` | notes | `id` (string), `author` `{id,name,color}`, `text`, `at` `{node,kind,path,sel,text,box}`, `region` `[x,y,w,h]` | A note on a box of the page at its `t` (#488). `region` is the note's box: what the viewer dragged, or the default box of a tap. It is the area a submission crops, and the board writes it on every note. A note from before #488 may lack it. `at` anchors the note on the smallest element containing the box's centre. `at.node` is the element's id. `at.kind` is `element`. `at.path` is the meaningful containers down to it (`main › article › p#first`). `at.sel` is a stable CSS selector. `at.text` is the element's text, trimmed to 200 characters. `at.box` is the element's box. |
 | `note-state` | notes | `id`, `state`: `open` or `resolved` | A note was resolved or reopened. |
 | `stroke` | pointer | `id`, `author`, `color`, `pts` `[[x,y,dt],…]` | One pointer stroke, or one chunk of it; `dt` is ms after the record's `t`. A live stroke streams as several records sharing an `id` (#470: one per viewer POST, about every 50 ms), each continuing it; a viewer's stroke id is its viewer id, `.`, and the shell's own stroke id, so two viewers' strokes never join. |
 | `frame` | frames/index | `file`, `w`, `h`, `scale` | A screenshot of the real tab at `t` (the fidelity check), `w`×`h` image pixels; `scale` is image pixels per CSS pixel, the one source of that mapping for every consumer: 0.5 (the viewport at half its CSS size) whatever the device pixel ratio, except under a ratio of 0.5, where a screenshot isn't upsampled and `scale` is the ratio. `t` is the capture's midpoint. Not in the live stream. |
@@ -203,19 +203,23 @@ viewers, TL 10-12). Remote driving (#467) swaps in seat identity. The id `operat
 
 Notes stay in the recording after a reload. That live notes clear on reload (project, Direction) is the notes model's
 rule (#461): the notes "on" the current document are those since the document began (`State.DocSeg`), so a pause and
-resume keeps them and a navigation clears them. The shape is meant to be
-shared with the terminal notes of pair#455. `author` and `text` stay the same; `at` is where a DOM note and a grid note differ.
+resume keeps them and a navigation clears them. The shape is shared with the terminal's notes (#455, #488). `author`
+and `text` stay the same. Both carry a box, in their own units: page px here, cells on the terminal. Both carry an
+anchor read as `{kind, path, text}`: here `kind: element` and the containers' path, on the terminal Couch's layout
+path (`broadcast.NoteAnchor`, atlas/broadcast.md).
 
 ## The notes model (#461)
 
 `notes.Structural` is the real `notes.Model` (`cmd/internal/webcast/notes`), pure over the reducer's state at a
 moment. It runs `notes.RunModelContract` like the fake.
 
-**A note** is `recording.Note`: `id`, `author` `{id,name,color}`, `text`, `t`, and the anchor `at`. A terminal note
-(pair#455) keeps `author`, `text` and `t` and replaces `at` with a grid position, so both submissions share
-everything but the anchor.
+**A note** is `recording.Note`: `id`, `author` `{id,name,color}`, `text`, `t`, its box `region`, and the anchor `at`.
+A terminal note keeps `author` and `text`, with a box in cells and Couch's layout anchor (#488).
 
-**The anchor** `at` is `{node, sel, text, box}`:
+**The anchor** `at` is `{node, kind, path, sel, text, box}`:
+- `kind` is `element`. `path` is `pathOf`: the meaningful containers above the element (the landmark rule below),
+  outermost first, then the element itself. Each step is named by its tag and its id or role. The innermost six
+  steps are kept.
 - `sel` is a stable selector in a small CSS subset, made and matched in one file (`selector.go`): `#id` for an id
   that is unique and doesn't look generated (no `:`, no run of 4+ digits), `[data-testid="…"]` (also `data-test`,
   `data-cy`), else `tag:nth-of-type(k)` steps joined by ` > ` from the nearest such ancestor or the tree's root
@@ -242,18 +246,14 @@ template and noscript bodies and elements the recording marks hidden, and keeps 
 and flex/grid items apart by a space) in a 500-character window centred on the element's own text, and the
 landmark's box. The full DOM at that moment stays available through the agent queries (#462).
 
-**Crops**, for a submission's anchors, in CSS px of the top page:
-1. each anchor's box padded by a margin (48 px by default);
-2. snapped to its meaningful landmark per axis: always across (a header or nav bar goes full width), and down only
-   when the landmark is at most half the viewport tall; otherwise the height stays the note plus its margin (the rule
-   #455 uses for a pane);
-3. clustered: crops at most a margin apart merge, until none do, so far-apart notes get a crop each;
-4. clipped to the page (the root element's box), widened to hold every note's own box;
-5. offered to `notes.Hints` (per app or URL), whose crop replaces the default when it returns true.
+**Crops** (#488) are `NoteCrops(st, notes)`, the seam a submission crops from (#483), in CSS px of the top page:
+1. each note's box (its `region`; a note from before #488 has its `at.box`, else its element's layout box), padded
+   by a margin of 16 px;
+2. crops that overlap merge into one image, until none do, so notes far apart get a crop each;
+3. each crop is clipped to the page (the root element's box), widened to hold every note's own box.
 
-**Region notes** reach crops through `NoteCrops(st, notes, hints)` (#470), which takes notes instead of anchors: a
-region note's crop is its region plus the margin, not snapped (the viewer drew it by hand); an element note's is as
-above; clustering, clipping and hints apply to both. `Crops(st, anchors, hints)` is `NoteCrops` without regions.
+The operator's box is the crop, so there is no snapping to structure and no per-URL hint. #461's landmark snapping
+and `notes.Hints` were retired by #488. The landmark still gives the context and the anchor's path.
 
 ## Attribution and control (#466)
 
@@ -341,7 +341,7 @@ it), never a local fork.
 | pair#458 | recorder | writes a `recording.Sink` (`DirWriter` for disk, `Tee` to also feed `Live`) | `recording.FakeRecorder` (plays a fixture into a sink, instantly or in real time) | `recording.ValidateDir` on its output; fidelity vs `frames/` |
 | pair#459 | asset store and proxy | `assets.Store` (`Put`, `Get`, `Lookup`; `Policy`) | `assets.MemStore` | `assets.RunStoreContract` |
 | pair#460 | live viewer | `recording.Live` (fan-out with catch-up; `Ended(recs)` says whether a closed subscription was the fan-out's end or a drop); the JS viewer contract below | `recording.Hub`: the production fan-out is its own double (bounded by one segment; #458 constructs it next to its `Tee`) | `recording.RunLiveContract`; the fixtures' canonical pins |
-| pair#461 | notes model | `notes.Model` (`Anchor`, `Resolve`, `Context`, `Crops`, `NoteCrops`, `Live`; `notes.Hints`); real: `notes.Structural` | `notes.FakeModel` | `notes.RunModelContract` |
+| pair#461 | notes model | `notes.Model` (`Anchor`, `Resolve`, `Context`, `NoteCrops`, `Live`; #488 retired `Crops` and `notes.Hints`); real: `notes.Structural` | `notes.FakeModel` | `notes.RunModelContract` |
 | pair#470 | viewers' strokes and notes | `board.Board` (a `Sink` following the stream; `Stroke`, `Note`, `SetState`, `Live`, `Subscribe`) writing through an `Emit` (the recorder's queue via `webcast.Emitter`) | `board.Writer`, the reference single writer | board tests over fixtures; `Board viewer` below |
 | pair#462 | agent queries | `query.Surface` (`DOMAt`, `Events`, `Notes`); real: `query.Querier`, CLI `couch --broadcast-web-query` (below) | `query.FakeSurface` | `query.RunSurfaceContract` |
 | pair#467 | input injection | `drive.Injector` (`Inject(ctx, by, Batch)`) | `drive.FakeInjector` | `drive.RunInjectorContract` |
@@ -366,7 +366,8 @@ same records out, and `Server.events` sends them as `rec` events. The route, the
 a body (`webcast/server_board.go`), admitted like the terminal pointer routes: a JSON content type, 4 in flight, a
 budget per cast (strokes 60/s, notes and states 2/s with a burst of 5), a prompt body within 8 KiB. Bodies are parsed
 strictly by `board.Parse*` (each names its `viewer` `{id,name}` and the `seg` it was made on; a note its `node`, the
-`box` from `couchViewer.boxOf`, an optional `region`, a palette `color` and plain text of at most 1,024 bytes). The
+`box` from `couchViewer.boxOf`, its `region` (required since #488; the board clips it to the page widened to the
+viewport, `notes.ClampToPage`, and refuses one that is off it), a palette `color` and plain text of at most 1,024 bytes). The
 `board.Board` follows the recording as one of its sinks (the recorder's `Tee`: the directory, the board, then the Hub, so the board knows a
 page before any viewer can act on it) and
 checks each request against that state: the cast is on a page and hasn't ended, the `seg` is within the current
@@ -404,10 +405,15 @@ swatch rail with ✏️ and 💭 mode buttons docked to the page box, a strokes 
 swatches and the dialog are `collab.js`, shared with the terminal viewer (`broadcast.CollabJS`; the file in
 `webcast/web/` is a symlink for the node tests). Point mode posts a stroke's points every 50 ms and draws them at once
 (its echo is skipped); others' strokes fade 1.5 s after their last point, and a reconnect's catch-up strokes (more than
-1.5 s behind the newest record) are not drawn. Note mode: a tap anchors on `nodeAt`'s element with its `boxOf` box; a
-drag of 8 px or more is a region, anchored on the element at its centre. Pins are the model's live notes (since
-`docSeg`, open), placed each frame on the element's box as drawn (`boxOf`; else the box it was made on; a region at its
-region) with a 💭 chip in the author's color that opens the note with Resolve. The identity (`couch.viewerId`, made once;
+1.5 s behind the newest record) are not drawn. Note mode (#488) has one gesture rule, `collab.js`'s `noteBox`, shared with
+the terminal viewer:
+- A drag of 8 px or more draws the note's box; a finger needs 16 px (`DRAG_MIN`).
+- A tap gets the default box: a tenth of the page shown each way, centred on the tap. It is shifted, not shrunk,
+  to stay in view.
+- The note anchors on `nodeAt`'s element at the box's centre.
+- Pins are the model's live notes (since `docSeg`, open). Each frame they are drawn as the box, outlined in the
+  author's color (an older note without one: its element's box as drawn by `boxOf`, else the box it was made on).
+- The 💭 chip sits inside the box's top-right corner and opens the note with Resolve. The identity (`couch.viewerId`, made once;
 `couch.viewerName`, asked in the first draft) is kept in localStorage behind try/catch, and a stored name is read by
 the board's rules (else asked again). Controls that take input (swatches, mode buttons, pin chips) are rebuilt only
 when their data changes; each frame only places them. For replay (#477), the drawing is pure over the model at t:
@@ -655,6 +661,11 @@ recording. Seats and their keys are memory only: they end after the grace period
 - 2026-10-12 (#470, TL ops:0, additive): a live stroke may stream as several `stroke` records sharing one `id`, each
   continuing it; the note and stroke `author` is the viewer's self-asserted identity (attribution only); `operator` is
   a reserved author id; `notes.Model.NoteCrops` brings region notes to crops.
+- 2026-10-12 (#488, additive for readers):
+  - Every new `note` carries `region`, its box. A tap's is the default box.
+  - `at` gains `kind` and `path`.
+  - Readers keep `region` optional for older recordings.
+  - `NoteCrops` crops the box plus 16 px, with no snapping, clustering only by overlap, and no hints.
 - 2026-10-12 (#478, additive): `fidelity/` in the recording directory, the fidelity check's report. No record kind
   or field changes; frames are as #457 defined them.
 - 2026-10-12 (#467, additive, as built): no record kind changes. `by` is stamped by the recorder from the

@@ -40,7 +40,7 @@ func TestStructuralOnFixtures(t *testing.T) {
 				t.Errorf("%s: note %s context %q lacks the anchor's text", name, n.ID, ctx.Text)
 			}
 			if n.At.Box != nil {
-				if cs, err := m.Crops(st, []recording.NoteAt{n.At}, nil); err != nil || !held(cs, *n.At.Box) {
+				if cs, err := m.NoteCrops(st, []*recording.Note{{At: n.At}}); err != nil || !held(cs, *n.At.Box) {
 					t.Errorf("%s: note %s crops %v %v", name, n.ID, cs, err)
 				}
 			}
@@ -88,15 +88,11 @@ func TestResolveAfterARerender(t *testing.T) {
 	if ctx, err := m.Context(st, at); err != nil || ctx.Node != id {
 		t.Errorf("context after a re-render: %+v %v", ctx, err)
 	}
-	// Its crop still snaps to the new element's landmark (the li itself).
+	// An older note with no box of its own crops the new element's.
 	b.Add(&recording.Layout{Boxes: map[recording.NodeID]recording.Box{id: {100, 140, 600, 30}}})
 	st = reduceAll(t, b)
-	if cs, err := m.Crops(st, []recording.NoteAt{at}, nil); err != nil || len(cs) != 1 || !cs[0].Contains(st.Boxes[id]) {
+	if cs, err := m.NoteCrops(st, []*recording.Note{{At: at}}); err != nil || len(cs) != 1 || !cs[0].Contains(st.Boxes[id]) {
 		t.Errorf("an anchor with no box of its own takes the new element's: %v %v", cs, err)
-	}
-	at.Box = &recording.Box{110, 140, 300, 30}
-	if cs, _ := m.Crops(st, []recording.NoteAt{at}, nil); len(cs) != 1 || cs[0][0]+cs[0][2] != 700 {
-		t.Errorf("crop after a re-render %v must reach the li's right edge, 700", cs)
 	}
 
 	// A selector that names nothing.

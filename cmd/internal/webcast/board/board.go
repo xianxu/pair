@@ -166,7 +166,8 @@ func (b *Board) Stroke(in StrokeIn) error {
 }
 
 // Note writes a viewer's new note and returns its id. The anchor is the
-// notes model's for the element now, with the viewer's box.
+// notes model's for the element now, with the viewer's box; the note's box
+// is kept on the page (notes.ClampToPage).
 func (b *Board) Note(in NoteIn) (string, error) {
 	b.mu.Lock()
 	doc, err := b.pageLocked(in.Seg)
@@ -182,6 +183,11 @@ func (b *Board) Note(in NoteIn) (string, error) {
 		b.mu.Unlock()
 		return "", ErrColorFull
 	}
+	region, ok := notes.ClampToPage(b.st, in.Region)
+	if !ok {
+		b.mu.Unlock()
+		return "", ErrStale // the box is off the page
+	}
 	at, err := b.model.Anchor(b.st, in.Node)
 	if err != nil {
 		b.mu.Unlock()
@@ -193,7 +199,7 @@ func (b *Board) Note(in NoteIn) (string, error) {
 	b.pending[id] = pending{doc: doc, color: in.Color}
 	b.mu.Unlock()
 
-	n := &recording.Note{ID: id, Author: b.author(in.Viewer, in.Color), Text: in.Text, At: at, Region: in.Region}
+	n := &recording.Note{ID: id, Author: b.author(in.Viewer, in.Color), Text: in.Text, At: at, Region: &region}
 	if err := b.emit(n, doc); err != nil {
 		b.mu.Lock()
 		delete(b.pending, id)

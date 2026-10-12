@@ -81,12 +81,14 @@ test('a note shows on its region, else its element as drawn, else the box it was
   assert.equal(noteBox({ at: { node: 8 } }, boxOf), null);
 });
 
-test('a drag is a region; a small one is a tap', () => {
-  assert.equal(regionOf([10, 10], [15, 13]), null);
-  assert.deepEqual(regionOf([50, 40], [10, 10]), [10, 10, 40, 30]);
-  assert.deepEqual(regionOf([10, 10], [60, 12]), [10, 10, 50, 2]);
-  assert.deepEqual(noteDraft(3, 7, [1.234, 2, 3, 4], null), { seg: 3, node: 7, box: [1.2, 2, 3, 4] });
-  assert.deepEqual(noteDraft(3, 7, [1, 2, 3, 4], [5, 6, 7, 8]), { seg: 3, node: 7, box: [1, 2, 3, 4], region: [5, 6, 7, 8] });
+test('every note gesture is a box: a drag, or the default box for a tap (#488)', () => {
+  const view = { x: 0, y: 400, w: 1000, h: 600 };
+  assert.deepEqual(regionOf([500, 700], [505, 703], view, 'mouse'), [450, 670, 100, 60]); // a tap
+  assert.deepEqual(regionOf([50, 440], [10, 410], view, 'mouse'), [10, 410, 40, 30]);
+  assert.deepEqual(regionOf([10, 410], [60, 412], view, 'mouse'), [10, 410, 50, 2]);
+  assert.deepEqual(regionOf([500, 700], [512, 700], view, 'mouse'), [500, 700, 12, 1]);
+  assert.deepEqual(regionOf([500, 700], [512, 700], view, 'touch'), [450, 670, 100, 60]); // a finger's wobble is a tap
+  assert.deepEqual(noteDraft(3, 7, [1.234, 2, 3, 4], [5, 6, 7, 8]), { seg: 3, node: 7, box: [1.2, 2, 3, 4], region: [5, 6, 7, 8] });
 });
 
 test('a stored name is read by the board\'s rules, else asked again', () => {

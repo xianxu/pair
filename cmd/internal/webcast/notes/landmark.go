@@ -1,6 +1,7 @@
 package notes
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
@@ -16,6 +17,36 @@ var (
 		"toolbar", "menu", "menubar", "tablist", "tabpanel", "figure")
 	boxClassPrefixes = []string{"card", "panel", "modal", "dialog", "popover", "toolbar", "navbar", "sidebar", "drawer", "tile"}
 )
+
+// maxPath is how many steps an anchor's path keeps, the innermost.
+const maxPath = 6
+
+// pathOf is an anchor's path (#488): the meaningful containers above n,
+// outermost first, then n itself, each named by its tag and its id or role
+// (main, article, p#first). The innermost maxPath steps.
+func pathOf(n *recording.DOMNode) []string {
+	var out []string
+	for e := n; e != nil; e = e.ParentElement() {
+		if (e.N == "body" || e.N == "html") && treeRoot(e).Host == nil {
+			break
+		}
+		if e == n || isContainer(e) {
+			out = append(out, stepName(e))
+		}
+	}
+	slices.Reverse(out)
+	return out[max(0, len(out)-maxPath):]
+}
+
+func stepName(e *recording.DOMNode) string {
+	switch {
+	case e.A["id"] != "" && len(e.A["id"]) <= 40:
+		return e.N + "#" + e.A["id"]
+	case e.A["role"] != "" && len(e.A["role"]) <= 40:
+		return e.N + "[" + e.A["role"] + "]"
+	}
+	return e.N
+}
 
 // contextBudget is how much of the landmark's text a context carries.
 const contextBudget = 500

@@ -83,3 +83,29 @@ func TestWindowKeepsTheAnchor(t *testing.T) {
 		t.Errorf("no focus starts at the beginning: %q", w)
 	}
 }
+
+func TestAnchorPathNamesTheContainersDownToTheElement(t *testing.T) {
+	b := recording.NewBuilder("path")
+	p := b.El("p", []string{"id", "first"}, b.Txt("x"))
+	span := b.El("span", nil, b.Txt("y"))
+	div := b.El("div", []string{"class", "wrapper"}, p, span)
+	nav := b.El("ul", []string{"role", "list"}, b.El("li", nil))
+	b.Page(recording.SegLive, "http://x/", b.El("main", nil, b.El("article", nil, div)), nav)
+	st := reduceAll(t, b)
+	if got := pathOf(st.Node(p.ID)); strings.Join(got, " › ") != "main › article › p#first" {
+		t.Errorf("path %q", got)
+	}
+	if got := pathOf(st.Node(nav.C[0].ID)); strings.Join(got, " › ") != "ul[list] › li" {
+		t.Errorf("path %q", got)
+	}
+	deep := b.El("i", nil)
+	e := deep
+	for range 10 {
+		e = b.El("section", nil, e)
+	}
+	b.Page(recording.SegLive, "http://x/deep", e)
+	st = reduceAll(t, b)
+	if got := pathOf(st.Node(deep.ID)); len(got) != maxPath || got[len(got)-1] != "i" {
+		t.Errorf("a deep path keeps the innermost %d steps: %q", maxPath, got)
+	}
+}
