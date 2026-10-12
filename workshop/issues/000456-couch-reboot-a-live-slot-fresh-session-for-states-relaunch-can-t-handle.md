@@ -1,12 +1,20 @@
 ---
 id: 000456
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours:
-card_mirror: '814f3692ab148cb7d2806fe6b86da05921dde7f0' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '72a7cdcd554a15e10e82b2762d09ad4a30c50a3a' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-11T20:52:33-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
 ---
 
 # couch: reboot a live slot (fresh session), for states relaunch can't handle
@@ -32,11 +40,25 @@ card_mirror: '814f3692ab148cb7d2806fe6b86da05921dde7f0' # card fields mirrored f
 
 ## Plan
 
-- [ ] Reboot of a live slot in couchcore/dispatcher, with guards
-- [ ] Couch action and confirmation; keyhelp
-- [ ] Relaunch refusals name reboot
-- [ ] Tests, live check, atlas, help; operator smoke test
+Design: a live reboot is park-then-reboot under the reboot hold. `rebootAdmit`
+admits `live` only with an idle verdict (`require-settled`, `RebootAdmitted`),
+re-checks busy (`LiveRestart.ConfirmNotBusy`), parks via `ParkExpected` (park
+needs no conversation binding), reclassifies, and continues as today's parked
+reboot. Remote admission reuses `prepareLiveRestart`/`DecideLiveRestart`
+(`OpReboot`: dirty only noted). The switcher sends `forced` for a live row.
+Calls without a verdict (recover's reboot step) still refuse live rows.
+
+- [x] Reboot of a live slot in couchcore/dispatcher, with guards
+- [x] Couch action and confirmation (operator chose `Tab → reboot` on live rows; no new chord)
+- [x] Relaunch refusals name reboot (`withRebootHint`)
+- [x] Tests, atlas, help, README, skill
+- [ ] Live check: reboot a real slot; operator smoke test of Tab → reboot
 
 ## Log
+
+### 2026-10-11
+- Operator chose `Tab → reboot` on live rows (no new key) over Alt+Shift+N (Pair's reload-context in an actor pane) or Ctrl+Alt+r.
+- `TestActionOfferedImpliesPermitted` caught the live offer against `RebootableState`; the fix was a named whole-admission predicate (`RebootAdmitted`), not widening archive's rule (ARCH-DRY: archive must still refuse live).
+- Sandbox blocks pty/socket tests; ran couchtty/couchcore/couchcmd/couchmessage unsandboxed: all ok.
 
 ### 2026-10-11
