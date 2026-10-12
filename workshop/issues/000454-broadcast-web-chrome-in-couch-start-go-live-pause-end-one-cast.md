@@ -1,12 +1,20 @@
 ---
 id: 000454
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours:
-card_mirror: '3ed97d5e7e4da5577a3c48febbb95351f5c3b562' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'fc9e7a8a7ab18e7347e7c8e38c6168b2099342d6' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-11T20:08:38-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # broadcast-web: Chrome in Couch — start, go live, pause, end; one cast
@@ -39,13 +47,17 @@ The operator flow, from the project:
 
 ## Plan
 
-- [ ] Key decoding check (Shift+Ctrl+Alt+B vs Ctrl+Alt+b)
-- [ ] Browser-control component: launch, CDP connect, tab tracking, active tab, go-live state, events; fake + tests
-- [ ] Injected Go-live and in-page pause controls (isolated world)
-- [ ] Tab-bar indicator and its click / right-click / Ctrl+click
-- [ ] Stub stream and viewer page over the broadcast transport
-- [ ] Live check against real Chrome; operator smoke test
+Durable plan: `workshop/plans/000454-broadcast-web-chrome-in-couch-start-go-live-pause-end-one-cast-plan.md`.
+
+- [x] Key decoding check (Shift+Ctrl+Alt+B vs Ctrl+Alt+b): distinct; see Log
+- [ ] M1 — browser-control component: `cdp` pipe client; `webcast` State/Tracker/translate; Browser seam + FakeBrowser; in-page control (isolated world); real Chrome; conformance suite run against fake and live Chrome
+- [ ] M2 — Couch integration and stub stream: `broadcast.Endpoint` extracted; webcast viewer server + page; Cast; Shift+Ctrl+Alt+B, `Chrome ▶/⏸` cell with click / right-click / Ctrl+click; launcher wiring; README + atlas; operator smoke test
 
 ## Log
 
 ### 2026-10-11
+
+- **Key decoding check: passed.** Couch pushes kitty flags 3; measured through `terminal.Decoder` + `productKey`: Ctrl+Alt+b → `\x1b[98;7u`, Shift+Ctrl+Alt+B → `\x1b[98;8u` (also `66;8u`, `98;8:1u`, `98:66;8u` canonicalise distinctly). Legacy `ESC ^B` was never a broadcast binding (#395). Operator's Ghostty config binds nothing on ctrl+alt+shift. Real-terminal confirmation goes in the smoke test.
+- **CDP spike (Chrome 154):** `--remote-debugging-pipe` works; isolated-world binding invisible to the page's main world; `runImmediately` injects into the current document; URL/title from `Target.targetInfoChanged`; closing the pipe makes Chrome exit (owner death collects it — ARCH-FUNERAL). Chrome can't launch inside the agent sandbox (exit 21); live checks run unsandboxed.
+- Design choices: pipe over port (no network surface, no websocket dep — ARCH-SECURE); `broadcast.Endpoint` extracted so both casts share one tunnel lifecycle (ARCH-DRY); viewers get URL/title only while live.
+
