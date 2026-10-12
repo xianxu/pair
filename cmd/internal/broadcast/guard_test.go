@@ -101,12 +101,15 @@ func waitFile(t *testing.T, path string) string {
 	}
 }
 
-func waitDead(t *testing.T, pid string, within time.Duration) {
+// waitDead waits for pid to exit, bounded by the test's deadline rather than a
+// wall-clock window a loaded machine can outlast (#487). The second of margin
+// lets the failure name the pid instead of the test binary's timeout panic.
+func waitDead(t *testing.T, pid string) {
 	t.Helper()
-	deadline := time.Now().Add(within)
+	deadline, bounded := t.Deadline()
 	for procutil.Alive(pid) {
-		if time.Now().After(deadline) {
-			t.Fatalf("pid %s still alive after %v", pid, within)
+		if bounded && time.Until(deadline) < time.Second {
+			t.Fatalf("pid %s still alive at the test deadline", pid)
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
@@ -128,8 +131,8 @@ func TestGuardStopsGroupWhenOwnerGoes(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("guard did not stop")
 	}
-	waitDead(t, strconv.Itoa(g.child), 2*time.Second)
-	waitDead(t, grandchild, 2*time.Second)
+	waitDead(t, strconv.Itoa(g.child))
+	waitDead(t, grandchild)
 	if _, err := os.Stat(private); !os.IsNotExist(err) {
 		t.Fatalf("private directory survived: %v", err)
 	}
@@ -150,7 +153,7 @@ func TestGuardEscalatesToKill(t *testing.T) {
 	if d := time.Since(start); d < 150*time.Millisecond {
 		t.Fatalf("killed after %v, before the grace period", d)
 	}
-	waitDead(t, strconv.Itoa(g.child), 2*time.Second)
+	waitDead(t, strconv.Itoa(g.child))
 }
 
 func TestGuardExitsWithChild(t *testing.T) {
