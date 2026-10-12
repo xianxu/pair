@@ -75,3 +75,81 @@ findings:
     detail: |
       idle_floor_test.go:205-207. handleChunk queues to the async stdout pump, and bumpIdleDeadline runs after it (wrap.go:3263-3266), so the pump can write first. The test is still sound because the previous chunk's bump has finished; only the comment needs correcting.
 ```
+
+---
+
+## Re-review — 2026-10-12T06:53:59-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 480 — tests: inject clocks or sync points where tests race a real timer or sleep as sync (idle floor, stdin ESC flush, wait-notice ticks, ttyio partial write, ...) |
+| repo | pair |
+| issue file | workshop/issues/000480-tests-inject-clocks-or-sync-points-where-tests-race-a-real-timer-or-sleep-as-sync-idle-floor-stdin-esc-flush-wait-notice-ticks-ttyio-partial-write.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 0a79be7647906c7271f6a6cee81a13e48f037ef4..8e94173bce9deb53ae2ff5e0548ce5640c968a50 |
+| command | sdlc close --issue 480 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-12T06:53:59-07:00 |
+| verdict | SHIP |
+
+## Review
+
+Both prior findings look fixed. I'm running one last stress check on the tighter ttyio limit, then I'll give the verdict.
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+Both prior findings are fixed, and the fixes add no Critical or Important defect. The window changes two test files and adds two generated plan files, the gate ledger and the review record. It does not touch `## Spec`, `## Revisions` or `## Done when`, and there were no conflict resolutions to judge.
+
+**BR-1, the wall-clock margin:**
+- **Busy-poll test** (`writer_test.go:44`): the start time `started` is now taken before either goroutine can poll, so the limit covers every wait counted.
+- **Cancel test** (`writer_test.go:282-285`): it now calls `cancel()` before reading `before`. That makes the `after > before+1` check exact:
+  - `wait()` checks `stopped(ctx)` before `polls.Add(1)` (`writer.go:116-129`).
+  - So after a cancel, at most one wait can still be counted: the one whose check passed just before the cancel.
+
+**Tighter slack:** the fix also lowered the busy-poll slack from +10 to +4. Each goroutine's polls add up to at most `floor(T/pollSlice)+1`, because the last poll is partial or ends early. So the expected worst case is `2·floor(T/50ms)+2`, which leaves 2 spare. A run of 20 repetitions of both tests under `-race` at `-cpu=1,4` passed.
+
+**BR-2, the comment:** the new comment at `idle_floor_test.go:205-208` matches `wrap.go:3262-3265`. `handleChunk` runs, then `bumpIdleDeadline` runs in the same loop step, so the bump lands before the loop reads the next chunk.
+
+1. **Strengths**
+   - `writer_test.go:282-285`: the cancel-then-count ordering turns a timing margin into an exact bound tied to how `wait()` counts.
+   - `writer_test.go:44`: the start time now comes before any poll, so the limit no longer leaves out the reader's earlier waits.
+   - The idle-floor comment now states the real order: the read and the bump happen in the same loop step.
+
+2. **Critical findings:** none.
+
+3. **Important findings:** none.
+
+4. **Minor findings** (notes only, nothing raised)
+   - The clause "the clock advances at most one 15ms step past any bump" in `idle_floor_test.go:208` can be read two ways.
+     - It is true that at the moment chunk i's deadline is bumped, the clock is at most one 15 ms step past where it was when that chunk was seen.
+     - Between two consecutive bumps, though, the clock can move up to 30 ms.
+     - The test is sound under either reading, since 30 ms is less than the 60 ms floor. I'm not raising it as a separate `comment-claim-accuracy` finding.
+   - The slack change from +10 to +4 went beyond what BR-1 asked for. It is still a test-only tightening and leaves 2 spare above the worst case worked out above.
+
+5. **Test coverage notes**
+   - Both ttyio tests passed under `-race` at counts 5 and 20, with `-cpu=1,4`.
+   - I couldn't build `wrapcmd` in this checkout: `go vet` fails because the generated runtime bundle (`assets/runtime/files`) isn't there. Only a comment changed in that package, so its behaviour is unaffected.
+
+6. **Architectural notes**
+   - **ARCH-DRY: pass.** The change is two test edits with no duplication.
+   - **ARCH-PURE: pass.** No production code changed.
+   - **ARCH-PURPOSE: pass.** Both instances of `residual-wall-time-window` named in BR-1 were fixed in the same round. The finding listed no other instances in this window.
+
+7. **Plan revision recommendations:** none.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      started now precedes both goroutines (writer_test.go:44); cancel() precedes reading before (writer_test.go:284-285), exact given stopped() runs before polls.Add; 20x -race at -cpu=1,4 passes
+  - id: BR-2
+    disposition: addressed
+    note: |
+      idle_floor_test.go:205-208 now says the bump follows the read in the same loop step, before the next chunk is read, matching wrap.go:3262-3265
+```
