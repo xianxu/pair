@@ -368,6 +368,11 @@ than reading the JSON lines; the answers are sized for your context:
 Start with `notes`, then drill into `dom --at <note t> --sel @N` and the
 `events` before it.
 
+To show a person a moment, give them a replay link:
+`couch --broadcast-web-replay DIR --at 1530` prints one (`…/r/<id>/#t=1530`) and
+serves it on this machine until interrupted, so run it in the background and
+stop it when the person is done.
+
 ## Setup and qualification
 
 In an existing conversation, run `couch --skill` and read its complete output.

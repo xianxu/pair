@@ -155,3 +155,57 @@ and strokes) enter its queue as `recorder.Emit`, stamped on arrival and checked 
     pointer, and `boxOf` against the tab's own layout boxes (215 of 217 on blog).
 - **Known transient:** for a moment after a navigation, the title can be Chrome's placeholder (the URL, as in
   Chrome's own tab) until the page reports its `<title>`; it is never the previous page's title (`DocumentChanged`).
+
+## Replay (#471)
+
+A recording plays in the same viewer, with the same model and renderer. Only its source differs: records come from disk
+instead of the event stream.
+
+- **Source:** `web/replay.js`. `mount` branches once, on the path (`<token>/r/<id>/`): `mountReplay` instead of
+  `connect`. Both return the surface `{model, renderer, onRecord}`, so layout, scaling, the pointer and
+  `window.couchViewer` are unchanged.
+- **Seek rule:** the state at t is the catch-up of the records up to t, reduced. `catchUp` is a port of
+  `recording.CatchUp`, which keeps only the latest `hover` and `ptr` of the latest segment.
+  - **Shared corpus:** `tests/webcast/catchup_corpus.json` reaches every branch of the rule and holds Go's answer at
+    every cut. `TestCatchUpCorpus` keeps the answers true to Go and requires every special-cased kind; regenerate them
+    with `-update-catchup`. The node test holds the port to the same answers, so a change to Go's rule fails at once
+    until the port follows.
+  - **Invariant:** node tests also check the format's catch-up invariant at every boundary cut of every fixture: the
+    same DOM, assets, `DocSeg` and current-document notes as the whole prefix.
+  - **Live:** the live check compares the port with Go's, record for record, on the fixtures. A forward seek within a stretch applies the records in
+  between. A seek backward or across a `seg` rebuilds from the catch-up, so it replays at most one segment.
+- **Player:** `Player` is the replay's state (`t`, playing, speed 0.5–4×, an error state for a refused record). It has
+  no clock: the shell ticks it on animation frames. Playback skips pauses, and it stops at the end.
+- **The bar** (`#timeline`, `replay.css`) shows play/pause, speed and the track:
+  - live segments, with a seam where one starts;
+  - pauses hatched, each squeezed to at most 3% of the width (`placer`), so an hour's pause doesn't flatten the rest;
+  - who drove, as bands from the `ctl` records' control state;
+  - notes and strokes, as ticks.
+  Click or drag seeks, and so do ←/→, Home/End and Space.
+- **`#t=` links:** `#t=<ms>` opens at that moment, paused. A seek or a pause rewrites the hash
+  (`history.replaceState`), and `hashchange` seeks. `webcast.ReplayLink(base, id, t)` builds a link.
+- **Marks over the page:** each note open on the current document shows as a pin at its element (`boxOf`, else the
+  box it carried). A stroke shows from its `t` through its last point, plus a 1.5 s fade. #470's live notes and pointer
+  UI should replace this once both have landed.
+- **Server:** `webcast.ReplayServer(token, root)`, a `broadcast.Mountable` with the viewer's CSP. It serves:
+  - `<token>/`: the listing, newest first, from each recording's head line and last line;
+  - `r/<id>/`: the viewer;
+  - `r/<id>/records`: the merged records, read per request, so a recording still being written replays as far as it
+    has got;
+  - `r/<id>/assets/<hash>`: the cast's `assets.Proxy`, bound to `assets.Reopen(rec)`, a read-only `Recorded` built
+    from the asset records.
+
+  An id is one path element (`ValidRecordingID`) naming a real directory directly under the root, never a symlink.
+- **Entry point:** `couch --broadcast-web-replay [ID|DIR] [--at MS]` (`couchcmd/replay.go`).
+  - It reads the store a running Couch uses (`<store>/webcast/recordings`, where #458 records), or the named directory.
+  - It serves on `127.0.0.1` under a fresh token until SIGINT or SIGTERM, and prints the link.
+  - It writes nothing (ARCH-FUNERAL: the listener and token die with the process).
+  - Mounting the replay on the shared `broadcast.Host` inside a running Couch, for remote viewers, is the TL's
+    follow-up after #458.
+- **Tests:**
+  - `tests/webcast/replay.test.mjs`: the seek rule, timeline, placer, `#t=`, `Player` and `replaySource`, with fakes.
+  - `replay_server_test.go`: the routes and confinement to the root.
+  - `couchcmd/replay_test.go`: the CLI.
+  - `replay_live_test.go` (`WEBCAST_LIVE_CHROME=1`): a `#t=` link and shuffled scrubbing draw the reducer's canonical
+    state at every pin of every fixture; JS `catchUp` takes the records Go's does; notes and strokes match the reducer
+    at their moments; drive bands; nothing is requested outside the server.

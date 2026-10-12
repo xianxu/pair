@@ -280,6 +280,19 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 		// A pure read of a recording directory: no Couch runtime needed.
 		return query.Main(invocation.args, stdout, stderr)
 	}
+	if invocation.kind == cliWebReplay {
+		// Reads recordings in the store a running Couch records to, and
+		// serves them on loopback; it runs nothing of Couch's.
+		prepared, lease, err := prepareRuntime(rt, false)
+		if err != nil {
+			fmt.Fprintln(stderr, "couch:", err)
+			return 1
+		}
+		defer lease.Close()
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		return runReplay(ctx, invocation.args, prepared.StoreDir(), stdout, stderr)
+	}
 	if invocation.kind == cliAdopt {
 		return runAdoptionCLI(invocation, rt, stdout, stderr)
 	}
@@ -1287,6 +1300,9 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "             Read-only: ask a broadcast-web recording for the page at t, what happened")
 	fmt.Fprintln(w, "             in a window, and every note with its element and the actions before it.")
 	fmt.Fprintln(w, "             `couch "+query.Flag+"` alone prints its usage.")
+	fmt.Fprintln(w, "       couch "+replayFlag+" [ID|DIR] [--at MS]")
+	fmt.Fprintln(w, "             Replay broadcast-web recordings in the viewer, served on this machine only")
+	fmt.Fprintln(w, "             until Ctrl-C. Prints the link: the recordings, or one at MS (#t=MS).")
 	fmt.Fprintln(w, "       couch --skill")
 	fmt.Fprintln(w, "       couch --help")
 	fmt.Fprintln(w)
