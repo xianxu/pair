@@ -1054,6 +1054,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchtty/console_palette.go",
 	"cmd/internal/couchtty/switchrule.go",
 	"cmd/internal/couchtty/trace.go",
+	// pair#479 test wait helper: bounds a wait by the test deadline; names no file.
+	"cmd/internal/testwait/testwait.go",
 	"cmd/internal/ctxmeter/ctxmeter.go",
 	"cmd/internal/dispatcher/dispatcher.go",
 	"cmd/internal/entrypoint/alias.go",
