@@ -1,10 +1,19 @@
 ---
 id: 000478
-status: working
+status: codecomplete
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
 github_issue:
+started: 2026-10-12T04:00:08-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:4
+    worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
+    repository: github.com/xianxu/pair
+actual_hours: 0.70
 tracker:
     version: 1
     handoff:
@@ -17,14 +26,11 @@ tracker:
         source_blob: 5651dd2394b6ff3cccaec7b85a16a249484a5fe3
         destination: workshop/issues/000478-broadcast-web-fidelity-check-for-live-casts-sparse-tab-screenshots-vs-replay-renders-with-a-report.md
         main_commit: 1da5c76c60b687fc25a90cb1dc9f1268daa9172e
-started: 2026-10-12T04:00:08-07:00
-claimant:
-    operator: Xian Xu
-    machine: 4716879978a7b90f6b583da1716fd0e9
-    machine_name: MacBook Pro
-    workspace: pair:4
-    worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
-    repository: github.com/xianxu/pair
+    completion:
+        token: close-261bfd17c4f0
+        repository: github.com/xianxu/pair
+        reviewed_head: 8962e0777022f69014a7512cc676181e952b0336
+        evidence_commit: ecdb8adc4eff1c04abc182c0d3862234db69fcdd
 ---
 
 # broadcast-web: fidelity check for live casts — sparse tab screenshots vs replay renders, with a report
