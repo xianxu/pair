@@ -7,6 +7,14 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- A filter that keeps records by kind must also keep the context records that give the kept ones their meaning.
+  #457's catch-up kept a document's notes but dropped the segment they were counted from, so a derived view
+  (notes on the current document) emptied while the raw state matched. Assert equivalence on the derived views
+  consumers read, not only on the raw state. (#457 BR-1)
+- A seam's record channel carries one kind of thing. Name the single writer of every side artifact (bodies,
+  screenshots), and make each consumer refuse what it must never receive, with a contract test that checks it.
+  (#457 BR-4)
+
 - Budget a subprocess by what it does, not by who calls it: a step that writes
   a checkout is not a probe. A failure the operator saw only on screen should be
   recorded where the owner keeps its records, bounded to the store's own record
