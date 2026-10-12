@@ -5,7 +5,6 @@ import (
 	"math"
 	"regexp"
 	"strings"
-	"unicode"
 	"unicode/utf8"
 
 	"github.com/xianxu/pair/cmd/internal/broadcast"
@@ -19,8 +18,8 @@ const (
 	// MaxNoteBody is the terminal notes' bound: a full note escaped as
 	// \uXXXX fits.
 	MaxNoteBody = broadcast.MaxNoteBody
-	// MaxNameRunes bounds a viewer's name.
-	MaxNameRunes = 40
+	// MaxNameRunes bounds a viewer's name: every cast's rule (pair#495).
+	MaxNameRunes = broadcast.MaxViewerNameRunes
 	// maxCoord bounds every coordinate, in CSS px: far past any page.
 	maxCoord = 1e6
 	// maxDT bounds a point's time after its chunk began, in ms.
@@ -191,22 +190,13 @@ func viewer(w *wireViewer) (Viewer, bool) {
 	}
 	v := Viewer{ID: *w.ID}
 	if w.Name != nil {
-		v.Name = strings.TrimSpace(*w.Name)
-		if utf8.RuneCountInString(v.Name) > MaxNameRunes || !nameText(v.Name) {
+		name, ok := broadcast.ViewerName(*w.Name)
+		if !ok {
 			return Viewer{}, false
 		}
+		v.Name = name
 	}
 	return v, true
-}
-
-// nameText: no control or format characters at all (a name is one line).
-func nameText(s string) bool {
-	for _, r := range s {
-		if unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
-			return false
-		}
-	}
-	return true
 }
 
 func segOK(s int) bool      { return s >= 1 && s <= math.MaxInt32 }

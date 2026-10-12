@@ -61,7 +61,9 @@ func lockedRoutes() []struct{ method, rest string } {
 		{http.MethodGet, "no-such-path"}, {http.MethodPut, ""}, {http.MethodDelete, "events"},
 	}
 	for rest := range assets {
-		if rest != "" {
+		// The lock page's own assets are served before a session; they are
+		// pure code (lockAssets), checked separately below.
+		if _, open := lockAssets[rest]; rest != "" && !open {
 			routes = append(routes, struct{ method, rest string }{http.MethodGet, rest})
 		}
 	}
@@ -107,7 +109,7 @@ func TestLockedLinksRefuseEveryRouteWithoutASession(t *testing.T) {
 			if status != http.StatusOK || !strings.Contains(body, `src="lock.js"`) || strings.Contains(body, "viewer.js") {
 				t.Errorf("GET link without a session: %d, lock page %v", status, strings.Contains(body, "lock.js"))
 			}
-			for _, a := range []string{"lock.js", "lock.css"} {
+			for a := range lockAssets {
 				if status, _, _ := do(t, bareClient(), http.MethodGet, link+a, "", "", cookie); status != http.StatusOK {
 					t.Errorf("%s: %d", a, status)
 				}

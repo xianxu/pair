@@ -13,7 +13,9 @@
 // terminal viewer's (served from broadcast.CollabJS; the file here is a
 // symlink, for the node tests).
 
-import { HEX_COLOR, pointerColor, colorStore, safeStorage, poster, sayer, railAt, renderSwatches, noteDialog } from './collab.js';
+import { HEX_COLOR, pointerColor, colorStore, safeStorage, poster, sayer, railAt, renderSwatches, noteDialog, validName, VIEWER_NAME_KEY, MAX_VIEWER_NAME } from './collab.js';
+
+export { validName };
 
 // CHUNK_MS is how often a stroke in progress is posted; MAX_POINTS caps a
 // chunk (the board's bound).
@@ -25,9 +27,9 @@ export const FADE_MS = 1500;
 // a tap.
 export const MIN_REGION = 8;
 
-const MAX_NAME = 40;
+const MAX_NAME = MAX_VIEWER_NAME;
 const ID_KEY = 'couch.viewerId';
-const NAME_KEY = 'couch.viewerName';
+const NAME_KEY = VIEWER_NAME_KEY;
 const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
 // randomID is 12 hex digits from the browser's CSPRNG.
@@ -62,13 +64,6 @@ export function identityStore(storage, crypto) {
   };
 }
 
-// validName is a name the board takes, trimmed, or '' for none.
-export function validName(v) {
-  const n = String(v).trim();
-  // The board's predicate (wire.go nameText): no control or format
-  // character, at most MAX_NAME characters.
-  return [...n].length <= MAX_NAME && !/[\p{Cc}\p{Cf}]/u.test(n) ? n : '';
-}
 
 // chunker collects one stroke's points ([x, y] in page px, at ms) and cuts
 // them into posts: each at most MAX_POINTS, every point [x, y, ms after the
@@ -267,7 +262,7 @@ export const MODE_TIPS = {
 export async function mountAnnotate(doc, win, v) {
   let palette;
   try {
-    const r = await win.fetch('palette.json', { credentials: 'omit', cache: 'no-store' });
+    const r = await win.fetch('palette.json', { credentials: 'same-origin', cache: 'no-store' });
     palette = r.ok ? await r.json() : null;
   } catch { palette = null; }
   if (!Array.isArray(palette) || !palette.length || !palette.every((c) => typeof c === 'string' && HEX_COLOR.test(c))) return null;

@@ -547,3 +547,16 @@ func TestNotesMenuDragStaysTheMenus(t *testing.T) {
 		t.Fatal("after the release, motion outside goes on")
 	}
 }
+
+// pair#495: the menu names a screen note's author like a web note's; the
+// board keeps the plain text a click copies.
+func TestScreenNotesShowTheirAuthorInTheMenu(t *testing.T) {
+	notes := []broadcast.Note{{ID: 1, Text: "fix this", Author: "Ada"}, {ID: 2, Text: "anon"}}
+	got := withAuthors(notes)
+	if got[0].Text != "Ada: fix this" || got[1].Text != "anon" {
+		t.Fatalf("menu texts %q %q", got[0].Text, got[1].Text)
+	}
+	if notes[0].Text != "fix this" {
+		t.Fatal("the board's note was changed")
+	}
+}

@@ -64,11 +64,17 @@ type Config struct {
 	OnCodeRotated func(link string, r castlock.Rotation)
 }
 
-// The links a broadcast locks, by the label Codes reports.
+// The links a cast locks, by the label Codes reports: a screen broadcast's
+// view and pointer links, a web cast's view and drive links.
 const (
 	LinkView    = "view"
 	LinkPointer = "pointer"
+	LinkDrive   = "drive"
 )
+
+// DriveCodeDigits is the drive link's code length: it controls the
+// operator's browser, so it is harder to guess than a view code.
+const DriveCodeDigits = 6
 
 // LinkCode is one link's current code. It is a second factor, not a link:
 // Couch shows it to the operator only, never on the broadcast frame.

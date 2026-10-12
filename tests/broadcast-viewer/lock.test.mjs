@@ -14,10 +14,13 @@ test('a code rides the fragment; anything else is ignored', () => {
   }
 });
 
-test('a name is trimmed, collapsed and bounded', () => {
+test('a name is trimmed and collapsed, and must pass the board’s rule', () => {
   assert.equal(cleanName('  Ada   Lovelace '), 'Ada Lovelace');
   assert.equal(cleanName(''), '');
-  assert.equal(cleanName('x'.repeat(100)).length, MAX_NAME);
+  assert.equal(cleanName('x'.repeat(MAX_NAME)), 'x'.repeat(MAX_NAME));
+  assert.equal(cleanName('x'.repeat(MAX_NAME + 1)), '', 'too long is refused, not cut');
+  assert.equal(cleanName('A\nB'), '', 'one line');
+  assert.equal(cleanName('A\u200bB'), '', 'no format characters');
 });
 
 function answering(status, body) {

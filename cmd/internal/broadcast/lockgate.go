@@ -32,8 +32,10 @@ const (
 
 // lockAssets is everything a locked link serves before a session.
 var lockAssets = map[string]asset{
-	"lock.js":  {"web/lock.js", "text/javascript; charset=utf-8"},
-	"lock.css": {"web/lock.css", "text/css; charset=utf-8"},
+	"lock.js": {"web/lock.js", "text/javascript; charset=utf-8"},
+	// The module lock.js imports (the shared name rule); pure code, no data.
+	"collab.js": {"web/collab.js", "text/javascript; charset=utf-8"},
+	"lock.css":  {"web/lock.css", "text/css; charset=utf-8"},
 }
 
 // Refusals the lock page shows; fixed text that never echoes the request.

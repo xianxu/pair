@@ -7,8 +7,10 @@
 // key the web viewer's notes already read (couch.viewerName), so neither page
 // asks again.
 
-export const NAME_KEY = 'couch.viewerName';
-export const MAX_NAME = 40;
+import { VIEWER_NAME_KEY, MAX_VIEWER_NAME, validName } from './collab.js';
+
+export const NAME_KEY = VIEWER_NAME_KEY;
+export const MAX_NAME = MAX_VIEWER_NAME;
 
 // codeFromFragment reads a code carried as URL#NNNN. Browsers never send the
 // fragment, and link-preview fetchers don't run this script.
@@ -17,8 +19,10 @@ export function codeFromFragment(hash) {
   return m ? m[1].replace(/[ -]/g, '') : '';
 }
 
+// cleanName is the name as the board will take it: runs of spaces become one,
+// and it must pass the shared rule (validName), or it is ''.
 export function cleanName(name) {
-  return String(name || '').replace(/\s+/g, ' ').trim().slice(0, MAX_NAME);
+  return validName(String(name || '').replace(/[ \t]+/g, ' '));
 }
 
 // unlock posts one attempt and reports {ok, error}.
@@ -63,7 +67,7 @@ function start() {
   async function submit() {
     const who = cleanName(name.value);
     if (!code.value.trim()) { message.textContent = 'Enter the code the host gave you.'; code.focus(); return; }
-    if (!who) { message.textContent = 'Add your name.'; name.focus(); return; }
+    if (!who) { message.textContent = 'Add your name: plain, at most 40 characters.'; name.focus(); return; }
     button.disabled = true;
     message.textContent = '';
     const result = await unlock(fetch, code.value);

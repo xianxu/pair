@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"strings"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -39,12 +40,34 @@ var (
 // counts it, and the 💭's chip and glow are drawn in it (M3). At is when it
 // was saved, which sets its flash phase; it isn't sent to pages.
 type Note struct {
-	ID    int       `json:"id"`
-	Col   int       `json:"col"`
-	Row   int       `json:"row"`
-	Color int       `json:"color"`
-	Text  string    `json:"text"`
-	At    time.Time `json:"-"`
+	ID    int    `json:"id"`
+	Col   int    `json:"col"`
+	Row   int    `json:"row"`
+	Color int    `json:"color"`
+	Text  string `json:"text"`
+	// Author is the name the viewer gave the lock page (pair#495); "" when
+	// none was sent. It is attribution, not authentication.
+	Author string    `json:"author,omitempty"`
+	At     time.Time `json:"-"`
+}
+
+// MaxViewerNameRunes bounds a viewer's name on every cast; web/collab.js's
+// validName is the same rule, for the pages.
+const MaxViewerNameRunes = 40
+
+// ViewerName is a viewer's name as every cast takes it: trimmed, one line of
+// plain text (no control or format character), at most MaxViewerNameRunes.
+func ViewerName(s string) (string, bool) {
+	s = strings.TrimSpace(s)
+	if utf8.RuneCountInString(s) > MaxViewerNameRunes {
+		return "", false
+	}
+	for _, r := range s {
+		if unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
+			return "", false
+		}
+	}
+	return s, true
 }
 
 // NoteBoard is a broadcast's open notes. Pure: the caller owns locking.
@@ -103,12 +126,13 @@ type NoteRequest struct {
 // text. Its errors are fixed values that never echo the input.
 func ParseNote(body []byte) (NoteRequest, error) {
 	var raw struct {
-		Cols  *int    `json:"cols"`
-		Rows  *int    `json:"rows"`
-		Col   *int    `json:"col"`
-		Row   *int    `json:"row"`
-		Color *int    `json:"color"`
-		Text  *string `json:"text"`
+		Cols   *int    `json:"cols"`
+		Rows   *int    `json:"rows"`
+		Col    *int    `json:"col"`
+		Row    *int    `json:"row"`
+		Color  *int    `json:"color"`
+		Text   *string `json:"text"`
+		Author *string `json:"author"` // optional (pair#495)
 	}
 	// The decoder would turn invalid UTF-8 into U+FFFD; refuse it instead.
 	if !utf8.Valid(body) || !DecodeStrict(body, &raw) {
@@ -125,6 +149,13 @@ func ParseNote(body []byte) (NoteRequest, error) {
 	}
 	if !PlainText(n.Text) {
 		return NoteRequest{}, ErrNoteText
+	}
+	if raw.Author != nil {
+		name, ok := ViewerName(*raw.Author)
+		if !ok {
+			return NoteRequest{}, ErrNoteText
+		}
+		n.Author = name
 	}
 	return NoteRequest{Cols: cols, Rows: rows, Note: n}, nil
 }

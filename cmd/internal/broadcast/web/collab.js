@@ -88,6 +88,19 @@ export async function sessionLost(fetchFn) {
   }
 }
 
+// A viewer's name, as every cast page keeps it (pair#495): the lock page
+// asks it with the code, and the web viewer's notes carry it. One key and one
+// rule, the board's (webcast/board wire.go nameText): plain, one line, at
+// most MAX_VIEWER_NAME characters.
+export const VIEWER_NAME_KEY = 'couch.viewerName';
+export const MAX_VIEWER_NAME = 40;
+
+// validName is a name the board takes, trimmed, or '' for none.
+export function validName(v) {
+  const n = String(v).trim();
+  return [...n].length <= MAX_VIEWER_NAME && !/[\p{Cc}\p{Cf}]/u.test(n) ? n : '';
+}
+
 // RAIL_INSET is the gap between the rail and the screen's right edge.
 export const RAIL_INSET = 6;
 

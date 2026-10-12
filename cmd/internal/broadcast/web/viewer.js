@@ -5,7 +5,7 @@
 // pick (#446).
 
 import { noteAt, noteCell, guardedCell, parseNotes } from './notes.js';
-import { HEX_COLOR, pointerColor, colorStore, railAt, renderSwatches, noteDialog, poster, sessionLost } from './collab.js';
+import { HEX_COLOR, pointerColor, colorStore, railAt, renderSwatches, noteDialog, poster, sessionLost, validName, VIEWER_NAME_KEY } from './collab.js';
 
 export { pointerColor, colorStore, RAIL_INSET, railAt, renderSwatches } from './collab.js';
 
@@ -289,7 +289,16 @@ async function start() {
   const dialog = noteDialog({
     root: byId('note'), text: byId('note-text'), input: byId('note-input'), count: byId('note-count'),
     msg: byId('note-msg'), save: byId('note-save'), cancel: byId('note-cancel'), resolve: byId('note-resolve'),
-  }, { post: postJSON, color: () => pointer.color() });
+  }, {
+    post: postJSON,
+    color: () => pointer.color(),
+    // The name the lock page kept (pair#495) attributes the note.
+    beforeSave: () => {
+      let name = '';
+      try { name = validName(storage?.getItem(VIEWER_NAME_KEY) || ''); } catch { /* none */ }
+      return name ? { author: name } : {};
+    },
+  });
   pointer = pointerMode(term, stage, {
     notes: () => notes,
     dialog,

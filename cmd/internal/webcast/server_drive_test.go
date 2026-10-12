@@ -191,7 +191,7 @@ func TestDriveSeatFollowsItsStream(t *testing.T) {
 	viewer, key := f.hello(t, "Ana")
 	ctx, cancel := context.WithCancel(context.Background())
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/drv/events?viewer="+viewer, nil)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := castClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -316,7 +316,7 @@ func TestDriveOnlyUnderTheDriveLink(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/tok/events?viewer="+viewer, nil)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := castClient.Do(req)
 	if err != nil || resp.StatusCode != http.StatusOK {
 		t.Fatalf("watching by the view link: %v %v", resp, err)
 	}
