@@ -101,13 +101,18 @@ type (
 	FrameAttached struct{ Session, Parent, FrameID string }
 	// Detached: a session went away.
 	Detached struct{ Session string }
-	// Emit is a record made outside the recorder (#467's ctl and injected
+	// Emit is a record made outside the recorder, of a kind in emittable (#467's ctl and injected
 	// actions, #470's notes and strokes): stamped with its arrival, applied
 	// through the recorder's reducer (refused, and counted, if invalid) and
 	// written in queue order, so the stream keeps one writer. Dropped before
 	// the first go-live: there is no recording yet.
 	Emit struct{ Record rec.Record }
 )
+
+// emittable: the kinds made outside the recorder. Everything else (the
+// page's DOM and state, segments, assets) is the recorder's own: a new kind
+// is refused until it is listed here.
+var emittable = map[string]bool{"note": true, "note-state": true, "stroke": true, "ctl": true}
 
 // side-worker results and queries, internal inputs.
 type (
@@ -490,7 +495,14 @@ func (r *Recorder) handle(in stamped) {
 			r.observe(v.Session, true)
 		}
 	case Emit:
-		if r.opened && v.Record != nil {
+		switch {
+		case !r.opened || v.Record == nil:
+		case !emittable[v.Record.Kind()]:
+			// A page record from outside would part the mirror from its
+			// reducer: refused, and counted.
+			r.m.Dropped[v.Record.Kind()]++
+			r.m.note(fmt.Sprintf("emit: kind %s is the recorder's own", v.Record.Kind()))
+		default:
 			r.m.Emit(r.t(in.at), v.Record)
 		}
 	case Detached:

@@ -77,6 +77,7 @@ Durable plan: `workshop/plans/000458-broadcast-web-recorder-cdp-dom-stream-per-f
 ## Log
 
 ### 2026-10-12 — M3 fidelity (median / max % of pixels differing from the real tab)
+- 2026-10-12: closed — Done-when met: casting the blog post and #453 stress page (served from testdata) with the real recorder yields recordings ValidateDir accepts and the reducer rebuilds, 0 dropped/desync/lost; fidelity (pixelmatch 0.1, halved viewport, 50ms offsets) stress 0.10/0.12 (prototype fixture 0.65/0.75, #453 report 0.3/1.8), blog 0.05/3.07 (prototype fixture 0.11/2.94); unit tests on stateful fake CDP (property, fuzz, ordering, paths, regressions), WEBCAST_LIVE_CHROME=1 -run Live green on headless Chrome; make -k test: only failures the pre-existing couchtty TestCollaborationTimersRearmAndTearDown flake (also flakes on origin/main) and artifactpath (fixed); test-changelog green; review verdict: FIX-THEN-SHIP
 - 2026-10-12: closed M3 — round 3: BR-32 LowRes clamps to >=1 source px per output px (TestLowResAnyDPR 0..3); BR-24 one fetch per URL per recording, first claimant wins incl. responses (TestRecorderLateResponseDoesntRefetch, both-order test), srcset/picture/lazy images never loaded from refs; atlas states frame.scale and the ownership rule; fidelity Pick/Summarize pure + tested; stress from testdata 0.10/0.12; go test webcast/... green; live suite green; review verdict: SHIP
 
 Tool: `recorder/internal/fidelity` renders the reduced state at each screenshot's time in headless Chrome (assets through

@@ -3,6 +3,8 @@ package webcast
 import (
 	"context"
 	"fmt"
+	"io"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -10,6 +12,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/broadcast"
+	castassets "github.com/xianxu/pair/cmd/internal/webcast/assets"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
@@ -27,6 +30,9 @@ func TestCastRecordsToDirAndViewers(t *testing.T) {
 		Ping:          time.Second,
 		RecordingsDir: dir,
 		Logf:          func(format string, args ...any) { logged = append(logged, fmt.Sprintf(format, args...)) },
+		NewAssets: func(w recording.AssetWriter) castassets.Served {
+			return castassets.NewRecorded(w, castassets.DefaultPolicy)
+		},
 		NewLive: func() (recording.Sink, recording.Live) {
 			h := recording.NewHub(256)
 			return h, h
@@ -56,10 +62,23 @@ func TestCastRecordsToDirAndViewers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The contract recording's one asset body, as the asset store would
-	// persist it through the DirWriter.
-	if _, err := o.Frames.(*recording.DirWriter).PutAsset([]byte("a")); err != nil {
+	// The contract recording's one asset body, put through the recording's
+	// store, which the cast's proxy now serves to viewers (#459).
+	if o.Assets == nil {
+		t.Fatal("no asset store for the recording")
+	}
+	a, err := o.Assets.Put(context.Background(), castassets.Capture{URL: "http://x/a.png", MIME: "image/png", Body: []byte("a")})
+	if err != nil {
 		t.Fatal(err)
+	}
+	resp, err := http.Get(srv.URL + "/" + c.token + "/assets/" + a.Hash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != 200 || string(body) != "a" {
+		t.Fatalf("proxy: %d %q", resp.StatusCode, body)
 	}
 	recs := recording.ContractRecording(3)
 	if err := (recording.FakeRecorder{Records: recs}).Run(context.Background(), o.Sink); err != nil {

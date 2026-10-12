@@ -398,6 +398,9 @@ couch --peek repo:N[:M...][,repo:N...] [--lines N] [--json] [--transcripts]
 couch --archived         threads removed from couch, with their records kept
 couch --actors [--json]  live peer-message receivers in this Couch namespace
 couch --broadcast-list [--json]   the running broadcast and its viewer count (never the link)
+couch --broadcast-web-query DIR dom|events|notes ...
+                         read-only: a broadcast-web recording's page at t, what happened in a window,
+                         and every note with its element and the actions before it (pair#462)
 couch --session-sync read|write|diff|status ... FILE
                          the one way an agent changes a session-sync file it owns: refuses under the
                          operator's lock or when the section changed since `read` (write --if-hash), and
@@ -856,6 +859,12 @@ dies with the broadcast.
 running and how many viewers are watching: its state, start time, mode and
 viewer count. It never prints the link or its token, because the token is the
 broadcast's only credential.
+
+`couch --broadcast-web-query DIR dom|events|notes` reads a broadcast-web
+recording directory for a coding agent: the page at a moment, what happened
+in a window, and every note with its element, focused context and the actions
+just before it. It needs no running Couch; `couch --broadcast-web-query` alone
+prints its usage. See [atlas/webcast-format.md](atlas/webcast-format.md#agent-queries-462).
 
 Broadcasts reach viewers through [`cloudflared`](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/)
 (`brew install cloudflared`):

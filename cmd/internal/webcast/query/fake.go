@@ -38,8 +38,8 @@ func (f FakeSurface) DOMAt(t int64, selector string) (string, error) {
 }
 
 func (f FakeSurface) Events(t1, t2 int64) ([]recording.Record, error) {
-	if t2 < t1 {
-		return nil, fmt.Errorf("query: window %d..%d is empty", t1, t2)
+	if err := checkWindow(t1, t2); err != nil {
+		return nil, err
 	}
 	var out []recording.Record
 	for _, r := range f.Records {
@@ -51,6 +51,13 @@ func (f FakeSurface) Events(t1, t2 int64) ([]recording.Record, error) {
 }
 
 func (f FakeSurface) Notes(before int64) ([]NoteView, error) {
+	if len(f.Records) == 0 {
+		return nil, nil
+	}
+	final, err := recording.Reduce(f.Records, f.Records[len(f.Records)-1].Time())
+	if err != nil {
+		return nil, err
+	}
 	var out []NoteView
 	for i, r := range f.Records {
 		n, ok := r.(*recording.Note)
@@ -62,6 +69,11 @@ func (f FakeSurface) Notes(before int64) ([]NoteView, error) {
 			return nil, err
 		}
 		v := NoteView{Note: st.Notes[len(st.Notes)-1]}
+		for _, fn := range final.Notes { // its state now, not at its making
+			if fn.ID == n.ID {
+				v.Note.State = fn.State
+			}
+		}
 		if el := st.Node(n.At.Node); el != nil {
 			v.Element = Outline(el)
 			if v.Context, err = f.Model.Context(st, n.At); err != nil {

@@ -693,6 +693,13 @@ var NonArtifactSources = []string{
 	"cmd/internal/webcast/assets/contract.go",
 	"cmd/internal/webcast/assets/fake.go",
 	"cmd/internal/webcast/assets/store.go",
+	// #459 asset store and proxy: Recorded writes bodies only through the
+	// recording's DirWriter (assets/<hash> in the recording directory, removed
+	// with it); css.go and image.go are pure; Proxy serves over HTTP.
+	"cmd/internal/webcast/assets/css.go",
+	"cmd/internal/webcast/assets/image.go",
+	"cmd/internal/webcast/assets/proxy.go",
+	"cmd/internal/webcast/assets/recorded.go",
 	"cmd/internal/webcast/notes/contract.go",
 	"cmd/internal/webcast/notes/fake.go",
 	"cmd/internal/webcast/notes/model.go",
@@ -701,8 +708,15 @@ var NonArtifactSources = []string{
 	"cmd/internal/webcast/notes/landmark.go",
 	"cmd/internal/webcast/notes/selector.go",
 	"cmd/internal/webcast/notes/structural.go",
+	// #462 agent queries: read a recording directory the caller names
+	// (couch --broadcast-web-query DIR) and write only to stdout.
+	"cmd/internal/webcast/query/cli.go",
 	"cmd/internal/webcast/query/contract.go",
+	"cmd/internal/webcast/query/events.go",
 	"cmd/internal/webcast/query/fake.go",
+	"cmd/internal/webcast/query/querier.go",
+	"cmd/internal/webcast/query/render.go",
+	"cmd/internal/webcast/query/selector.go",
 	"cmd/internal/webcast/query/surface.go",
 	"cmd/internal/webcast/recording/builder.go",
 	"cmd/internal/webcast/recording/canonical.go",

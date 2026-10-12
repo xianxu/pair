@@ -311,3 +311,35 @@ func TestOtherEventsAreBoundedAndCounted(t *testing.T) {
 		t.Fatalf("stats %+v (%s)", st, st.Losses())
 	}
 }
+
+// BR-14: children replaced again and again (setChildNodes) go to the
+// graveyard, so the id map stays bounded however long the page runs.
+func TestSetChildNodesKeepsTheIDMapBounded(t *testing.T) {
+	old := graveSize
+	graveSize = 50
+	t.Cleanup(func() { graveSize = old })
+	p := newFakePage("http://x/")
+	m := start(t, p)
+	for round := 0; round < 10; round++ {
+		var kids []any
+		for i := 0; i < 30; i++ {
+			kids = append(kids, p.cdp(p.el("li")))
+		}
+		feed(t, m, int64(round), []fevent{{"DOM.setChildNodes", raw(map[string]any{"parentId": p.body().nodeID, "nodes": kids})}})
+	}
+	if s := m.sessions[sess]; len(s.ids) > len(s.byBackend)+graveSize {
+		t.Fatalf("id map %d entries for %d live nodes (bound %d)", len(s.ids), len(s.byBackend), graveSize)
+	}
+}
+
+// BR-31: an asset dropped on a full queue gives its URL up, so a later
+// sighting tries again rather than being taken as fetched.
+func TestDroppedAssetIsTriedAgain(t *testing.T) {
+	r := &Recorder{assetQ: make(chan assetJob), owned: map[string]bool{}, pending: map[string]pendingRef{},
+		assets: assets.NewMemStore(), m: newMirror()}
+	r.queueAsset(assetJob{url: "http://a/x.png", load: true}) // no worker: the queue is full
+	r.queueAsset(assetJob{url: "http://a/x.png", load: true})
+	if r.assetsLost != 2 || r.owned["http://a/x.png"] {
+		t.Fatalf("lost %d, owned %v", r.assetsLost, r.owned)
+	}
+}

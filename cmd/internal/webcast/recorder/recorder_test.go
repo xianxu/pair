@@ -379,6 +379,7 @@ func TestRecorderEmit(t *testing.T) {
 	top := h.id("A", h.fc.pages["A"].doc.backend)
 	h.r.Send(Emit{Record: &rec.Note{ID: "n1", Author: rec.Author{ID: "v"}, At: rec.NoteAt{Node: top}}})
 	h.r.Send(Emit{Record: &rec.NoteState{ID: "nobody", State: rec.NoteResolved}}) // refused: no such note
+	h.r.Send(Emit{Record: &rec.Rm{ID: top}})                                      // refused: the recorder's own kind
 	h.settle()
 	if got := h.kinds(); got != "head seg:live doc note" {
 		t.Fatalf("records %s", got)
@@ -387,7 +388,7 @@ func TestRecorderEmit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if st.Dropped["note-state"] != 1 {
+	if st.Dropped["note-state"] != 1 || st.Dropped["rm"] != 1 {
 		t.Fatalf("stats %+v", st)
 	}
 }

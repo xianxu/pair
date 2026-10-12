@@ -3,6 +3,7 @@ package fidelity
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -12,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/webcast"
+	"github.com/xianxu/pair/cmd/internal/webcast/recorder"
 	rec "github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
@@ -145,5 +147,47 @@ func TestPickAndSummarize(t *testing.T) {
 	}
 	if got := Summarize([]Shot{none}); got.Skipped != 1 || len(got.Shots) != 0 {
 		t.Fatalf("all skipped: %+v", got)
+	}
+}
+
+func TestReplayDPR(t *testing.T) {
+	for scale, want := range map[float64]float64{0.5: 1, 0.25: 2, 1: 0.5, 0: 1} {
+		if got := ReplayDPR(scale); got != want {
+			t.Errorf("scale %v: %v, want %v", scale, got, want)
+		}
+	}
+	// A frame at scale 1/3 (a DPR 1/3 cast, not upsampled): LowRes at
+	// ReplayDPR makes a DPR-1 replay of a 300×150 viewport 100×50.
+	var img bytes.Buffer
+	png.Encode(&img, image.NewRGBA(image.Rect(0, 0, 300, 150)))
+	if _, w, h, err := recorder.LowRes(img.Bytes(), ReplayDPR(1.0/3)); err != nil || w != 100 || h != 50 {
+		t.Fatalf("%dx%d %v", w, h, err)
+	}
+}
+
+func TestScrollJSReachesFramesAndShadowRoots(t *testing.T) {
+	b := rec.NewBuilder("s")
+	frameDoc := rec.Node{ID: b.ID(), Y: rec.YDoc, C: []rec.Node{b.El("html", nil, b.El("body", nil))}}
+	host := b.El("div", nil)
+	inner := b.El("div", []string{"style", "overflow:auto"})
+	host.SR = &rec.Node{ID: b.ID(), Y: rec.YShadow, Mode: "closed", C: []rec.Node{inner}}
+	ifr := b.El("iframe", nil)
+	doc := b.Page(rec.SegLive, "http://x/", host, ifr)
+	b.Add(&rec.Doc{Doc: frameDoc.ID, Host: ifr.ID, URL: "http://y/", Tree: frameDoc})
+	b.Add(&rec.Scroll{ID: doc.ID, Y: 10}).Add(&rec.Scroll{ID: inner.ID, Y: 20}).Add(&rec.Scroll{ID: frameDoc.ID, Y: 30})
+	st, err := rec.Reduce(b.Recs, 1<<62)
+	if err != nil {
+		t.Fatal(err)
+	}
+	js := ScrollJS(st)
+	for _, want := range []string{"to(window, 0, 10);", fmt.Sprintf("to(find(document, %d), 0, 20);", inner.ID),
+		fmt.Sprintf("const f = find(document, %d); to(f && f.contentWindow, 0, 30);", ifr.ID), "n.shadowRoot", "n.contentDocument"} {
+		if !strings.Contains(js, want) {
+			t.Errorf("script lacks %s:\n%s", want, js)
+		}
+	}
+	// The closed root renders open, so the replay can reach its scroller.
+	if !strings.Contains(Render(st), `<template shadowrootmode="open">`) {
+		t.Error("a closed root must render open")
 	}
 }

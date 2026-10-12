@@ -8,6 +8,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/broadcast"
 	"github.com/xianxu/pair/cmd/internal/webcast"
+	"github.com/xianxu/pair/cmd/internal/webcast/assets"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
@@ -32,6 +33,8 @@ func webcastSettings(getenv func(string) string, store string, host *broadcast.H
 	if store != "" {
 		cfg.RecordingsDir = filepath.Join(store, "webcast", "recordings")
 		// The viewers' fan-out (#460's hub), one per cast.
+		// The recording's asset store (#459), persisting through its DirWriter.
+		cfg.NewAssets = func(w recording.AssetWriter) assets.Served { return assets.NewRecorded(w, assets.DefaultPolicy) }
 		cfg.NewLive = func() (recording.Sink, recording.Live) {
 			h := recording.NewHub(liveBuffer)
 			return h, h

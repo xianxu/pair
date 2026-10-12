@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/broadcast"
+	castassets "github.com/xianxu/pair/cmd/internal/webcast/assets"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
@@ -38,11 +39,12 @@ const endedReason = "ended"
 // Server is the viewer endpoint: GET only, under the cast's token, serving
 // the viewer and an event stream of the cast's state ("state", "end") and,
 // with a Live, of its recording ("rec": each record line, the catch-up
-// first, #460).
+// first, #460), and the recording's asset bodies at assets/<hash> (#459).
 type Server struct {
 	token      string
 	browser    Browser
 	live       recording.Live
+	proxy      *castassets.Proxy
 	presence   Presence
 	ping       time.Duration
 	maxViewers int32
@@ -62,8 +64,13 @@ func NewServer(token string, b Browser, ping time.Duration, live recording.Live,
 	if ping <= 0 {
 		ping = broadcast.DefaultPing
 	}
-	return &Server{token: token, browser: b, live: live, presence: presence, ping: ping, maxViewers: broadcast.DefaultMaxViewers}
+	return &Server{token: token, browser: b, live: live, presence: presence, ping: ping, maxViewers: broadcast.DefaultMaxViewers, proxy: castassets.NewProxy()}
 }
+
+// Assets is the cast's asset proxy. The cast is to bind the recording's
+// store to it when the recording opens; that wiring lands with #458's
+// recorder, and until then the proxy answers 404.
+func (s *Server) Assets() *castassets.Proxy { return s.proxy }
 
 // Owns is the Host's routing: this cast answers only its token.
 func (s *Server) Owns(segment string) bool { return broadcast.OwnsToken(segment, s.token) }
@@ -82,6 +89,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if rest == "events" {
 		s.events(w, r)
+		return
+	}
+	if hash, ok := strings.CutPrefix(rest, "assets/"); ok {
+		s.proxy.Serve(w, r, hash)
 		return
 	}
 	a, ok := assets[rest]

@@ -1,0 +1,22 @@
+[
+  {"name": "bare url", "css": "a{background:url(a.png)}", "base": "http://x/p/", "urls": ["http://x/p/a.png"]},
+  {"name": "quoted url with spaces", "css": "a{background:url( \"../a.png\" )}", "base": "http://x/p/", "urls": ["http://x/a.png"]},
+  {"name": "single-quoted url", "css": "@font-face{src:url('f/b.woff2') format('woff2')}", "base": "http://x/", "urls": ["http://x/f/b.woff2"]},
+  {"name": "upper-case URL(", "css": "a{background:URL(a.png)}", "base": "http://x/", "urls": ["http://x/a.png"]},
+  {"name": "import string", "css": "@import \"i.css\";", "base": "http://x/", "urls": ["http://x/i.css"]},
+  {"name": "import url", "css": "@import url(i.css) screen;", "base": "http://x/", "urls": ["http://x/i.css"]},
+  {"name": "image-set strings and url", "css": "a{background-image:image-set(\"a.png\" 1x, url(b.png) 2x)}", "base": "http://x/", "urls": ["http://x/a.png", "http://x/b.png"]},
+  {"name": "webkit image-set", "css": "a{background-image:-webkit-image-set('c.png' 1x)}", "base": "http://x/", "urls": ["http://x/c.png"]},
+  {"name": "image-set type() is not a URL", "css": "a{background-image:image-set(\"a.avif\" type(\"image/avif\"), \"a.png\" type(\"image/png\"))}", "base": "http://x/", "urls": ["http://x/a.avif", "http://x/a.png"]},
+  {"name": "plain strings elsewhere are not URLs", "css": "a::before{content:\"a.png\";font-family:\"Inter\"}", "base": "http://x/", "urls": []},
+  {"name": "data and fragments are kept", "css": "a{background:url(data:image/png;base64,AAAA)} b{filter:url(#f)} c{background:url()}", "base": "http://x/", "urls": []},
+  {"name": "absolute stays absolute", "css": "body{background:url(http://y/bg.png)}", "base": "http://x/", "urls": ["http://y/bg.png"]},
+  {"name": "several in one rule", "css": "a{background:url(a.png),url(\"b.png\")}", "base": "http://x/d/", "urls": ["http://x/d/a.png", "http://x/d/b.png"]},
+  {"name": "comments are passed over, apostrophes and all", "css": "/* url(c.png) don't @import \"x.css\"; image-set(\"y.png\" 1x) */ a{background:url(a.png)}", "base": "http://x/", "urls": ["http://x/a.png"]},
+  {"name": "an unterminated comment runs to the end", "css": "a{background:url(a.png)} /* url(b.png)", "base": "http://x/", "urls": ["http://x/a.png"]},
+  {"name": "url( inside a string is not a URL", "css": "a::before{content:\"url(no.png)\"} b{background:url(yes.png)}", "base": "http://x/", "urls": ["http://x/yes.png"]},
+  {"name": "a longer name ending in url( is not url(", "css": "a{x:myurl(no.png);y:-x-url(no2.png);z:url(yes.png)}", "base": "http://x/", "urls": ["http://x/yes.png"]},
+  {"name": "a longer name ending in image-set( is not image-set(", "css": "a{x:my-image-set(\"no.png\")}", "base": "http://x/", "urls": []},
+  {"name": "comment inside image-set", "css": "a{b:image-set(/* \"no.png\" */ \"yes.png\" 1x)}", "base": "http://x/", "urls": ["http://x/yes.png"]},
+  {"name": "escaped quote in a quoted URL", "css": "a{background:url(\"a\\\"b.png\")}", "base": "http://x/", "urls": ["http://x/a%22b.png"]}
+]

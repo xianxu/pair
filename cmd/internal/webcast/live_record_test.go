@@ -16,24 +16,6 @@ import (
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
-// diskStore is a test asset store: MemStore's binding, bodies persisted
-// through the recording's DirWriter as #459's store will.
-type diskStore struct {
-	*castassets.MemStore
-	w recording.AssetWriter
-}
-
-func (d diskStore) Put(ctx context.Context, c castassets.Capture) (*recording.Asset, error) {
-	a, err := d.MemStore.Put(ctx, c)
-	if err != nil {
-		return nil, err
-	}
-	if _, err := d.w.PutAsset(c.Body); err != nil {
-		return nil, err
-	}
-	return a, nil
-}
-
 // recPage is the live check's page: re-renders, open and closed shadow
 // roots, a cross-origin iframe, insertRule and a CSSOM-only <style>, a
 // <style> over CDP's 10k cut, form state set by script, a password, inner
@@ -121,7 +103,7 @@ func liveRecordingChrome(t *testing.T, dir string) *Chrome {
 		if err != nil {
 			return recorder.Opened{}, err
 		}
-		return recorder.Opened{Sink: w, Frames: w, Assets: diskStore{castassets.NewMemStore(), w}}, nil
+		return recorder.Opened{Sink: w, Frames: w, Assets: castassets.NewRecorded(w, castassets.DefaultPolicy)}, nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

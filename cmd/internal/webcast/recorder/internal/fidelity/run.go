@@ -323,35 +323,9 @@ func (b *browser) shoot(ctx context.Context, r *rec.Recording, st *rec.State, f 
 	case <-time.After(10 * time.Second):
 		return nil, errors.New("the replay didn't load")
 	}
-	// Scroll offsets, then a moment for fonts and images. Elements are found
-	// in the document, its srcdoc frames and their shadow roots (rendered
-	// open); a frame document's scroll is its iframe window's.
-	var js strings.Builder
-	js.WriteString(`(() => {
-const find = (root, rid) => {
-  const e = root.querySelector('[` + RIDAttr + `="' + rid + '"]');
-  if (e) return e;
-  for (const n of root.querySelectorAll('*')) {
-    const sub = (n.shadowRoot && find(n.shadowRoot, rid)) || (n.tagName === 'IFRAME' && n.contentDocument && find(n.contentDocument, rid));
-    if (sub) return sub;
-  }
-  return null;
-};
-const to = (target, x, y) => target && target.scrollTo({left: x, top: y, behavior: 'instant'});
-`)
-	for id, xy := range st.Scrolls {
-		n := st.Node(id)
-		switch {
-		case id == st.Top.ID:
-			fmt.Fprintf(&js, "to(window, %g, %g);", xy[0], xy[1])
-		case n != nil && n.Y == rec.YDoc && n.Host != nil:
-			fmt.Fprintf(&js, "{const f = find(document, %d); to(f && f.contentWindow, %g, %g);}", n.Host.ID, xy[0], xy[1])
-		default:
-			fmt.Fprintf(&js, "to(find(document, %d), %g, %g);", id, xy[0], xy[1])
-		}
-	}
-	js.WriteString("return [window.scrollX, window.scrollY]; })()")
-	if err := b.call(ctx, b.session, "Runtime.evaluate", map[string]any{"expression": js.String(), "returnByValue": true}, nil); err != nil {
+	// Scroll offsets, then a moment for fonts and images.
+	js := ScrollJS(st)
+	if err := b.call(ctx, b.session, "Runtime.evaluate", map[string]any{"expression": js, "returnByValue": true}, nil); err != nil {
 		return nil, err
 	}
 	time.Sleep(250 * time.Millisecond)
@@ -365,13 +339,7 @@ const to = (target, x, y) => target && target.scrollTo({left: x, top: y, behavio
 	if err != nil {
 		return nil, err
 	}
-	// The replay runs at DPR 1; it is scaled as the frame was (Frame.Scale
-	// is image px per CSS px), so the two are the same size.
-	scale := f.Scale
-	if scale <= 0 {
-		scale = 0.5
-	}
-	low, _, _, err := recorder.LowRes(full, 1/(2*scale))
+	low, _, _, err := recorder.LowRes(full, ReplayDPR(f.Scale))
 	return low, err
 }
 
@@ -382,4 +350,53 @@ func (b *browser) close() {
 		b.cmd.Wait()
 	}
 	os.RemoveAll(b.profile)
+}
+
+// ReplayDPR is the ratio to halve a DPR-1 replay by so it is the frame's
+// size: Frame.Scale (image px per CSS px) is the one source of that mapping.
+// LowRes halves per CSS px at a given DPR, so a replay at DPR 1 scaled to s
+// is LowRes at 1/(2s). An unset scale is the fixtures' 0.5.
+func ReplayDPR(scale float64) float64 {
+	if scale <= 0 {
+		scale = 0.5
+	}
+	return 1 / (2 * scale)
+}
+
+// ScrollJS is the script that restores a state's scroll offsets in the
+// replay. Elements are found in the document, its srcdoc frames and their
+// shadow roots (rendered open); a frame document's scroll is its iframe
+// window's; the top document's is the window's.
+func ScrollJS(st *rec.State) string {
+	var js strings.Builder
+	js.WriteString(`(() => {
+const find = (root, rid) => {
+  const e = root.querySelector('[` + RIDAttr + `="' + rid + '"]');
+  if (e) return e;
+  for (const n of root.querySelectorAll('*')) {
+    const sub = (n.shadowRoot && find(n.shadowRoot, rid)) || (n.tagName === 'IFRAME' && n.contentDocument && find(n.contentDocument, rid));
+    if (sub) return sub;
+  }
+  return null;
+};
+const to = (target, x, y) => target && target.scrollTo({left: x, top: y, behavior: 'instant'});
+`)
+	ids := make([]rec.NodeID, 0, len(st.Scrolls))
+	for id := range st.Scrolls {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	for _, id := range ids {
+		xy, n := st.Scrolls[id], st.Node(id)
+		switch {
+		case st.Top != nil && id == st.Top.ID:
+			fmt.Fprintf(&js, "to(window, %g, %g);\n", xy[0], xy[1])
+		case n != nil && n.Y == rec.YDoc && n.Host != nil:
+			fmt.Fprintf(&js, "{const f = find(document, %d); to(f && f.contentWindow, %g, %g);}\n", n.Host.ID, xy[0], xy[1])
+		default:
+			fmt.Fprintf(&js, "to(find(document, %d), %g, %g);\n", id, xy[0], xy[1])
+		}
+	}
+	js.WriteString("return [window.scrollX, window.scrollY]; })()")
+	return js.String()
 }

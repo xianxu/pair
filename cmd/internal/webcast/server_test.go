@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	castassets "github.com/xianxu/pair/cmd/internal/webcast/assets"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
@@ -100,6 +102,44 @@ func TestServerStreamsStateAndEnd(t *testing.T) {
 		t.Fatalf("end: %s %s", ev, data)
 	}
 }
+
+// TestServerAssets: <token>/assets/<hash> is the proxy's, empty until the
+// recording's store is bound, and only under this cast's token.
+func TestServerAssets(t *testing.T) {
+	s := NewServer("tok", NewFakeBrowser(), time.Second, nil, nil)
+	srv := httptest.NewServer(s)
+	t.Cleanup(srv.Close)
+	store := castassets.NewRecorded(&discardWriter{}, castassets.DefaultPolicy)
+	a, err := store.Put(context.Background(), castassets.Capture{URL: "http://x/f.woff2", MIME: "font/woff2", Body: []byte("wOF2")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	status := func(path string) (int, string) {
+		resp, err := http.Get(srv.URL + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		b, _ := io.ReadAll(resp.Body)
+		return resp.StatusCode, string(b)
+	}
+	if code, _ := status("/tok/assets/" + a.Hash); code != 404 {
+		t.Errorf("before the recording opens: %d", code)
+	}
+	s.Assets().Bind(store)
+	if code, body := status("/tok/assets/" + a.Hash); code != 200 || body != "wOF2" {
+		t.Errorf("bound: %d %q", code, body)
+	}
+	if code, _ := status("/other/assets/" + a.Hash); code != 404 {
+		t.Errorf("another token: %d", code)
+	}
+}
+
+// discardWriter is an AssetWriter that keeps nothing (the store then keeps
+// bodies itself).
+type discardWriter struct{}
+
+func (discardWriter) PutAsset(body []byte) (string, error) { return recording.HashOf(body), nil }
 
 func TestServerRoutes(t *testing.T) {
 	srv := httptest.NewServer(NewServer("tok", NewFakeBrowser(), time.Second, nil, nil))
@@ -222,7 +262,7 @@ type stubLive struct {
 }
 
 func (l *stubLive) Subscribe() (<-chan recording.Record, func()) { return l.recs, func() {} }
-func (l *stubLive) Ended(<-chan recording.Record) bool          { return l.ended }
+func (l *stubLive) Ended(<-chan recording.Record) bool           { return l.ended }
 
 // A viewer dropped as too slow has its stream ended, so it reconnects for
 // a fresh catch-up.

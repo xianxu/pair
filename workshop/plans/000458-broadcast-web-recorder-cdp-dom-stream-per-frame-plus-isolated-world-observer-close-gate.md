@@ -419,6 +419,58 @@ rounds:
       isolation: fenced
       reviewed: 8c5a8aba0e2ce469802f0c99132cf27114ce9e80
       blocked: false
+    - "n": 8
+      timestamp: "2026-10-12T03:04:32-07:00"
+      dispatched: "2026-10-12T03:01:59-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: reduce.go:327 now guards with n.N == "input" before withAttr builds its copy.
+          round: 8
+        - id: BR-2
+          disposition: not-addressed
+          note: query/surface.go:43 is unchanged and no decision on hover is recorded in the plan, issue or atlas.
+          round: 8
+        - id: BR-3
+          disposition: addressed
+          note: format_v1_additions_test.go:107-125 now checks the errors from Put, PutFrame, Close and WriteFile.
+          round: 8
+        - id: BR-14
+          disposition: not-addressed
+          note: Replacing both s.bury(old) calls (mirror.go:603 and 789) leaves the suite green; no step drops more than graveSize nodes via Resnapshot or setChildNodes.
+          round: 8
+        - id: BR-21
+          disposition: addressed
+          note: recorder.go:72-76 states both bounds; Send at line 237 refers to it.
+          round: 8
+        - id: BR-22
+          disposition: addressed
+          note: Burying before index in setChildNodes fails TestGraveyardKeepsLiveIDsAndBoundsTheMap (child 57 id 36 -> 116).
+          round: 8
+        - id: BR-30
+          disposition: not-addressed
+          note: The find() over srcdoc frames and shadow roots exists (run.go:326-351), but no test exercises it; TestFidelityFixtures is opt-in and has no fixture for these cases.
+          round: 8
+        - id: BR-31
+          disposition: not-addressed
+          note: Removing delete(r.owned, j.url) at side.go:78 leaves the recorder and fidelity suites green.
+          round: 8
+        - id: BR-34
+          disposition: not-addressed
+          note: run.go:368-374 and webcast-format.md:188 are corrected, but the scale-to-LowRes factor is inline in shoot() with no test; extract it as a pure function and test it at 0.5 and 0.33.
+          round: 8
+      findings:
+        - id: BR-35
+          severity: Minor
+          title: recorder.Emit accepts any record kind, so a structural record from outside desyncs the mirror from its reducer
+          detail: '2nd finding in family consumer-kind-classification. The rule: every place that consumes record kinds (UserAction, the kinds Emit accepts) classifies each kind explicitly, so a new kind forces a decision. recorder.go:492 applies any rec.Record. An external seg, doc, kids, rm or attr changes m.st but not the CDP tree, and the mirror''s later records are then refused. Fix: allowlist note, note-state, stroke and the #467 kinds, and count everything else as refused, with a test.'
+          family: consumer-kind-classification
+          round: 8
+      recipe: milestone-review
+      isolation: checkout
+      reviewed: 1f2b5b5d61fbd39465827b527eaf37ba51079d73
+      blocked: false
 ---
 
 # Gate ledger — pair#458 (boundary-review)
@@ -566,14 +618,30 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-34** [Minor] `css-px-contract` Below DPR 0.5, frame.scale is the DPR, but the atlas and the fidelity replay still assume 0.5
   3rd in family. The rule: Frame.Scale is the single source for the CSS-px to frame-px mapping, and every consumer reads it. Today webcast-format.md:188 says 0.5 whatever the DPR. fidelity run.go:351 always replays at LowRes(full,1), so a cast recorded at DPR under 0.5 has a different image size and DiffImages makes Run fail. Size the replay from f.Scale and correct the atlas.
 
+## Round 8 — 2026-10-12T03:04:32-07:00 (claude) — passed
+
+### Disposed
+
+- BR-1 — addressed — reduce.go:327 now guards with n.N == "input" before withAttr builds its copy.
+- BR-2 — not-addressed — query/surface.go:43 is unchanged and no decision on hover is recorded in the plan, issue or atlas.
+- BR-3 — addressed — format_v1_additions_test.go:107-125 now checks the errors from Put, PutFrame, Close and WriteFile.
+- BR-14 — not-addressed — Replacing both s.bury(old) calls (mirror.go:603 and 789) leaves the suite green; no step drops more than graveSize nodes via Resnapshot or setChildNodes.
+- BR-21 — addressed — recorder.go:72-76 states both bounds; Send at line 237 refers to it.
+- BR-22 — addressed — Burying before index in setChildNodes fails TestGraveyardKeepsLiveIDsAndBoundsTheMap (child 57 id 36 -> 116).
+- BR-30 — not-addressed — The find() over srcdoc frames and shadow roots exists (run.go:326-351), but no test exercises it; TestFidelityFixtures is opt-in and has no fixture for these cases.
+- BR-31 — not-addressed — Removing delete(r.owned, j.url) at side.go:78 leaves the recorder and fidelity suites green.
+- BR-34 — not-addressed — run.go:368-374 and webcast-format.md:188 are corrected, but the scale-to-LowRes factor is inline in shoot() with no test; extract it as a pure function and test it at 0.5 and 0.33.
+
+### Raised
+
+- **BR-35** [Minor] `consumer-kind-classification` recorder.Emit accepts any record kind, so a structural record from outside desyncs the mirror from its reducer
+  2nd finding in family consumer-kind-classification. The rule: every place that consumes record kinds (UserAction, the kinds Emit accepts) classifies each kind explicitly, so a new kind forces a decision. recorder.go:492 applies any rec.Record. An external seg, doc, kids, rm or attr changes m.st but not the CDP tree, and the mirror's later records are then refused. Fix: allowlist note, note-state, stroke and the #467 kinds, and count everything else as refused, with a test.
+
 ## Open findings
 
-- **BR-1** [Minor] `hot-path-allocation` withAttr copies the attribute map on every attr record, even for elements that aren't inputs (reduce.go:306)
 - **BR-2** [Minor] `consumer-kind-classification` query.UserAction leaves out the new Hover kind with no recorded decision
-- **BR-3** [Minor] `test-ignores-setup-errors` TestValidateDirReportsStrayFrameFiles discards the errors from Put, PutFrame, Close and WriteFile
 - **BR-14** [Minor] `id-map-bound` PQ-6 bound not held: setChildNodes and Resnapshot forget nodes without burying them, so their ids are never pruned
-- **BR-21** [Minor] `comment-code-drift` Send and Options.MaxQueue docs still say only DOM events are dropped and that overflow resyncs
-- **BR-22** [Minor] `order-test-oracle` The graveyard test's setChildNodes step checks only divs[0], which is never pruned, so the bury-order fix there is unpinned
 - **BR-30** [Minor] `fidelity-scroll-scope` fidelity replay restores scroll only in the top document; srcdoc iframes and shadow-root scrollers stay at 0
 - **BR-31** [Minor] `asset-retry-after-drop` A queue-full drop in queueAsset leaves asked[url] set, so the asset is never retried in that recording
 - **BR-34** [Minor] `css-px-contract` Below DPR 0.5, frame.scale is the DPR, but the atlas and the fidelity replay still assume 0.5
+- **BR-35** [Minor] `consumer-kind-classification` recorder.Emit accepts any record kind, so a structural record from outside desyncs the mirror from its reducer

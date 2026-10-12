@@ -30,7 +30,7 @@ type CastConfig struct {
 	NewLive func() (recording.Sink, recording.Live)
 	// NewAssets makes a recording's asset store (#459), persisting bodies
 	// through the recording's DirWriter; nil records no assets.
-	NewAssets func(recording.AssetWriter) castassets.Store
+	NewAssets func(recording.AssetWriter) castassets.Served
 	// Logf reports a recording's problems to the operator: one that can't
 	// be opened or written, a resync, and at its end what it lost.
 	Logf func(format string, args ...any)
@@ -72,12 +72,15 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 	var live recording.Live
 	var liveSink recording.Sink
 	var ro *RecordOptions
+	// The cast's asset proxy exists before Chrome does: the recording (and
+	// its store, bound here) can open at a go-live before the Server is up.
+	proxy := castassets.NewProxy()
 	if cfg.RecordingsDir != "" {
 		if cfg.NewLive != nil {
 			liveSink, live = cfg.NewLive()
 		}
 		id := recordingID(time.Now())
-		ro = &RecordOptions{ID: id, Out: recordingOutput(cfg, liveSink, id), Logf: cfg.Logf}
+		ro = &RecordOptions{ID: id, Out: recordingOutput(cfg, liveSink, id, proxy), Logf: cfg.Logf}
 	}
 	b, err := cfg.Launch(ctx, ro)
 	if err != nil {
@@ -94,6 +97,7 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 	mountCtx, cancel := context.WithCancel(context.Background())
 	c := &Cast{browser: b, pub: newPublisher(Update{State: b.State()}), cancel: cancel, done: make(chan struct{}), liveSink: liveSink}
 	srv := NewServer(token, b, cfg.Ping, live, cfg.Presence)
+	srv.proxy = proxy
 	c.server, c.token = srv, token
 	go c.run(mountCtx, cfg.Host, srv, token)
 	return c, nil
@@ -109,7 +113,7 @@ func recordingID(at time.Time) string {
 // recordingOutput opens a recording at the first go-live: a DirWriter at
 // <dir>/<id>, teed into the viewers' fan-out when there is one. The
 // recorder closes both when the recording ends.
-func recordingOutput(cfg CastConfig, live recording.Sink, id string) recorder.Output {
+func recordingOutput(cfg CastConfig, live recording.Sink, id string, proxy *castassets.Proxy) recorder.Output {
 	return func() (recorder.Opened, error) {
 		if err := os.MkdirAll(cfg.RecordingsDir, 0o700); err != nil {
 			return recorder.Opened{}, fmt.Errorf("webcast: recordings dir: %w", err)
@@ -123,7 +127,9 @@ func recordingOutput(cfg CastConfig, live recording.Sink, id string) recorder.Ou
 			o.Sink = recording.Tee(w, live)
 		}
 		if cfg.NewAssets != nil {
-			o.Assets = cfg.NewAssets(w)
+			store := cfg.NewAssets(w)
+			proxy.Bind(store) // viewers get the bodies the recording keeps
+			o.Assets = store
 		}
 		return o, nil
 	}
