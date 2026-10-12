@@ -42,6 +42,7 @@ const (
 	refuseMalformed = "Enter the code you were given."
 	refuseSlowDown  = "Too many tries. Wait a moment."
 	refuseEnded     = "This cast has ended."
+	refuseTryAgain  = "Something went wrong. Try again."
 )
 
 // gate serves a request for a locked link. GET session is the gate's own: 204
@@ -127,6 +128,8 @@ func unlock(w http.ResponseWriter, r *http.Request, segment string, l *castlock.
 	case castlock.Limited:
 		w.Header().Set("Retry-After", "1")
 		answer(http.StatusTooManyRequests, unlockAnswer{Error: refuseSlowDown})
+	case castlock.Failed:
+		answer(http.StatusInternalServerError, unlockAnswer{Error: refuseTryAgain})
 	default:
 		answer(http.StatusGone, unlockAnswer{Error: refuseEnded})
 	}

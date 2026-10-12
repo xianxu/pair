@@ -1,7 +1,11 @@
 package castlock
 
 import (
+	"crypto/rand"
+	"errors"
 	mrand "math/rand/v2"
+	"sync"
+	"sync/atomic"
 	"strings"
 	"testing"
 	"time"
@@ -278,4 +282,74 @@ func FuzzUnlock(f *testing.F) {
 			t.Fatal("session without unlock")
 		}
 	})
+}
+
+// BR-4: callbacks run outside the mutex, so concurrent rotations may arrive in
+// any order; the one with the highest Gen always carries the current code.
+func TestConcurrentRotationsNewestGenIsCurrentCode(t *testing.T) {
+	for range 20 {
+		var mu sync.Mutex
+		var newest Rotation
+		l := mustNew(t, Config{OnRotated: func(r Rotation) {
+			mu.Lock()
+			defer mu.Unlock()
+			if r.Gen > newest.Gen {
+				newest = r
+			}
+		}})
+		var wg sync.WaitGroup
+		for range 8 {
+			wg.Add(1)
+			go func() { defer wg.Done(); _, _ = l.Rotate() }()
+		}
+		wg.Wait()
+		if newest.Gen != 8 || newest.Code != l.Code() {
+			t.Fatalf("newest %+v, current %q", newest, l.Code())
+		}
+	}
+}
+
+// failingRand serves crypto randomness until fail is set.
+type failingRand struct{ fail atomic.Bool }
+
+func (f *failingRand) Read(p []byte) (int, error) {
+	if f.fail.Load() {
+		return 0, errors.New("no entropy")
+	}
+	return rand.Read(p)
+}
+
+// A spent code that cannot rotate refuses every attempt -- the right code
+// too -- until the operator rotates it: it never keeps absorbing guesses.
+func TestSpentCodeThatCannotRotateFailsClosed(t *testing.T) {
+	src := &failingRand{}
+	l := mustNew(t, Config{Budget: 2, Rand: src})
+	code := l.Code()
+	src.fail.Store(true)
+	for range 2 {
+		l.Unlock(time.Now(), wrongFor(code))
+	}
+	if l.Code() != code {
+		t.Fatal("rotated without randomness")
+	}
+	if _, out := l.Unlock(time.Now(), code); out != Wrong {
+		t.Fatalf("the spent code still unlocks: %v", out)
+	}
+	src.fail.Store(false)
+	next, err := l.Rotate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, out := l.Unlock(time.Now(), next); out != Unlocked {
+		t.Fatalf("after the operator's rotation: %v", out)
+	}
+}
+
+func TestSessionMintFailureIsNotEnded(t *testing.T) {
+	src := &failingRand{}
+	l := mustNew(t, Config{Rand: src})
+	src.fail.Store(true)
+	if _, out := l.Unlock(time.Now(), l.Code()); out != Failed {
+		t.Fatalf("mint failure: %v", out)
+	}
 }

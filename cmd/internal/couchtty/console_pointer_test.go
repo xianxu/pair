@@ -54,7 +54,7 @@ func copies(f *consoleFixture, link string) int {
 func postPoint(t *testing.T, link string, col, row int) int {
 	t.Helper()
 	body := fmt.Sprintf(`{"cols":80,"rows":24,"down":false,"points":[[%d,%d]]}`, col, row)
-	resp, err := http.Post(link+"point", "application/json", strings.NewReader(body))
+	resp, err := castClient.Post(link+"point", "application/json", strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}

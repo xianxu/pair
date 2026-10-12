@@ -7,23 +7,23 @@ import (
 	"testing"
 )
 
-// Every link is locked (pair#495), so this package's tests talk to casts the
-// way a viewer does: through a cookie jar holding the sessions they unlocked.
-// A session cookie is scoped to its own link's path, so one jar serves every
-// session in the process.
-func init() {
+// Every cast link is locked (pair#495), so this package's tests reach casts
+// as a viewer does: through castClient, whose cookie jar holds the sessions
+// they unlocked. A session cookie is scoped to its own link's path, so one jar
+// serves every cast; http.DefaultClient is left alone.
+var castClient = func() *http.Client {
 	jar, err := cookiejar.New(nil)
 	if err != nil {
 		panic(err)
 	}
-	http.DefaultClient.Jar = jar
-}
+	return &http.Client{Jar: jar}
+}()
 
 // unlockLink enters code at link (a URL ending in "/") and fails the test
 // unless the session is issued.
 func unlockLink(t *testing.T, link, code string) {
 	t.Helper()
-	if resp, err := http.Get(link + "session"); err == nil {
+	if resp, err := castClient.Get(link + "session"); err == nil {
 		resp.Body.Close()
 		if resp.StatusCode == http.StatusNoContent {
 			return // this jar already holds the link's session

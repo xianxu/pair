@@ -89,7 +89,7 @@ const tapBody = `{"cols":40,"rows":4,"down":false,"points":[[3,1]]}`
 
 func post(t *testing.T, url, contentType, body string) (int, string) {
 	t.Helper()
-	resp, err := http.Post(url, contentType, strings.NewReader(body))
+	resp, err := castClient.Post(url, contentType, strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -217,7 +217,7 @@ func TestPointerRouteTable(t *testing.T) {
 	for _, r := range rows {
 		req, _ := http.NewRequest(r.method, r.url, strings.NewReader(tapBody))
 		req.Header.Set("Content-Type", "application/json")
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := castClient.Do(req)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -289,7 +289,7 @@ func TestPointerSlowBodyDoesNotStarve(t *testing.T) {
 		req, _ := http.NewRequest(http.MethodPost, link+"point", pr)
 		req.Header.Set("Content-Type", "application/json")
 		go func() {
-			if resp, err := http.DefaultClient.Do(req); err == nil {
+			if resp, err := castClient.Do(req); err == nil {
 				resp.Body.Close()
 			}
 		}()
@@ -350,7 +350,7 @@ func TestPointerCapsEvents(t *testing.T) {
 	p := startPointerSession(t)
 	link, _ := p.enablePointer(t)
 	p.showPointer(t)
-	resp, err := http.Get(link + "events")
+	resp, err := castClient.Get(link + "events")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -369,7 +369,7 @@ func TestPointerCapsEvents(t *testing.T) {
 		t.Fatalf("caps after on %q", got)
 	}
 	// A view stream never hears of the pointer.
-	vresp, err := http.Get(p.s.Link() + "events")
+	vresp, err := castClient.Get(p.s.Link() + "events")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -388,7 +388,7 @@ func TestPointerLinkEndsWithBroadcast(t *testing.T) {
 	p := startPointerSession(t)
 	link, _ := p.enablePointer(t)
 	p.showPointer(t)
-	resp, err := http.Get(link + "events")
+	resp, err := castClient.Get(link + "events")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -428,7 +428,7 @@ func TestPointerSlowBodyIsBadRequest(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	codes := make(chan int, 1)
 	go func() {
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := castClient.Do(req)
 		if err != nil {
 			codes <- 0
 			return
@@ -491,7 +491,7 @@ func TestPointerStreamsGetDistinctColors(t *testing.T) {
 		t.Helper()
 		ctx, cancel := context.WithCancel(context.Background())
 		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, link+"events", nil)
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := castClient.Do(req)
 		if err != nil {
 			t.Fatal(err)
 		}

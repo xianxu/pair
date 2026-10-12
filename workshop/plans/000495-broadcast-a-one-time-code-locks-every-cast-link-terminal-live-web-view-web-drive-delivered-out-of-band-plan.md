@@ -135,3 +135,12 @@ Status: draft. The decisions marked **[D1]..[D6]** are proposals waiting on the 
   - **PQ-5.** The cookie (if D1 is confirmed) is `SameSite=Lax`, not Strict.
     - Strict is not sent on a link opened from a chat app, so a returning viewer would see the lock again.
     - Lax is safe here because every state-changing route is a POST requiring a JSON content type, and Lax cookies don't ride cross-site POSTs. To be raised with the hub as part of D1.
+- 2026-10-12, M1 boundary review: the plan is aligned to what was decided and built.
+  - **D1 (supersedes PQ-5's Lax).** The operator confirmed `SameSite=Strict`, with no expiry. The re-prompt after a chat-app navigation is the accepted trade-off, recorded in `atlas/broadcast.md`.
+  - **Revocation, as built.**
+    - The gate runs each admitted request under a context that the session's revoke cancels, so streams end with no `event: locked`.
+    - A page whose stream closed probes `GET session`; on 401 it reloads into the lock page.
+    - There is no `sessionFrom(r)` seam: the gate reads the cookie in one place (`lockgate.go`).
+  - **Rotation order (BR-4).** Each `castlock.Rotation` carries a `Gen` that only increases. Callbacks run outside the mutex, so receivers keep the highest `Gen` (Couch, in M3).
+  - **Fail closed.** A spent code whose rotation fails refuses every attempt until the operator rotates. A session-minting failure is `Failed` (500, "try again"), never "ended".
+  - **Interim state.** M1 locks the terminal links, but Couch shows no code until M3. The branch lands only after M3, so no operator ever runs the interim state.

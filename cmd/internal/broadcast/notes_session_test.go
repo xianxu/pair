@@ -41,7 +41,7 @@ func notesEvent(t *testing.T, r *bufio.Reader) wireNotes {
 
 func stream(t *testing.T, url string) *bufio.Reader {
 	t.Helper()
-	resp, err := http.Get(url + "events")
+	resp, err := castClient.Get(url + "events")
 	if err != nil {
 		t.Fatal(err)
 	}

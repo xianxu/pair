@@ -51,10 +51,13 @@ const (
 	ReasonGuessing
 )
 
-// Rotation reports a new code.
+// Rotation reports a new code. Gen numbers the lock's codes and only
+// increases: callbacks run outside the mutex, so two rotations can be
+// delivered in either order, and a receiver keeps the highest Gen.
 type Rotation struct {
 	Code   string
 	Reason Reason
+	Gen    uint64
 }
 
 // Config makes a Lock.
@@ -79,6 +82,7 @@ const (
 	Malformed         // not a code at all; costs no budget
 	Limited           // too many attempts too fast; not judged
 	Ended             // the lock's link has ended
+	Failed            // the lock could not mint a session; try again
 )
 
 // Lock guards one link.
@@ -87,6 +91,7 @@ type Lock struct {
 
 	mu       sync.Mutex
 	code     string
+	gen      uint64 // numbers code; bumped on every rotation
 	wrong    int
 	sessions map[[sha256.Size]byte]uint64 // session hash → issue order
 	issued   uint64
@@ -150,20 +155,26 @@ func (l *Lock) Unlock(now time.Time, input string) (session string, out Outcome)
 	if !ok {
 		return "", Malformed
 	}
+	if l.wrong >= l.cfg.Budget {
+		// A spent code whose rotation failed: refuse every attempt, right
+		// or wrong, until the operator rotates it (fail closed).
+		return "", Wrong
+	}
 	if subtle.ConstantTimeCompare([]byte(code), []byte(l.code)) != 1 {
 		l.wrong++
 		if l.wrong >= l.cfg.Budget {
 			// The code is spent, not the sessions: a guesser can't evict viewers.
 			if next, err := l.newCode(l.code); err == nil {
 				l.code, l.wrong = next, 0
-				rotated = &Rotation{Code: next, Reason: ReasonGuessing}
+				l.gen++
+				rotated = &Rotation{Code: next, Reason: ReasonGuessing, Gen: l.gen}
 			}
 		}
 		return "", Wrong
 	}
 	token, err := l.token()
 	if err != nil {
-		return "", Ended
+		return "", Failed
 	}
 	l.issued++
 	l.sessions[sha256.Sum256([]byte(token))] = l.issued
@@ -203,10 +214,12 @@ func (l *Lock) Rotate() (string, error) {
 		return "", err
 	}
 	l.code, l.wrong = next, 0
+	l.gen++
+	r := Rotation{Code: next, Reason: ReasonOperator, Gen: l.gen}
 	l.revokeLocked()
 	l.mu.Unlock()
 	if l.cfg.OnRotated != nil {
-		l.cfg.OnRotated(Rotation{Code: next, Reason: ReasonOperator})
+		l.cfg.OnRotated(r)
 	}
 	return next, nil
 }

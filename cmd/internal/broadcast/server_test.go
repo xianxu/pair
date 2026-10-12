@@ -256,7 +256,7 @@ func httpServer(t *testing.T, srv http.Handler) *httptest.Server {
 
 func openEvents(t *testing.T, base string) (*http.Response, *sseReader) {
 	t.Helper()
-	resp, err := http.Get(base + "/" + testToken + "/events")
+	resp, err := castClient.Get(base + "/" + testToken + "/events")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -329,7 +329,7 @@ func TestServerTooManyViewers(t *testing.T) {
 	_, srv := testServer(t, HubOptions{MaxViewers: 1}, time.Hour)
 	ts := httpServer(t, srv)
 	openEvents(t, ts.URL)
-	resp, err := http.Get(ts.URL + "/" + testToken + "/events")
+	resp, err := castClient.Get(ts.URL + "/" + testToken + "/events")
 	if err != nil {
 		t.Fatal(err)
 	}
