@@ -35,7 +35,9 @@ Replace each real timer or sleep with the event or count it stands for: an injec
 
 ## Plan
 
-- [ ]
+- [ ] Per test, prove the window by widening it with a temporary sleep; record the cause in the Log.
+- [ ] Replace each real timer or sleep with an injected clock/timer, an existing counter, or a state signal; fix product code if the race is there.
+- [ ] 200 `-race` runs of each touched test under parallel load; full `make -k test`.
 
 ## Log
 

@@ -32,7 +32,8 @@ Split each test into two parts. The behaviour (the tail is right, the render doe
 
 ## Plan
 
-- [ ]
+- [ ] Split each listed test: behaviour stays in the default suite without a wall-clock check; the budget moves behind `PAIR_PERF_BUDGETS`.
+- [ ] Run the default suite and the `PAIR_PERF_BUDGETS=1` run; both pass.
 
 ## Log
 

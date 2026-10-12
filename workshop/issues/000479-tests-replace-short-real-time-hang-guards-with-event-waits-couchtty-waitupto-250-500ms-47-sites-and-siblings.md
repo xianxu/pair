@@ -35,7 +35,10 @@ As #476 did for the retention lock test: where the event is the assertion, wait 
 
 ## Plan
 
-- [ ]
+- [ ] Per site, prove the window: a temporary product sleep past the bound fails the test.
+- [ ] couchtty `waitUpTo`: wait on the condition with no window (binary timeout catches a hang); convert its callers.
+- [ ] Remaining listed select guards: wait on the event, or inject the clock where the bound is the subject.
+- [ ] 200 `-race` runs of each touched package under parallel load; full `make -k test`.
 
 ## Log
 
