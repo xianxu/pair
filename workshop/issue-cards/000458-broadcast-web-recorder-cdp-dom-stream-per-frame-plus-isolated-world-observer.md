@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000458-broadcast-web-recorder-cdp-dom-stream-per-frame-plus-isolated-world-observer.md
         source_blob: 1406ecf0ff25136ac89709501ff800e27acd2e92
         destination: workshop/issues/000458-broadcast-web-recorder-cdp-dom-stream-per-frame-plus-isolated-world-observer.md
+        main_commit: 09e2ce7908b62f831fde84d77d5cc9e980c4bca5
 ---
 
 # broadcast-web: recorder — CDP DOM stream per frame plus isolated-world observer
