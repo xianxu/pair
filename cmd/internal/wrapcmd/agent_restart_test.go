@@ -106,7 +106,7 @@ func TestSIGUSR2ReExecsWrapperWithoutReplacingPaneProcess(t *testing.T) {
 		if len(argv) < 4 || argv[1] != "wrap" || argv[len(argv)-3] != fakeCodex {
 			t.Fatalf("replacement argv = %v", argv)
 		}
-	case <-time.After(3 * time.Second):
+	case <-testwait.After(t):
 		events, _ := os.ReadFile(filepath.Join(data, "wrap-events-restart-test.jsonl"))
 		select {
 		case code := <-done:

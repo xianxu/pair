@@ -205,7 +205,7 @@ func TestReservedShortcutPrefixProgressBeforeTimeout(t *testing.T) {
 					}
 					select {
 					case <-actions:
-					case <-time.After(time.Second):
+					case <-testwait.After(t):
 						_ = writer.Close()
 						<-done
 						t.Fatalf("complete chord retained: remap=%v prefix=%q chord=%q iteration=%d", remap, prefix, chord, n)

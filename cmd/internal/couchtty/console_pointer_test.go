@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/xianxu/pair/cmd/internal/broadcast"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 const markTint = ansi.IndexedColor(214)
@@ -276,7 +277,7 @@ func TestPointerStressNoDeadlock(t *testing.T) {
 	}()
 	time.Sleep(time.Second)
 	close(stop)
-	deadline := time.After(10 * time.Second)
+	deadline := testwait.After(t)
 	for range 3 {
 		select {
 		case <-done:

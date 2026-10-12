@@ -232,7 +232,7 @@ func testCapturePTYBothBoundaries(t *testing.T, isolated bool) {
 	go func() { done <- con.Run() }()
 	select {
 	case <-seen:
-	case <-time.After(30 * time.Second):
+	case <-testwait.After(t):
 		con.Stop()
 		t.Error("marker never reached host")
 	}

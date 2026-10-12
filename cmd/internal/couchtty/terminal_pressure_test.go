@@ -249,8 +249,8 @@ func runPressureTrial(t *testing.T, mode, trial string) {
 		}()
 		select {
 		case <-joined:
-		case <-time.After(5 * time.Second):
-			t.Error("pressure teardown exceeded shared five-second deadline")
+		case <-testwait.After(t):
+			t.Error("pressure teardown never joined")
 		}
 	})
 	do := func(label string, work func() error) {

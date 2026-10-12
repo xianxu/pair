@@ -21,6 +21,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycletest"
 	"github.com/xianxu/pair/cmd/internal/procutil"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 type conformanceFaultRuntime struct {
@@ -99,6 +100,7 @@ type realParkConformanceDriver struct {
 	stagePath string
 	trigger   func(string, launcher.QuitIntent) error
 	intent    *launcher.OSRuntime
+	t         *testing.T
 	completed time.Time
 }
 
@@ -190,7 +192,7 @@ func (d *realParkConformanceDriver) ObserveChildDeath(pairlifecycle.QuitRequest)
 		if err != nil {
 			return fmt.Errorf("production handoff helper: %w", err)
 		}
-	case <-time.After(5 * time.Second):
+	case <-testwait.After(d.t):
 		return errors.New("production handoff helper remained live")
 	}
 	if state := observeExactProcess(OSProcOps{}, d.childID); state != Dead {
@@ -372,6 +374,7 @@ func newRealParkConformance(t *testing.T, ctx context.Context, intentOnly bool) 
 	fault := &conformanceFaultRuntime{}
 	intentRuntime := launcher.NewScopedOSRuntime(dataDir, scoped.ScopeDir(), pairHome)
 	driver := &realParkConformanceDriver{
+		t:     t,
 		paths: lifecyclePaths, store: pairlifecycle.Store{Runtime: fault}, fault: fault,
 		checker: NewScopedThreadArtifactCollisionChecker(dataDir), threads: threads, current: current,
 		child: child, childWait: childWait,
