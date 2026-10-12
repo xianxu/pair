@@ -49,7 +49,7 @@ item may not generate.
 - [x] `COUCH_SLOT_NICE` parsing in `consoleRunnerFor` (where both real runners are built) and the singleton preflight;
       tests for default/off/invalid and the wiring.
 - [x] README + atlas/couch.md.
-- [ ] Propose to the hub: relaunching the live Couch on the new build, then verify slot niceness by ps and a light
+- [x] Propose to the hub: relaunching the live Couch on the new build, then verify slot niceness by ps and a light
       couch verb's latency under the existing load; renicing running slots only if the operator wants it.
 
 ## Log
@@ -63,3 +63,14 @@ item may not generate.
 - Baseline before relaunch (slots at nice 0, load 7–16): `couch --actors` real 0.01–0.02s over 5 runs.
 - `taskpolicy` QoS clamp not built: the Spec makes it opt-in after measuring suite time on efficiency cores, which
   needs load this item may not generate.
+- Hub (ops:0) on the proposal: land now; the live Couch restart is the operator's and batched with #488's pair:0
+  smoke test (which merges main, so it carries this); read-only ps + `couch --actors` verification runs any time after
+  that restart; renicing running slots waits for the operator's yes, then exact PGIDs go to the hub for approval.
+- Suite: `make -k test` green but for `artifactpath`, which flagged the new `couchcmd/nice.go` as uninventoried (my
+  miss, now in `NonArtifactSources`); `go test ./...` then green.
+
+## Revisions
+
+- 2026-10-12: Done-when's live check (ps on a relaunched slot, `couch --actors` latency under load) moves after the
+  operator's batched Couch restart, per the hub; close rests on the in-repo proof (a real launch's grandchild reads
+  the configured nice through ps).
