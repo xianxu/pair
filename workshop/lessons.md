@@ -1168,4 +1168,9 @@ proof; record the surprising case so the next change starts from evidence.
   containment. When a second component accepts another's format, call the owner's reader for it (`notes.Match`) and
   fall back to your own grammar only outside it; scope every combinator to a tree as the platform does; test with
   identity against an oracle the owner provides (`Resolve` with no node id), never with "contains".
+- **A fixture corpus can leave out the very case a rule exists for (#471).** The catch-up rule keeps assets from before
+  the latest segment and drops notes from earlier documents, and no fixture had either. The invariant passed on every
+  fixture while exercising nothing. When a port is held to an invariant over fixtures, list the rule's branches first,
+  then check that some input reaches each one; add a synthetic recording for any branch no fixture reaches. And look at
+  a UI once (a headless screenshot): a layout bug that only shows while paused passed every DOM check.
 

@@ -41,14 +41,14 @@ Wave 2 of couch-broadcast-web (ops `teams/devinfra/projects/couch-broadcast-web/
 
 Durable plan: `workshop/plans/000471-broadcast-web-replay-a-recording-in-the-viewer-with-a-timeline-scrubber-plan.md`. Single pass, one close.
 
-- [ ] catchUp, timeline, placer, #t= (pure JS) with the catch-up invariant at every cut of every fixture
-- [ ] Player: seek and play state machine; every pin is reached forward, backward and shuffled
-- [ ] replaySource + the timeline bar; one branch point in viewer.js mount
-- [ ] assets.Reopen: a read-only Served over a finished recording
-- [ ] webcast.ReplayServer: listing, records, assets, modules; ids confined to the root
-- [ ] couch --broadcast-web-replay [ID|DIR] [--at T]: serves on loopback and prints the #t= link
-- [ ] Live headless check: #t= and scrubbing give the reducer's canonical at every pin; JS catchUp equals Go's
-- [ ] Atlas, then close
+- [x] catchUp, timeline, placer, #t= (pure JS) with the catch-up invariant at every cut of every fixture
+- [x] Player: seek and play state machine; every pin is reached forward, backward and shuffled
+- [x] replaySource + the timeline bar; one branch point in viewer.js mount
+- [x] assets.Reopen: a read-only Served over a finished recording
+- [x] webcast.ReplayServer: listing, records, assets, modules; ids confined to the root
+- [x] couch --broadcast-web-replay [ID|DIR] [--at T]: serves on loopback and prints the #t= link
+- [x] Live headless check: #t= and scrubbing give the reducer's canonical at every pin; JS catchUp equals Go's
+- [x] Atlas, then close
 
 ## Log
 
@@ -56,3 +56,8 @@ Durable plan: `workshop/plans/000471-broadcast-web-replay-a-recording-in-the-vie
 
 - TL decisions (ops:0): recordings go in `<store>/webcast/recordings/<id>/` (#458); the loopback CLI is the entry point now, and the Host mount is a follow-up the TL files. #470 (pair:6) edits viewer.js, index.html and viewer.css too, so my edits there stay small and additive, and whoever lands second merges.
 - The seek rule is the catch-up rule (`recording.CatchUp`), ported to JS so scrubbing doesn't round-trip; the port is held to Go's by its invariant and by a live parity check (ARCH-DRY).
+- Built as planned. Fixtures have no asset before a later segment, and no note on an earlier document, so the catch-up invariant also runs on a synthetic recording that has both. The "check bites" test drops the earlier assets and sees the invariant fail.
+- Screenshots of the bar found two bugs that no test caught. The track was laid out before its time label had text, so a paused replay kept marks under the label. A note near the top of the page had its pin clipped. Both are fixed (lay out after the labels; the pin goes below when there's no room above).
+- The flow was inferred as quick. The code passes the 100-line shell, so close will upgrade to the full review; I didn't pin it, since `--flow` is the operator's.
+- Verified: node 61/61; `go test` for webcast, assets, couchcmd and artifactpath; live headless (`WEBCAST_LIVE_CHROME=1`) replay checks plus #460's viewer checks; `couch --broadcast-web-replay <fixture> --at 1500` serves the page and records. `make -k test`: only `TestCapturePTYBothBoundaries` (a drain timeout under load, which passes alone) and the skill parse, now fixed.
+- Follow-ups: mount `ReplayServer` on the shared Host inside running Couch (the TL files it); have replay draw notes and strokes with #470's modules once both have landed.
