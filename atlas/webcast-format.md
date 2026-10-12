@@ -587,6 +587,35 @@ it dispatches, so a batch overtaken by a revoke is refused there (`ErrNotDriver`
 `RunInjectorContract`). Passwords follow #458's rule: typing into a
 `type=password` field records `input {secret:true}`, never the value.
 
+**As built (#467).** The injector's rules are stated once, in `drive.TabInjector`, over a `drive.Tab` seam: who
+drives, live and segment, `Confine`, then per act a hit test (`onTarget`: the element at the point is the aimed one
+or inside it, or an out-of-process frame's owner holding it) and the dispatch. The fake injector is the same rules
+over a reduced page. The real tab is the recorder (`Recorder.WithTab`). A batch is one queue input:
+- **Hold.** The recorder holds the in-page observer (`__couchcastHold`, in every observer context of the cast tab)
+  and records what it had pending without `by`.
+- **Dispatch.** CDP input (`cdpAct`: `Input.dispatchMouseEvent`/`dispatchKeyEvent` with editing commands for the
+  A/Z/Y chords, `insertText`, `imeSetComposition`). Hit tests use `DOM.getNodeForLocation`, without user-agent
+  shadow DOM: an input's inner editor isn't a recorded node.
+- **Take.** `__couchcastTake` returns what the observer queued meanwhile, recorded with `by`.
+
+Every exit takes. A hold no take ends expires in the page after 1 s, and what it then sends has no `by`. What stays
+unattributed is whatever the page reports after the take: the scroll a wheel causes on the next frame, page script
+reacting later, and the items of a hold a dialog interrupted. A JavaScript dialog the driver opens returns
+`drive.ErrDialog` (409, "The page is showing a dialog; the operator must answer it.") at once; the Chrome loop
+signals the dialog to the recorder, and the stopped CDP call finishes on its own.
+
+The controller is `drive.MemController`. In a cast (`Cast.Drive()`), its sink is `liveGate`: control records go into
+the recorder's queue once `Recorder.Opened()`, and are refused before (409 paused). The gate asks the recorder, not
+Chrome's published phase. While anyone drives, `Chrome.SetDriving`:
+- denies downloads browser-wide;
+- intercepts file choosers on every page session, including pages opened later;
+- closes a page the cast tab opens before the tracker can follow it;
+- names the driver on the in-page control.
+
+All of it is undone when nobody drives. The routes share the board's admission (`admitBody`). Budgets: per seat for
+control (2/s) and input (30/s), 4 in flight; per cast for hello (2/s, burst 8). An events stream with
+`?viewer=<seat>` holds its seat.
+
 **The operator sees who drives:** Couch's `Chrome ⏸` indicator names the driver and any pending request, from
 `Controller.Subscribe`. An in-page banner ("Ana is driving") is injected the same way as the Go-live control (#454),
 in an isolated world and kept out of the recording.
