@@ -85,6 +85,12 @@ replay both.
 - Side find, fixed: `doc.open()` erases a document's listeners, but `openDoc`'s load-redraw listener sat behind a flag
   that survives it, so only the first document a frame ever drew redrew on image or stylesheet loads. Now re-added on
   each open; the `doc.fonts` one (not erased) is added once, both routed to the frame's current renderer.
+- Merged main mid-flight: #478 moved the harness's replay into `web/replayer.js` (shared with the fidelity check). The
+  hold's harness pieces moved there: `inBrowser` draws into `currentFrame(frame)`, wires `onDirty`, and a fresh
+  `Replayer` (or a seek) blanks the held paint (`blankFrames`); `replayAt` waits for stylesheets already in hand
+  when holding. `releaseAt` stays in the harness.
+- Pre-existing flake, not #475: #478's fidelity check puts rec-blog frame 0 at exactly 6.75% intermittently (main 1/8
+  runs, this branch 2/8; otherwise 0.10%). Reported to TL.
 
 ## Revisions
 
