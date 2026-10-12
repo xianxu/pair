@@ -1,12 +1,20 @@
 ---
 id: 000492
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: '2237161a37643af9a432a70c53f567fc12273aa1' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '2cb7e780e8a24826f9b4522a52b246c6af6868bf' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-12T11:23:48-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # couch: the hub refuses messages while one is pending ('recipient has a pending message'); queue them instead
@@ -26,8 +34,20 @@ Find where the one-pending limit lives (per recipient, per sender pair, or the h
 
 ## Plan
 
-- [ ]
+Durable plan: `workshop/plans/000492-…-plan.md` (Tasks 1-4, then verification).
+
+- [ ] Task 1: model queue (pure `Advance`: Admit queues, Promote, Cancel, Tick expiry)
+- [ ] Task 2: exact routing resolves a busy recipient (family routing unchanged)
+- [ ] Task 3: broker queues at admission, worker promotes in order, holding on a busy wrapper
+- [ ] Task 4: CLI prints the position; skill, README, atlas
 
 ## Log
 
 ### 2026-10-12
+Why the limit exists: one paste at a time. `ActorState.pending` is the one delivery
+(model.go), `routing.go` refuses an exact target that is `Pending`, and the wrapper's
+`reserve` (wrapcmd/peer_delivery.go) admits one reservation and refuses when the operator's
+input moved its sequence. A held delivery (draft, scrolled pane, picker) can occupy the one
+slot for up to MaxHold (30 min, pair#435), so every other sender is refused meanwhile: the
+10-12 case. Keep the serialization (the protection); queue admissions behind it (the fix).
+
