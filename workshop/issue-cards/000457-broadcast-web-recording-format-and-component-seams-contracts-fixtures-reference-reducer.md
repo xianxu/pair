@@ -13,7 +13,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
-actual_hours: 1.03
+actual_hours: 1.05
 tracker:
     version: 1
     handoff:
@@ -27,10 +27,10 @@ tracker:
         destination: workshop/issues/000457-broadcast-web-recording-format-and-component-seams-contracts-fixtures-reference-reducer.md
         main_commit: c3411a21fc20c27ea0b5f987f40764314744d5eb
     completion:
-        token: close-8d04d569f974
+        token: close-f60af41411e3
         repository: github.com/xianxu/pair
-        reviewed_head: 3cbaceb7e0f6fb7e2661e427281cf4ae0e1d5449
-        evidence_commit: 79cdff4afa14b9093d4cadd10dcc79072318a0be
+        reviewed_head: ffae0334f3ae699132e0b400e529cc31dcaa2491
+        evidence_commit: 5df8d5913bdcd92c7ba71ccdaa210dd4dbcd693a
 ---
 
 # broadcast-web: recording format and component seams (contracts, fixtures, reference reducer)
