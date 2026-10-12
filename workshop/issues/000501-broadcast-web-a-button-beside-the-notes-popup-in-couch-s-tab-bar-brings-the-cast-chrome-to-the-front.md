@@ -37,10 +37,10 @@ The operator (10-12): during a web cast they move between Couch and the cast Chr
 
 ## Plan
 
-- [ ] `webcast.Browser` gains `Focus() error`: the real Chrome, on its loop, sends `Target.activateTarget` for the cast (active) tab, which makes it the window's tab and raises the window inside Chrome, then activates the Chrome process by PID (macOS: `NSRunningApplication` through `osascript -l JavaScript`, since the cast Chrome shares a bundle id with the operator's own Chrome, so `open -a` could pick the wrong one). The OS activator is set only by `Launch` for a windowed Chrome, so headless and scripted-pipe tests can't take focus. `FakeBrowser` counts focuses. `Cast.Focus` forwards.
-- [ ] Tab bar: a `↗` cell right after the Chrome label (`Chrome ⏸ ↗ 💭2`), with its own span, which a click on it focuses. Placed before 💭N so its column doesn't move with the note count.
-- [ ] Revision 1: the Chrome ⏸ cell is drawn in `broadcast.LiveSGR` (the LIVE cell's style). Test that the screen broadcast's `IndicatorShown` still doesn't read it as LIVE.
-- [ ] Tests: the reserve row (cell, span, style), the console click → `FakeBrowser` focus, and the Chrome loop sending `Target.activateTarget` for the active tab.
+- [x] `webcast.Browser` gains `Focus() error`: the real Chrome, on its loop, sends `Target.activateTarget` for the cast (active) tab, which makes it the window's tab and raises the window inside Chrome, then activates the Chrome process by PID (macOS: `NSRunningApplication` through `osascript -l JavaScript`, since the cast Chrome shares a bundle id with the operator's own Chrome, so `open -a` could pick the wrong one). The OS activator is set only by `Launch` for a windowed Chrome, so headless and scripted-pipe tests can't take focus. `FakeBrowser` counts focuses. `Cast.Focus` forwards.
+- [x] Tab bar: a `↗` cell right after the Chrome label (`Chrome ⏸ ↗ 💭2`), with its own span, which a click on it focuses. Placed before 💭N so its column doesn't move with the note count.
+- [x] Revision 1: the Chrome ⏸ cell is drawn in `broadcast.LiveSGR` (the LIVE cell's style). Test that the screen broadcast's `IndicatorShown` still doesn't read it as LIVE.
+- [x] Tests: the reserve row (cell, span, style), the console click → `FakeBrowser` focus, and the Chrome loop sending `Target.activateTarget` for the active tab.
 
 ## Revisions
 
@@ -50,3 +50,7 @@ The operator (10-12): during a web cast they move between Couch and the cast Chr
 ## Log
 
 ### 2026-10-12
+
+- Implemented: `Browser.Focus` (Chrome: `Target.activateTarget` on the cast tab + `activateProcess` by PID; fake counts). `↗` cell after the Chrome label; Chrome ⏸ in `broadcast.LiveSGR`.
+- JXA activation script checked with a nonexistent PID (unsandboxed, exit 0, nothing raised). Real activation is the operator's smoke test: macOS 14+ cooperative activation may ignore a background request, in which case `Target.activateTarget` alone has to do it.
+- `WEBCAST_LIVE_CHROME=1` live conformance (headless, now with Focus) passes: real Chrome accepts `Target.activateTarget`.

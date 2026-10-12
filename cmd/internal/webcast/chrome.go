@@ -99,6 +99,10 @@ type Chrome struct {
 	// dialogs: the cast tab's JavaScript dialog, for the recorder's
 	// dispatch (#467), read off the loop.
 	dialogs dialogSignal
+	// activate brings the Chrome app to the front (#501); nil leaves it
+	// where it is. Only Launch sets it, for a windowed Chrome, so no test
+	// on a headless or scripted Chrome can take the operator's focus.
+	activate func() error
 }
 
 // Emit is Emitter's: it queues r for the recorder and never blocks.
@@ -191,6 +195,9 @@ func Launch(ctx context.Context, opts LaunchOptions) (*Chrome, error) {
 		return nil, fmt.Errorf("webcast: start Chrome: %w", err)
 	}
 	c := start(cdp.New(outR, cmdW), proc, output, opts)
+	if !opts.Headless {
+		c.activate = activateProcess(cmd.Process.Pid)
+	}
 	timer := time.NewTimer(opts.StartTimeout)
 	defer timer.Stop()
 	select {
@@ -313,6 +320,26 @@ func (c *Chrome) SetLive(live bool) error {
 	}
 	<-ran
 	return err
+}
+
+// Focus activates the cast tab, which raises its window within Chrome, then
+// brings Chrome itself in front of other apps.
+func (c *Chrome) Focus() error {
+	var tab string
+	ran := make(chan struct{})
+	if !c.do(func(s *loopState) { tab = castTab(s); close(ran) }) {
+		return ErrEnded
+	}
+	<-ran
+	if tab != "" {
+		if err := c.call("", "Target.activateTarget", map[string]any{"targetId": tab}, nil); err != nil {
+			return err
+		}
+	}
+	if c.activate != nil {
+		return c.activate()
+	}
+	return nil
 }
 
 func (c *Chrome) Close() error {

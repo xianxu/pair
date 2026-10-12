@@ -250,6 +250,22 @@ func (c *Console) webcastEnded(cast *webcast.Cast) {
 	}
 }
 
+// focusWebcast is a click on the ↗ button (#501): the operator's own
+// action, so bringing Chrome in front of Couch is the point.
+func (c *Console) focusWebcast() {
+	c.mu.Lock()
+	cast, running := c.wcast.cast, c.wcast.phase == webcastRunning
+	c.mu.Unlock()
+	if !running {
+		return
+	}
+	c.GoTracked(func() {
+		if err := cast.Focus(); err != nil {
+			c.setNotice("Chrome cast: " + err.Error())
+		}
+	})
+}
+
 // copyWebcastLink is a right-click on the Chrome cell. The notice never
 // contains the link: a screen broadcast would draw it to viewers.
 func (c *Console) copyWebcastLink() {

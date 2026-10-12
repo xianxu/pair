@@ -171,6 +171,8 @@ type RenderedStatusRow struct {
 	// Webcast is the Chrome cell's span (#454); empty when Chrome isn't
 	// running or the cell was clipped.
 	Webcast ColumnSpan
+	// WebFocus is the go-to-Chrome button's span (#501).
+	WebFocus ColumnSpan
 	// WebNotes is the web cast's 💭N span (#470).
 	WebNotes ColumnSpan
 	// WebDrive is remote driving's span (#467).
@@ -257,7 +259,7 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 			}
 		}
 	}
-	var webcastSpan, webNotesSpan, webDriveSpan ColumnSpan
+	var webcastSpan, webFocusSpan, webNotesSpan, webDriveSpan ColumnSpan
 	if label, sgr := webcastLabel(m.Webcast); label != "" {
 		if used > 0 {
 			appendText(" ", "")
@@ -266,6 +268,14 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 		appendText(label, sgr)
 		if used > start {
 			webcastSpan = ColumnSpan{Start: start, End: used}
+		}
+		// The go-to-Chrome button (#501) sits right after the cell, so its
+		// column doesn't move with the note count.
+		appendText(" ", "")
+		start = used
+		appendText(WebcastFocusLabel, "")
+		if used > start {
+			webFocusSpan = ColumnSpan{Start: start, End: used}
 		}
 		if m.WebNotes > 0 {
 			appendText(" ", "")
@@ -355,7 +365,7 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 		}
 		appendText(n, "")
 	}
-	return RenderedStatusRow{Body: row.String(), Chips: chips, Control: control, Pointer: pointer, Remote: remote, Notes: notes, Webcast: webcastSpan, WebNotes: webNotesSpan, WebDrive: webDriveSpan}
+	return RenderedStatusRow{Body: row.String(), Chips: chips, Control: control, Pointer: pointer, Remote: remote, Notes: notes, Webcast: webcastSpan, WebFocus: webFocusSpan, WebNotes: webNotesSpan, WebDrive: webDriveSpan}
 }
 
 // WebcastCell is the cast Chrome's state on the tab bar (#454).
@@ -370,12 +380,15 @@ const (
 	WebcastLive
 )
 
-// Chrome cell labels and styles. Distinct from the screen broadcast's
-// LIVE red, which its indicator check reads.
+// Chrome cell labels and styles. Live, it is drawn as the screen
+// broadcast's LIVE cell is (#501), so the two cast indicators read as one
+// family; the broadcast's indicator check matches LIVE's text, not this.
 const (
 	WebcastIdleLabel = "Chrome ▶"
 	WebcastLiveLabel = "Chrome ⏸"
-	webcastLiveSGR   = "\x1b[1;31m"
+	// WebcastFocusLabel is the button that brings the cast Chrome to the
+	// front (#501).
+	WebcastFocusLabel = "↗"
 	// webDriveSGR: someone else's hands on the operator's tab, in bold.
 	webDriveSGR = "\x1b[1m"
 )
@@ -385,7 +398,7 @@ func webcastLabel(c WebcastCell) (string, string) {
 	case WebcastIdle:
 		return WebcastIdleLabel, ""
 	case WebcastLive:
-		return WebcastLiveLabel, webcastLiveSGR
+		return WebcastLiveLabel, broadcast.LiveSGR
 	}
 	return "", ""
 }

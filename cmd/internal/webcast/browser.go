@@ -20,6 +20,9 @@ type Browser interface {
 	Subscribe() (states <-chan State, cancel func())
 	// SetLive moves between PhaseIdle and PhaseLive. ErrEnded once ended.
 	SetLive(live bool) error
+	// Focus brings the cast tab and its window to the front (#501): the
+	// operator's own click, so it may take focus. ErrEnded once ended.
+	Focus() error
 	// Close ends the cast and closes Chrome. Idempotent; returns once Chrome
 	// is gone.
 	Close() error

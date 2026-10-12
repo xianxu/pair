@@ -341,3 +341,19 @@ func TestReplayShareReadyIsANotice(t *testing.T) {
 		shares.Close()
 	}
 }
+
+// A click on ↗ (#501) asks the browser to come to the front; the Chrome
+// cell itself still toggles live.
+func TestWebcastFocusButton(t *testing.T) {
+	r := newWebcastRig(t, nil)
+	f := r.open(t)
+	x := r.cell() + len([]rune(WebcastIdleLabel)) + 1 // 1-based column of ↗
+	if got := []rune(r.lastRow())[x-1]; string(got) != WebcastFocusLabel {
+		t.Fatalf("no button at %d: %q", x, r.lastRow())
+	}
+	_, _ = fmt.Fprintf(r.stdin, "\x1b[<0;%d;24M\x1b[<0;%d;24m", x, x)
+	waitFor(t, "browser focused", func() bool { return f.Stats().Focuses == 1 })
+	if f.State().Phase != webcast.PhaseIdle {
+		t.Fatal("the button toggled the cast")
+	}
+}

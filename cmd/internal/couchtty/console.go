@@ -163,6 +163,8 @@ type Console struct {
 	statusWebcast ColumnSpan
 	// statusWebNotes is the web cast's 💭N span (#470).
 	statusWebNotes ColumnSpan
+	// statusWebFocus is the go-to-Chrome button's span (#501).
+	statusWebFocus ColumnSpan
 	// statusWebDrive is remote driving's span (#467).
 	statusWebDrive ColumnSpan
 	// overlayUsers is who needs the collaboration overlay (syncOverlay).
