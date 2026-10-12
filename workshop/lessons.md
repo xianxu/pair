@@ -1374,3 +1374,9 @@ proof; record the surprising case so the next change starts from evidence.
   non-cloudflared process. The test passed only while ps beat the exec, and under load it lost. When a fake stands in
   for a process the code checks by command, PID or identity, wait for the fixture's settled state and assert the
   property there, not the first moment it holds. Wait on the outcome with `testwait`, never a fixed window.
+- **A fix round that changes a behaviour rewrites every prose restatement of it (#498 close).** Round 1 changed a
+  refused `setpriority` from "cancel the launch" to "keep the inherited niceness"; the code comment, README and Design
+  moved, but the atlas, the Plan checklist and a Log line still said "cancels", and round 2 blocked on it. Before
+  re-running a close, grep the old behaviour's words (`cancel`, `refuse`, the error text) across atlas/, README,
+  the issue file and comments, and rewrite or annotate as superseded every hit in the same commit.
+

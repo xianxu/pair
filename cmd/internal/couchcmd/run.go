@@ -652,7 +652,7 @@ func WantsConsole(name string, hasTerminal bool) bool {
 // consoleRunner decides which Runner this invocation gets, and builds the
 // Console when it is the pty one.
 //
-// Returning (nil, ExecRunner{}) is the injected fallback for non-console typed
+// Returning (nil, ExecRunner) is the injected fallback for non-console typed
 // operations.
 func consoleRunner(name string, stdin io.Reader, stdout io.Writer, settings ...consoleTraceConfig) (*couchtty.Console, couchcore.Runner, error) {
 	inFile, _ := stdin.(*os.File)
@@ -670,14 +670,18 @@ func consoleRunner(name string, stdin io.Reader, stdout io.Writer, settings ...c
 // consoleRunner actually use it" uncovered, and forcing consoleRunner to return
 // (nil, ExecRunner) kept the whole suite green (M2 BR-24, twice).
 func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, outFile *os.File, settings ...consoleTraceConfig) (*couchtty.Console, couchcore.Runner, error) {
-	if !WantsConsole(name, hasTerminal) {
-		return nil, couchcore.ExecRunner{}, nil
-	}
-
 	getenv := os.Getenv
 	if len(settings) > 0 {
 		getenv = settings[0].getenv
 	}
+	nice, err := slotNiceSettings(getenv)
+	if err != nil {
+		return nil, nil, err
+	}
+	if !WantsConsole(name, hasTerminal) {
+		return nil, couchcore.ExecRunner{Nice: nice}, nil
+	}
+
 	path, captureConfig, err := captureSettings(getenv)
 	if err != nil {
 		return nil, nil, err
@@ -760,6 +764,7 @@ func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, ou
 		return runtimebundle.TerminalEnvironment(root)
 	})
 	return console, &couchcore.PtyRunner{
+		Nice:        nice,
 		Environment: profile,
 		Size:        console.ChildSize,
 		Sink:        console.Deliver,
