@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000483-broadcast-web-dom-submission-send-live-notes-with-focused-context-and-a-crop-to-the-agent-in-view.md
         source_blob: 9ae3eea1ed33736d6f55209a5bafef2a5eed979a
         destination: workshop/issues/000483-broadcast-web-dom-submission-send-live-notes-with-focused-context-and-a-crop-to-the-agent-in-view.md
+        main_commit: 4020e12cbed39e8b774aa9319d58b20edfebd036
 ---
 
 # broadcast-web: DOM submission — send live notes with focused context and a crop to the agent in view
