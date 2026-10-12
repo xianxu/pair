@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/perfbudget"
 )
 
 // Real-git acceptance for pair#387 M2 (Done-when bullet 3), through the
@@ -146,13 +148,10 @@ func TestAcceptanceObserveBudget(t *testing.T) {
 	start := time.Now()
 	obs := ObserveSlot(context.Background(), SlotObserveInput{IO: OSProvisionIO{Env: s.f.IO.Env}, Layout: s.layout, Agent: AgentNone})
 	elapsed := time.Since(start)
-	t.Logf("healthy-slot observe: %v", elapsed)
 	if plan, _ := PlanSlot(PlanInput{Observation: obs}); !plan.Empty() {
 		t.Fatalf("healthy slot plans %q", SlotPlanSummary(plan, ""))
 	}
-	if elapsed > 500*time.Millisecond && perfBudgetsEnforced() {
-		t.Fatalf("healthy-slot observe took %v (budget 500 ms)", elapsed)
-	}
+	perfbudget.Check(t, "healthy-slot observe", elapsed, 500*time.Millisecond)
 }
 
 // declareAriadne commits construct/deps naming ../ariadne to the remote main,
@@ -287,15 +286,6 @@ func TestAcceptanceReportBudgetTenSlots(t *testing.T) {
 			t.Fatalf("slot %d plans %q", n, SlotPlanSummary(plan, ""))
 		}
 	}
-	mean := time.Since(start) / 10
-	t.Logf("observe+plan, mean of 10 slots: %v", mean)
-	if mean > 150*time.Millisecond && perfBudgetsEnforced() {
-		t.Fatalf("mean %v per slot exceeds the 150 ms budget", mean)
-	}
+	// 94-182 ms for the 150 ms budget on a loaded host (pair#436).
+	perfbudget.Check(t, "observe+plan, mean of 10 slots", time.Since(start)/10, 150*time.Millisecond)
 }
-
-// perfBudgetsEnforced: a wall-clock budget measures the machine as much as the
-// code, so on a shared, loaded host it flakes (94-182 ms for the 150 ms budget,
-// pair#436). The default lane still runs the scenario and logs the measurement;
-// `make test-perf-budgets` (PAIR_PERF_BUDGETS=1) asserts the budget on a quiet host.
-func perfBudgetsEnforced() bool { return os.Getenv("PAIR_PERF_BUDGETS") == "1" }

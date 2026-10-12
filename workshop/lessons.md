@@ -1306,3 +1306,8 @@ proof; record the surprising case so the next change starts from evidence.
   slot's crops named the image, and both were one cause. When a capture flakes, look at the worst crop before fixing
   a cause. Wait on the general readiness (sheets, fonts, images, bounded) after stopping the clocks at t, and pin it
   with an asset bound just before the moment, which fails deterministically, not with a soak.
+- **A new input path inherits the channel's validation; apply its policy to the whole input, not its edges (#486
+  close).** `--message-file` stripped one trailing newline, then a trailing CRLF, and each round found the next CR:
+  the broker refuses every control byte but `\n` and `\t`, so a CRLF file fails wherever its CRs sit, with an error
+  that doesn't name the file. When an input source feeds an existing validator, read that validator first and decide
+  one rule for the whole input (normalize it, or refuse it with the source named), not a fix at the site a reviewer saw.
