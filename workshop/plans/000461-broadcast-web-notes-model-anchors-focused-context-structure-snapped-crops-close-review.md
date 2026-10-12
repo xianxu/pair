@@ -206,3 +206,77 @@ findings:
     detail: |
       3rd finding in seam-doc-drift. Rule: a behaviour-changing commit must grep and update every prose restatement (doc comments, atlas, plan) in the same commit. Sweep notes/*.go comments against the atlas notes-model section, not just these two lines.
 ```
+
+---
+
+## Re-review — 2026-10-12T01:59:11-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 461 — broadcast-web: notes model — anchors, focused context, structure-snapped crops |
+| repo | pair |
+| issue file | workshop/issues/000461-broadcast-web-notes-model-anchors-focused-context-structure-snapped-crops.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | e5caaf7de5f8eb33c4d0f0785f1986cdb357d9e4..e3ca1a7bfeb789cc14ca1c42c46f036325e9152b |
+| command | sdlc close --issue 461 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-12T01:59:11-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+Checking whether the issue file's Spec or Done-when changed (scope check), then writing the verdict.
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+**Verdict: fix-then-ship, with nothing blocking.** The changes since the close review are small: two corrected code comments, a new lesson, two review/gate records, and the merge of main into `atlas/index.md` and `atlas/webcast-format.md`. The comments that BR-6 named are now correct. `crop.go:86` says "at most margin apart", which matches `gap <= margin`. `selector.go:85` and `selector.go:132-133` now mention template content, which matches the `h.Content` step and `treeRoot`.
+
+The merge keeps both sides. In `atlas/index.md` the #461 notes-model text and the #466 remote-driving text are joined into one line. In `atlas/webcast-format.md` the "notes model (#461)" section and the "Attribution and control (#466)" section are both there, nothing is lost, no conflict markers remain, and the "(Remote driving, below)" pointer still finds `## Remote driving (#466)`.
+
+The issue file has no Spec or Done-when changes, only status, checkboxes and Log entries, so the scope has not grown. `go test ./cmd/internal/webcast/notes/` passes.
+
+BR-6 is only partly fixed. It asked for a sweep of every comment in `notes/*.go` against the atlas section, and one comment that disagrees with the atlas survived. It is Minor, so it does not block.
+
+1. **Strengths**
+   - The merge of the atlas files is correct and keeps all of both sections (`atlas/webcast-format.md:185-261`, `atlas/index.md:116`).
+   - The new lesson in `workshop/lessons.md` states the rule behind the `seam-doc-drift` and `selector-generator-matcher-symmetry` findings, not just the one instance.
+   - The comments in `selector.go` now match the code that steps into shadow roots, frames and template content.
+
+2. **Critical:** none.
+
+3. **Important:** none.
+
+4. **Minor**
+   - **BR-6 is not fully fixed (`seam-doc-drift`):** `model.go:35-37` says `Anchor` produces "its id, a stable selector, its text…". Since BR-1, `Structural.Anchor` (`structural.go:27-29`) sets `Sel` to `""` when the selector doesn't find its own element, and the atlas says so. The interface comment still promises a selector every time.
+     - The header comment at `selector.go:16` also leaves out that a test-attribute value containing a quote or `>` is never used (that skip is at `selector.go:68`).
+   - **Merge formatting:** `atlas/webcast-format.md:228-229` has no blank line between the "Region notes…" paragraph and the `## Attribution and control (#466)` heading. CommonMark still renders it, but it differs from every other section break in the file.
+
+5. **Test coverage:** the window only touches comments and docs, so no new tests are needed. The notes package tests pass at the head commit.
+
+6. **Architecture**
+   - **ARCH-DRY: pass.** Nothing is duplicated.
+   - **ARCH-PURE: pass.** No code logic changed.
+   - **ARCH-PURPOSE: flag.** The BR-6 fix covered the two cited lines but missed others from the same sweep. That is the "fixed the instance, not the class" pattern, and it is recorded on BR-6 below.
+
+7. **Plan revisions:** none.
+
+```findings
+dispose:
+  - id: BR-6
+    disposition: not-addressed
+    note: |
+      crop.go:86 and selector.go:85/132 fixed, but the sweep is partial: model.go:35-37 still says Anchor yields "a stable selector" though Structural.Anchor blanks Sel when it does not round-trip (the atlas says so), and selector.go:16 omits the quote and > exclusion. Rule: a behaviour change must also update every comment that describes it, in the same commit.
+findings:
+  - id: new
+    severity: Minor
+    family: seam-doc-drift
+    title: |
+      Conflict resolution in atlas/webcast-format.md leaves no blank line before the Attribution and control heading
+    detail: |
+      This is the 4th finding in family seam-doc-drift; it is a formatting slip from the merge, not a new defect class. Line 228 "Region notes ... no region." runs straight into "## Attribution and control (#466)". It renders under CommonMark but differs from every other section break; add a blank line.
+```

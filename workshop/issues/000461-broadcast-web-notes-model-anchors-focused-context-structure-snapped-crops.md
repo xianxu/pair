@@ -53,6 +53,7 @@ Durable plan: `workshop/plans/000461-broadcast-web-notes-model-anchors-focused-c
 ### 2026-10-11
 
 ### 2026-10-12
+- 2026-10-12: closed — Post-close delta is comment-only (crop.go cluster comment, selector.go matcher comments) answering the round-2 advisory seam-doc-drift, plus a lessons.md rule; go test ./cmd/internal/webcast/... and artifactpath green after merging main (e3ca1a7b). (fixed-then-ship); review verdict: FIX-THEN-SHIP
 - 2026-10-12: closed — notes.Structural runs notes.RunModelContract and fixture tests on all four fixtures (stress, app, blog, segments); blog cases pin header full-width snap, tall-li across-only snap, clustering. Round-1 BR-1 fixed as a rule (skip quote/> values; Anchor drops non-round-tripping selectors), each mutation-checked. go test -race ./cmd/internal/webcast/... green; make -k test (short TMPDIR, unsandboxed) green except artifactpath inventory, fixed in 6098f459; go test ./... -count=1 green after.; review verdict: SHIP
 - 2026-10-12: flow upgraded quick → full — 516 added lines in code files (limit 100); an earlier round of this close already ran the full review
 

@@ -75,6 +75,26 @@ rounds:
       isolation: fenced
       reviewed: 62293ee2868491c4e9e7b401407ab777a0cd5779
       blocked: false
+    - "n": 3
+      timestamp: "2026-10-12T01:59:11-07:00"
+      dispatched: "2026-10-12T01:58:28-07:00"
+      agent: claude
+      dispose:
+        - id: BR-6
+          disposition: not-addressed
+          note: 'crop.go:86 and selector.go:85/132 fixed, but the sweep is partial: model.go:35-37 still says Anchor yields "a stable selector" though Structural.Anchor blanks Sel when it does not round-trip (the atlas says so), and selector.go:16 omits the quote and > exclusion. Rule: a behaviour change must also update every comment that describes it, in the same commit.'
+          round: 3
+      findings:
+        - id: BR-7
+          severity: Minor
+          title: Conflict resolution in atlas/webcast-format.md leaves no blank line before the Attribution and control heading
+          detail: This is the 4th finding in family seam-doc-drift; it is a formatting slip from the merge, not a new defect class. Line 228 "Region notes ... no region." runs straight into "## Attribution and control (#466)". It renders under CommonMark but differs from every other section break; add a blank line.
+          family: seam-doc-drift
+          round: 3
+      recipe: fix-review
+      isolation: fenced
+      reviewed: e3ca1a7bfeb789cc14ca1c42c46f036325e9152b
+      blocked: false
 ---
 
 # Gate ledger — pair#461 (boundary-review)
@@ -110,6 +130,18 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-6** [Minor] `seam-doc-drift` Code comments still describe the old behaviour this round changed (crop.go:86 "less than margin", selector.go:85 omits template content)
   3rd finding in seam-doc-drift. Rule: a behaviour-changing commit must grep and update every prose restatement (doc comments, atlas, plan) in the same commit. Sweep notes/*.go comments against the atlas notes-model section, not just these two lines.
 
+## Round 3 — 2026-10-12T01:59:11-07:00 (claude) — passed
+
+### Disposed
+
+- BR-6 — not-addressed — crop.go:86 and selector.go:85/132 fixed, but the sweep is partial: model.go:35-37 still says Anchor yields "a stable selector" though Structural.Anchor blanks Sel when it does not round-trip (the atlas says so), and selector.go:16 omits the quote and > exclusion. Rule: a behaviour change must also update every comment that describes it, in the same commit.
+
+### Raised
+
+- **BR-7** [Minor] `seam-doc-drift` Conflict resolution in atlas/webcast-format.md leaves no blank line before the Attribution and control heading
+  This is the 4th finding in family seam-doc-drift; it is a formatting slip from the merge, not a new defect class. Line 228 "Region notes ... no region." runs straight into "## Attribution and control (#466)". It renders under CommonMark but differs from every other section break; add a blank line.
+
 ## Open findings
 
 - **BR-6** [Minor] `seam-doc-drift` Code comments still describe the old behaviour this round changed (crop.go:86 "less than margin", selector.go:85 omits template content)
+- **BR-7** [Minor] `seam-doc-drift` Conflict resolution in atlas/webcast-format.md leaves no blank line before the Attribution and control heading
