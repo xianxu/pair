@@ -3,6 +3,8 @@ package couchcore
 import (
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func TestThreadStoreLockSerializesIndependentHandles(t *testing.T) {
@@ -40,7 +42,7 @@ func TestThreadStoreLockSerializesIndependentHandles(t *testing.T) {
 		defer second.Close()
 	case err := <-errs:
 		t.Fatalf("second lock after release: %v", err)
-	case <-time.After(10 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("second lock did not acquire after release")
 	}
 }

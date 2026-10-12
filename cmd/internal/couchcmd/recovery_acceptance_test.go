@@ -25,6 +25,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/cmd/internal/readiness"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 // Only the original helper uses an OS PID. Replacement terminals remain the
@@ -304,7 +305,7 @@ func runRecoveryMenuAcceptance(t *testing.T, mode string) {
 		_ = reader.Close()
 		select {
 		case <-done:
-		case <-time.After(3 * time.Second):
+		case <-testwait.After(t):
 			t.Error("recovery Console did not stop")
 		}
 	})
@@ -351,7 +352,7 @@ func runRecoveryMenuAcceptance(t *testing.T, mode string) {
 					t.Fatal("recovery returned no terminal")
 				}
 			}
-		case <-time.After(5 * time.Second):
+		case <-testwait.After(t):
 			t.Fatalf("recovery did not start: %s", host.Written())
 		}
 	}

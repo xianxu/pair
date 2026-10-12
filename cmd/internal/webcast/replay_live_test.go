@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/broadcast"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
@@ -117,7 +118,9 @@ func catchUpIndexes(recs []recording.Record, at int64) []int {
 
 // Notes are pinned while open on their document and placeable, strokes
 // drawn for their moment, against the reducer's notes and strokes at each
-// time.
+// time. The replay draws them with the live viewer's modules (#470's
+// annotate.js, #477): liveNotes' pins, and strokesAt's strokes painted on a
+// canvas.
 func TestLiveReplayServerMarks(t *testing.T) {
 	page := headlessPage(t)
 	srv := replayServer(t)
@@ -135,41 +138,113 @@ func TestLiveReplayServerMarks(t *testing.T) {
 			times = append(times, r.Time()-100, r.Time()+100)
 		}
 	}
+	painted, withNote := 0, int64(-1)
 	for _, at := range times {
 		page.eval(t, fmt.Sprintf("location.hash = '#t=%d'", at))
 		page.evalString(t, drawnJS)
 		var got struct {
 			Notes   []string
-			Strokes int
+			Strokes string
+			Inked   bool
 		}
-		json.Unmarshal(page.eval(t, `({
-			notes: [...document.querySelectorAll('.replay-note')].map((e) => e.dataset.note).sort(),
-			strokes: document.querySelectorAll('.replay-strokes polyline').length,
-		})`), &got)
+		json.Unmarshal(page.eval(t, `(() => {
+			const c = document.querySelector('.replay-marks canvas.strokes');
+			const px = c.getContext('2d').getImageData(0, 0, c.width || 1, c.height || 1).data;
+			let inked = false;
+			for (let i = 3; i < px.length; i += 4) if (px[i]) { inked = true; break; }
+			return {
+				notes: [...document.querySelectorAll('.replay-marks .pin:not([hidden])')].map((e) => e.dataset.note).sort(),
+				strokes: c.dataset.strokes || '',
+				inked,
+			};
+		})()`), &got)
 		st, err := recording.Reduce(rec.Records, at)
 		if err != nil {
 			t.Fatal(err)
 		}
 		var notes []string
 		for _, n := range st.Notes {
-			// A pin needs a place: its element, else the box the note
-			// carried (drawMarks).
+			// A pin needs a place (noteBox): its region, its element, else
+			// the box the note carried.
 			placed := st.Node(n.At.Node) != nil || n.At.Box != nil || n.Region != nil
 			if n.Seg >= st.DocSeg && n.State == recording.NoteOpen && placed {
 				notes = append(notes, n.ID)
 			}
 		}
 		sort.Strings(notes)
-		strokes := 0
+		// A stroke shows from its first point through FADE_MS after the last
+		// point drawn by now, its chunks joined by id.
+		end := map[string]int64{}
 		for _, s := range st.Strokes {
-			since := at - s.T
-			if s.Seg >= st.DocSeg && since >= 0 && since <= int64(s.Pts[len(s.Pts)-1][2])+1500 {
-				strokes++
+			if s.Seg < st.DocSeg || s.T > at {
+				continue
+			}
+			for _, p := range s.Pts {
+				if pt := s.T + int64(p[2]); pt <= at && pt >= end[s.ID] {
+					end[s.ID] = pt
+				}
 			}
 		}
-		if !slices.Equal(got.Notes, notes) || got.Strokes != strokes {
-			t.Errorf("t=%d: drew notes %v and %d strokes; the reducer has %v and %d", at, got.Notes, got.Strokes, notes, strokes)
+		var strokes []string
+		for id, e := range end {
+			if at-e < 1500 {
+				strokes = append(strokes, id)
+			}
 		}
+		sort.Strings(strokes)
+		gotStrokes := strings.Fields(got.Strokes)
+		sort.Strings(gotStrokes)
+		if !slices.Equal(got.Notes, notes) || !slices.Equal(gotStrokes, strokes) || got.Inked != (len(strokes) > 0) {
+			t.Errorf("t=%d: drew notes %v and strokes %v (inked %v); the reducer has %v and %v", at, got.Notes, gotStrokes, got.Inked, notes, strokes)
+		}
+		if got.Inked {
+			painted++
+		}
+		if withNote < 0 && len(notes) > 0 {
+			withNote = at
+		}
+	}
+	if painted == 0 {
+		t.Fatal("no moment painted a stroke: the fixture's strokes are never checked")
+	}
+	// A pin's tap opens its note, read-only.
+	if withNote < 0 {
+		t.Fatal("no moment shows a note: the tap is never checked")
+	}
+	page.eval(t, fmt.Sprintf("location.hash = '#t=%d'", withNote))
+	page.evalString(t, drawnJS)
+	// The replay is paused, so no frame follows the tap: the card is placed
+	// under its pin by the tap itself.
+	var card struct {
+		Note, Text string
+		DX, DY     float64
+	}
+	json.Unmarshal(page.eval(t, `(() => {
+		const chip = document.querySelector('.replay-marks .pin:not([hidden]) .chip');
+		if (!chip) return {};
+		chip.click();
+		const c = document.querySelector('.replay-note-card');
+		const pin = chip.parentElement.getBoundingClientRect(), r = c.getBoundingClientRect();
+		return { note: c.hidden ? '' : c.dataset.note, text: c.textContent, dx: r.left - pin.left, dy: r.top - pin.bottom };
+	})()`), &card)
+	if card.Note == "" || !strings.Contains(card.Text, ": ") || card.DX != 0 || card.DY != 4 {
+		t.Errorf("tapping a pin: %+v, want the card 4px under its pin", card)
+	}
+	// A resize while paused redraws the marks: the strokes canvas follows the
+	// box rather than stretching to it.
+	page.eval(t, fmt.Sprintf("location.hash = '#t=%d'", withNote+1))
+	page.evalString(t, drawnJS)
+	page.call(t, page.session, "Emulation.setDeviceMetricsOverride", map[string]any{"width": 900, "height": 700, "deviceScaleFactor": 1, "mobile": false}, nil)
+	defer page.call(t, page.session, "Emulation.clearDeviceMetricsOverride", map[string]any{}, nil)
+	// The window's resize event, then two frames: the shell lays out, and
+	// the marks follow. Nothing else draws while paused.
+	resized := page.evalString(t, `(async () => {
+		await new Promise((ok) => requestAnimationFrame(() => requestAnimationFrame(ok)));
+		const c = document.querySelector('.replay-marks canvas.strokes'), l = c.parentElement;
+		return [c.width, Math.round(l.clientWidth * devicePixelRatio), c.height, Math.round(l.clientHeight * devicePixelRatio)].join(' ');
+	})()`)
+	if f := strings.Fields(resized); len(f) != 4 || f[0] != f[1] || f[2] != f[3] {
+		t.Fatalf("after a resize while paused, the strokes canvas (width height) vs the box: %s", resized)
 	}
 }
 
@@ -208,5 +283,36 @@ func TestLiveReplayServerDrivers(t *testing.T) {
 	json.Unmarshal(page.eval(t, `document.querySelectorAll('.replay-gap').length`), &gaps)
 	if gaps != pauses {
 		t.Errorf("%d gaps, want %d", gaps, pauses)
+	}
+}
+
+// A replay share (#477) in headless Chrome: the link a running Couch
+// prints, through the shared Host (a LocalOnly tunnel here; the real tunnel
+// is the operator's smoke test), opens at its #t= moment and seeks.
+//
+//	WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run LiveReplayShare -v
+func TestLiveReplayShareSeeks(t *testing.T) {
+	page := headlessPage(t)
+	host := broadcast.NewHost(broadcast.HostConfig{Tunnel: broadcast.LocalOnly{}, ProbeTimeout: 5 * time.Second})
+	shares := NewReplayShares(host, replayRoot(t, "segments"))
+	defer shares.Close()
+	st := awaitShare(t, shares, "segments")
+	if st.State != ShareReady || !st.Local {
+		t.Fatalf("share: %+v", st)
+	}
+	rec, err := recording.ReadDir(recording.Fixture("segments"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pins := recording.CanonicalTimes(rec)
+	page.openReplay(t, ReplayLink(st.Base, "segments", pins[len(pins)-1]))
+	if got, want := page.evalString(t, drawnJS), canonicalAt(t, rec, pins[len(pins)-1]); got != want {
+		t.Fatalf("opened: %s", firstDiff(got, want))
+	}
+	for _, at := range []int64{pins[0], pins[len(pins)/2]} {
+		page.eval(t, fmt.Sprintf("location.hash = '#t=%d'", at))
+		if got, want := page.evalString(t, drawnJS), canonicalAt(t, rec, at); got != want {
+			t.Fatalf("seeked to t=%d: %s", at, firstDiff(got, want))
+		}
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 // raiseBound runs one console test above the package's pinned bound of 1
@@ -60,7 +61,7 @@ func TestStopMidPassCancelsEveryParallelAttemptAndStartsNoMore(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		select {
 		case <-started:
-		case <-time.After(5 * time.Second):
+		case <-testwait.After(t):
 			t.Fatalf("only %d of 3 parallel pass attempts started", i)
 		}
 	}
@@ -68,13 +69,13 @@ func TestStopMidPassCancelsEveryParallelAttemptAndStartsNoMore(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		select {
 		case <-cancelled:
-		case <-time.After(5 * time.Second):
+		case <-testwait.After(t):
 			t.Fatalf("Stop cancelled %d of the 3 attempts in flight", i)
 		}
 	}
 	select {
 	case <-f.done:
-	case <-time.After(5 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("Run did not return after Stop")
 	}
 	if n := atomic.LoadInt32(&resumes); n != 3 {

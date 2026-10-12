@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 // pair#428 Spec 1: only real keystrokes count as operator input for a
@@ -187,7 +188,7 @@ func peerLoopFixture(t *testing.T) (*harnessSessionFake, *peerDelivery, io.Write
 		writer.Close()
 		select {
 		case <-done:
-		case <-time.After(time.Second):
+		case <-testwait.After(t):
 			t.Error("stdin owner did not exit")
 		}
 	})
@@ -197,7 +198,7 @@ func peerLoopFixture(t *testing.T) (*harnessSessionFake, *peerDelivery, io.Write
 	if err := d.enqueue(m); err != nil {
 		t.Fatal(err)
 	}
-	if !waitFor(time.Second, func() bool { return bytes.Contains(out.Bytes(), []byte("hello")) }) {
+	if !waitFor(t, func() bool { return bytes.Contains(out.Bytes(), []byte("hello")) }) {
 		t.Fatal("no paste")
 	}
 	peerRender(f, d, peerFilledComposer("pasted"))
@@ -229,11 +230,11 @@ func TestPeerDraftPasteWaitsForDelivery(t *testing.T) {
 	if bytes.Contains(out.Bytes(), []byte("draft")) {
 		t.Fatalf("draft interleaved with the delivery: %q", out.Bytes())
 	}
-	if !waitFor(time.Second, func() bool { return bytes.HasSuffix(out.Bytes(), []byte("\r")) }) {
+	if !waitFor(t, func() bool { return bytes.HasSuffix(out.Bytes(), []byte("\r")) }) {
 		t.Fatalf("delivery never submitted: %q", out.Bytes())
 	}
 	peerRender(f, d, peerEmptyComposer())
-	if !waitFor(time.Second, func() bool { return bytes.Contains(out.Bytes(), []byte("draft")) }) {
+	if !waitFor(t, func() bool { return bytes.Contains(out.Bytes(), []byte("draft")) }) {
 		t.Fatalf("draft never released: %q %+v", out.Bytes(), d.receipt())
 	}
 	if r := d.receipt(); r.Status != couchmessage.Submitted {
@@ -244,11 +245,11 @@ func TestPeerDraftPasteWaitsForDelivery(t *testing.T) {
 	if submit := strings.Index(got[robot:], "\r") + robot; !(robot < submit && submit < draft) {
 		t.Fatalf("out of order: %q", got)
 	}
-	if !waitFor(time.Second, func() bool { return strings.Count(string(out.Bytes()), "\r") == 2 }) {
+	if !waitFor(t, func() bool { return strings.Count(string(out.Bytes()), "\r") == 2 }) {
 		t.Fatalf("draft submit lost: %q", string(out.Bytes()))
 	}
 	// The hold ends only after the last held chunk (the focus-out) replays.
-	if !waitFor(time.Second, func() bool { d.mu.Lock(); defer d.mu.Unlock(); return !d.holding }) {
+	if !waitFor(t, func() bool { d.mu.Lock(); defer d.mu.Unlock(); return !d.holding }) {
 		t.Fatal("hold outlived its queue")
 	}
 	if !bytes.HasSuffix(out.Bytes(), []byte("\x1b[O")) {
@@ -262,13 +263,13 @@ func TestPeerDraftHoldIsBounded(t *testing.T) {
 	_, d, w, out := peerLoopFixture(t)
 	start := time.Now()
 	writeDraftSend(t, w, 20*time.Millisecond)
-	if !waitFor(2*PeerDraftHold, func() bool { return bytes.Contains(out.Bytes(), []byte("draft")) }) {
+	if !waitFor(t, func() bool { return bytes.Contains(out.Bytes(), []byte("draft")) }) {
 		t.Fatal("hold never released")
 	}
 	if waited := time.Since(start); waited < PeerDraftHold-100*time.Millisecond {
 		t.Fatalf("released early, after %s", waited)
 	}
-	if !waitFor(time.Second, func() bool { return d.receipt().Status.Terminal() }) {
+	if !waitFor(t, func() bool { return d.receipt().Status.Terminal() }) {
 		t.Fatalf("delivery not ended: %+v", d.receipt())
 	}
 	if r := d.receipt(); r.Status != couchmessage.Indeterminate || !strings.Contains(r.Detail, "operator input") {
@@ -345,10 +346,10 @@ func TestPeerDeliveryWaitsForComposerInView(t *testing.T) {
 		t.Helper()
 		select {
 		case <-probes:
-		case <-time.After(time.Second):
+		case <-testwait.After(t):
 			t.Fatal("no viewport probe")
 		}
-		waitFor(time.Second, func() bool { d.mu.Lock(); defer d.mu.Unlock(); return !d.view.checking })
+		waitFor(t, func() bool { d.mu.Lock(); defer d.mu.Unlock(); return !d.view.checking })
 	}
 	f.proxy.dispatchPeer(&out)
 	settle()

@@ -37,11 +37,11 @@ func TestCaptureBadgeFirstPaintAndIdleFailure(t *testing.T) {
 			// Three MiB becomes four MiB of JSON base64, crossing one percent
 			// of the default 256 MiB disk budget. No terminal event drives this.
 			r.Record(terminalcapture.Record{Kind: "usage", Data: make([]byte, 3<<20)})
-			waitUpTo(t, time.Second, "idle capture usage repaint", func() bool {
+			waitFor(t, "idle capture usage repaint", func() bool {
 				return strings.HasPrefix(f.screen.row(24), "REC 1%")
 			})
 			r.Record(terminalcapture.Record{Kind: "oversized", Data: make([]byte, 9<<20)})
-			waitUpTo(t, time.Second, "idle capture failure repaint", func() bool {
+			waitFor(t, "idle capture failure repaint", func() bool {
 				return strings.HasPrefix(f.screen.row(24), "REC STOP:queue")
 			})
 		})

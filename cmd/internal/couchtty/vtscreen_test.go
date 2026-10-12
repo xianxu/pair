@@ -6,11 +6,11 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/charmbracelet/x/vt"
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 // vtHost is a Host whose screen is a REAL terminal emulator.
@@ -175,7 +175,7 @@ func TestReleaseLeavesAUsableScreen(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("Run=%d", code)
 		}
-	case <-time.After(3 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("Console did not complete teardown")
 	}
 	if host.RawDepth() != 0 || !host.Closed() {

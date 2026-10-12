@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/x/vt"
 
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/perfbudget"
 )
 
 func tailModel(t *testing.T, width, height int, paint string) *terminalModel {
@@ -209,8 +210,7 @@ func TestTailOverEndpointSocketIsFast(t *testing.T) {
 	if err != nil || len(tail.Lines) != couchmessage.MaxTailLines || !strings.Contains(tail.Lines[0], "‹dim›line ") {
 		t.Fatalf("%d lines, err %v", len(tail.Lines), err)
 	}
-	t.Logf("200-line tail over the endpoint socket: %v", elapsed)
-	if elapsed > 250*time.Millisecond {
-		t.Fatalf("tail took %v", elapsed)
-	}
+	// Speed is this test's subject, so it keeps a budget, asserted only in
+	// isolation (make test-perf-budgets): a loaded suite misses it (pair#481).
+	perfbudget.Check(t, "200-line tail over the endpoint socket", elapsed, 250*time.Millisecond)
 }

@@ -11,6 +11,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 // The reattach pass wired into the live console (pair#206 plan, Task 8).
@@ -93,7 +94,7 @@ func TestTheConsoleRunsThePassAsWarmOnlyBackgroundResumes(t *testing.T) {
 		}, nil
 	})
 
-	waitUpTo(t, 2*time.Second, "two pass attempts", func() bool {
+	waitFor(t, "two pass attempts", func() bool {
 		mu.Lock()
 		defer mu.Unlock()
 		return len(calls) >= 2
@@ -109,7 +110,7 @@ func TestTheConsoleRunsThePassAsWarmOnlyBackgroundResumes(t *testing.T) {
 			t.Fatalf("a pass resume went out without warm-only: %v", call)
 		}
 	}
-	waitUpTo(t, 2*time.Second, "both marked failed", func() bool {
+	waitFor(t, "both marked failed", func() bool {
 		return len(f.con.menuSnapshot().Reattach.Failed) == 2
 	})
 }
@@ -133,7 +134,7 @@ func TestAnUnarmedConsoleRunsNoPass(t *testing.T) {
 			{Address: menuAddress("couch-detached"), State: couchcore.ThreadDetached, LastActiveAt: time.Now()},
 		}, nil
 	})
-	waitUpTo(t, time.Second, "the inventory", func() bool { return f.con.menuSnapshot().InventoryReady })
+	waitFor(t, "the inventory", func() bool { return f.con.menuSnapshot().InventoryReady })
 	time.Sleep(50 * time.Millisecond)
 	mu.Lock()
 	defer mu.Unlock()
@@ -215,18 +216,18 @@ func TestStopCancelsAnInFlightPassAttemptAndRunsNoMore(t *testing.T) {
 
 	select {
 	case <-started:
-	case <-time.After(2 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("the first pass attempt never started")
 	}
 	f.con.Stop()
 	select {
 	case <-cancelled:
-	case <-time.After(2 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("Stop did not cancel the attempt in flight")
 	}
 	select {
 	case <-f.done:
-	case <-time.After(2 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("Run did not return after Stop")
 	}
 	if n := atomic.LoadInt32(&resumes); n != 1 {
@@ -287,7 +288,7 @@ func TestAnOperatorSwitchWaitsBehindAtMostTheRunningAttempt(t *testing.T) {
 		select {
 		case got := <-order:
 			rest = append(rest, got)
-		case <-time.After(2 * time.Second):
+		case <-testwait.After(t):
 			t.Fatalf("after the held attempt, got %v; want the switch then the next attempt", rest)
 		}
 	}
@@ -322,14 +323,14 @@ func TestTheStatusTickRunsOnlyWhileAThreadIsLoading(t *testing.T) {
 		defer f.con.mu.Unlock()
 		return f.con.statusSpinner
 	}
-	waitUpTo(t, 2*time.Second, "a thread loading", func() bool {
+	waitFor(t, "a thread loading", func() bool {
 		return f.con.menuSnapshot().Reattach.soleLoading() != (couchcore.ThreadAddress{})
 	})
 	before := spinner()
-	waitUpTo(t, 2*time.Second, "the spinner to advance while loading", func() bool { return spinner() != before })
+	waitFor(t, "the spinner to advance while loading", func() bool { return spinner() != before })
 
 	close(release)
-	waitUpTo(t, 2*time.Second, "the pass to finish", func() bool {
+	waitFor(t, "the pass to finish", func() bool {
 		return f.con.menuSnapshot().Reattach.soleLoading() == (couchcore.ThreadAddress{})
 	})
 	settled := spinner()
@@ -371,7 +372,7 @@ func TestTheStatusModelCarriesAPlaceholderPerPendingThread(t *testing.T) {
 			{Address: menuAddress("couch-second"), StartingPath: "/work/second", State: couchcore.ThreadDetached, LastActiveAt: now.Add(-time.Hour)},
 		}, nil
 	})
-	waitUpTo(t, 2*time.Second, "the first thread loading", func() bool {
+	waitFor(t, "the first thread loading", func() bool {
 		return f.con.menuSnapshot().Reattach.soleLoading() == menuAddress("couch-first")
 	})
 
@@ -431,7 +432,7 @@ func TestABackgroundSuccessNeverStealsFocus(t *testing.T) {
 	f.con.ArmReattachPass(root)
 	f.con.SetActionableProvider(detachedPair(root))
 
-	waitUpTo(t, 2*time.Second, "the pass to attach couch-first", func() bool {
+	waitFor(t, "the pass to attach couch-first", func() bool {
 		f.con.mu.Lock()
 		defer f.con.mu.Unlock()
 		_, attached := f.con.panes[started.Handle.ID()]
@@ -459,7 +460,7 @@ func TestABackgroundSuccessWithNothingActiveLeavesTheSwitcherFocused(t *testing.
 	f.con.ArmReattachPass(root)
 	f.con.SetActionableProvider(detachedPair(root))
 
-	waitUpTo(t, 2*time.Second, "the pass to attach couch-first", func() bool {
+	waitFor(t, "the pass to attach couch-first", func() bool {
 		f.con.mu.Lock()
 		defer f.con.mu.Unlock()
 		_, attached := f.con.panes[started.Handle.ID()]
@@ -492,13 +493,13 @@ func TestTheFrameThePassLeavesBehindIsPainted(t *testing.T) {
 			{Address: menuAddress("couch-first"), State: couchcore.ThreadDetached, LastActiveAt: now.Add(-time.Minute)},
 		}, nil
 	})
-	waitUpTo(t, 2*time.Second, "the pass to attach couch-first and finish", func() bool {
+	waitFor(t, "the pass to attach couch-first and finish", func() bool {
 		f.con.mu.Lock()
 		_, attached := f.con.panes[started.Handle.ID()]
 		f.con.mu.Unlock()
 		return attached && f.con.menuSnapshot().Reattach.Phase == ReattachDone
 	})
-	waitUpTo(t, time.Second, "a status row painted with couch-first's chip", func() bool {
+	waitFor(t, "a status row painted with couch-first's chip", func() bool {
 		f.con.mu.Lock()
 		defer f.con.mu.Unlock()
 		for _, chip := range f.con.statusChips {

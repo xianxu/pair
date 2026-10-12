@@ -6,6 +6,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
 
+	"github.com/xianxu/pair/cmd/internal/panebirth"
 	"github.com/xianxu/pair/cmd/internal/readiness"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
@@ -307,6 +308,16 @@ type LaunchOptions struct {
 	// BirthBound overrides birthBound, the create's wait for its agent pane
 	// before the birth watch asks zellij (#288). Zero means the default.
 	BirthBound time.Duration
+	// BirthClock paces the birth watch; nil is the wall clock. A test holds
+	// it still so the bound lapses only when it says (#480).
+	BirthClock panebirth.Clock
+}
+
+func (o LaunchOptions) birthClock() panebirth.Clock {
+	if o.BirthClock != nil {
+		return o.BirthClock
+	}
+	return panebirth.WallClock{}
 }
 
 func (o LaunchOptions) birthBound() time.Duration {

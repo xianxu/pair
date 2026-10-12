@@ -11,6 +11,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycletest"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 // Every couchcore entry that changes a thread's lifecycle refuses a thread
@@ -288,7 +289,7 @@ func TestAbortStartedInsideAComposite(t *testing.T) {
 	}()
 	select {
 	case <-done:
-	case <-time.After(5 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("AbortStarted inside its holder's context waited on its own caller")
 	}
 }

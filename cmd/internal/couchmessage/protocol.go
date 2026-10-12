@@ -47,7 +47,27 @@ type Response struct {
 	// Tail answers tail (pair#425); TailThread names whose it is (pair#429).
 	Tail       *Tail       `json:",omitempty"`
 	TailThread *TailThread `json:",omitempty"`
+	// Replay answers replay-share and replay-status (pair#477).
+	Replay *ReplayShare `json:",omitempty"`
+	// Replays answers broadcast-status too: the recordings shared for
+	// replay through the tunnel (pair#477), by id, never their links.
+	Replays []string `json:",omitempty"`
 }
+
+// ReplayShare is a recording's replay share in the running Couch (pair#477):
+// State is opening, ready, failed, lost or closed; Base, once ready, is the
+// public <base>/<token> its replay link is built on, and Local says the
+// tunnel is off (the link works on that machine only). Unlike
+// BroadcastStatus it carries the token: the link is what was asked for.
+type ReplayShare struct {
+	State string `json:"state"`
+	Base  string `json:"base,omitempty"`
+	Local bool   `json:"local,omitempty"`
+	Error string `json:"error,omitempty"`
+}
+
+// IsReplayOp says whether op is a replay share's request (pair#477).
+func IsReplayOp(op string) bool { return op == "replay-share" || op == "replay-status" }
 
 // BroadcastStatus is the running console's broadcast, as `couch
 // --broadcast-list` prints it (pair#413). It has no field for the link or its
@@ -119,6 +139,18 @@ func ValidateRequest(r Request) error {
 			return errors.New("tail requires a thread scope and tag")
 		}
 		return ValidTailLines(r.Lines)
+	}
+	if IsReplayOp(r.Op) {
+		// The operator's, or an agent's, request from any shell (pair#477):
+		// like broadcast-status, no conversation identity. Target is the
+		// recording's id; the recordings check its shape.
+		if r.Binding != nil || r.Scope != "" || r.Tag != "" || r.Session != "" || r.Nonce != "" || r.ID != "" || r.Body != "" || r.Agent != "" || r.Confirmed || r.SameBinary || r.ForceUnknown {
+			return errors.New(r.Op + " takes only a recording")
+		}
+		if r.Target == "" {
+			return errors.New(r.Op + " requires a recording")
+		}
+		return nil
 	}
 	if r.Op == "broadcast-status" {
 		// The operator's query from any shell (pair#413): no conversation

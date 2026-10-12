@@ -1220,6 +1220,12 @@ proof; record the surprising case so the next change starts from evidence.
   event that makes it true and wait on that event: a no-op command through the loop that owns the state, or an
   injected clock (`Couch.after`) that ties the timeout to the fake's state. To prove a suspected window, widen it
   with a temporary sleep in the product or fake and watch the test fail every time.
+- **A flag that marks setup done must die with what it set up (#475).** `openDoc` guarded its load listener with a
+  property on the document, but `document.open()` erases the document's listeners and keeps its properties, so only
+  the first page a frame ever drew redrew on loads, and the replay's numbers depended on test order. When a guard
+  says "already done", check that every operation that undoes the work also clears the guard; prefer re-doing an
+  idempotent setup each time over a flag. And when a render number changes only with run order, diff the same
+  capture twice before suspecting the change under test (Chrome throttles a hidden frame's rendering too).
 - **A production bound a test inherits is a real-time window too (#476).** `TestCapturePTYBothBoundaries` never named
   a duration. It failed because `Recorder.Close`'s production 2s drain bound is the default it ran with. And the
   retention lock test timed a whole call, file I/O included, to prove it "didn't block", although the held lock
@@ -1253,6 +1259,34 @@ proof; record the surprising case so the next change starts from evidence.
   isn't a navigation, a catch-up), ask what the browser's own clocks (animations, transitions) were doing at
   capture, and settle them to the likeliest phase. Look at the worst moment's crop before tuning a tolerance: the
   picture named the cause where the number couldn't.
+
+- **A surface that lets an agent open something public needs the operator to see it, and every surface gets swept
+  (#477).** `query link` let an agent open the broadcast tunnel with nothing shown to the operator. Round 1 fixed that
+  (a notice, and the ids in `--broadcast-list`), but left the README saying the listing never had more, and pinned
+  the listing with a test while the notice had none. When an action can be taken by an agent and is visible to people
+  outside the machine, ask, at design time, how the operator learns it happened. When you add a verb, flag, output
+  line or JSON key, grep its name across the README (synopsis and prose), `couch --help`, the atlas, SKILL.md and the
+  Usage text in the same commit. Give each behavior a fix adds its own test that fails without it.
+
+- **A paused view draws no frames, so every event that changes what it shows must draw (#477 M2).** The replay
+  redraws its marks once per frame, and a paused replay (how every `#t=` link opens) has none. A tap's note card
+  and a resize waited for a frame that never came. When a view redraws on a loop, list what changes its output
+  besides the loop (input, resize, a seek) and draw from each. Test with the loop stopped, after a fixed number of
+  frames, not by polling: a poll can be satisfied by a later, unrelated redraw (the first resize test passed with
+  the fix removed).
+- **A test races a timer it doesn't own; give it the timer (#480).** Thirteen tests raced real 15ms-3s timers or
+  slept before asserting. Where the timer is the subject, the product takes it through a seam whose nil is the wall
+  clock (`loopTimer` for wrap's idle floor and ESC flush, `Couch.registrationDeadline`, `LaunchOptions.BirthClock`),
+  and the test advances or spends it. Where it isn't, wait on the event a sleep stood for (admissions counted at
+  Reserve, a semaphore's `len`, `Close` joining a watcher). A causal oracle on the test's own timestamps is not a
+  substitute: it fails when the loop, not the writer, stalls. And read the product's order before asserting a second
+  effect after a first: the stdin loop writes a chord before disarming its flush, so "disarmed" is its own wait (the
+  soak caught one in 200).
+- **A component that stacks its own elements must not reach past them (#475 close, round 1).** A `z-index` on the
+  held frame lifted it over the shell's overlay, which sits beside it with `z-index: auto`. Order layers by document
+  order inside the component, or give the component its own stacking context; never set a z-index the host doesn't
+  know about. And keep a lifecycle in one state value (`pair.hold = null | {owner, drawn, cancel}`), not in flags,
+  an inline style and a shared object; inject its clock so a test can drive each ordering.
 - **A test moved to another fixture keeps its old fixture's moments unless they come from the data (#474).** The
   replay marks test moved from the prototype's `app` to `rec-app` and kept sampling `app`'s note times, so it still
   passed but checked nothing about the new notes. Derive sample moments (and any content a test reads) from the
@@ -1279,3 +1313,21 @@ proof; record the surprising case so the next change starts from evidence.
   Ctrl+click take-back, the Alt+right-click drive link and the new `--broadcast-list` shares reached the atlas but
   not the README, which still described the old flag output and "the viewer link". The atlas maps code for agents;
   the README is what the operator reads. Update both in the commit that adds the surface, not at close.
+- **A stopwatch ceiling hides the race it was meant to catch (#479).** `elapsed > 1.5s` passed a TERM-deaf-child
+  test whose cancel landed before `sh` set its trap, so the child died by SIGTERM and SIGKILL escalation was never
+  exercised; only asserting *how* the child ended (its signal) exposed it under load. Where a test's subject is a
+  bound, assert the outcome that proves it (the product's own timeout error, the ending signal, the busy refusal),
+  not the wall-clock time; where the subject is an event, wait on it with `testwait` (bounded by the test's
+  deadline, not a latency guess). A short real deadline the test arms for every case is the same bug: arm it only
+  where the timeout is the subject.
+- **A capture at t waits for every asset bound by t, not one kind (#482).** The fidelity replay captured right after
+  the real-time window and waited only for a held paint's stylesheets. A font and an avatar that arrived 1 ms before
+  rec-blog's first frame were still loading in about 1 run in 8 under load. The diagnosis named the font, a second
+  slot's crops named the image, and both were one cause. When a capture flakes, look at the worst crop before fixing
+  a cause. Wait on the general readiness (sheets, fonts, images, bounded) after stopping the clocks at t, and pin it
+  with an asset bound just before the moment, which fails deterministically, not with a soak.
+- **A new input path inherits the channel's validation; apply its policy to the whole input, not its edges (#486
+  close).** `--message-file` stripped one trailing newline, then a trailing CRLF, and each round found the next CR:
+  the broker refuses every control byte but `\n` and `\t`, so a CRLF file fails wherever its CRs sit, with an error
+  that doesn't name the file. When an input source feeds an existing validator, read that validator first and decide
+  one rule for the whole input (normalize it, or refuse it with the source named), not a fix at the site a reviewer saw.

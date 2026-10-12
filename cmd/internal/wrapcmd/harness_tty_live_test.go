@@ -346,7 +346,6 @@ func TestHarnessTTYCaptureMissingExecutable(t *testing.T) {
 
 func TestHarnessTTYCaptureStartupTimeoutKillsAndReapsChild(t *testing.T) {
 	var pid int
-	started := time.Now()
 	out, err := captureHarnessTTY(harnessTTYCaptureRequest{
 		Executable:     os.Args[0],
 		Args:           []string{"-test.run=^TestHarnessTTYControlledChild$", "--", "ignore-signals"},
@@ -358,9 +357,6 @@ func TestHarnessTTYCaptureStartupTimeoutKillsAndReapsChild(t *testing.T) {
 	})
 	if err == nil || !strings.Contains(err.Error(), "startup timed out") {
 		t.Fatalf("error = %v, want startup timeout (output %q)", err, out)
-	}
-	if elapsed := time.Since(started); elapsed > time.Second {
-		t.Fatalf("timeout cleanup took %s, want bounded completion", elapsed)
 	}
 	if processExists(pid) {
 		t.Fatalf("child pid %d still exists after timeout", pid)

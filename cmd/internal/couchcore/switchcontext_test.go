@@ -9,7 +9,6 @@ import (
 	"strings"
 	"syscall"
 	"testing"
-	"time"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/orientation"
@@ -17,6 +16,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/readiness"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/storagegc"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func TestSwitchContextUsesExactOutgoingOwnerAndArchive(t *testing.T) {
@@ -260,7 +260,7 @@ func TestSwitchContextRejectsNonRegularEvidenceWithoutBlocking(t *testing.T) {
 		if readable {
 			t.Fatal("FIFO accepted")
 		}
-	case <-time.After(time.Second):
+	case <-testwait.After(t):
 		t.Fatal("context lookup blocked on FIFO")
 	}
 }
@@ -359,7 +359,11 @@ func TestOrientationSessionObservationHonorsCallerDeadline(t *testing.T) {
 			if err := os.WriteFile(path, []byte(raw), 0600); err != nil {
 				t.Fatal(err)
 			}
-			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+			// The deadline lapses when the observer has the context in hand,
+			// not 20ms after creation: a loaded run used to spend it reading
+			// the ready file, before the observer was ever asked (#480).
+			budget := newSpendableBudget()
+			ctx, cancel := budget.bind(context.Background())
 			defer cancel()
 			observed := false
 			reader := OSOrientationStatusReader{DataDir: data, Session: func(ThreadAddress) (PairSessionBinding, error) {
@@ -372,6 +376,7 @@ func TestOrientationSessionObservationHonorsCallerDeadline(t *testing.T) {
 				if !gotDeadline.Equal(wantDeadline) {
 					t.Fatalf("deadline lost: %v want %v", gotDeadline, wantDeadline)
 				}
+				budget.spend()
 				<-got.Done()
 				return PairSessionBinding{}, got.Err()
 			}}

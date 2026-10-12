@@ -9,7 +9,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
+
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 type recoveryIOFunc func(context.Context, ProvisionCommand) ([]byte, error)
@@ -187,7 +188,7 @@ func awaitRecovery(t *testing.T, done <-chan error) error {
 	select {
 	case err := <-done:
 		return err
-	case <-time.After(10 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("recovery barrier timed out")
 		return nil
 	}
@@ -196,7 +197,7 @@ func awaitRecoveryBarrier(t *testing.T, ready <-chan struct{}) {
 	t.Helper()
 	select {
 	case <-ready:
-	case <-time.After(10 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("recovery barrier timed out")
 	}
 }

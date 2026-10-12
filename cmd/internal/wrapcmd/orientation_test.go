@@ -9,6 +9,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/orientation"
 	"github.com/xianxu/pair/cmd/internal/readiness"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 	"io"
 	"os"
 	"path/filepath"
@@ -45,7 +46,7 @@ func TestOrientationSerializedInputScheduler(t *testing.T) {
 			go func() { p.translateStdinFrom(reader, out, time.Millisecond); close(done) }()
 			if action == "input-before" {
 				writer.Write([]byte("operator"))
-				if !waitFor(time.Second, func() bool { return len(out.Bytes()) > 0 }) {
+				if !waitFor(t, func() bool { return len(out.Bytes()) > 0 }) {
 					t.Fatal("input not forwarded")
 				}
 			}
@@ -54,7 +55,7 @@ func TestOrientationSerializedInputScheduler(t *testing.T) {
 				p.handleChunk([]byte(claudeLiveComposerPaint()), &rolling)
 			}
 			if action == "input-after-paste" || action == "overlay-after-paste" {
-				if !waitFor(time.Second, func() bool { return bytes.Contains(out.Bytes(), []byte("read context")) }) {
+				if !waitFor(t, func() bool { return bytes.Contains(out.Bytes(), []byte("read context")) }) {
 					t.Fatal("no paste")
 				}
 			}
@@ -70,7 +71,7 @@ func TestOrientationSerializedInputScheduler(t *testing.T) {
 			var state orientation.DeliveryState
 			select {
 			case state = <-states:
-			case <-time.After(time.Second):
+			case <-testwait.After(t):
 				t.Fatal("no status")
 			}
 			if action == "submit" {
@@ -82,13 +83,13 @@ func TestOrientationSerializedInputScheduler(t *testing.T) {
 					t.Fatalf("cancel %#v bytes %q", state, out.Bytes())
 				}
 			}
-			if action == "input-after-paste" && (!state.BodyWritten || !waitFor(time.Second, func() bool { return bytes.HasSuffix(out.Bytes(), []byte("operator")) })) {
+			if action == "input-after-paste" && (!state.BodyWritten || !waitFor(t, func() bool { return bytes.HasSuffix(out.Bytes(), []byte("operator")) })) {
 				t.Fatalf("operator text/body presence %#v %q", state, out.Bytes())
 			}
 			writer.Close()
 			select {
 			case <-done:
-			case <-time.After(time.Second):
+			case <-testwait.After(t):
 				t.Fatal("input owner did not stop")
 			}
 		})
@@ -115,7 +116,7 @@ func TestOrientationPartialWriteNeverRetries(t *testing.T) {
 		if s.Phase != orientation.DeliveryIndeterminate {
 			t.Fatal(s)
 		}
-	case <-time.After(time.Second):
+	case <-testwait.After(t):
 		t.Fatal("no state")
 	}
 	p.handleChunk([]byte(claudeLiveComposerPaint()), &rolling)
@@ -185,7 +186,7 @@ func TestOrientationCapturedComposersWithoutReturnRemap(t *testing.T) {
 				if state.Phase != orientation.DeliverySubmitted {
 					t.Fatalf("state %#v", state)
 				}
-			case <-time.After(time.Second):
+			case <-testwait.After(t):
 				t.Fatal("captured composer did not submit")
 			}
 			w.Close()
@@ -411,7 +412,7 @@ func TestOrientationDeclinesCapturedMenusAndNonCodingMode(t *testing.T) {
 				if state.Phase == orientation.DeliverySubmitted {
 					t.Errorf("submitted into captured menu/mode %s", path)
 				}
-			case <-time.After(time.Second):
+			case <-testwait.After(t):
 				t.Error("no timeout status")
 			}
 			w.Close()
@@ -455,7 +456,7 @@ func TestOrientationSubmitFailureAndLaterInput(t *testing.T) {
 			var state orientation.DeliveryState
 			select {
 			case state = <-states:
-			case <-time.After(time.Second):
+			case <-testwait.After(t):
 				t.Fatal("no result")
 			}
 			want := orientation.DeliverySubmitted

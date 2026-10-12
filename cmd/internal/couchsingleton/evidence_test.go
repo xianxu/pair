@@ -100,12 +100,10 @@ func TestSlotTransactionContentionRefusesBeforePublication(t *testing.T) {
 			f.Close()
 		}
 	}()
-	started := time.Now()
-	if _, e = m.Adopt(Request{}, r.Digest); e == nil {
-		t.Fatal("published through slot transaction")
-	}
-	if time.Since(started) > time.Second {
-		t.Fatal("waited for slot transaction")
+	// The refusal is the store lock's own busy answer, not the publication
+	// context running out: that is "did not wait", without a stopwatch (#479).
+	if _, e = m.Adopt(Request{}, r.Digest); !errors.Is(e, couchcore.ErrThreadStoreBusy) {
+		t.Fatalf("Adopt under slot transaction = %v, want %v", e, couchcore.ErrThreadStoreBusy)
 	}
 }
 func migrationRecord() couchcore.ThreadRecord {

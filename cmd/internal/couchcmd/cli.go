@@ -29,7 +29,7 @@ const (
 	cliHelp
 	cliSessionSync
 	// cliWebQuery is couch broadcast-web's agent queries (#462); args holds
-	// the argv after the flag, which query.Main parses.
+	// the argv after the flag, which query.Run parses.
 	cliWebQuery
 	// cliWebReplay serves broadcast-web recordings for replay (#471); args
 	// holds the argv after the flag.
@@ -55,6 +55,9 @@ type cliInvocation struct {
 	args                     []string
 	messageOp                string
 	messageBody              string
+	// messageFile is --message-file's path (pair#486); the send reads the
+	// body from it, so the parser stays free of IO.
+	messageFile string
 	// messageAgent narrows --send-to to slots running that agent.
 	messageAgent string
 	// confirmed is --confirm on a slot operation whose declaration requires
@@ -364,10 +367,19 @@ func parseMessageCLI(args []string) (cliInvocation, error) {
 			}
 			args = append(args[:2:2], args[4:]...)
 		}
-		if len(args) != 4 || args[1] == "" || strings.HasPrefix(args[1], "-") || args[2] != "--message" || strings.TrimSpace(args[3]) == "" {
+		if len(args) != 4 || args[1] == "" || strings.HasPrefix(args[1], "-") {
 			return bad()
 		}
-		return cliInvocation{kind: cliMessage, messageOp: "send", ref: args[1], messageAgent: agent, messageBody: args[3]}, nil
+		inv := cliInvocation{kind: cliMessage, messageOp: "send", ref: args[1], messageAgent: agent}
+		switch {
+		case args[2] == "--message" && strings.TrimSpace(args[3]) != "":
+			inv.messageBody = args[3]
+		case args[2] == "--message-file" && args[3] != "":
+			inv.messageFile = args[3]
+		default:
+			return bad()
+		}
+		return inv, nil
 	}
 	return bad()
 }

@@ -23,6 +23,12 @@
   a PTY or exec `ps` (an agent sandbox), because the suite then fails in ~150
   places that look like code bugs (pair#450). A refusal it does not probe still
   fails as an ordinary test; add the probe there.
+- `cmd/internal/testwait` — how a Go test waits for an event: bounded by the
+  test's own deadline minus a margin (`After` for a select guard, `Until`/`Wait`
+  to poll, `Budget` for a hand-rolled loop or a helper's timeout), never by a guess at how fast the event comes, so a loaded `-race`
+  run stays green and a lost event still fails naming what it waited for
+  (pair#479). Where a test's subject is a bound, assert the outcome that proves
+  it (the product's timeout error, a child's ending signal), not elapsed time.
 - `probes/` — committed probe drivers that exercise real binaries end to end.
   `make test-smoke` runs **every** directory under `probes/`, so a new probe is
   covered by existing it rather than by remembering to add a line. A probe earns
@@ -114,6 +120,6 @@
 - [Terminal ownership](terminal.md) — Shared endpoint, presenter, profile, transport and qualification boundaries.
 - [Couch broadcast](broadcast.md) — view-only streaming of the composed Couch screen: Presenter tap, LIVE-gated hub, switcher privacy (#395).
 - [Couch broadcast-web](webcast.md) — the cast Chrome (#454): CDP over the debugging pipe, the `Browser` seam and its fake, active-tab inference, the isolated-world in-page control; the recorder (#458) on the CDP side of the seam; the asset store and proxy (#459); the fidelity check (#478): each recording's frames vs the viewer's replay, a report per recording, `couch --broadcast-web-fidelity` and at the end of a cast.
-- [Broadcast-web recording format](webcast-format.md) — the recording (#457): one record stream live and on disk, stable node ids, the reference reducer and validator, the seams, fakes and fixtures each wave-1 component builds against, and the notes model (#461): anchors, focused context, snapped crops. Agent queries (#462): `couch --broadcast-web-query`; replay with a scrubber (#471): `couch --broadcast-web-replay`, in [webcast.md](webcast.md#replay-471). Remote driving (#466): `ctl` control records, `by` attribution, and `drive`'s input wire, confinement, `Injector` and `Controller` seams.
+- [Broadcast-web recording format](webcast-format.md) — the recording (#457): one record stream live and on disk, stable node ids, the reference reducer and validator, the seams, fakes and fixtures each wave-1 component builds against, and the notes model (#461): anchors, focused context, snapped crops. Agent queries (#462): `couch --broadcast-web-query`; replay with a scrubber (#471): `couch --broadcast-web-replay`, shared through a running Couch's tunnel for remote viewers (#477), in [webcast.md](webcast.md#replay-471). Remote driving (#466): `ctl` control records, `by` attribution, and `drive`'s input wire, confinement, `Injector` and `Controller` seams.
 
 - [Opt-in Couch live capture](couch-live-capture.md) — opt-in display-boundary recording and replay evidence for #379.

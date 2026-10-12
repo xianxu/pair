@@ -5,6 +5,7 @@ import (
 	"errors"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -83,7 +84,7 @@ func TestSIGUSR2ReExecsWrapperWithoutReplacingPaneProcess(t *testing.T) {
 	}()
 
 	pidPath := filepath.Join(data, "pair-wrap-pid-restart-test")
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(testwait.Budget(t))
 	for {
 		raw, err := os.ReadFile(pidPath)
 		if err == nil {
@@ -105,7 +106,7 @@ func TestSIGUSR2ReExecsWrapperWithoutReplacingPaneProcess(t *testing.T) {
 		if len(argv) < 4 || argv[1] != "wrap" || argv[len(argv)-3] != fakeCodex {
 			t.Fatalf("replacement argv = %v", argv)
 		}
-	case <-time.After(3 * time.Second):
+	case <-testwait.After(t):
 		events, _ := os.ReadFile(filepath.Join(data, "wrap-events-restart-test.jsonl"))
 		select {
 		case code := <-done:
@@ -116,7 +117,7 @@ func TestSIGUSR2ReExecsWrapperWithoutReplacingPaneProcess(t *testing.T) {
 	}
 	select {
 	case <-done:
-	case <-time.After(3 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("wrapper did not finish old child")
 	}
 }

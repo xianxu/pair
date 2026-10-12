@@ -107,17 +107,22 @@ func (f *File) stopped(ctx context.Context) error {
 		return ctx.Err()
 	}
 }
+
+// pollSlice bounds one wait, so cancellation and Close are seen at the next
+// wakeup even when the descriptor stays unready.
+const pollSlice = 50 * time.Millisecond
+
 func (f *File) wait(ctx context.Context, fd int, event int16) error {
 	if err := f.stopped(ctx); err != nil {
 		return err
 	}
-	timeout := 50
+	timeout := int(pollSlice / time.Millisecond)
 	if deadline, ok := ctx.Deadline(); ok {
 		left := time.Until(deadline)
 		if left <= 0 {
 			return context.DeadlineExceeded
 		}
-		if left < 50*time.Millisecond {
+		if left < pollSlice {
 			timeout = int((left + time.Millisecond - 1) / time.Millisecond)
 		}
 	}

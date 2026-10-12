@@ -862,7 +862,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	configDir := filepath.Join(opts.PairHome, "zellij")
 	layout := filepath.Join(opts.PairHome, "zellij", "layouts", LayoutAssetBasename(layoutResolution.Mode))
 	bound := opts.birthBound()
-	code, verdict, err := launchWatched(rt, birthEvidence, session, configDir, layout, bound)
+	code, verdict, err := launchWatched(rt, opts.birthClock(), birthEvidence, session, configDir, layout, bound)
 	if err != nil {
 		restoreLayoutRecord(rt, dataDir, chosenTag, priorLayout)
 		fmt.Fprintf(stderr, "pair: failed to launch zellij session '%s': %v\n", session, err)

@@ -89,7 +89,7 @@ func TestParseMessageCLI(t *testing.T) {
 		args          []string
 		kind          cliKind
 		op, ref, body string
-		agent         string
+		agent, file   string
 		json          bool
 	}{
 		{args: []string{"--actors"}, kind: cliMessage, op: "actors"},
@@ -101,9 +101,11 @@ func TestParseMessageCLI(t *testing.T) {
 		{args: []string{"--send-to", "pair", "--agent", "codex", "--message", "hello"}, kind: cliMessage, op: "send", ref: "pair", agent: "codex", body: "hello"},
 		{args: []string{"--send-to", "pair", "--agent", "codex", "--message", "--agent"}, kind: cliMessage, op: "send", ref: "pair", agent: "codex", body: "--agent"},
 		{args: []string{"--skill"}, kind: cliSkill},
+		{args: []string{"--send-to", "pair:1", "--message-file", "m.md"}, kind: cliMessage, op: "send", ref: "pair:1", file: "m.md"},
+		{args: []string{"--send-to", "pair", "--agent", "codex", "--message-file", "--json"}, kind: cliMessage, op: "send", ref: "pair", agent: "codex", file: "--json"},
 	} {
 		got, err := ParseCLI(tc.args, couchcore.Operations())
-		if err != nil || got.kind != tc.kind || got.messageOp != tc.op || got.ref != tc.ref || got.messageBody != tc.body || got.messageAgent != tc.agent || got.jsonOutput != tc.json {
+		if err != nil || got.kind != tc.kind || got.messageOp != tc.op || got.ref != tc.ref || got.messageBody != tc.body || got.messageFile != tc.file || got.messageAgent != tc.agent || got.jsonOutput != tc.json {
 			t.Errorf("%q: %#v %v", tc.args, got, err)
 		}
 	}
@@ -118,6 +120,10 @@ func TestParseMessageCLIRejectsMixedShapes(t *testing.T) {
 		{"--send-to", "pair", "--agent", "", "--message", "hello"}, {"--send-to", "pair", "--agent", "--message", "hello"},
 		{"--send-to", "pair", "--message", "hello", "--agent", "codex"}, {"--send-to", "pair", "--agent", "-x", "--message", "hello"},
 		{"--skill", "--json"}, {"--skill", "--layout2"}, {"--available", "on"}, {"--reply-to", "id", "--message", "hello"},
+		// --message-file (pair#486): exactly one of it or --message, in --message's place.
+		{"--send-to", "pair", "--message-file"}, {"--send-to", "pair", "--message-file", ""},
+		{"--send-to", "pair", "--message", "hello", "--message-file", "m.md"}, {"--send-to", "pair", "--message-file", "m.md", "--message", "hello"},
+		{"--send-to", "pair", "--message-file", "m.md", "--json"}, {"--send-to", "pair", "--message-file", "m.md", "--agent", "codex"},
 	} {
 		if got, err := ParseCLI(args, couchcore.Operations()); err == nil || got.kind != cliInvalid {
 			t.Errorf("accepted %q: %#v %v", args, got, err)

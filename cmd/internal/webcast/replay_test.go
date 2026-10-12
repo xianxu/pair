@@ -45,9 +45,16 @@ const (
 )
 
 // knownGaps are frames that differ for a filed reason, by fixture and frame
-// index. One that comes within tolerance fails, so its entry goes.
-var knownGaps = map[string]map[int]string{
-	"rec-stress": {0: "pair#475: stress.css binds after the segment's first screenshot, which shows it applied"},
+// index, and the most they may differ at their best time, so a gap guards
+// what does work. One that comes within tolerance fails, so its entry goes.
+var knownGaps = map[string]map[int]knownGap{
+	// Unstyled, it is 24% off (#475 before the hold).
+	"rec-stress": {0: {"photo.png's bytes are recorded at 152ms, after the screenshot at 84 had it, and an image does not block rendering (#475: non-blocking asset lag)", 0.04}},
+}
+
+type knownGap struct {
+	why  string
+	most float64
 }
 
 func TestLiveReplayFixtures(t *testing.T) {
@@ -70,20 +77,38 @@ func TestLiveReplayFixtures(t *testing.T) {
 			}
 			for i, f := range rec.Frames {
 				var tried []string
-				ok := false
-				for _, at := range recording.FrameTimes(rec.Records, f.T, fidelity.Offsets) {
-					diff := page.renderDiff(t, rec, name, f, at)
-					tried = append(tried, fmt.Sprintf("%.2f%% at %+dms", 100*diff, at-f.T))
-					if ok = diff <= renderTolerance; ok {
-						break
+				best := 1.0
+				try := func(offs []int64) bool {
+					for _, at := range recording.FrameTimes(rec.Records, f.T, offs) {
+						diff := page.renderDiff(t, rec, name, f, at)
+						tried = append(tried, fmt.Sprintf("%.2f%% at %+dms", 100*diff, at-f.T))
+						best = min(best, diff)
+						if diff <= renderTolerance {
+							return true
+						}
+					}
+					return false
+				}
+				ok := try(fidelity.Offsets)
+				// The viewer holds the previous paint until a new document's
+				// stylesheets bind (#475), so it shows the tab's page late
+				// when their bytes were recorded after the screenshot
+				// (rec-stress frame 0 at 84ms, stress.css at 103): the frame
+				// may be where that hold releases. Asked only now: replaying
+				// ahead warms the asset cache, which shifts transitions.
+				if !ok {
+					if held := page.evalInt(t, fmt.Sprintf("releaseAt(%q, %d)", name, f.T)) - f.T; held > 0 {
+						ok = try([]int64{held})
 					}
 				}
 				t.Logf("frame %d (t=%d): %s", i, f.T, strings.Join(tried, ", "))
 				switch gap, known := knownGaps[name][i]; {
 				case ok && known:
-					t.Errorf("frame %d (t=%d) is within tolerance now: drop its known gap (%s)", i, f.T, gap)
-				case !ok && known:
-					t.Logf("frame %d: known gap, %s", i, gap)
+					t.Errorf("frame %d (t=%d) is within tolerance now: drop its known gap (%s)", i, f.T, gap.why)
+				case known && best > gap.most:
+					t.Errorf("frame %d (t=%d): %s of pixels differ, over its known gap's %.0f%% (%s)", i, f.T, strings.Join(tried, ", "), 100*gap.most, gap.why)
+				case known:
+					t.Logf("frame %d: known gap, %s", i, gap.why)
 				case !ok:
 					t.Errorf("frame %d (t=%d): %s of pixels differ, over the %.0f%% tolerance", i, f.T, strings.Join(tried, ", "), 100*renderTolerance)
 				}
@@ -168,14 +193,11 @@ func fixtureServer(t *testing.T, extra ...*recording.Recording) *httptest.Server
 		proxies[name].Bind(store)
 	}
 	mux := http.NewServeMux()
+	// The viewer's files as its servers serve them: one table, so the
+	// harness reaches every module the replay imports (#477: replay.js
+	// draws with annotate.js, which imports collab.js).
 	mux.HandleFunc("/web/", func(w http.ResponseWriter, r *http.Request) {
-		body, err := webFS.ReadFile("web/" + strings.TrimPrefix(r.URL.Path, "/web/"))
-		if err != nil {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "text/javascript")
-		w.Write(body)
+		serveViewerFile(w, r, strings.TrimPrefix(r.URL.Path, "/web/"))
 	})
 	for _, f := range []string{"harness.html", "harness.js"} {
 		mux.HandleFunc("/"+f, func(w http.ResponseWriter, r *http.Request) {
@@ -361,6 +383,15 @@ func (p *chromePage) eval(t *testing.T, expr string) json.RawMessage {
 	return res.Result.Value
 }
 
+func (p *chromePage) evalInt(t *testing.T, expr string) int64 {
+	t.Helper()
+	var n float64
+	if err := json.Unmarshal(p.eval(t, expr), &n); err != nil {
+		t.Fatalf("%s: not a number: %v", expr, err)
+	}
+	return int64(n)
+}
+
 func (p *chromePage) evalString(t *testing.T, expr string) string {
 	t.Helper()
 	var s string
@@ -433,6 +464,220 @@ func pixelDiff(a, b image.Image) float64 {
 func far(a, b uint32) bool {
 	d := int(a>>8) - int(b>>8)
 	return d > pixelThreshold || -d > pixelThreshold
+}
+
+// A new document's paint is held until its stylesheets bind (#475): the
+// previous paint stays on top while a linked stylesheet's bytes are still
+// to come, a print-only one blocks nothing, and one that never arrives
+// lets the page through after HOLD_MS. #page holds the new document all
+// along.
+func TestLiveRenderHoldsPaintUntilStylesheetsBind(t *testing.T) {
+	page := headlessPage(t)
+	dir := filepath.Join(t.TempDir(), "held")
+	w, err := recording.NewDirWriter(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	css := []byte("p{color:rgb(0,0,255)}")
+	hash, err := w.PutAsset(css)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := recording.NewBuilder("held")
+	b.Page(recording.SegLive, "http://x/a", b.El("p", nil, b.Txt("A")), b.El("img", []string{"alt", "pic", "srcset", "none.png 1x, none2.png 2x"}))
+	doc := func(url, text string, links ...[]string) {
+		b.Add(&recording.Seg{Seg: b.NextSeg(), Why: recording.SegNavigate, Tab: recording.Tab{ID: "tab1", URL: url}, VP: recording.Viewport{W: 1280, H: 800, DPR: 1}})
+		var head []recording.Node
+		for _, l := range links {
+			head = append(head, b.El("link", l))
+		}
+		b.Snapshot(url, b.El("html", nil, b.El("head", nil, head...), b.El("body", nil, b.El("p", nil, b.Txt(text)))))
+	}
+	b.At(1000)
+	doc("http://x/b", "B", []string{"rel", "stylesheet", "href", "b.css"}, []string{"rel", "stylesheet", "media", "print", "href", "p.css"})
+	b.At(1100).Add(&recording.Asset{URL: "http://x/b.css", Hash: hash, MIME: "text/css", Size: int64(len(css))})
+	b.At(2000)
+	doc("http://x/c", "C", []string{"rel", "stylesheet", "href", "never.css"})
+	for _, r := range b.Recs {
+		if err := w.Put(r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	w.Close()
+	rec, err := recording.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := fixtureServer(t, rec)
+	page.open(t, srv.URL+"/harness.html")
+	page.eval(t, `load("held")`)
+	// shown is the text on top at the page's corner; current, #page's.
+	const shown = `(() => { const f = document.elementFromPoint(5, 5); return f.contentDocument.body ? f.contentDocument.body.textContent : ''; })()`
+	const current = `document.getElementById('page').contentDocument.body.textContent`
+	check := func(at, wantShown, wantCurrent string) {
+		t.Helper()
+		if got := page.evalString(t, shown); got != wantShown {
+			t.Errorf("%s: shows %q, want %q", at, got, wantShown)
+		}
+		if got := page.evalString(t, current); got != wantCurrent {
+			t.Errorf("%s: #page has %q, want %q", at, got, wantCurrent)
+		}
+	}
+	page.evalString(t, "replayTo(0)")
+	check("t=0", "A", "A")
+	// An image none of whose candidates has arrived is one not loaded yet,
+	// not a broken one: no srcset left to fail, so no alt text.
+	if got := page.evalString(t, `(() => { const i = document.getElementById('page').contentDocument.querySelector('img'); return [...i.attributes].map((a) => a.name).join(' '); })()`); got != "" {
+		t.Errorf("an image with no candidate yet has attributes %q, want none", got)
+	}
+	page.evalString(t, "replayTo(1000)")
+	check("b.css not arrived", "A", "B")
+	page.evalString(t, "replayTo(1100)")
+	check("b.css bound", "B", "B")
+	if got := page.evalString(t, `getComputedStyle(document.getElementById('page').contentDocument.querySelector('p')).color`); got != "rgb(0, 0, 255)" {
+		t.Errorf("b.css bound: p is %s, want b.css's blue", got)
+	}
+	page.evalString(t, "replayTo(2000)")
+	check("never.css pending", "B", "C")
+	page.eval(t, "new Promise((ok) => setTimeout(ok, 700))") // HOLD_MS is 500
+	check("past the deadline", "C", "C")
+}
+
+// A frame's moment is drawn with every asset bound at or before it (#482):
+// rec-blog's Inter font and avatar arrived 1 ms before its first frame, and
+// the replay captured before the viewer had loaded them. The tab painted
+// with them, so replayAt returns only once they have loaded (bounded).
+func TestLiveReplayAtLoadsAssetsBoundJustBefore(t *testing.T) {
+	page := headlessPage(t)
+	dir := filepath.Join(t.TempDir(), "late")
+	w, err := recording.NewDirWriter(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	font, err := os.ReadFile(filepath.Join(recording.Fixture("rec-blog"), "assets", "3100e775e8616cd2611beecfa23a4263d7037586789b43f035236a2e6fbd4c62"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	img := image.NewRGBA(image.Rect(0, 0, 1200, 1200))
+	for i := range img.Pix {
+		img.Pix[i] = byte(i * 7)
+	}
+	var pic bytes.Buffer
+	if err := png.Encode(&pic, img); err != nil {
+		t.Fatal(err)
+	}
+	fontHash, err := w.PutAsset(font)
+	if err != nil {
+		t.Fatal(err)
+	}
+	picHash, err := w.PutAsset(pic.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := recording.NewBuilder("late")
+	b.Page(recording.SegLive, "http://x/a", b.El("p", []string{"style", "font-family:Late"}, b.Txt("Aa")), b.El("img", []string{"src", "pic.png"}))
+	b.Add(&recording.Font{Family: "Late", Src: "http://x/late.woff2", Weight: "100 900"})
+	b.At(99)
+	b.Add(&recording.Asset{URL: "http://x/late.woff2", Hash: fontHash, MIME: "font/woff2", Size: int64(len(font))})
+	b.Add(&recording.Asset{URL: "http://x/pic.png", Hash: picHash, MIME: "image/png", Size: int64(pic.Len())})
+	for _, r := range b.Recs {
+		if err := w.Put(r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	w.Close()
+	rec, err := recording.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := fixtureServer(t, rec)
+	page.open(t, srv.URL+"/harness.html")
+	page.eval(t, `load("late")`)
+	page.evalString(t, fmt.Sprintf("replayAt(100, %d)", ReplayWindow))
+	const state = `(() => { const d = document.getElementById('page').contentDocument, i = d.querySelector('img');
+		return [...d.fonts].map((f) => f.family + ':' + f.status).join(' ') + ' img:' + (i.complete && i.naturalWidth > 0); })()`
+	if got := page.evalString(t, state); got != "Late:loaded img:true" {
+		t.Errorf("at t=100, with the font and image bound at 99: %s, want both loaded", got)
+	}
+}
+
+// A paint hold is one state on the frame pair (#475), handed between
+// renderers: a renderer starting a hold while another's is in flight (a
+// resync, a seek) takes it over, the previous paint stays, and the old
+// deadline is cancelled; a new segment during a hold keeps the previous
+// paint; the owner's deadline releases it; a stylesheet that fails to
+// load stops blocking; and the held paint stays under what the shell
+// draws after the frames (the pointer, marks, the Paused label). Timers
+// are fake, so each ordering is driven, not waited for.
+func TestLiveRenderHoldHandOff(t *testing.T) {
+	page := headlessPage(t)
+	srv := fixtureServer(t)
+	page.open(t, srv.URL+"/harness.html")
+	got := page.evalString(t, `(async () => {
+		const { Model } = await import('/web/model.js');
+		const { Renderer, currentFrame } = await import('/web/render.js');
+		const box = document.createElement('div');
+		box.style.cssText = 'position:absolute;left:0;top:0;width:200px;height:200px';
+		const frame = document.createElement('iframe');
+		frame.setAttribute('sandbox', 'allow-same-origin');
+		frame.id = 'handoff';
+		const overlay = document.createElement('div');
+		overlay.style.cssText = 'position:absolute;left:150px;top:150px;width:50px;height:50px';
+		box.append(frame, overlay);
+		document.body.replaceChildren(box);
+		const timers = [], cleared = new Set();
+		const fake = { set: (fn) => timers.push(fn) - 1, clear: (id) => cleared.add(id) };
+		const fire = (id) => { if (!cleared.has(id)) timers[id](); };
+		const draw = (r, text, link) => {
+			const head = link ? [{ id: 4, y: 'el', n: 'link', a: { rel: 'stylesheet', href: link } }] : [];
+			for (const rec of [
+				...(r.model.head ? [] : [{ t: 0, k: 'head', format: 'couch-webcast', v: 1, id: 'h', started: 's' }]),
+				{ t: 0, k: 'seg', seg: (r.model.seg || 0) + 1, why: 'live', tab: { id: 'a', url: 'http://x/' }, vp: { w: 200, h: 200, dpr: 1 } },
+				{ t: 0, k: 'doc', doc: 1, url: 'http://x/', tree: { id: 1, y: 'doc', c: [{ id: 2, y: 'el', n: 'html', c: [{ id: 3, y: 'el', n: 'head', c: head }, { id: 5, y: 'el', n: 'body', c: [{ id: 6, y: 'text', v: text }] }] }] } },
+			]) { r.model.apply(rec); r.apply(rec); }
+		};
+		const renderer = () => new Renderer(currentFrame(frame), new Model(), () => '', fake);
+		const at = (x, y) => { const e = document.elementFromPoint(x, y); return e === overlay ? 'overlay' : (e.contentDocument && e.contentDocument.body ? e.contentDocument.body.textContent : '?'); };
+		const current = () => document.getElementById('handoff').contentDocument.body.textContent;
+		const seen = [];
+		const look = (what) => seen.push(what + ': shows ' + at(5, 5) + ', #page ' + current() + ', corner ' + at(175, 175));
+		const r0 = renderer();
+		draw(r0, 'P');
+		look('P drawn, nothing blocks');
+		const r1 = renderer();
+		draw(r1, 'Q', 'http://x/q.css');
+		look('Q waits for q.css');
+		const r2 = renderer();
+		draw(r2, 'R', 'http://x/r.css');
+		look('R takes the hold over');
+		seen.push('r1 holding ' + r1.holding + ', r2 holding ' + r2.holding);
+		fire(1); // r1's deadline: cancelled
+		look('r1 deadline');
+		draw(r2, 'S', 'http://x/s.css');
+		look('S during the hold');
+		fire(timers.length - 1);
+		look('r2 deadline');
+		const r3 = renderer();
+		draw(r3, 'T', 'http://x/t.css');
+		const link = document.getElementById('handoff').contentDocument.querySelector('link');
+		r3.setLinkCSS(4, link, 'p{}');
+		link.dispatchEvent(new Event('error'));
+		look('t.css failed');
+		return seen.join('\n');
+	})()`)
+	want := strings.Join([]string{
+		"P drawn, nothing blocks: shows P, #page P, corner overlay",
+		"Q waits for q.css: shows P, #page Q, corner overlay",
+		"R takes the hold over: shows P, #page R, corner overlay",
+		"r1 holding false, r2 holding true",
+		"r1 deadline: shows P, #page R, corner overlay",
+		"S during the hold: shows P, #page S, corner overlay",
+		"r2 deadline: shows S, #page S, corner overlay",
+		"t.css failed: shows T, #page T, corner overlay",
+	}, "\n")
+	if got != want {
+		t.Errorf("hand-off:\n%s\nwant:\n%s", got, want)
+	}
 }
 
 // URLs resolve against the document that holds them, and SVG's mixed-case

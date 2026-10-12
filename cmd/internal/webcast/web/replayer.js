@@ -9,29 +9,34 @@
 // replayAt(t, windowMs) draws the page as the real tab looked at t:
 // records up to t - windowMs at once (their transitions finished), then the
 // last window in real time, so a transition or animation running at t is
-// at the phase it had in the tab; animations are paused at t for a capture.
+// at the phase it had in the tab; animations are paused at t, and the
+// assets bound by t finish loading (#482), for a capture.
 // A document a segment snapshots mid-cast (go-live, resume, a tab switch)
 // was already running, so its animations are finished, not started.
 import { Model, goJSON } from './model.js';
-import { Renderer } from './render.js';
+import { Renderer, currentFrame, blankFrames, HOLD_MS } from './render.js';
 import { catchUp } from './replay.js';
 
 // inBrowser is what a Replayer needs of a page that holds the frame.
+// The renderer swaps the page frame with a sibling while it holds a paint
+// (#475), so the frame drawn into is looked up each time.
 export function inBrowser(frame) {
   const docs = () => {
-    const top = frame.contentDocument;
+    const top = currentFrame(frame).contentDocument;
     if (!top) return [];
     return [top, ...[...top.querySelectorAll('iframe')].map((f) => f.contentDocument).filter(Boolean)];
   };
   return {
-    renderer: (model, resolve) => new Renderer(frame, model, resolve),
+    renderer: (model, resolve) => new Renderer(currentFrame(frame), model, resolve),
+    blank: () => blankFrames(frame),
     now: () => performance.now(),
     sleep: (ms) => new Promise((ok) => setTimeout(ok, Math.max(0, ms))),
     paint: () => new Promise((ok) => requestAnimationFrame(() => requestAnimationFrame(ok))),
     animations: () => docs().flatMap((d) => d.getAnimations()),
     layout: (vp) => {
-      frame.style.width = `${vp.w}px`;
-      frame.style.height = `${vp.h}px`;
+      const f = currentFrame(frame);
+      f.style.width = `${vp.w}px`;
+      f.style.height = `${vp.h}px`;
     },
   };
 }
@@ -46,7 +51,9 @@ export class Replayer {
     this.reset();
   }
 
+  // reset starts a fresh viewer, which holds no previous paint.
   reset() {
+    if (this.deps.blank) this.deps.blank();
     this.next = 0;
     this.at = -Infinity; // the time drawn so far
     this.model = new Model();
@@ -93,6 +100,28 @@ export class Replayer {
     return this.settle();
   }
 
+  // releaseAt is when a viewer that drew the recording up to t shows that
+  // moment's document (#475): t itself, or when the paint held over t is
+  // released, its stylesheets bound or HOLD_MS after its segment began. It
+  // draws from the start, applying records past t until then.
+  async releaseAt(t) {
+    this.reset();
+    let began = 0;
+    const step = async () => {
+      const r = this.recs[this.next++];
+      if (r.k === 'seg' || r.k === 'head') began = r.t;
+      this.feed(r);
+      this.renderer.flush();
+      if (this.renderer.holding) await this.renderer.bound();
+      return r.t;
+    };
+    while (this.next < this.recs.length && this.recs[this.next].t <= t) await step();
+    let at = t;
+    while (this.renderer.holding && this.next < this.recs.length && this.recs[this.next].t < began + HOLD_MS) at = await step();
+    this.at = at;
+    return this.renderer.holding ? Math.max(at, began + HOLD_MS) : at;
+  }
+
   finishAnimations() {
     for (const a of this.deps.animations()) {
       try { a.finish(); } catch { /* an infinite animation has no end */ }
@@ -133,9 +162,18 @@ export class Replayer {
       if (running) this.finishAnimations();
     }
     await until(t);
+    // A held paint (#475) is released as soon as the stylesheets whose
+    // bytes have arrived apply; the viewer then redraws (onDirty).
+    if (this.renderer.holding) { await this.renderer.bound(); this.renderer.flush(); }
     this.at = Math.max(this.at, t);
+    // The tab painted t with the assets whose bytes it had (#482): a font
+    // or image bound just before t is still loading in the viewer, so the
+    // clocks stop at t, the loads finish (ready's bound), and anything the
+    // loads started is paused too, a frame or two after its start.
     for (const a of this.deps.animations()) a.pause();
+    const canonical = await this.settle();
+    for (const a of this.deps.animations()) if (a.playState !== 'paused') a.pause();
     const m = this.model;
-    return { live: m.seg > 0 && m.live, vp: { w: m.vp.w, h: m.vp.h }, canonical: goJSON(this.renderer.canonical()) };
+    return { live: m.seg > 0 && m.live, vp: { w: m.vp.w, h: m.vp.h }, canonical };
   }
 }

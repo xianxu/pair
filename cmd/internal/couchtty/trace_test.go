@@ -17,6 +17,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 // The COUCH_TRACE timing trace (pair#206 Task 11).
@@ -116,7 +117,7 @@ func TestTheConsoleTracesStartupThePassAndEachAttempt(t *testing.T) {
 	resumeSucceeds(t, f, "couch-first")
 	f.con.ArmReattachPass(root)
 	f.con.SetActionableProvider(detachedPair(root))
-	waitUpTo(t, 2*time.Second, "the pass to finish", func() bool {
+	waitFor(t, "the pass to finish", func() bool {
 		return f.con.menuSnapshot().Reattach.Phase == ReattachDone
 	})
 
@@ -242,14 +243,14 @@ func TestAnUnarmedConsoleTracesNoSeeding(t *testing.T) {
 		}
 	})
 	f.con.SetActionableProvider(detachedPair(consoleThread(f, "c1")))
-	waitUpTo(t, 2*time.Second, "an inventory in the trace", func() bool {
+	waitFor(t, "an inventory in the trace", func() bool {
 		body, _ := os.ReadFile(path)
 		return strings.Contains(string(body), "\t"+traceInventory+"\t")
 	})
 	f.con.Stop()
 	select {
 	case <-f.done:
-	case <-time.After(2 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("Run did not return after Stop")
 	}
 	if lines := traceLines(t, path); countTraceEvents(lines, tracePassSeeded) != 0 {

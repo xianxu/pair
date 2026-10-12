@@ -11,9 +11,9 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
@@ -88,7 +88,8 @@ func TestResolveReplay(t *testing.T) {
 	}
 }
 
-// lineWriter hands over the first line written to it.
+// lineWriter hands over the first line written to it, on the channel it
+// was made with (the test keeps its own copy: Write clears the field).
 type lineWriter struct {
 	mu   sync.Mutex
 	buf  bytes.Buffer
@@ -114,15 +115,18 @@ func TestRunReplayServesTheLink(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	out := &lineWriter{line: make(chan string, 1)}
+	lines := make(chan string, 1)
+	out := &lineWriter{line: lines}
 	done := make(chan int, 1)
-	go func() { done <- runReplay(ctx, []string{dir, "--at", "5500"}, "", out, io.Discard) }()
+	go func() {
+		done <- runReplay(ctx, []string{dir, "--at", "5500"}, "", noCouch, testClock(), out, io.Discard)
+	}()
 	var link string
 	select {
-	case link = <-out.line:
+	case link = <-lines:
 	case code := <-done:
 		t.Fatalf("exited %d before printing a link", code)
-	case <-time.After(10 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("no link")
 	}
 	if !regexp.MustCompile(`^http://127\.0\.0\.1:\d+/[A-Za-z0-9_-]+/r/segments/#t=5500$`).MatchString(link) {
@@ -143,18 +147,18 @@ func TestRunReplayServesTheLink(t *testing.T) {
 		if code != 0 {
 			t.Errorf("exit %d", code)
 		}
-	case <-time.After(5 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("did not stop")
 	}
 }
 
 func TestRunReplayRefusals(t *testing.T) {
 	var errs bytes.Buffer
-	if code := runReplay(context.Background(), nil, "", io.Discard, &errs); code != 2 || !strings.Contains(errs.String(), "no store") {
+	if code := runReplay(context.Background(), nil, "", noCouch, testClock(), io.Discard, &errs); code != 2 || !strings.Contains(errs.String(), "no store") {
 		t.Errorf("no store: %d %s", code, errs.String())
 	}
 	errs.Reset()
-	if code := runReplay(context.Background(), []string{"nope"}, t.TempDir(), io.Discard, &errs); code != 1 || !strings.Contains(errs.String(), "no recording") {
+	if code := runReplay(context.Background(), []string{"nope"}, t.TempDir(), noCouch, testClock(), io.Discard, &errs); code != 1 || !strings.Contains(errs.String(), "no recording") {
 		t.Errorf("missing: %d %s", code, errs.String())
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func messageBinding() couchmessage.Binding {
@@ -82,7 +83,7 @@ func TestMessageActivityCountsKeysAndPasteButNotFocus(t *testing.T) {
 func drainPanes(t *testing.T, m *couchmessage.PaneMailbox, want func(map[couchmessage.ThreadKey]couchmessage.PaneHandle) bool) map[couchmessage.ThreadKey]couchmessage.PaneHandle {
 	t.Helper()
 	seen := map[couchmessage.ThreadKey]couchmessage.PaneHandle{}
-	deadline := time.After(3 * time.Second)
+	deadline := testwait.After(t)
 	for !want(seen) {
 		select {
 		case <-m.Wake():

@@ -382,12 +382,30 @@ func (p *proxy) stopIdleTimer() {
 	p.idleTimerToken = 0
 }
 
+// loopTimer is a timer the master loop owns and selects on.
+type loopTimer interface {
+	Stop() bool
+	Reset(time.Duration) bool
+	Expired() <-chan time.Time
+}
+
+// wallTimer is a loopTimer on the wall clock.
+type wallTimer struct{ *time.Timer }
+
+func (w wallTimer) Expired() <-chan time.Time { return w.C }
+
+func stoppedWallTimer() wallTimer {
+	t := wallTimer{time.NewTimer(time.Hour)}
+	drainStop(t)
+	return t
+}
+
 // drainStop stops a timer and clears any expiry already sitting in its channel.
 // Safe only on the master goroutine, the sole reader of these channels.
-func drainStop(t *time.Timer) {
+func drainStop(t loopTimer) {
 	if !t.Stop() {
 		select {
-		case <-t.C:
+		case <-t.Expired():
 		default:
 		}
 	}
@@ -404,7 +422,7 @@ func (p *proxy) stopLifecycleTimer() {
 	if p.lifecycleTimer == nil {
 		return
 	}
-	drainStop(p.lifecycleTimer)
+	drainStop(wallTimer{p.lifecycleTimer})
 	p.lifecycleTimerKind = ObservationUnknown
 	p.lifecycleTimerToken = 0
 }

@@ -124,7 +124,7 @@ func TestWarmRecoveryAdoptsExactTerminalWithoutCreatingContinuation(t *testing.T
 	f.con.mu.Unlock()
 	f.host.Reset()
 	f.con.dispatchMenuEffects(effects)
-	waitUpTo(t, time.Second, "warm recovered terminal adoption", func() bool {
+	waitFor(t, "warm recovered terminal adoption", func() bool {
 		f.con.mu.Lock()
 		defer f.con.mu.Unlock()
 		return f.con.active == started.Handle.ID() && f.con.focus == FocusActor(started.Handle.ID()) && f.con.menu.InFlight.Operation == "" && strings.Contains(f.host.Written(), "SAME-RECOVERED-AGENT")
@@ -132,7 +132,7 @@ func TestWarmRecoveryAdoptsExactTerminalWithoutCreatingContinuation(t *testing.T
 	if _, err := f.stdin.Write([]byte("recovered-input")); err != nil {
 		t.Fatal(err)
 	}
-	waitUpTo(t, time.Second, "input to exact recovered agent", func() bool { return string(bytes.Join(terminal.Writes(), nil)) == "recovered-input" })
+	waitFor(t, "input to exact recovered agent", func() bool { return string(bytes.Join(terminal.Writes(), nil)) == "recovered-input" })
 	f.con.mu.Lock()
 	defer f.con.mu.Unlock()
 	if len(f.con.continuations) != 0 {

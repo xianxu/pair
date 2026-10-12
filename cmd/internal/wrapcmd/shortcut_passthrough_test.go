@@ -10,6 +10,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
 
@@ -42,7 +43,7 @@ func TestConsoleWrapperShortcutPassthrough(t *testing.T) {
 		_ = writer.Close()
 		select {
 		case <-done:
-		case <-time.After(3 * time.Second):
+		case <-testwait.After(t):
 			t.Error("Console did not stop")
 		}
 	})
@@ -56,7 +57,7 @@ func TestConsoleWrapperShortcutPassthrough(t *testing.T) {
 		t.Fatal(err)
 	}
 	var delivered []byte
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(testwait.Budget(t))
 	for time.Now().Before(deadline) {
 		delivered = bytes.Join(child.Writes(), nil)
 		if bytes.HasSuffix(delivered, []byte("END245")) {
@@ -188,7 +189,7 @@ func TestReservedShortcutPrefixProgressBeforeTimeout(t *testing.T) {
 					_ = reader.Close()
 					select {
 					case <-done:
-					case <-time.After(time.Second):
+					case <-testwait.After(t):
 						t.Error("prefix fixture did not stop")
 					}
 				})
@@ -204,7 +205,7 @@ func TestReservedShortcutPrefixProgressBeforeTimeout(t *testing.T) {
 					}
 					select {
 					case <-actions:
-					case <-time.After(time.Second):
+					case <-testwait.After(t):
 						_ = writer.Close()
 						<-done
 						t.Fatalf("complete chord retained: remap=%v prefix=%q chord=%q iteration=%d", remap, prefix, chord, n)
@@ -218,7 +219,7 @@ func TestReservedShortcutPrefixProgressBeforeTimeout(t *testing.T) {
 				// flushes once. EOF must not duplicate it.
 				_, _ = writer.Write([]byte("\x1b["))
 				want = append(want, []byte("\x1b[")...)
-				deadline := time.Now().Add(time.Second)
+				deadline := time.Now().Add(testwait.Budget(t))
 				for !bytes.Equal(out.Bytes(), want) && time.Now().Before(deadline) {
 					time.Sleep(time.Millisecond)
 				}

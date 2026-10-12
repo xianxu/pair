@@ -10,6 +10,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func TestOperationQueueCoalescesAndRefusesOverloadWithoutEffects(t *testing.T) {
@@ -44,7 +45,7 @@ func TestOperationQueueCoalescesAndRefusesOverloadWithoutEffects(t *testing.T) {
 		if result.err != nil || result.name != "park" || result.key != request.key || !reflect.DeepEqual(result.value, want) || effects != 1 {
 			t.Fatalf("result = %+v effects %d", result, effects)
 		}
-	case <-time.After(time.Second):
+	case <-testwait.After(t):
 		t.Fatal("timed out waiting for queued operation")
 	}
 
@@ -90,7 +91,7 @@ func TestOperationQueueCarriesTypedResultForEveryMenuOperation(t *testing.T) {
 				if result.name != operation || result.key != operation+"/scope/tag" || !reflect.DeepEqual(result.value, want) || result.err != nil {
 					t.Fatalf("completion = %+v", result)
 				}
-			case <-time.After(time.Second):
+			case <-testwait.After(t):
 				t.Fatal("timed out waiting for typed result")
 			}
 		})
@@ -172,7 +173,7 @@ func TestOperationQueueRunsRequestsConcurrentlyAcrossWorkers(t *testing.T) {
 	for i := 0; i < workers; i++ {
 		select {
 		case <-started:
-		case <-time.After(5 * time.Second):
+		case <-testwait.After(t):
 			t.Fatalf("only %d of %d requests ran at once", i, workers)
 		}
 	}
@@ -182,7 +183,7 @@ func TestOperationQueueRunsRequestsConcurrentlyAcrossWorkers(t *testing.T) {
 		select {
 		case completion := <-q.results:
 			got[completion.value] = true
-		case <-time.After(5 * time.Second):
+		case <-testwait.After(t):
 			t.Fatal("a result never reached q.results")
 		}
 	}

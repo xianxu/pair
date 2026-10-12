@@ -8,6 +8,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 const supervisorLeaseHelperEnv = "PAIR_TEST_SUPERVISOR_LEASE_HELPER"
@@ -94,18 +96,12 @@ func TestSupervisorLeaseDescriptorDoesNotSurviveExec(t *testing.T) {
 	ns := testCouchNamespace(t)
 	cmd, _ := startSupervisorLeaseHelper(t, ns, "exec")
 
-	deadline := time.Now().Add(750 * time.Millisecond)
-	for {
-		lease, err := AcquireSupervisorLease(ns, OSProcOps{})
-		if err == nil {
-			defer lease.Close()
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("lease remained held after helper exec: %v", err)
-		}
-		time.Sleep(10 * time.Millisecond)
+	var lease *SupervisorLease
+	var err error
+	if !testwait.Wait(t, func() bool { lease, err = AcquireSupervisorLease(ns, OSProcOps{}); return err == nil }) {
+		t.Fatalf("lease remained held after helper exec: %v", err)
 	}
+	defer lease.Close()
 	if err := cmd.Process.Signal(syscall.Signal(0)); err != nil {
 		t.Fatalf("execed child was not alive when lease became available: %v", err)
 	}

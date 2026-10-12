@@ -5,11 +5,12 @@ import (
 	"os"
 	"strings"
 	"testing"
-	"time"
 
 	xansi "github.com/charmbracelet/x/ansi"
 
 	uv "github.com/charmbracelet/ultraviolet"
+
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 type agyCell struct {
@@ -605,7 +606,7 @@ func TestComposerRecognizersRejectAdversarialSnapshotsWithoutBlocking(t *testing
 					if got {
 						t.Errorf("%s recognizer accepted adversarial snapshot", recognizer.name)
 					}
-				case <-time.After(100 * time.Millisecond):
+				case <-testwait.After(t):
 					t.Errorf("%s recognizer blocked on adversarial snapshot", recognizer.name)
 				}
 			}

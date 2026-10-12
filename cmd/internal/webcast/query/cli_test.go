@@ -13,7 +13,7 @@ import (
 
 func runMain(argv ...string) (code int, out, errOut string) {
 	var o, e bytes.Buffer
-	code = Main(argv, &o, &e)
+	code = Run(argv, nil, &o, &e)
 	return code, o.String(), e.String()
 }
 

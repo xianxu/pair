@@ -123,7 +123,7 @@ type fakeRuntime struct {
 	// #288: LaunchSession models zellij across the birth watch. Everything the
 	// watch goroutine touches is guarded by mu.
 	launchWrites    map[string]string // files the layout's pane command writes as the session starts; the agent pane sidecar here is a birth
-	launchBlock     bool              // a client that stays up until the launch ctx is cancelled, launchRelease closes, or a 5 s safety fails the test
+	launchBlock     bool              // a client that stays up until the launch ctx is cancelled, launchRelease closes, with no real-time safety: a launch never released hangs, and the binary timeout names it (#479)
 	launchRelease   chan struct{}
 	launchReturned  chan struct{} // closed as a blocking LaunchSession returns
 	launchCancelled bool          // the launch ctx ended the blocked client
@@ -300,8 +300,6 @@ func (f *fakeRuntime) LaunchSession(ctx context.Context, session, configDir, lay
 		return -1, nil // what a SIGTERMed client reports
 	case <-f.launchRelease:
 		return f.launchCode, f.launchErr
-	case <-time.After(5 * time.Second):
-		return 99, errors.New("fake: a blocked launch was never released")
 	}
 }
 

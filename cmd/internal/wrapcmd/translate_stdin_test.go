@@ -6,6 +6,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 // drainBuffer is an io.Writer that records everything written and
@@ -41,18 +43,11 @@ func (d *drainBuffer) Bytes() []byte {
 	return b
 }
 
-// waitFor calls cond() until it returns true or `timeout` elapses.
-// Polls every 1 ms — cheap and avoids tying tests to specific
-// scheduling order.
-func waitFor(timeout time.Duration, cond func() bool) bool {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if cond() {
-			return true
-		}
-		time.Sleep(1 * time.Millisecond)
-	}
-	return cond()
+// waitFor polls cond until it holds, bounded by the test's own deadline, not
+// a guess at how fast the loop answers (#479); false means it gave up.
+func waitFor(t *testing.T, cond func() bool) bool {
+	t.Helper()
+	return testwait.Wait(t, cond)
 }
 
 // bracketedPasteOn is what every profiled harness writes at startup (DECSET
@@ -98,7 +93,7 @@ func TestTranslateStdin_PassthroughPlainBytes(t *testing.T) {
 		close(done)
 	}()
 	_, _ = w.Write([]byte("hello"))
-	if !waitFor(200*time.Millisecond, func() bool { return bytes.Equal(out.Bytes(), []byte("hello")) }) {
+	if !waitFor(t, func() bool { return bytes.Equal(out.Bytes(), []byte("hello")) }) {
 		t.Fatalf("got %q, want %q", out.Bytes(), "hello")
 	}
 	_ = w.Close()
@@ -118,7 +113,7 @@ func TestTranslateStdin_RewritesEnter(t *testing.T) {
 		close(done)
 	}()
 	_, _ = w.Write([]byte("hi\r"))
-	if !waitFor(200*time.Millisecond, func() bool { return bytes.Equal(out.Bytes(), []byte("hi\\\r")) }) {
+	if !waitFor(t, func() bool { return bytes.Equal(out.Bytes(), []byte("hi\\\r")) }) {
 		t.Fatalf("got %q, want %q", out.Bytes(), "hi\\\r")
 	}
 	_ = w.Close()
@@ -136,6 +131,8 @@ func TestTranslateStdin_HeldBackEscFlushesAfterTimeout(t *testing.T) {
 	r, w := io.Pipe()
 	out := newDrainBuffer()
 	p := claudeProxy()
+	flush := newManualTimer()
+	p.newStdinFlushTimer = func() loopTimer { return flush }
 	done := make(chan struct{})
 	flushAfter := 20 * time.Millisecond
 	go func() {
@@ -146,16 +143,19 @@ func TestTranslateStdin_HeldBackEscFlushesAfterTimeout(t *testing.T) {
 	// start of Alt+Enter, KKP CSI, bpStart, …) so out stays empty.
 	_, _ = w.Write([]byte{0x1b})
 
-	// Confirm nothing flushed yet — sample a few times within the
-	// pre-timeout window.
-	time.Sleep(5 * time.Millisecond)
+	// The loop armed the flush when it held the ESC; until the flush's
+	// clock reaches flushAfter nothing may reach the child.
+	await(func() bool { armed, _ := flush.state(); return armed })
+	flush.advance(flushAfter - time.Millisecond)
 	if len(out.Bytes()) != 0 {
 		t.Fatalf("flushed too early: %q", out.Bytes())
 	}
 
 	// After the timer fires, the lone ESC must appear in the output.
-	if !waitFor(200*time.Millisecond, func() bool { return bytes.Equal(out.Bytes(), []byte{0x1b}) }) {
-		t.Fatalf("ESC never flushed: out=%q", out.Bytes())
+	flush.advance(time.Millisecond)
+	await(func() bool { return len(out.Bytes()) > 0 })
+	if !bytes.Equal(out.Bytes(), []byte{0x1b}) {
+		t.Fatalf("ESC flushed as %q", out.Bytes())
 	}
 
 	_ = w.Close()
@@ -170,24 +170,31 @@ func TestTranslateStdin_ContinuationBeatsTimer(t *testing.T) {
 	r, w := io.Pipe()
 	out := newDrainBuffer()
 	p := claudeProxy()
+	flush := newManualTimer()
+	p.newStdinFlushTimer = func() loopTimer { return flush }
 	done := make(chan struct{})
 	flushAfter := 100 * time.Millisecond
 	go func() {
 		p.translateStdinFrom(r, out, flushAfter)
 		close(done)
 	}()
-	// Half of Alt+Enter: ESC alone. Held in pending.
+	// Half of Alt+Enter: ESC alone. Held in pending, flush armed; the
+	// flush's clock stands still, so the second half always beats it.
 	_, _ = w.Write([]byte{0x1b})
-	time.Sleep(10 * time.Millisecond) // well under flushAfter
+	await(func() bool { armed, _ := flush.state(); return armed })
 	// Second half: \r. Combined with pending → Alt+Enter → altCR (\r).
 	_, _ = w.Write([]byte{'\r'})
 
 	// Should land in output as a single \r (claude altCR), not as
 	// ESC followed by \r verbatim (which would be the timer-flush
 	// case + a subsequent \r).
-	if !waitFor(200*time.Millisecond, func() bool { return bytes.Equal(out.Bytes(), []byte{'\r'}) }) {
+	await(func() bool { return len(out.Bytes()) > 0 })
+	if !bytes.Equal(out.Bytes(), []byte{'\r'}) {
 		t.Fatalf("got %q, want %q (Alt+Enter chord)", out.Bytes(), "\r")
 	}
+	// The loop writes the chord before it disarms the flush; a flush left
+	// armed would hang here until the binary's timeout.
+	await(func() bool { armed, _ := flush.state(); return !armed })
 	_ = w.Close()
 	<-done
 }
