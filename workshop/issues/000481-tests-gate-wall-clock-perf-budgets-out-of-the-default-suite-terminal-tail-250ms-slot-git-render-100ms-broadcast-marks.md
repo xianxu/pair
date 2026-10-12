@@ -45,20 +45,32 @@ The TL's rule (2026-10-12): each test asserts its outcome. A performance check s
 subject, measured so that load can't fake it: a count of operations, or a budget run in isolation
 (`make test-perf-budgets`).
 
-- [ ] **One switch.** `cmd/internal/perfbudget`: `Check(t, what, elapsed, budget)` logs every time and fails only when
+- [x] **One switch.** `cmd/internal/perfbudget`: `Check(t, what, elapsed, budget)` logs every time and fails only when
   `PAIR_PERF_BUDGETS=1`. couchcore's `perfBudgetsEnforced` routes through it (ARCH-DRY).
-- [ ] **Terminal tail** (perf is the subject): the default suite asserts the 200 lines; the 250 ms budget runs through
+- [x] **Terminal tail** (perf is the subject): the default suite asserts the 200 lines; the 250 ms budget runs through
   `perfbudget.Check` and is added to `make test-perf-budgets`.
-- [ ] **Slot-git render behind a hung probe** (the outcome is "doesn't wait"): render in a goroutine while the probe
+- [x] **Slot-git render behind a hung probe** (the outcome is "doesn't wait"): render in a goroutine while the probe
   is held, and fail if it doesn't return before the gate opens (a hang guard, not a budget). Drop the 100 ms.
-- [ ] **Marks** (the cost is the subject, an operation count): extract the stroke walk into
+- [x] **Marks** (the cost is the subject, an operation count): extract the stroke walk into
   `walkStrokes(points, cols, rows, put)`. The worst-case batch's walk stays within the grid-bounded count. A huge
   coordinate walks no line. The cap holds. No clock.
-- [ ] **Hub offers** (the outcome is "never blocks"): 10k offers finish while the hub loop is stalled (a hang guard).
+- [x] **Hub offers** (the outcome is "never blocks"): 10k offers finish while the hub loop is stalled (a hang guard).
   Drop the 1 s.
-- [ ] The default suite and `make test-perf-budgets` both pass. The waitUpTo windows belong to #479, which is in
+- [x] The default suite and `make test-perf-budgets` both pass. The waitUpTo windows belong to #479, which is in
   flight on another slot, so they're left alone.
 
 ## Log
 
 ### 2026-10-12
+
+- Done. Every listed test now asserts its outcome:
+  - **Tail:** the 200 lines, with the budget through `perfbudget.Check` and added to `make test-perf-budgets`.
+  - **Slot-git render, hub offers:** they finish while the probe or loop is held, under a 10 s hang guard.
+  - **Marks:** `walkStrokes`' visit count, one grid span per point at most, and exactly the 2 on-grid cells for a
+    huge coordinate, plus the cap after every batch.
+- couchcore's two budgets route through the same switch.
+- Measured at load average about 90: `make test-perf-budgets` passes (tail 6 ms against its 250 ms budget; observe
+  112 ms against 500; ten slots 138 ms against 150). The default lanes pass for perfbudget, artifactpath, wrapcmd,
+  couchtty, couchcore and broadcast.
+- Seen, not in scope: `broadcast/TestReapOrphans` failed once in a full package run at load average 125 ("pid still
+  alive after 2s"), and passed 3/3 alone. It's another real-time window; reported to the TL.

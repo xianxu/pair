@@ -114,9 +114,11 @@ test-make-env-production-names:
 
 .PHONY: test-perf-budgets
 # Wall-clock budgets (ARCH-CONSTRAINTS) flake on a loaded host, so the default
-# lane runs their scenarios without asserting the clock (pair#436). Run on a quiet host.
+# lane runs their scenarios without asserting the clock (pair#436, pair#481;
+# cmd/internal/perfbudget). Run on a quiet host. Each budget runs on its own.
 test-perf-budgets:
 	PAIR_PERF_BUDGETS=1 go test ./cmd/internal/couchcore -run '^TestAcceptance(ObserveBudget|ReportBudgetTenSlots)$$' -count=1 -v
+	PAIR_PERF_BUDGETS=1 go test ./cmd/internal/wrapcmd -run '^TestTailOverEndpointSocketIsFast$$' -count=1 -v
 
 .PHONY: test-couch-zellij-live
 # pair#432 excludes TestParkLifecycleLive, TestContinuationZellijSeedTransportLive
