@@ -1104,3 +1104,8 @@ proof; record the surprising case so the next change starts from evidence.
   missed the interleaving where the open completed first, leaking a tunnel 1 time in 300. Every way interest ends
   (an open completing, a waiter giving up, an unmount) calls one `releaseIfUnwanted`; test the exact losing state by
   constructing it, plus a stress loop at the timing that reproduces it.
+- **A summary figure is computed from its table, endpoints included (#453 close review).** The write-up said
+  "~1.5× the gzipped bytes" over measured ratios of 1.15–2.05×, "at least as faithful on every page" where one
+  page had more lagging moments, and "lowest overhead" measured on only one page. When a recommendation restates a
+  measurement, quote the range from the table and name the scope it was measured on; don't round toward the
+  option being recommended.
