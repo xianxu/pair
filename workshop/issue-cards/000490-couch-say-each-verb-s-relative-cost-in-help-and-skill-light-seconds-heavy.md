@@ -1,6 +1,6 @@
 ---
 id: 000490
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 42a0a322c32fc8685371680be048dfe165051f4e
         evidence_commit: 1d4f2d483007600721a7a74481a85f9e57551fda
+        landed_commit: b8711b3d32559ede3ec06ddebb3374c7b9b8d762
 ---
 
 # couch: say each verb's relative cost in --help and --skill (light, seconds, heavy)
