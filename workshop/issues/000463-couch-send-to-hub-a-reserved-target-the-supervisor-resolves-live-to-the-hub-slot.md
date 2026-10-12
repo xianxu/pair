@@ -43,10 +43,15 @@ ariadne#336 adds a constitution rule: every agent in a Couch slot reports each i
 - [x] `messageService.handle` rewrites a send to `couchmessage.HubTarget` to the hub's exact slot via `hubBinding()` before the broker's repository-name routing (`hubRecipient`); three refusals: no hub (`refused`), hub not connected (`unavailable`), sender is the hub (`refused`).
 - [x] Tests: `TestMessageSendToHubReachesTheHubSlot`, `TestMessageSendToHubRefusalsNameTheReason` (message_service_test.go).
 - [x] `couch --skill` table row + reservation paragraph; `--help` usage line.
-- [ ] Live check: build pair:0, from a non-hub slot `couch --send-to hub`.
+- [x] Live check deferred by the TL to ariadne#336's Done-when (ariadne:1 runs it after the next batched Couch restart).
 
 ## Log
 
 ### 2026-10-12
 - Filed from ariadne#336 (ariadne:1), dispatched by the TL (ops:0). ariadne#336 stays open with a dep on this issue, and closes with its live check once this ships.
 - Rewriting happens in the service, not `couchmessage.ResolveRecipient`: the hub is the service's knowledge (`authority.hub`), and a rewrite to an exact `repo:N` keeps the broker's admission, allowance and receipt rules unchanged (ARCH-DRY: one delivery path).
+- Verified: `make -k test` green, `go test ./...` green, new hub tests pass. The live Done-when is deferred: the supervisor resolves `hub`, so it needs a Couch restart onto this build. The TL (ops:0) batches restarts and moved the live check to ariadne#336's Done-when.
+
+## Revisions
+
+- 2026-10-12: Done-when 1's live check moved to ariadne#336 (its Done-when, run by ariadne:1 after the next Couch restart), on the TL's call; this issue lands on unit tests.
