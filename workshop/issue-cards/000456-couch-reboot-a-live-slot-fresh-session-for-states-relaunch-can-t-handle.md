@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000456-couch-reboot-a-live-slot-fresh-session-for-states-relaunch-can-t-handle.md
         source_blob: 40486dab568d0bf6327c9d0e8819e71921304af5
         destination: workshop/issues/000456-couch-reboot-a-live-slot-fresh-session-for-states-relaunch-can-t-handle.md
+        main_commit: be93aa1dc5ad723169e489ed265c38f1295ef18a
 ---
 
 # couch: reboot a live slot (fresh session), for states relaunch can't handle
