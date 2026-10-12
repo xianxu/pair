@@ -15,7 +15,7 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "5d5f1410", done: "5a291be4"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # notes: focused-context text includes script bodies and runs adjacent blocks together
@@ -50,6 +50,8 @@ Context text is the visible text a person would read: skip `script`, `style`, `t
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed — TestRenderedText (blocks/cells/li/br/flex apart, inline runs on, script/style/noscript/template/hidden attr/display:none/Tailwind hidden skipped, inherited visibility with visible override, select lists options); TestContextOfAppReportsIsRenderedText (app-n3: "Reports Week 1 0 tasks Week 2 137 tasks", no script); RunModelContract extended (script in article + heading/paragraph apart), mutation-checked by reverting each model to TextContent (both fail). BR-1: query describe now uses RenderedText (spacedText removed); goldens regenerated after merging #462, reviewed line by line. Full make -k test exit 0 and go test ./... exit 0 unsandboxed (pre-round-1); webcast + artifactpath packages green after round 1.; review verdict: SHIP
+- 2026-10-12: flow upgraded quick → full — 125 added lines in code files (limit 100); an earlier round of this close already ran the full review
 
 - Before: app-n3's context was `Reports Week 10 tasksWeek 2137 tasks…const r=document.getElementById('r');…`.
   After: `Reports Week 1 0 tasks Week 2 137 tasks …`, no script.
