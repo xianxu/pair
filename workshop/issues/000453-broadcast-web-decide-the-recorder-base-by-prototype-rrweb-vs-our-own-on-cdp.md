@@ -1,12 +1,12 @@
 ---
 id: 000453
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours:
-card_mirror: 'b2f09a38ebafc8955bb90fe284d67412e187e050' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '305a713f5eb7e0769844d929d6804f7b6cc961ce' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-11T20:08:33-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "471f3cb6", done: "866c3d8a"}
+actual_hours: 0.57
 ---
 
 # broadcast-web: decide the recorder base by prototype (rrweb vs our own on CDP)
