@@ -67,4 +67,5 @@
 ## Revisions
 
 - 2026-10-12: #461 landed on main mid-issue. `Main` now constructs `notes.Structural` instead of the fake (the planned one-line swap), and `Select` also reads the real model's anchor grammar (`:nth-of-type(n)`, the `>>>` deep step), so a note's selector works with `--sel`; `TestModelSelectorsSelectTheirElement` checks both models' anchors on two fixtures.
+- 2026-10-12 (close round 1): `Select` no longer "searches documents, shadow roots, template contents and iframe documents" with one CSS reading, as Core concepts says. A note's selector goes through `notes.Match` (the model's own reader); other text is CSS scoped per tree, starting in the top document, with `>>>` stepping into a host's own shadow root, frame or template. `query.SelectorGrammar` is the grammar's one statement.
 

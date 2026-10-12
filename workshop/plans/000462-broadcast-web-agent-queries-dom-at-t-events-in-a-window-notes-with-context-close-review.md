@@ -123,3 +123,123 @@ findings:
     title: |
       UserAction (#457 seam) widened to seg/stop, and NoteView gained presentation fields, without the TL report the issue asks for
 ```
+
+---
+
+## Re-review — 2026-10-12T02:46:49-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 462 — broadcast-web: agent queries — DOM at t, events in a window, notes with context |
+| repo | pair |
+| issue file | workshop/issues/000462-broadcast-web-agent-queries-dom-at-t-events-in-a-window-notes-with-context.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 8a5e1c8626b7f2557391fa933007c9da6e95e9c5..8b97c68adfa3696782eb9366ea3c70072263aeaf |
+| command | sdlc close --issue 462 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-12T02:46:49-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+Now look at the round-1 fix commit.
+
+Mutation checks on the three round-1 fixes all go red, and I found a new panic in the fake on an empty recording. Next I'm checking that the docs still match the new selector rules.
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+All seven round-1 findings are fixed, and three of the fixes are proven by tests. I put each of the three main changes back the way it was and the tests failed: the `notes.Match` hand-off failed `TestModelSelectorsSelectTheirElement`, the shadow/frame scoping failed `TestSelect` and `TestModelSelectorsSelectTheirElement`, and the control-character scrubber failed `TestMainScrubsControlCharacters`. I also ran a probe across all five fixtures and five sample times. It took every note selector generated at one time and selected it at another, and never found a case where `notes.Match` matched nothing and the CSS fallback then matched something else. The webcast, notes, query and couchcmd test packages pass. `go vet` is clean, and gofmt is clean on every file in the diff. `artifactpath` fails, but only because the checkout lacks the gitignored `cmd/internal/runtimebundle/assets/` build output; this diff doesn't touch it. Two things to fix before ship. First, the round-1 change made `atlas/webcast-format.md` wrong: it still says selectors search through shadow roots. Second, the BR-3 fix brought a new panic into `FakeSurface.Notes` when a recording is empty.
+
+1. **Strengths**
+   - `query.Select` now hands note selectors to `notes.Match`, the notes package's own reader (`cmd/internal/webcast/query/selector.go:42`), so their grammar is defined in one place. CSS combinators now stay inside one tree (`matches`, `treeParent`, `treeOf`).
+   - `TestModelSelectorsSelectTheirElement` now checks against `Structural.Resolve`. Where `Resolve` finds exactly one element, the test requires exactly that element, so an ambiguous match can't pass. It also checks the fake model's paths and the round-1 probe cases.
+   - Control characters are scrubbed in one place, the output writer (`cli.go` `scrubber`), so every text path is covered. It also catches C1 controls and DEL.
+   - The contract test now requires a note's final state (`contract.go:72`), and the fake and the real surface agree on it.
+   - `--json` combined with `--max-lines` is now refused, and the text output adds a "… N more matches" line when matches outrun the budget.
+
+2. **Critical:** none.
+
+3. **Important**
+   - **The atlas still describes the old selector rules** (`atlas/webcast-format.md:384-388`). It says selectors are "searched through shadow roots, template contents and iframe documents." After round 1, a space or `>` stays inside one tree, matching starts in the top document, and only `>>>` crosses into another tree. So `.badge` no longer finds content inside a shadow root (see the `TestSelect` case `{".badge", ""}`). An agent reading the atlas will expect matches it won't get.
+     - Fix: say what `SelectorGrammar` says, and point to that constant rather than restating it by hand.
+
+4. **Minor**
+   - **`FakeSurface.Notes` panics on an empty recording** (`fake.go:54`, `f.Records[len(f.Records)-1]`). I reproduced it: the fake panics with index out of range [-1], while `Querier.Notes` returns nil.
+     - This is the 2nd finding in family `fake-real-contract-gap`. The rule that covers both: any input the real surface accepts, the fake must answer the same way, and `RunSurfaceContract` is the list of those inputs. Add the empty recording (and any other edge case the real surface handles) to the contract, not just a guard in `fake.go`.
+   - **A doc comment ended up on the wrong function** (`notes/selector.go:77-83`). The `matchSelector` comment now sits above `Match`'s, so godoc for `Match` begins "matchSelector is every element…", and `matchSelector` has no doc comment.
+
+5. **Test coverage notes**
+   - Regression tests exist and go red for BR-1, BR-2, BR-6 and BR-3 (the contract assertion).
+   - BR-5 has `TestDOMSaysWhenMatchesAreCut` and two argv-refusal cases.
+   - Nothing covers empty or minimal recordings in the contract; that is the gap the fake panic shows.
+
+6. **Architecture**
+   - ARCH-DRY: **pass.** `checkWindow` and `unreadable` are shared, and the selector grammar is delegated to notes. The two `Events` loops are still separate on purpose: sharing them would make the fake repeat the real implementation and weaken the contract test.
+   - ARCH-PURE: **pass.** The Querier and rendering are pure functions over the records. `Main` is a thin layer that parses arguments and renders, and the scrubber sits at the IO edge.
+   - ARCH-PURPOSE: **pass.** The fixes cover the whole class: both the combinator scoping and the note-selector grammar, not just the two probe cases.
+   - ARCH-MOCK: **flagged** (the Minor above). The fake panics where the real surface doesn't. There is no external binary dependency.
+   - ARCH-CONSTRAINTS: **pass.** Text output has budgets. JSON is deliberately returned in full, and the CLI now refuses a budget with it. `Notes` makes a single pass over the records.
+   - ARCH-SECURE: **pass.** Recorded text is scrubbed before it reaches the terminal, and errors quote user input with `%q`.
+   - ARCH-ORDER: **pass.** The component holds no state between calls: each query replays the reducer from the start, and the fold keys include `by`.
+   - ARCH-FUNERAL: **pass.** It creates nothing durable: it is a read-only CLI over an existing recording directory.
+
+7. **Plan revisions to add**
+   - Add a "## Revisions" entry for close round 1: `Select` delegates note selectors to `notes.Match`, and CSS combinators are scoped to one tree. This replaces the plan's Core-concepts claim that `Select` "searches documents, shadow roots, template contents and iframe documents."
+   - Note there that `--json` refuses `--max-lines`.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Select delegates to notes.Match and scopes CSS combinators to one tree. Reverting either one turns TestModelSelectorsSelectTheirElement or TestSelect red; the cross-time probe on all fixtures found no CSS-fallback mismatch.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      The test now requires exactly one match wherever Structural.Resolve resolves uniquely; turning the notes.Match hand-off off makes it fail.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      The contract recording now resolves n1 after the note and RunSurfaceContract asserts NoteResolved; the fake was changed to match.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      checkWindow and unreadable are shared helpers. The separate Events loops are a deliberate choice to keep the fake independent of the real implementation.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      --json with --max-lines is refused (cli_test cases), and the trailing more-matches line is pinned by TestDOMSaysWhenMatchesAreCut.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      The scrubber on stdout covers every text path; turning it off makes TestMainScrubsControlCharacters fail.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      Prose-only: the issue Log records the seam additions and the report to the TL. The report itself is the operator's word and was not checked further.
+findings:
+  - id: new
+    severity: Important
+    family: doc-restates-changed-semantics
+    title: |
+      The atlas still says selectors search through shadow roots, frames and templates; after round 1 only >>> crosses trees
+    detail: |
+      atlas/webcast-format.md:384-388 contradicts the tree-scoped matching (TestSelect pins .badge and "#card span" as matching nothing). Restate SelectorGrammar, or point to it, instead of keeping a hand-written copy.
+  - id: new
+    severity: Minor
+    family: fake-real-contract-gap
+    title: |
+      FakeSurface.Notes panics on an empty recording (fake.go:54 indexes Records[len-1]); Querier.Notes returns nil
+    detail: |
+      Brought in by the BR-3 fix and reproduced. This is the 2nd finding in this family. Rule: any input the real surface accepts, the fake must answer the same way, and RunSurfaceContract is the list of those inputs, so add the empty recording there rather than only guarding the fake.
+  - id: new
+    severity: Minor
+    family: misplaced-doc-comment
+    title: |
+      The matchSelector doc comment now sits above Match in notes/selector.go, so godoc for Match starts "matchSelector is"
+```

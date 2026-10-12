@@ -381,11 +381,11 @@ reference reducer with nothing indexed beside the records; `Main` is the CLI; th
 | `events --from T1 --to T2` | what happened in the window | one line per record with its time, targets named as they were then, `by <viewer>` on a driver's acts; a run of more than 3 DOM, style, asset or layout records is one line (counts by kind, most-touched elements); a field typed a key at a time is one line with its final value | the records, as JSON lines |
 | `notes [--note ID] [--before MS]` | every note | author, time, segment, state now (resolved or open), text, anchor, the element as of the note, the notes model's context, and the user's actions in the `--before` ms (default 10000) before it, including segment starts and stops | `{note,state,seg,url,element,context,landmark,before}` |
 
-- **Node ids are the handle.** Every element in every answer is `@N`; `--sel @N` shows one. Selectors are a
-  subset of CSS (tag, `#id`, `.class`, `[attr]`, `[attr=v]`, `[attr*=v]`, `:nth-child(n)`, descendant and
-  child, plus the notes model's `:nth-of-type` and `>>>`) searched through shadow roots, template contents and
-  iframe documents. Anything else is refused with
-  the grammar, never matched loosely.
+- **Node ids are the handle.** Every element in every answer is `@N`; `--sel @N` shows one. A note's own
+  selector is matched by the notes model's reader (`notes.Match`), so it names what the note names; anything
+  else is read as a CSS subset scoped as CSS is, per tree, with `>>>` to step into a host's shadow root, frame or
+  template. The grammar's one statement is `query.SelectorGrammar`, which the bare command's usage and every
+  refusal print; a selector outside it is refused, never matched loosely.
 - **Budgets:** a page stops at 300 lines (`--max-lines`) with a line saying how many more; a note's element at
   20 lines and its preceding actions at the latest 20; attribute values at 80 characters and text at 200.
   Script and style bodies, a document's head and SVG internals fold to one line each. The text shows the

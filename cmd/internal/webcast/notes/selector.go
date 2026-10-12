@@ -74,8 +74,6 @@ func uniqueStep(root, e *recording.DOMNode) string {
 	return ""
 }
 
-// matchSelector is every element of st's top document that sel names, in
-// document order. A selector outside the subset matches nothing.
 // Match is what an anchor selector names in st, by this file's rules, and
 // whether sel is in the anchor grammar at all. Other readers of a note's
 // selector (the agent queries, #462) match through it, so the grammar keeps
@@ -102,6 +100,8 @@ func isAnchor(sel string) bool {
 	return true
 }
 
+// matchSelector is every element of st's top document that sel names, in
+// document order. A selector outside the subset matches nothing.
 func matchSelector(st *recording.State, sel string) []*recording.DOMNode {
 	if st.Top == nil || sel == "" {
 		return nil

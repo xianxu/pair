@@ -51,6 +51,9 @@ func (f FakeSurface) Events(t1, t2 int64) ([]recording.Record, error) {
 }
 
 func (f FakeSurface) Notes(before int64) ([]NoteView, error) {
+	if len(f.Records) == 0 {
+		return nil, nil
+	}
 	final, err := recording.Reduce(f.Records, f.Records[len(f.Records)-1].Time())
 	if err != nil {
 		return nil, err
