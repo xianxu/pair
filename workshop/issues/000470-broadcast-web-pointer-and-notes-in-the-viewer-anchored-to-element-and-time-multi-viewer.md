@@ -5,8 +5,8 @@ deps: [000458]
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
-estimate_hours:
-card_mirror: '8f0a6cc690acc530218175c7e42a03fc531327c5' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 5.22
+card_mirror: '14aa43f624c9c83f81bd498d341c2c8b6e8c699c' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T02:54:30-07:00
 claimant:
     operator: Xian Xu
@@ -36,6 +36,37 @@ Wave 2 of couch-broadcast-web (ops `teams/devinfra/projects/couch-broadcast-web/
 - Two viewers point and leave notes on the blog cast (once the recorder #458 lands; fixtures and the fake hub until then); notes pin to the right element, survive pause/resume, clear on navigation, and are in the recording.
 - Region notes reach crops.
 - Tests against fixtures; the operator's smoke test (desktop + iPad), scheduled by the TL.
+
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: smaller-go-module      design=0.04 impl=0.2
+item: greenfield-go-module   design=0.1 impl=0.32
+item: smaller-go-module      design=0.04 impl=0.2
+item: smaller-go-module      design=0.04 impl=0.2
+item: cross-cutting-refactor design=0.1 impl=0.3
+item: greenfield-go-module   design=0.1 impl=0.24
+item: tui-screen             design=0.2 impl=0.4
+item: smaller-go-module      design=0.06 impl=0.2
+item: tui-screen             design=0.1 impl=0.4
+item: atlas-docs             design=0.1 impl=0.08
+item: milestone-review       design=0.0 impl=0.4
+item: milestone-review       design=0.0 impl=0.4
+item: milestone-review       design=0.0 impl=0.4
+item: ux-rename-iteration    design=0.3 impl=0.12
+design-buffer: 0.15
+total: 5.22
+```
+
+Items, in order: `NoteCrops` + contract; `board` package (wire, Board, OnDoc, Writer); server routes + admission;
+`CastConfig.Board` wiring; `collab.js` extraction from the terminal viewer; `annotate.js` helpers; viewer shell UI
+(modes, rail, strokes canvas, pins, dialog, touch); headless two-viewer e2e; Couch 💭N + notes menu for web notes;
+atlas; three milestone reviews; a UX tuning round. Design ×0.2 where the plan pre-resolves decisions. Impl at 40% of
+v2 ranges.
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.* (Calibration source is flagged stale; numbers provisional.)
 
 ## Plan
 
