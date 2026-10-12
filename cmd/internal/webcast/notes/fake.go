@@ -8,11 +8,11 @@ import (
 )
 
 // FakeModel is the stateful fake Model, deliberately simple: the selector is
-// an id or a child-index path, the landmark is the parent element, and there
-// is one crop around every anchor. Enough for the queries (#462) to build on
+// an id or a child-index path, and the landmark is the parent element.
+// Crops are the real model's (#488). Enough for the queries (#462) to build on
 // before the real model (#461) lands.
 type FakeModel struct {
-	// Margin around a crop, in CSS px; zero is 24.
+	// Margin around a note's box in its crop, in CSS px; zero is 16.
 	Margin float64
 }
 
@@ -23,7 +23,7 @@ func (FakeModel) Anchor(st *recording.State, node recording.NodeID) (recording.N
 	if n == nil || n.Y != recording.YEl {
 		return recording.NoteAt{}, fmt.Errorf("notes: node %d is not a live element", node)
 	}
-	at := recording.NoteAt{Node: node, Sel: selector(n), Text: trim(n.TextContent())}
+	at := recording.NoteAt{Node: node, Kind: recording.AnchorElement, Path: []string{n.N}, Sel: selector(n), Text: trim(n.TextContent())}
 	if b, ok := st.Boxes[node]; ok {
 		at.Box = &b
 	}
@@ -59,48 +59,9 @@ func (FakeModel) Context(st *recording.State, at recording.NoteAt) (Context, err
 	return c, nil
 }
 
-func (m FakeModel) Crops(st *recording.State, ats []recording.NoteAt, hints Hints) ([]recording.Box, error) {
-	return m.NoteCrops(st, anchorsOnly(ats), hints)
-}
-
-// NoteCrops is one crop around every note's box (a region note's region),
-// plus the margin.
-func (m FakeModel) NoteCrops(st *recording.State, ns []*recording.Note, hints Hints) ([]recording.Box, error) {
-	margin := m.Margin
-	if margin == 0 {
-		margin = 24
-	}
-	var crop *recording.Box
-	for _, n := range ns {
-		b := n.Region
-		if b == nil {
-			b = n.At.Box
-		}
-		if b == nil {
-			if lb, ok := st.Boxes[n.At.Node]; ok {
-				b = &lb
-			}
-		}
-		if b == nil {
-			return nil, fmt.Errorf("notes: no box for node %d", n.At.Node)
-		}
-		if crop == nil {
-			crop = b
-		} else {
-			u := crop.Union(*b)
-			crop = &u
-		}
-	}
-	if crop == nil {
-		return nil, nil
-	}
-	out := recording.Box{crop[0] - margin, crop[1] - margin, crop[2] + 2*margin, crop[3] + 2*margin}
-	if hints != nil {
-		if h, ok := hints.Crop(st.URL, out); ok {
-			out = h
-		}
-	}
-	return []recording.Box{out}, nil
+// NoteCrops are the real model's: the rule is simple enough to share.
+func (m FakeModel) NoteCrops(st *recording.State, ns []*recording.Note) ([]recording.Box, error) {
+	return noteCrops(st, ns, marginOr(m.Margin), m.Resolve)
 }
 
 func (FakeModel) Live(st *recording.State) []*recording.NoteView { return liveNotes(st) }

@@ -30,7 +30,7 @@ func TestFakeModelOnFixtures(t *testing.T) {
 				t.Errorf("%s: note %s doesn't resolve", name, n.ID)
 			}
 			if n.At.Box != nil {
-				if crops, err := (FakeModel{}).Crops(st, []recording.NoteAt{n.At}, nil); err != nil || !crops[0].Contains(*n.At.Box) {
+				if crops, err := (FakeModel{}).NoteCrops(st, []*recording.Note{{At: n.At}}); err != nil || !crops[0].Contains(*n.At.Box) {
 					t.Errorf("%s: note %s crop %v %v", name, n.ID, crops, err)
 				}
 			}

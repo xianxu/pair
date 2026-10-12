@@ -88,7 +88,7 @@ html, body {
    outside #stage, so a tap on a swatch never starts a stroke, and only the
    buttons take pointer events: a point or drag over the rest of the rail,
    backing included, falls through to the screen. Pointer colors are its
-   first group; #447's mode button sits below them. */
+   first group; the mode buttons (#447, #488) sit below them. */
 #rail {
   position: fixed;
   transform: translateY(-50%);
@@ -138,9 +138,19 @@ html, body {
     height: 14px;
   }
 }
-/* Mode switch (#447): one button below the swatches in the rail, 👆 for
-   pointing and 💭 for comments. Only the button takes pointer events. */
-#mode {
+/* Mode buttons (#447, #488): both below the swatches in the rail, 👆 for
+   pointing and 💭 for comments, the current one pressed. Only the buttons
+   take pointer events. */
+#modes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: none;
+}
+#modes.hidden {
+  display: none;
+}
+#modes button {
   width: 30px;
   height: 30px;
   padding: 0;
@@ -152,11 +162,24 @@ html, body {
   cursor: pointer;
   pointer-events: auto;
 }
-#mode.hidden {
-  display: none;
+#modes button.on {
+  background: rgba(40, 40, 40, 0.85);
+  box-shadow: 0 0 0 2px #fff inset;
 }
 #stage.pointer.comment {
   cursor: cell;
+}
+/* A note's box while it is drawn (#488): the page's own outline, until
+   Couch draws the saved box into the screen. */
+.drag-box {
+  position: fixed;
+  box-sizing: border-box;
+  border: 2px dashed #ddd;
+  background: rgba(127, 127, 127, 0.15);
+  pointer-events: none;
+}
+.drag-box.hidden {
+  display: none;
 }
 /* The sticky note (#447): one fixed-size dialog in a sticky-note yellow,
    centered over the screen; a draft shows the text box, a viewed note its

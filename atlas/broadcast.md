@@ -277,8 +277,9 @@ and it is kept narrow.
   screen's right edge, vertically centered; `fit()` docks it to the drawn
   screen (`railAt`). It sits outside `#stage`, and only its buttons take
   pointer events, so a swatch tap never starts a stroke and a point anywhere
-  else reaches the screen. The mode button (`#mode`, 👆/💭, #447) sits below the swatches. There is
-  no hint bar (#447 M3): the swatches and the mode button explain themselves
+  else reaches the screen. The mode buttons (`#modes`: `#mode-point` 👆 and `#mode-comment` 💭, both shown,
+  the current one pressed, as the web cast's; #447, #488) sit below the swatches. There is
+  no hint bar (#447 M3): the swatches and the mode buttons explain themselves
   in tooltips (`title`, `MODE_TIPS`), so the screen keeps the whole window;
   touch devices show no tooltips.
 - **Server timeouts:** `ReadHeaderTimeout` 10s, `IdleTimeout` 60s, 8 KB
@@ -331,19 +332,29 @@ table.
 
 ## Sticky notes (#447)
 
-Notes are the pointer link's second collaboration layer: a viewer pins a
-plain-text note to a screen cell and Couch draws `💭` (`NoteGlyph`) there.
-A note stays at its cell whatever scrolls underneath (no anchoring). Notes live
+Notes are the pointer link's second collaboration layer. A viewer leaves a
+plain-text note on a box of the screen (#488): a drag draws the box, and a tap
+gets the default box (`collab.js` `gestureBox`, shared with the web cast). Couch
+outlines the box and draws `💭` (`NoteGlyph`) inside its top-right corner. The box
+is what a submission crops (#455, `NoteCrop`). A note stays where it was placed,
+whatever scrolls underneath (no anchoring). Notes live
 in memory and are deleted whenever pointing turns off (click or the 👆-hidden
 watch) or the broadcast ends.
 
-- **Model** (`notes.go`, pure): `Note{ID, Col, Row, Color, Text}`. `NoteBoard`
-  holds the limits: 8 open notes per pointer color, no two notes sharing a cell.
+- **Model** (`notes.go`, pure): `Note{ID, Col, Row, Box, Color, Text}`.
+  - `Box` is a `CellBox` `[col,row,w,h]` on the grid, at least the pin's two cells wide.
+  - `Col, Row` is the pin. `NoteBoard.Add(n, cols, rows)` places it: `firstPin`: the first spot (top-right inside
+    the box, then leftward, then the rows below, never on the controls) that no open pin covers.
+  - `NoteBoard` holds the limits: 8 open notes per pointer color, no two pins sharing a cell. A box with no free
+    spot is refused.
+  - `NoteCrop(n, cols, rows, margin)` is the box plus margin cells, kept on the grid: the seam #455 crops through.
   `ParseNote` is strict like `ParsePointBatch`: 1–1024 bytes of valid UTF-8, no
   control characters except `\n`/`\t`, no format characters (bidi, zero-width);
-  the cell must leave room for the glyph's second column and sit off the
-  controls (`NoteVisible`, which reuses the marks' `guarded`). `DrawNotes` puts
-  the glyph on two cells, blanks any wide character it cuts in half (keeping
+  the request is `{cols, rows, box, color, text}` (a page never sends the
+  pin), and the box must be on the grid with a pin spot off the controls
+  (`NoteVisible`, which reuses the marks' `guarded`). `DrawNotes` tints the
+  box's edge cells in the author's color (`noteOutline`, through the glow's
+  tint merge; text kept, controls never), puts the glyph on two cells, blanks any wide character it cuts in half (keeping
   its style), and widens the row's used columns, since the renderer draws text
   only that far. `FuzzParseNote`; a property test over random wide rows.
 - **Chip, glow, flash** (`notehalo.go`, M3): the 💭's cells get its author's
@@ -364,7 +375,7 @@ watch) or the broadcast ends.
   timer from `NoteNextChange` and stops it on pointer-off and broadcast end.
 - **State** (`pointer_notes.go`): the board lives inside `PointerState`, under
   its one lock, so a flip to off and the clear are one critical section.
-  `notesVersion` only increases. `addNote(n, gen)` refuses unless pointing is on
+  `notesVersion` only increases. `addNote(n, cols, rows, gen)` refuses unless pointing is on
   and hasn't flipped since `gen`, which `Session.acceptNote` reads before its
   unlocked screen check (`landsNow`: same grid, public frame, 👆 shown).
   Nothing called under `p.mu` takes it or waits on another goroutine.
@@ -405,9 +416,13 @@ watch) or the broadcast ends.
   (`parseNotes`) and hit-tests a tap against both cells of each visible 💭
   (`noteAt`, using the event's `guard`), so a tap on a 💭 opens it on any page:
   read-only on a view link, with Resolve on a pointer link. `pointerMode`
-  routes taps: 💭 → open; pointing off → nothing; comment mode → a draft at
-  the tapped cell (`noteCell` moves a last-column tap one left; none on the
-  controls); pointer mode → a stroke. Turning pointing off resets to pointer
+  routes taps:
+  - 💭 → open.
+  - Pointing off → nothing.
+  - Comment mode → a box gesture. A dashed `.drag-box` follows the drag, and on release a draft with
+    `gestureBox`'s box opens. A finger needs 2 cells and a mouse 1. A box with only the controls under it
+    (`boxHasPin`) gets no draft.
+  - Pointer mode → a stroke. Turning pointing off resets to pointer
   mode and closes the dialog. `noteDialog` is one fixed-size sticky note: the
   draft exists only in its text box until Save (a byte counter mirrors the
   1 KB cap), a refusal shows Couch's sentence, and a viewed note that leaves
@@ -416,6 +431,50 @@ watch) or the broadcast ends.
   resolve); the page test pins that and bans HTML sinks in both scripts.
   `BROADCAST_MANUAL_POINTER=1` makes `TestManualViewerServer` serve a pointer
   link that draws notes, for checking the page in a real browser.
+
+### Note anchors (#488)
+
+A note's `Anchor` (`broadcast.NoteAnchor{kind, path, text}`) is what its box is on. It has the same shape as the
+web cast's element anchor (`recording.NoteAt` kind/path), so #455's and #483's submissions read alike.
+- **Example paths:**
+  - `tab bar › tabs: pair:1, pair:3 ●`
+  - `status line` (Couch's last row past the chips: the broadcast's and Chrome's controls)
+  - `pane pair:3 › agent (claude)`
+  - `pane pair:3 › draft nvim › draft-pair-3.md, lines 12–13 › section: Review`
+  - `pane pair:3 › draft nvim › statusline`
+  - `pane pair:3 › review nvim › plan.md …`
+  - `pane pair:3 › terminal`
+- **`text`:** the screen's text under the box, at most 1 KiB.
+- **Pure core** (`couchtty/noteanchor.go`): `AnchorFor(box, frame, ScreenLayout)`, with `TextUnder`, `locate` and
+  `sectionOf`.
+  - A nvim pane's lines are found by locating the rows under the box in its file on disk: sequential substring
+    matches, so wrapped lines work. An unsaved buffer or a fold names the file only.
+  - The section is the nearest Markdown heading above.
+  - No nvim side channel is needed.
+- **At accept (synchronous):** `Config.AnchorNote` is Couch's `anchorNote`, called from `Session.acceptNote` on the
+  request goroutine and answered from memory:
+  - the text, from the last public frame (`keepNoteFrame`, kept by the note overlay);
+  - the last row's tab bar or status line;
+  - above the last row, `kind: screen` with `pane <slot>`.
+- **Pane path (asynchronous):** `queueAnchors` (from `applyNotes`) queues each such note once. The single-flight
+  `resolveAnchors` makes one `PaneRects` query per slot per pass, and `Session.SetNoteAnchor(id, a)` applies the
+  result.
+  - **Dropped results:**
+    - a note resolved or cleared since (a session never reuses an id; `tried` is keyed by session and id);
+    - another slot in view or a resize since the job's frame (endpoint and geometry epoch).
+  - **Each job carries its exact frame.** The anchor is computed from that frame, and a job is made only while
+    the text under the box is still the note's.
+  - **Failures:** a failed or timed-out query (2 s) leaves the opening anchor, with no retry.
+  - **Tests:** `console_noteanchor_test.go` covers completion order, a resize mid-pass, a resolve mid-pass, two
+    notes per pass, and a note opened mid-pass.
+- **`PaneRects` seam** (`couchcmd/note_panes.go`, `paneRectsOf`): the slot's own session
+  (`PairSessionContext` → `zellij --session NAME action list-panes --json --command --state --geometry`, about
+  590 ms), mapped to roles by `workbenchshortcut.RoleForPaneWith`.
+  - Floating panes come first.
+  - The draft's file is the slot's `Paths.Draft()`. The review's is the argument after `/nvim/review.lua`.
+  - Files are read up to 1 MiB.
+  - `TestNotePanesZellijConformance` (`PAIR_LIVE_ZELLIJ=1`) checks real geometry and roles on a disposable session.
+  - Pair runs one zellij tab, so panes aren't filtered by tab.
 
 ## Listing (`couch --broadcast-list`, pair#413)
 

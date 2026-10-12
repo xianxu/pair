@@ -81,12 +81,14 @@ test('a note shows on its region, else its element as drawn, else the box it was
   assert.equal(noteBox({ at: { node: 8 } }, boxOf), null);
 });
 
-test('a drag is a region; a small one is a tap', () => {
-  assert.equal(regionOf([10, 10], [15, 13]), null);
-  assert.deepEqual(regionOf([50, 40], [10, 10]), [10, 10, 40, 30]);
-  assert.deepEqual(regionOf([10, 10], [60, 12]), [10, 10, 50, 2]);
-  assert.deepEqual(noteDraft(3, 7, [1.234, 2, 3, 4], null), { seg: 3, node: 7, box: [1.2, 2, 3, 4] });
-  assert.deepEqual(noteDraft(3, 7, [1, 2, 3, 4], [5, 6, 7, 8]), { seg: 3, node: 7, box: [1, 2, 3, 4], region: [5, 6, 7, 8] });
+test('every note gesture is a box: a drag, or the default box for a tap (#488)', () => {
+  const view = { x: 0, y: 400, w: 1000, h: 600 };
+  assert.deepEqual(regionOf([500, 700], [505, 703], view, 'mouse'), [450, 670, 100, 60]); // a tap
+  assert.deepEqual(regionOf([50, 440], [10, 410], view, 'mouse'), [10, 410, 40, 30]);
+  assert.deepEqual(regionOf([10, 410], [60, 412], view, 'mouse'), [10, 410, 50, 2]);
+  assert.deepEqual(regionOf([500, 700], [512, 700], view, 'mouse'), [500, 700, 12, 1]);
+  assert.deepEqual(regionOf([500, 700], [512, 700], view, 'touch'), [450, 670, 100, 60]); // a finger's wobble is a tap
+  assert.deepEqual(noteDraft(3, 7, [1.234, 2, 3, 4], [5, 6, 7, 8]), { seg: 3, node: 7, box: [1.2, 2, 3, 4], region: [5, 6, 7, 8] });
 });
 
 test('a stored name is read by the board\'s rules, else asked again', () => {
@@ -115,4 +117,27 @@ test('strokesAt: what a reader at t shows, for replay', () => {
   assert.equal(strokesAt(model, 1150 + FADE_MS).length, 0);
   assert.deepEqual(strokesAt(model, 5000).map((s) => s.id), ['b']);
   assert.deepEqual(strokesAt({ docSeg: 0, strokes: [] }, 1), []);
+});
+
+// A pin is its note's box; a box too thin for the 💭 chip carries it
+// outside its corner (#488).
+test('pins: the box, and the chip outside a thin one', async () => {
+  const { pinLayer, CHIP_ROOM } = await import('../../cmd/internal/webcast/web/annotate.js');
+  const el = () => {
+    const cls = new Set();
+    return {
+      classList: { toggle: (c, on) => (on ? cls.add(c) : cls.delete(c)), contains: (c) => cls.has(c) },
+      set className(v) { cls.clear(); v.split(' ').filter(Boolean).forEach((c) => cls.add(c)); },
+      style: { setProperty() {} }, dataset: {}, append() {}, addEventListener() {}, setAttribute() {}, remove() {},
+    };
+  };
+  const doc = { createElement: el };
+  const pins = [];
+  const layer = pinLayer(doc, { append: (p) => pins.push(p) }, () => {});
+  const place = (p, b) => { p.style.width = `${b[2]}px`; p.style.height = `${b[3]}px`; };
+  const note = (id, region) => ({ id, region, text: 'x', author: { name: 'A', color: '#112233' } });
+  layer.draw([note('wide', [0, 0, 200, 80]), note('thin', [0, 0, 200, CHIP_ROOM - 1])], () => null, place);
+  assert.equal(pins.length, 2);
+  assert.ok(!pins[0].classList.contains('thin'));
+  assert.ok(pins[1].classList.contains('thin'));
 });

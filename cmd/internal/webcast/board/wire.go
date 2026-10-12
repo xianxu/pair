@@ -56,15 +56,16 @@ type StrokeIn struct {
 	Pts    [][3]float64
 }
 
-// NoteIn is a viewer's new note: the element they picked (for a region, the
-// innermost element at its centre), its box from the viewer's layout at
-// click time (couchViewer.boxOf), the region when dragged, and the text.
+// NoteIn is a viewer's new note: its box (Region: dragged, or the default
+// box of a tap, #488), the element it anchors on (the innermost at the
+// box's centre) with that element's box from the viewer's layout
+// (couchViewer.boxOf), and the text.
 type NoteIn struct {
 	Viewer Viewer
 	Seg    int
 	Node   recording.NodeID
 	Box    recording.Box
-	Region *recording.Box
+	Region recording.Box
 	Color  int
 	Text   string
 }
@@ -121,7 +122,9 @@ func ParseStroke(body []byte) (StrokeIn, error) {
 }
 
 // ParseNote reads a note request strictly:
-// {"viewer","seg","node","box":[x,y,w,h],"region"?:[x,y,w,h],"color","text"}.
+// {"viewer","seg","node","box":[x,y,w,h],"region":[x,y,w,h],"color","text"}.
+// Every note has a region, its box (#488); node is the element at its
+// centre and box that element's, as the viewer drew them.
 // The text is the terminal notes' plain text (broadcast.PlainText), not
 // blank.
 func ParseNote(body []byte) (NoteIn, error) {
@@ -134,7 +137,7 @@ func ParseNote(body []byte) (NoteIn, error) {
 		Color  *int        `json:"color"`
 		Text   *string     `json:"text"`
 	}
-	if len(body) > MaxNoteBody || !decode(body, &raw) || raw.Seg == nil || raw.Node == nil || raw.Box == nil || raw.Color == nil || raw.Text == nil {
+	if len(body) > MaxNoteBody || !decode(body, &raw) || raw.Seg == nil || raw.Node == nil || raw.Box == nil || raw.Region == nil || raw.Color == nil || raw.Text == nil {
 		return NoteIn{}, ErrShape
 	}
 	v, ok := viewer(raw.Viewer)
@@ -145,14 +148,11 @@ func ParseNote(body []byte) (NoteIn, error) {
 	if !ok {
 		return NoteIn{}, ErrShape
 	}
-	n := NoteIn{Viewer: v, Seg: *raw.Seg, Node: recording.NodeID(*raw.Node), Box: box, Color: *raw.Color, Text: *raw.Text}
-	if raw.Region != nil {
-		r, ok := boxOf(raw.Region, 1)
-		if !ok {
-			return NoteIn{}, ErrShape
-		}
-		n.Region = &r
+	region, ok := boxOf(raw.Region, 1)
+	if !ok {
+		return NoteIn{}, ErrShape
 	}
+	n := NoteIn{Viewer: v, Seg: *raw.Seg, Node: recording.NodeID(*raw.Node), Box: box, Region: region, Color: *raw.Color, Text: *raw.Text}
 	if !broadcast.PlainText(n.Text) || strings.TrimSpace(n.Text) == "" {
 		return NoteIn{}, ErrShape
 	}

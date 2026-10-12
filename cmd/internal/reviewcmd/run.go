@@ -189,7 +189,7 @@ func RunOpen(opts OpenOptions, rt Runtime, stderr io.Writer) int {
 	dir := rt.LogicalDir(opts.File)
 	abs := filepath.Join(dir, filepath.Base(opts.File))
 	nvimPid := paths.NvimPID("review")
-	if err := rt.SpawnReviewPane(dir, opts.PairHome+"/nvim/review.lua", abs, nvimPid); err != nil {
+	if err := rt.SpawnReviewPane(dir, opts.PairHome+"/"+ReviewScript, abs, nvimPid); err != nil {
 		fmt.Fprintf(stderr, "pair-review-open: %v\n", err)
 		return 1
 	}
