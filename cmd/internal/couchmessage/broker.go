@@ -46,8 +46,12 @@ type SlotActor struct {
 	reservation string
 	inbox       chan Message
 	// wake tells the worker a message joined the queue (pair#492).
-	wake   chan struct{}
-	cancel context.CancelFunc
+	wake chan struct{}
+	// blockedPromotions counts the worker finding the queue blocked by
+	// another attempt's reservation: the interleaving the close review
+	// required a test of, observable without timing.
+	blockedPromotions int
+	cancel            context.CancelFunc
 	// The latest observation the wrapper pushed (#365), kept so an actor
 	// listing reads memory instead of probing every slot. It stays current
 	// while the actor is connected: the wrapper pushes every change.
@@ -532,9 +536,7 @@ func (b *Broker) admit(ctx context.Context, from Binding, id string, route Route
 			return receipt, nil
 		}
 		b.mu.Lock()
-		if a.reservation == id {
-			a.reservation = ""
-		}
+		a.releaseReservationLocked(id)
 		b.mu.Unlock()
 		// Free any wrapper reservation this attempt holds before the message
 		// can be queued: the worker reserves the same ID when it promotes it.
@@ -616,11 +618,30 @@ func (b *Broker) enqueueLocked(a *SlotActor, from Binding, id string, route Rout
 		return Receipt{}, err
 	}
 	b.destinations[id] = route
+	a.wakeLocked()
+	return b.receipts[id], nil
+}
+
+// wakeLocked tells the worker to look at the queue again.
+func (a *SlotActor) wakeLocked() {
 	select {
 	case a.wake <- struct{}{}:
 	default:
 	}
-	return b.receipts[id], nil
+}
+
+// releaseReservationLocked ends the admission or promotion attempt id holds.
+// Every path that frees the actor wakes the worker when messages wait: an
+// attempt that blocked a promotion and then failed would otherwise strand
+// the queue (pair#492 close review).
+func (a *SlotActor) releaseReservationLocked(id string) {
+	if a.reservation != id || id == "" {
+		return
+	}
+	a.reservation = ""
+	if a.state.Queued() > 0 {
+		a.wakeLocked()
+	}
 }
 
 // PromoteRetry is how long a queued message waits before the worker asks a
@@ -638,6 +659,9 @@ func (b *Broker) promote(ctx context.Context, a *SlotActor) bool {
 		head, ok = a.state.QueueHead()
 	}
 	_, pending := a.state.Pending()
+	if ok && a.reservation != "" {
+		a.blockedPromotions++
+	}
 	if !ok || pending || a.reservation != "" || len(a.inbox) != 0 || b.actors[a.binding] != a || !b.caller(a.binding) {
 		b.mu.Unlock()
 		return false
@@ -651,9 +675,7 @@ func (b *Broker) promote(ctx context.Context, a *SlotActor) bool {
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if a.reservation == head.ID {
-		a.reservation = ""
-	}
+	a.releaseReservationLocked(head.ID)
 	var committed *AlreadyCommittedError
 	if errors.As(err, &committed) {
 		// The wrapper already holds this ID: answer with its outcome.
@@ -661,6 +683,7 @@ func (b *Broker) promote(ctx context.Context, a *SlotActor) bool {
 		_ = b.apply(a, Event{Kind: Cancel, Binding: a.binding, Message: Message{ID: head.ID}, At: b.now()})
 		delete(b.receipts, head.ID)
 		b.recordRecoveredLocked(committed.Receipt, route)
+		a.wakeLocked()
 		return false
 	}
 	if err == nil && (ctx.Err() != nil || a.sequence != seq || b.actors[a.binding] != a) {
@@ -689,9 +712,7 @@ func (b *Broker) promote(ctx context.Context, a *SlotActor) bool {
 func (b *Broker) adoptRetained(a *SlotActor, from Binding, id string, route Route, body string, r Receipt) (Receipt, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if a.reservation == id {
-		a.reservation = ""
-	}
+	a.releaseReservationLocked(id)
 	if r.Message.ID != id || r.Message.From != from || r.Message.To != a.binding || r.Message.Body != body {
 		return Receipt{}, errors.New("conflicting message ID")
 	}

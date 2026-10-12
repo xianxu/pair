@@ -61,4 +61,15 @@ Found while wiring: the wrapper's busy refusal crossed the socket as a plain str
 to `ErrRecipientBusy`, as the other sentinel errors are, with a test.
 The broker applies no `Tick` in production (expiry ran on the delivery job's timer), so
 `promote` applies a Tick before reading the head; that is where `QueueWait` expiry runs.
+Close review round 1 (REWORK). BR-1 Critical: an admission attempt that blocked a promotion and
+then failed cleared the reservation without waking the worker, which stranded the queue. The
+class is any path that frees the actor without a wake. Fixed at its root: every reservation
+release goes through `releaseReservationLocked`, which wakes the worker whenever messages wait,
+and the already-committed path wakes it to move on. BR-2: `TestMessageQueuedBehindAFailingAttemptIsDelivered`
+holds an attempt in flight with a gated Observe, waits on `blockedPromotions` (no timing),
+then fails the attempt. Mutation check: with the wake removed, the test fails (stranded until
+its deadline); with it, the package passes under -race. Minor (untested already-committed path):
+`TestPromotionAdoptsAnAlreadyCommittedMessage`. Minor (FIFO): an attempt already in flight
+that ends busy joins the queue behind senders that arrived while it ran. Order is the order
+admissions complete, the same as two concurrent sends before this change. Kept, and stated here.
 

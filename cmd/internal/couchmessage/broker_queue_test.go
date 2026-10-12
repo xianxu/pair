@@ -151,3 +151,96 @@ func waitStatus(t *testing.T, b *Broker, caller Binding, id string, want Status)
 	t.Helper()
 	testwait.Until(t, id+" "+string(want), func() bool { r, err := b.Status(caller, id); return err == nil && r.Status == want })
 }
+
+// gatedEndpoint holds the first Observe until open is closed, then fails it:
+// an admission attempt in flight that ends in a refusal.
+type gatedEndpoint struct {
+	*FakeDeliveryEndpoint
+	once    sync.Once
+	entered chan struct{}
+	open    chan struct{}
+}
+
+func (e *gatedEndpoint) Observe(ctx context.Context) (Observation, error) {
+	first := false
+	e.once.Do(func() { first = true })
+	if first {
+		close(e.entered)
+		<-e.open
+		return Observation{}, ErrUnavailable
+	}
+	return e.FakeDeliveryEndpoint.Observe(ctx)
+}
+
+// pair#492 close review BR-1/BR-2: a message queued behind an admission
+// attempt in flight is delivered after that attempt fails, not stranded.
+func TestMessageQueuedBehindAFailingAttemptIsDelivered(t *testing.T) {
+	now := time.Date(2026, 10, 12, 11, 0, 0, 0, time.UTC)
+	b := NewBroker(context.Background(), func() time.Time { return now }, func(context.Context, Binding) (bool, error) { return true, nil })
+	defer b.Close()
+	hub := brokerBinding("ops:0")
+	gate := &gatedEndpoint{FakeDeliveryEndpoint: newFakeEndpoint(now.Add(-time.Minute)), entered: make(chan struct{}), open: make(chan struct{})}
+	if err := b.Register(hub, gate); err != nil {
+		t.Fatal(err)
+	}
+	first, second := brokerBinding("pair:1"), brokerBinding("pair:2")
+	for _, s := range []Binding{first, second} {
+		if err := b.Register(s, newFakeEndpoint(now.Add(-time.Minute))); err != nil {
+			t.Fatal(err)
+		}
+	}
+	failed := make(chan error, 1)
+	go func() {
+		_, err := b.Send(context.Background(), first, "in-flight", Route{Target: "ops:0"}, "first")
+		failed <- err
+	}()
+	select {
+	case <-gate.entered:
+	case <-testwait.After(t):
+		t.Fatal("first attempt never reached the wrapper")
+	}
+	r, err := b.Send(context.Background(), second, "behind", Route{Target: "ops:0"}, "second")
+	if err != nil || r.Status != Queued || r.Detail != "position 1" {
+		t.Fatalf("second send: %+v %v", r, err)
+	}
+	// The worker has seen the queue blocked by the attempt in flight, so
+	// only the attempt's own release can wake it again.
+	testwait.Until(t, "a blocked promotion", func() bool {
+		b.mu.Lock()
+		defer b.mu.Unlock()
+		return b.actors[hub].blockedPromotions > 0
+	})
+	close(gate.open)
+	if err := <-failed; err == nil {
+		t.Fatal("the gated attempt succeeded")
+	}
+	if m := delivered(t, gate.FakeDeliveryEndpoint); m.ID != "behind" {
+		t.Fatalf("delivered %s", m.ID)
+	}
+}
+
+// A queued message the wrapper already holds (a reused ID) answers with the
+// wrapper's outcome, and the queue moves on to the next message.
+func TestPromotionAdoptsAnAlreadyCommittedMessage(t *testing.T) {
+	now := time.Date(2026, 10, 12, 11, 0, 0, 0, time.UTC)
+	b, hub, fh, from := queueBroker(t, now, "pair:0", "pair:1", "pair:2")
+	if _, err := b.Send(context.Background(), from["pair:0"], "first", Route{Target: "ops:0"}, "first"); err != nil {
+		t.Fatal(err)
+	}
+	delivered(t, fh)
+	for _, slot := range []string{"pair:1", "pair:2"} {
+		if _, err := b.Send(context.Background(), from[slot], "q-"+slot, Route{Target: "ops:0"}, "report"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	fh.mu.Lock()
+	fh.retained.Add(Receipt{Message: Message{ID: "q-pair:1", From: from["pair:1"], To: hub, Body: "report", Deadline: now.Add(time.Minute)}, Status: Submitted})
+	fh.mu.Unlock()
+	fh.outcomes <- Receipt{Status: Submitted}
+	if m := delivered(t, fh); m.ID != "q-pair:2" {
+		t.Fatalf("delivered %s", m.ID)
+	}
+	if r, err := b.Status(from["pair:1"], "q-pair:1"); err != nil || r.Status != Submitted {
+		t.Fatalf("adopted receipt: %+v %v", r, err)
+	}
+}

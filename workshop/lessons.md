@@ -1340,3 +1340,8 @@ proof; record the surprising case so the next change starts from evidence.
   `--prepare` and `--reload-context` at "seconds" and light at "milliseconds"; the timings said heavy and "under a
   second", and only the Log said so. When a Spec names expected values to be measured, append a `## Revisions`
   entry the moment a measurement disagrees, and say in Done-when which values were reasoned rather than measured.
+- **Every path that unblocks a worker wakes it (#492 close).** The queue's worker skipped promotion while another
+  admission attempt held the actor's reservation; that attempt's failure path cleared the reservation and woke no
+  one, so a queued message sat until the test deadline. When a worker parks on a condition (a reservation, a
+  pending delivery), route every release of that condition through one helper that also signals the worker, and
+  test the interleaving deterministically: count the worker's blocked checks and wait on the count, never on a sleep.
