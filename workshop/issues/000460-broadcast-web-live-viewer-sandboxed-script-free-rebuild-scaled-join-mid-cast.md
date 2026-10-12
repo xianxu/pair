@@ -51,7 +51,7 @@ Durable plan: `workshop/plans/000460-broadcast-web-live-viewer-sandboxed-script-
 - [x] `recording.Hub` (FakeHub promoted, TL decision), `Server` `rec` events + Presence, CSP; Go tests
 - [x] Headless fixture replay: canonical equality and screenshot comparison with a measured, stated tolerance; join-mid-cast and segments
 - [x] Atlas
-- [ ] ~~Smoke test~~ moved to the TL's follow-up after #458 (see Revisions)
+- Smoke test: moved out of this issue to the TL's follow-up after #458 (see Revisions).
 
 ## Revisions
 
