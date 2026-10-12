@@ -13,7 +13,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
-actual_hours: 1.10
+actual_hours: 1.25
 tracker:
     version: 1
     handoff:
@@ -27,10 +27,10 @@ tracker:
         destination: workshop/issues/000472-broadcast-web-real-recorder-output-as-fixtures-the-integration-guard.md
         main_commit: cc9b620f44dc4d2df8023902e62b12b6063489ab
     completion:
-        token: close-cdcbd0984287
+        token: close-c6d5c6ede842
         repository: github.com/xianxu/pair
-        reviewed_head: f82bd66c96e66f77ff6764b794bb001604de96f2
-        evidence_commit: ccb67424f29ed76dfcd5f1f9b513c56cf4282a08
+        reviewed_head: dc6d4f1d146c33aa663bd5d656a2567b6fabe033
+        evidence_commit: 8b55dd01f07928bb868505ed3cdd65e489d12d8d
 ---
 
 # broadcast-web: real recorder output as fixtures (the integration guard)
