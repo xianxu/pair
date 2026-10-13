@@ -182,6 +182,13 @@ Durable plan: [000523-cast-capability-switches-plan.md](../plans/000523-cast-cap
   No remaining full-suite failure. Full fresh make test remains required at M2
   acceptance after controls/viewers/overlay integration.
 
+- M1 boundary review returned REWORK with four findings. BR-1 reproduced in
+  shared-fixture catch-up and seek tests (cleared notes/strokes resurrected after
+  resume), then fixed; all 32 replay tests pass. BR-3 corrected the Board source
+  inventory; BR-4 documents default-OFF authority versus persistent links.
+  BR-2 acknowledged production control writes remains in progress. M1 is not
+  closed. #494 landed at 889fafd05 / PR303; merge and overlay wiring follow M1.
+
 ## Revisions
 
 - 2026-10-12 22:58 PDT: Added approved defaults/copy semantics and proposed
