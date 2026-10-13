@@ -399,6 +399,14 @@ remaining boundary for the lean API, tty reduction, tests/docs and TL live
 acceptance. No code changed; wait for TL OK before change-code/build. The old
 8.640h estimate is not the forecast for this smaller plan.
 
+### 2026-10-12 22:20 PDT — Lean plan approved
+
+Verified submitted TL receipt 37ac8fa2-20a8-4487-83a7-f4f169d1c69a approves
+18e4e1305: exact repo:N only, busy/dirty refusal, known config with form
+precedence, no supplied argv/default edits, existing failure lifecycle and
+tty-only previous/full reads. Proceed through revised change-code and build.
+The operator's live scratch-slot switch is coordinated through ops:0.
+
 ## Estimate
 
 *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md`
