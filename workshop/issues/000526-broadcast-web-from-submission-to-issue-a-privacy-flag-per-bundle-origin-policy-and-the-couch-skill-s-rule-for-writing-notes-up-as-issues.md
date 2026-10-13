@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
-estimate_hours:
-card_mirror: '200462b02099269adf7db87adcff6f6c4e7f2a76' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 2.243
+card_mirror: 'ff5cae15423961b289f9a13deb1adbfe8b133a02' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T23:04:21-07:00
 claimant:
     operator: Xian Xu
@@ -15,6 +15,7 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # broadcast-web: from submission to issue: a privacy flag per bundle (origin policy) and the couch skill's rule for writing notes up as issues
@@ -41,6 +42,28 @@ Coordinate with #525, which adds the page URL to the same manifest. Build on mai
 - The Couch skill and `how_to_read` carry the text-first evidence rule, the two conditions for crop attachment, private-text summarization, and the local/expiring recording limitation.
 - Tests pin the manifest privacy field, matched rule, private default, and exclusion of typed input values for private origins.
 
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only; calibration is flagged stale, so provisional.
+
+The issue/spec work uses 0.5 design + 0.2 implementation hours from v2. The pure policy module uses 1.0 design (halved for standard-library JSON/URL support, then ×0.2 for the resolved spec) + 0.6 implementation. Two existing Go seams (loader/capture) each use 0.2 design ×0.2 + 0.4 implementation; the DOM collector change uses the same bounded-refactor rates. Skill guidance uses 0.3 design ×0.2 + 0.4 implementation, docs 0.1 ×0.2 + 0.15, close review 0.1 ×0.2 + 0.4, and Chrome conformance 0 + 0.3. All implementation figures below are scaled to 40% per v3.1, familiarity 1.0; design buffer 15% for the detailed plan. Standard libraries and existing stateful fixtures avoid a new external integration. Scope includes tests, docs and one close review; #525 coordination does not implement that issue.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.5 impl=0.08
+item: greenfield-go-module design=0.1 impl=0.24
+item: smaller-go-module design=0.04 impl=0.16
+item: smaller-go-module design=0.04 impl=0.16
+item: cross-cutting-refactor design=0.04 impl=0.16
+item: skill-or-dispatcher design=0.06 impl=0.16
+item: atlas-docs design=0.02 impl=0.06
+item: milestone-review design=0.02 impl=0.16
+item: real-api-discovery design=0 impl=0.12
+design-buffer: 0.15
+total: 2.243
+```
 
 ## Plan
 
