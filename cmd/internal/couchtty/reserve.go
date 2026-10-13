@@ -42,8 +42,8 @@ type StatusActor struct {
 	// Blocked: the thread's agent is behind an input-holding picker (pair#465).
 	// It draws red even on the active chip, so the operator sees it at a glance.
 	Blocked bool
-	// Hub: the hub slot (pair#491), which leads its section. It carries no mark
-	// of its own; a later hub starts a new section after a separator.
+	// Hub: the hub slot, which leads its section and reverses its colours
+	// (pair#521); a later hub starts a new section after a separator.
 	Hub bool
 	// Placeholder marks a thread the reattach pass has not attached yet
 	// (pair#206). It is drawn greyed, and it records NO chip span, so a click on
@@ -114,6 +114,7 @@ type StatusModel struct {
 }
 
 const (
+	reverseSGR     = "\x1b[7m"
 	attentionSGR   = "\x1b[38;5;220m"
 	placeholderSGR = "\x1b[38;5;240m"
 	// blockedSGR is the terminal's own red: its theme decides the shade. Not
@@ -362,11 +363,17 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 		case faded:
 			style = FadeStyle(m.Palette, idle, baseDefault)
 		}
+		if a.Hub {
+			style += reverseSGR
+		}
 		appendText(label, style)
 		for _, r := range a.Glyph {
 			glyphStyle := style
 			if base, own := slotGlyphBase(r); own && !a.Placeholder {
 				glyphStyle = FadeStyle(m.Palette, idle, base)
+				if a.Hub {
+					glyphStyle += reverseSGR
+				}
 			}
 			appendText(string(r), glyphStyle)
 		}
