@@ -42,7 +42,7 @@ type webcastState struct {
 }
 
 // webcastShutdownWait bounds how long Couch's exit waits for Chrome and the
-// viewer link to close. A variable so tests can shorten it.
+// cast's links to close. A variable so tests can shorten it.
 var webcastShutdownWait = 6 * time.Second
 
 // SetWebcast enables the cast Chrome with this configuration. Without it the

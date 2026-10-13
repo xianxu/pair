@@ -224,8 +224,8 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request, driveLink bool) 
 	}
 }
 
-// Viewers is how many streams are open, by link: the view link's and the
-// drive link's (#467, `couch --broadcast-list`).
+// Viewers is how many streams are open, by link: the view-only and pointer
+// links' together (pair#506), and the drive link's (#467, `couch --broadcast-list`).
 func (s *Server) Viewers() (view, drive int) {
 	return int(s.viewViewers.Load()), int(s.driveViewers.Load())
 }

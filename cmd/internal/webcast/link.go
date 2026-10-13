@@ -22,7 +22,7 @@ func (l castLink) annotates() bool { return l >= linkPointer }
 func (l castLink) drives() bool { return l == linkDrive }
 
 // WithPointer serves the pointer link under token (pair#506). Without it the
-// cast has only its view link and, when driven, its drive link.
+// cast has only its view-only link and, when driven, its drive link.
 func (s *Server) WithPointer(token string) *Server {
 	s.pointerToken = token
 	return s

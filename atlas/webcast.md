@@ -193,7 +193,7 @@ what the viewer's renderer draws at the same moments.
   before it does, and more: view watches; pointer also draws strokes and leaves and resolves notes; drive also offers
   a seat. `castLink` (`webcast/link.go`) is the request's link, from `Server.linkOf` (constant-time token compare),
   and each route asks it: `annotates()` for the board, `drives()` for the drive routes.
-  - Board POSTs under the view link answer 403 "This link is view-only." *before* admission, so they spend no body
+  - Board POSTs under the view-only link answer 403 "This link is view-only." *before* admission, so they spend no body
     read, in-flight slot or rate budget.
   - `palette.json` answers `{palette, annotate}`. Under the view-only link the viewer's `mountAnnotate` (`readPalette`)
     still draws others' strokes and notes, read-only: the rail never shows and a note opens without Resolve.

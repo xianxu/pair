@@ -103,8 +103,8 @@ type Cast struct {
 	driveOff string
 }
 
-// StartCast launches the browser and returns once it runs; the viewer link
-// opens in the background, so the operator has Chrome at once.
+// StartCast launches the browser and returns once it runs; the cast's links
+// open in the background, so the operator has Chrome at once.
 func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 	var live recording.Live
 	var liveSink recording.Sink

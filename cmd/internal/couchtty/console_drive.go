@@ -233,8 +233,8 @@ func driveFailure(err error) string {
 }
 
 // Shares is every link out, by kind, as `couch --broadcast-list` lists them
-// (#467): the screen broadcast, the web cast's view link and its drive
-// link. Never a link or a token. Counts are read after c.mu is released.
+// (#467): the screen broadcast, the web cast's view-only and pointer links
+// (counted together as `web view`, pair#506) and its drive link. Never a link or a token. Counts are read after c.mu is released.
 func (c *Console) Shares() []couchmessage.ShareStatus {
 	var out []couchmessage.ShareStatus
 	if b, ok := c.BroadcastStatus(); ok {
