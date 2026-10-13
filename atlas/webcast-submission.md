@@ -210,37 +210,48 @@ successful send. Acknowledgment then resolves only the submitted notes whose
 recording, document and revision still match. New notes, reopened notes and
 notes on a replacement page remain untouched.
 
-Preparation or send failure preserves the draft and notes. Changing the draft
-body or view while preparing prevents delivery; return to the original draft
-to retry its frozen attempt. The same attempt retains its bundle, outgoing
-text and recipient, including after a body was pasted but submit failed. An
-indeterminate body write requires inspecting the agent composer before any
-further send.
+The draft remains editable after preparation or send failure. Every
+Ctrl+Shift+Alt+Return starts a new submission from the current draft with a new
+ID and fresh evidence. A changed draft or view prevents its older preparation
+from sending; a new chord replaces that local attempt. Duplicate messages are
+acceptable, including after an uncertain paste. No original text needs to be
+reconstructed and no discard key is required.
 
-After a successful send, the draft clears normally even if acknowledgment
-fails. Press the chord again to retry **only acknowledgment**; it does not
-resend the old prompt or consume the next draft. Resume a paused cast first.
+A new stored bundle marks older same-target `prepared` or `delivering` bundles
+`superseded: true` before publishing its own directory. Their files and delivery
+states remain intact: superseded does not mean delivered. A partial publication
+can leave superseded evidence without a successor, which does not block another
+fresh attempt. Already-published same-ID retries confirm only their own
+publication and cannot supersede a newer bundle. Superseded bundles cannot begin
+another send, but a genuine late acknowledgment can still resolve their captured
+note versions idempotently. Store scans ignore foreign files such as Finder's
+`.DS_Store`; valid submission directories retain strict validation.
 
-After a Neovim restart, an unfinished bundle blocks a new preparation for the
-same target and reports its manifest path. Inspect the agent conversation and
-composer; no missing response is treated as permission to resend. From a shell
-in the same live Couch thread, inspect the exact ID:
+Successful sends clear only their matching draft. Acknowledgments retry
+independently of newer drafts (at most 64 active receipts, each with 360 retries
+at 100 ms intervals and a 4 s RPC timeout). Busy or failed note resolution can
+resume through either `ack` or `status`; the server retains one background worker.
+A busy preparation refusal leaves the draft editable for another fresh attempt.
+
+Old authored-text freezes existed only in Neovim memory. Starting a fresh draft
+process releases them while preserving the edited draft file. After a process
+restart, new submissions supersede old pending evidence instead of being blocked
+by it. Acknowledgment receipts themselves are not restored automatically; if
+confirmed delivery still needs resolution, inspect the manifest and use the
+existing exact-ID commands from the same live Couch thread:
 
 ```sh
 couch --broadcast-web-submit status example-1
-```
-
-Only after confirming that the message was sent, acknowledge that same ID:
-
-```sh
 couch --broadcast-web-submit ack example-1
 ```
 
-Both commands return JSON. Repeating `ack` can finish resolution after a Couch
-restart and never sends agent text. A replacement launch identity refuses the
-old bundle. An unsent `delivering` bundle needs manual reconciliation of the
-composer and preserved evidence before removing its preparation; there is no
-automatic reset or resend command.
+Only acknowledge an ID whose send was confirmed. `status` resumes resolution
+only for an already `dispatched` manifest; it never infers delivery from silence.
+The client reports the exact acknowledgment command when its retry budget is
+exhausted. These operations send no agent text and retain the immutable target
+guard; replacement launch identities cannot acknowledge an old bundle. Resume
+a paused cast before retrying resolution. All evidence, including superseded
+bundles, remains under the existing store caps and explicit local cleanup.
 
 ## Code map
 

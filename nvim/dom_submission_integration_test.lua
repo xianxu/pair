@@ -3,6 +3,8 @@ local mode=case=='insert' and 'i' or 'n'
 local body=(case=='empty' and '') or (case=='comments' and '=== keep') or 'draft'
 local authored,sent,acks,preps={}, {},0,0
 local composer=''
+local ids={}
+local write_failed=false
 local ack_failed=false
 local deferred
 local guide='Recording: /store/webcast/recordings/recording-1\ncouch --broadcast-web-query /store/webcast/recordings/recording-1 notes'
@@ -12,7 +14,8 @@ _G.PairTestSessionLogCommit=function()return true end
 _G.PairTestDOMPin=function()return {pane_id=7,validate=function()return true end} end
 _G.PairTestDOMRPC=function(op,id,cb)
  if op=='prepare' then
-  preps=preps+1
+  preps=preps+1;ids[#ids+1]=id
+  if case=='pre_error' and preps==1 then cb(nil,'unexpected submission entry .DS_Store');return end
   if case=='failure' then cb({state='failed',error='page changed'});return end
   if case=='changed' then deferred=cb;return end
   cb({state='prepared',path='/store/'..id..'/submission.json',how_to_read=guide})
@@ -26,7 +29,9 @@ end
 _G.PairTestZellijExecutor=function(label,argv)
  assert(not label:find('focus',1,true),'DOM submission moved focus')
  assert(argv[4]=='--pane-id' and argv[5]=='7')
- if label=='draft.send.write-body' then composer=composer..assert(_G.PairDraftSend.unframe(argv[6]))
+ if label=='draft.send.write-body' then
+  composer=composer..assert(_G.PairDraftSend.unframe(argv[6]))
+  if case=='uncertain' and not write_failed then write_failed=true;return {code=17}end
  elseif label=='draft.send.submit' then sent[#sent+1]=composer;composer=''
  else error('unexpected '..label) end
  return {code=0}
@@ -40,10 +45,19 @@ end
 local map=vim.fn.maparg('<C-S-M-CR>',mode,false,true)
 assert(type(map.callback)=='function','DOM chord absent in '..mode)
 map.callback()
-if case=='changed' then
+if case=='pre_error' or case=='uncertain' then
+ assert(#sent==0 and vim.api.nvim_get_current_line()==body)
+ vim.api.nvim_buf_set_lines(0,0,-1,false,{'edited current'})
+ map.callback()
+ assert(#sent==1 and authored[#authored]=='edited current' and preps==2 and ids[1]~=ids[2])
+ assert(sent[1]:find('edited current',1,true) and acks==1)
+elseif case=='changed' then
  vim.api.nvim_buf_set_lines(0,0,-1,false,{'edited'})
  deferred({state='prepared',path='/store/bundle/submission.json'})
  assert(#sent==0 and #authored==0)
+ map.callback()
+ deferred({state='prepared',path='/store/new/submission.json',how_to_read=guide})
+ assert(#sent==1 and authored[1]=='edited' and ids[1]~=ids[2])
 elseif case=='failure' then
  assert(#sent==0 and #authored==0 and vim.api.nvim_get_current_line()==body)
 else
@@ -54,8 +68,9 @@ else
  if case=='ack' then
   vim.api.nvim_buf_set_lines(0,0,-1,false,{'next draft'})
   map.callback()
-  assert(#sent==1 and preps==1 and acks==2)
-  assert(vim.api.nvim_get_current_line()=='next draft')
+  assert(#sent==2 and preps==2 and authored[2]=='next draft' and ids[1]~=ids[2])
+  assert(vim.wait(2000,function()return acks>=3 end,10),'old acknowledgment was lost')
+  assert(vim.api.nvim_get_current_line()~='next draft')
  end
  if case=='queue' then
   local path=assert(os.getenv('PAIR_QUEUE_DIR'))

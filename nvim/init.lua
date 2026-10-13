@@ -1615,8 +1615,8 @@ local function send_and_clear()
   if submit_operator_text(body, stripped) then _G.PairFinishDraftSend(body) end
 end
 
--- Preparation runs asynchronously; changes to the buffer or history selection
--- prevent delivery until the operator explicitly retries the original draft.
+-- Preparation runs asynchronously; changed drafts prevent delivery. Every DOM
+-- chord submits the current draft as a fresh attempt, with duplicates allowed.
 do
   local dir = debug.getinfo(1, 'S').source:match('@?(.*/)') or './'
   local transport = dofile(dir .. 'dom_transport.lua').new(vim, PairZellijTrace.action)

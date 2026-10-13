@@ -48,6 +48,12 @@ Detailed proposal: [animation capture plan](../plans/000524-animation-capture-pl
 
 ## Log
 
+### 2026-10-13 — fresh-send implementation verified
+
+Implemented the approved no-freeze policy: every DOM chord captures current text under a fresh ID; failed DOM transactions retain no retry-body lock. Durable supersession preserves actual delivery state/files, rejects stale begin and permits genuine late acknowledgment. Store writes use one shared atomic writer with injected persistence failures and same-ID successor safety. Acknowledgment receipts are independent of draft epochs and bounded; duplicate/stale callbacks cannot fork their retries. Ack/status can resume confirmed resolution after a busy worker, failure or restart.
+
+RED/GREEN reproduced the original preparation freeze, uncertain-send replacement, and duplicate ack callback fork. Pure Lua model/adapter, generic sender headless tests, and the complete submission-transaction-nvim-test.sh suite pass (including pre-error/edit and uncertain-write/edit production chord cases). Fresh affected Go packages pass: submission, recorder, webcast/submission, board, webcast and couchtty. Subagent ran focused backend race tests successfully for submission, couchtty and board. Atlas and lessons updated. Full repository suite remains running at /tmp/pair524-fresh-submissions-suite.log; not yet claimed green. Next: boundary review, then clean committed rebuild and embedded VCS metadata verification before smoke.
+
 ### 2026-10-13 — Finder metadata blocker verified
 
 The new regression reproduced the exact unexpected .DS_Store entry refusal, plus five other foreign-entry cases. Pending now filters non-directories and invalid submission IDs; genuine corrupt submission directories still refuse. Fresh submission, webcast/submission and webcast packages all pass; fresh focused review PASS; make build in pair:0 succeeds. No storage bounds changed.

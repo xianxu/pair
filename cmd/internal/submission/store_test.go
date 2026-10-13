@@ -10,6 +10,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -113,8 +114,8 @@ func TestStoreLifecycle(t *testing.T) {
 	}
 	next := fixture()
 	next.ID = "next"
-	if _, err = reopened.Prepare(next, nil); err == nil {
-		t.Fatal("uncertain delivery allowed duplicate")
+	if _, err = reopened.Prepare(next, nil); err != nil {
+		t.Fatal("uncertain delivery blocked fresh submission", err)
 	}
 	wrong := s.Target
 	wrong.Nonce = "wrong"
@@ -633,5 +634,200 @@ func TestStoreResolvedAckRetriesPublicationSync(t *testing.T) {
 	got, err := store.Transition(sub.ID, sub.Target, Ack)
 	if err != nil || got.Delivery != Resolved {
 		t.Fatal(got, err)
+	}
+}
+
+func TestStoreFreshSubmissionSupersedesWithoutInventingDelivery(t *testing.T) {
+	for _, begun := range []bool{false, true} {
+		t.Run(fmt.Sprint(begun), func(t *testing.T) {
+			store, err := NewStore(tempRoot(t))
+			if err != nil {
+				t.Fatal(err)
+			}
+			old := fixture()
+			if _, err = store.Prepare(old, nil); err != nil {
+				t.Fatal(err)
+			}
+			if begun {
+				if _, err = store.Transition(old.ID, old.Target, Begin); err != nil {
+					t.Fatal(err)
+				}
+			}
+			other := fixture()
+			other.ID = "other"
+			other.Target.Nonce = "other"
+			if _, err = store.Prepare(other, nil); err != nil {
+				t.Fatal(err)
+			}
+			fresh := fixture()
+			fresh.ID = "fresh"
+			if _, err = store.Prepare(fresh, nil); err != nil {
+				t.Fatal("fresh submission blocked", err)
+			}
+			store, err = NewStore(store.root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			pending, err := store.Pending(old.Target)
+			if err != nil || len(pending) != 1 || pending[0].ID != fresh.ID {
+				t.Fatalf("pending=%+v err=%v", pending, err)
+			}
+			saved, err := store.Read(old.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := Prepared
+			if begun {
+				want = Delivering
+			}
+			if saved.Delivery != want {
+				t.Fatalf("invented delivery: %s", saved.Delivery)
+			}
+			if _, err = store.Transition(old.ID, old.Target, Begin); err == nil {
+				t.Fatal("superseded begin accepted")
+			}
+			if begun {
+				for _, event := range []Event{Ack, Ack, Complete, Complete} {
+					if _, err = store.Transition(old.ID, old.Target, event); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			if pending, err = store.Pending(other.Target); err != nil || len(pending) != 1 {
+				t.Fatalf("changed other target: %+v %v", pending, err)
+			}
+			// Retrying an older immutable preparation cannot revoke its successor.
+			if _, err = store.Prepare(old, nil); err != nil {
+				t.Fatal(err)
+			}
+			if pending, err = store.Pending(fresh.Target); err != nil || len(pending) != 1 || pending[0].ID != fresh.ID {
+				t.Fatalf("retry revoked successor: %+v %v", pending, err)
+			}
+		})
+	}
+}
+
+func TestDispositionPreservesDeliveryTruth(t *testing.T) {
+	for _, delivery := range []Delivery{Prepared, Delivering, Dispatched, Resolved} {
+		for _, superseded := range []bool{false, true} {
+			for _, event := range []Event{Supersede, Begin, Ack, Complete, Event("invalid")} {
+				t.Run(fmt.Sprintf("%s/%v/%s", delivery, superseded, event), func(t *testing.T) {
+					next, marked, err := ApplyDisposition(delivery, superseded, event)
+					if event == Supersede {
+						eligible := delivery == Prepared || delivery == Delivering
+						if (err == nil) != eligible || next != delivery || marked != (superseded || eligible) {
+							t.Fatalf("%s %v %v", next, marked, err)
+						}
+					} else if event == Begin && superseded {
+						if err == nil || next != delivery || !marked {
+							t.Fatalf("superseded begin: %s %v %v", next, marked, err)
+						}
+					} else {
+						want, wantErr := ApplyDelivery(delivery, event)
+						if (err == nil) != (wantErr == nil) || next != want || marked != superseded {
+							t.Fatalf("changed delivery rules: %s %v %v", next, marked, err)
+						}
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestStoreSupersessionPublicationFailures(t *testing.T) {
+	for _, tc := range []struct {
+		point      string
+		occurrence int
+	}{
+		{"write", 1}, {"sync", 1}, {"staging-sync", 1}, // successor staging
+		{"write", 2}, {"sync", 2}, {"rename", 1}, {"sync-dir:sample", 1}, {"sync-dir:.", 1}, // old marker
+		{"rename", 2}, {"sync-dir:fresh", 1}, {"sync-dir:.", 2}, // successor publication
+	} {
+		t.Run(fmt.Sprintf("%s/%d", tc.point, tc.occurrence), func(t *testing.T) {
+			store, err := NewStore(tempRoot(t))
+			if err != nil {
+				t.Fatal(err)
+			}
+			old := fixture()
+			if _, err = store.Prepare(old, nil); err != nil {
+				t.Fatal(err)
+			}
+			if _, err = store.Transition(old.ID, old.Target, Begin); err != nil {
+				t.Fatal(err)
+			}
+			seen := 0
+			store.fail = func(op string) error {
+				matches := op == tc.point || (tc.point == "staging-sync" && strings.HasPrefix(op, "sync-dir:.staging-"))
+				if matches {
+					seen++
+					if seen == tc.occurrence {
+						return errors.New("injected publication failure")
+					}
+				}
+				return nil
+			}
+			fresh := fixture()
+			fresh.ID = "fresh"
+			if _, err = store.Prepare(fresh, nil); err == nil {
+				t.Fatal("failure ignored")
+			}
+			oldSaved, err := store.Read(old.ID)
+			if err != nil || oldSaved.Delivery != Delivering {
+				t.Fatalf("old evidence changed: %+v %v", oldSaved, err)
+			}
+			if _, err = store.Read(fresh.ID); err == nil && !oldSaved.Superseded {
+				t.Fatal("successor visible before supersession")
+			}
+			store, err = NewStore(store.root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err = store.Prepare(fresh, nil); err != nil {
+				t.Fatal("restart retry", err)
+			}
+			pending, err := store.Pending(old.Target)
+			if err != nil || len(pending) != 1 || pending[0].ID != fresh.ID {
+				t.Fatalf("pending after retry: %+v %v", pending, err)
+			}
+			oldSaved, err = store.Read(old.ID)
+			if err != nil || !oldSaved.Superseded || oldSaved.Delivery != Delivering {
+				t.Fatalf("old evidence after retry: %+v %v", oldSaved, err)
+			}
+		})
+	}
+}
+
+func TestStoreSupersessionRetriesMarkerSync(t *testing.T) {
+	store, err := NewStore(tempRoot(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := fixture()
+	if _, err = store.Prepare(old, nil); err != nil {
+		t.Fatal(err)
+	}
+	fresh := fixture()
+	fresh.ID = "fresh"
+	for attempt := 0; attempt < 3; attempt++ {
+		store, err = NewStore(store.root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		store.fail = func(op string) error {
+			if op == "sync-dir:sample" {
+				return errors.New("marker sync unavailable")
+			}
+			return nil
+		}
+		if _, err = store.Prepare(fresh, nil); err == nil {
+			t.Fatal("acknowledged unsynced marker")
+		}
+		if _, err = store.Read(fresh.ID); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("published successor before durable marker: %v", err)
+		}
+	}
+	store.fail = nil
+	if _, err = store.Prepare(fresh, nil); err != nil {
+		t.Fatal(err)
 	}
 }

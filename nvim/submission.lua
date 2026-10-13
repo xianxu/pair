@@ -1,7 +1,7 @@
 local M = {}
 
 -- Targets are opaque to this transaction. Snapshot their data so a caller
--- cannot mutate a pending attachment into a different pane between retries.
+-- cannot mutate an attachment target while its authored text is appended.
 local function snapshot(value, seen)
   if type(value) ~= 'table' then return value end
   seen = seen or {}
@@ -10,17 +10,6 @@ local function snapshot(value, seen)
   seen[value] = copy
   for key, item in pairs(value) do copy[key] = snapshot(item, seen) end
   return copy
-end
-
-local function same(a, b, seen)
-  if type(a) ~= type(b) then return false end
-  if type(a) ~= 'table' then return a == b end
-  seen = seen or {}
-  if seen[a] then return seen[a] == b end
-  seen[a] = b
-  for key, value in pairs(a) do if not same(value, b[key], seen) then return false end end
-  for key in pairs(b) do if a[key] == nil then return false end end
-  return true
 end
 
 function M.new(append_authored, commit_authored, send_low_level, notify_error, mint_append_id)
@@ -42,22 +31,38 @@ function M.new(append_authored, commit_authored, send_low_level, notify_error, m
     return true
   end
 
-  function submit.submit_operator_text(authored_body, agent_text, attachment)
-    if attachment ~= nil and (type(attachment) ~= 'table' or type(attachment.id) ~= 'string'
-      or attachment.id == '' or type(attachment.target) ~= 'table') then
+  -- DOM sends are independent attempts. Their durable append remains evidence
+  -- if dispatch is uncertain; a failed marker cannot freeze the next draft.
+  local function submit_attachment(authored_body, agent_text, attachment)
+    if type(attachment) ~= 'table' or type(attachment.id) ~= 'string'
+      or attachment.id == '' or type(attachment.target) ~= 'table' then
       notify_error('Pair input dispatch blocked — attachment requires an ID and pinned target')
       return false
     end
-    -- A known dispatched attachment can only finish its log commit. Its ID
-    -- cannot be treated as a new send just because that commit was delayed.
-    if pending ~= nil and pending.phase == 'dispatched' and pending.attachment ~= nil
-      and attachment ~= nil and pending.attachment.id == attachment.id then
-      if pending.body ~= authored_body or pending.agent_text ~= agent_text or not same(pending.attachment, attachment) then
-        notify_error('Pair input dispatch blocked — dispatched attachment identity changed')
-        return false
-      end
-      return submit.retry_pending_commit()
+    local target = snapshot(attachment.target)
+    local id = mint_append_id()
+    local ok, err = append_authored(authored_body, id)
+    if not ok then
+      notify_error('Pair log append failed — ' .. tostring(err or 'unknown error'))
+      return false
     end
+    local sent, phase, send_err = send_low_level(agent_text, 'start', target)
+    if phase ~= 'dispatched' then
+      notify_error('Pair input dispatch failed — ' .. tostring(send_err or 'submit was not confirmed'))
+      return false
+    end
+    local committed, commit_err = commit_authored(id)
+    if not committed then
+      notify_error('Pair log submit marker failed — ' .. tostring(commit_err or 'unknown error'))
+    end
+    if not sent then
+      notify_error('Pair input dispatched with UI warning — ' .. tostring(send_err or 'unknown error'))
+    end
+    return true
+  end
+
+  function submit.submit_operator_text(authored_body, agent_text, attachment)
+    if attachment ~= nil then return submit_attachment(authored_body, agent_text, attachment) end
     if not submit.retry_pending_commit() then return false end
     if pending ~= nil and pending.phase == 'indeterminate' then
       notify_error('Pair input dispatch blocked — reconcile the agent composer after an indeterminate body write')
@@ -68,21 +73,13 @@ function M.new(append_authored, commit_authored, send_low_level, notify_error, m
       return false
     end
     if pending ~= nil then
-      if not same(pending.attachment, attachment) then
-        notify_error('Pair input dispatch blocked — pending attachment identity changed')
-        return false
-      end
-      if pending.attachment ~= nil and pending.body ~= authored_body then
-        notify_error('Pair input dispatch blocked — retry the frozen attached body before editing')
-        return false
-      end
       if pending.body == authored_body and pending.agent_text ~= agent_text then
         notify_error('Pair input dispatch blocked — pending generated text changed')
         return false
       end
     end
     if pending == nil or pending.body ~= authored_body then
-      pending = { body = authored_body, agent_text = agent_text, attachment = snapshot(attachment),
+      pending = { body = authored_body, agent_text = agent_text,
         id = mint_append_id(), phase = 'start' }
     end
     local ok, err = append_authored(authored_body, pending.id)
@@ -90,8 +87,7 @@ function M.new(append_authored, commit_authored, send_low_level, notify_error, m
       notify_error('Pair log append failed — ' .. tostring(err or 'unknown error'))
       return false
     end
-    local target = pending.attachment and snapshot(pending.attachment.target) or nil
-    local send_ok, phase, send_err = send_low_level(pending.agent_text, pending.phase, target)
+    local send_ok, phase, send_err = send_low_level(pending.agent_text, pending.phase)
     pending.phase = phase or 'indeterminate'
     if not send_ok and pending.phase ~= 'dispatched' then
       notify_error('Pair input dispatch failed — ' .. tostring(send_err or 'unknown error'))

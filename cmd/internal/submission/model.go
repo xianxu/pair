@@ -39,13 +39,14 @@ type Source struct {
 }
 type Submission struct {
 	PrivacyDecision
-	HowToRead string   `json:"how_to_read"`
-	Version   int      `json:"version"`
-	ID        string   `json:"id"`
-	Target    Target   `json:"target"`
-	Source    Source   `json:"source"`
-	Notes     []Note   `json:"notes"`
-	Delivery  Delivery `json:"delivery"`
+	HowToRead  string   `json:"how_to_read"`
+	Version    int      `json:"version"`
+	ID         string   `json:"id"`
+	Target     Target   `json:"target"`
+	Source     Source   `json:"source"`
+	Notes      []Note   `json:"notes"`
+	Delivery   Delivery `json:"delivery"`
+	Superseded bool     `json:"superseded,omitempty"`
 }
 type Note struct {
 	BoxText  BoxText          `json:"box_text"`
