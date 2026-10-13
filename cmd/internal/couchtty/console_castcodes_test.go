@@ -164,6 +164,8 @@ func TestWebCastCodesOnTheChromeCell(t *testing.T) {
 	waitFor(t, "drive link copied from the menu", func() bool { return copies(c.consoleFixture, c.link) == 1 })
 	mouse(2|8, c.cell()-1) // Alt+right-click: the view link now, never the drive link
 	waitFor(t, "view link copied", func() bool { return copies(c.consoleFixture, c.viewLink) >= 1 })
+	// The click outside the (still open) popup closed it.
+	waitFor(t, "the popup closed", func() bool { return !strings.Contains(c.screenText(), "Chrome codes") })
 	if copies(c.consoleFixture, c.link) != 1 {
 		t.Fatal("Alt+right-click still copies the drive link")
 	}
