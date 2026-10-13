@@ -1,12 +1,12 @@
 ---
 id: 000526
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-12
-updated: 2026-10-12
+updated: 2026-10-13
 estimate_hours: 2.243
-card_mirror: 'ff5cae15423961b289f9a13deb1adbfe8b133a02' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'f31bd9050eb53cfbce7918d061e762296d8abfb9' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T23:04:21-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: 1.69
 ---
 
 # broadcast-web: from submission to issue: a privacy flag per bundle (origin policy) and the couch skill's rule for writing notes up as issues
