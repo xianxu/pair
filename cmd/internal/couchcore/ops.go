@@ -186,6 +186,8 @@ func Operations() []Operation {
 				{Name: "ref", Summary: "slot reference (repo:N; several as repo:1:2,other:0), thread tag or path", Required: true},
 				{Name: "lines", Summary: "how many recent lines to show per slot (default 40)", FlagOnly: true, ValueRequired: true},
 				{Name: "json", Summary: "print the result as JSON", FlagOnly: true},
+				{Name: "previous", Summary: "select the exact previous incarnation", FlagOnly: true},
+				{Name: "all", Summary: "replay a complete recording within safety limits (heavy)", FlagOnly: true},
 				{Name: "transcripts", Summary: "also name the sent-prompt log and native transcripts (slower)", FlagOnly: true},
 				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
 			},

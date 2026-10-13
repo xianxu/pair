@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/xianxu/pair/cmd/internal/couchidentity"
 )
 
 // DefaultPeekLines is how much of a slot's recent terminal a peek shows when
@@ -22,11 +24,17 @@ const DefaultPeekLines = 40
 // not be read is named in Unavailable with its reason; a failed read is never
 // an empty answer.
 type PeekResult struct {
-	Ref         string   `json:"ref"`
-	Tag         string   `json:"tag"`
-	Agent       string   `json:"agent,omitempty"`
-	WorkingPath string   `json:"working_path,omitempty"`
-	Lines       []string `json:"lines"`
+	Previous      bool                          `json:"previous,omitempty"`
+	Complete      bool                          `json:"complete,omitempty"`
+	Session       *couchidentity.SessionBinding `json:"session,omitempty"`
+	NativeSession string                        `json:"native_session,omitempty"`
+	Raw           string                        `json:"raw,omitempty"`
+	Events        string                        `json:"events,omitempty"`
+	Ref           string                        `json:"ref"`
+	Tag           string                        `json:"tag"`
+	Agent         string                        `json:"agent,omitempty"`
+	WorkingPath   string                        `json:"working_path,omitempty"`
+	Lines         []string                      `json:"lines"`
 	// Source says where Lines came from: "live" (the wrapper's in-memory
 	// terminal, with markup and Cursor, pair#425) or "recording" (the plain
 	// render of the terminal recording, the fallback).
@@ -143,12 +151,34 @@ func peekTail(lines []string, n int) []string {
 // only when transcripts asks (pair#429), since resolving them costs seconds
 // and a tail is read for its lines.
 func (c *Couch) PeekThread(ctx context.Context, ref string, address ThreadAddress, lines int, transcripts bool) (PeekResult, error) {
+	return c.PeekThreadSelection(ctx, ref, address, PeekSelection{Lines: lines, Transcripts: transcripts})
+}
+
+func (c *Couch) PeekThreadSelection(ctx context.Context, ref string, address ThreadAddress, selection PeekSelection) (PeekResult, error) {
+	lines, transcripts := selection.Lines, selection.Transcripts
+	if selection.All && lines != 0 {
+		return PeekResult{}, fmt.Errorf("--all and --lines are mutually exclusive")
+	}
 	record, err := c.Threads.GetThread(address)
 	if err != nil {
 		return PeekResult{}, err
 	}
 	result := PeekResult{Ref: ref, Tag: string(address.Tag), Agent: RecordAgent(record), WorkingPath: record.WorkingPath, Lines: []string{}}
-	if transcripts {
+	source, sourceErr := SelectPeekSource(record, selection.Previous)
+	result.Previous, result.Session = selection.Previous, source.Binding
+	if sourceErr != nil {
+		result.Unavailable = append(result.Unavailable, sourceErr.Error())
+		return result, nil
+	}
+	result.Agent = source.Agent
+	if selection.Previous {
+		result.NativeSession = source.NativeSession
+		result.Unavailable = append(result.Unavailable, source.Unavailable...)
+		if transcripts {
+			result.Transcripts = source.Transcripts
+		}
+	}
+	if transcripts && !selection.Previous {
 		if c.SwitchContext == nil {
 			result.Unavailable = append(result.Unavailable, "transcript resolver is not configured")
 		} else {
@@ -164,12 +194,46 @@ func (c *Couch) PeekThread(ctx context.Context, ref string, address ThreadAddres
 			}
 			result.SentPrompts = orientation.PairLog
 			result.Transcripts = orientation.NativeTranscripts
+			result.NativeSession = orientation.SourceSession
 			result.Unavailable = append(result.Unavailable, orientation.Unavailable...)
 		}
 	}
 	n := lines
 	if n <= 0 {
 		n = DefaultPeekLines
+	}
+	if selection.Previous || selection.All {
+		if selection.Previous && source.Token == "" {
+			result.Unavailable = append(result.Unavailable, "previous tty capture is unavailable")
+			return result, nil
+		}
+		if c.SlotCapture == nil {
+			result.Unavailable = append(result.Unavailable, "exact recording reader is unavailable")
+			return result, nil
+		}
+		limit := n
+		if selection.All {
+			limit = 0
+		}
+		capture, err := c.SlotCapture(address, source.Agent, source.Token, limit)
+		result.Raw, result.Events = capture.Raw, capture.Events
+		if err != nil {
+			if selection.All {
+				return result, err
+			}
+			result.Unavailable = append(result.Unavailable, "recording: "+err.Error())
+			return result, nil
+		}
+		result.Source = "recording"
+		if selection.Previous {
+			result.Source = "previous-recording"
+		}
+		if selection.All {
+			result.Lines, result.Complete = capture.Lines, true
+		} else {
+			result.Lines = peekTail(capture.Lines, n)
+		}
+		return result, nil
 	}
 	if c.SlotTail != nil {
 		tail, err := c.SlotTail(ctx, address, n)

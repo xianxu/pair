@@ -1491,6 +1491,24 @@ transcript and sent-prompt paths. Missing evidence is reported in the generated
 orientation prompt. The target renders and reads the TTY log, summarizes the
 work and waits. No draft or operator-authored log is seeded by the switch.
 
+Previous-session evidence (`pair#517`) is now a separate durable descriptor in
+that thread record. Before launching a replacement, Couch stores the exact
+verified park identity and capture token, terminal binding, native session and
+transcript paths. Successful registration may clear `VerifiedPark` without
+losing this descriptor; a failed launch and retry preserve the original source.
+`couch --peek repo:N --previous --transcripts` reads that descriptor and its exact
+parked recording, never substitutes the current incarnation. Missing evidence
+is reported explicitly.
+
+`--all` selects a complete retained terminal-history projection in the short-lived
+CLI, not the Couch server. It conflicts with `--lines`; previous and full reads
+accept one slot. Replay holds the existing capture retention lease and refuses
+recordings above 64 MiB raw, 8 MiB events, 100,000 rendered rows, or resize
+dimensions outside 1–1000. Refusals name the files. Full reads preserve ordinary
+terminal erase-history semantics: the native transcript remains the complementary
+source for content erased from terminal history. Output names the recording files
+and source binding; previous reads cost seconds and full replay is heavy.
+
 Fresh registration requires a ready record matching the new launch nonce,
 agent, session and process. Until then a failed launch cannot establish the path
 default or authorize deletion of a session that raced for the same name.

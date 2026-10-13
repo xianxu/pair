@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/broadcast"
 	"github.com/xianxu/pair/cmd/internal/couchidentity"
 	"github.com/xianxu/pair/cmd/internal/couchsingleton"
@@ -184,6 +185,28 @@ func (r OSRuntime) NewCouchWith(runner couchcore.Runner, namespace couchcore.Cou
 	c.SwitchContext = couchcore.OSSwitchContextResolver{DataDir: dataDir, HomeDir: r.Getenv("HOME"), Renderer: renderer}
 	c.SlotTerminal = func(address couchcore.ThreadAddress, agent string, maxLines int) ([]string, error) {
 		return scrollbackcmd.RenderOwnedLines(dataDir, address.RepoScope, string(address.Tag), agent, maxLines)
+	}
+	c.SlotCapture = func(address couchcore.ThreadAddress, agent, token string, maxLines int) (couchcore.TerminalRecording, error) {
+		result := couchcore.TerminalRecording{}
+		paths, err := artifactpath.Resolve(artifactpath.Address{DataDir: dataDir, RepoScope: address.RepoScope, Tag: string(address.Tag)})
+		if err != nil {
+			return result, err
+		}
+		if token == "" {
+			capture, err := paths.ScrollbackArtifacts(agent)
+			if err != nil {
+				return result, err
+			}
+			result.Raw, result.Events = capture.Raw, capture.Events
+		} else {
+			capture, err := paths.ParkedScrollbackArtifacts(token)
+			if err != nil {
+				return result, err
+			}
+			result.Raw, result.Events = capture.Raw, capture.Events
+		}
+		result.Lines, err = scrollbackcmd.RenderOwnedCaptureLines(dataDir, address.RepoScope, string(address.Tag), agent, token, maxLines)
+		return result, err
 	}
 	c.SlotTail = slotTailReader(namespace.Dir())
 	c.Slug = couchcore.OSSlugReader{DataDir: dataDir}.Read
@@ -1128,7 +1151,11 @@ func renderPeek(w io.Writer, r couchcore.PeekResult) {
 		source = "none"
 	}
 	fmt.Fprintf(w, "peek %s  agent %s  tag %s  source %s\n", r.Ref, agent, r.Tag, source)
-	fmt.Fprintln(w, "--- recent terminal ---")
+	if r.Complete {
+		fmt.Fprintln(w, "--- complete recording projection ---")
+	} else {
+		fmt.Fprintln(w, "--- recent terminal ---")
+	}
 	for _, line := range r.Lines {
 		fmt.Fprintln(w, line)
 	}
@@ -1138,6 +1165,18 @@ func renderPeek(w io.Writer, r couchcore.PeekResult) {
 	}
 	if r.Truncated > 0 {
 		fmt.Fprintf(w, "truncated: %d older lines\n", r.Truncated)
+	}
+	if r.Session != nil {
+		fmt.Fprintf(w, "session: %s (nonce %s)\n", r.Session.Name, r.Session.StartNonce)
+	}
+	if r.NativeSession != "" {
+		fmt.Fprintf(w, "native session: %s\n", r.NativeSession)
+	}
+	if r.Raw != "" {
+		fmt.Fprintf(w, "tty raw: %s\n", r.Raw)
+	}
+	if r.Events != "" {
+		fmt.Fprintf(w, "tty events: %s\n", r.Events)
 	}
 	if r.SentPrompts != "" {
 		fmt.Fprintf(w, "sent prompts: %s\n", r.SentPrompts)
@@ -1300,9 +1339,10 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	verbLine(w, "--list", "       couch --list")
 	verbLine(w, "--show", "       couch --show <thread>")
 	verbLine(w, "--reconcile", "       couch --reconcile repo:N")
-	verbLine(w, "--peek", "       couch --peek repo:N[:M...][,repo:N...] [--lines N] [--json] [--transcripts]")
+	verbLine(w, "--peek", "       couch --peek repo:N[:M...][,repo:N...] [--lines N | --all] [--previous] [--json] [--transcripts]")
 	fmt.Fprintln(w, "             Read-only: a slot's recent terminal; --transcripts adds where its transcripts\n"+
-		"             live, and costs seconds.")
+		"             live, and costs seconds.\n"+
+		"             --previous: exact previous recording [seconds]; --all: complete recording [heavy].")
 	verbLine(w, "--archived", "       couch --archived")
 	verbLine(w, "--recover-plan-from-sdlc", "       couch --recover-plan-from-sdlc")
 	fmt.Fprintln(w, "             Recovery report: one JSON row per slot joining sdlc's claims and")

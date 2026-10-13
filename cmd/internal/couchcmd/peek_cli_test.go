@@ -2,6 +2,7 @@ package couchcmd
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -40,6 +41,40 @@ func TestPeekJSONIsTheResult(t *testing.T) {
 	for _, key := range []string{"ref", "tag", "lines"} {
 		if _, ok := keys[key]; !ok {
 			t.Fatalf("missing %q in %s", key, raw)
+		}
+	}
+}
+
+func TestPeekPreviousAndFullCLI(t *testing.T) {
+	inv, err := ParseCLI([]string{"--peek", "pair:2", "--previous", "--all", "--transcripts", "--json"}, couchcore.Operations())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if inv.kind != cliPeek || inv.ref != "pair:2" || len(inv.args) != 4 {
+		t.Fatalf("%+v", inv)
+	}
+	if fastPeek(inv, "/unused", &bytes.Buffer{}, func(context.Context, string, any, any) error {
+		t.Fatal("recording request reached live tail")
+		return nil
+	}) {
+		t.Fatal("full/previous request used live tail")
+	}
+	for _, args := range [][]string{
+		{"--peek", "pair:2", "--previous", "--previous"},
+		{"--peek", "pair:2", "--all", "--all"},
+	} {
+		if _, err := ParseCLI(args, couchcore.Operations()); err == nil {
+			t.Fatalf("accepted duplicate flags: %q", args)
+		}
+	}
+}
+
+func TestPeekFullHelpNamesCosts(t *testing.T) {
+	var out bytes.Buffer
+	usage(&out)
+	for _, text := range []string{"--previous", "--all", "recording [heavy]", "previous recording [seconds]"} {
+		if !strings.Contains(out.String(), text) {
+			t.Errorf("help lacks %q", text)
 		}
 	}
 }

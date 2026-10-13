@@ -80,6 +80,10 @@ func parseEvents(path string) ([]scrollbackEvent, error) {
 		}
 		return nil, err
 	}
+	return parseEventData(data), nil
+}
+
+func parseEventData(data []byte) []scrollbackEvent {
 	var out []scrollbackEvent
 	for _, line := range strings.Split(string(data), "\n") {
 		line = strings.TrimSpace(line)
@@ -96,7 +100,7 @@ func parseEvents(path string) ([]scrollbackEvent, error) {
 			out = append(out, e)
 		}
 	}
-	return out, nil
+	return out
 }
 
 // initialSize pulls (cols, rows) from the first usable resize event, or
@@ -364,9 +368,19 @@ func replay(rawPath, eventsPath string, plain bool, maxLines int) (replayed, err
 	if err != nil {
 		return replayed{}, fmt.Errorf("parse events: %w", err)
 	}
+	raw, err := os.ReadFile(rawPath)
+	if err != nil {
+		return replayed{}, fmt.Errorf("read raw: %w", err)
+	}
+	return replayData(raw, events, plain, resolveMax(maxLines), 0)
+}
+
+// replayData shares emulator and serialization behavior with bounded readers.
+// rowLimit uses an extra history row as an overflow sentinel.
+func replayData(raw []byte, events []scrollbackEvent, plain bool, historyLimit, rowLimit int) (replayed, error) {
 	cols, rows := initialSize(events)
 	em := vt.NewEmulator(cols, rows)
-	em.Scrollback().SetMaxLines(resolveMax(maxLines))
+	em.Scrollback().SetMaxLines(historyLimit)
 
 	// Drain the emulator's input pipe in the background. CSI status
 	// queries (DSR, Device Attributes, etc.) in the captured stream
@@ -391,11 +405,10 @@ func replay(rawPath, eventsPath string, plain bool, maxLines int) (replayed, err
 	// race or a fork of the dependency. Revisit if vt makes closed atomic.
 	go func() { _, _ = io.Copy(io.Discard, em) }()
 
-	raw, err := os.ReadFile(rawPath)
-	if err != nil {
-		return replayed{}, fmt.Errorf("read raw: %w", err)
-	}
 	marks := feedSegments(em, raw, events)
+	if rowLimit > 0 && em.Scrollback().Len() > rowLimit {
+		return replayed{}, fmt.Errorf("rendered history exceeds %d rows", rowLimit)
+	}
 
 	// Scrollback lines (oldest → newest), then visible buffer top → bottom.
 	// Visible buffer iterates by row index rather than dropping trailing
@@ -416,6 +429,9 @@ func replay(rawPath, eventsPath string, plain bool, maxLines int) (replayed, err
 	// leaves a tail of empties at EOF.
 	for len(out) > 0 && out[len(out)-1] == "" {
 		out = out[:len(out)-1]
+	}
+	if rowLimit > 0 && len(out) > rowLimit {
+		return replayed{}, fmt.Errorf("rendered output exceeds %d rows", rowLimit)
 	}
 	return replayed{lines: out, viewportTop: viewportTop, marks: marks}, nil
 }

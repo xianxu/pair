@@ -57,6 +57,7 @@ type Couch struct {
 	SwitchContext     SwitchContextResolver
 	// SlotTerminal renders a thread's live terminal recording (peek, pair#362).
 	SlotTerminal SlotTerminalReader
+	SlotCapture  SlotCaptureReader
 	// SlotTail reads a thread's live tail from its wrapper (peek, pair#425).
 	SlotTail          SlotTailReader
 	SwitchLaunchCheck func(agent string) error

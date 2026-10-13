@@ -68,6 +68,16 @@ Durable plan: [agent switch plan](../plans/000517-agent-switch-plan.md).
 
 ## Log
 
+- 2026-10-12 M1 implementation checkpoint: persisted exact previous-session
+  descriptor before target launch, retaining it through registration and failed
+  retries; added previous/full peek selection and bounded CLI-only replay under
+  capture leases. Red tests exposed foreign/missing capture and binding acceptance;
+  store now compares each against verified source state. No current fallback.
+  Targeted threadrecord/couchcore/couchcmd tests for PreviousSession, SwitchAgent,
+  Peek, HelpAndSkill, and Operation pass; scrollback package tests pass separately.
+  Limits are 64 MiB raw, 8 MiB events, 100k rows, dimensions 1–1000; README and
+  atlas explain retained-history semantics and costs. M1 boundary review pending.
+
 ### 2026-10-12
 
 - Claimed in pair:2; start-plan refreshed the local ariadne tools, then started

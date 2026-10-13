@@ -356,6 +356,17 @@ func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (Sw
 			}
 		}
 	}
+	// A retry from the same parked source retains its original native binding;
+	// the failed target must never replace the outgoing evidence.
+	if prepared.state == ThreadLive || thread.PreviousSession == nil {
+		if previous := previousSessionEvidence(prepared.record, thread, contextData); previous != nil {
+			thread, err = c.Threads.RecordPreviousSession(thread.Address, thread.Revision, *previous)
+			if err != nil {
+				result.Outcome = SwitchStartFailed
+				return result, fmt.Errorf("switch-agent: preserve previous session: %w", err)
+			}
+		}
+	}
 	if finalBody, buildErr := orientation.BuildPrompt(contextData); buildErr == nil {
 		body = finalBody
 	} else {

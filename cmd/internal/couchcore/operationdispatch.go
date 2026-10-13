@@ -168,6 +168,10 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 			if err != nil {
 				return nil, err
 			}
+			selection := PeekSelection{Previous: a["previous"] == "true", All: a["all"] == "true", Transcripts: a["transcripts"] == "true", Lines: lines}
+			if len(refs) > 1 && (selection.All || selection.Previous) {
+				return nil, fmt.Errorf("previous/full recording reads require one exact reference")
+			}
 			if len(refs) > 1 && a["tag"] == "" {
 				resolve := func(ref string) (ThreadAddress, error) {
 					return resolveOperationThread(c, map[string]string{"repo-scope": a["repo-scope"], "ref": ref})
@@ -178,7 +182,7 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 			if err != nil {
 				return nil, err
 			}
-			return c.PeekThread(call.Context, a["ref"], address, lines, a["transcripts"] == "true")
+			return c.PeekThreadSelection(call.Context, a["ref"], address, selection)
 		case "list":
 			return c.ThreadInventoryContext(call.Context)
 		case "recover-plan":

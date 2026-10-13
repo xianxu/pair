@@ -395,6 +395,10 @@ couch --show <ref>       one current-repository thread by tag or path, or a slot
 couch --reconcile repo:N converge a slot's workspace now and show what it did
 couch --peek repo:N[:M...][,repo:N...] [--lines N] [--json] [--transcripts]
                                            read-only: slots' recent terminal (live, with dim/reverse/cursor marks); --transcripts adds log paths
+couch --peek repo:N --previous [--transcripts] [--lines N]
+                                           exact previous incarnation recording [seconds]
+couch --peek repo:N [--previous] --all [--transcripts]
+                                           complete retained recording projection [heavy]; bounded, plain text
 couch --archived         threads removed from couch, with their records kept
 couch --actors [--json]  live peer-message receivers in this Couch namespace
 couch --broadcast-list [--json]   every link out by kind (screen, web view, web drive) and its viewers, and the
