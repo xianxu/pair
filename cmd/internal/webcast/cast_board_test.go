@@ -55,7 +55,7 @@ func startRecordedBoardCast(t *testing.T) *recordedBoardCast {
 	t.Cleanup(c.End)
 	srv := httptest.NewServer(c.server)
 	t.Cleanup(srv.Close)
-	bc.c, bc.base = c, srv.URL+"/"+c.token+"/"
+	bc.c, bc.base = c, srv.URL+"/"+c.pointerToken+"/" // the pointer link annotates (pair#506)
 	return bc
 }
 

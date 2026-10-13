@@ -5,8 +5,6 @@ import (
 	"net/http/cookiejar"
 	"strings"
 	"testing"
-
-	"github.com/xianxu/pair/cmd/internal/broadcast"
 )
 
 // A cast's links are locked (pair#495), so this package's tests reach them as
@@ -21,15 +19,12 @@ var castClient = func() *http.Client {
 	return &http.Client{Jar: jar}
 }()
 
-// unlockCast enters c's codes at u's links: the view link, and the drive link
-// when the cast has one.
+// unlockCast enters each of c's codes at its own link in u (pair#506): the
+// view-only link, and the pointer and drive links when the cast has them.
 func unlockCast(t *testing.T, c *Cast, u Update) {
 	t.Helper()
 	for _, code := range c.Codes() {
-		link := u.Link
-		if code.Link == broadcast.LinkDrive {
-			link = u.DriveLink
-		}
+		link := u.LinkFor(code.Link)
 		if link == "" {
 			continue
 		}

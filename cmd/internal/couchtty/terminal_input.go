@@ -158,18 +158,19 @@ func (c *Console) routeMouseEvent(event terminal.InputEvent) {
 		button := mouseinput.BaseButton(hit.Button)
 		c.mu.Lock()
 		rows, cell, focusSpan, driveSpan := int(c.size.Rows), c.statusWebcast, c.statusWebFocus, c.statusWebDrive
-		viewLink, driveLink := c.statusWebViewLink, c.statusWebDriveLink
+		pointerLink, driveLink := c.statusWebPointerLink, c.statusWebDriveLink
 		c.mu.Unlock()
 		// The Chrome group's buttons (#501): ↗ brings Chrome to the front;
-		// 👆 copies the view link and 👽 the drive link, on a left or a
-		// right click alike (pair#495: right-click copies a control's link).
+		// 👆 copies the pointer link and 👽 the drive link (pair#506), on a
+		// left or a right click alike (pair#495: right-click copies a
+		// control's link). Right-click on the cell copies the view-only link.
 		if hit.Y == rows && hit.Button&mouseinput.ModCtrl == 0 {
 			switch {
 			case button == 0 && focusSpan.Contains(hit.X-1):
 				c.focusWebcast()
 				return
-			case (button == 0 || button == 2) && viewLink.Contains(hit.X-1):
-				c.copyWebcastLink()
+			case (button == 0 || button == 2) && pointerLink.Contains(hit.X-1):
+				c.copyWebcastPointerLink()
 				return
 			case (button == 0 || button == 2) && driveLink.Contains(hit.X-1):
 				c.copyWebcastDriveLink()

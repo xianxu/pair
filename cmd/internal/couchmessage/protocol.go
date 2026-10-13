@@ -45,7 +45,8 @@ type Response struct {
 	// Broadcast answers broadcast-status (pair#413); nil means no broadcast.
 	Broadcast *BroadcastStatus `json:",omitempty"`
 	// Shares are every link out, by kind (pair#467): the screen broadcast,
-	// the web cast's view link and its drive link.
+	// the web cast's view-only and pointer links (one share, pair#506) and
+	// its drive link.
 	Shares []ShareStatus `json:",omitempty"`
 	// Tail answers tail (pair#425); TailThread names whose it is (pair#429).
 	Tail       *Tail       `json:",omitempty"`

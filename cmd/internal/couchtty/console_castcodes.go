@@ -388,6 +388,8 @@ func (c *Console) copyCastLink(kind castKind, link string) {
 		c.onPointerClick(true)
 	case kind == castWeb && link == broadcast.LinkView:
 		c.copyWebcastLink()
+	case kind == castWeb && link == broadcast.LinkPointer:
+		c.copyWebcastPointerLink()
 	case kind == castWeb && link == broadcast.LinkDrive:
 		c.copyWebcastDriveLink()
 	}
