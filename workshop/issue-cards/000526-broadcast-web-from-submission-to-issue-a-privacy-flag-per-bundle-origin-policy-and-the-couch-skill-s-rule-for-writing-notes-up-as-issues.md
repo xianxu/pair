@@ -1,6 +1,6 @@
 ---
 id: 000526
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-13
 estimate_hours: 2.243
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: f5fab033a4398712a5e60c24d634368b0de888f1
         evidence_commit: 59539327505560ccfef5e452e44d7bbacbef90cf
+        landed_commit: 3b5d1ac6edb6cf156ba30d8b2a264324ca33effc
 ---
 
 # broadcast-web: from submission to issue: a privacy flag per bundle (origin policy) and the couch skill's rule for writing notes up as issues
