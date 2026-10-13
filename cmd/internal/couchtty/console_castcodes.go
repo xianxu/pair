@@ -46,6 +46,7 @@ func (k castKind) name() string {
 }
 
 const (
+	codesPress      = 180 * time.Millisecond // a pressed word's feedback
 	codeFlashes     = 3
 	codeFlashPhase  = 400 * time.Millisecond
 	codeNoticeQuiet = 30 * time.Second // per link, between guess-rotation notices
@@ -59,9 +60,13 @@ type castCodes struct {
 	hover      castKind
 	hoverCodes []broadcast.LinkCode
 	hoverAt    int
-	// The Codes menu: which cast, and its layout and selection.
-	menu    castKind
-	menuBox codesMenu
+	// The Codes menu: which cast, and its layout and selection. pressed is
+	// the word just run, drawn pressed until pressedUntil (a click's
+	// feedback; the menu stays open).
+	menu         castKind
+	menuBox      codesMenu
+	pressed      codesMenuSel
+	pressedUntil time.Time
 	// flash is a code that just changed.
 	flash *codeFlash
 	// gens is the newest rotation seen per link (castlock.Rotation.Gen).
@@ -210,9 +215,21 @@ func (c *Console) setCodesHover(kind castKind, at int) {
 // is a row of its label alone until pointing first makes it (pair#495: the
 // menu never turns pointing on as a side effect of a copy).
 func (c *Console) openCodesMenu(kind castKind) {
+	box, ok := c.buildCodesMenu(kind)
+	if !ok {
+		return
+	}
+	c.codes.mu.Lock()
+	c.codes.menu, c.codes.menuBox = kind, box
+	c.codes.mu.Unlock()
+	c.repaint()
+}
+
+// buildCodesMenu lays out kind's menu from its current codes.
+func (c *Console) buildCodesMenu(kind castKind) (codesMenu, bool) {
 	codes := c.castCodesOf(kind)
 	if len(codes) == 0 {
-		return
+		return codesMenu{}, false
 	}
 	c.mu.Lock()
 	cols, rows := int(c.size.Cols), int(c.size.Rows)
@@ -233,8 +250,17 @@ func (c *Console) openCodesMenu(kind castKind) {
 		menuRows = append(menuRows, codesMenuRow{label: "", actions: []codesMenuWord{{text: "rotate all", action: codesAction{}}}})
 	}
 	box := layoutCodesMenu(kind.name()+" codes", menuRows, cols, rows)
+	return box, box.Open()
+}
+
+// refreshCodesMenu redraws the open menu with kind's current codes, keeping
+// its selection: a rotated code changes in place.
+func (c *Console) refreshCodesMenu(kind castKind) {
+	box, ok := c.buildCodesMenu(kind)
 	c.codes.mu.Lock()
-	c.codes.menu, c.codes.menuBox = kind, box
+	if c.codes.menu == kind && ok {
+		c.codes.menuBox = box.Select(c.codes.menuBox.sel)
+	}
 	c.codes.mu.Unlock()
 	c.repaint()
 }
@@ -312,15 +338,28 @@ func (c *Console) runCodesSelection() {
 	c.codes.mu.Lock()
 	kind := c.codes.menu
 	action, ok := c.codes.menuBox.Selected()
+	if ok {
+		// The menu stays open (Escape or × closes it); the word shows it
+		// was pressed.
+		c.codes.pressed, c.codes.pressedUntil = c.codes.menuBox.sel, c.now().Add(codesPress)
+	}
 	c.codes.mu.Unlock()
 	if !ok {
 		return
 	}
-	c.closeCodesMenu()
+	c.repaint()
+	c.GoTracked(func() {
+		select {
+		case <-time.After(codesPress):
+			c.repaint()
+		case <-c.lifetime.Done():
+		}
+	})
 	if action.copy {
 		c.copyCastLink(kind, action.link)
 		return
 	}
+	defer c.refreshCodesMenu(kind)
 	var links []string
 	if action.link == "" {
 		for _, code := range c.castCodesOf(kind) {
@@ -496,7 +535,11 @@ func (c *Console) codesLayer(f terminal.Frame, _ terminal.FrameClass) terminal.F
 		f = codeTip(strings.Join(parts, " · "), c.codes.hoverAt, cols, rows).Draw(f, 0, style)
 	}
 	if c.codes.menu != castNone {
-		f = c.codes.menuBox.Draw(f)
+		press := codesMenuSel{row: -1}
+		if now.Before(c.codes.pressedUntil) {
+			press = c.codes.pressed
+		}
+		f = c.codes.menuBox.Draw(f, press)
 	}
 	return f
 }

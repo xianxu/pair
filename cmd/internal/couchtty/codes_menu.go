@@ -162,9 +162,10 @@ func (m codesMenu) Move(dy, dx int) codesMenu {
 	return m
 }
 
-// Draw returns f with the menu over it. Wide characters the box's left edge
-// cuts in half lose their other half.
-func (m codesMenu) Draw(f terminal.Frame) terminal.Frame {
+// Draw returns f with the menu over it; pressed is a word just run, drawn
+// inverted (its click's feedback). Wide characters the box's left edge cuts
+// in half lose their other half.
+func (m codesMenu) Draw(f terminal.Frame, pressed codesMenuSel) terminal.Frame {
 	cols, rows := f.Geometry.Cols, f.Geometry.Rows
 	if !m.Open() || m.X < 0 || m.X+m.W > cols || m.Y < 0 || m.Y+m.H > rows-1 || len(f.Cells) != cols*rows {
 		return f
@@ -218,7 +219,10 @@ func (m codesMenu) Draw(f terminal.Frame) terminal.Frame {
 		for j, w := range r.words {
 			x = put(cells, x, codesMenuSep, plain)
 			st := uv.Style{Bg: notesMenuBg, Fg: notesMenuLink}
-			if m.sel == (codesMenuSel{i, j}) {
+			switch {
+			case pressed == (codesMenuSel{i, j}):
+				st = uv.Style{Bg: notesMenuLink, Fg: notesMenuBg, Attrs: uv.AttrBold}
+			case m.sel == (codesMenuSel{i, j}):
 				st = uv.Style{Bg: notesMenuHover, Fg: notesMenuLink, Attrs: uv.AttrBold}
 			}
 			x = put(cells, x, w.text, st)

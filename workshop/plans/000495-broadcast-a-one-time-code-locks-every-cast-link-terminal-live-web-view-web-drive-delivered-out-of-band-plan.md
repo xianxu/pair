@@ -197,3 +197,8 @@ Status: decided; M1 and M2 closed; M3 in progress. The body below is the origina
   - **Keyboard:** Up/Down pick the row, Left/Right the action, Enter runs it, Escape closes.
   - **Model:** `codes_menu.go` is a pure model (layout, hit-testing, selection, drawing, by grapheme width), and Couch wires it.
   - **Link not made yet:** a row whose link doesn't exist shows its label alone. See the Log.
+- 2026-10-12, operator re-test: passed for the menu layout, the click rules and the hover ("looks good for those changes"). One last tweak before landing:
+  - Running an action in the Codes popup (copy-link, rotate, rotate all; click or Enter) keeps the popup open. Escape or × closes it.
+  - The pressed word flashes inverted for about 180 ms.
+  - A rotated code updates in place.
+  - No new smoke test is needed unless this changes anything else.

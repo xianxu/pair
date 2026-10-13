@@ -116,6 +116,10 @@ the operator says it on the call.
       (`notesMenuLink`).
     - Keyboard: Up/Down pick the row, Left/Right the word, Enter runs it, and
       Escape closes the menu.
+    - Running a word keeps the menu open: the word is drawn pressed for
+      `codesPress` (180 ms), and a rotation rebuilds the menu in place with the
+      new code, keeping the selection (`refreshCodesMenu`). Only Escape or ×
+      closes it.
     - A rotation disconnects that link's viewers.
     - The screen pointer link's row has no actions until pointing makes the
       link: copy-link never turns pointing on.

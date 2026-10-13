@@ -306,7 +306,7 @@ func TestCodesMenuDrawsWideCharacters(t *testing.T) {
 	for i := range f.Cells {
 		f.Cells[i] = terminal.Cell{Content: " ", Width: 1}
 	}
-	out := m.Draw(f)
+	out := m.Draw(f, codesMenuSel{row: -1})
 	if err := out.Validate(); err != nil {
 		t.Fatalf("invalid frame: %v", err)
 	}
@@ -314,4 +314,42 @@ func TestCodesMenuDrawsWideCharacters(t *testing.T) {
 	if got := out.Cells[m.rows[0].y*40+w.x0].Content; got != "r" {
 		t.Fatalf("rotate drawn off its column: %q", got)
 	}
+}
+
+// Running a word keeps the Codes popup open (Escape or × closes it): the
+// pressed word flashes inverted for a moment, and a rotated code changes in
+// place, its viewers disconnected.
+func TestCodesMenuStaysOpenAndShowsThePress(t *testing.T) {
+	f := broadcastFixture(t, &broadcast.FakeTunnel{}, nil)
+	s := f.startLive(t)
+	x := f.liveSpan().Start + 1
+	_, _ = fmt.Fprintf(f.stdin, "\x1b[<8;%d;24M\x1b[<8;%d;24m", x, x)
+	old := viewCode(t, s)
+	waitFor(t, "the menu", func() bool { return strings.Contains(f.screenText(), "view "+old+" · rotate") })
+	pressedBefore := strings.Count(f.host.Written(), "48;5;75")
+	f.chooseCodes(t, codesAction{copy: true, link: broadcast.LinkView})
+	waitFor(t, "the pressed word drawn inverted", func() bool { return strings.Count(f.host.Written(), "48;5;75") > pressedBefore })
+	waitFor(t, "the link copied", func() bool { return copies(f, s.Link()) >= 1 })
+	if !strings.Contains(f.screenText(), "LIVE codes") {
+		t.Fatal("copy-link closed the popup")
+	}
+	f.con.codes.mu.Lock()
+	until := f.con.codes.pressedUntil
+	f.con.codes.mu.Unlock()
+	if d := time.Until(until); d > codesPress {
+		t.Fatalf("press lasts %v", d)
+	}
+	f.chooseCodes(t, codesAction{link: broadcast.LinkView})
+	waitFor(t, "the new code in place", func() bool {
+		code := viewCode(t, s)
+		return code != old && strings.Contains(f.screenText(), "view "+code+" · rotate · copy-link")
+	})
+	if !strings.Contains(f.screenText(), "LIVE codes") {
+		t.Fatal("rotate closed the popup")
+	}
+	f.con.codes.mu.Lock()
+	box := f.con.codes.menuBox
+	f.con.codes.mu.Unlock()
+	_, _ = fmt.Fprintf(f.stdin, "\x1b[<0;%d;%dM\x1b[<0;%d;%dm", box.X+box.W-1, box.Y+1, box.X+box.W-1, box.Y+1)
+	waitFor(t, "× closes it", func() bool { return !strings.Contains(f.screenText(), "LIVE codes") })
 }

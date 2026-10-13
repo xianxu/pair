@@ -92,4 +92,6 @@ total: 8.05
   - **Decision: a link that doesn't exist yet** (the screen pointer link before pointing first starts) shows its label alone, `pointer (not made yet)`, with no actions; it does not get a `copy-link` that creates it.
   - **Why:** making the pointer link turns pointing on, which changes what LIVE viewers get. A copy should never have that side effect, and 👆 already does exactly that on purpose.
 - Found while building: the menu's first cell writer counted runes as cells, so an emoji in a label made an invalid frame and the menu never drew. Fixed by laying out and drawing by grapheme width; pinned by `TestCodesMenuDrawsWideCharacters`.
+- Operator re-test (build f7e6cc7a): passed for the menu layout, click rules and hover ("looks good for those changes").
+- Last tweak, built before landing: actions in the Codes popup keep it open (Escape or × closes it). The pressed word draws inverted for 180 ms, and a rotation refreshes the menu in place, keeping the selection. Pinned by `TestCodesMenuStaysOpenAndShowsThePress`.
 

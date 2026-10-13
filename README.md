@@ -1081,7 +1081,9 @@ never see it.
 - **The Codes menu.** `Alt+click` `LIVE ⏸` or `Chrome ⏸`. It shows one row per link:
   `view 3926 · rotate · copy-link`, then `rotate all`.
   - Each blue word is its own button: click it, or pick it with Up/Down (row) and
-    Left/Right (word) and press Enter. Escape closes the menu.
+    Left/Right (word) and press Enter.
+  - The menu stays open after an action: the word flashes to show it ran, and a
+    rotated code changes in place. Escape or `×` closes it.
   - Rotating disconnects everyone who used the old code.
   - Before pointing first makes the pointer link, its row shows `pointer (not made
     yet)`, with no actions; click `👆` to make it.
