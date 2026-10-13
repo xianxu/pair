@@ -37,7 +37,20 @@ rounds:
       timestamp: "2026-10-12T20:27:48-07:00"
       agent: codex
       blocked: false
-content_hash: e3852cef02655b7d44c197a2498d48408845b53c88585d3c0fdbce0ac1f2c3f0
+    - "n": 4
+      timestamp: "2026-10-12T21:19:38-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Go durable transitions and Lua live-attempt ownership are explicit, including begin-before-paste and acknowledgment-only recovery.
+          round: 4
+        - id: PQ-2
+          disposition: addressed
+          note: The plan names test functions and adversarial strategies covering validation, durability failures and event ordering.
+          round: 4
+      blocked: false
+content_hash: a26a33623cce1c4a7b0b2703580453494173f9c8f256b04edf40d48e97be02bb
 ---
 
 # Gate ledger — pair#483 (plan-quality)
@@ -62,6 +75,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - PQ-2 — addressed — Tasks now name production functions and adversarial strategies covering transitions, manifest and PNG validation, capture ordering, guarded resolution and draft retry invariants.
 
 ## Round 3 — 2026-10-12T20:27:48-07:00 (codex) — passed
+
+## Round 4 — 2026-10-12T21:19:38-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Go durable transitions and Lua live-attempt ownership are explicit, including begin-before-paste and acknowledgment-only recovery.
+- PQ-2 — addressed — The plan names test functions and adversarial strategies covering validation, durability failures and event ordering.
 
 ## Open findings
 
