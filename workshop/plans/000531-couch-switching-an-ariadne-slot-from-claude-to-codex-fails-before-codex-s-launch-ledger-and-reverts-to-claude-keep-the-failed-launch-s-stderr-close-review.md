@@ -86,3 +86,77 @@ findings:
     detail: |
       The issue's Done when section at lines 37-43 remains diagnostic-only despite the scope additions at line 77. Add criteria for installed links following checkout rebuilds and immediate failures providing one sanitized explanation with exactly one recovery action.
 ```
+
+---
+
+## Re-review — 2026-10-13T13:57:52-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 531 — couch: switching an ariadne slot from Claude to Codex fails before Codex's launch ledger and reverts to Claude; keep the failed launch's stderr |
+| repo | pair |
+| issue file | workshop/issues/000531-couch-switching-an-ariadne-slot-from-claude-to-codex-fails-before-codex-s-launch-ledger-and-reverts-to-claude-keep-the-failed-launch-s-stderr.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | d85585f53a46f8a249fd432cb555a7164e846024..c94678925d28caa379bcbdc52e3ef9c782ac0ea4 |
+| command | sdlc close --issue 531 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-13T13:57:52-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range delivers durable, bounded launch diagnostics and the authorized installation changes. All three prior findings are addressed. Targeted race tests passed, and mutation checks confirmed the behavioral regressions fail without their fixes. No new blocking findings.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      launchhelper.go preserves post-spawn evidence through blockedStartError; launchfailure_capture.go consumes it. Independently disabling runner preservation and recorder consumption made their respective regression tests fail.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      launchfailure_capture.go:39 includes bounded attempt correlation and diagnostic location; :113 wraps persistence errors while preserving their chain. Removing correlation made both successful-storage and failed-storage regression cases fail.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      The issue's Done when lines 46–47 now require one-action sanitized guidance and install links following rebuilds. These match launchfailure_capture.go:22–45 and Makefile.local:184–189; operator-line and temporary-prefix installer tests passed.
+```
+
+1. **Strengths**
+   - Diagnostics remain separate from authoritative thread records, preserving evidence through rollback and restart.
+   - `launchoutput.go:67` and `launchfailure_capture.go:74` preserve distinct observations before and after cleanup without inventing an exit.
+   - History bounds, atomic publication, corrupt-file handling, and concurrent writers have meaningful tests.
+   - README and atlas document inspection, retention, installation links, and stderr descriptor limitations.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+   - Targeted race suite passed for `couchcore` and `couchcmd`, covering launch diagnostics/output, rendering, switching, and cold resume.
+   - Three mutation checks failed as expected: runner evidence preservation, recorder evidence transfer, and attempt correlation.
+   - Temporary-prefix install regression and pinned-range whitespace check passed.
+   - Command-package compilation initially lacked generated runtime assets; generating them in the disposable copy resolved it. That copy was removed; the checkout remains unchanged.
+   - Full suite was not rerun; the documented #514 validation exception remains applicable.
+
+6. **Architectural notes**
+   - **ARCH-DRY — pass:** reuses runner, PTY ring, sanitization, and atomic-write seams.
+   - **ARCH-PURE — pass:** history normalization and retention are directly tested without IO.
+   - **ARCH-PURPOSE — pass:** post-spawn setup failures now reach durable diagnostics.
+   - **ARCH-MOCK — pass:** stateful runner/storage doubles share production interfaces; real subprocess tests and existing conformance targets support them.
+   - **ARCH-CONSTRAINTS — pass:** output, history, encoded size, lock wait, and stderr drain are bounded.
+   - **ARCH-SECURE — pass:** unsafe/corrupt files are rejected; terminal controls are sanitized.
+   - **ARCH-ORDER — pass:** attempt-keyed enrichment preserves first observations and distinguishes cleanup outcomes.
+   - **ARCH-FUNERAL — pass:** oldest-attempt eviction bounds durable history; subsequent publications reclaim interrupted staging files.
+
+7. **Plan revision recommendations:** None required. Core-concept classifications and documented scope match the implementation.

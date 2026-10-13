@@ -29,6 +29,27 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - "n": 2
+      timestamp: "2026-10-13T13:57:54-07:00"
+      dispatched: "2026-10-13T13:53:01-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: launchhelper.go preserves post-spawn evidence through blockedStartError; launchfailure_capture.go consumes it. Independently disabling runner preservation and recorder consumption made their respective regression tests fail.
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: launchfailure_capture.go:39 includes bounded attempt correlation and diagnostic location; :113 wraps persistence errors while preserving their chain. Removing correlation made both successful-storage and failed-storage regression cases fail.
+          round: 2
+        - id: BR-3
+          disposition: addressed
+          note: The issue's Done when lines 46–47 now require one-action sanitized guidance and install links following rebuilds. These match launchfailure_capture.go:22–45 and Makefile.local:184–189; operator-line and temporary-prefix installer tests passed.
+          round: 2
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: c94678925d28caa379bcbdc52e3ef9c782ac0ea4
+      blocked: false
 ---
 
 # Gate ledger — pair#531 (boundary-review)
@@ -47,8 +68,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-3** [Important] `completion-criteria-scope-coverage` Done-when criteria omit the authorized installation and recovery-message changes
   The issue's Done when section at lines 37-43 remains diagnostic-only despite the scope additions at line 77. Add criteria for installed links following checkout rebuilds and immediate failures providing one sanitized explanation with exactly one recovery action.
 
+## Round 2 — 2026-10-13T13:57:54-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — launchhelper.go preserves post-spawn evidence through blockedStartError; launchfailure_capture.go consumes it. Independently disabling runner preservation and recorder consumption made their respective regression tests fail.
+- BR-2 — addressed — launchfailure_capture.go:39 includes bounded attempt correlation and diagnostic location; :113 wraps persistence errors while preserving their chain. Removing correlation made both successful-storage and failed-storage regression cases fail.
+- BR-3 — addressed — The issue's Done when lines 46–47 now require one-action sanitized guidance and install links following rebuilds. These match launchfailure_capture.go:22–45 and Makefile.local:184–189; operator-line and temporary-prefix installer tests passed.
+
 ## Open findings
 
-- **BR-1** [Critical] `partial-start-evidence-preservation` Blocked-start setup errors discard evidence from an already-spawned helper
-- **BR-2** [Important] `diagnostic-attempt-correlation` Immediate failures omit attempt identity and persistence-error location
-- **BR-3** [Important] `completion-criteria-scope-coverage` Done-when criteria omit the authorized installation and recovery-message changes
+(none — every finding has been disposed)

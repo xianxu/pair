@@ -15,7 +15,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "97d12482", done: "eeee34ce"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # couch: switching an ariadne slot from Claude to Codex fails before Codex's launch ledger and reverts to Claude; keep the failed launch's stderr
@@ -55,6 +55,8 @@ Only targeted tests while machine load is at least 40. No full suite until load 
 ## Log
 
 ### 2026-10-13 — investigation
+- 2026-10-13: closed — Round1 fixes: actual reader-close post-spawn subprocess retains stderr/exit23; reverting branch via overlay fails regression. Recorder partial-start and attempt/path correlation tests red before fixes, green after; errors.Is preserved. Combined targeted race tests passed core27.541s/cmd25.458s; install-link regression passed; main merged with docs-only additions. Full make test previously stopped at known #514 (11s vs6s), before Go suite; TL authorized this exception a521528a. No full-suite pass claimed or live/local-bin changes.; review verdict: SHIP
+- 2026-10-13: flow upgraded quick → full — 797 added lines in code files (limit 100); an earlier round of this close already ran the full review
 
 The switch form parses explicit argv, fingerprints the accepted preview, and passes an explicit FreshRequired launch profile through PAIR_COUCH_LAUNCH_PROFILE to Pair. Fresh launches bypass saved-config, repository-default and config-picker reads. Last successful preferences remain Claude when the replacement fails; that alone does not mean the supplied arguments were ignored.
 
