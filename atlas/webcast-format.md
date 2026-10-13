@@ -531,11 +531,18 @@ it (and can revoke it at any moment), and the driver gives it back. Internal vie
 driving). Package `cmd/internal/webcast/drive` is the contract; #467 builds the HTTP routes, the CDP injector and the
 UI against it.
 
-**Two links (operator, 10-12, #467).** The view link (the cast's token) is for watching, pointing and notes. The
-drive link (its own token, `Server.DriveToken`, `Update.DriveLink`) serves the same viewer plus the drive routes
-below, which answer 404 under the view link. A stream holds a seat only under the drive link. Couch copies the view
-link with a right-click on the Chrome cell and the drive link with Alt+right-click. `couch --broadcast-list` lists
-each share by kind (`screen`, `web view`, `web drive`), never with its token.
+**Three links (#467, pair#506).** Each has its own token, and each grants what the one before it does, and more
+(`castLink`, `webcast/link.go`):
+- **The view-only link** (the cast's token, `Update.Link`) watches. Its board POSTs answer 403 "This link is
+  view-only." before admission, and its `palette.json` says `annotate: false`, so its viewer draws others' strokes
+  and notes read-only.
+- **The pointer link** (`Update.PointerLink`, only on a recorded cast) also points and leaves and resolves notes.
+- **The drive link** (`Server.DriveToken`, `Update.DriveLink`) serves the same viewer plus the drive routes below,
+  which answer 404 under the other two. A stream holds a seat only under the drive link.
+
+Couch copies them with a right-click on the Chrome cell, its 👆, and its 👽 (or Alt+right-click). `couch
+--broadcast-list` lists each share by kind (`screen`, `web view`, `web drive`), never with its token. A pointer-link
+viewer counts under `web view`.
 
 **Seats.** Anyone with the drive link can watch and take a seat; driving needs a grant:
 - `POST <cast>/drive/hello` `{"name":"Ana"}` returns `{"viewer":"v3","key":"<64 hex>","name":"Ana"}`, from
@@ -690,5 +697,5 @@ recording. Seats and their keys are memory only: they end after the grace period
 - 2026-10-12 (#467, additive, as built): no record kind changes. `by` is stamped by the recorder from the
   observer's tagged reports during a driver's batch. `ctl` records come from the real controller through the
   recorder's queue, gated on the recording having opened. The hand-written `driven` fixture is replaced by
-  `rec-driven`, a recorded driven session. Two links: a view link (no drive routes) and a drive link (its own
-  token).
+  `rec-driven`, a recorded driven session. Two links then: a view link (no drive routes) and a drive link (its own
+  token). pair#506 later split the view link into view-only and pointer links (above).

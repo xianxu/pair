@@ -195,7 +195,7 @@ what the viewer's renderer draws at the same moments.
   and each route asks it: `annotates()` for the board, `drives()` for the drive routes.
   - Board POSTs under the view link answer 403 "This link is view-only." *before* admission, so they spend no body
     read, in-flight slot or rate budget.
-  - `palette.json` answers `{palette, annotate}`. Under the view link the viewer's `mountAnnotate` (`readPalette`)
+  - `palette.json` answers `{palette, annotate}`. Under the view-only link the viewer's `mountAnnotate` (`readPalette`)
     still draws others' strokes and notes, read-only: the rail never shows and a note opens without Resolve.
   - A pointer-link stream counts with the view streams in `Server.Viewers()`: only drive-link streams hold a seat.
   - The terminal cast's pointer link is a phase switched on and off, so the web cast keeps its own fixed-link model.

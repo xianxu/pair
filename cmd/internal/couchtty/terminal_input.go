@@ -139,7 +139,7 @@ func (c *Console) routeMouseEvent(event terminal.InputEvent) {
 	}
 	hit, _, _, ok := mouseinput.ParsePrefix(event.Raw)
 	// The Chrome cell (#454): click toggles live, right-click copies the
-	// viewer link, Ctrl with either button ends the cast (a macOS terminal
+	// view-only link, Ctrl with either button ends the cast (a macOS terminal
 	// may turn Ctrl+left into a right click, keeping the Ctrl bit).
 	if ok && !hit.Release {
 		button := mouseinput.BaseButton(hit.Button)

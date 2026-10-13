@@ -898,7 +898,7 @@ dies with the broadcast.
 
 `couch --broadcast-list [--json]`, from any shell, lists every link out by kind.
 - **`screen`** is the screen broadcast: its state, start time, mode and viewer count.
-- **`web view`** is the web cast's view link: its state and viewers.
+- **`web view`** is the web cast's view-only and pointer links: their state and viewers.
 - **`web drive`** is the web cast's drive link: its state and viewers, and who drives and how many ask.
 
 It never prints a link or its token, because the token is the link's only credential. While recordings are shared
@@ -1034,7 +1034,7 @@ While anyone drives:
 - A banner in your tab names the driver.
 - The recording attributes their actions to them (`by`).
 
-The view link never offers driving.
+Only the drive link offers driving; the view-only and pointer links never do.
 
 **Recording (#458).** From the first time you go live, the cast tab is recorded
 to `<couch store>/webcast/recordings/<id>/` (the format is in

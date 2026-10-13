@@ -266,68 +266,69 @@ func (c *Console) focusWebcast() {
 	})
 }
 
-// copyWebcastLink is a right-click on the Chrome cell: the view-only link,
-// whose viewers watch and see others' notes but can't add any (pair#506).
-// The notice never contains the link: a screen broadcast would draw it to
-// viewers.
-func (c *Console) copyWebcastLink() {
-	c.mu.Lock()
-	u, running := c.wcast.update, c.wcast.phase == webcastRunning
-	c.mu.Unlock()
-	switch {
-	case !running:
-	case u.Link != "":
-		c.copyLink(u.Link)
-		c.setNotice("Chrome cast view-only link copied: its viewers watch. 👆 copies the pointer link, 👽 the drive link.")
-	case u.LinkErr != nil:
-		c.setNotice("Chrome cast viewer link unavailable: " + u.LinkErr.Error())
-	default:
-		c.setNotice("Chrome cast viewer link is not ready yet.")
-	}
+// webcastLink is one of the cast's three links as Couch copies it
+// (pair#506): which it is, what its viewers may do, and why a cast whose
+// view-only link answered may still have none of this kind.
+type webcastLink struct {
+	name   string
+	url    func(webcast.Update) string
+	grants string
+	// missing says why the cast has no such link; "" means it isn't ready.
+	missing func(*webcast.Cast) string
 }
 
-// copyWebcastPointerLink is a click on the Chrome group's 👆: the pointer
-// link (pair#506), whose viewers also point and leave notes. Like the others, never in the notice.
-func (c *Console) copyWebcastPointerLink() {
-	c.mu.Lock()
-	u, running := c.wcast.update, c.wcast.phase == webcastRunning
-	c.mu.Unlock()
-	switch {
-	case !running:
-	case u.PointerLink != "":
-		c.copyLink(u.PointerLink)
-		c.setNotice("Chrome cast pointer link copied: its viewers watch, point and leave notes.")
-	case u.LinkErr != nil:
-		c.setNotice("Chrome cast pointer link unavailable: " + u.LinkErr.Error())
-	case u.Link != "":
-		c.setNotice("This cast takes no notes (it isn't recorded), so it has no pointer link.")
-	default:
-		c.setNotice("Chrome cast pointer link is not ready yet.")
-	}
-}
+var (
+	webcastViewOnlyLink = webcastLink{name: "view-only", url: func(u webcast.Update) string { return u.Link },
+		grants: "its viewers watch. 👆 copies the pointer link, 👽 the drive link."}
+	webcastPointerLink = webcastLink{name: "pointer", url: func(u webcast.Update) string { return u.PointerLink },
+		grants: "its viewers watch, point and leave notes.",
+		missing: func(*webcast.Cast) string {
+			return "This cast takes no notes (it isn't recorded), so it has no pointer link."
+		}}
+	webcastDriveLink = webcastLink{name: "drive", url: func(u webcast.Update) string { return u.DriveLink },
+		grants: "its viewers can ask to drive; you grant.",
+		missing: func(cast *webcast.Cast) string {
+			if cast != nil && cast.DriveOff() != "" {
+				return "This cast can't be driven: " + cast.DriveOff() + "."
+			}
+			return ""
+		}}
+)
 
-// copyWebcastDriveLink is a click on the Chrome group's 👽, or an
-// Alt+right-click on the Chrome cell (#467):
-// the drive link, whose viewers can ask to drive the cast tab (the
-// operator still grants). Like the view link, never in the notice.
-func (c *Console) copyWebcastDriveLink() {
+// copyWebcastLinkOf copies one of the cast's links. The notice never
+// contains the link: a screen broadcast would draw it to viewers.
+func (c *Console) copyWebcastLinkOf(l webcastLink) {
 	// One snapshot: the cast can end between two reads.
 	c.mu.Lock()
 	u, running, cast := c.wcast.update, c.wcast.phase == webcastRunning, c.wcast.cast
 	c.mu.Unlock()
-	switch {
+	missing := ""
+	if u.Link != "" && l.missing != nil {
+		missing = l.missing(cast)
+	}
+	switch link := l.url(u); {
 	case !running:
-	case u.DriveLink != "":
-		c.copyLink(u.DriveLink)
-		c.setNotice("Chrome cast drive link copied: its viewers can ask to drive; you grant.")
+	case link != "":
+		c.copyLink(link)
+		c.setNotice("Chrome cast " + l.name + " link copied: " + l.grants)
 	case u.LinkErr != nil:
-		c.setNotice("Chrome cast drive link unavailable: " + u.LinkErr.Error())
-	case u.Link != "" && cast != nil && cast.DriveOff() != "":
-		c.setNotice("This cast can't be driven: " + cast.DriveOff() + ".")
+		c.setNotice("Chrome cast " + l.name + " link unavailable: " + u.LinkErr.Error())
+	case missing != "":
+		c.setNotice(missing)
 	default:
-		c.setNotice("Chrome cast drive link is not ready yet.")
+		c.setNotice("Chrome cast " + l.name + " link is not ready yet.")
 	}
 }
+
+// copyWebcastLink is a right-click on the Chrome cell: the view-only link.
+func (c *Console) copyWebcastLink() { c.copyWebcastLinkOf(webcastViewOnlyLink) }
+
+// copyWebcastPointerLink is a click on the Chrome group's 👆.
+func (c *Console) copyWebcastPointerLink() { c.copyWebcastLinkOf(webcastPointerLink) }
+
+// copyWebcastDriveLink is a click on the Chrome group's 👽, or an
+// Alt+right-click on the Chrome cell (#467).
+func (c *Console) copyWebcastDriveLink() { c.copyWebcastLinkOf(webcastDriveLink) }
 
 // endWebcastForShutdown ends a running or starting cast before the presenter
 // is released, and waits, bounded, for Chrome and the link to close.

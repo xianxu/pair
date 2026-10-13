@@ -1424,3 +1424,7 @@ proof; record the surprising case so the next change starts from evidence.
   `pointerup.detail`, and its node tests fed fake events with `detail: 2`, which real Chrome never sends (pointer
   events carry 0). Before a gesture rule reads an event field, log that field from a real browser once, and make
   the fakes match it.
+
+## Re-meaning a named surface: sweep every doc for the old term in the same commit (pair#506)
+- **What went wrong:** #506 split the web cast's "view link" into view-only and pointer links. The atlas page I was editing was updated, but `atlas/webcast-format.md` and two README lines still said the view link allows pointing and notes. Two review rounds flagged the same family.
+- **Rule:** when a change gives an existing name new grants or meaning (a link, a mode, a flag), `git grep` atlas/ and README.md for the old term and its synonyms ("view link", "viewer link", "two links") before committing, and fix or date every hit.
