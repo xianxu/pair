@@ -258,9 +258,10 @@ export function gestures(deps) {
       if (touches.size === 0) pinch = null;
       endPress();
     },
-    // reset forgets every press and finger: control ended, and the cast tab
-    // lets go of what it held.
-    reset() { touches.clear(); press = null; pinch = null; },
+    // reset forgets every press, finger and the last click: control ended,
+    // and the cast tab lets go of what it held (a click after it never
+    // pairs with one before into a double click).
+    reset() { touches.clear(); press = null; pinch = null; lastClick = null; },
     // wheel: a mouse wheel or trackpad over the page, in window px.
     wheel(e) {
       const p = at(e), q = deps.toPage(e.clientX + e.deltaX, e.clientY + e.deltaY);

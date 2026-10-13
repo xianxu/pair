@@ -25,9 +25,10 @@ type driveTab struct {
 	taken    []map[string]any // what the dispatch caused (the driver's)
 	heldBy   string
 	send     func(payload string) // a bindingCalled from the page
-	hit      int              // backendNodeId at any point
-	hitErr   error            // what the hit test fails with, if set
-	hitAt    [][2]float64     // the points hit-tested
+	hit      int                  // backendNodeId at any point
+	hitErr   error                // what the hit test fails with, if set
+	inputErr error                // what Input.* calls fail with, if set
+	hitAt    [][2]float64         // the points hit-tested
 	takeFail bool
 	block    chan struct{} // while set, input calls wait on it
 	inputs   []string
@@ -88,10 +89,13 @@ func (d *driveTab) more(session, method string, params map[string]any, p *fakePa
 		return map[string]any{"backendNodeId": hit}, nil, true
 	case strings.HasPrefix(method, "Input."):
 		d.inputs = append(d.inputs, method)
-		block := d.block
+		block, err := d.block, d.inputErr
 		d.mu.Unlock()
 		if block != nil {
 			<-block
+		}
+		if err != nil {
+			return nil, err, true
 		}
 		return map[string]any{}, nil, true
 	}
@@ -340,5 +344,24 @@ func TestCdpTabHitTestsPageCoordinates(t *testing.T) {
 		if err := drive.NewTabInjector(h.r).Inject(context.Background(), ana.ID, clickOn(h, h.id("A", btn.backend))); !errors.Is(err, c.want) {
 			t.Errorf("%s: %v, want %v", c.name, err, c.want)
 		}
+	}
+}
+
+// pair#505: what the tab can fail with reaches the viewer as a mapped error,
+// never an unmapped 500. A CDP input call that fails is ErrInput (wrapping
+// the method and cause, for the operator's log); a dialog stays ErrDialog
+// (TestWithTabGivesUpOnADialog); a recorder that has closed is ErrClosed.
+func TestWithTabFailuresAreDriveErrors(t *testing.T) {
+	h, d, _, btn := drivenHarness(t, nil)
+	d.mu.Lock()
+	d.inputErr = &cdp.Error{Code: -32000, Message: "Target closed"}
+	d.mu.Unlock()
+	err := drive.NewTabInjector(h.r).Inject(context.Background(), ana.ID, clickOn(h, h.id("A", btn.backend)))
+	if !errors.Is(err, drive.ErrInput) || !strings.Contains(err.Error(), "Input.dispatchMouseEvent") || !strings.Contains(err.Error(), "Target closed") {
+		t.Fatalf("a failed input call: %v, want ErrInput naming the call and its cause", err)
+	}
+	h.r.Close()
+	if err := h.r.WithTab(context.Background(), ana.ID, func(drive.Tab) error { return nil }); !errors.Is(err, drive.ErrClosed) {
+		t.Fatalf("a closed recorder: %v, want ErrClosed", err)
 	}
 }

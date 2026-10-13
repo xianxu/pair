@@ -1410,3 +1410,11 @@ proof; record the surprising case so the next change starts from evidence.
 - **What went wrong:** the tab bar's narrow-width collapse hid every numbered slot of a group, including its first member when the group had no `:0`. The `+N` then sat after the previous repository's chip and read as its count.
 - **Rule:** when compressing a run of related items into a summary (`+N`, `:N`, `…`), keep the run's first item drawn so the summary has an owner on screen; test a run that lacks its usual leader.
 - **And:** state a value handed across a package boundary at startup (here the hub root) is tested where it is set *and* where a lazy rebuild could drop it.
+- **An error translation is behavior; each needs a test that fails without it (#505 close).** Mapping `errClosed` to
+  `ErrClosed`, a CDP failure to `ErrInput` and a nil recorder to `ErrNotLive` were each one line, and reverting any
+  left the suite green: the route test injected a ready-made `ErrInput`. Test the translation at the seam that
+  produces it (the recorder's fake tab, the nil-recorder Chrome), and mutation-check it once.
+- **A browser event's field is a measurement, not an assumption (#505).** drive.js counted double clicks from
+  `pointerup.detail`, and its node tests fed fake events with `detail: 2`, which real Chrome never sends (pointer
+  events carry 0). Before a gesture rule reads an event field, log that field from a real browser once, and make
+  the fakes match it.

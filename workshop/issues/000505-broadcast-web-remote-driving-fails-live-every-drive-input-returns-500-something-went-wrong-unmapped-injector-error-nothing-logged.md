@@ -83,3 +83,8 @@ middle click, accelerators, clipboard, pickers, downloads, new windows). A windo
   typing, select-all, delete, undo, IME, right click refused) with no injector error at all. The 500 the operator
   saw on 620356e7 is not reproduced, windowed or headless; on the old code a wheel after a scroll answers 409
   stale. Any 5xx on this build is mapped or logged with its cause on Couch's notice line.
+- **Close review round 1 (FIX-THEN-SHIP):** BR-1 (right): the error translations had no test that fails without
+  them. TestWithTabFailuresAreDriveErrors (a failing Input.* call → ErrInput naming the call and cause; a closed
+  recorder → ErrClosed), TestUnrecordedChromeWithTabIsNotLive; the dialog pass-through is pinned by
+  TestWithTabGivesUpOnADialog (wrapping would lose ErrDialog). Each mutation-checked (reverted line → FAIL).
+  Minors: gofmt; `gestures.reset()` forgets the last click (node test: a click across a reset is single).

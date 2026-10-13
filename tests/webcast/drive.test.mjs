@@ -216,6 +216,10 @@ test('gestures: a mouse click, a double click, a drag, a press on nothing', () =
   click(3000); click(3000 + DOUBLE_MS + 50); click(5000); click(5100, 50 + DRAG_PX);
   assert.deepEqual(out.map((a) => a.count), [1, 1, 1, 1]);
   out.length = 0;
+  // Control ended between two clicks: the second is a single click.
+  click(7000); g.reset(); click(7100);
+  assert.deepEqual(out.map((a) => a.count), [1, 1]);
+  out.length = 0;
   g.down(ev({ clientX: 50, clientY: 60 }));
   g.move(ev({ clientX: 50 + DRAG_PX, clientY: 60 }));
   g.move(ev({ clientX: 70, clientY: 60 }));

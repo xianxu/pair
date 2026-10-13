@@ -22,12 +22,12 @@ import (
 // errSpy records what the real injector answers, so a failure shows its
 // error, not the viewer's generic sentence.
 type errSpy struct {
-	mu   sync.Mutex
+	mu      sync.Mutex
 	errs    []string
 	acts    []string
 	ok      int
 	refused int
-	next drive.Injector
+	next    drive.Injector
 }
 
 func (s *errSpy) Inject(ctx context.Context, by string, b drive.Batch) error {
