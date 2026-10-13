@@ -19,6 +19,8 @@ import (
 type fakePage struct {
 	frameID     string
 	url         string
+	title       string
+	pageError   error
 	doc         *fnode
 	nextNode    int
 	nextBackend int

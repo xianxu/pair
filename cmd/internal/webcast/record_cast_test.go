@@ -88,6 +88,9 @@ func TestCastRecordsToDirAndViewers(t *testing.T) {
 	}
 	for i := range recs {
 		ev, data := s.next()
+		for ev == "capabilities" {
+			ev, data = s.next()
+		}
 		if ev != "rec" {
 			t.Fatalf("event %d: %s %s", i, ev, data)
 		}

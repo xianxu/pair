@@ -15,6 +15,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/broadcast"
 	castassets "github.com/xianxu/pair/cmd/internal/webcast/assets"
 	"github.com/xianxu/pair/cmd/internal/webcast/board"
+	"github.com/xianxu/pair/cmd/internal/webcast/capability"
 	"github.com/xianxu/pair/cmd/internal/webcast/drive"
 	"github.com/xianxu/pair/cmd/internal/webcast/notes"
 	"github.com/xianxu/pair/cmd/internal/webcast/recorder"
@@ -66,8 +67,9 @@ type CastConfig struct {
 // (pair#506). Link is the view-only link, "" until it answers; LinkErr says
 // why there is none.
 type Update struct {
-	State State
-	Link  string
+	Capabilities Capabilities
+	State        State
+	Link         string
 	// PointerLink lets its viewers point and leave notes as well. "" until
 	// the link answers, or when the cast takes no notes (not recorded).
 	PointerLink string
@@ -96,6 +98,9 @@ func (u Update) LinkFor(kind string) string {
 // shared Host. It ends when its Browser does.
 type Cast struct {
 	browser Browser
+	capCtx  context.Context
+	capPub  *publisher[Capabilities]
+	capWork capabilityWork
 	pub     *publisher[Update]
 	cancel  context.CancelFunc
 	done    chan struct{}
@@ -160,6 +165,12 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 			return ErrNotRecording
 		})
 		bd.Logf = cfg.Logf
+		bd.WithAnnotationCleanup(func(ctx context.Context, generation uint64) error {
+			if cleaner, ok := b.(AnnotationCleaner); ok {
+				return cleaner.ClearAnnotations(ctx, generation)
+			}
+			return ErrNotRecording
+		})
 		id := recordingID(time.Now())
 		recDir = filepath.Join(cfg.RecordingsDir, id)
 		ro = &RecordOptions{Operator: bd, ID: id, Out: recordingOutput(cfg, liveSink, bd, id, proxy), Logf: cfg.Logf}
@@ -204,7 +215,11 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 			grace = drive.DefaultGrace
 		}
 		// The recorder stamps each control record's time as it orders it.
-		c.drive = drive.NewMemController(liveGate{d}, drive.NewTabInjector(d), func() int64 { return 0 }, grace)
+		ctrl := drive.NewMemController(liveGate{d}, drive.NewTabInjector(d), func() int64 { return 0 }, grace)
+		if resetter, ok := b.(ControlResetter); ok {
+			ctrl.WithControlReset(resetter.ResetControl)
+		}
+		c.drive = ctrl
 		go followDriving(c.drive, d)
 	}
 	c.locks = locks
@@ -231,6 +246,10 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 	srv := NewServer(token, b, cfg.Ping, live, cfg.Presence).WithBoard(bd).WithPointer(pointerToken).WithDrive(c.drive, driveToken).WithDriveLog(cfg.Logf).WithLocks(locks)
 	srv.proxy = proxy
 	c.server, c.token, c.pointerToken, c.driveToken = srv, token, pointerToken, driveToken
+	c.capCtx = mountCtx
+	c.capWork.running = make(map[CapabilityKind]bool)
+	c.capPub = newPublisher(c.Capabilities())
+	c.pub.publish(Update{State: b.State(), Capabilities: c.Capabilities()})
 	go c.run(mountCtx, cfg.Host, srv, token)
 	return c, nil
 }
@@ -305,8 +324,29 @@ func (c *Cast) run(ctx context.Context, host *broadcast.Host, srv *Server, token
 	var mount *broadcast.Mount
 	var lost <-chan struct{}
 	cur := c.pub.get()
+	var annotations, driving <-chan capability.Snapshot
+	if c.board != nil {
+		var cancel func()
+		annotations, cancel = c.board.SubscribeAnnotationCapability()
+		defer cancel()
+	}
+	if c.drive != nil {
+		var cancel func()
+		driving, cancel = c.drive.SubscribeDriveCapability()
+		defer cancel()
+	}
 	for running := true; running; {
 		select {
+		case _, open := <-annotations:
+			if !open {
+				annotations = nil
+			}
+			c.fenceBrokenCapability()
+		case _, open := <-driving:
+			if !open {
+				driving = nil
+			}
+			c.fenceBrokenCapability()
 		case st, open := <-states:
 			if !open {
 				running = false
@@ -326,9 +366,11 @@ func (c *Cast) run(ctx context.Context, host *broadcast.Host, srv *Server, token
 			lost = nil
 			cur.Link, cur.PointerLink, cur.DriveLink, cur.LinkErr = "", "", "", mount.Err()
 		}
+		cur.Capabilities = c.Capabilities()
+		c.publishCapabilities()
 		c.pub.publish(cur)
 	}
-	c.cancel()
+	c.stopCapabilityWork()
 	if c.liveSink != nil {
 		c.liveSink.Close()
 	}
@@ -349,7 +391,8 @@ func (c *Cast) run(ctx context.Context, host *broadcast.Host, srv *Server, token
 	// After the mount: ending a lock revokes its sessions, and nothing may
 	// cut a viewer's stream before the browser's end reached it.
 	c.locks.End()
-	c.pub.finish(Update{State: c.browser.State()})
+	c.capPub.finish(c.Capabilities())
+	c.pub.finish(Update{State: c.browser.State(), Capabilities: c.Capabilities()})
 	c.checkRecording()
 }
 
@@ -399,7 +442,7 @@ func (c *Cast) ResolveNote(id string) error {
 }
 
 // Current is the latest Update.
-func (c *Cast) Current() Update { return c.pub.get() }
+func (c *Cast) Current() Update { u := c.pub.get(); u.Capabilities = c.Capabilities(); return u }
 
 // Subscribe delivers the latest Update, as Browser.Subscribe does.
 func (c *Cast) Subscribe() (<-chan Update, func()) { return c.pub.subscribe() }
@@ -414,6 +457,7 @@ func (c *Cast) Focus() error { return c.browser.Focus() }
 
 // End ends the cast and closes Chrome; it returns once the link is closed.
 func (c *Cast) End() {
+	c.cancel()
 	c.browser.Close()
 	<-c.done
 }

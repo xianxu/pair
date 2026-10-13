@@ -24,6 +24,13 @@ type emittingBrowser struct {
 	w *board.Writer
 }
 
+func (e *emittingBrowser) ClearAnnotations(ctx context.Context, id uint64) error {
+	if e.w == nil {
+		return nil
+	}
+	return e.w.ClearAnnotations(ctx, id)
+}
+
 func (e *emittingBrowser) Emit(r recording.Record, doc int) error { return e.w.Emit(r, doc) }
 
 // recordedBoardCast is a recorded cast with a board, its viewer routes served, and
@@ -85,6 +92,9 @@ func (bc *recordedBoardCast) open(t *testing.T) recording.Node {
 func TestCastBoardRecordsNotes(t *testing.T) {
 	bc := startRecordedBoardCast(t)
 	c, eb, dir, base := bc.c, bc.eb, bc.dir, bc.base
+	if err := c.SetCapability(context.Background(), CapabilityAnnotation, true); err != nil {
+		t.Fatal(err)
+	}
 	if code, text := post(t, base+"note", "application/json", noteBody(1, 5, 0)); code != http.StatusConflict || text != refuseNotLive {
 		t.Fatalf("a note before the recording opens: %d %q", code, text)
 	}
@@ -129,6 +139,9 @@ func TestCastBoardRecordsNotes(t *testing.T) {
 func TestCastBoardNotesAndStrokesReachDiskWhileLive(t *testing.T) {
 	bc := startRecordedBoardCast(t)
 	c, eb, dir, base := bc.c, bc.eb, bc.dir, bc.base
+	if err := c.SetCapability(context.Background(), CapabilityAnnotation, true); err != nil {
+		t.Fatal(err)
+	}
 	t.Cleanup(func() { eb.w.Close() })
 	p := bc.open(t)
 	notes, cancel := c.Notes()

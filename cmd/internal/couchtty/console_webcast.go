@@ -137,7 +137,7 @@ func (c *Console) webcastStarted(attempt uint64, cast *webcast.Cast, err error, 
 	}
 	c.wcast.phase, c.wcast.cast, c.wcast.update = webcastRunning, cast, cast.Current()
 	c.mu.Unlock()
-	c.setNotice("Chrome is open. Press Shift+Ctrl+Alt+b or click Chrome ▶ to go live; right-click the cell for the view-only link, 👆 for the pointer link, 👽 for the drive link; ↗ brings Chrome to the front.")
+	c.setNotice("Chrome is open. Press Shift+Ctrl+Alt+b or click Chrome ▶ to go live; right-click the cell for the view-only link, 👆/👽 enable annotation/driving and copy their links; right-click either to copy while off; ↗ brings Chrome to the front.")
 	c.syncOverlay(overlayWeb, true) // the notes menu draws in it
 	notes, stopNotes := cast.Notes()
 	c.GoTracked(func() {
@@ -291,12 +291,12 @@ var (
 	webcastViewOnlyLink = webcastLink{name: "view-only", kind: broadcast.LinkView,
 		grants: "its viewers watch; 👆 copies the pointer link, 👽 the drive link."}
 	webcastPointerLink = webcastLink{name: "pointer", kind: broadcast.LinkPointer,
-		grants: "its viewers watch, point and leave notes.",
+		grants: "its viewers watch; pointing and notes require 👆 on.",
 		missing: func(*webcast.Cast) string {
 			return "This cast takes no notes (it isn't recorded), so it has no pointer link."
 		}}
 	webcastDriveLink = webcastLink{name: "drive", kind: broadcast.LinkDrive,
-		grants: "its viewers can ask to drive; you grant.",
+		grants: "its viewers can ask to drive when 👽 is on; you grant.",
 		missing: func(cast *webcast.Cast) string {
 			if cast != nil && cast.DriveOff() != "" {
 				return "This cast can't be driven: " + cast.DriveOff() + "."
@@ -319,7 +319,9 @@ func (c *Console) copyWebcastLinkOf(l webcastLink) {
 	switch link := u.LinkFor(l.kind); {
 	case !running:
 	case link != "":
-		c.copyLink(link)
+		if !c.copyLink(link) {
+			return
+		}
 		// Every link is locked by its own code (pair#495).
 		c.setNotice("Chrome cast " + l.name + " link copied: " + l.grants + " Its viewers need its code: hover Chrome to see it.")
 	case u.LinkErr != nil:
@@ -335,12 +337,10 @@ func (c *Console) copyWebcastLinkOf(l webcastLink) {
 // copy action on the view row: the view-only link.
 func (c *Console) copyWebcastLink() { c.copyWebcastLinkOf(webcastViewOnlyLink) }
 
-// copyWebcastPointerLink is a click (left or right) on the Chrome group's 👆,
-// or the Codes menu's copy action on the pointer row (pair#506).
+// copyWebcastPointerLink is the Codes menu copy action, independent of admission.
 func (c *Console) copyWebcastPointerLink() { c.copyWebcastLinkOf(webcastPointerLink) }
 
-// copyWebcastDriveLink is a click (left or right) on the Chrome group's 👽,
-// or the Codes menu's copy action on the drive row (#467, pair#495).
+// copyWebcastDriveLink is the Codes menu copy action, independent of admission.
 func (c *Console) copyWebcastDriveLink() { c.copyWebcastLinkOf(webcastDriveLink) }
 
 // endWebcastForShutdown ends a running or starting cast before the presenter

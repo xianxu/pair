@@ -2,6 +2,7 @@ package webcast
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/xianxu/pair/cmd/internal/webcast/drive"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
@@ -9,10 +10,11 @@ import (
 
 // Driven is a browser a viewer can drive (#467): the cast Chrome, recording.
 // Its recorder runs the driver's batches (drive.TabRunner) and takes the
-// control records (Emitter); Opened says it has a recording to take them;
+// control records (ControlWriter); Opened says it has a recording to take them;
 // SetDriving guards the cast tab and shows the driver.
 type Driven interface {
 	Emitter
+	drive.ControlWriter
 	drive.TabRunner
 	Opened() bool
 	SetDriving(driver string) error
@@ -29,18 +31,28 @@ func (c *Chrome) WithTab(ctx context.Context, by string, fn func(drive.Tab) erro
 	return c.rec.WithTab(ctx, by, fn)
 }
 
-// liveGate is the controller's sink in a cast: control records go into the
-// recorder's queue once it has opened, and are refused before (the
-// recorder would drop them, parting the controller from the stream). It
-// asks the recorder, not Chrome's published phase: Chrome can publish live
-// while the recorder still waits for the cast tab's session.
+// liveGate adapts the controller's sink to the acknowledged recorder writer.
+// Opening/closing and reducer acceptance are checked on that writer, so a
+// cached Opened flag cannot acknowledge a closed or failed recorder.
 type liveGate struct{ b Driven }
 
 func (g liveGate) Put(r recording.Record) error {
-	if !g.b.Opened() {
+	ctl, ok := r.(*recording.Ctl)
+	if !ok {
+		return fmt.Errorf("drive: control sink received %T", r)
+	}
+	return g.WriteControl(context.Background(), ctl)
+}
+func (g liveGate) WriteControl(ctx context.Context, ctl *recording.Ctl) error {
+	return g.b.WriteControl(ctx, ctl)
+}
+
+// WriteControl acknowledges the recorder's ordered sink result.
+func (c *Chrome) WriteControl(ctx context.Context, ctl *recording.Ctl) error {
+	if c.rec == nil {
 		return drive.ErrNotLive
 	}
-	return g.b.Emit(r, 0)
+	return c.rec.WriteControl(ctx, ctl)
 }
 
 func (liveGate) Close() error { return nil }

@@ -34,6 +34,13 @@ function(region) {
     return {left,top,right:left+n.clientWidth*sx,bottom:top+n.clientHeight*sy};
   }
   const bounded = s => { s = String(s || ''); if(s.length > maxBytes) {out.truncated = true; return s.slice(0,maxBytes);} return s; };
+  // Bound raw metadata before escaping; push counts the emitted UTF-8 markup
+  // against the same group budget as text, including any escape expansion.
+  const escapeMarkup = s => bounded(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  function elementOf(n) {
+    const tag=escapeMarkup(n.localName), classes=escapeMarkup(n.getAttribute('class'));
+    return '<'+tag+(classes?' class="'+classes+'"':'')+'>';
+  }
   function push(group, item, rect) {
     if (!item.text) return;
     if (entries >= maxEntries) { out.truncated = true; return; }
@@ -48,11 +55,11 @@ function(region) {
     return ({button:'button',a:n.getAttribute('href')?'link':'',img:'img',textarea:'textbox',select:'combobox'}[n.localName] || '');
   }
   const roles=[]; let nameWork=0;
-  const stack = [{node: document.documentElement, selector:'html', hidden:false, owner:null, clip:area, absoluteClip:area, fixedClip:area}];
+  const stack = [{node: document.documentElement, element:'', hidden:false, owner:null, clip:area, absoluteClip:area, fixedClip:area}];
   const seen = new WeakSet();
   while (stack.length) {
     if (++visited > maxNodes) { out.truncated = true; break; }
-    const {node:n, selector:path, hidden, owner:inheritedOwner, clip:inheritedClip, absoluteClip:inheritedAbsolute, fixedClip:inheritedFixed} = stack.pop();
+    const {node:n, element:inheritedElement, hidden, owner:inheritedOwner, clip:inheritedClip, absoluteClip:inheritedAbsolute, fixedClip:inheritedFixed} = stack.pop();
     let owner=inheritedOwner, clip=inheritedClip, absoluteClip=inheritedAbsolute, fixedClip=inheritedFixed;
     if (seen.has(n)) continue; seen.add(n);
     if (n.nodeType === 3) {
@@ -69,12 +76,12 @@ function(region) {
         range.setStart(n,i);range.setEnd(n,i+1);
         if(Array.from(range.getClientRects()).some(r=>intersects(r,clip)))text+=raw[i];
       }
-      push('visible_text',{selector:path,text},rect);
+      push('visible_text',{element:inheritedElement,text},rect);
       for(let r=owner;r;r=r.parent){if(++nameWork>maxNodes){out.truncated=true;break;}if(!r.explicit){const room=maxBytes-r.text.length;if(text.length>room)out.truncated=true;r.text+=text.slice(0,room);}}
       continue;
     }
     if(n.nodeType!==1 && n.nodeType!==11)continue;
-    let skip=hidden, selector=path, rect=null;
+    let skip=hidden, element=inheritedElement, rect=null;
     if(n.nodeType===1) {
       const style=getComputedStyle(n);
       if(style.display==='none'||style.contentVisibility==='hidden'||n.getAttribute('aria-hidden')==='true'||Number(style.opacity)===0)continue;
@@ -82,20 +89,18 @@ function(region) {
       if(style.position==='fixed')clip=fixedClip;
       else if(style.position==='absolute')clip=absoluteClip;
       skip=style.visibility==='hidden'||style.visibility==='collapse';
-      const id=n.getAttribute('id');
-      if(id && id.length<=128){const shadow=path.lastIndexOf(' >>> ');selector=(shadow<0?'':path.slice(0,shadow+5))+'#'+CSS.escape(id);}
-      if(selector.length>512){selector=selector.slice(0,512);out.truncated=true;}
+      element=elementOf(n);
       rect=n.getBoundingClientRect();
       if((rect.width<=0||rect.height<=0)&&style.display!=='contents')skip=true;
       if(!skip && intersects(rect,clip)) {
         const attrs={}; for(const kind of ['aria-label','alt','title']) {
           attrs[kind]=bounded(n.getAttribute(kind));
-          if(attrs[kind])push('accessible_names',{selector,text:attrs[kind],kind},rect);
+          if(attrs[kind])push('accessible_names',{element,text:attrs[kind],kind},rect);
         }
         const role=bounded(roleOf(n));
         if(role) {
           const explicit=attrs['aria-label']||attrs.alt||'';
-          if(roles.length<maxEntries){owner={selector,role,text:explicit,explicit:!!explicit,title:attrs.title,rect,parent:owner};roles.push(owner);}
+          if(roles.length<maxEntries){owner={element,role,text:explicit,explicit:!!explicit,title:attrs.title,rect,parent:owner};roles.push(owner);}
           else out.truncated=true;
         }
         if(['iframe','frame','object','embed'].includes(n.localName)){out.truncated=true;let kind='object/embed';if(n.localName==='iframe'||n.localName==='frame'){try{kind=n.contentDocument?'frame':'cross-origin frame';}catch(_){kind='cross-origin frame';}}if(!out.skipped.includes(kind))out.skipped.push(kind);}
@@ -114,11 +119,10 @@ function(region) {
       if(fixedContainer||(style.position&&style.position!=='static'))absoluteClip=clip;
     }
     const root=n;
-    if(n.shadowRoot){stack.push({node:n.shadowRoot,selector:selector+' >>> ',hidden:skip,owner,clip,absoluteClip,fixedClip});continue;}
+    if(n.shadowRoot){stack.push({node:n.shadowRoot,element,hidden:skip,owner,clip,absoluteClip,fixedClip});continue;}
     // Iterate children with a cursor, never materialize an unbounded child list.
     // The stack stays bounded by the same visited-node budget.
     const kids=[];
-    let index=0;
     const isSlot=n.nodeType===1&&n.localName==='slot'&&n.assignedNodes;
     const slotHost=isSlot&&n.getRootNode?n.getRootNode().host:null;
     if(slotHost&&slotHost.childNodes.length>maxNodes-visited-stack.length){out.truncated=true;continue;}
@@ -126,18 +130,17 @@ function(region) {
     if(assigned.length) {
       for(const child of assigned) {
         if(kids.length+stack.length+visited>=maxNodes){out.truncated=true;break;}
-        kids.push({node:child,selector:selector+'::slotted('+(child.localName||'*')+')',hidden:skip,owner,clip,absoluteClip,fixedClip});
+        const childElement=child.nodeType===3&&child.parentElement?elementOf(child.parentElement):element;
+        kids.push({node:child,element:childElement,hidden:skip,owner,clip,absoluteClip,fixedClip});
       }
     }
     for(let child=assigned.length?null:root.firstChild;child;child=child.nextSibling) {
       if(kids.length+stack.length+visited>=maxNodes){out.truncated=true;break;}
-      if(child.nodeType===1)index++;
-      const childPath=selector+(n.nodeType===11?'':' > ')+(child.localName||'*')+':nth-child('+index+')';
-      kids.push({node:child,selector:child.nodeType===3?selector:childPath,hidden:skip,owner,clip,absoluteClip,fixedClip});
+      kids.push({node:child,element,hidden:skip,owner,clip,absoluteClip,fixedClip});
     }
     for(let i=kids.length-1;i>=0;i--)stack.push(kids[i]);
   }
-  for(const r of roles)push('accessible_names',{selector:r.selector,text:r.text||r.title,kind:'role',role:r.role},r.rect);
+  for(const r of roles)push('accessible_names',{element:r.element,text:r.text||r.title,kind:'role',role:r.role},r.rect);
   candidates.sort((a,b)=>a.y-b.y||a.x-b.x||a.order-b.order);
   for(const c of candidates)out[c.group].push(c.item);
   return out;

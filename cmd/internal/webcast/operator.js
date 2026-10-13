@@ -1,26 +1,33 @@
 // Trusted adapter inside couchcast, never the page's JavaScript world.
 export function operatorTransport(report, win) {
   let serial = 0;
+  let annotationGeneration = null;
   const waiting = new Map();
   let unsettled = null;
   let scope, generation = 0;
   const stale = 'The recording document changed. Start a new annotation.';
   const wire = (request) => report({ t: 'operator', request });
-  const ask = (op, body, id = String(++serial)) => {
+  const ask = (op, body, id = String(++serial), origin = annotationGeneration) => {
     if (waiting.has(id)) return waiting.get(id).promise;
     let finish;
     const promise = new Promise((resolve) => { finish = resolve; });
     const resolve = finish;
+    if (origin === null && op !== 'status' && op !== 'cancel-draft') { resolve({request:id,outcome:'refused',error:'Annotation permission is not ready.'}); return promise; }
     if (waiting.size >= 8) { resolve({ outcome: 'refused', error: 'Annotation is busy.' }); return promise; }
     const timer = win.setTimeout(() => {
       waiting.delete(id);
       resolve({ request: id, outcome: 'unknown', error: 'No confirmation yet. Retry checks the same operation.' });
     }, 5000);
     waiting.set(id, { resolve, timer, promise });
-    wire({ op, request: id, body });
+    wire({ op, request: id, body, generation: origin });
     return promise;
   };
   return {
+    setAnnotationGeneration(value) {
+      const valid = typeof value === 'string' && /^(0|[1-9][0-9]{0,19})$/.test(value) && BigInt(value) <= 18446744073709551615n;
+      annotationGeneration = valid ? value : null;
+      return valid;
+    },
     setScope(doc, ended = false) {
       const next = ended ? 0 : doc;
       if (next === scope) return;
@@ -45,14 +52,14 @@ export function operatorTransport(report, win) {
     },
     ask,
     async mutate(op, body) {
-      if (!unsettled) unsettled = { id: String(++serial), op, body, generation };
+      if (!unsettled) unsettled = { id: String(++serial), op, body, generation, origin: annotationGeneration };
       const current = unsettled;
       const same = current.op === op && JSON.stringify(current.body) === JSON.stringify(body);
       // Even an edited draft cannot create another note while the previous
       // write might have committed. Reconcile first; never retry under a new ID.
       const sent = current.sent;
       current.sent = true;
-      const result = await ask(sent ? 'status' : current.op, sent ? {} : current.body, current.id);
+      const result = await ask(sent ? 'status' : current.op, sent ? {} : current.body, current.id, current.origin);
       if (current.generation !== generation) return { status: 409, text: stale };
       const settled = result.outcome === 'accepted' || result.outcome === 'refused';
       if (settled && unsettled === current) unsettled = null;
@@ -105,13 +112,20 @@ export function mountOperator({ host, root, report }, { annotate, palette, css }
     return { draft: reply.draft };
   };
   const ui = annotate.mountAnnotation(doc, win, view, {
-    root, box, stage: box, palette, operator: true, post, prepareDraft,
+    root, box, stage: box, palette, operator: true, annotationAllowed: false, post, prepareDraft,
     who: { id: () => 'operator', name: () => 'Operator', viewer: () => ({ id: 'operator', name: 'Operator' }) },
     colors: { get: () => picked, set: (n) => { picked = n; } },
   });
   // #523 supplies this capability input through CDP in the isolated world.
   // Keep it independent of view snapshots; no switch or authority is added here.
-  win.__couchcastAnnotationAllowed = (allowed) => ui.setAnnotationAllowed(allowed);
+  win.__couchcastAnnotationAllowed = (allowed, generation) => {
+    const known = transport.setAnnotationGeneration(generation);
+    // Delivery revisions suppress duplicate calls. A new generation can arrive
+    // as true after a coalesced Off/On; no old local stroke may return with it.
+    ui.strokes.clear();
+    ui.setAnnotationAllowed(allowed === true && known, true);
+    callback({ k: 'view', t: 0 }, view.model); // repaint the cleared store
+  };
   win.__couchcastOperatorReply = (reply) => transport.reply(reply);
   win.__couchcastOperatorMode = (mode) => { ui.setMode(mode); return ui.mode === mode; };
   win.__couchcastOperatorView = (snapshot) => {

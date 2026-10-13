@@ -1,6 +1,7 @@
 package drive
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -43,6 +44,9 @@ func TestMemControllerSinkRefusalChangesNothing(t *testing.T) {
 	sink := &gateSink{}
 	c := NewMemController(sink, nil, func() int64 { return 1 }, time.Minute)
 	defer c.Close()
+	if err := c.SetDriveAllowed(context.Background(), true); err != nil {
+		t.Fatal(err)
+	}
 	seat, err := c.Join("Ana")
 	if err != nil {
 		t.Fatal(err)

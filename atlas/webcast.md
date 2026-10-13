@@ -55,11 +55,16 @@ code rows, using their shared layout and hit-testing. It sends the same isolated
 mode command without focusing Chrome; a refusal appears in Couch’s notice. Cast-row
 left actions, right-click link copies, and Alt menus only on LIVE/Chrome are unchanged.
 The isolated-world input `__couchcastAnnotationAllowed(boolean)` delegates to the
-shared mount's `setAnnotationAllowed`. It defaults to allowed; false forces Off,
+shared mount's `setAnnotationAllowed`. Every isolated document starts disabled; false forces Off,
 cancels gestures and hides/holds the operator editor with a disabled hint. Returning
 true leaves the pen Off and does not override driving or pause. View snapshots do
-not reset the input. #523 owns supplying it on each new document, the 👆 switch,
-and authoritative server admission; #494 only exposes this overlay input.
+not reset the input. #523 supplies versioned permission to each exact isolated
+context after hook installation. A delivery receipt suppresses duplicate resets
+and stale late enables; an uncertain enable is fenced false before another enable.
+Board permits are captured at binding ingress and checked again at the ordered
+recorder write. A fresh save can use a held draft after re-enable; an old queued
+save cannot cross generations. Operator processing uses only Board's leaf lock,
+never the viewer command lock held while waiting for ordered cleanup.
 
 The Board remains the authority (`board/operator.go`, `operator_view.go`): Go
 assigns operator authorship, HTTP cannot claim it, and a bounded latest-value view
@@ -191,6 +196,38 @@ what the viewer's renderer draws at the same moments.
   - `fidelity_live_test.go` (`WEBCAST_LIVE_CHROME=1`): every fixture within the tolerance, and a broken render
     (no stylesheets) caught. `FIDELITY_DIR=` checks any recording in place, e.g. one from `TestLiveRecordURL`.
 
+## Capability authority (#523)
+
+Recorded casts start with annotation and outside driving OFF. `Board` owns
+annotation admission and `drive.MemController` owns drive admission; Cast and
+SSE publish their snapshots. Link roles narrow permission independently, and
+links/codes stay stable across toggles. HTTP captures an admission generation
+before reading the body and rechecks it at mutation/dispatch, including between
+input acts. A quick OFF→ON cannot revive an old request.
+
+Turning annotation off acknowledges an ordered `annotation-clear`; driving off
+acknowledges one `ctl reset` clearing the active driver and every pending request,
+then releases held input. The recorder deduplicates each cleanup generation.
+Admission stays closed during cleanup. A confirmed unsubmitted failure offers an
+explicit retry; an uncertain external effect or lost recorder/CDP leaves the cast
+broken with “end the cast” as its action. Held inputs are removed only after
+acknowledgment. Controller work and input callbacks are canceled/joined, including
+when the HTTP caller leaves. Cast owns bounded, single-flight button workers.
+
+The `capabilities` SSE event carries annotation/drive support, link permission,
+effective availability, visible state, generation and attempt. It replays the
+latest snapshot on reconnect and does not expose internal errors. Cast updates
+carry the same authority state for the operator's recovery notice. Viewer mutations
+carry their request-creation generation in `X-Couch-Annotation-Generation` or
+`X-Couch-Drive-Generation`; isolated-world operator requests carry a decimal-string
+`generation` from the acknowledged permission delivery. Admission matches that
+origin generation under the authority lock, then rechecks the permit at ordered
+write/input dispatch. Missing or retired generations fail closed, including payloads
+created before off but delivered after re-enable. The shared
+`capability.Project` maps lifecycle to one action: enable, disable, wait, retry,
+end cast or start a new cast. See `cast_capabilities.go`, `server_capabilities.go`,
+`board/annotation.go`, `drive/capability.go` and `recorder/capability.go`.
+
 ## Lifecycle
 
 - **Chrome process:** owned by Couch through the pipe. `Close` → `Browser.close`, killed after 5s. Closing Couch's
@@ -219,18 +256,21 @@ what the viewer's renderer draws at the same moments.
   either button ends (macOS terminals may send Ctrl+left as a right click with the Ctrl bit). Live, the cell is
   drawn in `broadcast.LiveSGR`, LIVE's own style, so the two cast indicators read as one family (#501);
   `IndicatorShown` matches LIVE's text, so it doesn't mistake one for the other.
-- **The Chrome group (#501)** follows the screen broadcast's `LIVE ⏸ 👆`: `Chrome ⏸ ↗ 👆 👽 💭N 🕹Ana` (its 👽 is real, `WebcastDriveLinkLabel`; #503 removed the broadcast's placeholder), each button its own
+- **The Chrome group (#501)** follows the screen broadcast's `LIVE ⏸ 👆`: `Chrome ⏸ ↗ 👆 👽 Ana 💭N ✋Bo` (its 👽 is real, `WebcastDriveLinkLabel`; #503 removed the broadcast's placeholder), each button its own
   `RenderedStatusRow` span (`WebFocus`, `WebPointerLink`, `WebDriveLink`), so a click knows which link it copies. The
   codes show on hovering the cell itself, not these (#495).
-  👆 copies the pointer link, 👽 the drive link (pair#506), on a left or right click; a right-click on the cell copies
+  👆 and 👽 toggle on left-click (enabling copies their link); right-click only copies. A right-click on the cell copies
   the view-only link (the cast row's rule, #495).
   `↗` calls `Browser.Focus`: the real Chrome sends `Target.activateTarget` for the cast tab, then activates its own
   process by PID (`activateProcess`, macOS JXA → `NSRunningApplication`; by PID because the cast Chrome
   shares its bundle id with the operator's own Chrome). Only `Launch` of a windowed Chrome sets the
   activator, so headless and scripted-pipe tests can never take the operator's focus.
 - **Remote driving (#467, `couchtty/console_drive.go`):**
-  - **The span.** After the Chrome cell and its `💭N` comes a span: `🕹Ana` while Ana drives, `✋Bo` when Bo asks
-    (`✋2` for more). It follows `Cast.Drive().Subscribe()`.
+  - **The capability chip.** OFF is plain `👽`, ON idle is amber `👽`, and occupied is amber `👽 Ana`.
+    The full name belongs to `WebDriveLink`: left-click turns driving off, revoking driver and requests;
+    right-click copies its stable link. Driver text is sanitized and clipped with the same hit span.
+  - **The request span.** After `💭N`, `✋Bo` names an asker (`✋2` for more).
+    It follows `Cast.Drive().Subscribe()`; active driver identity is only in the capability chip.
   - **The drive menu.** A click on the span opens it: the notes menu's box and gesture router, as a third source,
     titled "Remote driving".
     - On the driver's row, "uploads and downloads off while Ana drives", any click takes control back.
@@ -238,10 +278,16 @@ what the viewer's renderer draws at the same moments.
   - **Revoke.** Ctrl with either button on the span revokes, from any state, with the menu open or closed.
   - **Three links (pair#506).** Right-click on the Chrome cell copies the view-only link (watch), 👆 the pointer link
     (watch, point, notes; `copyWebcastPointerLink`, "takes no notes" on an unrecorded cast), and 👽 the drive link,
-    the only one that offers a seat; 👆 and 👽 take a left or right click, and the Codes menu (Alt+click on the cell,
+    the only one that offers a seat; right-click copies without toggling, and the Codes menu (Alt+click on the cell,
     #495) has a row, code and copy action for each of the three (#495 dropped Alt+right-click). Shift+click is the
     terminal's own selection. A pointer-link viewer counts as a `web view` viewer. `couch --broadcast-list` lists `screen`, `web view` and `web drive` shares
     (`Console.Shares`, `couchmessage.ShareStatus`), the drive one with who drives and how many ask.
+  - **Acknowledged actions (#523).** Grant, deny, popup revoke and Ctrl-click revoke
+    run outside the terminal input loop in one tracked operation slot. Busy clicks
+    ask the operator to wait; no action queue accumulates. Admission keeps the
+    clicked capability generation through worker dispatch. Terminal completions
+    are fenced by cast and generation, and shutdown joins the work while the
+    controller owns recorder/CDP deadlines and cast-close cancellation.
   - **Failures.** A control change that fails says why (`driveFailure`): a race, the cast ended, not recording
     yet, or a failure with its cause.
   - **Notices.** Couch says when someone asks, what a grant turns off ("Uploads and downloads are off until control
@@ -489,3 +535,12 @@ instead of the event stream.
   - `replay_live_test.go` (`WEBCAST_LIVE_CHROME=1`): a `#t=` link and shuffled scrubbing draw the reducer's canonical
     state at every pin of every fixture; JS `catchUp` takes the records Go's does; notes and strokes match the reducer
     at their moments; drive bands; nothing is requested outside the server.
+
+The live viewer owns a replay-latest capability subscription, initially closed.
+Disconnect/end revoke local availability; retired EventSources cannot update a
+replacement or reload it through a delayed session probe. Annotation reuses the
+shared mount's cancellation/held-draft policy and clears its transient stroke
+cache on annotation-clear. Drive drops queued acts and stale batch completions;
+a new capability generation requires fresh consent. Catch-up control and initial
+capability events may arrive in either order; projection retains control evidence
+while closed without admitting input. See web/viewer.js, annotate.js, drive.js.

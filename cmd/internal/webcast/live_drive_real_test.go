@@ -175,6 +175,10 @@ func startRealCast(t *testing.T, path string) *realCast {
 
 	spy := &errSpy{next: drive.NewTabInjector(c)}
 	ctrl := drive.NewMemController(liveGate{c}, spy, func() int64 { return 0 }, time.Minute)
+	ctrl.WithControlReset(c.ResetControl)
+	if err := ctrl.SetDriveAllowed(context.Background(), true); err != nil {
+		t.Fatal(err)
+	}
 	t.Cleanup(func() { ctrl.Close() })
 	go followDriving(ctrl, c)
 	srv := httptest.NewServer(NewServer("tok", c, time.Second, hub, nil).WithDrive(ctrl, "drv"))

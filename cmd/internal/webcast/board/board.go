@@ -22,13 +22,15 @@ import (
 	"sync"
 
 	"github.com/xianxu/pair/cmd/internal/broadcast"
+	"github.com/xianxu/pair/cmd/internal/webcast/capability"
 	"github.com/xianxu/pair/cmd/internal/webcast/notes"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
 var (
 	// ErrEnded: the cast is over (stop end).
-	ErrEnded = errors.New("board: the cast has ended")
+	ErrDisabled = errors.New("board: annotation is disabled")
+	ErrEnded    = errors.New("board: the cast has ended")
 	// ErrNotLive: no page has been cast yet.
 	ErrNotLive = errors.New("board: the cast hasn't shown a page yet")
 	// ErrPaused: the cast is paused; viewers do nothing until it resumes
@@ -83,24 +85,30 @@ type Board struct {
 	palette []string
 	newID   func() string
 
-	mu               sync.Mutex
-	st               *recording.State
-	broken           error // the board's reducer refused a record: it can't trust its state
-	pending          map[string]pending
-	subs             map[chan []LiveNote]struct{}
-	last             []LiveNote
-	closed           bool
-	operatorSubs     map[chan OperatorView]struct{}
-	operatorRevision uint64
-	operatorSeq      uint64
-	operatorStrokes  []OperatorStroke
-	operatorDoc      int
+	command           sync.Mutex // serializes annotation validation/dispatch and cleanup
+	annotation        capability.CapabilityState
+	annotationProblem string
+	annotationCleanup AnnotationCleanup
+	annotationAttempt *annotationAttempt
+	annotationSubs    map[chan capability.Snapshot]struct{}
+	mu                sync.Mutex
+	st                *recording.State
+	broken            error // the board's reducer refused a record: it can't trust its state
+	pending           map[string]pending
+	subs              map[chan []LiveNote]struct{}
+	last              []LiveNote
+	closed            bool
+	operatorSubs      map[chan OperatorView]struct{}
+	operatorRevision  uint64
+	operatorSeq       uint64
+	operatorStrokes   []OperatorStroke
+	operatorDoc       int
 }
 
 // New makes a board that anchors notes with model and writes through emit.
 func New(model notes.Model, emit Emit) *Board {
 	return &Board{model: model, emit: emit, palette: broadcast.PointerPalette(), newID: randomID,
-		st: recording.NewState(), pending: map[string]pending{}, subs: map[chan []LiveNote]struct{}{}}
+		st: recording.NewState(), pending: map[string]pending{}, subs: map[chan []LiveNote]struct{}{}, annotationSubs: map[chan capability.Snapshot]struct{}{}}
 }
 
 func randomID() string {
@@ -132,6 +140,9 @@ func (b *Board) Put(r recording.Record) error {
 	// The board needs no strokes (nothing checks against them), so it
 	// doesn't keep them for the cast's life.
 	b.st.Strokes = b.st.Strokes[:0]
+	if _, ok := r.(*recording.AnnotationClear); ok {
+		clear(b.pending)
+	}
 	if n, ok := r.(*recording.Note); ok {
 		delete(b.pending, n.ID)
 	}
@@ -153,6 +164,12 @@ func (b *Board) Close() error {
 	defer b.mu.Unlock()
 	if !b.closed {
 		b.closed = true
+		b.annotation, _ = capability.NextCapability(b.annotation, capability.Event{Kind: capability.End})
+		b.publishAnnotationLocked()
+		for ch := range b.annotationSubs {
+			close(ch)
+		}
+		b.annotationSubs = nil
 		for ch := range b.subs {
 			close(ch)
 		}
@@ -168,7 +185,29 @@ func (b *Board) Close() error {
 
 // Stroke writes one chunk of a viewer's stroke. Its record id is the
 // viewer's id and the stroke's, so two viewers' strokes never join.
-func (b *Board) Stroke(in StrokeIn) error { return b.stroke(in, false, b.emit) }
+func (b *Board) Stroke(in StrokeIn) error {
+	a, err := b.AdmitAnnotation()
+	if err != nil {
+		return err
+	}
+	return a.Stroke(in)
+}
+
+func (a AnnotationAdmission) Stroke(in StrokeIn) error {
+	if a.board == nil {
+		return ErrDisabled
+	}
+	b := a.board
+	b.command.Lock()
+	defer b.command.Unlock()
+	b.mu.Lock()
+	if err := b.admissionLocked(a.permit); err != nil {
+		b.mu.Unlock()
+		return err
+	}
+	b.mu.Unlock()
+	return b.stroke(in, false, b.emit)
+}
 
 func (b *Board) stroke(in StrokeIn, operator bool, emit Emit) error {
 	if !strokeShape(in) {
@@ -187,7 +226,29 @@ func (b *Board) stroke(in StrokeIn, operator bool, emit Emit) error {
 // Note writes a viewer's new note and returns its id. The anchor is the
 // notes model's for the element now, with the viewer's box; the note's box
 // is kept on the page (notes.ClampToPage).
-func (b *Board) Note(in NoteIn) (string, error) { return b.note(in, false, b.emit) }
+func (b *Board) Note(in NoteIn) (string, error) {
+	a, err := b.AdmitAnnotation()
+	if err != nil {
+		return "", err
+	}
+	return a.Note(in)
+}
+
+func (a AnnotationAdmission) Note(in NoteIn) (string, error) {
+	if a.board == nil {
+		return "", ErrDisabled
+	}
+	b := a.board
+	b.command.Lock()
+	defer b.command.Unlock()
+	b.mu.Lock()
+	if err := b.admissionLocked(a.permit); err != nil {
+		b.mu.Unlock()
+		return "", err
+	}
+	b.mu.Unlock()
+	return b.note(in, false, b.emit)
+}
 
 func (b *Board) note(in NoteIn, operator bool, emit Emit) (string, error) {
 	b.mu.Lock()
@@ -236,7 +297,29 @@ func (b *Board) note(in NoteIn, operator bool, emit Emit) (string, error) {
 
 // SetState resolves or reopens a note on the current document. Anyone may;
 // setting the state a note already has does nothing.
-func (b *Board) SetState(in StateIn) error { return b.setState(in, 0, false, b.emit) }
+func (b *Board) SetState(in StateIn) error {
+	a, err := b.AdmitAnnotation()
+	if err != nil {
+		return err
+	}
+	return a.SetState(in)
+}
+
+func (a AnnotationAdmission) SetState(in StateIn) error {
+	if a.board == nil {
+		return ErrDisabled
+	}
+	b := a.board
+	b.command.Lock()
+	defer b.command.Unlock()
+	b.mu.Lock()
+	if err := b.admissionLocked(a.permit); err != nil {
+		b.mu.Unlock()
+		return err
+	}
+	b.mu.Unlock()
+	return b.setState(in, 0, false, b.emit)
+}
 
 func (b *Board) setState(in StateIn, seg int, operator bool, emit Emit) error {
 	if !stateShape(in) {
@@ -258,11 +341,12 @@ func (b *Board) setState(in StateIn, seg int, operator bool, emit Emit) error {
 			cur = &copy
 		}
 	}
+	unchanged := cur != nil && cur.State == in.State
 	b.mu.Unlock()
 	switch {
 	case cur == nil:
 		return ErrUnknown
-	case cur.State == in.State:
+	case unchanged:
 		return nil
 	}
 	return emit(&recording.NoteState{ID: in.ID, State: in.State}, doc)

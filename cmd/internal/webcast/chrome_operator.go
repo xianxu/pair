@@ -4,8 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"strconv"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/webcast/board"
+	"github.com/xianxu/pair/cmd/internal/webcast/capability"
 	"github.com/xianxu/pair/cmd/internal/webcast/recorder"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
@@ -21,6 +25,74 @@ type operatorTarget struct {
 	active  bool
 }
 
+// Delivery revision is independent of authority generation: switching the
+// active target can change permission without changing Board authority.
+type operatorContextID struct {
+	session string
+	context int64
+}
+type operatorPermission struct {
+	generation      uint64
+	active, desired bool
+	revision        uint64
+	phase           operatorPermissionPhase
+}
+type operatorPermissionPhase uint8
+
+const (
+	operatorPermissionPending operatorPermissionPhase = iota
+	operatorPermissionReady
+	operatorPermissionFencing // an unconfirmed enable needs a newer false receipt
+)
+
+func (p *operatorPermission) allowed() bool { return p.desired && p.phase != operatorPermissionFencing }
+func (p *operatorPermission) want(generation uint64, active, allowed bool, next func() uint64) {
+	if p.revision != 0 && p.generation == generation && p.active == active && p.desired == allowed {
+		return
+	}
+	p.generation, p.active, p.desired = generation, active, allowed
+	p.revision = next()
+	if p.phase != operatorPermissionFencing {
+		p.phase = operatorPermissionPending
+	}
+}
+func operatorPermissionExpression(revision, generation uint64, allowed bool) string {
+	return fmt.Sprintf(`(()=>{const hook=globalThis.__couchcastAnnotationAllowed;if(typeof hook!=='function')return null;const revision=%q;const previous=globalThis.__couchcastAnnotationDelivery;if(!previous||BigInt(revision)>BigInt(previous.revision)){hook(%t,%q);globalThis.__couchcastAnnotationDelivery={revision,generation:%q,allowed:%t};}return globalThis.__couchcastAnnotationDelivery;})()`, strconv.FormatUint(revision, 10), allowed, strconv.FormatUint(generation, 10), strconv.FormatUint(generation, 10), allowed)
+}
+func (c *Chrome) deliverOperatorPermission(target operatorTarget, p *operatorPermission, next func() uint64) {
+	if p.phase == operatorPermissionReady {
+		return
+	}
+	allowed := p.allowed()
+	var result struct {
+		Result struct {
+			Value *struct {
+				Revision   string `json:"revision"`
+				Generation string `json:"generation"`
+				Allowed    bool   `json:"allowed"`
+			} `json:"value"`
+		} `json:"result"`
+		Exception json.RawMessage `json:"exceptionDetails"`
+	}
+	ctx, cancel := context.WithTimeout(c.ctx, callTimeout)
+	err := c.conn.Call(ctx, target.session, "Runtime.evaluate", map[string]any{"contextId": target.context, "returnByValue": true, "expression": operatorPermissionExpression(p.revision, p.generation, allowed)}, &result)
+	cancel()
+	receipt := result.Result.Value
+	if err == nil && len(result.Exception) == 0 && receipt != nil && receipt.Revision == strconv.FormatUint(p.revision, 10) && receipt.Allowed == allowed && receipt.Generation == strconv.FormatUint(p.generation, 10) {
+		if p.phase == operatorPermissionFencing && p.desired {
+			p.revision, p.phase = next(), operatorPermissionPending
+		} else {
+			p.phase = operatorPermissionReady
+		}
+		return
+	}
+	// A missing hook has no effect; mount sends another hello when it is ready.
+	// An error is uncertain: Call cancellation does not cancel Chrome execution.
+	if allowed && (err != nil || len(result.Exception) != 0) {
+		p.revision, p.phase = next(), operatorPermissionFencing
+	}
+}
+
 // A single worker owns operator delivery. Views coalesce and replies have a
 // bounded queue; lost replies are reconciled by request ID, never by resubmitting.
 func (c *Chrome) startOperator(b *board.Board) {
@@ -28,10 +100,22 @@ func (c *Chrome) startOperator(b *board.Board) {
 		return
 	}
 	views, cancel := b.SubscribeOperator()
+	permissions, cancelPermissions := b.SubscribeAnnotationCapability()
 	c.work.Add(1)
 	go func() {
 		defer c.work.Done()
 		defer cancel()
+		defer cancelPermissions()
+		// One worker and one 250ms timer reconcile unacknowledged contexts; normal
+		// notifications may reconcile sooner. Each call has callTimeout, with no
+		// overlapping delivery goroutines. ACK disables timer selection; context
+		// disappearance prunes state, and cast shutdown stops worker and ticker.
+		retry := time.NewTicker(250 * time.Millisecond)
+		defer retry.Stop()
+		states := map[operatorContextID]*operatorPermission{}
+		var revision uint64
+		next := func() uint64 { revision++; return revision }
+		var retryC <-chan time.Time
 		view := b.OperatorView()
 		for {
 			var reply *operatorDelivery
@@ -44,6 +128,11 @@ func (c *Chrome) startOperator(b *board.Board) {
 				}
 				view = v
 			case <-c.operatorRefresh:
+			case _, ok := <-permissions:
+				if !ok {
+					return
+				}
+			case <-retryC:
 			case d := <-c.operatorReplies:
 				reply = &d
 			}
@@ -64,7 +153,18 @@ func (c *Chrome) startOperator(b *board.Board) {
 			case <-c.ctx.Done():
 				return
 			}
+			live := map[operatorContextID]bool{}
 			for _, target := range targets {
+				key := operatorContextID{target.session, target.context}
+				live[key] = true
+				permission := states[key]
+				if permission == nil {
+					permission = &operatorPermission{}
+					states[key] = permission
+				}
+				snapshot := b.AnnotationCapability()
+				permission.want(snapshot.Generation, target.active, snapshot.Phase == capability.On && target.active, next)
+				c.deliverOperatorPermission(target, permission, next)
 				name := "__couchcastOperatorView"
 				var value any = view
 				if reply != nil {
@@ -79,6 +179,16 @@ func (c *Chrome) startOperator(b *board.Board) {
 				ctx, cancel := context.WithTimeout(c.ctx, callTimeout)
 				_ = c.conn.Call(ctx, target.session, "Runtime.evaluate", map[string]any{"expression": "globalThis." + name + " && globalThis." + name + "(" + string(data) + ")", "contextId": target.context}, nil)
 				cancel()
+			}
+			retryC = nil
+			for key, p := range states {
+				if !live[key] {
+					delete(states, key)
+					continue
+				}
+				if p.phase != operatorPermissionReady {
+					retryC = retry.C
+				}
 			}
 		}
 	}()
@@ -141,6 +251,14 @@ func (c *Chrome) SetAnnotationMode(mode string) error {
 	if c.opts.Record == nil || c.opts.Record.Operator == nil {
 		return ErrNotRecording
 	}
+	var admission board.AnnotationAdmission
+	if mode != "watch" {
+		var err error
+		admission, err = c.opts.Record.Operator.AdmitAnnotation()
+		if err != nil {
+			return err
+		}
+	}
 	var target operatorTarget
 	done := make(chan struct{})
 	select {
@@ -168,6 +286,11 @@ func (c *Chrome) SetAnnotationMode(mode string) error {
 	}
 	if err := c.call(target.session, "Runtime.evaluate", map[string]any{"contextId": target.context, "returnByValue": true, "expression": "!!(globalThis.__couchcastOperatorMode && globalThis.__couchcastOperatorMode(" + string(data) + "))"}, &result); err != nil {
 		return err
+	}
+	if mode != "watch" {
+		if err := admission.Check(); err != nil {
+			return err
+		}
 	}
 	if !result.Result.Value {
 		return errors.New("annotation is unavailable while paused or a viewer is driving")

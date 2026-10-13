@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/cdp"
+	"github.com/xianxu/pair/cmd/internal/webcast/capability"
 	"github.com/xianxu/pair/cmd/internal/webcast/drive"
 	rec "github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
@@ -32,19 +34,43 @@ func (r *Recorder) Opened() bool { return r.openedFlag.Load() }
 
 // WithTab runs fn with the cast tab on the recorder's goroutine (#467).
 func (r *Recorder) WithTab(ctx context.Context, by string, fn func(drive.Tab) error) error {
-	var err error
-	if aerr := r.ask(ctx, func() { err = r.withTab(ctx, by, fn) }); aerr != nil {
-		if errors.Is(aerr, errClosed) {
-			return drive.ErrClosed // the recording ended under the request
+	return r.acknowledged(ctx, func() error { return r.withTab(ctx, by, fn) })
+}
+
+// acknowledged owns cancellation while queued; a started effect owns its
+// completion and cannot lose an uncertain result when its caller cancels.
+func (r *Recorder) acknowledged(ctx context.Context, fn func() error) error {
+	// Claim the queued callback or cancel it before it starts. Once running,
+	// await its bounded outcome even if the HTTP caller leaves: an uncertain
+	// external effect must still reach the controller's recovery state.
+	var phase atomic.Uint32 // 0 queued, 1 running, 2 canceled before execution
+	result := make(chan error, 1)
+	q := query{done: make(chan struct{}), fn: func() {
+		if phase.CompareAndSwap(0, 1) {
+			if err := ctx.Err(); err != nil {
+				result <- &capability.Failure{Outcome: capability.Retryable, Cause: err}
+			} else {
+				result <- fn()
+			}
 		}
-		return aerr
+	}}
+	if !r.enqueue(q, false) {
+		return drive.ErrClosed
 	}
-	return err
+	select {
+	case err := <-result:
+		return err
+	case <-ctx.Done():
+		if phase.CompareAndSwap(0, 2) {
+			return &capability.Failure{Outcome: capability.Retryable, Cause: ctx.Err()}
+		}
+	}
+	return <-result
 }
 
 func (r *Recorder) withTab(ctx context.Context, by string, fn func(drive.Tab) error) error {
 	if err := ctx.Err(); err != nil {
-		return err // the request was given up while queued: nothing runs
+		return &capability.Failure{Outcome: capability.Retryable, Cause: err} // nothing submitted
 	}
 	if !r.live || r.top == "" {
 		return fn(&cdpTab{r: r}) // the rules refuse it (not live)
@@ -161,11 +187,13 @@ func (r *Recorder) inputCall(session, method string, params, result any) error {
 	dialog := r.dialog()
 	select {
 	case <-dialog:
-		return drive.ErrDialog
+		return &capability.Failure{Outcome: capability.Retryable, Cause: drive.ErrDialog}
 	default:
 	}
 	done := make(chan error, 1)
+	r.side.Add(1)
 	go func() {
+		defer r.side.Done()
 		_, err := r.call(session, method, params, result)
 		done <- err
 	}()
@@ -180,7 +208,7 @@ func (r *Recorder) inputCall(session, method string, params, result any) error {
 		return err
 	case <-dialog:
 		r.inputUncertain = true
-		return drive.ErrDialog
+		return &capability.Failure{Outcome: capability.Broken, Cause: drive.ErrDialog}
 	}
 }
 
@@ -226,12 +254,17 @@ func (t *cdpTab) At(x, y float64) (rec.NodeID, error) {
 }
 
 func (t *cdpTab) Dispatch(a drive.Act) error {
-	for _, c := range cdpAct(a, t.r.m.TopScroll()) {
+	for i, c := range cdpAct(a, t.r.m.TopScroll()) {
 		if err := t.r.inputCall(t.r.top, c.Method, c.Params, nil); err != nil {
+			// Composite acts may have performed earlier commands even if
+			// this command failed before submission. Never replay that act.
+			if i > 0 {
+				err = &capability.Failure{Outcome: capability.Broken, Cause: err}
+			}
 			if errors.Is(err, drive.ErrDialog) {
 				return err
 			}
-			return fmt.Errorf("%w: %s: %v", drive.ErrInput, c.Method, err)
+			return fmt.Errorf("%w: %s: %w", drive.ErrInput, c.Method, err)
 		}
 	}
 	return nil

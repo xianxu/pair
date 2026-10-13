@@ -1,0 +1,15 @@
+{"t":0,"k":"head","format":"couch-webcast","v":1,"id":"capabilities","started":"2026-10-12T00:00:00Z"}
+{"t":0,"k":"seg","seg":1,"why":"live","tab":{"id":"tab","url":"http://x/"},"vp":{"w":100,"h":50,"dpr":1}}
+{"t":0,"k":"doc","doc":1,"url":"http://x/","tree":{"id":1,"y":"doc","c":[{"id":2,"y":"el","n":"html"}]}}
+{"t":1,"k":"note","id":"old","author":{"id":"v1"},"at":{"node":2},"text":"old"}
+{"t":1,"k":"stroke","id":"old","author":{"id":"v1"},"pts":[[1,2,0]]}
+{"t":2,"k":"ctl","op":"request","who":{"id":"v1"},"pending":[{"id":"v1"}]}
+{"t":3,"k":"ctl","op":"grant","who":{"id":"v1"},"driver":{"id":"v1"}}
+{"t":4,"k":"ctl","op":"request","who":{"id":"v2"},"driver":{"id":"v1"},"pending":[{"id":"v2"}]}
+{"t":5,"k":"stop","why":"pause"}
+{"t":6,"k":"annotation-clear","who":{"id":"operator"}}
+{"t":6,"k":"ctl","op":"reset","who":{"id":"operator"}}
+{"t":7,"k":"seg","seg":2,"why":"resume","tab":{"id":"tab","url":"http://x/"},"vp":{"w":100,"h":50,"dpr":1}}
+{"t":7,"k":"doc","doc":1,"url":"http://x/","tree":{"id":1,"y":"doc","c":[{"id":2,"y":"el","n":"html"}]}}
+{"t":8,"k":"note","id":"new","author":{"id":"v2"},"at":{"node":2},"text":"new"}
+{"t":9,"k":"stop","why":"end"}

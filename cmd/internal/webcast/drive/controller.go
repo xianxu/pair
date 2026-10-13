@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/xianxu/pair/cmd/internal/webcast/capability"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
@@ -27,6 +28,12 @@ type Seat struct {
 // state, and a seat whose viewer has gone (no stream for the grace period)
 // leaves on its own, handing control back. Neither waits on a viewer.
 type Controller interface {
+	DriveCapability() capability.Snapshot
+	SubscribeDriveCapability() (<-chan capability.Snapshot, func())
+	SetDriveAllowed(context.Context, bool) error
+	RetryDrive(context.Context) error
+	AdmitDrive() (DriveAdmission, error)
+	AdmitDriveGeneration(uint64) (DriveAdmission, error)
 	// Join gives a new viewer a seat. name is the viewer's own label.
 	Join(name string) (Seat, error)
 	// Attach marks a seat present for the life of one viewer stream (the
@@ -68,3 +75,10 @@ var (
 // ErrControlOp is recording.ErrControl: a control op the state doesn't allow
 // (asking twice, granting a viewer who didn't ask).
 var ErrControlOp = recording.ErrControl
+
+// ControlWriter is an ordered control sink with an acknowledgment. Production
+// asynchronous writers implement it so the controller observes the committed
+// result, not enqueue acceptance. Ordinary recording.Sink fixtures are synchronous.
+type ControlWriter interface {
+	WriteControl(context.Context, *recording.Ctl) error
+}

@@ -359,11 +359,17 @@ func TestWebcastFocusButton(t *testing.T) {
 }
 
 // 👆 and 👽 in the Chrome group (#501) copy the pointer and the drive link
-// (pair#506) on a left or a right click (pair#495's row rule); right-click on
+// on enable or right-click; right-click on
 // the cell keeps the view-only link. A recorded cast, so it takes notes and
 // has a pointer link.
 func TestWebcastLinkButtons(t *testing.T) {
 	r := newWebNotesCast(t, false)
+	r.con.mu.Lock()
+	cast := r.con.wcast.cast
+	r.con.mu.Unlock()
+	if err := cast.SetCapability(context.Background(), webcast.CapabilityAnnotation, false); err != nil {
+		t.Fatal(err)
+	}
 	var u webcast.Update
 	waitFor(t, "links", func() bool {
 		r.con.mu.Lock()

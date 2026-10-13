@@ -122,6 +122,20 @@ func (c *Chrome) Emit(r rec.Record, doc int) error {
 	return nil
 }
 
+func (c *Chrome) ClearAnnotations(ctx context.Context, generation uint64) error {
+	if c.rec == nil {
+		return ErrNotRecording
+	}
+	return c.rec.ClearAnnotations(ctx, generation)
+}
+
+func (c *Chrome) ResetControl(ctx context.Context, generation uint64) error {
+	if c.rec == nil {
+		return ErrNotRecording
+	}
+	return c.rec.ResetControl(ctx, generation)
+}
+
 // endCause is why the loop is closing Chrome, once it is.
 type endCause uint8
 

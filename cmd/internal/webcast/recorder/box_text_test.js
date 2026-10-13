@@ -19,7 +19,7 @@ function setup(kids) {
 }
 elements=[];
 const later=el('p',{id:'later'},[text('second',0,30)],0,30);
-const first=el('button',{id:'first','aria-label':'Save exact',title:'Tip'},[text('first',0,10)],0,10);
+const first=el('button',{id:'first',class:'primary compact','aria-label':'Save exact',title:'Tip'},[text('first',0,10)],0,10);
 const hidden=el('p',{'aria-hidden':'true'},[text('secret',0,20)],0,20);
 const off=el('p',{},[text('offscreen',0,300)],0,300);
 setup([later,first,hidden,off]);
@@ -30,6 +30,22 @@ assert(out.accessible_names.some(x=>x.kind==='role'&&x.role==='button'&&x.text==
 assert(out.accessible_names.some(x=>x.kind==='title'&&x.text==='Tip'));
 assert(!JSON.stringify(out).includes('secret'));
 assert.equal(out.truncated,false);
+assert.equal(out.visible_text[0].element,'<button class="primary compact">');
+assert(out.accessible_names.every(x=>x.element==='<button class="primary compact">'));
+assert([...out.visible_text,...out.accessible_names].every(x=>!Object.hasOwn(x,'selector')));
+// Preserve text-node granularity, including mixed children and equal classes.
+elements=[];setup([
+ el('p',{class:'same'},[text('before',0,0),el('span',{class:'inner'},[text('inside',10,0)],10,0),text('after',20,0)]),
+ el('p',{class:'same'},[text('distinct',0,20)],0,20)
+]);out=collect([0,0,200,200]);
+assert.deepEqual(out.visible_text.map(x=>[x.element,x.text]),[
+ ['<p class="same">','before'],['<span class="inner">','inside'],['<p class="same">','after'],['<p class="same">','distinct']
+]);
+elements=[];setup([el('p',{class:'a"<&>\''},[text('escaped')])]);out=collect([0,0,200,200]);
+assert.equal(out.visible_text[0].element,'<p class="a&quot;&lt;&amp;&gt;&#39;">');
+elements=[];setup([el('p',{class:'é&'.repeat(10000)},[text('bounded')])]);out=collect([0,0,200,200]);
+assert(out.truncated);
+for(const group of [out.visible_text,out.accessible_names])assert(Buffer.byteLength(group.map(x=>Object.values(x).join('')).join(''))<=8192);
 elements=[]; setup([el('p',{id:'clip'},[text('abcdefgh',0,0)])]);
 out=collect([2,0,3,10]); assert.equal(out.visible_text.map(x=>x.text).join(''),'cde');
 elements=[]; const many=[]; for(let i=0;i<300;i++)many.push(el('p',{},[text('x',0,i%100)],0,i%100)); setup(many);
@@ -74,11 +90,15 @@ elements=[];const dense=[];for(let i=0;i<21000;i++)dense.push(el('p',{},[]));set
 elements=[];setup([el('p',{'aria-label':'é'.repeat(8192)},[])]);out=collect([0,0,200,200]);assert(out.truncated);
 assert(Buffer.byteLength(out.accessible_names.map(x=>Object.values(x).join('')).join(''))<=8192);
 
-elements=[];const slotted=el('span',{id:'slotted'},[text('Slot exact')]);const slotHost=el('x-host',{id:'host'},[slotted]);slotHost.shadowRoot={nodeType:11,firstChild:el('slot',{},[])};slotHost.shadowRoot.firstChild.assignedNodes=()=>[slotted];setup([slotHost]);out=collect([0,0,200,200]);assert(out.visible_text.some(x=>x.text==='Slot exact'));
+elements=[];const slotted=el('span',{id:'slotted',class:'slot-child'},[text('Slot exact')]);const slotHost=el('x-host',{id:'host'},[slotted]);slotHost.shadowRoot={nodeType:11,firstChild:el('slot',{},[])};slotHost.shadowRoot.firstChild.assignedNodes=()=>[slotted];setup([slotHost]);out=collect([0,0,200,200]);assert(out.visible_text.some(x=>x.text==='Slot exact'&&x.element==='<span class="slot-child">'));
+// A directly assigned text node belongs to its light-DOM host, not the slot.
+elements=[];const slottedText=text('Direct slot text');const textHost=el('x-host',{class:'text-owner'},[slottedText]);textHost.shadowRoot={nodeType:11,firstChild:el('slot',{class:'not-owner'},[])};textHost.shadowRoot.firstChild.assignedNodes=()=>[slottedText];setup([textHost]);out=collect([0,0,200,200]);
+assert.deepEqual(out.visible_text.map(x=>[x.element,x.text]),[['<x-host class="text-owner">','Direct slot text']]);
 
 elements=[];const zeroParent=el('div',{},[el('p',{},[text('Visible positioned child')])],0,0,0,0);const hiddenParent=el('div',{},[el('span',{},[text('Visible override')])]);hiddenParent.style.visibility='hidden';setup([zeroParent,hiddenParent]);out=collect([0,0,200,200]);assert(out.visible_text.some(x=>x.text==='Visible positioned child'));assert(out.visible_text.some(x=>x.text==='Visible override'));
 elements=[];const plainHost=el('x-host',{id:'host'},[]);plainHost.shadowRoot={nodeType:11,firstChild:el('span',{},[text('Anonymous shadow')])};setup([plainHost]);out=collect([0,0,200,200]);
-assert.equal(out.visible_text.find(x=>x.text==='Anonymous shadow').selector,'#host >>> span:nth-child(1)');
+assert.equal(out.visible_text.find(x=>x.text==='Anonymous shadow').element,'<span>');
+assert([...out.visible_text,...out.accessible_names].every(x=>!Object.hasOwn(x,'selector')));
 // Regression BR-4: raw range/element rects do not prove visibility.
 elements=[];
 const clippedChild=el('button',{'aria-label':'Clipped name'},[text('Clipped text',30,0)],30,0,50,10);

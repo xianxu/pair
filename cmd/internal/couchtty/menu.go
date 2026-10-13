@@ -21,6 +21,7 @@ type MenuControl struct {
 
 var menuControls = []MenuControl{
 	{Keys: "typeahead", Action: "filter"},
+	{Keys: "Ctrl+Y", Action: "copy the full last notice from the switcher"},
 	{Keys: "Space", Action: "toggle normal/focus view when filter is empty"},
 	{Keys: "↑↓", Action: "select"},
 	{Keys: "Enter", Action: "switch/resume"},

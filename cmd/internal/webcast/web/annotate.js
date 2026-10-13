@@ -292,12 +292,20 @@ export async function mountAnnotate(doc, win, v) {
   const who = identityStore(storage, win.crypto);
   if (v.seat) who.adopt(v.seat.viewer);
   const colors = colorStore(storage);
-  const post = poster((url, init) => win.fetch(url, init), NOTE_ROUTES);
-  return mountAnnotation(doc, win, v, { root: doc.body, box: doc.getElementById('box'), stage: doc.getElementById('stage'), palette, who, colors, post, annotate });
+  let generation;
+  const post = poster((url, init) => win.fetch(url, {...init, headers: {...init.headers, 'X-Couch-Annotation-Generation': String(generation)}}), NOTE_ROUTES);
+  const ui = mountAnnotation(doc, win, v, { root: doc.body, box: doc.getElementById('box'), stage: doc.getElementById('stage'), palette, who, colors, post, annotate, annotationAllowed: false });
+  v.onCapabilities?.((caps) => {
+    const c = caps?.annotation;
+    ui.setAnnotationAllowed(c?.allowed === true, generation !== c?.generation, c?.state);
+    generation = c?.generation;
+  });
+  return ui;
 }
 
 // Both the viewer and the isolated operator world mount the same UI.
-export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, colors, post, operator = false, prepareDraft, annotate = true }) {
+export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, colors, post, operator = false, prepareDraft, annotate = true, annotationAllowed = true }) {
+  let availabilityState = 'off';
   let picked = colors.get();
   const color = () => pointerColor(picked, 0, palette.length);
   const el = (tag, cls, parent) => { const e = doc.createElement(tag); if (cls) e.className = cls; parent?.append(e); return e; };
@@ -373,7 +381,6 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
   // controls are disabled and say why, and the note dialog is held; the
   // server refuses the posts too.
   let policy;
-  let annotationAllowed = true;
   let gestureVersion = 0;
   const unavailable = () => policy?.phase !== 'ready';
   function transition(event) {
@@ -412,11 +419,11 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
       b.setAttribute('aria-pressed', String(state.mode === m));
     }
     const off = unavailable();
-    const reason = policy?.phase === 'disabled' ? 'Annotation is disabled.' : policy?.driver ? `${policy.driver} is driving.` : 'The cast is paused.';
+    const reason = policy?.phase === 'disabled' ? (availabilityState === 'broken' ? 'Cast broken. Wait for the operator to end the cast.' : availabilityState === 'retry' ? 'Annotation is off. Waiting for the operator to retry.' : 'Annotation is off.') : policy?.driver ? `${policy.driver} is driving.` : 'The cast is paused.';
     rail.classList.toggle('paused', off);
     for (const b of rail.querySelectorAll('button')) b.disabled = off;
     for (const [m, b] of Object.entries(modeButtons)) b.title = off ? reason : MODE_TIPS[m];
-    hint.textContent = operator && off ? reason : '';
+    hint.textContent = off ? reason : '';
     dialog.hold(off ? reason : ''); // an open note, or a pin opened while paused
   };
   const placeRail = () => {
@@ -586,6 +593,7 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
       docSeg = model.docSeg;
       if (was) { strokes.clear(); endGesture(true); }
     }
+    if (r.k === 'annotation-clear') { strokes.clear(); gestureVersion++; endGesture(true); setMode('watch'); }
     if (r.k === 'stroke') strokes.record(r, win.performance.now(), `${who.id()}.`);
     // A pause or the end puts the pen down (setMode ends the gesture and
     // renders the rail, disabled while paused); a resume enables it again.
@@ -605,5 +613,5 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
   }, operator);
   sync();
   schedule();
-  return { setMode, setAnnotationAllowed(allowed) { annotationAllowed = allowed === true; sync(); }, dialog, strokes, who, annotate, get mode() { return state.mode; } };
+  return { setMode, setAnnotationAllowed(allowed, reset = false, availability = 'off') { availabilityState = availability; if (reset) { gestureVersion++; endGesture(true); setMode('watch'); } annotationAllowed = allowed === true; sync(); }, dialog, strokes, who, annotate, get mode() { return state.mode; } };
 }

@@ -1068,6 +1068,11 @@ diagnostics. Since #151 M3, Console refreshes this projection asynchronously
 from exact hosted PID/start observations and never promotes raw persisted
 lifecycle state into a user-visible `live` or `parked` row.
 
+The switcher’s `Ctrl+Y` copies the latest retained `Feed.Messages()` body through
+`Presenter.Copy` (`console_menu.go`), outside the console lock. Status-row
+clipping and expiry do not remove that diagnostic. Copy feedback stays in
+`MenuNotice`, so repeating the action does not copy its own confirmation.
+
 #151 M2 added the pure core and M3 wired it into Console. One
 immutable-by-copy `MenuState` stack owns the root filter/selection plus exact
 thread-bound action, confirmation, and text frames; a global start frame

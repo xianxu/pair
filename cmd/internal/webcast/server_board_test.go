@@ -1,6 +1,7 @@
 package webcast
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -36,6 +37,10 @@ func newBoardCast(t *testing.T) *boardCast {
 	c := &boardCast{hub: recording.NewHub(256), b: recording.NewBuilder("rec")}
 	bd := board.New(notes.Structural{}, func(r recording.Record, doc int) error { return c.w.Emit(r, doc) })
 	c.w = board.NewWriter(recording.Tee(bd, c.hub), nil)
+	bd.WithAnnotationCleanup(c.w.ClearAnnotations)
+	if err := bd.SetAnnotationAllowed(context.Background(), true); err != nil {
+		t.Fatal(err)
+	}
 	srv := httptest.NewServer(NewServer("view", NewFakeBrowser(), time.Second, c.hub, nil).WithBoard(bd).WithPointer("tok"))
 	t.Cleanup(srv.Close)
 	t.Cleanup(func() { c.hub.Close() })
@@ -58,7 +63,13 @@ func (c *boardCast) flush(t *testing.T) {
 
 func post(t *testing.T, url, contentType, body string) (int, string) {
 	t.Helper()
-	resp, err := castClient.Post(url, contentType, strings.NewReader(body))
+	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", contentType)
+	req.Header.Set("X-Couch-Annotation-Generation", "1")
+	resp, err := castClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}

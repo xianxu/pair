@@ -152,3 +152,15 @@ test('a late control update cannot reveal UI behind a newer target guard', () =>
   p.ctx.__couchcastSet(true, '', false, 9);
   assert.equal(p.host().hidden, false);
 });
+
+test('operator installation reports readiness after an early hello', () => {
+ const p = page({readyState:'loading'});
+ let mounted = false;
+ p.ctx.__couchcastMountOperator = () => { mounted = true; };
+ p.run();
+ assert.equal(mounted,false);
+ assert.equal(p.sent.filter((m)=>m.t==='hello').length,1);
+ p.fire('doc','DOMContentLoaded');
+ assert.equal(mounted,true);
+ assert.equal(p.sent.filter((m)=>m.t==='hello').length,2);
+});

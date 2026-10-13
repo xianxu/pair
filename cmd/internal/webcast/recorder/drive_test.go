@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/cdp"
+	"github.com/xianxu/pair/cmd/internal/webcast/capability"
 	"github.com/xianxu/pair/cmd/internal/webcast/drive"
 	rec "github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
@@ -267,6 +268,9 @@ func TestWithTabGivesUpOnADialog(t *testing.T) {
 	case err := <-done:
 		if !errors.Is(err, drive.ErrDialog) {
 			t.Fatalf("got %v", err)
+		}
+		if capability.FailureOutcome(err) != capability.Broken {
+			t.Fatalf("submitted input has an uncertain effect: %v", err)
 		}
 		if code, say := drive.Answer(err); code != 409 || !strings.Contains(say, "dialog") {
 			t.Fatalf("answer %d %q", code, say)

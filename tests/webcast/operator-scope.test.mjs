@@ -19,6 +19,7 @@ const note = (draft) => ({ draft, color: 0, text: draft });
 for (const replacement of [0, 2, 'ended']) {
   test(`scope ${replacement} retires pending requests without accepting or resending writes`, async () => {
     const h = harness(), transport = operatorTransport(h.report, h.win);
+  transport.setAnnotationGeneration('1');
     transport.setScope(1);
     const old = transport.mutate('save-note', note('old'));
     const prepare = transport.ask('prepare-note', { seg: 1 });
@@ -41,6 +42,7 @@ for (const replacement of [0, 2, 'ended']) {
 
 test('retired accepted completion cannot accept a stale caller or clear the new unsettled write', async () => {
   const h = harness(), transport = operatorTransport(h.report, h.win);
+  transport.setAnnotationGeneration('1');
   transport.setScope(1);
   const old = transport.mutate('save-note', note('old'));
   transport.reply({ request: h.sent[0].request, outcome: 'accepted' });
@@ -65,9 +67,10 @@ function mounted() {
     annotate: { mountAnnotation(doc, win, view, opts) {
       options = opts;
       view.onRecord((...args) => receive(...args));
-      return { setAnnotationAllowed() {}, setMode() {} };
+      return { strokes:{clear(){}}, setAnnotationAllowed() {}, setMode() {} };
     } }, palette: [], css: '',
   }, { createElement: node }, h.win);
+  h.win.__couchcastAnnotationAllowed(true, '1');
   const snapshot = (revision, doc, extra = {}) => h.win.__couchcastOperatorView({
     revision, doc, seg: revision, t: revision, notes: [], strokes: [], ...extra,
   });

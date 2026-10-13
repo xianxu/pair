@@ -73,7 +73,11 @@
     root.appendChild(banner);
     root.appendChild(button);
     document.documentElement.appendChild(host);
-    globalThis.__couchcastMountOperator?.({ host, root, report });
+    if (globalThis.__couchcastMountOperator) {
+      globalThis.__couchcastMountOperator({ host, root, report });
+      // The initial hello can precede DOMContentLoaded and the operator hook.
+      report({ t: 'hello' });
+    }
     suppress({ op: 'check' });
     draw();
   };

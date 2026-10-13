@@ -6,6 +6,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -29,16 +30,17 @@ const (
 
 // Refusals the viewer shows: fixed sentences that never echo the request.
 const (
-	refuseBusy      = "Too many requests. Wait a moment."
-	refuseColorFull = "This color already has 8 notes. Resolve one first."
-	refuseStale     = "The page changed. Try again."
-	refuseEnded     = "The cast has ended."
-	refuseNotLive   = "The cast isn't showing a page yet."
-	refusePaused    = "The cast is paused."
-	refuseUnknown   = "That note is gone."
-	refuseInvalid   = "That isn't valid."
-	refuseBroken    = "Notes aren't working in this cast."
-	refuseViewOnly  = "This link is view-only."
+	refuseBusy          = "Too many requests. Wait a moment."
+	refuseColorFull     = "This color already has 8 notes. Resolve one first."
+	refuseStale         = "The page changed. Try again."
+	refuseEnded         = "The cast has ended."
+	refuseNotLive       = "The cast isn't showing a page yet."
+	refusePaused        = "The cast is paused."
+	refuseUnknown       = "That note is gone."
+	refuseInvalid       = "That isn't valid."
+	refuseBroken        = "Notes aren't working in this cast."
+	refuseViewOnly      = "This link is view-only."
+	refuseAnnotationOff = "Annotation is off."
 )
 
 // boardRoutes is a cast's admission state for the board's routes.
@@ -67,6 +69,7 @@ func (s *Server) WithBoard(b *board.Board) *Server {
 
 // boardRoute serves one POST under link; false when rest isn't a board route.
 func (s *Server) boardRoute(w http.ResponseWriter, r *http.Request, rest string, link castLink) bool {
+	var admission board.AnnotationAdmission
 	var handle func([]byte) error
 	limit, max := (*boardRoutes).allowNote, int64(board.MaxNoteBody)
 	switch rest {
@@ -77,7 +80,7 @@ func (s *Server) boardRoute(w http.ResponseWriter, r *http.Request, rest string,
 			if err != nil {
 				return err
 			}
-			return s.board.board.Stroke(in)
+			return admission.Stroke(in)
 		}
 	case "note":
 		handle = func(body []byte) error {
@@ -85,7 +88,7 @@ func (s *Server) boardRoute(w http.ResponseWriter, r *http.Request, rest string,
 			if err != nil {
 				return err
 			}
-			_, err = s.board.board.Note(in)
+			_, err = admission.Note(in)
 			return err
 		}
 	case "note-state":
@@ -94,7 +97,7 @@ func (s *Server) boardRoute(w http.ResponseWriter, r *http.Request, rest string,
 			if err != nil {
 				return err
 			}
-			return s.board.board.SetState(in)
+			return admission.SetState(in)
 		}
 	default:
 		return false
@@ -107,6 +110,18 @@ func (s *Server) boardRoute(w http.ResponseWriter, r *http.Request, rest string,
 	// slot or rate budget.
 	if !link.annotates() {
 		http.Error(w, refuseViewOnly, http.StatusForbidden)
+		return true
+	}
+	var err error
+	generation, parseErr := strconv.ParseUint(r.Header.Get("X-Couch-Annotation-Generation"), 10, 64)
+	if parseErr != nil {
+		http.Error(w, refuseAnnotationOff, http.StatusForbidden)
+		return true
+	}
+	admission, err = s.board.board.AdmitAnnotationGeneration(generation)
+	if err != nil {
+		status, text := boardAnswer(err)
+		http.Error(w, text, status)
 		return true
 	}
 	body, release, ok := s.board.admit(w, r, limit, max)
@@ -205,6 +220,8 @@ func boardAnswer(err error) (int, string) {
 	switch {
 	case err == nil:
 		return http.StatusNoContent, ""
+	case errors.Is(err, board.ErrDisabled):
+		return http.StatusForbidden, refuseAnnotationOff
 	case errors.Is(err, board.ErrColorFull):
 		return http.StatusConflict, refuseColorFull
 	case errors.Is(err, board.ErrStale):

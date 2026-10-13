@@ -3,6 +3,7 @@ package webcast
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"image/png"
 	"net/http"
@@ -117,6 +118,8 @@ func TestLiveSubmissionCrop(t *testing.T) {
 		"expression": `(async () => {
  const region = document.getElementById('region');
  region.style.background = 'rgb(255, 0, 0)';
+ history.replaceState({}, '', '/blog#captured');
+ document.title='Current captured title';
  document.querySelector('#current span').textContent = 'New exact';
  window.scrollTo(0, 1100);
  await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
@@ -135,6 +138,13 @@ func TestLiveSubmissionCrop(t *testing.T) {
 		t.Fatalf("got %d crops, want two overlapping note crops", len(crops))
 	}
 	for i, crop := range crops {
+		if crop.Page.URL != page.URL+"/blog#captured" || crop.Page.Title != "Current captured title" || crop.Page.Provenance != "cdp" {
+			t.Fatalf("captured page: %+v", crop.Page)
+		}
+		wire, _ := json.Marshal(crop.BoxText)
+		if bytes.Contains(wire, []byte(`"selector"`)) {
+			t.Fatalf("selector in current evidence: %s", wire)
+		}
 		if crop.Unavailable != "" || crop.Document != document || crop.Box != boxes[i] || crop.CapturedAt.Before(began) {
 			t.Fatalf("crop %d metadata: %+v", i, crop)
 		}
@@ -168,8 +178,8 @@ func TestLiveSubmissionCrop(t *testing.T) {
  const fixture=document.createElement('div');fixture.id='clip-fixture';
  fixture.style.cssText='position:absolute;left:500px;top:1400px;width:250px;height:220px;font:10px/12px monospace';
  fixture.innerHTML='<div style="position:absolute;left:0;top:0;width:20px;height:20px;overflow:hidden"><span aria-label="Hidden overflow name" style="position:absolute;left:40px;top:0">HiddenOverflow</span></div>'+
-'<div id="partial-clip" style="position:absolute;left:0;top:30px;width:24px;height:20px;overflow:hidden"><span id="partial-text">ABCDEFGHIJ</span></div>'+
-'<div style="position:absolute;left:120px;top:30px;transform:scale(2);transform-origin:top left;width:12px;height:12px;border:2px solid black;overflow:hidden"><span id="scaled-text">123456</span></div>'+
+'<div id="partial-clip" style="position:absolute;left:0;top:30px;width:24px;height:20px;overflow:hidden"><span class="partial-text">ABCDEFGHIJ</span></div>'+
+'<div style="position:absolute;left:120px;top:30px;transform:scale(2);transform-origin:top left;width:12px;height:12px;border:2px solid black;overflow:hidden"><span class="scaled-text">123456</span></div>'+
 '<div id="outer-scroll" style="position:absolute;left:0;top:60px;width:100px;height:12px;overflow-x:hidden;overflow-y:auto"><div style="position:relative;width:100px;height:60px;overflow-x:clip;overflow-y:visible"><span aria-label="Hidden nested name" style="position:absolute;top:0">HiddenNested</span><span style="position:absolute;top:30px">Nested visible</span></div></div>'+
 '<div id="slot-host" style="position:absolute;left:0;top:100px;width:100px;height:20px"><span aria-label="Hidden slot name" style="position:absolute;left:40px;top:0">HiddenSlot</span></div>'+
 '<div style="position:absolute;left:0;top:130px;opacity:0"><span aria-label="Hidden opacity name">HiddenOpacity</span></div>'+
@@ -202,13 +212,13 @@ func TestLiveSubmissionCrop(t *testing.T) {
 	}
 	foundPartial, foundScaled := false, false
 	for _, entry := range evidence[0].BoxText.VisibleText {
-		if entry.Selector == "#partial-text" {
+		if entry.Element == `<span class="partial-text">` {
 			foundPartial = true
 			if entry.Text != "ABCD" {
 				t.Fatalf("partial characters = %q", entry.Text)
 			}
 		}
-		if entry.Selector == "#scaled-text" {
+		if entry.Element == `<span class="scaled-text">` {
 			foundScaled = true
 			if entry.Text != "12" {
 				t.Fatalf("scaled scrollport characters = %q", entry.Text)

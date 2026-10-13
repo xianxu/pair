@@ -13,6 +13,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/broadcast"
 	castassets "github.com/xianxu/pair/cmd/internal/webcast/assets"
+	"github.com/xianxu/pair/cmd/internal/webcast/capability"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
@@ -139,7 +140,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if rest == "events" {
 		// A pointer-link stream counts as a view stream: only the drive
 		// link's streams can hold a seat (pair#506).
-		s.events(w, r, link.drives())
+		s.events(w, r, link)
 		return
 	}
 	if hash, ok := strings.CutPrefix(rest, "assets/"); ok {
@@ -152,7 +153,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	serveViewerFile(w, r, rest)
 }
 
-func (s *Server) events(w http.ResponseWriter, r *http.Request, driveLink bool) {
+func (s *Server) events(w http.ResponseWriter, r *http.Request, link castLink) {
+	driveLink := link.drives()
 	id := r.URL.Query().Get("viewer")
 	if id != "" && !viewerID.MatchString(id) {
 		http.Error(w, "bad viewer id", http.StatusBadRequest)
@@ -182,6 +184,17 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request, driveLink bool) 
 	}
 	states, cancel := s.browser.Subscribe()
 	defer cancel()
+	var annotations, driving <-chan capability.Snapshot
+	if s.board != nil {
+		ch, cancel := s.board.board.SubscribeAnnotationCapability()
+		annotations = ch
+		defer cancel()
+	}
+	if s.drive != nil {
+		ch, cancel := s.drive.ctrl.SubscribeDriveCapability()
+		driving = ch
+		defer cancel()
+	}
 	// When the record channel closes, the fan-out says why (Ended): a viewer
 	// dropped as too slow has its stream ended, and reconnects for a fresh
 	// catch-up; once the fan-out has ended, the viewer keeps what it has and
@@ -200,8 +213,33 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request, driveLink bool) 
 	ping := time.NewTicker(s.ping)
 	defer ping.Stop()
 	var last *wireState
+	var lastCapabilities *wireCapabilities
+	publishCapabilities := func() bool {
+		next := s.viewerCapabilities(link)
+		if lastCapabilities != nil && *lastCapabilities == next {
+			return true
+		}
+		lastCapabilities = &next
+		return stream.Event("capabilities", next)
+	}
 	for {
 		select {
+		case _, open := <-annotations:
+			if !open {
+				annotations = nil
+				continue
+			}
+			if !publishCapabilities() {
+				return
+			}
+		case _, open := <-driving:
+			if !open {
+				driving = nil
+				continue
+			}
+			if !publishCapabilities() {
+				return
+			}
 		case st, open := <-states:
 			if !open || st.Phase == PhaseEnded {
 				stream.Event("end", wireEnd{Reason: endedReason})

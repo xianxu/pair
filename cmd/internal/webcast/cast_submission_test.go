@@ -39,6 +39,10 @@ func castSubmissionFixture(t *testing.T) (*Cast, *submissionBrowser, *recording.
 	var writer *board.Writer
 	bd := board.New(notes.Structural{}, func(r recording.Record, doc int) error { writes++; return writer.Emit(r, doc) })
 	writer = board.NewWriter(bd, nil)
+	bd.WithAnnotationCleanup(writer.ClearAnnotations)
+	if err := bd.SetAnnotationAllowed(context.Background(), true); err != nil {
+		t.Fatal(err)
+	}
 	for _, r := range b.Recs {
 		if err := writer.Put(r); err != nil {
 			t.Fatal(err)
@@ -65,7 +69,7 @@ func castSubmissionFixture(t *testing.T) (*Cast, *submissionBrowser, *recording.
 		for _, box := range boxes {
 			var data bytes.Buffer
 			png.Encode(&data, image.NewRGBA(image.Rect(0, 0, 2, 2)))
-			out = append(out, recorder.CapturedCrop{PNG: data.Bytes(), Box: box.Box, BoxText: core.BoxText{Region: box.Region}, Document: doc, CapturedAt: time.Now()})
+			out = append(out, recorder.CapturedCrop{Page: core.PageIdentity{URL: "http://localhost:4321/blog", Title: "Local blog", Provenance: "cdp"}, PNG: data.Bytes(), Box: box.Box, BoxText: core.BoxText{Region: box.Region}, Document: doc, CapturedAt: time.Now()})
 		}
 		return out, nil
 	}
@@ -242,7 +246,7 @@ func TestCastSubmissionSettlementAndClipping(t *testing.T) {
 				if err != nil {
 					return nil, err
 				}
-				crops[0].BoxText.VisibleText = []core.BoxTextEntry{{Selector: "button", Text: "current text"}}
+				crops[0].BoxText.VisibleText = []core.BoxTextEntry{{Element: "<button>", Text: "current text"}}
 				tc.mutate(&crops[0])
 				captured = crops[0]
 				return crops, nil
@@ -327,7 +331,11 @@ func TestCastSubmissionPrivacyUsesCaptureAndSurvivesInvalidPolicy(t *testing.T) 
 			b.capture = func(ctx context.Context, doc int, boxes []core.CaptureRegion) ([]recorder.CapturedCrop, error) {
 				crops, err := original(ctx, doc, boxes)
 				for i := range crops {
-					crops[i].Origin = tc.url
+					if tc.url == "" {
+						crops[i] = recorder.CapturedCrop{Unavailable: "page changed"}
+						continue
+					}
+					crops[i].Page = core.PageIdentity{URL: tc.url, Title: "Captured page", Provenance: "cdp"}
 				}
 				return crops, err
 			}
@@ -381,5 +389,87 @@ func TestCastSubmissionPrivacyDefault(t *testing.T) {
 	}
 	if sub.Privacy != core.Private {
 		t.Fatalf("default %q", sub.Privacy)
+	}
+}
+
+func TestCastSubmissionUsesCapturedPageSource(t *testing.T) {
+	c, b, _, _ := castSubmissionFixture(t)
+	selected, _ := c.SubmissionSelection()
+	sub, _, err := c.PrepareSubmission(context.Background(), "page", castSubmissionTarget(), selected, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sub.Source.Page == nil || sub.Source.Page.URL != "http://localhost:4321/blog" || sub.Source.Page.Title != "Local blog" || sub.Notes[0].SourceDocument != sub.Source.Document {
+		t.Fatal(sub)
+	}
+	original := b.capture
+	b.capture = func(ctx context.Context, doc int, boxes []core.CaptureRegion) ([]recorder.CapturedCrop, error) {
+		crops, err := original(ctx, doc, boxes)
+		crops[0].Page = core.PageIdentity{}
+		return crops, err
+	}
+	if _, _, err = c.PrepareSubmission(context.Background(), "missing-page", castSubmissionTarget(), selected, ""); err == nil {
+		t.Fatal("pixels without page accepted")
+	}
+}
+
+func TestCastSubmissionMixedViewportAvailability(t *testing.T) {
+	for _, reason := range []string{"outside viewport", "page changed"} {
+		t.Run(reason, func(t *testing.T) {
+			c, browser, b, _ := castSubmissionFixture(t)
+			box := recording.Box{900, 20, 100, 40}
+			note := &recording.Note{ID: "offscreen", Author: recording.Author{ID: "person"}, Text: "also fix", At: recording.NoteAt{Box: &box}, Region: &box}
+			b.At(11).Add(note)
+			c.board = board.New(notes.Structural{}, func(recording.Record, int) error { return nil })
+			writer := board.NewWriter(c.board, nil)
+			for _, r := range b.Recs {
+				if err := writer.Put(r); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for name, recs := range recording.Split(b.Recs) {
+				var data []byte
+				for _, r := range recs {
+					line, err := recording.Encode(r)
+					if err != nil {
+						t.Fatal(err)
+					}
+					data = append(data, line...)
+					data = append(data, '\n')
+				}
+				if err := os.WriteFile(filepath.Join(c.RecordingPath(), name), data, 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			base := browser.capture
+			browser.capture = func(ctx context.Context, doc int, regions []core.CaptureRegion) ([]recorder.CapturedCrop, error) {
+				crops, err := base(ctx, doc, regions)
+				if err != nil {
+					return nil, err
+				}
+				if len(crops) != 2 {
+					t.Fatalf("want two selected notes, got %d", len(crops))
+				}
+				crops[1] = recorder.CapturedCrop{Unavailable: reason, BoxText: core.BoxText{Unavailable: reason}}
+				return crops, nil
+			}
+			selected, err := c.SubmissionSelection()
+			if err != nil {
+				t.Fatal(err)
+			}
+			sub, crops, err := c.PrepareSubmission(context.Background(), "submission", castSubmissionTarget(), selected, "")
+			if reason == "page changed" {
+				if err == nil {
+					t.Fatal("mixed document availability accepted")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(crops) != 1 || sub.Source.Page == nil || len(sub.Notes) != 2 || sub.Notes[1].Crop.Unavailable != reason {
+				t.Fatalf("lost batch evidence: %+v", sub)
+			}
+		})
 	}
 }

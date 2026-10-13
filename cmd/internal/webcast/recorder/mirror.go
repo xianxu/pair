@@ -149,6 +149,11 @@ func (m *mirror) take() []rec.Record {
 // emit applies r at time t to the mirror's reducer and queues it. t never
 // goes back.
 func (m *mirror) emit(t int64, r rec.Record) bool {
+	if _, clear := r.(*rec.AnnotationClear); clear {
+		// Files merge equal times as events, notes, strokes. Put the
+		// clear strictly after earlier annotations, including at a frozen clock.
+		t = max(t, m.st.T+1)
+	}
 	if t < m.st.T {
 		t = m.st.T
 	}

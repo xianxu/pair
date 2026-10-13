@@ -1,6 +1,8 @@
 package couchtty
 
 import (
+	"bytes"
+	"encoding/base64"
 	"io"
 	"strings"
 	"testing"
@@ -88,4 +90,51 @@ func TestAnExitNoticeSurvivesAnIdleConsole(t *testing.T) {
 	waitFor(t, "the row to be repainted after the wait", func() bool {
 		return strings.Contains(host.row(24), "exited (1)")
 	})
+}
+
+func TestSwitcherCopiesFullExpiredNoticeRepeatedly(t *testing.T) {
+	clock := time.Now()
+	full := "Chrome cast pointer link unavailable: broadcast: cloudflared exited while opening: " + strings.Repeat("diagnostic ", 40) + "\nfinal diagnostic tail"
+	f := newFixtureBeforeRun(t, 24, 44, func(c *Console) {
+		c.feed = NewFeed(8, func() time.Time { return clock }, NoticeLifetime)
+		c.feed.Push(Notice{Kind: "status", Body: full})
+	})
+	if strings.Contains(f.screen.row(24), "final diagnostic tail") {
+		t.Fatal("fixture did not clip notice")
+	}
+	f.con.mu.Lock()
+	clock = clock.Add(NoticeLifetime + time.Second)
+	expired := f.con.feed.Row().Body == ""
+	f.con.mu.Unlock()
+	if !expired {
+		t.Fatal("notice did not expire")
+	}
+	_, _ = f.stdin.Write([]byte{0})
+	waitFor(t, "switcher", func() bool { f.con.mu.Lock(); defer f.con.mu.Unlock(); return f.con.focus.IsPanel() })
+	want := "\x1b]52;c;" + base64.StdEncoding.EncodeToString([]byte(full)) + "\x1b\\"
+	for count := 1; count <= 2; count++ {
+		_, _ = f.stdin.Write([]byte{0x19})
+		waitFor(t, "complete notice clipboard", func() bool { return strings.Count(f.host.Written(), want) == count })
+	}
+	if !strings.Contains(f.screenText(), "Ctrl+Y copy last notice") {
+		t.Fatal("copy action is not discoverable")
+	}
+}
+
+func TestSwitcherCopyNoticeEmptyHistory(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	_, _ = f.stdin.Write([]byte{0, 0x19})
+	waitFor(t, "empty notice feedback", func() bool { return f.con.menuSnapshot().Notice.Text == "No notice to copy." })
+	if strings.Contains(f.host.Written(), "\x1b]52;") {
+		t.Fatal("empty history replaced clipboard")
+	}
+}
+
+func TestCopyNoticeChordStillReachesFocusedChild(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	_, _ = f.stdin.Write([]byte{0x19})
+	waitFor(t, "Ctrl+Y child input", func() bool { return bytes.Contains(bytes.Join(f.child.Writes(), nil), []byte{0x19}) })
+	if strings.Contains(f.host.Written(), "\x1b]52;") {
+		t.Fatal("actor chord copied a notice")
+	}
 }

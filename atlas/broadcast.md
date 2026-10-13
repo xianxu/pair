@@ -121,8 +121,9 @@ the operator says it on the call.
       new code, keeping the selection (`refreshCodesMenu`). Only Escape or ×
       closes it.
     - A rotation disconnects that link's viewers.
-    - The screen pointer link's row has no actions until pointing makes the
-      link: copy-link never turns pointing on.
+    - The screen pointer link's row has no actions until the link is minted.
+      Right-clicking 👆 calls Session.EnsurePointerLink to mint a locked link
+      while staying off; copy-link never turns pointing on.
   - **The cast row's rule** (operator, at the #495 smoke test): a left click
     acts or toggles, a right-click copies that control's link, and Alt+click
     opens the Codes menu. The README has the per-control table. `LIVE ⏸`'s
@@ -603,3 +604,14 @@ The path:
 
 It is the one identity-free broker op. The socket's directory is `0700` and
 owned by the uid, and the socket is `0600`, so only the operator can ask.
+
+## Capability controls (#523)
+
+`couchtty/cast_control.go` shares click intent across terminal 👆 and web 👆/👽:
+right copies, left enables-and-copies or disables, and a retryable cleanup uses
+the same left-click as explicit retry. Web authority comes from Cast snapshots;
+Couch owns no duplicate enabled state. Its completion callback checks cast
+identity, generation and attempt before copying or showing a result. Failure
+notices precede actor chips so the recovery action remains visible under clipping.
+Terminal EnsurePointerLink mints token and code under the existing pointer lock,
+without changing admission generation or arming the visibility watchdog.
