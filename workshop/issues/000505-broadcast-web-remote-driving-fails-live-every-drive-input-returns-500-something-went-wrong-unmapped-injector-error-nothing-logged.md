@@ -15,6 +15,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "4589c717", done: "daa15728"}
 ---
 
 # broadcast-web: remote driving fails live — every drive input returns 500 'Something went wrong' (unmapped injector error, nothing logged)
