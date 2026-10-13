@@ -1,12 +1,12 @@
 ---
 id: 000526
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: '4acd898d8c7f15289272f2284abc1d906ab3b557' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '200462b02099269adf7db87adcff6f6c4e7f2a76' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T23:04:21-07:00
 claimant:
     operator: Xian Xu
@@ -42,8 +42,19 @@ Coordinate with #525, which adds the page URL to the same manifest. Build on mai
 
 ## Plan
 
-- [ ]
+- [ ] Implement and verify [the durable privacy plan](../plans/000526-submission-privacy-plan.md).
+- [ ] Close through the SDLC review, open the PR, and report to hub; merge only on SHIP.
 
 ## Log
 
 ### 2026-10-12
+
+- Published the operator contract to main at `9e9a182ec00dad07ea31dc57b7be712a7517522e`; started an issue branch from main.
+- Inspected submission model/build/store, Cast preparation, recorder capture fences, DOM collector and shipped Couch skill. Input `.value` is not read, but textarea/editable descendants need regression coverage.
+- Drafted `workshop/plans/000526-submission-privacy-plan.md`; policy matching is pure (ARCH-PURE), capture identity remains the authority (ARCH-SECURE), and delivery retains its existing reducer (ARCH-ORDER). No implementation or tests run yet.
+
+## Revisions
+
+### 2026-10-12 — hub coordination with #525
+
+Hub confirmed top-level `privacy` and `privacy_rule`, an operator-edited local exact-origin list, default private, and no edit CLI. #525 owns the capture-bound source URL; whichever issue lands second integrates the fields, without building on the other's unlanded branch. The draft plan proposes excluding editable values for all origins to keep the protection independent of publication permission.
