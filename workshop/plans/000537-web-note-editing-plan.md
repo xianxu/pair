@@ -125,3 +125,62 @@ Files: cmd/internal/webcast/{operator_live_test,viewer_annotate_live_test}.go; a
 ### 2026-10-13 16:15 PDT — approved scope before implementation
 
 TL relayed operator choice: own notes only including operator, edited marker, terminal included; reuse existing session cookie with session-bound ownership and no castlock expansion. Earlier proposed editor attribution/operator override is superseded. Pre-existing notes without proof remain read-only. Terminal edit is new code because investigation found no existing text-update path.
+
+### 2026-10-13 16:20 PDT — plan review PQ-1/PQ-2/PQ-3
+
+The following function-level strategies replace the prose test inventories in
+tasks 1–4 as the authoritative unit-test design. Task commands and integration
+checks remain. They exercise production functions, not a mirrored test model.
+
+| Production function | Strategy and mechanical guard | Test location |
+|---|---|---|
+| gate / NoteOwnerFromContext | Drive real HTTP requests through Host using two cookie jars; mutate public identity inputs while asserting only validated cookies determine ownership; preserve 204 session probe contract | broadcast/lockgate_test.go |
+| ParseNoteEdit / ParseOperatorRequest / ParseNoteEditRequest | Table plus fuzz malformed/duplicate/oversized keys; only canonical target/text/segment decode, owner can never be injected by parsing | webcast/board/wire_test.go, operator_test.go; broadcast/notes_test.go |
+| recording.State.Apply(NoteEdit) | Fold generated legal/retired-note event sequences; each accepted edit changes exactly Text/Edited/Revision, failed edits leave state byte-equivalent, source record unchanged | webcast/recording/note_edit_test.go |
+| recording.CatchUp / JS catchUp / reduce | Extend common corpus and evaluate every prefix/cut against full reduction; compare note identity/text/edited/revision and no resurrection after clear/document change | webcast/recording/catchup_test.go; tests/webcast/{model,replay}.test.mjs |
+| AnnotationAdmission.Edit / OperatorSession.EditAdmitted | Stateful ordered writer with explicit barriers; vary owner, generation, target state and request identity, asserting accepted writes only and at-most-once same operator request | webcast/board/note_edit_test.go, operator_test.go |
+| Recorder.writeOperator / Emit handler | Queue competing lifecycle events in controlled order; final sink admission rejects invalid target/doc/generation and never confirms uncertain edit from existing target ID | webcast/recorder/operator_test.go, recorder_test.go |
+| NoteBoard.Edit / PointerState.editNote | Pure table plus controlled flip/edit sequence; denied edits preserve full board, accepted edits preserve anchor/author/ID; version changes only on accepted mutation | broadcast/notes_test.go, pointer_notes_test.go |
+| noteDialogTransition | Enumerate short event permutations against production reducer; invariants: at most one pending effect, held states emit none, stale completions leave current editor identical | tests/broadcast-viewer/notes.test.mjs |
+| pinLayer / mountAnnotation / operatorTransport | Stateful DOM fixtures with deferred transport answers; compare rendered current note and emitted command to the committed model; same request ID reused until settled | tests/webcast/{annotate,operator,operator-scope}.test.mjs |
+
+**Additional PURE entity:** `noteDialogTransition` in
+`cmd/internal/broadcast/web/collab.js` (new). One shared reducer owns the entire
+dialog lifecycle; noteDialog owns its state privately and renders its result.
+DOM handlers dispatch events and execute emitted effects, never mutate the
+authoritative state directly (ARCH-PURE/ARCH-ORDER).
+
+State is `{epoch, mode, target, payload, text, held, pending, error}`. Mode is
+closed/draft/view/edit; pending is null or `{epoch, kind, text}`. Events are
+open-draft/open-view/open-edit, input, hold, save, resolve, result, retire,
+dismiss. Transition returns `{state, effect}`; effects are save-new, save-edit,
+resolve or none. Validation is the existing bounded plain-text rule.
+
+- Open/dismiss/retire increment epoch and discard the dialog's pending token;
+  they do not cancel or pretend to roll back a dispatched server operation.
+- Save requires draft/edit, valid text, no hold and no pending token. It records
+  the exact submitted text in pending before producing one effect. Input while
+  pending changes unsent text but cannot issue another effect.
+- Resolve requires an allowed current note and no hold/pending; permission is
+  supplied by the adapter, independently of edit ownership.
+- Result includes epoch and submitted text. Wrong epoch is an identity
+  transition. Accepted current results close only if input still equals the
+  submitted text; otherwise retain new input and say the earlier text saved.
+  Refused/unknown current results clear dialog pending, retain text and show
+  transport recovery. The operator transport, separately, retains uncertain
+  request identity; a subsequent Save reconciles it rather than duplicating it.
+- Hold prevents new effects without changing text or cancelling the pending
+  operation. Removal/navigation retires an existing-note editor. An accepted
+  result after hold cannot enable controls. Each async handler dispatches result
+  once; no unscoped finally handler refreshes another editor.
+- noteDialog.update sends retire if target disappears; read-only text can
+  refresh from current notes, while edit text remains the user's unsaved text.
+
+**Storage lifecycle (PQ-3):** NoteEdit appends bounded replacement text to the
+existing notes.jsonl, via recording/dir.go:89. Its incremental cost is the
+encoded JSON bytes plus newline per accepted save, measured with Encode in
+recording/note_edit_test.go at the existing maximum note size. Replay history
+therefore grows with accepted edits under the existing note rate budget; there
+is no whole-recording byte cap. As atlas/webcast-format.md:337 documents,
+recordings remain until the operator deletes the directory. No extra retention
+registry or automatic cleanup is introduced.

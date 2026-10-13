@@ -115,3 +115,15 @@ Durable full-flow plan: [own-note editing](../plans/000537-web-note-editing-plan
   even when public names/IDs are copied; two real unlock-cookie jars prove it.
   Own notes open populated editors; other/legacy notes open read-only; revised
   notes show `edited`. Record tests for the approved session lifetime.
+
+### 2026-10-13 16:20 PDT — resolver attribution, without history UI
+
+- TL adds resolver attribution to both casts' resolve records, including
+  operator/submission resolution, so recordings/replay/agent queries retain
+  who resolved a note. Resolution remains available to anyone who can annotate.
+- The follow-up explicitly excludes resolved-note lists, history UI and reopen
+  work from both #537 and #538. Resolved notes still disappear; terminal may
+  delete once the resolver is recorded. Investigating its recording seam.
+- Plan-quality round 1 asked for function-level test strategies, a pure shared
+  dialog transition model, and inherited edit-record storage lifecycle. The
+  durable plan now records these refinements; implementation has not begun.
