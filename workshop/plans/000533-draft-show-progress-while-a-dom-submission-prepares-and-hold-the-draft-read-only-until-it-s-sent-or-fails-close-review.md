@@ -87,3 +87,84 @@ findings:
     detail: |
       nvim/init.lua:1666 applies nomodifiable without guarding go_to, which changes nav.pos at line 2527 before its buffer write fails. Reproduced: hold preparation with draft="draft" and queue="queued", press Alt+Right, return preparation failure, then press Alt+Left; autosave_current_slot at line 2439 overwrites the queue with "draft". ARCH-ORDER and ARCH-PURPOSE: guard owned-draft actions before state or file mutations, sweep navigation/queue/delete/reset/send-clear siblings, and add production regression tests preserving slot identity and stored contents through failure and timeout.
 ```
+
+---
+
+## Re-review — 2026-10-13T14:58:41-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 533 — draft: show progress while a DOM submission prepares, and hold the draft read-only until it's sent or fails |
+| repo | pair |
+| issue file | workshop/issues/000533-draft-show-progress-while-a-dom-submission-prepares-and-hold-the-draft-read-only-until-it-s-sent-or-fails.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 514ce3b4d36a51f403e9741004fd4697bdecffeb..88e05765662109a193b0e55440dd840fd96508b6 |
+| command | sdlc close --issue 533 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-13T14:58:41-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+Progress reporting, deadline propagation, and the original navigation correction are validated. BR-1 remains open because the ownership guard does not cover focus-event buffer mutations: losing focus during preparation can raise an exception and block the UI at a “Press ENTER” prompt.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: not-addressed
+    note: |
+      The navigation correction passes production regressions; disabling its guard makes the Alt+Right regression fail. The required mutator sweep remains incomplete: nvim/init.lua:343 still writes from the scheduled FocusLost handler while DOM ownership sets nomodifiable. An embedded-UI reproduction enters insert mode at EOL during held preparation, fires FocusLost, and reaches “Buffer is not modifiable” followed by a blocking “Press ENTER” prompt. Cover focus padding/removal and other asynchronous mutators under the same ownership rule, with production event-sequence regressions (ARCH-ORDER, ARCH-PURPOSE).
+```
+
+1. **Strengths**
+
+   - Progress comes from actual preparation/capture boundaries, with immutable snapshots and retired-job fencing.
+   - The pure reducer retains active ownership and rejects stale completions; controlled tests exercise timeout and late delivery.
+   - Production UI tests verify rendered progress before held external work.
+   - README and atlas both document the new behavior; the Core concepts table matches the implemented entities.
+
+2. **Critical findings**
+
+   **BR-1 — incomplete ownership enforcement.** At `nvim/init.lua:343`, `pair_eol_ensure_pad` writes to the locked buffer through the scheduled callback at line 421. Reproduced using the embedded UI fixture after its active-lock assertion: enter insert mode at EOL, then execute `FocusLost`. The scheduled callback raises, displays “Press ENTER,” and blocks subsequent fixture RPCs.
+
+   **This is the 2nd finding in family `operation-ownership-must-guard-mutators`.** Retain BR-1 rather than assigning another ID. Apply the rule to all synchronous and asynchronous draft mutators, including focus padding and removal (`nvim/init.lua:349`). Preserve deferred cleanup state when a write cannot proceed. Add focus-loss/gain sequences during preparation, failure, and timeout; verify no prompt, exception, or text corruption.
+
+3. **Important findings**
+
+   None newly raised.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   Passed: production DOM headless/embedded suite; Lua reducer, adapter, transport and sender tests; Zellij timeout/redaction checks; Go submission, couchmessage, recorder and webcast packages; focused CouchCMD/CouchTTY submission tests.
+
+   Mutation verification confirmed the navigation regression fails without the guard. The independent focus-event reproduction fails on pinned head.
+
+   Broader Go runs failed two pre-existing README delimiter checks and `TestCouchParentCaptureStableAcrossChildMouseModes`. Full-suite success is unverified. Generated assets and experiments were confined to a disposable checkout, now removed; tracked files remain unchanged.
+
+6. **Architectural notes**
+
+   | Principle | Result |
+   |---|---|
+   | ARCH-DRY | Pass: shared guard and existing polling reused. |
+   | ARCH-PURE | Pass: reducer remains IO-free; adapters own effects. |
+   | ARCH-PURPOSE | Flag: BR-1’s mutator class is incompletely covered. |
+   | ARCH-MOCK | Pass: shared seams support controlled, stateful fixtures. |
+   | ARCH-CONSTRAINTS | Flag: reproduced hit-enter prompt interrupts the bounded UI flow. |
+   | ARCH-SECURE | Pass: progress validation, literal rendering and trace redaction retained. |
+   | ARCH-ORDER | Flag: focus events bypass operation ownership. |
+   | ARCH-FUNERAL | Pass: operation state is volatile; terminal paths retire its timer. |
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry enumerating asynchronous draft mutators alongside keybindings, explicitly including focus padding/removal. Require ownership-safe deferral and production focus-event regressions before considering BR-1 addressed.
