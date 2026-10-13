@@ -15,6 +15,7 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "906571fc", done: "080261e3"}
 ---
 
 # slots: put agents' scratch traffic (build cache, temp dirs) on a volume fseventsd doesn't journal
