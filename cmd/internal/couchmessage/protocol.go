@@ -35,9 +35,6 @@ type Request struct {
 }
 
 type Response struct {
-	// AfterWrite is a server-only acknowledgment barrier. The transport calls it
-	// once after the response frame is written, or with the failure preventing it.
-	AfterWrite  func(error) `json:"-"`
 	Code, Error string
 	Receipt     *Receipt
 	Actors      []Candidate

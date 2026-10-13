@@ -2,6 +2,7 @@ package couchcmd
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -466,12 +467,12 @@ func newMessageService(parent context.Context, brokerSocket, registrySocket stri
 	})
 	s.workers.Add(1)
 	go s.loop()
-	server, err := couchmessage.StartResponseServer(lifetime, brokerSocket, func(ctx context.Context, raw []byte) couchmessage.Response {
+	server, err := couchmessage.StartServer(lifetime, brokerSocket, func(ctx context.Context, raw []byte) ([]byte, error) {
 		var request couchmessage.Request
 		if err := strictjson.Decode(raw, &request); err != nil {
-			return couchmessage.Response{Code: "invalid-request", Error: err.Error()}
+			return json.Marshal(couchmessage.Response{Code: "invalid-request", Error: err.Error()})
 		}
-		return s.handle(ctx, request)
+		return json.Marshal(s.handle(ctx, request))
 	})
 	if err != nil {
 		cancel()

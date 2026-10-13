@@ -370,7 +370,7 @@ func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (Sw
 	} else if cleared != nil {
 		thread = *cleared
 	}
-	// A retry from the same verified park retains its original native binding;
+	// A retry from the same verified park retains its exact tty capture;
 	// a separately parked replacement must supersede the older source evidence.
 	if thread.VerifiedPark != nil && (thread.PreviousSession == nil || thread.PreviousSession.Source != toPersistedParkIdentity(thread.VerifiedPark.Identity)) {
 		if previous := previousSessionEvidence(prepared.record, thread); previous != nil {

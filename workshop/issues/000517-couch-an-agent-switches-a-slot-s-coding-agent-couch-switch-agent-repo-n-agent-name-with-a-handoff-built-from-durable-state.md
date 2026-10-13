@@ -63,10 +63,16 @@ refuses without interrupting work. The detailed plan proposes limits for review.
 Durable plan: [agent switch plan](../plans/000517-agent-switch-plan.md).
 
 - [x] M1 — Preserve exact previous-session evidence and expose previous/full tty reads.
-- [ ] M2 — Add authenticated asynchronous switch requests, verbatim briefs and fresh starts.
-- [ ] M3 — Wire the form, TL procedure, live acceptance and rollout.
+- [ ] M2 — Lean remote switch using saved configuration, tty-only previous evidence, verification and acceptance (22:19 scope).
+- M3 withdrawn by the 22:19 revision; its remaining verification belongs to M2.
 
 ## Log
+
+- 2026-10-12 22:39 PDT — targeted switch race tests pass across core/cmd/tty
+  (18.214s / 23.966s / 5.844s). Removed the unused self-switch response-write
+  barrier; ordinary transport and all targeted transport/switch/receipt tests
+  pass (0.320s / 10.749s). Active milestone rows now reflect the already-approved
+  22:19 revision; original tasks remain in the revision history and plan.
 
 - 2026-10-12 22:35 PDT — approved lean implementation checkpoint: replaced the
   bespoke switch coordinator with ordinary operation receipts and the console
