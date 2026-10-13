@@ -183,3 +183,86 @@ findings:
 
 7. **Plan revision recommendations**
    - Add a `## Revisions` entry specifying the complete replay envelope, including history cells/bytes and screen area. Require visible failure for capacity loss or rejected geometry, distinguish these from intentional terminal history erasure, and update atlas limits if the accepted envelope changes.
+
+---
+
+## Re-review — 2026-10-12T21:10:47-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 517 — couch: an agent switches a slot's coding agent (couch --switch-agent repo:N --agent NAME), with a handoff built from durable state |
+| repo | pair |
+| issue file | workshop/issues/000517-couch-an-agent-switches-a-slot-s-coding-agent-couch-switch-agent-repo-n-agent-name-with-a-handoff-built-from-durable-state.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | e8d839f8d5012bf1560787284615a6f3f4dabbfc..0f3a7543cb999a96c70c2d80b64a9c71ecd73691 |
+| command | sdlc milestone-close --issue 517 --milestone M1 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-12T21:10:47-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+M1 delivers durable previous-session evidence and bounded full recording reads. Both open correctness findings are addressed, with regression tests confirmed to fail when enforcement is removed. No new blocking findings. This verdict covers M1 only; asynchronous switching and live acceptance remain M2/M3 work.
+
+```findings
+dispose:
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Explicit history limits and monotonic capacity-loss accounting prevent silent truncation. Removing accounting fails independent cell/byte, rejected-row, erase-after-loss, and resize-loss regressions.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Screen-area admission and checked emulator construction/resizing reject invalid geometry. Removing enforcement reproduces the initial panic and silently ignored later resize; regression tests fail.
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Exact verified-park identity controls descriptor reuse; successive-source and failed-launch retry tests pass.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      The plan's M1 file map and Revisions identify previous_session.go, peek_selection.go, bounded.go, and run.go as implemented owners and distinguish unchanged dependencies.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Controlled collection during exact-capture replay verifies protection and subsequent lease release on success and failure.
+```
+
+**Strengths**
+
+- Replay refuses capacity loss even when a subsequent terminal command clears history (`third_party/vt/scrollback.go:200`).
+- Geometry admission matches emulator limits and uses error-returning APIs (`cmd/internal/scrollbackcmd/bounded.go:65`).
+- Previous-session persistence checks source identity, capture, binding, and revision before writing (`cmd/internal/couchcore/previous_session.go:13`).
+- README and atlas document selection semantics, costs, limits, and unavailable evidence.
+
+**Critical findings:** None.
+
+**Important findings:** None.
+
+**Minor findings:** None.
+
+**Test coverage notes**
+
+Passed threadrecord and scrollback package tests, the nested VT suite, targeted core/CLI tests, artifact inventory checks, and diff whitespace checks. Both open fixes passed mutation verification in a disposable copy, subsequently removed.
+
+Missing generated runtime assets initially prevented CLI compilation and affected inventory checks; generating the required assets resolved those checks. The broader multi-package run was stopped before completion; no full-suite pass is claimed. Tracked files remain unchanged.
+
+**Architectural notes**
+
+- **ARCH-DRY — Pass:** shared replay, artifact-path authority, and retention machinery are reused.
+- **ARCH-PURE — Pass:** descriptor validation and selection remain deterministic; IO uses injected boundaries.
+- **ARCH-PURPOSE — Pass:** M1 provides exact previous evidence without current-session fallback.
+- **ARCH-MOCK — Pass:** lifecycle fakes and portable stores exercise production seams.
+- **ARCH-CONSTRAINTS — Pass:** explicit replay limits reject overflow visibly.
+- **ARCH-SECURE — Pass:** persisted descriptors, geometry, offsets, and file types receive boundary validation.
+- **ARCH-ORDER — Pass:** revision/source checks preserve evidence through retries; collection ordering is controlled in tests.
+- **ARCH-FUNERAL — Pass:** one bounded descriptor supersedes its predecessor; leases and emulators close, and captures retain existing collection policy.
+
+**Plan revision recommendations:** None.

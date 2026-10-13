@@ -62,7 +62,7 @@ refuses without interrupting work. The detailed plan proposes limits for review.
 
 Durable plan: [agent switch plan](../plans/000517-agent-switch-plan.md).
 
-- [ ] M1 — Preserve exact previous-session evidence and expose previous/full tty reads.
+- [x] M1 — Preserve exact previous-session evidence and expose previous/full tty reads.
 - [ ] M2 — Add authenticated asynchronous switch requests, verbatim briefs and fresh starts.
 - [ ] M3 — Wire the form, TL procedure, live acceptance and rollout.
 
@@ -116,6 +116,7 @@ Durable plan: [agent switch plan](../plans/000517-agent-switch-plan.md).
   atlas explain retained-history semantics and costs. M1 boundary review pending.
 
 ### 2026-10-12
+- 2026-10-12: closed M1 — BR-4/BR-5 regressions pass: 2000x80 lines retained; independent history cell/byte/row loss and loss before ED3 refuse; initial/later excessive geometry refuses; strict bounded events refuse malformed evidence. Six enforcement mutations fail and are restored. Scrollback and nested VT full race suites pass; previous-session, lifecycle refusal and artifact inventory targeted tests pass; diff clean. Fresh full make test underway.; review verdict: SHIP
 
 - Claimed in pair:2; start-plan refreshed the local ariadne tools, then started
   the issue branch from main. No implementation changes yet.

@@ -64,6 +64,36 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - "n": 3
+      timestamp: "2026-10-12T21:10:48-07:00"
+      dispatched: "2026-10-12T21:05:54-07:00"
+      agent: codex
+      dispose:
+        - id: BR-4
+          disposition: addressed
+          note: Explicit history limits and monotonic capacity-loss accounting prevent silent truncation. Removing accounting fails independent cell/byte, rejected-row, erase-after-loss, and resize-loss regressions.
+          round: 3
+        - id: BR-5
+          disposition: addressed
+          note: Screen-area admission and checked emulator construction/resizing reject invalid geometry. Removing enforcement reproduces the initial panic and silently ignored later resize; regression tests fail.
+          round: 3
+        - id: BR-1
+          disposition: addressed
+          note: Exact verified-park identity controls descriptor reuse; successive-source and failed-launch retry tests pass.
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: The plan's M1 file map and Revisions identify previous_session.go, peek_selection.go, bounded.go, and run.go as implemented owners and distinguish unchanged dependencies.
+          round: 3
+        - id: BR-3
+          disposition: addressed
+          note: Controlled collection during exact-capture replay verifies protection and subsequent lease release on success and failure.
+          round: 3
+      boundary: M1
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 0f3a7543cb999a96c70c2d80b64a9c71ecd73691
+      blocked: false
 ---
 
 # Gate ledger — pair#517 (boundary-review)
@@ -97,7 +127,16 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-5** [Critical] `replay-admission-matches-emulator-limits` Accepted recording dimensions can panic during emulator construction
   cmd/internal/scrollbackcmd/bounded.go:38–43 accepts 1000×1000, but replayData calls vt.NewEmulator, whose default maximum is 262,144 cells. An initial 1000×1000 resize reproducibly panics with "vt: invalid geometry"; later oversized-area resizes are silently rejected by Emulator.Resize. ARCH-SECURE and ARCH-CONSTRAINTS: align admission with explicit emulator geometry limits, use error-returning construction and resize operations, and test both initial and subsequent resize failures.
 
+## Round 3 — 2026-10-12T21:10:48-07:00 (codex) — passed
+
+### Disposed
+
+- BR-4 — addressed — Explicit history limits and monotonic capacity-loss accounting prevent silent truncation. Removing accounting fails independent cell/byte, rejected-row, erase-after-loss, and resize-loss regressions.
+- BR-5 — addressed — Screen-area admission and checked emulator construction/resizing reject invalid geometry. Removing enforcement reproduces the initial panic and silently ignored later resize; regression tests fail.
+- BR-1 — addressed — Exact verified-park identity controls descriptor reuse; successive-source and failed-launch retry tests pass.
+- BR-2 — addressed — The plan's M1 file map and Revisions identify previous_session.go, peek_selection.go, bounded.go, and run.go as implemented owners and distinguish unchanged dependencies.
+- BR-3 — addressed — Controlled collection during exact-capture replay verifies protection and subsequent lease release on success and failure.
+
 ## Open findings
 
-- **BR-4** [Critical] `full-replay-requires-loss-detection` Full replay silently evicts history and reports the remaining tail as complete
-- **BR-5** [Critical] `replay-admission-matches-emulator-limits` Accepted recording dimensions can panic during emulator construction
+(none — every finding has been disposed)
