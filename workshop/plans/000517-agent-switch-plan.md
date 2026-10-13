@@ -614,3 +614,183 @@ Restoring availability is an explicit operator action after restart, never
 unbounded background retries. Durability is one record per slot with a named
 supersession/deletion lifecycle (ARCH-FUNERAL); immutable accepted configuration,
 exact identities and closed decoding enforce trust (ARCH-SECURE/ORDER).
+
+### 2026-10-12 22:12 PDT — Switch only; coordinates are discoverable, never delivered
+
+**Authoritative replacement for all earlier M2/M3 design and tasks.** M1 remains
+closed at 37707f73b. The earlier text is historical provenance, not executable
+scope. TL receipt d24edf27-e5db-4006-ad0b-8bd7672dbca9 relays the operator:
+
+> Record the last conversation's coordinates (where to find each piece of data);
+> the new conversation decides what to do with them. Decouple compaction from
+> the agent switch: a switch may not need any context.
+
+**Goal:** Switch agents without delivering anything, preserve the exact previous
+conversation's coordinates, and leave failures with one safe recovery action.
+**Architecture:** Existing authenticated operation admission and park/start own
+the switch. A small durable transaction preserves source evidence and launch
+witnesses; the existing thread gate serializes effects. One pure projection
+drives receipts and menu actions. No handoff coordinator or content lifecycle.
+**Tech stack:** existing Go packages, Couch socket and portable thread store.
+
+#### Revised contract and acceptance
+
+`couch --switch-agent repo:N|self --agent NAME --confirm [--json]` switches only.
+Remove switch-specific handoff-file/request-callback flags and wire fields.
+No authored brief, fallback text, automatic summary, orientation request,
+composer paste, draft seed or CLI prompt is created by a switch. Native fresh
+registration/readiness remains required and independent of orientation.
+Preserve M1's previous descriptor, exact native transcript and tty coordinates,
+park identity/token, source identity, `--previous`, and full reads/retention.
+
+Busy external targets, dirty worktrees and unknown source state refuse before
+park. **Proposed self-call detail for TL confirmation:** acknowledge an
+authenticated self request before effects, then wait only for that initiating
+turn to settle under the existing bounded settle policy; recheck clean/exact
+source immediately before park. Dirty self requests refuse too. This is the
+minimum allowance for an agent to call self while its tool turn is running;
+there is no brief-writing turn or callback. If strict busy refusal includes
+self's initiating turn, self will refuse there instead of switching.
+
+Success is exact fresh target registration, not prompt delivery. Old exact
+source proved live after failure -> **Old agent still running / Retry switch**.
+No single survivor proved live -> **Switch needs recovery / Recover slot**
+(resume the old thread). Recovery first reconciles exact source/target evidence:
+reattach a surviving target or old source, otherwise resume the saved old native
+conversation only after proving no competing process is running. Unknown
+presence and recovery failure keep the action plus a diagnostic; neither
+authorizes a duplicate launch. Restart shows the same action and notice without
+automatically retrying park or start. No claim of uninterrupted availability.
+
+Ship this sentence in both `couch --skill` and `couch --help`:
+
+> After a switch or restart, `couch --peek self --previous` shows where the last
+> conversation's transcript and terminal log are; read them only if your task
+> needs them.
+
+Ensure the default previous peek actually exposes those coordinates; if any
+currently require `--transcripts`, reuse the existing descriptor formatter to
+include them. Missing evidence remains explicitly unavailable, never current
+session substitution. The hub/operator supplies any context request separately.
+
+Out of scope: compaction/continuation/restart delivery, launch prompts, TL brief
+authoring procedure, and changes to ops skills. Do not delete shared orientation
+or continuation support used by other operations. The logged launch-prompt
+replay risk remains a separate concern, not a new fix inside this plan.
+
+#### Core concepts and integration owners
+
+Statuses below are relative to the paused checkpoint, not a claim it works.
+
+| Pure entity | Lives in | Status |
+| --- | --- | --- |
+| PreviousSession | `cmd/internal/threadrecord/previous_session.go`, `cmd/internal/couchcore/previous_session.go` | modified: retain M1; allow pre-park coordinates to survive interrupted switch |
+| SwitchRecovery / SwitchSourceSnapshot / SwitchLaunchWitness | `cmd/internal/threadrecord/switch_recovery.go` | modified: source/profile/coordinates and attempt witnesses only; remove all content and delivery fields |
+| AgentSwitch transition | `cmd/internal/couchcore/agent_switch_model.go` | modified: switch/recovery effects only; remove brief/callback/delivery events and deadlines |
+| AgentSwitchView | `cmd/internal/couchcore/agent_switch_view.go` | modified: progress, old-live retry, needs-recovery, target-ready; remove copy-brief |
+| SwitchContent | `cmd/internal/threadrecord/switch_recovery.go`, aliases in `cmd/internal/couchcore/agent_switch_model.go` | deleted |
+
+| Integration | Lives in | Status | Reuses |
+| --- | --- | --- | --- |
+| Authenticated CLI admission and status | `cmd/internal/couchcmd/switch_agent_cli.go`, `agent_switch_service.go`, `agent_switch.go`; `cmd/internal/couchmessage/protocol.go`, `transport.go` | modified | broker identity, operation receipts and after-response-write activation |
+| Source capture, park and launch | `cmd/internal/couchcore/switchagent.go`, `previous_session.go`, `starttransaction.go`, `threadstore.go` | modified | M1 evidence resolver, CAS, park/start events |
+| Exact old-thread recovery | `cmd/internal/couchcore/switch_recovery.go`, `switch_native.go`, `resume.go`, `launch_existing.go` | modified | liveness, warm attach, native resolver and resume |
+| Shared form, menu and restart projection | `cmd/internal/couchtty/console_switchagent.go`, `console_remote.go`, `menu_agent_switch.go`, `menu_reattach.go`; `cmd/internal/couchcore/actionableinventory.go`, `slot_operation.go`, `recover_action.go` | modified | existing operation dispatch and inventory |
+| Prompt-free fresh readiness | `cmd/internal/launcher/args.go`, `createflow.go`, `launch_args_policy.go` | modified | retain FreshNonce independently of Orientation |
+| Discoverability and peek formatting | `cmd/internal/couchcmd/skills/couch/SKILL.md`, `run.go`, `peek_tail.go` | modified | embedded skill/help and M1 descriptor response |
+
+Keep one latest transaction per thread, one pending operation per canonical
+slot. Save original profile/native ID independently of mutable latest binding.
+Replace only after resolution by the next accepted switch; deletion follows the
+thread. M1 leases remain the retention authority for archives (ARCH-FUNERAL).
+Persist evidence before acknowledgement and before destructive effects; record
+target/restoration witnesses atomically with existing start events. Durable
+records are evidence, never liveness authority (ARCH-ORDER/SECURE).
+
+Use a tagged transaction phase: admitted, switching, recovering, resolved.
+Resolved outcome and current liveness drive the view. An effect completion
+must match request ID and attempt/source identity. Older/malformed WIP records
+cannot cause effects; reject unsupported shapes visibly with retained evidence.
+No migration may replay a brief. Existing records without a switch remain valid.
+
+| State/event | Next state and permitted effect |
+| --- | --- |
+| none + valid admission | admitted; persist immutable request/source snapshot before acknowledgement |
+| admitted + response written and settled exact clean source | switching; persist coordinates and park intent, then park |
+| admitted + busy/dirty/changed source, cancellation or failed response write | resolved/refused; no park |
+| switching + verified park | switching; finalize archive coordinates and record target claim before launch |
+| switching + exact target registered | resolved/target; no delivery |
+| switching + park/start error or uncertain completion | resolved failure; inspect evidence and project retry/recovery |
+| restart with unresolved transaction | no automatic effects; project current evidence and recovery action |
+| failure + explicit recover | recovering; select exact survivor or prove absence before old-thread resume |
+| recovering + success/error | resolved survivor/failure; repeated recover reuses survivor or retains action |
+| any + stale completion/duplicate request | ignore stale completion; identical request observes same operation, conflicting request refuses |
+
+#### Remaining implementation — one M2 boundary, no M3
+
+M2 now includes switch mechanics, recovery, discoverability and acceptance.
+Delete the old M3 work commitment; no separate TL authoring procedure is needed.
+Do not start implementation until TL reviews this plan and revised change-code
+passes. Re-estimate only after that gate; 8.640h remains historical provenance.
+
+- [ ] **Trim paused WIP.** Compare against 37707f73b. Remove brief-file reader,
+  callback admission/correlation, content selection, brief/overall handoff timers,
+  delivery observation, copy actions and switch orientation hooks in the files
+  above and their tests. Keep source authentication, immutable accepted argv,
+  response-write barrier and FreshNonce. Keep recovery drafts only as candidates
+  for the following tests: they are currently disconnected, not verified reuse.
+  Commit the coherent removal, preserving M1 and unrelated consumers.
+- [ ] **Test and implement durable source capture.** Extend colocated previous
+  session/store and switch-recovery tests with failure before/after park. Capture
+  exact native and live tty paths before ParkExpected in the durable transaction;
+  preserve the park token when park admission allocates it, before source stop.
+  After verified park, finalize the M1 archive descriptor using that same source.
+  Before finalization, previous discovery uses the pending source coordinates
+  and marks archive fields unavailable; it must not expose an older source as
+  this switch's predecessor. A failed write authorizes no destructive effect.
+  Run tests red, wire CAS/retention-safe updates, rerun green, commit.
+- [ ] **Test and implement switch-only admission/transaction.** Colocated CLI,
+  service, protocol, model and core tests cover exact/self address, --confirm,
+  unsupported flags, busy/dirty refusal, immutable parameters, concurrent
+  requests, source replacement, failed ack, self settle, and no orientation/body
+  in launch or queue. Wire the reduced transition function and shared form.
+  Atomically retain target/restoration witnesses; no IO under receipt mutex.
+  Confirm no callback/delivery dependency remains, rerun targeted tests, commit.
+- [ ] **Test and complete recovery/restart.** Use the existing stateful process,
+  session/runner fakes and portable thread store. Interrupt before/after park,
+  claim, helper start and registration; reopen that store. Assert actual survivor
+  identities, action/notice, exact old native ID and launch count. Cover lost
+  acknowledgements, unknown liveness, same-agent switch, absent transcript,
+  repeated recovery, recovery failure, and interruption during recovery. Wire
+  RecoverAgentSwitch before ordinary auto-recovery; test real menu dispatch and
+  authenticated receipt reconstruction. Run targeted race tests, commit.
+- [ ] **Discoverability and verification.** Update skill/help, README and atlas
+  in the same change; register any changed source inventory paths. Test default
+  previous-peek coordinates and missing-data behavior. Keep M1 full-read tests.
+  Through the existing fake launcher verify all three agent names launch with
+  no orientation payload or generated prompt; retain wrapper no-orientation
+  readiness acceptance. TL schedules live Claude/Codex/Grok switch checks when
+  safe: new conversation starts without delivered text, previous peek locates
+  the outgoing evidence, induced failure exposes the selected action.
+- [ ] **Close M2 and issue.** Run targeted selections then background `make test`;
+  log evidence and update atlas. `sdlc milestone-close --issue 517 --milestone M2`
+  owns boundary review. Resolve findings, then close/publish through SDLC after
+  required live acceptance. No additional ad-hoc review pass at that boundary.
+
+Targeted commands (expected PASS after each relevant red/green task):
+
+```sh
+go test ./cmd/internal/threadrecord ./cmd/internal/couchcore -run 'Test.*(Previous|Switch|Recover)' -count=1
+go test ./cmd/internal/couchcmd ./cmd/internal/couchmessage ./cmd/internal/couchtty -run 'Test.*(Switch|Previous|ResponseAfterWrite)' -count=1
+go test ./cmd/internal/launcher ./cmd/internal/wrapcmd -run 'Test.*(FreshNonce|Orientation|LaunchEnv)' -count=1
+go test -race ./cmd/internal/couchcore ./cmd/internal/couchcmd ./cmd/internal/couchtty -run 'Test.*(Switch|Recover)' -count=1
+```
+
+ARCH-DRY/PURE: reuse source/launch/recovery owners and one pure projection.
+ARCH-PURPOSE: context is discovered on demand, never delivered by switching.
+ARCH-MOCK: same stateful runner/process/store seams exercise interrupted effects.
+ARCH-CONSTRAINTS: heavy user-triggered operation, no new global admission cap,
+one pending/latest per slot; reuse existing settle/launch bounds and propagate
+uncertain outcomes rather than inventing absence. No transcript parsing/replay
+or network/model calls enter the supervisor switch path. ARCH-SECURE/ORDER and
+ARCH-FUNERAL constraints are specified with the transaction and retention above.

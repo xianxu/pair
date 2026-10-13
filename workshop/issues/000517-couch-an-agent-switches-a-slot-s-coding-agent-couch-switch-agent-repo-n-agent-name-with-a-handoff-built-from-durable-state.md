@@ -297,6 +297,55 @@ No source changes or live slot operations were made.
   accepted. TL owns live-check scheduling. Proceed to change-code plan-quality;
   no permission to skip any gates. Add dirty-source commit/self guidance to M3.
 
+### 2026-10-12 22:12 PDT — Operator re-scope: preserve coordinates, switch only
+
+Verified submitted TL receipt d24edf27-e5db-4006-ad0b-8bd7672dbca9 relays:
+
+> Record the last conversation's coordinates (where to find each piece of data);
+> the new conversation decides what to do with them. Decouple compaction from
+> the agent switch: a switch may not need any context.
+
+This supersedes the earlier Spec/Done-when and M2/M3 tasks wherever they require
+brief authoring, delivery, callback, fallback, copy-brief or TL authoring rollout.
+M1 remains closed and its previous-descriptor/full-read behavior stays. Current
+remaining contract:
+
+- `couch --switch-agent repo:N|self --agent NAME --confirm [--json]` switches
+  without delivering anything. Refuse busy/dirty sources; preserve coordinates
+  before park. No brief, callback, handoff states, generated orientation or
+  launch prompt. Preserve fresh readiness independently of delivery.
+- Failure with old exact agent proved running offers Retry switch. Neither
+  proved running offers Recover slot (resume old thread), with exact survivor
+  reconciliation first and no duplicate launch on unknown process evidence.
+  Recovery failure and supervisor restart retain the visible action.
+- Both Couch skill and help explain: after a switch or restart,
+  `couch --peek self --previous` shows where the last conversation's transcript
+  and terminal log are; read them only if the task needs them. The new agent
+  decides what to read; the hub/operator requests context when needed.
+- Compaction/continuation and launch prompts are out of scope. The earlier Log
+  records the measured replay-on-relaunch risk of saving a prompt as argv.
+
+**Revised plan:** M2 is the sole remaining implementation/review milestone,
+including the shared form, failure recovery, discoverability and live acceptance.
+The old M3 is withdrawn rather than another review boundary. The authoritative
+trimmed tasks are the durable plan's 22:12 Revisions entry. The old 8.640-hour
+estimate is historical; revise only after the new plan passes change-code.
+
+Read-only WIP audit found FreshNonce and exact-source/acknowledgement guards
+worth retaining. Remove content/callback/delivery machinery and salvage recovery
+only against new tests: the checkpointed recovery helpers are largely unwired.
+M1's final descriptor currently writes after verified park, so pre-park source
+coordinates need durable capture and archive finalization must remain tied to
+the same source. No implementation changed during this plan revision.
+
+One explicit plan detail needs TL review: an authenticated self call occurs
+during its initiating agent turn. Proposed behavior acknowledges it, then waits
+only for that turn to settle; dirty self calls still refuse, and all effects
+revalidate the exact clean source. Strict busy refusal including that initiating
+turn would instead make agent-issued self calls refuse. No brief turn or callback
+is proposed. Send the trimmed plan to hub and keep implementation paused pending
+its review, as requested by the TL.
+
 ## Estimate
 
 *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md`
