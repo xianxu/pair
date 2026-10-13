@@ -189,6 +189,15 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 	return c, nil
 }
 
+// linkURL is a link's URL under the Host's base; "" for a link the cast
+// doesn't have (an empty token).
+func linkURL(base, token string) string {
+	if token == "" {
+		return ""
+	}
+	return base + "/" + token + "/"
+}
+
 // recordingID names a recording by its start, plus a random suffix.
 func recordingID(at time.Time) string {
 	var b [2]byte
@@ -264,13 +273,8 @@ func (c *Cast) run(ctx context.Context, host *broadcast.Host, srv *Server, token
 				cur.LinkErr = r.err
 			} else {
 				mount, lost = r.m, r.m.Exited()
-				cur.Link = r.m.Base() + "/" + token + "/"
-				if c.pointerToken != "" {
-					cur.PointerLink = r.m.Base() + "/" + c.pointerToken + "/"
-				}
-				if c.driveToken != "" {
-					cur.DriveLink = r.m.Base() + "/" + c.driveToken + "/"
-				}
+				base := r.m.Base()
+				cur.Link, cur.PointerLink, cur.DriveLink = linkURL(base, token), linkURL(base, c.pointerToken), linkURL(base, c.driveToken)
 			}
 		case <-lost:
 			lost = nil

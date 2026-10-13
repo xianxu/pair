@@ -92,3 +92,24 @@ func TestCastPublishesThreeLinks(t *testing.T) {
 		t.Fatalf("a cast without a board has a pointer link: %s", u.PointerLink)
 	}
 }
+
+// Every link goes with the mount: a lost tunnel clears the pointer link with
+// the view link, so Couch never copies a dead one (pair#506).
+func TestCastLinksClearTogetherWhenTheMountIsLost(t *testing.T) {
+	tunnel := &broadcast.FakeTunnel{}
+	c, err := StartCast(context.Background(), CastConfig{
+		Launch:        func(context.Context, *RecordOptions) (Browser, error) { return NewFakeBrowser(), nil },
+		Host:          broadcast.NewHost(broadcast.HostConfig{Tunnel: tunnel, ProbeTimeout: 2 * time.Second}),
+		Ping:          time.Second,
+		RecordingsDir: t.TempDir(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(c.End)
+	waitUpdate(t, c, "links", func(u Update) bool { return u.Link != "" && u.PointerLink != "" })
+	tunnel.Exit()
+	if u := waitUpdate(t, c, "link lost", func(u Update) bool { return u.LinkErr != nil }); u.Link != "" || u.PointerLink != "" || u.DriveLink != "" {
+		t.Fatalf("links after the mount was lost: %+v", u)
+	}
+}

@@ -423,7 +423,7 @@ the terminal viewer:
 - The note anchors on `nodeAt`'s element at the box's centre.
 - Pins are the model's live notes (since `docSeg`, open). Each frame they are drawn as the box, outlined in the
   author's color (an older note without one: its element's box as drawn by `boxOf`, else the box it was made on).
-- The 💭 chip sits inside the box's top-right corner and opens the note with Resolve. The identity (`couch.viewerId`, made once;
+- The 💭 chip sits inside the box's top-right corner and opens the note with Resolve (without it under the view-only link, pair#506). The identity (`couch.viewerId`, made once;
 `couch.viewerName`, asked in the first draft) is kept in localStorage behind try/catch, and a stored name is read by
 the board's rules (else asked again). Controls that take input (swatches, mode buttons, pin chips) are rebuilt only
 when their data changes; each frame only places them. For replay (#477), the drawing is pure over the model at t:
