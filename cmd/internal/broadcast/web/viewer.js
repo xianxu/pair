@@ -5,7 +5,7 @@
 // pick (#446).
 
 import { noteAt, boxHasPin, parseNotes } from './notes.js';
-import { HEX_COLOR, pointerColor, colorStore, railAt, renderSwatches, noteDialog, poster, gestureBox, dragMin, sessionLost, storedName } from './collab.js';
+import { HEX_COLOR, pointerColor, colorStore, railAt, renderSwatches, noteDialog, poster, gestureBox, noteGesture, sessionLost, storedName } from './collab.js';
 
 export { pointerColor, colorStore, RAIL_INSET, railAt, renderSwatches } from './collab.js';
 
@@ -429,7 +429,7 @@ export function pointerMode(term, stage, deps = {}) {
   let on = false;
   // drag is what the pointer is doing, one of: null; {kind: 'stroke', last,
   // pending} (pointer mode, its points posted every 50ms by timer); {kind:
-  // 'box', from, to, pointerType} (comment mode, a note's box being drawn).
+  // 'box', from, to, gesture} (comment mode, a note's box being drawn).
   let drag = null;
   let timer = null;
   let palette = [];
@@ -477,7 +477,7 @@ export function pointerMode(term, stage, deps = {}) {
     const el = screen();
     return el ? cellAt(e.clientX, e.clientY, el.getBoundingClientRect(), term.cols, term.rows) : null;
   };
-  const boxOf = (g) => gestureBox(g.from, g.to, { x: 0, y: 0, w: term.cols, h: term.rows }, { min: dragMin('cells', g.pointerType), cells: true });
+  const boxOf = (g, preview = false) => gestureBox(g.from, g.to, { x: 0, y: 0, w: term.cols, h: term.rows }, { min: g.gesture.dragged ? 0 : Infinity, cells: true, preview });
   // end ends whatever the pointer is doing: a stroke's last points are
   // posted, a box being drawn is dropped.
   const end = () => {
@@ -510,8 +510,7 @@ export function pointerMode(term, stage, deps = {}) {
     stage.setPointerCapture?.(e.pointerId);
     end();
     if (mode === 'comment') {
-      drag = { kind: 'box', from: c, to: c, pointerType: e.pointerType };
-      dragBox.show(boxOf(drag));
+      drag = { kind: 'box', from: c, to: c, gesture: noteGesture([e.clientX, e.clientY], e.pointerType) };
       return;
     }
     drag = { kind: 'stroke', last: null, pending: [c] };
@@ -523,7 +522,10 @@ export function pointerMode(term, stage, deps = {}) {
     if (drag?.kind === 'box') {
       if (c) {
         drag.to = c;
-        dragBox.show(boxOf(drag));
+        drag.gesture.move([e.clientX, e.clientY]);
+        const box = boxOf(drag, true);
+        if (box) dragBox.show(box);
+        else dragBox.hide();
       }
       return;
     }
