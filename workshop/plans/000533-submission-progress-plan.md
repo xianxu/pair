@@ -85,7 +85,7 @@ ARCH-ORDER: reducer transitions decide ownership; adapters execute effects and r
 ### 4. Integration and close
 
 - [x] Update atlas/webcast-submission.md and operator-facing key documentation for operation-only read-only behavior.
-- [ ] Run make runtimebundle-generate, affected Go packages with GOMAXPROCS=2 and -p=1, applicable headless suites, real-Chrome crop readiness conformance, and full make test against stable committed sources. Record any unrelated failure precisely.
+- [x] Run make runtimebundle-generate, affected Go packages with GOMAXPROCS=2 and -p=1, applicable headless suites, real-Chrome crop readiness conformance, and full make test against stable committed sources. Record any unrelated failure precisely.
 - [ ] Run sdlc close with actual verification evidence, address findings, publish PR, wait for CI, land on SHIP as authorized, report hub.
 
 Test strategy: production reducer sequence tests establish ownership independently of IO; adapter tests hold and reorder real effect results; headless tests inspect actual buffer options and evaluated statusline before releasing work. Backend progress tests inspect observable status while a fake CDP/cast blocks, then ensure terminal delivery states remain unchanged. A deliberately blocked child proves timeout rather than a mock merely returning a timeout string. No prose duplication of executable case inventories.
