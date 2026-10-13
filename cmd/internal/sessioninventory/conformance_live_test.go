@@ -1,6 +1,8 @@
 package sessioninventory
 
 import (
+	"context"
+	"encoding/json"
 	"os"
 	"strings"
 	"testing"
@@ -19,6 +21,12 @@ func TestLiveNativeSessionShapeConformance(t *testing.T) {
 		t.Fatal(err)
 	}
 	report, conformanceErr := RunConformance(runtime, SupportedAgents()...)
+	recoveryReport, recoveryErr := RunRecoveryConformance(context.Background(), runtime, SupportedAgents()...)
+	recoveryJSON, _ := json.Marshal(recoveryReport)
+	t.Logf("recovery native contract (redacted): %s", recoveryJSON)
+	if recoveryErr != nil {
+		t.Error(recoveryErr)
+	}
 	rendered, err := RenderConformance(report)
 	if err != nil {
 		t.Fatal(err)

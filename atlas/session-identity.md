@@ -202,7 +202,7 @@ without starting inventory/activity work; age/idle enrichment is omitted from
 the modal. `make test-session-inventory-conformance` runs the one-second installed
 metadata budget and all four provider comparisons. Run it for #156 verification,
 before any scanner/provider-contract version change, and in the monthly operator
-maintenance pass (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK).
+maintenance pass (ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK). The same opt-in live test also exercises the production recovery interpretation for Claude and Codex: interactive provenance, working directory, activity and authored tails. Its redacted report distinguishes absent samples and unsupported recovery provenance (including Grok) from schema drift; a passing legacy inventory scan alone is not recovery conformance. Reads remain bounded and do not mutate native sessions.
 
 ## Data layout
 

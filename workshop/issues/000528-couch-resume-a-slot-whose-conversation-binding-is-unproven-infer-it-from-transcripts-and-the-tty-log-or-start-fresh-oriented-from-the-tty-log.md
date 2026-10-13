@@ -255,6 +255,8 @@ M2 build/race checkpoint (2026-10-13 13:16 PDT): make build PASS; /tmp/pair528-m
 
 2026-10-13 13:40 PDT — Second M2 boundary REWORK: BR-6 and BR-7 addressed, independently mutation-tested by the reviewer; new Important BR-8 requests recovery-specific native conformance. Existing conformance indeed calls legacy scanners only. Extend that read-only path and add drift regression per plan revision. Build at 5be717b9e passed with all three binaries vcs.modified=false. Reviewer targeted suites passed; full-suite and live acceptance still outstanding.
 
+2026-10-13 — BR-8 verification: existing opt-in native-shape test now calls bounded production recovery parsing via RunRecoveryConformance, with redacted provenance/cwd/activity/authored-tail coverage and explicit unsupported/absent outcomes. Independent native-event normalization detects lost authored tails instead of silently skipping them. Drift, vanished-sample, skip outcomes and scratch real-OS reads pass targeted tests (0.165s) and targeted race (1.299s). Provenance-skip and dropped-authored-tail mutations both fail the regressions. Installed native scan was not run to preserve the live-slot investigation restriction; scratch files only. TL b70dbf44 still holds full-suite capacity at load274. No full suite or live slot action started.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against

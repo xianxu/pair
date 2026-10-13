@@ -2,9 +2,11 @@ package sessioninventory
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"sort"
 )
 
@@ -191,4 +193,156 @@ func hasConformanceFailure(codes []DiagnosticCode) bool {
 		}
 	}
 	return false
+}
+
+// RecoveryConformanceAgent reports contract coverage without exposing native
+// paths, identifiers, or authored text. Skip never means the contract passed.
+type RecoveryConformanceAgent struct {
+	Agent         Agent             `json:"agent"`
+	Status        ConformanceStatus `json:"status"`
+	Reason        string            `json:"reason"`
+	Samples       int               `json:"samples"`
+	Interactive   int               `json:"interactive"`
+	AuthoredTails int               `json:"authored_tails"`
+	ParserVersion string            `json:"parser_version"`
+}
+type RecoveryConformanceReport struct {
+	Agents []RecoveryConformanceAgent `json:"agents"`
+}
+
+// RunRecoveryConformance exercises the production recovery interpreter through
+// its bounded snapshot reader. No capture epoch is invented and no selection or
+// native binding is authorized by this diagnostic. Run on contract changes and
+// with the existing monthly native-shape conformance check.
+func RunRecoveryConformance(ctx context.Context, runtime Runtime, agents ...Agent) (RecoveryConformanceReport, error) {
+	report := RecoveryConformanceReport{}
+	if ctx == nil {
+		return report, errors.New("recovery conformance requires context")
+	}
+	ctx, cancel := context.WithTimeout(ctx, RecoveryScanTimeout)
+	defer cancel()
+	agents = append([]Agent(nil), agents...)
+	sort.Slice(agents, func(i, j int) bool { return agents[i] < agents[j] })
+	var failures []error
+	var budget RecoveryEvidence
+	metadata := 0
+	io, bounded := runtime.(RecoveryRuntime)
+	for _, agent := range agents {
+		result := RecoveryConformanceAgent{Agent: agent, Status: ConformanceSkip, Reason: "absent-sample", ParserVersion: RecoveryParserVersion}
+		if agent != AgentCodex && agent != AgentClaude {
+			result.Reason = "unsupported-interactive-provenance"
+			report.Agents = append(report.Agents, result)
+			continue
+		}
+		fail := func(reason string) { result.Status = ConformanceFail; result.Reason = reason }
+		if !bounded {
+			fail("bounded-recovery-io-unavailable")
+		} else {
+			for _, root := range runtime.NativeRoots(agent) {
+				if metadata >= RecoveryMetadataLimit {
+					fail("metadata-limit")
+					break
+				}
+				samplesBefore := result.Samples
+				count, err := io.VisitRecoveryFiles(ctx, root, RecoveryMetadataLimit-metadata, func(entry FileEntry) error {
+					if entry.Artifact.StorageRoot != root.Name {
+						return ErrPathEscape
+					}
+					if _, ok := observeEntry(agent, entry); !ok {
+						return nil
+					}
+					result.Samples++
+					parser := newRecoveryParser(agent, entry)
+					err := readRecoverySnapshot(ctx, io, entry, &budget, func(records []FramedJSONLRecord) error {
+						for _, record := range records {
+							if err := parser.add(record); err != nil {
+								return err
+							}
+							events, _ := NormalizeNativeEvent(agent, record.Bytes)
+							if err := validateRecoveryConformanceTail(parser.c, events); err != nil {
+								return err
+							}
+						}
+						return nil
+					})
+					if err != nil {
+						return err
+					}
+					candidate, _, err := parser.finish(nil)
+					if err != nil {
+						return err
+					}
+					if candidate.Interactive.State == InteractiveNo {
+						return nil
+					}
+					// Unknown provenance on an otherwise recognized root is drift, not an
+					// absent interactive sample. In particular, disappearing CLI fields fail.
+					if candidate.Interactive.State != InteractiveYes || !candidate.RootEligible {
+						return errors.New("recovery provenance drift")
+					}
+					result.Interactive++
+					if candidate.Incomplete || candidate.CWD == "" {
+						return errors.New("recovery cwd or authored envelope drift")
+					}
+					if len(candidate.Messages) == 0 {
+						return nil
+					}
+					if candidate.SemanticLast.IsZero() {
+						return errors.New("recovery activity drift")
+					}
+					for _, message := range candidate.Messages {
+						if message.Role == EventAssistant && message.Complete && message.Text != "" {
+							if message.Timestamp.IsZero() || message.CWD != candidate.CWD {
+								return errors.New("recovery authored tail drift")
+							}
+							result.AuthoredTails++
+							break
+						}
+					}
+					return nil
+				})
+				if count < 0 || count > RecoveryMetadataLimit-metadata {
+					fail("invalid-metadata-count")
+					break
+				}
+				metadata += count
+				if (errors.Is(err, ErrStorageAbsent) || errors.Is(err, fs.ErrNotExist)) && count == 0 && result.Samples == samplesBefore {
+					continue
+				}
+				if err != nil {
+					fail("recovery-contract-or-snapshot-failed")
+					break
+				}
+			}
+		}
+		if result.Status == ConformanceFail {
+			failures = append(failures, fmt.Errorf("%s: %s", agent, result.Reason))
+		} else if result.AuthoredTails > 0 {
+			result.Status = ConformanceOK
+			result.Reason = "provenance-cwd-activity-authored-tail"
+		} else if result.Samples > 0 {
+			result.Reason = "no-authored-interactive-sample"
+		}
+		report.Agents = append(report.Agents, result)
+	}
+	return report, errors.Join(failures...)
+}
+
+// The established event normalizer is an independent witness that a sample
+// contains authored text; recovery must not silently turn it into an empty tail.
+func validateRecoveryConformanceTail(candidate RecoveryCandidate, events []NativeEvent) error {
+	for i := len(events) - 1; i >= 0; i-- {
+		event := events[i]
+		if (event.Kind == EventAssistant || event.Kind == EventOperator) && event.Text != "" {
+			if len(candidate.Messages) == 0 {
+				return errors.New("recovery lost recognized authored tail")
+			}
+			last := candidate.Messages[len(candidate.Messages)-1]
+			if last.Text != event.Text || last.Role != event.Kind || !last.Complete {
+				return errors.New("recovery authored tail disagrees with native event contract")
+			}
+			break
+		}
+	}
+	return nil
 }
