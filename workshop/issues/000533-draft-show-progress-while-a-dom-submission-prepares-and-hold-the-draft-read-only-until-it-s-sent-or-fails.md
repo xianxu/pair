@@ -79,3 +79,6 @@ item: real-api-discovery design=0 impl=0.20
 design-buffer: 0.15
 total: 2.199
 ```
+
+- Implemented informational progress over existing polling; authenticated slot label; 36-second draft operation budget and bounded DOM-only external calls. TDD REDs: manager missing initial replay progress, reducer allowed active replacement, adapter lacked deadline, production buffer remained editable. GREEN: affected Go packages (submission/couchmessage/couchtty/couchcmd/recorder/webcast), focused couchtty+recorder race tests, Lua reducer/adapter/transport/sender and production headless chord tests. Embedded Neovim UI verifies actual status frames precede held pin/send, then settling/sent/failure and buffer release.
+- Estimate clarification: discovery covers completed Chrome/Zellij measurement; both Lua primitive implementation allowances include controlled and headless verification. Residual design covers choosing budget propagation and UI ownership seams. Full-suite runtime can exceed the provisional primitive allowance; it will be measured rather than back-fit.

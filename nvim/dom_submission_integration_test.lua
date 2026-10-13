@@ -9,17 +9,21 @@ local ack_failed=false
 local deferred
 local guide='Recording: /store/webcast/recordings/recording-1\ncouch --broadcast-web-query /store/webcast/recordings/recording-1 notes'
 vim.notify=function()end
-_G.PairTestSessionLogAppend=function(text)authored[#authored+1]=text;return true end
+_G.PairTestSessionLogAppend=function(text)
+ assert(not vim.bo.modifiable and _G.PairStatusline():find('sending to',1,true),'append preceded sending status')
+ authored[#authored+1]=text;return true end
 _G.PairTestSessionLogCommit=function()return true end
-_G.PairTestDOMPin=function()return {pane_id=7,validate=function()return true end} end
+_G.PairTestDOMPin=function()
+ assert(not vim.bo.modifiable and _G.PairStatusline():find('preparing submission',1,true),'pin preceded visible lock/status')
+ return {pane_id=7,validate=function()return true end} end
 _G.PairTestDOMRPC=function(op,id,cb)
  if op=='prepare' then
   preps=preps+1;ids[#ids+1]=id
   if case=='no_notes' then cb({state='empty'});return end
   if case=='pre_error' and preps==1 then cb(nil,'unexpected submission entry .DS_Store');return end
   if case=='failure' then cb({state='failed',error='page changed'});return end
-  if case=='changed' then deferred=cb;return end
-  cb({state='prepared',path='/store/'..id..'/submission.json',how_to_read=guide})
+  if case=='changed' or case=='progress' or case=='timeout' then deferred=cb;return end
+  cb({state='prepared',slot='pair:6',path='/store/'..id..'/submission.json',how_to_read=guide})
  elseif op=='begin' then cb({state='delivering'})
  elseif op=='ack' then
   acks=acks+1
@@ -44,6 +48,8 @@ if case=='queue' then
  body='queued'
  assert(vim.api.nvim_get_current_line()==body)
 end
+local deadline
+_G.PairTestDOMArm=function(fn)deadline=fn;return function()end end
 local map=vim.fn.maparg('<C-S-M-CR>',mode,false,true)
 assert(type(map.callback)=='function','DOM chord absent in '..mode)
 map.callback()
@@ -53,7 +59,16 @@ if case=='pre_error' or case=='uncertain' or case=='no_notes' then
  map.callback()
  assert(#sent==1 and authored[#authored]=='edited current' and preps==2 and ids[1]~=ids[2])
  assert(sent[1]:find('edited current',1,true) and acks==(case=='no_notes' and 0 or 1))
-elseif case=='changed' then
+elseif case=='changed' or case=='progress' or case=='timeout' then
+ assert(not vim.bo.modifiable,'draft not locked during preparation')
+ assert(_G.PairStatusline():find('preparing submission',1,true),'progress missing')
+ assert(_G.PairDOMStatus.buf==vim.api.nvim_get_current_buf())
+ local ok=pcall(vim.api.nvim_buf_set_lines,0,0,-1,false,{'edited'})
+ assert(not ok,'editable during active operation')
+ map.callback();assert(preps==1 and _G.PairStatusline():find('already sending',1,true))
+ if case=='timeout' then deadline() else deferred({state='failed',error='fixture capture failure 50%'}) end
+ assert(vim.bo.modifiable,'failure retained lock')
+ assert(_G.PairStatusline():find(case=='timeout' and 'timed out' or 'fixture capture failure',1,true))
  vim.api.nvim_buf_set_lines(0,0,-1,false,{'edited'})
  deferred({state='prepared',path='/store/bundle/submission.json'})
  assert(#sent==0 and #authored==0)

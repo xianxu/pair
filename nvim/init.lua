@@ -719,7 +719,7 @@ local function draftSendCommands(body) return _G.PairDraftSend.commands(body) en
 
 _G.PairDraftSendCommands = draftSendCommands
 
-local function send_to_agent(body, resume_phase, target)
+local function send_to_agent(body, resume_phase, target, operation)
   -- focus up to agent pane, type body, press Enter, focus back down.
   --
   -- We deliberately do NOT clear the agent's input first. The "[Image #N]"
@@ -744,14 +744,22 @@ local function send_to_agent(body, resume_phase, target)
   -- of synthesizing it as raw ESC+CR bytes.
   --
   if type(_G.PairTestSendToAgent) == 'function' then
-    return _G.PairTestSendToAgent(body, resume_phase, target)
+    return _G.PairTestSendToAgent(body, resume_phase, target, operation)
   end
   if not has_ui() and type(_G.PairTestZellijExecutor) ~= 'function' then
     return false, 'start', 'no attached UI'
   end
   return _G.PairDraftSend.send(body, function(label, argv, opts)
+    if operation then
+      if operation.remaining() <= 0 then return {code=124} end
+      opts = vim.tbl_extend('force', opts or {}, {timeout_ms=operation.remaining()})
+    end
     return PairZellijTrace.action(label, argv, opts)
   end, function()
+    if operation then
+      operation.check()
+      if operation.remaining() < 100 then error('submission timed out before paste settled',0) end
+    end
     vim.cmd('sleep 100m')
   end, resume_phase, target)
 end
@@ -763,22 +771,34 @@ local function pair_bin()
   return (home ~= '') and (home .. '/bin/pair') or 'pair'
 end
 
-_G.PairSubmission = dofile((debug.getinfo(1, 'S').source:match('@?(.*/)') or './') .. 'submission.lua').new(function(body, append_id)
+_G.PairSubmission = dofile((debug.getinfo(1, 'S').source:match('@?(.*/)') or './') .. 'submission.lua').new(function(body, append_id, operation)
   if type(_G.PairTestSessionLogAppend) == 'function' then
-    return _G.PairTestSessionLogAppend(body, append_id)
+    return _G.PairTestSessionLogAppend(body, append_id, operation)
   end
   local pair = pair_bin()
+  if operation then
+    operation.check()
+    local result = vim.system({pair,'session-log','append','--append-id',append_id},
+      {stdin=body,text=true,timeout=operation.remaining()}):wait()
+    return result.code == 0, result.code ~= 0 and ((result.stderr or '') .. ' session log append exit ' .. tostring(result.code)) or nil
+  end
   local out = vim.fn.system({ pair, 'session-log', 'append', '--append-id', append_id }, body)
   if vim.v.shell_error ~= 0 then
     out = tostring(out or ''):gsub('%s+$', '')
     return false, out ~= '' and out or ('exit ' .. tostring(vim.v.shell_error))
   end
   return true
-end, function(append_id)
+end, function(append_id, operation)
   if type(_G.PairTestSessionLogCommit) == 'function' then
-    return _G.PairTestSessionLogCommit(append_id)
+    return _G.PairTestSessionLogCommit(append_id, operation)
   end
   local pair = pair_bin()
+  if operation then
+    operation.check()
+    local result = vim.system({pair,'session-log','commit','--append-id',append_id},
+      {text=true,timeout=operation.remaining()}):wait()
+    return result.code == 0, result.code ~= 0 and ((result.stderr or '') .. ' session log commit exit ' .. tostring(result.code)) or nil
+  end
   local out = vim.fn.system({ pair, 'session-log', 'commit', '--append-id', append_id })
   if vim.v.shell_error ~= 0 then
     out = tostring(out or ''):gsub('%s+$', '')
@@ -856,14 +876,14 @@ do
     return true
   end
 
-  function _G.submit_operator_text(authored_body, agent_text, attachment, fresh)
+  function _G.submit_operator_text(authored_body, agent_text, attachment, fresh, operation)
     local tag = bang_tag.parse(attachment and strip_comments(authored_body) or agent_text)
     if attachment and tag and not tag.agent_text then return false end
     if tag and not tag.agent_text then return describe_couch_thread(tag) end
-    local send = fresh and _G.PairSubmission.submit_fresh_operator_text or _G.PairSubmission.submit_operator_text
-    local ok = send(authored_body, attachment and agent_text or (tag and tag.agent_text or agent_text), attachment)
+    local send = (fresh or operation) and _G.PairSubmission.submit_fresh_operator_text or _G.PairSubmission.submit_operator_text
+    local ok, err = send(authored_body, attachment and agent_text or (tag and tag.agent_text or agent_text), attachment, operation)
     if ok and tag and tag.description then publish_couch_description(tag.description) end
-    return ok
+    return ok, err
   end
 end
 function _G.send_generated_prompt(body)
@@ -1616,28 +1636,53 @@ local function send_and_clear()
   if submit_operator_text(body, stripped) then _G.PairFinishDraftSend(body) end
 end
 
--- Preparation runs asynchronously; changed drafts prevent delivery. Every DOM
--- chord submits the current draft as a fresh attempt, with duplicates allowed.
+-- One DOM operation owns the initiating draft until completion or deadline.
+-- A subsequent completed/failed attempt is always a fresh submission.
 do
   local dir = debug.getinfo(1, 'S').source:match('@?(.*/)') or './'
   local transport = dofile(dir .. 'dom_transport.lua').new(vim, PairZellijTrace.action)
   _G.PairDOMSubmission = dofile(dir .. 'dom_submission.lua').new({
-    rpc = function(op,id,cb)
-      if _G.PairTestDOMRPC then return _G.PairTestDOMRPC(op,id,cb) end
-      transport.rpc(op,id,cb)
+    rpc = function(op,id,cb,operation)
+      if _G.PairTestDOMRPC then return _G.PairTestDOMRPC(op,id,cb,operation) end
+      transport.rpc(op,id,cb,operation)
     end,
-    pin = function(id)
-      if _G.PairTestDOMPin then return _G.PairTestDOMPin(id) end
-      return transport.pin(id)
+    pin = function(id,operation)
+      if _G.PairTestDOMPin then return _G.PairTestDOMPin(id,operation) end
+      return transport.pin(id,operation)
     end,
     id = function()
       return vim.fn.sha256(tostring((vim.uv or vim.loop).hrtime()) .. ':' .. tostring(vim.fn.getpid()))
     end,
-    submit = function(body,text,attachment) return submit_operator_text(body,text,attachment) end,
-    ordinary = function(body,text) return submit_operator_text(body,strip_comments(body),nil,true) end,
+    submit = function(body,text,attachment,operation) return submit_operator_text(body,text,attachment,true,operation) end,
+    ordinary = function(body,text,operation) return submit_operator_text(body,strip_comments(body),nil,true,operation) end,
     notify = function(message) vim.notify(message,vim.log.levels.WARN) end,
     defer = vim.defer_fn,
+    now = function() return (vim.uv or vim.loop).hrtime()/1000000 end,
+    arm = function(fn,ms)
+      if _G.PairTestDOMArm then return _G.PairTestDOMArm(fn,ms) end
+      local timer = vim.defer_fn(fn,ms)
+      return function() if not timer:is_closing() then timer:stop();timer:close() end end
+    end,
+    render = function(message,busy,view)
+      if not view then return end
+      if vim.api.nvim_buf_is_valid(view.buf) then
+        if busy then vim.bo[view.buf].modifiable = false
+        else vim.bo[view.buf].modifiable = view.modifiable end
+      end
+      _G.PairDOMStatus = {text=message,busy=busy,buf=view.buf,
+        baseline=vim.api.nvim_buf_is_valid(view.buf) and table.concat(vim.api.nvim_buf_get_lines(view.buf,0,-1,false),'\n') or nil}
+      -- Redraw now: pin/paste include bounded synchronous subprocess waits.
+      vim.cmd('redrawstatus')
+      vim.cmd('redraw')
+    end,
   })
+  vim.api.nvim_create_autocmd({'TextChanged','TextChangedI'}, {group=vim.api.nvim_create_augroup('pair_dom_submission',{clear=true}),callback=function()
+    local st = _G.PairDOMStatus
+    if st and not st.busy and st.buf == vim.api.nvim_get_current_buf() and buffer_text() ~= st.baseline then
+      _G.PairDOMStatus = nil
+      refresh_statusline()
+    end
+  end})
   function _G.PairSendDOM()
     local body, pos, buf = buffer_text(), nav.pos, vim.api.nvim_get_current_buf()
     local text = strip_comments(body)
@@ -1648,7 +1693,10 @@ do
     end
     _G.PairDOMSubmission.send(body,tag and tag.agent_text or text,function()
       return vim.api.nvim_get_current_buf()==buf and nav.pos==pos and buffer_text()==body
-    end,function() _G.PairFinishDraftSend(body) end)
+    end,function()
+      _G.PairFinishDraftSend(body)
+      if _G.PairDOMStatus and _G.PairDOMStatus.buf == buf then _G.PairDOMStatus.baseline = buffer_text() end
+    end,{buf=buf,modifiable=vim.bo[buf].modifiable})
   end
 end
 
@@ -2303,6 +2351,11 @@ _G._pair_review_compact_left = function()
 end
 
 function _G.PairStatusline()
+  local submission = _G.PairDOMStatus
+  if submission and submission.buf == vim.api.nvim_get_current_buf() then
+    local text = tostring(submission.text or ''):gsub('[%z\1-\31\127]',' '):gsub('%%','%%%%')
+    return ' %< ' .. text .. ' '
+  end
   -- Minimized rung: nvim is collapsed to this single statusline row, so
   -- the buffer is invisible and the usual history/queue/position
   -- cluster has nothing to refer to. Replace it with a hint that names

@@ -48,10 +48,15 @@ function M.action(label, argv, opts)
   local start = vim.loop.hrtime()
   local stdout
   local code
-  if type(_G.PairTestZellijExecutor) == 'function' then
+  if opts.timeout_ms ~= nil and opts.timeout_ms <= 0 then
+    stdout, code = '', 124
+  elseif type(_G.PairTestZellijExecutor) == 'function' then
     local result = _G.PairTestZellijExecutor(label, argv, opts) or {}
     stdout = result.stdout or ''
     code = result.code
+  elseif opts.timeout_ms ~= nil then
+    local result = vim.system(argv, {text=true, timeout=math.max(1, math.floor(opts.timeout_ms))}):wait()
+    stdout, code = result.stdout or '', result.code
   else
     stdout = vim.fn.system(argv)
     code = vim.v.shell_error

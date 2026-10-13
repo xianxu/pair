@@ -17,7 +17,7 @@ import (
 type submissionCast interface {
 	RecordingPath() string
 	SubmissionSelection() (board.Selection, error)
-	PrepareSubmission(context.Context, string, core.Target, board.Selection, string) (core.Submission, map[string][]byte, error)
+	PrepareSubmission(context.Context, string, core.Target, board.Selection, string, func(core.SubmissionProgress)) (core.Submission, map[string][]byte, error)
 	ResolveSubmission(context.Context, core.Submission) error
 }
 
@@ -163,6 +163,7 @@ func (m *submissionManager) request(ctx context.Context, op, id string, target c
 			return job.status, nil
 		}
 		job.status.State = "preparing"
+		job.status.Progress = &core.SubmissionProgress{Phase: "replay"}
 		job.busy = true
 		m.job = job
 		work = func() { m.prepare(job, cast, selected) }
@@ -214,7 +215,7 @@ func (m *submissionManager) prepare(job *submissionJob, cast submissionCast, sel
 	var s core.Submission
 	if err == nil {
 		var crops map[string][]byte
-		s, crops, err = cast.PrepareSubmission(ctx, job.status.ID, job.status.Target, selected, base)
+		s, crops, err = cast.PrepareSubmission(ctx, job.status.ID, job.status.Target, selected, base, func(p core.SubmissionProgress) { m.progress(job, p) })
 		if err == nil {
 			err = m.guard(s.Target)
 		}
@@ -222,6 +223,7 @@ func (m *submissionManager) prepare(job *submissionJob, cast submissionCast, sel
 			err = ctx.Err()
 		}
 		if err == nil {
+			m.progress(job, core.SubmissionProgress{Phase: "publishing"})
 			_, err = m.store.Prepare(s, crops)
 		}
 	}
@@ -229,6 +231,7 @@ func (m *submissionManager) prepare(job *submissionJob, cast submissionCast, sel
 	defer m.mu.Unlock()
 	job.busy = false
 	if err != nil {
+		job.status.Progress = nil
 		job.status.State = "failed"
 		job.status.Error = err.Error()
 		return
@@ -271,4 +274,14 @@ func (m *submissionManager) resolutionWork(s core.Submission) func() {
 	job := &submissionJob{status: m.status(s), busy: true}
 	m.job = job
 	return func() { m.resolve(job, s) }
+}
+
+// progress publishes an immutable snapshot; callbacks from retired jobs cannot
+// overwrite a successor or resurrect progress after preparation finishes.
+func (m *submissionManager) progress(job *submissionJob, p core.SubmissionProgress) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.job == job && job.busy && job.status.State == "preparing" {
+		job.status.Progress = &p
+	}
 }

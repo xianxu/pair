@@ -31,9 +31,17 @@ end
 local body = 'secret repro prompt body'
 local res = trace.action('draft.write-body', { 'zellij', 'action', 'write-chars', body }, {
   redact = { [4] = body },
+  timeout_ms = 1000,
 })
 out:write('rc=' .. tostring(res.code) .. '\n')
 out:write('stdout=' .. tostring(res.stdout) .. '\n')
+assert(trace.action('ordinary', {'zellij', 'action', 'noop'}).code == 0)
+local start = (vim.uv or vim.loop).hrtime()
+local blocked = trace.action('draft.blocked', { 'sleep', '2' }, { timeout_ms = 40 })
+assert(blocked.code ~= 0, 'blocked child must time out')
+assert(((vim.uv or vim.loop).hrtime()-start)/1e6 < 1500, 'child ignored timeout')
+local expired = trace.action('draft.expired', { '__must_not_spawn__' }, { timeout_ms = 0 })
+assert(expired.code ~= 0, 'expired action must refuse before spawn')
 out:close()
 vim.cmd('qa!')
 LUA

@@ -24,6 +24,7 @@ type submissionCastFake struct {
 	mu                 sync.Mutex
 	prepared, resolved int
 	path               string
+	onPrepare          func(func(core.SubmissionProgress))
 }
 
 func (f *submissionCastFake) RecordingPath() string { return f.path }
@@ -33,10 +34,13 @@ func (f *submissionCastFake) SubmissionSelection() (board.Selection, error) {
 	}
 	return board.Selection{Document: 1, TabID: "tab", Notes: []board.SelectedNote{{ID: "note"}}}, nil
 }
-func (f *submissionCastFake) PrepareSubmission(ctx context.Context, id string, target core.Target, s board.Selection, base string) (core.Submission, map[string][]byte, error) {
+func (f *submissionCastFake) PrepareSubmission(ctx context.Context, id string, target core.Target, s board.Selection, base string, progress func(core.SubmissionProgress)) (core.Submission, map[string][]byte, error) {
 	f.mu.Lock()
 	f.prepared++
 	f.mu.Unlock()
+	if f.onPrepare != nil {
+		f.onPrepare(progress)
+	}
 	if f.gate != nil {
 		select {
 		case <-f.gate:
@@ -530,4 +534,92 @@ func TestSubmissionStatusRecoversAckDuringBusySuccessor(t *testing.T) {
 	if f.prepared != 2 || f.resolved != 2 {
 		t.Fatalf("capture=%d resolution=%d", f.prepared, f.resolved)
 	}
+}
+
+func TestSubmissionPreparationPublishesInitialProgress(t *testing.T) {
+	m, _, target := newSubmissionManagerTest(t)
+	run := submissionWorkQueue(t, m)
+	status, err := m.request(context.Background(), "prepare", "progress", target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wire, err := json.Marshal(status)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got struct {
+		Progress struct {
+			Phase string `json:"phase"`
+		} `json:"progress"`
+	}
+	if err = json.Unmarshal(wire, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Progress.Phase != "replay" {
+		t.Fatalf("initial progress phase=%q, want replay", got.Progress.Phase)
+	}
+	run()
+	submissionWait(t, m, "progress", target, "prepared")
+}
+
+func TestSubmissionProgressHeldAndFenced(t *testing.T) {
+	m, f, target := newSubmissionManagerTest(t)
+	replayEntered, replayRelease := make(chan struct{}), make(chan struct{})
+	m.replay = func(ctx context.Context, _ string) (string, error) {
+		close(replayEntered)
+		select {
+		case <-replayRelease:
+			return "https://replay", nil
+		case <-ctx.Done():
+			return "", ctx.Err()
+		}
+	}
+	callbacks := make(chan func(core.SubmissionProgress), 1)
+	f.gate = make(chan struct{})
+	f.onPrepare = func(report func(core.SubmissionProgress)) {
+		report(core.SubmissionProgress{Phase: "settling", Current: 1, Total: 3})
+		callbacks <- report
+	}
+	if _, err := m.request(context.Background(), "prepare", "held", target); err != nil {
+		t.Fatal(err)
+	}
+	<-replayEntered
+	replay, err := m.request(context.Background(), "status", "held", target)
+	if err != nil || replay.Progress == nil || replay.Progress.Phase != "replay" {
+		t.Fatalf("held replay %+v %v", replay, err)
+	}
+	close(replayRelease)
+	report := <-callbacks
+	held, err := m.request(context.Background(), "status", "held", target)
+	if err != nil || held.Progress == nil || *held.Progress != (core.SubmissionProgress{Phase: "settling", Current: 1, Total: 3}) {
+		t.Fatalf("held capture %+v %v", held, err)
+	}
+	report(core.SubmissionProgress{Phase: "capturing", Current: 2, Total: 3})
+	if held.Progress.Phase != "settling" {
+		t.Fatal("progress mutated an already returned snapshot")
+	}
+	close(f.gate)
+	done := submissionWait(t, m, "held", target, "prepared")
+	report(core.SubmissionProgress{Phase: "capturing", Current: 3, Total: 3})
+	if done.Progress != nil {
+		t.Fatal("terminal status retained preparation progress")
+	}
+
+	successor := &submissionCastFake{path: f.path, gate: make(chan struct{})}
+	m.current = func() (submissionCast, error) { return successor, nil }
+	m.replay = func(context.Context, string) (string, error) { return "https://replay", nil }
+	if _, err := m.request(context.Background(), "prepare", "next", target); err != nil {
+		t.Fatal(err)
+	}
+	report(core.SubmissionProgress{Phase: "publishing"})
+	next, err := m.request(context.Background(), "status", "next", target)
+	if err != nil || next.Progress == nil || next.Progress.Phase != "replay" {
+		t.Fatalf("retired callback changed successor %+v %v", next, err)
+	}
+	prior, err := m.request(context.Background(), "status", "held", target)
+	if err != nil || prior.Progress != nil {
+		t.Fatalf("retired callback revived terminal progress %+v %v", prior, err)
+	}
+	close(successor.gate)
+	submissionWait(t, m, "next", target, "prepared")
 }

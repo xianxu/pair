@@ -280,6 +280,26 @@ do
   ok(sends == 0, 'malformed attachments cannot fall back to ordinary delivery')
 end
 
+-- A DOM-only budget reaches each effect; confirmed delivery survives marker errors.
+do
+  local operation={check=function()end}
+  local order={}
+  local submit=M.new(function(_,_,op)
+    ok(op==operation,'fresh append receives operation');order[#order+1]='append';return true
+  end,function(_,op)
+    ok(op==operation,'fresh commit receives operation');order[#order+1]='commit';error('marker deadline')
+  end,function(_,_,_,op)
+    ok(op==operation,'fresh send receives operation');order[#order+1]='send';return true,'dispatched'
+  end,function()end,function()return 'bounded' end)
+  local called,result=pcall(submit.submit_fresh_operator_text,'body','text',nil,operation)
+  ok(called and result,'marker exception cannot erase confirmed delivery')
+  ok(table.concat(order,',')=='append,send,commit','bounded fresh effects keep order')
+  operation.check=function()error('submission timed out')end
+  local failed,reason=submit.submit_fresh_operator_text('body','text',nil,operation)
+  ok(not failed and tostring(reason):find('timed out',1,true),'expired fresh send returns reason')
+  ok(#order==3,'expired send performs no effects')
+end
+
 local init = table.concat(vim.fn.readfile(here .. 'init.lua'), '\n')
 local direct = 0
 for _ in init:gmatch('send_to_agent%s*%(') do direct = direct + 1 end

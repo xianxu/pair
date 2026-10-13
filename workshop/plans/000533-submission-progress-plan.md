@@ -66,8 +66,8 @@ ARCH-ORDER: reducer transitions decide ownership; adapters execute effects and r
 
 ### 1. Measure and finalize
 
-- [ ] Run isolated instrumented existing fixtures for settlement, screenshot, bundle and pane-send phases. Record samples/commands, separate fixture delays from real external latency, and identify dominant costs without claiming operator-page timings.
-- [ ] Publish filled issue details and checkpoint this plan. Send concrete design and measurements to hub for required design approval before implementation.
+- [x] Run isolated instrumented existing fixtures for settlement, screenshot, bundle and pane-send phases. Record samples/commands, separate fixture delays from real external latency, and identify dominant costs without claiming operator-page timings.
+- [x] Publish filled issue details and checkpoint this plan. Send concrete design and measurements to hub for required design approval before implementation.
 
 ### 2. Progress through preparation
 

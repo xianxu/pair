@@ -9,7 +9,9 @@ import (
 	"image"
 	"image/png"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	core "github.com/xianxu/pair/cmd/internal/submission"
 	rec "github.com/xianxu/pair/cmd/internal/webcast/recording"
@@ -43,7 +45,7 @@ func TestCropCaptureUsesPageCoordinatesAndOnePNGPerBox(t *testing.T) {
 		return map[string]any{"data": base64.StdEncoding.EncodeToString(pngbuf.Bytes())}, nil, true
 	}
 	boxes := []rec.Box{{10, 1200, 20, 10}, {12, 1202, 20, 10}}
-	got, err := h.r.CaptureCrops(context.Background(), doc, captureRequests(boxes))
+	got, err := h.r.CaptureCrops(context.Background(), doc, captureRequests(boxes), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +81,7 @@ func TestCropCaptureGoneBeforeAndChangedDuring(t *testing.T) {
 				h.r.Send(Live{Tab: rec.Tab{ID: "other"}, Session: "B"})
 				return map[string]any{"data": base64.StdEncoding.EncodeToString(buf.Bytes())}, nil, true
 			}
-			got, err := h.r.CaptureCrops(context.Background(), doc, captureRequests([]rec.Box{{0, 0, 20, 10}}))
+			got, err := h.r.CaptureCrops(context.Background(), doc, captureRequests([]rec.Box{{0, 0, 20, 10}}), nil)
 			if during {
 				if err == nil || !strings.Contains(err.Error(), "changed") {
 					t.Fatalf("during: %v", err)
@@ -94,7 +96,7 @@ func TestCropCaptureGoneBeforeAndChangedDuring(t *testing.T) {
 func TestCropCaptureRejectsOversizeBeforeCDP(t *testing.T) {
 	h, doc := cropHarness(t)
 	before := h.fc.countCalls("Page.captureScreenshot")
-	if _, err := h.r.CaptureCrops(context.Background(), doc, captureRequests([]rec.Box{{0, 0, 1e9, 1e9}})); err == nil {
+	if _, err := h.r.CaptureCrops(context.Background(), doc, captureRequests([]rec.Box{{0, 0, 1e9, 1e9}}), nil); err == nil {
 		t.Fatal("huge crop accepted")
 	}
 	if h.fc.countCalls("Page.captureScreenshot") != before {
@@ -121,7 +123,7 @@ func TestCropCaptureSameURLReloadDuringScreenshot(t *testing.T) {
 		h.r.Send(Event{Session: "A", Method: "DOM.documentUpdated", Seq: h.fc.next(), Params: raw(map[string]any{})})
 		return map[string]any{"data": base64.StdEncoding.EncodeToString(buf.Bytes())}, nil, true
 	}
-	if _, err := h.r.CaptureCrops(context.Background(), doc, captureRequests([]rec.Box{{0, 0, 20, 10}})); err == nil || (!strings.Contains(err.Error(), "changed") && !errors.Is(err, errUISuppression)) {
+	if _, err := h.r.CaptureCrops(context.Background(), doc, captureRequests([]rec.Box{{0, 0, 20, 10}}), nil); err == nil || (!strings.Contains(err.Error(), "changed") && !errors.Is(err, errUISuppression)) {
 		t.Fatalf("same URL reload accepted: %v", err)
 	}
 }
@@ -129,7 +131,7 @@ func TestCropCaptureCancelledBeforeCDP(t *testing.T) {
 	h, doc := cropHarness(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := h.r.CaptureCrops(ctx, doc, captureRequests([]rec.Box{{0, 0, 20, 10}})); err == nil {
+	if _, err := h.r.CaptureCrops(ctx, doc, captureRequests([]rec.Box{{0, 0, 20, 10}}), nil); err == nil {
 		t.Fatal("cancel ignored")
 	}
 	if h.fc.countCalls("Page.captureScreenshot") != 0 {
@@ -141,7 +143,7 @@ func TestCropCapturePausedIsNotPageChangedEvidence(t *testing.T) {
 	h, doc := cropHarness(t)
 	h.r.Send(Pause{})
 	h.settle()
-	if _, err := h.r.CaptureCrops(context.Background(), doc, captureRequests([]rec.Box{{0, 0, 20, 10}})); err == nil || !strings.Contains(err.Error(), "paused") {
+	if _, err := h.r.CaptureCrops(context.Background(), doc, captureRequests([]rec.Box{{0, 0, 20, 10}}), nil); err == nil || !strings.Contains(err.Error(), "paused") {
 		t.Fatalf("paused capture: %v", err)
 	}
 	if h.fc.countCalls("Page.captureScreenshot") != 0 {
@@ -181,7 +183,7 @@ func TestCropCaptureTextUsesAdmittedContextAndOriginalRegion(t *testing.T) {
 		}
 		return nil, nil, false
 	}
-	got, err := h.r.CaptureCrops(context.Background(), doc, []core.CaptureRegion{{Box: rec.Box{0, 0, 20, 10}, Region: region}})
+	got, err := h.r.CaptureCrops(context.Background(), doc, []core.CaptureRegion{{Box: rec.Box{0, 0, 20, 10}, Region: region}}, nil)
 	if err != nil || len(got) != 1 || got[0].BoxText.VisibleText[0].Text != "Current exact" {
 		t.Fatalf("text capture: %+v %v", got, err)
 	}
@@ -200,7 +202,7 @@ func TestCropCaptureRefusesExpiredTextContext(t *testing.T) {
 				}
 				return nil, nil, false
 			}
-			if _, err := h.r.CaptureCrops(context.Background(), doc, captureRequests([]rec.Box{{0, 0, 20, 10}})); err == nil {
+			if _, err := h.r.CaptureCrops(context.Background(), doc, captureRequests([]rec.Box{{0, 0, 20, 10}}), nil); err == nil {
 				t.Fatal("missing/expired context accepted")
 			}
 			if h.fc.countCalls("Page.captureScreenshot") != 0 {
@@ -219,7 +221,7 @@ func TestCropCaptureNavigationDuringTextRefusesBeforeScreenshot(t *testing.T) {
 		}
 		return nil, nil, false
 	}
-	if _, err := h.r.CaptureCrops(context.Background(), doc, captureRequests([]rec.Box{{0, 0, 20, 10}})); err == nil || !strings.Contains(err.Error(), "changed") {
+	if _, err := h.r.CaptureCrops(context.Background(), doc, captureRequests([]rec.Box{{0, 0, 20, 10}}), nil); err == nil || !strings.Contains(err.Error(), "changed") {
 		t.Fatalf("context loss: %v", err)
 	}
 	if h.fc.countCalls("Page.captureScreenshot") != 0 {
@@ -238,7 +240,7 @@ func TestCropCaptureRequiresUIConfirmation(t *testing.T) {
 		}
 		return nil, nil, false
 	}
-	crops, err := h.r.CaptureCrops(context.Background(), doc, captureRequests([]rec.Box{{0, 0, 20, 10}}))
+	crops, err := h.r.CaptureCrops(context.Background(), doc, captureRequests([]rec.Box{{0, 0, 20, 10}}), nil)
 	if err == nil || !strings.Contains(err.Error(), "context") || len(crops) != 0 {
 		t.Fatalf("unconfirmed capture: %+v %v", crops, err)
 	}
@@ -256,7 +258,7 @@ func TestCropCaptureRejectsOriginChangeDuringText(t *testing.T) {
 		h.r.Send(Event{Session: "A", Method: "Page.navigatedWithinDocument", Seq: h.fc.next(), Params: raw(map[string]any{"frameId": "tab", "url": "https://private.test/"})})
 		return map[string]any{"result": map[string]any{"value": core.BoxText{Region: textRequestRegion(params)}}}, nil, true
 	}
-	if _, err := h.r.CaptureCrops(context.Background(), doc, captureRequests([]rec.Box{{0, 0, 20, 10}})); err == nil || !strings.Contains(err.Error(), "changed") {
+	if _, err := h.r.CaptureCrops(context.Background(), doc, captureRequests([]rec.Box{{0, 0, 20, 10}}), nil); err == nil || !strings.Contains(err.Error(), "changed") {
 		t.Fatalf("origin change accepted: %v", err)
 	}
 }
@@ -276,7 +278,7 @@ func TestCropCaptureBindsCurrentPageMetadata(t *testing.T) {
 		}
 		return nil, nil, false
 	}
-	got, err := h.r.CaptureCrops(context.Background(), doc, captureRequests([]rec.Box{{0, 0, 2, 2}}))
+	got, err := h.r.CaptureCrops(context.Background(), doc, captureRequests([]rec.Box{{0, 0, 2, 2}}), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -308,7 +310,7 @@ func TestCropCaptureRejectsPageChangesAtEachFence(t *testing.T) {
 					}
 					return nil, nil, false
 				}
-				if _, err := h.r.CaptureCrops(context.Background(), doc, captureRequests([]rec.Box{{0, 0, 2, 2}, {0, 0, 2, 2}})); err == nil || !strings.Contains(err.Error(), "changed") {
+				if _, err := h.r.CaptureCrops(context.Background(), doc, captureRequests([]rec.Box{{0, 0, 2, 2}, {0, 0, 2, 2}}), nil); err == nil || !strings.Contains(err.Error(), "changed") {
 					t.Fatalf("unfenced %s change at %s: %v", field, stage, err)
 				}
 			})
@@ -331,10 +333,83 @@ func TestCropCaptureRejectsUnconfirmedPageMetadata(t *testing.T) {
 			case "missing URL":
 				p.url = ""
 			}
-			got, err := h.r.CaptureCrops(context.Background(), doc, captureRequests([]rec.Box{{0, 0, 2, 2}}))
+			got, err := h.r.CaptureCrops(context.Background(), doc, captureRequests([]rec.Box{{0, 0, 2, 2}}), nil)
 			if err == nil || len(got) != 0 || h.fc.countCalls("Page.captureScreenshot") != 0 {
 				t.Fatalf("unconfirmed metadata captured: %v %v", got, err)
 			}
 		})
+	}
+}
+
+func TestCropProgressPrecedesHeldCDPWork(t *testing.T) {
+	h, doc := cropHarness(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	entered, release := make(chan string, 4), make(chan struct{})
+	var mu sync.Mutex
+	var latest core.SubmissionProgress
+	var sequence []core.SubmissionProgress
+	report := func(p core.SubmissionProgress) { mu.Lock(); latest = p; sequence = append(sequence, p); mu.Unlock() }
+	wait := func(phase string) error {
+		entered <- phase
+		select {
+		case <-release:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	probes := 0
+	h.fc.captureProbe = func(_ context.Context, _ map[string]any) (any, error) {
+		probes++
+		if probes == 1 {
+			if err := wait("settling"); err != nil {
+				return nil, err
+			}
+		}
+		return readyReply(rec.Box{0, 0, 100, 100}, false, ""), nil
+	}
+	var data bytes.Buffer
+	if err := png.Encode(&data, image.NewRGBA(image.Rect(0, 0, 20, 10))); err != nil {
+		t.Fatal(err)
+	}
+	h.fc.more = func(_ string, method string, p map[string]any, _ *fakePage) (any, error, bool) {
+		if method == "Runtime.callFunctionOn" {
+			return map[string]any{"result": map[string]any{"value": core.BoxText{Region: textRequestRegion(p)}}}, nil, true
+		}
+		if method != "Page.captureScreenshot" {
+			return nil, nil, false
+		}
+		if err := wait("capturing"); err != nil {
+			return nil, err, true
+		}
+		return map[string]any{"data": base64.StdEncoding.EncodeToString(data.Bytes())}, nil, true
+	}
+	result := make(chan error, 1)
+	go func() {
+		_, err := h.r.CaptureCrops(ctx, doc, captureRequests([]rec.Box{{0, 0, 20, 10}, {20, 0, 20, 10}}), report)
+		result <- err
+	}()
+	for _, want := range []core.SubmissionProgress{{Phase: "settling", Current: 1, Total: 2}, {Phase: "capturing", Current: 1, Total: 2}, {Phase: "capturing", Current: 2, Total: 2}} {
+		select {
+		case phase := <-entered:
+			mu.Lock()
+			got := latest
+			mu.Unlock()
+			if got != want || phase != want.Phase {
+				t.Fatalf("held %s progress=%+v want=%+v", phase, got, want)
+			}
+			release <- struct{}{}
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+	}
+	if err := <-result; err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(sequence) != 4 || sequence[2] != (core.SubmissionProgress{Phase: "settling", Current: 2, Total: 2}) {
+		t.Fatalf("progress sequence=%+v", sequence)
 	}
 }

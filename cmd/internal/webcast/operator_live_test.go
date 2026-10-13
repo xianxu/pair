@@ -406,7 +406,7 @@ func TestOperatorLiveAnnotation(t *testing.T) {
 	}
 	// #483 submission crops use the same exact-document suppression path.
 	cropBox := recording.Box{0, 0, 40, 40}
-	crops, err := c.CaptureCrops(context.Background(), bd.OperatorView().Doc, []submission.CaptureRegion{{Box: cropBox, Region: cropBox}})
+	crops, err := c.CaptureCrops(context.Background(), bd.OperatorView().Doc, []submission.CaptureRegion{{Box: cropBox, Region: cropBox}}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
