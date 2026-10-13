@@ -1614,3 +1614,5 @@ proof; record the surprising case so the next change starts from evidence.
 - #533 close BR-1: nomodifiable only guards buffer writes. Navigation, queue, delete, reset and send handlers may mutate logical identity or files first; operation ownership must reject the whole action before those effects. Test persisted contents after failure/timeout and subsequent navigation, not only edit rejection.
 
 - #533 close BR-1 round2: enumerate actual write sites, not only user commands. Focus/cursor/autocmd/timer decorations can write real bytes and open a blocking prompt under nomodifiable. Preserve deferred cleanup bookkeeping and exercise focus loss/gain in an embedded UI.
+
+- #533 integration of #531: a full make test stopped by the known #514 timing check has not exercised later Go packages. Run remaining targets with make -k and inspect all failures before citing the exception; new production files still require exhaustive artifact-source inventory entries.
