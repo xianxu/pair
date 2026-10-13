@@ -46,3 +46,11 @@ Find where the video is lost (recorder snapshot or mutation, asset fetch for its
   overlay. The player renders `div.ap-term` = `<canvas>` (background and colour blocks via `getContext('2d')`) +
   `<svg class="ap-term-symbols">` + `<pre class="ap-term-text">` of spans. Check: canvas pixels (never in the DOM),
   the dynamically inserted stylesheet, and the lazy mutation after the first snapshot.
+
+## Revisions
+
+- 2026-10-12 (operator via TL): scope addition. Any content the recorder can't capture (canvas pixels, video frames,
+  cross-origin iframes, plugins) shows in the viewer as a placeholder at its live rendered size, updated when the
+  size changes, with a small label (e.g. "canvas: not captured"), so layout never collapses and agents know
+  something is there (the rrweb/FullStory practice). A low-rate canvas snapshot (toDataURL when not tainted) is a
+  follow-up, filed unassigned as #515, not built here.
