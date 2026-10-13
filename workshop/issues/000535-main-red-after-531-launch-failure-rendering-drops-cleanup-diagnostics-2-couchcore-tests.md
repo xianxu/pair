@@ -15,6 +15,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "cd594eed", done: "61ed8974"}
 ---
 
 # main red after #531: launch-failure rendering drops cleanup diagnostics (2 couchcore tests)
