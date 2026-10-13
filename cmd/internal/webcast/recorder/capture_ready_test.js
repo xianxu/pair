@@ -83,3 +83,15 @@ for (const kind of ['child','shadow','pseudo','pseudo-object','pseudo-effect']) 
  animations[0].playState='finished';assert.equal(inspect(box).pending,false);
 }
 console.log('overflow influence readiness fixtures passed');
+
+// A leaf can also paint into the crop through a shadow outside its border box.
+document.documentElement={};
+const shadowLeaf=target({left:-100,top:20,width:40,height:30});
+const priorStyle=getComputedStyle;
+global.getComputedStyle=(node,pseudo)=>node===shadowLeaf&&!pseudo?
+ {boxShadow:'rgb(255, 255, 255) 110px 0px 0px 0px',filter:'none'}:priorStyle(node,pseudo);
+for(const state of ['running','paused','infinite']) {
+ animations=[animation(state==='paused'?'paused':'running',shadowLeaf,
+  {iterations:state==='infinite'?Infinity:1,endTime:state==='infinite'?Infinity:1000})];
+ assert.equal(inspect(box).pending,true,'leaf shadow '+state+' cannot falsely settle');
+}
