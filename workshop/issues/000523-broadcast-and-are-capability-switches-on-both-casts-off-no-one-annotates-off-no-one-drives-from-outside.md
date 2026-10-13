@@ -116,6 +116,12 @@ span, without retrying clicks; its waits have bounded failure diagnostics.
 Five focused normal/race repetitions and the complete TTY package passed after
 this test-only correction. The complete make suite is being rerun.
 
+The corrected complete suite passed (`GOMAXPROCS=4 make test`, exit 0,
+`/tmp/pair-523-br7-ready-full.log`); Couch core took 209.024s and TTY 46.615s.
+Main then advanced with #524/#525. Their integration merged cleanly, including
+the submission test changes. Running the complete suite and real headless Chrome
+conformance again against that combined tree before the final close.
+
 ### 2026-10-13 — Final verification complete
 
 - Complete merged-tree Go suite passed: go test ./... -count=1 -parallel 4,
