@@ -45,3 +45,4 @@ Unverified hypothesis: the survivor is `sh -c '(trap "" HUP; exec sleep 30) & ex
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: unclaimed: filed for ops:0 as an unassigned follow-up; nothing pending
