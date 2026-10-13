@@ -70,3 +70,7 @@ TL receipt c975c7b5-a1c6-4853-a408-f234fc4ac58a reports the operator created ari
 ### 2026-10-13 13:02 PDT — operator narrows scope after live success
 
 Supersedes the initial two-part scope (diagnostics, then agent-driven live investigation in ariadne:5): deliver durable failed-launch output/exit and the switch's own error only. Record the operator's successful live attempt; no further live reproduction or speculative startup fix. Machine-load threshold for a full suite remains below 40.
+
+### 2026-10-13 13:12 PDT — approved design and operator-facing failure rule
+
+TL approved plan 2572f5a2 (receipt 2c92fd96-1536-4649-a9ed-6f5aa76f89b1). Every visible failure must state what happened in one line and name one action: retry, resume the old agent, or inspect with `couch --show <slot>`. Retained detail must not replace that concise recovery guidance. Added authorized install audit: identify the stale ~/.local/bin/couch provenance and change any repo install target from copying to linking; do not modify ~/.local/bin itself.

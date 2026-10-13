@@ -97,3 +97,7 @@ This preserves failures that Couch observes, including graceful cancellation. It
 ### 2026-10-13 — initial diagnostic-only plan
 
 The issue Log retains the investigation and successful operator repro. This plan starts after the scope narrowing; there is no live-reproduction task or speculative Codex argument change.
+
+### 2026-10-13 13:12 PDT — approved with recovery guidance and install audit
+
+TL approved this plan and added two requirements. Immediate failures are one sanitized line describing what happened plus exactly one recovery action (retry / resume old / inspect with `couch --show <slot>`); verbose retained output belongs in inspection. Extend rendering tests to assert this contract. Audit repo installation targets and read-only metadata for the stale ~/.local/bin/couch; make copying install targets create links to the built repo binary, with a temporary-prefix test proving rebuilds are visible. Never run install against ~/.local/bin. Record provenance evidence and any uncertainty in the issue Log. This is an authorized scope addition; no further live repro.
