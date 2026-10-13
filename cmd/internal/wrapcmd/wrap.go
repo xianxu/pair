@@ -2858,27 +2858,15 @@ argsDone:
 		}
 	}
 
-	// Open the exact scrollback raw/events bindings. The launcher exports both;
-	// pair-wrap never derives one companion from the other.
-	// Disable scrollback entirely on any open failure; never block startup.
-	if p.scrollbackLog != "" {
-		f, err := os.OpenFile(p.scrollbackLog, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	// Invalidate old events authority before truncating raw (which retains its
+	// inode). A failed second open must never leave an old witness over new bytes.
+	if p.scrollbackLog != "" && p.scrollbackEvents != "" {
+		raw, events, err := openWitnessedCapture(p.scrollbackLog, p.scrollbackEvents, os.Getenv)
 		if err != nil {
-			p.debug("SCROLLBACK-open-fail", fmt.Sprintf("%q: %v", p.scrollbackLog, err))
+			p.debug("SCROLLBACK-open-fail", err.Error())
 		} else {
-			p.scrollbackFD = f
-			p.debug("SCROLLBACK-open", p.scrollbackLog)
-			if p.scrollbackEvents == "" {
-				p.debug("EVENTS-open-fail", "PAIR_SCROLLBACK_EVENTS_PATH is empty")
-			} else {
-				ef, err := os.OpenFile(p.scrollbackEvents, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-				if err != nil {
-					p.debug("EVENTS-open-fail", fmt.Sprintf("%q: %v", p.scrollbackEvents, err))
-				} else {
-					p.eventsFD = ef
-					p.debug("EVENTS-open", p.scrollbackEvents)
-				}
-			}
+			p.scrollbackFD = raw
+			p.eventsFD = events
 		}
 	}
 

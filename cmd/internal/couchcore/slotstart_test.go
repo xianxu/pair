@@ -590,6 +590,9 @@ func TestManagedCreateReusesHoleWithParkedSiblingNotice(t *testing.T) {
 	if _, err := local.FinalizePark(old.Record.Address, begun.Revision, identity, 1, env.Now); err != nil {
 		t.Fatal(err)
 	}
+	// A completed park ends both the helper and the ready terminal.
+	env.Proc.Kill(second.PID)
+	env.Artifacts.SetSessionPresence(old.Record.Address, SessionObservation{State: SessionAbsent})
 	env.Artifacts.SetNativeBinding(old.Record.Address, "claude", sessioninventory.BindingEstablished, "native-slot2-park")
 	prepared, err := env.Couch.PrepareStart(context.Background(), args)
 	if err != nil || prepared.Resolution.Target.Slot.Number != 1 {

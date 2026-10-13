@@ -59,6 +59,8 @@ func (s SessionState) String() string {
 // the consumer that needs it.
 type SessionObservation struct {
 	State SessionState
+	// Terminal is fresh attachable-agent evidence; nil never means healthy.
+	Terminal *launcher.TerminalSafety
 	// Orphan is the orphaned server, set only with SessionOrphaned: the
 	// diagnostic names its pid and reap acts on its exact identity (#399).
 	Orphan *launcher.SessionServerIdentity
@@ -121,6 +123,7 @@ func ProjectSessionPresence(bindings []SessionNameBinding, sessions []launcher.S
 		case hasServer(servers, binding.SessionName, launcher.ServerContested):
 			// Two servers for one name: an orphan may hide behind the live one.
 			observation.State = SessionUnresolved
+			observation.Terminal = &launcher.TerminalSafety{Reason: "distinct servers claim this session; relaunch required"}
 		case index.live[binding.SessionName]:
 			observation.State = SessionPresent
 		case hasServer(servers, binding.SessionName, launcher.ServerOrphaned):

@@ -303,7 +303,7 @@ func TestDeadLauncherWithLiveSessionIsDetached(t *testing.T) {
 	detached := crashed
 	detached.Incarnations = nil
 
-	evidence := ThreadEvidence{Session: SessionObservation{State: SessionPresent}}
+	evidence := ThreadEvidence{Session: SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{Usable: true}}}
 
 	crashedState, crashedReason := ClassifyThread(crashed, evidence)
 	detachedState, _ := ClassifyThread(detached, evidence)

@@ -124,6 +124,8 @@ func attachWithRetention(opts LaunchOptions, env Env, rt Runtime, tag, session, 
 	} else if env.CouchThreadTag == tag && ValidateRepoScopeKey(env.CouchThreadScope) == nil {
 		scopeKey = env.CouchThreadScope
 	}
+	rt.SetEnv("PAIR_SCOPE_KEY", scopeKey)
+	rt.SetEnv("PAIR_AGENT", agent)
 	rt.SpawnTitlePoller(tag, agent, session, titlepoller.NewSessionEnv(env.DataDir, scopeKey))
 	defer func() {
 		if resultErr != nil || code != 0 {

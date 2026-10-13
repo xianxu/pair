@@ -3,6 +3,7 @@ package couchcore
 import (
 	"context"
 	"errors"
+	"github.com/xianxu/pair/cmd/internal/launcher"
 	"reflect"
 	"testing"
 	"time"
@@ -210,7 +211,9 @@ func TestActionableThreadInventorySnapshotsAndOwnsRows(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	couch := &Couch{Threads: store}
+	artifacts := NewFakeThreadArtifactCollisionChecker()
+	artifacts.SetSessionPresence(created.Address, SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{Usable: true}})
+	couch := &Couch{Threads: store, Artifacts: artifacts}
 	observations := []LiveTTYObservation{{
 		Address: created.Address,
 		Process: ProcessIdentity{PID: 42, Identity: "live-process"},

@@ -195,6 +195,19 @@ func newTestEnv(t *testing.T, trees ...string) *testEnv {
 	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
 	artifacts := NewFakeThreadArtifactCollisionChecker()
 	artifacts.AutoEstablish(true)
+	// The default fixture launch completes the server/agent-ready handshake.
+	// Failure/split fixtures replace this callback or set explicit observations;
+	// a helper's process liveness never synthesizes this evidence.
+	r.AfterAcknowledge = func(id string) error {
+		child := r.Child(id)
+		if !child.alive {
+			return nil
+		}
+		address := ThreadAddress{RepoScope: environmentValue(child.Env, "COUCH_THREAD_SCOPE"), Tag: ThreadTag(environmentValue(child.Env, "COUCH_THREAD_TAG"))}
+		artifacts.SetSessionPresence(address, SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{Usable: true}})
+		return nil
+	}
+
 	c, err := New(ns, r, NewFakePathOps(nil), g, proc, NewStore(dir), FixedClock{T: now}, NewFixedIDGen("ah8d", "b2c1"), newIncrementingEntropy(), artifacts)
 	if err != nil {
 		t.Fatalf("New: %v", err)

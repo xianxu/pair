@@ -155,7 +155,7 @@ func (OSServerStates) ServerStates(ctx context.Context) (map[string]ServerState,
 	}
 	states := ClassifyServers(servers, sockets)
 	for name, state := range states {
-		if state.Verdict != ServerOrphaned {
+		if state.Verdict != ServerOrphaned && state.Verdict != ServerReachable {
 			continue
 		}
 		state.Server.Identity = procutil.Identity(strconv.Itoa(state.Server.PID))

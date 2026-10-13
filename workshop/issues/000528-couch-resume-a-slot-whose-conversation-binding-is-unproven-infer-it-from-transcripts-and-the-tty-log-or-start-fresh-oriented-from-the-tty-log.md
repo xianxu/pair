@@ -73,6 +73,8 @@ pair:6 read-only while measuring; no live recovery/reboot is authorized here.
 
 ## Revisions
 
+- 2026-10-13 10:21 PDT — TL reports the operator is recovering pair:6. It is no longer a test bed: no further split investigation or process/cache changes there; use scratch setups for legacy/conflict conformance. This changes test location, not the approved design.
+
 - 2026-10-13 09:03 PDT — TL receipt a9307d75-b068-482d-8738-e8d6a344640a
   approves two measured corrections: the cutoff is the launch producing the
   retained tty evidence, not a later empty/recovery helper start; classify
@@ -118,6 +120,9 @@ pair:6 read-only while measuring; no live recovery/reboot is authorized here.
   a future recorded witnessed-corpus calibration. No historical hand-labelling.
 
 ## Log
+
+- 2026-10-13 10:21 PDT — Recovery checkpoint after the network interrupted compaction. Change-code passed at 295be1754 (plan-quality CLEAN); M1 implementation is in progress, not accepted. Implemented strict terminal policy and per-socket lease, admission before releasing the lease, exact-owner quiescence without saved-layout deletion, capture generation/launch witnesses, and shared usable-agent liveness. Targeted policy/lease/quiescence/liveness/witness tests passed; storagegc and wrapcmd package suites passed. Full launcher currently fails the selected-root fake's unrecognized pane signature; couchcore full run hit its 60-second timeout and exposed a production-launch fixture that exits before admission. UI Relaunch integration, those fixture corrections, full verification, build and M1 review remain. No M2 automatic choice is enabled. All implementation files checkpointed as work in progress so failed network compaction cannot lose them.
+- The isolated real-Zellij argv probe used config serialization=true plus the explicit launch options session-serialization=false; it produced no saved layout, and attach after exit failed without creating a server/socket. Control without the override produced a layout. Evidence: /tmp/p528-argv-2lahzl_h/results.json.
 
 - Measurement: pair:6 scope 50f39cf60172c338, tag 1-pair-42. Root
   01a1333f-ffcb-7760-a1b1-50f52544102d is source=cli, originator=codex-tui,

@@ -1,6 +1,9 @@
 // pair zellij config — adds two custom binds on top of zellij's defaults.
 // Loaded via `zellij --config-dir <pair>/zellij`.
 
+// Pair resumes native conversations; a saved terminal layout is not a session.
+session_serialization false
+
 // pair uses zellij like a library — keep its own UI quiet.
 // - Disable hover help-text tooltips on pane frames.
 // - Disable advanced mouse actions (pane grouping, etc.) to keep mouse

@@ -11,6 +11,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
+	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
@@ -91,6 +92,9 @@ type ScopedThreadArtifactCollisionChecker struct {
 	// Servers is the host's zellij server snapshot, the only place an orphaned
 	// server is visible (#399). Nil is the real host.
 	Servers launcher.ServerStates
+	// ProcessTable is shared by all metadata-only usability observations.
+	ProcessTable      func() ([]procutil.Process, error)
+	TerminalUsability func(launcher.SessionServerIdentity, string, string, string, []procutil.Process) launcher.TerminalSafety
 }
 
 func (c ScopedThreadArtifactCollisionChecker) serverStates() launcher.ServerStates {
@@ -499,6 +503,36 @@ func (c ScopedThreadArtifactCollisionChecker) SessionPresence(ctx context.Contex
 			return nil, fmt.Errorf("observe zellij servers: %w", serverErr)
 		}
 		out = ProjectSessionPresence(bindings, sessions, servers, claimsFromBindings(current))
+		tableReader := c.ProcessTable
+		if tableReader == nil {
+			tableReader = procutil.Table
+		}
+		table, tableErr := tableReader()
+		if tableErr == nil {
+			observe := c.TerminalUsability
+			if observe == nil {
+				observe = launcher.ObserveTerminalUsability
+			}
+			for _, binding := range bindings {
+				item := out[binding.Address]
+				server, found := servers[binding.SessionName]
+				if item.State == SessionPresent && !found {
+					item.Terminal = &launcher.TerminalSafety{Reason: "listed terminal has no live server; relaunch required"}
+					out[binding.Address] = item
+					continue
+				}
+				if item.State != SessionPresent || server.Verdict != launcher.ServerReachable {
+					continue
+				}
+				terminal := observe(server.Server, c.GlobalDataDir, binding.Address.RepoScope, string(binding.Address.Tag), table)
+				if binding.Agent != "" && terminal.Policy.Agent != binding.Agent {
+					terminal.Usable = false
+					terminal.Reason = "terminal policy does not match the bound agent"
+				}
+				item.Terminal = &terminal
+				out[binding.Address] = item
+			}
+		}
 	}
 	// An address in a READABLE scope with no index row was asked about, and
 	// there is no session: absent, not unresolved. Only an address whose scope

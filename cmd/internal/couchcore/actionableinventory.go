@@ -444,7 +444,7 @@ func ArchivableState(state ActionableThreadState, reason ThreadReason) bool {
 		return true
 	case ThreadUnusable:
 		// An orphan's conversation is still running (#399).
-		return reason != ReasonUnknown && reason != ReasonOrphanedServer
+		return reason != ReasonUnknown && reason != ReasonOrphanedServer && reason != ReasonNeedsRelaunch
 	}
 	return false
 }
@@ -527,14 +527,21 @@ func ClassifyThread(record ThreadRecord, evidence ThreadEvidence) (ActionableThr
 	if startInFlight(record, evidence) {
 		return ThreadBusy, ""
 	}
-	// Couch hosts this thread's process right now. The union behind
-	// evidence.Live is POSITIVE-ONLY: its absence proves nothing and falls
-	// through to the session, which is the whole of #272's fix. It stays a
-	// union (console pty children plus OS-vouched recorded processes) because
-	// the CLI passes no observations of its own and would otherwise read every
-	// running thread as detached -- #181's "one store, two stories".
-	if len(evidence.Live) != 0 {
-		return ThreadLive, ""
+	// A helper or a listed terminal alone does not prove an attachable agent.
+	// Orphaned and contested terminal evidence outranks a hosted helper.
+	if len(evidence.Live) != 0 && evidence.Session.State == SessionOrphaned {
+		return ThreadUnusable, ReasonNeedsRelaunch
+	}
+	if len(evidence.Live) != 0 || evidence.Session.State == SessionPresent || evidence.Session.Terminal != nil {
+		if reason := agentUsabilityReason(evidence.Session); reason != "" {
+			return ThreadUnusable, reason
+		}
+		if record.LatestLaunchProfile != nil && evidence.Session.Terminal != nil && evidence.Session.Terminal.Policy.Agent != "" && evidence.Session.Terminal.Policy.Agent != record.LatestLaunchProfile.Agent {
+			return ThreadUnusable, ReasonNeedsRelaunch
+		}
+		if len(evidence.Live) != 0 {
+			return ThreadLive, ""
+		}
 	}
 	// No live proof, and a recorded process couch could not ask about. That is
 	// ignorance, not absence, and every verdict below is a positive claim: the
@@ -559,7 +566,7 @@ func ClassifyThread(record ThreadRecord, evidence ThreadEvidence) (ActionableThr
 	// list-sessions no longer lists it, so the ledger alone would call it
 	// `parked` and offer a resume onto a conversation still being written.
 	if evidence.Session.State == SessionOrphaned {
-		return ThreadUnusable, ReasonOrphanedServer
+		return ThreadUnusable, ReasonNeedsRelaunch
 	}
 	// Resume authority gates BOTH the warm and the cold path, and must be
 	// checked before either. Reattaching still goes through DecideResume, which
@@ -686,13 +693,13 @@ func bindingFailureReason(code ResumeDiagnosticCode) (ThreadReason, bool) {
 
 // orphanOf is the row's orphaned server: present when the classifier called
 // the thread orphaned, or kept it live over a session that is orphaned (the
-// live orphan, #399). ClassifyThread's precedence is untouched: live stays
-// live, and busy and unknown carry nothing.
+// live orphan, #399). Unsafe terminals now need relaunch; their identity
+// remains available to explicitly authorized reap. Busy and unknown carry nothing.
 func orphanOf(state ActionableThreadState, reason ThreadReason, evidence ThreadEvidence) *launcher.SessionServerIdentity {
 	if evidence.Session.State != SessionOrphaned {
 		return nil
 	}
-	if state == ThreadLive || reason == ReasonOrphanedServer {
+	if state == ThreadLive || reason == ReasonOrphanedServer || reason == ReasonNeedsRelaunch {
 		return evidence.Session.Orphan
 	}
 	return nil

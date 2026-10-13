@@ -57,6 +57,8 @@ type ResolvedBinding struct {
 
 // pair:m5-concept pure
 var ResolvedBindings = append([]ResolvedBinding{
+	{Name: "cache-session-policy", Family: "session-policy", Resolver: "ResolvePairCache", Member: "SessionPolicy"},
+	{Name: "cache-session-lock", Family: "session-lock", Resolver: "ResolvePairCache", Member: "TerminalLease"},
 	{Name: "matched-changelog-family", Family: "changelog", Resolver: "MatchArtifact"},
 	{Name: "parsed-parked-capture", Family: "parked", Resolver: "ParseParkedCapture"},
 	{Name: "cache-restart", Family: "restart", Resolver: "ResolvePairCache", Member: "Restart"},
@@ -176,6 +178,8 @@ type SourceClassification struct {
 // family requires adding its constructor and classifying every source consumer.
 // pair:m5-concept pure
 var Families = []Family{
+	{Name: "session-policy", Token: "session-policy"},
+	{Name: "session-lock", Token: "session-locks"},
 	{Name: "fullscreen-return", Token: "fullscreen-return-"},
 	{Name: "fullscreen-lock", Token: "fullscreen-lock-"},
 	{Name: "fullscreen-diagnostics", Token: "fullscreen-diagnostics-"},
@@ -229,6 +233,9 @@ var Families = []Family{
 // shell, Lua, and KDL sources.
 // pair:m5-concept pure
 var SourceClassifications = []SourceClassification{
+	{Path: "cmd/internal/wrapcmd/capture_witness.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/artifactpath/session_policy.go", Kind: Constructor, Families: []string{"session-policy", "session-lock"}},
+	{Path: "cmd/internal/launcher/session_handoff_os.go", Kind: ResolvedConsumer, Families: []string{"session-policy", "session-lock"}, BindingNames: []string{"cache-session-policy", "cache-session-lock"}},
 	{Path: "cmd/internal/couchcmd/run.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/scrollbackcmd/bounded.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/pairlog/retention.go", Kind: ResolvedConsumer, Families: []string{"log"}, BindingNames: []string{"scoped-log"}, Vocabulary: []VocabularyAllowance{goCallVocabulary("log", "prompt-log-writer", "github.com/xianxu/pair/cmd/internal/storagegc.AcquireSelectedProcess", 2, 1)}},
@@ -480,10 +487,7 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/launcher/osruntime.go", Kind: ResolvedConsumer,
 		Families:     []string{"agent", "draft", "ledger", "nvim-pid", "outer-tty", "parked", "parked-scrollback", "restart", "scrollback", "session-binding", "session-inventory-catalog", "title-pid"},
 		BindingNames: []string{"cache-restart", "scoped-agent", "scoped-draft", "scoped-ledger", "scoped-nvim-pid", "scoped-outer-tty", "scoped-parked", "scoped-parked-scrollback", "scoped-scrollback", "selected-nvim-pid", "selected-session-binding", "selected-session-inventory-catalog", "scoped-title-pid"},
-		Vocabulary: []VocabularyAllowance{
-			goCallVocabulary("config", "--config-dir", "os/exec.Command", 1, 1),
-			goCallVocabulary("config", "--config-dir", "os/exec.CommandContext", 2, 1),
-		}},
+	},
 	{Path: "cmd/internal/sessioninventory/query.go", Kind: ResolvedConsumer,
 		Families: []string{"ledger"}, BindingNames: []string{"direct-ledger-history", "direct-ledger-history-tag"}},
 	{Path: "cmd/internal/sessioninventory/runtime_os.go", Kind: ResolvedConsumer,
@@ -606,6 +610,11 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	"cmd/internal/couchcore/agent_usability.go",
+	"cmd/internal/artifactpath/capture_witness.go",
+	"cmd/internal/launcher/session_handoff.go",
+	"cmd/internal/launcher/session_lease.go",
+	"cmd/internal/launcher/terminal_agent.go",
 	"cmd/internal/couchcmd/capture.go",
 	"cmd/internal/couchtty/capture.go",
 	"cmd/internal/terminal/observation.go",

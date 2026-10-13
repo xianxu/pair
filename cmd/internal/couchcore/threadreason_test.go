@@ -20,6 +20,7 @@ func TestNoLabelBorrowsAnotherReasonsDefiningWord(t *testing.T) {
 	// The word that identifies each state to the operator. A label containing
 	// someone else's word is a collision even when the strings differ.
 	defining := map[ThreadReason]string{
+		ReasonNeedsRelaunch:    "relaunch",
 		ReasonBindingLost:      "binding",
 		ReasonSessionGone:      "session gone",
 		ReasonNeverStarted:     "never started",

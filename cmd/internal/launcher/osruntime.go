@@ -92,23 +92,16 @@ func (OSRuntime) SessionLiveness() ([]Session, error) {
 }
 
 func (OSRuntime) SessionBlocksReuse(session string) bool {
-	present, exited := zellijsession.RowState(zj("list-sessions", "--no-formatting"), session)
-	if !present {
-		return false // no such session — reuse is free.
+	ctx, cancel := context.WithTimeout(context.Background(), zjTimeout)
+	defer cancel()
+	raw, err := (ZellijSource{}).runContext(ctx, "list-sessions", "--no-formatting")
+	if err != nil {
+		return true
 	}
-	if exited {
-		// Stale resurrect residue (#67): delete it and report reusable.
-		//
-		// The delete goes through DeleteSession rather than a `zj` call inlined
-		// here (#130). It used to be inlined, which put the only destructive act
-		// in this flow BELOW the Runtime seam — invisible to the fake, so a test
-		// asserting "a foreign session is never deleted" could pass while the
-		// hazard sat untouched. Routing it through the seam makes the deletion
-		// observable by construction.
-		_ = OSRuntime{}.DeleteSession(session)
-		return false
-	}
-	return true // running/detached — still occupied.
+	present, _ := zellijsession.RowState(string(raw), session)
+	// A saved layout remains evidence. Reuse never deletes it implicitly;
+	// legacy recovery creates a new terminal name after resolving ownership.
+	return present
 }
 
 // ProbeSessionName asks zellij whether it accepts session's length, at the cost
@@ -141,11 +134,8 @@ func (OSRuntime) ProbeSessionName(session string) error {
 // LaunchSession is the BLOCKING fork+wait handoff (NOT syscall.Exec): the tty is
 // passed straight through and the Go launcher regains control on pane exit.
 // Cancelling ctx ends the client (#288): see killOnCancel.
-func (OSRuntime) LaunchSession(ctx context.Context, session, configDir, layout string) (int, error) {
-	return runBlockingHandoff(killOnCancel(exec.CommandContext(ctx, "zellij",
-		"--config-dir", configDir,
-		"--new-session-with-layout", layout,
-		"--session", session)))
+func (r OSRuntime) LaunchSession(ctx context.Context, session, configDir, layout string) (int, error) {
+	return r.runTerminalHandoff(ctx, session, configDir, layout, true)
 }
 
 // clientKillGrace is how long a cancelled client gets to exit on SIGTERM
@@ -769,8 +759,8 @@ func (r OSRuntime) EstablishedSessionID(scopeKey, tag, agent string) (string, se
 // --- LifecycleOps ----------------------------------------------------------
 
 // AttachSession is the BLOCKING attach twin of LaunchSession.
-func (OSRuntime) AttachSession(session, configDir string) (int, error) {
-	return runBlockingHandoff(exec.Command("zellij", "--config-dir", configDir, "attach", session))
+func (r OSRuntime) AttachSession(session, configDir string) (int, error) {
+	return r.runTerminalHandoff(context.Background(), session, configDir, "", false)
 }
 
 // restartMarkerPath and quitMarkerPath keep compatibility cache paths behind
@@ -946,6 +936,23 @@ func (r OSRuntime) ParkScrollback(tag, agent string, move bool) (string, bool) {
 	if size, ok := r.FileSize(scrollback.Raw); !ok || size == 0 {
 		return "", false
 	}
+	// Capture provenance must be checked against the source generation before
+	// transfer changes its file IDs. Missing historical evidence stays legacy.
+	witness, err := storagegc.ReadCaptureWitness(scrollback.Raw, scrollback.Events)
+	skipEvents := false
+	if err != nil {
+		// Optional unreadable events must not discard usable raw history. Keep
+		// that capture explicitly uncertified; malformed authority still refuses.
+		var pathError *os.PathError
+		if !errors.As(err, &pathError) {
+			return "", false
+		}
+		witness = nil
+		skipEvents = true
+	}
+	if witness != nil && (witness.ScopeKey != lease.Owner.RepoScope || witness.Tag != tag || witness.Agent != agent) {
+		return "", false
+	}
 	// Exclusive destination creation protects earlier captures, including concurrent
 	// parks and copies in the same second. The suffix remains a family component.
 	capturedAt := time.Now()
@@ -970,7 +977,12 @@ func (r OSRuntime) ParkScrollback(tag, agent string, move bool) (string, bool) {
 		} else if !errors.Is(err, os.ErrNotExist) {
 			return "", false
 		}
-		err = transferFile(scrollback.Raw, parked.Raw, move)
+		var rawID, eventsID *artifactpath.CaptureFileID
+		if witness != nil {
+			rawID = &witness.RawFile
+			eventsID = &witness.EventsFile
+		}
+		err = transferFile(scrollback.Raw, parked.Raw, move, rawID)
 		if errors.Is(err, os.ErrExist) {
 			continue
 		}
@@ -981,7 +993,11 @@ func (r OSRuntime) ParkScrollback(tag, agent string, move bool) (string, bool) {
 		// only retention metadata uses canonical physical paths.
 		selectedBase := filepath.Join(r.DataDir, filepath.Base(parked.Base))
 		// Events are optional; failed copies remove their incomplete destination.
-		_ = transferFile(scrollback.Events, parked.Events, move)
+		if !skipEvents {
+			if err := transferFile(scrollback.Events, parked.Events, move, eventsID); err != nil {
+				witness = nil
+			}
+		}
 		member, err := artifactpath.MatchArtifact(parked.Raw, []artifactpath.StorageOwner{lease.Owner}, nil)
 		if err != nil {
 			return selectedBase, false
@@ -990,7 +1006,7 @@ func (r OSRuntime) ParkScrollback(tag, agent string, move bool) (string, bool) {
 		if err != nil {
 			return selectedBase, false
 		}
-		if err := lease.Coordinator.PublishCaptureMetadata(context.Background(), lease.Owner, capture, capturedAt); err != nil {
+		if err := lease.Coordinator.PublishCaptureMetadata(context.Background(), lease.Owner, capture, capturedAt, witness); err != nil {
 			return selectedBase, false
 		}
 		_ = r.Touch(paths.Parked())
@@ -1000,12 +1016,29 @@ func (r OSRuntime) ParkScrollback(tag, agent string, move bool) (string, bool) {
 
 // transferFile streams to an exclusive destination and only removes the source
 // after the complete capture has been synced and closed.
-func transferFile(src, dst string, move bool) error {
-	source, err := os.Open(src)
+func transferFile(src, dst string, move bool, expected ...*artifactpath.CaptureFileID) error {
+	if len(expected) > 1 {
+		return errors.New("multiple expected capture identities")
+	}
+	flags := os.O_RDONLY
+	if len(expected) == 1 && expected[0] != nil {
+		flags |= syscall.O_NOFOLLOW | syscall.O_NONBLOCK
+	}
+	source, err := os.OpenFile(src, flags, 0)
 	if err != nil {
 		return err
 	}
 	defer source.Close()
+	if len(expected) == 1 && expected[0] != nil {
+		st, err := source.Stat()
+		if err != nil {
+			return err
+		}
+		native, ok := st.Sys().(*syscall.Stat_t)
+		if !ok || !st.Mode().IsRegular() || *expected[0] != (artifactpath.CaptureFileID{Device: uint64(native.Dev), Inode: uint64(native.Ino)}) {
+			return errors.New("capture source generation changed before transfer")
+		}
+	}
 	destination, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
 		return err

@@ -55,7 +55,7 @@ func TestSelectedRootValidationBeforeNativeEffects(t *testing.T) {
 	}
 }
 
-func TestSelectedRootNativeCreateListResume(t *testing.T) {
+func TestSelectedRootNativeCreateListAndUnverifiedResume(t *testing.T) {
 	root, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -129,8 +129,10 @@ exit 0
 		}
 		return string(out), err
 	}
-	if out, err := run(nil, "resume", tag); err != nil {
-		t.Fatalf("create: %v %s", err, out)
+	// This fixture has no actual server or agent. It exercises selected-root
+	// propagation, but may not certify an interactive terminal merely by exit 0.
+	if out, err := run(nil, "resume", tag); err == nil || !strings.Contains(out, "admission was verified") {
+		t.Fatalf("unverified create: %v %s", err, out)
 	}
 	for _, path := range []string{paths.Ledger(), paths.Draft(), paths.Agent(), paths.ThreadClaim()} {
 		if _, err := os.Stat(path); err != nil {
@@ -157,12 +159,12 @@ exit 0
 	if out, err := run(nil, "continue"); err != nil || !strings.Contains(out, "selected-root") {
 		t.Fatalf("continuation listing from repository subdir: %v %s", err, out)
 	}
-	if out, err := run([]string{"PAIR_DATA_DIR=" + paths.ScopeDir()}, "resume", tag); err != nil {
-		t.Fatalf("scoped warm resume: %v %s", err, out)
+	if out, err := run([]string{"PAIR_DATA_DIR=" + paths.ScopeDir()}, "resume", tag); err == nil || !strings.Contains(out, "needs relaunch") {
+		t.Fatalf("unverified scoped warm resume: %v %s", err, out)
 	}
 	effects, err := os.ReadFile(filepath.Join(root, "effects"))
-	if err != nil || string(effects) != "create\nattach\n" {
-		t.Fatalf("resume recreated rather than reused selected thread: %q %v", effects, err)
+	if err != nil || string(effects) != "create\n" {
+		t.Fatalf("unverified resume performed another terminal effect: %q %v", effects, err)
 	}
 	childEnv, err := os.ReadFile(filepath.Join(root, "child-env"))
 	if err != nil || string(childEnv) != selected+"\n"+paths.ScopeDir()+"\n" {

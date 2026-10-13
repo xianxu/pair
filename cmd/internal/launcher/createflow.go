@@ -568,8 +568,8 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 			return launchStep{code: 1}, nil
 		}
 	}
-	// Free the name (clear a stale EXITED resurrect record) and guard against a
-	// live session unexpectedly occupying it before any source-of-truth writes.
+	// Guard the name before source-of-truth writes. Saved layouts are retained;
+	// final locked admission also refuses orphaned or contested servers.
 	if opts.Args.CouchSession != nil {
 		current, err := rt.SessionLiveness()
 		if err != nil || sessionNamePresent(current, session) {
@@ -672,7 +672,10 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	} else if opts.Args.AgentArgsExplicit && !opts.Args.AgentArgsFromCouch && !opts.Args.ResumeRequired && opts.ContinueCheckpoint.Version == 0 {
 		defaultReady = startAgentDefaultPersistence(rt, chosenTag, agent, session, opts.Args.AgentArgs, 5*time.Second)
 	} else {
-		rt.SetEnv("PAIR_LAUNCH_NONCE", "")
+		if _, err := prepareLaunchReadiness(rt, chosenTag, agent, session); err != nil {
+			fmt.Fprintf(stderr, "pair: %v\n", err)
+			return launchStep{code: 1}, nil
+		}
 	}
 
 	sessionID := firstNonEmpty(explicitResume, newSid)

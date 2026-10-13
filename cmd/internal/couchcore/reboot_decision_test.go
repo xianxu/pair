@@ -95,7 +95,7 @@ func TestRebootableStateOverEveryClassification(t *testing.T) {
 				continue
 			}
 			want := state == ThreadParked || state == ThreadDetached ||
-				(state == ThreadUnusable && reason != ReasonUnknown && reason != ReasonOrphanedServer)
+				(state == ThreadUnusable && reason != ReasonUnknown && reason != ReasonOrphanedServer && reason != ReasonNeedsRelaunch)
 			if got := RebootableState(state, reason); got != want {
 				t.Errorf("%s/%s: RebootableState=%v, want %v", state, reason, got, want)
 			}

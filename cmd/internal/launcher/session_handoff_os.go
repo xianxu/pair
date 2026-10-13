@@ -1,0 +1,458 @@
+package launcher
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"strconv"
+	"syscall"
+	"time"
+
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/procutil"
+	"github.com/xianxu/pair/cmd/internal/readiness"
+)
+
+func terminalLaunchArgs(session, config, layout string, create bool) []string {
+	if create {
+		return []string{"--config-dir", config, "--new-session-with-layout", layout, "--session", session, "options", "--session-serialization", "false"}
+	}
+	return []string{"--config-dir", config, "attach", session}
+}
+
+// TerminalSafety is an observation, never durable liveness. Usable requires a
+// coherent live agent under this exact server AND this server's launch policy.
+type TerminalSafety struct {
+	Owner  SessionOwnerObservation
+	Policy artifactpath.SessionLaunchPolicy
+	Usable bool
+	Reason string
+}
+
+// ObserveTerminalSafety is shared by launch admission and Couch projections.
+// It never attaches, starts a process, or removes a saved layout.
+func ObserveTerminalSafety(ctx context.Context, name, root, scope, tag string) (TerminalSafety, error) {
+	owner, err := (SessionOwnerProbe{}).Probe(ctx, name, root, scope, tag)
+	result := TerminalSafety{Owner: owner}
+	if err != nil {
+		return result, err
+	}
+	if owner.State != SessionOwnerOwned {
+		result.Reason = owner.Diagnostic
+		return result, nil
+	}
+	table, err := procutil.Table()
+	if err != nil {
+		return result, err
+	}
+	result = ObserveTerminalUsability(owner.Server, root, scope, tag, table)
+	result.Owner = owner
+	if !result.Usable {
+		return result, nil
+	}
+	if err = (SessionOwnerProbe{}).Revalidate(ctx, owner); err != nil {
+		return result, err
+	}
+	return result, nil
+}
+
+// ObserveTerminalUsability is the bounded metadata half of the same safety
+// observation. Refresh callers supply one host process snapshot and server
+// generation; action callers also probe panes and revalidate before effects.
+func ObserveTerminalUsability(server SessionServerIdentity, root, scope, tag string, table []procutil.Process) TerminalSafety {
+	result := TerminalSafety{Owner: SessionOwnerObservation{Server: server, Name: server.Session}}
+	policy, err := readSessionPolicy(server.Socket)
+	if err != nil {
+		result.Reason = "This session was saved by an older Pair and cannot be attached safely → relaunch"
+		return result
+	}
+	result.Policy = policy
+	if policy.Scope != scope || policy.Tag != tag || policy.Name != server.Session || policy.ServerPID != server.PID || policy.ServerIdentity != server.Identity {
+		result.Reason = "terminal launch policy belongs to another generation → relaunch"
+		return result
+	}
+	if err = validatePolicySocketFile(policy); err != nil {
+		result.Reason = err.Error()
+		return result
+	}
+	if err = checkNoSavedLayout(server.Session); err != nil {
+		result.Reason = err.Error()
+		return result
+	}
+	if err = observePolicyAgentWithTable(policy, root, table); err != nil {
+		result.Reason = err.Error()
+		return result
+	}
+	result.Usable = true
+	result.Owner.State = SessionOwnerOwned
+	return result
+}
+
+func canonicalSocket(path string) (string, error) {
+	dir, err := filepath.EvalSymlinks(filepath.Dir(path))
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, filepath.Base(path)), nil
+}
+func sessionPolicyPath(socket string) (string, error) {
+	socket, err := canonicalSocket(socket)
+	if err != nil {
+		return "", err
+	}
+	p, err := artifactpath.ResolvePairCache(os.Getenv("HOME"))
+	if err != nil {
+		return "", err
+	}
+	return p.SessionPolicy(socket)
+}
+func readSessionPolicy(socket string) (artifactpath.SessionLaunchPolicy, error) {
+	path, err := sessionPolicyPath(socket)
+	if err != nil {
+		return artifactpath.SessionLaunchPolicy{}, err
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return artifactpath.SessionLaunchPolicy{}, err
+	}
+	defer f.Close()
+	raw, err := io.ReadAll(io.LimitReader(f, artifactpath.MaxSessionLaunchPolicyBytes+1))
+	if err != nil {
+		return artifactpath.SessionLaunchPolicy{}, err
+	}
+	return artifactpath.DecodeSessionLaunchPolicy(raw)
+}
+func socketFileID(path string) (uint64, uint64, error) {
+	s, err := os.Lstat(path)
+	if err != nil {
+		return 0, 0, err
+	}
+	if s.Mode()&os.ModeSocket == 0 {
+		return 0, 0, errors.New("terminal socket is not a socket")
+	}
+	st, ok := s.Sys().(*syscall.Stat_t)
+	if !ok {
+		return 0, 0, errors.New("terminal socket identity unavailable")
+	}
+	return uint64(st.Dev), uint64(st.Ino), nil
+}
+func validatePolicySocketFile(p artifactpath.SessionLaunchPolicy) error {
+	dev, ino, err := socketFileID(p.Socket)
+	if err != nil {
+		return err
+	}
+	if dev != p.SocketDevice || ino != p.SocketInode {
+		return errors.New("terminal socket was replaced → relaunch")
+	}
+	return nil
+}
+func checkNoSavedLayout(name string) error {
+	base, err := os.UserCacheDir()
+	if err != nil {
+		return err
+	}
+	app := "zellij"
+	if runtime.GOOS == "darwin" {
+		app = "org.Zellij-Contributors.Zellij"
+	}
+	path := filepath.Join(base, app, "contract_version_1", "session_info", name, "session-layout.kdl")
+	_, err = os.Lstat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("cannot inspect legacy terminal layout: %w", err)
+	}
+	return errors.New("legacy saved terminal layout cannot be attached safely → relaunch")
+}
+func observePolicyAgent(p artifactpath.SessionLaunchPolicy, root string) error {
+	table, err := procutil.Table()
+	if err != nil {
+		return err
+	}
+	return observePolicyAgentWithTable(p, root, table)
+}
+func observePolicyAgentWithTable(p artifactpath.SessionLaunchPolicy, root string, table []procutil.Process) error {
+	owner, err := artifactpath.NewStorageOwner(root, p.Scope, p.Tag)
+	if err != nil {
+		return err
+	}
+	raw, err := os.ReadFile(AgentReadyPath(owner.Directory(), p.Tag, p.Agent))
+	if err != nil {
+		return err
+	}
+	ready, err := readiness.Decode(string(raw))
+	if err != nil {
+		return err
+	}
+	if ready.Tag != p.Tag || ready.Agent != p.Agent || ready.Session != p.Name || ready.Nonce != p.Nonce {
+		return errors.New("agent readiness belongs to another terminal generation")
+	}
+	server := SessionServerIdentity{PID: p.ServerPID, Identity: p.ServerIdentity}
+	if !AgentBelongsToServer(server, ready.PID, table) {
+		return errors.New("terminal has no live agent from its recorded launch → relaunch")
+	}
+	return nil
+}
+
+type terminalOSAttempt struct {
+	rt                                                                 OSRuntime
+	name, config, layout, socket, socketRoot, scope, tag, agent, nonce string
+	create                                                             bool
+	expected                                                           TerminalSafety
+}
+
+func newTerminalOSAttempt(rt OSRuntime, name, config, layout string, create bool) (*terminalOSAttempt, error) {
+	if name == "" || filepath.Base(name) != name || name == "." || name == ".." {
+		return nil, errors.New("invalid terminal session name")
+	}
+	root := os.Getenv("ZELLIJ_SOCKET_DIR")
+	if root == "" {
+		root = filepath.Join(os.TempDir(), "zellij-"+strconv.Itoa(os.Getuid()))
+	}
+	if !filepath.IsAbs(root) {
+		return nil, errors.New("Zellij socket directory must be absolute")
+	}
+	if err := os.MkdirAll(filepath.Join(root, "contract_version_1"), 0700); err != nil {
+		return nil, err
+	}
+	root, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return nil, err
+	}
+	a := &terminalOSAttempt{rt: rt, name: name, config: config, layout: layout, create: create, socketRoot: root, socket: filepath.Join(root, "contract_version_1", name), scope: os.Getenv("PAIR_SCOPE_KEY"), tag: os.Getenv("PAIR_TAG"), agent: os.Getenv("PAIR_AGENT"), nonce: os.Getenv("PAIR_LAUNCH_NONCE")}
+	if a.tag == "" {
+		return nil, errors.New("terminal thread identity unavailable")
+	}
+	return a, nil
+}
+func (a *terminalOSAttempt) Acquire(ctx context.Context) (io.Closer, error) {
+	p, err := artifactpath.ResolvePairCache(os.Getenv("HOME"))
+	if err != nil {
+		return nil, err
+	}
+	path, err := p.TerminalLease(a.socket)
+	if err != nil {
+		return nil, err
+	}
+	return AcquireTerminalLease(ctx, path)
+}
+func (a *terminalOSAttempt) Check(ctx context.Context) error {
+	if !a.create {
+		observed, err := ObserveTerminalSafety(ctx, a.name, a.rt.globalDataDir(), a.scope, a.tag)
+		if err != nil {
+			return err
+		}
+		if !observed.Usable {
+			return fmt.Errorf("terminal needs relaunch: %s", observed.Reason)
+		}
+		if observed.Policy.Socket != a.socket {
+			return errors.New("terminal socket namespace changed → relaunch")
+		}
+		a.expected = observed
+		return nil
+	}
+	servers, err := (osSessionOwnerIO{}).SessionServers(ctx, a.name)
+	if err != nil {
+		return err
+	}
+	if len(servers) != 0 {
+		return errors.New("terminal name still has a live or contested server → relaunch")
+	}
+	if _, err = os.Lstat(a.socket); !errors.Is(err, os.ErrNotExist) {
+		return errors.New("terminal socket is occupied or unreadable → relaunch")
+	}
+	if err = checkNoSavedLayout(a.name); err != nil {
+		return err
+	}
+	// A still-live agent is authority against a second launch even if its
+	// server is gone. PID reuse is conservatively refused, never killed here.
+	owner, err := artifactpath.NewStorageOwner(a.rt.globalDataDir(), a.scope, a.tag)
+	if err != nil {
+		return err
+	}
+	if raw, e := os.ReadFile(AgentReadyPath(owner.Directory(), a.tag, a.agent)); e == nil {
+		if ready, e := readiness.Decode(string(raw)); e == nil && procutil.Alive(strconv.Itoa(ready.PID)) {
+			return errors.New("thread still has a live agent → relaunch")
+		}
+	}
+	return nil
+}
+
+type terminalOSClient struct{ cmd *exec.Cmd }
+
+func (c terminalOSClient) Wait() HandoffExit {
+	err := c.cmd.Wait()
+	if c.cmd.ProcessState != nil {
+		return HandoffExit{Code: c.cmd.ProcessState.ExitCode()}
+	}
+	return HandoffExit{Code: 1, Err: err}
+}
+func (a *terminalOSAttempt) Start(ctx context.Context) (HandoffClient, error) {
+	cmd := killOnCancel(exec.CommandContext(ctx, "zellij", terminalLaunchArgs(a.name, a.config, a.layout, a.create)...))
+	cmd.Env = append(os.Environ(), "ZELLIJ_SOCKET_DIR="+a.socketRoot)
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+	return terminalOSClient{cmd}, nil
+}
+func (a *terminalOSAttempt) Admit(ctx context.Context) error {
+	ticker := time.NewTicker(birthPoll)
+	defer ticker.Stop()
+	var last error
+	for {
+		if err := a.observeAdmission(ctx); err == nil {
+			return nil
+		} else {
+			last = err
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("terminal admission unverified: %w", errors.Join(last, ctx.Err()))
+		case <-ticker.C:
+		}
+	}
+}
+
+// retireSessionPolicy runs only after lifecycle quiescence. A concurrent new
+// launch wins the same lease and makes the second absence check refuse cleanup.
+// Saved layouts and lock inodes are never removed here.
+func (r OSRuntime) retireSessionPolicy(ctx context.Context, name string) error {
+	root := os.Getenv("ZELLIJ_SOCKET_DIR")
+	if root == "" {
+		root = filepath.Join(os.TempDir(), "zellij-"+strconv.Itoa(os.Getuid()))
+	}
+	socket, err := canonicalSocket(filepath.Join(root, "contract_version_1", name))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	cache, err := artifactpath.ResolvePairCache(os.Getenv("HOME"))
+	if err != nil {
+		return err
+	}
+	lockPath, err := cache.TerminalLease(socket)
+	if err != nil {
+		return err
+	}
+	lease, err := AcquireTerminalLease(ctx, lockPath)
+	if err != nil {
+		return err
+	}
+	defer lease.Close()
+	servers, err := (osSessionOwnerIO{}).SessionServers(ctx, name)
+	if err != nil {
+		return err
+	}
+	if len(servers) != 0 {
+		return errors.New("terminal appeared during policy cleanup")
+	}
+	p, err := readSessionPolicy(socket)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return nil
+	} // retain unknown evidence
+	if p.Name != name || p.Socket != socket {
+		return nil
+	}
+	path, err := cache.SessionPolicy(socket)
+	if err != nil {
+		return err
+	}
+	return os.Remove(path)
+}
+func (a *terminalOSAttempt) observeAdmission(ctx context.Context) error {
+	if !a.create {
+		now, err := ObserveTerminalSafety(ctx, a.name, a.rt.globalDataDir(), a.scope, a.tag)
+		if err != nil {
+			return err
+		}
+		if !now.Usable || now.Owner.Server != a.expected.Owner.Server || now.Policy != a.expected.Policy {
+			return errors.New("terminal changed during attachment")
+		}
+		return nil
+	}
+	// Do not send Zellij a query before its first pane runs: an early CLI
+	// connection can kill a server still initializing its first client (#288).
+	storageOwner, err := artifactpath.NewStorageOwner(a.rt.globalDataDir(), a.scope, a.tag)
+	if err != nil {
+		return err
+	}
+	readyBytes, err := os.ReadFile(AgentReadyPath(storageOwner.Directory(), a.tag, a.agent))
+	if err != nil {
+		return err
+	}
+	ready, err := readiness.Decode(string(readyBytes))
+	if err != nil {
+		return err
+	}
+	if ready.Tag != a.tag || ready.Agent != a.agent || ready.Session != a.name || ready.Nonce != a.nonce {
+		return errors.New("waiting for this launch's agent readiness")
+	}
+	owner, err := (SessionOwnerProbe{}).Probe(ctx, a.name, a.rt.globalDataDir(), a.scope, a.tag)
+	if err != nil {
+		return err
+	}
+	if owner.State != SessionOwnerOwned {
+		return errors.New("new terminal ownership is not established")
+	}
+	socket, err := canonicalSocket(owner.Server.Socket)
+	if err != nil || socket != a.socket {
+		return errors.New("new server has unexpected socket")
+	}
+	dev, ino, err := socketFileID(socket)
+	if err != nil {
+		return err
+	}
+	config, err := os.ReadFile(filepath.Join(a.config, "config.kdl"))
+	if err != nil {
+		return err
+	}
+	digest := sha256.Sum256(config)
+	p := artifactpath.SessionLaunchPolicy{Version: 1, PolicyVersion: 1, Socket: socket, SocketDevice: dev, SocketInode: ino, Name: a.name, ServerPID: owner.Server.PID, ServerIdentity: owner.Server.Identity, Scope: a.scope, Tag: a.tag, Agent: a.agent, Nonce: a.nonce, ConfigDigest: hex.EncodeToString(digest[:])}
+	if err = artifactpath.ValidateSessionLaunchPolicy(p); err != nil {
+		return err
+	}
+	if err = observePolicyAgent(p, a.rt.globalDataDir()); err != nil {
+		return err
+	}
+	if err = checkNoSavedLayout(a.name); err != nil {
+		return err
+	}
+	if err = (SessionOwnerProbe{}).Revalidate(ctx, owner); err != nil {
+		return err
+	}
+	path, err := sessionPolicyPath(socket)
+	if err != nil {
+		return err
+	}
+	raw, err := json.Marshal(p)
+	if err != nil {
+		return err
+	}
+	if err = os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		return err
+	}
+	return a.rt.WriteAtomic(path, string(raw))
+}
+
+func (r OSRuntime) runTerminalHandoff(ctx context.Context, name, config, layout string, create bool) (int, error) {
+	a, err := newTerminalOSAttempt(r, name, config, layout, create)
+	if err != nil {
+		return 1, err
+	}
+	return CoordinateTerminalHandoff(ctx, a, birthBound)
+}

@@ -2,6 +2,7 @@ package couchcore
 
 import (
 	"encoding/json"
+	"github.com/xianxu/pair/cmd/internal/launcher"
 	"testing"
 	"time"
 
@@ -18,7 +19,7 @@ func detachedLayoutRecord(t *testing.T, layout Layout) (ThreadRecord, map[Thread
 	record.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
 	record.Layout = layout
 	evidence := map[ThreadAddress]ThreadEvidence{record.Address: {
-		Session:      SessionObservation{State: SessionPresent},
+		Session:      SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{Usable: true}},
 		ParkedStatus: ProofResolved,
 	}}
 	return record, evidence
