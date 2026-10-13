@@ -1,12 +1,12 @@
 ---
 id: 000525
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-13
 estimate_hours: 2.544
-card_mirror: '0392da6fd224d7fcffadd43e2fbeec7f8ba45ea6' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'b6d02de016fbe699ba4edd13a17f7a2a77eaed54' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-13T10:20:26-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: 0.95
 ---
 
 # broadcast-web: DOM submission names the page (URL and title per note) and drops CSS selectors
