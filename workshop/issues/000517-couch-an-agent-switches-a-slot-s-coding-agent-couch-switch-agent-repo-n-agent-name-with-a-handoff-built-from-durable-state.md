@@ -1,12 +1,12 @@
 ---
 id: 000517
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-12
-updated: 2026-10-12
+updated: 2026-10-13
 estimate_hours: 5.107
-card_mirror: '20dc2f1351c9bb502c99ff0865c11c8cc1411358' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '9c2bf680e3eb1ad4e667ee702463b9ba688a8340' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T20:05:23-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 7.11
 ---
 
 # couch: an agent switches a slot's coding agent (couch --switch-agent repo:N --agent NAME), with a handoff built from durable state
