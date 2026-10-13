@@ -139,6 +139,22 @@ Durable plan: [000523-cast-capability-switches-plan.md](../plans/000523-cast-cap
   admission test is written but its red run is temporarily blocked by those
   in-flight compile changes. No full-suite or milestone-close claim yet.
 
+- M1 Cast/server integration: authoritative default-OFF snapshots, stable secrets,
+  bounded single-flight cast workers, explicit retry and cross-capability broken
+  fencing. Cast ad-hoc review clean; focused race tests pass. HTTP tests cover
+  body-read fencing, role intersection, all four combinations, SSE OFF/reconnect.
+- Drive ad-hoc review found cancellation could discard a late callback failure,
+  uncertain text/click could be hidden during concurrent disable, and queued
+  cancellation lost definitely-unsubmitted evidence. Recorder now claims queued
+  work atomically and awaits any started callback's settled outcome; red/green
+  tests plus recorder race suite pass. Drive fixes under review before M1 close.
+- New multi-viewer SSE race test exposed recording.Encode mutating shared Header.K.
+  Encode now stamps a shallow copy; all-kind immutability regression reproduced
+  the defect. Full webcast race suite passed after the fix.
+- #494 landed PR #303 (889fafd05), confirmed receipt
+  f377b362-d13c-4a0c-9b99-f1ef3aae5fe7. This branch owns second-landing overlay
+  permission and operator-admission integration after merging main.
+
 ## Revisions
 
 - 2026-10-12 22:58 PDT: Added approved defaults/copy semantics and proposed

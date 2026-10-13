@@ -106,7 +106,7 @@ func TestAnnotationClearAdmissionAndCodec(t *testing.T) {
 	if _, err := Reduce(b.Recs, 2); err == nil {
 		t.Fatal("clear after end accepted")
 	}
-	r := &AnnotationClear{Who: Author{ID: OperatorID}}
+	r := &AnnotationClear{Header: Header{K: "annotation-clear"}, Who: Author{ID: OperatorID}}
 	line, err := Encode(r)
 	if err != nil {
 		t.Fatal(err)

@@ -131,6 +131,32 @@ what the viewer's renderer draws at the same moments.
   - `fidelity_live_test.go` (`WEBCAST_LIVE_CHROME=1`): every fixture within the tolerance, and a broken render
     (no stylesheets) caught. `FIDELITY_DIR=` checks any recording in place, e.g. one from `TestLiveRecordURL`.
 
+## Capability authority (#523)
+
+Recorded casts start with annotation and outside driving OFF. `Board` owns
+annotation admission and `drive.MemController` owns drive admission; Cast and
+SSE publish their snapshots. Link roles narrow permission independently, and
+links/codes stay stable across toggles. HTTP captures an admission generation
+before reading the body and rechecks it at mutation/dispatch, including between
+input acts. A quick OFF→ON cannot revive an old request.
+
+Turning annotation off acknowledges an ordered `annotation-clear`; driving off
+acknowledges one `ctl reset` clearing the active driver and every pending request,
+then releases held input. The recorder deduplicates each cleanup generation.
+Admission stays closed during cleanup. A confirmed unsubmitted failure offers an
+explicit retry; an uncertain external effect or lost recorder/CDP leaves the cast
+broken with “end the cast” as its action. Held inputs are removed only after
+acknowledgment. Controller work and input callbacks are canceled/joined, including
+when the HTTP caller leaves. Cast owns bounded, single-flight button workers.
+
+The `capabilities` SSE event carries annotation/drive support, link permission,
+effective availability, visible state, generation and attempt. It replays the
+latest snapshot on reconnect and does not expose internal errors. Cast updates
+carry the same authority state for the operator's recovery notice. The shared
+`capability.Project` maps lifecycle to one action: enable, disable, wait, retry,
+end cast or start a new cast. See `cast_capabilities.go`, `server_capabilities.go`,
+`board/annotation.go`, `drive/capability.go` and `recorder/capability.go`.
+
 ## Lifecycle
 
 - **Chrome process:** owned by Couch through the pipe. `Close` → `Browser.close`, killed after 5s. Closing Couch's

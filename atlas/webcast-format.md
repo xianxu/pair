@@ -261,6 +261,16 @@ landmark's box. The full DOM at that moment stays available through the agent qu
 The operator's box is the crop, so there is no snapping to structure and no per-URL hint. #461's landmark snapping
 and `notes.Hints` were retired by #488. The landmark still gives the context and the anchor's path.
 
+## Annotation clear (#523)
+
+`annotation-clear` is an operator-authored event in `events.jsonl`:
+`{"t":7001,"k":"annotation-clear","who":{"id":"operator"}}`.
+It clears the current notes and strokes, including while paused; earlier replay
+positions remain unchanged. It is invalid after recording end. The timestamp is
+strictly after preceding annotations so split-file merge cannot resurrect marks
+at an equal timestamp. Catch-up retains the clear barrier and only subsequent
+notes. Go reduction and the browser model apply the same operation.
+
 ## Attribution and control (#466)
 
 A viewer the operator grants control to uses the cast tab through the cast (Remote driving, below). The recording
@@ -280,6 +290,7 @@ says who did what.
 
   | `op` | Allowed when | After it |
   |---|---|---|
+  | `reset` | `who.id` is `operator` | No driver and no pending requests, atomically |
   | `request` | `who` neither drives nor has asked | `who` is pending |
   | `grant` | `who` is pending | `who` drives; a previous driver doesn't |
   | `deny` | `who` is pending | `who` isn't pending |

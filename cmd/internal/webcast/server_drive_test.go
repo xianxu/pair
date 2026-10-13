@@ -37,6 +37,10 @@ func newDriveFixture(t *testing.T, grace time.Duration) *driveFixture {
 	}
 	clock := func() int64 { return inj.Page().T + 1 }
 	ctrl := drive.NewMemController(recording.Tee(stream, inj), inj, clock, grace)
+	ctrl.WithControlReset(inj.ResetControl)
+	if err := ctrl.SetDriveAllowed(context.Background(), true); err != nil {
+		t.Fatal(err)
+	}
 	t.Cleanup(func() { ctrl.Close() })
 	return &driveFixture{srv: NewServer("tok", NewFakeBrowser(), time.Second, nil, nil).WithDrive(ctrl, "drv"), ctrl: ctrl, inj: inj, stream: stream}
 }
@@ -356,6 +360,9 @@ func TestDriveRoutesLogWhatTheViewerCantFix(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			f := newDriveFixture(t, time.Minute)
 			ctrl := drive.NewMemController(recording.Tee(f.stream, f.inj), &failingInjector{f.inj, c.err}, func() int64 { return f.inj.Page().T + 1 }, time.Minute)
+			if err := ctrl.SetDriveAllowed(context.Background(), true); err != nil {
+				t.Fatal(err)
+			}
 			t.Cleanup(func() { ctrl.Close() })
 			var logs []string
 			f.srv = NewServer("tok", NewFakeBrowser(), time.Second, nil, nil).WithDrive(ctrl, "drv").

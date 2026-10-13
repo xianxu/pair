@@ -51,6 +51,9 @@ func eventually(t *testing.T, what string, ok func() bool) {
 func TestCastDriving(t *testing.T) {
 	mem := &recording.MemSink{}
 	c, d := startDrivenCast(t, mem)
+	if err := c.SetCapability(context.Background(), CapabilityDrive, true); err != nil {
+		t.Fatal(err)
+	}
 	ctrl := c.Drive()
 	if ctrl == nil {
 		t.Fatal("a recorded, drivable cast has no controller")
@@ -92,7 +95,7 @@ func TestCastDriving(t *testing.T) {
 		t.Fatal("revoke waited on a stuck batch")
 	}
 	release()
-	if err := <-stuck; !errors.Is(err, drive.ErrNotDriver) {
+	if err := <-stuck; !errors.Is(err, drive.ErrNotDriver) && !errors.Is(err, drive.ErrDriveUnavailable) {
 		t.Fatalf("the overtaken batch: %v", err)
 	}
 	eventually(t, "Chrome told nobody drives", func() bool { return d.Driving() == "" })

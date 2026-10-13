@@ -2,6 +2,8 @@ package webcast
 
 import (
 	"context"
+	"errors"
+	"github.com/xianxu/pair/cmd/internal/webcast/capability"
 	"sync"
 	"sync/atomic"
 
@@ -21,10 +23,13 @@ type FakeDriven struct {
 	out    recording.Sink
 	opened atomic.Bool
 
-	mu      sync.Mutex
-	hold    chan struct{}
-	driving []string
-	failing error // Emit refuses with it, as a stopped recorder would
+	command          sync.Mutex
+	clearID, resetID uint64
+	cleanupFailure   error
+	mu               sync.Mutex
+	hold             chan struct{}
+	driving          []string
+	failing          error // Emit refuses with it, as a stopped recorder would
 }
 
 // FailEmits makes every later Emit fail with err (nil: succeed again).
@@ -54,6 +59,11 @@ func (d *FakeDriven) Opened() bool { return d.opened.Load() }
 func (d *FakeDriven) Injector() *drive.FakeInjector { return d.inj }
 
 func (d *FakeDriven) Emit(r recording.Record, _ int) error {
+	d.command.Lock()
+	defer d.command.Unlock()
+	return d.emit(r)
+}
+func (d *FakeDriven) emit(r recording.Record) error {
 	d.mu.Lock()
 	failing := d.failing
 	d.mu.Unlock()
@@ -74,7 +84,11 @@ func (d *FakeDriven) WithTab(ctx context.Context, by string, fn func(drive.Tab) 
 	hold := d.hold
 	d.mu.Unlock()
 	if hold != nil && by != "" { // a driver's batch; a release isn't held
-		<-hold
+		select {
+		case <-hold:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
 	return d.inj.Tabs.WithTab(ctx, by, fn)
 }
@@ -128,3 +142,41 @@ func (l *lockedSink) Put(r recording.Record) error {
 func (l *lockedSink) Close() error { return nil }
 
 var _ Driven = (*FakeDriven)(nil)
+
+// Cleanup uses the same ordered injector/reducer and sink as ordinary records.
+func (d *FakeDriven) ClearAnnotations(ctx context.Context, id uint64) error {
+	return d.cleanup(ctx, id, &d.clearID, &recording.AnnotationClear{Who: recording.Author{ID: recording.OperatorID}})
+}
+func (d *FakeDriven) ResetControl(ctx context.Context, id uint64) error {
+	return d.cleanup(ctx, id, &d.resetID, &recording.Ctl{Op: recording.CtlReset, Who: recording.Author{ID: recording.OperatorID}})
+}
+func (d *FakeDriven) cleanup(ctx context.Context, id uint64, last *uint64, r recording.Record) error {
+	d.command.Lock()
+	defer d.command.Unlock()
+	if d.cleanupFailure != nil {
+		return d.cleanupFailure
+	}
+	if id == 0 || id < *last {
+		return errors.New("fake recorder: stale cleanup")
+	}
+	if id == *last {
+		return nil
+	}
+	if err := ctx.Err(); err != nil {
+		return &capability.Failure{Outcome: capability.Retryable, Cause: err}
+	}
+	d.mu.Lock()
+	failing := d.failing
+	d.mu.Unlock()
+	if failing != nil {
+		return failing
+	}
+	if d.Opened() {
+		if err := d.emit(r); err != nil {
+			d.cleanupFailure = &capability.Failure{Outcome: capability.Broken, Cause: err}
+			return d.cleanupFailure
+		}
+	}
+	*last = id
+	return nil
+}

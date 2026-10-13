@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 )
 
 // Decode reads one record line. A kind this version doesn't know decodes to
@@ -37,8 +38,14 @@ func Encode(r Record) ([]byte, error) {
 	if u, ok := r.(*Unknown); ok {
 		return bytes.Clone(u.Raw), nil
 	}
-	r.header().K = r.Kind()
-	return json.Marshal(r)
+	// Records are shared by fan-out readers. Copy the concrete envelope before
+	// stamping its kind; the payload remains read-only and need not be cloned.
+	v := reflect.ValueOf(r)
+	copy := reflect.New(v.Elem().Type())
+	copy.Elem().Set(v.Elem())
+	wire := copy.Interface().(Record)
+	wire.header().K = r.Kind()
+	return json.Marshal(wire)
 }
 
 // Known reports whether a kind is part of this version.

@@ -1469,3 +1469,9 @@ proof; record the surprising case so the next change starts from evidence.
 - pair#523 plan review: describe tests by production function, adversarial input class and mechanical guard. Keep acceptance behavior in the spec; executable case inventories belong in tests.
 - pair#523 reducer review: test each stale-completion guard independently. An old completion delivered only after failure exercises the phase guard, not the attempt guard; deliver it while the newer attempt is Running and mutation-check that removing attempt equality fails.
 - pair#523 cleanup review: a caller classifying partial sink writes as terminal must wrap lower-layer errors with its own terminal outcome. Propagating an inner Retryable misclassifies an effect the outer operation may already have committed.
+
+- #523: Canceling an HTTP caller does not cancel ownership of a started side effect.
+  Retain its settled failure for the authority; distinguish an unstarted queued
+  callback from uncertain external delivery with typed evidence.
+- #523: Fan-out records are shared read-only values. Encoders must stamp copies,
+  never mutate an envelope while concurrent subscribers serialize it.

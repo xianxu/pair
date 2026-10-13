@@ -4,11 +4,27 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/webcast/capability"
+	"github.com/xianxu/pair/cmd/internal/webcast/drive"
 	rec "github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
+
+func TestInputBeforeDialogIsDefinitelyUnsubmitted(t *testing.T) {
+	dialog := make(chan struct{})
+	h, d, _, _ := drivenHarness(t, dialog)
+	close(dialog)
+	err := h.r.inputCall("A", "Input.dispatchKeyEvent", map[string]any{"type": "keyUp", "key": "a"}, nil)
+	if !errors.Is(err, drive.ErrDialog) || capability.FailureOutcome(err) != capability.Retryable {
+		t.Fatalf("preflight refusal outcome: %v", err)
+	}
+	if inputs, _ := d.log(); len(inputs) != 0 {
+		t.Fatal("refused input was submitted")
+	}
+}
 
 func TestClearAnnotationsAcknowledgesOrderedPausedWrite(t *testing.T) {
 	h := newHarness(t)
@@ -166,5 +182,47 @@ func TestClearSinkFailureIsTerminalEvenIfItAcceptedRecord(t *testing.T) {
 	}
 	if strings.Count(h.kinds(), "annotation-clear") != 1 {
 		t.Fatal("terminal failure replayed effect")
+	}
+}
+
+func TestWithTabCancellationRetainsSettledFailure(t *testing.T) {
+	h := newHarness(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	entered, release := make(chan struct{}), make(chan struct{})
+	done := make(chan error, 1)
+	failure := &drive.ReleaseFailure{Cause: errors.New("input acknowledgement lost")}
+	go func() {
+		done <- h.r.WithTab(ctx, "v", func(drive.Tab) error { close(entered); <-release; return failure })
+	}()
+	<-entered
+	cancel()
+	select {
+	case err := <-done:
+		close(release)
+		t.Fatalf("lost owned callback outcome on cancellation: %v", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+	close(release)
+	if err := <-done; !errors.Is(err, failure) {
+		t.Fatalf("settled failure lost: %v", err)
+	}
+}
+
+func TestWithTabQueuedCancellationIsDefinitelyUnsubmitted(t *testing.T) {
+	h := newHarness(t)
+	entered, release := make(chan struct{}), make(chan struct{})
+	blocked := make(chan error, 1)
+	go func() { blocked <- h.r.ask(context.Background(), func() { close(entered); <-release }) }()
+	<-entered
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	var called atomic.Bool
+	err := h.r.WithTab(ctx, "v", func(drive.Tab) error { called.Store(true); return nil })
+	close(release)
+	<-blocked
+	h.settle()
+	if called.Load() || capability.FailureOutcome(err) != capability.Retryable || !errors.Is(err, context.Canceled) {
+		t.Fatalf("unsubmitted callback: called=%v error=%v", called.Load(), err)
 	}
 }

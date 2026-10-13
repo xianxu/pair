@@ -53,6 +53,7 @@ func TestCodecRoundTripsEveryKind(t *testing.T) {
 	seen := map[string]bool{}
 	for i, r := range sample() {
 		r.header().T = int64(i)
+		r.header().K = r.Kind()
 		line, err := Encode(r)
 		if err != nil {
 			t.Fatalf("%s: %v", r.Kind(), err)
@@ -184,6 +185,23 @@ func TestChecksRejectMissingFields(t *testing.T) {
 	for _, r := range sample() {
 		if err := r.check(); err != nil {
 			t.Errorf("%s: sample fails its check: %v", r.Kind(), err)
+		}
+	}
+}
+
+func TestEncodeDoesNotMutateSharedRecords(t *testing.T) {
+	for _, r := range sample() {
+		r.header().K = "deliberately-wrong"
+		data, err := Encode(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if r.header().K != "deliberately-wrong" {
+			t.Errorf("%s mutated the shared envelope", r.Kind())
+		}
+		decoded, err := Decode(data)
+		if err != nil || decoded.Kind() != r.Kind() {
+			t.Fatalf("kind correction: %s %v", data, err)
 		}
 	}
 }

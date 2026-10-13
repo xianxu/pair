@@ -1,6 +1,7 @@
 package webcast
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -43,6 +44,10 @@ func TestAnnotateLiveTwoViewers(t *testing.T) {
 	var w *board.Writer
 	bd := board.New(notes.Structural{}, func(r recording.Record, doc int) error { return w.Emit(r, doc) })
 	w = board.NewWriter(recording.Tee(mem, bd, hub), nil)
+	bd.WithAnnotationCleanup(w.ClearAnnotations)
+	if err := bd.SetAnnotationAllowed(context.Background(), true); err != nil {
+		t.Fatal(err)
+	}
 	for _, r := range rec.Records {
 		if r.Time() <= at {
 			if err := w.Put(r); err != nil {
