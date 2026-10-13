@@ -691,6 +691,17 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchtty/codes_menu.go",
 	"cmd/internal/webcast/browser.go",
 	"cmd/internal/webcast/cast.go",
+	// #523: capability admission, ordered stream operations and projections;
+	// cast lifetime state only, no new artifact paths.
+	"cmd/internal/webcast/board/annotation.go",
+	"cmd/internal/webcast/capability/failure.go",
+	"cmd/internal/webcast/capability/presentation.go",
+	"cmd/internal/webcast/capability/state.go",
+	"cmd/internal/webcast/cast_capabilities.go",
+	"cmd/internal/webcast/drive/capability.go",
+	"cmd/internal/webcast/recorder/capability.go",
+	"cmd/internal/webcast/recording/annotations.go",
+	"cmd/internal/webcast/server_capabilities.go",
 	"cmd/internal/webcast/chrome.go",
 	"cmd/internal/webcast/chrome_find.go",
 	"cmd/internal/webcast/doc.go",

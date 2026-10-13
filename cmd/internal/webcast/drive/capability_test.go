@@ -587,3 +587,66 @@ func TestCanceledQueuedUpFreezesUntilExplicitCleanup(t *testing.T) {
 		t.Fatal("held key not cleaned", tab.acts)
 	}
 }
+
+type qualityBlockedSink struct{ entered, finish chan struct{} }
+
+func (s *qualityBlockedSink) Put(recording.Record) error {
+	close(s.entered)
+	<-s.finish
+	return errors.New("uncertain committed control")
+}
+func (s *qualityBlockedSink) Close() error { return nil }
+func TestQualityCanceledDisableRetainsLateUncertainControl(t *testing.T) {
+	sink := &qualityBlockedSink{make(chan struct{}), make(chan struct{})}
+	c := NewMemController(sink, nil, func() int64 { return 1 }, time.Hour).WithControlReset(func(context.Context, uint64) error { return nil })
+	defer c.Close()
+	c.SetDriveAllowed(context.Background(), true)
+	seat, _ := c.Join("A")
+	req := make(chan error, 1)
+	go func() { req <- c.Request(seat.Key) }()
+	<-sink.entered
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	c.SetDriveAllowed(ctx, false)
+	if !eventually(func() bool { return c.DriveCapability().Outcome == capability.Retryable }) {
+		t.Fatal("did not settle retryable")
+	}
+	close(sink.finish)
+	<-req
+	err := c.RetryDrive(context.Background())
+	if err == nil || c.DriveCapability().Phase == capability.Off {
+		t.Fatalf("lost uncertain control: retry err=%v state=%+v", err, c.DriveCapability())
+	}
+}
+
+type retryableControlRelease struct{ calls int }
+
+func (r *retryableControlRelease) Inject(context.Context, string, Batch) error { return nil }
+func (r *retryableControlRelease) Release(context.Context, string) error {
+	r.calls++
+	if r.calls == 1 {
+		return &capability.Failure{Outcome: capability.Retryable, Cause: errors.New("release not dispatched")}
+	}
+	return nil
+}
+func TestReportedControlFailureRetriesCleanupOnce(t *testing.T) {
+	inj := &retryableControlRelease{}
+	c := NewMemController(&recording.MemSink{}, inj, func() int64 { return 1 }, time.Hour).WithControlReset(func(context.Context, uint64) error { return nil })
+	defer c.Close()
+	c.SetDriveAllowed(context.Background(), true)
+	s, _ := c.Join("A")
+	c.Request(s.Key)
+	c.Grant(s.Viewer.ID)
+	if err := c.Revoke(); err == nil {
+		t.Fatal("lost release failure")
+	}
+	if c.DriveCapability().Outcome != capability.Retryable {
+		t.Fatal(c.DriveCapability())
+	}
+	if err := c.RetryDrive(context.Background()); err != nil {
+		t.Fatal("re-reported already observed failure", err)
+	}
+	if inj.calls != 2 || c.DriveCapability().Phase != capability.Off {
+		t.Fatalf("release calls=%d state=%+v", inj.calls, c.DriveCapability())
+	}
+}

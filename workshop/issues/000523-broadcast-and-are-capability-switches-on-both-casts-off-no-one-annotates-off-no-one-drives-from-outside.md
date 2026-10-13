@@ -166,6 +166,15 @@ Durable plan: [000523-cast-capability-switches-plan.md](../plans/000523-cast-cap
   regressions; restored checks pass. Drive task quality review pending, then M1
   binary-owned boundary review. User-visible controls/overlay remain M2 work.
 
+- Drive quality review found an uncertain control result could arrive after a
+  canceled cleanup wait and be lost on retry. The controlled regression failed;
+  cleanup now consumes that unobserved outcome even after the busy channel ends.
+  A separate regression proves already-reported retryable failures need exactly
+  one explicit retry. Quality re-review clean; focused race regressions pass.
+- Full repository suite exposed the exhaustive production-source inventory gate.
+  Registered the nine capability source files as non-artifact-path producers;
+  artifactpath suite passes. Full-suite remainder is still running before M1.
+
 ## Revisions
 
 - 2026-10-12 22:58 PDT: Added approved defaults/copy semantics and proposed

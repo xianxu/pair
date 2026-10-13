@@ -1475,3 +1475,8 @@ proof; record the surprising case so the next change starts from evidence.
   callback from uncertain external delivery with typed evidence.
 - #523: Fan-out records are shared read-only values. Encoders must stamp copies,
   never mutate an envelope while concurrent subscribers serialize it.
+
+- #523: A cancellation can finish the waiter before the operation. Preserve an
+  unobserved terminal outcome beyond the busy channel lifetime and consume it
+  before a later retry declares cleanup complete; do not re-report an outcome
+  already surfaced to the operator.

@@ -192,8 +192,12 @@ func (f *MemController) cleanup(ctx context.Context, state capability.Capability
 	}
 	f.mu.Lock()
 	reset, resetDone, by := f.reset, f.resetDone, f.cleanupBy
-	if wait != nil && err == nil {
+	// Control can settle after a canceled cleanup wait. Its unobserved
+	// outcome survives the busy channel and must be consumed before reset,
+	// including by a later retry that no longer has a channel to wait on.
+	if f.busy == nil && f.busyErr != nil {
 		err = f.busyErr
+		f.busyErr = nil
 	}
 	f.mu.Unlock()
 	if err == nil && !resetDone {
@@ -239,6 +243,9 @@ func (f *MemController) freezeLocked(err error, by string) {
 	if f.authority.Phase != capability.On {
 		return
 	}
+	// This failure is being surfaced directly in authority; cleanup need
+	// not report that same settled control outcome again on explicit retry.
+	f.busyErr = nil
 	s, _ := capability.NextCapability(f.authority.CapabilityState, capability.Event{Kind: capability.Disable})
 	s, _ = capability.NextCapability(s, capability.Event{Kind: capability.CleanupFailed, Attempt: s.Attempt, Outcome: capability.FailureOutcome(err)})
 	f.authority = capability.Snapshot{CapabilityState: s, Problem: err.Error()}
