@@ -12,7 +12,9 @@ export function label(kind) {
 }
 
 // mountPlaceholders draws the marks over the page box. v: the viewer's
-// surface (uncaptured, boxOf, fromPage, onRecord).
+// surface (uncaptured, boxOf, fromPage, onRecord). The shell also calls
+// draw on every paint, so the marks follow the drawing even when no record
+// arrives (a replay applied before this mounted).
 export function mountPlaceholders(doc, win, v) {
   const box = doc.getElementById('box');
   const layer = doc.createElement('div');

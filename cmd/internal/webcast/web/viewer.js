@@ -153,7 +153,7 @@ export function mount(doc, win) {
   const shell = {
     renderer: (model) => new Renderer(frame(), model, resolveAsset),
     show: render,
-    frame: () => { layout(); drawPointer(); },
+    frame: () => { layout(); drawPointer(); win.couchViewer?.placeholders?.draw(); },
     schedule: (fn) => win.requestAnimationFrame(fn),
   };
   // A recording (#471) plays from its records; a cast follows its stream,

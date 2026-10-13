@@ -79,3 +79,12 @@ Find where the video is lost (recorder snapshot or mutation, asset fetch for its
   size changes, with a small label (e.g. "canvas: not captured"), so layout never collapses and agents know
   something is there (the rrweb/FullStory practice). A low-rate canvas snapshot (toDataURL when not tainted) is a
   follow-up, filed unassigned as #515, not built here.
+- **Operator's second case (TL): the ariadne-2-5 post's iPad video** (`<video src="/videos/couch-demo-viewer.mp4"
+  controls preload="metadata">`, no width/height; sized by metadata) had no box in Safari. Measured on the page
+  (headless, read-only): the recorder stores no `.mp4` asset, so the viewer's video has no `src` (it never loads)
+  and is marked "video: not captured"; its size must come from the live box. Live sizing now covers every
+  uncaptured kind, not just canvas, border-box (iframe was 4 px over) and with the box's `aspect-ratio` (the page's
+  CSS sets `height:auto`, which beat the rule's height: 500x150 against the cast's 500x375). The marks are drawn on
+  every paint too (a replay applied before they mounted drew none). TestLiveReplacedElements adds a video sized only
+  by metadata from a source the viewer can't load (a MediaRecorder clip, `height:auto`): without the aspect ratio it
+  shows 346x150 against 346x174 and fails.

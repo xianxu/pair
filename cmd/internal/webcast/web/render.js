@@ -30,11 +30,14 @@ const VIEWER_CSS = 'noscript{display:none!important}';
 // a canvas's pixels, a video's frames, a plugin's output, a frame whose
 // document wasn't recorded. The shell labels them where they are drawn.
 const UNCAPTURED = new Set(['canvas', 'video', 'object', 'embed', 'iframe', 'frame']);
-// CANVAS_ATTR marks a drawn canvas for its size rule: with scripts off a
-// browser draws a canvas as its fallback content (an empty inline box), so
-// the viewer gives it the operator's live size, at zero specificity, as the
-// browser's own sizing would be (author CSS still wins).
-const CANVAS_ATTR = 'data-couch-canvas';
+// LIVE_SIZE_ATTR marks a drawn UNCAPTURED element for its size rule. Their
+// size often comes from what isn't recorded: with scripts off a browser
+// draws a canvas as its (empty) fallback, and a video sized by its loaded
+// metadata has none in the viewer (Safari draws no box at all; pair#513,
+// the operator's iPad video). So the viewer gives each the operator's live
+// layout box, at zero specificity, as the browser's own sizing would be
+// (author CSS still wins).
+const LIVE_SIZE_ATTR = 'data-couch-live-size';
 
 // URL-bearing attributes, by element (null: any element).
 const URL_ATTRS = {
@@ -167,22 +170,26 @@ export class Renderer {
     }
     this.drawSelection();
     this.drawHover();
-    this.drawCanvasSizes();
+    this.drawLiveSizes();
   }
 
-  // drawCanvasSizes sizes each drawn canvas as the operator's was: its live
-  // layout box, or (before one arrives) its width and height attributes, as
-  // a canvas's own default size is (300x150).
-  drawCanvasSizes() {
+  // drawLiveSizes sizes each drawn UNCAPTURED element as the operator's
+  // was: its live layout box, or before one arrives its width and height
+  // attributes (a canvas's default size is 300x150; a video without them
+  // waits for its box). The box's aspect ratio rides along, so author CSS
+  // that sets only the width (height:auto) keeps the operator's height, as
+  // the browser's intrinsic ratio would (pair#513: the blog's video).
+  drawLiveSizes() {
     const rules = new Map(); // document -> rule text
     for (const id of this.uncapturable) {
       const n = this.dom.get(id);
       if (!n || !n.isConnected) { this.uncapturable.delete(id); continue; }
-      if (n.localName !== 'canvas') continue;
-      const b = this.model.boxes.get(id);
-      const w = b ? b[2] : Number(n.getAttribute('width')) || 300, h = b ? b[3] : Number(n.getAttribute('height')) || 150;
+      const b = this.model.boxes.get(id), canvas = n.localName === 'canvas';
+      const w = b ? b[2] : Number(n.getAttribute('width')) || (canvas ? 300 : 0);
+      const h = b ? b[3] : Number(n.getAttribute('height')) || (canvas ? 150 : 0);
+      if (!w || !h) continue;
       const doc = n.ownerDocument;
-      rules.set(doc, (rules.get(doc) || '') + `:where(canvas[${CANVAS_ATTR}="${id}"]){display:inline-block;width:${w}px;height:${h}px}`);
+      rules.set(doc, (rules.get(doc) || '') + `:where([${LIVE_SIZE_ATTR}="${id}"]){display:inline-block;box-sizing:border-box;width:${w}px;height:${h}px;aspect-ratio:${w}/${h}}`);
     }
     for (const doc of new Set([...rules.keys(), ...this.sized || []])) {
       const text = VIEWER_CSS + (rules.get(doc) || '');
@@ -313,7 +320,7 @@ export class Renderer {
     }
     if (el.localName === 'iframe' || el.localName === 'frame') el.setAttribute('sandbox', 'allow-same-origin');
     if (UNCAPTURED.has(el.localName)) this.uncapturable.add(n.id);
-    if (el.localName === 'canvas') el.setAttribute(CANVAS_ATTR, String(n.id));
+    if (UNCAPTURED.has(el.localName)) el.setAttribute(LIVE_SIZE_ATTR, String(n.id));
     const model = this.model.node(n.id) || n;
     for (const name of Object.keys(model.a || {})) this.drawAttr(el, model, name);
     return el;

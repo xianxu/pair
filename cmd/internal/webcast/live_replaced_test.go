@@ -18,7 +18,10 @@ import (
 // plus the blog's cast embed shape: an element inserted empty and filled by
 // script a moment later (asciinema-player does this lazily).
 const replacedPage = `<!doctype html><title>replaced</title>
-<style>body{margin:0;font:16px sans-serif} .box{margin:8px 0}</style>
+<style>body{margin:0;font:16px sans-serif} .box{margin:8px 0}
+/* As the operator's blog: author CSS lets the height follow the width (and
+   the metadata's aspect ratio, which the viewer doesn't have). */
+#vmeta{display:block;max-width:100%;height:auto}</style>
 <body>
 <video id=video class=box width=320 height=180 poster="/poster.png"></video>
 <iframe id=iframe class=box src="/inner" width=320 height=120></iframe>
@@ -26,7 +29,18 @@ const replacedPage = `<!doctype html><title>replaced</title>
 <picture id=picture class=box><source srcset="/poster.png 1x"><img src="/poster.png" width=160 height=90></picture>
 <object id=object class=box data="/poster.png" type="image/png" width=160 height=90></object>
 <div id=embed class=box></div>
+<video id=vmeta class=box controls></video>
 <script>
+// A video sized only by its loaded metadata (no width or height), from a
+// source the viewer can't load: the operator's iPad video (pair#513).
+{
+  const cv = document.createElement('canvas'); cv.width = 346; cv.height = 174;
+  const g = cv.getContext('2d'); g.fillStyle = '#4a8'; g.fillRect(0, 0, 346, 174);
+  const rec = new MediaRecorder(cv.captureStream(10)), chunks = [];
+  rec.ondataavailable = (e) => chunks.push(e.data);
+  rec.onstop = () => { document.getElementById('vmeta').src = URL.createObjectURL(new Blob(chunks, { type: 'video/webm' })); };
+  rec.start(); setTimeout(() => rec.stop(), 400);
+}
 document.getElementById('canvas').getContext('2d').fillRect(0, 0, 320, 80);
 const inner = document.createElement('div');
 document.getElementById('embed').appendChild(inner); // inserted empty
@@ -83,7 +97,7 @@ func TestLiveReplacedElements(t *testing.T) {
 	// not the attributes (320x80).
 	h.eval(t, `(() => { const c = document.getElementById('canvas'); c.style.width = '400px'; c.style.height = '100px'; return ''; })()`, nil)
 	time.Sleep(2500 * time.Millisecond) // a shot or two, with their layout
-	ids := []string{"video", "iframe", "canvas", "picture", "object", "embed"}
+	ids := []string{"video", "iframe", "canvas", "picture", "object", "embed", "vmeta"}
 	sizes := func(eval func(string) string) map[string][2]float64 {
 		var out map[string][2]float64
 		js := fmt.Sprintf(`(() => { const d = (document.querySelector('iframe#page') || {}).contentDocument || document; const o = {}; for (const id of %s) { const e = d.getElementById(id); if (e) { const r = e.getBoundingClientRect(); o[id] = [r.width, r.height]; } } return JSON.stringify(o); })()`, mustJSON(ids))
@@ -128,7 +142,7 @@ func TestLiveReplacedElements(t *testing.T) {
 	// Every element whose content the recording can't hold is marked;
 	// the recorded frame and the late-filled embed are not.
 	time.Sleep(500 * time.Millisecond)
-	if got := v.evalString(t, `[...document.querySelectorAll('.uncaptured-mark span')].map((s) => s.textContent).sort().join(', ')`); got != "canvas: not captured, object: not captured, video: not captured" {
+	if got := v.evalString(t, `[...document.querySelectorAll('.uncaptured-mark span')].map((s) => s.textContent).sort().join(', ')`); got != "canvas: not captured, object: not captured, video: not captured, video: not captured" {
 		t.Errorf("the viewer's marks: %q", got)
 	}
 	if got := v.evalString(t, `(() => { const f = document.querySelector('iframe#page'); const d = f ? f.contentDocument : document; const p = d.querySelector('#embed .ap-term-text'); return p ? p.textContent : 'none'; })()`); got != "$ parley" {

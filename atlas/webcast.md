@@ -213,10 +213,11 @@ what the viewer's renderer draws at the same moments.
     `resolveAsset`; a URL with no asset loads nothing. An image with nothing to load is drawn as not yet loaded (no
     alt text), as a lazy image is in the tab.
   - What the recording can't hold (pair#513): a canvas's pixels, a video's frames, a plugin's output (`object`,
-    `embed`), a frame whose document wasn't recorded. With scripts off a browser draws a `<canvas>` as its (empty)
-    fallback, so the renderer sizes each drawn canvas to the operator's live layout box (else its `width`/`height`
-    attributes) with a zero-specificity rule in the document's viewer sheet (`drawCanvasSizes`; author CSS still
-    wins). `Renderer.uncaptured()` lists them, and `placeholders.js` marks each over the page box: a dashed outline
+    `embed`), a frame whose document wasn't recorded. Their size often comes from what isn't recorded (with scripts
+    off a browser draws a `<canvas>` as its empty fallback; a video sized by loaded metadata has none, and Safari
+    draws no box), so the renderer sizes each to the operator's live layout box (else its `width`/`height`
+    attributes) with a zero-specificity rule in the document's viewer sheet, border-box and with the box's
+    `aspect-ratio`, so author `height:auto` keeps the operator's height (`drawLiveSizes`; author CSS still wins). `Renderer.uncaptured()` lists them, and `placeholders.js` marks each over the page box: a dashed outline
     at its drawn box and "canvas: not captured", redrawn on every record, so it follows the operator's size. Canvas
     snapshots are #515. Checked by `TestLiveReplacedElements` (video, iframe, canvas resized live, picture, object,
     a node filled after its insert) and `tests/webcast/placeholders.test.mjs`.
