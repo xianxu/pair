@@ -177,6 +177,17 @@ what the viewer's renderer draws at the same moments.
 - **Cast:** `webcast.Cast` = Browser + the viewer `Server` mounted on the shared `broadcast.Host`. Chrome comes
   up first; the link opens in the background (`Update.Link` / `LinkErr`). The cast ends when its Browser does;
   viewers get `end`, then the mount goes.
+- **Three links (pair#506):** a cast has a view token, a pointer token (only when recorded: no board, no pointing)
+  and a drive token (#467). `Update` carries `Link`, `PointerLink` and `DriveLink`. Each grants what the one
+  before it does, and more: view watches; pointer also draws strokes and leaves and resolves notes; drive also offers
+  a seat. `castLink` (`webcast/link.go`) is the request's link, from `Server.linkOf` (constant-time token compare),
+  and each route asks it: `annotates()` for the board, `drives()` for the drive routes.
+  - Board POSTs under the view link answer 403 "This link is view-only." *before* admission, so they spend no body
+    read, in-flight slot or rate budget.
+  - `palette.json` answers `{palette, annotate}`. Under the view link the viewer's `mountAnnotate` (`readPalette`)
+    still draws others' strokes and notes, read-only: the rail never shows and a note opens without Resolve.
+  - A pointer-link stream counts with the view streams in `Server.Viewers()`: only drive-link streams hold a seat.
+  - The terminal cast's pointer link is a phase switched on and off, so the web cast keeps its own fixed-link model.
 - **Shared Host:** `broadcast.Host` (`host.go`) holds one listener, server and tunnel for every cast, opened by the
   first mount and closed after the last, routing by the token in the first path segment (`Mountable.Owns`). A named
   cloudflared tunnel can be claimed once, so the screen broadcast and the web cast must share it. `couchcmd` builds
