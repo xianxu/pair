@@ -43,7 +43,7 @@ func TestDelivery(t *testing.T) {
 	}
 }
 func TestValidation(t *testing.T) {
-	for _, mutate := range []func(*Submission){func(s *Submission) { s.Version = 2 }, func(s *Submission) { s.ID = "../escape" }, func(s *Submission) { s.Source.RecordingPath = "relative" }, func(s *Submission) { s.Notes[0].Crop.File = "../x.png" }, func(s *Submission) { s.Notes[0].Crop = Crop{} }, func(s *Submission) { s.Notes[0].At.Box = &recording.Box{0, 0, math.Inf(1), 1} }} {
+	for _, mutate := range []func(*Submission){func(s *Submission) { s.Version = 3 }, func(s *Submission) { s.ID = "../escape" }, func(s *Submission) { s.Source.RecordingPath = "relative" }, func(s *Submission) { s.Notes[0].Crop.File = "../x.png" }, func(s *Submission) { s.Notes[0].Crop = Crop{} }, func(s *Submission) { s.Notes[0].At.Box = &recording.Box{0, 0, math.Inf(1), 1} }} {
 		s := fixture()
 		mutate(&s)
 		if Validate(s) == nil {

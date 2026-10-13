@@ -17,7 +17,7 @@ var recordingID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`)
 // Build keeps selected order and computes each crop separately at the note's
 // recorded moment. Current screenshots are attached later by the cast owner.
 func Build(recs []recording.Record, selected board.Selection, id string, target core.Target, path string, replay func(int64) string) (core.Submission, []core.CaptureRegion, error) {
-	out := core.Submission{Version: 1, ID: id, Target: target, Delivery: core.Prepared, Source: core.Source{Kind: "dom", RecordingPath: path, TabID: selected.TabID, Document: selected.Document}}
+	out := core.Submission{Version: 2, PrivacyDecision: core.PrivacyDecision{Privacy: core.Private}, ID: id, Target: target, Delivery: core.Prepared, Source: core.Source{Kind: "dom", RecordingPath: path, TabID: selected.TabID, Document: selected.Document}}
 	if len(recs) == 0 {
 		return out, nil, fmt.Errorf("recording is empty")
 	}
@@ -110,7 +110,9 @@ func Build(recs []recording.Record, selected board.Selection, id string, target 
 			return out, nil, fmt.Errorf("selected note %s is missing from the recording", selectedNote.ID)
 		}
 		n := view.Note.Note
-		note := core.Note{ID: n.ID, Revision: selectedNote.Revision, Author: n.Author, Text: n.Text, T: n.T, At: n.At, Context: view.Context, Element: view.Element, Before: view.BeforeLines, Crop: core.Crop{Unavailable: "not captured"}}
+		anchor := n.At
+		anchor.Sel = ""
+		note := core.Note{SourceDocument: selected.Document, ID: n.ID, Revision: selectedNote.Revision, Author: n.Author, Text: n.Text, T: n.T, At: anchor, Context: view.Context, Element: view.Element, Before: view.BeforeLines, Crop: core.Crop{Unavailable: "not captured"}}
 		if note.Element == "" {
 			note.Element = "unavailable: recorded element missing"
 			note.Context.Text = n.At.Text

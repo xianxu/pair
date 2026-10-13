@@ -134,3 +134,33 @@ func TestSubmissionBuildReadingGuideSurvivesStoreRoundTrip(t *testing.T) {
 		t.Fatalf("manifest guide changed: %q", encodedGuide)
 	}
 }
+
+func TestSubmissionBuildDropsSelectorsWithoutMutatingRecording(t *testing.T) {
+	b, selected := buildFixture()
+	for _, r := range b.Recs {
+		if n, ok := r.(*recording.Note); ok {
+			n.At.Sel = "button:nth-of-type(1)"
+		}
+	}
+	s, _, err := Build(b.Recs, selected, "selector-free", target(), "/recording", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Version != 2 {
+		t.Fatal("not current schema", s.Version)
+	}
+	for _, n := range s.Notes {
+		if n.At.Sel != "" || n.At.Node == 0 || n.SourceDocument != selected.Document || !strings.Contains(n.Element, "button") {
+			t.Fatal(n)
+		}
+	}
+	bjson, _ := json.Marshal(s)
+	if strings.Contains(string(bjson), `"sel":`) {
+		t.Fatal(string(bjson))
+	}
+	for _, r := range b.Recs {
+		if n, ok := r.(*recording.Note); ok && n.At.Sel == "" {
+			t.Fatal("mutated recording")
+		}
+	}
+}
