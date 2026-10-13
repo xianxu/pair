@@ -1,12 +1,12 @@
 ---
 id: 000523
-status: working
+status: codecomplete
 deps: [pair#506]
 github_issue:
 created: 2026-10-12
-updated: 2026-10-12
+updated: 2026-10-13
 estimate_hours: 7.02
-card_mirror: '5c7a96194038bb7de50ae6825efded3e08dfe0e8' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '2a70791fd42327bce0c68b79c11f9a9615753d6e' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T22:52:07-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 12.09
 ---
 
 # broadcast: 👆 and 👽 are capability switches on both casts (👆 off: no one annotates; 👽 off: no one drives from outside)
