@@ -161,7 +161,8 @@ type Console struct {
 	wcast      webcastState
 	// replays are the recordings shared for replay on the Host (#477); nil
 	// when Couch has no store. Set before Run, closed at teardown.
-	replays *webcast.ReplayShares
+	replays     *webcast.ReplayShares
+	submissions *submissionManager
 	// statusWebcast is the Chrome cell's span on the last drawn row.
 	statusWebcast ColumnSpan
 	// statusWebNotes is the web cast's 💭N span (#470).

@@ -210,6 +210,12 @@ path, which #488 M3 adds (atlas/broadcast.md).
 
 ## The notes model (#461)
 
+[DOM submission](webcast-submission.md) (#483) packages all open notes selected
+on the cast document at admission. It reuses this model for recorded context
+and calls `NoteCrops` separately for each note, preserving one current PNG per
+note even when boxes overlap. Its manifest distinguishes note-time context
+from capture-time pixels and pins note revisions for guarded acknowledgment.
+
 `notes.Structural` is the real `notes.Model` (`cmd/internal/webcast/notes`), pure over the reducer's state at a
 moment. It runs `notes.RunModelContract` like the fake.
 

@@ -11,6 +11,44 @@ func protocolBinding(slot string) Binding {
 	return Binding{Slot: slot, Repository: "/repo", Scope: "scope", Tag: slot, Session: "session", Nonce: "launch", Agent: "claude", Version: "1", PID: 123, Start: "start"}
 }
 
+func TestSubmissionRequestClosedShapes(t *testing.T) {
+	for _, op := range []string{"prepare", "status", "begin", "ack"} {
+		t.Run(op, func(t *testing.T) {
+			base := Request{Op: "submission-" + op, Scope: "scope", Tag: "tag", Session: "session", Nonce: "nonce", ID: "submission-1"}
+			if err := ValidateRequest(base); err != nil {
+				t.Fatalf("valid request: %v", err)
+			}
+			bad := map[string]func(*Request){
+				"binding":       func(r *Request) { b := protocolBinding("pair:1"); r.Binding = &b },
+				"scope":         func(r *Request) { r.Scope = "" },
+				"tag":           func(r *Request) { r.Tag = "" },
+				"session":       func(r *Request) { r.Session = "" },
+				"nonce":         func(r *Request) { r.Nonce = "" },
+				"id":            func(r *Request) { r.ID = "" },
+				"path-id":       func(r *Request) { r.ID = "../elsewhere" },
+				"target":        func(r *Request) { r.Target = "pair:1" },
+				"body":          func(r *Request) { r.Body = "text" },
+				"agent":         func(r *Request) { r.Agent = "codex" },
+				"confirmed":     func(r *Request) { r.Confirmed = true },
+				"same-binary":   func(r *Request) { r.SameBinary = true },
+				"force-unknown": func(r *Request) { r.ForceUnknown = true },
+				"tail-scope":    func(r *Request) { r.TailScope = "other" },
+				"tail-tag":      func(r *Request) { r.TailTag = "other" },
+				"lines":         func(r *Request) { r.Lines = 1 },
+			}
+			for name, mutate := range bad {
+				t.Run(name, func(t *testing.T) {
+					r := base
+					mutate(&r)
+					if ValidateRequest(r) == nil {
+						t.Fatalf("accepted invalid request: %#v", r)
+					}
+				})
+			}
+		})
+	}
+}
+
 func TestValidateRequestClosedShapes(t *testing.T) {
 	caller := Request{Scope: "scope", Tag: "pair:0", Session: "session", Nonce: "launch"}
 	valid := []Request{}

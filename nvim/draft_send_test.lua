@@ -93,4 +93,47 @@ end
 local blocked_ok, blocked_phase = delivery.send('body', function() error('must not act') end, function() end, 'indeterminate')
 assert(not blocked_ok and blocked_phase == 'indeterminate', 'indeterminate body write blocks automatic retry')
 
+-- A targeted pane can be written without changing the operator's focus.
+do
+  local state = { focus = 'other-pane', composer = '', dispatched = {}, writes = 0, checks = 0 }
+  local incarnation = 'original'
+  local target = { pane_id = 41, validate = function()
+    state.checks = state.checks + 1
+    return incarnation == 'original', 'target replaced'
+  end }
+  local fail_submit = true
+  local function action(label, argv, opts)
+    assert(argv[3] ~= 'move-focus', 'targeted delivery must never move focus')
+    assert(argv[4] == '--pane-id' and argv[5] == '41', 'action pins the numeric pane ID')
+    if argv[3] == 'write-chars' then
+      state.writes = state.writes + 1
+      assert(opts.redact[6] == argv[6], 'targeted trace redacts actual body argument')
+      state.composer = state.composer .. assert(delivery.unframe(argv[6]))
+    elseif argv[3] == 'send-keys' then
+      assert(argv[6] == 'Alt Enter')
+      if fail_submit then fail_submit = false; return { code = 17 } end
+      state.dispatched[#state.dispatched + 1] = state.composer
+      state.composer = ''
+    else error('unexpected targeted command ' .. tostring(argv[3])) end
+    return { code = 0 }
+  end
+  local sent, phase = delivery.send('body', action, function() end, 'start', target)
+  assert(not sent and phase == 'written' and state.writes == 1)
+  incarnation = 'replacement'
+  local resumed, same_phase = delivery.send('body', action, function() end, phase, target)
+  assert(not resumed and same_phase == 'written' and #state.dispatched == 0, 'replacement blocks resumed submit')
+  incarnation = 'original'
+  sent, phase = delivery.send('body', action, function() end, phase, target)
+  assert(sent and phase == 'dispatched' and state.writes == 1 and #state.dispatched == 1)
+  assert(state.dispatched[1] == 'body' and state.focus == 'other-pane' and state.checks == 4)
+end
+
+do
+  local checks, actions = 0, 0
+  local target = { pane_id = 4, validate = function() checks = checks + 1; return checks == 1, 'pane replaced after paste' end }
+  local sent, phase = delivery.send('body', function() actions = actions + 1; return { code = 0 } end,
+    function() end, 'start', target)
+  assert(not sent and phase == 'written' and actions == 1, 'target is checked again after paste before submit')
+end
+
 print('draft_send_test ok')

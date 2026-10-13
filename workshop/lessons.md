@@ -1453,3 +1453,14 @@ proof; record the surprising case so the next change starts from evidence.
 - **What went wrong:** #506 split the web cast's "view link" into view-only and pointer links. Three review rounds flagged the old term: first in `atlas/webcast-format.md` and the README prose, then in code comments, then in a README table that #495's merge brought in after the sweep.
 - **Rule:** when a change gives an existing name new grants or meaning (a link, a mode, a flag), `git grep` the old term and its synonyms ("view link", "viewer link", "two links") across README.md (tables too), atlas/, production comments and test comments before committing, and fix or date every hit. Re-run that grep after every merge from main: a branch that lands second inherits the other side's uses of the old term.
 - **And:** when several places map a kind to a value (a link label to its URL), give the type one accessor (`Update.LinkFor`) before the third copy appears; the copies drift (one unlock helper sent the pointer code to the view-only URL).
+
+### #483 — asynchronous submission ownership
+
+- A scheduler may execute inline during startup/shutdown: release the owner's mutex before invoking it, and test the inline case.
+- Cancellation must gate the first side effect as well as publication; a canceled job must not start replay, screenshot capture or note resolution.
+- Retry identity includes generated evidence and the recipient, not only authored text. After confirmed dispatch, remaining retries must be acknowledgment/commit-only.
+
+- Idempotent durable writes must retry directory synchronization after a successful rename followed by failed sync. Test repeated retries through a newly opened store, including callers that advance directly to the next transition. Visible files are not proof of durable publication.
+- An injected adapter is still integration code: pure state/event transitions own retry state; the adapter interprets effects and ignores stale completions by attempt identity.
+- Reuse a shared recipient identity/parser when adding a routing consumer; keep each caller's uniqueness and incarnation policy separate.
+- Visible evidence needs a valid, nonempty effective intersection, including ancestor clips. Share that predicate across text and accessibility entries; test wholly off-screen regions and clipped descendants in both the DOM fixture and a real browser.
