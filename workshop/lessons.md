@@ -1572,3 +1572,7 @@ proof; record the surprising case so the next change starts from evidence.
 - #523 headless conformance: DOM element/global existence is not readiness.
   Wait for module completion before submitting forms and await the viewer's
   explicit ready contract before reading its renderer.
+
+- #523 operator fixture: recorded publication precedes browser acknowledgement.
+  Before the next gesture, await the editor's acknowledged completion, not only
+  the Board record; verify with a deliberately delayed reply.

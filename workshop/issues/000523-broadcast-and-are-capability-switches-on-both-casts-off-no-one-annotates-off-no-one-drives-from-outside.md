@@ -91,6 +91,21 @@ Durable plan: [000523-cast-capability-switches-plan.md](../plans/000523-cast-cap
 
 ## Log
 
+### 2026-10-13 — Headless acknowledgement and merged-suite results
+
+- The operator Pen failure was a fixture race: Board publication precedes the
+  asynchronous save reply, so the test drew while the note dialog still blocked
+  gestures. Original failed 2/10; delaying the accepted reply by two seconds
+  reproduced it. Awaiting editor closure passed 15 repeats and the controlled
+  delay. Only the test changed; full headless suite rerun is underway with a
+  six-minute aggregate deadline (the earlier three-minute deadline expired).
+- Merged make test completed: all shell/Neovim and Go packages passed except
+  Couch core TestManagedCreateRefusesProfileDriftDuringSetup, which encountered
+  workspace-host creation busy during concurrent peer tests. Full Couch core
+  package rerun is underway; no capability failure. Full suite had passed before
+  the clean #526 merge. Logs: /tmp/pair-523-merged-full.log,
+  /tmp/pair-523-couchcore-recheck.log, /tmp/pair-523-final-headless.log.
+
 ### 2026-10-13 — Main integration and headless fixture readiness
 
 - make test passed after the provenance fix (ed447bacf; log

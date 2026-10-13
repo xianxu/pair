@@ -329,6 +329,19 @@ func TestOperatorLiveAnnotation(t *testing.T) {
 		t.Fatalf("live recording query lost operator note: %+v, %v", queried, err)
 	}
 
+	// Board publication precedes the asynchronous operator reply. The next
+	// gesture is unavailable until that reply closes the editor; drawing while
+	// dialog.open is intentionally ignored by the shared annotation mount.
+	saveDeadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(saveDeadline) {
+		if string(eval(`testRoot.querySelector('.note-dialog').classList.contains('hidden')`)) == "true" {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if string(eval(`testRoot.querySelector('.note-dialog').classList.contains('hidden')`)) != "true" {
+		t.Fatalf("operator save acknowledgment did not close draft: %s", eval(`testRoot.querySelector('.note-msg').textContent`))
+	}
 	if err = c.SetAnnotationMode("point"); err != nil {
 		t.Fatal(err)
 	}
