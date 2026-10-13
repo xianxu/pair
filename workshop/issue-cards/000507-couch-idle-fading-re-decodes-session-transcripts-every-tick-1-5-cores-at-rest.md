@@ -1,6 +1,6 @@
 ---
 id: 000507
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: ba6d9bd5478bb0f133aa1fcd18022b7be1c4094b
         evidence_commit: 566b99e7524ce2aae2b15c96c6b4072626fcfc22
+        landed_commit: 43d9e8b113b6912a40e255909f3d0dc53de6584a
 ---
 
 # couch: idle fading re-decodes session transcripts every tick (~1.5 cores at rest)
