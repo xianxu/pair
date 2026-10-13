@@ -406,3 +406,7 @@ This table supersedes **all earlier proposed M2 core-concept/function-owner and 
 | Menu/CLI/message surfaces | PURE menu reducers/formatting; INTEGRATION asynchronous dispatch | **New** `couchtty/menu_recovery.go`, `couchcmd/resume_candidates.go`; **modified** existing menu/console, CLI/run/slot operation and `couchmessage` protocol/transport owners | Shared preview/opaque selection, explicit choice even at 100%, stale response handling, CLI validation, protocol roundtrip and no read-side effects |
 
 The native-owner adapter and contextual replay entries include the concurrently integrated audit fixes under their actual source names. Their tests must be included in the final integration run; this reconciliation does not replace that verification or the SDLC boundary review.
+
+### 2026-10-13 — Boundary review before full-suite capacity
+
+TL receipt 4b2480f6 directs starting the boundary review while two other full suites occupy the machine. The successful dry run requires no bypass. This supersedes the earlier sequencing prerequisite that live acceptance precede M2 code review: run the code boundary with precise targeted/build evidence and the #514 capture-performance failure disclosed. Full verification beyond the aborted prerequisite and TL-coordinated operator acceptance remain required before whole-issue close/landing. Do not label the unseen rest of the full suite passing.

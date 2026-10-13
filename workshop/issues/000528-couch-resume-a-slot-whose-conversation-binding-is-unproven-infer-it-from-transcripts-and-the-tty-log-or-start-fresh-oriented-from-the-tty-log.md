@@ -247,6 +247,8 @@ M2 verification checkpoint (2026-10-13 12:58 PDT): main 360b2881a merged cleanly
 
 M2 build/race checkpoint (2026-10-13 13:16 PDT): make build PASS; /tmp/pair528-m2-build.log. go version -m confirms pair, couch and pair-launch-helper all embed d485dda0e1a6265e32032e8218fbef37fc0c215f with vcs.modified=false. Serialized targeted race checks passed for couchcore (7.492s), launcher (1.374s), scrollbackcmd (1.241s): /tmp/pair528-m2-targeted-race.log. Host load remained above the TL threshold through 13:16 (latest one-minute 91.64), so no further full suite was started. Waiting for full-suite capacity, then full verification and TL/operator live check before M2 closure.
 
+2026-10-13 — TL receipt 4b2480f6 requests boundary review now if its gate permits, while suite capacity remains unavailable. The milestone-close dry run accepts the prepared evidence and selects the M2 interdiff since M1 rebased onto main360b2881 (95 files), without bypass flags. #514 documents the same unchanged capture-performance failure on loaded main. This is the observed first failure, not proof that the entire full suite has only that failure: make stopped before the Go suite. Review proceeds with this limitation explicit; remaining full verification and operator scratch acceptance still block whole-issue closure/landing.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against
