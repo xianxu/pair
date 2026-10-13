@@ -185,3 +185,34 @@ func TestCapabilityRoleIntersectionAndBrokenProjection(t *testing.T) {
 		t.Fatalf("broken cast left controls available: %+v", got)
 	}
 }
+
+func TestOldReleaseBodyCannotRevokeNewGrant(t *testing.T) {
+	f := newDriveFixture(t, time.Minute)
+	viewer, key := f.hello(t, "Ana")
+	grant := func() {
+		if err := f.ctrl.Request(key); err != nil {
+			t.Fatal(err)
+		}
+		if err := f.ctrl.Grant(viewer); err != nil {
+			t.Fatal(err)
+		}
+	}
+	grant()
+	body := &capabilityBody{Reader: strings.NewReader(`{"op":"release"}`), before: func() {
+		if err := f.ctrl.SetDriveAllowed(context.Background(), false); err != nil {
+			t.Fatal(err)
+		}
+		if err := f.ctrl.SetDriveAllowed(context.Background(), true); err != nil {
+			t.Fatal(err)
+		}
+		grant()
+	}}
+	r := httptest.NewRequest(http.MethodPost, "/drv/drive/control", body)
+	r.Header.Set("Content-Type", "application/json")
+	r.Header.Set(drive.SeatHeader, key)
+	w := httptest.NewRecorder()
+	f.srv.ServeHTTP(w, r)
+	if w.Code != http.StatusForbidden || f.ctrl.Control().Driving() != viewer {
+		t.Fatalf("late release revoked newgrant: code=%d control=%+v", w.Code, f.ctrl.Control())
+	}
+}

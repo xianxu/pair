@@ -74,8 +74,10 @@ type Act struct {
 // Batch is one input request: the acts in order, and the segment the
 // viewer was showing (a batch for a document that has gone is stale).
 type Batch struct {
-	Seg  int   `json:"seg"`
-	Acts []Act `json:"acts"`
+	// Admit is an internal dispatch fence; it is never decoded from viewer input.
+	Admit func() bool `json:"-"`
+	Seg   int         `json:"seg"`
+	Acts  []Act       `json:"acts"`
 }
 
 // Parse errors: fixed values that never echo the input.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -11,6 +12,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/xianxu/pair/cmd/internal/webcast/capability"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
@@ -27,17 +29,27 @@ const releaseWait = 10 * time.Second
 // hasn't opened: ErrNotLive) leaves control as it was. Seats die after
 // grace without a stream, or at Close: nothing outlives the cast.
 type MemController struct {
-	mu      sync.Mutex
-	sink    recording.Sink
-	inj     Injector
-	clock   func() int64
-	grace   time.Duration
-	next    int
-	seats   map[string]*seat // by viewer id
-	keys    map[string]string
-	control recording.Control
-	subs    map[chan recording.Control]struct{}
-	closed  bool
+	mu        sync.Mutex
+	sink      recording.Sink
+	inj       Injector
+	clock     func() int64
+	grace     time.Duration
+	next      int
+	seats     map[string]*seat // by viewer id
+	keys      map[string]string
+	control   recording.Control
+	subs      map[chan recording.Control]struct{}
+	closed    bool
+	authority capability.Snapshot
+	capSubs   map[chan capability.Snapshot]struct{}
+	reset     func(context.Context, uint64) error
+	busy      chan struct{}
+	busyErr   error
+	cleanupBy string
+	resetDone bool
+	life      context.Context
+	stop      context.CancelFunc
+	work      sync.WaitGroup
 }
 
 type seat struct {
@@ -49,7 +61,8 @@ type seat struct {
 // NewMemController: ctl records go to sink at clock(), the driver's input
 // to inj; a seat with no stream leaves after grace.
 func NewMemController(sink recording.Sink, inj Injector, clock func() int64, grace time.Duration) *MemController {
-	return &MemController{sink: sink, inj: inj, clock: clock, grace: grace,
+	ctx, cancel := context.WithCancel(context.Background())
+	return &MemController{life: ctx, stop: cancel, capSubs: map[chan capability.Snapshot]struct{}{}, sink: sink, inj: inj, clock: clock, grace: grace,
 		seats: map[string]*seat{}, keys: map[string]string{}, subs: map[chan recording.Control]struct{}{}}
 }
 
@@ -122,14 +135,33 @@ func (f *MemController) idleLocked(s *seat) {
 	s.timer = time.AfterFunc(f.grace, func() {
 		f.mu.Lock()
 		defer f.mu.Unlock()
+		if f.closed {
+			return
+		}
+		f.work.Add(1)
+		defer f.work.Done()
+		// A leaving seat must not lose its cleanup because another change is
+		// releasing. Wait off the lock, then recheck presence and authority.
+		for f.busy != nil && !f.closed {
+			done := f.busy
+			f.mu.Unlock()
+			select {
+			case <-done:
+			case <-f.life.Done():
+			}
+			f.mu.Lock()
+		}
 		if f.seats[s.Viewer.ID] != s || s.streams > 0 || f.closed {
 			return
 		}
 		delete(f.seats, s.Viewer.ID)
 		delete(f.keys, s.Key)
-		if f.involvedLocked(s.Viewer.ID) {
-			f.changeLocked(recording.CtlLeave, s.Viewer) // a sink error leaves control as it was; the seat is gone
+		if f.involvedLocked(s.Viewer.ID) && f.authority.Phase != capability.Disabling {
+			if err := f.changeLocked(recording.CtlLeave, s.Viewer); err != nil {
+				f.freezeLocked(err, s.Viewer.ID)
+			}
 		}
+
 	})
 }
 
@@ -150,29 +182,60 @@ func (f *MemController) changeLocked(op string, who recording.Author) error {
 	if f.closed {
 		return ErrClosed
 	}
+	if f.busy != nil || f.authority.Phase == capability.Disabling {
+		return ErrDriveUnavailable
+	}
+	if (op == recording.CtlRequest || op == recording.CtlGrant) && f.authority.Phase != capability.On {
+		return ErrDriveUnavailable
+	}
 	next, err := recording.NextControl(f.control, op, who)
 	if err != nil {
 		return err
 	}
 	r := &recording.Ctl{Op: op, Who: who, Control: next}
+	old := f.control.Driving()
+	f.busy = make(chan struct{})
+	f.busyErr = nil
+	f.work.Add(1)
+	ctx, cancel := context.WithTimeout(f.life, releaseWait)
+	f.mu.Unlock()
 	r.SetTime(f.clock())
-	if err := f.sink.Put(r); err != nil {
-		return err
+	putErr := f.sink.Put(r)
+	var releaseErr error
+	if putErr == nil && next.Driving() != old && old != "" {
+		if rel, ok := f.inj.(Releaser); ok {
+			releaseErr = rel.Release(ctx, old)
+		}
 	}
-	if rel, ok := f.inj.(Releaser); ok && next.Driving() != f.control.Driving() && f.control.Driving() != "" {
-		// What the old driver held goes up at once (#467), off the lock:
-		// a revoke never waits on the tab. Bounded by releaseWait.
-		old := f.control.Driving()
-		go func() {
-			ctx, cancel := context.WithTimeout(context.Background(), releaseWait)
-			defer cancel()
-			rel.Release(ctx, old) // a closed tab has nothing held
-		}()
+	cancel()
+	f.mu.Lock()
+	defer func() { close(f.busy); f.busy = nil; f.work.Done() }()
+	if putErr != nil {
+		// A definite refusal commits nothing. An unknown sink result can have
+		// advanced the writer even though local control could not acknowledge it.
+		if !errors.Is(putErr, ErrNotLive) && capability.FailureOutcome(putErr) != capability.Retryable {
+			f.busyErr = putErr
+			f.freezeLocked(putErr, old)
+		}
+		return putErr
 	}
-	f.control = next
-	for ch := range f.subs {
-		offer(ch, next)
+	// The ordered control record has committed, even when its ensuing release
+	// failed. Publish that evidence, but never reopen admission on failure.
+	if !f.closed {
+		f.control = next
+		for ch := range f.subs {
+			offer(ch, next)
+		}
 	}
+	if releaseErr != nil {
+		f.busyErr = releaseErr
+		f.freezeLocked(releaseErr, old)
+		return releaseErr
+	}
+	if f.closed {
+		return ErrClosed
+	}
+
 	return nil
 }
 
@@ -192,7 +255,13 @@ func (f *MemController) bySeat(key string) (*seat, error) {
 	return nil, ErrNoSeat
 }
 
-func (f *MemController) Request(key string) error { return f.viewerOp(key, recording.CtlRequest) }
+func (f *MemController) Request(key string) error {
+	a, err := f.AdmitDrive()
+	if err != nil {
+		return err
+	}
+	return a.Request(key)
+}
 func (f *MemController) Release(key string) error { return f.viewerOp(key, recording.CtlRelease) }
 
 func (f *MemController) viewerOp(key, op string) error {
@@ -210,16 +279,11 @@ func (f *MemController) viewerOp(key, op string) error {
 // where it is dispatched: its records would name a viewer who no longer
 // drives.
 func (f *MemController) Input(ctx context.Context, key string, b Batch) error {
-	f.mu.Lock()
-	s, err := f.bySeat(key)
-	if err == nil && f.control.Driving() != s.Viewer.ID {
-		err = ErrNotDriver
-	}
-	f.mu.Unlock()
+	a, err := f.AdmitDrive()
 	if err != nil {
 		return err
 	}
-	return f.inj.Inject(ctx, s.Viewer.ID, b)
+	return a.Input(ctx, key, b)
 }
 
 func (f *MemController) Grant(viewer string) error { return f.operatorOp(viewer, recording.CtlGrant) }
@@ -272,20 +336,27 @@ func (f *MemController) Subscribe() (<-chan recording.Control, func()) {
 
 func (f *MemController) Close() error {
 	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.closed {
-		return nil
-	}
-	f.closed = true
-	for _, s := range f.seats {
-		if s.timer != nil {
-			s.timer.Stop()
+	if !f.closed {
+		f.closed = true
+		f.stop()
+		f.authority.CapabilityState, _ = capability.NextCapability(f.authority.CapabilityState, capability.Event{Kind: capability.End})
+		f.publishCapabilityLocked()
+		for _, s := range f.seats {
+			if s.timer != nil {
+				s.timer.Stop()
+			}
 		}
+		f.seats, f.keys = map[string]*seat{}, map[string]string{}
+		for ch := range f.subs {
+			close(ch)
+		}
+		f.subs = nil
+		for ch := range f.capSubs {
+			close(ch)
+		}
+		f.capSubs = nil
 	}
-	f.seats, f.keys = map[string]*seat{}, map[string]string{}
-	for ch := range f.subs {
-		close(ch)
-	}
-	f.subs = nil
+	f.mu.Unlock()
+	f.work.Wait()
 	return nil
 }

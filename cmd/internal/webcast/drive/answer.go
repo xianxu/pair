@@ -39,6 +39,8 @@ func Answer(err error) (int, string) {
 		return http.StatusNoContent, ""
 	case errors.Is(err, ErrNoSeat):
 		return http.StatusUnauthorized, sayNoSeat
+	case errors.Is(err, ErrDriveUnavailable):
+		return http.StatusForbidden, "Driving is unavailable."
 	case errors.Is(err, ErrNotDriver):
 		return http.StatusForbidden, sayNotDriver
 	case errors.Is(err, ErrStale):

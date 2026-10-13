@@ -155,6 +155,17 @@ Durable plan: [000523-cast-capability-switches-plan.md](../plans/000523-cast-cap
   f377b362-d13c-4a0c-9b99-f1ef3aae5fe7. This branch owns second-landing overlay
   permission and operator-admission integration after merging main.
 
+- M1 Task 2/3 implementation complete. Drive spec review now clean after fixing
+  late settled failures, concurrent disable with uncertain unheld input, queued
+  canceled ups with existing holds, and uncertain partial control writes.
+  HTTP release now uses its captured generation too; delayed-release regression
+  reproduced a new grant being revoked, then passed with admission fencing.
+- Verification: all webcast Go subpackages passed; race suites for Board,
+  capability, drive, recorder and webcast passed together. All 13 JS model tests
+  pass. Removing final Board and injector generation checks kills the targeted
+  regressions; restored checks pass. Drive task quality review pending, then M1
+  binary-owned boundary review. User-visible controls/overlay remain M2 work.
+
 ## Revisions
 
 - 2026-10-12 22:58 PDT: Added approved defaults/copy semantics and proposed

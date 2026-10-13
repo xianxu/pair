@@ -178,7 +178,7 @@ func (s *Server) driveRoute(w http.ResponseWriter, r *http.Request, rest string,
 		case in.Op == "request":
 			err = admission.Request(key)
 		case in.Op == "release":
-			err = d.ctrl.Release(key)
+			err = admission.Release(key)
 		default:
 			err = drive.ErrBatchShape
 		}

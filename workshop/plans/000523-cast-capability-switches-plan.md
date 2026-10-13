@@ -209,24 +209,24 @@ Files: board/capability.go, board/board.go, board/writer.go; recorder/recorder.g
 drive/controller.go, controller_mem.go, controller_contract.go, tab.go;
 cast_capabilities.go, cast.go; corresponding tests and existing fake seams.
 
-- [ ] Write failing tests using the Task 2 function strategies below.
-- [ ] Implement generation-bound admission and cleanup acknowledgments as above;
+- [x] Write failing tests using the Task 2 function strategies below.
+- [x] Implement generation-bound admission and cleanup acknowledgments as above;
   preserve Board leaf-lock invariant and recorder's single writer.
-- [ ] Wire Cast defaults OFF before exposing routes, supported capability snapshots,
+- [x] Wire Cast defaults OFF before exposing routes, supported capability snapshots,
   latest-value subscriptions and cancellation/close. Fakes use the same transitions.
-- [ ] Run `go test ./cmd/internal/webcast/board ./cmd/internal/webcast/drive ./cmd/internal/webcast/recorder ./cmd/internal/webcast -count=1`;
+- [x] Run `go test ./cmd/internal/webcast/board ./cmd/internal/webcast/drive ./cmd/internal/webcast/recorder ./cmd/internal/webcast -count=1`;
   mutation-check delayed-operation tests by removing the final generation check.
-- [ ] Commit `#523 M1: enforce capability switches at mutation boundaries`.
+- [x] Commit `#523 M1: enforce capability switches at mutation boundaries`.
 
 ### Task 3: HTTP and SSE contract
 
 Files: server_board.go, server_drive.go, server.go, stream.go, link.go;
 server_board_test.go, server_drive_test.go, server_test.go, stream tests.
 
-- [ ] Write failing tests using the Task 3 function strategies below.
-- [ ] Implement fixed disabled error messages, typed generation handling and
+- [x] Write failing tests using the Task 3 function strategies below.
+- [x] Implement fixed disabled error messages, typed generation handling and
   bounded latest-value SSE updates derived from authorities.
-- [ ] Run the webcast package tests and relevant race tests; update
+- [x] Run the webcast package tests and relevant race tests; update
   atlas/webcast.md and atlas/webcast-format.md for the new surface.
 - [ ] Commit; run `sdlc milestone-close --issue 523 --milestone M1` with verified
   behavior evidence and measured actual as the gate requests. Resolve findings.
