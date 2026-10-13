@@ -27,16 +27,9 @@ type fakeUIWorld struct {
 func (h *harness) confirmUI(session, frame string, id int) *fakeControlUI {
 	if h.ui == nil {
 		h.ui = &fakeControlUI{worlds: map[string]*fakeUIWorld{}}
-		previous := h.fc.more
-		h.fc.more = func(session, method string, p map[string]any, page *fakePage) (any, error, bool) {
-			if result, err, ok := h.ui.more(session, method, p, page); ok {
-				return result, err, true
-			}
-			if previous != nil {
-				return previous(session, method, p, page)
-			}
-			return nil, nil, false
-		}
+		h.fc.mu.Lock()
+		h.fc.ui = h.ui
+		h.fc.mu.Unlock()
 	}
 	h.fc.mu.Lock()
 	page := h.fc.pages[session]

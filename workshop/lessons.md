@@ -7,6 +7,17 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- A late asynchronous report is checked against whether its source is still live, not against a counter that only
+  moves on the next start. #495's rotation callback compared the cast's start attempt, which an ended cast keeps until
+  a new one begins, so a report after the end still passed. Test the window where the source has ended and nothing
+  has replaced it. (#495 BR-23)
+- A writer that turns text into terminal cells measures by grapheme width, never by rune count, in its layout and
+  its drawing alike. One wide character (an emoji in a label) otherwise yields a frame that fails validation, and the
+  whole paint is dropped silently. Test a drawn surface with a wide character in it. (#495)
+- A runbook or atlas page states what was measured, not what was hoped: #496's page first called the scratch volume
+  "the fix" although its own series showed no fseventsd CPU drop. Write the measured outcome, including the null result,
+  in the same commit as the mechanism. On macOS, `mktemp` without a template ignores `$TMPDIR` and is denied in the
+  agent sandbox; always pass `"${TMPDIR:-/tmp}/name.XXXXXX"` and `|| exit 1`. (#496 BR-1, BR-2)
 - A change to what a user does (a gesture, a control, what a pin shows) updates README's how-to paragraph in the same
   commit as the atlas. The atlas is the agent's map and README is the operator's; grep README for the old verbs
   ("tap", "drag", "pin") before closing. (#488 BR-1)
@@ -311,6 +322,10 @@ representative evidence, not an exhaustive index.
   describes. (#245, #249)
 
 ## Planning, review, and repository hygiene
+
+- When acceptance changes, synchronize Done when itself with the expanded surface
+  and any explicit waiver, alongside the append-only revision. A revision alone
+  leaves the primary acceptance checklist stale. (#521 BR-1)
 
 - When reusing lifecycle machinery, name its transition authority and cancellation
   owner explicitly. New durable files also need a final consumer and removal
@@ -1437,3 +1452,14 @@ proof; record the surprising case so the next change starts from evidence.
   surface, reuse its glyphs, tooltips and dimensions as well as its handlers.
   Text labels substituted into icon-sized buttons can clip and make the two
   surfaces needlessly different; inspect the actual embedded rail before handoff.
+
+### #483 — asynchronous submission ownership
+
+- A scheduler may execute inline during startup/shutdown: release the owner's mutex before invoking it, and test the inline case.
+- Cancellation must gate the first side effect as well as publication; a canceled job must not start replay, screenshot capture or note resolution.
+- Retry identity includes generated evidence and the recipient, not only authored text. After confirmed dispatch, remaining retries must be acknowledgment/commit-only.
+
+- Idempotent durable writes must retry directory synchronization after a successful rename followed by failed sync. Test repeated retries through a newly opened store, including callers that advance directly to the next transition. Visible files are not proof of durable publication.
+- An injected adapter is still integration code: pure state/event transitions own retry state; the adapter interprets effects and ignores stale completions by attempt identity.
+- Reuse a shared recipient identity/parser when adding a routing consumer; keep each caller's uniqueness and incarnation policy separate.
+- Visible evidence needs a valid, nonempty effective intersection, including ancestor clips. Share that predicate across text and accessibility entries; test wholly off-screen regions and clipped descendants in both the DOM fixture and a real browser.

@@ -24,6 +24,10 @@ var maxQueuedEvents = 4096
 // Event is a CDP event; SessionID names the target session in flatten mode
 // and is empty for browser-level events.
 type Event struct {
+	// Barrier is an internal fence, never a Chrome event. The consumer
+	// closes it after applying all preceding events (including downstream
+	// queues). A fence has no Method or Params.
+	Barrier   chan struct{}
 	SessionID string
 	Method    string
 	Params    json.RawMessage
@@ -31,6 +35,40 @@ type Event struct {
 	// replies), counted from 1. CallSeq returns a reply's: an event with a
 	// smaller Seq was sent by Chrome before that reply.
 	Seq uint64
+}
+
+// SyncEvents waits until the consumer has applied every event already read
+// from Chrome. Call off the consumer's event loop. Unlike waiting for a CDP
+// reply, this also waits for the asynchronous event pump and its consumer.
+func (c *Conn) SyncEvents(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	fence := make(chan struct{})
+	c.mu.Lock()
+	if c.err != nil {
+		err := c.err
+		c.mu.Unlock()
+		return err
+	}
+	if len(c.queue) >= c.maxQueued {
+		c.mu.Unlock()
+		return ErrBacklog
+	}
+	c.queue = append(c.queue, Event{Barrier: fence})
+	select {
+	case c.signal <- struct{}{}:
+	default:
+	}
+	c.mu.Unlock()
+	select {
+	case <-fence:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-c.done:
+		return c.Err()
+	}
 }
 
 // Conn multiplexes Calls and Events over one pipe pair. One reader goroutine

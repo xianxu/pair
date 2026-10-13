@@ -111,6 +111,7 @@ func newDriveCast(t *testing.T) *driveCast {
 		c.link, c.viewLink = r.con.wcast.update.DriveLink, r.con.wcast.update.Link
 		return c.link != ""
 	})
+	unlockWebCast(t, r.con)
 	return c
 }
 
@@ -123,7 +124,7 @@ func (c *driveCast) viewer(t *testing.T, name string) string {
 		if key != "" {
 			req.Header.Set(drive.SeatHeader, key)
 		}
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := castClient.Do(req)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -204,20 +205,24 @@ func (c *driveCast) clickRow(t *testing.T, span ColumnSpan, prefix string, butto
 // closed; Couch says when someone asks and what a grant turns off.
 func TestDriveFromCouch(t *testing.T) {
 	c := newDriveCast(t)
-	// Two links (operator, 10-12): right-click copies the view link,
-	// Alt+right-click the drive link; only the drive link takes a seat.
+	// Two links (operator, 10-12): right-click on the cell copies the view
+	// link, a right-click on 👽 the drive link (pair#495's row rule); only
+	// the drive link takes a seat.
 	if c.link == c.viewLink || !strings.HasSuffix(c.link, "/") {
 		t.Fatalf("links: view %q drive %q", c.viewLink, c.link)
 	}
 	c.clickCell(t, 2)
 	waitFor(t, "view link copied", func() bool { return copies(c.consoleFixture, c.viewLink) == 1 })
-	c.clickCell(t, 2|8)
+	c.con.mu.Lock()
+	alien := c.con.statusWebDriveLink.Start + 1
+	c.con.mu.Unlock()
+	_, _ = fmt.Fprintf(c.stdin, "\x1b[<2;%d;24M\x1b[<2;%d;24m", alien, alien)
 	waitFor(t, "drive link copied", func() bool { return copies(c.consoleFixture, c.link) == 1 })
 	waitFor(t, "the drive link's notice", func() bool { return strings.Contains(c.notice(), "drive link copied") })
 	if strings.Contains(c.notice(), c.link) {
 		t.Fatalf("the notice shows the link: %q", c.notice())
 	}
-	resp, err := http.Post(c.viewLink+"drive/hello", "application/json", strings.NewReader(`{"name":"x"}`))
+	resp, err := castClient.Post(c.viewLink+"drive/hello", "application/json", strings.NewReader(`{"name":"x"}`))
 	if err != nil {
 		t.Fatal(err)
 	}

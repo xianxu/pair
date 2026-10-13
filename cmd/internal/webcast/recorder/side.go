@@ -302,7 +302,8 @@ func (r *Recorder) maybeShot(now time.Time) {
 	if !r.live || r.frames == nil || r.opts.ShotEvery < 0 || now.Before(r.nextShot) {
 		return
 	}
-	j := shotJob{contextID: r.topUIContext(), doc: r.m.st.DocSeg, at: now, top: r.top, sessions: r.castSessions(), vp: r.m.st.VP, scroll: r.m.TopScroll()}
+	contextID, _ := r.topContext(r.top)
+	j := shotJob{contextID: contextID, doc: r.m.st.DocSeg, at: now, top: r.top, sessions: r.castSessions(), vp: r.m.st.VP, scroll: r.m.TopScroll()}
 	select {
 	case r.shotQ <- j:
 		r.nextShot = now.Add(r.opts.ShotEvery)

@@ -54,7 +54,8 @@ func (r *Recorder) withTab(ctx context.Context, by string, fn func(drive.Tab) er
 		if err := r.opts.UIGuard(r.top, "acquire"); err != nil {
 			return fmt.Errorf("%w: %v", drive.ErrInput, err)
 		}
-		session, id := r.top, r.topUIContext()
+		session := r.top
+		id, _ := r.topContext(session)
 		token := fmt.Sprintf("input-%d", uiToken.Add(1))
 		r.inputUncertain = false
 		guardCtx, cancel := context.WithTimeout(r.ctx, callTimeout)

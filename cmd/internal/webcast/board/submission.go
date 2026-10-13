@@ -1,0 +1,91 @@
+package board
+
+import (
+	"context"
+	"errors"
+	"github.com/xianxu/pair/cmd/internal/webcast/recording"
+)
+
+// Selection is a frozen set of open notes, scoped to one recorded document.
+type Selection struct {
+	Document int
+	TabID    string
+	Notes    []SelectedNote
+}
+type SelectedNote struct {
+	ID       string
+	Revision uint64
+}
+
+func (b *Board) Selection() (Selection, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.closed {
+		return Selection{}, ErrClosed
+	}
+	if b.broken != nil {
+		return Selection{}, ErrBroken
+	}
+	if b.st.Top == nil {
+		return Selection{}, ErrNotLive
+	}
+	out := Selection{Document: b.st.DocSeg, TabID: b.st.Tab.ID}
+	for _, n := range b.model.Live(b.st) {
+		if n.State == recording.NoteOpen {
+			out.Notes = append(out.Notes, SelectedNote{n.ID, n.Revision})
+		}
+	}
+	return out, nil
+}
+
+// ResolveSelection waits for actual recorded outcomes. A changed/reopened
+// note or a gone document no longer belongs to this acknowledgment.
+func (b *Board) ResolveSelection(ctx context.Context, s Selection) error {
+	updates, stop := b.Subscribe()
+	defer stop()
+	sent := map[string]bool{}
+	for {
+		b.mu.Lock()
+		if b.closed {
+			b.mu.Unlock()
+			return ErrClosed
+		}
+		if b.broken != nil {
+			b.mu.Unlock()
+			return ErrBroken
+		}
+		if b.st.DocSeg != s.Document || b.st.Tab.ID != s.TabID {
+			b.mu.Unlock()
+			return nil
+		}
+		var pending []SelectedNote
+		for _, n := range s.Notes {
+			if b.st.NoteUnchanged(n.ID, n.Revision) {
+				pending = append(pending, n)
+			}
+		}
+		b.mu.Unlock()
+		if len(pending) == 0 {
+			return nil
+		}
+		for _, n := range pending {
+			if sent[n.ID] {
+				continue
+			}
+			rev := n.Revision
+			err := b.emit(&recording.NoteState{ID: n.ID, State: recording.NoteResolved, IfRevision: &rev}, s.Document)
+			if err != nil && !errors.Is(err, ErrStale) {
+				return err
+			}
+			sent[n.ID] = true
+		}
+		select {
+		case _, open := <-updates:
+			if !open {
+				return ErrClosed
+			}
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}

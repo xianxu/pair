@@ -53,12 +53,3 @@ func CaptureScreenshot(ctx context.Context, call Caller, session string, context
 	}
 	return nil
 }
-
-func (r *Recorder) topUIContext() int64 {
-	for id, frame := range r.contexts[r.top] {
-		if frame == r.frameIDs[r.top] {
-			return id
-		}
-	}
-	return 0
-}

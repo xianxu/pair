@@ -74,6 +74,8 @@ type Options struct {
 	ID            string // the head's id
 	Call          Caller
 	Out           Output
+	// SyncEvents fences submission capture with the event pump.
+	SyncEvents func(context.Context) error
 	// ShotEvery is the screenshot period while live (and one at each
 	// segment); zero is 5 s, negative is none.
 	ShotEvery time.Duration
@@ -515,6 +517,8 @@ func (r *Recorder) handle(in stamped) {
 	switch v := in.in.(type) {
 	case operatorWrite:
 		r.writeOperator(in.at, v)
+	case Barrier:
+		close(v.Done)
 	case query:
 		v.fn()
 		close(v.done)
@@ -538,6 +542,9 @@ func (r *Recorder) handle(in stamped) {
 			r.observe(v.Session, true)
 		}
 	case Emit:
+		if n, ok := v.Record.(*rec.NoteState); ok && n.IfRevision != nil && !r.m.State().NoteUnchanged(n.ID, *n.IfRevision) {
+			break
+		}
 		switch {
 		case !r.opened || v.Record == nil:
 		case v.Doc > 0 && !r.m.State().OnDoc(v.Doc):

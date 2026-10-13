@@ -16,6 +16,7 @@ import (
 // one message counter for events and replies (cdp.Conn's Seq), and the
 // loader id of each session's current document.
 type fakeChrome struct {
+	ui     *fakeControlUI
 	mu     sync.Mutex
 	seq    uint64
 	pages  map[string]*fakePage
@@ -42,6 +43,7 @@ func (f *fakeChrome) CallSeq(ctx context.Context, session, method string, params
 	f.calls = append(f.calls, session+" "+method)
 	p := f.pages[session]
 	loader := f.loader[session]
+	ui := f.ui
 	f.mu.Unlock()
 	var reply any = map[string]any{}
 	switch method {
@@ -58,11 +60,23 @@ func (f *fakeChrome) CallSeq(ctx context.Context, session, method string, params
 	case "Page.getLayoutMetrics":
 		reply = map[string]any{"cssLayoutViewport": map[string]any{"clientWidth": 1000, "clientHeight": 700}}
 	default:
-		if f.more != nil {
+		if f.more != nil || ui != nil {
 			var pm map[string]any
 			b, _ := json.Marshal(params)
 			json.Unmarshal(b, &pm)
-			if r, err, ok := f.more(session, method, pm, p); ok {
+			respond := f.more
+			if ui != nil {
+				respond = func(session, method string, pm map[string]any, p *fakePage) (any, error, bool) {
+					if v, e, ok := ui.more(session, method, pm, p); ok {
+						return v, e, ok
+					}
+					if f.more != nil {
+						return f.more(session, method, pm, p)
+					}
+					return nil, nil, false
+				}
+			}
+			if r, err, ok := respond(session, method, pm, p); ok {
 				if err != nil {
 					return f.next(), err
 				}
@@ -413,6 +427,52 @@ func TestRecorderEmitChecksTheDocument(t *testing.T) {
 	}
 	if st, _ := h.r.Stats(context.Background()); len(st.Dropped) != 0 {
 		t.Fatalf("a note for a gone document is not a refusal: %+v", st.Dropped)
+	}
+}
+
+// A submission's resolution reaches the recorder queue after a viewer has
+// resolved and reopened the same note. Check the revision at apply time,
+// while a fresh revision can still resolve that reopened note normally.
+func TestRecorderSubmissionEmitRechecksQueuedNoteRevision(t *testing.T) {
+	h := newHarness(t)
+	h.page("A", "http://a/", "L1")
+	h.r.Send(Live{Tab: rec.Tab{ID: "T-A"}, Session: "A"})
+	h.settle()
+	top := h.id("A", h.fc.pages["A"].doc.backend)
+	h.r.Send(Emit{Record: &rec.Note{ID: "n1", Author: rec.Author{ID: "v"}, At: rec.NoteAt{Node: top}}, Doc: 1})
+	h.settle()
+	selected, err := rec.Reduce(h.out.sink.Records(), 1<<62)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(selected.Notes) != 1 {
+		t.Fatalf("notes: %+v", selected.Notes)
+	}
+	revision := selected.Notes[0].Revision
+	// All three writes enter the same queue before the test waits for reduction.
+	h.r.Send(Emit{Record: &rec.NoteState{ID: "n1", State: rec.NoteResolved}, Doc: 1})
+	h.r.Send(Emit{Record: &rec.NoteState{ID: "n1", State: rec.NoteOpen}, Doc: 1})
+	h.r.Send(Emit{Record: &rec.NoteState{ID: "n1", State: rec.NoteResolved, IfRevision: &revision}, Doc: 1})
+	h.settle()
+	reopened, err := rec.Reduce(h.out.sink.Records(), 1<<62)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(reopened.Notes) != 1 || reopened.Notes[0].State != rec.NoteOpen || reopened.Notes[0].Revision != revision+2 {
+		t.Fatalf("stale queued resolution consumed reopened note: %+v", reopened.Notes)
+	}
+	if got := h.kinds(); got != "head seg:live doc note note-state note-state" {
+		t.Fatalf("unexpected recorded writes: %s", got)
+	}
+	fresh := reopened.Notes[0].Revision
+	h.r.Send(Emit{Record: &rec.NoteState{ID: "n1", State: rec.NoteResolved, IfRevision: &fresh}, Doc: 1})
+	h.settle()
+	resolved, err := rec.Reduce(h.out.sink.Records(), 1<<62)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resolved.Notes[0].State != rec.NoteResolved {
+		t.Fatal("matching revision could not resolve note")
 	}
 }
 

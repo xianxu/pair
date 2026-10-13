@@ -15,9 +15,10 @@ import (
 // is deliberately not a JavaScript transpiler; unsupported module syntax
 // fails assembly instead of silently shipping a divergent copy of the UI.
 var (
-	operatorExport = regexp.MustCompile(`^export ((?:async )?function|const) ([A-Za-z_$][A-Za-z0-9_$]*)\b`)
-	operatorImport = regexp.MustCompile(`^import \{ ([A-Za-z0-9_$, ]+) \} from '([^']+)';$`)
-	operatorName   = regexp.MustCompile(`^[A-Za-z_$][A-Za-z0-9_$]*$`)
+	operatorExportNames = regexp.MustCompile(`^export \{ ([A-Za-z0-9_$, ]+) \};$`)
+	operatorExport      = regexp.MustCompile(`^export ((?:async )?function|const) ([A-Za-z_$][A-Za-z0-9_$]*)\b`)
+	operatorImport      = regexp.MustCompile(`^import \{ ([A-Za-z0-9_$, ]+) \} from '([^']+)';$`)
+	operatorName        = regexp.MustCompile(`^[A-Za-z_$][A-Za-z0-9_$]*$`)
 )
 
 func assembleOperatorModule(source string, imports map[string]string) (string, error) {
@@ -38,6 +39,17 @@ func assembleOperatorModule(source string, imports map[string]string) (string, e
 			}
 			lines[i] = "const { " + m[1] + " } = " + imports[m[2]] + ";"
 		case strings.HasPrefix(trim, "export "):
+			if m := operatorExportNames.FindStringSubmatch(trim); m != nil {
+				for _, name := range strings.Split(m[1], ",") {
+					name = strings.TrimSpace(name)
+					if !operatorName.MatchString(name) {
+						return "", fmt.Errorf("operator script: unsupported export name on line %d", i+1)
+					}
+					names = append(names, name)
+				}
+				lines[i] = ""
+				continue
+			}
 			m := operatorExport.FindStringSubmatch(trim)
 			if m == nil {
 				return "", fmt.Errorf("operator script: unsupported export on line %d", i+1)

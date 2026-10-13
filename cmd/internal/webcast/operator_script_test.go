@@ -10,14 +10,14 @@ import (
 
 func TestOperatorModuleAssembly(t *testing.T) {
 	for _, source := range []string{
-		"export default 1;", "import x from './unknown.js';", "export { x };",
+		"export default 1;", "import x from './unknown.js';", "export * from './unknown.js';",
 		"import { x } from './unknown.js';", "export class X {}",
 	} {
 		if _, err := assembleOperatorModule(source, nil); err == nil {
 			t.Errorf("unsupported module admitted: %s", source)
 		}
 	}
-	js, err := assembleOperatorModule("import { value } from './dep.js';\nexport const result = value + 1;", map[string]string{"./dep.js": "dep"})
+	js, err := assembleOperatorModule("import { value } from './dep.js';\nconst result = value + 1;\nexport { result };", map[string]string{"./dep.js": "dep"})
 	if err != nil {
 		t.Fatal(err)
 	}

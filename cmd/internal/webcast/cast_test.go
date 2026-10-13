@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net"
-	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -55,7 +54,7 @@ func TestCastBrowserFirstThenLink(t *testing.T) {
 		t.Fatalf("at start: %+v", u)
 	}
 	u := waitUpdate(t, c, "link", func(u Update) bool { return u.Link != "" })
-	resp, err := http.Get(u.Link)
+	resp, err := castClient.Get(u.Link)
 	if err != nil || resp.StatusCode != 200 {
 		t.Fatalf("viewer page: %v %v", resp, err)
 	}
@@ -65,6 +64,7 @@ func TestCastBrowserFirstThenLink(t *testing.T) {
 func TestCastToggleAndViewerSees(t *testing.T) {
 	c, f := startCast(t, &broadcast.FakeTunnel{})
 	u := waitUpdate(t, c, "link", func(u Update) bool { return u.Link != "" })
+	unlockCast(t, c, u)
 	s := openSSE(t, u.Link+"events")
 	s.nextState()
 	f.Navigate("http://localhost:3000/", "Shop")
@@ -83,6 +83,7 @@ func TestCastEndsWithTheBrowser(t *testing.T) {
 	tunnel := &broadcast.FakeTunnel{}
 	c, f := startCast(t, tunnel)
 	u := waitUpdate(t, c, "link", func(u Update) bool { return u.Link != "" })
+	unlockCast(t, c, u)
 	s := openSSE(t, u.Link+"events")
 	s.nextState()
 	f.QuitByHand()

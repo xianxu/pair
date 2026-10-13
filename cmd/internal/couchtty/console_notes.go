@@ -78,7 +78,21 @@ func (c *Console) menuNotesLocked() []broadcast.Note {
 	case driveMenu:
 		return c.pnotes.drive.items
 	}
-	return c.pnotes.notes
+	return withAuthors(c.pnotes.notes)
+}
+
+// withAuthors is screen notes as the menu shows them: "name: text" when the
+// viewer gave a name (pair#495), like the web cast's notes. The board keeps
+// the plain text, which is what a click copies.
+func withAuthors(notes []broadcast.Note) []broadcast.Note {
+	out := make([]broadcast.Note, len(notes))
+	for i, n := range notes {
+		if n.Author != "" {
+			n.Text = n.Author + ": " + n.Text
+		}
+		out[i] = n
+	}
+	return out
 }
 
 // screenHoverLocked is the hovered screen note, whose 💭 glows: none while

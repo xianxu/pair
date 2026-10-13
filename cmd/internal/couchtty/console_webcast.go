@@ -1,6 +1,8 @@
 package couchtty
 
 import (
+	"github.com/xianxu/pair/cmd/internal/castlock"
+
 	"context"
 	"errors"
 	"fmt"
@@ -98,6 +100,8 @@ func (c *Console) startWebcast(cfg webcast.CastConfig) {
 	c.wcast = webcastState{phase: webcastStarting, attempt: c.wcast.attempt + 1, cancel: cancel}
 	attempt := c.wcast.attempt
 	c.mu.Unlock()
+	// Its links' codes (pair#495), bound to this start.
+	cfg.OnCodeRotated = func(link string, r castlock.Rotation) { c.onCodeRotated(castWeb, attempt, link, r) }
 	c.setNotice("Starting Chrome…")
 	c.GoTracked(func() {
 		cast, err := webcast.StartCast(ctx, cfg)
@@ -241,6 +245,7 @@ func (c *Console) webcastEnded(cast *webcast.Cast) {
 	byOperator := c.wcast.phase == webcastEnding
 	c.wcast = webcastState{attempt: c.wcast.attempt}
 	c.mu.Unlock()
+	c.forgetCastCodes(castWeb)
 	c.forgetWebNotes()
 	c.forgetDrive()
 	c.syncOverlay(overlayWeb, false)
@@ -270,8 +275,8 @@ func (c *Console) focusWebcast() {
 	})
 }
 
-// copyWebcastLink is a click on the Chrome group's 👆, or a right-click on
-// the Chrome cell. The notice never
+// copyWebcastLink is a click (left or right) on the Chrome group's 👆, a
+// right-click on the Chrome cell, or the Codes menu's "Copy view-only link". The notice never
 // contains the link: a screen broadcast would draw it to viewers.
 func (c *Console) copyWebcastLink() {
 	c.mu.Lock()
@@ -281,7 +286,7 @@ func (c *Console) copyWebcastLink() {
 	case !running:
 	case u.Link != "":
 		c.copyLink(u.Link)
-		c.setNotice("Chrome cast view link copied (watch, point, notes). 👽 copies the drive link.")
+		c.setNotice("Chrome cast view link copied (watch, point, notes). 👽 copies the drive link. Its viewers need its code: hover Chrome to see it.")
 	case u.LinkErr != nil:
 		c.setNotice("Chrome cast viewer link unavailable: " + u.LinkErr.Error())
 	default:
@@ -289,8 +294,8 @@ func (c *Console) copyWebcastLink() {
 	}
 }
 
-// copyWebcastDriveLink is a click on the Chrome group's 👽, or an
-// Alt+right-click on the Chrome cell (#467):
+// copyWebcastDriveLink is a click (left or right) on the Chrome group's 👽,
+// or the Codes menu's "Copy drive link" (#467, pair#495):
 // the drive link, whose viewers can ask to drive the cast tab (the
 // operator still grants). Like the view link, never in the notice.
 func (c *Console) copyWebcastDriveLink() {
@@ -302,7 +307,7 @@ func (c *Console) copyWebcastDriveLink() {
 	case !running:
 	case u.DriveLink != "":
 		c.copyLink(u.DriveLink)
-		c.setNotice("Chrome cast drive link copied: its viewers can ask to drive; you grant.")
+		c.setNotice("Chrome cast drive link copied: its viewers can ask to drive; you grant. Its viewers need its code: hover Chrome to see it.")
 	case u.LinkErr != nil:
 		c.setNotice("Chrome cast drive link unavailable: " + u.LinkErr.Error())
 	case u.Link != "" && cast != nil && cast.DriveOff() != "":

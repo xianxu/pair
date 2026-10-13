@@ -25,8 +25,17 @@ function M.unframe(wire)
   return wire:sub(#s + 1, -#f - 1)
 end
 
-function M.commands(body)
+function M.commands(body, target)
   local wire = M.frame(body)
+  if target ~= nil then
+    return {
+      { kind = 'write', label = 'draft.send.write-body',
+        argv = { 'zellij', 'action', 'write-chars', '--pane-id', tostring(target.pane_id), wire },
+        opts = { redact = { [6] = wire } } },
+      { kind = 'submit', label = 'draft.send.submit',
+        argv = { 'zellij', 'action', 'send-keys', '--pane-id', tostring(target.pane_id), 'Alt Enter' } },
+    }
+  end
   local cmds = {
     { kind = 'focus-agent', label = 'draft.send.focus-agent', argv = { 'zellij', 'action', 'move-focus', 'up' } },
     {
@@ -41,22 +50,33 @@ function M.commands(body)
   return cmds
 end
 
-function M.send(body, action, settle, resume_phase)
+function M.send(body, action, settle, resume_phase, target)
   resume_phase = resume_phase or 'start'
   if resume_phase == 'indeterminate' then
     return false, resume_phase, 'body write outcome is indeterminate; reconcile the agent composer manually'
   end
-  local cmds = M.commands(body)
+  if target ~= nil and (type(target) ~= 'table' or type(target.pane_id) ~= 'number'
+    or target.pane_id < 0 or target.pane_id % 1 ~= 0 or type(target.validate) ~= 'function') then
+    return false, resume_phase, 'target requires a numeric pane ID and identity validator'
+  end
+  local cmds = M.commands(body, target)
   if resume_phase == 'written' then
-    cmds = { cmds[1], cmds[3], cmds[4] }
+    if target ~= nil then cmds = { cmds[2] }
+    else cmds = { cmds[1], cmds[3], cmds[4] } end
   elseif resume_phase ~= 'start' then
     return false, resume_phase, 'delivery phase cannot be resumed: ' .. tostring(resume_phase)
   end
   local phase = resume_phase
   for i, cmd in ipairs(cmds) do
+    if target ~= nil then
+      local called, valid, validation_err = pcall(target.validate)
+      if not called or not valid then
+        return false, phase, 'target validation failed — ' .. tostring(called and validation_err or valid)
+      end
+    end
     local result = action(cmd.label, cmd.argv, cmd.opts) or {}
     if result.code ~= 0 then
-      if i > 1 and cmd.kind ~= 'refocus' then
+      if target == nil and i > 1 and cmd.kind ~= 'refocus' then
         local refocus = cmds[#cmds]
         action(refocus.label, refocus.argv, refocus.opts)
       end

@@ -54,7 +54,7 @@ func copies(f *consoleFixture, link string) int {
 func postPoint(t *testing.T, link string, col, row int) int {
 	t.Helper()
 	body := fmt.Sprintf(`{"cols":80,"rows":24,"down":false,"points":[[%d,%d]]}`, col, row)
-	resp, err := http.Post(link+"point", "application/json", strings.NewReader(body))
+	resp, err := castClient.Post(link+"point", "application/json", strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,6 +97,7 @@ func pointerOnFixture(t *testing.T, mutate func(*broadcast.Config)) (*consoleFix
 	if link == "" || link == s.Link() {
 		t.Fatalf("pointer link %q (view %q)", link, s.Link())
 	}
+	unlockCastLink(t, castClient, s, broadcast.LinkPointer, link)
 	waitFor(t, "active 👆 drawn", func() bool { return f.screenBg(f.pointerSpan().Start, 23) == markTint })
 	return f, s, link
 }
@@ -109,7 +110,7 @@ func TestPointerClickMarksOperatorAndViewers(t *testing.T) {
 	if strings.Contains(f.screenText(), link) || strings.Contains(f.notice(), link) {
 		t.Fatal("the pointer link is drawn on screen")
 	}
-	v := openViewer(t, s.Link())
+	v := openViewer(t, s)
 	before := len(bytes.Join(f.child.Writes(), nil))
 	tapUntilMarked(t, f, link, 5, 3)
 	v.until("mark in the broadcast", func(string) bool {

@@ -27,7 +27,7 @@ type ThreadPresentation struct {
 	Glyph string
 	// Hub marks the hub slot's row (pair#491). It leads its section, and the
 	// section's other rows sit one indent level under it. A hub is marked by
-	// position only.
+	// position and reverse-video styling.
 	Hub bool
 	// root is this ordinary row's own scope-proven repository root, empty
 	// when the row's starting path does not prove one.

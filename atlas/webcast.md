@@ -205,8 +205,9 @@ what the viewer's renderer draws at the same moments.
   drawn in `broadcast.LiveSGR`, LIVE's own style, so the two cast indicators read as one family (#501);
   `IndicatorShown` matches LIVE's text, so it doesn't mistake one for the other.
 - **The Chrome group (#501)** follows the screen broadcast's `LIVE ⏸ 👆`: `Chrome ⏸ ↗ 👆 👽 💭N 🕹Ana` (its 👽 is real, `WebcastDriveLinkLabel`; #503 removed the broadcast's placeholder), each button its own
-  `RenderedStatusRow` span (`WebFocus`, `WebViewLink`, `WebDriveLink`), so a hover can tell them apart (#495).
-  👆 copies the view link, 👽 the drive link (right-click and Alt+right-click on the cell stay as shortcuts).
+  `RenderedStatusRow` span (`WebFocus`, `WebViewLink`, `WebDriveLink`), so a click knows which link it copies. The codes
+  show on hovering the cell itself, not these (#495).
+  👆 copies the view link, 👽 the drive link, on a left or right click; a right-click on the cell copies the view-only link (the cast row's rule, #495).
   `↗` calls `Browser.Focus`: the real Chrome sends `Target.activateTarget` for the cast tab, then activates its own
   process by PID (`activateProcess`, macOS JXA → `NSRunningApplication`; by PID because the cast Chrome
   shares its bundle id with the operator's own Chrome). Only `Launch` of a windowed Chrome sets the
@@ -220,7 +221,8 @@ what the viewer's renderer draws at the same moments.
     - On an asker's row, a left click grants and a right click denies.
   - **Revoke.** Ctrl with either button on the span revokes, from any state, with the menu open or closed.
   - **Two links.** Right-click on the Chrome cell copies the view link (watch, point, notes);
-    Alt (Option)+right-click copies the drive link, the only one that offers a seat. Shift+click is the
+    👽 (left or right click) or the Codes menu copies the drive link, the only one that offers a seat (#495
+    dropped Alt+right-click for it). Shift+click is the
     terminal's own selection. `couch --broadcast-list` lists `screen`, `web view` and `web drive` shares
     (`Console.Shares`, `couchmessage.ShareStatus`), the drive one with who drives and how many ask.
   - **Failures.** A control change that fails says why (`driveFailure`): a race, the cast ended, not recording
@@ -344,6 +346,36 @@ what the viewer's renderer draws at the same moments.
     pointer, and `boxOf` against the tab's own layout boxes (305 of 306 on rec-blog).
 - **Known transient:** for a moment after a navigation, the title can be Chrome's placeholder (the URL, as in
   Chrome's own tab) until the page reports its `<title>`; it is never the previous page's title (`DocumentChanged`).
+
+## Code lock (#495)
+
+The web cast's links are locked like the terminal broadcast's; see
+[Code lock](broadcast.md#code-lock-495) for the gate, the session cookie and
+the budget.
+
+- **Two locks.** `StartCast` mints the `view` lock (4 digits) before
+  anything else, and the `drive` lock (6 digits,
+  `broadcast.DriveCodeDigits`) with the drive token.
+  - If the drive lock can't be made, there is no drive link: driving is off,
+    and the operator is told why.
+  - The locks are attached with `Server.WithLocks` before `Mount`, and they
+    end after `Unmount` in `run`, so a viewer still receives the cast's end.
+- **Codes and rotation.** `Cast.Codes` and `Cast.RotateCode` are Couch's
+  handles (M3); `OnCodeRotated` reports each rotation with its `Gen`.
+- **Separate codes.** The view code never opens the drive link: each token
+  has its own lock and its own cookie path.
+- **Cookie coverage.** The page's iframe is sandboxed with
+  `allow-same-origin`, so its recorded assets (`assets/<hash>`) carry the
+  session cookie. `TestLiveLockPage` checks this in Chrome.
+- **Viewer name.** The lock page asks for it with the code.
+  - Every cast page keeps it under `couch.viewerName`, by one rule:
+    `validName` in `collab.js` and `broadcast.ViewerName` in Go (the board's
+    `MaxNameRunes` is the same bound).
+  - The note dialog asks only when no name is stored.
+  - Terminal notes carry it as `author`, and Couch's notes menu shows
+    `name: text`.
+- **Not locked.** Replay share links (#477) are a follow-up (pair#509); their
+  `LockFor` is nil.
 
 ## Replay (#471)
 
