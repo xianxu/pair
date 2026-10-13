@@ -1,12 +1,22 @@
 ---
 id: 000516
-status: open
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: 'ae458fff91213329487f6b1d7b152bd48b08572d' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'e4dd527a528a4bf0765c737a985742f6720b2040' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-12T19:10:50-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:6
+    worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
+    repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "672f84c7", done: "e7e7fbd0"}
+actual_hours: 0.24
 ---
 
 # broadcast-web: fast trackpad scrolls are refused as stale; drop the element check for wheel input
@@ -28,8 +38,42 @@ No coalescing up front: measure a fast flick end to end first (injector queue de
 
 ## Plan
 
-- [ ]
+- [x] `TabInjector.inject`: a wheel skips `onTarget` and keeps the bounds check (`hit == 0` → ErrStale); downs and
+  clicks unchanged. `Injector` doc and atlas updated.
+- [x] Contract (`RunInjectorContract`, every injector): a wheel aimed at #save where #q is goes in; a wheel with
+  nothing under its point is ErrStale. Fails with the old rule (mutation-checked): the deterministic red-on-main test.
+- [x] Live: `TestDriveRealCastFlick` (WEBCAST_LIVE_CHROME): 100 wheel events in ~1.1 s from the viewer page itself
+  (10 ms apart, decaying like macOS momentum) over a page of 18 px text rows, through the real cast chain; logs the
+  measurement; asserts no refusal or 503 and every px injected. `startRealCast(t, path)` shared with TestDriveRealCast.
+- [x] Coalescing: decided against (measurement below); no playout buffer.
 
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed — make -k test exit 0, no FAIL lines, on 85a41d94 + main (the earlier review-branch-restore flake did not recur). Round-1 fix: Act, ErrStale and onTarget now name Injector.Inject's rule instead of restating the old one; Done-when 1's evidence recorded as a revision (the contract's deterministic wheel case; the live flick reproduces only intermittently on main); test hygiene. Fix: a wheel skips the identity check, keeps the bounds check (RunInjectorContract wheel cases, mutation-checked). TestDriveRealCastFlick after the fix, 3 runs: every px injected, 0 refused, 0 busy; arrival 39-43 ms (max 67-69); no backlog; momentum shape kept; no coalescing or playout buffer added (decision in the Log). TestDriveRealCast green. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
+- **Flick measurement, before the fix** (headless, real cast chain): the flick reproduces the refusal only sometimes
+  (1 of 2 runs: 2 refused, 1065 of 1102 px injected); with 60 px rows, 0 of 3. A CDP call per event is too slow to
+  flick (100 events took 3.6 s), so the test dispatches the events inside the viewer page.
+- **After the fix, 3 runs:** 100 events in 1.08-1.12 s, 1102 px sent (page px), 22-25 batches (37-42 wheel acts),
+  1102 px injected every run, 0 refused, 0 busy (503). Arrival spacing at Couch 39-40 ms min, 40-43 median, 67-69
+  max (the viewer's 40 ms pacing; the max is the first gap). Injection per batch 0-50 ms (median 16-17). Injection
+  ended 11-40 ms after the gesture: no backlog, no scroll running on after it. Per-batch dy keeps the momentum
+  shape, e.g. 200 164 135 112 92 40 47 41 37 25 30 27 18 21 19 16 15 20 9 16 14 7.
+- **Coalescing decision:** none added, and no playout buffer: no backlog, no 503s, even arrival. Note for the
+  operator's rule: the viewer already merges consecutive wheel acts on the same element while a batch is paced
+  (`batcher`, PACE_MS 40), i.e. ~40 ms buckets of what queued, not per-frame time buckets; the measured curve keeps
+  its shape at that resolution. Moving to timestamped 16 ms buckets is the operator's call (not built).
+
+## Revisions
+
+- 2026-10-12 (operator via TL): if the flick measurement shows coalescing is needed, merge by TIME, not by count or
+  "whatever queued up": bucket wheel deltas by their arrival time at the viewer, one bucket per animation frame
+  (~16 ms), and send the buckets in order with their time, so the momentum curve macOS produces (e.g.
+  1 1 2 3 4 4 3 1 1 → 2 5 8 4 1) keeps its shape at frame resolution. Never collapse a backlog into one jump.
+- 2026-10-12 (operator via TL): keep the gesture's acceleration shape, not just totals. Tag each bucket with the
+  viewer's timestamp; if the measurement shows uneven arrival at Couch, add a small playout buffer (hold ~1-2 frames,
+  inject each bucket at its original time offset). Measure arrival spacing at Couch in the flick test and record it
+  in the Log either way.
+- 2026-10-12 (close review): Done-when 1's "the test fails on main" is met by the injector contract's wheel case
+  (deterministic, mutation-checked); the live flick test reproduces the refusal on main only intermittently (Log),
+  and is the end-to-end check and the measurement after the fix.

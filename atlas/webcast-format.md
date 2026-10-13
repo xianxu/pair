@@ -570,8 +570,8 @@ record. Viewers learn the state from the `ctl` records in their stream, and Couc
   - 204 when injected;
   - 401 `Join the cast again.` (`ErrNoSeat`);
   - 403 `Ask the operator for control first.` (`ErrNotDriver`);
-  - 409 `The page changed. Try again.` (`ErrStale`: the element isn't at that point in the tab any more; the acts
-    before it stand);
+  - 409 `The page changed. Try again.` (`ErrStale`: a down's or click's element isn't at that point in the tab any
+    more, or a wheel's point has nothing under it; the acts before it stand);
   - 409 `The cast is paused.` (`ErrNotLive`, also a batch for a gone segment);
   - 409 `Control has already changed.` (a control op the state doesn't allow);
   - 422 `That isn't allowed while driving.` (`ErrRefused`);
@@ -624,7 +624,9 @@ it dispatches, so a batch overtaken by a revoke is refused there (`ErrNotDriver`
 
 **As built (#467).** The injector's rules are stated once, in `drive.TabInjector`, over a `drive.Tab` seam: who
 drives, live and segment, `Confine`, then per act a hit test (`onTarget`: the element at the point is the aimed one
-or inside it, or an out-of-process frame's owner holding it) and the dispatch. The fake injector is the same rules
+or inside it, or an out-of-process frame's owner holding it) and the dispatch. A wheel skips the identity check
+(pair#516, the operator's call: it scrolls whatever is under the pointer, and a flick scrolls the tab ahead of the
+viewer); it keeps the bounds check, a point with nothing under it. The fake injector is the same rules
 over a reduced page. The real tab is the recorder (`Recorder.WithTab`). A batch is one queue input:
 - **Hold.** The recorder holds the in-page observer (`__couchcastHold(by)`, in every observer context of the cast
   tab) and records what it had pending without `by`. During the hold the observer tags everything it sends with

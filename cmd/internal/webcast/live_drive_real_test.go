@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -25,17 +26,36 @@ type errSpy struct {
 	mu      sync.Mutex
 	errs    []string
 	acts    []string
+	arrived []arrival // every batch, as Couch's injector got it
 	ok      int
 	refused int
 	next    drive.Injector
 }
 
+// arrival is one batch at the injector: when it came, how long it took,
+// its wheel acts' summed dy, and the error it got.
+type arrival struct {
+	at, done time.Time
+	wheels   int
+	dy       float64
+	err      error
+}
+
 func (s *errSpy) Inject(ctx context.Context, by string, b drive.Batch) error {
+	a := arrival{at: time.Now()}
+	for _, x := range b.Acts {
+		if x.A == drive.ActWheel {
+			a.wheels++
+			a.dy += x.DY
+		}
+	}
 	err := s.next.Inject(ctx, by, b)
+	a.done, a.err = time.Now(), err
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for _, a := range b.Acts {
-		s.acts = append(s.acts, fmt.Sprintf("%s(%.0f,%.0f %s x%d)", a.A, a.X, a.Y, a.Button, a.Count))
+	s.arrived = append(s.arrived, a)
+	for _, x := range b.Acts {
+		s.acts = append(s.acts, fmt.Sprintf("%s(%.0f,%.0f %s x%d)", x.A, x.X, x.Y, x.Button, x.Count))
 	}
 	switch {
 	case errors.Is(err, drive.ErrRefused):
@@ -63,15 +83,20 @@ func (s *errSpy) report() (int, []string) {
 
 const blogPage = `<!doctype html><title>blog</title><body style="margin:0;font:16px sans-serif">%s</body>`
 
-// pair#505: remote driving through the whole production chain: the real
-// cast Chrome and its recorder, the TabInjector over it (as StartCast wires
-// it), the viewer routes, and a viewer's real drive.js in a second Chrome.
-// The cast tab can run at a device-pixel ratio of 2 (WEBCAST_DRIVE_DPR), as
-// the operator's retina window does. A wheel scrolls the page and a click
-// follows a link; every batch must be injected.
-//
-//	WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run DriveRealCast -v
-func TestDriveRealCast(t *testing.T) {
+// realCast is the production chain, live and driven: the cast Chrome with
+// its recorder, a TabInjector behind a spy, the viewer routes, and a
+// viewer's real drive.js in a second Chrome holding control.
+type realCast struct {
+	c    *Chrome
+	h    liveHarness
+	v    *chromePage
+	spy  *errSpy
+	ctrl *drive.MemController
+	mem  *recording.MemSink
+}
+
+func startRealCast(t *testing.T, path string) *realCast {
+	t.Helper()
 	if os.Getenv("WEBCAST_LIVE_CHROME") == "" {
 		t.Skip("set WEBCAST_LIVE_CHROME=1 to drive a real Chrome")
 	}
@@ -85,6 +110,14 @@ func TestDriveRealCast(t *testing.T) {
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/lines" { // dense text, as a blog's: many short rows under the pointer
+			var b strings.Builder
+			for i := 0; i < 300; i++ {
+				fmt.Fprintf(&b, `<div style="height:18px;font-size:14px">line %d of a long article</div>`, i)
+			}
+			fmt.Fprintf(w, blogPage, b.String())
+			return
+		}
 		if strings.HasPrefix(r.URL.Path, "/post/") {
 			fmt.Fprintf(w, blogPage, `<h1 id=arrived>a post</h1>
 <div id=hov style="width:300px;height:40px" onmouseover="window.hovered=1">hover</div>
@@ -131,7 +164,7 @@ func TestDriveRealCast(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := c.call(h.session(t, ""), "Page.navigate", map[string]any{"url": "http://" + l.Addr().String() + "/"}, nil); err != nil {
+	if err := c.call(h.session(t, ""), "Page.navigate", map[string]any{"url": "http://" + l.Addr().String() + path}, nil); err != nil {
 		t.Fatal(err)
 	}
 	time.Sleep(time.Second)
@@ -160,7 +193,20 @@ func TestDriveRealCast(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitEval(t, v, "driving", `(() => document.querySelector('.drive.on') ? 'on' : 'off')()`, "on")
+	return &realCast{c: c, h: h, v: v, spy: spy, ctrl: ctrl, mem: mem}
+}
 
+// pair#505: remote driving through the whole production chain: the real
+// cast Chrome and its recorder, the TabInjector over it (as StartCast wires
+// it), the viewer routes, and a viewer's real drive.js in a second Chrome.
+// The cast tab can run at a device-pixel ratio of 2 (WEBCAST_DRIVE_DPR), as
+// the operator's retina window does. A wheel scrolls the page and a click
+// follows a link; every batch must be injected.
+//
+//	WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run DriveRealCast -v
+func TestDriveRealCast(t *testing.T) {
+	cast := startRealCast(t, "/")
+	h, v, spy := cast.h, cast.v, cast.spy
 	// A wheel over the page scrolls the cast tab.
 	mid := clientOf(t, v, 400, 300)
 	v.call(t, v.session, "Input.dispatchMouseEvent", map[string]any{"type": "mouseWheel", "x": mid[0], "y": mid[1], "deltaX": 0, "deltaY": 400}, nil)
@@ -292,4 +338,93 @@ func TestDriveRealCast(t *testing.T) {
 	if ok, errs := spy.report(); len(errs) != 0 {
 		t.Fatalf("%d batches injected, %d failed:\n%s", ok, len(errs), strings.Join(errs, "\n"))
 	}
+}
+
+// pair#516: a fast trackpad flick (100 wheel events in about 1 s, decaying
+// like macOS momentum) scrolls the cast tab without a refusal, and the
+// measurement the coalescing decision rests on is logged: batches, arrival
+// spacing at Couch, injection time, 503s, the total injected against the
+// total sent, and how long injection ran past the gesture's end.
+//
+//	WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run DriveRealCastFlick -v
+func TestDriveRealCastFlick(t *testing.T) {
+	cast := startRealCast(t, "/lines")
+	h, v, spy := cast.h, cast.v, cast.spy
+	// The flick runs in the viewer page itself, so its timing is a
+	// trackpad's (a CDP call per event costs ~26 ms): 100 wheel events, one
+	// every 10 ms, decaying like macOS momentum, into drive.js's own layer.
+	mid := clientOf(t, v, 400, 300)
+	scale := clientOf(t, v, 400, 400)[1] - mid[1] // client px per 100 page px
+	start := time.Now()
+	sentClient := v.evalString(t, fmt.Sprintf(`new Promise((ok) => {
+		const layer = document.querySelector('.drive.on');
+		let i = 0, sum = 0;
+		const tick = () => {
+			if (i === 100) { ok(String(sum)); return; }
+			const dy = Math.round(60 * Math.exp(-i / 30)) + 1;
+			sum += dy; i++;
+			layer.dispatchEvent(new WheelEvent('wheel', { deltaX: 0, deltaY: dy, clientX: %g, clientY: %g, bubbles: true, cancelable: true }));
+			setTimeout(tick, 10);
+		};
+		tick();
+	})`, mid[0], mid[1]))
+	ended := time.Now()
+	var sentC float64
+	fmt.Sscan(sentClient, &sentC)
+	sent := sentC * 100 / scale // page px
+	time.Sleep(2 * time.Second)
+
+	spy.mu.Lock()
+	got := append([]arrival(nil), spy.arrived...)
+	spy.mu.Unlock()
+	var injected float64
+	var refused, busy, wheels int
+	var gaps, took []float64
+	var lastDone time.Time
+	for i, a := range got {
+		switch {
+		case a.err == nil:
+			injected += a.dy
+		case errors.Is(a.err, drive.ErrStale), errors.Is(a.err, drive.ErrNotLive):
+			refused++
+		case errors.Is(a.err, context.Canceled), errors.Is(a.err, context.DeadlineExceeded):
+			busy++
+		}
+		wheels += a.wheels
+		if i > 0 {
+			gaps = append(gaps, float64(a.at.Sub(got[i-1].at).Milliseconds()))
+		}
+		took = append(took, float64(a.done.Sub(a.at).Milliseconds()))
+		if a.done.After(lastDone) {
+			lastDone = a.done
+		}
+	}
+	var scrollY string
+	h.eval(t, `String(Math.round(window.scrollY))`, &scrollY)
+	t.Logf("flick: %d events over %s, %.0f px sent; %d batches (%d wheel acts), %.0f px injected, %d refused, %d busy; arrival gaps ms %s; injection ms %s; injection ran %s past the gesture; cast scrollY %s; batch dy %s",
+		100, ended.Sub(start).Round(time.Millisecond), sent, len(got), wheels, injected, refused, busy, spread(gaps), spread(took), lastDone.Sub(ended).Round(time.Millisecond), scrollY, dys(got))
+	if refused > 0 || busy > 0 {
+		t.Errorf("%d refused and %d busy batches in a flick", refused, busy)
+	}
+	if injected < sent*0.95 {
+		t.Errorf("injected %.0f px of the %.0f sent", injected, sent)
+	}
+}
+
+// spread is min / median / max.
+func spread(xs []float64) string {
+	if len(xs) == 0 {
+		return "-"
+	}
+	s := append([]float64(nil), xs...)
+	sort.Float64s(s)
+	return fmt.Sprintf("%.0f/%.0f/%.0f", s[0], s[len(s)/2], s[len(s)-1])
+}
+
+func dys(as []arrival) string {
+	var out []string
+	for _, a := range as {
+		out = append(out, fmt.Sprintf("%.0f", a.dy))
+	}
+	return strings.Join(out, " ")
 }
