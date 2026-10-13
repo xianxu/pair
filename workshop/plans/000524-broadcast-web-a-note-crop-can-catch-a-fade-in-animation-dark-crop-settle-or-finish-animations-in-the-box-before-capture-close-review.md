@@ -353,3 +353,58 @@ dispose:
    - **ARCH-FUNERAL — pass:** receipts retire; staging is cleaned; retained evidence uses existing storage bounds.
 
 7. **Plan revisions:** None required. Authoritative revisions explain the expanded scope, and README/atlas updates cover the resulting behavior.
+
+---
+
+## Re-review — 2026-10-13T11:38:20-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 524 — broadcast-web: a note crop can catch a fade-in animation (dark crop); settle or finish animations in the box before capture |
+| repo | pair |
+| issue file | workshop/issues/000524-broadcast-web-a-note-crop-can-catch-a-fade-in-animation-dark-crop-settle-or-finish-animations-in-the-box-before-capture.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 3b06e1c6c24068ba965c2acabfa9b4beef32d498..8f3c52df91bcc525505c556c1d8f3a3762f2d0ae |
+| command | sdlc close --issue 524 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-13T11:38:20-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned interdiff contains only review records and issue bookkeeping. It changes no executable behavior, Spec, Done-when, or implementation plan. No new defects were found; this verdict covers only the narrow fix-review window.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Existing disposition retained: capture_ready.js:44–63 observes animations without target-geometry exclusions; the unchanged Node regression passes, including overflow and leaf-shadow cases.
+```
+
+1. **Strengths**
+   - Review records preserve BR-1’s regression evidence and explicitly disclose browser-test limitations.
+   - Issue-log additions preserve pending operator acceptance rather than claiming shipment.
+   - No new architectural or user-facing surface requires README or atlas changes.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes:** Node readiness fixtures passed from their required working directory; the initial root-directory invocation failed on a relative fixture path. `git diff --check` passed. No browser or full-suite rerun was warranted for this records-only window.
+
+6. **Architectural notes**
+   - **ARCH-DRY — pass:** No duplicated executable logic introduced.
+   - **ARCH-PURE — pass:** No changes to pure logic or IO boundaries.
+   - **ARCH-PURPOSE — pass:** The interdiff records completed reviews without expanding scope or deferring required fixes.
+
+7. **Plan revision recommendations:** None.

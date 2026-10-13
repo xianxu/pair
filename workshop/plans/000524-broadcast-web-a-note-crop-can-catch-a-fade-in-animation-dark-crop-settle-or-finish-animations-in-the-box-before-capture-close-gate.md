@@ -68,6 +68,19 @@ rounds:
       isolation: fenced
       reviewed: a5edec14048bde1abd649e89ab789cd99c1323f9
       blocked: false
+    - "n": 6
+      timestamp: "2026-10-13T11:38:20-07:00"
+      dispatched: "2026-10-13T11:37:30-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: 'Existing disposition retained: capture_ready.js:44–63 observes animations without target-geometry exclusions; the unchanged Node regression passes, including overflow and leaf-shadow cases.'
+          round: 6
+      recipe: fix-review
+      isolation: fenced
+      reviewed: 8f3c52df91bcc525505c556c1d8f3a3762f2d0ae
+      blocked: false
 ---
 
 # Gate ledger — pair#524 (boundary-review)
@@ -105,6 +118,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ### Disposed
 
 - BR-1 — addressed — capture_ready.js:44–63 removes target-geometry exclusions across supported animation roots. The pinned Node regression passes and fails when the preceding geometry-based probe is restored in a disposable copy.
+
+## Round 6 — 2026-10-13T11:38:20-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Existing disposition retained: capture_ready.js:44–63 observes animations without target-geometry exclusions; the unchanged Node regression passes, including overflow and leaf-shadow cases.
 
 ## Open findings
 
