@@ -63,3 +63,5 @@ Durable design: [anchored notes and draw-time captures](../plans/000538-anchored
 - Coordinated with pair:7 (#537), verified receipt 35db0042-3926-4028-8377-29f59bcc0b67: preserve current-note pin callbacks, author ownership checks, edit-note protocol, and immutable original capture on text edit. They preserve prepare/save/cancel. Reconcile from main before final checks.
 
 - Hub approved plan fbbbcbbf with explicit projection for queue/store bounds: show capture-busy or storage-full reason at mouseup, primary action Save note remains available, and persist honest unavailable evidence without crop bytes. Added authoritative Revisions entry and tests; proceeding to change-code.
+
+- Plan-quality round 1 raised PQ-1 ownership transitions, PQ-2 named function test strategies and PQ-3 reference/intent cleanup. Added a single Step authority, concrete uncertainty transitions, sequence/recovery test seams, quota accounting and sweep hooks in plan Revisions. Baseline Go notes/board/recording packages and 45 targeted Node tests pass. #537 confirmed no resolved-list/history/reopen UI.

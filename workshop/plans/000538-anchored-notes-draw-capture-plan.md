@@ -142,3 +142,48 @@ Files: `live_submission_test.go`, `operator_live_test.go`, `viewer_annotate_live
 ### 2026-10-13 — approved bound-hit projection
 
 Hub approved fbbbcbbfe63fbabf4008a0fcbf333c0114c4c47a (receipt 09d22383-c733-4989-95df-bf202423d0c0) with this override to the initial pending/failure and storage paragraphs: **a full capture queue or store never blocks saving a note**. At mouseup, the tick position immediately shows “crop unavailable: capture busy” or “capture store full: submit or resolve notes to free space”. The primary action remains **Save note**; the latter message also names the actions that recover capacity. Create a bounded metadata-only preparation with explicit unavailable evidence, attach that evidence on Save, and include the reason in the bundle. It does not reserve crop bytes or evict attached captures. At the capture-record count limit, use a short-lived authenticated preparation token carrying bounded unavailable metadata rather than creating another persisted capture record; saving records that unavailable evidence directly in the note. Existing annotation admission/rate/open-note bounds still apply. Cancel discards the token; no crop exists to clean up. Tests must fill both queue and byte/count limits, save successfully on viewer and overlay, and assert visible reason plus bundle unavailable evidence. No automatic recapture at submission.
+
+### 2026-10-13 — plan-quality dispositions PQ-1 through PQ-3
+
+**PQ-1 (ARCH-ORDER): explicit authority.** `notedraft.Step(State, Event) (State, []Effect, error)` is the sole pure transition function. `State` is a tagged value: Preparing, Ready, Attaching, Attached, Transferring, Bundled, Retired; optional unavailable evidence is data in Ready/Attached, not another control state. `Event` is a closed tagged union: Begin, CaptureComplete, CaptureFailed, Save, WriteConfirmed, WriteAbsent, Publish, BundleConfirmed, BundleAbsent, Cancel, Expire, Resolve, Reconcile. `Effect` requests capture/cancel, durable intent writes, writer emission, bundle publication/lookup, reference replacement and deletion. Service fields and Store mutation methods are unexported; public adapter methods submit events, never set ownership. Persist the next intent before executing its external effect and feed its confirmed result back as an event. Snapshot/recovery constructors validate state invariants rather than accepting arbitrary adapter states.
+
+| Current state / event | Outcome and evidence |
+|---|---|
+| Preparing / CaptureComplete | Ready only after admission/generation/identity validation and private persistence; stale completion retires and deletes output. |
+| Preparing / queue or store bound | Ready with explicit unavailable reason; Save remains available. |
+| Preparing or Ready / Cancel or Expire | Retired, cancel worker and delete only draft-owned files. |
+| Ready / Save | Attaching with immutable request/note ID and intent persisted before writer emission. |
+| Attaching / WriteConfirmed | Attached only when the recorded note matches reserved ID and capture reference. |
+| Attaching / WriteAbsent | Return Ready if admission and TTL allow; otherwise retire. Absence requires writer completion/barrier or complete recovery replay, not a timeout. |
+| Attaching / Cancel, Expire or lost reply | Preserve intent and bytes, record abandonment, reconcile writer result. Confirmed write owns evidence despite cancellation; proven absence permits deletion. Never retry as a different note while this outcome is unknown. |
+| Attached / Publish | Transferring with submission ID, selected revision and source claim persisted before copying. |
+| Transferring / BundleConfirmed | Validate matching durable manifest/crop, atomically rebind then unlink source; become Bundled. |
+| Transferring / BundleAbsent | Release claim to Attached only after store reconciliation proves no published bundle. An error from Store.Prepare alone proves neither outcome. |
+| Transferring / Resolve | Mark cleanup requested; finish bundle reconciliation first. Published bundle survives, unneeded source/reference can then retire. |
+| Attached / Resolve | Retired and delete source after no outstanding publication claim. |
+| Bundled / new Publish | Retain old immutable bundle as source through transfer; failed new publication leaves old evidence usable. |
+| Bundled / Resolve | Retire note reference only; do not delete any published bundle. |
+| Retired / late callback or repeated cancel | Idempotent no-op except delete an unowned late temporary output. |
+
+At an operation's 36-second deadline the UI becomes editable and shows the reason; it never advertises an unconfirmed save. Unknown save displays “save not confirmed; retry Save note to check”, with the same request identity. Reconciliation does bounded lookups/barriers under the remaining operation budget; unresolved outcomes remain durable and are retried on explicit retry or startup, not in an unbounded worker. Cast-owned `Service.Close` cancels its worker context, prevents new work, waits within the capture cancellation bound, and leaves uncertain save/publication intents for recovery. Late callbacks enter Step with their generation and cannot revive retired work.
+
+**PQ-2 (ARCH-PURE): function-level strategies.** These named production functions are the mechanical seams and test targets:
+
+| Function | Adversarial strategy and independently checked invariant |
+|---|---|
+| `notes.ScoreAnchor` / JS `scoreAnchor` | Shared value fixtures varying text/identity/path/classes independently; conflicting evidence never yields eligibility and score does not depend on enumeration order. |
+| `notes.ChooseAnchor` / JS `chooseAnchor` | Permute candidates, duplicate the best one, and truncate enumeration; only a unique above-threshold winner with the required margin may return an ID. |
+| JS `projectRegion` | Degenerate/nonfinite original/current geometry and translated/scaled rectangles; result is finite with anchor-relative offsets preserved, or absent. |
+| `notedraft.Step` | Enumerate legal/illegal event pairs and bounded adversarial event sequences, including completion/cancel/save/resolve permutations; at most one authoritative owner, no deletion of claimed/attached evidence, no confirmation without matching evidence. Tests call the production Step, not a copied model. |
+| `notedraft.Reconcile` | Supply interrupted intent plus independently constructed recorded-note/bundle observations; unknown preserves evidence, proven absence can retire, matching durable evidence chooses its actual owner. |
+| `notedraft.Capacity` | Exact byte/count boundaries, reservations, metadata-only notes and repeated transfer/resolve cycles; reservations cannot overcommit and released ownership returns capacity once. |
+| `submission.Build` / v3 validation | Permute selected documents and origins, corrupt/miss captures and change policy; every selected ID appears exactly once, source provenance remains original and privacy cannot become less restrictive. |
+| Board conditional resolution | Race acknowledgment with edits/reopens/navigation; only the exact selected revision resolves and repeated acknowledgment is idempotent. |
+
+Stateful integration tests additionally cut execution after each durable intent/publication/reference write, reopen actual temporary stores and replay real records through Reconcile. The fake capture source records each snapshot's pixels/text/document so submit tests prove no new capture was requested.
+
+**PQ-3 (ARCH-FUNERAL): capacity and cleanup.** The 128-record capture limit counts preparing reservations, ready crops, attaching intents and attached source crops. Each unresolved transfer counts once, not once per copy. After confirmed publication/rebind, the small note-to-bundle reference is indexed separately and no longer consumes a capture slot or source-byte quota; its metadata is bounded by recording note limits and existing recording byte limits. Completed intents are deleted in the same durable reference transaction (or removed by idempotent recovery if interrupted). Retired records, tombstones and cancellation request dedupe are collected after the ten-minute request lifetime; pending callbacks retain only bounded generation IDs.
+
+A lightweight `Service.Sweep` runs on startup, before capacity admission and once a minute while active. It reconciles unresolved intents first, then removes expired unsaved records and references whose recording directory is proven absent, using the canonical recorded path and a successful filesystem read (permission/IO errors are unknown, not absence). This supplies cleanup for private captures outside a recording even when the recording is removed externally; no existing recording-delete callback is assumed. Cast end cancels unsaved work and stops the ticker; the next owner startup performs the same sweep. Attached captures for an existing recording survive cast end. Resolved/explicitly cleared notes retire references through the acknowledged board event callback; startup replay performs that cleanup if a process died first. Published bundle retention remains exclusively owned by the submission store. If retention removes the referenced bundle, future submission records explicit unavailable evidence and drops the dead reference; it never recreates pixels.
+
+This revision answers the gate's ownership, testing and cleanup classes without changing approved user-visible behavior. #537 clarification: resolved-by metadata is recording/replay/query only; no resolved-list/history/reopen UI in #538. Open-note list remains the sole added list.
