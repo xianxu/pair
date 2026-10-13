@@ -164,3 +164,27 @@ Keep delivery truth separate from supersession: add an optional superseded marke
 - [ ] Run affected Go packages and Lua/headless suites, fresh review and required boundary checks. Commit all changes, rebuild pair:0 from clean HEAD, verify go version -m bin/couch reports matching vcs.revision and vcs.modified=false, then send hash for smoke. Do not merge before acceptance.
 
 ARCH-ORDER: explicit supersession releases authority without fabricating delivery. ARCH-DRY: retain one durable manifest and one existing transition/write path. ARCH-CONSTRAINTS/ARCH-FUNERAL: no additional artifact family, no extra concurrency or retention budget, existing caps and cleanup remain.
+
+
+## Revisions — 2026-10-13 plan review PQ-1–PQ-3
+
+This refinement is authoritative over the preceding case inventory; executable tests own individual examples. No product-policy change from the operator's approved fresh-send rule.
+
+**PQ-1 acknowledgment owner (ARCH-ORDER):** the DOM pure model keeps bounded acknowledgment receipts independent of the current draft epoch. A confirmed send registers its ID/epoch; replies and deferred retries address that receipt, so a later send cannot consume it or make its done callback clear a new draft. At most 64 receipts, each at most 360 retries at 100 ms; the existing RPC timeout remains 4 s. Retry ack after transport error, busy/dispatched response or resolution error, without any pane-send effect. On exhaustion/capacity, retain durable evidence and notify with the exact existing couch --broadcast-web-submit ack ID command; do not freeze or consume the draft. Only a successful matching sent event clears that event's current draft. The adapter retains only current draft callbacks and active acknowledgment IDs, pruning completed receipts. No browser loops or background process added.
+
+The server retains one worker. Factor scheduling of a dispatched manifest into the existing manager path shared by ack and status: if busy, return dispatched; once idle, a repeated ack/status starts resolution, including after an earlier resolution failure. A late ack from an old attempt persists dispatched even while the successor is preparing; independent client retries resume it when free. Restart loses the volatile client receipts, not durable dispatched evidence; existing explicit ack/status ID is the recovery path and never resends agent text. New draft sends do not depend on recovery completing. Do not infer that a delivering manifest was received. Document that recovery after process restart is explicit, not automatic discovery.
+
+**PQ-2 transaction authority (ARCH-PURE/ORDER):** add a pure transition helper over Delivery plus Superseded. Supersede is legal/idempotent for prepared/delivering and preserves Delivery; begin refuses if superseded; actual ack remains legal only under the existing delivering/dispatched/resolved rules. Complete remains unchanged. Store serializes supersession, successor publication and acknowledgment under the existing Store.mu, not a second lock/ledger. Build the new bundle in staging first; durably mark each older same-target eligible manifest superseded using the extracted existing atomic manifest writer and directory-sync confirmation, then publish the successor. A crash between markers and publication leaves old evidence visibly superseded but not delivered; a fresh attempt proceeds. A partial marker/sync failure refuses publication; the next fresh attempt re-confirms already-marked eligible manifests and finishes remaining markers. A same-ID Prepare retry compares immutable contents excluding Delivery/Superseded and confirms only its own publication; it must never supersede a newer successor. No cross-file atomicity claim. Limits/corruption checks stay intact.
+
+**PQ-3 executable strategy (supersedes the earlier prose case inventory):**
+
+| Test surface | Adversarial strategy and mechanical guard |
+| --- | --- |
+| dom_submission_state.step | Drive reordered/stale send, preparation, sent and acknowledgment events; assert epoch/id fencing, fresh current bodies and bounded independent receipt retirement. |
+| DOM adapter and headless init | Stateful RPC and pane composer with controllable callback order/failure points; exercise production chord, edit and reload boundaries and assert only matching draft is consumed. |
+| submission.submit_operator_text | Stateful authored-log/pane fake across phase failures; fresh DOM transactions remain independent while ordinary retry invariants remain unchanged. |
+| Pure supersession transition and Store.Prepare/Transition/Pending | Table-drive legal delivery/disposition events; inject every publication checkpoint failure and reopen the store to verify ordering, retained truth, target isolation and successor-safe retries. |
+| submissionManager.request/resolve | Controlled one-worker scheduler with late ack, busy/failure/restart boundaries; assert ack/status resumes confirmed resolution without recapture or extra concurrent workers. |
+| Board.ResolveSelection | Existing captured-version and reopen race tests prove repeated/overlapping acknowledgments resolve each captured note version idempotently. |
+
+Validation commands remain the affected Go packages plus board, Lua model/adapter tests, and bounded headless transaction suites. Final clean-build VCS metadata and operator smoke remain required.
