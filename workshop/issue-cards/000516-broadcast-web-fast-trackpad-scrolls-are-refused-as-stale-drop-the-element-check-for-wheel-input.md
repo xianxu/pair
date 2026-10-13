@@ -1,6 +1,6 @@
 ---
 id: 000516
-status: working
+status: codecomplete
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.24
+tracker:
+    version: 1
+    completion:
+        token: close-194504a8dff6
+        repository: github.com/xianxu/pair
+        reviewed_head: 85a41d94315c0759eeec1f71a2f398adce87ef06
+        evidence_commit: f299bacc73309c45b3164511f8815e82ef9435e7
 ---
 
 # broadcast-web: fast trackpad scrolls are refused as stale; drop the element check for wheel input
