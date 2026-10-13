@@ -306,12 +306,12 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
   swatches.setAttribute('role', 'group');
   swatches.setAttribute('aria-label', 'Pointer color');
   const modeButtons = {};
-  for (const [mode, glyph] of (operator ? [['watch','Off'],['point','Pen'],['note','Note']] : [['point', '✏️'], ['note', '💭']])) {
+  for (const [mode, glyph] of [['point', '✏️'], ['note', '💭']]) {
     const b = el('button', 'mode', rail);
     b.type = 'button';
     b.textContent = glyph;
-    b.title = MODE_TIPS[mode] || 'Annotations off';
-    b.setAttribute('aria-label', MODE_TIPS[mode] || 'Annotations off');
+    b.title = MODE_TIPS[mode];
+    b.setAttribute('aria-label', MODE_TIPS[mode]);
     b.addEventListener('click', () => setMode(mode === state.mode ? 'watch' : mode));
     modeButtons[mode] = b;
   }
@@ -398,7 +398,7 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
     const reason = policy?.driver ? `${policy.driver} is driving.` : 'The cast is paused.';
     rail.classList.toggle('paused', off);
     for (const b of rail.querySelectorAll('button')) b.disabled = off;
-    for (const [m, b] of Object.entries(modeButtons)) b.title = off ? reason : (MODE_TIPS[m] || 'Annotations off');
+    for (const [m, b] of Object.entries(modeButtons)) b.title = off ? reason : MODE_TIPS[m];
     hint.textContent = operator && off ? reason : '';
     dialog.hold(off ? reason : ''); // an open note, or a pin opened while paused
   };

@@ -1432,3 +1432,8 @@ proof; record the surprising case so the next change starts from evidence.
   rule was restated in `Act`'s doc, `ErrStale`'s doc and `onTarget`'s comment; updating `Injector.Inject` and the
   atlas left three stale copies. Before committing a rule change, `rg` the rule's nouns (here "stale", "wheel")
   across the package and the atlas, and make every other site name the rule's owner instead of restating it.
+
+- #494 visual review: when mounting an existing viewer control inside another
+  surface, reuse its glyphs, tooltips and dimensions as well as its handlers.
+  Text labels substituted into icon-sized buttons can clip and make the two
+  surfaces needlessly different; inspect the actual embedded rail before handoff.

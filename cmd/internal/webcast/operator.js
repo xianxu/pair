@@ -46,7 +46,7 @@ export function operatorTransport(report, win) {
 
 export function mountOperator({ host, root, report }, { annotate, palette, css }, doc = document, win = window) {
   const style = doc.createElement('style');
-  style.textContent = css + '\n.operator-box{position:fixed;inset:0;pointer-events:none}.note-dialog{pointer-events:auto}.annotate.operator-driving{visibility:hidden}.operator-box~.annotate-rail .mode{width:44px;font-size:12px}.annotation-hint{max-width:120px;color:#222;background:#fff;border-radius:5px;font:12px/1.3 system-ui;text-align:right}.annotation-hint:empty{display:none}';
+  style.textContent = css + '\n.operator-box{position:fixed;inset:0;pointer-events:none}.note-dialog{pointer-events:auto}.annotate.operator-driving{visibility:hidden}.annotation-hint{max-width:120px;color:#222;background:#fff;border-radius:5px;font:12px/1.3 system-ui;text-align:right}.annotation-hint:empty{display:none}';
   root.appendChild(style);
   const box = doc.createElement('div'); box.className = 'operator-box'; root.appendChild(box);
   const transport = operatorTransport(report, win);

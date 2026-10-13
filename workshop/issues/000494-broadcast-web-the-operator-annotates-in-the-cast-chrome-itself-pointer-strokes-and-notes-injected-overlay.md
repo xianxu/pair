@@ -283,3 +283,17 @@ suppression protocol; extending those fakes without weakening fail-closed captur
   Unknown resolve stays conservative because its record has no operation-specific
   ID; matching target state alone cannot prove this operation committed. Targeted
   Operator race tests passed after a RED→GREEN regression.
+
+### 2026-10-12 — shared icon rail visual correction
+
+TL receipt 6804f5e6 requests the viewer's own pen ✏️ and note 💭 buttons and
+tooltips after inspecting the clipped word labels. Removed the operator-only
+Off/Pen/Note label branch and width/font override: both mounts now use the exact
+same rail. Off remains the default state; clicking the selected icon toggles Off,
+as in the viewer, and Escape also turns annotation off. #506 menu release is
+still pending; no menu changes.
+
+Validation: 13 targeted annotation/operator Node tests passed; the real headless
+Chrome annotation test passed (1.11s). Refreshed and inspected
+`/tmp/pair494-operator.png`: both icons fit the shared pills without clipped labels.
+`git diff --check` passed.

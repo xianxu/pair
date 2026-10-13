@@ -352,3 +352,10 @@ no menu edits or pair:0 staging have occurred. Remaining steps: menu release/mai
 merge, submission integration if #483 precedes us, operator smoke, single close
 review and SHIP-authorized merge. Project progress goes through hub/gate, not manual
 ops edits.
+
+### 2026-10-12 — operator rail matches viewer icons
+
+Per TL receipt 6804f5e6, reuse the viewer's ✏️/💭 icon buttons and existing
+tooltips exactly. Off is represented by neither icon selected; pressing an active
+icon or Escape returns Off. Removed operator-only word labels and sizing override.
+The annotation states and deferred Couch menu scope are unchanged.
