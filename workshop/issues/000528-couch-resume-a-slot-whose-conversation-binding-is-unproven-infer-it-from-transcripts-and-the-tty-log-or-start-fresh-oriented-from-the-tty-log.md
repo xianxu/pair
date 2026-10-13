@@ -258,6 +258,10 @@ M2 build/race checkpoint (2026-10-13 13:16 PDT): make build PASS; /tmp/pair528-m
 
 2026-10-13 — BR-8 verification: existing opt-in native-shape test now calls bounded production recovery parsing via RunRecoveryConformance, with redacted provenance/cwd/activity/authored-tail coverage and explicit unsupported/absent outcomes. Independent native-event normalization detects lost authored tails instead of silently skipping them. Drift, vanished-sample, skip outcomes and scratch real-OS reads pass targeted tests (0.165s) and targeted race (1.299s). Provenance-skip and dropped-authored-tail mutations both fail the regressions. Installed native scan was not run to preserve the live-slot investigation restriction; scratch files only. TL b70dbf44 still holds full-suite capacity at load274. No full suite or live slot action started.
 
+### 2026-10-13 — Reviewer flake retained for full-suite follow-up
+
+The final M2 reviewer observed unchanged `TestProvisionRecoveryLostSuccessPublication` fail in its broader couchcore race selection before the intended injection (`weave=0`); an isolated race rerun passed. This is a recorded intermittent failure, not evidence that the broader run passed or that its cause is established. The SHIP review and evidence are in the M2 review sidecar (2026-10-13 13:49 PDT). Per TL receipt 03a3a089-1fce-424f-9bb7-f55e62430275, file a separate issue if this failure recurs in our full run. Full-suite execution remains queued for the TL's capacity signal; no suite was started for this note.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against
