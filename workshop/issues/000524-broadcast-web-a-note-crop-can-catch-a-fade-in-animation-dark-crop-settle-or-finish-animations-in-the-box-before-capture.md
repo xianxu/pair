@@ -132,3 +132,8 @@ Existing TestLiveSubmissionCrop passes with merged #494 capture helper (3.11 s).
 ### 2026-10-13 — operator smoke blocker scope revision
 
 TL requested folding the #483 store scan blocker into #524 (receipt 0a7fad73-59a4-4f59-b9d7-fb7727002cc3). Finder's .DS_Store is treated as an invalid submission by Pending, which also gates Prepare. Ignore non-directory entries and directories whose names cannot be submission IDs; preserve strict validation of actual submission directories and existing storage bounds. ARCH-PURPOSE: foreign filesystem metadata must not prevent collecting the crop needed for smoke. Plan: reproduce with .DS_Store/dotfiles/stray files, change the scan filter, retain corrupt-bundle refusal, run store and affected integration tests, review the small diff, rebuild in pair:0 and hand back the measured HEAD for smoke.
+
+
+### 2026-10-13 — second smoke blocker, no-limbo recovery
+
+TL requested pre-dispatch draft release and an actionable uncertain-dispatch retry/discard path, plus recovery from the old-code freeze. Investigation: both Lua controllers keep frozen text only in process memory. The .DS_Store admission failure precedes preparation and writes no bundle. Existing server operations have no discard; begin persists intent before actual pane write. Proposed scoped lifecycle/API addition and tests appended to the durable plan for TL confirmation. Do not advertise the unrelated erase-history key as a submission discard. No implementation of this larger addition yet.

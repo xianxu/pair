@@ -91,3 +91,50 @@ ARCH-PURPOSE: target geometry alone does not bound animated paint. Direct target
 ## Revisions (2026-10-13 approval)
 
 TL approved conservative document-wide observation (receipt 3e4e0d53-b86b-4ca6-a147-d487a5cef374). Replace all target-geometry exclusions with observation of every active animation in the top document and accessible open shadow roots. Painted influence includes children, pseudo-elements, shadows, filters, outlines and other paint expansion; no CSS paint-bound approximation is attempted. Unrelated off-box animations may consume the wait or mark evidence unsettled. Unchanged 1500 ms/note, 50 ms polls, 512 animations, 20k traversal, 30 s total; crossing limits explicitly marks unsettled. This supersedes earlier claims that plain off-box leaves are safely irrelevant. #494 is now merged; CaptureCrops uses its exact-context CaptureScreenshot helper with captureBeyondViewport=false. Stage only when TL says.
+
+
+## Revisions — 2026-10-13 smoke-blocking draft recovery proposal
+
+The operator's smoke exposed a second #483 defect after Finder metadata refused preparation: the DOM controller retained the original authored body, rejected edits, and advertised no recovery. TL requested editable pre-dispatch retries plus an actionable frozen-draft retry/discard path (71346ea3-9dee-45c6-b971-fe47f1fed593), including recovery from the old code's freeze (7f4c46f7-dbd0-4a29-b74c-106a766b7b38). This revision is proposed for TL review before its larger lifecycle/API addition. The completed Finder scan fix is independent and already built at dd1279335ea07eedf21f7ecbc1a9e3d2ab951729.
+
+### Core concepts
+
+| Name | Lives in | Status |
+| --- | --- | --- |
+| Draft submission attempt | nvim/dom_submission_state.lua | modified |
+| Authored send retry | nvim/submission.lua | modified |
+| Delivery lifecycle | cmd/internal/submission/delivery.go | modified |
+
+| Name | Lives in | Status | Wraps |
+| --- | --- | --- | --- |
+| DOM effect adapter | nvim/dom_submission.lua | modified | callbacks and submission RPC |
+| Draft keybindings | nvim/init.lua | modified | Neovim draft and confirmation |
+| Submission manager | cmd/internal/couchtty/console_submission.go | modified | stored bundles and exact target |
+| Submission command protocol | cmd/internal/couchmessage/protocol.go, cmd/internal/couchcmd/submission.go | modified | private Couch RPC |
+| Submission store | cmd/internal/submission/store.go | modified | durable terminal state |
+
+### Behavior and invariants
+
+ARCH-ORDER: distinguish capture/intent from a pane write. Preparation and begin RPC failures do not freeze authored text. Keep the admitted ID when an RPC outcome is ambiguous so retry can inspect the same server work, but accept new body/text and regenerate the prompt from retained capture metadata before pane dispatch. A definite failed preparation drops the attempt. In particular, an error from prepare before job admission must not retain the original body as a lock.
+
+The generic sender reports its phase as a second return value, propagated through the init wrapper and DOM adapter. A definite start-phase failure (append/target validation before pane write) releases authored text. Written or indeterminate retains the original body, generated prompt, target and ID. A confirmed dispatch remains acknowledgment-only; retry never sends it again. Existing indeterminate-write refusal remains explicit: a partially written composer requires manual reconciliation; never paste blindly over it.
+
+Provide a real discard operation for an idle uncertain attempt, tentatively Ctrl+Shift+Alt+Backspace. Confirmation explains that it cannot undo a possible send and the operator must clear any partial agent composer. The operation terminalizes the existing bundle as discarded, retains local evidence under the existing store cap, and leaves notes unresolved. It then releases the matching generic attachment and DOM attempt; it preserves the editable draft. Never reset an unrelated generic send, an active preparation, or confirmed dispatch awaiting acknowledgment. Discard RPC failures retain the attempt and expose retry. Duplicate discard is idempotent; a lost reply can be retried. A new preparation excludes discarded bundles. No deletion, fabricated acknowledgment, or note resolution.
+
+Actionable uncertainty text names the DOM send chord and actual discard chord. Retry uses the saved original payload without asking the operator to reproduce it; if the visible draft has since changed, retain those edits rather than consuming them when the original is sent. Do not silently overwrite the current buffer. Exact presentation of the two actions and key awaits TL confirmation.
+
+ARCH-DRY: the delivery transition function owns the new terminal transition, and the existing private request validator enumerates the operation once. No second delivery ledger. ARCH-FUNERAL/CONSTRAINTS: discarded bundles remain under current byte/count caps and explicit local cleanup, matching resolved evidence. Existing retry/observation deadlines remain bounded.
+
+### Old-build recovery
+
+The old original-body freeze lives only in each Neovim controller's Lua memory; it is not persisted in the draft file. Fresh draft startup initializes idle, preserving the operator's current text. The specific .DS_Store admission refusal created no bundle. A durable delivering manifest is different: it records intent and cannot prove whether a pane write occurred after a crash. Do not automatically release that uncertainty based only on its name. Prepared manifests are known not yet begun; a migration/recovery test must distinguish these states without treating delivering as unsent.
+
+### Implementation and proof (single additional review boundary)
+
+- [ ] Add failing pure-model and adapter tests: prepare error → edit → successful submit uses new body; invalid path/timeout/begin failure before pane write allows editing; stale replies cannot freeze or send a successor.
+- [ ] Add generic sender phase-result tests: append/start failure allows replacement; written/indeterminate freezes exact payload; dispatched remains commit/ack only.
+- [ ] Add delivery/store/manager/protocol tests for target-scoped discard, duplicate/lost reply, terminal admission exclusion, retained evidence, no note resolution, and refusal during busy/acknowledgment work.
+- [ ] Implement those model transitions and thin adapter effects, with a confirmation binding and actionable messages. Preserve modified current drafts on original-payload retry.
+- [ ] Extend stateful headless Neovim fixture for prepare-error/edit/resubmit, uncertain dispatch/retry-original, discard/new attempt, stale callbacks, and a freshly initialized controller with edited disk draft after an old-code admission refusal.
+- [ ] Run lua nvim/dom_submission_state_test.lua, lua nvim/dom_submission_test.lua, lua nvim/submission_test.lua; run tests/submission-transaction-nvim-test.sh with bounded headless cases. Run GOMAXPROCS=2 go test -p 1 ./cmd/internal/submission ./cmd/internal/couchmessage ./cmd/internal/couchcmd ./cmd/internal/couchtty ./cmd/internal/webcast -count=1.
+- [ ] Update atlas/webcast-submission.md for recovery and the real discard key; run required close review and suite, then make build in pair:0, verify actual HEAD, hand off fresh-thread smoke, and wait for acceptance before landing.
