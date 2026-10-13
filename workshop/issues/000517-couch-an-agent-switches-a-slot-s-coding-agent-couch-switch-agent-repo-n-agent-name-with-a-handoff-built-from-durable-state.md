@@ -68,6 +68,13 @@ Durable plan: [agent switch plan](../plans/000517-agent-switch-plan.md).
 
 ## Log
 
+- 2026-10-12 recovery evidence: after continuation commit d32489907, this
+  session received no automatic orientation. TL ops:0 supplied the continuation
+  path and next action in verified receipt b75ae41d-6538-4630-ad7c-ad8f751b48d5.
+  Recovery required that external pointer despite durable M1 code at 5392b48c0.
+  This demonstrates the missing pickup path #517 must cover; it does not yet
+  establish the transport cause or prove a fix.
+
 - 2026-10-12 M1 implementation checkpoint: persisted exact previous-session
   descriptor before target launch, retaining it through registration and failed
   retries; added previous/full peek selection and bounded CLI-only replay under
