@@ -57,13 +57,23 @@ func (c *Console) statusModelLocked() StatusModel {
 			rows[index].WorkingPath = rows[index].StartingPath
 		}
 	}
-	for _, entry := range PresentThreads(rows, c.menu.SlotGit) {
+	for _, entry := range PresentThreads(rows, c.menu.SlotGit, c.menu.Hub) {
 		actor, found := members[entry.Row.Address]
 		if !found {
 			continue
 		}
-		actor.Label, actor.GroupKey, actor.SlotNumber, actor.Glyph = entry.Label, entry.GroupKey, entry.SlotNumber, entry.Glyph
+		actor.Label, actor.GroupKey, actor.SlotNumber, actor.Glyph, actor.Hub = entry.Label, entry.GroupKey, entry.SlotNumber, entry.Glyph, entry.Hub
 		model.Actors = append(model.Actors, actor)
 	}
 	return model
+}
+
+// SetHub records the hub slot's worktree root (pair#491): the checkout Couch
+// started from. The tab bar and the switcher lead with it and put every other
+// slot in its section. Couch sets it once, at startup.
+func (c *Console) SetHub(root string) {
+	c.mu.Lock()
+	c.menu, _ = ReduceMenu(c.menu, MenuEvent{Kind: MenuEventHub, Hub: root})
+	c.mu.Unlock()
+	c.repaint()
 }

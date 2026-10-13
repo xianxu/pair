@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/procutil"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 // TestHelperGuardProcess is not a test: re-executed by the guard tests, it
@@ -89,27 +90,20 @@ func startGuard(t *testing.T, guardArgs []string, script string) *guardRun {
 
 func waitFile(t *testing.T, path string) string {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
-	for {
-		if b, err := os.ReadFile(path); err == nil && len(strings.TrimSpace(string(b))) > 0 {
-			return strings.TrimSpace(string(b))
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("%s never written", path)
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
+	var got string
+	testwait.Until(t, path+" written", func() bool {
+		b, err := os.ReadFile(path)
+		got = strings.TrimSpace(string(b))
+		return err == nil && got != ""
+	})
+	return got
 }
 
-func waitDead(t *testing.T, pid string, within time.Duration) {
+// waitDead waits for pid to exit, bounded by the test's deadline rather than a
+// wall-clock window a loaded machine can outlast (#487).
+func waitDead(t *testing.T, pid string) {
 	t.Helper()
-	deadline := time.Now().Add(within)
-	for procutil.Alive(pid) {
-		if time.Now().After(deadline) {
-			t.Fatalf("pid %s still alive after %v", pid, within)
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
+	testwait.Until(t, "pid "+pid+" to exit", func() bool { return !procutil.Alive(pid) })
 }
 
 func TestGuardStopsGroupWhenOwnerGoes(t *testing.T) {
@@ -128,8 +122,8 @@ func TestGuardStopsGroupWhenOwnerGoes(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("guard did not stop")
 	}
-	waitDead(t, strconv.Itoa(g.child), 2*time.Second)
-	waitDead(t, grandchild, 2*time.Second)
+	waitDead(t, strconv.Itoa(g.child))
+	waitDead(t, grandchild)
 	if _, err := os.Stat(private); !os.IsNotExist(err) {
 		t.Fatalf("private directory survived: %v", err)
 	}
@@ -150,7 +144,7 @@ func TestGuardEscalatesToKill(t *testing.T) {
 	if d := time.Since(start); d < 150*time.Millisecond {
 		t.Fatalf("killed after %v, before the grace period", d)
 	}
-	waitDead(t, strconv.Itoa(g.child), 2*time.Second)
+	waitDead(t, strconv.Itoa(g.child))
 }
 
 func TestGuardExitsWithChild(t *testing.T) {

@@ -21,3 +21,9 @@ body.paused .paused-label { display: block; }
 body.paused .box iframe { filter: grayscale(.6) opacity(.85); }
 .message { margin: 48px auto; max-width: 560px; padding: 0 16px; color: var(--muted); text-align: center; }
 .message[hidden] { display: none; }
+
+/* What the recording can't hold (pair#513): an outline and a label where
+   it is drawn, never taking input. */
+.uncaptured { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 2; }
+.uncaptured-mark { position: absolute; box-sizing: border-box; outline: 1px dashed rgba(255, 255, 255, 0.55); outline-offset: -1px; }
+.uncaptured-mark span { position: absolute; left: 4px; top: 4px; padding: 1px 6px; border-radius: 4px; font: 11px/1.4 system-ui, sans-serif; color: #fff; background: rgba(0, 0, 0, 0.65); white-space: nowrap; }

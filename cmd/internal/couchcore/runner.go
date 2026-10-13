@@ -49,12 +49,18 @@ type Handle interface {
 	// sessionwatch/run.go:143 re-authorizes for exactly this reason.
 	Identity() string
 	Alive() bool
+	// Exited closes when the direct child has exited. Alive answers for its
+	// whole process group, which can outlive it.
+	Exited() <-chan struct{}
 	Signal(os.Signal) error
 	Wait() int
 }
 
 type ExecRunner struct {
 	LaunchHelper string
+	// Nice is the niceness a blocked start's process group runs at; 0 leaves
+	// it at Couch's own (#498).
+	Nice int
 }
 
 var _ Runner = ExecRunner{}
@@ -68,7 +74,7 @@ func (ExecRunner) Start(dir string, argv, env []string) (Handle, error) {
 }
 
 func (r ExecRunner) StartBlocked(ctx context.Context, dir string, argv, env []string, timeout time.Duration) (BlockedHandle, error) {
-	return startBlockedChild(ctx, startExecChild, r.LaunchHelper, dir, argv, env, timeout)
+	return startBlockedChild(ctx, startExecChild, r.LaunchHelper, r.Nice, dir, argv, env, timeout)
 }
 
 func startExecChild(dir string, argv, env []string, extraFiles []*os.File) (Handle, error) {
@@ -171,6 +177,9 @@ func (h *execHandle) Identity() string { return h.identity }
 func (h *execHandle) Alive() bool { return ownedProcessGroupAlive(h.pid) }
 
 func (h *execHandle) Signal(sig os.Signal) error { return signalOwnedProcessGroup(h.pid, sig) }
+
+// Exited closes once the direct child has been reaped.
+func (h *execHandle) Exited() <-chan struct{} { return h.done }
 
 func (h *execHandle) Wait() int {
 	<-h.done

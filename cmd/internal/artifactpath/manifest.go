@@ -233,6 +233,8 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/pairlog/retention.go", Kind: ResolvedConsumer, Families: []string{"log"}, BindingNames: []string{"scoped-log"}, Vocabulary: []VocabularyAllowance{goCallVocabulary("log", "prompt-log-writer", "github.com/xianxu/pair/cmd/internal/storagegc.AcquireSelectedProcess", 2, 1)}},
 	{Path: "cmd/internal/orientation/model.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/couchcmd/shortcut_focus.go", Kind: ResolvedConsumer},
+	// #488: a note's anchor reads the slot's draft through its resolved Paths.
+	{Path: "cmd/internal/couchcmd/note_panes.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/changelogcmd/changelogcmd.go", Kind: ResolvedConsumer, Families: []string{"changelog"}, BindingNames: []string{"matched-changelog-family"}, Vocabulary: []VocabularyAllowance{
 		goCallVocabulary("changelog", "changelog-render", "github.com/xianxu/pair/cmd/internal/storagegc.AcquireSelectedProcess", 2, 1),
 	}},
@@ -797,6 +799,10 @@ var NonArtifactSources = []string{
 	"cmd/internal/webcast/server_drive.go",
 	"cmd/internal/webcast/recorder/drive.go",
 	"cmd/internal/webcast/recorder/drive_cdp.go",
+	// #501 go to Chrome: activates the cast Chrome's process by PID. No
+	// files, no paths.
+	"cmd/internal/webcast/activate_darwin.go",
+	"cmd/internal/webcast/activate_other.go",
 	"cmd/internal/ptychild/publication.go",
 	"cmd/internal/ptychild/terminal.go",
 	"cmd/internal/runtimebundle/terminal.go",
@@ -807,6 +813,9 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchtty/console_broadcast.go",
 	"cmd/internal/couchtty/console_pointer.go",
 	"cmd/internal/couchtty/console_notes.go",
+	// #488 note anchors: screen layout and pane geometry; no artifact paths.
+	"cmd/internal/couchtty/console_noteanchor.go",
+	"cmd/internal/couchtty/noteanchor.go",
 	"cmd/internal/couchtty/notes_menu.go",
 	"cmd/internal/couchcmd/broadcast.go",
 	"cmd/internal/couchcmd/broadcast_list.go",
@@ -1179,6 +1188,9 @@ var NonArtifactSources = []string{
 	"cmd/internal/sessioninventory/handshake.go",
 	"cmd/internal/sessioninventory/inventory.go",
 	"cmd/internal/sessioninventory/incremental_inventory.go",
+	// #507: owners' current launches cached by ledger fingerprint, in
+	// memory; holds no paths of its own.
+	"cmd/internal/sessioninventory/launch_cache.go",
 	"cmd/internal/sessioninventory/jsonl_incremental.go",
 	"cmd/internal/sessioninventory/model.go",
 	"cmd/internal/sessioninventory/offline.go",
@@ -1237,6 +1249,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcmd/live_restart_probe.go",
 	"cmd/internal/couchcore/slot_prepare.go",
 	"cmd/internal/couchcmd/prepare.go",
+	"cmd/internal/couchcmd/nice.go",
 	"cmd/internal/couchmessage/build.go",
 	"cmd/internal/zellijpane/zellijpane.go",
 	"cmd/internal/zellijsession/zellijsession.go",

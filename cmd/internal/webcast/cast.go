@@ -170,7 +170,7 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 	} else {
 		c.driveOff = "the cast isn't recorded"
 	}
-	srv := NewServer(token, b, cfg.Ping, live, cfg.Presence).WithBoard(bd).WithDrive(c.drive, driveToken)
+	srv := NewServer(token, b, cfg.Ping, live, cfg.Presence).WithBoard(bd).WithDrive(c.drive, driveToken).WithDriveLog(cfg.Logf)
 	srv.proxy = proxy
 	c.server, c.token, c.driveToken = srv, token, driveToken
 	go c.run(mountCtx, cfg.Host, srv, token)
@@ -340,6 +340,9 @@ func (c *Cast) Subscribe() (<-chan Update, func()) { return c.pub.subscribe() }
 func (c *Cast) ToggleLive() error {
 	return c.browser.SetLive(c.browser.State().Phase != PhaseLive)
 }
+
+// Focus brings the cast tab and its Chrome window to the front (#501).
+func (c *Cast) Focus() error { return c.browser.Focus() }
 
 // End ends the cast and closes Chrome; it returns once the link is closed.
 func (c *Cast) End() {

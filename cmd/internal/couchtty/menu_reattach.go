@@ -430,14 +430,22 @@ func menuRowSelectable(state MenuState, address couchcore.ThreadAddress) bool {
 // returns the prior rows, which frame reconciliation compares against.
 func replaceMenuInventory(state MenuState, inventory []couchcore.ActionableThreadSummary) (MenuState, []couchcore.ActionableThreadSummary) {
 	previous := append([]couchcore.ActionableThreadSummary(nil), state.Inventory...)
-	state.Inventory = orderedMenuInventory(inventory)
+	state.Inventory = orderedMenuInventory(inventory, state.Hub)
 	return state, previous
+}
+
+// reorderMenuInventory re-sorts the installed inventory after the order's
+// inputs change (the hub, pair#491). Rows are unchanged, so frames need no
+// reconciliation.
+func reorderMenuInventory(state MenuState) MenuState {
+	state.Inventory = orderedMenuInventory(state.Inventory, state.Hub)
+	return state
 }
 
 // orderedMenuInventory derives order when a snapshot enters the reducer. Viewed
 // lookups can then overlay pass state without sorting again on each keystroke.
-func orderedMenuInventory(inventory []couchcore.ActionableThreadSummary) []couchcore.ActionableThreadSummary {
-	entries := PresentThreads(inventory, nil)
+func orderedMenuInventory(inventory []couchcore.ActionableThreadSummary, hub string) []couchcore.ActionableThreadSummary {
+	entries := PresentThreads(inventory, nil, hub)
 	rows := make([]couchcore.ActionableThreadSummary, len(entries))
 	for i, entry := range entries {
 		rows[i] = entry.Row

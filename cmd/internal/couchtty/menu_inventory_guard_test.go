@@ -28,6 +28,7 @@ var inventoryReadersAllowed = map[string]bool{
 	"menuRows":             true, // the view: every row
 	"menuThread":           true, // the view: one row
 	"replaceMenuInventory": true, // installs a new inventory
+	"reorderMenuInventory": true, // re-sorts the installed one when the hub changes
 	"cloneMenuState":       true, // copies state by value
 	"reconcileMenuFrames":  true, // compares the prior inventory against the new one
 }

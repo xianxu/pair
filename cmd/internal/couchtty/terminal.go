@@ -101,8 +101,9 @@ func (c *Console) commitChrome(row RenderedStatusRow) {
 	c.mu.Lock()
 	c.statusChips = row.Chips
 	c.statusControl = row.Control
-	c.statusPointer, c.statusRemote, c.statusNotes = row.Pointer, row.Remote, row.Notes
-	c.statusWebcast, c.statusWebNotes, c.statusWebDrive = row.Webcast, row.WebNotes, row.WebDrive
+	c.statusPointer, c.statusNotes = row.Pointer, row.Notes
+	c.statusWebcast, c.statusWebFocus, c.statusWebNotes, c.statusWebDrive = row.Webcast, row.WebFocus, row.WebNotes, row.WebDrive
+	c.statusWebViewLink, c.statusWebDriveLink = row.WebViewLink, row.WebDriveLink
 	first := !c.framePainted
 	c.framePainted = true
 	var shown couchcore.ThreadAddress

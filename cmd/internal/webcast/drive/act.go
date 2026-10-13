@@ -52,8 +52,8 @@ const (
 )
 
 // Act is one viewer action. ID is the element the viewer's shell hit at X,
-// Y (its nodeAt), for down, click and wheel: the injector refuses the act
-// if the tab has another element there now (ErrStale).
+// Y (its nodeAt), for down, click and wheel; Injector.Inject states when the
+// tab refuses an act for it (ErrStale).
 type Act struct {
 	A      string           `json:"a"`
 	ID     recording.NodeID `json:"id,omitempty"`

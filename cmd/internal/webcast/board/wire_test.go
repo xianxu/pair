@@ -8,8 +8,7 @@ import (
 
 const (
 	goodStroke = `{"viewer":{"id":"ana","name":"Ana"},"seg":1,"id":"s1","color":2,"pts":[[1,2,0],[3.5,4,16]]}`
-	goodNote   = `{"viewer":{"id":"ana","name":" Ana "},"seg":1,"node":7,"box":[1,2,3,4],"color":0,"text":"Too small"}`
-	goodRegion = `{"viewer":{"id":"ana"},"seg":2,"node":7,"box":[1,2,3,4],"region":[10,20,30,40],"color":5,"text":"here"}`
+	goodNote   = `{"viewer":{"id":"ana","name":" Ana "},"seg":2,"node":7,"box":[1,2,3,4],"region":[10,20,30,40],"color":5,"text":"Too small"}`
 	goodState  = `{"viewer":{"id":"ana","name":"Ana"},"id":"0123abcd","state":"resolved"}`
 )
 
@@ -19,12 +18,8 @@ func TestParseAcceptsWellFormedRequests(t *testing.T) {
 		t.Errorf("stroke %+v %v", s, err)
 	}
 	n, err := ParseNote([]byte(goodNote))
-	if err != nil || n.Viewer.Name != "Ana" || n.Node != 7 || n.Box != [4]float64{1, 2, 3, 4} || n.Region != nil || n.Text != "Too small" {
+	if err != nil || n.Viewer.Name != "Ana" || n.Node != 7 || n.Box != [4]float64{1, 2, 3, 4} || n.Region != [4]float64{10, 20, 30, 40} || n.Text != "Too small" {
 		t.Errorf("note %+v %v", n, err)
-	}
-	n, err = ParseNote([]byte(goodRegion))
-	if err != nil || n.Region == nil || *n.Region != [4]float64{10, 20, 30, 40} || n.Viewer.Name != "" {
-		t.Errorf("region note %+v %v", n, err)
 	}
 	st, err := ParseNoteState([]byte(goodState))
 	if err != nil || st.ID != "0123abcd" || st.State != "resolved" {
@@ -57,18 +52,23 @@ func TestParseRefusals(t *testing.T) {
 		{"stroke: negative dt", stroke, `{"viewer":{"id":"a"},"seg":1,"id":"s","color":0,"pts":[[1,1,-1]]}`},
 		{"stroke: two objects", stroke, goodStroke + goodStroke},
 		{"note: no box", note, `{"viewer":{"id":"a"},"seg":1,"node":7,"color":0,"text":"x"}`},
-		{"note: 3-box", note, `{"viewer":{"id":"a"},"seg":1,"node":7,"box":[1,2,3],"color":0,"text":"x"}`},
-		{"note: negative width", note, `{"viewer":{"id":"a"},"seg":1,"node":7,"box":[1,2,-3,4],"color":0,"text":"x"}`},
+		{"note: 3-box", note, `{"viewer":{"id":"a"},"seg":1,"node":7,"box":[1,2,3],"region":[1,2,3,4],"color":0,"text":"x"}`},
+		{"note: negative width", note, `{"viewer":{"id":"a"},"seg":1,"node":7,"box":[1,2,-3,4],"region":[1,2,3,4],"color":0,"text":"x"}`},
+		{"note: no region (every note has a box, #488)", note, `{"viewer":{"id":"a"},"seg":1,"node":7,"box":[1,2,3,4],"color":0,"text":"x"}`},
+		{"note: 3-region", note, `{"viewer":{"id":"a"},"seg":1,"node":7,"box":[1,2,3,4],"region":[1,2,3],"color":0,"text":"x"}`},
+		{"note: null region", note, `{"viewer":{"id":"a"},"seg":1,"node":7,"box":[1,2,3,4],"region":null,"color":0,"text":"x"}`},
+		{"note: NaN-ish region", note, `{"viewer":{"id":"a"},"seg":1,"node":7,"box":[1,2,3,4],"region":[1,2,"NaN",4],"color":0,"text":"x"}`},
+		{"note: huge region", note, `{"viewer":{"id":"a"},"seg":1,"node":7,"box":[1,2,3,4],"region":[1,2,2e6,4],"color":0,"text":"x"}`},
 		{"note: empty region", note, `{"viewer":{"id":"a"},"seg":1,"node":7,"box":[1,2,3,4],"region":[1,2,0,4],"color":0,"text":"x"}`},
-		{"note: node 0", note, `{"viewer":{"id":"a"},"seg":1,"node":0,"box":[1,2,3,4],"color":0,"text":"x"}`},
-		{"note: blank text", note, `{"viewer":{"id":"a"},"seg":1,"node":7,"box":[1,2,3,4],"color":0,"text":" \n "}`},
-		{"note: long text", note, `{"viewer":{"id":"a"},"seg":1,"node":7,"box":[1,2,3,4],"color":0,"text":"` + long + `"}`},
-		{"note: bidi override", note, `{"viewer":{"id":"a"},"seg":1,"node":7,"box":[1,2,3,4],"color":0,"text":"a‮b"}`},
-		{"note: control char", note, `{"viewer":{"id":"a"},"seg":1,"node":7,"box":[1,2,3,4],"color":0,"text":"a\u0007"}`},
-		{"note: newline in name", note, `{"viewer":{"id":"a","name":"A\nB"},"seg":1,"node":7,"box":[1,2,3,4],"color":0,"text":"x"}`},
-		{"note: long name", note, `{"viewer":{"id":"a","name":"` + strings.Repeat("n", 41) + `"},"seg":1,"node":7,"box":[1,2,3,4],"color":0,"text":"x"}`},
-		{"note: operator", note, `{"viewer":{"id":"operator"},"seg":1,"node":7,"box":[1,2,3,4],"color":0,"text":"x"}`},
-		{"note: invalid UTF-8", note, "{\"viewer\":{\"id\":\"a\"},\"seg\":1,\"node\":7,\"box\":[1,2,3,4],\"color\":0,\"text\":\"\xff\"}"},
+		{"note: node 0", note, `{"viewer":{"id":"a"},"seg":1,"node":0,"box":[1,2,3,4],"region":[1,2,3,4],"color":0,"text":"x"}`},
+		{"note: blank text", note, `{"viewer":{"id":"a"},"seg":1,"node":7,"box":[1,2,3,4],"region":[1,2,3,4],"color":0,"text":" \n "}`},
+		{"note: long text", note, `{"viewer":{"id":"a"},"seg":1,"node":7,"box":[1,2,3,4],"region":[1,2,3,4],"color":0,"text":"` + long + `"}`},
+		{"note: bidi override", note, `{"viewer":{"id":"a"},"seg":1,"node":7,"box":[1,2,3,4],"region":[1,2,3,4],"color":0,"text":"a‮b"}`},
+		{"note: control char", note, `{"viewer":{"id":"a"},"seg":1,"node":7,"box":[1,2,3,4],"region":[1,2,3,4],"color":0,"text":"a\u0007"}`},
+		{"note: newline in name", note, `{"viewer":{"id":"a","name":"A\nB"},"seg":1,"node":7,"box":[1,2,3,4],"region":[1,2,3,4],"color":0,"text":"x"}`},
+		{"note: long name", note, `{"viewer":{"id":"a","name":"` + strings.Repeat("n", 41) + `"},"seg":1,"node":7,"box":[1,2,3,4],"region":[1,2,3,4],"color":0,"text":"x"}`},
+		{"note: operator", note, `{"viewer":{"id":"operator"},"seg":1,"node":7,"box":[1,2,3,4],"region":[1,2,3,4],"color":0,"text":"x"}`},
+		{"note: invalid UTF-8", note, "{\"viewer\":{\"id\":\"a\"},\"seg\":1,\"node\":7,\"box\":[1,2,3,4],\"region\":[1,2,3,4],\"color\":0,\"text\":\"\xff\"}"},
 		{"state: bad state", state, `{"viewer":{"id":"a"},"id":"n","state":"done"}`},
 		{"state: no viewer", state, `{"id":"n","state":"open"}`},
 		{"state: operator", state, `{"viewer":{"id":"operator"},"id":"n","state":"open"}`},
@@ -87,7 +87,7 @@ func state(b []byte) error  { _, err := ParseNoteState(b); return err }
 // The parsers never panic, never echo input in an error, and what they
 // accept is within bounds.
 func FuzzParse(f *testing.F) {
-	for _, s := range []string{goodStroke, goodNote, goodRegion, goodState, `{"viewer":{"id":"operator"}}`, "\xff", `{"pts":[[1e999]]}`, strings.Repeat("[", 10000)} {
+	for _, s := range []string{goodStroke, goodNote, goodNote[:len(goodNote)/2], strings.Replace(goodNote, "[10,20,30,40]", "[10,20,-30,40]", 1), goodState, `{"viewer":{"id":"operator"}}`, "\xff", `{"pts":[[1e999]]}`, strings.Repeat("[", 10000)} {
 		f.Add([]byte(s))
 	}
 	f.Fuzz(func(t *testing.T, body []byte) {
@@ -99,7 +99,7 @@ func FuzzParse(f *testing.F) {
 			t.Errorf("error %v", err)
 		}
 		if n, err := ParseNote(body); err == nil {
-			if n.Viewer.ID == Operator || n.Node < 1 || len(n.Text) > 1024 || n.Box[2] < 0 || n.Box[3] < 0 {
+			if n.Viewer.ID == Operator || n.Node < 1 || len(n.Text) > 1024 || n.Box[2] < 0 || n.Box[3] < 0 || n.Region[2] < 1 || n.Region[3] < 1 {
 				t.Errorf("accepted out of bounds: %+v", n)
 			}
 		} else if err != ErrShape {

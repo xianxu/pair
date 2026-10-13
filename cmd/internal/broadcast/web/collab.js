@@ -107,6 +107,50 @@ export function renderSwatches(el, palette, current, pick, make) {
 
 export const MAX_NOTE_BYTES = 1024;
 
+// Note boxes (#488): every note is a box on the screen, the area a
+// submission crops. A drag draws it; a tap gets the default box, a tenth
+// of the screen each way, centred on the tap. Both casts call gestureBox in
+// their own units: the terminal in cells (cells: true; a drag covers the
+// cells it touched, and a box is at least the pin's two cells), the web
+// cast in top-page CSS px. view is the screen shown, {x, y, w, h}; min is
+// how far (either axis) a drag must go to be one (DRAG_MIN). The box is
+// [x, y, w, h], inside view.
+export const DRAG_MIN = {
+  cells: { mouse: 1, touch: 2 },
+  px: { mouse: 8, touch: 16 },
+};
+
+export function dragMin(unit, pointerType) {
+  return DRAG_MIN[unit][pointerType === 'touch' ? 'touch' : 'mouse'];
+}
+
+export function gestureBox(from, to, view, { min, cells = false }) {
+  const tap = Math.abs(to[0] - from[0]) < min && Math.abs(to[1] - from[1]) < min;
+  const minW = cells ? 2 : 1, minH = 1;
+  const axis = (a, b, origin, size, least) => {
+    if (tap) {
+      const span = Math.min(size, Math.max(least, cells ? Math.round(size / 10) : size / 10));
+      const start = cells ? a - Math.floor(span / 2) : a - span / 2;
+      return [Math.min(Math.max(start, origin), origin + size - span), span];
+    }
+    let lo = Math.max(Math.min(a, b), origin);
+    const hi = Math.min(Math.max(a, b) + (cells ? 1 : 0), origin + size);
+    let span = Math.max(hi - lo, least);
+    span = Math.min(span, size);
+    lo = Math.min(lo, origin + size - span);
+    return [lo, span];
+  };
+  const [x, w] = axis(from[0], to[0], view.x, view.w, minW);
+  const [y, h] = axis(from[1], to[1], view.y, view.h, minH);
+  const r = cells ? (v) => v : (v) => Math.round(v * 10) / 10;
+  return [r(x), r(y), r(w), r(h)];
+}
+
+// boxCentre is a box's middle, where a note anchors.
+export function boxCentre(b) {
+  return [b[0] + b[2] / 2, b[1] + b[3] / 2];
+}
+
 // noteBytes counts UTF-8 bytes, as Couch's cap does.
 export function noteBytes(text) {
   return new TextEncoder().encode(text).length;
@@ -127,9 +171,13 @@ export function noteBytes(text) {
 //   update(list)               a new notes list: a viewed note that is gone
 //                              (resolved elsewhere, or pointing turned off)
 //                              closes its dialog
+//   hold(reason)               a non-empty reason disables Save and Resolve
+//                              and says why (a paused web cast, pair#499);
+//                              '' releases it. A draft keeps its text.
 //   close()
 export function noteDialog(els, deps) {
   let state = null; // {kind: 'draft', payload} | {kind: 'view', id}
+  let held = ''; // why Save and Resolve are off; '' when they are on
   const resolveRequest = deps.resolveRequest || ((id) => ['resolve', { id }]);
   // Each open bumps the generation; a request's answer applies only to the
   // dialog that sent it, not to one opened since.
@@ -141,7 +189,7 @@ export function noteDialog(els, deps) {
   const refreshCount = () => {
     const n = noteBytes(els.input.value);
     els.count.textContent = `${n} / ${MAX_NOTE_BYTES}`;
-    els.save.disabled = n === 0 || n > MAX_NOTE_BYTES || els.input.value.trim() === '';
+    els.save.disabled = held !== '' || n === 0 || n > MAX_NOTE_BYTES || els.input.value.trim() === '';
   };
   const close = () => {
     gen++;
@@ -178,7 +226,7 @@ export function noteDialog(els, deps) {
       .finally(() => state?.kind === 'draft' && refreshCount());
   });
   els.resolve.addEventListener('click', () => {
-    if (state?.kind === 'view') {
+    if (state?.kind === 'view' && held === '') {
       answer(deps.post(...resolveRequest(state.id)), close);
     }
   });
@@ -195,7 +243,7 @@ export function noteDialog(els, deps) {
       els.root.classList.remove('view');
       els.text.textContent = '';
       els.input.value = '';
-      say('');
+      say(held);
       els.resolve.classList.add('hidden');
       els.save.classList.remove('hidden');
       els.cancel.textContent = 'Cancel';
@@ -209,8 +257,9 @@ export function noteDialog(els, deps) {
       els.root.classList.add('view');
       els.root.classList.remove('draft');
       els.text.textContent = note.text;
-      say('');
+      say(held);
       els.resolve.classList.toggle('hidden', !resolvable);
+      els.resolve.disabled = held !== '';
       els.save.classList.add('hidden');
       els.cancel.textContent = 'Close';
       show(true);
@@ -220,6 +269,17 @@ export function noteDialog(els, deps) {
     update(list) {
       if (state?.kind === 'view' && !list.notes.some((n) => n.id === state.id)) {
         close();
+      }
+    },
+    hold(reason) {
+      const was = held;
+      held = reason || '';
+      els.resolve.disabled = held !== '';
+      if (state?.kind === 'draft') {
+        refreshCount();
+      }
+      if (state && held !== was) {
+        say(held);
       }
     },
     close,

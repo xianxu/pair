@@ -419,7 +419,7 @@ func ObserveStableArtifact(runtime Runtime, root StorageRoot, initial FileEntry,
 			records = append(records, framed...)
 		}
 
-		observed, err := resampleArtifact(runtime, root, initial.Artifact)
+		observed, err := resampleArtifact(runtime, initial.Artifact)
 		if err != nil {
 			if errors.Is(err, ErrArtifactChanged) {
 				result.Disputed = true
@@ -448,19 +448,17 @@ func ObserveStableArtifact(runtime Runtime, root StorageRoot, initial FileEntry,
 	}
 }
 
-func resampleArtifact(runtime Runtime, root StorageRoot, artifact Artifact) (FileEntry, error) {
-	files, err := runtime.ListFiles(root)
+// resampleArtifact is one stat of the named artifact, not a walk of its store
+// (pair#420, #507): an absent or non-regular one is a changed artifact, as it
+// would be missing from a listing.
+func resampleArtifact(runtime Runtime, artifact Artifact) (FileEntry, error) {
+	entry, err := runtime.StatFile(artifact)
+	if errors.Is(err, os.ErrNotExist) || errors.Is(err, ErrNotRegularArtifact) {
+		return FileEntry{}, ErrArtifactChanged
+	}
 	if err != nil {
-		var listingIssues *ListingIssuesError
-		if !errors.As(err, &listingIssues) {
-			return FileEntry{}, fmt.Errorf("resample session artifact metadata: %w", err)
-		}
+		return FileEntry{}, fmt.Errorf("resample session artifact metadata: %w", err)
 	}
-	for _, entry := range files {
-		if entry.Artifact.StorageRoot == artifact.StorageRoot && entry.Artifact.RelativePath == artifact.RelativePath {
-			entry.Artifact.Kind = artifact.Kind
-			return entry, nil
-		}
-	}
-	return FileEntry{}, ErrArtifactChanged
+	entry.Artifact.Kind = artifact.Kind
+	return entry, nil
 }

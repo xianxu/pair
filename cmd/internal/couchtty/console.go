@@ -163,6 +163,9 @@ type Console struct {
 	statusWebcast ColumnSpan
 	// statusWebNotes is the web cast's 💭N span (#470).
 	statusWebNotes ColumnSpan
+	// statusWebFocus, statusWebViewLink and statusWebDriveLink are the
+	// Chrome group's ↗ 👆 👽 spans (#501).
+	statusWebFocus, statusWebViewLink, statusWebDriveLink ColumnSpan
 	// statusWebDrive is remote driving's span (#467).
 	statusWebDrive ColumnSpan
 	// overlayUsers is who needs the collaboration overlay (syncOverlay).
@@ -174,10 +177,11 @@ type Console struct {
 	// pnotes is the sticky notes the overlay and status row read (#447),
 	// behind its own leaf lock.
 	pnotes pointerNotes
-	// statusPointer and statusRemote are the 👆 and 👽 spans on the last
+	// anchors resolves the notes' anchors (#488).
+	anchors noteAnchors
+	// statusPointer and statusNotes are the 👆 and 💭N spans on the last
 	// drawn row.
 	statusPointer ColumnSpan
-	statusRemote  ColumnSpan
 	statusNotes   ColumnSpan
 	// ansiPalette is the terminal's 16 ANSI colours from OSC 4 replies, for
 	// broadcast viewers; ansiKnown marks which arrived. Under mu.

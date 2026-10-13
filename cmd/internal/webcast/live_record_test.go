@@ -13,6 +13,8 @@ import (
 	"time"
 
 	castassets "github.com/xianxu/pair/cmd/internal/webcast/assets"
+	"github.com/xianxu/pair/cmd/internal/webcast/board"
+	"github.com/xianxu/pair/cmd/internal/webcast/notes"
 	"github.com/xianxu/pair/cmd/internal/webcast/recorder"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
@@ -583,4 +585,72 @@ func serveStress(t *testing.T) string {
 		w.Write(page)
 	})
 	return "http://127.0.0.1:" + listen(mux) + "/stress.html"
+}
+
+// pair#493, through the real recorder: a viewer's stroke during a LIVE segment
+// goes Board → Chrome.Emit → the recorder (its document check) → the
+// recording's Tee, and is in pointer.jsonl while the cast is still running.
+// Wired as cast.go's recordingOutput wires a cast: the DirWriter, then the
+// board, in one Tee.
+//
+//	WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run LiveStroke -v
+func TestLiveStrokeReachesDiskWhileLive(t *testing.T) {
+	if os.Getenv("WEBCAST_LIVE_CHROME") == "" {
+		t.Skip("set WEBCAST_LIVE_CHROME=1 to drive a real Chrome")
+	}
+	bin, err := FindChrome(os.Getenv, execLookPath, fileExists)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(t.TempDir(), "rec")
+	var c *Chrome
+	bd := board.New(notes.Structural{}, func(r recording.Record, doc int) error { return c.Emit(r, doc) })
+	out := func() (recorder.Opened, error) {
+		w, err := recording.NewDirWriter(dir)
+		if err != nil {
+			return recorder.Opened{}, err
+		}
+		return recorder.Opened{Sink: recording.Tee(w, bd), Frames: w}, nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	c, err = Launch(ctx, LaunchOptions{Binary: bin, ProfileDir: t.TempDir(), Headless: true,
+		Record: &RecordOptions{ID: "live", Out: out, ShotEvery: time.Second, Logf: t.Logf}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { c.Close() })
+	h := liveHarness{c}
+	mainURL, _ := serveRec(t)
+	if err := c.call(h.session(t, ""), "Page.navigate", map[string]any{"url": mainURL + "/"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(time.Second)
+	if err := c.SetLive(true); err != nil {
+		t.Fatal(err)
+	}
+	in, err := board.ParseStroke([]byte(`{"viewer":{"id":"ana","name":"Ana"},"seg":1,"id":"s1","color":1,"pts":[[10,20,0],[30,40,16]]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The board learns segment 1 from the recording's own records; until
+	// then a stroke is refused as not yet on the page, as a viewer's is.
+	deadline := time.Now().Add(10 * time.Second)
+	for err = bd.Stroke(in); err != nil && time.Now().Before(deadline); err = bd.Stroke(in) {
+		time.Sleep(100 * time.Millisecond)
+	}
+	if err != nil {
+		t.Fatalf("the board refused a live stroke: %v", err)
+	}
+	for {
+		body, _ := os.ReadFile(filepath.Join(dir, recording.FilePointer))
+		if strings.Contains(string(body), `"k":"stroke"`) {
+			break
+		}
+		if time.Now().After(deadline) {
+			st, _ := c.rec.Stats(context.Background())
+			t.Fatalf("no stroke in pointer.jsonl while live (%q); recorder dropped %v %v", body, st.Dropped, st.Examples)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
 }

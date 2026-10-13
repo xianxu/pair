@@ -24,7 +24,7 @@ type FakeBrowser struct {
 }
 
 // FakeBrowserStats counts what was asked of the fake.
-type FakeBrowserStats struct{ SetLives, Closes int }
+type FakeBrowserStats struct{ SetLives, Closes, Focuses int }
 
 // NewFakeBrowser starts idle with one blank tab, as Chrome does.
 func NewFakeBrowser() *FakeBrowser {
@@ -93,6 +93,16 @@ func (f *FakeBrowser) SetLive(live bool) error {
 			f.phase = PhaseLive
 		}
 	})
+	return nil
+}
+
+func (f *FakeBrowser) Focus() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.phase == PhaseEnded {
+		return ErrEnded
+	}
+	f.stats.Focuses++
 	return nil
 }
 

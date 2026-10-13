@@ -282,31 +282,64 @@ func (s *ThreadStore) createJournalEntries(record ThreadRecord) ([]storeJournalE
 }
 
 func (s *ThreadStore) GetThread(address ThreadAddress) (ThreadRecord, error) {
+	record, _, err := s.getThreadStamped(address)
+	return record, err
+}
+
+// getThreadStamped is GetThread plus the record file's stamp, taken under the
+// store lock before the read (#507): the record is never newer than its
+// stamp, so a caller that finds the same stamp later may reuse the record.
+// The one read path, so AfterGetThread fires for every read.
+func (s *ThreadStore) getThreadStamped(address ThreadAddress) (ThreadRecord, recordStamp, error) {
 	if err := validateThreadAddress(address); err != nil {
-		return ThreadRecord{}, err
+		return ThreadRecord{}, recordStamp{}, err
 	}
 	backend, routeErr := s.storeForAddress(address)
 	if routeErr != nil {
-		return ThreadRecord{}, routeErr
+		return ThreadRecord{}, recordStamp{}, routeErr
 	}
 	if backend != s {
-		return backend.GetThread(address)
+		return backend.getThreadStamped(address)
 	}
 	var result ThreadRecord
+	var stamp recordStamp
 	err := s.withLock(func() error {
+		path := s.recordPath(address)
+		info, statErr := os.Lstat(path)
 		record, err := s.readThreadLocked(address)
 		if err != nil {
 			return err
+		}
+		if statErr == nil {
+			stamp = recordStamp{path: path, info: info}
 		}
 		result = cloneThreadRecord(record)
 		return nil
 	})
 	if err == nil && s.hooks.AfterGetThread != nil {
 		if hookErr := s.hooks.AfterGetThread(address); hookErr != nil {
-			return ThreadRecord{}, hookErr
+			return ThreadRecord{}, recordStamp{}, hookErr
 		}
 	}
-	return result, err
+	return result, stamp, err
+}
+
+// recordStamp is one record file as last read: the file (inode), its size and
+// its mtime. Records are replaced by rename (durablefile.WriteAtomic), so
+// every write is a new file, and a migration removes the source record, so a
+// moved record no longer stamps the same.
+type recordStamp struct {
+	path string
+	info os.FileInfo
+}
+
+// current reports whether the file at path is still the one stamped.
+func (r recordStamp) current() bool {
+	if r.info == nil {
+		return false
+	}
+	info, err := os.Lstat(r.path)
+	return err == nil && os.SameFile(info, r.info) && info.Size() == r.info.Size() && info.ModTime().Equal(r.info.ModTime())
 }
 
 func (s *ThreadStore) GetPathLaunchPreference(repoIdentity, physicalPath string) (PathLaunchPreference, bool, error) {

@@ -48,7 +48,11 @@ and strokes) enter its queue as `recorder.Emit`, stamped on arrival and checked 
   included) and the id map (`backendNodeId` → id per session for one document, keyed by loader id, with a 50 000-node
   graveyard so moves keep ids). Every record goes through its own reducer first, so the output validates by
   construction; refusals are counted (`Stats`). It leaves out the control (`data-couchcast-ui`), user-agent shadow
-  trees, and password values. `IDOf`/`NodeOf` expose the map (#467).
+  trees, and password values. `IDOf`/`NodeOf` expose the map (#467). CDP sends a node's children only once they are
+  requested: a node that arrives with a count but no children, or that later reports `DOM.childNodeCountUpdated`
+  for children the mirror doesn't hold (one inserted empty and filled by script, as asciinema-player fills the
+  blog's cast embed: pair#513, measured), goes on `Expand`, and the shell's `DOM.requestChildNodes` brings them as
+  `setChildNodes`.
 - **Shell:** `Recorder` (`recorder.go`): one goroutine, a FIFO of stamped inputs (record `t` = arrival), synchronous
   CDP calls in queue order. CDP events carry `cdp.Event.Seq`; a snapshot drops queued events of its session read
   before its reply (`Conn.CallSeq`). Over 100 000 queued events it drops and resyncs. Side workers (`side.go`) fetch
@@ -150,9 +154,18 @@ what the viewer's renderer draws at the same moments.
 
 - **Key and cell:** `Shift+Ctrl+Alt+b` (`\x1b[98;8u`, or `66;8u` from a terminal reporting the shifted code;
   `couchkeys.ActionWebcast` → `HitWebcast`) starts the cast Chrome, then toggles live. The tab bar's
-  `WebcastCell` draws `Chrome ▶` / `Chrome ⏸` **after** the screen broadcast's `LIVE ⏸ 👆 👽 💭N`, so the
+  `WebcastCell` draws `Chrome ▶` / `Chrome ⏸` **after** the screen broadcast's `LIVE ⏸ 👆 💭N`, so the
   broadcast's fixed-column indicator check never moves. Click toggles, right-click copies the link, Ctrl with
-  either button ends (macOS terminals may send Ctrl+left as a right click with the Ctrl bit).
+  either button ends (macOS terminals may send Ctrl+left as a right click with the Ctrl bit). Live, the cell is
+  drawn in `broadcast.LiveSGR`, LIVE's own style, so the two cast indicators read as one family (#501);
+  `IndicatorShown` matches LIVE's text, so it doesn't mistake one for the other.
+- **The Chrome group (#501)** follows the screen broadcast's `LIVE ⏸ 👆`: `Chrome ⏸ ↗ 👆 👽 💭N 🕹Ana` (its 👽 is real, `WebcastDriveLinkLabel`; #503 removed the broadcast's placeholder), each button its own
+  `RenderedStatusRow` span (`WebFocus`, `WebViewLink`, `WebDriveLink`), so a hover can tell them apart (#495).
+  👆 copies the view link, 👽 the drive link (right-click and Alt+right-click on the cell stay as shortcuts).
+  `↗` calls `Browser.Focus`: the real Chrome sends `Target.activateTarget` for the cast tab, then activates its own
+  process by PID (`activateProcess`, macOS JXA → `NSRunningApplication`; by PID because the cast Chrome
+  shares its bundle id with the operator's own Chrome). Only `Launch` of a windowed Chrome sets the
+  activator, so headless and scripted-pipe tests can never take the operator's focus.
 - **Remote driving (#467, `couchtty/console_drive.go`):**
   - **The span.** After the Chrome cell and its `💭N` comes a span: `🕹Ana` while Ana drives, `✋Bo` when Bo asks
     (`✋2` for more). It follows `Cast.Drive().Subscribe()`.
@@ -208,6 +221,18 @@ what the viewer's renderer draws at the same moments.
     (no `allow-scripts`). It never sets `on*` attributes, gives nested frames no `src`, and sends every URL through
     `resolveAsset`; a URL with no asset loads nothing. An image with nothing to load is drawn as not yet loaded (no
     alt text), as a lazy image is in the tab.
+  - What the recording can't hold (pair#513): a canvas's pixels, a video's frames, a plugin's output (`object`,
+    `embed`), a frame whose document wasn't recorded. Their size often comes from what isn't recorded (with scripts
+    off a browser draws a `<canvas>` as its empty fallback; a video sized by loaded metadata has none, and Safari
+    draws no box), so the renderer sizes each to the operator's live layout box (else its `width`/`height`
+    attributes) with a zero-specificity rule in the document's viewer sheet, border-box and with the box's
+    `aspect-ratio`, so author `height:auto` keeps the operator's height (`liveSizeRule`, `drawLiveSizes`; author CSS
+    still wins). The rule never applies to `[hidden]`; once a layout has arrived, an element without a box (not
+    rendered) gets none; and it lives in a live-size sheet per tree (document or shadow root), adopted before the
+    page's own sheets. `Renderer.uncaptured()` lists them, and `placeholders.js` marks each over the page box: a dashed outline
+    at its drawn box and "canvas: not captured", redrawn on every record, so it follows the operator's size. Canvas
+    snapshots are #515. Checked by `TestLiveReplacedElements` (video, iframe, canvas resized live, picture, object,
+    a node filled after its insert) and `tests/webcast/placeholders.test.mjs`.
   - Paint holding (#475): as a browser's render-blocking CSS does, the renderer draws a new top document into a
     second frame placed before the first in document order, so the first, keeping the previous paint, covers it (and
     the shell's overlay covers both), until the new document's `<link rel=stylesheet>`s (media matching, not alternate

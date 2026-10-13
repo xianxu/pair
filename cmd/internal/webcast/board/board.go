@@ -31,8 +31,11 @@ var (
 	ErrEnded = errors.New("board: the cast has ended")
 	// ErrNotLive: no page has been cast yet.
 	ErrNotLive = errors.New("board: the cast hasn't shown a page yet")
-	// ErrStale: the viewer was showing another document, or the element is
-	// gone.
+	// ErrPaused: the cast is paused; viewers do nothing until it resumes
+	// (pair#499).
+	ErrPaused = errors.New("board: the cast is paused")
+	// ErrStale: the viewer was showing another document, the element is
+	// gone, or a note's box is off the page.
 	ErrStale = errors.New("board: the page changed")
 	// ErrColorFull: the color already has broadcast.MaxNotesPerColor open
 	// notes on this page.
@@ -166,7 +169,8 @@ func (b *Board) Stroke(in StrokeIn) error {
 }
 
 // Note writes a viewer's new note and returns its id. The anchor is the
-// notes model's for the element now, with the viewer's box.
+// notes model's for the element now, with the viewer's box; the note's box
+// is kept on the page (notes.ClampToPage).
 func (b *Board) Note(in NoteIn) (string, error) {
 	b.mu.Lock()
 	doc, err := b.pageLocked(in.Seg)
@@ -182,6 +186,11 @@ func (b *Board) Note(in NoteIn) (string, error) {
 		b.mu.Unlock()
 		return "", ErrColorFull
 	}
+	region, ok := notes.ClampToPage(b.st, in.Region)
+	if !ok {
+		b.mu.Unlock()
+		return "", ErrStale // the box is off the page
+	}
 	at, err := b.model.Anchor(b.st, in.Node)
 	if err != nil {
 		b.mu.Unlock()
@@ -193,7 +202,7 @@ func (b *Board) Note(in NoteIn) (string, error) {
 	b.pending[id] = pending{doc: doc, color: in.Color}
 	b.mu.Unlock()
 
-	n := &recording.Note{ID: id, Author: b.author(in.Viewer, in.Color), Text: in.Text, At: at, Region: in.Region}
+	n := &recording.Note{ID: id, Author: b.author(in.Viewer, in.Color), Text: in.Text, At: at, Region: &region}
 	if err := b.emit(n, doc); err != nil {
 		b.mu.Lock()
 		delete(b.pending, id)
@@ -258,8 +267,8 @@ func (b *Board) Subscribe() (<-chan []LiveNote, func()) {
 	}
 }
 
-// pageLocked admits a request made on segment seg: the cast is on a page,
-// hasn't ended, and seg is within the current document (a resume keeps the
+// pageLocked admits a request made on segment seg: the cast is live on a
+// page (not paused, not ended), and seg is within the current document (a resume keeps the
 // document, so a viewer a pause behind is still on it). It returns the
 // document's first segment, for the writer's check.
 func (b *Board) pageLocked(seg int) (int, error) {
@@ -272,6 +281,8 @@ func (b *Board) pageLocked(seg int) (int, error) {
 		return 0, ErrEnded
 	case b.st.Seg == 0:
 		return 0, ErrNotLive
+	case b.st.Paused():
+		return 0, ErrPaused
 	case seg < b.st.DocSeg || seg > b.st.Seg:
 		return 0, ErrStale
 	}

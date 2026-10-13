@@ -275,6 +275,45 @@ func TestMirrorExpandsNodesSentWithoutChildren(t *testing.T) {
 	}
 }
 
+// pair#513: a node inserted empty is sent without a request for its
+// children, so when a script fills it later (asciinema-player into the
+// blog's cast embed, measured) CDP sends only childNodeCountUpdated, never
+// childNodeInserted. The mirror asks for the children, and their arrival
+// fills the node, so the recording holds the player.
+func TestMirrorExpandsANodeFilledAfterItsInsert(t *testing.T) {
+	p := newFakePage("http://x/")
+	p.take()
+	m := start(t, p)
+	m.take()
+	feed(t, m, 1, []fevent{{"DOM.childNodeInserted", raw(map[string]any{"parentNodeId": p.body().nodeID, "previousNodeId": 0,
+		"node": map[string]any{"nodeId": 600, "backendNodeId": 600, "nodeType": 1, "localName": "div", "nodeName": "DIV", "childNodeCount": 0}})}})
+	m.take()
+	if len(m.Expand) != 0 {
+		t.Fatalf("an empty insert asked for children: %v", m.Expand)
+	}
+	feed(t, m, 2, []fevent{{"DOM.childNodeCountUpdated", raw(map[string]any{"nodeId": 600, "childNodeCount": 1})}})
+	// A script inserting several children sends a count per insert: one
+	// request covers them.
+	feed(t, m, 2, []fevent{{"DOM.childNodeCountUpdated", raw(map[string]any{"nodeId": 600, "childNodeCount": 2})}})
+	if len(m.Expand) != 1 || m.Expand[0].NodeID != 600 || m.Expand[0].Session != sess {
+		t.Fatalf("expand %v", m.Expand)
+	}
+	m.Expand = nil
+	feed(t, m, 3, []fevent{{"DOM.setChildNodes", raw(map[string]any{"parentId": 600, "nodes": []any{
+		map[string]any{"nodeId": 601, "backendNodeId": 601, "nodeType": 1, "localName": "div", "nodeName": "DIV",
+			"attributes": []string{"class", "ap-wrapper"}, "childNodeCount": 0}}})}})
+	id, _ := m.IDOf(sess, 600)
+	n := m.State().Node(id)
+	if n == nil || len(n.Kids) != 1 || n.Kids[0].A["class"] != "ap-wrapper" {
+		t.Fatalf("the filled node %+v", n)
+	}
+	// A count that matches the children the mirror holds asks nothing.
+	feed(t, m, 4, []fevent{{"DOM.childNodeCountUpdated", raw(map[string]any{"nodeId": 600, "childNodeCount": 1})}})
+	if len(m.Expand) != 0 {
+		t.Fatalf("a node whose children the mirror holds asked again: %v", m.Expand)
+	}
+}
+
 // A report that follows a driver's injected input carries by (#467); one
 // naming a viewer who doesn't drive is refused by the reducer and counted.
 func TestObserveAttributesTheDriver(t *testing.T) {

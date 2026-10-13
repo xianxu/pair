@@ -688,9 +688,9 @@ names the first thing to fix:
 
 **Freshness.** The stale-binary refusal names the fix: `make build in
 <checkout>`, where the checkout is bin/pair's parent and pair:0 in practice.
-It is skipped under `PAIR_DEV`, which slots inherit from Couch's environment
-(`mergeChildEnvironment`), because the relaunch's `dev_rebuild` rebuilds
-anyway. `--same-binary` also overrides it. When the binary is newer but
+It applies under `PAIR_DEV` too: a Couch-launched Pair never runs
+`dev_rebuild` (pair#489), so a relaunch sweep builds once, by hand, and each
+relaunch is judged on the binary on disk. `--same-binary` overrides it. When the binary is newer but
 behind its checkout's HEAD, or was built from a dirty tree, the note says so
 without refusing.
 
@@ -878,6 +878,37 @@ Key files: `couchtty/thread_presentation.go`, `console_presentation.go`,
 `menu_reattach.go`, `menu_render.go`, and `reserve.go`. Rendered examples are in
 `couchtty/testdata/slots_grouped_*.txt`.
 
+### The hub leads its section (pair#491)
+
+The hub is the slot Couch started from (`hubWorktree`, pair#463). It is marked
+by position only.
+- **Tab bar:** the hub is drawn first, then every other slot grouped by
+  repository: `ops  ariadne  :1  :2  blog  pair  :1  :2`. The hub stands alone,
+  so its repository's other slots stay in their alphabetical group (`ops:1`).
+  `[…]` still marks the active chip.
+- **Switcher:** the hub is the first line. Every other row, and the message
+  lines under it, sits one indent level (2 spaces) deeper.
+- **Data path:** couchcmd hands the root to `Console.SetHub` at startup. It is
+  reduced as `MenuEventHub` into `MenuState.Hub`, which re-sorts the installed
+  inventory (`reorderMenuInventory`). `PresentThreads(rows, git, hub)` puts the
+  hub row first, flags it `Hub` and adds the indent (`hubSection`). That one
+  order serves the switcher, the tab bar and clicks.
+- **Several hubs:** not built. The intended model:
+  - a hub is a designated slot;
+  - each slot is assigned to one hub;
+  - a new slot inherits the hub of the slot it was started from.
+
+  `hubSection` would become one section per hub. The renderer already starts
+  a section at each `Hub` chip after the first, behind a ` │ ` separator.
+- **Narrow widths:** `fitChips` (`reserve.go`, pure) lays out the actor cells.
+  - It first collapses each repository's numbered slots into a `+N` count,
+    groups giving way from the right.
+  - If a *kept* chip (hub, active, red or belled) still lies past the edge,
+    whole groups fold, from the right, into one trailing `+N` until it is in
+    view. A kept chip whose group leader folded shows its full label.
+  - Otherwise the row clips as before, so a cut-short plain tab stays clickable.
+  - A `+N` cell has no chip span: clicking it does nothing.
+
 ### Checkout quick-status glyph (#317, #339)
 
 Each checkout, including standalone repositories and `:0`, carries a glyph after its label in
@@ -921,6 +952,17 @@ and `MenuState.Palette`; the tab bar reads the same two through
 `statusModelLocked`, which fills `StatusActor.Idle` and `StatusModel.Palette`.
 A thread with no activity entry is unfaded. Each slot glyph fades from its own
 base colour (`slotGlyphBase`).
+
+**Cost at rest (#507).** A pass probes every live thread (every 60 s, and on a
+switch or a landed inventory). The probe's runtime
+(`threadactivity.NewOSRuntime`) keeps one `sessioninventory.OwnerLaunchCache`
+for Couch's lifetime, so a thread's multi-megabyte ledger is decoded again only
+when its fingerprint changes (a launch or a binding). Likewise the continuation
+watch, which asks every hosted thread every 500 ms, reuses a thread's status
+while its record file is the one it read (`Couch.ContinuationRequests`,
+`recordStamp`; records are replaced by rename). Measured on the operator's store,
+22 live threads: a warm activity pass 0.34 s of CPU (was 8.6 s), a warm
+continuation scan 27 µs (was ~100 ms).
 
 ### Slots behind a picker draw red (pair#465)
 
@@ -2050,6 +2092,21 @@ of two sessions: the detached proof and its re-proof. `pair resume`'s launcher
 and couch's registration poll read liveness only (`SessionLive`). See
 `cmd/probes/reattachcost` for before and after.
 
+**Registration waits on Pair, not a stopwatch (`pair#489`).** Every launch
+(spawn, cold resume, fresh, warm) waits for registration under
+`whileHelperAlive`: the wait ends at registration, when the helper's DIRECT
+child exits (`Handle.Exited`; a dead launch fails at once: "Pair exited before
+registering", after one 1 s final look so registration already written still
+counts), or at `pairRegistrationTimeout`, a 2-minute hang ceiling. Startup scales with load
+(at load ~200, launch-to-pane took 9-11 s and PAIR_DEV's no-op `make build`
+9.6 s, so the old fixed 15 s failed five relaunches), so a slow start is waited
+for, and adopted, instead of failed. Any failure takes the same post-ack cleanup
+(the helper's group is ended, the thread rolls back to parked). The CLI prints
+"still running" every 15 s while it polls the receipt, and asks again when a
+status poll times out (a Couch busy launching can answer late); only the 5 min
+poll budget gives up. Group liveness (`Alive`) is the wrong exit signal: a
+Couch-launched Pair's title poller stays in its process group for up to 30 s.
+
 **A cold resume's registration waits for the pane's birth first (`pair#287`).**
 A cold resume starts a new zellij server, and zellij 0.45.1 panics when a
 connection it accepted before the first client initialized the session closes.
@@ -2100,8 +2157,8 @@ with archive refused until Couch restarted.
     incarnation. No Couch state was added.
   - The launcher's own message, which names zellij's log, is not shown in
     Couch.
-- **Cold resume.** Its wait still runs to its 15 s deadline even after the
-  helper has exited at about 10 s, then rolls back to `parked` as before.
+- **Cold resume.** Its wait ends when the helper's direct child exits (about
+  10 s in), not at a deadline (pair#489), then rolls back to `parked` as before.
 
 Where that lands differs by caller, and both matter:
 
@@ -2364,7 +2421,13 @@ starts no child. The creating record then gains one
 internal `pair-launch-helper`, which cannot exec Pair until Couch durably adds
 the helper's PID/process-start identity and sends one acknowledgement byte over
 an inherited close-on-exec descriptor. EOF, cancellation, or timeout exits the
-helper without starting any workspace writer.
+helper without starting any workspace writer. While the helper is parked,
+`startBlockedChild` lowers its process group to the runner's `Nice`
+(`COUCH_SLOT_NICE`, default 10, #498), so Pair and everything a slot forks
+inherit it and yield to Couch and the terminal. A Couch already nicer than the
+setting gets EACCES/EPERM (only root lowers niceness) and its slots keep the
+niceness they inherited; any other `setpriority` error cancels the launch before
+exec. Fakes carry no niceness: only the real runners reach the kernel.
 
 After acknowledgement, Pair changes the same composite address claim from
 `reserved` to `established`; that is the registration oracle, not PID liveness

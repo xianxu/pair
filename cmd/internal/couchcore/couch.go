@@ -41,7 +41,9 @@ type Couch struct {
 	IDs                    IDGen
 	Threads                *ThreadStore
 	Entropy                io.Reader
-	Artifacts              ThreadArtifactController
+	// continuations is ContinuationRequests' per-thread cache (#507).
+	continuations continuationScanCache
+	Artifacts     ThreadArtifactController
 	// LiveRestart gathers live-slot facts for relaunch and reload-context
 	// (pair#421). Nil refuses both as unavailable.
 	LiveRestart LiveRestartProbe
@@ -387,23 +389,20 @@ func (c *Couch) resolveStartProfile(args StartArgs, canonicalPath string, tree W
 	})
 }
 
-// pairRegistrationTimeout bounds the wait for a launched pair to write its
-// thread-claim as `established`.
+// pairRegistrationTimeout is the HANG CEILING on the wait for a launched pair
+// to register, not a latency budget (pair#489).
 //
-// MEASURED, not chosen. A calm `pair resume <tag> --layout3` -- zellij, three
-// panes, nvim and a coding agent -- registered in 8.85s (#215). The previous 5s
-// was a bare constant with no stated basis, fronting a full workbench bring-up;
-// it was always marginal, ordinary drift pushed startup past it, and couch
-// reported only "context deadline exceeded" with no way to tell whether pair had
-// even started. 15s is ~1.7x the measured calm latency.
+// It used to be 15s, ~1.7x a calm registration (8.85s, #215). Startup scales
+// with load: at load ~200, PAIR_DEV's no-op `make build` alone took 9.6s and
+// launch-to-pane 9-11s, so five relaunches failed with nothing wrong but the
+// clock. whileHelperAlive owns how a dead launch ends the wait early (see
+// there), so this only has to catch a launch that is alive and stuck. 2 minutes is ~6x the worst loaded start measured, and leaves room
+// inside the CLI's 5-minute poll (slotOperationPollBudget).
 //
-// It is a fixed constant fronting work that must stay BOUNDED for that to keep
-// being true (ARCH-CONSTRAINTS). Name assignment used to be O(threads this repo
-// had ever had) -- 52 zellij subprocesses, at 17.6ms calm but 467ms under load
-// (#203) -- which would re-cross any constant as the fleet grew. #215 made it
-// O(1); if anything unbounded moves back inside this window, raising the number
-// is the wrong fix.
-const pairRegistrationTimeout = 15 * time.Second
+// The work inside the window must still stay BOUNDED (ARCH-CONSTRAINTS): #215
+// made name assignment O(1) after it grew with the fleet; if anything unbounded
+// moves back in, raising the number is the wrong fix.
+const pairRegistrationTimeout = 2 * time.Minute
 
 // repoIdentityTimeout matches the 5s bound the deleted ExecPolicyResolver
 // applied to the subprocess this call replaced, so the envelope did not widen

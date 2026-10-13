@@ -7,6 +7,25 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- A change to what a user does (a gesture, a control, what a pin shows) updates README's how-to paragraph in the same
+  commit as the atlas. The atlas is the agent's map and README is the operator's; grep README for the old verbs
+  ("tap", "drag", "pin") before closing. (#488 BR-1)
+- Retiring a class, function or field: grep every consumer, including env-gated live tests (`WEBCAST_LIVE_CHROME`,
+  skipped in the default suite) and the atlas index, and run the gated ones once. A skipped test still asserts the
+  old shape and is green only because it never ran. (#488 BR-7)
+  The grep covers comments and test names too, and in the singular as well as the plural ("mode button"), in the
+  same commit that retires the thing. (#488 close)
+- Bound every untrusted integer before any arithmetic on it, and compare by subtraction (`w <= cols-col`), never by
+  adding the request's own numbers: `col+w <= cols` wraps at 2^63 and lets a box through that then drives a loop
+  for ~9e18 iterations. A fuzz oracle that restates the parser's addition shares the bug, so state its bounds
+  independently. Pin a refusal table with a deadline. (#488 BR-10)
+- An async job carries the exact observation it was made from (the frame, its endpoint, the session), and is
+  checked against what is in view when it applies. Never re-read "latest" mutable state at apply time, and key
+  dedup sets by every identity that can repeat (ids restart per session). (#488 BR-15, BR-16)
+- Decide under a leaf lock, act after releasing it: starting a worker (`GoTracked`) takes other locks and can run
+  inline. (#488 BR-17)
+- Context gathered for the agent (file names, headings, layout) stays off the viewers' wire unless a page needs it.
+  Tag it `json:"-"` and test that the wire lacks it. (#488 BR-18)
 - A paint that snapshots state and then publishes it holds one lock from snapshot to commit whenever paints run on
   more than one goroutine. Otherwise an older snapshot can publish last and stay on screen until something else
   repaints, which on an idle screen is never. A test that polls for the new state passes in the gap before the stale
@@ -1057,7 +1076,7 @@ proof; record the surprising case so the next change starts from evidence.
   up to `RowMetadata.UsedColumns` and treats the rest as blank tail, so a 💭 on an empty row vanished while marks
   (background only) showed. A frame edit that adds content past the old text updates the metadata too.
 - **A user-visible addition to the tab bar is a README change (#447).** The M1 review blocked on it; grep the
-  README for the row's current spelling (`LIVE ⏸ 👆 👽`) whenever the row gains a cell.
+  README for the row's current spelling (`LIVE ⏸ 👆` since #503) whenever the row gains a cell.
 - **Rule out the host before bisecting a "regression" (#450).** Four workers called `test-review` a regression since
   #436 and the issue asked for a bisect, but the failure reproduced at #436's own merge: they ran the suite inside the
   agent sandbox, which refuses unix sockets and PTYs, while #436 was verified outside it. Before bisecting, rerun the
@@ -1340,10 +1359,25 @@ proof; record the surprising case so the next change starts from evidence.
   crashed the wrapper. Give each attempt its own local, close it on failure inside the loop, and hand only the
   accepted one to the defer; test the path where a retry's dial fails. Likewise, key a per-episode cache on an
   episode counter bumped at the transition, not on a reader happening to observe the gap between episodes.
+- **A launch's death is its direct child's exit, not its process group's (#489 close).** The registration wait
+  first watched `Alive` (kill(-pgid,0)), but a Couch-launched Pair's title poller stays in that group for up to its
+  30 s startup grace, so a Pair that died at birth still held the wait open. The fake's `SetExited` ended the whole
+  group and could not show it. When "did it die?" decides a wait, ask the process you started (`Handle.Exited`), keep
+  group liveness for cleanup, and give the fake a member that outlives the child.
+- **Every fixed window over load-dependent work moves with the load (#489).** Removing the 15 s registration budget
+  exposed the CLI's 2 s per-poll exchange timeout, which turned one late status answer into an "uncertain" outcome
+  while the operation went on. When fixing one stopwatch, grep the path end to end (launch, poll, report) for the
+  others; retry an idempotent read inside the outer budget instead of giving up on one slow answer.
 - **A measurement that moves a Spec's guess revises the Spec in the same commit (#490 close).** The Spec guessed
   `--prepare` and `--reload-context` at "seconds" and light at "milliseconds"; the timings said heavy and "under a
   second", and only the Log said so. When a Spec names expected values to be measured, append a `## Revisions`
   entry the moment a measurement disagrees, and say in Done-when which values were reasoned rather than measured.
+- **Describe a mechanism once; every other site names it (#489 close, two rounds).** The registration wait's exit
+  signal was restated in four comments and docs, so changing it (process group → direct child) left three stale
+  copies the review found one round apart. Put the rule at its owner (`whileHelperAlive` + one atlas section) and
+  have other sites point there. A status line likewise derives what it reports from one fact (when Couch last
+  answered), not a counter that a second code path must remember to reset. And a fallback branch (the final look
+  after an exit) needs a test that fails with the branch disabled, run once with it disabled to prove it.
 - **Every path that unblocks a worker wakes it (#492 close).** The queue's worker skipped promotion while another
   admission attempt held the actor's reservation; that attempt's failure path cleared the reservation and woke no
   one, so a queued message sat until the test deadline. When a worker parks on a condition (a reservation, a
@@ -1352,3 +1386,49 @@ proof; record the surprising case so the next change starts from evidence.
   The converse is the same rule's other half: the worker never wakes itself. Its own failed attempt schedules its
   retry, or it spins (round 2's Critical). A fake must refuse the way the real seam refuses (`ErrRecipientBusy`,
   not a bare error), or the tests never exercise the path the product takes.
+- **A fixture the product identifies by command must not exec away from that command (#487).** The fake cloudflared
+  ran `exec sleep 300`, so its ps command became `sleep 300` a moment after start, and reaping (correctly) spares a
+  non-cloudflared process. The test passed only while ps beat the exec, and under load it lost. When a fake stands in
+  for a process the code checks by command, PID or identity, wait for the fixture's settled state and assert the
+  property there, not the first moment it holds. Wait on the outcome with `testwait`, never a fixed window.
+- **A fix round that changes a behaviour rewrites every prose restatement of it (#498 close).** Round 1 changed a
+  refused `setpriority` from "cancel the launch" to "keep the inherited niceness"; the code comment, README and Design
+  moved, but the atlas, the Plan checklist and a Log line still said "cancels", and round 2 blocked on it. Before
+  re-running a close, grep the old behaviour's words (`cancel`, `refuse`, the error text) across atlas/, README,
+  the issue file and comments, and rewrite or annotate as superseded every hit in the same commit.
+
+- **A file read while it is written has a torn tail (#493 close).** Making the recording's writer unbuffered let
+  readers see records mid-cast, and with that the reader's strict decode (any bad line fails the whole recording)
+  became a live hazard: a replay racing a write could fail outright. When a writer's output becomes readable while
+  open, the reader takes complete lines only and leaves torn-tail detection to the validator of a finished file.
+- **"Disable every action" means listing every surface first (#499 close).** The pause guard disabled the rail's
+  pen, swatches and 💭 but left the note dialog's Save and Resolve live, including on a pin opened during the pause;
+  only the server's refusal caught them. Before a mode turns user actions off, enumerate every control that posts
+  (rail, dialog, pins, keyboard), gate them at one place, and put each in the test.
+
+## A count or abbreviation must be anchored to a drawn member of its own group (pair#491)
+- **What went wrong:** the tab bar's narrow-width collapse hid every numbered slot of a group, including its first member when the group had no `:0`. The `+N` then sat after the previous repository's chip and read as its count.
+- **Rule:** when compressing a run of related items into a summary (`+N`, `:N`, `…`), keep the run's first item drawn so the summary has an owner on screen; test a run that lacks its usual leader.
+- **And:** state a value handed across a package boundary at startup (here the hub root) is tested where it is set *and* where a lazy rebuild could drop it.
+- **A variant of a read path wraps the original, never copies it (#507 close).** `getThreadStamped` repeated
+  `GetThread`'s validate, route, lock, read and clone steps and dropped its `AfterGetThread` hook, which recovery
+  tests use to inject interleavings. When a caller needs the same read plus one more fact (a stamp, a path), make
+  the old function call the new one so hooks and checks live in one place. A cache that serves a parsed value
+  hands each caller its own copy of anything the caller can reach and mutate, and keys on every input that names
+  the source (a root's path, not only its fixed name).
+- **An error translation is behavior; each needs a test that fails without it (#505 close).** Mapping `errClosed` to
+  `ErrClosed`, a CDP failure to `ErrInput` and a nil recorder to `ErrNotLive` were each one line, and reverting any
+  left the suite green: the route test injected a ready-made `ErrInput`. Test the translation at the seam that
+  produces it (the recorder's fake tab, the nil-recorder Chrome), and mutation-check it once.
+- **A browser event's field is a measurement, not an assumption (#505).** drive.js counted double clicks from
+  `pointerup.detail`, and its node tests fed fake events with `detail: 2`, which real Chrome never sends (pointer
+  events carry 0). Before a gesture rule reads an event field, log that field from a real browser once, and make
+  the fakes match it.
+- **A viewer-side rule that stands in for the browser must act like the browser everywhere (#513 close).** The
+  live-size rule meant to replace a canvas's UA sizing was author-origin, so it beat the UA's `[hidden]`, and it
+  lived in the document sheet, which shadow trees don't see. When a viewer rule substitutes for browser behaviour,
+  list the browser's own conditions (hidden, display:none, shadow trees, frames) and make each a test case.
+- **Changing a rule means grepping for every statement of it (#516 close; #489's lesson again).** The wheel's stale
+  rule was restated in `Act`'s doc, `ErrStale`'s doc and `onTarget`'s comment; updating `Injector.Inject` and the
+  atlas left three stale copies. Before committing a rule change, `rg` the rule's nouns (here "stale", "wheel")
+  across the package and the atlas, and make every other site name the rule's owner instead of restating it.

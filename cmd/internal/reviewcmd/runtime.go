@@ -90,6 +90,11 @@ func luaBool(b bool) string {
 	return "false"
 }
 
+// ReviewScript is the review pane's nvim init, under the Pair home. The pane
+// runs `nvim -u <home>/ReviewScript FILE`; Couch reads the file a review
+// pane shows from that command (couchcmd's reviewFile, #488).
+const ReviewScript = "nvim/review.lua"
+
 // SpawnReviewPane opens the full-screen floating nvim review pane. The shell
 // EXEC'd `zellij run`; Go spawn+wait is equivalent (zellij run returns after the
 // server opens the pane). PAIR_NVIM_PID_FILE is exported so review.lua's VimEnter

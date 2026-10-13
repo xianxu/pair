@@ -8,11 +8,11 @@ import (
 )
 
 // Structural is the notes model (#461). Anchors carry a stable selector
-// (selector.go); context and crops follow the page's structure: the nearest
-// meaningful container (landmark.go), crops padded, snapped to it and
-// clustered (crop.go). The zero value is ready to use.
+// (selector.go); context follows the page's structure, the nearest
+// meaningful container (landmark.go); crops are the notes' boxes, padded
+// (crop.go). The zero value is ready to use.
 type Structural struct {
-	// Margin around the notes in a crop, in CSS px; zero is 48.
+	// Margin around a note's box in its crop, in CSS px; zero is 16.
 	Margin float64
 }
 
@@ -23,7 +23,7 @@ func (Structural) Anchor(st *recording.State, node recording.NodeID) (recording.
 	if n == nil || n.Y != recording.YEl {
 		return recording.NoteAt{}, fmt.Errorf("notes: node %d is not a live element", node)
 	}
-	at := recording.NoteAt{Node: node, Sel: selectorFor(n), Text: trim(n.TextContent())}
+	at := recording.NoteAt{Node: node, Kind: recording.AnchorElement, Path: pathOf(n), Sel: selectorFor(n), Text: trim(n.TextContent())}
 	if !slices.Contains(matchSelector(st, at.Sel), n) { // never store a selector that can't find its element
 		at.Sel = ""
 	}
@@ -66,16 +66,15 @@ func (s Structural) Context(st *recording.State, at recording.NoteAt) (Context, 
 	return c, nil
 }
 
-func (s Structural) Crops(st *recording.State, ats []recording.NoteAt, hints Hints) ([]recording.Box, error) {
-	return s.NoteCrops(st, anchorsOnly(ats), hints)
+func (s Structural) NoteCrops(st *recording.State, ns []*recording.Note) ([]recording.Box, error) {
+	return noteCrops(st, ns, marginOr(s.Margin), s.Resolve)
 }
 
-func (s Structural) NoteCrops(st *recording.State, ns []*recording.Note, hints Hints) ([]recording.Box, error) {
-	m := s.Margin
+func marginOr(m float64) float64 {
 	if m == 0 {
-		m = defaultMargin
+		return defaultMargin
 	}
-	return crops(st, ns, m, hints, s.Resolve)
+	return m
 }
 
 func (Structural) Live(st *recording.State) []*recording.NoteView { return liveNotes(st) }

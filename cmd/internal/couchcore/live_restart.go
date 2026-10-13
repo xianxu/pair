@@ -51,9 +51,6 @@ type LiveRestartFacts struct {
 // BinaryFacts compare the executable a relaunch would run with the one the
 // slot runs now (relaunch only).
 type BinaryFacts struct {
-	// DevRebuild: Couch runs with PAIR_DEV, which slots inherit, so pair's own
-	// dev_rebuild runs during the relaunch; the on-disk binary is not final.
-	DevRebuild bool
 	// RunningSHA is the slot wrapper's own content hash ("" when unknown).
 	RunningSHA string
 	// OnDiskPath is `pair` as Couch resolves it; OnDiskSHA "" when unreadable.
@@ -147,8 +144,6 @@ func DecideBinaryFreshness(b BinaryFacts, sameBinaryOK bool) (stale bool, detail
 		fix = "run make build in " + b.Checkout
 	}
 	switch {
-	case b.DevRebuild:
-		return false, "", "PAIR_DEV is set, so the relaunch rebuilds pair itself"
 	case b.RunningSHA == "" || b.OnDiskSHA == "":
 		return false, "", "binary freshness unverified (the slot or " + pairPathOrUnknown(b.OnDiskPath) + " reported no build identity)"
 	case b.RunningSHA == b.OnDiskSHA && !sameBinaryOK:
