@@ -1617,3 +1617,6 @@ proof; record the surprising case so the next change starts from evidence.
 - #533 close BR-1 round2: enumerate actual write sites, not only user commands. Focus/cursor/autocmd/timer decorations can write real bytes and open a blocking prompt under nomodifiable. Preserve deferred cleanup bookkeeping and exercise focus loss/gain in an embedded UI.
 
 - #533 integration of #531: a full make test stopped by the known #514 timing check has not exercised later Go packages. Run remaining targets with make -k and inspect all failures before citing the exception; new production files still require exhaustive artifact-source inventory entries.
+
+- #538: A recorded node ID is document-scoped evidence even if the live recorder usually allocates globally. Before giving a connected ID priority over scored anchors, verify the note belongs to the current document; test a same-tag ID reused after navigation.
+- #538: Recovery tests must restart the real lifecycle identity. If a new cast always gets a new recording path, reopening a service with the old path alone misses orphaned save/publication intents; exercise a new cast recovering an inactive prior recording.

@@ -12,8 +12,36 @@ import (
 
 type captureSubmissionCast struct {
 	*submissionCastFake
-	observations []core.PublicationObservation
-	reconcileErr error
+	observations   []core.PublicationObservation
+	reconcileErr   error
+	pendingErr     error
+	pendingChecked bool
+}
+
+func (f *captureSubmissionCast) ReconcilePendingSubmissions(ctx context.Context, observe func(context.Context, string) (core.Submission, core.PublicationObservation, error)) error {
+	f.pendingChecked = true
+	_, obs, err := observe(ctx, "old-capture")
+	if err != nil {
+		return err
+	}
+	if obs.State != core.PublicationAbsent {
+		return errors.New("unexpected old bundle")
+	}
+	return f.pendingErr
+}
+
+func TestSubmissionRecoversClaimsBeforeStartingNewBundle(t *testing.T) {
+	m, base, target := newSubmissionManagerTest(t)
+	f := &captureSubmissionCast{submissionCastFake: base, pendingErr: errors.New("old publication unknown")}
+	m.current = func() (submissionCast, error) { return f, nil }
+	run := submissionWorkQueue(t, m)
+	if _, err := m.request(context.Background(), "prepare", "new-capture", target); err != nil {
+		t.Fatal(err)
+	}
+	run()
+	if !f.pendingChecked || f.prepared != 0 || m.job.status.State != "failed" {
+		t.Fatalf("pending=%v prepared=%d status=%+v", f.pendingChecked, f.prepared, m.job.status)
+	}
 }
 
 func (f *captureSubmissionCast) ReconcilePreparedSubmission(ctx context.Context, sub core.Submission, obs core.PublicationObservation) error {

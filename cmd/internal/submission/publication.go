@@ -21,6 +21,36 @@ type PublicationObservation struct {
 	Path  string
 }
 
+// ObservePublication recovers a publisher's interrupted intent. Only an absent
+// bundle directory proves absence; a partial or unreadable bundle is unknown.
+// Capture owners still compare the returned evidence with their original claim.
+func (s *Store) ObservePublication(id string) (Submission, PublicationObservation, error) {
+	unknown := PublicationObservation{State: PublicationUnknown}
+	if !ValidID(id) {
+		return Submission{}, unknown, fmt.Errorf("invalid submission ID")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	r, err := s.open()
+	if err != nil {
+		return Submission{}, unknown, err
+	}
+	defer r.Close()
+	if _, err = r.Lstat(id); os.IsNotExist(err) {
+		return Submission{ID: id}, PublicationObservation{State: PublicationAbsent}, nil
+	} else if err != nil {
+		return Submission{}, unknown, err
+	}
+	sub, err := readSubmission(r, id)
+	if err != nil {
+		return Submission{}, unknown, err
+	}
+	if err = s.confirmPublication(r, id); err != nil {
+		return sub, unknown, err
+	}
+	return sub, PublicationObservation{State: PublicationConfirmed, Path: s.ManifestPath(id)}, nil
+}
+
 // ConfirmPrepared never publishes. It compares immutable evidence and repeats
 // durability confirmation, because Prepare may fail after the visible rename.
 func (s *Store) ConfirmPrepared(expected Submission, crops map[string][]byte) (PublicationObservation, error) {

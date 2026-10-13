@@ -598,6 +598,9 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/zellij/config.kdl", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/zellij/layouts/main-2.kdl", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/zellij/layouts/main-3.kdl", Kind: GeneratedMirror},
+	{Path: "cmd/internal/webcast/board/operator.go", Kind: VocabularyConsumer, Families: []string{"draft"}, Vocabulary: []VocabularyAllowance{goCaseVocabulary("draft", "draft-status", "ParseOperatorRequest", 1)}},
+	{Path: "cmd/internal/webcast/recorder/operator_notedraft.go", Kind: VocabularyConsumer, Families: []string{"draft"}, Vocabulary: []VocabularyAllowance{goCaseVocabulary("draft", "draft-status", "handleDraftOperation", 2)}},
+	{Path: "cmd/internal/webcast/server_notedraft.go", Kind: VocabularyConsumer, Families: []string{"draft"}, Vocabulary: []VocabularyAllowance{goCaseVocabulary("draft", "draft-status", "noteDraftRoute", 1), goComparisonVocabulary("draft", "draft-status", "noteDraftRoute", 1)}},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/manifest.json", Kind: GeneratedMirror},
 }
 
@@ -606,6 +609,20 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	// #538 private web evidence and note protocol, outside Pair artifact families.
+	"cmd/internal/submission/publication.go",
+	"cmd/internal/webcast/board/prepared_note.go",
+	"cmd/internal/webcast/cast_notedraft.go",
+	"cmd/internal/webcast/chrome_prepared.go",
+	"cmd/internal/webcast/notedraft/model.go",
+	"cmd/internal/webcast/notedraft/references.go",
+	"cmd/internal/webcast/notedraft/save.go",
+	"cmd/internal/webcast/notedraft/service.go",
+	"cmd/internal/webcast/notedraft/store.go",
+	"cmd/internal/webcast/notedraft/transfer.go",
+	"cmd/internal/webcast/notes/anchor.go",
+	"cmd/internal/webcast/recorder/prepared_note.go",
+
 	// #531 launch diagnostics live under CouchNamespace, outside the checked
 	// Pair artifact filename families; the remaining files model/render evidence.
 	"cmd/internal/couchcmd/launchfailure.go",
@@ -770,7 +787,6 @@ var NonArtifactSources = []string{
 	// #470 board: viewers' strokes and notes become records through the
 	// cast's recorder (its Emit); the board writes no files itself.
 	"cmd/internal/webcast/board/board.go",
-	"cmd/internal/webcast/board/operator.go",
 	"cmd/internal/webcast/board/operator_view.go",
 	"cmd/internal/webcast/board/wire.go",
 	"cmd/internal/webcast/board/writer.go",

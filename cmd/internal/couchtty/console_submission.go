@@ -208,6 +208,13 @@ func (m *submissionManager) prepare(job *submissionJob, cast submissionCast, sel
 	ctx, cancel := context.WithTimeout(m.ctx, 30*time.Second)
 	defer cancel()
 	err := ctx.Err()
+	if err == nil {
+		if owner, ok := cast.(interface {
+			ReconcilePendingSubmissions(context.Context, func(context.Context, string) (core.Submission, core.PublicationObservation, error)) error
+		}); ok {
+			err = owner.ReconcilePendingSubmissions(ctx, m.observePublication)
+		}
+	}
 	var base string
 	if err == nil {
 		base, err = m.replay(ctx, filepath.Base(cast.RecordingPath()))
@@ -256,6 +263,13 @@ func (m *submissionManager) prepare(job *submissionJob, cast submissionCast, sel
 		return
 	}
 	job.status = m.status(s)
+}
+
+func (m *submissionManager) observePublication(ctx context.Context, id string) (core.Submission, core.PublicationObservation, error) {
+	if err := ctx.Err(); err != nil {
+		return core.Submission{}, core.PublicationObservation{State: core.PublicationUnknown}, err
+	}
+	return m.store.ObservePublication(id)
 }
 func (m *submissionManager) resolve(job *submissionJob, s core.Submission) {
 	ctx, cancel := context.WithTimeout(m.ctx, 30*time.Second)

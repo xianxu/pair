@@ -45,9 +45,9 @@ Capture artifacts remain in the local Couch store before submit. Do not return c
 
 ## Plan
 
-Durable design: [anchored notes and draw-time captures](../plans/000538-anchored-notes-draw-capture-plan.md). Awaiting hub approval before change-code.
+Durable design: [anchored notes and draw-time captures](../plans/000538-anchored-notes-draw-capture-plan.md). Approved by hub; change-code passed at a478a7b9d.
 
-- [ ] Map existing anchors, note recording, capture ownership, privacy and submission seams; write durable plan and obtain approval.
+- [x] Map existing anchors, note recording, capture ownership, privacy and submission seams; write durable plan and obtain approval.
 - [ ] Implement evidence-scored visibility and draw-time capture lifecycle through viewer and operator paths.
 - [ ] Bundle stored captures for every open note and verify cleanup, failures, privacy and latency.
 - [ ] Review, build, publish and land on SHIP.
@@ -93,3 +93,5 @@ total: 5.48
 - First implementation checkpoint: pure Go/JS scoring and projection, conservative structural resolver (including iframe replacement refusal without frame-route evidence), frozen board preparation/reservation, private atomic capture store and Step ownership model. New service prepares with one worker/eight queued jobs and signed metadata-only unavailable preparations at capacity. Targeted notes/recording/board/notedraft tests pass; JS scorer 19/19; board/store race tests pass. No UI or submission path is complete yet.
 
 - Second implementation checkpoint: recorder acknowledges frozen note reservations outside capture work; HTTP/operator draft adapters enforce generation and owner scopes. Submission v3 carries per-note page/privacy and source document, selects every open note, and resolves by exact revision across documents. Private source-to-bundle transfer/references pass race tests; publication confirmation distinguishes absent/unknown/confirmed. Targeted recorder/board/core tests and all submission-manager tests pass. Browser placement suite passed 191 tests before dialog integration; capture UI, recovery integration and stored-capture submission remain in progress. #537 ownership API receipt 94c7ebc7-def5-4aa6-8843-96a47a8c5c14 verified; production viewer draft routes remain fail-closed until its authenticated context helper lands and is wired.
+
+- Integration checkpoint: browser+terminal JavaScript 284/284; core submission/notes/board/recording/build packages all pass; webcast and couchtty full packages pass. Recorder integration exposed one stale fake expecting ordinary capture failure to be Save-ready; projection now correctly reserves that behavior for approved capacity failures, and the fixture is being updated. Real-Chrome fade oracle passed through draw-time adapter (7.85 s); broader browser conformance/phase measurements remain. Inventory coverage passes. Review found recording IDs can be reused across documents: renderer now grants connected-ID authority only to current-document notes; earlier notes require scored matching. Unknown-save regression now preserves the actual writer error and clears it only after confirmed observation. ARCH-ORDER recovery checks distinguish complete durable bundle, absent directory, and partial/unknown publication.
