@@ -140,6 +140,31 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - "n": 5
+      timestamp: "2026-10-12T22:43:15-07:00"
+      dispatched: "2026-10-12T22:40:15-07:00"
+      agent: claude
+      dispose:
+        - id: BR-8
+          disposition: not-addressed
+          note: All eight named sites fixed, but the rule's own grep still hits cmd/internal/webcast/viewer_drive_live_test.go:216 ("The view link watches, points and notes", now false) and :220; reword both to "view-only link".
+          round: 5
+        - id: BR-9
+          disposition: addressed
+          note: README.md:1117 now reads "copy pointer link" in both columns, matching the prose.
+          round: 5
+        - id: BR-10
+          disposition: addressed
+          note: Update.LinkFor (cast.go:76) is used by the webcastLink table, unlockCast and unlockWebCast; TestUpdateLinkFor pins the mapping; no other production PointerLink/DriveLink readers.
+          round: 5
+        - id: BR-11
+          disposition: addressed
+          note: The pair 506 section now follows the 516 bullet (lessons.md:1448ff); 513/516 are back in their own section.
+          round: 5
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 84a3d0cc1ed337e7530e746d77a2526697ab9512
+      blocked: false
 ---
 
 # Gate ledger — pair#506 (boundary-review)
@@ -203,9 +228,15 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-11** [Minor] `insert-preserves-section-structure` lessons.md: the new pair 506 section is inserted mid-section, so the 513 and 516 bullets now sit under it
   workshop/lessons.md:1439; move the new heading and its two bullets after the 516 bullet.
 
+## Round 5 — 2026-10-12T22:43:15-07:00 (claude) — passed
+
+### Disposed
+
+- BR-8 — not-addressed — All eight named sites fixed, but the rule's own grep still hits cmd/internal/webcast/viewer_drive_live_test.go:216 ("The view link watches, points and notes", now false) and :220; reword both to "view-only link".
+- BR-9 — addressed — README.md:1117 now reads "copy pointer link" in both columns, matching the prose.
+- BR-10 — addressed — Update.LinkFor (cast.go:76) is used by the webcastLink table, unlockCast and unlockWebCast; TestUpdateLinkFor pins the mapping; no other production PointerLink/DriveLink readers.
+- BR-11 — addressed — The pair 506 section now follows the 516 bullet (lessons.md:1448ff); 513/516 are back in their own section.
+
 ## Open findings
 
 - **BR-8** [Minor] `one-name-per-surface` Web-cast code comments still say "view link" / "viewer link"; drive/controller.go:11 is now wrong
-- **BR-9** [Important] `one-name-per-surface` README.md:1117 cast-row table still says the web 👆 copies the view link
-- **BR-10** [Minor] `shared-helper-for-repeated-construction` unlockCast maps a pointer code to the view-only URL; link kind to URL is restated three times
-- **BR-11** [Minor] `insert-preserves-section-structure` lessons.md: the new pair 506 section is inserted mid-section, so the 513 and 516 bullets now sit under it
