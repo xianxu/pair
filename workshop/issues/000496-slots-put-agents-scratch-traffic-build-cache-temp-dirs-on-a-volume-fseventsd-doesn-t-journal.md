@@ -48,14 +48,16 @@ Configuration, not code (operator, 10-12). Each tool already has a per-user sett
 Steps:
 - [x] (approved) create the volume; `no_log`; remount; `mdutil -i off`; tmutil exclusion; dirs
 - [x] (approved) `go env -w`; Claude settings `env` + `allowWrite`
-- [ ] Verify in a fresh session: `go env GOCACHE`, sandboxed and unsandboxed `TMPDIR`, a test run writing to the volume
+- [x] Verify in a fresh session: `go env GOCACHE`, sandboxed and unsandboxed `TMPDIR`, a test run writing to the volume
 - [x] atlas runbook: setup and teardown (`atlas/agent-scratch-volume.md`)
-- [ ] Measure fseventsd after a multi-slot workload, compared with the baseline
-- [ ] (approved) remove the old 92 GB cache
+- [x] Measure fseventsd after a multi-slot workload, compared with the baseline
+- [x] (approved) remove the old 92 GB cache
 
 ## Revisions
 
 - 2026-10-12 13:55: dropped the pair `~/.config/pair/env` launcher channel. Reason: each tool's own per-user config covers every session (including outside pair), and Claude's sandbox overrides an inherited `TMPDIR` anyway, so a pair channel adds a surface that does nothing extra (Simplicity First). Delta: no code; the repo change is the atlas runbook only.
+
+- 2026-10-12 20:25: outcome against Done-when. The volume, the slot configuration and the docs are met. "fseventsd's CPU and memory staying low" was **not demonstrated**: CPU did not drop measurably (11.2% → 12.7%, uncontrolled workload), and memory stayed low in both windows without the 10 GB episode recurring, so the cure is unconfirmed. Closing with that result, per the TL; the remaining load is likely `~/workspace` git/worktree churn, a separate question.
 
 ## Log
 
@@ -72,3 +74,4 @@ Steps:
 - 17:25 TL lead (an ariadne slot: `mktemp` failed in the sandbox, an empty dir var sent `cd` to HOME, and it wrote `~/Makefile`). Measured in a sandboxed shell: writes to `/Volumes/AgentScratch/tmp` and `$TMPDIR` succeed. macOS `mktemp` **without a template** (`mktemp`, `mktemp -d`, `-t x`) ignores `$TMPDIR` for every value tried (the volume, `/private/tmp/claude-501`, the repo) and uses the Darwin per-user dir `/var/folders/…/T`, which the sandbox denies. Only `mktemp -d "${TMPDIR:-/tmp}/x.XXXXXX"` works. **This predates #496**: the same `mkdtemp failed on /var/folders` appears in transcripts from 2026-09-11 onward (ariadne, tools, pair, brain, parley, slots). It is not caused by the volume or `CLAUDE_CODE_TMPDIR`. Allowing `/var/folders/…/T` in the sandbox would move churn back onto the journaled Data volume, so the fix belongs to the scripts (template + `|| exit 1` on mktemp) and stays out of #496 scope.
 - 19:55 after-measurement (the series runs until 20:20; this covers 13:32 to 19:54). fseventsd CPU per ~30 min window: before the switch 11.3 / 10.7 / 10.5%; after it 9.2 / 7.4 / 10.5 / 14.0 / 15.5 / 15.5 / 17.0 / 10.3 / 7.0 / 2.1%. Overall: 11.2% before (80 min) vs 11.1% after (14:58 to 19:54, 296 min). **No measurable CPU reduction**: the rate tracks the fleet workload (2 to 17%) and the workload was not controlled. Memory stayed flat at 15.0 to 16.0 MB RSS and about 4 MB top MEM in both windows; the 10+ GB episode did not recur, so the cure is unconfirmed rather than shown. The volume cache took 15 GB of build churn off the Data volume, and its `.fseventsd` stayed journal-free (checked at 436 MB). Old cache: 97 GB, last directory change 14:55 (before the switch); no running process carries `GOCACHE=` in its environment; Go's env file points at the volume. The likely remaining fseventsd load is other Data-volume churn (worktrees and git under `~/workspace`, which is journaled even though Spotlight-excluded); confirming that needs root `fs_usage`.
 - 20:19 series complete (78 samples, 13:32 to 20:19). The final after-window, 14:58 to 20:19 (321 min), averaged **12.7%** CPU against the 11.2% baseline; the last 15 min ran hot (19.9%, 49.3%, 70.8% per 5 min) under fleet load. RSS peaked at 16.5 MB. Conclusion unchanged: no CPU reduction is measurable under an uncontrolled workload, and memory never grew in either window.
+- ~20:10: the operator approved, and the TL ran the old-cache removal (`go clean -cache` plus `-fuzzcache` on `~/Library/Caches/go-build`): 97 GB freed, about 40K left (README/trim files).
