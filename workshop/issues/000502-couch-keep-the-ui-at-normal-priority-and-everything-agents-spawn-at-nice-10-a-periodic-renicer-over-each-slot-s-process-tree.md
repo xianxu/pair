@@ -51,7 +51,7 @@ Durable plan: `workshop/plans/000502-…-plan.md` (same slug). Single pass (no m
 - [x] #498 launch nice removed; COUCH_SLOT_NICE is the renicer's level
 - [x] --actors facts + one notice; atlas/README
 - [x] scan cost measured, in the Log
-- [ ] live verification on one slot after the operator's OK (via TL)
+- [x] live verification on one slot after the operator's OK (via TL)
 
 ## Log
 
@@ -67,3 +67,12 @@ Durable plan: `workshop/plans/000502-…-plan.md` (same slug). Single pass (no m
   - at 5 s, 12 passes a minute ≈ 5.3 ms of CPU a minute ≈ 0.009% of one core;
   - each newly lowered process adds one identity sysctl plus one setpriority.
 - **Sandbox:** the agent sandbox refuses `setpriority` (EPERM). The real-seam tests skip there and pass unsandboxed.
+
+### 2026-10-13
+- Merged main (#531/#533/#535): kept #535's switch guard beside the renicer settings; #531's
+  `launchoutput_setup_test.go` dropped the removed nice argument. Affected packages green unsandboxed.
+- **Live check PASSED** (staged on pair:0 at 27dca8f4b with `sdlc stage --build`; the operator restarted Couch at
+  16:50; the TL verified on a freshly relaunched ariadne:4):
+  - `sleep 90` started by the agent at nice 10, its zsh at 10;
+  - claude, pair wrap and `zellij --server` at 0;
+  - `couch --actors`: `ariadne:4 claude active nice=0 lowered=3`.
