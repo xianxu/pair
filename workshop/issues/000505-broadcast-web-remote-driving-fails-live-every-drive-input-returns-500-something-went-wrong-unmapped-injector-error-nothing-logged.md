@@ -15,7 +15,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "4589c717", done: "daa15728"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # broadcast-web: remote driving fails live — every drive input returns 500 'Something went wrong' (unmapped injector error, nothing logged)
@@ -62,6 +62,8 @@ middle click, accelerators, clipboard, pickers, downloads, new windows). A windo
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed — make -k test exit 0 on 9ea54990+main. Round-1 fixes: every drive error translation tested at its seam and mutation-checked (TestWithTabFailuresAreDriveErrors: Input.* failure -> ErrInput naming call+cause, closed recorder -> ErrClosed; TestUnrecordedChromeWithTabIsNotLive; dialog pass-through via TestWithTabGivesUpOnADialog); gestures.reset forgets the last click (node test). Root causes as before: page-px hit test (TestCdpTabHitTestsPageCoordinates; TestDriveRealCast second wheel fails with the old code, matching the operator) and drive.js double-click counting (pointerup.detail is 0 in Chrome, measured). TestDriveRealCast passes headless, dpr 2 and windowed (operator-approved run): wheel top + after scroll, link, hover, double click, drag, typing, select-all, delete, undo, IME, right click refused. Every 5xx mapped or logged to Couch's notice line. Operator re-check (scrolling first) pending.; review verdict: SHIP
+- 2026-10-12: flow upgraded quick → full — 111 added lines in code files (limit 100); an earlier round of this close already ran the full review
 - Existing drive tests pass headless (TestLiveDrive, TestLiveDriveNavigation, TestDriveLiveTwoViewers): none
   scrolls, and the viewer test uses the fake injector. New full-chain TestDriveRealCast reproduced a failure: the
   wheel at the top worked, the click after it was refused stale.
