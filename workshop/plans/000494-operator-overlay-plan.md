@@ -262,14 +262,14 @@ Files: create `cmd/internal/webcast/live_operator_test.go`; extend existing
       Inspect a saved headless UI screenshot; no foreground activation.
 - [x] Run relevant Node tests, affected Go packages with `-p 1`, artifactpath inventory
       check and `git diff --check`; mutation-check critical rejection/suppression wiring.
-- [ ] Record evidence in issue Log, update README/atlas and required project references
+- [x] Record evidence in issue Log, update README/atlas and required project references
       through the gate's authorized mechanism (do not hand-edit ops).
 ### Task 5: deferred Couch menu, smoke, close and land
 
 - [x] Wait for hub confirmation that #506 has landed, then merge fresh main before
       touching menu files. Read #495/#506's shared menu model and add annotation rows
       using it: left acts, right copies, Alt menu only LIVE/Chrome. Targeted menu tests.
-- [ ] Arrange operator smoke through hub; stage/build in pair:0 only on explicit
+- [x] Arrange operator smoke through hub; stage/build in pair:0 only on explicit
       instruction. Fresh session for the binary; preserve selected HEAD.
 - [ ] Record operator acceptance; run affected checks after the last change and
       `sdlc close --issue 494 --verified '<actual recorded evidence>'`. This runs the
@@ -394,3 +394,11 @@ click, drag and drag-back; they check preview timing and the submitted region. A
 203 webcast/broadcast-viewer Node tests and real headless operator/shared-module
 checks passed. Rebuilding the staged pair:0 candidate for operator re-test; no close
 or landing acceptance is inferred from this smoke finding.
+
+### 2026-10-12 — smoke acceptance and authorized landing
+
+TL receipt 799f7b20 confirms the operator passed both surfaces on the overlay and
+revised box gesture. Returned the branch from pair:0 to pair:1 via SDLC; pair:0 is
+back on main. Main merged cleanly (documents only). Close/review, PR and merge are
+now authorized; #523 owns the later capability-hook integration. The gate owns
+project completion bookkeeping; no manual ops edits are needed.

@@ -84,7 +84,9 @@ Design 2.10 × 1.15 + implementation 2.36 = **4.775 focused ship-hours**.
 - [x] Implement shared annotation mount, isolated bridge and capture exclusion.
 - [x] Verify off/paused/driving/document lifecycles headlessly and update README/atlas.
 - [x] After #506 and hub release, merge main and add Couch annotation menu rows.
-- [ ] Obtain operator smoke acceptance through hub; close, PR and merge on SHIP.
+- [x] Obtain operator smoke acceptance through hub.
+
+Close, PR and SHIP-authorized landing follow this acceptance checkpoint.
 
 ## Log
 
@@ -366,3 +368,19 @@ click, drag and drag-back; they check preview timing and the submitted region. A
 203 webcast/broadcast-viewer Node tests and real headless operator/shared-module
 checks passed. Rebuilding the staged pair:0 candidate for operator re-test; no close
 or landing acceptance is inferred from this smoke finding.
+
+### 2026-10-12 — operator smoke accepted; close and land authorized
+
+TL receipt 799f7b20 conveys the operator’s smoke PASS on overlay and shared gesture
+fix at 92a1c4258b3bc38691b337647ee8d683721f426d: no box on press, drag box on drag,
+default box on click-release on both viewer and cast Chrome. TL authorized closing
+and landing from pair:1, with pair:0 returned to main. Moved back through `sdlc move :1`;
+pair:0 is on main. Fresh origin/main merged cleanly with issue-document changes only.
+#523/pair:7 will wire the annotation capability hook when it lands second.
+
+Verification for close: full `make test` passed before the gesture correction;
+after it, all 203 Node tests plus headless operator/shared-module tests passed,
+including the actual pointer-down/up visual assertions (latest Chrome 1.25s).
+Targeted Board/recorder/menu race checks passed. A final full suite is rerunning
+on the accepted code. Close owns the mandatory fresh-context review and project
+publication; no operator smoke or gate result has been inferred.
