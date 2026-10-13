@@ -111,6 +111,11 @@ pair:6 read-only while measuring; no live recovery/reboot is authorized here.
   confirms the current pathname is a replacement born at 07:55:48; causative
   deletion remains unknown. See plan revision for exact evidence and guards.
 
+- 2026-10-13 09:31 PDT — TL receipt 6f74a1a9 authorizes change-code now:
+  M1 includes forward producer witnessing; M2 delivers explicit best-candidate
+  and alternatives with UI/CLI evidence. Automatic choice stays OFF pending
+  a future recorded witnessed-corpus calibration. No historical hand-labelling.
+
 ## Log
 
 - Measurement: pair:6 scope 50f39cf60172c338, tag 1-pair-42. Root
@@ -183,3 +188,9 @@ pair:6 read-only while measuring; no live recovery/reboot is authorized here.
   is explicitly an approximation, not a generation witness. Empty-corpus
   plumbing test PASS (0.118s); it validates no ranking or threshold. No native
   transcript, capture, slot record, process or cache was mutated.
+
+- TL resolved the calibration block: proceed with explicit selection and
+  forward witnesses. Proposed activation floor is 20 witnessed pairs per
+  enabled agent/parser version across five threads, five held out, all
+  same-cwd negatives, zero wrong automatic picks; a reviewed recorded policy
+  is required rather than a count-triggered enablement.
