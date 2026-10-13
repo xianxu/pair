@@ -1,6 +1,6 @@
 ---
 id: 000536
-status: codecomplete
+status: done
 created: 2026-10-13
 updated: 2026-10-13
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: a6b46e0903a5e8fb3b9d0480b80a64f78eaab7b0
         evidence_commit: ba900b2308b89b933fb683bc900a4c2a28de89c9
+        landed_commit: 0adbf1b1fa4e9740c73c7b122fa885f4f81954de
 ---
 
 # terminal cast: draw the default note box on mouse up only when no box was dragged (match pair#494's web fix)
