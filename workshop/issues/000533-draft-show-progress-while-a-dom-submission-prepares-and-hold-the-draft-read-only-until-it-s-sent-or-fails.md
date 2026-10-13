@@ -43,9 +43,9 @@ Measure capture, animation settlement, bundle preparation/publication, and pane-
 
 See `workshop/plans/000533-submission-progress-plan.md`. One atomic close boundary.
 
-- [ ] Measure existing phases and finalize design.
-- [ ] Carry preparation progress through existing status polling.
-- [ ] Render progress and enforce operation-scoped editing/timeout ownership.
+- [x] Measure existing phases and finalize design.
+- [x] Carry preparation progress through existing status polling.
+- [x] Render progress and enforce operation-scoped editing/timeout ownership.
 - [ ] Verify, document, review, and land.
 
 ## Log
@@ -82,3 +82,5 @@ total: 2.199
 
 - Implemented informational progress over existing polling; authenticated slot label; 36-second draft operation budget and bounded DOM-only external calls. TDD REDs: manager missing initial replay progress, reducer allowed active replacement, adapter lacked deadline, production buffer remained editable. GREEN: affected Go packages (submission/couchmessage/couchtty/couchcmd/recorder/webcast), focused couchtty+recorder race tests, Lua reducer/adapter/transport/sender and production headless chord tests. Embedded Neovim UI verifies actual status frames precede held pin/send, then settling/sent/failure and buffer release.
 - Estimate clarification: discovery covers completed Chrome/Zellij measurement; both Lua primitive implementation allowances include controlled and headless verification. Residual design covers choosing budget propagation and UI ownership seams. Full-suite runtime can exceed the provisional primitive allowance; it will be measured rather than back-fit.
+
+- Committed implementation bff86d35c. Stable-source verification: complete `tests/submission-transaction-nvim-test.sh` PASS (including embedded UI); live `TestLiveSubmissionCaptureReady` PASS18.05s and `TestLiveSubmissionCrop` PASS12.82s. These loaded-machine test durations include fixture lifecycle and are not replacements for the isolated phase measurements. Full suite launched to `/tmp/pair533-full-suite.log`, currently waiting under the two-suite machine lock.
