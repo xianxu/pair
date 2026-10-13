@@ -196,11 +196,7 @@ Files: new capability/state.go and state_test.go; recording/annotations.go,
 recording/control.go, record.go registry, reduce.go, codec/validation/canonical,
 catchup.go and colocated tests; web/model.js and tests/webcast/model.test.mjs.
 
-- [ ] Write failing transition-table tests for enable/disable/cleanup/retry/end,
-  generations and all four independent capability combinations.
-- [ ] Write Go/JS clear and CtlReset fixtures: notes+strokes+pending+driver,
-  clear while paused, repeated reset, end refusal, catch-up after resume and
-  replay before/after clear. Compare canonical state, not only raw records.
+- [ ] Write failing tests using the Task 1 function strategies below.
 - [ ] Run `go test ./cmd/internal/webcast/capability ./cmd/internal/webcast/recording -count=1`
   and `node --test tests/webcast/model.test.mjs`; confirm expected red.
 - [ ] Implement the pure types/transitions and register additive format kinds;
@@ -213,11 +209,7 @@ Files: board/capability.go, board/board.go, board/writer.go; recorder/recorder.g
 drive/controller.go, controller_mem.go, controller_contract.go, tab.go;
 cast_capabilities.go, cast.go; corresponding tests and existing fake seams.
 
-- [ ] Add failing direct and stateful tests for annotation/refusal across all
-  Board mutations, clears and pending notes, plus delayed enqueue/clear ordering.
-- [ ] Add failing controller tests: active+multiple pending reset, blocked
-  Request/Grant/Input, stale batch after off/on to same viewer, held input release,
-  sink/cleanup failure and retry, stop during cleanup.
+- [ ] Write failing tests using the Task 2 function strategies below.
 - [ ] Implement generation-bound admission and cleanup acknowledgments as above;
   preserve Board leaf-lock invariant and recorder's single writer.
 - [ ] Wire Cast defaults OFF before exposing routes, supported capability snapshots,
@@ -231,10 +223,7 @@ cast_capabilities.go, cast.go; corresponding tests and existing fake seams.
 Files: server_board.go, server_drive.go, server.go, stream.go, link.go;
 server_board_test.go, server_drive_test.go, server_test.go, stream tests.
 
-- [ ] Add failing real HTTP/SSE tests for each link × switch combination;
-  refuse disabled POST before body read and recheck after a delayed body.
-- [ ] Test connected viewers and reconnects get latest effective state; seats
-  remain available while driving is off; unsupported casts remain unsupported.
+- [ ] Write failing tests using the Task 3 function strategies below.
 - [ ] Implement fixed disabled error messages, typed generation handling and
   bounded latest-value SSE updates derived from authorities.
 - [ ] Run the webcast package tests and relevant race tests; update
@@ -250,10 +239,7 @@ Files: broadcast/pointer.go, session.go and tests; couchtty/cast_control.go,
 console_pointer.go, console_webcast.go, terminal_input.go, reserve.go, terminal.go,
 console_castcodes.go only where token readiness changes; associated tests.
 
-- [ ] Test right-copy of unminted terminal pointer makes token+code atomically
-  but never enables, preserves notes/marks state, and retries mint failure safely.
-- [ ] Test one pure click-intent matrix plus real dispatch on all three buttons;
-  stable links/code values, repeat enable copies, copy failure not fake rollback.
+- [ ] Write failing tests using the Task 4 function strategies below.
 - [ ] Implement EnsurePointerLink and shared intent; web click enqueues bounded
   cast-owned work and reports its result, never blocks Couch on CDP.
 - [ ] Render amber only when enabled, dim when off; preserve hit spans and widths.
@@ -266,9 +252,7 @@ console_castcodes.go only where token readiness changes; associated tests.
 Files: web/viewer.js, annotate.js, drive.js; tests/webcast/*.test.mjs;
 Chrome/operator seams listed above if #494 is on main, plus scripted/live tests.
 
-- [ ] Add failing browser tests for off/on with an open draft, active stroke,
-  held drive input, dynamic module mount after toggle, reconnect after clear,
-  and delayed old events. View-only links never gain permission.
+- [ ] Write failing tests using the Task 5 function strategies below.
 - [ ] Implement replay-latest capability consumption, disabled messages, no-flush
   gesture cancellation, held draft and fresh consent on enable.
 - [ ] Integrate #494 according to landing order; record exact API ownership and
@@ -353,11 +337,85 @@ in-flight left-clicks show their existing action/status rather than accidentally
 enabling. Terminal pointing keeps its existing lifecycle and gains only the
 approved ensure-link/copy behavior.
 
-Add to M1 tests: retryable and terminal outcomes for both authorities, timeout
-classification, lost acknowledgements, retry idempotence, no background retries,
-single-flight operation and no enable before successful cleanup. Add to M2
-tests: exhaustive phase/outcome-to-row/viewer/action projection; actual click
-dispatch for failed annotation and drive cleanup; retry succeeds to OFF then
-next click enables; broken cast directs end; stale completions cannot erase a
-newer failure. Include these recovery paths in the operator acceptance script
-and README/atlas documentation.
+M1 and M2 verify this projection through the function strategies below.
+Include recovery in the operator acceptance script and README/atlas docs.
+
+### 2026-10-12 23:12 PDT — Plan gate PQ-1/PQ-2 dispositions
+
+PQ-1: ARCH-ORDER uncertain-effect reconciliation applies to every input release
+path, not only the capability button. Existing controller_mem.go changeLocked
+launches an unowned goroutine and discards release errors; drive/tab.go release
+clears held input before dispatch. Neither behavior can implement the recovery
+contract above. The following replaces that reuse assumption and narrows the
+previous blanket timeout-is-retryable classification.
+
+**One owned release path.** MemController owns a bounded cleanup operation with
+cast context, cancellation and join, replacing detached release goroutines for
+all control changes. Capability cleanup closes admission first, confirms the
+ordered CtlReset, then awaits the same Releaser path. Other control transitions
+also use this path so granting a new driver cannot race unresolved release.
+No controller mutex is held while waiting for recorder/CDP. Controller state
+retains the outgoing driver, operation generation and cleanup progress until
+completion; new driving remains gated while release is pending or failed.
+
+TabInjector retains each held key/button until its release is acknowledged.
+Successful releases remove only their own entry; a definitely unsubmitted or
+explicitly rejected operation retains the entry for retry. The same guarded
+release helper serves control change, navigation and refused-batch cleanup.
+The recorder queue serializes this with input, and the capability generation is
+rechecked at actual input dispatch. No newer driver can press keys while the
+old driver's cleanup is unresolved. Close cancels and joins owned workers;
+CDP session destruction terminates their relevance without claiming a successful
+release in a still-live session.
+
+**Uncertainty is terminal, not a false retry.** A timeout/cancellation before
+queue submission has no external effect and may offer Retry. Once a CDP release
+command has been submitted, absence of a conclusive acknowledgement is an
+uncertain external effect: mark the cast broken and offer End cast. Do not
+blindly repeat it or infer success from an empty local hold set. A transport
+result carries a typed outcome (confirmed, definitely-no-effect, uncertain,
+terminal); it is not classified by matching message text. The CDP adapter must
+preserve submission evidence. Successful reply is completion evidence; detached
+session/recorder is terminal. Late replies may settle diagnostics for that
+attempt but cannot reopen a broken cast or clear a newer failure.
+
+Ordered clear/reset are different: they are idempotent local recording effects.
+A cleanup generation has a stable operation ID; the recorder caches its last
+completed ID/result until that cast ends. Retry queries/enqueues that same ID,
+so an acknowledgement lost after commit cannot append a duplicate reset/clear.
+A single latest completion per capability suffices because attempts are serial
+and stale generations are rejected. Release resumes only definitely unperformed
+entries; uncertain CDP delivery never reaches this retry path.
+
+**Pure transition completion.** Extend the proposed state with Attempt uint64
+and a tagged cleanup outcome (Running, Retryable, Broken), present only during
+Disabling. Event becomes a tagged value: Enable, Disable, Retry,
+CleanupSucceeded(attempt), CleanupFailed(attempt, kind), End. Disable and Retry
+allocate an attempt; Retry is legal only for Retryable. Cleanup events from
+another attempt are ignored. A Running attempt cannot be retried or enabled;
+Retryable allows only Retry; Broken allows only End. Success transitions to Off,
+never On. Generation advances on admission-changing transitions; attempt changes
+fence worker completion independently. The projection function maps this model
+to the previously approved visible states and actions. No UI owns duplicate
+retry state.
+
+PQ-2: the test-case inventories above are compressed into the following named
+function strategies. Acceptance semantics remain in the scope/projection tables;
+executable cases belong in tests. Proposed function names are marked new.
+
+| Task | Production function(s) | Adversarial class and mechanical guard |
+| --- | --- | --- |
+| 1 | NextCapability (new) | Arbitrary tagged event sequences; table/property tests prove admission and attempt invariants. |
+| 1 | State.Apply, NextControl, CatchUp; JS Model.apply | Generated valid timelines plus malformed clear/reset records; Go/JS canonical equivalence and replay-prefix comparison. |
+| 2 | Board.Stroke, Note, SetState, SetAnnotationAllowed (new) | Concurrent mutation and cleanup schedules; barriers prove generation admission and ordered emission. |
+| 2 | Writer.Emit, recorder.Emit and ApplyCapabilityCleanup (new) | Delayed/lost acknowledgements and lifecycle changes; stateful writer proves deduplication and final authority checks. |
+| 2 | MemController.Request, Grant, Input, SetDriveAllowed (new) | Arbitrary control/cleanup interleavings; stateful sink/injector verifies no driving while cleanup is unresolved. |
+| 2 | TabInjector.Inject, Release, release | Partial and uncertain CDP outcomes; stateful held-input fake verifies retained evidence and typed terminal/retry decisions. |
+| 2 | Cast.SetCapability, SubscribeCapabilities (new) | Cancellation and stale worker completions; controlled worker barriers prove bounded lifetime and latest-generation projection. |
+| 3 | Server.boardRoute, driveRoute, stream capability event handler (new) | Untrusted roles and delayed HTTP bodies; real HTTP fixtures enforce role intersection and final permit validation. |
+| 4 | castControlIntent, capabilityProjection (new) | Exhaustive phase/outcome/input domain; pure table tests enforce one visible recovery action. |
+| 4 | Session.EnsurePointerLink (new), terminal/web click dispatch | Failed link/copy operations and repeated clicks; stateful session/clipboard fixtures prove stable secrets and unchanged copy-only admission. |
+| 5 | mountAnnotate, mountDrive, capability subscriber (new) | Reordered stream/module/gesture events; browser stateful fixtures prove cancellation and replay-latest permission. |
+| 5 | startOperator, refreshOperator, annotationPageLocked, operatorAdmission (#494) | Replaced contexts and delayed permissions; scripted CDP peer plus isolated headless conformance proves exact-context fail-closed admission. |
+
+The full test commands and the two review boundaries above remain unchanged.
