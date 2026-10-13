@@ -117,3 +117,8 @@ Durable plan: [agent switch plan](../plans/000517-agent-switch-plan.md).
   refuses and reports the reason on the notice line. Exact previous descriptor
   plus previous/full peek is approved as the design direction. Added these
   acceptance criteria and the durable three-milestone plan for review.
+
+- 2026-10-12 — implementation plan approved by TL, receipt
+  `ebf27554-f0e7-4d4e-8b00-2b46b83c529f`; defaults and full-read limits
+  accepted. TL owns live-check scheduling. Proceed to change-code plan-quality;
+  no permission to skip any gates. Add dirty-source commit/self guidance to M3.

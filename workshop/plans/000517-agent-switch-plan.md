@@ -292,3 +292,13 @@ timeouts preserving the busy guard, and exact previous-descriptor/full-read
 architecture. Final plan review must confirm the proposed timeout defaults and
 full-read operating envelope before implementation. Estimates are derived only
 after the `sdlc change-code` plan-quality gate passes.
+
+## Revisions
+
+- 2026-10-12 — TL approved implementation (receipt
+  `ebf27554-f0e7-4d4e-8b00-2b46b83c529f`), including three milestones,
+  timeout defaults, full-read envelope and transition table. M3 procedure must
+  explicitly tell the TL to ask a dirty source to commit first, or use its self
+  path (which commits before switching). The TL schedules live checks; local
+  Claude/Codex/Grok checks remain targeted. The approval section above records
+  the questions presented for review; those choices are now approved.
