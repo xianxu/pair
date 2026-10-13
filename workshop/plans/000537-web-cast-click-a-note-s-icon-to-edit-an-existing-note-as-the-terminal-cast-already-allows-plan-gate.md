@@ -43,7 +43,24 @@ rounds:
           note: The plan documents inherited directory deletion, cumulative growth and encoded bytes per accepted edit, measured in the recording tests.
           round: 2
       blocked: false
-content_hash: e431404e9d9a7108cce97d44b86870aecad8d2df529de23cacb8b89d700fb5e9
+    - "n": 3
+      timestamp: "2026-10-13T16:24:47-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Named production-function strategies explicitly supersede the earlier prose test inventories.
+          round: 3
+        - id: PQ-2
+          disposition: addressed
+          note: noteDialogTransition owns authoritative state, effects and stale-result handling with sequence-based verification.
+          round: 3
+        - id: PQ-3
+          disposition: addressed
+          note: Edit records inherit explicit operator-managed retention, with encoded per-save growth measured at the maximum note size.
+          round: 3
+      blocked: false
+content_hash: 97b68da7d239351c1bb7bb703f0b9435276dba0db2d7b7ec43fe11cd7976c56a
 ---
 
 # Gate ledger — pair#537 (plan-quality)
@@ -69,6 +86,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - PQ-1 — addressed — The revision supersedes task inventories with named production-function strategies, adversarial inputs and mechanical guards.
 - PQ-2 — addressed — The private production transition model defines pending operations, interruptions, late results and uncertain reconciliation, with controllable sequence tests.
 - PQ-3 — addressed — The plan documents inherited directory deletion, cumulative growth and encoded bytes per accepted edit, measured in the recording tests.
+
+## Round 3 — 2026-10-13T16:24:47-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Named production-function strategies explicitly supersede the earlier prose test inventories.
+- PQ-2 — addressed — noteDialogTransition owns authoritative state, effects and stale-result handling with sequence-based verification.
+- PQ-3 — addressed — Edit records inherit explicit operator-managed retention, with encoded per-save growth measured at the maximum note size.
 
 ## Open findings
 
