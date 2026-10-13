@@ -500,3 +500,23 @@ headless Live suite passed in 159.587s. Logs: /tmp/pair-523-m2-suite.log,
 /tmp/pair-523-m2-race.log, /tmp/pair-523-m2-node-final.log and
 /tmp/pair-523-m2-live-final.log. Hub readiness was sent; pair:0 staging and
 operator acceptance remain pending. No visible window was opened.
+
+### 2026-10-13 08:56 PDT — Smoke error must remain readable
+
+TL reported a tunnel startup error hidden by cast-row clipping. Investigation
+stopped at TL instruction: operator is traveling with network trouble; no
+cloudflared reproduction or live Couch changes. The transport cause is unproven.
+
+Full text already lives in the bounded Feed.Messages snapshot, including after
+row expiry. Reuse it (ARCH-DRY) with a switcher-only Ctrl+Y copy-last-notice action
+and visible hint. Copy via Presenter.Copy outside the console mutex; confirmation
+belongs to the menu so it cannot replace the source notice. Tests must verify
+clipped/expired full text, repeat copying, empty feed, and actor-focused Ctrl+Y
+passthrough. This addresses the operator-approved copyable-line recovery without
+adding a second history store or changing tunnel behavior.
+
+Local-only acceptance uses existing COUCH_BROADCAST_TUNNEL=off with
+COUCH_BROADCAST_HOSTNAME unset/empty on the operator's next launch. Both casts use
+LocalOnly loopback links. All #523 capability checks can run with local viewer
+identities; this does not validate remote tunnel transport. No live restart is
+performed by this agent.

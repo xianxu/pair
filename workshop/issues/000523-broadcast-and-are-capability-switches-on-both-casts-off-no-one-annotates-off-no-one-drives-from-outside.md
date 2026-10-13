@@ -91,6 +91,17 @@ Durable plan: [000523-cast-capability-switches-plan.md](../plans/000523-cast-cap
 
 ## Log
 
+### 2026-10-13 08:56 PDT — Smoke feedback
+
+- Merged main/#517 and rebuilt on pair:0 at d276e4f461728bb64eaa47f4cae7ce8a707b3821.
+- Operator reported a clipped tunnel error. TL then stopped transport debugging
+  because the operator is traveling with network trouble (receipt
+  c8bb31ca-d4bd-47dc-8349-5c7dfd98d587). Cause remains unproven; no tunnel started
+  and running Couch untouched. Retain only the notice accessibility fix.
+- Plan revision specifies switcher Ctrl+Y to copy full retained notice, with
+  menu-only confirmation. Existing LocalOnly mode can run capability smoke;
+  sent exact environment settings and coverage limits to hub.
+
 ### 2026-10-13 07:37 PDT — Staged for operator acceptance
 
 - TL authorized pair:0 staging (receipt 32d72a02-378c-4871-a6ae-e934637c4139).
