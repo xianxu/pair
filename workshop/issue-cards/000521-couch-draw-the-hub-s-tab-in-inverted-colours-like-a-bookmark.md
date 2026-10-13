@@ -1,6 +1,6 @@
 ---
 id: 000521
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 23fb1c94d4f03d07b2844bd359be561d472a288f
         evidence_commit: bf9c97a0344f7fa96cd28ab00e8d8dd516a2cc5e
+        landed_commit: cb9c0292cc38f0747da71b988e21e52d42dccb21
 ---
 
 # couch: draw the hub's tab in inverted colours, like a bookmark
