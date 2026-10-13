@@ -1,6 +1,6 @@
 ---
 id: 000536
-status: working
+status: codecomplete
 created: 2026-10-13
 updated: 2026-10-13
 estimate_hours:
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.29
+tracker:
+    version: 1
+    completion:
+        token: close-771a706221ea
+        repository: github.com/xianxu/pair
+        reviewed_head: a6b46e0903a5e8fb3b9d0480b80a64f78eaab7b0
+        evidence_commit: ba900b2308b89b933fb683bc900a4c2a28de89c9
 ---
 
 # terminal cast: draw the default note box on mouse up only when no box was dragged (match pair#494's web fix)
