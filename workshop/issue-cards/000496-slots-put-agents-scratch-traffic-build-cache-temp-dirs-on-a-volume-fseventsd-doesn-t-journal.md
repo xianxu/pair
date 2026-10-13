@@ -1,6 +1,6 @@
 ---
 id: 000496
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 90589dd8787e04ad97ff09e033b4ce21a4ccf62d
         evidence_commit: e1644fc5dde3961d97fd44044b67a04065a9310c
+        landed_commit: a64322a2ccb31c189d2a1a024fddcdd5292b64f0
 ---
 
 # slots: put agents' scratch traffic (build cache, temp dirs) on a volume fseventsd doesn't journal
