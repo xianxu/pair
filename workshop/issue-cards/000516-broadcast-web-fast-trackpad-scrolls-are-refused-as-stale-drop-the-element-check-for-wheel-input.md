@@ -1,6 +1,6 @@
 ---
 id: 000516
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 85a41d94315c0759eeec1f71a2f398adce87ef06
         evidence_commit: f299bacc73309c45b3164511f8815e82ef9435e7
+        landed_commit: 878b9399eeea5c98ff451b47b470fa7c276fa101
 ---
 
 # broadcast-web: fast trackpad scrolls are refused as stale; drop the element check for wheel input
