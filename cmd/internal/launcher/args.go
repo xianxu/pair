@@ -8,6 +8,8 @@ import (
 
 // LaunchArgs is the pure parse result for the guarded pair-go launch prototype.
 type LaunchArgs struct {
+	// FreshNonce binds readiness independently of optional orientation delivery.
+	FreshNonce        string
 	CouchSessionV1    bool
 	CouchSession      *CouchSessionIntent
 	Command           string // "" = launch; "list" (#99 M5a); "rename"/"continue" (#99 M5b)

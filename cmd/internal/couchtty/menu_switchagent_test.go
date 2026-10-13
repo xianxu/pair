@@ -61,6 +61,9 @@ func TestSwitchAgentParametersContainFinalButtonsAndDispatchAcceptedPreview(t *t
 	p := couchcore.PreparedAgentSwitch{Address: menuAddress("couch-one"), SourceAgent: "claude", Profile: couchcore.LaunchProfile{Agent: "codex", Argv: []string{"--model", "a b"}}, Fingerprint: "accepted"}
 	appendMenuFrame(&state, MenuFrame{Kind: MenuFrameSwitchAgent, Action: "switch-agent", Thread: p.Address, Agent: "codex", SwitchStage: 1, SwitchPrepared: &p, Input: "--model 'a b'", SelectedItem: "parameters"})
 	body := RenderMenuView(state, 100, 20, time.Now(), false).Body
+	if strings.Contains(body, "orientation") || strings.Contains(body, "read source context") {
+		t.Fatalf("switch form promises removed handoff: %s", body)
+	}
 	if !strings.Contains(body, "Cancel") || !strings.Contains(body, "claude → codex") || !strings.Contains(body, "▸ parameters") {
 		t.Fatalf("parameter form omits final action: %s", body)
 	}

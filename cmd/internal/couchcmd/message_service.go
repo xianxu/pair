@@ -152,7 +152,8 @@ type messageService struct {
 	after func(time.Duration, func())
 	// slotOps answers resume, reboot and operation-status (pair#367 M2);
 	// nil answers them unsupported.
-	slotOps *slotOperations
+	slotOps  *slotOperations
+	switches atomic.Pointer[agentSwitchService]
 	// broadcastStatus answers broadcast-status (pair#413). Installed after the
 	// service is serving, so it is an atomic pointer; nil answers unsupported.
 	broadcastStatus atomic.Pointer[func() (couchmessage.BroadcastStatus, bool)]
@@ -237,6 +238,8 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 	if err != nil {
 		return nil, err
 	}
+	switchGuard := &switchServiceGuard{}
+	c.SwitchGuard = switchGuard
 	namespace := c.Namespace.Dir()
 	brokerSocket, err := couchmessage.SocketPath(namespace, "broker")
 	if err != nil {
@@ -373,6 +376,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 		return nil, err
 	}
 	probe.service.Store(service)
+	service.installAgentSwitchService(console, c, switchGuard)
 	console.SetMessageBroker(service.broker)
 	service.SetBroadcastStatus(console.BroadcastStatus)
 	service.SetShares(console.Shares)
@@ -682,6 +686,8 @@ func (s *messageService) connectedWorkspace(ctx context.Context, b couchmessage.
 
 func (s *messageService) handle(ctx context.Context, request couchmessage.Request) couchmessage.Response {
 	switch {
+	case request.Op == "switch-agent":
+		return s.handleAgentSwitch(ctx, request)
 	case couchmessage.IsSubmissionOp(request.Op):
 		return s.handleSubmission(ctx, request)
 	case couchcore.IsSlotOperation(request.Op) || request.Op == "operation-status":
@@ -935,6 +941,15 @@ func (s *messageService) handleSlotOperation(ctx context.Context, request couchm
 	if err != nil {
 		return couchmessage.Response{Code: "unavailable", Error: fmt.Sprintf(
 			"caller is not a live Couch slot (thread %s not live, or this shell's session/launch does not match its record): %v", request.Tag, err)}
+	}
+	if request.Op == "operation-status" {
+		if authenticated, err := s.switchCaller(ctx, request); err == nil {
+			if identity, err := s.connectedWorkspace(ctx, authenticated); err == nil && s.authority.isHub(identity) {
+				if response, ok := s.slotOps.switchStatus(request.ID); ok {
+					return response
+				}
+			}
+		}
 	}
 	return s.slotOps.handle(ctx, caller, request)
 }

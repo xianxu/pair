@@ -15,7 +15,7 @@ type Scrollback struct {
 	lines                            []uv.Line
 	ids                              []uint64
 	metadata                         []RowMetadata
-	nextID, clearEpoch               uint64
+	nextID, clearEpoch, capacityLoss uint64
 	maxLines                         int
 	maxCells, maxBytes, cells, bytes int
 }
@@ -59,6 +59,7 @@ func (s *Scrollback) push(line uv.Line, meta RowMetadata) {
 	id := s.nextID
 	s.nextID++
 	if s.maxLines <= 0 {
+		s.capacityLoss++
 		return
 	}
 	// Keep painted backgrounds/links as well as text; unprinted default padding
@@ -73,6 +74,7 @@ func (s *Scrollback) push(line uv.Line, meta RowMetadata) {
 	cloned := slices.Clone(line[:end])
 	nbytes := lineBytes(cloned)
 	if (s.maxCells > 0 && len(cloned) > s.maxCells) || (s.maxBytes > 0 && nbytes > s.maxBytes) {
+		s.capacityLoss++
 		return
 	}
 	for len(s.lines) > 0 && (len(s.lines) >= s.maxLines || (s.maxCells > 0 && s.cells+len(cloned) > s.maxCells) || (s.maxBytes > 0 && s.bytes+nbytes > s.maxBytes)) {
@@ -179,6 +181,7 @@ func lineBytes(line uv.Line) int {
 	return n
 }
 func (s *Scrollback) evict() {
+	s.capacityLoss++
 	s.cells -= len(s.lines[0])
 	s.bytes -= lineBytes(s.lines[0])
 	s.lines = slices.Delete(s.lines, 0, 1)
@@ -192,4 +195,14 @@ func (s *Scrollback) setLimits(lines, cells, bytes int) {
 	for len(s.lines) > 0 && (len(s.lines) > lines || s.cells > cells || s.bytes > bytes) {
 		s.evict()
 	}
+}
+
+// HistoryCapacityLoss counts primary history rows evicted or rejected by capacity
+// limits over the emulator lifetime. Intentional history clears do not increment
+// or reset it, so a clear cannot conceal earlier capacity loss in the same Write.
+func (e *Emulator) HistoryCapacityLoss() uint64 {
+	if s := e.scrs[0].scrollback; s != nil {
+		return s.capacityLoss
+	}
+	return 0
 }

@@ -106,8 +106,11 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	if in.Resume || in.Fresh {
 		env = append(env, "COUCH_THREAD_RESUME=1")
 	}
-	if in.Orientation != nil {
-		err := in.Orientation.Validate()
+	if in.Fresh || in.Orientation != nil {
+		var err error
+		if in.Orientation != nil {
+			err = in.Orientation.Validate()
+		}
 		var raw []byte
 		if err != nil {
 			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, in.Nonce))
@@ -117,6 +120,12 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, in.Nonce))
 		}
 		profile.Orientation = in.Orientation
+		if in.Fresh {
+			profile.FreshNonce = in.Nonce
+		}
+		if err := launcher.ValidateTrustedLaunchProfile(profile); err != nil {
+			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, in.Nonce))
+		}
 		raw, err = json.Marshal(profile)
 		if err != nil {
 			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, in.Nonce))
@@ -657,18 +666,14 @@ func (c *Couch) sessionBindingForLaunch(ctx context.Context, thread ThreadRecord
 // Pair could never learn.
 var errFreshNonceUnreachable = errors.New("fresh launch nonce cannot reach Pair")
 
-// freshNonceReachesPair is the rule a fresh launch's registration rests on: it
-// waits for a ready file carrying in.Nonce (awaitFreshRegistration), and Pair
-// takes a Couch nonce only from the orientation's attempt; otherwise it mints
-// its own and the wait can only run out (pair#367 smoke test: a resume that
-// restarted fresh stalled the full budget). So a fresh launch must carry an
-// orientation whose attempt is its nonce, checked before any child starts.
+// freshNonceReachesPair checks the nonce before launchTrackedThread writes it to
+// the trusted profile. An optional orientation must name that same attempt.
 func freshNonceReachesPair(in trackedThreadLaunch) error {
 	if !in.Fresh {
 		return nil
 	}
-	if in.Orientation == nil || in.Orientation.Attempt != in.Nonce {
-		return fmt.Errorf("%w: a fresh launch must hand Pair its nonce through the orientation's attempt", errFreshNonceUnreachable)
+	if in.Nonce == "" || (in.Orientation != nil && in.Orientation.Attempt != in.Nonce) {
+		return fmt.Errorf("%w: fresh launch requires a nonce matching any orientation attempt", errFreshNonceUnreachable)
 	}
 	return nil
 }
