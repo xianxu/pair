@@ -61,7 +61,15 @@ func runResumeCandidatesCLI(inv cliInvocation, rt Runtime, out, diagnostic io.Wr
 		if i == 0 && len(preview.Candidates) > 0 {
 			label = "best · " + label
 		}
-		fmt.Fprintf(out, "%d. %s [%s] %s\n   last activity %s · matched %d/%d · tail %.0f%%\n   %s\n   couch --resume %s --candidate %s\n", i+1, rowtext.Sanitize(label), rowtext.Sanitize(c.Agent), rowtext.Sanitize(c.NativeID), c.LastActivity.Format("2006-01-02 15:04"), c.Matched, c.Total, c.TailMatch, rowtext.Sanitize(c.Excerpt), inv.ref, c.Key)
+		activity := "unknown"
+		if !c.LastActivity.IsZero() {
+			activity = c.LastActivity.Format("2006-01-02 15:04")
+		}
+		evidence := "original saved screen"
+		if c.NativeID != "" {
+			evidence = fmt.Sprintf("matched %d/%d · tail %.0f%%", c.Matched, c.Total, c.TailMatch)
+		}
+		fmt.Fprintf(out, "%d. %s [%s] %s\n   last activity %s · %s\n   %s\n   couch --resume %s --candidate %s\n", i+1, rowtext.Sanitize(label), rowtext.Sanitize(c.Agent), rowtext.Sanitize(c.NativeID), activity, evidence, rowtext.Sanitize(c.Excerpt), inv.ref, c.Key)
 	}
 	for _, reason := range preview.Reasons {
 		fmt.Fprintln(out, rowtext.Sanitize(reason))

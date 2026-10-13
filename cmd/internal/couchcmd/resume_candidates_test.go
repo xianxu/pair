@@ -43,3 +43,15 @@ func TestResumeCandidatesCLIUsesReadOnlyBoundedRequest(t *testing.T) {
 		t.Fatalf("preview code%d calls%d out%s diagnostic%s", code, calls, &out, &diagnostic)
 	}
 }
+
+func TestResumeCandidatesCLILegacyFreshShowsUnknownActivityWithoutNativeScore(t *testing.T) {
+	var out, diagnostic bytes.Buffer
+	code := runMessageCLIWithCall(cliInvocation{kind: cliMessage, messageOp: "resume-candidates", ref: "pair:1"}, messageRuntime(), &out, &diagnostic, func(_ context.Context, _ string, _ any, response any) error {
+		*response.(*couchmessage.Response) = couchmessage.Response{Code: "ok", RecoveryPreview: &couchcore.RecoveryPreview{Fresh: &couchcore.RecoveryChoice{Key: "fresh", Label: "start fresh from previous screen", Agent: "codex"}}}
+		return nil
+	})
+	rendered := out.String()
+	if code != 0 || !strings.Contains(rendered, "unknown") || strings.Contains(rendered, "0001") || strings.Contains(rendered, "0%") || strings.Contains(rendered, "matched") {
+		t.Fatalf("invented fresh evidence: code=%d output=%s diagnostic=%s", code, rendered, &diagnostic)
+	}
+}

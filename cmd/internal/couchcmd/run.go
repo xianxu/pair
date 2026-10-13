@@ -182,6 +182,10 @@ func (r OSRuntime) NewCouchWith(runner couchcore.Runner, namespace couchcore.Cou
 	c.SlotIO = couchcore.OSProvisionIO{}
 	c.RootAgent = r.Getenv("PAIR_AGENT")
 	c.ContinuationSource = (couchcore.OSContinuationSourceReader{DataDir: dataDir}).Read
+	recoveryReader := couchcore.OSRecoveryEvidenceReader{DataDir: dataDir, HomeDir: r.Getenv("HOME")}
+	c.RecoveryEvidence = recoveryReader.Read
+	c.RecoveryPreserve = recoveryReader.Preserve
+	c.RecoveryTerminal = recoveryReader.PrepareTerminal
 	renderer, _ := exec.LookPath("pair")
 	c.SwitchContext = couchcore.OSSwitchContextResolver{DataDir: dataDir, HomeDir: r.Getenv("HOME"), Renderer: renderer}
 	c.SlotTerminal = func(address couchcore.ThreadAddress, agent string, maxLines int) ([]string, error) {
@@ -1361,7 +1365,8 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "             then repo default. Missing config: ask the operator to set it in the switch form.")
 	fmt.Fprintln(w, "             No self, startup parameter edits or context delivery. Read the receipt before retrying.")
 	verbLine(w, "--operation-status", "       couch --operation-status ID [--json]")
-	verbLine(w, "--resume", "       couch --resume repo:N [--json]")
+	verbLine(w, "--resume", "       couch --resume repo:N [--candidate KEY] [--json]")
+	verbLine(w, "--resume-candidates", "       couch --resume-candidates repo:N [--json]")
 	verbLine(w, "--reboot", "       couch --reboot repo:N --confirm [--force-unknown] [--json]")
 	fmt.Fprintln(w, "             Archive the slot's conversation and replace it with a fresh agent on the current")
 	fmt.Fprintln(w, "             binary. A live slot is stopped first; busy refuses, busy-unknown needs")

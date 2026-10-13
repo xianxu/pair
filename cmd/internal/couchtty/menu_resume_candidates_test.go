@@ -3,6 +3,7 @@ package couchtty
 import (
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -37,5 +38,13 @@ func TestRecoveryAlternativesRemainExplicitlyAvailableAfterResume(t *testing.T) 
 		if !slices.Contains(menuActionsFor(NewMenuState(nil, couchcore.ThreadAddress{}), row), "resume-candidates") {
 			t.Fatalf("missing alternatives in state %v", state)
 		}
+	}
+}
+
+func TestRecoveryMenuLegacyFreshShowsUnknownActivityWithoutNativeScore(t *testing.T) {
+	frame := MenuFrame{RecoveryPreview: &couchcore.RecoveryPreview{Fresh: &couchcore.RecoveryChoice{Key: "fresh", Label: "start fresh from previous screen", Agent: "codex"}}}
+	rendered := strings.Join(renderRecoveryMenu(frame, 120, 30), "\n")
+	if !strings.Contains(rendered, "unknown") || strings.Contains(rendered, "0001") || strings.Contains(rendered, "0%") || strings.Contains(rendered, "matched") {
+		t.Fatalf("invented fresh evidence: %s", rendered)
 	}
 }

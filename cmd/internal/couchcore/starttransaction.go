@@ -140,11 +140,7 @@ func AdvanceStartTransaction(record ThreadRecord, event StartEvent) (ThreadRecor
 		if incarnation.Start.SessionBinding != nil {
 			next.SessionBinding = cloneSessionBinding(incarnation.Start.SessionBinding)
 		}
-		if intent := incarnation.Start.RecoveryIntent; intent != nil {
-			next.RecoveryContext = threadrecord.CloneRecoveryContext(&intent.Context)
-			next.RecoveryContext.SelectedKey = intent.SelectedKey
-			next.RecoveryContext.SelectedNativeID = intent.NativeID
-		}
+		retainStartRecoveryContext(&next, incarnation.Start)
 		incarnation.Start = nil
 	default:
 		return ThreadRecord{}, fmt.Errorf("unknown start event %q", event.Kind)
@@ -313,4 +309,16 @@ func continuationTargetSession(record ThreadRecord) string {
 		return record.Continuation.Source.Session
 	}
 	return ""
+}
+
+// retainStartRecoveryContext preserves the original screen and explicit choice
+// before any terminal transition clears its start claim, including rollback.
+func retainStartRecoveryContext(record *ThreadRecord, start *ThreadStartClaim) {
+	if start == nil || start.RecoveryIntent == nil {
+		return
+	}
+	intent := start.RecoveryIntent
+	record.RecoveryContext = threadrecord.CloneRecoveryContext(&intent.Context)
+	record.RecoveryContext.SelectedKey = intent.SelectedKey
+	record.RecoveryContext.SelectedNativeID = intent.NativeID
 }

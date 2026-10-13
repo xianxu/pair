@@ -115,3 +115,54 @@ func TestStartRecoveryRejectsExpiredOrPrematureIntent(t *testing.T) {
 		}
 	}
 }
+
+func TestDeleteStartRetainsRecoveryContext(t *testing.T) {
+	for _, parked := range []bool{false, true} {
+		name := "previously-started"
+		if parked {
+			name = "verified-park"
+		}
+		t.Run(name, func(t *testing.T) {
+			store, ns := newTestThreadStore(t)
+			record := admittedStartRecord(t)
+			record.StartingPath, record.WorkingPath = ns.Dir(), ns.Dir()
+			record.LatestLaunchProfile = &LaunchProfile{Agent: "codex"}
+			intent := recoveryStartIntent(record)
+			intent.SelectedKey, intent.NativeID = "native-key", "native"
+			record, err := store.CreateThread(record)
+			if err != nil {
+				t.Fatal(err)
+			}
+			record, err = store.AdvanceStart(record.Address, record.Revision, StartEvent{Kind: StartClaimed, Nonce: "start-0123456789abcdef", Owner: SupervisorOwner{PID: 41, Identity: "owner"}, RecoveryIntent: intent})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if parked {
+				record, err = store.updateExistingThread(record.Address, record.Revision, func(next *ThreadRecord) error {
+					revision := next.Revision
+					markActionableParked(next, next.CreatedAt)
+					next.Revision = revision
+					return nil
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err = store.DeleteStart(record.Address, record.Revision, "start-0123456789abcdef"); err != nil {
+				t.Fatal(err)
+			}
+			got, err := store.GetThread(record.Address)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := threadrecord.CloneRecoveryContext(&intent.Context)
+			want.SelectedKey, want.SelectedNativeID = intent.SelectedKey, intent.NativeID
+			if !reflect.DeepEqual(got.RecoveryContext, want) {
+				t.Fatalf("rollback lost selected recovery context: got %+v; want %+v", got.RecoveryContext, want)
+			}
+			if len(got.Incarnations) != 0 || (got.VerifiedPark != nil) != parked {
+				t.Fatal("rollback changed park truth or retained claim")
+			}
+		})
+	}
+}

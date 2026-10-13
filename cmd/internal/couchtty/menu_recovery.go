@@ -114,7 +114,15 @@ func renderRecoveryMenu(frame MenuFrame, width, height int) []string {
 		if i == 0 && len(frame.RecoveryPreview.Candidates) > 0 {
 			label = "best · " + label
 		}
-		lines = append(lines, marker+label, fmt.Sprintf("  %s · %s · %s", choice.Agent, choice.NativeID, choice.LastActivity.Format("2006-01-02 15:04")), fmt.Sprintf("  matched %d/%d · tail %.0f%%", choice.Matched, choice.Total, choice.TailMatch), "  "+choice.Excerpt)
+		activity := "unknown"
+		if !choice.LastActivity.IsZero() {
+			activity = choice.LastActivity.Format("2006-01-02 15:04")
+		}
+		evidence := "  Original saved screen"
+		if choice.NativeID != "" {
+			evidence = fmt.Sprintf("  matched %d/%d · tail %.0f%%", choice.Matched, choice.Total, choice.TailMatch)
+		}
+		lines = append(lines, marker+label, fmt.Sprintf("  %s · %s · last activity %s", choice.Agent, choice.NativeID, activity), evidence, "  "+choice.Excerpt)
 	}
 	if frame.RecoveryPreview != nil {
 		lines = append(lines, frame.RecoveryPreview.Reasons...)

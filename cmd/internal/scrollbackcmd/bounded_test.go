@@ -2,6 +2,7 @@ package scrollbackcmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,6 +16,35 @@ import (
 	"github.com/xianxu/pair/cmd/internal/storagegc"
 	"golang.org/x/sys/unix"
 )
+
+func TestRecoveryReplayContextCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := RenderBoundedLinesContext(ctx, "/missing", "/missing", 100); !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled replay = %v", err)
+	}
+	// Interrupt while feeding a recording that repeatedly redraws one screen,
+	// so history capacity cannot be the reason replay stops.
+	counted := &cancelDuringReplay{Context: context.Background(), remaining: 4}
+	raw := []byte(strings.Repeat("working\r", 8192))
+	_, err := replayDataWithLimitsContext(counted, raw, nil, true, 101, 100, boundedReplayLimits(100))
+	if !errors.Is(err, context.Canceled) || counted.remaining > 0 {
+		t.Fatalf("mid-replay cancellation = %v, checks remaining %d", err, counted.remaining)
+	}
+}
+
+type cancelDuringReplay struct {
+	context.Context
+	remaining int
+}
+
+func (c *cancelDuringReplay) Err() error {
+	c.remaining--
+	if c.remaining <= 0 {
+		return context.Canceled
+	}
+	return nil
+}
 
 func TestOwnedCaptureLeaseProtectsReplayAndReleases(t *testing.T) {
 	for _, failReplay := range []bool{false, true} {

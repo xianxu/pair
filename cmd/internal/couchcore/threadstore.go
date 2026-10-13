@@ -1013,6 +1013,7 @@ func (s *ThreadStore) DeleteStart(address ThreadAddress, expectedRevision uint64
 			if incarnation.State != IncarnationCreating || incarnation.Start == nil || incarnation.Start.Nonce != nonce {
 				return fmt.Errorf("thread %+v is no longer parked start %q at revision %d", address, nonce, expectedRevision)
 			}
+			retainStartRecoveryContext(record, incarnation.Start)
 			record.Incarnations = nil
 			return nil
 		})
@@ -1040,6 +1041,7 @@ func (s *ThreadStore) DeleteStart(address ThreadAddress, expectedRevision uint64
 			if incarnation.State != IncarnationCreating || incarnation.Start == nil || incarnation.Start.Nonce != nonce {
 				return fmt.Errorf("thread %+v is no longer start %q at revision %d", address, nonce, expectedRevision)
 			}
+			retainStartRecoveryContext(record, incarnation.Start)
 			record.Incarnations = nil
 			return nil
 		})

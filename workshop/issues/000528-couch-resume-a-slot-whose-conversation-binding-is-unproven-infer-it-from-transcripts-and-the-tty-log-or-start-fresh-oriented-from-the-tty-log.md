@@ -241,6 +241,8 @@ M1 closed SHIP at 3ef0ebf54; TL authorized M2 in receipt b15bc8c6. Parser/scorer
 
 M2 integration checkpoint (12:45 PDT): explicit executor and both authority gates now pass targeted recovery tests. Full sessioninventory, couchcmd, couchmessage, couchtty and artifactpath suites passed independently; latest couchtty run (32.105s) includes all pre-existing recovery tests restored unchanged. Capture preservation tests cover same-size/restored-mtime replacement; collector and terminal-retirement mutation checks killed missing ownership/snapshot/cutoff guards. A defaults regression found by integration tests was fixed: successful recovery does not save agent startup preferences. Original tty activity is kept separate from archive publication time (including unknown legacy activity). Terminal adapter and live-source/post-start alternatives tests remain in progress. No full M2 suite, build, boundary acceptance or live acceptance is claimed.
 
+M2 integration follow-up: regression tests now cover live settled-source preservation before park, choosing a second alternative after a successful launch while retaining the original screen, and pending/indeterminate orientation without automatic resend. Legacy terminal recovery is wired and tested to allocate a new terminal name; saved layouts remain untouched. Both DeleteStart rollback branches now retain exact recovery context (red→green), fixing loss after a failed pre-exec launch. Contextual bounded VT replay passes the full scrollbackcmd suite (1.460s); ongoing native-owner guard implementation temporarily makes broad test compilation incomplete, so final suite awaits that atomic change.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against
