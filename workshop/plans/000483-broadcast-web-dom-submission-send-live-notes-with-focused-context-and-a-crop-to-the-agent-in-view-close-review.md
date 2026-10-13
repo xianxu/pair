@@ -96,3 +96,97 @@ findings:
     detail: |
       nvim/dom_transport.lua:25 repeats recursive pane collection and the agent identity predicate already implemented in nvim/pair_poke.lua:26. Consolidate parsing and identification in a shared helper while retaining submission-specific uniqueness and incarnation validation at the caller. ARCH-DRY.
 ```
+
+---
+
+## Re-review — 2026-10-12T21:52:33-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 483 — broadcast-web: DOM submission — send live notes with focused context and a crop to the agent in view |
+| repo | pair |
+| issue file | workshop/issues/000483-broadcast-web-dom-submission-send-live-notes-with-focused-context-and-a-crop-to-the-agent-in-view.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 3e10988dca6330a57f93e974ea668abe58f498bc..14d427d7922e883bafce57219b4ffd644f2844fe |
+| command | sdlc close --issue 483 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-12T21:52:33-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The three prior findings are addressed, with regression evidence. The affected automated suites passed after generating runtime assets in a disposable copy. One new correctness issue blocks shipment: box-text capture can label clipped or off-screen content as visible evidence. Real-Chrome verification was attempted but could not start because sandbox initialization was denied.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      store.go:416 and :487 confirm publication on retries. Removing those checks made Prepare, Begin, Ack, Complete, and resolved-Ack regression tests fail; restored code passed.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      dom_submission_state.lua owns transitions; dom_submission.lua interprets effects. Plan revision at line 190 explicitly supersedes the old PURE classification. Pure sequence tests and adapter tests pass; removing the epoch guard makes the stale-response regression fail.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      dom_transport.lua and pair_poke.lua both consume pane_identity.lua. Parser, transport, and review-poke tests pass; mutating the shared predicate makes parser and transport tests fail.
+findings:
+  - id: new
+    severity: Critical
+    family: visible-evidence-intersection
+    title: |
+      Box-text capture reports non-visible content as visible evidence
+    detail: |
+      cmd/internal/webcast/recorder/box_text.js:11-13,40-48,65-68 checks raw rectangles against the viewport/note box without accounting for ancestor overflow clipping or rejecting an empty intersection. Disposable regression fixtures reproduce overflow-hidden text in visible_text and accessible names for a wholly off-screen region, both with truncated:false. ARCH-PURPOSE: enforce effective visible intersection consistently for text and names, and add clipping and empty-intersection regressions through the DOM seam and real-browser conformance test.
+```
+
+1. **Strengths**
+
+   - Publication durability is reconfirmed across idempotent retries, including reopened stores.
+   - The Lua transition authority preserves frozen payloads, rejects stale callbacks, and supports acknowledgment-only recovery.
+   - Note-resolution tests exercise revision changes, replacement documents, and observed recording outcomes.
+   - README and atlas document the hotkey, evidence format, retention, and recovery.
+
+2. **Critical findings**
+
+   **Visible-evidence intersection:** [box_text.js:13](/Users/xianxu/Library/Caches/sdlc/review-checkouts/1e926ae1f0205087/cmd/internal/webcast/recorder/box_text.js:13). An `overflow:hidden` container does not alter its descendants’ raw range rectangles, so the collector includes text outside the container’s visible area. Separately, a note beyond the viewport produces an inverted intersection that can still accept a wide element’s accessible name. Compute valid, nonempty effective clipping regions and apply them to both evidence groups.
+
+3. **Important findings**
+
+   None.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   - Passed: submission, CDP, all webcast packages, Couch CLI/console/protocol, artifact inventory, and keyhelp.
+   - Passed: Lua model/adapter/transport, authored transaction, draft-send, headless DOM hotkey cases, and review-poke tests.
+   - Mutation checks confirmed regression sensitivity for all three prior corrections.
+   - Both new visibility reproductions failed against pinned-head code.
+   - Real Chrome failed during startup with `sandbox initialization failed: Operation not permitted`; browser conformance remains unverified in this review.
+   - Disposable files were removed; tracked checkout remains unchanged.
+
+6. **Architectural notes for upcoming work**
+
+   - **ARCH-DRY — pass:** shared pane identification and canonical reading guide have production consumers.
+   - **ARCH-PURE — pass:** pure builders/transitions are separated from effect adapters.
+   - **ARCH-PURPOSE — flag:** visible-text evidence violates the approved visibility contract.
+   - **ARCH-MOCK — pass:** stateful seams exercise capture, delivery, and ordering; live verification limitation noted above.
+   - **ARCH-CONSTRAINTS — pass:** capture, input, text, bundle, and store bounds are enforced.
+   - **ARCH-SECURE — pass:** inspected paths validate identities, filesystem inputs, crop data, and private storage.
+   - **ARCH-ORDER — pass:** durable intent, frozen retries, stale-callback rejection, and revision-guarded resolution are exercised.
+   - **ARCH-FUNERAL — pass:** explicit removal and writer admission limits govern retained bundles and staging residue.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry stating that visible evidence requires a nonempty intersection with the note region, viewport, and applicable ancestor clips. Cover both text and accessible names, with nested scrolling/clipping and wholly off-screen fixtures.

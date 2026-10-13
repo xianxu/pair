@@ -29,6 +29,33 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - "n": 2
+      timestamp: "2026-10-12T21:52:34-07:00"
+      dispatched: "2026-10-12T21:47:06-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: store.go:416 and :487 confirm publication on retries. Removing those checks made Prepare, Begin, Ack, Complete, and resolved-Ack regression tests fail; restored code passed.
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: dom_submission_state.lua owns transitions; dom_submission.lua interprets effects. Plan revision at line 190 explicitly supersedes the old PURE classification. Pure sequence tests and adapter tests pass; removing the epoch guard makes the stale-response regression fail.
+          round: 2
+        - id: BR-3
+          disposition: addressed
+          note: dom_transport.lua and pair_poke.lua both consume pane_identity.lua. Parser, transport, and review-poke tests pass; mutating the shared predicate makes parser and transport tests fail.
+          round: 2
+      findings:
+        - id: BR-4
+          severity: Critical
+          title: Box-text capture reports non-visible content as visible evidence
+          detail: 'cmd/internal/webcast/recorder/box_text.js:11-13,40-48,65-68 checks raw rectangles against the viewport/note box without accounting for ancestor overflow clipping or rejecting an empty intersection. Disposable regression fixtures reproduce overflow-hidden text in visible_text and accessible names for a wholly off-screen region, both with truncated:false. ARCH-PURPOSE: enforce effective visible intersection consistently for text and names, and add clipping and empty-intersection regressions through the DOM seam and real-browser conformance test.'
+          family: visible-evidence-intersection
+          round: 2
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#483 (boundary-review)
@@ -47,8 +74,19 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-3** [Important] `shared-recipient-discovery` Submission transport duplicates agent-pane discovery
   nvim/dom_transport.lua:25 repeats recursive pane collection and the agent identity predicate already implemented in nvim/pair_poke.lua:26. Consolidate parsing and identification in a shared helper while retaining submission-specific uniqueness and incarnation validation at the caller. ARCH-DRY.
 
+## Round 2 — 2026-10-12T21:52:34-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — store.go:416 and :487 confirm publication on retries. Removing those checks made Prepare, Begin, Ack, Complete, and resolved-Ack regression tests fail; restored code passed.
+- BR-2 — addressed — dom_submission_state.lua owns transitions; dom_submission.lua interprets effects. Plan revision at line 190 explicitly supersedes the old PURE classification. Pure sequence tests and adapter tests pass; removing the epoch guard makes the stale-response regression fail.
+- BR-3 — addressed — dom_transport.lua and pair_poke.lua both consume pane_identity.lua. Parser, transport, and review-poke tests pass; mutating the shared predicate makes parser and transport tests fail.
+
+### Raised
+
+- **BR-4** [Critical] `visible-evidence-intersection` Box-text capture reports non-visible content as visible evidence
+  cmd/internal/webcast/recorder/box_text.js:11-13,40-48,65-68 checks raw rectangles against the viewport/note box without accounting for ancestor overflow clipping or rejecting an empty intersection. Disposable regression fixtures reproduce overflow-hidden text in visible_text and accessible names for a wholly off-screen region, both with truncated:false. ARCH-PURPOSE: enforce effective visible intersection consistently for text and names, and add clipping and empty-intersection regressions through the DOM seam and real-browser conformance test.
+
 ## Open findings
 
-- **BR-1** [Critical] `durable-retry-confirmation` Idempotent retries bypass failed publication synchronization
-- **BR-2** [Critical] `pure-state-authority` The Lua coordinator contradicts its PURE classification and lacks a pure transition authority
-- **BR-3** [Important] `shared-recipient-discovery` Submission transport duplicates agent-pane discovery
+- **BR-4** [Critical] `visible-evidence-intersection` Box-text capture reports non-visible content as visible evidence
