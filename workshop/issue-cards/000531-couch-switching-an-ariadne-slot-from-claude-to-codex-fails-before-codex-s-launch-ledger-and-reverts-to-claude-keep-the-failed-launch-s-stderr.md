@@ -1,6 +1,6 @@
 ---
 id: 000531
-status: codecomplete
+status: done
 created: 2026-10-13
 updated: 2026-10-13
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: c94678925d28caa379bcbdc52e3ef9c782ac0ea4
         evidence_commit: 013070a864d6731ab793e0cbcc2ab802df3a6a2d
+        landed_commit: 07c7741c40a47ad896b071d5abdf06d29d35d862
 ---
 
 # couch: switching an ariadne slot from Claude to Codex fails before Codex's launch ledger and reverts to Claude; keep the failed launch's stderr
