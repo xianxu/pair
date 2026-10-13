@@ -59,7 +59,16 @@ rounds:
           note: Named production functions have adversarial strategies and mechanical guards, with recovery verification specified in the approved delta.
           round: 4
       blocked: false
-content_hash: f59fe4c18cd64db619228ca98c2dd20e07c810a55287e6e2ab2b07cba697d8c6
+    - "n": 5
+      timestamp: "2026-10-12T22:20:45-07:00"
+      agent: codex
+      blocked: false
+      protocol_error: no valid findings block
+    - "n": 6
+      timestamp: "2026-10-12T22:22:29-07:00"
+      agent: codex
+      blocked: false
+content_hash: e2d3fcb2a20b46ede7132d899aa507880e32b076c40ffd813d377c85f44ef3e9
 ---
 
 # Gate ledger — pair#517 (plan-quality)
@@ -96,6 +105,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - PQ-1 — addressed — Callbacks require the exact parent request ID and authenticated source; standalone requests cannot implicitly satisfy pending requests.
 - PQ-2 — addressed — Named production functions have adversarial strategies and mechanical guards, with recovery verification specified in the approved delta.
+
+## Round 5 — 2026-10-12T22:20:45-07:00 (codex) — passed
+
+**Protocol error:** no valid findings block — this round contributed no findings.
+
+## Round 6 — 2026-10-12T22:22:29-07:00 (codex) — passed
 
 ## Open findings
 
