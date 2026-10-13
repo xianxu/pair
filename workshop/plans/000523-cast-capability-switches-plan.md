@@ -80,7 +80,7 @@ Use it for terminal 👆 and web 👆/👽; code menus remain copy-only.
 | Name | Lives in | Status | Wraps |
 | --- | --- | --- | --- |
 | Board annotation admission | cmd/internal/webcast/board/board.go, annotation.go | modified/new | request/emit ordering and recording sink |
-| Recorder annotation commit | cmd/internal/webcast/recorder/recorder.go | modified | ordered stream writes and clear acknowledgment |
+| Recorder acknowledged writes | cmd/internal/webcast/recorder/recorder.go, capability.go, control.go, drive.go | modified/new | ordered stream writes, control commitment and clear acknowledgment |
 | MemController capability | cmd/internal/webcast/drive/controller_mem.go, controller.go | modified | control sink and input injection |
 | Cast capabilities | cmd/internal/webcast/cast_capabilities.go, cast.go | new/modified | Board/controller state and lifecycle |
 | Capability HTTP/SSE | cmd/internal/webcast/server_board.go, server_drive.go, server.go, stream.go | modified | untrusted HTTP requests and live viewer state |
