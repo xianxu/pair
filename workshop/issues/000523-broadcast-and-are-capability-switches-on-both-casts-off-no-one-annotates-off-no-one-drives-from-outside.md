@@ -1,12 +1,20 @@
 ---
 id: 000523
-status: open
+status: working
 deps: [pair#506]
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: '6879f93e43d0767fa60138c4c480143fb782d738' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'f62691f290df8cbb1282e790b4637c8ad081eb23' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-12T22:52:07-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:7
+    worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
+    repository: github.com/xianxu/pair
 ---
 
 # broadcast: 👆 and 👽 are capability switches on both casts (👆 off: no one annotates; 👽 off: no one drives from outside)
@@ -24,14 +32,79 @@ The operator (2026-10-12): `👆` means "marking-up, here" on both casts, and th
 - The terminal cast already behaves this way for `👆`; keep it, and share one rule in code and README.
 - Server-side enforcement for both switches (never only hidden UI); viewers see a clear state ("annotation is off", "driving is off").
 
+### Agreed interaction and defaults
+
+- Web annotation and external driving start OFF. Enabling either capability
+  copies its existing link; links and code locks survive subsequent toggles.
+- Right-click is copy only, even while OFF. If the terminal pointer link has
+  not been made, mint its token and code lock without enabling it, then copy.
+  Preserve terminal off-to-on copying, automatic hidden-marker disable,
+  geometry checks and late-request protection. There is no terminal drive button.
+- Annotation OFF covers pointer-link and drive-link viewers and the operator
+  overlay. Clear current strokes and notes; keep earlier recording history.
+  Re-enabling starts with empty annotations and pen/watch mode, never a held gesture.
+- Drive OFF prevents requests, grants and queued remote input, clears the active
+  driver and every pending request, and releases held buttons/keys. Seats and
+  links remain; re-enabling requires a fresh request and operator grant.
+- A link's role, whether the capability is supported, and its current enabled
+  state are distinct. UI and viewer state derive from server-side authorities.
+
+### Proposed enforcement and integration
+
+Keep annotation authority with Board and driving authority with the drive
+controller. A shared pure click policy is the one left-toggle/right-copy rule;
+do not replace the terminal pointer's established safety state machine.
+Use generation-bound admission and ordered clear/revoke operations so an
+accepted-but-delayed request cannot survive off/on. Disable closes admission
+before cleanup; failed cleanup stays disabled with a visible error and a safe
+retry, never a false successful on state.
+
+Web annotation clearing needs one ordered recording operation, consumed by Go
+and JS reducers and CatchUp, including pause/resume, so marks cannot reappear
+on reconnect. Drive off uses one all-control reset transition rather than a
+sequence of separately observable revokes/denials. Runtime capability snapshots
+travel over the existing SSE connection and are replayed to late UI subscribers.
+
+#494 is intentionally not branched into this issue. Whichever issue lands second
+wires the capability into its existing operator Board and recorder admission
+checks and applies `__couchcastAnnotationAllowed(bool)` to the exact couchcast
+isolated context on each new document and capability change. Start unavailable
+until current capability is applied; serialize/version those applications so
+an older ON cannot win after OFF. No overlay implementation is duplicated here.
+
 ## Done when
 
-- On the web cast, `👆` off makes pointer-link viewers view-only and disables the operator overlay; `👽` off refuses drive requests and ends an active drive; right-click copies on every control; the terminal `👆` is unchanged; tests cover the server refusals and the clicks; the operator approves on pair:0.
+- Both web capabilities start OFF. Annotation OFF refuses strokes, notes and note-state changes from pointer/drive viewers and the operator; current marks clear and never return on reconnect, re-enable or pause/resume.
+- Drive OFF refuses new requests, stale grants and queued input, clears active and pending control, and releases held input; re-enable requires fresh consent.
+- Left toggles and copies on enable; right copies without enabling, including making the terminal pointer link when absent. Stable links/codes, terminal pointer safety and hover/Alt-click remain intact; no terminal driving is added.
+- Viewer and cast-row states stay current across reconnect, asynchronous module mount and document replacement. #494 integration is completed by the second landing issue using the agreed hook and server admission seams.
+- Tests pin admission and delayed-operation sequences, clearing/replay, click behavior and rendering. Full suite and headless conformance pass; operator approves on pair:0 when TL schedules staging.
 
 ## Plan
 
-- [ ]
+- [ ] M1 — Implement capability enforcement, ordered annotation clear/control reset, server state and race tests.
+- [ ] M2 — Implement shared click behavior, viewer controls, overlay integration as landing order permits, documentation and acceptance.
+
+Durable plan: [000523-cast-capability-switches-plan.md](../plans/000523-cast-capability-switches-plan.md).
 
 ## Log
 
 ### 2026-10-12
+
+- #506 confirmed landed as PR #302 / a5a3fa1f16174a91a647dbf1c97a5da0fdd84dab;
+  claimed and start-plan in pair:7 from main, with no stacked branch.
+- TL approved defaults OFF, right-copy lazy mint without enabling, stable links,
+  all-pending drive revoke and no terminal drive (receipt 9e080cee-0e91-4054-ab52-d84a5fd86bd4).
+- Read-only exploration identified the existing Board, Controller, SSE and
+  recorder seams; code remains untouched pending design/plan review.
+- #494 owner confirmed exact seams (receipt 922c3a42-8d6c-4833-91be-335b325a5eb8):
+  board/operator.go annotationPageLocked; recorder/operator.go operatorAdmission
+  at prepare and ordered write; chrome_operator.go startOperator/refreshOperator
+  with exact session/context identity. #494 owner wires if it lands second.
+
+## Revisions
+
+- 2026-10-12 22:58 PDT: Added approved defaults/copy semantics and proposed
+  enforcement design. Done when now enumerates the full surface rather than
+  relying on a revision to supersede a stale checklist. #494 is a coordinated
+  integration boundary, not an unlanded branch dependency.
