@@ -37,3 +37,10 @@ Agent-guided: the agents who know the work write the handoff; Couch does the mec
 ## Log
 
 ### 2026-10-12
+
+## Revisions
+
+- 2026-10-12 — the operator: the switch is driven by the TL's skill. Done when also: a "switch a slot's agent" procedure in
+  ops' `skills-draft/xx-tl/SKILL.md` (when to switch, how to write the brief, the exact couch call, how to check the new
+  agent picked it up). The TL reviews that section; the first real use moves the paused ariadne items (#230, #282, #305)
+  to Codex with briefs.
