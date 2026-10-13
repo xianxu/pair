@@ -1,12 +1,12 @@
 ---
 id: 000528
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-13
 updated: 2026-10-13
 estimate_hours:
-card_mirror: '8839eac90d5d212164a34973d2f16bc711687428' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '74f6a4c0e5527e6a03f93bb0e551bc0a5d4cef28' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-13T08:57:28-07:00
 claimant:
     operator: Xian Xu
@@ -64,11 +64,44 @@ pair:6 read-only while measuring; no live recovery/reboot is authorized here.
 
 ## Plan
 
-- [ ] Measure native metadata, exact pair:6 evidence and current recovery owners.
-- [ ] Write durable design and obtain TL/operator approval before code.
+- [x] Measure native metadata, exact pair:6 evidence and current recovery owners.
+- [ ] Approve durable design: workshop/plans/000528-slot-recovery-plan.md.
+- [ ] M1 — Native recovery evidence and truthful agent liveness.
+- [ ] M2 — Confirmed inferred resume and fresh tty-oriented fallback.
 
+
+## Revisions
+
+- 2026-10-13 09:03 PDT — TL receipt a9307d75-b068-482d-8738-e8d6a344640a
+  approves two measured corrections: the cutoff is the launch producing the
+  retained tty evidence, not a later empty/recovery helper start; classify
+  subagent/tool execution by source/parent metadata, not originator alone.
+  The original Spec above retains the dispatched wording as provenance; these
+  corrections govern implementation.
 
 ## Log
+
+- Measurement: pair:6 scope 50f39cf60172c338, tag 1-pair-42. Root
+  01a1333f-ffcb-7760-a1b1-50f52544102d is source=cli, originator=codex-tui,
+  parent absent, exact worktree cwd. The 20:15:55 rollout is its subagent,
+  not a second interactive root. Ledger rows 17/18 identify the original
+  Oct 12 20:13:11.331 launch (ordinal 18, Pair-log offset 0); root begins
+  3.426 seconds later. Last activity Oct 13 07:54:11.154 precedes the latest
+  recovery helper by 93.180 seconds, but differs from tty mtime by only 15ms.
+- Existing RenderBoundedLines with 100 history rows returned 139 rows including
+  viewport. Whitespace/Markdown-decoration normalization gives a full final
+  assistant-message match: 28 words, 21/21 eight-word windows (100%). Overlay
+  measurement passes in 0.902s. No live slot state changed.
+- Claude 2.1.296: cwd/entrypoint/isSidechain/message timestamp exist; root cli
+  versus sdk-cli and subagents are distinguishable, but cwd may change within
+  a conversation. Grok 1.0.50: 42/42 summaries have info.cwd; only 4/42 declare
+  session_kind, all headless. Missing kind and relationship=primary do not
+  prove interactive. Scanner chronology is first activity, not last; existing
+  causal event normalization omits assistant text and cannot be used unchanged
+  as a display-tail renderer.
+- Liveness audit: inventory trusts hosted/recorded Pair helpers, detached
+  projection trusts server/client count, and reattach overlay promotes attach
+  completion to live. All three consumers need the same agent-usability fact.
 
 ### 2026-10-13
 - Verified dispatch receipt 65b09489-edf7-445a-8c0d-32e0c934eb62.
