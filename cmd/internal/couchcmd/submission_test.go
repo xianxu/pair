@@ -67,7 +67,7 @@ func TestSubmissionCLIJSONAndFailures(t *testing.T) {
 					return errors.New("socket gone")
 				}
 				v := response.(*couchmessage.Response)
-				*v = couchmessage.Response{Code: tc.code, Submission: &couchmessage.SubmissionStatus{ID: r.ID, State: tc.state, Path: "/store/submission-1/submission.json", Target: core.Target{Scope: r.Scope, Tag: r.Tag, Session: r.Session, Nonce: r.Nonce}}}
+				*v = couchmessage.Response{Code: tc.code, Submission: &couchmessage.SubmissionStatus{ID: r.ID, State: tc.state, HowToRead: core.ReadingGuide("/recording path"), Path: "/store/submission-1/submission.json", Target: core.Target{Scope: r.Scope, Tag: r.Tag, Session: r.Session, Nonce: r.Nonce}}}
 				if tc.code != "ok" {
 					v.Error = tc.detail
 				} else {
@@ -88,7 +88,7 @@ func TestSubmissionCLIJSONAndFailures(t *testing.T) {
 			if err := json.Unmarshal(out.Bytes(), &result); err != nil {
 				t.Fatal(err)
 			}
-			if result.Submission == nil || result.Submission.State != tc.state {
+			if result.Submission == nil || result.Submission.State != tc.state || result.Submission.HowToRead != core.ReadingGuide("/recording path") {
 				t.Fatalf("lost structured status: %s", &out)
 			}
 			if tc.want != 0 && !strings.Contains(errout.String(), tc.detail) {

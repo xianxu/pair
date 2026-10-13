@@ -15,10 +15,13 @@ import (
 )
 
 const (
-	MaxPixels      = 4 * 1024 * 1024
-	MaxPNGBytes    = 8 * 1024 * 1024
-	MaxBundleBytes = 64 * 1024 * 1024
-	MaxStoreBytes  = 1024 * 1024 * 1024
+	MaxBoxTextBytes   = 8192
+	MaxBoxTextEntries = 256
+	MaxBoxTextNodes   = 20000
+	MaxPixels         = 4 * 1024 * 1024
+	MaxPNGBytes       = 8 * 1024 * 1024
+	MaxBundleBytes    = 64 * 1024 * 1024
+	MaxStoreBytes     = 1024 * 1024 * 1024
 )
 
 type Target struct {
@@ -35,14 +38,16 @@ type Source struct {
 	Document      int    `json:"document"`
 }
 type Submission struct {
-	Version  int      `json:"version"`
-	ID       string   `json:"id"`
-	Target   Target   `json:"target"`
-	Source   Source   `json:"source"`
-	Notes    []Note   `json:"notes"`
-	Delivery Delivery `json:"delivery"`
+	HowToRead string   `json:"how_to_read"`
+	Version   int      `json:"version"`
+	ID        string   `json:"id"`
+	Target    Target   `json:"target"`
+	Source    Source   `json:"source"`
+	Notes     []Note   `json:"notes"`
+	Delivery  Delivery `json:"delivery"`
 }
 type Note struct {
+	BoxText  BoxText          `json:"box_text"`
 	Revision uint64           `json:"revision"`
 	ID       string           `json:"id"`
 	Author   recording.Author `json:"author"`
@@ -61,6 +66,71 @@ type Crop struct {
 	CapturedAt  time.Time     `json:"captured_at"`
 	Document    int           `json:"document"`
 	Unavailable string        `json:"unavailable,omitempty"`
+}
+
+// CaptureRegion keeps screenshot padding distinct from the original note box.
+type CaptureRegion struct{ Box, Region recording.Box }
+type BoxTextEntry struct {
+	Selector string `json:"selector"`
+	Text     string `json:"text"`
+	Kind     string `json:"kind,omitempty"`
+	Role     string `json:"role,omitempty"`
+}
+type BoxText struct {
+	Region          recording.Box  `json:"region"`
+	VisibleText     []BoxTextEntry `json:"visible_text"`
+	AccessibleNames []BoxTextEntry `json:"accessible_names"`
+	Truncated       bool           `json:"truncated"`
+	Scope           string         `json:"scope,omitempty"`
+	Skipped         []string       `json:"skipped,omitempty"`
+	Unavailable     string         `json:"unavailable,omitempty"`
+}
+
+// ReadingGuide is stored once and forwarded unchanged in the agent message.
+func ReadingGuide(recordingPath string) string {
+	return "submission.json contains note context, current box text, and capture metadata; crop-N.png files beside it show each note's current appearance.\n" +
+		"The recording at " + recordingPath + " is queryable with couch --broadcast-web-query DIR notes|dom|events|link (replace DIR with that quoted path; start with notes).\n" +
+		"Use dom --at <t> --sel @N for the note's recorded element, events --from <t-10000> --to <t> for what happened before it, and link --at <t> for replay. Run couch --skill for the full guide."
+}
+
+func ValidateBoxText(b BoxText) error {
+	if len(b.Skipped) > 4 {
+		return fmt.Errorf("too many skipped content kinds")
+	}
+	for _, kind := range b.Skipped {
+		switch kind {
+		case "frame", "cross-origin frame", "object/embed", "closed shadow root":
+		default:
+			return fmt.Errorf("invalid skipped content kind")
+		}
+	}
+	if len(b.Skipped) > 0 && !b.Truncated {
+		return fmt.Errorf("skipped content must mark truncation")
+	}
+
+	if len(b.VisibleText)+len(b.AccessibleNames) > MaxBoxTextEntries {
+		return fmt.Errorf("box text exceeds 256 entries")
+	}
+	for _, group := range [][]BoxTextEntry{b.VisibleText, b.AccessibleNames} {
+		total := 0
+		for _, e := range group {
+			total += len(e.Selector) + len(e.Text) + len(e.Kind) + len(e.Role)
+		}
+		if total > MaxBoxTextBytes {
+			return fmt.Errorf("box text group exceeds 8 KiB")
+		}
+	}
+	if b.Unavailable != "" {
+		if b.Region != (recording.Box{}) || len(b.VisibleText)+len(b.AccessibleNames) != 0 {
+			return fmt.Errorf("unavailable box text has current evidence")
+		}
+		return nil
+	}
+	// Zero value remains readable for older bundles created before box-text capture.
+	if b.Region == (recording.Box{}) && len(b.VisibleText)+len(b.AccessibleNames) == 0 {
+		return nil
+	}
+	return ValidateBox(b.Region)
 }
 
 var identifier = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`)
@@ -114,6 +184,9 @@ func Validate(s Submission) error {
 			return fmt.Errorf("empty or duplicate note ID")
 		}
 		ids[n.ID] = true
+		if err := ValidateBoxText(n.BoxText); err != nil {
+			return err
+		}
 		if err := ValidateCrop(n.Crop); err != nil {
 			return err
 		}

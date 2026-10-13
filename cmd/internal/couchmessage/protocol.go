@@ -60,11 +60,12 @@ type Response struct {
 // SubmissionStatus is a durable evidence submission's current outcome. Polling
 // it never repeats capture or delivery; the client retains ID through retries.
 type SubmissionStatus struct {
-	ID     string      `json:"id"`
-	State  string      `json:"state"`
-	Path   string      `json:"path,omitempty"`
-	Error  string      `json:"error,omitempty"`
-	Target core.Target `json:"target"`
+	HowToRead string      `json:"how_to_read,omitempty"`
+	ID        string      `json:"id"`
+	State     string      `json:"state"`
+	Path      string      `json:"path,omitempty"`
+	Error     string      `json:"error,omitempty"`
+	Target    core.Target `json:"target"`
 }
 
 func IsSubmissionOp(op string) bool {

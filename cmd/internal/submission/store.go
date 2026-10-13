@@ -115,7 +115,10 @@ func (s *Store) write(r *os.Root, path string, data []byte) error {
 	}
 	return closeErr
 }
-func syncDir(r *os.Root, path string) error {
+func (s *Store) syncDir(r *os.Root, path string) error {
+	if err := s.checkpoint("sync-dir:" + path); err != nil {
+		return err
+	}
 	f, err := r.Open(path)
 	if err != nil {
 		return err
@@ -123,6 +126,17 @@ func syncDir(r *os.Root, path string) error {
 	defer f.Close()
 	return f.Sync()
 }
+
+// confirmPublication makes both the manifest name within the bundle and the
+// bundle name within the store durable. Visibility after rename alone is not
+// an acknowledgment: retries must run these syncs even if no bytes change.
+func (s *Store) confirmPublication(r *os.Root, id string) error {
+	if err := s.syncDir(r, id); err != nil {
+		return err
+	}
+	return s.syncDir(r, ".")
+}
+
 func (s *Store) usage(r *os.Root) (int64, error) {
 	var total int64
 	count := 0
@@ -334,7 +348,9 @@ func (s *Store) pending(r *os.Root, target Target) ([]Submission, error) {
 	return result, nil
 }
 
-// Prepare publishes an entire private bundle, or leaves no visible bundle.
+// Prepare publishes an entire private bundle. A failure after rename may leave
+// a complete visible bundle; retries confirm publication durability before
+// returning success. Earlier failures leave no visible bundle.
 func (s *Store) Prepare(sub Submission, crops map[string][]byte) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -397,6 +413,9 @@ func (s *Store) Prepare(sub Submission, crops map[string][]byte) (string, error)
 				return "", fmt.Errorf("submission crop content changed")
 			}
 		}
+		if err = s.confirmPublication(r, sub.ID); err != nil {
+			return "", err
+		}
 		return s.ManifestPath(sub.ID), nil
 	} else if !os.IsNotExist(err) {
 		return "", err
@@ -431,7 +450,7 @@ func (s *Store) Prepare(sub Submission, crops map[string][]byte) (string, error)
 	if err = s.write(r, filepath.Join(name, "submission.json"), data); err != nil {
 		return "", err
 	}
-	if err = syncDir(r, name); err != nil {
+	if err = s.syncDir(r, name); err != nil {
 		return "", err
 	}
 	if err = s.checkpoint("rename"); err != nil {
@@ -440,7 +459,7 @@ func (s *Store) Prepare(sub Submission, crops map[string][]byte) (string, error)
 	if err = r.Rename(name, sub.ID); err != nil {
 		return "", err
 	}
-	if err = syncDir(r, "."); err != nil {
+	if err = s.confirmPublication(r, sub.ID); err != nil {
 		return "", err
 	}
 	return s.ManifestPath(sub.ID), nil
@@ -465,7 +484,7 @@ func (s *Store) Transition(id string, target Target, event Event) (Submission, e
 		return sub, err
 	}
 	if next == sub.Delivery {
-		return sub, nil
+		return sub, s.confirmPublication(r, id)
 	}
 	sub.Delivery = next
 	data, err := json.MarshalIndent(sub, "", "  ")
@@ -495,7 +514,7 @@ func (s *Store) Transition(id string, target Target, event Event) (Submission, e
 	if err = r.Rename(temp, filepath.Join(id, "submission.json")); err != nil {
 		return sub, err
 	}
-	if err = syncDir(r, id); err != nil {
+	if err = s.confirmPublication(r, id); err != nil {
 		return sub, err
 	}
 	return sub, nil

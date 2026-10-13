@@ -91,7 +91,7 @@ func (c *Console) submissionReplay(ctx context.Context, id string) (string, erro
 	}
 }
 func (m *submissionManager) status(s core.Submission) couchmessage.SubmissionStatus {
-	return couchmessage.SubmissionStatus{ID: s.ID, State: string(s.Delivery), Path: m.store.ManifestPath(s.ID), Target: s.Target}
+	return couchmessage.SubmissionStatus{HowToRead: s.HowToRead, ID: s.ID, State: string(s.Delivery), Path: m.store.ManifestPath(s.ID), Target: s.Target}
 }
 func (m *submissionManager) request(ctx context.Context, op, id string, target core.Target) (couchmessage.SubmissionStatus, error) {
 	if err := ctx.Err(); err != nil {

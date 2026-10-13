@@ -395,3 +395,186 @@ func TestStoreMetadataBoundsAggregateCropSizes(t *testing.T) {
 		t.Fatal("metadata accepted aggregate size over 64 MiB")
 	}
 }
+
+// A rename is visible before directory fsync confirms durability. Neither
+// reopening the Store nor an idempotent request may promote that visibility
+// to a successful durability acknowledgment while fsync still fails.
+func TestStorePrepareRetriesPublicationSync(t *testing.T) {
+	for _, dir := range []string{"sample", "."} {
+		t.Run(dir, func(t *testing.T) {
+			root := tempRoot(t)
+			sub := fixture()
+			attempts := 0
+			fail := func(op string) error {
+				if op == "sync-dir:"+dir {
+					attempts++
+					return errors.New("directory sync unavailable")
+				}
+				return nil
+			}
+			for attempt := 0; attempt < 3; attempt++ {
+				store, err := NewStore(root)
+				if err != nil {
+					t.Fatal(err)
+				}
+				store.fail = fail
+				if _, err = store.Prepare(sub, nil); err == nil {
+					t.Fatalf("attempt %d acknowledged publication despite failed directory sync", attempt)
+				}
+				got, err := store.ReadMetadata(sub.ID)
+				if err != nil || got.Delivery != Prepared {
+					t.Fatalf("rename must be visible and complete: %v %v", got, err)
+				}
+			}
+			if attempts != 3 {
+				t.Fatalf("directory sync attempts = %d, want 3", attempts)
+			}
+			store, err := NewStore(root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err = store.Prepare(sub, nil); err != nil {
+				t.Fatal("successful sync must recover preparation", err)
+			}
+		})
+	}
+}
+func TestStoreTransitionRetriesPublicationSync(t *testing.T) {
+	for _, event := range []Event{Begin, Ack, Complete} {
+		for _, dir := range []string{"sample", "."} {
+			t.Run(string(event)+"/"+dir, func(t *testing.T) {
+				root := tempRoot(t)
+				store, err := NewStore(root)
+				if err != nil {
+					t.Fatal(err)
+				}
+				sub := fixture()
+				if _, err = store.Prepare(sub, nil); err != nil {
+					t.Fatal(err)
+				}
+				for _, prior := range []Event{Begin, Ack, Complete} {
+					if prior == event {
+						break
+					}
+					if _, err = store.Transition(sub.ID, sub.Target, prior); err != nil {
+						t.Fatal(err)
+					}
+				}
+				attempts := 0
+				fail := func(op string) error {
+					if op == "sync-dir:"+dir {
+						attempts++
+						return errors.New("directory sync unavailable")
+					}
+					return nil
+				}
+				for attempt := 0; attempt < 3; attempt++ {
+					store, err = NewStore(root)
+					if err != nil {
+						t.Fatal(err)
+					}
+					store.fail = fail
+					if _, err = store.Transition(sub.ID, sub.Target, event); err == nil {
+						t.Fatalf("attempt %d acknowledged %s despite failed directory sync", attempt, event)
+					}
+					got, err := store.ReadMetadata(sub.ID)
+					if err != nil {
+						t.Fatal(err)
+					}
+					want := map[Event]Delivery{Begin: Delivering, Ack: Dispatched, Complete: Resolved}[event]
+					if got.Delivery != want {
+						t.Fatalf("rename must be visible: got %s, want %s", got.Delivery, want)
+					}
+				}
+				if attempts != 3 {
+					t.Fatalf("directory sync attempts = %d, want 3", attempts)
+				}
+				store, err = NewStore(root)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err = store.Transition(sub.ID, sub.Target, event); err != nil {
+					t.Fatal("successful sync must recover transition", err)
+				}
+			})
+		}
+	}
+}
+func TestStoreAdvancingAndPrepareRetryConfirmEarlierPublication(t *testing.T) {
+	store, err := NewStore(tempRoot(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sub := fixture()
+	store.fail = func(op string) error {
+		if op == "sync-dir:." {
+			return errors.New("root sync unavailable")
+		}
+		return nil
+	}
+	if _, err = store.Prepare(sub, nil); err == nil {
+		t.Fatal("preparation ignored failed root sync")
+	}
+	if _, err = store.Transition(sub.ID, sub.Target, Begin); err == nil {
+		t.Fatal("advancing state bypassed earlier failed bundle publication")
+	}
+	store.fail = func(op string) error {
+		if op == "sync-dir:"+sub.ID {
+			return errors.New("bundle sync unavailable")
+		}
+		return nil
+	}
+	if _, err = store.Prepare(sub, nil); err == nil {
+		t.Fatal("existing preparation bypassed failed transition publication")
+	}
+	store.fail = nil
+	if _, err = store.Prepare(sub, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.Transition(sub.ID, sub.Target, Begin); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestStoreResolvedAckRetriesPublicationSync(t *testing.T) {
+	root := tempRoot(t)
+	store, err := NewStore(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sub := fixture()
+	if _, err = store.Prepare(sub, nil); err != nil {
+		t.Fatal(err)
+	}
+	for _, event := range []Event{Begin, Ack} {
+		if _, err = store.Transition(sub.ID, sub.Target, event); err != nil {
+			t.Fatal(err)
+		}
+	}
+	fail := func(op string) error {
+		if op == "sync-dir:"+sub.ID {
+			return errors.New("directory sync unavailable")
+		}
+		return nil
+	}
+	store.fail = fail
+	if _, err = store.Transition(sub.ID, sub.Target, Complete); err == nil {
+		t.Fatal("complete ignored failed sync")
+	}
+	// Ack is also idempotent when resolution has already advanced the state.
+	for attempt := 0; attempt < 2; attempt++ {
+		store, err = NewStore(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		store.fail = fail
+		if _, err = store.Transition(sub.ID, sub.Target, Ack); err == nil {
+			t.Fatal("resolved ack bypassed failed completion sync")
+		}
+	}
+	store.fail = nil
+	got, err := store.Transition(sub.ID, sub.Target, Ack)
+	if err != nil || got.Delivery != Resolved {
+		t.Fatal(got, err)
+	}
+}

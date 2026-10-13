@@ -1443,3 +1443,7 @@ proof; record the surprising case so the next change starts from evidence.
 - A scheduler may execute inline during startup/shutdown: release the owner's mutex before invoking it, and test the inline case.
 - Cancellation must gate the first side effect as well as publication; a canceled job must not start replay, screenshot capture or note resolution.
 - Retry identity includes generated evidence and the recipient, not only authored text. After confirmed dispatch, remaining retries must be acknowledgment/commit-only.
+
+- Idempotent durable writes must retry directory synchronization after a successful rename followed by failed sync. Test repeated retries through a newly opened store, including callers that advance directly to the next transition. Visible files are not proof of durable publication.
+- An injected adapter is still integration code: pure state/event transitions own retry state; the adapter interprets effects and ignores stale completions by attempt identity.
+- Reuse a shared recipient identity/parser when adding a routing consumer; keep each caller's uniqueness and incarnation policy separate.

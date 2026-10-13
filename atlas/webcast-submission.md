@@ -3,7 +3,7 @@
 Press **Shift+Ctrl+Alt+Return** in the draft Neovim, in normal or insert mode,
 to send the draft text and all open notes on the cast tab's current document to
 the agent in that view. Each note carries focused recorded context, a replay
-link, and its own current PNG crop. Overlapping notes still get separate crops.
+link, current box text, and its own current PNG crop. Overlapping notes still get separate crops.
 The selection is frozen when Couch admits the request; notes added afterward
 wait for the next submission.
 
@@ -27,7 +27,7 @@ Couch writes the complete bundle before sending anything:
   crop-1.png
 ```
 
-The agent receives the draft text plus the absolute manifest path. Pair's
+The agent receives the draft text, absolute manifest path, and the manifest's `how_to_read` guide. The guide names the recording path and query commands. Pair's
 authored log retains the original draft; generated evidence references belong
 to the outgoing prompt. Crops are files, not clipboard attachments. The folder
 is portable, with relative crop paths; its recording and replay references
@@ -40,6 +40,33 @@ moment. `crop.captured_at` is the wall-clock time of a screenshot taken during
 submission, and `crop.document` identifies the captured document. Boxes use
 `[x, y, width, height]` in page CSS pixels. A crop is the note's recorded box
 plus a margin, captured from the actual cast tab now.
+
+Each note's `box_text` captures current characters inside its original unpadded
+region (or anchor box), alongside the historical anchor text. `visible_text`
+contains visible intersecting text in reading order, without repeating parent
+and child text. `accessible_names` separately labels aria-label, alt, title,
+and role/name entries. Both include selectors. Hidden, zero-size, off-screen,
+and aria-hidden content is excluded. The PNG is the definitive appearance;
+box text preserves characters and selectors locate elements.
+
+The `scope` is `top-document-and-open-shadow-roots`. Separate frame documents,
+object/embed content and closed shadow interiors are outside that scope.
+Intersecting skipped frames or object/embed nodes set `truncated: true` and name
+the kind in `skipped`; closed shadow interiors are not generally detectable.
+The PNG retains their visible appearance.
+
+Each text group has an 8 KiB budget including its selectors and labels; the two
+groups share a 256-entry limit. Traversal stops at 20,000 nodes and reports
+`truncated: true` when evidence reaches a limit. Box text belongs to the same
+capture document and interval as its PNG, not the note's historical moment.
+
+Read `submission.json`, then its relative `crop-N.png` files. To explore the
+recording named in `source.recording_path`, start with
+`couch --broadcast-web-query DIR notes`. Use `dom --at <t> --sel @N` for a
+recorded element and `events --from <t-10000> --to <t>` for preceding actions;
+`link --at <t>` produces a replay link. Replace DIR with the quoted recording
+path. Run `couch --skill` for the full query guide. These pointers are also
+included in `how_to_read` and the delivered text.
 
 If the selected document has already gone before capture, the note retains its
 recorded context and has `crop: {"unavailable":"page changed"}` instead of a
@@ -54,6 +81,7 @@ note generation used by acknowledgment.
 ```json
 {
   "version": 1,
+  "how_to_read": "Read the manifest and PNGs; query the recording as described above.",
   "id": "example-1",
   "target": {"scope": "scope", "tag": "thread", "session": "session", "nonce": "launch"},
   "source": {
@@ -71,6 +99,7 @@ note generation used by acknowledgment.
     "t": 1530,
     "at": {"node": 7, "kind": "element", "path": ["main", "button#save"], "sel": "#save", "text": "Save", "box": [20, 80, 100, 32]},
     "context": {"node": 7, "landmark": 3, "text": "Settings Save", "box": [10, 20, 300, 120]},
+    "box_text": {"region": [20, 80, 100, 32], "visible_text": [{"selector": "#save", "text": "Save"}], "accessible_names": [{"selector": "#save", "kind": "role", "role": "button", "text": "Save"}], "truncated": false},
     "element": "<button id=\"save\">Save</button>",
     "before": ["click Save"],
     "replay": "https://example.invalid/token/r/recording-1/#t=1530",
@@ -94,7 +123,8 @@ cleanup and never evicts evidence automatically. Directories are private
 ## Delivery and recovery
 
 The manifest records `prepared → delivering → dispatched → resolved`.
-`delivering` is durable intent written before any paste; it does **not** prove
+`delivering` is durable intent written before any paste. Idempotent retries confirm directory synchronization again
+before reporting success after a failed publication sync. It does **not** prove
 that the agent received the message. `dispatched` records the draft transaction's
 successful send. Acknowledgment then resolves only the submitted notes whose
 recording, document and revision still match. New notes, reopened notes and
