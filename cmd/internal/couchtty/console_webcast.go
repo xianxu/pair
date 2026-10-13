@@ -211,8 +211,12 @@ func (c *Console) webcastUpdated(cast *webcast.Cast, u webcast.Update) {
 		c.mu.Unlock()
 		return
 	}
+	oldRecovery := c.wcast.update.State.Recovery
 	c.wcast.update = u
 	c.mu.Unlock()
+	if u.State.Recovery != "" && u.State.Recovery != oldRecovery {
+		c.setNotice(u.State.Recovery)
+	}
 	c.repaint()
 }
 

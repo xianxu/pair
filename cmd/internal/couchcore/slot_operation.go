@@ -31,7 +31,7 @@ func (e *SlotOperationError) Error() string { return e.Code + ": " + e.Detail }
 // slotOperations are the actor operations a slot target may request: the ONE
 // list the protocol, the socket and admission all read (IsSlotOperation), so a
 // new verb cannot be half-added.
-var slotOperations = []string{"resume", OpReboot, "reap", "recover", OpRelaunch, OpReloadContext, OpPrepare}
+var slotOperations = []string{"resume", OpReboot, "reap", "recover", OpRelaunch, OpReloadContext, OpPrepare, "switch-agent"}
 
 // IsSlotOperation reports whether op is a remote slot operation.
 func IsSlotOperation(op string) bool { return slices.Contains(slotOperations, op) }

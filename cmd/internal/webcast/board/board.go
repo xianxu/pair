@@ -83,13 +83,18 @@ type Board struct {
 	palette []string
 	newID   func() string
 
-	mu      sync.Mutex
-	st      *recording.State
-	broken  error // the board's reducer refused a record: it can't trust its state
-	pending map[string]pending
-	subs    map[chan []LiveNote]struct{}
-	last    []LiveNote
-	closed  bool
+	mu               sync.Mutex
+	st               *recording.State
+	broken           error // the board's reducer refused a record: it can't trust its state
+	pending          map[string]pending
+	subs             map[chan []LiveNote]struct{}
+	last             []LiveNote
+	closed           bool
+	operatorSubs     map[chan OperatorView]struct{}
+	operatorRevision uint64
+	operatorSeq      uint64
+	operatorStrokes  []OperatorStroke
+	operatorDoc      int
 }
 
 // New makes a board that anchors notes with model and writes through emit.
@@ -136,6 +141,7 @@ func (b *Board) Put(r recording.Record) error {
 		}
 	}
 	b.refreshLocked()
+	b.refreshOperatorLocked(r)
 	b.mu.Unlock()
 	return nil
 }
@@ -151,32 +157,48 @@ func (b *Board) Close() error {
 			close(ch)
 		}
 		b.subs = nil
+		b.refreshOperatorLocked(nil)
+		for ch := range b.operatorSubs {
+			close(ch)
+		}
+		b.operatorSubs = nil
 	}
 	return nil
 }
 
 // Stroke writes one chunk of a viewer's stroke. Its record id is the
 // viewer's id and the stroke's, so two viewers' strokes never join.
-func (b *Board) Stroke(in StrokeIn) error {
+func (b *Board) Stroke(in StrokeIn) error { return b.stroke(in, false, b.emit) }
+
+func (b *Board) stroke(in StrokeIn, operator bool, emit Emit) error {
+	if !strokeShape(in) {
+		return ErrShape
+	}
 	b.mu.Lock()
-	doc, err := b.pageLocked(in.Seg)
+	doc, err := b.annotationPageLocked(in.Seg, operator)
 	b.mu.Unlock()
 	if err != nil {
 		return err
 	}
-	return b.emit(&recording.Stroke{ID: in.Viewer.ID + "." + in.ID, Author: b.author(in.Viewer, in.Color),
+	return emit(&recording.Stroke{ID: in.Viewer.ID + "." + in.ID, Author: b.author(in.Viewer, in.Color),
 		Color: b.palette[in.Color], Pts: in.Pts}, doc)
 }
 
 // Note writes a viewer's new note and returns its id. The anchor is the
 // notes model's for the element now, with the viewer's box; the note's box
 // is kept on the page (notes.ClampToPage).
-func (b *Board) Note(in NoteIn) (string, error) {
+func (b *Board) Note(in NoteIn) (string, error) { return b.note(in, false, b.emit) }
+
+func (b *Board) note(in NoteIn, operator bool, emit Emit) (string, error) {
 	b.mu.Lock()
-	doc, err := b.pageLocked(in.Seg)
+	doc, err := b.annotationPageLocked(in.Seg, operator)
 	if err != nil {
 		b.mu.Unlock()
 		return "", err
+	}
+	if !noteShape(in) {
+		b.mu.Unlock()
+		return "", ErrShape
 	}
 	if b.st.Node(in.Node) == nil {
 		b.mu.Unlock()
@@ -203,7 +225,7 @@ func (b *Board) Note(in NoteIn) (string, error) {
 	b.mu.Unlock()
 
 	n := &recording.Note{ID: id, Author: b.author(in.Viewer, in.Color), Text: in.Text, At: at, Region: &region}
-	if err := b.emit(n, doc); err != nil {
+	if err := emit(n, doc); err != nil {
 		b.mu.Lock()
 		delete(b.pending, id)
 		b.mu.Unlock()
@@ -214,9 +236,17 @@ func (b *Board) Note(in NoteIn) (string, error) {
 
 // SetState resolves or reopens a note on the current document. Anyone may;
 // setting the state a note already has does nothing.
-func (b *Board) SetState(in StateIn) error {
+func (b *Board) SetState(in StateIn) error { return b.setState(in, 0, false, b.emit) }
+
+func (b *Board) setState(in StateIn, seg int, operator bool, emit Emit) error {
+	if !stateShape(in) {
+		return ErrShape
+	}
 	b.mu.Lock()
-	doc, err := b.pageLocked(b.st.DocSeg)
+	if !operator {
+		seg = b.st.DocSeg
+	}
+	doc, err := b.annotationPageLocked(seg, operator)
 	if err != nil {
 		b.mu.Unlock()
 		return err
@@ -224,7 +254,8 @@ func (b *Board) SetState(in StateIn) error {
 	var cur *recording.NoteView
 	for _, n := range b.model.Live(b.st) {
 		if n.ID == in.ID {
-			cur = n
+			copy := *n
+			cur = &copy
 		}
 	}
 	b.mu.Unlock()
@@ -234,7 +265,7 @@ func (b *Board) SetState(in StateIn) error {
 	case cur.State == in.State:
 		return nil
 	}
-	return b.emit(&recording.NoteState{ID: in.ID, State: in.State}, doc)
+	return emit(&recording.NoteState{ID: in.ID, State: in.State}, doc)
 }
 
 // Live is the open notes on the current document, oldest first.

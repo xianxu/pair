@@ -10,6 +10,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/orientation"
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
 func TestSwitchAgentPreviewAndCommitKeepExistingAddress(t *testing.T) {
@@ -32,9 +33,7 @@ func TestSwitchAgentPreviewAndCommitKeepExistingAddress(t *testing.T) {
 		env.Artifacts.SetPairSession(source.Address, continuationChildSession(t, env.Runner, id), true)
 		return nil
 	}
-	result, err := env.Couch.SwitchAgent(context.Background(), SwitchAgentRequest{
-		Address: source.Address, Agent: "codex", Argv: prepared.Profile.Argv, AcceptedFingerprint: prepared.Fingerprint,
-	})
+	result, err := env.Couch.SwitchAgent(context.Background(), SwitchAgentRequest{Address: source.Address, Agent: "codex", Argv: prepared.Profile.Argv, AcceptedFingerprint: prepared.Fingerprint})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,9 +47,6 @@ func TestSwitchAgentPreviewAndCommitKeepExistingAddress(t *testing.T) {
 	}
 	if after.LatestLaunchProfile.Agent != "codex" || after.WorkingPath != source.WorkingPath || after.StartingPath != source.StartingPath {
 		t.Fatal(after)
-	}
-	if result.Orientation == nil || !strings.Contains(result.Orientation.Body, "claude") {
-		t.Fatal(result)
 	}
 	var profile launcher.TrustedLaunchProfile
 	for _, entry := range env.Runner.Child(started.Handle.ID()).Env {
@@ -184,7 +180,7 @@ func (f switchContextFunc) Resolve(ctx context.Context, r ThreadRecord) (orienta
 	return f(ctx, r)
 }
 
-func TestSwitchAgentSourceChangeDuringContextLookupDoesNotParkReplacement(t *testing.T) {
+func TestSwitchAgentSourceChangeDuringGuardDoesNotParkReplacement(t *testing.T) {
 	t.Parallel()
 
 	env, source := switchEnvWithLiveThread(t)
@@ -193,12 +189,13 @@ func TestSwitchAgentSourceChangeDuringContextLookupDoesNotParkReplacement(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	env.Couch.SwitchContext = switchContextFunc(func(_ context.Context, r ThreadRecord) (orientation.OrientationContext, error) {
+	env.Couch.SwitchGuard = switchGuardFunc(func(_ context.Context, _ ThreadAddress, _ string) error {
+		r, _ := env.Couch.Threads.GetThread(source.Address)
 		_, err := env.Couch.Threads.updateExistingThread(r.Address, r.Revision, func(next *ThreadRecord) error { next.Description = "concurrent edit"; return nil })
 		if err != nil {
 			t.Fatal(err)
 		}
-		return orientation.OrientationContext{Tag: string(r.Address.Tag), WorkingPath: r.WorkingPath, SourceAgent: "claude"}, nil
+		return nil
 	})
 	_, err = env.Couch.SwitchAgent(context.Background(), SwitchAgentRequest{Address: source.Address, Agent: "codex", Argv: args, AcceptedFingerprint: p.Fingerprint})
 	if err == nil {
@@ -257,6 +254,15 @@ func TestSwitchAgentForkFailureKeepsParkedSource(t *testing.T) {
 		t.Fatal("expected fork error")
 	}
 	assertVerifiedParkRestored(t, env.Couch.Threads, source)
+	env.Artifacts.SetNativeBinding(source.Address, "claude", sessioninventory.BindingEstablished, "old-native")
+	env.Runner.AfterAcknowledge = func(id string) error {
+		env.Artifacts.SetPairSession(source.Address, continuationChildSession(t, env.Runner, id), true)
+		return nil
+	}
+	resumed, _, err := env.Couch.Resume(source.Address)
+	if err != nil || resumed.Args.Stack != "claude" {
+		t.Fatalf("failed switch lost old resume: %+v %v", resumed, err)
+	}
 }
 
 func TestSwitchAgentUsesSharedStartingPathPreferenceAndPreservesOtherAgents(t *testing.T) {
@@ -265,7 +271,11 @@ func TestSwitchAgentUsesSharedStartingPathPreferenceAndPreservesOtherAgents(t *t
 	for _, target := range []string{"claude", "codex", "agy", "muse"} {
 		t.Run(target, func(t *testing.T) {
 			env := newTestEnv(t, "/repo")
-			source := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
+			sourceAgent := "claude"
+			if target == sourceAgent {
+				sourceAgent = "codex"
+			}
+			source := createParkedThreadInCouch(t, env, LaunchProfile{Agent: sourceAgent, Argv: []string{}})
 			env.Couch.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) { return true, nil }
 			env.Runner.AfterAcknowledge = func(id string) error {
 				env.Artifacts.SetPairSession(source.Address, continuationChildSession(t, env.Runner, id), true)
@@ -297,9 +307,6 @@ func TestSwitchAgentUsesSharedStartingPathPreferenceAndPreservesOtherAgents(t *t
 			if err != nil {
 				t.Fatal(err)
 			}
-			if result.Orientation.Agent != target {
-				t.Fatal(result)
-			}
 			next, found, err := env.Couch.Threads.GetPathLaunchPreference(identity, source.StartingPath)
 			if err != nil || !found || next.LastAgent != target || len(next.ArgvByAgent[target]) != 0 {
 				t.Fatal(next, err)
@@ -321,7 +328,7 @@ func TestSwitchAgentUsesSharedStartingPathPreferenceAndPreservesOtherAgents(t *t
 					}
 				}
 			}
-			if !profile.FreshRequired || profile.ResumeRequired || profile.Orientation == nil || profile.Orientation.Attempt != result.Orientation.Attempt {
+			if !profile.FreshRequired || profile.ResumeRequired || profile.Orientation != nil || profile.FreshNonce == "" {
 				t.Fatal(profile)
 			}
 		})
@@ -337,10 +344,15 @@ func TestSwitchAgentSilentSourceDeathNeedsVerifiedCleanup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	env.Couch.SwitchContext = switchContextFunc(func(_ context.Context, r ThreadRecord) (orientation.OrientationContext, error) {
+	calls := 0
+	env.Couch.SwitchGuard = switchGuardFunc(func(_ context.Context, _ ThreadAddress, _ string) error {
+		calls++
+		if calls == 1 {
+			return nil
+		}
 		env.Proc.Kill(42)
-		env.Artifacts.SetPairSession(r.Address, "pair-exact", false)
-		return orientation.OrientationContext{Tag: string(r.Address.Tag), WorkingPath: r.WorkingPath, SourceAgent: "claude"}, nil
+		env.Artifacts.SetPairSession(source.Address, "pair-exact", false)
+		return nil
 	})
 	env.Couch.PairLifecycle.CompletionTimeout = 0
 	result, err := env.Couch.SwitchAgent(context.Background(), SwitchAgentRequest{Address: source.Address, Agent: "codex", Argv: args, AcceptedFingerprint: p.Fingerprint})
@@ -375,4 +387,10 @@ func TestSwitchAgentPrefillAllowsEditingRememberedResumeParameters(t *testing.T)
 	if _, err := env.Couch.PrepareAgentSwitch(context.Background(), source.Address, "codex", &empty); err != nil {
 		t.Fatal(err)
 	}
+}
+
+type switchGuardFunc func(context.Context, ThreadAddress, string) error
+
+func (f switchGuardFunc) ConfirmAgentSwitch(ctx context.Context, a ThreadAddress, source string) error {
+	return f(ctx, a, source)
 }
