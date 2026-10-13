@@ -1,12 +1,20 @@
 ---
 id: 000513
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: '4ca149c8078142a6a0e9277502449f927c0da3d2' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '1ff24e58ad657f94ffaabd8f89f579704bff0fc3' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-12T18:21:32-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:6
+    worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
+    repository: github.com/xianxu/pair
 ---
 
 # broadcast-web: a video element on the cast page is missing in the viewer (the space around it collapses)
@@ -31,3 +39,10 @@ Find where the video is lost (recorder snapshot or mutation, asset fetch for its
 ## Log
 
 ### 2026-10-12
+- **TL, from the blog source (~/workspace/xianxu.dev, read-only):** it is not a `<video>`. The post has
+  `<div class="cast-embed" data-cast="/casts/parley-nvim-v1.cast" data-poster="npt:0:41"></div>`;
+  `src/components/blog/CastEmbed.astro` hydrates it lazily (IntersectionObserver, 600px margin) into
+  asciinema-player 3.17.0 with `fit:'width'`, the player's CSS imported dynamically, plus a JS-placed caption
+  overlay. The player renders `div.ap-term` = `<canvas>` (background and colour blocks via `getContext('2d')`) +
+  `<svg class="ap-term-symbols">` + `<pre class="ap-term-text">` of spans. Check: canvas pixels (never in the DOM),
+  the dynamically inserted stylesheet, and the lazy mutation after the first snapshot.
