@@ -111,3 +111,5 @@ Final `make -k test` exited 0 (`/tmp/pair-526-full-final.log`). All required che
 ### 2026-10-13 — BR-1 exact privacy JSON keys
 
 Boundary review found case-folded JSON aliases could override private permissions. Enforce the exact schema keys before Go struct decoding across policy envelopes, nested origin rules and persisted rule evidence (ARCH-SECURE). Regressions reproduced ASCII and Unicode aliases granting sharing, plus missing fallback/notice, before the fix; all pass after it. Existing invalid-policy preparation/delivery tests remain green. Full suite rerunning after correction.
+
+- BR-1 verification complete: final `make -k test` passed (`/tmp/pair-526-br1-full.log`); live Chrome conformance rerun passed; targeted race checks, 64711 fuzz executions and `make build` passed. Regression tests failed before exact-key validation and pass after it.
