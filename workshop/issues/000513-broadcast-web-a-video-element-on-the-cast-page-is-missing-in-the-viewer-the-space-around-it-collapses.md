@@ -15,7 +15,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "c448eb7e", done: "480d7b03"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # broadcast-web: a video element on the cast page is missing in the viewer (the space around it collapses)
@@ -54,6 +54,8 @@ Find where the video is lost (recorder snapshot or mutation, asset fetch for its
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed — make -k test exit 0 (no FAIL lines) on 4ffda71f + main. Round-1 fixes: liveSizeRule never applies to [hidden] and gives nothing to an element the operator's layout didn't render; rules live in a per-root live-size sheet (document or shadow root) adopted before the page's sheets; expansions de-duplicated while queued; pure liveSizeRule/isUncaptured with default-run node tests (tests/webcast/placeholders.test.mjs, 5 pass). TestLiveReplacedElements (WEBCAST_LIVE_CHROME) adds a hidden canvas (stays display:none, unmarked) and a shadow-hosted canvas (200x60, marked); routing rules to the document fails it (mutation-checked). Root cause and earlier evidence unchanged: childNodeCountUpdated expansion (TestMirrorExpandsANodeFilledAfterItsInsert), the real blog embed shown with poster frame, the operator's iPad video at live size marked 'video: not captured' (its mp4 isn't recorded). #515 filed unassigned.; review verdict: SHIP
+- 2026-10-12: flow upgraded quick → full — 190 added lines in code files (limit 100); an earlier round of this close already ran the full review
 - **TL, from the blog source (~/workspace/xianxu.dev, read-only):** it is not a `<video>`. The post has
   `<div class="cast-embed" data-cast="/casts/parley-nvim-v1.cast" data-poster="npt:0:41"></div>`;
   `src/components/blog/CastEmbed.astro` hydrates it lazily (IntersectionObserver, 600px margin) into
