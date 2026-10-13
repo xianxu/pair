@@ -29,7 +29,17 @@ var (
 type OSRuntime struct {
 	roots    map[Agent][]StorageRoot
 	pairRoot StorageRoot
+	launches *OwnerLaunchCache
 }
+
+// WithOwnerLaunchCache is this runtime keeping owners' current launches in
+// cache (#507), for a long-lived caller that queries the same owners again.
+func (r OSRuntime) WithOwnerLaunchCache(cache *OwnerLaunchCache) OSRuntime {
+	r.launches = cache
+	return r
+}
+
+func (r OSRuntime) OwnerLaunchCache() *OwnerLaunchCache { return r.launches }
 
 var _ Runtime = OSRuntime{}
 
