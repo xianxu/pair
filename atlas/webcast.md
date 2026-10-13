@@ -152,7 +152,16 @@ what the viewer's renderer draws at the same moments.
   `couchkeys.ActionWebcast` → `HitWebcast`) starts the cast Chrome, then toggles live. The tab bar's
   `WebcastCell` draws `Chrome ▶` / `Chrome ⏸` **after** the screen broadcast's `LIVE ⏸ 👆 💭N`, so the
   broadcast's fixed-column indicator check never moves. Click toggles, right-click copies the link, Ctrl with
-  either button ends (macOS terminals may send Ctrl+left as a right click with the Ctrl bit).
+  either button ends (macOS terminals may send Ctrl+left as a right click with the Ctrl bit). Live, the cell is
+  drawn in `broadcast.LiveSGR`, LIVE's own style, so the two cast indicators read as one family (#501);
+  `IndicatorShown` matches LIVE's text, so it doesn't mistake one for the other.
+- **The Chrome group (#501)** follows the screen broadcast's `LIVE ⏸ 👆`: `Chrome ⏸ ↗ 👆 👽 💭N 🕹Ana` (its 👽 is real, `WebcastDriveLinkLabel`; #503 removed the broadcast's placeholder), each button its own
+  `RenderedStatusRow` span (`WebFocus`, `WebViewLink`, `WebDriveLink`), so a hover can tell them apart (#495).
+  👆 copies the view link, 👽 the drive link (right-click and Alt+right-click on the cell stay as shortcuts).
+  `↗` calls `Browser.Focus`: the real Chrome sends `Target.activateTarget` for the cast tab, then activates its own
+  process by PID (`activateProcess`, macOS JXA → `NSRunningApplication`; by PID because the cast Chrome
+  shares its bundle id with the operator's own Chrome). Only `Launch` of a windowed Chrome sets the
+  activator, so headless and scripted-pipe tests can never take the operator's focus.
 - **Remote driving (#467, `couchtty/console_drive.go`):**
   - **The span.** After the Chrome cell and its `💭N` comes a span: `🕹Ana` while Ana drives, `✋Bo` when Bo asks
     (`✋2` for more). It follows `Cast.Drive().Subscribe()`.

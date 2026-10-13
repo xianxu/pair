@@ -63,6 +63,13 @@ func runConformance(t *testing.T, h harness) {
 	waitState(t, b, "new tab active", func(s State) bool { return s.Tab.ID == two && s.Tab.Title == "two" })
 	h.activate(t, first.Tab.ID)
 	waitState(t, b, "switched back", func(s State) bool { return s.Tab.ID == first.Tab.ID && s.Tab.Title == "one" })
+	// Focus (#501) keeps the cast tab the active one.
+	if err := b.Focus(); err != nil {
+		t.Fatal(err)
+	}
+	if s := b.State(); s.Tab.ID != first.Tab.ID {
+		t.Fatalf("focus moved the cast tab: %+v", s)
+	}
 	h.clickControl(t)
 	waitState(t, b, "page control paused", func(s State) bool { return s.Phase == PhaseIdle })
 	h.clickControl(t)
@@ -81,6 +88,9 @@ func runConformance(t *testing.T, h harness) {
 	}
 	if err := b.SetLive(true); !errors.Is(err, ErrEnded) {
 		t.Fatalf("SetLive after end: %v", err)
+	}
+	if err := b.Focus(); !errors.Is(err, ErrEnded) {
+		t.Fatalf("Focus after end: %v", err)
 	}
 }
 

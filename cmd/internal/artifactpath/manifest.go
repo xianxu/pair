@@ -799,6 +799,10 @@ var NonArtifactSources = []string{
 	"cmd/internal/webcast/server_drive.go",
 	"cmd/internal/webcast/recorder/drive.go",
 	"cmd/internal/webcast/recorder/drive_cdp.go",
+	// #501 go to Chrome: activates the cast Chrome's process by PID. No
+	// files, no paths.
+	"cmd/internal/webcast/activate_darwin.go",
+	"cmd/internal/webcast/activate_other.go",
 	"cmd/internal/ptychild/publication.go",
 	"cmd/internal/ptychild/terminal.go",
 	"cmd/internal/runtimebundle/terminal.go",
