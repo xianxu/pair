@@ -1,6 +1,6 @@
 ---
 id: 000505
-status: working
+status: codecomplete
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+actual_hours: 2.12
+tracker:
+    version: 1
+    completion:
+        token: close-915cb9625a7c
+        repository: github.com/xianxu/pair
+        reviewed_head: 9ea549903dfc09362cffd0168ba595e27cf9b832
+        evidence_commit: 6f2bddaccb6ec30c06f5c0ac4d8706b8a6798e14
 ---
 
 # broadcast-web: remote driving fails live — every drive input returns 500 'Something went wrong' (unmapped injector error, nothing logged)
