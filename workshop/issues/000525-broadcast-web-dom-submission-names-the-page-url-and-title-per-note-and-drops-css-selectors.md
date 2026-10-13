@@ -87,3 +87,7 @@ Estimate-quality INFO allocation: schema includes v1/v2 round trips and retry te
 Implementation commit f32f6bd3a8d7d6159f9c85480d9fd33eeade007f passed the affected schema, capture, privacy and guidance tests, targeted race tests, git diff --check, make build, and the complete make -k test suite (exit 0; /tmp/pair-525-full.log). Live Chrome TestLiveSubmissionCrop then passed without skipping (4.61s), exercising the real page URL/title, same-document navigation and selector-free box text. Latest fetched main had no commits missing from this branch; #524 is still staged separately, with no stacking. No test waiver was needed.
 
 Next: SDLC boundary review and PR, then coordinate staging with hub for the operator to submit a blog note and inspect its localhost URL/title. The hub explicitly requested this quick look before landing.
+
+### 2026-10-13 — close round 1 verification environment
+
+Round 1 found no code defect but returned REWORK (BR-1) because the disposable checkout lacked generated runtimebundle assets and Chrome crashed during startup. Disputed with unchanged reruns: Couch package checks passed (0.304s/0.938s), and live TestLiveSubmissionCrop passed again without skipping (1.17s). The full suite had already passed. For a fresh review checkout, run make runtimebundle-generate before testing packages that embed those assets; this is an existing make build/test prerequisite, not a tracked-file omission. Its local rerun also passed. No code change was needed.
