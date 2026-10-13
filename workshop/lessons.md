@@ -1521,3 +1521,11 @@ proof; record the surprising case so the next change starts from evidence.
 
 - **#494 reconciliation lifetime:** operation identity includes the authority’s lifetime, not only request ID/body. Retire browser state when the server’s document ledger retires; test switch-return plus lost reply and late completion, not each lifecycle independently.
 - **#494 interactive identity:** a record stream can update between pointer-down and pointer-up. Preserve swatch/control DOM nodes across unrelated updates, and test an interleaved record against the originally pressed element on every shared surface.
+
+- **A plan names verification functions and strategies, not a prose copy of test cases (#526 plan-quality).** For each risky function, name the adversarial input class and mechanical guard. Retention claims must distinguish actual operator deletion and capacity refusal from staging cleanup; a staging remover is not an automatic retained-evidence sweeper.
+
+- **A new production Go file must enter the exhaustive source inventory (#526).** Register its artifact ownership in `cmd/internal/artifactpath/manifest.go` alongside the package's existing sources, then run `TestProductionArtifactReferencesAreExactlyClassified`; targeted package tests alone do not exercise this repository-wide invariant.
+
+- Privacy/permission JSON must validate exact schema keys before Go struct decoding: DisallowUnknownFields still accepts case-folded aliases, including Unicode. Test conflicting aliases at each envelope and nested evidence boundary.
+
+- When fixing permission-decoding ambiguity, enumerate root manifests as well as nested policy/rule codecs. A strict nested decoder cannot defend permissively decoded top-level permission fields; exercise store reload, not only standalone policy parsing.

@@ -18,6 +18,7 @@ var boxTextCollector string
 
 // CapturedCrop is current-tab pixel and text evidence, distinct from note-time DOM.
 type CapturedCrop struct {
+	Origin      string // admitted current page origin, fenced with the pixels and text
 	BoxText     submission.BoxText
 	PNG         []byte
 	Box         rec.Box
@@ -31,6 +32,7 @@ type captureIdentity struct {
 	top, loader, tab string
 	live             bool
 	contextID        int64
+	origin           string
 }
 
 // Barrier is a CDP fence forwarded by Chrome after every preceding event.
@@ -47,7 +49,7 @@ func (r *Recorder) captureIdentity(ctx context.Context) (captureIdentity, error)
 	ch := make(chan captureIdentity, 1)
 	err := r.ask(ctx, func() {
 		id, _ := r.topContext(r.top)
-		ch <- captureIdentity{r.m.State().DocSeg, r.top, r.loader[r.top], r.tab.ID, r.live, id}
+		ch <- captureIdentity{r.m.State().DocSeg, r.top, r.loader[r.top], r.tab.ID, r.live, id, submission.OriginOf(r.m.State().URL)}
 	})
 	if err != nil {
 		return captureIdentity{}, err
@@ -166,7 +168,7 @@ func (r *Recorder) CaptureCrops(parent context.Context, doc int, boxes []submiss
 			return nil, errors.New("submission crops exceed 64 MiB")
 		}
 		total += len(png)
-		out = append(out, CapturedCrop{PNG: png, Box: box, Document: doc, CapturedAt: time.Now().UTC(), BoxText: boxText})
+		out = append(out, CapturedCrop{Origin: start.origin, PNG: png, Box: box, Document: doc, CapturedAt: time.Now().UTC(), BoxText: boxText})
 		if err = verifyIdentity(); err != nil {
 			return nil, err
 		}

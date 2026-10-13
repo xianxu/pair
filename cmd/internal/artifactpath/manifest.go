@@ -687,6 +687,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/cdp/doc.go",
 	"cmd/internal/cdp/frame.go",
 	"cmd/internal/couchcmd/webcast.go",
+	"cmd/internal/couchcmd/privacy.go",
 	"cmd/internal/couchtty/console_webcast.go",
 	"cmd/internal/couchtty/console_castcodes.go",
 	"cmd/internal/couchtty/codes_menu.go",
@@ -713,6 +714,7 @@ var NonArtifactSources = []string{
 	// model, capture/board adapters and RPCs introduce no Pair artifact family.
 	"cmd/internal/submission/delivery.go",
 	"cmd/internal/submission/model.go",
+	"cmd/internal/submission/privacy.go",
 	"cmd/internal/submission/store.go",
 	"cmd/internal/couchcmd/submission.go",
 	"cmd/internal/couchtty/console_submission.go",
