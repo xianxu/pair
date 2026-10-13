@@ -1625,3 +1625,6 @@ proof; record the surprising case so the next change starts from evidence.
 - Recovery must not change saved startup preferences through the shared successful-start path. Assert defaults before and after a real store-backed recovery transaction.
 - Pair helper ancestry does not necessarily reach its wrapper after Zellij daemonizes. Use exact readiness nonce and agent process generation when identifying the source; scope/tag alone cannot distinguish competing incarnations.
 - When integrating capture availability changes, test a batch containing both visible and off-screen notes. Pixel unavailability does not imply lost document identity; preserve navigation rejection separately.
+
+- **#528 exact native ownership:** a live wrapper plus the newest tag-level ledger entry is not a causal join. Bind the wrapper generation through readiness's exact live agent and launch ordinal; test an older live wrapper alongside a newer same-owner launch. Apply the same association rule to source exemptions and fakes.
+- **#528 primary recovery routing:** a new secondary action does not satisfy the primary recovery contract. Test Enter, mouse, explicit Relaunch and equivalent restart gestures against the shared preview, preserving ordinary healthy behavior.

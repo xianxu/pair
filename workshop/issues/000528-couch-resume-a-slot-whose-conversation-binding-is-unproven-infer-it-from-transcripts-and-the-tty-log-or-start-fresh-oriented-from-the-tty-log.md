@@ -249,6 +249,8 @@ M2 build/race checkpoint (2026-10-13 13:16 PDT): make build PASS; /tmp/pair528-m
 
 2026-10-13 — TL receipt 4b2480f6 requests boundary review now if its gate permits, while suite capacity remains unavailable. The milestone-close dry run accepts the prepared evidence and selects the M2 interdiff since M1 rebased onto main360b2881 (95 files), without bypass flags. #514 documents the same unchanged capture-performance failure on loaded main. This is the observed first failure, not proof that the entire full suite has only that failure: make stopped before the Go suite. Review proceeds with this limitation explicit; remaining full verification and operator scratch acceptance still block whole-issue closure/landing.
 
+2026-10-13 13:26 PDT — M2 boundary returned REWORK, BR-6 (wrong latest tag-level launch attributed to old live wrapper) and BR-7 (primary unsafe Relaunch bypasses recovery preview). Both reproduced by reviewer tests; fixes underway as family sweeps recorded in plan Revisions. Review also reports TestProvisionRecoveryMarkerPublicationExcludesCleanup failure in its checkout; reproduce locally before classifying it. Report-to-hub delivery a4d8ef36-7bbb-4e19-b7a9-0d750e53407e was uncertain because the supervisor socket disappeared; receipt lookup also failed, so no automatic resend. No full suite or live action started.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against

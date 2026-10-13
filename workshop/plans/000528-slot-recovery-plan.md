@@ -410,3 +410,9 @@ The native-owner adapter and contextual replay entries include the concurrently 
 ### 2026-10-13 — Boundary review before full-suite capacity
 
 TL receipt 4b2480f6 directs starting the boundary review while two other full suites occupy the machine. The successful dry run requires no bypass. This supersedes the earlier sequencing prerequisite that live acceptance precede M2 code review: run the code boundary with precise targeted/build evidence and the #514 capture-performance failure disclosed. Full verification beyond the aborted prerequisite and TL-coordinated operator acceptance remain required before whole-issue close/landing. Do not label the unseen rest of the full suite passing.
+
+### 2026-10-13 — M2 REWORK: exact live launch and primary recovery routing
+
+BR-6 (ARCH-SECURE, ARCH-ORDER, ARCH-MOCK): a stable live wrapper is not proof that the newest tag-level ledger launch belongs to it. Every recovery ownership assertion must associate exact wrapper PID/start with an exact live descendant agent via the existing readiness PID/start, launch ordinal and nonce, then resolve only that ledger ordinal. Missing/contradictory association refuses. Sweep Couch preflight, after-preparation check, Pair admission, both source-exemption paths and the stateful fake; a newer same-owner launch must never hide an older surviving wrapper. No new durable metadata or latest-launch fallback.
+
+BR-7 (ARCH-PURPOSE): the unsafe row's primary recovery action must be the shared evidence chooser. Enter, mouse primary activation, explicit Relaunch and equivalent unsafe-row restart routes must use that same preview; ordinary healthy relaunch keeps its existing behavior. Add reducer/effect regressions for every entry route, rather than testing only the separately appended candidates item.

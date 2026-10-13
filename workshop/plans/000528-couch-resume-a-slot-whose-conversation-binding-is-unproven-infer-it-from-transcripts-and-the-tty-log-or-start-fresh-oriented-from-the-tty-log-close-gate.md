@@ -98,6 +98,27 @@ rounds:
       isolation: fenced
       reviewed: dfedd894650cbf1f3cc2dbdb5782b8724131f01d
       blocked: false
+    - "n": 4
+      timestamp: "2026-10-13T13:26:16-07:00"
+      dispatched: "2026-10-13T13:20:56-07:00"
+      agent: codex
+      findings:
+        - id: BR-6
+          severity: Critical
+          title: Native ownership substitutes the latest tag-level launch for the live wrapper's launch
+          detail: 'cmd/internal/launcher/recovery_native_owner.go:85 uses CurrentLaunch(scope, tag, agent) without associating that launch with the observed wrapper PID/start identity. A regression retaining the old wrapper while appending a newer launch targeting another conversation incorrectly returns success. This is the 2nd finding in family `exact-process-generation-authority`. Earlier rounds fixed instances. Do NOT fix only this instance: state and enforce the rule that every native-ownership assertion must bind to the exact observed process generation; sweep preflight, Pair admission, source exemptions, and their doubles. Missing association must remain unresolved. ARCH-SECURE, ARCH-ORDER, ARCH-MOCK.'
+          family: exact-process-generation-authority
+          round: 4
+        - id: BR-7
+          severity: Critical
+          title: The advertised primary Relaunch action never opens the new recovery preview
+          detail: cmd/internal/couchtty/menu.go:864 handles only the new resume-candidates item, appended separately at menu_switchagent.go:204. Unsafe-row Enter/mouse still select relaunch at menu.go:803 and open the old confirmation through menu_slot.go:34; the old executor requires established binding. The primary-route regression fails with the confirmation frame and no preview effect. Route Enter, mouse, and the unsafe-row Relaunch item through the same evidence preview while preserving ordinary healthy relaunch behavior. ARCH-PURPOSE.
+          family: recovery-primary-action-routing
+          round: 4
+      boundary: M2
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#528 (boundary-review)
@@ -142,6 +163,16 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-4 — addressed — Prior disposition retained; permanent coordination files remain bounded to 256 stripes, with passing lease tests.
 - BR-5 — addressed — Enumerated metadata consumers use osfs.ReadRegularMetadata. Consumer FIFO, oversized-input and cancellation tests pass; substituting os.ReadFile in a disposable checkout makes the regressions fail. Both disposable checkouts were removed.
 
+## Round 4 — 2026-10-13T13:26:16-07:00 (codex) — BLOCKED
+
+### Raised
+
+- **BR-6** [Critical] `exact-process-generation-authority` Native ownership substitutes the latest tag-level launch for the live wrapper's launch
+  cmd/internal/launcher/recovery_native_owner.go:85 uses CurrentLaunch(scope, tag, agent) without associating that launch with the observed wrapper PID/start identity. A regression retaining the old wrapper while appending a newer launch targeting another conversation incorrectly returns success. This is the 2nd finding in family `exact-process-generation-authority`. Earlier rounds fixed instances. Do NOT fix only this instance: state and enforce the rule that every native-ownership assertion must bind to the exact observed process generation; sweep preflight, Pair admission, source exemptions, and their doubles. Missing association must remain unresolved. ARCH-SECURE, ARCH-ORDER, ARCH-MOCK.
+- **BR-7** [Critical] `recovery-primary-action-routing` The advertised primary Relaunch action never opens the new recovery preview
+  cmd/internal/couchtty/menu.go:864 handles only the new resume-candidates item, appended separately at menu_switchagent.go:204. Unsafe-row Enter/mouse still select relaunch at menu.go:803 and open the old confirmation through menu_slot.go:34; the old executor requires established binding. The primary-route regression fails with the confirmation frame and no preview effect. Route Enter, mouse, and the unsafe-row Relaunch item through the same evidence preview while preserving ordinary healthy relaunch behavior. ARCH-PURPOSE.
+
 ## Open findings
 
-(none — every finding has been disposed)
+- **BR-6** [Critical] `exact-process-generation-authority` Native ownership substitutes the latest tag-level launch for the live wrapper's launch
+- **BR-7** [Critical] `recovery-primary-action-routing` The advertised primary Relaunch action never opens the new recovery preview
