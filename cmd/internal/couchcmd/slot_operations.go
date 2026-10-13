@@ -28,9 +28,11 @@ const maxSlotOperationReceipts = 64
 // handlers), started (the queue runner) and finished (the console loop) all
 // take it, and none waits on the queue or the console while holding it.
 type slotOperations struct {
-	run   slotOperationRunner
-	names func(context.Context) ([]couchcore.RepositoryName, error)
-	now   func() time.Time
+	run       slotOperationRunner
+	preview   func(context.Context, string) (couchcore.RecoveryPreview, error)
+	candidate func(string, string, string, func(), func(any, error)) error
+	names     func(context.Context) ([]couchcore.RepositoryName, error)
+	now       func() time.Time
 
 	mu       sync.Mutex
 	receipts map[receiptKey]couchmessage.OperationReceipt
@@ -72,6 +74,12 @@ func (s *slotOperations) handle(ctx context.Context, caller couchmessage.Binding
 		return couchmessage.Response{Code: "ok", Operation: &receipt}
 	}
 	return s.admit(ctx, caller, r, func(key string, started func(), finished func(any, error)) error {
+		if r.CandidateKey != "" {
+			if s.candidate == nil {
+				return errors.New("candidate resume unavailable")
+			}
+			return s.candidate(key, r.Target, r.CandidateKey, started, finished)
+		}
 		return s.run(key, r.Op, r.Target, couchcore.LiveRestartOptions{SameBinary: r.SameBinary, ForceUnknown: r.ForceUnknown}, started, finished)
 	})
 }
@@ -92,7 +100,7 @@ func (s *slotOperations) admit(ctx context.Context, caller couchmessage.Binding,
 	defer s.mu.Unlock()
 	s.sweepLocked()
 	existing, held := s.receipts[key]
-	receipt, err := couchmessage.ApplyReceiptEvent(existing, couchmessage.ReceiptEvent{Kind: couchmessage.ReceiptAdmit, ID: r.ID, Op: r.Op, Target: r.Target, Agent: r.Agent, At: s.now()})
+	receipt, err := couchmessage.ApplyReceiptEvent(existing, couchmessage.ReceiptEvent{Kind: couchmessage.ReceiptAdmit, ID: r.ID, Op: r.Op, Target: r.Target, Agent: r.Agent, CandidateKey: r.CandidateKey, At: s.now()})
 	switch {
 	case errors.Is(err, couchmessage.ErrReceiptIDConflict):
 		return couchmessage.Response{Code: "id-conflict", Error: err.Error()}
@@ -206,6 +214,9 @@ func slotOperationOutcome(value any, err error) couchmessage.ReceiptOutcome {
 		return out
 	}
 	out := couchmessage.ReceiptOutcome{Status: couchmessage.ReceiptSucceeded}
+	if recovered, ok := value.(couchcore.RecoveryResumeResult); ok {
+		out.Warning = recovered.Notice
+	}
 	if child, ok := value.(couchcore.StartedChild); ok {
 		if started, _ := child.Started(); started.Record.Thread.Tag != "" {
 			out.Tag = string(started.Record.Thread.Tag)

@@ -907,7 +907,13 @@ func (r OSRuntime) SweepOrphanNvim(liveTags []string) {
 // touches parked-<tag> (shell 696-708). The timestamp is taken here (time.Now is
 // live in OSRuntime, unlike a pure decider).
 func (r OSRuntime) ParkScrollback(tag, agent string, move bool) (string, bool) {
-	lease, err := storagegc.AcquireSelectedProcess(context.Background(), func(key string) string {
+	return r.ParkScrollbackContext(context.Background(), tag, agent, move)
+}
+func (r OSRuntime) ParkScrollbackContext(ctx context.Context, tag, agent string, move bool) (string, bool) {
+	if ctx == nil || ctx.Err() != nil {
+		return "", false
+	}
+	lease, err := storagegc.AcquireSelectedProcess(ctx, func(key string) string {
 		switch key {
 		case "PAIR_DATA_DIR":
 			return r.DataDir
@@ -933,7 +939,7 @@ func (r OSRuntime) ParkScrollback(tag, agent string, move bool) (string, bool) {
 	}
 	// Capture provenance must be checked against the source generation before
 	// transfer changes its file IDs. Missing historical evidence stays legacy.
-	witness, err := storagegc.ReadCaptureWitness(context.Background(), scrollback.Raw, scrollback.Events)
+	witness, err := storagegc.ReadCaptureWitness(ctx, scrollback.Raw, scrollback.Events)
 	skipEvents := false
 	if err != nil {
 		// Optional unreadable events must not discard usable raw history. Keep
@@ -955,6 +961,9 @@ func (r OSRuntime) ParkScrollback(tag, agent string, move bool) (string, bool) {
 	capturedAt := time.Now()
 	stamp := capturedAt.Format("20060102T150405")
 	for collision := 0; ; collision++ {
+		if ctx.Err() != nil {
+			return "", false
+		}
 		token := stamp
 		if collision > 0 {
 			token = fmt.Sprintf("%s-%d", stamp, collision)
@@ -979,7 +988,7 @@ func (r OSRuntime) ParkScrollback(tag, agent string, move bool) (string, bool) {
 			rawID = &witness.RawFile
 			eventsID = &witness.EventsFile
 		}
-		err = transferFile(scrollback.Raw, parked.Raw, move, rawID)
+		err = transferFileContext(ctx, scrollback.Raw, parked.Raw, move, rawID)
 		if errors.Is(err, os.ErrExist) {
 			continue
 		}
@@ -991,7 +1000,7 @@ func (r OSRuntime) ParkScrollback(tag, agent string, move bool) (string, bool) {
 		selectedBase := filepath.Join(r.DataDir, filepath.Base(parked.Base))
 		// Events are optional; failed copies remove their incomplete destination.
 		if !skipEvents {
-			if err := transferFile(scrollback.Events, parked.Events, move, eventsID); err != nil {
+			if err := transferFileContext(ctx, scrollback.Events, parked.Events, move, eventsID); err != nil {
 				witness = nil
 			}
 		}
@@ -1003,7 +1012,7 @@ func (r OSRuntime) ParkScrollback(tag, agent string, move bool) (string, bool) {
 		if err != nil {
 			return selectedBase, false
 		}
-		if err := lease.Coordinator.PublishCaptureMetadata(context.Background(), lease.Owner, capture, capturedAt, witness); err != nil {
+		if err := lease.Coordinator.PublishCaptureMetadata(ctx, lease.Owner, capture, capturedAt, witness); err != nil {
 			return selectedBase, false
 		}
 		_ = r.Touch(paths.Parked())
@@ -1014,33 +1023,51 @@ func (r OSRuntime) ParkScrollback(tag, agent string, move bool) (string, bool) {
 // transferFile streams to an exclusive destination and only removes the source
 // after the complete capture has been synced and closed.
 func transferFile(src, dst string, move bool, expected ...*artifactpath.CaptureFileID) error {
+	return transferFileContext(context.Background(), src, dst, move, expected...)
+}
+func transferFileContext(ctx context.Context, src, dst string, move bool, expected ...*artifactpath.CaptureFileID) error {
+	if ctx == nil {
+		return errors.New("capture transfer requires context")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if len(expected) > 1 {
 		return errors.New("multiple expected capture identities")
 	}
-	flags := os.O_RDONLY
-	if len(expected) == 1 && expected[0] != nil {
-		flags |= syscall.O_NOFOLLOW | syscall.O_NONBLOCK
-	}
-	source, err := os.OpenFile(src, flags, 0)
+	source, err := os.OpenFile(src, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return err
 	}
 	defer source.Close()
-	if len(expected) == 1 && expected[0] != nil {
-		st, err := source.Stat()
-		if err != nil {
-			return err
-		}
-		native, ok := st.Sys().(*syscall.Stat_t)
-		if !ok || !st.Mode().IsRegular() || *expected[0] != (artifactpath.CaptureFileID{Device: uint64(native.Dev), Inode: uint64(native.Ino)}) {
-			return errors.New("capture source generation changed before transfer")
-		}
+	before, err := source.Stat()
+	if err != nil {
+		return err
+	}
+	native, ok := before.Sys().(*syscall.Stat_t)
+	if !ok || !before.Mode().IsRegular() {
+		return errors.New("capture source must be regular")
+	}
+	if len(expected) == 1 && expected[0] != nil && *expected[0] != (artifactpath.CaptureFileID{Device: uint64(native.Dev), Inode: uint64(native.Ino)}) {
+		return errors.New("capture source generation changed before transfer")
 	}
 	destination, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
 		return err
 	}
-	_, copyErr := io.Copy(destination, source)
+	_, copyErr := io.CopyN(destination, captureContextReader{ctx: ctx, reader: source}, before.Size())
+	if copyErr == nil {
+		copyErr = ctx.Err()
+	}
+	if copyErr == nil {
+		after, e := source.Stat()
+		current, e2 := os.Lstat(src)
+		if e != nil || e2 != nil {
+			copyErr = errors.Join(e, e2)
+		} else if !current.Mode().IsRegular() || !os.SameFile(before, current) || !os.SameFile(before, after) || before.Size() != after.Size() || before.Size() != current.Size() || !before.ModTime().Equal(after.ModTime()) || !before.ModTime().Equal(current.ModTime()) {
+			copyErr = errors.New("capture source changed during transfer")
+		}
+	}
 	if copyErr == nil {
 		copyErr = destination.Sync()
 	}
@@ -1053,6 +1080,18 @@ func transferFile(src, dst string, move bool, expected ...*artifactpath.CaptureF
 		return os.Remove(src)
 	}
 	return nil
+}
+
+type captureContextReader struct {
+	ctx    context.Context
+	reader io.Reader
+}
+
+func (r captureContextReader) Read(p []byte) (int, error) {
+	if err := r.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return r.reader.Read(p)
 }
 
 // ConfirmParkNudge shows the [y/N] preserve prompt on /dev/tty, bounded by

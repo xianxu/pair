@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 )
@@ -45,7 +46,8 @@ func PublishCaptureWitness(raw, events *os.File, w artifactpath.CaptureWitness) 
 		return e
 	}
 	w.Type = "capture_witness"
-	w.Version = 1
+	w.Version = 2
+	w.OpenedAt = time.Now().UTC()
 	w.Offset = 0
 	w.Generation = hex.EncodeToString(generation[:])
 	if e = artifactpath.ValidateCaptureWitness(w); e != nil {

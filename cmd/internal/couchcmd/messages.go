@@ -24,6 +24,9 @@ func runMessageCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer) int 
 func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writer, call messageCall) int {
 	// The one verb list (pair#424): a hand-kept list here let relaunch and
 	// reload-context fall through to the message path, which sends no ID.
+	if inv.messageOp == "resume-candidates" {
+		return runResumeCandidatesCLI(inv, rt, stdout, stderr, call)
+	}
 	if inv.messageOp == "switch-agent" || inv.messageOp == "operation-status" {
 		return runSwitchAgentCLI(inv, rt, stdout, stderr, call)
 	}
@@ -235,6 +238,7 @@ func exchangeSlotOperation(inv cliInvocation, op string, rt Runtime, call messag
 	}
 	admit := callerIdentity(rt, op)
 	admit.Target, admit.Confirmed = inv.ref, inv.confirmed
+	admit.CandidateKey = inv.candidateKey
 	admit.SameBinary, admit.ForceUnknown = inv.sameBinary, inv.forceUnknown
 	if admit.ID, err = newRequestID(); err != nil {
 		return none, fmt.Errorf("create request ID: %w", err)

@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -36,10 +37,22 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 		fmt.Fprintf(stderr, "pair: %v\n", err)
 		return 1, nil
 	}
+	if a := opts.Args.Recovery; a != nil {
+		p := TrustedLaunchProfile{Tag: opts.Args.ForcedTag, Agent: opts.Args.Agent, Recovery: a, FreshRequired: opts.Args.FreshRequired, FreshNonce: opts.Args.FreshNonce, ResumeRequired: opts.Args.ResumeRequired, RequiredSessionID: opts.Args.RequiredSessionID, Orientation: opts.Args.Orientation}
+		if err := validateRecoveryProfile(p); err != nil {
+			fmt.Fprintf(stderr, "pair: %v\n", err)
+			return 1, nil
+		}
+		session := opts.Args.CouchSession
+		if session == nil || session.Disposition != "create" || session.Nonce != a.Attempt || session.Scope != a.Address.RepoScope || session.Tag != a.Address.Tag {
+			fmt.Fprintln(stderr, "pair: recovery requires its matching Couch terminal start")
+			return 1, nil
+		}
+	}
 	rt.SetEnv(orientation.Env, "")
 	if request := opts.Args.Orientation; request != nil {
-		if !opts.Args.FreshRequired || !request.Matches(opts.Args.ForcedTag, opts.Args.Agent, request.Attempt) {
-			fmt.Fprintln(stderr, "pair: orientation requires a matching fresh launch")
+		if (!opts.Args.FreshRequired && opts.Args.Recovery == nil) || !request.Matches(opts.Args.ForcedTag, opts.Args.Agent, request.Attempt) {
+			fmt.Fprintln(stderr, "pair: orientation requires a matching fresh or recovery launch")
 			return 1, nil
 		}
 	}
@@ -561,7 +574,17 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		fmt.Fprintf(stderr, "pair: cannot claim thread '%s': %v\n", chosenTag, addressErr)
 		return launchStep{code: 1}, nil
 	}
-	if opts.Args.ResumeRequired {
+	if opts.Args.Recovery != nil {
+		verifier, ok := rt.(RecoveryAuthorityRuntime)
+		if !ok {
+			fmt.Fprintln(stderr, "pair: runtime lacks recovery authority validation")
+			return launchStep{code: 1}, nil
+		}
+		if err := verifier.ValidateRecoveryAuthority(context.Background(), *opts.Args.Recovery, scope, chosenTag, agent, env.Cwd); err != nil {
+			fmt.Fprintf(stderr, "pair: recovery authority changed: %v\n", err)
+			return launchStep{code: 1}, nil
+		}
+	} else if opts.Args.ResumeRequired {
 		actual, status := rt.EstablishedSessionID(scope.Key, chosenTag, agent)
 		if err := RequireNativeResumeBinding(opts.Args.RequiredSessionID, actual, status); err != nil {
 			fmt.Fprintf(stderr, "pair: %v\n", err)
@@ -662,6 +685,9 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	// The native conversation survives resume; the wrapper incarnation does not.
 	if opts.Args.FreshRequired || couchOwned {
 		nonce := opts.Args.FreshNonce
+		if opts.Args.Recovery != nil {
+			nonce = opts.Args.Recovery.Attempt
+		}
 		if nonce == "" && opts.Args.Orientation != nil {
 			nonce = opts.Args.Orientation.Attempt
 		}
@@ -816,7 +842,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	}
 	rt.SetEnv(AgentCommandEnv, command)
 	rt.SetEnv(orientation.Env, "")
-	if opts.Args.FreshRequired && opts.Args.Orientation != nil {
+	if (opts.Args.FreshRequired || opts.Args.Recovery != nil) && opts.Args.Orientation != nil {
 		raw, _ := json.Marshal(opts.Args.Orientation)
 		rt.SetEnv(orientation.Env, string(raw))
 	}

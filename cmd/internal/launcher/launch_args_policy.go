@@ -45,6 +45,7 @@ func RequireNativeResumeBinding(required, actual string, status sessioninventory
 }
 
 type TrustedLaunchProfile struct {
+	Recovery          *RecoveryAuthority   `json:"recovery,omitempty"`
 	FreshNonce        string               `json:"fresh_nonce,omitempty"`
 	Orientation       *orientation.Request `json:"orientation,omitempty"`
 	SchemaVersion     int                  `json:"schema_version"`
@@ -108,6 +109,9 @@ func BuildCouchFreshLaunchProfile(tag, agent string, argv []string, agentSource,
 }
 
 func ValidateTrustedLaunchProfile(profile TrustedLaunchProfile) error {
+	if err := validateRecoveryProfile(profile); err != nil {
+		return err
+	}
 	if profile.FreshNonce != "" {
 		if !profile.FreshRequired || len(profile.FreshNonce) > 1024 || !utf8.ValidString(profile.FreshNonce) || strings.IndexFunc(profile.FreshNonce, unicode.IsControl) >= 0 {
 			return fmt.Errorf("invalid fresh launch nonce")
@@ -118,8 +122,8 @@ func ValidateTrustedLaunchProfile(profile TrustedLaunchProfile) error {
 	}
 
 	if profile.Orientation != nil {
-		if !profile.FreshRequired || !profile.Orientation.Matches(profile.Tag, profile.Agent, profile.Orientation.Attempt) {
-			return fmt.Errorf("orientation requires a matching fresh launch")
+		if (!profile.FreshRequired && profile.Recovery == nil) || !profile.Orientation.Matches(profile.Tag, profile.Agent, profile.Orientation.Attempt) {
+			return fmt.Errorf("orientation requires a matching fresh or recovery launch")
 		}
 	}
 
@@ -190,6 +194,7 @@ func ApplyCouchLaunchProfile(args LaunchArgs, raw string) (LaunchArgs, string, e
 	args.AgentArgsExplicit = true
 	args.AgentArgsFromCouch = true
 	args.Orientation = profile.Orientation
+	args.Recovery = cloneRecoveryAuthority(profile.Recovery)
 	args.FreshRequired = profile.FreshRequired
 	args.FreshNonce = profile.FreshNonce
 	args.ResumeRequired = profile.ResumeRequired

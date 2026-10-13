@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/strictjson"
 )
@@ -21,6 +22,9 @@ type CaptureFileID struct {
 
 // CaptureWitness is capture provenance, never native-conversation authorization.
 type CaptureWitness struct {
+	// OpenedAt is the v2 capture-open lower bound, not a native launch timestamp.
+	// V1 has no producer epoch; never fill it from a later helper or file mtime.
+	OpenedAt      time.Time     `json:"opened_at,omitzero"`
 	Type          string        `json:"type"`
 	Version       int           `json:"version"`
 	Offset        int64         `json:"offset"`
@@ -35,14 +39,43 @@ type CaptureWitness struct {
 }
 
 func ValidateCaptureWitness(w CaptureWitness) error {
-	if w.Type != "capture_witness" || w.Version != 1 || w.Offset != 0 || w.LaunchOrdinal == 0 || w.RawFile.Inode == 0 || w.EventsFile.Inode == 0 || w.RawFile == w.EventsFile {
+	if w.Type != "capture_witness" || (w.Version != 1 && w.Version != 2) || w.Offset != 0 || w.LaunchOrdinal == 0 || w.RawFile.Inode == 0 || w.EventsFile.Inode == 0 || w.RawFile == w.EventsFile {
 		return errors.New("invalid capture witness generation")
+	}
+	_, offset := w.OpenedAt.Zone()
+	if w.Version == 1 && !w.OpenedAt.IsZero() || w.Version == 2 && (w.OpenedAt.IsZero() || offset != 0 || w.OpenedAt.Year() < 1970 || w.OpenedAt.Year() > 9999) {
+		return errors.New("invalid capture witness producer epoch")
 	}
 	for _, s := range []string{w.Generation, w.ScopeKey, w.Tag, w.Agent, w.Nonce} {
 		if len(s) > 256 || !componentPattern.MatchString(s) {
 			return errors.New("invalid capture witness identity")
 		}
 	}
+	return nil
+}
+
+// UnmarshalJSON keeps legacy v1's schema exact even when a witness is nested
+// in archive metadata. An explicit zero/null time is not a v1 producer epoch.
+func (w *CaptureWitness) UnmarshalJSON(raw []byte) error {
+	type wire CaptureWitness
+	var decoded wire
+	if err := strictjson.Decode(raw, &decoded); err != nil {
+		return err
+	}
+	if decoded.Version == 1 {
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &fields); err != nil {
+			return err
+		}
+		if _, exists := fields["opened_at"]; exists {
+			return errors.New("v1 capture witness cannot carry producer epoch")
+		}
+	}
+	candidate := CaptureWitness(decoded)
+	if err := ValidateCaptureWitness(candidate); err != nil {
+		return err
+	}
+	*w = candidate
 	return nil
 }
 

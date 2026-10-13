@@ -3441,3 +3441,5 @@ For an explicitly opted-in session, `COUCH_CAPTURE_DIR` enables both display
 boundaries with exact bytes, geometry and timing. Regular Couch is supported;
 `COUCH_ISOLATED_ROOT` remains optional. Capture stays disabled by default. See the
 [live capture runbook](couch-live-capture.md) for launch, limits and extraction.
+
+Recovery candidates are an explicit choice: `couch --resume-candidates repo:N --json` lists the best candidate and up to four alternatives with native identity, last activity, tail match and a stable selection key. `couch --resume repo:N --candidate KEY` selects that evidence snapshot. The menu uses the same preview and offers fresh startup from the previous screen. Automatic inference is disabled pending a witnessed calibration corpus.

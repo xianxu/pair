@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/terminal"
@@ -20,10 +21,11 @@ type menuRefreshResult struct {
 }
 
 type menuPreviewResult struct {
-	generation     uint64
-	prepared       *couchcore.PreparedStart
-	switchPrepared *couchcore.PreparedAgentSwitch
-	err            error
+	recoveryPreview *couchcore.RecoveryPreview
+	generation      uint64
+	prepared        *couchcore.PreparedStart
+	switchPrepared  *couchcore.PreparedAgentSwitch
+	err             error
 }
 
 func (c *Console) SetActionableProvider(provider ActionableThreadProvider) {
@@ -254,6 +256,19 @@ func (c *Console) showMenuPublishing() {
 // Console's one sequential operation queue.
 func (c *Console) dispatchMenuEffects(effects []MenuEffect) {
 	for _, effect := range effects {
+		if effect.CancelPreview != 0 {
+			c.mu.Lock()
+			if c.previewSchedule.Pending != nil && c.previewSchedule.Pending.Generation == effect.CancelPreview {
+				c.previewSchedule.Pending = nil
+			}
+			cancel := c.previewCancel
+			matches := c.previewRunning == effect.CancelPreview
+			c.mu.Unlock()
+			if matches && cancel != nil {
+				cancel()
+			}
+			continue
+		}
 		if effect.CopyOrientation != nil {
 			c.copyOrientation(*effect.CopyOrientation)
 			continue
@@ -295,6 +310,10 @@ func (c *Console) advanceMenuPreview(event PreviewScheduleEvent) {
 
 func (c *Console) startMenuPreview(request PreviewRequest) {
 	ctx, cancel := context.WithCancel(c.lifetime)
+	if request.RecoveryTarget != nil {
+		cancel()
+		ctx, cancel = context.WithTimeout(c.lifetime, 35*time.Second)
+	}
 	c.mu.Lock()
 	c.previewCancel = cancel
 	c.previewRunning = request.Generation
@@ -319,6 +338,17 @@ func (c *Console) startMenuPreview(request PreviewRequest) {
 				args["argv"] = request.SwitchArgv
 			}
 		}
+		if request.RecoveryTarget != nil {
+			operation = "resume-candidates"
+			args = map[string]string{}
+			if request.RecoveryTarget.Path != "" {
+				args["path"] = request.RecoveryTarget.Path
+			} else {
+				args["repo-scope"] = request.RecoveryTarget.Address.RepoScope
+				args["tag"] = string(request.RecoveryTarget.Address.Tag)
+			}
+		}
+		var recoveryPreview *couchcore.RecoveryPreview
 		var prepared *couchcore.PreparedStart
 		var err error
 		if fn == nil {
@@ -328,7 +358,14 @@ func (c *Console) startMenuPreview(request PreviewRequest) {
 			value, err = fn(couchcore.OperationCall{
 				Name: operation, Args: args, Implicit: true, Context: ctx,
 			})
-			if err == nil && operation == "prepare-switch-agent" {
+			if err == nil && operation == "resume-candidates" {
+				accepted, ok := value.(couchcore.RecoveryPreview)
+				if !ok {
+					err = errors.New("invalid recovery preview result")
+				} else {
+					recoveryPreview = &accepted
+				}
+			} else if err == nil && operation == "prepare-switch-agent" {
 				accepted, ok := value.(couchcore.PreparedAgentSwitch)
 				if !ok {
 					err = errors.New("invalid switch preview result")
@@ -344,7 +381,7 @@ func (c *Console) startMenuPreview(request PreviewRequest) {
 				}
 			}
 		}
-		result := menuPreviewResult{generation: request.Generation, prepared: prepared, switchPrepared: switchPrepared, err: err}
+		result := menuPreviewResult{generation: request.Generation, prepared: prepared, switchPrepared: switchPrepared, recoveryPreview: recoveryPreview, err: err}
 		select {
 		case c.previewResults <- result:
 		case <-c.stop:
@@ -363,7 +400,7 @@ func (c *Console) finishMenuPreview(result menuPreviewResult) {
 	}
 	var menuEffects []MenuEffect
 	if c.menuReady {
-		event := MenuEvent{Kind: MenuEventPreviewResult, Generation: result.generation, Prepared: result.prepared, SwitchPrepared: result.switchPrepared}
+		event := MenuEvent{Kind: MenuEventPreviewResult, Generation: result.generation, Prepared: result.prepared, SwitchPrepared: result.switchPrepared, RecoveryPreview: result.recoveryPreview}
 		if result.err != nil {
 			event.Error = result.err.Error()
 		}

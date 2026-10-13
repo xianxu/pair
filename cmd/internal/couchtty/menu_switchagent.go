@@ -200,6 +200,9 @@ func renderSwitchAgentMenu(frame MenuFrame, width, height int) []string {
 
 func menuActionsFor(state MenuState, thread couchcore.ActionableThreadSummary) []string {
 	items := menuActionItems(thread)
+	if thread.Address.RepoScope != "" && thread.Address.Tag != "" {
+		items = append(items, "resume-candidates")
+	}
 	if _, ok := state.Orientation[thread.Address]; ok {
 		items = append(items, "copy-orientation")
 	}

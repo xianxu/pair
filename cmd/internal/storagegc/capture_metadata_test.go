@@ -53,6 +53,10 @@ func TestCapturePublicationCrashAndExactIdentity(t *testing.T) {
 }
 
 func TestCaptureWitnessArchiveAndReplacement(t *testing.T) {
+	t.Run("legacy-producer-v1", func(t *testing.T) { testCaptureWitnessArchiveAndReplacement(t, 1) })
+	t.Run("producer-epoch-v2", func(t *testing.T) { testCaptureWitnessArchiveAndReplacement(t, 2) })
+}
+func testCaptureWitnessArchiveAndReplacement(t *testing.T, version int) {
 	c, _ := NewCoordinator(t.TempDir())
 	o, _ := artifactpath.NewStorageOwner(c.Root, "scope", "work")
 	os.MkdirAll(o.Directory(), 0700)
@@ -62,7 +66,10 @@ func TestCaptureWitnessArchiveAndReplacement(t *testing.T) {
 	os.WriteFile(eventsPath, nil, 0600)
 	rawID, _ := CaptureIdentity(rawPath)
 	eventID, _ := CaptureIdentity(eventsPath)
-	w := artifactpath.CaptureWitness{Type: "capture_witness", Version: 1, Generation: "generation", ScopeKey: "scope", Tag: "work", Agent: "codex", LaunchOrdinal: 18, Nonce: "nonce", RawFile: artifactpath.CaptureFileID{Device: rawID.Device, Inode: rawID.Inode}, EventsFile: artifactpath.CaptureFileID{Device: eventID.Device, Inode: eventID.Inode}}
+	w := artifactpath.CaptureWitness{Type: "capture_witness", Version: version, Generation: "generation", ScopeKey: "scope", Tag: "work", Agent: "codex", LaunchOrdinal: 18, Nonce: "nonce", RawFile: artifactpath.CaptureFileID{Device: rawID.Device, Inode: rawID.Inode}, EventsFile: artifactpath.CaptureFileID{Device: eventID.Device, Inode: eventID.Inode}}
+	if version == 2 {
+		w.OpenedAt = time.Date(2026, 9, 13, 11, 0, 0, 0, time.UTC)
+	}
 	data, _ := json.Marshal(w)
 	data = append(data, '\n')
 	os.WriteFile(eventsPath, data, 0600)

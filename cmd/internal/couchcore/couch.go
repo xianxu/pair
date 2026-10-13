@@ -25,6 +25,9 @@ import (
 // method on it. The terminal UI and (later) the advisor's tools are both
 // clients of these methods -- never of two separate implementations.
 type Couch struct {
+	RecoveryEvidence       RecoveryEvidenceReader
+	RecoveryPreserve       RecoveryCapturePreserver
+	RecoveryTerminal       RecoveryTerminalPreparation
 	Identities             IdentityAllocator
 	Slots                  SlotCatalog
 	Workspaces             WorkspaceReadiness

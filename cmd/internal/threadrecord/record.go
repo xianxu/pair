@@ -14,7 +14,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/strictjson"
 )
 
-const SchemaVersion = 2
+const SchemaVersion = 3
 
 type Validators struct {
 	RepoScope func(string) error
@@ -27,6 +27,7 @@ type Address struct {
 }
 
 type StartClaim struct {
+	RecoveryIntent *RecoveryIntent               `json:"recovery_intent,omitempty"`
 	SessionBinding *couchidentity.SessionBinding `json:"session_binding,omitempty"`
 	Nonce          string                        `json:"nonce"`
 	OwnerPID       int                           `json:"owner_pid"`
@@ -66,6 +67,7 @@ type Incarnation struct {
 }
 
 type Record struct {
+	RecoveryContext *RecoveryContext              `json:"recovery_context,omitempty"`
 	PreviousSession *PreviousSession              `json:"previous_session,omitempty"`
 	SessionBinding  *couchidentity.SessionBinding `json:"session_binding,omitempty"`
 	Continuation    *checkpoint.Request           `json:"continuation,omitempty"`
@@ -115,6 +117,11 @@ func ValidateAddress(address Address, validators Validators) error {
 // persisted records. Policy values are evidence interpreted elsewhere; their
 // exact JSON shape is still enforced by Record plus strictjson.Decode.
 func Validate(record Record, validators Validators) error {
+	if record.RecoveryContext != nil {
+		if err := ValidateRecoveryContext(*record.RecoveryContext, record.Address); err != nil {
+			return err
+		}
+	}
 	if record.PreviousSession != nil {
 		if err := record.PreviousSession.Validate(record.Address); err != nil {
 			return fmt.Errorf("previous session: %w", err)
@@ -180,6 +187,11 @@ func Validate(record Record, validators Validators) error {
 		}
 		if incarnation.Start != nil {
 			trackedStarts++
+			if incarnation.Start.RecoveryIntent != nil {
+				if err := ValidateRecoveryIntent(*incarnation.Start.RecoveryIntent, record.Address); err != nil {
+					return err
+				}
+			}
 			if err := validateSessionBinding(incarnation.Start.SessionBinding, record.Address); err != nil {
 				return err
 			}
@@ -232,6 +244,11 @@ func DecodePersisted(raw []byte, expected Address, validators Validators) (Recor
 		return Record{}, fmt.Errorf("invalid thread schema version: %w", err)
 	}
 
+	if version == 1 || version == 2 {
+		if err := rejectLegacyRecoveryFields(envelope); err != nil {
+			return Record{}, err
+		}
+	}
 	var record Record
 	switch version {
 	case 1:
@@ -240,6 +257,12 @@ func DecodePersisted(raw []byte, expected Address, validators Validators) (Recor
 			return Record{}, err
 		}
 		record = migrateV1(legacy)
+	case 2:
+		// Schema 2 shares the pre-recovery structure; reject v3 fields even when null.
+		if err := strictjson.Decode(raw, &record); err != nil {
+			return Record{}, err
+		}
+		record.SchemaVersion = SchemaVersion
 	case SchemaVersion:
 		if err := strictjson.Decode(raw, &record); err != nil {
 			return Record{}, err
@@ -290,6 +313,32 @@ func validateSessionBinding(binding *couchidentity.SessionBinding, address Addre
 	}
 	if binding.ScopeKey != address.RepoScope || binding.Tag != address.Tag {
 		return fmt.Errorf("session binding belongs to another address")
+	}
+	return nil
+}
+
+// Legacy versions cannot smuggle new recovery semantics through shared nested
+// types. Presence is rejected, including null, before migration.
+func rejectLegacyRecoveryFields(envelope map[string]json.RawMessage) error {
+	if _, ok := envelope["recovery_context"]; ok {
+		return fmt.Errorf("legacy schema cannot contain recovery context")
+	}
+	var incarnations []map[string]json.RawMessage
+	if raw, ok := envelope["incarnations"]; ok {
+		if err := strictjson.Decode(raw, &incarnations); err != nil {
+			return err
+		}
+	}
+	for _, incarnation := range incarnations {
+		if raw, ok := incarnation["start"]; ok && string(raw) != "null" {
+			var start map[string]json.RawMessage
+			if err := strictjson.Decode(raw, &start); err != nil {
+				return err
+			}
+			if _, ok := start["recovery_intent"]; ok {
+				return fmt.Errorf("legacy schema cannot contain recovery intent")
+			}
+		}
 	}
 	return nil
 }

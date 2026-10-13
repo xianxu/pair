@@ -2041,6 +2041,9 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 	// Never for a background completion: the pass reattaches behind the
 	// operator, and there is no adoption, so no background completion is ever
 	// the operator's own landing (pair#206).
+	if recovered, ok := completed.value.(couchcore.RecoveryResumeResult); ok && err == nil && recovered.Notice != "" {
+		c.reduceMenu(MenuEvent{Kind: MenuEventNotice, Error: recovered.Notice})
+	}
 	if completed.origin.Operation == "resume" && err == nil && startedHandleID != "" && !completed.origin.Background && !completed.origin.PreserveFocus {
 		c.requestMenuRefresh()
 		c.forceSwitch(startedHandleID)

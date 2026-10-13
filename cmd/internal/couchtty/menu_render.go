@@ -304,6 +304,8 @@ func menuBreadcrumb(state MenuState, frame MenuFrame) string {
 	switch frame.Kind {
 	case MenuFrameActions:
 		parts = append(parts, "actions")
+	case MenuFrameRecovery:
+		parts = append(parts, "resume candidates")
 	case MenuFrameConfirmation:
 		// `leave` never reaches here -- it returns early above as a global frame.
 		parts = append(parts, frame.Action)
@@ -319,6 +321,8 @@ func menuBreadcrumb(state MenuState, frame MenuFrame) string {
 // there mean something.
 func renderMenuFrame(state MenuState, frame MenuFrame, width, height int, now time.Time, color256 bool) ([]string, []ActorExtent) {
 	switch frame.Kind {
+	case MenuFrameRecovery:
+		return renderRecoveryMenu(frame, width, height), nil
 	case MenuFrameSwitchAgent:
 		return renderSwitchAgentMenu(frame, width, height), nil
 	case MenuFrameRoot:

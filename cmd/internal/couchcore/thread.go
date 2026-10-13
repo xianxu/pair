@@ -34,6 +34,7 @@ const (
 // the transaction; ThreadIncarnation PID/Identity is empty before fork and
 // names the blocked helper after fork. Exec preserves that PID/start token.
 type ThreadStartClaim struct {
+	RecoveryIntent *threadrecord.RecoveryIntent  `json:"recovery_intent,omitempty"`
 	SessionBinding *couchidentity.SessionBinding `json:"session_binding,omitempty"`
 	Nonce          string                        `json:"nonce"`
 	OwnerPID       int                           `json:"owner_pid"`
@@ -57,6 +58,7 @@ type ThreadIncarnation struct {
 type PreviousSession = threadrecord.PreviousSession
 
 type ThreadRecord struct {
+	RecoveryContext     *threadrecord.RecoveryContext `json:"recovery_context,omitempty"`
 	PreviousSession     *PreviousSession              `json:"previous_session,omitempty"`
 	SessionBinding      *couchidentity.SessionBinding `json:"session_binding,omitempty"`
 	Continuation        *checkpoint.Request           `json:"continuation,omitempty"`
@@ -111,6 +113,7 @@ func toPersistedThreadAddress(address ThreadAddress) threadrecord.Address {
 func toPersistedThreadRecord(record ThreadRecord) threadrecord.Record {
 	out := threadrecord.Record{
 		PreviousSession: threadrecord.ClonePreviousSession(record.PreviousSession),
+		RecoveryContext: threadrecord.CloneRecoveryContext(record.RecoveryContext),
 		SessionBinding:  cloneSessionBinding(record.SessionBinding),
 		SchemaVersion:   record.SchemaVersion, Address: toPersistedThreadAddress(record.Address),
 		StartingPath: record.StartingPath, WorkingPath: record.WorkingPath, CreatedAt: record.CreatedAt,
@@ -153,6 +156,7 @@ func toPersistedThreadRecord(record ThreadRecord) threadrecord.Record {
 		if incarnation.Start != nil {
 			out.Incarnations[i].Start = &threadrecord.StartClaim{
 				SessionBinding: cloneSessionBinding(incarnation.Start.SessionBinding),
+				RecoveryIntent: threadrecord.CloneRecoveryIntent(incarnation.Start.RecoveryIntent),
 				Nonce:          incarnation.Start.Nonce, OwnerPID: incarnation.Start.OwnerPID, OwnerIdentity: incarnation.Start.OwnerIdentity,
 			}
 			if incarnation.Start.LaunchProfile != nil {
@@ -172,6 +176,7 @@ func toPersistedThreadRecord(record ThreadRecord) threadrecord.Record {
 func fromPersistedThreadRecord(record threadrecord.Record) ThreadRecord {
 	out := ThreadRecord{
 		PreviousSession: threadrecord.ClonePreviousSession(record.PreviousSession),
+		RecoveryContext: threadrecord.CloneRecoveryContext(record.RecoveryContext),
 		SessionBinding:  cloneSessionBinding(record.SessionBinding),
 		SchemaVersion:   record.SchemaVersion,
 		Address:         ThreadAddress{RepoScope: record.Address.RepoScope, Tag: ThreadTag(record.Address.Tag)},
@@ -215,6 +220,7 @@ func fromPersistedThreadRecord(record threadrecord.Record) ThreadRecord {
 		if incarnation.Start != nil {
 			out.Incarnations[i].Start = &ThreadStartClaim{
 				SessionBinding: cloneSessionBinding(incarnation.Start.SessionBinding),
+				RecoveryIntent: threadrecord.CloneRecoveryIntent(incarnation.Start.RecoveryIntent),
 				Nonce:          incarnation.Start.Nonce, OwnerPID: incarnation.Start.OwnerPID, OwnerIdentity: incarnation.Start.OwnerIdentity,
 			}
 			if incarnation.Start.LaunchProfile != nil {
@@ -245,6 +251,7 @@ func fromPersistedThreadRecord(record threadrecord.Record) ThreadRecord {
 
 func cloneThreadRecord(record ThreadRecord) ThreadRecord {
 	copy := record
+	copy.RecoveryContext = threadrecord.CloneRecoveryContext(record.RecoveryContext)
 	copy.PreviousSession = threadrecord.ClonePreviousSession(record.PreviousSession)
 	copy.SessionBinding = cloneSessionBinding(record.SessionBinding)
 	if record.Continuation != nil {
@@ -255,6 +262,7 @@ func cloneThreadRecord(record ThreadRecord) ThreadRecord {
 	for i := range copy.Incarnations {
 		if record.Incarnations[i].Start != nil {
 			start := *record.Incarnations[i].Start
+			start.RecoveryIntent = threadrecord.CloneRecoveryIntent(start.RecoveryIntent)
 			start.SessionBinding = cloneSessionBinding(start.SessionBinding)
 			if start.LaunchProfile != nil {
 				profile := cloneLaunchProfile(*start.LaunchProfile)

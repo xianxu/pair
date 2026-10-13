@@ -60,6 +60,7 @@ const (
 	MenuFrameText
 	MenuFrameStart
 	MenuFrameSwitchAgent
+	MenuFrameRecovery
 )
 
 // MenuRootView is the root list mode, retained for the owning console lifetime.
@@ -72,9 +73,11 @@ const (
 
 // MenuFrame owns the navigation state for exactly one menu level.
 type MenuFrame struct {
-	SwitchPrepared *couchcore.PreparedAgentSwitch
-	SwitchStage    int
-	SwitchEdited   bool
+	RecoveryTarget  couchcore.ResumeTarget
+	RecoveryPreview *couchcore.RecoveryPreview
+	SwitchPrepared  *couchcore.PreparedAgentSwitch
+	SwitchStage     int
+	SwitchEdited    bool
 	// Rune distance from the end; zero keeps newly prefilled parameters at end.
 	SwitchCursorFromEnd int
 
@@ -280,13 +283,14 @@ const (
 )
 
 type MenuEvent struct {
-	RowKey       couchcore.ThreadRowKey
-	Kind         MenuEventKind
-	Key          PanelKey
-	Address      couchcore.ThreadAddress
-	Inventory    []couchcore.ActionableThreadSummary
-	InventorySet bool
-	Operation    string
+	RecoveryPreview *couchcore.RecoveryPreview
+	RowKey          couchcore.ThreadRowKey
+	Kind            MenuEventKind
+	Key             PanelKey
+	Address         couchcore.ThreadAddress
+	Inventory       []couchcore.ActionableThreadSummary
+	InventorySet    bool
+	Operation       string
 	// Mode is the operation's disposition where it has one: which of park or
 	// detach a whole-couch `leave` applies to every live thread.
 	Mode       string
@@ -328,6 +332,7 @@ type MenuEvent struct {
 
 // MenuEffect is an operation request for the thin Console shell.
 type MenuEffect struct {
+	CancelPreview   uint64
 	CopyOrientation *orientation.Request
 	Operation       string
 	Attempt         uint64
@@ -567,6 +572,8 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 		return openStartForm(next)
 	}
 	switch next.CurrentFrame().Kind {
+	case MenuFrameRecovery:
+		return reduceRecoveryKey(next, event.Key)
 	case MenuFrameRoot:
 		return reduceRootKey(next, event.Key)
 	case MenuFrameActions:
@@ -692,7 +699,7 @@ func menuFrameBindsThread(frame MenuFrame) bool {
 	if frame.Kind == MenuFrameConfirmation && frame.Action == "leave" {
 		return false
 	}
-	return frame.Kind == MenuFrameSwitchAgent || frame.Kind == MenuFrameActions || frame.Kind == MenuFrameConfirmation || frame.Kind == MenuFrameText
+	return frame.Kind == MenuFrameRecovery || frame.Kind == MenuFrameSwitchAgent || frame.Kind == MenuFrameActions || frame.Kind == MenuFrameConfirmation || frame.Kind == MenuFrameText
 }
 
 // reduceParkHotkey handles the Alt+x/Alt+d ownership-boundary chords.
@@ -853,6 +860,8 @@ func reduceActionKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 			form := &state.Frames[len(state.Frames)-1]
 			form.Path, form.FormField = path, MenuFieldAgent
 			return requestStartPreview(state)
+		case "resume-candidates":
+			return openRecoveryPreview(state, thread)
 		case "switch-agent":
 			return openSwitchAgent(state, thread.Address)
 		case "alias":
@@ -1245,6 +1254,9 @@ func requestStartPreview(state MenuState) (MenuState, []MenuEffect) {
 }
 
 func reducePreviewResult(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
+	if state.CurrentFrame().Kind == MenuFrameRecovery {
+		return reduceRecoveryPreview(state, event)
+	}
 	if state.CurrentFrame().Kind == MenuFrameSwitchAgent {
 		return reduceSwitchAgentPreview(state, event)
 	}
@@ -1630,6 +1642,8 @@ func reconcileMenuFrames(state MenuState, previous ...[]couchcore.ActionableThre
 				continue
 			}
 			reconcileItemSelection(&frame, filterMenuItems(confirmationMenuItems(state, frame), frame.Filter))
+		case MenuFrameRecovery:
+			// Selection revalidates the preview key against current core evidence.
 		case MenuFrameSwitchAgent:
 			if bound != frame.Thread || (!containsMenuItem(menuActionItems(thread), "switch-agent") && state.InFlight.Operation != "switch-agent") {
 				invalidThreadFrame = true

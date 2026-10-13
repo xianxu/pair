@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 )
@@ -104,5 +105,38 @@ func TestCaptureOpenWithoutLaunchAuthorityIsLegacy(t *testing.T) {
 	b, _ := os.ReadFile(events.Name())
 	if _, e := artifactpath.DecodeCaptureWitness(b); e != artifactpath.ErrCaptureWitnessAbsent {
 		t.Fatal("invented authority")
+	}
+}
+
+func TestPublishCaptureWitnessWritesCaptureOpenEpoch(t *testing.T) {
+	dir := t.TempDir()
+	raw, err := os.Create(filepath.Join(dir, "raw"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer raw.Close()
+	events, err := os.Create(filepath.Join(dir, "events"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer events.Close()
+	before := time.Now().UTC()
+	input := artifactpath.CaptureWitness{ScopeKey: "scope", Tag: "work", Agent: "codex", LaunchOrdinal: 18, Nonce: "same-reexec-nonce", OpenedAt: time.Date(2001, 1, 1, 0, 0, 0, 0, time.UTC)}
+	if err := PublishCaptureWitness(raw, events, input); err != nil {
+		t.Fatal(err)
+	}
+	bytes, err := os.ReadFile(events.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, err := artifactpath.DecodeCaptureWitness(bytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w.Version != 2 || w.OpenedAt.Before(before) || w.OpenedAt.After(time.Now().UTC()) {
+		t.Fatalf("producer failed fresh epoch: %+v", w)
+	}
+	if rawStat, err := raw.Stat(); err != nil || rawStat.Size() != 0 {
+		t.Fatal("witness did not precede child output")
 	}
 }

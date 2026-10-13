@@ -233,6 +233,12 @@ var Families = []Family{
 // shell, Lua, and KDL sources.
 // pair:m5-concept pure
 var SourceClassifications = []SourceClassification{
+	{Path: "cmd/internal/couchcore/recovery_evidence_os.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/launcher/recovery_authority_os.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/launcher/recovery_terminal.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/launcher/recovery_terminal_os.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/threadrecord/recovery.go", Kind: ResolvedConsumer},
+
 	{Path: "cmd/internal/wrapcmd/capture_witness.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/artifactpath/session_policy.go", Kind: Constructor, Families: []string{"session-policy", "session-lock"}},
 	{Path: "cmd/internal/launcher/session_handoff_os.go", Kind: ResolvedConsumer, Families: []string{"session-policy", "session-lock"}, BindingNames: []string{"cache-session-policy", "cache-session-lock"}},
@@ -610,6 +616,21 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	"cmd/internal/couchcmd/resume_candidates.go",
+	"cmd/internal/couchcore/recovery_key.go",
+	"cmd/internal/couchcore/recovery_preview.go",
+	"cmd/internal/couchcore/recovery_resume.go",
+	"cmd/internal/couchtty/menu_recovery.go",
+	"cmd/internal/launcher/recovery_authority.go",
+	"cmd/internal/orientation/recovery.go",
+	"cmd/internal/sessioninventory/recovery_candidate.go",
+	"cmd/internal/sessioninventory/recovery_collect.go",
+	"cmd/internal/sessioninventory/recovery_filemeta_darwin.go",
+	"cmd/internal/sessioninventory/recovery_filemeta_linux.go",
+	"cmd/internal/sessioninventory/recovery_filemeta_other.go",
+	"cmd/internal/sessioninventory/recovery_match.go",
+	"cmd/internal/sessioninventory/recovery_os.go",
+
 	"cmd/internal/osfs/metadata_read.go",
 	"cmd/internal/couchcore/agent_usability.go",
 	"cmd/internal/artifactpath/capture_witness.go",

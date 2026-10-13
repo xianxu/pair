@@ -40,11 +40,12 @@ const ReceiptRetention = 5 * time.Minute
 
 // OperationReceipt is the typed outcome of one resume or reboot request.
 type OperationReceipt struct {
-	ID     string
-	Op     string
-	Target string
-	Agent  string `json:",omitempty"`
-	Status ReceiptStatus
+	ID           string
+	Op           string
+	Target       string
+	Agent        string `json:",omitempty"`
+	CandidateKey string `json:",omitempty"`
+	Status       ReceiptStatus
 	// Code is a refusal's code (SlotOperationError's, e.g. not-offered).
 	Code string `json:",omitempty"`
 	// Detail is the refusal's or failure's factual text.
@@ -89,10 +90,10 @@ type ReceiptOutcome struct {
 
 // ReceiptEvent drives ApplyReceiptEvent.
 type ReceiptEvent struct {
-	Kind                  ReceiptEventKind
-	ID, Op, Target, Agent string // admit names all three; start, finish and status name the ID
-	Outcome               ReceiptOutcome
-	At                    time.Time
+	Kind                                ReceiptEventKind
+	ID, Op, Target, Agent, CandidateKey string // admit names all three; start, finish and status name the ID
+	Outcome                             ReceiptOutcome
+	At                                  time.Time
 }
 
 // ErrReceiptIDConflict refuses an admission reusing an ID for another
@@ -115,9 +116,9 @@ func ApplyReceiptEvent(r OperationReceipt, e ReceiptEvent) (OperationReceipt, er
 		return r, nil
 	case ReceiptAdmit:
 		if r.Status == ReceiptNone {
-			return OperationReceipt{ID: e.ID, Op: e.Op, Target: e.Target, Agent: e.Agent, Status: ReceiptQueued, Admitted: e.At}, nil
+			return OperationReceipt{ID: e.ID, Op: e.Op, Target: e.Target, Agent: e.Agent, CandidateKey: e.CandidateKey, Status: ReceiptQueued, Admitted: e.At}, nil
 		}
-		if e.Op != r.Op || e.Target != r.Target || e.Agent != r.Agent {
+		if e.Op != r.Op || e.Target != r.Target || e.Agent != r.Agent || e.CandidateKey != r.CandidateKey {
 			return r, ErrReceiptIDConflict
 		}
 		return r, nil

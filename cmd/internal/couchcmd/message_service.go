@@ -406,7 +406,7 @@ func (s *messageService) showHub(view interface{ SetHub(root string) }) {
 // inventory at execution time, and the queue key resolves repository names
 // from the thread store.
 func consoleSlotOperations(console *couchtty.Console, c *couchcore.Couch, probe *liveRestartProbe) *slotOperations {
-	return newSlotOperations(func(key, op, target string, opts couchcore.LiveRestartOptions, started func(), finished func(any, error)) error {
+	operations := newSlotOperations(func(key, op, target string, opts couchcore.LiveRestartOptions, started func(), finished func(any, error)) error {
 		// The admission note and readiness wait are written on the queue
 		// goroutine by prepare and read by finished after the job; the queue
 		// orders the two.
@@ -426,6 +426,31 @@ func consoleSlotOperations(console *couchtty.Console, c *couchcore.Couch, probe 
 		}
 		return c.Threads.RepositoryNamesContext(ctx)
 	}, time.Now)
+	operations.preview = func(ctx context.Context, target string) (couchcore.RecoveryPreview, error) {
+		resolved, err := recoveryTargetForReference(ctx, c, target)
+		if err != nil {
+			return couchcore.RecoveryPreview{}, err
+		}
+		return c.ResumeCandidates(ctx, resolved)
+	}
+	operations.candidate = func(key, target, candidate string, started func(), finished func(any, error)) error {
+		return console.EnqueueRemoteOperation(key, "resume", func(ctx context.Context) (couchcore.OperationCall, error) {
+			resolved, err := recoveryTargetForReference(ctx, c, target)
+			if err != nil {
+				return couchcore.OperationCall{}, err
+			}
+			args := map[string]string{"candidate": candidate, "repo-scope": resolved.Address.RepoScope}
+			if resolved.Path != "" {
+				args["path"] = resolved.Path
+			} else {
+				args["repo-scope"] = resolved.Address.RepoScope
+				args["tag"] = string(resolved.Address.Tag)
+			}
+			return couchcore.OperationCall{Name: "resume", Args: args, Implicit: true, Context: ctx}, nil
+		}, started, finished)
+	}
+	return operations
+
 }
 
 func newMessageService(parent context.Context, brokerSocket, registrySocket string, authority messageAuthority, panes *couchmessage.PaneMailbox, slotGit func(string) (couchcore.SlotGitStatus, bool), slotOps *slotOperations) (*messageService, error) {
@@ -686,6 +711,8 @@ func (s *messageService) connectedWorkspace(ctx context.Context, b couchmessage.
 
 func (s *messageService) handle(ctx context.Context, request couchmessage.Request) couchmessage.Response {
 	switch {
+	case request.Op == "resume-candidates":
+		return s.handleResumeCandidates(ctx, request)
 	case request.Op == "switch-agent":
 		return s.handleAgentSwitch(ctx, request)
 	case couchmessage.IsSubmissionOp(request.Op):
