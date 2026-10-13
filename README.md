@@ -422,6 +422,10 @@ couch --session-sync read|write|diff|status ... FILE
                          lists owed deliveries (see couch --skill)
 couch --recover-plan-from-sdlc   per-slot recovery report (JSON), see below
 couch --resume repo:N [--json]   from a live slot: resume that slot's agent
+couch --resume-candidates repo:N [--json]
+                         list explicit recovery choices with activity and tty-tail evidence; automatic choice is off
+couch --resume repo:N --candidate KEY [--json]
+                         choose a listed conversation or fresh-from-previous-screen fallback; stale evidence refuses
 couch --reboot repo:N --confirm [--force-unknown] [--json]
                          from a live slot: archive and replace it with a fresh agent on the current binary;
                          a live target is stopped first unless busy (busy-unknown needs --force-unknown)

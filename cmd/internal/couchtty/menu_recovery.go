@@ -116,7 +116,7 @@ func renderRecoveryMenu(frame MenuFrame, width, height int) []string {
 		}
 		activity := "unknown"
 		if !choice.LastActivity.IsZero() {
-			activity = choice.LastActivity.Format("2006-01-02 15:04")
+			activity = choice.LastActivity.Local().Format("2006-01-02 15:04 MST")
 		}
 		evidence := "  Original saved screen"
 		if choice.NativeID != "" {

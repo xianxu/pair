@@ -27,7 +27,12 @@ func TestRecoveryReplayContextCancellation(t *testing.T) {
 	// so history capacity cannot be the reason replay stops.
 	counted := &cancelDuringReplay{Context: context.Background(), remaining: 4}
 	raw := []byte(strings.Repeat("working\r", 8192))
-	_, err := replayDataWithLimitsContext(counted, raw, nil, true, 101, 100, boundedReplayLimits(100))
+	em, err := vt.NewEmulatorWithLimits(40, 2, boundedReplayLimits(100))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer em.Close()
+	_, err = feedSegmentsContext(counted, em, raw, nil, true)
 	if !errors.Is(err, context.Canceled) || counted.remaining > 0 {
 		t.Fatalf("mid-replay cancellation = %v, checks remaining %d", err, counted.remaining)
 	}

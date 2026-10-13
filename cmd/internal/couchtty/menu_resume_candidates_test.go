@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestRecoveryPreviewRequiresExplicitChoiceAndRejectsStaleResult(t *testing.T) {
@@ -46,5 +47,14 @@ func TestRecoveryMenuLegacyFreshShowsUnknownActivityWithoutNativeScore(t *testin
 	rendered := strings.Join(renderRecoveryMenu(frame, 120, 30), "\n")
 	if !strings.Contains(rendered, "unknown") || strings.Contains(rendered, "0001") || strings.Contains(rendered, "0%") || strings.Contains(rendered, "matched") {
 		t.Fatalf("invented fresh evidence: %s", rendered)
+	}
+}
+
+func TestRecoveryMenuActivityNamesLocalTimezone(t *testing.T) {
+	activity := time.Date(2026, 10, 13, 14, 54, 0, 0, time.UTC)
+	frame := MenuFrame{RecoveryPreview: &couchcore.RecoveryPreview{Candidates: []couchcore.RecoveryChoice{{Key: "native", NativeID: "id", LastActivity: activity, TailMatch: 75, Matched: 3, Total: 4}}}}
+	rendered := strings.Join(renderRecoveryMenu(frame, 160, 30), "\n")
+	if !strings.Contains(rendered, activity.Local().Format("2006-01-02 15:04 MST")) || !strings.Contains(rendered, "75%") {
+		t.Fatalf("activity lost zone or score: %s", rendered)
 	}
 }

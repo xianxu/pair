@@ -234,6 +234,8 @@ var Families = []Family{
 // pair:m5-concept pure
 var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/couchcore/recovery_evidence_os.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/couchcore/recovery_native_owner.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/launcher/recovery_native_owner.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/launcher/recovery_authority_os.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/launcher/recovery_terminal.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/launcher/recovery_terminal_os.go", Kind: ResolvedConsumer},
@@ -619,6 +621,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcmd/resume_candidates.go",
 	"cmd/internal/couchcore/recovery_key.go",
 	"cmd/internal/couchcore/recovery_preview.go",
+	"cmd/internal/couchcore/recovery_native_owner_fake.go",
 	"cmd/internal/couchcore/recovery_resume.go",
 	"cmd/internal/couchtty/menu_recovery.go",
 	"cmd/internal/launcher/recovery_authority.go",

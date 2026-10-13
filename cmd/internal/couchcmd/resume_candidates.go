@@ -63,7 +63,7 @@ func runResumeCandidatesCLI(inv cliInvocation, rt Runtime, out, diagnostic io.Wr
 		}
 		activity := "unknown"
 		if !c.LastActivity.IsZero() {
-			activity = c.LastActivity.Format("2006-01-02 15:04")
+			activity = c.LastActivity.Local().Format("2006-01-02 15:04 MST")
 		}
 		evidence := "original saved screen"
 		if c.NativeID != "" {

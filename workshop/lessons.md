@@ -1558,3 +1558,9 @@ proof; record the surprising case so the next change starts from evidence.
 - Build smoke artifacts after committing, then check embedded VCS revision and modified state. A clean checkout and a successful earlier build do not prove the binary was built from that clean commit; timestamp-based make targets can leave old embedded metadata.
 
 - A full suite that compares embedded assets with source must run against a stable tree. Finish source edits before launching it; if an independently verified final delta lands mid-run, disclose snapshot failures and rerun the affected packages after regeneration rather than calling that run green.
+
+### #528 — recovery transaction integration
+
+- When a start claim owns recovery evidence, every transition that removes the claim must transfer that evidence, including rollback with and without a park receipt. Test each destructive transition, not only registration.
+- Recovery must not change saved startup preferences through the shared successful-start path. Assert defaults before and after a real store-backed recovery transaction.
+- Pair helper ancestry does not necessarily reach its wrapper after Zellij daemonizes. Use exact readiness nonce and agent process generation when identifying the source; scope/tag alone cannot distinguish competing incarnations.

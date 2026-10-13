@@ -124,6 +124,9 @@ func (c *Couch) ResumeCandidate(ctx context.Context, t ResumeTarget, key string)
 	if err != nil {
 		return result, err
 	}
+	if err := c.checkRecoveryNativeOwner(ctx, record, choice, true); err != nil {
+		return result, err
+	}
 	finishRetention, err := c.beginResumeRetention(ctx, record.Address, true)
 	if err != nil {
 		return result, err
@@ -213,6 +216,9 @@ func (c *Couch) ResumeCandidate(ctx context.Context, t ResumeTarget, key string)
 	if err := c.confirmRecoveryAbsent(ctx, record); err != nil {
 		return fail(err)
 	}
+	if err := c.checkRecoveryNativeOwner(ctx, record, *selected, false); err != nil {
+		return fail(err)
+	}
 	backend, err := c.Threads.storeForAddress(record.Address)
 	if err != nil {
 		return fail(err)
@@ -232,7 +238,7 @@ func (c *Couch) ResumeCandidate(ctx context.Context, t ResumeTarget, key string)
 		return result, fmt.Errorf("recovery launch failed; the selected evidence is retained for retry: %w", err)
 	}
 	result.Start = StartResult{Record: actor, Handle: handle}
-	result.Notice = fmt.Sprintf("resumed %s: last active %s, %.0f%% tail match", selected.NativeID, selected.LastActivity.Format("15:04"), selected.TailMatch)
+	result.Notice = fmt.Sprintf("resumed %s: last active %s, %.0f%% tail match", selected.NativeID, selected.LastActivity.Local().Format("15:04 MST"), selected.TailMatch)
 	if selected.NativeID == "" {
 		result.Notice = "started fresh from the previous screen"
 	}
