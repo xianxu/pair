@@ -266,7 +266,7 @@ Files: create `cmd/internal/webcast/live_operator_test.go`; extend existing
       through the gate's authorized mechanism (do not hand-edit ops).
 ### Task 5: deferred Couch menu, smoke, close and land
 
-- [ ] Wait for hub confirmation that #506 has landed, then merge fresh main before
+- [x] Wait for hub confirmation that #506 has landed, then merge fresh main before
       touching menu files. Read #495/#506's shared menu model and add annotation rows
       using it: left acts, right copies, Alt menu only LIVE/Chrome. Targeted menu tests.
 - [ ] Arrange operator smoke through hub; stage/build in pair:0 only on explicit
