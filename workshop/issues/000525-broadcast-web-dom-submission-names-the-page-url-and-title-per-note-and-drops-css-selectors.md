@@ -1,12 +1,20 @@
 ---
 id: 000525
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-12
-updated: 2026-10-12
+updated: 2026-10-13
 estimate_hours:
-card_mirror: '4ce88a8117bddb169689212c2f7654b578615afa' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '508b4239ede6d8aafda6b7d86f74fe63937e20e4' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-13T10:20:26-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:5
+    worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
+    repository: github.com/xianxu/pair
 ---
 
 # broadcast-web: DOM submission names the page (URL and title per note) and drops CSS selectors
@@ -29,7 +37,7 @@ The operator (2026-10-12):
 
 ## Plan
 
-- [ ]
+- [ ] Implement and verify [the captured-page plan](../plans/000525-captured-page-plan.md).
 
 ## Log
 
@@ -41,3 +49,7 @@ The operator (2026-10-12):
   crop and box text came from), including a same-document origin change, not the recording's head URL. Expose it as the
   source identity (URL + title per captured document, referenced by each note) so #526's origin policy reads the same
   value.
+
+### 2026-10-13 — design clarification
+
+Hub approved preserving box_text's existing per-text-node granularity and order, with tag/classes replacing selectors; no flattening or regrouping. One source page (URL, title, provenance) is bound to the capture batch and referenced by each note. #526 landed first; this issue derives privacy from that same captured URL. The durable plan proposes a bounded CDP probe in the admitted context, version-2 output with v1 read compatibility, and explicit unavailable-page behavior. Awaiting hub review of the concrete plan before change-code.
