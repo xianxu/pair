@@ -44,7 +44,10 @@ The cast Chrome uses the viewer's `mountAnnotation` (`web/annotate.js`) and
 shadow host. `operator_script.go` assembles these trusted embedded modules into
 isolated-world script scopes; `operator.js` supplies local page coordinates and
 the CDP binding transport. No page-origin HTTP or localStorage is involved.
-Off/Pen/Note start Off. A remote driver disables annotations and hides/unfocuses
+Off/Pen/Note start Off. The shared note gesture previews nothing on pointer-down;
+crossing the movement threshold draws a drag box, while a click places its default
+box only on release. The completed box stays visible while its draft is edited.
+A remote driver disables annotations and hides/unfocuses
 an open editor while retaining its draft; control returning leaves the pen Off.
 Navigation discards the draft. Pausing holds it on the same document.
 Couch’s Chrome Alt-click menu adds `Annotation · Off · Pen · Note` below the

@@ -146,8 +146,8 @@ export function noteBox(note, boxOf) {
 // regionOf is a note gesture's box (#488), in page px: the dragged box, or
 // for a tap the default box; view is the page shown, pointerType the
 // pointer's (a finger must drag further).
-export function regionOf(a, b, view, pointerType) {
-  return gestureBox(a, b, view, { min: dragMin('px', pointerType) });
+export function regionOf(a, b, view, pointerType, { preview = false, dragged = false } = {}) {
+  return gestureBox(a, b, view, { min: dragged ? 0 : dragMin('px', pointerType), preview });
 }
 
 // noteDraft is a new note's payload, what the dialog posts: the segment
@@ -352,6 +352,7 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
   const dialog = noteDialog({ root: dlg, text, input, count, msg, save, cancel, resolve }, {
     post,
     color,
+    onClose: () => drawDrag(),
     resolveRequest: (id) => ['note-state', { viewer: who.viewer(), id, state: 'resolved' }],
     beforeSave: () => {
       const n = name.value.trim();
@@ -462,7 +463,7 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
       state.timer = win.setInterval(flush, CHUNK_MS);
       schedule();
     } else {
-      state.drag = { from: p, to: p, pointerType: e.pointerType };
+      state.drag = { from: p, to: p, pointerType: e.pointerType, dragged: false };
       drawDrag();
     }
   });
@@ -474,21 +475,22 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
       schedule();
     } else if (state.drag) {
       state.drag.to = p;
+      state.drag.dragged ||= regionOf(state.drag.from, p, pageView(), state.drag.pointerType, { preview: true }) !== null;
       drawDrag();
     }
   });
   const up = async () => {
     if (state.stroke) endStroke();
     if (!state.drag) return;
-    const { from, to, pointerType } = state.drag;
+    const { from, to, pointerType, dragged } = state.drag;
     state.drag = null;
     drawDrag();
-    const region = regionOf(from, to, pageView(), pointerType);
+    const region = regionOf(from, to, pageView(), pointerType, { dragged });
     if (prepareDraft) {
       const document = docSeg, version = gestureVersion;
       try {
         const payload = await prepareDraft(region);
-        if (payload && version === gestureVersion && document === docSeg && !unavailable() && state.mode === 'note') openDraft(payload);
+        if (payload && version === gestureVersion && document === docSeg && !unavailable() && state.mode === 'note') openDraft({ ...payload, region });
       } catch (err) { say(err.message || 'Could not anchor this note.'); }
       return;
     }
@@ -506,6 +508,7 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
     name.hidden = !!who.name();
     author.textContent = '';
     dialog.draft(payload);
+    drawDrag();
   }
 
   // pageView is the part of the page shown, in page px.
@@ -514,11 +517,13 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
     const [x0, y0] = v.toPage(r.left, r.top), [x1, y1] = v.toPage(r.right, r.bottom);
     return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
   };
-  // The outline while a box is drawn: the box the gesture would make now,
-  // the default box until the pointer has moved far enough to drag.
+  // Preview only an established drag. A click gets its default box on release.
   const dragBox = el('div', 'drag-region', layer);
+  dragBox.hidden = true;
   function drawDrag() {
-    const d = state.drag && regionOf(state.drag.from, state.drag.to, pageView(), state.drag.pointerType);
+    const d = state.drag
+      ? regionOf(state.drag.from, state.drag.to, pageView(), state.drag.pointerType, { preview: true, dragged: state.drag.dragged })
+      : dialog.draftPayload?.region;
     dragBox.hidden = !d;
     if (d) place(dragBox, d);
   }
@@ -559,6 +564,7 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
       const now = win.performance.now();
       placeRail();
       drawPins();
+      drawDrag();
       drawStrokes(now);
       if (strokes.size) schedule();
     }));

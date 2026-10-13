@@ -155,6 +155,9 @@ func TestOperatorLiveAnnotation(t *testing.T) {
 		if err = c.call(session, "Input.dispatchMouseEvent", map[string]any{"type": typ, "button": "left", "clickCount": 1, "x": xy[0], "y": xy[1]}, nil); err != nil {
 			t.Fatal(err)
 		}
+		if typ == "mousePressed" && string(eval(`testRoot.querySelector('.drag-region').hidden`)) != "true" {
+			t.Fatal("note click drew the default box before release")
+		}
 	}
 	for time.Now().Before(deadline) {
 		if string(eval(`!testRoot.querySelector('.note-dialog').classList.contains('hidden')`)) == "true" {
@@ -166,6 +169,9 @@ func TestOperatorLiveAnnotation(t *testing.T) {
 		t.Fatal("note gesture did not prepare draft")
 	}
 
+	if string(eval(`testRoot.querySelector('.drag-region').hidden`)) != "false" {
+		t.Fatal("note release did not place the default box")
+	}
 	eval(`testRoot.querySelector('.note-input').value='Held operator draft'`)
 	if path := os.Getenv("WEBCAST_OPERATOR_SHOT"); path != "" {
 		var shot struct {

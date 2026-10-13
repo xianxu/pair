@@ -350,3 +350,19 @@ TL receipt 1dbbe706 releases pair:0 and authorizes merge-main, move and build fo
 operator smoke. Fresh main merge contained only #526’s issue document; no code conflict.
 The source checkout stayed fixed until the suite finished; operator acceptance remains
 pending after staging.
+
+### 2026-10-12 — operator smoke: defer note-box preview until intent is known
+
+TL receipts 959a49f8 and aa0d115c report that both the viewer and cast Chrome flashed
+the default click box on mouse-down before switching to a drag box. The shared mount
+now draws nothing on down or sub-threshold wobble (existing 8px mouse / 16px touch
+threshold). Crossing the threshold previews the drag box and keeps drag intent even
+if the pointer returns near its start. Release without a drag places the default
+box; the completed box remains visible while its note draft is edited, and clears
+when the dialog closes. Both surfaces use the same implementation (ARCH-DRY).
+
+Six surface/gesture regressions demonstrated RED then GREEN for viewer and operator
+click, drag and drag-back; they check preview timing and the submitted region. All
+203 webcast/broadcast-viewer Node tests and real headless operator/shared-module
+checks passed. Rebuilding the staged pair:0 candidate for operator re-test; no close
+or landing acceptance is inferred from this smoke finding.

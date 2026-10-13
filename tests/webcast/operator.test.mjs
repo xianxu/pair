@@ -138,3 +138,47 @@ test('shared viewer mount keeps a view-only link read-only after mode requests',
   ui.setMode('point');
   assert.equal(ui.mode,'watch');
 });
+
+for (const operator of [false, true]) {
+  for (const gesture of ['click', 'drag', 'drag-back']) {
+    test(`${operator ? 'cast Chrome' : 'viewer'} note ${gesture}: preview waits for drag; click box waits for release`, async () => {
+      const root = new Element(operator ? 'shadow' : 'body'), box = new Element('box'); root.append(box);
+      const doc = {body:root, createElement:(tag)=>new Element(tag)};
+      const win = {innerWidth:100, crypto:{getRandomValues:(b)=>b.fill(1)}, performance:{now:()=>0}, requestAnimationFrame:()=>{}, addEventListener:()=>{}, setTimeout:()=>1, clearTimeout:()=>{}, clearInterval:()=>{}};
+      const regions = [];
+      const v = {model:{seg:1,docSeg:1,notes:[]}, onRecord:()=>{}, toPage:(x,y)=>[x,y], fromPage:(x,y)=>[x,y], nodeAt:()=>7, boxOf:()=>[0,0,100,100]};
+      const ui = mountAnnotation(doc,win,v,{root,box,stage:box,palette:['#ff0000'],who:{id:()=>operator?'operator':'viewer',name:()=> 'Named',viewer:()=>({id:'named',name:'Named'})},colors:{get:()=>0,set:()=>{}},post:async(route,payload)=>{regions.push(payload.region);return {status:204};},operator,prepareDraft:operator?async(region)=>({region}):undefined});
+      ui.setMode('note');
+      const layer = root.querySelector('.annotate'), outline = root.querySelector('.drag-region');
+      const pointer = async (kind,x,y) => {
+        for (const fn of layer.listeners[kind] || []) await fn({target:layer,pointerId:1,pointerType:'mouse',clientX:x,clientY:y,preventDefault(){}});
+      };
+      await pointer('pointerdown',40,40);
+      assert.equal(outline.hidden,true,'mouse down drew a box');
+      assert.equal(ui.dialog.open,false);
+      await pointer('pointermove',43,42);
+      assert.equal(outline.hidden,true,'sub-threshold wobble drew a box');
+      if (gesture !== 'click') {
+        await pointer('pointermove',60,70);
+        assert.equal(outline.hidden,false);
+        assert.deepEqual([outline.style.left,outline.style.top,outline.style.width,outline.style.height],['40px','40px','20px','30px']);
+        if (gesture === 'drag-back') {
+          await pointer('pointermove',42,43);
+          assert.equal(outline.hidden,false,'started drag became a click again');
+          assert.equal(outline.style.width,'2px');
+        }
+      }
+      await pointer('pointerup',gesture==='click'?43:gesture==='drag-back'?42:60,gesture==='click'?42:gesture==='drag-back'?43:70);
+      assert.equal(outline.hidden,false,'completed note box is visible while editing');
+      assert.equal(outline.style.width,gesture==='click'?'10px':gesture==='drag-back'?'2px':'20px');
+      assert.equal(ui.dialog.open,true);
+      const input = root.querySelector('.note-input'); input.value='note';
+      for (const fn of input.listeners.input) fn();
+      const save = root.querySelector('.note-buttons').children.at(-1);
+      for (const fn of save.listeners.click) fn();
+      assert.deepEqual(regions,[gesture==='click'?[35,35,10,10]:gesture==='drag-back'?[40,40,2,3]:[40,40,20,30]]);
+      await Promise.resolve();
+      assert.equal(outline.hidden,true,'saved draft left a preview behind');
+    });
+  }
+}
