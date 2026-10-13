@@ -15,6 +15,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "1cd44f48", done: "12379624"}
 ---
 
 # terminal cast: draw the default note box on mouse up only when no box was dragged (match pair#494's web fix)
