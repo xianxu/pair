@@ -1,6 +1,6 @@
 # #495 plan: a one-time code locks every cast link
 
-Status: decided; M1 and M2 closed; M3 in progress. The body below is the original draft, and Revisions record each change. This summary is the current design.
+Status: done; M1, M2 and M3 closed, smoke-tested by the operator on desktop and iPad. The body below is the original draft, and Revisions record each change. This summary is the current design.
 
 ## Current design (supersedes the draft where they differ)
 
@@ -8,7 +8,7 @@ Status: decided; M1 and M2 closed; M3 in progress. The body below is the origina
   - terminal `view` (4 digits) and `pointer` (4);
   - web `view` (4), web `pointer` (4) once pair:5 splits it out after #503, and web `drive` (6).
   - Replay links stay unlocked (D4, a follow-up issue).
-- **Registry (M3 first step).** `broadcast.LinkLocks` is one registry per cast (label + token → lock), with `LockFor`, `Codes`, `Rotate` and `End`. A new link is one `Add`.
+- **Registry (M3 first step).** `broadcast.LinkLocks` is one registry per cast (label + token → lock), with `LockFor`, `Codes`, `Rotate` and `End`. A new link is one `Mint`.
 - **Gate.** `Mountable.LockFor(segment)` names a link's lock, and the `Host` gate runs before any mount.
   - Before a session: the lock page, `lock.js`, `lock.css` and `POST unlock`; everything else gets 401.
   - With a session: the request runs under a context that revoke cancels.
@@ -20,10 +20,10 @@ Status: decided; M1 and M2 closed; M3 in progress. The body below is the origina
   - `Rotation.Gen` orders the notifications.
 - **Lock page.** One page asks for the code and the name for every link. `URL#NNNN` pre-fills the code and is stripped from history.
 - **Couch (M3).** An operator-only presenter layer that is never tapped holds:
-  - a hover tooltip with the codes. It hangs on the link controls: LIVE's 👆 (terminal codes), and Chrome's 👆 (view) and 👽 (drive) from #501. Until #501 lands, it hangs on the Chrome cell;
-  - an Alt+click Codes menu with per-link rotate and "rotate all";
-  - a three-flash of a new code;
-  - the guess-rotation alert, coalesced per lock every 30 s.
+  - a hover tooltip with all of a cast's codes, on its cell (`LIVE ⏸` or `Chrome ⏸`), never on the 👆 or 👽 beside it (the cast row's rule: left click acts, right-click copies that control's link, Alt+click on the cell opens the menu);
+  - the Codes menu (`codes_menu.go`): one row per link (`view 3926 · rotate · copy-link`), then `rotate all`. Each word is a blue click target, with keyboard selection; the menu stays open after an action, the pressed word flashes, and a rotated code updates in place;
+  - a three-flash of a new code over its cell;
+  - the guess-rotation alert, coalesced per lock every 30 s. It never names the code, and a rotation counts only while its cast is live.
 
 - **Tests.** The headless-Chrome viewer tests (`viewer_live_test` and its siblings) serve `Server` directly, not through the Host gate, so they stay unlocked. `TestLiveLockPage` covers the locked path end to end in Chrome, replacing the plan's "update them to unlock first". Node tests cover each viewer's relock on a lost session.
 

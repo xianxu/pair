@@ -354,6 +354,72 @@ rounds:
       isolation: fenced
       reviewed: dab29e48d993290317187021ff68229ea1179cbf
       blocked: false
+    - "n": 9
+      timestamp: "2026-10-12T21:51:42-07:00"
+      dispatched: "2026-10-12T21:49:17-07:00"
+      agent: claude
+      dispose:
+        - id: BR-11
+          disposition: not-addressed
+          note: 'The plan''s Current design now records TestLiveLockPage, but the sweep is undone: atlas/broadcast.md:81-82 and the plan''s Gate bullet still list only lock.js/lock.css, while lockgate.go:37 also serves collab.js before a session. The issue''s M2 checkbox still says "headless-Chrome tests unlock first".'
+          round: 9
+        - id: BR-13
+          disposition: not-addressed
+          note: server_test.go:167-169 is still a source grep. No node test drives storedName or the beforeSave in viewer.js:296.
+          round: 9
+        - id: BR-14
+          disposition: not-addressed
+          note: MAX_VIEWER_NAME = 40 (collab.js:96) and maxlength="40" (lock.html:20) are still unpinned against board.MaxNameRunes.
+          round: 9
+        - id: BR-15
+          disposition: not-addressed
+          note: cast_test.go:57 still GETs u.Link without unlockCast and passes on the lock page's 200.
+          round: 9
+        - id: BR-22
+          disposition: addressed
+          note: "atlas/webcast.md:178-180 now says right-click copies the view link and \U0001F47D or the Codes menu copies drive (#495 dropped Alt+right-click). The issue's Spec item 6 now names the Codes menu. Prose-only fix, checked against codes_menu.go and castCellAt."
+          round: 9
+        - id: BR-23
+          disposition: addressed
+          note: 'console_castcodes.go:435-441 adds the liveness check in the same c.mu section. The regression goes red when I revert it (TestRotationAfterTheCastEndedIsDropped: "an ended cast''s rotation flashed"). Only the castScreen branch is exercised; castWeb liveness is untested.'
+          round: 9
+        - id: BR-24
+          disposition: not-addressed
+          note: "Plan line 3 still says \"M3 in progress\", line 11 still says \"A new link is one Add\", and line 23 still hangs the tooltip on \U0001F446/\U0001F47D, contradicting castCellAt (console_castcodes.go:115) and atlas/webcast.md. Rule: at a milestone close, diff the Current design line by line against the code and atlas in the close commit itself. That rule also covers the BR-11 sweep."
+          round: 9
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 20ae28ee57f3a54b9210f45bef8974d0e524adb0
+      blocked: false
+    - "n": 10
+      timestamp: "2026-10-12T21:53:44-07:00"
+      dispatched: "2026-10-12T21:52:22-07:00"
+      agent: claude
+      dispose:
+        - id: BR-11
+          disposition: not-addressed
+          note: Plan line 105 still says "updated to unlock first" (only the Current design notes the swap), and atlas/broadcast.md around line 82 still lists only lock.js, lock.css and unlock before a session; lockgate.go:37 also serves collab.js.
+          round: 10
+        - id: BR-13
+          disposition: not-addressed
+          note: Only server_test.go:167 greps for "storedName(storage)". No node test drives storedName or the beforeSave author path through injected storage.
+          round: 10
+        - id: BR-14
+          disposition: not-addressed
+          note: MaxViewerNameRunes (notes.go:152), MAX_VIEWER_NAME (collab.js:96) and lock.html maxlength="40" still have no test that reads the embedded assets and checks them against Go.
+          round: 10
+        - id: BR-15
+          disposition: not-addressed
+          note: cast_test.go:57 still GETs u.Link without unlockCast and asserts only a 200, which is the lock page's.
+          round: 10
+        - id: BR-24
+          disposition: not-addressed
+          note: "The plan file is unchanged since the last round. Line 3 says \"M3 in progress\", line 11 says \"Add\" (the code has Mint), and line 23 still puts the tooltip on \U0001F446/\U0001F47D."
+          round: 10
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 20ae28ee57f3a54b9210f45bef8974d0e524adb0
+      blocked: false
 ---
 
 # Gate ledger — pair#495 (boundary-review)
@@ -495,12 +561,32 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-24** [Minor] `spec-moves-with-decisions` Plan Current design contradicts the closed M3: tooltip on link controls, status "M3 in progress", LinkLocks "Add"
   7th finding in this family. Plan line 23 says the hover hangs on 👆/👽, but castCellAt (console_castcodes.go:115) and atlas/webcast.md:163 put it on the LIVE/Chrome cells. Line 3 says M3 is in progress, and line 11 names Add instead of Mint. Earlier rules applied per artifact still miss sites. Rule: at a milestone close, compare the Current design summary line by line against the closing Revisions and the code, as part of the close commit.
 
+## Round 9 — 2026-10-12T21:51:42-07:00 (claude) — passed
+
+### Disposed
+
+- BR-11 — not-addressed — The plan's Current design now records TestLiveLockPage, but the sweep is undone: atlas/broadcast.md:81-82 and the plan's Gate bullet still list only lock.js/lock.css, while lockgate.go:37 also serves collab.js before a session. The issue's M2 checkbox still says "headless-Chrome tests unlock first".
+- BR-13 — not-addressed — server_test.go:167-169 is still a source grep. No node test drives storedName or the beforeSave in viewer.js:296.
+- BR-14 — not-addressed — MAX_VIEWER_NAME = 40 (collab.js:96) and maxlength="40" (lock.html:20) are still unpinned against board.MaxNameRunes.
+- BR-15 — not-addressed — cast_test.go:57 still GETs u.Link without unlockCast and passes on the lock page's 200.
+- BR-22 — addressed — atlas/webcast.md:178-180 now says right-click copies the view link and 👽 or the Codes menu copies drive (#495 dropped Alt+right-click). The issue's Spec item 6 now names the Codes menu. Prose-only fix, checked against codes_menu.go and castCellAt.
+- BR-23 — addressed — console_castcodes.go:435-441 adds the liveness check in the same c.mu section. The regression goes red when I revert it (TestRotationAfterTheCastEndedIsDropped: "an ended cast's rotation flashed"). Only the castScreen branch is exercised; castWeb liveness is untested.
+- BR-24 — not-addressed — Plan line 3 still says "M3 in progress", line 11 still says "A new link is one Add", and line 23 still hangs the tooltip on 👆/👽, contradicting castCellAt (console_castcodes.go:115) and atlas/webcast.md. Rule: at a milestone close, diff the Current design line by line against the code and atlas in the close commit itself. That rule also covers the BR-11 sweep.
+
+## Round 10 — 2026-10-12T21:53:44-07:00 (claude) — passed
+
+### Disposed
+
+- BR-11 — not-addressed — Plan line 105 still says "updated to unlock first" (only the Current design notes the swap), and atlas/broadcast.md around line 82 still lists only lock.js, lock.css and unlock before a session; lockgate.go:37 also serves collab.js.
+- BR-13 — not-addressed — Only server_test.go:167 greps for "storedName(storage)". No node test drives storedName or the beforeSave author path through injected storage.
+- BR-14 — not-addressed — MaxViewerNameRunes (notes.go:152), MAX_VIEWER_NAME (collab.js:96) and lock.html maxlength="40" still have no test that reads the embedded assets and checks them against Go.
+- BR-15 — not-addressed — cast_test.go:57 still GETs u.Link without unlockCast and asserts only a 200, which is the lock page's.
+- BR-24 — not-addressed — The plan file is unchanged since the last round. Line 3 says "M3 in progress", line 11 says "Add" (the code has Mint), and line 23 still puts the tooltip on 👆/👽.
+
 ## Open findings
 
 - **BR-11** [Minor] `spec-moves-with-decisions` Plan M2 says the Chrome live tests were "updated to unlock first", but they bypass the Host; TestLiveLockPage replaces them, which the plan does not record
 - **BR-13** [Minor] `behavior-without-default-test` Terminal viewer's note author (viewer.js beforeSave, collab.js storedName) has only a source-grep test, no behavioral one
 - **BR-14** [Minor] `restated-constant-unpinned` The 40-char viewer-name bound is restated in collab.js, notes.go and lock.html maxlength with no parity test
 - **BR-15** [Minor] `test-asserts-weaker-than-name` TestCastBrowserFirstThenLink now passes on the lock page's 200 and no longer proves the viewer page is served
-- **BR-22** [Minor] `spec-moves-with-decisions` atlas/webcast.md:178 still says Alt+right-click on the Chrome cell copies the drive link, which this range removed
-- **BR-23** [Minor] `unordered-async-notifications` onCodeRotated checks the cast attempt under c.mu but writes the flash later under codes.mu, so a cast ending in between still flashes its dead code
 - **BR-24** [Minor] `spec-moves-with-decisions` Plan Current design contradicts the closed M3: tooltip on link controls, status "M3 in progress", LinkLocks "Add"
