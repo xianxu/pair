@@ -359,3 +359,13 @@ Per TL receipt 6804f5e6, reuse the viewer's ✏️/💭 icon buttons and existin
 tooltips exactly. Off is represented by neither icon selected; pressing an active
 icon or Escape returns Off. Removed operator-only word labels and sizing override.
 The annotation states and deferred Couch menu scope are unchanged.
+
+### 2026-10-12 — annotation capability input for #523
+
+TL receipt 39206f41 requests one overlay input for the upcoming 👆 capability
+switch. Added isolated-world `__couchcastAnnotationAllowed(boolean)` over shared
+`setAnnotationAllowed`, default true. False cancels gestures, forces Off, disables
+annotation actions and hides/holds a draft; true restores availability with the
+pen Off, subject to driving/pause. Projection updates preserve the input. #523
+owns the switch, feeding this input on replacement documents and server admission;
+none of those are built here. Targeted policy/mount tests demonstrated RED→GREEN.

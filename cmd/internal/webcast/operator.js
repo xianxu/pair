@@ -91,6 +91,9 @@ export function mountOperator({ host, root, report }, { annotate, palette, css }
     who: { id: () => 'operator', name: () => 'Operator', viewer: () => ({ id: 'operator', name: 'Operator' }) },
     colors: { get: () => picked, set: (n) => { picked = n; } },
   });
+  // #523 supplies this capability input through CDP in the isolated world.
+  // Keep it independent of view snapshots; no switch or authority is added here.
+  win.__couchcastAnnotationAllowed = (allowed) => ui.setAnnotationAllowed(allowed);
   win.__couchcastOperatorReply = (reply) => transport.reply(reply);
   win.__couchcastOperatorMode = (mode) => { ui.setMode(mode); return ui.mode === mode; };
   win.__couchcastOperatorView = (snapshot) => {

@@ -126,6 +126,14 @@ func TestOperatorLiveAnnotation(t *testing.T) {
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
+	eval(`__couchcastAnnotationAllowed(false)`)
+	if err = c.SetAnnotationMode("note"); err == nil {
+		t.Fatal("capability-off overlay accepted Note")
+	}
+	if string(eval(`testRoot.querySelector('.mode').disabled`)) != "true" {
+		t.Fatal("capability-off rail still enabled")
+	}
+	eval(`__couchcastAnnotationAllowed(true)`)
 	if err = c.SetAnnotationMode("note"); err != nil {
 		t.Fatal(err)
 	}

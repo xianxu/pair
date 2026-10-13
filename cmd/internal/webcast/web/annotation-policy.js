@@ -6,7 +6,7 @@ export function annotationPolicy(previous, event) {
   let state = { ...old };
   const effects = [];
   if (event.type === 'sync') {
-    const phase = event.ended ? 'ended' : !event.ready ? 'idle' : event.driver ? 'driving' : event.paused ? 'paused' : 'ready';
+    const phase = event.ended ? 'ended' : !event.ready ? 'idle' : event.allowed === false ? 'disabled' : event.driver ? 'driving' : event.paused ? 'paused' : 'ready';
     state = { ...state, phase, doc: event.doc || 0, driver: event.driver || '' };
     const changed = old.doc && state.doc && old.doc !== state.doc;
     if (changed || phase !== 'ready') state.mode = 'watch';

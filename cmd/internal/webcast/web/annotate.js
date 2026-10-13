@@ -363,6 +363,7 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
   // controls are disabled and say why, and the note dialog is held; the
   // server refuses the posts too.
   let policy;
+  let annotationAllowed = true;
   let gestureVersion = 0;
   const unavailable = () => policy?.phase !== 'ready';
   function transition(event) {
@@ -375,15 +376,15 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
     layer.classList.toggle('note', state.mode === 'note');
     // Off is transparent in the operator's actual page, including pins.
     layer.classList.toggle('operator-off', operator && (unavailable() || state.mode === 'watch'));
-    layer.classList.toggle('operator-driving', operator && policy.phase === 'driving');
-    dlg.hidden = operator && policy.phase === 'driving';
+    layer.classList.toggle('operator-driving', operator && (policy.phase === 'driving' || policy.phase === 'disabled'));
+    dlg.hidden = operator && (policy.phase === 'driving' || policy.phase === 'disabled');
     if (dlg.hidden) input.blur?.();
     renderRail();
     placeRail();
   }
   function sync() {
     const m = v.model || {};
-    transition({ type: 'sync', doc: m.docSeg, ready: m.seg > 0, paused: m.paused, ended: m.ended, driver: operator ? m.driver : '' });
+    transition({ type: 'sync', doc: m.docSeg, ready: m.seg > 0, allowed: annotationAllowed, paused: m.paused, ended: m.ended, driver: operator ? m.driver : '' });
   }
   // The rail's controls are rendered only when their state changes (a pick,
   // a mode, a pause or a resume); each frame only places the rail, so
@@ -395,7 +396,7 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
       b.setAttribute('aria-pressed', String(state.mode === m));
     }
     const off = unavailable();
-    const reason = policy?.driver ? `${policy.driver} is driving.` : 'The cast is paused.';
+    const reason = policy?.phase === 'disabled' ? 'Annotation is disabled.' : policy?.driver ? `${policy.driver} is driving.` : 'The cast is paused.';
     rail.classList.toggle('paused', off);
     for (const b of rail.querySelectorAll('button')) b.disabled = off;
     for (const [m, b] of Object.entries(modeButtons)) b.title = off ? reason : MODE_TIPS[m];
@@ -577,5 +578,5 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
   });
   sync();
   schedule();
-  return { setMode, dialog, strokes, who, get mode() { return state.mode; } };
+  return { setMode, setAnnotationAllowed(allowed) { annotationAllowed = allowed === true; sync(); }, dialog, strokes, who, get mode() { return state.mode; } };
 }

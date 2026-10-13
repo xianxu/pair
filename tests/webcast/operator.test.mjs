@@ -33,6 +33,22 @@ test('shared mount keeps all UI in its supplied root and holds a driven editor',
   assert.equal(ui.mode,'note');
   ui.dialog.draft({draft:'d1'});
   const input = root.querySelector('.note-input'); input.value='keep this';
+  ui.setAnnotationAllowed(false);
+  assert.equal(ui.mode,'watch');
+  assert.equal(root.querySelector('.note-dialog').hidden,true);
+  assert.equal(input.value,'keep this');
+  assert.equal(root.querySelector('.mode').disabled,true);
+  assert.equal(root.querySelector('.mode').title,'Annotation is disabled.');
+  ui.setMode('point');
+  assert.equal(ui.mode,'watch');
+  // A projection refresh cannot reset the capability input.
+  receive({k:'view',t:0},v.model);
+  assert.equal(root.querySelector('.mode').disabled,true);
+  ui.setAnnotationAllowed(true);
+  assert.equal(ui.mode,'watch');
+  assert.equal(input.value,'keep this');
+  assert.equal(root.querySelector('.note-dialog').hidden,false);
+  assert.equal(root.querySelector('.mode').disabled,false);
   v.model.driver='Ana'; receive({k:'ctl',t:1},v.model);
   assert.equal(ui.mode,'watch');
   assert.equal(input.value,'keep this');
@@ -93,4 +109,15 @@ test('operator transport retries the same mutation by status even after draft ed
   assert.notEqual(sent[2].request, sent[0].request);
   t.reply({request:sent[2].request,outcome:'refused',error:'paused'});
   assert.equal((await next).text, 'paused');
+});
+
+
+test('annotation allowed input cancels gestures and cannot override driving', () => {
+  let s = annotationPolicy(null,{type:'sync',ready:true,doc:1}).state;
+  s = annotationPolicy(s,{type:'mode',mode:'point'}).state;
+  const off = annotationPolicy(s,{type:'sync',ready:true,doc:1,allowed:false});
+  assert.equal(off.state.phase,'disabled');
+  assert.equal(off.state.mode,'watch');
+  assert.deepEqual(off.effects,['cancel','hold']);
+  assert.equal(annotationPolicy(off.state,{type:'sync',ready:true,doc:1,allowed:true,driver:'Ana'}).state.phase,'driving');
 });

@@ -47,6 +47,12 @@ the CDP binding transport. No page-origin HTTP or localStorage is involved.
 Off/Pen/Note start Off. A remote driver disables annotations and hides/unfocuses
 an open editor while retaining its draft; control returning leaves the pen Off.
 Navigation discards the draft. Pausing holds it on the same document.
+The isolated-world input `__couchcastAnnotationAllowed(boolean)` delegates to the
+shared mount's `setAnnotationAllowed`. It defaults to allowed; false forces Off,
+cancels gestures and hides/holds the operator editor with a disabled hint. Returning
+true leaves the pen Off and does not override driving or pause. View snapshots do
+not reset the input. #523 owns supplying it on each new document, the 👆 switch,
+and authoritative server admission; #494 only exposes this overlay input.
 
 The Board remains the authority (`board/operator.go`, `operator_view.go`): Go
 assigns operator authorship, HTTP cannot claim it, and a bounded latest-value view

@@ -297,3 +297,18 @@ Validation: 13 targeted annotation/operator Node tests passed; the real headless
 Chrome annotation test passed (1.11s). Refreshed and inspected
 `/tmp/pair494-operator.png`: both icons fit the shared pills without clipped labels.
 `git diff --check` passed.
+
+### 2026-10-12 — annotation capability input for #523
+
+TL receipt 39206f41 requests one overlay input for the upcoming 👆 capability
+switch. Added isolated-world `__couchcastAnnotationAllowed(boolean)` over shared
+`setAnnotationAllowed`, default true. False cancels gestures, forces Off, disables
+annotation actions and hides/holds a draft; true restores availability with the
+pen Off, subject to driving/pause. Projection updates preserve the input. #523
+owns the switch, feeding this input on replacement documents and server admission;
+none of those are built here. Targeted policy/mount tests demonstrated RED→GREEN.
+
+Verification: 14 targeted annotation/operator Node tests, shared-module assembly
+checks, and the bounded headless Chrome conformance test passed (1.05s), including
+disabling through the exposed isolated-world input and refusing Note until
+re-enabled. `git diff --check` passed.
