@@ -319,3 +319,74 @@ findings:
 7. **Plan revision recommendations**
 
    Amend the new revision to require a full `sdlc close` for the expanded scope, then record that review’s result.
+
+---
+
+## Re-review — 2026-10-13T15:33:38-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 533 — draft: show progress while a DOM submission prepares, and hold the draft read-only until it's sent or fails |
+| repo | pair |
+| issue file | workshop/issues/000533-draft-show-progress-while-a-dom-submission-prepares-and-hold-the-draft-read-only-until-it-s-sent-or-fails.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 514ce3b4d36a51f403e9741004fd4697bdecffeb..b3eb4272813003800d9c9f32a222884bd7c6b9b6 |
+| command | sdlc close --issue 533 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-13T15:33:38-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+The pinned range fulfills the submission-progress and operation-scoped read-only requirements. This full review also covers the inherited artifact-inventory correction, resolving BR-2. No new blocking findings emerged. Confidence is limited by unsuccessful live Chrome startup and an intermittent failure in an unchanged shutdown test.
+
+```findings
+dispose:
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Full pinned-range review covers the revised scope, including all seven NonArtifactSources entries at cmd/internal/artifactpath/manifest.go:609. The artifactpath package passes; removing those entries through a temporary Go overlay makes TestProductionArtifactReferencesAreExactlyClassified fail on exactly those seven files.
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Disposition retained. Production headless navigation/queue preservation tests and embedded focus-loss/gain regressions pass through failure and timeout, with restored editability and preserved authored and persisted contents.
+```
+
+1. **Strengths**
+   - Progress snapshots are immutable and fenced against retired jobs (`cmd/internal/couchtty/console_submission.go:281`).
+   - One absolute operation budget governs ownership and external effects; repeated presses cannot renew it (`nvim/dom_submission.lua:62`).
+   - Embedded UI tests verify rendered progress before held work, plus focus-event safety—not merely model output.
+   - README and atlas document the new behavior. All Core concepts rows match their implementation locations and classifications.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+   - Passed: artifactpath, submission, couchmessage, recorder, webcast and couchcmd packages; submission transaction suite; DOM headless/embedded UI suite; Lua model/adapter/transport/sender tests; timeout and trace-redaction checks.
+   - Focused progress tests passed under the race detector.
+   - Inventory mutation produced the expected seven-file regression failure.
+   - Broader couchtty testing failed `TestDriveActionShutdownJoinsAndRejectsClicks` at its one-second shutdown deadline; the unchanged test passed independently.
+   - Live Chrome crop/readiness checks failed before page creation because Chrome’s GPU process was unusable.
+   - Initial missing runtime assets were generated before rerunning affected checks. No full-suite pass is claimed.
+
+6. **Architectural notes**
+   - **ARCH-DRY — pass:** Reuses existing polling, reducer, transport and sender seams.
+   - **ARCH-PURE — pass:** Transition decisions and progress formatting remain IO-free.
+   - **ARCH-PURPOSE — pass:** Covers preparation, delivery, fallback, failure recovery and draft mutators.
+   - **ARCH-MOCK — pass:** Controlled stateful fixtures exercise production seams; live conformance remains available, with this run’s environment limitation recorded.
+   - **ARCH-CONSTRAINTS — pass:** Shared deadline, bounded subprocesses and constant-size progress snapshots enforce the stated envelope.
+   - **ARCH-SECURE — pass:** Display data is validated/escaped; slot identity comes from the authenticated caller.
+   - **ARCH-ORDER — pass:** Production transitions govern ownership; tests exercise stale replies, repeated presses, expiration and late confirmed delivery.
+   - **ARCH-FUNERAL — pass:** Timers retire and operation contexts are released; this range introduces no durable artifact family.
+
+7. **Plan revision recommendations:** None. Existing revisions accurately describe the reviewed scope.

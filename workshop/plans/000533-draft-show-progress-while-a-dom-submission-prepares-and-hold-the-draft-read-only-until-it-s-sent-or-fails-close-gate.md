@@ -61,6 +61,23 @@ rounds:
       recipe: fix-review
       isolation: fenced
       blocked: true
+    - "n": 5
+      timestamp: "2026-10-13T15:33:38-07:00"
+      dispatched: "2026-10-13T15:30:07-07:00"
+      agent: codex
+      dispose:
+        - id: BR-2
+          disposition: addressed
+          note: Full pinned-range review covers the revised scope, including all seven NonArtifactSources entries at cmd/internal/artifactpath/manifest.go:609. The artifactpath package passes; removing those entries through a temporary Go overlay makes TestProductionArtifactReferencesAreExactlyClassified fail on exactly those seven files.
+          round: 5
+        - id: BR-1
+          disposition: addressed
+          note: Disposition retained. Production headless navigation/queue preservation tests and embedded focus-loss/gain regressions pass through failure and timeout, with restored editability and preserved authored and persisted contents.
+          round: 5
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: b3eb4272813003800d9c9f32a222884bd7c6b9b6
+      blocked: false
 ---
 
 # Gate ledger — pair#533 (boundary-review)
@@ -98,6 +115,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-2** [Critical] `post-close-scope-requires-full-review` scope changed after close — run a full `sdlc close`
   workshop/plans/000533-submission-progress-plan.md:117 adds a revision for inherited #531 artifact-inventory work, implemented at cmd/internal/artifactpath/manifest.go:609. This extends scope beyond the prior finding; the recorded operator authorization does not expand this narrow review. Run a full close review covering the revised scope.
 
+## Round 5 — 2026-10-13T15:33:38-07:00 (codex) — passed
+
+### Disposed
+
+- BR-2 — addressed — Full pinned-range review covers the revised scope, including all seven NonArtifactSources entries at cmd/internal/artifactpath/manifest.go:609. The artifactpath package passes; removing those entries through a temporary Go overlay makes TestProductionArtifactReferencesAreExactlyClassified fail on exactly those seven files.
+- BR-1 — addressed — Disposition retained. Production headless navigation/queue preservation tests and embedded focus-loss/gain regressions pass through failure and timeout, with restored editability and preserved authored and persisted contents.
+
 ## Open findings
 
-- **BR-2** [Critical] `post-close-scope-requires-full-review` scope changed after close — run a full `sdlc close`
+(none — every finding has been disposed)
