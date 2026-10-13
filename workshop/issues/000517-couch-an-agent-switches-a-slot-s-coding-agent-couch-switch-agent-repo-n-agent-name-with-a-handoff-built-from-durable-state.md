@@ -68,7 +68,7 @@ Durable plan: [agent switch plan](../plans/000517-agent-switch-plan.md).
 
 ## Log
 
-- 2026-10-12 22:39 PDT — targeted switch race tests pass across core/cmd/tty
+- 2026-10-12 22:37 PDT — targeted switch race tests pass across core/cmd/tty
   (18.214s / 23.966s / 5.844s). Removed the unused self-switch response-write
   barrier; ordinary transport and all targeted transport/switch/receipt tests
   pass (0.320s / 10.749s). Active milestone rows now reflect the already-approved

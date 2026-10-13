@@ -460,7 +460,8 @@ cannot be verified. It uses the target agent's last successful starting-path
 settings, falling back to its explicit repository default. Missing settings
 require the operator's Switch coding agent form; agents cannot supply argv or
 edit defaults through this API. The form remains the operator's parameter editor.
-A switch parks the source and starts a fresh conversation with an empty composer.
+A switch parks the source and starts a fresh conversation. Pair delivers no
+handoff or orientation; the saved startup parameters are used unchanged.
 The hub captures any context it needs before switching and decides what to send
 later. Compaction and continuation remain separate operations.
 

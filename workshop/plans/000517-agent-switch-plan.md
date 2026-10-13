@@ -992,3 +992,19 @@ verification: `go test ./cmd/internal/scrollbackcmd ./cmd/internal/threadrecord
 
 M1's SHIP verdict records the old scope; the reduced surface must be verified and
 reviewed with the final M2 diff. Build remains paused pending TL OK on this plan.
+
+#### 2026-10-12 22:38 PDT — Implementation and acceptance sequencing
+
+TL approval in receipt 37ac8fa2-20a8-4487-83a7-f4f169d1c69a authorized the
+22:17/22:19 plan; change-code passed CLEAN and adopted the revised estimate.
+Commits 43b156829 and ad989bd0a implement the approved trim. Targeted
+configuration, admission, full/previous tty, form, lifecycle and prompt-free
+helper acceptance checks pass; switch race tests pass. Full make test is in
+progress and build passes. Removed the obsolete self-switch response barrier
+and exact-resume override as well as the superseded coordination subsystem.
+
+Receipt 67ac5ee0-c3a3-4fe1-8d77-6e54f22c0da5 requests the full suite and
+M2 boundary review now. Live acceptance remains required before issue close:
+the TL will authorize staging in pair:0 after #483 lands, then run the scratch
+switch with the operator watching. Do not switch a production slot or move
+the branch until that staging instruction arrives.
