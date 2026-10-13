@@ -7,13 +7,16 @@ import (
 	"encoding/json"
 	"image/png"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/submission"
 	"github.com/xianxu/pair/cmd/internal/webcast/board"
 	"github.com/xianxu/pair/cmd/internal/webcast/drive"
 	"github.com/xianxu/pair/cmd/internal/webcast/notes"
+	"github.com/xianxu/pair/cmd/internal/webcast/query"
 	"github.com/xianxu/pair/cmd/internal/webcast/recorder"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
@@ -30,7 +33,16 @@ func TestOperatorLiveAnnotation(t *testing.T) {
 	}
 	bd := board.New(notes.Structural{}, nil)
 	mem := &recording.MemSink{}
-	c, err := Launch(context.Background(), LaunchOptions{Binary: bin, Headless: true, ProfileDir: t.TempDir(), StartURL: "data:text/html,<title>Operator test</title><body><h1 id=target>Hello</h1><input id=field></body>", Record: &RecordOptions{ID: "operator", Operator: bd, ShotEvery: -1, Out: func() (recorder.Opened, error) { return recorder.Opened{Sink: recording.Tee(mem, bd)}, nil }}})
+	dir := filepath.Join(t.TempDir(), "operator-recording")
+	disk, err := recording.NewDirWriter(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hub := recording.NewHub(256)
+	viewer, unsubscribe := hub.Subscribe()
+	defer unsubscribe()
+
+	c, err := Launch(context.Background(), LaunchOptions{Binary: bin, Headless: true, ProfileDir: t.TempDir(), StartURL: "data:text/html,<title>Operator test</title><body><h1 id=target>Hello</h1><input id=field></body>", Record: &RecordOptions{ID: "operator", Operator: bd, ShotEvery: -1, Out: func() (recorder.Opened, error) { return recorder.Opened{Sink: recording.Tee(disk, hub, mem, bd)}, nil }}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -243,6 +255,30 @@ func TestOperatorLiveAnnotation(t *testing.T) {
 	if v.Notes[0].Author.ID != "operator" {
 		t.Fatal("operator identity lost")
 	}
+	// The same accepted note reaches a live subscriber and the still-open
+	// recording consumed by replay/query; no end-of-cast flush is required.
+	seenNote := false
+	for !seenNote {
+		select {
+		case record, ok := <-viewer:
+			if !ok {
+				t.Fatal("viewer dropped before operator note")
+			}
+			if note, ok := record.(*recording.Note); ok {
+				seenNote = note.Author.ID == "operator" && note.Text == "Operator note"
+			}
+		case <-time.After(time.Second):
+			t.Fatal("operator note did not reach viewer")
+		}
+	}
+	onDisk, err := recording.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	queried, err := query.New(onDisk.Records, notes.Structural{}).Notes(query.DefaultBefore)
+	if err != nil || len(queried) != 1 || queried[0].Note.Author.ID != "operator" || queried[0].Note.Text != "Operator note" {
+		t.Fatalf("live recording query lost operator note: %+v, %v", queried, err)
+	}
 
 	if err = c.SetAnnotationMode("point"); err != nil {
 		t.Fatal(err)
@@ -305,6 +341,22 @@ func TestOperatorLiveAnnotation(t *testing.T) {
 	}
 	if string(eval(`document.querySelector('[data-couchcast-ui]').hidden`)) != "false" {
 		t.Fatal("capture failed to restore host")
+	}
+	// #483 submission crops use the same exact-document suppression path.
+	cropBox := recording.Box{0, 0, 40, 40}
+	crops, err := c.CaptureCrops(context.Background(), bd.OperatorView().Doc, []submission.CaptureRegion{{Box: cropBox, Region: cropBox}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(crops) != 1 || len(crops[0].PNG) == 0 {
+		t.Fatalf("missing submission crop: %+v", crops)
+	}
+	rr, gg, bb = sample(base64.StdEncoding.EncodeToString(crops[0].PNG))
+	if rr == 65535 && gg == 0 && bb == 65535 {
+		t.Fatal("Couch UI pixels leaked into submission crop")
+	}
+	if string(eval(`document.querySelector('[data-couchcast-ui]').hidden`)) != "false" {
+		t.Fatal("crop failed to restore host")
 	}
 	if err = c.Close(); err != nil {
 		t.Fatal(err)

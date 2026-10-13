@@ -47,6 +47,10 @@ the CDP binding transport. No page-origin HTTP or localStorage is involved.
 Off/Pen/Note start Off. A remote driver disables annotations and hides/unfocuses
 an open editor while retaining its draft; control returning leaves the pen Off.
 Navigation discards the draft. Pausing holds it on the same document.
+Couch’s Chrome Alt-click menu adds `Annotation · Off · Pen · Note` below the
+code rows, using their shared layout and hit-testing. It sends the same isolated-world
+mode command without focusing Chrome; a refusal appears in Couch’s notice. Cast-row
+left actions, right-click link copies, and Alt menus only on LIVE/Chrome are unchanged.
 The isolated-world input `__couchcastAnnotationAllowed(boolean)` delegates to the
 shared mount's `setAnnotationAllowed`. It defaults to allowed; false forces Off,
 cancels gestures and hides/holds the operator editor with a disabled hint. Returning
@@ -66,8 +70,9 @@ monotonic request ID; an uncertain write cannot create another note.
 `recorder.CaptureScreenshot` hides the entire Couch host with a document-local
 lease, requires confirmation before and after capture, and restores only that
 lease on every exit. Missing/expired confirmation means discard the pixels.
-The periodic fidelity worker uses it. Submission captures use the same seam when
-#483 and #494 are both landed (the second issue to land wires the call).
+The periodic fidelity worker and `Recorder.CaptureCrops` submission capture both
+use it. Capture identity and event barriers still protect the submission text/PNG
+interval across navigation and tab changes.
 
 Remote input acquires a non-expiring suppression token before hit testing or
 synthetic dispatch. Confirmed completion releases it. A timeout or dialog that

@@ -369,3 +369,12 @@ annotation actions and hides/holds a draft; true restores availability with the
 pen Off, subject to driving/pause. Projection updates preserve the input. #523
 owns the switch, feeding this input on replacement documents and server admission;
 none of those are built here. Targeted policy/mount tests demonstrated RED→GREEN.
+
+### 2026-10-12 — menu released and capture integration complete
+
+Merged #483 and #506 after hub release. Submission crops now use CaptureScreenshot;
+the real headless pixel test proves exclusion and restoration through that call.
+Shared viewer mount retains #506’s view-only flag. Chrome’s existing menu now gains
+`Annotation · Off · Pen · Note` through its same action layout, preserving all status
+click rules and avoiding Focus. Targeted tests and real Chrome checks passed as logged
+in the issue; the machine-gated full suite and operator smoke precede close.

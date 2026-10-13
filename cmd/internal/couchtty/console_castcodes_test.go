@@ -1,14 +1,17 @@
 package couchtty
 
 import (
+	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/broadcast"
 	"github.com/xianxu/pair/cmd/internal/castlock"
 	"github.com/xianxu/pair/cmd/internal/terminal"
+	"github.com/xianxu/pair/cmd/internal/webcast"
 )
 
 func viewCode(t *testing.T, s *broadcast.Session) string {
@@ -154,7 +157,7 @@ func TestWebCastCodesOnTheChromeCell(t *testing.T) {
 	if c.wphase() != before {
 		t.Fatal("Alt+click toggled the cast")
 	}
-	for _, want := range []string{"view " + codes[0].Code + " · rotate · copy-link", "pointer " + codes[1].Code + " · rotate · copy-link", "drive " + codes[2].Code + " · rotate · copy-link", "rotate all"} {
+	for _, want := range []string{"view " + codes[0].Code + " · rotate · copy-link", "pointer " + codes[1].Code + " · rotate · copy-link", "drive " + codes[2].Code + " · rotate · copy-link", "rotate all", "Annotation · Off · Pen · Note"} {
 		if !strings.Contains(c.screenText(), want) {
 			t.Fatalf("menu lacks %q", want)
 		}
@@ -194,6 +197,9 @@ func TestScreenCodesMenuCopiesTheViewLink(t *testing.T) {
 	before := copies(f, s.Link())
 	f.chooseCodes(t, codesAction{copy: true, link: broadcast.LinkView})
 	waitFor(t, "view link copied", func() bool { return copies(f, s.Link()) == before+1 })
+	if strings.Contains(f.screenText(), "Annotation") {
+		t.Fatal("screen menu has Chrome annotation controls")
+	}
 	if f.phase() != broadcastLive {
 		t.Fatal("the menu stopped the broadcast")
 	}
@@ -393,4 +399,99 @@ func TestRotationAfterTheCastEndedIsDropped(t *testing.T) {
 	if fl != nil {
 		t.Fatalf("an ended cast's rotation flashed: %+v", fl)
 	}
+}
+
+// annotationBrowser keeps the selected mode as the real isolated-world rail
+// does. Refusals leave that mode alone; Browser's Focus remains observable.
+type annotationBrowser struct {
+	webcast.Browser
+	mu      sync.Mutex
+	mode    string
+	refusal error
+}
+
+func (b *annotationBrowser) SetAnnotationMode(mode string) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.refusal != nil {
+		return b.refusal
+	}
+	b.mode = mode
+	return nil
+}
+
+func (f *consoleFixture) chooseCodesText(t *testing.T, text string) {
+	t.Helper()
+	f.con.codes.mu.Lock()
+	box := f.con.codes.menuBox
+	f.con.codes.mu.Unlock()
+	for _, r := range box.rows {
+		for _, w := range r.words {
+			if w.text == text {
+				_, _ = fmt.Fprintf(f.stdin, "\x1b[<0;%d;%dM\x1b[<0;%d;%dm", w.x0+1, r.y+1, w.x0+1, r.y+1)
+				return
+			}
+		}
+	}
+	t.Fatalf("no menu word %q", text)
+}
+
+func TestChromeCodesMenuSelectsAnnotationWithoutFocus(t *testing.T) {
+	b := &annotationBrowser{mode: "watch"}
+	r := newWebcastRig(t, func(r *webcastRig) {
+		r.wrap = func(f *webcast.FakeBrowser, _ *webcast.RecordOptions) webcast.Browser {
+			b.Browser = f
+			return b
+		}
+	})
+	f := r.open(t)
+	before := f.Stats()
+	r.con.mu.Lock()
+	cast := r.con.wcast.cast
+	r.con.mu.Unlock()
+	codesBefore := fmt.Sprint(cast.Codes())
+	r.clickCell(t, 8)
+	waitFor(t, "Chrome menu", func() bool { return strings.Contains(r.screenText(), "Chrome codes") })
+	for _, tc := range []struct{ label, mode string }{{"Pen", "point"}, {"Note", "note"}, {"Off", "watch"}} {
+		r.chooseCodesText(t, tc.label)
+		waitFor(t, tc.label+" selected", func() bool {
+			b.mu.Lock()
+			defer b.mu.Unlock()
+			return b.mode == tc.mode
+		})
+	}
+	b.mu.Lock()
+	b.refusal = errors.New("annotation is unavailable while paused or a viewer is driving")
+	b.mu.Unlock()
+	r.chooseCodesText(t, "Note")
+	waitFor(t, "annotation refusal notice", func() bool {
+		r.con.mu.Lock()
+		defer r.con.mu.Unlock()
+		return strings.Contains(r.con.feed.Row().Body, "annotation is unavailable while paused or a viewer is driving")
+	})
+	b.mu.Lock()
+	mode := b.mode
+	b.mu.Unlock()
+	if mode != "watch" {
+		t.Fatalf("refused mode changed to %q", mode)
+	}
+	if got := f.Stats(); got != before {
+		t.Fatalf("annotation changed browser controls: before %+v, after %+v", before, got)
+	}
+	if got := fmt.Sprint(cast.Codes()); got != codesBefore {
+		t.Fatalf("annotation rotated codes: before %s, after %s", codesBefore, got)
+	}
+}
+
+func TestChromeCodesMenuReportsAnnotationUnavailable(t *testing.T) {
+	r := newWebcastRig(t, nil) // no optional annotation capability
+	r.open(t)
+	r.clickCell(t, 8)
+	waitFor(t, "Chrome menu", func() bool { return strings.Contains(r.screenText(), "Chrome codes") })
+	r.chooseCodesText(t, "Pen")
+	waitFor(t, "annotation unavailable notice", func() bool {
+		r.con.mu.Lock()
+		defer r.con.mu.Unlock()
+		return strings.Contains(r.con.feed.Row().Body, webcast.ErrNotRecording.Error())
+	})
 }

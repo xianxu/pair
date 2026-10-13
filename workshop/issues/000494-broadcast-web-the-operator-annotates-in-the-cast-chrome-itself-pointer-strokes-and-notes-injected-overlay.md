@@ -83,7 +83,7 @@ Design 2.10 × 1.15 + implementation 2.36 = **4.775 focused ship-hours**.
 - [x] Implement operator Board protocol and bounded current annotation projection.
 - [x] Implement shared annotation mount, isolated bridge and capture exclusion.
 - [x] Verify off/paused/driving/document lifecycles headlessly and update README/atlas.
-- [ ] After #506 and hub release, merge main and add Couch annotation menu rows.
+- [x] After #506 and hub release, merge main and add Couch annotation menu rows.
 - [ ] Obtain operator smoke acceptance through hub; close, PR and merge on SHIP.
 
 ## Log
@@ -312,3 +312,31 @@ Verification: 14 targeted annotation/operator Node tests, shared-module assembly
 checks, and the bounded headless Chrome conformance test passed (1.05s), including
 disabling through the exposed isolated-world input and refusing Note until
 re-enabled. `git diff --check` passed.
+
+### 2026-10-12 — integrate landed #483 and #506
+
+TL released the Chrome menu after #506/PR #302 and confirmed #483/PR #301 landed
+first. Merged main and routed `Recorder.CaptureCrops` through the shared exact-document
+capture helper, retaining its navigation barriers and box-text identity checks.
+Extended the trusted module assembler only for local named export lists now used
+by the shared viewer module. Preserved #506's view-only annotation flag in the
+shared mount and kept it separate from the operator capability input.
+
+Verification: crop/suppression/recorder-frame tests and shared-module/Chrome tests
+passed. The real headless operator test now checks both fidelity and actual submission
+crop pixels with the bright excluded-host witness, and host restoration after each
+(latest 0.97s). All 196 webcast/broadcast-viewer Node tests passed. Pair:7 received
+the hook installation, replacement-context delivery, Board and recorder admission
+seams for #523; the second landing still owns wiring its authority.
+
+### 2026-10-12 — menu ready and integrated acceptance checks
+
+Chrome’s menu now has `Annotation · Off · Pen · Note` using the code rows’ existing
+layout/hit-testing. It invokes the same mode command without focusing Chrome and
+shows refusals in Couch. LIVE’s menu and cast-row clicks remain unchanged. Targeted
+menu/click tests passed under the race detector (4.736s); tests prove no browser-control
+or code-rotation side effect. The full `make test` is running through the machine gate.
+All webcast Go packages passed; crop/lock-page real headless conformance passed.
+The operator headless test additionally proves its note reaches a live subscriber
+and the still-open on-disk query (2.17s). View-only shared-mount regression passed.
+Operator smoke and single close review remain pending.

@@ -121,3 +121,20 @@ test('annotation allowed input cancels gestures and cannot override driving', ()
   assert.deepEqual(off.effects,['cancel','hold']);
   assert.equal(annotationPolicy(off.state,{type:'sync',ready:true,doc:1,allowed:true,driver:'Ana'}).state.phase,'driving');
 });
+
+test('shared viewer mount keeps a view-only link read-only after mode requests', () => {
+  const root = new Element('body'), box = new Element('box'); root.append(box);
+  const doc = {body:root, createElement:(tag)=>new Element(tag)};
+  let frame;
+  const win = {innerWidth:100, crypto:{getRandomValues:(b)=>b.fill(1)}, performance:{now:()=>0}, requestAnimationFrame:(fn)=>{frame=fn;}, addEventListener:()=>{}, setTimeout:()=>1, clearTimeout:()=>{}, clearInterval:()=>{}};
+  const v = {model:{seg:1,docSeg:1,notes:[]}, onRecord:()=>{}, toPage:(x,y)=>[x,y], fromPage:(x,y)=>[x,y]};
+  const ui = mountAnnotation(doc,win,v,{root,box,stage:box,palette:['#ff0000'],who:{id:()=> 'viewer',name:()=> 'Viewer',viewer:()=>({id:'viewer',name:'Viewer'})},colors:{get:()=>0,set:()=>{}},post:()=>{throw Error('read-only posted');},annotate:false});
+  ui.setMode('note');
+  assert.equal(ui.mode,'watch');
+  assert.equal(ui.annotate,false);
+  assert.equal(root.querySelector('.mode').disabled,true);
+  // The separate operator capability input cannot grant a view-only link.
+  ui.setAnnotationAllowed(true);
+  ui.setMode('point');
+  assert.equal(ui.mode,'watch');
+});
