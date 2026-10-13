@@ -43,6 +43,7 @@ Remove the 👽 control from the terminal cast: the status row becomes `LIVE ⏸
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed — Full make -k test on 0027d7e40 (branch + origin/main with #491): 101 packages ok; the one failure, couchcore TestRealRunnersExitedPrecedesTheGroup/pty, is pre-existing on main (5/20 fails on a clean origin/main 38d6cc787 checkout; #503 touches no couchcore code). couchtty, broadcast, terminal green; 71/71 broadcast-viewer node tests green. Live row renders LIVE ⏸ 👆 (exact-row tests), StatusGuardCols 9 matches the drawn controls (TestStatusGuardMatchesDrawnControls), the shared pinspots table follows. #407 Log notes the removal. Operator sees it at the next smoke test.; review verdict: SHIP
 - The guard width reaches the web viewer over the wire (`event: notes` carries `guard`), so the viewer needs no change; its `.mjs` fixtures carry their own guard. Only the shared pin-spot table pins the number, and Go checks it equals `StatusGuardCols`.
 - `TestNoteVisible` now derives its columns from `StatusGuardCols` rather than hard-coding a column inside the old guard.
 - Merged origin/main (with #491; #495 not landed yet, so it absorbs the overlap). Full suite: 101 packages ok; couchcore TestRealRunnersExitedPrecedesTheGroup/pty fails, pre-existing (5/20 on a clean main checkout, no couchcore change here).
