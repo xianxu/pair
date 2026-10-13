@@ -15,6 +15,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "a10a038e", done: "7d2bc21a"}
 ---
 
 # broadcast-web: a note crop can catch a fade-in animation (dark crop); settle or finish animations in the box before capture
