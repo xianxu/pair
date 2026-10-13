@@ -159,57 +159,115 @@ do
     'written phase resumes without minting or rewriting')
 end
 
--- Attachment identity freezes both generated evidence and the pinned pane.
-do
-  local calls, sends, commits = {}, 0, 0
-  local target = { pane_id = 41, validate = function() return true end }
-  local attachment = { id = 'bundle-a', target = target }
+-- Each DOM chord is a fresh transaction, even after an uncertain prior send.
+for _, failure in ipairs({ 'append', 'start', 'written', 'indeterminate', 'marker' }) do
+  local appends, sends, commits, notifications = {}, {}, {}, {}
+  local sequence = 0
   local submit = M.new(
-    function(_, id) calls[#calls + 1] = id; return true end,
-    function() commits = commits + 1; return true end,
-    function(text, phase, pinned)
-      sends = sends + 1
-      ok(text == 'body\nmanifest-a', 'generated attachment text stays frozen')
-      ok(pinned and pinned.pane_id == 41, 'pinned target reaches low-level delivery')
-      if sends == 1 then return false, 'written', 'submit failed' end
-      ok(phase == 'written', 'attachment retry resumes only submission')
+    function(body, id)
+      appends[#appends + 1] = { body = body, id = id }
+      if failure == 'append' and #appends == 1 then return false, 'disk full' end
+      return true
+    end,
+    function(id)
+      commits[#commits + 1] = id
+      if failure == 'marker' then return false, 'marker unavailable' end
+      return true
+    end,
+    function(body, phase, target)
+      sends[#sends + 1] = { body = body, phase = phase, target = target }
+      if #sends == 1 and failure ~= 'append' and failure ~= 'marker' then
+        return false, failure, 'delivery failed'
+      end
       return true, 'dispatched'
     end,
-    function() end,
-    function() return 'attachment-log' end)
-  ok(not submit.submit_operator_text('body', 'body\nmanifest-a', attachment), 'first attached submit leaves written body')
-  ok(not submit.submit_operator_text('body', 'body\nmanifest-b', attachment), 'same body cannot replace generated evidence')
-  ok(not submit.submit_operator_text('body', 'body\nmanifest-a', { id = 'bundle-b', target = target }), 'same body cannot replace attachment ID')
-  target.pane_id = 42
-  ok(not submit.submit_operator_text('body', 'body\nmanifest-a', attachment), 'mutating caller target cannot rebind pending delivery')
-  target.pane_id = 41
-  ok(submit.submit_operator_text('body', 'body\nmanifest-a', attachment), 'original frozen attachment resumes')
-  ok(sends == 2 and commits == 1 and #calls == 2 and calls[1] == calls[2], 'rejected replacements have no append or send effects')
+    function(message) notifications[#notifications + 1] = message end,
+    function() sequence = sequence + 1; return 'log-' .. sequence end)
+  local first = submit.submit_operator_text('old', 'old manifest', { id = 'bundle-old', target = { pane_id = 7 } })
+  ok(first == (failure == 'marker'), failure .. ': only confirmed dispatch reports success')
+  ok(submit.submit_operator_text('edited', 'new manifest', { id = 'bundle-new', target = { pane_id = 8 } }),
+    failure .. ': fresh attachment sends edited draft')
+  ok(#appends == 2 and appends[2].body == 'edited' and appends[2].id ~= appends[1].id,
+    failure .. ': fresh append ID contains current authored text')
+  local latest = sends[#sends] or {}
+  ok(latest.body == 'new manifest' and latest.phase == 'start' and latest.target.pane_id == 8,
+    failure .. ': current generated text and target start independent delivery')
+  ok(appends[2] and #commits == (failure == 'marker' and 2 or 1) and commits[#commits] == appends[2].id,
+    failure .. ': only confirmed sends attempt submitted markers')
+  ok(#notifications > 0, failure .. ': failure remains visible')
+end
+
+-- A DOM chord with no captured notes still has fresh-send semantics.
+for _, failure in ipairs({ 'append', 'start', 'written', 'indeterminate', 'marker' }) do
+  local appends, sends, commits = {}, {}, {}
+  local submit = M.new(
+    function(body, id)
+      appends[#appends + 1] = { body = body, id = id }
+      if failure == 'append' and #appends == 1 then return false, 'disk full' end
+      return true
+    end,
+    function(id)
+      commits[#commits + 1] = id
+      if failure == 'marker' then return false, 'marker unavailable' end
+      return true
+    end,
+    function(body, phase, target)
+      sends[#sends + 1] = { body = body, phase = phase, target = target }
+      if #sends == 1 and failure ~= 'append' and failure ~= 'marker' then
+        return false, failure, 'delivery failed'
+      end
+      return true, 'dispatched'
+    end, function() end, function() return 'log-' .. (#appends + 1) end)
+  local send = submit.submit_fresh_operator_text
+  ok(send('old', 'old prompt') == (failure == 'marker'), failure .. ': fallback reports only confirmed dispatch')
+  ok(send('edited', 'new prompt'), failure .. ': fallback sends edited current draft')
+  ok(#appends == 2 and appends[2].body == 'edited' and appends[2].id ~= appends[1].id,
+    failure .. ': fallback appends fresh current draft')
+  local latest = sends[#sends] or {}
+  ok(latest.body == 'new prompt' and latest.phase == 'start' and latest.target == nil,
+    failure .. ': fallback starts fresh without an attachment target')
+  ok(appends[2] and #commits == (failure == 'marker' and 2 or 1) and commits[#commits] == appends[2].id,
+    failure .. ': fallback never marks an unconfirmed send')
+end
+
+-- An unchanged draft still starts a new send when the chord supplies a new ID.
+do
+  local sends, ids = 0, {}
+  local submit = M.new(function(_, id) ids[#ids + 1] = id; return true end,
+    function() return true end,
+    function(_, phase) sends = sends + 1; ok(phase == 'start', 'fresh identical body starts delivery'); return true, 'dispatched' end,
+    function() end, function() return 'log-' .. (#ids + 1) end)
+  ok(submit.submit_operator_text('body', 'manifest', { id = 'a', target = {} }), 'first unchanged draft sends')
+  ok(submit.submit_operator_text('body', 'manifest', { id = 'b', target = {} }), 'second unchanged draft sends')
+  ok(sends == 2 and ids[1] ~= ids[2], 'unchanged draft is two independent sends')
+end
+
+-- Ordinary retry protection and fresh DOM delivery cannot lock each other.
+do
+  local sends = 0
+  local submit = M.new(function() return true end, function() return true end,
+    function(_, _, target)
+      sends = sends + 1
+      if target then return true, 'dispatched' end
+      return false, 'indeterminate', 'write uncertain'
+    end, function() end, function() return 'log-' .. sends end)
+  ok(not submit.submit_operator_text('ordinary', 'ordinary'), 'ordinary send can remain uncertain')
+  ok(submit.submit_operator_text('DOM', 'manifest', { id = 'fresh', target = {} }), 'ordinary uncertainty cannot block fresh DOM')
+  ok(not submit.submit_operator_text('edited ordinary', 'edited ordinary'), 'DOM send preserves ordinary uncertainty protection')
+  ok(sends == 2, 'ordinary uncertainty still prevents another ordinary send')
 end
 
 do
   local sends = 0
-  local attachment = { id = 'bundle-start', target = { pane_id = 7 } }
   local submit = M.new(function() return true end, function() return true end,
-    function() sends = sends + 1; return false, 'start', 'not ready' end,
-    function() end, function() return 'id-start' end)
-  ok(not submit.submit_operator_text('body', 'manifest', attachment), 'attached start failure remains pending')
-  ok(not submit.submit_operator_text('edited', 'manifest', attachment), 'attached start cannot replace authored body')
-  ok(not submit.submit_operator_text('body', 'changed', attachment), 'attached start cannot replace generated text')
-  ok(not submit.submit_operator_text('body', 'manifest'), 'attached start cannot discard attachment')
-  ok(sends == 1, 'start replacement attempts have no delivery effects')
-end
-
-do
-  local sends, commits = 0, 0
-  local attachment = { id = 'bundle-commit', target = { pane_id = 7 } }
-  local submit = M.new(function() return true end,
-    function() commits = commits + 1; return commits > 1, 'disk full' end,
-    function() sends = sends + 1; return true, 'dispatched' end,
-    function() end, function() return 'id-commit' end)
-  ok(submit.submit_operator_text('body', 'manifest', attachment), 'attached dispatch succeeds despite marker failure')
-  ok(submit.submit_operator_text('body', 'manifest', attachment), 'same attached retry recovers marker')
-  ok(sends == 1 and commits == 2, 'attached commit-only retry never retransmits')
+    function(_, _, target)
+      sends = sends + 1
+      if target then return false, 'written', 'submit failed' end
+      return true, 'dispatched'
+    end, function() end, function() return 'log-' .. sends end)
+  ok(not submit.submit_operator_text('DOM', 'manifest', { id = 'failed', target = {} }), 'DOM send can fail after write')
+  ok(submit.submit_operator_text('ordinary', 'ordinary'), 'DOM failure cannot freeze ordinary draft')
+  ok(sends == 2, 'ordinary send follows failed DOM transaction')
 end
 
 do
