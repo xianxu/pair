@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-13
 updated: 2026-10-13
-estimate_hours:
-card_mirror: '078b4d33aa093d135ee2983952992bb901fb31ec' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 2.199
+card_mirror: 'fa987f74c0d57634421ae045c361d1ddacd78d69' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-13T14:01:25-07:00
 claimant:
     operator: Xian Xu
@@ -59,3 +59,22 @@ See `workshop/plans/000533-submission-progress-plan.md`. One atomic close bounda
 - Plan 84e3ca051 approved by ops:0, receipt e5054a62-e77f-434b-a431-597d7c6d9c3d. Additional display requirements: “waiting for the page to settle, crop i/N” and “already sending…” on repeated chord; no deadline renewal.
 - Completed measurement: three 320×140 crops (12,060 PNG bytes) published durably in 51.132/53.176/58.706ms. Real private Zellij sends including two list-panes identity checks took 416.850–629.031ms (median550.851ms); each list36.119–214.894ms, write52.902–140.078ms, submit55.398–138.440ms, deliberate sleep100.285–105.657ms. All8,570 expected bytes received by isolated raw PTY. Missing measurements: recording read/build, replay opening, initial pin, Couch begin RPC and session-log append/commit; do not sum these fixtures into claimed operator end-to-end latency. Repeated CLI startup deserves investigation if latency remains high; retain recipient identity guards and paste delay.
 - Reproduction: disposable git-archive tree `/tmp/pair533-phase-measure` with monotonic timing wrappers around CaptureCrops, waitForCapture, CaptureScreenshot and Store.Prepare. Commands: `WEBCAST_LIVE_CHROME=1 GOMAXPROCS=2 go test -p 1 ./cmd/internal/webcast -run '^TestLiveSubmission(Crop|CaptureReady)$' -count=1 -timeout 60s -v`; `GOMAXPROCS=2 go test -p 1 ./cmd/internal/submission -run '^TestStoreLifecycle$' -count=3 -v`; `GOMAXPROCS=2 go test -p 1 ./cmd/internal/submission -run '^TestMeasurementThreeCropBundle$' -count=1 -v`; `python3 /tmp/pair533-pane-measure.py`. Evidence `/tmp/pair533-phase-measure-chrome.log`, `/tmp/pair533-pane-measure-results.json`. All passed; no operator pane/browser touched.
+
+- Remaining isolated measurements: 4-record/1-note recording read0.085–0.201ms and dom.Build0.011–0.061ms (5 samples, fake capture excluded); local-only replay first mount5.435/5.603/5.604ms with fixture5ms polling, already-ready lookup<0.001ms (production polling50ms, public tunnel startup unmeasured). Real session-log append+commit subprocesses first/cold326.119ms, next4 totals48.281–55.467ms. Reproduction patch `/tmp/pair533-measurement-instrumentation.patch` applies to base7efc4f904ece07c6fa2b554e9002e16dafde11df; additional script `/tmp/pair533-session-log-measure.py` and its results JSON, logs `/tmp/pair533-phase-measure-build.log` and `/tmp/pair533-phase-measure-replay.log`. Measurements satisfy phase decomposition without attributing synthetic fixtures to the operator's exact multi-second experience.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. Calibration marked stale, so provisional. Existing Go callback/polling, Neovim APIs and subprocess library suffice; no greenfield library search needed. Backend is one smaller Go extension; UI ownership and DOM deadline propagation are two focused Lua units. Thorough approved plan applies0.2 design discount; v3.1 applies0.4 to implementation; familiar #524 code uses familiarity1.0. Base values: Go0.2/0.5, each Lua1.5/1.0, docs0.1/0.1, review0/0.5, discovery0/0.5 (design/impl hours before discounts).
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: smaller-go-module design=0.04 impl=0.20
+item: lua-neovim design=0.30 impl=0.40
+item: lua-neovim design=0.30 impl=0.40
+item: atlas-docs design=0.02 impl=0.04
+item: milestone-review design=0 impl=0.20
+item: real-api-discovery design=0 impl=0.20
+design-buffer: 0.15
+total: 2.199
+```

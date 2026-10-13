@@ -95,3 +95,7 @@ Test strategy: production reducer sequence tests establish ownership independent
 ### 2026-10-13 — approved design and display details
 
 Ops:0 approved plan 84e3ca051 and the absolute36-second budget (verified receipt e5054a62-e77f-434b-a431-597d7c6d9c3d). On active repeat chord retain operation identity/deadline and display “already sending…” rather than remaining silent. Render settling as “waiting for the page to settle, crop i/N”. Keep #524 settlement unchanged. This supersedes only the initial wording of active-send display.
+
+### 2026-10-13 — plan-review advisory PQ-1
+
+Name the Lua risk targets explicitly: `dom_submission_state.step` uses deterministic reordered event sequences and asserts ownership/terminal invariants; `progress_text` rejects arbitrary malformed progress values and formats only recognized bounded fields. `dom_submission.new`/`send` use a controlled clock and delayed/throwing dependencies to prove release and epoch fencing. `dom_transport.new`'s rpc/pin/validate receive an expiring budget and stateful identity changes to prove no post-deadline external effect. `submit_fresh_operator_text` preserves confirmed dispatch under post-send errors and forwards the same budget to append/commit/send. `zellij_trace.action` runs a blocked child to prove enforced timeout with trace redaction. `PairSendDOM`/`PairStatusline` are exercised in real headless/embedded Neovim to establish buffer option ownership and visible status before held work completes.
