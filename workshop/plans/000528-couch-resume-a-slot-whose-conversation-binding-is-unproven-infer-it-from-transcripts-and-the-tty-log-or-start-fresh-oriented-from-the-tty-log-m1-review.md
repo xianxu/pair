@@ -197,3 +197,86 @@ findings:
 7. **Plan revision recommendations**
 
    Add a `## Revisions` entry defining the bounded persisted-input read rule, enumerating all M1 consumers—including capture events and effective config—and naming the shared reader owner and consumer-level regression matrix. Record that OS integration verification must be rerun where process inspection is available.
+
+---
+
+## Re-review — 2026-10-13T12:06:16-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 528 — couch: resume a slot whose conversation binding is unproven: infer it from transcripts and the tty log, or start fresh oriented from the tty log |
+| repo | pair |
+| issue file | workshop/issues/000528-couch-resume-a-slot-whose-conversation-binding-is-unproven-infer-it-from-transcripts-and-the-tty-log-or-start-fresh-oriented-from-the-tty-log.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | 9ea3bdcbdcd360324337d910ed419dc6a65443db..dfedd894650cbf1f3cc2dbdb5782b8724131f01d |
+| command | sdlc milestone-close --issue 528 --milestone M1 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-13T12:06:16-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+M1’s terminal admission, truthful liveness, and forward capture witnessing match the revised milestone scope. BR-5 is addressed through a shared reader and meaningful consumer regressions; an independent mutation made those regressions fail. No new blocking findings. Confidence is limited by unavailable live process inspection in this review environment.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Prior disposition retained; unknown-observation and reattach-overlay regressions pass.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Prior disposition retained; AgentBelongsToServer checks both server and agent process generations.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Prior disposition retained; policy and readiness consumers use the shared bounded reader, with passing FIFO regressions.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Prior disposition retained; permanent coordination files remain bounded to 256 stripes, with passing lease tests.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Enumerated metadata consumers use osfs.ReadRegularMetadata. Consumer FIFO, oversized-input and cancellation tests pass; substituting os.ReadFile in a disposable checkout makes the regressions fail. Both disposable checkouts were removed.
+```
+
+1. **Strengths**
+
+   - Shared metadata IO enforces regular-file, size, cancellation, and identity checks (`cmd/internal/osfs/metadata_read.go:39`).
+   - Capture preservation distinguishes unusable optional sidecars from invalid authority, retaining raw-only history without certification (`cmd/internal/launcher/capture_witness_test.go:45`).
+   - Handoff tests control admission and client completion independently and verify cleanup before lease release.
+   - README and atlas describe the new relaunch behavior, policy, locking, and witness contracts.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Full `osfs` and `storagegc` suites passed. Targeted launcher admission, lease, uncertainty, and capture tests passed. After generating runtime assets in a disposable pinned-head checkout, targeted artifactpath, wrapcmd, couchcore, and couchtty tests passed.
+
+   The mutation independently reproduced FIFO blocking, oversized-config acceptance, and lost cancellation handling. Broader initial checks encountered missing generated assets and `/bin/ps: operation not permitted`; live process conformance and the complete suite were not independently verified.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** added metadata consumers share one IO owner.
+   - **ARCH-PURE — pass:** parsing and usability decisions remain separately testable from filesystem/process observation.
+   - **ARCH-PURPOSE — pass:** BR-5 addresses the enumerated read family; M2 recovery selection remains explicitly outside this boundary.
+   - **ARCH-MOCK — pass:** stateful handoff/quiescence seams support controlled failures; live conformance tests exist.
+   - **ARCH-CONSTRAINTS — pass:** byte limits, nonblocking opens, cancellation checks, and bounded admission are represented and tested.
+   - **ARCH-SECURE — pass:** persisted authority is validated; malformed and uncertain observations do not authorize attachment.
+   - **ARCH-ORDER — pass:** admission owns the lease through verification or joined cleanup; tests control completion ordering.
+   - **ARCH-FUNERAL — pass:** locks have a fixed aggregate bound, policies have lifecycle retirement, and archives reuse retention ownership.
+
+7. **Plan revision recommendations:** None required. Latest revisions identify the shared reader and its consumers; M2 remains unimplemented.

@@ -68,6 +68,36 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - "n": 3
+      timestamp: "2026-10-13T12:06:16-07:00"
+      dispatched: "2026-10-13T12:03:38-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Prior disposition retained; unknown-observation and reattach-overlay regressions pass.
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: Prior disposition retained; AgentBelongsToServer checks both server and agent process generations.
+          round: 3
+        - id: BR-3
+          disposition: addressed
+          note: Prior disposition retained; policy and readiness consumers use the shared bounded reader, with passing FIFO regressions.
+          round: 3
+        - id: BR-4
+          disposition: addressed
+          note: Prior disposition retained; permanent coordination files remain bounded to 256 stripes, with passing lease tests.
+          round: 3
+        - id: BR-5
+          disposition: addressed
+          note: Enumerated metadata consumers use osfs.ReadRegularMetadata. Consumer FIFO, oversized-input and cancellation tests pass; substituting os.ReadFile in a disposable checkout makes the regressions fail. Both disposable checkouts were removed.
+          round: 3
+      boundary: M1
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: dfedd894650cbf1f3cc2dbdb5782b8724131f01d
+      blocked: false
 ---
 
 # Gate ledger — pair#528 (boundary-review)
@@ -102,6 +132,16 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-5** [Important] `bounded-untrusted-artifact-reads` Capture-witness and admission-config reads still permit indefinite blocking
   cmd/internal/storagegc/capture_metadata.go:142 opens events with blocking os.Open before its byte limit; a FIFO without a writer blocks capture preservation indefinitely, reproduced by a disposable regression probe. cmd/internal/launcher/session_handoff_os.go:468 also reads config.kdl with unbounded, non-cancellable os.ReadFile, so admission can remain stuck beyond its timeout while the coordinator waits for the observer. This is the 2nd finding in family bounded-untrusted-artifact-reads. Do NOT fix only these instances: enumerate every persisted-input read added by M1 and enforce one bounded, regular-file, nonblocking, cancellation-aware rule through a shared IO owner, with consumer-level FIFO and oversized-input regressions. ARCH-CONSTRAINTS, ARCH-SECURE, ARCH-PURPOSE.
 
+## Round 3 — 2026-10-13T12:06:16-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Prior disposition retained; unknown-observation and reattach-overlay regressions pass.
+- BR-2 — addressed — Prior disposition retained; AgentBelongsToServer checks both server and agent process generations.
+- BR-3 — addressed — Prior disposition retained; policy and readiness consumers use the shared bounded reader, with passing FIFO regressions.
+- BR-4 — addressed — Prior disposition retained; permanent coordination files remain bounded to 256 stripes, with passing lease tests.
+- BR-5 — addressed — Enumerated metadata consumers use osfs.ReadRegularMetadata. Consumer FIFO, oversized-input and cancellation tests pass; substituting os.ReadFile in a disposable checkout makes the regressions fail. Both disposable checkouts were removed.
+
 ## Open findings
 
-- **BR-5** [Important] `bounded-untrusted-artifact-reads` Capture-witness and admission-config reads still permit indefinite blocking
+(none — every finding has been disposed)
