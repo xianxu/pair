@@ -49,6 +49,8 @@ The operator (10-12): during a web cast they move between Couch and the cast Chr
 - 2026-10-12: "Also reachable from the Chrome cell's menu": the Chrome cell has no menu (click toggles live, right-click copies the link, Ctrl+click ends), so the button is the only way in. Not adding a menu for one item.
 - 2026-10-12 (TL, operator request): the Chrome group mirrors the terminal's `LIVE ⏸ 👆 👽` family: `Chrome ⏸ ↗ 👆 👽 💭N 🕹Ana`. 👆 copies the view link (watch, point, notes), 👽 the drive link (real here). Right-click and Alt+right-click on the cell stay as shortcuts. Each glyph is its own span (`WebViewLink`, `WebDriveLink`), the hook #495 needs for a hover tooltip with each link's code. The glyphs are the screen broadcast's own `PointerLabel`/`ControlLabel` constants. Done-when now includes: clicking 👆 / 👽 copies the view / drive link.
 
+- 2026-10-12 (merge with #503): revision 3's `broadcast.ControlLabel` no longer exists; #503 removed the screen broadcast's 👽. The Chrome group's 👽 is `couchtty.WebcastDriveLinkLabel`, and its 👆 is still `broadcast.PointerLabel`.
+
 ## Log
 
 ### 2026-10-12
