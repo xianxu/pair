@@ -50,7 +50,9 @@ Use native reverse video rather than manually swapping RGB palette values.
 
 ## Done when
 
-- The hub's tab is inverted in the tab bar at every width (including when other tabs fold into +N); red, belled and focused hub tabs stay distinguishable; tests pin the rendering; the operator approves the look.
+- The hub's tab is inverted in the tab bar at every width (including when other tabs fold into +N); red, belled and focused hub tabs retain the approved state composition; tests pin the rendering.
+- The switcher hub main row is inverted; selection retains the cursor arrow and adds bold, with blocked red preserved. Attention-detail styling remains unchanged, and inversion does not leak past the hub row or tab.
+- Automated rendering tests and the full suite pass. Operator waived smoke on 2026-10-12 as a simple change (TL receipt 3bd37039-4734-4649-aa06-dcffac391576); no live-look or pair:0 staging requirement remains.
 
 ## Plan
 
@@ -95,3 +97,8 @@ Use native reverse video rather than manually swapping RGB palette values.
   workflow gates, not an implementation checklist item completed in advance.
 - Merged origin/main before close without conflicts; full make test already
   passed on the feature, with couchtty rerun on the integrated tree.
+
+- 2026-10-12 22:30 PDT: BR-1 acceptance-criteria-track-contract: synchronized
+  Done when with both rendering surfaces, selection/red composition, detail-line
+  containment and the existing smoke waiver. Supersedes the original tab-only
+  Done when and mandatory live approval; no implementation scope changed.
