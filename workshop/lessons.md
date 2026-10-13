@@ -1540,3 +1540,5 @@ proof; record the surprising case so the next change starts from evidence.
 - A preparation failure must not lock authored text. Keep draft ownership separate from confirmed-delivery recovery; late acknowledgment belongs to its submission ID, never the current editor epoch.
 - Supersession is authority release, not delivery evidence. Define ordering across manifest writes and successor publication, and inject failures through every durability checkpoint.
 - Build smoke artifacts after committing, then check embedded VCS revision and modified state. A clean checkout and a successful earlier build do not prove the binary was built from that clean commit; timestamp-based make targets can leave old embedded metadata.
+
+- A full suite that compares embedded assets with source must run against a stable tree. Finish source edits before launching it; if an independently verified final delta lands mid-run, disclose snapshot failures and rerun the affected packages after regeneration rather than calling that run green.

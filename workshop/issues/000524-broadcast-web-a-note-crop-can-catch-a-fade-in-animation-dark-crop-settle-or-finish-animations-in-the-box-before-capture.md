@@ -48,6 +48,12 @@ Detailed proposal: [animation capture plan](../plans/000524-animation-capture-pl
 
 ## Log
 
+### 2026-10-13 — fresh-send broad-suite and clean-build evidence
+
+GOMAXPROCS=2 GOFLAGS=-p=1 make test completed. All shell/headless suites and changed Go packages passed. The run was not green: existing pair#519 TestNotificationBrokerBeforeExecAndCleanup failed (startup hook lost), and keyhelp TestEmbeddedSourcesMatchTree saw an older embedded init.lua snapshot because the final Lua edits occurred after the suite generated/compiled its assets. After a forced clean rebuild, fresh complete keyhelp and runtimebundle package runs passed (0.153 s and 0.186 s). Final Lua changes were independently retested with model/adapter, sender and production DOM-chord headless tests. Full log: /tmp/pair524-fresh-submissions-suite.log. No failure invariant was weakened.
+
+Clean operator smoke source 394dfac9b12b6ae01735a55b086625c059a4f973 was force-built with make -B build. Both bin/couch and bin/pair report that exact vcs.revision and vcs.modified=false; checkout was clean and HEAD unchanged. Hub received the measured hash and fresh-process smoke steps. Acceptance remains pending; these subsequent documentation/close commits do not change that tested behavior. Boundary review requested before landing.
+
 ### 2026-10-13 — edited-draft completion guard
 
 A controlled adapter regression reproduced a send completing after its buffer changed during the settle window: unconditional done consumed the edited draft. Completion now checks the original callback's current predicate before clearing, while acknowledgment still proceeds. RED then GREEN; Lua model/adapter and all production headless DOM chord cases pass. This is an additional verified Lua delta after the broad suite's Lua targets. The original real-Chrome readiness and crop conformance tests also pass on the fresh-send implementation (7.09 s and 0.95 s).
