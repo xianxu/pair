@@ -25,8 +25,10 @@ type Injector interface {
 	// whole batch, dispatching nothing, when by isn't the driver in the
 	// stream it follows (ErrNotDriver), when the cast isn't live or b.Seg
 	// isn't the current segment (ErrNotLive), or when any act fails Confine
-	// (ErrRefused). A down, click or wheel whose element isn't at its point
-	// any more stops the batch there (ErrStale): the acts before it stand.
+	// (ErrRefused). A down or click whose element isn't at its point any
+	// more, or a wheel whose point has nothing under it, stops the batch
+	// there (ErrStale): the acts before it stand. A wheel scrolls whatever is
+	// under its point (pair#516).
 	// Records it causes carry by (recording.Source).
 	Inject(ctx context.Context, by string, b Batch) error
 }

@@ -127,6 +127,14 @@ func RunInjectorContract(t recording.TB, newInjector func(page []recording.Recor
 	if err := inj.Inject(ctx, drivenDriver, Batch{Seg: s.Seg, Acts: []Act{click(save.ID, sx, sy)}}); err != nil {
 		t.Errorf("click #save: %v", err)
 	}
+	// A wheel scrolls whatever is under its point (pair#516): one aimed at
+	// #save where #q is goes in; one where nothing is is refused.
+	if err := inj.Inject(ctx, drivenDriver, Batch{Seg: s.Seg, Acts: []Act{{A: ActWheel, ID: save.ID, X: qx, Y: qy, DY: 40}}}); err != nil {
+		t.Errorf("a wheel over another element than the viewer saw: got %v, want it injected", err)
+	}
+	if err := inj.Inject(ctx, drivenDriver, Batch{Seg: s.Seg, Acts: []Act{{A: ActWheel, ID: q.ID, X: qx, Y: 9000, DY: 40}}}); !errors.Is(err, ErrStale) {
+		t.Errorf("a wheel with nothing under its point: got %v, want ErrStale", err)
+	}
 	// Everything caused reduces after the page: by is the driver's.
 	all := append(append([]recording.Record(nil), page...), observed()...)
 	end := all[len(all)-1].Time()

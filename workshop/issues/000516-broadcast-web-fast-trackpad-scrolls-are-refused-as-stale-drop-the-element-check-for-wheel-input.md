@@ -36,11 +36,30 @@ No coalescing up front: measure a fast flick end to end first (injector queue de
 
 ## Plan
 
-- [ ]
+- [x] `TabInjector.inject`: a wheel skips `onTarget` and keeps the bounds check (`hit == 0` → ErrStale); downs and
+  clicks unchanged. `Injector` doc and atlas updated.
+- [x] Contract (`RunInjectorContract`, every injector): a wheel aimed at #save where #q is goes in; a wheel with
+  nothing under its point is ErrStale. Fails with the old rule (mutation-checked): the deterministic red-on-main test.
+- [x] Live: `TestDriveRealCastFlick` (WEBCAST_LIVE_CHROME): 100 wheel events in ~1.1 s from the viewer page itself
+  (10 ms apart, decaying like macOS momentum) over a page of 18 px text rows, through the real cast chain; logs the
+  measurement; asserts no refusal or 503 and every px injected. `startRealCast(t, path)` shared with TestDriveRealCast.
+- [x] Coalescing: decided against (measurement below); no playout buffer.
 
 ## Log
 
 ### 2026-10-12
+- **Flick measurement, before the fix** (headless, real cast chain): the flick reproduces the refusal only sometimes
+  (1 of 2 runs: 2 refused, 1065 of 1102 px injected); with 60 px rows, 0 of 3. A CDP call per event is too slow to
+  flick (100 events took 3.6 s), so the test dispatches the events inside the viewer page.
+- **After the fix, 3 runs:** 100 events in 1.08-1.12 s, 1102 px sent (page px), 22-25 batches (37-42 wheel acts),
+  1102 px injected every run, 0 refused, 0 busy (503). Arrival spacing at Couch 39-40 ms min, 40-43 median, 67-69
+  max (the viewer's 40 ms pacing; the max is the first gap). Injection per batch 0-50 ms (median 16-17). Injection
+  ended 11-40 ms after the gesture: no backlog, no scroll running on after it. Per-batch dy keeps the momentum
+  shape, e.g. 200 164 135 112 92 40 47 41 37 25 30 27 18 21 19 16 15 20 9 16 14 7.
+- **Coalescing decision:** none added, and no playout buffer: no backlog, no 503s, even arrival. Note for the
+  operator's rule: the viewer already merges consecutive wheel acts on the same element while a batch is paced
+  (`batcher`, PACE_MS 40), i.e. ~40 ms buckets of what queued, not per-frame time buckets; the measured curve keeps
+  its shape at that resolution. Moving to timestamped 16 ms buckets is the operator's call (not built).
 
 ## Revisions
 

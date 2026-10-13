@@ -164,7 +164,16 @@ func (t *TabInjector) inject(ctx context.Context, tab Tab, by string, b Batch) e
 			if err != nil {
 				return err
 			}
-			if !onTarget(tab.Page().Node, hit, a.ID) {
+			// A wheel only scrolls whatever is under the pointer, so it
+			// skips the identity check (pair#516, the operator's call: a
+			// flick scrolls the tab ahead of the viewer, and its later
+			// events still name what the viewer saw). It keeps the bounds
+			// check: a point with nothing under it is refused.
+			stale := !onTarget(tab.Page().Node, hit, a.ID)
+			if a.A == ActWheel {
+				stale = hit == 0
+			}
+			if stale {
 				return ErrStale
 			}
 		}
