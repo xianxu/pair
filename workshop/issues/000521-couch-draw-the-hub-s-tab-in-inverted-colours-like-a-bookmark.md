@@ -56,7 +56,7 @@ Use native reverse video rather than manually swapping RGB palette values.
 
 - [x] Pin tab state combinations, widths/folding, glyphs and style containment with failing tests.
 - [x] Compose hub inversion in tab and switcher renderers; update presentation docs.
-- [ ] Run targeted tests and full suite; stage only on TL instruction for operator approval, then close/PR/SHIP.
+- [x] Run targeted tests and full suite; obtain operator acceptance or explicit smoke waiver.
 
 ## Log
 
@@ -87,3 +87,11 @@ Use native reverse video rather than manually swapping RGB palette values.
   passed; full repository make test is running. Live acceptance still pending.
 - Clarification of the sent table: the existing bell cue is amber, with no bell
   glyph. Red and focus override amber exactly as before; no new glyph was added.
+
+- 2026-10-12 22:26 PDT: Operator waived smoke as a simple change, relayed by TL
+  (Couch receipt 3bd37039-4734-4649-aa06-dcffac391576). This supersedes the live
+  look requirement in Spec/Done when; no pair:0 staging. The last Plan row now
+  names verification and acceptance only; close/PR/merge are the subsequent
+  workflow gates, not an implementation checklist item completed in advance.
+- Merged origin/main before close without conflicts; full make test already
+  passed on the feature, with couchtty rerun on the integrated tree.
