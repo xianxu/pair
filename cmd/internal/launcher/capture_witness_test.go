@@ -2,9 +2,9 @@ package launcher
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
@@ -43,17 +43,41 @@ func TestCaptureTransferRejectsReplacedSource(t *testing.T) {
 }
 
 func TestCaptureOptionalEventsFailureNeverCertifies(t *testing.T) {
-	for _, missing := range []bool{true, false} {
-		t.Run(fmt.Sprint(missing), func(t *testing.T) {
+	for _, kind := range []string{"missing", "directory", "fifo", "oversize"} {
+		t.Run(kind, func(t *testing.T) {
 			dir := t.TempDir()
 			paths, _ := artifactpath.ResolveScoped(dir, "work")
 			set, _ := paths.ScrollbackArtifacts("codex")
 			os.WriteFile(set.Raw, []byte("retained raw"), 0600)
-			if !missing {
+			switch kind {
+			case "directory":
 				os.Mkdir(set.Events, 0700)
+			case "fifo":
+				if err := syscall.Mkfifo(set.Events, 0600); err != nil {
+					t.Fatal(err)
+				}
+			case "oversize":
+				f, err := os.Create(set.Events)
+				if err != nil {
+					t.Fatal(err)
+				}
+				err = f.Truncate(artifactpath.MaxCaptureWitnessEventsBytes + 1)
+				f.Close()
+				if err != nil {
+					t.Fatal(err)
+				}
 			}
 			rt := NewOSRuntime(dir, "/pair")
 			base, ok := rt.ParkScrollback("work", "codex", true)
+			if kind == "oversize" {
+				if ok {
+					t.Fatal("oversized authority accepted")
+				}
+				if raw, err := os.ReadFile(set.Raw); err != nil || string(raw) != "retained raw" {
+					t.Fatal("rejected authority lost source")
+				}
+				return
+			}
 			if !ok {
 				t.Fatal("optional events failure rejected raw")
 			}

@@ -228,6 +228,8 @@ M1 review against 2efe103cf returned REWORK: BR-1 unknown evidence promoted to l
 
 - 2026-10-13 11:39 — Round 2 accepted BR-1..BR-4 with independent mutation confirmation, but returned BR-5 (Important): capture-witness events and effective config remained blocking inputs. Audited all new M1 persisted byte readers, moved one shared bounded regular-file reader into osfs, wired the full consumer set and preserved whole-sidecar 8 MiB refusal. Consumer-level FIFO/oversize regressions failed old implementations and now pass; focused launcher/storagegc/osfs/artifactpath checks passed, and full storagegc passed (15.766s). Updated plan with the enumerated consumers/bounds/context limits. M1 remains open for final suite/build and review.
 
+- 2026-10-13 — Whole-suite integration caught a fallback regression from the new shared error type: an optional non-regular events sidecar must still preserve raw-only history without witness certification. InvalidMetadataError now carries a typed violation kind; only non-regular sidecars join the existing unreadable-events fallback, while oversized/malformed authority still refuses. Added missing/directory/FIFO/oversized capture cases; full launcher/storagegc/osfs packages pass. The suite also exposed an existing 30ms test preflight race: caller expiry before observation legitimately makes zero calls. The test retains exact inner-bound/no-effects assertions and adds deterministic expired-parent coverage; no production recovery logic changed.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against

@@ -1536,3 +1536,5 @@ proof; record the surprising case so the next change starts from evidence.
 - Permanent coordination files require a cardinality bound. Stable hashed stripes preserve exclusion without unsafe unlink races or per-session accumulation.
 
 - **#528 bounded-read family:** fixing named reader sites is insufficient. Enumerate every new persisted-input consumer in the branch diff, including audit/config and capture sidecars, and add consumer tests that fail if they bypass the shared reader.
+
+- **#528 optional artifact fallback:** shared IO error types must preserve the distinction between unavailable optional evidence (raw-only, uncertified capture) and malformed authority (refuse). Exercise fallback consumers, not just the new reader. Deadline tests must admit cancellation before an observer is entered; prove inner timeout separately from caller expiry.

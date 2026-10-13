@@ -939,7 +939,9 @@ func (r OSRuntime) ParkScrollback(tag, agent string, move bool) (string, bool) {
 		// Optional unreadable events must not discard usable raw history. Keep
 		// that capture explicitly uncertified; malformed authority still refuses.
 		var pathError *os.PathError
-		if !errors.As(err, &pathError) {
+		var invalid *osfs.InvalidMetadataError
+		unreadableType := errors.As(err, &invalid) && invalid.Kind == osfs.MetadataNotRegular
+		if !errors.As(err, &pathError) && !unreadableType {
 			return "", false
 		}
 		witness = nil

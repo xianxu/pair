@@ -13,9 +13,25 @@ import (
 
 // InvalidMetadataError identifies a static type or size violation. IO errors
 // and concurrent file changes remain distinct, inconclusive observations.
-type InvalidMetadataError struct{ Path, Reason string }
+type MetadataViolation uint8
 
-func (e *InvalidMetadataError) Error() string { return fmt.Sprintf("metadata %q %s", e.Path, e.Reason) }
+const (
+	MetadataNotRegular MetadataViolation = iota + 1
+	MetadataTooLarge
+)
+
+type InvalidMetadataError struct {
+	Path string
+	Kind MetadataViolation
+}
+
+func (e *InvalidMetadataError) Error() string {
+	reason := "is not a regular file"
+	if e.Kind == MetadataTooLarge {
+		reason = "exceeds size bound"
+	}
+	return fmt.Sprintf("metadata %q %s", e.Path, reason)
+}
 
 // ReadRegularMetadata refuses special files before opening, and opens
 // nonblocking without following a final symlink so replacement by a FIFO cannot
@@ -35,10 +51,10 @@ func ReadRegularMetadata(ctx context.Context, path string, maxBytes int64) ([]by
 		return nil, err
 	}
 	if !before.Mode().IsRegular() {
-		return nil, &InvalidMetadataError{Path: path, Reason: "is not a regular file"}
+		return nil, &InvalidMetadataError{Path: path, Kind: MetadataNotRegular}
 	}
 	if before.Size() > maxBytes {
-		return nil, &InvalidMetadataError{Path: path, Reason: "exceeds size bound"}
+		return nil, &InvalidMetadataError{Path: path, Kind: MetadataTooLarge}
 	}
 	if err = ctx.Err(); err != nil {
 		return nil, err
@@ -64,7 +80,7 @@ func ReadRegularMetadata(ctx context.Context, path string, maxBytes int64) ([]by
 		return nil, err
 	}
 	if int64(len(raw)) > maxBytes {
-		return nil, &InvalidMetadataError{Path: path, Reason: "exceeds size bound"}
+		return nil, &InvalidMetadataError{Path: path, Kind: MetadataTooLarge}
 	}
 	after, err := f.Stat()
 	if err != nil {
