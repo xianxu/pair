@@ -37,9 +37,9 @@ Use the shared collaboration module for note gesture tracking in terminal and we
 
 ## Plan
 
-- [ ] Add failing terminal click/drag/drag-back tests for both input types, including movement across cells below pixel threshold.
-- [ ] Extract the web gesture's monotonic drag tracking into collab.js and use it in both viewers; reuse gestureBox preview suppression and geometry.
-- [ ] Run targeted and full verification, close and land.
+- [x] Add failing terminal click/drag/drag-back tests for both input types, including movement across cells below pixel threshold.
+- [x] Extract the web gesture's monotonic drag tracking into collab.js and use it in both viewers; reuse gestureBox preview suppression and geometry.
+- [x] Run targeted and full verification, close and land.
 
 ## Log
 
@@ -49,3 +49,6 @@ Use the shared collaboration module for note gesture tracking in terminal and we
 - ARCH-PURE/ARCH-DRY: shared in-memory gesture owns from/to and monotonic pressed-to-dragged transition, handlers own events and rendering. ARCH-PURPOSE: terminal plus existing web/operator tests cover shared consumers. ARCH-STATE: no drag-to-press reversal; cancellation drops gesture without drafting. ARCH-MOCK: existing viewer fakes exercise handlers. ARCH-CONSTRAINTS/ARCH-FUNERAL: constant-size gesture dies on release/cancel; no timers, external services or durable artifacts added.
 
 - Red: all six new terminal mouse/touch click, drag and drag-back cases failed at press drawing a box (/tmp/pair536-red.log). Green: 244 viewer tests passed, including existing web/operator gestures (/tmp/pair536-viewers.log). Terminal sub-threshold tests cross a cell boundary, proving admission uses pixels rather than cells. Shared noteGesture latches threshold crossing; existing gestureBox owns preview suppression and geometry.
+
+- Full make -k test completed after a 173s gate wait (/tmp/pair536-make-k.log). All shell checks and viewer packages passed, including broadcast 28.121s. Two unrelated failures: TestBlockedRunnerCancellationConformance/pty/canceled-before-ack reported child alive; all six conformance cases passed 3/3 isolated reruns (0.259s; /tmp/pair536-runner-rerun.log). TestNotificationBrokerBeforeExecAndCleanup lost its startup notification, as seen during #535; passed 3/3 isolated reruns (/tmp/pair536-notify-rerun.log). No runner/wrapper code changed. These are explicitly reported exceptions, not a claim of an entirely green full suite.
+- Updated atlas/broadcast.md's old cell thresholds to the shared pixel-based gesture behavior. Main merged after the suite; only unrelated issue documentation changed. Implementation tree is stable.
