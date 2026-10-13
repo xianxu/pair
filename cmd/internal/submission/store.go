@@ -330,11 +330,10 @@ func (s *Store) pending(r *os.Root, target Target) ([]Submission, error) {
 	}
 	var result []Submission
 	for _, entry := range entries {
-		if strings.HasPrefix(entry.Name(), ".staging-") {
-			continue
-		}
+		// Only submission directories participate in delivery reconciliation.
+		// Finder metadata, staging residue and stray files are not bundles.
 		if !entry.IsDir() || !identifier.MatchString(entry.Name()) {
-			return nil, fmt.Errorf("unexpected submission entry %s", entry.Name())
+			continue
 		}
 		sub, err := readMetadata(r, entry.Name(), true)
 		if err != nil {

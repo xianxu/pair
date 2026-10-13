@@ -48,6 +48,10 @@ Detailed proposal: [animation capture plan](../plans/000524-animation-capture-pl
 
 ## Log
 
+### 2026-10-13 — Finder metadata blocker verified
+
+The new regression reproduced the exact unexpected .DS_Store entry refusal, plus five other foreign-entry cases. Pending now filters non-directories and invalid submission IDs; genuine corrupt submission directories still refuse. Fresh submission, webcast/submission and webcast packages all pass; fresh focused review PASS; make build in pair:0 succeeds. No storage bounds changed.
+
 ### 2026-10-13 — recovered session and main integration
 
 Merged origin/main at 844d29e698e481712f6a58f37f04e4d717a405f3 for operator staging. Resolved three conflicts by retaining both settlement/clipping tests and privacy tests, plus both capture settlement and origin metadata. ARCH-ORDER: retained #526 capture-origin identity comparison and origin propagation alongside #494 exact-context screenshot suppression. Fresh four-package run passed (submission, recorder, webcast/submission, webcast); opt-in headless TestLiveSubmissionCaptureReady passed in 8.39 s and TestLiveSubmissionCrop in 1.72 s. Operator smoke remains pending before landing.

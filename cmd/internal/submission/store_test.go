@@ -131,6 +131,63 @@ func TestStoreLifecycle(t *testing.T) {
 		t.Fatalf("%v %v", got, err)
 	}
 }
+func TestStoreIgnoresForeignEntries(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		directory bool
+	}{
+		{".DS_Store", false},
+		{".metadata", false},
+		{"notes.txt", false},
+		{"valid-id", false},
+		{".hidden", true},
+		{"not a submission", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			store, err := NewStore(tempRoot(t))
+			if err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(store.root, tc.name)
+			if tc.directory {
+				err = os.Mkdir(path, 0700)
+			} else {
+				err = os.WriteFile(path, []byte("foreign metadata"), 0600)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			sub := fixture()
+			if _, err = store.Prepare(sub, nil); err != nil {
+				t.Fatalf("foreign entry blocked submission: %v", err)
+			}
+			pending, err := store.Pending(sub.Target)
+			if err != nil || len(pending) != 1 || pending[0].ID != sub.ID {
+				t.Fatalf("pending = %+v, err = %v", pending, err)
+			}
+			if _, err = os.Stat(path); err != nil {
+				t.Fatal("foreign entry removed", err)
+			}
+		})
+	}
+}
+
+func TestStorePendingRejectsCorruptSubmissionDirectory(t *testing.T) {
+	store, err := NewStore(tempRoot(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.Mkdir(filepath.Join(store.root, "broken-submission"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.Pending(fixture().Target); err == nil {
+		t.Fatal("corrupt submission directory silently ignored")
+	}
+	if _, err = store.Prepare(fixture(), nil); err == nil {
+		t.Fatal("corrupt submission directory allowed admission")
+	}
+}
+
 func TestStoreFailuresAndAdmission(t *testing.T) {
 	for _, point := range []string{"write", "sync", "rename"} {
 		t.Run(point, func(t *testing.T) {
