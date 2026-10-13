@@ -140,7 +140,7 @@ window.snapshot=()=>{
 	}
 	capture := func(box recording.Box) recorder.CapturedCrop {
 		t.Helper()
-		crops, err := c.CaptureCrops(ctx, document, []core.CaptureRegion{{Box: box, Region: box}})
+		crops, err := c.CaptureCrops(ctx, document, []core.CaptureRegion{{Box: box, Region: box}}, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

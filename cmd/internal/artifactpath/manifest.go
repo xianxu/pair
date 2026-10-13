@@ -606,6 +606,15 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	// #531 launch diagnostics live under CouchNamespace, outside the checked
+	// Pair artifact filename families; the remaining files model/render evidence.
+	"cmd/internal/couchcmd/launchfailure.go",
+	"cmd/internal/couchcore/launchfailure.go",
+	"cmd/internal/couchcore/launchfailure_capture.go",
+	"cmd/internal/couchcore/launchfailure_show.go",
+	"cmd/internal/couchcore/launchfailure_store.go",
+	"cmd/internal/couchcore/launchfailure_store_fake.go",
+	"cmd/internal/couchcore/launchoutput.go",
 	"cmd/internal/couchcmd/capture.go",
 	"cmd/internal/couchtty/capture.go",
 	"cmd/internal/terminal/observation.go",

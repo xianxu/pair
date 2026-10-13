@@ -97,7 +97,7 @@ func (r *Recorder) capturePage(parent context.Context, identity captureIdentity)
 // CaptureCrops captures sequential clips without blocking the recorder loop.
 // Its CDP barrier includes events already read but not yet reduced, including
 // same-URL navigation. No pixels enter the recording/viewer record stream.
-func (r *Recorder) CaptureCrops(parent context.Context, doc int, boxes []submission.CaptureRegion) ([]CapturedCrop, error) {
+func (r *Recorder) CaptureCrops(parent context.Context, doc int, boxes []submission.CaptureRegion, progress func(submission.SubmissionProgress)) ([]CapturedCrop, error) {
 	ctx, cancel := context.WithTimeout(parent, 30*time.Second)
 	defer cancel()
 	stop := context.AfterFunc(r.ctx, cancel)
@@ -167,9 +167,12 @@ func (r *Recorder) CaptureCrops(parent context.Context, doc int, boxes []submiss
 	}
 	total := 0
 	var out []CapturedCrop
-	for _, request := range boxes {
+	for i, request := range boxes {
 		if err := ctx.Err(); err != nil {
 			return nil, err
+		}
+		if progress != nil {
+			progress(submission.SubmissionProgress{Phase: "settling", Current: i + 1, Total: len(boxes)})
 		}
 		observation, settlement, err := r.waitForCapture(ctx, start, request.Box)
 		if err != nil {
@@ -236,6 +239,9 @@ func (r *Recorder) CaptureCrops(parent context.Context, doc int, boxes []submiss
 			Data string `json:"data"`
 		}
 		callCtx, done := context.WithTimeout(ctx, 5*time.Second)
+		if progress != nil {
+			progress(submission.SubmissionProgress{Phase: "capturing", Current: i + 1, Total: len(boxes)})
+		}
 		err = CaptureScreenshot(callCtx, r.opts.Call, start.top, start.contextID, map[string]any{
 			"format": "png", "captureBeyondViewport": false, "fromSurface": true,
 			"clip": map[string]any{"x": box[0], "y": box[1], "width": box[2], "height": box[3], "scale": 1},

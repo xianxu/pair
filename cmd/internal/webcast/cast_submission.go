@@ -44,7 +44,7 @@ func (c *Cast) RecordingPath() string {
 
 // PrepareSubmission produces evidence only. Publication and delivery are owned
 // by the submission store; this operation never resolves notes or sends text.
-func (c *Cast) PrepareSubmission(parent context.Context, id string, target core.Target, selected board.Selection, replayBase string) (core.Submission, map[string][]byte, error) {
+func (c *Cast) PrepareSubmission(parent context.Context, id string, target core.Target, selected board.Selection, replayBase string, progress func(core.SubmissionProgress)) (core.Submission, map[string][]byte, error) {
 	var empty core.Submission
 	if c.board == nil || c.recDir == "" {
 		return empty, nil, ErrNotRecording
@@ -71,6 +71,9 @@ func (c *Cast) PrepareSubmission(parent context.Context, id string, target core.
 			c.logf("%s", notice)
 		}
 	}
+	if progress != nil {
+		progress(core.SubmissionProgress{Phase: "context"})
+	}
 	recs, err := readSubmissionRecording(ctx, c.RecordingPath())
 	if err != nil {
 		return empty, nil, err
@@ -79,7 +82,7 @@ func (c *Cast) PrepareSubmission(parent context.Context, id string, target core.
 	if err != nil {
 		return empty, nil, err
 	}
-	captured, err := capture.CaptureCrops(ctx, selected.Document, boxes)
+	captured, err := capture.CaptureCrops(ctx, selected.Document, boxes, progress)
 	if err != nil {
 		return empty, nil, err
 	}

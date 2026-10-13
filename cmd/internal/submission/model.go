@@ -332,3 +332,11 @@ func ValidatePNG(data []byte) error {
 
 // ValidID reports whether id is a single portable submission identifier.
 func ValidID(id string) bool { return identifier.MatchString(id) }
+
+// SubmissionProgress describes transient preparation work, never delivery evidence.
+// Crop phases use one-based Current/Total; other phases leave both zero.
+type SubmissionProgress struct {
+	Phase   string `json:"phase"`
+	Current int    `json:"current,omitempty"`
+	Total   int    `json:"total,omitempty"`
+}

@@ -22,11 +22,11 @@ import (
 
 type submissionBrowser struct {
 	*FakeBrowser
-	capture func(context.Context, int, []core.CaptureRegion) ([]recorder.CapturedCrop, error)
+	capture func(context.Context, int, []core.CaptureRegion, func(core.SubmissionProgress)) ([]recorder.CapturedCrop, error)
 }
 
-func (b *submissionBrowser) CaptureCrops(ctx context.Context, doc int, boxes []core.CaptureRegion) ([]recorder.CapturedCrop, error) {
-	return b.capture(ctx, doc, boxes)
+func (b *submissionBrowser) CaptureCrops(ctx context.Context, doc int, boxes []core.CaptureRegion, progress func(core.SubmissionProgress)) ([]recorder.CapturedCrop, error) {
+	return b.capture(ctx, doc, boxes, progress)
 }
 func castSubmissionFixture(t *testing.T) (*Cast, *submissionBrowser, *recording.Builder, *int) {
 	t.Helper()
@@ -64,7 +64,7 @@ func castSubmissionFixture(t *testing.T) (*Cast, *submissionBrowser, *recording.
 		}
 	}
 	browser := &submissionBrowser{FakeBrowser: NewFakeBrowser()}
-	browser.capture = func(ctx context.Context, doc int, boxes []core.CaptureRegion) ([]recorder.CapturedCrop, error) {
+	browser.capture = func(ctx context.Context, doc int, boxes []core.CaptureRegion, progress func(core.SubmissionProgress)) ([]recorder.CapturedCrop, error) {
 		var out []recorder.CapturedCrop
 		for _, box := range boxes {
 			var data bytes.Buffer
@@ -84,7 +84,7 @@ func TestCastSubmissionPrepareAndResolve(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sub, crops, err := c.PrepareSubmission(context.Background(), "submission", castSubmissionTarget(), selection, "https://replay.test/token")
+	sub, crops, err := c.PrepareSubmission(context.Background(), "submission", castSubmissionTarget(), selection, "https://replay.test/token", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,19 +114,19 @@ func TestCastSubmissionPrepareAndResolve(t *testing.T) {
 func TestCastSubmissionCaptureFailureAndGonePage(t *testing.T) {
 	c, browser, _, writes := castSubmissionFixture(t)
 	selected, _ := c.SubmissionSelection()
-	browser.capture = func(context.Context, int, []core.CaptureRegion) ([]recorder.CapturedCrop, error) {
+	browser.capture = func(context.Context, int, []core.CaptureRegion, func(core.SubmissionProgress)) ([]recorder.CapturedCrop, error) {
 		return nil, errors.New("navigation during capture")
 	}
-	if _, _, err := c.PrepareSubmission(context.Background(), "submission", castSubmissionTarget(), selected, ""); err == nil {
+	if _, _, err := c.PrepareSubmission(context.Background(), "submission", castSubmissionTarget(), selected, "", nil); err == nil {
 		t.Fatal("capture failure ignored")
 	}
 	if *writes != 0 {
 		t.Fatal("resolved on failed preparation")
 	}
-	browser.capture = func(context.Context, int, []core.CaptureRegion) ([]recorder.CapturedCrop, error) {
+	browser.capture = func(context.Context, int, []core.CaptureRegion, func(core.SubmissionProgress)) ([]recorder.CapturedCrop, error) {
 		return []recorder.CapturedCrop{{Unavailable: "page changed"}}, nil
 	}
-	sub, crops, err := c.PrepareSubmission(context.Background(), "submission", castSubmissionTarget(), selected, "")
+	sub, crops, err := c.PrepareSubmission(context.Background(), "submission", castSubmissionTarget(), selected, "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,19 +162,19 @@ func TestCastSubmissionBoundedRecordingAndMalformedLines(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.Close()
-	if _, _, err = c.PrepareSubmission(context.Background(), "submission", castSubmissionTarget(), selected, ""); err == nil {
+	if _, _, err = c.PrepareSubmission(context.Background(), "submission", castSubmissionTarget(), selected, "", nil); err == nil {
 		t.Fatal("oversize input accepted")
 	}
 	if err = os.WriteFile(path, []byte("{partial"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err = c.PrepareSubmission(context.Background(), "submission", castSubmissionTarget(), selected, ""); err != nil {
+	if _, _, err = c.PrepareSubmission(context.Background(), "submission", castSubmissionTarget(), selected, "", nil); err != nil {
 		t.Fatal("incomplete tail should be ignored", err)
 	}
 	if err = os.WriteFile(path, []byte("{bad}\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err = c.PrepareSubmission(context.Background(), "submission", castSubmissionTarget(), selected, ""); err == nil {
+	if _, _, err = c.PrepareSubmission(context.Background(), "submission", castSubmissionTarget(), selected, "", nil); err == nil {
 		t.Fatal("complete malformed line accepted")
 	}
 }
@@ -186,14 +186,14 @@ func TestCastSubmissionRejectsRecordingSymlinks(t *testing.T) {
 	if err := os.Symlink("/etc/passwd", path); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := c.PrepareSubmission(context.Background(), "submission", castSubmissionTarget(), selected, ""); err == nil {
+	if _, _, err := c.PrepareSubmission(context.Background(), "submission", castSubmissionTarget(), selected, "", nil); err == nil {
 		t.Fatal("followed recording symlink")
 	}
 }
 func TestCastSubmissionLateAckDoesNotResolveNewDocument(t *testing.T) {
 	c, _, b, writes := castSubmissionFixture(t)
 	selected, _ := c.SubmissionSelection()
-	sub, _, err := c.PrepareSubmission(context.Background(), "submission", castSubmissionTarget(), selected, "")
+	sub, _, err := c.PrepareSubmission(context.Background(), "submission", castSubmissionTarget(), selected, "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -241,8 +241,8 @@ func TestCastSubmissionSettlementAndClipping(t *testing.T) {
 			c, browser, _, writes := castSubmissionFixture(t)
 			base := browser.capture
 			var captured recorder.CapturedCrop
-			browser.capture = func(ctx context.Context, doc int, regions []core.CaptureRegion) ([]recorder.CapturedCrop, error) {
-				crops, err := base(ctx, doc, regions)
+			browser.capture = func(ctx context.Context, doc int, regions []core.CaptureRegion, progress func(core.SubmissionProgress)) ([]recorder.CapturedCrop, error) {
+				crops, err := base(ctx, doc, regions, progress)
 				if err != nil {
 					return nil, err
 				}
@@ -255,7 +255,7 @@ func TestCastSubmissionSettlementAndClipping(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			sub, pngs, err := c.PrepareSubmission(context.Background(), "submission", castSubmissionTarget(), selected, "")
+			sub, pngs, err := c.PrepareSubmission(context.Background(), "submission", castSubmissionTarget(), selected, "", nil)
 			if tc.wantErr {
 				if err == nil {
 					t.Fatal("accepted invalid capture", sub)
@@ -277,14 +277,14 @@ func TestCastSubmissionSettlementAndClipping(t *testing.T) {
 }
 func TestCastSubmissionOutsideViewportPreservesNote(t *testing.T) {
 	c, browser, _, writes := castSubmissionFixture(t)
-	browser.capture = func(context.Context, int, []core.CaptureRegion) ([]recorder.CapturedCrop, error) {
+	browser.capture = func(context.Context, int, []core.CaptureRegion, func(core.SubmissionProgress)) ([]recorder.CapturedCrop, error) {
 		return []recorder.CapturedCrop{{Unavailable: "outside viewport", BoxText: core.BoxText{Unavailable: "outside viewport"}}}, nil
 	}
 	selected, err := c.SubmissionSelection()
 	if err != nil {
 		t.Fatal(err)
 	}
-	sub, pngs, err := c.PrepareSubmission(context.Background(), "submission", castSubmissionTarget(), selected, "")
+	sub, pngs, err := c.PrepareSubmission(context.Background(), "submission", castSubmissionTarget(), selected, "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -305,7 +305,7 @@ func TestCastSubmissionUnavailableRefusesCurrentMetadata(t *testing.T) {
 		func(c *recorder.CapturedCrop) { c.Document = 1 },
 	} {
 		c, browser, _, _ := castSubmissionFixture(t)
-		browser.capture = func(context.Context, int, []core.CaptureRegion) ([]recorder.CapturedCrop, error) {
+		browser.capture = func(context.Context, int, []core.CaptureRegion, func(core.SubmissionProgress)) ([]recorder.CapturedCrop, error) {
 			crop := recorder.CapturedCrop{Unavailable: "outside viewport"}
 			mutate(&crop)
 			return []recorder.CapturedCrop{crop}, nil
@@ -314,7 +314,7 @@ func TestCastSubmissionUnavailableRefusesCurrentMetadata(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, _, err = c.PrepareSubmission(context.Background(), "submission", castSubmissionTarget(), selected, ""); err == nil {
+		if _, _, err = c.PrepareSubmission(context.Background(), "submission", castSubmissionTarget(), selected, "", nil); err == nil {
 			t.Fatal("unavailable capture silently dropped contradictory current metadata")
 		}
 	}
@@ -328,8 +328,8 @@ func TestCastSubmissionPrivacyUsesCaptureAndSurvivesInvalidPolicy(t *testing.T) 
 		t.Run(tc.url+tc.reason, func(t *testing.T) {
 			c, b, _, _ := castSubmissionFixture(t)
 			original := b.capture
-			b.capture = func(ctx context.Context, doc int, boxes []core.CaptureRegion) ([]recorder.CapturedCrop, error) {
-				crops, err := original(ctx, doc, boxes)
+			b.capture = func(ctx context.Context, doc int, boxes []core.CaptureRegion, progress func(core.SubmissionProgress)) ([]recorder.CapturedCrop, error) {
+				crops, err := original(ctx, doc, boxes, progress)
 				for i := range crops {
 					if tc.url == "" {
 						crops[i] = recorder.CapturedCrop{Unavailable: "page changed"}
@@ -354,7 +354,7 @@ func TestCastSubmissionPrivacyUsesCaptureAndSurvivesInvalidPolicy(t *testing.T) 
 				return p, ""
 			}
 			selected, _ := c.SubmissionSelection()
-			sub, crops, err := c.PrepareSubmission(context.Background(), "privacy", castSubmissionTarget(), selected, "")
+			sub, crops, err := c.PrepareSubmission(context.Background(), "privacy", castSubmissionTarget(), selected, "", nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -383,7 +383,7 @@ func TestCastSubmissionPrivacyUsesCaptureAndSurvivesInvalidPolicy(t *testing.T) 
 func TestCastSubmissionPrivacyDefault(t *testing.T) {
 	c, _, _, _ := castSubmissionFixture(t)
 	selected, _ := c.SubmissionSelection()
-	sub, _, err := c.PrepareSubmission(context.Background(), "privacy", castSubmissionTarget(), selected, "")
+	sub, _, err := c.PrepareSubmission(context.Background(), "privacy", castSubmissionTarget(), selected, "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -395,7 +395,7 @@ func TestCastSubmissionPrivacyDefault(t *testing.T) {
 func TestCastSubmissionUsesCapturedPageSource(t *testing.T) {
 	c, b, _, _ := castSubmissionFixture(t)
 	selected, _ := c.SubmissionSelection()
-	sub, _, err := c.PrepareSubmission(context.Background(), "page", castSubmissionTarget(), selected, "")
+	sub, _, err := c.PrepareSubmission(context.Background(), "page", castSubmissionTarget(), selected, "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -403,12 +403,12 @@ func TestCastSubmissionUsesCapturedPageSource(t *testing.T) {
 		t.Fatal(sub)
 	}
 	original := b.capture
-	b.capture = func(ctx context.Context, doc int, boxes []core.CaptureRegion) ([]recorder.CapturedCrop, error) {
-		crops, err := original(ctx, doc, boxes)
+	b.capture = func(ctx context.Context, doc int, boxes []core.CaptureRegion, progress func(core.SubmissionProgress)) ([]recorder.CapturedCrop, error) {
+		crops, err := original(ctx, doc, boxes, progress)
 		crops[0].Page = core.PageIdentity{}
 		return crops, err
 	}
-	if _, _, err = c.PrepareSubmission(context.Background(), "missing-page", castSubmissionTarget(), selected, ""); err == nil {
+	if _, _, err = c.PrepareSubmission(context.Background(), "missing-page", castSubmissionTarget(), selected, "", nil); err == nil {
 		t.Fatal("pixels without page accepted")
 	}
 }
@@ -442,8 +442,8 @@ func TestCastSubmissionMixedViewportAvailability(t *testing.T) {
 				}
 			}
 			base := browser.capture
-			browser.capture = func(ctx context.Context, doc int, regions []core.CaptureRegion) ([]recorder.CapturedCrop, error) {
-				crops, err := base(ctx, doc, regions)
+			browser.capture = func(ctx context.Context, doc int, regions []core.CaptureRegion, progress func(core.SubmissionProgress)) ([]recorder.CapturedCrop, error) {
+				crops, err := base(ctx, doc, regions, progress)
 				if err != nil {
 					return nil, err
 				}
@@ -457,7 +457,7 @@ func TestCastSubmissionMixedViewportAvailability(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			sub, crops, err := c.PrepareSubmission(context.Background(), "submission", castSubmissionTarget(), selected, "")
+			sub, crops, err := c.PrepareSubmission(context.Background(), "submission", castSubmissionTarget(), selected, "", nil)
 			if reason == "page changed" {
 				if err == nil {
 					t.Fatal("mixed document availability accepted")
@@ -471,5 +471,29 @@ func TestCastSubmissionMixedViewportAvailability(t *testing.T) {
 				t.Fatalf("lost batch evidence: %+v", sub)
 			}
 		})
+	}
+}
+
+func TestCastSubmissionProgressReachesCapture(t *testing.T) {
+	c, b, _, _ := castSubmissionFixture(t)
+	selected, err := c.SubmissionSelection()
+	if err != nil {
+		t.Fatal(err)
+	}
+	original := b.capture
+	var phases []core.SubmissionProgress
+	b.capture = func(ctx context.Context, doc int, boxes []core.CaptureRegion, report func(core.SubmissionProgress)) ([]recorder.CapturedCrop, error) {
+		if len(phases) != 1 || phases[0].Phase != "context" {
+			t.Fatalf("read/build progress before capture=%+v", phases)
+		}
+		report(core.SubmissionProgress{Phase: "capturing", Current: 1, Total: len(boxes)})
+		return original(ctx, doc, boxes, report)
+	}
+	_, _, err = c.PrepareSubmission(context.Background(), "progress", castSubmissionTarget(), selected, "", func(p core.SubmissionProgress) { phases = append(phases, p) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(phases) != 2 || phases[1] != (core.SubmissionProgress{Phase: "capturing", Current: 1, Total: 1}) {
+		t.Fatalf("capture progress not forwarded: %+v", phases)
 	}
 }
