@@ -42,6 +42,19 @@ rounds:
       isolation: fenced
       reviewed: 925eda92cf69d4877f0143309f37cc98b549ca01
       blocked: false
+    - "n": 4
+      timestamp: "2026-10-13T12:00:15-07:00"
+      dispatched: "2026-10-13T11:58:00-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: withdrawn
+          note: Retain the prior withdrawal. Affected package tests passed independently; live Chrome was not rerun in this narrow review.
+          round: 4
+      recipe: fix-review
+      isolation: fenced
+      reviewed: 9572d2e50e8a5ddc37972bb5383e086cc1bbf202
+      blocked: false
 disputes:
     - id: BR-1
       rationale: The reported failures are disposable-checkout prerequisites and a Chrome startup failure, not absent implementation verification. The complete make -k test suite and live Chrome check passed before review; the same checks named by the finding pass again unchanged. Fresh checkout Go tests importing runtimebundle need make runtimebundle-generate first (Makefile.local:247); make build and make test already depend on it.
@@ -80,6 +93,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ### Disposed
 
 - BR-1 — withdrawn — Runtime generation and affected package/race checks passed. Live Chrome reproduced GPU startup exit 6 before capture assertions (1.16s). The supplied same-checkout fenced/unfenced comparison isolates this failure to the review environment; no product correction or behavioral regression test is warranted. This review did not independently reproduce the unfenced PASS.
+
+## Round 4 — 2026-10-13T12:00:15-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — withdrawn — Retain the prior withdrawal. Affected package tests passed independently; live Chrome was not rerun in this narrow review.
 
 ## Disputes
 

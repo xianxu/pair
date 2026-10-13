@@ -44,6 +44,8 @@ The operator (2026-10-12):
 ## Log
 
 
+
+- 2026-10-13: closed — Integrated full suite, build, affected tests, targeted race and diff check pass. Real Chrome TestLiveSubmissionCaptureReady PASS 10.52s and TestLiveSubmissionCrop PASS 2.58s, no skips. Conflict resolution preserves Page plus settlement/clipping. Mixed visible/offscreen regression failed before fix and passes; changed-page mixtures still reject. Fresh review checkout requires make runtimebundle-generate. Earlier BR-1 documented that outer Seatbelt prevents Chrome startup; passing parent live evidence is available. Operator look waived by TL; TL checks a real bundle next submission. (fixed-then-ship; full suite: Integrated make -k test passed exit 0, /tmp/pair-525-integrated-full.log; after merging main including #524 and resolving recorder conflicts.); review verdict: SHIP
 - 2026-10-13: closed — Full make -k test passed; make build, targeted packages/race and diff check passed. Real Chrome TestLiveSubmissionCrop passed without skips three times (4.61s, 1.17s, 1.11s). BR-1 now has controlled countermeasurement: same code and command fails only with an added minimal sandbox-exec fence (GPU startup code 6), passes immediately without it. Reviewer isolation=fenced explains its startup failures; retain isolation and assess real parent-run evidence. No production changes since full suite. Operator blog quick look remains before landing.; review verdict: SHIP
 ### 2026-10-12
 

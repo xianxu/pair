@@ -228,3 +228,66 @@ dispose:
    - **ARCH-FUNERAL — Pass:** added metadata remains within existing bounded bundles and their documented cleanup lifecycle.
 
 7. **Plan revision recommendations:** None.
+
+---
+
+## Re-review — 2026-10-13T12:00:15-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 525 — broadcast-web: DOM submission names the page (URL and title per note) and drops CSS selectors |
+| repo | pair |
+| issue file | workshop/issues/000525-broadcast-web-dom-submission-names-the-page-url-and-title-per-note-and-drops-css-selectors.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | b5ff6f0d72b0bda288725737db1d70c871b2bf63..9572d2e50e8a5ddc37972bb5383e086cc1bbf202 |
+| command | sdlc close --issue 525 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-13T12:00:15-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The interdiff preserves both sides of the conflict resolution: captured page identity and settlement/clipping metadata. The mixed-availability correction has verified fail-without-fix coverage. No new defects or scope expansion found.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: withdrawn
+    note: |
+      Retain the prior withdrawal. Affected package tests passed independently; live Chrome was not rerun in this narrow review.
+```
+
+1. **Strengths**
+
+   - Conflict resolution preserves page, settlement, and clipping evidence together (`cmd/internal/webcast/recorder/submission.go:267`).
+   - The availability guard permits off-screen notes while retaining rejection of mixed page-change evidence (`cmd/internal/webcast/cast_submission.go:101`).
+   - The new regression exercises actual submission preparation through the injected capture seam (`cmd/internal/webcast/cast_submission_test.go:412`).
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - All tests passed in `webcast/recorder`, `webcast`, `submission`, and `webcast/submission`, after runtime asset generation.
+   - Restoring the previous guard made the new off-screen regression fail with “capture batch mixes available and unavailable pages.” Restoring the fix passed both subtests.
+   - `git diff --check` passed. Full repository tests and live Chrome were not rerun.
+   - Disposable copy removed; review checkout unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — Pass:** existing capture and evidence paths remain authoritative.
+   - **ARCH-PURE — Pass:** the change stays within the existing integration seam; no new IO enters pure entities.
+   - **ARCH-PURPOSE — Pass:** resolution retains both features, and availability handling distinguishes the recorder’s two unavailable outcomes.
+   - No new surface requires README or atlas changes; existing atlas documentation covers off-screen notes.
+
+7. **Plan revision recommendations:** None.
