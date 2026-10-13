@@ -1,6 +1,6 @@
 ---
 id: 000525
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-13
 estimate_hours: 2.544
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 9572d2e50e8a5ddc37972bb5383e086cc1bbf202
         evidence_commit: 039bed93f33bb2705f4d33d963360b7a09c5f5ee
+        landed_commit: bbf0bea70318cf823fbb1105efef889908227d8e
 ---
 
 # broadcast-web: DOM submission names the page (URL and title per note) and drops CSS selectors
