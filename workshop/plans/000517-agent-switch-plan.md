@@ -106,6 +106,10 @@ and notice text. A fresh idle launch sends no orientation request at all.
 
 ## Core concepts
 
+**Historical design:** all ownership/classification/status tables in this plan
+are superseded by the complete BR-7 reconciliation under Revisions below.
+The earlier tables remain only as the design/review record.
+
 ### Pure entities
 
 | Name | Lives in | Status |
@@ -867,6 +871,9 @@ instead of rebuilding the superseded recovery subsystem.
 
 #### Core concepts and integration owners
 
+**Superseded ownership inventory:** the BR-7 reconciliation below replaces this
+entire table and its integration table against an explicit M1 baseline.
+
 | Pure entity | Lives in | Status relative to checkpoint |
 | --- | --- | --- |
 | LaunchProfileResolution | `cmd/internal/couchcore/launchprofile.go` | modified: explicit configured/missing result for the agent API, retaining form behavior |
@@ -1008,3 +1015,73 @@ M2 boundary review now. Live acceptance remains required before issue close:
 the TL will authorize staging in pair:0 after #483 lands, then run the scratch
 switch with the operator watching. Do not switch a production slot or move
 the branch until that staging instruction arrives.
+
+
+#### 2026-10-12 23:04 PDT — BR-7 complete owner/classification reconciliation
+
+**Reason:** the M2 boundary review found that the active inventory described an
+unimplemented `LaunchProfileResolution` change. This repeated the
+`core-concepts-match-implementation` family: grouped file lists also mislabeled
+unchanged dependencies as modified, and called newly added adapters modified.
+
+**Rule (ARCH-PURE, ARCH-DRY):** every active row names the implemented symbol or
+responsibility, its actual owner, its pure-value/rule or integration
+classification, and its change status against a named baseline. A file that
+contains both kinds is split by responsibility. Reading an unchanged resolver
+does not make it modified. Deleting paused WIP does not count as deleting a
+baseline entity that never existed. Check each owner with symbol search and
+`git diff --name-status BASE -- PATH`, then inspect the pertinent hunks; do not
+infer a symbol's change from a neighboring edit or unrelated merged work.
+
+**Baseline:** reviewed M1 `37707f73b`. **Audit snapshot:** `23e553a72` (the M2
+implementation plus review checkpoint). The following is the sole active
+core-concepts/integration inventory; it supersedes every earlier inventory in
+this plan, including the 22:17 table. It reconciles the approved 22:17 scope
+with the 22:19 tty-only exception. Historical rows are retained above, not
+implementation claims. This documentation correction does not change the
+approved scope or assert that the separate BR-6 recovery repair has passed.
+
+| Implemented concept or responsibility | Classification | Actual owner | Change against M1 and implemented behavior |
+| --- | --- | --- | --- |
+| `LaunchProfileResolution`, `ResolveLaunchProfile` | Pure value and resolution rule | `cmd/internal/couchcore/launchprofile.go` | **Unchanged.** Existing precedence and fallback remain; there is no new configured/missing result. |
+| Known-configuration admission (`PrepareKnownAgentSwitch`, `prepareAgentSwitch`) | Integration policy over store/default reads | `cmd/internal/couchcore/switchagent.go` | **Modified existing file; new known-config entrypoint.** Checks target-agent path-argv presence, then explicit repo default, and refuses missing configuration before calling the unchanged resolver. Configured empty argv is present; form mode retains editable prefill. |
+| Repository-default and path-preference ownership | Integration dependency | `cmd/internal/couchcore/threadstore_location.go`, `threadstore.go` | **Unchanged.** `repoLaunchDefault`, `getPathLaunchPreference` and existing location/preference ownership are reused, not reimplemented by the new API. |
+| `SwitchAgentRequest` and `SwitchAgentOutcome` | Pure request data and outcome values | `cmd/internal/couchcore/switchagent.go` | Request **modified** with `KnownConfig` and `Source`; existing outcome values **unchanged**. The internal request still carries form argv; the remote known-config path refuses explicit argv. |
+| `SwitchAgentResult` | Integration result carrying a process handle | `cmd/internal/couchcore/switchagent.go` | **Modified.** Removes `Orientation`; retains outcome, actor record, `Handle` and warning. It is not a pure domain entity because it carries the live handle. |
+| Guarded park/start and switch execution | Integration | `cmd/internal/couchcore/switchagent.go`, `couch.go`, `operationdispatch.go`, `ops.go` | **Modified.** Reuses prepare/fingerprint, thread gate, verified park, start claim and launch; passes source/config authority and removes switch context collection/delivery. `AgentSwitchGuard` is a new effect seam on the existing core. |
+| CLI grammar (`parseSwitchAgentCLI`) | Pure argument parser | `cmd/internal/couchcmd/switch_agent_cli.go` | **New file/function vs M1.** Exact `repo:N`, agent, confirmation and JSON; operation-status grammar shares this parser. No self/argv/handoff flags. |
+| CLI execution and dispatch (`runSwitchAgentCLI`) | Integration | `cmd/internal/couchcmd/switch_agent_cli.go` (new); `cli.go`, `messages.go`, `run.go` (modified) | **New adapter plus modified wiring.** Sends the authenticated request over the existing socket and displays its receipt; no prompt or callback protocol. |
+| Source identity, busy/dirty checks and hub admission | Integration | `cmd/internal/couchcmd/agent_switch_service.go` (new); `message_service.go` (modified) | **New service adapter plus modified wiring.** `handleAgentSwitch` authenticates hub, refuses own-slot, resolves the exact live target and prepares known config. `ConfirmAgentSwitch` revalidates connection/settled/Git evidence before effects. |
+| Request validation and receipt identity | Pure protocol values/rules | `cmd/internal/couchmessage/protocol.go`, `operation.go` | **Modified.** Switch validation requires explicit confirmation and agent, forbids body and nonexact targets; `OperationReceipt.Agent` records destination intent. No `SwitchRequest` callback field or switch-content entity. |
+| Existing operation admission/status and console queue | Integration | `cmd/internal/couchcmd/slot_operations.go` (modified), `agent_switch_service.go` (new); `cmd/internal/couchtty/console_remote.go` (unchanged) | **Modified admission, reused queue.** The destination agent participates in receipt intent; repeats consult the existing bounded receipt map. Queue execution rechecks source/config authority. |
+| Socket transport | Integration dependency | `cmd/internal/couchmessage/transport.go` | **Unchanged.** Reuses ordinary request/response transport; the paused self-switch after-write activation barrier is absent. |
+| Human form reducer/rendering | Pure state/effect projection | `cmd/internal/couchtty/menu_switchagent.go` | **Modified.** Existing form edits argv and previews/accepts a fingerprint; removes claims of reading/delivering source context. No new handoff state. |
+| Human result adoption and continuation prompt cleanup | Integration | `cmd/internal/couchtty/console.go`, `console_switchagent.go`, `console_continuation.go` | **Modified.** Adopts the ordinary switch result without starting a delivery watch. Existing continuation prompts still reconcile through `reconcileContinuationOrientationLocked`; copying a continuation prompt remains. `menu_actions.go` is **unchanged**. |
+| Fresh launch nonce/profile validation | Pure launch values and validation | `cmd/internal/launcher/args.go`, `launch_args_policy.go`; `freshNonceReachesPair` in `cmd/internal/couchcore/launch_existing.go` | **Modified.** `FreshNonce` validates/carries registration identity independently of optional orientation; no exact-native-resume override. |
+| Fresh launch/readiness propagation | Integration | `cmd/internal/couchcore/launch_existing.go`; `cmd/internal/launcher/createflow.go` | **Modified.** Writes the trusted fresh nonce and consumes it for readiness without an orientation request. Existing registration is the switch commit boundary. |
+| Previous tty descriptor (`PreviousSession`) | Pure persisted value, validation and serialization | `cmd/internal/threadrecord/previous_session.go` | **Modified from M1, not new.** Writes only source park identity, agent, capture and timestamp; legacy native/context fields validate and disappear on serialization. |
+| Previous tty derivation (`previousSessionEvidence`) | Pure evidence projection | `cmd/internal/couchcore/previous_session.go` | **Modified.** Two thread records produce exact verified-park tty evidence; no native resolver/context argument. |
+| Previous tty persistence (`RecordPreviousSession`) | Integration/store write | `cmd/internal/couchcore/previous_session.go` | **Modified.** Validates exact source park/capture and uses existing CAS. `couchcore/thread.go` and `threadrecord/record.go` conversions/schema hooks are **unchanged** from M1. |
+| Peek selection/source (`PeekSelection`, `PeekSource`, `SelectPeekSource`) | Pure values and selection | `cmd/internal/couchcore/peek_selection.go` | `PeekSelection` **unchanged**; source shape/projection **modified** to omit previous native/binding/context information. Current binding selection remains. |
+| Peek reads and rendering | Integration | `cmd/internal/couchcore/peek.go`; `cmd/internal/couchcmd/run.go` | **Modified.** Previous reads use only exact parked tty; previous plus transcripts refuses with capture-before-switch guidance. Current transcripts and full-read wiring remain. |
+| Current transcript resolver and former switch archive adapter | Integration | `cmd/internal/couchcore/switchcontext.go` | **Modified.** Keeps current `OSSwitchContextResolver.Resolve` for explicit reads; removes `SwitchArchiveResolver`, `ResolveArchive` and the unused switch capture-handoff helper. No switch invokes native context resolution. |
+| Shared orientation values and wrapper delivery | Pure values/rules plus integration dependency | `cmd/internal/orientation/model.go` (values/validation); `cmd/internal/wrapcmd/orientation.go` (delivery) | **Unchanged.** Existing continuation consumers retain these owners; no switch delivery adapter replaces the removed watch. |
+| Bounded exact recording read/replay | Integration/file and emulator I/O | `cmd/internal/scrollbackcmd/bounded.go`, `scrollbackcmd.go` | **Unchanged from M1.** Reuses exact capture token, retention lease and complete-or-error replay limits. |
+| History capacity-loss accounting (`Emulator.HistoryCapacityLoss`) | Pure emulator state/accounting | `third_party/vt/scrollback.go` | **Unchanged from M1.** Distinguishes capacity loss from terminal erase-history commands for complete-read enforcement. |
+| Old-conversation resume after an unconfirmed replacement | Integration guard over process/session evidence | `cmd/internal/couchcore/resume.go` | **Modified.** Adds the integration helper `confirmResumeReplacementAbsent`, covering pending `Start.LaunchProfile` with its own target binding and completed `LaunchProfile` representations. It rechecks exact target absence/helper death before interpretation and immediately before lifecycle cleanup. Existing start reducer (`starttransaction.go`) and lifecycle-debris owner (`lifecycledebris.go`) remain **unchanged** through the BR-6 repair. |
+| Discarded `SwitchContent`, handoff `AgentSwitch`, `SwitchRecovery`, custom view/coordinator | No active entity or integration | Former WIP paths `couchcore/agent_switch_model.go`, `agent_switch_view.go`, `switch_recovery.go`, `switch_native.go`; `threadrecord/switch_recovery.go`; `couchcmd/agent_switch.go` | **Absent in both M1 and this snapshot.** Removed relative to paused M2 WIP, not deletions relative to M1. No replacement subsystem, timers or durable switch artifact. |
+
+**Verification:** compared named owners and symbol hunks against `37707f73b`;
+explicitly checked unchanged resolver, preference, transport, queue/form helper,
+record conversion, replay and start/lifecycle files. The table describes
+implemented ownership and current review obligations, not speculative planned
+entities. Recheck the affected row if the BR-6 repair changes an additional owner.
+
+**BR-8 atlas correction:** continuation prompt pruning names the actual
+`reconcileContinuationOrientationLocked` owner. Swept the atlas for removed
+switch coordinator/content/recovery/delivery symbols; none remain as active
+references. Continuation behavior itself is unchanged by this documentation edit.
+
+**BR-6 follow-through:** the later recovery repair modifies only `resume.go`
+and its sequence tests; rechecked that starttransaction.go/lifecycledebris.go
+remain unchanged from M1. The replacement guard row above includes that repair.

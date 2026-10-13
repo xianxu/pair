@@ -423,6 +423,32 @@ func (c *Couch) ResumeContext(ctx context.Context, address ThreadAddress) (Actor
 	return c.ResumeContextWith(ctx, address, ResumeOptions{})
 }
 
+// confirmResumeReplacementAbsent protects the old successful profile from an
+// interrupted replacement. Its target lives in Start until registration or
+// unknown promotion; the old current binding cannot vouch for that target.
+func (c *Couch) confirmResumeReplacementAbsent(ctx context.Context, thread ThreadRecord) error {
+	agent := launchProfileAgent(thread)
+	for _, incarnation := range thread.Incarnations {
+		profile := incarnation.LaunchProfile
+		binding := thread.SessionBinding
+		if incarnation.Start != nil {
+			profile = incarnation.Start.LaunchProfile
+			binding = incarnation.Start.SessionBinding
+		}
+		if profile == nil || profile.Agent == agent {
+			continue
+		}
+		if binding == nil {
+			return refuseResume(ResumeUnknown, "target terminal identity is unavailable; inspect before resuming")
+		}
+		observed, err := c.observeRecoverySession(ctx, thread, RecoveryEvidence{})
+		if err != nil || observed.Presence != PresenceAbsent || observeExactProcess(c.Proc, ProcessIdentity{PID: incarnation.PID, Identity: incarnation.Identity}) != Dead {
+			return refuseResume(ResumeUnknown, "target startup remains unresolved; inspect and recover before resuming")
+		}
+	}
+	return nil
+}
+
 // ResumeContextWith is ResumeContext narrowed by opts.
 func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, opts ResumeOptions) (retRecord ActorRecord, retHandle Handle, retErr error) {
 	begun := time.Now()
@@ -453,18 +479,8 @@ func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, op
 	if thread.LatestLaunchProfile != nil {
 		agent = thread.LatestLaunchProfile.Agent
 	}
-	// An unconfirmed replacement keeps the last successful profile for rollback.
-	// Its surviving terminal must not be reattached or retired as that old agent.
-	for _, incarnation := range thread.Incarnations {
-		if incarnation.LaunchProfile != nil && incarnation.LaunchProfile.Agent != agent {
-			if recordSessionBinding(thread) == nil {
-				return ActorRecord{}, nil, refuseResume(ResumeUnknown, "target terminal identity is unavailable; inspect before resuming")
-			}
-			observed, observeErr := c.observeRecoverySession(ctx, thread, RecoveryEvidence{})
-			if observeErr != nil || observed.Presence != PresenceAbsent || observeExactProcess(c.Proc, ProcessIdentity{PID: incarnation.PID, Identity: incarnation.Identity}) != Dead {
-				return ActorRecord{}, nil, refuseResume(ResumeUnknown, "target startup remains unresolved; inspect and recover before resuming")
-			}
-		}
+	if err := c.confirmResumeReplacementAbsent(ctx, thread); err != nil {
+		return ActorRecord{}, nil, err
 	}
 	// Resolve the binding ONLY where it is the authority -- the cold path, which
 	// is about to pass `--resume <native-id>`. A detached thread resumes warm off
@@ -573,6 +589,11 @@ func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, op
 	// evidence and the authority. See clearLifecycleDebris for the
 	// rules that govern it; do not restate them here, because a claim restated
 	// away from its test is how two of them came to be wrong.
+	// Session/native lookups above can outlive the initial absence observation.
+	// Recheck before deleting a pending claim or retiring its promoted helper.
+	if err := c.confirmResumeReplacementAbsent(ctx, thread); err != nil {
+		return ActorRecord{}, nil, err
+	}
 	if retired, retireErr := c.clearLifecycleDebris(thread); retireErr != nil {
 		return ActorRecord{}, nil, retireErr
 	} else if retired != nil {

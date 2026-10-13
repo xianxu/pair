@@ -2,8 +2,12 @@ package couchcore
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"github.com/xianxu/pair/cmd/internal/couchidentity"
+	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -193,4 +197,135 @@ type failedSwitchSessionObserver struct {
 
 func (f failedSwitchSessionObserver) NamedPairSessionContext(context.Context, ThreadAddress, string) (PairSessionBinding, error) {
 	return PairSessionBinding{}, context.DeadlineExceeded
+}
+
+// A replacement profile moves from the pending claim to the incarnation at
+// unknown promotion, then becomes the latest successful profile at registration.
+// Recovery must preserve whichever representation owns the target at the crash.
+func TestInterruptedSwitchResumePreservesTargetAuthority(t *testing.T) {
+	for _, phase := range []string{"unbound", "bound", "pending", "reconciled-pending", "unknown", "registered"} {
+		for _, presence := range []string{"present", "unknown", "appears", "absent"} {
+			if phase == "registered" && presence == "appears" {
+				continue
+			}
+			t.Run(phase+"/"+presence, func(t *testing.T) {
+				env := newTestEnv(t, "/repo")
+				source := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{"--verbose"}})
+				source, err := env.Couch.Threads.updateExistingThread(source.Address, source.Revision, func(r *ThreadRecord) error {
+					r.SessionBinding = &couchidentity.SessionBinding{Name: "pair-source", ScopeKey: r.Address.RepoScope, Tag: string(r.Address.Tag), StartNonce: "old-start", Legacy: true}
+					return nil
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				identity, err := env.Couch.resolveRepoIdentity(context.Background(), source.StartingPath)
+				if err != nil {
+					t.Fatal(err)
+				}
+				target := LaunchProfile{Agent: "codex", Argv: []string{"--model", "target-model"}}
+				current, err := env.Couch.Threads.CommitStartClaim(source.Address, source.Revision, identity, env.Now, StartEvent{Kind: StartClaimed, Nonce: "interrupted-switch", Owner: SupervisorOwner{PID: 4444, Identity: "dead-supervisor"}, Profile: &target})
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, event := range []StartEvent{
+					{Kind: StartSessionBound, Nonce: "interrupted-switch", Binding: &couchidentity.SessionBinding{Name: "pair-target", ScopeKey: source.Address.RepoScope, Tag: string(source.Address.Tag), StartNonce: "interrupted-switch", Legacy: true}},
+					{Kind: StartHelperRecorded, Nonce: "interrupted-switch", Helper: ProcessIdentity{PID: 1234, Identity: "dead-helper"}},
+				} {
+					if (phase == "unbound" && event.Kind == StartSessionBound) || (phase == "bound" && event.Kind == StartHelperRecorded) {
+						continue
+					}
+					current, err = env.Couch.Threads.AdvanceStart(source.Address, current.Revision, event)
+					if err != nil {
+						t.Fatal(err)
+					}
+				}
+				if phase == "unknown" || phase == "registered" {
+					kind := StartRecoveredUnknown
+					if phase == "registered" {
+						kind = StartRegistered
+					}
+					current, err = env.Couch.Threads.AdvanceStart(source.Address, current.Revision, StartEvent{Kind: kind, Nonce: "interrupted-switch"})
+					if err != nil {
+						t.Fatal(err)
+					}
+				}
+				env.Artifacts.SetRegistration(source.Address, RegistrationAbsent, nil)
+				env.Artifacts.SetNativeBinding(source.Address, "claude", sessioninventory.BindingEstablished, "old-native")
+				env.Artifacts.SetNativeBinding(source.Address, "codex", sessioninventory.BindingEstablished, "target-native")
+				env.Artifacts.SetPairSession(source.Address, "pair-target", presence == "present")
+				if presence == "present" {
+					env.Artifacts.SetDetachedSession(source.Address, "pair-target")
+				}
+				if presence == "unknown" {
+					env.Couch.Artifacts = failedSwitchSessionObserver{env.Artifacts}
+				}
+				if presence == "appears" && phase == "reconciled-pending" {
+					env.Artifacts.SetPairSession(source.Address, "pair-target", true)
+				}
+				if presence == "appears" {
+					env.Artifacts.DetachedSessionsHook = func([]ThreadAddress) error {
+						env.Artifacts.DetachedSessionsHook = nil
+						env.Artifacts.SetPairSession(source.Address, "pair-target", true)
+						return nil
+					}
+				}
+				if phase == "reconciled-pending" {
+					if err := env.Couch.reconcileInterruptedStarts(); err != nil {
+						t.Fatal(err)
+					}
+					current, err = env.Couch.Threads.GetThread(source.Address)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if presence != "absent" && (len(current.Incarnations) != 1 || current.Incarnations[0].Start == nil || recordSessionName(current) != "pair-target") {
+						t.Fatal("startup reconciliation discarded pending target", current)
+					}
+				}
+				env.Runner.AfterAcknowledge = func(id string) error {
+					env.Artifacts.SetPairSession(source.Address, continuationChildSession(t, env.Runner, id), true)
+					return nil
+				}
+				if phase != "registered" && (presence != "absent" || phase == "unbound") {
+					env.Runner.FailNextStart(errors.New("unexpected replacement spawn"))
+				}
+				actor, handle, resumeErr := env.Couch.ResumeContext(context.Background(), source.Address)
+				after, err := env.Couch.Threads.GetThread(source.Address)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if (presence != "absent" || phase == "unbound") && phase != "registered" {
+					if resumeErr == nil || !reflect.DeepEqual(after, current) || len(env.Runner.Ops) != 0 {
+						t.Fatalf("resume erased or duplicated target: err=%v revision=%d→%d incarnations=%d→%d session=%q→%q ops=%+v", resumeErr, current.Revision, after.Revision, len(current.Incarnations), len(after.Incarnations), recordSessionName(current), recordSessionName(after), env.Runner.Ops)
+					}
+					return
+				}
+				if phase == "registered" && presence == "unknown" {
+					if resumeErr == nil || after.LatestLaunchProfile.Agent != "codex" || recordSessionName(after) != "pair-target" || len(env.Runner.Ops) != 0 {
+						t.Fatal("registered target authority lost during unknown recovery", resumeErr, after)
+					}
+					return
+				}
+				wantAgent, wantNative := "claude", "old-native"
+				if phase == "registered" {
+					wantAgent, wantNative = "codex", "target-native"
+				}
+				if resumeErr != nil || actor.Args.Stack != wantAgent {
+					t.Fatalf("wrong restored authority: %+v %v", actor, resumeErr)
+				}
+				if presence == "present" {
+					if actor.Shape != StartWarmReattach {
+						t.Fatalf("surviving registered target duplicated: %+v", actor)
+					}
+				} else {
+					var launch launcher.TrustedLaunchProfile
+					if err := json.Unmarshal([]byte(environmentValue(env.Runner.Child(handle.ID()).Env, launcher.CouchLaunchProfileEnv)), &launch); err != nil {
+						t.Fatal(err)
+					}
+					if launch.Agent != wantAgent || launch.RequiredSessionID != wantNative {
+						t.Fatalf("wrong native resume: %+v", launch)
+					}
+				}
+			})
+		}
+	}
 }

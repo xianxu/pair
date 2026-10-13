@@ -68,6 +68,23 @@ Durable plan: [agent switch plan](../plans/000517-agent-switch-plan.md).
 
 ## Log
 
+- 2026-10-12 23:13 PDT — BR-6 repair: confirmResumeReplacementAbsent reads
+  pending Start profile/binding before promoted incarnation fields and rechecks
+  exact target absence/helper death immediately before lifecycle cleanup. Six
+  interruption phases cover unbound, bound-before-helper, pending, reconciled
+  pending, unknown-promoted and registered target authority. Original regression
+  erased surviving pending target (revision 7 to 10); fixed sequences preserve
+  full records and launch counts, or restore the correct old/target native ID
+  only after proven absence. Three overlay mutations each failed: pending
+  profile selector, pending binding selector, and pre-cleanup recheck. Broad
+  resume/switch/reconcile tests pass (18.013s), targeted race passes (18.454s),
+  build passes. Full rerun in /tmp/pair-517-recovery-full.log is in progress.
+- 2026-10-12 23:13 PDT — BR-7/BR-8: replaced the entire active owner inventory
+  with a baseline-audited table (M1 37707f73b), separating pure values from effect
+  adapters and modified files from reused dependencies. Corrected the deleted
+  orientation-pruning referent and swept obsolete symbols. The recovery repair
+  changes only resume.go; starttransaction/lifecycledebris remain unchanged.
+
 - 2026-10-12 23:03 PDT — verified TL live-acceptance receipt
   2e2d8743-a85f-44d7-9722-2cb37ac4dca6: operator watched pair:5 switch
   Claude to Codex, accepted then succeeded in about eight seconds

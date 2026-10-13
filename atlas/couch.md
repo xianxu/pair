@@ -1327,7 +1327,7 @@ Continuation has five internal operations (`pair#249`, `pair#280`):
   wording (`Exits("", tag)`).
 - **Orientation prompts carry their producer.** Continuation delivery writes
   `menu.Orientation` through `setOrientationLocked`; pruning removes only the
-  matching producer's entry through `dropOrientationLocked`. Agent switches
+  matching producer's entry through `reconcileContinuationOrientationLocked`. Agent switches
   create no orientation prompt.
 
 Before #280, a failed request replaced the state text, the action set and
