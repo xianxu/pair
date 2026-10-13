@@ -189,9 +189,14 @@ the current source; it never resumes a stale pending command automatically.
   16 KiB brief, one pending switch per slot and at most 64 globally. Replay
   remains O(raw bytes + rendered terminal cells), not cheap pagination.
   Proposed initial full-read safety envelope is 64 MiB raw, 8 MiB events,
-  100,000 rendered rows and at most 1,000 columns/rows per resize. Check file
+  100,000 rendered rows and at most 1,000 columns/rows per resize. Following
+  M1 review, also cap screen area at 262,144 cells and retained history at
+  1,048,576 cells / 128 MiB logical bytes. Check file
   size/dimensions before replay and detect row overflow with a capped history
-  plus one; refuse visibly rather than return a truncated result as complete.
+  plus one; detect every capacity eviction/rejected history row with the VT
+  history loss counter, including loss before an explicit erase. Refuse visibly
+  rather than return a truncated result as complete. Construct and resize the
+  emulator through its checked APIs; intentional history erase is not loss.
   These are design assumptions to confirm in review; 9.4 MB is measured input,
   not a replay latency measurement. Oversize errors still name exact source
   files. Native discovery keeps its existing two-second budget.
@@ -237,6 +242,8 @@ Files: `threadrecord/previous_session.go` and `_test.go` (new),
 `scrollbackcmd/bounded.go` (new), `scrollbackcmd/scrollbackcmd.go` and relevant tests.
 All paths are under `cmd/internal/`. Register new source files and the newly
 resolved recording consumer in `artifactpath/manifest.go`'s exhaustive inventory.
+The bounded renderer also consumes a monotonic capacity-loss counter added to
+the local VT module's scrollback implementation, with colocated module tests.
 
 - [ ] Write failing tests using the function strategies below for descriptor
   persistence and previous/full selection.
@@ -322,6 +329,17 @@ full-read operating envelope before implementation. Estimates are derived only
 after the `sdlc change-code` plan-quality gate passes.
 
 ## Revisions
+
+- 2026-10-12 — M1 round 2 BR-4/BR-5 exposed hidden VT history limits and
+  a geometry mismatch. Extend the explicit replay envelope with screen area
+  262,144 cells, history 1,048,576 cells and 128 MiB logical bytes; preserve
+  existing byte/row/dimension limits. Add a minimal monotonic capacity-loss
+  counter to the local VT scrollback API so eviction or rejected rows cannot
+  be concealed by later terminal erase-history commands. Use error-returning
+  emulator construction and resize. Tests cover cell and byte loss separately,
+  initial and later oversized geometry, and intentional erase versus lost
+  history. This is required to fulfill complete-or-visible-refusal semantics,
+  not a change to the handoff workflow. Run VT's nested-module tests separately.
 
 - 2026-10-12 — M1 boundary review BR-1/BR-2/BR-3: corrected the core-concepts
   and M1 file map to the implemented owners (previous_session.go,

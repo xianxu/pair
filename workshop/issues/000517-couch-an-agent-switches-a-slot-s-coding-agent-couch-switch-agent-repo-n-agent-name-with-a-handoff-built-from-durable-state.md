@@ -68,6 +68,15 @@ Durable plan: [agent switch plan](../plans/000517-agent-switch-plan.md).
 
 ## Log
 
+- 2026-10-12 M1 round 2 disposed BR-1/BR-2/BR-3 and returned REWORK on
+  BR-4/BR-5: emulator history cell/byte limits can silently evict lines, and
+  accepted geometry can exceed its screen-area limit. The plan now records
+  explicit cell/byte/area limits and a monotonic VT capacity-loss counter
+  (ARCH-CONSTRAINTS/SECURE) to make complete-or-refuse enforceable.
+  Full make test finished with only artifact inventory and lifecycle-refusal
+  table failures. Both missing entries are corrected; targeted artifactpath,
+  scrollback and lifecycle-refusal tests pass. Replay corrections in progress.
+
 - 2026-10-12 M1 boundary round 1 returned REWORK (BR-1/BR-2/BR-3).
   Reproduced stale previous evidence after A→B, separate park B, B→C;
   reuse now compares the current verified park identity (ARCH-ORDER).

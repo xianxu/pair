@@ -90,3 +90,96 @@ findings:
     detail: |
       cmd/internal/scrollbackcmd/bounded_test.go:98 tests selection only. ARCH-MOCK and ARCH-ORDER require controlled coverage through RenderOwnedCaptureLines proving the exact capture is protected during replay and leases release after both success and failure. Existing retention tests exercise a different entry point.
 ```
+
+---
+
+## Re-review — 2026-10-12T20:58:18-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 517 — couch: an agent switches a slot's coding agent (couch --switch-agent repo:N --agent NAME), with a handoff built from durable state |
+| repo | pair |
+| issue file | workshop/issues/000517-couch-an-agent-switches-a-slot-s-coding-agent-couch-switch-agent-repo-n-agent-name-with-a-handoff-built-from-durable-state.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | e8d839f8d5012bf1560787284615a6f3f4dabbfc..71a96de7c9fe217f641b22201463d3efb5333832 |
+| command | sdlc milestone-close --issue 517 --milestone M1 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-12T20:58:18-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+All three prior findings are addressed, with mutation tests confirming BR-1 and BR-3. Previous-session persistence, exact selection, and documentation are in place. Two reproduced replay bugs block M1: full reads silently lose history, and accepted resize dimensions can crash the CLI.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      switchagent.go:361 compares the descriptor source with the verified park. Reverting that condition makes TestPreviousSessionSuccessiveSourceParksChooseImmediatePrevious/separate_park_before_switch fail; failed-launch retry coverage also passes.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      The pinned correction updates plan lines 114 and 139–143 to peek_selection.go, previous_session.go, bounded.go, and run.go, matching their actual definitions and wiring. The Revisions entry at line 326 records the correction and identifies unchanged dependencies.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      TestOwnedCaptureLeaseProtectsReplayAndReleases interleaves real collection with the production reader and replay. Removing either lease acquisition or release makes both success and failure cases fail.
+findings:
+  - id: new
+    severity: Critical
+    family: full-replay-requires-loss-detection
+    title: |
+      Full replay silently evicts history and reports the remaining tail as complete
+    detail: |
+      cmd/internal/scrollbackcmd/scrollbackcmd.go:382–409 changes only the emulator history row limit, leaving its 65,536-cell and 4 MiB history limits active. A 2,000-line, 80-column recording returns only 464 lines, starting at line 1536, with no error; PeekThreadSelection then sets Complete=true. ARCH-PURPOSE and ARCH-CONSTRAINTS: configure explicit replay limits and detect every capacity-driven eviction, returning a visible error instead of declaring truncated output complete. Add regression coverage exceeding the cell and byte limits independently.
+  - id: new
+    severity: Critical
+    family: replay-admission-matches-emulator-limits
+    title: |
+      Accepted recording dimensions can panic during emulator construction
+    detail: |
+      cmd/internal/scrollbackcmd/bounded.go:38–43 accepts 1000×1000, but replayData calls vt.NewEmulator, whose default maximum is 262,144 cells. An initial 1000×1000 resize reproducibly panics with "vt: invalid geometry"; later oversized-area resizes are silently rejected by Emulator.Resize. ARCH-SECURE and ARCH-CONSTRAINTS: align admission with explicit emulator geometry limits, use error-returning construction and resize operations, and test both initial and subsequent resize failures.
+```
+
+1. **Strengths**
+   - Previous evidence is persisted before launch, retained through failed-launch retries, and superseded by a different verified source.
+   - Descriptor validation, strict decoding, and defensive-copy tests cover malformed and legacy records.
+   - Exact-capture tests prove protection during collection and lease release after successful and failed replay.
+   - README and atlas updates cover the new flags, costs, evidence selection, and limits.
+
+2. **Critical findings**
+   - The two replay findings above require fixes and regression tests before M1 closes.
+
+3. **Important findings**
+   - None additional.
+
+4. **Minor findings**
+   - None.
+
+5. **Test coverage notes**
+   - Targeted threadrecord, couchcore, couchcmd, scrollbackcmd, and artifactpath tests passed; the complete scrollbackcmd suite passed.
+   - CLI tests required runtime asset generation in the disposable copy.
+   - Both new adversarial replay probes failed on pinned HEAD.
+   - `git diff --check` passed. Full repository suite was not run.
+   - Disposable test copy removed; tracked checkout unchanged.
+
+6. **Architectural notes**
+   - **ARCH-DRY — pass:** shared artifact resolution, retention, and replay mechanisms reused.
+   - **ARCH-PURE — pass:** descriptor validation and source selection are pure; recording IO is injected.
+   - **ARCH-PURPOSE — flag:** silently truncated output defeats full previous-session access.
+   - **ARCH-MOCK — pass:** stateful lifecycle fixtures and portable retention storage exercise production seams.
+   - **ARCH-CONSTRAINTS — flag:** declared replay bounds do not account for emulator limits.
+   - **ARCH-SECURE — flag:** persisted resize input can trigger a panic.
+   - **ARCH-ORDER — pass:** source replacement, retry preservation, and collection ordering have meaningful regression coverage.
+   - **ARCH-FUNERAL — pass:** one descriptor per thread; existing capture retention and tested lease cleanup govern residue.
+
+7. **Plan revision recommendations**
+   - Add a `## Revisions` entry specifying the complete replay envelope, including history cells/bytes and screen area. Require visible failure for capacity loss or rejected geometry, distinguish these from intentional terminal history erasure, and update atlas limits if the accepted envelope changes.
