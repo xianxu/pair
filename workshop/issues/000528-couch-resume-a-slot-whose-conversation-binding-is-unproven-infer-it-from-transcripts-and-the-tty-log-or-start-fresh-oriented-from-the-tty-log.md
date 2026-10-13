@@ -91,6 +91,13 @@ pair:6 read-only while measuring; no live recovery/reboot is authorized here.
   its live recovery stays with the operator. See the authoritative revision in
   workshop/plans/000528-slot-recovery-plan.md.
 
+- 2026-10-13 09:21 PDT — TL receipt baf2f67b approves no-fork safety:
+  serialization disabled for new servers, exact launch-policy attestation,
+  Pair-level effect lock, and unsafe legacy/contested attach refused into one
+  visible Relaunch action. Optional legacy cache cleanup is a separate machine
+  operation with exact paths and operator approval; no deletion is authorized.
+  Full implementation design and calibration are in the plan's final revisions.
+
 ## Log
 
 - Measurement: pair:6 scope 50f39cf60172c338, tag 1-pair-42. Root
@@ -119,3 +126,13 @@ pair:6 read-only while measuring; no live recovery/reboot is authorized here.
 - Verified dispatch receipt 65b09489-edf7-445a-8c0d-32e0c934eb62.
   Filled the skeleton from the operator/TL requirements; claim already belongs
   to pair:2. Measurement and design only at this stage.
+
+- Scratch Zellij 0.45.1 measurement: all tested disabling configs still read
+  preexisting serialized layouts; live attachment preserves the original
+  server. New nonserializing sessions refuse dead attachment. Cache env
+  overrides tested did not redirect the macOS cache. All scratch servers
+  cleaned. No live Pair process, record, capture or cache was changed.
+- Advisory spec review found and the revised design addresses the second
+  Pair binding gate, pre-ledger durable target intent, absence-backed capture
+  provenance (not a forged park), and the missing historical launch/capture
+  join. One advisory pass only; mandatory plan review remains change-code.
