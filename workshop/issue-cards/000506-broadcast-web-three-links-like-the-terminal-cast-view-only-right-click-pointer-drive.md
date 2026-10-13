@@ -1,6 +1,6 @@
 ---
 id: 000506
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours: 3.79
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 84a3d0cc1ed337e7530e746d77a2526697ab9512
         evidence_commit: 364e346ce202a3009a25f138499f343df7b2926b
+        landed_commit: a5a3fa1f16174a91a647dbf1c97a5da0fdd84dab
 ---
 
 # broadcast-web: three links like the terminal cast — view-only (right-click), pointer (👆), drive (👽)
