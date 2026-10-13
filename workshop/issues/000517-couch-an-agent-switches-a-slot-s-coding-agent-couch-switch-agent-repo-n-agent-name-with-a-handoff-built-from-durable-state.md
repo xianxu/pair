@@ -32,19 +32,58 @@ Agent-guided: the agents who know the work write the handoff; Couch does the mec
 4. The switcher's form gains the same path: it asks the outgoing agent for the brief, then switches.
 5. Fold in or reference pair#414's attach/orientation failure, so delivery is reliable across agents (Claude, Codex, Grok).
 
+### Agreed design direction
+
+Use the existing broker, park/start, transcript resolver, retention lease and
+orientation delivery. Persist one exact previous-session descriptor before the
+target starts; it survives successful launch and is selected by `--peek
+repo:N --previous`. Full recording reads run in a short-lived CLI. A short
+agent-authored brief passes unchanged; a resting idle slot starts with no prompt.
+The form asks the outgoing agent to commit and call `--switch-agent self`;
+Couch acknowledges before waiting for the same authenticated incarnation to
+settle. The brief timeout selects pointers-only content; a longer busy timeout
+refuses without interrupting work. The detailed plan proposes limits for review.
+
 ## Done when
 
 - The TL switches an idle slot to Codex with one couch call, and a mid-issue slot to Codex with a brief written by its outgoing agent; the new agent resumes the issue from the brief and the issue file.
 - The operator approves the handoff's feel on a live switch.
 - Tests cover the guards, delivery of a brief verbatim, and the no-handoff fresh start.
+- The incoming agent can identify and read the exact previous native transcript
+  and preserved tty recording, including an explicit full plain-text read;
+  missing evidence is reported rather than silently substituted.
+- The form completes without a second click. Authenticated current-incarnation
+  callbacks, pointers-only timeout fallback, and a longer busy refusal are tested.
+- The TL reviews the switch procedure in ops/skills-draft/xx-tl/SKILL.md and
+  coordinates first use on paused ariadne #230/#282/#305 with committed briefs.
 
 ## Plan
 
-- [ ]
+Durable plan: [agent switch plan](../plans/000517-agent-switch-plan.md).
+
+- [ ] M1 — Preserve exact previous-session evidence and expose previous/full tty reads.
+- [ ] M2 — Add authenticated asynchronous switch requests, verbatim briefs and fresh starts.
+- [ ] M3 — Wire the form, TL procedure, live acceptance and rollout.
 
 ## Log
 
 ### 2026-10-12
+
+- Claimed in pair:2; start-plan refreshed the local ariadne tools, then started
+  the issue branch from main. No implementation changes yet.
+- Read #414: its details contain only the title, no reproduction. Existing
+  switch tests and live registration/delivery are the regression surfaces.
+- Metadata audit: 436 parked raw files and 436 events files, 286 capture metadata
+  files, 70 live raw files; latest parked raw approximately 9.4 MB. No transcript
+  content read and no live session changed. Large peek requests already fall
+  back to current recording replay; the missing capability is previous selection.
+- ARCH-DRY/ORDER: reuse current native resolution before park, exact preserved
+  capture after park, and existing delivery state; add one source-bound switch
+  coordinator rather than duplicate CLI/form lifecycles. Full replay remains
+  outside the supervisor because the existing emulator keeps a drain goroutine.
+- Durable plan records three actual review boundaries, test commands, proposed
+  operating limits and live acceptance. Waiting on TL's plan review, then
+  change-code's plan-quality gate; estimate follows plan-quality.
 
 ## Revisions
 
@@ -71,3 +110,10 @@ Agent-guided: the agents who know the work write the handoff; Couch does the mec
   minutes) selects a pointers-only fallback and reports it on the notice line
   if the agent does not call back. The TL uses the same verb with `repo:N`.
   Deadline behavior while the source remains busy is being clarified.
+
+- 2026-10-12 — TL confirms deadline policy and audit architecture (receipt
+  `0106a718-0d2b-46d2-9261-c035f81d798f`): brief timeout selects fallback
+  content only; it never interrupts a busy source. A second, longer deadline
+  refuses and reports the reason on the notice line. Exact previous descriptor
+  plus previous/full peek is approved as the design direction. Added these
+  acceptance criteria and the durable three-milestone plan for review.
