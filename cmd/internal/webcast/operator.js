@@ -37,8 +37,9 @@ export function operatorTransport(report, win) {
       const sent = current.sent;
       current.sent = true;
       const result = await ask(sent ? 'status' : current.op, sent ? {} : current.body, current.id);
-      if (result.outcome === 'accepted' || result.outcome === 'refused') unsettled = null;
-      if (!same && result.outcome === 'accepted') return { status: 204 };
+      const settled = result.outcome === 'accepted' || result.outcome === 'refused';
+      if (settled && unsettled === current) unsettled = null;
+      if (!same && settled) return { status: 409, text: 'The previous annotation is settled. This change was not submitted; keep its text and save again or start a new note.' };
       return result.outcome === 'accepted' ? { status: 204 } : { status: 409, text: result.error || 'Confirmation pending. Retry checks the same operation.' };
     },
   };

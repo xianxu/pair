@@ -384,3 +384,25 @@ including the actual pointer-down/up visual assertions (latest Chrome 1.25s).
 Targeted Board/recorder/menu race checks passed. A final full suite is rerunning
 on the accepted code. Close owns the mandatory fresh-context review and project
 publication; no operator smoke or gate result has been inferred.
+
+### 2026-10-12 — close round 1 fixes (BR-1, BR-2, BR-3)
+
+- BR-1 / operation-result-identity: a reconciled result completes only the exact
+  originating action and body. A changed draft or resolve→save sequence keeps its
+  editor and returns a refusal explaining that the current change was not submitted.
+  Settlement clears only its own in-flight identity. Tests reproduce old-draft
+  cancellation/new-draft save and resolve/save sequences, including a fresh retry.
+- BR-2 / keyboard-event-boundary: the operator listens for Escape at the window
+  capture boundary because menu-selected modes preserve page focus. Off/unavailable
+  annotation leaves page keys alone; remote Escape cannot discard a held draft.
+  Policy/event regression plus real headless page-focused Pen and Note checks pass.
+- BR-3 / core-concept-purity-classification: moved the observer path helper from
+  PURE to INTEGRATION; it reads live DOM ancestry and global document identity.
+  Its shared grammar remains unchanged (ARCH-DRY, ARCH-PURE).
+
+All new regressions demonstrated RED→GREEN. All 206 browser JS tests passed; real
+headless operator/shared-module checks passed (operator 4.72s). The close verdict
+was REWORK, not final; a new close review will dispose of these findings. The
+reviewer's isolated checkout lacked the generated runtime and its Chrome could not
+start; our actual repository headless run and earlier full suite supply those
+independent checks without waiving a gate.

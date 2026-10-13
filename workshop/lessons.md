@@ -1474,3 +1474,9 @@ proof; record the surprising case so the next change starts from evidence.
 - A smoke handoff accidentally sent a placeholder commit identifier. Read `git rev-parse --short HEAD` after the commit, then copy that exact output into the report. Never draft a send command with a placeholder hash; omit the hash until it is known.
 
 - **#494 gesture preview:** final click geometry is not a pointer-down preview. Keep the default box out of the preview until release, retain drag intent once its threshold is crossed, and exercise down/move/up on every shared mount surface—not only the final geometry helper.
+
+### #494 — close review identity and event boundaries
+
+- A reconciliation success belongs to its original operation, never the editor currently asking about it. Test cancellation followed by a new draft and transitions between action types; an unsent body cannot receive success.
+- A shadow root is not a global keyboard boundary. Focus-preserving commands need a document/window listener for Escape, with explicit guards that leave unavailable/Off page input alone. Test the real page-focused delivery path.
+- Classify helpers by what they read, not by the shape of their result: a DOM-to-path function is INTEGRATION even when it returns only numbers.

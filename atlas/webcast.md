@@ -68,7 +68,10 @@ adapter accepts only the current top-frame isolated context. Prepare resolves th
 observer's node path once and binds a draft handle to that document and recorded
 node. Save never resolves a potentially moved path again. Writes settle from the
 recorder sink outcome, not enqueue success. A lost reply is checked using the same
-monotonic request ID; an uncertain write cannot create another note.
+monotonic request ID; an uncertain write cannot create another note. Reconciliation
+can only complete its originating action/body; another draft stays open and unsent.
+Operator Escape is captured at the window boundary so a Couch menu selection works
+with page focus unchanged; Off and unavailable modes leave page Escape alone.
 
 `recorder.CaptureScreenshot` hides the entire Couch host with a document-local
 lease, requires confirmation before and after capture, and restores only that

@@ -146,6 +146,22 @@ func TestOperatorLiveAnnotation(t *testing.T) {
 		t.Fatal("capability-off rail still enabled")
 	}
 	eval(`__couchcastAnnotationAllowed(true)`)
+	// Couch's mode command preserves page focus; Escape must still reach the
+	// isolated overlay, rather than requiring a focused shadow-root control.
+	for _, mode := range []string{"point", "note"} {
+		eval(`document.querySelector('#field').focus()`)
+		if err = c.SetAnnotationMode(mode); err != nil {
+			t.Fatal(err)
+		}
+		for _, typ := range []string{"keyDown", "keyUp"} {
+			if err = c.call(session, "Input.dispatchKeyEvent", map[string]any{"type": typ, "key": "Escape", "code": "Escape", "windowsVirtualKeyCode": 27}, nil); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if string(eval(`testRoot.querySelector('.annotate').classList.contains('operator-off') && document.activeElement===document.querySelector('#field')`)) != "true" {
+			t.Fatalf("page-focused Escape did not disable %s without moving focus", mode)
+		}
+	}
 	if err = c.SetAnnotationMode("note"); err != nil {
 		t.Fatal(err)
 	}

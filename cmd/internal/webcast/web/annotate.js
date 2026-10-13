@@ -588,9 +588,15 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
     schedule();
   });
   win.addEventListener('resize', schedule);
-  root.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { transition({ type: 'escape' }); e.stopPropagation(); }
-  });
+  // Menu mode changes deliberately leave focus on the page. Its keyboard
+  // events do not traverse our shadow root, so operator Escape is captured
+  // at the window boundary. Off/unavailable annotation leaves page keys alone.
+  (operator ? win : root).addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || (operator && (unavailable() || (state.mode === 'watch' && !dialog.open)))) return;
+    transition({ type: 'escape' });
+    e.stopPropagation();
+    e.preventDefault?.();
+  }, operator);
   sync();
   schedule();
   return { setMode, setAnnotationAllowed(allowed) { annotationAllowed = allowed === true; sync(); }, dialog, strokes, who, annotate, get mode() { return state.mode; } };

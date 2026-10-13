@@ -104,7 +104,7 @@ test('operator transport retries the same mutation by status even after draft ed
   assert.equal(sent[1].op, 'status');
   assert.equal(sent[1].request, sent[0].request);
   t.reply({request:sent[1].request,outcome:'accepted'});
-  assert.equal((await retry).status, 204);
+  assert.equal((await retry).status, 409); // the edited text was never submitted
   const next = t.mutate('save-note', {draft:'e',text:'two',color:0});
   assert.notEqual(sent[2].request, sent[0].request);
   t.reply({request:sent[2].request,outcome:'refused',error:'paused'});
@@ -182,3 +182,45 @@ for (const operator of [false, true]) {
     });
   }
 }
+
+
+for (const previous of ['save-note', 'resolve']) {
+  test(`late ${previous} acceptance cannot complete a different draft`, async () => {
+    const sent=[], timers=new Map(); let serial=0;
+    const win={setTimeout(fn){timers.set(++serial,fn);return serial;},clearTimeout(id){timers.delete(id);}};
+    const transport=operatorTransport(m=>sent.push(m.request),win);
+    const first=transport.mutate(previous,previous==='save-note'?{draft:'A',text:'old',color:0}:{seg:1,id:'old-note',state:'resolved'});
+    timers.values().next().value();
+    assert.equal((await first).status,409);
+    // Cancel the old editor, prepare B, and save it while A's result is unknown.
+    const nextBody={draft:'B',text:'new draft',color:0};
+    const replacement=transport.mutate('save-note',nextBody);
+    assert.equal(sent[1].op,'status');
+    transport.reply({request:sent[1].request,outcome:'accepted'});
+    assert.equal((await replacement).status,409,'an unsent draft inherited success');
+    const retry=transport.mutate('save-note',nextBody);
+    assert.equal(sent[2].op,'save-note');
+    assert.deepEqual(sent[2].body,nextBody);
+    assert.notEqual(sent[2].request,sent[0].request);
+    transport.reply({request:sent[2].request,outcome:'accepted'});
+    assert.equal((await retry).status,204);
+  });
+}
+
+test('operator Escape with page focus cancels menu-selected modes without touching held drafts', () => {
+  const root=new Element('shadow'), box=new Element('box');root.append(box);
+  const doc={body:new Element('body'),createElement:tag=>new Element(tag)};
+  const listeners={};
+  const win={innerWidth:100,crypto:{getRandomValues:b=>b.fill(1)},performance:{now:()=>0},requestAnimationFrame:()=>{},addEventListener:(kind,fn)=>{(listeners[kind]||=[]).push(fn);},setTimeout:()=>1,clearTimeout:()=>{},clearInterval:()=>{}};
+  let receive;
+  const v={model:{seg:1,docSeg:1,notes:[]},onRecord:fn=>{receive=fn;},toPage:(x,y)=>[x,y],fromPage:(x,y)=>[x,y]};
+  const ui=mountAnnotation(doc,win,v,{root,box,stage:box,palette:['#ff0000'],who:{id:()=> 'operator',name:()=> 'Operator',viewer:()=>({id:'operator',name:'Operator'})},colors:{get:()=>0,set:()=>{}},post:async()=>({status:204}),operator:true});
+  let stopped=0;
+  const escape=()=>{for(const fn of listeners.keydown||[])fn({key:'Escape',target:doc.body,stopPropagation(){stopped++;},preventDefault(){}});};
+  for(const mode of ['point','note']){ui.setMode(mode);escape();assert.equal(ui.mode,'watch');}
+  assert.equal(stopped,2);
+  escape();assert.equal(stopped,2,'Off intercepted page Escape');
+  ui.dialog.draft({draft:'held'});v.model.driver='Ana';receive({k:'ctl',t:1},v.model);
+  escape();assert.equal(ui.dialog.open,true,'remote Escape discarded held editor');
+  assert.equal(stopped,2);
+});

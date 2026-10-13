@@ -20,7 +20,6 @@
 | OperatorView | `cmd/internal/webcast/board/operator_view.go` | new |
 | annotationPolicy | `cmd/internal/webcast/web/annotation-policy.js` | new |
 | suppressionPolicy | `cmd/internal/webcast/operator-policy.js` | new |
-| recorded node path helper | `cmd/internal/webcast/recorder/observer.js` | modified |
 
 - OperatorRequest is a bounded tagged union: prepare-note, save-note, stroke, resolve,
   cancel-draft. Broadcast/driving authority stays in Couch. Transport
@@ -46,6 +45,7 @@
 
 | Name | Lives in | Status | Wraps |
 |---|---|---|---|
+| Recorded node path helper | `cmd/internal/webcast/recorder/observer.js` | modified | live DOM ancestry and observer path grammar |
 | Board operator entry points / view subscription | `cmd/internal/webcast/board/operator*.go` | new | validated commands, reducer projection and existing Emit |
 | Recorder operator binding adapter | `cmd/internal/webcast/recorder/operator.go` | new | ordered CDP bindings and mirror identities |
 | Operator bridge | `cmd/internal/webcast/chrome_operator.go` | new | bounded view delivery/replies to the active isolated world |
@@ -402,3 +402,25 @@ revised box gesture. Returned the branch from pair:0 to pair:1 via SDLC; pair:0 
 back on main. Main merged cleanly (documents only). Close/review, PR and merge are
 now authorized; #523 owns the later capability-hook integration. The gate owns
 project completion bookkeeping; no manual ops edits are needed.
+
+### 2026-10-12 — close round 1 fixes (BR-1, BR-2, BR-3)
+
+- BR-1 / operation-result-identity: a reconciled result completes only the exact
+  originating action and body. A changed draft or resolve→save sequence keeps its
+  editor and returns a refusal explaining that the current change was not submitted.
+  Settlement clears only its own in-flight identity. Tests reproduce old-draft
+  cancellation/new-draft save and resolve/save sequences, including a fresh retry.
+- BR-2 / keyboard-event-boundary: the operator listens for Escape at the window
+  capture boundary because menu-selected modes preserve page focus. Off/unavailable
+  annotation leaves page keys alone; remote Escape cannot discard a held draft.
+  Policy/event regression plus real headless page-focused Pen and Note checks pass.
+- BR-3 / core-concept-purity-classification: moved the observer path helper from
+  PURE to INTEGRATION; it reads live DOM ancestry and global document identity.
+  Its shared grammar remains unchanged (ARCH-DRY, ARCH-PURE).
+
+All new regressions demonstrated RED→GREEN. All 206 browser JS tests passed; real
+headless operator/shared-module checks passed (operator 4.72s). The close verdict
+was REWORK, not final; a new close review will dispose of these findings. The
+reviewer's isolated checkout lacked the generated runtime and its Chrome could not
+start; our actual repository headless run and earlier full suite supply those
+independent checks without waiving a gate.
