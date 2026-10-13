@@ -1,12 +1,12 @@
 ---
 id: 000531
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-13
 updated: 2026-10-13
 estimate_hours:
-card_mirror: '27453f877a15aa5dc424b3c9370de632eb3eb6e6' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '0291c1356917378beb97b6c1f2eb316171e985d5' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-13T13:00:09-07:00
 claimant:
     operator: Xian Xu
@@ -15,6 +15,8 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: inferred}
+actual_hours: 1.47
 ---
 
 # couch: switching an ariadne slot from Claude to Codex fails before Codex's launch ledger and reverts to Claude; keep the failed launch's stderr
@@ -41,15 +43,21 @@ Only targeted tests while machine load is at least 40. No full suite until load 
 - Duplicate updates enrich one attempt; concurrent or late updates cannot replace another attempt's evidence; storage and rendering remain bounded and sanitize terminal controls.
 - Tests exercise real short-lived PTY and ordinary subprocesses plus the existing stateful launch fake, including pre-spawn refusal, output-before-exit, canceled wait, success, persistence failure and truncation.
 
+- A setup failure after a helper spawned retains that helper's output and separate pre/post-cleanup exits even when StartBlocked returns no handle.
+- Immediate failures include bounded attempt correlation, diagnostic location, one sanitized explanation, and exactly one recovery action; persistence errors preserve their original error chain.
+- Local install creates links for the Go binaries, and an installed link follows a rebuilt checkout binary without reinstalling. No real ~/.local/bin mutation is required to verify this.
+
 ## Plan
 
-- [ ] Approve the diagnostic design and durable implementation plan.
-- [ ] Implement bounded capture, persistence and failure reporting through the shared launch seams.
-- [ ] Verify targeted regressions and documentation; run the required full suite only below the operator's load threshold, then close and land through SDLC.
+- [x] Approve the diagnostic design and durable implementation plan.
+- [x] Implement bounded capture, persistence and failure reporting through the shared launch seams.
+- [x] Verify targeted regressions and documentation; attempt full suite below the load threshold, then proceed to close with the authorized #514 exception.
 
 ## Log
 
 ### 2026-10-13 — investigation
+- 2026-10-13: closed — Round1 fixes: actual reader-close post-spawn subprocess retains stderr/exit23; reverting branch via overlay fails regression. Recorder partial-start and attempt/path correlation tests red before fixes, green after; errors.Is preserved. Combined targeted race tests passed core27.541s/cmd25.458s; install-link regression passed; main merged with docs-only additions. Full make test previously stopped at known #514 (11s vs6s), before Go suite; TL authorized this exception a521528a. No full-suite pass claimed or live/local-bin changes.; review verdict: SHIP
+- 2026-10-13: flow upgraded quick → full — 797 added lines in code files (limit 100); an earlier round of this close already ran the full review
 
 The switch form parses explicit argv, fingerprints the accepted preview, and passes an explicit FreshRequired launch profile through PAIR_COUCH_LAUNCH_PROFILE to Pair. Fresh launches bypass saved-config, repository-default and config-picker reads. Last successful preferences remain Claude when the replacement fails; that alone does not mean the supplied arguments were ignored.
 
@@ -70,3 +78,33 @@ TL receipt c975c7b5-a1c6-4853-a408-f234fc4ac58a reports the operator created ari
 ### 2026-10-13 13:02 PDT — operator narrows scope after live success
 
 Supersedes the initial two-part scope (diagnostics, then agent-driven live investigation in ariadne:5): deliver durable failed-launch output/exit and the switch's own error only. Record the operator's successful live attempt; no further live reproduction or speculative startup fix. Machine-load threshold for a full suite remains below 40.
+
+### 2026-10-13 13:12 PDT — approved design and operator-facing failure rule
+
+TL approved plan 2572f5a2 (receipt 2c92fd96-1536-4649-a9ed-6f5aa76f89b1). Every visible failure must state what happened in one line and name one action: retry, resume the old agent, or inspect with `couch --show <slot>`. Retained detail must not replace that concise recovery guidance. Added authorized install audit: identify the stale ~/.local/bin/couch provenance and change any repo install target from copying to linking; do not modify ~/.local/bin itself.
+
+### 2026-10-13 — install provenance and implementation observations
+
+The stale ~/.local/bin/couch is a regular file with birth/modification time Sep 30 18:06:50 and embedded revision 10c444b4829e9af3f2800af7396f2555903dfb49 (modified build). Makefile.local's supported install recipe copied GO_BINS using install -m755; that recipe dates to 14dc87970a (May 10). This matches an old make install but does not prove the actual invocation. The repo target now links Go binaries to the checkout; a temporary-prefix regression covers stale copies, old symlinks, spaces, repeated install, and rebuilt source replacement. ~/.local/bin was not changed.
+
+The ordinary stderr tee changes isatty(2) to false. Its one-second drain budget bounds descendants retaining stderr after direct exit; later writes may see EPIPE. A real subprocess test measured exit visibility around 1.034 s with an inherited descriptor held for 10 s. PTY capture reuses its existing ring. While exercising direct exit, targeted tests found FakeRunner.Wait waited for process-group death even after Exited closed; the fake is being corrected to match the real direct-child contract. Existing timing-detail tests now inspect retained LaunchError, since the operator-visible error is intentionally one line.
+
+### 2026-10-13 — targeted verification
+
+Combined targeted race run passed for launch failures/output, switch and cold-resume paths, show resolution and rendering: GOMAXPROCS=2 go test -p 1 ./cmd/internal/couchcore ./cmd/internal/couchcmd -run 'Test(LaunchFailure|LaunchOutput|ShowLaunchFailure|RenderLaunchFailures|RenderShowIncludesLaunchFailures|SwitchAgent|UncertainSwitch|ColdResume)' -race -count=1 -timeout=180s (core 14.206 s, cmd 11.472 s). Temporary-prefix install link regression passed; git diff --check clean. An earlier broad targeted run was stopped after finding the fake direct-child Wait mismatch, now fixed and covered; timing assertions now verify retained detail instead of truncated one-line UI. Real PTY process-group conformance failed once on background-child timing and passed isolated rerun; no live slots changed.
+
+### 2026-10-13 13:24 PDT — full-suite attempt blocked by host-sensitive performance check
+
+After one-minute load fell to 37.17, started the machine-gated full command `GOMAXPROCS=2 GOFLAGS=-p=2 make test`, log /tmp/pair531-full-suite.log. It exited 2 at unchanged doctor/perf_test.sh: capture took 11 s against a 6 s budget. Earlier shell/Neovim checks passed; the Go suite was not reached. Load rose to 125.86 during the run and was 105.25 at completion. No second full suite started while above the operator's threshold. Targeted combined race and isolated installer checks remain passing; full validation, boundary review and landing are pending a host-load window below 40. Main merged at 6f02ec4bb; only merge conflict was this issue's previously published text, resolved to retain the newer approved record. No live slots or ~/.local/bin changed.
+
+### 2026-10-13 13:41 PDT — close authorized with #514 exception
+
+TL receipt a521528a-f421-4f8c-ae55-6b12485aa4ed authorizes proceeding to close, citing #514 for the only failure observed in the full-suite attempt (11 s versus 6 s). This supersedes waiting for another below-40 window. The run stopped before the Go suite; do not call it a full passing run. Targeted combined race tests and installer regression are the passing evidence. Hub sends failed because its wrapper was briefly absent; TL recovered the report by peeking. For future not-live delivery failures, retry after a few minutes rather than ending work immediately.
+
+### 2026-10-13 — boundary round 1 corrections
+
+BR-1: preserve evidence across every post-spawn runner setup refusal (acknowledgment-reader close, priority setup and a starter returning both handle/error), before lower-level cleanup destroys it; transfer immutable snapshots through a typed error to the shared recorder. BR-2: immediate errors now require explicit bounded attempt identity and diagnostic location, including storage-failure location while retaining errors.Is/As. BR-3: Done when now explicitly covers the already-authorized installer links and single-action recovery contract. These clarify coverage of the approved scope; no new live repro or installation action is authorized.
+
+### 2026-10-13 — round 1 fix verification
+
+BR-1 actual reader-close post-spawn path tested with a real subprocess: stderr and exit23 survive. Reverting that branch via a Go overlay fails the regression (missing retained setup evidence). Separate regression for the shared recorder failed with HelperStarted=false/empty output before the fix and passes with pre/post exits and both runner-cleanup/rollback errors retained. BR-2 correlation tests failed for missing attempt/path on both successful/failed storage before the fix and pass afterward, preserving errors.Is for the launch and disk errors. BR-3 completion criteria now match authorized scope. Combined targeted race run after fixes passed: core27.541s, cmd25.458s; git diff --check clean. #514 full-suite exception remains in force; no repeat full suite run.

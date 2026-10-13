@@ -381,7 +381,12 @@ with Neovim and Zellij config carried alongside it. There is no Python and no
 shell runtime; `zellij`, `nvim`, `fzf`, and the agent CLIs are the only external
 programs.
 
-`make install` also installs a second binary, **`couch`** — a supervisor that
+`make install` links the built binaries into `~/.local/bin`, so later checkout
+builds are visible without reinstalling. Keep that checkout in place; these
+links point to its `bin/` directory. Already-running processes keep their old
+binary until restarted.
+
+It also installs a second binary, **`couch`** — a supervisor that
 registers durable work threads, spawns them, and hosts one in your terminal. It
 is separate from `pair` on purpose: pair is what you sit inside, so a supervisor
 bug must not break your ability to fix it, and launching pair directly always
@@ -471,6 +476,17 @@ An accepted receipt means the operation was queued; inspect it with
 operations: retry switching when the old agent is still running; after a failed
 target start is proved gone, resume the old conversation. Uncertain terminal
 ownership must be resolved before another agent starts.
+
+Failed launches leave a one-line explanation, attempt ID, diagnostic file path,
+and an inspection command, such as
+`couch --show ariadne:5`. Inspection retains the target's error, the final switch
+error, output tail, and exits observed before and after cleanup separately.
+An unobserved exit is not proof that the target crashed. Each Couch namespace
+keeps its newest 16 failed attempts, with at most 16 KiB of output per attempt;
+rollback, restart, and a later successful launch do not erase them. Ordinary
+launches capture stderr; terminal launches label their combined stdout/stderr.
+Inspection strips terminal controls. Abrupt termination before Couch records a
+failure can still leave no diagnostic.
 
 Previous-session peeks select only the saved incarnation's tty recording.
 `--previous --transcripts` refuses: capture native coordinates before switching,
