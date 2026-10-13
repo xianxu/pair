@@ -35,15 +35,15 @@ Live Couch (pid 31713, build c8770843) burns 1.25-1.8 cores with no cast running
 
 ## Done when
 
-- Idle Couch CPU measured before (12.45 s per 10 s) and after, on the operator's store, with the after number in the Log.
+- Idle Couch CPU measured before (12.45 s per 10 s); the probe and the watcher measured before and after on the operator's store, numbers in the Log. The live after-number is taken by the TL at the next restart onto main (Revisions).
 - Tests: a cached ledger answer is reused while the fingerprint holds and re-parsed when the ledger grows; the continuation status is reused while the record is unchanged and re-read after a write; a fake runtime counts reads.
 
 ## Plan
 
-- [ ] `OwnerLaunchCache` in sessioninventory + capability on `OSRuntime`; `QuerySessionContext` uses it; threadactivity owns one.
-- [ ] Continuation fingerprint cache in couchcore (`ThreadStore` returns the record path and its stat taken under the lock).
-- [ ] Tests (above), full suite.
-- [ ] Measure the harness before/after and live Couch after a rebuild (operator restart).
+- [x] `OwnerLaunchCache` in sessioninventory + capability on `OSRuntime`; `QuerySessionContext` uses it; threadactivity owns one.
+- [x] Continuation fingerprint cache in couchcore (`ThreadStore` returns the record path and its stat taken under the lock).
+- [x] Tests (above), full suite.
+- [x] Measure the harness before/after; live Couch after a rebuild is deferred to the TL on main (Revisions).
 
 ## Revisions
 
