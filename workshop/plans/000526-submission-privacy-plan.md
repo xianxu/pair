@@ -98,11 +98,11 @@ Files: modify `cmd/internal/webcast/recorder/box_text.js`, `box_text_test.js`, `
 Files: modify `README.md`, `atlas/webcast-submission.md`; update existing atlas links only if a new page is necessary. Update issue Plan/Log and add Revisions for changed decisions.
 
 - [x] Document the operator-owned file path and exact-origin example, missing/error behavior, privacy JSON example, immutable per-bundle decision, private text handling, crop policy conjunction and local evidence lifetime. Do not create an actual shareable policy for the operator.
-- [ ] Merge latest main as needed and reconcile #525's capture URL. Sweep for duplicated origin authority and old externalization guidance. Report integration status to hub if #525 remains pending.
-- [ ] Run targeted packages, then `make test` in the background before any headless run or close, per dispatch. Inspect its completed result.
-- [ ] Run `WEBCAST_LIVE_CHROME=1 GOMAXPROCS=2 go test -p 1 ./cmd/internal/webcast -run '^TestLiveSubmissionCrop$' -count=1 -timeout 60s -v` after the full suite. Assert actual form-value exclusion and static-text retention; a skip is not conformance evidence.
-- [ ] Run `git diff --check`; record commands/results. If a failure changes code, rerun the affected checks and required full suite before close.
-- [ ] `sdlc close --issue 526 --verified '<concrete evidence>'` owns the fresh-context review. Address findings and update lessons where warranted, then `sdlc pr`. Report actual `git rev-parse HEAD` and PR to hub. Await SHIP; then `sdlc merge --yes`, report landed outcome and stop.
+- [x] Merge latest main as needed and reconcile #525's capture URL. Sweep for duplicated origin authority and old externalization guidance. Report integration status to hub if #525 remains pending.
+- [x] Run targeted packages, then `make test` in the background before any headless run or close, per dispatch. Inspect its completed result.
+- [x] Run `WEBCAST_LIVE_CHROME=1 GOMAXPROCS=2 go test -p 1 ./cmd/internal/webcast -run '^TestLiveSubmissionCrop$' -count=1 -timeout 60s -v` after the full suite. Assert actual form-value exclusion and static-text retention; a skip is not conformance evidence.
+- [x] Run `git diff --check`; record commands/results. If a failure changes code, rerun the affected checks and required full suite before close.
+Handoff procedure: `sdlc close --issue 526 --verified '<concrete evidence>'` owns the fresh-context review. Address findings and update lessons where warranted, then `sdlc pr`. Report actual `git rev-parse HEAD` and PR to hub. Await SHIP; then `sdlc merge --yes`, report landed outcome and stop.
 
 ## Approval checkpoint
 
@@ -131,3 +131,7 @@ Compressed executable-case inventories into named-function strategies below (PQ-
 | Box-text collector | Sentinels across the editable-subtree class must be absent from all text/accessibility output while ordinary surrounding text survives; real Chrome conformance checks the Node fixture's DOM assumptions. |
 | `ReadingGuide` and shipped skill | Contract assertions and fresh-context issue-writing scenarios must enforce default-private text handling, the conjunctive crop grant, operator policy ownership, and recording independence. |
 | `Store.Prepare` / reopen / delivery transitions | Reopen real temporary storage between transitions; privacy metadata remains identical to preparation and immutable retry checks reject permission changes. |
+
+### 2026-10-13 — final verification and handoff
+
+Final `make -k test` passed in full (`/tmp/pair-526-full-final.log`), after the source-inventory correction. Targeted, race, fuzz, live Chrome and build checks also passed. #525 remains pending and is assigned to this slot next; it will reconcile origin authority after #526 lands. The close/PR/merge sequence is a handoff procedure rather than a pre-close implementation checkbox. Hub explicitly authorized close and land.

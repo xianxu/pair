@@ -67,8 +67,8 @@ total: 2.243
 
 ## Plan
 
-- [ ] Implement and verify [the durable privacy plan](../plans/000526-submission-privacy-plan.md).
-- [ ] Close through the SDLC review, open the PR, and report to hub; merge only on SHIP.
+- [x] Implement and verify [the durable privacy plan](../plans/000526-submission-privacy-plan.md).
+Handoff procedure: Close through the SDLC review, open the PR, and report to hub; merge only on SHIP.
 
 ## Log
 
@@ -103,3 +103,7 @@ PQ-1 addressed with named risky-function strategies instead of prose case invent
 - Hub authorized treating only known #514 timing as non-blocking and instructed close/land after other verification; next assignment is #525 after #526 lands.
 
 - The keep-going full suite completed: its sole failure was the now-corrected production-source inventory; every other package/check passed (including Couch core in 232.967s). `/tmp/pair-526-full-keepgoing.log`. A final full rerun is running at corrected code HEAD `828e9471b`; no further production changes pending.
+
+### 2026-10-13 — final verification
+
+Final `make -k test` exited 0 (`/tmp/pair-526-full-final.log`). All required checks pass, including live Chrome `TestLiveSubmissionCrop`, targeted privacy/capture/guide tests, targeted race checks, policy fuzzing, `make build`, and `git diff --check`. Initial known #514 timing failure was authorized non-blocking by hub; subsequent full runs passed that check. Close/PR/merge moved from a pre-close checkbox to a handoff procedure to avoid a circular gate. #525 is assigned here after this issue lands and will integrate the capture-bound URL.
