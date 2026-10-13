@@ -68,6 +68,15 @@ Durable plan: [agent switch plan](../plans/000517-agent-switch-plan.md).
 
 ## Log
 
+- 2026-10-12 21:42 PDT — continuation writer committed and pushed 9bfe12878
+  (workshop/continuation/20261012T214122-agent-switch-517.md), then restart
+  refused because prior continuation
+  35eff9de95a978dd139c6039c1e49eedacb174877a9d9d877d3f4baab890e0a0 remains failed
+  for 1-pair-8. No separate restart or unsafe retry issued. Reported exact
+  retained-state blocker to hub, receipt 6c086b9d-1a12-4053-8510-9bbb43d59daf.
+  This is additional observed recovery friction, not proof of the underlying
+  orientation failure cause. All owner agents stopped safely; M2 remains open.
+
 - 2026-10-12 21:42 PDT — context checkpoint: all M2 owners stopped after atomic
   edits. Recovery schema/projection, exact-native resolver seam and menu
   projection are written; core recovery is an unwired draft. Root targeted
