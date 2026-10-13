@@ -62,6 +62,27 @@ rounds:
       isolation: fenced
       reviewed: 7ff7f694885abb170423df900c6945ff02c8add6
       blocked: false
+    - "n": 3
+      timestamp: "2026-10-13T09:58:04-07:00"
+      dispatched: "2026-10-13T09:51:13-07:00"
+      agent: codex
+      findings:
+        - id: BR-5
+          severity: Critical
+          title: Pre-OFF annotations can acquire fresh authority after OFF/ON
+          detail: 'cmd/internal/webcast/recorder/recorder.go:290 assigns current authority at ingress. A disposable regression retained a valid second stroke before OFF, completed OFF/ON, then delivered it: the recorder accepted it and restored one stroke. web/annotate.js:596 also leaves a held gesture active after annotation-clear when capability delivery is delayed. ARCH-ORDER, ARCH-SECURE, ARCH-PURPOSE: carry the originating capability generation through operator and viewer mutations, reject retired generations at ingress and dispatch, and cancel held gestures at the clear barrier. Add controlled pre-ingress delay regressions across these consumers.'
+          family: capability-generation-provenance
+          round: 3
+        - id: BR-6
+          severity: Minor
+          title: Permission retry polling contradicts the documented operating envelope
+          detail: 'cmd/internal/webcast/chrome_operator.go:107 introduces a 250 ms retry ticker, while workshop/plans/000523-cast-capability-switches-plan.md:177 promises no new periodic polling. ARCH-CONSTRAINTS: document the retry lifetime, bounds, and termination policy in a Revisions entry, or replace polling with readiness-driven delivery.'
+          family: operating-envelope-traceability
+          round: 3
+      boundary: M2
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#523 (boundary-review)
@@ -91,6 +112,16 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-3 — addressed — The plan table at line 82 now identifies modified board/board.go and new board/annotation.go; Revisions at lines 447–448 records that mapping. The pinned diff confirms both classifications and AnnotationAdmission exists in annotation.go.
 - BR-4 — addressed — README.md:1020–1026 documents independent default-OFF capabilities, persistent links, cleanup behavior, and pending M2 UI. Board/controller zero-value authority and server admission checks substantiate the corrected description.
 
+## Round 3 — 2026-10-13T09:58:04-07:00 (codex) — BLOCKED
+
+### Raised
+
+- **BR-5** [Critical] `capability-generation-provenance` Pre-OFF annotations can acquire fresh authority after OFF/ON
+  cmd/internal/webcast/recorder/recorder.go:290 assigns current authority at ingress. A disposable regression retained a valid second stroke before OFF, completed OFF/ON, then delivered it: the recorder accepted it and restored one stroke. web/annotate.js:596 also leaves a held gesture active after annotation-clear when capability delivery is delayed. ARCH-ORDER, ARCH-SECURE, ARCH-PURPOSE: carry the originating capability generation through operator and viewer mutations, reject retired generations at ingress and dispatch, and cancel held gestures at the clear barrier. Add controlled pre-ingress delay regressions across these consumers.
+- **BR-6** [Minor] `operating-envelope-traceability` Permission retry polling contradicts the documented operating envelope
+  cmd/internal/webcast/chrome_operator.go:107 introduces a 250 ms retry ticker, while workshop/plans/000523-cast-capability-switches-plan.md:177 promises no new periodic polling. ARCH-CONSTRAINTS: document the retry lifetime, bounds, and termination policy in a Revisions entry, or replace polling with readiness-driven delivery.
+
 ## Open findings
 
-(none — every finding has been disposed)
+- **BR-5** [Critical] `capability-generation-provenance` Pre-OFF annotations can acquire fresh authority after OFF/ON
+- **BR-6** [Minor] `operating-envelope-traceability` Permission retry polling contradicts the documented operating envelope

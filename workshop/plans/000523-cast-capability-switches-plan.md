@@ -531,3 +531,28 @@ capability span. Remove the separate active-driver chip; retain the hand-raise
 request span and its popup. Whole driver chip left toggles OFF and right copies.
 Test the three renderings, clipped hit spans and click semantics; build on pair:0
 and wait for the operator's quick look before landing.
+
+### 2026-10-13 — M2 BR-5 generation provenance and BR-6 retry envelope
+
+ARCH-ORDER/ARCH-SECURE: ingress-time permits alone do not fence requests that
+were created before OFF but arrive after OFF/ON. Carry the capability generation
+observed at browser request creation to the server: operator permission delivery
+sets the generation used by binding envelopes, and viewer mutation requests send
+a decimal generation header. Missing, malformed or retired generations fail
+closed at ingress. Capture a Board permit for that exact generation and retain
+its existing ordered-dispatch check. Status/cancel reconciliation stays available;
+an unsent held draft uses a fresh generation on a fresh save after enable.
+
+Annotation-clear cancels the shared UI gesture and puts the pen in watch even
+if its separate capability event is delayed. Tests hold operator/viewer payloads
+before ingress across OFF/ON, verify all mutation routes, and deliver clear while
+a stroke is held. Audit drive request/input provenance for the same class.
+
+The operator permission worker is the explicit exception to the original
+no-periodic-polling envelope: one cast-owned 250ms ticker drives retries only
+while delivery is unresolved (nil retry channel otherwise), never an enable or
+cleanup retry. The worker stops its ticker/subscriptions on cast shutdown; exact
+context state is discarded with replaced contexts. Each CDP delivery is bounded
+by its call deadline. Readiness events remain the primary trigger; this bounded
+retry covers an unavailable hook or unacknowledged delivery, without treating
+an uncertain ON as permission to mutate.
