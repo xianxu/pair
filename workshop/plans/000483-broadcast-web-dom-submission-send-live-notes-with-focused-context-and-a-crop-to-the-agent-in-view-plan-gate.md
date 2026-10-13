@@ -33,7 +33,11 @@ rounds:
           note: Tasks now name production functions and adversarial strategies covering transitions, manifest and PNG validation, capture ordering, guarded resolution and draft retry invariants.
           round: 2
       blocked: false
-content_hash: 52a1b26db544d0506c6eeb4186a7c657a052a89c975664eb177a79c9eededdaf
+    - "n": 3
+      timestamp: "2026-10-12T20:27:48-07:00"
+      agent: codex
+      blocked: false
+content_hash: e3852cef02655b7d44c197a2498d48408845b53c88585d3c0fdbce0ac1f2c3f0
 ---
 
 # Gate ledger — pair#483 (plan-quality)
@@ -56,6 +60,8 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - PQ-1 — addressed — ApplyDelivery and Store.Transition own durable progress; DOMSubmission.send invokes begin before paste and ack after confirmed dispatch, preserving acknowledgment-only recovery and conservative restart reconciliation.
 - PQ-2 — addressed — Tasks now name production functions and adversarial strategies covering transitions, manifest and PNG validation, capture ordering, guarded resolution and draft retry invariants.
+
+## Round 3 — 2026-10-12T20:27:48-07:00 (codex) — passed
 
 ## Open findings
 
