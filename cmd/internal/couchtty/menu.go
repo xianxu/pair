@@ -500,8 +500,11 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 		// Only mark a dispatch that HAPPENED. dispatchThreadOperation refuses
 		// when another operation is in flight and returns the state unchanged;
 		// marking that would leave Manual set on someone else's operation.
-		if len(effects) > 0 {
-			state.InFlight.Manual = true
+		for _, effect := range effects {
+			if effect.Operation != "" {
+				state.InFlight.Manual = true
+				break
+			}
 		}
 		return state, effects
 	}
@@ -760,6 +763,11 @@ func reduceParkHotkey(state MenuState, event MenuEvent) (MenuState, []MenuEffect
 			state.Notice = errorMenuNotice(thread.Label() + ": " + event.Operation + " is not offered while its continuation is unfinished")
 			return state, nil
 		}
+		if menuRowNeedsRecoveryPreview(thread, event.Operation) {
+			state.Frames = state.Frames[:1]
+			selectMenuRow(&state.Frames[0], thread)
+			return dispatchMenuRow(state, event.Operation, thread)
+		}
 	}
 	state.Frames = state.Frames[:1]
 	state.Frames[0].SelectedAddress = event.Address
@@ -847,6 +855,9 @@ func reduceActionKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 		if !containsMenuItem(items, frame.SelectedItem) {
 			state.Notice = errorMenuNotice("no selection")
 			return state, nil
+		}
+		if menuRowNeedsRecoveryPreview(thread, frame.SelectedItem) {
+			return dispatchMenuRow(state, frame.SelectedItem, thread)
 		}
 		switch frame.SelectedItem {
 		case "copy-orientation":

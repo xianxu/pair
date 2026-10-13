@@ -413,6 +413,7 @@ func TestResumeCandidateRejectsAnotherNativeOwnerAtBothGates(t *testing.T) {
 			occupy := func() {
 				f.Artifacts.SetNativeBinding(other, "codex", sessioninventory.BindingEstablished, "native")
 				f.Artifacts.SetPairSession(other, "other-live-terminal", true)
+				f.Artifacts.SetRecoveryNativeWrappers(FakeRecoveryNativeWrapper{Address: other, Agent: "codex", PID: 90, Identity: "wrapper", ReadyPID: 91, ReadyIdentity: "agent", ReadyParentPID: 90, ReadyOrdinal: 1, ReadyNonce: "nonce", Launches: map[uint64]FakeRecoveryNativeLaunch{1: {Nonce: "nonce", NativeID: "native"}}})
 			}
 			if late {
 				f.Couch.Workspaces = slotReadinessFunc(func(context.Context, ProvisionRequest) (ProvisionResult, error) {
@@ -431,5 +432,73 @@ func TestResumeCandidateRejectsAnotherNativeOwnerAtBothGates(t *testing.T) {
 				t.Fatal("first gate ran after effects")
 			}
 		})
+	}
+}
+
+func TestResumeCandidateOldLiveWrapperCannotBorrowNewLaunch(t *testing.T) {
+	for _, late := range []bool{false, true} {
+		t.Run(map[bool]string{false: "preflight", true: "after-prepare"}[late], func(t *testing.T) {
+			f := newRecoveryExecutionFixture(t)
+			key := f.preview(t).Candidates[0].Key
+			other := ThreadAddress{RepoScope: f.record.Address.RepoScope, Tag: "another-slot"}
+			occupy := func() {
+				f.Artifacts.SetNativeBinding(other, "codex", sessioninventory.BindingEstablished, "newer-native")
+				f.Artifacts.SetPairSession(other, "other-live-terminal", true)
+				f.Artifacts.SetRecoveryNativeWrappers(FakeRecoveryNativeWrapper{Address: other, Agent: "codex", PID: 90, Identity: "old-wrapper", ReadyPID: 91, ReadyIdentity: "old-agent", ReadyOrdinal: 1, ReadyNonce: "old-nonce", ReadyParentPID: 90, Launches: map[uint64]FakeRecoveryNativeLaunch{1: {Nonce: "old-nonce", NativeID: "native"}, 2: {Nonce: "new-nonce", NativeID: "newer-native"}}})
+			}
+			if late {
+				f.Couch.Workspaces = slotReadinessFunc(func(context.Context, ProvisionRequest) (ProvisionResult, error) {
+					f.prepared++
+					occupy()
+					return slotReadyResult(f.Couch.Threads), nil
+				})
+			} else {
+				occupy()
+			}
+			_, err := f.Couch.ResumeCandidate(context.Background(), ResumeTarget{Address: f.record.Address}, key)
+			if err == nil || !strings.Contains(err.Error(), "live wrapper") || len(f.Runner.Ops) != 0 {
+				t.Fatalf("old wrapper hidden by newer launch: %v ops=%v", err, f.Runner.Ops)
+			}
+			if !late && (f.preserved != 0 || f.prepared != 0) {
+				t.Fatal("preflight refusal after effects")
+			}
+		})
+	}
+}
+
+func TestRecoveryNativeSourceExemptionRequiresExactLaunchGeneration(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		mutate  func(*FakeRecoveryNativeWrapper)
+		wantErr bool
+	}{
+		{"exact", func(*FakeRecoveryNativeWrapper) {}, false},
+		{"ready names other wrapper", func(w *FakeRecoveryNativeWrapper) { w.ReadyParentPID = 999 }, true},
+		{"missing exact launch", func(w *FakeRecoveryNativeWrapper) { delete(w.Launches, 1) }, true},
+		{"wrong launch nonce", func(w *FakeRecoveryNativeWrapper) { w.ReadyNonce = "new-nonce" }, true},
+		{"wrong source generation", func(w *FakeRecoveryNativeWrapper) { w.SourceIdentity = "reused-pid" }, true},
+		{"same owner unrelated wrapper", func(w *FakeRecoveryNativeWrapper) { w.ParentPID = 999 }, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newRecoveryExecutionFixture(t)
+			f.Proc.Set(42, "old-helper")
+			w := FakeRecoveryNativeWrapper{Address: f.record.Address, Agent: "codex", PID: 90, Identity: "old-wrapper", ParentPID: 42, SourcePID: 42, SourceIdentity: "old-helper", ReadyPID: 91, ReadyIdentity: "old-agent", ReadyParentPID: 90, ReadyOrdinal: 1, ReadyNonce: "old-nonce", Launches: map[uint64]FakeRecoveryNativeLaunch{1: {Nonce: "old-nonce", NativeID: "native"}, 2: {Nonce: "new-nonce", NativeID: "other"}}}
+			tc.mutate(&w)
+			f.Artifacts.SetRecoveryNativeWrappers(w)
+			err := f.Couch.checkRecoveryNativeOwner(context.Background(), f.record, RecoveryChoice{Agent: "codex", NativeID: "native"}, true)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("source exemption error=%v wantErr=%v", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestRecoveryNativeSourceAncestryCannotOverrideBinding(t *testing.T) {
+	f := newRecoveryExecutionFixture(t)
+	w := FakeRecoveryNativeWrapper{Address: f.record.Address, Agent: "codex", PID: 90, Identity: "wrapper", ParentPID: 42, SourcePID: 42, SourceIdentity: "helper", ReadyPID: 91, ReadyIdentity: "agent", ReadyParentPID: 90, ReadyOrdinal: 1, ReadyNonce: "old-nonce", ReadySession: "old-session", Launches: map[uint64]FakeRecoveryNativeLaunch{1: {Nonce: "old-nonce", NativeID: "native"}}}
+	f.Artifacts.SetRecoveryNativeWrappers(w)
+	check := launcher.RecoveryNativeOwnerCheck{RepoScope: w.Address.RepoScope, Tag: string(w.Address.Tag), Agent: "codex", NativeID: "native", SourcePID: 42, SourceIdentity: "helper", SourceSession: "new-session", SourceNonce: "new-nonce"}
+	if err := f.Artifacts.CheckRecoveryNativeOwner(context.Background(), check); err == nil {
+		t.Fatal("ancestry overrode different source binding generation")
 	}
 }

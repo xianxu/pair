@@ -229,8 +229,8 @@ func TestEnterResumesEveryRowThatOffersResume(t *testing.T) {
 				t.Errorf("%s: Enter on a live row dispatched %+v, want switch", s.name, effects)
 			}
 		case slices.Contains(items, "relaunch") && s.reason == couchcore.ReasonNeedsRelaunch:
-			if len(effects) != 0 || next.CurrentFrame().Kind != MenuFrameConfirmation || next.CurrentFrame().Action != "relaunch" {
-				t.Errorf("%s: Enter should open relaunch confirmation, got frame=%+v effects=%+v", s.name, next.CurrentFrame(), effects)
+			if len(effects) != 1 || effects[0].Preview == nil || effects[0].Operation != "" || next.CurrentFrame().Kind != MenuFrameRecovery {
+				t.Errorf("%s: Enter should open recovery selection, got frame=%+v effects=%+v", s.name, next.CurrentFrame(), effects)
 			}
 		case slices.Contains(items, "resume"):
 			if len(effects) != 1 || effects[0].Operation != "resume" {
@@ -694,12 +694,12 @@ func TestUnsafeTerminalOffersExplicitRelaunch(t *testing.T) {
 	}
 }
 
-func TestUnsafeTerminalEnterRequiresConfirmation(t *testing.T) {
+func TestUnsafeTerminalEnterRequiresEvidenceSelection(t *testing.T) {
 	row := menuSlotRow(1, "couch-unsafe")
 	row.State, row.Reason = couchcore.ThreadUnusable, couchcore.ReasonNeedsRelaunch
 	state := NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
 	next, effects := dispatchMenuRow(state, enterOperationFor(row), row)
-	if len(effects) != 0 || next.CurrentFrame().Kind != MenuFrameConfirmation || next.CurrentFrame().SelectedItem != "cancel" {
-		t.Fatalf("unsafe terminal acted before confirmation: frame=%+v effects=%+v", next.CurrentFrame(), effects)
+	if len(effects) != 1 || effects[0].Preview == nil || effects[0].Operation != "" || next.CurrentFrame().Kind != MenuFrameRecovery {
+		t.Fatalf("unsafe terminal bypassed evidence selection: frame=%+v effects=%+v", next.CurrentFrame(), effects)
 	}
 }

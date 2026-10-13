@@ -59,17 +59,16 @@ func checkRecoveryNativeOwners(ctx context.Context, check RecoveryNativeOwnerChe
 		return err
 	}
 	excluded := 0
+	proofs := map[int]readiness.ReadyRecord{}
 	for _, wrapper := range wrappers {
 		if wrapper.Agent != check.Agent {
 			continue
 		}
-		if recoverySourceWrapper(ctx, check, before, wrapper, read) {
-			excluded++
-			if excluded > 1 {
-				return errors.New("multiple source wrappers make native ownership uncertain")
-			}
-			continue
+		ready, err := recoveryWrapperReady(ctx, before, wrapper, read)
+		if err != nil {
+			return err
 		}
+		proofs[wrapper.Process.PID] = ready
 		paths, err := artifactpath.ResolveScoped(wrapper.Owner.Directory(), wrapper.Owner.Tag)
 		if err != nil {
 			return err
@@ -82,7 +81,14 @@ func checkRecoveryNativeOwners(ctx context.Context, check RecoveryNativeOwnerChe
 		if len(parsed.MalformedOrdinals) != 0 {
 			return errors.New("live wrapper ledger has malformed native ownership")
 		}
-		current, found := sessionledger.CurrentLaunch(parsed.Records, sessionledger.Owner{ScopeKey: wrapper.Owner.RepoScope, Tag: wrapper.Owner.Tag, Agent: wrapper.Agent})
+		// Only the readiness-proved physical generation may supply native identity.
+		generation := make([]sessionledger.Record, 0)
+		for _, record := range parsed.Records {
+			if (record.Kind == sessionledger.RecordLaunch && record.Ordinal == ready.LaunchOrdinal) || (record.Kind == sessionledger.RecordBinding && record.LaunchOrdinal == ready.LaunchOrdinal) {
+				generation = append(generation, record)
+			}
+		}
+		current, found := sessionledger.CurrentLaunch(generation, sessionledger.Owner{ScopeKey: wrapper.Owner.RepoScope, Tag: wrapper.Owner.Tag, Agent: wrapper.Agent})
 		if !found || current.Conflict {
 			return errors.New("live wrapper native ownership is unresolved or conflicting")
 		}
@@ -95,6 +101,13 @@ func checkRecoveryNativeOwners(ctx context.Context, check RecoveryNativeOwnerChe
 		}
 		if native == "" {
 			return errors.New("live wrapper native ownership is unresolved")
+		}
+		if recoverySourceWrapper(check, before, wrapper, ready) {
+			excluded++
+			if excluded > 1 {
+				return errors.New("multiple source wrappers make native ownership uncertain")
+			}
+			continue
 		}
 		if native == check.NativeID {
 			return fmt.Errorf("native conversation %s already has a live wrapper (%s:%s)", native, wrapper.Owner.RepoScope, wrapper.Owner.Tag)
@@ -111,10 +124,22 @@ func checkRecoveryNativeOwners(ctx context.Context, check RecoveryNativeOwnerChe
 	if !reflect.DeepEqual(wrappers, next) {
 		return errors.New("native owner process generation changed; retry")
 	}
+	for _, wrapper := range next {
+		if wrapper.Agent != check.Agent {
+			continue
+		}
+		ready, err := recoveryWrapperReady(ctx, after, wrapper, read)
+		if err != nil {
+			return err
+		}
+		if !reflect.DeepEqual(proofs[wrapper.Process.PID], ready) {
+			return errors.New("native owner readiness generation changed; retry")
+		}
+	}
 	if excluded > 0 {
 		confirmed := 0
 		for _, wrapper := range next {
-			if recoverySourceWrapper(ctx, check, after, wrapper, read) {
+			if recoverySourceWrapper(check, after, wrapper, proofs[wrapper.Process.PID]) {
 				confirmed++
 			}
 		}
@@ -205,7 +230,7 @@ func recoveryNativeWrappers(root string, snapshot recoveryTerminalSnapshot) ([]r
 	return wrappers, nil
 }
 
-func recoverySourceWrapper(ctx context.Context, check RecoveryNativeOwnerCheck, snapshot recoveryTerminalSnapshot, wrapper recoveryNativeWrapper, read func(context.Context, string, int64) ([]byte, error)) bool {
+func recoverySourceWrapper(check RecoveryNativeOwnerCheck, snapshot recoveryTerminalSnapshot, wrapper recoveryNativeWrapper, ready readiness.ReadyRecord) bool {
 	if wrapper.Owner.RepoScope != check.RepoScope || wrapper.Owner.Tag != check.Tag || wrapper.Agent != check.Agent || check.SourcePID <= 0 || check.SourceIdentity == "" {
 		return false
 	}
@@ -219,6 +244,12 @@ func recoverySourceWrapper(ctx context.Context, check RecoveryNativeOwnerCheck, 
 	if helper.Identity != check.SourceIdentity {
 		return false
 	}
+	if check.SourceNonce != "" && ready.Nonce != check.SourceNonce {
+		return false
+	}
+	if check.SourceSession != "" && ready.Session != check.SourceSession {
+		return false
+	}
 	if recoverySourceAncestor(snapshot.Processes, wrapper.Process, check.SourcePID, check.SourceIdentity) {
 		return true
 	}
@@ -228,18 +259,27 @@ func recoverySourceWrapper(ctx context.Context, check RecoveryNativeOwnerCheck, 
 	if check.SourceSession == "" || check.SourceNonce == "" {
 		return false
 	}
+	return ready.Session == check.SourceSession && ready.Nonce == check.SourceNonce
+}
+
+// A tag-owned file is insufficient: its exact agent generation must descend
+// from this observed wrapper generation before its launch ordinal is authority.
+func recoveryWrapperReady(ctx context.Context, snapshot recoveryTerminalSnapshot, wrapper recoveryNativeWrapper, read func(context.Context, string, int64) ([]byte, error)) (readiness.ReadyRecord, error) {
 	raw, err := read(ctx, AgentReadyPath(wrapper.Owner.Directory(), wrapper.Owner.Tag, wrapper.Agent), maxAgentReadyBytes)
 	if err != nil {
-		return false
+		return readiness.ReadyRecord{}, fmt.Errorf("live wrapper launch association unavailable: %w", err)
 	}
 	ready, err := readiness.Decode(string(raw))
-	if err != nil || ready.Tag != check.Tag || ready.Agent != check.Agent || ready.Session != check.SourceSession || ready.Nonce != check.SourceNonce || ready.AgentIdentity == "" {
-		return false
+	if err != nil {
+		return readiness.ReadyRecord{}, fmt.Errorf("live wrapper launch association invalid: %w", err)
+	}
+	if ready.Tag != wrapper.Owner.Tag || ready.Agent != wrapper.Agent || ready.LaunchOrdinal == 0 || ready.AgentIdentity == "" {
+		return readiness.ReadyRecord{}, errors.New("live wrapper launch association is unresolved")
 	}
 	for _, agent := range snapshot.Processes {
-		if agent.PID == ready.PID && agent.Identity == ready.AgentIdentity {
-			return recoverySourceAncestor(snapshot.Processes, agent, wrapper.Process.PID, wrapper.Process.Identity)
+		if agent.PID == ready.PID && agent.Identity == ready.AgentIdentity && agent.PID != wrapper.Process.PID && recoverySourceAncestor(snapshot.Processes, agent, wrapper.Process.PID, wrapper.Process.Identity) {
+			return ready, nil
 		}
 	}
-	return false
+	return readiness.ReadyRecord{}, errors.New("live wrapper readiness does not prove its exact process generation")
 }

@@ -42,6 +42,14 @@ func TestEveryOfferedActionIsReachableFromEnter(t *testing.T) {
 					}
 					// And what it did must match the DECLARATION, so the two
 					// cannot drift apart again.
+					// An unsafe terminal's advertised Relaunch is evidence selection;
+					// the ordinary healthy relaunch declaration still confirms.
+					if action == "relaunch" && !thread.Live() && thread.Reason == couchcore.ReasonNeedsRelaunch {
+						if next.CurrentFrame().Kind != MenuFrameRecovery || len(effects) != 1 || effects[0].Preview == nil || effects[0].Operation != "" {
+							t.Fatal("unsafe relaunch bypassed recovery preview")
+						}
+						return
+					}
 					if confirms, declared := couchcore.OperationConfirms(action); declared && confirms {
 						if next.CurrentFrame().Kind != MenuFrameConfirmation && next.CurrentFrame().Kind != MenuFrameSwitchAgent {
 							t.Errorf("%q declares ConfirmRequired but Enter did not confirm: %v",

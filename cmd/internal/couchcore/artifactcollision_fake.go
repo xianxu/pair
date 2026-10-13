@@ -35,6 +35,7 @@ type FakeThreadArtifactCollisionChecker struct {
 	QuiesceHook        func(ThreadAddress) error
 	pairSessions       map[ThreadAddress]PairSessionBinding
 	nativeBindings     map[nativeBindingKey]NativeBindingResolution
+	recoveryWrappers   []FakeRecoveryNativeWrapper
 	triggeredQuit      []TriggeredQuit
 	TriggerQuitHook    func(string, launcher.QuitIntent) error
 	// BeforeRegistration lets an integration test interleave a durable state

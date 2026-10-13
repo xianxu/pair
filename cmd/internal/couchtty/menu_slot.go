@@ -29,11 +29,10 @@ func menuThreadTarget(state MenuState, key couchcore.ThreadRowKey, address couch
 // or replaced under the row, so the tag is not what names it. Its in-flight
 // operation is then keyed by row, not by an address the operation replaces.
 func dispatchMenuRow(state MenuState, operation string, row couchcore.ActionableThreadSummary) (MenuState, []MenuEffect) {
-	// Enter on an unsafe terminal is an explicit recovery request; preserve
-	// the confirmation boundary used by the action menu before any effects.
-	if operation == "relaunch" && row.Reason == couchcore.ReasonNeedsRelaunch && state.CurrentFrame().Kind != MenuFrameConfirmation {
-		appendMenuFrame(&state, MenuFrame{Kind: MenuFrameConfirmation, Action: operation, Thread: row.Address, RowKey: menuRowKey(row), SelectedItem: "cancel"})
-		return state, nil
+	// Unsafe terminals need an explicit evidence choice, not ordinary relaunch's
+	// established-binding confirmation. Every primary gesture shares this route.
+	if menuRowNeedsRecoveryPreview(row, operation) {
+		return openRecoveryPreview(state, row)
 	}
 
 	if row.Target.Kind == couchcore.ThreadTargetSlot && actorOperation(operation) {
@@ -78,4 +77,8 @@ func menuFrameTargetsInFlight(state MenuState, frame MenuFrame) bool {
 // same target and same action.
 func menuFrameOperationInFlight(state MenuState, frame MenuFrame) bool {
 	return state.InFlight.Operation == frame.Action && menuFrameTargetsInFlight(state, frame)
+}
+
+func menuRowNeedsRecoveryPreview(row couchcore.ActionableThreadSummary, operation string) bool {
+	return operation == "relaunch" && !row.Live() && row.Reason == couchcore.ReasonNeedsRelaunch
 }

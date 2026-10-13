@@ -3,6 +3,7 @@ package launcher
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/xianxu/pair/cmd/internal/readiness"
 	"strings"
 	"testing"
@@ -15,6 +16,7 @@ import (
 type nativeOwnerWorld struct {
 	snapshots           []recoveryTerminalSnapshot
 	raw                 []byte
+	ready               readiness.ReadyRecord
 	err                 error
 	observations, reads int
 }
@@ -24,7 +26,11 @@ func (w *nativeOwnerWorld) Observe(context.Context, string) (recoveryTerminalSna
 	w.observations++
 	return w.snapshots[i], nil
 }
-func (w *nativeOwnerWorld) Read(context.Context, string, int64) ([]byte, error) {
+func (w *nativeOwnerWorld) Read(_ context.Context, path string, _ int64) ([]byte, error) {
+	if strings.Contains(path, "agent-ready-") {
+		raw, err := readiness.Encode(w.ready)
+		return []byte(raw), err
+	}
 	w.reads++
 	return w.raw, w.err
 }
@@ -36,8 +42,8 @@ func nativeOwnerFixture(t *testing.T, agent, id string) (*nativeOwnerWorld, Reco
 	if err != nil {
 		t.Fatal(err)
 	}
-	snapshot := recoveryTerminalSnapshot{Processes: []procutil.Process{{PID: 42, PPID: 1, Identity: "wrapper"}}, Commands: map[int]string{42: "/bin/pair-wrap --scrollback-log " + paths.ScrollbackRaw(agent) + " " + agent}}
-	return &nativeOwnerWorld{snapshots: []recoveryTerminalSnapshot{snapshot}, raw: append(raw, '\n')}, RecoveryNativeOwnerCheck{DataDir: owner.DataDir, RepoScope: owner.RepoScope, Tag: "source", Agent: "codex", NativeID: "selected"}
+	snapshot := recoveryTerminalSnapshot{Processes: []procutil.Process{{PID: 42, PPID: 1, Identity: "wrapper"}, {PID: 43, PPID: 42, Identity: "agent-generation"}}, Commands: map[int]string{43: "codex", 42: "/bin/pair-wrap --scrollback-log " + paths.ScrollbackRaw(agent) + " " + agent}}
+	return &nativeOwnerWorld{snapshots: []recoveryTerminalSnapshot{snapshot}, raw: append(raw, '\n'), ready: readiness.ReadyRecord{Tag: owner.Tag, Agent: agent, Session: "session", Nonce: "nonce", PID: 43, AgentIdentity: "agent-generation", LaunchOrdinal: 1}}, RecoveryNativeOwnerCheck{DataDir: owner.DataDir, RepoScope: owner.RepoScope, Tag: "source", Agent: "codex", NativeID: "selected"}
 }
 func TestRecoveryNativeOwnerGuard(t *testing.T) {
 	for _, mode := range []string{"same-native", "different-native", "different-agent", "unreadable", "malformed", "unresolved", "conflicting", "missing-command", "changed-generation"} {
@@ -115,10 +121,10 @@ func TestRecoveryNativeOwnerExcludesDaemonizedSourceOnlyWithExactReadiness(t *te
 	check.SourceIdentity = "helper"
 	check.SourceSession = "source-session"
 	check.SourceNonce = "source-nonce"
-	w.snapshots[0].Processes = append(w.snapshots[0].Processes, procutil.Process{PID: 7, PPID: 1, Identity: "helper"}, procutil.Process{PID: 43, PPID: 42, Identity: "agent-generation"})
+	w.snapshots[0].Processes = append(w.snapshots[0].Processes, procutil.Process{PID: 7, PPID: 1, Identity: "helper"})
 	w.snapshots[0].Commands[7] = "pair resume other"
 	w.snapshots[0].Commands[43] = "codex resume selected"
-	record := readiness.ReadyRecord{Tag: "other", Agent: "codex", Session: check.SourceSession, Nonce: check.SourceNonce, PID: 43, AgentIdentity: "agent-generation"}
+	record := readiness.ReadyRecord{LaunchOrdinal: 1, Tag: "other", Agent: "codex", Session: check.SourceSession, Nonce: check.SourceNonce, PID: 43, AgentIdentity: "agent-generation"}
 	read := func(ctx context.Context, path string, max int64) ([]byte, error) {
 		if strings.Contains(path, "agent-ready-") {
 			raw, err := readiness.Encode(record)
@@ -145,5 +151,79 @@ func TestRecoveryNativeOwnerExcludesDaemonizedSourceOnlyWithExactReadiness(t *te
 			}
 			record = changed
 		})
+	}
+}
+
+func TestRecoveryNativeOwnerOldWrapperCannotBorrowNewLaunch(t *testing.T) {
+	w, check := nativeOwnerFixture(t, "codex", "selected")
+	raw, err := sessionledger.EncodeRecord(sessionledger.Record{Version: 3, Kind: sessionledger.RecordLaunch, ScopeKey: check.RepoScope, Tag: "other", Agent: "codex", RequestOrigin: sessionledger.RequestOriginResume, RequestedNativeID: "different"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.raw = append(w.raw, append(raw, '\n')...)
+	if err := checkRecoveryNativeOwners(context.Background(), check, w.Observe, w.Read); err == nil {
+		t.Fatal("old live wrapper hidden by newer launch")
+	}
+}
+
+func TestRecoveryNativeOwnerRequiresGenerationAssociationEvenForSource(t *testing.T) {
+	for _, source := range []bool{false, true} {
+		for _, mode := range []string{"missing-ordinal", "wrong-ordinal", "stale-agent", "other-parent", "wrong-tag", "wrong-agent", "missing-ledger", "contradictory-nonce"} {
+			t.Run(fmt.Sprintf("source=%v/%s", source, mode), func(t *testing.T) {
+				w, check := nativeOwnerFixture(t, "codex", "different")
+				if source {
+					check.Tag = "other"
+					check.SourcePID = 7
+					check.SourceIdentity = "helper"
+					check.SourceNonce = "nonce"
+					check.SourceSession = "session"
+					w.snapshots[0].Processes[0].PPID = 7
+					w.snapshots[0].Processes = append(w.snapshots[0].Processes, procutil.Process{PID: 7, PPID: 1, Identity: "helper"})
+					w.snapshots[0].Commands[7] = "pair resume other"
+				}
+				switch mode {
+				case "missing-ordinal":
+					w.ready.LaunchOrdinal = 0
+				case "wrong-ordinal":
+					w.ready.LaunchOrdinal = 2
+				case "stale-agent":
+					w.ready.AgentIdentity = "reused"
+				case "other-parent":
+					w.snapshots[0].Processes[1].PPID = 1
+				case "wrong-tag":
+					w.ready.Tag = "unrelated"
+				case "wrong-agent":
+					w.ready.Agent = "claude"
+				case "missing-ledger":
+					w.raw = nil
+				case "contradictory-nonce":
+					if !source {
+						return
+					}
+					w.ready.Nonce = "newer"
+					check.NativeID = "different"
+				}
+				if err := checkRecoveryNativeOwners(context.Background(), check, w.Observe, w.Read); err == nil {
+					t.Fatal("unproved generation accepted")
+				}
+			})
+		}
+	}
+}
+
+func TestRecoveryNativeOwnerRechecksReadinessAssociation(t *testing.T) {
+	w, check := nativeOwnerFixture(t, "codex", "different")
+	reads := 0
+	read := func(ctx context.Context, path string, max int64) ([]byte, error) {
+		if strings.Contains(path, "agent-ready-") {
+			reads++
+			if reads == 2 {
+				w.ready.Nonce = "replacement"
+			}
+		}
+		return w.Read(ctx, path, max)
+	}
+	if err := checkRecoveryNativeOwners(context.Background(), check, w.Observe, read); err == nil {
+		t.Fatal("readiness changed after process snapshot accepted")
 	}
 }

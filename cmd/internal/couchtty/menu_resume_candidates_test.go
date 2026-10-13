@@ -58,3 +58,62 @@ func TestRecoveryMenuActivityNamesLocalTimezone(t *testing.T) {
 		t.Fatalf("activity lost zone or score: %s", rendered)
 	}
 }
+
+func TestReviewNeedsRelaunchPrimaryOpensRecovery(t *testing.T) {
+	for _, route := range []string{"enter", "mouse", "relaunch-item", "restart-hotkey"} {
+		t.Run(route, func(t *testing.T) {
+			row := menuSlotRow(1, "couch-unsafe")
+			row.State, row.Reason = couchcore.ThreadUnusable, couchcore.ReasonNeedsRelaunch
+			state := NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
+			state.InventoryReady = true
+			var effects []MenuEffect
+			switch route {
+			case "enter":
+				state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventKey, Key: PanelKey{Kind: KeyEnter}})
+			case "mouse":
+				state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventMouseSwitch, Address: row.Address, RowKey: menuRowKey(row)})
+			case "relaunch-item":
+				state, _ = reduceRootKey(state, PanelKey{Kind: KeyTab})
+				state.Frames[len(state.Frames)-1].SelectedItem = "relaunch"
+				state, effects = reduceActionKey(state, PanelKey{Kind: KeyEnter})
+			case "restart-hotkey":
+				state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventParkHotkey, Operation: "relaunch", Address: row.Address})
+			}
+			frame := state.CurrentFrame()
+			if frame.Kind != MenuFrameRecovery || len(effects) != 1 || effects[0].Preview == nil || effects[0].Operation != "" || state.InFlight != (MenuOperationOrigin{}) {
+				t.Fatalf("primary bypassed read-only preview: frame=%+v effects=%+v inflight=%+v", frame, effects, state.InFlight)
+			}
+			if target := effects[0].Preview.RecoveryTarget; target == nil || target.Path != row.Target.Slot.WorktreeRoot || target.Address != (couchcore.ThreadAddress{}) {
+				t.Fatalf("lost slot target: %+v", target)
+			}
+			preview := &couchcore.RecoveryPreview{Address: row.Address, Candidates: []couchcore.RecoveryChoice{{Key: "selected-key", Label: "resume (best candidate)"}}}
+			state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: frame.Generation, RecoveryPreview: preview})
+			if len(effects) != 0 || state.InFlight.Operation != "" {
+				t.Fatal("preview completion launched automatically")
+			}
+			state, effects = reduceRecoveryKey(state, PanelKey{Kind: KeyEnter})
+			if len(effects) != 1 || effects[0].Operation != "resume" || effects[0].Args["candidate"] != "selected-key" || effects[0].Args["path"] != row.Target.Slot.WorktreeRoot || state.InFlight.RowKey != menuRowKey(row) {
+				t.Fatalf("explicit choice lost queue/target: %+v %+v", state.InFlight, effects)
+			}
+		})
+	}
+}
+
+func TestHealthyRelaunchKeepsExistingConfirmation(t *testing.T) {
+	row := menuSlotRow(1, "couch-healthy")
+	row.State = couchcore.ThreadLive
+	for _, hotkey := range []bool{false, true} {
+		state := NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
+		var effects []MenuEffect
+		if hotkey {
+			state, effects = reduceParkHotkey(state, MenuEvent{Operation: "relaunch", Address: row.Address})
+		} else {
+			state, _ = reduceRootKey(state, PanelKey{Kind: KeyTab})
+			state.Frames[len(state.Frames)-1].SelectedItem = "relaunch"
+			state, effects = reduceActionKey(state, PanelKey{Kind: KeyEnter})
+		}
+		if state.CurrentFrame().Kind != MenuFrameConfirmation || state.CurrentFrame().Action != "relaunch" || len(effects) != 0 {
+			t.Fatalf("healthy relaunch changed: %+v %+v", state.CurrentFrame(), effects)
+		}
+	}
+}
