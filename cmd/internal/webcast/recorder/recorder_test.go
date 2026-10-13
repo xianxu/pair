@@ -16,6 +16,7 @@ import (
 // one message counter for events and replies (cdp.Conn's Seq), and the
 // loader id of each session's current document.
 type fakeChrome struct {
+	ui     *fakeControlUI
 	mu     sync.Mutex
 	seq    uint64
 	pages  map[string]*fakePage
@@ -43,6 +44,7 @@ func (f *fakeChrome) CallSeq(ctx context.Context, session, method string, params
 	f.calls = append(f.calls, session+" "+method)
 	p := f.pages[session]
 	loader := f.loader[session]
+	ui := f.ui
 	f.mu.Unlock()
 	var reply any = map[string]any{}
 	var pm map[string]any
@@ -75,11 +77,23 @@ func (f *fakeChrome) CallSeq(ctx context.Context, session, method string, params
 	case "Page.getLayoutMetrics":
 		reply = map[string]any{"cssLayoutViewport": map[string]any{"clientWidth": 1000, "clientHeight": 700}}
 	default:
-		if f.more != nil {
+		if f.more != nil || ui != nil {
 			var pm map[string]any
 			b, _ := json.Marshal(params)
 			json.Unmarshal(b, &pm)
-			if r, err, ok := f.more(session, method, pm, p); ok {
+			respond := f.more
+			if ui != nil {
+				respond = func(session, method string, pm map[string]any, p *fakePage) (any, error, bool) {
+					if v, e, ok := ui.more(session, method, pm, p); ok {
+						return v, e, ok
+					}
+					if f.more != nil {
+						return f.more(session, method, pm, p)
+					}
+					return nil, nil, false
+				}
+			}
+			if r, err, ok := respond(session, method, pm, p); ok {
 				if err != nil {
 					return f.next(), err
 				}
@@ -104,6 +118,7 @@ type memOut struct {
 
 // harness drives a Recorder over a fakeChrome.
 type harness struct {
+	ui  *fakeControlUI
 	t   *testing.T
 	fc  *fakeChrome
 	r   *Recorder

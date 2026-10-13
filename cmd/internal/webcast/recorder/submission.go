@@ -178,7 +178,7 @@ func (r *Recorder) CaptureCrops(parent context.Context, doc int, boxes []submiss
 			Data string `json:"data"`
 		}
 		callCtx, done := context.WithTimeout(ctx, 5*time.Second)
-		_, err = r.opts.Call.CallSeq(callCtx, start.top, "Page.captureScreenshot", map[string]any{
+		err = CaptureScreenshot(callCtx, r.opts.Call, start.top, start.contextID, map[string]any{
 			"format": "png", "captureBeyondViewport": false, "fromSurface": true,
 			"clip": map[string]any{"x": box[0], "y": box[1], "width": box[2], "height": box[3], "scale": 1},
 		}, &res)

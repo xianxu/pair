@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"image"
 	"image/png"
 	"strings"
@@ -17,7 +18,7 @@ import (
 func cropHarness(t *testing.T) (*harness, int) {
 	h := newHarness(t)
 	h.page("A", "http://app/", "L1")
-	h.ctxCreated("A", "tab", 42)
+	h.confirmUI("A", "tab", 42)
 	h.r.Send(Live{Tab: rec.Tab{ID: "tab"}, Session: "A"})
 	h.settle()
 	return h, h.mustValidate().DocSeg
@@ -117,7 +118,7 @@ func TestCropCaptureSameURLReloadDuringScreenshot(t *testing.T) {
 		h.r.Send(Event{Session: "A", Method: "DOM.documentUpdated", Seq: h.fc.next(), Params: raw(map[string]any{})})
 		return map[string]any{"data": base64.StdEncoding.EncodeToString(buf.Bytes())}, nil, true
 	}
-	if _, err := h.r.CaptureCrops(context.Background(), doc, captureRequests([]rec.Box{{0, 0, 20, 10}})); err == nil || !strings.Contains(err.Error(), "changed") {
+	if _, err := h.r.CaptureCrops(context.Background(), doc, captureRequests([]rec.Box{{0, 0, 20, 10}})); err == nil || (!strings.Contains(err.Error(), "changed") && !errors.Is(err, errUISuppression)) {
 		t.Fatalf("same URL reload accepted: %v", err)
 	}
 }
@@ -220,5 +221,25 @@ func TestCropCaptureNavigationDuringTextRefusesBeforeScreenshot(t *testing.T) {
 	}
 	if h.fc.countCalls("Page.captureScreenshot") != 0 {
 		t.Fatal("screenshot ran after text context changed")
+	}
+}
+
+func TestCropCaptureRequiresUIConfirmation(t *testing.T) {
+	h, doc := cropHarness(t)
+	h.ui.mu.Lock()
+	delete(h.ui.worlds, "A")
+	h.ui.mu.Unlock()
+	h.fc.more = func(_ string, method string, p map[string]any, _ *fakePage) (any, error, bool) {
+		if method == "Runtime.callFunctionOn" {
+			return map[string]any{"result": map[string]any{"value": core.BoxText{Region: textRequestRegion(p)}}}, nil, true
+		}
+		return nil, nil, false
+	}
+	crops, err := h.r.CaptureCrops(context.Background(), doc, captureRequests([]rec.Box{{0, 0, 20, 10}}))
+	if !errors.Is(err, errUISuppression) || len(crops) != 0 {
+		t.Fatalf("unconfirmed capture: %+v %v", crops, err)
+	}
+	if h.fc.countCalls("Page.captureScreenshot") != 0 {
+		t.Fatal("captured before hiding Couch UI")
 	}
 }
