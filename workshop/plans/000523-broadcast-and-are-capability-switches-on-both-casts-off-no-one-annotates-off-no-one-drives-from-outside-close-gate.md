@@ -101,6 +101,45 @@ rounds:
       isolation: fenced
       reviewed: 29ac1fe53accedd49a9f30b7798372dc390cdbb3
       blocked: false
+    - "n": 5
+      timestamp: "2026-10-13T11:04:35-07:00"
+      dispatched: "2026-10-13T10:58:39-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: replay.js:45 preserves annotation-clear during catch-up. Removing it made both shared-fixture prefix and Player.seek regressions fail; restored tests passed.
+          round: 5
+        - id: BR-2
+          disposition: addressed
+          note: cast_drive.go routes control through recorder/control.go's acknowledged writer. Replacing acknowledgment with Emit made TestProductionControlRefusesClosedRecorder fail; the restored test passed.
+          round: 5
+        - id: BR-3
+          disposition: addressed
+          note: The plan table at line 82 and revision at line 447 name modified board/board.go and new board/annotation.go, matching the pinned diff and AnnotationAdmission implementation.
+          round: 5
+        - id: BR-4
+          disposition: addressed
+          note: README.md:1055 documents independent default-OFF capabilities and persistent links, matching Board/controller initialization and server admission. The README now also documents the completed controls.
+          round: 5
+        - id: BR-5
+          disposition: addressed
+          note: Independently removing annotation and drive generation checks made the pre-ingress regressions fail across viewer and operator routes. Removing annotation-clear gesture cancellation also made capability-ui.test.mjs:70 fail.
+          round: 5
+        - id: BR-6
+          disposition: addressed
+          note: The plan revision at lines 551–566 documents the unresolved-delivery retry exception, deadlines and shutdown, matching chrome_operator.go's single worker, conditional retry selection and deferred ticker stop.
+          round: 5
+      findings:
+        - id: BR-7
+          severity: Critical
+          title: Acknowledged drive actions block Couch's input loop
+          detail: 'ARCH-CONSTRAINTS: controller_mem.go:204–212 now synchronously awaits WriteControl and Release, but console_drive.go:180–199 still calls Grant, Deny and Revoke directly from mouse handlers. A gated-writer reproduction confirmed revokeDrive cannot return before acknowledgment. This is the 2nd finding in family operating-envelope-traceability. Enforce the rule that no terminal input handler awaits recorder/CDP completion: sweep grant, deny, popup revoke and Ctrl-click revoke, dispatch them through bounded owned work, and fence completion by cast identity. Preserve the acknowledged writer.'
+          family: operating-envelope-traceability
+          round: 5
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#523 (boundary-review)
@@ -146,6 +185,22 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-5 — addressed — Origin generations reach operator, viewer annotation, and drive admission; ordered dispatch retains its checks. Independently removing each provenance guard made its regression fail. Removing annotation-clear gesture cancellation also failed capability-ui.test.mjs:70.
 - BR-6 — addressed — The plan revision at workshop/plans/000523-cast-capability-switches-plan.md:551 explicitly documents the 250ms unresolved-delivery retry exception, deadlines, acknowledgment behavior, context pruning, and shutdown. These match cmd/internal/webcast/chrome_operator.go:107-195.
 
+## Round 5 — 2026-10-13T11:04:35-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — replay.js:45 preserves annotation-clear during catch-up. Removing it made both shared-fixture prefix and Player.seek regressions fail; restored tests passed.
+- BR-2 — addressed — cast_drive.go routes control through recorder/control.go's acknowledged writer. Replacing acknowledgment with Emit made TestProductionControlRefusesClosedRecorder fail; the restored test passed.
+- BR-3 — addressed — The plan table at line 82 and revision at line 447 name modified board/board.go and new board/annotation.go, matching the pinned diff and AnnotationAdmission implementation.
+- BR-4 — addressed — README.md:1055 documents independent default-OFF capabilities and persistent links, matching Board/controller initialization and server admission. The README now also documents the completed controls.
+- BR-5 — addressed — Independently removing annotation and drive generation checks made the pre-ingress regressions fail across viewer and operator routes. Removing annotation-clear gesture cancellation also made capability-ui.test.mjs:70 fail.
+- BR-6 — addressed — The plan revision at lines 551–566 documents the unresolved-delivery retry exception, deadlines and shutdown, matching chrome_operator.go's single worker, conditional retry selection and deferred ticker stop.
+
+### Raised
+
+- **BR-7** [Critical] `operating-envelope-traceability` Acknowledged drive actions block Couch's input loop
+  ARCH-CONSTRAINTS: controller_mem.go:204–212 now synchronously awaits WriteControl and Release, but console_drive.go:180–199 still calls Grant, Deny and Revoke directly from mouse handlers. A gated-writer reproduction confirmed revokeDrive cannot return before acknowledgment. This is the 2nd finding in family operating-envelope-traceability. Enforce the rule that no terminal input handler awaits recorder/CDP completion: sweep grant, deny, popup revoke and Ctrl-click revoke, dispatch them through bounded owned work, and fence completion by cast identity. Preserve the acknowledged writer.
+
 ## Open findings
 
-(none — every finding has been disposed)
+- **BR-7** [Critical] `operating-envelope-traceability` Acknowledged drive actions block Couch's input loop

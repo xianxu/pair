@@ -564,3 +564,18 @@ after off/on even after a fresh grant, while current-generation requests succeed
 BR-6 clarification: normal notifications can reconcile sooner than 250ms; the
 single worker's timer only supplies unresolved-delivery retries. An acknowledged
 delivery removes the timer from selection, and cast shutdown stops it.
+
+### 2026-10-13 — Close BR-7 ordinary drive actions must not block input
+
+ARCH-CONSTRAINTS/ARCH-ORDER: acknowledged control writes changed ordinary grant,
+deny and revoke from cheap synchronous operations into recorder/CDP waits.
+Dispatch all four terminal entry paths (grant, deny, popup revoke, Ctrl-click
+revoke) through one bounded console-owned operation slot and tracked worker.
+Admission captures the cast and capability generation before scheduling; leaf
+controller checks prevent a delayed operation crossing Off/On. No unbounded
+queue or retry loop. Busy presents a wait notice; error/success completion runs
+on the terminal loop only if cast, generation and operation identity still match.
+Controller operations retain their acknowledged timeout/cast-close cancellation;
+console shutdown joins tracked work. Tests hold acknowledgment/release behind
+barriers, show unrelated terminal input remains responsive for every entry path,
+and check repeated clicks, stale completion, Off/On and shutdown.

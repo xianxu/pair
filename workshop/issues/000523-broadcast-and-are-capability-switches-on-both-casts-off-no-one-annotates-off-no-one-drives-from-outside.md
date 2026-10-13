@@ -91,6 +91,14 @@ Durable plan: [000523-cast-capability-switches-plan.md](../plans/000523-cast-cap
 
 ## Log
 
+### 2026-10-13 — Close BR-7 rework
+
+Final close returned REWORK: acknowledged ordinary controller operations still
+run inline from four drive UI actions, blocking terminal input during recorder
+or CDP waits. Fix the class through bounded tracked dispatch with generation-
+bound admission and identity-checked terminal completion; keep ordered ACKs.
+The durable plan records the revised worker and verification envelope.
+
 ### 2026-10-13 — Final verification complete
 
 - Complete merged-tree Go suite passed: go test ./... -count=1 -parallel 4,
