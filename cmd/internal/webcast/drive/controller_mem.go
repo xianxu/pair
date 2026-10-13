@@ -200,7 +200,12 @@ func (f *MemController) changeLocked(op string, who recording.Author) error {
 	ctx, cancel := context.WithTimeout(f.life, releaseWait)
 	f.mu.Unlock()
 	r.SetTime(f.clock())
-	putErr := f.sink.Put(r)
+	var putErr error
+	if writer, ok := f.sink.(ControlWriter); ok {
+		putErr = writer.WriteControl(ctx, r)
+	} else {
+		putErr = f.sink.Put(r)
+	}
 	var releaseErr error
 	if putErr == nil && next.Driving() != old && old != "" {
 		if rel, ok := f.inj.(Releaser); ok {

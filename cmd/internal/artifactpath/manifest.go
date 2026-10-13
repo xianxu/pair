@@ -700,6 +700,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/webcast/cast_capabilities.go",
 	"cmd/internal/webcast/drive/capability.go",
 	"cmd/internal/webcast/recorder/capability.go",
+	"cmd/internal/webcast/recorder/control.go",
 	"cmd/internal/webcast/recording/annotations.go",
 	"cmd/internal/webcast/server_capabilities.go",
 	"cmd/internal/webcast/chrome.go",

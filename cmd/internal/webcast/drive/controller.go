@@ -74,3 +74,10 @@ var (
 // ErrControlOp is recording.ErrControl: a control op the state doesn't allow
 // (asking twice, granting a viewer who didn't ask).
 var ErrControlOp = recording.ErrControl
+
+// ControlWriter is an ordered control sink with an acknowledgment. Production
+// asynchronous writers implement it so the controller observes the committed
+// result, not enqueue acceptance. Ordinary recording.Sink fixtures are synchronous.
+type ControlWriter interface {
+	WriteControl(context.Context, *recording.Ctl) error
+}

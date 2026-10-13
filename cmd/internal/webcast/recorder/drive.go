@@ -33,6 +33,12 @@ func (r *Recorder) Opened() bool { return r.openedFlag.Load() }
 
 // WithTab runs fn with the cast tab on the recorder's goroutine (#467).
 func (r *Recorder) WithTab(ctx context.Context, by string, fn func(drive.Tab) error) error {
+	return r.acknowledged(ctx, func() error { return r.withTab(ctx, by, fn) })
+}
+
+// acknowledged owns cancellation while queued; a started effect owns its
+// completion and cannot lose an uncertain result when its caller cancels.
+func (r *Recorder) acknowledged(ctx context.Context, fn func() error) error {
 	// Claim the queued callback or cancel it before it starts. Once running,
 	// await its bounded outcome even if the HTTP caller leaves: an uncertain
 	// external effect must still reach the controller's recovery state.
@@ -40,7 +46,11 @@ func (r *Recorder) WithTab(ctx context.Context, by string, fn func(drive.Tab) er
 	result := make(chan error, 1)
 	q := query{done: make(chan struct{}), fn: func() {
 		if phase.CompareAndSwap(0, 1) {
-			result <- r.withTab(ctx, by, fn)
+			if err := ctx.Err(); err != nil {
+				result <- &capability.Failure{Outcome: capability.Retryable, Cause: err}
+			} else {
+				result <- fn()
+			}
 		}
 	}}
 	if !r.enqueue(q, false) {

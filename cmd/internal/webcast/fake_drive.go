@@ -180,3 +180,21 @@ func (d *FakeDriven) cleanup(ctx context.Context, id uint64, last *uint64, r rec
 	*last = id
 	return nil
 }
+
+// WriteControl follows the production acknowledged writer contract.
+func (d *FakeDriven) WriteControl(ctx context.Context, ctl *recording.Ctl) error {
+	d.command.Lock()
+	defer d.command.Unlock()
+	if err := ctx.Err(); err != nil {
+		return &capability.Failure{Outcome: capability.Retryable, Cause: err}
+	}
+	select {
+	case <-d.Done():
+		return drive.ErrClosed
+	default:
+	}
+	if !d.Opened() {
+		return drive.ErrNotLive
+	}
+	return d.emit(ctl)
+}
