@@ -40,3 +40,4 @@ machine, not the code (see lessons: "A stopwatch ceiling hides the race it was m
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: unclaimed: filed for the TL as an unassigned follow-up of #505
