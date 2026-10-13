@@ -72,6 +72,11 @@ func (c *Console) routeInputEvent(event terminal.InputEvent) {
 	case uv.MouseClickEvent, uv.MouseReleaseEvent, uv.MouseMotionEvent, uv.MouseWheelEvent:
 		c.routeMouseEvent(event)
 		return
+	case uv.KeyPressEvent:
+		// The open Codes menu (pair#495) takes its arrows, Enter and Escape.
+		if c.routeCodesMenuKey(event.Raw, event.Canonical) {
+			return
+		}
 	}
 	c.mu.Lock()
 	panel := c.focus.IsPanel()

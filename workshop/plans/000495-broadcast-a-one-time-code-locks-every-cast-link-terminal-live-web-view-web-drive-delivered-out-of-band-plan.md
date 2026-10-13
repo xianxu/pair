@@ -191,3 +191,9 @@ Status: decided; M1 and M2 closed; M3 in progress. The body below is the origina
   - **Chrome cell:** Alt+right-click no longer copies the drive link (👽 and the menu do), so a right-click on the cell copies the view-only link. `Ctrl`+click still ends the cast. The web 👆 and 👽 copy on a left or a right click.
   - **`LIVE ⏸` left click:** it stays "stop" (hub decision (a)). The screen broadcast has no pause; it is filed unassigned as #518, which notes that the ⏸ glyph promises a pause it doesn't have.
   - **#506 (pair:5)** renames `WebViewLink` to `WebPointerLink` and lands after #495, following this rule.
+- 2026-10-12, operator via the hub (screenshot of the menu): the Codes menu is reorganized.
+  - **Layout:** one row per link, with its label and code plain, then its actions: `view 3926 · rotate · copy-link`, `pointer 8538 · rotate · copy-link`, `rotate all`. The web cast's menu has view-only, (pointer, after #506) and drive rows, then `rotate all`. The separate "Copy … link" rows are dropped.
+  - **Click targets:** each action word is its own click target, drawn in the link blue.
+  - **Keyboard:** Up/Down pick the row, Left/Right the action, Enter runs it, Escape closes.
+  - **Model:** `codes_menu.go` is a pure model (layout, hit-testing, selection, drawing, by grapheme width), and Couch wires it.
+  - **Link not made yet:** a row whose link doesn't exist shows its label alone. See the Log.

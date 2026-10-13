@@ -684,6 +684,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcmd/webcast.go",
 	"cmd/internal/couchtty/console_webcast.go",
 	"cmd/internal/couchtty/console_castcodes.go",
+	"cmd/internal/couchtty/codes_menu.go",
 	"cmd/internal/webcast/browser.go",
 	"cmd/internal/webcast/cast.go",
 	"cmd/internal/webcast/chrome.go",

@@ -1078,11 +1078,13 @@ never see it.
 - **Seeing the codes.** Hover `LIVE ⏸` or `Chrome ⏸` to see all of that cast's codes,
   for example `view 4821 · pointer 7730`. View and pointer codes are 4 digits; the drive
   code is 6.
-- **The Codes menu.** `Alt+click` `LIVE ⏸` or `Chrome ⏸`:
-  - its blue entries copy the cast's links ("Copy view-only link", "Copy pointer link",
-    "Copy drive link");
-  - the others rotate one link's code, or all of them. Rotating disconnects everyone
-    who used the old code.
+- **The Codes menu.** `Alt+click` `LIVE ⏸` or `Chrome ⏸`. It shows one row per link:
+  `view 3926 · rotate · copy-link`, then `rotate all`.
+  - Each blue word is its own button: click it, or pick it with Up/Down (row) and
+    Left/Right (word) and press Enter. Escape closes the menu.
+  - Rotating disconnects everyone who used the old code.
+  - Before pointing first makes the pointer link, its row shows `pointer (not made
+    yet)`, with no actions; click `👆` to make it.
 - **Wrong guesses.** About 8 wrong tries on one code rotate it by themselves. Couch
   says so, and viewers already in stay connected.
 - **What viewers see.** The codes show on your screen only, never in what the LIVE

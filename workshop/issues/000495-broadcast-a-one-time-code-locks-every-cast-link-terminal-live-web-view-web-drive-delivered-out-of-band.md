@@ -88,4 +88,8 @@ total: 8.05
 - 2026-10-12: closed M1 — Round 1 fixes: BR-4 Rotation.Gen + TestConcurrentRotationsNewestGenIsCurrentCode; BR-3 plan records D1 Strict and revocation as built; fail-closed spent code (TestSpentCodeThatCannotRotateFailsClosed), Failed outcome; FuzzUnlockBody (525k execs); castClient replaces DefaultClient mutation. castlock+broadcast -race green; couchtty cast tests green. Earlier: make -k test green except artifact inventory, fixed.; review verdict: FIX-THEN-SHIP
 - D4 follow-up filed by the hub from pair:0 as pair#509 (replay share links; unclaimed).
 - Operator smoke test (desktop and iPad), build bd801297: the codes passed ("tested the code, it's working well"). The ergonomics revision (the cast row's rule: hover and Alt+click on LIVE ⏸ / Chrome ⏸, right-click copies, blue copy actions in the Codes menu, no Alt+right-click on Chrome) is recorded in the plan's Revisions and built before landing. The terminal pause is filed as #518 (unassigned).
+- Codes menu reorganized per the operator (one row per link: label, then `rotate · copy-link` as blue words; keyboard Up/Down/Left/Right/Enter/Escape).
+  - **Decision: a link that doesn't exist yet** (the screen pointer link before pointing first starts) shows its label alone, `pointer (not made yet)`, with no actions; it does not get a `copy-link` that creates it.
+  - **Why:** making the pointer link turns pointing on, which changes what LIVE viewers get. A copy should never have that side effect, and 👆 already does exactly that on purpose.
+- Found while building: the menu's first cell writer counted runes as cells, so an emoji in a label made an invalid frame and the menu never drew. Fixed by laying out and drawing by grapheme width; pinned by `TestCodesMenuDrawsWideCharacters`.
 

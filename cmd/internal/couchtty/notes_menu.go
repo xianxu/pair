@@ -26,7 +26,7 @@ var (
 	notesMenuBg    = ansi.IndexedColor(236)
 	notesMenuHover = ansi.IndexedColor(239)
 	notesMenuDim   = ansi.IndexedColor(245)
-	// notesMenuLink is an action that hands out a link (pair#495): the
+	// notesMenuLink is the Codes menu's action words (pair#495): the
 	// actionable-link blue.
 	notesMenuLink = ansi.IndexedColor(75)
 )
@@ -51,18 +51,15 @@ type notesMenuLine struct {
 	color int
 	id    int // 0 for the header and the "+k more" line
 	dim   bool
-	link  bool // an action that hands out a link: drawn blue (pair#495)
 	tip   bool // a tooltip's one plain line, no header marks (pair#495)
 }
 
-// menuItem is one entry of a titled menu: a note with its color chip, or an
-// action (no chip; link draws it blue).
+// menuItem is one entry of a titled menu, with its color chip or none.
 type menuItem struct {
 	ID    int
 	Text  string
 	Color int
 	Chip  bool
-	Link  bool
 }
 
 // Open reports whether there is a menu.
@@ -135,7 +132,7 @@ func renderMenu(title string, notes []menuItem, cols, rows int) NotesMenu {
 		}
 		top := len(lines)
 		for i, l := range wrapped {
-			lines = append(lines, notesMenuLine{text: l, chip: n.Chip && i == 0, color: n.Color, id: n.ID, link: n.Link})
+			lines = append(lines, notesMenuLine{text: l, chip: n.Chip && i == 0, color: n.Color, id: n.ID})
 		}
 		items = append(items, notesMenuItem{ID: n.ID, Top: top, Bottom: len(lines)})
 		shown++
@@ -238,11 +235,7 @@ func menuLineCells(line notesMenuLine, w int, bg color.Color, style broadcast.No
 			put("  ", plain)
 		}
 		put(" ", plain)
-		text := plain
-		if line.link {
-			text = uv.Style{Bg: bg, Fg: notesMenuLink}
-		}
-		put(line.text, text)
+		put(line.text, plain)
 	}
 	for len(cells) < w {
 		put(" ", plain)

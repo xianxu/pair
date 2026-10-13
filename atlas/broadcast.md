@@ -109,9 +109,16 @@ the operator says it on the call.
     main entrance) shows all of its codes, for example
     `view 4821 · pointer 7730`. The link controls beside it show none.
   - **Codes menu:** Alt+click on the cell (only there) opens it.
-    - Its blue entries (`notesMenuLink`) copy the cast's links.
-    - The rest rotate one link's code, or "rotate all"; a rotation
-      disconnects that link's viewers.
+    - `codes_menu.go` is a pure model: layout, a hit target per word,
+      selection and drawing.
+    - It has one row per link (`view 3926 · rotate · copy-link`), then
+      `rotate all`. Each action word is a click target drawn in the link blue
+      (`notesMenuLink`).
+    - Keyboard: Up/Down pick the row, Left/Right the word, Enter runs it, and
+      Escape closes the menu.
+    - A rotation disconnects that link's viewers.
+    - The screen pointer link's row has no actions until pointing makes the
+      link: copy-link never turns pointing on.
   - **The cast row's rule** (operator, at the #495 smoke test): a left click
     acts or toggles, a right-click copies that control's link, and Alt+click
     opens the Codes menu. The README has the per-control table. `LIVE ⏸`'s

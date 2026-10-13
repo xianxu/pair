@@ -8,6 +8,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/broadcast"
 	"github.com/xianxu/pair/cmd/internal/castlock"
+	"github.com/xianxu/pair/cmd/internal/terminal"
 )
 
 func viewCode(t *testing.T, s *broadcast.Session) string {
@@ -54,7 +55,10 @@ func TestCodesMenuRotatesAndDisconnects(t *testing.T) {
 	v := openViewer(t, s)
 	old := viewCode(t, s)
 	_, _ = fmt.Fprintf(f.stdin, "\x1b[<8;2;24M\x1b[<8;2;24m") // Alt+click on LIVE
-	waitFor(t, "the Codes menu", func() bool { return strings.Contains(f.screenText(), "view "+old+" · rotate") })
+	waitFor(t, "the Codes menu", func() bool { return strings.Contains(f.screenText(), "view "+old+" · rotate · copy-link") })
+	if !strings.Contains(f.screenText(), "pointer (not made yet)") {
+		t.Fatal("no pointer row before pointing made the link")
+	}
 	if f.phase() != broadcastLive {
 		t.Fatal("Alt+click stopped the broadcast")
 	}
@@ -148,7 +152,7 @@ func TestWebCastCodesOnTheChromeCell(t *testing.T) {
 	if c.wphase() != before {
 		t.Fatal("Alt+click toggled the cast")
 	}
-	for _, want := range []string{"Copy view-only link", "Copy drive link", "rotate all"} {
+	for _, want := range []string{"view " + codes[0].Code + " · rotate · copy-link", "drive " + codes[1].Code + " · rotate · copy-link", "rotate all"} {
 		if !strings.Contains(c.screenText(), want) {
 			t.Fatalf("menu lacks %q", want)
 		}
@@ -171,7 +175,7 @@ func TestScreenCodesMenuCopiesTheViewLink(t *testing.T) {
 	s := f.startLive(t)
 	x := f.liveSpan().Start + 1
 	_, _ = fmt.Fprintf(f.stdin, "\x1b[<8;%d;24M\x1b[<8;%d;24m", x, x)
-	waitFor(t, "the LIVE Codes menu", func() bool { return strings.Contains(f.screenText(), "Copy view-only link") })
+	waitFor(t, "the LIVE Codes menu", func() bool { return strings.Contains(f.screenText(), "· copy-link") })
 	before := copies(f, s.Link())
 	f.chooseCodes(t, codesAction{copy: true, link: broadcast.LinkView})
 	waitFor(t, "view link copied", func() bool { return copies(f, s.Link()) == before+1 })
@@ -186,28 +190,21 @@ func (f *consoleFixture) liveSpan() ColumnSpan {
 	return f.con.statusControl
 }
 
-// chooseCodes clicks the open Codes menu's entry that does want.
+// chooseCodes clicks the open Codes menu's word that does want.
 func (f *consoleFixture) chooseCodes(t *testing.T, want codesAction) {
 	t.Helper()
 	f.con.codes.mu.Lock()
-	box, actions := f.con.codes.menuBox, f.con.codes.menuItems
+	box := f.con.codes.menuBox
 	f.con.codes.mu.Unlock()
-	id := 0
-	for k, a := range actions {
-		if a == want {
-			id = k
+	for _, r := range box.rows {
+		for _, w := range r.words {
+			if w.action == want {
+				_, _ = fmt.Fprintf(f.stdin, "\x1b[<0;%d;%dM\x1b[<0;%d;%dm", w.x0+1, r.y+1, w.x0+1, r.y+1)
+				return
+			}
 		}
 	}
-	top := -1
-	for _, it := range box.items {
-		if it.ID == id {
-			top = it.Top
-		}
-	}
-	if id == 0 || top < 0 {
-		t.Fatalf("no menu entry %+v", want)
-	}
-	_, _ = fmt.Fprintf(f.stdin, "\x1b[<0;%d;%dM\x1b[<0;%d;%dm", box.X+3, top+1, box.X+3, top+1)
+	t.Fatalf("no menu word %+v", want)
 }
 
 func (f *consoleFixture) screenAttempt() uint64 {
@@ -231,4 +228,90 @@ func TestLateRotationFromAnEndedCastIsDropped(t *testing.T) {
 	}
 	f.con.onCodeRotated(castScreen, current, broadcast.LinkView, castlock.Rotation{Code: "4242", Reason: castlock.ReasonOperator, Gen: 1})
 	waitFor(t, "the current cast's flash", func() bool { return strings.Contains(f.screenText(), "LIVE view 4242") })
+}
+
+// The menu's words are its click targets, and the keyboard walks them:
+// Up/Down the rows (skipping a row with no actions), Left/Right the words.
+func TestCodesMenuLayoutAndSelection(t *testing.T) {
+	rows := []codesMenuRow{
+		{label: "view 3926", actions: []codesMenuWord{{text: "rotate", action: codesAction{link: "view"}}, {text: "copy-link", action: codesAction{copy: true, link: "view"}}}},
+		{label: "pointer (not made yet)"},
+		{label: "drive 903114", actions: []codesMenuWord{{text: "rotate", action: codesAction{link: "drive"}}, {text: "copy-link", action: codesAction{copy: true, link: "drive"}}}},
+		{actions: []codesMenuWord{{text: "rotate all"}}},
+	}
+	m := layoutCodesMenu("Chrome codes", rows, 80, 24)
+	if !m.Open() || m.X+m.W != 80 || m.Y+m.H != 23 {
+		t.Fatalf("box %+v", m)
+	}
+	copyView := m.rows[0].words[1]
+	if sel, ok := m.WordAt(copyView.x0, m.rows[0].y); !ok || sel != (codesMenuSel{0, 1}) {
+		t.Fatalf("copy-link not under its own columns: %+v %v", sel, ok)
+	}
+	if _, ok := m.WordAt(m.X+2, m.rows[0].y); ok {
+		t.Fatal("the label is a click target")
+	}
+	if _, ok := m.WordAt(m.X+2, m.rows[1].y); ok {
+		t.Fatal("a row with no actions has a target")
+	}
+	m = m.Move(1, 0) // nothing selected: the first word
+	if a, _ := m.Selected(); a != (codesAction{link: "view"}) {
+		t.Fatalf("first selection %+v", a)
+	}
+	m = m.Move(0, 1)
+	if a, _ := m.Selected(); a != (codesAction{copy: true, link: "view"}) {
+		t.Fatalf("right %+v", a)
+	}
+	m = m.Move(1, 0) // skips the pointer row, keeps the column
+	if a, _ := m.Selected(); a != (codesAction{copy: true, link: "drive"}) {
+		t.Fatalf("down %+v", a)
+	}
+	m = m.Move(1, 0)
+	if a, _ := m.Selected(); a != (codesAction{}) {
+		t.Fatalf("rotate all %+v", a)
+	}
+	m = m.Move(1, 0).Move(0, 5)
+	if a, _ := m.Selected(); a != (codesAction{}) {
+		t.Fatalf("past the end moved: %+v", a)
+	}
+}
+
+// From the keyboard: Down, Right and Enter on the view row copy its link;
+// Escape closes the menu; other keys go on.
+func TestCodesMenuKeyboard(t *testing.T) {
+	f := broadcastFixture(t, &broadcast.FakeTunnel{}, nil)
+	s := f.startLive(t)
+	x := f.liveSpan().Start + 1
+	_, _ = fmt.Fprintf(f.stdin, "\x1b[<8;%d;24M\x1b[<8;%d;24m", x, x)
+	waitFor(t, "the menu", func() bool { return strings.Contains(f.screenText(), "LIVE codes") })
+	before := copies(f, s.Link())
+	_, _ = f.stdin.Write([]byte("\x1b[B"))
+	_, _ = f.stdin.Write([]byte("\x1b[C"))
+	_, _ = f.stdin.Write([]byte("\r"))
+	waitFor(t, "view link copied by keyboard", func() bool { return copies(f, s.Link()) == before+1 })
+	_, _ = fmt.Fprintf(f.stdin, "\x1b[<8;%d;24M\x1b[<8;%d;24m", x, x)
+	waitFor(t, "the menu again", func() bool { return strings.Contains(f.screenText(), "LIVE codes") })
+	_, _ = f.stdin.Write([]byte("\x1b"))
+	waitFor(t, "Escape closes it", func() bool { return !strings.Contains(f.screenText(), "LIVE codes") })
+	if f.phase() != broadcastLive {
+		t.Fatal("a menu key reached the broadcast toggle")
+	}
+}
+
+// A wide character in a row (an emoji) takes its two cells: the menu still
+// draws a valid frame, and the words after it keep their columns.
+func TestCodesMenuDrawsWideCharacters(t *testing.T) {
+	rows := []codesMenuRow{{label: "pointer 👆 8538", actions: []codesMenuWord{{text: "rotate", action: codesAction{link: "pointer"}}}}}
+	m := layoutCodesMenu("LIVE codes", rows, 40, 10)
+	f := terminal.Frame{Geometry: terminal.Geometry{Cols: 40, Rows: 10}, Cells: make([]terminal.Cell, 400)}
+	for i := range f.Cells {
+		f.Cells[i] = terminal.Cell{Content: " ", Width: 1}
+	}
+	out := m.Draw(f)
+	if err := out.Validate(); err != nil {
+		t.Fatalf("invalid frame: %v", err)
+	}
+	w := m.rows[0].words[0]
+	if got := out.Cells[m.rows[0].y*40+w.x0].Content; got != "r" {
+		t.Fatalf("rotate drawn off its column: %q", got)
+	}
 }

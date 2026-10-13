@@ -59,12 +59,9 @@ type castCodes struct {
 	hover      castKind
 	hoverCodes []broadcast.LinkCode
 	hoverAt    int
-	// The Codes menu: which cast, its layout, its items (by menu id) and the
-	// hovered one.
-	menu      castKind
-	menuBox   NotesMenu
-	menuItems map[int]codesAction // menu id → what the entry does
-	menuHover int
+	// The Codes menu: which cast, and its layout and selection.
+	menu    castKind
+	menuBox codesMenu
 	// flash is a code that just changed.
 	flash *codeFlash
 	// gens is the newest rotation seen per link (castlock.Rotation.Gen).
@@ -152,16 +149,18 @@ func (c *Console) routeCastCodes(raw []byte) bool {
 	c.codes.mu.Unlock()
 	if menu != castNone {
 		if box.Contains(x, y) {
+			sel, onWord := box.WordAt(x, y)
 			if motion {
-				c.setCodesMenuHover(box.ItemAt(x, y))
+				c.selectCodesWord(sel)
 				return true
 			}
-			if button == 0 {
-				if box.CloseAt(x, y) {
-					c.closeCodesMenu()
-				} else if id := box.ItemAt(x, y); id != 0 {
-					c.chooseCodesItem(id)
-				}
+			switch {
+			case button != 0:
+			case box.CloseAt(x, y):
+				c.closeCodesMenu()
+			case onWord:
+				c.selectCodesWord(sel)
+				c.runCodesSelection()
 			}
 			return true
 		}
@@ -206,15 +205,10 @@ func (c *Console) setCodesHover(kind castKind, at int) {
 	}
 }
 
-// codesAction is one Codes menu entry: copy a link, or rotate a link's code
-// ("" rotates every link).
-type codesAction struct {
-	copy bool
-	link string
-}
-
-// openCodesMenu opens kind's Codes menu: first the links it can copy (drawn
-// blue), then each link's code to rotate, and rotate all.
+// openCodesMenu opens kind's Codes menu: a row per link -- its code, then
+// rotate and copy-link -- and rotate all. The screen broadcast's pointer link
+// is a row of its label alone until pointing first makes it (pair#495: the
+// menu never turns pointing on as a side effect of a copy).
 func (c *Console) openCodesMenu(kind castKind) {
 	codes := c.castCodesOf(kind)
 	if len(codes) == 0 {
@@ -222,33 +216,25 @@ func (c *Console) openCodesMenu(kind castKind) {
 	}
 	c.mu.Lock()
 	cols, rows := int(c.size.Cols), int(c.size.Rows)
-	pointerLink := kind == castScreen && c.bcast.session != nil && c.bcast.session.PointerLink() != ""
 	c.mu.Unlock()
-	actions := map[int]codesAction{}
-	var items []menuItem
-	add := func(text string, a codesAction) {
-		id := len(items) + 1
-		actions[id] = a
-		items = append(items, menuItem{ID: id, Text: text, Link: a.copy})
-	}
-	add("Copy view-only link", codesAction{copy: true, link: broadcast.LinkView})
+	var menuRows []codesMenuRow
+	hasPointer := false
 	for _, code := range codes {
-		switch {
-		case code.Link == broadcast.LinkPointer && pointerLink:
-			add("Copy pointer link", codesAction{copy: true, link: broadcast.LinkPointer})
-		case code.Link == broadcast.LinkDrive:
-			add("Copy drive link", codesAction{copy: true, link: broadcast.LinkDrive})
-		}
+		hasPointer = hasPointer || code.Link == broadcast.LinkPointer
+		menuRows = append(menuRows, codesMenuRow{label: code.Link + " " + code.Code, actions: []codesMenuWord{
+			{text: "rotate", action: codesAction{link: code.Link}},
+			{text: "copy-link", action: codesAction{copy: true, link: code.Link}},
+		}})
 	}
-	for _, code := range codes {
-		add(fmt.Sprintf("%s %s · rotate", code.Link, code.Code), codesAction{link: code.Link})
+	if kind == castScreen && !hasPointer {
+		menuRows = append(menuRows, codesMenuRow{label: "pointer (not made yet)"})
 	}
 	if len(codes) > 1 {
-		add("rotate all", codesAction{})
+		menuRows = append(menuRows, codesMenuRow{label: "", actions: []codesMenuWord{{text: "rotate all", action: codesAction{}}}})
 	}
-	box := renderMenu(kind.name()+" codes", items, cols, rows)
+	box := layoutCodesMenu(kind.name()+" codes", menuRows, cols, rows)
 	c.codes.mu.Lock()
-	c.codes.menu, c.codes.menuBox, c.codes.menuItems, c.codes.menuHover = kind, box, actions, 0
+	c.codes.menu, c.codes.menuBox = kind, box
 	c.codes.mu.Unlock()
 	c.repaint()
 }
@@ -256,36 +242,81 @@ func (c *Console) openCodesMenu(kind castKind) {
 func (c *Console) closeCodesMenu() {
 	c.codes.mu.Lock()
 	open := c.codes.menu != castNone
-	c.codes.menu, c.codes.menuBox, c.codes.menuItems, c.codes.menuHover = castNone, NotesMenu{}, nil, 0
+	c.codes.menu, c.codes.menuBox = castNone, codesMenu{}
 	c.codes.mu.Unlock()
 	if open {
 		c.repaint()
 	}
 }
 
-func (c *Console) setCodesMenuHover(id int) {
+// selectCodesWord moves the menu's selection to sel (a mouse over a word).
+func (c *Console) selectCodesWord(sel codesMenuSel) {
 	c.codes.mu.Lock()
-	changed := c.codes.menuHover != id
-	c.codes.menuHover = id
+	before := c.codes.menuBox.sel
+	c.codes.menuBox = c.codes.menuBox.Select(sel)
+	changed := c.codes.menuBox.sel != before
 	c.codes.mu.Unlock()
 	if changed {
 		c.repaint()
 	}
 }
 
-// chooseCodesItem copies the chosen link, or rotates its code (or every
-// link's).
-func (c *Console) chooseCodesItem(id int) {
+// routeCodesMenuKey takes the keyboard while the Codes menu is open:
+// Up/Down pick the row, Left/Right the action, Enter runs it, Escape closes.
+// Any other key goes on, to its usual place. It reports whether it took raw.
+func (c *Console) routeCodesMenuKey(raw, canonical []byte) bool {
 	c.codes.mu.Lock()
-	kind, action, ok := c.codes.menu, codesAction{}, false
-	if c.codes.menuItems != nil {
-		action, ok = c.codes.menuItems[id]
-	}
+	open := c.codes.menu != castNone
 	c.codes.mu.Unlock()
-	c.closeCodesMenu()
+	if !open {
+		return false
+	}
+	if len(canonical) == 1 && canonical[0] == 0x1b {
+		// A lone Escape, once the decoder's ambiguity wait has passed.
+		c.closeCodesMenu()
+		return true
+	}
+	keys, held := DecodePanelKeys(raw)
+	if len(keys) != 1 || len(held) != 0 {
+		return false
+	}
+	dy, dx := 0, 0
+	switch keys[0].Kind {
+	case KeyUp:
+		dy = -1
+	case KeyDown:
+		dy = 1
+	case KeyLeft:
+		dx = -1
+	case KeyRight:
+		dx = 1
+	case KeyEnter:
+		c.runCodesSelection()
+		return true
+	case KeyEscape:
+		c.closeCodesMenu()
+		return true
+	default:
+		return false
+	}
+	c.codes.mu.Lock()
+	c.codes.menuBox = c.codes.menuBox.Move(dy, dx)
+	c.codes.mu.Unlock()
+	c.repaint()
+	return true
+}
+
+// runCodesSelection does the selected word: copies its link, or rotates its
+// code (or every link's).
+func (c *Console) runCodesSelection() {
+	c.codes.mu.Lock()
+	kind := c.codes.menu
+	action, ok := c.codes.menuBox.Selected()
+	c.codes.mu.Unlock()
 	if !ok {
 		return
 	}
+	c.closeCodesMenu()
 	if action.copy {
 		c.copyCastLink(kind, action.link)
 		return
@@ -423,7 +454,7 @@ func (c *Console) forgetCastCodes(kind castKind) {
 		c.codes.hover, c.codes.hoverCodes = castNone, nil
 	}
 	if c.codes.menu == kind {
-		c.codes.menu, c.codes.menuBox, c.codes.menuItems, c.codes.menuHover = castNone, NotesMenu{}, nil, 0
+		c.codes.menu, c.codes.menuBox = castNone, codesMenu{}
 	}
 	if c.codes.flash != nil && c.codes.flash.cast == kind {
 		c.codes.flash = nil
@@ -465,7 +496,7 @@ func (c *Console) codesLayer(f terminal.Frame, _ terminal.FrameClass) terminal.F
 		f = codeTip(strings.Join(parts, " · "), c.codes.hoverAt, cols, rows).Draw(f, 0, style)
 	}
 	if c.codes.menu != castNone {
-		f = c.codes.menuBox.Draw(f, c.codes.menuHover, style)
+		f = c.codes.menuBox.Draw(f)
 	}
 	return f
 }

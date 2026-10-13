@@ -7,6 +7,9 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- A writer that turns text into terminal cells measures by grapheme width, never by rune count, in its layout and
+  its drawing alike. One wide character (an emoji in a label) otherwise yields a frame that fails validation, and the
+  whole paint is dropped silently. Test a drawn surface with a wide character in it. (#495)
 - A change to what a user does (a gesture, a control, what a pin shows) updates README's how-to paragraph in the same
   commit as the atlas. The atlas is the agent's map and README is the operator's; grep README for the old verbs
   ("tap", "drag", "pin") before closing. (#488 BR-1)
