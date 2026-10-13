@@ -21,6 +21,12 @@ export const FLUSH_MS = 50;
 export const HOVER_MS = 50;
 // DRAG_PX: a press that moves this far (window px) is a drag, not a click.
 export const DRAG_PX = 4;
+// DOUBLE_MS: a click this soon after the last, within DRAG_PX of it, is the
+// second of a double click. Counted here because Chrome's pointer events
+// carry detail 0 on every click (pair#505, measured: pointerup:0 for both
+// presses of a double click; only mouseup and click count), so reading
+// detail never sent a double click.
+export const DOUBLE_MS = 500;
 export const MAX_ACTS = 64;
 export const MAX_TEXT = 1000;
 // The wire's limits (drive.ParseBatch, the input route's budget): a body
@@ -162,12 +168,13 @@ export function batcher(deps) {
 const round = (v) => Math.round(v * 10) / 10;
 
 // gestures turns pointer events into acts. A press that doesn't move
-// DRAG_PX is a click on release (a double click when the event says so); one
-// that does is a drag: down where it began, moves, up. Touch is the same
+// DRAG_PX is a click on release (the second of a double click when it comes
+// within DOUBLE_MS and DRAG_PX of the last click); one that does is a drag:
+// down where it began, moves, up. Touch is the same
 // with one finger; two fingers scroll (wheel acts by the move of their
 // middle). A mouse moving with no button down hovers (moves, at most every
 // HOVER_MS). Events are plain objects with pointerId, pointerType, clientX,
-// clientY, button, buttons, detail, timeStamp. Coordinates may leave the
+// clientY, button, buttons, timeStamp. Coordinates may leave the
 // frame (the pointer is captured); the batcher clamps them for the wire.
 //   deps: toPage(cx, cy) → [x, y], nodeAt(x, y) → id, emit(act)
 export function gestures(deps) {
@@ -175,6 +182,7 @@ export function gestures(deps) {
   let press = null; // {id, start: [cx, cy], page: [x, y], dragging}
   let pinch = null; // {mid: [cx, cy]}
   let lastHover = -Infinity;
+  let lastClick = null; // {t, x, y}: a single click that may become a double
   const at = (e) => deps.toPage(e.clientX, e.clientY);
   const pt = (p) => ({ x: round(p[0]), y: round(p[1]) });
   const mid = () => {
@@ -215,6 +223,7 @@ export function gestures(deps) {
         if (!press.dragging && Math.hypot(e.clientX - press.start[0], e.clientY - press.start[1]) < DRAG_PX) return;
         if (!press.dragging) {
           press.dragging = true;
+          lastClick = null;
           deps.emit({ a: 'down', id: press.id, button: 'left', ...pt(press.page) });
         }
         press.last = p;
@@ -238,7 +247,10 @@ export function gestures(deps) {
         endPress();
         return;
       }
-      deps.emit({ a: 'click', id: press.id, button: 'left', count: e.detail >= 2 ? 2 : 1, ...pt(press.page) });
+      const second = lastClick !== null && e.timeStamp - lastClick.t <= DOUBLE_MS &&
+        Math.hypot(e.clientX - lastClick.x, e.clientY - lastClick.y) < DRAG_PX;
+      deps.emit({ a: 'click', id: press.id, button: 'left', count: second ? 2 : 1, ...pt(press.page) });
+      lastClick = second ? null : { t: e.timeStamp, x: e.clientX, y: e.clientY };
       press = null;
     },
     cancel(e) {

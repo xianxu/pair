@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sort"
+	"strings"
 
+	"github.com/xianxu/pair/cmd/internal/cdp"
 	"github.com/xianxu/pair/cmd/internal/webcast/drive"
 	rec "github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
@@ -30,6 +33,9 @@ func (r *Recorder) Opened() bool { return r.openedFlag.Load() }
 func (r *Recorder) WithTab(ctx context.Context, by string, fn func(drive.Tab) error) error {
 	var err error
 	if aerr := r.ask(ctx, func() { err = r.withTab(ctx, by, fn) }); aerr != nil {
+		if errors.Is(aerr, errClosed) {
+			return drive.ErrClosed // the recording ended under the request
+		}
 		return aerr
 	}
 	return err
@@ -153,30 +159,39 @@ type cdpTab struct{ r *Recorder }
 func (t *cdpTab) Page() *rec.State { return t.r.m.State() }
 
 func (t *cdpTab) At(x, y float64) (rec.NodeID, error) {
-	s := t.r.m.TopScroll()
 	var res struct {
 		BackendNodeID int `json:"backendNodeId"`
 	}
-	// Not into user-agent shadow DOM: an <input>'s inner editor isn't a
-	// node the recording has (measured: every click on an input read as
-	// stale).
+	// DOM.getNodeForLocation hit-tests at top-page CSS px, the act's own
+	// coordinates, and finds only what is in the viewport (pair#505,
+	// measured: at scroll 236, page (94,405) is the link the viewer aimed
+	// at and viewport (94,169) is "No node found"; subtracting the scroll
+	// made every click after a scroll stale). Not into user-agent shadow
+	// DOM: an <input>'s inner editor isn't a node the recording has
+	// (measured: every click on an input read as stale).
 	err := t.r.inputCall(t.r.top, "DOM.getNodeForLocation", map[string]any{
-		"x": int(x - s[0]), "y": int(y - s[1]), "includeUserAgentShadowDOM": false, "ignorePointerEventsNone": true,
+		"x": int(x), "y": int(y), "includeUserAgentShadowDOM": false, "ignorePointerEventsNone": true,
 	}, &res)
-	if errors.Is(err, drive.ErrDialog) {
+	var ce *cdp.Error
+	switch {
+	case err == nil:
+		id, _ := t.r.m.IDOf(t.r.top, res.BackendNodeID)
+		return id, nil
+	case errors.Is(err, drive.ErrDialog):
 		return 0, err
-	}
-	if err != nil {
+	case errors.As(err, &ce) && strings.HasPrefix(ce.Message, "No node found"):
 		return 0, nil // nothing there (off the viewport): stale
 	}
-	id, _ := t.r.m.IDOf(t.r.top, res.BackendNodeID)
-	return id, nil
+	return 0, fmt.Errorf("%w: hit test: %v", drive.ErrInput, err)
 }
 
 func (t *cdpTab) Dispatch(a drive.Act) error {
 	for _, c := range cdpAct(a, t.r.m.TopScroll()) {
 		if err := t.r.inputCall(t.r.top, c.Method, c.Params, nil); err != nil {
-			return err
+			if errors.Is(err, drive.ErrDialog) {
+				return err
+			}
+			return fmt.Errorf("%w: %s: %v", drive.ErrInput, c.Method, err)
 		}
 	}
 	return nil

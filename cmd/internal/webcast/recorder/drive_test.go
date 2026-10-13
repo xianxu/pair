@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/cdp"
 	"github.com/xianxu/pair/cmd/internal/webcast/drive"
 	rec "github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
@@ -25,6 +26,8 @@ type driveTab struct {
 	heldBy   string
 	send     func(payload string) // a bindingCalled from the page
 	hit      int              // backendNodeId at any point
+	hitErr   error            // what the hit test fails with, if set
+	hitAt    [][2]float64     // the points hit-tested
 	takeFail bool
 	block    chan struct{} // while set, input calls wait on it
 	inputs   []string
@@ -67,8 +70,21 @@ func (d *driveTab) more(session, method string, params map[string]any, p *fakePa
 		b, _ := jsonString(items)
 		return map[string]any{"result": map[string]any{"value": b}}, nil, true
 	case method == "DOM.getNodeForLocation":
-		hit := d.hit
+		hit, err := d.hit, d.hitErr
+		num := func(v any) float64 {
+			switch n := v.(type) {
+			case int:
+				return float64(n)
+			case float64:
+				return n
+			}
+			return -1
+		}
+		d.hitAt = append(d.hitAt, [2]float64{num(params["x"]), num(params["y"])})
 		d.mu.Unlock()
+		if err != nil {
+			return nil, err, true
+		}
 		return map[string]any{"backendNodeId": hit}, nil, true
 	case strings.HasPrefix(method, "Input."):
 		d.inputs = append(d.inputs, method)
@@ -285,5 +301,44 @@ func TestHeldDocumentSendsAttributedItems(t *testing.T) {
 	send("v1")
 	if h.count("click") != n+1 || h.last("click").(*rec.Click).By != "" {
 		t.Fatalf("a click reported after the revoke: %d clicks, by %q", h.count("click"), h.last("click").(*rec.Click).By)
+	}
+}
+
+// pair#505: the hit test takes the act's top-page coordinates as they are,
+// at any scroll (measured: Chrome's DOM.getNodeForLocation hit-tests page
+// px; subtracting the scroll made every click after a scroll stale). A
+// "No node found" is nothing there (stale); any other failure is the tab's
+// (ErrInput, logged for the operator), not "the page changed".
+func TestCdpTabHitTestsPageCoordinates(t *testing.T) {
+	h, d, _, btn := drivenHarness(t, nil)
+	payload, _ := json.Marshal(map[string]any{"t": "obs", "items": []any{map[string]any{"k": "scroll", "p": []int{}, "x": 0, "y": 300}}})
+	h.send("A", "Runtime.bindingCalled", map[string]any{"name": "__couchcast", "payload": string(payload), "executionContextId": 7})
+	h.settle()
+	b := clickOn(h, h.id("A", btn.backend))
+	b.Acts[0].X, b.Acts[0].Y = 40, 420 // top-page px, below the 300 scroll
+	if err := drive.NewTabInjector(h.r).Inject(context.Background(), ana.ID, b); err != nil {
+		t.Fatalf("click after a scroll: %v", err)
+	}
+	d.mu.Lock()
+	at := d.hitAt[len(d.hitAt)-1]
+	d.mu.Unlock()
+	if at != [2]float64{40, 420} {
+		t.Fatalf("hit-tested at %v, want the page point (40, 420)", at)
+	}
+
+	for _, c := range []struct {
+		name string
+		err  error
+		want error
+	}{
+		{"nothing there", &cdp.Error{Code: -32000, Message: "No node found at given location"}, drive.ErrStale},
+		{"the session went", errors.New("cdp: connection closed"), drive.ErrInput},
+	} {
+		d.mu.Lock()
+		d.hitErr = c.err
+		d.mu.Unlock()
+		if err := drive.NewTabInjector(h.r).Inject(context.Background(), ana.ID, clickOn(h, h.id("A", btn.backend))); !errors.Is(err, c.want) {
+			t.Errorf("%s: %v, want %v", c.name, err, c.want)
+		}
 	}
 }
