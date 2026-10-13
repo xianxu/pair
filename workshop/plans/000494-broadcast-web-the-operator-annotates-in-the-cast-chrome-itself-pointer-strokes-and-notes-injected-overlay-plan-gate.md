@@ -43,7 +43,11 @@ rounds:
           note: Replaces test-case inventories with named-function adversarial strategies and mechanical guards.
           round: 2
       blocked: false
-content_hash: 894b2d5ab0f65237baf52319e8a46198f4b4925367b7d027e9d8b61209432ceb
+    - "n": 3
+      timestamp: "2026-10-12T20:25:30-07:00"
+      agent: codex
+      blocked: false
+content_hash: 6ddaede1c385d789c21695aa695a2c423f1b0c9d67c15190ac01070711f01307
 ---
 
 # Gate ledger — pair#494 (plan-quality)
@@ -69,6 +73,8 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - PQ-1 — addressed — Names authoritative recorder settlement, operation states, reservation cleanup and bounded same-ID reconciliation without duplicate writes.
 - PQ-2 — addressed — Separates caller return from CDP completion and retains target-wide protection through uncertainty until exact completion or teardown.
 - PQ-3 — addressed — Replaces test-case inventories with named-function adversarial strategies and mechanical guards.
+
+## Round 3 — 2026-10-12T20:25:30-07:00 (codex) — passed
 
 ## Open findings
 
