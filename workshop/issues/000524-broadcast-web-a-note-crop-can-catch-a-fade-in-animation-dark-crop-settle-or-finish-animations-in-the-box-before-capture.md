@@ -137,3 +137,8 @@ TL requested folding the #483 store scan blocker into #524 (receipt 0a7fad73-59a
 ### 2026-10-13 — second smoke blocker, no-limbo recovery
 
 TL requested pre-dispatch draft release and an actionable uncertain-dispatch retry/discard path, plus recovery from the old-code freeze. Investigation: both Lua controllers keep frozen text only in process memory. The .DS_Store admission failure precedes preparation and writes no bundle. Existing server operations have no discard; begin persists intent before actual pane write. Proposed scoped lifecycle/API addition and tests appended to the durable plan for TL confirmation. Do not advertise the unrelated erase-history key as a submission discard. No implementation of this larger addition yet.
+
+
+### 2026-10-13 — operator revises recovery to fresh sends
+
+TL d34bfd0a-9f86-45d0-b4c8-775874af760c explicitly accepts duplicate sends and instructs no freeze, current draft plus new ID per chord, superseded earlier pending/delivering evidence, and idempotent note resolution on real acknowledgment. This supersedes the preceding discard proposal. Durable plan appended with the approved policy and verification steps. Old local text freezes are process-memory only; durable uncertainty is released by explicit supersession, never inferred delivery. Clean committed build metadata is now a required smoke check after TL e5568928-9e12-4777-8183-0371917e66e5 found the previous pre-commit build embedded an older dirty revision.

@@ -138,3 +138,29 @@ The old original-body freeze lives only in each Neovim controller's Lua memory; 
 - [ ] Extend stateful headless Neovim fixture for prepare-error/edit/resubmit, uncertain dispatch/retry-original, discard/new attempt, stale callbacks, and a freshly initialized controller with edited disk draft after an old-code admission refusal.
 - [ ] Run lua nvim/dom_submission_state_test.lua, lua nvim/dom_submission_test.lua, lua nvim/submission_test.lua; run tests/submission-transaction-nvim-test.sh with bounded headless cases. Run GOMAXPROCS=2 go test -p 1 ./cmd/internal/submission ./cmd/internal/couchmessage ./cmd/internal/couchcmd ./cmd/internal/couchtty ./cmd/internal/webcast -count=1.
 - [ ] Update atlas/webcast-submission.md for recovery and the real discard key; run required close review and suite, then make build in pair:0, verify actual HEAD, hand off fresh-thread smoke, and wait for acceptance before landing.
+
+
+## Revisions — 2026-10-13 operator supersession policy (approved)
+
+TL instruction d34bfd0a-9f86-45d0-b4c8-775874af760c supersedes the entire draft-recovery/discard proposal above. The operator accepts duplicate agent sends. There is no frozen draft, original-body retry, discard operation, new key, or confirmation. Every DOM send chord starts a fresh attempt from the current buffer with a new submission ID and generated bundle. Definite and uncertain failures leave the current draft editable; late callbacks cannot consume or send a newer draft.
+
+Keep delivery truth separate from supersession: add an optional superseded marker to an existing manifest rather than inventing a delivered/aborted outcome. New same-target preparation supersedes older prepared/delivering attempts, retaining their files and original delivery state. Supersession must survive restart, and an eventual genuine acknowledgment of an older delivering attempt may still advance it and idempotently resolve the captured note versions. No inference of delivery from supersession. Existing completed/dispatched evidence remains acknowledged evidence; one bounded background operation remains the server's concurrency limit. A transient busy failure releases the draft and the next chord is another fresh attempt.
+
+### Revised concepts and implementation
+
+- Submission manifest (cmd/internal/submission/model.go): optional superseded marker, backward-compatible default false; preserve it across delivery transitions. Store (store.go) atomically updates manifests using the existing durability path; Pending excludes superseded attempts. Supersede only matching immutable targets and only prepared/delivering states; no deletion and no notes effects. Retain byte/count bounds.
+- Submission manager (cmd/internal/couchtty/console_submission.go): admit new same-target attempts despite older pending/delivering bundles by marking them superseded; preserve current busy limit and target guards. After a restart, an old prepared/delivering bundle cannot lock the new draft. A late ack remains valid and resolves note versions idempotently.
+- DOM model/adapter (nvim/dom_submission_state.lua, nvim/dom_submission.lua): each send replaces the active attempt with a fresh epoch/id/current body; no retry-body or ack-only chord interception. All failure exits release local attempt state. Acknowledgment polling may finish an active successful attempt, but stale responses cannot mutate a new one.
+- Generic sender (nvim/submission.lua): DOM attachments are independent fresh transactions keyed by the new bundle ID; do not retain a failed attached body as a lock on later sends. Keep ordinary, non-DOM submission behavior outside this policy. A confirmed dispatch still records its log marker and returns success; failed marker bookkeeping must not pretend delivery failed or freeze a subsequent DOM attempt. Preserve evidence in the existing session log.
+- No binding changes. The existing Ctrl+Shift+Alt+Return always submits current text as a new attempt. Failure wording says the draft can be edited and the chord pressed again; no unavailable discard action.
+
+### Revised verification checklist
+
+- [ ] Store regression: prepared and delivering bundles superseded by a new same-target attempt, retained and readable after restart; other target unchanged; no fabricated delivery; old actual acknowledgment remains legal.
+- [ ] Manager regression: old durable uncertainty no longer blocks a new attempt; repeated acknowledgments resolve notes idempotently; existing target/async boundedness tests pass.
+- [ ] Lua RED/GREEN: prepare error → edit → resubmit sends current body with fresh ID; uncertain send → edit → resubmit sends current body with fresh ID; old callbacks never send/consume current draft; failed acknowledgment never swallows the next chord.
+- [ ] Generic sender tests prove fresh DOM attachment delivery after prior start/written/indeterminate failure, without changing ordinary-send protections.
+- [ ] Stateful headless fixture covers both pre-dispatch and uncertain-dispatch edits, original text unavailable, new-controller recovery and repeated chords. Update atlas/webcast-submission.md and superseded old retry documentation.
+- [ ] Run affected Go packages and Lua/headless suites, fresh review and required boundary checks. Commit all changes, rebuild pair:0 from clean HEAD, verify go version -m bin/couch reports matching vcs.revision and vcs.modified=false, then send hash for smoke. Do not merge before acceptance.
+
+ARCH-ORDER: explicit supersession releases authority without fabricating delivery. ARCH-DRY: retain one durable manifest and one existing transition/write path. ARCH-CONSTRAINTS/ARCH-FUNERAL: no additional artifact family, no extra concurrency or retention budget, existing caps and cleanup remain.
