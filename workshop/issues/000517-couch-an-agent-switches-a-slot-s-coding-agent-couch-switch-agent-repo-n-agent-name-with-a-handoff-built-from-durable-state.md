@@ -68,6 +68,13 @@ Durable plan: [agent switch plan](../plans/000517-agent-switch-plan.md).
 
 ## Log
 
+- 2026-10-12 22:50 PDT — full make test passed, exit 0; complete rerun log
+  /tmp/pair-517-full-final.log at code 10e977395. TL staging instruction
+  82f344e0-8e67-4fd8-833b-b951062d3640: merge main, move to pair:0 and
+  build for the operator to restart Couch. Main integration preserves both new
+  broadcast submission and switch dispatch cases, and both verb cost entries.
+  Live acceptance and M2 review remain pending.
+
 - 2026-10-12 22:42 PDT — full-suite integration caught missing artifact
   classifications for new CLI/service files, missing verb cost registrations,
   and unused archive handoff code after the scope cut. Fixed those through the

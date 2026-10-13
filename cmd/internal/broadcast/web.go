@@ -5,7 +5,7 @@ import "embed"
 // webFS is the viewer page and its vendored renderer, served from the binary
 // so the page never loads anything from another origin.
 //
-//go:embed web/index.html web/viewer.js web/notes.js web/collab.js web/viewer.css web/vendor/xterm/xterm.js web/vendor/xterm/xterm.css web/vendor/xterm/addon-unicode11.js web/vendor/fonts/*.woff2 web/vendor/fonts/*.woff
+//go:embed web/index.html web/lock.html web/lock.js web/lock.css web/viewer.js web/notes.js web/collab.js web/viewer.css web/vendor/xterm/xterm.js web/vendor/xterm/xterm.css web/vendor/xterm/addon-unicode11.js web/vendor/fonts/*.woff2 web/vendor/fonts/*.woff
 var webFS embed.FS
 
 // CollabJS is the viewers' shared collaboration module (web/collab.js:

@@ -18,3 +18,9 @@ for tx_case in focus-agent write-body submit focus-draft commit; do
 done
 
 echo 'submission-transaction-nvim-test: all passed'
+
+lua "$ROOT/nvim/dom_submission_state_test.lua"
+lua "$ROOT/nvim/pane_identity_test.lua"
+lua "$ROOT/nvim/dom_submission_test.lua"
+lua "$ROOT/nvim/dom_transport_test.lua"
+bash "$ROOT/tests/dom-submission-nvim-test.sh"

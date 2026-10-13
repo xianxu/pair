@@ -1,6 +1,8 @@
 package broadcast
 
 import (
+	"github.com/xianxu/pair/cmd/internal/castlock"
+
 	"encoding/base64"
 	"errors"
 	"io"
@@ -22,6 +24,9 @@ const DefaultPing = 15 * time.Second
 
 type ServerOptions struct {
 	Token string
+	// Locks guards the view and pointer links (pair#495); nil serves them
+	// unlocked.
+	Locks *LinkLocks
 	Hub   *Hub
 	Ping  time.Duration
 	// Theme, when set, is read for each new viewer and sent before its
@@ -87,6 +92,10 @@ func SetSecurityHeaders(h http.Header, csp string) {
 func (s *Server) Owns(segment string) bool {
 	return OwnsToken(segment, s.opts.Token) || s.opts.Pointer.Match(segment)
 }
+
+// LockFor is the lock guarding segment, the view link's or the pointer
+// link's.
+func (s *Server) LockFor(segment string) *castlock.Lock { return s.opts.Locks.LockFor(segment) }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h := w.Header()

@@ -72,6 +72,11 @@ func (c *Console) routeInputEvent(event terminal.InputEvent) {
 	case uv.MouseClickEvent, uv.MouseReleaseEvent, uv.MouseMotionEvent, uv.MouseWheelEvent:
 		c.routeMouseEvent(event)
 		return
+	case uv.KeyPressEvent:
+		// The open Codes menu (pair#495) takes its arrows, Enter and Escape.
+		if c.routeCodesMenuKey(event.Raw, event.Canonical) {
+			return
+		}
 	}
 	c.mu.Lock()
 	panel := c.focus.IsPanel()
@@ -131,6 +136,11 @@ func (c *Console) routeMouseEvent(event terminal.InputEvent) {
 	if c.routeNotesMenu(event.Raw) {
 		return
 	}
+	// Cast link codes (pair#495): the Codes menu, Alt+click on a cast cell,
+	// and the hover tooltip (which never takes the event).
+	if c.routeCastCodes(event.Raw) {
+		return
+	}
 	// Release/motion always visit the presenter, including over panels and
 	// chrome, so its gesture owner can cancel or clip them consistently.
 	if _, ok := event.Event.(uv.MouseReleaseEvent); ok {
@@ -138,27 +148,30 @@ func (c *Console) routeMouseEvent(event terminal.InputEvent) {
 		return
 	}
 	hit, _, _, ok := mouseinput.ParsePrefix(event.Raw)
-	// The Chrome cell (#454): click toggles live, right-click copies the
-	// viewer link, Ctrl with either button ends the cast (a macOS terminal
-	// may turn Ctrl+left into a right click, keeping the Ctrl bit).
+	// The cast row's rule (pair#495): a left click acts or toggles, a
+	// right-click copies that control's link, and Alt+click opens the Codes
+	// menu on LIVE ⏸ and Chrome ⏸ only (routeCastCodes, above). The Chrome
+	// cell (#454): click toggles live, right-click copies the view-only link,
+	// Ctrl with either button ends the cast (a macOS terminal may turn
+	// Ctrl+left into a right click, keeping the Ctrl bit).
 	if ok && !hit.Release {
 		button := mouseinput.BaseButton(hit.Button)
 		c.mu.Lock()
 		rows, cell, focusSpan, driveSpan := int(c.size.Rows), c.statusWebcast, c.statusWebFocus, c.statusWebDrive
 		viewLink, driveLink := c.statusWebViewLink, c.statusWebDriveLink
 		c.mu.Unlock()
-		// The Chrome group's buttons (#501): ↗ brings Chrome to the front,
-		// 👆 copies the view link, 👽 the drive link. Right-click and
-		// Alt+right-click on the cell stay as shortcuts for the links.
-		if button == 0 && hit.Y == rows && hit.Button&mouseinput.ModCtrl == 0 {
+		// The Chrome group's buttons (#501): ↗ brings Chrome to the front;
+		// 👆 copies the view link and 👽 the drive link, on a left or a
+		// right click alike (pair#495: right-click copies a control's link).
+		if hit.Y == rows && hit.Button&mouseinput.ModCtrl == 0 {
 			switch {
-			case focusSpan.Contains(hit.X - 1):
+			case button == 0 && focusSpan.Contains(hit.X-1):
 				c.focusWebcast()
 				return
-			case viewLink.Contains(hit.X - 1):
+			case (button == 0 || button == 2) && viewLink.Contains(hit.X-1):
 				c.copyWebcastLink()
 				return
-			case driveLink.Contains(hit.X - 1):
+			case (button == 0 || button == 2) && driveLink.Contains(hit.X-1):
 				c.copyWebcastDriveLink()
 				return
 			}
@@ -177,11 +190,9 @@ func (c *Console) routeMouseEvent(event terminal.InputEvent) {
 			switch {
 			case hit.Button&mouseinput.ModCtrl != 0:
 				c.endWebcast()
-			case button == 2 && hit.Button&mouseinput.ModAlt != 0:
-				// Alt (Option) + right-click: the drive link (#467). Not
-				// Shift: terminals keep Shift+click for their own selection.
-				c.copyWebcastDriveLink()
 			case button == 2:
+				// The view-only link; 👽 and the Codes menu copy the drive
+				// link (pair#495 dropped Alt+right-click for it).
 				c.copyWebcastLink()
 			default:
 				c.toggleWebcast()

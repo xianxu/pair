@@ -210,6 +210,12 @@ path, which #488 M3 adds (atlas/broadcast.md).
 
 ## The notes model (#461)
 
+[DOM submission](webcast-submission.md) (#483) packages all open notes selected
+on the cast document at admission. It reuses this model for recorded context
+and calls `NoteCrops` separately for each note, preserving one current PNG per
+note even when boxes overlap. Its manifest distinguishes note-time context
+from capture-time pixels and pins note revisions for guarded acknowledgment.
+
 `notes.Structural` is the real `notes.Model` (`cmd/internal/webcast/notes`), pure over the reducer's state at a
 moment. It runs `notes.RunModelContract` like the fake.
 
@@ -534,7 +540,8 @@ UI against it.
 **Two links (operator, 10-12, #467).** The view link (the cast's token) is for watching, pointing and notes. The
 drive link (its own token, `Server.DriveToken`, `Update.DriveLink`) serves the same viewer plus the drive routes
 below, which answer 404 under the view link. A stream holds a seat only under the drive link. Couch copies the view
-link with a right-click on the Chrome cell and the drive link with Alt+right-click. `couch --broadcast-list` lists
+link with a right-click on the Chrome cell or a click on its 👆, and the drive link with a click on 👽 or from the
+Codes menu (Alt+click on the cell, #495). `couch --broadcast-list` lists
 each share by kind (`screen`, `web view`, `web drive`), never with its token.
 
 **Seats.** Anyone with the drive link can watch and take a seat; driving needs a grant:

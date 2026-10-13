@@ -26,6 +26,9 @@ var (
 	notesMenuBg    = ansi.IndexedColor(236)
 	notesMenuHover = ansi.IndexedColor(239)
 	notesMenuDim   = ansi.IndexedColor(245)
+	// notesMenuLink is the Codes menu's action words (pair#495): the
+	// actionable-link blue.
+	notesMenuLink = ansi.IndexedColor(75)
 )
 
 // notesMenuItem is one note's rows in the menu: [Top, Bottom) on the screen.
@@ -48,6 +51,15 @@ type notesMenuLine struct {
 	color int
 	id    int // 0 for the header and the "+k more" line
 	dim   bool
+	tip   bool // a tooltip's one plain line, no header marks (pair#495)
+}
+
+// menuItem is one entry of a titled menu, with its color chip or none.
+type menuItem struct {
+	ID    int
+	Text  string
+	Color int
+	Chip  bool
 }
 
 // Open reports whether there is a menu.
@@ -88,6 +100,16 @@ func RenderNotesMenu(notes []broadcast.Note, cols, rows int) NotesMenu {
 // RenderTitledMenu is the menu box with its title: the notes menu's, or remote
 // driving's (#467), whose items are its driver and askers.
 func RenderTitledMenu(title string, notes []broadcast.Note, cols, rows int) NotesMenu {
+	items := make([]menuItem, len(notes))
+	for i, n := range notes {
+		items[i] = menuItem{ID: n.ID, Text: n.Text, Color: n.Color, Chip: true}
+	}
+	return renderMenu(title, items, cols, rows)
+}
+
+// renderMenu lays out a titled menu of items over the bottom right of a
+// cols×rows screen, above its status row.
+func renderMenu(title string, notes []menuItem, cols, rows int) NotesMenu {
 	w := min(notesMenuMaxWidth, cols-2)
 	maxH := rows - 3
 	textW := w - 5 // a space, the two-cell chip, a space … a space
@@ -110,7 +132,7 @@ func RenderTitledMenu(title string, notes []broadcast.Note, cols, rows int) Note
 		}
 		top := len(lines)
 		for i, l := range wrapped {
-			lines = append(lines, notesMenuLine{text: l, chip: i == 0, color: n.Color, id: n.ID})
+			lines = append(lines, notesMenuLine{text: l, chip: n.Chip && i == 0, color: n.Color, id: n.ID})
 		}
 		items = append(items, notesMenuItem{ID: n.ID, Top: top, Bottom: len(lines)})
 		shown++
@@ -194,6 +216,8 @@ func menuLineCells(line notesMenuLine, w int, bg color.Color, style broadcast.No
 	}
 	plain := uv.Style{Bg: bg}
 	switch {
+	case line.tip:
+		put(line.text, plain)
 	case line.id == 0 && !line.dim: // the header, with the close mark at the right
 		put(line.text, uv.Style{Bg: bg, Attrs: uv.AttrBold})
 		for len(cells) < w-2 {

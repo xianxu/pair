@@ -415,6 +415,52 @@ func TestRecorderEmitChecksTheDocument(t *testing.T) {
 	}
 }
 
+// A submission's resolution reaches the recorder queue after a viewer has
+// resolved and reopened the same note. Check the revision at apply time,
+// while a fresh revision can still resolve that reopened note normally.
+func TestRecorderSubmissionEmitRechecksQueuedNoteRevision(t *testing.T) {
+	h := newHarness(t)
+	h.page("A", "http://a/", "L1")
+	h.r.Send(Live{Tab: rec.Tab{ID: "T-A"}, Session: "A"})
+	h.settle()
+	top := h.id("A", h.fc.pages["A"].doc.backend)
+	h.r.Send(Emit{Record: &rec.Note{ID: "n1", Author: rec.Author{ID: "v"}, At: rec.NoteAt{Node: top}}, Doc: 1})
+	h.settle()
+	selected, err := rec.Reduce(h.out.sink.Records(), 1<<62)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(selected.Notes) != 1 {
+		t.Fatalf("notes: %+v", selected.Notes)
+	}
+	revision := selected.Notes[0].Revision
+	// All three writes enter the same queue before the test waits for reduction.
+	h.r.Send(Emit{Record: &rec.NoteState{ID: "n1", State: rec.NoteResolved}, Doc: 1})
+	h.r.Send(Emit{Record: &rec.NoteState{ID: "n1", State: rec.NoteOpen}, Doc: 1})
+	h.r.Send(Emit{Record: &rec.NoteState{ID: "n1", State: rec.NoteResolved, IfRevision: &revision}, Doc: 1})
+	h.settle()
+	reopened, err := rec.Reduce(h.out.sink.Records(), 1<<62)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(reopened.Notes) != 1 || reopened.Notes[0].State != rec.NoteOpen || reopened.Notes[0].Revision != revision+2 {
+		t.Fatalf("stale queued resolution consumed reopened note: %+v", reopened.Notes)
+	}
+	if got := h.kinds(); got != "head seg:live doc note note-state note-state" {
+		t.Fatalf("unexpected recorded writes: %s", got)
+	}
+	fresh := reopened.Notes[0].Revision
+	h.r.Send(Emit{Record: &rec.NoteState{ID: "n1", State: rec.NoteResolved, IfRevision: &fresh}, Doc: 1})
+	h.settle()
+	resolved, err := rec.Reduce(h.out.sink.Records(), 1<<62)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resolved.Notes[0].State != rec.NoteResolved {
+		t.Fatal("matching revision could not resolve note")
+	}
+}
+
 // A board record that reaches the recorder during a pause is dropped, even on
 // the current document (pair#499: viewers do nothing while paused). The board
 // refuses requests while paused, but one it admitted just before the pause

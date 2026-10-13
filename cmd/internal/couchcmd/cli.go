@@ -37,6 +37,7 @@ const (
 	// cliWebFidelity checks a broadcast-web recording against its frames
 	// (#478); args holds the argv after the flag.
 	cliWebFidelity
+	cliSubmission
 )
 
 type adoptionArgs struct {
@@ -105,6 +106,8 @@ func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, e
 	// scanning layout flags, which could otherwise consume a literal body.
 	if len(args) > 0 {
 		switch args[0] {
+		case submissionFlag:
+			return parseSubmissionCLI(args)
 		case "--adopt-store":
 			return parseAdoptionCLI(args)
 		case query.Flag:

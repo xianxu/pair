@@ -40,6 +40,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/runtimebundle"
 	"github.com/xianxu/pair/cmd/internal/scrollbackcmd"
+	"github.com/xianxu/pair/cmd/internal/submission"
 	pairterminal "github.com/xianxu/pair/cmd/internal/terminal"
 	"github.com/xianxu/pair/cmd/internal/terminalcapture"
 	"github.com/xianxu/pair/cmd/internal/threadactivity"
@@ -299,6 +300,9 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 	if invocation.kind == cliSkill {
 		fmt.Fprint(stdout, couchSkill)
 		return 0
+	}
+	if invocation.kind == cliSubmission {
+		return runSubmissionCLI(invocation, rt, stdout, stderr, couchmessage.Call)
 	}
 	if invocation.kind == cliWebQuery {
 		// A pure read of a recording directory: no Couch runtime needed,
@@ -754,6 +758,11 @@ func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, ou
 	if store != "" {
 		// Recordings shared for replay on the same Host (#477), until Couch exits.
 		console.SetReplayShares(webcast.NewReplayShares(castHost, recordingsDir(store)))
+		submissions, err := submission.NewStore(filepath.Join(store, "webcast", "submissions"))
+		if err != nil {
+			return nil, nil, err
+		}
+		console.SetSubmissionStore(submissions)
 	}
 	options := diagnosticlog.Options{Proof: diagnosticlog.DefaultProof}
 	if len(settings) > 0 {
@@ -1389,6 +1398,8 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "             in a window, and every note with its element and the actions before it;")
 	fmt.Fprintln(w, "             link prints its replay link at a moment, shared by the running Couch.")
 	fmt.Fprintln(w, "             `couch "+query.Flag+"` alone prints its usage.")
+	verbLine(w, submissionFlag, "       couch "+submissionFlag+" prepare|status|begin|ack ID")
+	fmt.Fprintln(w, "             Submit the cast's open notes from this draft; prints a JSON status for retries.")
 	verbLine(w, replayFlag, "       couch "+replayFlag+" [ID|DIR] [--at MS] [--local]")
 	fmt.Fprintln(w, "             Replay a broadcast-web recording in the viewer: prints its link at MS (#t=MS),")
 	fmt.Fprintln(w, "             shared through the running Couch's broadcast tunnel for other devices. With")

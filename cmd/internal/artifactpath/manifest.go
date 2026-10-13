@@ -550,6 +550,10 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/changelog.lua", Kind: GeneratedMirror, Families: []string{"changelog"}},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/confirm_quit.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/doctor.lua", Kind: GeneratedMirror},
+	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/dom_submission.lua", Kind: GeneratedMirror},
+	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/dom_submission_state.lua", Kind: GeneratedMirror},
+	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/pane_identity.lua", Kind: GeneratedMirror},
+	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/dom_transport.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/draft_send.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/init.lua", Kind: GeneratedMirror, Families: []string{"draft"}},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/interrupt.lua", Kind: GeneratedMirror},
@@ -670,6 +674,11 @@ var NonArtifactSources = []string{
 	// #454 shared cast endpoint and its event stream; in memory, no paths.
 	"cmd/internal/broadcast/host.go",
 	"cmd/internal/broadcast/sse.go",
+	// #495 code lock on cast links: codes and sessions in memory, the gate
+	// in the Host; no artifact paths.
+	"cmd/internal/broadcast/lockgate.go",
+	"cmd/internal/broadcast/linklocks.go",
+	"cmd/internal/castlock/castlock.go",
 	// #454 web cast: a CDP client over Chrome's pipe, and Couch's control of
 	// the cast Chrome. Its profile lives in Couch's store
 	// (<store>/webcast/chrome-profile), like the broadcast's run records; no
@@ -679,6 +688,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/cdp/frame.go",
 	"cmd/internal/couchcmd/webcast.go",
 	"cmd/internal/couchtty/console_webcast.go",
+	"cmd/internal/couchtty/console_castcodes.go",
+	"cmd/internal/couchtty/codes_menu.go",
 	"cmd/internal/webcast/browser.go",
 	"cmd/internal/webcast/cast.go",
 	"cmd/internal/webcast/chrome.go",
@@ -693,6 +704,19 @@ var NonArtifactSources = []string{
 	"cmd/internal/webcast/stream.go",
 	"cmd/internal/webcast/tracker.go",
 	"cmd/internal/webcast/translate.go",
+	// #483 DOM submissions are portable evidence bundles in Couch's namespace
+	// (<store>/webcast/submissions/<id>), not tag-bearing Pair artifacts. Their
+	// model, capture/board adapters and RPCs introduce no Pair artifact family.
+	"cmd/internal/submission/delivery.go",
+	"cmd/internal/submission/model.go",
+	"cmd/internal/submission/store.go",
+	"cmd/internal/couchcmd/submission.go",
+	"cmd/internal/couchtty/console_submission.go",
+	"cmd/internal/webcast/board/submission.go",
+	"cmd/internal/webcast/cast_submission.go",
+	"cmd/internal/webcast/chrome_submission.go",
+	"cmd/internal/webcast/recorder/submission.go",
+	"cmd/internal/webcast/submission/build.go",
 	// #457 recording format and the wave-1 seams: pure records, reducer and
 	// validator; DirWriter writes a recording into the directory its caller
 	// names (the recorder, #458, chooses it under Couch's store), so no Pair
@@ -1279,6 +1303,12 @@ var NonArtifactSources = []string{
 	"nvim/bang_tag.lua",
 	"nvim/confirm_quit.lua",
 	"nvim/doctor.lua",
+	// #483 Lua carries the manifest path returned by Couch and pins a pane;
+	// it does not construct or read any tag-bearing Pair artifact filename.
+	"nvim/dom_submission.lua",
+	"nvim/dom_submission_state.lua",
+	"nvim/pane_identity.lua",
+	"nvim/dom_transport.lua",
 	"nvim/draft_send.lua",
 	"nvim/interrupt.lua",
 	"nvim/lifecycle_command.lua",

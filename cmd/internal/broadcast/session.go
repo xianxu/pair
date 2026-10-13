@@ -1,6 +1,8 @@
 package broadcast
 
 import (
+	"github.com/xianxu/pair/cmd/internal/castlock"
+
 	"context"
 	"crypto/rand"
 	"encoding/base64"
@@ -62,6 +64,29 @@ type Config struct {
 	// Now stamps when a note was saved; nil is time.Now. Couch passes the
 	// clock it draws with, so flash timing has one source.
 	Now func() time.Time
+	// OnCodeRotated is told when a link's code rotates (pair#495): by
+	// guessing, or by RotateCode. It runs on the rotating goroutine, holding
+	// no session lock.
+	OnCodeRotated func(link string, r castlock.Rotation)
+}
+
+// The links a cast locks, by the label Codes reports: a screen broadcast's
+// view and pointer links, a web cast's view and drive links.
+const (
+	LinkView    = "view"
+	LinkPointer = "pointer"
+	LinkDrive   = "drive"
+)
+
+// DriveCodeDigits is the drive link's code length: it controls the
+// operator's browser, so it is harder to guess than a view code.
+const DriveCodeDigits = 6
+
+// LinkCode is one link's current code. It is a second factor, not a link:
+// Couch shows it to the operator only, never on the broadcast frame.
+type LinkCode struct {
+	Link string
+	Code string
 }
 
 // Session is one broadcast: a hub, a server on the tunnel's listener, the
@@ -72,6 +97,7 @@ type Session struct {
 	link    string
 	base    string // the public base URL, for the pointer link
 	cfg     Config
+	locks   *LinkLocks // the view and pointer links' code locks (pair#495)
 	pointer *PointerState
 	hub     *Hub
 	// startedAt and mode describe the session for Status (pair#413).
@@ -102,7 +128,16 @@ func Start(ctx context.Context, cfg Config) (*Session, error) {
 	// The session is built before the hub and server, which call back into
 	// it; the pointer can't be used until Start returns (no token is minted
 	// before EnablePointer).
-	s := &Session{token: token, cfg: cfg, pointer: newPointerState(), done: make(chan struct{})}
+	// Each lock exists before its token is routable: the view lock before
+	// Mount, the pointer lock in the same step as its token.
+	locks := &LinkLocks{}
+	if err := locks.Mint(LinkView, token, castlock.DefaultDigits, cfg.OnCodeRotated); err != nil {
+		return nil, err
+	}
+	pointer := newPointerState(func(token string) error {
+		return locks.Mint(LinkPointer, token, castlock.DefaultDigits, cfg.OnCodeRotated)
+	})
+	s := &Session{token: token, cfg: cfg, locks: locks, pointer: pointer, done: make(chan struct{})}
 	hubOpts := cfg.Hub
 	// The hub calls this on its own goroutine, which must not block.
 	// It records the flip generation it fired under, so a report that
@@ -112,11 +147,12 @@ func Start(ctx context.Context, cfg Config) (*Session, error) {
 		go s.pointerHidden(gen)
 	}
 	hub := NewHub(hubOpts)
-	server := NewServer(ServerOptions{Token: token, Hub: hub, Ping: cfg.Ping, Theme: cfg.Theme,
+	server := NewServer(ServerOptions{Token: token, Locks: locks, Hub: hub, Ping: cfg.Ping, Theme: cfg.Theme,
 		Pointer: s.pointer, OnPoint: s.acceptPoint, OnNote: s.acceptNote, OnResolve: s.resolveNote})
 	mount, err := host.Mount(ctx, server, token+"/")
 	if err != nil {
 		hub.Close(err)
+		locks.End()
 		return nil, err
 	}
 	s.link, s.base, s.hub, s.mount = mount.Base()+"/"+token+"/", mount.Base(), hub, mount
@@ -166,6 +202,13 @@ func (s *Session) Stop(reason error) {
 	})
 }
 
+// Codes is every minted link's current code, view first.
+func (s *Session) Codes() []LinkCode { return s.locks.Codes() }
+
+// RotateCode gives link a new code and disconnects everyone who unlocked it
+// with the old one.
+func (s *Session) RotateCode(link string) error { return s.locks.Rotate(link) }
+
 // Done closes once the broadcast has fully ended.
 func (s *Session) Done() <-chan struct{} { return s.done }
 
@@ -196,6 +239,10 @@ func (s *Session) watch() {
 func (s *Session) teardown() {
 	defer close(s.done)
 	s.mount.Unmount()
+	// The locks end after the mount, never before the hub's end event: ending
+	// a lock revokes its sessions, which cuts their streams, and a viewer
+	// would lose "Broadcast ended" to a bare disconnect.
+	s.locks.End()
 }
 
 // NewToken mints a capability token: 32 random bytes, URL-safe. A cast's

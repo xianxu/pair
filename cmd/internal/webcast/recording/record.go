@@ -329,6 +329,8 @@ type (
 		Region *Box   `json:"region,omitempty"`
 	}
 	NoteState struct {
+		// IfRevision is an in-process writer guard, never a wire field.
+		IfRevision *uint64 `json:"-"`
 		Header
 		ID    string `json:"id"`
 		State string `json:"state"`

@@ -21,6 +21,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/strictjson"
+	core "github.com/xianxu/pair/cmd/internal/submission"
 	"golang.org/x/sys/unix"
 )
 
@@ -160,7 +161,8 @@ type messageService struct {
 	shares atomic.Pointer[func() []couchmessage.ShareStatus]
 	// replay answers replay-share and replay-status (pair#477), like
 	// broadcastStatus; nil answers them unsupported.
-	replay atomic.Pointer[func(op, id string) couchmessage.ReplayShare]
+	replay     atomic.Pointer[func(op, id string) couchmessage.ReplayShare]
+	submission atomic.Pointer[func(context.Context, string, string, core.Target) (couchmessage.SubmissionStatus, error)]
 	// replays lists the shared recordings for broadcast-status; nil lists none.
 	replays atomic.Pointer[func() []string]
 	// deliveries records each landed delivery for session-sync owed events
@@ -381,6 +383,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 	service.SetBlockedView(console.SetBlockedThreads)
 	service.showHub(console)
 	service.SetReplay(console.ReplayShare, console.SharedReplays)
+	service.SetSubmission(console.Submission)
 	service.recordDeliveries(namespace)
 	watcher := newWaitWatcher(service, threshold, namespace)
 	service.workers.Add(1)
@@ -685,6 +688,8 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 	switch {
 	case request.Op == "switch-agent":
 		return s.handleAgentSwitch(ctx, request)
+	case couchmessage.IsSubmissionOp(request.Op):
+		return s.handleSubmission(ctx, request)
 	case couchcore.IsSlotOperation(request.Op) || request.Op == "operation-status":
 		return s.handleSlotOperation(ctx, request)
 	case request.Op == "broadcast-status":

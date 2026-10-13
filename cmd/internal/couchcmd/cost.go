@@ -42,6 +42,7 @@ var verbCosts = map[string]verbCost{
 	"--reap":                   costSeconds,
 	"--adopt-store":            costLight,
 	query.Flag:                 costLight,
+	submissionFlag:             costLight,
 	replayFlag:                 costLight,
 	"--recover-plan-from-sdlc": costHeavy,
 	"--resume":                 costHeavy,
