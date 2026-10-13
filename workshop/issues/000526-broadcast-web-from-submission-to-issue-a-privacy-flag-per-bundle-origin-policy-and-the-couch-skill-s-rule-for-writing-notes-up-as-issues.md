@@ -113,3 +113,7 @@ Final `make -k test` exited 0 (`/tmp/pair-526-full-final.log`). All required che
 Boundary review found case-folded JSON aliases could override private permissions. Enforce the exact schema keys before Go struct decoding across policy envelopes, nested origin rules and persisted rule evidence (ARCH-SECURE). Regressions reproduced ASCII and Unicode aliases granting sharing, plus missing fallback/notice, before the fix; all pass after it. Existing invalid-policy preparation/delivery tests remain green. Full suite rerunning after correction.
 
 - BR-1 verification complete: final `make -k test` passed (`/tmp/pair-526-br1-full.log`); live Chrome conformance rerun passed; targeted race checks, 64711 fuzz executions and `make build` passed. Regression tests failed before exact-key validation and pass after it.
+
+### 2026-10-13 — BR-1 persisted manifest boundary
+
+Round 2 correctly found the initial sweep missed top-level manifest fields. Complete boundary enumeration: policy envelope, each origin rule, persisted rule evidence, and the manifest privacy/privacy_rule/privacy_origin fields. Shared key scanning rejects duplicate keys before decoding; policy/evidence require exact schema keys and manifests reject case-folded permission aliases. Submission decoding owns the check for both direct consumers and store reload. New direct/store-reload regressions reproduced private-to-shareable escalation before the fix and pass afterward. Full suite rerunning.

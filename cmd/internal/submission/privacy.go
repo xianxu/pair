@@ -212,13 +212,12 @@ func OriginOf(raw string) string {
 	return scheme + "://" + host
 }
 
-func strictJSON(data []byte, out any) error {
-	// Privacy schemas use only these exact keys. Go struct decoding accepts
-	// case-folded aliases (including Unicode), so reject them before decoding
-	// along with duplicates. DisallowUnknownFields checks their nesting below.
+func checkJSONKeys(data []byte, check func(depth int, key string) error) error {
+	// Inspect keys before struct decoding loses duplicates and case aliases.
+	// The caller checks its schema; the scanner rejects duplicates everywhere.
 	d := json.NewDecoder(bytes.NewReader(data))
-	var value func() error
-	value = func() error {
+	var value func(int) error
+	value = func(depth int) error {
 		token, err := d.Token()
 		if err != nil {
 			return err
@@ -238,27 +237,66 @@ func strictJSON(data []byte, out any) error {
 				if !ok || keys[s] {
 					return errors.New("duplicate JSON key")
 				}
-				switch s {
-				case "origins", "origin", "privacy":
-				default:
-					return errors.New("unknown privacy JSON key")
+				if err := check(depth, s); err != nil {
+					return err
 				}
 				keys[s] = true
 			}
-			if err := value(); err != nil {
+			if err := value(depth + 1); err != nil {
 				return err
 			}
 		}
 		_, err = d.Token()
 		return err
 	}
-	if err := value(); err != nil {
+	if err := value(0); err != nil {
 		return err
 	}
 	if _, err := d.Token(); err != io.EOF {
 		return errors.New("trailing JSON")
 	}
-	d = json.NewDecoder(bytes.NewReader(data))
+	return nil
+}
+
+func strictJSON(data []byte, out any) error {
+	if err := checkJSONKeys(data, func(_ int, key string) error {
+		switch key {
+		case "origins", "origin", "privacy":
+			return nil
+		}
+		return errors.New("unknown privacy JSON key")
+	}); err != nil {
+		return err
+	}
+	d := json.NewDecoder(bytes.NewReader(data))
 	d.DisallowUnknownFields()
 	return d.Decode(out)
+}
+
+// UnmarshalJSON rejects ambiguous manifest permissions before struct decoding
+// can discard duplicates or accept case-folded field aliases. Keep this on the
+// complete manifest, not its embedded decision, so other fields still decode.
+func (s *Submission) UnmarshalJSON(data []byte) error {
+	if err := checkJSONKeys(data, func(depth int, key string) error {
+		if depth != 0 {
+			return nil
+		}
+		for _, canonical := range []string{"privacy", "privacy_rule", "privacy_origin"} {
+			if strings.EqualFold(key, canonical) && key != canonical {
+				return errors.New("noncanonical privacy JSON key")
+			}
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	type wire Submission
+	var decoded wire
+	d := json.NewDecoder(bytes.NewReader(data))
+	d.DisallowUnknownFields()
+	if err := d.Decode(&decoded); err != nil {
+		return err
+	}
+	*s = Submission(decoded)
+	return nil
 }

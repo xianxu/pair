@@ -3,6 +3,8 @@ package submission
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -190,5 +192,46 @@ func TestOriginPrivacyRejectsCaseAliases(t *testing.T) {
 		if err := json.Unmarshal([]byte(data), &evidence); err == nil {
 			t.Errorf("accepted ambiguous evidence: %s", data)
 		}
+	}
+}
+
+func TestPrivacyManifestRejectsAmbiguousKeysOnReload(t *testing.T) {
+	for _, suffix := range []string{
+		`,"Privacy":"shareable","Privacy_rule":{"origin":"https://example.test","privacy":"shareable"}`,
+		`,"privacy":"shareable","privacy_rule":{"origin":"https://example.test","privacy":"shareable"}`,
+		`,"Privacy_origin":"https://other.test"`,
+	} {
+		t.Run(suffix, func(t *testing.T) {
+			dir := t.TempDir()
+			store, err := NewStore(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			sub := fixture()
+			sub.PrivacyDecision = (OriginPolicy{}).Decide("https://example.test")
+			if _, err := store.Prepare(sub, nil); err != nil {
+				t.Fatal(err)
+			}
+			b, err := json.Marshal(sub)
+			if err != nil {
+				t.Fatal(err)
+			}
+			b = append(b[:len(b)-1], []byte(suffix+"}")...)
+			var decoded Submission
+			if err := json.Unmarshal(b, &decoded); err == nil {
+				t.Error("direct decoder accepted ambiguous permission")
+			}
+			if err := os.WriteFile(filepath.Join(dir, sub.ID, "submission.json"), b, 0600); err != nil {
+				t.Fatal(err)
+			}
+			root, err := os.OpenRoot(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer root.Close()
+			if got, err := readMetadata(root, sub.ID, false); err == nil {
+				t.Fatalf("reload accepted ambiguous permission: %+v", got.PrivacyDecision)
+			}
+		})
 	}
 }
