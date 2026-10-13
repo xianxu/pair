@@ -1,6 +1,7 @@
 package couchtty
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"strings"
@@ -270,4 +271,40 @@ func TestStatusRowWebNotes(t *testing.T) {
 	if row := RenderStatusRow(80, StatusModel{Webcast: WebcastOff, WebNotes: 3}); row.WebNotes != (ColumnSpan{}) {
 		t.Errorf("no Chrome, no 💭N: %+v", row.WebNotes)
 	}
+}
+
+// pair#506: right-click copies the view-only link and the pointer command the
+// pointer link, each with a notice that says what it grants and never
+// contains the link (a screen broadcast would draw it to viewers).
+func TestWebcastCopiesEachLink(t *testing.T) {
+	r := newWebNotesCast(t, false)
+	var u webcast.Update
+	waitFor(t, "links", func() bool {
+		r.con.mu.Lock()
+		defer r.con.mu.Unlock()
+		u = r.con.wcast.update
+		return u.Link != "" && u.PointerLink != ""
+	})
+	copied := func(what, link, notice string) {
+		t.Helper()
+		osc := "\x1b]52;c;" + base64.StdEncoding.EncodeToString([]byte(link))
+		waitFor(t, what, func() bool { return strings.Contains(r.host.Written(), osc) && strings.Contains(r.notice(), notice) })
+		if strings.Contains(r.notice(), "http") {
+			t.Fatalf("%s: the notice shows a link: %q", what, r.notice())
+		}
+	}
+	r.clickCell(t, 2)
+	copied("the view-only link", u.Link, "view-only link copied")
+	r.con.copyWebcastPointerLink()
+	copied("the pointer link", u.PointerLink, "pointer link copied")
+
+	plain := newWebcastRig(t, nil)
+	plain.open(t)
+	waitFor(t, "plain link", func() bool {
+		plain.con.mu.Lock()
+		defer plain.con.mu.Unlock()
+		return plain.con.wcast.update.Link != ""
+	})
+	plain.con.copyWebcastPointerLink()
+	waitFor(t, "no pointer link", func() bool { return strings.Contains(plain.notice(), "takes no notes") })
 }

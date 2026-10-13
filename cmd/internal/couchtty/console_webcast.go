@@ -250,8 +250,10 @@ func (c *Console) webcastEnded(cast *webcast.Cast) {
 	}
 }
 
-// copyWebcastLink is a right-click on the Chrome cell. The notice never
-// contains the link: a screen broadcast would draw it to viewers.
+// copyWebcastLink is a right-click on the Chrome cell: the view-only link,
+// whose viewers watch and see others' notes but can't add any (pair#506).
+// The notice never contains the link: a screen broadcast would draw it to
+// viewers.
 func (c *Console) copyWebcastLink() {
 	c.mu.Lock()
 	u, running := c.wcast.update, c.wcast.phase == webcastRunning
@@ -260,11 +262,31 @@ func (c *Console) copyWebcastLink() {
 	case !running:
 	case u.Link != "":
 		c.copyLink(u.Link)
-		c.setNotice("Chrome cast view link copied (watch, point, notes). Alt+right-click for the drive link.")
+		c.setNotice("Chrome cast view-only link copied: its viewers watch. Alt+right-click for the drive link.")
 	case u.LinkErr != nil:
 		c.setNotice("Chrome cast viewer link unavailable: " + u.LinkErr.Error())
 	default:
 		c.setNotice("Chrome cast viewer link is not ready yet.")
+	}
+}
+
+// copyWebcastPointerLink copies the pointer link (pair#506), whose viewers
+// also point and leave notes. Like the others, never in the notice.
+func (c *Console) copyWebcastPointerLink() {
+	c.mu.Lock()
+	u, running := c.wcast.update, c.wcast.phase == webcastRunning
+	c.mu.Unlock()
+	switch {
+	case !running:
+	case u.PointerLink != "":
+		c.copyLink(u.PointerLink)
+		c.setNotice("Chrome cast pointer link copied: its viewers watch, point and leave notes.")
+	case u.LinkErr != nil:
+		c.setNotice("Chrome cast pointer link unavailable: " + u.LinkErr.Error())
+	case u.Link != "":
+		c.setNotice("This cast takes no notes (it isn't recorded), so it has no pointer link.")
+	default:
+		c.setNotice("Chrome cast pointer link is not ready yet.")
 	}
 }
 
