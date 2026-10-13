@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"sync"
 
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"github.com/xianxu/pair/cmd/internal/launcher"
@@ -60,7 +61,13 @@ func (c *Couch) ContinuationRequests(ctx context.Context, addresses []ThreadAddr
 			continue
 		}
 		seen[a] = true
-		r, err := c.Threads.GetThread(a)
+		if status, ok := c.continuations.get(a); ok {
+			if status != nil {
+				out = append(out, *status)
+			}
+			continue
+		}
+		r, stamp, err := c.Threads.getThreadStamped(a)
 		if errors.Is(err, ErrThreadNotFound) {
 			continue
 		}
@@ -68,7 +75,9 @@ func (c *Couch) ContinuationRequests(ctx context.Context, addresses []ThreadAddr
 			failures = append(failures, fmt.Errorf("continuation %s: %w", a.Tag, err))
 			continue
 		}
-		if status := continuationStatus(r); status != nil {
+		status := continuationStatus(r)
+		c.continuations.put(a, stamp, status)
+		if status != nil {
 			out = append(out, *status)
 		}
 	}
@@ -456,4 +465,38 @@ func continuationSourceParked(record ThreadRecord) bool {
 		}
 	}
 	return false
+}
+
+// continuationScanCache keeps each thread's continuation status with the
+// stamp of the record it came from (#507). Couch's watcher asks every 500 ms
+// for every hosted thread, and a full read re-routes the address under the
+// store lock; an unchanged record file needs only one lstat. In memory, one
+// entry per thread asked about, gone with Couch.
+type continuationScanCache struct {
+	mu      sync.Mutex
+	entries map[ThreadAddress]cachedContinuation
+}
+
+type cachedContinuation struct {
+	stamp  recordStamp
+	status *ContinuationStatus
+}
+
+func (c *continuationScanCache) get(address ThreadAddress) (*ContinuationStatus, bool) {
+	c.mu.Lock()
+	entry, ok := c.entries[address]
+	c.mu.Unlock()
+	if !ok || !entry.stamp.current() {
+		return nil, false
+	}
+	return entry.status, true
+}
+
+func (c *continuationScanCache) put(address ThreadAddress, stamp recordStamp, status *ContinuationStatus) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.entries == nil {
+		c.entries = map[ThreadAddress]cachedContinuation{}
+	}
+	c.entries[address] = cachedContinuation{stamp: stamp, status: status}
 }
