@@ -91,6 +91,19 @@ Durable plan: [000523-cast-capability-switches-plan.md](../plans/000523-cast-cap
 
 ## Log
 
+### 2026-10-13 — Final verification complete
+
+- Complete merged-tree Go suite passed: go test ./... -count=1 -parallel 4,
+  exit 0 (/tmp/pair-523-merged-go-bounded.log). This reruns every Go package;
+  reduced per-package concurrency avoids the unrelated 100ms fork/exec lock
+  settling failures seen under the default parallel run. All shell/Neovim
+  prerequisites passed in /tmp/pair-523-merged-full.log. Earlier complete
+  make test also passed after the provenance fix, before the clean main merge.
+- Full real headless Chrome Live suite passed, 231.868s; webcast race packages,
+  browser suites, and operator controlled-delay/repeated conformance passed.
+  Operator smoke and final look accepted. M1 and M2 are SHIP with no open
+  findings. Current main merged; pair:0 is main and running Couch untouched.
+
 ### 2026-10-13 — M2 SHIP and completed headless conformance
 
 - M2 re-review SHIP at 29ac1fe53, evidence commit d6f98c3d1: BR-5 and BR-6
