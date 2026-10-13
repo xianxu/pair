@@ -13,14 +13,14 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
-actual_hours: 0.95
+actual_hours: 1.63
 tracker:
     version: 1
     completion:
-        token: close-5b21deee2c76
+        token: close-a8e1d2f83d9a
         repository: github.com/xianxu/pair
-        reviewed_head: 925eda92cf69d4877f0143309f37cc98b549ca01
-        evidence_commit: f800aab4626d4a074108d51da625aa2871b65d02
+        reviewed_head: 9572d2e50e8a5ddc37972bb5383e086cc1bbf202
+        evidence_commit: 039bed93f33bb2705f4d33d963360b7a09c5f5ee
 ---
 
 # broadcast-web: DOM submission names the page (URL and title per note) and drops CSS selectors
