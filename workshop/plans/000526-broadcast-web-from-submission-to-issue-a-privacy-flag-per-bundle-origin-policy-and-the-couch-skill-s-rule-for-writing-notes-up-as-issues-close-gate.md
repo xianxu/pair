@@ -29,6 +29,19 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - "n": 3
+      timestamp: "2026-10-13T09:57:34-07:00"
+      dispatched: "2026-10-13T09:54:30-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: cmd/internal/submission/privacy.go:261 enforces exact policy/evidence keys; :279 rejects ambiguous manifest permissions, including store reload. Removing these guards in a disposable pinned-head tree made TestOriginPrivacyRejectsCaseAliases, TestLoadOriginPolicy, and TestPrivacyManifestRejectsAmbiguousKeysOnReload fail with sharing escalation or missing fallback/notice. Restoring them passed all affected package suites. The permission-boundary enumeration is recorded in the plan's Revisions.
+          round: 3
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: f5fab033a4398712a5e60c24d634368b0de888f1
+      blocked: false
 ---
 
 # Gate ledger — pair#526 (boundary-review)
@@ -49,6 +62,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - BR-1 — not-addressed — Policy envelopes and nested rule evidence are fixed; removing the exact-key guard makes their regression tests fail. However, cmd/internal/submission/store.go:219 still decodes top-level permission fields case-insensitively. Appending Privacy:"shareable" and Privacy_rule containing a matching shareable rule to an explicitly private manifest makes readMetadata return a validated shareable bundle. Complete the ambiguous-permission-decoding family sweep across all permission-bearing JSON boundaries, including persisted manifest fields, and add a store-reload regression (ARCH-SECURE, ARCH-PURPOSE).
 
+## Round 3 — 2026-10-13T09:57:34-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — cmd/internal/submission/privacy.go:261 enforces exact policy/evidence keys; :279 rejects ambiguous manifest permissions, including store reload. Removing these guards in a disposable pinned-head tree made TestOriginPrivacyRejectsCaseAliases, TestLoadOriginPolicy, and TestPrivacyManifestRejectsAmbiguousKeysOnReload fail with sharing escalation or missing fallback/notice. Restoring them passed all affected package suites. The permission-boundary enumeration is recorded in the plan's Revisions.
+
 ## Open findings
 
-- **BR-1** [Critical] `ambiguous-permission-decoding` Case-variant JSON keys can override private policy and grant sharing
+(none — every finding has been disposed)

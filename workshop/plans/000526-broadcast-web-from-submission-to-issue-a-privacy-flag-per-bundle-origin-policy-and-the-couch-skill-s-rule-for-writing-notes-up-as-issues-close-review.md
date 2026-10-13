@@ -141,3 +141,73 @@ dispose:
 7. **Plan revision recommendations**
    - Add a `## Revisions` entry enumerating every permission-bearing JSON boundary and requiring exact keys plus duplicate rejection at each.
    - Include conflicting top-level manifest fields in the store-reload verification strategy.
+
+---
+
+## Re-review — 2026-10-13T09:57:33-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 526 — broadcast-web: from submission to issue: a privacy flag per bundle (origin policy) and the couch skill's rule for writing notes up as issues |
+| repo | pair |
+| issue file | workshop/issues/000526-broadcast-web-from-submission-to-issue-a-privacy-flag-per-bundle-origin-policy-and-the-couch-skill-s-rule-for-writing-notes-up-as-issues.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 9f4542b83d47ed88f0ce4266425d49e1bb9fcd16..f5fab033a4398712a5e60c24d634368b0de888f1 |
+| command | sdlc close --issue 526 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-13T09:57:33-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+BR-1 is addressed across policy parsing, nested evidence, and persisted manifests. Regression tests demonstrably fail without the guards and pass with them. The affected package suites pass, and the implementation matches the revised privacy contract. Confidence is limited by live Chrome failing during GPU startup, before exercising the conformance fixture.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      cmd/internal/submission/privacy.go:261 enforces exact policy/evidence keys; :279 rejects ambiguous manifest permissions, including store reload. Removing these guards in a disposable pinned-head tree made TestOriginPrivacyRejectsCaseAliases, TestLoadOriginPolicy, and TestPrivacyManifestRejectsAmbiguousKeysOnReload fail with sharing escalation or missing fallback/notice. Restoring them passed all affected package suites. The permission-boundary enumeration is recorded in the plan's Revisions.
+```
+
+1. **Strengths**
+
+   - Pure policy decisions remain separate from the bounded filesystem adapter; invalid files produce private evidence and an actionable notice.
+   - Captured origin participates in existing identity fences, with controlled navigation tests.
+   - Store tests verify frozen permissions across reopening and delivery, and reject permission-changing retries.
+   - README, atlas, shipped skill, and reading guide cover operator ownership, private summaries, crop authorization, and local recording lifetime.
+
+2. **Critical findings:** None remaining.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Required pinned stat/name-status inspection and patch review completed; `git diff --check` passed.
+   - Full suites passed for `submission`, `couchcmd`, `webcast`, and `webcast/recorder`.
+   - Mutation checks independently established BR-1’s regression sensitivity.
+   - The initial missing runtime assets were resolved using the repository’s generator inside a disposable copy.
+   - Live `TestLiveSubmissionCrop` failed because Chrome’s GPU process crashed during startup. Actual browser conformance was not independently confirmed.
+   - The repository-wide suite was not rerun. Disposable files were removed; tracked checkout files remain unchanged.
+
+6. **Architectural notes for upcoming work**
+
+   - **ARCH-DRY — pass:** shared origin normalization and JSON-key scanning; existing delivery machinery reused.
+   - **ARCH-PURE — pass:** parsing, matching, and validation remain deterministic; IO stays in adapters.
+   - **ARCH-PURPOSE — pass:** producer metadata and agent externalization rules are delivered; BR-1’s boundary sweep includes persisted manifests.
+   - **ARCH-MOCK — pass structurally:** injected policy/capture seams, stateful recorder doubles, temporary storage, and a live conformance fixture exist. Live execution has the limitation above.
+   - **ARCH-CONSTRAINTS — pass:** bounded policy bytes and rule count, regular-file checks, and existing capture limits.
+   - **ARCH-SECURE — pass:** ambiguous permission keys are rejected before decoding can overwrite authority; errors preserve private fallback.
+   - **ARCH-ORDER — pass:** capture fences and existing delivery transitions retain ownership; retries preserve frozen decisions.
+   - **ARCH-FUNERAL — pass:** metadata follows existing bundle capacity and cleanup ownership; no new per-event artifact family.
+
+7. **Plan revision recommendations:** None required. Preserve the documented #525 requirement to use the same capture-bound identity when integrating the full page URL.

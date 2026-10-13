@@ -72,6 +72,8 @@ Handoff procedure: Close through the SDLC review, open the PR, and report to hub
 
 ## Log
 
+
+- 2026-10-13: closed — Complete BR-1 policy/rule/manifest sweep: regressions red before fix and green after, full make -k test passed (/tmp/pair-526-manifest-full-retry.log), live Chrome TestLiveSubmissionCrop passed, targeted race tests, make build and git diff --check passed. Untouched review-observation startup timeout passed isolated and full unchanged reruns, no waiver. Initial perf timing pair#514 is TL-authorized non-blocking; later full runs passed it. Atlas updated; no referencing project.; review verdict: SHIP
 ### 2026-10-12
 
 - Published the operator contract to main at `9e9a182ec00dad07ea31dc57b7be712a7517522e`; started an issue branch from main.
