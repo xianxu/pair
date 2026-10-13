@@ -61,3 +61,13 @@ Agent-guided: the agents who know the work write the handoff; Couch does the mec
   before designing. Add previous-incarnation peeking and access to the whole
   tty log as readable plain text (all or paged), with cost tags. The current
   live-buffer peek is insufficient even with a large requested line count.
+
+- 2026-10-12 — TL confirms the operator flow (receipt
+  `4a85bea3-11b4-435c-b08d-663b6c18c851`): the form requests the outgoing
+  agent's brief; that agent commits and calls `couch --switch-agent self`
+  with its handoff file. No second operator click. Couch acknowledges before
+  waiting for that same incarnation's turn to end. A self request must prove
+  the current caller incarnation. A configurable brief deadline (a few
+  minutes) selects a pointers-only fallback and reports it on the notice line
+  if the agent does not call back. The TL uses the same verb with `repo:N`.
+  Deadline behavior while the source remains busy is being clarified.
