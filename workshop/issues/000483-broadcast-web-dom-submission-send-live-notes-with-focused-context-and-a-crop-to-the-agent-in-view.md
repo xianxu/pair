@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
-estimate_hours:
-card_mirror: 'b925e352b7b3fab473044a4cf28f0a78da66c763' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 3.82
+card_mirror: '33b99eb2bbf0bf6fe4261fed9fc4d7356ddafd05' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T08:41:57-07:00
 claimant:
     operator: Xian Xu
@@ -63,6 +63,32 @@ Operator-shaped (the operator shapes it in the slot); the TL's starting proposal
 - On the blog, two viewers leave notes; the operator submits them to an agent slot (blog:0) by button, by hotkey and combined with a draft; the agent fixes at least one correctly from the submission alone, without asking for the full page.
 - The submission format is documented in the atlas, shared with #455's.
 - The operator smoke-tested it before close.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.
+Calibration is stale per estimate-source; treat the derived 3.82 focused ship-hours as provisional.
+Schema/builder reuse existing notes/query types (smaller module, raw design .2 x .2, raw impl .5 x .4).
+Store uses standard-library JSON/filesystem/PNG (greenfield design 1.5 halved for libraries x .2; impl .8 x .4).
+Capture is a CDP integration (design 2 x .2; impl 1.5 x .4), plus real-API discovery (.6 x .4 implementation).
+RPC mirrors existing Couch adapters (design .3 x .2; impl .5 x .4). Draft transaction is one Lua feature
+(design 2 x .2; impl 1.5 x .4). Docs use .1 design/.2 raw implementation; one close review .05 design/.5
+raw implementation. Familiarity is 1.0: current Go/Lua stack and existing seams. Thorough-plan buffer is 15%.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: smaller-go-module design=0.04 impl=0.20
+item: greenfield-go-module design=0.15 impl=0.32
+item: api-integration design=0.40 impl=0.60
+item: smaller-go-module design=0.06 impl=0.20
+item: lua-neovim design=0.40 impl=0.60
+item: atlas-docs design=0.10 impl=0.08
+item: milestone-review design=0.05 impl=0.20
+item: real-api-discovery design=0.00 impl=0.24
+design-buffer: 0.15
+total: 3.82
+```
 
 ## Plan
 

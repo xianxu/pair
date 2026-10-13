@@ -20,6 +20,20 @@ rounds:
           family: function-level-test-strategy
           round: 1
       blocked: true
+    - "n": 2
+      timestamp: "2026-10-12T20:25:33-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: ApplyDelivery and Store.Transition own durable progress; DOMSubmission.send invokes begin before paste and ack after confirmed dispatch, preserving acknowledgment-only recovery and conservative restart reconciliation.
+          round: 2
+        - id: PQ-2
+          disposition: addressed
+          note: Tasks now name production functions and adversarial strategies covering transitions, manifest and PNG validation, capture ordering, guarded resolution and draft retry invariants.
+          round: 2
+      blocked: false
+content_hash: 52a1b26db544d0506c6eeb4186a7c657a052a89c975664eb177a79c9eededdaf
 ---
 
 # Gate ledger — pair#483 (plan-quality)
@@ -36,7 +50,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **PQ-2** [Important] `function-level-test-strategy` Replace prose test-case inventories with named functions and adversarial strategies
   Implementation tasks 1–4 enumerate test cases, contrary to this gate's test-plan contract, while most risky functions remain unnamed. Compress those inventories into one strategy line per risky function, identifying the adversarial input or event-sequence class and mechanical guard; include the actual production transition functions, manifest/PNG validators, capture barrier and guarded acknowledgment.
 
+## Round 2 — 2026-10-12T20:25:33-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — ApplyDelivery and Store.Transition own durable progress; DOMSubmission.send invokes begin before paste and ack after confirmed dispatch, preserving acknowledgment-only recovery and conservative restart reconciliation.
+- PQ-2 — addressed — Tasks now name production functions and adversarial strategies covering transitions, manifest and PNG validation, capture ordering, guarded resolution and draft retry invariants.
+
 ## Open findings
 
-- **PQ-1** [Important] `authoritative-transition-owner` Specify how the production delivery state crosses the Go/Lua boundary
-- **PQ-2** [Important] `function-level-test-strategy` Replace prose test-case inventories with named functions and adversarial strategies
+(none — every finding has been disposed)
