@@ -15,6 +15,7 @@ _G.PairTestDOMPin=function()return {pane_id=7,validate=function()return true end
 _G.PairTestDOMRPC=function(op,id,cb)
  if op=='prepare' then
   preps=preps+1;ids[#ids+1]=id
+  if case=='no_notes' then cb({state='empty'});return end
   if case=='pre_error' and preps==1 then cb(nil,'unexpected submission entry .DS_Store');return end
   if case=='failure' then cb({state='failed',error='page changed'});return end
   if case=='changed' then deferred=cb;return end
@@ -27,11 +28,12 @@ _G.PairTestDOMRPC=function(op,id,cb)
  else error('unexpected '..op) end
 end
 _G.PairTestZellijExecutor=function(label,argv)
+ if case=='no_notes' and label:find('focus',1,true) then return {code=0} end
  assert(not label:find('focus',1,true),'DOM submission moved focus')
- assert(argv[4]=='--pane-id' and argv[5]=='7')
+ if case~='no_notes' then assert(argv[4]=='--pane-id' and argv[5]=='7') end
  if label=='draft.send.write-body' then
-  composer=composer..assert(_G.PairDraftSend.unframe(argv[6]))
-  if case=='uncertain' and not write_failed then write_failed=true;return {code=17}end
+  composer=composer..assert(_G.PairDraftSend.unframe(argv[case=='no_notes' and 4 or 6]))
+  if (case=='uncertain' or case=='no_notes') and not write_failed then write_failed=true;return {code=17}end
  elseif label=='draft.send.submit' then sent[#sent+1]=composer;composer=''
  else error('unexpected '..label) end
  return {code=0}
@@ -45,12 +47,12 @@ end
 local map=vim.fn.maparg('<C-S-M-CR>',mode,false,true)
 assert(type(map.callback)=='function','DOM chord absent in '..mode)
 map.callback()
-if case=='pre_error' or case=='uncertain' then
+if case=='pre_error' or case=='uncertain' or case=='no_notes' then
  assert(#sent==0 and vim.api.nvim_get_current_line()==body)
  vim.api.nvim_buf_set_lines(0,0,-1,false,{'edited current'})
  map.callback()
  assert(#sent==1 and authored[#authored]=='edited current' and preps==2 and ids[1]~=ids[2])
- assert(sent[1]:find('edited current',1,true) and acks==1)
+ assert(sent[1]:find('edited current',1,true) and acks==(case=='no_notes' and 0 or 1))
 elseif case=='changed' then
  vim.api.nvim_buf_set_lines(0,0,-1,false,{'edited'})
  deferred({state='prepared',path='/store/bundle/submission.json'})

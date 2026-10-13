@@ -33,13 +33,13 @@ function M.new(append_authored, commit_authored, send_low_level, notify_error, m
 
   -- DOM sends are independent attempts. Their durable append remains evidence
   -- if dispatch is uncertain; a failed marker cannot freeze the next draft.
-  local function submit_attachment(authored_body, agent_text, attachment)
-    if type(attachment) ~= 'table' or type(attachment.id) ~= 'string'
-      or attachment.id == '' or type(attachment.target) ~= 'table' then
+  function submit.submit_fresh_operator_text(authored_body, agent_text, attachment)
+    if attachment ~= nil and (type(attachment) ~= 'table' or type(attachment.id) ~= 'string'
+      or attachment.id == '' or type(attachment.target) ~= 'table') then
       notify_error('Pair input dispatch blocked — attachment requires an ID and pinned target')
       return false
     end
-    local target = snapshot(attachment.target)
+    local target = attachment and snapshot(attachment.target) or nil
     local id = mint_append_id()
     local ok, err = append_authored(authored_body, id)
     if not ok then
@@ -62,7 +62,7 @@ function M.new(append_authored, commit_authored, send_low_level, notify_error, m
   end
 
   function submit.submit_operator_text(authored_body, agent_text, attachment)
-    if attachment ~= nil then return submit_attachment(authored_body, agent_text, attachment) end
+    if attachment ~= nil then return submit.submit_fresh_operator_text(authored_body, agent_text, attachment) end
     if not submit.retry_pending_commit() then return false end
     if pending ~= nil and pending.phase == 'indeterminate' then
       notify_error('Pair input dispatch blocked — reconcile the agent composer after an indeterminate body write')

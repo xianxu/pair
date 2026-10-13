@@ -197,6 +197,39 @@ for _, failure in ipairs({ 'append', 'start', 'written', 'indeterminate', 'marke
   ok(#notifications > 0, failure .. ': failure remains visible')
 end
 
+-- A DOM chord with no captured notes still has fresh-send semantics.
+for _, failure in ipairs({ 'append', 'start', 'written', 'indeterminate', 'marker' }) do
+  local appends, sends, commits = {}, {}, {}
+  local submit = M.new(
+    function(body, id)
+      appends[#appends + 1] = { body = body, id = id }
+      if failure == 'append' and #appends == 1 then return false, 'disk full' end
+      return true
+    end,
+    function(id)
+      commits[#commits + 1] = id
+      if failure == 'marker' then return false, 'marker unavailable' end
+      return true
+    end,
+    function(body, phase, target)
+      sends[#sends + 1] = { body = body, phase = phase, target = target }
+      if #sends == 1 and failure ~= 'append' and failure ~= 'marker' then
+        return false, failure, 'delivery failed'
+      end
+      return true, 'dispatched'
+    end, function() end, function() return 'log-' .. (#appends + 1) end)
+  local send = submit.submit_fresh_operator_text
+  ok(send('old', 'old prompt') == (failure == 'marker'), failure .. ': fallback reports only confirmed dispatch')
+  ok(send('edited', 'new prompt'), failure .. ': fallback sends edited current draft')
+  ok(#appends == 2 and appends[2].body == 'edited' and appends[2].id ~= appends[1].id,
+    failure .. ': fallback appends fresh current draft')
+  local latest = sends[#sends] or {}
+  ok(latest.body == 'new prompt' and latest.phase == 'start' and latest.target == nil,
+    failure .. ': fallback starts fresh without an attachment target')
+  ok(appends[2] and #commits == (failure == 'marker' and 2 or 1) and commits[#commits] == appends[2].id,
+    failure .. ': fallback never marks an unconfirmed send')
+end
+
 -- An unchanged draft still starts a new send when the chord supplies a new ID.
 do
   local sends, ids = 0, {}

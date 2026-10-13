@@ -4,7 +4,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 . "$ROOT/tests/lib/run-headless.sh"
 RT="$(mktemp -d "${TMPDIR:-/tmp}/pair-dom-submission.XXXXXX")"
 trap 'rm -rf "$RT"' EXIT
-for dom_case in notes insert empty comments failure pre_error uncertain ack changed queue; do
+for dom_case in notes insert empty comments failure pre_error uncertain no_notes ack changed queue; do
   mkdir -p "$RT/$dom_case/queue"
   touch "$RT/$dom_case/draft.md" "$RT/$dom_case/log.md"
   if [[ "$dom_case" == queue ]]; then

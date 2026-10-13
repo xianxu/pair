@@ -48,6 +48,10 @@ Detailed proposal: [animation capture plan](../plans/000524-animation-capture-pl
 
 ## Log
 
+### 2026-10-13 — no-notes fresh-send sweep
+
+The DOM chord's empty-note fallback still used the ordinary sender's retry lock. Extended the same fresh-send transaction to the fallback without changing ordinary Alt+Return behavior. Failure-phase regressions went RED then GREEN; the production headless no-notes chord now accepts edited current text after an uncertain write. Updated generic sender and all DOM headless cases pass. Full suite is still running; this final Lua delta was separately reverified after its test targets had run in that suite.
+
 ### 2026-10-13 — fresh-send implementation verified
 
 Implemented the approved no-freeze policy: every DOM chord captures current text under a fresh ID; failed DOM transactions retain no retry-body lock. Durable supersession preserves actual delivery state/files, rejects stale begin and permits genuine late acknowledgment. Store writes use one shared atomic writer with injected persistence failures and same-ID successor safety. Acknowledgment receipts are independent of draft epochs and bounded; duplicate/stale callbacks cannot fork their retries. Ack/status can resume confirmed resolution after a busy worker, failure or restart.

@@ -856,11 +856,12 @@ do
     return true
   end
 
-  function _G.submit_operator_text(authored_body, agent_text, attachment)
+  function _G.submit_operator_text(authored_body, agent_text, attachment, fresh)
     local tag = bang_tag.parse(attachment and strip_comments(authored_body) or agent_text)
     if attachment and tag and not tag.agent_text then return false end
     if tag and not tag.agent_text then return describe_couch_thread(tag) end
-    local ok = _G.PairSubmission.submit_operator_text(authored_body, attachment and agent_text or (tag and tag.agent_text or agent_text), attachment)
+    local send = fresh and _G.PairSubmission.submit_fresh_operator_text or _G.PairSubmission.submit_operator_text
+    local ok = send(authored_body, attachment and agent_text or (tag and tag.agent_text or agent_text), attachment)
     if ok and tag and tag.description then publish_couch_description(tag.description) end
     return ok
   end
@@ -1633,7 +1634,7 @@ do
       return vim.fn.sha256(tostring((vim.uv or vim.loop).hrtime()) .. ':' .. tostring(vim.fn.getpid()))
     end,
     submit = function(body,text,attachment) return submit_operator_text(body,text,attachment) end,
-    ordinary = function(body,text) return submit_operator_text(body,strip_comments(body)) end,
+    ordinary = function(body,text) return submit_operator_text(body,strip_comments(body),nil,true) end,
     notify = function(message) vim.notify(message,vim.log.levels.WARN) end,
     defer = vim.defer_fn,
   })
