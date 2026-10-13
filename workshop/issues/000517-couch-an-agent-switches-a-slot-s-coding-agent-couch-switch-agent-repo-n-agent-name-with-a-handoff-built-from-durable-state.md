@@ -68,6 +68,15 @@ Durable plan: [agent switch plan](../plans/000517-agent-switch-plan.md).
 
 ## Log
 
+- 2026-10-12 22:53 PDT — branch moved with sdlc to pair:0; make build
+  passed there and HEAD remained c136ea66d. Sent built commit to hub. M2 gate
+  initially refused actual measurement because its default transcript roots
+  no longer include the source worktree. From the staged checkout, sdlc actual
+  --issue 517 --milestone M2 --brain-dir /Users/xianxu/workspace/worktree/pair-slot2/pair
+  measured 3.66h using its real transcript source and the current boundary
+  ledger (dispatch cuts; attribution warnings retained in command output).
+  Pass that measured value to milestone-close; do not guess or waive actuals.
+
 - 2026-10-12 22:50 PDT — full make test passed, exit 0; complete rerun log
   /tmp/pair-517-full-final.log at code 10e977395. TL staging instruction
   82f344e0-8e67-4fd8-833b-b951062d3640: merge main, move to pair:0 and
