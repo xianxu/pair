@@ -69,6 +69,8 @@ background worker, polling loop or durable artifact family.
 
 ## Plan
 
+Durable full-flow plan: [own-note editing](../plans/000537-web-note-editing-plan.md).
+
 - [ ] Implement the revision event and authoritative viewer/operator edit paths.
 - [ ] Wire shared editor and current pin projections, with regression coverage.
 - [ ] Verify, document, close and land through SDLC.
@@ -83,3 +85,33 @@ background worker, polling loop or durable artifact family.
   creates a new ID. Operator snapshots and pin callbacks currently retain the
   creation Note. An explicit edit record avoids duplicate notes and preserves
   attribution (ARCH-DRY/ARCH-ORDER). Full-flow plan follows design acceptance.
+
+## Revisions
+
+### 2026-10-13 16:13 PDT — operator ownership rule and terminal scope
+
+- Supersedes the Spec's unrestricted editing proposal and the interim TL
+  proposal allowing an operator override: only a note's author may edit it,
+  including the operator. Preserve original attribution; show an `edited`
+  marker instead of separate editor attribution.
+- Include terminal cast editing and server-side ownership tests for both
+  casts. Investigation found terminal currently has draft/view/resolve only;
+  this needs a text-edit path, not merely a restriction on an existing one.
+- Public names and Viewer.ID are self-asserted attribution, not ownership
+  proof. A crafted request copying those fields must not edit another note.
+  TL approved private browser-held proof and legacy notes remaining read-only;
+  investigate reuse of the existing HttpOnly unlock session (ARCH-DRY).
+- Existing session cookies survive refresh but are replaced on unlock and
+  revoked on code rotation. Asked TL whether ownership must survive those
+  transitions before choosing the session identity lifetime. No code yet.
+
+### 2026-10-13 16:15 PDT — existing session lifetime approved
+
+- TL approved the simple existing-cookie reuse: ownership survives refresh,
+  but fresh unlock, code rotation, another browser or another link makes old
+  notes read-only. Fixed trusted operator ownership stays within the overlay.
+  No castlock expansion and no second credential.
+- Additional Done when contract: both casts refuse crafted cross-owner edits
+  even when public names/IDs are copied; two real unlock-cookie jars prove it.
+  Own notes open populated editors; other/legacy notes open read-only; revised
+  notes show `edited`. Record tests for the approved session lifetime.
