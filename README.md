@@ -396,6 +396,10 @@ couch --show <ref>       one current-repository thread by tag or path, or a slot
 couch --reconcile repo:N converge a slot's workspace now and show what it did
 couch --peek repo:N[:M...][,repo:N...] [--lines N] [--json] [--transcripts]
                                            read-only: slots' recent terminal (live, with dim/reverse/cursor marks); --transcripts adds log paths
+couch --peek repo:N --previous [--lines N | --all]
+                                           exact previous tty recording; --all reads complete retained history [heavy]
+couch --peek repo:N --all [--transcripts]
+                                           complete current recording projection [heavy]; bounded, plain text
 couch --archived         threads removed from couch, with their records kept
 couch --actors [--json]  live peer-message receivers in this Couch namespace
 couch --broadcast-list [--json]   every link out by kind (screen, web view, web drive) and its viewers, and the
@@ -421,6 +425,9 @@ couch --resume repo:N [--json]   from a live slot: resume that slot's agent
 couch --reboot repo:N --confirm [--force-unknown] [--json]
                          from a live slot: archive and replace it with a fresh agent on the current binary;
                          a live target is stopped first unless busy (busy-unknown needs --force-unknown)
+couch --switch-agent repo:N --agent NAME --confirm [--json]
+                         from the hub: switch another idle, clean slot using saved target-agent settings
+couch --operation-status ID [--json]   inspect an asynchronous operation receipt
 couch --reap repo:N --confirm [--json]     from a live slot: end an orphaned server's tree
 couch --recover repo:N [--json]               from a live slot: run the report's steps for it
 couch --relaunch repo:N --confirm [--same-binary] [--force-unknown] [--json]
@@ -447,6 +454,33 @@ couch --message-status ID [--json]      inspect a message receipt; a send to a b
 couch --skill            print the bundled agent coordination skill
 couch --adopt-store /absolute/store     preview adoption of an existing store
 ```
+
+`couch --switch-agent` accepts one exact slot and a different agent. It refuses
+`self`, the caller's own slot, busy or dirty targets, and targets whose state
+cannot be verified. It uses the target agent's last successful starting-path
+settings, falling back to its explicit repository default. Missing settings
+require the operator's Switch coding agent form; agents cannot supply argv or
+edit defaults through this API. The form remains the operator's parameter editor.
+A switch parks the source and starts a fresh conversation. Pair delivers no
+handoff or orientation; the saved startup parameters are used unchanged.
+The hub captures any context it needs before switching and decides what to send
+later. Compaction and continuation remain separate operations.
+
+An accepted receipt means the operation was queued; inspect it with
+`couch --operation-status ID`. On failure, use the existing park/recover/resume
+operations: retry switching when the old agent is still running; after a failed
+target start is proved gone, resume the old conversation. Uncertain terminal
+ownership must be resolved before another agent starts.
+
+Previous-session peeks select only the saved incarnation's tty recording.
+`--previous --transcripts` refuses: capture native coordinates before switching,
+using the current slot's `--transcripts` read when needed. `--all` returns the
+complete retained terminal history or an explicit error naming the files;
+it never labels a capacity-truncated tail complete. Replay limits are 64 MiB
+raw, 8 MiB events, 100,000 rows, 1,048,576 history cells / 128 MiB logical
+history bytes, and screen dimensions 1–1000 with at most 262,144 cells.
+Terminal erase-history commands retain their normal meaning; native transcripts
+remain the complementary source for erased content.
 
 `couch --help` ends each verb's line with its relative cost, measured on this
 machine (pair#490), and `couch --skill` lists the same tiers:
@@ -1161,12 +1195,12 @@ agent switch form. Choose an agent, then edit its prefilled startup parameters (
 empty value is allowed). This second screen names the source and target and
 contains **Switch** and **Cancel**. Tab or Up/Down move between the
 parameter field and buttons; Left/Right move the text cursor while editing.
-Enter on **Switch** submits the change. Switching keeps the thread and working path, launches a fresh
-conversation, and asks the new agent to read the outgoing context and summarize
-its orientation. The switcher stays open. If orientation delivery fails, the
-thread's **Copy orientation prompt** action requests clipboard copy without changing the
-draft; terminal clipboard support is required. Inspect any existing composer
-text before pasting or submitting again.
+Enter on **Switch** submits the change after checking that the source is idle
+and clean. Choose a different agent; switching keeps the thread and working
+path and launches a fresh conversation with an empty composer. The switcher
+stays open. Capture any needed native transcript coordinates before switching;
+the previous tty recording remains available through `couch --peek repo:N
+--previous`.
 
 The status row and the switcher are **clickable**: a click on an actor's chip, or
 anywhere in its rows in the switcher, switches to it, and empty space does

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/launcher"
 	"strings"
 	"time"
 	"unicode"
@@ -17,7 +18,7 @@ import (
 // full binding and must pass the supervisor adapter's live identity check.
 type Request struct {
 	Op, Scope, Tag, Session, Nonce, ID, Target, Body string
-	// Agent narrows a send to slots running that agent; send only.
+	// Agent narrows a send or selects the switch destination harness.
 	Agent string `json:",omitempty"`
 	// Confirmed declares the operator's confirmation for an operation whose
 	// declaration requires one (reboot); resume and reboot only.
@@ -193,10 +194,10 @@ func ValidateRequest(r Request) error {
 	if r.Binding != nil || r.Scope == "" || r.Tag == "" || r.Session == "" || r.Nonce == "" {
 		return errors.New("operation requires the calling conversation identity")
 	}
-	if r.Agent != "" && (r.Op != "send" || !validFamily(r.Agent)) {
+	if r.Agent != "" && r.Op != "switch-agent" && (r.Op != "send" || !validFamily(r.Agent)) {
 		return errors.New("an agent filter applies only to send and must be a plain agent name")
 	}
-	if r.Confirmed && !couchcore.IsSlotOperation(r.Op) {
+	if r.Confirmed && r.Op != "switch-agent" && !couchcore.IsSlotOperation(r.Op) {
 		return errors.New("a confirmation applies only to slot operations")
 	}
 	if r.SameBinary && !couchcore.SlotOperationTakesSameBinary(r.Op) {
@@ -206,6 +207,17 @@ func ValidateRequest(r Request) error {
 		return errors.New("--force-unknown applies only to relaunch, reload-context and prepare")
 	}
 	switch {
+	case r.Op == "switch-agent":
+		if !validMessageID(r.ID) || !r.Confirmed || !launcher.IsSupportedAgent(r.Agent) {
+			return errors.New("switch-agent requires a request ID, supported agent and confirmation")
+		}
+		if _, _, err := parseSlot(r.Target); err != nil {
+			return err
+		}
+		if r.Body != "" {
+			return errors.New("switch-agent does not accept content")
+		}
+
 	case couchcore.IsSlotOperation(r.Op):
 		// One exact slot: a primitive acts on one slot, never a family.
 		if !validMessageID(r.ID) || r.Body != "" {

@@ -186,6 +186,8 @@ func Operations() []Operation {
 				{Name: "ref", Summary: "slot reference (repo:N; several as repo:1:2,other:0), thread tag or path", Required: true},
 				{Name: "lines", Summary: "how many recent lines to show per slot (default 40)", FlagOnly: true, ValueRequired: true},
 				{Name: "json", Summary: "print the result as JSON", FlagOnly: true},
+				{Name: "previous", Summary: "select the exact previous incarnation", FlagOnly: true},
+				{Name: "all", Summary: "replay a complete recording within safety limits (heavy)", FlagOnly: true},
 				{Name: "transcripts", Summary: "also name the sent-prompt log and native transcripts (slower)", FlagOnly: true},
 				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
 			},
@@ -207,7 +209,7 @@ func Operations() []Operation {
 			Args:         switchAgentArguments(false),
 		},
 		{
-			Name: "switch-agent", Summary: "Start a fresh agent context using the outgoing thread's evidence",
+			Name: "switch-agent", Summary: "Switch to another coding agent using the saved startup configuration",
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultStart,
 			Presentation: PresentationTUI, RowAction: true,
 			Args: switchAgentArguments(true),
@@ -503,10 +505,14 @@ func switchAgentArguments(accepted bool) []ArgSpec {
 		{Name: "repo-scope", Summary: "exact thread repository scope", Required: true, Implicit: true},
 		{Name: "tag", Summary: "exact thread tag", Required: true, Implicit: true},
 		{Name: "agent", Summary: "selected coding agent", Required: true, Implicit: true},
-		{Name: "argv", Summary: "JSON array of startup parameters; empty array selects no parameters", Required: accepted, Implicit: true},
+		{Name: "argv", Summary: "JSON array of startup parameters; empty array selects no parameters", Implicit: true},
 	}
 	if accepted {
-		args = append(args, ArgSpec{Name: "fingerprint", Summary: "accepted preview fingerprint", Required: true, Implicit: true})
+		args = append(args,
+			ArgSpec{Name: "fingerprint", Summary: "accepted preview fingerprint", Required: true, Implicit: true},
+			ArgSpec{Name: "known-config", Summary: "use existing saved target configuration", Implicit: true},
+			ArgSpec{Name: "source", Summary: "authenticated source incarnation token", Implicit: true},
+		)
 	}
 	return args
 }

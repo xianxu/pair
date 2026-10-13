@@ -40,6 +40,20 @@ type slotOperations struct {
 // never reads it.
 type receiptKey struct{ scope, tag, id string }
 
+// switchStatus is only called after proving the requesting live binding is the
+// supervisor hub. Ordinary status remains scoped to the admitting slot.
+func (s *slotOperations) switchStatus(id string) (couchmessage.Response, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.sweepLocked()
+	for _, receipt := range s.receipts {
+		if receipt.ID == id && receipt.Op == "switch-agent" {
+			return couchmessage.Response{Code: "ok", Operation: &receipt}, true
+		}
+	}
+	return couchmessage.Response{}, false
+}
+
 func newSlotOperations(run slotOperationRunner, names func(context.Context) ([]couchcore.RepositoryName, error), now func() time.Time) *slotOperations {
 	return &slotOperations{run: run, names: names, now: now, receipts: map[receiptKey]couchmessage.OperationReceipt{}}
 }
@@ -57,6 +71,15 @@ func (s *slotOperations) handle(ctx context.Context, caller couchmessage.Binding
 		}
 		return couchmessage.Response{Code: "ok", Operation: &receipt}
 	}
+	return s.admit(ctx, caller, r, func(key string, started func(), finished func(any, error)) error {
+		return s.run(key, r.Op, r.Target, couchcore.LiveRestartOptions{SameBinary: r.SameBinary, ForceUnknown: r.ForceUnknown}, started, finished)
+	})
+}
+
+// admit shares the receipt state machine and queue admission across slot operations.
+func (s *slotOperations) admit(ctx context.Context, caller couchmessage.Binding, r couchmessage.Request,
+	run func(string, func(), func(any, error)) error) couchmessage.Response {
+	key := receiptKey{caller.Scope, caller.Tag, r.ID}
 	if confirms, _ := couchcore.OperationConfirms(r.Op); confirms && !r.Confirmed {
 		return couchmessage.Response{Code: "confirmation-required", Error: r.Op + " requires --confirm"}
 	}
@@ -69,7 +92,7 @@ func (s *slotOperations) handle(ctx context.Context, caller couchmessage.Binding
 	defer s.mu.Unlock()
 	s.sweepLocked()
 	existing, held := s.receipts[key]
-	receipt, err := couchmessage.ApplyReceiptEvent(existing, couchmessage.ReceiptEvent{Kind: couchmessage.ReceiptAdmit, ID: r.ID, Op: r.Op, Target: r.Target, At: s.now()})
+	receipt, err := couchmessage.ApplyReceiptEvent(existing, couchmessage.ReceiptEvent{Kind: couchmessage.ReceiptAdmit, ID: r.ID, Op: r.Op, Target: r.Target, Agent: r.Agent, At: s.now()})
 	switch {
 	case errors.Is(err, couchmessage.ErrReceiptIDConflict):
 		return couchmessage.Response{Code: "id-conflict", Error: err.Error()}
@@ -85,8 +108,7 @@ func (s *slotOperations) handle(ctx context.Context, caller couchmessage.Binding
 	s.receipts[key] = receipt
 	// Enqueue never blocks, so holding the lock is safe; a job that starts at
 	// once waits in started until this admission returns.
-	opts := couchcore.LiveRestartOptions{SameBinary: r.SameBinary, ForceUnknown: r.ForceUnknown}
-	err = s.run(queueKey, r.Op, r.Target, opts, func() { s.apply(key, couchmessage.ReceiptEvent{Kind: couchmessage.ReceiptStart, ID: r.ID}) },
+	err = run(queueKey, func() { s.apply(key, couchmessage.ReceiptEvent{Kind: couchmessage.ReceiptStart, ID: r.ID}) },
 		func(value any, err error) {
 			s.apply(key, couchmessage.ReceiptEvent{Kind: couchmessage.ReceiptFinish, ID: r.ID, Outcome: slotOperationOutcome(value, err), At: s.now()})
 		})

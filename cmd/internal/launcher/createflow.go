@@ -661,8 +661,8 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	// Every new Couch wrapper needs readiness evidence, including cold resume.
 	// The native conversation survives resume; the wrapper incarnation does not.
 	if opts.Args.FreshRequired || couchOwned {
-		nonce := ""
-		if opts.Args.Orientation != nil {
+		nonce := opts.Args.FreshNonce
+		if nonce == "" && opts.Args.Orientation != nil {
 			nonce = opts.Args.Orientation.Attempt
 		}
 		if _, err := prepareLaunchReadinessWithNonce(rt, chosenTag, agent, session, nonce); err != nil {

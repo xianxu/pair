@@ -1449,6 +1449,28 @@ proof; record the surprising case so the next change starts from evidence.
   atlas left three stale copies. Before committing a rule change, `rg` the rule's nouns (here "stale", "wheel")
   across the package and the atlas, and make every other site name the rule's owner instead of restating it.
 
+- **An incarnation does not identify a request (#517 plan review).** When an
+  asynchronous callback can outlive cancellation and retry on the same source,
+  carry both the source incarnation and the parent request ID end to end.
+  A late reply must never satisfy the next request merely because the process
+  stayed alive. Distinguish standalone commands from callbacks explicitly.
+
+- **Retained evidence belongs to a source, not a lifecycle label (#517 M1).**
+  A previous-session descriptor survived A→B correctly, but a separate park of B
+  followed by B→C reused A's evidence because the source was already parked.
+  Compare the saved source identity with the current verified park before reuse;
+  test both same-source retries and a different source parked through another path.
+  Test retention through the new reader itself: collect while its lease is held,
+  then prove release after both successful replay and an error.
+- **A plan's owner map follows the actual diff (#517 M1).** When implementation
+  splits a concern into a new file, check every core-concepts location and the
+  milestone file inventory against the diff; record the correction in Revisions.
+- **A full read must detect every capacity loss in its dependency (#517 M1).**
+  Raising the emulator's row cap left its cell and byte caps silently evicting
+  history, and accepting 1000×1000 geometry exceeded its screen-area limit.
+  Read the dependency's complete limit model; use checked construction/resize
+  and an explicit loss signal that survives later clears. Test each independent
+  limit and loss followed by erase in one input, not only a row-count overflow.
 - #494 visual review: when mounting an existing viewer control inside another
   surface, reuse its glyphs, tooltips and dimensions as well as its handlers.
   Text labels substituted into icon-sized buttons can clip and make the two
@@ -1469,6 +1491,22 @@ proof; record the surprising case so the next change starts from evidence.
 - Reuse a shared recipient identity/parser when adding a routing consumer; keep each caller's uniqueness and incarnation policy separate.
 - Visible evidence needs a valid, nonempty effective intersection, including ancestor clips. Share that predicate across text and accessibility entries; test wholly off-screen regions and clipped descendants in both the DOM fixture and a real browser.
 
+- **A lifecycle guard checks every representation of its authority (#517 M2).**
+  Before registration, a replacement profile lives in Start.LaunchProfile;
+  after registration or unknown promotion it lives on the incarnation. A guard
+  reading only the latter can erase a surviving target during cleanup. Enumerate
+  interruption points, exercise startup reconciliation then the user action,
+  and assert identities as well as errors and launch counts.
+- **Audit the whole active owner table against a named baseline (#517 M2).**
+  A scope cut moved missing-config policy into switchagent.go while the plan
+  still claimed launchprofile.go changed. For each active core-concepts row,
+  check the actual owner, pure/integration class and new/modified/reused status
+  with git diff; append a replacement table and explicitly supersede old rows.
+
+- **Pure selectors need value-only tests even when integration covers them (#517 M2).**
+  Construct records directly for projection, validation and defensive-copy
+  cases; a filesystem-backed Couch fixture proves integration, not the pure
+  seam's independent contract.
 ### #494 — publish measured commit identifiers
 
 - A smoke handoff accidentally sent a placeholder commit identifier. Read `git rev-parse --short HEAD` after the commit, then copy that exact output into the report. Never draft a send command with a placeholder hash; omit the hash until it is known.

@@ -17,6 +17,7 @@ import (
 
 	"github.com/creack/pty"
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/orientation"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 )
 
@@ -43,6 +44,15 @@ func TestCouchOrientationTransportHelper(t *testing.T) {
 	opts.Env.Home = dir
 	if code, err := run(t, opts, rt); err != nil || code != 0 {
 		t.Fatalf("create %d %v", code, err)
+	}
+	if args.Orientation == nil {
+		if args.FreshNonce == "" || rt.env["PAIR_LAUNCH_NONCE"] != args.FreshNonce || rt.env[orientation.Env] != "" {
+			t.Fatalf("fresh readiness/orientation mismatch: nonce=%q expected=%q orientation=%q", rt.env["PAIR_LAUNCH_NONCE"], args.FreshNonce, rt.env[orientation.Env])
+		}
+		if err := os.WriteFile(os.Getenv("PAIR184_ACCEPT_OUTPUT"), []byte(rt.env["PAIR_LAUNCH_NONCE"]), 0600); err != nil {
+			t.Fatal(err)
+		}
+		return
 	}
 	binary := os.Getenv("PAIR184_ACCEPT_BINARY")
 	if binary == "" {

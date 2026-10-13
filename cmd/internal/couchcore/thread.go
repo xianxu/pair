@@ -54,7 +54,10 @@ type ThreadIncarnation struct {
 	LaunchProfile *LaunchProfile    `json:"launch_profile,omitempty"`
 }
 
+type PreviousSession = threadrecord.PreviousSession
+
 type ThreadRecord struct {
+	PreviousSession     *PreviousSession              `json:"previous_session,omitempty"`
 	SessionBinding      *couchidentity.SessionBinding `json:"session_binding,omitempty"`
 	Continuation        *checkpoint.Request           `json:"continuation,omitempty"`
 	SchemaVersion       int                           `json:"schema_version"`
@@ -107,8 +110,9 @@ func toPersistedThreadAddress(address ThreadAddress) threadrecord.Address {
 
 func toPersistedThreadRecord(record ThreadRecord) threadrecord.Record {
 	out := threadrecord.Record{
-		SessionBinding: cloneSessionBinding(record.SessionBinding),
-		SchemaVersion:  record.SchemaVersion, Address: toPersistedThreadAddress(record.Address),
+		PreviousSession: threadrecord.ClonePreviousSession(record.PreviousSession),
+		SessionBinding:  cloneSessionBinding(record.SessionBinding),
+		SchemaVersion:   record.SchemaVersion, Address: toPersistedThreadAddress(record.Address),
 		StartingPath: record.StartingPath, WorkingPath: record.WorkingPath, CreatedAt: record.CreatedAt,
 		Revision: record.Revision, Reservation: record.Reservation,
 		Name: record.Name, Description: record.Description, PublishedSummary: record.PublishedSummary,
@@ -167,10 +171,11 @@ func toPersistedThreadRecord(record ThreadRecord) threadrecord.Record {
 
 func fromPersistedThreadRecord(record threadrecord.Record) ThreadRecord {
 	out := ThreadRecord{
-		SessionBinding: cloneSessionBinding(record.SessionBinding),
-		SchemaVersion:  record.SchemaVersion,
-		Address:        ThreadAddress{RepoScope: record.Address.RepoScope, Tag: ThreadTag(record.Address.Tag)},
-		StartingPath:   record.StartingPath, WorkingPath: record.WorkingPath, CreatedAt: record.CreatedAt,
+		PreviousSession: threadrecord.ClonePreviousSession(record.PreviousSession),
+		SessionBinding:  cloneSessionBinding(record.SessionBinding),
+		SchemaVersion:   record.SchemaVersion,
+		Address:         ThreadAddress{RepoScope: record.Address.RepoScope, Tag: ThreadTag(record.Address.Tag)},
+		StartingPath:    record.StartingPath, WorkingPath: record.WorkingPath, CreatedAt: record.CreatedAt,
 		Revision: record.Revision, Reservation: record.Reservation,
 		Name: record.Name, Description: record.Description, PublishedSummary: record.PublishedSummary,
 		Layout:       Layout(record.Layout),
@@ -240,6 +245,7 @@ func fromPersistedThreadRecord(record threadrecord.Record) ThreadRecord {
 
 func cloneThreadRecord(record ThreadRecord) ThreadRecord {
 	copy := record
+	copy.PreviousSession = threadrecord.ClonePreviousSession(record.PreviousSession)
 	copy.SessionBinding = cloneSessionBinding(record.SessionBinding)
 	if record.Continuation != nil {
 		request := record.Continuation.Clone()
