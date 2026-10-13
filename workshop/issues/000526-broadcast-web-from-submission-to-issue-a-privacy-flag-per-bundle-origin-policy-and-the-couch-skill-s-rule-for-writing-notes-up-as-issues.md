@@ -117,3 +117,5 @@ Boundary review found case-folded JSON aliases could override private permission
 ### 2026-10-13 — BR-1 persisted manifest boundary
 
 Round 2 correctly found the initial sweep missed top-level manifest fields. Complete boundary enumeration: policy envelope, each origin rule, persisted rule evidence, and the manifest privacy/privacy_rule/privacy_origin fields. Shared key scanning rejects duplicate keys before decoding; policy/evidence require exact schema keys and manifests reject case-folded permission aliases. Submission decoding owns the check for both direct consumers and store reload. New direct/store-reload regressions reproduced private-to-shareable escalation before the fix and pass afterward. Full suite rerunning.
+
+- Complete BR-1 sweep verification: `make -k test` passed (`/tmp/pair-526-manifest-full-retry.log`); live Chrome passed; targeted race tests and build passed. Prior full attempt hit the untouched review-observation test's six-second startup marker wait; an isolated unchanged rerun passed, then the complete suite passed unchanged. No waiver used for that failure.
