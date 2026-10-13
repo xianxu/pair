@@ -44,7 +44,8 @@ function M.new(d)
     elseif effect.kind == 'ordinary' then
       answer('ordinary_sent', { sent = d.ordinary(effect.body, effect.text) })
     elseif effect.kind == 'done' then
-      contexts[effect.input].done()
+      local context = contexts[effect.input]
+      if context and context.current() then context.done() end
     else
       error('unknown DOM submission effect: ' .. tostring(effect.kind))
     end

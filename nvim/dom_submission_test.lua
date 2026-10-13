@@ -1,6 +1,6 @@
 local module=dofile('nvim/dom_submission.lua')
 local function fixture()
- local f={calls={},messages={},sent={},done=0,preps={},acks={},deferred={},serial=0,fail_prepare=false,fail_send=false,fail_ack=false}
+ local f={current=true,calls={},messages={},sent={},done=0,preps={},acks={},deferred={},serial=0,fail_prepare=false,fail_send=false,fail_ack=false}
  local d={notify=function(e)table.insert(f.messages,e)end,
  id=function()f.serial=f.serial+1;return 'bundle-'..f.serial end,
  pin=function()return {pane_id=7}end,
@@ -24,7 +24,7 @@ local function fixture()
   return not f.fail_send
  end
  f.m=module.new(d)
- f.send=function(body)f.m.send(body,body,function()return true end,function()f.done=f.done+1 end)end
+ f.send=function(body)f.m.send(body,body,function()return f.current end,function()f.done=f.done+1 end)end
  return f,d
 end
 for _,failure in ipairs({'fail_prepare','fail_send'})do
@@ -61,5 +61,14 @@ do
  local old=fixture();old.fail_prepare=true;old.send('unrecoverable original')
  local reopened=fixture();reopened.send('saved edit')
  assert(reopened.done==1 and reopened.sent[1].body=='saved edit')
+end
+do
+ local f,d=fixture();local submit=d.submit
+ d.submit=function(...)
+  f.current=false -- the operator edits during the pane-send settle window
+  return submit(...)
+ end
+ f.send('old')
+ assert(#f.sent==1 and #f.acks==1 and f.done==0,'send completion consumed edited draft')
 end
 print('dom_submission_test: passed')
