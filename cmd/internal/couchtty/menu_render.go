@@ -515,6 +515,7 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		text       string
 		selected   bool
 		actorStart bool
+		hub        bool
 		thread     couchcore.ThreadAddress
 		key        couchcore.ThreadRowKey
 	}
@@ -575,7 +576,7 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		if selectedRow {
 			selectedStart = len(rows)
 		}
-		rows = append(rows, rootLine{text: plain, selected: selectedRow, actorStart: true, thread: thread.Address, key: menuRowKey(thread)})
+		rows = append(rows, rootLine{text: plain, selected: selectedRow, actorStart: true, hub: entry.Hub, thread: thread.Address, key: menuRowKey(thread)})
 		if frame.View == MenuViewNormal && menuDescriptionMatches(thread, frame.Filter) {
 			rows = append(rows, rootLine{text: clipMenuLine("    "+menuFocusSummary(thread), width), thread: thread.Address, key: menuRowKey(thread)})
 		}
@@ -613,6 +614,18 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		index := len(lines)
 		if row.selected {
 			row.text = selectedMenuLine(string(ansi.Strip([]byte(row.text))), true, width)
+		}
+		if row.hub {
+			style := reverseSGR
+			if row.selected {
+				style += "\x1b[1m"
+				if color256 && state.Blocked[row.thread] {
+					style += blockedSGR
+				}
+			}
+			// Glyphs and selectedMenuLine reset their styles. Restore the hub
+			// treatment after each reset, then end it before the next row.
+			row.text = style + strings.ReplaceAll(row.text, "\x1b[0m", "\x1b[0m"+style) + "\x1b[0m"
 		}
 		lines = append(lines, row.text)
 		if row.thread == (couchcore.ThreadAddress{}) && row.key == (couchcore.ThreadRowKey{}) {

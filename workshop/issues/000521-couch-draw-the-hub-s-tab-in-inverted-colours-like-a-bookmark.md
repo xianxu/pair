@@ -54,8 +54,8 @@ Use native reverse video rather than manually swapping RGB palette values.
 
 ## Plan
 
-- [ ] Pin tab state combinations, widths/folding, glyphs and style containment with failing tests.
-- [ ] Compose hub inversion in tab and switcher renderers; update presentation docs.
+- [x] Pin tab state combinations, widths/folding, glyphs and style containment with failing tests.
+- [x] Compose hub inversion in tab and switcher renderers; update presentation docs.
 - [ ] Run targeted tests and full suite; stage only on TL instruction for operator approval, then close/PR/SHIP.
 
 ## Log
@@ -74,3 +74,12 @@ Use native reverse video rather than manually swapping RGB palette values.
 ## Revisions
 
 - 2026-10-12: Expanded Spec with TL-approved state table and small implementation plan.
+
+- Implemented hub tab fragment inversion and switcher main-row inversion; selected
+  hub rows retain their cursor and add bold, retaining blocked red.
+- TDD: new cell-level tests failed on missing reverse video before implementation.
+  Targeted inversion tests pass (768 tab state/idle/width combinations, folded
+  counters and switcher selection/red/colour combinations). Full couchtty package
+  passed; full repository make test is running. Live acceptance still pending.
+- Clarification of the sent table: the existing bell cue is amber, with no bell
+  glyph. Red and focus override amber exactly as before; no new glyph was added.
