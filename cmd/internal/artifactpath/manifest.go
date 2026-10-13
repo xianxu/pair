@@ -1184,6 +1184,9 @@ var NonArtifactSources = []string{
 	"cmd/internal/sessioninventory/handshake.go",
 	"cmd/internal/sessioninventory/inventory.go",
 	"cmd/internal/sessioninventory/incremental_inventory.go",
+	// #507: owners' current launches cached by ledger fingerprint, in
+	// memory; holds no paths of its own.
+	"cmd/internal/sessioninventory/launch_cache.go",
 	"cmd/internal/sessioninventory/jsonl_incremental.go",
 	"cmd/internal/sessioninventory/model.go",
 	"cmd/internal/sessioninventory/offline.go",

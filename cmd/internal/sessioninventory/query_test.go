@@ -84,6 +84,11 @@ func TestQuerySessionPersistsAppendAdvancementAcrossQueries(t *testing.T) {
 	if readsAfterFirst == 0 {
 		t.Fatal("first appended query performed no suffix read")
 	}
+	// Following the append re-stats the transcript; it never walks the
+	// native store to find it (#507).
+	if got := runtime.OperationCount(sessioninventorytest.OperationListFiles, transcript.StorageRoot); got != 0 {
+		t.Fatalf("native ListFiles count=%d, want 0", got)
+	}
 
 	second, err := sessioninventory.QuerySession(runtime, "scope", "work", sessioninventory.AgentCodex)
 	if err != nil || second.Status != sessioninventory.BindingEstablished || second.Root == nil {
