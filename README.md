@@ -455,6 +455,11 @@ couch --skill            print the bundled agent coordination skill
 couch --adopt-store /absolute/store     preview adoption of an existing store
 ```
 
+A slot marked **needs relaunch** has no safely attachable terminal, even if an
+old helper or an empty restored layout is still present. It is not reported as
+live or automatically attached. Select **Relaunch** to request recovery; Pair
+refuses unsafe attachment instead of recreating a saved terminal layout.
+
 `couch --switch-agent` accepts one exact slot and a different agent. It refuses
 `self`, the caller's own slot, busy or dirty targets, and targets whose state
 cannot be verified. It uses the target agent's last successful starting-path

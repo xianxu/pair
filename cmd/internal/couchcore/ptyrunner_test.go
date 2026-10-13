@@ -156,7 +156,8 @@ func TestPtyRunnerBlockedStartPreservesTerminalAndWaitsForAcknowledgement(t *tes
 // registration wait keys on the first; cleanup keys on the second.
 func TestRealRunnersExitedPrecedesTheGroup(t *testing.T) {
 	// The survivor ignores SIGHUP, which a pty session sends when its leader exits.
-	argv := []string{"sh", "-c", `(trap "" HUP; exec sleep 30) & exit 0`}
+	// The FIFO handshake proves the trap is installed before that exit.
+	argv := []string{"sh", "-c", `mkfifo ready || exit 1; (trap "" HUP; printf "ready\n" > ready; exec sleep 30) & IFS= read -r token < ready; [ "$token" = ready ] || exit 1; exit 0`}
 	for name, start := range map[string]func() (Handle, error){
 		"exec": func() (Handle, error) { return ExecRunner{}.Start(t.TempDir(), argv, nil) },
 		"pty": func() (Handle, error) {

@@ -24,10 +24,16 @@ func readerTagAllocator(reader io.Reader) func() (string, error) {
 type legacyFixtureAllocator struct {
 	c        *Couch
 	terminal uint64
+	// storeID isolates real-process fixtures from host-wide session names.
+	storeID uint64
 }
 
 func (a *legacyFixtureAllocator) Allocate(ctx context.Context, r couchidentity.AllocationRequest) (couchidentity.AllocationResult, error) {
-	out := couchidentity.AllocationResult{C: 1}
+	storeID := a.storeID
+	if storeID == 0 {
+		storeID = 1
+	}
+	out := couchidentity.AllocationResult{C: storeID}
 	if r.Conversation {
 		tag, err := readerTagAllocator(a.c.Entropy)()
 		if err != nil {
@@ -38,7 +44,7 @@ func (a *legacyFixtureAllocator) Allocate(ctx context.Context, r couchidentity.A
 	if r.Terminal {
 		a.terminal++
 		out.M = a.terminal
-		out.SessionName, _ = couchidentity.FormatSessionName(1, a.terminal)
+		out.SessionName, _ = couchidentity.FormatSessionName(storeID, a.terminal)
 	}
 	return out, nil
 }

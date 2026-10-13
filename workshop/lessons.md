@@ -7,6 +7,9 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- A process-survival fixture synchronizes after the child installs its signal handler, before the parent exits. Forking does not establish that order; a FIFO handshake avoids false liveness failures under load. (#528)
+- Tests that exercise host-wide terminal discovery need globally unique session names even when HOME and socket directories are isolated. Test concurrent independent runs; changing only the socket root does not isolate a name-based ownership query. (#528)
+
 - Before claiming a design extends existing metadata, inspect the actual owner/schema. A path decoder is not a persisted attestation. Name the new authority explicitly and test its publication boundary. (#528 PQ-2)
 - Admission locks protect the observable transition, not just process creation. Release after verified ownership/readiness and before waiting for the long-lived client; test both orderings with controlled events. (#528 PQ-1)
 

@@ -84,9 +84,21 @@ func registrationTerminalFixture() error {
 	switch {
 	case strings.Contains(joined, " --new-session-with-layout "):
 		socket := filepath.Join(os.Getenv("ZELLIJ_SOCKET_DIR"), "contract_version_1", os.Getenv("PAIR_SESSION_NAME"))
+		if request := os.Getenv("PAIR_TEST_ZELLIJ_SERVER_REQUEST"); request != "" {
+			if err := os.WriteFile(request, []byte(socket), 0600); err != nil {
+				return err
+			}
+			return awaitRegistrationFixtureFile(os.Getenv("PAIR_TEST_ZELLIJ_CLIENT_RELEASE"))
+		}
+
 		server := exec.Command(os.Args[0], "--server", socket)
 		server.Stdout, server.Stderr = os.Stdout, os.Stderr
 		return server.Run()
+	case strings.Contains(joined, " attach "):
+		if err := os.WriteFile(os.Getenv("PAIR_TEST_ZELLIJ_ATTACH_READY"), []byte("attach"), 0600); err != nil {
+			return err
+		}
+		return awaitRegistrationFixtureFile(os.Getenv("PAIR_TEST_ZELLIJ_ATTACH_RELEASE"))
 	case strings.Contains(joined, " list-panes "):
 		raw, err := os.ReadFile(os.Getenv("PAIR_TEST_ZELLIJ_PANES"))
 		if err != nil {
@@ -103,9 +115,13 @@ func registrationTerminalFixture() error {
 }
 
 func awaitRegistrationFixtureRelease() error {
+	return awaitRegistrationFixtureFile(os.Getenv("PAIR_TEST_ZELLIJ_RELEASE"))
+}
+
+func awaitRegistrationFixtureFile(path string) error {
 	deadline := time.Now().Add(30 * time.Second)
 	for time.Now().Before(deadline) {
-		if _, err := os.Stat(os.Getenv("PAIR_TEST_ZELLIJ_RELEASE")); err == nil {
+		if _, err := os.Stat(path); err == nil {
 			return nil
 		}
 		time.Sleep(10 * time.Millisecond)

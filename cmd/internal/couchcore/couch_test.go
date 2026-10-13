@@ -484,7 +484,13 @@ func testComposedPairRegistrationBoundary(t *testing.T, freshSlot bool) {
 		t.Fatal(err)
 	}
 
-	couch.Identities = &legacyFixtureAllocator{c: couch}
+	// The scanner is host-wide by name. Derive a fixture-only allocated store
+	// number from the unique directory before any terminal launch can occur.
+	fixtureID, err := strconv.ParseUint(strings.TrimPrefix(filepath.Base(socketRoot), "pair-registration-"), 10, 64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	couch.Identities = &legacyFixtureAllocator{c: couch, storeID: (uint64(1) << 63) | fixtureID}
 	if freshSlot {
 		zero, primaryAddress, resting := 0, "pair:0", "main"
 		primary := WorkspaceIdentity{SchemaVersion: 2, Repo: slot.Repo, RepoIdentity: slot.RepoIdentity,
