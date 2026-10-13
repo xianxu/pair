@@ -41,7 +41,7 @@ Find why the card was still faded at capture (measure first: does the CDP captur
 - [x] Measure the original bundle/recording and reproduce in a separate bounded headless Chrome.
 - [x] Obtain TL approval of the measured design and viewport-only crop policy below.
 - [x] Add deterministic animation/capture regressions; implement bounded settling and unchanged-viewport screenshot capture.
-- [ ] Verify metadata propagation, navigation/cancellation, real-browser pixels, full suite and docs.
+- [x] Verify metadata propagation, navigation/cancellation, real-browser pixels, full suite and docs.
 
 Detailed proposal: [animation capture plan](../plans/000524-animation-capture-plan.md).
 
@@ -68,6 +68,10 @@ The new responsive fade fixture confirms the fix preserves the completed CSSAnim
 ### 2026-10-12 — final bounded browser evidence
 
 TestLiveSubmissionCaptureReady passes in 2.91 s: finished responsive fade identity/pixels, naturally completed finite and open-shadow animations, irrelevant infinite animation, in-box infinite metadata, viewport clip and fully offscreen unavailable. Existing TestLiveSubmissionCrop passed in 1.70 s. The isolated localhost blog production-path check passes in 3.52 s: actual box [0.4,282.2,863.6,138.7], clipped=true, settled, 19891 bright pixels, opacity stays 1 and animation startTime stays unchanged. Measurement logs remain /tmp/pair524-probe/blog-fixed.log and flags.log. Mutation reverting the screenshot option fails the live test on restarted animation identity; mutation dropping settlement propagation fails Cast tests. Latest main (#506) merged cleanly; serial full suite now running with GOMAXPROCS=2 and all nested Go package parallelism limited to 1.
+
+### 2026-10-12 — full-suite close evidence
+
+Serial full make test completed (GOMAXPROCS=2, nested Go package parallelism 1). All shell/editor checks and Go packages passed except TestNotificationBrokerBeforeExecAndCleanup, the pre-existing startup-hook failure tracked as pair#519 and previously reproduced on main during #483. Full output: /tmp/pair524-probe/full-suite.log. Affected packages all passed, including webcast (8.052 s), recorder (4.134 s), submission schema (1.198 s), and submission store (0.176 s). No new suite failure. Browser and mutation evidence above verifies the changed behavior; operator smoke remains a TL-scheduled shipment step.
 
 ## Revisions
 

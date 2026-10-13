@@ -54,23 +54,27 @@ The probe observes animations whose target/ancestor intersects the crop; include
 
 ### 1. Regression first
 
-- [ ] Extend cmd/internal/webcast/live_submission_test.go with a small local page: intersection-triggered, media-query-scoped opacity+translate fade at DPR 2. Wait until finished, capture a small crop, and independently assert bright pixels, unchanged animation identity/startTime and viewport. Verify the old path fails. Keep the test opt-in and temporary-profile headless, bounded by its existing deadline.
-- [ ] Add finite delay/transition, long-running, paused/infinite, unrelated off-box animation and partially/fully offscreen cases in stateful JS/CDP fixtures. Assert explicit outcomes and no animation mutation/focus effects.
-- [ ] Add pure intersection tables and metadata JSON compatibility/validation tests before implementation.
+- [x] Extend cmd/internal/webcast/live_submission_test.go with a small local page: intersection-triggered, media-query-scoped opacity+translate fade at DPR 2. Wait until finished, capture a small crop, and independently assert bright pixels, unchanged animation identity/startTime and viewport. Verify the old path fails. Keep the test opt-in and temporary-profile headless, bounded by its existing deadline.
+- [x] Add finite delay/transition, long-running, paused/infinite, unrelated off-box animation and partially/fully offscreen cases in stateful JS/CDP fixtures. Assert explicit outcomes and no animation mutation/focus effects.
+- [x] Add pure intersection tables and metadata JSON compatibility/validation tests before implementation.
 
 ### 2. Implement one capture path
 
-- [ ] Add compact readiness probe and bounded Go polling under the existing context; use the exact admitted execution context. Re-query after progress so newly started relevant animations cannot be ignored.
-- [ ] Use unchanged-viewport capture, actual visible clip, and propagate settlement/clipping metadata through CapturedCrop and Cast into submission.Crop. Preserve unavailable-note semantics and strict navigation refusal.
-- [ ] Extend stateful recorder tests for cancellation/timeout/navigation and viewport changes at every capture boundary. Mutation-check the capture option and settlement metadata wiring.
-- [ ] If #494 lands first, route the screenshot through its document-scoped capture suppression helper, preserving its exact context and error contract; otherwise coordinate its second-lander hook. Keep a single screenshot call site.
+- [x] Add compact readiness probe and bounded Go polling under the existing context; use the exact admitted execution context. Re-query after progress so newly started relevant animations cannot be ignored.
+- [x] Use unchanged-viewport capture, actual visible clip, and propagate settlement/clipping metadata through CapturedCrop and Cast into submission.Crop. Preserve unavailable-note semantics and strict navigation refusal.
+- [x] Extend stateful recorder tests for cancellation/timeout/navigation and viewport changes at every capture boundary. Mutation-check the capture option and settlement metadata wiring.
+- [x] If #494 lands first, route the screenshot through its document-scoped capture suppression helper, preserving its exact context and error contract; otherwise coordinate its second-lander hook. Keep a single screenshot call site.
 
 ### 3. Verify and ship
 
-- [ ] Run GOMAXPROCS=2 go test -p 1 ./cmd/internal/submission ./cmd/internal/webcast/recorder ./cmd/internal/webcast/submission ./cmd/internal/webcast.
-- [ ] Run the opt-in bounded headless regression and original crop conformance once after the final behavior change; separately confirm the localhost blog with an isolated profile. Never focus/reload the operator's Chrome.
-- [ ] Update README and atlas/webcast-submission.md with settled/unsettled and viewport evidence semantics; update artifact inventory for any new scanned sources and generated mirrors as required.
-- [ ] Run the full suite serially under the machine gate, record all failures honestly (baseline #519 if still present), and close through SDLC's own fresh review. Request smoke/staging via hub only; land on authorization, report, stop.
+- [x] Run GOMAXPROCS=2 go test -p 1 ./cmd/internal/submission ./cmd/internal/webcast/recorder ./cmd/internal/webcast/submission ./cmd/internal/webcast.
+- [x] Run the opt-in bounded headless regression and original crop conformance once after the final behavior change; separately confirm the localhost blog with an isolated profile. Never focus/reload the operator's Chrome.
+- [x] Update README and atlas/webcast-submission.md with settled/unsettled and viewport evidence semantics; update artifact inventory for any new scanned sources and generated mirrors as required.
+- [x] Run the full suite serially under the machine gate and record all failures honestly: only the pre-existing pair#519 notification startup-hook failure; full evidence is in the issue Log.
+
+## Shipment handoff
+
+SDLC fresh close review is next. Request smoke/staging via hub only; land on authorization, report, stop. #494 has not landed at verification time; preserve its suppression helper if it lands first, otherwise its owner integrates the single screenshot call site.
 
 ## Revisions
 
