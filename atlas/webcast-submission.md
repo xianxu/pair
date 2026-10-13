@@ -39,13 +39,46 @@ its anchor, context, compact element and `before` actions describe that recorded
 moment. `crop.captured_at` is the wall-clock time of a screenshot taken during
 submission, and `crop.document` identifies the captured document. Boxes use
 `[x, y, width, height]` in page CSS pixels. A crop is the note's recorded box
-plus a margin, captured from the actual cast tab now.
+plus a margin, intersected with the current viewport and captured from the actual
+cast tab now. `crop.box` is the actual intersection; `clipped_to_viewport: true`
+means the requested crop was narrowed. Wholly offscreen notes keep their recorded
+context and report `crop.unavailable: "outside viewport"`. Couch never scrolls the
+page to collect missing pixels.
+
+Before each crop, Couch observes document-wide animations/transitions for at most
+1500 ms, polling every 50 ms and inspecting at most 512 browser animations across at most
+20,000 DOM nodes while locating open shadow roots. It
+waits for natural completion; it never finishes or overrides animation styles.
+`crop.settlement` records `status: "settled"` when those observations finish, or
+`status: "unsettled"` with a reason: `timeout`, `paused animation`,
+`infinite animation`, `inspection limit`, or `inspection unavailable`. Missing
+settlement metadata in older bundles means unknown. Observation covers the top
+document and accessible open-shadow animations conservatively, without target
+geometry exclusions: children, pseudo-elements, shadows and filters can paint
+outside an animated target's border box. Unrelated off-box animations can consume
+the wait budget or mark the crop unsettled;
+it is not a guarantee about video, canvas, separate frames or future page changes.
+
+Screenshots use the existing viewport (`captureBeyondViewport: false`): the
+beyond-viewport CDP path can restart responsive animations even after they finish.
+Document, viewport, scroll or pixel-ratio changes during capture refuse preparation.
+The PNG remains current evidence even when its animation is explicitly unsettled.
+
+Version-2 bundles store the actual page in `source.page`: its full URL, title and
+`provenance: "cdp"`. Every note's `source_document` references `source.document`.
+URL/title are read in the same admitted isolated context as the capture, checked
+across the text/pixel fences, and bounded to 16 KiB / 8 KiB. Navigation or changed
+metadata rejects capture. An unavailable batch claims no page and stays private.
+Version-1 bundles remain readable, including their legacy selector fields. New
+bundles omit anchor `sel` and box-text `selector`; recording/query selectors and
+the historical `at.node` handle remain available. Text-node granularity and
+reading order are preserved, including mixed parent/child content.
 
 Each note's `box_text` captures current characters inside its original unpadded
 region (or anchor box), alongside the historical anchor text. `visible_text`
 contains visible intersecting text in reading order, without repeating parent
 and child text. `accessible_names` separately labels aria-label, alt, title,
-and role/name entries. Both include selectors. Hidden, zero-size, off-screen,
+and role/name entries. Both include bounded `element` tag/class markup instead of CSS selectors. Hidden, zero-size, off-screen,
 and aria-hidden content is excluded. Input values are never read; textarea and
 editable descendants are omitted from text and derived names for every origin,
 while static field labels remain. This does not redact pixels or historical DOM. Both text and names must intersect a
@@ -55,7 +88,7 @@ are handled in the composed-tree traversal. A subtree with clip-path, masks,
 legacy clip, non-axis-aligned/non-positive transforms, rounded overflow clips or
 nonzero overflow-clip-margin is omitted and reported as
 `truncated: true`, `skipped: ["unsupported clipping"]`. Its PNG remains complete. The PNG is the definitive appearance;
-box text preserves characters and selectors locate elements.
+box text preserves characters and tag/classes help locate source.
 
 The `scope` is `top-document-and-open-shadow-roots`. Separate frame documents,
 object/embed content and closed shadow interiors are outside that scope.
@@ -63,7 +96,7 @@ Intersecting skipped frames or object/embed nodes set `truncated: true` and name
 the kind in `skipped`; closed shadow interiors are not generally detectable.
 The PNG retains their visible appearance.
 
-Each text group has an 8 KiB budget including its selectors and labels; the two
+Each text group has an 8 KiB budget including its element metadata and labels; the two
 groups share a 256-entry limit. Traversal stops at 20,000 nodes and reports
 `truncated: true` when evidence reaches a limit. Box text belongs to the same
 capture document and interval as its PNG, not the note's historical moment.
@@ -91,7 +124,7 @@ note generation used by acknowledgment.
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "privacy": "private",
   "privacy_rule": null,
   "privacy_origin": "https://example.test",
@@ -100,6 +133,7 @@ note generation used by acknowledgment.
   "target": {"scope": "scope", "tag": "thread", "session": "session", "nonce": "launch"},
   "source": {
     "kind": "dom",
+    "page": {"url":"https://example.test/settings", "title":"Settings", "provenance":"cdp"},
     "recording_id": "recording-1",
     "recording_path": "/absolute/couch/webcast/recordings/recording-1",
     "tab_id": "tab-1",
@@ -107,13 +141,14 @@ note generation used by acknowledgment.
   },
   "notes": [{
     "id": "note-1",
+    "source_document": 1,
     "revision": 0,
     "author": {"id": "viewer-1", "name": "Ana", "color": "#ff0000"},
     "text": "Align this button with the heading.",
     "t": 1530,
-    "at": {"node": 7, "kind": "element", "path": ["main", "button#save"], "sel": "#save", "text": "Save", "box": [20, 80, 100, 32]},
+    "at": {"node": 7, "kind": "element", "path": ["main", "button#save"], "text": "Save", "box": [20, 80, 100, 32]},
     "context": {"node": 7, "landmark": 3, "text": "Settings Save", "box": [10, 20, 300, 120]},
-    "box_text": {"region": [20, 80, 100, 32], "visible_text": [{"selector": "#save", "text": "Save"}], "accessible_names": [{"selector": "#save", "kind": "role", "role": "button", "text": "Save"}], "truncated": false},
+    "box_text": {"region": [20, 80, 100, 32], "visible_text": [{"element": "<button class=\"save\">", "text": "Save"}], "accessible_names": [{"element": "<button class=\"save\">", "kind": "role", "role": "button", "text": "Save"}], "truncated": false},
     "element": "<button id=\"save\">Save</button>",
     "before": ["click Save"],
     "replay": "https://example.invalid/token/r/recording-1/#t=1530",
@@ -123,7 +158,8 @@ note generation used by acknowledgment.
 }
 ```
 
-Preparation allows 30 seconds overall, with a 5-second limit per screenshot.
+Preparation allows 30 seconds overall, including each note's settling allowance,
+with a 5-second limit per screenshot.
 Each crop is bounded to 4 megapixels and 8 MiB of PNG data; a complete bundle is
 bounded to 64 MiB. Reading the source recording has a 128 MiB input budget.
 Couch runs one submission preparation or resolution job at a time, capturing
@@ -156,11 +192,9 @@ and posts a notice naming the file. Reasons are safe categories without policy
 contents. Valid matching rules are objects such as
 `{"origin":"http://localhost:4321","privacy":"shareable"}`; no match is null.
 New bundles always record top-level `privacy` and `privacy_rule`. `privacy_origin`
-is the normalized origin observed within the current screenshot/text identity
-fence, not the recording's initial URL; missing/unavailable identity cannot grant
-sharing. Older bundles without these fields are private. #525 owns the full
-capture-bound source URL; its integration must derive the decision from that
-same captured identity rather than introduce a second URL authority.
+is derived from `source.page.url` and validated against that same captured URL,
+not the recording's initial URL. Missing/unavailable identity cannot grant
+sharing. Older bundles without privacy fields are private.
 
 When notes become an issue, write evidence as self-contained text: a page URL
 without secrets, element/classes, the operator request, appropriate text evidence
@@ -186,37 +220,48 @@ successful send. Acknowledgment then resolves only the submitted notes whose
 recording, document and revision still match. New notes, reopened notes and
 notes on a replacement page remain untouched.
 
-Preparation or send failure preserves the draft and notes. Changing the draft
-body or view while preparing prevents delivery; return to the original draft
-to retry its frozen attempt. The same attempt retains its bundle, outgoing
-text and recipient, including after a body was pasted but submit failed. An
-indeterminate body write requires inspecting the agent composer before any
-further send.
+The draft remains editable after preparation or send failure. Every
+Ctrl+Shift+Alt+Return starts a new submission from the current draft with a new
+ID and fresh evidence. A changed draft or view prevents its older preparation
+from sending; a new chord replaces that local attempt. Duplicate messages are
+acceptable, including after an uncertain paste. No original text needs to be
+reconstructed and no discard key is required.
 
-After a successful send, the draft clears normally even if acknowledgment
-fails. Press the chord again to retry **only acknowledgment**; it does not
-resend the old prompt or consume the next draft. Resume a paused cast first.
+A new stored bundle marks older same-target `prepared` or `delivering` bundles
+`superseded: true` before publishing its own directory. Their files and delivery
+states remain intact: superseded does not mean delivered. A partial publication
+can leave superseded evidence without a successor, which does not block another
+fresh attempt. Already-published same-ID retries confirm only their own
+publication and cannot supersede a newer bundle. Superseded bundles cannot begin
+another send, but a genuine late acknowledgment can still resolve their captured
+note versions idempotently. Store scans ignore foreign files such as Finder's
+`.DS_Store`; valid submission directories retain strict validation.
 
-After a Neovim restart, an unfinished bundle blocks a new preparation for the
-same target and reports its manifest path. Inspect the agent conversation and
-composer; no missing response is treated as permission to resend. From a shell
-in the same live Couch thread, inspect the exact ID:
+Successful sends clear only their matching draft. Acknowledgments retry
+independently of newer drafts (at most 64 active receipts, each with 360 retries
+at 100 ms intervals and a 4 s RPC timeout). Busy or failed note resolution can
+resume through either `ack` or `status`; the server retains one background worker.
+A busy preparation refusal leaves the draft editable for another fresh attempt.
+
+Old authored-text freezes existed only in Neovim memory. Starting a fresh draft
+process releases them while preserving the edited draft file. After a process
+restart, new submissions supersede old pending evidence instead of being blocked
+by it. Acknowledgment receipts themselves are not restored automatically; if
+confirmed delivery still needs resolution, inspect the manifest and use the
+existing exact-ID commands from the same live Couch thread:
 
 ```sh
 couch --broadcast-web-submit status example-1
-```
-
-Only after confirming that the message was sent, acknowledge that same ID:
-
-```sh
 couch --broadcast-web-submit ack example-1
 ```
 
-Both commands return JSON. Repeating `ack` can finish resolution after a Couch
-restart and never sends agent text. A replacement launch identity refuses the
-old bundle. An unsent `delivering` bundle needs manual reconciliation of the
-composer and preserved evidence before removing its preparation; there is no
-automatic reset or resend command.
+Only acknowledge an ID whose send was confirmed. `status` resumes resolution
+only for an already `dispatched` manifest; it never infers delivery from silence.
+The client reports the exact acknowledgment command when its retry budget is
+exhausted. These operations send no agent text and retain the immutable target
+guard; replacement launch identities cannot acknowledge an old bundle. Resume
+a paused cast before retrying resolution. All evidence, including superseded
+bundles, remains under the existing store caps and explicit local cleanup.
 
 ## Code map
 
@@ -228,6 +273,7 @@ automatic reset or resend command.
 | Recorded context and one crop calculation per note | `cmd/internal/webcast/submission/build.go` |
 | Frozen open-note selection and revision-guarded resolution | `cmd/internal/webcast/board/submission.go` |
 | Current CDP screenshots and document checks | `cmd/internal/webcast/recorder/submission.go` |
+| Viewport-preserving capture and bounded animation observations | `cmd/internal/webcast/recorder/capture_ready.go`, `capture_ready.js` |
 | Recording inputs and crop assembly | `cmd/internal/webcast/cast_submission.go` |
 | Background preparation, replay sharing and acknowledgment | `cmd/internal/couchtty/console_submission.go` |
 | Local CLI/RPC and current caller validation | `cmd/internal/couchcmd/submission.go`, `cmd/internal/couchmessage/protocol.go` |

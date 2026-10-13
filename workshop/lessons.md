@@ -1512,6 +1512,9 @@ proof; record the surprising case so the next change starts from evidence.
   prefix and across seeks; DOM-only parity can miss resurrected annotations.
 - #523 boundary review: verify acknowledgments through the production adapter.
   A synchronous fake cannot prove an asynchronous recorder committed a write.
+- **Measure screenshot side effects before adding waits (#524).** CDP captureBeyondViewport restarted an already-finished responsive fade by changing render viewport state; waiting longer before capture could never fix it. Compare animation identity and pixels before/after the actual capture, not only readiness before it. A browser animation enumeration is root-scoped: real Chrome excluded open-shadow animations from document.getAnimations, so test the scope with a real shadow fixture before trusting a fake.
+
+- Animation target bounds do not bound its painted influence: inherited opacity/filter/transform can affect overflowing children and pseudo-elements. Prove exclusion conservatively and test zero-size/off-box ancestors with real crop pixels.
 - **A lifecycle guard checks every representation of its authority (#517 M2).**
   Before registration, a replacement profile lives in Start.LaunchProfile;
   after registration or unknown promotion it lives on the incarnation. A guard
@@ -1561,6 +1564,7 @@ proof; record the surprising case so the next change starts from evidence.
   Carry request-creation generation across the browser/network boundary and test
   delayed-before-ingress payloads as well as already-queued writes. Audit sibling
   mutation routes (request, release and input) for the same temporal gap.
+- For animation settlement, border-box intersection is not a painted-influence proof even on leaves (shadows/filters/outline). Prefer bounded conservative document-wide observation to accumulating incomplete paint exclusions; label uncertainty explicitly.
 - **A plan names verification functions and strategies, not a prose copy of test cases (#526 plan-quality).** For each risky function, name the adversarial input class and mechanical guard. Retention claims must distinguish actual operator deletion and capacity refusal from staging cleanup; a staging remover is not an automatic retained-evidence sweeper.
 
 - **A new production Go file must enter the exhaustive source inventory (#526).** Register its artifact ownership in `cmd/internal/artifactpath/manifest.go` alongside the package's existing sources, then run `TestProductionArtifactReferencesAreExactlyClassified`; targeted package tests alone do not exercise this repository-wide invariant.
@@ -1587,3 +1591,16 @@ proof; record the surprising case so the next change starts from evidence.
   projection before clicking, never combine a new screen with old coordinates.
   Bound fixture waits independently of the package deadline so one missed menu
   does not consume the entire suite's time budget.
+- Fresh review checkouts must run make runtimebundle-generate before direct Go tests that import embedded runtime assets; make build/test already supply that prerequisite. Distinguish Chrome startup failure from a failed capture assertion and rerun the unchanged live check before changing product code.
+
+- A macOS Seatbelt-fenced reviewer can prevent Chrome GPU startup even with an allow-default profile. Before treating this as failed product conformance, compare the identical test under the fence and in the authorized parent environment, retaining real assertion evidence and the review fence.
+
+### #524 — fresh-send recovery and clean smoke artifacts
+
+- A preparation failure must not lock authored text. Keep draft ownership separate from confirmed-delivery recovery; late acknowledgment belongs to its submission ID, never the current editor epoch.
+- Supersession is authority release, not delivery evidence. Define ordering across manifest writes and successor publication, and inject failures through every durability checkpoint.
+- Build smoke artifacts after committing, then check embedded VCS revision and modified state. A clean checkout and a successful earlier build do not prove the binary was built from that clean commit; timestamp-based make targets can leave old embedded metadata.
+
+- A full suite that compares embedded assets with source must run against a stable tree. Finish source edits before launching it; if an independently verified final delta lands mid-run, disclose snapshot failures and rerun the affected packages after regeneration rather than calling that run green.
+
+- When integrating capture availability changes, test a batch containing both visible and off-screen notes. Pixel unavailability does not imply lost document identity; preserve navigation rejection separately.

@@ -10,6 +10,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -42,7 +43,7 @@ func TestDelivery(t *testing.T) {
 	}
 }
 func TestValidation(t *testing.T) {
-	for _, mutate := range []func(*Submission){func(s *Submission) { s.Version = 2 }, func(s *Submission) { s.ID = "../escape" }, func(s *Submission) { s.Source.RecordingPath = "relative" }, func(s *Submission) { s.Notes[0].Crop.File = "../x.png" }, func(s *Submission) { s.Notes[0].Crop = Crop{} }, func(s *Submission) { s.Notes[0].At.Box = &recording.Box{0, 0, math.Inf(1), 1} }} {
+	for _, mutate := range []func(*Submission){func(s *Submission) { s.Version = 3 }, func(s *Submission) { s.ID = "../escape" }, func(s *Submission) { s.Source.RecordingPath = "relative" }, func(s *Submission) { s.Notes[0].Crop.File = "../x.png" }, func(s *Submission) { s.Notes[0].Crop = Crop{} }, func(s *Submission) { s.Notes[0].At.Box = &recording.Box{0, 0, math.Inf(1), 1} }} {
 		s := fixture()
 		mutate(&s)
 		if Validate(s) == nil {
@@ -113,8 +114,8 @@ func TestStoreLifecycle(t *testing.T) {
 	}
 	next := fixture()
 	next.ID = "next"
-	if _, err = reopened.Prepare(next, nil); err == nil {
-		t.Fatal("uncertain delivery allowed duplicate")
+	if _, err = reopened.Prepare(next, nil); err != nil {
+		t.Fatal("uncertain delivery blocked fresh submission", err)
 	}
 	wrong := s.Target
 	wrong.Nonce = "wrong"
@@ -131,6 +132,63 @@ func TestStoreLifecycle(t *testing.T) {
 		t.Fatalf("%v %v", got, err)
 	}
 }
+func TestStoreIgnoresForeignEntries(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		directory bool
+	}{
+		{".DS_Store", false},
+		{".metadata", false},
+		{"notes.txt", false},
+		{"valid-id", false},
+		{".hidden", true},
+		{"not a submission", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			store, err := NewStore(tempRoot(t))
+			if err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(store.root, tc.name)
+			if tc.directory {
+				err = os.Mkdir(path, 0700)
+			} else {
+				err = os.WriteFile(path, []byte("foreign metadata"), 0600)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			sub := fixture()
+			if _, err = store.Prepare(sub, nil); err != nil {
+				t.Fatalf("foreign entry blocked submission: %v", err)
+			}
+			pending, err := store.Pending(sub.Target)
+			if err != nil || len(pending) != 1 || pending[0].ID != sub.ID {
+				t.Fatalf("pending = %+v, err = %v", pending, err)
+			}
+			if _, err = os.Stat(path); err != nil {
+				t.Fatal("foreign entry removed", err)
+			}
+		})
+	}
+}
+
+func TestStorePendingRejectsCorruptSubmissionDirectory(t *testing.T) {
+	store, err := NewStore(tempRoot(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.Mkdir(filepath.Join(store.root, "broken-submission"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.Pending(fixture().Target); err == nil {
+		t.Fatal("corrupt submission directory silently ignored")
+	}
+	if _, err = store.Prepare(fixture(), nil); err == nil {
+		t.Fatal("corrupt submission directory allowed admission")
+	}
+}
+
 func TestStoreFailuresAndAdmission(t *testing.T) {
 	for _, point := range []string{"write", "sync", "rename"} {
 		t.Run(point, func(t *testing.T) {
@@ -576,5 +634,200 @@ func TestStoreResolvedAckRetriesPublicationSync(t *testing.T) {
 	got, err := store.Transition(sub.ID, sub.Target, Ack)
 	if err != nil || got.Delivery != Resolved {
 		t.Fatal(got, err)
+	}
+}
+
+func TestStoreFreshSubmissionSupersedesWithoutInventingDelivery(t *testing.T) {
+	for _, begun := range []bool{false, true} {
+		t.Run(fmt.Sprint(begun), func(t *testing.T) {
+			store, err := NewStore(tempRoot(t))
+			if err != nil {
+				t.Fatal(err)
+			}
+			old := fixture()
+			if _, err = store.Prepare(old, nil); err != nil {
+				t.Fatal(err)
+			}
+			if begun {
+				if _, err = store.Transition(old.ID, old.Target, Begin); err != nil {
+					t.Fatal(err)
+				}
+			}
+			other := fixture()
+			other.ID = "other"
+			other.Target.Nonce = "other"
+			if _, err = store.Prepare(other, nil); err != nil {
+				t.Fatal(err)
+			}
+			fresh := fixture()
+			fresh.ID = "fresh"
+			if _, err = store.Prepare(fresh, nil); err != nil {
+				t.Fatal("fresh submission blocked", err)
+			}
+			store, err = NewStore(store.root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			pending, err := store.Pending(old.Target)
+			if err != nil || len(pending) != 1 || pending[0].ID != fresh.ID {
+				t.Fatalf("pending=%+v err=%v", pending, err)
+			}
+			saved, err := store.Read(old.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := Prepared
+			if begun {
+				want = Delivering
+			}
+			if saved.Delivery != want {
+				t.Fatalf("invented delivery: %s", saved.Delivery)
+			}
+			if _, err = store.Transition(old.ID, old.Target, Begin); err == nil {
+				t.Fatal("superseded begin accepted")
+			}
+			if begun {
+				for _, event := range []Event{Ack, Ack, Complete, Complete} {
+					if _, err = store.Transition(old.ID, old.Target, event); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			if pending, err = store.Pending(other.Target); err != nil || len(pending) != 1 {
+				t.Fatalf("changed other target: %+v %v", pending, err)
+			}
+			// Retrying an older immutable preparation cannot revoke its successor.
+			if _, err = store.Prepare(old, nil); err != nil {
+				t.Fatal(err)
+			}
+			if pending, err = store.Pending(fresh.Target); err != nil || len(pending) != 1 || pending[0].ID != fresh.ID {
+				t.Fatalf("retry revoked successor: %+v %v", pending, err)
+			}
+		})
+	}
+}
+
+func TestDispositionPreservesDeliveryTruth(t *testing.T) {
+	for _, delivery := range []Delivery{Prepared, Delivering, Dispatched, Resolved} {
+		for _, superseded := range []bool{false, true} {
+			for _, event := range []Event{Supersede, Begin, Ack, Complete, Event("invalid")} {
+				t.Run(fmt.Sprintf("%s/%v/%s", delivery, superseded, event), func(t *testing.T) {
+					next, marked, err := ApplyDisposition(delivery, superseded, event)
+					if event == Supersede {
+						eligible := delivery == Prepared || delivery == Delivering
+						if (err == nil) != eligible || next != delivery || marked != (superseded || eligible) {
+							t.Fatalf("%s %v %v", next, marked, err)
+						}
+					} else if event == Begin && superseded {
+						if err == nil || next != delivery || !marked {
+							t.Fatalf("superseded begin: %s %v %v", next, marked, err)
+						}
+					} else {
+						want, wantErr := ApplyDelivery(delivery, event)
+						if (err == nil) != (wantErr == nil) || next != want || marked != superseded {
+							t.Fatalf("changed delivery rules: %s %v %v", next, marked, err)
+						}
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestStoreSupersessionPublicationFailures(t *testing.T) {
+	for _, tc := range []struct {
+		point      string
+		occurrence int
+	}{
+		{"write", 1}, {"sync", 1}, {"staging-sync", 1}, // successor staging
+		{"write", 2}, {"sync", 2}, {"rename", 1}, {"sync-dir:sample", 1}, {"sync-dir:.", 1}, // old marker
+		{"rename", 2}, {"sync-dir:fresh", 1}, {"sync-dir:.", 2}, // successor publication
+	} {
+		t.Run(fmt.Sprintf("%s/%d", tc.point, tc.occurrence), func(t *testing.T) {
+			store, err := NewStore(tempRoot(t))
+			if err != nil {
+				t.Fatal(err)
+			}
+			old := fixture()
+			if _, err = store.Prepare(old, nil); err != nil {
+				t.Fatal(err)
+			}
+			if _, err = store.Transition(old.ID, old.Target, Begin); err != nil {
+				t.Fatal(err)
+			}
+			seen := 0
+			store.fail = func(op string) error {
+				matches := op == tc.point || (tc.point == "staging-sync" && strings.HasPrefix(op, "sync-dir:.staging-"))
+				if matches {
+					seen++
+					if seen == tc.occurrence {
+						return errors.New("injected publication failure")
+					}
+				}
+				return nil
+			}
+			fresh := fixture()
+			fresh.ID = "fresh"
+			if _, err = store.Prepare(fresh, nil); err == nil {
+				t.Fatal("failure ignored")
+			}
+			oldSaved, err := store.Read(old.ID)
+			if err != nil || oldSaved.Delivery != Delivering {
+				t.Fatalf("old evidence changed: %+v %v", oldSaved, err)
+			}
+			if _, err = store.Read(fresh.ID); err == nil && !oldSaved.Superseded {
+				t.Fatal("successor visible before supersession")
+			}
+			store, err = NewStore(store.root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err = store.Prepare(fresh, nil); err != nil {
+				t.Fatal("restart retry", err)
+			}
+			pending, err := store.Pending(old.Target)
+			if err != nil || len(pending) != 1 || pending[0].ID != fresh.ID {
+				t.Fatalf("pending after retry: %+v %v", pending, err)
+			}
+			oldSaved, err = store.Read(old.ID)
+			if err != nil || !oldSaved.Superseded || oldSaved.Delivery != Delivering {
+				t.Fatalf("old evidence after retry: %+v %v", oldSaved, err)
+			}
+		})
+	}
+}
+
+func TestStoreSupersessionRetriesMarkerSync(t *testing.T) {
+	store, err := NewStore(tempRoot(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := fixture()
+	if _, err = store.Prepare(old, nil); err != nil {
+		t.Fatal(err)
+	}
+	fresh := fixture()
+	fresh.ID = "fresh"
+	for attempt := 0; attempt < 3; attempt++ {
+		store, err = NewStore(store.root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		store.fail = func(op string) error {
+			if op == "sync-dir:sample" {
+				return errors.New("marker sync unavailable")
+			}
+			return nil
+		}
+		if _, err = store.Prepare(fresh, nil); err == nil {
+			t.Fatal("acknowledged unsynced marker")
+		}
+		if _, err = store.Read(fresh.ID); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("published successor before durable marker: %v", err)
+		}
+	}
+	store.fail = nil
+	if _, err = store.Prepare(fresh, nil); err != nil {
+		t.Fatal(err)
 	}
 }

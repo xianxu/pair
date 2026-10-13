@@ -94,21 +94,39 @@ func (c *Cast) PrepareSubmission(parent context.Context, id string, target core.
 	if len(captured) != len(sub.Notes) {
 		return empty, nil, fmt.Errorf("capture did not return every selected note")
 	}
-	// Missing or unavailable capture identity can never authorize publication.
-	origin := ""
-	completeIdentity := len(captured) > 0
-	for i, crop := range captured {
-		if i == 0 {
-			origin = crop.Origin
+	// Every available crop names the same admitted page. Unknown identity is
+	// represented by unavailable evidence, never by pixels with guessed metadata.
+	var page *core.PageIdentity
+	pageUnavailable := false
+	for _, crop := range captured {
+		if crop.Unavailable != "" {
+			// Off-screen notes lack pixels, not document identity. A page change
+			// still cannot be mixed with captures from an admitted document.
+			if crop.Unavailable != "outside viewport" {
+				pageUnavailable = true
+			}
+			continue
 		}
-		if crop.Unavailable != "" || crop.Origin == "" || crop.Origin != origin {
-			completeIdentity = false
+		if err := crop.Page.Validate(); err != nil {
+			return empty, nil, err
+		}
+		if page == nil {
+			value := crop.Page
+			page = &value
+		} else if *page != crop.Page {
+			return empty, nil, fmt.Errorf("capture page identity changed within batch")
 		}
 	}
-	if !completeIdentity {
-		origin = ""
+	if pageUnavailable && page != nil {
+		return empty, nil, fmt.Errorf("capture batch mixes available and unavailable pages")
 	}
-	sub.PrivacyDecision = policy.Decide(origin)
+	sub.Source.Page = page
+	pageURL := ""
+	if page != nil {
+		pageURL = page.URL
+	}
+	sub.PrivacyDecision = policy.Decide(pageURL)
+
 	total := 0
 	for _, crop := range captured {
 		if len(crop.PNG) > core.MaxPNGBytes || len(crop.PNG) > core.MaxBundleBytes-total {
@@ -118,22 +136,31 @@ func (c *Cast) PrepareSubmission(parent context.Context, id string, target core.
 	}
 	crops := make(map[string][]byte)
 	for i, crop := range captured {
+		evidence := core.Crop{Box: crop.Box, CapturedAt: crop.CapturedAt, Document: crop.Document,
+			Unavailable: crop.Unavailable, Settlement: crop.Settlement, ClippedToViewport: crop.ClippedToViewport}
 		if crop.Unavailable != "" {
 			if len(crop.PNG) != 0 {
 				return empty, nil, fmt.Errorf("unavailable crop has pixels")
 			}
-			sub.Notes[i].Crop = core.Crop{Unavailable: crop.Unavailable}
+			if err = core.ValidateCrop(evidence); err != nil {
+				return empty, nil, err
+			}
 		} else {
-			if crop.Document != selected.Document || crop.Box != boxes[i].Box {
-				return empty, nil, fmt.Errorf("crop capture identity changed")
+			evidence.File = fmt.Sprintf("crop-%d.png", i)
+			// Validate finite geometry before Contains performs coordinate arithmetic.
+			if err = core.ValidateCrop(evidence); err != nil {
+				return empty, nil, err
+			}
+			requested := boxes[i].Box
+			if crop.Document != selected.Document || !requested.Contains(crop.Box) || crop.ClippedToViewport != (crop.Box != requested) {
+				return empty, nil, fmt.Errorf("crop capture identity or viewport clipping changed")
 			}
 			if err = core.ValidatePNG(crop.PNG); err != nil {
 				return empty, nil, err
 			}
-			name := fmt.Sprintf("crop-%d.png", i)
-			sub.Notes[i].Crop = core.Crop{File: name, Box: crop.Box, CapturedAt: crop.CapturedAt, Document: crop.Document}
-			crops[name] = crop.PNG
+			crops[evidence.File] = crop.PNG
 		}
+		sub.Notes[i].Crop = evidence
 		sub.Notes[i].BoxText = crop.BoxText
 		if crop.Unavailable == "" && crop.BoxText.Region != boxes[i].Region {
 			return empty, nil, fmt.Errorf("box text region changed")

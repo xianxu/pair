@@ -13,6 +13,8 @@ function M.new(d)
     local function answer(kind, fields)
       local event = fields or {}
       event.kind, event.epoch = kind, effect.epoch
+      event.id = event.id or effect.id
+      event.poll = effect.poll
       dispatch(event)
     end
     if effect.kind == 'notify' then
@@ -24,7 +26,10 @@ function M.new(d)
       answer('pinned', { id = id, available = not not target, error = err })
     elseif effect.kind == 'rpc' or effect.kind == 'defer_rpc' then
       local function call()
-        if state.epoch ~= effect.epoch then return end
+        if effect.reply == 'acknowledged' then
+          local receipt = state.receipts[effect.id]
+          if not receipt or receipt.epoch ~= effect.epoch or receipt.polls ~= effect.poll then return end
+        elseif state.epoch ~= effect.epoch then return end
         d.rpc(effect.op, effect.id, function(result, err)
           answer(effect.reply, { result = result, error = err })
         end)
@@ -39,7 +44,8 @@ function M.new(d)
     elseif effect.kind == 'ordinary' then
       answer('ordinary_sent', { sent = d.ordinary(effect.body, effect.text) })
     elseif effect.kind == 'done' then
-      contexts[effect.input].done()
+      local context = contexts[effect.input]
+      if context and context.current() then context.done() end
     else
       error('unknown DOM submission effect: ' .. tostring(effect.kind))
     end
@@ -49,13 +55,12 @@ function M.new(d)
     local effects
     state, effects = model.step(state, event)
     for _, effect in ipairs(effects) do run(effect) end
-    -- Only the live pending attempt needs draft callbacks. Acknowledgment
-    -- carries its ID alone and cannot consume any later draft.
+    -- Receipt recovery carries only IDs; only the live attempt owns callbacks.
     for id in pairs(contexts) do
       if not state.pending or id ~= state.pending.input then contexts[id] = nil end
     end
     for id in pairs(targets) do
-      if (not state.pending or id ~= state.pending.id) and id ~= state.ack_id then targets[id] = nil end
+      if (not state.pending or id ~= state.pending.id) then targets[id] = nil end
     end
   end
 
