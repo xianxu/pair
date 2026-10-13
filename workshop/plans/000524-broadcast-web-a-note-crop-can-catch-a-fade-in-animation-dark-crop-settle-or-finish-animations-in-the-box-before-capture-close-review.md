@@ -219,3 +219,137 @@ dispose:
    - **ARCH-FUNERAL — pass:** No new durable artifact family; added metadata uses existing bounded submission storage.
 
 7. **Plan revision recommendations:** None required. The latest approval revision explicitly supersedes geometry-based relevance and records integration with the screenshot-suppression helper.
+
+---
+
+## Re-review — 2026-10-13T11:28:20-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 524 — broadcast-web: a note crop can catch a fade-in animation (dark crop); settle or finish animations in the box before capture |
+| repo | pair |
+| issue file | workshop/issues/000524-broadcast-web-a-note-crop-can-catch-a-fade-in-animation-dark-crop-settle-or-finish-animations-in-the-box-before-capture.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 844d29e698e481712f6a58f37f04e4d717a405f3..a5edec14048bde1abd649e89ab789cd99c1323f9 |
+| command | sdlc close --issue 524 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-13T11:28:20-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+The pinned implementation matches the revised capture and fresh-send contracts. BR-1 is verified with a failing pre-fix regression, and no blocking code findings remain. Confidence is limited by this environment’s Chrome startup failure, which prevented independent live pixel/timeline verification.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      capture_ready.js observes animations without target-geometry exclusions. The BR-1 overflowing-child fixture passes at pinned HEAD and fails against the pre-fix probe with “child running overflow cannot be settled.”
+```
+
+1. **Strengths**
+
+   - Capture preserves the viewport, validates actual clipping, and propagates settlement evidence through the durable manifest (`cmd/internal/webcast/recorder/submission.go:115`, `cmd/internal/webcast/cast_submission.go:121`).
+   - Supersession preserves delivery truth, refuses stale begins, and permits genuine late acknowledgments. Publication-failure tests exercise restart and retry ordering (`cmd/internal/submission/store.go:451`).
+   - Independent acknowledgment receipts and epoch fencing protect newer drafts; adapter tests cover stale preparation callbacks and edits during delivery (`nvim/dom_submission_state.lua:55`, `nvim/dom_submission.lua:47`).
+   - README and atlas changes document viewport limitations, uncertainty, fresh-send behavior, and recovery.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Passed: submission, recorder, webcast/submission, and webcast Go packages; focused couchtty submission tests after generating runtime assets in a disposable copy.
+   - Passed: Lua state/adapter tests, sender tests under Neovim, and the production DOM-chord headless suite.
+   - Verified BR-1 RED/GREEN against the pre-fix probe. Disposable files were removed.
+   - Both live Chrome tests failed before opening a page: Chrome reported an unusable GPU process. Pixel/timeline assertions therefore did not execute.
+   - The broader transaction shell suite could not build in the untouched checkout because generated runtime assets were absent. No full-suite pass is claimed.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — Pass:** shared manifest writer, delivery transitions, and screenshot helper remain authoritative.
+   - **ARCH-PURE — Pass:** geometry and disposition logic are pure; browser observation and persistence remain integration boundaries.
+   - **ARCH-PURPOSE — Pass:** document-wide observation addresses the animation-influence class, rather than another geometry exception.
+   - **ARCH-MOCK — Pass:** injected CDP, store-failure, and scheduler seams exercise production paths; live conformance tests exist, with execution limited as noted above.
+   - **ARCH-CONSTRAINTS — Pass:** polling, traversal, animation, receipt, and storage bounds are explicit.
+   - **ARCH-SECURE — Pass:** capture metadata validation and immutable target guards remain enforced.
+   - **ARCH-ORDER — Pass:** explicit transitions preserve uncertain delivery, fence stale callbacks, and support late acknowledgment recovery.
+   - **ARCH-FUNERAL — Pass:** receipts retire boundedly; durable evidence retains existing storage caps and cleanup ownership.
+
+7. **Plan revision recommendations:** No substantive revision required. The later revisions explicitly supersede the earlier geometry exclusions and discard proposal.
+
+---
+
+## Re-review — 2026-10-13T11:36:13-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 524 — broadcast-web: a note crop can catch a fade-in animation (dark crop); settle or finish animations in the box before capture |
+| repo | pair |
+| issue file | workshop/issues/000524-broadcast-web-a-note-crop-can-catch-a-fade-in-animation-dark-crop-settle-or-finish-animations-in-the-box-before-capture.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 844d29e698e481712f6a58f37f04e4d717a405f3..a5edec14048bde1abd649e89ab789cd99c1323f9 |
+| command | sdlc close --issue 524 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-13T11:36:13-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+The pinned changes match the amended capture and fresh-send requirements. BR-1 is addressed with executable regression evidence; no new blocking defects were found. Confidence is limited because both live-browser tests failed during Chrome startup, before exercising capture.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      capture_ready.js:44–63 removes target-geometry exclusions across supported animation roots. The pinned Node regression passes and fails when the preceding geometry-based probe is restored in a disposable copy.
+```
+
+1. **Strengths**
+   - Document-wide animation observation handles uncertainty explicitly without modifying page styles or timelines.
+   - Capture preserves viewport geometry and validates settlement/clipping metadata through durable storage.
+   - Supersession preserves delivery truth and orders durable markers before successor publication (`cmd/internal/submission/store.go:451`).
+   - Independent acknowledgment receipts fence stale and duplicate callbacks (`nvim/dom_submission_state.lua:54`).
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage**
+   - Passed: submission, recorder, webcast/submission and webcast Go packages; focused couchtty submission tests; Lua model/adapter/sender tests; complete headless submission transaction suite.
+   - Mutation checks: restoring the previous animation probe fails its regression; restoring `captureBeyondViewport=true` fails the recorder capture regression.
+   - Runtime assets were generated only in a disposable copy, subsequently removed.
+   - Live readiness and crop tests could not execute their assertions: Chrome reported an unusable GPU process, including with `--disable-gpu`. Full repository suite was not rerun.
+
+6. **Architecture**
+   - **ARCH-DRY — pass:** shared manifest writer and resolution scheduling.
+   - **ARCH-PURE — pass:** geometry, validation and transitions remain separable from browser/storage adapters.
+   - **ARCH-PURPOSE — pass:** addresses capture-induced restart and the approved document-wide influence rule.
+   - **ARCH-MOCK — pass:** injected stateful seams and browser conformance tests exist; live execution limitation noted above.
+   - **ARCH-CONSTRAINTS — pass:** bounded polling, traversal, receipts and server concurrency.
+   - **ARCH-SECURE — pass:** capture values and persisted evidence are validated; target guards remain.
+   - **ARCH-ORDER — pass:** explicit transitions, publication failure tests and controlled stale-callback coverage.
+   - **ARCH-FUNERAL — pass:** receipts retire; staging is cleaned; retained evidence uses existing storage bounds.
+
+7. **Plan revisions:** None required. Authoritative revisions explain the expanded scope, and README/atlas updates cover the resulting behavior.

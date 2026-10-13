@@ -42,6 +42,32 @@ rounds:
       isolation: fenced
       reviewed: f5338dbc5ad7996f2ce6cb30d861d662acddb7b2
       blocked: false
+    - "n": 4
+      timestamp: "2026-10-13T11:28:20-07:00"
+      dispatched: "2026-10-13T11:24:37-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: capture_ready.js observes animations without target-geometry exclusions. The BR-1 overflowing-child fixture passes at pinned HEAD and fails against the pre-fix probe with “child running overflow cannot be settled.”
+          round: 4
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: a5edec14048bde1abd649e89ab789cd99c1323f9
+      blocked: false
+    - "n": 5
+      timestamp: "2026-10-13T11:36:13-07:00"
+      dispatched: "2026-10-13T11:32:27-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: capture_ready.js:44–63 removes target-geometry exclusions across supported animation roots. The pinned Node regression passes and fails when the preceding geometry-based probe is restored in a disposable copy.
+          round: 5
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: a5edec14048bde1abd649e89ab789cd99c1323f9
+      blocked: false
 ---
 
 # Gate ledger — pair#524 (boundary-review)
@@ -67,6 +93,18 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ### Disposed
 
 - BR-1 — addressed — capture_ready.js:44-63 removes target-geometry exclusions across supported animation roots. The pinned Node regression passes; substituting the prior probe fails, including the leaf-shadow assertion at capture_ready_test.js:96. Live fixtures cover overflowing children, pseudo-elements, box-shadow and drop-shadow pixels, but Chrome startup failed before those assertions could execute here.
+
+## Round 4 — 2026-10-13T11:28:20-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — capture_ready.js observes animations without target-geometry exclusions. The BR-1 overflowing-child fixture passes at pinned HEAD and fails against the pre-fix probe with “child running overflow cannot be settled.”
+
+## Round 5 — 2026-10-13T11:36:13-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — capture_ready.js:44–63 removes target-geometry exclusions across supported animation roots. The pinned Node regression passes and fails when the preceding geometry-based probe is restored in a disposable copy.
 
 ## Open findings
 
