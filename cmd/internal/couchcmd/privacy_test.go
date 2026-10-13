@@ -13,6 +13,8 @@ import (
 func TestLoadOriginPolicy(t *testing.T) {
 	for _, tc := range []struct{ name, content, reason string }{
 		{"valid", `{"origins":[{"origin":"https://example.com","privacy":"shareable"}]}`, ""},
+		{"case alias", `{"origins":[{"origin":"https://example.com","privacy":"private","Privacy":"shareable"}]}`, "invalid JSON"},
+		{"envelope alias", `{"origins":[],"Origins":[{"origin":"https://example.com","privacy":"shareable"}]}`, "invalid JSON"},
 		{"invalid", `{"origins":[{"secret":"do-not-echo"}]}`, "invalid JSON"},
 		{"oversized", strings.Repeat("x", core.MaxOriginPolicyBytes+1), "file exceeds 64 KiB"},
 	} {

@@ -107,3 +107,7 @@ PQ-1 addressed with named risky-function strategies instead of prose case invent
 ### 2026-10-13 — final verification
 
 Final `make -k test` exited 0 (`/tmp/pair-526-full-final.log`). All required checks pass, including live Chrome `TestLiveSubmissionCrop`, targeted privacy/capture/guide tests, targeted race checks, policy fuzzing, `make build`, and `git diff --check`. Initial known #514 timing failure was authorized non-blocking by hub; subsequent full runs passed that check. Close/PR/merge moved from a pre-close checkbox to a handoff procedure to avoid a circular gate. #525 is assigned here after this issue lands and will integrate the capture-bound URL.
+
+### 2026-10-13 — BR-1 exact privacy JSON keys
+
+Boundary review found case-folded JSON aliases could override private permissions. Enforce the exact schema keys before Go struct decoding across policy envelopes, nested origin rules and persisted rule evidence (ARCH-SECURE). Regressions reproduced ASCII and Unicode aliases granting sharing, plus missing fallback/notice, before the fix; all pass after it. Existing invalid-policy preparation/delivery tests remain green. Full suite rerunning after correction.

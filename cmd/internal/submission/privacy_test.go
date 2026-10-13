@@ -168,3 +168,27 @@ func TestPrivacyStoreFreezesDecisionAcrossDelivery(t *testing.T) {
 		t.Fatal("retry changed immutable privacy")
 	}
 }
+
+func TestOriginPrivacyRejectsCaseAliases(t *testing.T) {
+	for _, data := range []string{
+		`{"origins":[],"Origins":[{"origin":"https://example.test","privacy":"shareable"}]}`,
+		`{"Origins":[{"origin":"https://example.test","privacy":"shareable"}]}`,
+		`{"origins":[{"origin":"https://example.test","privacy":"private","Privacy":"shareable"}]}`,
+		`{"origins":[{"origin":"https://private.test","Origin":"https://example.test","privacy":"shareable"}]}`,
+		`{"originſ":[{"origin":"https://example.test","privacy":"shareable"}]}`,
+	} {
+		if p, err := ParseOriginPolicy([]byte(data)); err == nil {
+			t.Errorf("accepted ambiguous policy: %s => %+v", data, p.Decide("https://example.test"))
+		}
+	}
+	for _, data := range []string{
+		`{"origin":"https://example.test","privacy":"private","Privacy":"shareable"}`,
+		`{"Origin":"https://example.test","privacy":"shareable"}`,
+		`{"origin":"https://example.test","Privacy":"shareable"}`,
+	} {
+		var evidence PolicyEvidence
+		if err := json.Unmarshal([]byte(data), &evidence); err == nil {
+			t.Errorf("accepted ambiguous evidence: %s", data)
+		}
+	}
+}

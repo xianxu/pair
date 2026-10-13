@@ -135,3 +135,7 @@ Compressed executable-case inventories into named-function strategies below (PQ-
 ### 2026-10-13 — final verification and handoff
 
 Final `make -k test` passed in full (`/tmp/pair-526-full-final.log`), after the source-inventory correction. Targeted, race, fuzz, live Chrome and build checks also passed. #525 remains pending and is assigned to this slot next; it will reconcile origin authority after #526 lands. The close/PR/merge sequence is a handoff procedure rather than a pre-close implementation checkbox. Hub explicitly authorized close and land.
+
+### 2026-10-13 — BR-1 exact privacy JSON keys
+
+Boundary review found case-folded JSON aliases could override private permissions. Enforce the exact schema keys before Go struct decoding across policy envelopes, nested origin rules and persisted rule evidence (ARCH-SECURE). Regressions reproduced ASCII and Unicode aliases granting sharing, plus missing fallback/notice, before the fix; all pass after it. Existing invalid-policy preparation/delivery tests remain green. Full suite rerunning after correction.

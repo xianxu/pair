@@ -213,8 +213,9 @@ func OriginOf(raw string) string {
 }
 
 func strictJSON(data []byte, out any) error {
-	// Reject duplicate keys as well as unknown fields: conflicting permissions
-	// must not acquire meaning from a decoder's last-key-wins convention.
+	// Privacy schemas use only these exact keys. Go struct decoding accepts
+	// case-folded aliases (including Unicode), so reject them before decoding
+	// along with duplicates. DisallowUnknownFields checks their nesting below.
 	d := json.NewDecoder(bytes.NewReader(data))
 	var value func() error
 	value = func() error {
@@ -236,6 +237,11 @@ func strictJSON(data []byte, out any) error {
 				s, ok := key.(string)
 				if !ok || keys[s] {
 					return errors.New("duplicate JSON key")
+				}
+				switch s {
+				case "origins", "origin", "privacy":
+				default:
+					return errors.New("unknown privacy JSON key")
 				}
 				keys[s] = true
 			}
