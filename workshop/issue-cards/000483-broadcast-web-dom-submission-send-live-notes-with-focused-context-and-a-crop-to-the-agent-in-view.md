@@ -1,6 +1,6 @@
 ---
 id: 000483
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours: 3.82
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 5f9f9b5b11d452428ec7d7d82407835e89de9676
         evidence_commit: de901afa53fd1c7f39d4d1e118924a356b2962c3
+        landed_commit: 9db9b7f3a3b93e0299839f18cc3163aa3e4f54d0
 ---
 
 # broadcast-web: DOM submission — send live notes with focused context and a crop to the agent in view
