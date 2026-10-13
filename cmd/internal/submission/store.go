@@ -313,9 +313,9 @@ func (s *Store) Pending(target Target) ([]Submission, error) {
 		return nil, err
 	}
 	defer r.Close()
-	return s.pending(r, target)
+	return s.pending(r, target, false)
 }
-func (s *Store) pending(r *os.Root, target Target) ([]Submission, error) {
+func (s *Store) pending(r *os.Root, target Target, includeSuperseded bool) ([]Submission, error) {
 	f, err := r.Open(".")
 	if err != nil {
 		return nil, err
@@ -330,17 +330,16 @@ func (s *Store) pending(r *os.Root, target Target) ([]Submission, error) {
 	}
 	var result []Submission
 	for _, entry := range entries {
-		if strings.HasPrefix(entry.Name(), ".staging-") {
-			continue
-		}
+		// Only submission directories participate in delivery reconciliation.
+		// Finder metadata, staging residue and stray files are not bundles.
 		if !entry.IsDir() || !identifier.MatchString(entry.Name()) {
-			return nil, fmt.Errorf("unexpected submission entry %s", entry.Name())
+			continue
 		}
 		sub, err := readMetadata(r, entry.Name(), true)
 		if err != nil {
 			return nil, err
 		}
-		if sub.Target == target && sub.Delivery != Resolved {
+		if sub.Target == target && sub.Delivery != Resolved && (includeSuperseded || !sub.Superseded) {
 			result = append(result, sub)
 		}
 	}
@@ -357,7 +356,7 @@ func (s *Store) Prepare(sub Submission, crops map[string][]byte) (string, error)
 	if err := Validate(sub); err != nil {
 		return "", err
 	}
-	if sub.Delivery != Prepared {
+	if sub.Delivery != Prepared || sub.Superseded {
 		return "", fmt.Errorf("new submission must be prepared")
 	}
 	data, err := json.MarshalIndent(sub, "", "  ")
@@ -397,6 +396,7 @@ func (s *Store) Prepare(sub Submission, crops map[string][]byte) (string, error)
 			return "", err
 		}
 		old.Delivery = Prepared
+		old.Superseded = false
 		oldData, marshalErr := json.MarshalIndent(old, "", "  ")
 		if marshalErr != nil {
 			return "", marshalErr
@@ -420,14 +420,9 @@ func (s *Store) Prepare(sub Submission, crops map[string][]byte) (string, error)
 	} else if !os.IsNotExist(err) {
 		return "", err
 	}
-	pending, err := s.pending(r, sub.Target)
+	pending, err := s.pending(r, sub.Target, true)
 	if err != nil {
 		return "", err
-	}
-	for _, p := range pending {
-		if p.Delivery == Delivering {
-			return "", fmt.Errorf("delivery outcome unknown; reconcile %s", s.ManifestPath(p.ID))
-		}
 	}
 	used, err := s.usage(r)
 	if err != nil {
@@ -452,6 +447,25 @@ func (s *Store) Prepare(sub Submission, crops map[string][]byte) (string, error)
 	}
 	if err = s.syncDir(r, name); err != nil {
 		return "", err
+	}
+	// Release older authority durably before publishing the successor. A failed
+	// publication may leave superseded evidence, never fabricated delivery.
+	for _, old := range pending {
+		if old.Delivery != Prepared && old.Delivery != Delivering {
+			continue
+		}
+		if old.Superseded {
+			// A previous attempt may have renamed its marker before fsync failed.
+			err = s.confirmPublication(r, old.ID)
+		} else {
+			old.Delivery, old.Superseded, err = ApplyDisposition(old.Delivery, old.Superseded, Supersede)
+			if err == nil {
+				err = s.writeManifest(r, old)
+			}
+		}
+		if err != nil {
+			return "", err
+		}
 	}
 	if err = s.checkpoint("rename"); err != nil {
 		return "", err
@@ -479,43 +493,48 @@ func (s *Store) Transition(id string, target Target, event Event) (Submission, e
 	if sub.Target != target {
 		return sub, fmt.Errorf("submission target changed")
 	}
-	next, err := ApplyDelivery(sub.Delivery, event)
+	next, superseded, err := ApplyDisposition(sub.Delivery, sub.Superseded, event)
 	if err != nil {
 		return sub, err
 	}
-	if next == sub.Delivery {
+	if next == sub.Delivery && superseded == sub.Superseded {
 		return sub, s.confirmPublication(r, id)
 	}
-	sub.Delivery = next
+	sub.Delivery, sub.Superseded = next, superseded
+	return sub, s.writeManifest(r, sub)
+}
+
+// writeManifest uses the same atomic durability path for disposition and delivery.
+func (s *Store) writeManifest(r *os.Root, sub Submission) error {
 	data, err := json.MarshalIndent(sub, "", "  ")
 	if err != nil {
-		return sub, err
+		return err
 	}
 	used, err := s.usage(r)
 	if err != nil {
-		return sub, err
+		return err
 	}
 	if int64(len(data)) > s.capacity-used {
-		return sub, fmt.Errorf("submission store full; clean up %s", s.root)
+		return fmt.Errorf("submission store full; clean up %s", s.root)
 	}
 	stage, err := os.MkdirTemp(s.root, ".staging-")
 	if err != nil {
-		return sub, err
+		return err
 	}
 	name := filepath.Base(stage)
 	defer r.RemoveAll(name)
 	temp := filepath.Join(name, "submission.json")
 	if err = s.write(r, temp, data); err != nil {
-		return sub, err
+		return err
 	}
 	if err = s.checkpoint("rename"); err != nil {
-		return sub, err
+		return err
 	}
-	if err = r.Rename(temp, filepath.Join(id, "submission.json")); err != nil {
-		return sub, err
+	if err = r.Rename(temp, filepath.Join(sub.ID, "submission.json")); err != nil {
+		return err
 	}
-	if err = s.confirmPublication(r, id); err != nil {
-		return sub, err
+	if err = s.confirmPublication(r, sub.ID); err != nil {
+		return err
 	}
-	return sub, nil
+	return nil
 }

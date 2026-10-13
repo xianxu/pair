@@ -24,7 +24,8 @@ type fakeChrome struct {
 	calls  []string
 	// more answers the methods a test needs beyond these (nil, false: the
 	// default empty reply).
-	more func(session, method string, params map[string]any, p *fakePage) (any, error, bool)
+	more         func(session, method string, params map[string]any, p *fakePage) (any, error, bool)
+	captureProbe func(context.Context, map[string]any) (any, error)
 }
 
 func newFakeChrome() *fakeChrome {
@@ -46,6 +47,22 @@ func (f *fakeChrome) CallSeq(ctx context.Context, session, method string, params
 	ui := f.ui
 	f.mu.Unlock()
 	var reply any = map[string]any{}
+	var pm map[string]any
+	data, _ := json.Marshal(params)
+	json.Unmarshal(data, &pm)
+	if method == "Runtime.callFunctionOn" && strings.Contains(fmt.Sprint(pm["functionDeclaration"]), "function captureReady(") {
+		reply = map[string]any{"result": map[string]any{"value": map[string]any{"viewport": []float64{0, 0, 1000, 2000}, "dpr": 1, "pending": false, "reason": ""}}}
+		if f.captureProbe != nil {
+			var err error
+			reply, err = f.captureProbe(ctx, pm)
+			if err != nil {
+				return f.next(), err
+			}
+		}
+		b, _ := json.Marshal(reply)
+		return f.next(), json.Unmarshal(b, result)
+	}
+
 	switch method {
 	case "DOM.getDocument":
 		if p == nil {

@@ -58,13 +58,14 @@ type Source struct {
 }
 type Submission struct {
 	PrivacyDecision
-	HowToRead string   `json:"how_to_read"`
-	Version   int      `json:"version"`
-	ID        string   `json:"id"`
-	Target    Target   `json:"target"`
-	Source    Source   `json:"source"`
-	Notes     []Note   `json:"notes"`
-	Delivery  Delivery `json:"delivery"`
+	HowToRead  string   `json:"how_to_read"`
+	Version    int      `json:"version"`
+	ID         string   `json:"id"`
+	Target     Target   `json:"target"`
+	Source     Source   `json:"source"`
+	Notes      []Note   `json:"notes"`
+	Delivery   Delivery `json:"delivery"`
+	Superseded bool     `json:"superseded,omitempty"`
 }
 type Note struct {
 	SourceDocument int              `json:"source_document,omitempty"`
@@ -81,12 +82,22 @@ type Note struct {
 	Replay         string           `json:"replay,omitempty"`
 	Crop           Crop             `json:"crop"`
 }
+
+// CaptureSettlement reports observed animation readiness. A nil settlement on
+// older evidence is unknown, never an implicit settled result.
+type CaptureSettlement struct {
+	Status string `json:"status"`
+	Reason string `json:"reason,omitempty"`
+}
+
 type Crop struct {
-	File        string        `json:"file,omitempty"`
-	Box         recording.Box `json:"box"`
-	CapturedAt  time.Time     `json:"captured_at"`
-	Document    int           `json:"document"`
-	Unavailable string        `json:"unavailable,omitempty"`
+	Settlement        *CaptureSettlement `json:"settlement,omitempty"`
+	ClippedToViewport bool               `json:"clipped_to_viewport,omitempty"`
+	File              string             `json:"file,omitempty"`
+	Box               recording.Box      `json:"box"`
+	CapturedAt        time.Time          `json:"captured_at"`
+	Document          int                `json:"document"`
+	Unavailable       string             `json:"unavailable,omitempty"`
 }
 
 // CaptureRegion keeps screenshot padding distinct from the original note box.
@@ -175,15 +186,34 @@ func ValidateBox(b recording.Box) error {
 	}
 	return nil
 }
+func ValidateCaptureSettlement(s *CaptureSettlement) error {
+	if s == nil {
+		return nil
+	}
+	if s.Status == "settled" && s.Reason == "" {
+		return nil
+	}
+	if s.Status == "unsettled" {
+		switch s.Reason {
+		case "timeout", "paused animation", "infinite animation", "inspection limit", "inspection unavailable":
+			return nil
+		}
+	}
+	return fmt.Errorf("invalid capture settlement status or reason")
+}
+
 func ValidateCrop(c Crop) error {
 	if c.Unavailable != "" {
-		if c.File != "" || c.Box != (recording.Box{}) || !c.CapturedAt.IsZero() || c.Document != 0 {
+		if c.File != "" || c.Box != (recording.Box{}) || !c.CapturedAt.IsZero() || c.Document != 0 || c.Settlement != nil || c.ClippedToViewport {
 			return fmt.Errorf("unavailable crop also has capture metadata")
 		}
 		return nil
 	}
 	if !cropName.MatchString(c.File) || c.CapturedAt.IsZero() || c.Document < 1 {
 		return fmt.Errorf("crop requires generated file, capture time and document")
+	}
+	if err := ValidateCaptureSettlement(c.Settlement); err != nil {
+		return err
 	}
 	return ValidateBox(c.Box)
 }

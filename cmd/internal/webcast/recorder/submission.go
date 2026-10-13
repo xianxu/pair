@@ -18,13 +18,15 @@ var boxTextCollector string
 
 // CapturedCrop is current-tab pixel and text evidence, distinct from note-time DOM.
 type CapturedCrop struct {
-	Page        submission.PageIdentity // admitted document, fenced with pixels and text
-	BoxText     submission.BoxText
-	PNG         []byte
-	Box         rec.Box
-	Document    int
-	CapturedAt  time.Time
-	Unavailable string
+	Page              submission.PageIdentity // admitted document, fenced with pixels and text
+	Settlement        *submission.CaptureSettlement
+	ClippedToViewport bool
+	BoxText           submission.BoxText
+	PNG               []byte
+	Box               rec.Box
+	Document          int
+	CapturedAt        time.Time
+	Unavailable       string
 }
 
 type captureIdentity struct {
@@ -118,7 +120,7 @@ func (r *Recorder) CaptureCrops(parent context.Context, doc int, boxes []submiss
 	if start.doc != doc || start.top == "" {
 		out := make([]CapturedCrop, len(boxes))
 		for i := range out {
-			out[i] = CapturedCrop{Box: boxes[i].Box, Unavailable: "page changed", BoxText: submission.BoxText{Unavailable: "page changed"}}
+			out[i] = CapturedCrop{Unavailable: "page changed", BoxText: submission.BoxText{Unavailable: "page changed"}}
 		}
 		return out, nil
 	}
@@ -166,9 +168,38 @@ func (r *Recorder) CaptureCrops(parent context.Context, doc int, boxes []submiss
 	total := 0
 	var out []CapturedCrop
 	for _, request := range boxes {
-		box := request.Box
 		if err := ctx.Err(); err != nil {
 			return nil, err
+		}
+		observation, settlement, err := r.waitForCapture(ctx, start, request.Box)
+		if err != nil {
+			return nil, err
+		}
+		if err = verifyIdentity(); err != nil {
+			return nil, err
+		}
+		box, visible := visibleCrop(request.Box, observation.Viewport)
+		if !visible {
+			out = append(out, CapturedCrop{Unavailable: "outside viewport", BoxText: submission.BoxText{Unavailable: "outside viewport"}})
+			continue
+		}
+		if err = submission.ValidateBox(box); err != nil {
+			return nil, err
+		}
+		if box[2]*observation.DPR > float64(submission.MaxPixels)/(box[3]*observation.DPR) {
+			return nil, errors.New("crop exceeds 4 megapixel bounds at current pixel ratio")
+		}
+		verifyViewport := func() error {
+			checkCtx, done := context.WithTimeout(ctx, 5*time.Second)
+			defer done()
+			current, err := r.observeCapture(checkCtx, start, box, false)
+			if err != nil {
+				return err
+			}
+			if !observation.sameViewport(current) {
+				return errors.New("viewport changed during crop capture; submit again")
+			}
+			return nil
 		}
 		var textResult struct {
 			Result struct {
@@ -177,7 +208,7 @@ func (r *Recorder) CaptureCrops(parent context.Context, doc int, boxes []submiss
 			Exception json.RawMessage `json:"exceptionDetails"`
 		}
 		textCtx, textDone := context.WithTimeout(ctx, 5*time.Second)
-		_, err := r.opts.Call.CallSeq(textCtx, start.top, "Runtime.callFunctionOn", map[string]any{"functionDeclaration": boxTextCollector, "executionContextId": start.contextID, "arguments": []any{map[string]any{"value": request.Region}}, "returnByValue": true}, &textResult)
+		_, err = r.opts.Call.CallSeq(textCtx, start.top, "Runtime.callFunctionOn", map[string]any{"functionDeclaration": boxTextCollector, "executionContextId": start.contextID, "arguments": []any{map[string]any{"value": request.Region}}, "returnByValue": true}, &textResult)
 		textDone()
 		if err != nil {
 			return nil, fmt.Errorf("capture box text: %w", err)
@@ -198,17 +229,26 @@ func (r *Recorder) CaptureCrops(parent context.Context, doc int, boxes []submiss
 		if err = verifyIdentity(); err != nil {
 			return nil, err
 		}
+		if err = verifyViewport(); err != nil {
+			return nil, err
+		}
 		var res struct {
 			Data string `json:"data"`
 		}
 		callCtx, done := context.WithTimeout(ctx, 5*time.Second)
 		err = CaptureScreenshot(callCtx, r.opts.Call, start.top, start.contextID, map[string]any{
-			"format": "png", "captureBeyondViewport": true, "fromSurface": true,
+			"format": "png", "captureBeyondViewport": false, "fromSurface": true,
 			"clip": map[string]any{"x": box[0], "y": box[1], "width": box[2], "height": box[3], "scale": 1},
 		}, &res)
 		done()
 		if err != nil {
 			return nil, fmt.Errorf("capture crop: %w", err)
+		}
+		if err = verifyIdentity(); err != nil {
+			return nil, err
+		}
+		if err = verifyViewport(); err != nil {
+			return nil, err
 		}
 		if len(res.Data) > base64.StdEncoding.EncodedLen(8<<20) {
 			return nil, errors.New("crop PNG exceeds 8 MiB")
@@ -224,7 +264,7 @@ func (r *Recorder) CaptureCrops(parent context.Context, doc int, boxes []submiss
 			return nil, errors.New("submission crops exceed 64 MiB")
 		}
 		total += len(png)
-		out = append(out, CapturedCrop{Page: page, PNG: png, Box: box, Document: doc, CapturedAt: time.Now().UTC(), BoxText: boxText})
+		out = append(out, CapturedCrop{Page: page, PNG: png, Box: box, Document: doc, CapturedAt: time.Now().UTC(), BoxText: boxText, Settlement: settlement, ClippedToViewport: box != request.Box})
 		if err = verifyIdentity(); err != nil {
 			return nil, err
 		}

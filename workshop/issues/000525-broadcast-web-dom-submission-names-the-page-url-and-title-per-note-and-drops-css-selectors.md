@@ -102,3 +102,7 @@ The reviewer independently passed affected packages and race checks after runtim
 ### 2026-10-13 — landing authorization
 
 TL: operator look waived; URL/title verified in real Chrome three times; the TL checks a real bundle at the next submission. Land after #524 is on main: merge main, satisfy integration/review/CI gates, then sdlc merge --yes from pair:5 and report. At authorization receipt, #524 remained not-landed; #525 PR #306 checks were all green.
+
+### 2026-10-13 — integrate landed #524
+
+Merged origin/main after PR #307. Resolved the two recorder/submission.go conflicts by retaining #525 Page identity plus #524 settlement and viewport-clipping metadata. Updated the new clipping fixture to use selector-free element metadata. Integration uncovered that #524 can legitimately return an outside-viewport note alongside a valid capture: the prior all-or-none page guard rejected this batch. A regression test failed with that error before the fix and now permits only outside-viewport unavailability alongside a captured page; mixed page-changed evidence still rejects. Existing all-unavailable behavior remains private with no claimed page. Targeted affected tests and diff checks pass; full suite, real Chrome and narrow conflict re-review follow.

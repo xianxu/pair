@@ -145,13 +145,6 @@ func (m *submissionManager) request(ctx context.Context, op, id string, target c
 		if m.job != nil && m.job.busy {
 			return couchmessage.SubmissionStatus{}, errors.New("a submission is already being prepared or resolved")
 		}
-		pending, e := m.store.Pending(target)
-		if e != nil {
-			return couchmessage.SubmissionStatus{}, e
-		}
-		for _, p := range pending {
-			return couchmessage.SubmissionStatus{}, fmt.Errorf("submission %s remains %s; reconcile it before preparing another: %s", p.ID, p.Delivery, m.store.ManifestPath(p.ID))
-		}
 		cast, e := m.current()
 		if e != nil {
 			return couchmessage.SubmissionStatus{}, e
@@ -182,6 +175,7 @@ func (m *submissionManager) request(ctx context.Context, op, id string, target c
 		if m.job != nil && m.job.status.ID == id {
 			out.Error = m.job.status.Error
 		}
+		work = m.resolutionWork(s)
 		return out, nil
 	case "begin":
 		if !exists {
@@ -203,16 +197,8 @@ func (m *submissionManager) request(ctx context.Context, op, id string, target c
 		if err != nil {
 			return couchmessage.SubmissionStatus{}, err
 		}
-		if s.Delivery == core.Resolved {
-			return m.status(s), nil
-		}
-		if m.job != nil && m.job.busy {
-			return m.status(s), nil
-		}
-		job := &submissionJob{status: m.status(s), busy: true}
-		m.job = job
-		work = func() { m.resolve(job, s) }
-		return job.status, nil
+		work = m.resolutionWork(s)
+		return m.status(s), nil
 	default:
 		return couchmessage.SubmissionStatus{}, errors.New("unknown submission operation")
 	}
@@ -274,4 +260,15 @@ func (m *submissionManager) resolve(job *submissionJob, s core.Submission) {
 		return
 	}
 	job.status = m.status(s)
+}
+
+// resolutionWork admits confirmed delivery into the existing single worker.
+// Both ack and status can resume after a busy worker, failure or restart.
+func (m *submissionManager) resolutionWork(s core.Submission) func() {
+	if s.Delivery != core.Dispatched || (m.job != nil && m.job.busy) {
+		return nil
+	}
+	job := &submissionJob{status: m.status(s), busy: true}
+	m.job = job
+	return func() { m.resolve(job, s) }
 }
