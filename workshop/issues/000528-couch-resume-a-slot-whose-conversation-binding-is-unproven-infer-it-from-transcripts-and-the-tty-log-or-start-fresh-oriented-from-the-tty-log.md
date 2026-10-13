@@ -65,7 +65,7 @@ pair:6 read-only while measuring; no live recovery/reboot is authorized here.
 ## Plan
 
 - [x] Measure native metadata, exact pair:6 evidence and current recovery owners.
-- [ ] Approve durable design: workshop/plans/000528-slot-recovery-plan.md.
+- [x] Approve durable design: workshop/plans/000528-slot-recovery-plan.md.
 - [ ] M1 — Prevent split terminal incarnations and show attachable-agent liveness.
 - [ ] M2 — Calibrated native recovery with tty context and safe fresh fallback.
 
@@ -97,6 +97,12 @@ pair:6 read-only while measuring; no live recovery/reboot is authorized here.
   visible Relaunch action. Optional legacy cache cleanup is a separate machine
   operation with exact paths and operator approval; no deletion is authorized.
   Full implementation design and calibration are in the plan's final revisions.
+
+- 2026-10-13 09:27 PDT — TL receipt bea98157 approves 4cedc4baa, requiring
+  expanded independently proven calibration before change-code and a successful
+  automatic-resume evidence notice with one fresh-from-previous-screen action.
+  The three-pair threshold is provisional until the broader corpus is measured.
+  No deletion or live pair:6 recovery is authorized.
 
 ## Log
 
@@ -136,3 +142,8 @@ pair:6 read-only while measuring; no live recovery/reboot is authorized here.
   Pair binding gate, pre-ledger durable target intent, absence-backed capture
   provenance (not a forged park), and the missing historical launch/capture
   join. One advisory pass only; mandatory plan review remains change-code.
+
+- 09:27 PDT — Expanded offline corpus audit and scoring delegated separately:
+  labels must come from native binding/park evidence independently of overlap;
+  score every same-cwd candidate with a capture-time native event cutoff.
+  Production code remains unchanged pending this pre-change-code requirement.
