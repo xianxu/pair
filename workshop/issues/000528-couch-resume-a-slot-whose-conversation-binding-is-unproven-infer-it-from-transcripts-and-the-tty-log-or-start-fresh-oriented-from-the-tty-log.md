@@ -232,6 +232,8 @@ M1 review against 2efe103cf returned REWORK: BR-1 unknown evidence promoted to l
 
 - 2026-10-13 — Final read-family verification on 25e0de547: make build and targeted race passed; complete make test passed all behavior packages, including couchcore, launcher and storagegc, but its termcmd godoc guard found the InvalidMetadataError comment attached to the newly inserted MetadataViolation declaration. Moved only that comment; the exact guard now passes. Full output /tmp/pair528-read-family-final.log retains the single guard failure transparently; build /tmp/pair528-read-family-final-build.log and race /tmp/pair528-read-family-final-race.log. Integrating current main before the next boundary attempt.
 
+- 2026-10-13 — Integrated main cleanly at 0a0369285 before the noon integration boundary. make build passed on that exact HEAD (/tmp/pair528-integrated-build.log). Full tests for merged artifactpath/couchcmd/couchtty/submission/webcast/termcmd packages and DOM submission integration passed (/tmp/pair528-integrated-tests.log, /tmp/pair528-integrated-dom.log). M1 behavior packages had passed the preceding full make test; its only remaining documentation guard was corrected and passed both targeted and integrated termcmd runs. BR-5 is ready for re-review; M1 still open pending verdict.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against
