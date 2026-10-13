@@ -1,6 +1,6 @@
 ---
 id: 000513
-status: working
+status: codecomplete
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.61
+tracker:
+    version: 1
+    completion:
+        token: close-5148f1c100ff
+        repository: github.com/xianxu/pair
+        reviewed_head: 447ed9c0c64fb362ae2ba204f20428fb74b271ff
+        evidence_commit: 3a5c72be8de538ea5978ae15334b5d2eaeb2a5d0
 ---
 
 # broadcast-web: a video element on the cast page is missing in the viewer (the space around it collapses)
