@@ -46,7 +46,8 @@ context and report `crop.unavailable: "outside viewport"`. Couch never scrolls t
 page to collect missing pixels.
 
 Before each crop, Couch observes relevant animations/transitions for at most
-1500 ms, polling every 50 ms and inspecting at most 512 browser animations. It
+1500 ms, polling every 50 ms and inspecting at most 512 browser animations across at most
+20,000 DOM nodes while locating open shadow roots. It
 waits for natural completion; it never finishes or overrides animation styles.
 `crop.settlement` records `status: "settled"` when those observations finish, or
 `status: "unsettled"` with a reason: `timeout`, `paused animation`,

@@ -4,7 +4,7 @@ const inspect = eval('(' + fs.readFileSync('capture_ready.js','utf8') + ')');
 const box=[20,120,40,30];
 global.scrollX=10;global.scrollY=100;global.innerWidth=800;global.innerHeight=600;global.devicePixelRatio=2;
 let animations=[];
-global.document={getAnimations:()=>animations};
+global.document={getAnimations:()=>animations,documentElement:{}};
 function target(rect={left:10,top:20,width:40,height:30}) {return {nodeType:1,getBoundingClientRect:()=>({...rect,right:rect.left+rect.width,bottom:rect.top+rect.height}),getRootNode:()=>document};}
 function animation(state='running',node=target(),timing={iterations:1,duration:1000,endTime:1000}) {
  return {playState:state,playbackRate:1,effect:{target:node,getComputedTiming:()=>timing},finish(){throw Error('mutated finish')},cancel(){throw Error('mutated cancel')},pause(){throw Error('mutated pause')}};
@@ -28,7 +28,7 @@ assert.deepEqual(inspect(box,false),{viewport:[10,100,800,600],dpr:2,pending:fal
 console.log('capture readiness fixtures passed');
 document.getAnimations=()=>animations;
 const host=target({left:0,top:0,width:800,height:600});
-const shadowTarget=target();shadowTarget.getRootNode=()=>({mode:'open',host});
+const shadowTarget=target();const knownRoot={mode:'open',host,firstChild:shadowTarget,getAnimations:()=>[]};host.shadowRoot=knownRoot;document.documentElement=host;shadowTarget.getRootNode=()=>knownRoot;
 animations=[animation('running',shadowTarget)];assert.equal(inspect(box).pending,true);assert.equal(inspect(box).reason,'');
 shadowTarget.getRootNode=()=>({mode:'closed',host});assert.equal(inspect(box).reason,'inspection unavailable');
 // Ordinary ancestor opacity/transform animations enclose the crop.
@@ -36,6 +36,29 @@ animations=[animation('running',host)];assert.equal(inspect(box).pending,true);
 animations=[animation('running')];animations[0].playbackRate=0;assert.equal(inspect(box).reason,'paused animation');
 animations=[animation('running',null)];assert.equal(inspect(box).reason,'inspection unavailable');
 animations=[animation()];animations[0].effect.getComputedTiming=()=>{throw Error('expired')};assert.equal(inspect(box).reason,'inspection unavailable');
-const cycle=target();cycle.getRootNode=()=>({mode:'open',host:cycle});animations=[animation('running',cycle)];assert.equal(inspect(box).reason,'inspection limit');
+const cycle=target();cycle.nextSibling=cycle;document.documentElement=cycle;animations=[];assert.equal(inspect(box).reason,'inspection limit');document.documentElement={};
 animations=[animation()];assert.equal(inspect([1000,120,10,10]).pending,false);
 console.log('shadow and failure readiness fixtures passed');
+// Real Chrome omits shadow-root animations from document.getAnimations().
+animations=[];
+const localTarget=target(), localHost=target();
+const localAnimation=animation('running',localTarget);
+const localRoot={mode:'open',host:localHost,firstChild:localTarget,getAnimations:()=>[localAnimation]};
+localHost.shadowRoot=localRoot;localTarget.getRootNode=()=>localRoot;document.documentElement=localHost;
+assert.equal(inspect(box).pending,true,'open-shadow animation must be enumerated at its root');
+assert.equal(inspect(box).reason,'');
+localAnimation.playState='finished';assert.equal(inspect(box).pending,false);
+animations=Array.from({length:300},()=>animation('finished'));
+localRoot.getAnimations=()=>Array.from({length:213},()=>animation('finished'));
+assert.equal(inspect(box).reason,'inspection limit','animation cap is aggregate across roots');
+animations=[];delete localRoot.getAnimations;assert.equal(inspect(box).reason,'inspection unavailable');
+localRoot.getAnimations=()=>{throw Error('shadow inspection denied')};assert.equal(inspect(box).reason,'inspection unavailable');
+assert.deepEqual(inspect(box,false),{viewport:[10,100,800,600],dpr:2,pending:false,reason:''});
+let rootEnumerations=0;
+localRoot.getAnimations=()=>{rootEnumerations++;return []};
+const nestedTarget=target(),nestedAnimation=animation('running',nestedTarget);
+const nestedRoot={mode:'open',host:localTarget,firstChild:nestedTarget,getAnimations:()=>{rootEnumerations++;return [nestedAnimation]}};
+localTarget.shadowRoot=nestedRoot;nestedTarget.getRootNode=()=>nestedRoot;
+assert.equal(inspect(box).pending,true);assert.equal(rootEnumerations,2,'each open shadow root enumerated once');
+nestedAnimation.playState='finished';assert.equal(inspect(box).pending,false);
+console.log('separate shadow-root enumeration fixtures passed');

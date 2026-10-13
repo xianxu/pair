@@ -64,3 +64,7 @@ Probe logs: /tmp/pair524-probe/blog.log and flags.log; measurement-only Go overl
 ### 2026-10-12 — first implementation verification
 
 Implemented unchanged-viewport screenshots, synchronous bounded animation observations with Go-owned polling, clipped/offscreen evidence, and strict settlement schema/propagation. Targeted schema/recorder/builder/webcast packages pass; existing headless crop coordinate/conformance test passes (1.70 s). New capture option test failed on true before the fix. Fractional CSS box regression exposed spurious clipping from subtraction rounding; unchanged axes now retain their original dimensions. New responsive animation browser fixture and mutation checks are next. #494 notified that its pending branch wraps the screenshot with CaptureScreenshot; preserve that helper if it lands before #524.
+
+### 2026-10-12 — real-browser regression and mutation
+
+The new responsive fade fixture confirms the fix preserves the completed CSSAnimation identity/startTime and bright pixels. Mutation overlay restoring captureBeyondViewport=true failed because animation identity changed to a new running fade. Conformance also corrected two test/model assumptions: Chrome reports one 800 ms finite endTime as 799.9999999999999 (assert finished/progress instead of a rounded constant), and document.getAnimations excludes open-shadow animations. Implement explicit bounded open-shadow-root enumeration; the approved scope already includes these roots.
