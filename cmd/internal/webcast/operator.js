@@ -85,6 +85,7 @@ export function mountOperator({ host, root, report }, { annotate, palette, css }
   };
   let picked = 0;
   const post = (route, body) => {
+    if (route === 'note-edit') return transport.mutate('edit-note', { seg: body.seg, id: body.id, text: body.text });
     if (route === 'note') return transport.mutate('save-note', { draft: body.draft, color: body.color, text: body.text });
     if (route === 'note-state') return transport.mutate('resolve', { seg: view.model.seg, id: body.id, state: body.state });
     return transport.ask('stroke', { seg: body.seg, id: body.id, color: body.color, pts: body.pts }).then((r) => ({ status: r.outcome === 'accepted' ? 204 : 409, text: r.error || 'Stroke was not confirmed.' }));

@@ -208,6 +208,7 @@ test('hold disables Save and Resolve, keeps a draft, and releases', async () => 
   assert.ok(!f.els.save.disabled, 'released, Save is back');
   assert.equal(f.els.msg.textContent, '');
 
+  f.d.close(); // Explicitly discard the draft before checking a held read-only view.
   f.d.hold('The cast is paused.');
   f.d.view({ id: 7, text: 'x' }, { resolvable: true });
   assert.ok(f.els.resolve.disabled, 'a view opened while held has Resolve off');
@@ -220,4 +221,107 @@ test('hold disables Save and Resolve, keeps a draft, and releases', async () => 
   f.els.resolve.fire('click');
   await f.settle();
   assert.equal(f.posts.length, 1, 'released, Resolve posts');
+});
+
+import * as collab from '../../cmd/internal/broadcast/web/collab.js';
+
+test('dialog transition preserves unsent edits, pending identity and held results', () => {
+  assert.equal(typeof collab.noteDialogTransition, 'function');
+  const step = collab.noteDialogTransition;
+  let s = step(null, { type: 'open-edit', note: { id: 7, text: 'old' } }).state;
+  let out = step(s, { type: 'save' });
+  assert.equal(out.effect.kind, 'save-edit');
+  s = out.state;
+  const pending = s.pending;
+  s = step(s, { type: 'input', text: 'newer' }).state;
+  assert.equal(step(s, { type: 'save' }).effect, null);
+  s = step(s, { type: 'hold', reason: 'paused' }).state;
+  assert.equal(s.pending, pending);
+  s = step(s, { type: 'result', pending, status: 204 }).state;
+  assert.equal(s.mode, 'edit');
+  assert.equal(s.text, 'newer');
+  assert.match(s.error, /earlier/i);
+  s = step(s, { type: 'hold', reason: '' }).state;
+  out = step(s, { type: 'save' });
+  const stale = out.state.pending;
+  s = step(out.state, { type: 'retire' }).state;
+  s = step(s, { type: 'open-edit', note: { id: 8, text: 'another' } }).state;
+  assert.equal(step(s, { type: 'result', pending: stale, status: 204 }).state, s);
+});
+
+test('edit save sends only id and text; pending input cannot send twice', async () => {
+  let release;
+  const f = dialog(() => new Promise(r => { release = r; }));
+  assert.equal(typeof f.d.edit, 'function');
+  f.d.edit({ id: 7, text: 'old', author: 'Ana', color: 4 });
+  assert.equal(f.els.input.value, 'old');
+  f.type('revised'); f.els.save.fire('click');
+  f.type('unsent'); f.els.save.fire('click');
+  assert.deepEqual(f.posts, [{route:'note-edit',body:{id:7,text:'revised'}}]);
+  release({ status:204 }); await f.settle();
+  assert.equal(f.els.input.value, 'unsent'); assert.equal(f.d.open,true);
+  f.d.update({notes:[]}); assert.equal(f.d.open,false);
+});
+
+test('readonly refresh shows edited text but edit refresh preserves typing', () => {
+  const f = dialog();
+  f.d.view({id:7,text:'old'}, {resolvable:false});
+  f.d.update({notes:[{id:7,text:'changed',edited:true}]});
+  assert.match(f.els.text.textContent, /changed.*\(edited\)/);
+  f.d.edit({id:7,text:'changed'}); f.type('unsent');
+  f.d.update({notes:[{id:7,text:'remote'}]});
+  assert.equal(f.els.input.value,'unsent');
+  f.els.cancel.fire('click'); assert.equal(f.posts.length,0);
+});
+
+test('session owner reads only a successful session header and fails closed', async () => {
+  assert.equal(typeof collab.sessionNoteOwner,'function');
+  const calls=[];
+  assert.equal(await collab.sessionNoteOwner(async(...args)=>{calls.push(args);return {status:204,headers:{get:k=>k==='X-Couch-Note-Owner'?'owner':''}};}),'owner');
+  assert.equal(calls[0][0],'session'); assert.equal(calls[0][1].credentials,'same-origin'); assert.equal(calls[0][1].cache,'no-store');
+  assert.equal(await collab.sessionNoteOwner(async()=>{throw Error('offline');}),'');
+  assert.equal(await collab.sessionNoteOwner(async()=>({status:401})),'');
+});
+
+test('terminal notes retain validated owner and edited metadata',()=>{
+  const n={id:1,col:1,row:1,box:[0,0,3,3],color:0,text:'x',owner:'mine',edited:true};
+  assert.deepEqual(parseNotes({guard:0,notes:[n]}).notes,[n]);
+});
+
+for (const status of [409, undefined]) test(`dialog result ${status} preserves text and permits a deliberate retry`,()=>{
+ const step=collab.noteDialogTransition;
+ let s=step(null,{type:'open-draft',payload:{box:[1,2,3,4]}}).state;
+ s=step(s,{type:'input',text:'submitted'}).state;
+ s=step(s,{type:'save'}).state;const pending=s.pending;
+ s=step(s,{type:'input',text:'newer'}).state;
+ s=step(s,{type:'result',pending,status,text:'Not saved'}).state;
+ assert.equal(s.pending,null);assert.equal(s.text,'newer');assert.equal(s.error,'Not saved');
+ const next=step(s,{type:'save'});assert.equal(next.effect.text,'newer');assert.notEqual(next.state.pending,pending);
+ assert.equal(step(next.state,{type:'result',pending,status:204}).state,next.state);
+});
+
+test('an edited existing note labels its editor and skips beforeSave',()=>{
+ const els={root:el(),text:el(),input:el(),count:el(),msg:el(),save:el(),cancel:el(),resolve:el()};
+ const posts=[];
+ const d=noteDialog(els,{post:(...args)=>{posts.push(args);return Promise.resolve({status:204});},beforeSave:()=>{throw Error('editing asked for attribution');}});
+ d.edit({id:1,text:'updated',edited:true});
+ assert.match(els.count.textContent,/edited/);
+ els.save.fire('click');assert.deepEqual(posts,[['note-edit',{id:1,text:'updated'}]]);
+});
+
+test('opening another note cannot replace a held draft or its pending request',async()=>{
+ let release;
+ const f=dialog(()=>new Promise(r=>{release=r;}));
+ const payload={draft:'held'};
+ f.d.draft(payload);f.type('unsaved draft');f.els.save.fire('click');
+ f.d.hold('Annotation is off.');
+ assert.equal(f.d.view({id:9,text:'existing'},{resolvable:true}),false);
+ assert.equal(f.els.input.value,'unsaved draft');assert.equal(f.d.draftPayload,payload);
+ assert.match(f.els.msg.textContent,/cancel.*another/i);
+ f.d.hold('');assert.equal(f.els.save.disabled,true);
+ release({status:409,text:'Off'});await f.settle();
+ assert.equal(f.els.input.value,'unsaved draft');assert.equal(f.d.draftPayload,payload);
+ f.els.cancel.fire('click');
+ assert.equal(f.d.view({id:9,text:'existing'},{resolvable:true}),true);
+ assert.equal(f.els.text.textContent,'existing');
 });

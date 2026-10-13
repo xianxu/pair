@@ -345,3 +345,15 @@ test('the 👆 and 💭 buttons pick a mode directly', () => {
   assert.ok(!f.classes.has('comment'));
   assert.ok(MODE_TIPS.point && MODE_TIPS.comment && !/Click for/.test(MODE_TIPS.point + MODE_TIPS.comment), 'tips describe a mode, not a toggle');
 });
+
+test('terminal pin edits only the current session owner while enabled', () => {
+  let down, opened;
+  const note={id:7,col:1,row:1,color:0,text:'original',owner:'mine'};
+  const stage={querySelector:()=>({getBoundingClientRect:()=>({left:0,top:0,width:800,height:240})}),addEventListener:(k,fn)=>{if(k==='pointerdown')down=fn;},classList:{toggle(){}}};
+  const mode=pointerMode({cols:80,rows:24},stage,{notes:()=>({guard:0,notes:[note]}),owner:()=> 'mine',dialog:{close(){},view:n=>opened=['view',n],edit:n=>opened=['edit',n]}});
+  const tap=()=>down({clientX:15,clientY:15,preventDefault(){}});
+  mode.setOn(true); tap(); assert.deepEqual(opened,['edit',note]);
+  note.owner='other'; tap(); assert.equal(opened[0],'view');
+  delete note.owner; tap(); assert.equal(opened[0],'view');
+  note.owner='mine'; mode.setOn(false); tap(); assert.equal(opened[0],'view');
+});

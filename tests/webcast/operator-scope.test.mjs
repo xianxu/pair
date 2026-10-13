@@ -120,3 +120,13 @@ test('adapter end retires requests even when the document number is retained', a
   assert.equal(h.timers.size, 0);
   assert.equal((await old).status, 409);
 });
+
+test('operator edit adapter preserves uncertain edit identity and submits only edit fields',async()=>{
+ const h=mounted();h.snapshot(1,10);
+ const body={seg:1,id:'note',text:'revised'};
+ const first=h.options.post('note-edit',body);
+ assert.equal(h.sent.at(-1).op,'edit-note');assert.deepEqual(h.sent.at(-1).body,body);
+ const id=h.sent.at(-1).request;h.expire();await first;
+ const retry=h.options.post('note-edit',body);assert.equal(h.sent.at(-1).op,'status');assert.equal(h.sent.at(-1).request,id);
+ h.win.__couchcastOperatorReply({request:id,outcome:'accepted'});assert.equal((await retry).status,204);
+});

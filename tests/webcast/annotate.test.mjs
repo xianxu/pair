@@ -153,3 +153,17 @@ test('readPalette: palette and annotate, or null for any other shape', () => {
     assert.equal(readPalette(bad), null, JSON.stringify(bad));
   }
 });
+
+import { Element } from './dom-fixture.mjs';
+import { pinLayer } from '../../cmd/internal/webcast/web/annotate.js';
+test('stable pin refreshes click payload and edited tooltip',()=>{
+  const root=new Element('root'); let opened;
+  const pins=pinLayer({createElement:t=>new Element(t)},root,n=>{opened=n;});
+  const old={id:'n',text:'old',region:[0,0,50,50],author:{name:'A',color:'#112233'}};
+  pins.draw([old],()=>null,()=>{});
+  const chip=root.querySelector('.chip');
+  const revised={...old,text:'new',edited:true}; pins.draw([revised],()=>null,()=>{});
+  assert.equal(root.querySelector('.chip'),chip);
+  for(const fn of chip.listeners.click)fn({stopPropagation(){}});
+  assert.equal(opened,revised); assert.match(chip.title,/new.*edited/);
+});

@@ -5,7 +5,7 @@
 // pick (#446).
 
 import { noteAt, boxHasPin, parseNotes } from './notes.js';
-import { HEX_COLOR, pointerColor, colorStore, railAt, renderSwatches, noteDialog, poster, gestureBox, dragMin, sessionLost, storedName } from './collab.js';
+import { HEX_COLOR, pointerColor, colorStore, railAt, renderSwatches, noteDialog, poster, gestureBox, dragMin, sessionLost, sessionNoteOwner, storedName } from './collab.js';
 
 export { pointerColor, colorStore, RAIL_INSET, railAt, renderSwatches } from './collab.js';
 
@@ -285,6 +285,8 @@ async function start() {
   const modes = document.getElementById('modes');
   let notes = { guard: 0, notes: [] };
   let pointer = null;
+  let owner = '';
+  sessionNoteOwner(fetch).then((value) => { owner = value; });
   const byId = (id) => document.getElementById(id);
   const dialog = noteDialog({
     root: byId('note'), text: byId('note-text'), input: byId('note-input'), count: byId('note-count'),
@@ -292,6 +294,10 @@ async function start() {
   }, {
     post: postJSON,
     color: () => pointer.color(),
+    resolveRequest: (id) => {
+      const author = storedName(storage);
+      return ['resolve', { id, ...(author ? { author } : {}) }];
+    },
     // The name the lock page kept (pair#495) attributes the note.
     beforeSave: () => {
       const name = storedName(storage);
@@ -300,6 +306,7 @@ async function start() {
   });
   pointer = pointerMode(term, stage, {
     notes: () => notes,
+    owner: () => owner,
     dialog,
     dragBox: screenBox(stage, term),
     modes: {
@@ -387,7 +394,7 @@ function screenBox(stage, term) {
 
 // POST_ROUTES is every request this page makes besides its own assets and
 // stream (#412, #447).
-const POST_ROUTES = ['point', 'note', 'resolve'];
+const POST_ROUTES = ['point', 'note', 'note-edit', 'resolve'];
 
 // postJSON is the page's one request function (collab.js's poster).
 const postJSON = poster((url, init) => fetch(url, init), POST_ROUTES);
@@ -500,7 +507,8 @@ export function pointerMode(term, stage, deps = {}) {
     if (hit) {
       e.preventDefault();
       end();
-      dialog.view(hit, { resolvable: on });
+      if (on && hit.owner && hit.owner === deps.owner?.()) dialog.edit(hit);
+      else dialog.view(hit, { resolvable: on });
       return;
     }
     if (!on) {
