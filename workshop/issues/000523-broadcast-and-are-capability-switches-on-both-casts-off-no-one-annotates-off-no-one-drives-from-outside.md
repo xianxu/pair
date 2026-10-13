@@ -126,6 +126,19 @@ Durable plan: [000523-cast-capability-switches-plan.md](../plans/000523-cast-cap
   Capability and recording Go suites plus all 13 model tests pass. No milestone
   boundary crossed yet; server/controller enforcement remains outstanding.
 
+- M1 Task 2 annotation half implemented: Board default OFF, captured admissions,
+  command-ordered mutations/clear, explicit retry and latest-state subscription;
+  Writer and recorder acknowledge/deduplicate cleanup, including paused and
+  before-live behavior. Recorder also exposes ordered ResetControl for the
+  controller integration. Chrome/Cast cleanup adapter wired.
+- Board spec review found sticky sink errors could preserve a nested Retryable;
+  wrapped them as Broken, observed regression red then green. Re-review clean.
+  Quality review clean; root ran capability/Board/recorder race suites green
+  before the drive work began. Webcast compile-only green before drive edits.
+- Drive authority/release implementation is in progress independently; HTTP
+  admission test is written but its red run is temporarily blocked by those
+  in-flight compile changes. No full-suite or milestone-close claim yet.
+
 ## Revisions
 
 - 2026-10-12 22:58 PDT: Added approved defaults/copy semantics and proposed

@@ -155,6 +155,12 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 			return ErrNotRecording
 		})
 		bd.Logf = cfg.Logf
+		bd.WithAnnotationCleanup(func(ctx context.Context, generation uint64) error {
+			if cleaner, ok := b.(AnnotationCleaner); ok {
+				return cleaner.ClearAnnotations(ctx, generation)
+			}
+			return ErrNotRecording
+		})
 		id := recordingID(time.Now())
 		recDir = filepath.Join(cfg.RecordingsDir, id)
 		ro = &RecordOptions{ID: id, Out: recordingOutput(cfg, liveSink, bd, id, proxy), Logf: cfg.Logf}

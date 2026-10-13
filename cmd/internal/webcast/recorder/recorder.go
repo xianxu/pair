@@ -183,12 +183,13 @@ type Recorder struct {
 	shotQ  chan shotJob
 
 	// Owned by the loop.
-	m      *mirror
-	sink   rec.Sink
-	frames FrameWriter
-	assets assets.Store
-	t0     time.Time
-	opened bool
+	annotationCleanup, driveCleanup uint64 // latest acknowledged authority generation
+	m                               *mirror
+	sink                            rec.Sink
+	frames                          FrameWriter
+	assets                          assets.Store
+	t0                              time.Time
+	opened                          bool
 	// openedFlag is opened for other goroutines (Opened).
 	openedFlag atomic.Bool
 	live       bool

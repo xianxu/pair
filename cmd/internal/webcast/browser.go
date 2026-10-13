@@ -1,6 +1,7 @@
 package webcast
 
 import (
+	"context"
 	"errors"
 
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
@@ -49,4 +50,15 @@ var (
 // writer drops the record if that document has gone (recording.State.OnDoc).
 type Emitter interface {
 	Emit(r recording.Record, doc int) error
+}
+
+// AnnotationCleaner acknowledges an ordered, idempotent annotation clear.
+// generation is stable across retries of the same disable operation.
+type AnnotationCleaner interface {
+	ClearAnnotations(ctx context.Context, generation uint64) error
+}
+
+// ControlResetter acknowledges removing both the driver and pending requests.
+type ControlResetter interface {
+	ResetControl(ctx context.Context, generation uint64) error
 }
