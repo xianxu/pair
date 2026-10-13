@@ -38,7 +38,7 @@ The operator (2026-10-12):
 
 ## Plan
 
-- [ ] Implement and verify [the captured-page plan](../plans/000525-captured-page-plan.md).
+- [x] Implement and verify [the captured-page plan](../plans/000525-captured-page-plan.md).
 
 ## Log
 
@@ -81,3 +81,9 @@ total: 2.544
 Implemented v2 captured page schema/reference validation, legacy v1 reading, selector-free projection and box-text metadata, and CDP page probes inside existing capture fences. New schema/projection/capture tests failed before implementation; submission, recorder, webcast, Couch guide and console targeted tests now pass. Collector red/green tests preserve mixed text, shadow/slot order, clipping and editable-value protection. Direct and persisted alias rejection includes new page authority fields. Live Chrome assertions now cover same-document URL/title changes but have not run yet; full suite precedes them.
 
 Estimate-quality INFO allocation: schema includes v1/v2 round trips and retry tests; API integration includes fake extensions and race verification; real-API discovery owns actual Chrome verification; review allowance includes full-suite orchestration and staging. The skill primitive covers executable ReadingGuide/shipped agent guidance, while atlas-docs covers README/schema/map prose. Rates remain provisional.
+
+### 2026-10-13 — verification complete, operator staging next
+
+Implementation commit f32f6bd3a8d7d6159f9c85480d9fd33eeade007f passed the affected schema, capture, privacy and guidance tests, targeted race tests, git diff --check, make build, and the complete make -k test suite (exit 0; /tmp/pair-525-full.log). Live Chrome TestLiveSubmissionCrop then passed without skipping (4.61s), exercising the real page URL/title, same-document navigation and selector-free box text. Latest fetched main had no commits missing from this branch; #524 is still staged separately, with no stacking. No test waiver was needed.
+
+Next: SDLC boundary review and PR, then coordinate staging with hub for the operator to submit a blog note and inspect its localhost URL/title. The hub explicitly requested this quick look before landing.

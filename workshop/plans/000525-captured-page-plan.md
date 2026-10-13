@@ -86,9 +86,9 @@ Files: `cmd/internal/webcast/recorder/{box_text.js,box_text_test.js}`, `cmd/inte
 Files: `cmd/internal/submission/model.go`, `cmd/internal/couchcmd/skills/couch/SKILL.md`, `README.md`, `atlas/webcast-submission.md`, issue/plan/lessons.
 
 - [x] Update guidance and schema examples consistently. Preserve privacy gates and @N query instructions.
-- [ ] Check latest main for #524 capture changes; merge main only, preserving settlement/viewport logic if it lands first. No stacking.
-- [ ] Run affected packages, targeted race checks, `git diff --check` and `make build`. Run full `make test` in the background before close/headless conformance; inspect completion. Known #514 timing waiver from #526 is not silently generalized to new failures.
-- [ ] Run `WEBCAST_LIVE_CHROME=1 GOMAXPROCS=2 go test -p 1 ./cmd/internal/webcast -run '^TestLiveSubmissionCrop$' -count=1 -timeout 60s -v`; skips are not evidence. Log results and commit.
+- [x] Check latest main for #524 capture changes; merge main only, preserving settlement/viewport logic if it lands first. No stacking.
+- [x] Run affected packages, targeted race checks, `git diff --check` and `make build`. Run full `make test` in the background before close/headless conformance; inspect completion. Known #514 timing waiver from #526 is not silently generalized to new failures.
+- [x] Run `WEBCAST_LIVE_CHROME=1 GOMAXPROCS=2 go test -p 1 ./cmd/internal/webcast -run '^TestLiveSubmissionCrop$' -count=1 -timeout 60s -v`; skips are not evidence. Log results and commit.
 
 Handoff: `sdlc close --issue 525 --verified '<evidence>'` owns fresh-context review; address findings, open PR, then merge as authorized after CI is green and report actual commit hashes/PR to hub.
 
