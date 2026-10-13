@@ -11,7 +11,9 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 )
 
 func TestTerminalLaunchArgsEnforceNonSerializingPolicy(t *testing.T) {
@@ -193,5 +195,76 @@ func TestTerminalPolicyInspectionPreservesUnknown(t *testing.T) {
 	}
 	if got := ObserveTerminalUsability(server, "", "", "", nil); got.State != TerminalUnsafe {
 		t.Fatalf("invalid policy: %+v", got)
+	}
+}
+
+func TestAdmissionMetadataConsumersRejectUnsafeFiles(t *testing.T) {
+	for _, consumer := range []string{"config", "policy", "readiness"} {
+		for _, kind := range []string{"fifo", "oversize"} {
+			t.Run(consumer+"/"+kind, func(t *testing.T) {
+				root := t.TempDir()
+				t.Setenv("HOME", root)
+				path := filepath.Join(root, "config.kdl")
+				bound := maxTerminalConfigBytes
+				read := func() error { _, err := readTerminalConfig(t.Context(), root); return err }
+				if consumer == "policy" {
+					socket := filepath.Join(root, "socket")
+					var err error
+					path, err = sessionPolicyPath(socket)
+					if err != nil {
+						t.Fatal(err)
+					}
+					bound = artifactpath.MaxSessionLaunchPolicyBytes
+					read = func() error { _, err := readSessionPolicy(socket); return err }
+				}
+				if consumer == "readiness" {
+					path = AgentReadyPath(root, "tag", "codex")
+					bound = maxAgentReadyBytes
+					read = func() error {
+						return observePolicyAgentWithTable(artifactpath.SessionLaunchPolicy{Tag: "tag", Agent: "codex"}, root, nil)
+					}
+				}
+				if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+					t.Fatal(err)
+				}
+				if kind == "fifo" {
+					if err := syscall.Mkfifo(path, 0600); err != nil {
+						t.Fatal(err)
+					}
+				} else {
+					f, err := os.Create(path)
+					if err != nil {
+						t.Fatal(err)
+					}
+					err = f.Truncate(bound + 1)
+					f.Close()
+					if err != nil {
+						t.Fatal(err)
+					}
+				}
+				done := make(chan error, 1)
+				go func() { done <- read() }()
+				select {
+				case err := <-done:
+					if err == nil {
+						t.Fatal("unsafe metadata accepted")
+					}
+				case <-time.After(time.Second):
+					// Release the deliberately blocked old reader before failing the probe.
+					if kind == "fifo" {
+						f, err := os.OpenFile(path, os.O_WRONLY|syscall.O_NONBLOCK, 0)
+						if err == nil {
+							f.Close()
+						}
+					}
+					select {
+					case <-done:
+					case <-time.After(time.Second):
+						t.Fatal("reader did not join")
+					}
+					t.Fatal("metadata consumer blocked")
+				}
+			})
+		}
 	}
 }

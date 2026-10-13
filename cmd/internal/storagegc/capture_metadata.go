@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"os"
 	"path/filepath"
 	"syscall"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/osfs"
 )
 
 func CaptureIdentity(path string) (artifactpath.CaptureFileIdentity, error) {
@@ -74,7 +74,7 @@ func (c *Coordinator) PublishCaptureMetadata(ctx context.Context, owner artifact
 		}
 		version := 1
 		if witness != nil {
-			archived, err := readCaptureWitnessEvents(capture.Events)
+			archived, err := readCaptureWitnessEvents(ctx, capture.Events)
 			if err != nil {
 				return err
 			}
@@ -120,8 +120,8 @@ func capturePublicationTime(capture artifactpath.ParkedCapture) (time.Time, bool
 
 // ReadCaptureWitness verifies the currently open generation's source file IDs.
 // Missing historical authority is explicit nil; malformed authority is an error.
-func ReadCaptureWitness(rawPath, eventsPath string) (*artifactpath.CaptureWitness, error) {
-	w, e := readCaptureWitnessEvents(eventsPath)
+func ReadCaptureWitness(ctx context.Context, rawPath, eventsPath string) (*artifactpath.CaptureWitness, error) {
+	w, e := readCaptureWitnessEvents(ctx, eventsPath)
 	if e != nil || w == nil {
 		return w, e
 	}
@@ -138,16 +138,11 @@ func ReadCaptureWitness(rawPath, eventsPath string) (*artifactpath.CaptureWitnes
 	}
 	return w, nil
 }
-func readCaptureWitnessEvents(path string) (*artifactpath.CaptureWitness, error) {
-	f, e := os.Open(path)
+func readCaptureWitnessEvents(ctx context.Context, path string) (*artifactpath.CaptureWitness, error) {
+	data, e := osfs.ReadRegularMetadata(ctx, path, artifactpath.MaxCaptureWitnessEventsBytes)
 	if errors.Is(e, os.ErrNotExist) {
 		return nil, nil
 	}
-	if e != nil {
-		return nil, e
-	}
-	defer f.Close()
-	data, e := io.ReadAll(io.LimitReader(f, artifactpath.MaxCaptureWitnessEventsBytes+1))
 	if e != nil {
 		return nil, e
 	}

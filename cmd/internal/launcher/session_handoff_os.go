@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/osfs"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/readiness"
 )
@@ -53,7 +54,8 @@ func (e unsafeTerminalError) Error() string { return string(e) }
 func terminalObservationError(err error) TerminalSafety {
 	result := TerminalSafety{Reason: err.Error()}
 	var unsafe unsafeTerminalError
-	if errors.Is(err, os.ErrNotExist) || errors.As(err, &unsafe) {
+	var invalid *osfs.InvalidMetadataError
+	if errors.Is(err, os.ErrNotExist) || errors.As(err, &unsafe) || errors.As(err, &invalid) {
 		result.State = TerminalUnsafe
 	}
 	return result
@@ -151,7 +153,7 @@ func readSessionPolicy(socket string) (artifactpath.SessionLaunchPolicy, error) 
 	if err != nil {
 		return artifactpath.SessionLaunchPolicy{}, err
 	}
-	raw, err := readBoundedRegularMetadata(context.Background(), path, artifactpath.MaxSessionLaunchPolicyBytes)
+	raw, err := osfs.ReadRegularMetadata(context.Background(), path, artifactpath.MaxSessionLaunchPolicyBytes)
 	if err != nil {
 		return artifactpath.SessionLaunchPolicy{}, err
 	}
@@ -216,7 +218,7 @@ func observePolicyAgentWithTable(p artifactpath.SessionLaunchPolicy, root string
 	if err != nil {
 		return err
 	}
-	raw, err := readBoundedRegularMetadata(context.Background(), AgentReadyPath(owner.Directory(), p.Tag, p.Agent), maxAgentReadyBytes)
+	raw, err := osfs.ReadRegularMetadata(context.Background(), AgentReadyPath(owner.Directory(), p.Tag, p.Agent), maxAgentReadyBytes)
 	if err != nil {
 		return err
 	}
@@ -312,7 +314,7 @@ func (a *terminalOSAttempt) Check(ctx context.Context) error {
 	}
 	for _, agent := range AgentInventory() {
 		path := AgentReadyPath(owner.Directory(), a.tag, agent)
-		raw, e := readBoundedRegularMetadata(ctx, path, maxAgentReadyBytes)
+		raw, e := osfs.ReadRegularMetadata(ctx, path, maxAgentReadyBytes)
 		if errors.Is(e, os.ErrNotExist) {
 			continue
 		}
@@ -439,7 +441,7 @@ func (a *terminalOSAttempt) observeAdmission(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	readyBytes, err := readBoundedRegularMetadata(ctx, AgentReadyPath(storageOwner.Directory(), a.tag, a.agent), maxAgentReadyBytes)
+	readyBytes, err := osfs.ReadRegularMetadata(ctx, AgentReadyPath(storageOwner.Directory(), a.tag, a.agent), maxAgentReadyBytes)
 	if err != nil {
 		return err
 	}
@@ -465,7 +467,7 @@ func (a *terminalOSAttempt) observeAdmission(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	config, err := os.ReadFile(filepath.Join(a.config, "config.kdl"))
+	config, err := readTerminalConfig(ctx, a.config)
 	if err != nil {
 		return err
 	}
@@ -503,4 +505,11 @@ func (r OSRuntime) runTerminalHandoff(ctx context.Context, name, config, layout 
 		return 1, err
 	}
 	return CoordinateTerminalHandoff(ctx, a, birthBound)
+}
+
+const maxAgentReadyBytes int64 = 8192
+const maxTerminalConfigBytes int64 = 1 << 20
+
+func readTerminalConfig(ctx context.Context, dir string) ([]byte, error) {
+	return osfs.ReadRegularMetadata(ctx, filepath.Join(dir, "config.kdl"), maxTerminalConfigBytes)
 }

@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/osfs"
+	"golang.org/x/sys/unix"
 )
 
 func TestCapturePublicationCrashAndExactIdentity(t *testing.T) {
@@ -64,7 +66,7 @@ func TestCaptureWitnessArchiveAndReplacement(t *testing.T) {
 	data, _ := json.Marshal(w)
 	data = append(data, '\n')
 	os.WriteFile(eventsPath, data, 0600)
-	got, e := ReadCaptureWitness(rawPath, eventsPath)
+	got, e := ReadCaptureWitness(context.Background(), rawPath, eventsPath)
 	if e != nil || got == nil || *got != w {
 		t.Fatalf("%+v %v", got, e)
 	}
@@ -99,11 +101,70 @@ func TestCaptureWitnessArchiveAndReplacement(t *testing.T) {
 	}
 	os.Rename(rawPath, rawPath+".old")
 	os.WriteFile(rawPath, []byte("replacement"), 0600)
-	if _, e = ReadCaptureWitness(rawPath, eventsPath); e == nil {
+	if _, e = ReadCaptureWitness(context.Background(), rawPath, eventsPath); e == nil {
 		t.Fatal("accepted replacement raw")
 	}
 	os.WriteFile(eventsPath, []byte("{\"type\":\"resize\"}\n"), 0600)
-	if legacy, e := ReadCaptureWitness(rawPath, eventsPath); e != nil || legacy != nil {
+	if legacy, e := ReadCaptureWitness(context.Background(), rawPath, eventsPath); e != nil || legacy != nil {
 		t.Fatal("legacy not explicit", e)
+	}
+}
+
+func TestReadCaptureWitnessRejectsFIFOWithoutWriter(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "events")
+	if err := unix.Mkfifo(path, 0600); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() { _, err := ReadCaptureWitness(context.Background(), "unused.raw", path); done <- err }()
+	select {
+	case err := <-done:
+		var invalid *osfs.InvalidMetadataError
+		if !errors.As(err, &invalid) {
+			t.Fatalf("expected unsafe file error, got %v", err)
+		}
+	case <-time.After(250 * time.Millisecond):
+		// Release the old blocking reader and join both goroutines before failing.
+		released := make(chan error, 1)
+		go func() {
+			writer, err := os.OpenFile(path, os.O_WRONLY, 0)
+			if err == nil {
+				err = writer.Close()
+			}
+			released <- err
+		}()
+		if err := <-released; err != nil {
+			t.Fatal(err)
+		}
+		<-done
+		t.Fatal("capture witness read blocked waiting for FIFO writer")
+	}
+}
+
+func TestReadCaptureWitnessRejectsOversizeBeforeDecode(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "events")
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = f.Truncate(artifactpath.MaxCaptureWitnessEventsBytes + 1); err != nil {
+		f.Close()
+		t.Fatal(err)
+	}
+	if err = f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	_, err = ReadCaptureWitness(context.Background(), "unused.raw", path)
+	var invalid *osfs.InvalidMetadataError
+	if !errors.As(err, &invalid) {
+		t.Fatalf("expected size-bound rejection before decoding, got %v", err)
+	}
+}
+
+func TestReadCaptureWitnessHonorsCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := ReadCaptureWitness(ctx, "unused.raw", filepath.Join(t.TempDir(), "missing.events")); !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected cancellation, got %v", err)
 	}
 }

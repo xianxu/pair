@@ -73,6 +73,8 @@ pair:6 read-only while measuring; no live recovery/reboot is authorized here.
 
 ## Revisions
 
+- 2026-10-13 11:39: BR-5 extends the bounded persisted-input rule to the complete M1 consumer set through shared osfs IO; config is bounded at 1 MiB and capture events keep their existing whole-file 8 MiB limit.
+
 - 2026-10-13 11:10: M1 boundary REWORK tightens uncertainty, exact readiness child generation, bounded metadata IO, and the fixed 256-stripe lease lifecycle; see appended plan revision. Scope and explicit-only M2 remain unchanged.
 
 - 2026-10-13 10:21 PDT — TL reports the operator is recovering pair:6. It is no longer a test bed: no further split investigation or process/cache changes there; use scratch setups for legacy/conflict conformance. This changes test location, not the approved design.
@@ -223,6 +225,8 @@ M1 review against 2efe103cf returned REWORK: BR-1 unknown evidence promoted to l
 - 2026-10-13 — Review-fix verification: make build passed on f28a76e82; targeted race checks and full launcher/artifactpath/readiness/wrapcmd packages passed. Complete make test found only the cold/warm production-terminal fixture failures: its synthetic pair-wrap still emitted readiness without AgentIdentity. Updated that producer to observe the real child PID/start identity; both previously failing tests now pass (3.953s, /tmp/pair528-review-fixture.log). Production checks were not weakened. A new complete suite follows this fixture correction.
 
 - 2026-10-13 — M1 review-fix verification complete: make test passed exit 0 on f7783da40 (/tmp/pair528-review-full-final.log); make build passed exit 0 on the same HEAD (/tmp/pair528-review-build-final.log). Targeted race checks passed across launcher/readiness/core/UI (/tmp/pair528-review-race.log). All BR-1 through BR-4 fixes and regression evidence are committed; resubmitting M1 to the mandatory boundary review. No staging or live recovery performed.
+
+- 2026-10-13 11:39 — Round 2 accepted BR-1..BR-4 with independent mutation confirmation, but returned BR-5 (Important): capture-witness events and effective config remained blocking inputs. Audited all new M1 persisted byte readers, moved one shared bounded regular-file reader into osfs, wired the full consumer set and preserved whole-sidecar 8 MiB refusal. Consumer-level FIFO/oversize regressions failed old implementations and now pass; focused launcher/storagegc/osfs/artifactpath checks passed, and full storagegc passed (15.766s). Updated plan with the enumerated consumers/bounds/context limits. M1 remains open for final suite/build and review.
 
 ## Estimate
 

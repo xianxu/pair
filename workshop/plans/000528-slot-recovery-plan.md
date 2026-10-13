@@ -350,3 +350,21 @@ ARCH-SECURE: all policy/readiness admission reads share a bounded regular-file r
 ARCH-FUNERAL: admission leases use 256 permanent stripes under Pair cache session-locks-v2/HH.lock, selected by the first byte of SHA256(canonical socket). Same-key aliases share a stripe; unrelated collisions only serialize. Lock inodes are never unlinked, and total lock artifacts are bounded at 256. Exact socket policy paths remain unchanged and retire after verified absence under the lease. This new lock namespace cannot coordinate with the prior experimental layout; M1 has not been deployed/staged, so no deployed-format migration or cleanup is required. No legacy layouts are deleted.
 
 Actual M1 function owners (correction to the earlier test table): AcquireTerminalLease is in launcher/session_lease.go (integration); readBoundedRegularMetadata is new in launcher/metadata_read.go (integration); ObserveTerminalUsability/ObserveTerminalSafety are in launcher/session_handoff_os.go (integration); AgentBelongsToServer is in launcher/terminal_agent.go (pure); terminalObservationError is in launcher/session_handoff_os.go (pure); agentUsabilityReason is in couchcore/agent_usability.go (pure); overlayPassRow is in couchtty/menu_reattach.go (pure). New/modified tests cover each review defect; no automatic inference is added.
+
+
+### 2026-10-13 11:39 — BR-5 shared persisted-input rule and consumer sweep
+
+Round 2 disposed BR-1 through BR-4 but found two more members of the bounded-input family. ARCH-PURPOSE/ARCH-DRY: move the IO owner from launcher to existing osfs, as ReadRegularMetadata(ctx,path,maxBytes). Static type/size violations have a typed InvalidMetadataError; inspection/mutation/cancellation stays distinct. All new M1 persisted byte readers now use this owner, with whole-file size limits, regular-file/no-follow/nonblocking opens, opened-inode and post-read revalidation, and context checks. No prefix reader or permissive truncation is introduced.
+
+| Added consumer | Read bound / cancellation owner | Consumer regression |
+|---|---|---|
+| readSessionPolicy: usability and policy retirement | existing MaxSessionLaunchPolicyBytes; projection currently has no context parameter and uses Background | policy FIFO and oversized file |
+| observePolicyAgentWithTable: projected/current readiness | 8 KiB; snapshot API uses Background | readiness FIFO and oversized file |
+| terminalOSAttempt.Check: retained readiness across agents | 8 KiB; handoff context | shared reader cases and existing cold admission checks |
+| terminalOSAttempt.observeAdmission: new readiness | 8 KiB; handoff context | shared reader cases and real cold/warm conformance |
+| readTerminalConfig: effective config digest during admission | 1 MiB; handoff context | config FIFO, oversized config; prior implementation fails both |
+| readCaptureWitnessEvents: source preservation and archived publication recheck | existing MaxCaptureWitnessEventsBytes (8 MiB), whole sidecar; explicit context (ParkScrollback remains a synchronous context-free API and supplies Background) | real consumer FIFO, oversized file rejected before decode, cancellation |
+
+The sweep checked every production read added by the M1 branch diff. Existing readStateJSON, reused for capturePublicationTime, already checks regular files, opens nonblocking/no-follow, bounds at 1 MiB and rejects trailing JSON. Existing transferFile is a payload copy, not a new metadata reader; witnessed copies add no-follow/nonblocking and exact regular-file identity checks, while legacy payload copying remains its previous contract. CaptureIdentity/socket Lstat calls inspect metadata without opening byte streams; capture writers/lease descriptors are not input readers. No other new persisted byte reader was found.
+
+The shared helper's direct tests cover FIFO, directory, symlink, oversized input, exact bound, missing file, cancellation and inode replacement. Consumer tests are required in addition to helper tests so a future direct os.ReadFile substitution cannot bypass the rule unnoticed. Full OS integration runs remain required in the development checkout, where process inspection is available (review sandbox denied /bin/ps).

@@ -32,8 +32,9 @@ not after the client exits. Failure cancels only the attempted client; it does
 not delete saved layouts or kill an unverified server. Policy files and stable
 lock inodes are excluded from ordinary session GC. Locks occupy 256 permanent
 stripes in session-locks-v2; socket-key collisions only serialize admission.
-Policy/readiness reads are bounded regular-file reads with nonblocking open
-and inode revalidation.
+Policy, readiness, effective config and capture-witness reads share
+osfs.ReadRegularMetadata: bounded regular-file reads with nonblocking open,
+context checks and inode revalidation.
 
 New tty captures start with an events witness naming their file identities,
 capture generation and producing launch ordinal/nonce. Archive metadata v2

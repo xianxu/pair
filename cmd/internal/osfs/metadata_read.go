@@ -1,4 +1,4 @@
-package launcher
+package osfs
 
 import (
 	"context"
@@ -11,12 +11,16 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const maxAgentReadyBytes int64 = 8192
+// InvalidMetadataError identifies a static type or size violation. IO errors
+// and concurrent file changes remain distinct, inconclusive observations.
+type InvalidMetadataError struct{ Path, Reason string }
 
-// readBoundedRegularMetadata refuses special files before opening, and opens
+func (e *InvalidMetadataError) Error() string { return fmt.Sprintf("metadata %q %s", e.Path, e.Reason) }
+
+// ReadRegularMetadata refuses special files before opening, and opens
 // nonblocking without following a final symlink so replacement by a FIFO cannot
 // strand an admission observer. Metadata lives on the local runtime filesystem.
-func readBoundedRegularMetadata(ctx context.Context, path string, maxBytes int64) ([]byte, error) {
+func ReadRegularMetadata(ctx context.Context, path string, maxBytes int64) ([]byte, error) {
 	if ctx == nil {
 		return nil, errors.New("metadata read requires context")
 	}
@@ -31,10 +35,10 @@ func readBoundedRegularMetadata(ctx context.Context, path string, maxBytes int64
 		return nil, err
 	}
 	if !before.Mode().IsRegular() {
-		return nil, unsafeTerminalError(fmt.Sprintf("metadata %q is not a regular file", path))
+		return nil, &InvalidMetadataError{Path: path, Reason: "is not a regular file"}
 	}
 	if before.Size() > maxBytes {
-		return nil, unsafeTerminalError(fmt.Sprintf("metadata %q exceeds size bound", path))
+		return nil, &InvalidMetadataError{Path: path, Reason: "exceeds size bound"}
 	}
 	if err = ctx.Err(); err != nil {
 		return nil, err
@@ -60,7 +64,7 @@ func readBoundedRegularMetadata(ctx context.Context, path string, maxBytes int64
 		return nil, err
 	}
 	if int64(len(raw)) > maxBytes {
-		return nil, unsafeTerminalError(fmt.Sprintf("metadata %q exceeds size bound", path))
+		return nil, &InvalidMetadataError{Path: path, Reason: "exceeds size bound"}
 	}
 	after, err := f.Stat()
 	if err != nil {

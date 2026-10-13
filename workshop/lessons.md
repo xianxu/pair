@@ -1534,3 +1534,5 @@ proof; record the surprising case so the next change starts from evidence.
 - A PID plus ancestry is not a process generation. Pin the child's start identity in readiness, and mutation-test reuse of only that PID while the server remains unchanged.
 - A byte limit does not bound open/read on a FIFO. Runtime metadata readers must reject special files, open nonblocking, and validate the opened inode.
 - Permanent coordination files require a cardinality bound. Stable hashed stripes preserve exclusion without unsafe unlink races or per-session accumulation.
+
+- **#528 bounded-read family:** fixing named reader sites is insufficient. Enumerate every new persisted-input consumer in the branch diff, including audit/config and capture sidecars, and add consumer tests that fail if they bypass the shared reader.

@@ -933,7 +933,7 @@ func (r OSRuntime) ParkScrollback(tag, agent string, move bool) (string, bool) {
 	}
 	// Capture provenance must be checked against the source generation before
 	// transfer changes its file IDs. Missing historical evidence stays legacy.
-	witness, err := storagegc.ReadCaptureWitness(scrollback.Raw, scrollback.Events)
+	witness, err := storagegc.ReadCaptureWitness(context.Background(), scrollback.Raw, scrollback.Events)
 	skipEvents := false
 	if err != nil {
 		// Optional unreadable events must not discard usable raw history. Keep

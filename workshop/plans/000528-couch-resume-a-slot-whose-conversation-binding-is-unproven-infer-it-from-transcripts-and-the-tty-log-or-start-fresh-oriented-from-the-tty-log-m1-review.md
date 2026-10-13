@@ -99,3 +99,101 @@ findings:
     detail: |
       cmd/internal/artifactpath/session_policy.go:151-165 allocates one lock pathname per canonical socket, while cmd/internal/artifactpath/manifest.go:1460 permanently protects every such inode. Define a bounded coordination scheme or safe retirement protocol without unlinking active or awaited locks; document and measure any intentional permanent per-session cost. ARCH-FUNERAL.
 ```
+
+---
+
+## Re-review — 2026-10-13T11:34:11-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 528 — couch: resume a slot whose conversation binding is unproven: infer it from transcripts and the tty log, or start fresh oriented from the tty log |
+| repo | pair |
+| issue file | workshop/issues/000528-couch-resume-a-slot-whose-conversation-binding-is-unproven-infer-it-from-transcripts-and-the-tty-log-or-start-fresh-oriented-from-the-tty-log.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | e33a1f0e6e159a81eb147f7132c1b1ceb8c331d2..cf8eee44b80600320ef132d402877db7b4413646 |
+| command | sdlc milestone-close --issue 528 --milestone M1 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-13T11:34:11-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The four prior findings are addressed, with regression tests independently confirmed to fail when their protections are removed. The revised M1 scope and README/atlas updates are substantially delivered. One Important issue remains: two new artifact reads escape the bounded-read rule. Full OS integration verification also remains incomplete because `/bin/ps` execution is denied in this review environment.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Typed uncertainty reaches core projection and the attached-pass overlay. Focused tests pass; removing the unknown-state overlay guard or converting inspection errors to unsafe makes the respective regressions fail.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Readiness records carry agent start identity and AgentBelongsToServer validates it. Removing the agent-identity comparison fails the unchanged-PID/ancestry regression.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Policy and readiness consumers use readBoundedRegularMetadata. Its regressions pass; replacing it with os.ReadFile fails FIFO, oversized-input, symlink and cancellation cases. Additional consumers missed by the family sweep are reported separately below.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      TerminalLease now selects among 256 permanent stripes. The 10,000-socket regression passes and fails when full-hash per-socket lock paths are restored.
+findings:
+  - id: new
+    severity: Important
+    family: bounded-untrusted-artifact-reads
+    title: |
+      Capture-witness and admission-config reads still permit indefinite blocking
+    detail: |
+      cmd/internal/storagegc/capture_metadata.go:142 opens events with blocking os.Open before its byte limit; a FIFO without a writer blocks capture preservation indefinitely, reproduced by a disposable regression probe. cmd/internal/launcher/session_handoff_os.go:468 also reads config.kdl with unbounded, non-cancellable os.ReadFile, so admission can remain stuck beyond its timeout while the coordinator waits for the observer. This is the 2nd finding in family bounded-untrusted-artifact-reads. Do NOT fix only these instances: enumerate every persisted-input read added by M1 and enforce one bounded, regular-file, nonblocking, cancellation-aware rule through a shared IO owner, with consumer-level FIFO and oversized-input regressions. ARCH-CONSTRAINTS, ARCH-SECURE, ARCH-PURPOSE.
+```
+
+1. **Strengths**
+
+   - Unknown, usable and unsafe observations remain distinct through the repaired observer, classifier and overlay.
+   - Agent generation checks reject PID reuse while allowing legitimate readiness replacement after native reexecution.
+   - Stable lock stripes bound permanent coordination artifacts without unlinking inodes held by waiters.
+   - Capture witnessing separates producer provenance from native-conversation proof; README and atlas document the new surface and M2 boundary.
+
+2. **Critical findings**
+
+   None.
+
+3. **Important findings**
+
+   The artifact-read finding above blocks acceptance. Move the reusable reader to an appropriate shared IO package and sweep all new consumers. A byte limit applied **after** a blocking open does not bound completion time.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   - Focused regression suites passed across artifactpath, launcher, couchcore, couchtty, storagegc and wrapcmd.
+   - Focused race checks passed across launcher, artifactpath, couchcore and couchtty.
+   - Mutation checks verified red evidence for BR-1 through BR-4.
+   - A disposable FIFO probe reproduced the new capture-witness hang; it unblocked and joined its reader before failing.
+   - Broad verification initially encountered missing generated runtime assets. Assets were generated only in the disposable copy. OS integration checks remained blocked by `fork/exec /bin/ps: operation not permitted`; the broad run was stopped without claiming success.
+   - The disposable copy was removed; the pinned worktree remains unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — Pass:** shared terminal usability and admission paths replace independent decisions.
+   - **ARCH-PURE — Pass:** projection, identity and schema logic have direct value tests; IO owners are separate.
+   - **ARCH-PURPOSE — Flag:** the bounded-read correction addressed named consumers but missed enumerable siblings.
+   - **ARCH-MOCK — Pass, with verification limitation:** stateful handoff fixtures control admission, cancellation and client exit; live OS conformance could not be independently completed here.
+   - **ARCH-CONSTRAINTS — Flag:** remaining blocking reads defeat bounded completion.
+   - **ARCH-SECURE — Flag:** special-file inputs still reach blocking opens.
+   - **ARCH-ORDER — Pass for inspected sequences:** uncertainty survives projection, and handoff cleanup joins owned work before releasing coordination.
+   - **ARCH-FUNERAL — Pass:** lock artifacts have a fixed aggregate bound; policy retirement and existing capture retention provide lifecycle owners.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry defining the bounded persisted-input read rule, enumerating all M1 consumers—including capture events and effective config—and naming the shared reader owner and consumer-level regression matrix. Record that OS integration verification must be rerun where process inspection is available.

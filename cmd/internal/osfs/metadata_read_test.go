@@ -1,4 +1,4 @@
-package launcher
+package osfs
 
 import (
 	"context"
@@ -41,7 +41,7 @@ func TestBoundedRegularMetadata(t *testing.T) {
 			done := make(chan struct{})
 			var raw []byte
 			var readErr error
-			go func() { raw, readErr = readBoundedRegularMetadata(ctx, path, 32); close(done) }()
+			go func() { raw, readErr = ReadRegularMetadata(ctx, path, 32); close(done) }()
 			select {
 			case <-done:
 			case <-ctx.Done():
@@ -54,6 +54,12 @@ func TestBoundedRegularMetadata(t *testing.T) {
 			} else if readErr == nil || len(raw) != 0 {
 				t.Fatalf("unsafe metadata accepted: %q %v", raw, readErr)
 			}
+			if kind == "oversize" || kind == "fifo" || kind == "directory" || kind == "symlink" {
+				var invalid *InvalidMetadataError
+				if !errors.As(readErr, &invalid) {
+					t.Fatalf("static defect lacks typed error: %v", readErr)
+				}
+			}
 			if kind == "missing" && !errors.Is(readErr, os.ErrNotExist) {
 				t.Fatalf("lost missing classification: %v", readErr)
 			}
@@ -64,7 +70,7 @@ func TestBoundedRegularMetadata(t *testing.T) {
 func TestBoundedRegularMetadataCanceledBeforeObservation(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	_, err := readBoundedRegularMetadata(ctx, filepath.Join(t.TempDir(), "absent"), 32)
+	_, err := ReadRegularMetadata(ctx, filepath.Join(t.TempDir(), "absent"), 32)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("canceled read: %v", err)
 	}
@@ -72,7 +78,7 @@ func TestBoundedRegularMetadataCanceledBeforeObservation(t *testing.T) {
 
 func TestBoundedRegularMetadataRejectsInvalidBound(t *testing.T) {
 	for _, bound := range []int64{0, -1, 1<<63 - 1} {
-		if _, err := readBoundedRegularMetadata(t.Context(), "unused", bound); err == nil {
+		if _, err := ReadRegularMetadata(t.Context(), "unused", bound); err == nil {
 			t.Fatalf("accepted bound %d", bound)
 		}
 	}
