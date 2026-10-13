@@ -47,7 +47,7 @@ Durable plan: `workshop/plans/000495-broadcast-a-one-time-code-locks-every-cast-
 
 - [x] M1 — `castlock` core + Host gate (session seam) + lock page (code + name) + unlock route; terminal LIVE and pointer links locked; revoke ends live streams; every route refuses without a session (direct `GET events` included).
 - [x] M2 — web cast view and drive locks (6-digit drive); lock-page name replaces #470's note-dialog prompt; terminal notes gain the author; headless-Chrome tests unlock first.
-- [ ] M3 — Couch: operator-only presenter layer (never tapped); hover tooltip with codes, Alt+click Codes menu with per-link rotate and "rotate all", guess-rotation alert, the three-flash on rotation — all in that layer; atlas threat model; follow-up issue for replay links; operator smoke test on desktop and iPad.
+- [x] M3 — Couch: operator-only presenter layer (never tapped); hover tooltip with codes, Alt+click Codes menu with per-link rotate and "rotate all", guess-rotation alert, the three-flash on rotation — all in that layer; atlas threat model; follow-up issue for replay links; operator smoke test on desktop and iPad.
 
 ## Estimate
 
@@ -84,6 +84,7 @@ total: 8.05
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed M3 — BR-16 fixed (rotations bound to the cast's start attempt; TestLateRotationFromAnEndedCastIsDropped). BR-17: README section with per-control table. BR-18: operator smoke test on desktop and iPad PASSED ('tested the code, it's working well'), re-test of the ergonomics revision and menu PASSED ('looks good for those changes'); both recorded in the Log. Revisions folded in: the cast row's rule (hover and Alt+click on LIVE/Chrome cells, right-click copies), Codes menu as a pure model with per-word click targets and keyboard, popup stays open with a press flash and in-place rotation. make -k test exit 0 on the merged head 3bf5f83b under the suite lock.; review verdict: FIX-THEN-SHIP
 - 2026-10-12: closed M2 — BR-10: node tests for the web viewer's relock on a lost session (relock, disconnected when the session holds, no probe after end or while reconnecting); revert of the branch fails the relock test. BR-1: plan summary current (three web links, LinkLocks registry, tooltip anchors, live-test substitution). make -k test exit 0 under the suite lock before these test-and-plan-only changes.; review verdict: FIX-THEN-SHIP
 - 2026-10-12: closed M1 — Round 1 fixes: BR-4 Rotation.Gen + TestConcurrentRotationsNewestGenIsCurrentCode; BR-3 plan records D1 Strict and revocation as built; fail-closed spent code (TestSpentCodeThatCannotRotateFailsClosed), Failed outcome; FuzzUnlockBody (525k execs); castClient replaces DefaultClient mutation. castlock+broadcast -race green; couchtty cast tests green. Earlier: make -k test green except artifact inventory, fixed.; review verdict: FIX-THEN-SHIP
 - D4 follow-up filed by the hub from pair:0 as pair#509 (replay share links; unclaimed).

@@ -247,6 +247,53 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - "n": 7
+      timestamp: "2026-10-12T21:13:35-07:00"
+      dispatched: "2026-10-12T21:10:55-07:00"
+      agent: claude
+      dispose:
+        - id: BR-16
+          disposition: addressed
+          note: linkKey now includes the start attempt and onCodeRotated drops non-current attempts; reverting the guard fails TestLateRotationFromAnEndedCastIsDropped.
+          round: 7
+        - id: BR-17
+          disposition: addressed
+          note: 'README #495 section covers code, lock page, hover, Alt+click menu and a per-control table; README:886 and :1015 could still gain a "after the code" clause.'
+          round: 7
+        - id: BR-18
+          disposition: addressed
+          note: Issue Log records the operator smoke test on desktop and iPad (build bd801297) plus the re-test of f7e6cc7a.
+          round: 7
+        - id: BR-19
+          disposition: not-addressed
+          note: Issue line 35 still says clicking the code in the tab bar rotates it; atlas/webcast.md:178 is a sibling (raised below).
+          round: 7
+        - id: BR-20
+          disposition: not-addressed
+          note: No test runs chooseCodes(t, codesAction{}); rotate all is only selected in the pure layout test.
+          round: 7
+        - id: BR-21
+          disposition: not-addressed
+          note: console_pointer.go:109/130/148, console_broadcast.go:231, console_webcast.go:285/306 still copy locked links with no code hint.
+          round: 7
+      findings:
+        - id: BR-22
+          severity: Minor
+          title: atlas/webcast.md:178 still says Alt+right-click on the Chrome cell copies the drive link, which this range removed
+          detail: 'This is the 6th finding in family spec-moves-with-decisions. Rule: when a commit replaces a binding or decision, grep the issue Spec, Done-when, plan current-design section, atlas and README for the old terms in that same commit. Here grep "Alt.*right" and "clicking the code" across atlas/, README.md, and the issue file; fix the two hits (atlas/webcast.md:178, issue line 35).'
+          family: spec-moves-with-decisions
+          round: 7
+        - id: BR-23
+          severity: Minor
+          title: onCodeRotated checks the cast attempt under c.mu but writes the flash later under codes.mu, so a cast ending in between still flashes its dead code
+          detail: 'This is the 3rd finding in family unordered-async-notifications. Rule: the currency check and the state write for an async notification happen in one critical section against the same state that end-of-producer clears. Fix: have forgetCastCodes record the ended attempt (or the current attempt) in castCodes and check it under codes.mu at console_castcodes.go:436.'
+          family: unordered-async-notifications
+          round: 7
+      boundary: M3
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 3bf5f83bfac0357b746abeff1d8e76fdd738ed53
+      blocked: false
 ---
 
 # Gate ledger — pair#495 (boundary-review)
@@ -349,6 +396,24 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-21** [Minor] `operator-affordance-discoverability` Link-copy notices do not tell the operator that viewers need a code or where to see it
   console_broadcast.go:228, console_pointer.go:130 and :148, and console_webcast.go:268 copy a now-locked link without hinting to hover for its code.
 
+## Round 7 — 2026-10-12T21:13:35-07:00 (claude) — passed
+
+### Disposed
+
+- BR-16 — addressed — linkKey now includes the start attempt and onCodeRotated drops non-current attempts; reverting the guard fails TestLateRotationFromAnEndedCastIsDropped.
+- BR-17 — addressed — README #495 section covers code, lock page, hover, Alt+click menu and a per-control table; README:886 and :1015 could still gain a "after the code" clause.
+- BR-18 — addressed — Issue Log records the operator smoke test on desktop and iPad (build bd801297) plus the re-test of f7e6cc7a.
+- BR-19 — not-addressed — Issue line 35 still says clicking the code in the tab bar rotates it; atlas/webcast.md:178 is a sibling (raised below).
+- BR-20 — not-addressed — No test runs chooseCodes(t, codesAction{}); rotate all is only selected in the pure layout test.
+- BR-21 — not-addressed — console_pointer.go:109/130/148, console_broadcast.go:231, console_webcast.go:285/306 still copy locked links with no code hint.
+
+### Raised
+
+- **BR-22** [Minor] `spec-moves-with-decisions` atlas/webcast.md:178 still says Alt+right-click on the Chrome cell copies the drive link, which this range removed
+  This is the 6th finding in family spec-moves-with-decisions. Rule: when a commit replaces a binding or decision, grep the issue Spec, Done-when, plan current-design section, atlas and README for the old terms in that same commit. Here grep "Alt.*right" and "clicking the code" across atlas/, README.md, and the issue file; fix the two hits (atlas/webcast.md:178, issue line 35).
+- **BR-23** [Minor] `unordered-async-notifications` onCodeRotated checks the cast attempt under c.mu but writes the flash later under codes.mu, so a cast ending in between still flashes its dead code
+  This is the 3rd finding in family unordered-async-notifications. Rule: the currency check and the state write for an async notification happen in one critical section against the same state that end-of-producer clears. Fix: have forgetCastCodes record the ended attempt (or the current attempt) in castCodes and check it under codes.mu at console_castcodes.go:436.
+
 ## Open findings
 
 - **BR-6** [Minor] `spec-moves-with-decisions` The plan still says revoke sends event: locked and that a sessionFrom(r) seam exists; the code does neither
@@ -357,9 +422,8 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-13** [Minor] `behavior-without-default-test` Terminal viewer's note author (viewer.js beforeSave, collab.js storedName) has only a source-grep test, no behavioral one
 - **BR-14** [Minor] `restated-constant-unpinned` The 40-char viewer-name bound is restated in collab.js, notes.go and lock.html maxlength with no parity test
 - **BR-15** [Minor] `test-asserts-weaker-than-name` TestCastBrowserFirstThenLink now passes on the lock page's 200 and no longer proves the viewer page is served
-- **BR-16** [Important] `unordered-async-notifications` Code-rotation ordering is keyed by (cast kind, link), so a late rotation from an ended cast poisons the next cast
-- **BR-17** [Important] `docs-gate-surface` README never mentions the cast-link code, the lock page, the hover tooltip or Alt+click Codes menu
-- **BR-18** [Important] `done-when-item-unverified` M3's operator smoke test on desktop and iPad is not recorded
 - **BR-19** [Minor] `spec-moves-with-decisions` Issue Spec item 6 still says clicking the code in the tab bar rotates it
 - **BR-20** [Minor] `behavior-without-default-test` The Codes menu's "rotate all" item is never invoked by a test
 - **BR-21** [Minor] `operator-affordance-discoverability` Link-copy notices do not tell the operator that viewers need a code or where to see it
+- **BR-22** [Minor] `spec-moves-with-decisions` atlas/webcast.md:178 still says Alt+right-click on the Chrome cell copies the drive link, which this range removed
+- **BR-23** [Minor] `unordered-async-notifications` onCodeRotated checks the cast attempt under c.mu but writes the flash later under codes.mu, so a cast ending in between still flashes its dead code

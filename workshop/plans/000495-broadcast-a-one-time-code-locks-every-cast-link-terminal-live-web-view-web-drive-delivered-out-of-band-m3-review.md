@@ -164,3 +164,132 @@ findings:
     detail: |
       console_broadcast.go:228, console_pointer.go:130 and :148, and console_webcast.go:268 copy a now-locked link without hinting to hover for its code.
 ```
+
+---
+
+## Re-review — 2026-10-12T21:13:35-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 495 — broadcast: a one-time code locks every cast link (terminal LIVE, web view, web drive); delivered out of band |
+| repo | pair |
+| issue file | workshop/issues/000495-broadcast-a-one-time-code-locks-every-cast-link-terminal-live-web-view-web-drive-delivered-out-of-band.md |
+| boundary | milestone M3 |
+| milestone | M3 |
+| window | aca52379f98e20de85d86113fbaa514b46d0e5c7..3bf5f83bfac0357b746abeff1d8e76fdd738ed53 |
+| command | sdlc milestone-close --issue 495 --milestone M3 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-12T21:13:35-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+I'm checking each prior finding against the code. Next I'll look at the late-rotation test and the menu tests.
+
+I'm still on the README check: the new #495 section is there, but the older paragraphs that BR-17 named look unchanged. Checking what clicking the pointer button actually does.
+
+Prior findings are dispositioned: BR-16 and BR-18 are fixed; BR-17, 19, 20 and 21 are still open, and there's one new stale atlas line. Now running the M3 tests.
+
+The M3 tests pass with the race detector. Next I'll revert the BR-16 fix and check that its test fails.
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+M3 delivers what it set out to do. Cast codes reach only the operator's screen, through the presenter's operator-only layer. The hover tooltip and the Alt+click Codes menu (rotate, copy-link, rotate all) work. Guess-rotation alerts are coalesced and never name the code, and a rotated code flashes three times. Both of this round's Important findings are fixed with evidence:
+
+- **BR-16 (late rotation from an ended cast):** each rotation is now tied to the start attempt that made its cast. I removed the new guard in a scratch copy and `TestLateRotationFromAnEndedCastIsDropped` failed; with the guard back, the M3 tests pass under `-race`.
+- **BR-18 (smoke test):** the operator's desktop and iPad smoke test, and the re-test after the menu redesign, are now in the issue Log.
+
+BR-17 (README) is mostly done. Nothing left blocks shipping. What remains is Minor and was already found in earlier rounds:
+
+- Issue Spec item 6 still describes the old click-to-rotate design, and one atlas line still describes a removed binding.
+- "rotate all" is never actually run by a test.
+- The link-copy notices don't mention the codes.
+- A small window where a code from an ended cast can still flash.
+
+### 1. Strengths
+- `codes_menu.go` is a pure model: layout, hit-testing, selection and drawing take no IO. It lays text out by on-screen width, not by character count, so an emoji label can't produce an invalid frame; `TestCodesMenuDrawsWideCharacters` pins this.
+- `console_castcodes.go:422-444`: rotations are keyed by (cast kind, start attempt, link), so a late report from an ended cast can't hold back the next cast's rotations. The revert test above confirms the guard matters.
+- Codes never leak into the broadcast. The tests check that the notice row (which viewers see) never contains the new code (`console_castcodes_test.go:68,97`).
+- The pointer row without a link shows `pointer (not made yet)` and offers no copy, so copying can never quietly turn pointing on. This is recorded as a decision with its reasoning in the issue Log.
+- README now has a full #495 section plus a table of what each click does on every cast-row control.
+
+### 2. Critical findings
+None.
+
+### 3. Important findings
+None new.
+
+### 4. Minor findings
+- **BR-19 (still open):** issue Spec item 6 (line 35) still says "clicking the code in Couch's tab bar rotates it".
+- **New, same rule:** `atlas/webcast.md:177-178` still says "Alt (Option)+right-click copies the drive link". `terminal_input.go:192-196` removed that binding in this range.
+- **BR-20 (still open):** no test runs "rotate all". `grep 'codesAction{}'` finds it only in the pure layout test's selection checks, never through `chooseCodes`.
+- **BR-21 (still open):** the copy notices give no hint about codes: `console_broadcast.go:231`, `console_pointer.go:109,130,148`, `console_webcast.go:285,306`.
+- **New:** `onCodeRotated` checks the attempt while holding `c.mu`, releases it, then takes `codes.mu` and sets the flash. If `forgetCastCodes` runs in that gap, the ended cast's dead code still flashes for about 2.8 s. This only affects the display, but it is the same family as BR-16.
+- **Cosmetic:** the "rotate all" row has an empty label, so it draws as ` · rotate all` with a leading separator.
+
+### 5. Test coverage notes
+- With the runtime bundle generated, `go test -race -run 'Codes|CastCodes|Rotation|WebCastCodes' ./cmd/internal/couchtty/` passes.
+- Removing the BR-16 guard turns `TestLateRotationFromAnEndedCastIsDropped` red.
+- That test calls `onCodeRotated` directly with `current-1`. It does not end a real cast and start another, so the closures in `console_broadcast.go:170` and `console_webcast.go:104` are only checked by reading the code. That is adequate here because they are one-liners.
+- Gaps: "rotate all" is never run (BR-20), and nothing covers a rotation arriving between the attempt check and the flash write.
+
+### 6. Architecture notes
+- **ARCH-DRY: pass.** `codeTip` and the Codes menu reuse the notes menu's `NotesMenu` and styles.
+- **ARCH-PURE: pass.** The menu model is pure; the console only does the glue.
+- **ARCH-PURPOSE: pass.** Every cast link is locked, the codes are shown, and rotation works. The replay-link follow-up is filed as pair#509, which is a separate piece of work.
+- **ARCH-MOCK: pass.** Tests use `FakeTunnel` and the existing drive-cast fixtures.
+- **ARCH-CONSTRAINTS: pass.** The flash goroutine is bounded (7 phases) and cancelled with the console's lifetime. The press feedback goroutine is bounded too.
+- **ARCH-SECURE: pass.** Codes are drawn only in the layer the broadcast never captures, and notices never contain a code.
+- **ARCH-ORDER: flag (Minor).** The check and the write in `onCodeRotated` happen under two separate locks; see the new Minor finding. Fix: take the attempt check and the flash write under one critical section, for example by having `forgetCastCodes` record the ended attempt in `castCodes` and checking it under `codes.mu`.
+- **ARCH-FUNERAL: pass.** `forgetCastCodes` is called on both end paths (`console_broadcast.go:270`, `console_webcast.go:244`) and clears gens, noticed and quiet by kind prefix.
+
+### 7. Plan revision recommendations
+- Issue Spec item 6: replace "clicking the code in Couch's tab bar rotates it" with "the Codes menu's rotate / rotate all rotates it".
+- `atlas/webcast.md` "Two links" bullet: say right-click on the cell copies the view link, 👆 and 👽 copy on either button, and the Codes menu copies the drive link. Alt+right-click no longer does.
+
+```findings
+dispose:
+  - id: BR-16
+    disposition: addressed
+    note: |
+      linkKey now includes the start attempt and onCodeRotated drops non-current attempts; reverting the guard fails TestLateRotationFromAnEndedCastIsDropped.
+  - id: BR-17
+    disposition: addressed
+    note: |
+      README #495 section covers code, lock page, hover, Alt+click menu and a per-control table; README:886 and :1015 could still gain a "after the code" clause.
+  - id: BR-18
+    disposition: addressed
+    note: |
+      Issue Log records the operator smoke test on desktop and iPad (build bd801297) plus the re-test of f7e6cc7a.
+  - id: BR-19
+    disposition: not-addressed
+    note: |
+      Issue line 35 still says clicking the code in the tab bar rotates it; atlas/webcast.md:178 is a sibling (raised below).
+  - id: BR-20
+    disposition: not-addressed
+    note: |
+      No test runs chooseCodes(t, codesAction{}); rotate all is only selected in the pure layout test.
+  - id: BR-21
+    disposition: not-addressed
+    note: |
+      console_pointer.go:109/130/148, console_broadcast.go:231, console_webcast.go:285/306 still copy locked links with no code hint.
+findings:
+  - id: new
+    severity: Minor
+    family: spec-moves-with-decisions
+    title: |
+      atlas/webcast.md:178 still says Alt+right-click on the Chrome cell copies the drive link, which this range removed
+    detail: |
+      This is the 6th finding in family spec-moves-with-decisions. Rule: when a commit replaces a binding or decision, grep the issue Spec, Done-when, plan current-design section, atlas and README for the old terms in that same commit. Here grep "Alt.*right" and "clicking the code" across atlas/, README.md, and the issue file; fix the two hits (atlas/webcast.md:178, issue line 35).
+  - id: new
+    severity: Minor
+    family: unordered-async-notifications
+    title: |
+      onCodeRotated checks the cast attempt under c.mu but writes the flash later under codes.mu, so a cast ending in between still flashes its dead code
+    detail: |
+      This is the 3rd finding in family unordered-async-notifications. Rule: the currency check and the state write for an async notification happen in one critical section against the same state that end-of-producer clears. Fix: have forgetCastCodes record the ended attempt (or the current attempt) in castCodes and check it under codes.mu at console_castcodes.go:436.
+```
