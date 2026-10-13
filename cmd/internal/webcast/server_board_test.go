@@ -256,3 +256,20 @@ func TestViewerImportsAreServed(t *testing.T) {
 		t.Errorf("the page's stylesheets: %v", sheets)
 	}
 }
+
+// While the cast is paused every board route refuses with one sentence
+// (pair#499), as the drive routes refuse while not live.
+func TestBoardRoutesRefuseWhilePaused(t *testing.T) {
+	c := newBoardCast(t)
+	c.b.Add(&recording.Stop{Why: recording.StopPause})
+	c.flush(t)
+	for route, body := range map[string]string{
+		"stroke":     `{"viewer":{"id":"ana"},"seg":1,"id":"s1","color":1,"pts":[[1,2,0]]}`,
+		"note":       noteBody(1, c.p.ID, 0),
+		"note-state": `{"viewer":{"id":"ana"},"id":"n1","state":"resolved"}`,
+	} {
+		if code, text := post(t, c.url+route, "application/json", body); code != http.StatusConflict || text != refusePaused {
+			t.Errorf("%s while paused: %d %q", route, code, text)
+		}
+	}
+}

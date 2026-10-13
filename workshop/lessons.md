@@ -1401,6 +1401,10 @@ proof; record the surprising case so the next change starts from evidence.
   readers see records mid-cast, and with that the reader's strict decode (any bad line fails the whole recording)
   became a live hazard: a replay racing a write could fail outright. When a writer's output becomes readable while
   open, the reader takes complete lines only and leaves torn-tail detection to the validator of a finished file.
+- **"Disable every action" means listing every surface first (#499 close).** The pause guard disabled the rail's
+  pen, swatches and 💭 but left the note dialog's Save and Resolve live, including on a pin opened during the pause;
+  only the server's refusal caught them. Before a mode turns user actions off, enumerate every control that posts
+  (rail, dialog, pins, keyboard), gate them at one place, and put each in the test.
 
 ## A count or abbreviation must be anchored to a drawn member of its own group (pair#491)
 - **What went wrong:** the tab bar's narrow-width collapse hid every numbered slot of a group, including its first member when the group had no `:0`. The `+N` then sat after the previous repository's chip and read as its count.
