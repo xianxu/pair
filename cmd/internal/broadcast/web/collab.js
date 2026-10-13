@@ -292,14 +292,14 @@ export function noteDialog(els, deps) {
 // sayer is a page's one status toast: a sentence shown for a moment (a
 // refused request no dialog is open for). Every module of the page shares
 // the one element, so two never overlap.
-export function sayer(doc, win) {
-  let toast = doc.querySelector('.annotate-msg');
+export function sayer(doc, win, root = doc.body) {
+  let toast = root.querySelector('.annotate-msg');
   if (!toast) {
     toast = doc.createElement('div');
     toast.className = 'annotate-msg';
     toast.setAttribute('role', 'status');
     toast.hidden = true;
-    doc.body.append(toast);
+    root.append(toast);
   }
   return (text) => {
     toast.textContent = text;

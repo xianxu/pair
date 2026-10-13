@@ -99,24 +99,13 @@ func ParseStroke(body []byte) (StrokeIn, error) {
 	if !ok || !idPattern.MatchString(*raw.ID) || !segOK(*raw.Seg) || !colorOK(*raw.Color) {
 		return StrokeIn{}, ErrShape
 	}
-	pts := *raw.Pts
-	if len(pts) == 0 || len(pts) > broadcast.MaxPointsPerBatch {
+	pts, ok := pointsOf(*raw.Pts)
+	if !ok {
 		return StrokeIn{}, ErrShape
 	}
-	out := StrokeIn{Viewer: v, Seg: *raw.Seg, ID: *raw.ID, Color: *raw.Color, Pts: make([][3]float64, len(pts))}
-	for i, p := range pts {
-		if len(p) != 3 { // a Go array would drop extras silently
-			return StrokeIn{}, ErrShape
-		}
-		for j, c := range p {
-			if c == nil {
-				return StrokeIn{}, ErrShape
-			}
-			out.Pts[i][j] = *c
-		}
-		if !coord(out.Pts[i][0]) || !coord(out.Pts[i][1]) || !(out.Pts[i][2] >= 0 && out.Pts[i][2] <= maxDT) {
-			return StrokeIn{}, ErrShape
-		}
+	out := StrokeIn{Viewer: v, Seg: *raw.Seg, ID: *raw.ID, Color: *raw.Color, Pts: pts}
+	if !strokeShape(out) {
+		return StrokeIn{}, ErrShape
 	}
 	return out, nil
 }
@@ -153,7 +142,7 @@ func ParseNote(body []byte) (NoteIn, error) {
 		return NoteIn{}, ErrShape
 	}
 	n := NoteIn{Viewer: v, Seg: *raw.Seg, Node: recording.NodeID(*raw.Node), Box: box, Region: region, Color: *raw.Color, Text: *raw.Text}
-	if !broadcast.PlainText(n.Text) || strings.TrimSpace(n.Text) == "" {
+	if !noteText(n.Text) {
 		return NoteIn{}, ErrShape
 	}
 	return n, nil
@@ -170,7 +159,7 @@ func ParseNoteState(body []byte) (StateIn, error) {
 		return StateIn{}, ErrShape
 	}
 	v, ok := viewer(raw.Viewer)
-	if !ok || !idPattern.MatchString(*raw.ID) || (*raw.State != recording.NoteOpen && *raw.State != recording.NoteResolved) {
+	if !ok || !idPattern.MatchString(*raw.ID) || !stateShape(StateIn{ID: *raw.ID, State: *raw.State}) {
 		return StateIn{}, ErrShape
 	}
 	return StateIn{Viewer: v, ID: *raw.ID, State: *raw.State}, nil

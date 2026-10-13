@@ -13,6 +13,7 @@
 // terminal viewer's (served from broadcast.CollabJS; the file here is a
 // symlink, for the node tests).
 
+import { annotationPolicy } from './annotation-policy.js';
 import { HEX_COLOR, pointerColor, colorStore, safeStorage, poster, sayer, railAt, renderSwatches, noteDialog, gestureBox, dragMin, boxCentre } from './collab.js';
 
 // CHUNK_MS is how often a stroke in progress is posted; MAX_POINTS caps a
@@ -282,20 +283,24 @@ export async function mountAnnotate(doc, win, v) {
   const who = identityStore(storage, win.crypto);
   if (v.seat) who.adopt(v.seat.viewer);
   const colors = colorStore(storage);
+  const post = poster((url, init) => win.fetch(url, init), NOTE_ROUTES);
+  return mountAnnotation(doc, win, v, { root: doc.body, box: doc.getElementById('box'), stage: doc.getElementById('stage'), palette, who, colors, post });
+}
+
+// Both the viewer and the isolated operator world mount the same UI.
+export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, colors, post, operator = false, prepareDraft }) {
   let picked = colors.get();
   const color = () => pointerColor(picked, 0, palette.length);
-  const post = poster((url, init) => win.fetch(url, init), NOTE_ROUTES);
   const el = (tag, cls, parent) => { const e = doc.createElement(tag); if (cls) e.className = cls; parent?.append(e); return e; };
 
-  const box = doc.getElementById('box'), stage = doc.getElementById('stage');
   const layer = el('div', 'annotate', box);
   const canvas = el('canvas', 'strokes', layer);
   const pins = el('div', 'pins', layer);
-  const rail = el('div', 'annotate-rail', doc.body);
+  const rail = el('div', 'annotate-rail', root);
   const swatches = el('div', 'swatches', rail);
   // A refusal of a request no dialog is open for (a stroke) shows here for
   // a moment: every refused post is seen.
-  const say = sayer(doc, win);
+  const say = sayer(doc, win, root);
   const answered = (req) => req.then((r) => { if (r.status !== 204) say((r.text || '').trim() || "That didn't work."); })
     .catch(() => say("Couldn't reach the cast."));
   swatches.setAttribute('role', 'group');
@@ -312,7 +317,7 @@ export async function mountAnnotate(doc, win, v) {
   }
 
   // The dialog: collab.js's, with a name field the first time.
-  const dlg = el('div', 'note-dialog hidden', doc.body);
+  const dlg = el('div', 'note-dialog hidden', root);
   dlg.setAttribute('role', 'dialog');
   dlg.setAttribute('aria-modal', 'true');
   dlg.setAttribute('aria-label', 'Note');
@@ -354,7 +359,27 @@ export async function mountAnnotate(doc, win, v) {
   // While the cast is paused viewers do nothing (pair#499): the rail's
   // controls are disabled and say why, and the note dialog is held; the
   // server refuses the posts too.
-  const paused = () => !!(v.model && v.model.paused);
+  let policy;
+  const unavailable = () => policy?.phase !== 'ready';
+  function transition(event) {
+    const next = annotationPolicy(policy, event);
+    policy = next.state;
+    if (next.effects.includes('cancel')) endGesture(true);
+    if (next.effects.includes('discard')) dialog.close();
+    state.mode = policy.mode;
+    layer.classList.toggle('point', state.mode === 'point');
+    layer.classList.toggle('note', state.mode === 'note');
+    // Off is transparent in the operator's actual page, including pins.
+    layer.classList.toggle('operator-off', operator && (unavailable() || state.mode === 'watch'));
+    dlg.hidden = operator && policy.phase === 'driving';
+    if (dlg.hidden) input.blur?.();
+    renderRail();
+    placeRail();
+  }
+  function sync() {
+    const m = v.model || {};
+    transition({ type: 'sync', doc: m.docSeg, ready: m.seg > 0, paused: m.paused, ended: m.ended, driver: operator ? m.driver : '' });
+  }
   // The rail's controls are rendered only when their state changes (a pick,
   // a mode, a pause or a resume); each frame only places the rail, so
   // nothing that takes input is replaced under a click.
@@ -364,11 +389,12 @@ export async function mountAnnotate(doc, win, v) {
       b.classList.toggle('on', state.mode === m);
       b.setAttribute('aria-pressed', String(state.mode === m));
     }
-    const off = paused();
+    const off = unavailable();
+    const reason = policy?.driver ? `${policy.driver} is driving.` : 'The cast is paused.';
     rail.classList.toggle('paused', off);
     for (const b of rail.querySelectorAll('button')) b.disabled = off;
-    for (const [m, b] of Object.entries(modeButtons)) b.title = off ? 'The cast is paused.' : MODE_TIPS[m];
-    dialog.hold(off ? 'The cast is paused.' : ''); // an open note, or a pin opened while paused
+    for (const [m, b] of Object.entries(modeButtons)) b.title = off ? reason : MODE_TIPS[m];
+    dialog.hold(off ? reason : ''); // an open note, or a pin opened while paused
   };
   const placeRail = () => {
     const r = box.getBoundingClientRect();
@@ -377,14 +403,7 @@ export async function mountAnnotate(doc, win, v) {
     rail.style.right = `${at.right}px`;
     rail.hidden = !(v.model && v.model.seg > 0 && !v.model.ended);
   };
-  function setMode(m) {
-    endGesture();
-    state.mode = m;
-    layer.classList.toggle('point', m === 'point');
-    layer.classList.toggle('note', m === 'note');
-    renderRail();
-    placeRail();
-  }
+  function setMode(m) { transition({ type: 'mode', mode: m }); }
 
   // Own strokes: drawn at once, posted every CHUNK_MS.
   const flush = () => {
@@ -394,24 +413,24 @@ export async function mountAnnotate(doc, win, v) {
       answered(post('stroke', { viewer: who.viewer(), seg: s.seg, id: s.id, color: s.color, pts }));
     }
   };
-  function endStroke() {
+  function endStroke(discard = false) {
     if (state.timer !== null) win.clearInterval(state.timer);
     state.timer = null;
-    flush();
+    if (!discard) flush();
     state.stroke = null;
   }
   // endGesture ends whatever the pointer is doing: a stroke or a region
   // drag. Every boundary calls it: a mode change, a new document, the cast's
   // end, a cancelled pointer.
-  function endGesture() {
-    endStroke();
+  function endGesture(discard = false) {
+    endStroke(discard);
     if (state.drag) { state.drag = null; drawDrag(); }
   }
   const pagePoint = (e) => v.toPage(e.clientX, e.clientY);
 
   layer.addEventListener('pointerdown', (e) => {
     if (e.target.closest && e.target.closest('.chip')) return; // a pin's chip opens its note, in any mode
-    if (state.mode === 'watch' || !(v.model && v.model.seg > 0) || paused() || dialog.open) return;
+    if (state.mode === 'watch' || !(v.model && v.model.seg > 0) || unavailable() || dialog.open) return;
     e.preventDefault();
     layer.setPointerCapture?.(e.pointerId);
     const p = pagePoint(e);
@@ -439,13 +458,21 @@ export async function mountAnnotate(doc, win, v) {
       drawDrag();
     }
   });
-  const up = () => {
+  const up = async () => {
     if (state.stroke) endStroke();
     if (!state.drag) return;
     const { from, to, pointerType } = state.drag;
     state.drag = null;
     drawDrag();
     const region = regionOf(from, to, pageView(), pointerType);
+    if (prepareDraft) {
+      const document = docSeg;
+      try {
+        const payload = await prepareDraft(region);
+        if (payload && document === docSeg && !unavailable() && state.mode === 'note') openDraft(payload);
+      } catch (err) { say(err.message || 'Could not anchor this note.'); }
+      return;
+    }
     const at = boxCentre(region);
     const node = v.nodeAt(at[0], at[1]);
     const b = node && v.boxOf(node);
@@ -486,6 +513,7 @@ export async function mountAnnotate(doc, win, v) {
   };
 
   const pinned = pinLayer(doc, pins, (n, by) => {
+    if (operator && (unavailable() || state.mode === 'watch')) return;
     author.textContent = by;
     name.hidden = true;
     dialog.view({ id: n.id, text: n.text }, { resolvable: true });
@@ -525,17 +553,20 @@ export async function mountAnnotate(doc, win, v) {
       // same one changes nothing.)
       const was = docSeg;
       docSeg = model.docSeg;
-      if (was) { strokes.clear(); endGesture(); }
+      if (was) { strokes.clear(); endGesture(true); }
     }
     if (r.k === 'stroke') strokes.record(r, win.performance.now(), `${who.id()}.`);
     // A pause or the end puts the pen down (setMode ends the gesture and
     // renders the rail, disabled while paused); a resume enables it again.
     if (r.k === 'stop') { setMode('watch'); if (r.why === 'end') dialog.close(); }
-    if (r.k === 'seg') renderRail();
+    sync();
     schedule();
   });
   win.addEventListener('resize', schedule);
-  setMode('watch');
+  root.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { transition({ type: 'escape' }); e.stopPropagation(); }
+  });
+  sync();
   schedule();
-  return { setMode, dialog, strokes, who };
+  return { setMode, dialog, strokes, who, get mode() { return state.mode; } };
 }

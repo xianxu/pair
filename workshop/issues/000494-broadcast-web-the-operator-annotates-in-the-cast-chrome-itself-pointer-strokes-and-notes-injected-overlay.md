@@ -231,3 +231,5 @@ never implemented. Estimate revision removes M2 UI/control rows and one mileston
 review; terminal integration and final close/ship stay included. Atlas design is an
 undiscounted 0.05 h exception. Conformance implementation is included in recorder,
 capture and shared-UI rows; real-api-discovery covers probing external behavior only.
+
+- 2026-10-12 implementation checkpoint: shared annotation mount now accepts an excluded root and pure availability policy. Driving hides/blurs but retains a draft; return stays Off; navigation discards it. Node targeted annotation/operator tests: 12 passed. Trusted module assembly executes shared modules under Node through targeted Go tests. Board adapter has bounded typed requests, fixed operator identity, settlement outcomes and bounded projection; Board package/race passed. Recorder/Chrome integration, capture/input suppression, menu (awaiting #506 release), and live verification remain outstanding.
