@@ -719,7 +719,7 @@ local function draftSendCommands(body) return _G.PairDraftSend.commands(body) en
 
 _G.PairDraftSendCommands = draftSendCommands
 
-local function send_to_agent(body, resume_phase)
+local function send_to_agent(body, resume_phase, target)
   -- focus up to agent pane, type body, press Enter, focus back down.
   --
   -- We deliberately do NOT clear the agent's input first. The "[Image #N]"
@@ -744,7 +744,7 @@ local function send_to_agent(body, resume_phase)
   -- of synthesizing it as raw ESC+CR bytes.
   --
   if type(_G.PairTestSendToAgent) == 'function' then
-    return _G.PairTestSendToAgent(body, resume_phase)
+    return _G.PairTestSendToAgent(body, resume_phase, target)
   end
   if not has_ui() and type(_G.PairTestZellijExecutor) ~= 'function' then
     return false, 'start', 'no attached UI'
@@ -753,7 +753,7 @@ local function send_to_agent(body, resume_phase)
     return PairZellijTrace.action(label, argv, opts)
   end, function()
     vim.cmd('sleep 100m')
-  end, resume_phase)
+  end, resume_phase, target)
 end
 
 -- One resolution of the pair binary. The `PAIR_HOME .. '/bin/pair'` idiom was
@@ -856,10 +856,11 @@ do
     return true
   end
 
-  function _G.submit_operator_text(authored_body, agent_text)
-    local tag = bang_tag.parse(agent_text)
+  function _G.submit_operator_text(authored_body, agent_text, attachment)
+    local tag = bang_tag.parse(attachment and strip_comments(authored_body) or agent_text)
+    if attachment and tag and not tag.agent_text then return false end
     if tag and not tag.agent_text then return describe_couch_thread(tag) end
-    local ok = _G.PairSubmission.submit_operator_text(authored_body, tag and tag.agent_text or agent_text)
+    local ok = _G.PairSubmission.submit_operator_text(authored_body, attachment and agent_text or (tag and tag.agent_text or agent_text), attachment)
     if ok and tag and tag.description then publish_couch_description(tag.description) end
     return ok
   end
@@ -1553,18 +1554,7 @@ end
 -- draft, and resets to *.
 -- ---------------------------------------------------------------------------
 
-local function send_and_clear()
-  local body = buffer_text()
-  if body:match('^%s*$') then return end
-  -- Strip-then-check happens before any side effects: a comment-only buffer
-  -- is a no-op send, so it must NOT consume a +N queue item or append to log.
-  local stripped = strip_comments(body)
-  if stripped:match('^%s*$') then return end
-
-  -- Durability is the submission gate. Do this before queue consumption or
-  -- draft mutation so any failure leaves all authored state intact.
-  if not submit_operator_text(body, stripped) then return end
-
+function _G.PairFinishDraftSend(body)
   local from_queue = (type(nav.pos) == 'table' and nav.pos.kind == 'queue')
 
   -- send-from-+N consumes that queue file. Resolve the selected item by its
@@ -1616,6 +1606,49 @@ local function send_and_clear()
   refresh_statusline()
   if consumed_queue then flash_queue_count() end
   vim.cmd('startinsert')
+end
+
+local function send_and_clear()
+  local body = buffer_text()
+  local stripped = strip_comments(body)
+  if stripped:match('^%s*$') then return end
+  if submit_operator_text(body, stripped) then _G.PairFinishDraftSend(body) end
+end
+
+-- Preparation runs asynchronously; changes to the buffer or history selection
+-- prevent delivery until the operator explicitly retries the original draft.
+do
+  local dir = debug.getinfo(1, 'S').source:match('@?(.*/)') or './'
+  local transport = dofile(dir .. 'dom_transport.lua').new(vim, PairZellijTrace.action)
+  _G.PairDOMSubmission = dofile(dir .. 'dom_submission.lua').new({
+    rpc = function(op,id,cb)
+      if _G.PairTestDOMRPC then return _G.PairTestDOMRPC(op,id,cb) end
+      transport.rpc(op,id,cb)
+    end,
+    pin = function(id)
+      if _G.PairTestDOMPin then return _G.PairTestDOMPin(id) end
+      return transport.pin(id)
+    end,
+    id = function()
+      return vim.fn.sha256(tostring((vim.uv or vim.loop).hrtime()) .. ':' .. tostring(vim.fn.getpid()))
+    end,
+    submit = function(body,text,attachment) return submit_operator_text(body,text,attachment) end,
+    ordinary = function(body,text) return submit_operator_text(body,strip_comments(body)) end,
+    notify = function(message) vim.notify(message,vim.log.levels.WARN) end,
+    defer = vim.defer_fn,
+  })
+  function _G.PairSendDOM()
+    local body, pos, buf = buffer_text(), nav.pos, vim.api.nvim_get_current_buf()
+    local text = strip_comments(body)
+    local tag = dofile(dir .. 'bang_tag.lua').parse(text)
+    if tag and not tag.agent_text then
+      if submit_operator_text(body,text) then _G.PairFinishDraftSend(body) end
+      return
+    end
+    _G.PairDOMSubmission.send(body,tag and tag.agent_text or text,function()
+      return vim.api.nvim_get_current_buf()==buf and nav.pos==pos and buffer_text()==body
+    end,function() _G.PairFinishDraftSend(body) end)
+  end
 end
 
 -- ---------------------------------------------------------------------------
@@ -3565,6 +3598,9 @@ end
 -- ---------------------------------------------------------------------------
 -- keymaps
 -- ---------------------------------------------------------------------------
+
+vim.keymap.set({ 'n', 'i' }, '<C-S-M-CR>', function() _G.PairSendDOM() end,
+  { silent = true, desc = 'pair: send draft and open DOM notes with crops' })
 
 vim.keymap.set({ 'n', 'i' }, '<M-CR>', send_and_clear,
   { silent = true, desc = 'pair: send buffer + clear' })

@@ -159,6 +159,69 @@ do
     'written phase resumes without minting or rewriting')
 end
 
+-- Attachment identity freezes both generated evidence and the pinned pane.
+do
+  local calls, sends, commits = {}, 0, 0
+  local target = { pane_id = 41, validate = function() return true end }
+  local attachment = { id = 'bundle-a', target = target }
+  local submit = M.new(
+    function(_, id) calls[#calls + 1] = id; return true end,
+    function() commits = commits + 1; return true end,
+    function(text, phase, pinned)
+      sends = sends + 1
+      ok(text == 'body\nmanifest-a', 'generated attachment text stays frozen')
+      ok(pinned and pinned.pane_id == 41, 'pinned target reaches low-level delivery')
+      if sends == 1 then return false, 'written', 'submit failed' end
+      ok(phase == 'written', 'attachment retry resumes only submission')
+      return true, 'dispatched'
+    end,
+    function() end,
+    function() return 'attachment-log' end)
+  ok(not submit.submit_operator_text('body', 'body\nmanifest-a', attachment), 'first attached submit leaves written body')
+  ok(not submit.submit_operator_text('body', 'body\nmanifest-b', attachment), 'same body cannot replace generated evidence')
+  ok(not submit.submit_operator_text('body', 'body\nmanifest-a', { id = 'bundle-b', target = target }), 'same body cannot replace attachment ID')
+  target.pane_id = 42
+  ok(not submit.submit_operator_text('body', 'body\nmanifest-a', attachment), 'mutating caller target cannot rebind pending delivery')
+  target.pane_id = 41
+  ok(submit.submit_operator_text('body', 'body\nmanifest-a', attachment), 'original frozen attachment resumes')
+  ok(sends == 2 and commits == 1 and #calls == 2 and calls[1] == calls[2], 'rejected replacements have no append or send effects')
+end
+
+do
+  local sends = 0
+  local attachment = { id = 'bundle-start', target = { pane_id = 7 } }
+  local submit = M.new(function() return true end, function() return true end,
+    function() sends = sends + 1; return false, 'start', 'not ready' end,
+    function() end, function() return 'id-start' end)
+  ok(not submit.submit_operator_text('body', 'manifest', attachment), 'attached start failure remains pending')
+  ok(not submit.submit_operator_text('edited', 'manifest', attachment), 'attached start cannot replace authored body')
+  ok(not submit.submit_operator_text('body', 'changed', attachment), 'attached start cannot replace generated text')
+  ok(not submit.submit_operator_text('body', 'manifest'), 'attached start cannot discard attachment')
+  ok(sends == 1, 'start replacement attempts have no delivery effects')
+end
+
+do
+  local sends, commits = 0, 0
+  local attachment = { id = 'bundle-commit', target = { pane_id = 7 } }
+  local submit = M.new(function() return true end,
+    function() commits = commits + 1; return commits > 1, 'disk full' end,
+    function() sends = sends + 1; return true, 'dispatched' end,
+    function() end, function() return 'id-commit' end)
+  ok(submit.submit_operator_text('body', 'manifest', attachment), 'attached dispatch succeeds despite marker failure')
+  ok(submit.submit_operator_text('body', 'manifest', attachment), 'same attached retry recovers marker')
+  ok(sends == 1 and commits == 2, 'attached commit-only retry never retransmits')
+end
+
+do
+  local sends = 0
+  local submit = M.new(function() return true end, function() return true end,
+    function() sends = sends + 1; return true, 'dispatched' end,
+    function() end, function() return 'invalid-attachment' end)
+  ok(not submit.submit_operator_text('body', 'manifest', { id = 'bundle' }), 'attachment without target fails closed')
+  ok(not submit.submit_operator_text('body', 'manifest', { target = {} }), 'attachment without ID fails closed')
+  ok(sends == 0, 'malformed attachments cannot fall back to ordinary delivery')
+end
+
 local init = table.concat(vim.fn.readfile(here .. 'init.lua'), '\n')
 local direct = 0
 for _ in init:gmatch('send_to_agent%s*%(') do direct = direct + 1 end

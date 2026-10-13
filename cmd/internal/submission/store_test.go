@@ -3,6 +3,7 @@ package submission
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 	"image"
 	"image/png"
@@ -293,5 +294,104 @@ func TestStoreCanonicalizesParentOnly(t *testing.T) {
 	}
 	if _, err = NewStore(link); err == nil {
 		t.Fatal("followed symlink root")
+	}
+}
+
+func TestStoreMetadataDoesNotDecodePixels(t *testing.T) {
+	store, err := NewStore(tempRoot(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sub := fixture()
+	sub.Notes[0].Crop = Crop{File: "crop-0.png", Box: recording.Box{0, 0, 2, 2}, CapturedAt: time.Now(), Document: 1}
+	data := pngBytes(t)
+	path, err := store.Prepare(sub, map[string][]byte{"crop-0.png": data})
+	if err != nil {
+		t.Fatal(err)
+	}
+	crop := filepath.Join(filepath.Dir(path), "crop-0.png")
+	if err = os.WriteFile(crop, bytes.Repeat([]byte{'x'}, len(data)), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.Read(sub.ID); err == nil {
+		t.Fatal("full Read accepted corrupt pixels")
+	}
+	if _, err = store.ReadMetadata(sub.ID); err != nil {
+		t.Fatal("metadata read decoded pixels", err)
+	}
+	if pending, err := store.Pending(sub.Target); err != nil || len(pending) != 1 {
+		t.Fatal("pending decoded pixels", pending, err)
+	}
+	if _, err = store.Prepare(sub, map[string][]byte{"crop-0.png": data}); err == nil {
+		t.Fatal("Prepare skipped full evidence validation")
+	}
+	for _, event := range []Event{Begin, Ack, Complete} {
+		if _, err = store.Transition(sub.ID, sub.Target, event); err != nil {
+			t.Fatal("transition decoded pixels", err)
+		}
+	}
+	if err = os.Remove(crop); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.ReadMetadata(sub.ID); err == nil {
+		t.Fatal("explicit metadata read ignored missing resolved crop")
+	}
+	if pending, err := store.Pending(sub.Target); err != nil || len(pending) != 0 {
+		t.Fatal("pending examined resolved crop", pending, err)
+	}
+}
+func TestStoreMetadataRejectsOversizeAndSymlink(t *testing.T) {
+	store, err := NewStore(tempRoot(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sub := fixture()
+	sub.Notes[0].Crop = Crop{File: "crop-0.png", Box: recording.Box{0, 0, 2, 2}, CapturedAt: time.Now(), Document: 1}
+	path, err := store.Prepare(sub, map[string][]byte{"crop-0.png": pngBytes(t)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	crop := filepath.Join(filepath.Dir(path), "crop-0.png")
+	if err = os.Truncate(crop, MaxPNGBytes+1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.ReadMetadata(sub.ID); err == nil {
+		t.Fatal("metadata ignored crop size")
+	}
+	if err = os.Remove(crop); err != nil {
+		t.Fatal(err)
+	}
+	if err = os.Symlink("/etc/passwd", crop); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.ReadMetadata(sub.ID); err == nil {
+		t.Fatal("metadata followed crop symlink")
+	}
+}
+
+func TestStoreMetadataBoundsAggregateCropSizes(t *testing.T) {
+	store, err := NewStore(tempRoot(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sub := fixture()
+	sub.Notes = nil
+	crops := map[string][]byte{}
+	for i := 0; i < 9; i++ {
+		name := fmt.Sprintf("crop-%d.png", i)
+		sub.Notes = append(sub.Notes, Note{ID: fmt.Sprintf("note-%d", i), Crop: Crop{File: name, Box: recording.Box{0, 0, 2, 2}, CapturedAt: time.Now(), Document: 1}})
+		crops[name] = pngBytes(t)
+	}
+	path, err := store.Prepare(sub, crops)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name := range crops {
+		if err = os.Truncate(filepath.Join(filepath.Dir(path), name), MaxPNGBytes); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err = store.ReadMetadata(sub.ID); err == nil {
+		t.Fatal("metadata accepted aggregate size over 64 MiB")
 	}
 }

@@ -88,3 +88,47 @@ func TestCropCaptureRejectsOversizeBeforeCDP(t *testing.T) {
 		t.Fatal("capture ran for excessive crop")
 	}
 }
+
+func TestCropCaptureSameURLReloadDuringScreenshot(t *testing.T) {
+	h, doc := cropHarness(t)
+	var buf bytes.Buffer
+	png.Encode(&buf, image.NewRGBA(image.Rect(0, 0, 20, 10)))
+	h.fc.more = func(_ string, method string, _ map[string]any, p *fakePage) (any, error, bool) {
+		if method != "Page.captureScreenshot" {
+			return nil, nil, false
+		}
+		h.fc.mu.Lock()
+		h.fc.loader["A"] = "L2"
+		h.fc.pages["A"] = newFakePage("http://app/")
+		h.fc.pages["A"].frameID = p.frameID
+		h.fc.mu.Unlock()
+		h.r.Send(Event{Session: "A", Method: "DOM.documentUpdated", Seq: h.fc.next(), Params: raw(map[string]any{})})
+		return map[string]any{"data": base64.StdEncoding.EncodeToString(buf.Bytes())}, nil, true
+	}
+	if _, err := h.r.CaptureCrops(context.Background(), doc, []rec.Box{{0, 0, 20, 10}}); err == nil || !strings.Contains(err.Error(), "changed") {
+		t.Fatalf("same URL reload accepted: %v", err)
+	}
+}
+func TestCropCaptureCancelledBeforeCDP(t *testing.T) {
+	h, doc := cropHarness(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := h.r.CaptureCrops(ctx, doc, []rec.Box{{0, 0, 20, 10}}); err == nil {
+		t.Fatal("cancel ignored")
+	}
+	if h.fc.countCalls("Page.captureScreenshot") != 0 {
+		t.Fatal("cancelled capture called CDP")
+	}
+}
+
+func TestCropCapturePausedIsNotPageChangedEvidence(t *testing.T) {
+	h, doc := cropHarness(t)
+	h.r.Send(Pause{})
+	h.settle()
+	if _, err := h.r.CaptureCrops(context.Background(), doc, []rec.Box{{0, 0, 20, 10}}); err == nil || !strings.Contains(err.Error(), "paused") {
+		t.Fatalf("paused capture: %v", err)
+	}
+	if h.fc.countCalls("Page.captureScreenshot") != 0 {
+		t.Fatal("paused capture called CDP")
+	}
+}

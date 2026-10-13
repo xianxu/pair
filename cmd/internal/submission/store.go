@@ -154,7 +154,7 @@ func (s *Store) usage(r *os.Root) (int64, error) {
 	})
 	return total, err
 }
-func readBytes(r *os.Root, path string, limit int64) ([]byte, error) {
+func bundleFileInfo(r *os.Root, path string) (os.FileInfo, error) {
 	// Lstat each component; os.Root additionally prevents traversal outside root.
 	parts := strings.Split(filepath.ToSlash(path), "/")
 	for i := range parts {
@@ -165,9 +165,22 @@ func readBytes(r *os.Root, path string, limit int64) ([]byte, error) {
 		if st.Mode()&os.ModeSymlink != 0 {
 			return nil, fmt.Errorf("symlink in bundle")
 		}
-		if i == len(parts)-1 && !st.Mode().IsRegular() {
-			return nil, fmt.Errorf("nonregular bundle file")
+		if i == len(parts)-1 {
+			if !st.Mode().IsRegular() {
+				return nil, fmt.Errorf("nonregular bundle file")
+			}
+			return st, nil
 		}
+	}
+	return nil, fmt.Errorf("empty bundle path")
+}
+func readBytes(r *os.Root, path string, limit int64) ([]byte, error) {
+	info, err := bundleFileInfo(r, path)
+	if err != nil {
+		return nil, err
+	}
+	if info.Size() > limit {
+		return nil, fmt.Errorf("bundle file exceeds limit")
 	}
 	f, err := r.Open(path)
 	if err != nil {
@@ -180,7 +193,7 @@ func readBytes(r *os.Root, path string, limit int64) ([]byte, error) {
 	}
 	return b, err
 }
-func readSubmission(r *os.Root, id string) (Submission, error) {
+func readMetadata(r *os.Root, id string, skipResolvedCrops bool) (Submission, error) {
 	var out Submission
 	if !identifier.MatchString(id) {
 		return out, fmt.Errorf("invalid submission ID")
@@ -203,7 +216,41 @@ func readSubmission(r *os.Root, id string) (Submission, error) {
 	if err = Validate(out); err != nil {
 		return out, err
 	}
-	total := len(b)
+	if skipResolvedCrops && out.Delivery == Resolved {
+		return out, nil
+	}
+	total := int64(len(b))
+	for _, n := range out.Notes {
+		if n.Crop.File == "" {
+			continue
+		}
+		info, err := bundleFileInfo(r, filepath.Join(id, n.Crop.File))
+		if err != nil {
+			return out, err
+		}
+		if info.Size() > MaxPNGBytes {
+			return out, fmt.Errorf("crop exceeds 8 MiB")
+		}
+		if info.Size() > MaxBundleBytes-total {
+			return out, fmt.Errorf("bundle exceeds 64 MiB")
+		}
+		total += info.Size()
+	}
+	return out, nil
+}
+func readSubmission(r *os.Root, id string) (Submission, error) {
+	out, err := readMetadata(r, id, false)
+	if err != nil {
+		return out, err
+	}
+	manifestInfo, err := bundleFileInfo(r, filepath.Join(id, "submission.json"))
+	if err != nil {
+		return out, err
+	}
+	total := manifestInfo.Size()
+	if total > MaxBundleBytes {
+		return out, fmt.Errorf("bundle exceeds 64 MiB")
+	}
 	for _, n := range out.Notes {
 		if n.Crop.File == "" {
 			continue
@@ -212,15 +259,27 @@ func readSubmission(r *os.Root, id string) (Submission, error) {
 		if err != nil {
 			return out, err
 		}
-		total += len(data)
-		if total > MaxBundleBytes {
+		if int64(len(data)) > MaxBundleBytes-total {
 			return out, fmt.Errorf("bundle exceeds 64 MiB")
 		}
+		total += int64(len(data))
 		if err = ValidatePNG(data); err != nil {
 			return out, err
 		}
 	}
 	return out, nil
+}
+
+// ReadMetadata validates the manifest and referenced crop paths, file types,
+// and byte sizes. It deliberately does not read or decode PNG contents; Read
+// remains the full evidence-validation operation.
+func (s *Store) ReadMetadata(id string) (Submission, error) {
+	r, err := s.open()
+	if err != nil {
+		return Submission{}, err
+	}
+	defer r.Close()
+	return readMetadata(r, id, false)
 }
 func (s *Store) Read(id string) (Submission, error) {
 	r, err := s.open()
@@ -263,7 +322,7 @@ func (s *Store) pending(r *os.Root, target Target) ([]Submission, error) {
 		if !entry.IsDir() || !identifier.MatchString(entry.Name()) {
 			return nil, fmt.Errorf("unexpected submission entry %s", entry.Name())
 		}
-		sub, err := readSubmission(r, entry.Name())
+		sub, err := readMetadata(r, entry.Name(), true)
 		if err != nil {
 			return nil, err
 		}
@@ -394,7 +453,7 @@ func (s *Store) Transition(id string, target Target, event Event) (Submission, e
 		return Submission{}, err
 	}
 	defer r.Close()
-	sub, err := readSubmission(r, id)
+	sub, err := readMetadata(r, id, false)
 	if err != nil {
 		return sub, err
 	}

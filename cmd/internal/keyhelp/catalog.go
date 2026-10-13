@@ -41,6 +41,7 @@ type catalog struct {
 var Catalog = catalog{
 	include: []entry{
 		// --- Draft: compose and send -------------------------------------
+		{Key: "<C-S-M-CR>", Display: "Shift+Ctrl+Alt+⏎", Group: groupDraft, Order: 11, Context: ContextDraft, Source: SourceNvim},
 		{Key: "<M-CR>", Display: "Alt+⏎", Group: groupDraft, Order: 10, Context: ContextDraft, Source: SourceNvim},
 		{Key: "<S-M-CR>", Display: "Shift+Alt+⏎", Group: groupPanes, Order: 20, Context: ContextGlobal, Source: SourceGlobal},
 		{Key: "<C-c>", Display: "Ctrl+c", Group: groupDraft, Order: 30, Context: ContextDraft, Source: SourceNvim},

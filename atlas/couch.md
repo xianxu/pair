@@ -12,6 +12,12 @@ the pty console, actor panel, notices, and complete local lifecycle shipped in
 
 ## What exists today
 
+[DOM submission](webcast-submission.md) (#483) sends the cast tab's open notes
+from the draft's Shift+Ctrl+Alt+Return chord. Couch owns the durable JSON/PNG
+bundle and acknowledgment; the existing authored-draft transaction delivers
+its path to the pinned agent. Its local submission RPCs do not use peer-message
+delivery or consume the peer allowance.
+
 Couch has one production supervisor and one selected inventory per local OS
 account. `couchcmd` resolves the real UID's account home independently of
 `HOME`/XDG overrides; `couchsingleton` owns `.local/share/pair-host/singleton` there. A durable

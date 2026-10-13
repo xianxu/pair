@@ -125,6 +125,21 @@ Operator shaping (in pane):
 - **#488 seam (TL, from pair:3, #488 M1 on its branch):** `NoteCrops(st, notes)` with no hints; `Crops` and `notes.Hints` are gone. Each note crops its region + 16 px; overlapping crops merge; clipped to the page; every new note has a region. `NoteAt` gains `kind` (element) and `path` (container chain), the shape the terminal anchor will use. Build against it; merge main once #488 lands.
 - **pair#493 (TL):** notes and strokes aren't written into recordings yet (queued for pair:6); live notes work. Until #493 lands, take the submission's notes from the live Board, and test against a fixture with notes or the live Board, not a fresh recording.
 
+### 2026-10-12 — capture and persistence checkpoint
+
+Implemented the portable shared submission schema/store, historical per-note builder, frozen Board selection with revision-guarded resolution, and current CDP crop capture. A CDP-to-recorder barrier processes navigation evidence before accepting screenshots (including same-URL reload identity). Targeted low-parallel tests passed for cdp, submission, board, recorder, historical builder and Cast, covering overlapping notes, page changes, bounded input and failed storage. Console/RPC and draft integration remain in progress; no live operator state or GUI was touched.
+
+### 2026-10-12 — submission transport and draft checkpoint
+
+The local CLI/RPC now verifies the calling incarnation for prepare/status/begin/ack. Console owns one bounded background job and durably records begin before delivery, dispatch before resolution, completion only after observed note-state writes. Draft retries freeze body, generated path and pane; direct pane actions do not change focus. Lost acknowledgments retry resolution only and preserve any next draft. Headless tests exercised both mapping modes, empty/comment-only notes, changed draft, failed preparation and lost acknowledgment; ordinary queue and bang-tag behavior also passed.
+
+Review during implementation caught three order defects: a possibly-inline scheduler under the owner mutex, canceled jobs beginning side effects, and attachment equality ignoring generated text. Tests now defend each. Metadata-only store reads avoid decoding every retained PNG on status/ack; full evidence validation remains at publication/full Read. Capture now bounds cumulative PNG memory while collecting, and refuses a paused current document rather than labeling it page-changed.
+
+TL authorized a serial full suite with Go parallelism 1 / GOMAXPROCS 2 and one bounded headless Chrome crop conformance run (receipt 0146066c-f885-4a42-a2d6-eb731bd9e8fe). Full suite is running; operator smoke on pair:0 is deferred until TL schedules it after #495/#506. No staging was performed.
+
+- Coordination delta (#494; receipts d337fc0e-dbd8-4265-9a0d-fe57d61aff3d and a0310d7c-6814-4d28-b5dd-b6315cdd7fcf): whichever lands second integrates annotation suppression into centralized Recorder.CaptureCrops. The proposed seam is recorder.CaptureScreenshot(ctx, call, session, contextID, params, result); pass the exact admitted top-frame couchcast context, never consume bytes on error. Check main before landing.
+
+
 ## Revisions
 
 - 2026-10-12 — pair:6 resumed after the hub released the old shaping claim. The operator's later decisions now
@@ -137,7 +152,3 @@ Operator shaping (in pane):
 - 2026-10-12 — crop source: the note's box (pair#488), not `NoteCrops` snapping/clustering. If #488 hasn't landed when #483 builds, crop from the note's `region` (always set once #488 lands) through the notes seam #488 fills.
 
 - 2026-10-12 — TL: #488's plan settles the crop as each note's box + 16 px margin; structure-snapped crops and per-URL crop hints are retired. #483 builds its crop on the note's box through the notes seam #488 fills.
-
-### 2026-10-12 — capture and persistence checkpoint
-
-Implemented the portable shared submission schema/store, historical per-note builder, frozen Board selection with revision-guarded resolution, and current CDP crop capture. A CDP-to-recorder barrier processes navigation evidence before accepting screenshots (including same-URL reload identity). Targeted low-parallel tests passed for cdp, submission, board, recorder, historical builder and Cast, covering overlapping notes, page changes, bounded input and failed storage. Console/RPC and draft integration remain in progress; no live operator state or GUI was touched.

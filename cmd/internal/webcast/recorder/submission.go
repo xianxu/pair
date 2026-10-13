@@ -65,13 +65,17 @@ func (r *Recorder) CaptureCrops(parent context.Context, doc int, boxes []rec.Box
 	if err != nil {
 		return nil, err
 	}
-	if start.doc != doc || !start.live || start.top == "" {
+	if start.doc != doc || start.top == "" {
 		out := make([]CapturedCrop, len(boxes))
 		for i := range out {
 			out[i] = CapturedCrop{Box: boxes[i], Unavailable: "page changed"}
 		}
 		return out, nil
 	}
+	if !start.live {
+		return nil, errors.New("cast is paused; resume before capturing note crops")
+	}
+	total := 0
 	var out []CapturedCrop
 	for _, box := range boxes {
 		if err := ctx.Err(); err != nil {
@@ -99,6 +103,10 @@ func (r *Recorder) CaptureCrops(parent context.Context, doc int, boxes []rec.Box
 		if err = submission.ValidatePNG(png); err != nil {
 			return nil, err
 		}
+		if len(png) > submission.MaxBundleBytes-total {
+			return nil, errors.New("submission crops exceed 64 MiB")
+		}
+		total += len(png)
 		out = append(out, CapturedCrop{PNG: png, Box: box, Document: doc, CapturedAt: time.Now().UTC()})
 		if err = r.captureBarrier(ctx); err != nil {
 			return nil, err

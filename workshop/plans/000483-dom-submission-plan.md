@@ -166,3 +166,8 @@ Files: `README.md`, `atlas/webcast-submission.md` (new), `atlas/index.md`, relev
 - 2026-10-12 — Initial implementation plan after claim transfer to pair:6; incorporates hub confirmation of one PNG per note and unavailable crops for a document already gone. Awaiting TL review of plan, limits and retention before implementation.
 - 2026-10-12 — TL approved the plan and all proposed limits/retention, and directed entry to change-code (Couch receipt `0a3761ed-b2f7-4044-8a01-fb16fabd915f`). Implement resolve-after-delivery; TL is confirming that policy with the operator and will send any delta.
 - 2026-10-12 — PQ-1/PQ-2: named Go's persisted delivery transition authority and Lua's live draft authority, added durable begin-before-paste and conservative restart recovery, and replaced test inventories with function-level adversarial strategies.
+
+
+- 2026-10-12 — Implementation uses direct pinned Zellij pane writes with revalidation before paste and submit, so the operator's focus remains stationary. The capture barrier spans CDP and recorder event reduction. Note revisions are local conditional-emission guards and are omitted from recording wire records.
+- 2026-10-12 — Store metadata reads validate paths/types/sizes without decoding retained PNGs for each status/transition; full Read and publication validate actual PNG bytes. A paused current cast refuses capture. Cumulative crop bytes are checked during collection, before a full batch can exceed 64 MiB.
+- 2026-10-12 — TL approved serial full-suite and bounded headless Chrome verification, then close; operator smoke will follow on TL's schedule. #494's document-scoped annotation suppression helper must be integrated by whichever of #483/#494 lands second.

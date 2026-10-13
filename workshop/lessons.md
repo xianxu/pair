@@ -1432,3 +1432,10 @@ proof; record the surprising case so the next change starts from evidence.
   rule was restated in `Act`'s doc, `ErrStale`'s doc and `onTarget`'s comment; updating `Injector.Inject` and the
   atlas left three stale copies. Before committing a rule change, `rg` the rule's nouns (here "stale", "wheel")
   across the package and the atlas, and make every other site name the rule's owner instead of restating it.
+
+
+### #483 — asynchronous submission ownership
+
+- A scheduler may execute inline during startup/shutdown: release the owner's mutex before invoking it, and test the inline case.
+- Cancellation must gate the first side effect as well as publication; a canceled job must not start replay, screenshot capture or note resolution.
+- Retry identity includes generated evidence and the recipient, not only authored text. After confirmed dispatch, remaining retries must be acknowledgment/commit-only.
