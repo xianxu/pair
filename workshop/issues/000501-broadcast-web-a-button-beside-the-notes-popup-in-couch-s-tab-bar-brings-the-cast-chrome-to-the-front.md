@@ -1,12 +1,12 @@
 ---
 id: 000501
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: '0dc5a0254998dc3ad847da650f943156b7d788f6' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '4d55a4f867cbf8072c4150229a4a2b38344d9172' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T14:38:05-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 4.44
 ---
 
 # broadcast-web: a button beside the notes popup in Couch's tab bar brings the cast Chrome to the front
