@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-13
 updated: 2026-10-13
-estimate_hours:
-card_mirror: '74f6a4c0e5527e6a03f93bb0e551bc0a5d4cef28' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 6.3535
+card_mirror: 'fb4c11eee48daa5228e9b370920ddf2f84d2321c' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-13T08:57:28-07:00
 claimant:
     operator: Xian Xu
@@ -15,6 +15,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: inferred}
 ---
 
 # couch: resume a slot whose conversation binding is unproven: infer it from transcripts and the tty log, or start fresh oriented from the tty log
@@ -194,3 +195,49 @@ pair:6 read-only while measuring; no live recovery/reboot is authorized here.
   enabled agent/parser version across five threads, five held out, all
   same-cwd negatives, zero wrong automatic picks; a reviewed recorded policy
   is required rather than a count-triggered enablement.
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against
+baseline-v3.1.md. Method A only; source marked stale by estimate-source, so
+calibration is provisional. Derived after plan-quality CLEAN (round 2).
+
+Decomposition: issue/spec (1); greenfield single concerns (3: terminal
+admission, capture witnessing, recovery ranking); extensions (6: three native
+parsers, policy schema, recovery persistence, orientation); recovery executor
+and CLI integration (1); recovery TUI (1); shared liveness refactor (1); atlas
+(1); M1/M2/final review boundaries (3). Existing unix.Flock, atomicfile,
+VT renderer, native parsing, start transactions and retention cover standard
+mechanics; no library supplies Pair's novel authority relationships, so no
+additional library discount. Thorough-plan design discount x0.2 on code
+primitives; familiar Go stack x1.0. Implementation values are table values
+already scaled x0.4, not scaled again. Issue shaping design stays 1.0.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=1.0 impl=0.08
+item: greenfield-go-module design=0.2 impl=0.24
+item: greenfield-go-module design=0.2 impl=0.24
+item: greenfield-go-module design=0.2 impl=0.24
+item: smaller-go-module design=0.04 impl=0.16
+item: smaller-go-module design=0.04 impl=0.16
+item: smaller-go-module design=0.04 impl=0.16
+item: smaller-go-module design=0.04 impl=0.16
+item: smaller-go-module design=0.04 impl=0.16
+item: smaller-go-module design=0.04 impl=0.16
+item: api-integration design=0.4 impl=0.48
+item: tui-screen design=0.2 impl=0.32
+item: cross-cutting-refactor design=0.1 impl=0.16
+item: atlas-docs design=0.05 impl=0.06
+item: milestone-review design=0.04 impl=0.16
+item: milestone-review design=0.03 impl=0.16
+item: milestone-review design=0.03 impl=0.16
+design-buffer: 0.15
+total: 6.3535
+```
+
+Design subtotal 2.69 x1.15 = 3.0935; implementation subtotal 3.26;
+central estimate 6.3535 focused ship-hours. Main uncertainty is integration
+across attach/create and existing recovery admission, not future calibration
+collection (automatic enabling is deferred).
