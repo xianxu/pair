@@ -33,7 +33,20 @@ rounds:
           note: The plan names production functions and supplies adversarial strategies with mechanical guards, replacing the prior prose test-case inventories.
           round: 2
       blocked: false
-content_hash: 4ae8f4a123185b30ba891c91bd23363127ff4a58b3f48745790ab8e81c93c86c
+    - "n": 3
+      timestamp: "2026-10-12T20:21:44-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Callbacks require both the exact parent request ID and authenticated source identity; standalone requests cannot implicitly answer pending requests.
+          round: 3
+        - id: PQ-2
+          disposition: addressed
+          note: The plan names production functions and supplies adversarial strategies with mechanical guards instead of prose test-case inventories.
+          round: 3
+      blocked: false
+content_hash: aad90d26f8d76f00f5cccc1c2a1b32f2e40352583b016ef9501518c284d3eb22
 ---
 
 # Gate ledger — pair#517 (plan-quality)
@@ -56,6 +69,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - PQ-1 — addressed — Exact parent request correlation, authenticated source matching, stale-ID rejection, duplicate handling, and separate standalone self admission are now explicit.
 - PQ-2 — addressed — The plan names production functions and supplies adversarial strategies with mechanical guards, replacing the prior prose test-case inventories.
+
+## Round 3 — 2026-10-12T20:21:44-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Callbacks require both the exact parent request ID and authenticated source identity; standalone requests cannot implicitly answer pending requests.
+- PQ-2 — addressed — The plan names production functions and supplies adversarial strategies with mechanical guards instead of prose test-case inventories.
 
 ## Open findings
 
