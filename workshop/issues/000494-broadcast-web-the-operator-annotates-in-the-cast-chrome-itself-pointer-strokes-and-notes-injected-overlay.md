@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
-estimate_hours: 5.244
-card_mirror: 'f31b7cdfedff1ad106595fc4868d40783a7b6441' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 4.775
+card_mirror: 'ec8d291bd696f4f27982ae4b47d453acd2ac43e1' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T20:05:32-07:00
 claimant:
     operator: Xian Xu
@@ -37,7 +37,7 @@ In the web cast, viewers point and leave notes (pair#470), but the operator, who
 - The operator draws and leaves notes in the cast Chrome; viewers see them live, attributed to the operator; the page's DOM in the recording has no overlay nodes; replay and queries show the operator's notes (after #493).
 - Tests; the operator smoke-tested it.
 - Fidelity screenshots and submission page captures contain no Couch UI; failed or unconfirmed suppression never publishes a contaminated capture.
-- Driver requests can be granted/denied and control taken back in the cast Chrome (M2); annotation is off and disabled while a viewer drives, with an open draft held until control returns.
+- Annotation is off and disabled while a viewer drives, with an open draft held until control returns; driving and broadcast authority stays in Couch.
 - Navigation, pause, return of control and lost replies follow the document-scoped behavior in Revisions; remote input cannot activate operator controls.
 
 ## Estimate
@@ -46,8 +46,8 @@ Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
 `baseline-v3.1.md`. Method A only. sdlc reports the calibration stale; provisional.
 The rows below are, in order: spec/approval; Board protocol; recorder binding;
 capture/input suppression; operator UI policy; shared-mount refactor; embedded-module
-assembly; M2 Controller adapter; deferred menu rows; real Chrome conformance;
-README/atlas; two milestone reviews; one operator UX iteration. Implementation values
+assembly; deferred menu rows; real Chrome conformance;
+README/atlas; one close review and shipping; one operator UX iteration. Implementation values
 are 40% of the v2/v2.1 primitive ranges. Existing Board/CDP/collab/Controller cover
 the library-availability check; no new library assumed. Remaining design uses the
 thorough-spec discount (0.2) on the selected primitive bases, except spec authoring
@@ -66,25 +66,25 @@ item: api-integration design=0.3 impl=0.4
 item: tui-screen design=0.25 impl=0.32
 item: cross-cutting-refactor design=0.12 impl=0.16
 item: smaller-go-module design=0.04 impl=0.12
-item: smaller-go-module design=0.06 impl=0.2
 item: tui-screen design=0.1 impl=0.12
 item: real-api-discovery design=0 impl=0.24
 item: atlas-docs design=0.05 impl=0.08
 item: milestone-review design=0 impl=0.2
-item: milestone-review design=0 impl=0.2
 item: ux-rename-iteration design=0.3 impl=0.08
 design-buffer: 0.15
-total: 5.244
+total: 4.775
 ```
 
-Design 2.16 × 1.15 + implementation 2.76 = **5.244 focused ship-hours**.
+Design 2.10 × 1.15 + implementation 2.36 = **4.775 focused ship-hours**.
 
 ## Plan
 
-- [ ] Write and approve the durable implementation plan at `workshop/plans/000494-operator-overlay-plan.md`.
-- [ ] M1 — Operator annotation: shared Off/Pen/Note UI, Board/recorder bridge, capture exclusion, document identity and driving-disable behavior; targeted/headless proof and milestone review.
-- [ ] M2 — Grant / Deny / Take back in cast Chrome; deferred Couch menu integration after #506 and hub release; operator smoke acceptance and milestone review.
-- [ ] Close, merge fresh main, publish the PR and land on SHIP.
+- [x] Write and approve durable plan; clear change-code's full-flow gate.
+- [ ] Implement operator Board protocol and bounded current annotation projection.
+- [ ] Implement shared annotation mount, isolated bridge and capture exclusion.
+- [ ] Verify off/paused/driving/document lifecycles headlessly and update README/atlas.
+- [ ] After #506 and hub release, merge main and add Couch annotation menu rows.
+- [ ] Obtain operator smoke acceptance through hub; close, PR and merge on SHIP.
 
 ## Log
 
@@ -212,3 +212,22 @@ M1/M2; approval for execution received from TL on cefcb28c2.
 Second plan-quality round disposed PQ-1..3 as addressed (CLEAN). Derived the estimate
 after that verdict. Baselines before implementation: Board package passes, and the
 nine existing annotate Node tests pass. No production changes yet.
+
+### 2026-10-12 — operator removes M2; terminal remains control authority
+
+This supersedes all earlier browser Grant/Deny/Take back requirements and the briefly
+requested input shield / Stop / codes controls. The operator finds broadcast control
+unambiguous in Couch's cast row, not in cast/viewer browser windows. DROP M2 entirely.
+#494 now delivers only operator Off/Pen/Note annotations, off while driven with draft
+held, Board-backed recording and screenshot exclusion. Couch annotation menu rows
+remain deferred until #506 and hub release. No new browser driving-authority controls,
+no shield, no typing arbitration. Existing Go-live control is not expanded by this
+issue. With one atomic delivery, remove milestone tags and use one sdlc close review;
+the issue remains full-flow because its implementation exceeds the quick shell.
+
+The approved M1 mechanisms and tests remain unchanged; this is a scope reduction after
+change-code passed (plan-quality CLEAN, estimate-quality INFO). The new M2 request was
+never implemented. Estimate revision removes M2 UI/control rows and one milestone
+review; terminal integration and final close/ship stay included. Atlas design is an
+undiscounted 0.05 h exception. Conformance implementation is included in recorder,
+capture and shared-UI rows; real-api-discovery covers probing external behavior only.

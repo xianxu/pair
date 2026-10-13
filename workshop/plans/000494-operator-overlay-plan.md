@@ -2,13 +2,13 @@
 
 > **For agentic workers:** Consult AGENTS.md Section 3 (Subagent Strategy) to determine the appropriate execution approach: use superpowers-subagent-driven-development for bounded independent tasks, or superpowers-executing-plans for session-warm integration. Steps use checkboxes for tracking.
 
-**Goal:** Let the operator annotate the actual cast Chrome and manage driving there, with annotations recorded through the existing Board and all Couch UI excluded from page captures.
+**Goal:** Let the operator annotate the actual cast Chrome, with annotations recorded through the existing Board and all Couch UI excluded from page captures.
 
 **Architecture:** Reuse the existing isolated world and excluded control host. A bounded operator binding adapter connects shared annotation UI to Board through the recorder's document identity; the existing recorder remains the only record writer. A document-local suppression owner protects captures and remote input. Annotation is unavailable while a viewer drives.
 
 **Tech stack:** Go, CDP, embedded JavaScript/CSS, existing Node tests and headless Chrome harnesses. No new service, browser extension or external JS dependency.
 
-**Approved scope:** Issue #494 Revisions; the operator correction supersedes concurrent annotation/driving and all keyboard-idle delays. M1 and M2 are separate review boundaries. The Chrome menu is deferred until #495 then #506 land and the hub releases it.
+**Approved scope:** Issue #494 Revisions; the operator correction supersedes concurrent annotation/driving and all keyboard-idle delays. One atomic delivery and one close review; the operator removed M2 before implementation. The Chrome menu is deferred until #495 then #506 land and the hub releases it.
 
 ## Core concepts
 
@@ -23,7 +23,7 @@
 | recorded node path helper | `cmd/internal/webcast/recorder/observer.js` | modified |
 
 - OperatorRequest is a bounded tagged union: prepare-note, save-note, stroke, resolve,
-  cancel-draft; M2 adds grant/deny/revoke through its own control adapter. Transport
+  cancel-draft. Broadcast/driving authority stays in Couch. Transport
   identity (session/context/document) comes from CDP, never a claimed author string.
   Parsing reuses Board shape predicates. Operator authorship is assigned in Go;
   HTTP parsers keep rejecting `operator` (ARCH-SECURE, ARCH-DRY).
@@ -53,8 +53,7 @@
 | Operator injection / script assembly | `cmd/internal/webcast/operator.js`, `operator_script.go` | new | excluded shadow host and trusted embedded JS |
 | Capture/input suppression | `cmd/internal/webcast/recorder/ui_capture.go` | new | exact-context Runtime.evaluate and Page.captureScreenshot |
 | Existing Chrome setup and Cast | `cmd/internal/webcast/chrome.go`, `cast.go`, `inject.js` | modified | installation, ownership and shutdown |
-| Browser driving controls | `cmd/internal/webcast/chrome_operator_drive.go` | new in M2 | existing drive.Controller |
-| Couch annotation entry point | `cmd/internal/couchtty/console_webcast.go` and menu owner files after main merge | modified in M2 | shared operator mode command |
+| Couch annotation entry point | `cmd/internal/couchtty/console_webcast.go` and menu owner files after main merge | modified | shared operator mode command |
 
 Board lives for one Cast. RecordOptions supplies its operator seam when recording is
 configured; no recorder means disabled annotation with a reason. Recorder resolves
@@ -80,10 +79,9 @@ real temporary-profile headless Chrome as the external conformance check (ARCH-M
 | request / stale context, navigation or ended cast | refuse or ignore old reply; never assign to the current document |
 | capture or driver dispatch / acquire token | hide all Couch UI, confirm exact-context suppression before the external operation |
 | any suppression / release one token | restore only if no tokens remain; never target a replacement context |
-| M2 pending request / button press | verify request generation and viewer ID at Controller boundary before applying |
 
 The pure policy function owns state transitions; DOM handlers execute its effects.
-M1 tests cover every row applicable to M1. M2 tests add request/driver transitions.
+Tests cover every row above; no new browser driving-control transition is introduced.
 No two-keyboard arbitration, typing wait, or editor-caused delay to remote input.
 The remaining operator authority buttons must not receive CDP-driven clicks.
 
@@ -196,7 +194,7 @@ operator UI and are not routed through cast suppression.
 - **ARCH-DRY:** Board is validation/anchor authority; shared UI owns gesture geometry;
   observer owns path grammar; Controller owns drive decisions; one capture helper.
 - **ARCH-PURPOSE:** M1 proves operator gestures reach live viewers, recording, replay
-  and query. M2 delivers the browser authority controls and delayed Couch entry point.
+  and query. The delayed Couch entry point uses the existing menu after #506 lands.
 - **ARCH-SECURE:** page scripts may remove a shared host, but cannot invoke isolated
   binding state. Treat all binding payloads as bounded untrusted values. Note/name
   text uses textContent. No operator identity on HTTP and no operator control via
@@ -211,9 +209,9 @@ operator UI and are not routed through cast suppression.
   per context; capture tokens have deadlines; unknown-input suppression ends only when its CDP target is destroyed (see below).
 - **ARCH-MOCK:** stateful Board Writer, recorder Caller/peer and FakeDriven cover
   event ordering, context replacement, hide failure and shutdown. Headless conformance
-  runs once per milestone and after changes to the relevant external assumptions.
+  runs at the single delivery boundary and after changes to the relevant external assumptions.
 
-## M1 — annotation and recording
+## Annotation and recording
 
 ### Task 1: operator protocol and Board authority
 
@@ -254,7 +252,7 @@ asset tables and `cmd/internal/artifactpath/manifest.go` for new production Go f
       consumers on the shared helpers and serve every imported module.
 - [ ] Run Node/module closure tests; update README/atlas and commit the shared UI.
 
-### Task 4: headless proof and M1 boundary
+### Task 4: headless proof
 
 Files: create `cmd/internal/webcast/live_operator_test.go`; extend existing
 `cast_board_test.go`, recorder mirror/capture tests and `tests/webcast` cases.
@@ -266,37 +264,17 @@ Files: create `cmd/internal/webcast/live_operator_test.go`; extend existing
       check and `git diff --check`; mutation-check critical rejection/suppression wiring.
 - [ ] Record evidence in issue Log, update README/atlas and required project references
       through the gate's authorized mechanism (do not hand-edit ops).
-- [ ] Commit and run `sdlc milestone-close --issue 494 --milestone M1` with evidence
-      per help. Fix Important/Critical findings; this is the one boundary review.
-      Report M1 ready to hub; M2 must not delay annotation smoke readiness.
-
-## M2 — browser driving authority and deferred Couch entry point
-
-### Task 5: Grant / Deny / Take back
-
-Files: create `chrome_operator_drive.go` and tests; modify `cast_drive.go`,
-`chrome_operator.go`, `operator.js`, `inject.js`, `drive/controller.go` and its memory
-implementation only as needed for atomic stale-request checks.
-
-- [ ] Write failing tests for applyOperatorControl using the strategy below.
-- [ ] Extend Controller with an atomic expected-state operation if its existing API
-      cannot express it; never check then call Grant outside its lock.
-- [ ] Project Controller's request/driver state; route bounded exact-context commands
-      to its atomic operation and present fixed errors without optimistic success.
-- [ ] Run Controller/Chrome targeted and race tests plus headless driving-controls
-      acceptance; update README/atlas and commit.
-
-### Task 6: integrate latest menu, smoke, close and land
+### Task 5: deferred Couch menu, smoke, close and land
 
 - [ ] Wait for hub confirmation that #506 has landed, then merge fresh main before
       touching menu files. Read #495/#506's shared menu model and add annotation rows
       using it: left acts, right copies, Alt menu only LIVE/Chrome. Targeted menu tests.
 - [ ] Arrange operator smoke through hub; stage/build in pair:0 only on explicit
       instruction. Fresh session for the binary; preserve selected HEAD.
-- [ ] Record operator acceptance; run M2 checks after the last changes and invoke
-      `sdlc milestone-close --issue 494 --milestone M2` with evidence; fix findings.
-- [ ] Run `sdlc close --issue 494 --verified '<actual recorded evidence>'`; measured
-      actuals are adopted by the binary. No fabricated smoke or bypassed checks.
+- [ ] Record operator acceptance; run affected checks after the last change and
+      `sdlc close --issue 494 --verified '<actual recorded evidence>'`. This runs the
+      one mandatory boundary review; fix Important/Critical findings. Actuals are
+      measured by the binary. Do not fabricate smoke or bypass checks.
 - [ ] Merge fresh origin/main, resolve conflicts, rerun affected checks, `sdlc pr`.
       On SHIP run `sdlc merge --yes` (never --no-validate), report PR to hub and stop.
 
@@ -314,7 +292,6 @@ implementation only as needed for atomic stale-request checks.
 | withInputSuppressed | Stateful Caller returns dialog/timeout before delayed dispatch completion; authority controls never return while the effect is unknown. |
 | assembleOperatorScript | Parse/evaluate exact assembled embedded bytes and import closure; unsupported syntax fails construction, shared exported functions match the ESM consumers. |
 | mountAnnotation | Run shared mount with controlled DOM/event source; handlers execute policy effects and never create UI outside the supplied excluded root. |
-| applyOperatorControl | Stateful Controller sequences replace pending requests for the same viewer; stale expected revision cannot affect a replacement request. |
 | TestLiveOperator | Real headless user gestures through Cast and a viewer, then disk/replay/query plus screenshots; independently assert operator authorship, page fidelity, exclusion and off/held-draft input behavior across lifecycle changes. |
 
 ## Unknown remote-input outcomes (PQ-2)
@@ -338,6 +315,7 @@ by a later ping. Capture tokens retain their separate safe-to-discard expiry rul
 
 No simultaneous operator annotation and remote driving, no editor typing-delay queue,
 no extension/SDK, no new recording format, no page-origin network or credentials,
+no browser shield or new Stop/codes/Grant/Deny/Take-back controls,
 no new replay interaction mode, no restyling of unrelated cast controls, and no
 menu edits until the hub releases #506. Existing recording retention remains intact.
 
@@ -351,3 +329,9 @@ menu edits until the hub releases #506. Existing recording retention remains int
   cleanup; separated discardable capture expiry from unknown remote-input lifetime;
   compressed test inventories into named-function adversarial strategies. These
   refine implementation contracts without changing the approved operator experience.
+
+- 2026-10-12: Operator removed M2 entirely (TL receipt 872f2784). Trimmed active
+  mappings/tasks/acceptance to annotation only, preserving deferred Couch menu rows.
+  The transient shield/Chrome authority request (fd133ced) was never implemented.
+  One atomic delivery now closes with one review, full-flow retained. The approved
+  annotation design is unchanged; no milestone-close or M2 code is to be produced.
