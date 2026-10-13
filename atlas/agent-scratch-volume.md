@@ -6,9 +6,16 @@ journals every change on the Data volume and delivers it to watchers. Spotlight 
 they filter after fseventsd has already journaled and delivered the event. Under a fleet of slots fseventsd grew past
 10 GB and ran above 100% CPU (pair#496).
 
-The fix is configuration, not pair code. The churn goes to a separate APFS volume that fseventsd does not journal,
+The mitigation is configuration, not pair code. The churn goes to a separate APFS volume that fseventsd does not journal,
 Spotlight does not index and Time Machine skips. Each tool is pointed at it through its own per-user setting, never the
 shell profile, so the setting covers Couch slots, hand-started pair sessions and the operator's terminal alike.
+
+**Measured outcome (pair#496, 2026-10-12).** The volume works as set up: 15 GB of build churn moved off the Data volume
+within hours, and the volume's `.fseventsd` stayed journal-free. fseventsd's CPU did **not** drop measurably: 11.2%
+before against 12.7% after, an uncontrolled workload whose half-hour windows ranged from 2% to 17%, plus a spike to 71%
+at the end. Its memory stayed at about 15 MB in both windows and the 10 GB episode did not recur, so whether this
+prevents it is unconfirmed. The remaining load is most likely git and worktree churn under `~/workspace`, which stays
+on the journaled volume; a Spotlight exclusion does not stop fseventsd journaling it.
 
 ## Layout
 
@@ -16,12 +23,17 @@ shell profile, so the setting covers Couch slots, hand-started pair sessions and
 |---|---|---|
 | `/Volumes/AgentScratch/go-build` | Go build cache | `go env -w GOCACHE=…` (Go's own `$(go env GOENV)` file) |
 | `/Volumes/AgentScratch/tmp` | Go build temp files | `go env -w GOTMPDIR=…` |
-| `/Volumes/AgentScratch/tmp/claude-<uid>` | Claude Code's per-command sandbox `TMPDIR`, which `t.TempDir()` and `mktemp "${TMPDIR}"` test roots follow | `env.CLAUDE_CODE_TMPDIR` in `~/.claude/settings.json` |
+| `/Volumes/AgentScratch/tmp/claude-<uid>` | Claude Code's per-command sandbox `TMPDIR`, which `t.TempDir()` and templated `mktemp -d "${TMPDIR:-/tmp}/name.XXXXXX"` test roots follow | `env.CLAUDE_CODE_TMPDIR` in `~/.claude/settings.json` |
 
 Claude Code replaces `TMPDIR` for every sandboxed command, so an inherited `TMPDIR` would be ignored there.
 `CLAUDE_CODE_TMPDIR` is the setting that moves that directory, and both it and `sandbox.filesystem.allowWrite`
 take effect in running sessions without a restart. Another agent needs its own equivalent of both settings: its temp
-directory and its sandbox's writable roots.
+directory and its sandbox's writable roots. (No other agent's settings have been configured or verified yet.)
+
+macOS `mktemp` without a template (`mktemp`, `mktemp -d`, `mktemp -t x`) ignores `$TMPDIR` and always uses the Darwin
+per-user directory `/var/folders/…/T`, which the Claude sandbox denies. That predates this volume. Always pass a
+template, as in `mktemp -d "${TMPDIR:-/tmp}/name.XXXXXX"`, and stop on failure (`|| exit 1`) so an empty path never
+reaches `cd`.
 
 ## Setup
 
@@ -55,7 +67,8 @@ unused space stays with the other volumes.
 - `sudo tmutil isexcluded /Volumes/AgentScratch` reports `[Excluded]`.
 - `sudo ls -la /Volumes/AgentScratch/.fseventsd` lists only `fseventsd-uuid` and `no_log`, even after the cache has
   grown. A journal page appearing there means `no_log` was not read at mount.
-- In an agent session: `go env GOCACHE` and `echo $TMPDIR` both point into `/Volumes/AgentScratch`.
+- In an agent session: `go env GOCACHE` points into `/Volumes/AgentScratch`, and so does `echo $TMPDIR` in a
+  sandboxed command (unsandboxed commands keep the inherited `TMPDIR`).
 
 ## Lifecycle
 
@@ -73,6 +86,10 @@ go env -u GOCACHE GOTMPDIR                     # Go falls back to ~/Library/Cach
 diskutil info AgentScratch                     # confirm the target before deleting
 diskutil apfs deleteVolume AgentScratch        # its space returns to the container
 ```
+
+The `no_log`, `mdutil` and Time Machine settings live on the volume and go with it. Only when keeping the volume in some
+other role, undo them with `sudo rm /Volumes/AgentScratch/.fseventsd/no_log`, `sudo mdutil -i on /Volumes/AgentScratch`
+and `sudo tmutil removeexclusion -v /Volumes/AgentScratch`.
 
 If the volume ever fails to mount while Go still points at it, Go fails loudly because it cannot create the cache
 directory. `go env -u` is the immediate fix.

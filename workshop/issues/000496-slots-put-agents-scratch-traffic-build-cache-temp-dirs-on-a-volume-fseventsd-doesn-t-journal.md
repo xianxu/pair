@@ -44,7 +44,7 @@ Configuration, not code (operator, 10-12). Each tool already has a per-user sett
 - Go: `go env -w GOCACHE=… GOTMPDIR=…` (Go's own `~/Library/Application Support/go/env`), which covers every Go invocation: slots, hand-started pair, and the operator's own terminal.
 - Claude Code: `~/.claude/settings.json`, with `env.CLAUDE_CODE_TMPDIR` (the sandbox replaces `TMPDIR` per command, so this is what moves test temp roots) plus `sandbox.filesystem.allowWrite` for the volume.
 - Volume: case-insensitive APFS in container disk3, 200 GB quota, `.fseventsd/no_log`, `mdutil -i off`, Time Machine exclusion. Lifecycle (ARCH-FUNERAL): Go trims its cache itself; leaked temp dirs are bounded by the quota; teardown deletes the volume.
-- Other agents (Codex etc.) need their own temp-dir equivalent; the runbook lists it.
+- Other agents (Codex etc.) need their own temp-dir and sandbox-write equivalents; the runbook states the requirement, and none have been configured or verified yet.
 
 Steps:
 - [x] (approved) create the volume; `no_log`; remount; `mdutil -i off`; tmutil exclusion; dirs
