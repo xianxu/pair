@@ -91,6 +91,13 @@ Durable plan: [000523-cast-capability-switches-plan.md](../plans/000523-cast-cap
 
 ## Log
 
+### 2026-10-13 M2 verification complete
+
+- Fresh make test exited 0: all shell checks and go test ./... -count=1 passed.
+  Full headless Live suite, all webcast race packages and 229 browser tests also
+  passed. Evidence logs are recorded in the durable plan. M2 review/close awaits
+  operator acceptance and TL staging instruction; no pair:0 staging occurred.
+
 ### 2026-10-13 M2 implementation checkpoint
 
 - Integrated landed #494 (PR303) from main. Exact-context permission receipts,
@@ -106,6 +113,9 @@ Durable plan: [000523-cast-capability-switches-plan.md](../plans/000523-cast-cap
   passed (29.982s/27.199s); focused control race checks passed. Headless operator,
   annotation and drive subset passed (6.251s), and the two updated live fixtures
   passed (10.420s). Full make test and fresh complete headless suite underway.
+- Fresh complete headless Live suite passed (159.587s); every webcast package
+  passed under the race detector. Sent hub readiness and requested acceptance
+  scheduling (receipt 725ae05f-c6d3-4481-b99c-ca376deef5a4).
 - README and atlas map defaults, stable links, visible recovery and overlay
   ownership. Operator acceptance remains pending; no pair:0 staging performed.
 

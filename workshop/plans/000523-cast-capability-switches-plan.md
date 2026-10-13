@@ -257,7 +257,7 @@ Chrome/operator seams listed above if #494 is on main, plus scripted/live tests.
   gesture cancellation, held draft and fresh consent on enable.
 - [x] Integrate #494 according to landing order; record exact API ownership and
   run delayed-context/permission plus new-document tests. Do not open a window.
-- [ ] Run `node --test tests/webcast/*.test.mjs tests/broadcast-viewer/*.test.mjs`
+- [x] Run `node --test tests/webcast/*.test.mjs tests/broadcast-viewer/*.test.mjs`
   and `WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run Live -count=1 -v`
   using the existing headless temporary-profile harness; commit.
 
@@ -266,7 +266,7 @@ Chrome/operator seams listed above if #494 is on main, plus scripted/live tests.
 - [x] Update README, atlas/broadcast.md, atlas/webcast.md, atlas/webcast-format.md
   and atlas/index.md only if new atlas files are added. State defaults, click
   table, stable links, clear semantics, error behavior and overlay handoff.
-- [ ] Run `make test` and targeted race tests for capability owners. Check full
+- [x] Run `make test` and targeted race tests for capability owners. Check full
   logs and exit codes. Fix failures without widening unrelated scope.
 - [ ] Send TL readiness; stage to pair:0 and build only when instructed. Operator
   checks annotation OFF/ON and drive OFF with active/pending viewers, right-copy
@@ -491,3 +491,12 @@ starts OFF, and an uncertain CDP dialog result now requires end-cast. Fixtures
 explicitly enable annotations and assert the approved Broken projection after
 uncertain input. Both affected tests pass, as do the operator/annotation/drive
 headless subset. A fresh complete headless run and make test are underway.
+
+### 2026-10-13 01:18 PDT — M2 verification complete, acceptance pending
+
+Fresh make test exited 0, including shell checks and go test ./... -count=1.
+All webcast packages passed under -race; all 229 browser tests passed; the full
+headless Live suite passed in 159.587s. Logs: /tmp/pair-523-m2-suite.log,
+/tmp/pair-523-m2-race.log, /tmp/pair-523-m2-node-final.log and
+/tmp/pair-523-m2-live-final.log. Hub readiness was sent; pair:0 staging and
+operator acceptance remain pending. No visible window was opened.
