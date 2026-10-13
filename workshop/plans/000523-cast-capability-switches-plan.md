@@ -520,3 +520,14 @@ COUCH_BROADCAST_HOSTNAME unset/empty on the operator's next launch. Both casts u
 LocalOnly loopback links. All #523 capability checks can run with local viewer
 identities; this does not validate remote tunnel transport. No live restart is
 performed by this agent.
+
+### 2026-10-13 — Operator acceptance and driver chip refinement
+
+Operator smoke passed: right-copy, annotation clearing/held draft/pen Off, drive
+revocation with pending-request removal and fresh consent. Receipt
+762b6600-ba7b-4038-b46e-d34383665f67 approves one display refinement: OFF plain
+👽; ON idle amber 👽; ON occupied amber 👽 plus driver name in the same clickable
+capability span. Remove the separate active-driver chip; retain the hand-raise
+request span and its popup. Whole driver chip left toggles OFF and right copies.
+Test the three renderings, clipped hit spans and click semantics; build on pair:0
+and wait for the operator's quick look before landing.
