@@ -346,6 +346,59 @@ turn would instead make agent-issued self calls refuse. No brief turn or callbac
 is proposed. Send the trimmed plan to hub and keep implementation paused pending
 its review, as requested by the TL.
 
+### 2026-10-12 22:19 PDT — Lean API and tty-only M1, superseding the 22:12 revision
+
+Verified TL receipts e448b65d-8bba-43fb-86e6-415a7ad41b39,
+8d07c41c-e35f-49f3-bbf3-8bdb4b4d460c and
+c8f62ecf-c917-4bc7-ab22-c198f01e35ba relay the operator's further cuts and M1
+decision. The current contract, overriding the older Spec/Done-when/Plan:
+
+- `couch --switch-agent repo:N --agent NAME --confirm [--json]` is coordinated
+  by TL or operator form. No self, including a caller addressing its own slot.
+  Busy/dirty sources refuse, without a settle exception or wait loop.
+- Cleanly quit the source and start a different target agent using its existing
+  successful per-agent path config or repository default, matching form lookup.
+  Missing config refuses before effects and tells the operator to configure it
+  in the switch form. Configured-empty argv differs from a missing config.
+  Agents cannot supply argv or change defaults; only the human form edits them.
+- No context capture/delivery, callback, discovery sentence, handoff model or
+  bespoke durable recovery state. The TL captures native coordinates before
+  switching. Old agent still running -> retry; definitive target startup failure
+  -> resume old thread using existing lifecycle. Unknown process state cannot
+  authorize another launch. Fresh registration remains prompt-free.
+- Keep full tty reads. The operator delegated choice of the smallest addressable
+  mechanism; choose existing `--previous --all` with only its exact parked tty
+  reference. Remove native transcript/session/binding context from new descriptor
+  writes. No pre-park context snapshot. This narrow tty reference is explicitly
+  allowed by the latest message and does not reinstate the earlier design.
+
+**M1 cost comparison (read-only diff e8d839f8..37707f73b, including tests):**
+25 code/test files, +1,641/-63 lines: descriptor-specific 9 files (+619/-14),
+bounded replay 5 (+722/-34), shared peek wiring/tests 11 (+300/-15). Two product
+docs add 36 lines. These are code-scope measurements, not time estimates.
+
+| Choice | Cost / consequence |
+| --- | --- |
+| Land M1 as-is | Least editing, but retains native context persistence and previous-transcript API now outside scope |
+| Drop descriptor entirely, keep full reads | Remove 9 descriptor deltas and trim 11 shared files plus replay selection/docs; needs a stable post-switch path/ID mechanism if TL must read the captured session later |
+| Keep minimal previous tty pointer (selected) | Reuse exact parked-token reader and retention; remove native-context fields/lookup and simplify tests; no new address/alias lifecycle |
+| Drop all M1 | Remove 25 code/test deltas and docs; loses full reads and replay safety work, contrary to the latest instruction |
+
+Current tty filenames are slot/agent aliases; merely printing them before a
+switch is not stable across subsequent launches. The already-built exact parked
+token is therefore the smaller reliable choice. One previous capture is retained,
+replaced only by the next distinct source park, removed with its thread. Old
+persisted records use strict decoding: retain validated decode compatibility for
+discarded fields rather than making existing records unreadable. Tests cover
+current/previous full replay, successive sources/retry, retention, missing data,
+old record compatibility and no native context in new writes.
+
+Durable plan's 22:17 revision plus 22:19 M1 subsection is authoritative. It
+removes the custom switch coordinator/recovery subsystem and old M3. M2 is the
+remaining boundary for the lean API, tty reduction, tests/docs and TL live
+acceptance. No code changed; wait for TL OK before change-code/build. The old
+8.640h estimate is not the forecast for this smaller plan.
+
 ## Estimate
 
 *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md`

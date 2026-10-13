@@ -794,3 +794,201 @@ one pending/latest per slot; reuse existing settle/launch bounds and propagate
 uncertain outcomes rather than inventing absence. No transcript parsing/replay
 or network/model calls enter the supervisor switch path. ARCH-SECURE/ORDER and
 ARCH-FUNERAL constraints are specified with the transaction and retention above.
+
+### 2026-10-12 22:17 PDT — Lean TL-coordinated switch; replaces the entire 22:12 plan
+
+**Current plan for approval. Do not execute earlier M2/M3 tasks.** Verified TL
+receipts e448b65d-8bba-43fb-86e6-415a7ad41b39 and
+8d07c41c-e35f-49f3-bbf3-8bdb4b4d460c supersede the preceding revision:
+
+> A lean switch-agent API just quits the current agent and starts a new one
+> with a different coding agent, using the known-good startup config for that
+> agent in that repo. Changing the default startup parameters is reserved to
+> the human.
+
+**Goal:** Let the TL switch a clean, idle slot using settings the operator has
+already established. **Architecture:** a thin authenticated adapter over the
+existing switch form's prepare/park/start machinery, with server-resolved argv
+and existing park/resume failure handling. **Tech stack:** existing Go packages.
+
+#### Contract
+
+`couch --switch-agent repo:N --agent NAME --confirm [--json]`. No `self` alias;
+also refuse an exact address resolving to the caller's own slot. Remote API is
+for the authenticated hub/TL; the operator retains the local form. Busy, dirty,
+unknown or changed source refuses, with no waiting for a turn to settle.
+Resolve the target profile before quitting. A different agent is required.
+
+Use the same lookup as the form: the target agent's successful path preference
+(`PathLaunchPreference.ArgvByAgent[NAME]`), then its existing repository-scoped
+agent default. `repoLaunchDefault` already resolves the slot's primary root.
+Keep this precedence; never borrow another agent's argv or another repo's
+settings. Distinguish a present empty argv (valid known configuration) from
+missing configuration. Missing/invalid config refuses before park:
+**"No known-good startup configuration for NAME in this repository; ask the
+operator to set it in the switch form first."** The resolver's current silent
+empty-argv fallback is not allowed on this API path.
+
+Agent requests carry no argv, default-write option, handoff body or callback.
+The server resolves/copies parameters and fingerprints the accepted source and
+configuration; revalidate immediately before effects. Config changes while queued
+refuse rather than launching different parameters. The operator's form remains
+the only switch surface that edits parameters. Successful switching may retain
+the existing successful-launch bookkeeping but cannot supply new defaults or
+change any stored per-agent argv. Fresh-argument validation remains in force;
+an invalid remembered resume configuration directs the operator to the form.
+
+The TL captures what it needs with existing `couch --peek ... --transcripts`
+before switching. Switch creates no coordinate record, brief, prompt, discovery
+line, previous-session lookup, handoff lifecycle or new durable recovery record.
+Remove all switch-generated orientation from the operator form too. Keep fresh
+registration via FreshNonce without orientation. Compaction, continuation and
+launch prompts stay out of scope. Shared delivery used elsewhere remains intact.
+
+#### Minimal failures and existing state
+
+Use existing `SwitchAgentResult`, park transaction, start claim and resume path:
+
+| Observed result | Visible next step |
+| --- | --- |
+| Refusal or quit failure; exact old agent still running | Retry switch after the stated blocker is cleared |
+| Exact new agent registered | Switched to NAME |
+| Old agent parked; target conclusively failed to start | Resume old thread through existing resume action |
+| Partial/unknown quit or startup | Show the existing lifecycle diagnostic; resolve uncertainty before retry/resume, never launch a duplicate |
+
+Do not auto-resume. Retain the existing source profile/binding and verified park
+until target registration commits the switch; an attempted target must not
+become the old thread's resume authority on failure. Use existing cleanup and
+resume guards, not a new switch recovery schema or coordinator. Interrupted
+operations use ordinary start/park reconciliation after restart. Tests below
+must establish the old-thread resume guarantee on definitive startup failure;
+if the current lifecycle cannot express it, stop and report the specific gap
+instead of rebuilding the superseded recovery subsystem.
+
+#### Core concepts and integration owners
+
+| Pure entity | Lives in | Status relative to checkpoint |
+| --- | --- | --- |
+| LaunchProfileResolution | `cmd/internal/couchcore/launchprofile.go` | modified: explicit configured/missing result for the agent API, retaining form behavior |
+| SwitchAgentRequest / SwitchAgentResult | `cmd/internal/couchcore/switchagent.go` | modified: no content; server-selected config and minimal outcomes |
+| SwitchContent, AgentSwitch handoff model, SwitchRecovery and custom view | `cmd/internal/couchcore/agent_switch_model.go`, `agent_switch_view.go`, `cmd/internal/threadrecord/switch_recovery.go` | deleted: no replacement subsystem |
+
+| Integration | Lives in | Status | Reuses |
+| --- | --- | --- | --- |
+| CLI and authenticated remote switch | `cmd/internal/couchcmd/switch_agent_cli.go`, `agent_switch_service.go`, `slot_operations.go`; `cmd/internal/couchmessage/protocol.go` | modified | existing slot operation admission, receipt/status and console queue |
+| Config lookup and guarded park/start | `cmd/internal/couchcore/switchagent.go`, `launchprofile.go`, `threadstore_location.go` | modified | form lookup, thread gate, exact-source guards, CAS and existing lifecycle |
+| Human form and result notice | `cmd/internal/couchtty/console_remote.go`, `console_switchagent.go`, `menu_actions.go` | modified | existing form parameter editing, switch operation and resume action |
+| Fresh registration | `cmd/internal/couchcore/launch_existing.go`; `cmd/internal/launcher/args.go`, `createflow.go`, `launch_args_policy.go` | modified | retain FreshNonce without orientation |
+
+#### Remaining tasks — one revised M2, no M3
+
+- [ ] **Apply the chosen M1 disposition after TL decision.** The cost comparison
+  is in the issue's newest Revisions entry. Do not remove reviewed M1 functionality
+  unilaterally. Recommended option is full reads only; previous persistence and
+  `--previous` then leave together, including retention hooks and schema fields.
+- [ ] **Remove superseded M2 WIP.** Compare to 37707f73b and keep only remote
+  command parsing/authentication, existing queue/receipt integration, immutable
+  config/source guards and FreshNonce. Remove custom coordinator, callbacks,
+  all content/delivery timers and fields, custom recovery schema/helpers/menu,
+  and saved-native recovery plumbing added only for that subsystem. Restore
+  unrelated orientation/continuation consumers. Commit the coherent trim.
+- [ ] **Known configuration, tests first.** Extend `launchprofile_test.go` and
+  `switchagent_test.go`: configured-empty versus missing, per-agent/repo isolation,
+  form precedence, malformed/default mismatch, remembered invalid resume args,
+  config change before park and failed launch not overwriting defaults. Run red,
+  add the narrow server-only selection policy, rerun green, commit.
+- [ ] **Lean command, tests first.** Update colocated switch CLI/service/protocol
+  tests: exact slot only; own-slot/foreign caller rejection; --confirm required;
+  reject self, argv/body/handoff/callback fields; busy/dirty/unknown refusal before
+  effects. Bind queue execution to exact source and accepted config. Use existing
+  operation queue/status, no switch-specific wait loop. Test refusal/replacement
+  while queued and duplicate admission; implement, rerun green, commit.
+- [ ] **Lifecycle and form, tests first.** In `switchagent_test.go`, existing
+  start/park integration tests and `console_switchagent_test.go`, use stateful
+  process/session/runner fakes plus portable thread store. Test clean quit then
+  target registration, quit failure with old live, spawn/registration failure,
+  old-thread resume, target survives lost acknowledgement, interrupted start and
+  unknown liveness. Assert surviving identities and launch counts. Form and API
+  produce no orientation/draft/prompt; only form can edit argv. Implement minimal
+  wiring and result notices, run targeted race checks, commit.
+- [ ] **Docs and acceptance.** Update CLI help, README and atlas for the lean
+  verb and missing-config instruction; no previous-discovery sentence or TL
+  authoring procedure. Adjust source inventory. Keep whichever M1 tests the TL
+  selects. TL schedules live switching among Claude/Codex/Grok with existing
+  configured settings, including a definitive failed start followed by resume.
+- [ ] Run the full machine-gated `make test` in background. Record evidence,
+  close M2 through `sdlc milestone-close --issue 517 --milestone M2`, resolve its
+  review, then close/publish through SDLC after acceptance. No extra ad-hoc review.
+
+Targeted red/green checks:
+
+```sh
+go test ./cmd/internal/couchcore -run 'Test.*(LaunchProfile|SwitchAgent|Switch|StartTransaction)' -count=1
+go test ./cmd/internal/couchcmd ./cmd/internal/couchmessage ./cmd/internal/couchtty -run 'Test.*(Switch|ResponseAfterWrite)' -count=1
+go test ./cmd/internal/launcher -run 'Test.*FreshNonce' -count=1
+go test -race ./cmd/internal/couchcore ./cmd/internal/couchcmd ./cmd/internal/couchtty -run 'Test.*Switch' -count=1
+```
+
+ARCH-DRY/PURE: existing resolver/lifecycle and result, no new persistent switch
+noun. ARCH-PURPOSE: TL owns context; API only switches. ARCH-SECURE: server picks
+argv, authenticates hub and refuses caller-self; human edits config. ARCH-ORDER:
+serialize existing quit/start events; registration is commit, uncertainty is not
+absence. ARCH-MOCK: lifecycle fakes model process survival and interrupted IO.
+ARCH-CONSTRAINTS: heavy explicit action, existing operation bounds, no new timers
+or global caps. ARCH-FUNERAL: existing receipt expiry/park/start cleanup owns
+residue; no additional switch records. The previous 8.640h forecast is obsolete;
+re-estimate after revised change-code review. Await TL OK before that gate/build.
+
+#### 2026-10-12 22:19 PDT — M1 disposition selected under the operator's delegation
+
+Receipt c8f62ecf-c917-4bc7-ab22-c198f01e35ba authorizes choosing the smaller way
+to retain addressable full tty reads. **Choose the existing `--previous` reader,
+reduced to tty evidence only.** This is the narrow exception to the preceding
+"no coordinate record / previous-session lookup" statement; it does not revive
+the discarded switch/handoff/recovery design.
+
+Reason: current raw/events names are slot-and-agent aliases (`artifactpath`
+`ScrollbackArtifacts`); parked archives have exact tokens. Printing the live
+alias before switch cannot promise the same evidence on a later launch. The
+current `--previous` reader already selects the exact park token, leases it and
+uses the bounded full replay. Keeping that small pointer avoids inventing a new
+stable pre-switch ID, archive mapping or copy/retention lifecycle.
+
+Keep `couch --peek repo:N --all` and `couch --peek repo:N --previous --all`,
+including JSON raw/events paths and text rendering. Full reads remain a complete
+retained terminal projection or explicit error, not a silently truncated tail.
+Keep one previous tty reference: source park identity, capture token/agent/events
+presence and capture time, using existing capture validation/retention. Persist
+it from the verified park before target launch; replace on the next distinct
+source park, keep through retries, remove with the thread. No pre-park native
+lookup or source snapshot is added. When unavailable, report unavailable.
+
+Remove previous native session, transcript paths, session binding and accumulated
+context diagnostics from new descriptor writes and from switch context capture.
+Current `--transcripts` stays unchanged for the TL to capture before switching;
+`--previous --transcripts` refuses with guidance to capture native coordinates
+before the switch. Previous tty source identity is only for choosing the right
+recording, never recovery or launch authority. Document the tty-only command in
+ordinary peek help/README; do not add the discarded agent-orientation sentence
+to the skill or help.
+
+**Owner/task adjustment:** retain and simplify `PreviousSession` in
+`cmd/internal/threadrecord/previous_session.go`, `record.go`,
+`cmd/internal/couchcore/previous_session.go`, `thread.go`, `peek_selection.go`,
+`peek.go`; retain the M1 bounded reader and CLI wiring. Keep the legacy JSON
+decode fields only as compatibility input if persisted WIP records require it;
+validate then discard their unused native-context values on subsequent writes.
+Tests must read old/full and new/tty-only records without accepting malformed
+identity/capture data. No new persistent artifact family.
+
+Before trimming, write targeted tests: current and previous `--all`, matching
+park source on retries and successive switches, missing capture, rejection of
+previous-native lookup, transcript-context absence from new writes, compatibility,
+lease retention during replay and limit/loss errors. Then reduce the descriptor,
+remove its native resolver dependency and update docs. Add these packages to
+verification: `go test ./cmd/internal/scrollbackcmd ./cmd/internal/threadrecord
+./cmd/internal/couchcore ./cmd/internal/couchcmd -run
+'Test.*(Previous|Peek|Bounded|Capture)' -count=1` (one shell line).
+
+M1's SHIP verdict records the old scope; the reduced surface must be verified and
+reviewed with the final M2 diff. Build remains paused pending TL OK on this plan.
