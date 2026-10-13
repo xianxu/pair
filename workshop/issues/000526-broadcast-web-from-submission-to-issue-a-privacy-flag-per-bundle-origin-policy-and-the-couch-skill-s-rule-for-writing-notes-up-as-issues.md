@@ -101,3 +101,5 @@ PQ-1 addressed with named risky-function strategies instead of prose case invent
 
 - Live Chrome `TestLiveSubmissionCrop` passed (actual typed-input fixture); targeted race run across submission/webcast/recorder/couchcmd passed; `make build` passed. Full keep-going run exposed the exhaustive production-source inventory: registered the two new policy files beside existing Couch/submission sources; targeted artifactpath coverage now passes. Full rerun required after that correction.
 - Hub authorized treating only known #514 timing as non-blocking and instructed close/land after other verification; next assignment is #525 after #526 lands.
+
+- The keep-going full suite completed: its sole failure was the now-corrected production-source inventory; every other package/check passed (including Couch core in 232.967s). `/tmp/pair-526-full-keepgoing.log`. A final full rerun is running at corrected code HEAD `828e9471b`; no further production changes pending.
