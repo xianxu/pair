@@ -23,6 +23,8 @@ type OwnerLaunchCacher interface {
 }
 
 type ownerLaunchKey struct {
+	// rootPath tells scopes apart: every scope's Pair root has one name.
+	rootPath string
 	ledger   Artifact
 	scopeKey string
 	tag      string
@@ -34,6 +36,20 @@ type ownerLaunchEntry struct {
 	current     sessionledger.Current
 	ok          bool
 	diagnostics []Diagnostic
+}
+
+// answer is the entry for one caller: its own Current (the binding record and
+// the bindings slice copied, so a caller's change or a pointer into them never
+// reaches the cache) and diagnostics. A Record's nested slices stay shared and
+// are read-only, as every reader of a parsed ledger already treats them.
+func (e ownerLaunchEntry) answer() (sessionledger.Current, []Diagnostic) {
+	current := e.current
+	if current.Binding != nil {
+		binding := *current.Binding
+		current.Binding = &binding
+	}
+	current.Bindings = append([]sessionledger.Record(nil), current.Bindings...)
+	return current, append([]Diagnostic(nil), e.diagnostics...)
 }
 
 func NewOwnerLaunchCache() *OwnerLaunchCache {

@@ -132,7 +132,9 @@ func TestQuerySessionCachesTheLedgerUntilItChanges(t *testing.T) {
 	fake.SetPairDataRoot(pairRoot)
 	ledger := sessioninventory.Artifact{StorageRoot: pairRoot.Name, RelativePath: "ledger-work.jsonl"}
 	fake.PutFile(sessioninventory.FileEntry{Artifact: ledger, MutationToken: "ctime:1"}, []byte(v1Launch))
-	reads := func() int { return fake.OperationCount(sessioninventorytest.OperationReadAt, ledger.StorageRoot+":"+ledger.RelativePath) }
+	reads := func() int {
+		return fake.OperationCount(sessioninventorytest.OperationReadAt, ledger.StorageRoot+":"+ledger.RelativePath)
+	}
 	query := func() sessioninventory.SessionQuery {
 		t.Helper()
 		q, err := sessioninventory.QuerySession(runtime, "scope", "work", sessioninventory.AgentCodex)

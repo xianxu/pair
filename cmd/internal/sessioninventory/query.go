@@ -382,10 +382,11 @@ func readCurrentLaunch(ctx context.Context, runtime Runtime, scopeKey, tag strin
 		return sessionledger.Current{}, false, diagnostics, err
 	}
 	cache := ownerLaunchCacheOf(runtime)
-	key := ownerLaunchKey{ledger: ledger.Artifact, scopeKey: scopeKey, tag: tag, agent: agent}
+	key := ownerLaunchKey{rootPath: runtime.PairDataRoot().Path, ledger: ledger.Artifact, scopeKey: scopeKey, tag: tag, agent: agent}
 	fingerprint := fingerprintFromEntry(ledger)
 	if hit, ok := cache.get(key, fingerprint); ok {
-		return hit.current, hit.ok, append(diagnostics, hit.diagnostics...), nil
+		current, cached := hit.answer()
+		return current, hit.ok, append(diagnostics, cached...), nil
 	}
 	current, _, ok, parsed, err := parseOwnerLedger(ctx, runtime, ledger.Artifact, scopeKey, tag, agent)
 	if err != nil {

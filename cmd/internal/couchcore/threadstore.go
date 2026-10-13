@@ -282,36 +282,14 @@ func (s *ThreadStore) createJournalEntries(record ThreadRecord) ([]storeJournalE
 }
 
 func (s *ThreadStore) GetThread(address ThreadAddress) (ThreadRecord, error) {
-	if err := validateThreadAddress(address); err != nil {
-		return ThreadRecord{}, err
-	}
-	backend, routeErr := s.storeForAddress(address)
-	if routeErr != nil {
-		return ThreadRecord{}, routeErr
-	}
-	if backend != s {
-		return backend.GetThread(address)
-	}
-	var result ThreadRecord
-	err := s.withLock(func() error {
-		record, err := s.readThreadLocked(address)
-		if err != nil {
-			return err
-		}
-		result = cloneThreadRecord(record)
-		return nil
-	})
-	if err == nil && s.hooks.AfterGetThread != nil {
-		if hookErr := s.hooks.AfterGetThread(address); hookErr != nil {
-			return ThreadRecord{}, hookErr
-		}
-	}
-	return result, err
+	record, _, err := s.getThreadStamped(address)
+	return record, err
 }
 
 // getThreadStamped is GetThread plus the record file's stamp, taken under the
 // store lock before the read (#507): the record is never newer than its
 // stamp, so a caller that finds the same stamp later may reuse the record.
+// The one read path, so AfterGetThread fires for every read.
 func (s *ThreadStore) getThreadStamped(address ThreadAddress) (ThreadRecord, recordStamp, error) {
 	if err := validateThreadAddress(address); err != nil {
 		return ThreadRecord{}, recordStamp{}, err
@@ -338,11 +316,18 @@ func (s *ThreadStore) getThreadStamped(address ThreadAddress) (ThreadRecord, rec
 		result = cloneThreadRecord(record)
 		return nil
 	})
+	if err == nil && s.hooks.AfterGetThread != nil {
+		if hookErr := s.hooks.AfterGetThread(address); hookErr != nil {
+			return ThreadRecord{}, recordStamp{}, hookErr
+		}
+	}
 	return result, stamp, err
 }
 
-// recordStamp is one record file as last read. Records are replaced by
-// rename (durablefile.WriteAtomic), so every write is a new file.
+// recordStamp is one record file as last read: the file (inode), its size and
+// its mtime. Records are replaced by rename (durablefile.WriteAtomic), so
+// every write is a new file, and a migration removes the source record, so a
+// moved record no longer stamps the same.
 type recordStamp struct {
 	path string
 	info os.FileInfo

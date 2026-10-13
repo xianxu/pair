@@ -1410,3 +1410,9 @@ proof; record the surprising case so the next change starts from evidence.
 - **What went wrong:** the tab bar's narrow-width collapse hid every numbered slot of a group, including its first member when the group had no `:0`. The `+N` then sat after the previous repository's chip and read as its count.
 - **Rule:** when compressing a run of related items into a summary (`+N`, `:N`, `…`), keep the run's first item drawn so the summary has an owner on screen; test a run that lacks its usual leader.
 - **And:** state a value handed across a package boundary at startup (here the hub root) is tested where it is set *and* where a lazy rebuild could drop it.
+- **A variant of a read path wraps the original, never copies it (#507 close).** `getThreadStamped` repeated
+  `GetThread`'s validate, route, lock, read and clone steps and dropped its `AfterGetThread` hook, which recovery
+  tests use to inject interleavings. When a caller needs the same read plus one more fact (a stamp, a path), make
+  the old function call the new one so hooks and checks live in one place. A cache that serves a parsed value
+  hands each caller its own copy of anything the caller can reach and mutate, and keys on every input that names
+  the source (a root's path, not only its fixed name).

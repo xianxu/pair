@@ -33,7 +33,7 @@ func (OSRuntime) ModTime(path string) (time.Time, bool) {
 // SessionActivity is the established root transcript's last activity, or false
 // when the thread has no exact established binding. ctx bounds the query.
 func (r OSRuntime) SessionActivity(ctx context.Context, t Thread) (time.Time, bool) {
-	runtime := sessioninventory.NewOSRuntime(r.Home, t.ScopeDir).WithOwnerLaunchCache(r.launches)
+	runtime := r.inventory(t.ScopeDir)
 	query, err := sessioninventory.QuerySessionContext(ctx, runtime, t.Scope, t.Tag, sessioninventory.Agent(t.Agent))
 	if err != nil || ctx.Err() != nil {
 		return time.Time{}, false
@@ -43,6 +43,12 @@ func (r OSRuntime) SessionActivity(ctx context.Context, t Thread) (time.Time, bo
 		return time.Time{}, false
 	}
 	return activity.LastActivityAt, true
+}
+
+// inventory is the session inventory over one thread's scope, sharing this
+// runtime's ledger cache.
+func (r OSRuntime) inventory(scopeDir string) sessioninventory.OSRuntime {
+	return sessioninventory.NewOSRuntime(r.Home, scopeDir).WithOwnerLaunchCache(r.launches)
 }
 
 var _ Runtime = OSRuntime{}
