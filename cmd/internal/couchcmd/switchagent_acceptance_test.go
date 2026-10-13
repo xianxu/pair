@@ -53,7 +53,7 @@ func runSwitchAgentTransportAcceptance(t *testing.T, liveSource bool) {
 			t.Fatal(err)
 		}
 		rt.artifacts.SetPairSession(source.Address, managedChildSession(t, rt.runner, handle.ID()), true)
-		rt.artifacts.SetSessionPresence(source.Address, couchcore.SessionObservation{State: couchcore.SessionPresent, Terminal: &launcher.TerminalSafety{Usable: true}})
+		rt.artifacts.SetSessionPresence(source.Address, couchcore.SessionObservation{State: couchcore.SessionPresent, Terminal: &launcher.TerminalSafety{State: launcher.TerminalUsable}})
 	}
 
 	data := t.TempDir()
@@ -137,7 +137,7 @@ func runSwitchAgentTransportAcceptance(t *testing.T, liveSource bool) {
 	}
 	rt.runner.AfterAcknowledge = func(id string) error {
 		rt.artifacts.SetPairSession(source.Address, managedChildSession(t, rt.runner, id), true)
-		rt.artifacts.SetSessionPresence(source.Address, couchcore.SessionObservation{State: couchcore.SessionPresent, Terminal: &launcher.TerminalSafety{Usable: true}})
+		rt.artifacts.SetSessionPresence(source.Address, couchcore.SessionObservation{State: couchcore.SessionPresent, Terminal: &launcher.TerminalSafety{State: launcher.TerminalUsable}})
 		return nil
 	}
 	args := []string{"--model", "test model"}

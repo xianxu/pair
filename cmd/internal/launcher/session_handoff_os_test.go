@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"context"
 	"encoding/json"
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/procutil"
@@ -73,14 +74,34 @@ func TestTerminalUsabilityRejectsOldAgentBehindReplacementServer(t *testing.T) {
 	if err = os.WriteFile(path, raw, 0600); err != nil {
 		t.Fatal(err)
 	}
-	ready, _ := readiness.Encode(readiness.ReadyRecord{Tag: p.Tag, Agent: p.Agent, Nonce: p.Nonce, Session: p.Name, PID: 30})
+	ready, _ := readiness.Encode(readiness.ReadyRecord{Tag: p.Tag, Agent: p.Agent, Nonce: p.Nonce, Session: p.Name, PID: 30, AgentIdentity: "agent"})
 	if err = os.WriteFile(AgentReadyPath(root, p.Tag, p.Agent), []byte(ready), 0600); err != nil {
 		t.Fatal(err)
 	}
 	table := []procutil.Process{{PID: 10, PPID: 1, Identity: "server"}, {PID: 20, PPID: 10, Identity: "wrapper"}, {PID: 30, PPID: 20, Identity: "agent"}}
-	if got := ObserveTerminalUsability(server, root, "", p.Tag, table); !got.Usable {
+	if got := ObserveTerminalUsability(server, root, "", p.Tag, table); !got.Usable() {
 		t.Fatalf("healthy: %+v", got)
 	}
+	table[2].Identity = "agent-reused"
+	if got := ObserveTerminalUsability(server, root, "", p.Tag, table); got.Usable() {
+		t.Fatal("stale ready pid certified replacement agent generation")
+	}
+	table[2].Identity = "agent"
+	legacy, _ := readiness.Encode(readiness.ReadyRecord{Tag: p.Tag, Agent: p.Agent, Nonce: p.Nonce, Session: p.Name, PID: 30})
+	os.WriteFile(AgentReadyPath(root, p.Tag, p.Agent), []byte(legacy), 0600)
+	if got := ObserveTerminalUsability(server, root, "", p.Tag, table); got.Usable() {
+		t.Fatal("legacy readiness silently gained process identity")
+	}
+	// A native fresh reexec may update PID and generation under the same server
+	// and launch nonce; the policy must not pin the old child process.
+	table[2] = procutil.Process{PID: 40, PPID: 20, Identity: "fresh-agent"}
+	fresh, _ := readiness.Encode(readiness.ReadyRecord{Tag: p.Tag, Agent: p.Agent, Nonce: p.Nonce, Session: p.Name, PID: 40, AgentIdentity: "fresh-agent"})
+	os.WriteFile(AgentReadyPath(root, p.Tag, p.Agent), []byte(fresh), 0600)
+	if got := ObserveTerminalUsability(server, root, "", p.Tag, table); !got.Usable() {
+		t.Fatalf("native reexec did not replace readiness: %+v", got)
+	}
+	table[2] = procutil.Process{PID: 30, PPID: 20, Identity: "agent"}
+	os.WriteFile(AgentReadyPath(root, p.Tag, p.Agent), []byte(ready), 0600)
 	otherDir := filepath.Join(dir, "other")
 	if err = os.Mkdir(otherDir, 0700); err != nil {
 		t.Fatal(err)
@@ -100,7 +121,7 @@ func TestTerminalUsabilityRejectsOldAgentBehindReplacementServer(t *testing.T) {
 	if err = os.WriteFile(path, raw, 0600); err != nil {
 		t.Fatal(err)
 	}
-	if got := ObserveTerminalUsability(server, root, "", p.Tag, table); got.Usable {
+	if got := ObserveTerminalUsability(server, root, "", p.Tag, table); got.Usable() {
 		t.Fatal("policy for another socket certified observed server")
 	}
 	p.Socket = socket
@@ -109,12 +130,68 @@ func TestTerminalUsabilityRejectsOldAgentBehindReplacementServer(t *testing.T) {
 	raw, _ = json.Marshal(p)
 	os.WriteFile(path, raw, 0600)
 	table[1].PPID = 99
-	if got := ObserveTerminalUsability(server, root, "", p.Tag, table); got.Usable {
+	if got := ObserveTerminalUsability(server, root, "", p.Tag, table); got.Usable() {
 		t.Fatal("old agent made replacement usable")
 	}
 	table[1].PPID = 10
 	server.Identity = "reused"
-	if got := ObserveTerminalUsability(server, root, "", p.Tag, table); got.Usable {
+	if got := ObserveTerminalUsability(server, root, "", p.Tag, table); got.Usable() {
 		t.Fatal("stale policy certified reused pid")
+	}
+}
+
+func TestTerminalObservationPreservesUnknown(t *testing.T) {
+	for _, tc := range []struct {
+		err  error
+		want TerminalUsability
+	}{
+		{os.ErrPermission, TerminalUnknown},
+		{context.DeadlineExceeded, TerminalUnknown},
+		{os.ErrNotExist, TerminalUnsafe},
+		{unsafeTerminalError("invalid policy"), TerminalUnsafe},
+	} {
+		if got := terminalObservationError(tc.err); got.State != tc.want {
+			t.Fatalf("%v: state %v, want %v", tc.err, got.State, tc.want)
+		}
+	}
+}
+
+func TestTerminalPolicyInspectionPreservesUnknown(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	socket := filepath.Join(t.TempDir(), "session")
+	server := SessionServerIdentity{Socket: socket}
+	path, err := sessionPolicyPath(socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		t.Fatal(err)
+	}
+	// A looping parent is an inspection failure, not proof of legacy policy.
+	parent := filepath.Dir(path)
+	if err = os.Remove(parent); err != nil {
+		t.Fatal(err)
+	}
+	if err = os.Symlink(parent, parent); err != nil {
+		t.Fatal(err)
+	}
+	if got := ObserveTerminalUsability(server, "", "", "", nil); got.State != TerminalUnknown {
+		t.Fatalf("inspection failed: %+v", got)
+	}
+	if err = os.Remove(parent); err != nil {
+		t.Fatal(err)
+	}
+	if err = os.Mkdir(parent, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if got := ObserveTerminalUsability(server, "", "", "", nil); got.State != TerminalUnsafe {
+		t.Fatalf("missing policy: %+v", got)
+	}
+	if err = os.WriteFile(path, []byte("invalid"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if got := ObserveTerminalUsability(server, "", "", "", nil); got.State != TerminalUnsafe {
+		t.Fatalf("invalid policy: %+v", got)
 	}
 }

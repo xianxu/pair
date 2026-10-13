@@ -73,6 +73,8 @@ pair:6 read-only while measuring; no live recovery/reboot is authorized here.
 
 ## Revisions
 
+- 2026-10-13 11:10: M1 boundary REWORK tightens uncertainty, exact readiness child generation, bounded metadata IO, and the fixed 256-stripe lease lifecycle; see appended plan revision. Scope and explicit-only M2 remain unchanged.
+
 - 2026-10-13 10:21 PDT — TL reports the operator is recovering pair:6. It is no longer a test bed: no further split investigation or process/cache changes there; use scratch setups for legacy/conflict conformance. This changes test location, not the approved design.
 
 - 2026-10-13 09:03 PDT — TL receipt a9307d75-b068-482d-8738-e8d6a344640a
@@ -211,6 +213,12 @@ pair:6 read-only while measuring; no live recovery/reboot is authorized here.
   enabled agent/parser version across five threads, five held out, all
   same-cwd negatives, zero wrong automatic picks; a reviewed recorded policy
   is required rather than a count-triggered enablement.
+
+
+### 2026-10-13 11:10 — M1 boundary fixes
+
+M1 review against 2efe103cf returned REWORK: BR-1 unknown evidence promoted to live/relaunch, BR-2 missing exact agent process generation, BR-3 blocking/unbounded metadata reads, BR-4 permanent per-name lock accumulation. Accepted all four and appended the corrected contracts and actual function owners to the durable plan. The implementation now distinguishes unknown/usable/unsafe, pins readiness child identity, uses bounded nonblocking metadata reads, and caps permanent lock inodes at 256 stable stripes. Regression checks include behavioral red for unknown projection/attach overlay and a mutation removing the agent identity comparison; neither defect is waved away by prior suite success. Review artifacts preserved. Focused checks are in progress; M1 remains open and M2 has not begun. No live Pair slots or saved layouts changed.
+
 
 ## Estimate
 

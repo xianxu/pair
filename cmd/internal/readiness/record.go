@@ -13,6 +13,7 @@ import (
 )
 
 type ReadyRecord struct {
+	AgentIdentity string                     `json:"agent_identity,omitempty"`
 	LaunchOrdinal uint64                     `json:"launch_ordinal,omitempty"`
 	Orientation   *orientation.DeliveryState `json:"orientation,omitempty"`
 	Tag           string                     `json:"tag"`
@@ -47,6 +48,9 @@ func Decode(raw string) (ReadyRecord, error) {
 }
 
 func Validate(record ReadyRecord) error {
+	if len(record.AgentIdentity) > 256 || !utf8.ValidString(record.AgentIdentity) || strings.IndexFunc(record.AgentIdentity, unicode.IsControl) >= 0 {
+		return fmt.Errorf("ready record: invalid agent process identity")
+	}
 	if s := record.Orientation; s != nil {
 		if len(s.Reason) > 1024 || !utf8.ValidString(s.Reason) || strings.IndexFunc(s.Reason, unicode.IsControl) >= 0 {
 			return fmt.Errorf("ready record: invalid orientation reason")

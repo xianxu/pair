@@ -59,7 +59,7 @@ func newColdResumeRig(t *testing.T) *coldResumeRig {
 		rt.artifacts.SetPaneSidecar(parked.Address, "claude")
 		rt.artifacts.SetPairSession(parked.Address, managedChildSession(t, rt.runner, id), true)
 		// Registration and a helper PID alone do not prove an interactive agent.
-		rt.artifacts.SetSessionPresence(parked.Address, couchcore.SessionObservation{State: couchcore.SessionPresent, Terminal: &launcher.TerminalSafety{Usable: true}})
+		rt.artifacts.SetSessionPresence(parked.Address, couchcore.SessionObservation{State: couchcore.SessionPresent, Terminal: &launcher.TerminalSafety{State: launcher.TerminalUsable}})
 		return nil
 	}
 	c, err := rt.NewCouch()

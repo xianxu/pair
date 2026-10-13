@@ -149,7 +149,7 @@ func TestAttestedDetachedTerminalAttachesWithoutNewServer(t *testing.T) {
 	var before launcher.TerminalSafety
 	for {
 		before, err = launcher.ObserveTerminalSafety(ctx, name, root, scope, tag)
-		if err == nil && before.Usable {
+		if err == nil && before.Usable() {
 			break
 		}
 		select {
@@ -211,7 +211,7 @@ func TestAttestedDetachedTerminalAttachesWithoutNewServer(t *testing.T) {
 		t.Fatal(ctx.Err())
 	}
 	after, err := launcher.ObserveTerminalSafety(ctx, name, root, scope, tag)
-	if err != nil || !after.Usable || after.Owner.Server != before.Owner.Server || after.Policy != before.Policy {
+	if err != nil || !after.Usable() || after.Owner.Server != before.Owner.Server || after.Policy != before.Policy {
 		t.Fatalf("warm replaced terminal: before=%+v after=%+v err=%v", before, after, err)
 	}
 	readyAfter, err := os.ReadFile(paths.AgentReady("claude"))

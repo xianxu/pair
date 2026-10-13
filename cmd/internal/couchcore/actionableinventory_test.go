@@ -212,7 +212,7 @@ func TestActionableThreadInventorySnapshotsAndOwnsRows(t *testing.T) {
 		t.Fatal(err)
 	}
 	artifacts := NewFakeThreadArtifactCollisionChecker()
-	artifacts.SetSessionPresence(created.Address, SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{Usable: true}})
+	artifacts.SetSessionPresence(created.Address, SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{State: launcher.TerminalUsable}})
 	couch := &Couch{Threads: store, Artifacts: artifacts}
 	observations := []LiveTTYObservation{{
 		Address: created.Address,

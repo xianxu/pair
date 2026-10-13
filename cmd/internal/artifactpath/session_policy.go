@@ -147,9 +147,19 @@ func DecodeSessionLaunchPolicy(raw []byte) (SessionLaunchPolicy, error) {
 }
 
 // The OS caller canonicalizes socket directory symlinks before using these pure
-// constructors. Both artifacts share the same key, independent of scope aliases.
+// constructors. Keys are independent of scope aliases.
 func (p PairCachePaths) TerminalLease(canonicalSocket string) (string, error) {
-	return p.terminalArtifact(canonicalSocket, "session-locks", ".lock")
+	// Layout v2 uses 256 permanent lock inodes. Hash collisions serialize unrelated
+	// sockets harmlessly; policies retain their full exact-socket key. Changing
+	// this layout requires coordinated adoption by every cooperating process.
+	if p.dir == "" {
+		return "", errors.New("unresolved Pair cache")
+	}
+	if err := validatePolicySocket(canonicalSocket); err != nil {
+		return "", err
+	}
+	key := sha256.Sum256([]byte(canonicalSocket))
+	return filepath.Join(p.dir, "session-locks-v2", hex.EncodeToString(key[:1])+".lock"), nil
 }
 func (p PairCachePaths) SessionPolicy(canonicalSocket string) (string, error) {
 	return p.terminalArtifact(canonicalSocket, "session-policy", ".json")

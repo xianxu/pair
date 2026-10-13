@@ -23,6 +23,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/orientation"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycletest"
+	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/readiness"
 )
 
@@ -192,7 +193,7 @@ func TestContinuationZellijAgentStandIn(t *testing.T) {
 	if err := os.WriteFile(os.Getenv("PAIR_CONTINUATION_LIVE_CAPTURE"), []byte(seed.Body), 0600); err != nil {
 		t.Fatal(err)
 	}
-	ready := readiness.ReadyRecord{Tag: request.Tag, Agent: request.Agent, Nonce: request.Attempt, Session: os.Getenv("ZELLIJ_SESSION_NAME"), PID: os.Getpid(), Orientation: &orientation.DeliveryState{Phase: orientation.DeliveryWaiting}}
+	ready := readiness.ReadyRecord{Tag: request.Tag, Agent: request.Agent, Nonce: request.Attempt, Session: os.Getenv("ZELLIJ_SESSION_NAME"), PID: os.Getpid(), AgentIdentity: procutil.Identity(strconv.Itoa(os.Getpid())), Orientation: &orientation.DeliveryState{Phase: orientation.DeliveryWaiting}}
 	publish := func() {
 		raw, err := readiness.Encode(ready)
 		if err != nil {

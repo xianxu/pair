@@ -204,7 +204,7 @@ func newTestEnv(t *testing.T, trees ...string) *testEnv {
 			return nil
 		}
 		address := ThreadAddress{RepoScope: environmentValue(child.Env, "COUCH_THREAD_SCOPE"), Tag: ThreadTag(environmentValue(child.Env, "COUCH_THREAD_TAG"))}
-		artifacts.SetSessionPresence(address, SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{Usable: true}})
+		artifacts.SetSessionPresence(address, SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{State: launcher.TerminalUsable}})
 		return nil
 	}
 
@@ -661,7 +661,7 @@ func testComposedPairRegistrationBoundary(t *testing.T, freshSlot bool) {
 	// real server/socket/descendant and published the generation-bound policy.
 	for {
 		safety, safetyErr := launcher.ObserveTerminalSafety(waitCtx, preAck.Incarnations[0].Start.SessionBinding.Name, pairData, scope.Key, string(address.Tag))
-		if safetyErr == nil && safety.Usable {
+		if safetyErr == nil && safety.Usable() {
 			break
 		}
 		select {

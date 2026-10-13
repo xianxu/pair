@@ -19,7 +19,7 @@ func detachedLayoutRecord(t *testing.T, layout Layout) (ThreadRecord, map[Thread
 	record.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
 	record.Layout = layout
 	evidence := map[ThreadAddress]ThreadEvidence{record.Address: {
-		Session:      SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{Usable: true}},
+		Session:      SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{State: launcher.TerminalUsable}},
 		ParkedStatus: ProofResolved,
 	}}
 	return record, evidence

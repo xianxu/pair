@@ -123,7 +123,7 @@ func ProjectSessionPresence(bindings []SessionNameBinding, sessions []launcher.S
 		case hasServer(servers, binding.SessionName, launcher.ServerContested):
 			// Two servers for one name: an orphan may hide behind the live one.
 			observation.State = SessionUnresolved
-			observation.Terminal = &launcher.TerminalSafety{Reason: "distinct servers claim this session; relaunch required"}
+			observation.Terminal = &launcher.TerminalSafety{State: launcher.TerminalUnsafe, Reason: "distinct servers claim this session; relaunch required"}
 		case index.live[binding.SessionName]:
 			observation.State = SessionPresent
 		case hasServer(servers, binding.SessionName, launcher.ServerOrphaned):

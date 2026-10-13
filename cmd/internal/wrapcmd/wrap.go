@@ -70,6 +70,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/layoutcmd"
 	"github.com/xianxu/pair/cmd/internal/notifytransport"
 	"github.com/xianxu/pair/cmd/internal/orientation"
+	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/readiness"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
 	"github.com/xianxu/pair/cmd/internal/sessionwatch"
@@ -233,12 +234,14 @@ type proxy struct {
 	bellFallback     bool
 
 	// Resolved paths (empty when env didn't provide PAIR_TAG)
-	agentOutputFile string
-	captureOutPath  string
-	captureDonePath string
-	capturePIDPath  string
-	agentPIDPath    string
-	agentReadyPath  string
+	agentOutputFile      string
+	captureOutPath       string
+	captureDonePath      string
+	capturePIDPath       string
+	agentPIDPath         string
+	agentReadyPath       string
+	readyProcessPID      int
+	readyProcessIdentity string
 
 	// PTY
 	ptmx          *os.File
@@ -613,7 +616,21 @@ func (p *proxy) publishAgentReadyStatus(pid int, status *orientation.DeliverySta
 		}
 		launchOrdinal = parsed
 	}
+	// Pin the child's generation once; later orientation updates must not
+	// refresh a reused PID into authority for a different process.
+	if p.readyProcessIdentity == "" {
+		identity := procutil.Identity(strconv.Itoa(pid))
+		if identity == "" {
+			return errors.New("ready record: agent process identity unavailable")
+		}
+		p.readyProcessPID = pid
+		p.readyProcessIdentity = identity
+	}
+	if p.readyProcessPID != pid {
+		return errors.New("ready record: agent process changed")
+	}
 	raw, err := readiness.Encode(readiness.ReadyRecord{
+		AgentIdentity: p.readyProcessIdentity,
 		LaunchOrdinal: launchOrdinal,
 		Orientation:   status,
 		Tag:           tag,

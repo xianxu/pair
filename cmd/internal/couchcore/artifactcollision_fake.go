@@ -167,7 +167,7 @@ func (f *FakeThreadArtifactCollisionChecker) SetDetachedSession(address ThreadAd
 	if f.sessionPresence == nil {
 		f.sessionPresence = map[ThreadAddress]SessionObservation{}
 	}
-	f.sessionPresence[address] = SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{Usable: true}}
+	f.sessionPresence[address] = SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{State: launcher.TerminalUsable}}
 }
 
 // DetachedSessions answers only for addresses the caller asked about, exactly

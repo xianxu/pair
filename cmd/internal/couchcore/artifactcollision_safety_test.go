@@ -44,7 +44,11 @@ func TestDetachedSessionsRequireAttestedUsableTerminal(t *testing.T) {
 				if kind == "wrong agent" {
 					policy.Agent = "codex"
 				}
-				return launcher.TerminalSafety{Usable: kind != "legacy" && kind != "empty agent", Policy: policy}
+				state := launcher.TerminalUsable
+				if kind == "legacy" || kind == "empty agent" {
+					state = launcher.TerminalUnsafe
+				}
+				return launcher.TerminalSafety{State: state, Policy: policy}
 			}
 			if kind == "contested" {
 				checker.OwnerProbe = launcher.SessionOwnerProbe{IO: contestedDetachedOwner{&sessionOwnerWorld{root: data, owners: map[string]ThreadAddress{name: addressA}, generation: "first"}}}

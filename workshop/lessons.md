@@ -1527,3 +1527,10 @@ proof; record the surprising case so the next change starts from evidence.
 
 - **#494 reconciliation lifetime:** operation identity includes the authority’s lifetime, not only request ID/body. Retire browser state when the server’s document ledger retires; test switch-return plus lost reply and late completion, not each lifecycle independently.
 - **#494 interactive identity:** a record stream can update between pointer-down and pointer-up. Preserve swatch/control DOM nodes across unrelated updates, and test an interleaved record against the originally pressed element on every shared surface.
+
+### #528 — terminal evidence boundaries
+
+- Keep unknown observations distinct from proven unsafe state through every projection and optimistic UI overlay; test a failed inspection after successful attachment.
+- A PID plus ancestry is not a process generation. Pin the child's start identity in readiness, and mutation-test reuse of only that PID while the server remains unchanged.
+- A byte limit does not bound open/read on a FIFO. Runtime metadata readers must reject special files, open nonblocking, and validate the opened inode.
+- Permanent coordination files require a cardinality bound. Stable hashed stripes preserve exclusion without unsafe unlink races or per-session accumulation.

@@ -89,7 +89,7 @@ func TestTheWorldDecidesWhateverTheRecordSaysAboutItself(t *testing.T) {
 		{
 			name: "the session survived",
 			evidence: ThreadEvidence{
-				Session: SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{Usable: true}}, StartOwner: Dead,
+				Session: SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{State: launcher.TerminalUsable}}, StartOwner: Dead,
 			},
 			wantState: ThreadDetached,
 		},

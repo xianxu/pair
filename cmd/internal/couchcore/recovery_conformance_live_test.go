@@ -21,6 +21,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/orientation"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycletest"
+	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/readiness"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
 )
@@ -359,7 +360,7 @@ func TestRecoveryLiveAgentStandIn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	raw, err := readiness.Encode(readiness.ReadyRecord{Tag: request.Tag, Agent: request.Agent, Session: os.Getenv("ZELLIJ_SESSION_NAME"), Nonce: request.Attempt, PID: os.Getpid(), LaunchOrdinal: ordinal, Orientation: &orientation.DeliveryState{Phase: orientation.DeliverySubmitted, BodyWritten: true}})
+	raw, err := readiness.Encode(readiness.ReadyRecord{Tag: request.Tag, Agent: request.Agent, Session: os.Getenv("ZELLIJ_SESSION_NAME"), Nonce: request.Attempt, PID: os.Getpid(), AgentIdentity: procutil.Identity(strconv.Itoa(os.Getpid())), LaunchOrdinal: ordinal, Orientation: &orientation.DeliveryState{Phase: orientation.DeliverySubmitted, BodyWritten: true}})
 	if err != nil {
 		t.Fatal(err)
 	}

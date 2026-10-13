@@ -610,6 +610,7 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	"cmd/internal/launcher/metadata_read.go",
 	"cmd/internal/couchcore/agent_usability.go",
 	"cmd/internal/artifactpath/capture_witness.go",
 	"cmd/internal/launcher/session_handoff.go",

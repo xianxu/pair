@@ -1,8 +1,9 @@
 package artifactpath
 
 import (
+	"crypto/sha256"
 	"encoding/json"
-	"path/filepath"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -57,34 +58,60 @@ func TestSessionLaunchPolicyRejectsInvalidIdentity(t *testing.T) {
 		})
 	}
 }
-func TestTerminalPolicyPathsUseSameSocketKey(t *testing.T) {
-	cache, err := ResolvePairCache("/home/test")
+func TestTerminalPolicyPathsUseCanonicalSocket(t *testing.T) {
+	cache, _ := ResolvePairCache("/home/test")
+	socket := "/tmp/sockets/session"
+	lock, err := cache.TerminalLease(socket)
 	if err != nil {
 		t.Fatal(err)
 	}
-	lock, err := cache.TerminalLease("/tmp/sockets/session")
+	policy, err := cache.SessionPolicy(socket)
 	if err != nil {
 		t.Fatal(err)
 	}
-	policy, err := cache.SessionPolicy("/tmp/sockets/session")
-	if err != nil {
-		t.Fatal(err)
+	key := sha256.Sum256([]byte(socket))
+	if want := fmt.Sprintf("/home/test/.cache/pair/session-locks-v2/%02x.lock", key[0]); lock != want {
+		t.Fatalf("lock = %s, want %s", lock, want)
 	}
-	if filepath.Dir(lock) != "/home/test/.cache/pair/session-locks" || filepath.Dir(policy) != "/home/test/.cache/pair/session-policy" {
-		t.Fatalf("wrong namespaces: %s %s", lock, policy)
-	}
-	key := strings.TrimSuffix(filepath.Base(lock), ".lock")
-	if len(key) != 64 || filepath.Base(policy) != key+".json" {
-		t.Fatalf("keys disagree: %s %s", lock, policy)
-	}
-	other, _ := cache.TerminalLease("/tmp/other/session")
-	if lock == other {
-		t.Fatal("same name in different socket directories collided")
+	if want := fmt.Sprintf("/home/test/.cache/pair/session-policy/%x.json", key); policy != want {
+		t.Fatalf("policy = %s, want %s", policy, want)
 	}
 	for _, bad := range []string{"relative", "/tmp/../session", "/", "/tmp/s\x00"} {
 		if _, err := cache.TerminalLease(bad); err == nil {
 			t.Fatalf("accepted %q", bad)
 		}
+	}
+	if _, err := (PairCachePaths{}).TerminalLease(socket); err == nil {
+		t.Fatal("accepted unresolved cache")
+	}
+}
+
+func TestTerminalLeasePathsHaveFixedBound(t *testing.T) {
+	cache, _ := ResolvePairCache("/home/test")
+	locks := map[string]bool{}
+	policies := map[string]bool{}
+	for i := 0; i < 10000; i++ {
+		socket := fmt.Sprintf("/tmp/sockets/session-%d", i)
+		lock, err := cache.TerminalLease(socket)
+		if err != nil {
+			t.Fatal(err)
+		}
+		again, err := cache.TerminalLease(socket)
+		if err != nil || lock != again {
+			t.Fatalf("unstable key: %s %s %v", lock, again, err)
+		}
+		locks[lock] = true
+		policy, err := cache.SessionPolicy(socket)
+		if err != nil {
+			t.Fatal(err)
+		}
+		policies[policy] = true
+	}
+	if len(locks) > 256 {
+		t.Fatalf("%d unique lock paths exceeds fixed bound 256", len(locks))
+	}
+	if len(policies) != 10000 {
+		t.Fatalf("policy identities merged: %d", len(policies))
 	}
 }
 func FuzzDecodeSessionLaunchPolicy(f *testing.F) {

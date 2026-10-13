@@ -376,7 +376,7 @@ func TestArchiveRefusesEveryOccupiedIncarnationNotJustLive(t *testing.T) {
 			proc.Set(42, "pair-x")
 			artifacts := NewFakeThreadArtifactCollisionChecker()
 			artifacts.SetPairSession(updated.Address, "pair-x-session", true)
-			artifacts.SetSessionPresence(updated.Address, SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{Usable: true}})
+			artifacts.SetSessionPresence(updated.Address, SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{State: launcher.TerminalUsable}})
 			couch := &Couch{Threads: store, Artifacts: artifacts, Proc: proc, Path: NewFakePathOps(nil)}
 
 			_, err = couch.ArchiveThread(context.Background(), updated.Address)

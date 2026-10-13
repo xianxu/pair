@@ -33,8 +33,30 @@ func terminalLaunchArgs(session, config, layout string, create bool) []string {
 type TerminalSafety struct {
 	Owner  SessionOwnerObservation
 	Policy artifactpath.SessionLaunchPolicy
-	Usable bool
+	State  TerminalUsability
 	Reason string
+}
+
+type TerminalUsability uint8
+
+const (
+	TerminalUnknown TerminalUsability = iota
+	TerminalUsable
+	TerminalUnsafe
+)
+
+func (t TerminalSafety) Usable() bool { return t.State == TerminalUsable }
+
+type unsafeTerminalError string
+
+func (e unsafeTerminalError) Error() string { return string(e) }
+func terminalObservationError(err error) TerminalSafety {
+	result := TerminalSafety{Reason: err.Error()}
+	var unsafe unsafeTerminalError
+	if errors.Is(err, os.ErrNotExist) || errors.As(err, &unsafe) {
+		result.State = TerminalUnsafe
+	}
+	return result
 }
 
 // ObserveTerminalSafety is shared by launch admission and Couch projections.
@@ -47,6 +69,9 @@ func ObserveTerminalSafety(ctx context.Context, name, root, scope, tag string) (
 	}
 	if owner.State != SessionOwnerOwned {
 		result.Reason = owner.Diagnostic
+		if owner.State != SessionOwnerUnknown {
+			result.State = TerminalUnsafe
+		}
 		return result, nil
 	}
 	table, err := procutil.Table()
@@ -55,10 +80,11 @@ func ObserveTerminalSafety(ctx context.Context, name, root, scope, tag string) (
 	}
 	result = ObserveTerminalUsability(owner.Server, root, scope, tag, table)
 	result.Owner = owner
-	if !result.Usable {
+	if !result.Usable() {
 		return result, nil
 	}
 	if err = (SessionOwnerProbe{}).Revalidate(ctx, owner); err != nil {
+		result.State = TerminalUnknown
 		return result, err
 	}
 	return result, nil
@@ -71,32 +97,33 @@ func ObserveTerminalUsability(server SessionServerIdentity, root, scope, tag str
 	result := TerminalSafety{Owner: SessionOwnerObservation{Server: server, Name: server.Session}}
 	policy, err := readSessionPolicy(server.Socket)
 	if err != nil {
-		result.Reason = "This session was saved by an older Pair and cannot be attached safely → relaunch"
-		return result
+		return terminalObservationError(err)
 	}
 	result.Policy = policy
 	canonicalObserved, err := canonicalSocket(server.Socket)
-	if err != nil || policy.Socket != canonicalObserved {
+	if err != nil {
+		return terminalObservationError(err)
+	}
+	if policy.Socket != canonicalObserved {
+		result.State = TerminalUnsafe
 		result.Reason = "terminal launch policy belongs to another socket → relaunch"
 		return result
 	}
 	if policy.Scope != scope || policy.Tag != tag || policy.Name != server.Session || policy.ServerPID != server.PID || policy.ServerIdentity != server.Identity {
+		result.State = TerminalUnsafe
 		result.Reason = "terminal launch policy belongs to another generation → relaunch"
 		return result
 	}
 	if err = validatePolicySocketFile(policy); err != nil {
-		result.Reason = err.Error()
-		return result
+		return terminalObservationError(err)
 	}
 	if err = checkNoSavedLayout(server.Session); err != nil {
-		result.Reason = err.Error()
-		return result
+		return terminalObservationError(err)
 	}
 	if err = observePolicyAgentWithTable(policy, root, table); err != nil {
-		result.Reason = err.Error()
-		return result
+		return terminalObservationError(err)
 	}
-	result.Usable = true
+	result.State = TerminalUsable
 	result.Owner.State = SessionOwnerOwned
 	return result
 }
@@ -124,16 +151,15 @@ func readSessionPolicy(socket string) (artifactpath.SessionLaunchPolicy, error) 
 	if err != nil {
 		return artifactpath.SessionLaunchPolicy{}, err
 	}
-	f, err := os.Open(path)
+	raw, err := readBoundedRegularMetadata(context.Background(), path, artifactpath.MaxSessionLaunchPolicyBytes)
 	if err != nil {
 		return artifactpath.SessionLaunchPolicy{}, err
 	}
-	defer f.Close()
-	raw, err := io.ReadAll(io.LimitReader(f, artifactpath.MaxSessionLaunchPolicyBytes+1))
+	policy, err := artifactpath.DecodeSessionLaunchPolicy(raw)
 	if err != nil {
-		return artifactpath.SessionLaunchPolicy{}, err
+		return policy, unsafeTerminalError(err.Error())
 	}
-	return artifactpath.DecodeSessionLaunchPolicy(raw)
+	return policy, nil
 }
 func socketFileID(path string) (uint64, uint64, error) {
 	s, err := os.Lstat(path)
@@ -141,7 +167,7 @@ func socketFileID(path string) (uint64, uint64, error) {
 		return 0, 0, err
 	}
 	if s.Mode()&os.ModeSocket == 0 {
-		return 0, 0, errors.New("terminal socket is not a socket")
+		return 0, 0, unsafeTerminalError("terminal socket is not a socket")
 	}
 	st, ok := s.Sys().(*syscall.Stat_t)
 	if !ok {
@@ -155,7 +181,7 @@ func validatePolicySocketFile(p artifactpath.SessionLaunchPolicy) error {
 		return err
 	}
 	if dev != p.SocketDevice || ino != p.SocketInode {
-		return errors.New("terminal socket was replaced → relaunch")
+		return unsafeTerminalError("terminal socket was replaced → relaunch")
 	}
 	return nil
 }
@@ -176,7 +202,7 @@ func checkNoSavedLayout(name string) error {
 	if err != nil {
 		return fmt.Errorf("cannot inspect legacy terminal layout: %w", err)
 	}
-	return errors.New("legacy saved terminal layout cannot be attached safely → relaunch")
+	return unsafeTerminalError("legacy saved terminal layout cannot be attached safely → relaunch")
 }
 func observePolicyAgent(p artifactpath.SessionLaunchPolicy, root string) error {
 	table, err := procutil.Table()
@@ -190,20 +216,20 @@ func observePolicyAgentWithTable(p artifactpath.SessionLaunchPolicy, root string
 	if err != nil {
 		return err
 	}
-	raw, err := os.ReadFile(AgentReadyPath(owner.Directory(), p.Tag, p.Agent))
+	raw, err := readBoundedRegularMetadata(context.Background(), AgentReadyPath(owner.Directory(), p.Tag, p.Agent), maxAgentReadyBytes)
 	if err != nil {
 		return err
 	}
 	ready, err := readiness.Decode(string(raw))
 	if err != nil {
-		return err
+		return unsafeTerminalError(err.Error())
 	}
 	if ready.Tag != p.Tag || ready.Agent != p.Agent || ready.Session != p.Name || ready.Nonce != p.Nonce {
-		return errors.New("agent readiness belongs to another terminal generation")
+		return unsafeTerminalError("agent readiness belongs to another terminal generation")
 	}
 	server := SessionServerIdentity{PID: p.ServerPID, Identity: p.ServerIdentity}
-	if !AgentBelongsToServer(server, ready.PID, table) {
-		return errors.New("terminal has no live agent from its recorded launch → relaunch")
+	if !AgentBelongsToServer(server, ready.PID, ready.AgentIdentity, table) {
+		return unsafeTerminalError("terminal has no live agent from its recorded launch → relaunch")
 	}
 	return nil
 }
@@ -256,7 +282,7 @@ func (a *terminalOSAttempt) Check(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		if !observed.Usable {
+		if !observed.Usable() {
 			return fmt.Errorf("terminal needs relaunch: %s", observed.Reason)
 		}
 		if observed.Policy.Socket != a.socket {
@@ -286,26 +312,12 @@ func (a *terminalOSAttempt) Check(ctx context.Context) error {
 	}
 	for _, agent := range AgentInventory() {
 		path := AgentReadyPath(owner.Directory(), a.tag, agent)
-		f, e := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+		raw, e := readBoundedRegularMetadata(ctx, path, maxAgentReadyBytes)
 		if errors.Is(e, os.ErrNotExist) {
 			continue
 		}
 		if e != nil {
 			return fmt.Errorf("cannot inspect retained agent readiness → relaunch: %w", e)
-		}
-		st, statErr := f.Stat()
-		if statErr != nil || !st.Mode().IsRegular() {
-			f.Close()
-			return errors.New("retained agent readiness is not a readable regular file → relaunch")
-		}
-		const maxReadyBytes = 8192
-		raw, e := io.ReadAll(io.LimitReader(f, maxReadyBytes+1))
-		f.Close()
-		if e != nil {
-			return fmt.Errorf("cannot read retained agent readiness → relaunch: %w", e)
-		}
-		if len(raw) > maxReadyBytes {
-			return errors.New("retained agent readiness exceeds bound → relaunch")
 		}
 		ready, e := readiness.Decode(string(raw))
 		if e != nil || ready.Tag != a.tag || ready.Agent != agent {
@@ -416,7 +428,7 @@ func (a *terminalOSAttempt) observeAdmission(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		if !now.Usable || now.Owner.Server != a.expected.Owner.Server || now.Policy != a.expected.Policy {
+		if !now.Usable() || now.Owner.Server != a.expected.Owner.Server || now.Policy != a.expected.Policy {
 			return errors.New("terminal changed during attachment")
 		}
 		return nil
@@ -427,7 +439,7 @@ func (a *terminalOSAttempt) observeAdmission(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	readyBytes, err := os.ReadFile(AgentReadyPath(storageOwner.Directory(), a.tag, a.agent))
+	readyBytes, err := readBoundedRegularMetadata(ctx, AgentReadyPath(storageOwner.Directory(), a.tag, a.agent), maxAgentReadyBytes)
 	if err != nil {
 		return err
 	}

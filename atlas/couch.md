@@ -17,9 +17,10 @@ the pty console, actor panel, notices, and complete local lifecycle shipped in
 A hosted helper or listed Zellij name alone no longer proves a usable agent.
 The inventory combines one process snapshot with the exact server/socket
 identity, a non-serializing launch policy, and matching agent readiness from
-that server's descendant tree. Missing observations remain unknown; observed
+that server's descendant tree, including the exact agent PID/start identity.
+Missing or failed observations remain unknown; observed
 legacy, contested, orphaned or empty terminals show **needs relaunch**. A
-successful client attach cannot overwrite that unsafe verdict in the menu.
+successful client attach cannot overwrite an unknown or unsafe verdict in the menu.
 The menu offers explicit Relaunch; inferred-conversation preview and execution
 are the next #528 implementation boundary, not an automatic recovery policy.
 
@@ -29,7 +30,10 @@ policy only after server, pane and agent proof. Warm attachment requires that
 policy and the same live generation. The lease ends after verified admission,
 not after the client exits. Failure cancels only the attempted client; it does
 not delete saved layouts or kill an unverified server. Policy files and stable
-lock inodes are excluded from ordinary session GC.
+lock inodes are excluded from ordinary session GC. Locks occupy 256 permanent
+stripes in session-locks-v2; socket-key collisions only serialize admission.
+Policy/readiness reads are bounded regular-file reads with nonblocking open
+and inode revalidation.
 
 New tty captures start with an events witness naming their file identities,
 capture generation and producing launch ordinal/nonce. Archive metadata v2

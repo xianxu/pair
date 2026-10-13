@@ -4,8 +4,8 @@ import "github.com/xianxu/pair/cmd/internal/procutil"
 
 // AgentBelongsToServer consumes one process snapshot. A live wrapper belonging
 // to an inaccessible old server cannot witness the replacement terminal.
-func AgentBelongsToServer(server SessionServerIdentity, agentPID int, table []procutil.Process) bool {
-	if server.PID <= 0 || server.Identity == "" || agentPID <= 0 || agentPID == server.PID {
+func AgentBelongsToServer(server SessionServerIdentity, agentPID int, agentIdentity string, table []procutil.Process) bool {
+	if server.PID <= 0 || server.Identity == "" || agentPID <= 0 || agentPID == server.PID || agentIdentity == "" {
 		return false
 	}
 	rows := make(map[int]procutil.Process, len(table))
@@ -15,7 +15,7 @@ func AgentBelongsToServer(server SessionServerIdentity, agentPID int, table []pr
 		}
 		rows[p.PID] = p
 	}
-	if rows[server.PID].Identity != server.Identity {
+	if rows[server.PID].Identity != server.Identity || rows[agentPID].Identity != agentIdentity {
 		return false
 	}
 	seen := map[int]bool{}

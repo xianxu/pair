@@ -337,3 +337,16 @@ Before execution, listing is read-only and creates no durable snapshot store. `E
 | ParseCLI, ValidateRequest, recovery menu reducer | Invalid selectors and stale asynchronous previews; pure tests plus service fake prove read/execute separation and UI/CLI parity. |
 
 Existing targeted/race/full-suite and scratch conformance gates remain; numerical auto-policy is intentionally not shipped.
+
+
+### 2026-10-13 11:10 — M1 boundary REWORK: uncertainty, agent generation and bounded metadata
+
+The first M1 boundary review returned REWORK (BR-1 through BR-4); this revision supersedes the earlier boolean usability and unbounded per-name lock lifecycle. ARCH-ORDER: TerminalSafety is a three-way observation (unknown, usable, unsafe). Inspection failures stay unknown through core projection and menu overlays; known missing/invalid attestation is unsafe. A previous successful attach cannot overwrite either verdict. Only positively usable evidence can be downgraded for a bound-agent mismatch.
+
+Readiness carries the exact agent PID/start identity in addition to the server generation and launch nonce. Legacy readiness is readable but cannot attest a safe attachment. The producing wrapper pins the child identity for its readiness updates; a legitimate native reexec publishes its own new child identity. This avoids confusing PID reuse with continuity without permanently pinning the server policy to the first child.
+
+ARCH-SECURE: all policy/readiness admission reads share a bounded regular-file reader. It checks type/size before open, uses nonblocking/no-follow flags, validates the opened inode and checks for replacement after bounded reading. Context cancellation and OS inspection failures remain uncertainty; malformed known metadata never authorizes admission.
+
+ARCH-FUNERAL: admission leases use 256 permanent stripes under Pair cache session-locks-v2/HH.lock, selected by the first byte of SHA256(canonical socket). Same-key aliases share a stripe; unrelated collisions only serialize. Lock inodes are never unlinked, and total lock artifacts are bounded at 256. Exact socket policy paths remain unchanged and retire after verified absence under the lease. This new lock namespace cannot coordinate with the prior experimental layout; M1 has not been deployed/staged, so no deployed-format migration or cleanup is required. No legacy layouts are deleted.
+
+Actual M1 function owners (correction to the earlier test table): AcquireTerminalLease is in launcher/session_lease.go (integration); readBoundedRegularMetadata is new in launcher/metadata_read.go (integration); ObserveTerminalUsability/ObserveTerminalSafety are in launcher/session_handoff_os.go (integration); AgentBelongsToServer is in launcher/terminal_agent.go (pure); terminalObservationError is in launcher/session_handoff_os.go (pure); agentUsabilityReason is in couchcore/agent_usability.go (pure); overlayPassRow is in couchtty/menu_reattach.go (pure). New/modified tests cover each review defect; no automatic inference is added.

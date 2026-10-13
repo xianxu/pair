@@ -513,7 +513,7 @@ func (c ScopedThreadArtifactCollisionChecker) SessionPresence(ctx context.Contex
 				item := out[binding.Address]
 				server, found := servers[binding.SessionName]
 				if item.State == SessionPresent && !found {
-					item.Terminal = &launcher.TerminalSafety{Reason: "listed terminal has no live server; relaunch required"}
+					item.Terminal = &launcher.TerminalSafety{State: launcher.TerminalUnsafe, Reason: "listed terminal has no live server; relaunch required"}
 					out[binding.Address] = item
 					continue
 				}
@@ -553,8 +553,8 @@ func (c ScopedThreadArtifactCollisionChecker) terminalUsability(server launcher.
 		observe = launcher.ObserveTerminalUsability
 	}
 	terminal := observe(server, c.GlobalDataDir, binding.Address.RepoScope, string(binding.Address.Tag), table)
-	if binding.Agent != "" && terminal.Policy.Agent != binding.Agent {
-		terminal.Usable = false
+	if terminal.Usable() && binding.Agent != "" && terminal.Policy.Agent != binding.Agent {
+		terminal.State = launcher.TerminalUnsafe
 		terminal.Reason = "terminal policy does not match the bound agent"
 	}
 	return terminal
@@ -640,7 +640,7 @@ func (c ScopedThreadArtifactCollisionChecker) DetachedSessions(ctx context.Conte
 		if !observed.Present || observed.Owner == nil {
 			continue
 		}
-		if terminal := c.terminalUsability(observed.Owner.Server, binding, table); !terminal.Usable {
+		if terminal := c.terminalUsability(observed.Owner.Server, binding, table); !terminal.Usable() {
 			continue
 		}
 		owned = append(owned, binding)

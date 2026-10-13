@@ -291,9 +291,11 @@ func TestCloneMenuStateCopiesThePassDeeply(t *testing.T) {
 func TestReattachOverlayCannotHideUnsafeTerminal(t *testing.T) {
 	address := menuAddress("couch-a")
 	pass := ReattachPass{Attached: map[couchcore.ThreadAddress]uint64{address: 10}}
-	row := couchcore.ActionableThreadSummary{Address: address, State: couchcore.ThreadUnusable, Reason: couchcore.ReasonNeedsRelaunch}
-	got := overlayPassRow(pass, row)
-	if got.State != row.State || got.Reason != row.Reason {
-		t.Fatalf("successful client attach hid unsafe terminal: %+v", got)
+	for _, reason := range []couchcore.ThreadReason{couchcore.ReasonUnknown, couchcore.ReasonNeedsRelaunch} {
+		row := couchcore.ActionableThreadSummary{Address: address, State: couchcore.ThreadUnusable, Reason: reason}
+		got := overlayPassRow(pass, row)
+		if got.State != row.State || got.Reason != row.Reason {
+			t.Fatalf("successful client attach hid %s terminal: %+v", reason, got)
+		}
 	}
 }

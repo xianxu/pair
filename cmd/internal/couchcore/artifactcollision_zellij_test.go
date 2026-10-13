@@ -49,7 +49,7 @@ func sandboxedChecker(t *testing.T, dataDir string, sessions map[string]string) 
 	// This fixture models a healthy agent separately from ownership and indexes.
 	checker.ProcessTable = func() ([]procutil.Process, error) { return nil, nil }
 	checker.TerminalUsability = func(launcher.SessionServerIdentity, string, string, string, []procutil.Process) launcher.TerminalSafety {
-		return launcher.TerminalSafety{Usable: true, Policy: artifactpath.SessionLaunchPolicy{Agent: "claude"}}
+		return launcher.TerminalSafety{State: launcher.TerminalUsable, Policy: artifactpath.SessionLaunchPolicy{Agent: "claude"}}
 	}
 	// Runtime ownership is independent evidence, initialized from this fixture's
 	// registrations once. Subsequent index changes cannot change its live owner.

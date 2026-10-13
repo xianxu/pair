@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"golang.org/x/sys/unix"
 	"os"
 	"os/exec"
@@ -149,5 +150,60 @@ func TestTerminalLeaseCloseOnExec(t *testing.T) {
 	flags, err := unix.FcntlInt(l.file.Fd(), unix.F_GETFD, 0)
 	if err != nil || flags&unix.FD_CLOEXEC == 0 {
 		t.Fatalf("descriptor inheritance: %d %v", flags, err)
+	}
+}
+
+func TestTerminalLeaseCanonicalAliasesAndStripeCollisions(t *testing.T) {
+	root := t.TempDir()
+	realDir := filepath.Join(root, "sockets")
+	if err := os.Mkdir(realDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	alias := filepath.Join(root, "alias")
+	if err := os.Symlink(realDir, alias); err != nil {
+		t.Fatal(err)
+	}
+	cache, err := artifactpath.ResolvePairCache(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	paths := map[string]string{}
+	var collision string
+	for i := 0; i <= 256; i++ {
+		socket, err := canonicalSocket(filepath.Join(realDir, fmt.Sprintf("session-%d", i)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		aliasSocket, err := canonicalSocket(filepath.Join(alias, filepath.Base(socket)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		path, err := cache.TerminalLease(socket)
+		if err != nil {
+			t.Fatal(err)
+		}
+		aliasPath, err := cache.TerminalLease(aliasSocket)
+		if err != nil || path != aliasPath {
+			t.Fatalf("alias split lock: %s %s %v", path, aliasPath, err)
+		}
+		if previous, ok := paths[path]; ok {
+			if previous == socket {
+				t.Fatal("collision must be between distinct sockets")
+			}
+			collision = path
+			break
+		}
+		paths[path] = socket
+	}
+	if collision == "" {
+		t.Fatal("257 distinct sockets must share a stripe")
+	}
+	lease, err := AcquireTerminalLease(context.Background(), collision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lease.Close()
+	if output, err := leaseHelper(t, collision, true).CombinedOutput(); err != nil {
+		t.Fatalf("stripe collision did not serialize: %s %v", output, err)
 	}
 }

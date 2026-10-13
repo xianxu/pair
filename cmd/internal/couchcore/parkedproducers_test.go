@@ -282,7 +282,7 @@ func TestSwitchAgentRefusesAThreadCouchHostsWithNoIncarnation(t *testing.T) {
 	// this is the production shape rather than an injected observation.
 	env, created := registeredActorFixture(t)
 	env.Proc.Set(4242, "hosted")
-	env.Artifacts.SetSessionPresence(created.Address, SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{Usable: true}})
+	env.Artifacts.SetSessionPresence(created.Address, SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{State: launcher.TerminalUsable}})
 
 	state, reason, err := env.Couch.classifyForAction(context.Background(), created.Address)
 	if err != nil {

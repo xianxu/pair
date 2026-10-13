@@ -73,7 +73,7 @@ func everyThreadShape(t *testing.T) []classifyCase {
 	}
 	withSession := func(e ThreadEvidence) ThreadEvidence {
 		e.ParkedStatus = ProofResolved
-		e.Session = SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{Usable: true}}
+		e.Session = SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{State: launcher.TerminalUsable}}
 		return e
 	}
 	// A start couch has claimed and not finished: the ONE thing still read from
@@ -476,7 +476,7 @@ func TestClassifyThreadDoesNotApplyResumeShapedRefusalsToALiveRow(t *testing.T) 
 
 	state, reason := ClassifyThread(record, ThreadEvidence{
 		Live:      []ProcessIdentity{{PID: 42, Identity: "pair-live"}},
-		Session:   SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{Usable: true}},
+		Session:   SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{State: launcher.TerminalUsable}},
 		PathError: errTestPathBroken,
 	})
 
@@ -767,7 +767,7 @@ func actionableRows(records []ThreadRecord, live []LiveTTYObservation, parked []
 	for _, observation := range live {
 		item := evidence[observation.Address]
 		item.Live = append(item.Live, observation.Process)
-		item.Session = SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{Usable: true}}
+		item.Session = SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{State: launcher.TerminalUsable}}
 		evidence[observation.Address] = asked(item)
 	}
 	for _, observation := range parked {
@@ -785,7 +785,7 @@ func actionableRows(records []ThreadRecord, live []LiveTTYObservation, parked []
 			// so the helper must model the same refusal.
 			item.Session = SessionObservation{State: SessionUnresolved}
 		default:
-			item.Session = SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{Usable: true}}
+			item.Session = SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{State: launcher.TerminalUsable}}
 		}
 		seenDetached[observation.Address] = true
 		evidence[observation.Address] = item
@@ -1048,8 +1048,8 @@ func TestWarmRowsAskNoLedgerQuestion(t *testing.T) {
 	}
 
 	artifacts := &countingArtifacts{FakeThreadArtifactCollisionChecker: NewFakeThreadArtifactCollisionChecker()}
-	artifacts.SetSessionPresence(hosted.Address, SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{Usable: true}})
-	artifacts.SetSessionPresence(detached.Address, SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{Usable: true}})
+	artifacts.SetSessionPresence(hosted.Address, SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{State: launcher.TerminalUsable}})
+	artifacts.SetSessionPresence(detached.Address, SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{State: launcher.TerminalUsable}})
 	proc := NewFakeProcOps()
 	proc.Set(4242, "hosted")
 	couch := &Couch{Threads: store, Artifacts: artifacts, Proc: proc, Path: NewFakePathOps(nil)}
@@ -1171,7 +1171,7 @@ func TestALiveThreadWhoseSessionIsOrphanedCarriesTheOrphan(t *testing.T) {
 	if unknown.Reason != ReasonUnknown || unknown.Orphan != nil {
 		t.Fatalf("unknown row = %+v, want no Orphan", unknown)
 	}
-	if plain := project(ThreadEvidence{Live: []ProcessIdentity{{PID: 42, Identity: "pair-live"}}, ParkedStatus: ProofResolved, Session: SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{Usable: true}}}); plain.Orphan != nil || len(ActorActions(ActorRowFactsOf(plain))) != 0 {
+	if plain := project(ThreadEvidence{Live: []ProcessIdentity{{PID: 42, Identity: "pair-live"}}, ParkedStatus: ProofResolved, Session: SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{State: launcher.TerminalUsable}}}); plain.Orphan != nil || len(ActorActions(ActorRowFactsOf(plain))) != 0 {
 		t.Fatalf("a plain live row = %+v", plain)
 	}
 }
