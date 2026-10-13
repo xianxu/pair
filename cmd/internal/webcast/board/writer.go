@@ -44,6 +44,9 @@ func (w *Writer) Emit(r recording.Record, doc int) error {
 		}
 		return ErrStale
 	}
+	if n, ok := r.(*recording.NoteState); ok && n.IfRevision != nil && !w.st.NoteUnchanged(n.ID, *n.IfRevision) {
+		return ErrStale
+	}
 	t := w.st.T
 	if w.now != nil {
 		t = max(t, w.now())

@@ -227,7 +227,7 @@ func start(conn *cdp.Conn, proc process, output *tail, opts LaunchOptions) *Chro
 	}
 	if opts.Record != nil {
 		c.rec = recorder.Start(recorder.Options{ID: opts.Record.ID, Call: conn, Out: opts.Record.Out,
-			ShotEvery: opts.Record.ShotEvery, Logf: opts.Record.Logf, Dialog: c.dialogs.signal})
+			ShotEvery: opts.Record.ShotEvery, Logf: opts.Record.Logf, Dialog: c.dialogs.signal, SyncEvents: conn.SyncEvents})
 	}
 	go c.run()
 	return c
@@ -389,6 +389,14 @@ loop:
 }
 
 func (c *Chrome) handle(s *loopState, ev cdp.Event) {
+	if ev.Barrier != nil {
+		if c.rec != nil {
+			c.rec.Send(recorder.Barrier{Done: ev.Barrier})
+		} else {
+			close(ev.Barrier)
+		}
+		return
+	}
 	if s.tap != nil {
 		s.tap(ev)
 	}

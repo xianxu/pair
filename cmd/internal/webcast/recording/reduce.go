@@ -38,8 +38,20 @@ type SheetState struct {
 // NoteView is a note with its current state and the segment it was made in.
 type NoteView struct {
 	*Note
-	State string
-	Seg   int
+	State    string
+	Seg      int
+	Revision uint64
+}
+
+// NoteUnchanged is the writer's conditional-resolution guard. Reopening a
+// note after a submission selected it must not let its late ack resolve it.
+func (s *State) NoteUnchanged(id string, revision uint64) bool {
+	for _, n := range s.Notes {
+		if n.ID == id {
+			return n.State == NoteOpen && n.Revision == revision
+		}
+	}
+	return false
 }
 
 // StrokeView is a stroke with the segment it was drawn in.
@@ -226,6 +238,7 @@ func (s *State) apply(r Record) error {
 		for _, n := range s.Notes {
 			if n.ID == r.ID {
 				n.State = r.State
+				n.Revision++
 				return nil
 			}
 		}

@@ -64,9 +64,12 @@ type Output func() (Opened, error)
 
 // Options configures a Recorder.
 type Options struct {
-	ID   string // the head's id
-	Call Caller
-	Out  Output
+	// SyncEvents fences the CDP event pump through this recorder before
+	// and after an off-loop submission capture. Nil in direct-feed fakes.
+	SyncEvents func(context.Context) error
+	ID         string // the head's id
+	Call       Caller
+	Out        Output
 	// ShotEvery is the screenshot period while live (and one at each
 	// segment); zero is 5 s, negative is none.
 	ShotEvery time.Duration
@@ -486,6 +489,8 @@ func (r *Recorder) call(session, method string, params, result any) (uint64, err
 
 func (r *Recorder) handle(in stamped) {
 	switch v := in.in.(type) {
+	case Barrier:
+		close(v.Done)
 	case query:
 		v.fn()
 		close(v.done)
@@ -509,6 +514,9 @@ func (r *Recorder) handle(in stamped) {
 			r.observe(v.Session, true)
 		}
 	case Emit:
+		if n, ok := v.Record.(*rec.NoteState); ok && n.IfRevision != nil && !r.m.State().NoteUnchanged(n.ID, *n.IfRevision) {
+			break
+		}
 		switch {
 		case !r.opened || v.Record == nil:
 		case v.Doc > 0 && !r.m.State().OnDoc(v.Doc):

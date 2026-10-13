@@ -13,15 +13,15 @@ import "github.com/xianxu/pair/cmd/internal/webcast/recording"
 // Context is the focused context of a note: the element, its nearest
 // meaningful ancestor, and the text around it. Not the whole page.
 type Context struct {
-	Node recording.NodeID
+	Node recording.NodeID `json:"node"`
 	// Landmark is the nearest meaningful ancestor (an ARIA landmark, a
 	// role, a card or form, a layout box); with none, the parent element.
-	Landmark recording.NodeID
+	Landmark recording.NodeID `json:"landmark"`
 	// Text is the landmark's rendered text (what a person reads: no script
 	// bodies, blocks kept apart), trimmed to a budget.
-	Text string
+	Text string `json:"text"`
 	// Box is the landmark's box when layout is known.
-	Box *recording.Box
+	Box *recording.Box `json:"box,omitempty"`
 }
 
 // Model answers where notes point and what to show of the page with them.

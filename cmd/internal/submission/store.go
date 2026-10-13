@@ -1,0 +1,443 @@
+package submission
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"sync"
+)
+
+// Stores for the same directory share one writer, including reopened stores.
+var writers sync.Map
+
+type Store struct {
+	root     string
+	mu       *sync.Mutex
+	capacity int64
+	fail     func(string) error
+}
+
+func NewStore(root string) (*Store, error) {
+	if !filepath.IsAbs(root) || filepath.Clean(root) != root {
+		return nil, fmt.Errorf("submission root must be absolute and clean")
+	}
+	// Resolve the caller's existing ancestors once (macOS /var and /tmp are
+	// standard symlinks), then keep all later operations under the real root.
+	if st, err := os.Lstat(root); err == nil && st.Mode()&os.ModeSymlink != 0 {
+		return nil, fmt.Errorf("submission root itself is a symlink")
+	}
+	ancestor := root
+	var suffix []string
+	for {
+		_, err := os.Lstat(ancestor)
+		if err == nil {
+			break
+		}
+		if !os.IsNotExist(err) {
+			return nil, err
+		}
+		suffix = append(suffix, filepath.Base(ancestor))
+		ancestor = filepath.Dir(ancestor)
+	}
+	canonical, err := filepath.EvalSymlinks(ancestor)
+	if err != nil {
+		return nil, err
+	}
+	for i := len(suffix) - 1; i >= 0; i-- {
+		canonical = filepath.Join(canonical, suffix[i])
+	}
+	root = canonical
+	if err := os.MkdirAll(root, 0700); err != nil {
+		return nil, err
+	}
+	if err := os.Chmod(root, 0700); err != nil {
+		return nil, err
+	}
+	lock, _ := writers.LoadOrStore(root, &sync.Mutex{})
+	return &Store{root: root, mu: lock.(*sync.Mutex), capacity: MaxStoreBytes}, nil
+}
+func noSymlinkParents(path string) error {
+	for p := path; ; p = filepath.Dir(p) {
+		st, err := os.Lstat(p)
+		if err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		if err == nil && st.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("symlink in submission path: %s", p)
+		}
+		if p == filepath.Dir(p) {
+			return nil
+		}
+	}
+}
+func (s *Store) open() (*os.Root, error) {
+	if err := noSymlinkParents(s.root); err != nil {
+		return nil, err
+	}
+	return os.OpenRoot(s.root)
+}
+func (s *Store) ManifestPath(id string) string {
+	if !identifier.MatchString(id) {
+		return ""
+	}
+	return filepath.Join(s.root, id, "submission.json")
+}
+func (s *Store) checkpoint(op string) error {
+	if s.fail != nil {
+		return s.fail(op)
+	}
+	return nil
+}
+func (s *Store) write(r *os.Root, path string, data []byte) error {
+	if err := s.checkpoint("write"); err != nil {
+		return err
+	}
+	f, err := r.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	if err != nil {
+		return err
+	}
+	_, err = f.Write(data)
+	if err == nil {
+		err = s.checkpoint("sync")
+	}
+	if err == nil {
+		err = f.Sync()
+	}
+	closeErr := f.Close()
+	if err != nil {
+		return err
+	}
+	return closeErr
+}
+func syncDir(r *os.Root, path string) error {
+	f, err := r.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return f.Sync()
+}
+func (s *Store) usage(r *os.Root) (int64, error) {
+	var total int64
+	count := 0
+	err := fs.WalkDir(r.FS(), ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		count++
+		if count > 10000 {
+			return fmt.Errorf("submission store has too many entries; clean up %s", s.root)
+		}
+		if d.Type()&os.ModeSymlink != 0 {
+			return fmt.Errorf("symlink in submission store")
+		}
+		if !d.IsDir() {
+			info, err := d.Info()
+			if err != nil {
+				return err
+			}
+			if !info.Mode().IsRegular() {
+				return fmt.Errorf("nonregular submission store entry")
+			}
+			if info.Size() > s.capacity-total {
+				return fmt.Errorf("submission store full; clean up %s", s.root)
+			}
+			total += info.Size()
+		}
+		return nil
+	})
+	return total, err
+}
+func readBytes(r *os.Root, path string, limit int64) ([]byte, error) {
+	// Lstat each component; os.Root additionally prevents traversal outside root.
+	parts := strings.Split(filepath.ToSlash(path), "/")
+	for i := range parts {
+		st, err := r.Lstat(strings.Join(parts[:i+1], "/"))
+		if err != nil {
+			return nil, err
+		}
+		if st.Mode()&os.ModeSymlink != 0 {
+			return nil, fmt.Errorf("symlink in bundle")
+		}
+		if i == len(parts)-1 && !st.Mode().IsRegular() {
+			return nil, fmt.Errorf("nonregular bundle file")
+		}
+	}
+	f, err := r.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	b, err := io.ReadAll(io.LimitReader(f, limit+1))
+	if err == nil && int64(len(b)) > limit {
+		err = fmt.Errorf("bundle file exceeds limit")
+	}
+	return b, err
+}
+func readSubmission(r *os.Root, id string) (Submission, error) {
+	var out Submission
+	if !identifier.MatchString(id) {
+		return out, fmt.Errorf("invalid submission ID")
+	}
+	b, err := readBytes(r, filepath.Join(id, "submission.json"), MaxBundleBytes)
+	if err != nil {
+		return out, err
+	}
+	dec := json.NewDecoder(bytes.NewReader(b))
+	dec.DisallowUnknownFields()
+	if err = dec.Decode(&out); err != nil {
+		return out, err
+	}
+	if dec.Decode(new(any)) != io.EOF {
+		return out, fmt.Errorf("trailing manifest data")
+	}
+	if out.ID != id {
+		return out, fmt.Errorf("manifest identity mismatch")
+	}
+	if err = Validate(out); err != nil {
+		return out, err
+	}
+	total := len(b)
+	for _, n := range out.Notes {
+		if n.Crop.File == "" {
+			continue
+		}
+		data, err := readBytes(r, filepath.Join(id, n.Crop.File), MaxPNGBytes)
+		if err != nil {
+			return out, err
+		}
+		total += len(data)
+		if total > MaxBundleBytes {
+			return out, fmt.Errorf("bundle exceeds 64 MiB")
+		}
+		if err = ValidatePNG(data); err != nil {
+			return out, err
+		}
+	}
+	return out, nil
+}
+func (s *Store) Read(id string) (Submission, error) {
+	r, err := s.open()
+	if err != nil {
+		return Submission{}, err
+	}
+	defer r.Close()
+	return readSubmission(r, id)
+}
+
+// Pending returns unfinished bundles for this immutable target. It never infers delivery.
+func (s *Store) Pending(target Target) ([]Submission, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	r, err := s.open()
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+	return s.pending(r, target)
+}
+func (s *Store) pending(r *os.Root, target Target) ([]Submission, error) {
+	f, err := r.Open(".")
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	entries, err := f.ReadDir(10001)
+	if err != nil && err != io.EOF {
+		return nil, err
+	}
+	if len(entries) > 10000 {
+		return nil, fmt.Errorf("too many submission entries")
+	}
+	var result []Submission
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), ".staging-") {
+			continue
+		}
+		if !entry.IsDir() || !identifier.MatchString(entry.Name()) {
+			return nil, fmt.Errorf("unexpected submission entry %s", entry.Name())
+		}
+		sub, err := readSubmission(r, entry.Name())
+		if err != nil {
+			return nil, err
+		}
+		if sub.Target == target && sub.Delivery != Resolved {
+			result = append(result, sub)
+		}
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].ID < result[j].ID })
+	return result, nil
+}
+
+// Prepare publishes an entire private bundle, or leaves no visible bundle.
+func (s *Store) Prepare(sub Submission, crops map[string][]byte) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := Validate(sub); err != nil {
+		return "", err
+	}
+	if sub.Delivery != Prepared {
+		return "", fmt.Errorf("new submission must be prepared")
+	}
+	data, err := json.MarshalIndent(sub, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	total := int64(len(data))
+	expected := map[string]bool{}
+	for _, n := range sub.Notes {
+		if n.Crop.File != "" {
+			expected[n.Crop.File] = true
+		}
+	}
+	if len(expected) != len(crops) {
+		return "", fmt.Errorf("crop files do not match manifest")
+	}
+	for name, b := range crops {
+		if !expected[name] {
+			return "", fmt.Errorf("unexpected crop file")
+		}
+		if err = ValidatePNG(b); err != nil {
+			return "", err
+		}
+		total += int64(len(b))
+	}
+	if total > MaxBundleBytes {
+		return "", fmt.Errorf("bundle exceeds 64 MiB")
+	}
+	r, err := s.open()
+	if err != nil {
+		return "", err
+	}
+	defer r.Close()
+	if _, err = r.Lstat(sub.ID); err == nil {
+		old, err := readSubmission(r, sub.ID)
+		if err != nil {
+			return "", err
+		}
+		old.Delivery = Prepared
+		oldData, marshalErr := json.MarshalIndent(old, "", "  ")
+		if marshalErr != nil {
+			return "", marshalErr
+		}
+		if !bytes.Equal(oldData, data) {
+			return "", fmt.Errorf("submission ID already has different immutable data")
+		}
+		for name, b := range crops {
+			existing, err := readBytes(r, filepath.Join(sub.ID, name), MaxPNGBytes)
+			if err != nil {
+				return "", err
+			}
+			if !bytes.Equal(existing, b) {
+				return "", fmt.Errorf("submission crop content changed")
+			}
+		}
+		return s.ManifestPath(sub.ID), nil
+	} else if !os.IsNotExist(err) {
+		return "", err
+	}
+	pending, err := s.pending(r, sub.Target)
+	if err != nil {
+		return "", err
+	}
+	for _, p := range pending {
+		if p.Delivery == Delivering {
+			return "", fmt.Errorf("delivery outcome unknown; reconcile %s", s.ManifestPath(p.ID))
+		}
+	}
+	used, err := s.usage(r)
+	if err != nil {
+		return "", err
+	}
+	if total > s.capacity-used {
+		return "", fmt.Errorf("submission store full; clean up %s", s.root)
+	}
+	stage, err := os.MkdirTemp(s.root, ".staging-")
+	if err != nil {
+		return "", err
+	}
+	name := filepath.Base(stage)
+	defer r.RemoveAll(name)
+	for file, b := range crops {
+		if err = s.write(r, filepath.Join(name, file), b); err != nil {
+			return "", err
+		}
+	}
+	if err = s.write(r, filepath.Join(name, "submission.json"), data); err != nil {
+		return "", err
+	}
+	if err = syncDir(r, name); err != nil {
+		return "", err
+	}
+	if err = s.checkpoint("rename"); err != nil {
+		return "", err
+	}
+	if err = r.Rename(name, sub.ID); err != nil {
+		return "", err
+	}
+	if err = syncDir(r, "."); err != nil {
+		return "", err
+	}
+	return s.ManifestPath(sub.ID), nil
+}
+func (s *Store) Transition(id string, target Target, event Event) (Submission, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	r, err := s.open()
+	if err != nil {
+		return Submission{}, err
+	}
+	defer r.Close()
+	sub, err := readSubmission(r, id)
+	if err != nil {
+		return sub, err
+	}
+	if sub.Target != target {
+		return sub, fmt.Errorf("submission target changed")
+	}
+	next, err := ApplyDelivery(sub.Delivery, event)
+	if err != nil {
+		return sub, err
+	}
+	if next == sub.Delivery {
+		return sub, nil
+	}
+	sub.Delivery = next
+	data, err := json.MarshalIndent(sub, "", "  ")
+	if err != nil {
+		return sub, err
+	}
+	used, err := s.usage(r)
+	if err != nil {
+		return sub, err
+	}
+	if int64(len(data)) > s.capacity-used {
+		return sub, fmt.Errorf("submission store full; clean up %s", s.root)
+	}
+	stage, err := os.MkdirTemp(s.root, ".staging-")
+	if err != nil {
+		return sub, err
+	}
+	name := filepath.Base(stage)
+	defer r.RemoveAll(name)
+	temp := filepath.Join(name, "submission.json")
+	if err = s.write(r, temp, data); err != nil {
+		return sub, err
+	}
+	if err = s.checkpoint("rename"); err != nil {
+		return sub, err
+	}
+	if err = r.Rename(temp, filepath.Join(id, "submission.json")); err != nil {
+		return sub, err
+	}
+	if err = syncDir(r, id); err != nil {
+		return sub, err
+	}
+	return sub, nil
+}

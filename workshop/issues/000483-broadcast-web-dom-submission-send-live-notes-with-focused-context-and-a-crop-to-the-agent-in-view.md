@@ -137,3 +137,7 @@ Operator shaping (in pane):
 - 2026-10-12 — crop source: the note's box (pair#488), not `NoteCrops` snapping/clustering. If #488 hasn't landed when #483 builds, crop from the note's `region` (always set once #488 lands) through the notes seam #488 fills.
 
 - 2026-10-12 — TL: #488's plan settles the crop as each note's box + 16 px margin; structure-snapped crops and per-URL crop hints are retired. #483 builds its crop on the note's box through the notes seam #488 fills.
+
+### 2026-10-12 — capture and persistence checkpoint
+
+Implemented the portable shared submission schema/store, historical per-note builder, frozen Board selection with revision-guarded resolution, and current CDP crop capture. A CDP-to-recorder barrier processes navigation evidence before accepting screenshots (including same-URL reload identity). Targeted low-parallel tests passed for cdp, submission, board, recorder, historical builder and Cast, covering overlapping notes, page changes, bounded input and failed storage. Console/RPC and draft integration remain in progress; no live operator state or GUI was touched.
