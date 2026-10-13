@@ -1,12 +1,12 @@
 ---
 id: 000516
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: 'bbbd88a5a607dd0d1144159d42c818cfb5671d17' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'e4dd527a528a4bf0765c737a985742f6720b2040' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T19:10:50-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "672f84c7", done: "e7e7fbd0"}
+actual_hours: 0.24
 ---
 
 # broadcast-web: fast trackpad scrolls are refused as stale; drop the element check for wheel input
