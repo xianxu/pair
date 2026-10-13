@@ -35,7 +35,7 @@ Find why the card was still faded at capture (measure first: does the CDP captur
 ## Plan
 
 - [x] Measure the original bundle/recording and reproduce in a separate bounded headless Chrome.
-- [ ] Obtain TL approval of the measured design and viewport-only crop policy below.
+- [x] Obtain TL approval of the measured design and viewport-only crop policy below.
 - [ ] Add deterministic animation/capture regressions; implement bounded settling and unchanged-viewport screenshot capture.
 - [ ] Verify metadata propagation, navigation/cancellation, real-browser pixels, full suite and docs; close, then stage only on TL instruction.
 
@@ -58,3 +58,5 @@ Probe logs: /tmp/pair524-probe/blog.log and flags.log; measurement-only Go overl
 ## Revisions
 
 - 2026-10-12 — Measured cause revises the initial hypothesis: the screenshot path restarts an already-finished responsive fade. Proposed design avoids viewport-changing capture, then waits boundedly for relevant finite animations. Proposed viewport intersection and explicit offscreen-unavailable policy require TL approval before implementation; see the durable plan. ARCH-PURPOSE: fix the capture-induced restart rather than adding a sleep before it.
+
+- 2026-10-12 22:56 PDT — TL approved the full proposal (receipt 5992b8ba-8060-42e0-949a-d52fc973ae69): captureBeyondViewport=false, 1500 ms/note with 50 ms polling and 512-animation cap inside 30 s, explicit settled/unsettled, viewport-intersected crops/clipped_to_viewport, outside-viewport unavailable with recorded context retained. No forced styles or scrolling. change-code admitted implementation.

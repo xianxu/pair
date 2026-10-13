@@ -75,3 +75,5 @@ The probe observes animations whose target/ancestor intersects the crop; include
 ## Revisions
 
 - 2026-10-12 — Initial measured proposal. No implementation authorized yet; viewport/offscreen policy is the principal approval question.
+
+- 2026-10-12 22:56 PDT — TL approved this proposal including viewport-only crops and all budgets (receipt 5992b8ba-8060-42e0-949a-d52fc973ae69); the approval hold above is satisfied.
