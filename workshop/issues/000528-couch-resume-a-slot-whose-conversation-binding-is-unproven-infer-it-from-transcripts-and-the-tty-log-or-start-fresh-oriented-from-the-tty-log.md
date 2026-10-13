@@ -220,6 +220,8 @@ pair:6 read-only while measuring; no live recovery/reboot is authorized here.
 M1 review against 2efe103cf returned REWORK: BR-1 unknown evidence promoted to live/relaunch, BR-2 missing exact agent process generation, BR-3 blocking/unbounded metadata reads, BR-4 permanent per-name lock accumulation. Accepted all four and appended the corrected contracts and actual function owners to the durable plan. The implementation now distinguishes unknown/usable/unsafe, pins readiness child identity, uses bounded nonblocking metadata reads, and caps permanent lock inodes at 256 stable stripes. Regression checks include behavioral red for unknown projection/attach overlay and a mutation removing the agent identity comparison; neither defect is waved away by prior suite success. Review artifacts preserved. Focused checks are in progress; M1 remains open and M2 has not begun. No live Pair slots or saved layouts changed.
 
 
+- 2026-10-13 — Review-fix verification: make build passed on f28a76e82; targeted race checks and full launcher/artifactpath/readiness/wrapcmd packages passed. Complete make test found only the cold/warm production-terminal fixture failures: its synthetic pair-wrap still emitted readiness without AgentIdentity. Updated that producer to observe the real child PID/start identity; both previously failing tests now pass (3.953s, /tmp/pair528-review-fixture.log). Production checks were not weakened. A new complete suite follows this fixture correction.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against

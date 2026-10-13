@@ -3,10 +3,12 @@ package couchcore
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/procutil"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -40,7 +42,7 @@ func registrationTerminalFixture() error {
 		}
 		defer func() { _ = agent.Process.Kill(); _ = agent.Wait() }()
 
-		raw, err := readiness.Encode(readiness.ReadyRecord{Tag: os.Getenv("PAIR_TAG"), Agent: os.Getenv("PAIR_AGENT"), Session: os.Getenv("PAIR_SESSION_NAME"), Nonce: os.Getenv("PAIR_LAUNCH_NONCE"), PID: agent.Process.Pid})
+		raw, err := readiness.Encode(readiness.ReadyRecord{Tag: os.Getenv("PAIR_TAG"), Agent: os.Getenv("PAIR_AGENT"), Session: os.Getenv("PAIR_SESSION_NAME"), Nonce: os.Getenv("PAIR_LAUNCH_NONCE"), PID: agent.Process.Pid, AgentIdentity: procutil.Identity(strconv.Itoa(agent.Process.Pid))})
 		if err != nil {
 			return err
 		}
