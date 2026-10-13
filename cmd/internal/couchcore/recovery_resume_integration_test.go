@@ -177,25 +177,33 @@ func TestResumeCandidateLaunchKeepsExactSelectionAndSavedConfiguration(t *testin
 }
 
 func TestResumeCandidateRechecksEvidenceAfterWorkspacePreparation(t *testing.T) {
-	f := newRecoveryExecutionFixture(t)
-	key := f.preview(t).Candidates[0].Key
-	f.Couch.Workspaces = slotReadinessFunc(func(context.Context, ProvisionRequest) (ProvisionResult, error) {
-		f.prepared++
-		f.observation.Ranked[0].Candidate.Entry.MutationToken = "changed-during-compile"
-		return slotReadyResult(f.Couch.Threads), nil
-	})
-	_, err := f.Couch.ResumeCandidate(context.Background(), ResumeTarget{Address: f.record.Address}, key)
-	if err == nil || !strings.Contains(err.Error(), "changed") || f.prepared != 1 || f.preserved != 1 || len(f.Runner.Ops) != 0 {
-		t.Fatalf("second gate err=%v prepare=%d preserve=%d ops=%v", err, f.prepared, f.preserved, f.Runner.Ops)
-	}
-	after, readErr := f.Couch.Threads.GetThread(f.record.Address)
-	if readErr != nil {
-		t.Fatal(readErr)
-	}
-	for _, inc := range after.Incarnations {
-		if inc.Start != nil {
-			t.Fatal("failed second gate left pending start claim")
-		}
+	for name, mutate := range map[string]func(*RecoveryObservation){
+		"candidate": func(o *RecoveryObservation) { o.Ranked[0].Candidate.Entry.MutationToken = "changed-during-compile" },
+		"raw":       func(o *RecoveryObservation) { o.Capture.RawIdentity.Inode++ },
+		"events":    func(o *RecoveryObservation) { o.Capture.EventsIdentity.Inode++ },
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newRecoveryExecutionFixture(t)
+			key := f.preview(t).Candidates[0].Key
+			f.Couch.Workspaces = slotReadinessFunc(func(context.Context, ProvisionRequest) (ProvisionResult, error) {
+				f.prepared++
+				mutate(&f.observation)
+				return slotReadyResult(f.Couch.Threads), nil
+			})
+			_, err := f.Couch.ResumeCandidate(context.Background(), ResumeTarget{Address: f.record.Address}, key)
+			if err == nil || !strings.Contains(err.Error(), "changed") || f.prepared != 1 || f.preserved != 1 || len(f.Runner.Ops) != 0 {
+				t.Fatalf("second gate err=%v prepare=%d preserve=%d ops=%v", err, f.prepared, f.preserved, f.Runner.Ops)
+			}
+			after, readErr := f.Couch.Threads.GetThread(f.record.Address)
+			if readErr != nil {
+				t.Fatal(readErr)
+			}
+			for _, inc := range after.Incarnations {
+				if inc.Start != nil {
+					t.Fatal("failed second gate left pending start claim")
+				}
+			}
+		})
 	}
 }
 
