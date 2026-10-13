@@ -76,6 +76,13 @@ Detailed plan: [DOM submission implementation plan](../plans/000483-dom-submissi
 
 ## Log
 
+### 2026-10-12 — plan approval in pair:6
+
+TL approved commit `ec88640dd` and the proposed operating limits/retention (Couch receipt
+`0a3761ed-b2f7-4044-8a01-fb16fabd915f`), directing change-code. Resolve submitted notes after delivery as planned;
+TL is confirming that policy with the operator. Architecture/API exploration found that draft retries compare
+authored text only; the implementation must freeze the generated bundle pointer too (ARCH-ORDER).
+
 ### 2026-10-12
 
 Operator shaping (in pane):

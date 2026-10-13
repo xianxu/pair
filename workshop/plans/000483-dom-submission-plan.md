@@ -143,3 +143,4 @@ Files: `README.md`, `atlas/webcast-submission.md` (new), `atlas/index.md`, relev
 ## Revisions
 
 - 2026-10-12 — Initial implementation plan after claim transfer to pair:6; incorporates hub confirmation of one PNG per note and unavailable crops for a document already gone. Awaiting TL review of plan, limits and retention before implementation.
+- 2026-10-12 — TL approved the plan and all proposed limits/retention, and directed entry to change-code (Couch receipt `0a3761ed-b2f7-4044-8a01-fb16fabd915f`). Implement resolve-after-delivery; TL is confirming that policy with the operator and will send any delta.
