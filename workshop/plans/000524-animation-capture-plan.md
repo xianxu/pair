@@ -86,3 +86,8 @@ SDLC fresh close review is next. Request smoke/staging via hub only; land on aut
 ### 2026-10-12 — BR-1 animation influence correction
 
 ARCH-PURPOSE: target geometry alone does not bound animated paint. Direct targets and enclosing ancestors remain covered; zero-size/off-box targets with light children, shadow content, or generated pseudo-elements can affect overflowing pixels. Conservatively treat those active animations as potentially relevant within the existing 512-animation and 1500 ms limits. Finite animations wait naturally; paused/infinite ones remain explicitly unsettled. No per-animation descendant walk or mutation is needed. Plain off-box leaf targets without generated content remain irrelevant. Regression fixtures cover finite/paused/infinite cases and browser pixel evidence. This corrects influence detection within the approved capture contract, with no new scope or limits.
+
+
+## Revisions (2026-10-13 approval)
+
+TL approved conservative document-wide observation (receipt 3e4e0d53-b86b-4ca6-a147-d487a5cef374). Replace all target-geometry exclusions with observation of every active animation in the top document and accessible open shadow roots. Painted influence includes children, pseudo-elements, shadows, filters, outlines and other paint expansion; no CSS paint-bound approximation is attempted. Unrelated off-box animations may consume the wait or mark evidence unsettled. Unchanged 1500 ms/note, 50 ms polls, 512 animations, 20k traversal, 30 s total; crossing limits explicitly marks unsettled. This supersedes earlier claims that plain off-box leaves are safely irrelevant. #494 is now merged; CaptureCrops uses its exact-context CaptureScreenshot helper with captureBeyondViewport=false. Stage only when TL says.

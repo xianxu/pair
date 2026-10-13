@@ -16,7 +16,7 @@ animations[0].playState='finished';assert.equal(inspect(box).pending,false);
 animations[0].playState='idle';assert.equal(inspect(box).pending,false);
 animations=[animation('paused')];assert.equal(inspect(box).reason,'paused animation');
 animations=[animation('running',target(),{iterations:Infinity,duration:1000,endTime:Infinity})];assert.equal(inspect(box).reason,'infinite animation');
-animations=[animation('running',target({left:500,top:500,width:20,height:20}))];assert.equal(inspect(box).pending,false);
+animations=[animation('running',target({left:500,top:500,width:20,height:20}))];assert.equal(inspect(box).pending,true);
 animations=[animation('running',target(),{iterations:1,delay:800,duration:100,endTime:900})];assert.equal(inspect(box).pending,true);
 animations[0].playbackRate=-1;assert.equal(inspect(box).pending,true);
 // The sequence represents a transition completing and another starting between polls.
@@ -95,3 +95,10 @@ for(const state of ['running','paused','infinite']) {
   {iterations:state==='infinite'?Infinity:1,endTime:state==='infinite'?Infinity:1000})];
  assert.equal(inspect(box).pending,true,'leaf shadow '+state+' cannot falsely settle');
 }
+
+// No paint-footprint approximation: unknown styles and geometry cannot exclude
+// an active animation, and cap overflow is always explicit uncertainty.
+const anyPaint=target();anyPaint.getBoundingClientRect=()=>{throw Error('must not infer paint bounds')};
+animations=[animation('running',anyPaint)];assert.equal(inspect(box).pending,true);
+animations=Array.from({length:512},()=>animation('finished'));assert.equal(inspect(box).pending,false);
+animations.push(animation('finished'));assert.equal(inspect(box).reason,'inspection limit');

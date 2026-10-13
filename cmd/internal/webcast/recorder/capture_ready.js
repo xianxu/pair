@@ -50,28 +50,10 @@ function captureReady(box, inspect = true) {
       // CSS animations/transitions expose their host as effect.target, while
       // implementations exposing CSSPseudoElement objects supply .element.
       let target = effect.target;
-      const pseudo = effect.pseudoElement || (target && target.nodeType !== 1);
       if (target && target.nodeType !== 1) target = target.element;
       if (!target || target.nodeType !== 1) return fail('inspection unavailable');
-      if (target.isConnected === false) continue;
-      const rect = target.getBoundingClientRect();
-      if (![rect.left, rect.top, rect.right, rect.bottom, rect.width, rect.height].every(Number.isFinite)) return fail('inspection unavailable');
-      if (rect.width <= 0 || rect.height <= 0 || rect.right <= left || rect.left >= right || rect.bottom <= top || rect.top >= bottom) {
-        // Target bounds do not bound inherited opacity/transform on overflowing
-        // descendants or generated content. Include these conservatively rather
-        // than walking a subtree per animation (or claiming false settlement).
-        let mayOverflow = pseudo || target.firstChild || target.shadowRoot;
-        if (!mayOverflow) {
-          for (const kind of ['::before', '::after']) {
-            const content = getComputedStyle(target, kind).content;
-            if (typeof content !== 'string') return fail('inspection unavailable');
-            if (content !== 'none' && content !== 'normal') mayOverflow = true;
-          }
-        }
-        if (!mayOverflow) continue;
-      }
-      // An animated ancestor's enclosing box affects crops inside it; target
-      // ownership must belong to a document/open shadow root observed above.
+      // Observe document-wide: target bounds cannot bound painted influence
+      // from descendants, shadows, filters or generated content.
       if (!roots.has(target.getRootNode())) return fail('inspection unavailable');
       const timing = effect.getComputedTiming();
       if (!timing || typeof timing.endTime !== 'number' || Number.isNaN(timing.endTime) || typeof timing.iterations !== 'number' || Number.isNaN(timing.iterations)) return fail('inspection unavailable');

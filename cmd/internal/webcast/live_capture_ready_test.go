@@ -47,9 +47,13 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:black}
 #pseudo::before{content:'';position:absolute;left:420px;top:540px;width:180px;height:100px;background:white}
 @keyframes overflowFade{0%,70%{opacity:0}100%{opacity:1}}
 #pseudo.active::before{animation:overflowFade 900ms linear both}
+#boxshadow,#dropshadow{position:absolute;left:-200px;width:180px;height:100px;background:white}
+#boxshadow{top:600px;box-shadow:520px 0 0 white}
+#dropshadow{top:740px;filter:drop-shadow(520px 0 0 white)}
 </style></head><body><div id="fade" class="card"></div><div id="finite" class="card"></div>
 <div id="shadow"></div><div id="unrelated"></div><div id="edge"></div>
-<div id="overflow"><div></div></div><div id="pseudo"></div><script>
+<div id="overflow"><div></div></div><div id="pseudo"></div>
+<div id="boxshadow"></div><div id="dropshadow"></div><script>
 const fade=document.getElementById('fade');
 new IntersectionObserver(entries=>{if(entries.some(e=>e.isIntersecting))fade.classList.add('seen')}).observe(fade);
 const root=document.getElementById('shadow').attachShadow({mode:'open'});
@@ -190,31 +194,40 @@ window.snapshot=()=>{
 	}
 	fadeBox := recording.Box{80, 100, 160, 70}
 	crop := capture(fadeBox)
+	// Observation covers all top-document and open-shadow animations, even
+	// when an active target's rectangle is outside this crop.
+	if crop.Settlement == nil || crop.Settlement.Status != "unsettled" || crop.Settlement.Reason != "infinite animation" || len(crop.PNG) == 0 {
+		t.Fatalf("unrelated infinite animation evidence: %+v, PNG bytes=%d", crop.Settlement, len(crop.PNG))
+	}
+	eval(`unrelated.cancel()`, nil)
+	crop = capture(fadeBox)
 	eval(`snapshot()`, &after)
 	if !after.Same || after.State != "finished" || after.Start == nil || after.Current == nil || math.Abs(*after.Start-*before.Start) > .01 || math.Abs(*after.Current-*before.Current) > .01 || after.Width != before.Width || after.Height != before.Height || after.DPR != before.DPR || after.X != before.X || after.Y != before.Y {
+		if after.Start != nil && after.Current != nil {
+			t.Logf("animation timing before start=%f current=%f; after start=%f current=%f", *before.Start, *before.Current, *after.Start, *after.Current)
+		}
 		t.Fatalf("screenshot restarted animation or changed viewport: before=%+v after=%+v", before, after)
 	}
 	settled(crop)
 	bright(crop, fadeBox)
 
 	// An active finite animation must finish naturally, including an open-shadow
-	// target exposed by its ShadowRoot.getAnimations(). An unrelated infinite animation
-	// remains active throughout and must not make either crop unsettled.
+	// target exposed by its ShadowRoot.getAnimations().
 	for _, shadow := range []bool{false, true} {
 		target, box := `document.getElementById('finite')`, (recording.Box{80, 300, 160, 70})
 		if shadow {
 			target, box = `document.getElementById('shadow').shadowRoot.getElementById('inside')`, (recording.Box{340, 100, 120, 70})
 		}
-		var active struct{ Running, Enumerated, Unrelated bool }
-		eval(fmt.Sprintf(`(async()=>{const target=%s;window.finiteAnimation=target.animate([{opacity:0,transform:'translateY(12px)'},{opacity:1,transform:'translateY(0)'}],{duration:700,delay:100,fill:'both'});await finiteAnimation.ready;return {running:finiteAnimation.playState==='running',enumerated:target.getRootNode().getAnimations().includes(finiteAnimation),unrelated:unrelated.playState==='running'}})()`, target), &active)
-		if !active.Running || !active.Enumerated || !active.Unrelated {
+		var active struct{ Running, Enumerated bool }
+		eval(fmt.Sprintf(`(async()=>{const target=%s;window.finiteAnimation=target.animate([{opacity:0,transform:'translateY(12px)'},{opacity:1,transform:'translateY(0)'}],{duration:700,delay:100,fill:'both'});await finiteAnimation.ready;return {running:finiteAnimation.playState==='running',enumerated:target.getRootNode().getAnimations().includes(finiteAnimation)}})()`, target), &active)
+		if !active.Running || !active.Enumerated {
 			t.Fatalf("active finite fixture shadow=%v: %+v", shadow, active)
 		}
 		crop = capture(box)
 		settled(crop)
 		bright(crop, box)
 		var finished bool
-		eval(`finiteAnimation.playState==='finished' && finiteAnimation.effect.getComputedTiming().progress===1 && unrelated.playState==='running'`, &finished)
+		eval(`finiteAnimation.playState==='finished' && finiteAnimation.effect.getComputedTiming().progress===1`, &finished)
 		if !finished {
 			var detail any
 			eval(`({state:finiteAnimation.playState,time:finiteAnimation.currentTime,timing:finiteAnimation.effect.getComputedTiming(),unrelated:unrelated.playState})`, &detail)
@@ -247,6 +260,29 @@ window.snapshot=()=>{
 		}
 		settled(crop)
 		bright(crop, box)
+	}
+	// Leaf elements also paint outside their own geometry through box-shadow
+	// and filters; opacity on either source must finish before the white crop.
+	for _, fixture := range []struct {
+		id  string
+		box recording.Box
+	}{
+		{"boxshadow", recording.Box{340, 620, 120, 60}},
+		{"dropshadow", recording.Box{340, 760, 120, 60}},
+	} {
+		var active bool
+		eval(fmt.Sprintf(`(async()=>{const target=document.getElementById(%q);window.paintAnimation=target.animate([{opacity:0,offset:0},{opacity:0,offset:.7},{opacity:1}],{duration:900,fill:'both'});await paintAnimation.ready;return paintAnimation.playState==='running' && target.childNodes.length===0 && target.getBoundingClientRect().right<0})()`, fixture.id), &active)
+		if !active {
+			t.Fatalf("offscreen leaf animation fixture not active: %s", fixture.id)
+		}
+		crop = capture(fixture.box)
+		var finished bool
+		eval(`paintAnimation.playState==='finished' && paintAnimation.effect.getComputedTiming().progress===1`, &finished)
+		if !finished {
+			t.Errorf("capture preceded natural completion of %s; settlement=%+v", fixture.id, crop.Settlement)
+		}
+		settled(crop)
+		bright(crop, fixture.box)
 	}
 	var running bool
 	eval(`(async()=>{window.inBox=document.getElementById('fade').animate([{opacity:1},{opacity:.8}],{duration:300,iterations:Infinity});await inBox.ready;return inBox.playState==='running'})()`, &running)

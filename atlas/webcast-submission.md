@@ -45,7 +45,7 @@ means the requested crop was narrowed. Wholly offscreen notes keep their recorde
 context and report `crop.unavailable: "outside viewport"`. Couch never scrolls the
 page to collect missing pixels.
 
-Before each crop, Couch observes relevant animations/transitions for at most
+Before each crop, Couch observes document-wide animations/transitions for at most
 1500 ms, polling every 50 ms and inspecting at most 512 browser animations across at most
 20,000 DOM nodes while locating open shadow roots. It
 waits for natural completion; it never finishes or overrides animation styles.
@@ -53,11 +53,10 @@ waits for natural completion; it never finishes or overrides animation styles.
 `status: "unsettled"` with a reason: `timeout`, `paused animation`,
 `infinite animation`, `inspection limit`, or `inspection unavailable`. Missing
 settlement metadata in older bundles means unknown. Observation covers the top
-document and accessible open-shadow animations affecting the visible crop.
-An off-box animation target with children, shadow content or generated
-pseudo-elements is conservatively included because its painted content can
-overflow into the crop; it may consume the wait budget even when that content
-is ultimately outside the crop. Plain off-box leaf targets can be excluded;
+document and accessible open-shadow animations conservatively, without target
+geometry exclusions: children, pseudo-elements, shadows and filters can paint
+outside an animated target's border box. Unrelated off-box animations can consume
+the wait budget or mark the crop unsettled;
 it is not a guarantee about video, canvas, separate frames or future page changes.
 
 Screenshots use the existing viewport (`captureBeyondViewport: false`): the
