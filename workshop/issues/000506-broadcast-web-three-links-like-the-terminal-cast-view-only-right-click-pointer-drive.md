@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
-estimate_hours:
-card_mirror: 'f77e917c373ea2ea64b31543b5f123016c262a9f' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 3.79
+card_mirror: '65dc83afa00e68bee6c84a2c469f49dc0bc5fa9e' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T15:49:14-07:00
 claimant:
     operator: Xian Xu
@@ -15,6 +15,7 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: inferred}
 ---
 
 # broadcast-web: three links like the terminal cast — view-only (right-click), pointer (👆), drive (👽)
@@ -38,6 +39,42 @@ The web cast has one viewer link that grants watching, pointing and notes, plus 
 - Right-click, 👆 and 👽 in Couch copy the view-only, pointer and drive links, each with a notice that says what it grants.
 - Tests: a route table per token, the palette answer per token, the viewer's pure palette reading (node), the live two-viewer test with a view-only viewer, and Couch's copy per control. Full suite green.
 - The operator smoke-tested it.
+
+## Estimate
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.* The source calibration is marked stale, so this is a provisional ship-wall-clock estimate, derived after plan-quality cleared.
+
+Conventions follow #306's estimate:
+- A thorough plan exists, so design takes ×0.2 of the v2 table, and the design buffer is 15%.
+- Implementation is v3.1's ×0.4 of the v2 table.
+- Familiarity is 1.0: the web cast's server, board and viewer were read for this plan, and the patterns (token classing, admission, live headless tests) exist.
+- No library applies.
+
+The rows:
+- The issue/spec dialogue (short, already settled with ops:0) is 0.5/0.08.
+- Each of the seven focused changes is a smaller module, 0.3/0.5 before scaling: castLink+linkOf, board refusal, palette answer, cast pointer token, viewer read-only mount, live view-only test, Couch copies.
+- 👆/👽 may need new spans if #501 lacks them, so it is a TUI piece, 1.0/1.0 before scaling.
+- Docs are 0.2/0.2.
+- Two milestone reviews are 0.04/0.20 each.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.50 impl=0.08
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: tui-screen design=0.20 impl=0.40
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.04 impl=0.20
+item: milestone-review design=0.04 impl=0.20
+design-buffer: 0.15
+total: 3.79
+```
 
 ## Plan
 
