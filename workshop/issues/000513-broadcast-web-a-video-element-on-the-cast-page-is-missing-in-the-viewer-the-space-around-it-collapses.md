@@ -1,12 +1,12 @@
 ---
 id: 000513
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: '1ff24e58ad657f94ffaabd8f89f579704bff0fc3' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'd2459a69decfdc32f9423d3d1f9d2ce9696df0f3' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T18:21:32-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 0.61
 ---
 
 # broadcast-web: a video element on the cast page is missing in the viewer (the space around it collapses)
