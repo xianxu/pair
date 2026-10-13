@@ -34,3 +34,10 @@ The operator (2026-10-13): a simple local model (not an LLM), kept simple.
 ## Log
 
 ### 2026-10-13
+
+## Revisions
+
+- 2026-10-13 — add: a hub-bound message that fails because the hub isn't live (e.g. during a Couch restart) is
+  queued and redelivered when the hub returns, rather than the sender giving up (pair:1's #531 report failed this way at
+  13:24; reports were lost the same way overnight 10-12). The stuck-slot nudge treats an undelivered hub message as a
+  strong signal.
