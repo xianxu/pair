@@ -830,10 +830,9 @@ func (OSRuntime) ExecKillSession(session string) error {
 	return syscall.Exec(path, argv, os.Environ())
 }
 
-// DeleteSession returns success only after both the exact session record and
-// every exact server process are observed absent. A lingering server can
-// re-register the record after delete-session, so attempted deletion alone is
-// not quiescence evidence.
+// DeleteSession returns success only after the authorized server generations
+// and live session are observed absent. Saved layouts are retained; their
+// existence is not evidence of a running terminal.
 func (r OSRuntime) DeleteSession(session string) error {
 	return r.DeleteSessionContext(context.Background(), session)
 }

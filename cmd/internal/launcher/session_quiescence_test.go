@@ -19,9 +19,7 @@ type statefulSessionQuiescenceOps struct {
 	unrelatedKilled bool
 	probeErr        error
 	killErr         error
-	deleteCalls     int
 	killed          []int
-	reRegistrates   int
 }
 
 func (f *statefulSessionQuiescenceOps) SessionPresent(context.Context, string) (bool, error) {
@@ -40,16 +38,6 @@ func (f *statefulSessionQuiescenceOps) SessionServers(_ context.Context, session
 		return []SessionServerIdentity{{PID: f.serverPID, Identity: identity, Session: session, Socket: "/tmp/" + session}}, nil
 	}
 	return nil, nil
-}
-
-func (f *statefulSessionQuiescenceOps) DeleteSessionRecord(context.Context, string) error {
-	f.deleteCalls++
-	f.present = false
-	if f.serverAlive {
-		f.present = true
-		f.reRegistrates++
-	}
-	return nil
 }
 
 func (f *statefulSessionQuiescenceOps) KillServer(server SessionServerIdentity) error {
@@ -121,8 +109,8 @@ func TestOSRuntimeDeleteSessionKillsExactServerWithoutDeletingLayout(t *testing.
 	if ops.present || ops.serverAlive {
 		t.Fatalf("successful delete left state: %+v", ops)
 	}
-	if ops.reRegistrates != 0 || ops.deleteCalls != 0 || !reflect.DeepEqual(ops.killed, []int{4242}) {
-		t.Fatalf("quiescence deleted saved layout or missed exact server: %+v", ops)
+	if !reflect.DeepEqual(ops.killed, []int{4242}) {
+		t.Fatalf("quiescence missed exact server: %+v", ops)
 	}
 }
 
@@ -161,10 +149,6 @@ func (o *deadlineCaptureOps) SessionPresent(ctx context.Context, _ string) (bool
 func (o *deadlineCaptureOps) SessionServers(ctx context.Context, _ string) ([]SessionServerIdentity, error) {
 	o.capture(ctx)
 	return nil, nil
-}
-func (o *deadlineCaptureOps) DeleteSessionRecord(ctx context.Context, _ string) error {
-	o.capture(ctx)
-	return nil
 }
 func (*deadlineCaptureOps) KillServer(SessionServerIdentity) error { return nil }
 
@@ -236,7 +220,6 @@ type replacingQuiescenceOps struct {
 	observations  int
 	beforeObserve func(*replacingQuiescenceOps)
 	killed        []SessionServerIdentity
-	deleted       int
 }
 
 func (o *replacingQuiescenceOps) SessionPresent(context.Context, string) (bool, error) {
@@ -248,10 +231,6 @@ func (o *replacingQuiescenceOps) SessionServers(context.Context, string) ([]Sess
 		o.beforeObserve(o)
 	}
 	return append([]SessionServerIdentity(nil), o.servers...), nil
-}
-func (o *replacingQuiescenceOps) DeleteSessionRecord(context.Context, string) error {
-	o.deleted++
-	return nil
 }
 func (o *replacingQuiescenceOps) KillServer(s SessionServerIdentity) error {
 	o.killed = append(o.killed, s)
@@ -294,8 +273,8 @@ func TestQuiescenceRejectsContestedAndReplacementBeforeEffects(t *testing.T) {
 			if err := quiesceZellijSession(context.Background(), "work", o, time.Second, time.Nanosecond); err == nil {
 				t.Fatal("unsafe quiescence succeeded")
 			}
-			if len(o.killed) != 0 || o.deleted != 0 {
-				t.Fatalf("unauthorized effects: kills=%v deletes=%d", o.killed, o.deleted)
+			if len(o.killed) != 0 {
+				t.Fatalf("unauthorized effects: kills=%v", o.killed)
 			}
 		})
 	}
@@ -308,8 +287,8 @@ func TestAuthorizedQuiescenceAllowsOnlyAttributedSnapshot(t *testing.T) {
 	if err := quiesceAuthorizedSession(t.Context(), "work", []SessionServerIdentity{a, b}, o, time.Second, time.Nanosecond); err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(o.killed, []SessionServerIdentity{a, b}) || o.deleted != 0 {
-		t.Fatalf("effects: kills=%v deletes=%d", o.killed, o.deleted)
+	if !reflect.DeepEqual(o.killed, []SessionServerIdentity{a, b}) {
+		t.Fatalf("effects: kills=%v", o.killed)
 	}
 }
 
@@ -325,8 +304,8 @@ func TestQuiescenceRefusesReplacementAfterAuthorizedKill(t *testing.T) {
 	if err := quiesceZellijSession(t.Context(), "work", o, time.Second, time.Nanosecond); err == nil {
 		t.Fatal("replacement must refuse")
 	}
-	if !reflect.DeepEqual(o.killed, []SessionServerIdentity{a}) || o.deleted != 0 {
-		t.Fatalf("effects: kills=%v deletes=%d", o.killed, o.deleted)
+	if !reflect.DeepEqual(o.killed, []SessionServerIdentity{a}) {
+		t.Fatalf("effects: kills=%v", o.killed)
 	}
 }
 
