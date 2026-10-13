@@ -15,6 +15,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "672f84c7", done: "e7e7fbd0"}
 ---
 
 # broadcast-web: fast trackpad scrolls are refused as stale; drop the element check for wheel input
