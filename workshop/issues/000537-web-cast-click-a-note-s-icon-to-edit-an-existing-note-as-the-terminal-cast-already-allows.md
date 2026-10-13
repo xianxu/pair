@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-13
 updated: 2026-10-13
-estimate_hours:
-card_mirror: 'a35acdaec66653a9cb09ec19fd13b681066c2615' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 4.545
+card_mirror: '3c2a51180f66e2f0fa4ae71896f82c23070de65f' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-13T16:03:25-07:00
 claimant:
     operator: Xian Xu
@@ -74,6 +74,41 @@ Durable full-flow plan: [own-note editing](../plans/000537-web-note-editing-plan
 - [ ] Implement the revision event and authoritative viewer/operator edit paths.
 - [ ] Wire shared editor and current pin projections, with regression coverage.
 - [ ] Verify, document, close and land through SDLC.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md`
+against `baseline-v3.1.md`. Method A only. Calibration is tagged stale by
+estimate-source (#127); figures are provisional. Derived after plan-quality
+round 2 accepted all findings.
+
+Decomposition: issue/spec design 0.8h plus 0.2h implementation; three small
+module extensions (cookie owner, recording/query projection, terminal mutation)
+each 0.3h design x0.2 and 0.5h implementation x0.4. Web Board/recorder integration
+uses 1.5h design x0.2 and 1.5h implementation x0.4; shared dialog plus adapters
+uses tui-screen (stateful UI analogue) at 1.5h x0.2 and 1.0h x0.4. Headless
+integration coverage uses 1.0h x0.2 and 1.0h x0.4. Atlas is 0.1h x0.2 plus
+0.2h x0.4; one close review is 0.1h plus 0.5h x0.4. Familiarity 1.0; no novel
+stack/library work: existing Go SHA-256, HTTP gate, recorder harness and JS
+dialog suffice. Implementation values below already include the v3.1 factor.
+Design subtotal 1.90h, implementation 2.36h; 15% thorough-plan design buffer
+gives 4.545h. Queue/CI/operator idle time is excluded from focused ship-time.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.80 impl=0.08
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: api-integration design=0.30 impl=0.60
+item: tui-screen design=0.30 impl=0.40
+item: api-integration design=0.20 impl=0.40
+item: atlas-docs design=0.02 impl=0.08
+item: milestone-review design=0.10 impl=0.20
+design-buffer: 0.15
+total: 4.545
+```
 
 ## Log
 
