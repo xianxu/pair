@@ -55,7 +55,7 @@ export async function joinSeat(fetchFn, name) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: name || '' }),
-      credentials: 'omit', referrerPolicy: 'no-referrer', cache: 'no-store',
+      credentials: 'same-origin', referrerPolicy: 'no-referrer', cache: 'no-store',
     });
     if (!r.ok) return null;
     const s = await r.json();

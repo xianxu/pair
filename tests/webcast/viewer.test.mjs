@@ -12,7 +12,7 @@ class FakeEventSource {
   emit(n, data) { this.readyState = 1; this.listeners[n]({ data: JSON.stringify(data) }); }
 }
 
-function harness() {
+function harness(extra = {}) {
   const h = { shown: [], sources: [], drawn: [], retries: [], frames: 0, flushes: 0, revoked: 0 };
   h.v = connect({
     open: () => { const es = new FakeEventSource(); h.sources.push(es); return es; },
@@ -21,6 +21,7 @@ function harness() {
     frame: () => h.frames++,
     schedule: (fn) => fn(),
     retry: (fn) => h.retries.push(fn),
+    ...extra,
   });
   h.es = () => h.sources.at(-1);
   h.last = () => h.shown.at(-1);
@@ -128,4 +129,46 @@ test('a hover on a node this viewer lacks never forces a resync', () => {
   assert.equal(es.closed, false);
   assert.equal(h.retries.length, 0);
   assert.equal(h.v.model.hover, 0);
+});
+
+// pair#495: a stream the server closed for good (a rotated code ends the
+// session) returns the page to the lock; a closed stream whose session holds
+// is shown as disconnected, and a cast that ended asks nothing.
+test('a closed stream whose session is gone reloads into the lock page', async () => {
+  let relocked = 0;
+  const h = harness({ sessionLost: async () => true, relock: () => { relocked++; } });
+  h.es().emit('state', { live: true });
+  h.es().close();
+  h.es().onerror();
+  await new Promise((r) => setImmediate(r));
+  assert.equal(relocked, 1);
+});
+
+test('a closed stream whose session holds says disconnected', async () => {
+  let relocked = 0;
+  const h = harness({ sessionLost: async () => false, relock: () => { relocked++; } });
+  h.es().emit('state', { live: true });
+  h.es().close();
+  h.es().onerror();
+  await new Promise((r) => setImmediate(r));
+  assert.equal(relocked, 0);
+  assert.equal(h.last().status, 'Disconnected');
+});
+
+test('an ended cast never probes its session', async () => {
+  let probed = 0;
+  const h = harness({ sessionLost: async () => { probed++; return true; }, relock: () => {} });
+  h.es().emit('end', {});
+  h.es().onerror();
+  await new Promise((r) => setImmediate(r));
+  assert.equal(probed, 0);
+});
+
+test('a stream the browser is reconnecting is not probed', async () => {
+  let probed = 0;
+  const h = harness({ sessionLost: async () => { probed++; return true; }, relock: () => {} });
+  h.es().readyState = 0;
+  h.es().onerror();
+  await new Promise((r) => setImmediate(r));
+  assert.equal(probed, 0);
 });

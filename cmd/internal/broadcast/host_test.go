@@ -1,6 +1,8 @@
 package broadcast
 
 import (
+	"github.com/xianxu/pair/cmd/internal/castlock"
+
 	"context"
 	"errors"
 	"io"
@@ -15,6 +17,8 @@ import (
 type tokenHandler string
 
 func (t tokenHandler) Owns(segment string) bool { return segment == string(t) }
+
+func (tokenHandler) LockFor(string) *castlock.Lock { return nil }
 func (t tokenHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(w, string(t))
 }

@@ -13,6 +13,7 @@ import { mountAnnotate, identityStore } from './annotate.js';
 import { mountPlaceholders } from './placeholders.js';
 import { joinSeat, mountDrive } from './drive.js';
 import { replayPath, mountReplay } from './replay.js';
+import { sessionLost } from './collab.js';
 
 // fit is the page box's scale and place in an area: the operator's
 // viewport, scaled to fit whole, centred.
@@ -97,8 +98,13 @@ export function connect(deps) {
     });
     es.addEventListener('end', () => { es.close(); ended = true; show(); });
     es.onerror = () => {
-      if (es.readyState === 2) { if (!ended) deps.show({ ...view(null, null, true), status: 'Disconnected' }); }
-      else show(); // EventSource reconnects by itself
+      if (es.readyState !== 2) { show(); return; } // EventSource reconnects by itself
+      if (ended) return;
+      const disconnected = () => deps.show({ ...view(null, null, true), status: 'Disconnected' });
+      // A stream refused because the link's code was rotated (pair#495)
+      // returns to the lock page.
+      if (!deps.sessionLost) { disconnected(); return; }
+      deps.sessionLost().then((lost) => (lost ? deps.relock() : disconnected()));
     };
   }
   fresh();
@@ -174,6 +180,8 @@ export function mount(doc, win) {
       v = connect({
         ...shell,
         open: () => new win.EventSource(viewer ? `events?viewer=${encodeURIComponent(viewer)}` : 'events'),
+        sessionLost: () => sessionLost((url, init) => win.fetch(url, init)),
+        relock: () => win.location.reload(),
         retry: (fn) => win.setTimeout(fn, 1000),
       });
     });

@@ -28,12 +28,13 @@ func startSession(t *testing.T, ft *FakeTunnel, hub HubOptions) *Session {
 		s.Stop(nil)
 		<-s.Done()
 	})
+	unlockView(t, s)
 	return s
 }
 
 func get(t *testing.T, url string) (int, error) {
 	t.Helper()
-	c := &http.Client{Timeout: 5 * time.Second}
+	c := &http.Client{Timeout: 5 * time.Second, Jar: castClient.Jar}
 	resp, err := c.Get(url)
 	if err != nil {
 		return 0, err
@@ -80,7 +81,7 @@ func readEnd(t *testing.T, events *sseReader) sseEvent {
 
 func openSessionEvents(t *testing.T, s *Session) *sseReader {
 	t.Helper()
-	resp, err := http.Get(s.Link() + "events")
+	resp, err := castClient.Get(s.Link() + "events")
 	if err != nil {
 		t.Fatal(err)
 	}
