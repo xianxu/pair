@@ -5,6 +5,7 @@ local authored,sent,acks,preps={}, {},0,0
 local composer=''
 local ack_failed=false
 local deferred
+local guide='Recording: /store/webcast/recordings/recording-1\ncouch --broadcast-web-query /store/webcast/recordings/recording-1 notes'
 vim.notify=function()end
 _G.PairTestSessionLogAppend=function(text)authored[#authored+1]=text;return true end
 _G.PairTestSessionLogCommit=function()return true end
@@ -14,7 +15,7 @@ _G.PairTestDOMRPC=function(op,id,cb)
   preps=preps+1
   if case=='failure' then cb({state='failed',error='page changed'});return end
   if case=='changed' then deferred=cb;return end
-  cb({state='prepared',path='/store/'..id..'/submission.json'})
+  cb({state='prepared',path='/store/'..id..'/submission.json',how_to_read=guide})
  elseif op=='begin' then cb({state='delivering'})
  elseif op=='ack' then
   acks=acks+1
@@ -48,6 +49,7 @@ elseif case=='failure' then
 else
  assert(#sent==1 and #authored==1 and authored[1]==body)
  assert(sent[1]:find('/submission.json',1,true))
+ assert(sent[1]:find('crop-N.png',1,true) and sent[1]:sub(-#guide)==guide,'agent prompt lost canonical recording guide')
  assert(not sent[1]:find('=== keep',1,true))
  if case=='ack' then
   vim.api.nvim_buf_set_lines(0,0,-1,false,{'next draft'})

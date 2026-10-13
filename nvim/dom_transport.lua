@@ -1,5 +1,7 @@
 -- Private Couch RPC + an exact Zellij pane, without changing operator focus.
 local M = {}
+local here = debug.getinfo(1, 'S').source:match('@?(.*/)') or './'
+local pane_identity = dofile(here .. 'pane_identity.lua')
 function M.new(v, action)
   local bin = (v.env.PAIR_HOME or '') ~= '' and (v.env.PAIR_HOME .. '/bin/couch') or 'couch'
   local function argv(op,id) return {bin,'--broadcast-web-submit',op,id} end
@@ -26,14 +28,7 @@ function M.new(v, action)
     local result=action('draft.dom.list-panes',{'zellij','action','list-panes','--json','--command'}) or {}
     if result.code~=0 then return nil end
     local ok,node=pcall(v.json.decode,result.stdout or '');if not ok then return nil end
-    local found={}
-    local function collect(n)
-      if type(n)~='table' then return end
-      if n.id~=nil and n.is_floating~=nil then
-        if n.is_plugin==false and n.is_floating==false and type(n.terminal_command)=='string' and n.terminal_command:find('pair wrap',1,true) then found[#found+1]=n end
-      else for _,child in pairs(n) do collect(child) end end
-    end
-    collect(node);return found
+    return pane_identity.agents(node)
   end
   local function pin(id)
     local p=panes()

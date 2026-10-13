@@ -550,6 +550,8 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/confirm_quit.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/doctor.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/dom_submission.lua", Kind: GeneratedMirror},
+	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/dom_submission_state.lua", Kind: GeneratedMirror},
+	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/pane_identity.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/dom_transport.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/draft_send.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/init.lua", Kind: GeneratedMirror, Families: []string{"draft"}},
@@ -1291,6 +1293,8 @@ var NonArtifactSources = []string{
 	// #483 Lua carries the manifest path returned by Couch and pins a pane;
 	// it does not construct or read any tag-bearing Pair artifact filename.
 	"nvim/dom_submission.lua",
+	"nvim/dom_submission_state.lua",
+	"nvim/pane_identity.lua",
 	"nvim/dom_transport.lua",
 	"nvim/draft_send.lua",
 	"nvim/interrupt.lua",
