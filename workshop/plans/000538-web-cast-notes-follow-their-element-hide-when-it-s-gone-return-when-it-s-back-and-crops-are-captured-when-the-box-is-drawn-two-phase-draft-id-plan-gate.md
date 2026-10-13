@@ -26,6 +26,23 @@ rounds:
           family: durable-artifact-lifecycle
           round: 1
       blocked: true
+    - "n": 2
+      timestamp: "2026-10-13T16:23:05-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Step authority, explicit uncertainty transitions, reconciliation evidence, bounded escalation and worker shutdown now cover the requested ownership model.
+          round: 2
+        - id: PQ-2
+          disposition: not-addressed
+          note: Named strategies were added, but Tasks 1–4 retain their prose test-case inventories. Explicitly supersede those inventories with the strategy table and name Board.ResolveSelection instead of “Board conditional resolution”; preserve revision history while making the active test contract unambiguous.
+          round: 2
+        - id: PQ-3
+          disposition: addressed
+          note: The revision defines quota accounting, reference and intent lifetimes, dedupe collection, recording-deletion sweeping and preservation of published bundle evidence.
+          round: 2
+      blocked: true
 ---
 
 # Gate ledger — pair#538 (plan-quality)
@@ -44,8 +61,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **PQ-3** [Important] `durable-artifact-lifecycle` Specify cleanup and capacity accounting for capture references and recovery intents.
   ARCH-FUNERAL: The plan retains stable capture references after moving bytes into bundles but does not say when reference records and completed attachment/transfer intents are removed or whether they consume the 128-record limit. Define those lifetimes and the concrete cleanup hook for captures stored outside a recording when that recording is deleted; ensure repeated submit/resolve cycles reclaim capacity without deleting evidence still needed by open notes or published bundles.
 
+## Round 2 — 2026-10-13T16:23:05-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- PQ-1 — addressed — Step authority, explicit uncertainty transitions, reconciliation evidence, bounded escalation and worker shutdown now cover the requested ownership model.
+- PQ-2 — not-addressed — Named strategies were added, but Tasks 1–4 retain their prose test-case inventories. Explicitly supersede those inventories with the strategy table and name Board.ResolveSelection instead of “Board conditional resolution”; preserve revision history while making the active test contract unambiguous.
+- PQ-3 — addressed — The revision defines quota accounting, reference and intent lifetimes, dedupe collection, recording-deletion sweeping and preservation of published bundle evidence.
+
 ## Open findings
 
-- **PQ-1** [Important] `explicit-ownership-transitions` Define and enforce the capture ownership transition model before implementation.
 - **PQ-2** [Important] `function-level-test-strategy` Replace prose test-case inventories with named functions and adversarial strategies.
-- **PQ-3** [Important] `durable-artifact-lifecycle` Specify cleanup and capacity accounting for capture references and recovery intents.
