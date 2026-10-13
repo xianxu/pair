@@ -11,8 +11,6 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// InvalidMetadataError identifies a static type or size violation. IO errors
-// and concurrent file changes remain distinct, inconclusive observations.
 type MetadataViolation uint8
 
 const (
@@ -20,6 +18,8 @@ const (
 	MetadataTooLarge
 )
 
+// InvalidMetadataError identifies a static type or size violation. IO errors
+// and concurrent file changes remain distinct, inconclusive observations.
 type InvalidMetadataError struct {
 	Path string
 	Kind MetadataViolation

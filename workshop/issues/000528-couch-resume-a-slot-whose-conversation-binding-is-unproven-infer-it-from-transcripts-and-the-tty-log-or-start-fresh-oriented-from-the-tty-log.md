@@ -230,6 +230,8 @@ M1 review against 2efe103cf returned REWORK: BR-1 unknown evidence promoted to l
 
 - 2026-10-13 — Whole-suite integration caught a fallback regression from the new shared error type: an optional non-regular events sidecar must still preserve raw-only history without witness certification. InvalidMetadataError now carries a typed violation kind; only non-regular sidecars join the existing unreadable-events fallback, while oversized/malformed authority still refuses. Added missing/directory/FIFO/oversized capture cases; full launcher/storagegc/osfs packages pass. The suite also exposed an existing 30ms test preflight race: caller expiry before observation legitimately makes zero calls. The test retains exact inner-bound/no-effects assertions and adds deterministic expired-parent coverage; no production recovery logic changed.
 
+- 2026-10-13 — Final read-family verification on 25e0de547: make build and targeted race passed; complete make test passed all behavior packages, including couchcore, launcher and storagegc, but its termcmd godoc guard found the InvalidMetadataError comment attached to the newly inserted MetadataViolation declaration. Moved only that comment; the exact guard now passes. Full output /tmp/pair528-read-family-final.log retains the single guard failure transparently; build /tmp/pair528-read-family-final-build.log and race /tmp/pair528-read-family-final-race.log. Integrating current main before the next boundary attempt.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against
