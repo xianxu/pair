@@ -45,7 +45,7 @@ func TestSubmissionBuildPreservesSelectionAndHistoricalContext(t *testing.T) {
 		}
 	}
 }
-func TestSubmissionBuildRejectsMissingAndWrongDocument(t *testing.T) {
+func TestSubmissionBuildRejectsMissingAndKeepsOriginalDocument(t *testing.T) {
 	b, sel := buildFixture()
 	sel.Notes = append(sel.Notes, board.SelectedNote{ID: "missing"})
 	if _, _, err := Build(b.Recs, sel, "submission", target(), "/recording", nil); err == nil {
@@ -53,8 +53,9 @@ func TestSubmissionBuildRejectsMissingAndWrongDocument(t *testing.T) {
 	}
 	sel.Notes = sel.Notes[:2]
 	sel.Document = 2
-	if _, _, err := Build(b.Recs, sel, "submission", target(), "/recording", nil); err == nil {
-		t.Fatal("wrong document accepted")
+	sub, _, err := Build(b.Recs, sel, "submission", target(), "/recording", nil)
+	if err != nil || sub.Notes[0].SourceDocument != 1 {
+		t.Fatalf("historical document lost: %+v %v", sub, err)
 	}
 }
 
@@ -146,7 +147,7 @@ func TestSubmissionBuildDropsSelectorsWithoutMutatingRecording(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.Version != 2 {
+	if s.Version != 3 {
 		t.Fatal("not current schema", s.Version)
 	}
 	for _, n := range s.Notes {
@@ -162,5 +163,28 @@ func TestSubmissionBuildDropsSelectorsWithoutMutatingRecording(t *testing.T) {
 		if n, ok := r.(*recording.Note); ok && n.At.Sel == "" {
 			t.Fatal("mutated recording")
 		}
+	}
+}
+
+func TestSubmissionBuildMixedDocumentsAndCaptureReferences(t *testing.T) {
+	b, selected := buildFixture()
+	for _, rec := range b.Recs {
+		if n, ok := rec.(*recording.Note); ok && n.ID == "a" {
+			n.Capture = "draw-a"
+			n.CropUnavailable = "capture busy"
+		}
+	}
+	el := b.El("button", nil, b.Txt("Later page"))
+	b.At(30).Page(recording.SegNavigate, "https://other.test", el)
+	box := recording.Box{20, 20, 100, 40}
+	b.At(40).Add(&recording.Note{ID: "later", Text: "later note", Author: recording.Author{ID: "three"}, At: recording.NoteAt{Node: el.ID, Box: &box}, Region: &box})
+	selected.Document = 2
+	selected.Notes = append(selected.Notes, board.SelectedNote{ID: "later", Revision: 1})
+	sub, _, err := Build(b.Recs, selected, "mixed", target(), "/recording", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sub.Version != 3 || sub.Notes[1].CaptureID != "draw-a" || sub.Notes[1].Crop.Unavailable != "capture busy" || sub.Notes[1].SourceDocument != 1 || sub.Notes[2].SourceDocument != 2 || sub.Notes[2].Crop.Unavailable != "not captured when drawn" {
+		t.Fatalf("wrong historical sources: %+v", sub)
 	}
 }

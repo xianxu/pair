@@ -31,7 +31,7 @@ func TestSubmissionResolutionRechecksRevisionAtWriter(t *testing.T) {
 		}
 		intercepted++
 		for _, state := range []string{recording.NoteResolved, recording.NoteOpen} {
-			if err := r.w.Emit(&recording.NoteState{ID: id, State: state}, doc); err != nil {
+			if err := r.w.Emit(&recording.NoteState{ID: id, State: state}, r.bd.st.DocSeg); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -114,5 +114,48 @@ func TestSubmissionResolutionWaitsForRecordedOutcome(t *testing.T) {
 	defer cancel()
 	if err := r.bd.ResolveSelection(ctx, sel); err == nil {
 		t.Fatal("queue acceptance treated as resolution")
+	}
+}
+
+func TestSubmissionSelectsHistoricalOpenNotes(t *testing.T) {
+	r := newRig(t).page(recording.SegLive)
+	first, _ := r.note(r.p1.ID, 0)
+	original, _ := r.bd.Selection()
+	r.page(recording.SegNavigate)
+	second, _ := r.note(r.p1.ID, 1)
+	selected, err := r.bd.Selection()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(selected.Notes) != 2 || selected.Notes[0].ID != first || selected.Notes[1].ID != second {
+		t.Fatalf("historical notes omitted: %+v", selected)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err = r.bd.ResolveSelection(ctx, original); err != nil {
+		t.Fatal(err)
+	}
+	selected, err = r.bd.Selection()
+	if err != nil || len(selected.Notes) != 1 || selected.Notes[0].ID != second {
+		t.Fatalf("historical ack consumed wrong selection: %+v %v", selected, err)
+	}
+}
+
+func TestSubmissionHistoricalWriterRequiresGuardedResolution(t *testing.T) {
+	r := newRig(t).page(recording.SegLive)
+	id, _ := r.note(r.p1.ID, 0)
+	selected, _ := r.bd.Selection()
+	revision := selected.Notes[0].Revision
+	r.page(recording.SegNavigate)
+	for _, change := range []*recording.NoteState{{ID: id, State: recording.NoteResolved}, {ID: id, State: recording.NoteOpen, IfRevision: &revision}} {
+		if err := r.w.Emit(change, 0); !errors.Is(err, ErrStale) {
+			t.Fatalf("unguarded historical mutation accepted: %v", err)
+		}
+	}
+	if err := r.w.Emit(&recording.NoteState{ID: id, State: recording.NoteResolved, IfRevision: &revision}, 0); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.w.Emit(&recording.NoteState{ID: id, State: recording.NoteResolved, IfRevision: &revision}, 0); !errors.Is(err, ErrStale) {
+		t.Fatalf("historical revision reused: %v", err)
 	}
 }

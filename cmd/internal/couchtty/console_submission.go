@@ -215,6 +215,7 @@ func (m *submissionManager) prepare(job *submissionJob, cast submissionCast, sel
 	var s core.Submission
 	if err == nil {
 		var crops map[string][]byte
+		published := false
 		s, crops, err = cast.PrepareSubmission(ctx, job.status.ID, job.status.Target, selected, base, func(p core.SubmissionProgress) { m.progress(job, p) })
 		if err == nil {
 			err = m.guard(s.Target)
@@ -224,7 +225,25 @@ func (m *submissionManager) prepare(job *submissionJob, cast submissionCast, sel
 		}
 		if err == nil {
 			m.progress(job, core.SubmissionProgress{Phase: "publishing"})
+			published = true
 			_, err = m.store.Prepare(s, crops)
+		}
+		if owner, ok := cast.(interface {
+			ReconcilePreparedSubmission(context.Context, core.Submission, core.PublicationObservation) error
+		}); ok && s.ID != "" {
+			// Only reaching Prepare can make publication uncertain. A visible
+			// manifest after an error still needs durability confirmation.
+			obs := core.PublicationObservation{State: core.PublicationAbsent}
+			if published {
+				var confirmationErr error
+				obs, confirmationErr = m.store.ConfirmPrepared(s, crops)
+				err = errors.Join(err, confirmationErr)
+			}
+			// Release proven-absent claims even when the operation expired.
+			// This bounded cleanup never dispatches or reports delivery.
+			cleanup, stop := context.WithTimeout(context.WithoutCancel(ctx), 4*time.Second)
+			err = errors.Join(err, owner.ReconcilePreparedSubmission(cleanup, s, obs))
+			stop()
 		}
 	}
 	m.mu.Lock()

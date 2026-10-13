@@ -18,9 +18,12 @@ import (
 // returned by prepare-note. The callback's session/context are trusted CDP data.
 type OperatorReply struct {
 	board.OperatorReply
-	Draft string `json:"draft,omitempty"`
-	Seg   int    `json:"seg"`
-	Doc   int    `json:"doc"`
+	Draft       string    `json:"draft,omitempty"`
+	State       string    `json:"state,omitempty"`
+	CapturedAt  time.Time `json:"captured_at,omitempty"`
+	Unavailable string    `json:"unavailable,omitempty"`
+	Seg         int       `json:"seg"`
+	Doc         int       `json:"doc"`
 }
 
 const maxOperatorQueue = 32
@@ -131,6 +134,7 @@ func (r *Recorder) operatorAdmission(session string, ctx int64, doc int) error {
 }
 func (r *Recorder) expireOperator() {
 	r.stampOperatorDocuments()
+	r.expireDraftOwner()
 	o := r.operator
 	if o != nil && (!r.operatorIdentity(o.session, o.context) || o.doc != r.m.st.DocSeg || r.m.st.Ended) {
 		o.board.Close()
@@ -151,6 +155,9 @@ func (r *Recorder) handleOperator(session string, ctx int64, req board.OperatorR
 	r.expireOperator()
 	if !r.operatorIdentity(session, ctx) || r.opts.Operator == nil {
 		r.operatorRefusal(session, ctx, req.Request, board.ErrStale)
+		return
+	}
+	if r.handleDraftOperation(session, ctx, req, admission) {
 		return
 	}
 	o := r.operator

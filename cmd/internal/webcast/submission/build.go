@@ -15,9 +15,9 @@ import (
 var recordingID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`)
 
 // Build keeps selected order and computes each crop separately at the note's
-// recorded moment. Current screenshots are attached later by the cast owner.
+// recorded moment. The cast owner attaches immutable draw-time evidence later.
 func Build(recs []recording.Record, selected board.Selection, id string, target core.Target, path string, replay func(int64) string) (core.Submission, []core.CaptureRegion, error) {
-	out := core.Submission{Version: 2, PrivacyDecision: core.PrivacyDecision{Privacy: core.Private}, ID: id, Target: target, Delivery: core.Prepared, Source: core.Source{Kind: "dom", RecordingPath: path, TabID: selected.TabID, Document: selected.Document}}
+	out := core.Submission{Version: 3, PrivacyDecision: core.PrivacyDecision{Privacy: core.Private}, ID: id, Target: target, Delivery: core.Prepared, Source: core.Source{Kind: "dom", RecordingPath: path, TabID: selected.TabID, Document: selected.Document}}
 	if len(recs) == 0 {
 		return out, nil, fmt.Errorf("recording is empty")
 	}
@@ -46,6 +46,7 @@ func Build(recs []recording.Record, selected board.Selection, id string, target 
 		}
 		wanted[n.ID] = true
 	}
+	documents := map[string]int{}
 	boxes := map[string]recording.Box{}
 	regions := map[string]recording.Box{}
 	state := recording.NewState()
@@ -57,9 +58,7 @@ func Build(recs []recording.Record, selected board.Selection, id string, target 
 		if !ok || !wanted[note.ID] {
 			continue
 		}
-		if state.DocSeg != selected.Document || state.Tab.ID != selected.TabID {
-			return out, nil, fmt.Errorf("selected note %s belongs to a different document", note.ID)
-		}
+		documents[note.ID] = state.DocSeg
 		// Structural crop arithmetic consumes both anchor geometry and page bounds.
 		// Validate all operands before asking it to pad/union/clip them.
 		for _, box := range state.Boxes {
@@ -112,7 +111,11 @@ func Build(recs []recording.Record, selected board.Selection, id string, target 
 		n := view.Note.Note
 		anchor := n.At
 		anchor.Sel = ""
-		note := core.Note{SourceDocument: selected.Document, ID: n.ID, Revision: selectedNote.Revision, Author: n.Author, Text: n.Text, T: n.T, At: anchor, Context: view.Context, Element: view.Element, Before: view.BeforeLines, Crop: core.Crop{Unavailable: "not captured"}}
+		reason := n.CropUnavailable
+		if reason == "" {
+			reason = "not captured when drawn"
+		}
+		note := core.Note{PrivacyDecision: core.PrivacyDecision{Privacy: core.Private}, CaptureID: n.Capture, SourceDocument: documents[n.ID], ID: n.ID, Revision: selectedNote.Revision, Author: n.Author, Text: n.Text, T: n.T, At: anchor, Context: view.Context, Element: view.Element, Before: view.BeforeLines, Crop: core.Crop{Unavailable: reason}, BoxText: core.BoxText{Unavailable: reason}}
 		if note.Element == "" {
 			note.Element = "unavailable: recorded element missing"
 			note.Context.Text = n.At.Text
