@@ -99,9 +99,13 @@ total: 3.82
 - [x] Bounded atomic store, note snapshot, current-tab crops and guarded resolution.
 - [x] Couch prepare/status/ack RPC with fixed recipient and replay links.
 - [x] Draft hotkey using the existing authored-send transaction with frozen retry identity.
-- [ ] Docs, bounded verification, hub-scheduled operator smoke, SDLC review and SHIP landing.
+- [x] Docs and bounded automated verification; record the separately scheduled smoke and shipment handoff below.
 
 Detailed plan: [DOM submission implementation plan](../plans/000483-dom-submission-plan.md).
+
+## Shipping acceptance pending
+
+Operator smoke on pair:0 follows #495/#506, scheduled by the hub. Do not stage or merge before that smoke. After smoke/SHIP, merge current main (integrating #494 capture suppression if it has landed), run required gates and sdlc merge --yes, report to hub and stop. Local close is explicitly authorized before this acceptance by TL receipts 0146066c-f885-4a42-a2d6-eb731bd9e8fe and ad2abe0b-d61c-4c7d-bde8-e238d0f50971.
 
 ## Log
 
@@ -148,6 +152,14 @@ One authorized headless Chrome run passed: TestLiveSubmissionCrop (4.72 s) with 
 
 The full make test shell/Lua stages passed. Its Go stage found the newly introduced sources absent from the exhaustive artifact inventory; accurate Couch-namespace and generated-mirror entries were added, and TestProductionArtifactReferencesAreExactlyClassified then passed (1.968 s). Remaining Go packages are still running. Additional writer/recorder interleaving tests prove a resolve/reopen between admission and emission is preserved and the local revision guard never enters JSON recordings.
 
+### 2026-10-12 — local verification complete, baseline failure disclosed
+
+- Full serial suite: GOMAXPROCS=2 / Go parallelism 1 / make -j1 test, log /tmp/pair483-tests/full-suite.log. Shell/Lua stages passed. Go completed with three failing packages: artifactpath new-source inventory and keyhelp stale generated nvim bundle were repaired and their targeted tests passed; the remaining unchanged wrapcmd TestNotificationBrokerBeforeExecAndCleanup loses the startup notification.
+- Baseline proof: the wrapper test also fails alone with scrubbed Pair/Couch/Zellij identity, and fails with all 25 changed production Go files replaced/deleted through an overlay restoring origin/main. No wrapper source differs from main. TL filed pair#519 and explicitly authorized close with this pre-existing failure disclosed (receipt ad2abe0b-d61c-4c7d-bde8-e238d0f50971). No test or review gate was bypassed.
+- Current feature verification: targeted submission/CLI/Console/store suites pass; Board/recorder/codec revision-race tests pass; DOM adapter/transport/transaction and headless integration pass, including queue preservation and ack-only recovery. Ordinary queue and bang-tag tests pass. TestLiveSubmissionCrop passed on one headless temporary Chrome in 4.72 s.
+- Guard mutation checks used Go overlays only: ignoring the manifest write error causes write/sync tests to fail; disabling capture identity comparison causes tab-switch and same-URL reload tests to fail. Original sources then pass the same tests. No working source mutation or operator focus change occurred.
+- Current main merged cleanly (docs-only #496 delta); #494 has not landed yet. Its centralized capture helper remains a landing-order follow-up.
+
 ## Revisions
 
 - 2026-10-12 — pair:6 resumed after the hub released the old shaping claim. The operator's later decisions now
@@ -162,3 +174,5 @@ The full make test shell/Lua stages passed. Its Go stage found the newly introdu
 - 2026-10-12 — TL: #488's plan settles the crop as each note's box + 16 px margin; structure-snapped crops and per-URL crop hints are retired. #483 builds its crop on the note's box through the notes seam #488 fills.
 
 - 2026-10-12 — Operator confirms resolve-after-delivery (via TL receipt dde5ab61-cea4-4617-ad8f-6e4a67b32b86): submitting transfers ownership of the notes to the agent; whatever follows (a pensive, an issue, a fix) is the agent's. README and atlas state this ownership transfer explicitly; implementation already matches.
+
+- 2026-10-12 — Local-close order finalized by TL: disclose pre-existing main failure pair#519, close, then wait for scheduled operator smoke before merge. The issue Plan now describes the completed local implementation/verification; outstanding shipment is tracked in Shipping acceptance pending rather than marked complete.

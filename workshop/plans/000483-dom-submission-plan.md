@@ -118,46 +118,46 @@ Resolution success means the matching note-state records were observed in the re
 
 Files: create `cmd/internal/submission/{model,delivery}_test.go` and corresponding implementation; create `cmd/internal/webcast/submission/build_test.go` and implementation; modify `cmd/internal/webcast/notes/model.go`.
 
-- [ ] `Validate`/`ValidateCrop`: table-driven malformed versions, coordinate/path domains and boundary values; round-trip canonical JSON fixtures. `Build`: property over frozen selection and recording sequence (output IDs equal selection, each crop index unique), including navigation and overlap. `ApplyDelivery`: generate event sequences and assert monotone durable progress and no delivery effect on ack/status.
-- [ ] Run `GOMAXPROCS=2 go test -p 1 ./cmd/internal/submission ./cmd/internal/webcast/submission -count=1`; confirm the intended failures.
-- [ ] Implement the types, validation and pure builder using existing query/model APIs; preserve note ordering and explicitly unavailable context/crops.
-- [ ] Rerun the targeted command and commit the coherent change with `#483: ...` and author trailer.
+- [x] `Validate`/`ValidateCrop`: table-driven malformed versions, coordinate/path domains and boundary values; round-trip canonical JSON fixtures. `Build`: property over frozen selection and recording sequence (output IDs equal selection, each crop index unique), including navigation and overlap. `ApplyDelivery`: generate event sequences and assert monotone durable progress and no delivery effect on ack/status.
+- [x] Run `GOMAXPROCS=2 go test -p 1 ./cmd/internal/submission ./cmd/internal/webcast/submission -count=1`; confirm the intended failures.
+- [x] Implement the types, validation and pure builder using existing query/model APIs; preserve note ordering and explicitly unavailable context/crops.
+- [x] Rerun the targeted command and commit the coherent change with `#483: ...` and author trailer.
 
 ### 2. Store, selection and current-tab crop capture
 
 Files: create `cmd/internal/submission/store{,_test}.go`, `cmd/internal/webcast/board/submission{,_test}.go`, `cmd/internal/webcast/recorder/submission{,_test}.go`, `cmd/internal/webcast/chrome_submission.go`, `cmd/internal/webcast/cast_submission{,_test}.go`; extend recorder fake and browser fake at the same seam.
 
-- [ ] `Store.Prepare`/`Store.Transition`: inject failure at each write/sync/rename boundary against portable folders; readers see old-or-complete manifests, never partial files, and writer budgets include crash residue. `ValidatePNG`: adversarial headers/dimensions/encoded lengths must refuse before allocation. `Board.Selection`/`Board.ResolveSelection`: interleave note creation, resolution and document replacement; only matching selected identities can change. `Recorder.CaptureCrops`/`captureBarrier`: controllable CDP replies and delayed navigation events prove pre-existing page loss yields unavailable and any in-capture identity change refuses; cancel/close releases ownership.
-- [ ] Run `GOMAXPROCS=2 go test -p 1 ./cmd/internal/submission ./cmd/internal/webcast/board ./cmd/internal/webcast/recorder -run 'TestSubmission|TestCropCapture' -count=1` and confirm intended failures.
-- [ ] Implement snapshot selection, bounded capture with CDP clip and sequence validation, portable atomic Store, and guarded note-resolution acknowledgment. Preserve captured note identities through navigation.
-- [ ] Rerun targeted tests; prove navigation/failed-write tests fail when their guards are removed; commit.
+- [x] `Store.Prepare`/`Store.Transition`: inject failure at each write/sync/rename boundary against portable folders; readers see old-or-complete manifests, never partial files, and writer budgets include crash residue. `ValidatePNG`: adversarial headers/dimensions/encoded lengths must refuse before allocation. `Board.Selection`/`Board.ResolveSelection`: interleave note creation, resolution and document replacement; only matching selected identities can change. `Recorder.CaptureCrops`/`captureBarrier`: controllable CDP replies and delayed navigation events prove pre-existing page loss yields unavailable and any in-capture identity change refuses; cancel/close releases ownership.
+- [x] Run `GOMAXPROCS=2 go test -p 1 ./cmd/internal/submission ./cmd/internal/webcast/board ./cmd/internal/webcast/recorder -run 'TestSubmission|TestCropCapture' -count=1` and confirm intended failures.
+- [x] Implement snapshot selection, bounded capture with CDP clip and sequence validation, portable atomic Store, and guarded note-resolution acknowledgment. Preserve captured note identities through navigation.
+- [x] Rerun targeted tests; prove navigation/failed-write tests fail when their guards are removed; commit.
 
 ### 3. Couch preparation and acknowledgment adapter
 
 Files: create `cmd/internal/couchtty/console_submission{,_test}.go`, `cmd/internal/couchcmd/submission{,_test}.go`; modify `cmd/internal/couchcmd/{cli,message_service,webcast}.go`, their tests and `cmd/internal/couchmessage/protocol{,_test}.go`.
 
-- [ ] `ValidateSubmissionRequest`: cross-product invalid fields and supported verbs proves the grammar closed. `Console.Submission`/`handleSubmission`: real socket harness with controlled thread/cast switches and replay readiness; reject stale recipients and preserve the same request ID after lost responses. `Store.Transition` through RPC: duplicate begin/ack/status cannot repeat paste or resolve unselected notes.
-- [ ] Run `GOMAXPROCS=2 go test -p 1 ./cmd/internal/couchcmd ./cmd/internal/couchtty ./cmd/internal/couchmessage -run 'TestSubmission|TestDOMSubmission' -count=1` for red.
-- [ ] Add prepare/status/ack operations and a small CLI adapter. Return structured JSON with ID, absolute manifest path, fixed target and state. Reuse the replay-share owner for per-note replay links. Keep all slow effects outside the UI loop and use its existing notice path.
-- [ ] Rerun tests and commit. Confirm neither preparation nor status sends agent text or touches the clipboard.
+- [x] `ValidateSubmissionRequest`: cross-product invalid fields and supported verbs proves the grammar closed. `Console.Submission`/`handleSubmission`: real socket harness with controlled thread/cast switches and replay readiness; reject stale recipients and preserve the same request ID after lost responses. `Store.Transition` through RPC: duplicate begin/ack/status cannot repeat paste or resolve unselected notes.
+- [x] Run `GOMAXPROCS=2 go test -p 1 ./cmd/internal/couchcmd ./cmd/internal/couchtty ./cmd/internal/couchmessage -run 'TestSubmission|TestDOMSubmission' -count=1` for red.
+- [x] Add prepare/status/ack operations and a small CLI adapter. Return structured JSON with ID, absolute manifest path, fixed target and state. Reuse the replay-share owner for per-note replay links. Keep all slow effects outside the UI loop and use its existing notice path.
+- [x] Rerun tests and commit. Confirm neither preparation nor status sends agent text or touches the clipboard.
 
 ### 4. Draft hotkey and send/resolve transaction
 
 Files: create `nvim/dom_submission.lua`, `nvim/dom_submission_test.lua`; modify `nvim/{init,submission}.lua`, `nvim/submission_test.lua`, `nvim/submission_integration_test.lua`; extend `tests/submission-transaction-nvim-test.sh` and the repository's existing key-map tests as needed.
 
-- [ ] `DOMSubmission.send`/`PairSubmission.submit_operator_text`: stateful agent+log+RPC fake injects failure before and after each side effect; assert original authored log text, frozen generated text, no duplicate paste and ack-only recovery after dispatch. `send_and_clear` hotkey adapter: headless nvim drives normal/insert and queue/history states, asserting draft consumption iff dispatch and notes treated as content. `draft_send.send`: fixed target survives retry and refuses replacement incarnation.
-- [ ] Run `lua nvim/submission_test.lua`, `lua nvim/submission_integration_test.lua`, `lua nvim/dom_submission_test.lua` and `bash tests/submission-transaction-nvim-test.sh`; confirm intended failures under temporary roots.
-- [ ] Wire Shift+Ctrl+Alt+Return to preparation then the existing authored transaction. Keep original authored text in Pair's log, manifest pointer only in agent text. Clear/consume draft only after dispatch; finalize notes separately and retain finalize-only recovery.
-- [ ] Rerun the Lua/headless-nvim tests and targeted routing tests. Verify ordinary Alt+Return and `!` behavior. Commit.
+- [x] `DOMSubmission.send`/`PairSubmission.submit_operator_text`: stateful agent+log+RPC fake injects failure before and after each side effect; assert original authored log text, frozen generated text, no duplicate paste and ack-only recovery after dispatch. `send_and_clear` hotkey adapter: headless nvim drives normal/insert and queue/history states, asserting draft consumption iff dispatch and notes treated as content. `draft_send.send`: fixed target survives retry and refuses replacement incarnation.
+- [x] Run `lua nvim/submission_test.lua`, `lua nvim/submission_integration_test.lua`, `lua nvim/dom_submission_test.lua` and `bash tests/submission-transaction-nvim-test.sh`; confirm intended failures under temporary roots.
+- [x] Wire Shift+Ctrl+Alt+Return to preparation then the existing authored transaction. Keep original authored text in Pair's log, manifest pointer only in agent text. Clear/consume draft only after dispatch; finalize notes separately and retain finalize-only recovery.
+- [x] Rerun the Lua/headless-nvim tests and targeted routing tests. Verify ordinary Alt+Return and `!` behavior. Commit.
 
 ### 5. Evidence, documentation and operator acceptance
 
 Files: `README.md`, `atlas/webcast-submission.md` (new), `atlas/index.md`, relevant sections of `atlas/couch.md`, `atlas/webcast-format.md`, and this issue/plan.
 
-- [ ] Document the chord, schema example, note/capture time distinction, unavailable crops, storage/lifetime, retry semantics and query/replay pointers. Sweep initial button/clustering wording so current operator guidance reflects the approved spec.
-- [ ] Run the affected Go packages once with low parallelism and the draft integration tests. Run one bounded headless CDP conformance test (separate profile, no GUI/focus) if permitted by the hub's load constraint; otherwise report that specific gap before acceptance.
-- [ ] Coordinate the required full-suite gate with the hub's no-machine-load instruction; do not launch a full suite or Chrome workload while it conflicts with that instruction.
-- [ ] Ask the hub to schedule smoke/staging: two blog viewers create notes; draft hotkey from blog:0 sends all notes and crops; empty draft sends; agent reads only bundle and fixes one correctly; successful notes resolve on every screen; page reload keeps cast working; failure preserves draft/notes. Never stage pair:0 without the hub's instruction.
+- [x] Document the chord, schema example, note/capture time distinction, unavailable crops, storage/lifetime, retry semantics and query/replay pointers. Sweep initial button/clustering wording so current operator guidance reflects the approved spec.
+- [x] Run the affected Go packages once with low parallelism and the draft integration tests. Run one bounded headless CDP conformance test (separate profile, no GUI/focus) if permitted by the hub's load constraint; otherwise report that specific gap before acceptance.
+- [x] Coordinate the required full-suite gate with the hub's no-machine-load instruction; do not launch a full suite or Chrome workload while it conflicts with that instruction.
+- [x] Ask the hub to schedule smoke/staging: two blog viewers create notes; draft hotkey from blog:0 sends all notes and crops; empty draft sends; agent reads only bundle and fixes one correctly; successful notes resolve on every screen; page reload keeps cast working; failure preserves draft/notes. Never stage pair:0 without the hub's instruction.
 - [ ] Record actual evidence and outstanding acceptance. Run SDLC close with verified evidence only after operator smoke; the binary owns the fresh-context review. Fix findings, update lessons where needed, then open the PR.
 - [ ] On SHIP, merge current main, complete required checks, run `sdlc merge --yes` without validation bypasses, report PR/outcome to hub, and stop.
 
@@ -173,3 +173,5 @@ Files: `README.md`, `atlas/webcast-submission.md` (new), `atlas/index.md`, relev
 - 2026-10-12 — TL approved serial full-suite and bounded headless Chrome verification, then close; operator smoke will follow on TL's schedule. #494's document-scoped annotation suppression helper must be integrated by whichever of #483/#494 lands second.
 
 - 2026-10-12 — Operator confirms that submitted notes become resolved: submitting transfers ownership of the notes to the agent; whatever follows (a pensive, an issue, a fix) is the agent's. No code-policy change required.
+
+- 2026-10-12 — Automated verification is complete with main's existing notification test failure tracked as pair#519 and explicitly accepted by TL for local close. Runtime inventory/drift findings were fixed and retested. Guard mutations were tested through Go overlays, keeping working sources unchanged. Actual pure tests use deterministic tables and stateful sequences; no load/fuzz campaign was run. TL requires waiting after close for operator smoke before merge.
