@@ -98,3 +98,7 @@ Round 1 found no code defect but returned REWORK (BR-1) because the disposable c
 ### 2026-10-13 — close round 2: controlled fence diagnosis
 
 The reviewer independently passed affected packages and race checks after runtime generation, but retained BR-1 because two live runs crashed at Chrome GPU startup. Controlled local comparison now reproduces the precise environment difference: adding sandbox-exec with an allow-default profile and a write deny only for an unrelated unused /tmp path makes TestLiveSubmissionCrop fail at startup (1.27s, GPU exit 6). Immediately running the identical Go command without that extra fence passes (1.11s, no skip). No files changed. SDLC reviewbox/fence.go wraps the reviewer in this Seatbelt mechanism; its sidecar says isolation=fenced. This is not a capture assertion failure. Disputed again with the controlled measurement; no product change or isolation bypass requested. Hub notified.
+
+### 2026-10-13 — landing authorization
+
+TL: operator look waived; URL/title verified in real Chrome three times; the TL checks a real bundle at the next submission. Land after #524 is on main: merge main, satisfy integration/review/CI gates, then sdlc merge --yes from pair:5 and report. At authorization receipt, #524 remained not-landed; #525 PR #306 checks were all green.
