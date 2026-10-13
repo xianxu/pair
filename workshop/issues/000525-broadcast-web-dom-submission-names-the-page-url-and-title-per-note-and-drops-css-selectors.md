@@ -34,3 +34,10 @@ The operator (2026-10-12):
 ## Log
 
 ### 2026-10-12
+
+## Revisions
+
+- 2026-10-12 — from pair#526 (privacy flag, pair:5): the page URL must be bound to the **captured document** (the one each
+  crop and box text came from), including a same-document origin change, not the recording's head URL. Expose it as the
+  source identity (URL + title per captured document, referenced by each note) so #526's origin policy reads the same
+  value.

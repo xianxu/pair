@@ -117,32 +117,34 @@ func TestGuessRotationAlertAndFlash(t *testing.T) {
 // The cast row's rule on the web cast (pair#495 smoke): hovering Chrome ⏸
 // shows all its codes and its link controls show none; Alt+click opens the
 // Codes menu on the cell only; the menu's blue entries copy the links; and a
-// right-click on the cell copies the view-only link, with or without Alt.
+// right-click on the cell copies the view-only link, with or without Alt. A
+// driven cast is recorded, so it has all three links, each with a code
+// (pair#506).
 func TestWebCastCodesOnTheChromeCell(t *testing.T) {
 	c := newDriveCast(t)
 	codes := c.cast().Codes()
-	if len(codes) != 2 || codes[1].Link != broadcast.LinkDrive || len(codes[1].Code) != 6 {
+	if len(codes) != 3 || codes[0].Link != broadcast.LinkView || codes[1].Link != broadcast.LinkPointer || codes[2].Link != broadcast.LinkDrive || len(codes[2].Code) != 6 {
 		t.Fatalf("codes %+v", codes)
 	}
 	c.con.mu.Lock()
-	viewIcon, driveIcon := c.con.statusWebViewLink, c.con.statusWebDriveLink
+	pointerIcon, driveIcon, pointerLink := c.con.statusWebPointerLink, c.con.statusWebDriveLink, c.con.wcast.update.PointerLink
 	c.con.mu.Unlock()
 	mouse := func(button, x int) {
 		_, _ = fmt.Fprintf(c.stdin, "\x1b[<%d;%d;24M\x1b[<%d;%d;24m", button, x+1, button, x+1)
 	}
 	hover := func(x int) { _, _ = fmt.Fprintf(c.stdin, "\x1b[<35;%d;24M", x+1) }
-	all := "view " + codes[0].Code + " · drive " + codes[1].Code
+	all := "view " + codes[0].Code + " · pointer " + codes[1].Code + " · drive " + codes[2].Code
 	hover(c.cell() - 1)
 	waitFor(t, "all codes on Chrome ⏸", func() bool { return strings.Contains(c.screenText(), all) })
-	for _, icon := range []ColumnSpan{viewIcon, driveIcon} {
+	for _, icon := range []ColumnSpan{pointerIcon, driveIcon} {
 		hover(icon.Start)
 		waitFor(t, "no codes on a link control", func() bool {
 			s := c.screenText()
-			return !strings.Contains(s, codes[0].Code) && !strings.Contains(s, codes[1].Code)
+			return !strings.Contains(s, codes[0].Code) && !strings.Contains(s, codes[1].Code) && !strings.Contains(s, codes[2].Code)
 		})
 	}
 	before := c.wphase()
-	mouse(8, viewIcon.Start) // Alt+click on 👆: copies, no menu
+	mouse(8, pointerIcon.Start) // Alt+click on 👆: copies, no menu
 	time.Sleep(100 * time.Millisecond)
 	if strings.Contains(c.screenText(), "Chrome codes") {
 		t.Fatal("Alt+click on a link control opened the menu")
@@ -152,7 +154,7 @@ func TestWebCastCodesOnTheChromeCell(t *testing.T) {
 	if c.wphase() != before {
 		t.Fatal("Alt+click toggled the cast")
 	}
-	for _, want := range []string{"view " + codes[0].Code + " · rotate · copy-link", "drive " + codes[1].Code + " · rotate · copy-link", "rotate all"} {
+	for _, want := range []string{"view " + codes[0].Code + " · rotate · copy-link", "pointer " + codes[1].Code + " · rotate · copy-link", "drive " + codes[2].Code + " · rotate · copy-link", "rotate all"} {
 		if !strings.Contains(c.screenText(), want) {
 			t.Fatalf("menu lacks %q", want)
 		}
@@ -162,8 +164,11 @@ func TestWebCastCodesOnTheChromeCell(t *testing.T) {
 	}
 	c.chooseCodes(t, codesAction{copy: true, link: broadcast.LinkDrive})
 	waitFor(t, "drive link copied from the menu", func() bool { return copies(c.consoleFixture, c.link) == 1 })
-	mouse(2|8, c.cell()-1) // Alt+right-click: the view link now, never the drive link
-	waitFor(t, "view link copied", func() bool { return copies(c.consoleFixture, c.viewLink) >= 1 })
+	pointerCopies := copies(c.consoleFixture, pointerLink)
+	c.chooseCodes(t, codesAction{copy: true, link: broadcast.LinkPointer})
+	waitFor(t, "pointer link copied from the menu", func() bool { return copies(c.consoleFixture, pointerLink) == pointerCopies+1 })
+	mouse(2|8, c.cell()-1) // Alt+right-click: the view-only link now, never the drive link
+	waitFor(t, "view-only link copied", func() bool { return copies(c.consoleFixture, c.viewLink) >= 1 })
 	// The click outside the (still open) popup closed it.
 	waitFor(t, "the popup closed", func() bool { return !strings.Contains(c.screenText(), "Chrome codes") })
 	if copies(c.consoleFixture, c.link) != 1 {
@@ -175,7 +180,7 @@ func TestWebCastCodesOnTheChromeCell(t *testing.T) {
 	c.chooseCodes(t, codesAction{})
 	waitFor(t, "every code rotated", func() bool {
 		now := c.cast().Codes()
-		return len(now) == 2 && now[0].Code != codes[0].Code && now[1].Code != codes[1].Code
+		return len(now) == 3 && now[0].Code != codes[0].Code && now[1].Code != codes[1].Code && now[2].Code != codes[2].Code
 	})
 }
 

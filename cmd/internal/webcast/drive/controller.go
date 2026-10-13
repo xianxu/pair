@@ -8,8 +8,9 @@ import (
 )
 
 // Seat is a viewer's place in a cast: who they are, and the key that
-// authenticates their requests. Anyone with the viewer link may take a seat
-// and watch; driving needs the operator's grant, per seat.
+// authenticates their requests. Anyone with the drive link may take a seat
+// (the view-only and pointer links offer none, pair#506); driving needs the
+// operator's grant, per seat.
 type Seat struct {
 	Viewer recording.Author
 	// Key is secret to the viewer's shell: 32 random bytes, hex.

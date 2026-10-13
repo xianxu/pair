@@ -358,17 +358,18 @@ func TestWebcastFocusButton(t *testing.T) {
 	}
 }
 
-// 👆 and 👽 in the Chrome group (#501) copy the view and the drive link on a
-// left or a right click (pair#495's row rule).
+// 👆 and 👽 in the Chrome group (#501) copy the pointer and the drive link
+// (pair#506) on a left or a right click (pair#495's row rule); right-click on
+// the cell keeps the view-only link. A recorded cast, so it takes notes and
+// has a pointer link.
 func TestWebcastLinkButtons(t *testing.T) {
-	r := newWebcastRig(t, nil)
-	r.open(t)
+	r := newWebNotesCast(t, false)
 	var u webcast.Update
 	waitFor(t, "links", func() bool {
 		r.con.mu.Lock()
 		defer r.con.mu.Unlock()
 		u = r.con.wcast.update
-		return u.Link != ""
+		return u.Link != "" && u.PointerLink != ""
 	})
 	click := func(span func(*Console) ColumnSpan, button int) {
 		r.con.mu.Lock()
@@ -379,11 +380,14 @@ func TestWebcastLinkButtons(t *testing.T) {
 		}
 		_, _ = fmt.Fprintf(r.stdin, "\x1b[<%d;%d;24M\x1b[<%d;%d;24m", button, x, button, x)
 	}
-	osc := "\x1b]52;c;" + base64.StdEncoding.EncodeToString([]byte(u.Link))
+	osc := "\x1b]52;c;" + base64.StdEncoding.EncodeToString([]byte(u.PointerLink))
 	for i, button := range []int{0, 2} {
-		click(func(c *Console) ColumnSpan { return c.statusWebViewLink }, button)
+		click(func(c *Console) ColumnSpan { return c.statusWebPointerLink }, button)
 		want := i + 1
-		waitFor(t, "view link copied", func() bool { return strings.Count(r.host.Written(), osc) == want })
+		waitFor(t, "pointer link copied", func() bool { return strings.Count(r.host.Written(), osc) == want })
+	}
+	if strings.Contains(r.host.Written(), "\x1b]52;c;"+base64.StdEncoding.EncodeToString([]byte(u.Link))) {
+		t.Fatal("👆 copied the view-only link")
 	}
 	click(func(c *Console) ColumnSpan { return c.statusWebDriveLink }, 2)
 	if u.DriveLink != "" {
