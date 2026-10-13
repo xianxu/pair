@@ -127,3 +127,12 @@ Durable full-flow plan: [own-note editing](../plans/000537-web-note-editing-plan
 - Plan-quality round 1 asked for function-level test strategies, a pure shared
   dialog transition model, and inherited edit-record storage lifecycle. The
   durable plan now records these refinements; implementation has not begun.
+
+### 2026-10-13 16:22 PDT — terminal has no recording
+
+- TL approved web durable NoteState resolver attribution and terminal typed
+  cast-lifetime resolution events only. No journal, history UI or audit follow-up.
+  This supersedes the previous wording implying terminal recording/replay/query.
+- Additional Done when: resolution remains open to other annotators; web
+  recording/replay/query preserves resolver, and terminal records a typed
+  bounded in-memory event before deletion. Repeated resolution adds no event.

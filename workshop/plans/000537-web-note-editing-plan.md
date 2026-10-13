@@ -184,3 +184,51 @@ therefore grows with accepted edits under the existing note rate budget; there
 is no whole-recording byte cap. As atlas/webcast-format.md:337 documents,
 recordings remain until the operator deletes the directory. No extra retention
 registry or automatic cleanup is introduced.
+
+### 2026-10-13 16:22 PDT — bounded resolver attribution approved
+
+Resolution remains shared housekeeping for any annotation-capable caller;
+ownership gates only text editing. No resolved list, history UI, reopen or
+terminal journal is included. Resolved pins disappear exactly as today.
+
+Additional concepts and seams:
+
+| Name | Lives in | Status | Responsibility |
+|---|---|---|---|
+| NoteState.Who / NoteView.ResolvedBy | cmd/internal/webcast/recording/{record,reduce}.go | modified | optional resolver attribution; legacy records remain readable |
+| NoteResolution | cmd/internal/broadcast/notes.go | new | pure terminal event: note ID, resolver display name and timestamp |
+| PointerState resolution events | cmd/internal/broadcast/pointer_notes.go | modified | bounded cast-lifetime event ring before deletion |
+| Querier.Notes / NoteText / notesJSON | cmd/internal/webcast/query/{querier,cli}.go | modified | current text/edited state and resolver metadata in agent output |
+
+Web SetState stamps Who from existing validated viewer attribution; isolated
+operator, Couch ResolveNote and submission resolution stamp operator identity.
+Reducers retain ResolvedBy for resolved state and clear it when an existing
+API reopens a note. Catch-up/replay retain the original state event; no actor
+credential is recorded. Query fake and real implementations must expose the
+same final revision/resolver while preserving original element context. Add
+edit/state narration in query/events.go, with safe escaping through existing
+formatters. Anonymous legacy resolutions remain unattributed rather than
+inventing an author.
+
+Terminal resolve requests optionally carry the existing validated display name
+as attribution. PointerState appends a typed NoteResolution before removing an
+existing note, under the same lock; repeat resolve of a missing note emits
+nothing. Keep at most 128 events (oldest evicted) until the cast ends, expose a
+copy through Session.Resolutions for inspection, and do not persist or broadcast
+a history list. This is bounded volatile state, not a recording or audit log.
+Couch's direct resolution supplies the fixed operator name. No new journal,
+agent query command or terminal recording subsystem is introduced.
+
+Tests extend the named strategies: recording.State.Apply(NoteState) folds
+actor-bearing/legacy/reopen sequences; query.Notes/NoteText/notesJSON execute
+the shared fake/real contract and assert final projection with immutable source
+context. PointerState.resolveNote runs controlled repeated/concurrent
+edit/resolve sequences against the real board; assert exactly one event before
+deletion, correct actor, denied OFF no effect and fixed ring capacity. Test
+HTTP resolution by a different owner remains allowed on both casts.
+
+Implementation adds this work alongside task 2; task 4 documents web durable
+versus terminal volatile attribution. The issue's earlier 'recording/replay/
+queries on both casts' phrasing is superseded: only the web cast has those
+facilities. TL explicitly chose the bounded terminal event option and declined
+a separate terminal audit issue.
