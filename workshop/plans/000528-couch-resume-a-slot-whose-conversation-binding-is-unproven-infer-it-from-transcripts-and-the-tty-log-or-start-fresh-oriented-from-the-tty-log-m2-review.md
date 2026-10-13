@@ -175,3 +175,80 @@ None.
 **7. Plan revision recommendations**
 
 Add a `## Revisions` entry naming recovery-specific conformance coverage, its production parser/collector seam, supported-agent expectations, absent-sample behavior, and execution cadence. The reconciled implementation-owner table otherwise matches the inspected code.
+
+---
+
+## Re-review — 2026-10-13T13:49:02-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 528 — couch: resume a slot whose conversation binding is unproven: infer it from transcripts and the tty log, or start fresh oriented from the tty log |
+| repo | pair |
+| issue file | workshop/issues/000528-couch-resume-a-slot-whose-conversation-binding-is-unproven-infer-it-from-transcripts-and-the-tty-log-or-start-fresh-oriented-from-the-tty-log.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 525444d45a521bde3dca685d02e6905d2d9bc2e0..81a4fc7d5a62180663d7b84245c0c985fedbec21 |
+| command | sdlc milestone-close --issue 528 --milestone M2 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-13T13:49:02-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+The pinned range satisfies the revised M2 contract: explicit candidate selection, preserved original tty context, and revalidated launch authority. BR-8 is addressed with reachable production-parser conformance and regression tests that fail when its provenance guard is removed. No new blocking findings. This verdict covers the code boundary; full-suite verification and operator acceptance remain outstanding under the documented sequencing revision.
+
+```findings
+dispose:
+  - id: BR-8
+    disposition: addressed
+    note: |
+      conformance_live_test.go:24 invokes RunRecoveryConformance, which exercises bounded production parsing and checks provenance, cwd, activity, and authored tails. Removing the provenance rejection at conformance.go:281 made the Codex drift and Claude missing/changed-entrypoint regressions fail. Unsupported and absent samples report skip explicitly; atlas/session-identity.md preserves contract-change/monthly cadence.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      recovery_native_owner.go resolves the readiness-proved launch ordinal only after associating the exact live agent generation with its wrapper. Exact-generation and source-exemption regressions passed.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      Unsafe primary activation and relaunch routes use the recovery chooser. TestReviewNeedsRelaunchPrimaryOpensRecovery and the targeted UI routing tests passed.
+```
+
+1. **Strengths**
+   
+   - Recovery keys bind explicit choices to evidence and revision, rather than mutable display rank (`couchcore/recovery_key.go`).
+   - Execution preserves the original screen before retirement and revalidates evidence after workspace preparation (`couchcore/recovery_resume.go`).
+   - Start completion and rollback retain recovery intent without inventing successful launch or park evidence (`couchcore/starttransaction.go`, `threadstore.go`).
+   - README and atlas document the new commands, explicit-selection policy, and recovery conformance.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+   
+   Targeted recovery tests passed across inventory, core, launcher, threadrecord, orientation, protocol, CLI, and UI. UI/CLI required generating the runtime bundle in a disposable copy.
+
+   Race checks passed for inventory, launcher, protocol, UI, and the narrowed slot-recovery core tests. The broader core race selection initially failed unchanged `TestProvisionRecoveryLostSuccessPublication` before its injection (`weave=0`); its isolated race rerun passed. The broader run therefore was not wholly green.
+
+   BR-8’s provenance mutation produced the expected regression failures. The disposable copy was removed; the reviewed checkout remains clean. Full `make test`, build, and installed-native conformance were not independently rerun.
+
+6. **Architectural notes**
+   
+   - **ARCH-DRY — Pass:** Reuses native validators, bounded readers, capture publication, and start transitions.
+   - **ARCH-PURE — Pass:** Parsing, scoring, selection, and transitions remain value-based; IO uses explicit adapters. The authoritative revised owner table matches these divisions.
+   - **ARCH-PURPOSE — Pass:** UI and CLI deliver the revised explicit-selection contract; automatic inference remains disabled.
+   - **ARCH-MOCK — Pass:** Stateful lifecycle/runtime doubles exercise production seams; BR-8 adds recovery parsing to live conformance.
+   - **ARCH-CONSTRAINTS — Pass:** Scans enforce deadline, metadata, byte, candidate, and retained-message bounds.
+   - **ARCH-SECURE — Pass:** Selectors remain untrusted references; persisted records and artifacts undergo validation before effects.
+   - **ARCH-ORDER — Pass:** Existing start transitions retain intent across success, unknown outcomes, and rollback; tests cover changed evidence, competing ownership, cancellation, and no resend.
+   - **ARCH-FUNERAL — Pass:** Ephemeral previews expire with their operation; bounded durable context follows record supersession and existing capture retention.
+
+7. **Plan revision recommendations:** None. Preserve the documented full-suite and operator-acceptance requirements before whole-issue closure or landing.

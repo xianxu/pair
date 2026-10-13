@@ -143,6 +143,28 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - "n": 6
+      timestamp: "2026-10-13T13:49:02-07:00"
+      dispatched: "2026-10-13T13:44:33-07:00"
+      agent: codex
+      dispose:
+        - id: BR-8
+          disposition: addressed
+          note: conformance_live_test.go:24 invokes RunRecoveryConformance, which exercises bounded production parsing and checks provenance, cwd, activity, and authored tails. Removing the provenance rejection at conformance.go:281 made the Codex drift and Claude missing/changed-entrypoint regressions fail. Unsupported and absent samples report skip explicitly; atlas/session-identity.md preserves contract-change/monthly cadence.
+          round: 6
+        - id: BR-6
+          disposition: addressed
+          note: recovery_native_owner.go resolves the readiness-proved launch ordinal only after associating the exact live agent generation with its wrapper. Exact-generation and source-exemption regressions passed.
+          round: 6
+        - id: BR-7
+          disposition: addressed
+          note: Unsafe primary activation and relaunch routes use the recovery chooser. TestReviewNeedsRelaunchPrimaryOpensRecovery and the targeted UI routing tests passed.
+          round: 6
+      boundary: M2
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 81a4fc7d5a62180663d7b84245c0c985fedbec21
+      blocked: false
 ---
 
 # Gate ledger — pair#528 (boundary-review)
@@ -208,6 +230,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-8** [Important] `external-contract-conformance` Recovery-specific native parsing is outside live conformance
   ARCH-MOCK: cmd/internal/sessioninventory/recovery_candidate.go:192 introduces eligibility based on Claude entrypoint and related provenance, but conformance.go:52 checks only the existing scanners; conformance_live_test.go:21 never invokes the recovery parser or collector. Native changes can therefore leave conformance green while recovery eligibility or tail evidence stops working. Extend the existing read-only conformance path through the production recovery parser, covering provenance, cwd, activity and authored tails, with explicit unsupported/absent-sample outcomes and the existing contract-change/monthly cadence.
 
+## Round 6 — 2026-10-13T13:49:02-07:00 (codex) — passed
+
+### Disposed
+
+- BR-8 — addressed — conformance_live_test.go:24 invokes RunRecoveryConformance, which exercises bounded production parsing and checks provenance, cwd, activity, and authored tails. Removing the provenance rejection at conformance.go:281 made the Codex drift and Claude missing/changed-entrypoint regressions fail. Unsupported and absent samples report skip explicitly; atlas/session-identity.md preserves contract-change/monthly cadence.
+- BR-6 — addressed — recovery_native_owner.go resolves the readiness-proved launch ordinal only after associating the exact live agent generation with its wrapper. Exact-generation and source-exemption regressions passed.
+- BR-7 — addressed — Unsafe primary activation and relaunch routes use the recovery chooser. TestReviewNeedsRelaunchPrimaryOpensRecovery and the targeted UI routing tests passed.
+
 ## Open findings
 
-- **BR-8** [Important] `external-contract-conformance` Recovery-specific native parsing is outside live conformance
+(none — every finding has been disposed)

@@ -68,7 +68,7 @@ pair:6 read-only while measuring; no live recovery/reboot is authorized here.
 - [x] Measure native metadata, exact pair:6 evidence and current recovery owners.
 - [x] Approve durable design: workshop/plans/000528-slot-recovery-plan.md.
 - [x] M1 — Prevent split terminal incarnations and show attachable-agent liveness.
-- [ ] M2 — Calibrated native recovery with tty context and safe fresh fallback.
+- [x] M2 — Calibrated native recovery with tty context and safe fresh fallback.
 
 
 ## Revisions
@@ -162,6 +162,7 @@ pair:6 read-only while measuring; no live recovery/reboot is authorized here.
   completion to live. All three consumers need the same agent-usability fact.
 
 ### 2026-10-13
+- 2026-10-13: closed M2 — BR6 and BR7 disposed by prior review; BR8 adds production recovery parser to existing opt-in live native conformance with bounded reads, explicit skip outcomes and independent authored-tail witness. Targeted tests PASS0.165s and race PASS1.299s; provenance and tail-drop mutations killed; scratch OS fixtures pass. Clean build5be717b9e preceded this conformance-only delta. Installed scan and full suite remain outstanding; TL holds capacity (b70dbf44), previous make test stopped at #514 capture prerequisite before Go. Operator live acceptance outstanding; boundary review requested by TL, no bypasses.; review verdict: SHIP
 - 2026-10-13: closed M1 — BR-5 full added-reader sweep uses shared osfs IO; config/capture consumer FIFO, size and cancellation regressions pass; raw-only optional-sidecar fallback and strict oversize refusal pass. Complete make test passed all behavior packages; sole godoc guard fixed and rerun green. Main merged: build 0a0369285, merged-package full tests and DOM integration pass. Logs /tmp/pair528-read-family-final.log, /tmp/pair528-integrated-tests.log, /tmp/pair528-integrated-build.log; targeted race green. No live slot changes.; review verdict: SHIP
 - Verified dispatch receipt 65b09489-edf7-445a-8c0d-32e0c934eb62.
   Filled the skeleton from the operator/TL requirements; claim already belongs
