@@ -367,6 +367,15 @@ func resolvingDialer(resolve func(context.Context, string) ([]string, error)) fu
 	}
 }
 
+// EnsurePointerLink mints the stable code-locked link without enabling pointing.
+func (s *Session) EnsurePointerLink() (string, error) {
+	token, err := s.pointer.ensure(NewToken)
+	if err != nil {
+		return "", err
+	}
+	return s.base + "/" + token + "/", nil
+}
+
 // EnablePointer turns pointing on (#412), minting the pointer link on first
 // use; it returns the link, the same one on every later call.
 func (s *Session) EnablePointer() (string, error) {
@@ -390,7 +399,7 @@ func (s *Session) DisablePointer() {
 	}
 }
 
-// PointerLink is the pointer link, or "" before EnablePointer.
+// PointerLink is the pointer link, or "" before it has been minted.
 func (s *Session) PointerLink() string {
 	if token := s.pointer.link(); token != "" {
 		return s.base + "/" + token + "/"

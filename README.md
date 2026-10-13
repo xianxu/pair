@@ -1007,7 +1007,8 @@ type or click anything in your programs, never cover the `LIVE ⏸ 👆`
 controls (the rest of the tab bar can be pointed at), and aren't drawn while
 the switcher is open. Clicking `👆` again turns pointing
 off, clears the marks and leaves the link as view-only; clicking once more
-turns it back on for the same link. Right-click `👆` to copy the link again.
+turns it back on and copies the same link. Right-click `👆` to copy in any state;
+if the link does not exist yet, this creates it while pointing stays off.
 Right-click `LIVE ⏸` to copy the view-only link again. Stopping the
 broadcast ends every link. Remote control of the terminal cast isn't built
 yet (#407); the web cast can be driven remotely through its drive link.
@@ -1042,13 +1043,31 @@ server, an agent's mock, anything). While it runs the tab bar shows
 **Go live** button Couch puts at the bottom right of the page, and the active tab
 is cast (`Chrome ⏸`). The same three pause and resume it, and the browser stays
 open while paused. A web cast has three links, like the screen broadcast
-(#506), each granting more than the one before:
+(#506), each allowing more than the one before when the corresponding
+capability is enabled:
 - right-click the cell for the **view-only link**: its viewers watch, and see
   others' strokes and notes but can't add any;
-- `👆` copies the **pointer link** (left or right click): its viewers also point
-  and leave and resolve notes;
-- `👽` copies the **drive link** (below; left or right click): its viewers can
-  also ask to drive.
+- `👆` controls annotation; its **pointer link** lets viewers point and leave
+  and resolve notes while annotation is on;
+- `👽` controls remote driving; its **drive link** also lets viewers ask to
+  drive while driving is on.
+
+Annotation and remote driving start **OFF**, independently. A link and its code
+remain valid when a capability is off, but holding them does not enable it:
+the server refuses annotation or driving until the operator enables that
+capability. Turning annotation off clears the current marks while preserving
+recorded history; turning driving off revokes the driver and pending requests.
+👆 is dim when off; 👽 is plain when off. Both are amber when on; the driver’s
+name joins the same chip while occupied (for example, `👽 Ana`). Left-click to enable and copy
+the link, or to disable. Right-click copies in any state without toggling; links
+and codes stay the same. Terminal casts have 👆 only.
+
+While cleanup runs, the control stays off and says to wait. If cleanup can be
+retried, a persistent notice says “Click 👆 to retry” (or 👽); that click retries
+cleanup and leaves the capability off. If the cast is broken, the notice says
+to Ctrl+click Chrome to end it. Viewers see unavailable controls until the
+operator enables them. Annotation drafts retain their text across off/on,
+with the pen returning to Off; driving requires a fresh request and grant.
 
 Each link has its own code (hover the cell to see them; Alt+click it for the
 Codes menu, which copies any of the three). Beside the cell, `↗` brings the cast
@@ -1058,13 +1077,15 @@ cast too. The cast follows whichever tab is active, including tabs opened later.
 Viewers' page shows whether the cast is live and, while it is, the page's title
 and URL; nothing you do while paused reaches them.
 
-**Remote driving (#467).** A viewer who opens the **drive link** sees **Ask to drive**. The tab bar then shows
+**Remote driving (#467).** When driving is enabled, a viewer who opens the
+**drive link** can **Ask to drive**. The tab bar then shows
 `✋Ana` after the Chrome cell (`✋2` for more), and Couch says so. Click it for the drive menu:
 - **Grant.** Click the asker to let them drive. They use the page through their viewer with mouse, touch and
-  keyboard, and the tab bar shows `🕹Ana`.
+  keyboard, and the capability chip shows amber `👽 Ana`.
 - **Deny.** Right-click an asker to say no.
-- **Take back.** Click the driver's row to take control back. `Ctrl`+click on the span takes it back at any time,
-  menu open or not.
+- **Turn driving off.** Click `👽 Ana` (or idle `👽`) to revoke control and drop pending requests.
+  Right-click anywhere on that chip still copies the drive link. The request popup also
+  retains its driver row for taking control back without turning the capability off.
 
 While anyone drives:
 - Uploads and downloads are off in the cast tab, yours too, and Couch says so.
@@ -1097,7 +1118,8 @@ outline and a label such as "canvas: not captured", so the page never collapses 
 🤖{**Operator annotation in the cast Chrome (#494).** Use the viewer's same ✏️ and 💭 buttons in the cast Chrome to draw or leave a note on the actual page; hover for their tooltips. It starts Off; click the selected icon again or press Escape to turn annotation off. Couch’s Chrome Alt-click menu also offers Annotation · Off · Pen · Note without switching windows. Notes and strokes use the same recording and viewer display, attributed to Operator. While a remote viewer drives, annotations are disabled and an open draft is hidden and held; returning control makes annotation available again with the pen Off. A pause holds the draft, while navigation discards it. All Couch UI is excluded from page recording and hidden during fidelity and submission captures. Broadcast and driving control stay in Couch's cast row. If Couch reports uncertain remote input, close and reopen the cast Chrome to recover its hidden UI. The injected host shares the page DOM and is not a security boundary.}
 
 **Pointing and notes on a web cast (#470).** Anyone with the pointer link (👆) or the
-drive link can point and leave notes; the view-only link can't, and the cast refuses
+drive link can point and leave notes while annotation is enabled; the view-only
+link can't, and the cast refuses
 its posts ("This link is view-only."). On the viewer's page, the rail at
 the right edge has the six pointer colors, ✏️ (point: draw on the page, everyone sees
 the stroke fade after a moment) and 💭 (note: drag a box around what the note is
@@ -1168,8 +1190,8 @@ control's link, and `Alt+click` opens the Codes menu (on `LIVE ⏸` and `Chrome 
 | `👆` (screen) | toggle pointing (makes the link the first time) | copy pointer link | — | — |
 | `Chrome ⏸` / `▶` | pause / resume (`Ctrl`+click ends) | copy view-only link | Codes menu | all its codes |
 | `↗` | bring the cast Chrome forward | — | — | — |
-| `👆` (web) | copy pointer link | copy pointer link | — | — |
-| `👽` | copy drive link | copy drive link | — | — |
+| `👆` (web) | toggle annotation; enabling copies pointer link | copy pointer link without enabling | — | — |
+| `👽` | toggle driving; enabling copies drive link | copy drive link without enabling | — | — |
 
 With an empty root filter, **Space** toggles the **normal view** and **focus view**.
 Focus view shows only live threads with a published summary, in normal-view
@@ -1177,6 +1199,10 @@ order, as `label ◆ summary`. Tag a thread with `! …` in its Pair draft. An e
 focus view explains how to tag a thread. The switcher remembers the last view used until Couch
 exits. Reopening clears search text but keeps the view. With text in the filter,
 Space is a literal search character; it does not toggle views.
+
+In the switcher, `Ctrl+Y` copies the full last retained status notice, including
+text clipped from the status row and after that row expires. Repeating it copies
+the same notice until another arrives. In an actor, `Ctrl+Y` still goes to the actor.
 
 Printable input filters the current list from memory (typeahead), matching what a
 row shows: its label, its path, and the published summary in both default and

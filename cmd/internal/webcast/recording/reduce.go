@@ -197,7 +197,7 @@ func (s *State) inSegment() error {
 func (s *State) apply(r Record) error {
 	// After stop end the cast is over: nothing may change its state again.
 	switch r.(type) {
-	case *Seg, *Ctl:
+	case *Seg, *Ctl, *AnnotationClear:
 		if s.Ended {
 			return fmt.Errorf("a %s after stop end: the cast is over", r.Kind())
 		}
@@ -228,6 +228,8 @@ func (s *State) apply(r Record) error {
 		}
 	case *Ctl:
 		return s.applyCtl(r)
+	case *AnnotationClear:
+		s.Notes, s.Strokes = nil, nil
 	case *Doc:
 		return s.applyDoc(r)
 	case *Asset:

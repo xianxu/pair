@@ -1491,6 +1491,27 @@ proof; record the surprising case so the next change starts from evidence.
 - Reuse a shared recipient identity/parser when adding a routing consumer; keep each caller's uniqueness and incarnation policy separate.
 - Visible evidence needs a valid, nonempty effective intersection, including ancestor clips. Share that predicate across text and accessibility entries; test wholly off-screen regions and clipped descendants in both the DOM fixture and a real browser.
 
+- pair#523 plan review: retryable cleanup must retain evidence until the external effect is acknowledged. Audit every caller of a reused release helper; clearing local state before CDP replies makes a later retry falsely succeed. Uncertain delivery needs an explicit terminal recovery path.
+- pair#523 plan review: describe tests by production function, adversarial input class and mechanical guard. Keep acceptance behavior in the spec; executable case inventories belong in tests.
+- pair#523 reducer review: test each stale-completion guard independently. An old completion delivered only after failure exercises the phase guard, not the attempt guard; deliver it while the newer attempt is Running and mutation-check that removing attempt equality fails.
+- pair#523 cleanup review: a caller classifying partial sink writes as terminal must wrap lower-layer errors with its own terminal outcome. Propagating an inner Retryable misclassifies an effect the outer operation may already have committed.
+
+- #523: Canceling an HTTP caller does not cancel ownership of a started side effect.
+  Retain its settled failure for the authority; distinguish an unstarted queued
+  callback from uncertain external delivery with typed evidence.
+- #523: Fan-out records are shared read-only values. Encoders must stamp copies,
+  never mutate an envelope while concurrent subscribers serialize it.
+
+- #523: A cancellation can finish the waiter before the operation. Preserve an
+  unobserved terminal outcome beyond the busy channel lifetime and consume it
+  before a later retry declares cleanup complete; do not re-report an outcome
+  already surfaced to the operator.
+
+- #523 boundary review: a new recording event needs a consumer inventory covering
+  both reducers and replay optimizers. Compare marks as well as DOM at every
+  prefix and across seeks; DOM-only parity can miss resurrected annotations.
+- #523 boundary review: verify acknowledgments through the production adapter.
+  A synchronous fake cannot prove an asynchronous recorder committed a write.
 - **Measure screenshot side effects before adding waits (#524).** CDP captureBeyondViewport restarted an already-finished responsive fade by changing render viewport state; waiting longer before capture could never fix it. Compare animation identity and pixels before/after the actual capture, not only readiness before it. A browser animation enumeration is root-scoped: real Chrome excluded open-shadow animations from document.getAnimations, so test the scope with a real shadow fixture before trusting a fake.
 
 - Animation target bounds do not bound its painted influence: inherited opacity/filter/transform can affect overflowing children and pseudo-elements. Prove exclusion conservatively and test zero-size/off-box ancestors with real crop pixels.
@@ -1525,6 +1546,24 @@ proof; record the surprising case so the next change starts from evidence.
 - **#494 reconciliation lifetime:** operation identity includes the authority’s lifetime, not only request ID/body. Retire browser state when the server’s document ledger retires; test switch-return plus lost reply and late completion, not each lifecycle independently.
 - **#494 interactive identity:** a record stream can update between pointer-down and pointer-up. Preserve swatch/control DOM nodes across unrelated updates, and test an interleaved record against the originally pressed element on every shared surface.
 
+- #523 M2: an asynchronous UI result belongs to the authority generation and
+  attempt, not merely the cast instance. Await the actual completion in negative
+  clipboard tests; a no-op queue barrier can overtake an unqueued callback.
+- #523 M2: clearing authoritative/projection collections must also clear consumer
+  transient caches. An empty snapshot alone does not communicate a clear event.
+- #523 M2: independent SSE channels may deliver initial permission and catch-up
+  control in either order. Retain evidence while unavailable; gate its projection
+  and invalidate consent on authority-generation changes.
+
+- #523: A published capability phase is not worker completion. Concurrent test
+  operations must await admission or their own completion receipt. Always defer
+  release of a held test barrier before an assertion can fail, so failure reports
+  remain visible instead of hanging fixture teardown.
+
+- #523 M2 review: ingress is already too late to assign revocable authority.
+  Carry request-creation generation across the browser/network boundary and test
+  delayed-before-ingress payloads as well as already-queued writes. Audit sibling
+  mutation routes (request, release and input) for the same temporal gap.
 - For animation settlement, border-box intersection is not a painted-influence proof even on leaves (shadows/filters/outline). Prefer bounded conservative document-wide observation to accumulating incomplete paint exclusions; label uncertainty explicitly.
 - **A plan names verification functions and strategies, not a prose copy of test cases (#526 plan-quality).** For each risky function, name the adversarial input class and mechanical guard. Retention claims must distinguish actual operator deletion and capacity refusal from staging cleanup; a staging remover is not an automatic retained-evidence sweeper.
 
@@ -1534,6 +1573,24 @@ proof; record the surprising case so the next change starts from evidence.
 
 - When fixing permission-decoding ambiguity, enumerate root manifests as well as nested policy/rule codecs. A strict nested decoder cannot defend permissively decoded top-level permission fields; exercise store reload, not only standalone policy parsing.
 
+- #523 headless conformance: DOM element/global existence is not readiness.
+  Wait for module completion before submitting forms and await the viewer's
+  explicit ready contract before reading its renderer.
+
+- #523 operator fixture: recorded publication precedes browser acknowledgement.
+  Before the next gesture, await the editor's acknowledged completion, not only
+  the Board record; verify with a deliberately delayed reply.
+
+- #523 close review: strengthening a formerly synchronous enqueue into an
+  acknowledged external write changes every caller's latency contract. Enumerate
+  all input-handler callers and move waits onto bounded lifetime-owned work;
+  carry admission identity across scheduling and test responsiveness with ACKs held.
+
+- #523 drive fixture: controller acknowledgement can precede UI delivery and
+  paint. A named chip can move neighboring hit targets; sample the committed
+  projection before clicking, never combine a new screen with old coordinates.
+  Bound fixture waits independently of the package deadline so one missed menu
+  does not consume the entire suite's time budget.
 - Fresh review checkouts must run make runtimebundle-generate before direct Go tests that import embedded runtime assets; make build/test already supply that prerequisite. Distinguish Chrome startup failure from a failed capture assertion and rerun the unchanged live check before changing product code.
 
 - A macOS Seatbelt-fenced reviewer can prevent Chrome GPU startup even with an allow-default profile. Before treating this as failed product conformance, compare the identical test under the fence and in the authorized parent environment, retaining real assertion evidence and the review fence.

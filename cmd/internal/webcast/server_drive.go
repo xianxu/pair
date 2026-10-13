@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -149,6 +150,16 @@ func (s *Server) driveRoute(w http.ResponseWriter, r *http.Request, rest string,
 		d.answer(w, drive.ErrNoSeat)
 		return true
 	}
+	generation, err := strconv.ParseUint(r.Header.Get("X-Couch-Drive-Generation"), 10, 64)
+	if err != nil {
+		d.answer(w, drive.ErrDriveUnavailable)
+		return true
+	}
+	admission, err := d.ctrl.AdmitDriveGeneration(generation)
+	if err != nil {
+		d.answer(w, err)
+		return true
+	}
 	lim := d.limits(key)
 	allow, max := lim.allowControl, int64(maxControlBody)
 	if rest == "drive/input" {
@@ -163,7 +174,6 @@ func (s *Server) driveRoute(w http.ResponseWriter, r *http.Request, rest string,
 		return true
 	}
 	defer release()
-	var err error
 	if rest == "drive/control" {
 		var in struct {
 			Op string `json:"op"`
@@ -172,16 +182,16 @@ func (s *Server) driveRoute(w http.ResponseWriter, r *http.Request, rest string,
 		case !broadcast.DecodeStrict(body, &in):
 			err = drive.ErrBatchShape
 		case in.Op == "request":
-			err = d.ctrl.Request(key)
+			err = admission.Request(key)
 		case in.Op == "release":
-			err = d.ctrl.Release(key)
+			err = admission.Release(key)
 		default:
 			err = drive.ErrBatchShape
 		}
 	} else {
 		var b drive.Batch
 		if b, err = drive.ParseBatch(body); err == nil {
-			err = d.ctrl.Input(r.Context(), key, b)
+			err = admission.Input(r.Context(), key, b)
 		}
 	}
 	if errors.Is(err, drive.ErrNoSeat) {

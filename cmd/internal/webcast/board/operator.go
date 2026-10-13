@@ -34,6 +34,7 @@ type OperatorResolve struct {
 }
 type OperatorRequest struct {
 	Op, Request string
+	Generation  uint64
 	Prepare     *OperatorPrepare
 	Save        *OperatorSave
 	Stroke      *StrokeIn
@@ -43,17 +44,29 @@ type OperatorRequest struct {
 
 // ParseOperatorRequest accepts only the closed operator command union. Attribution
 // is absent from the wire and is assigned by OperatorSession after CDP admission.
+// Mutation generation is the canonical decimal uint64 the isolated client saw
+// when it created the request, never an authority assigned on arrival.
 func ParseOperatorRequest(body []byte) (OperatorRequest, error) {
 	var raw struct {
-		Op      *string         `json:"op"`
-		Request *string         `json:"request"`
-		Body    json.RawMessage `json:"body"`
+		Op         *string         `json:"op"`
+		Generation *string         `json:"generation"`
+		Request    *string         `json:"request"`
+		Body       json.RawMessage `json:"body"`
 	}
 	fail := func() (OperatorRequest, error) { return OperatorRequest{}, ErrShape }
-	if len(body) > MaxOperatorBody || !decodeOperator(body, &raw, "op request body") || raw.Op == nil || raw.Request == nil || !idPattern.MatchString(*raw.Request) || len(raw.Body) == 0 || bytes.Equal(bytes.TrimSpace(raw.Body), []byte("null")) {
+	if len(body) > MaxOperatorBody || !decodeOperator(body, &raw, "op request generation body") || raw.Op == nil || raw.Request == nil || !idPattern.MatchString(*raw.Request) || len(raw.Body) == 0 || bytes.Equal(bytes.TrimSpace(raw.Body), []byte("null")) {
 		return fail()
 	}
 	out := OperatorRequest{Op: *raw.Op, Request: *raw.Request}
+	if raw.Generation != nil {
+		generation, err := strconv.ParseUint(*raw.Generation, 10, 64)
+		if err != nil || strconv.FormatUint(generation, 10) != *raw.Generation {
+			return fail()
+		}
+		out.Generation = generation
+	} else if out.Op != "status" && out.Op != "cancel-draft" {
+		return fail()
+	}
 	switch out.Op {
 	case "prepare-note":
 		var v struct {
@@ -202,7 +215,7 @@ type OperatorReply struct {
 	ID      string          `json:"id,omitempty"`
 	Error   string          `json:"error,omitempty"`
 }
-type OperatorEmit func(recording.Record, int, func(OperatorOutcome, error)) error
+type OperatorEmit func(recording.Record, int, AnnotationAdmission, func(OperatorOutcome, error)) error
 
 type operatorOperation struct {
 	reply   OperatorReply
@@ -283,24 +296,36 @@ func (s *OperatorSession) Close() {
 	}
 }
 func (s *OperatorSession) Note(request string, in NoteIn) OperatorReply {
+	a, _ := s.board.AdmitAnnotation()
+	return s.NoteAdmitted(a, request, in)
+}
+func (s *OperatorSession) NoteAdmitted(a AnnotationAdmission, request string, in NoteIn) OperatorReply {
 	in.Viewer = Viewer{ID: Operator, Name: "Operator"}
-	return s.run(request, "note", in, func(emit Emit) (string, error) { return s.board.note(in, true, emit) })
+	return s.run(a, request, "note", in, func(emit Emit) (string, error) { return s.board.note(in, true, emit) })
 }
 func (s *OperatorSession) Stroke(request string, in StrokeIn) OperatorReply {
+	a, _ := s.board.AdmitAnnotation()
+	return s.StrokeAdmitted(a, request, in)
+}
+func (s *OperatorSession) StrokeAdmitted(a AnnotationAdmission, request string, in StrokeIn) OperatorReply {
 	in.Viewer = Viewer{ID: Operator, Name: "Operator"}
-	return s.run(request, "stroke", in, func(emit Emit) (string, error) { return "", s.board.stroke(in, true, emit) })
+	return s.run(a, request, "stroke", in, func(emit Emit) (string, error) { return "", s.board.stroke(in, true, emit) })
 }
 func (s *OperatorSession) SetState(request string, seg int, in StateIn) OperatorReply {
+	a, _ := s.board.AdmitAnnotation()
+	return s.SetStateAdmitted(a, request, seg, in)
+}
+func (s *OperatorSession) SetStateAdmitted(a AnnotationAdmission, request string, seg int, in StateIn) OperatorReply {
 	// A NoteState has no operation-specific record ID. Observing the target
 	// state could reflect another person's resolve/reopen, so unknown state
 	// writes remain conservative until their own writer confirms completion.
 	in.Viewer = Viewer{ID: Operator, Name: "Operator"}
-	return s.run(request, "state", struct {
+	return s.run(a, request, "state", struct {
 		Seg   int
 		State StateIn
 	}{seg, in}, func(emit Emit) (string, error) { return "", s.board.setState(in, seg, true, emit) })
 }
-func (s *OperatorSession) run(request, kind string, in any, write func(Emit) (string, error)) OperatorReply {
+func (s *OperatorSession) run(a AnnotationAdmission, request, kind string, in any, write func(Emit) (string, error)) OperatorReply {
 	data, err := json.Marshal(in)
 	if err != nil {
 		return refused(request, ErrShape)
@@ -363,6 +388,14 @@ func (s *OperatorSession) run(request, kind string, in any, write func(Emit) (st
 			}
 		})
 	}
+	if a.board != s.board {
+		settle(OperatorRefused, ErrDisabled)
+		return s.Status(request)
+	}
+	if err := a.Check(); err != nil {
+		settle(OperatorRefused, err)
+		return s.Status(request)
+	}
 	emitted := false
 	id, err := write(func(r recording.Record, doc int) error {
 		emitted = true
@@ -375,7 +408,7 @@ func (s *OperatorSession) run(request, kind string, in any, write func(Emit) (st
 		if s.emit == nil {
 			return ErrClosed
 		}
-		err := s.emit(r, doc, settle)
+		err := s.emit(r, doc, a, settle)
 		if err != nil {
 			settle(OperatorRefused, err)
 		}

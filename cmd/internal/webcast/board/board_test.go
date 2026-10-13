@@ -1,6 +1,7 @@
 package board
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"sync/atomic"
@@ -34,6 +35,10 @@ func newRig(t *testing.T) *rig {
 		return r.w.Emit(rec, doc)
 	})
 	r.w = NewWriter(recording.Tee(r.mem, r.bd), nil)
+	r.bd.WithAnnotationCleanup(r.w.ClearAnnotations)
+	if err := r.bd.SetAnnotationAllowed(context.Background(), true); err != nil {
+		t.Fatal(err)
+	}
 	return r
 }
 

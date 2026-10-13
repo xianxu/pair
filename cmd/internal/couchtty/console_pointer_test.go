@@ -301,3 +301,19 @@ func TestLiveRightClickRecopiesViewLink(t *testing.T) {
 	}
 	waitFor(t, "notice", func() bool { return strings.Contains(f.notice(), "link copied") })
 }
+
+func TestPointerRightClickMintsWhileOff(t *testing.T) {
+	f := broadcastFixture(t, &broadcast.FakeTunnel{}, nil)
+	s := f.startLive(t)
+	f.clickPointer(t, 2)
+	waitFor(t, "minted and copied", func() bool { return s.PointerLink() != "" && copies(f, s.PointerLink()) == 1 })
+	if f.pointerPhase() == pointerOn {
+		t.Fatal("right-copy enabled pointing")
+	}
+	unlockCastLink(t, castClient, s, broadcast.LinkPointer, s.PointerLink())
+	if code := postPoint(t, s.PointerLink(), 6, 3); code != http.StatusForbidden {
+		t.Fatalf("off admission %d", code)
+	}
+	f.clickPointer(t, 0)
+	waitFor(t, "enable copied stable link", func() bool { return f.pointerPhase() == pointerOn && copies(f, s.PointerLink()) == 2 })
+}

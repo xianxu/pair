@@ -41,6 +41,10 @@ func (b *Board) Selection() (Selection, error) {
 // ResolveSelection waits for actual recorded outcomes. A changed/reopened
 // note or a gone document no longer belongs to this acknowledgment.
 func (b *Board) ResolveSelection(ctx context.Context, s Selection) error {
+	admission, err := b.AdmitAnnotation()
+	if err != nil {
+		return err
+	}
 	updates, stop := b.Subscribe()
 	defer stop()
 	sent := map[string]bool{}
@@ -73,7 +77,7 @@ func (b *Board) ResolveSelection(ctx context.Context, s Selection) error {
 				continue
 			}
 			rev := n.Revision
-			err := b.emit(&recording.NoteState{ID: n.ID, State: recording.NoteResolved, IfRevision: &rev}, s.Document)
+			err := admission.resolveSelected(&recording.NoteState{ID: n.ID, State: recording.NoteResolved, IfRevision: &rev}, s.Document)
 			if err != nil && !errors.Is(err, ErrStale) {
 				return err
 			}
@@ -88,4 +92,19 @@ func (b *Board) ResolveSelection(ctx context.Context, s Selection) error {
 			return ctx.Err()
 		}
 	}
+}
+
+// resolveSelected shares the admission fence and command ordering with viewer
+// mutations, while retaining the writer's conditional revision check.
+func (a AnnotationAdmission) resolveSelected(r *recording.NoteState, doc int) error {
+	b := a.board
+	b.command.Lock()
+	defer b.command.Unlock()
+	b.mu.Lock()
+	err := b.admissionLocked(a.permit)
+	b.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	return b.emit(r, doc)
 }

@@ -89,17 +89,10 @@ func (p *PointerState) set(on bool, mint func() (string, error)) (string, bool, 
 	if on && p.stopped {
 		return "", false, ErrHubClosed
 	}
-	if on && p.token == "" {
-		token, err := mint()
-		if err != nil {
+	if on {
+		if err := p.ensureLocked(mint); err != nil {
 			return "", false, err
 		}
-		if p.mintLock != nil {
-			if err := p.mintLock(token); err != nil {
-				return "", false, err
-			}
-		}
-		p.token = token
 	}
 	if p.on == on {
 		return p.token, false, nil
@@ -112,6 +105,35 @@ func (p *PointerState) set(on bool, mint func() (string, error)) (string, bool, 
 		p.clearNotesLocked()
 	}
 	return p.token, true, nil
+}
+
+// ensure mints a locked link without changing admission or clearing marks.
+func (p *PointerState) ensure(mint func() (string, error)) (string, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.stopped {
+		return "", ErrHubClosed
+	}
+	if err := p.ensureLocked(mint); err != nil {
+		return "", err
+	}
+	return p.token, nil
+}
+func (p *PointerState) ensureLocked(mint func() (string, error)) error {
+	if p.token != "" {
+		return nil
+	}
+	token, err := mint()
+	if err != nil {
+		return err
+	}
+	if p.mintLock != nil {
+		if err := p.mintLock(token); err != nil {
+			return err
+		}
+	}
+	p.token = token
+	return nil
 }
 
 func (p *PointerState) link() string {

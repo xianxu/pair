@@ -172,3 +172,31 @@ test('a stream the browser is reconnecting is not probed', async () => {
   await new Promise((r) => setImmediate(r));
   assert.equal(probed, 0);
 });
+
+const capabilities = (a, d, generation = 1) => Object.fromEntries([['annotation', a], ['drive', d]].map(([k, on]) => [k, {supported:true, permitted:true, allowed:on, state:on?'on':'off', generation, attempt:0}]));
+test('capability availability starts closed, replays latest and intersects the role', () => {
+ const h=harness(), seen=[];
+ h.v.onCapabilities(c=>seen.push(c));
+ assert.equal(seen.at(-1).annotation.allowed,false);
+ for(const a of [false,true]) for(const d of [false,true]) {
+  h.es().emit('capabilities',capabilities(a,d));
+  assert.equal(seen.at(-1).annotation.allowed,a);assert.equal(seen.at(-1).drive.allowed,d);
+ }
+ let late;h.v.onCapabilities(c=>late=c);assert.equal(late.drive.allowed,true);
+ const denied=capabilities(true,true,2);denied.annotation.permitted=false;
+ h.es().emit('capabilities',denied);assert.equal(seen.at(-1).annotation.allowed,false);
+ h.es().emit('capabilities',capabilities(true,true,1));assert.equal(seen.at(-1).annotation.allowed,false);
+ h.es().emit('capabilities',{});assert.equal(seen.at(-1).drive.allowed,false);
+});
+test('disconnect fails closed and retired event sources cannot mutate replacements', async () => {
+ let settle; const h=harness({sessionLost:()=>new Promise(r=>settle=r),relock:()=>{throw Error('stale relock');}});
+ h.es().emit('capabilities',capabilities(true,true));
+ const old=h.es();old.readyState=2;old.onerror();
+ assert.equal(h.v.capabilities.drive.allowed,false);
+ for(const r of [head,seg(1),doc(1,1)])h.rec(r);
+ h.rec({t:2,k:'rm',id:99});h.retries[0]();
+ const replacement=h.es();replacement.emit('capabilities',capabilities(false,false,2));
+ old.emit('capabilities',capabilities(true,true,3));old.emit('end',{});old.emit('rec',head);
+ settle(true);await Promise.resolve();
+ assert.equal(h.v.capabilities.drive.allowed,false);assert.equal(replacement.closed,false);assert.equal(h.v.model.head,null);
+});

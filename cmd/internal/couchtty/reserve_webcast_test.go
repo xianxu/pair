@@ -56,7 +56,7 @@ func TestRenderWebcastFocusButtonAndLiveStyle(t *testing.T) {
 			}
 		}
 		want := webcastButtons + " " + broadcast.NoteGlyph + "2"
-		if !strings.Contains(row.Body, want) {
+		if !strings.Contains(rowPlain(row), want) {
 			t.Fatalf("group drawn as %q", row.Body)
 		}
 	}

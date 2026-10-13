@@ -1,0 +1,255 @@
+---
+gate: boundary-review
+issue: 523
+id_prefix: BR
+rounds:
+    - "n": 1
+      timestamp: "2026-10-13T00:17:27-07:00"
+      dispatched: "2026-10-13T00:11:23-07:00"
+      agent: codex
+      findings:
+        - id: BR-1
+          severity: Critical
+          title: Replay seeking resurrects annotations cleared before a resume
+          detail: 'cmd/internal/webcast/web/replay.js:38-61 lacks the AnnotationClear handling added at recording/catchup.go:88. Using the new capability-events.jsonl fixture, sequential reduction yields notes ["new"] and no strokes, but reduction through JavaScript catchUp yields notes ["old","new"] and stroke ["old"]; an inline assertion reproduced this failure. Port the clear-barrier handling, including clearing kept note IDs, and add the fixture to catch-up/Player seek parity tests. ARCH-PURPOSE: enumerate and update every recording consumer.'
+          family: recording-consumer-parity
+          round: 1
+        - id: BR-2
+          severity: Critical
+          title: Controller failure handling assumes an acknowledgment the production sink never supplies
+          detail: cmd/internal/webcast/drive/controller_mem.go:203-225 treats successful Put as a committed control record. Production wiring uses cast_drive.go:39-43 → Chrome.Emit at chrome.go:109-114, which calls Recorder.Send and immediately returns nil; enqueue refusal and later sink failures cannot reach this branch. Consequently requests/grants can report success and leave authority On after recording failure, contrary to the terminal-failure contract. Introduce an acknowledged recorder control-write seam and exercise it with delayed, closed, and failing recorder outcomes; TestUncertainControlSinkFreezesAuthority currently tests only a synchronous substitute. ARCH-ORDER, ARCH-MOCK.
+          family: production-effect-acknowledgment
+          round: 1
+        - id: BR-3
+          severity: Critical
+          title: The M1 core-concepts table identifies a nonexistent Board implementation file
+          detail: 'workshop/plans/000523-cast-capability-switches-plan.md:82 lists board/capability.go as modified, but that path is absent at pinned HEAD. Admission and cleanup are implemented in newly added board/annotation.go, including AnnotationAdmission at line 15. Correct the location and new/modified status, and record the implementation mapping under ## Revisions as required by the core-concepts gate.'
+          family: core-concept-inventory-consistency
+          round: 1
+        - id: BR-4
+          severity: Important
+          title: README update appears missing for default-OFF web capabilities
+          detail: README.md:1014-1017 and 1063 onward still describe pointer/drive-link holders as able to annotate or request control, while this range changes both capabilities to default OFF and adds server refusals. README.md is unchanged in the range. Document the current admission defaults and capability-versus-link distinction, accurately distinguishing pending M2 controls from implemented behavior.
+          family: user-surface-documentation
+          round: 1
+      boundary: M1
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
+    - "n": 2
+      timestamp: "2026-10-13T00:37:42-07:00"
+      dispatched: "2026-10-13T00:32:50-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: replay.js:45 retains annotation-clear and clears kept note IDs. The shared-fixture prefix and Player.seek tests pass; removing this handling makes both fail with resurrected annotations.
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: cast_drive.go now routes control writes through Chrome.WriteControl to recorder/control.go:15, which awaits reducer acceptance and sink completion. Production-adapter tests cover delayed success/failure, closed recorders, cancellation, and shutdown. Replacing acknowledgment with Chrome.Emit makes TestProductionControlRefusesClosedRecorder fail.
+          round: 2
+        - id: BR-3
+          disposition: addressed
+          note: The plan table at line 82 now identifies modified board/board.go and new board/annotation.go; Revisions at lines 447–448 records that mapping. The pinned diff confirms both classifications and AnnotationAdmission exists in annotation.go.
+          round: 2
+        - id: BR-4
+          disposition: addressed
+          note: README.md:1020–1026 documents independent default-OFF capabilities, persistent links, cleanup behavior, and pending M2 UI. Board/controller zero-value authority and server admission checks substantiate the corrected description.
+          round: 2
+      boundary: M1
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 7ff7f694885abb170423df900c6945ff02c8add6
+      blocked: false
+    - "n": 3
+      timestamp: "2026-10-13T09:58:04-07:00"
+      dispatched: "2026-10-13T09:51:13-07:00"
+      agent: codex
+      findings:
+        - id: BR-5
+          severity: Critical
+          title: Pre-OFF annotations can acquire fresh authority after OFF/ON
+          detail: 'cmd/internal/webcast/recorder/recorder.go:290 assigns current authority at ingress. A disposable regression retained a valid second stroke before OFF, completed OFF/ON, then delivered it: the recorder accepted it and restored one stroke. web/annotate.js:596 also leaves a held gesture active after annotation-clear when capability delivery is delayed. ARCH-ORDER, ARCH-SECURE, ARCH-PURPOSE: carry the originating capability generation through operator and viewer mutations, reject retired generations at ingress and dispatch, and cancel held gestures at the clear barrier. Add controlled pre-ingress delay regressions across these consumers.'
+          family: capability-generation-provenance
+          round: 3
+        - id: BR-6
+          severity: Minor
+          title: Permission retry polling contradicts the documented operating envelope
+          detail: 'cmd/internal/webcast/chrome_operator.go:107 introduces a 250 ms retry ticker, while workshop/plans/000523-cast-capability-switches-plan.md:177 promises no new periodic polling. ARCH-CONSTRAINTS: document the retry lifetime, bounds, and termination policy in a Revisions entry, or replace polling with readiness-driven delivery.'
+          family: operating-envelope-traceability
+          round: 3
+      boundary: M2
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
+    - "n": 4
+      timestamp: "2026-10-13T10:48:23-07:00"
+      dispatched: "2026-10-13T10:44:01-07:00"
+      agent: codex
+      dispose:
+        - id: BR-5
+          disposition: addressed
+          note: Origin generations reach operator, viewer annotation, and drive admission; ordered dispatch retains its checks. Independently removing each provenance guard made its regression fail. Removing annotation-clear gesture cancellation also failed capability-ui.test.mjs:70.
+          round: 4
+        - id: BR-6
+          disposition: addressed
+          note: The plan revision at workshop/plans/000523-cast-capability-switches-plan.md:551 explicitly documents the 250ms unresolved-delivery retry exception, deadlines, acknowledgment behavior, context pruning, and shutdown. These match cmd/internal/webcast/chrome_operator.go:107-195.
+          round: 4
+      boundary: M2
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 29ac1fe53accedd49a9f30b7798372dc390cdbb3
+      blocked: false
+    - "n": 5
+      timestamp: "2026-10-13T11:04:35-07:00"
+      dispatched: "2026-10-13T10:58:39-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: replay.js:45 preserves annotation-clear during catch-up. Removing it made both shared-fixture prefix and Player.seek regressions fail; restored tests passed.
+          round: 5
+        - id: BR-2
+          disposition: addressed
+          note: cast_drive.go routes control through recorder/control.go's acknowledged writer. Replacing acknowledgment with Emit made TestProductionControlRefusesClosedRecorder fail; the restored test passed.
+          round: 5
+        - id: BR-3
+          disposition: addressed
+          note: The plan table at line 82 and revision at line 447 name modified board/board.go and new board/annotation.go, matching the pinned diff and AnnotationAdmission implementation.
+          round: 5
+        - id: BR-4
+          disposition: addressed
+          note: README.md:1055 documents independent default-OFF capabilities and persistent links, matching Board/controller initialization and server admission. The README now also documents the completed controls.
+          round: 5
+        - id: BR-5
+          disposition: addressed
+          note: Independently removing annotation and drive generation checks made the pre-ingress regressions fail across viewer and operator routes. Removing annotation-clear gesture cancellation also made capability-ui.test.mjs:70 fail.
+          round: 5
+        - id: BR-6
+          disposition: addressed
+          note: The plan revision at lines 551–566 documents the unresolved-delivery retry exception, deadlines and shutdown, matching chrome_operator.go's single worker, conditional retry selection and deferred ticker stop.
+          round: 5
+      findings:
+        - id: BR-7
+          severity: Critical
+          title: Acknowledged drive actions block Couch's input loop
+          detail: 'ARCH-CONSTRAINTS: controller_mem.go:204–212 now synchronously awaits WriteControl and Release, but console_drive.go:180–199 still calls Grant, Deny and Revoke directly from mouse handlers. A gated-writer reproduction confirmed revokeDrive cannot return before acknowledgment. This is the 2nd finding in family operating-envelope-traceability. Enforce the rule that no terminal input handler awaits recorder/CDP completion: sweep grant, deny, popup revoke and Ctrl-click revoke, dispatch them through bounded owned work, and fence completion by cast identity. Preserve the acknowledged writer.'
+          family: operating-envelope-traceability
+          round: 5
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
+    - "n": 6
+      timestamp: "2026-10-13T12:16:45-07:00"
+      dispatched: "2026-10-13T12:13:21-07:00"
+      agent: codex
+      dispose:
+        - id: BR-7
+          disposition: addressed
+          note: console_drive.go:204 routes all four entry paths through one tracked slot with generation and cast fencing. TestDriveActionsDoNotBlockTerminal passes at HEAD; replacing asynchronous dispatch with synchronous execution fails all six ACK/release cases. Stale-completion and shutdown tests also pass.
+          round: 6
+        - id: BR-1
+          disposition: addressed
+          note: replay.js retains annotation-clear and resets retained note IDs. Replay prefix and arbitrary-seek regressions in replay.test.mjs:86 and :93 pass.
+          round: 6
+        - id: BR-2
+          disposition: addressed
+          note: liveGate forwards WriteControl to the acknowledged recorder operation. cast_control_ack_test.go covers delayed commitment, closed recorder, cancellation and ownership; the webcast suite passes.
+          round: 6
+        - id: BR-3
+          disposition: addressed
+          note: The Plan’s integration table names board/board.go and annotation.go; both exist and contain the stated Board admission implementation in the pinned diff.
+          round: 6
+        - id: BR-4
+          disposition: addressed
+          note: README.md:1057 documents independent default-OFF capabilities and persistent links. Board/controller zero states are Off, and default/admission tests pass.
+          round: 6
+        - id: BR-5
+          disposition: addressed
+          note: Browser requests carry originating generations; HTTP and operator ingress validate them. Pre-ingress Off/On regressions cover annotation mutations and drive request/release/input and pass.
+          round: 6
+        - id: BR-6
+          disposition: addressed
+          note: The Plan’s BR-6 revision explicitly permits one 250ms unresolved-delivery timer. chrome_operator.go:100 implements that exception, removes acknowledged deliveries from timer selection, and stops the ticker on worker exit.
+          round: 6
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 79be8f1878d82151068a8835cf11817a80e36af6
+      blocked: false
+---
+
+# Gate ledger — pair#523 (boundary-review)
+
+Findings this gate raised, the stable ids the binary assigned them, and how
+later rounds disposed of them. Generated — edit the gate, not this file.
+
+## Round 1 — 2026-10-13T00:17:27-07:00 (codex) — BLOCKED
+
+### Raised
+
+- **BR-1** [Critical] `recording-consumer-parity` Replay seeking resurrects annotations cleared before a resume
+  cmd/internal/webcast/web/replay.js:38-61 lacks the AnnotationClear handling added at recording/catchup.go:88. Using the new capability-events.jsonl fixture, sequential reduction yields notes ["new"] and no strokes, but reduction through JavaScript catchUp yields notes ["old","new"] and stroke ["old"]; an inline assertion reproduced this failure. Port the clear-barrier handling, including clearing kept note IDs, and add the fixture to catch-up/Player seek parity tests. ARCH-PURPOSE: enumerate and update every recording consumer.
+- **BR-2** [Critical] `production-effect-acknowledgment` Controller failure handling assumes an acknowledgment the production sink never supplies
+  cmd/internal/webcast/drive/controller_mem.go:203-225 treats successful Put as a committed control record. Production wiring uses cast_drive.go:39-43 → Chrome.Emit at chrome.go:109-114, which calls Recorder.Send and immediately returns nil; enqueue refusal and later sink failures cannot reach this branch. Consequently requests/grants can report success and leave authority On after recording failure, contrary to the terminal-failure contract. Introduce an acknowledged recorder control-write seam and exercise it with delayed, closed, and failing recorder outcomes; TestUncertainControlSinkFreezesAuthority currently tests only a synchronous substitute. ARCH-ORDER, ARCH-MOCK.
+- **BR-3** [Critical] `core-concept-inventory-consistency` The M1 core-concepts table identifies a nonexistent Board implementation file
+  workshop/plans/000523-cast-capability-switches-plan.md:82 lists board/capability.go as modified, but that path is absent at pinned HEAD. Admission and cleanup are implemented in newly added board/annotation.go, including AnnotationAdmission at line 15. Correct the location and new/modified status, and record the implementation mapping under ## Revisions as required by the core-concepts gate.
+- **BR-4** [Important] `user-surface-documentation` README update appears missing for default-OFF web capabilities
+  README.md:1014-1017 and 1063 onward still describe pointer/drive-link holders as able to annotate or request control, while this range changes both capabilities to default OFF and adds server refusals. README.md is unchanged in the range. Document the current admission defaults and capability-versus-link distinction, accurately distinguishing pending M2 controls from implemented behavior.
+
+## Round 2 — 2026-10-13T00:37:42-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — replay.js:45 retains annotation-clear and clears kept note IDs. The shared-fixture prefix and Player.seek tests pass; removing this handling makes both fail with resurrected annotations.
+- BR-2 — addressed — cast_drive.go now routes control writes through Chrome.WriteControl to recorder/control.go:15, which awaits reducer acceptance and sink completion. Production-adapter tests cover delayed success/failure, closed recorders, cancellation, and shutdown. Replacing acknowledgment with Chrome.Emit makes TestProductionControlRefusesClosedRecorder fail.
+- BR-3 — addressed — The plan table at line 82 now identifies modified board/board.go and new board/annotation.go; Revisions at lines 447–448 records that mapping. The pinned diff confirms both classifications and AnnotationAdmission exists in annotation.go.
+- BR-4 — addressed — README.md:1020–1026 documents independent default-OFF capabilities, persistent links, cleanup behavior, and pending M2 UI. Board/controller zero-value authority and server admission checks substantiate the corrected description.
+
+## Round 3 — 2026-10-13T09:58:04-07:00 (codex) — BLOCKED
+
+### Raised
+
+- **BR-5** [Critical] `capability-generation-provenance` Pre-OFF annotations can acquire fresh authority after OFF/ON
+  cmd/internal/webcast/recorder/recorder.go:290 assigns current authority at ingress. A disposable regression retained a valid second stroke before OFF, completed OFF/ON, then delivered it: the recorder accepted it and restored one stroke. web/annotate.js:596 also leaves a held gesture active after annotation-clear when capability delivery is delayed. ARCH-ORDER, ARCH-SECURE, ARCH-PURPOSE: carry the originating capability generation through operator and viewer mutations, reject retired generations at ingress and dispatch, and cancel held gestures at the clear barrier. Add controlled pre-ingress delay regressions across these consumers.
+- **BR-6** [Minor] `operating-envelope-traceability` Permission retry polling contradicts the documented operating envelope
+  cmd/internal/webcast/chrome_operator.go:107 introduces a 250 ms retry ticker, while workshop/plans/000523-cast-capability-switches-plan.md:177 promises no new periodic polling. ARCH-CONSTRAINTS: document the retry lifetime, bounds, and termination policy in a Revisions entry, or replace polling with readiness-driven delivery.
+
+## Round 4 — 2026-10-13T10:48:23-07:00 (codex) — passed
+
+### Disposed
+
+- BR-5 — addressed — Origin generations reach operator, viewer annotation, and drive admission; ordered dispatch retains its checks. Independently removing each provenance guard made its regression fail. Removing annotation-clear gesture cancellation also failed capability-ui.test.mjs:70.
+- BR-6 — addressed — The plan revision at workshop/plans/000523-cast-capability-switches-plan.md:551 explicitly documents the 250ms unresolved-delivery retry exception, deadlines, acknowledgment behavior, context pruning, and shutdown. These match cmd/internal/webcast/chrome_operator.go:107-195.
+
+## Round 5 — 2026-10-13T11:04:35-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — replay.js:45 preserves annotation-clear during catch-up. Removing it made both shared-fixture prefix and Player.seek regressions fail; restored tests passed.
+- BR-2 — addressed — cast_drive.go routes control through recorder/control.go's acknowledged writer. Replacing acknowledgment with Emit made TestProductionControlRefusesClosedRecorder fail; the restored test passed.
+- BR-3 — addressed — The plan table at line 82 and revision at line 447 name modified board/board.go and new board/annotation.go, matching the pinned diff and AnnotationAdmission implementation.
+- BR-4 — addressed — README.md:1055 documents independent default-OFF capabilities and persistent links, matching Board/controller initialization and server admission. The README now also documents the completed controls.
+- BR-5 — addressed — Independently removing annotation and drive generation checks made the pre-ingress regressions fail across viewer and operator routes. Removing annotation-clear gesture cancellation also made capability-ui.test.mjs:70 fail.
+- BR-6 — addressed — The plan revision at lines 551–566 documents the unresolved-delivery retry exception, deadlines and shutdown, matching chrome_operator.go's single worker, conditional retry selection and deferred ticker stop.
+
+### Raised
+
+- **BR-7** [Critical] `operating-envelope-traceability` Acknowledged drive actions block Couch's input loop
+  ARCH-CONSTRAINTS: controller_mem.go:204–212 now synchronously awaits WriteControl and Release, but console_drive.go:180–199 still calls Grant, Deny and Revoke directly from mouse handlers. A gated-writer reproduction confirmed revokeDrive cannot return before acknowledgment. This is the 2nd finding in family operating-envelope-traceability. Enforce the rule that no terminal input handler awaits recorder/CDP completion: sweep grant, deny, popup revoke and Ctrl-click revoke, dispatch them through bounded owned work, and fence completion by cast identity. Preserve the acknowledged writer.
+
+## Round 6 — 2026-10-13T12:16:45-07:00 (codex) — passed
+
+### Disposed
+
+- BR-7 — addressed — console_drive.go:204 routes all four entry paths through one tracked slot with generation and cast fencing. TestDriveActionsDoNotBlockTerminal passes at HEAD; replacing asynchronous dispatch with synchronous execution fails all six ACK/release cases. Stale-completion and shutdown tests also pass.
+- BR-1 — addressed — replay.js retains annotation-clear and resets retained note IDs. Replay prefix and arbitrary-seek regressions in replay.test.mjs:86 and :93 pass.
+- BR-2 — addressed — liveGate forwards WriteControl to the acknowledged recorder operation. cast_control_ack_test.go covers delayed commitment, closed recorder, cancellation and ownership; the webcast suite passes.
+- BR-3 — addressed — The Plan’s integration table names board/board.go and annotation.go; both exist and contain the stated Board admission implementation in the pinned diff.
+- BR-4 — addressed — README.md:1057 documents independent default-OFF capabilities and persistent links. Board/controller zero states are Off, and default/admission tests pass.
+- BR-5 — addressed — Browser requests carry originating generations; HTTP and operator ingress validate them. Pre-ingress Off/On regressions cover annotation mutations and drive request/release/input and pass.
+- BR-6 — addressed — The Plan’s BR-6 revision explicitly permits one 250ms unresolved-delivery timer. chrome_operator.go:100 implements that exception, removes acknowledged deliveries from timer selection, and stops the ticker on worker exit.
+
+## Open findings
+
+(none — every finding has been disposed)

@@ -3,10 +3,23 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { Model, goJSON } from '../../cmd/internal/webcast/web/model.js';
 import { fixtures, records, pins } from './fixtures.mjs';
 
 const sha = (s) => createHash('sha256').update(s).digest('hex');
+
+test('shared capability recording removes old annotations and admits fresh ones', () => {
+  const recs = readFileSync(new URL('../../cmd/internal/webcast/recording/testdata/capability-events.jsonl', import.meta.url), 'utf8').trim().split('\n').map(JSON.parse);
+  const old = reduce(recs, 4);
+  assert.deepEqual(old.notes.map(x => x.note.id), ['old']);
+  assert.equal(old.strokes.length, 1);
+  const cleared = reduce(recs, 6);
+  assert.deepEqual(cleared.notes, []); assert.deepEqual(cleared.strokes, []);
+  const end = reduce(recs);
+  assert.deepEqual(end.notes.map(x => x.note.id), ['new']);
+  assert.deepEqual(end.strokes, []);
+});
 
 function reduce(recs, t = Infinity) {
   const m = new Model();
@@ -79,4 +92,22 @@ test('stop end is final: a seg or ctl after it is refused, as the reducer does',
   assert.throws(() => m.apply({ t: 3, k: 'ctl', act: 'grant' }), /cast is over/);
   const paused = reduce([head, seg(1), doc, { t: 2, k: 'stop', why: 'pause' }]);
   paused.apply({ ...seg(2, 'resume'), t: 3 });
+});
+
+test('annotation clear preserves replay history but removes marks through pause/resume', () => {
+  const note = {t:2,k:'note',id:'n',author:{id:'v1'},at:{node:3},text:'hello'};
+  const stroke = {t:2,k:'stroke',id:'s',author:{id:'v1'},pts:[[1,2,0]]};
+  const recs = [head,seg(1),doc,note,stroke,{t:3,k:'stop',why:'pause'},
+    {t:4,k:'annotation-clear',who:{id:'operator'}}];
+  assert.equal(reduce(recs,2).notes.length,1);
+  const m=reduce(recs);
+  assert.equal(m.notes.length,0); assert.equal(m.strokes.length,0);
+  m.apply({t:5,k:'annotation-clear',who:{id:'operator'}});
+  m.apply({...seg(2,'resume'),t:6});
+  assert.equal(m.notes.length,0); assert.equal(m.strokes.length,0);
+  for(const who of [null,{}, {id:'v1'}]) {
+    assert.throws(()=>m.apply({t:7,k:'annotation-clear',who}));
+  }
+  m.apply({t:8,k:'stop',why:'end'});
+  assert.throws(()=>m.apply({t:9,k:'annotation-clear',who:{id:'operator'}}),/cast is over/);
 });

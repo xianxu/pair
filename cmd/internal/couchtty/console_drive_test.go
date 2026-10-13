@@ -1,11 +1,14 @@
 package couchtty
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -31,8 +34,8 @@ func TestDriveSpanRowsAndNotices(t *testing.T) {
 		{"nobody", recording.Control{}, "", nil},
 		{"one asks", recording.Control{Pending: []recording.Author{bo}}, "✋Bo", []string{"Bo asks to drive. Click to let Bo drive; right-click to say no."}},
 		{"two ask", recording.Control{Pending: []recording.Author{bo, cy}}, "✋2", []string{"Bo asks", "Cy asks"}},
-		{"a driver", recording.Control{Driver: &ana}, "🕹Ana", []string{"Ana is driving: uploads and downloads off while Ana drives. Click to take control back."}},
-		{"a driver and an asker", recording.Control{Driver: &ana, Pending: []recording.Author{bo}}, "🕹Ana ✋Bo", []string{"Ana is driving", "Bo asks"}},
+		{"a driver", recording.Control{Driver: &ana}, "", []string{"Ana is driving: uploads and downloads off while Ana drives. Click to take control back."}},
+		{"a driver and an asker", recording.Control{Driver: &ana, Pending: []recording.Author{bo}}, "✋Bo", []string{"Ana is driving", "Bo asks"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := driveSpan(tc.c); got != tc.span {
@@ -65,17 +68,17 @@ func TestDriveSpanRowsAndNotices(t *testing.T) {
 // The span sits after the Chrome cell and its 💭N, plain text, its own
 // click target.
 func TestRenderDriveSpan(t *testing.T) {
-	row := RenderStatusRow(80, StatusModel{Webcast: WebcastLive, WebNotes: 2, WebDrive: "🕹Ana ✋Bo"})
-	if row.WebDrive == (ColumnSpan{}) || row.WebDrive.Start <= row.WebNotes.End || row.WebNotes.Start <= row.Webcast.End {
+	row := RenderStatusRow(80, StatusModel{Webcast: WebcastLive, WebDrivingOn: true, WebDriverName: "Ana", WebNotes: 2, WebDrive: "✋Bo"})
+	if row.WebDrive == (ColumnSpan{}) || row.WebDrive.Start <= row.WebNotes.End || row.WebNotes.Start <= row.WebDriveLink.End {
 		t.Fatalf("spans: cell %+v notes %+v drive %+v", row.Webcast, row.WebNotes, row.WebDrive)
 	}
-	if !strings.Contains(row.Body, "🕹Ana ✋Bo") {
+	if !strings.Contains(row.Body, "✋Bo") {
 		t.Fatalf("body %q", row.Body)
 	}
-	if row := RenderStatusRow(80, StatusModel{Webcast: WebcastLive, WebDrive: "🕹A\x1b[2Jna"}); strings.Contains(row.Body, "\x1b[2J") {
+	if row := RenderStatusRow(80, StatusModel{Webcast: WebcastLive, WebDrive: "✋A\x1b[2Jna"}); strings.Contains(row.Body, "\x1b[2J") {
 		t.Fatalf("a name reached the terminal raw: %q", row.Body)
 	}
-	if row := RenderStatusRow(80, StatusModel{WebDrive: "🕹Ana"}); row.WebDrive != (ColumnSpan{}) {
+	if row := RenderStatusRow(80, StatusModel{WebDrive: "✋Ana"}); row.WebDrive != (ColumnSpan{}) {
 		t.Fatal("a drive span without Chrome")
 	}
 }
@@ -88,7 +91,7 @@ type driveCast struct {
 	link, viewLink string
 }
 
-func newDriveCast(t *testing.T) *driveCast {
+func newDriveCast(t *testing.T, wrap ...func(*webcast.FakeDriven) webcast.Browser) *driveCast {
 	t.Helper()
 	var d *webcast.FakeDriven
 	r := newWebcastRig(t, func(r *webcastRig) {
@@ -96,6 +99,9 @@ func newDriveCast(t *testing.T) *driveCast {
 			var err error
 			if d, err = webcast.NewFakeDriven(f, drive.DrivenPage(100), &recording.MemSink{}); err != nil {
 				t.Fatal(err)
+			}
+			if len(wrap) != 0 {
+				return wrap[0](d)
 			}
 			return d
 		}
@@ -105,6 +111,9 @@ func newDriveCast(t *testing.T) *driveCast {
 	r.open(t)
 	d.Open()
 	c := &driveCast{webcastRig: r, d: d}
+	if err := c.cast().SetCapability(context.Background(), webcast.CapabilityDrive, true); err != nil {
+		t.Fatal(err)
+	}
 	waitFor(t, "link", func() bool {
 		r.con.mu.Lock()
 		defer r.con.mu.Unlock()
@@ -121,6 +130,7 @@ func (c *driveCast) viewer(t *testing.T, name string) string {
 	post := func(route, key, body string) *http.Response {
 		req, _ := http.NewRequest(http.MethodPost, c.link+"drive/"+route, strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Couch-Drive-Generation", fmt.Sprint(c.cast().Capabilities().Drive.Generation))
 		if key != "" {
 			req.Header.Set(drive.SeatHeader, key)
 		}
@@ -149,14 +159,52 @@ func (c *driveCast) cast() *webcast.Cast {
 	return c.con.wcast.cast
 }
 
+// waitDrive bounds fixture setup independently of the package's deadline.
+// A lost menu click must fail here, not consume the full suite's ten minutes.
+func (c *driveCast) waitDrive(t *testing.T, what string, ready func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for !ready() {
+		if time.Now().After(deadline) {
+			c.con.mu.Lock()
+			span, phase, pending := c.con.statusWebDrive, c.con.wcast.phase, c.con.drivePending != nil
+			c.con.mu.Unlock()
+			c.con.pnotes.mu.Lock()
+			menu, source, control := c.con.pnotes.menuOpen, c.con.pnotes.source, c.con.pnotes.drive.control
+			c.con.pnotes.mu.Unlock()
+			t.Fatalf("waiting for %s: span=%+v phase=%v pending=%v menu=%v source=%v control=%+v row=%q", what, span, phase, pending, menu, source, control, c.lastRow())
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
+}
+func awaitDrive(t *testing.T, what string, done <-chan struct{}) {
+	t.Helper()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatalf("waiting for %s", what)
+	}
+}
+
+// Read the hit target only once its current control projection has committed.
+// Sampling lastRow separately can pair a new visible row with an old hit span.
 func (c *driveCast) span(t *testing.T, text string) ColumnSpan {
 	t.Helper()
 	var span ColumnSpan
-	waitFor(t, "the drive span "+text, func() bool {
+	c.waitDrive(t, "committed drive target "+text, func() bool {
+		want := c.control()
+		c.con.pnotes.mu.Lock()
+		current := c.con.pnotes.drive.control.Equal(want)
+		c.con.pnotes.mu.Unlock()
+		if !current {
+			return false
+		}
 		c.con.mu.Lock()
+		defer c.con.mu.Unlock()
+		model := c.con.statusModelLocked()
 		span = c.con.statusWebDrive
-		c.con.mu.Unlock()
-		return span != ColumnSpan{} && strings.Contains(c.lastRow(), text)
+		row := RenderStatusRow(int(c.con.size.Cols), model)
+		return c.con.drivePending == nil && span != (ColumnSpan{}) && span == row.WebDrive && (text == "" || model.WebDrive == text)
 	})
 	return span
 }
@@ -166,20 +214,23 @@ func (c *driveCast) span(t *testing.T, text string) ColumnSpan {
 func (c *driveCast) clickRow(t *testing.T, span ColumnSpan, prefix string, button int) {
 	t.Helper()
 	// Couch has the controller's state (its delivery can lag a change).
-	waitFor(t, "Couch caught up with control", func() bool {
+	c.waitDrive(t, "Couch caught up with control", func() bool {
 		want := c.control() // takes c.mu: never under pnotes.mu, a leaf lock
 		c.con.pnotes.mu.Lock()
 		defer c.con.pnotes.mu.Unlock()
 		return c.con.pnotes.drive.control.Equal(want)
 	})
 	if open, m, _ := c.notesMenu(); !open || !m.Open() {
+		// The caller's span can predate control delivery (a driver's name moves
+		// the asks target). Refresh it after the committed projection catches up.
+		span = c.span(t, "")
 		c.clickStatus(span.Start + 1)
 	}
 	// The menu on screen is the one the mouse hits: wait until the frame
 	// drawn shows the rows delivered (a change redraws it), then click.
 	var m NotesMenu
 	y := -1
-	waitFor(t, "the drive menu drawn with row "+prefix, func() bool {
+	c.waitDrive(t, "the drive menu drawn with row "+prefix, func() bool {
 		c.con.pnotes.mu.Lock()
 		defer c.con.pnotes.mu.Unlock()
 		m = c.con.pnotes.menu
@@ -239,11 +290,11 @@ func TestDriveFromCouch(t *testing.T) {
 	waitFor(t, "Ana drives", func() bool { return c.control().Driving() == v1 })
 	waitFor(t, "the grant's notice", func() bool { return strings.Contains(c.notice(), "Uploads and downloads are off") })
 	waitFor(t, "Chrome told", func() bool { return c.d.Driving() == "Ana" })
-	span = c.span(t, "🕹Ana")
+	waitFor(t, "driver chip named", func() bool { return strings.Contains(c.lastRow(), "👽 Ana") })
 
 	// Bo asks; a right click on Bo's row says no.
 	v2 := c.viewer(t, "Bo")
-	span = c.span(t, "🕹Ana ✋Bo")
+	span = c.span(t, "✋Bo")
 	c.clickRow(t, span, "Bo asks", 2)
 	waitFor(t, "Bo turned down", func() bool { return len(c.control().Pending) == 0 })
 	waitFor(t, "the deny said", func() bool { return strings.Contains(c.notice(), "Said no to Bo.") })
@@ -251,11 +302,17 @@ func TestDriveFromCouch(t *testing.T) {
 		t.Fatal("saying no to Bo moved control")
 	}
 
-	// A left click on the driver's row takes control back.
-	c.clickRow(t, c.span(t, "🕹Ana"), "Ana is driving", 0)
+	// Clicking the named capability control disables drive and takes control back.
+	c.con.mu.Lock()
+	driverSpan := c.con.statusWebDriveLink
+	c.con.mu.Unlock()
+	c.mouse(0, driverSpan.End-1, 23, false)
+	c.mouse(0, driverSpan.End-1, 23, true)
 	waitFor(t, "control back", func() bool { return c.control().Driver == nil })
-	waitFor(t, "back notice", func() bool { return strings.Contains(c.notice(), "back with you") })
 	waitFor(t, "Chrome told nobody drives", func() bool { return c.d.Driving() == "" })
+	waitFor(t, "drive disabled", func() bool { return !c.cast().Capabilities().Project("drive").Enabled })
+	<-c.con.onWebCapabilityClick("drive", false)
+	waitFor(t, "drive enabled", func() bool { return c.cast().Capabilities().Project("drive").Enabled })
 
 	// Ctrl+click on the span takes control back with the menu closed, and
 	// with someone else asking.
@@ -265,7 +322,7 @@ func TestDriveFromCouch(t *testing.T) {
 		t.Fatal(err)
 	}
 	v2 = c.viewer(t, "Bo")
-	span = c.span(t, "🕹Ana ✋Bo")
+	span = c.span(t, "✋Bo")
 	if open, _, _ := c.notesMenu(); open {
 		c.clickStatus(span.Start + 1) // close it
 		waitFor(t, "menu closed", func() bool { open, _, _ := c.notesMenu(); return !open })
@@ -288,25 +345,29 @@ func TestDriveFromCouch(t *testing.T) {
 	// Bo drives; with the menu open, Ctrl+right on the span revokes.
 	c.clickRow(t, c.span(t, "✋Bo"), "Bo asks", 0)
 	waitFor(t, "Bo drives", func() bool { return c.control().Driving() == v2 })
-	if open, _, _ := c.notesMenu(); !open { // it stays open on Bo's driver row
-		c.clickStatus(c.span(t, "🕹Bo").Start + 1)
+	c.viewer(t, "Cy")
+	if open, _, _ := c.notesMenu(); !open {
+		c.clickStatus(c.span(t, "✋Cy").Start + 1)
 	}
 	waitFor(t, "menu open", func() bool { open, _, _ := c.notesMenu(); return open })
-	sp := c.span(t, "🕹Bo")
+	sp := c.span(t, "✋Cy")
 	c.mouse(18, sp.Start, 23, false) // Ctrl+right
 	c.mouse(18, sp.Start, 23, true)
 	waitFor(t, "revoked with the menu open", func() bool { return c.control().Driver == nil })
+	c.clickRow(t, c.span(t, "✋Cy"), "Cy asks", 2)
+	waitFor(t, "Cy declined", func() bool { return len(c.control().Pending) == 0 })
 
 	// A revoke that fails (the recorder stopped) is said as a failure,
 	// not as a race, and control stays.
 	c.viewer(t, "Ana")
 	c.clickRow(t, c.span(t, "✋Ana"), "Ana asks", 0)
 	waitFor(t, "Ana drives again", func() bool { return c.control().Driver != nil })
+	c.viewer(t, "Bo")
+	sp = c.span(t, "✋Bo")
 	c.d.FailEmits(errors.New("recorder stopped"))
-	sp = c.span(t, "🕹Ana")
 	c.mouse(16, sp.Start, 23, false)
 	c.mouse(16, sp.Start, 23, true)
-	waitFor(t, "the failure said", func() bool { return strings.Contains(c.notice(), "control is unchanged: recorder stopped") })
+	waitFor(t, "the failure said", func() bool { return c.cast().Capabilities().Broken() && strings.Contains(c.lastRow(), "Cast broken") })
 	if c.control().Driver == nil {
 		t.Fatal("a failed revoke changed control")
 	}
@@ -338,4 +399,242 @@ func TestDriveFailure(t *testing.T) {
 			t.Errorf("%v: %q, want %q", tc.err, got, tc.want)
 		}
 	}
+}
+
+// driveACKBrowser holds the real controller at its acknowledged writer seam.
+type driveACKBrowser struct {
+	*webcast.FakeDriven
+	armed            atomic.Bool
+	calls            atomic.Int32
+	entered, release chan struct{}
+	canceled, settle chan struct{}
+	releaseGate      bool
+}
+
+func (b *driveACKBrowser) wait(ctx context.Context) error {
+	if b.calls.Add(1) == 1 {
+		close(b.entered)
+	}
+	select {
+	case <-b.release:
+		return nil
+	case <-ctx.Done():
+		if b.canceled != nil {
+			close(b.canceled)
+			<-b.settle
+		}
+		return ctx.Err()
+	}
+}
+func (b *driveACKBrowser) WriteControl(ctx context.Context, ctl *recording.Ctl) error {
+	if b.armed.Load() && !b.releaseGate {
+		if err := b.wait(ctx); err != nil {
+			return err
+		}
+	}
+	return b.FakeDriven.WriteControl(ctx, ctl)
+}
+func (b *driveACKBrowser) WithTab(ctx context.Context, by string, fn func(drive.Tab) error) error {
+	if b.armed.Load() && b.releaseGate && by == "" {
+		if err := b.wait(ctx); err != nil {
+			return err
+		}
+	}
+	return b.FakeDriven.WithTab(ctx, by, fn)
+}
+func TestDriveActionsDoNotBlockTerminal(t *testing.T) {
+	for _, action := range []string{"grant", "deny", "popup-revoke", "ctrl-revoke", "popup-release", "ctrl-release"} {
+		t.Run(action, func(t *testing.T) {
+			var b *driveACKBrowser
+			r := newDriveCast(t, func(d *webcast.FakeDriven) webcast.Browser {
+				b = &driveACKBrowser{FakeDriven: d, entered: make(chan struct{}), release: make(chan struct{}), releaseGate: strings.HasSuffix(action, "release")}
+				return b
+			})
+			defer close(b.release)
+			who := r.viewer(t, "Ana")
+			if action != "grant" && action != "deny" {
+				if err := r.cast().Drive().Grant(who); err != nil {
+					t.Fatal(err)
+				}
+				r.viewer(t, "Bo")
+			}
+			b.armed.Store(true)
+			if strings.HasPrefix(action, "ctrl-") {
+				span := r.span(t, "✋Bo")
+				r.mouse(16, span.Start, 23, false)
+				r.mouse(16, span.Start, 23, true)
+			} else {
+				prefix, button := "Ana asks", 0
+				if action == "deny" {
+					button = 2
+				}
+				if strings.HasPrefix(action, "popup-") {
+					prefix = "Ana is driving"
+				}
+				r.clickRow(t, r.span(t, map[bool]string{true: "✋Bo", false: "✋Ana"}[strings.HasPrefix(action, "popup-")]), prefix, button)
+			}
+			select {
+			case <-b.entered:
+			case <-time.After(time.Second):
+				t.Fatal("action did not reach writer")
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+			defer cancel()
+			if err := r.con.runTerminalCommand(ctx, func() error { return nil }); err != nil {
+				t.Fatalf("terminal blocked awaiting %s ACK: %v", action, err)
+			}
+			// Unrelated keyboard input is also serviced while ACK is held.
+			r.con.runTerminalCommand(ctx, func() error {
+				r.con.pnotes.mu.Lock()
+				r.con.pnotes.menuOpen = false
+				r.con.pnotes.mu.Unlock()
+				return nil
+			})
+			fmt.Fprint(r.stdin, "z")
+			r.waitDrive(t, "typing while ACK held", func() bool { return bytes.Contains(bytes.Join(r.child.Writes(), nil), []byte("z")) })
+			// Further clicks must not allocate another acknowledged operation.
+			r.con.mu.Lock()
+			pending := r.con.drivePending
+			r.con.mu.Unlock()
+			for i := 0; i < 10; i++ {
+				r.con.revokeDrive()
+			}
+			if b.calls.Load() != 1 {
+				t.Fatalf("unbounded operations: %d", b.calls.Load())
+			}
+			r.con.mu.Lock()
+			same := pending != nil && r.con.drivePending == pending
+			r.con.mu.Unlock()
+			if !same || !strings.Contains(r.notice(), "wait for the current action") {
+				t.Fatal("repeat click replaced the operation slot")
+			}
+
+		})
+	}
+}
+
+func closeDriveBarrier(ch chan struct{}) {
+	select {
+	case <-ch:
+	default:
+		close(ch)
+	}
+}
+func TestDriveActionStaleCompletion(t *testing.T) {
+	for _, mode := range []string{"generation", "replacement"} {
+		t.Run(mode, func(t *testing.T) {
+			var b *driveACKBrowser
+			r := newDriveCast(t, func(d *webcast.FakeDriven) webcast.Browser {
+				b = &driveACKBrowser{FakeDriven: d, entered: make(chan struct{}), release: make(chan struct{})}
+				return b
+			})
+			cast := r.cast()
+			t.Cleanup(func() { closeDriveBarrier(b.release); r.con.mu.Lock(); r.con.wcast.cast = cast; r.con.mu.Unlock() })
+			who := r.viewer(t, "Ana")
+			b.armed.Store(true)
+			r.con.startDriveOperation(cast, recording.CtlDeny, recording.Author{ID: who, Name: "Ana"})
+			awaitDrive(t, "writer entered", b.entered)
+			entered, release, finished := make(chan struct{}), make(chan struct{}), make(chan struct{})
+			t.Cleanup(func() { closeDriveBarrier(release) })
+			go func() {
+				r.con.runTerminalCommand(r.con.lifetime, func() error { close(entered); <-release; return nil })
+				close(finished)
+			}()
+			awaitDrive(t, "terminal barrier entered", entered)
+			// Hold the terminal callback after dispatch settles, then change its owner.
+			close(b.release)
+			r.waitDrive(t, "deny acknowledged", func() bool { return len(cast.Drive().Control().Pending) == 0 })
+			r.con.mu.Lock()
+			pending := r.con.drivePending
+			r.con.mu.Unlock()
+			if mode == "generation" {
+				if err := cast.SetCapability(context.Background(), webcast.CapabilityDrive, false); err != nil {
+					t.Fatal(err)
+				}
+				if err := cast.SetCapability(context.Background(), webcast.CapabilityDrive, true); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				r.con.mu.Lock()
+				r.con.wcast.cast = nil
+				r.con.mu.Unlock()
+				r.con.forgetDrive()
+				r.con.mu.Lock()
+				if r.con.drivePending != pending {
+					t.Error("forget released live operation slot")
+				}
+				r.con.mu.Unlock()
+			}
+			r.con.setNotice("newer state")
+			close(release)
+			awaitDrive(t, "terminal barrier finished", finished)
+			r.waitDrive(t, "old worker finished", func() bool { r.con.mu.Lock(); defer r.con.mu.Unlock(); return r.con.drivePending == nil })
+			if strings.Contains(r.notice(), "Said no") {
+				t.Fatal("stale completion published success")
+			}
+			// Restore the fixture owner only after its old completion has been fenced.
+			if mode == "replacement" {
+				r.con.mu.Lock()
+				r.con.wcast.cast = cast
+				r.con.mu.Unlock()
+			}
+		})
+	}
+}
+
+func TestDriveActionShutdownJoinsAndRejectsClicks(t *testing.T) {
+	var b *driveACKBrowser
+	r := newDriveCast(t, func(d *webcast.FakeDriven) webcast.Browser {
+		b = &driveACKBrowser{FakeDriven: d, entered: make(chan struct{}), release: make(chan struct{}), canceled: make(chan struct{}), settle: make(chan struct{})}
+		return b
+	})
+	t.Cleanup(func() { closeDriveBarrier(b.release); closeDriveBarrier(b.settle) })
+	who := r.viewer(t, "Ana")
+	cast := r.cast()
+	b.armed.Store(true)
+	r.con.startDriveOperation(cast, recording.CtlGrant, recording.Author{ID: who})
+	awaitDrive(t, "writer entered", b.entered)
+	r.con.Stop()
+	select {
+	case <-b.canceled:
+	case <-time.After(time.Second):
+		t.Fatal("shutdown did not cancel writer")
+	}
+	select {
+	case <-r.done:
+		t.Fatal("shutdown did not join ACK worker")
+	default:
+	}
+	r.con.startDriveOperation(cast, recording.CtlGrant, recording.Author{ID: who})
+	if b.calls.Load() != 1 {
+		t.Fatal("shutdown admitted another click")
+	}
+	close(b.settle)
+	select {
+	case <-r.done:
+	case <-time.After(time.Second):
+		t.Fatal("shutdown did not finish after writer settled")
+	}
+	r.con.startDriveOperation(cast, recording.CtlGrant, recording.Author{ID: who})
+	if b.calls.Load() != 1 {
+		t.Fatal("stopped GoTracked dispatched inline")
+	}
+}
+
+// Control ACK precedes the console's delivery and paint. A helper must refresh
+// a coordinate captured before a grant adds the driver's name to the chip.
+func TestDriveMenuClickRefreshesPreGrantCoordinate(t *testing.T) {
+	r := newDriveCast(t)
+	ana := r.viewer(t, "Ana")
+	old := r.span(t, "✋Ana")
+	if err := r.cast().Drive().Grant(ana); err != nil {
+		t.Fatal(err)
+	}
+	r.viewer(t, "Bo")
+	current := r.span(t, "✋Bo")
+	if old.Start == current.Start {
+		t.Fatal("fixture did not move drive target")
+	}
+	r.clickRow(t, old, "Ana is driving", 0)
+	r.waitDrive(t, "revoked through refreshed coordinate", func() bool { return r.control().Driver == nil })
 }

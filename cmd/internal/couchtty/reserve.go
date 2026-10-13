@@ -99,12 +99,16 @@ type StatusModel struct {
 	Notice  string
 	// Webcast is the cast Chrome's cell (#454), drawn after the screen
 	// broadcast's cells so their fixed columns never move.
-	Webcast WebcastCell
+	Webcast                       WebcastCell
+	WebAnnotationOn, WebDrivingOn bool
+	CapabilityNotice              string
 	// WebNotes is the web cast's open notes (#470), drawn as 💭N after the
 	// Chrome cell; a click opens the notes menu with them.
 	WebNotes int
-	// WebDrive is remote driving's span (#467), after them: who drives
-	// (🕹Ana) and who asks (✋Bo); a click opens the drive menu.
+	// WebDriverName belongs to the enabled 👽 capability control.
+	WebDriverName string
+	// WebDrive is the separate pending-request span (✋Bo or ✋N).
+	// A click opens the drive menu.
 	WebDrive string
 	// Spinner is the loading placeholder's spinner frame (pair#206).
 	Spinner uint8
@@ -176,14 +180,14 @@ type RenderedStatusRow struct {
 	Webcast ColumnSpan
 	// WebFocus is the go-to-Chrome button's span (#501).
 	WebFocus ColumnSpan
-	// WebPointerLink and WebDriveLink are the 👆 and 👽 that copy the pointer and
+	// WebPointerLink and WebDriveLink are the 👆 and 👽 controls for pointer and
 	// drive links (#501, pair#506), in the screen broadcast's `LIVE ⏸ 👆` family.
-	// Each is its own span, so a hover can say which link it holds.
+	// The drive span includes the driver name while driving is enabled.
 	WebPointerLink ColumnSpan
 	WebDriveLink   ColumnSpan
 	// WebNotes is the web cast's 💭N span (#470).
 	WebNotes ColumnSpan
-	// WebDrive is remote driving's span (#467).
+	// WebDrive is the pending drive requests' popup span (#467).
 	WebDrive ColumnSpan
 }
 
@@ -278,18 +282,25 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 		}
 		// The go-to-Chrome button and the two link glyphs (#501) sit right
 		// after the cell, at columns that don't move with the note count.
-		button := func(label string) ColumnSpan {
+		button := func(label, sgr string) ColumnSpan {
 			appendText(" ", "")
 			start := used
-			appendText(label, "")
+			appendText(label, sgr)
 			if used == start {
 				return ColumnSpan{}
 			}
 			return ColumnSpan{Start: start, End: used}
 		}
-		webFocusSpan = button(WebcastFocusLabel)
-		webPointerLinkSpan = button(broadcast.PointerLabel)
-		webDriveLinkSpan = button(WebcastDriveLinkLabel)
+		webFocusSpan = button(WebcastFocusLabel, "")
+		webPointerLinkSpan = button(broadcast.PointerLabel, capabilitySGR(m.WebAnnotationOn))
+		driveLabel, driveStyle := WebcastDriveLinkLabel, ""
+		if m.WebDrivingOn {
+			driveStyle = broadcast.PointerSGR
+			if name := rowtext.Sanitize(m.WebDriverName); name != "" {
+				driveLabel += " " + name
+			}
+		}
+		webDriveLinkSpan = button(driveLabel, driveStyle)
 		if m.WebNotes > 0 {
 			appendText(" ", "")
 			start := used
@@ -314,6 +325,12 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 			appendText(" ", "")
 		}
 		appendText(badge, "\x1b[1;7m")
+	}
+	if m.CapabilityNotice != "" {
+		if used > 0 {
+			appendText(" ", "")
+		}
+		appendText(rowtext.Sanitize(m.CapabilityNotice), "")
 	}
 	var chips []ChipSpan
 	lead := 0
@@ -412,7 +429,7 @@ const (
 	// WebcastFocusLabel is the button that brings the cast Chrome to the
 	// front (#501).
 	WebcastFocusLabel = "↗"
-	// WebcastDriveLinkLabel copies the drive link (#501). The 👆 before it
+	// WebcastDriveLinkLabel toggles driving or copies its link. The 👆 before it
 	// is the screen broadcast's own PointerLabel; the broadcast has no 👽
 	// since #503 removed its remote-control placeholder.
 	WebcastDriveLinkLabel = "👽"

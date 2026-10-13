@@ -52,6 +52,7 @@ function checkRecord(r) {
     case 'note': need(!!r.id, 'id'); need(!!(r.author && r.author.id), 'author.id'); need((r.at && r.at.node > 0) || !!r.region, 'at.node or region'); break;
     case 'note-state': need(!!r.id, 'id'); need(r.state === 'open' || r.state === 'resolved', 'state'); break;
     case 'stroke': need(!!r.id, 'id'); need(!!(r.author && r.author.id), 'author.id'); need(Array.isArray(r.pts) && r.pts.length > 0, 'pts'); break;
+    case 'annotation-clear': need(r.who?.id === 'operator', 'operator attribution'); break;
   }
 }
 
@@ -107,7 +108,7 @@ export class Model {
   inSegment() { if (!this.live || !this.top) fail('no live segment with a top document (a change outside seg … stop)'); }
 
   applyKind(r) {
-    if ((r.k === 'seg' || r.k === 'ctl') && this.ended) fail(`a ${r.k} after stop end: the cast is over`);
+    if ((r.k === 'seg' || r.k === 'ctl' || r.k === 'annotation-clear') && this.ended) fail(`a ${r.k} after stop end: the cast is over`);
     switch (r.k) {
       case 'head':
         if (this.head) fail('a second head');
@@ -133,6 +134,7 @@ export class Model {
         n.state = r.state; return;
       }
       case 'stroke': this.strokes.push({ stroke: r, seg: this.seg }); return;
+      case 'annotation-clear': this.notes = []; this.strokes = []; return;
       case 'frame': return;
       case 'ins': case 'rm': case 'kids': case 'attr': case 'text': case 'shadow': case 'sheet': case 'adopt':
       case 'font': case 'input': case 'scroll': case 'selection': case 'nav': case 'title': case 'vp':

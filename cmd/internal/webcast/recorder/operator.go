@@ -58,10 +58,11 @@ type operatorContext struct {
 	saved   *operatorSave
 }
 type operatorWrite struct {
-	owner  *operatorContext
-	record rec.Record
-	doc    int
-	settle func(board.OperatorOutcome, error)
+	admission board.AnnotationAdmission
+	owner     *operatorContext
+	record    rec.Record
+	doc       int
+	settle    func(board.OperatorOutcome, error)
 }
 
 // operatorMessage is bounded before allocating the binding's payload. Only the
@@ -143,10 +144,10 @@ func (r *Recorder) operatorBinding(e Event) bool {
 	if !ok {
 		return false
 	}
-	r.handleOperator(e.Session, ctx, req)
+	r.handleOperator(e.Session, ctx, req, e.annotation)
 	return true
 }
-func (r *Recorder) handleOperator(session string, ctx int64, req board.OperatorRequest) {
+func (r *Recorder) handleOperator(session string, ctx int64, req board.OperatorRequest, admission board.AnnotationAdmission) {
 	r.expireOperator()
 	if !r.operatorIdentity(session, ctx) || r.opts.Operator == nil {
 		r.operatorRefusal(session, ctx, req.Request, board.ErrStale)
@@ -158,7 +159,7 @@ func (r *Recorder) handleOperator(session string, ctx int64, req board.OperatorR
 			o.board.Close()
 		}
 		o = &operatorContext{session: session, context: ctx, doc: r.m.st.DocSeg}
-		o.board = r.opts.Operator.NewOperator(func(record rec.Record, doc int, settle func(board.OperatorOutcome, error)) error {
+		o.board = r.opts.Operator.NewOperator(func(record rec.Record, doc int, admitted board.AnnotationAdmission, settle func(board.OperatorOutcome, error)) error {
 			request := o.writing
 			var once sync.Once
 			done := func(outcome board.OperatorOutcome, err error) {
@@ -176,7 +177,7 @@ func (r *Recorder) handleOperator(session string, ctx int64, req board.OperatorR
 			}
 			// The enqueue refusal is returned to Board; its caller publishes that
 			// synchronous result. Queued completions alone publish a later reply.
-			if !r.enqueueOperator(operatorWrite{owner: o, record: record, doc: doc, settle: done}) {
+			if !r.enqueueOperator(operatorWrite{admission: admitted, owner: o, record: record, doc: doc, settle: done}) {
 				return errOperatorQueue
 			}
 			return nil
@@ -193,6 +194,10 @@ func (r *Recorder) handleOperator(session string, ctx int64, req board.OperatorR
 			o.draft = nil
 		}
 		reply(board.OperatorReply{Request: req.Request, Outcome: board.OperatorAccepted})
+		return
+	}
+	if err := admission.Check(); err != nil {
+		r.operatorRefusal(session, ctx, req.Request, err)
 		return
 	}
 	if err := r.operatorAdmission(session, ctx, o.doc); err != nil {
@@ -229,7 +234,15 @@ func (r *Recorder) handleOperator(session string, ctx int64, req board.OperatorR
 				r.operatorRefusal(session, ctx, req.Request, err)
 				return
 			}
+			if err := admission.Check(); err != nil {
+				r.operatorRefusal(session, ctx, req.Request, err)
+				return
+			}
 			o.draft = &operatorDraft{handle: hex.EncodeToString(token[:]), request: req.Request, prepare: *p, node: node}
+		}
+		if err := admission.Check(); err != nil {
+			r.operatorRefusal(session, ctx, req.Request, err)
+			return
 		}
 		r.operatorReply(session, ctx, OperatorReply{OperatorReply: board.OperatorReply{Request: req.Request, Outcome: board.OperatorAccepted}, Draft: o.draft.handle, Seg: r.m.st.Seg, Doc: o.doc})
 	case "save-note":
@@ -239,7 +252,7 @@ func (r *Recorder) handleOperator(session string, ctx int64, req board.OperatorR
 				r.operatorRefusal(session, ctx, req.Request, board.ErrShape)
 				return
 			}
-			reply(o.board.Note(req.Request, o.saved.note))
+			reply(o.board.NoteAdmitted(admission, req.Request, o.saved.note))
 			return
 		}
 		d := o.draft
@@ -249,7 +262,7 @@ func (r *Recorder) handleOperator(session string, ctx int64, req board.OperatorR
 		}
 		n := board.NoteIn{Seg: d.prepare.Seg, Node: d.node, Box: d.prepare.Box, Region: d.prepare.Region, Color: in.Color, Text: in.Text}
 		o.writing = req.Request
-		result := o.board.Note(req.Request, n)
+		result := o.board.NoteAdmitted(admission, req.Request, n)
 		if result.Outcome != board.OperatorRefused {
 			d.used = req.Request
 			o.saved = &operatorSave{request: req.Request, body: *in, note: n}
@@ -257,10 +270,10 @@ func (r *Recorder) handleOperator(session string, ctx int64, req board.OperatorR
 		reply(result)
 	case "stroke":
 		o.writing = req.Request
-		reply(o.board.Stroke(req.Request, *req.Stroke))
+		reply(o.board.StrokeAdmitted(admission, req.Request, *req.Stroke))
 	case "resolve":
 		o.writing = req.Request
-		reply(o.board.SetState(req.Request, req.Resolve.Seg, board.StateIn{ID: req.Resolve.ID, State: req.Resolve.State}))
+		reply(o.board.SetStateAdmitted(admission, req.Request, req.Resolve.Seg, board.StateIn{ID: req.Resolve.ID, State: req.Resolve.State}))
 	}
 }
 func (r *Recorder) replyOperatorOperation(o *operatorContext, reply board.OperatorReply) {
@@ -296,6 +309,10 @@ func (r *Recorder) writeOperator(at time.Time, in operatorWrite) {
 	}
 	if r.err != nil {
 		in.settle(board.OperatorRefused, r.err)
+		return
+	}
+	if err := in.admission.Check(); err != nil {
+		in.settle(board.OperatorRefused, err)
 		return
 	}
 	if !r.m.Emit(r.t(at), in.record) {

@@ -23,6 +23,7 @@ const (
 	KeyLeft
 	KeyRight
 	KeyCtrlSpace
+	KeyCopyNotice
 )
 
 // PanelKey is one decoded keystroke.
@@ -93,6 +94,8 @@ func DecodePanelKeys(in []byte) (keys []PanelKey, held []byte) {
 		switch {
 		case b == '\r' || b == '\n':
 			keys = append(keys, PanelKey{Kind: KeyEnter})
+		case b == 0x19:
+			keys = append(keys, PanelKey{Kind: KeyCopyNotice})
 		case b == '\t':
 			keys = append(keys, PanelKey{Kind: KeyTab})
 		case b == 0x7f || b == 0x08:

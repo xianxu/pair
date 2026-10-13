@@ -1,5 +1,5 @@
 threads
-
+Ctrl+Y copy last notice
     pair:2  /workspace/worktree/pair-slot2/pair  live
 filter: :2
 TAB BAR

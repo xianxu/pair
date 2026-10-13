@@ -37,6 +37,10 @@ func newDriveFixture(t *testing.T, grace time.Duration) *driveFixture {
 	}
 	clock := func() int64 { return inj.Page().T + 1 }
 	ctrl := drive.NewMemController(recording.Tee(stream, inj), inj, clock, grace)
+	ctrl.WithControlReset(inj.ResetControl)
+	if err := ctrl.SetDriveAllowed(context.Background(), true); err != nil {
+		t.Fatal(err)
+	}
 	t.Cleanup(func() { ctrl.Close() })
 	return &driveFixture{srv: NewServer("tok", NewFakeBrowser(), time.Second, nil, nil).WithDrive(ctrl, "drv"), ctrl: ctrl, inj: inj, stream: stream}
 }
@@ -45,6 +49,7 @@ func newDriveFixture(t *testing.T, grace time.Duration) *driveFixture {
 func (f *driveFixture) post(route, key, body string) (int, string) {
 	r := httptest.NewRequest(http.MethodPost, "/drv/drive/"+route, strings.NewReader(body))
 	r.Header.Set("Content-Type", "application/json")
+	r.Header.Set("X-Couch-Drive-Generation", fmt.Sprint(f.ctrl.DriveCapability().Generation))
 	if key != "" {
 		r.Header.Set(drive.SeatHeader, key)
 	}
@@ -146,6 +151,7 @@ func TestDriveRoutesShape(t *testing.T) {
 	for _, route := range []string{"hello", "control", "input"} {
 		r := httptest.NewRequest(http.MethodPost, "/tok/drive/"+route, strings.NewReader(`{}`))
 		r.Header.Set("Content-Type", "application/json")
+		r.Header.Set("X-Couch-Drive-Generation", "1")
 		w := httptest.NewRecorder()
 		plain.ServeHTTP(w, r)
 		if w.Code != http.StatusNotFound {
@@ -304,6 +310,7 @@ func TestDriveOnlyUnderTheDriveLink(t *testing.T) {
 	for _, route := range []string{"hello", "control", "input"} {
 		r := httptest.NewRequest(http.MethodPost, "/tok/drive/"+route, strings.NewReader(`{}`))
 		r.Header.Set("Content-Type", "application/json")
+		r.Header.Set("X-Couch-Drive-Generation", fmt.Sprint(f.ctrl.DriveCapability().Generation))
 		w := httptest.NewRecorder()
 		f.srv.ServeHTTP(w, r)
 		if w.Code != http.StatusNotFound {
@@ -356,6 +363,9 @@ func TestDriveRoutesLogWhatTheViewerCantFix(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			f := newDriveFixture(t, time.Minute)
 			ctrl := drive.NewMemController(recording.Tee(f.stream, f.inj), &failingInjector{f.inj, c.err}, func() int64 { return f.inj.Page().T + 1 }, time.Minute)
+			if err := ctrl.SetDriveAllowed(context.Background(), true); err != nil {
+				t.Fatal(err)
+			}
 			t.Cleanup(func() { ctrl.Close() })
 			var logs []string
 			f.srv = NewServer("tok", NewFakeBrowser(), time.Second, nil, nil).WithDrive(ctrl, "drv").

@@ -1,5 +1,5 @@
 threads
-
+Ctrl+Y copy last notice
 ▸ pair  /workspace/pair  live
     pair:1  /workspace/worktree/pair-slot1/pair  live
     └─ review ready

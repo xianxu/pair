@@ -82,6 +82,7 @@ type Console struct {
 	codes            castCodes
 	terminalCommands chan terminalCommand
 	terminalFailure  error
+	drivePending     *driveOperation // guarded by mu; survives forgetDrive/cast replacement
 	// exitFailure is teardown's one classification of why the terminal failed
 	// (shutdown cancellations filtered out), read by TerminalFailure.
 	exitFailure   error

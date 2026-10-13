@@ -59,7 +59,9 @@ func TestLiveViewerPage(t *testing.T) {
 	want := string(st.Canonical())
 	waitEval(t, page, "the drawn page", fmt.Sprintf(`(async () => {
 		const m = await import('./model.js');
-		return window.couchViewer ? m.goJSON(window.couchViewer.canonical()) : '';
+		if (!window.couchViewer) return '';
+		await window.couchViewer.ready();
+		return m.goJSON(window.couchViewer.canonical());
 	})()`), want)
 
 	// Scaled to fit 1024 wide: 1280×800 at 0.8, never relaid out.

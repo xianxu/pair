@@ -39,6 +39,10 @@ func castSubmissionFixture(t *testing.T) (*Cast, *submissionBrowser, *recording.
 	var writer *board.Writer
 	bd := board.New(notes.Structural{}, func(r recording.Record, doc int) error { writes++; return writer.Emit(r, doc) })
 	writer = board.NewWriter(bd, nil)
+	bd.WithAnnotationCleanup(writer.ClearAnnotations)
+	if err := bd.SetAnnotationAllowed(context.Background(), true); err != nil {
+		t.Fatal(err)
+	}
 	for _, r := range b.Recs {
 		if err := writer.Put(r); err != nil {
 			t.Fatal(err)

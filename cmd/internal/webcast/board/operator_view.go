@@ -53,6 +53,9 @@ func (b *Board) pruneOperatorLocked(now time.Time) {
 	}
 }
 func (b *Board) refreshOperatorLocked(r recording.Record) {
+	if _, clear := r.(*recording.AnnotationClear); clear {
+		b.operatorStrokes = nil
+	}
 	if b.operatorDoc != b.st.DocSeg {
 		b.operatorDoc = b.st.DocSeg
 		b.operatorStrokes = nil

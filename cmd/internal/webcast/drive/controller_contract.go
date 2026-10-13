@@ -58,6 +58,9 @@ func RunControllerContract(t recording.TB, newController func(sink recording.Sin
 	spy := &spyInjector{}
 	c := newController(sink, spy, clock, grace)
 	ctx := context.Background()
+	if err := c.SetDriveAllowed(ctx, true); err != nil {
+		t.Fatalf("enable drive: %v", err)
+	}
 	states, _ := c.Subscribe()
 	batch := Batch{Seg: 1, Acts: []Act{{A: ActText, V: "x"}}}
 	driving := func() string { return c.Control().Driving() }
