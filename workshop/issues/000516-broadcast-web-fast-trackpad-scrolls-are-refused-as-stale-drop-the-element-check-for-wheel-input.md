@@ -49,6 +49,7 @@ No coalescing up front: measure a fast flick end to end first (injector queue de
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed — make -k test exit 0, no FAIL lines, on 85a41d94 + main (the earlier review-branch-restore flake did not recur). Round-1 fix: Act, ErrStale and onTarget now name Injector.Inject's rule instead of restating the old one; Done-when 1's evidence recorded as a revision (the contract's deterministic wheel case; the live flick reproduces only intermittently on main); test hygiene. Fix: a wheel skips the identity check, keeps the bounds check (RunInjectorContract wheel cases, mutation-checked). TestDriveRealCastFlick after the fix, 3 runs: every px injected, 0 refused, 0 busy; arrival 39-43 ms (max 67-69); no backlog; momentum shape kept; no coalescing or playout buffer added (decision in the Log). TestDriveRealCast green. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
 - **Flick measurement, before the fix** (headless, real cast chain): the flick reproduces the refusal only sometimes
   (1 of 2 runs: 2 refused, 1065 of 1102 px injected); with 60 px rows, 0 of 3. A CDP call per event is too slow to
   flick (100 events took 3.6 s), so the test dispatches the events inside the viewer page.
