@@ -1,6 +1,6 @@
 ---
 id: 000494
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours: 4.775
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: bc69501b32cec152e616d1d25e3475a1962fec87
         evidence_commit: bc4684f5689725281a1145b438ad6d635b30c1d2
+        landed_commit: 889fafd0593aa2b6ea3ee55e5f1bec60e3436f87
 ---
 
 # broadcast-web: the operator annotates in the cast Chrome itself (pointer strokes and notes, injected overlay)
