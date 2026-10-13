@@ -1625,3 +1625,4 @@ proof; record the surprising case so the next change starts from evidence.
 - #537 UI review: mutually exclusive presentation phases do not erase independent
   authority facts. Test OFF/view-only/paused crossed with active driving, and
   preserve held editor text when newly accessible read-only UI is opened.
+- #536: Sharing note-box geometry does not share gesture timing. Keep threshold crossing and drag latching shared too; test each consumer's press, sub-threshold movement, release, and drag back toward its origin.

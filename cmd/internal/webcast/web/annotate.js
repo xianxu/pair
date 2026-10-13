@@ -14,7 +14,7 @@
 // symlink, for the node tests).
 
 import { annotationPolicy } from './annotation-policy.js';
-import { HEX_COLOR, pointerColor, colorStore, safeStorage, poster, sayer, railAt, renderSwatches, noteDialog, sessionNoteOwner, gestureBox, dragMin, boxCentre, validName, VIEWER_NAME_KEY, MAX_VIEWER_NAME } from './collab.js';
+import { HEX_COLOR, pointerColor, colorStore, safeStorage, poster, sayer, railAt, renderSwatches, noteDialog, sessionNoteOwner, gestureBox, noteGesture, dragMin, boxCentre, validName, VIEWER_NAME_KEY, MAX_VIEWER_NAME } from './collab.js';
 
 export { validName };
 
@@ -482,7 +482,7 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
       state.timer = win.setInterval(flush, CHUNK_MS);
       schedule();
     } else {
-      state.drag = { from: p, to: p, pointerType: e.pointerType, dragged: false };
+      state.drag = noteGesture(p, e.pointerType);
       drawDrag();
     }
   });
@@ -493,8 +493,7 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
       strokes.local(state.stroke.full, palette[state.stroke.color], [p], win.performance.now());
       schedule();
     } else if (state.drag) {
-      state.drag.to = p;
-      state.drag.dragged ||= regionOf(state.drag.from, p, pageView(), state.drag.pointerType, { preview: true }) !== null;
+      state.drag.move(p);
       drawDrag();
     }
   });

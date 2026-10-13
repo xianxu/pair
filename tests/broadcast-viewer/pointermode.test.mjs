@@ -357,3 +357,29 @@ test('terminal pin edits only the current session owner while enabled', () => {
   delete note.owner; tap(); assert.equal(opened[0],'view');
   note.owner='mine'; mode.setOn(false); tap(); assert.equal(opened[0],'view');
 });
+for (const [pointerType, threshold] of [['mouse', 8], ['touch', 16]]) {
+  for (const gesture of ['click', 'drag', 'drag-back']) {
+    test(`terminal ${pointerType} ${gesture}: preview only after pixel threshold (#536)`, () => {
+      const f = noteFakes();
+      f.mode.setOn(true);
+      f.toggle();
+      const event = (dx = 0, dy = 0) => ({ ...f.at(40, 12), clientX: 405 + dx, clientY: 125 + dy, pointerType });
+      f.fire('pointerdown', event());
+      assert.equal(f.boxes.filter(Boolean).length, 0, 'press must draw nothing');
+      f.fire('pointermove', event(threshold - 1));
+      assert.equal(f.boxes.filter(Boolean).length, 0, 'crossing a cell below pixel threshold is still a click');
+      if (gesture !== 'click') {
+        f.fire('pointermove', event(threshold));
+        assert.deepEqual(f.boxes.at(-1), [40, 12, pointerType === 'touch' ? 3 : 2, 1], 'exact threshold starts drag');
+        if (gesture === 'drag-back') {
+          f.fire('pointermove', event(2));
+          assert.deepEqual(f.boxes.at(-1), [40, 12, 2, 1], 'returning near start keeps minimal drag, never default box');
+        }
+      }
+      f.fire('pointerup', event());
+      const expected = gesture === 'click' ? [36, 11, 8, 2] : [40, 12, gesture === 'drag' && pointerType === 'touch' ? 3 : 2, 1];
+      assert.deepEqual(f.calls.at(-1), ['draft', { cols: 80, rows: 24, box: expected }]);
+      assert.equal(f.boxes.at(-1), null, 'release clears preview');
+    });
+  }
+}

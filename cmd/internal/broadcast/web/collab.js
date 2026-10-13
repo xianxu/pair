@@ -157,6 +157,19 @@ export function dragMin(unit, pointerType) {
   return DRAG_MIN[unit][pointerType === 'touch' ? 'touch' : 'mouse'];
 }
 
+// A note press becomes a drag once it crosses the pixel threshold; moving
+// back never turns it into a click. The owner discards it on release/cancel.
+export function noteGesture(from, pointerType) {
+  return {
+    from, to: from, pointerType, dragged: false,
+    move(to) {
+      this.to = to;
+      const min = dragMin('px', this.pointerType);
+      this.dragged ||= Math.abs(to[0] - this.from[0]) >= min || Math.abs(to[1] - this.from[1]) >= min;
+    },
+  };
+}
+
 export function gestureBox(from, to, view, { min, cells = false, preview = false }) {
   const tap = Math.abs(to[0] - from[0]) < min && Math.abs(to[1] - from[1]) < min;
   if (preview && tap) return null; // a click has no box until release
