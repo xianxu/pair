@@ -1468,3 +1468,7 @@ proof; record the surprising case so the next change starts from evidence.
 - An injected adapter is still integration code: pure state/event transitions own retry state; the adapter interprets effects and ignores stale completions by attempt identity.
 - Reuse a shared recipient identity/parser when adding a routing consumer; keep each caller's uniqueness and incarnation policy separate.
 - Visible evidence needs a valid, nonempty effective intersection, including ancestor clips. Share that predicate across text and accessibility entries; test wholly off-screen regions and clipped descendants in both the DOM fixture and a real browser.
+
+### #494 — publish measured commit identifiers
+
+- A smoke handoff accidentally sent a placeholder commit identifier. Read `git rev-parse --short HEAD` after the commit, then copy that exact output into the report. Never draft a send command with a placeholder hash; omit the hash until it is known.
