@@ -5,8 +5,8 @@ deps: [pair#506]
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
-estimate_hours:
-card_mirror: 'f62691f290df8cbb1282e790b4637c8ad081eb23' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 7.02
+card_mirror: '5c7a96194038bb7de50ae6825efded3e08dfe0e8' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T22:52:07-07:00
 claimant:
     operator: Xian Xu
@@ -15,6 +15,7 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: inferred}
 ---
 
 # broadcast: 👆 and 👽 are capability switches on both casts (👆 off: no one annotates; 👽 off: no one drives from outside)
@@ -113,3 +114,56 @@ Durable plan: [000523-cast-capability-switches-plan.md](../plans/000523-cast-cap
   recovery (receipt 6f882976-021f-41f3-833c-5a2e0c30aba4). Plan Revisions now
   defines the phase-to-row/viewer/action table, single-flight click retry and
   terminal failure/end-cast projection for both capabilities, plus tests.
+
+## Estimate
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md`
+against `baseline-v3.1.md`. Method A only.* Calibration is marked stale by
+estimate-source; these rates are provisional.
+
+Derivation after plan-quality passed: existing Go/JS/CDP stack, familiarity 1.0.
+The new pure capability reducer is repository-specific policy; no library can
+replace it. Existing recorder, HTTP/SSE, controller, CDP transport and browser
+fixtures provide the integration libraries, so no new-stack discovery budget.
+The thorough plan gives implementation components design ×0.2 and a 15% design
+buffer; issue/spec authoring itself is undiscounted. All implementation values
+are v2 table rates ×0.4 once. Rows below follow this mapping:
+
+| Row | Scope | Raw design → recorded | Raw implementation → recorded |
+| --- | --- | --- | --- |
+| 1 | Issue/spec and recovery design | 0.8 → 0.8 | 0.2 → 0.08 |
+| 2 | Pure capability model | 1.0 → 0.2 | 0.6 → 0.24 |
+| 3 | Go/JS recording clear/reset reducers | 0.3 → 0.06 | 0.5 → 0.2 |
+| 4 | Board/recorder ordering integration | 2.0 → 0.4 | 1.2 → 0.48 |
+| 5 | Controller/CDP cleanup reconciliation | 3.0 → 0.6 | 1.5 → 0.6 |
+| 6 | HTTP/SSE authority projection | 0.3 → 0.06 | 0.5 → 0.2 |
+| 7 | Viewer permission lifecycle | 1.5 → 0.3 | 1.0 → 0.4 |
+| 8 | Cast row and shared interaction | 1.0 → 0.2 | 0.6 → 0.24 |
+| 9 | Terminal ensure-link adaptation | 0.2 → 0.04 | 0.3 → 0.12 |
+| 10 | Overlay handshake/headless integration | 1.5 → 0.3 | 1.0 → 0.4 |
+| 11 | README/atlas | 0.1 → 0.02 | 0.2 → 0.08 |
+| 12–14 | M1, M2, issue-close reviews | 0.1 each → 0.02 each | 0.4 each → 0.16 each |
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.8 impl=0.08
+item: greenfield-go-module design=0.2 impl=0.24
+item: smaller-go-module design=0.06 impl=0.2
+item: api-integration design=0.4 impl=0.48
+item: api-integration design=0.6 impl=0.6
+item: smaller-go-module design=0.06 impl=0.2
+item: api-integration design=0.3 impl=0.4
+item: tui-screen design=0.2 impl=0.24
+item: smaller-go-module design=0.04 impl=0.12
+item: api-integration design=0.3 impl=0.4
+item: atlas-docs design=0.02 impl=0.08
+item: milestone-review design=0.02 impl=0.16
+item: milestone-review design=0.02 impl=0.16
+item: milestone-review design=0.02 impl=0.16
+design-buffer: 0.15
+total: 7.016
+```
+
+Design 3.04 × 1.15 + implementation 3.52 = **7.016 hours**, recorded as
+7.02. Includes verification and review; operator scheduling wait is excluded.
