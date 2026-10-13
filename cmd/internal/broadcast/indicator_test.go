@@ -63,11 +63,11 @@ func TestIndicatorGlyphWidths(t *testing.T) {
 	}
 }
 
-// #412: the pointer and control markers are emoji, two columns everywhere
-// they're measured or drawn; otherwise the status row's click spans and the
-// pointer check drift from what's on screen.
+// #412: the pointer marker is an emoji, two columns everywhere it's measured
+// or drawn; otherwise the status row's click spans and the pointer check drift
+// from what's on screen.
 func TestCapabilityMarkerWidths(t *testing.T) {
-	for _, label := range []string{PointerLabel, ControlLabel} {
+	for _, label := range []string{PointerLabel} {
 		if w := textwidth.Width(label); w != 2 {
 			t.Errorf("textwidth.Width(%q) = %d, want 2", label, w)
 		}

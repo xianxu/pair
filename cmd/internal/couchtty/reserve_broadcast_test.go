@@ -70,7 +70,7 @@ func TestStatusRowLiveLeadsRecAndShiftsChips(t *testing.T) {
 	r := RenderStatusRow(80, m)
 	plain := string(ansi.Strip([]byte(r.Body)))
 	// While live the capability controls (#412) sit between LIVE and REC.
-	lead := broadcast.LiveLabel + " " + broadcast.PointerLabel + " " + broadcast.ControlLabel
+	lead := broadcast.LiveLabel + " " + broadcast.PointerLabel
 	if want := lead + " REC 21%  brain"; plain != want {
 		t.Fatalf("row %q, want %q", plain, want)
 	}
@@ -108,8 +108,9 @@ func TestStatusRowStartingCell(t *testing.T) {
 	}
 }
 
-// #412: while live the row is `LIVE ⏸ 👆 👽`; the drawn active 👆 is what
-// the broadcast's pointer check accepts, and nothing else is.
+// #412: while live the row is `LIVE ⏸ 👆` (#503 took the 👽 placeholder out
+// until #407 builds remote control); the drawn active 👆 is what the
+// broadcast's pointer check accepts, and nothing else is.
 func TestStatusRowPointerCells(t *testing.T) {
 	liveW := textwidth.Width(broadcast.LiveLabel)
 	cases := []struct {
@@ -118,11 +119,10 @@ func TestStatusRowPointerCells(t *testing.T) {
 		cols      int
 		wantShown bool
 		wantPtr   ColumnSpan
-		wantCtl   ColumnSpan
 	}{
-		{"off", StatusModel{Broadcast: BroadcastLive, Pointer: PointerOff}, 80, false, ColumnSpan{liveW + 1, liveW + 3}, ColumnSpan{liveW + 4, liveW + 6}},
-		{"on", StatusModel{Broadcast: BroadcastLive, Pointer: PointerOn}, 80, true, ColumnSpan{liveW + 1, liveW + 3}, ColumnSpan{liveW + 4, liveW + 6}},
-		{"clipped", StatusModel{Broadcast: BroadcastLive, Pointer: PointerOn}, liveW + 2, false, ColumnSpan{}, ColumnSpan{}},
+		{"off", StatusModel{Broadcast: BroadcastLive, Pointer: PointerOff}, 80, false, ColumnSpan{liveW + 1, liveW + 3}},
+		{"on", StatusModel{Broadcast: BroadcastLive, Pointer: PointerOn}, 80, true, ColumnSpan{liveW + 1, liveW + 3}},
+		{"clipped", StatusModel{Broadcast: BroadcastLive, Pointer: PointerOn}, liveW + 2, false, ColumnSpan{}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -134,14 +134,14 @@ func TestStatusRowPointerCells(t *testing.T) {
 			if got := broadcast.PointerShown(f); got != c.wantShown {
 				t.Fatalf("PointerShown = %v, want %v (%q)", got, c.wantShown, r.Body)
 			}
-			if r.Pointer != c.wantPtr || r.Remote != c.wantCtl {
-				t.Fatalf("spans pointer %+v remote %+v, want %+v %+v", r.Pointer, r.Remote, c.wantPtr, c.wantCtl)
+			if r.Pointer != c.wantPtr {
+				t.Fatalf("pointer span %+v, want %+v", r.Pointer, c.wantPtr)
 			}
 		})
 	}
 	plain := string(ansi.Strip([]byte(RenderStatusRow(80, StatusModel{Broadcast: BroadcastLive, Pointer: PointerOff,
 		Actors: []StatusActor{{Label: "brain"}}}).Body)))
-	if want := broadcast.LiveLabel + " " + broadcast.PointerLabel + " " + broadcast.ControlLabel + "  brain"; plain != want {
+	if want := broadcast.LiveLabel + " " + broadcast.PointerLabel + "  brain"; plain != want {
 		t.Fatalf("row %q, want %q", plain, want)
 	}
 	for _, cell := range []BroadcastCell{BroadcastOff, BroadcastStarting} {
@@ -156,25 +156,25 @@ func TestStatusRowPointerCells(t *testing.T) {
 // puts at the row's left while live ends where broadcast.StatusGuardCols does.
 func TestStatusGuardMatchesDrawnControls(t *testing.T) {
 	r := RenderStatusRow(80, StatusModel{Broadcast: BroadcastLive, Pointer: PointerOn})
-	if r.Remote.End != broadcast.StatusGuardCols {
-		t.Fatalf("controls end at %d, guard is %d", r.Remote.End, broadcast.StatusGuardCols)
+	if r.Pointer.End != broadcast.StatusGuardCols {
+		t.Fatalf("controls end at %d, guard is %d", r.Pointer.End, broadcast.StatusGuardCols)
 	}
 }
 
-// #447: while live, open sticky notes show as 💭N right after 👽; none, or
+// #447: while live, open sticky notes show as 💭N right after 👆; none, or
 // not live, draws nothing, and the controls' spans don't move.
 func TestStatusRowNoteCount(t *testing.T) {
 	strip := func(m StatusModel, cols int) string {
 		return string(ansi.Strip([]byte(RenderStatusRow(cols, m).Body)))
 	}
 	live := StatusModel{Broadcast: BroadcastLive, Pointer: PointerOn, Notes: 3, Actors: []StatusActor{{Label: "ariadne"}}}
-	want := broadcast.LiveLabel + " " + broadcast.PointerLabel + " " + broadcast.ControlLabel + " " + broadcast.NoteGlyph + "3  ariadne"
+	want := broadcast.LiveLabel + " " + broadcast.PointerLabel + " " + broadcast.NoteGlyph + "3  ariadne"
 	if got := strip(live, 80); got != want {
 		t.Fatalf("row %q, want %q", got, want)
 	}
 	r := RenderStatusRow(80, live)
 	base := RenderStatusRow(80, StatusModel{Broadcast: BroadcastLive, Pointer: PointerOn})
-	if r.Pointer != base.Pointer || r.Remote != base.Remote || r.Control != base.Control {
+	if r.Pointer != base.Pointer || r.Control != base.Control {
 		t.Fatal("the count moved the controls")
 	}
 	if !broadcast.PointerShown(rowFrame(t, 80, r.Body)) {
@@ -199,8 +199,8 @@ func TestStatusRowNoteCount(t *testing.T) {
 // M4: the 💭N count is a click target spanning exactly its cells.
 func TestStatusRowNotesSpan(t *testing.T) {
 	r := RenderStatusRow(80, StatusModel{Broadcast: BroadcastLive, Pointer: PointerOn, Notes: 12})
-	if r.Notes.Start != r.Remote.End+1 || r.Notes.End-r.Notes.Start != textwidth.Width(broadcast.NoteGlyph+"12") {
-		t.Fatalf("notes span %+v after remote %+v", r.Notes, r.Remote)
+	if r.Notes.Start != r.Pointer.End+1 || r.Notes.End-r.Notes.Start != textwidth.Width(broadcast.NoteGlyph+"12") {
+		t.Fatalf("notes span %+v after pointer %+v", r.Notes, r.Pointer)
 	}
 	if RenderStatusRow(80, StatusModel{Broadcast: BroadcastLive}).Notes != (ColumnSpan{}) {
 		t.Fatal("no notes, no span")

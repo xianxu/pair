@@ -116,3 +116,11 @@ func TestCastWithoutDriving(t *testing.T) {
 		t.Fatalf("an unrecorded cast: controller %v, off %q", c.Drive(), c.DriveOff())
 	}
 }
+
+// A Chrome without a recorder has nothing cast to drive: its WithTab says
+// so in drive's terms, not with an error nothing maps (pair#505).
+func TestUnrecordedChromeWithTabIsNotLive(t *testing.T) {
+	if err := (&Chrome{}).WithTab(context.Background(), "v1", func(drive.Tab) error { return nil }); !errors.Is(err, drive.ErrNotLive) {
+		t.Fatalf("WithTab without a recorder: %v, want drive.ErrNotLive", err)
+	}
+}

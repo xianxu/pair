@@ -165,10 +165,9 @@ type RenderedStatusRow struct {
 	// Control is the broadcast cell's red span, from the same clipping pass;
 	// empty when no broadcast is running.
 	Control ColumnSpan
-	// Pointer and Remote are the 👆 and 👽 controls' spans while live
-	// (#412); empty otherwise or when clipped.
+	// Pointer is the 👆 control's span while live (#412); empty otherwise
+	// or when clipped.
 	Pointer ColumnSpan
-	Remote  ColumnSpan
 	// Notes is the 💭N count's span (#447 M4): a click opens the notes menu.
 	Notes ColumnSpan
 	// Webcast is the Chrome cell's span (#454); empty when Chrome isn't
@@ -228,13 +227,13 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 	}
 	// The broadcast cell leads (#395): it is the indicator the broadcast
 	// checks every frame for, so nothing may push it off the row.
-	var control, pointer, remote, notes ColumnSpan
+	var control, pointer, notes ColumnSpan
 	if label := broadcastLabel(m.Broadcast); label != "" {
 		appendText(label, broadcast.LiveSGR)
 		control = ColumnSpan{Start: 0, End: used}
 	}
 	// While live, the capability controls follow LIVE at the fixed column the
-	// broadcast's pointer check reads: `LIVE ⏸ 👆 👽` (#412).
+	// broadcast's pointer check reads: `LIVE ⏸ 👆` (#412).
 	if m.Broadcast == BroadcastLive {
 		capability := func(label, sgr string) ColumnSpan {
 			appendText(" ", "")
@@ -250,7 +249,6 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 			pointerSGR = broadcast.PointerSGR
 		}
 		pointer = capability(broadcast.PointerLabel, pointerSGR)
-		remote = capability(broadcast.ControlLabel, dimSGR)
 		if m.Notes > 0 {
 			appendText(" ", "")
 			start := used
@@ -362,7 +360,7 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 		}
 		appendText(n, "")
 	}
-	return RenderedStatusRow{Body: row.String(), Chips: chips, Control: control, Pointer: pointer, Remote: remote, Notes: notes, Webcast: webcastSpan, WebNotes: webNotesSpan, WebDrive: webDriveSpan}
+	return RenderedStatusRow{Body: row.String(), Chips: chips, Control: control, Pointer: pointer, Notes: notes, Webcast: webcastSpan, WebNotes: webNotesSpan, WebDrive: webDriveSpan}
 }
 
 // WebcastCell is the cast Chrome's state on the tab bar (#454).

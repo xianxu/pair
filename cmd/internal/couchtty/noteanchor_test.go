@@ -58,10 +58,10 @@ func anchorScreen() (terminal.Frame, ScreenLayout) {
 		"Please also check the 漢字 footer",
 		"and the nav.",
 		"draft-pair-3.md  1,1  All",
-		"LIVE ⏸ 👆 👽  pair:1  pair:3 ●  Chrome ⏸",
+		"LIVE ⏸ 👆  pair:1  pair:3 ●  Chrome ⏸",
 	)
 	l := ScreenLayout{
-		Chips: []ColumnSpan{{12, 18}, {20, 28}, {30, 38}},
+		Chips: []ColumnSpan{{10, 16}, {18, 26}, {28, 36}},
 		Slot:  "pair:3",
 		Agent: "claude",
 		Panes: []PaneRect{
@@ -85,8 +85,8 @@ func TestAnchorForEachPartOfCouchsScreen(t *testing.T) {
 		{"draft lines", cb(0, 6, 20, 2), broadcast.AnchorPane, "pane pair:3 › draft nvim › draft-pair-3.md, lines 12–13 › section: Review", "Please also check th\nand the nav."},
 		{"one draft line", cb(10, 6, 8, 1), broadcast.AnchorPane, "pane pair:3 › draft nvim › draft-pair-3.md, line 12 › section: Review", "o check"},
 		{"draft statusline", cb(0, 8, 16, 1), broadcast.AnchorPane, "pane pair:3 › draft nvim › statusline", "draft-pair-3.md"},
-		{"tab bar", cb(12, 9, 16, 1), broadcast.AnchorTabBar, "tab bar › tabs: pair:1, pair:3 ●", "pair:1  pair:3 ●"},
-		{"status line", cb(0, 9, 12, 1), broadcast.AnchorStatusLine, "status line", "LIVE ⏸ 👆 👽"},
+		{"tab bar", cb(10, 9, 16, 1), broadcast.AnchorTabBar, "tab bar › tabs: pair:1, pair:3 ●", "pair:1  pair:3 ●"},
+		{"status line", cb(0, 9, 10, 1), broadcast.AnchorStatusLine, "status line", "LIVE ⏸ 👆"},
 	} {
 		a := AnchorFor(c.box, f, l)
 		if a.Kind != c.kind || strings.Join(a.Path, " › ") != c.path || a.Text != c.text {

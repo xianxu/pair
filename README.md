@@ -958,7 +958,7 @@ Broadcasts reach viewers through [`cloudflared`](https://developers.cloudflare.c
 if Couch crashes or is killed.
 
 **Remote pointer (#412).** While broadcasting, the status row reads
-`LIVE ⏸ 👆 👽`. Clicking `👆` creates a separate **pointer link**, copies it to
+`LIVE ⏸ 👆`. Clicking `👆` creates a separate **pointer link**, copies it to
 your clipboard, and turns pointing on (`👆` turns amber). Give that link to the
 person helping you. Anyone holding it sees the same live view and can tap or
 drag on it (an iPad works well), leaving colored marks that hold for a moment and
@@ -966,14 +966,14 @@ then fade quickly on your screen and every viewer's. Each viewer draws in one of
 six colorblind-safe colors (#446): Couch gives a new viewer a color nobody else
 is using, and the column of swatches at the screen's right edge lets them pick another, which their
 browser remembers. Marks are only drawn: they never
-type or click anything in your programs, never cover the `LIVE ⏸ 👆 👽`
+type or click anything in your programs, never cover the `LIVE ⏸ 👆`
 controls (the rest of the tab bar can be pointed at), and aren't drawn while
 the switcher is open. Clicking `👆` again turns pointing
 off, clears the marks and leaves the link as view-only; clicking once more
 turns it back on for the same link. Right-click `👆` to copy the link again.
 Right-click `LIVE ⏸` to copy the view-only link again. Stopping the
-broadcast ends every link. `👽` is reserved for remote control and does
-nothing yet.
+broadcast ends every link. Remote control of the terminal cast isn't built
+yet (#407); the web cast can be driven remotely through its drive link.
 
 **Sticky notes (#447).** People on the pointer link can also leave a short
 plain-text note on part of the screen: the two buttons under the color
@@ -985,7 +985,7 @@ Couch outlines the box in its author's color, on your screen and every
 viewer's, and draws a `💭` inside its top-right corner, on a
 chip of its author's color inside a soft glow that flashes when the note
 arrives and every 15 seconds until it is resolved, and the status row shows
-the open count after the controls (`LIVE ⏸ 👆 👽 💭2`). Click `💭2` to list the
+the open count after the controls (`LIVE ⏸ 👆 💭2`). Click `💭2` to list the
 notes in a box over your screen: hovering one highlights it and makes its `💭`
 glow so you can tell which is which, clicking one copies its text,
 right-clicking one copies it and resolves it, and `×` or

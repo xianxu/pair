@@ -1076,7 +1076,7 @@ proof; record the surprising case so the next change starts from evidence.
   up to `RowMetadata.UsedColumns` and treats the rest as blank tail, so a 💭 on an empty row vanished while marks
   (background only) showed. A frame edit that adds content past the old text updates the metadata too.
 - **A user-visible addition to the tab bar is a README change (#447).** The M1 review blocked on it; grep the
-  README for the row's current spelling (`LIVE ⏸ 👆 👽`) whenever the row gains a cell.
+  README for the row's current spelling (`LIVE ⏸ 👆` since #503) whenever the row gains a cell.
 - **Rule out the host before bisecting a "regression" (#450).** Four workers called `test-review` a regression since
   #436 and the issue asked for a bisect, but the failure reproduced at #436's own merge: they ran the suite inside the
   agent sandbox, which refuses unix sockets and PTYs, while #436 was verified outside it. Before bisecting, rerun the
@@ -1416,3 +1416,11 @@ proof; record the surprising case so the next change starts from evidence.
   the old function call the new one so hooks and checks live in one place. A cache that serves a parsed value
   hands each caller its own copy of anything the caller can reach and mutate, and keys on every input that names
   the source (a root's path, not only its fixed name).
+- **An error translation is behavior; each needs a test that fails without it (#505 close).** Mapping `errClosed` to
+  `ErrClosed`, a CDP failure to `ErrInput` and a nil recorder to `ErrNotLive` were each one line, and reverting any
+  left the suite green: the route test injected a ready-made `ErrInput`. Test the translation at the seam that
+  produces it (the recorder's fake tab, the nil-recorder Chrome), and mutation-check it once.
+- **A browser event's field is a measurement, not an assumption (#505).** drive.js counted double clicks from
+  `pointerup.detail`, and its node tests fed fake events with `detail: 2`, which real Chrome never sends (pointer
+  events carry 0). Before a gesture rule reads an event field, log that field from a real browser once, and make
+  the fakes match it.
