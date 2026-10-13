@@ -64,6 +64,30 @@ func (f *fakeChrome) CallSeq(ctx context.Context, session, method string, params
 			var pm map[string]any
 			b, _ := json.Marshal(params)
 			json.Unmarshal(b, &pm)
+			if method == "Runtime.callFunctionOn" && pm["functionDeclaration"] == capturedPageProbe {
+				if err := ctx.Err(); err != nil {
+					return f.next(), err
+				}
+				if p == nil {
+					return f.next(), fmt.Errorf("missing page")
+				}
+				if p.pageError != nil {
+					return f.next(), p.pageError
+				}
+				valid := false
+				if ui != nil {
+					ui.mu.Lock()
+					w := ui.worlds[session]
+					id, _ := pm["executionContextId"].(float64)
+					valid = w != nil && w.page == p && w.id == int(id)
+					ui.mu.Unlock()
+				}
+				if !valid {
+					return f.next(), fmt.Errorf("expired page context")
+				}
+				reply = map[string]any{"result": map[string]any{"value": map[string]any{"url": p.url, "title": p.title}}}
+				break
+			}
 			respond := f.more
 			if ui != nil {
 				respond = func(session, method string, pm map[string]any, p *fakePage) (any, error, bool) {

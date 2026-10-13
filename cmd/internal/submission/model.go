@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"image/png"
 	"math"
+	"net/url"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/webcast/notes"
@@ -15,6 +17,8 @@ import (
 )
 
 const (
+	MaxPageURLBytes   = 16 << 10
+	MaxPageTitleBytes = 8 << 10
 	MaxBoxTextBytes   = 8192
 	MaxBoxTextEntries = 256
 	MaxBoxTextNodes   = 20000
@@ -30,12 +34,27 @@ type Target struct {
 	Session string `json:"session"`
 	Nonce   string `json:"nonce"`
 }
+type PageIdentity struct {
+	URL        string `json:"url"`
+	Title      string `json:"title"`
+	Provenance string `json:"provenance"`
+}
+
+func (p PageIdentity) Validate() error {
+	u, err := url.Parse(p.URL)
+	if err != nil || !u.IsAbs() || len(p.URL) > MaxPageURLBytes || len(p.Title) > MaxPageTitleBytes || strings.ContainsAny(p.URL, "\x00\r\n") || p.Provenance != "cdp" {
+		return fmt.Errorf("invalid captured page identity")
+	}
+	return nil
+}
+
 type Source struct {
-	Kind          string `json:"kind"`
-	RecordingID   string `json:"recording_id,omitempty"`
-	RecordingPath string `json:"recording_path,omitempty"`
-	TabID         string `json:"tab_id,omitempty"`
-	Document      int    `json:"document"`
+	Page          *PageIdentity `json:"page,omitempty"`
+	Kind          string        `json:"kind"`
+	RecordingID   string        `json:"recording_id,omitempty"`
+	RecordingPath string        `json:"recording_path,omitempty"`
+	TabID         string        `json:"tab_id,omitempty"`
+	Document      int           `json:"document"`
 }
 type Submission struct {
 	PrivacyDecision
@@ -48,18 +67,19 @@ type Submission struct {
 	Delivery  Delivery `json:"delivery"`
 }
 type Note struct {
-	BoxText  BoxText          `json:"box_text"`
-	Revision uint64           `json:"revision"`
-	ID       string           `json:"id"`
-	Author   recording.Author `json:"author"`
-	Text     string           `json:"text"`
-	T        int64            `json:"t"`
-	At       recording.NoteAt `json:"at"`
-	Context  notes.Context    `json:"context"`
-	Element  string           `json:"element,omitempty"`
-	Before   []string         `json:"before,omitempty"`
-	Replay   string           `json:"replay,omitempty"`
-	Crop     Crop             `json:"crop"`
+	SourceDocument int              `json:"source_document,omitempty"`
+	BoxText        BoxText          `json:"box_text"`
+	Revision       uint64           `json:"revision"`
+	ID             string           `json:"id"`
+	Author         recording.Author `json:"author"`
+	Text           string           `json:"text"`
+	T              int64            `json:"t"`
+	At             recording.NoteAt `json:"at"`
+	Context        notes.Context    `json:"context"`
+	Element        string           `json:"element,omitempty"`
+	Before         []string         `json:"before,omitempty"`
+	Replay         string           `json:"replay,omitempty"`
+	Crop           Crop             `json:"crop"`
 }
 type Crop struct {
 	File        string        `json:"file,omitempty"`
@@ -72,7 +92,8 @@ type Crop struct {
 // CaptureRegion keeps screenshot padding distinct from the original note box.
 type CaptureRegion struct{ Box, Region recording.Box }
 type BoxTextEntry struct {
-	Selector string `json:"selector"`
+	Selector string `json:"selector,omitempty"` // legacy version-1 evidence only
+	Element  string `json:"element,omitempty"`
 	Text     string `json:"text"`
 	Kind     string `json:"kind,omitempty"`
 	Role     string `json:"role,omitempty"`
@@ -90,6 +111,7 @@ type BoxText struct {
 // ReadingGuide is stored once and forwarded unchanged in the agent message.
 func ReadingGuide(recordingPath string) string {
 	return "submission.json contains note context, current box text, and capture metadata; crop-N.png files beside it show each note's current appearance.\n" +
+		"Version 2 source.page names the real captured page URL/title with CDP provenance; each note source_document references source.document. No page means capture unavailable (or a legacy bundle), never a guessed recording-head URL. Current box_text preserves ordered text-node entries with element tag/classes instead of CSS selectors; historical at.node is the @N recording handle.\n" +
 		"The recording at " + recordingPath + " is queryable with couch --broadcast-web-query DIR notes|dom|events|link (replace DIR with that quoted path; start with notes).\n" +
 		"Use dom --at <t> --sel @N for the note's recorded element, events --from <t-10000> --to <t> for what happened before it, and link --at <t> for replay. Run couch --skill for the full guide.\n" +
 		"When notes become an issue, write self-contained evidence as text: page URL without secrets, element and classes, the request, box text or a private summary, and one line on what each crop shows. " +
@@ -120,7 +142,7 @@ func ValidateBoxText(b BoxText) error {
 	for _, group := range [][]BoxTextEntry{b.VisibleText, b.AccessibleNames} {
 		total := 0
 		for _, e := range group {
-			total += len(e.Selector) + len(e.Text) + len(e.Kind) + len(e.Role)
+			total += len(e.Element) + len(e.Selector) + len(e.Text) + len(e.Kind) + len(e.Role)
 		}
 		if total > MaxBoxTextBytes {
 			return fmt.Errorf("box text group exceeds 8 KiB")
@@ -169,7 +191,7 @@ func Validate(s Submission) error {
 	if err := s.PrivacyDecision.Validate(); err != nil {
 		return err
 	}
-	if s.Version != 1 || !identifier.MatchString(s.ID) {
+	if (s.Version != 1 && s.Version != 2) || !identifier.MatchString(s.ID) {
 		return fmt.Errorf("invalid submission version or ID")
 	}
 	if s.Target.Scope == "" || s.Target.Tag == "" || s.Target.Session == "" || s.Target.Nonce == "" {
@@ -184,15 +206,50 @@ func Validate(s Submission) error {
 	if s.Source.Kind == "dom" && (s.Source.RecordingID == "" || s.Source.RecordingPath == "" || s.Source.TabID == "" || s.Source.Document < 1) {
 		return fmt.Errorf("incomplete DOM source")
 	}
+	if s.Source.Page != nil {
+		if err := s.Source.Page.Validate(); err != nil {
+			return err
+		}
+		if s.PrivacyOrigin != OriginOf(s.Source.Page.URL) {
+			return fmt.Errorf("privacy origin differs from captured page")
+		}
+	}
+	if s.Version == 2 && s.Source.Kind == "dom" {
+		if s.Privacy == "" {
+			return fmt.Errorf("current DOM submission requires explicit privacy")
+		}
+		if s.Source.Page == nil && (s.Privacy != Private || s.PrivacyOrigin != "") {
+			return fmt.Errorf("unavailable page must be private without an origin")
+		}
+	}
 	if !validDelivery(s.Delivery) {
 		return fmt.Errorf("invalid delivery state")
 	}
 	ids, files := map[string]bool{}, map[string]bool{}
+	available := false
 	for _, n := range s.Notes {
 		if n.ID == "" || ids[n.ID] {
 			return fmt.Errorf("empty or duplicate note ID")
 		}
 		ids[n.ID] = true
+		if s.Version == 2 || s.Source.Page != nil {
+			if n.SourceDocument != s.Source.Document {
+				return fmt.Errorf("note source document mismatch")
+			}
+			if n.At.Sel != "" {
+				return fmt.Errorf("current submission anchor contains a CSS selector")
+			}
+			for _, group := range [][]BoxTextEntry{n.BoxText.VisibleText, n.BoxText.AccessibleNames} {
+				for _, e := range group {
+					if e.Selector != "" {
+						return fmt.Errorf("current box text contains a CSS selector")
+					}
+				}
+			}
+			if n.Crop.File != "" && (s.Source.Page == nil || n.Crop.Document != s.Source.Document) {
+				return fmt.Errorf("crop lacks matching captured page")
+			}
+		}
 		if err := ValidateBoxText(n.BoxText); err != nil {
 			return err
 		}
@@ -200,6 +257,7 @@ func Validate(s Submission) error {
 			return err
 		}
 		if n.Crop.File != "" {
+			available = true
 			if files[n.Crop.File] {
 				return fmt.Errorf("duplicate crop file")
 			}
@@ -217,6 +275,9 @@ func Validate(s Submission) error {
 				}
 			}
 		}
+	}
+	if s.Source.Page != nil && !available {
+		return fmt.Errorf("unavailable batch claims a captured page")
 	}
 	return nil
 }

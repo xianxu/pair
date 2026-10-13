@@ -18,7 +18,7 @@ var boxTextCollector string
 
 // CapturedCrop is current-tab pixel and text evidence, distinct from note-time DOM.
 type CapturedCrop struct {
-	Origin      string // admitted current page origin, fenced with the pixels and text
+	Page        submission.PageIdentity // admitted document, fenced with pixels and text
 	BoxText     submission.BoxText
 	PNG         []byte
 	Box         rec.Box
@@ -32,7 +32,7 @@ type captureIdentity struct {
 	top, loader, tab string
 	live             bool
 	contextID        int64
-	origin           string
+	url              string
 }
 
 // Barrier is a CDP fence forwarded by Chrome after every preceding event.
@@ -49,12 +49,47 @@ func (r *Recorder) captureIdentity(ctx context.Context) (captureIdentity, error)
 	ch := make(chan captureIdentity, 1)
 	err := r.ask(ctx, func() {
 		id, _ := r.topContext(r.top)
-		ch <- captureIdentity{r.m.State().DocSeg, r.top, r.loader[r.top], r.tab.ID, r.live, id, submission.OriginOf(r.m.State().URL)}
+		ch <- captureIdentity{r.m.State().DocSeg, r.top, r.loader[r.top], r.tab.ID, r.live, id, r.m.State().URL}
 	})
 	if err != nil {
 		return captureIdentity{}, err
 	}
 	return <-ch, nil
+}
+
+const capturedPageProbe = `function(maxURL,maxTitle) {
+ const url=document.URL, title=document.title;
+ if(url.length>maxURL || title.length>maxTitle) throw new Error('page metadata exceeds limit');
+ const encoder=new TextEncoder();
+ if(encoder.encode(url).length>maxURL || encoder.encode(title).length>maxTitle) throw new Error('page metadata exceeds limit');
+ return {url,title};
+}`
+
+func (r *Recorder) capturePage(parent context.Context, identity captureIdentity) (submission.PageIdentity, error) {
+	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
+	defer cancel()
+	var result struct {
+		Result struct {
+			Value *submission.PageIdentity `json:"value"`
+		} `json:"result"`
+		Exception json.RawMessage `json:"exceptionDetails"`
+	}
+	_, err := r.opts.Call.CallSeq(ctx, identity.top, "Runtime.callFunctionOn", map[string]any{
+		"functionDeclaration": capturedPageProbe, "executionContextId": identity.contextID, "returnByValue": true,
+		"arguments": []any{map[string]any{"value": submission.MaxPageURLBytes}, map[string]any{"value": submission.MaxPageTitleBytes}},
+	}, &result)
+	if err != nil {
+		return submission.PageIdentity{}, fmt.Errorf("capture page identity: %w", err)
+	}
+	if len(result.Exception) > 0 || result.Result.Value == nil {
+		return submission.PageIdentity{}, errors.New("capture page identity unavailable")
+	}
+	page := *result.Result.Value
+	page.Provenance = "cdp"
+	if err := page.Validate(); err != nil {
+		return submission.PageIdentity{}, err
+	}
+	return page, nil
 }
 
 // CaptureCrops captures sequential clips without blocking the recorder loop.
@@ -93,6 +128,10 @@ func (r *Recorder) CaptureCrops(parent context.Context, doc int, boxes []submiss
 	if start.contextID == 0 {
 		return nil, errors.New("capture has no admitted top-frame context")
 	}
+	page, err := r.capturePage(ctx, start)
+	if err != nil {
+		return nil, err
+	}
 	verifyIdentity := func() error {
 		if err := r.captureBarrier(ctx); err != nil {
 			return err
@@ -104,9 +143,26 @@ func (r *Recorder) CaptureCrops(parent context.Context, doc int, boxes []submiss
 		if current != start {
 			return errors.New("page changed during crop capture; submit again")
 		}
+		currentPage, err := r.capturePage(ctx, start)
+		if err != nil {
+			return err
+		}
+		if err = r.captureBarrier(ctx); err != nil {
+			return err
+		}
+		after, err := r.captureIdentity(ctx)
+		if err != nil {
+			return err
+		}
+		if after != start || currentPage != page {
+			return errors.New("page changed during crop capture; submit again")
+		}
 		return nil
 	}
 
+	if err = verifyIdentity(); err != nil {
+		return nil, err
+	}
 	total := 0
 	var out []CapturedCrop
 	for _, request := range boxes {
@@ -168,7 +224,7 @@ func (r *Recorder) CaptureCrops(parent context.Context, doc int, boxes []submiss
 			return nil, errors.New("submission crops exceed 64 MiB")
 		}
 		total += len(png)
-		out = append(out, CapturedCrop{Origin: start.origin, PNG: png, Box: box, Document: doc, CapturedAt: time.Now().UTC(), BoxText: boxText})
+		out = append(out, CapturedCrop{Page: page, PNG: png, Box: box, Document: doc, CapturedAt: time.Now().UTC(), BoxText: boxText})
 		if err = verifyIdentity(); err != nil {
 			return nil, err
 		}

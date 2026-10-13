@@ -94,21 +94,35 @@ func (c *Cast) PrepareSubmission(parent context.Context, id string, target core.
 	if len(captured) != len(sub.Notes) {
 		return empty, nil, fmt.Errorf("capture did not return every selected note")
 	}
-	// Missing or unavailable capture identity can never authorize publication.
-	origin := ""
-	completeIdentity := len(captured) > 0
-	for i, crop := range captured {
-		if i == 0 {
-			origin = crop.Origin
+	// Every available crop names the same admitted page. Unknown identity is
+	// represented by unavailable evidence, never by pixels with guessed metadata.
+	var page *core.PageIdentity
+	unavailable := false
+	for _, crop := range captured {
+		if crop.Unavailable != "" {
+			unavailable = true
+			continue
 		}
-		if crop.Unavailable != "" || crop.Origin == "" || crop.Origin != origin {
-			completeIdentity = false
+		if err := crop.Page.Validate(); err != nil {
+			return empty, nil, err
+		}
+		if page == nil {
+			value := crop.Page
+			page = &value
+		} else if *page != crop.Page {
+			return empty, nil, fmt.Errorf("capture page identity changed within batch")
 		}
 	}
-	if !completeIdentity {
-		origin = ""
+	if unavailable && page != nil {
+		return empty, nil, fmt.Errorf("capture batch mixes available and unavailable pages")
 	}
-	sub.PrivacyDecision = policy.Decide(origin)
+	sub.Source.Page = page
+	pageURL := ""
+	if page != nil {
+		pageURL = page.URL
+	}
+	sub.PrivacyDecision = policy.Decide(pageURL)
+
 	total := 0
 	for _, crop := range captured {
 		if len(crop.PNG) > core.MaxPNGBytes || len(crop.PNG) > core.MaxBundleBytes-total {

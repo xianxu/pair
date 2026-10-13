@@ -278,10 +278,7 @@ func strictJSON(data []byte, out any) error {
 // complete manifest, not its embedded decision, so other fields still decode.
 func (s *Submission) UnmarshalJSON(data []byte) error {
 	if err := checkJSONKeys(data, func(depth int, key string) error {
-		if depth != 0 {
-			return nil
-		}
-		for _, canonical := range []string{"privacy", "privacy_rule", "privacy_origin"} {
+		for _, canonical := range []string{"privacy", "privacy_rule", "privacy_origin", "version", "source", "page", "source_document", "document", "url", "title", "provenance"} {
 			if strings.EqualFold(key, canonical) && key != canonical {
 				return errors.New("noncanonical privacy JSON key")
 			}

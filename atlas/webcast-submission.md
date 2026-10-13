@@ -41,11 +41,21 @@ submission, and `crop.document` identifies the captured document. Boxes use
 `[x, y, width, height]` in page CSS pixels. A crop is the note's recorded box
 plus a margin, captured from the actual cast tab now.
 
+Version-2 bundles store the actual page in `source.page`: its full URL, title and
+`provenance: "cdp"`. Every note's `source_document` references `source.document`.
+URL/title are read in the same admitted isolated context as the capture, checked
+across the text/pixel fences, and bounded to 16 KiB / 8 KiB. Navigation or changed
+metadata rejects capture. An unavailable batch claims no page and stays private.
+Version-1 bundles remain readable, including their legacy selector fields. New
+bundles omit anchor `sel` and box-text `selector`; recording/query selectors and
+the historical `at.node` handle remain available. Text-node granularity and
+reading order are preserved, including mixed parent/child content.
+
 Each note's `box_text` captures current characters inside its original unpadded
 region (or anchor box), alongside the historical anchor text. `visible_text`
 contains visible intersecting text in reading order, without repeating parent
 and child text. `accessible_names` separately labels aria-label, alt, title,
-and role/name entries. Both include selectors. Hidden, zero-size, off-screen,
+and role/name entries. Both include bounded `element` tag/class markup instead of CSS selectors. Hidden, zero-size, off-screen,
 and aria-hidden content is excluded. Input values are never read; textarea and
 editable descendants are omitted from text and derived names for every origin,
 while static field labels remain. This does not redact pixels or historical DOM. Both text and names must intersect a
@@ -55,7 +65,7 @@ are handled in the composed-tree traversal. A subtree with clip-path, masks,
 legacy clip, non-axis-aligned/non-positive transforms, rounded overflow clips or
 nonzero overflow-clip-margin is omitted and reported as
 `truncated: true`, `skipped: ["unsupported clipping"]`. Its PNG remains complete. The PNG is the definitive appearance;
-box text preserves characters and selectors locate elements.
+box text preserves characters and tag/classes help locate source.
 
 The `scope` is `top-document-and-open-shadow-roots`. Separate frame documents,
 object/embed content and closed shadow interiors are outside that scope.
@@ -63,7 +73,7 @@ Intersecting skipped frames or object/embed nodes set `truncated: true` and name
 the kind in `skipped`; closed shadow interiors are not generally detectable.
 The PNG retains their visible appearance.
 
-Each text group has an 8 KiB budget including its selectors and labels; the two
+Each text group has an 8 KiB budget including its element metadata and labels; the two
 groups share a 256-entry limit. Traversal stops at 20,000 nodes and reports
 `truncated: true` when evidence reaches a limit. Box text belongs to the same
 capture document and interval as its PNG, not the note's historical moment.
@@ -91,7 +101,7 @@ note generation used by acknowledgment.
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "privacy": "private",
   "privacy_rule": null,
   "privacy_origin": "https://example.test",
@@ -100,6 +110,7 @@ note generation used by acknowledgment.
   "target": {"scope": "scope", "tag": "thread", "session": "session", "nonce": "launch"},
   "source": {
     "kind": "dom",
+    "page": {"url":"https://example.test/settings", "title":"Settings", "provenance":"cdp"},
     "recording_id": "recording-1",
     "recording_path": "/absolute/couch/webcast/recordings/recording-1",
     "tab_id": "tab-1",
@@ -107,13 +118,14 @@ note generation used by acknowledgment.
   },
   "notes": [{
     "id": "note-1",
+    "source_document": 1,
     "revision": 0,
     "author": {"id": "viewer-1", "name": "Ana", "color": "#ff0000"},
     "text": "Align this button with the heading.",
     "t": 1530,
-    "at": {"node": 7, "kind": "element", "path": ["main", "button#save"], "sel": "#save", "text": "Save", "box": [20, 80, 100, 32]},
+    "at": {"node": 7, "kind": "element", "path": ["main", "button#save"], "text": "Save", "box": [20, 80, 100, 32]},
     "context": {"node": 7, "landmark": 3, "text": "Settings Save", "box": [10, 20, 300, 120]},
-    "box_text": {"region": [20, 80, 100, 32], "visible_text": [{"selector": "#save", "text": "Save"}], "accessible_names": [{"selector": "#save", "kind": "role", "role": "button", "text": "Save"}], "truncated": false},
+    "box_text": {"region": [20, 80, 100, 32], "visible_text": [{"element": "<button class=\"save\">", "text": "Save"}], "accessible_names": [{"element": "<button class=\"save\">", "kind": "role", "role": "button", "text": "Save"}], "truncated": false},
     "element": "<button id=\"save\">Save</button>",
     "before": ["click Save"],
     "replay": "https://example.invalid/token/r/recording-1/#t=1530",
@@ -156,11 +168,9 @@ and posts a notice naming the file. Reasons are safe categories without policy
 contents. Valid matching rules are objects such as
 `{"origin":"http://localhost:4321","privacy":"shareable"}`; no match is null.
 New bundles always record top-level `privacy` and `privacy_rule`. `privacy_origin`
-is the normalized origin observed within the current screenshot/text identity
-fence, not the recording's initial URL; missing/unavailable identity cannot grant
-sharing. Older bundles without these fields are private. #525 owns the full
-capture-bound source URL; its integration must derive the decision from that
-same captured identity rather than introduce a second URL authority.
+is derived from `source.page.url` and validated against that same captured URL,
+not the recording's initial URL. Missing/unavailable identity cannot grant
+sharing. Older bundles without privacy fields are private.
 
 When notes become an issue, write evidence as self-contained text: a page URL
 without secrets, element/classes, the operator request, appropriate text evidence

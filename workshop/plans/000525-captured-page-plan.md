@@ -1,6 +1,6 @@
 # Captured page identity implementation plan
 
-> **For agentic workers:** Consult AGENTS.md Section 3 (Subagent Strategy) to choose delegation versus warm-context execution. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** Consult AGENTS.md Section 3 (Subagent Strategy) to choose delegation versus warm-context execution. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Every new DOM submission identifies the page its current evidence came from, preserves structured text and useful element metadata, and emits no CSS selector fields.
 
@@ -60,32 +60,32 @@ Reuse the recorder stateful fake CDP page/context model (extend it with title an
 
 Files: `cmd/internal/submission/{model.go,privacy.go,model_test.go,privacy_test.go,store_test.go}`, `cmd/internal/webcast/submission/{build.go,build_test.go}`.
 
-- [ ] Write failing schema/projection/store tests using the strategies below.
-- [ ] Run `go test ./cmd/internal/submission ./cmd/internal/webcast/submission -run 'Page|Source|Selector|Build|Privacy' -count=1` and confirm intended red results.
-- [ ] Add PageIdentity, version-2 reference/permission validation and legacy compatibility. Project copied anchors without Sel and keep original recording data intact.
-- [ ] Repeat targeted command to green and commit the coherent schema change.
+- [x] Write failing schema/projection/store tests using the strategies below.
+- [x] Run `go test ./cmd/internal/submission ./cmd/internal/webcast/submission -run 'Page|Source|Selector|Build|Privacy' -count=1` and confirm intended red results.
+- [x] Add PageIdentity, version-2 reference/permission validation and legacy compatibility. Project copied anchors without Sel and keep original recording data intact.
+- [x] Repeat targeted command to green and commit the coherent schema change.
 
 ### 2. Capture-bound page and privacy
 
 Files: `cmd/internal/webcast/recorder/{submission.go,submission_test.go,fakecdp_test.go}`, `cmd/internal/webcast/{cast_submission.go,cast_submission_test.go}`.
 
-- [ ] Extend stateful fake page metadata and write controlled identity-change tests; run `go test ./cmd/internal/webcast/recorder ./cmd/internal/webcast -run 'CropCapture|Submission' -count=1` for red evidence.
-- [ ] Add bounded admitted-context metadata read and integrate it into capture fences. Replace CapturedCrop.Origin with page evidence; derive Cast policy from its URL and enforce batch consistency.
-- [ ] Repeat targeted tests; run affected privacy tests; commit capture wiring.
+- [x] Extend stateful fake page metadata and write controlled identity-change tests; run `go test ./cmd/internal/webcast/recorder ./cmd/internal/webcast -run 'CropCapture|Submission' -count=1` for red evidence.
+- [x] Add bounded admitted-context metadata read and integrate it into capture fences. Replace CapturedCrop.Origin with page evidence; derive Cast policy from its URL and enforce batch consistency.
+- [x] Repeat targeted tests; run affected privacy tests; commit capture wiring.
 
 ### 3. Structured selector-free text
 
 Files: `cmd/internal/webcast/recorder/{box_text.js,box_text_test.js}`, `cmd/internal/webcast/live_submission_test.go`, affected BoxTextEntry fixtures.
 
-- [ ] Write failing collector fixtures for element metadata and absence of selectors, preserving existing privacy/clipping tests; run `go test ./cmd/internal/webcast/recorder -run BoxText -count=1` for red evidence.
-- [ ] Remove selector path construction and carry owning element markup within existing byte/entry budgets. Preserve granularity and order, including mixed/shadow/slotted text.
-- [ ] Update live fixture to identify clipping subjects by tag/classes and assert actual page URL/title; rerun Node/Go tests and commit.
+- [x] Write failing collector fixtures for element metadata and absence of selectors, preserving existing privacy/clipping tests; run `go test ./cmd/internal/webcast/recorder -run BoxText -count=1` for red evidence.
+- [x] Remove selector path construction and carry owning element markup within existing byte/entry budgets. Preserve granularity and order, including mixed/shadow/slotted text.
+- [x] Update live fixture to identify clipping subjects by tag/classes and assert actual page URL/title; rerun Node/Go tests and commit.
 
 ### 4. Guidance and verification
 
 Files: `cmd/internal/submission/model.go`, `cmd/internal/couchcmd/skills/couch/SKILL.md`, `README.md`, `atlas/webcast-submission.md`, issue/plan/lessons.
 
-- [ ] Update guidance and schema examples consistently. Preserve privacy gates and @N query instructions.
+- [x] Update guidance and schema examples consistently. Preserve privacy gates and @N query instructions.
 - [ ] Check latest main for #524 capture changes; merge main only, preserving settlement/viewport logic if it lands first. No stacking.
 - [ ] Run affected packages, targeted race checks, `git diff --check` and `make build`. Run full `make test` in the background before close/headless conformance; inspect completion. Known #514 timing waiver from #526 is not silently generalized to new failures.
 - [ ] Run `WEBCAST_LIVE_CHROME=1 GOMAXPROCS=2 go test -p 1 ./cmd/internal/webcast -run '^TestLiveSubmissionCrop$' -count=1 -timeout 60s -v`; skips are not evidence. Log results and commit.

@@ -75,3 +75,9 @@ item: real-api-discovery design=0 impl=0.16
 design-buffer: 0.15
 total: 2.544
 ```
+
+### 2026-10-13 — implementation checkpoint
+
+Implemented v2 captured page schema/reference validation, legacy v1 reading, selector-free projection and box-text metadata, and CDP page probes inside existing capture fences. New schema/projection/capture tests failed before implementation; submission, recorder, webcast, Couch guide and console targeted tests now pass. Collector red/green tests preserve mixed text, shadow/slot order, clipping and editable-value protection. Direct and persisted alias rejection includes new page authority fields. Live Chrome assertions now cover same-document URL/title changes but have not run yet; full suite precedes them.
+
+Estimate-quality INFO allocation: schema includes v1/v2 round trips and retry tests; API integration includes fake extensions and race verification; real-API discovery owns actual Chrome verification; review allowance includes full-suite orchestration and staging. The skill primitive covers executable ReadingGuide/shipped agent guidance, while atlas-docs covers README/schema/map prose. Rates remain provisional.

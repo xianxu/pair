@@ -64,7 +64,7 @@ func castSubmissionFixture(t *testing.T) (*Cast, *submissionBrowser, *recording.
 		for _, box := range boxes {
 			var data bytes.Buffer
 			png.Encode(&data, image.NewRGBA(image.Rect(0, 0, 2, 2)))
-			out = append(out, recorder.CapturedCrop{PNG: data.Bytes(), Box: box.Box, BoxText: core.BoxText{Region: box.Region}, Document: doc, CapturedAt: time.Now()})
+			out = append(out, recorder.CapturedCrop{Page: core.PageIdentity{URL: "http://localhost:4321/blog", Title: "Local blog", Provenance: "cdp"}, PNG: data.Bytes(), Box: box.Box, BoxText: core.BoxText{Region: box.Region}, Document: doc, CapturedAt: time.Now()})
 		}
 		return out, nil
 	}
@@ -219,7 +219,11 @@ func TestCastSubmissionPrivacyUsesCaptureAndSurvivesInvalidPolicy(t *testing.T) 
 			b.capture = func(ctx context.Context, doc int, boxes []core.CaptureRegion) ([]recorder.CapturedCrop, error) {
 				crops, err := original(ctx, doc, boxes)
 				for i := range crops {
-					crops[i].Origin = tc.url
+					if tc.url == "" {
+						crops[i] = recorder.CapturedCrop{Unavailable: "page changed"}
+						continue
+					}
+					crops[i].Page = core.PageIdentity{URL: tc.url, Title: "Captured page", Provenance: "cdp"}
 				}
 				return crops, err
 			}
@@ -273,5 +277,26 @@ func TestCastSubmissionPrivacyDefault(t *testing.T) {
 	}
 	if sub.Privacy != core.Private {
 		t.Fatalf("default %q", sub.Privacy)
+	}
+}
+
+func TestCastSubmissionUsesCapturedPageSource(t *testing.T) {
+	c, b, _, _ := castSubmissionFixture(t)
+	selected, _ := c.SubmissionSelection()
+	sub, _, err := c.PrepareSubmission(context.Background(), "page", castSubmissionTarget(), selected, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sub.Source.Page == nil || sub.Source.Page.URL != "http://localhost:4321/blog" || sub.Source.Page.Title != "Local blog" || sub.Notes[0].SourceDocument != sub.Source.Document {
+		t.Fatal(sub)
+	}
+	original := b.capture
+	b.capture = func(ctx context.Context, doc int, boxes []core.CaptureRegion) ([]recorder.CapturedCrop, error) {
+		crops, err := original(ctx, doc, boxes)
+		crops[0].Page = core.PageIdentity{}
+		return crops, err
+	}
+	if _, _, err = c.PrepareSubmission(context.Background(), "missing-page", castSubmissionTarget(), selected, ""); err == nil {
+		t.Fatal("pixels without page accepted")
 	}
 }
