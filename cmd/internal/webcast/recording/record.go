@@ -327,6 +327,9 @@ type (
 		Text   string `json:"text"`
 		At     NoteAt `json:"at"`
 		Region *Box   `json:"region,omitempty"`
+		// Capture is an opaque local reference; it never exposes a file path or pixels.
+		Capture         string `json:"capture,omitempty"`
+		CropUnavailable string `json:"crop_unavailable,omitempty"`
 	}
 	NoteState struct {
 		// IfRevision is an in-process writer guard, never a wire field.
@@ -359,12 +362,16 @@ type (
 // gives those a layout anchor of the same shape): kind "element", and the path of meaningful
 // containers down to the element (e.g. main › article › p#first).
 type NoteAt struct {
-	Node NodeID   `json:"node"`
-	Kind string   `json:"kind,omitempty"`
-	Path []string `json:"path,omitempty"`
-	Sel  string   `json:"sel,omitempty"`
-	Text string   `json:"text,omitempty"`
-	Box  *Box     `json:"box,omitempty"`
+	Tag     string            `json:"tag,omitempty"`
+	Classes []string          `json:"classes,omitempty"`
+	Stable  map[string]string `json:"stable,omitempty"`
+	Route   string            `json:"route,omitempty"`
+	Node    NodeID            `json:"node"`
+	Kind    string            `json:"kind,omitempty"`
+	Path    []string          `json:"path,omitempty"`
+	Sel     string            `json:"sel,omitempty"`
+	Text    string            `json:"text,omitempty"`
+	Box     *Box              `json:"box,omitempty"`
 }
 
 // AnchorElement is an element anchor's Kind.

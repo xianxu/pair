@@ -88,3 +88,6 @@ item: milestone-review design=0.1 impl=0.2
 design-buffer: 0.15
 total: 5.48
 ```
+
+- change-code passed at a478a7b9d (plan-quality CLEAN; estimate-quality INFO, 5.48 h). Estimate integration rows cover browser conformance, recovery integration and suite/merge checks; core store/model rows cover isolated primitives. Remaining design allowance covers adapter/authority seams rather than revisiting approved behavior.
+- First implementation checkpoint: pure Go/JS scoring and projection, conservative structural resolver (including iframe replacement refusal without frame-route evidence), frozen board preparation/reservation, private atomic capture store and Step ownership model. New service prepares with one worker/eight queued jobs and signed metadata-only unavailable preparations at capacity. Targeted notes/recording/board/notedraft tests pass; JS scorer 19/19; board/store race tests pass. No UI or submission path is complete yet.
