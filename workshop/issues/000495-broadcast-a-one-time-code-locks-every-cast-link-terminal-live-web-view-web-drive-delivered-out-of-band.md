@@ -1,21 +1,22 @@
 ---
 id: 000495
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours: 8.05
-card_mirror: 'acbec659f5f9cb872e330c525f71f1813476cb1d' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '5255bdc92f91445dff566a5a5b48e442207a171f' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T12:59:16-07:00
 claimant:
     operator: Xian Xu
     machine: 4716879978a7b90f6b583da1716fd0e9
     machine_name: Xian’s MacBook Pro
-    workspace: pair:4
-    worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
+    workspace: pair:0
+    worktree: /Users/xianxu/workspace/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 0.53
 ---
 
 # broadcast: a one-time code locks every cast link (terminal LIVE, web view, web drive); delivered out of band
