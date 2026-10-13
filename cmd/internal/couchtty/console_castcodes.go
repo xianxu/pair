@@ -213,7 +213,8 @@ func (c *Console) setCodesHover(kind castKind, at int) {
 // openCodesMenu opens kind's Codes menu: a row per link -- its code, then
 // rotate and copy-link -- and rotate all. The screen broadcast's pointer link
 // is a row of its label alone until pointing first makes it (pair#495: the
-// menu never turns pointing on as a side effect of a copy).
+// menu never turns pointing on as a side effect of a copy). Chrome also has
+// an annotation row using the same word layout and hit-testing.
 func (c *Console) openCodesMenu(kind castKind) {
 	box, ok := c.buildCodesMenu(kind)
 	if !ok {
@@ -248,6 +249,13 @@ func (c *Console) buildCodesMenu(kind castKind) (codesMenu, bool) {
 	}
 	if len(codes) > 1 {
 		menuRows = append(menuRows, codesMenuRow{label: "", actions: []codesMenuWord{{text: "rotate all", action: codesAction{}}}})
+	}
+	if kind == castWeb {
+		menuRows = append(menuRows, codesMenuRow{label: "Annotation", actions: []codesMenuWord{
+			{text: "Off", action: codesAction{annotation: "watch"}},
+			{text: "Pen", action: codesAction{annotation: "point"}},
+			{text: "Note", action: codesAction{annotation: "note"}},
+		}})
 	}
 	box := layoutCodesMenu(kind.name()+" codes", menuRows, cols, rows)
 	return box, box.Open()
@@ -332,8 +340,8 @@ func (c *Console) routeCodesMenuKey(raw, canonical []byte) bool {
 	return true
 }
 
-// runCodesSelection does the selected word: copies its link, or rotates its
-// code (or every link's).
+// runCodesSelection does the selected word: selects annotation, copies its
+// link, or rotates its code (or every link's).
 func (c *Console) runCodesSelection() {
 	c.codes.mu.Lock()
 	kind := c.codes.menu
@@ -355,6 +363,17 @@ func (c *Console) runCodesSelection() {
 		case <-c.lifetime.Done():
 		}
 	})
+	if action.annotation != "" {
+		c.mu.Lock()
+		cast, running := c.wcast.cast, c.wcast.phase == webcastRunning
+		c.mu.Unlock()
+		if kind != castWeb || !running || cast == nil {
+			c.setNotice("Chrome: annotation is unavailable; the cast is not running")
+		} else if err := cast.SetAnnotationMode(action.annotation); err != nil {
+			c.setNotice("Chrome: couldn't change annotation: " + err.Error())
+		}
+		return
+	}
 	if action.copy {
 		c.copyCastLink(kind, action.link)
 		return

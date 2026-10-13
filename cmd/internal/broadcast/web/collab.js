@@ -147,7 +147,7 @@ export const MAX_NOTE_BYTES = 1024;
 // cells it touched, and a box is at least the pin's two cells), the web
 // cast in top-page CSS px. view is the screen shown, {x, y, w, h}; min is
 // how far (either axis) a drag must go to be one (DRAG_MIN). The box is
-// [x, y, w, h], inside view.
+// [x, y, w, h], inside view. preview suppresses the tap box until release.
 export const DRAG_MIN = {
   cells: { mouse: 1, touch: 2 },
   px: { mouse: 8, touch: 16 },
@@ -157,8 +157,9 @@ export function dragMin(unit, pointerType) {
   return DRAG_MIN[unit][pointerType === 'touch' ? 'touch' : 'mouse'];
 }
 
-export function gestureBox(from, to, view, { min, cells = false }) {
+export function gestureBox(from, to, view, { min, cells = false, preview = false }) {
   const tap = Math.abs(to[0] - from[0]) < min && Math.abs(to[1] - from[1]) < min;
+  if (preview && tap) return null; // a click has no box until release
   const minW = cells ? 2 : 1, minH = 1;
   const axis = (a, b, origin, size, least) => {
     if (tap) {
@@ -196,7 +197,8 @@ export function noteBytes(text) {
 // Promise<{status, text}>, color() → the viewer's pointer color, and
 // optionally resolveRequest(id) → [route, body] (default ['resolve', {id}])
 // and beforeSave() → an object merged into the note body last, or null to
-// stop the save (the web cast's name field).
+// stop the save (the web cast's name field). onClose notifies a preview owner;
+// draftPayload exposes the current draft for drawing its box without copying it.
 //   draft(payload)             a new note; Save posts 'note' with payload,
 //                              color and text (the terminal's payload is its
 //                              cell and grid, the web cast's its anchor)
@@ -230,6 +232,7 @@ export function noteDialog(els, deps) {
     els.input.value = '';
     say('');
     show(false);
+    deps.onClose?.();
   };
   const answer = (req, onDone) => {
     const sent = gen;
@@ -319,20 +322,21 @@ export function noteDialog(els, deps) {
     get open() {
       return state !== null;
     },
+    get draftPayload() { return state?.kind === 'draft' ? state.payload : null; },
   };
 }
 
 // sayer is a page's one status toast: a sentence shown for a moment (a
 // refused request no dialog is open for). Every module of the page shares
 // the one element, so two never overlap.
-export function sayer(doc, win) {
-  let toast = doc.querySelector('.annotate-msg');
+export function sayer(doc, win, root = doc.body) {
+  let toast = root.querySelector('.annotate-msg');
   if (!toast) {
     toast = doc.createElement('div');
     toast.className = 'annotate-msg';
     toast.setAttribute('role', 'status');
     toast.hidden = true;
-    doc.body.append(toast);
+    root.append(toast);
   }
   return (text) => {
     toast.textContent = text;
