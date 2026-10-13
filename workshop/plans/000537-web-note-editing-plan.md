@@ -78,47 +78,48 @@ Operator watch mode may open existing pins without enabling pen/gesture capture.
 
 Files: broadcast/note_owner.go, lockgate.go and lockgate_test.go; webcast/recording/{record,reduce,catchup}.go and colocated tests; webcast/web/{model,replay}.js; tests/webcast/{model,replay}.test.mjs and catchup_corpus.json.
 
-- [ ] Write failing tests: two unlocked cookie jars project distinct owners; public identity copying cannot affect the context; refresh retains owner, re-unlock replaces it; no raw cookie in response projection.
-- [ ] Run `go test ./cmd/internal/broadcast -run 'Test.*(Owner|LockGate)' -count=1`; confirm new assertion failure.
-- [ ] Implement private context accessor and public projection header without changing castlock. Add optional owner metadata to note creation.
-- [ ] Write codec/reducer tests for NoteEdit, immutable original creation record, exact one-note update, revision increment, edited marker, unknown/resolved/retired rejection, and submission NoteUnchanged becoming false.
-- [ ] Implement registry/check/Kind, reducer copy-on-edit and Go/JS catch-up retention. Add edit cases to the shared all-cuts corpus; keep cleared/old-document edits out of catch-up.
-- [ ] Run `go test ./cmd/internal/webcast/recording ./cmd/internal/broadcast -count=1` and `node --test tests/webcast/model.test.mjs tests/webcast/replay.test.mjs`; expect pass. Commit with #537 reference and model coauthor trailer.
+- [x] Write failing tests: two unlocked cookie jars project distinct owners; public identity copying cannot affect the context; refresh retains owner, re-unlock replaces it; no raw cookie in response projection.
+- [x] Run `go test ./cmd/internal/broadcast -run 'Test.*(Owner|LockGate)' -count=1`; confirm new assertion failure.
+- [x] Implement private context accessor and public projection header without changing castlock. Add optional owner metadata to note creation.
+- [x] Write codec/reducer tests for NoteEdit, immutable original creation record, exact one-note update, revision increment, edited marker, unknown/resolved/retired rejection, and submission NoteUnchanged becoming false.
+- [x] Implement registry/check/Kind, reducer copy-on-edit and Go/JS catch-up retention. Add edit cases to the shared all-cuts corpus; keep cleared/old-document edits out of catch-up.
+- [x] Run `go test ./cmd/internal/webcast/recording ./cmd/internal/broadcast -count=1` and `node --test tests/webcast/model.test.mjs tests/webcast/replay.test.mjs`; expect pass. Commit with #537 reference and model coauthor trailer.
 
 ### 2. Authoritative web and terminal edit paths
 
 Files: webcast/board/{wire,board,operator}.go; webcast/server_board.go; webcast/recorder/{recorder,operator}.go; broadcast/{notes,pointer_notes,session,server}.go; corresponding *_test.go.
 
-- [ ] Add failing Board/HTTP tests for own edit, same public identity with different trusted session, missing proof, operator-on-viewer denial, viewer-on-operator denial, OFF/view-only, stale generation, removed note, blank/oversized text, and preservation of author/placement.
-- [ ] Run `go test ./cmd/internal/webcast/board ./cmd/internal/webcast -run 'Test.*(Edit|Owner)' -count=1`; confirm intended failures.
-- [ ] Implement strict ParseNoteEdit and owner-bound Board.Edit/AnnotationAdmission.Edit using existing command lock and emitter. Add fixed forbidden response and shared note rate budget. Stamp trusted owner on creation.
-- [ ] Add OperatorEdit parser/tag and EditAdmitted through the existing request ledger. Route recorder edit-note and include NoteEdit in permitted recorder input. Return empty acknowledgement Note ID for edits; test uncertain writes cannot self-confirm from target existence.
-- [ ] Add queued writer tests: edit after resolve/clear/navigation rejected; edited submission selection cannot resolve newer text. Preserve generation checks at final ordered entry.
-- [ ] Add terminal pure NoteBoard.Edit and PointerState edit under mutex. Wire session callback/notification and strict server route with context-derived owner. A stale edit after OFF/on cannot act on a new note; IDs are never reused.
-- [ ] Test two actual HTTP cookie jars with copied public name/ID/owner fields on BOTH casts. Use Host gate, not test-only injected identities, for this security contract. Test operator cannot edit a viewer note.
-- [ ] Run `go test ./cmd/internal/broadcast ./cmd/internal/webcast/board ./cmd/internal/webcast/recorder ./cmd/internal/webcast -count=1`; expect pass. Commit.
+- [x] Add failing Board/HTTP tests for own edit, same public identity with different trusted session, missing proof, operator-on-viewer denial, viewer-on-operator denial, OFF/view-only, stale generation, removed note, blank/oversized text, and preservation of author/placement.
+- [x] Run `go test ./cmd/internal/webcast/board ./cmd/internal/webcast -run 'Test.*(Edit|Owner)' -count=1`; confirm intended failures.
+- [x] Implement strict ParseNoteEdit and owner-bound Board.Edit/AnnotationAdmission.Edit using existing command lock and emitter. Add fixed forbidden response and shared note rate budget. Stamp trusted owner on creation.
+- [x] Add OperatorEdit parser/tag and EditAdmitted through the existing request ledger. Route recorder edit-note and include NoteEdit in permitted recorder input. Return empty acknowledgement Note ID for edits; test uncertain writes cannot self-confirm from target existence.
+- [x] Add queued writer tests: edit after resolve/clear/navigation rejected; edited submission selection cannot resolve newer text. Preserve generation checks at final ordered entry.
+- [x] Add terminal pure NoteBoard.Edit and PointerState edit under mutex. Wire session callback/notification and strict server route with context-derived owner. A stale edit after OFF/on cannot act on a new note; IDs are never reused.
+- [x] Test two actual HTTP cookie jars with copied public name/ID/owner fields on BOTH casts. Use Host gate, not test-only injected identities, for this security contract. Test operator cannot edit a viewer note.
+- [x] Run `go test ./cmd/internal/broadcast ./cmd/internal/webcast/board ./cmd/internal/webcast/recorder ./cmd/internal/webcast -count=1`; expect pass. Commit.
 
 ### 3. Shared dialog, viewer and overlay
 
 Files: broadcast/web/{collab,notes,viewer}.js and existing dialog CSS; webcast/web/{annotate.js,annotate.css}; webcast/operator.js; tests/broadcast-viewer/{notes,pointermode}.test.mjs; tests/webcast/{annotate,operator,operator-scope}.test.mjs.
 
-- [ ] Add failing dialog tests for populated edit, Save same ID, Cancel no request, held/readonly, pending input cannot duplicate Save, and late reply/finally cannot affect another dialog.
-- [ ] Run `node --test tests/broadcast-viewer/notes.test.mjs tests/webcast/annotate.test.mjs`; confirm intended failures.
-- [ ] Add noteDialog.edit(note) and editRequest dependency, reusing text validation, generation checks and draft layout. Edit sends only ID/text plus adapter-specific seg; no new draft capture and no author changes.
-- [ ] Add one shared session-owner fetch helper; missing/failed projection is read-only. Terminal/web adapters compare public note owner only for display; server remains authority. Preserve edited marker in terminal parseNotes and web model/snapshots.
-- [ ] Update pins to use latest note on click/tooltip while retaining element identity. Show edited marker in editable/read-only note. Ensure overlay watch pin hit testing works without intercepting background Chrome input.
-- [ ] Map web note-edit to operatorTransport.mutate('edit-note', {seg,id,text}); retain exact request identity and changed-payload reconciliation. No prepare-note call for editing.
-- [ ] Run `node --test tests/broadcast-viewer/*.test.mjs tests/webcast/*.test.mjs`; expect pass. Commit.
+- [x] Add failing dialog tests for populated edit, Save same ID, Cancel no request, held/readonly, pending input cannot duplicate Save, and late reply/finally cannot affect another dialog.
+- [x] Run `node --test tests/broadcast-viewer/notes.test.mjs tests/webcast/annotate.test.mjs`; confirm intended failures.
+- [x] Add noteDialog.edit(note) and editRequest dependency, reusing text validation, generation checks and draft layout. Edit sends only ID/text plus adapter-specific seg; no new draft capture and no author changes.
+- [x] Add one shared session-owner fetch helper; missing/failed projection is read-only. Terminal/web adapters compare public note owner only for display; server remains authority. Preserve edited marker in terminal parseNotes and web model/snapshots.
+- [x] Update pins to use latest note on click/tooltip while retaining element identity. Show edited marker in editable/read-only note. Ensure overlay watch pin hit testing works without intercepting background Chrome input.
+- [x] Map web note-edit to operatorTransport.mutate('edit-note', {seg,id,text}); retain exact request identity and changed-payload reconciliation. No prepare-note call for editing.
+- [x] Run `node --test tests/broadcast-viewer/*.test.mjs tests/webcast/*.test.mjs`; expect pass. Commit.
 
 ### 4. Integration, documentation and landing
 
 Files: cmd/internal/webcast/{operator_live_test,viewer_annotate_live_test}.go; atlas/{broadcast,webcast,webcast-format}.md; issue and this plan.
 
-- [ ] Add bounded headless viewer/overlay checks: create/open/edit/save/reopen, original author/anchor retained, Cancel, other-owner read-only, OFF refusal and draft invariants. Register cleanup before failure paths; wait on committed state/ACK, not sleeps.
-- [ ] Run targeted headless tests with `WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run 'Test.*Live.*(Operator|Annotat)' -count=1 -timeout=10m`, adjusting the regex to the actual declared test names and recording the exact command.
-- [ ] Document new note-edit wire record, own-session lifetime and edited marker in existing atlas pages; no new atlas family. Record approved scope and test evidence in issue.
+- [x] Add bounded headless viewer/overlay checks: create/open/edit/save/reopen, original author/anchor retained, Cancel, other-owner read-only, OFF refusal and draft invariants. Register cleanup before failure paths; wait on committed state/ACK, not sleeps.
+- [x] Run targeted headless tests with `WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run 'Test.*Live.*(Operator|Annotat)' -count=1 -timeout=10m`, adjusting the regex to the actual declared test names and recording the exact command.
+- [x] Document new note-edit wire record, own-session lifetime and edited marker in existing atlas pages; no new atlas family. Record approved scope and test evidence in issue.
 - [ ] Run full `make -k test` to completion and cite all failures, including known unrelated failures; use targeted race tests for changed admission/queue paths. Check `git diff --check`.
 - [ ] Report real `git rev-parse HEAD` and smoke instructions to hub; wait for authorized visible staging/acceptance. Close through sdlc with evidence, fix review findings, and on SHIP merge main then `sdlc merge --yes` with all landing gates. Report PR/hash to hub and stop.
+
 
 ## Revisions
 
@@ -247,3 +248,18 @@ Function-level strategy: drive each writer with a frozen clock and compare
 live reduction against actual Split/Merge/Reduce across pause/end/navigation/
 clear. This supersedes the assumption that existing timestamp ordering alone
 was sufficient for edit persistence (ARCH-ORDER).
+
+
+### 2026-10-13 16:51 PDT — review and headless evidence
+
+- Recording and UI chunks passed independent spec/quality review after fixing
+  equal-time file ordering, OFF plus driving suppression, and held-editor
+  replacement via read-only pin inspection. The latter preserves text/payload
+  and pending request identity, showing a finish-or-cancel recovery action.
+- Full Node suite: 273/273 passed. All webcast Go packages and Board/recorder
+  race tests passed. Headless command:
+  `WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run '^(TestNoteEditLiveViewerOwnership|TestOperatorLiveAnnotation)$' -count=1 -timeout=5m`
+  passed. HTTP tests also reject an old note after fresh unlock.
+- Backend review identified revoked cookie ownership retained across a blocked
+  body read. Add deterministic blocked-body rotation tests on both casts and
+  make the shared owner accessor reject revoked proof; no castlock expansion.

@@ -73,7 +73,7 @@ background worker, polling loop or durable artifact family.
 Durable full-flow plan: [own-note editing](../plans/000537-web-note-editing-plan.md).
 
 - [x] Implement the revision event and authoritative viewer/operator edit paths.
-- [ ] Wire shared editor and current pin projections, with regression coverage.
+- [x] Wire shared editor and current pin projections, with regression coverage.
 - [ ] Verify, document, close and land through SDLC.
 
 ## Estimate
@@ -150,6 +150,11 @@ total: 4.545
   sources. Real headless operator edit/cancel and two-browser viewer ownership
   tests passed. UI review found OFF+driving suppression (fixed) and held draft
   replacement via read-only pins (fix in progress); full suite still pending.
+
+- UI committed a775901ea after spec/quality re-review cleared the held-draft
+  finding. All 273 Node tests and both real headless viewer/operator tests pass.
+  Backend review's blocked-body cookie-rotation case is being closed before
+  the full suite and landing review.
 
 ## Revisions
 
