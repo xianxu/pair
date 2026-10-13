@@ -56,6 +56,31 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - "n": 3
+      timestamp: "2026-10-12T22:04:18-07:00"
+      dispatched: "2026-10-12T22:00:58-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Publication confirmation remains on unchanged and advancing retries; store failure and lifecycle tests pass.
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: dom_submission_state.lua owns production transitions and effects; the integration adapter interprets them. State and adapter tests pass.
+          round: 3
+        - id: BR-3
+          disposition: addressed
+          note: DOM transport and pair_poke share pane_identity.lua; parser and transport tests pass.
+          round: 3
+        - id: BR-4
+          disposition: addressed
+          note: box_text.js:13-16 rejects empty intersections and shares effective clipping across text and names. Head fixtures fail against the pre-fix collector at box_text_test.js:67 and pass against pinned head. Browser regressions cover overflow, nested scrolling, partial characters, scaling, slots and offscreen regions; their execution was blocked by Chrome startup failure.
+          round: 3
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 5f9f9b5b11d452428ec7d7d82407835e89de9676
+      blocked: false
 ---
 
 # Gate ledger — pair#483 (boundary-review)
@@ -87,6 +112,15 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-4** [Critical] `visible-evidence-intersection` Box-text capture reports non-visible content as visible evidence
   cmd/internal/webcast/recorder/box_text.js:11-13,40-48,65-68 checks raw rectangles against the viewport/note box without accounting for ancestor overflow clipping or rejecting an empty intersection. Disposable regression fixtures reproduce overflow-hidden text in visible_text and accessible names for a wholly off-screen region, both with truncated:false. ARCH-PURPOSE: enforce effective visible intersection consistently for text and names, and add clipping and empty-intersection regressions through the DOM seam and real-browser conformance test.
 
+## Round 3 — 2026-10-12T22:04:18-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Publication confirmation remains on unchanged and advancing retries; store failure and lifecycle tests pass.
+- BR-2 — addressed — dom_submission_state.lua owns production transitions and effects; the integration adapter interprets them. State and adapter tests pass.
+- BR-3 — addressed — DOM transport and pair_poke share pane_identity.lua; parser and transport tests pass.
+- BR-4 — addressed — box_text.js:13-16 rejects empty intersections and shares effective clipping across text and names. Head fixtures fail against the pre-fix collector at box_text_test.js:67 and pass against pinned head. Browser regressions cover overflow, nested scrolling, partial characters, scaling, slots and offscreen regions; their execution was blocked by Chrome startup failure.
+
 ## Open findings
 
-- **BR-4** [Critical] `visible-evidence-intersection` Box-text capture reports non-visible content as visible evidence
+(none — every finding has been disposed)

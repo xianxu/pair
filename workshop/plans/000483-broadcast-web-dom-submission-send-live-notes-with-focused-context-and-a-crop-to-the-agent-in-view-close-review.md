@@ -190,3 +190,81 @@ findings:
 7. **Plan revision recommendations**
 
    Add a `## Revisions` entry stating that visible evidence requires a nonempty intersection with the note region, viewport, and applicable ancestor clips. Cover both text and accessible names, with nested scrolling/clipping and wholly off-screen fixtures.
+
+---
+
+## Re-review — 2026-10-12T22:04:17-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 483 — broadcast-web: DOM submission — send live notes with focused context and a crop to the agent in view |
+| repo | pair |
+| issue file | workshop/issues/000483-broadcast-web-dom-submission-send-live-notes-with-focused-context-and-a-crop-to-the-agent-in-view.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 3e10988dca6330a57f93e974ea668abe58f498bc..5f9f9b5b11d452428ec7d7d82407835e89de9676 |
+| command | sdlc close --issue 483 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-12T22:04:17-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+The pinned implementation satisfies the revised local-close scope, and BR-4 is addressed with a regression that fails against the pre-fix collector. No new blocking findings. Browser conformance could not be independently completed because Chrome crashed before opening the fixture, including with GPU acceleration disabled. The documented operator-smoke requirement before merge remains outstanding.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Publication confirmation remains on unchanged and advancing retries; store failure and lifecycle tests pass.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      dom_submission_state.lua owns production transitions and effects; the integration adapter interprets them. State and adapter tests pass.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      DOM transport and pair_poke share pane_identity.lua; parser and transport tests pass.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      box_text.js:13-16 rejects empty intersections and shares effective clipping across text and names. Head fixtures fail against the pre-fix collector at box_text_test.js:67 and pass against pinned head. Browser regressions cover overflow, nested scrolling, partial characters, scaling, slots and offscreen regions; their execution was blocked by Chrome startup failure.
+```
+
+1. **Strengths**
+   - Effective clipping now applies consistently to both evidence groups; unsupported clipping is explicitly marked truncated (`cmd/internal/webcast/recorder/box_text.js:19`).
+   - Durable delivery transitions preserve uncertainty and repeat publication synchronization before confirming success.
+   - Capture identity fences and revision-guarded acknowledgment protect navigation, reopened notes and replacement documents.
+   - README and atlas updates explain the hotkey, evidence limits, ownership transfer and recovery.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+   - Passed affected submission, recorder, builder, Board, webcast, protocol and CDP packages.
+   - Passed targeted Couch submission tests after generating runtime assets in a disposable copy.
+   - Passed Lua state, adapter, transport, pane identity and delivery tests; all eight Neovim hotkey integration cases passed.
+   - Confirmed BR-4 red/green behavior using the pre-fix and pinned collectors.
+   - Live Chrome conformance failed during browser startup, before feature assertions. No full-suite rerun this review. Disposable files were removed; reviewed source remains unchanged.
+
+6. **Architectural notes**
+   - **ARCH-DRY — pass:** Shared pane discovery, reading guide and submission schema.
+   - **ARCH-PURE — pass:** Pure builders and transition authorities; DOM collection correctly classified as integration by the Plan revision.
+   - **ARCH-PURPOSE — pass:** Draft-plus-notes delivery, current evidence and acknowledgment are connected end to end.
+   - **ARCH-MOCK — pass:** Stateful capture/delivery seams and browser conformance coverage exist; live execution limitation noted above.
+   - **ARCH-CONSTRAINTS — pass:** Explicit deadlines, traversal limits and storage budgets.
+   - **ARCH-SECURE — pass:** Typed validation, private storage and target/document identity checks.
+   - **ARCH-ORDER — pass:** Explicit transitions, stale-event guards and controllable failure sequences.
+   - **ARCH-FUNERAL — pass:** Failed staging cleanup and writer admission caps bound retained evidence.
+
+7. **Plan revision recommendations:** None required. Preserve the documented smoke-before-merge condition.
