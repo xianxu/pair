@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
-estimate_hours: 8.64
-card_mirror: 'a1a4cddf35d8ffa69afaf93f7cfe79705e058041' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 5.107
+card_mirror: '20dc2f1351c9bb502c99ff0865c11c8cc1411358' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T20:05:23-07:00
 claimant:
     operator: Xian Xu
@@ -408,6 +408,52 @@ tty-only previous/full reads. Proceed through revised change-code and build.
 The operator's live scratch-slot switch is coordinated through ops:0.
 
 ## Estimate
+
+### 2026-10-12 22:24 PDT — Current lean-scope forecast after CLEAN plan review
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only.* Calibration remains marked stale/provisional.
+This first block is the current machine-readable estimate; the older blocks
+below are historical scope forecasts, not additive work or measured actuals.
+
+Re-decompose the approved deliverable, not the abandoned handoff machinery:
+issue/spec (0.50 design, 0.08 implementation); two small M1 concerns (tty-only
+record compatibility and peek selection, each 0.04/0.20); bounded replay and
+authenticated remote operation integration (each 0.20/0.32); two small M2
+concerns (known-config policy and guarded no-delivery lifecycle, each 0.04/0.20);
+one small removal/integration sweep (0.04/0.20); existing form/result surface
+(0.20/0.40); three review boundaries/round allowances (each 0.02/0.20); atlas/docs
+(0.02/0.08); three live harness checks (each 0/0.24). Library check: all use
+existing Go owners, VT replay and Couch transport, no novel external stack.
+Thorough-plan discount is reflected in these design primitives; familiarity 1.0,
+design buffer 15%, implementation values already use the v3.1 40% scaling.
+Design 1.38, implementation 3.52: 1.38 * 1.15 + 3.52 = 5.107 hours. Prior work's
+actual time remains measured by sdlc, not erased or back-fitted by this forecast.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.50 impl=0.08
+item: smaller-go-module design=0.04 impl=0.20
+item: smaller-go-module design=0.04 impl=0.20
+item: greenfield-go-module design=0.20 impl=0.32
+item: greenfield-go-module design=0.20 impl=0.32
+item: smaller-go-module design=0.04 impl=0.20
+item: smaller-go-module design=0.04 impl=0.20
+item: smaller-go-module design=0.04 impl=0.20
+item: tui-screen design=0.20 impl=0.40
+item: milestone-review design=0.02 impl=0.20
+item: milestone-review design=0.02 impl=0.20
+item: milestone-review design=0.02 impl=0.20
+item: atlas-docs design=0.02 impl=0.08
+item: real-api-discovery design=0 impl=0.24
+item: real-api-discovery design=0 impl=0.24
+item: real-api-discovery design=0 impl=0.24
+design-buffer: 0.15
+total: 5.107
+```
+
+### Historical original forecast
 
 *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md`
 against `baseline-v3.1.md`. Method A only.* Source marked stale by
