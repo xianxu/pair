@@ -91,6 +91,24 @@ Durable plan: [000523-cast-capability-switches-plan.md](../plans/000523-cast-cap
 
 ## Log
 
+### 2026-10-13 M2 implementation checkpoint
+
+- Integrated landed #494 (PR303) from main. Exact-context permission receipts,
+  default-OFF overlay construction, binding-ingress permits and ordered recorder
+  checks fence replacement documents and delayed writes; held drafts survive.
+- Cast-row controls and persistent one-action recovery committed at f1c26fef7;
+  overlay integration at e7adbcfe9. Stale completion and transient stroke-cache
+  findings from ad-hoc reviews are fixed with reproducing tests.
+- Viewer controls now consume replay-latest capability state and tolerate
+  unordered control/capability SSE delivery. Off cancels gestures and queued
+  input; re-enable requires fresh consent across generations.
+- Fresh Node suites: 229 passed. Corrected full couchtty/broadcast packages
+  passed (29.982s/27.199s); focused control race checks passed. Headless operator,
+  annotation and drive subset passed (6.251s), and the two updated live fixtures
+  passed (10.420s). Full make test and fresh complete headless suite underway.
+- README and atlas map defaults, stable links, visible recovery and overlay
+  ownership. Operator acceptance remains pending; no pair:0 staging performed.
+
 
 - 2026-10-13: closed M1 — All four M1 review findings addressed: replay prefix/seek regressions red then 32 tests green; actual production control adapter delayed/closed/failing/canceled recorder regressions and webcast/drive/recorder race suites pass; inventory and README corrected. Earlier make test completed with artifactpath and legacy Couch fixtures fixed and whole packages rerun green. Full fresh suite required after M2.; review verdict: SHIP
 ### 2026-10-12

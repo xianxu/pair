@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/cdp"
+	"github.com/xianxu/pair/cmd/internal/webcast/capability"
 	"github.com/xianxu/pair/cmd/internal/webcast/drive"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
@@ -218,21 +219,6 @@ func TestLiveDrive(t *testing.T) {
 	if files() != before {
 		t.Fatalf("a driver's download landed: %d files, was %d", files(), before)
 	}
-	// A dialog: the driver is told at once, and the operator answers it.
-	start := time.Now()
-	if err := input(click("alert")); !errors.Is(err, drive.ErrDialog) {
-		t.Fatalf("alert: %v", err)
-	}
-	if d := time.Since(start); d > 3*time.Second {
-		t.Fatalf("the dialog held the driver %s", d)
-	}
-	if err := c.call(h.session(t, ""), "Page.handleJavaScriptDialog", map[string]any{"accept": true}, nil); err != nil {
-		t.Fatal(err)
-	}
-	time.Sleep(300 * time.Millisecond)
-	if err := input(click("save")); err != nil {
-		t.Fatalf("after the dialog: %v", err)
-	}
 	// Revoked: refused.
 	if err := ctrl.Revoke(); err != nil {
 		t.Fatal(err)
@@ -265,6 +251,33 @@ func TestLiveDrive(t *testing.T) {
 	time.Sleep(time.Second)
 	if seen("Page.fileChooserOpened") != choosers {
 		t.Fatal("the file chooser is still intercepted after driving")
+	}
+
+	// The final driver gesture opens a modal dialog mid-dispatch: delivery is
+	// uncertain, so closing the dialog cannot automatically restore authority.
+	if err := ctrl.Request(seat.Key); err != nil {
+		t.Fatal(err)
+	}
+	if err := ctrl.Grant(seat.Viewer.ID); err != nil {
+		t.Fatal(err)
+	}
+	// A dialog: the driver is told at once, and the operator answers it.
+	start := time.Now()
+	if err := input(click("alert")); !errors.Is(err, drive.ErrDialog) {
+		t.Fatalf("alert: %v", err)
+	}
+	if d := time.Since(start); d > 3*time.Second {
+		t.Fatalf("the dialog held the driver %s", d)
+	}
+	if err := c.call(h.session(t, ""), "Page.handleJavaScriptDialog", map[string]any{"accept": true}, nil); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(300 * time.Millisecond)
+	if err := input(click("save")); !errors.Is(err, drive.ErrDriveUnavailable) {
+		t.Fatalf("uncertain dialog input must fence driving: %v", err)
+	}
+	if ctrl.DriveCapability().Outcome != capability.Broken {
+		t.Fatal("uncertain input did not require ending the cast")
 	}
 
 	time.Sleep(500 * time.Millisecond)

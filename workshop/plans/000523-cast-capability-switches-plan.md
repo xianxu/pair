@@ -239,12 +239,12 @@ Files: broadcast/pointer.go, session.go and tests; couchtty/cast_control.go,
 console_pointer.go, console_webcast.go, terminal_input.go, reserve.go, terminal.go,
 console_castcodes.go only where token readiness changes; associated tests.
 
-- [ ] Write failing tests using the Task 4 function strategies below.
-- [ ] Implement EnsurePointerLink and shared intent; web click enqueues bounded
+- [x] Write failing tests using the Task 4 function strategies below.
+- [x] Implement EnsurePointerLink and shared intent; web click enqueues bounded
   cast-owned work and reports its result, never blocks Couch on CDP.
-- [ ] Render amber only when enabled, dim when off; preserve hit spans and widths.
+- [x] Render amber only when enabled, dim when off; preserve hit spans and widths.
   Existing code hover and Alt-click remain unchanged.
-- [ ] Run broadcast/couchtty tests, including hidden terminal marker enforcement,
+- [x] Run broadcast/couchtty tests, including hidden terminal marker enforcement,
   clipped spans, delayed cast stop and stale updates; commit.
 
 ### Task 5: Viewer availability and overlay handshake
@@ -252,10 +252,10 @@ console_castcodes.go only where token readiness changes; associated tests.
 Files: web/viewer.js, annotate.js, drive.js; tests/webcast/*.test.mjs;
 Chrome/operator seams listed above if #494 is on main, plus scripted/live tests.
 
-- [ ] Write failing tests using the Task 5 function strategies below.
-- [ ] Implement replay-latest capability consumption, disabled messages, no-flush
+- [x] Write failing tests using the Task 5 function strategies below.
+- [x] Implement replay-latest capability consumption, disabled messages, no-flush
   gesture cancellation, held draft and fresh consent on enable.
-- [ ] Integrate #494 according to landing order; record exact API ownership and
+- [x] Integrate #494 according to landing order; record exact API ownership and
   run delayed-context/permission plus new-document tests. Do not open a window.
 - [ ] Run `node --test tests/webcast/*.test.mjs tests/broadcast-viewer/*.test.mjs`
   and `WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run Live -count=1 -v`
@@ -263,7 +263,7 @@ Chrome/operator seams listed above if #494 is on main, plus scripted/live tests.
 
 ### Task 6: Acceptance, documentation and landing
 
-- [ ] Update README, atlas/broadcast.md, atlas/webcast.md, atlas/webcast-format.md
+- [x] Update README, atlas/broadcast.md, atlas/webcast.md, atlas/webcast-format.md
   and atlas/index.md only if new atlas files are added. State defaults, click
   table, stable links, clear semantics, error behavior and overlay handoff.
 - [ ] Run `make test` and targeted race tests for capability owners. Check full
@@ -472,3 +472,22 @@ that exact context. Missing hooks do not count as successful delivery. Permissio
 updates must not reset pen mode on unrelated view refreshes, and delayed older
 permission must not overwrite a newer one. Scripted-context and headless tests
 cover readiness, replacement, authority changes and held-draft restoration.
+
+### 2026-10-13 01:12 PDT — M2 asynchronous UI evidence
+
+ARCH-ORDER: capability and control SSE channels have no relative delivery order.
+Keep the latest control snapshot until the initial authoritative capability
+arrives, while a new generation discards old consent. Mounted viewer fixtures
+exercise both orders, reconnect and delayed module initialization.
+
+Cast-row completion captures generation and attempt and rechecks them on the
+terminal command loop before copying. A deterministic completion barrier proves
+that a newer disable/end cannot be followed by stale enable-copy; removing the
+guard makes the regression fail. Annotation-clear and capability changes also
+clear transient viewer/operator stroke caches, not only the recording reducer.
+
+The full headless run exposed two old assumptions in live fixtures: Board now
+starts OFF, and an uncertain CDP dialog result now requires end-cast. Fixtures
+explicitly enable annotations and assert the approved Broken projection after
+uncertain input. Both affected tests pass, as do the operator/annotation/drive
+headless subset. A fresh complete headless run and make test are underway.

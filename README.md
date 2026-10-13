@@ -973,7 +973,8 @@ type or click anything in your programs, never cover the `LIVE ⏸ 👆`
 controls (the rest of the tab bar can be pointed at), and aren't drawn while
 the switcher is open. Clicking `👆` again turns pointing
 off, clears the marks and leaves the link as view-only; clicking once more
-turns it back on for the same link. Right-click `👆` to copy the link again.
+turns it back on and copies the same link. Right-click `👆` to copy in any state;
+if the link does not exist yet, this creates it while pointing stays off.
 Right-click `LIVE ⏸` to copy the view-only link again. Stopping the
 broadcast ends every link. Remote control of the terminal cast isn't built
 yet (#407); the web cast can be driven remotely through its drive link.
@@ -1012,18 +1013,26 @@ open while paused. A web cast has three links, like the screen broadcast
 capability is enabled:
 - right-click the cell for the **view-only link**: its viewers watch, and see
   others' strokes and notes but can't add any;
-- `👆` copies the **pointer link** (left or right click): its viewers also point
-  and leave and resolve notes;
-- `👽` copies the **drive link** (below; left or right click): its viewers can
-  also ask to drive.
+- `👆` controls annotation; its **pointer link** lets viewers point and leave
+  and resolve notes while annotation is on;
+- `👽` controls remote driving; its **drive link** also lets viewers ask to
+  drive while driving is on.
 
 Annotation and remote driving start **OFF**, independently. A link and its code
 remain valid when a capability is off, but holding them does not enable it:
 the server refuses annotation or driving until the operator enables that
 capability. Turning annotation off clears the current marks while preserving
 recorded history; turning driving off revokes the driver and pending requests.
-The capability authority is implemented; the cast-row switches and viewer
-availability indicators are the pending UI portion of #523.
+Both controls are dim when off and amber when on. Left-click to enable and copy
+the link, or to disable. Right-click copies in any state without toggling; links
+and codes stay the same. Terminal casts have 👆 only.
+
+While cleanup runs, the control stays off and says to wait. If cleanup can be
+retried, a persistent notice says “Click 👆 to retry” (or 👽); that click retries
+cleanup and leaves the capability off. If the cast is broken, the notice says
+to Ctrl+click Chrome to end it. Viewers see unavailable controls until the
+operator enables them. Annotation drafts retain their text across off/on,
+with the pen returning to Off; driving requires a fresh request and grant.
 
 Each link has its own code (hover the cell to see them; Alt+click it for the
 Codes menu, which copies any of the three). Beside the cell, `↗` brings the cast

@@ -605,6 +605,9 @@ func TestLiveStrokeReachesDiskWhileLive(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "rec")
 	var c *Chrome
 	bd := board.New(notes.Structural{}, func(r recording.Record, doc int) error { return c.Emit(r, doc) })
+	if err := bd.SetAnnotationAllowed(context.Background(), true); err != nil {
+		t.Fatal(err)
+	}
 	out := func() (recorder.Opened, error) {
 		w, err := recording.NewDirWriter(dir)
 		if err != nil {

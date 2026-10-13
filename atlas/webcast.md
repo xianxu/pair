@@ -55,11 +55,16 @@ code rows, using their shared layout and hit-testing. It sends the same isolated
 mode command without focusing Chrome; a refusal appears in Couch’s notice. Cast-row
 left actions, right-click link copies, and Alt menus only on LIVE/Chrome are unchanged.
 The isolated-world input `__couchcastAnnotationAllowed(boolean)` delegates to the
-shared mount's `setAnnotationAllowed`. It defaults to allowed; false forces Off,
+shared mount's `setAnnotationAllowed`. Every isolated document starts disabled; false forces Off,
 cancels gestures and hides/holds the operator editor with a disabled hint. Returning
 true leaves the pen Off and does not override driving or pause. View snapshots do
-not reset the input. #523 owns supplying it on each new document, the 👆 switch,
-and authoritative server admission; #494 only exposes this overlay input.
+not reset the input. #523 supplies versioned permission to each exact isolated
+context after hook installation. A delivery receipt suppresses duplicate resets
+and stale late enables; an uncertain enable is fenced false before another enable.
+Board permits are captured at binding ingress and checked again at the ordered
+recorder write. A fresh save can use a held draft after re-enable; an old queued
+save cannot cross generations. Operator processing uses only Board's leaf lock,
+never the viewer command lock held while waiting for ordered cleanup.
 
 The Board remains the authority (`board/operator.go`, `operator_view.go`): Go
 assigns operator authorship, HTTP cannot claim it, and a bounded latest-value view
@@ -515,3 +520,12 @@ instead of the event stream.
   - `replay_live_test.go` (`WEBCAST_LIVE_CHROME=1`): a `#t=` link and shuffled scrubbing draw the reducer's canonical
     state at every pin of every fixture; JS `catchUp` takes the records Go's does; notes and strokes match the reducer
     at their moments; drive bands; nothing is requested outside the server.
+
+The live viewer owns a replay-latest capability subscription, initially closed.
+Disconnect/end revoke local availability; retired EventSources cannot update a
+replacement or reload it through a delayed session probe. Annotation reuses the
+shared mount's cancellation/held-draft policy and clears its transient stroke
+cache on annotation-clear. Drive drops queued acts and stale batch completions;
+a new capability generation requires fresh consent. Catch-up control and initial
+capability events may arrive in either order; projection retains control evidence
+while closed without admitting input. See web/viewer.js, annotate.js, drive.js.

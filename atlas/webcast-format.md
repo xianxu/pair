@@ -269,7 +269,8 @@ It clears the current notes and strokes, including while paused; earlier replay
 positions remain unchanged. It is invalid after recording end. The timestamp is
 strictly after preceding annotations so split-file merge cannot resurrect marks
 at an equal timestamp. Catch-up retains the clear barrier and only subsequent
-notes. Go reduction and the browser model apply the same operation.
+notes. Go reduction, browser Model, replay catchUp and Player.seek apply the
+same clear barrier; the mounted annotation UI also clears its transient strokes.
 
 ## Attribution and control (#466)
 

@@ -1504,3 +1504,12 @@ proof; record the surprising case so the next change starts from evidence.
 
 - **#494 reconciliation lifetime:** operation identity includes the authority’s lifetime, not only request ID/body. Retire browser state when the server’s document ledger retires; test switch-return plus lost reply and late completion, not each lifecycle independently.
 - **#494 interactive identity:** a record stream can update between pointer-down and pointer-up. Preserve swatch/control DOM nodes across unrelated updates, and test an interleaved record against the originally pressed element on every shared surface.
+
+- #523 M2: an asynchronous UI result belongs to the authority generation and
+  attempt, not merely the cast instance. Await the actual completion in negative
+  clipboard tests; a no-op queue barrier can overtake an unqueued callback.
+- #523 M2: clearing authoritative/projection collections must also clear consumer
+  transient caches. An empty snapshot alone does not communicate a clear event.
+- #523 M2: independent SSE channels may deliver initial permission and catch-up
+  control in either order. Retain evidence while unavailable; gate its projection
+  and invalidate consent on authority-generation changes.

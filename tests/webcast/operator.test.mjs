@@ -1,25 +1,10 @@
-import { operatorTransport } from '../../cmd/internal/webcast/operator.js';
+import { operatorTransport, mountOperator } from '../../cmd/internal/webcast/operator.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { annotationPolicy } from '../../cmd/internal/webcast/web/annotation-policy.js';
 import { mountAnnotation } from '../../cmd/internal/webcast/web/annotate.js';
 
-class Element {
-  constructor(tag) {
-    this.tagName = tag; this.children = []; this.listeners = {}; this.dataset = {};
-    this.style = { setProperty() {} }; this.value = ''; this.className = '';
-    this.classList = { toggle: (v,on) => { const set = new Set(this.className.split(' ')); on ? set.add(v) : set.delete(v); this.className = [...set].join(' '); }, add: (v) => this.classList.toggle(v,true), remove: (v) => this.classList.toggle(v,false) };
-  }
-  append(...es) { this.children.push(...es); }
-  replaceChildren(...es) { this.children = es; }
-  setAttribute() {}
-  addEventListener(k,f) { (this.listeners[k] ||= []).push(f); }
-  querySelectorAll(s) { return this.children.flatMap((e) => [...(s === 'button' && e.tagName === 'button' ? [e] : []), ...e.querySelectorAll(s)]); }
-  querySelector(s) { return this.children.find((e) => e.className.split(' ').includes(s.slice(1))) || this.children.map((e) => e.querySelector(s)).find(Boolean); }
-  getBoundingClientRect() { return {left:0,top:0,right:100,bottom:100,width:100,height:100}; }
-  focus() { this.focused=true; }
-  blur() { this.focused=false; }
-}
+import { Element } from './dom-fixture.mjs';
 
 test('shared mount keeps all UI in its supplied root and holds a driven editor', () => {
   const body = new Element('body'), root = new Element('shadow'), box = new Element('box'); root.append(box);
@@ -38,7 +23,7 @@ test('shared mount keeps all UI in its supplied root and holds a driven editor',
   assert.equal(root.querySelector('.note-dialog').hidden,true);
   assert.equal(input.value,'keep this');
   assert.equal(root.querySelector('.mode').disabled,true);
-  assert.equal(root.querySelector('.mode').title,'Annotation is disabled.');
+  assert.equal(root.querySelector('.mode').title,'Annotation is off.');
   ui.setMode('point');
   assert.equal(ui.mode,'watch');
   // A projection refresh cannot reset the capability input.
@@ -245,3 +230,46 @@ for (const operator of [false,true]) {
     assert.ok(selected.className.split(' ').includes('on'));
   });
 }
+
+test('operator mount starts disabled and a new generation resets pen without dropping draft', () => {
+  const root = new Element('shadow'), box = new Element('box'); root.append(box);
+  const doc = {body:new Element('body'),createElement:(tag)=>new Element(tag)};
+  const win = {innerWidth:100,crypto:{getRandomValues:(b)=>b.fill(1)},performance:{now:()=>0},requestAnimationFrame:()=>{},addEventListener:()=>{},setTimeout:()=>1,clearTimeout:()=>{},clearInterval:()=>{}};
+  const view = {model:{seg:1,docSeg:1,notes:[]},onRecord:()=>{},toPage:(x,y)=>[x,y],fromPage:(x,y)=>[x,y]};
+  const ui = mountAnnotation(doc,win,view,{root,box,stage:box,palette:['#f00'],who:{id:()=> 'operator',name:()=> 'Operator',viewer:()=>({id:'operator',name:'Operator'})},colors:{get:()=>0,set:()=>{}},post:async()=>({status:204}),operator:true,annotationAllowed:false});
+  ui.setMode('note');
+  assert.equal(ui.mode,'watch');
+  assert.equal(root.querySelector('.mode').disabled,true);
+  ui.setAnnotationAllowed(true);
+  ui.setMode('note');
+  ui.dialog.draft({draft:'held'});
+  root.querySelector('.note-input').value='keep me';
+  // The transport coalesced Off/On. This is a new delivered permission, even
+  // though the previous delivered boolean was also true.
+  ui.setAnnotationAllowed(true, true);
+  assert.equal(ui.mode,'watch');
+  assert.equal(ui.dialog.open,true);
+  assert.equal(root.querySelector('.note-input').value,'keep me');
+});
+
+for (const coalesced of [false,true]) test(`operator permission clears browser strokes while preserving held draft (coalesced=${coalesced})`, () => {
+ const root=new Element('shadow'); root.appendChild=(el)=>root.append(el);
+ const host=new Element('host');
+ const doc={body:new Element('body'),createElement:(tag)=>new Element(tag)};
+ const win={innerWidth:100,scrollX:0,scrollY:0,crypto:{getRandomValues:(b)=>b.fill(1)},performance:{now:()=>0},requestAnimationFrame:()=>{},addEventListener:()=>{},setTimeout:()=>1,clearTimeout:()=>{},clearInterval:()=>{}};
+ const ui=mountOperator({host,root,report:()=>{}},{annotate:{mountAnnotation},palette:['#f00'],css:''},doc,win);
+ win.__couchcastOperatorView({revision:1,seg:1,doc:1,t:0,notes:[],strokes:[]});
+ assert.equal(root.querySelector('.mode').disabled,true);
+ win.__couchcastAnnotationAllowed(true);
+ ui.dialog.draft({draft:'held'});
+ root.querySelector('.note-input').value='keep this draft';
+ win.__couchcastOperatorView({revision:2,seg:1,doc:1,t:0,notes:[],strokes:[{seq:1,id:'viewer.pen',t:0,color:'#f00',pts:[[1,2,0]]}]});
+ assert.equal(ui.strokes.visible(100).length,1);
+ if (!coalesced) win.__couchcastAnnotationAllowed(false);
+ win.__couchcastOperatorView({revision:3,seg:1,doc:1,t:0,notes:[],strokes:[]});
+ win.__couchcastAnnotationAllowed(true);
+ ui.setMode('point');
+ assert.equal(ui.strokes.visible(100).length,0);
+ assert.equal(ui.dialog.open,true);
+ assert.equal(root.querySelector('.note-input').value,'keep this draft');
+});

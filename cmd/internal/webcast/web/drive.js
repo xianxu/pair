@@ -133,6 +133,7 @@ export function batcher(deps) {
     inFlight = true;
     deps.send(batch).then((r) => r, () => ({ status: 0, text: "Couldn't reach the cast." })).then((r) => {
       inFlight = false;
+      if (stopped) return;
       if (r.status !== 204) {
         queue = [];
         deps.refused(r.status, r.text);
@@ -321,9 +322,10 @@ export function keyTracker() {
 //   'paused' (driving, the cast paused), 'other' (someone else drives; may
 //   ask), 'lost' (rejoin)
 //   action: what the button does: 'request', 'release' or 'rejoin'
-export function driveView(ctl, me, { live = true, lost = false } = {}) {
+export function driveView(ctl, me, { live = true, lost = false, allowed = true, availability = 'off' } = {}) {
   const driver = ctl && ctl.driver ? ctl.driver : null;
   const pending = (ctl && ctl.pending) || [];
+  if (!allowed) return { state: 'off', button: 'Driving off', action: '', note: availability === 'broken' ? 'Cast broken. Wait for the operator to end the cast.' : availability === 'retry' ? 'Waiting for the operator to retry.' : 'Driving is off.', capture: false };
   if (lost) return { state: 'lost', button: 'Rejoin', action: 'rejoin', note: '', capture: false };
   if (driver && driver.id === me) {
     return live
@@ -358,8 +360,11 @@ export function mountDrive(doc, win, v, seat) {
   keys.setAttribute('autocomplete', 'off');
   keys.spellcheck = false;
 
+  let allowed = false, availability = 'off', generation, consent = false, epoch = 0;
   let ctl = null, view = driveView(null, seat.viewer), batch = null, composing = false, lost = false;
   const driving = (s) => s === 'driving' || s === 'paused';
+  const captured = new Set();
+  const releasePointers = () => { for (const id of captured) { if (layer.hasPointerCapture?.(id)) layer.releasePointerCapture(id); } captured.clear(); };
   const tracked = keyTracker();
   const send = (a) => { if (batch) batch.push(a); };
   const g = gestures({ toPage: (x, y) => v.toPage(x, y), nodeAt: (x, y) => v.nodeAt(x, y), emit: send });
@@ -376,8 +381,9 @@ export function mountDrive(doc, win, v, seat) {
   // seat, so rejoining reopens the page.
   const offerRejoin = () => { lost = true; render(); };
   const render = () => {
-    view = driveView(ctl, seat.viewer, { live: !!(v.model && v.model.live), lost });
+    view = driveView(!consent && ctl?.driver?.id === seat.viewer ? {...ctl, driver:null} : ctl, seat.viewer, { live: !!(v.model && v.model.live), lost, allowed, availability });
     button.textContent = view.button;
+    button.disabled = !view.action;
     button.onclick = () => (view.action === 'rejoin' ? win.location.reload() : control(view.action));
     button.classList.toggle('on', driving(view.state));
     note.textContent = view.note;
@@ -391,11 +397,37 @@ export function mountDrive(doc, win, v, seat) {
       batch.stop();
       batch = null;
       g.reset();
+      releasePointers();
       tracked.clear();
       keys.blur();
+      keys.value = '';
+      composing = false;
     }
   };
-  const control = (op) => post('control', { op }).then((r) => { if (r.status !== 204) refused(r.status, r.text); }, () => say("Couldn't reach the cast."));
+  const control = (op) => {
+    if (!allowed || !['request', 'release'].includes(op)) return Promise.resolve();
+    const started = epoch;
+    if (op === 'request') consent = true;
+    return post('control', { op }).then((r) => {
+      if (started !== epoch) return;
+      if (r.status !== 204) { if (op === 'request') consent = false; refused(r.status, r.text); }
+    }, () => { if (started === epoch) say("Couldn't reach the cast."); });
+  };
+  v.onCapabilities?.((caps) => {
+    const c = caps?.drive;
+    const changed = generation !== c?.generation;
+    if (changed || c?.allowed !== true) {
+      epoch++;
+      if (changed && generation !== undefined) ctl = null;
+      if (changed) consent = generation === undefined && c?.allowed === true;
+      if (batch) { batch.stop(); batch = null; }
+      g.reset(); releasePointers(); tracked.clear(); keys.blur(); keys.value = ''; composing = false;
+    }
+    generation = c?.generation;
+    allowed = c?.allowed === true;
+    availability = c?.state || 'off';
+    render();
+  });
 
   v.onRecord((r) => {
     if (r.k === 'ctl') ctl = r;
@@ -409,12 +441,13 @@ export function mountDrive(doc, win, v, seat) {
   }, { passive: false });
   listen('pointerdown', (e) => {
     layer.setPointerCapture?.(e.pointerId);
+    captured.add(e.pointerId);
     keys.focus({ preventScroll: true }); // in the gesture: an iPad raises its keyboard
     g.down(e);
   });
   listen('pointermove', (e) => g.move(e));
-  listen('pointerup', (e) => g.up(e));
-  listen('pointercancel', (e) => g.cancel(e));
+  listen('pointerup', (e) => { g.up(e); captured.delete(e.pointerId); });
+  listen('pointercancel', (e) => { g.cancel(e); captured.delete(e.pointerId); });
   listen('wheel', (e) => g.wheel(e));
   listen('contextmenu', () => {});
 
