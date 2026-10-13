@@ -80,11 +80,12 @@ total: 3.79
 
 Durable plan: `workshop/plans/000506-broadcast-web-three-links-like-the-terminal-cast-view-only-right-click-pointer-drive-plan.md`.
 
-- [ ] M1 — Cast side: three tokens, the link kind of a request, Board refusal under the view token, palette.json with annotate, the viewer's read-only mount (moved from M2, see the plan's Revisions).
+- [x] M1 — Cast side: three tokens, the link kind of a request, Board refusal under the view token, palette.json with annotate, the viewer's read-only mount (moved from M2, see the plan's Revisions).
 - [ ] M2 — Couch: the copy commands and the 👆/👽 mapping (after #501 lands); docs; operator smoke test.
 
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed M1 — webcast (all subpackages), couchtty, couchcmd green; 99 webcast node tests green; live TestAnnotateLiveTwoViewers green under WEBCAST_LIVE_CHROME=1 with a view-only viewer C that sees Bs note read-only, has no rail, no Resolve, and gets 403 This link is view-only. Five mutations each fail a test (board refusal, palette annotate flag unit+live, pointer stream counted as view, Resolve hidden, rail hidden). Couchs right-click notice still describes the old link; M2 relabels it.; review verdict: SHIP
 - Plan sent to ops:0 before building; approved as written, with point 3 (view-only viewers see others' strokes and notes read-only) confirmed by the TL, operator may veto.
 - M1 built: castLink + linkOf, board refusal before admission (403 "This link is view-only."), palette.json {palette, annotate}, the cast's pointer token and Update.PointerLink, the viewer's readPalette and read-only mount, live view-only viewer C. Viewer work moved into M1: the palette shape change broke every viewer's rail until the viewer read it (live test). Webcast package green; 99 node tests green; live annotate test green with WEBCAST_LIVE_CHROME=1. Five mutations each caught.
