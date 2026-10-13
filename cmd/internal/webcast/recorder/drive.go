@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/cdp"
 	"github.com/xianxu/pair/cmd/internal/webcast/capability"
@@ -73,6 +74,38 @@ func (r *Recorder) withTab(ctx context.Context, by string, fn func(drive.Tab) er
 	}
 	if !r.live || r.top == "" {
 		return fn(&cdpTab{r: r}) // the rules refuse it (not live)
+	}
+
+	if r.opts.UIGuard != nil {
+		if err := r.opts.UIGuard(r.top, "acquire"); err != nil {
+			return fmt.Errorf("%w: %v", drive.ErrInput, err)
+		}
+		session := r.top
+		id, _ := r.topContext(session)
+		token := fmt.Sprintf("input-%d", uiToken.Add(1))
+		r.inputUncertain = false
+		guardCtx, cancel := context.WithTimeout(r.ctx, callTimeout)
+		ok := uiCall(guardCtx, r.opts.Call, session, id, "acquire", token, 0)
+		cancel()
+		if !ok {
+			r.opts.UIGuard(session, "unknown")
+			return fmt.Errorf("%w: %v", drive.ErrInput, errUISuppression)
+		}
+		defer func() {
+			if r.inputUncertain {
+				r.opts.UIGuard(session, "unknown")
+				if r.opts.Logf != nil {
+					r.opts.Logf("Remote input completion is uncertain; close and reopen the cast Chrome to restore Couch UI.")
+				}
+				return
+			}
+			// Every issued input returned a definitive reply. A release only
+			// touches this document's token; replacement documents use guard state.
+			restore, cancel := context.WithTimeout(r.ctx, 5*time.Second)
+			defer cancel()
+			uiCall(restore, r.opts.Call, session, id, "release", token, 0)
+			r.opts.UIGuard(session, "release")
+		}()
 	}
 	contexts := r.castContexts()
 	for _, c := range contexts {
@@ -166,8 +199,15 @@ func (r *Recorder) inputCall(session, method string, params, result any) error {
 	}()
 	select {
 	case err := <-done:
+		if err != nil {
+			var definitive *cdp.Error
+			if !errors.As(err, &definitive) {
+				r.inputUncertain = true
+			}
+		}
 		return err
 	case <-dialog:
+		r.inputUncertain = true
 		return &capability.Failure{Outcome: capability.Broken, Cause: drive.ErrDialog}
 	}
 }

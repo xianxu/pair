@@ -18,11 +18,12 @@ import (
 // with its label alone and no actions. Pure: layout, hit-testing, selection
 // and drawing; the console runs what is chosen.
 
-// codesAction is what a Codes menu word does: copy a link, or rotate a link's
-// code ("" rotates every link).
+// codesAction is what a Codes menu word does: select an annotation mode,
+// copy a link, or rotate its code (an empty link rotates every link).
 type codesAction struct {
-	copy bool
-	link string
+	copy       bool
+	link       string
+	annotation string // Chrome only: watch, point or note; empty is a link action
 }
 
 // codesMenuRow is one row as the console asks for it.

@@ -263,6 +263,7 @@ func TestRecorderScreenshotsAndLayout(t *testing.T) {
 		}
 		return nil, nil, false
 	}
+	h.confirmUI("A", a.frameID, 1)
 	h.r.Send(Live{Tab: rec.Tab{ID: a.frameID}, Session: "A"})
 	waitFor(t, func() bool { h.settle(); return h.count("layout") == 1 }, "a screenshot's layout")
 	frames.mu.Lock()
@@ -505,7 +506,7 @@ func TestRecorderScreenshotAtDPR2(t *testing.T) {
 		}
 		return nil, nil, false
 	}
-	h.ctxCreated("A", a.frameID, 1)
+	h.confirmUI("A", a.frameID, 1)
 	h.r.Send(Live{Tab: rec.Tab{ID: a.frameID}, Session: "A"})
 	waitFor(t, func() bool { frames.mu.Lock(); defer frames.mu.Unlock(); return len(frames.frames) == 1 }, "a screenshot")
 	frames.mu.Lock()
@@ -605,6 +606,7 @@ func TestRecorderFrameKeepsItsCaptureTime(t *testing.T) {
 		}
 		return nil, nil, false
 	}
+	h.confirmUI("A", a.frameID, 1)
 	h.r.Send(Live{Tab: rec.Tab{ID: a.frameID}, Session: "A"})
 	waitFor(t, func() bool { h.settle(); return h.count("layout") == 1 }, "a screenshot's layout")
 	frames.mu.Lock()
@@ -622,11 +624,9 @@ func TestRecorderFrameKeepsItsCaptureTime(t *testing.T) {
 	h.mustValidate()
 }
 
-// A screenshot whose call straddles a new segment (a navigation, a pause
-// and resume, a tab switch) is never stamped before it: its midpoint is,
-// but the frame belongs to the segment live when it lands (#472 BR-1).
-// Which page its pixels show is the straddle's ambiguity; a frame in the
-// previous segment's time, or in a pause, would claim that page.
+// A navigation or tab switch discards the old document's pending capture;
+// the next capture belongs to the new document. A same-document resume may
+// retain the capture, with its time clamped to the resumed segment (#472).
 func TestRecorderFrameNeverBeforeItsSegment(t *testing.T) {
 	for _, c := range []struct {
 		name, want string
@@ -638,6 +638,7 @@ func TestRecorderFrameNeverBeforeItsSegment(t *testing.T) {
 			h.fc.pages["A"] = newFakePage("http://a/next")
 			h.fc.pages["A"].frameID = a.frameID
 			h.fc.mu.Unlock()
+			h.confirmUI("A", a.frameID, 2)
 			h.r.Send(Event{Session: "A", Method: "DOM.documentUpdated", Seq: h.fc.next(), Params: raw(map[string]any{})})
 		}},
 		{"resume", "head seg:live doc stop:pause seg:resume doc", func(h *harness, a *fakePage) {
@@ -661,6 +662,8 @@ func TestRecorderFrameNeverBeforeItsSegment(t *testing.T) {
 			h.page("B", "http://b/", "L9")
 			var img bytes.Buffer
 			png.Encode(&img, image.NewRGBA(image.Rect(0, 0, 100, 80)))
+			var replacement bytes.Buffer
+			png.Encode(&replacement, image.NewRGBA(image.Rect(0, 0, 200, 160)))
 			var straddled atomic.Bool
 			h.fc.more = func(session, method string, pm map[string]any, p *fakePage) (any, error, bool) {
 				switch method {
@@ -670,13 +673,17 @@ func TestRecorderFrameNeverBeforeItsSegment(t *testing.T) {
 						// segment starts at 200, inside it.
 						ms.Store(200)
 						c.straddle(h, a)
+						h.settle() // process replacement before the old pixels return
+						return map[string]any{"data": base64.StdEncoding.EncodeToString(img.Bytes())}, nil, true
 					}
-					return map[string]any{"data": base64.StdEncoding.EncodeToString(img.Bytes())}, nil, true
+					return map[string]any{"data": base64.StdEncoding.EncodeToString(replacement.Bytes())}, nil, true
 				case "DOMSnapshot.captureSnapshot":
 					return map[string]any{"strings": []string{}, "documents": []any{}}, nil, true
 				}
 				return nil, nil, false
 			}
+			h.confirmUI("A", a.frameID, 1)
+			h.confirmUI("B", "T-B", 3)
 			h.r.Send(Live{Tab: rec.Tab{ID: a.frameID}, Session: "A"})
 			waitFor(t, func() bool { h.settle(); return h.count("layout") >= 1 }, "a screenshot's layout")
 			if got := h.kinds(); !strings.HasPrefix(got, c.want) {
@@ -687,6 +694,13 @@ func TestRecorderFrameNeverBeforeItsSegment(t *testing.T) {
 			frames.mu.Unlock()
 			if seg := h.last("seg"); f.T != seg.Time() || f.T != 200 {
 				t.Errorf("frame at %d, want its segment's start %d (not the straddling call's midpoint 100)", f.T, seg.Time())
+			}
+			wantWidth := 100
+			if c.name == "resume" {
+				wantWidth = 50
+			}
+			if f.W != wantWidth {
+				t.Fatalf("frame width %d, want %d: wrong document capture retained", f.W, wantWidth)
 			}
 			h.mustValidate()
 		})

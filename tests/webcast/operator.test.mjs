@@ -1,0 +1,247 @@
+import { operatorTransport } from '../../cmd/internal/webcast/operator.js';
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { annotationPolicy } from '../../cmd/internal/webcast/web/annotation-policy.js';
+import { mountAnnotation } from '../../cmd/internal/webcast/web/annotate.js';
+
+class Element {
+  constructor(tag) {
+    this.tagName = tag; this.children = []; this.listeners = {}; this.dataset = {};
+    this.style = { setProperty() {} }; this.value = ''; this.className = '';
+    this.classList = { toggle: (v,on) => { const set = new Set(this.className.split(' ')); on ? set.add(v) : set.delete(v); this.className = [...set].join(' '); }, add: (v) => this.classList.toggle(v,true), remove: (v) => this.classList.toggle(v,false) };
+  }
+  append(...es) { this.children.push(...es); }
+  replaceChildren(...es) { this.children = es; }
+  setAttribute() {}
+  addEventListener(k,f) { (this.listeners[k] ||= []).push(f); }
+  querySelectorAll(s) { return this.children.flatMap((e) => [...(s === 'button' && e.tagName === 'button' ? [e] : []), ...e.querySelectorAll(s)]); }
+  querySelector(s) { return this.children.find((e) => e.className.split(' ').includes(s.slice(1))) || this.children.map((e) => e.querySelector(s)).find(Boolean); }
+  getBoundingClientRect() { return {left:0,top:0,right:100,bottom:100,width:100,height:100}; }
+  focus() { this.focused=true; }
+  blur() { this.focused=false; }
+}
+
+test('shared mount keeps all UI in its supplied root and holds a driven editor', () => {
+  const body = new Element('body'), root = new Element('shadow'), box = new Element('box'); root.append(box);
+  const doc = {body, createElement:(tag)=>new Element(tag)};
+  const win = {innerWidth:100, crypto:{getRandomValues:(b)=>b.fill(1)}, performance:{now:()=>0}, requestAnimationFrame:()=>{}, addEventListener:()=>{}, setTimeout:()=>1, clearTimeout:()=>{}, clearInterval:()=>{}};
+  let receive;
+  const v = {model:{seg:1,docSeg:1,notes:[]}, onRecord:(fn)=>{receive=fn;}, toPage:(x,y)=>[x,y], fromPage:(x,y)=>[x,y]};
+  const ui = mountAnnotation(doc,win,v,{root,box,stage:box,palette:['#ff0000'],who:{id:()=> 'operator',name:()=> 'Operator',viewer:()=>({id:'operator',name:'Operator'})},colors:{get:()=>0,set:()=>{}},post:async()=>({status:204}),operator:true});
+  assert.equal(body.children.length,0);
+  ui.setMode('note');
+  assert.equal(ui.mode,'note');
+  ui.dialog.draft({draft:'d1'});
+  const input = root.querySelector('.note-input'); input.value='keep this';
+  ui.setAnnotationAllowed(false);
+  assert.equal(ui.mode,'watch');
+  assert.equal(root.querySelector('.note-dialog').hidden,true);
+  assert.equal(input.value,'keep this');
+  assert.equal(root.querySelector('.mode').disabled,true);
+  assert.equal(root.querySelector('.mode').title,'Annotation is disabled.');
+  ui.setMode('point');
+  assert.equal(ui.mode,'watch');
+  // A projection refresh cannot reset the capability input.
+  receive({k:'view',t:0},v.model);
+  assert.equal(root.querySelector('.mode').disabled,true);
+  ui.setAnnotationAllowed(true);
+  assert.equal(ui.mode,'watch');
+  assert.equal(input.value,'keep this');
+  assert.equal(root.querySelector('.note-dialog').hidden,false);
+  assert.equal(root.querySelector('.mode').disabled,false);
+  v.model.driver='Ana'; receive({k:'ctl',t:1},v.model);
+  assert.equal(ui.mode,'watch');
+  assert.equal(input.value,'keep this');
+  assert.equal(input.focused,false);
+  assert.equal(root.querySelector('.note-dialog').hidden,true);
+  v.model.driver=''; receive({k:'ctl',t:2},v.model);
+  assert.equal(ui.mode,'watch');
+  assert.equal(input.value,'keep this');
+  assert.equal(root.querySelector('.note-dialog').hidden,false);
+  assert.equal(input.focused,false);
+  v.model.docSeg=2; receive({k:'seg',t:3},v.model);
+  assert.equal(ui.dialog.open,false);
+});
+
+test('annotation availability owns mode and interruption effects', () => {
+  let s = annotationPolicy(null, { type: 'sync', doc: 1, ready: true }).state;
+  assert.equal(s.mode, 'watch');
+  s = annotationPolicy(s, { type: 'mode', mode: 'note' }).state;
+  assert.equal(s.mode, 'note');
+  const driven = annotationPolicy(s, { type: 'sync', doc: 1, ready: true, driver: 'Ana' });
+  assert.equal(driven.state.phase, 'driving');
+  assert.equal(driven.state.mode, 'watch');
+  assert.deepEqual(driven.effects, ['cancel', 'hold']);
+  assert.equal(annotationPolicy(driven.state, { type: 'mode', mode: 'point' }).state.mode, 'watch');
+  const returned = annotationPolicy(driven.state, { type: 'sync', doc: 1, ready: true });
+  assert.equal(returned.state.mode, 'watch');
+  assert.deepEqual(returned.effects, ['release']);
+  const next = annotationPolicy(returned.state, { type: 'sync', doc: 2, ready: true });
+  assert.deepEqual(next.effects, ['cancel', 'discard']);
+});
+
+test('pause holds a draft while navigation and explicit Escape discard it', () => {
+  const ready = annotationPolicy(null, { type: 'sync', doc: 1, ready: true }).state;
+  const paused = annotationPolicy(ready, { type: 'sync', doc: 1, ready: true, paused: true });
+  assert.equal(paused.state.phase, 'paused');
+  assert.ok(paused.effects.includes('hold'));
+  assert.deepEqual(annotationPolicy(paused.state, { type: 'escape' }).effects, ['cancel', 'discard']);
+  assert.equal(annotationPolicy(ready, { type: 'mode', mode: 'bogus' }).state.mode, 'watch');
+  const ended = annotationPolicy(ready, { type: 'sync', doc: 1, ended: true });
+  assert.equal(ended.state.phase, 'ended');
+  assert.ok(ended.effects.includes('discard'));
+});
+
+// A timeout is reconciliation, never permission to submit a duplicate note.
+test('operator transport retries the same mutation by status even after draft edits', async () => {
+  const sent = [], timers = new Map(); let n = 0;
+  const win = { setTimeout(fn) { timers.set(++n, fn); return n; }, clearTimeout(id) { timers.delete(id); } };
+  const t = operatorTransport((m) => sent.push(m.request), win);
+  const first = t.mutate('save-note', {draft:'d',text:'one',color:0});
+  timers.values().next().value();
+  assert.equal((await first).status, 409);
+  const retry = t.mutate('save-note', {draft:'d',text:'edited',color:0});
+  assert.equal(sent[1].op, 'status');
+  assert.equal(sent[1].request, sent[0].request);
+  t.reply({request:sent[1].request,outcome:'accepted'});
+  assert.equal((await retry).status, 409); // the edited text was never submitted
+  const next = t.mutate('save-note', {draft:'e',text:'two',color:0});
+  assert.notEqual(sent[2].request, sent[0].request);
+  t.reply({request:sent[2].request,outcome:'refused',error:'paused'});
+  assert.equal((await next).text, 'paused');
+});
+
+
+test('annotation allowed input cancels gestures and cannot override driving', () => {
+  let s = annotationPolicy(null,{type:'sync',ready:true,doc:1}).state;
+  s = annotationPolicy(s,{type:'mode',mode:'point'}).state;
+  const off = annotationPolicy(s,{type:'sync',ready:true,doc:1,allowed:false});
+  assert.equal(off.state.phase,'disabled');
+  assert.equal(off.state.mode,'watch');
+  assert.deepEqual(off.effects,['cancel','hold']);
+  assert.equal(annotationPolicy(off.state,{type:'sync',ready:true,doc:1,allowed:true,driver:'Ana'}).state.phase,'driving');
+});
+
+test('shared viewer mount keeps a view-only link read-only after mode requests', () => {
+  const root = new Element('body'), box = new Element('box'); root.append(box);
+  const doc = {body:root, createElement:(tag)=>new Element(tag)};
+  let frame;
+  const win = {innerWidth:100, crypto:{getRandomValues:(b)=>b.fill(1)}, performance:{now:()=>0}, requestAnimationFrame:(fn)=>{frame=fn;}, addEventListener:()=>{}, setTimeout:()=>1, clearTimeout:()=>{}, clearInterval:()=>{}};
+  const v = {model:{seg:1,docSeg:1,notes:[]}, onRecord:()=>{}, toPage:(x,y)=>[x,y], fromPage:(x,y)=>[x,y]};
+  const ui = mountAnnotation(doc,win,v,{root,box,stage:box,palette:['#ff0000'],who:{id:()=> 'viewer',name:()=> 'Viewer',viewer:()=>({id:'viewer',name:'Viewer'})},colors:{get:()=>0,set:()=>{}},post:()=>{throw Error('read-only posted');},annotate:false});
+  ui.setMode('note');
+  assert.equal(ui.mode,'watch');
+  assert.equal(ui.annotate,false);
+  assert.equal(root.querySelector('.mode').disabled,true);
+  // The separate operator capability input cannot grant a view-only link.
+  ui.setAnnotationAllowed(true);
+  ui.setMode('point');
+  assert.equal(ui.mode,'watch');
+});
+
+for (const operator of [false, true]) {
+  for (const gesture of ['click', 'drag', 'drag-back']) {
+    test(`${operator ? 'cast Chrome' : 'viewer'} note ${gesture}: preview waits for drag; click box waits for release`, async () => {
+      const root = new Element(operator ? 'shadow' : 'body'), box = new Element('box'); root.append(box);
+      const doc = {body:root, createElement:(tag)=>new Element(tag)};
+      const win = {innerWidth:100, crypto:{getRandomValues:(b)=>b.fill(1)}, performance:{now:()=>0}, requestAnimationFrame:()=>{}, addEventListener:()=>{}, setTimeout:()=>1, clearTimeout:()=>{}, clearInterval:()=>{}};
+      const regions = [];
+      const v = {model:{seg:1,docSeg:1,notes:[]}, onRecord:()=>{}, toPage:(x,y)=>[x,y], fromPage:(x,y)=>[x,y], nodeAt:()=>7, boxOf:()=>[0,0,100,100]};
+      const ui = mountAnnotation(doc,win,v,{root,box,stage:box,palette:['#ff0000'],who:{id:()=>operator?'operator':'viewer',name:()=> 'Named',viewer:()=>({id:'named',name:'Named'})},colors:{get:()=>0,set:()=>{}},post:async(route,payload)=>{regions.push(payload.region);return {status:204};},operator,prepareDraft:operator?async(region)=>({region}):undefined});
+      ui.setMode('note');
+      const layer = root.querySelector('.annotate'), outline = root.querySelector('.drag-region');
+      const pointer = async (kind,x,y) => {
+        for (const fn of layer.listeners[kind] || []) await fn({target:layer,pointerId:1,pointerType:'mouse',clientX:x,clientY:y,preventDefault(){}});
+      };
+      await pointer('pointerdown',40,40);
+      assert.equal(outline.hidden,true,'mouse down drew a box');
+      assert.equal(ui.dialog.open,false);
+      await pointer('pointermove',43,42);
+      assert.equal(outline.hidden,true,'sub-threshold wobble drew a box');
+      if (gesture !== 'click') {
+        await pointer('pointermove',60,70);
+        assert.equal(outline.hidden,false);
+        assert.deepEqual([outline.style.left,outline.style.top,outline.style.width,outline.style.height],['40px','40px','20px','30px']);
+        if (gesture === 'drag-back') {
+          await pointer('pointermove',42,43);
+          assert.equal(outline.hidden,false,'started drag became a click again');
+          assert.equal(outline.style.width,'2px');
+        }
+      }
+      await pointer('pointerup',gesture==='click'?43:gesture==='drag-back'?42:60,gesture==='click'?42:gesture==='drag-back'?43:70);
+      assert.equal(outline.hidden,false,'completed note box is visible while editing');
+      assert.equal(outline.style.width,gesture==='click'?'10px':gesture==='drag-back'?'2px':'20px');
+      assert.equal(ui.dialog.open,true);
+      const input = root.querySelector('.note-input'); input.value='note';
+      for (const fn of input.listeners.input) fn();
+      const save = root.querySelector('.note-buttons').children.at(-1);
+      for (const fn of save.listeners.click) fn();
+      assert.deepEqual(regions,[gesture==='click'?[35,35,10,10]:gesture==='drag-back'?[40,40,2,3]:[40,40,20,30]]);
+      await Promise.resolve();
+      assert.equal(outline.hidden,true,'saved draft left a preview behind');
+    });
+  }
+}
+
+
+for (const previous of ['save-note', 'resolve']) {
+  test(`late ${previous} acceptance cannot complete a different draft`, async () => {
+    const sent=[], timers=new Map(); let serial=0;
+    const win={setTimeout(fn){timers.set(++serial,fn);return serial;},clearTimeout(id){timers.delete(id);}};
+    const transport=operatorTransport(m=>sent.push(m.request),win);
+    const first=transport.mutate(previous,previous==='save-note'?{draft:'A',text:'old',color:0}:{seg:1,id:'old-note',state:'resolved'});
+    timers.values().next().value();
+    assert.equal((await first).status,409);
+    // Cancel the old editor, prepare B, and save it while A's result is unknown.
+    const nextBody={draft:'B',text:'new draft',color:0};
+    const replacement=transport.mutate('save-note',nextBody);
+    assert.equal(sent[1].op,'status');
+    transport.reply({request:sent[1].request,outcome:'accepted'});
+    assert.equal((await replacement).status,409,'an unsent draft inherited success');
+    const retry=transport.mutate('save-note',nextBody);
+    assert.equal(sent[2].op,'save-note');
+    assert.deepEqual(sent[2].body,nextBody);
+    assert.notEqual(sent[2].request,sent[0].request);
+    transport.reply({request:sent[2].request,outcome:'accepted'});
+    assert.equal((await retry).status,204);
+  });
+}
+
+test('operator Escape with page focus cancels menu-selected modes without touching held drafts', () => {
+  const root=new Element('shadow'), box=new Element('box');root.append(box);
+  const doc={body:new Element('body'),createElement:tag=>new Element(tag)};
+  const listeners={};
+  const win={innerWidth:100,crypto:{getRandomValues:b=>b.fill(1)},performance:{now:()=>0},requestAnimationFrame:()=>{},addEventListener:(kind,fn)=>{(listeners[kind]||=[]).push(fn);},setTimeout:()=>1,clearTimeout:()=>{},clearInterval:()=>{}};
+  let receive;
+  const v={model:{seg:1,docSeg:1,notes:[]},onRecord:fn=>{receive=fn;},toPage:(x,y)=>[x,y],fromPage:(x,y)=>[x,y]};
+  const ui=mountAnnotation(doc,win,v,{root,box,stage:box,palette:['#ff0000'],who:{id:()=> 'operator',name:()=> 'Operator',viewer:()=>({id:'operator',name:'Operator'})},colors:{get:()=>0,set:()=>{}},post:async()=>({status:204}),operator:true});
+  let stopped=0;
+  const escape=()=>{for(const fn of listeners.keydown||[])fn({key:'Escape',target:doc.body,stopPropagation(){stopped++;},preventDefault(){}});};
+  for(const mode of ['point','note']){ui.setMode(mode);escape();assert.equal(ui.mode,'watch');}
+  assert.equal(stopped,2);
+  escape();assert.equal(stopped,2,'Off intercepted page Escape');
+  ui.dialog.draft({draft:'held'});v.model.driver='Ana';receive({k:'ctl',t:1},v.model);
+  escape();assert.equal(ui.dialog.open,true,'remote Escape discarded held editor');
+  assert.equal(stopped,2);
+});
+
+for (const operator of [false,true]) {
+  test(`${operator?'operator':'viewer'} keeps a pressed color button across unrelated records`, () => {
+    const root=new Element(operator?'shadow':'body'),box=new Element('box');root.append(box);
+    const doc={body:root,createElement:tag=>new Element(tag)};
+    const win={innerWidth:100,crypto:{getRandomValues:b=>b.fill(1)},performance:{now:()=>0},requestAnimationFrame:()=>{},addEventListener:()=>{},setTimeout:()=>1,clearTimeout:()=>{},clearInterval:()=>{}};
+    let receive, picked=0;
+    const v={model:{seg:1,docSeg:1,notes:[]},onRecord:fn=>{receive=fn;},toPage:(x,y)=>[x,y],fromPage:(x,y)=>[x,y]};
+    mountAnnotation(doc,win,v,{root,box,stage:box,palette:['#ff0000','#00ff00'],who:{id:()=> 'named',name:()=> 'Named',viewer:()=>({id:'named',name:'Named'})},colors:{get:()=>picked,set:n=>{picked=n;}},post:async()=>({status:204}),operator});
+    const swatches=root.querySelector('.swatches');
+    const pressed=swatches.children[1]; // pointerdown starts on this exact element
+    for(const k of ['scroll','ptr','focus','view']) receive({k,t:1},v.model);
+    assert.equal(swatches.children[1],pressed,'record detached the pressed button');
+    for(const fn of pressed.listeners.click)fn(); // pointerup completes its click
+    assert.equal(picked,1);
+    const selected=swatches.children[1];
+    receive({k:'scroll',t:2},v.model);
+    assert.equal(swatches.children[1],selected);
+    assert.ok(selected.className.split(' ').includes('on'));
+  });
+}

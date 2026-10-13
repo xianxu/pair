@@ -1449,6 +1449,10 @@ proof; record the surprising case so the next change starts from evidence.
   atlas left three stale copies. Before committing a rule change, `rg` the rule's nouns (here "stale", "wheel")
   across the package and the atlas, and make every other site name the rule's owner instead of restating it.
 
+- #494 visual review: when mounting an existing viewer control inside another
+  surface, reuse its glyphs, tooltips and dimensions as well as its handlers.
+  Text labels substituted into icon-sized buttons can clip and make the two
+  surfaces needlessly different; inspect the actual embedded rail before handoff.
 ## Re-meaning a named surface: sweep for the old term, and sweep again after every merge (pair#506)
 - **What went wrong:** #506 split the web cast's "view link" into view-only and pointer links. Three review rounds flagged the old term: first in `atlas/webcast-format.md` and the README prose, then in code comments, then in a README table that #495's merge brought in after the sweep.
 - **Rule:** when a change gives an existing name new grants or meaning (a link, a mode, a flag), `git grep` the old term and its synonyms ("view link", "viewer link", "two links") across README.md (tables too), atlas/, production comments and test comments before committing, and fix or date every hit. Re-run that grep after every merge from main: a branch that lands second inherits the other side's uses of the old term.
@@ -1486,3 +1490,17 @@ proof; record the surprising case so the next change starts from evidence.
   prefix and across seeks; DOM-only parity can miss resurrected annotations.
 - #523 boundary review: verify acknowledgments through the production adapter.
   A synchronous fake cannot prove an asynchronous recorder committed a write.
+### #494 — publish measured commit identifiers
+
+- A smoke handoff accidentally sent a placeholder commit identifier. Read `git rev-parse --short HEAD` after the commit, then copy that exact output into the report. Never draft a send command with a placeholder hash; omit the hash until it is known.
+
+- **#494 gesture preview:** final click geometry is not a pointer-down preview. Keep the default box out of the preview until release, retain drag intent once its threshold is crossed, and exercise down/move/up on every shared mount surface—not only the final geometry helper.
+
+### #494 — close review identity and event boundaries
+
+- A reconciliation success belongs to its original operation, never the editor currently asking about it. Test cancellation followed by a new draft and transitions between action types; an unsent body cannot receive success.
+- A shadow root is not a global keyboard boundary. Focus-preserving commands need a document/window listener for Escape, with explicit guards that leave unavailable/Off page input alone. Test the real page-focused delivery path.
+- Classify helpers by what they read, not by the shape of their result: a DOM-to-path function is INTEGRATION even when it returns only numbers.
+
+- **#494 reconciliation lifetime:** operation identity includes the authority’s lifetime, not only request ID/body. Retire browser state when the server’s document ledger retires; test switch-return plus lost reply and late completion, not each lifecycle independently.
+- **#494 interactive identity:** a record stream can update between pointer-down and pointer-up. Preserve swatch/control DOM nodes across unrelated updates, and test an interleaved record against the originally pressed element on every shared surface.

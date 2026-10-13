@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/webcast/assets"
+	"github.com/xianxu/pair/cmd/internal/webcast/board"
 	rec "github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
@@ -64,12 +65,17 @@ type Output func() (Opened, error)
 
 // Options configures a Recorder.
 type Options struct {
-	// SyncEvents fences the CDP event pump through this recorder before
-	// and after an off-loop submission capture. Nil in direct-feed fakes.
+	// UIGuard preserves suppression across replacement documents after uncertain input.
+	UIGuard func(session, action string) error
+	// Operator is the shared Board. OperatorReply must be nonblocking and
+	// thread-safe; overflow refusals may arrive on the event sender.
+	Operator      *board.Board
+	OperatorReply func(session string, contextID int64, reply OperatorReply)
+	ID            string // the head's id
+	Call          Caller
+	Out           Output
+	// SyncEvents fences submission capture with the event pump.
 	SyncEvents func(context.Context) error
-	ID         string // the head's id
-	Call       Caller
-	Out        Output
 	// ShotEvery is the screenshot period while live (and one at each
 	// segment); zero is 5 s, negative is none.
 	ShotEvery time.Duration
@@ -132,6 +138,8 @@ var emittable = map[string]bool{"note": true, "note-state": true, "stroke": true
 type (
 	assetDone struct{ r *rec.Asset }
 	shotDone  struct {
+		doc    int
+		top    string
 		at     time.Time
 		png    []byte
 		w, h   int
@@ -158,7 +166,11 @@ const (
 
 // Recorder records one cast. Start it, Send it inputs, Close it.
 type Recorder struct {
-	opts Options
+	inputUncertain bool
+	operator       *operatorContext // loop-owned trusted top-frame context
+	operatorDocs   map[operatorContextKey]operatorDocument
+	operatorQueued int // mu-owned bounded operator writes
+	opts           Options
 
 	mu       sync.Mutex
 	queue    []stamped
@@ -259,7 +271,13 @@ func Start(opts Options) *Recorder {
 
 // Send queues an input; it never blocks. CDP events over their bound are
 // dropped as Options.MaxQueue says.
-func (r *Recorder) Send(in any) { r.enqueue(in, true) }
+func (r *Recorder) Send(in any) {
+	if !r.enqueue(in, true) {
+		if e, ok := in.(Event); ok {
+			r.refuseOperatorEvent(e)
+		}
+	}
+}
 
 // enqueue is the one way into the queue: Send, ask and the side workers'
 // results. False once closing.
@@ -285,7 +303,8 @@ func (r *Recorder) enqueue(in any, bounded bool) bool {
 			// minutes, and what is dropped then is counted and reported.
 			if r.others >= r.opts.MaxQueue {
 				r.lostOther++
-				return true
+				_, _, operator := operatorMessage(e)
+				return !operator
 			}
 			r.others++
 		}
@@ -435,6 +454,9 @@ func (r *Recorder) run() {
 			continue
 		}
 		in := r.queue[0]
+		if _, ok := in.in.(operatorWrite); ok {
+			r.operatorQueued--
+		}
 		r.queue[0] = stamped{}
 		r.queue = r.queue[1:]
 		if e, ok := in.in.(Event); ok {
@@ -451,6 +473,10 @@ func (r *Recorder) run() {
 		}
 		r.handle(in)
 		r.afterInput(in.at)
+	}
+	if r.operator != nil {
+		r.operator.board.Close()
+		r.operator = nil
 	}
 	if r.live {
 		// Chrome is going: no calls to quiet the page, only the record.
@@ -490,6 +516,8 @@ func (r *Recorder) call(session, method string, params, result any) (uint64, err
 
 func (r *Recorder) handle(in stamped) {
 	switch v := in.in.(type) {
+	case operatorWrite:
+		r.writeOperator(in.at, v)
 	case Barrier:
 		close(v.Done)
 	case query:
@@ -598,18 +626,24 @@ func (r *Recorder) afterInput(at time.Time) {
 		}
 	}
 	r.write()
+	r.expireOperator()
 }
 
-func (r *Recorder) write() {
+func (r *Recorder) write() error {
+	var failure error
 	for _, x := range r.m.take() {
 		if r.sink == nil {
 			continue
 		}
-		if err := r.sink.Put(x); err != nil && r.err == nil {
-			r.err = err
-			r.opts.Logf("recorder: write: %v", err)
+		if err := r.sink.Put(x); err != nil {
+			failure = errors.Join(failure, err)
+			if r.err == nil {
+				r.err = err
+				r.opts.Logf("recorder: write: %v", err)
+			}
 		}
 	}
+	return failure
 }
 
 // casts reports whether a session is the cast page's or a frame under it.
@@ -852,6 +886,7 @@ func (r *Recorder) event(at time.Time, e Event) {
 				r.contexts[e.Session] = map[int64]string{}
 			}
 			r.contexts[e.Session][p.Context.ID] = p.Context.AuxData.FrameID
+			r.operatorContextCreated(e.Session, p.Context.ID)
 		}
 		return
 	case "Runtime.executionContextDestroyed":
@@ -876,6 +911,9 @@ func (r *Recorder) event(at time.Time, e Event) {
 		if json.Unmarshal(e.Params, &p) == nil && p.Frame.ID == r.frameIDs[e.Session] {
 			r.loader[e.Session] = p.Frame.LoaderID
 		}
+		return
+	}
+	if e.Method == "Runtime.bindingCalled" && r.operatorBinding(e) {
 		return
 	}
 	if !r.live || !r.casts(e.Session) {

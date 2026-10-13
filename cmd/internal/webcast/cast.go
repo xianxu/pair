@@ -168,7 +168,7 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 		})
 		id := recordingID(time.Now())
 		recDir = filepath.Join(cfg.RecordingsDir, id)
-		ro = &RecordOptions{ID: id, Out: recordingOutput(cfg, liveSink, bd, id, proxy), Logf: cfg.Logf}
+		ro = &RecordOptions{Operator: bd, ID: id, Out: recordingOutput(cfg, liveSink, bd, id, proxy), Logf: cfg.Logf}
 	}
 	b, err := cfg.Launch(ctx, ro)
 	if err != nil {
