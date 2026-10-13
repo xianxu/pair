@@ -28,7 +28,7 @@ func openSSE(t *testing.T, url string) *sse {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := castClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,6 +68,9 @@ func (s *sse) next() (string, string) {
 func (s *sse) nextState() wireState {
 	s.t.Helper()
 	ev, data := s.next()
+	for ev == "capabilities" {
+		ev, data = s.next()
+	}
 	if ev != "state" {
 		s.t.Fatalf("got %s %s, want state", ev, data)
 	}
@@ -115,7 +118,7 @@ func TestServerAssets(t *testing.T) {
 		t.Fatal(err)
 	}
 	status := func(path string) (int, string) {
-		resp, err := http.Get(srv.URL + path)
+		resp, err := castClient.Get(srv.URL + path)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -161,7 +164,7 @@ func TestServerRoutes(t *testing.T) {
 		{"POST", "/other/", 405},
 	} {
 		req, _ := http.NewRequest(r.method, srv.URL+r.path, nil)
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := castClient.Do(req)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -186,7 +189,7 @@ func TestServerCapsViewers(t *testing.T) {
 	a, b := openSSE(t, srv.URL+"/tok/events"), openSSE(t, srv.URL+"/tok/events")
 	a.nextState()
 	b.nextState()
-	resp, err := http.Get(srv.URL + "/tok/events")
+	resp, err := castClient.Get(srv.URL + "/tok/events")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -202,7 +205,7 @@ func (s *sse) nextRecs(n int) []recording.Record {
 	var out []recording.Record
 	for len(out) < n {
 		ev, data := s.next()
-		if ev == "state" {
+		if ev == "state" || ev == "capabilities" {
 			continue
 		}
 		if ev != "rec" {
@@ -331,7 +334,7 @@ func TestServerPresence(t *testing.T) {
 	t.Cleanup(srv.Close)
 	ctx, cancel := context.WithCancel(context.Background())
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/tok/events?viewer=v-1", nil)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := castClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -353,7 +356,7 @@ func TestServerPresence(t *testing.T) {
 	}
 	// No id: no seat. A malformed id is refused before anything opens.
 	for path, want := range map[string]int{"/tok/events?viewer=a%20b": 400, "/tok/events?viewer=" + strings.Repeat("x", 65): 400} {
-		resp, err := http.Get(srv.URL + path)
+		resp, err := castClient.Get(srv.URL + path)
 		if err != nil {
 			t.Fatal(err)
 		}

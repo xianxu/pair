@@ -4,8 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sort"
+	"strings"
+	"sync/atomic"
+	"time"
 
+	"github.com/xianxu/pair/cmd/internal/cdp"
+	"github.com/xianxu/pair/cmd/internal/webcast/capability"
 	"github.com/xianxu/pair/cmd/internal/webcast/drive"
 	rec "github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
@@ -28,19 +34,78 @@ func (r *Recorder) Opened() bool { return r.openedFlag.Load() }
 
 // WithTab runs fn with the cast tab on the recorder's goroutine (#467).
 func (r *Recorder) WithTab(ctx context.Context, by string, fn func(drive.Tab) error) error {
-	var err error
-	if aerr := r.ask(ctx, func() { err = r.withTab(ctx, by, fn) }); aerr != nil {
-		return aerr
+	return r.acknowledged(ctx, func() error { return r.withTab(ctx, by, fn) })
+}
+
+// acknowledged owns cancellation while queued; a started effect owns its
+// completion and cannot lose an uncertain result when its caller cancels.
+func (r *Recorder) acknowledged(ctx context.Context, fn func() error) error {
+	// Claim the queued callback or cancel it before it starts. Once running,
+	// await its bounded outcome even if the HTTP caller leaves: an uncertain
+	// external effect must still reach the controller's recovery state.
+	var phase atomic.Uint32 // 0 queued, 1 running, 2 canceled before execution
+	result := make(chan error, 1)
+	q := query{done: make(chan struct{}), fn: func() {
+		if phase.CompareAndSwap(0, 1) {
+			if err := ctx.Err(); err != nil {
+				result <- &capability.Failure{Outcome: capability.Retryable, Cause: err}
+			} else {
+				result <- fn()
+			}
+		}
+	}}
+	if !r.enqueue(q, false) {
+		return drive.ErrClosed
 	}
-	return err
+	select {
+	case err := <-result:
+		return err
+	case <-ctx.Done():
+		if phase.CompareAndSwap(0, 2) {
+			return &capability.Failure{Outcome: capability.Retryable, Cause: ctx.Err()}
+		}
+	}
+	return <-result
 }
 
 func (r *Recorder) withTab(ctx context.Context, by string, fn func(drive.Tab) error) error {
 	if err := ctx.Err(); err != nil {
-		return err // the request was given up while queued: nothing runs
+		return &capability.Failure{Outcome: capability.Retryable, Cause: err} // nothing submitted
 	}
 	if !r.live || r.top == "" {
 		return fn(&cdpTab{r: r}) // the rules refuse it (not live)
+	}
+
+	if r.opts.UIGuard != nil {
+		if err := r.opts.UIGuard(r.top, "acquire"); err != nil {
+			return fmt.Errorf("%w: %v", drive.ErrInput, err)
+		}
+		session := r.top
+		id, _ := r.topContext(session)
+		token := fmt.Sprintf("input-%d", uiToken.Add(1))
+		r.inputUncertain = false
+		guardCtx, cancel := context.WithTimeout(r.ctx, callTimeout)
+		ok := uiCall(guardCtx, r.opts.Call, session, id, "acquire", token, 0)
+		cancel()
+		if !ok {
+			r.opts.UIGuard(session, "unknown")
+			return fmt.Errorf("%w: %v", drive.ErrInput, errUISuppression)
+		}
+		defer func() {
+			if r.inputUncertain {
+				r.opts.UIGuard(session, "unknown")
+				if r.opts.Logf != nil {
+					r.opts.Logf("Remote input completion is uncertain; close and reopen the cast Chrome to restore Couch UI.")
+				}
+				return
+			}
+			// Every issued input returned a definitive reply. A release only
+			// touches this document's token; replacement documents use guard state.
+			restore, cancel := context.WithTimeout(r.ctx, 5*time.Second)
+			defer cancel()
+			uiCall(restore, r.opts.Call, session, id, "release", token, 0)
+			r.opts.UIGuard(session, "release")
+		}()
 	}
 	contexts := r.castContexts()
 	for _, c := range contexts {
@@ -122,19 +187,28 @@ func (r *Recorder) inputCall(session, method string, params, result any) error {
 	dialog := r.dialog()
 	select {
 	case <-dialog:
-		return drive.ErrDialog
+		return &capability.Failure{Outcome: capability.Retryable, Cause: drive.ErrDialog}
 	default:
 	}
 	done := make(chan error, 1)
+	r.side.Add(1)
 	go func() {
+		defer r.side.Done()
 		_, err := r.call(session, method, params, result)
 		done <- err
 	}()
 	select {
 	case err := <-done:
+		if err != nil {
+			var definitive *cdp.Error
+			if !errors.As(err, &definitive) {
+				r.inputUncertain = true
+			}
+		}
 		return err
 	case <-dialog:
-		return drive.ErrDialog
+		r.inputUncertain = true
+		return &capability.Failure{Outcome: capability.Broken, Cause: drive.ErrDialog}
 	}
 }
 
@@ -153,30 +227,44 @@ type cdpTab struct{ r *Recorder }
 func (t *cdpTab) Page() *rec.State { return t.r.m.State() }
 
 func (t *cdpTab) At(x, y float64) (rec.NodeID, error) {
-	s := t.r.m.TopScroll()
 	var res struct {
 		BackendNodeID int `json:"backendNodeId"`
 	}
-	// Not into user-agent shadow DOM: an <input>'s inner editor isn't a
-	// node the recording has (measured: every click on an input read as
-	// stale).
+	// DOM.getNodeForLocation hit-tests at top-page CSS px, the act's own
+	// coordinates, and finds only what is in the viewport (pair#505,
+	// measured: at scroll 236, page (94,405) is the link the viewer aimed
+	// at and viewport (94,169) is "No node found"; subtracting the scroll
+	// made every click after a scroll stale). Not into user-agent shadow
+	// DOM: an <input>'s inner editor isn't a node the recording has
+	// (measured: every click on an input read as stale).
 	err := t.r.inputCall(t.r.top, "DOM.getNodeForLocation", map[string]any{
-		"x": int(x - s[0]), "y": int(y - s[1]), "includeUserAgentShadowDOM": false, "ignorePointerEventsNone": true,
+		"x": int(x), "y": int(y), "includeUserAgentShadowDOM": false, "ignorePointerEventsNone": true,
 	}, &res)
-	if errors.Is(err, drive.ErrDialog) {
+	var ce *cdp.Error
+	switch {
+	case err == nil:
+		id, _ := t.r.m.IDOf(t.r.top, res.BackendNodeID)
+		return id, nil
+	case errors.Is(err, drive.ErrDialog):
 		return 0, err
-	}
-	if err != nil {
+	case errors.As(err, &ce) && strings.HasPrefix(ce.Message, "No node found"):
 		return 0, nil // nothing there (off the viewport): stale
 	}
-	id, _ := t.r.m.IDOf(t.r.top, res.BackendNodeID)
-	return id, nil
+	return 0, fmt.Errorf("%w: hit test: %v", drive.ErrInput, err)
 }
 
 func (t *cdpTab) Dispatch(a drive.Act) error {
-	for _, c := range cdpAct(a, t.r.m.TopScroll()) {
+	for i, c := range cdpAct(a, t.r.m.TopScroll()) {
 		if err := t.r.inputCall(t.r.top, c.Method, c.Params, nil); err != nil {
-			return err
+			// Composite acts may have performed earlier commands even if
+			// this command failed before submission. Never replay that act.
+			if i > 0 {
+				err = &capability.Failure{Outcome: capability.Broken, Cause: err}
+			}
+			if errors.Is(err, drive.ErrDialog) {
+				return err
+			}
+			return fmt.Errorf("%w: %s: %w", drive.ErrInput, c.Method, err)
 		}
 	}
 	return nil

@@ -2,6 +2,8 @@ package drive
 
 import (
 	"context"
+	"errors"
+	"github.com/xianxu/pair/cmd/internal/webcast/capability"
 	"slices"
 	"sync"
 
@@ -25,7 +27,9 @@ type Tab interface {
 }
 
 // TabRunner runs fn with the cast tab, on the stream's writer, in stream
-// order; what the run causes is attributed to by.
+// order; what the run causes is attributed to by. WithTab returns only after
+// fn settles, or after guaranteeing fn will never start. Cancellation before
+// dispatch returns a definitely-no-effect capability.Failure (Retryable).
 type TabRunner interface {
 	WithTab(ctx context.Context, by string, fn func(Tab) error) error
 }
@@ -42,9 +46,10 @@ type TabRunner interface {
 // a refusal, ups included), and at once when control changes (Release,
 // called by the controller).
 type TabInjector struct {
-	Tabs TabRunner
-	mu   sync.Mutex // guards held; runs are serialized by the tab anyway
-	held pressed
+	Tabs       TabRunner
+	mu         sync.Mutex // guards held; runs are serialized by the tab anyway
+	held       pressed
+	releaseErr error
 }
 
 // pressed is what one driver holds down in the tab.
@@ -73,35 +78,79 @@ type Releaser interface {
 // may have run (and let go of by's hold itself), and that driver's press
 // isn't by's to end.
 func (t *TabInjector) Release(ctx context.Context, by string) error {
+	t.mu.Lock()
+	prior := t.releaseErr
+	t.mu.Unlock()
+	if prior != nil && capability.FailureOutcome(prior) == capability.Broken {
+		return prior
+	}
+	if err := ctx.Err(); err != nil {
+		return &ReleaseFailure{&capability.Failure{Outcome: capability.Retryable, Cause: err}}
+	}
 	return t.Tabs.WithTab(ctx, "", func(tab Tab) error {
 		t.mu.Lock()
 		mine := t.held.by == by
+		prior := t.releaseErr
 		t.mu.Unlock()
+		// Text/click failures can be uncertain without owning any held key.
+		// The terminal evidence belongs to the injector, not a particular hold.
+		if prior != nil && capability.FailureOutcome(prior) == capability.Broken {
+			return prior
+		}
 		if !mine {
 			return nil
 		}
-		return t.release(tab)
+		return t.release(ctx, tab)
 	})
 }
 
-// release dispatches the ups for what is held, then forgets it whatever
-// happened: an up that fails (the page went) leaves nothing to hold.
-func (t *TabInjector) release(tab Tab) error {
+// ReleaseFailure distinguishes failed cleanup from a refused viewer action.
+// Its cause retains the adapter's definitely-no-effect or uncertain classification.
+type ReleaseFailure struct{ Cause error }
+
+func (e *ReleaseFailure) Error() string { return "drive release: " + e.Cause.Error() }
+func (e *ReleaseFailure) Unwrap() error { return e.Cause }
+
+// release removes each hold only after its up is acknowledged. Stop at the
+// first failure: uncertain transport effects must never be blindly replayed.
+func (t *TabInjector) release(ctx context.Context, tab Tab) error {
 	t.mu.Lock()
-	h := t.held
-	t.held = pressed{}
-	t.mu.Unlock()
-	var err error
-	if h.button {
-		err = tab.Dispatch(Act{A: ActUp, X: h.x, Y: h.y, Button: ButtonLeft})
+	defer t.mu.Unlock()
+	if t.releaseErr != nil && capability.FailureOutcome(t.releaseErr) == capability.Broken {
+		return t.releaseErr
 	}
-	for i := len(h.keys) - 1; i >= 0; i-- {
-		k := h.keys[i]
-		if e := tab.Dispatch(Act{A: ActKey, Type: KeyUp, Key: k.Key, Code: k.Code}); err == nil {
-			err = e
+	h := &t.held
+	check := func() error {
+		if err := ctx.Err(); err != nil {
+			t.releaseErr = &ReleaseFailure{&capability.Failure{Outcome: capability.Retryable, Cause: err}}
+			return t.releaseErr
 		}
+		return nil
 	}
-	return err
+	if h.button {
+		if err := check(); err != nil {
+			return err
+		}
+		if err := tab.Dispatch(Act{A: ActUp, X: h.x, Y: h.y, Button: ButtonLeft}); err != nil {
+			t.releaseErr = &ReleaseFailure{err}
+			return t.releaseErr
+		}
+		h.button = false
+	}
+	for len(h.keys) > 0 {
+		if err := check(); err != nil {
+			return err
+		}
+		k := h.keys[len(h.keys)-1]
+		if err := tab.Dispatch(Act{A: ActKey, Type: KeyUp, Key: k.Key, Code: k.Code}); err != nil {
+			t.releaseErr = &ReleaseFailure{err}
+			return t.releaseErr
+		}
+		h.keys = h.keys[:len(h.keys)-1]
+	}
+	*h = pressed{}
+	t.releaseErr = nil
+	return nil
 }
 
 // note records what an act dispatched for by leaves pressed.
@@ -126,25 +175,54 @@ func (t *TabInjector) note(by string, seg int, a Act) {
 }
 
 func (t *TabInjector) Inject(ctx context.Context, by string, b Batch) error {
-	return t.Tabs.WithTab(ctx, by, func(tab Tab) error {
+	entered := false
+	err := t.Tabs.WithTab(ctx, by, func(tab Tab) error {
+		entered = true
 		err := t.inject(ctx, tab, by, b)
 		t.mu.Lock()
 		mine := t.held.by == by
 		t.mu.Unlock()
-		if err != nil && mine {
-			t.release(tab)
+		var releaseErr *ReleaseFailure
+		if err != nil && mine && !errors.As(err, &releaseErr) {
+			if e := t.release(ctx, tab); e != nil {
+				return e
+			}
 		}
 		return err
 	})
+	if err != nil && !entered {
+		// A queued up canceled before the callback never reaches refusal cleanup.
+		// Keep its existing hold visible and require an explicit cleanup attempt.
+		t.mu.Lock()
+		if t.held.by == by && !t.held.empty() {
+			if t.releaseErr == nil {
+				t.releaseErr = &ReleaseFailure{err}
+			}
+			err = t.releaseErr
+		}
+		t.mu.Unlock()
+	}
+	return err
 }
 
 func (t *TabInjector) inject(ctx context.Context, tab Tab, by string, b Batch) error {
+	t.mu.Lock()
+	priorFailure := t.releaseErr
+	t.mu.Unlock()
+	if priorFailure != nil {
+		return priorFailure
+	}
+	if b.Admit != nil && !b.Admit() {
+		return ErrDriveUnavailable
+	}
 	page := tab.Page()
 	t.mu.Lock()
 	h := t.held
 	t.mu.Unlock()
 	if !h.empty() && (h.by != page.Control.Driving() || h.seg != page.Seg) {
-		t.release(tab) // another driver now, or another page: let go first
+		if err := t.release(ctx, tab); err != nil {
+			return err
+		} // another driver/page must wait for release
 	}
 	if by == "" || page.Control.Driving() != by {
 		return ErrNotDriver
@@ -156,6 +234,9 @@ func (t *TabInjector) inject(ctx context.Context, tab Tab, by string, b Batch) e
 		return err
 	}
 	for _, a := range b.Acts {
+		if b.Admit != nil && !b.Admit() {
+			return ErrDriveUnavailable
+		}
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -164,11 +245,35 @@ func (t *TabInjector) inject(ctx context.Context, tab Tab, by string, b Batch) e
 			if err != nil {
 				return err
 			}
-			if !onTarget(tab.Page().Node, hit, a.ID) {
+			// A wheel only scrolls whatever is under the pointer, so it
+			// skips the identity check (pair#516, the operator's call: a
+			// flick scrolls the tab ahead of the viewer, and its later
+			// events still name what the viewer saw). It keeps the bounds
+			// check: a point with nothing under it is refused.
+			stale := !onTarget(tab.Page().Node, hit, a.ID)
+			if a.A == ActWheel {
+				stale = hit == 0
+			}
+			if stale {
 				return ErrStale
 			}
 		}
+		if b.Admit != nil && !b.Admit() {
+			return ErrDriveUnavailable
+		}
 		if err := tab.Dispatch(a); err != nil {
+			if capability.FailureOutcome(err) == capability.Broken {
+				// An unacknowledged down may have taken effect. Keep that evidence;
+				// an unacknowledged up must not be sent again as refusal cleanup.
+				if a.A == ActDown || (a.A == ActKey && a.Type == KeyDown) {
+					t.note(by, page.Seg, a)
+				}
+				t.mu.Lock()
+				t.releaseErr = &ReleaseFailure{err}
+				failure := t.releaseErr
+				t.mu.Unlock()
+				return failure
+			}
 			return err
 		}
 		t.note(by, page.Seg, a)
@@ -176,7 +281,7 @@ func (t *TabInjector) inject(ctx context.Context, tab Tab, by string, b Batch) e
 	return nil
 }
 
-// onTarget is the stale rule: the element the tab has at the point (hit)
+// onTarget is a down's and click's stale rule: the element the tab has at the point (hit)
 // is the one the viewer aimed at (id) or inside it; or hit is a frame's
 // owner and id is inside that frame (the tab's hit test stops at an
 // out-of-process frame, where the viewer's nodeAt went on).

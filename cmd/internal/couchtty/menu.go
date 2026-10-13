@@ -21,6 +21,7 @@ type MenuControl struct {
 
 var menuControls = []MenuControl{
 	{Keys: "typeahead", Action: "filter"},
+	{Keys: "Ctrl+Y", Action: "copy the full last notice from the switcher"},
 	{Keys: "Space", Action: "toggle normal/focus view when filter is empty"},
 	{Keys: "↑↓", Action: "select"},
 	{Keys: "Enter", Action: "switch/resume"},
@@ -207,6 +208,10 @@ type MenuState struct {
 	// Palette is what the host terminal reported about its colours, which idle
 	// fading blends toward (pair#247). One copy, read by both renderers.
 	Palette Palette
+	// Hub is the worktree root of the hub slot, the checkout Couch started
+	// from (pair#463), or "" without one. PresentThreads orders and indents
+	// the hub's section by it, for the tab bar and the switcher (pair#491).
+	Hub string
 }
 
 // MenuOperationOrigin captures the exact frame that emitted asynchronous
@@ -271,6 +276,8 @@ const (
 	MenuEventPalette
 	// MenuEventBlocked replaces the set of threads behind a picker (pair#465).
 	MenuEventBlocked
+	// MenuEventHub records the hub's worktree root and reorders (pair#491).
+	MenuEventHub
 )
 
 type MenuEvent struct {
@@ -316,6 +323,8 @@ type MenuEvent struct {
 	Blocked map[couchcore.ThreadAddress]bool
 	// Palette is the host terminal's colours as known after one reply.
 	Palette Palette
+	// Hub is the hub slot's worktree root (pair#491).
+	Hub string
 }
 
 // MenuEffect is an operation request for the thin Console shell.
@@ -332,7 +341,7 @@ type MenuEffect struct {
 }
 
 func NewMenuState(inventory []couchcore.ActionableThreadSummary, active couchcore.ThreadAddress) MenuState {
-	owned := orderedMenuInventory(inventory)
+	owned := orderedMenuInventory(inventory, "")
 	root := MenuFrame{Instance: 1, Kind: MenuFrameRoot}
 	if len(owned) > 0 {
 		selectMenuRow(&root, owned[0])
@@ -446,6 +455,10 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 	if event.Kind == MenuEventBlocked {
 		next.Blocked = event.Blocked
 		return next, nil
+	}
+	if event.Kind == MenuEventHub {
+		next.Hub = event.Hub
+		return reorderMenuInventory(next), nil
 	}
 	if event.Kind == MenuEventPalette {
 		next.Palette = event.Palette

@@ -6,7 +6,15 @@ github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: '49c3263ef71c723cbfd8ef4816af5c1632cd5438' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '2f7a8c8ae8e027494042c9fb63d8352fbfbf93e5' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-12T15:17:34-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
 ---
 
 # couch: start agent shell commands at nice from their first instant via Claude Code's shell-prefix hook (follow-up to #502's renicer)
@@ -43,3 +51,4 @@ for #502 and asked for this as an optional follow-up (10-12, via the TL).
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: unclaimed: filed for the TL as an unassigned follow-up to #502

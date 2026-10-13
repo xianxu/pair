@@ -153,6 +153,7 @@ one-line description can't carry.
 |---|---|---|
 | **Alt+h** | non-agent panes | Pop up the keybinding list in a floating pane (`q` or `Esc` to dismiss). Same content as `pair keys`. When Couch presents the thread, Couch's keys come first. |
 | **Alt+Return** | nvim (normal/insert) | Send buffer to agent. Note for consistency, claude's keybinding also changed to Alt+return as send, and return as newline |
+| **Shift+Ctrl+Alt+Return** | draft nvim (normal/insert) | Send draft text plus all open cast-tab notes, recorded context, current box text and a PNG crop per note to the agent in view. An empty draft can send notes. Progress appears in the draft status line; editing resumes when the operation finishes or fails (36s maximum). [Evidence and retry behavior](atlas/webcast-submission.md). |
 | **Return** | agent pane | Insert a newline in Claude, Codex, Agy, and Qoder composers; Pair translates it to Muse's native Shift+Return and Grok's native Alt+Enter. The rewrite is *positively gated* for every agent: Pair rewrites only while it can see a live composer on screen, so in a permission picker, a selection menu, or any state it doesn't recognize, Return stays a plain Enter and the dialog confirms. Set `PAIR_WRAP_REMAP_RETURN=0` to turn the rewrite off entirely (that also disables overlay detection and its telemetry). |
 | **Alt+Return** | agent pane | Always submits, in every state. |
 | **Alt+Shift+Return** | any Pair pane | Cycle the selected right terminal: **focus** (floating, centered at 75% width and full height, agent pane dimmed) → **maximize** (native fullscreen; Zellij's bars remain visible) → back to the tiling, focusing the invoking pane. A split acts only on the selected half. No-op without a right terminal. |
@@ -380,6 +381,11 @@ with Neovim and Zellij config carried alongside it. There is no Python and no
 shell runtime; `zellij`, `nvim`, `fzf`, and the agent CLIs are the only external
 programs.
 
+`make install` links the built binaries into `~/.local/bin`, so later checkout
+builds are visible without reinstalling. Keep that checkout in place; these
+links point to its `bin/` directory. Already-running processes keep their old
+binary until restarted.
+
 `make install` also installs a second binary, **`couch`** — a supervisor that
 registers durable work threads, spawns them, and hosts one in your terminal. It
 is separate from `pair` on purpose: pair is what you sit inside, so a supervisor
@@ -395,6 +401,10 @@ couch --show <ref>       one current-repository thread by tag or path, or a slot
 couch --reconcile repo:N converge a slot's workspace now and show what it did
 couch --peek repo:N[:M...][,repo:N...] [--lines N] [--json] [--transcripts]
                                            read-only: slots' recent terminal (live, with dim/reverse/cursor marks); --transcripts adds log paths
+couch --peek repo:N --previous [--lines N | --all]
+                                           exact previous tty recording; --all reads complete retained history [heavy]
+couch --peek repo:N --all [--transcripts]
+                                           complete current recording projection [heavy]; bounded, plain text
 couch --archived         threads removed from couch, with their records kept
 couch --actors [--json]  live peer-message receivers in this Couch namespace
 couch --broadcast-list [--json]   every link out by kind (screen, web view, web drive) and its viewers, and the
@@ -420,6 +430,9 @@ couch --resume repo:N [--json]   from a live slot: resume that slot's agent
 couch --reboot repo:N --confirm [--force-unknown] [--json]
                          from a live slot: archive and replace it with a fresh agent on the current binary;
                          a live target is stopped first unless busy (busy-unknown needs --force-unknown)
+couch --switch-agent repo:N --agent NAME --confirm [--json]
+                         from the hub: switch another idle, clean slot using saved target-agent settings
+couch --operation-status ID [--json]   inspect an asynchronous operation receipt
 couch --reap repo:N --confirm [--json]     from a live slot: end an orphaned server's tree
 couch --recover repo:N [--json]               from a live slot: run the report's steps for it
 couch --relaunch repo:N --confirm [--same-binary] [--force-unknown] [--json]
@@ -446,6 +459,44 @@ couch --message-status ID [--json]      inspect a message receipt; a send to a b
 couch --skill            print the bundled agent coordination skill
 couch --adopt-store /absolute/store     preview adoption of an existing store
 ```
+
+`couch --switch-agent` accepts one exact slot and a different agent. It refuses
+`self`, the caller's own slot, busy or dirty targets, and targets whose state
+cannot be verified. It uses the target agent's last successful starting-path
+settings, falling back to its explicit repository default. Missing settings
+require the operator's Switch coding agent form; agents cannot supply argv or
+edit defaults through this API. The form remains the operator's parameter editor.
+A switch parks the source and starts a fresh conversation. Pair delivers no
+handoff or orientation; the saved startup parameters are used unchanged.
+The hub captures any context it needs before switching and decides what to send
+later. Compaction and continuation remain separate operations.
+
+An accepted receipt means the operation was queued; inspect it with
+`couch --operation-status ID`. On failure, use the existing park/recover/resume
+operations: retry switching when the old agent is still running; after a failed
+target start is proved gone, resume the old conversation. Uncertain terminal
+ownership must be resolved before another agent starts.
+
+Failed launches leave a one-line explanation, attempt ID, diagnostic file path,
+and an inspection command, such as
+`couch --show ariadne:5`. Inspection retains the target's error, the final switch
+error, output tail, and exits observed before and after cleanup separately.
+An unobserved exit is not proof that the target crashed. Each Couch namespace
+keeps its newest 16 failed attempts, with at most 16 KiB of output per attempt;
+rollback, restart, and a later successful launch do not erase them. Ordinary
+launches capture stderr; terminal launches label their combined stdout/stderr.
+Inspection strips terminal controls. Abrupt termination before Couch records a
+failure can still leave no diagnostic.
+
+Previous-session peeks select only the saved incarnation's tty recording.
+`--previous --transcripts` refuses: capture native coordinates before switching,
+using the current slot's `--transcripts` read when needed. `--all` returns the
+complete retained terminal history or an explicit error naming the files;
+it never labels a capacity-truncated tail complete. Replay limits are 64 MiB
+raw, 8 MiB events, 100,000 rows, 1,048,576 history cells / 128 MiB logical
+history bytes, and screen dimensions 1–1000 with at most 262,144 cells.
+Terminal erase-history commands retain their normal meaning; native transcripts
+remain the complementary source for erased content.
 
 `couch --help` ends each verb's line with its relative cost, measured on this
 machine (pair#490), and `couch --skill` lists the same tiers:
@@ -797,6 +848,19 @@ their thread. The focused tab, the selected switcher row, and a thread with a
 pending notification never fade. If the terminal doesn't report its colours,
 both idle levels use the same theme grey; `NO_COLOR` turns fading off.
 
+A thread whose agent is waiting on a picker (a permission prompt or a question)
+shows red in the tabs and the switcher until the picker closes, even when it's
+the focused tab, and never fades.
+
+The tab bar starts with the hub, the checkout you started Couch from, and then
+lists every other slot grouped by repository:
+`ops  ariadne  :1  :2  blog  pair  :1  :2`. In the switcher the hub is the first line and the rest sit indented
+under it. The hub tab and switcher row use reversed colours as a bookmark;
+focus brackets still mark the active tab, and the selected hub row is bold
+with a cursor arrow. When the tabs don't fit, a repository's numbered slots fold into a
+count (`pair  +2`), starting from the right. A red, belled or focused tab is
+never folded away, and the switcher always lists everything.
+
 Each numbered slot keeps its Couch metadata in its environment's `.couch/`
 directory. Opening it resumes its conversation; **Start fresh** replaces the
 conversation in the same slot after confirming its managed sessions are stopped.
@@ -893,7 +957,7 @@ dies with the broadcast.
 
 `couch --broadcast-list [--json]`, from any shell, lists every link out by kind.
 - **`screen`** is the screen broadcast: its state, start time, mode and viewer count.
-- **`web view`** is the web cast's view link: its state and viewers.
+- **`web view`** is the web cast's view-only and pointer links: their state and viewers.
 - **`web drive`** is the web cast's drive link: its state and viewers, and who drives and how many ask.
 
 It never prints a link or its token, because the token is the link's only credential. While recordings are shared
@@ -953,7 +1017,7 @@ Broadcasts reach viewers through [`cloudflared`](https://developers.cloudflare.c
 if Couch crashes or is killed.
 
 **Remote pointer (#412).** While broadcasting, the status row reads
-`LIVE ⏸ 👆 👽`. Clicking `👆` creates a separate **pointer link**, copies it to
+`LIVE ⏸ 👆`. Clicking `👆` creates a separate **pointer link**, copies it to
 your clipboard, and turns pointing on (`👆` turns amber). Give that link to the
 person helping you. Anyone holding it sees the same live view and can tap or
 drag on it (an iPad works well), leaving colored marks that hold for a moment and
@@ -961,14 +1025,15 @@ then fade quickly on your screen and every viewer's. Each viewer draws in one of
 six colorblind-safe colors (#446): Couch gives a new viewer a color nobody else
 is using, and the column of swatches at the screen's right edge lets them pick another, which their
 browser remembers. Marks are only drawn: they never
-type or click anything in your programs, never cover the `LIVE ⏸ 👆 👽`
+type or click anything in your programs, never cover the `LIVE ⏸ 👆`
 controls (the rest of the tab bar can be pointed at), and aren't drawn while
 the switcher is open. Clicking `👆` again turns pointing
 off, clears the marks and leaves the link as view-only; clicking once more
-turns it back on for the same link. Right-click `👆` to copy the link again.
+turns it back on and copies the same link. Right-click `👆` to copy in any state;
+if the link does not exist yet, this creates it while pointing stays off.
 Right-click `LIVE ⏸` to copy the view-only link again. Stopping the
-broadcast ends every link. `👽` is reserved for remote control and does
-nothing yet.
+broadcast ends every link. Remote control of the terminal cast isn't built
+yet (#407); the web cast can be driven remotely through its drive link.
 
 **Sticky notes (#447).** People on the pointer link can also leave a short
 plain-text note on part of the screen: the two buttons under the color
@@ -980,7 +1045,7 @@ Couch outlines the box in its author's color, on your screen and every
 viewer's, and draws a `💭` inside its top-right corner, on a
 chip of its author's color inside a soft glow that flashes when the note
 arrives and every 15 seconds until it is resolved, and the status row shows
-the open count after the controls (`LIVE ⏸ 👆 👽 💭2`). Click `💭2` to list the
+the open count after the controls (`LIVE ⏸ 👆 💭2`). Click `💭2` to list the
 notes in a box over your screen: hovering one highlights it and makes its `💭`
 glow so you can tell which is which, clicking one copies its text,
 right-clicking one copies it and resolves it, and `×` or
@@ -999,20 +1064,50 @@ server, an agent's mock, anything). While it runs the tab bar shows
 `Chrome ▶`; press `Shift+Ctrl+Alt+b` again, click `Chrome ▶`, or press the
 **Go live** button Couch puts at the bottom right of the page, and the active tab
 is cast (`Chrome ⏸`). The same three pause and resume it, and the browser stays
-open while paused. Right-click the cell to copy the **view link** (watch, point, leave
-notes); `Alt` (Option)+right-click copies the **drive link** (below); `Ctrl`+click
-(left or right) ends the cast and closes Chrome. Closing Chrome yourself ends the
+open while paused. A web cast has three links, like the screen broadcast
+(#506), each allowing more than the one before when the corresponding
+capability is enabled:
+- right-click the cell for the **view-only link**: its viewers watch, and see
+  others' strokes and notes but can't add any;
+- `👆` controls annotation; its **pointer link** lets viewers point and leave
+  and resolve notes while annotation is on;
+- `👽` controls remote driving; its **drive link** also lets viewers ask to
+  drive while driving is on.
+
+Annotation and remote driving start **OFF**, independently. A link and its code
+remain valid when a capability is off, but holding them does not enable it:
+the server refuses annotation or driving until the operator enables that
+capability. Turning annotation off clears the current marks while preserving
+recorded history; turning driving off revokes the driver and pending requests.
+👆 is dim when off; 👽 is plain when off. Both are amber when on; the driver’s
+name joins the same chip while occupied (for example, `👽 Ana`). Left-click to enable and copy
+the link, or to disable. Right-click copies in any state without toggling; links
+and codes stay the same. Terminal casts have 👆 only.
+
+While cleanup runs, the control stays off and says to wait. If cleanup can be
+retried, a persistent notice says “Click 👆 to retry” (or 👽); that click retries
+cleanup and leaves the capability off. If the cast is broken, the notice says
+to Ctrl+click Chrome to end it. Viewers see unavailable controls until the
+operator enables them. Annotation drafts retain their text across off/on,
+with the pen returning to Off; driving requires a fresh request and grant.
+
+Each link has its own code (hover the cell to see them; Alt+click it for the
+Codes menu, which copies any of the three). Beside the cell, `↗` brings the cast
+Chrome window and tab to the front (`Chrome ⏸ ↗ 👆 👽`). `Ctrl`+click (left or
+right) ends the cast and closes Chrome. Closing Chrome yourself ends the
 cast too. The cast follows whichever tab is active, including tabs opened later.
 Viewers' page shows whether the cast is live and, while it is, the page's title
 and URL; nothing you do while paused reaches them.
 
-**Remote driving (#467).** A viewer who opens the **drive link** sees **Ask to drive**. The tab bar then shows
+**Remote driving (#467).** When driving is enabled, a viewer who opens the
+**drive link** can **Ask to drive**. The tab bar then shows
 `✋Ana` after the Chrome cell (`✋2` for more), and Couch says so. Click it for the drive menu:
 - **Grant.** Click the asker to let them drive. They use the page through their viewer with mouse, touch and
-  keyboard, and the tab bar shows `🕹Ana`.
+  keyboard, and the capability chip shows amber `👽 Ana`.
 - **Deny.** Right-click an asker to say no.
-- **Take back.** Click the driver's row to take control back. `Ctrl`+click on the span takes it back at any time,
-  menu open or not.
+- **Turn driving off.** Click `👽 Ana` (or idle `👽`) to revoke control and drop pending requests.
+  Right-click anywhere on that chip still copies the drive link. The request popup also
+  retains its driver row for taking control back without turning the capability off.
 
 While anyone drives:
 - Uploads and downloads are off in the cast tab, yours too, and Couch says so.
@@ -1021,7 +1116,7 @@ While anyone drives:
 - A banner in your tab names the driver.
 - The recording attributes their actions to them (`by`).
 
-The view link never offers driving.
+Only the drive link offers driving; the view-only and pointer links never do.
 
 **Recording (#458).** From the first time you go live, the cast tab is recorded
 to `<couch store>/webcast/recordings/<id>/` (the format is in
@@ -1038,17 +1133,27 @@ line. The web cast shares the screen broadcast's tunnel
 is found in the usual macOS locations or on `PATH`; set `COUCH_WEBCAST_CHROME` to
 the binary to choose another (Couch refuses to start if it doesn't exist).
 
-**Pointing and notes on a web cast (#470).** Anyone with the viewer link can point
-and leave notes; there is no separate pointer link. On the viewer's page, the rail at
+**What a web cast can't show.** A canvas's pixels, a video's frames, a plugin's output and a frame the cast couldn't
+record aren't in the recording. The viewer keeps their place at the operator's size and marks each with a dashed
+outline and a label such as "canvas: not captured", so the page never collapses around them.
+
+🤖{**Operator annotation in the cast Chrome (#494).** Use the viewer's same ✏️ and 💭 buttons in the cast Chrome to draw or leave a note on the actual page; hover for their tooltips. It starts Off; click the selected icon again or press Escape to turn annotation off. Couch’s Chrome Alt-click menu also offers Annotation · Off · Pen · Note without switching windows. Notes and strokes use the same recording and viewer display, attributed to Operator. While a remote viewer drives, annotations are disabled and an open draft is hidden and held; returning control makes annotation available again with the pen Off. A pause holds the draft, while navigation discards it. All Couch UI is excluded from page recording and hidden during fidelity and submission captures. Broadcast and driving control stay in Couch's cast row. If Couch reports uncertain remote input, close and reopen the cast Chrome to recover its hidden UI. The injected host shares the page DOM and is not a security boundary.}
+
+**Pointing and notes on a web cast (#470).** Anyone with the pointer link (👆) or the
+drive link can point and leave notes while annotation is enabled; the view-only
+link can't, and the cast refuses
+its posts ("This link is view-only."). On the viewer's page, the rail at
 the right edge has the six pointer colors, ✏️ (point: draw on the page, everyone sees
 the stroke fade after a moment) and 💭 (note: drag a box around what the note is
 about, or tap for a small box around that spot, then write; on a phone, drag a little
-further than a tap). The first note asks for a name; the page remembers it and the color in this
-browser. Every note is its box: everyone sees it outlined in the author's color with
+further than a tap). The name comes from the lock page (below); the page remembers it and
+the color in this browser. Every note is its box: everyone sees it outlined in the author's color with
 the 💭 inside its top-right corner, and the box is the part of the page a submission
 shows the agent. It follows the page as it scrolls, stays through a pause, and leaves the page when the cast moves to another
-page; anyone can tap a pin to read it and resolve it. In Couch the open notes show as
-`💭N` after the Chrome cell (`Chrome ⏸ 💭2`); click it for the same notes box the screen
+page; anyone can tap a pin to read it and resolve it. While the cast is paused, viewers can't point, leave, or resolve
+notes: the rail's controls and an open note's Save and Resolve are greyed out ("The cast is paused.") until it
+resumes; a draft keeps its text. In Couch the open notes show as
+`💭N` after the Chrome cell (`Chrome ⏸ ↗ 👆 👽 💭2`); click it for the same notes box the screen
 broadcast uses, with each note's author: click one to copy its text, right-click to copy
 and resolve it. Unlike the screen broadcast's
 notes, these are part of the recording: notes and strokes, with their authors, are
@@ -1056,12 +1161,70 @@ saved in `notes.jsonl` and `pointer.jsonl`, and `couch --broadcast-web-query DIR
 notes` lists them. The name a viewer gives is theirs to choose: it attributes, it
 doesn't authenticate.
 
+**Submit web notes (#483).** Press **Shift+Ctrl+Alt+Return** in the draft to send
+its text and all open cast-tab notes to the agent in view, with recorded context,
+current box text and one current PNG crop per note. The message includes the
+recording path and commands for reading the bundle. Crops cover the current
+viewport; offscreen notes retain context with an unavailable crop. Capture waits
+briefly for document-wide animations and labels any unsettled result, without scrolling or
+forcing styles. The draft can be empty. Submitted notes become
+resolved: submitting transfers ownership of the notes to the agent; whatever
+follows (a pensive, an issue, a fix) is the agent's. See
+[submission evidence and recovery](atlas/webcast-submission.md).
+
+🤖{**Captured page identity (#525).** New DOM bundles use version 2: `source.page` contains the actual cast page's URL and title with `provenance: "cdp"`; each note's `source_document` references `source.document`. For example: `{"version":2,"source":{"document":1,"page":{"url":"http://localhost:4321/blog","title":"Blog","provenance":"cdp"}},"notes":[{"source_document":1,"at":{"node":7},"box_text":{"visible_text":[{"element":"<button class=\"save\">","text":"Save"}]}}]}` (other fields omitted). URL/title are bound to current text and pixels; unavailable captures claim no page. Box text preserves its order and text-node entries with tag/classes instead of CSS selectors, and `at.node` remains the `@N` recording handle. Version-1 bundles still load. [Complete schema](atlas/webcast-submission.md).}
+
+🤖{**Issue evidence privacy (#526).** Submissions default to private. Only the operator edits `<COUCH_STORE_DIR>/webcast/origin-privacy.json`, for example `{"origins":[{"origin":"http://localhost:4321","privacy":"shareable"}]}`; rules match exact HTTP(S) origins, with default ports normalized. Couch rereads the file for each submission and records the matched policy in the bundle. Missing files mean private; invalid or unreadable files still allow submission as private, with a reason in the bundle and a notice naming the file. Agents write issue evidence as text, summarize private page text, and attach only relevant crops when both the bundle and repository asset policy permit it. Recordings stay local and may expire; issues must stand on their own. [Policy details](atlas/webcast-submission.md#origin-privacy-and-issue-evidence-526).}
+
+**Codes on every cast link (#495).** Every link a cast hands out opens with a short
+code first: the screen broadcast's view and pointer links, and the web cast's view and
+drive links. A link alone shows only a lock page that asks for the code and the
+viewer's name; the cast's server sends nothing without the code, not even the stream.
+Send the link however you like and say the code on the call. A link may carry the code
+as `link#4821`: the page reads it and drops it from the address bar, and link previews
+never see it.
+- **Seeing the codes.** Hover `LIVE ⏸` or `Chrome ⏸` to see all of that cast's codes,
+  for example `view 4821 · pointer 7730`. View and pointer codes are 4 digits; the drive
+  code is 6.
+- **The Codes menu.** `Alt+click` `LIVE ⏸` or `Chrome ⏸`. It shows one row per link:
+  `view 3926 · rotate · copy-link`, then `rotate all`.
+  - Each blue word is its own button: click it, or pick it with Up/Down (row) and
+    Left/Right (word) and press Enter.
+  - The menu stays open after an action: the word flashes to show it ran, and a
+    rotated code changes in place. Escape or `×` closes it.
+  - Rotating disconnects everyone who used the old code.
+  - Before pointing first makes the pointer link, its row shows `pointer (not made
+    yet)`, with no actions; click `👆` to make it.
+- **Wrong guesses.** About 8 wrong tries on one code rotate it by themselves. Couch
+  says so, and viewers already in stay connected.
+- **What viewers see.** The codes show on your screen only, never in what the LIVE
+  broadcast sends, and a notice says that a code changed, never what it is. A new code
+  flashes three times over its cell.
+- **Re-entering the code.** Opening the link again from a chat app asks for the code
+  again.
+
+The cast row follows one rule: a left click acts or toggles, a right-click copies that
+control's link, and `Alt+click` opens the Codes menu (on `LIVE ⏸` and `Chrome ⏸` only).
+
+| control | left click | right-click | Alt+click | hover |
+| --- | --- | --- | --- | --- |
+| `LIVE ⏸` | stop the broadcast (#518 adds pause) | copy view-only link | Codes menu | all its codes |
+| `👆` (screen) | toggle pointing (makes the link the first time) | copy pointer link | — | — |
+| `Chrome ⏸` / `▶` | pause / resume (`Ctrl`+click ends) | copy view-only link | Codes menu | all its codes |
+| `↗` | bring the cast Chrome forward | — | — | — |
+| `👆` (web) | toggle annotation; enabling copies pointer link | copy pointer link without enabling | — | — |
+| `👽` | toggle driving; enabling copies drive link | copy drive link without enabling | — | — |
+
 With an empty root filter, **Space** toggles the **normal view** and **focus view**.
 Focus view shows only live threads with a published summary, in normal-view
 order, as `label ◆ summary`. Tag a thread with `! …` in its Pair draft. An empty
 focus view explains how to tag a thread. The switcher remembers the last view used until Couch
 exits. Reopening clears search text but keeps the view. With text in the filter,
 Space is a literal search character; it does not toggle views.
+
+In the switcher, `Ctrl+Y` copies the full last retained status notice, including
+text clipped from the status row and after that row expires. Repeating it copies
+the same notice until another arrives. In an actor, `Ctrl+Y` still goes to the actor.
 
 Printable input filters the current list from memory (typeahead), matching what a
 row shows: its label, its path, and the published summary in both default and
@@ -1087,12 +1250,12 @@ agent switch form. Choose an agent, then edit its prefilled startup parameters (
 empty value is allowed). This second screen names the source and target and
 contains **Switch** and **Cancel**. Tab or Up/Down move between the
 parameter field and buttons; Left/Right move the text cursor while editing.
-Enter on **Switch** submits the change. Switching keeps the thread and working path, launches a fresh
-conversation, and asks the new agent to read the outgoing context and summarize
-its orientation. The switcher stays open. If orientation delivery fails, the
-thread's **Copy orientation prompt** action requests clipboard copy without changing the
-draft; terminal clipboard support is required. Inspect any existing composer
-text before pasting or submitting again.
+Enter on **Switch** submits the change after checking that the source is idle
+and clean. Choose a different agent; switching keeps the thread and working
+path and launches a fresh conversation with an empty composer. The switcher
+stays open. Capture any needed native transcript coordinates before switching;
+the previous tty recording remains available through `couch --peek repo:N
+--previous`.
 
 The status row and the switcher are **clickable**: a click on an actor's chip, or
 anywhere in its rows in the switcher, switches to it, and empty space does

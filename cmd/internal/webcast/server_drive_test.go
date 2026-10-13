@@ -3,6 +3,7 @@ package webcast
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -36,6 +37,10 @@ func newDriveFixture(t *testing.T, grace time.Duration) *driveFixture {
 	}
 	clock := func() int64 { return inj.Page().T + 1 }
 	ctrl := drive.NewMemController(recording.Tee(stream, inj), inj, clock, grace)
+	ctrl.WithControlReset(inj.ResetControl)
+	if err := ctrl.SetDriveAllowed(context.Background(), true); err != nil {
+		t.Fatal(err)
+	}
 	t.Cleanup(func() { ctrl.Close() })
 	return &driveFixture{srv: NewServer("tok", NewFakeBrowser(), time.Second, nil, nil).WithDrive(ctrl, "drv"), ctrl: ctrl, inj: inj, stream: stream}
 }
@@ -44,6 +49,7 @@ func newDriveFixture(t *testing.T, grace time.Duration) *driveFixture {
 func (f *driveFixture) post(route, key, body string) (int, string) {
 	r := httptest.NewRequest(http.MethodPost, "/drv/drive/"+route, strings.NewReader(body))
 	r.Header.Set("Content-Type", "application/json")
+	r.Header.Set("X-Couch-Drive-Generation", fmt.Sprint(f.ctrl.DriveCapability().Generation))
 	if key != "" {
 		r.Header.Set(drive.SeatHeader, key)
 	}
@@ -145,6 +151,7 @@ func TestDriveRoutesShape(t *testing.T) {
 	for _, route := range []string{"hello", "control", "input"} {
 		r := httptest.NewRequest(http.MethodPost, "/tok/drive/"+route, strings.NewReader(`{}`))
 		r.Header.Set("Content-Type", "application/json")
+		r.Header.Set("X-Couch-Drive-Generation", "1")
 		w := httptest.NewRecorder()
 		plain.ServeHTTP(w, r)
 		if w.Code != http.StatusNotFound {
@@ -191,7 +198,7 @@ func TestDriveSeatFollowsItsStream(t *testing.T) {
 	viewer, key := f.hello(t, "Ana")
 	ctx, cancel := context.WithCancel(context.Background())
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/drv/events?viewer="+viewer, nil)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := castClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -293,9 +300,8 @@ func TestDriveSeatTableSweepsIdleKeys(t *testing.T) {
 	}
 }
 
-// Two links (operator, 10-12): the view link watches, points and notes;
-// only the drive link takes a seat, control and input, and only its stream
-// holds a seat.
+// Of the cast's links, only the drive link takes a seat, control and input,
+// and only its stream holds a seat.
 func TestDriveOnlyUnderTheDriveLink(t *testing.T) {
 	f := newDriveFixture(t, 100*time.Millisecond)
 	if !f.srv.Owns("drv") || !f.srv.Owns("tok") || f.srv.Owns("nope") || f.srv.DriveToken() != "drv" {
@@ -304,10 +310,11 @@ func TestDriveOnlyUnderTheDriveLink(t *testing.T) {
 	for _, route := range []string{"hello", "control", "input"} {
 		r := httptest.NewRequest(http.MethodPost, "/tok/drive/"+route, strings.NewReader(`{}`))
 		r.Header.Set("Content-Type", "application/json")
+		r.Header.Set("X-Couch-Drive-Generation", fmt.Sprint(f.ctrl.DriveCapability().Generation))
 		w := httptest.NewRecorder()
 		f.srv.ServeHTTP(w, r)
 		if w.Code != http.StatusNotFound {
-			t.Errorf("%s under the view link: %d", route, w.Code)
+			t.Errorf("%s under the view-only link: %d", route, w.Code)
 		}
 	}
 	srv := httptest.NewServer(f.srv)
@@ -316,9 +323,9 @@ func TestDriveOnlyUnderTheDriveLink(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/tok/events?viewer="+viewer, nil)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := castClient.Do(req)
 	if err != nil || resp.StatusCode != http.StatusOK {
-		t.Fatalf("watching by the view link: %v %v", resp, err)
+		t.Fatalf("watching by the view-only link: %v %v", resp, err)
 	}
 	defer resp.Body.Close()
 	time.Sleep(300 * time.Millisecond) // past the grace: a view stream holds no seat
@@ -327,5 +334,56 @@ func TestDriveOnlyUnderTheDriveLink(t *testing.T) {
 	}
 	if err := f.ctrl.Request(key); err != drive.ErrNoSeat {
 		t.Fatalf("a seat held by a view-link stream: %v", err)
+	}
+}
+
+// failingInjector fails every batch with err once the driver passes its own
+// checks: the tab couldn't take the input (pair#505).
+type failingInjector struct {
+	*drive.FakeInjector
+	err error
+}
+
+func (f *failingInjector) Inject(context.Context, string, drive.Batch) error { return f.err }
+
+// pair#505: every drive input answered 500 "Something went wrong." and
+// nothing told the operator why. A failure that isn't the viewer's gets its
+// own sentence when it is known, and every one is logged with its cause,
+// once per distinct message.
+func TestDriveRoutesLogWhatTheViewerCantFix(t *testing.T) {
+	for _, c := range []struct {
+		name   string
+		err    error
+		status int
+	}{
+		{"the tab refused the input", fmt.Errorf("%w: Input.dispatchMouseEvent: cdp: session closed", drive.ErrInput), http.StatusBadGateway},
+		{"the cast was busy", context.DeadlineExceeded, http.StatusServiceUnavailable},
+		{"anything unmapped", errors.New("disk full"), http.StatusInternalServerError},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			f := newDriveFixture(t, time.Minute)
+			ctrl := drive.NewMemController(recording.Tee(f.stream, f.inj), &failingInjector{f.inj, c.err}, func() int64 { return f.inj.Page().T + 1 }, time.Minute)
+			if err := ctrl.SetDriveAllowed(context.Background(), true); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { ctrl.Close() })
+			var logs []string
+			f.srv = NewServer("tok", NewFakeBrowser(), time.Second, nil, nil).WithDrive(ctrl, "drv").
+				WithDriveLog(func(format string, args ...any) { logs = append(logs, fmt.Sprintf(format, args...)) })
+			ana, key := f.hello(t, "Ana")
+			f.post("control", key, `{"op":"request"}`)
+			if err := ctrl.Grant(ana); err != nil {
+				t.Fatal(err)
+			}
+			_, say := drive.Answer(c.err)
+			for i := 0; i < 2; i++ {
+				if code, body := f.post("input", key, f.click("q")); code != c.status || body != say {
+					t.Fatalf("input: %d %q, want %d %q", code, body, c.status, say)
+				}
+			}
+			if len(logs) != 1 || !strings.Contains(logs[0], c.err.Error()) {
+				t.Fatalf("operator's log %q, want the cause once", logs)
+			}
+		})
 	}
 }

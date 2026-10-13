@@ -17,9 +17,24 @@
     try { __couchcast(JSON.stringify(m)); } catch (_) { /* binding gone: Chrome is closing */ }
   };
   let live = false;
+  let controlRevision = -1;
   let driver = '';
   let button = null;
   let banner = null;
+  let host = null;
+  let guarded = true; // a replacement document waits for its target's guard state
+  let tokens = new Map();
+  const suppress = (event) => {
+    const next = globalThis.__couchcastSuppressionPolicy(tokens, event, Date.now());
+    tokens = next.tokens;
+    if (host) { host.hidden = guarded || next.hidden; host.style.display = host.hidden ? 'none' : ''; }
+    return next.confirmed;
+  };
+  globalThis.__couchcastUI = (op, token, until) => {
+    const confirmed = suppress({ op, token, until });
+    if (op === 'acquire' && until > 0) setTimeout(() => suppress({ op: 'check' }), Math.max(1, until - Date.now()));
+    return confirmed;
+  };
 
   const draw = () => {
     if (!button) return;
@@ -27,25 +42,26 @@
     banner.hidden = !driver;
     button.textContent = live ? '❚❚ Pause' : '● Go live';
     button.setAttribute('aria-pressed', live ? 'true' : 'false');
-    button.className = live ? 'live' : '';
+    button.className = live ? 'cast-button live' : 'cast-button';
   };
-  globalThis.__couchcastSet = (v, who) => { live = !!v; driver = typeof who === 'string' ? who : ''; draw(); };
+  globalThis.__couchcastSet = (v, who, guard = false, revision = controlRevision + 1) => { if (revision < controlRevision) return; controlRevision = revision; live = !!v; driver = typeof who === 'string' ? who : ''; guarded = !!guard; suppress({ op: 'check' }); draw(); };
 
   const mount = () => {
     if (button || !document.documentElement) return;
-    const host = document.createElement('couchcast-control');
+    host = document.createElement('couchcast-control');
     host.setAttribute('data-couchcast-ui', '');
     host.style.cssText = 'all:initial;position:fixed;z-index:2147483647;right:12px;bottom:12px;';
     const root = host.attachShadow({ mode: 'closed' });
     const style = document.createElement('style');
     style.textContent =
-      'button{font:600 12px/1 system-ui,sans-serif;padding:7px 11px;border-radius:14px;border:0;' +
+      '.cast-button{font:600 12px/1 system-ui,sans-serif;padding:7px 11px;border-radius:14px;border:0;' +
       'cursor:pointer;color:#fff;background:rgba(40,40,40,.72);box-shadow:0 1px 4px rgba(0,0,0,.3)}' +
-      'button:hover{background:rgba(40,40,40,.95)}button.live{background:#c62828}' +
-      'div{font:600 12px/1.2 system-ui,sans-serif;margin:0 0 6px;padding:6px 10px;border-radius:10px;' +
-      'color:#fff;background:#1565c0;box-shadow:0 1px 4px rgba(0,0,0,.3);text-align:right}div[hidden]{display:none}';
+      '.cast-button:hover{background:rgba(40,40,40,.95)}.cast-button.live{background:#c62828}' +
+      '.cast-banner{font:600 12px/1.2 system-ui,sans-serif;margin:0 0 6px;padding:6px 10px;border-radius:10px;' +
+      'color:#fff;background:#1565c0;box-shadow:0 1px 4px rgba(0,0,0,.3);text-align:right}.cast-banner[hidden]{display:none}';
     banner = document.createElement('div');
     banner.setAttribute('role', 'status');
+    banner.className = 'cast-banner';
     button = document.createElement('button');
     button.type = 'button';
     button.addEventListener('click', (e) => {
@@ -57,6 +73,12 @@
     root.appendChild(banner);
     root.appendChild(button);
     document.documentElement.appendChild(host);
+    if (globalThis.__couchcastMountOperator) {
+      globalThis.__couchcastMountOperator({ host, root, report });
+      // The initial hello can precede DOMContentLoaded and the operator hook.
+      report({ t: 'hello' });
+    }
+    suppress({ op: 'check' });
     draw();
   };
 

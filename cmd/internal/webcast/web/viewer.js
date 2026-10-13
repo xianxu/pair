@@ -10,8 +10,10 @@
 import { Model } from './model.js';
 import { Renderer } from './render.js';
 import { mountAnnotate, identityStore } from './annotate.js';
+import { mountPlaceholders } from './placeholders.js';
 import { joinSeat, mountDrive } from './drive.js';
 import { replayPath, mountReplay } from './replay.js';
+import { sessionLost } from './collab.js';
 
 // fit is the page box's scale and place in an area: the operator's
 // viewport, scaled to fit whole, centred.
@@ -56,8 +58,24 @@ export function view(model, state, ended) {
 // onRecord(fn) for a later component to watch records (#467's control
 // state) without touching the apply path.
 export function connect(deps) {
-  const hooks = [];
-  const v = { model: null, renderer: null, onRecord: (fn) => hooks.push(fn) };
+  const hooks = [], capabilityHooks = [];
+  const closed = (previous = {}) => Object.fromEntries(['annotation', 'drive'].map(k => [k, {...previous[k], allowed:false, state:'off'}]));
+  const v = { model: null, renderer: null, capabilities: closed(), onRecord: (fn) => hooks.push(fn),
+    onCapabilities(fn) { capabilityHooks.push(fn); fn(v.capabilities); } };
+  const publishCapabilities = (value) => { v.capabilities = value; for (const fn of capabilityHooks) fn(value); };
+  const failClosed = () => publishCapabilities(closed(v.capabilities));
+  const receiveCapabilities = (value) => {
+    const next = {};
+    for (const k of ['annotation', 'drive']) {
+      const c = value?.[k], old = v.capabilities[k];
+      if (!c || !Number.isSafeInteger(c.generation) || c.generation < 0 || !Number.isSafeInteger(c.attempt) || c.attempt < 0) {
+        next[k] = {...old, allowed:false, state:'off'}; continue;
+      }
+      if (c.generation < (old.generation || 0) || (c.generation === old.generation && c.attempt < old.attempt)) { next[k] = old; continue; }
+      next[k] = {...c, allowed:c.supported === true && c.permitted === true && c.allowed === true && c.state === 'on'};
+    }
+    publishCapabilities(next);
+  };
   let es, state = null, ended = false, queued = false;
   const fresh = () => {
     if (v.renderer && v.renderer.revokeAll) v.renderer.revokeAll(); // the old drawing's blob: stylesheets
@@ -76,28 +94,43 @@ export function connect(deps) {
   const resync = (why) => {
     console.warn('couch viewer: resyncing:', why);
     es.close();
+    es = null;
+    failClosed();
     fresh();
     deps.show({ ...view(null, state, false), status: 'Reconnecting…' });
     deps.retry(open);
   };
   function open() {
-    es = deps.open();
-    es.addEventListener('state', (e) => { state = JSON.parse(e.data); show(); });
-    es.addEventListener('rec', (e) => {
+    const source = es = deps.open();
+    const current = () => es === source;
+    source.addEventListener('capabilities', (e) => {
+      if (!current() || ended) return;
+      try { receiveCapabilities(JSON.parse(e.data)); } catch { failClosed(); }
+    });
+    source.addEventListener('state', (e) => { if (!current()) return; state = JSON.parse(e.data); show(); });
+    source.addEventListener('rec', (e) => {
+      if (!current()) return;
       const r = JSON.parse(e.data);
       if (r.k === 'head' && v.model.head) fresh(); // a reconnect's catch-up starts over
       try { v.model.apply(r); } catch (err) { resync(err); return; }
       v.renderer.apply(r);
-      if (r.k === 'stop' && r.why === 'end') ended = true;
+      if (r.k === 'stop' && r.why === 'end') { ended = true; failClosed(); }
       if (r.k === 'seg') ended = false;
       for (const fn of hooks) fn(r, v.model);
       show();
       paint();
     });
-    es.addEventListener('end', () => { es.close(); ended = true; show(); });
-    es.onerror = () => {
-      if (es.readyState === 2) { if (!ended) deps.show({ ...view(null, null, true), status: 'Disconnected' }); }
-      else show(); // EventSource reconnects by itself
+    source.addEventListener('end', () => { if (!current()) return; source.close(); es = null; ended = true; failClosed(); show(); });
+    source.onerror = () => {
+      if (!current()) return;
+      failClosed();
+      if (source.readyState !== 2) { show(); return; } // EventSource reconnects by itself
+      if (ended) return;
+      const disconnected = () => deps.show({ ...view(null, null, true), status: 'Disconnected' });
+      // A stream refused because the link's code was rotated (pair#495)
+      // returns to the lock page.
+      if (!deps.sessionLost) { disconnected(); return; }
+      deps.sessionLost().then((lost) => { if (current() && !ended) lost ? deps.relock() : disconnected(); });
     };
   }
   fresh();
@@ -152,7 +185,7 @@ export function mount(doc, win) {
   const shell = {
     renderer: (model) => new Renderer(frame(), model, resolveAsset),
     show: render,
-    frame: () => { layout(); drawPointer(); },
+    frame: () => { layout(); drawPointer(); win.couchViewer?.placeholders?.draw(); },
     schedule: (fn) => win.requestAnimationFrame(fn),
   };
   // A recording (#471) plays from its records; a cast follows its stream,
@@ -173,6 +206,8 @@ export function mount(doc, win) {
       v = connect({
         ...shell,
         open: () => new win.EventSource(viewer ? `events?viewer=${encodeURIComponent(viewer)}` : 'events'),
+        sessionLost: () => sessionLost((url, init) => win.fetch(url, init)),
+        relock: () => win.location.reload(),
         retry: (fn) => win.setTimeout(fn, 1000),
       });
     });
@@ -186,6 +221,9 @@ export function mount(doc, win) {
     canonical: () => v.renderer.canonical(),
     ready: async () => { await started; await v.loaded; return v.renderer.ready(); }, // a replay first loads its records
     boxOf: (id) => v.renderer.boxOf(id),
+    // uncaptured: the drawn elements whose content the recording can't
+    // hold (pair#513), as [{id, kind}].
+    uncaptured: () => v.renderer.uncaptured(),
     nodeAt: (x, y) => v.renderer.nodeAt(x, y),
     toPage: (clientX, clientY) => {
       const r = box.getBoundingClientRect();
@@ -200,9 +238,11 @@ export function mount(doc, win) {
     // onRecord(fn): fn(r, model) for every record applied, from the stream
     // once it opens (registered before its first record arrives).
     onRecord: (fn) => { started.then(() => v.onRecord(fn)); },
+    onCapabilities: (fn) => { started.then(() => v.onCapabilities?.(fn)); },
   };
   const surface = { ...win.couchViewer, get model() { return v.model; }, get seat() { return seat; }, get annotate() { return win.couchViewer.annotate; } };
   started.then(() => {
+    win.couchViewer.placeholders = mountPlaceholders(doc, win, win.couchViewer);
     // Pointing and notes (#470), when the cast takes them; remote driving
     // (#467), when it offers a seat.
     mountAnnotate(doc, win, surface).then((a) => { win.couchViewer.annotate = a; });

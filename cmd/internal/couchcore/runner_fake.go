@@ -29,6 +29,7 @@ type FakeChild struct {
 	// a Couch-launched Pair's sidecars stay in its process group (pair#489).
 	exited      chan struct{}
 	childExited bool
+	childCode   int
 	Blocked     bool
 	ExecCount   int
 
@@ -45,7 +46,8 @@ type FakeChild struct {
 //     handle with a deterministic id (couch-fake-N).
 //   - Signal appends to the child's signal log. Catchable signals do not kill
 //     by default; os.Kill always does, matching the kernel contract.
-//   - SetExited(id, code) is the only thing that ends a child; it unblocks Wait.
+//   - SetChildExited ends the direct child while its group survives; SetExited
+//     ends the whole group. Both unblock Wait with the direct child's exit.
 //   - Wait blocks until exited; returns immediately if already exited.
 //   - Handles record into the Runner's Ops log, not their own, so ordering
 //     across children is assertable.
@@ -318,10 +320,10 @@ func (h *fakeHandle) Wait() int {
 	if !ok {
 		return -1
 	}
-	<-c.done
+	<-c.exited
 	h.runner.mu.Lock()
 	defer h.runner.mu.Unlock()
-	return c.code
+	return c.childCode
 }
 
 // Terminal exposes the pty double, so a fakeHandle can satisfy TerminalHandle.
@@ -338,6 +340,7 @@ func (f *FakeRunner) Terminal(id string) *ptychild.Child {
 func (c *FakeChild) endChild() {
 	if !c.childExited {
 		c.childExited = true
+		c.childCode = c.code
 		close(c.exited)
 	}
 }
@@ -363,3 +366,5 @@ func (h *fakeHandle) Exited() <-chan struct{} {
 	close(gone)
 	return gone
 }
+
+func (h *fakeHandle) LaunchOutput() (string, []byte) { return terminalLaunchOutput(h.Terminal()) }

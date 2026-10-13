@@ -3,6 +3,7 @@ package couchtty
 import (
 	"fmt"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -24,6 +25,10 @@ type ThreadPresentation struct {
 	// Glyph is the slot quick-status glyph (pair#317), derived here once so the
 	// switcher and the tab bar cannot disagree. Empty without an observation.
 	Glyph string
+	// Hub marks the hub slot's row (pair#491). It leads its section, and the
+	// section's other rows sit one indent level under it. A hub is marked by
+	// position and reverse-video styling.
+	Hub bool
 	// root is this ordinary row's own scope-proven repository root, empty
 	// when the row's starting path does not prove one.
 	root string
@@ -41,7 +46,8 @@ type threadPresentationGroup struct {
 // synthetic headers. Root recovery is best-effort: immutable starting paths and
 // their lexical ancestors can prove a scope match without consulting current cwd.
 // git holds the last slot git observations by checkout path; nil shows no glyphs.
-func PresentThreads(rows []couchcore.ActionableThreadSummary, git map[string]couchcore.SlotGitStatus) []ThreadPresentation {
+// hub is the hub slot's worktree root, or "" for none (pair#491).
+func PresentThreads(rows []couchcore.ActionableThreadSummary, git map[string]couchcore.SlotGitStatus, hub string) []ThreadPresentation {
 	groups := make(map[string]*threadPresentationGroup)
 	for _, row := range rows {
 		row = presentationRow(row)
@@ -162,6 +168,29 @@ func PresentThreads(rows []couchcore.ActionableThreadSummary, git map[string]cou
 			})
 		}
 		out = append(out, g.rows...)
+	}
+	return hubSection(out, hub)
+}
+
+// hubSection leads with the hub's row and puts every other row one level
+// under it (pair#491). The hub stands alone: its repository's other slots
+// stay in their alphabetical group. Every row belongs to the one hub today;
+// designating more hubs and assigning slots to them would split this into
+// one section per hub, each in this shape.
+func hubSection(rows []ThreadPresentation, hub string) []ThreadPresentation {
+	at := slices.IndexFunc(rows, func(p ThreadPresentation) bool { return hub != "" && p.Path == hub })
+	if at < 0 {
+		return rows
+	}
+	lead := rows[at]
+	lead.Hub, lead.Indent = true, 0
+	out := make([]ThreadPresentation, 0, len(rows))
+	out = append(out, lead)
+	for i, p := range rows {
+		if i != at {
+			p.Indent += 2
+			out = append(out, p)
+		}
 	}
 	return out
 }

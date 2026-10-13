@@ -1,6 +1,9 @@
 package board
 
 import (
+	"context"
+	"errors"
+	"github.com/xianxu/pair/cmd/internal/webcast/capability"
 	"sync"
 
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
@@ -13,10 +16,12 @@ import (
 // document a navigation has since replaced is dropped. The recorder's queue
 // does the same (recorder.Emit's Doc); tests and fakes use this.
 type Writer struct {
-	mu   sync.Mutex
-	st   *recording.State
-	sink recording.Sink
-	now  func() int64
+	mu           sync.Mutex
+	clearID      uint64
+	clearFailure error
+	st           *recording.State
+	sink         recording.Sink
+	now          func() int64
 }
 
 // NewWriter writes into sink. now is the recording's clock in ms; nil
@@ -32,12 +37,19 @@ func (w *Writer) Put(r recording.Record) error {
 	return w.writeLocked(r)
 }
 
-// Emit is a Board's Emit: it writes r stamped now, or returns ErrStale when
-// the document that began at doc isn't current any more.
+// Emit is a Board's Emit: it writes r stamped now, or refuses it when the
+// document that began at doc isn't current and live any more: ErrPaused
+// during a pause (pair#499), ErrStale otherwise.
 func (w *Writer) Emit(r recording.Record, doc int) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if !w.st.OnDoc(doc) {
+		if w.st.Paused() && w.st.DocSeg == doc {
+			return ErrPaused
+		}
+		return ErrStale
+	}
+	if n, ok := r.(*recording.NoteState); ok && n.IfRevision != nil && !w.st.NoteUnchanged(n.ID, *n.IfRevision) {
 		return ErrStale
 	}
 	t := w.st.T
@@ -56,4 +68,39 @@ func (w *Writer) writeLocked(r recording.Record) error {
 		return err
 	}
 	return w.sink.Put(r)
+}
+
+// ClearAnnotations serializes with Emit and acknowledges the sink's clear.
+// Repeating a successful id is safe, including when no recording has begun.
+func (w *Writer) ClearAnnotations(ctx context.Context, id uint64) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.clearFailure != nil {
+		return w.clearFailure
+	}
+	if id == 0 || id < w.clearID {
+		return &capability.Failure{Outcome: capability.Broken, Cause: errors.New("board: invalid cleanup identity")}
+	}
+	if id == w.clearID {
+		return nil
+	}
+	if err := ctx.Err(); err != nil {
+		return &capability.Failure{Outcome: capability.Retryable, Cause: err}
+	}
+	if w.st.Head == nil {
+		w.clearID = id
+		return nil
+	}
+	t := w.st.T + 1
+	if w.now != nil {
+		t = max(t, w.now())
+	}
+	r := &recording.AnnotationClear{Header: recording.Header{T: t}, Who: recording.Author{ID: recording.OperatorID}}
+	if err := w.writeLocked(r); err != nil {
+		// The reducer applies before the sink: failure cannot safely be retried.
+		w.clearFailure = &capability.Failure{Outcome: capability.Broken, Cause: err}
+		return w.clearFailure
+	}
+	w.clearID = id
+	return nil
 }

@@ -72,6 +72,11 @@ func (c *Console) routeInputEvent(event terminal.InputEvent) {
 	case uv.MouseClickEvent, uv.MouseReleaseEvent, uv.MouseMotionEvent, uv.MouseWheelEvent:
 		c.routeMouseEvent(event)
 		return
+	case uv.KeyPressEvent:
+		// The open Codes menu (pair#495) takes its arrows, Enter and Escape.
+		if c.routeCodesMenuKey(event.Raw, event.Canonical) {
+			return
+		}
 	}
 	c.mu.Lock()
 	panel := c.focus.IsPanel()
@@ -131,6 +136,11 @@ func (c *Console) routeMouseEvent(event terminal.InputEvent) {
 	if c.routeNotesMenu(event.Raw) {
 		return
 	}
+	// Cast link codes (pair#495): the Codes menu, Alt+click on a cast cell,
+	// and the hover tooltip (which never takes the event).
+	if c.routeCastCodes(event.Raw) {
+		return
+	}
 	// Release/motion always visit the presenter, including over panels and
 	// chrome, so its gesture owner can cancel or clip them consistently.
 	if _, ok := event.Event.(uv.MouseReleaseEvent); ok {
@@ -138,14 +148,33 @@ func (c *Console) routeMouseEvent(event terminal.InputEvent) {
 		return
 	}
 	hit, _, _, ok := mouseinput.ParsePrefix(event.Raw)
-	// The Chrome cell (#454): click toggles live, right-click copies the
-	// viewer link, Ctrl with either button ends the cast (a macOS terminal
-	// may turn Ctrl+left into a right click, keeping the Ctrl bit).
+	// The cast row's rule (pair#495): a left click acts or toggles, a
+	// right-click copies that control's link, and Alt+click opens the Codes
+	// menu on LIVE ⏸ and Chrome ⏸ only (routeCastCodes, above). The Chrome
+	// cell (#454): click toggles live, right-click copies the view-only link,
+	// Ctrl with either button ends the cast (a macOS terminal may turn
+	// Ctrl+left into a right click, keeping the Ctrl bit).
 	if ok && !hit.Release {
 		button := mouseinput.BaseButton(hit.Button)
 		c.mu.Lock()
-		rows, cell, driveSpan := int(c.size.Rows), c.statusWebcast, c.statusWebDrive
+		rows, cell, focusSpan, driveSpan := int(c.size.Rows), c.statusWebcast, c.statusWebFocus, c.statusWebDrive
+		pointerLink, driveLink := c.statusWebPointerLink, c.statusWebDriveLink
 		c.mu.Unlock()
+		// Left clicks toggle capabilities; right clicks only copy stable links.
+		// The focus arrow and Chrome cell keep their separate actions.
+		if hit.Y == rows && hit.Button&mouseinput.ModCtrl == 0 {
+			switch {
+			case button == 0 && focusSpan.Contains(hit.X-1):
+				c.focusWebcast()
+				return
+			case (button == 0 || button == 2) && pointerLink.Contains(hit.X-1):
+				c.onWebCapabilityClick("annotation", button == 2)
+				return
+			case (button == 0 || button == 2) && driveLink.Contains(hit.X-1):
+				c.onWebCapabilityClick("drive", button == 2)
+				return
+			}
+		}
 		// Remote driving's span (#467): a click opens the drive menu;
 		// Ctrl with either button takes control back, whatever is open.
 		if (button == 0 || button == 2) && hit.Y == rows && driveSpan.Contains(hit.X-1) {
@@ -160,11 +189,9 @@ func (c *Console) routeMouseEvent(event terminal.InputEvent) {
 			switch {
 			case hit.Button&mouseinput.ModCtrl != 0:
 				c.endWebcast()
-			case button == 2 && hit.Button&mouseinput.ModAlt != 0:
-				// Alt (Option) + right-click: the drive link (#467). Not
-				// Shift: terminals keep Shift+click for their own selection.
-				c.copyWebcastDriveLink()
 			case button == 2:
+				// The view-only link; 👽 and the Codes menu copy the drive
+				// link (pair#495 dropped Alt+right-click for it).
 				c.copyWebcastLink()
 			default:
 				c.toggleWebcast()
@@ -177,7 +204,7 @@ func (c *Console) routeMouseEvent(event terminal.InputEvent) {
 	if ok && !hit.Release && (hit.Button == 0 || hit.Button == 2) {
 		c.mu.Lock()
 		rows := int(c.size.Rows)
-		pointer, remote, control, notes, webNotesSpan := c.statusPointer, c.statusRemote, c.statusControl, c.statusNotes, c.statusWebNotes
+		pointer, control, notes, webNotesSpan := c.statusPointer, c.statusControl, c.statusNotes, c.statusWebNotes
 		c.mu.Unlock()
 		// Right-click on LIVE re-copies the view-only link; a left click
 		// (below) still stops the broadcast.
@@ -187,10 +214,6 @@ func (c *Console) routeMouseEvent(event terminal.InputEvent) {
 		}
 		if hit.Y == rows && pointer.Contains(hit.X-1) {
 			c.onPointerClick(hit.Button == 2)
-			return
-		}
-		if hit.Y == rows && remote.Contains(hit.X-1) {
-			c.onRemoteClick()
 			return
 		}
 		if hit.Button == 0 && hit.Y == rows && notes.Contains(hit.X-1) {

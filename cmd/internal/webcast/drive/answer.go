@@ -1,6 +1,7 @@
 package drive
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"time"
@@ -25,6 +26,9 @@ const (
 	sayControl   = "Control has already changed."
 	sayBad       = "That request isn't valid."
 	sayEnded     = "The cast has ended."
+	sayInput     = "The cast couldn't do that. Try again."
+	sayBusy      = "The cast is busy. Try again."
+	sayBroken    = "Something went wrong."
 )
 
 // Answer is a drive route's response to err: its status and the sentence
@@ -35,6 +39,8 @@ func Answer(err error) (int, string) {
 		return http.StatusNoContent, ""
 	case errors.Is(err, ErrNoSeat):
 		return http.StatusUnauthorized, sayNoSeat
+	case errors.Is(err, ErrDriveUnavailable):
+		return http.StatusForbidden, "Driving is unavailable."
 	case errors.Is(err, ErrNotDriver):
 		return http.StatusForbidden, sayNotDriver
 	case errors.Is(err, ErrStale):
@@ -51,6 +57,11 @@ func Answer(err error) (int, string) {
 		return http.StatusBadRequest, sayBad
 	case errors.Is(err, ErrClosed):
 		return http.StatusGone, sayEnded
+	case errors.Is(err, ErrInput):
+		return http.StatusBadGateway, sayInput
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		return http.StatusServiceUnavailable, sayBusy
 	}
-	return http.StatusInternalServerError, "Something went wrong."
+	// Unmapped: a bug. The route logs it for the operator (pair#505).
+	return http.StatusInternalServerError, sayBroken
 }

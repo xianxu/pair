@@ -168,6 +168,10 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 			if err != nil {
 				return nil, err
 			}
+			selection := PeekSelection{Previous: a["previous"] == "true", All: a["all"] == "true", Transcripts: a["transcripts"] == "true", Lines: lines}
+			if len(refs) > 1 && (selection.All || selection.Previous) {
+				return nil, fmt.Errorf("previous/full recording reads require one exact reference")
+			}
 			if len(refs) > 1 && a["tag"] == "" {
 				resolve := func(ref string) (ThreadAddress, error) {
 					return resolveOperationThread(c, map[string]string{"repo-scope": a["repo-scope"], "ref": ref})
@@ -178,7 +182,7 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 			if err != nil {
 				return nil, err
 			}
-			return c.PeekThread(call.Context, a["ref"], address, lines, a["transcripts"] == "true")
+			return c.PeekThreadSelection(call.Context, a["ref"], address, selection)
 		case "list":
 			return c.ThreadInventoryContext(call.Context)
 		case "recover-plan":
@@ -192,7 +196,8 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 			// thread matched, and is the slot report's error line when one did.
 			// It never reduces the answer to "not a slot".
 			slot, isSlot, slotErr := c.slotOfShowReference(call.Context, a["ref"], matches)
-			if err != nil && !(isSlot && errors.Is(err, ErrThreadReferenceNotFound)) {
+			failures, failureError := c.launchFailuresForShow(call.Context, a["repo-scope"], a["ref"], matches, slot)
+			if err != nil && !((isSlot || len(failures) > 0 || failureError != "") && errors.Is(err, ErrThreadReferenceNotFound)) {
 				if slotErr != nil {
 					return nil, slotErr // the slot reference's own, more specific error
 				}
@@ -218,7 +223,7 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 					narrowed = append(narrowed, row)
 				}
 			}
-			result := ShowResult{Threads: narrowed}
+			result := ShowResult{Threads: narrowed, LaunchFailures: failures, LaunchFailureError: failureError}
 			switch {
 			case slotErr != nil:
 				result.Slot = &SlotReport{PlanError: "slot unresolved: " + slotErr.Error()}
@@ -307,10 +312,15 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 			if call.Operation.Name == "prepare-switch-agent" {
 				return c.PrepareAgentSwitch(ctx, address, a["agent"], argv)
 			}
-			if argv == nil {
+			known := a["known-config"] == "true"
+			if argv == nil && !known {
 				return nil, fmt.Errorf("accepted startup parameters are required")
 			}
-			return c.SwitchAgent(ctx, SwitchAgentRequest{Address: address, Agent: a["agent"], Argv: *argv, AcceptedFingerprint: a["fingerprint"]})
+			var args []string
+			if argv != nil {
+				args = *argv
+			}
+			return c.SwitchAgent(ctx, SwitchAgentRequest{Address: address, Agent: a["agent"], KnownConfig: known, Argv: args, AcceptedFingerprint: a["fingerprint"], Source: a["source"]})
 		case "reboot":
 			if path := a["path"]; path != "" {
 				return c.Reboot(ctx, RebootTarget{Path: path, Agent: a["agent"], RequireSettled: a[requireSettledArg]})

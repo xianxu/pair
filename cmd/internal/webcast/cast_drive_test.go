@@ -51,6 +51,9 @@ func eventually(t *testing.T, what string, ok func() bool) {
 func TestCastDriving(t *testing.T) {
 	mem := &recording.MemSink{}
 	c, d := startDrivenCast(t, mem)
+	if err := c.SetCapability(context.Background(), CapabilityDrive, true); err != nil {
+		t.Fatal(err)
+	}
 	ctrl := c.Drive()
 	if ctrl == nil {
 		t.Fatal("a recorded, drivable cast has no controller")
@@ -92,7 +95,7 @@ func TestCastDriving(t *testing.T) {
 		t.Fatal("revoke waited on a stuck batch")
 	}
 	release()
-	if err := <-stuck; !errors.Is(err, drive.ErrNotDriver) {
+	if err := <-stuck; !errors.Is(err, drive.ErrNotDriver) && !errors.Is(err, drive.ErrDriveUnavailable) {
 		t.Fatalf("the overtaken batch: %v", err)
 	}
 	eventually(t, "Chrome told nobody drives", func() bool { return d.Driving() == "" })
@@ -114,5 +117,13 @@ func TestCastWithoutDriving(t *testing.T) {
 	c, _ := startCast(t, &broadcast.FakeTunnel{})
 	if c.Drive() != nil || c.DriveOff() != "the cast isn't recorded" {
 		t.Fatalf("an unrecorded cast: controller %v, off %q", c.Drive(), c.DriveOff())
+	}
+}
+
+// A Chrome without a recorder has nothing cast to drive: its WithTab says
+// so in drive's terms, not with an error nothing maps (pair#505).
+func TestUnrecordedChromeWithTabIsNotLive(t *testing.T) {
+	if err := (&Chrome{}).WithTab(context.Background(), "v1", func(drive.Tab) error { return nil }); !errors.Is(err, drive.ErrNotLive) {
+		t.Fatalf("WithTab without a recorder: %v, want drive.ErrNotLive", err)
 	}
 }

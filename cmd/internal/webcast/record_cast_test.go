@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -71,7 +70,7 @@ func TestCastRecordsToDirAndViewers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp, err := http.Get(srv.URL + "/" + c.token + "/assets/" + a.Hash)
+	resp, err := castClient.Get(srv.URL + "/" + c.token + "/assets/" + a.Hash)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,6 +88,9 @@ func TestCastRecordsToDirAndViewers(t *testing.T) {
 	}
 	for i := range recs {
 		ev, data := s.next()
+		for ev == "capabilities" {
+			ev, data = s.next()
+		}
 		if ev != "rec" {
 			t.Fatalf("event %d: %s %s", i, ev, data)
 		}

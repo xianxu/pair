@@ -167,6 +167,9 @@ func TestControllerLetsGoOnRevoke(t *testing.T) {
 	}
 	c := NewMemController(recording.Tee(stream, inj), inj, func() int64 { return inj.Page().T + 1 }, time.Minute)
 	defer c.Close()
+	if err := c.SetDriveAllowed(context.Background(), true); err != nil {
+		t.Fatal(err)
+	}
 	seat, _ := c.Join("Ana")
 	c.Request(seat.Key)
 	c.Grant(seat.Viewer.ID)

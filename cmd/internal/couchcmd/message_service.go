@@ -21,6 +21,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/strictjson"
+	core "github.com/xianxu/pair/cmd/internal/submission"
 	"golang.org/x/sys/unix"
 )
 
@@ -151,7 +152,8 @@ type messageService struct {
 	after func(time.Duration, func())
 	// slotOps answers resume, reboot and operation-status (pair#367 M2);
 	// nil answers them unsupported.
-	slotOps *slotOperations
+	slotOps  *slotOperations
+	switches atomic.Pointer[agentSwitchService]
 	// broadcastStatus answers broadcast-status (pair#413). Installed after the
 	// service is serving, so it is an atomic pointer; nil answers unsupported.
 	broadcastStatus atomic.Pointer[func() (couchmessage.BroadcastStatus, bool)]
@@ -159,7 +161,8 @@ type messageService struct {
 	shares atomic.Pointer[func() []couchmessage.ShareStatus]
 	// replay answers replay-share and replay-status (pair#477), like
 	// broadcastStatus; nil answers them unsupported.
-	replay atomic.Pointer[func(op, id string) couchmessage.ReplayShare]
+	replay     atomic.Pointer[func(op, id string) couchmessage.ReplayShare]
+	submission atomic.Pointer[func(context.Context, string, string, core.Target) (couchmessage.SubmissionStatus, error)]
 	// replays lists the shared recordings for broadcast-status; nil lists none.
 	replays atomic.Pointer[func() []string]
 	// deliveries records each landed delivery for session-sync owed events
@@ -243,6 +246,8 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 	if err != nil {
 		return nil, err
 	}
+	switchGuard := &switchServiceGuard{}
+	c.SwitchGuard = switchGuard
 	namespace := c.Namespace.Dir()
 	brokerSocket, err := couchmessage.SocketPath(namespace, "broker")
 	if err != nil {
@@ -379,11 +384,14 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 		return nil, err
 	}
 	probe.service.Store(service)
+	service.installAgentSwitchService(console, c, switchGuard)
 	console.SetMessageBroker(service.broker)
 	service.SetBroadcastStatus(console.BroadcastStatus)
 	service.SetShares(console.Shares)
 	service.SetBlockedView(console.SetBlockedThreads)
+	service.showHub(console)
 	service.SetReplay(console.ReplayShare, console.SharedReplays)
+	service.SetSubmission(console.Submission)
 	service.recordDeliveries(namespace)
 	watcher := newWaitWatcher(service, threshold, namespace)
 	service.workers.Add(1)
@@ -405,6 +413,13 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 	// mailbox the loop drains.
 	console.SubscribeMessageLifecycle(panes)
 	return service, nil
+}
+
+// showHub hands the Console the hub's worktree root (pair#491): the same root
+// the message authority resolves "hub" to, so the tab bar leads with the slot
+// that messages to the hub reach.
+func (s *messageService) showHub(view interface{ SetHub(root string) }) {
+	view.SetHub(s.authority.hub)
 }
 
 // consoleSlotOperations runs slot operations on the console's queue;
@@ -692,6 +707,10 @@ func (s *messageService) connectedWorkspace(ctx context.Context, b couchmessage.
 
 func (s *messageService) handle(ctx context.Context, request couchmessage.Request) couchmessage.Response {
 	switch {
+	case request.Op == "switch-agent":
+		return s.handleAgentSwitch(ctx, request)
+	case couchmessage.IsSubmissionOp(request.Op):
+		return s.handleSubmission(ctx, request)
 	case couchcore.IsSlotOperation(request.Op) || request.Op == "operation-status":
 		return s.handleSlotOperation(ctx, request)
 	case request.Op == "broadcast-status":
@@ -943,6 +962,15 @@ func (s *messageService) handleSlotOperation(ctx context.Context, request couchm
 	if err != nil {
 		return couchmessage.Response{Code: "unavailable", Error: fmt.Sprintf(
 			"caller is not a live Couch slot (thread %s not live, or this shell's session/launch does not match its record): %v", request.Tag, err)}
+	}
+	if request.Op == "operation-status" {
+		if authenticated, err := s.switchCaller(ctx, request); err == nil {
+			if identity, err := s.connectedWorkspace(ctx, authenticated); err == nil && s.authority.isHub(identity) {
+				if response, ok := s.slotOps.switchStatus(request.ID); ok {
+					return response
+				}
+			}
+		}
 	}
 	return s.slotOps.handle(ctx, caller, request)
 }

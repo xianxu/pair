@@ -10,15 +10,19 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/cdp"
+	"github.com/xianxu/pair/cmd/internal/webcast/board"
 	"github.com/xianxu/pair/cmd/internal/webcast/recorder"
 	rec "github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
 //go:embed inject.js
-var injectJS string
+var controlJS string
+
+var injectJS = buildOperatorScript()
 
 // LaunchOptions starts the cast Chrome.
 type LaunchOptions struct {
@@ -39,8 +43,9 @@ type LaunchOptions struct {
 
 // RecordOptions configure the cast's recorder.
 type RecordOptions struct {
-	ID  string          // the recording's id (its head)
-	Out recorder.Output // opened at the first go-live
+	Operator *board.Board
+	ID       string          // the recording's id (its head)
+	Out      recorder.Output // opened at the first go-live
 	// ShotEvery is the fidelity screenshots' period; zero is the
 	// recorder's default.
 	ShotEvery time.Duration
@@ -75,11 +80,14 @@ var ErrProfileInUse = errors.New("webcast: the cast Chrome profile is already in
 // requests from SetLive and Close, and timers are all inputs to its select,
 // so their order is the order they're handled in.
 type Chrome struct {
-	opts   LaunchOptions
-	proc   process
-	conn   *cdp.Conn
-	output *tail
-	pub    *publisher[State]
+	controlRevision atomic.Uint64
+	operatorRefresh chan struct{}
+	operatorReplies chan operatorDelivery
+	opts            LaunchOptions
+	proc            process
+	conn            *cdp.Conn
+	output          *tail
+	pub             *publisher[State]
 
 	requests  chan func(*loopState)
 	ready     chan struct{} // closed when the first page's control is set up
@@ -99,6 +107,10 @@ type Chrome struct {
 	// dialogs: the cast tab's JavaScript dialog, for the recorder's
 	// dispatch (#467), read off the loop.
 	dialogs dialogSignal
+	// activate brings the Chrome app to the front (#501); nil leaves it
+	// where it is. Only Launch sets it, for a windowed Chrome, so no test
+	// on a headless or scripted Chrome can take the operator's focus.
+	activate func() error
 }
 
 // Emit is Emitter's: it queues r for the recorder and never blocks.
@@ -108,6 +120,20 @@ func (c *Chrome) Emit(r rec.Record, doc int) error {
 	}
 	c.rec.Send(recorder.Emit{Record: r, Doc: doc})
 	return nil
+}
+
+func (c *Chrome) ClearAnnotations(ctx context.Context, generation uint64) error {
+	if c.rec == nil {
+		return ErrNotRecording
+	}
+	return c.rec.ClearAnnotations(ctx, generation)
+}
+
+func (c *Chrome) ResetControl(ctx context.Context, generation uint64) error {
+	if c.rec == nil {
+		return ErrNotRecording
+	}
+	return c.rec.ResetControl(ctx, generation)
 }
 
 // endCause is why the loop is closing Chrome, once it is.
@@ -123,6 +149,7 @@ const (
 
 // loopState is owned by run.
 type loopState struct {
+	uiGuards map[string]string
 	tracker  Tracker
 	phase    Phase
 	sessions map[string]string // session -> target
@@ -191,6 +218,9 @@ func Launch(ctx context.Context, opts LaunchOptions) (*Chrome, error) {
 		return nil, fmt.Errorf("webcast: start Chrome: %w", err)
 	}
 	c := start(cdp.New(outR, cmdW), proc, output, opts)
+	if !opts.Headless {
+		c.activate = activateProcess(cmd.Process.Pid)
+	}
 	timer := time.NewTimer(opts.StartTimeout)
 	defer timer.Stop()
 	select {
@@ -212,6 +242,7 @@ func start(conn *cdp.Conn, proc process, output *tail, opts LaunchOptions) *Chro
 	loopCtx, cancel := context.WithCancel(context.Background())
 	c := &Chrome{
 		opts: opts, proc: proc, conn: conn, output: output,
+		operatorRefresh: make(chan struct{}, 1), operatorReplies: make(chan operatorDelivery, 32),
 		pub:      newPublisher(State{}),
 		requests: make(chan func(*loopState)),
 		ready:    make(chan struct{}),
@@ -220,7 +251,10 @@ func start(conn *cdp.Conn, proc process, output *tail, opts LaunchOptions) *Chro
 	}
 	if opts.Record != nil {
 		c.rec = recorder.Start(recorder.Options{ID: opts.Record.ID, Call: conn, Out: opts.Record.Out,
-			ShotEvery: opts.Record.ShotEvery, Logf: opts.Record.Logf, Dialog: c.dialogs.signal})
+			ShotEvery: opts.Record.ShotEvery, Logf: opts.Record.Logf, Dialog: c.dialogs.signal, Operator: opts.Record.Operator, OperatorReply: c.operatorReply, UIGuard: c.uiGuard, SyncEvents: conn.SyncEvents})
+	}
+	if opts.Record != nil {
+		c.startOperator(opts.Record.Operator)
 	}
 	go c.run()
 	return c
@@ -315,6 +349,26 @@ func (c *Chrome) SetLive(live bool) error {
 	return err
 }
 
+// Focus activates the cast tab, which raises its window within Chrome, then
+// brings Chrome itself in front of other apps.
+func (c *Chrome) Focus() error {
+	var tab string
+	ran := make(chan struct{})
+	if !c.do(func(s *loopState) { tab = castTab(s); close(ran) }) {
+		return ErrEnded
+	}
+	<-ran
+	if tab != "" {
+		if err := c.call("", "Target.activateTarget", map[string]any{"targetId": tab}, nil); err != nil {
+			return err
+		}
+	}
+	if c.activate != nil {
+		return c.activate()
+	}
+	return nil
+}
+
 func (c *Chrome) Close() error {
 	c.do(func(s *loopState) { c.beginClose(s, endRequested) })
 	<-c.done
@@ -362,6 +416,14 @@ loop:
 }
 
 func (c *Chrome) handle(s *loopState, ev cdp.Event) {
+	if ev.Barrier != nil {
+		if c.rec != nil {
+			c.rec.Send(recorder.Barrier{Done: ev.Barrier})
+		} else {
+			close(ev.Barrier)
+		}
+		return
+	}
 	if s.tap != nil {
 		s.tap(ev)
 	}
@@ -395,6 +457,7 @@ func (c *Chrome) handle(s *loopState, ev cdp.Event) {
 			c.goSetupFrame(in)
 		case pageDetached:
 			delete(s.sessions, in.SessionID)
+			delete(s.uiGuards, in.SessionID)
 			delete(s.contexts, in.SessionID)
 			delete(s.dialogs, in.SessionID)
 			delete(s.frames, in.SessionID)
@@ -412,7 +475,8 @@ func (c *Chrome) handle(s *loopState, ev cdp.Event) {
 		case toggleRequested:
 			c.setLive(s, s.phase != PhaseLive)
 		case helloRequested:
-			c.goSetControl(in.SessionID, in.ContextID, s.phase == PhaseLive, s.driver)
+			c.goSetControl(in.SessionID, in.ContextID, s.phase == PhaseLive, s.driver, s.uiGuards[in.SessionID] != "")
+			c.refreshOperator()
 		case dialogOpened:
 			s.dialogs[in.SessionID] = true
 		case dialogClosed:
@@ -493,9 +557,9 @@ func (c *Chrome) goSetupFrame(f frameAttached) {
 
 // goSetControl shows live or idle on one page's control. A failure means the
 // document went away; the next one asks with hello.
-func (c *Chrome) goSetControl(session string, contextID int64, live bool, driver string) {
+func (c *Chrome) goSetControl(session string, contextID int64, live bool, driver string, guard bool) {
 	name, _ := json.Marshal(driver)
-	expr := fmt.Sprintf("globalThis.__couchcastSet && globalThis.__couchcastSet(%t, %s)", live, name)
+	expr := fmt.Sprintf("globalThis.__couchcastSet && globalThis.__couchcastSet(%t, %s, %t, %d)", live, name, guard, c.controlRevision.Add(1))
 	c.goCall(session, "Runtime.evaluate", map[string]any{"expression": expr, "contextId": contextID}, nil)
 }
 
@@ -508,7 +572,7 @@ func (c *Chrome) setLive(s *loopState, live bool) error {
 		s.phase = PhaseLive
 	}
 	for session, ctx := range s.contexts {
-		c.goSetControl(session, ctx, live, s.driver)
+		c.goSetControl(session, ctx, live, s.driver, s.uiGuards[session] != "")
 	}
 	return nil
 }
@@ -544,6 +608,12 @@ func (c *Chrome) publish(s *loopState) {
 	// every input, so a dialog, a tab switch or a closed tab all count.
 	c.dialogs.set(s.dialogs[sessionOf(s, castTab(s))])
 	next := State{Phase: s.phase, Tab: tab, HasTab: ok}
+	for _, guard := range s.uiGuards {
+		if guard == "unknown" {
+			next.Recovery = "Remote input completion is uncertain. Close and reopen the cast Chrome to restore Couch UI."
+			break
+		}
+	}
 	if next != c.pub.get() {
 		c.pub.publish(next)
 	}
@@ -592,6 +662,7 @@ func sessionOf(s *loopState, target string) string {
 // finish runs once the pipe is gone or Chrome exited: it makes sure the
 // process is reaped, every call has returned, and says why it ended.
 func (c *Chrome) finish(s *loopState) {
+	c.cancel() // unblock bounded bridge/guard callbacks before joining the recorder
 	// Read before our own Close, which would mask it.
 	connErr := c.conn.Err()
 	if c.rec != nil {

@@ -1,6 +1,8 @@
 package couchtty
 
 import (
+	"context"
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"strings"
@@ -18,6 +20,13 @@ import (
 type recordedFake struct {
 	*webcast.FakeBrowser
 	w *board.Writer
+}
+
+func (r *recordedFake) ClearAnnotations(ctx context.Context, generation uint64) error {
+	if r.w == nil {
+		return nil
+	}
+	return r.w.ClearAnnotations(ctx, generation)
 }
 
 func (r *recordedFake) Emit(rec recording.Record, doc int) error { return r.w.Emit(rec, doc) }
@@ -59,19 +68,38 @@ func newWebNotesCast(t *testing.T, screen bool) *webNotesCast {
 			t.Fatal(err)
 		}
 	}
-	waitFor(t, "link", func() bool {
+	// Viewers who leave notes hold the pointer link; the view-only link only
+	// watches (pair#506).
+	waitFor(t, "pointer link", func() bool {
 		r.con.mu.Lock()
 		defer r.con.mu.Unlock()
-		c.link = r.con.wcast.update.Link
+		c.link = r.con.wcast.update.PointerLink
 		return c.link != ""
 	})
+	unlockWebCast(t, r.con)
+	r.con.mu.Lock()
+	cast := r.con.wcast.cast
+	r.con.mu.Unlock()
+	if err := cast.SetCapability(context.Background(), webcast.CapabilityAnnotation, true); err != nil {
+		t.Fatal(err)
+	}
 	return c
+}
+
+func (c *webNotesCast) annotationGeneration() uint64 {
+	c.con.mu.Lock()
+	cast := c.con.wcast.cast
+	c.con.mu.Unlock()
+	return cast.Capabilities().Annotation.Generation
 }
 
 func (c *webNotesCast) note(t *testing.T, name, text string) {
 	t.Helper()
 	body := fmt.Sprintf(`{"viewer":{"id":"v-%s","name":%q},"seg":1,"node":%d,"box":[1,2,3,4],"region":[1,2,30,40],"color":2,"text":%q}`, name, name, c.p.ID, text)
-	resp, err := http.Post(c.link+"note", "application/json", strings.NewReader(body))
+	req, _ := http.NewRequest(http.MethodPost, c.link+"note", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Couch-Annotation-Generation", fmt.Sprint(c.annotationGeneration()))
+	resp, err := castClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +127,9 @@ func (c *webNotesCast) webSpan(t *testing.T) ColumnSpan {
 func TestWebNotesInCouch(t *testing.T) {
 	r := newWebNotesCast(t, false)
 	r.note(t, "Ana", "fix the header")
-	waitFor(t, "Chrome ▶ 💭1", func() bool { return strings.Contains(r.lastRow(), WebcastIdleLabel+" "+broadcast.NoteGlyph+"1") })
+	waitFor(t, "Chrome ▶ 💭1", func() bool {
+		return strings.Contains(r.lastRow(), WebcastIdleLabel+webcastButtons+" "+broadcast.NoteGlyph+"1")
+	})
 	span := r.webSpan(t)
 	if r.notesSpan() != (ColumnSpan{}) {
 		t.Fatal("the screen broadcast's 💭N must not show for web notes")
@@ -215,7 +245,10 @@ func TestWebNotesMenuSourceAndStableIDs(t *testing.T) {
 	}
 	// A viewer resolves a under the open menu.
 	body := fmt.Sprintf(`{"viewer":{"id":"v-cy"},"id":%q,"state":"resolved"}`, a.noteID)
-	resp, err := http.Post(r.link+"note-state", "application/json", strings.NewReader(body))
+	req, _ := http.NewRequest(http.MethodPost, r.link+"note-state", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Couch-Annotation-Generation", fmt.Sprint(r.annotationGeneration()))
+	resp, err := castClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -261,11 +294,47 @@ func TestWebMenuNotes(t *testing.T) {
 func TestStatusRowWebNotes(t *testing.T) {
 	row := RenderStatusRow(80, StatusModel{Webcast: WebcastLive, WebNotes: 3})
 	plain := ansi.Strip(row.Body)
-	if !strings.Contains(plain, WebcastLiveLabel+" "+broadcast.NoteGlyph+"3") || row.WebNotes == (ColumnSpan{}) || row.Notes != (ColumnSpan{}) ||
-		row.WebNotes != (ColumnSpan{Start: 9, End: 12}) { // after `Chrome ⏸ `; 💭 is two columns
+	if !strings.Contains(plain, WebcastLiveLabel+webcastButtons+" "+broadcast.NoteGlyph+"3") || row.WebNotes == (ColumnSpan{}) || row.Notes != (ColumnSpan{}) ||
+		row.WebNotes != (ColumnSpan{Start: 17, End: 20}) { // after `Chrome ⏸ ↗ 👆 👽 `; 👆 👽 💭 are two columns each
 		t.Errorf("row %q spans %+v %+v", row.Body, row.WebNotes, row.Notes)
 	}
 	if row := RenderStatusRow(80, StatusModel{Webcast: WebcastOff, WebNotes: 3}); row.WebNotes != (ColumnSpan{}) {
 		t.Errorf("no Chrome, no 💭N: %+v", row.WebNotes)
 	}
+}
+
+// pair#506: right-click copies the view-only link and the pointer command the
+// pointer link, each with a notice that says what it grants and never
+// contains the link (a screen broadcast would draw it to viewers).
+func TestWebcastCopiesEachLink(t *testing.T) {
+	r := newWebNotesCast(t, false)
+	var u webcast.Update
+	waitFor(t, "links", func() bool {
+		r.con.mu.Lock()
+		defer r.con.mu.Unlock()
+		u = r.con.wcast.update
+		return u.Link != "" && u.PointerLink != ""
+	})
+	copied := func(what, link, notice string) {
+		t.Helper()
+		osc := "\x1b]52;c;" + base64.StdEncoding.EncodeToString([]byte(link))
+		waitFor(t, what, func() bool { return strings.Contains(r.host.Written(), osc) && strings.Contains(r.notice(), notice) })
+		if strings.Contains(r.notice(), "http") {
+			t.Fatalf("%s: the notice shows a link: %q", what, r.notice())
+		}
+	}
+	r.clickCell(t, 2)
+	copied("the view-only link", u.Link, "view-only link copied")
+	r.con.copyWebcastPointerLink()
+	copied("the pointer link", u.PointerLink, "pointer link copied")
+
+	plain := newWebcastRig(t, nil)
+	plain.open(t)
+	waitFor(t, "plain link", func() bool {
+		plain.con.mu.Lock()
+		defer plain.con.mu.Unlock()
+		return plain.con.wcast.update.Link != ""
+	})
+	plain.con.copyWebcastPointerLink()
+	waitFor(t, "no pointer link", func() bool { return strings.Contains(plain.notice(), "takes no notes") })
 }

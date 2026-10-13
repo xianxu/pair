@@ -1,6 +1,8 @@
 package couchtty
 
 import (
+	"github.com/xianxu/pair/cmd/internal/castlock"
+
 	"context"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"sync/atomic"
@@ -163,6 +165,10 @@ func (c *Console) startBroadcast(cfg broadcast.Config) {
 	c.bcast = broadcastState{phase: broadcastStarting, attempt: c.bcast.attempt + 1, cancel: cancel}
 	attempt := c.bcast.attempt
 	c.mu.Unlock()
+	// Its links' codes (pair#495), bound to this start.
+	if cfg.OnCodeRotated == nil {
+		cfg.OnCodeRotated = func(link string, r castlock.Rotation) { c.onCodeRotated(castScreen, attempt, link, r) }
+	}
 	c.setNotice("Starting broadcast…")
 	c.GoTracked(func() {
 		s, err := broadcast.Start(ctx, cfg)
@@ -222,7 +228,7 @@ func (c *Console) broadcastStarted(attempt uint64, s *broadcast.Session, err err
 	}
 	// The notice never contains the link: it would be drawn into the very
 	// frames being broadcast.
-	c.setNotice("Broadcast live — link copied. Click LIVE or press Ctrl+Alt+b to stop.")
+	c.setNotice("Broadcast live — link copied. Click LIVE or press Ctrl+Alt+b to stop. Viewers need its code: hover LIVE to see it.")
 	s.Activate()
 	c.GoTracked(func() {
 		select {
@@ -261,6 +267,7 @@ func (c *Console) broadcastEnded(s *broadcast.Session) {
 	byOperator := c.bcast.phase == broadcastStopping
 	c.bcast = broadcastState{attempt: c.bcast.attempt}
 	c.mu.Unlock()
+	c.forgetCastCodes(castScreen)
 	if !byOperator {
 		c.detachBroadcastScreen()
 		c.setNotice("Broadcast ended: " + broadcast.EndReason(s.Err()) + ".")

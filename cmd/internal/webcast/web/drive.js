@@ -21,6 +21,12 @@ export const FLUSH_MS = 50;
 export const HOVER_MS = 50;
 // DRAG_PX: a press that moves this far (window px) is a drag, not a click.
 export const DRAG_PX = 4;
+// DOUBLE_MS: a click this soon after the last, within DRAG_PX of it, is the
+// second of a double click. Counted here because Chrome's pointer events
+// carry detail 0 on every click (pair#505, measured: pointerup:0 for both
+// presses of a double click; only mouseup and click count), so reading
+// detail never sent a double click.
+export const DOUBLE_MS = 500;
 export const MAX_ACTS = 64;
 export const MAX_TEXT = 1000;
 // The wire's limits (drive.ParseBatch, the input route's budget): a body
@@ -49,7 +55,7 @@ export async function joinSeat(fetchFn, name) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: name || '' }),
-      credentials: 'omit', referrerPolicy: 'no-referrer', cache: 'no-store',
+      credentials: 'same-origin', referrerPolicy: 'no-referrer', cache: 'no-store',
     });
     if (!r.ok) return null;
     const s = await r.json();
@@ -60,8 +66,8 @@ export async function joinSeat(fetchFn, name) {
 }
 
 // seatPoster posts to a drive route with the seat's key: {status, text}.
-export function seatPoster(fetchFn, key) {
-  const post = poster(fetchFn, DRIVE_ROUTES, { [SEAT_HEADER]: key });
+export function seatPoster(fetchFn, key, generation) {
+  const post = poster(fetchFn, DRIVE_ROUTES, { [SEAT_HEADER]: key, 'X-Couch-Drive-Generation': String(generation) });
   return (route, body) => post(`drive/${route}`, body).then((r) => ({ status: r.status, text: r.text.trim() }));
 }
 const DRIVE_ROUTES = ['drive/control', 'drive/input'];
@@ -127,6 +133,7 @@ export function batcher(deps) {
     inFlight = true;
     deps.send(batch).then((r) => r, () => ({ status: 0, text: "Couldn't reach the cast." })).then((r) => {
       inFlight = false;
+      if (stopped) return;
       if (r.status !== 204) {
         queue = [];
         deps.refused(r.status, r.text);
@@ -162,12 +169,13 @@ export function batcher(deps) {
 const round = (v) => Math.round(v * 10) / 10;
 
 // gestures turns pointer events into acts. A press that doesn't move
-// DRAG_PX is a click on release (a double click when the event says so); one
-// that does is a drag: down where it began, moves, up. Touch is the same
+// DRAG_PX is a click on release (the second of a double click when it comes
+// within DOUBLE_MS and DRAG_PX of the last click); one that does is a drag:
+// down where it began, moves, up. Touch is the same
 // with one finger; two fingers scroll (wheel acts by the move of their
 // middle). A mouse moving with no button down hovers (moves, at most every
 // HOVER_MS). Events are plain objects with pointerId, pointerType, clientX,
-// clientY, button, buttons, detail, timeStamp. Coordinates may leave the
+// clientY, button, buttons, timeStamp. Coordinates may leave the
 // frame (the pointer is captured); the batcher clamps them for the wire.
 //   deps: toPage(cx, cy) → [x, y], nodeAt(x, y) → id, emit(act)
 export function gestures(deps) {
@@ -175,6 +183,7 @@ export function gestures(deps) {
   let press = null; // {id, start: [cx, cy], page: [x, y], dragging}
   let pinch = null; // {mid: [cx, cy]}
   let lastHover = -Infinity;
+  let lastClick = null; // {t, x, y}: a single click that may become a double
   const at = (e) => deps.toPage(e.clientX, e.clientY);
   const pt = (p) => ({ x: round(p[0]), y: round(p[1]) });
   const mid = () => {
@@ -215,6 +224,7 @@ export function gestures(deps) {
         if (!press.dragging && Math.hypot(e.clientX - press.start[0], e.clientY - press.start[1]) < DRAG_PX) return;
         if (!press.dragging) {
           press.dragging = true;
+          lastClick = null;
           deps.emit({ a: 'down', id: press.id, button: 'left', ...pt(press.page) });
         }
         press.last = p;
@@ -238,7 +248,10 @@ export function gestures(deps) {
         endPress();
         return;
       }
-      deps.emit({ a: 'click', id: press.id, button: 'left', count: e.detail >= 2 ? 2 : 1, ...pt(press.page) });
+      const second = lastClick !== null && e.timeStamp - lastClick.t <= DOUBLE_MS &&
+        Math.hypot(e.clientX - lastClick.x, e.clientY - lastClick.y) < DRAG_PX;
+      deps.emit({ a: 'click', id: press.id, button: 'left', count: second ? 2 : 1, ...pt(press.page) });
+      lastClick = second ? null : { t: e.timeStamp, x: e.clientX, y: e.clientY };
       press = null;
     },
     cancel(e) {
@@ -246,9 +259,10 @@ export function gestures(deps) {
       if (touches.size === 0) pinch = null;
       endPress();
     },
-    // reset forgets every press and finger: control ended, and the cast tab
-    // lets go of what it held.
-    reset() { touches.clear(); press = null; pinch = null; },
+    // reset forgets every press, finger and the last click: control ended,
+    // and the cast tab lets go of what it held (a click after it never
+    // pairs with one before into a double click).
+    reset() { touches.clear(); press = null; pinch = null; lastClick = null; },
     // wheel: a mouse wheel or trackpad over the page, in window px.
     wheel(e) {
       const p = at(e), q = deps.toPage(e.clientX + e.deltaX, e.clientY + e.deltaY);
@@ -308,9 +322,10 @@ export function keyTracker() {
 //   'paused' (driving, the cast paused), 'other' (someone else drives; may
 //   ask), 'lost' (rejoin)
 //   action: what the button does: 'request', 'release' or 'rejoin'
-export function driveView(ctl, me, { live = true, lost = false } = {}) {
+export function driveView(ctl, me, { live = true, lost = false, allowed = true, availability = 'off' } = {}) {
   const driver = ctl && ctl.driver ? ctl.driver : null;
   const pending = (ctl && ctl.pending) || [];
+  if (!allowed) return { state: 'off', button: 'Driving off', action: '', note: availability === 'broken' ? 'Cast broken. Wait for the operator to end the cast.' : availability === 'retry' ? 'Waiting for the operator to retry.' : 'Driving is off.', capture: false };
   if (lost) return { state: 'lost', button: 'Rejoin', action: 'rejoin', note: '', capture: false };
   if (driver && driver.id === me) {
     return live
@@ -327,7 +342,7 @@ export function driveView(ctl, me, { live = true, lost = false } = {}) {
 // joinSeat gave (null: nothing mounts).
 export function mountDrive(doc, win, v, seat) {
   if (!seat) return null;
-  const post = seatPoster((url, init) => win.fetch(url, init), seat.key);
+  const postAt = (g) => seatPoster((url, init) => win.fetch(url, init), seat.key, g);
   const el = (tag, cls, parent) => { const e = doc.createElement(tag); if (cls) e.className = cls; parent?.append(e); return e; };
   const bar = doc.querySelector('.bar');
   const button = el('button', 'drive-button', bar);
@@ -345,8 +360,11 @@ export function mountDrive(doc, win, v, seat) {
   keys.setAttribute('autocomplete', 'off');
   keys.spellcheck = false;
 
+  let allowed = false, availability = 'off', generation, consent = false, epoch = 0;
   let ctl = null, view = driveView(null, seat.viewer), batch = null, composing = false, lost = false;
   const driving = (s) => s === 'driving' || s === 'paused';
+  const captured = new Set();
+  const releasePointers = () => { for (const id of captured) { if (layer.hasPointerCapture?.(id)) layer.releasePointerCapture(id); } captured.clear(); };
   const tracked = keyTracker();
   const send = (a) => { if (batch) batch.push(a); };
   const g = gestures({ toPage: (x, y) => v.toPage(x, y), nodeAt: (x, y) => v.nodeAt(x, y), emit: send });
@@ -363,14 +381,16 @@ export function mountDrive(doc, win, v, seat) {
   // seat, so rejoining reopens the page.
   const offerRejoin = () => { lost = true; render(); };
   const render = () => {
-    view = driveView(ctl, seat.viewer, { live: !!(v.model && v.model.live), lost });
+    view = driveView(!consent && ctl?.driver?.id === seat.viewer ? {...ctl, driver:null} : ctl, seat.viewer, { live: !!(v.model && v.model.live), lost, allowed, availability });
     button.textContent = view.button;
+    button.disabled = !view.action;
     button.onclick = () => (view.action === 'rejoin' ? win.location.reload() : control(view.action));
     button.classList.toggle('on', driving(view.state));
     note.textContent = view.note;
     layer.classList.toggle('on', view.capture);
     doc.body.classList.toggle('driving', driving(view.state));
     if (driving(view.state) && !batch) {
+      const post = postAt(generation);
       batch = batcher({ send: (b) => post('input', b), seg: () => v.model.seg, later: (fn, ms) => win.setTimeout(fn, ms), now: () => win.performance.now(), refused });
       v.annotate?.setMode('watch'); // pointing and notes wait while driving
     } else if (!driving(view.state) && batch) {
@@ -378,11 +398,37 @@ export function mountDrive(doc, win, v, seat) {
       batch.stop();
       batch = null;
       g.reset();
+      releasePointers();
       tracked.clear();
       keys.blur();
+      keys.value = '';
+      composing = false;
     }
   };
-  const control = (op) => post('control', { op }).then((r) => { if (r.status !== 204) refused(r.status, r.text); }, () => say("Couldn't reach the cast."));
+  const control = (op) => {
+    if (!allowed || !['request', 'release'].includes(op)) return Promise.resolve();
+    const started = epoch;
+    if (op === 'request') consent = true;
+    return postAt(generation)('control', { op }).then((r) => {
+      if (started !== epoch) return;
+      if (r.status !== 204) { if (op === 'request') consent = false; refused(r.status, r.text); }
+    }, () => { if (started === epoch) say("Couldn't reach the cast."); });
+  };
+  v.onCapabilities?.((caps) => {
+    const c = caps?.drive;
+    const changed = generation !== c?.generation;
+    if (changed || c?.allowed !== true) {
+      epoch++;
+      if (changed && generation !== undefined) ctl = null;
+      if (changed) consent = generation === undefined && c?.allowed === true;
+      if (batch) { batch.stop(); batch = null; }
+      g.reset(); releasePointers(); tracked.clear(); keys.blur(); keys.value = ''; composing = false;
+    }
+    generation = c?.generation;
+    allowed = c?.allowed === true;
+    availability = c?.state || 'off';
+    render();
+  });
 
   v.onRecord((r) => {
     if (r.k === 'ctl') ctl = r;
@@ -396,12 +442,13 @@ export function mountDrive(doc, win, v, seat) {
   }, { passive: false });
   listen('pointerdown', (e) => {
     layer.setPointerCapture?.(e.pointerId);
+    captured.add(e.pointerId);
     keys.focus({ preventScroll: true }); // in the gesture: an iPad raises its keyboard
     g.down(e);
   });
   listen('pointermove', (e) => g.move(e));
-  listen('pointerup', (e) => g.up(e));
-  listen('pointercancel', (e) => g.cancel(e));
+  listen('pointerup', (e) => { g.up(e); captured.delete(e.pointerId); });
+  listen('pointercancel', (e) => { g.cancel(e); captured.delete(e.pointerId); });
   listen('wheel', (e) => g.wheel(e));
   listen('contextmenu', () => {});
 

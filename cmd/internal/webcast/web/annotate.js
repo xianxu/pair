@@ -13,7 +13,10 @@
 // terminal viewer's (served from broadcast.CollabJS; the file here is a
 // symlink, for the node tests).
 
-import { HEX_COLOR, pointerColor, colorStore, safeStorage, poster, sayer, railAt, renderSwatches, noteDialog, gestureBox, dragMin, boxCentre } from './collab.js';
+import { annotationPolicy } from './annotation-policy.js';
+import { HEX_COLOR, pointerColor, colorStore, safeStorage, poster, sayer, railAt, renderSwatches, noteDialog, gestureBox, noteGesture, dragMin, boxCentre, validName, VIEWER_NAME_KEY, MAX_VIEWER_NAME } from './collab.js';
+
+export { validName };
 
 // CHUNK_MS is how often a stroke in progress is posted; MAX_POINTS caps a
 // chunk (the board's bound).
@@ -22,9 +25,9 @@ export const MAX_POINTS = 64;
 // FADE_MS: a stroke fades out over this long after its last point.
 export const FADE_MS = 1500;
 
-const MAX_NAME = 40;
+const MAX_NAME = MAX_VIEWER_NAME;
 const ID_KEY = 'couch.viewerId';
-const NAME_KEY = 'couch.viewerName';
+const NAME_KEY = VIEWER_NAME_KEY;
 const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
 // randomID is 12 hex digits from the browser's CSPRNG.
@@ -59,13 +62,6 @@ export function identityStore(storage, crypto) {
   };
 }
 
-// validName is a name the board takes, trimmed, or '' for none.
-export function validName(v) {
-  const n = String(v).trim();
-  // The board's predicate (wire.go nameText): no control or format
-  // character, at most MAX_NAME characters.
-  return [...n].length <= MAX_NAME && !/[\p{Cc}\p{Cf}]/u.test(n) ? n : '';
-}
 
 // chunker collects one stroke's points ([x, y] in page px, at ms) and cuts
 // them into posts: each at most MAX_POINTS, every point [x, y, ms after the
@@ -150,8 +146,8 @@ export function noteBox(note, boxOf) {
 // regionOf is a note gesture's box (#488), in page px: the dragged box, or
 // for a tap the default box; view is the page shown, pointerType the
 // pointer's (a finger must drag further).
-export function regionOf(a, b, view, pointerType) {
-  return gestureBox(a, b, view, { min: dragMin('px', pointerType) });
+export function regionOf(a, b, view, pointerType, { preview = false, dragged = false } = {}) {
+  return gestureBox(a, b, view, { min: dragged ? 0 : dragMin('px', pointerType), preview });
 }
 
 // noteDraft is a new note's payload, what the dialog posts: the segment
@@ -266,36 +262,62 @@ export const MODE_TIPS = {
   note: 'Note: drag a box, or tap for a small one, to leave a note. Click again to stop.',
 };
 
+// readPalette reads palette.json (pair#506): the swatches' colors and
+// whether this viewer's link may annotate. Any other shape, including the
+// bare array an older server sent, is null: the cast takes no notes.
+export function readPalette(x) {
+  if (!x || typeof x !== 'object' || Array.isArray(x) || typeof x.annotate !== 'boolean') return null;
+  const p = x.palette;
+  if (!Array.isArray(p) || !p.length || !p.every((c) => typeof c === 'string' && HEX_COLOR.test(c))) return null;
+  return { palette: p, annotate: x.annotate };
+}
+
 // mountAnnotate adds pointing and notes to the viewer. v is the viewer's
 // surface (couchViewer: boxOf, nodeAt, toPage, fromPage, onRecord, model).
-// It mounts only when the cast takes notes (palette.json answers).
+// It mounts only when the cast takes notes (palette.json answers). Under a
+// view-only link (annotate false) it draws others' strokes and notes
+// read-only: the rail never shows, so no mode can be picked, and a note
+// opens without Resolve; the server refuses the posts too.
 export async function mountAnnotate(doc, win, v) {
-  let palette;
+  let answer;
   try {
-    const r = await win.fetch('palette.json', { credentials: 'omit', cache: 'no-store' });
-    palette = r.ok ? await r.json() : null;
-  } catch { palette = null; }
-  if (!Array.isArray(palette) || !palette.length || !palette.every((c) => typeof c === 'string' && HEX_COLOR.test(c))) return null;
+    const r = await win.fetch('palette.json', { credentials: 'same-origin', cache: 'no-store' });
+    answer = r.ok ? readPalette(await r.json()) : null;
+  } catch { answer = null; }
+  if (!answer) return null;
+  const { palette, annotate } = answer;
 
   let storage = null;
   try { storage = win.localStorage; } catch { /* no storage: nothing remembered */ }
   const who = identityStore(storage, win.crypto);
   if (v.seat) who.adopt(v.seat.viewer);
   const colors = colorStore(storage);
+  let generation;
+  const post = poster((url, init) => win.fetch(url, {...init, headers: {...init.headers, 'X-Couch-Annotation-Generation': String(generation)}}), NOTE_ROUTES);
+  const ui = mountAnnotation(doc, win, v, { root: doc.body, box: doc.getElementById('box'), stage: doc.getElementById('stage'), palette, who, colors, post, annotate, annotationAllowed: false });
+  v.onCapabilities?.((caps) => {
+    const c = caps?.annotation;
+    ui.setAnnotationAllowed(c?.allowed === true, generation !== c?.generation, c?.state);
+    generation = c?.generation;
+  });
+  return ui;
+}
+
+// Both the viewer and the isolated operator world mount the same UI.
+export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, colors, post, operator = false, prepareDraft, annotate = true, annotationAllowed = true }) {
+  let availabilityState = 'off';
   let picked = colors.get();
   const color = () => pointerColor(picked, 0, palette.length);
-  const post = poster((url, init) => win.fetch(url, init), NOTE_ROUTES);
   const el = (tag, cls, parent) => { const e = doc.createElement(tag); if (cls) e.className = cls; parent?.append(e); return e; };
 
-  const box = doc.getElementById('box'), stage = doc.getElementById('stage');
   const layer = el('div', 'annotate', box);
   const canvas = el('canvas', 'strokes', layer);
   const pins = el('div', 'pins', layer);
-  const rail = el('div', 'annotate-rail', doc.body);
+  const rail = el('div', 'annotate-rail', root);
   const swatches = el('div', 'swatches', rail);
   // A refusal of a request no dialog is open for (a stroke) shows here for
   // a moment: every refused post is seen.
-  const say = sayer(doc, win);
+  const say = sayer(doc, win, root);
   const answered = (req) => req.then((r) => { if (r.status !== 204) say((r.text || '').trim() || "That didn't work."); })
     .catch(() => say("Couldn't reach the cast."));
   swatches.setAttribute('role', 'group');
@@ -311,8 +333,11 @@ export async function mountAnnotate(doc, win, v) {
     modeButtons[mode] = b;
   }
 
+  const hint = el('span', 'annotation-hint', rail);
+  hint.setAttribute('role','status');
+
   // The dialog: collab.js's, with a name field the first time.
-  const dlg = el('div', 'note-dialog hidden', doc.body);
+  const dlg = el('div', 'note-dialog hidden', root);
   dlg.setAttribute('role', 'dialog');
   dlg.setAttribute('aria-modal', 'true');
   dlg.setAttribute('aria-label', 'Note');
@@ -335,6 +360,7 @@ export async function mountAnnotate(doc, win, v) {
   const dialog = noteDialog({ root: dlg, text, input, count, msg, save, cancel, resolve }, {
     post,
     color,
+    onClose: () => drawDrag(),
     resolveRequest: (id) => ['note-state', { viewer: who.viewer(), id, state: 'resolved' }],
     beforeSave: () => {
       const n = name.value.trim();
@@ -345,37 +371,69 @@ export async function mountAnnotate(doc, win, v) {
     },
   });
 
-  const state = { mode: 'watch', drag: null, stroke: null, timer: null };
+  const state = { mode: 'watch', drag: null, stroke: null, timer: null, pointer: null };
   const strokes = strokeStore();
   // The document now: the module mounts after the catch-up may have been
   // applied, so it starts from the model's, not from nothing.
   let docSeg = v.model ? v.model.docSeg : 0;
 
+  // While the cast is paused viewers do nothing (pair#499): the rail's
+  // controls are disabled and say why, and the note dialog is held; the
+  // server refuses the posts too.
+  let policy;
+  let gestureVersion = 0;
+  const unavailable = () => policy?.phase !== 'ready';
+  function transition(event) {
+    const next = annotationPolicy(policy, event);
+    policy = next.state;
+    if (next.effects.includes('cancel')) { gestureVersion++; endGesture(true); }
+    if (next.effects.includes('discard')) dialog.close();
+    state.mode = policy.mode;
+    layer.classList.toggle('point', state.mode === 'point');
+    layer.classList.toggle('note', state.mode === 'note');
+    // Off is transparent in the operator's actual page, including pins.
+    layer.classList.toggle('operator-off', operator && (unavailable() || state.mode === 'watch'));
+    layer.classList.toggle('operator-driving', operator && (policy.phase === 'driving' || policy.phase === 'disabled'));
+    dlg.hidden = operator && (policy.phase === 'driving' || policy.phase === 'disabled');
+    if (dlg.hidden) input.blur?.();
+    renderRail();
+    placeRail();
+  }
+  function sync() {
+    const m = v.model || {};
+    transition({ type: 'sync', doc: m.docSeg, ready: m.seg > 0, allowed: annotate && annotationAllowed, paused: m.paused, ended: m.ended, driver: operator ? m.driver : '' });
+  }
   // The rail's controls are rendered only when their state changes (a pick,
-  // a mode); each frame only places the rail, so nothing that takes input is
-  // replaced under a click.
+  // a mode, a pause or a resume); each frame only places the rail, so
+  // nothing that takes input is replaced under a click.
+  let renderedColor = -1;
   const renderRail = () => {
-    renderSwatches(swatches, palette, color(), (i) => { picked = i; colors.set(i); renderRail(); }, (tag) => doc.createElement(tag));
+    // Projection updates may arrive between pointer-down and pointer-up.
+    // Keep the clicked element attached until a color pick actually changes it.
+    if (renderedColor !== color()) {
+      renderedColor = color();
+      renderSwatches(swatches, palette, renderedColor, (i) => { picked = i; colors.set(i); renderRail(); }, (tag) => doc.createElement(tag));
+    }
     for (const [m, b] of Object.entries(modeButtons)) {
       b.classList.toggle('on', state.mode === m);
       b.setAttribute('aria-pressed', String(state.mode === m));
     }
+    const off = unavailable();
+    const reason = policy?.phase === 'disabled' ? (availabilityState === 'broken' ? 'Cast broken. Wait for the operator to end the cast.' : availabilityState === 'retry' ? 'Annotation is off. Waiting for the operator to retry.' : 'Annotation is off.') : policy?.driver ? `${policy.driver} is driving.` : 'The cast is paused.';
+    rail.classList.toggle('paused', off);
+    for (const b of rail.querySelectorAll('button')) b.disabled = off;
+    for (const [m, b] of Object.entries(modeButtons)) b.title = off ? reason : MODE_TIPS[m];
+    hint.textContent = off ? reason : '';
+    dialog.hold(off ? reason : ''); // an open note, or a pin opened while paused
   };
   const placeRail = () => {
     const r = box.getBoundingClientRect();
     const at = railAt(r.width ? r : stage.getBoundingClientRect(), win.innerWidth);
     rail.style.top = `${at.top}px`;
     rail.style.right = `${at.right}px`;
-    rail.hidden = !(v.model && v.model.seg > 0 && !v.model.ended);
+    rail.hidden = !annotate || !(v.model && v.model.seg > 0 && !v.model.ended);
   };
-  function setMode(m) {
-    endGesture();
-    state.mode = m;
-    layer.classList.toggle('point', m === 'point');
-    layer.classList.toggle('note', m === 'note');
-    renderRail();
-    placeRail();
-  }
+  function setMode(m) { transition({ type: 'mode', mode: m }); }
 
   // Own strokes: drawn at once, posted every CHUNK_MS.
   const flush = () => {
@@ -385,26 +443,29 @@ export async function mountAnnotate(doc, win, v) {
       answered(post('stroke', { viewer: who.viewer(), seg: s.seg, id: s.id, color: s.color, pts }));
     }
   };
-  function endStroke() {
+  function endStroke(discard = false) {
     if (state.timer !== null) win.clearInterval(state.timer);
     state.timer = null;
-    flush();
+    if (!discard) flush();
     state.stroke = null;
   }
   // endGesture ends whatever the pointer is doing: a stroke or a region
   // drag. Every boundary calls it: a mode change, a new document, the cast's
   // end, a cancelled pointer.
-  function endGesture() {
-    endStroke();
+  function endGesture(discard = false) {
+    endStroke(discard);
+    if (state.pointer !== null && layer.hasPointerCapture?.(state.pointer)) layer.releasePointerCapture(state.pointer);
+    state.pointer = null;
     if (state.drag) { state.drag = null; drawDrag(); }
   }
   const pagePoint = (e) => v.toPage(e.clientX, e.clientY);
 
   layer.addEventListener('pointerdown', (e) => {
     if (e.target.closest && e.target.closest('.chip')) return; // a pin's chip opens its note, in any mode
-    if (state.mode === 'watch' || !(v.model && v.model.seg > 0) || dialog.open) return;
+    if (state.mode === 'watch' || !(v.model && v.model.seg > 0) || unavailable() || dialog.open) return;
     e.preventDefault();
     layer.setPointerCapture?.(e.pointerId);
+    state.pointer = e.pointerId;
     const p = pagePoint(e);
     if (state.mode === 'point') {
       endStroke();
@@ -415,7 +476,7 @@ export async function mountAnnotate(doc, win, v) {
       state.timer = win.setInterval(flush, CHUNK_MS);
       schedule();
     } else {
-      state.drag = { from: p, to: p, pointerType: e.pointerType };
+      state.drag = noteGesture(p, e.pointerType);
       drawDrag();
     }
   });
@@ -426,17 +487,25 @@ export async function mountAnnotate(doc, win, v) {
       strokes.local(state.stroke.full, palette[state.stroke.color], [p], win.performance.now());
       schedule();
     } else if (state.drag) {
-      state.drag.to = p;
+      state.drag.move(p);
       drawDrag();
     }
   });
-  const up = () => {
+  const up = async () => {
     if (state.stroke) endStroke();
     if (!state.drag) return;
-    const { from, to, pointerType } = state.drag;
+    const { from, to, pointerType, dragged } = state.drag;
     state.drag = null;
     drawDrag();
-    const region = regionOf(from, to, pageView(), pointerType);
+    const region = regionOf(from, to, pageView(), pointerType, { dragged });
+    if (prepareDraft) {
+      const document = docSeg, version = gestureVersion;
+      try {
+        const payload = await prepareDraft(region);
+        if (payload && version === gestureVersion && document === docSeg && !unavailable() && state.mode === 'note') openDraft({ ...payload, region });
+      } catch (err) { say(err.message || 'Could not anchor this note.'); }
+      return;
+    }
     const at = boxCentre(region);
     const node = v.nodeAt(at[0], at[1]);
     const b = node && v.boxOf(node);
@@ -451,6 +520,7 @@ export async function mountAnnotate(doc, win, v) {
     name.hidden = !!who.name();
     author.textContent = '';
     dialog.draft(payload);
+    drawDrag();
   }
 
   // pageView is the part of the page shown, in page px.
@@ -459,11 +529,13 @@ export async function mountAnnotate(doc, win, v) {
     const [x0, y0] = v.toPage(r.left, r.top), [x1, y1] = v.toPage(r.right, r.bottom);
     return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
   };
-  // The outline while a box is drawn: the box the gesture would make now,
-  // the default box until the pointer has moved far enough to drag.
+  // Preview only an established drag. A click gets its default box on release.
   const dragBox = el('div', 'drag-region', layer);
+  dragBox.hidden = true;
   function drawDrag() {
-    const d = state.drag && regionOf(state.drag.from, state.drag.to, pageView(), state.drag.pointerType);
+    const d = state.drag
+      ? regionOf(state.drag.from, state.drag.to, pageView(), state.drag.pointerType, { preview: true, dragged: state.drag.dragged })
+      : dialog.draftPayload?.region;
     dragBox.hidden = !d;
     if (d) place(dragBox, d);
   }
@@ -477,9 +549,10 @@ export async function mountAnnotate(doc, win, v) {
   };
 
   const pinned = pinLayer(doc, pins, (n, by) => {
+    if (operator && (unavailable() || state.mode === 'watch')) return;
     author.textContent = by;
     name.hidden = true;
-    dialog.view({ id: n.id, text: n.text }, { resolvable: true });
+    dialog.view({ id: n.id, text: n.text }, { resolvable: annotate });
   });
   function drawPins() {
     const notes = liveNotes(v.model);
@@ -503,6 +576,7 @@ export async function mountAnnotate(doc, win, v) {
       const now = win.performance.now();
       placeRail();
       drawPins();
+      drawDrag();
       drawStrokes(now);
       if (strokes.size) schedule();
     }));
@@ -516,14 +590,27 @@ export async function mountAnnotate(doc, win, v) {
       // same one changes nothing.)
       const was = docSeg;
       docSeg = model.docSeg;
-      if (was) { strokes.clear(); endGesture(); }
+      if (was) { strokes.clear(); endGesture(true); }
     }
+    if (r.k === 'annotation-clear') { strokes.clear(); gestureVersion++; endGesture(true); setMode('watch'); }
     if (r.k === 'stroke') strokes.record(r, win.performance.now(), `${who.id()}.`);
-    if (r.k === 'stop' && r.why === 'end') { setMode('watch'); dialog.close(); } // setMode ends the gesture
+    // A pause or the end puts the pen down (setMode ends the gesture and
+    // renders the rail, disabled while paused); a resume enables it again.
+    if (r.k === 'stop') { setMode('watch'); if (r.why === 'end') dialog.close(); }
+    sync();
     schedule();
   });
   win.addEventListener('resize', schedule);
-  setMode('watch');
+  // Menu mode changes deliberately leave focus on the page. Its keyboard
+  // events do not traverse our shadow root, so operator Escape is captured
+  // at the window boundary. Off/unavailable annotation leaves page keys alone.
+  (operator ? win : root).addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || (operator && (unavailable() || (state.mode === 'watch' && !dialog.open)))) return;
+    transition({ type: 'escape' });
+    e.stopPropagation();
+    e.preventDefault?.();
+  }, operator);
+  sync();
   schedule();
-  return { setMode, dialog, strokes, who };
+  return { setMode, setAnnotationAllowed(allowed, reset = false, availability = 'off') { availabilityState = availability; if (reset) { gestureVersion++; endGesture(true); setMode('watch'); } annotationAllowed = allowed === true; sync(); }, dialog, strokes, who, annotate, get mode() { return state.mode; } };
 }

@@ -85,6 +85,12 @@ func CatchUp(recs []Record) []Record {
 				out = append(out, r)
 			}
 			continue
+		case *AnnotationClear:
+			if i >= doc {
+				out = append(out, r)
+				clear(kept)
+			}
+			continue
 		case *Ctl:
 			if i == ctl {
 				out = append(out, r)

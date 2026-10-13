@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -148,6 +149,11 @@ func (m *mirror) take() []rec.Record {
 // emit applies r at time t to the mirror's reducer and queues it. t never
 // goes back.
 func (m *mirror) emit(t int64, r rec.Record) bool {
+	if _, clear := r.(*rec.AnnotationClear); clear {
+		// Files merge equal times as events, notes, strokes. Put the
+		// clear strictly after earlier annotations, including at a frozen clock.
+		t = max(t, m.st.T+1)
+	}
 	if t < m.st.T {
 		t = m.st.T
 	}
@@ -852,7 +858,22 @@ func (m *mirror) Event(t int64, session, method string, params json.RawMessage) 
 		if m.visible(s, n) {
 			m.adopt(t, s, n, ids)
 		}
-	case "DOM.childNodeCountUpdated", "DOM.inlineStyleInvalidated", "DOM.documentUpdated",
+	case "DOM.childNodeCountUpdated":
+		// CDP sends only this for a node whose children it never sent (one
+		// inserted empty, then filled by script: pair#513's player). Ask
+		// for them as for a node sent with a count only (index); they come
+		// back as setChildNodes, which replaces whatever the mirror held.
+		n := node("nodeId")
+		var count int
+		if n != nil && get("childNodeCount", &count) && count != len(n.Children) && !n.hidden {
+			n.ChildNodeCount = count
+			// Once per node while queued: a script filling it sends a
+			// count per insert, and one request brings them all.
+			if e := (Expand{Session: s.id, NodeID: n.NodeID}); !slices.Contains(m.Expand, e) {
+				m.Expand = append(m.Expand, e)
+			}
+		}
+	case "DOM.inlineStyleInvalidated", "DOM.documentUpdated",
 		"DOM.pseudoElementAdded", "DOM.pseudoElementRemoved", "DOM.shadowRootPopped", "DOM.distributedNodesUpdated":
 		// The shell handles documentUpdated and inline style; the rest
 		// carry nothing the format holds.

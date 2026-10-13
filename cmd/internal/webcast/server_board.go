@@ -6,6 +6,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -14,9 +15,9 @@ import (
 )
 
 // Viewers' pointing and notes (#470): POST <cast>/stroke, /note and
-// /note-state, the only routes that read a body. Anyone with the cast link
-// may use them (one always-on link, internal viewers, TL 10-12); the viewer
-// a request names is attribution, not authentication. Admission is the
+// /note-state, the only routes that read a body. The pointer and drive links
+// may use them; the view-only link is refused before its body is read
+// (pair#506). The viewer a request names is attribution, not authentication. Admission is the
 // terminal pointer routes': a JSON content type, an in-flight slot, a rate
 // budget per route family, a prompt body within its bound.
 
@@ -29,14 +30,17 @@ const (
 
 // Refusals the viewer shows: fixed sentences that never echo the request.
 const (
-	refuseBusy      = "Too many requests. Wait a moment."
-	refuseColorFull = "This color already has 8 notes. Resolve one first."
-	refuseStale     = "The page changed. Try again."
-	refuseEnded     = "The cast has ended."
-	refuseNotLive   = "The cast isn't showing a page yet."
-	refuseUnknown   = "That note is gone."
-	refuseInvalid   = "That isn't valid."
-	refuseBroken    = "Notes aren't working in this cast."
+	refuseBusy          = "Too many requests. Wait a moment."
+	refuseColorFull     = "This color already has 8 notes. Resolve one first."
+	refuseStale         = "The page changed. Try again."
+	refuseEnded         = "The cast has ended."
+	refuseNotLive       = "The cast isn't showing a page yet."
+	refusePaused        = "The cast is paused."
+	refuseUnknown       = "That note is gone."
+	refuseInvalid       = "That isn't valid."
+	refuseBroken        = "Notes aren't working in this cast."
+	refuseViewOnly      = "This link is view-only."
+	refuseAnnotationOff = "Annotation is off."
 )
 
 // boardRoutes is a cast's admission state for the board's routes.
@@ -63,8 +67,9 @@ func (s *Server) WithBoard(b *board.Board) *Server {
 	return s
 }
 
-// boardRoute serves one POST; false when rest isn't a board route.
-func (s *Server) boardRoute(w http.ResponseWriter, r *http.Request, rest string) bool {
+// boardRoute serves one POST under link; false when rest isn't a board route.
+func (s *Server) boardRoute(w http.ResponseWriter, r *http.Request, rest string, link castLink) bool {
+	var admission board.AnnotationAdmission
 	var handle func([]byte) error
 	limit, max := (*boardRoutes).allowNote, int64(board.MaxNoteBody)
 	switch rest {
@@ -75,7 +80,7 @@ func (s *Server) boardRoute(w http.ResponseWriter, r *http.Request, rest string)
 			if err != nil {
 				return err
 			}
-			return s.board.board.Stroke(in)
+			return admission.Stroke(in)
 		}
 	case "note":
 		handle = func(body []byte) error {
@@ -83,7 +88,7 @@ func (s *Server) boardRoute(w http.ResponseWriter, r *http.Request, rest string)
 			if err != nil {
 				return err
 			}
-			_, err = s.board.board.Note(in)
+			_, err = admission.Note(in)
 			return err
 		}
 	case "note-state":
@@ -92,13 +97,31 @@ func (s *Server) boardRoute(w http.ResponseWriter, r *http.Request, rest string)
 			if err != nil {
 				return err
 			}
-			return s.board.board.SetState(in)
+			return admission.SetState(in)
 		}
 	default:
 		return false
 	}
 	if s.board == nil {
 		http.NotFound(w, r)
+		return true
+	}
+	// Before admission: a view-only link spends no body read, in-flight
+	// slot or rate budget.
+	if !link.annotates() {
+		http.Error(w, refuseViewOnly, http.StatusForbidden)
+		return true
+	}
+	var err error
+	generation, parseErr := strconv.ParseUint(r.Header.Get("X-Couch-Annotation-Generation"), 10, 64)
+	if parseErr != nil {
+		http.Error(w, refuseAnnotationOff, http.StatusForbidden)
+		return true
+	}
+	admission, err = s.board.board.AdmitAnnotationGeneration(generation)
+	if err != nil {
+		status, text := boardAnswer(err)
+		http.Error(w, text, status)
 		return true
 	}
 	body, release, ok := s.board.admit(w, r, limit, max)
@@ -115,15 +138,23 @@ func (s *Server) boardRoute(w http.ResponseWriter, r *http.Request, rest string)
 	return true
 }
 
-// boardAsset serves palette.json, the swatches' colors
-// (broadcast.PointerPalette, the board's one source), only when the cast
-// takes notes, so the viewer mounts the notes module only then.
-func (s *Server) boardAsset(w http.ResponseWriter, rest string) bool {
+// paletteAnswer is palette.json: the swatches' colors
+// (broadcast.PointerPalette, the board's one source) and whether this link
+// may annotate (pair#506). A view-only viewer still draws others' strokes
+// and notes, read-only.
+type paletteAnswer struct {
+	Palette  []string `json:"palette"`
+	Annotate bool     `json:"annotate"`
+}
+
+// boardAsset serves palette.json only when the cast takes notes, so the
+// viewer mounts the notes module only then.
+func (s *Server) boardAsset(w http.ResponseWriter, rest string, link castLink) bool {
 	if rest != "palette.json" || s.board == nil {
 		return false
 	}
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(broadcast.PointerPalette())
+	_ = json.NewEncoder(w).Encode(paletteAnswer{Palette: broadcast.PointerPalette(), Annotate: link.annotates()})
 	return true
 }
 
@@ -189,12 +220,16 @@ func boardAnswer(err error) (int, string) {
 	switch {
 	case err == nil:
 		return http.StatusNoContent, ""
+	case errors.Is(err, board.ErrDisabled):
+		return http.StatusForbidden, refuseAnnotationOff
 	case errors.Is(err, board.ErrColorFull):
 		return http.StatusConflict, refuseColorFull
 	case errors.Is(err, board.ErrStale):
 		return http.StatusConflict, refuseStale
 	case errors.Is(err, board.ErrNotLive):
 		return http.StatusConflict, refuseNotLive
+	case errors.Is(err, board.ErrPaused):
+		return http.StatusConflict, refusePaused
 	case errors.Is(err, board.ErrUnknown):
 		return http.StatusConflict, refuseUnknown
 	case errors.Is(err, board.ErrEnded), errors.Is(err, board.ErrClosed):

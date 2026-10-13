@@ -37,6 +37,71 @@ Setup per page (`goSetup`): auto-attach holds each new page before its first doc
 and Page domains, and the script (`runImmediately`) are set up, then the page is released — always, since a page
 left waiting is a frozen tab. Without `Page.enable` the script never reaches the next document.
 
+## Operator annotation (#494)
+
+The cast Chrome uses the viewer's `mountAnnotation` (`web/annotate.js`) and
+`collab.js` dialog, swatches and geometry inside the existing excluded closed
+shadow host. `operator_script.go` assembles these trusted embedded modules into
+isolated-world script scopes; `operator.js` supplies local page coordinates and
+the CDP binding transport. No page-origin HTTP or localStorage is involved.
+Off/Pen/Note start Off. The shared note gesture previews nothing on pointer-down;
+crossing the movement threshold draws a drag box, while a click places its default
+box only on release. The completed box stays visible while its draft is edited.
+A remote driver disables annotations and hides/unfocuses
+an open editor while retaining its draft; control returning leaves the pen Off.
+Navigation discards the draft. Pausing holds it on the same document.
+Couch’s Chrome Alt-click menu adds `Annotation · Off · Pen · Note` below the
+code rows, using their shared layout and hit-testing. It sends the same isolated-world
+mode command without focusing Chrome; a refusal appears in Couch’s notice. Cast-row
+left actions, right-click link copies, and Alt menus only on LIVE/Chrome are unchanged.
+The isolated-world input `__couchcastAnnotationAllowed(boolean)` delegates to the
+shared mount's `setAnnotationAllowed`. Every isolated document starts disabled; false forces Off,
+cancels gestures and hides/holds the operator editor with a disabled hint. Returning
+true leaves the pen Off and does not override driving or pause. View snapshots do
+not reset the input. #523 supplies versioned permission to each exact isolated
+context after hook installation. A delivery receipt suppresses duplicate resets
+and stale late enables; an uncertain enable is fenced false before another enable.
+Board permits are captured at binding ingress and checked again at the ordered
+recorder write. A fresh save can use a held draft after re-enable; an old queued
+save cannot cross generations. Operator processing uses only Board's leaf lock,
+never the viewer command lock held while waiting for ordered cleanup.
+
+The Board remains the authority (`board/operator.go`, `operator_view.go`): Go
+assigns operator authorship, HTTP cannot claim it, and a bounded latest-value view
+carries current open notes plus recent stroke chunks. The recorder's operator
+adapter accepts only the current top-frame isolated context. Prepare resolves the
+observer's node path once and binds a draft handle to that document and recorded
+node. Save never resolves a potentially moved path again. Writes settle from the
+recorder sink outcome, not enqueue success. A lost reply is checked using the same
+monotonic request ID; an uncertain write cannot create another note. Reconciliation
+can only complete its originating action/body; another draft stays open and unsent.
+Projection document changes (including inactive tabs and cast end) retire pending
+transport state before UI updates, without replaying writes. IDs remain monotonic;
+late replies and resolved continuations cannot settle a newer document’s operation.
+Same-document pause and driving retain reconciliation.
+Operator Escape is captured at the window boundary so a Couch menu selection works
+with page focus unchanged; Off and unavailable modes leave page Escape alone.
+
+`recorder.CaptureScreenshot` hides the entire Couch host with a document-local
+lease, requires confirmation before and after capture, and restores only that
+lease on every exit. Missing/expired confirmation means discard the pixels.
+The periodic fidelity worker and `Recorder.CaptureCrops` submission capture both
+use it. Capture identity and event barriers still protect the submission text/PNG
+interval across navigation and tab changes.
+
+Remote input acquires a non-expiring suppression token before hit testing or
+synthetic dispatch. Confirmed completion releases it. A timeout or dialog that
+leaves execution uncertain retains the target guard across replacement documents,
+refuses further remote batches, and asks the operator in Couch to close/reopen the
+cast Chrome. A new document starts hidden until Couch supplies that target's
+current guard state. UI state updates carry a sequence so late replies cannot
+undo a newer guard. Annotation never delays input to protect an editor: it is
+already off while a viewer drives.
+
+The isolated world protects JavaScript binding identity, not the shared DOM: page
+code can see or remove the host. The host is not a security boundary. Existing
+broadcast/driving controls stay in Couch; #494 adds no browser control authority.
+
 ## The recorder (#458)
 
 `Chrome` starts it when `LaunchOptions.Record` is set, forwards **every** CDP event to it (`Send` never blocks the
@@ -48,7 +113,11 @@ and strokes) enter its queue as `recorder.Emit`, stamped on arrival and checked 
   included) and the id map (`backendNodeId` → id per session for one document, keyed by loader id, with a 50 000-node
   graveyard so moves keep ids). Every record goes through its own reducer first, so the output validates by
   construction; refusals are counted (`Stats`). It leaves out the control (`data-couchcast-ui`), user-agent shadow
-  trees, and password values. `IDOf`/`NodeOf` expose the map (#467).
+  trees, and password values. `IDOf`/`NodeOf` expose the map (#467). CDP sends a node's children only once they are
+  requested: a node that arrives with a count but no children, or that later reports `DOM.childNodeCountUpdated`
+  for children the mirror doesn't hold (one inserted empty and filled by script, as asciinema-player fills the
+  blog's cast embed: pair#513, measured), goes on `Expand`, and the shell's `DOM.requestChildNodes` brings them as
+  `setChildNodes`.
 - **Shell:** `Recorder` (`recorder.go`): one goroutine, a FIFO of stamped inputs (record `t` = arrival), synchronous
   CDP calls in queue order. CDP events carry `cdp.Event.Seq`; a snapshot drops queued events of its session read
   before its reply (`Conn.CallSeq`). Over 100 000 queued events it drops and resyncs. Side workers (`side.go`) fetch
@@ -127,6 +196,38 @@ what the viewer's renderer draws at the same moments.
   - `fidelity_live_test.go` (`WEBCAST_LIVE_CHROME=1`): every fixture within the tolerance, and a broken render
     (no stylesheets) caught. `FIDELITY_DIR=` checks any recording in place, e.g. one from `TestLiveRecordURL`.
 
+## Capability authority (#523)
+
+Recorded casts start with annotation and outside driving OFF. `Board` owns
+annotation admission and `drive.MemController` owns drive admission; Cast and
+SSE publish their snapshots. Link roles narrow permission independently, and
+links/codes stay stable across toggles. HTTP captures an admission generation
+before reading the body and rechecks it at mutation/dispatch, including between
+input acts. A quick OFF→ON cannot revive an old request.
+
+Turning annotation off acknowledges an ordered `annotation-clear`; driving off
+acknowledges one `ctl reset` clearing the active driver and every pending request,
+then releases held input. The recorder deduplicates each cleanup generation.
+Admission stays closed during cleanup. A confirmed unsubmitted failure offers an
+explicit retry; an uncertain external effect or lost recorder/CDP leaves the cast
+broken with “end the cast” as its action. Held inputs are removed only after
+acknowledgment. Controller work and input callbacks are canceled/joined, including
+when the HTTP caller leaves. Cast owns bounded, single-flight button workers.
+
+The `capabilities` SSE event carries annotation/drive support, link permission,
+effective availability, visible state, generation and attempt. It replays the
+latest snapshot on reconnect and does not expose internal errors. Cast updates
+carry the same authority state for the operator's recovery notice. Viewer mutations
+carry their request-creation generation in `X-Couch-Annotation-Generation` or
+`X-Couch-Drive-Generation`; isolated-world operator requests carry a decimal-string
+`generation` from the acknowledged permission delivery. Admission matches that
+origin generation under the authority lock, then rechecks the permit at ordered
+write/input dispatch. Missing or retired generations fail closed, including payloads
+created before off but delivered after re-enable. The shared
+`capability.Project` maps lifecycle to one action: enable, disable, wait, retry,
+end cast or start a new cast. See `cast_capabilities.go`, `server_capabilities.go`,
+`board/annotation.go`, `drive/capability.go` and `recorder/capability.go`.
+
 ## Lifecycle
 
 - **Chrome process:** owned by Couch through the pipe. `Close` → `Browser.close`, killed after 5s. Closing Couch's
@@ -150,21 +251,43 @@ what the viewer's renderer draws at the same moments.
 
 - **Key and cell:** `Shift+Ctrl+Alt+b` (`\x1b[98;8u`, or `66;8u` from a terminal reporting the shifted code;
   `couchkeys.ActionWebcast` → `HitWebcast`) starts the cast Chrome, then toggles live. The tab bar's
-  `WebcastCell` draws `Chrome ▶` / `Chrome ⏸` **after** the screen broadcast's `LIVE ⏸ 👆 👽 💭N`, so the
+  `WebcastCell` draws `Chrome ▶` / `Chrome ⏸` **after** the screen broadcast's `LIVE ⏸ 👆 💭N`, so the
   broadcast's fixed-column indicator check never moves. Click toggles, right-click copies the link, Ctrl with
-  either button ends (macOS terminals may send Ctrl+left as a right click with the Ctrl bit).
+  either button ends (macOS terminals may send Ctrl+left as a right click with the Ctrl bit). Live, the cell is
+  drawn in `broadcast.LiveSGR`, LIVE's own style, so the two cast indicators read as one family (#501);
+  `IndicatorShown` matches LIVE's text, so it doesn't mistake one for the other.
+- **The Chrome group (#501)** follows the screen broadcast's `LIVE ⏸ 👆`: `Chrome ⏸ ↗ 👆 👽 Ana 💭N ✋Bo` (its 👽 is real, `WebcastDriveLinkLabel`; #503 removed the broadcast's placeholder), each button its own
+  `RenderedStatusRow` span (`WebFocus`, `WebPointerLink`, `WebDriveLink`), so a click knows which link it copies. The
+  codes show on hovering the cell itself, not these (#495).
+  👆 and 👽 toggle on left-click (enabling copies their link); right-click only copies. A right-click on the cell copies
+  the view-only link (the cast row's rule, #495).
+  `↗` calls `Browser.Focus`: the real Chrome sends `Target.activateTarget` for the cast tab, then activates its own
+  process by PID (`activateProcess`, macOS JXA → `NSRunningApplication`; by PID because the cast Chrome
+  shares its bundle id with the operator's own Chrome). Only `Launch` of a windowed Chrome sets the
+  activator, so headless and scripted-pipe tests can never take the operator's focus.
 - **Remote driving (#467, `couchtty/console_drive.go`):**
-  - **The span.** After the Chrome cell and its `💭N` comes a span: `🕹Ana` while Ana drives, `✋Bo` when Bo asks
-    (`✋2` for more). It follows `Cast.Drive().Subscribe()`.
+  - **The capability chip.** OFF is plain `👽`, ON idle is amber `👽`, and occupied is amber `👽 Ana`.
+    The full name belongs to `WebDriveLink`: left-click turns driving off, revoking driver and requests;
+    right-click copies its stable link. Driver text is sanitized and clipped with the same hit span.
+  - **The request span.** After `💭N`, `✋Bo` names an asker (`✋2` for more).
+    It follows `Cast.Drive().Subscribe()`; active driver identity is only in the capability chip.
   - **The drive menu.** A click on the span opens it: the notes menu's box and gesture router, as a third source,
     titled "Remote driving".
     - On the driver's row, "uploads and downloads off while Ana drives", any click takes control back.
     - On an asker's row, a left click grants and a right click denies.
   - **Revoke.** Ctrl with either button on the span revokes, from any state, with the menu open or closed.
-  - **Two links.** Right-click on the Chrome cell copies the view link (watch, point, notes);
-    Alt (Option)+right-click copies the drive link, the only one that offers a seat. Shift+click is the
-    terminal's own selection. `couch --broadcast-list` lists `screen`, `web view` and `web drive` shares
+  - **Three links (pair#506).** Right-click on the Chrome cell copies the view-only link (watch), 👆 the pointer link
+    (watch, point, notes; `copyWebcastPointerLink`, "takes no notes" on an unrecorded cast), and 👽 the drive link,
+    the only one that offers a seat; right-click copies without toggling, and the Codes menu (Alt+click on the cell,
+    #495) has a row, code and copy action for each of the three (#495 dropped Alt+right-click). Shift+click is the
+    terminal's own selection. A pointer-link viewer counts as a `web view` viewer. `couch --broadcast-list` lists `screen`, `web view` and `web drive` shares
     (`Console.Shares`, `couchmessage.ShareStatus`), the drive one with who drives and how many ask.
+  - **Acknowledged actions (#523).** Grant, deny, popup revoke and Ctrl-click revoke
+    run outside the terminal input loop in one tracked operation slot. Busy clicks
+    ask the operator to wait; no action queue accumulates. Admission keeps the
+    clicked capability generation through worker dispatch. Terminal completions
+    are fenced by cast and generation, and shutdown joins the work while the
+    controller owns recorder/CDP deadlines and cast-close cancellation.
   - **Failures.** A control change that fails says why (`driveFailure`): a race, the cast ended, not recording
     yet, or a failure with its cause.
   - **Notices.** Couch says when someone asks, what a grant turns off ("Uploads and downloads are off until control
@@ -177,6 +300,17 @@ what the viewer's renderer draws at the same moments.
 - **Cast:** `webcast.Cast` = Browser + the viewer `Server` mounted on the shared `broadcast.Host`. Chrome comes
   up first; the link opens in the background (`Update.Link` / `LinkErr`). The cast ends when its Browser does;
   viewers get `end`, then the mount goes.
+- **Three links (pair#506):** a cast has a view token, a pointer token (only when recorded: no board, no pointing)
+  and a drive token (#467). `Update` carries `Link`, `PointerLink` and `DriveLink`. Each grants what the one
+  before it does, and more: view watches; pointer also draws strokes and leaves and resolves notes; drive also offers
+  a seat. `castLink` (`webcast/link.go`) is the request's link, from `Server.linkOf` (constant-time token compare),
+  and each route asks it: `annotates()` for the board, `drives()` for the drive routes.
+  - Board POSTs under the view-only link answer 403 "This link is view-only." *before* admission, so they spend no body
+    read, in-flight slot or rate budget.
+  - `palette.json` answers `{palette, annotate}`. Under the view-only link the viewer's `mountAnnotate` (`readPalette`)
+    still draws others' strokes and notes, read-only: the rail never shows and a note opens without Resolve.
+  - A pointer-link stream counts with the view streams in `Server.Viewers()`: only drive-link streams hold a seat.
+  - The terminal cast's pointer link is a phase switched on and off, so the web cast keeps its own fixed-link model.
 - **Shared Host:** `broadcast.Host` (`host.go`) holds one listener, server and tunnel for every cast, opened by the
   first mount and closed after the last, routing by the token in the first path segment (`Mountable.Owns`). A named
   cloudflared tunnel can be claimed once, so the screen broadcast and the web cast must share it. `couchcmd` builds
@@ -208,6 +342,18 @@ what the viewer's renderer draws at the same moments.
     (no `allow-scripts`). It never sets `on*` attributes, gives nested frames no `src`, and sends every URL through
     `resolveAsset`; a URL with no asset loads nothing. An image with nothing to load is drawn as not yet loaded (no
     alt text), as a lazy image is in the tab.
+  - What the recording can't hold (pair#513): a canvas's pixels, a video's frames, a plugin's output (`object`,
+    `embed`), a frame whose document wasn't recorded. Their size often comes from what isn't recorded (with scripts
+    off a browser draws a `<canvas>` as its empty fallback; a video sized by loaded metadata has none, and Safari
+    draws no box), so the renderer sizes each to the operator's live layout box (else its `width`/`height`
+    attributes) with a zero-specificity rule in the document's viewer sheet, border-box and with the box's
+    `aspect-ratio`, so author `height:auto` keeps the operator's height (`liveSizeRule`, `drawLiveSizes`; author CSS
+    still wins). The rule never applies to `[hidden]`; once a layout has arrived, an element without a box (not
+    rendered) gets none; and it lives in a live-size sheet per tree (document or shadow root), adopted before the
+    page's own sheets. `Renderer.uncaptured()` lists them, and `placeholders.js` marks each over the page box: a dashed outline
+    at its drawn box and "canvas: not captured", redrawn on every record, so it follows the operator's size. Canvas
+    snapshots are #515. Checked by `TestLiveReplacedElements` (video, iframe, canvas resized live, picture, object,
+    a node filled after its insert) and `tests/webcast/placeholders.test.mjs`.
   - Paint holding (#475): as a browser's render-blocking CSS does, the renderer draws a new top document into a
     second frame placed before the first in document order, so the first, keeping the previous paint, covers it (and
     the shell's overlay covers both), until the new document's `<link rel=stylesheet>`s (media matching, not alternate
@@ -274,6 +420,36 @@ what the viewer's renderer draws at the same moments.
     pointer, and `boxOf` against the tab's own layout boxes (305 of 306 on rec-blog).
 - **Known transient:** for a moment after a navigation, the title can be Chrome's placeholder (the URL, as in
   Chrome's own tab) until the page reports its `<title>`; it is never the previous page's title (`DocumentChanged`).
+
+## Code lock (#495)
+
+The web cast's links are locked like the terminal broadcast's; see
+[Code lock](broadcast.md#code-lock-495) for the gate, the session cookie and
+the budget.
+
+- **Two locks.** `StartCast` mints the `view` lock (4 digits) before
+  anything else, and the `drive` lock (6 digits,
+  `broadcast.DriveCodeDigits`) with the drive token.
+  - If the drive lock can't be made, there is no drive link: driving is off,
+    and the operator is told why.
+  - The locks are attached with `Server.WithLocks` before `Mount`, and they
+    end after `Unmount` in `run`, so a viewer still receives the cast's end.
+- **Codes and rotation.** `Cast.Codes` and `Cast.RotateCode` are Couch's
+  handles (M3); `OnCodeRotated` reports each rotation with its `Gen`.
+- **Separate codes.** The view code never opens the drive link: each token
+  has its own lock and its own cookie path.
+- **Cookie coverage.** The page's iframe is sandboxed with
+  `allow-same-origin`, so its recorded assets (`assets/<hash>`) carry the
+  session cookie. `TestLiveLockPage` checks this in Chrome.
+- **Viewer name.** The lock page asks for it with the code.
+  - Every cast page keeps it under `couch.viewerName`, by one rule:
+    `validName` in `collab.js` and `broadcast.ViewerName` in Go (the board's
+    `MaxNameRunes` is the same bound).
+  - The note dialog asks only when no name is stored.
+  - Terminal notes carry it as `author`, and Couch's notes menu shows
+    `name: text`.
+- **Not locked.** Replay share links (#477) are a follow-up (pair#509); their
+  `LockFor` is nil.
 
 ## Replay (#471)
 
@@ -359,3 +535,12 @@ instead of the event stream.
   - `replay_live_test.go` (`WEBCAST_LIVE_CHROME=1`): a `#t=` link and shuffled scrubbing draw the reducer's canonical
     state at every pin of every fixture; JS `catchUp` takes the records Go's does; notes and strokes match the reducer
     at their moments; drive bands; nothing is requested outside the server.
+
+The live viewer owns a replay-latest capability subscription, initially closed.
+Disconnect/end revoke local availability; retired EventSources cannot update a
+replacement or reload it through a delayed session probe. Annotation reuses the
+shared mount's cancellation/held-draft policy and clears its transient stroke
+cache on annotation-clear. Drive drops queued acts and stale batch completions;
+a new capability generation requires fresh consent. Catch-up control and initial
+capability events may arrive in either order; projection retains control evidence
+while closed without admitting input. See web/viewer.js, annotate.js, drive.js.

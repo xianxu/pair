@@ -76,9 +76,13 @@ type Console struct {
 	// publishHook runs inside publishMu, inside a site's snapshot-to-commit span
 	// (chrome, panel, select, resize); tests use it to park a paint there while
 	// another tries to overtake it.
-	publishHook      func(site string)
+	publishHook func(site string)
+	// codes is what the operator-only layer shows of cast link codes
+	// (pair#495); its mutex is a leaf.
+	codes            castCodes
 	terminalCommands chan terminalCommand
 	terminalFailure  error
+	drivePending     *driveOperation // guarded by mu; survives forgetDrive/cast replacement
 	// exitFailure is teardown's one classification of why the terminal failed
 	// (shutdown cancellations filtered out), read by TerminalFailure.
 	exitFailure   error
@@ -158,11 +162,15 @@ type Console struct {
 	wcast      webcastState
 	// replays are the recordings shared for replay on the Host (#477); nil
 	// when Couch has no store. Set before Run, closed at teardown.
-	replays *webcast.ReplayShares
+	replays     *webcast.ReplayShares
+	submissions *submissionManager
 	// statusWebcast is the Chrome cell's span on the last drawn row.
 	statusWebcast ColumnSpan
 	// statusWebNotes is the web cast's 💭N span (#470).
 	statusWebNotes ColumnSpan
+	// statusWebFocus, statusWebPointerLink and statusWebDriveLink are the
+	// Chrome group's ↗ 👆 👽 spans (#501).
+	statusWebFocus, statusWebPointerLink, statusWebDriveLink ColumnSpan
 	// statusWebDrive is remote driving's span (#467).
 	statusWebDrive ColumnSpan
 	// overlayUsers is who needs the collaboration overlay (syncOverlay).
@@ -176,10 +184,9 @@ type Console struct {
 	pnotes pointerNotes
 	// anchors resolves the notes' anchors (#488).
 	anchors noteAnchors
-	// statusPointer and statusRemote are the 👆 and 👽 spans on the last
+	// statusPointer and statusNotes are the 👆 and 💭N spans on the last
 	// drawn row.
 	statusPointer ColumnSpan
-	statusRemote  ColumnSpan
 	statusNotes   ColumnSpan
 	// ansiPalette is the terminal's 16 ANSI colours from OSC 4 replies, for
 	// broadcast viewers; ansiKnown marks which arrived. Under mu.
@@ -216,9 +223,7 @@ type Console struct {
 	paletteFG, paletteBG bool
 	// now is the console's clock for idle fading, so tests can cross the day
 	// and three-day bands without waiting.
-	now                func() time.Time
-	orientationResults chan orientationWatchResult
-	orientationWatches map[couchcore.ThreadAddress]orientationWatch
+	now func() time.Time
 	// orientationFrom records which producer wrote each menu.Orientation entry;
 	// see setOrientationLocked.
 	orientationFrom      map[couchcore.ThreadAddress]string
@@ -280,7 +285,6 @@ func New(host hostty.Host, stdin io.Reader) *Console {
 		activityInterval:    defaultActivityInterval,
 		blockedUpdates:      make(chan map[couchcore.ThreadAddress]bool, 1),
 		now:                 time.Now,
-		orientationResults:  make(chan orientationWatchResult, 8),
 		continuationResults: make(chan continuationScanResult, 1),
 		continuations:       make(map[couchcore.ThreadAddress]continuationWatch),
 		previewResults:      make(chan menuPreviewResult, 1),
@@ -295,6 +299,8 @@ func New(host hostty.Host, stdin io.Reader) *Console {
 	if s, err := host.Size(); err == nil {
 		c.size = s
 	}
+	// Cast link codes draw on the operator's screen only (pair#495).
+	c.terminalError(c.installCodesLayer())
 	return c
 }
 
@@ -954,8 +960,6 @@ func (c *Console) Run() (code int) {
 			c.menu, _ = ReduceMenu(c.menu, MenuEvent{Kind: MenuEventBlocked, Blocked: blocked})
 			c.mu.Unlock()
 			c.repaintVisible()
-		case result := <-c.orientationResults:
-			c.finishOrientation(result)
 		case result := <-c.continuationResults:
 			c.acceptContinuationRequests(result)
 		case result := <-c.previewResults:
@@ -1755,10 +1759,6 @@ func (c *Console) runMenuOperation(effect MenuEffect) {
 		}
 	}
 	if effect.Operation == "switch-agent" {
-		if previous, ok := c.orientationWatches[origin.Address]; ok {
-			previous.cancel()
-			delete(c.orientationWatches, origin.Address)
-		}
 		c.supersedeOrientationLocked(origin.Address)
 		origin.PanelOrigin = c.focus.IsPanel()
 		c.menu.InFlight.PanelOrigin = origin.PanelOrigin
@@ -1970,7 +1970,7 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 		Background: completed.origin.Background,
 	}
 	if err != nil {
-		event.Error = err.Error()
+		event.Error = couchcore.OperatorError(err)
 		// A code, so the pass tells a skip from a failure without matching text.
 		event.Diagnostic = couchcore.ResumeDiagnosticOf(err)
 		event.Busy = couchcore.IsThreadBusy(err)
@@ -2050,9 +2050,6 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 	if result, ok := completed.value.(couchcore.SwitchAgentResult); ok && err == nil {
 		if result.Warning != "" {
 			c.reduceMenu(MenuEvent{Kind: MenuEventNotice, Error: result.Warning})
-		}
-		if result.Orientation != nil {
-			c.watchOrientation(address, startedHandleID, *result.Orientation)
 		}
 	}
 	c.requestMenuRefresh()

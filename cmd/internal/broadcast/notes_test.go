@@ -328,16 +328,17 @@ func FuzzParseNote(f *testing.F) {
 }
 
 func TestNoteVisible(t *testing.T) {
-	n := Note{Col: 10, Row: 5}
+	// Inside the guard's width, so it is hidden once row 5 is the last row.
+	n := Note{Col: StatusGuardCols - 2, Row: 5}
 	cases := []struct {
 		cols, rows int
 		want       bool
 	}{
 		{80, 24, true},
-		{12, 24, true},
-		{11, 24, false}, // second cell off the grid
-		{80, 5, false},  // row off the grid
-		{80, 6, false},  // now the last row, inside the guard
+		{StatusGuardCols, 24, true},
+		{StatusGuardCols - 1, 24, false}, // second cell off the grid
+		{80, 5, false},                   // row off the grid
+		{80, 6, false},                   // now the last row, inside the guard
 	}
 	for _, c := range cases {
 		if got := NoteVisible(n, c.cols, c.rows); got != c.want {
@@ -544,5 +545,25 @@ func TestHasPinStopsAtTheFirstSpot(t *testing.T) {
 	}
 	if d := time.Since(start); d > 200*time.Millisecond {
 		t.Errorf("1000 parses of a whole-grid box took %v", d)
+	}
+}
+
+// pair#495: a note carries the name the viewer gave the lock page, on every
+// cast's rule; the field is optional, and a name off the rule is refused.
+func TestParseNoteAuthor(t *testing.T) {
+	body := func(author string) []byte {
+		return []byte(fmt.Sprintf(`{"cols":80,"rows":24,"box":[3,4,2,1],"color":0,"text":"hi","author":%q}`, author))
+	}
+	n, err := ParseNote(body("  Ada  "))
+	if err != nil || n.Note.Author != "Ada" {
+		t.Fatalf("author: %+v %v", n.Note, err)
+	}
+	if n, err := ParseNote([]byte(okNote)); err != nil || n.Note.Author != "" {
+		t.Fatalf("no author: %+v %v", n.Note, err)
+	}
+	for _, bad := range []string{"A\nB", "A​B", strings.Repeat("x", MaxViewerNameRunes+1)} {
+		if _, err := ParseNote(body(bad)); err != ErrNoteText {
+			t.Errorf("author %q: %v", bad, err)
+		}
 	}
 }

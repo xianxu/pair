@@ -37,6 +37,7 @@ const (
 	// cliWebFidelity checks a broadcast-web recording against its frames
 	// (#478); args holds the argv after the flag.
 	cliWebFidelity
+	cliSubmission
 )
 
 type adoptionArgs struct {
@@ -105,6 +106,8 @@ func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, e
 	// scanning layout flags, which could otherwise consume a literal body.
 	if len(args) > 0 {
 		switch args[0] {
+		case submissionFlag:
+			return parseSubmissionCLI(args)
 		case "--adopt-store":
 			return parseAdoptionCLI(args)
 		case query.Flag:
@@ -121,6 +124,8 @@ func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, e
 			return cliInvocation{kind: cliWebFidelity, args: args[1:]}, nil
 		case "--session-sync":
 			return parseSessionSyncCLI(args)
+		case "--switch-agent", "--operation-status":
+			return parseSwitchAgentCLI(args)
 		case "--actors", "--send-to", "--message-status", "--skill", "--broadcast-list":
 			return parseMessageCLI(args)
 		}
@@ -211,17 +216,17 @@ func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, e
 		for i := 2; i < len(args); i++ {
 			flag := args[i]
 			if seen[flag] {
-				return invalid("--peek takes a slot reference, then optional --lines N, --json and --transcripts, each once")
+				return invalid("--peek takes a slot reference, then optional --lines N, --json, --transcripts, --previous and --all, each once")
 			}
 			seen[flag] = true
 			switch {
-			case flag == "--json" || flag == "--transcripts":
+			case flag == "--json" || flag == "--transcripts" || flag == "--previous" || flag == "--all":
 				inv.args = append(inv.args, flag)
 			case flag == "--lines" && i+1 < len(args):
 				i++
 				inv.args = append(inv.args, "--lines="+args[i])
 			default:
-				return invalid("--peek takes a slot reference, then optional --lines N, --json and --transcripts, each once")
+				return invalid("--peek takes a slot reference, then optional --lines N, --json, --transcripts, --previous and --all, each once")
 			}
 		}
 		return inv, nil

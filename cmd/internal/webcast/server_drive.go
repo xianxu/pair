@@ -3,7 +3,9 @@ package webcast
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -45,6 +47,31 @@ type driveRoutes struct {
 	hello  *broadcast.RateLimit
 	seats  map[string]*seatLimits // by key
 	now    func() time.Time
+	// logf is the operator's log (the cast's Logf; nil logs nothing), and
+	// logged the messages already logged: in memory, at most maxLogged,
+	// then forgotten and logged afresh.
+	logf   func(format string, args ...any)
+	logMu  sync.Mutex
+	logged map[string]bool
+}
+
+const maxLogged = 64
+
+func (d *driveRoutes) logOnce(msg string) {
+	d.logMu.Lock()
+	if d.logged[msg] {
+		d.logMu.Unlock()
+		return
+	}
+	if d.logged == nil || len(d.logged) >= maxLogged {
+		d.logged = map[string]bool{}
+	}
+	d.logged[msg] = true
+	logf := d.logf
+	d.logMu.Unlock()
+	if logf != nil {
+		logf("%s", msg)
+	}
 }
 
 type seatLimits struct {
@@ -64,6 +91,17 @@ func (s *Server) WithDrive(ctrl drive.Controller, token string) *Server {
 	return s
 }
 
+// WithDriveLog sends the drive routes' failures to logf (the cast's
+// Logf: Couch's notice line).
+func (s *Server) WithDriveLog(logf func(format string, args ...any)) *Server {
+	if s.drive != nil {
+		s.drive.logMu.Lock()
+		s.drive.logf = logf
+		s.drive.logMu.Unlock()
+	}
+	return s
+}
+
 // DriveToken is the drive link's token ("" without remote driving).
 func (s *Server) DriveToken() string {
 	if s.drive == nil {
@@ -73,7 +111,7 @@ func (s *Server) DriveToken() string {
 }
 
 // driveRoute serves one POST; false when rest isn't a drive route. Under
-// the view link's token (driveLink false) the routes are not found.
+// the view-only and pointer links (driveLink false) the routes are not found.
 func (s *Server) driveRoute(w http.ResponseWriter, r *http.Request, rest string, driveLink bool) bool {
 	switch rest {
 	case "drive/hello", "drive/control", "drive/input":
@@ -95,12 +133,12 @@ func (s *Server) driveRoute(w http.ResponseWriter, r *http.Request, rest string,
 			Name string `json:"name"`
 		}
 		if !broadcast.DecodeStrict(body, &in) {
-			answerDrive(w, drive.ErrBatchShape)
+			d.answer(w, drive.ErrBatchShape)
 			return true
 		}
 		seat, err := d.ctrl.Join(in.Name)
 		if err != nil {
-			answerDrive(w, err)
+			d.answer(w, err)
 			return true
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -109,7 +147,17 @@ func (s *Server) driveRoute(w http.ResponseWriter, r *http.Request, rest string,
 	}
 	key := r.Header.Get(drive.SeatHeader)
 	if key == "" {
-		answerDrive(w, drive.ErrNoSeat)
+		d.answer(w, drive.ErrNoSeat)
+		return true
+	}
+	generation, err := strconv.ParseUint(r.Header.Get("X-Couch-Drive-Generation"), 10, 64)
+	if err != nil {
+		d.answer(w, drive.ErrDriveUnavailable)
+		return true
+	}
+	admission, err := d.ctrl.AdmitDriveGeneration(generation)
+	if err != nil {
+		d.answer(w, err)
 		return true
 	}
 	lim := d.limits(key)
@@ -126,7 +174,6 @@ func (s *Server) driveRoute(w http.ResponseWriter, r *http.Request, rest string,
 		return true
 	}
 	defer release()
-	var err error
 	if rest == "drive/control" {
 		var in struct {
 			Op string `json:"op"`
@@ -135,22 +182,22 @@ func (s *Server) driveRoute(w http.ResponseWriter, r *http.Request, rest string,
 		case !broadcast.DecodeStrict(body, &in):
 			err = drive.ErrBatchShape
 		case in.Op == "request":
-			err = d.ctrl.Request(key)
+			err = admission.Request(key)
 		case in.Op == "release":
-			err = d.ctrl.Release(key)
+			err = admission.Release(key)
 		default:
 			err = drive.ErrBatchShape
 		}
 	} else {
 		var b drive.Batch
 		if b, err = drive.ParseBatch(body); err == nil {
-			err = d.ctrl.Input(r.Context(), key, b)
+			err = admission.Input(r.Context(), key, b)
 		}
 	}
 	if errors.Is(err, drive.ErrNoSeat) {
 		d.forget(key)
 	}
-	answerDrive(w, err)
+	d.answer(w, err)
 	return true
 }
 
@@ -198,8 +245,15 @@ func (d *driveRoutes) forget(key string) {
 func (l *seatLimits) allowControl(now time.Time) bool { return l.control.Allow(now) }
 func (l *seatLimits) allowInput(now time.Time) bool   { return l.input.Allow(now) }
 
-func answerDrive(w http.ResponseWriter, err error) {
+// answer writes err's response. A failure that isn't the viewer's (a 5xx:
+// the tab couldn't take the input, the cast was busy, or an error nothing
+// maps) is logged for the operator with its cause, once per distinct
+// message (pair#505: every drive input answered 500 and nothing said why).
+func (d *driveRoutes) answer(w http.ResponseWriter, err error) {
 	status, text := drive.Answer(err)
+	if status >= http.StatusInternalServerError {
+		d.logOnce(fmt.Sprintf("remote driving: %d: %v", status, err))
+	}
 	if status == http.StatusNoContent {
 		w.WriteHeader(status)
 		return

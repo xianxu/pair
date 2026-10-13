@@ -101,6 +101,10 @@ func TestDriveLiveTwoViewers(t *testing.T) {
 	}
 	spy := &spyInjector{next: inj}
 	ctrl := drive.NewMemController(&serialSink{sink: recording.Tee(stream, inj)}, spy, func() int64 { return inj.Page().T + 1 }, time.Minute)
+	ctrl.WithControlReset(inj.ResetControl)
+	if err := ctrl.SetDriveAllowed(context.Background(), true); err != nil {
+		t.Fatal(err)
+	}
 	t.Cleanup(func() { ctrl.Close() })
 	viewer := NewServer("tok", NewFakeBrowser(), time.Second, hub, nil).WithDrive(ctrl, "drv")
 	viewer.Assets().Bind(store)

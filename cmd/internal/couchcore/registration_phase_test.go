@@ -26,7 +26,7 @@ func TestColdResumeRegistrationTimeoutNamesThePaneBirthPhase(t *testing.T) {
 	env.Artifacts.SetNativeBinding(parked.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
 
 	_, _, err := env.Couch.Resume(parked.Address)
-	text := errorText(err)
+	text := retainedLaunchError(t, env.Couch, err)
 	// Every step of the resume is timed, so an earlier slow step cannot
 	// hide behind the one that timed out.
 	if !regexp.MustCompile(`\[steps: claim [0-9.]+m?s, checkout [0-9.]+m?s, prepare [0-9.]+m?s, spawn [0-9.]+m?s, record\+baseline [0-9.]+m?s, ack [0-9.]+m?s, registration [0-9.]+m?s\]`).MatchString(text) {
@@ -102,7 +102,7 @@ func TestColdResumeRegistrationTimeoutNamesTheOwnershipPhase(t *testing.T) {
 				return nil
 			}
 			_, _, err := env.Couch.Resume(parked.Address)
-			text := errorText(err)
+			text := retainedLaunchError(t, env.Couch, err)
 			for _, want := range []string{"ownership poll consumed the budget", c.last, "(waited "} {
 				if !strings.Contains(text, want) {
 					t.Fatalf("error %q lacks %q", text, want)
@@ -161,4 +161,17 @@ func (c *budgetContext) Err() error {
 	default:
 		return c.Context.Err()
 	}
+}
+
+// Timing detail moved from the one-line operator error into retained diagnostics.
+func retainedLaunchError(t *testing.T, c *Couch, err error) string {
+	t.Helper()
+	if err == nil {
+		t.Fatal("expected launch error")
+	}
+	records, readErr := c.LaunchFailures.Read()
+	if readErr != nil || len(records) != 1 {
+		t.Fatalf("retained evidence: %v %+v", readErr, records)
+	}
+	return records[0].LaunchError
 }

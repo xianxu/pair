@@ -328,12 +328,14 @@ vim.api.nvim_set_hl(0, 'PairFocusBlock', { link = 'Cursor', default = true })
 --     buffer; our pad lands a tick later.
 --   - `modified` is restored around both insert and remove so the
 --     dirty flag doesn't flicker.
-local pair_focus_eol_padded = false
-local pair_focus_eol_row    = nil
+-- The pad owns its buffer independently of the active focus animation: a
+-- FocusGained during read-only ownership must retain cleanup for unlock.
+local pair_focus_eol_pad = nil
 
 local function pair_eol_ensure_pad()
-  if pair_focus_eol_padded then return end
+  if pair_focus_eol_pad then return end
   if not pair_focus_buf or not vim.api.nvim_buf_is_loaded(pair_focus_buf) then return end
+  if _G.PairDraftMutationBlocked(pair_focus_buf, true) or not vim.bo[pair_focus_buf].modifiable then return end
   local win = vim.fn.bufwinid(pair_focus_buf)
   if win == -1 then return end
   local row, col = unpack(vim.api.nvim_win_get_cursor(win))
@@ -342,25 +344,24 @@ local function pair_eol_ensure_pad()
   local was_modified = vim.bo[pair_focus_buf].modified
   vim.api.nvim_buf_set_text(pair_focus_buf, row - 1, #line, row - 1, #line, { ' ' })
   vim.bo[pair_focus_buf].modified = was_modified
-  pair_focus_eol_padded = true
-  pair_focus_eol_row    = row
+  pair_focus_eol_pad = {buf=pair_focus_buf,row=row}
 end
 
 local function pair_eol_remove_pad()
-  if not pair_focus_eol_padded then return end
-  local row = pair_focus_eol_row
-  pair_focus_eol_padded = false
-  pair_focus_eol_row    = nil
-  if not row or not pair_focus_buf or not vim.api.nvim_buf_is_loaded(pair_focus_buf) then
-    return
+  local pad = pair_focus_eol_pad
+  if not pad then return true end
+  if not vim.api.nvim_buf_is_loaded(pad.buf) then pair_focus_eol_pad = nil; return true end
+  if _G.PairDraftMutationBlocked(pad.buf, true) or not vim.bo[pad.buf].modifiable then return false end
+  if pad.row <= vim.api.nvim_buf_line_count(pad.buf) then
+    local line = vim.api.nvim_buf_get_lines(pad.buf, pad.row - 1, pad.row, false)[1] or ''
+    if line:sub(-1) == ' ' then
+      local was_modified = vim.bo[pad.buf].modified
+      vim.api.nvim_buf_set_text(pad.buf, pad.row - 1, #line - 1, pad.row - 1, #line, {})
+      vim.bo[pad.buf].modified = was_modified
+    end
   end
-  if row > vim.api.nvim_buf_line_count(pair_focus_buf) then return end
-  local line = vim.api.nvim_buf_get_lines(pair_focus_buf, row - 1, row, false)[1] or ''
-  if line:sub(-1) == ' ' then
-    local was_modified = vim.bo[pair_focus_buf].modified
-    vim.api.nvim_buf_set_text(pair_focus_buf, row - 1, #line - 1, row - 1, #line, {})
-    vim.bo[pair_focus_buf].modified = was_modified
-  end
+  pair_focus_eol_pad = nil
+  return true
 end
 
 -- Render the cursor cell with an overlay extmark. Always toggle between
@@ -412,6 +413,7 @@ end
 
 local function pair_block_start()
   if pair_focus_timer_id then return end
+  if not pair_eol_remove_pad() then return end
   pair_focus_buf = vim.api.nvim_get_current_buf()
   -- Defer the actual work past the synchronous FocusLost autocmd chain
   -- so autosave (registered later, runs after us) sees a clean buffer.
@@ -551,6 +553,21 @@ local function write_history_entry(n, body)
 	local replaced = pair_log.replace(text, n, body)
 	if not replaced then return end
 	write_file(path, replaced)
+end
+
+-- DOM ownership protects the logical draft slot and its files, not just text
+-- writes. Check before prompts, navigation state, logging, or queue mutations.
+-- Scope the guard to the initiating buffer so unrelated views remain usable.
+function _G.PairDraftMutationBlocked(buf, quiet)
+  local status = _G.PairDOMStatus
+  buf = (buf == nil or buf == 0) and vim.api.nvim_get_current_buf() or buf
+  if not status or not status.busy or status.buf ~= buf then return false end
+  if not quiet then
+    status.text = 'already sending…'
+    pcall(vim.cmd, 'redrawstatus')
+    pcall(vim.cmd, 'redraw')
+  end
+  return true
 end
 
 local function buffer_text()
@@ -719,7 +736,7 @@ local function draftSendCommands(body) return _G.PairDraftSend.commands(body) en
 
 _G.PairDraftSendCommands = draftSendCommands
 
-local function send_to_agent(body, resume_phase)
+local function send_to_agent(body, resume_phase, target, operation)
   -- focus up to agent pane, type body, press Enter, focus back down.
   --
   -- We deliberately do NOT clear the agent's input first. The "[Image #N]"
@@ -744,16 +761,24 @@ local function send_to_agent(body, resume_phase)
   -- of synthesizing it as raw ESC+CR bytes.
   --
   if type(_G.PairTestSendToAgent) == 'function' then
-    return _G.PairTestSendToAgent(body, resume_phase)
+    return _G.PairTestSendToAgent(body, resume_phase, target, operation)
   end
   if not has_ui() and type(_G.PairTestZellijExecutor) ~= 'function' then
     return false, 'start', 'no attached UI'
   end
   return _G.PairDraftSend.send(body, function(label, argv, opts)
+    if operation then
+      if operation.remaining() <= 0 then return {code=124} end
+      opts = vim.tbl_extend('force', opts or {}, {timeout_ms=operation.remaining()})
+    end
     return PairZellijTrace.action(label, argv, opts)
   end, function()
+    if operation then
+      operation.check()
+      if operation.remaining() < 100 then error('submission timed out before paste settled',0) end
+    end
     vim.cmd('sleep 100m')
-  end, resume_phase)
+  end, resume_phase, target)
 end
 
 -- One resolution of the pair binary. The `PAIR_HOME .. '/bin/pair'` idiom was
@@ -763,22 +788,34 @@ local function pair_bin()
   return (home ~= '') and (home .. '/bin/pair') or 'pair'
 end
 
-_G.PairSubmission = dofile((debug.getinfo(1, 'S').source:match('@?(.*/)') or './') .. 'submission.lua').new(function(body, append_id)
+_G.PairSubmission = dofile((debug.getinfo(1, 'S').source:match('@?(.*/)') or './') .. 'submission.lua').new(function(body, append_id, operation)
   if type(_G.PairTestSessionLogAppend) == 'function' then
-    return _G.PairTestSessionLogAppend(body, append_id)
+    return _G.PairTestSessionLogAppend(body, append_id, operation)
   end
   local pair = pair_bin()
+  if operation then
+    operation.check()
+    local result = vim.system({pair,'session-log','append','--append-id',append_id},
+      {stdin=body,text=true,timeout=operation.remaining()}):wait()
+    return result.code == 0, result.code ~= 0 and ((result.stderr or '') .. ' session log append exit ' .. tostring(result.code)) or nil
+  end
   local out = vim.fn.system({ pair, 'session-log', 'append', '--append-id', append_id }, body)
   if vim.v.shell_error ~= 0 then
     out = tostring(out or ''):gsub('%s+$', '')
     return false, out ~= '' and out or ('exit ' .. tostring(vim.v.shell_error))
   end
   return true
-end, function(append_id)
+end, function(append_id, operation)
   if type(_G.PairTestSessionLogCommit) == 'function' then
-    return _G.PairTestSessionLogCommit(append_id)
+    return _G.PairTestSessionLogCommit(append_id, operation)
   end
   local pair = pair_bin()
+  if operation then
+    operation.check()
+    local result = vim.system({pair,'session-log','commit','--append-id',append_id},
+      {text=true,timeout=operation.remaining()}):wait()
+    return result.code == 0, result.code ~= 0 and ((result.stderr or '') .. ' session log commit exit ' .. tostring(result.code)) or nil
+  end
   local out = vim.fn.system({ pair, 'session-log', 'commit', '--append-id', append_id })
   if vim.v.shell_error ~= 0 then
     out = tostring(out or ''):gsub('%s+$', '')
@@ -856,12 +893,15 @@ do
     return true
   end
 
-  function _G.submit_operator_text(authored_body, agent_text)
-    local tag = bang_tag.parse(agent_text)
+  function _G.submit_operator_text(authored_body, agent_text, attachment, fresh, operation)
+    if not operation and _G.PairDraftMutationBlocked() then return false, 'already sending' end
+    local tag = bang_tag.parse(attachment and strip_comments(authored_body) or agent_text)
+    if attachment and tag and not tag.agent_text then return false end
     if tag and not tag.agent_text then return describe_couch_thread(tag) end
-    local ok = _G.PairSubmission.submit_operator_text(authored_body, tag and tag.agent_text or agent_text)
+    local send = (fresh or operation) and _G.PairSubmission.submit_fresh_operator_text or _G.PairSubmission.submit_operator_text
+    local ok, err = send(authored_body, attachment and agent_text or (tag and tag.agent_text or agent_text), attachment, operation)
     if ok and tag and tag.description then publish_couch_description(tag.description) end
-    return ok
+    return ok, err
   end
 end
 function _G.send_generated_prompt(body)
@@ -1250,7 +1290,9 @@ local function poll_capture(bufnr, ns, extmark_id, cap_path, done_path, started_
     end
     return
   end
-  if vim.fn.filereadable(done_path) == 1 then
+  -- A capture started before DOM ownership may finish while the draft is
+  -- locked. Keep its files and let the existing bounded poll retry later.
+  if not _G.PairDraftMutationBlocked(bufnr, true) and vim.fn.filereadable(done_path) == 1 then
     local content = ''
     local fh = io.open(cap_path, 'rb')
     if fh then
@@ -1287,6 +1329,7 @@ local function poll_capture(bufnr, ns, extmark_id, cap_path, done_path, started_
 end
 
 local function attach_image()
+  if _G.PairDraftMutationBlocked() then return false end
   if not clipboard_has_image() then
     flash_at_cursor('[no image in clipboard]', 'WarningMsg', 1000)
     return
@@ -1531,6 +1574,7 @@ local function paste_inline(body, row, col)
 end
 
 function _G.PairPasteQuote()
+  if _G.PairDraftMutationBlocked() then return false end
   local f = io.open(quote_path(), 'r')
   if not f then return end
   local body = f:read('*a')
@@ -1553,18 +1597,8 @@ end
 -- draft, and resets to *.
 -- ---------------------------------------------------------------------------
 
-local function send_and_clear()
-  local body = buffer_text()
-  if body:match('^%s*$') then return end
-  -- Strip-then-check happens before any side effects: a comment-only buffer
-  -- is a no-op send, so it must NOT consume a +N queue item or append to log.
-  local stripped = strip_comments(body)
-  if stripped:match('^%s*$') then return end
-
-  -- Durability is the submission gate. Do this before queue consumption or
-  -- draft mutation so any failure leaves all authored state intact.
-  if not submit_operator_text(body, stripped) then return end
-
+function _G.PairFinishDraftSend(body)
+  if _G.PairDraftMutationBlocked() then return false end
   local from_queue = (type(nav.pos) == 'table' and nav.pos.kind == 'queue')
 
   -- send-from-+N consumes that queue file. Resolve the selected item by its
@@ -1616,6 +1650,81 @@ local function send_and_clear()
   refresh_statusline()
   if consumed_queue then flash_queue_count() end
   vim.cmd('startinsert')
+end
+
+local function send_and_clear()
+  if _G.PairDraftMutationBlocked() then return false end
+  local body = buffer_text()
+  local stripped = strip_comments(body)
+  if stripped:match('^%s*$') then return end
+  if submit_operator_text(body, stripped) then _G.PairFinishDraftSend(body) end
+end
+
+-- One DOM operation owns the initiating draft until completion or deadline.
+-- A subsequent completed/failed attempt is always a fresh submission.
+do
+  local dir = debug.getinfo(1, 'S').source:match('@?(.*/)') or './'
+  local transport = dofile(dir .. 'dom_transport.lua').new(vim, PairZellijTrace.action)
+  _G.PairDOMSubmission = dofile(dir .. 'dom_submission.lua').new({
+    rpc = function(op,id,cb,operation)
+      if _G.PairTestDOMRPC then return _G.PairTestDOMRPC(op,id,cb,operation) end
+      transport.rpc(op,id,cb,operation)
+    end,
+    pin = function(id,operation)
+      if _G.PairTestDOMPin then return _G.PairTestDOMPin(id,operation) end
+      return transport.pin(id,operation)
+    end,
+    id = function()
+      return vim.fn.sha256(tostring((vim.uv or vim.loop).hrtime()) .. ':' .. tostring(vim.fn.getpid()))
+    end,
+    submit = function(body,text,attachment,operation) return submit_operator_text(body,text,attachment,true,operation) end,
+    ordinary = function(body,text,operation) return submit_operator_text(body,strip_comments(body),nil,true,operation) end,
+    notify = function(message) vim.notify(message,vim.log.levels.WARN) end,
+    defer = vim.defer_fn,
+    now = function() return (vim.uv or vim.loop).hrtime()/1000000 end,
+    arm = function(fn,ms)
+      if _G.PairTestDOMArm then return _G.PairTestDOMArm(fn,ms) end
+      local timer = vim.defer_fn(fn,ms)
+      return function() if not timer:is_closing() then timer:stop();timer:close() end end
+    end,
+    render = function(message,busy,view)
+      if not view then return end
+      if vim.api.nvim_buf_is_valid(view.buf) then
+        if busy then vim.bo[view.buf].modifiable = false
+        else vim.bo[view.buf].modifiable = view.modifiable end
+      end
+      _G.PairDOMStatus = {text=message,busy=busy,buf=view.buf,
+        baseline=vim.api.nvim_buf_is_valid(view.buf) and table.concat(vim.api.nvim_buf_get_lines(view.buf,0,-1,false),'\n') or nil}
+      -- Redraw now: pin/paste include bounded synchronous subprocess waits.
+      vim.cmd('redrawstatus')
+      vim.cmd('redraw')
+    end,
+  })
+  vim.api.nvim_create_autocmd({'TextChanged','TextChangedI'}, {group=vim.api.nvim_create_augroup('pair_dom_submission',{clear=true}),callback=function()
+    local st = _G.PairDOMStatus
+    if st and not st.busy and st.buf == vim.api.nvim_get_current_buf() and buffer_text() ~= st.baseline then
+      _G.PairDOMStatus = nil
+      refresh_statusline()
+    end
+  end})
+  function _G.PairSendDOM()
+    -- Cosmetic focus padding is not authored input. Remove it before the
+    -- operation snapshots and locks the draft.
+    if pair_focus_eol_pad and pair_focus_eol_pad.buf == vim.api.nvim_get_current_buf() then pair_eol_remove_pad() end
+    local body, pos, buf = buffer_text(), nav.pos, vim.api.nvim_get_current_buf()
+    local text = strip_comments(body)
+    local tag = dofile(dir .. 'bang_tag.lua').parse(text)
+    if tag and not tag.agent_text then
+      if submit_operator_text(body,text) then _G.PairFinishDraftSend(body) end
+      return
+    end
+    _G.PairDOMSubmission.send(body,tag and tag.agent_text or text,function()
+      return vim.api.nvim_get_current_buf()==buf and nav.pos==pos and buffer_text()==body
+    end,function()
+      _G.PairFinishDraftSend(body)
+      if _G.PairDOMStatus and _G.PairDOMStatus.buf == buf then _G.PairDOMStatus.baseline = buffer_text() end
+    end,{buf=buf,modifiable=vim.bo[buf].modifiable})
+  end
 end
 
 -- ---------------------------------------------------------------------------
@@ -1958,6 +2067,7 @@ end
 -- — the flag that turns bare digits into pickers — is declared above the
 -- completers; see its comment.)
 local function spell_suggest_popup()
+  if _G.PairDraftMutationBlocked() then return end
   local row, col = unpack(vim.api.nvim_win_get_cursor(0))  -- col is 0-indexed
   local line = vim.api.nvim_get_current_line()
   if line == '' then return end
@@ -1990,7 +2100,12 @@ local function spell_suggest_popup()
   vim.api.nvim_win_set_cursor(0, { row, e - 1 })
   spell_popup_active = true
   vim.cmd('startinsert')
+  local buf = vim.api.nvim_get_current_buf()
   vim.schedule(function()
+    if vim.api.nvim_get_current_buf() ~= buf or _G.PairDraftMutationBlocked(buf, true) then
+      spell_popup_active = false
+      return
+    end
     vim.fn.complete(s, indexed_items(suggestions, ''))
   end)
 end
@@ -2269,6 +2384,11 @@ _G._pair_review_compact_left = function()
 end
 
 function _G.PairStatusline()
+  local submission = _G.PairDOMStatus
+  if submission and submission.buf == vim.api.nvim_get_current_buf() then
+    local text = tostring(submission.text or ''):gsub('[%z\1-\31\127]',' '):gsub('%%','%%%%')
+    return ' %< ' .. text .. ' '
+  end
   -- Minimized rung: nvim is collapsed to this single statusline row, so
   -- the buffer is invisible and the usual history/queue/position
   -- cluster has nothing to refer to. Replace it with a hint that names
@@ -2345,6 +2465,7 @@ end
 -- would change the stripped body — is left unsaved so the next go_to can
 -- raise the leave-dirty-history prompt.
 local function autosave_current_slot()
+  if _G.PairDraftMutationBlocked(nil, true) then return end
   if nav.pos == '*' then
     pcall(vim.cmd, 'silent! write')
   elseif type(nav.pos) == 'table' and nav.pos.kind == 'queue' then
@@ -2364,6 +2485,7 @@ end
 -- persistent draft. Used only by the dirty-`-N` prompt's Send branch
 -- (send_and_clear has its own variant that handles the from-* case).
 local function ship_buffer_and_reset(body)
+  if _G.PairDraftMutationBlocked() then return false end
   -- Mirror send_and_clear: log full body, send stripped. Skip both if the
   -- stripped result is empty so a comment-only fork doesn't pollute the log.
   local stripped = strip_comments(body)
@@ -2398,6 +2520,7 @@ end
 --   Enter/ESC/anything-else → Stay (the safe default, including covering
 --   accidental key presses).
 local function leave_dirty_history()
+  if _G.PairDraftMutationBlocked() then return false end
   local body = buffer_text()
   vim.api.nvim_echo({
     { '(S)end, (Q)ueue, (D)iscard, [S]tay: ', 'Question' },
@@ -2431,6 +2554,7 @@ end
 -- Move to a new position: save mutable slots, prompt on dirty -N, then load
 -- the destination baseline. nav_left / nav_right just compute the target pos.
 local function go_to(new_pos)
+  if _G.PairDraftMutationBlocked() then return false end
   if is_dirty_history_slot() then
     if not leave_dirty_history() then return end
   else
@@ -2453,6 +2577,7 @@ local function go_to(new_pos)
 end
 
 local function nav_left()
+  if _G.PairDraftMutationBlocked() then return false end
   if nav.pos == '*' then
     local entries = read_history()
     if #entries == 0 then return end
@@ -2472,6 +2597,7 @@ local function nav_left()
 end
 
 local function nav_right()
+  if _G.PairDraftMutationBlocked() then return false end
   if nav.pos == '*' then
     -- * → +1 if queue has items.
     if queue_count() == 0 then return end
@@ -2500,6 +2626,7 @@ end
 -- line-start) being mistapped as Alt+BS. Enter/space/y all proceed; only 'n'
 -- or Esc cancels, so tap-tap cleanup stays cheap.
 local function delete_current_queue_item()
+  if _G.PairDraftMutationBlocked() then return false end
   if type(nav.pos) ~= 'table' or nav.pos.kind ~= 'queue' then return end
   local key = queue_key_for_n(nav.pos.n)
   if not key then return end
@@ -2532,6 +2659,7 @@ end
 -- whose state has accumulated cruft. Hard delete (no archive) per design;
 -- confirmation defaults to No so a stray tap can't nuke a session.
 local function forget_all()
+  if _G.PairDraftMutationBlocked() then return false end
   vim.api.nvim_echo({
     { 'Erase history, draft, and queue? (y)es, [N]o: ', 'WarningMsg' },
   }, false, {})
@@ -2562,6 +2690,7 @@ end
 --   +N source: move-to-front. Remove the source +N file before pushing, so the
 --              same item ends up at +1 (with edits applied). * untouched.
 local function queue_current()
+  if _G.PairDraftMutationBlocked() then return false end
   local body = buffer_text()
   if body:match('^%s*$') then return end
 
@@ -2868,6 +2997,7 @@ local function pair_draft_file()
 end
 
 local function pair_pickup_scrollback_pending()
+  if _G.PairDraftMutationBlocked(nil, true) then return end
   local pending = pair_pending_path()
   if not pending or pending == '' then return end
   local f = io.open(pending, 'r')
@@ -3566,6 +3696,9 @@ end
 -- keymaps
 -- ---------------------------------------------------------------------------
 
+vim.keymap.set({ 'n', 'i' }, '<C-S-M-CR>', function() _G.PairSendDOM() end,
+  { silent = true, desc = 'pair: send draft and open DOM notes with crops' })
+
 vim.keymap.set({ 'n', 'i' }, '<M-CR>', send_and_clear,
   { silent = true, desc = 'pair: send buffer + clear' })
 
@@ -3634,6 +3767,7 @@ vim.keymap.set({ 'n', 'i' }, '<M-q>', queue_current,
 vim.keymap.set('n', '<M-BS>', delete_current_queue_item,
   { silent = true, desc = 'pair: delete the current +N queue item' })
 vim.keymap.set('i', '<M-BS>', function()
+  if _G.PairDraftMutationBlocked() then return end
   if type(nav.pos) == 'table' and nav.pos.kind == 'queue' then
     delete_current_queue_item()
   else
@@ -3893,6 +4027,7 @@ local complete_pending = nil
 -- rather than #202's chain -- while the report claimed the chain and told the
 -- reader to EXCLUDE #202 on the strength of it.
 local function complete_now()
+  if _G.PairDraftMutationBlocked(nil, true) then return end
   -- The explicit z= gesture (spell_suggest_popup) owns the popup while it's
   -- active, so the as-you-type completers must stay out of its way. Without
   -- this guard, startinsert's TextChangedI drives spell_complete to pop its own
@@ -4322,7 +4457,7 @@ do
           vim.notify(('PairDoctor: %s; your note was kept so you can retry.'):format(
             not raw and 'capture failed' or 'the send did not reach the agent'),
             vim.log.levels.WARN)
-        elseif note and vim.api.nvim_buf_is_valid(buf) then
+        elseif note and vim.api.nvim_buf_is_valid(buf) and not _G.PairDraftMutationBlocked(buf, true) then
           local now_lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
           if table.concat(now_lines, '\n') == table.concat(lines, '\n') then
             vim.api.nvim_buf_set_lines(buf, 0, -1, false, { '' })
@@ -4379,6 +4514,7 @@ end
 local function pair_slug_mirror_line1()
   local buf = pair_slug_draft_buf()
   if not buf then return end
+  if _G.PairDraftMutationBlocked(buf, true) then slug_pending = true; return end
   local line1 = (vim.api.nvim_buf_get_lines(buf, 0, 1, false))[1] or ''
   if line1 ~= '' and line1:sub(1, 3) ~= '===' then return end
   -- Idempotency: an apply rewrites line 1 via nvim_buf_set_lines, which itself
@@ -4398,6 +4534,7 @@ local function pair_slug_reconcile()
   if proposed == '' then return end
   local buf = pair_slug_draft_buf()
   if not buf then return end
+  if _G.PairDraftMutationBlocked(buf, true) then slug_pending = true; return end
   local line1 = (vim.api.nvim_buf_get_lines(buf, 0, 1, false))[1] or ''
   -- Defer ONLY when the cursor is actually on a non-empty line 1 — i.e. the
   -- user is editing the slug itself — so the rewrite never lands under their cursor.

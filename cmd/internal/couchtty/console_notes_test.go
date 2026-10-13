@@ -15,7 +15,7 @@ import (
 func postNote(t *testing.T, link string, col, row int, text string) (int, string) {
 	t.Helper()
 	body := fmt.Sprintf(`{"cols":80,"rows":24,"box":[%d,%d,2,1],"color":0,"text":%q}`, col, row, text)
-	resp, err := http.Post(link+"note", "application/json", strings.NewReader(body))
+	resp, err := castClient.Post(link+"note", "application/json", strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +52,7 @@ func (f *consoleFixture) heldNotes() ([]broadcast.Note, uint64) {
 
 func TestNoteDrawnOnOperatorAndViewers(t *testing.T) {
 	f, s, link := pointerOnFixture(t, nil)
-	v := openViewer(t, s.Link())
+	v := openViewer(t, s)
 	noteUntilSaved(t, link, 10, 5, "look here")
 	waitFor(t, "💭 on the operator's screen", func() bool { return f.cellText(10, 5) == broadcast.NoteGlyph })
 	waitFor(t, "💭1 in the tab bar", func() bool { return strings.Contains(f.screenText(), broadcast.NoteGlyph+"1") })
@@ -61,7 +61,7 @@ func TestNoteDrawnOnOperatorAndViewers(t *testing.T) {
 		return c != nil && c.Content == broadcast.NoteGlyph
 	})
 	notes, _ := s.Notes()
-	resp, err := http.Post(link+"resolve", "application/json", strings.NewReader(fmt.Sprintf(`{"id":%d}`, notes[0].ID)))
+	resp, err := castClient.Post(link+"resolve", "application/json", strings.NewReader(fmt.Sprintf(`{"id":%d}`, notes[0].ID)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -396,7 +396,7 @@ func TestNotesMenuLifecycle(t *testing.T) {
 	ends := map[string]func(*testing.T, *consoleFixture, *broadcast.Session, string){
 		"last note resolved": func(t *testing.T, f *consoleFixture, s *broadcast.Session, link string) {
 			notes, _ := s.Notes()
-			resp, err := http.Post(link+"resolve", "application/json", strings.NewReader(fmt.Sprintf(`{"id":%d}`, notes[0].ID)))
+			resp, err := castClient.Post(link+"resolve", "application/json", strings.NewReader(fmt.Sprintf(`{"id":%d}`, notes[0].ID)))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -545,5 +545,18 @@ func TestNotesMenuDragStaysTheMenus(t *testing.T) {
 	}
 	if took(32, 3, 3, false) {
 		t.Fatal("after the release, motion outside goes on")
+	}
+}
+
+// pair#495: the menu names a screen note's author like a web note's; the
+// board keeps the plain text a click copies.
+func TestScreenNotesShowTheirAuthorInTheMenu(t *testing.T) {
+	notes := []broadcast.Note{{ID: 1, Text: "fix this", Author: "Ada"}, {ID: 2, Text: "anon"}}
+	got := withAuthors(notes)
+	if got[0].Text != "Ada: fix this" || got[1].Text != "anon" {
+		t.Fatalf("menu texts %q %q", got[0].Text, got[1].Text)
+	}
+	if notes[0].Text != "fix this" {
+		t.Fatal("the board's note was changed")
 	}
 }

@@ -52,8 +52,8 @@ const (
 )
 
 // Act is one viewer action. ID is the element the viewer's shell hit at X,
-// Y (its nodeAt), for down, click and wheel: the injector refuses the act
-// if the tab has another element there now (ErrStale).
+// Y (its nodeAt), for down, click and wheel; Injector.Inject states when the
+// tab refuses an act for it (ErrStale).
 type Act struct {
 	A      string           `json:"a"`
 	ID     recording.NodeID `json:"id,omitempty"`
@@ -74,8 +74,10 @@ type Act struct {
 // Batch is one input request: the acts in order, and the segment the
 // viewer was showing (a batch for a document that has gone is stale).
 type Batch struct {
-	Seg  int   `json:"seg"`
-	Acts []Act `json:"acts"`
+	// Admit is an internal dispatch fence; it is never decoded from viewer input.
+	Admit func() bool `json:"-"`
+	Seg   int         `json:"seg"`
+	Acts  []Act       `json:"acts"`
 }
 
 // Parse errors: fixed values that never echo the input.

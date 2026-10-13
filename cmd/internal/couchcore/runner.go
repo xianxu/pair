@@ -62,10 +62,10 @@ type ExecRunner struct {
 
 var _ Runner = ExecRunner{}
 
-// Start inherits this process's stdio. That is what "spawned sessions land in
-// the current terminal" means for #145: pair spawns zellij, which needs the
-// tty passed through the same way ZellijOps.LaunchSession does
-// (runtime.go:31-34). #146 allocates ptys when it takes over routing.
+// Start inherits stdin/stdout and forwards stderr while retaining a bounded tail.
+// Stderr is a pipe (not a tty); stdin/stdout keep their original descriptors
+// so Pair and zellij can still use the current terminal. PtyRunner instead
+// allocates a terminal when Couch takes over routing.
 func (ExecRunner) Start(dir string, argv, env []string) (Handle, error) {
 	return startExecChild(dir, argv, env, nil)
 }
@@ -79,12 +79,18 @@ func startExecChild(dir string, argv, env []string, extraFiles []*os.File) (Hand
 	if err != nil {
 		return nil, err
 	}
+	output := newLaunchOutputTee(os.Stderr)
+	cmd.Stderr = output
+	// A descendant may inherit stderr after the direct child exits. Bound the
+	// drain rather than letting that descriptor indefinitely delay Exited.
+	cmd.WaitDelay = time.Second
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("start %s in %s: %w", argv[0], dir, err)
 	}
 	pid := cmd.Process.Pid
 	h := &execHandle{
 		cmd:      cmd,
+		output:   output,
 		pid:      pid,
 		identity: procutil.Identity(strconv.Itoa(pid)),
 		done:     make(chan struct{}),
@@ -101,6 +107,10 @@ func startExecChild(dir string, argv, env []string, extraFiles []*os.File) (Hand
 	// which is the same shape FakeRunner models.
 	go func() {
 		h.code = procutil.WaitCode(cmd)
+		if cmd.ProcessState != nil {
+			// ErrWaitDelay reports incomplete draining, not a different child exit.
+			h.code = cmd.ProcessState.ExitCode()
+		}
 		close(h.done)
 	}()
 	return h, nil
@@ -155,6 +165,7 @@ func environmentKey(item string) string {
 
 type execHandle struct {
 	cmd      *exec.Cmd
+	output   *launchOutputTee
 	pid      int
 	identity string
 
@@ -202,3 +213,5 @@ func ownedProcessGroupAlive(pid int) bool {
 	err := syscall.Kill(-pid, syscall.Signal(0))
 	return err == nil || errors.Is(err, syscall.EPERM)
 }
+
+func (h *execHandle) LaunchOutput() (string, []byte) { return "stderr", h.output.snapshot() }

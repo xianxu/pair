@@ -2,6 +2,7 @@ package drive
 
 import (
 	"context"
+	"github.com/xianxu/pair/cmd/internal/webcast/capability"
 	"sync"
 
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
@@ -33,7 +34,8 @@ type fakeTab struct {
 	src  recording.Source // the running batch's by
 	// dispatched is every act dispatched, records or not (#467's tests of
 	// what is let go).
-	dispatched []Act
+	dispatched      []Act
+	resetGeneration uint64
 }
 
 // NewFakeInjector reduces page and puts what injection causes into sink.
@@ -149,4 +151,28 @@ func formControl(n *recording.DOMNode) bool {
 		return true
 	}
 	return false
+}
+
+// ResetControl is the reference acknowledged reset adapter. It applies and
+// persists one reset under the fake writer lock and deduplicates generations.
+// Configure it explicitly with MemController.WithControlReset.
+func (f *FakeInjector) ResetControl(ctx context.Context, generation uint64) error {
+	f.tab.mu.Lock()
+	defer f.tab.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return &capability.Failure{Outcome: capability.Retryable, Cause: err}
+	}
+	if generation <= f.tab.resetGeneration {
+		return nil
+	}
+	who := recording.Author{ID: recording.OperatorID}
+	next, err := recording.NextControl(f.tab.page.Control, recording.CtlReset, who)
+	if err != nil {
+		return err
+	}
+	if err = f.tab.emit(&recording.Ctl{Op: recording.CtlReset, Who: who, Control: next}); err != nil {
+		return err
+	}
+	f.tab.resetGeneration = generation
+	return nil
 }

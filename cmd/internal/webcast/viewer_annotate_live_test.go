@@ -1,6 +1,7 @@
 package webcast
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -21,7 +22,8 @@ import (
 // over the blog fixture, every record through one writer (as the recorder's
 // queue is). Viewer A uses a mouse, viewer B touch (an iPad's input). A's
 // stroke shows on B's canvas; A's note pins on its element in B within 2 px;
-// B's dragged region shows in A; both stay while paused and clear on a
+// B's dragged region shows in A; both stay while paused (when the rail's
+// controls are disabled, pair#499) and clear on a
 // navigation; the recording holds the notes and the stroke and reduces.
 //
 //	WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run AnnotateLive -v
@@ -42,6 +44,10 @@ func TestAnnotateLiveTwoViewers(t *testing.T) {
 	var w *board.Writer
 	bd := board.New(notes.Structural{}, func(r recording.Record, doc int) error { return w.Emit(r, doc) })
 	w = board.NewWriter(recording.Tee(mem, bd, hub), nil)
+	bd.WithAnnotationCleanup(w.ClearAnnotations)
+	if err := bd.SetAnnotationAllowed(context.Background(), true); err != nil {
+		t.Fatal(err)
+	}
 	for _, r := range rec.Records {
 		if r.Time() <= at {
 			if err := w.Put(r); err != nil {
@@ -49,7 +55,7 @@ func TestAnnotateLiveTwoViewers(t *testing.T) {
 			}
 		}
 	}
-	viewer := NewServer("tok", NewFakeBrowser(), time.Second, hub, nil).WithBoard(bd)
+	viewer := NewServer("view", NewFakeBrowser(), time.Second, hub, nil).WithBoard(bd).WithPointer("tok") // its viewers annotate (pair#506)
 	viewer.Assets().Bind(store)
 	srv := httptest.NewServer(viewer)
 	t.Cleanup(func() { srv.CloseClientConnections(); srv.Close() })
@@ -159,6 +165,27 @@ func TestAnnotateLiveTwoViewers(t *testing.T) {
 	}
 	waitEval(t, a, "B's box in A", fmt.Sprintf(`(() => { const p = document.querySelector('.pin[data-note=%q]'); return p && !p.hidden ? 'shown' : 'none'; })()`, region.ID), "shown")
 
+	// C watches by the view-only link (pair#506): it sees B's note, has no
+	// rail, opens the note without Resolve, and the cast refuses its posts.
+	cv := headlessPage(t)
+	cv.call(t, cv.session, "Emulation.setDeviceMetricsOverride", map[string]any{"width": 1024, "height": 700, "deviceScaleFactor": 1, "mobile": false}, nil)
+	cv.call(t, cv.session, "Page.navigate", map[string]any{"url": srv.URL + "/view/?viewer=v3"}, nil)
+	waitEval(t, cv, "the view-only mount", `(() => window.couchViewer && couchViewer.annotate ? String(couchViewer.annotate.annotate) : 'pending')()`, "false")
+	waitEval(t, cv, "B's box in C", fmt.Sprintf(`(() => { const p = document.querySelector('.pin[data-note=%q]'); return p && !p.hidden ? 'shown' : 'none'; })()`, region.ID), "shown")
+	waitEval(t, cv, "C's rail", `(() => { const r = document.querySelector('.annotate-rail'); return !r || r.hidden ? 'hidden' : 'shown'; })()`, "hidden")
+	cv.eval(t, fmt.Sprintf(`(() => { document.querySelector('.pin[data-note=%q] .chip').click(); return ''; })()`, region.ID))
+	waitEval(t, cv, "B's note open in C, without Resolve", `(() => {
+		const d = document.querySelector('.note-dialog');
+		if (d.classList.contains('hidden')) return 'closed';
+		const r = [...d.querySelectorAll('.note-buttons button')].find((x) => x.textContent === 'Resolve');
+		return d.querySelector('.note-text').textContent + (r && !r.classList.contains('hidden') ? ' +resolve' : '');
+	})()`, "Too much space here.")
+	// Refused before the body is read, so any body shows it.
+	waitEval(t, cv, "C's note refused", `(async () => {
+		const r = await fetch('note', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+		return r.status + ' ' + (await r.text()).trim();
+	})()`, "403 This link is view-only.")
+
 	// B, still in note mode, taps A's pin by touch and resolves it: the pin
 	// goes in both viewers, and the recording says so.
 	var chip [2]float64
@@ -191,12 +218,28 @@ func TestAnnotateLiveTwoViewers(t *testing.T) {
 		}
 	}
 
-	// Paused: the notes stay. A navigation: they clear in both.
+	// Paused: the notes stay, and viewers do nothing: every control on the
+	// rail is disabled until the resume (pair#499). A navigation: the notes
+	// clear in both.
+	railOff := `(() => String([...document.querySelectorAll('.annotate-rail button')].every((b) => b.disabled)))()`
+	railAnyOff := `(() => String([...document.querySelectorAll('.annotate-rail button')].some((b) => b.disabled)))()`
+	// The note dialog too (close review): Resolve on a viewed note and Save
+	// on a typed draft, as [resolve off, save off].
+	dialogOff := `(() => { const d = window.couchViewer.annotate.dialog;
+		d.view({id: 'n', text: 't'}, {resolvable: true});
+		const res = document.querySelectorAll('.note-buttons button')[0].disabled;
+		d.draft({});
+		const inp = document.querySelector('.note-input'); inp.value = 'hello'; inp.dispatchEvent(new Event('input'));
+		const save = document.querySelectorAll('.note-buttons button')[2].disabled;
+		d.close();
+		return String([res, save]); })()`
 	pins := fmt.Sprintf(`(() => String([%q, %q].filter((id) => { const p = document.querySelector('.pin[data-note="' + id + '"]'); return p && !p.hidden; }).length))()`, noted.ID, region.ID)
 	w.Put(decode(t, fmt.Sprintf(`{"t":%d,"k":"stop","why":"pause"}`, at+100)))
 	time.Sleep(300 * time.Millisecond)
 	for _, p := range []*chromePage{a, b} {
 		waitEval(t, p, "notes while paused", pins, "1")
+		waitEval(t, p, "the rail disabled while paused", railOff, "true")
+		waitEval(t, p, "the note dialog's Resolve and Save while paused", dialogOff, "true,true")
 	}
 	// Resume (the same document, ids kept): the notes stay.
 	w.Put(decode(t, fmt.Sprintf(`{"t":%d,"k":"seg","seg":%d,"why":"resume","tab":{"id":"tab1","url":%q},"vp":{"w":1280,"h":800,"dpr":1}}`, at+150, st.Seg+1, st.URL)))
@@ -214,6 +257,8 @@ func TestAnnotateLiveTwoViewers(t *testing.T) {
 	}
 	for _, p := range []*chromePage{a, b} {
 		waitEval(t, p, "notes after a resume", pins, "1")
+		waitEval(t, p, "the rail enabled after a resume", railAnyOff, "false")
+		waitEval(t, p, "the note dialog's Resolve and Save after a resume", dialogOff, "false,false")
 	}
 
 	seg := st.Seg + 2

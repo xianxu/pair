@@ -1,7 +1,7 @@
 // Remote driving in the web cast viewer (#467): the pure helpers.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { batcher, gestures, keyAct, keyTracker, driveView, joinSeat, seatPoster, wireAct, splitText, FLUSH_MS, MAX_ACTS, MAX_TEXT, MAX_BODY, MAX_COORD, PACE_MS, DRAG_PX, HOVER_MS, SEAT_HEADER } from '../../cmd/internal/webcast/web/drive.js';
+import { batcher, gestures, keyAct, keyTracker, driveView, joinSeat, seatPoster, wireAct, splitText, FLUSH_MS, MAX_ACTS, MAX_TEXT, MAX_BODY, MAX_COORD, PACE_MS, DRAG_PX, DOUBLE_MS, HOVER_MS, SEAT_HEADER } from '../../cmd/internal/webcast/web/drive.js';
 
 // A seeded random source, so a failing sequence can be replayed.
 function rng(seed) {
@@ -195,7 +195,8 @@ const deps = (out) => ({
   nodeAt: (x, y) => (x < 10 && y < 10 ? 0 : 9),
   emit: (a) => out.push(a),
 });
-const ev = (o) => ({ pointerId: 1, pointerType: 'mouse', button: 0, buttons: 0, detail: 1, timeStamp: 0, clientX: 0, clientY: 0, ...o });
+// detail 0: Chrome's pointer events carry no click count (pair#505).
+const ev = (o) => ({ pointerId: 1, pointerType: 'mouse', button: 0, buttons: 0, detail: 0, timeStamp: 0, clientX: 0, clientY: 0, ...o });
 
 test('gestures: a mouse click, a double click, a drag, a press on nothing', () => {
   const out = [];
@@ -205,9 +206,19 @@ test('gestures: a mouse click, a double click, a drag, a press on nothing', () =
   g.up(ev({ clientX: 51, clientY: 61 }));
   assert.deepEqual(out, [{ a: 'click', id: 9, button: 'left', count: 1, x: 100, y: 120 }]);
   out.length = 0;
-  g.down(ev({ clientX: 50, clientY: 60, detail: 2 }));
-  g.up(ev({ clientX: 50, clientY: 60, detail: 2 }));
-  assert.equal(out[0].count, 2);
+  // A double click is counted from time and place, never from detail: two
+  // clicks within DOUBLE_MS and DRAG_PX are 1 then 2; a third starts over;
+  // a slow pair, or one that moved, is two single clicks.
+  const click = (t, x = 50) => { g.down(ev({ clientX: x, clientY: 60, timeStamp: t })); g.up(ev({ clientX: x, clientY: 60, timeStamp: t + 10 })); };
+  click(1000); click(1200); click(1400);
+  assert.deepEqual(out.map((a) => a.count), [1, 2, 1]);
+  out.length = 0;
+  click(3000); click(3000 + DOUBLE_MS + 50); click(5000); click(5100, 50 + DRAG_PX);
+  assert.deepEqual(out.map((a) => a.count), [1, 1, 1, 1]);
+  out.length = 0;
+  // Control ended between two clicks: the second is a single click.
+  click(7000); g.reset(); click(7100);
+  assert.deepEqual(out.map((a) => a.count), [1, 1]);
   out.length = 0;
   g.down(ev({ clientX: 50, clientY: 60 }));
   g.move(ev({ clientX: 50 + DRAG_PX, clientY: 60 }));
@@ -378,5 +389,5 @@ test('joinSeat and seatPoster: the seat, or none; the key in its header', async 
   assert.deepEqual(await post('input', { seg: 1, acts: [] }), { status: 403, text: 'Ask the operator for control first.' });
   assert.equal(req[0], 'drive/input');
   assert.equal(req[1].headers[SEAT_HEADER], seat.key);
-  assert.equal(req[1].credentials, 'omit');
+  assert.equal(req[1].credentials, 'same-origin');
 });

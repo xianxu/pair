@@ -12,6 +12,12 @@ the pty console, actor panel, notices, and complete local lifecycle shipped in
 
 ## What exists today
 
+[DOM submission](webcast-submission.md) (#483) sends the cast tab's open notes
+from the draft's Shift+Ctrl+Alt+Return chord. Couch owns the durable JSON/PNG
+bundle and acknowledgment; the existing authored-draft transaction delivers
+its path to the pinned agent. Its local submission RPCs do not use peer-message
+delivery or consume the peer allowance.
+
 Couch has one production supervisor and one selected inventory per local OS
 account. `couchcmd` resolves the real UID's account home independently of
 `HOME`/XDG overrides; `couchsingleton` owns `.local/share/pair-host/singleton` there. A durable
@@ -29,6 +35,35 @@ store; numbered slots use `<environment>/.couch/` with one current conversation
 record, separate preferences, and retained history. Each backend uses the existing
 lock, revision checks and recoverable journal. The supervisor lease still belongs
 to the selected global namespace beneath the account lease.
+
+### Failed-launch evidence (#531)
+
+`launchfailure.go` owns bounded attempt evidence and retention independently of
+ThreadRecord. `launchfailure_store.go` atomically stores the newest 16 failures
+in `<namespace>/launch-diagnostics/failures.json` (0600), under a private bounded
+file lock. Records carry scope/tag/nonce, target, starting path and failure stage,
+16 KiB raw output tail, 4 KiB per error, and separate observed pre/post-cleanup
+exit codes. The entire encoded history is capped at 1 MiB. Failed persistence is
+reported beside the original error; later success does not clear evidence.
+
+Runner setup refusals that occur after spawning carry a `blockedStartError` with
+immutable output and pre/post-cleanup observations, even when no handle can be
+returned. The shared `launchTrackedThread` failure path consumes that evidence,
+records before its own cleanup and enriches afterward; `SwitchAgent` adds its final error by attempt identity. The typed error
+preserves errors.Is/As while its operator text names the attempt, diagnostic file, and one inspection action.
+`couch --show` reads retained evidence by exact address or canonical starting
+path, including after rollback removed the thread, without creating lifecycle
+records. `couchcmd/launchfailure.go` sanitizes child text line by line.
+
+`LaunchOutputHandle` reuses the PTY child's existing ring (combined stdout/stderr).
+ExecRunner forwards stderr through a bounded tee; stdin/stdout retain their
+routing, but stderr is now a pipe, so isatty(2) is false. After direct child exit,
+a one-second drain budget prevents descendants holding stderr from indefinitely
+blocking reaping; subsequent descendant writes can receive EPIPE. Exit sampling
+only reads Wait after Exited closes. The fake models direct-child completion
+separately from process-group liveness. Unobserved exit stays unknown; an exit
+first observed after cleanup is not attributed to a startup crash. Abrupt kill
+before the recorder runs and output beyond the retained tail remain limits.
 
 ### Singleton adoption and isolation (#366)
 
@@ -878,6 +913,41 @@ Key files: `couchtty/thread_presentation.go`, `console_presentation.go`,
 `menu_reattach.go`, `menu_render.go`, and `reserve.go`. Rendered examples are in
 `couchtty/testdata/slots_grouped_*.txt`.
 
+### The hub leads its section (pair#491)
+
+The hub is the slot Couch started from (`hubWorktree`, pair#463). It is marked
+by its leading position and reverse-video colours (pair#521).
+- **Tab bar:** the hub is drawn first, then every other slot grouped by
+  repository: `ops  ariadne  :1  :2  blog  pair  :1  :2`. The hub stands alone,
+  so its repository's other slots stay in their alphabetical group (`ops:1`).
+  `[…]` still marks the active chip. Hub label, glyphs and brackets reverse
+  their existing colours; red/attention/idle precedence stays the same. Gaps
+  and folded `+N` counts keep normal colours.
+- **Switcher:** the hub is the first line. Every other row, and the message
+  lines under it, sits one indent level (2 spaces) deeper. The hub main row
+  is inverted; selection adds bold beside the cursor arrow and preserves red
+  for a blocked hub. Attention detail lines keep their usual styling.
+- **Data path:** couchcmd hands the root to `Console.SetHub` at startup. It is
+  reduced as `MenuEventHub` into `MenuState.Hub`, which re-sorts the installed
+  inventory (`reorderMenuInventory`). `PresentThreads(rows, git, hub)` puts the
+  hub row first, flags it `Hub` and adds the indent (`hubSection`). That one
+  order serves the switcher, the tab bar and clicks.
+- **Several hubs:** not built. The intended model:
+  - a hub is a designated slot;
+  - each slot is assigned to one hub;
+  - a new slot inherits the hub of the slot it was started from.
+
+  `hubSection` would become one section per hub. The renderer already starts
+  a section at each `Hub` chip after the first, behind a ` │ ` separator.
+- **Narrow widths:** `fitChips` (`reserve.go`, pure) lays out the actor cells.
+  - It first collapses each repository's numbered slots into a `+N` count,
+    groups giving way from the right.
+  - If a *kept* chip (hub, active, red or belled) still lies past the edge,
+    whole groups fold, from the right, into one trailing `+N` until it is in
+    view. A kept chip whose group leader folded shows its full label.
+  - Otherwise the row clips as before, so a cut-short plain tab stays clickable.
+  - A `+N` cell has no chip span: clicking it does nothing.
+
 ### Checkout quick-status glyph (#317, #339)
 
 Each checkout, including standalone repositories and `:0`, carries a glyph after its label in
@@ -921,6 +991,17 @@ and `MenuState.Palette`; the tab bar reads the same two through
 `statusModelLocked`, which fills `StatusActor.Idle` and `StatusModel.Palette`.
 A thread with no activity entry is unfaded. Each slot glyph fades from its own
 base colour (`slotGlyphBase`).
+
+**Cost at rest (#507).** A pass probes every live thread (every 60 s, and on a
+switch or a landed inventory). The probe's runtime
+(`threadactivity.NewOSRuntime`) keeps one `sessioninventory.OwnerLaunchCache`
+for Couch's lifetime, so a thread's multi-megabyte ledger is decoded again only
+when its fingerprint changes (a launch or a binding). Likewise the continuation
+watch, which asks every hosted thread every 500 ms, reuses a thread's status
+while its record file is the one it read (`Couch.ContinuationRequests`,
+`recordStamp`; records are replaced by rename). Measured on the operator's store,
+22 live threads: a warm activity pass 0.34 s of CPU (was 8.6 s), a warm
+continuation scan 27 µs (was ~100 ms).
 
 ### Slots behind a picker draw red (pair#465)
 
@@ -982,6 +1063,11 @@ evidence" rather than "no incarnation". Contradictory and undecodable records st
 diagnostics. Since #151 M3, Console refreshes this projection asynchronously
 from exact hosted PID/start observations and never promotes raw persisted
 lifecycle state into a user-visible `live` or `parked` row.
+
+The switcher’s `Ctrl+Y` copies the latest retained `Feed.Messages()` body through
+`Presenter.Copy` (`console_menu.go`), outside the console lock. Status-row
+clipping and expiry do not remove that diagnostic. Copy feedback stays in
+`MenuNotice`, so repeating the action does not copy its own confirmation.
 
 #151 M2 added the pure core and M3 wired it into Console. One
 immutable-by-copy `MenuState` stack owns the root filter/selection plus exact
@@ -1151,9 +1237,9 @@ after claiming dispatched work, publishing `repo#N <title>` so the sender sees
 which slot holds the issue (#419; the `couch --skill` receiving step); the op
 prints one confirmation line. `prepare-start`, `start`,
 `attach`, `switch`, `park`, `resume`, `relaunch`, `prepare-switch-agent`,
-`switch-agent`, `leave`, `stop`, `alias` and `reboot` are TUI/in-process
-operations. `orientation-status` is an internal owner operation for one launch
-attempt. #363 removed `open-slot`, `fresh-slot`, `name`, `describe`, `archive`,
+`leave`, `stop`, `alias` and `reboot` are TUI/in-process
+operations. `switch-agent` also has the confirmed hub-only remote form described
+below. `orientation-status` is an internal owner operation for one launch attempt. #363 removed `open-slot`, `fresh-slot`, `name`, `describe`, `archive`,
 `recover-thread` and `recover-checkpoint` from the declarations: resume and
 reboot replace them, and their couchcore internals (`OpenSlot`,
 `StartFreshSlot`, `Couch.ArchiveThread`, `RecoverThread`, `ApplyThreadMetadata`)
@@ -1273,12 +1359,10 @@ Continuation has five internal operations (`pair#249`, `pair#280`):
   drives one row per call site and scans that every call site has a row.
   `pair continue --retry` does not know the phase and uses the phase-neutral
   wording (`Exits("", tag)`).
-- **Orientation prompts carry their producer.** `menu.Orientation` is written
-  by continuation delivery and by switch-agent's orientation watch. Each entry
-  records which (`setOrientationLocked`), and a prune removes only its own
-  producer's entry (`dropOrientationLocked`). A new switch-agent launch
-  supersedes any prompt. Without that, the continuation scan deleted
-  switch-agent's Copy orientation prompt on every tick.
+- **Orientation prompts carry their producer.** Continuation delivery writes
+  `menu.Orientation` through `setOrientationLocked`; pruning removes only the
+  matching producer's entry through `reconcileContinuationOrientationLocked`. Agent switches
+  create no orientation prompt.
 
 Before #280, a failed request replaced the state text, the action set and
 relaunch's admission indefinitely.
@@ -1432,30 +1516,70 @@ capability returns the typed cross-actor routing refusal and never falls back
 to a second process. No caller produces that refusal today: cross-actor routing
 was punted with `pair#147`.
 
-Switch agent (`pair#184`) uses the highlighted thread's action menu. The form
-selects claude, codex, agy, muse, qoder, or grok, then edits parameters loaded from the shared
-starting-path preference. Confirming `switch-agent` revalidates the accepted
-`prepare-switch-agent` fingerprint, parks the exact outgoing incarnation and
-starts a fresh context at the same thread address and working path. Selecting
-the current agent also starts fresh. Successful registration changes the path's
-default agent and its argv; other agents' parameters remain available.
+Switch agent (`pair#184`, `pair#517`) has a human form and a hub-only remote API:
+`couch --switch-agent repo:N --agent NAME --confirm [--json]`. The API accepts one
+exact other slot and a different supported agent; `self`, family/range targets
+and the caller's own slot refuse. The current authenticated wrapper must be
+connected, known idle and on a clean worktree. Unknown state refuses too.
+`couchcmd/agent_switch_service.go` checks those facts at admission and again when
+the queued operation executes; the core guard rechecks immediately before park.
+The operation uses the existing slot queue and receipts, inspected through
+`couch --operation-status ID [--json]`.
 
-The outgoing Pair TTY archive is carried through cleanup completion into
-`VerifiedPark`, using the exact collision-safe artifact token. Retry recovery
-checks at most 32 prior completions, newest first, and honors cancellation; an
-unresolved history beyond that budget fails explicitly before cleanup. The context
-resolver captures the native session before park and adds readable supporting
-transcript and sent-prompt paths. Missing evidence is reported in the generated
-orientation prompt. The target renders and reads the TTY log, summarizes the
-work and waits. No draft or operator-authored log is seeded by the switch.
+`PrepareKnownAgentSwitch` resolves the target agent's last successful argv for
+the starting path, then an explicit repository default if no saved target-agent
+argv exists. An explicitly configured empty argv is valid. Missing configuration
+refuses before park and directs the operator to configure the agent. The remote
+API accepts no argv, brief or defaults edits. The operator's Switch coding agent
+form still selects the agent and edits parameters; its accepted
+`prepare-switch-agent` fingerprint is revalidated before execution. Successful
+registration changes the path's default agent and its argv while preserving
+other agents' saved parameters.
+
+The switch parks the exact outgoing incarnation and starts a fresh conversation
+at the same thread address and working path. Its composer is empty: the switch
+neither gathers native context nor delivers a prompt. The hub or operator
+captures any needed context beforehand and decides what to send afterward.
+Compaction and continuation retain their separate flows.
+
+The outgoing Pair tty archive survives cleanup in `VerifiedPark`, using the exact
+collision-safe artifact token. Retry recovery checks at most 32 prior completions,
+newest first, and honors cancellation; unresolved history beyond that budget
+fails explicitly before cleanup. Before target launch, `RecordPreviousSession`
+retains only the verified park identity, source agent, capture token and capture
+time. Registration may clear `VerifiedPark` without losing these tty coordinates.
+A failed launch/retry keeps the original source; a different verified park
+supersedes it, including one performed separately before the switch. Old records'
+context fields remain readable and validated for compatibility, but are omitted
+when rewritten (`threadrecord/previous_session.go`).
+
+`couch --peek repo:N --previous [--lines N | --all]` reads that exact parked tty
+recording and never substitutes the current incarnation. Missing capture evidence
+is reported explicitly. `--previous --transcripts` refuses with guidance to
+capture native coordinates before switching. Current `--transcripts` reads still
+resolve the current native transcript and sent-prompt paths.
+
+`--all` selects a complete retained terminal-history projection in the short-lived
+CLI, not the Couch server. It conflicts with `--lines`; previous and full reads
+accept one slot. Replay holds the existing capture retention lease and refuses
+recordings above 64 MiB raw, 8 MiB events, 100,000 rendered rows, resize
+dimensions outside 1–1000 or screen area above 262,144 cells. Retained history
+is capped at 1,048,576 cells and 128 MiB logical bytes. Any capacity-driven
+history loss refuses the read, even if a later terminal erase clears history;
+checked emulator construction and resize report invalid geometry. Refusals
+name the files. Full reads preserve ordinary terminal erase-history semantics;
+a separately located native transcript can supply content erased from tty history.
+Output names the recording files. Previous reads cost seconds and full replay is heavy.
 
 Fresh registration requires a ready record matching the new launch nonce,
-agent, session and process. Until then a failed launch cannot establish the path
-default or authorize deletion of a session that raced for the same name.
-`orientation-status` separately reports prompt delivery after adoption. The
-wrapper owns paste and submit alongside normal input; operator input cancels
-automatic delivery. Failed or uncertain delivery offers manual recovery without
-resending. The panel retains focus for a panel-origin switch.
+agent, session and process. The nonce travels in the trusted launch profile
+independently of orientation. Existing park/start/resume state owns failures:
+a still-running source permits another switch attempt; a definitively failed
+target leaves the old successful profile available for resume. A possibly
+surviving target must be resolved through ordinary recovery before another cold
+launch. Registration is the commit point for the new agent; later attachment
+errors concern that committed target. The panel retains focus for a panel-origin
+switch. There is no separate switch recovery record or delivery lifecycle.
 
 Start is a two-operation owner contract. Agent-facing `prepare-start` resolves
 canonical path, selected agent/argv and provenance, preference revision,

@@ -4,8 +4,6 @@ import (
 	"errors"
 	"math"
 	"regexp"
-	"strings"
-	"unicode"
 	"unicode/utf8"
 
 	"github.com/xianxu/pair/cmd/internal/broadcast"
@@ -19,8 +17,8 @@ const (
 	// MaxNoteBody is the terminal notes' bound: a full note escaped as
 	// \uXXXX fits.
 	MaxNoteBody = broadcast.MaxNoteBody
-	// MaxNameRunes bounds a viewer's name.
-	MaxNameRunes = 40
+	// MaxNameRunes bounds a viewer's name: every cast's rule (pair#495).
+	MaxNameRunes = broadcast.MaxViewerNameRunes
 	// maxCoord bounds every coordinate, in CSS px: far past any page.
 	maxCoord = 1e6
 	// maxDT bounds a point's time after its chunk began, in ms.
@@ -99,24 +97,13 @@ func ParseStroke(body []byte) (StrokeIn, error) {
 	if !ok || !idPattern.MatchString(*raw.ID) || !segOK(*raw.Seg) || !colorOK(*raw.Color) {
 		return StrokeIn{}, ErrShape
 	}
-	pts := *raw.Pts
-	if len(pts) == 0 || len(pts) > broadcast.MaxPointsPerBatch {
+	pts, ok := pointsOf(*raw.Pts)
+	if !ok {
 		return StrokeIn{}, ErrShape
 	}
-	out := StrokeIn{Viewer: v, Seg: *raw.Seg, ID: *raw.ID, Color: *raw.Color, Pts: make([][3]float64, len(pts))}
-	for i, p := range pts {
-		if len(p) != 3 { // a Go array would drop extras silently
-			return StrokeIn{}, ErrShape
-		}
-		for j, c := range p {
-			if c == nil {
-				return StrokeIn{}, ErrShape
-			}
-			out.Pts[i][j] = *c
-		}
-		if !coord(out.Pts[i][0]) || !coord(out.Pts[i][1]) || !(out.Pts[i][2] >= 0 && out.Pts[i][2] <= maxDT) {
-			return StrokeIn{}, ErrShape
-		}
+	out := StrokeIn{Viewer: v, Seg: *raw.Seg, ID: *raw.ID, Color: *raw.Color, Pts: pts}
+	if !strokeShape(out) {
+		return StrokeIn{}, ErrShape
 	}
 	return out, nil
 }
@@ -153,7 +140,7 @@ func ParseNote(body []byte) (NoteIn, error) {
 		return NoteIn{}, ErrShape
 	}
 	n := NoteIn{Viewer: v, Seg: *raw.Seg, Node: recording.NodeID(*raw.Node), Box: box, Region: region, Color: *raw.Color, Text: *raw.Text}
-	if !broadcast.PlainText(n.Text) || strings.TrimSpace(n.Text) == "" {
+	if !noteText(n.Text) {
 		return NoteIn{}, ErrShape
 	}
 	return n, nil
@@ -170,7 +157,7 @@ func ParseNoteState(body []byte) (StateIn, error) {
 		return StateIn{}, ErrShape
 	}
 	v, ok := viewer(raw.Viewer)
-	if !ok || !idPattern.MatchString(*raw.ID) || (*raw.State != recording.NoteOpen && *raw.State != recording.NoteResolved) {
+	if !ok || !idPattern.MatchString(*raw.ID) || !stateShape(StateIn{ID: *raw.ID, State: *raw.State}) {
 		return StateIn{}, ErrShape
 	}
 	return StateIn{Viewer: v, ID: *raw.ID, State: *raw.State}, nil
@@ -191,22 +178,13 @@ func viewer(w *wireViewer) (Viewer, bool) {
 	}
 	v := Viewer{ID: *w.ID}
 	if w.Name != nil {
-		v.Name = strings.TrimSpace(*w.Name)
-		if utf8.RuneCountInString(v.Name) > MaxNameRunes || !nameText(v.Name) {
+		name, ok := broadcast.ViewerName(*w.Name)
+		if !ok {
 			return Viewer{}, false
 		}
+		v.Name = name
 	}
 	return v, true
-}
-
-// nameText: no control or format characters at all (a name is one line).
-func nameText(s string) bool {
-	for _, r := range s {
-		if unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
-			return false
-		}
-	}
-	return true
 }
 
 func segOK(s int) bool      { return s >= 1 && s <= math.MaxInt32 }

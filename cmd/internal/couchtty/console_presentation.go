@@ -5,7 +5,20 @@ import "github.com/xianxu/pair/cmd/internal/couchcore"
 // statusModelLocked joins attached and pending members to the same projection
 // used by the switcher. Callers hold c.mu; no discovery or process IO occurs.
 func (c *Console) statusModelLocked() StatusModel {
-	model := StatusModel{Broadcast: c.broadcastCellLocked(), Pointer: c.pointerCellLocked(), Webcast: c.webcastCellLocked(), WebNotes: c.webNoteCount(), WebDrive: c.webDriveSpan(), Notes: len(c.drawnNotes()), Notice: c.feed.Row().Body, Spinner: c.statusSpinner, Palette: c.menu.Palette, Capture: c.capture.Status()}
+	model := StatusModel{Broadcast: c.broadcastCellLocked(), Pointer: c.pointerCellLocked(), Webcast: c.webcastCellLocked(), WebNotes: c.webNoteCount(), Notes: len(c.drawnNotes()), Notice: c.feed.Row().Body, Spinner: c.statusSpinner, Palette: c.menu.Palette, Capture: c.capture.Status()}
+	if c.wcast.cast != nil {
+		caps := c.wcast.cast.Capabilities()
+		model.WebAnnotationOn = caps.Project("annotation").Enabled
+		model.WebDrivingOn = caps.Project("drive").Enabled
+		model.CapabilityNotice = capabilityNotice(caps)
+	}
+
+	driver, asking := c.webDriveLabels()
+	model.WebDrive = asking
+	if model.WebDrivingOn {
+		model.WebDriverName = driver
+	}
+
 	now := c.now()
 	rows := menuRows(c.menu)
 	byAddress := make(map[couchcore.ThreadAddress]int, len(rows))
@@ -57,13 +70,23 @@ func (c *Console) statusModelLocked() StatusModel {
 			rows[index].WorkingPath = rows[index].StartingPath
 		}
 	}
-	for _, entry := range PresentThreads(rows, c.menu.SlotGit) {
+	for _, entry := range PresentThreads(rows, c.menu.SlotGit, c.menu.Hub) {
 		actor, found := members[entry.Row.Address]
 		if !found {
 			continue
 		}
-		actor.Label, actor.GroupKey, actor.SlotNumber, actor.Glyph = entry.Label, entry.GroupKey, entry.SlotNumber, entry.Glyph
+		actor.Label, actor.GroupKey, actor.SlotNumber, actor.Glyph, actor.Hub = entry.Label, entry.GroupKey, entry.SlotNumber, entry.Glyph, entry.Hub
 		model.Actors = append(model.Actors, actor)
 	}
 	return model
+}
+
+// SetHub records the hub slot's worktree root (pair#491): the checkout Couch
+// started from. The tab bar and the switcher lead with it and put every other
+// slot in its section. Couch sets it once, at startup.
+func (c *Console) SetHub(root string) {
+	c.mu.Lock()
+	c.menu, _ = ReduceMenu(c.menu, MenuEvent{Kind: MenuEventHub, Hub: root})
+	c.mu.Unlock()
+	c.repaint()
 }

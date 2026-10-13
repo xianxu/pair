@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex">
+<title>Couch cast</title>
+<link rel="stylesheet" href="lock.css">
+<script type="module" src="lock.js"></script>
+</head>
+<body>
+<main>
+<form id="lock" autocomplete="off" novalidate>
+<h1>Join the cast</h1>
+<p>Enter the code the host gave you, and your name.</p>
+<label for="code">Code</label>
+<input id="code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="12" required>
+<label for="name">Your name</label>
+<input id="name" name="name" maxlength="40" autocomplete="nickname" required>
+<p id="message" role="status"></p>
+<button type="submit">Join</button>
+</form>
+</main>
+</body>
+</html>

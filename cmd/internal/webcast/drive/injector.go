@@ -25,8 +25,10 @@ type Injector interface {
 	// whole batch, dispatching nothing, when by isn't the driver in the
 	// stream it follows (ErrNotDriver), when the cast isn't live or b.Seg
 	// isn't the current segment (ErrNotLive), or when any act fails Confine
-	// (ErrRefused). A down, click or wheel whose element isn't at its point
-	// any more stops the batch there (ErrStale): the acts before it stand.
+	// (ErrRefused). A down or click whose element isn't at its point any
+	// more, or a wheel whose point has nothing under it, stops the batch
+	// there (ErrStale): the acts before it stand. A wheel scrolls whatever is
+	// under its point (pair#516).
 	// Records it causes carry by (recording.Source).
 	Inject(ctx context.Context, by string, b Batch) error
 }
@@ -35,12 +37,16 @@ var (
 	// ErrNotLive: the cast is paused or ended, or the batch was aimed at a
 	// segment that has gone.
 	ErrNotLive = errors.New("drive: the cast isn't showing that page")
-	// ErrStale: the element the viewer aimed at isn't at that point in the
-	// tab any more.
+	// ErrStale: the act's point in the tab no longer holds what it needs
+	// (the rule is Inject's).
 	ErrStale = errors.New("drive: the page changed")
 	// ErrDialog: the cast tab is showing a JavaScript dialog, which stops
 	// input and the page's script until the operator answers it (#467).
 	ErrDialog = errors.New("drive: the page is showing a dialog")
+	// ErrInput: the tab failed to take an act it was allowed (a CDP input
+	// call or hit test failed). It wraps the cause, for the operator's log;
+	// the viewer is told only that it didn't work (pair#505).
+	ErrInput = errors.New("drive: the cast couldn't take the input")
 )
 
 // confineAll checks a whole batch before anything is dispatched.

@@ -69,6 +69,9 @@ func TestFakesCompose(t *testing.T) {
 	clock := func() int64 { return inj.Page().T + 1 }
 	c := NewMemController(recording.Tee(stream, inj), inj, clock, time.Minute)
 	defer c.Close()
+	if err := c.SetDriveAllowed(context.Background(), true); err != nil {
+		t.Fatal(err)
+	}
 	seat, _ := c.Join("Ana")
 	detach, _ := c.Attach(seat.Viewer.ID)
 	defer detach()

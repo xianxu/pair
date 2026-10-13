@@ -5,17 +5,20 @@ import (
 	"errors"
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/launcher"
 	"strings"
 	"time"
 	"unicode"
 	"unicode/utf8"
+
+	core "github.com/xianxu/pair/cmd/internal/submission"
 )
 
 // Request has closed per-operation shapes. Wrapper lifecycle operations use a
 // full binding and must pass the supervisor adapter's live identity check.
 type Request struct {
 	Op, Scope, Tag, Session, Nonce, ID, Target, Body string
-	// Agent narrows a send to slots running that agent; send only.
+	// Agent narrows a send or selects the switch destination harness.
 	Agent string `json:",omitempty"`
 	// Confirmed declares the operator's confirmation for an operation whose
 	// declaration requires one (reboot); resume and reboot only.
@@ -35,6 +38,7 @@ type Request struct {
 
 type Response struct {
 	Code, Error string
+	Submission  *SubmissionStatus `json:",omitempty"`
 	Receipt     *Receipt
 	Actors      []Candidate
 	// Operation is a resume/reboot request's receipt (pair#367 M2).
@@ -42,7 +46,8 @@ type Response struct {
 	// Broadcast answers broadcast-status (pair#413); nil means no broadcast.
 	Broadcast *BroadcastStatus `json:",omitempty"`
 	// Shares are every link out, by kind (pair#467): the screen broadcast,
-	// the web cast's view link and its drive link.
+	// the web cast's view-only and pointer links (one share, pair#506) and
+	// its drive link.
 	Shares []ShareStatus `json:",omitempty"`
 	// Tail answers tail (pair#425); TailThread names whose it is (pair#429).
 	Tail       *Tail       `json:",omitempty"`
@@ -52,6 +57,27 @@ type Response struct {
 	// Replays answers broadcast-status too: the recordings shared for
 	// replay through the tunnel (pair#477), by id, never their links.
 	Replays []string `json:",omitempty"`
+}
+
+// SubmissionStatus is a durable evidence submission's current outcome. Polling
+// it never repeats capture or delivery; the client retains ID through retries.
+type SubmissionStatus struct {
+	Progress  *core.SubmissionProgress `json:"progress,omitempty"`
+	Slot      string                   `json:"slot,omitempty"`
+	HowToRead string                   `json:"how_to_read,omitempty"`
+	ID        string                   `json:"id"`
+	State     string                   `json:"state"`
+	Path      string                   `json:"path,omitempty"`
+	Error     string                   `json:"error,omitempty"`
+	Target    core.Target              `json:"target"`
+}
+
+func IsSubmissionOp(op string) bool {
+	switch op {
+	case "submission-prepare", "submission-status", "submission-begin", "submission-ack":
+		return true
+	}
+	return false
 }
 
 // ReplayShare is a recording's replay share in the running Couch (pair#477):
@@ -111,6 +137,12 @@ func ValidateRequest(r Request) error {
 			return errors.New("request identity exceeds limit")
 		}
 	}
+	if IsSubmissionOp(r.Op) {
+		if r.Binding != nil || r.Scope == "" || r.Tag == "" || r.Session == "" || r.Nonce == "" || !core.ValidID(r.ID) || r.Target != "" || r.Body != "" || r.Agent != "" || r.Confirmed || r.SameBinary || r.ForceUnknown || r.TailScope != "" || r.TailTag != "" || r.Lines != 0 {
+			return errors.New("submission operation requires only the calling conversation identity and a submission ID")
+		}
+		return nil
+	}
 
 	if r.Op == "register" || r.Op == "operator-submit" {
 		if r.Binding == nil || r.Scope != "" || r.Tag != "" || r.Session != "" || r.Nonce != "" || r.ID != "" || r.Target != "" || r.Body != "" || r.Agent != "" {
@@ -164,10 +196,10 @@ func ValidateRequest(r Request) error {
 	if r.Binding != nil || r.Scope == "" || r.Tag == "" || r.Session == "" || r.Nonce == "" {
 		return errors.New("operation requires the calling conversation identity")
 	}
-	if r.Agent != "" && (r.Op != "send" || !validFamily(r.Agent)) {
+	if r.Agent != "" && r.Op != "switch-agent" && (r.Op != "send" || !validFamily(r.Agent)) {
 		return errors.New("an agent filter applies only to send and must be a plain agent name")
 	}
-	if r.Confirmed && !couchcore.IsSlotOperation(r.Op) {
+	if r.Confirmed && r.Op != "switch-agent" && !couchcore.IsSlotOperation(r.Op) {
 		return errors.New("a confirmation applies only to slot operations")
 	}
 	if r.SameBinary && !couchcore.SlotOperationTakesSameBinary(r.Op) {
@@ -177,6 +209,17 @@ func ValidateRequest(r Request) error {
 		return errors.New("--force-unknown applies only to relaunch, reload-context and prepare")
 	}
 	switch {
+	case r.Op == "switch-agent":
+		if !validMessageID(r.ID) || !r.Confirmed || !launcher.IsSupportedAgent(r.Agent) {
+			return errors.New("switch-agent requires a request ID, supported agent and confirmation")
+		}
+		if _, _, err := parseSlot(r.Target); err != nil {
+			return err
+		}
+		if r.Body != "" {
+			return errors.New("switch-agent does not accept content")
+		}
+
 	case couchcore.IsSlotOperation(r.Op):
 		// One exact slot: a primitive acts on one slot, never a family.
 		if !validMessageID(r.ID) || r.Body != "" {

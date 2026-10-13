@@ -1,6 +1,7 @@
 package webcast
 
 import (
+	"context"
 	"errors"
 
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
@@ -20,6 +21,9 @@ type Browser interface {
 	Subscribe() (states <-chan State, cancel func())
 	// SetLive moves between PhaseIdle and PhaseLive. ErrEnded once ended.
 	SetLive(live bool) error
+	// Focus brings the cast tab and its window to the front (#501): the
+	// operator's own click, so it may take focus. ErrEnded once ended.
+	Focus() error
 	// Close ends the cast and closes Chrome. Idempotent; returns once Chrome
 	// is gone.
 	Close() error
@@ -41,9 +45,20 @@ var (
 )
 
 // Emitter is a Browser that records: Emit passes a record made outside the
-// recorder (#470's board; #467's control) into the record stream's one
+// recorder (#470's board) into the record stream's one
 // writer. doc is the document the record was made on, 0 for none; the
 // writer drops the record if that document has gone (recording.State.OnDoc).
 type Emitter interface {
 	Emit(r recording.Record, doc int) error
+}
+
+// AnnotationCleaner acknowledges an ordered, idempotent annotation clear.
+// generation is stable across retries of the same disable operation.
+type AnnotationCleaner interface {
+	ClearAnnotations(ctx context.Context, generation uint64) error
+}
+
+// ControlResetter acknowledges removing both the driver and pending requests.
+type ControlResetter interface {
+	ResetControl(ctx context.Context, generation uint64) error
 }

@@ -26,6 +26,38 @@ export const HOVER = '__couch-hover';
 // browser shows <noscript>, which the operator's tab did not.
 const VIEWER_CSS = 'noscript{display:none!important}';
 
+// UNCAPTURED: the elements whose content the recording can't hold (pair#513):
+// a canvas's pixels, a video's frames, a plugin's output, a frame whose
+// document wasn't recorded. The shell labels them where they are drawn.
+const UNCAPTURED = new Set(['canvas', 'video', 'object', 'embed', 'iframe', 'frame']);
+// LIVE_SIZE_ATTR marks a drawn UNCAPTURED element for its size rule. Their
+// size often comes from what isn't recorded: with scripts off a browser
+// draws a canvas as its (empty) fallback, and a video sized by its loaded
+// metadata has none in the viewer (Safari draws no box at all; pair#513,
+// the operator's iPad video). So the viewer gives each the operator's live
+// layout box, at zero specificity, as the browser's own sizing would be
+// (author CSS still wins).
+const LIVE_SIZE_ATTR = 'data-couch-live-size';
+
+// liveSizeRule is the zero-specificity rule that sizes one drawn UNCAPTURED
+// element (pair#513), or '' for none. box: its live layout box, if the
+// operator's layout has one. Once a layout has arrived, an element without
+// a box wasn't rendered (hidden, display:none), so it gets nothing; before
+// one, a canvas takes its attributes (default 300x150) and anything else
+// waits. The rule never applies to [hidden] (it would beat the UA's
+// display:none) and is border-box with the box's aspect ratio, so author CSS
+// that sets only the width keeps the operator's height.
+export function liveSizeRule(id, kind, box, layoutKnown, attrs) {
+  let w, h;
+  if (box) [, , w, h] = box;
+  else if (!layoutKnown && kind === 'canvas') { w = Number(attrs.width) || 300; h = Number(attrs.height) || 150; }
+  if (!(w > 0 && h > 0)) return '';
+  return `:where([${LIVE_SIZE_ATTR}="${id}"]:not([hidden])){display:inline-block;box-sizing:border-box;width:${w}px;height:${h}px;aspect-ratio:${w}/${h}}`;
+}
+
+// isUncaptured: an element kind whose content the recording can't hold.
+export const isUncaptured = (localName) => UNCAPTURED.has(localName);
+
 // URL-bearing attributes, by element (null: any element).
 const URL_ATTRS = {
   src: ['img', 'source', 'video', 'audio', 'input', 'embed', 'track', 'image'],
@@ -52,6 +84,7 @@ export class Renderer {
   reset() {
     this.revokeAll();
     this.dom = new Map(); // id -> DOM node
+    this.uncapturable = new Set(); // ids of drawn UNCAPTURED elements
     this.ids = new WeakMap(); // DOM node -> id
     this.shadows = new Map(); // host id -> shadow root (closed ones too)
     this.pending = new Map(); // absolute URL -> Map(key -> redraw) waiting for its asset
@@ -156,6 +189,64 @@ export class Renderer {
     }
     this.drawSelection();
     this.drawHover();
+    this.drawLiveSizes();
+  }
+
+  // drawLiveSizes sizes each drawn UNCAPTURED element as the operator's
+  // was (liveSizeRule), in the live-size sheet of the tree it is in: its
+  // document or its shadow root (document rules don't pierce shadow trees).
+  drawLiveSizes() {
+    const rules = new Map(); // root -> rule text
+    const layoutKnown = this.model.boxesT > 0;
+    for (const id of this.uncapturable) {
+      const n = this.dom.get(id);
+      if (!n || !n.isConnected) { this.uncapturable.delete(id); continue; }
+      const rule = liveSizeRule(id, n.localName, this.model.boxes.get(id), layoutKnown,
+        { width: n.getAttribute('width'), height: n.getAttribute('height') });
+      if (!rule) continue;
+      const root = n.getRootNode();
+      rules.set(root, (rules.get(root) || '') + rule);
+    }
+    for (const root of new Set([...rules.keys(), ...this.sized || []])) {
+      const s = this.liveSheet(root);
+      const text = rules.get(root) || '';
+      if (s.__text !== text) { s.replaceSync(text); s.__text = text; }
+      if (!root.adoptedStyleSheets.includes(s)) this.adoptLive(root);
+    }
+    this.sized = new Set(rules.keys());
+  }
+
+  // liveSheet is a document's or shadow root's live-size sheet.
+  liveSheet(root) {
+    if (!root.__couchLive) {
+      const win = (root.nodeType === 9 ? root : root.ownerDocument).defaultView;
+      Object.defineProperty(root, '__couchLive', { value: new win.CSSStyleSheet() });
+    }
+    return root.__couchLive;
+  }
+
+  // adoptLive puts a root's live-size sheet before the page's own sheets
+  // (after the viewer's), so on a tie the page's CSS wins.
+  adoptLive(root) {
+    const live = this.liveSheet(root);
+    const rest = root.adoptedStyleSheets.filter((x) => x !== live && x !== root.__couchSheet);
+    const viewer = root.nodeType === 9 ? [this.viewerSheet(root)] : [];
+    try { root.adoptedStyleSheets = [...viewer, live, ...rest]; } catch (e) { this.warn(e); }
+  }
+
+  // uncaptured lists the drawn elements whose content the recording can't
+  // hold, by id and kind; a frame counts only when its document wasn't
+  // recorded (nothing drawn in it).
+  uncaptured() {
+    const out = [];
+    for (const id of this.uncapturable) {
+      const n = this.dom.get(id);
+      if (!n || !n.isConnected) continue;
+      const kind = n.localName;
+      if ((kind === 'iframe' || kind === 'frame') && n.contentDocument && this.ids.has(n.contentDocument)) continue; // a recorded document is drawn in it
+      out.push({ id, kind });
+    }
+    return out;
   }
 
   warn(e) { if (typeof console !== 'undefined') console.warn('couch viewer:', e); }
@@ -172,7 +263,7 @@ export class Renderer {
     doc.replaceChildren();
     doc.defaultView?.scrollTo({ left: 0, top: 0, behavior: 'instant' }); // a window keeps its scroll across documents; a segment starts at the top
     try { doc.fonts.clear(); } catch {}
-    doc.adoptedStyleSheets = [this.viewerSheet(doc)];
+    doc.adoptedStyleSheets = [this.viewerSheet(doc), this.liveSheet(doc)];
     // An image, stylesheet or font arriving changes the layout, and a
     // scroll applied to the shorter page was clamped: draw again, through
     // whichever renderer draws this frame now. doc.open() erased the
@@ -263,6 +354,7 @@ export class Renderer {
       el = doc.createElement('span'); // a tag the DOM refuses; its values stay in the model
     }
     if (el.localName === 'iframe' || el.localName === 'frame') el.setAttribute('sandbox', 'allow-same-origin');
+    if (isUncaptured(el.localName)) { this.uncapturable.add(n.id); el.setAttribute(LIVE_SIZE_ATTR, String(n.id)); }
     const model = this.model.node(n.id) || n;
     for (const name of Object.keys(model.a || {})) this.drawAttr(el, model, name);
     return el;
@@ -435,7 +527,7 @@ export class Renderer {
     if (!target) return;
     const doc = target.nodeType === 9 ? target : target.ownerDocument;
     const sheets = (this.model.adopted.get(id) || []).map((sid) => this.constructedSheet(sid, doc));
-    try { target.adoptedStyleSheets = target.nodeType === 9 ? [this.viewerSheet(doc), ...sheets] : sheets; } catch (e) { this.warn(e); }
+    try { target.adoptedStyleSheets = target.nodeType === 9 ? [this.viewerSheet(doc), this.liveSheet(target), ...sheets] : [this.liveSheet(target), ...sheets]; } catch (e) { this.warn(e); }
   }
 
   drawFont(r) {

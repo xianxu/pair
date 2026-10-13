@@ -1,6 +1,7 @@
 package board
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"sync/atomic"
@@ -34,6 +35,10 @@ func newRig(t *testing.T) *rig {
 		return r.w.Emit(rec, doc)
 	})
 	r.w = NewWriter(recording.Tee(r.mem, r.bd), nil)
+	r.bd.WithAnnotationCleanup(r.w.ClearAnnotations)
+	if err := r.bd.SetAnnotationAllowed(context.Background(), true); err != nil {
+		t.Fatal(err)
+	}
 	return r
 }
 
@@ -158,23 +163,35 @@ func TestRefusals(t *testing.T) {
 	}
 }
 
-// Notes are fine while paused and across a resume (the same document); a
-// request made on the old document after a navigation is stale, and the
-// old document's notes are no longer live.
+// While paused, viewers do nothing (pair#499, reversing #470's notes while
+// paused): a note, a stroke and a note-state are refused, and nothing from
+// the pause appears after the resume. Notes made before it carry across the
+// resume (the same document); a request made on the old document after a
+// navigation is stale, and the old document's notes are no longer live.
 func TestDocumentRules(t *testing.T) {
 	r := newRig(t).page(recording.SegLive)
-	if _, err := r.note(r.p1.ID, 0); err != nil {
+	id, err := r.note(r.p1.ID, 0)
+	if err != nil {
 		t.Fatal(err)
 	}
 	r.add(&recording.Stop{Why: recording.StopPause})
-	if _, err := r.note(r.p2.ID, 0); err != nil {
+	if _, err := r.note(r.p2.ID, 0); !errors.Is(err, ErrPaused) {
 		t.Errorf("a note while paused: %v", err)
+	}
+	if err := r.bd.Stroke(StrokeIn{Viewer: ana, Seg: 1, ID: "s", Pts: [][3]float64{{1, 2, 0}}}); !errors.Is(err, ErrPaused) {
+		t.Errorf("a stroke while paused: %v", err)
+	}
+	if err := r.bd.SetState(StateIn{Viewer: ana, ID: id, State: recording.NoteResolved}); !errors.Is(err, ErrPaused) {
+		t.Errorf("a note-state while paused: %v", err)
 	}
 	r.b.Add(&recording.Seg{Seg: r.b.NextSeg(), Why: recording.SegResume, Tab: recording.Tab{ID: "tab1"}, VP: recording.Viewport{W: 1280, H: 800}})
 	r.b.Snapshot("http://app/", r.b.El("html", nil, r.b.El("body", nil, r.p1Again())))
 	r.flush()
-	if got := len(r.bd.Live()); got != 2 {
-		t.Errorf("live notes after a resume: %d, want 2", got)
+	if got := r.bd.Live(); len(got) != 1 || got[0].ID != id {
+		t.Errorf("live notes after a resume: %+v, want only the open one from before the pause", got)
+	}
+	if n := len(r.kinds("stroke")); n != 0 {
+		t.Errorf("%d strokes from the pause recorded", n)
 	}
 	if _, err := r.bd.Note(NoteIn{Viewer: ana, Seg: 1, Node: r.p1.ID, Region: recording.Box{1, 1, 10, 10}, Color: 0, Text: "x"}); err != nil {
 		t.Errorf("a viewer one resume behind is on the same document: %v", err)
@@ -307,7 +324,6 @@ func TestEmitErrorEndsPending(t *testing.T) {
 
 func TestStrokeChunksShareOneID(t *testing.T) {
 	r := newRig(t).page(recording.SegLive)
-	r.add(&recording.Stop{Why: recording.StopPause})
 	for i := 0; i < 2; i++ {
 		if err := r.bd.Stroke(StrokeIn{Viewer: ana, Seg: 1, ID: "s1", Color: 3, Pts: [][3]float64{{float64(i), 2, 0}, {3, 4, 16}}}); err != nil {
 			t.Fatal(err)
@@ -456,5 +472,24 @@ func TestBrokenBoardStopsAndSaysSo(t *testing.T) {
 	r.bd.Close()
 	if err := r.bd.Put(&recording.Stop{}); err != nil {
 		t.Errorf("Put after Close: %v", err)
+	}
+}
+
+// A record the board admitted just before a pause reaches the writer after
+// it: the writer drops it and says the cast is paused, not that the page
+// changed (pair#499 close review); after a navigation it is stale.
+func TestWriterRefusesARecordDuringAPause(t *testing.T) {
+	r := newRig(t).page(recording.SegLive)
+	r.add(&recording.Stop{Why: recording.StopPause})
+	stroke := &recording.Stroke{ID: "ana.s", Author: recording.Author{ID: "ana"}, Pts: [][3]float64{{1, 2, 0}}}
+	if err := r.w.Emit(stroke, 1); !errors.Is(err, ErrPaused) {
+		t.Errorf("an emit during a pause: %v", err)
+	}
+	r.page(recording.SegNavigate)
+	if err := r.w.Emit(stroke, 1); !errors.Is(err, ErrStale) {
+		t.Errorf("an emit for a document that has gone: %v", err)
+	}
+	if n := len(r.kinds("stroke")); n != 0 {
+		t.Errorf("%d strokes written", n)
 	}
 }

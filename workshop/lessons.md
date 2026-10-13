@@ -7,6 +7,19 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- A spawn API can return an error after it created and cleaned up a process. Preserve bounded evidence before that cleanup and carry it through the error; a nil returned handle does not prove nothing started. Test the post-spawn setup refusal, not only exec failure and registration failure. (#531 BR-1)
+
+- A late asynchronous report is checked against whether its source is still live, not against a counter that only
+  moves on the next start. #495's rotation callback compared the cast's start attempt, which an ended cast keeps until
+  a new one begins, so a report after the end still passed. Test the window where the source has ended and nothing
+  has replaced it. (#495 BR-23)
+- A writer that turns text into terminal cells measures by grapheme width, never by rune count, in its layout and
+  its drawing alike. One wide character (an emoji in a label) otherwise yields a frame that fails validation, and the
+  whole paint is dropped silently. Test a drawn surface with a wide character in it. (#495)
+- A runbook or atlas page states what was measured, not what was hoped: #496's page first called the scratch volume
+  "the fix" although its own series showed no fseventsd CPU drop. Write the measured outcome, including the null result,
+  in the same commit as the mechanism. On macOS, `mktemp` without a template ignores `$TMPDIR` and is denied in the
+  agent sandbox; always pass `"${TMPDIR:-/tmp}/name.XXXXXX"` and `|| exit 1`. (#496 BR-1, BR-2)
 - A change to what a user does (a gesture, a control, what a pin shows) updates README's how-to paragraph in the same
   commit as the atlas. The atlas is the agent's map and README is the operator's; grep README for the old verbs
   ("tap", "drag", "pin") before closing. (#488 BR-1)
@@ -311,6 +324,10 @@ representative evidence, not an exhaustive index.
   describes. (#245, #249)
 
 ## Planning, review, and repository hygiene
+
+- When acceptance changes, synchronize Done when itself with the expanded surface
+  and any explicit waiver, alongside the append-only revision. A revision alone
+  leaves the primary acceptance checklist stale. (#521 BR-1)
 
 - When reusing lifecycle machinery, name its transition authority and cancellation
   owner explicitly. New durable files also need a final consumer and removal
@@ -1076,7 +1093,7 @@ proof; record the surprising case so the next change starts from evidence.
   up to `RowMetadata.UsedColumns` and treats the rest as blank tail, so a 💭 on an empty row vanished while marks
   (background only) showed. A frame edit that adds content past the old text updates the metadata too.
 - **A user-visible addition to the tab bar is a README change (#447).** The M1 review blocked on it; grep the
-  README for the row's current spelling (`LIVE ⏸ 👆 👽`) whenever the row gains a cell.
+  README for the row's current spelling (`LIVE ⏸ 👆` since #503) whenever the row gains a cell.
 - **Rule out the host before bisecting a "regression" (#450).** Four workers called `test-review` a regression since
   #436 and the issue asked for a bisect, but the failure reproduced at #436's own merge: they ran the suite inside the
   agent sandbox, which refuses unix sockets and PTYs, while #436 was verified outside it. Before bisecting, rerun the
@@ -1401,3 +1418,204 @@ proof; record the surprising case so the next change starts from evidence.
   readers see records mid-cast, and with that the reader's strict decode (any bad line fails the whole recording)
   became a live hazard: a replay racing a write could fail outright. When a writer's output becomes readable while
   open, the reader takes complete lines only and leaves torn-tail detection to the validator of a finished file.
+- **"Disable every action" means listing every surface first (#499 close).** The pause guard disabled the rail's
+  pen, swatches and 💭 but left the note dialog's Save and Resolve live, including on a pin opened during the pause;
+  only the server's refusal caught them. Before a mode turns user actions off, enumerate every control that posts
+  (rail, dialog, pins, keyboard), gate them at one place, and put each in the test.
+
+## A count or abbreviation must be anchored to a drawn member of its own group (pair#491)
+- **What went wrong:** the tab bar's narrow-width collapse hid every numbered slot of a group, including its first member when the group had no `:0`. The `+N` then sat after the previous repository's chip and read as its count.
+- **Rule:** when compressing a run of related items into a summary (`+N`, `:N`, `…`), keep the run's first item drawn so the summary has an owner on screen; test a run that lacks its usual leader.
+- **And:** state a value handed across a package boundary at startup (here the hub root) is tested where it is set *and* where a lazy rebuild could drop it.
+- **A variant of a read path wraps the original, never copies it (#507 close).** `getThreadStamped` repeated
+  `GetThread`'s validate, route, lock, read and clone steps and dropped its `AfterGetThread` hook, which recovery
+  tests use to inject interleavings. When a caller needs the same read plus one more fact (a stamp, a path), make
+  the old function call the new one so hooks and checks live in one place. A cache that serves a parsed value
+  hands each caller its own copy of anything the caller can reach and mutate, and keys on every input that names
+  the source (a root's path, not only its fixed name).
+- **An error translation is behavior; each needs a test that fails without it (#505 close).** Mapping `errClosed` to
+  `ErrClosed`, a CDP failure to `ErrInput` and a nil recorder to `ErrNotLive` were each one line, and reverting any
+  left the suite green: the route test injected a ready-made `ErrInput`. Test the translation at the seam that
+  produces it (the recorder's fake tab, the nil-recorder Chrome), and mutation-check it once.
+- **A browser event's field is a measurement, not an assumption (#505).** drive.js counted double clicks from
+  `pointerup.detail`, and its node tests fed fake events with `detail: 2`, which real Chrome never sends (pointer
+  events carry 0). Before a gesture rule reads an event field, log that field from a real browser once, and make
+  the fakes match it.
+
+- **A viewer-side rule that stands in for the browser must act like the browser everywhere (#513 close).** The
+  live-size rule meant to replace a canvas's UA sizing was author-origin, so it beat the UA's `[hidden]`, and it
+  lived in the document sheet, which shadow trees don't see. When a viewer rule substitutes for browser behaviour,
+  list the browser's own conditions (hidden, display:none, shadow trees, frames) and make each a test case.
+- **Changing a rule means grepping for every statement of it (#516 close; #489's lesson again).** The wheel's stale
+  rule was restated in `Act`'s doc, `ErrStale`'s doc and `onTarget`'s comment; updating `Injector.Inject` and the
+  atlas left three stale copies. Before committing a rule change, `rg` the rule's nouns (here "stale", "wheel")
+  across the package and the atlas, and make every other site name the rule's owner instead of restating it.
+
+- **An incarnation does not identify a request (#517 plan review).** When an
+  asynchronous callback can outlive cancellation and retry on the same source,
+  carry both the source incarnation and the parent request ID end to end.
+  A late reply must never satisfy the next request merely because the process
+  stayed alive. Distinguish standalone commands from callbacks explicitly.
+
+- **Retained evidence belongs to a source, not a lifecycle label (#517 M1).**
+  A previous-session descriptor survived A→B correctly, but a separate park of B
+  followed by B→C reused A's evidence because the source was already parked.
+  Compare the saved source identity with the current verified park before reuse;
+  test both same-source retries and a different source parked through another path.
+  Test retention through the new reader itself: collect while its lease is held,
+  then prove release after both successful replay and an error.
+- **A plan's owner map follows the actual diff (#517 M1).** When implementation
+  splits a concern into a new file, check every core-concepts location and the
+  milestone file inventory against the diff; record the correction in Revisions.
+- **A full read must detect every capacity loss in its dependency (#517 M1).**
+  Raising the emulator's row cap left its cell and byte caps silently evicting
+  history, and accepting 1000×1000 geometry exceeded its screen-area limit.
+  Read the dependency's complete limit model; use checked construction/resize
+  and an explicit loss signal that survives later clears. Test each independent
+  limit and loss followed by erase in one input, not only a row-count overflow.
+- #494 visual review: when mounting an existing viewer control inside another
+  surface, reuse its glyphs, tooltips and dimensions as well as its handlers.
+  Text labels substituted into icon-sized buttons can clip and make the two
+  surfaces needlessly different; inspect the actual embedded rail before handoff.
+## Re-meaning a named surface: sweep for the old term, and sweep again after every merge (pair#506)
+- **What went wrong:** #506 split the web cast's "view link" into view-only and pointer links. Three review rounds flagged the old term: first in `atlas/webcast-format.md` and the README prose, then in code comments, then in a README table that #495's merge brought in after the sweep.
+- **Rule:** when a change gives an existing name new grants or meaning (a link, a mode, a flag), `git grep` the old term and its synonyms ("view link", "viewer link", "two links") across README.md (tables too), atlas/, production comments and test comments before committing, and fix or date every hit. Re-run that grep after every merge from main: a branch that lands second inherits the other side's uses of the old term.
+- **And:** when several places map a kind to a value (a link label to its URL), give the type one accessor (`Update.LinkFor`) before the third copy appears; the copies drift (one unlock helper sent the pointer code to the view-only URL).
+
+### #483 — asynchronous submission ownership
+
+- A scheduler may execute inline during startup/shutdown: release the owner's mutex before invoking it, and test the inline case.
+- Cancellation must gate the first side effect as well as publication; a canceled job must not start replay, screenshot capture or note resolution.
+- Retry identity includes generated evidence and the recipient, not only authored text. After confirmed dispatch, remaining retries must be acknowledgment/commit-only.
+
+- Idempotent durable writes must retry directory synchronization after a successful rename followed by failed sync. Test repeated retries through a newly opened store, including callers that advance directly to the next transition. Visible files are not proof of durable publication.
+- An injected adapter is still integration code: pure state/event transitions own retry state; the adapter interprets effects and ignores stale completions by attempt identity.
+- Reuse a shared recipient identity/parser when adding a routing consumer; keep each caller's uniqueness and incarnation policy separate.
+- Visible evidence needs a valid, nonempty effective intersection, including ancestor clips. Share that predicate across text and accessibility entries; test wholly off-screen regions and clipped descendants in both the DOM fixture and a real browser.
+
+- pair#523 plan review: retryable cleanup must retain evidence until the external effect is acknowledged. Audit every caller of a reused release helper; clearing local state before CDP replies makes a later retry falsely succeed. Uncertain delivery needs an explicit terminal recovery path.
+- pair#523 plan review: describe tests by production function, adversarial input class and mechanical guard. Keep acceptance behavior in the spec; executable case inventories belong in tests.
+- pair#523 reducer review: test each stale-completion guard independently. An old completion delivered only after failure exercises the phase guard, not the attempt guard; deliver it while the newer attempt is Running and mutation-check that removing attempt equality fails.
+- pair#523 cleanup review: a caller classifying partial sink writes as terminal must wrap lower-layer errors with its own terminal outcome. Propagating an inner Retryable misclassifies an effect the outer operation may already have committed.
+
+- #523: Canceling an HTTP caller does not cancel ownership of a started side effect.
+  Retain its settled failure for the authority; distinguish an unstarted queued
+  callback from uncertain external delivery with typed evidence.
+- #523: Fan-out records are shared read-only values. Encoders must stamp copies,
+  never mutate an envelope while concurrent subscribers serialize it.
+
+- #523: A cancellation can finish the waiter before the operation. Preserve an
+  unobserved terminal outcome beyond the busy channel lifetime and consume it
+  before a later retry declares cleanup complete; do not re-report an outcome
+  already surfaced to the operator.
+
+- #523 boundary review: a new recording event needs a consumer inventory covering
+  both reducers and replay optimizers. Compare marks as well as DOM at every
+  prefix and across seeks; DOM-only parity can miss resurrected annotations.
+- #523 boundary review: verify acknowledgments through the production adapter.
+  A synchronous fake cannot prove an asynchronous recorder committed a write.
+- **Measure screenshot side effects before adding waits (#524).** CDP captureBeyondViewport restarted an already-finished responsive fade by changing render viewport state; waiting longer before capture could never fix it. Compare animation identity and pixels before/after the actual capture, not only readiness before it. A browser animation enumeration is root-scoped: real Chrome excluded open-shadow animations from document.getAnimations, so test the scope with a real shadow fixture before trusting a fake.
+
+- Animation target bounds do not bound its painted influence: inherited opacity/filter/transform can affect overflowing children and pseudo-elements. Prove exclusion conservatively and test zero-size/off-box ancestors with real crop pixels.
+- **A lifecycle guard checks every representation of its authority (#517 M2).**
+  Before registration, a replacement profile lives in Start.LaunchProfile;
+  after registration or unknown promotion it lives on the incarnation. A guard
+  reading only the latter can erase a surviving target during cleanup. Enumerate
+  interruption points, exercise startup reconciliation then the user action,
+  and assert identities as well as errors and launch counts.
+- **Audit the whole active owner table against a named baseline (#517 M2).**
+  A scope cut moved missing-config policy into switchagent.go while the plan
+  still claimed launchprofile.go changed. For each active core-concepts row,
+  check the actual owner, pure/integration class and new/modified/reused status
+  with git diff; append a replacement table and explicitly supersede old rows.
+
+- **Pure selectors need value-only tests even when integration covers them (#517 M2).**
+  Construct records directly for projection, validation and defensive-copy
+  cases; a filesystem-backed Couch fixture proves integration, not the pure
+  seam's independent contract.
+### #494 — publish measured commit identifiers
+
+- A smoke handoff accidentally sent a placeholder commit identifier. Read `git rev-parse --short HEAD` after the commit, then copy that exact output into the report. Never draft a send command with a placeholder hash; omit the hash until it is known.
+
+- **#494 gesture preview:** final click geometry is not a pointer-down preview. Keep the default box out of the preview until release, retain drag intent once its threshold is crossed, and exercise down/move/up on every shared mount surface—not only the final geometry helper.
+
+### #494 — close review identity and event boundaries
+
+- A reconciliation success belongs to its original operation, never the editor currently asking about it. Test cancellation followed by a new draft and transitions between action types; an unsent body cannot receive success.
+- A shadow root is not a global keyboard boundary. Focus-preserving commands need a document/window listener for Escape, with explicit guards that leave unavailable/Off page input alone. Test the real page-focused delivery path.
+- Classify helpers by what they read, not by the shape of their result: a DOM-to-path function is INTEGRATION even when it returns only numbers.
+
+- **#494 reconciliation lifetime:** operation identity includes the authority’s lifetime, not only request ID/body. Retire browser state when the server’s document ledger retires; test switch-return plus lost reply and late completion, not each lifecycle independently.
+- **#494 interactive identity:** a record stream can update between pointer-down and pointer-up. Preserve swatch/control DOM nodes across unrelated updates, and test an interleaved record against the originally pressed element on every shared surface.
+
+- #523 M2: an asynchronous UI result belongs to the authority generation and
+  attempt, not merely the cast instance. Await the actual completion in negative
+  clipboard tests; a no-op queue barrier can overtake an unqueued callback.
+- #523 M2: clearing authoritative/projection collections must also clear consumer
+  transient caches. An empty snapshot alone does not communicate a clear event.
+- #523 M2: independent SSE channels may deliver initial permission and catch-up
+  control in either order. Retain evidence while unavailable; gate its projection
+  and invalidate consent on authority-generation changes.
+
+- #523: A published capability phase is not worker completion. Concurrent test
+  operations must await admission or their own completion receipt. Always defer
+  release of a held test barrier before an assertion can fail, so failure reports
+  remain visible instead of hanging fixture teardown.
+
+- #523 M2 review: ingress is already too late to assign revocable authority.
+  Carry request-creation generation across the browser/network boundary and test
+  delayed-before-ingress payloads as well as already-queued writes. Audit sibling
+  mutation routes (request, release and input) for the same temporal gap.
+- For animation settlement, border-box intersection is not a painted-influence proof even on leaves (shadows/filters/outline). Prefer bounded conservative document-wide observation to accumulating incomplete paint exclusions; label uncertainty explicitly.
+- **A plan names verification functions and strategies, not a prose copy of test cases (#526 plan-quality).** For each risky function, name the adversarial input class and mechanical guard. Retention claims must distinguish actual operator deletion and capacity refusal from staging cleanup; a staging remover is not an automatic retained-evidence sweeper.
+
+- **A new production Go file must enter the exhaustive source inventory (#526).** Register its artifact ownership in `cmd/internal/artifactpath/manifest.go` alongside the package's existing sources, then run `TestProductionArtifactReferencesAreExactlyClassified`; targeted package tests alone do not exercise this repository-wide invariant.
+
+- Privacy/permission JSON must validate exact schema keys before Go struct decoding: DisallowUnknownFields still accepts case-folded aliases, including Unicode. Test conflicting aliases at each envelope and nested evidence boundary.
+
+- When fixing permission-decoding ambiguity, enumerate root manifests as well as nested policy/rule codecs. A strict nested decoder cannot defend permissively decoded top-level permission fields; exercise store reload, not only standalone policy parsing.
+
+- #523 headless conformance: DOM element/global existence is not readiness.
+  Wait for module completion before submitting forms and await the viewer's
+  explicit ready contract before reading its renderer.
+
+- #523 operator fixture: recorded publication precedes browser acknowledgement.
+  Before the next gesture, await the editor's acknowledged completion, not only
+  the Board record; verify with a deliberately delayed reply.
+
+- #523 close review: strengthening a formerly synchronous enqueue into an
+  acknowledged external write changes every caller's latency contract. Enumerate
+  all input-handler callers and move waits onto bounded lifetime-owned work;
+  carry admission identity across scheduling and test responsiveness with ACKs held.
+
+- #523 drive fixture: controller acknowledgement can precede UI delivery and
+  paint. A named chip can move neighboring hit targets; sample the committed
+  projection before clicking, never combine a new screen with old coordinates.
+  Bound fixture waits independently of the package deadline so one missed menu
+  does not consume the entire suite's time budget.
+- Fresh review checkouts must run make runtimebundle-generate before direct Go tests that import embedded runtime assets; make build/test already supply that prerequisite. Distinguish Chrome startup failure from a failed capture assertion and rerun the unchanged live check before changing product code.
+
+- A macOS Seatbelt-fenced reviewer can prevent Chrome GPU startup even with an allow-default profile. Before treating this as failed product conformance, compare the identical test under the fence and in the authorized parent environment, retaining real assertion evidence and the review fence.
+
+### #524 — fresh-send recovery and clean smoke artifacts
+
+- A preparation failure must not lock authored text. Keep draft ownership separate from confirmed-delivery recovery; late acknowledgment belongs to its submission ID, never the current editor epoch.
+- Supersession is authority release, not delivery evidence. Define ordering across manifest writes and successor publication, and inject failures through every durability checkpoint.
+- Build smoke artifacts after committing, then check embedded VCS revision and modified state. A clean checkout and a successful earlier build do not prove the binary was built from that clean commit; timestamp-based make targets can leave old embedded metadata.
+
+- A full suite that compares embedded assets with source must run against a stable tree. Finish source edits before launching it; if an independently verified final delta lands mid-run, disclose snapshot failures and rerun the affected packages after regeneration rather than calling that run green.
+
+- When integrating capture availability changes, test a batch containing both visible and off-screen notes. Pixel unavailability does not imply lost document identity; preserve navigation rejection separately.
+
+- #535: Keep error text and wrapped causes complete; apply concise summaries only at operator presentation boundaries. Run the full affected package and use make -k after an early prerequisite failure so one known timing failure cannot hide later regressions. Cancellation tests should cancel at the intended observation seam, not race unrelated filesystem work against a tiny deadline.
+- #533: An operation deadline cannot bound an editing lock while its synchronous subprocesses are unbounded. Carry one remaining-time budget through every external effect and render progress before entering waits. Verify an actual blocked child and embedded UI redraw ordering, not only model state.
+
+- #533 embedded UI: provide the full production startup environment in private fixture files and strip live-session variables. Capture the rendered screen on RPC timeout: a missing completion path caused a hit-enter prompt, which otherwise looked like an unexplained transport stall.
+
+- #533 close BR-1: nomodifiable only guards buffer writes. Navigation, queue, delete, reset and send handlers may mutate logical identity or files first; operation ownership must reject the whole action before those effects. Test persisted contents after failure/timeout and subsequent navigation, not only edit rejection.
+
+- #533 close BR-1 round2: enumerate actual write sites, not only user commands. Focus/cursor/autocmd/timer decorations can write real bytes and open a blocking prompt under nomodifiable. Preserve deferred cleanup bookkeeping and exercise focus loss/gain in an embedded UI.
+
+- #533 integration of #531: a full make test stopped by the known #514 timing check has not exercised later Go packages. Run remaining targets with make -k and inspect all failures before citing the exception; new production files still require exhaustive artifact-source inventory entries.
+
+- #536: Sharing note-box geometry does not share gesture timing. Keep threshold crossing and drag latching shared too; test each consumer's press, sub-threshold movement, release, and drag back toward its origin.

@@ -19,7 +19,7 @@ class FakeEventSource {
   fail(state) { this.readyState = state; this.onerror?.(); }
 }
 
-function harness() {
+function harness(extra = {}) {
   const h = { sources: [], rendered: [], resets: 0, status: 'Connecting…', stale: false, timers: [] };
   h.deps = {
     open: () => { const es = new FakeEventSource(); h.sources.push(es); return es; },
@@ -29,6 +29,7 @@ function harness() {
     show: (text) => { h.status = text; },
     setStale: (on) => { h.stale = on; },
     later: (fn, ms) => h.timers.push({ fn, ms }),
+    ...extra,
   };
   h.es = () => h.sources[h.sources.length - 1];
   h.fire = () => { const t = h.timers.shift(); t.fn(); return t.ms; };
@@ -140,4 +141,26 @@ test('a view page, which never hears caps, gets none at its end', () => {
   h.es().emit('end', { reason: 'x' });
   assert.equal(got.caps.length, 0, 'no made-up caps on a view page');
   assert.deepEqual(got.notes.at(-1), { guard: 0, notes: [] });
+});
+
+// pair#495: a stream closed because the link's code was rotated goes back to
+// the lock page; a stream closed for any other reason retries as before.
+test('a closed stream whose session is gone relocks instead of retrying', async () => {
+  let relocked = 0;
+  const h = harness({ sessionLost: async () => true, relock: () => { relocked++; } });
+  h.es().emit('frame', frame);
+  h.es().fail(CLOSED);
+  await new Promise((r) => setImmediate(r));
+  assert.equal(relocked, 1);
+  assert.equal(h.timers.length, 0, 'no retry of a revoked session');
+});
+
+test('a closed stream whose session holds retries', async () => {
+  let relocked = 0;
+  const h = harness({ sessionLost: async () => false, relock: () => { relocked++; } });
+  h.es().emit('frame', frame);
+  h.es().fail(CLOSED);
+  await new Promise((r) => setImmediate(r));
+  assert.equal(relocked, 0);
+  assert.equal(h.timers.length, 1);
 });

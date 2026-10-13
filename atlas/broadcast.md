@@ -49,8 +49,11 @@ is the current one, for late joiners.
 `broadcast.Server` is read-only by construction:
 - **GET only:** every other method gets 405, and no request body is read.
 - **Token gate:** everything lives under `/<token>/`, and the token is
-  compared in constant time. Only five assets and `events` are served; any
-  other path, or a wrong token, gets 404.
+  compared in constant time. Only the page's fixed assets (`assets` in
+  `server.go`) and `events` are served; any other path, or a wrong token,
+  gets 404.
+- **Code lock (#495):** see [Code lock](#code-lock-495) below. Before a
+  session the Host serves the lock page instead of any of the above.
 - **Headers on every response:** `Cache-Control: no-store`,
   `Referrer-Policy: no-referrer` (the token is in the path), `nosniff`, and a
   CSP that confines the page to its own origin. Scripts are strict. Inline
@@ -61,6 +64,99 @@ is the current one, for late joiners.
   - `event: end` carries `{reason}`.
   - A `: ping` every 15s keeps Cloudflare from closing an idle stream (it does
     at 100s). A failed ping ends that viewer, which frees its slot.
+
+## Code lock (#495)
+
+Every cast link is locked behind a short numeric code, delivered out of band:
+the operator says it on the call.
+
+- **Core.** `castlock.Lock` holds one link's code and its wrong-try budget
+  (8 per code, counted across every client), plus the sessions it issued.
+  - **Spent budget:** the code rotates and the existing sessions are kept.
+  - **Operator rotation** (`Session.RotateCode`): revokes every session and
+    closes the generation's `Revoked` channel.
+  - **Ordering:** one mutex orders unlocks and rotations.
+- **Gate.** `Mountable.LockFor(segment)` names a link's lock, and the
+  `Host` gate (`lockgate.go`) runs before any mount sees a request.
+  - **Without a session:** `GET /<token>/` gets the lock page, plus
+    `lock.js`, `lock.css` and `POST unlock`. Everything else gets `401 locked`.
+  - **With a session:** the request reaches the mount under a context that
+    is cancelled on revoke, so live streams end with the session.
+  - **`GET session`:** the gate's own probe, `204` for a live session and
+    `401` otherwise. A page whose stream closed uses it to return to the
+    lock page.
+- **Session cookie.** It is `HttpOnly`, `SameSite=Strict`, scoped to
+  `/<token>/` and has no expiry. It is `Secure` on https links.
+  - The page's own fetches send it with same-origin credentials.
+  - **Trade-off:** a viewer who re-opens the link from a chat app
+    (cross-site) is asked for the code again.
+- **Unlock attempts** are rate-limited per lock (a burst of 5, then 1/s),
+  so a guesser can force at most about one rotation every 8 seconds.
+- **Terminal broadcast.** Each link has its own 4-digit code:
+  - `view`: the lock exists before `Mount`;
+  - `pointer`: the lock is minted with the pointer token.
+  - Both locks end in `teardown`, after the hub's `end` event, so viewers
+    still see why the broadcast ended.
+- **Lock page** (`web/lock.*`): asks for the code and the viewer's name; the
+  name is stored as `couch.viewerName`.
+  - `URL#NNNN` pre-fills the code, and the page strips it from history at
+    once.
+- **Couch.** Every link's codes reach the operator through the presenter's
+  operator-only layer (`terminal.OperatorLayer`), which is applied after the
+  tap takes its frame, so no broadcast frame carries a code.
+  `console_castcodes.go` draws three things there:
+  - **Hover tooltip:** hovering a cast's cell (`LIVE ⏸` or `Chrome ⏸`, the
+    main entrance) shows all of its codes, for example
+    `view 4821 · pointer 7730`. The link controls beside it show none.
+  - **Codes menu:** Alt+click on the cell (only there) opens it.
+    - `codes_menu.go` is a pure model: layout, a hit target per word,
+      selection and drawing.
+    - It has one row per link (`view 3926 · rotate · copy-link`), then
+      `rotate all`. Each action word is a click target drawn in the link blue
+      (`notesMenuLink`).
+    - Keyboard: Up/Down pick the row, Left/Right the word, Enter runs it, and
+      Escape closes the menu.
+    - Running a word keeps the menu open: the word is drawn pressed for
+      `codesPress` (180 ms), and a rotation rebuilds the menu in place with the
+      new code, keeping the selection (`refreshCodesMenu`). Only Escape or ×
+      closes it.
+    - A rotation disconnects that link's viewers.
+    - The screen pointer link's row has no actions until the link is minted.
+      Right-clicking 👆 calls Session.EnsurePointerLink to mint a locked link
+      while staying off; copy-link never turns pointing on.
+  - **The cast row's rule** (operator, at the #495 smoke test): a left click
+    acts or toggles, a right-click copies that control's link, and Alt+click
+    opens the Codes menu. The README has the per-control table. `LIVE ⏸`'s
+    left click still stops the broadcast; pause is #518.
+  - **Flash:** a new code flashes three times.
+  - **Notices:** the status row and the notice line are broadcast, so a
+    notice says that a code changed and never what it is.
+    - A guess-rotation notice is coalesced per link every 30 s.
+    - Rotations apply in `Gen` order.
+- **Registry.** `broadcast.LinkLocks` is one per cast: a lock per link token,
+  minted with the token (`Mint`), routed by `LockFor`, listed by `Codes`, and
+  rotated and ended together. A new link is one `Mint`.
+
+### Threat model
+
+- **What the code protects against:** a cast link that leaked.
+  - A link pasted in a chat log, kept in browser history or a proxy log, or
+    fetched by a chat app's link preview is still only half the credential.
+  - The code travels out of band: said on the call.
+  - A `#code` fragment is never sent to a server, and preview fetchers don't
+    run the page's script.
+  - Guessing is bounded by the per-code budget and the per-lock rate.
+  - Rotating a code revokes every session that used it.
+- **What it does not protect against:**
+  - a viewer who has the code: they can share what they see, or pass on
+    both link and code;
+  - a stolen session cookie, which stays good until rotation or the cast's
+    end (it is `HttpOnly` and scoped to the link's path);
+  - anyone who can read the operator's screen, including the operator's own
+    local diagnostic capture.
+- **LIVE viewers see the tab bar**, but never the codes: these draw only in
+  the operator-only layer.
+- **Replay share links** are not locked yet (pair#509).
 
 The page (`web/`), a vendored `@xterm/xterm` 6.0.0 with `@xterm/addon-unicode11`
 (Unicode 11 widths, so emoji are two columns as in Couch; #412),
@@ -288,7 +384,7 @@ and it is kept narrow.
   long-lived event streams.
 - **Marks** (`marks.go`): pure. A batch's points are joined by line fill; an
   off-grid point is dropped before any line reaches it. The broadcast's controls
-  (`StatusGuardCols`, the width of `LIVE ⏸ 👆 👽` at the left of the last row)
+  (`StatusGuardCols`, the width of `LIVE ⏸ 👆` at the left of the last row)
   are never marked or tinted: the overlay refuses them whatever put a mark
   there. The rest of the tab bar can be marked. At most 1/8 of the grid is
   marked, oldest first. A cell keeps its batch's color. A mark holds 1.5s at
@@ -306,11 +402,12 @@ and it is kept narrow.
 under `c.mu`, with transitions on the Run loop; the header comment has the
 table.
 
-- **Status row:** while live it reads `LIVE ⏸ 👆 👽`. `👆` is dim when off and
+- **Status row:** while live it reads `LIVE ⏸ 👆`. `👆` is dim when off and
   on `PointerSGR` amber when on (`StatusModel.Pointer`). Its span
   (`RenderedStatusRow.Pointer`) takes a left click (toggle) and a right click
   (re-copy the link). A right click on `LIVE ⏸` re-copies the view-only link.
-  A click on `👽` only gives a notice (#407).
+  The `👽` placeholder for remote control (#407) was removed until that is
+  built (#503); it comes back with its own span and a guard one control wider.
   `routeMouseEvent` checks these spans before anything else on the row.
 - **Toggling:** the first click calls `Session.EnablePointer` and copies the
   link (the notice never shows it). Later clicks flip pointing for the same
@@ -394,7 +491,7 @@ watch) or the broadcast ends.
   keeps it only from the live session while pointing is on and only if newer;
   every pointer-phase change resyncs from `Session.Notes()`. One snapshot under
   the leaf lock `pointerNotes.mu` feeds both `screenOverlay` (notes, then marks,
-  public frames only) and the status row's `💭N` count after `👽`
+  public frames only) and the status row's `💭N` count after `👆`
   (`StatusModel.Notes`, outside the guarded columns).
 - **Notes menu** (`couchtty/notes_menu.go` pure, `console_notes.go`, M4): a left
   click on `💭N` (`RenderedStatusRow.Notes`) toggles a box over the bottom right,
@@ -419,8 +516,11 @@ watch) or the broadcast ends.
   routes taps:
   - 💭 → open.
   - Pointing off → nothing.
-  - Comment mode → a box gesture. A dashed `.drag-box` follows the drag, and on release a draft with
-    `gestureBox`'s box opens. A finger needs 2 cells and a mouse 1. A box with only the controls under it
+  - Comment mode → a box gesture. Press draws nothing. The shared `collab.js`
+    `noteGesture` latches a drag at 8 CSS px for mouse or 16 for touch on either
+    axis; a dashed `.drag-box` follows it, even after moving back below the
+    threshold. On release `gestureBox` opens a draft with the dragged cell box,
+    or the default box if no drag began. A box with only the controls under it
     (`boxHasPin`) gets no draft.
   - Pointer mode → a stroke. Turning pointing off resets to pointer
   mode and closes the dialog. `noteDialog` is one fixed-size sticky note: the
@@ -507,3 +607,14 @@ The path:
 
 It is the one identity-free broker op. The socket's directory is `0700` and
 owned by the uid, and the socket is `0600`, so only the operator can ask.
+
+## Capability controls (#523)
+
+`couchtty/cast_control.go` shares click intent across terminal 👆 and web 👆/👽:
+right copies, left enables-and-copies or disables, and a retryable cleanup uses
+the same left-click as explicit retry. Web authority comes from Cast snapshots;
+Couch owns no duplicate enabled state. Its completion callback checks cast
+identity, generation and attempt before copying or showing a result. Failure
+notices precede actor chips so the recovery action remains visible under clipping.
+Terminal EnsurePointerLink mints token and code under the existing pointer lock,
+without changing admission generation or arming the visibility watchdog.

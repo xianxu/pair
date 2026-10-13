@@ -43,6 +43,7 @@ type OperationReceipt struct {
 	ID     string
 	Op     string
 	Target string
+	Agent  string `json:",omitempty"`
 	Status ReceiptStatus
 	// Code is a refusal's code (SlotOperationError's, e.g. not-offered).
 	Code string `json:",omitempty"`
@@ -88,10 +89,10 @@ type ReceiptOutcome struct {
 
 // ReceiptEvent drives ApplyReceiptEvent.
 type ReceiptEvent struct {
-	Kind           ReceiptEventKind
-	ID, Op, Target string // admit names all three; start, finish and status name the ID
-	Outcome        ReceiptOutcome
-	At             time.Time
+	Kind                  ReceiptEventKind
+	ID, Op, Target, Agent string // admit names all three; start, finish and status name the ID
+	Outcome               ReceiptOutcome
+	At                    time.Time
 }
 
 // ErrReceiptIDConflict refuses an admission reusing an ID for another
@@ -114,9 +115,9 @@ func ApplyReceiptEvent(r OperationReceipt, e ReceiptEvent) (OperationReceipt, er
 		return r, nil
 	case ReceiptAdmit:
 		if r.Status == ReceiptNone {
-			return OperationReceipt{ID: e.ID, Op: e.Op, Target: e.Target, Status: ReceiptQueued, Admitted: e.At}, nil
+			return OperationReceipt{ID: e.ID, Op: e.Op, Target: e.Target, Agent: e.Agent, Status: ReceiptQueued, Admitted: e.At}, nil
 		}
-		if e.Op != r.Op || e.Target != r.Target {
+		if e.Op != r.Op || e.Target != r.Target || e.Agent != r.Agent {
 			return r, ErrReceiptIDConflict
 		}
 		return r, nil

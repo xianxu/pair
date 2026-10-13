@@ -6,6 +6,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/broadcast"
 	"github.com/xianxu/pair/cmd/internal/terminal"
+	"github.com/xianxu/pair/cmd/internal/webcast/capability"
 )
 
 // pointerPhase is the console's side of a broadcast's pointer link (#412).
@@ -15,7 +16,7 @@ import (
 //	on   --click 👆-->                 off: marks cleared, link stays view-only
 //	off  --click 👆-->                 on: the same link, re-copied
 //	on   --👆 hidden past the grace--> off: marks cleared, notice
-//	any  --right-click 👆-->           the link re-copied (if one exists)
+//	any  --right-click 👆-->           the link minted/copied, admission unchanged
 //	any  --broadcast ends-->           none: marks cleared, overlay removed
 type pointerPhase uint8
 
@@ -103,14 +104,23 @@ func (c *Console) onPointerClick(right bool) {
 	if !live || s == nil {
 		return
 	}
-	if right {
-		if link := s.PointerLink(); link != "" {
-			c.copyLink(link)
-			c.setNotice("Pointer link copied.")
+	action := "enable"
+	if phase == pointerOn {
+		action = "disable"
+	}
+	intent := castControlIntent(right, capability.Presentation{Action: action})
+	if intent == "copy" {
+		if link, err := s.EnsurePointerLink(); err == nil {
+			if !c.copyLink(link) {
+				return
+			}
+			c.setNotice("Pointer link copied. Its viewers need its code: hover LIVE to see it.")
+		} else {
+			c.setNotice("Couldn’t create pointer link: " + err.Error())
 		}
 		return
 	}
-	if phase == pointerOn {
+	if intent == "disable" {
 		s.DisablePointer()
 		c.pointerOff("Pointing off.")
 		return
@@ -124,16 +134,21 @@ func (c *Console) onPointerClick(right bool) {
 	c.pointer = pointerOn
 	c.mu.Unlock()
 	c.resyncNotes(s)
-	c.copyLink(link)
+	if !c.copyLink(link) {
+		return
+	}
 	// The notice never contains the link: it would be drawn into the frames
 	// being broadcast.
-	c.setNotice("Pointing on — link copied. Click 👆 to turn it off.")
+	c.setNotice("Pointing on — link copied. Click 👆 to turn it off. Its viewers need its code: hover LIVE to see it.")
 }
 
-func (c *Console) copyLink(link string) {
+func (c *Console) copyLink(link string) bool {
 	if err := c.presenter.Copy(c.lifetime, []byte(link)); err != nil {
 		c.terminalError(err)
+		c.setNotice("Couldn’t copy link; right-click to retry.")
+		return false
 	}
+	return true
 }
 
 // copyViewLink is a right-click on LIVE ⏸: the view-only link again.
@@ -145,12 +160,7 @@ func (c *Console) copyViewLink() {
 		return
 	}
 	c.copyLink(s.Link())
-	c.setNotice("Broadcast link copied.")
-}
-
-// onRemoteClick is a click on 👽, which waits for #407.
-func (c *Console) onRemoteClick() {
-	c.setNotice("Remote control isn't available yet.")
+	c.setNotice("Broadcast link copied. Its viewers need its code: hover LIVE to see it.")
 }
 
 // pointerOff ends pointing on the console's side: phase off, marks cleared

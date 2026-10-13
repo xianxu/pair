@@ -38,8 +38,20 @@ type SheetState struct {
 // NoteView is a note with its current state and the segment it was made in.
 type NoteView struct {
 	*Note
-	State string
-	Seg   int
+	State    string
+	Seg      int
+	Revision uint64
+}
+
+// NoteUnchanged is the writer's conditional-resolution guard. Reopening a
+// note after a submission selected it must not let its late ack resolve it.
+func (s *State) NoteUnchanged(id string, revision uint64) bool {
+	for _, n := range s.Notes {
+		if n.ID == id {
+			return n.State == NoteOpen && n.Revision == revision
+		}
+	}
+	return false
 }
 
 // StrokeView is a stroke with the segment it was drawn in.
@@ -116,11 +128,18 @@ func (s *State) resetDOM() {
 // Node is the live node with that id, or nil.
 func (s *State) Node(id NodeID) *DOMNode { return s.nodes[id] }
 
+// Paused reports whether a page was cast and the cast is paused on it (not
+// ended): while it is, viewers do nothing (pair#499). The one rule the
+// board, its writer and the viewer (model.js's paused) share.
+func (s *State) Paused() bool { return s.Seg > 0 && !s.Live && !s.Ended }
+
 // OnDoc reports whether the document that began at segment doc is still
-// the current one and the cast hasn't ended: the check the stream's writer
+// the current one and the cast is live on it: the check the stream's writer
 // makes when it orders a record a viewer made on that document (#470), so a
-// note checked before a navigation isn't filed on the new page.
-func (s *State) OnDoc(doc int) bool { return s.Seg > 0 && s.DocSeg == doc && !s.Ended }
+// note checked before a navigation isn't filed on the new page, and one
+// checked just before a pause isn't filed during it (pair#499: viewers do
+// nothing while paused; it reverses #470's notes-while-paused).
+func (s *State) OnDoc(doc int) bool { return s.Live && s.DocSeg == doc }
 
 // NodeCount is how many nodes are live.
 func (s *State) NodeCount() int { return len(s.nodes) }
@@ -178,7 +197,7 @@ func (s *State) inSegment() error {
 func (s *State) apply(r Record) error {
 	// After stop end the cast is over: nothing may change its state again.
 	switch r.(type) {
-	case *Seg, *Ctl:
+	case *Seg, *Ctl, *AnnotationClear:
 		if s.Ended {
 			return fmt.Errorf("a %s after stop end: the cast is over", r.Kind())
 		}
@@ -209,6 +228,8 @@ func (s *State) apply(r Record) error {
 		}
 	case *Ctl:
 		return s.applyCtl(r)
+	case *AnnotationClear:
+		s.Notes, s.Strokes = nil, nil
 	case *Doc:
 		return s.applyDoc(r)
 	case *Asset:
@@ -219,6 +240,7 @@ func (s *State) apply(r Record) error {
 		for _, n := range s.Notes {
 			if n.ID == r.ID {
 				n.State = r.State
+				n.Revision++
 				return nil
 			}
 		}

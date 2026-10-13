@@ -132,3 +132,5 @@ func (h *ptyHandle) Alive() bool                { return ownedProcessGroupAlive(
 func (h *ptyHandle) Signal(sig os.Signal) error { return signalOwnedProcessGroup(h.pid, sig) }
 func (h *ptyHandle) Wait() int                  { return h.child.Wait() }
 func (h *ptyHandle) Exited() <-chan struct{}    { return h.child.Exited() }
+
+func (h *ptyHandle) LaunchOutput() (string, []byte) { return terminalLaunchOutput(h.child) }

@@ -54,7 +54,7 @@ func copies(f *consoleFixture, link string) int {
 func postPoint(t *testing.T, link string, col, row int) int {
 	t.Helper()
 	body := fmt.Sprintf(`{"cols":80,"rows":24,"down":false,"points":[[%d,%d]]}`, col, row)
-	resp, err := http.Post(link+"point", "application/json", strings.NewReader(body))
+	resp, err := castClient.Post(link+"point", "application/json", strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,6 +97,7 @@ func pointerOnFixture(t *testing.T, mutate func(*broadcast.Config)) (*consoleFix
 	if link == "" || link == s.Link() {
 		t.Fatalf("pointer link %q (view %q)", link, s.Link())
 	}
+	unlockCastLink(t, castClient, s, broadcast.LinkPointer, link)
 	waitFor(t, "active 👆 drawn", func() bool { return f.screenBg(f.pointerSpan().Start, 23) == markTint })
 	return f, s, link
 }
@@ -109,7 +110,7 @@ func TestPointerClickMarksOperatorAndViewers(t *testing.T) {
 	if strings.Contains(f.screenText(), link) || strings.Contains(f.notice(), link) {
 		t.Fatal("the pointer link is drawn on screen")
 	}
-	v := openViewer(t, s.Link())
+	v := openViewer(t, s)
 	before := len(bytes.Join(f.child.Writes(), nil))
 	tapUntilMarked(t, f, link, 5, 3)
 	v.until("mark in the broadcast", func(string) bool {
@@ -142,23 +143,6 @@ func TestPointerRightClickRecopies(t *testing.T) {
 	waitFor(t, "re-copied", func() bool { return copies(f, link) == 2 })
 	if f.pointerPhase() != pointerOn {
 		t.Fatal("right-click toggled pointing")
-	}
-}
-
-func TestRemoteClickIsANoticeOnly(t *testing.T) {
-	f := broadcastFixture(t, &broadcast.FakeTunnel{}, nil)
-	f.startLive(t)
-	var span ColumnSpan
-	waitFor(t, "👽 drawn", func() bool {
-		f.con.mu.Lock()
-		span = f.con.statusRemote
-		f.con.mu.Unlock()
-		return span != (ColumnSpan{})
-	})
-	_, _ = fmt.Fprintf(f.stdin, "\x1b[<0;%d;24M\x1b[<0;%d;24m", span.Start+1, span.Start+1)
-	waitFor(t, "notice", func() bool { return strings.Contains(f.notice(), "isn't available yet") })
-	if f.pointerPhase() != pointerNone || f.phase() != broadcastLive {
-		t.Fatal("👽 changed something")
 	}
 }
 
@@ -316,4 +300,20 @@ func TestLiveRightClickRecopiesViewLink(t *testing.T) {
 		t.Fatal("right-click stopped the broadcast")
 	}
 	waitFor(t, "notice", func() bool { return strings.Contains(f.notice(), "link copied") })
+}
+
+func TestPointerRightClickMintsWhileOff(t *testing.T) {
+	f := broadcastFixture(t, &broadcast.FakeTunnel{}, nil)
+	s := f.startLive(t)
+	f.clickPointer(t, 2)
+	waitFor(t, "minted and copied", func() bool { return s.PointerLink() != "" && copies(f, s.PointerLink()) == 1 })
+	if f.pointerPhase() == pointerOn {
+		t.Fatal("right-copy enabled pointing")
+	}
+	unlockCastLink(t, castClient, s, broadcast.LinkPointer, s.PointerLink())
+	if code := postPoint(t, s.PointerLink(), 6, 3); code != http.StatusForbidden {
+		t.Fatalf("off admission %d", code)
+	}
+	f.clickPointer(t, 0)
+	waitFor(t, "enable copied stable link", func() bool { return f.pointerPhase() == pointerOn && copies(f, s.PointerLink()) == 2 })
 }

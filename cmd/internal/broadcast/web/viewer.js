@@ -5,7 +5,7 @@
 // pick (#446).
 
 import { noteAt, boxHasPin, parseNotes } from './notes.js';
-import { HEX_COLOR, pointerColor, colorStore, railAt, renderSwatches, noteDialog, poster, gestureBox, dragMin } from './collab.js';
+import { HEX_COLOR, pointerColor, colorStore, railAt, renderSwatches, noteDialog, poster, gestureBox, noteGesture, sessionLost, storedName } from './collab.js';
 
 export { pointerColor, colorStore, RAIL_INSET, railAt, renderSwatches } from './collab.js';
 
@@ -111,8 +111,8 @@ function endText(data) {
 // connect runs the viewer's connection state machine. The screen is never
 // left looking live while it isn't: any lost connection dims it and says so.
 // deps: open() → EventSource-like; render(frame); theme(palette); reset();
-// show(text); setStale(bool); later(fn, ms); caps(capabilities) and
-// notes(list), optional.
+// show(text); setStale(bool); later(fn, ms); caps(capabilities),
+// notes(list), and sessionLost() → Promise<bool> with relock(), optional.
 export function connect(deps) {
   let attempt = 0;
   let ended = false;
@@ -169,13 +169,22 @@ export function connect(deps) {
         return;
       }
       events.close();
-      if (attempt >= RETRY_DELAYS.length) {
-        deps.show('Disconnected');
+      const retry = () => {
+        if (attempt >= RETRY_DELAYS.length) {
+          deps.show('Disconnected');
+          return;
+        }
+        const delay = RETRY_DELAYS[attempt++];
+        deps.show(`Disconnected — retrying in ${delay / 1000}s`);
+        deps.later(open, delay);
+      };
+      // A stream refused because the code was rotated (pair#495) goes back
+      // to the lock page rather than retrying a session that is gone.
+      if (!deps.sessionLost) {
+        retry();
         return;
       }
-      const delay = RETRY_DELAYS[attempt++];
-      deps.show(`Disconnected — retrying in ${delay / 1000}s`);
-      deps.later(open, delay);
+      deps.sessionLost().then((lost) => (lost ? deps.relock() : retry()));
     };
   };
   open();
@@ -280,7 +289,15 @@ async function start() {
   const dialog = noteDialog({
     root: byId('note'), text: byId('note-text'), input: byId('note-input'), count: byId('note-count'),
     msg: byId('note-msg'), save: byId('note-save'), cancel: byId('note-cancel'), resolve: byId('note-resolve'),
-  }, { post: postJSON, color: () => pointer.color() });
+  }, {
+    post: postJSON,
+    color: () => pointer.color(),
+    // The name the lock page kept (pair#495) attributes the note.
+    beforeSave: () => {
+      const name = storedName(storage);
+      return name ? { author: name } : {};
+    },
+  });
   pointer = pointerMode(term, stage, {
     notes: () => notes,
     dialog,
@@ -310,6 +327,8 @@ async function start() {
   });
   connect({
     open: () => new EventSource('events'),
+    sessionLost: () => sessionLost(fetch),
+    relock: () => location.reload(),
     render: (m) => {
       const resized = term.cols !== m.cols || term.rows !== m.rows;
       if (resized) {
@@ -410,7 +429,7 @@ export function pointerMode(term, stage, deps = {}) {
   let on = false;
   // drag is what the pointer is doing, one of: null; {kind: 'stroke', last,
   // pending} (pointer mode, its points posted every 50ms by timer); {kind:
-  // 'box', from, to, pointerType} (comment mode, a note's box being drawn).
+  // 'box', from, to, gesture} (comment mode, a note's box being drawn).
   let drag = null;
   let timer = null;
   let palette = [];
@@ -458,7 +477,7 @@ export function pointerMode(term, stage, deps = {}) {
     const el = screen();
     return el ? cellAt(e.clientX, e.clientY, el.getBoundingClientRect(), term.cols, term.rows) : null;
   };
-  const boxOf = (g) => gestureBox(g.from, g.to, { x: 0, y: 0, w: term.cols, h: term.rows }, { min: dragMin('cells', g.pointerType), cells: true });
+  const boxOf = (g, preview = false) => gestureBox(g.from, g.to, { x: 0, y: 0, w: term.cols, h: term.rows }, { min: g.gesture.dragged ? 0 : Infinity, cells: true, preview });
   // end ends whatever the pointer is doing: a stroke's last points are
   // posted, a box being drawn is dropped.
   const end = () => {
@@ -491,8 +510,7 @@ export function pointerMode(term, stage, deps = {}) {
     stage.setPointerCapture?.(e.pointerId);
     end();
     if (mode === 'comment') {
-      drag = { kind: 'box', from: c, to: c, pointerType: e.pointerType };
-      dragBox.show(boxOf(drag));
+      drag = { kind: 'box', from: c, to: c, gesture: noteGesture([e.clientX, e.clientY], e.pointerType) };
       return;
     }
     drag = { kind: 'stroke', last: null, pending: [c] };
@@ -504,7 +522,10 @@ export function pointerMode(term, stage, deps = {}) {
     if (drag?.kind === 'box') {
       if (c) {
         drag.to = c;
-        dragBox.show(boxOf(drag));
+        drag.gesture.move([e.clientX, e.clientY]);
+        const box = boxOf(drag, true);
+        if (box) dragBox.show(box);
+        else dragBox.hide();
       }
       return;
     }

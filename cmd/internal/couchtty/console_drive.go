@@ -13,9 +13,9 @@ import (
 
 // Remote driving in Couch (#467). The web cast's controller tells Couch who
 // drives the cast tab and who asks; the tab bar shows it after the Chrome
-// cell (🕹Ana for the driver, ✋Bo for one asker, ✋2 for more), and a click
-// there opens the drive menu: a left click on the driver takes control
-// back, on an asker lets them drive; a right click turns an asker down.
+// cell (👽 Ana on the enabled drive control, ✋Bo for one asker, ✋2
+// for more). The driver chip toggles driving off or copies its link;
+// the asking span opens the drive menu: left grants, right declines.
 // Ctrl+click on the span takes control back whatever is open: the operator
 // always has the last word. While anyone drives, the cast tab's uploads and
 // downloads are off (the operator's too), and Couch says so.
@@ -65,27 +65,16 @@ func driveMenuRows(c recording.Control, menuID func(key string) int) ([]driveRow
 	return rows, items
 }
 
-// driveSpan is the tab bar's text for control: "" when nobody drives or
-// asks.
+// driveSpan shows pending requests separately from the 👽 driver control.
 func driveSpan(c recording.Control) string {
-	var out string
-	if c.Driver != nil {
-		out = "🕹" + c.Driver.Name
-	}
 	switch n := len(c.Pending); {
 	case n == 1:
-		out = joinSpan(out, "✋"+c.Pending[0].Name)
+		return "✋" + c.Pending[0].Name
 	case n > 1:
-		out = joinSpan(out, "✋"+strconv.Itoa(n))
+		return "✋" + strconv.Itoa(n)
+	default:
+		return ""
 	}
-	return out
-}
-
-func joinSpan(a, b string) string {
-	if a == "" {
-		return b
-	}
-	return a + " " + b
 }
 
 // driveNotices is what Couch says when control moves from was to now: the
@@ -162,11 +151,15 @@ func (c *Console) forgetDrive() {
 	c.pnotes.mu.Unlock()
 }
 
-// webDriveSpan is the span's text for the status row.
-func (c *Console) webDriveSpan() string {
+// webDriveLabels derives both row labels from one delivered control snapshot.
+func (c *Console) webDriveLabels() (driver, asking string) {
 	c.pnotes.mu.Lock()
 	defer c.pnotes.mu.Unlock()
-	return driveSpan(c.pnotes.drive.control)
+	ctl := c.pnotes.drive.control
+	if ctl.Driver != nil {
+		driver = ctl.Driver.Name
+	}
+	return driver, driveSpan(ctl)
 }
 
 // driveActionLocked is what a click on menu row id does (nil: nothing):
@@ -176,7 +169,6 @@ func (c *Console) driveActionLocked(id int, right bool) func() {
 	if cast == nil || cast.Drive() == nil {
 		return nil
 	}
-	ctrl := cast.Drive()
 	for _, r := range c.pnotes.drive.rows {
 		if r.menuID != id {
 			continue
@@ -184,11 +176,11 @@ func (c *Console) driveActionLocked(id int, right bool) func() {
 		who := r.who
 		switch {
 		case r.driver:
-			return func() { c.driveResult(ctrl.Revoke(), "") }
+			return func() { c.startDriveOperation(cast, recording.CtlRevoke, who) }
 		case right:
-			return func() { c.driveResult(ctrl.Deny(who.ID), "Said no to "+who.Name+".") }
+			return func() { c.startDriveOperation(cast, recording.CtlDeny, who) }
 		default:
-			return func() { c.driveResult(ctrl.Grant(who.ID), "") }
+			return func() { c.startDriveOperation(cast, recording.CtlGrant, who) }
 		}
 	}
 	return nil
@@ -203,7 +195,70 @@ func (c *Console) revokeDrive() {
 	if cast == nil || cast.Drive() == nil {
 		return
 	}
-	c.driveResult(cast.Drive().Revoke(), "")
+	c.startDriveOperation(cast, recording.CtlRevoke, recording.Author{})
+}
+
+// One slot belongs to the console, not the cast's replaceable menu state.
+// It stays occupied through ACK and terminal completion; repeated clicks never
+// create a queue or detached workers.
+type driveOperation struct{ op string }
+
+func (c *Console) startDriveOperation(cast *webcast.Cast, op string, who recording.Author) {
+	c.mu.Lock()
+	if !c.started || c.lifetime.Err() != nil || c.wcast.cast != cast || c.wcast.phase != webcastRunning {
+		c.mu.Unlock()
+		return
+	}
+	if c.drivePending != nil {
+		c.mu.Unlock()
+		c.setNotice("Remote driving: wait for the current action.")
+		return
+	}
+	pending := &driveOperation{op: op}
+	c.drivePending = pending
+	c.mu.Unlock()
+	generation := cast.Drive().DriveCapability().Generation
+	admission, err := cast.Drive().AdmitDriveGeneration(generation)
+	if err != nil {
+		c.mu.Lock()
+		c.drivePending = nil
+		c.mu.Unlock()
+		c.driveResult(err, "")
+		return
+	}
+	c.GoTracked(func() {
+		defer func() {
+			c.mu.Lock()
+			if c.drivePending == pending {
+				c.drivePending = nil
+			}
+			c.mu.Unlock()
+		}()
+		// GoTracked runs inline after teardown begins. Never dispatch in that case.
+		if c.lifetime.Err() != nil {
+			return
+		}
+		var err error
+		done := ""
+		switch pending.op {
+		case recording.CtlGrant:
+			err = admission.Grant(who.ID)
+		case recording.CtlDeny:
+			err = admission.Deny(who.ID)
+			done = "Said no to " + who.Name + "."
+		case recording.CtlRevoke:
+			err = admission.Revoke()
+		}
+		_ = c.runTerminalCommand(c.lifetime, func() error {
+			c.mu.Lock()
+			current := c.lifetime.Err() == nil && c.wcast.cast == cast && c.wcast.phase == webcastRunning && c.drivePending == pending
+			c.mu.Unlock()
+			if current && cast.Drive().DriveCapability().Generation == generation {
+				c.driveResult(err, done)
+			}
+			return nil
+		})
+	})
 }
 
 // driveResult tells the operator a control change that didn't happen;
@@ -222,7 +277,7 @@ func (c *Console) driveResult(err error, done string) {
 // as it was.
 func driveFailure(err error) string {
 	switch {
-	case errors.Is(err, drive.ErrNoSeat), errors.Is(err, drive.ErrControlOp):
+	case errors.Is(err, drive.ErrNoSeat), errors.Is(err, drive.ErrControlOp), errors.Is(err, drive.ErrDriveUnavailable):
 		return "Remote driving: that changed meanwhile."
 	case errors.Is(err, drive.ErrClosed):
 		return "Remote driving: the cast has ended."
@@ -233,8 +288,8 @@ func driveFailure(err error) string {
 }
 
 // Shares is every link out, by kind, as `couch --broadcast-list` lists them
-// (#467): the screen broadcast, the web cast's view link and its drive
-// link. Never a link or a token. Counts are read after c.mu is released.
+// (#467): the screen broadcast, the web cast's view-only and pointer links
+// (counted together as `web view`, pair#506) and its drive link. Never a link or a token. Counts are read after c.mu is released.
 func (c *Console) Shares() []couchmessage.ShareStatus {
 	var out []couchmessage.ShareStatus
 	if b, ok := c.BroadcastStatus(); ok {

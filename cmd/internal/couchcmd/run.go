@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/broadcast"
 	"github.com/xianxu/pair/cmd/internal/couchidentity"
 	"github.com/xianxu/pair/cmd/internal/couchsingleton"
@@ -39,6 +40,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/runtimebundle"
 	"github.com/xianxu/pair/cmd/internal/scrollbackcmd"
+	"github.com/xianxu/pair/cmd/internal/submission"
 	pairterminal "github.com/xianxu/pair/cmd/internal/terminal"
 	"github.com/xianxu/pair/cmd/internal/terminalcapture"
 	"github.com/xianxu/pair/cmd/internal/threadactivity"
@@ -185,6 +187,28 @@ func (r OSRuntime) NewCouchWith(runner couchcore.Runner, namespace couchcore.Cou
 	c.SlotTerminal = func(address couchcore.ThreadAddress, agent string, maxLines int) ([]string, error) {
 		return scrollbackcmd.RenderOwnedLines(dataDir, address.RepoScope, string(address.Tag), agent, maxLines)
 	}
+	c.SlotCapture = func(address couchcore.ThreadAddress, agent, token string, maxLines int) (couchcore.TerminalRecording, error) {
+		result := couchcore.TerminalRecording{}
+		paths, err := artifactpath.Resolve(artifactpath.Address{DataDir: dataDir, RepoScope: address.RepoScope, Tag: string(address.Tag)})
+		if err != nil {
+			return result, err
+		}
+		if token == "" {
+			capture, err := paths.ScrollbackArtifacts(agent)
+			if err != nil {
+				return result, err
+			}
+			result.Raw, result.Events = capture.Raw, capture.Events
+		} else {
+			capture, err := paths.ParkedScrollbackArtifacts(token)
+			if err != nil {
+				return result, err
+			}
+			result.Raw, result.Events = capture.Raw, capture.Events
+		}
+		result.Lines, err = scrollbackcmd.RenderOwnedCaptureLines(dataDir, address.RepoScope, string(address.Tag), agent, token, maxLines)
+		return result, err
+	}
 	c.SlotTail = slotTailReader(namespace.Dir())
 	c.Slug = couchcore.OSSlugReader{DataDir: dataDir}.Read
 	c.SwitchLaunchCheck = func(agent string) error {
@@ -276,6 +300,9 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 	if invocation.kind == cliSkill {
 		fmt.Fprint(stdout, couchSkill)
 		return 0
+	}
+	if invocation.kind == cliSubmission {
+		return runSubmissionCLI(invocation, rt, stdout, stderr, couchmessage.Call)
 	}
 	if invocation.kind == cliWebQuery {
 		// A pure read of a recording directory: no Couch runtime needed,
@@ -727,6 +754,11 @@ func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, ou
 	if store != "" {
 		// Recordings shared for replay on the same Host (#477), until Couch exits.
 		console.SetReplayShares(webcast.NewReplayShares(castHost, recordingsDir(store)))
+		submissions, err := submission.NewStore(filepath.Join(store, "webcast", "submissions"))
+		if err != nil {
+			return nil, nil, err
+		}
+		console.SetSubmissionStore(submissions)
 	}
 	options := diagnosticlog.Options{Proof: diagnosticlog.DefaultProof}
 	if len(settings) > 0 {
@@ -1076,6 +1108,7 @@ func render(w io.Writer, op couchcore.Operation, result any) int {
 		if v.Slot != nil {
 			renderSlotReport(w, *v.Slot)
 		}
+		renderLaunchFailures(w, v.LaunchFailures, v.LaunchFailureError)
 	case couchcore.Worktree:
 		fmt.Fprintf(w, "%s\n", v)
 	case couchcore.ArchiveResult:
@@ -1123,7 +1156,11 @@ func renderPeek(w io.Writer, r couchcore.PeekResult) {
 		source = "none"
 	}
 	fmt.Fprintf(w, "peek %s  agent %s  tag %s  source %s\n", r.Ref, agent, r.Tag, source)
-	fmt.Fprintln(w, "--- recent terminal ---")
+	if r.Complete {
+		fmt.Fprintln(w, "--- complete recording projection ---")
+	} else {
+		fmt.Fprintln(w, "--- recent terminal ---")
+	}
 	for _, line := range r.Lines {
 		fmt.Fprintln(w, line)
 	}
@@ -1133,6 +1170,18 @@ func renderPeek(w io.Writer, r couchcore.PeekResult) {
 	}
 	if r.Truncated > 0 {
 		fmt.Fprintf(w, "truncated: %d older lines\n", r.Truncated)
+	}
+	if r.Session != nil {
+		fmt.Fprintf(w, "session: %s (nonce %s)\n", r.Session.Name, r.Session.StartNonce)
+	}
+	if r.NativeSession != "" {
+		fmt.Fprintf(w, "native session: %s\n", r.NativeSession)
+	}
+	if r.Raw != "" {
+		fmt.Fprintf(w, "tty raw: %s\n", r.Raw)
+	}
+	if r.Events != "" {
+		fmt.Fprintf(w, "tty events: %s\n", r.Events)
 	}
 	if r.SentPrompts != "" {
 		fmt.Fprintf(w, "sent prompts: %s\n", r.SentPrompts)
@@ -1281,7 +1330,7 @@ func dimCodes(w io.Writer) (string, string) {
 // (pair#170 M4): couch-lite has no capacity to exceed, so there is no refusal to
 // give a next action to.
 func renderError(w io.Writer, err error) {
-	fmt.Fprintf(w, "couch: %v\n", err)
+	fmt.Fprintf(w, "couch: %s\n", couchcore.OperatorError(err))
 }
 
 func usage(w io.Writer) { usageWith(w, couchkeys.Bindings()) }
@@ -1295,13 +1344,19 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	verbLine(w, "--list", "       couch --list")
 	verbLine(w, "--show", "       couch --show <thread>")
 	verbLine(w, "--reconcile", "       couch --reconcile repo:N")
-	verbLine(w, "--peek", "       couch --peek repo:N[:M...][,repo:N...] [--lines N] [--json] [--transcripts]")
+	verbLine(w, "--peek", "       couch --peek repo:N[:M...][,repo:N...] [--lines N | --all] [--previous] [--json] [--transcripts]")
 	fmt.Fprintln(w, "             Read-only: a slot's recent terminal; --transcripts adds where its transcripts\n"+
-		"             live, and costs seconds.")
+		"             live, and costs seconds.\n"+
+		"             --previous: exact previous tty only [seconds], incompatible with --transcripts; --all: complete recording [heavy].")
 	verbLine(w, "--archived", "       couch --archived")
 	verbLine(w, "--recover-plan-from-sdlc", "       couch --recover-plan-from-sdlc")
 	fmt.Fprintln(w, "             Recovery report: one JSON row per slot joining sdlc's claims and")
 	fmt.Fprintln(w, "             slot verdicts with Couch's threads, with a suggested next step.")
+	verbLine(w, "--switch-agent", "       couch --switch-agent repo:N --agent NAME --confirm [--json]")
+	fmt.Fprintln(w, "             Hub only, another idle clean slot: use NAME's last successful path config,")
+	fmt.Fprintln(w, "             then repo default. Missing config: ask the operator to set it in the switch form.")
+	fmt.Fprintln(w, "             No self, startup parameter edits or context delivery. Read the receipt before retrying.")
+	verbLine(w, "--operation-status", "       couch --operation-status ID [--json]")
 	verbLine(w, "--resume", "       couch --resume repo:N [--json]")
 	verbLine(w, "--reboot", "       couch --reboot repo:N --confirm [--force-unknown] [--json]")
 	fmt.Fprintln(w, "             Archive the slot's conversation and replace it with a fresh agent on the current")
@@ -1339,6 +1394,8 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "             in a window, and every note with its element and the actions before it;")
 	fmt.Fprintln(w, "             link prints its replay link at a moment, shared by the running Couch.")
 	fmt.Fprintln(w, "             `couch "+query.Flag+"` alone prints its usage.")
+	verbLine(w, submissionFlag, "       couch "+submissionFlag+" prepare|status|begin|ack ID")
+	fmt.Fprintln(w, "             Submit the cast's open notes from this draft; prints a JSON status for retries.")
 	verbLine(w, replayFlag, "       couch "+replayFlag+" [ID|DIR] [--at MS] [--local]")
 	fmt.Fprintln(w, "             Replay a broadcast-web recording in the viewer: prints its link at MS (#t=MS),")
 	fmt.Fprintln(w, "             shared through the running Couch's broadcast tunnel for other devices. With")

@@ -32,6 +32,7 @@ type Couch struct {
 	ContinuationGeneration func(context.Context, ThreadAddress, string, string) (*checkpoint.TargetGeneration, error)
 	ContinuationSource     func(context.Context, ThreadAddress) (ContinuationSource, error)
 	Namespace              CouchNamespace
+	LaunchFailures         LaunchFailureStorage
 	Runner                 Runner
 	Path                   PathOps
 	Git                    GitRunner
@@ -41,7 +42,9 @@ type Couch struct {
 	IDs                    IDGen
 	Threads                *ThreadStore
 	Entropy                io.Reader
-	Artifacts              ThreadArtifactController
+	// continuations is ContinuationRequests' per-thread cache (#507).
+	continuations continuationScanCache
+	Artifacts     ThreadArtifactController
 	// LiveRestart gathers live-slot facts for relaunch and reload-context
 	// (pair#421). Nil refuses both as unavailable.
 	LiveRestart LiveRestartProbe
@@ -53,8 +56,10 @@ type Couch struct {
 	FreshRegistration func(context.Context, ThreadAddress, string, string) (bool, error)
 	OrientationStatus func(context.Context, ThreadAddress, string, string) (orientation.DeliveryState, error)
 	SwitchContext     SwitchContextResolver
+	SwitchGuard       AgentSwitchGuard
 	// SlotTerminal renders a thread's live terminal recording (peek, pair#362).
 	SlotTerminal SlotTerminalReader
+	SlotCapture  SlotCaptureReader
 	// SlotTail reads a thread's live tail from its wrapper (peek, pair#425).
 	SlotTail          SlotTailReader
 	SwitchLaunchCheck func(agent string) error
@@ -189,9 +194,10 @@ func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOp
 		}
 	}
 	result := &Couch{
-		Namespace: namespace,
-		Layout:    DefaultLayout,
-		Runner:    r, Path: p, Git: g, Proc: proc, Store: s, Clock: c, IDs: ids,
+		Namespace:      namespace,
+		LaunchFailures: NewLaunchFailureStore(namespace),
+		Layout:         DefaultLayout,
+		Runner:         r, Path: p, Git: g, Proc: proc, Store: s, Clock: c, IDs: ids,
 		Threads: threads, Entropy: entropy,
 		Artifacts: artifacts,
 		reg:       reg, names: names,

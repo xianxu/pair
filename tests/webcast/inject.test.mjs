@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
+import { suppressionPolicy } from '../../cmd/internal/webcast/operator-policy.js';
 
 const source = readFileSync(new URL('../../cmd/internal/webcast/inject.js', import.meta.url), 'utf8');
 
@@ -31,7 +32,7 @@ function page({ top = true, readyState = 'complete', visible = true, focused = t
     createElement: (t) => new El(t),
     addEventListener: (n, fn) => (docListeners[n] ||= []).push(fn),
   };
-  const ctx = { document, __couchcast: (s) => sent.push(JSON.parse(s)) };
+  const ctx = { document, __couchcastSuppressionPolicy: suppressionPolicy, __couchcast: (s) => sent.push(JSON.parse(s)) };
   ctx.window = ctx;
   ctx.window.top = top ? ctx : {};
   ctx.addEventListener = (n, fn) => (winListeners[n] ||= []).push(fn);
@@ -79,7 +80,7 @@ test('state set from Couch changes the label; a click asks to toggle', () => {
   p.run();
   p.ctx.__couchcastSet(true);
   assert.equal(p.button().textContent, '❚❚ Pause');
-  assert.equal(p.button().className, 'live');
+  assert.equal(p.button().className, 'cast-button live');
   p.button().click();
   assert.deepEqual(p.sent.at(-1), { t: 'toggle' });
   p.ctx.__couchcastSet(false);
@@ -125,4 +126,41 @@ test('the control names who drives (#467), as text, and clears when nobody does'
   assert.equal(banner().hidden, true);
   p.ctx.__couchcastSet(false); // an old caller: nobody drives
   assert.equal(banner().hidden, true);
+});
+
+test('all Couch UI stays hidden until guard state is known, and capture tokens compose', () => {
+  const p = page(); p.run();
+  assert.equal(p.host().hidden, true);
+  p.ctx.__couchcastSet(true, '', false);
+  assert.equal(p.host().hidden, false);
+  assert.equal(p.ctx.__couchcastUI('acquire', 'a', 0), true);
+  assert.equal(p.host().hidden, true);
+  p.ctx.__couchcastUI('acquire', 'b', 0);
+  p.ctx.__couchcastUI('release', 'a', 0);
+  assert.equal(p.host().hidden, true);
+  p.ctx.__couchcastUI('release', 'b', 0);
+  assert.equal(p.host().hidden, false);
+  p.ctx.__couchcastSet(true, '', true);
+  assert.equal(p.host().hidden, true);
+});
+
+test('a late control update cannot reveal UI behind a newer target guard', () => {
+  const p = page(); p.run();
+  p.ctx.__couchcastSet(true, '', true, 8);
+  p.ctx.__couchcastSet(true, '', false, 7);
+  assert.equal(p.host().hidden, true);
+  p.ctx.__couchcastSet(true, '', false, 9);
+  assert.equal(p.host().hidden, false);
+});
+
+test('operator installation reports readiness after an early hello', () => {
+ const p = page({readyState:'loading'});
+ let mounted = false;
+ p.ctx.__couchcastMountOperator = () => { mounted = true; };
+ p.run();
+ assert.equal(mounted,false);
+ assert.equal(p.sent.filter((m)=>m.t==='hello').length,1);
+ p.fire('doc','DOMContentLoaded');
+ assert.equal(mounted,true);
+ assert.equal(p.sent.filter((m)=>m.t==='hello').length,2);
 });

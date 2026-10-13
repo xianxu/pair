@@ -210,6 +210,12 @@ path, which #488 M3 adds (atlas/broadcast.md).
 
 ## The notes model (#461)
 
+[DOM submission](webcast-submission.md) (#483) packages all open notes selected
+on the cast document at admission. It reuses this model for recorded context
+and calls `NoteCrops` separately for each note, preserving one current PNG per
+note even when boxes overlap. Its manifest distinguishes note-time context
+from capture-time pixels and pins note revisions for guarded acknowledgment.
+
 `notes.Structural` is the real `notes.Model` (`cmd/internal/webcast/notes`), pure over the reducer's state at a
 moment. It runs `notes.RunModelContract` like the fake.
 
@@ -255,6 +261,17 @@ landmark's box. The full DOM at that moment stays available through the agent qu
 The operator's box is the crop, so there is no snapping to structure and no per-URL hint. #461's landmark snapping
 and `notes.Hints` were retired by #488. The landmark still gives the context and the anchor's path.
 
+## Annotation clear (#523)
+
+`annotation-clear` is an operator-authored event in `events.jsonl`:
+`{"t":7001,"k":"annotation-clear","who":{"id":"operator"}}`.
+It clears the current notes and strokes, including while paused; earlier replay
+positions remain unchanged. It is invalid after recording end. The timestamp is
+strictly after preceding annotations so split-file merge cannot resurrect marks
+at an equal timestamp. Catch-up retains the clear barrier and only subsequent
+notes. Go reduction, browser Model, replay catchUp and Player.seek apply the
+same clear barrier; the mounted annotation UI also clears its transient strokes.
+
 ## Attribution and control (#466)
 
 A viewer the operator grants control to uses the cast tab through the cast (Remote driving, below). The recording
@@ -274,6 +291,7 @@ says who did what.
 
   | `op` | Allowed when | After it |
   |---|---|---|
+  | `reset` | `who.id` is `operator` | No driver and no pending requests, atomically |
   | `request` | `who` neither drives nor has asked | `who` is pending |
   | `grant` | `who` is pending | `who` drives; a previous driver doesn't |
   | `deny` | `who` is pending | `who` isn't pending |
@@ -379,12 +397,17 @@ checks each request against that state: the cast is on a page and hasn't ended, 
 document (a resume keeps it), the node is a live element, a color has at most 8 open notes on the page (notes emitted
 and not yet seen back count). It anchors a note with `notes.Model.Anchor` and the viewer's box, and hands the record to
 the cast's recorder (`webcast.Emitter`, `recorder.Emit{Record, Doc}`), which stamps `t` and writes it **only if the
-document the board checked is still current when it orders it** (`recording.State.OnDoc`), so a navigation between the
-check and the write can't file a note on the new page. Answers are fixed sentences (`boardAnswer`): 204; 409 "The page
+document the board checked is still current, and live, when it orders it** (`recording.State.OnDoc`), so a navigation
+between the check and the write can't file a note on the new page, nor a pause file one during it. Answers are fixed sentences (`boardAnswer`): 204; 409 "The page
 changed. Try again.", "This color already has 8 notes. Resolve one first.", "That note is gone.", "The cast isn't
-showing a page yet."; 410 "The cast has ended."; 429 "Too many requests. Wait a moment."; 400 "That isn't valid.";
+showing a page yet.", "The cast is paused."; 410 "The cast has ended."; 429 "Too many requests. Wait a moment."; 400 "That isn't valid.";
 503 "Notes aren't working in this cast." (the board lost track of the page: a bug, logged once).
-Notes are allowed while paused. Couch follows the open notes with `Cast.Notes` and resolves as the operator with
+**While paused, viewers do nothing (pair#499, reversing #470's "notes allowed while paused"):** the board refuses
+`stroke`, `note` and `note-state` (`ErrPaused`, 409 "The cast is paused."), `OnDoc` drops a record admitted just before
+the pause, and the viewer's rail disables its swatches, ✏️ and 💭 until a `seg` resumes (annotate.js `paused()`), as does the
+note dialog's Save and Resolve (collab.js `noteDialog.hold`; a draft keeps its text). `board.Writer` answers a pause
+drop with `ErrPaused`. Notes
+made before the pause stay pinned through it. The terminal broadcast has no paused state. Couch follows the open notes with `Cast.Notes` and resolves as the operator with
 `Cast.ResolveNote`: `💭N` follows the Chrome cell (`StatusModel.WebNotes`, its own span), and a click opens #447's notes
 menu with the web notes (one menu with a source, screen or web; items show `name: text`, a click copies the text, a right
 click copies and resolves). The collaboration overlay the menu draws in is installed while the screen broadcast or a web
@@ -418,7 +441,7 @@ the terminal viewer:
 - The note anchors on `nodeAt`'s element at the box's centre.
 - Pins are the model's live notes (since `docSeg`, open). Each frame they are drawn as the box, outlined in the
   author's color (an older note without one: its element's box as drawn by `boxOf`, else the box it was made on).
-- The 💭 chip sits inside the box's top-right corner and opens the note with Resolve. The identity (`couch.viewerId`, made once;
+- The 💭 chip sits inside the box's top-right corner and opens the note with Resolve (without it under the view-only link, pair#506). The identity (`couch.viewerId`, made once;
 `couch.viewerName`, asked in the first draft) is kept in localStorage behind try/catch, and a stored name is read by
 the board's rules (else asked again). Controls that take input (swatches, mode buttons, pin chips) are rebuilt only
 when their data changes; each frame only places them. For replay (#477), the drawing is pure over the model at t:
@@ -526,11 +549,18 @@ it (and can revoke it at any moment), and the driver gives it back. Internal vie
 driving). Package `cmd/internal/webcast/drive` is the contract; #467 builds the HTTP routes, the CDP injector and the
 UI against it.
 
-**Two links (operator, 10-12, #467).** The view link (the cast's token) is for watching, pointing and notes. The
-drive link (its own token, `Server.DriveToken`, `Update.DriveLink`) serves the same viewer plus the drive routes
-below, which answer 404 under the view link. A stream holds a seat only under the drive link. Couch copies the view
-link with a right-click on the Chrome cell and the drive link with Alt+right-click. `couch --broadcast-list` lists
-each share by kind (`screen`, `web view`, `web drive`), never with its token.
+**Three links (#467, pair#506).** Each has its own token and its own code (#495), and each grants what the one
+before it does, and more (`castLink`, `webcast/link.go`):
+- **The view-only link** (the cast's token, `Update.Link`) watches. Its board POSTs answer 403 "This link is
+  view-only." before admission, and its `palette.json` says `annotate: false`, so its viewer draws others' strokes
+  and notes read-only.
+- **The pointer link** (`Update.PointerLink`, only on a recorded cast) also points and leaves and resolves notes.
+- **The drive link** (`Server.DriveToken`, `Update.DriveLink`) serves the same viewer plus the drive routes below,
+  which answer 404 under the other two. A stream holds a seat only under the drive link.
+
+Couch copies them with a right-click on the Chrome cell, its 👆 and its 👽, or from the Codes menu (Alt+click on the
+cell, #495). `couch --broadcast-list` lists each share by kind (`screen`, `web view`, `web drive`), never with its
+token. A pointer-link viewer counts under `web view`.
 
 **Seats.** Anyone with the drive link can watch and take a seat; driving needs a grant:
 - `POST <cast>/drive/hello` `{"name":"Ana"}` returns `{"viewer":"v3","key":"<64 hex>","name":"Ana"}`, from
@@ -541,6 +571,12 @@ each share by kind (`screen`, `web view`, `web drive`), never with its token.
 - A seat with no stream for the grace period (`drive.DefaultGrace`, 10 s) leaves. If it drove or asked, a `ctl leave` hands control back.
 
 Seats are memory only; they die with the cast.
+
+**Capability provenance (#523).** Mutating annotation POSTs require
+`X-Couch-Annotation-Generation`; drive control/input POSTs require
+`X-Couch-Drive-Generation`, alongside the seat key. Each is the decimal generation
+from the capability snapshot at request creation. Missing, malformed or retired
+generations answer 403. Taking a seat remains available while drive is off.
 
 **Control.** `POST <cast>/drive/control` `{"op":"request"}` or `{"op":"release"}`, with the seat key. The operator
 grants, denies and revokes from Couch (`Controller.Grant`, `Deny`, `Revoke`). `Revoke` never waits on a viewer: it
@@ -553,7 +589,8 @@ record. Viewers learn the state from the `ctl` records in their stream, and Couc
 {"seg":3,"acts":[{"a":"click","id":412,"x":530,"y":1210},{"a":"text","v":"invoice"},{"a":"key","type":"down","key":"Enter"}]}
 ```
 
-- **Acts:** `down`, `up`, `move` and `click` (`count` 2 is a double click), `wheel` (`dx`, `dy`), `key` (`type`
+- **Acts:** `down`, `up`, `move` and `click` (`count` 2 is a double click; the viewer's `gestures` counts it from
+  time and place, `DOUBLE_MS` and `DRAG_PX`, because Chrome's pointer events carry `detail` 0 — pair#505), `wheel` (`dx`, `dy`), `key` (`type`
   `down`/`up`, `key`, `code`, `mods`), `text` (inserted at the focus: typing as values), and `ime` (a composition, `v` and
   `sel`).
 - **Targets:** pointer coordinates are top-page CSS px (the viewer's `toPage`). `id` is the element the viewer's
@@ -564,15 +601,20 @@ record. Viewers learn the state from the `ctl` records in their stream, and Couc
   - 204 when injected;
   - 401 `Join the cast again.` (`ErrNoSeat`);
   - 403 `Ask the operator for control first.` (`ErrNotDriver`);
-  - 409 `The page changed. Try again.` (`ErrStale`: the element isn't at that point in the tab any more; the acts
-    before it stand);
+  - 409 `The page changed. Try again.` (`ErrStale`: a down's or click's element isn't at that point in the tab any
+    more, or a wheel's point has nothing under it; the acts before it stand);
   - 409 `The cast is paused.` (`ErrNotLive`, also a batch for a gone segment);
   - 409 `Control has already changed.` (a control op the state doesn't allow);
   - 422 `That isn't allowed while driving.` (`ErrRefused`);
   - 400 on a malformed or oversized body;
-  - 410 once the cast has ended.
+  - 410 once the cast has ended (also the recorder closing under a request);
+  - 502 `The cast couldn't do that. Try again.` (`ErrInput`: a CDP input call or hit test failed; it wraps the cause);
+  - 503 `The cast is busy. Try again.` (the request's context ended while it waited on the recorder);
+  - 500 `Something went wrong.` for anything unmapped (a bug).
 
-  The sentences are fixed and never echo the request.
+  The sentences are fixed and never echo the request. Every 5xx is logged for the operator with its cause (the
+  cast's `Logf`, Couch's notice line; `Server.WithDriveLog`), once per distinct message (pair#505: every input
+  answered 500 and nothing said why).
 - **Limits:** a rate and in-flight budget per seat, as the pointer routes have (`broadcast`'s `RateLimit`, 4 in flight).
 
 **Confinement** (`drive.Confine`, every act, before anything is dispatched). What the page alone handles is allowed;
@@ -613,15 +655,20 @@ it dispatches, so a batch overtaken by a revoke is refused there (`ErrNotDriver`
 
 **As built (#467).** The injector's rules are stated once, in `drive.TabInjector`, over a `drive.Tab` seam: who
 drives, live and segment, `Confine`, then per act a hit test (`onTarget`: the element at the point is the aimed one
-or inside it, or an out-of-process frame's owner holding it) and the dispatch. The fake injector is the same rules
+or inside it, or an out-of-process frame's owner holding it) and the dispatch. A wheel skips the identity check
+(pair#516, the operator's call: it scrolls whatever is under the pointer, and a flick scrolls the tab ahead of the
+viewer); it keeps the bounds check, a point with nothing under it. The fake injector is the same rules
 over a reduced page. The real tab is the recorder (`Recorder.WithTab`). A batch is one queue input:
 - **Hold.** The recorder holds the in-page observer (`__couchcastHold(by)`, in every observer context of the cast
   tab) and records what it had pending without `by`. During the hold the observer tags everything it sends with
   `by`, through the binding and in order. A click goes at once, so one that follows a link is recorded before its
   document goes (a take can't reach a document that has gone).
 - **Dispatch.** CDP input (`cdpAct`: `Input.dispatchMouseEvent`/`dispatchKeyEvent` with editing commands for the
-  A/Z/Y chords, `insertText`, `imeSetComposition`). Hit tests use `DOM.getNodeForLocation`, without user-agent
-  shadow DOM: an input's inner editor isn't a recorded node.
+  A/Z/Y chords, `insertText`, `imeSetComposition`). Input coordinates are viewport px (the act's page px less the top
+  document's scroll). Hit tests use `DOM.getNodeForLocation` at the act's **page** px as they are (pair#505,
+  measured: it hit-tests document coordinates within the viewport; subtracting the scroll made every click after a
+  scroll stale), without user-agent shadow DOM: an input's inner editor isn't a recorded node. "No node found" is
+  stale; any other hit-test failure is `ErrInput`.
 - **Take.** `__couchcastTake` sends what is still coalesced, tagged, and returns nothing; it ends the hold. A
   tagged report ordered after control moved (a revoke between a batch and its reports) keeps the act and loses the
   attribution: the recorder writes it without `by`, since the stream can't state a driver who no longer drives.
@@ -676,5 +723,5 @@ recording. Seats and their keys are memory only: they end after the grace period
 - 2026-10-12 (#467, additive, as built): no record kind changes. `by` is stamped by the recorder from the
   observer's tagged reports during a driver's batch. `ctl` records come from the real controller through the
   recorder's queue, gated on the recording having opened. The hand-written `driven` fixture is replaced by
-  `rec-driven`, a recorded driven session. Two links: a view link (no drive routes) and a drive link (its own
-  token).
+  `rec-driven`, a recorded driven session. Two links then: a view link (no drive routes) and a drive link (its own
+  token). pair#506 later split the view link into view-only and pointer links (above).

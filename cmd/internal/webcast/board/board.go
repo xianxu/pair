@@ -22,15 +22,20 @@ import (
 	"sync"
 
 	"github.com/xianxu/pair/cmd/internal/broadcast"
+	"github.com/xianxu/pair/cmd/internal/webcast/capability"
 	"github.com/xianxu/pair/cmd/internal/webcast/notes"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
 var (
 	// ErrEnded: the cast is over (stop end).
-	ErrEnded = errors.New("board: the cast has ended")
+	ErrDisabled = errors.New("board: annotation is disabled")
+	ErrEnded    = errors.New("board: the cast has ended")
 	// ErrNotLive: no page has been cast yet.
 	ErrNotLive = errors.New("board: the cast hasn't shown a page yet")
+	// ErrPaused: the cast is paused; viewers do nothing until it resumes
+	// (pair#499).
+	ErrPaused = errors.New("board: the cast is paused")
 	// ErrStale: the viewer was showing another document, the element is
 	// gone, or a note's box is off the page.
 	ErrStale = errors.New("board: the page changed")
@@ -80,19 +85,30 @@ type Board struct {
 	palette []string
 	newID   func() string
 
-	mu      sync.Mutex
-	st      *recording.State
-	broken  error // the board's reducer refused a record: it can't trust its state
-	pending map[string]pending
-	subs    map[chan []LiveNote]struct{}
-	last    []LiveNote
-	closed  bool
+	command           sync.Mutex // serializes annotation validation/dispatch and cleanup
+	annotation        capability.CapabilityState
+	annotationProblem string
+	annotationCleanup AnnotationCleanup
+	annotationAttempt *annotationAttempt
+	annotationSubs    map[chan capability.Snapshot]struct{}
+	mu                sync.Mutex
+	st                *recording.State
+	broken            error // the board's reducer refused a record: it can't trust its state
+	pending           map[string]pending
+	subs              map[chan []LiveNote]struct{}
+	last              []LiveNote
+	closed            bool
+	operatorSubs      map[chan OperatorView]struct{}
+	operatorRevision  uint64
+	operatorSeq       uint64
+	operatorStrokes   []OperatorStroke
+	operatorDoc       int
 }
 
 // New makes a board that anchors notes with model and writes through emit.
 func New(model notes.Model, emit Emit) *Board {
 	return &Board{model: model, emit: emit, palette: broadcast.PointerPalette(), newID: randomID,
-		st: recording.NewState(), pending: map[string]pending{}, subs: map[chan []LiveNote]struct{}{}}
+		st: recording.NewState(), pending: map[string]pending{}, subs: map[chan []LiveNote]struct{}{}, annotationSubs: map[chan capability.Snapshot]struct{}{}}
 }
 
 func randomID() string {
@@ -124,6 +140,9 @@ func (b *Board) Put(r recording.Record) error {
 	// The board needs no strokes (nothing checks against them), so it
 	// doesn't keep them for the cast's life.
 	b.st.Strokes = b.st.Strokes[:0]
+	if _, ok := r.(*recording.AnnotationClear); ok {
+		clear(b.pending)
+	}
 	if n, ok := r.(*recording.Note); ok {
 		delete(b.pending, n.ID)
 	}
@@ -133,6 +152,7 @@ func (b *Board) Put(r recording.Record) error {
 		}
 	}
 	b.refreshLocked()
+	b.refreshOperatorLocked(r)
 	b.mu.Unlock()
 	return nil
 }
@@ -144,10 +164,21 @@ func (b *Board) Close() error {
 	defer b.mu.Unlock()
 	if !b.closed {
 		b.closed = true
+		b.annotation, _ = capability.NextCapability(b.annotation, capability.Event{Kind: capability.End})
+		b.publishAnnotationLocked()
+		for ch := range b.annotationSubs {
+			close(ch)
+		}
+		b.annotationSubs = nil
 		for ch := range b.subs {
 			close(ch)
 		}
 		b.subs = nil
+		b.refreshOperatorLocked(nil)
+		for ch := range b.operatorSubs {
+			close(ch)
+		}
+		b.operatorSubs = nil
 	}
 	return nil
 }
@@ -155,13 +186,40 @@ func (b *Board) Close() error {
 // Stroke writes one chunk of a viewer's stroke. Its record id is the
 // viewer's id and the stroke's, so two viewers' strokes never join.
 func (b *Board) Stroke(in StrokeIn) error {
+	a, err := b.AdmitAnnotation()
+	if err != nil {
+		return err
+	}
+	return a.Stroke(in)
+}
+
+func (a AnnotationAdmission) Stroke(in StrokeIn) error {
+	if a.board == nil {
+		return ErrDisabled
+	}
+	b := a.board
+	b.command.Lock()
+	defer b.command.Unlock()
 	b.mu.Lock()
-	doc, err := b.pageLocked(in.Seg)
+	if err := b.admissionLocked(a.permit); err != nil {
+		b.mu.Unlock()
+		return err
+	}
+	b.mu.Unlock()
+	return b.stroke(in, false, b.emit)
+}
+
+func (b *Board) stroke(in StrokeIn, operator bool, emit Emit) error {
+	if !strokeShape(in) {
+		return ErrShape
+	}
+	b.mu.Lock()
+	doc, err := b.annotationPageLocked(in.Seg, operator)
 	b.mu.Unlock()
 	if err != nil {
 		return err
 	}
-	return b.emit(&recording.Stroke{ID: in.Viewer.ID + "." + in.ID, Author: b.author(in.Viewer, in.Color),
+	return emit(&recording.Stroke{ID: in.Viewer.ID + "." + in.ID, Author: b.author(in.Viewer, in.Color),
 		Color: b.palette[in.Color], Pts: in.Pts}, doc)
 }
 
@@ -169,11 +227,39 @@ func (b *Board) Stroke(in StrokeIn) error {
 // notes model's for the element now, with the viewer's box; the note's box
 // is kept on the page (notes.ClampToPage).
 func (b *Board) Note(in NoteIn) (string, error) {
+	a, err := b.AdmitAnnotation()
+	if err != nil {
+		return "", err
+	}
+	return a.Note(in)
+}
+
+func (a AnnotationAdmission) Note(in NoteIn) (string, error) {
+	if a.board == nil {
+		return "", ErrDisabled
+	}
+	b := a.board
+	b.command.Lock()
+	defer b.command.Unlock()
 	b.mu.Lock()
-	doc, err := b.pageLocked(in.Seg)
+	if err := b.admissionLocked(a.permit); err != nil {
+		b.mu.Unlock()
+		return "", err
+	}
+	b.mu.Unlock()
+	return b.note(in, false, b.emit)
+}
+
+func (b *Board) note(in NoteIn, operator bool, emit Emit) (string, error) {
+	b.mu.Lock()
+	doc, err := b.annotationPageLocked(in.Seg, operator)
 	if err != nil {
 		b.mu.Unlock()
 		return "", err
+	}
+	if !noteShape(in) {
+		b.mu.Unlock()
+		return "", ErrShape
 	}
 	if b.st.Node(in.Node) == nil {
 		b.mu.Unlock()
@@ -200,7 +286,7 @@ func (b *Board) Note(in NoteIn) (string, error) {
 	b.mu.Unlock()
 
 	n := &recording.Note{ID: id, Author: b.author(in.Viewer, in.Color), Text: in.Text, At: at, Region: &region}
-	if err := b.emit(n, doc); err != nil {
+	if err := emit(n, doc); err != nil {
 		b.mu.Lock()
 		delete(b.pending, id)
 		b.mu.Unlock()
@@ -212,8 +298,38 @@ func (b *Board) Note(in NoteIn) (string, error) {
 // SetState resolves or reopens a note on the current document. Anyone may;
 // setting the state a note already has does nothing.
 func (b *Board) SetState(in StateIn) error {
+	a, err := b.AdmitAnnotation()
+	if err != nil {
+		return err
+	}
+	return a.SetState(in)
+}
+
+func (a AnnotationAdmission) SetState(in StateIn) error {
+	if a.board == nil {
+		return ErrDisabled
+	}
+	b := a.board
+	b.command.Lock()
+	defer b.command.Unlock()
 	b.mu.Lock()
-	doc, err := b.pageLocked(b.st.DocSeg)
+	if err := b.admissionLocked(a.permit); err != nil {
+		b.mu.Unlock()
+		return err
+	}
+	b.mu.Unlock()
+	return b.setState(in, 0, false, b.emit)
+}
+
+func (b *Board) setState(in StateIn, seg int, operator bool, emit Emit) error {
+	if !stateShape(in) {
+		return ErrShape
+	}
+	b.mu.Lock()
+	if !operator {
+		seg = b.st.DocSeg
+	}
+	doc, err := b.annotationPageLocked(seg, operator)
 	if err != nil {
 		b.mu.Unlock()
 		return err
@@ -221,17 +337,19 @@ func (b *Board) SetState(in StateIn) error {
 	var cur *recording.NoteView
 	for _, n := range b.model.Live(b.st) {
 		if n.ID == in.ID {
-			cur = n
+			copy := *n
+			cur = &copy
 		}
 	}
+	unchanged := cur != nil && cur.State == in.State
 	b.mu.Unlock()
 	switch {
 	case cur == nil:
 		return ErrUnknown
-	case cur.State == in.State:
+	case unchanged:
 		return nil
 	}
-	return b.emit(&recording.NoteState{ID: in.ID, State: in.State}, doc)
+	return emit(&recording.NoteState{ID: in.ID, State: in.State}, doc)
 }
 
 // Live is the open notes on the current document, oldest first.
@@ -264,8 +382,8 @@ func (b *Board) Subscribe() (<-chan []LiveNote, func()) {
 	}
 }
 
-// pageLocked admits a request made on segment seg: the cast is on a page,
-// hasn't ended, and seg is within the current document (a resume keeps the
+// pageLocked admits a request made on segment seg: the cast is live on a
+// page (not paused, not ended), and seg is within the current document (a resume keeps the
 // document, so a viewer a pause behind is still on it). It returns the
 // document's first segment, for the writer's check.
 func (b *Board) pageLocked(seg int) (int, error) {
@@ -278,6 +396,8 @@ func (b *Board) pageLocked(seg int) (int, error) {
 		return 0, ErrEnded
 	case b.st.Seg == 0:
 		return 0, ErrNotLive
+	case b.st.Paused():
+		return 0, ErrPaused
 	case seg < b.st.DocSeg || seg > b.st.Seg:
 		return 0, ErrStale
 	}

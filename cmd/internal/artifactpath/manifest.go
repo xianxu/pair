@@ -90,7 +90,6 @@ var ResolvedBindings = append([]ResolvedBinding{
 	{Name: "scoped-ledger", Family: "ledger", Resolver: "ResolveScoped", Member: "Ledger"},
 	{Name: "composite-switch-log", Family: "log", Resolver: "Resolve", Member: "Log"},
 	{Name: "composite-switch-ready", Family: "agent-ready", Resolver: "Resolve", Member: "AgentReadyChecked"},
-	{Name: "composite-switch-archive", Family: "parked-scrollback", Resolver: "Resolve", Member: "ParkedScrollbackArtifacts"},
 	{Name: "composite-slug-proposed", Family: "slug", Resolver: "Resolve", Member: "SlugProposed"},
 	{Name: "scoped-log", Family: "log", Resolver: "ResolveScoped", Member: "Log"},
 	{Name: "scoped-nvim-pid", Family: "nvim-pid", Resolver: "ResolveScoped", Member: "NvimPID"},
@@ -230,6 +229,8 @@ var Families = []Family{
 // shell, Lua, and KDL sources.
 // pair:m5-concept pure
 var SourceClassifications = []SourceClassification{
+	{Path: "cmd/internal/couchcmd/run.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/scrollbackcmd/bounded.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/pairlog/retention.go", Kind: ResolvedConsumer, Families: []string{"log"}, BindingNames: []string{"scoped-log"}, Vocabulary: []VocabularyAllowance{goCallVocabulary("log", "prompt-log-writer", "github.com/xianxu/pair/cmd/internal/storagegc.AcquireSelectedProcess", 2, 1)}},
 	{Path: "cmd/internal/orientation/model.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/couchcmd/shortcut_focus.go", Kind: ResolvedConsumer},
@@ -446,7 +447,7 @@ var SourceClassifications = []SourceClassification{
 		Families: []string{"session-binding", "pane"}, BindingNames: []string{"composite-scope-session-binding", "composite-pane-glob"}},
 	{Path: "cmd/internal/couchcore/slotsessions.go", Kind: ResolvedConsumer,
 		Families: []string{"session-binding", "thread-claim"}, BindingNames: []string{"selected-session-binding", "composite-thread-claim", "direct-thread-claim-recognition"}},
-	{Path: "cmd/internal/couchcore/switchcontext.go", Kind: ResolvedConsumer, Families: []string{"log", "agent-ready", "parked-scrollback"}, BindingNames: []string{"composite-switch-log", "composite-switch-ready", "composite-switch-archive"}},
+	{Path: "cmd/internal/couchcore/switchcontext.go", Kind: ResolvedConsumer, Families: []string{"log", "agent-ready"}, BindingNames: []string{"composite-switch-log", "composite-switch-ready"}},
 	{Path: "cmd/internal/couchcore/slug.go", Kind: ResolvedConsumer, Families: []string{"slug"}, BindingNames: []string{"composite-slug-proposed"}},
 	{Path: "cmd/internal/couchcore/park.go", Kind: ResolvedConsumer,
 		Families: []string{"lifecycle-completion", "lifecycle-request"}, BindingNames: []string{"composite-lifecycle-completion", "composite-lifecycle-request"}},
@@ -549,6 +550,10 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/changelog.lua", Kind: GeneratedMirror, Families: []string{"changelog"}},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/confirm_quit.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/doctor.lua", Kind: GeneratedMirror},
+	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/dom_submission.lua", Kind: GeneratedMirror},
+	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/dom_submission_state.lua", Kind: GeneratedMirror},
+	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/pane_identity.lua", Kind: GeneratedMirror},
+	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/dom_transport.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/draft_send.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/init.lua", Kind: GeneratedMirror, Families: []string{"draft"}},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/interrupt.lua", Kind: GeneratedMirror},
@@ -601,6 +606,15 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	// #531 launch diagnostics live under CouchNamespace, outside the checked
+	// Pair artifact filename families; the remaining files model/render evidence.
+	"cmd/internal/couchcmd/launchfailure.go",
+	"cmd/internal/couchcore/launchfailure.go",
+	"cmd/internal/couchcore/launchfailure_capture.go",
+	"cmd/internal/couchcore/launchfailure_show.go",
+	"cmd/internal/couchcore/launchfailure_store.go",
+	"cmd/internal/couchcore/launchfailure_store_fake.go",
+	"cmd/internal/couchcore/launchoutput.go",
 	"cmd/internal/couchcmd/capture.go",
 	"cmd/internal/couchtty/capture.go",
 	"cmd/internal/terminal/observation.go",
@@ -669,6 +683,11 @@ var NonArtifactSources = []string{
 	// #454 shared cast endpoint and its event stream; in memory, no paths.
 	"cmd/internal/broadcast/host.go",
 	"cmd/internal/broadcast/sse.go",
+	// #495 code lock on cast links: codes and sessions in memory, the gate
+	// in the Host; no artifact paths.
+	"cmd/internal/broadcast/lockgate.go",
+	"cmd/internal/broadcast/linklocks.go",
+	"cmd/internal/castlock/castlock.go",
 	// #454 web cast: a CDP client over Chrome's pipe, and Couch's control of
 	// the cast Chrome. Its profile lives in Couch's store
 	// (<store>/webcast/chrome-profile), like the broadcast's run records; no
@@ -677,13 +696,32 @@ var NonArtifactSources = []string{
 	"cmd/internal/cdp/doc.go",
 	"cmd/internal/cdp/frame.go",
 	"cmd/internal/couchcmd/webcast.go",
+	"cmd/internal/couchcmd/privacy.go",
 	"cmd/internal/couchtty/console_webcast.go",
+	"cmd/internal/couchtty/console_castcodes.go",
+	"cmd/internal/couchtty/codes_menu.go",
 	"cmd/internal/webcast/browser.go",
 	"cmd/internal/webcast/cast.go",
+	// #523: capability admission, ordered stream operations and projections;
+	// cast lifetime state only, no new artifact paths.
+	"cmd/internal/webcast/board/annotation.go",
+	"cmd/internal/webcast/capability/failure.go",
+	"cmd/internal/webcast/capability/presentation.go",
+	"cmd/internal/webcast/capability/state.go",
+	"cmd/internal/webcast/cast_capabilities.go",
+	"cmd/internal/webcast/drive/capability.go",
+	"cmd/internal/webcast/recorder/capability.go",
+	"cmd/internal/webcast/recorder/control.go",
+	"cmd/internal/webcast/recording/annotations.go",
+	"cmd/internal/webcast/server_capabilities.go",
 	"cmd/internal/webcast/chrome.go",
+	"cmd/internal/webcast/chrome_operator.go",
+	"cmd/internal/webcast/operator_script.go",
 	"cmd/internal/webcast/chrome_find.go",
 	"cmd/internal/webcast/doc.go",
 	"cmd/internal/webcast/fake.go",
+	// pair#506: which cast link a request came under; tokens in memory only.
+	"cmd/internal/webcast/link.go",
 	"cmd/internal/webcast/publish.go",
 	"cmd/internal/webcast/server.go",
 	// #470: the board's POST routes; they write only through the board.
@@ -692,6 +730,21 @@ var NonArtifactSources = []string{
 	"cmd/internal/webcast/stream.go",
 	"cmd/internal/webcast/tracker.go",
 	"cmd/internal/webcast/translate.go",
+	// #483 DOM submissions are portable evidence bundles in Couch's namespace
+	// (<store>/webcast/submissions/<id>), not tag-bearing Pair artifacts. Their
+	// model, capture/board adapters and RPCs introduce no Pair artifact family.
+	"cmd/internal/submission/delivery.go",
+	"cmd/internal/submission/model.go",
+	"cmd/internal/submission/privacy.go",
+	"cmd/internal/submission/store.go",
+	"cmd/internal/couchcmd/submission.go",
+	"cmd/internal/couchtty/console_submission.go",
+	"cmd/internal/webcast/board/submission.go",
+	"cmd/internal/webcast/cast_submission.go",
+	"cmd/internal/webcast/chrome_submission.go",
+	"cmd/internal/webcast/recorder/submission.go",
+	"cmd/internal/webcast/recorder/capture_ready.go",
+	"cmd/internal/webcast/submission/build.go",
 	// #457 recording format and the wave-1 seams: pure records, reducer and
 	// validator; DirWriter writes a recording into the directory its caller
 	// names (the recorder, #458, chooses it under Couch's store), so no Pair
@@ -717,6 +770,8 @@ var NonArtifactSources = []string{
 	// #470 board: viewers' strokes and notes become records through the
 	// cast's recorder (its Emit); the board writes no files itself.
 	"cmd/internal/webcast/board/board.go",
+	"cmd/internal/webcast/board/operator.go",
+	"cmd/internal/webcast/board/operator_view.go",
 	"cmd/internal/webcast/board/wire.go",
 	"cmd/internal/webcast/board/writer.go",
 	// #471 replay: reads recordings under <store>/webcast/recordings (or a
@@ -775,6 +830,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/webcast/recorder/observe.go",
 	"cmd/internal/webcast/recorder/recorder.go",
 	"cmd/internal/webcast/recorder/side.go",
+	"cmd/internal/webcast/recorder/operator.go",
+	"cmd/internal/webcast/recorder/ui_capture.go",
 	// #466 remote-driving contract: input wire, confinement, control and
 	// injection seams with fakes; seats are memory only, no artifact paths.
 	"cmd/internal/webcast/drive/act.go",
@@ -799,6 +856,10 @@ var NonArtifactSources = []string{
 	"cmd/internal/webcast/server_drive.go",
 	"cmd/internal/webcast/recorder/drive.go",
 	"cmd/internal/webcast/recorder/drive_cdp.go",
+	// #501 go to Chrome: activates the cast Chrome's process by PID. No
+	// files, no paths.
+	"cmd/internal/webcast/activate_darwin.go",
+	"cmd/internal/webcast/activate_other.go",
 	"cmd/internal/ptychild/publication.go",
 	"cmd/internal/ptychild/terminal.go",
 	"cmd/internal/runtimebundle/terminal.go",
@@ -807,6 +868,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchtty/terminal_input.go",
 	// #395 broadcast control: phase, tap and session lifecycle; no artifact paths.
 	"cmd/internal/couchtty/console_broadcast.go",
+	"cmd/internal/couchtty/cast_control.go",
 	"cmd/internal/couchtty/console_pointer.go",
 	"cmd/internal/couchtty/console_notes.go",
 	// #502 slot renicer: the process table and setpriority; the agent-pid
@@ -927,7 +989,6 @@ var NonArtifactSources = []string{
 	"cmd/internal/contextcmd/contextcmd.go",
 	"cmd/internal/continuationcmd/git.go",
 	"cmd/internal/couchcmd/cli.go",
-	"cmd/internal/couchcmd/run.go",
 	"cmd/internal/couchkeys/couchkeys.go",
 	"cmd/internal/couchcore/actionableinventory.go",
 	"cmd/internal/couchcore/threadreason.go",
@@ -1014,6 +1075,8 @@ var NonArtifactSources = []string{
 	// #362 peek: projects a thread's recording and transcripts through
 	// injected readers (scrollbackcmd, OSSwitchContextResolver); no paths here.
 	"cmd/internal/couchcore/peek.go",
+	"cmd/internal/couchcore/peek_selection.go",
+	"cmd/internal/couchcore/previous_session.go",
 	// #367 recover-plan: the sdlc fleet decoder, its source and fake, the
 	// resume/reboot admission table and the pure join. No artifact paths.
 	"cmd/internal/couchcore/recoverplan_fleet.go",
@@ -1024,6 +1087,9 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/slot_operation.go",
 	"cmd/internal/couchtty/console_remote.go",
 	"cmd/internal/couchcmd/slot_operations.go",
+	// #517 authenticated switch admission and receipt CLI use owners, not artifact paths.
+	"cmd/internal/couchcmd/agent_switch_service.go",
+	"cmd/internal/couchcmd/switch_agent_cli.go",
 	"cmd/internal/couchcore/store.go",
 	"cmd/internal/couchcore/storejournal.go",
 	"cmd/internal/couchcore/storelock.go",
@@ -1188,6 +1254,9 @@ var NonArtifactSources = []string{
 	"cmd/internal/sessioninventory/handshake.go",
 	"cmd/internal/sessioninventory/inventory.go",
 	"cmd/internal/sessioninventory/incremental_inventory.go",
+	// #507: owners' current launches cached by ledger fingerprint, in
+	// memory; holds no paths of its own.
+	"cmd/internal/sessioninventory/launch_cache.go",
 	"cmd/internal/sessioninventory/jsonl_incremental.go",
 	"cmd/internal/sessioninventory/model.go",
 	"cmd/internal/sessioninventory/offline.go",
@@ -1225,6 +1294,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/textwidth/textwidth.go",
 	"cmd/internal/threadrecord/lifecycle.go",
 	"cmd/internal/threadrecord/record.go",
+	"cmd/internal/threadrecord/previous_session.go",
 	"cmd/internal/titlepoller/runcli.go",
 	"cmd/internal/titlepoller/titlepoller.go",
 	"cmd/internal/workbenchshortcut/generatecmd/main.go",
@@ -1270,6 +1340,12 @@ var NonArtifactSources = []string{
 	"nvim/bang_tag.lua",
 	"nvim/confirm_quit.lua",
 	"nvim/doctor.lua",
+	// #483 Lua carries the manifest path returned by Couch and pins a pane;
+	// it does not construct or read any tag-bearing Pair artifact filename.
+	"nvim/dom_submission.lua",
+	"nvim/dom_submission_state.lua",
+	"nvim/pane_identity.lua",
+	"nvim/dom_transport.lua",
 	"nvim/draft_send.lua",
 	"nvim/interrupt.lua",
 	"nvim/lifecycle_command.lua",

@@ -24,6 +24,7 @@ function promised(m) {
     canonical: goJSON(m.canonical()),
     docSeg: m.docSeg,
     notes: m.notes.filter((n) => n.seg >= m.docSeg).map((n) => [n.note.id, n.state]),
+    strokes: m.strokes.filter((s) => s.seg >= m.docSeg).map((s) => s.stroke),
     assets: [...m.assets].map(([u, a]) => [u, a.hash]).sort(),
     hover: m.hover,
     ptr: m.ptr && [m.ptr.x, m.ptr.y],
@@ -76,6 +77,25 @@ test('catchUp keeps exactly what recording.CatchUp keeps, at every cut of the co
 test('synthetic: the catch-up of every prefix reduces to what the prefix does', () => {
   for (let i = 1; i <= synthetic.length; i++) {
     assert.deepEqual(promised(reduce(catchUp(synthetic.slice(0, i)))), promised(reduce(synthetic.slice(0, i))), `cut ${i}`);
+  }
+});
+
+const capabilityRecords = readFileSync(new URL('../../cmd/internal/webcast/recording/testdata/capability-events.jsonl', import.meta.url), 'utf8')
+  .trim().split('\n').map(JSON.parse);
+
+test('capability clears survive catch-up at every prefix, including a later resume', () => {
+  for (let i = 1; i <= capabilityRecords.length; i++) {
+    const prefix = capabilityRecords.slice(0, i);
+    assert.deepEqual(promised(reduce(catchUp(prefix))), promised(reduce(prefix)), `cut ${i}`);
+  }
+});
+
+test('seeking across a capability clear preserves history without resurrecting cleared marks', () => {
+  const p = new Player(capabilityRecords, { renderer: fakeRenderer({ renderers: 0, revoked: 0 }) });
+  for (const t of [8, 1, 7, 6, 4, 9, 0, 8]) {
+    p.seek(t);
+    assert.equal(p.error, null);
+    assert.deepEqual(promised(p.model), promised(reduce(capabilityRecords.filter((r) => r.t <= t))), `seek ${t}`);
   }
 });
 

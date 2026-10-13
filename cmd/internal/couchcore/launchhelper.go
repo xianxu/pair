@@ -44,10 +44,15 @@ func startBlockedChild(ctx context.Context, start blockedChildStarter, helper st
 	h, err := start(dir, launchHelperArgv(helper, timeout, argv), env, []*os.File{reader})
 	closeErr := reader.Close()
 	if err != nil {
+		// A starter may fail after obtaining a handle. Keep its evidence and
+		// close acknowledgement just as for the other post-start failures.
+		if h != nil {
+			return nil, failedBlockedStart(h, errors.Join(err, closeErr), newAcknowledgedHandle(h, writer).Cancel)
+		}
 		return nil, errors.Join(err, closeErr, writer.Close())
 	}
 	if closeErr != nil {
-		return nil, errors.Join(closeErr, newAcknowledgedHandle(h, writer).Cancel())
+		return nil, failedBlockedStart(h, closeErr, newAcknowledgedHandle(h, writer).Cancel)
 	}
 	blocked := newAcknowledgedHandle(h, writer)
 	return blocked, nil
@@ -203,4 +208,11 @@ func (h *acknowledgedHandle) resolve(acknowledge bool) error {
 	}
 	_, writeErr := writer.Write([]byte{launchAckByte})
 	return errors.Join(writeErr, writer.Close())
+}
+
+func (h *acknowledgedHandle) LaunchOutput() (string, []byte) {
+	if output, ok := h.Handle.(LaunchOutputHandle); ok {
+		return output.LaunchOutput()
+	}
+	return "", nil
 }

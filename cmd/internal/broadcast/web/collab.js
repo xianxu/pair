@@ -55,8 +55,9 @@ export function safeStorage(storage) {
 }
 
 // poster makes a page's one request function: same origin, a relative
-// route from routes, no credentials, no referrer, plus any headers (a
-// remote-driving seat's key, #467). It resolves to the status and the
+// route from routes, the link's session cookie (same-origin credentials,
+// pair#495), no referrer, plus any headers (a remote-driving seat's key,
+// #467). It resolves to the status and the
 // response text (a refusal sentence the page shows).
 export function poster(fetchFn, routes, headers = {}) {
   return (route, body) => {
@@ -67,11 +68,43 @@ export function poster(fetchFn, routes, headers = {}) {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-      credentials: 'omit',
+      credentials: 'same-origin',
       referrerPolicy: 'no-referrer',
       cache: 'no-store',
     }).then(async (r) => ({ status: r.status, text: await r.text() }));
   };
+}
+
+// sessionLost asks the link whether this page's session still holds
+// (pair#495): the gate answers `session` with 204 for a live session and 401
+// once the code was rotated. Anything else -- the network, the cast gone --
+// is not a lost session, so the caller's own retry handles it.
+export async function sessionLost(fetchFn) {
+  try {
+    const r = await fetchFn('session', { credentials: 'same-origin', cache: 'no-store', referrerPolicy: 'no-referrer' });
+    return r.status === 401;
+  } catch {
+    return false;
+  }
+}
+
+// A viewer's name, as every cast page keeps it (pair#495): the lock page
+// asks it with the code, and the web viewer's notes carry it. One key and one
+// rule, the board's (webcast/board wire.go nameText): plain, one line, at
+// most MAX_VIEWER_NAME characters.
+export const VIEWER_NAME_KEY = 'couch.viewerName';
+export const MAX_VIEWER_NAME = 40;
+
+// validName is a name the board takes, trimmed, or '' for none.
+export function validName(v) {
+  const n = String(v).trim();
+  return [...n].length <= MAX_VIEWER_NAME && !/[\p{Cc}\p{Cf}]/u.test(n) ? n : '';
+}
+
+// storedName is the name this browser's viewer gave the lock page, as the
+// board takes it, or ''. Read through safeStorage: storage may be missing.
+export function storedName(storage) {
+  return validName(safeStorage(storage).get(VIEWER_NAME_KEY) || '');
 }
 
 // RAIL_INSET is the gap between the rail and the screen's right edge.
@@ -114,7 +147,7 @@ export const MAX_NOTE_BYTES = 1024;
 // cells it touched, and a box is at least the pin's two cells), the web
 // cast in top-page CSS px. view is the screen shown, {x, y, w, h}; min is
 // how far (either axis) a drag must go to be one (DRAG_MIN). The box is
-// [x, y, w, h], inside view.
+// [x, y, w, h], inside view. preview suppresses the tap box until release.
 export const DRAG_MIN = {
   cells: { mouse: 1, touch: 2 },
   px: { mouse: 8, touch: 16 },
@@ -124,8 +157,22 @@ export function dragMin(unit, pointerType) {
   return DRAG_MIN[unit][pointerType === 'touch' ? 'touch' : 'mouse'];
 }
 
-export function gestureBox(from, to, view, { min, cells = false }) {
+// A note press becomes a drag once it crosses the pixel threshold; moving
+// back never turns it into a click. The owner discards it on release/cancel.
+export function noteGesture(from, pointerType) {
+  return {
+    from, to: from, pointerType, dragged: false,
+    move(to) {
+      this.to = to;
+      const min = dragMin('px', this.pointerType);
+      this.dragged ||= Math.abs(to[0] - this.from[0]) >= min || Math.abs(to[1] - this.from[1]) >= min;
+    },
+  };
+}
+
+export function gestureBox(from, to, view, { min, cells = false, preview = false }) {
   const tap = Math.abs(to[0] - from[0]) < min && Math.abs(to[1] - from[1]) < min;
+  if (preview && tap) return null; // a click has no box until release
   const minW = cells ? 2 : 1, minH = 1;
   const axis = (a, b, origin, size, least) => {
     if (tap) {
@@ -163,7 +210,8 @@ export function noteBytes(text) {
 // Promise<{status, text}>, color() → the viewer's pointer color, and
 // optionally resolveRequest(id) → [route, body] (default ['resolve', {id}])
 // and beforeSave() → an object merged into the note body last, or null to
-// stop the save (the web cast's name field).
+// stop the save (the web cast's name field). onClose notifies a preview owner;
+// draftPayload exposes the current draft for drawing its box without copying it.
 //   draft(payload)             a new note; Save posts 'note' with payload,
 //                              color and text (the terminal's payload is its
 //                              cell and grid, the web cast's its anchor)
@@ -171,9 +219,13 @@ export function noteBytes(text) {
 //   update(list)               a new notes list: a viewed note that is gone
 //                              (resolved elsewhere, or pointing turned off)
 //                              closes its dialog
+//   hold(reason)               a non-empty reason disables Save and Resolve
+//                              and says why (a paused web cast, pair#499);
+//                              '' releases it. A draft keeps its text.
 //   close()
 export function noteDialog(els, deps) {
   let state = null; // {kind: 'draft', payload} | {kind: 'view', id}
+  let held = ''; // why Save and Resolve are off; '' when they are on
   const resolveRequest = deps.resolveRequest || ((id) => ['resolve', { id }]);
   // Each open bumps the generation; a request's answer applies only to the
   // dialog that sent it, not to one opened since.
@@ -185,7 +237,7 @@ export function noteDialog(els, deps) {
   const refreshCount = () => {
     const n = noteBytes(els.input.value);
     els.count.textContent = `${n} / ${MAX_NOTE_BYTES}`;
-    els.save.disabled = n === 0 || n > MAX_NOTE_BYTES || els.input.value.trim() === '';
+    els.save.disabled = held !== '' || n === 0 || n > MAX_NOTE_BYTES || els.input.value.trim() === '';
   };
   const close = () => {
     gen++;
@@ -193,6 +245,7 @@ export function noteDialog(els, deps) {
     els.input.value = '';
     say('');
     show(false);
+    deps.onClose?.();
   };
   const answer = (req, onDone) => {
     const sent = gen;
@@ -222,7 +275,7 @@ export function noteDialog(els, deps) {
       .finally(() => state?.kind === 'draft' && refreshCount());
   });
   els.resolve.addEventListener('click', () => {
-    if (state?.kind === 'view') {
+    if (state?.kind === 'view' && held === '') {
       answer(deps.post(...resolveRequest(state.id)), close);
     }
   });
@@ -239,7 +292,7 @@ export function noteDialog(els, deps) {
       els.root.classList.remove('view');
       els.text.textContent = '';
       els.input.value = '';
-      say('');
+      say(held);
       els.resolve.classList.add('hidden');
       els.save.classList.remove('hidden');
       els.cancel.textContent = 'Cancel';
@@ -253,8 +306,9 @@ export function noteDialog(els, deps) {
       els.root.classList.add('view');
       els.root.classList.remove('draft');
       els.text.textContent = note.text;
-      say('');
+      say(held);
       els.resolve.classList.toggle('hidden', !resolvable);
+      els.resolve.disabled = held !== '';
       els.save.classList.add('hidden');
       els.cancel.textContent = 'Close';
       show(true);
@@ -266,24 +320,36 @@ export function noteDialog(els, deps) {
         close();
       }
     },
+    hold(reason) {
+      const was = held;
+      held = reason || '';
+      els.resolve.disabled = held !== '';
+      if (state?.kind === 'draft') {
+        refreshCount();
+      }
+      if (state && held !== was) {
+        say(held);
+      }
+    },
     close,
     get open() {
       return state !== null;
     },
+    get draftPayload() { return state?.kind === 'draft' ? state.payload : null; },
   };
 }
 
 // sayer is a page's one status toast: a sentence shown for a moment (a
 // refused request no dialog is open for). Every module of the page shares
 // the one element, so two never overlap.
-export function sayer(doc, win) {
-  let toast = doc.querySelector('.annotate-msg');
+export function sayer(doc, win, root = doc.body) {
+  let toast = root.querySelector('.annotate-msg');
   if (!toast) {
     toast = doc.createElement('div');
     toast.className = 'annotate-msg';
     toast.setAttribute('role', 'status');
     toast.hidden = true;
-    doc.body.append(toast);
+    root.append(toast);
   }
   return (text) => {
     toast.textContent = text;

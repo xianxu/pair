@@ -32,6 +32,10 @@ func TestLiveDriveNavigation(t *testing.T) {
 	}
 	time.Sleep(500 * time.Millisecond)
 	ctrl := drive.NewMemController(liveGate{c}, drive.NewTabInjector(c), func() int64 { return 0 }, time.Minute)
+	ctrl.WithControlReset(c.ResetControl)
+	if err := ctrl.SetDriveAllowed(context.Background(), true); err != nil {
+		t.Fatal(err)
+	}
 	defer ctrl.Close()
 	seat, _ := ctrl.Join("Ana")
 	ctrl.Request(seat.Key)
