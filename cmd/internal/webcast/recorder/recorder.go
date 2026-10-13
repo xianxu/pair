@@ -97,6 +97,7 @@ type Options struct {
 type (
 	// Event is a CDP event of any session, as read (Seq from cdp.Event).
 	Event struct {
+		annotation      board.AnnotationAdmission // captured at binding ingress, never refreshed on dispatch
 		Session, Method string
 		Params          json.RawMessage
 		Seq             uint64
@@ -282,6 +283,15 @@ func (r *Recorder) Send(in any) {
 // enqueue is the one way into the queue: Send, ask and the side workers'
 // results. False once closing.
 func (r *Recorder) enqueue(in any, bounded bool) bool {
+	// Board is a leaf lock; capture before queue ownership. A binding waiting
+	// across Off/On must retain its original admission generation.
+	if e, ok := in.(Event); ok && r.opts.Operator != nil {
+		if _, req, operator := operatorMessage(e); operator && req.Op != "status" && req.Op != "cancel-draft" {
+			e.annotation, _ = r.opts.Operator.AdmitAnnotation()
+			in = e
+		}
+	}
+
 	at := r.opts.Now()
 	r.mu.Lock()
 	defer r.mu.Unlock()

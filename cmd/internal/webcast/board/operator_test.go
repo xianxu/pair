@@ -1,12 +1,14 @@
 package board
 
 import (
+	"context"
 	"errors"
-	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 	"strconv"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
 func TestOperatorParserClosedShapes(t *testing.T) {
@@ -34,7 +36,7 @@ func TestOperatorSettlementAndReservation(t *testing.T) {
 	r := newRig(t).page(recording.SegLive)
 	var settle func(OperatorOutcome, error)
 	writes := 0
-	s := r.bd.NewOperator(func(rec recording.Record, doc int, done func(OperatorOutcome, error)) error {
+	s := r.bd.NewOperator(func(rec recording.Record, doc int, _ AnnotationAdmission, done func(OperatorOutcome, error)) error {
 		writes++
 		settle = done
 		return nil
@@ -65,7 +67,7 @@ func TestOperatorSettlementAndReservation(t *testing.T) {
 }
 func TestOperatorWritesIdentityAndAdmission(t *testing.T) {
 	r := newRig(t).page(recording.SegLive)
-	s := r.bd.NewOperator(func(rec recording.Record, doc int, done func(OperatorOutcome, error)) error {
+	s := r.bd.NewOperator(func(rec recording.Record, doc int, _ AnnotationAdmission, done func(OperatorOutcome, error)) error {
 		err := r.w.Emit(rec, doc)
 		if err != nil {
 			done(OperatorRefused, err)
@@ -120,7 +122,7 @@ func TestOperatorViewLatestAndCopies(t *testing.T) {
 func TestOperatorIDsBoundedAndPayloadBound(t *testing.T) {
 	r := newRig(t).page(recording.SegLive)
 	writes := 0
-	s := r.bd.NewOperator(func(rec recording.Record, doc int, done func(OperatorOutcome, error)) error {
+	s := r.bd.NewOperator(func(rec recording.Record, doc int, _ AnnotationAdmission, done func(OperatorOutcome, error)) error {
 		writes++
 		done(OperatorAccepted, nil)
 		return nil
@@ -151,7 +153,7 @@ func TestOperatorIDsBoundedAndPayloadBound(t *testing.T) {
 func TestOperatorUnknownBlocksAndAsyncRaces(t *testing.T) {
 	r := newRig(t).page(recording.SegLive)
 	var done func(OperatorOutcome, error)
-	s := r.bd.NewOperator(func(rec recording.Record, doc int, settle func(OperatorOutcome, error)) error {
+	s := r.bd.NewOperator(func(rec recording.Record, doc int, _ AnnotationAdmission, settle func(OperatorOutcome, error)) error {
 		done = settle
 		return nil
 	})
@@ -177,7 +179,7 @@ func TestOperatorUnknownBlocksAndAsyncRaces(t *testing.T) {
 }
 func TestOperatorPauseStaleAndResolve(t *testing.T) {
 	r := newRig(t).page(recording.SegLive)
-	s := r.bd.NewOperator(func(rec recording.Record, doc int, done func(OperatorOutcome, error)) error {
+	s := r.bd.NewOperator(func(rec recording.Record, doc int, _ AnnotationAdmission, done func(OperatorOutcome, error)) error {
 		err := r.w.Emit(rec, doc)
 		if err != nil {
 			done(OperatorRefused, err)
@@ -281,7 +283,7 @@ func TestOperatorUnknownNoteReconcilesOnlyObservedStableID(t *testing.T) {
 			var submitted recording.Record
 			var doc int
 			writes := 0
-			s := r.bd.NewOperator(func(rec recording.Record, d int, done func(OperatorOutcome, error)) error {
+			s := r.bd.NewOperator(func(rec recording.Record, d int, _ AnnotationAdmission, done func(OperatorOutcome, error)) error {
 				writes++
 				submitted = rec
 				doc = d
@@ -353,7 +355,7 @@ func TestOperatorUnknownResolveRemainsConservative(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := r.bd.NewOperator(func(rec recording.Record, doc int, done func(OperatorOutcome, error)) error {
+	s := r.bd.NewOperator(func(rec recording.Record, doc int, _ AnnotationAdmission, done func(OperatorOutcome, error)) error {
 		if err := r.w.Emit(rec, doc); err != nil {
 			return err
 		}
@@ -363,5 +365,34 @@ func TestOperatorUnknownResolveRemainsConservative(t *testing.T) {
 	s.SetState("1", r.seg(), StateIn{ID: id, State: recording.NoteResolved})
 	if got := s.Status("1"); got.Outcome != OperatorUnknown {
 		t.Fatalf("target state alone attributed to this resolve: %+v", got)
+	}
+}
+
+func TestOperatorDefaultOffRefusesMutation(t *testing.T) {
+	b := New(nil, nil)
+	calls := 0
+	op := b.NewOperator(func(recording.Record, int, AnnotationAdmission, func(OperatorOutcome, error)) error {
+		calls++
+		return nil
+	})
+	got := op.Stroke("1", StrokeIn{Seg: 1, ID: "pen", Pts: [][3]float64{{1, 2, 0}}})
+	if got.Outcome != OperatorRefused || got.Error != ErrDisabled.Error() || calls != 0 {
+		t.Fatalf("disabled operator: %+v calls=%d", got, calls)
+	}
+}
+
+func TestOperatorProjectionClearsTransientStrokes(t *testing.T) {
+	r := newRig(t).page(recording.SegLive)
+	if err := r.bd.Stroke(StrokeIn{Viewer: ana, Seg: r.seg(), ID: "pen", Color: 0, Pts: [][3]float64{{1, 2, 0}}}); err != nil {
+		t.Fatal(err)
+	}
+	if len(r.bd.OperatorView().Strokes) != 1 {
+		t.Fatal("missing stroke")
+	}
+	if err := r.bd.SetAnnotationAllowed(context.Background(), false); err != nil {
+		t.Fatal(err)
+	}
+	if len(r.bd.OperatorView().Strokes) != 0 {
+		t.Fatal("clear left operator stroke replay")
 	}
 }

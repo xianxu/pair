@@ -43,6 +43,18 @@ func (b *Board) AdmitAnnotation() (AnnotationAdmission, error) {
 	return AnnotationAdmission{board: b, permit: p}, nil
 }
 
+// Check rechecks captured authority without acquiring the dispatch lock. The
+// recorder uses it at its ordered write boundary: taking command there would
+// deadlock cleanup, which holds command while awaiting the recorder.
+func (a AnnotationAdmission) Check() error {
+	if a.board == nil {
+		return ErrDisabled
+	}
+	a.board.mu.Lock()
+	defer a.board.mu.Unlock()
+	return a.board.admissionLocked(a.permit)
+}
+
 func (b *Board) admissionLocked(p capability.Permit) error {
 	if b.closed {
 		return ErrClosed

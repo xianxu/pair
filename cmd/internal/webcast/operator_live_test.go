@@ -8,6 +8,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -47,6 +48,7 @@ func TestOperatorLiveAnnotation(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer c.Close()
+	bd.WithAnnotationCleanup(c.rec.ClearAnnotations)
 	if err = c.SetLive(true); err != nil {
 		t.Fatal(err)
 	}
@@ -131,21 +133,39 @@ func TestOperatorLiveAnnotation(t *testing.T) {
 	if string(eval(`!!testRoot.querySelector('.annotate-rail')`)) != "true" {
 		t.Fatal("shared UI did not mount")
 	}
-	// Wait for the authoritative projection to make annotation available.
-	for time.Now().Before(deadline) {
-		if string(eval(`!testRoot.querySelector('.mode').disabled`)) == "true" {
-			break
-		}
-		time.Sleep(20 * time.Millisecond)
+	// Authority starts Off, even with a ready recording projection.
+	if err = c.SetAnnotationMode("note"); err == nil {
+		t.Fatal("default-off overlay accepted Note")
 	}
-	eval(`__couchcastAnnotationAllowed(false)`)
+	if string(eval(`testRoot.querySelector('.mode').disabled`)) != "true" {
+		t.Fatal("default-off rail enabled")
+	}
+	if err = bd.SetAnnotationAllowed(context.Background(), true); err != nil {
+		t.Fatal(err)
+	}
+	waitPermission := func(allowed bool) {
+		t.Helper()
+		until := time.Now().Add(5 * time.Second)
+		for time.Now().Before(until) {
+			if string(eval(`!testRoot.querySelector('.mode').disabled`)) == strconv.FormatBool(allowed) {
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		t.Fatal("permission projection did not settle")
+	}
+	waitPermission(true)
+	if err = bd.SetAnnotationAllowed(context.Background(), false); err != nil {
+		t.Fatal(err)
+	}
+	waitPermission(false)
 	if err = c.SetAnnotationMode("note"); err == nil {
 		t.Fatal("capability-off overlay accepted Note")
 	}
-	if string(eval(`testRoot.querySelector('.mode').disabled`)) != "true" {
-		t.Fatal("capability-off rail still enabled")
+	if err = bd.SetAnnotationAllowed(context.Background(), true); err != nil {
+		t.Fatal(err)
 	}
-	eval(`__couchcastAnnotationAllowed(true)`)
+	waitPermission(true)
 	// Couch's mode command preserves page focus; Escape must still reach the
 	// isolated overlay, rather than requiring a focused shadow-root control.
 	for _, mode := range []string{"point", "note"} {

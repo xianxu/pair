@@ -105,13 +105,19 @@ export function mountOperator({ host, root, report }, { annotate, palette, css }
     return { draft: reply.draft };
   };
   const ui = annotate.mountAnnotation(doc, win, view, {
-    root, box, stage: box, palette, operator: true, post, prepareDraft,
+    root, box, stage: box, palette, operator: true, annotationAllowed: false, post, prepareDraft,
     who: { id: () => 'operator', name: () => 'Operator', viewer: () => ({ id: 'operator', name: 'Operator' }) },
     colors: { get: () => picked, set: (n) => { picked = n; } },
   });
   // #523 supplies this capability input through CDP in the isolated world.
   // Keep it independent of view snapshots; no switch or authority is added here.
-  win.__couchcastAnnotationAllowed = (allowed) => ui.setAnnotationAllowed(allowed);
+  win.__couchcastAnnotationAllowed = (allowed) => {
+    // Delivery revisions suppress duplicate calls. A new generation can arrive
+    // as true after a coalesced Off/On; no old local stroke may return with it.
+    ui.strokes.clear();
+    ui.setAnnotationAllowed(allowed, true);
+    callback({ k: 'view', t: 0 }, view.model); // repaint the cleared store
+  };
   win.__couchcastOperatorReply = (reply) => transport.reply(reply);
   win.__couchcastOperatorMode = (mode) => { ui.setMode(mode); return ui.mode === mode; };
   win.__couchcastOperatorView = (snapshot) => {

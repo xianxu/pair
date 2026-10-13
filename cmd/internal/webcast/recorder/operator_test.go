@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/webcast/board"
+	"github.com/xianxu/pair/cmd/internal/webcast/capability"
 	"github.com/xianxu/pair/cmd/internal/webcast/notes"
 	rec "github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
@@ -14,6 +15,10 @@ import (
 func operatorHarness(t *testing.T) (*harness, *board.Board, chan OperatorReply) {
 	h := newHarness(t)
 	b := board.New(notes.Structural{}, nil)
+	b.WithAnnotationCleanup(h.r.ClearAnnotations)
+	if err := b.SetAnnotationAllowed(context.Background(), true); err != nil {
+		t.Fatal(err)
+	}
 	replies := make(chan OperatorReply, 64)
 	if err := h.r.ask(context.Background(), func() {
 		h.r.opts.Operator = b
@@ -260,7 +265,8 @@ func TestOperatorPrivateWriteQueueRefusal(t *testing.T) {
 		h.r.mu.Lock()
 		h.r.operatorQueued = maxOperatorQueue
 		h.r.mu.Unlock()
-		h.r.handleOperator("A", 7, board.OperatorRequest{Op: "save-note", Request: "2", Save: &board.OperatorSave{Draft: draft.Draft, Color: 0, Text: "hello"}})
+		admission, _ := h.r.opts.Operator.AdmitAnnotation()
+		h.r.handleOperator("A", 7, board.OperatorRequest{Op: "save-note", Request: "2", Save: &board.OperatorSave{Draft: draft.Draft, Color: 0, Text: "hello"}}, admission)
 		h.r.mu.Lock()
 		h.r.operatorQueued = 0
 		h.r.mu.Unlock()
@@ -360,5 +366,141 @@ func TestOperatorTabReturnRetiresAcceptedLedgerAndAllowsFreshSave(t *testing.T) 
 	}
 	if got := takeOperator(t, ch); got.Outcome != board.OperatorAccepted || got.ID == "" || got.ID == accepted.ID {
 		t.Fatalf("fresh save %+v", got)
+	}
+}
+
+func TestOperatorDisabledPrepareRefused(t *testing.T) {
+	h, b, replies := operatorHarness(t)
+	b.WithAnnotationCleanup(h.r.ClearAnnotations)
+	if err := b.SetAnnotationAllowed(context.Background(), false); err != nil {
+		t.Fatal(err)
+	}
+	h.r.Send(operatorEvent(operatorRequest("prepare-note", "1", map[string]any{"seg": 1, "path": []int{1, 2, 0}, "box": []int{1, 2, 30, 40}, "region": []int{3, 4, 10, 10}}), 7))
+	got := takeOperator(t, replies)
+	if got.Outcome != board.OperatorRefused || got.Error != board.ErrDisabled.Error() {
+		t.Fatalf("disabled prepare: %+v", got)
+	}
+}
+
+func TestOperatorIngressGenerationCannotCrossOffOn(t *testing.T) {
+	h, b, replies := operatorHarness(t)
+	// Keep the loop inside this callback until the binding's captured generation
+	// has been retired. Fake cleanup isolates ingress from writer ordering.
+	b.WithAnnotationCleanup(func(context.Context, uint64) error { return nil })
+	if err := h.r.ask(context.Background(), func() {
+		h.r.Send(operatorEvent(operatorRequest("prepare-note", "1", map[string]any{"seg": 1, "path": []int{1, 2, 0}, "box": []int{1, 2, 30, 40}, "region": []int{3, 4, 10, 10}}), 7))
+		if err := b.SetAnnotationAllowed(context.Background(), false); err != nil {
+			t.Error(err)
+		}
+		if err := b.SetAnnotationAllowed(context.Background(), true); err != nil {
+			t.Error(err)
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if got := takeOperator(t, replies); got.Outcome != board.OperatorRefused || got.Error != board.ErrDisabled.Error() {
+		t.Fatalf("queued prepare revived: %+v", got)
+	}
+}
+
+func TestOperatorQueuedSaveGenerationAndHeldDraft(t *testing.T) {
+	h, b, replies := operatorHarness(t)
+	draft := prepareOperator(t, h, replies)
+	b.WithAnnotationCleanup(func(context.Context, uint64) error { return nil })
+	if err := h.r.ask(context.Background(), func() {
+		a, _ := b.AdmitAnnotation()
+		h.r.handleOperator("A", 7, board.OperatorRequest{Op: "save-note", Request: "2", Save: &board.OperatorSave{Draft: draft.Draft, Color: 0, Text: "held text"}}, a)
+		if err := b.SetAnnotationAllowed(context.Background(), false); err != nil {
+			t.Error(err)
+		}
+		if err := b.SetAnnotationAllowed(context.Background(), true); err != nil {
+			t.Error(err)
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if got := takeOperator(t, replies); got.Outcome != board.OperatorPending {
+		t.Fatal(got)
+	}
+	if got := takeOperator(t, replies); got.Outcome != board.OperatorRefused || got.Error != board.ErrDisabled.Error() {
+		t.Fatalf("queued save revived: %+v", got)
+	}
+	if len(b.OperatorView().Notes) != 0 {
+		t.Fatal("stale write reached sink")
+	}
+	// The draft is content, not authority: a fresh save may use the same handle.
+	h.r.Send(operatorEvent(operatorRequest("save-note", "3", map[string]any{"draft": draft.Draft, "color": 0, "text": "held text"}), 7))
+	if got := takeOperator(t, replies); got.Outcome != board.OperatorPending {
+		t.Fatal(got)
+	}
+	if got := takeOperator(t, replies); got.Outcome != board.OperatorAccepted {
+		t.Fatal(got)
+	}
+	if len(b.OperatorView().Notes) != 1 {
+		t.Fatal("held draft was lost")
+	}
+}
+
+func TestOperatorQueuedBindingDoesNotDeadlockCleanup(t *testing.T) {
+	h, b, replies := operatorHarness(t)
+	entered, release, loopDone := make(chan struct{}), make(chan struct{}), make(chan error, 1)
+	go func() { loopDone <- h.r.ask(context.Background(), func() { close(entered); <-release }) }()
+	<-entered
+	h.r.Send(operatorEvent(operatorRequest("stroke", "1", map[string]any{"seg": 1, "id": "pen", "color": 0, "pts": [][3]float64{{1, 2, 0}}}), 7))
+	off := make(chan error, 1)
+	go func() { off <- b.SetAnnotationAllowed(context.Background(), false) }()
+	deadline := time.Now().Add(time.Second)
+	for b.AnnotationCapability().Phase != capability.Disabling && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	close(release)
+	if err := <-loopDone; err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-off:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("operator waited on cleanup command lock")
+	}
+	if got := takeOperator(t, replies); got.Outcome != board.OperatorRefused {
+		t.Fatal(got)
+	}
+}
+
+func TestOperatorQueuedWriterDoesNotWaitForCleanupCommand(t *testing.T) {
+	h, b, replies := operatorHarness(t)
+	draft := prepareOperator(t, h, replies)
+	off := make(chan error, 1)
+	if err := h.r.ask(context.Background(), func() {
+		a, _ := b.AdmitAnnotation()
+		h.r.handleOperator("A", 7, board.OperatorRequest{Op: "save-note", Request: "2", Save: &board.OperatorSave{Draft: draft.Draft, Color: 0, Text: "queued"}}, a)
+		go func() { off <- b.SetAnnotationAllowed(context.Background(), false) }()
+		// Cleanup now holds command and waits behind this callback and writer.
+		until := time.Now().Add(time.Second)
+		for b.AnnotationCapability().Phase != capability.Disabling && time.Now().Before(until) {
+			time.Sleep(time.Millisecond)
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if got := takeOperator(t, replies); got.Outcome != board.OperatorPending {
+		t.Fatal(got)
+	}
+	if got := takeOperator(t, replies); got.Outcome != board.OperatorRefused {
+		t.Fatal(got)
+	}
+	select {
+	case err := <-off:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("writer deadlocked behind annotation cleanup")
+	}
+	if len(b.OperatorView().Notes) != 0 {
+		t.Fatal("write crossed clear")
 	}
 }
