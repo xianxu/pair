@@ -1,12 +1,12 @@
 ---
 id: 000538
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-13
 updated: 2026-10-13
 estimate_hours:
-card_mirror: '857780c6e144100ea5d3b18b2db5052ce80a14a7' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'a6f4ac20e92d887f0e07a9555f1e78186ad098d4' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-13T16:08:28-07:00
 claimant:
     operator: Xian Xu
@@ -44,6 +44,8 @@ Capture artifacts remain in the local Couch store before submit. Do not return c
 
 ## Plan
 
+Durable design: [anchored notes and draw-time captures](../plans/000538-anchored-notes-draw-capture-plan.md). Awaiting hub approval before change-code.
+
 - [ ] Map existing anchors, note recording, capture ownership, privacy and submission seams; write durable plan and obtain approval.
 - [ ] Implement evidence-scored visibility and draw-time capture lifecycle through viewer and operator paths.
 - [ ] Bundle stored captures for every open note and verify cleanup, failures, privacy and latency.
@@ -55,3 +57,7 @@ Capture artifacts remain in the local Couch store before submit. Do not return c
 
 - Received operator design through ops:0; verified submitted Couch receipt 3db8432f-0b02-44e1-92dd-138eff615d47. #538 already claimed by pair:6. No implementation yet. Initial start-plan refreshed this slot and its ariadne tools, then requested rerun with the refreshed binary.
 - Initial inspection: Board.Selection uses model.Live over current DocSeg; submission.Build enforces one selected document and asks the cast owner for new crops. Structural.Resolve accepts a unique selector even without matching text. These seams must change so note evidence survives view changes while projection remains conservative.
+
+- Durable plan completed: shared cast-owned draft service, capture outside the recorder actor, conservative shared anchor fixtures, all-open selection across documents, private storage and crash-safe transfer into submission bundles. Proposed bounds: ten-minute unsaved TTL, one capture worker/eight queued jobs per cast, 256 MiB/128 local capture records; attached evidence is never evicted to make room. ARCH-PURE isolates ranking/transitions; ARCH-DRY gives viewer/operator one lifecycle owner.
+- Code exploration found ghost boxes from unconditional note.region/historical at.box fallback and operator boxOf returning null. Current operator prepare creates a token without capturing; calling CaptureCrops inside handleOperator would deadlock its event barriers. Board selection/ack and submission v2 currently assume one document; all require explicit changes. No implementation or test run for #538 yet.
+- Coordinated with pair:7 (#537), verified receipt 35db0042-3926-4028-8377-29f59bcc0b67: preserve current-note pin callbacks, author ownership checks, edit-note protocol, and immutable original capture on text edit. They preserve prepare/save/cancel. Reconcile from main before final checks.
