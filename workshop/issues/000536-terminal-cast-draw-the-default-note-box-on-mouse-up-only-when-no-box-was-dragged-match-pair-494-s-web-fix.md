@@ -1,12 +1,12 @@
 ---
 id: 000536
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-13
 updated: 2026-10-13
 estimate_hours:
-card_mirror: '7bc3142a731c6f56174efcca314b434174b74e6d' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '1e7993f7e721a1a80de60249c3043a1896791c08' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-13T16:03:15-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "1cd44f48", done: "12379624"}
+actual_hours: 0.29
 ---
 
 # terminal cast: draw the default note box on mouse up only when no box was dragged (match pair#494's web fix)
