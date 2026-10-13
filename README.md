@@ -386,7 +386,7 @@ builds are visible without reinstalling. Keep that checkout in place; these
 links point to its `bin/` directory. Already-running processes keep their old
 binary until restarted.
 
-It also installs a second binary, **`couch`** — a supervisor that
+`make install` also installs a second binary, **`couch`** — a supervisor that
 registers durable work threads, spawns them, and hosts one in your terminal. It
 is separate from `pair` on purpose: pair is what you sit inside, so a supervisor
 bug must not break your ability to fix it, and launching pair directly always
