@@ -23,11 +23,15 @@ import (
 // import cycle. Its only input is the actual env value produced by SwitchAgent.
 func TestSwitchAgentProducesOrientationThroughLayoutAndWrapper(t *testing.T) {
 	for _, live := range []bool{false, true} {
-		t.Run(fmt.Sprintf("live=%t", live), func(t *testing.T) { runSwitchAgentTransportAcceptance(t, live) })
+		t.Run(fmt.Sprintf("live=%t", live), func(t *testing.T) { runSwitchAgentTransportAcceptance(t, live, false) })
 	}
 }
 
-func runSwitchAgentTransportAcceptance(t *testing.T, liveSource bool) {
+func TestSwitchAgentFreshProducesReadinessWithoutOrientation(t *testing.T) {
+	runSwitchAgentTransportAcceptance(t, false, true)
+}
+
+func runSwitchAgentTransportAcceptance(t *testing.T, liveSource, fresh bool) {
 	rt := newRT(t, "/repo")
 	rt.runner = couchcore.NewFakeRunner()
 	var source couchcore.ThreadRecord
@@ -142,12 +146,17 @@ func runSwitchAgentTransportAcceptance(t *testing.T, liveSource bool) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := c.SwitchAgent(context.Background(), couchcore.SwitchAgentRequest{Address: source.Address, Agent: "codex", Argv: args, AcceptedFingerprint: prepared.Fingerprint})
+	body := "Colleague brief\n\n\tKeep this exact trailing newline.\n"
+	content := couchcore.SwitchContent{Kind: couchcore.SwitchContentAuthored, Body: body}
+	if fresh {
+		content = couchcore.SwitchContent{Kind: couchcore.SwitchContentFresh}
+	}
+	result, err := c.SwitchAgent(context.Background(), couchcore.SwitchAgentRequest{Content: content, Address: source.Address, Agent: "codex", Argv: args, AcceptedFingerprint: prepared.Fingerprint})
 	if err != nil {
 		t.Fatal(err)
 	}
 	child, ok := result.Started()
-	if !ok || result.Orientation == nil {
+	if !ok || (!fresh && (result.Orientation == nil || result.Orientation.Body != body)) || (fresh && result.Orientation != nil) {
 		t.Fatalf("no orientation child: %+v", result)
 	}
 	profile := ""
@@ -179,8 +188,9 @@ func runSwitchAgentTransportAcceptance(t *testing.T, liveSource bool) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if captured.Agent != "claude" || !captured.Events || !strings.Contains(result.Orientation.Body, archived.Raw) || !strings.Contains(result.Orientation.Body, archived.Events) {
-			t.Fatalf("actual cleanup descriptor never reached prompt: %+v %s", captured, result.Orientation.Body)
+		current, err := c.Threads.GetThread(source.Address)
+		if err != nil || current.PreviousSession == nil || !reflect.DeepEqual(current.PreviousSession.Capture, captured) || captured.Agent != "claude" || !captured.Events {
+			t.Fatalf("actual cleanup descriptor not preserved: %+v %v", current.PreviousSession, err)
 		}
 		for path, body := range map[string]string{archived.Raw: "outgoing live Pair transcript\n", archived.Events: "{\"offset\":0}\n"} {
 			raw, err := os.ReadFile(path)
@@ -189,16 +199,24 @@ func runSwitchAgentTransportAcceptance(t *testing.T, liveSource bool) {
 			}
 		}
 	}
-	if !strings.Contains(result.Orientation.Body, paths.Log()) || !strings.Contains(result.Orientation.Body, native) {
-		t.Fatal("orientation lost source paths")
-	}
+
 	for path, body := range map[string]string{paths.Log(): "operator source prompt\n", paths.Draft(): "unsent draft\n", queue: "queued prompt\n", native: "native conversation\n"} {
 		after, err := os.ReadFile(path)
 		if err != nil || string(after) != body {
 			t.Fatalf("source artifact changed: %s", path)
 		}
 	}
-	want := "\x1b[200~" + result.Orientation.Body + "\x1b[201~\r"
+	if fresh {
+		var launch launcher.TrustedLaunchProfile
+		if err := json.Unmarshal([]byte(profile), &launch); err != nil {
+			t.Fatal(err)
+		}
+		if launch.FreshNonce == "" || string(received) != launch.FreshNonce {
+			t.Fatalf("fresh readiness lost nonce: %q %+v", received, launch)
+		}
+		return
+	}
+	want := "\x1b[200~" + body + "\x1b[201~\r"
 	if string(received) != want {
 		t.Fatalf("delivery differs from actual core prompt: got %q want %q", received, want)
 	}

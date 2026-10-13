@@ -314,7 +314,7 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 			if argv == nil {
 				return nil, fmt.Errorf("accepted startup parameters are required")
 			}
-			return c.SwitchAgent(ctx, SwitchAgentRequest{Address: address, Agent: a["agent"], Argv: *argv, AcceptedFingerprint: a["fingerprint"]})
+			return c.SwitchAgent(ctx, SwitchAgentRequest{Address: address, Agent: a["agent"], Argv: *argv, AcceptedFingerprint: a["fingerprint"], Source: a["source"], Content: SwitchContent{Kind: SwitchContentKind(a["content-kind"]), Body: a["body"]}})
 		case "reboot":
 			if path := a["path"]; path != "" {
 				return c.Reboot(ctx, RebootTarget{Path: path, Agent: a["agent"], RequireSettled: a[requireSettledArg]})

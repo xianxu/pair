@@ -40,6 +40,20 @@ type slotOperations struct {
 // never reads it.
 type receiptKey struct{ scope, tag, id string }
 
+// switchStatus is only called after proving the requesting live binding is the
+// supervisor hub. Ordinary status remains scoped to the admitting slot.
+func (s *slotOperations) switchStatus(id string) (couchmessage.Response, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.sweepLocked()
+	for _, receipt := range s.receipts {
+		if receipt.ID == id && receipt.Op == "switch-agent" {
+			return couchmessage.Response{Code: "ok", Operation: &receipt}, true
+		}
+	}
+	return couchmessage.Response{}, false
+}
+
 func newSlotOperations(run slotOperationRunner, names func(context.Context) ([]couchcore.RepositoryName, error), now func() time.Time) *slotOperations {
 	return &slotOperations{run: run, names: names, now: now, receipts: map[receiptKey]couchmessage.OperationReceipt{}}
 }

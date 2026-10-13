@@ -9,6 +9,8 @@ import (
 	"github.com/xianxu/pair/cmd/internal/orientation"
 )
 
+type orientationCompletionFunc func(couchcore.ThreadAddress, orientation.Request, orientation.DeliveryState, error)
+
 type orientationWatch struct {
 	request orientation.Request
 	cancel  context.CancelFunc
@@ -21,19 +23,32 @@ type orientationWatchResult struct {
 	err     error
 }
 
+// SetOrientationCompletion observes delivery once the console accepts its result.
+// The observer runs outside the console lock and may call console methods.
+func (c *Console) SetOrientationCompletion(fn func(couchcore.ThreadAddress, orientation.Request, orientation.DeliveryState, error)) {
+	c.mu.Lock()
+	c.orientationCompletion = fn
+	c.mu.Unlock()
+}
+
 func (c *Console) watchOrientation(address couchcore.ThreadAddress, childID string, request orientation.Request) {
 	c.mu.Lock()
 	if c.orientationWatches == nil {
 		c.orientationWatches = make(map[couchcore.ThreadAddress]orientationWatch)
 	}
-	if prior, ok := c.orientationWatches[address]; ok {
+	prior, superseded := c.orientationWatches[address]
+	if superseded {
 		prior.cancel()
 	}
+	completed := c.orientationCompletion
 	ctx, cancel := context.WithTimeout(c.lifetime, 30*time.Second)
 	c.orientationWatches[address] = orientationWatch{request: request, cancel: cancel, childID: childID}
 	c.setOrientationLocked(address, request, switchAgentProducer(request.Attempt))
 	fn := c.ops
 	c.mu.Unlock()
+	if superseded && completed != nil {
+		completed(address, prior.request, orientation.DeliveryState{}, fmt.Errorf("orientation delivery superseded; inspect target before resending"))
+	}
 	c.workers.Add(1)
 	go func() {
 		defer c.workers.Done()
@@ -108,7 +123,11 @@ func (c *Console) finishOrientation(result orientationWatchResult) {
 	text = string(result.address.Tag) + ": " + text
 	setBookkeepingNotice(&c.menu, text)
 	panel := c.focus.IsPanel()
+	completed := c.orientationCompletion
 	c.mu.Unlock()
+	if completed != nil {
+		completed(result.address, result.request, result.state, result.err)
+	}
 	if panel {
 		c.showMenu()
 	} else {

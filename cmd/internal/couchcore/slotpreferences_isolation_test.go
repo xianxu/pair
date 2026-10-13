@@ -148,7 +148,7 @@ func TestSlotPreferencesIndependentAcrossRestartResumeAndFresh(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	switched, err := env.Couch.SwitchAgent(ctx, SwitchAgentRequest{Address: source.Thread, Agent: "claude", Argv: edited, AcceptedFingerprint: preview.Fingerprint})
+	switched, err := env.Couch.SwitchAgent(ctx, SwitchAgentRequest{Content: SwitchContent{Kind: SwitchContentFresh}, Address: source.Thread, Agent: "claude", Argv: edited, AcceptedFingerprint: preview.Fingerprint})
 	if err != nil {
 		t.Fatal(err)
 	}

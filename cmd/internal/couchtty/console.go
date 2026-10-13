@@ -218,9 +218,11 @@ type Console struct {
 	paletteFG, paletteBG bool
 	// now is the console's clock for idle fading, so tests can cross the day
 	// and three-day bands without waiting.
-	now                func() time.Time
-	orientationResults chan orientationWatchResult
-	orientationWatches map[couchcore.ThreadAddress]orientationWatch
+	now                   func() time.Time
+	orientationResults    chan orientationWatchResult
+	orientationWatches    map[couchcore.ThreadAddress]orientationWatch
+	orientationCompletion orientationCompletionFunc
+	agentSwitchAdmission  func(context.Context, couchcore.SwitchAgentRequest) (string, error)
 	// orientationFrom records which producer wrote each menu.Orientation entry;
 	// see setOrientationLocked.
 	orientationFrom      map[couchcore.ThreadAddress]string
@@ -1756,27 +1758,23 @@ func (c *Console) runMenuOperation(effect MenuEffect) {
 			c.menu.InFlight = origin
 		}
 	}
-	if effect.Operation == "switch-agent" {
-		if previous, ok := c.orientationWatches[origin.Address]; ok {
-			previous.cancel()
-			delete(c.orientationWatches, origin.Address)
-		}
-		c.supersedeOrientationLocked(origin.Address)
-		origin.PanelOrigin = c.focus.IsPanel()
-		c.menu.InFlight.PanelOrigin = origin.PanelOrigin
-	}
+
 	if origin.Operation == "switch" && origin.AttentionCapture == 0 && !origin.Manual {
 		origin.AttentionCapture = c.attention.Capture(origin.Address)
 		c.menu.InFlight.AttentionCapture = origin.AttentionCapture
 	}
 	c.mu.Unlock()
+	if origin.Operation != effect.Operation || origin.Attempt == 0 || origin.Attempt != effect.Attempt {
+		return
+	}
+	if effect.Operation == "switch-agent" {
+		c.admitMenuAgentSwitch(effect, origin)
+		return
+	}
 	if fn == nil {
 		c.finishOperation(operationCompletion{
 			name: effect.Operation, origin: origin, err: errors.New("no action dispatcher wired"),
 		})
-		return
-	}
-	if origin.Operation != effect.Operation || origin.Attempt == 0 || origin.Attempt != effect.Attempt {
 		return
 	}
 	requestArgs := cloneOperationArgs(effect.Args)
@@ -1930,6 +1928,7 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 	if completed.name == "continuation-status" {
 		return false
 	}
+	_, admissionOnly := completed.value.(agentSwitchAdmissionReceipt)
 	address := completed.origin.Address
 	if parked, ok := completed.value.(couchcore.ParkResult); ok && parked.Thread.Address != (couchcore.ThreadAddress{}) {
 		address = parked.Thread.Address
@@ -2008,7 +2007,7 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 	// consumeExpectedParkExitLocked's InFlight arm with nothing to match. This
 	// bridge is the other half of that rule, and detach needs it as much as
 	// park does -- both end their child deliberately.
-	if err == nil && endsItsOwnChild(completed.origin.Operation) {
+	if err == nil && !admissionOnly && endsItsOwnChild(completed.origin.Operation) {
 		for id, p := range c.panes {
 			// Excluding the child this operation just STARTED. A relaunch has
 			// already adopted its replacement by the time it gets here, so
@@ -2023,7 +2022,11 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 	}
 	var menuEffects []MenuEffect
 	if c.menuReady {
+		matches := menuOperationMatches(c.menu.InFlight, event)
 		c.menu, menuEffects = ReduceMenu(c.menu, event)
+		if receipt, ok := completed.value.(agentSwitchAdmissionReceipt); ok && err == nil && matches {
+			c.menu.Notice = infoMenuNotice("Agent switch accepted: " + receipt.id + "; check couch --operation-status " + receipt.id)
+		}
 	}
 	panelFocused := c.focus.IsPanel()
 	c.mu.Unlock()

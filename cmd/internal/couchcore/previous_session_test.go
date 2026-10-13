@@ -26,7 +26,7 @@ func TestPreviousSessionSurvivesSuccessfulSwitch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := env.Couch.SwitchAgent(context.Background(), SwitchAgentRequest{Address: source.Address,
+	if _, err := env.Couch.SwitchAgent(context.Background(), SwitchAgentRequest{Content: SwitchContent{Kind: SwitchContentFresh}, Address: source.Address,
 		Agent: "codex", Argv: args, AcceptedFingerprint: prepared.Fingerprint}); err != nil {
 		t.Fatal(err)
 	}

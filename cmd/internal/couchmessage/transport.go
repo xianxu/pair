@@ -49,7 +49,7 @@ type Server struct {
 	identity    os.FileInfo
 	ctx         context.Context
 	cancel      context.CancelFunc
-	handler     func(context.Context, []byte) ([]byte, error)
+	handler     func(context.Context, []byte) ([]byte, func(error), error)
 	mu          sync.Mutex
 	connections map[net.Conn]struct{}
 	handlers    sync.WaitGroup
@@ -60,6 +60,30 @@ type Server struct {
 // StartServer collects wrapper sockets with proven-dead owners. Existing broker
 // sockets remain under the supervisor lease owner's cleanup authority.
 func StartServer(ctx context.Context, socket string, handler func(context.Context, []byte) ([]byte, error)) (*Server, error) {
+	if handler == nil {
+		return nil, errors.New("message handler is required")
+	}
+	return startServer(ctx, socket, func(ctx context.Context, raw []byte) ([]byte, func(error), error) {
+		body, err := handler(ctx, raw)
+		return body, nil, err
+	})
+}
+
+// StartResponseServer serves typed responses with an optional acknowledgment
+// barrier. A successful write means the complete frame reached the socket;
+// failures never activate an operation waiting on that acknowledgment.
+func StartResponseServer(ctx context.Context, socket string, handler func(context.Context, []byte) Response) (*Server, error) {
+	if handler == nil {
+		return nil, errors.New("message handler is required")
+	}
+	return startServer(ctx, socket, func(ctx context.Context, raw []byte) ([]byte, func(error), error) {
+		response := handler(ctx, raw)
+		body, err := json.Marshal(response)
+		return body, response.AfterWrite, err
+	})
+}
+
+func startServer(ctx context.Context, socket string, handler func(context.Context, []byte) ([]byte, func(error), error)) (*Server, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -189,14 +213,21 @@ func (s *Server) serve(conn net.Conn) {
 	if strictjson.Decode(raw, &value) != nil {
 		return
 	}
-	response, err := s.handler(ctx, raw)
-	if err != nil || ctx.Err() != nil {
+	response, afterWrite, err := s.handler(ctx, raw)
+	if afterWrite != nil {
+		defer func() { afterWrite(err) }()
+	}
+	if err == nil {
+		err = ctx.Err()
+	}
+	if err != nil {
 		return
 	}
-	if strictjson.Decode(response, &value) != nil {
+	if err = strictjson.Decode(response, &value); err != nil {
 		return
 	}
 	if len(response) > MaxFrameBytes {
+		err = errors.New("message response exceeds frame limit")
 		// No response bytes have been sent. Report overflow explicitly; the
 		// handler may already have admitted a send, so its outcome is uncertain.
 		var header [4]byte
@@ -204,7 +235,7 @@ func (s *Server) serve(conn net.Conn) {
 		_, _ = conn.Write(header[:])
 		return
 	}
-	if err := transportWriteFrame(conn, response); err != nil {
+	if err = transportWriteFrame(conn, response); err != nil {
 		return // Partial writes cannot be replaced by another frame.
 	}
 }

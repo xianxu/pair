@@ -2,7 +2,6 @@ package couchcmd
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -151,7 +150,9 @@ type messageService struct {
 	after func(time.Duration, func())
 	// slotOps answers resume, reboot and operation-status (pair#367 M2);
 	// nil answers them unsupported.
-	slotOps *slotOperations
+	slotOps       *slotOperations
+	switches      atomic.Pointer[switchCoordinator]
+	prepareSwitch func(context.Context, couchcore.ThreadAddress, string, *[]string) (couchcore.PreparedAgentSwitch, error)
 	// broadcastStatus answers broadcast-status (pair#413). Installed after the
 	// service is serving, so it is an atomic pointer; nil answers unsupported.
 	broadcastStatus atomic.Pointer[func() (couchmessage.BroadcastStatus, bool)]
@@ -235,6 +236,12 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 	if err != nil {
 		return nil, err
 	}
+	briefTimeout, settleTimeout, err := switchTimeouts(os.Getenv)
+	if err != nil {
+		return nil, err
+	}
+	switchGuard := &switchServiceGuard{}
+	c.SwitchGuard = switchGuard
 	namespace := c.Namespace.Dir()
 	brokerSocket, err := couchmessage.SocketPath(namespace, "broker")
 	if err != nil {
@@ -371,6 +378,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 		return nil, err
 	}
 	probe.service.Store(service)
+	service.installSwitchCoordinator(console, c, switchGuard, briefTimeout, settleTimeout)
 	console.SetMessageBroker(service.broker)
 	service.SetBroadcastStatus(console.BroadcastStatus)
 	service.SetShares(console.Shares)
@@ -463,12 +471,12 @@ func newMessageService(parent context.Context, brokerSocket, registrySocket stri
 	})
 	s.workers.Add(1)
 	go s.loop()
-	server, err := couchmessage.StartServer(lifetime, brokerSocket, func(ctx context.Context, raw []byte) ([]byte, error) {
+	server, err := couchmessage.StartResponseServer(lifetime, brokerSocket, func(ctx context.Context, raw []byte) couchmessage.Response {
 		var request couchmessage.Request
 		if err := strictjson.Decode(raw, &request); err != nil {
-			return json.Marshal(couchmessage.Response{Code: "invalid-request", Error: err.Error()})
+			return couchmessage.Response{Code: "invalid-request", Error: err.Error()}
 		}
-		return json.Marshal(s.handle(ctx, request))
+		return s.handle(ctx, request)
 	})
 	if err != nil {
 		cancel()
@@ -679,6 +687,8 @@ func (s *messageService) connectedWorkspace(ctx context.Context, b couchmessage.
 
 func (s *messageService) handle(ctx context.Context, request couchmessage.Request) couchmessage.Response {
 	switch {
+	case request.Op == "switch-agent":
+		return s.handleAgentSwitch(ctx, request)
 	case couchcore.IsSlotOperation(request.Op) || request.Op == "operation-status":
 		return s.handleSlotOperation(ctx, request)
 	case request.Op == "broadcast-status":
@@ -930,6 +940,15 @@ func (s *messageService) handleSlotOperation(ctx context.Context, request couchm
 	if err != nil {
 		return couchmessage.Response{Code: "unavailable", Error: fmt.Sprintf(
 			"caller is not a live Couch slot (thread %s not live, or this shell's session/launch does not match its record): %v", request.Tag, err)}
+	}
+	if request.Op == "operation-status" {
+		if authenticated, err := s.switchCaller(ctx, request); err == nil {
+			if identity, err := s.connectedWorkspace(ctx, authenticated); err == nil && s.authority.isHub(identity) {
+				if response, ok := s.slotOps.switchStatus(request.ID); ok {
+					return response
+				}
+			}
+		}
 	}
 	return s.slotOps.handle(ctx, caller, request)
 }

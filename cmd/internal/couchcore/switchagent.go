@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/orientation"
@@ -15,7 +14,15 @@ import (
 
 var ErrSwitchResolutionChanged = errors.New("switch-agent: thread or path preferences changed; review the parameters again")
 
+// AgentSwitchGuard revalidates the coordinator's exact source binding and
+// settled state at execution and immediately before the first mutation.
+type AgentSwitchGuard interface {
+	ConfirmAgentSwitch(context.Context, ThreadAddress, string) error
+}
+
 type SwitchAgentRequest struct {
+	Content             SwitchContent
+	Source              string
 	Address             ThreadAddress
 	Agent               string
 	Argv                []string
@@ -266,6 +273,17 @@ func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (Sw
 	if request.AcceptedFingerprint == "" || request.Argv == nil {
 		return result, errors.New("switch-agent: review and accept the startup parameters first")
 	}
+	if err := ValidateSwitchContent(request.Content); err != nil {
+		return result, err
+	}
+	if request.Source != "" {
+		if c.SwitchGuard == nil {
+			return result, errors.New("switch-agent: source guard unavailable")
+		}
+		if err := c.SwitchGuard.ConfirmAgentSwitch(ctx, request.Address, request.Source); err != nil {
+			return result, err
+		}
+	}
 	ctx, release, err := c.hold(ctx, request.Address, "switch-agent")
 	if err != nil {
 		return result, err
@@ -302,14 +320,10 @@ func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (Sw
 			contextData.TargetAgent = request.Agent
 		}
 	}
-	body, err := orientation.BuildPrompt(contextData)
-	if err != nil {
-		return result, err
-	}
-	// Reserve room for the two bounded archive paths supplied by a completed
-	// park; context size can never become a reason to abandon a parked source.
-	if len(body) > orientation.MaxBodyBytes/2 {
-		return result, errors.New("switch-agent: context references exceed the launch envelope budget")
+	if request.Source != "" {
+		if err := c.SwitchGuard.ConfirmAgentSwitch(ctx, request.Address, request.Source); err != nil {
+			return result, err
+		}
 	}
 	thread := prepared.record
 	// Park the source only when an agent is actually RUNNING, which is what the
@@ -367,12 +381,10 @@ func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (Sw
 			}
 		}
 	}
-	if finalBody, buildErr := orientation.BuildPrompt(contextData); buildErr == nil {
-		body = finalBody
-	} else {
-		result.Warning = strings.TrimSpace(result.Warning + "\nSome source references were unavailable: " + buildErr.Error())
+	var orient *orientation.Request
+	if request.Content.Kind != SwitchContentFresh {
+		orient = &orientation.Request{SchemaVersion: 1, Tag: string(request.Address.Tag), Agent: request.Agent, Attempt: nonce, Body: request.Content.Body}
 	}
-	orient := orientation.Request{SchemaVersion: 1, Tag: string(request.Address.Tag), Agent: request.Agent, Attempt: nonce, Body: body}
 	if err := ctx.Err(); err != nil {
 		result.Outcome = SwitchStartFailed
 		return result, err
@@ -391,7 +403,7 @@ func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (Sw
 	}
 	record, handle, err := c.launchTrackedThread(trackedThreadLaunch{
 		Context: ctx, Thread: thread, Nonce: nonce, Args: StartArgs{Worktree: Worktree(thread.StartingPath), Cwd: thread.WorkingPath, Stack: request.Agent, ExtraArgs: cloneArgv(request.Argv)},
-		StartedAt: startedAt, ProfileRaw: profileRaw, Fresh: true, Orientation: &orient,
+		StartedAt: startedAt, ProfileRaw: profileRaw, Fresh: true, Orientation: orient,
 	})
 	if err != nil {
 		result.Outcome = SwitchStartFailed
@@ -401,6 +413,6 @@ func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (Sw
 		}
 		return result, fmt.Errorf("switch-agent: target launch failed; %s: %w", recovery, err)
 	}
-	result.Outcome, result.Record, result.Handle, result.Orientation = SwitchStarted, record, handle, &orient
+	result.Outcome, result.Record, result.Handle, result.Orientation = SwitchStarted, record, handle, orient
 	return result, nil
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/launcher"
 	"strings"
 	"time"
 	"unicode"
@@ -15,7 +16,9 @@ import (
 // full binding and must pass the supervisor adapter's live identity check.
 type Request struct {
 	Op, Scope, Tag, Session, Nonce, ID, Target, Body string
-	// Agent narrows a send to slots running that agent; send only.
+	// SwitchRequest correlates a self callback to its source-bound parent.
+	SwitchRequest string `json:",omitempty"`
+	// Agent narrows a send or selects the switch destination harness.
 	Agent string `json:",omitempty"`
 	// Confirmed declares the operator's confirmation for an operation whose
 	// declaration requires one (reboot); resume and reboot only.
@@ -34,6 +37,9 @@ type Request struct {
 }
 
 type Response struct {
+	// AfterWrite is a server-only acknowledgment barrier. The transport calls it
+	// once after the response frame is written, or with the failure preventing it.
+	AfterWrite  func(error) `json:"-"`
 	Code, Error string
 	Receipt     *Receipt
 	Actors      []Candidate
@@ -105,6 +111,9 @@ func validMessageID(id string) bool {
 }
 
 func ValidateRequest(r Request) error {
+	if r.SwitchRequest != "" && r.Op != "switch-agent" {
+		return errors.New("switch request applies only to switch-agent")
+	}
 	// Caller identity and target fields cannot exceed a complete binding's budget.
 	for _, field := range []string{r.Op, r.Scope, r.Tag, r.Session, r.Nonce, r.Target, r.Agent, r.TailScope, r.TailTag} {
 		if len(field) > MaxBindingBytes {
@@ -164,10 +173,10 @@ func ValidateRequest(r Request) error {
 	if r.Binding != nil || r.Scope == "" || r.Tag == "" || r.Session == "" || r.Nonce == "" {
 		return errors.New("operation requires the calling conversation identity")
 	}
-	if r.Agent != "" && (r.Op != "send" || !validFamily(r.Agent)) {
+	if r.Agent != "" && r.Op != "switch-agent" && (r.Op != "send" || !validFamily(r.Agent)) {
 		return errors.New("an agent filter applies only to send and must be a plain agent name")
 	}
-	if r.Confirmed && !couchcore.IsSlotOperation(r.Op) {
+	if r.Confirmed && r.Op != "switch-agent" && !couchcore.IsSlotOperation(r.Op) {
 		return errors.New("a confirmation applies only to slot operations")
 	}
 	if r.SameBinary && !couchcore.SlotOperationTakesSameBinary(r.Op) {
@@ -177,6 +186,21 @@ func ValidateRequest(r Request) error {
 		return errors.New("--force-unknown applies only to relaunch, reload-context and prepare")
 	}
 	switch {
+	case r.Op == "switch-agent":
+		if !validMessageID(r.ID) || !r.Confirmed || !launcher.IsSupportedAgent(r.Agent) {
+			return errors.New("switch-agent requires a request ID, supported agent and confirmation")
+		}
+		if r.Target != "self" {
+			if _, _, err := parseSlot(r.Target); err != nil {
+				return err
+			}
+		}
+		if r.SwitchRequest != "" && (!validMessageID(r.SwitchRequest) || r.Target != "self" || r.Body == "") {
+			return errors.New("switch request requires self, authored body and a valid parent ID")
+		}
+		if r.Body != "" {
+			return couchcore.ValidateSwitchContent(couchcore.SwitchContent{Kind: couchcore.SwitchContentAuthored, Body: r.Body})
+		}
 	case couchcore.IsSlotOperation(r.Op):
 		// One exact slot: a primitive acts on one slot, never a family.
 		if !validMessageID(r.ID) || r.Body != "" {

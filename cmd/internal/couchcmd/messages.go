@@ -24,6 +24,9 @@ func runMessageCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer) int 
 func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writer, call messageCall) int {
 	// The one verb list (pair#424): a hand-kept list here let relaunch and
 	// reload-context fall through to the message path, which sends no ID.
+	if inv.messageOp == "switch-agent" || inv.messageOp == "operation-status" {
+		return runSwitchAgentCLI(inv, rt, stdout, stderr, call)
+	}
 	if inv.messageOp == couchcore.OpPrepare {
 		return runPrepareCLI(inv, rt, stdout, stderr, call, slotPollClock{now: time.Now, sleep: time.Sleep}, couchcore.OSProvisionIO{})
 	}

@@ -126,7 +126,7 @@ func switchPreviousSession(t *testing.T, env *testEnv, address ThreadAddress, ag
 	if err != nil {
 		t.Fatal(err)
 	}
-	return env.Couch.SwitchAgent(context.Background(), SwitchAgentRequest{Address: address, Agent: agent, Argv: args, AcceptedFingerprint: prepared.Fingerprint})
+	return env.Couch.SwitchAgent(context.Background(), SwitchAgentRequest{Content: SwitchContent{Kind: SwitchContentFresh}, Address: address, Agent: agent, Argv: args, AcceptedFingerprint: prepared.Fingerprint})
 }
 
 func TestPreviousSessionFailedLaunchRetryPreservesSource(t *testing.T) {

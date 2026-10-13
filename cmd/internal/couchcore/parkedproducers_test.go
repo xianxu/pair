@@ -120,7 +120,7 @@ func TestEveryParkedProducerIsAcceptedByResumeSwitchAndArchive(t *testing.T) {
 				env.Artifacts.SetPairSession(record.Address, continuationChildSession(t, env.Runner, id), true)
 				return nil
 			}
-			result, err := env.Couch.SwitchAgent(context.Background(), SwitchAgentRequest{
+			result, err := env.Couch.SwitchAgent(context.Background(), SwitchAgentRequest{Content: SwitchContent{Kind: SwitchContentFresh},
 				Address: record.Address, Agent: "codex", Argv: prepared.Profile.Argv,
 				AcceptedFingerprint: prepared.Fingerprint,
 			})
@@ -349,7 +349,7 @@ func TestSwitchAgentCommitAcceptsWhatItsPreviewAccepted(t *testing.T) {
 		env.Artifacts.SetPairSession(created.Address, continuationChildSession(t, env.Runner, id), true)
 		return nil
 	}
-	result, err := env.Couch.SwitchAgent(context.Background(), SwitchAgentRequest{
+	result, err := env.Couch.SwitchAgent(context.Background(), SwitchAgentRequest{Content: SwitchContent{Kind: SwitchContentFresh},
 		Address: created.Address, Agent: "codex", Argv: prepared.Profile.Argv, AcceptedFingerprint: prepared.Fingerprint,
 	})
 	if err != nil {
@@ -427,7 +427,7 @@ func TestSwitchAgentOnTheUnusableStatesItPermits(t *testing.T) {
 				env.Artifacts.SetPairSession(created.Address, continuationChildSession(t, env.Runner, id), true)
 				return nil
 			}
-			result, err := env.Couch.SwitchAgent(context.Background(), SwitchAgentRequest{
+			result, err := env.Couch.SwitchAgent(context.Background(), SwitchAgentRequest{Content: SwitchContent{Kind: SwitchContentFresh},
 				Address: created.Address, Agent: "codex", Argv: prepared.Profile.Argv,
 				AcceptedFingerprint: prepared.Fingerprint,
 			})

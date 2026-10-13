@@ -57,7 +57,9 @@ type cliInvocation struct {
 	messageBody              string
 	// messageFile is --message-file's path (pair#486); the send reads the
 	// body from it, so the parser stays free of IO.
-	messageFile string
+	messageFile   string
+	handoffFile   string
+	switchRequest string
 	// messageAgent narrows --send-to to slots running that agent.
 	messageAgent string
 	// confirmed is --confirm on a slot operation whose declaration requires
@@ -121,6 +123,8 @@ func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, e
 			return cliInvocation{kind: cliWebFidelity, args: args[1:]}, nil
 		case "--session-sync":
 			return parseSessionSyncCLI(args)
+		case "--switch-agent", "--operation-status":
+			return parseSwitchAgentCLI(args)
 		case "--actors", "--send-to", "--message-status", "--skill", "--broadcast-list":
 			return parseMessageCLI(args)
 		}

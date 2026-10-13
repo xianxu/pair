@@ -508,7 +508,12 @@ func switchAgentArguments(accepted bool) []ArgSpec {
 		{Name: "argv", Summary: "JSON array of startup parameters; empty array selects no parameters", Required: accepted, Implicit: true},
 	}
 	if accepted {
-		args = append(args, ArgSpec{Name: "fingerprint", Summary: "accepted preview fingerprint", Required: true, Implicit: true})
+		args = append(args,
+			ArgSpec{Name: "fingerprint", Summary: "accepted preview fingerprint", Required: true, Implicit: true},
+			ArgSpec{Name: "content-kind", Summary: "explicit fresh, authored, or fallback content", Implicit: true},
+			ArgSpec{Name: "body", Summary: "verbatim authored or fallback handoff", Implicit: true},
+			ArgSpec{Name: "source", Summary: "authenticated source incarnation token", Implicit: true},
+		)
 	}
 	return args
 }

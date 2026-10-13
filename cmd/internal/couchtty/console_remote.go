@@ -2,6 +2,7 @@ package couchtty
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -112,4 +113,45 @@ func remoteOperationAddress(state MenuState, remote *remoteOperation) (couchcore
 		}
 	}
 	return couchcore.ThreadAddress{}, false
+}
+
+// SetAgentSwitchAdmission routes the form's accepted preview through the same
+// source-bound coordinator as CLI requests. Admission never parks a child here.
+func (c *Console) SetAgentSwitchAdmission(fn func(context.Context, couchcore.SwitchAgentRequest) (string, error)) {
+	c.mu.Lock()
+	c.agentSwitchAdmission = fn
+	c.mu.Unlock()
+}
+
+type agentSwitchAdmissionReceipt struct{ id string }
+
+func (c *Console) admitMenuAgentSwitch(effect MenuEffect, origin MenuOperationOrigin) {
+	c.mu.Lock()
+	admit := c.agentSwitchAdmission
+	c.mu.Unlock()
+	origin.PreserveFocus = true
+	request := couchcore.SwitchAgentRequest{Address: origin.Address, Agent: effect.Args["agent"], AcceptedFingerprint: effect.Args["fingerprint"]}
+	err := json.Unmarshal([]byte(effect.Args["argv"]), &request.Argv)
+	if admit == nil {
+		err = errors.New("agent switch admission unavailable; restart Couch with messaging enabled")
+	}
+	if err != nil {
+		c.finishOperation(operationCompletion{name: effect.Operation, origin: origin, err: err})
+		return
+	}
+	c.workers.Add(1)
+	go func() {
+		defer c.workers.Done()
+		ctx, cancel := context.WithCancel(c.lifetime)
+		defer cancel()
+		id, err := admit(ctx, request)
+		if err == nil && id == "" {
+			err = errors.New("agent switch admission returned no request ID")
+		}
+		result := operationCompletion{name: effect.Operation, origin: origin, value: agentSwitchAdmissionReceipt{id: id}, err: err}
+		select {
+		case c.operationQueue.results <- result:
+		case <-c.stop:
+		}
+	}()
 }
