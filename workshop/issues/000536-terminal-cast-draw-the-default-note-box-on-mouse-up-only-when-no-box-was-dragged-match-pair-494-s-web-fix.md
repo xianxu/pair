@@ -44,6 +44,7 @@ Use the shared collaboration module for note gesture tracking in terminal and we
 ## Log
 
 ### 2026-10-13
+- 2026-10-13: closed — Six new terminal click/drag/drag-back cases failed on press before fix, then all 244 terminal/web/operator viewer tests passed. Pixel threshold tests cross cell boundaries and pin exact 8/16px admission and latched drag-back. Full make -k test completed: shell and all viewer packages pass; two unrelated exceptions (blocked PTY cancellation, startup notification previously seen in #535) each pass 3/3 isolated reruns. Logs /tmp/pair536-viewers.log /tmp/pair536-make-k.log /tmp/pair536-runner-rerun.log /tmp/pair536-notify-rerun.log. Atlas thresholds updated; main merged with docs-only delta after tests.; review verdict: SHIP
 
 - Quick flow requested by TL. Existing terminal pointerdown calls dragBox.show immediately; its boxOf uses cell thresholds. Web already suppresses tap previews and latches dragged once threshold crossed. collab.js is shared through the existing webcast symlink/serving seam.
 - ARCH-PURE/ARCH-DRY: shared in-memory gesture owns from/to and monotonic pressed-to-dragged transition, handlers own events and rendering. ARCH-PURPOSE: terminal plus existing web/operator tests cover shared consumers. ARCH-STATE: no drag-to-press reversal; cancellation drops gesture without drafting. ARCH-MOCK: existing viewer fakes exercise handlers. ARCH-CONSTRAINTS/ARCH-FUNERAL: constant-size gesture dies on release/cancel; no timers, external services or durable artifacts added.
