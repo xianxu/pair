@@ -222,6 +222,8 @@ M1 review against 2efe103cf returned REWORK: BR-1 unknown evidence promoted to l
 
 - 2026-10-13 — Review-fix verification: make build passed on f28a76e82; targeted race checks and full launcher/artifactpath/readiness/wrapcmd packages passed. Complete make test found only the cold/warm production-terminal fixture failures: its synthetic pair-wrap still emitted readiness without AgentIdentity. Updated that producer to observe the real child PID/start identity; both previously failing tests now pass (3.953s, /tmp/pair528-review-fixture.log). Production checks were not weakened. A new complete suite follows this fixture correction.
 
+- 2026-10-13 — M1 review-fix verification complete: make test passed exit 0 on f7783da40 (/tmp/pair528-review-full-final.log); make build passed exit 0 on the same HEAD (/tmp/pair528-review-build-final.log). Targeted race checks passed across launcher/readiness/core/UI (/tmp/pair528-review-race.log). All BR-1 through BR-4 fixes and regression evidence are committed; resubmitting M1 to the mandatory boundary review. No staging or live recovery performed.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against
