@@ -1,6 +1,6 @@
 ---
 id: 000523
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-13
 estimate_hours: 7.02
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 79be8f1878d82151068a8835cf11817a80e36af6
         evidence_commit: d482ea94cf6bec4170b2e211c8ee8812ef42c525
+        landed_commit: 67dfe8496350289304831fcc015c089d8d75cf65
 ---
 
 # broadcast: 👆 and 👽 are capability switches on both casts (👆 off: no one annotates; 👽 off: no one drives from outside)
