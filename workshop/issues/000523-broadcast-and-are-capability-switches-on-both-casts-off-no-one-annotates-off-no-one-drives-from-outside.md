@@ -84,13 +84,15 @@ an older ON cannot win after OFF. No overlay implementation is duplicated here.
 
 ## Plan
 
-- [ ] M1 — Implement capability enforcement, ordered annotation clear/control reset, server state and race tests.
+- [x] M1 — Implement capability enforcement, ordered annotation clear/control reset, server state and race tests.
 - [ ] M2 — Implement shared click behavior, viewer controls, overlay integration as landing order permits, documentation and acceptance.
 
 Durable plan: [000523-cast-capability-switches-plan.md](../plans/000523-cast-capability-switches-plan.md).
 
 ## Log
 
+
+- 2026-10-13: closed M1 — All four M1 review findings addressed: replay prefix/seek regressions red then 32 tests green; actual production control adapter delayed/closed/failing/canceled recorder regressions and webcast/drive/recorder race suites pass; inventory and README corrected. Earlier make test completed with artifactpath and legacy Couch fixtures fixed and whole packages rerun green. Full fresh suite required after M2.; review verdict: SHIP
 ### 2026-10-12
 
 - #506 confirmed landed as PR #302 / a5a3fa1f16174a91a647dbf1c97a5da0fdd84dab;
