@@ -1,12 +1,12 @@
 ---
 id: 000496
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: 'ab41b8d568c4af3b5e59d91ff5574b8fe7fd8879' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'f734b3317f07a33f80ca98ca8c0825a5ff51791b' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T13:29:47-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "906571fc", done: "080261e3"}
+actual_hours: 3.17
 ---
 
 # slots: put agents' scratch traffic (build cache, temp dirs) on a volume fseventsd doesn't journal
