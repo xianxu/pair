@@ -855,6 +855,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchtty/terminal_input.go",
 	// #395 broadcast control: phase, tap and session lifecycle; no artifact paths.
 	"cmd/internal/couchtty/console_broadcast.go",
+	"cmd/internal/couchtty/cast_control.go",
 	"cmd/internal/couchtty/console_pointer.go",
 	"cmd/internal/couchtty/console_notes.go",
 	// #488 note anchors: screen layout and pane geometry; no artifact paths.

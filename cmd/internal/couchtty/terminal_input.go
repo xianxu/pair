@@ -160,20 +160,18 @@ func (c *Console) routeMouseEvent(event terminal.InputEvent) {
 		rows, cell, focusSpan, driveSpan := int(c.size.Rows), c.statusWebcast, c.statusWebFocus, c.statusWebDrive
 		pointerLink, driveLink := c.statusWebPointerLink, c.statusWebDriveLink
 		c.mu.Unlock()
-		// The Chrome group's buttons (#501): ↗ brings Chrome to the front;
-		// 👆 copies the pointer link and 👽 the drive link (pair#506), on a
-		// left or a right click alike (pair#495: right-click copies a
-		// control's link). Right-click on the cell copies the view-only link.
+		// Left clicks toggle capabilities; right clicks only copy stable links.
+		// The focus arrow and Chrome cell keep their separate actions.
 		if hit.Y == rows && hit.Button&mouseinput.ModCtrl == 0 {
 			switch {
 			case button == 0 && focusSpan.Contains(hit.X-1):
 				c.focusWebcast()
 				return
 			case (button == 0 || button == 2) && pointerLink.Contains(hit.X-1):
-				c.copyWebcastPointerLink()
+				c.onWebCapabilityClick("annotation", button == 2)
 				return
 			case (button == 0 || button == 2) && driveLink.Contains(hit.X-1):
-				c.copyWebcastDriveLink()
+				c.onWebCapabilityClick("drive", button == 2)
 				return
 			}
 		}

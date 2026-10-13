@@ -557,3 +557,58 @@ func TestClaimColorPrefersLeastHeld(t *testing.T) {
 		t.Fatalf("after releasing 3, got %d", c)
 	}
 }
+
+func TestEnsurePointerLinkStaysOffAndStable(t *testing.T) {
+	p := startPointerSession(t)
+	before := p.s.pointer.generation()
+	link, err := p.s.EnsurePointerLink()
+	if err != nil || link == "" {
+		t.Fatalf("link %q: %v", link, err)
+	}
+	if on, _ := p.s.pointer.On(); on {
+		t.Fatal("copy enabled pointing")
+	}
+	if p.s.pointer.generation() != before {
+		t.Fatal("copy changed admission generation")
+	}
+	again, err := p.s.EnsurePointerLink()
+	if err != nil || again != link {
+		t.Fatal("unstable copy", again, err)
+	}
+	enabled, err := p.s.EnablePointer()
+	if err != nil || enabled != link {
+		t.Fatal("enable replaced link", enabled, err)
+	}
+	p.s.DisablePointer()
+	again, err = p.s.EnsurePointerLink()
+	if err != nil || again != link {
+		t.Fatal("off copy replaced link", again, err)
+	}
+}
+
+func TestEnsurePointerFailureDoesNotPublishUnlockedLink(t *testing.T) {
+	for _, lockFails := range []bool{false, true} {
+		failure := fmt.Errorf("mint failed")
+		p := newPointerState(func(string) error {
+			if lockFails {
+				return failure
+			}
+			return nil
+		})
+		mint := func() (string, error) {
+			if !lockFails {
+				return "", failure
+			}
+			return "token", nil
+		}
+		if token, err := p.ensure(mint); err != failure || token != "" {
+			t.Fatalf("%q %v", token, err)
+		}
+		if p.link() != "" || p.generation() != 0 {
+			t.Fatal("failed mint published or changed admission")
+		}
+		if on, _ := p.On(); on {
+			t.Fatal("failed mint enabled")
+		}
+	}
+}
