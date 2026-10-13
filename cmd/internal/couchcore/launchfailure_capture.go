@@ -12,9 +12,10 @@ import (
 // launchFailureError keeps the error chain and diagnostic identity independent
 // of the concise operator message. It is never an authority for cleanup.
 type launchFailureError struct {
-	failure   LaunchFailure
-	cause     error
-	saveError error
+	failure    LaunchFailure
+	cause      error
+	saveError  error
+	recordPath string
 }
 
 func (e *launchFailureError) Unwrap() error { return errors.Join(e.cause, e.saveError) }
@@ -35,6 +36,7 @@ func (e *launchFailureError) Error() string {
 	if e.saveError != nil {
 		happened += " (diagnostics could not be saved: " + failureSummary(e.saveError.Error()) + ")"
 	}
+	happened += " [attempt " + failureSummary(f.Nonce) + "; diagnostics " + rowtext.Sanitize(e.recordPath) + "]"
 	ref := f.StartingPath
 	if ref == "" {
 		ref = string(f.Address.Tag)
@@ -76,26 +78,41 @@ func (c *Couch) captureLaunchFailure(in trackedThreadLaunch, stage string, h Han
 	if output, ok := h.(LaunchOutputHandle); ok {
 		f.Stream, f.Output = output.LaunchOutput()
 	}
+	var setup *blockedStartError
+	if errors.As(cause, &setup) {
+		f.HelperStarted = setup.HelperStarted
+		f.BeforeExit, f.AfterExit = setup.BeforeExit, setup.AfterExit
+		f.Stream, f.Output = setup.Stream, append([]byte(nil), setup.Output...)
+		f.CleanupError = setup.CleanupError
+	}
 	saved := c.saveLaunchFailure(f)
 	var cleanupErr error
 	if cleanup != nil {
 		cleanupErr = cleanup()
 	}
-	f.AfterExit = observedLaunchExit(h)
+	if h != nil {
+		f.AfterExit = observedLaunchExit(h)
+	}
 	if output, ok := h.(LaunchOutputHandle); ok {
 		f.Stream, f.Output = output.LaunchOutput()
 	}
 	if cleanupErr != nil {
-		f.CleanupError = cleanupErr.Error()
+		if f.CleanupError != "" {
+			f.CleanupError += "\n"
+		}
+		f.CleanupError += cleanupErr.Error()
 	}
 	saved = errors.Join(saved, c.saveLaunchFailure(f))
-	return &launchFailureError{failure: f, cause: errors.Join(cause, cleanupErr), saveError: saved}
+	return &launchFailureError{failure: f, cause: errors.Join(cause, cleanupErr), saveError: saved, recordPath: c.launchFailurePath()}
 }
 func (c *Couch) saveLaunchFailure(f LaunchFailure) error {
 	if c.LaunchFailures == nil {
 		return errors.New("launch diagnostic store unavailable")
 	}
-	return c.LaunchFailures.Save(f)
+	if err := c.LaunchFailures.Save(f); err != nil {
+		return fmt.Errorf("write launch diagnostics %s: %w", c.LaunchFailures.Path(), err)
+	}
+	return nil
 }
 
 func (c *Couch) finishSwitchFailure(in trackedThreadLaunch, err error) error {
@@ -107,5 +124,12 @@ func (c *Couch) finishSwitchFailure(in trackedThreadLaunch, err error) error {
 	f := failed.failure
 	f.Operation = "switch-agent"
 	f.FinalError = err.Error()
-	return &launchFailureError{failure: f, cause: err, saveError: errors.Join(failed.saveError, c.saveLaunchFailure(f))}
+	return &launchFailureError{failure: f, cause: err, saveError: errors.Join(failed.saveError, c.saveLaunchFailure(f)), recordPath: c.launchFailurePath()}
+}
+
+func (c *Couch) launchFailurePath() string {
+	if c.LaunchFailures == nil {
+		return "unavailable"
+	}
+	return c.LaunchFailures.Path()
 }

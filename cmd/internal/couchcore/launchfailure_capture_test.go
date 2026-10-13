@@ -3,6 +3,7 @@ package couchcore
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -174,5 +175,54 @@ func TestLaunchFailureOperatorLineOneAction(t *testing.T) {
 	got := err.Error()
 	if strings.ContainsAny(got, "\n\r\x1b") || strings.Count(got, "couch --show") != 1 || strings.Contains(got, "retry") || !strings.Contains(got, "fork failed") {
 		t.Fatal(got)
+	}
+}
+
+func TestLaunchFailureCaptureCorrelatesAttemptAndStore(t *testing.T) {
+	for _, writeFails := range []bool{false, true} {
+		t.Run(fmt.Sprint(writeFails), func(t *testing.T) {
+			env := newTestEnv(t, "/repo")
+			store := &captureFailureStore{}
+			diskErr := errors.New("disk full")
+			if writeFails {
+				store.err = diskErr
+			}
+			env.Couch.LaunchFailures = store
+			cause := errors.New("spawn refused")
+			in := trackedThreadLaunch{Thread: ThreadRecord{Address: ThreadAddress{RepoScope: "scope", Tag: "tag"}, StartingPath: "/repo"}, Nonce: "exact-attempt-123"}
+			got := env.Couch.captureLaunchFailure(in, "spawn", nil, cause, nil)
+			if !strings.Contains(got.Error(), in.Nonce) || !strings.Contains(got.Error(), store.Path()) {
+				t.Fatalf("missing correlation: %v", got)
+			}
+			if !errors.Is(got, cause) {
+				t.Fatal("lost original cause")
+			}
+			if writeFails && !errors.Is(got, diskErr) {
+				t.Fatal("lost storage cause")
+			}
+			if strings.Contains(got.Error(), "\n") || strings.Count(got.Error(), "inspect with") != 1 {
+				t.Fatal(got)
+			}
+		})
+	}
+}
+
+func TestLaunchFailureCapturePartialStartEvidence(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	cause := errors.New("ack reader close failed")
+	before, after := 23, 23
+	setup := &blockedStartError{cause: cause, HelperStarted: true, BeforeExit: &before, AfterExit: &after, Stream: "stderr", Output: []byte("helper failed before registration"), CleanupError: "runner cleanup failed"}
+	in := trackedThreadLaunch{Thread: ThreadRecord{Address: ThreadAddress{RepoScope: "scope", Tag: "tag"}, StartingPath: "/repo"}, Nonce: "partial-start"}
+	got := env.Couch.captureLaunchFailure(in, "spawn", nil, setup, func() error { return errors.New("rollback failed") })
+	if !errors.Is(got, cause) {
+		t.Fatal(got)
+	}
+	records, err := env.Couch.LaunchFailures.Read()
+	if err != nil || len(records) != 1 {
+		t.Fatalf("%v %+v", err, records)
+	}
+	f := records[0]
+	if !f.HelperStarted || f.BeforeExit == nil || *f.BeforeExit != 23 || f.AfterExit == nil || *f.AfterExit != 23 || string(f.Output) != "helper failed before registration" || !strings.Contains(f.CleanupError, "runner cleanup failed") || !strings.Contains(f.CleanupError, "rollback failed") {
+		t.Fatalf("lost partial-start evidence: %+v", f)
 	}
 }

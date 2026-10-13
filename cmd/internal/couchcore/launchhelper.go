@@ -52,21 +52,29 @@ func startBlockedChild(ctx context.Context, start blockedChildStarter, helper st
 	h, err := start(dir, launchHelperArgv(helper, timeout, argv), env, []*os.File{reader})
 	closeErr := reader.Close()
 	if err != nil {
+		// A starter may fail after obtaining a handle. Keep its evidence and
+		// close acknowledgement just as for the other post-start failures.
+		if h != nil {
+			return nil, failedBlockedStart(h, errors.Join(err, closeErr), newAcknowledgedHandle(h, writer).Cancel)
+		}
 		return nil, errors.Join(err, closeErr, writer.Close())
 	}
 	if closeErr != nil {
-		return nil, errors.Join(closeErr, newAcknowledgedHandle(h, writer).Cancel())
+		return nil, failedBlockedStart(h, closeErr, newAcknowledgedHandle(h, writer).Cancel)
 	}
 	blocked := newAcknowledgedHandle(h, writer)
 	if nice != 0 {
 		// Every Couch child leads its own process group, so the pgid is its pid.
 		err := unix.Setpriority(unix.PRIO_PGRP, h.PID(), nice)
 		if err != nil && !errors.Is(err, unix.EACCES) && !errors.Is(err, unix.EPERM) {
-			cancelErr := blocked.Cancel()
-			if cancelErr == nil {
-				_ = blocked.Wait()
-			}
-			return nil, errors.Join(fmt.Errorf("start blocked: lower %s to nice %d (COUCH_SLOT_NICE): %w", argv[0], nice, err), cancelErr)
+			cause := fmt.Errorf("start blocked: lower %s to nice %d (COUCH_SLOT_NICE): %w", argv[0], nice, err)
+			return nil, failedBlockedStart(blocked, cause, func() error {
+				cancelErr := blocked.Cancel()
+				if cancelErr == nil {
+					_ = blocked.Wait()
+				}
+				return cancelErr
+			})
 		}
 	}
 	return blocked, nil

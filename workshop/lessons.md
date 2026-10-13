@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- A spawn API can return an error after it created and cleaned up a process. Preserve bounded evidence before that cleanup and carry it through the error; a nil returned handle does not prove nothing started. Test the post-spawn setup refusal, not only exec failure and registration failure. (#531 BR-1)
+
 - A late asynchronous report is checked against whether its source is still live, not against a counter that only
   moves on the next start. #495's rotation callback compared the cast's start attempt, which an ended cast keeps until
   a new one begins, so a report after the end still passed. Test the window where the source has ended and nothing

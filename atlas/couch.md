@@ -46,9 +46,11 @@ file lock. Records carry scope/tag/nonce, target, starting path and failure stag
 exit codes. The entire encoded history is capped at 1 MiB. Failed persistence is
 reported beside the original error; later success does not clear evidence.
 
-The shared `launchTrackedThread` failure path records before cleanup and enriches
-afterward; `SwitchAgent` adds its final error by attempt identity. The typed error
-preserves errors.Is/As while its operator text names one inspection action.
+Runner setup refusals that occur after spawning carry a `blockedStartError` with
+immutable output and pre/post-cleanup observations, even when no handle can be
+returned. The shared `launchTrackedThread` failure path consumes that evidence,
+records before its own cleanup and enriches afterward; `SwitchAgent` adds its final error by attempt identity. The typed error
+preserves errors.Is/As while its operator text names the attempt, diagnostic file, and one inspection action.
 `couch --show` reads retained evidence by exact address or canonical starting
 path, including after rollback removed the thread, without creating lifecycle
 records. `couchcmd/launchfailure.go` sanitizes child text line by line.

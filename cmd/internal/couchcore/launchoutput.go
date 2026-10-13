@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"errors"
 	"io"
 	"sync"
 
@@ -43,4 +44,47 @@ func terminalLaunchOutput(child *ptychild.Child) (string, []byte) {
 		output = output[len(output)-launchOutputBytes:]
 	}
 	return "pty stdout/stderr", output
+}
+
+// blockedStartError preserves setup failure evidence when StartBlocked cannot
+// return its already-started handle. Its snapshots are detached from that handle
+// and fixed before returning; consumers must treat them as immutable.
+type blockedStartError struct {
+	cause         error
+	HelperStarted bool
+	BeforeExit    *int
+	AfterExit     *int
+	Stream        string
+	Output        []byte
+	CleanupError  string
+}
+
+func (e *blockedStartError) Error() string { return e.cause.Error() }
+func (e *blockedStartError) Unwrap() error { return e.cause }
+
+// failedBlockedStart samples without waiting on a running child. The callback
+// retains the caller's existing cleanup policy (including whether it waits).
+func failedBlockedStart(h Handle, cause error, cleanup func() error) error {
+	e := &blockedStartError{HelperStarted: true, BeforeExit: observedLaunchExit(h), Stream: "unavailable"}
+	snapshot := func() {
+		if output, ok := h.(LaunchOutputHandle); ok {
+			stream, raw := output.LaunchOutput()
+			if stream != "" {
+				e.Stream = stream
+			}
+			if len(raw) > launchOutputBytes {
+				raw = raw[len(raw)-launchOutputBytes:]
+			}
+			e.Output = append([]byte(nil), raw...)
+		}
+	}
+	snapshot()
+	cleanupErr := cleanup()
+	e.AfterExit = observedLaunchExit(h)
+	snapshot()
+	if cleanupErr != nil {
+		e.CleanupError = boundLaunchFailureError(cleanupErr.Error())
+	}
+	e.cause = errors.Join(cause, cleanupErr)
+	return e
 }

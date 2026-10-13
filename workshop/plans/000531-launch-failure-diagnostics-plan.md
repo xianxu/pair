@@ -109,3 +109,7 @@ Tasks 1–3 implementation and targeted race/installer checks complete. Code is 
 ### 2026-10-13 13:41 PDT — validation exception authorized
 
 TL authorizes closing with #514 cited for the full-suite attempt's timing failure. Full make test was attempted below load40 but stopped before Go tests; targeted race tests passed. Do not await another idle window or claim the full suite passed. Boundary review and validated landing remain.
+
+### 2026-10-13 — boundary review corrections
+
+Runner setup can fail after spawning but before returning a handle. Preserve immutable pre/post-cleanup output/exit evidence in a typed blockedStartError; the shared launch recorder consumes it without repeating runner cleanup. Cover every post-spawn error branch and test the actual acknowledgment-reader-close refusal with controlled ordering. Immediate errors include attempt identity and the diagnostic file path; storage errors wrap the path and preserve errors.Is/As. The issue completion criteria now include the authorized install links and one-action guidance. Tests must fail without each behavioral fix.

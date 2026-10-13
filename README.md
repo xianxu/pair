@@ -477,7 +477,8 @@ operations: retry switching when the old agent is still running; after a failed
 target start is proved gone, resume the old conversation. Uncertain terminal
 ownership must be resolved before another agent starts.
 
-Failed launches leave a one-line explanation and an inspection command, such as
+Failed launches leave a one-line explanation, attempt ID, diagnostic file path,
+and an inspection command, such as
 `couch --show ariadne:5`. Inspection retains the target's error, the final switch
 error, output tail, and exits observed before and after cleanup separately.
 An unobserved exit is not proof that the target crashed. Each Couch namespace

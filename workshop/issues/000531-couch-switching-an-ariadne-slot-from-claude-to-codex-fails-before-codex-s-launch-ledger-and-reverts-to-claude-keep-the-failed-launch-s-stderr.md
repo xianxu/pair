@@ -42,6 +42,10 @@ Only targeted tests while machine load is at least 40. No full suite until load 
 - Duplicate updates enrich one attempt; concurrent or late updates cannot replace another attempt's evidence; storage and rendering remain bounded and sanitize terminal controls.
 - Tests exercise real short-lived PTY and ordinary subprocesses plus the existing stateful launch fake, including pre-spawn refusal, output-before-exit, canceled wait, success, persistence failure and truncation.
 
+- A setup failure after a helper spawned retains that helper's output and separate pre/post-cleanup exits even when StartBlocked returns no handle.
+- Immediate failures include bounded attempt correlation, diagnostic location, one sanitized explanation, and exactly one recovery action; persistence errors preserve their original error chain.
+- Local install creates links for the Go binaries, and an installed link follows a rebuilt checkout binary without reinstalling. No real ~/.local/bin mutation is required to verify this.
+
 ## Plan
 
 - [x] Approve the diagnostic design and durable implementation plan.
@@ -93,3 +97,11 @@ After one-minute load fell to 37.17, started the machine-gated full command `GOM
 ### 2026-10-13 13:41 PDT — close authorized with #514 exception
 
 TL receipt a521528a-f421-4f8c-ae55-6b12485aa4ed authorizes proceeding to close, citing #514 for the only failure observed in the full-suite attempt (11 s versus 6 s). This supersedes waiting for another below-40 window. The run stopped before the Go suite; do not call it a full passing run. Targeted combined race tests and installer regression are the passing evidence. Hub sends failed because its wrapper was briefly absent; TL recovered the report by peeking. For future not-live delivery failures, retry after a few minutes rather than ending work immediately.
+
+### 2026-10-13 — boundary round 1 corrections
+
+BR-1: preserve evidence across every post-spawn runner setup refusal (acknowledgment-reader close, priority setup and a starter returning both handle/error), before lower-level cleanup destroys it; transfer immutable snapshots through a typed error to the shared recorder. BR-2: immediate errors now require explicit bounded attempt identity and diagnostic location, including storage-failure location while retaining errors.Is/As. BR-3: Done when now explicitly covers the already-authorized installer links and single-action recovery contract. These clarify coverage of the approved scope; no new live repro or installation action is authorized.
+
+### 2026-10-13 — round 1 fix verification
+
+BR-1 actual reader-close post-spawn path tested with a real subprocess: stderr and exit23 survive. Reverting that branch via a Go overlay fails the regression (missing retained setup evidence). Separate regression for the shared recorder failed with HelperStarted=false/empty output before the fix and passes with pre/post exits and both runner-cleanup/rollback errors retained. BR-2 correlation tests failed for missing attempt/path on both successful/failed storage before the fix and pass afterward, preserving errors.Is for the launch and disk errors. BR-3 completion criteria now match authorized scope. Combined targeted race run after fixes passed: core27.541s, cmd25.458s; git diff --check clean. #514 full-suite exception remains in force; no repeat full suite run.
