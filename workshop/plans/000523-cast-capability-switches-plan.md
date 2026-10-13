@@ -79,7 +79,7 @@ Use it for terminal 👆 and web 👆/👽; code menus remain copy-only.
 
 | Name | Lives in | Status | Wraps |
 | --- | --- | --- | --- |
-| Board annotation admission | cmd/internal/webcast/board/board.go, capability.go | modified | request/emit ordering and recording sink |
+| Board annotation admission | cmd/internal/webcast/board/board.go, annotation.go | modified/new | request/emit ordering and recording sink |
 | Recorder annotation commit | cmd/internal/webcast/recorder/recorder.go | modified | ordered stream writes and clear acknowledgment |
 | MemController capability | cmd/internal/webcast/drive/controller_mem.go, controller.go | modified | control sink and input injection |
 | Cast capabilities | cmd/internal/webcast/cast_capabilities.go, cast.go | new/modified | Board/controller state and lifecycle |
@@ -205,7 +205,7 @@ catchup.go and colocated tests; web/model.js and tests/webcast/model.test.mjs.
 
 ### Task 2: Admission and bounded cleanup
 
-Files: board/capability.go, board/board.go, board/writer.go; recorder/recorder.go;
+Files: board/annotation.go, board/board.go, board/writer.go; recorder/recorder.go;
 drive/controller.go, controller_mem.go, controller_contract.go, tab.go;
 cast_capabilities.go, cast.go; corresponding tests and existing fake seams.
 
@@ -428,3 +428,24 @@ notes, pointer; therefore recorder mirror.emit and reference Writer cleanup
 stamp AnnotationClear at max(clock, previous record T+1). All subsequent emits
 retain the existing monotonic clamp. Add a stateful equal-clock split/replay
 strategy to their tests. No file rank or old recording ordering is changed.
+
+### 2026-10-13 00:26 PDT — M1 boundary review corrections
+
+BR-1 (ARCH-PURPOSE): the recording consumer inventory is Go State.Apply,
+CatchUp, Split/Merge, JS Model.apply, replay.js catchUp and Player.seek.
+Replay catch-up must retain annotation-clear across resumes and reset its kept
+note IDs. Shared capability-events.jsonl prefix and arbitrary-order seek tests
+compare current notes AND strokes with sequential reduction; both reproduced
+resurrection before the fix and pass afterward.
+
+BR-2 (ARCH-ORDER, ARCH-MOCK): ordinary control records need the same production
+commit evidence as cleanup. Add an acknowledged write through liveGate, Chrome
+and the ordered Recorder sink; a successful enqueue is insufficient. Stateful
+production-adapter tests delay completion, close the recorder and fail its sink.
+Preserve started-operation ownership when a caller cancels.
+
+BR-3: Board annotation admission lives in new board/annotation.go alongside
+modified board/board.go; the concept table and task paths now name those files.
+BR-4: README now documents default-OFF admission and distinguishes persistent
+link permissions from capability availability; M2's visible switches remain
+explicitly pending until implemented.

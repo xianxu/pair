@@ -1480,3 +1480,9 @@ proof; record the surprising case so the next change starts from evidence.
   unobserved terminal outcome beyond the busy channel lifetime and consume it
   before a later retry declares cleanup complete; do not re-report an outcome
   already surfaced to the operator.
+
+- #523 boundary review: a new recording event needs a consumer inventory covering
+  both reducers and replay optimizers. Compare marks as well as DOM at every
+  prefix and across seeks; DOM-only parity can miss resurrected annotations.
+- #523 boundary review: verify acknowledgments through the production adapter.
+  A synchronous fake cannot prove an asynchronous recorder committed a write.

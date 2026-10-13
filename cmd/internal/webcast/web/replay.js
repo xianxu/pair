@@ -42,6 +42,9 @@ export function catchUp(recs) {
       case 'note':
         if (i >= doc) { kept.add(r.id); out.push(r); }
         return;
+      case 'annotation-clear':
+        if (i >= doc) { out.push(r); kept.clear(); }
+        return;
       case 'note-state':
         if (i >= doc && kept.has(r.id)) out.push(r);
         return;

@@ -1008,13 +1008,22 @@ server, an agent's mock, anything). While it runs the tab bar shows
 **Go live** button Couch puts at the bottom right of the page, and the active tab
 is cast (`Chrome ⏸`). The same three pause and resume it, and the browser stays
 open while paused. A web cast has three links, like the screen broadcast
-(#506), each granting more than the one before:
+(#506), each allowing more than the one before when the corresponding
+capability is enabled:
 - right-click the cell for the **view-only link**: its viewers watch, and see
   others' strokes and notes but can't add any;
 - `👆` copies the **pointer link** (left or right click): its viewers also point
   and leave and resolve notes;
 - `👽` copies the **drive link** (below; left or right click): its viewers can
   also ask to drive.
+
+Annotation and remote driving start **OFF**, independently. A link and its code
+remain valid when a capability is off, but holding them does not enable it:
+the server refuses annotation or driving until the operator enables that
+capability. Turning annotation off clears the current marks while preserving
+recorded history; turning driving off revokes the driver and pending requests.
+The capability authority is implemented; the cast-row switches and viewer
+availability indicators are the pending UI portion of #523.
 
 Each link has its own code (hover the cell to see them; Alt+click it for the
 Codes menu, which copies any of the three). Beside the cell, `↗` brings the cast
@@ -1024,7 +1033,8 @@ cast too. The cast follows whichever tab is active, including tabs opened later.
 Viewers' page shows whether the cast is live and, while it is, the page's title
 and URL; nothing you do while paused reaches them.
 
-**Remote driving (#467).** A viewer who opens the **drive link** sees **Ask to drive**. The tab bar then shows
+**Remote driving (#467).** When driving is enabled, a viewer who opens the
+**drive link** can **Ask to drive**. The tab bar then shows
 `✋Ana` after the Chrome cell (`✋2` for more), and Couch says so. Click it for the drive menu:
 - **Grant.** Click the asker to let them drive. They use the page through their viewer with mouse, touch and
   keyboard, and the tab bar shows `🕹Ana`.
@@ -1061,7 +1071,8 @@ record aren't in the recording. The viewer keeps their place at the operator's s
 outline and a label such as "canvas: not captured", so the page never collapses around them.
 
 **Pointing and notes on a web cast (#470).** Anyone with the pointer link (👆) or the
-drive link can point and leave notes; the view-only link can't, and the cast refuses
+drive link can point and leave notes while annotation is enabled; the view-only
+link can't, and the cast refuses
 its posts ("This link is view-only."). On the viewer's page, the rail at
 the right edge has the six pointer colors, ✏️ (point: draw on the page, everyone sees
 the stroke fade after a moment) and 💭 (note: drag a box around what the note is
