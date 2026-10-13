@@ -15,7 +15,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "9e6b5a6a", done: "33f2818f"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # broadcast-web: a button beside the notes popup in Couch's tab bar brings the cast Chrome to the front
@@ -51,6 +51,8 @@ The operator (10-12): during a web cast they move between Couch and the cast Chr
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed — Operator smoke test PASSED (via the TL, build cafcf8a07): Chrome ⏸ ↗ 👆 👽 controls worked, ↗ brings the cast Chrome window and tab forward; scrolling while driving failed, which is #505. Tests: reserve row (spans, LIVE style, IndicatorShown not fooled), console clicks (↗ focuses the FakeBrowser, 👆/👽 copy the view/drive links, mutation-checked), Chrome loop sends Target.activateTarget for the cast tab, conformance (fake + live headless Chrome) covers Focus. After the final main merge (#503 removed the broadcast 👽; Chrome group keeps its own WebcastDriveLinkLabel): couchtty, webcast, broadcast, artifactpath ok unsandboxed. Earlier full suite (5e5d7a810 era) green: make -k test shell/Lua, test-changelog, go test ./... 100 packages. 👽 driving-state highlight (11693274c) reverted, on hold with the TL.; review verdict: SHIP
+- 2026-10-12: flow upgraded quick → full — 161 added lines in code files (limit 100)
 
 - Implemented: `Browser.Focus` (Chrome: `Target.activateTarget` on the cast tab + `activateProcess` by PID; fake counts). `↗` cell after the Chrome label; Chrome ⏸ in `broadcast.LiveSGR`.
 - JXA activation script checked with a nonexistent PID (unsandboxed, exit 0, nothing raised). Real activation is the operator's smoke test: macOS 14+ cooperative activation may ignore a background request, in which case `Target.activateTarget` alone has to do it.
