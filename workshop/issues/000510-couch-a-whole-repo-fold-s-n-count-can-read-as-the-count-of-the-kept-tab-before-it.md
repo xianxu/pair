@@ -45,3 +45,4 @@ Here `+3` counts blog, pair and pair:1, but it sits right after `pair:2` and rea
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: unclaimed: filed for ops:0 as an unassigned follow-up to #491; nothing pending
