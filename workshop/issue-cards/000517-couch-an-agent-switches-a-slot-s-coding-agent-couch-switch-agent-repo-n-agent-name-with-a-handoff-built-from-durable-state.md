@@ -1,6 +1,6 @@
 ---
 id: 000517
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-13
 estimate_hours: 5.107
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 489ec0bfc6c07ef2864d9399415e629f9aa10d98
         evidence_commit: eee68fabd0f2553e133e3f2845998bc0e453a095
+        landed_commit: 99dac35abe2f6327972e9391aca541acfa380992
 ---
 
 # couch: an agent switches a slot's coding agent (couch --switch-agent repo:N --agent NAME), with a handoff built from durable state
