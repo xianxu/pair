@@ -328,16 +328,17 @@ func FuzzParseNote(f *testing.F) {
 }
 
 func TestNoteVisible(t *testing.T) {
-	n := Note{Col: 10, Row: 5}
+	// Inside the guard's width, so it is hidden once row 5 is the last row.
+	n := Note{Col: StatusGuardCols - 2, Row: 5}
 	cases := []struct {
 		cols, rows int
 		want       bool
 	}{
 		{80, 24, true},
-		{12, 24, true},
-		{11, 24, false}, // second cell off the grid
-		{80, 5, false},  // row off the grid
-		{80, 6, false},  // now the last row, inside the guard
+		{StatusGuardCols, 24, true},
+		{StatusGuardCols - 1, 24, false}, // second cell off the grid
+		{80, 5, false},                   // row off the grid
+		{80, 6, false},                   // now the last row, inside the guard
 	}
 	for _, c := range cases {
 		if got := NoteVisible(n, c.cols, c.rows); got != c.want {

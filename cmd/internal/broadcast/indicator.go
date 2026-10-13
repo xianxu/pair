@@ -15,10 +15,9 @@ const (
 	LiveSGR = "\x1b[41m"
 
 	// PointerLabel is the pointer-link control, drawn right after
-	// LiveLabel + " " (#412); ControlLabel is reserved for remote control
-	// (#407). Both are emoji, two columns wide.
+	// LiveLabel + " " (#412). It is an emoji, two columns wide. Remote control
+	// of the terminal (#407) gets its own control when it is built (#503).
 	PointerLabel = "👆"
-	ControlLabel = "👽"
 	// PointerSGR marks pointing as on: an amber background.
 	PointerSGR = "\x1b[48;5;214m"
 )
@@ -73,6 +72,6 @@ func PointerShown(f terminal.Frame) bool {
 func textwidthOf(s string) int { return ansi.StringWidth(s) }
 
 // StatusGuardCols is the width of the broadcast's controls at the left of
-// Couch's status row, `LIVE ⏸ 👆 👽`. Marks never cover these columns of the
+// Couch's status row, `LIVE ⏸ 👆`. Marks never cover these columns of the
 // last row (#412); the rest of the tab bar can be pointed at.
-var StatusGuardCols = textwidthOf(LiveLabel + " " + PointerLabel + " " + ControlLabel)
+var StatusGuardCols = textwidthOf(LiveLabel + " " + PointerLabel)
