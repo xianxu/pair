@@ -95,21 +95,22 @@ func TestCodesMenuRotatesAndDisconnects(t *testing.T) {
 func TestGuessRotationAlertAndFlash(t *testing.T) {
 	f := broadcastFixture(t, &broadcast.FakeTunnel{}, nil)
 	f.startLive(t)
-	f.con.onCodeRotated(castScreen, broadcast.LinkView, castlock.Rotation{Code: "5193", Reason: castlock.ReasonGuessing, Gen: 2})
+	attempt := f.screenAttempt()
+	f.con.onCodeRotated(castScreen, attempt, broadcast.LinkView, castlock.Rotation{Code: "5193", Reason: castlock.ReasonGuessing, Gen: 2})
 	waitFor(t, "the alert", func() bool { return strings.Contains(f.screenText(), "Too many wrong codes on the LIVE view link") })
 	waitFor(t, "the flash", func() bool { return strings.Contains(f.screenText(), "LIVE view 5193") })
 	if strings.Contains(f.lastRow(), "5193") {
 		t.Fatal("the alert names the code")
 	}
-	f.con.onCodeRotated(castScreen, broadcast.LinkView, castlock.Rotation{Code: "1111", Reason: castlock.ReasonGuessing, Gen: 1})
+	f.con.onCodeRotated(castScreen, attempt, broadcast.LinkView, castlock.Rotation{Code: "1111", Reason: castlock.ReasonGuessing, Gen: 1})
 	f.con.codes.mu.Lock()
 	if fl := f.con.codes.flash; fl == nil || fl.code != "5193" {
 		t.Fatalf("an older rotation replaced the newer: %+v", fl)
 	}
 	f.con.codes.mu.Unlock()
-	f.con.onCodeRotated(castScreen, broadcast.LinkView, castlock.Rotation{Code: "2222", Reason: castlock.ReasonGuessing, Gen: 3})
+	f.con.onCodeRotated(castScreen, attempt, broadcast.LinkView, castlock.Rotation{Code: "2222", Reason: castlock.ReasonGuessing, Gen: 3})
 	f.con.codes.mu.Lock()
-	quiet := f.con.codes.quiet[linkKey(castScreen, broadcast.LinkView)]
+	quiet := f.con.codes.quiet[linkKey(castScreen, attempt, broadcast.LinkView)]
 	f.con.codes.mu.Unlock()
 	if quiet != 1 {
 		t.Fatalf("a second alert within the quiet window was not coalesced: %d", quiet)
@@ -140,4 +141,27 @@ func TestWebCastCodesOnTheChromeCell(t *testing.T) {
 	if !strings.Contains(c.screenText(), "rotate all") {
 		t.Fatal("no rotate-all item with two links")
 	}
+}
+
+func (f *consoleFixture) screenAttempt() uint64 {
+	f.con.mu.Lock()
+	defer f.con.mu.Unlock()
+	return f.con.bcast.attempt
+}
+
+// BR-16: a rotation reported late by a cast that has ended -- even with a high
+// Gen -- is dropped, and never holds back the next cast's rotations.
+func TestLateRotationFromAnEndedCastIsDropped(t *testing.T) {
+	f := broadcastFixture(t, &broadcast.FakeTunnel{}, nil)
+	f.startLive(t)
+	current := f.screenAttempt()
+	f.con.onCodeRotated(castScreen, current-1, broadcast.LinkView, castlock.Rotation{Code: "9999", Reason: castlock.ReasonOperator, Gen: 50})
+	f.con.codes.mu.Lock()
+	stale := f.con.codes.flash
+	f.con.codes.mu.Unlock()
+	if stale != nil {
+		t.Fatalf("an ended cast's rotation flashed: %+v", stale)
+	}
+	f.con.onCodeRotated(castScreen, current, broadcast.LinkView, castlock.Rotation{Code: "4242", Reason: castlock.ReasonOperator, Gen: 1})
+	waitFor(t, "the current cast's flash", func() bool { return strings.Contains(f.screenText(), "LIVE view 4242") })
 }

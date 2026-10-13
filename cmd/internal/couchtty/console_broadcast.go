@@ -157,15 +157,15 @@ func (c *Console) startBroadcast(cfg broadcast.Config) {
 	if cfg.Now == nil {
 		cfg.Now = c.now
 	}
-	// Its links' codes (pair#495).
-	if cfg.OnCodeRotated == nil {
-		cfg.OnCodeRotated = func(link string, r castlock.Rotation) { c.onCodeRotated(castScreen, link, r) }
-	}
 	ctx, cancel := context.WithCancel(c.lifetime)
 	c.mu.Lock()
 	c.bcast = broadcastState{phase: broadcastStarting, attempt: c.bcast.attempt + 1, cancel: cancel}
 	attempt := c.bcast.attempt
 	c.mu.Unlock()
+	// Its links' codes (pair#495), bound to this start.
+	if cfg.OnCodeRotated == nil {
+		cfg.OnCodeRotated = func(link string, r castlock.Rotation) { c.onCodeRotated(castScreen, attempt, link, r) }
+	}
 	c.setNotice("Starting broadcast…")
 	c.GoTracked(func() {
 		s, err := broadcast.Start(ctx, cfg)

@@ -58,8 +58,6 @@ func (c *Console) SetWebcast(cfg webcast.CastConfig) {
 		msg := "Chrome cast: " + fmt.Sprintf(format, args...)
 		c.GoTracked(func() { c.setNotice(msg) })
 	}
-	// Its links' codes (pair#495).
-	cfg.OnCodeRotated = func(link string, r castlock.Rotation) { c.onCodeRotated(castWeb, link, r) }
 	c.webcastCfg = &cfg
 }
 
@@ -102,6 +100,8 @@ func (c *Console) startWebcast(cfg webcast.CastConfig) {
 	c.wcast = webcastState{phase: webcastStarting, attempt: c.wcast.attempt + 1, cancel: cancel}
 	attempt := c.wcast.attempt
 	c.mu.Unlock()
+	// Its links' codes (pair#495), bound to this start.
+	cfg.OnCodeRotated = func(link string, r castlock.Rotation) { c.onCodeRotated(castWeb, attempt, link, r) }
 	c.setNotice("Starting Chrome…")
 	c.GoTracked(func() {
 		cast, err := webcast.StartCast(ctx, cfg)

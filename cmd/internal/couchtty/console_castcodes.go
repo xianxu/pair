@@ -81,7 +81,12 @@ type codeFlash struct {
 	start time.Time
 }
 
-func linkKey(k castKind, link string) string { return strconv.Itoa(int(k)) + "/" + link }
+// linkKey names one link of one cast: its kind, the start attempt that made
+// it, and its label. A rotation from an ended cast's attempt is never
+// confused with the next cast's (BR-16).
+func linkKey(k castKind, attempt uint64, link string) string {
+	return strconv.Itoa(int(k)) + "/" + strconv.FormatUint(attempt, 10) + "/" + link
+}
 
 // castCodesOf is a cast's current codes; nil when it isn't running. On the Run
 // loop (it reads c.mu).
@@ -291,19 +296,24 @@ func (c *Console) rotateCastCodes(kind castKind, links []string) error {
 }
 
 // onCodeRotated is a cast reporting a new code, on whichever goroutine
-// rotated it. The newest Gen per link wins; a guessing rotation is told in a
-// notice, coalesced per link, without the code.
-func (c *Console) onCodeRotated(kind castKind, link string, r castlock.Rotation) {
-	key := linkKey(kind, link)
+// rotated it; attempt is the start that made the cast. A rotation from an
+// earlier attempt (a cast that has ended) is dropped. The newest Gen per link
+// wins; a guessing rotation is told in a notice, coalesced per link, without
+// the code.
+func (c *Console) onCodeRotated(kind castKind, attempt uint64, link string, r castlock.Rotation) {
+	key := linkKey(kind, attempt, link)
 	now := c.now()
 	// No caller holds the console's locks while a code rotates (the gate's
-	// unlock, or the menu's RotateCode), so the cell can be read here.
+	// unlock, or the menu's RotateCode), so the console can be read here.
 	c.mu.Lock()
-	cell := c.statusControl.Start
+	cell, current := c.statusControl.Start, c.bcast.attempt
 	if kind == castWeb {
-		cell = c.statusWebcast.Start
+		cell, current = c.statusWebcast.Start, c.wcast.attempt
 	}
 	c.mu.Unlock()
+	if attempt != current {
+		return // a late report from a cast that has ended
+	}
 	c.codes.mu.Lock()
 	if c.codes.gens == nil {
 		c.codes.gens, c.codes.noticed, c.codes.quiet = map[string]uint64{}, map[string]time.Time{}, map[string]int{}

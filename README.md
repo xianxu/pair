@@ -1022,8 +1022,8 @@ the binary to choose another (Couch refuses to start if it doesn't exist).
 and leave notes; there is no separate pointer link. On the viewer's page, the rail at
 the right edge has the six pointer colors, ✏️ (point: draw on the page, everyone sees
 the stroke fade after a moment) and 💭 (note: tap an element, or drag a region, then
-write). The first note asks for a name; the page remembers it and the color in this
-browser. A note pins to its element (or region) for everyone, follows it as the page
+write). The name comes from the lock page (below); the page remembers it and the
+color in this browser. A note pins to its element (or region) for everyone, follows it as the page
 scrolls, stays through a pause, and leaves the page when the cast moves to another
 page; anyone can tap a pin to read it and resolve it. In Couch the open notes show as
 `💭N` after the Chrome cell (`Chrome ⏸ 💭2`); click it for the same notes box the screen
@@ -1033,6 +1033,26 @@ notes, these are part of the recording: notes and strokes, with their authors, a
 saved in `notes.jsonl` and `pointer.jsonl`, and `couch --broadcast-web-query DIR
 notes` lists them. The name a viewer gives is theirs to choose: it attributes, it
 doesn't authenticate.
+
+**Codes on every cast link (#495).** Every link a cast hands out opens with a short
+code first: the screen broadcast's view and pointer links, and the web cast's view and
+drive links. A link alone shows only a lock page that asks for the code and the
+viewer's name; the cast's server sends nothing without the code, not even the stream.
+Send the link however you like and say the code on the call. A link may carry the code
+as `link#4821`: the page reads it and drops it from the address bar, and link previews
+never see it.
+- **Seeing the codes.** Hover a cast cell (`LIVE`, its `👆`, or `Chrome`) to see that
+  cast's codes, for example `view 4821 · pointer 7730`. View and pointer codes are 4
+  digits; the drive code is 6.
+- **Rotating codes.** `Alt+click` the cell for its Codes menu: rotate one link's code,
+  or all of them. Rotating disconnects everyone who used the old code.
+- **Wrong guesses.** About 8 wrong tries on one code rotate it by themselves. Couch
+  says so, and viewers already in stay connected.
+- **What viewers see.** The codes show on your screen only, never in what the LIVE
+  broadcast sends, and a notice says that a code changed, never what it is. A new code
+  flashes three times over its cell.
+- **Re-entering the code.** Opening the link again from a chat app asks for the code
+  again.
 
 With an empty root filter, **Space** toggles the **normal view** and **focus view**.
 Focus view shows only live threads with a published summary, in normal-view
