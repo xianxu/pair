@@ -60,6 +60,17 @@ func (c *Cast) PrepareSubmission(parent context.Context, id string, target core.
 	}
 	ctx, cancel := context.WithTimeout(parent, 30*time.Second)
 	defer cancel()
+	if err := ctx.Err(); err != nil {
+		return empty, nil, err
+	}
+	var policy core.OriginPolicy
+	if c.readOriginPolicy != nil {
+		var notice string
+		policy, notice = c.readOriginPolicy()
+		if notice != "" && c.logf != nil {
+			c.logf("%s", notice)
+		}
+	}
 	recs, err := readSubmissionRecording(ctx, c.RecordingPath())
 	if err != nil {
 		return empty, nil, err
@@ -83,6 +94,21 @@ func (c *Cast) PrepareSubmission(parent context.Context, id string, target core.
 	if len(captured) != len(sub.Notes) {
 		return empty, nil, fmt.Errorf("capture did not return every selected note")
 	}
+	// Missing or unavailable capture identity can never authorize publication.
+	origin := ""
+	completeIdentity := len(captured) > 0
+	for i, crop := range captured {
+		if i == 0 {
+			origin = crop.Origin
+		}
+		if crop.Unavailable != "" || crop.Origin == "" || crop.Origin != origin {
+			completeIdentity = false
+		}
+	}
+	if !completeIdentity {
+		origin = ""
+	}
+	sub.PrivacyDecision = policy.Decide(origin)
 	total := 0
 	for _, crop := range captured {
 		if len(crop.PNG) > core.MaxPNGBytes || len(crop.PNG) > core.MaxBundleBytes-total {

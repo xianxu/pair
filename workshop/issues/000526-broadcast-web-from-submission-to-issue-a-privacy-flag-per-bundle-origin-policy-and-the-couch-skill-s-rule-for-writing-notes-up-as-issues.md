@@ -91,3 +91,10 @@ Hub approved commit `5738858e62f3ab31716f641a7f1af8de87db4fa1` with the operator
 ### 2026-10-13 — plan-quality revision
 
 PQ-1 addressed with named risky-function strategies instead of prose case inventories; PQ-2 corrected operator-owned retention versus admission capacity. Full plan-quality rerun required before implementation.
+
+### 2026-10-13 — implementation checkpoint
+
+- Implemented pure bounded origin rules and manifest decision validation, operator-only local file loading with private fallback/notice, capture-fenced origin matching, text-first guidance, and editable-value exclusion. New policy parser and manifest tests were red before implementation; targeted submission/webcast/recorder/couchcmd/couchtty privacy, origin, guide, capture and box-text tests pass. Policy fuzz: 127446 executions in 3 seconds, passed.
+- Skill baseline identified reliance on agent judgment; explicit shipped contract tests were red then green. Fresh-context five-scenario application confirmed private/legacy/invalid text-only behavior and the conjunction of shareability plus repository asset permission.
+- Full `make test` attempted: stopped at known #514 (`capture took 20s over a 6s budget`); `/tmp/pair-526-full-test.log`. Running `make -k test` to collect the remaining checks and asked hub about the known baseline failure. Live Chrome remains unrun until full-suite attempt completes.
+- Estimate scope clarification: issue-spec includes incurred authoring/design, policy module includes the null/object/string codec, and capture integration includes second-lander #525 reconciliation. Rates remain provisional per estimate-quality INFO.

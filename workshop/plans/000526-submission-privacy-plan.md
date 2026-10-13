@@ -1,6 +1,6 @@
 # Submission privacy implementation plan
 
-> **For agentic workers:** Consult AGENTS.md Section 3 (Subagent Strategy) to determine the appropriate execution approach: use superpowers-subagent-driven-development (if subagents are suitable per AGENTS.md) or superpowers-executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** Consult AGENTS.md Section 3 (Subagent Strategy) to determine the appropriate execution approach: use superpowers-subagent-driven-development (if subagents are suitable per AGENTS.md) or superpowers-executing-plans to implement this plan. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Make DOM submission privacy explicit and default-private, and give agents a text-first rule for turning notes into durable issues.
 
@@ -67,37 +67,37 @@ The policy reader uses a temporary directory in tests, never the real Couch stor
 
 Files: create `cmd/internal/submission/privacy.go` and `privacy_test.go`; modify `model.go`, `model_test.go`, `store_test.go`.
 
-- [ ] Write the pure-policy tests using the function-level strategies below.
-- [ ] Test Validate and store persistence using the strategies below.
-- [ ] Run `go test ./cmd/internal/submission -run 'Privacy|Origin|ReadingGuide' -count=1`; confirm new behavior tests fail before implementation.
-- [ ] Implement typed rules and pure `ParseOriginPolicy` / `Decide` plus manifest validation. Algorithm: canonicalize origin; if absent/unsupported return private/null; find exact canonical rule; return its value and copied rule; otherwise private/null. Keep IO out of this package's policy logic.
-- [ ] Run `go test ./cmd/internal/submission -count=1`; commit the coherent policy/model change.
+- [x] Write the pure-policy tests using the function-level strategies below.
+- [x] Test Validate and store persistence using the strategies below.
+- [x] Run `go test ./cmd/internal/submission -run 'Privacy|Origin|ReadingGuide' -count=1`; confirm new behavior tests fail before implementation.
+- [x] Implement typed rules and pure `ParseOriginPolicy` / `Decide` plus manifest validation. Algorithm: canonicalize origin; if absent/unsupported return private/null; find exact canonical rule; return its value and copied rule; otherwise private/null. Keep IO out of this package's policy logic.
+- [x] Run `go test ./cmd/internal/submission -count=1`; commit the coherent policy/model change.
 
 ### 2. Couch policy loading and capture-bound decision
 
 Files: create `cmd/internal/couchcmd/privacy.go`, `privacy_test.go`; modify `cmd/internal/couchcmd/webcast.go`, `webcast_test.go`, `cmd/internal/webcast/cast.go`, `cast_submission.go`, `cast_submission_test.go`, `cmd/internal/webcast/recorder/submission.go`, `submission_test.go`.
 
-- [ ] Test loadOriginPolicy and PrepareSubmission using portable policy files and the existing stateful browser fixture; use the strategies below.
-- [ ] Test CaptureCrops with controlled event ordering per the strategy below. Reuse #525 identity coverage if it has landed.
-- [ ] Run `go test ./cmd/internal/couchcmd ./cmd/internal/webcast ./cmd/internal/webcast/recorder -run 'Privacy|Origin|Submission|Capture' -count=1`; confirm new tests fail for the intended missing behavior.
-- [ ] Wire a read-only loader into CastConfig; load once during preparation; capture and compare origin; set decision before final validation/storage. Leave delivery identity and retry ownership intact. Missing loader means private. Tests exercise the production seam with the existing stateful doubles.
-- [ ] Repeat the targeted command; commit the wiring.
+- [x] Test loadOriginPolicy and PrepareSubmission using portable policy files and the existing stateful browser fixture; use the strategies below.
+- [x] Test CaptureCrops with controlled event ordering per the strategy below. Reuse #525 identity coverage if it has landed.
+- [x] Run `go test ./cmd/internal/couchcmd ./cmd/internal/webcast ./cmd/internal/webcast/recorder -run 'Privacy|Origin|Submission|Capture' -count=1`; confirm new tests fail for the intended missing behavior.
+- [x] Wire a read-only loader into CastConfig; load once during preparation; capture and compare origin; set decision before final validation/storage. Leave delivery identity and retry ownership intact. Missing loader means private. Tests exercise the production seam with the existing stateful doubles.
+- [x] Repeat the targeted command; commit the wiring.
 
 ### 3. Editable-value exclusion and agent guidance
 
 Files: modify `cmd/internal/webcast/recorder/box_text.js`, `box_text_test.js`, `cmd/internal/webcast/live_submission_test.go`, `cmd/internal/submission/model.go`, `model_test.go`, `cmd/internal/couchcmd/skills/couch/SKILL.md`; add `cmd/internal/couchcmd/skill_privacy_test.go`.
 
-- [ ] Read superpowers-test-driven-development and superpowers-writing-skills before the relevant implementation edits.
-- [ ] Write failing collector fixtures and a live Chrome conformance assertion using the sentinel strategy below.
-- [ ] Run `go test ./cmd/internal/webcast/recorder -run BoxText -count=1`; implement the narrow traversal exclusion; rerun.
-- [ ] Update the guide and shipped skill with decision 7. Add focused semantic assertions for default-private, the two crop conditions, summarization, operator-owned policy, and local expiring recordings. Retain existing command-pointer checks.
-- [ ] Run `go test ./cmd/internal/submission ./cmd/internal/couchcmd ./cmd/internal/couchtty -run 'ReadingGuide|Privacy|Submission' -count=1`; commit text protection and guidance.
+- [x] Read superpowers-test-driven-development and superpowers-writing-skills before the relevant implementation edits.
+- [x] Write failing collector fixtures and a live Chrome conformance assertion using the sentinel strategy below.
+- [x] Run `go test ./cmd/internal/webcast/recorder -run BoxText -count=1`; implement the narrow traversal exclusion; rerun.
+- [x] Update the guide and shipped skill with decision 7. Add focused semantic assertions for default-private, the two crop conditions, summarization, operator-owned policy, and local expiring recordings. Retain existing command-pointer checks.
+- [x] Run `go test ./cmd/internal/submission ./cmd/internal/couchcmd ./cmd/internal/couchtty -run 'ReadingGuide|Privacy|Submission' -count=1`; commit text protection and guidance.
 
 ### 4. Documentation, verification and handoff
 
 Files: modify `README.md`, `atlas/webcast-submission.md`; update existing atlas links only if a new page is necessary. Update issue Plan/Log and add Revisions for changed decisions.
 
-- [ ] Document the operator-owned file path and exact-origin example, missing/error behavior, privacy JSON example, immutable per-bundle decision, private text handling, crop policy conjunction and local evidence lifetime. Do not create an actual shareable policy for the operator.
+- [x] Document the operator-owned file path and exact-origin example, missing/error behavior, privacy JSON example, immutable per-bundle decision, private text handling, crop policy conjunction and local evidence lifetime. Do not create an actual shareable policy for the operator.
 - [ ] Merge latest main as needed and reconcile #525's capture URL. Sweep for duplicated origin authority and old externalization guidance. Report integration status to hub if #525 remains pending.
 - [ ] Run targeted packages, then `make test` in the background before any headless run or close, per dispatch. Inspect its completed result.
 - [ ] Run `WEBCAST_LIVE_CHROME=1 GOMAXPROCS=2 go test -p 1 ./cmd/internal/webcast -run '^TestLiveSubmissionCrop$' -count=1 -timeout 60s -v` after the full suite. Assert actual form-value exclusion and static-text retention; a skip is not conformance evidence.

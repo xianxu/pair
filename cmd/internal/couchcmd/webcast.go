@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/xianxu/pair/cmd/internal/broadcast"
+	core "github.com/xianxu/pair/cmd/internal/submission"
 	"github.com/xianxu/pair/cmd/internal/webcast"
 	"github.com/xianxu/pair/cmd/internal/webcast/assets"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
@@ -34,6 +35,9 @@ func webcastSettings(getenv func(string) string, store string, host *broadcast.H
 	}
 	cfg := webcast.CastConfig{Host: host}
 	if store != "" {
+		cfg.ReadOriginPolicy = func() (core.OriginPolicy, string) {
+			return loadOriginPolicy(filepath.Join(store, "webcast", "origin-privacy.json"))
+		}
 		cfg.RecordingsDir = recordingsDir(store)
 		// The viewers' fan-out (#460's hub), one per cast.
 		// The recording's asset store (#459), persisting through its DirWriter.
