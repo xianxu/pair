@@ -113,6 +113,24 @@ total: 4.545
 
 ## Log
 
+### 2026-10-13 implementation checkpoint
+
+- change-code passed: plan-quality CLEAN (three recorded rounds), estimate
+  INFO. Estimate covers the whole claim-to-ship window including completed
+  design. Resolver tests belong to recording/query and terminal mutation;
+  headless integration allowance includes active full-suite/race triage,
+  review allowance includes active landing. UI/testing allowance is optimistic;
+  keep actual evidence rather than adjusting retrospectively to a target.
+- Trusted cookie owner and terminal editing implemented. Red tests observed
+  absent session owner, missing edit route and duplicate-key acceptance; all
+  are green. Full broadcast package passed (149.100s). Web cookie-jar edit
+  test and Board own-owner test pass; remaining operator/UI integration ongoing.
+- Recording/model/query subagent passed Go recording/query, shared catch-up
+  corpus and 47 model/replay JS tests. Spec review passed conditional on the
+  UI task's latest-pin callback fix. Quality review found equal-millisecond
+  cross-file reordering before stop/navigation; fixing writer order with
+  split/merge tests before accepting the recording chunk.
+
 ### 2026-10-13
 
 - Dispatched by ops:0; existing claim confirmed as pair:7. start-plan refreshed

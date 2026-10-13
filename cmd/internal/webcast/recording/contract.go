@@ -2,6 +2,7 @@ package recording
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -336,7 +337,13 @@ func liveNotes(s *State) string {
 	var out []string
 	for _, n := range s.Notes {
 		if n.Seg >= s.DocSeg {
-			out = append(out, n.ID+":"+n.State)
+			wire, _ := json.Marshal(struct {
+				Note       *Note
+				State      string
+				Revision   uint64
+				ResolvedBy *Author
+			}{n.Note, n.State, n.Revision, n.ResolvedBy})
+			out = append(out, string(wire))
 		}
 	}
 	return strings.Join(out, ",")

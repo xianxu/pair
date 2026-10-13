@@ -232,3 +232,18 @@ versus terminal volatile attribution. The issue's earlier 'recording/replay/
 queries on both casts' phrasing is superseded: only the web cast has those
 facilities. TL explicitly chose the bounded terminal event option and declined
 a separate terminal audit issue.
+
+### 2026-10-13 16:35 PDT — recording order across file boundaries
+
+Ad-hoc recording review found accepted `note-edit(t=2), stop(t=2)` becomes
+`stop, note-edit` when files merge (events before notes). The new reducer
+correctly rejects that reordered edit. Fix the class at production emission:
+a pure recording time-order helper uses the existing file-rank registry and
+advances one millisecond when a tied next record would merge before the prior
+record. Recorder mirror and reference Board writer track their last emitted
+kind, changing that state only after successful application. Preserve clear's
+strict ordering. Do not weaken reducer admission or alter reader merge order.
+Function-level strategy: drive each writer with a frozen clock and compare
+live reduction against actual Split/Merge/Reduce across pause/end/navigation/
+clear. This supersedes the assumption that existing timestamp ordering alone
+was sufficient for edit persistence (ARCH-ORDER).

@@ -73,6 +73,11 @@ func CatchUp(recs []Record) []Record {
 				out = append(out, r)
 			}
 			continue
+		case *NoteEdit:
+			if i >= doc && kept[r.ID] {
+				out = append(out, r)
+			}
+			continue
 		case *NoteState:
 			// A note from an earlier document stays behind, and so do its
 			// state changes.
