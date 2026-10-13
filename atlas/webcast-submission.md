@@ -220,11 +220,25 @@ successful send. Acknowledgment then resolves only the submitted notes whose
 recording, document and revision still match. New notes, reopened notes and
 notes on a replacement page remain untouched.
 
-The draft remains editable after preparation or send failure. Every
-Ctrl+Shift+Alt+Return starts a new submission from the current draft with a new
-ID and fresh evidence. A changed draft or view prevents its older preparation
-from sending; a new chord replaces that local attempt. Duplicate messages are
-acceptable, including after an uncertain paste. No original text needs to be
+The draft status line immediately shows preparation, including “waiting for the
+page to settle, crop 2/3”, capture and bundle publication, then “sending to
+pair:N…” and “sent” or the failure reason. While that operation is active, only
+its initiating buffer is read-only. Navigation, queue, delete, reset and alternate
+send actions on that draft are blocked before changing slot identity or saved
+content. Another chord reports “already sending…” without replacing the operation
+or extending its deadline. These actions resume when ownership is released.
+
+The operation has an absolute 36-second client budget; preparation retains its
+30-second server timeout and each RPC its 4-second cap. DOM-only subprocesses
+also consume the remaining budget. Success releases the buffer before the normal
+clear; every failure or timeout restores editing and keeps the draft. Terminal
+status remains until the draft changes or another submission starts.
+
+After completion or failure, Ctrl+Shift+Alt+Return starts a new submission from
+the current draft with a new ID and fresh evidence. A changed view prevents its
+older preparation from sending. Late completions cannot clear a newer draft;
+a late confirmed dispatch can still acknowledge its own notes. Duplicate
+messages are acceptable after an uncertain paste. No original text needs to be
 reconstructed and no discard key is required.
 
 A new stored bundle marks older same-target `prepared` or `delivering` bundles
@@ -277,7 +291,7 @@ bundles, remains under the existing store caps and explicit local cleanup.
 | Recording inputs and crop assembly | `cmd/internal/webcast/cast_submission.go` |
 | Background preparation, replay sharing and acknowledgment | `cmd/internal/couchtty/console_submission.go` |
 | Local CLI/RPC and current caller validation | `cmd/internal/couchcmd/submission.go`, `cmd/internal/couchmessage/protocol.go` |
-| Draft attempt, pinned pane and authored send transaction | `nvim/dom_submission.lua`, `nvim/dom_transport.lua`, `nvim/submission.lua` |
+| Bounded draft operation, progress UI, pinned pane and authored send transaction | `nvim/dom_submission_state.lua`, `nvim/dom_submission.lua`, `nvim/dom_transport.lua`, `nvim/submission.lua`, `nvim/init.lua` |
 
 For source recording queries, see [the recording format](webcast-format.md#agent-queries-462).
 Replay sharing is mapped in [broadcast-web](webcast.md#replay-471).

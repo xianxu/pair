@@ -130,7 +130,7 @@ func TestLiveSubmissionCrop(t *testing.T) {
 	}
 	boxes := []recording.Box{{100, 1420, 120, 80}, {160, 1450, 120, 80}}
 	began := time.Now()
-	crops, err := c.CaptureCrops(ctx, document, []core.CaptureRegion{{Box: boxes[0], Region: recording.Box{160, 1450, 80, 40}}, {Box: boxes[1], Region: recording.Box{160, 1450, 80, 40}}})
+	crops, err := c.CaptureCrops(ctx, document, []core.CaptureRegion{{Box: boxes[0], Region: recording.Box{160, 1450, 80, 40}}, {Box: boxes[1], Region: recording.Box{160, 1450, 80, 40}}}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,7 +193,7 @@ func TestLiveSubmissionCrop(t *testing.T) {
 	evidence, err := c.CaptureCrops(ctx, document, []core.CaptureRegion{
 		{Box: recording.Box{500, 1400, 250, 220}, Region: recording.Box{500, 1400, 250, 220}},
 		{Box: recording.Box{900, 1400, 10, 10}, Region: recording.Box{900, 1400, 10, 10}},
-	})
+	}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -264,7 +264,7 @@ func TestLiveSubmissionCrop(t *testing.T) {
 	call("Runtime.evaluate", map[string]any{"expression": `new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))`, "awaitPromise": true}, nil)
 	formEvidence, err := c.CaptureCrops(ctx, document, []core.CaptureRegion{
 		{Box: recording.Box{20, 1120, 430, 240}, Region: recording.Box{20, 1120, 430, 240}},
-	})
+	}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -11,33 +11,42 @@ function M.new(v, action)
     if result.code ~= 0 then
       -- Preserve a definite failed preparation so its retry can start afresh.
       if status and status.state=='failed' then return status end
-      return nil,(result.stderr or ''):gsub('%s+$','')
+      local reason=(result.stderr or ''):gsub('%s+$','')
+      if reason=='' then reason=result.code==124 and 'Couch request timed out' or ('Couch request exited '..tostring(result.code)) end
+      return nil,reason
     end
     if not status then return nil,'invalid Couch response' end
     return status
   end
-  local function rpc(op,id,cb)
-    v.system(argv(op,id),{text=true,timeout=4000},function(result)
+  local function timeout(operation)
+    if not operation then return 4000 end
+    operation.check()
+    local remaining = operation.remaining()
+    assert(remaining > 0, 'submission timed out')
+    return math.max(1, math.floor(math.min(4000, remaining)))
+  end
+  local function rpc(op,id,cb,operation)
+    v.system(argv(op,id),{text=true,timeout=timeout(operation)},function(result)
       v.schedule(function()cb(decode(result))end)
     end)
   end
-  local function sync(op,id)
-    return decode(v.system(argv(op,id),{text=true,timeout=4000}):wait())
+  local function sync(op,id,operation)
+    return decode(v.system(argv(op,id),{text=true,timeout=timeout(operation)}):wait())
   end
-  local function panes()
-    local result=action('draft.dom.list-panes',{'zellij','action','list-panes','--json','--command'}) or {}
+  local function panes(operation)
+    local result=action('draft.dom.list-panes',{'zellij','action','list-panes','--json','--command'}, operation and {timeout_ms=timeout(operation)} or nil) or {}
     if result.code~=0 then return nil end
     local ok,node=pcall(v.json.decode,result.stdout or '');if not ok then return nil end
     return pane_identity.agents(node)
   end
-  local function pin(id)
-    local p=panes()
+  local function pin(id,operation)
+    local p=panes(operation)
     if not p or #p~=1 then return nil,'cannot uniquely identify the agent pane' end
     local pane_id,command=p[1].id,p[1].terminal_command
     return {pane_id=pane_id,validate=function()
-      local r,err=sync('begin',id)
+      local r,err=sync('begin',id,operation)
       if not r or r.state~='delivering' then return false,err or 'recipient is no longer current' end
-      local now=panes()
+      local now=panes(operation)
       if not now or #now~=1 or now[1].id~=pane_id or now[1].terminal_command~=command then return false,'agent pane was replaced' end
       return true
     end}

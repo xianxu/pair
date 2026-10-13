@@ -172,7 +172,7 @@ func TestSubmissionServiceIdentityAndNoPeerQuota(t *testing.T) {
 			if err := couchmessage.Call(context.Background(), r.brokerSock, req, &result); err != nil {
 				t.Fatal(err)
 			}
-			if result.Code != "ok" || result.Submission == nil || result.Submission.State != states[op] {
+			if result.Code != "ok" || result.Submission == nil || result.Submission.State != states[op] || result.Submission.Slot != b.Slot {
 				t.Fatalf("response: %#v", result)
 			}
 		}

@@ -93,6 +93,7 @@ func (s *messageService) handleSubmission(ctx context.Context, r couchmessage.Re
 	}
 	target := core.Target{Scope: caller.Scope, Tag: caller.Tag, Session: caller.Session, Nonce: caller.Nonce}
 	status, err := (*run)(ctx, strings.TrimPrefix(r.Op, "submission-"), r.ID, target)
+	status.Slot = caller.Slot
 	response := couchmessage.Response{Code: "ok", Submission: &status}
 	if err != nil {
 		response.Code, response.Error = "refused", err.Error()
