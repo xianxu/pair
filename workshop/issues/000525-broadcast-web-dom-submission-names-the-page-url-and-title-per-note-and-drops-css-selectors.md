@@ -91,3 +91,7 @@ Next: SDLC boundary review and PR, then coordinate staging with hub for the oper
 ### 2026-10-13 — close round 1 verification environment
 
 Round 1 found no code defect but returned REWORK (BR-1) because the disposable checkout lacked generated runtimebundle assets and Chrome crashed during startup. Disputed with unchanged reruns: Couch package checks passed (0.304s/0.938s), and live TestLiveSubmissionCrop passed again without skipping (1.17s). The full suite had already passed. For a fresh review checkout, run make runtimebundle-generate before testing packages that embed those assets; this is an existing make build/test prerequisite, not a tracked-file omission. Its local rerun also passed. No code change was needed.
+
+### 2026-10-13 — close round 2: controlled fence diagnosis
+
+The reviewer independently passed affected packages and race checks after runtime generation, but retained BR-1 because two live runs crashed at Chrome GPU startup. Controlled local comparison now reproduces the precise environment difference: adding sandbox-exec with an allow-default profile and a write deny only for an unrelated unused /tmp path makes TestLiveSubmissionCrop fail at startup (1.27s, GPU exit 6). Immediately running the identical Go command without that extra fence passes (1.11s, no skip). No files changed. SDLC reviewbox/fence.go wraps the reviewer in this Seatbelt mechanism; its sidecar says isolation=fenced. This is not a capture assertion failure. Disputed again with the controlled measurement; no product change or isolation bypass requested. Hub notified.

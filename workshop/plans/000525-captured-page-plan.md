@@ -109,3 +109,7 @@ Handoff: `sdlc close --issue 525 --verified '<evidence>'` owns fresh-context rev
 ### 2026-10-13 — hub clarification and #526 integration
 
 Hub approved preserving existing per-text-node granularity/order and one source page bound to the batch with per-note references. #526 landed at 3b5d1ac6edb6cf156ba30d8b2a264324ca33effc before this branch; this issue now consumes its matcher and strict permission decoding. The previous apparent skeleton was a stale checkout; refreshed main contains the complete operator spec.
+
+### 2026-10-13 — verification environment
+
+Fresh-checkout package verification requires make runtimebundle-generate and now passes independently in review. Real Chrome conformance passed three times in the parent environment, while review's Seatbelt fence prevents Chrome GPU startup. A controlled same-checkout comparison reproduced failure with a minimal added sandbox-exec fence and an immediate PASS without it. Preserve the review fence; assess the external conformance evidence alongside independently passing package/race checks. No design or product-code change follows from this environment distinction.
