@@ -68,6 +68,21 @@ Durable plan: [agent switch plan](../plans/000517-agent-switch-plan.md).
 
 ## Log
 
+- 2026-10-12 23:28 PDT — Final make test at a5aae57e8 completed exit 0
+  (/tmp/pair-517-recovery-full.log). Read-only ariadne:1 incident investigation:
+  scope 6640c766feade3d0 correctly names its worktree, including the older
+  couch-tag artifacts; Claude parked at 23:11:29, no Codex launch/ready evidence,
+  replacement supervisor started at 23:12:34. TL receipt
+  4f433c0f-4e59-4ee2-be60-ac4f890a3d82 confirms operator restarted Couch for
+  #494 around then and the complete error had no helper-exit suffix. Console
+  teardown during registration is the likely cause, not conclusively traced.
+  Trust prompts do not gate registration. Existing switch failure projection
+  says source still parked → resume when verified park has no occupied target.
+  BR-6 tests cover startup reconciliation of interrupted target claims and old
+  native Claude resume after proven target absence; uncertain target evidence
+  remains protected. Operator owns live recovery; TL requires no further live
+  repro. No incident-time live state was changed.
+
 - 2026-10-12 23:13 PDT — BR-6 repair: confirmResumeReplacementAbsent reads
   pending Start profile/binding before promoted incarnation fields and rechecks
   exact target absence/helper death immediately before lifecycle cleanup. Six
