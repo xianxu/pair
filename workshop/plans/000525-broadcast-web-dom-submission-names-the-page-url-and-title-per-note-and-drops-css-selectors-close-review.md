@@ -158,3 +158,73 @@ dispose:
     note: |
       Package verification is resolved: make runtimebundle-generate and targeted Couch checks passed. Live conformance remains unresolved: two prescribed TestLiveSubmissionCrop runs failed at live_submission_test.go:50 with “GPU process isn't usable” before opening the fixture. This supports the environmental diagnosis but does not reproduce the claimed live PASS; restore Chrome verification and rerun. No new finding is raised.
 ```
+
+---
+
+## Re-review — 2026-10-13T11:06:19-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 525 — broadcast-web: DOM submission names the page (URL and title per note) and drops CSS selectors |
+| repo | pair |
+| issue file | workshop/issues/000525-broadcast-web-dom-submission-names-the-page-url-and-title-per-note-and-drops-css-selectors.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 844d29e698e481712f6a58f37f04e4d717a405f3..925eda92cf69d4877f0143309f37cc98b549ca01 |
+| command | sdlc close --issue 525 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-13T11:06:19-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+The implementation matches the issue and revised plan: capture-bound URL/title, per-note document references, selector-free structured text, and v1 compatibility. No new defects found. BR-1 is withdrawn: independent checks pass, while the reproduced Chrome startup failure is consistent with the supplied fence comparison. Live conformance remains externally evidenced rather than independently confirmed here.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: withdrawn
+    note: |
+      Runtime generation and affected package/race checks passed. Live Chrome reproduced GPU startup exit 6 before capture assertions (1.16s). The supplied same-checkout fenced/unfenced comparison isolates this failure to the review environment; no product correction or behavioral regression test is warranted. This review did not independently reproduce the unfenced PASS.
+```
+
+1. **Strengths**
+
+   - Capture probes use the admitted context and recheck URL/title across text and pixel operations (`cmd/internal/webcast/recorder/submission.go:131`).
+   - Privacy derives from the same captured page; inconsistent references and selector-bearing v2 evidence are rejected (`cmd/internal/submission/model.go:209`).
+   - Projection preserves recording anchors while clearing submission selectors, with a direct non-mutation regression test (`cmd/internal/webcast/submission/build_test.go:138`).
+   - README, atlas, and shipped guidance consistently document the format and legacy compatibility.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Passed full package tests for submission, submission projection, recorder, webcast, and Couch.
+   - Passed console submission tests and targeted race tests across the four affected core/capture packages.
+   - Collector coverage exercises ordered mixed text, shadow/slot ownership, escaping, clipping, and byte limits.
+   - Store tests verify v2 persistence, frozen retries, and legacy selector-bearing bundles.
+   - `git diff --check` passed. Full repository `make test` and build were not independently rerun.
+   - Live Chrome failed during startup, before exercising assertions; it is not counted as a passing test.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — Pass:** capture identity is the shared authority for evidence and privacy.
+   - **ARCH-PURE — Pass:** schema validation and projection remain pure; CDP and DOM access stay at integration boundaries. Core-concept locations and classifications match.
+   - **ARCH-PURPOSE — Pass:** both text arrays, anchors, note references, privacy, compatibility, and documentation are covered.
+   - **ARCH-MOCK — Pass:** production seams have stateful fixtures and a real-browser conformance test; execution limitation described above.
+   - **ARCH-CONSTRAINTS — Pass:** metadata limits, operation deadlines, traversal limits, and bundle admission bounds remain enforced.
+   - **ARCH-SECURE — Pass:** authoritative JSON aliases are rejected, metadata is validated, and unavailable capture cannot authorize sharing.
+   - **ARCH-ORDER — Pass:** existing admission/state machinery remains authoritative; controlled tests invalidate capture on URL/title changes.
+   - **ARCH-FUNERAL — Pass:** added metadata remains within existing bounded bundles and their documented cleanup lifecycle.
+
+7. **Plan revision recommendations:** None.

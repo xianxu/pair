@@ -42,6 +42,8 @@ The operator (2026-10-12):
 
 ## Log
 
+
+- 2026-10-13: closed — Full make -k test passed; make build, targeted packages/race and diff check passed. Real Chrome TestLiveSubmissionCrop passed without skips three times (4.61s, 1.17s, 1.11s). BR-1 now has controlled countermeasurement: same code and command fails only with an added minimal sandbox-exec fence (GPU startup code 6), passes immediately without it. Reviewer isolation=fenced explains its startup failures; retain isolation and assess real parent-run evidence. No production changes since full suite. Operator blog quick look remains before landing.; review verdict: SHIP
 ### 2026-10-12
 
 ## Revisions
