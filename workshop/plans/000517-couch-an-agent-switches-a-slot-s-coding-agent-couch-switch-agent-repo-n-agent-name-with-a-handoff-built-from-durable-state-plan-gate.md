@@ -20,6 +20,20 @@ rounds:
           family: function-level-test-strategy
           round: 1
       blocked: true
+    - "n": 2
+      timestamp: "2026-10-12T20:19:43-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Exact parent request correlation, authenticated source matching, stale-ID rejection, duplicate handling, and separate standalone self admission are now explicit.
+          round: 2
+        - id: PQ-2
+          disposition: addressed
+          note: The plan names production functions and supplies adversarial strategies with mechanical guards, replacing the prior prose test-case inventories.
+          round: 2
+      blocked: false
+content_hash: 4ae8f4a123185b30ba891c91bd23363127ff4a58b3f48745790ab8e81c93c86c
 ---
 
 # Gate ledger — pair#517 (plan-quality)
@@ -36,7 +50,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **PQ-2** [Important] `function-level-test-strategy` Replace prose test-case inventories with named functions and adversarial strategies
   M1–M3 enumerate test cases but omit production function names for the new transition model, descriptor validation, content validation, previous selection, and bounded replay. Name those functions and give each risky function one strategy line describing the adversarial input class and mechanical guard; compress the case inventories as required by this gate.
 
+## Round 2 — 2026-10-12T20:19:43-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Exact parent request correlation, authenticated source matching, stale-ID rejection, duplicate handling, and separate standalone self admission are now explicit.
+- PQ-2 — addressed — The plan names production functions and supplies adversarial strategies with mechanical guards, replacing the prior prose test-case inventories.
+
 ## Open findings
 
-- **PQ-1** [Important] `asynchronous-request-correlation` Bind handoff callbacks to the exact switch request, not only its incarnation
-- **PQ-2** [Important] `function-level-test-strategy` Replace prose test-case inventories with named functions and adversarial strategies
+(none — every finding has been disposed)

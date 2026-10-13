@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
-estimate_hours:
-card_mirror: '3f2027ec27910a8613d20896a8a7f21736ad8b91' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 5.422
+card_mirror: '5c1a5b98ee9c887045a05d32fa3372877b074f37' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T20:05:23-07:00
 claimant:
     operator: Xian Xu
@@ -127,3 +127,50 @@ Durable plan: [agent switch plan](../plans/000517-agent-switch-plan.md).
   `ebf27554-f0e7-4d4e-8b00-2b46b83c529f`; defaults and full-read limits
   accepted. TL owns live-check scheduling. Proceed to change-code plan-quality;
   no permission to skip any gates. Add dirty-source commit/self guidance to M3.
+
+## Estimate
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md`
+against `baseline-v3.1.md`. Method A only.* Source marked stale by
+`sdlc estimate-source`; provisional calibration. Derived after plan-quality
+round 2 passed. Scope includes design, tests, docs, four reviews (three
+milestones plus close), and live discovery for Claude/Codex/Grok.
+
+Decomposition: issue/spec at 0.5 design + 0.2 baseline implementation;
+four smaller Go extensions (descriptor/store, peek selection, bounded replay,
+wire/CLI) each 0.2 design discounted by 0.2 and 0.5 baseline implementation;
+two new Go concerns (pure switch model, coordinator) each 1.0 design discounted
+by 0.2 and 0.8 baseline implementation; form at 1.0 design discounted by 0.2
+and 1.0 baseline implementation; TL skill at 0.6 design discounted by 0.2 and
+0.5 baseline implementation; three live-agent discovery seams each 0.6 baseline
+implementation; four review boundaries each 0.1 design discounted by 0.2 and
+0.5 baseline implementation; docs at 0.1 design discounted by 0.2 and 0.2
+baseline implementation. All implementation values below apply v3.1's 0.4
+scale once. Existing Go lifecycle, broker, renderer and TUI seams avoid a new
+stack; no external library replaces the source-bound coordination model.
+Familiarity 1.0 for this established stack; thorough-plan design buffer 15%.
+Design subtotal 1.48; implementation subtotal 3.72; total 5.422 hours.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.5 impl=0.08
+item: smaller-go-module design=0.04 impl=0.20
+item: smaller-go-module design=0.04 impl=0.20
+item: smaller-go-module design=0.04 impl=0.20
+item: smaller-go-module design=0.04 impl=0.20
+item: greenfield-go-module design=0.20 impl=0.32
+item: greenfield-go-module design=0.20 impl=0.32
+item: tui-screen design=0.20 impl=0.40
+item: skill-or-dispatcher design=0.12 impl=0.20
+item: real-api-discovery design=0 impl=0.24
+item: real-api-discovery design=0 impl=0.24
+item: real-api-discovery design=0 impl=0.24
+item: milestone-review design=0.02 impl=0.20
+item: milestone-review design=0.02 impl=0.20
+item: milestone-review design=0.02 impl=0.20
+item: milestone-review design=0.02 impl=0.20
+item: atlas-docs design=0.02 impl=0.08
+design-buffer: 0.15
+total: 5.422
+```
