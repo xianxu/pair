@@ -7,6 +7,10 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- A runbook or atlas page states what was measured, not what was hoped: #496's page first called the scratch volume
+  "the fix" although its own series showed no fseventsd CPU drop. Write the measured outcome, including the null result,
+  in the same commit as the mechanism. On macOS, `mktemp` without a template ignores `$TMPDIR` and is denied in the
+  agent sandbox; always pass `"${TMPDIR:-/tmp}/name.XXXXXX"` and `|| exit 1`. (#496 BR-1, BR-2)
 - A change to what a user does (a gesture, a control, what a pin shows) updates README's how-to paragraph in the same
   commit as the atlas. The atlas is the agent's map and README is the operator's; grep README for the old verbs
   ("tap", "drag", "pin") before closing. (#488 BR-1)
