@@ -223,8 +223,10 @@ notes on a replacement page remain untouched.
 The draft status line immediately shows preparation, including “waiting for the
 page to settle, crop 2/3”, capture and bundle publication, then “sending to
 pair:N…” and “sent” or the failure reason. While that operation is active, only
-its initiating buffer is read-only. Another chord reports “already sending…”
-without replacing the operation or extending its deadline.
+its initiating buffer is read-only. Navigation, queue, delete, reset and alternate
+send actions on that draft are blocked before changing slot identity or saved
+content. Another chord reports “already sending…” without replacing the operation
+or extending its deadline. These actions resume when ownership is released.
 
 The operation has an absolute 36-second client budget; preparation retains its
 30-second server timeout and each RPC its 4-second cap. DOM-only subprocesses

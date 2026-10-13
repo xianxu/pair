@@ -553,6 +553,21 @@ local function write_history_entry(n, body)
 	write_file(path, replaced)
 end
 
+-- DOM ownership protects the logical draft slot and its files, not just text
+-- writes. Check before prompts, navigation state, logging, or queue mutations.
+-- Scope the guard to the initiating buffer so unrelated views remain usable.
+function _G.PairDraftMutationBlocked(buf, quiet)
+  local status = _G.PairDOMStatus
+  buf = (buf == nil or buf == 0) and vim.api.nvim_get_current_buf() or buf
+  if not status or not status.busy or status.buf ~= buf then return false end
+  if not quiet then
+    status.text = 'already sending…'
+    pcall(vim.cmd, 'redrawstatus')
+    pcall(vim.cmd, 'redraw')
+  end
+  return true
+end
+
 local function buffer_text()
   return table.concat(vim.api.nvim_buf_get_lines(0, 0, -1, false), '\n')
 end
@@ -877,6 +892,7 @@ do
   end
 
   function _G.submit_operator_text(authored_body, agent_text, attachment, fresh, operation)
+    if not operation and _G.PairDraftMutationBlocked() then return false, 'already sending' end
     local tag = bang_tag.parse(attachment and strip_comments(authored_body) or agent_text)
     if attachment and tag and not tag.agent_text then return false end
     if tag and not tag.agent_text then return describe_couch_thread(tag) end
@@ -1272,7 +1288,9 @@ local function poll_capture(bufnr, ns, extmark_id, cap_path, done_path, started_
     end
     return
   end
-  if vim.fn.filereadable(done_path) == 1 then
+  -- A capture started before DOM ownership may finish while the draft is
+  -- locked. Keep its files and let the existing bounded poll retry later.
+  if not _G.PairDraftMutationBlocked(bufnr, true) and vim.fn.filereadable(done_path) == 1 then
     local content = ''
     local fh = io.open(cap_path, 'rb')
     if fh then
@@ -1309,6 +1327,7 @@ local function poll_capture(bufnr, ns, extmark_id, cap_path, done_path, started_
 end
 
 local function attach_image()
+  if _G.PairDraftMutationBlocked() then return false end
   if not clipboard_has_image() then
     flash_at_cursor('[no image in clipboard]', 'WarningMsg', 1000)
     return
@@ -1553,6 +1572,7 @@ local function paste_inline(body, row, col)
 end
 
 function _G.PairPasteQuote()
+  if _G.PairDraftMutationBlocked() then return false end
   local f = io.open(quote_path(), 'r')
   if not f then return end
   local body = f:read('*a')
@@ -1576,6 +1596,7 @@ end
 -- ---------------------------------------------------------------------------
 
 function _G.PairFinishDraftSend(body)
+  if _G.PairDraftMutationBlocked() then return false end
   local from_queue = (type(nav.pos) == 'table' and nav.pos.kind == 'queue')
 
   -- send-from-+N consumes that queue file. Resolve the selected item by its
@@ -1630,6 +1651,7 @@ function _G.PairFinishDraftSend(body)
 end
 
 local function send_and_clear()
+  if _G.PairDraftMutationBlocked() then return false end
   local body = buffer_text()
   local stripped = strip_comments(body)
   if stripped:match('^%s*$') then return end
@@ -2432,6 +2454,7 @@ end
 -- would change the stripped body — is left unsaved so the next go_to can
 -- raise the leave-dirty-history prompt.
 local function autosave_current_slot()
+  if _G.PairDraftMutationBlocked(nil, true) then return end
   if nav.pos == '*' then
     pcall(vim.cmd, 'silent! write')
   elseif type(nav.pos) == 'table' and nav.pos.kind == 'queue' then
@@ -2451,6 +2474,7 @@ end
 -- persistent draft. Used only by the dirty-`-N` prompt's Send branch
 -- (send_and_clear has its own variant that handles the from-* case).
 local function ship_buffer_and_reset(body)
+  if _G.PairDraftMutationBlocked() then return false end
   -- Mirror send_and_clear: log full body, send stripped. Skip both if the
   -- stripped result is empty so a comment-only fork doesn't pollute the log.
   local stripped = strip_comments(body)
@@ -2485,6 +2509,7 @@ end
 --   Enter/ESC/anything-else → Stay (the safe default, including covering
 --   accidental key presses).
 local function leave_dirty_history()
+  if _G.PairDraftMutationBlocked() then return false end
   local body = buffer_text()
   vim.api.nvim_echo({
     { '(S)end, (Q)ueue, (D)iscard, [S]tay: ', 'Question' },
@@ -2518,6 +2543,7 @@ end
 -- Move to a new position: save mutable slots, prompt on dirty -N, then load
 -- the destination baseline. nav_left / nav_right just compute the target pos.
 local function go_to(new_pos)
+  if _G.PairDraftMutationBlocked() then return false end
   if is_dirty_history_slot() then
     if not leave_dirty_history() then return end
   else
@@ -2540,6 +2566,7 @@ local function go_to(new_pos)
 end
 
 local function nav_left()
+  if _G.PairDraftMutationBlocked() then return false end
   if nav.pos == '*' then
     local entries = read_history()
     if #entries == 0 then return end
@@ -2559,6 +2586,7 @@ local function nav_left()
 end
 
 local function nav_right()
+  if _G.PairDraftMutationBlocked() then return false end
   if nav.pos == '*' then
     -- * → +1 if queue has items.
     if queue_count() == 0 then return end
@@ -2587,6 +2615,7 @@ end
 -- line-start) being mistapped as Alt+BS. Enter/space/y all proceed; only 'n'
 -- or Esc cancels, so tap-tap cleanup stays cheap.
 local function delete_current_queue_item()
+  if _G.PairDraftMutationBlocked() then return false end
   if type(nav.pos) ~= 'table' or nav.pos.kind ~= 'queue' then return end
   local key = queue_key_for_n(nav.pos.n)
   if not key then return end
@@ -2619,6 +2648,7 @@ end
 -- whose state has accumulated cruft. Hard delete (no archive) per design;
 -- confirmation defaults to No so a stray tap can't nuke a session.
 local function forget_all()
+  if _G.PairDraftMutationBlocked() then return false end
   vim.api.nvim_echo({
     { 'Erase history, draft, and queue? (y)es, [N]o: ', 'WarningMsg' },
   }, false, {})
@@ -2649,6 +2679,7 @@ end
 --   +N source: move-to-front. Remove the source +N file before pushing, so the
 --              same item ends up at +1 (with edits applied). * untouched.
 local function queue_current()
+  if _G.PairDraftMutationBlocked() then return false end
   local body = buffer_text()
   if body:match('^%s*$') then return end
 
@@ -2955,6 +2986,7 @@ local function pair_draft_file()
 end
 
 local function pair_pickup_scrollback_pending()
+  if _G.PairDraftMutationBlocked(nil, true) then return end
   local pending = pair_pending_path()
   if not pending or pending == '' then return end
   local f = io.open(pending, 'r')
@@ -3724,6 +3756,7 @@ vim.keymap.set({ 'n', 'i' }, '<M-q>', queue_current,
 vim.keymap.set('n', '<M-BS>', delete_current_queue_item,
   { silent = true, desc = 'pair: delete the current +N queue item' })
 vim.keymap.set('i', '<M-BS>', function()
+  if _G.PairDraftMutationBlocked() then return end
   if type(nav.pos) == 'table' and nav.pos.kind == 'queue' then
     delete_current_queue_item()
   else
@@ -4412,7 +4445,7 @@ do
           vim.notify(('PairDoctor: %s; your note was kept so you can retry.'):format(
             not raw and 'capture failed' or 'the send did not reach the agent'),
             vim.log.levels.WARN)
-        elseif note and vim.api.nvim_buf_is_valid(buf) then
+        elseif note and vim.api.nvim_buf_is_valid(buf) and not _G.PairDraftMutationBlocked(buf, true) then
           local now_lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
           if table.concat(now_lines, '\n') == table.concat(lines, '\n') then
             vim.api.nvim_buf_set_lines(buf, 0, -1, false, { '' })
@@ -4469,6 +4502,7 @@ end
 local function pair_slug_mirror_line1()
   local buf = pair_slug_draft_buf()
   if not buf then return end
+  if _G.PairDraftMutationBlocked(buf, true) then slug_pending = true; return end
   local line1 = (vim.api.nvim_buf_get_lines(buf, 0, 1, false))[1] or ''
   if line1 ~= '' and line1:sub(1, 3) ~= '===' then return end
   -- Idempotency: an apply rewrites line 1 via nvim_buf_set_lines, which itself
@@ -4488,6 +4522,7 @@ local function pair_slug_reconcile()
   if proposed == '' then return end
   local buf = pair_slug_draft_buf()
   if not buf then return end
+  if _G.PairDraftMutationBlocked(buf, true) then slug_pending = true; return end
   local line1 = (vim.api.nvim_buf_get_lines(buf, 0, 1, false))[1] or ''
   -- Defer ONLY when the cursor is actually on a non-empty line 1 — i.e. the
   -- user is editing the slug itself — so the rewrite never lands under their cursor.
