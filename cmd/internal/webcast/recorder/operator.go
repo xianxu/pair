@@ -271,6 +271,9 @@ func (r *Recorder) handleOperator(session string, ctx int64, req board.OperatorR
 	case "stroke":
 		o.writing = req.Request
 		reply(o.board.StrokeAdmitted(admission, req.Request, *req.Stroke))
+	case "edit-note":
+		o.writing = req.Request
+		reply(o.board.EditAdmitted(admission, req.Request, board.EditIn{Seg: req.Edit.Seg, ID: req.Edit.ID, Text: req.Edit.Text}))
 	case "resolve":
 		o.writing = req.Request
 		reply(o.board.SetStateAdmitted(admission, req.Request, req.Resolve.Seg, board.StateIn{ID: req.Resolve.ID, State: req.Resolve.State}))

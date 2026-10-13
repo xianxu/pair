@@ -670,6 +670,9 @@ var NonArtifactSources = []string{
 	"cmd/internal/broadcast/pointer.go",
 	// #447 sticky notes: in-memory board and drawing; no artifact paths.
 	"cmd/internal/broadcast/notes.go",
+	"cmd/internal/broadcast/note_edit.go",
+	"cmd/internal/broadcast/note_owner.go",
+	"cmd/internal/broadcast/note_resolution.go",
 	"cmd/internal/broadcast/notehalo.go",
 	"cmd/internal/broadcast/pointer_notes.go",
 	"cmd/internal/broadcast/guard.go",
@@ -770,6 +773,7 @@ var NonArtifactSources = []string{
 	// #470 board: viewers' strokes and notes become records through the
 	// cast's recorder (its Emit); the board writes no files itself.
 	"cmd/internal/webcast/board/board.go",
+	"cmd/internal/webcast/board/note_edit.go",
 	"cmd/internal/webcast/board/operator.go",
 	"cmd/internal/webcast/board/operator_view.go",
 	"cmd/internal/webcast/board/wire.go",

@@ -1617,3 +1617,11 @@ proof; record the surprising case so the next change starts from evidence.
 - #533 close BR-1 round2: enumerate actual write sites, not only user commands. Focus/cursor/autocmd/timer decorations can write real bytes and open a blocking prompt under nomodifiable. Preserve deferred cleanup bookkeeping and exercise focus loss/gain in an embedded UI.
 
 - #533 integration of #531: a full make test stopped by the known #514 timing check has not exercised later Go packages. Run remaining targets with make -k and inspect all failures before citing the exception; new production files still require exhaustive artifact-source inventory entries.
+
+
+- #537 recording review: when record families merge by timestamp plus file rank,
+  live writers must advance tied timestamps before a transition to an earlier
+  file rank. Test real split/merge equivalence around pause, clear and end.
+- #537 UI review: mutually exclusive presentation phases do not erase independent
+  authority facts. Test OFF/view-only/paused crossed with active driving, and
+  preserve held editor text when newly accessible read-only UI is opened.

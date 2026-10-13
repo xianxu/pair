@@ -615,3 +615,24 @@ identity, generation and attempt before copying or showing a result. Failure
 notices precede actor chips so the recovery action remains visible under clipping.
 Terminal EnsurePointerLink mints token and code under the existing pointer lock,
 without changing admission generation or arming the visibility watchdog.
+
+
+### Own-note editing (#537)
+
+Both cast viewers use `collab.js`'s pure `noteDialogTransition` for draft, edit,
+read-only, pending and held states. Clicking one's note opens its current text;
+Save changes text and adds an `edited` marker, while Cancel makes no request.
+Other authors' notes remain readable and resolvable by annotators. Annotation
+OFF and view-only links permit reading only.
+
+Ownership reuses the existing HttpOnly unlock cookie. The Host stamps the
+request context; `GET session` exposes `X-Couch-Note-Owner` only for UI equality.
+Refreshing keeps ownership, but unlocking again, rotating the code, or using
+another browser/link makes earlier notes read-only. Public attribution stays
+unchanged. Empty legacy owners are read-only. `note_edit.go` enforces the owner,
+current pointer generation and live note identity before changing text.
+
+Terminal resolution records a typed `NoteResolution` before deleting the note.
+`Session.Resolutions()` returns the latest 128 events for this cast lifetime;
+ending the cast clears them. This is a bounded in-memory record, not a journal
+or a new history/reopen UI. Operator resolution records `Operator`.

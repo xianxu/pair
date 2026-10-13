@@ -72,7 +72,7 @@ background worker, polling loop or durable artifact family.
 
 Durable full-flow plan: [own-note editing](../plans/000537-web-note-editing-plan.md).
 
-- [ ] Implement the revision event and authoritative viewer/operator edit paths.
+- [x] Implement the revision event and authoritative viewer/operator edit paths.
 - [ ] Wire shared editor and current pin projections, with regression coverage.
 - [ ] Verify, document, close and land through SDLC.
 
@@ -139,6 +139,17 @@ total: 4.545
   creates a new ID. Operator snapshots and pin callbacks currently retain the
   creation Note. An explicit edit record avoids duplicate notes and preserves
   attribution (ARCH-DRY/ARCH-ORDER). Full-flow plan follows design acceptance.
+
+
+- 2026-10-13: Implemented web Board/session/operator admission and ordered recorder
+  note-edit delivery. Own-only checks reject body/header owner injection and a
+  new unlock session editing its previous notes. Terminal and recording work
+  committed in b7132b645 and 0f9c54088; peer #538 received the shared owner API.
+- Verification: all webcast Go packages passed; Board/recorder race tests passed;
+  exhaustive production artifact classification passed after registering new
+  sources. Real headless operator edit/cancel and two-browser viewer ownership
+  tests passed. UI review found OFF+driving suppression (fixed) and held draft
+  replacement via read-only pins (fix in progress); full suite still pending.
 
 ## Revisions
 
