@@ -85,6 +85,11 @@ Durable plan: [agent switch plan](../plans/000517-agent-switch-plan.md).
   operating limits and live acceptance. Waiting on TL's plan review, then
   change-code's plan-quality gate; estimate follows plan-quality.
 
+- Plan-quality round 1 refused with PQ-1 (request correlation) and PQ-2
+  (function-level testing strategy). Verified both: receipt keys are caller
+  scoped and cannot correlate an outgoing callback alone. Plan now specifies
+  `--request ID` plus exact source identity and names risk-focused test seams.
+
 ## Revisions
 
 - 2026-10-12 — the operator: the switch is driven by the TL's skill. Done when also: a "switch a slot's agent" procedure in

@@ -1432,3 +1432,9 @@ proof; record the surprising case so the next change starts from evidence.
   rule was restated in `Act`'s doc, `ErrStale`'s doc and `onTarget`'s comment; updating `Injector.Inject` and the
   atlas left three stale copies. Before committing a rule change, `rg` the rule's nouns (here "stale", "wheel")
   across the package and the atlas, and make every other site name the rule's owner instead of restating it.
+
+- **An incarnation does not identify a request (#517 plan review).** When an
+  asynchronous callback can outlive cancellation and retry on the same source,
+  carry both the source incarnation and the parent request ID end to end.
+  A late reply must never satisfy the next request merely because the process
+  stayed alive. Distinguish standalone commands from callbacks explicitly.

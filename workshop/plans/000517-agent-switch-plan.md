@@ -43,7 +43,7 @@ CLI contract:
 
 ```text
 couch --switch-agent repo:N --agent NAME [--handoff-file PATH] --confirm [--json]
-couch --switch-agent self --agent NAME --handoff-file PATH --confirm [--json]
+couch --switch-agent self --agent NAME --handoff-file PATH [--request ID] --confirm [--json]
 couch --peek repo:N --previous [--lines N] [--transcripts] [--json]
 couch --peek repo:N [--previous] --all [--transcripts] [--json]
 ```
@@ -73,6 +73,17 @@ the source's self callback.
 Self admission returns an acknowledgment before waiting, so the initiating
 agent can end its turn. It is bound to the authenticated current scope, tag,
 terminal session and launch nonce; callback and execution must still match.
+The form/TL brief request includes its opaque parent switch ID and the exact
+callback command with `--request ID`. That optional flag is accepted only for
+self callbacks with a handoff file. Callback lookup requires BOTH that ID and
+the authenticated source binding to match a waiting-brief request. Target agent
+must match the original choice; callback content cannot change its argv. A
+missing, expired, cancelled, or already-fallback ID refuses, even if the same
+incarnation has a newer pending request. Duplicate identical callbacks return
+the same acknowledgment; conflicting content refuses. Standalone self calls
+omit `--request` and create a new request only when the target has no pending
+switch. They never implicitly answer an existing request. The request ID is
+correlation, not authorization: every callback still checks broker identity.
 An external request initially refuses busy/unknown targets. After Couch asks
 for a brief, that exact source may run its handoff-writing turn. The coordinator
 waits outside the operation queue, then rechecks settled identity and clean Git
@@ -147,7 +158,7 @@ matters. No test can discover or restart real operator sessions.
 | Admit clean resting source without brief | waiting-settled with fresh content |
 | Admit source with authored brief, including verified self | waiting-settled; acknowledge immediately for self |
 | Admit non-resting source without brief | waiting-brief; send one agent request and arm deadlines |
-| waiting-brief, matching authenticated callback | waiting-settled with immutable authored bytes |
+| waiting-brief, matching request-ID and authenticated-source callback | waiting-settled with immutable authored bytes |
 | waiting-brief, brief deadline | waiting-settled with pointers-only content; publish fallback notice |
 | waiting-settled, same source settled and clean | switching; enqueue one existing switch transaction |
 | waiting states, source identity changes or process dies | refused; never switch the replacement |
@@ -197,6 +208,25 @@ the current source; it never resumes a stale pending command automatically.
   but never deletes the user's handoff file; the TL procedure uses a temporary
   file and removes it after acknowledged acceptance.
 
+## Named function test strategies (PQ-2)
+
+| Production function | Adversarial strategy and mechanical guard |
+|---|---|
+| `PreviousSession.Validate` | Fuzz decoded descriptors with malformed identities/paths and size growth; strict shape, source-address equality and existing token validation refuse before IO. |
+| `ClonePreviousSession` | Mutate every reachable reference in the clone; original descriptor must stay unchanged. |
+| `ThreadStore.RecordPreviousSession` | Sequence revision-checked writes through real temp stores and failed target starts; exact source binding and revision prevent replacement or rollback of retained evidence. |
+| `SelectPeekSource` | Vary current/previous generations independently; previous selection can consume only its saved descriptor and never current resolver output. |
+| `Couch.PeekThreadSelection` | Stateful fake source/readers vary availability across selection; chosen source identity stays fixed and full reads bypass live tail. |
+| `RenderBoundedLines` | Fuzz event dimensions/offsets and vary input/row bounds with small fixtures; admission bounds precede allocation and overflow yields an error, never a falsely complete tail. |
+| `RenderOwnedCaptureLines` | Real temp retention store with interleaved lease/collection; exact selected-owner lease protects capture and releases on every outcome. |
+| `ValidateSwitchContent` / `readHandoffFile` | Fuzz arbitrary file bytes with bounded nonblocking regular-file IO; reject invalid content and require exact accepted byte equality. |
+| `AdvanceAgentSwitch` | Generate/replay event sequences with duplicate, late and cross-request events; source plus request-ID correlation and private state enforce at-most-once switching. |
+| `agentSwitchCoordinator.Admit` / `Callback` / `Observe` | Stateful broker/clock/queue fake controls observation-to-effect races; immutable accepted identity and revalidation prevent replacement switches. |
+| `couchmessage.ValidateRequest` / `parseCLI` | Fuzz switch fields mixed with other verb shapes; closed per-operation fields reject ambiguous or unauthorized callback forms. |
+| `Couch.SwitchAgent` | Existing stateful runner and lifecycle fake interrupt park/start/registration; retained partial evidence and exact identity govern recovery. |
+| `reduceSwitchAgentPreview` / `finishOrientation` | Replay form/operation/delivery events in competing orders; one coordinator and producer/request identity prevent stale completion or focus theft. |
+| `AdvanceDelivery` and wrapper delivery integration | Existing captured composers plus actual launch envelope transport; byte equality and matched ready records distinguish registration, paste and submission. |
+
 ## M1 — Previous-session evidence and full recording reads
 
 Files: `threadrecord/previous_session.go` and `_test.go` (new),
@@ -205,19 +235,16 @@ Files: `threadrecord/previous_session.go` and `_test.go` (new),
 `couchcmd/peek_fast.go`, `scrollbackcmd/retention.go` and relevant tests.
 All paths are under `cmd/internal/`.
 
-- [ ] Write failing persistence/peek tests: descriptor survives successful
-  launch, two switches choose the immediately previous source, failed target
-  retry preserves source, old records report unavailable, malformed/torn data
-  refuses, and missing previous files never fall back to live content.
+- [ ] Write failing tests using the function strategies below for descriptor
+  persistence and previous/full selection.
 - [ ] Run `go test ./cmd/internal/threadrecord ./cmd/internal/couchcore -run 'TestPreviousSession|TestPeekPrevious' -count=1` and confirm the intended failures.
 - [ ] Add typed descriptor, clone/validate/persist it from exact source and park
   evidence before launch; reuse record revision checks. No timestamp globbing.
 - [ ] Add full-read/previous CLI parsing and exact parked capture lease reader;
   expose paths and source binding in JSON/text, derive help cost tags. Preserve
   ordinary current peek behavior and the fast path.
-- [ ] Add replay tests exceeding the default 2,000 rows, zero/full semantics,
-  file/dimension/row limits, trailing screen content, missing events, and lease
-  cleanup. Use small deterministic synthetic captures, not load tests.
+- [ ] Test the bounded replay and lease reader using small deterministic
+  captures and the strategy below, never load tests.
 - [ ] Run `go test ./cmd/internal/scrollbackcmd ./cmd/internal/couchcmd ./cmd/internal/couchcore -run 'Test.*(Peek|PreviousSession|Render|SwitchAgent)' -count=1`.
 - [ ] Update README and atlas/couch.md, log measured limits, commit with #517 M1,
   and run `sdlc milestone-close --issue 517 --milestone M1` with evidence.
@@ -230,16 +257,15 @@ Files: new `cmd/internal/couchcore/agent_switch_model.go` and `_test.go`, new
 `message_service.go`, `couchcore/switchagent.go`, `slot_operation.go`, `ops.go`,
 `operationdispatch.go`, `couchtty/console_remote.go` and corresponding tests.
 
-- [ ] Add table and sequence tests for the state contract, including duplicate
-  callbacks, deadline/callback ordering, changed nonce, queue delays, dirty tree,
-  target death, and stale settled observations. Assert no forbidden park/launch.
+- [ ] Add model and coordinator sequence tests against the function strategies
+  below before implementation.
 - [ ] Run targeted model tests red; implement the private transition-owned
   model and fake-clock coordinator, then rerun green.
 - [ ] Extend closed wire shapes with switch-only agent/content fields; reject
   those fields on unrelated verbs. Resolve self from broker caller identity,
   never untrusted target strings. Bind external target at admission too.
-- [ ] Add bounded verbatim CLI file read tests (Unicode, LF/TAB, final newline,
-  whitespace, CRLF refusal, oversized/empty/FIFO input) and strict flag tests.
+- [ ] Test the CLI read/validation and closed flag shapes against the named
+  strategies below.
 - [ ] Route CLI/form requests through the shared coordinator and existing
   receipt/queue mechanism with PreserveFocus. Self gets acknowledgment before
   its turn ends; no waiting CLI child keeps the source busy. Expose operation
@@ -259,10 +285,9 @@ Files: `cmd/internal/couchtty/menu_switchagent.go`, `console_switchagent.go`,
 associated tests; Couch help/skill text; README.md; atlas/couch.md;
 `/Users/xianxu/workspace/ops/skills-draft/xx-tl/SKILL.md` (only authorized ops edit).
 
-- [ ] Add failing form tests for request-brief/no second click, resting fresh,
-  same-incarnation callback, timeout fallback notice, busy-limit refusal, and
-  preserved focus. Connect the form to the M2 coordinator; keep argv preview and
-  stale-fingerprint protections. Do not busy-wait inside the operation queue.
+- [ ] Add failing form tests against the reducer strategy below. Connect the
+  form to the M2 coordinator; keep argv preview and stale-fingerprint
+  protections. Do not busy-wait inside the operation queue.
 - [ ] Test the new notice and manual-copy recovery using existing delivery
   state; don't label registration or partial paste as confirmed handoff.
 - [ ] Use skill-writing instructions before editing the TL skill. Add when to
@@ -302,3 +327,10 @@ after the `sdlc change-code` plan-quality gate passes.
   path (which commits before switching). The TL schedules live checks; local
   Claude/Codex/Grok checks remain targeted. The approval section above records
   the questions presented for review; those choices are now approved.
+
+- 2026-10-12 — plan-quality PQ-1/PQ-2: callback correlation now carries the
+  exact parent request in `--request ID`, with standalone/self-callback
+  admission explicitly distinct and late/duplicate handling defined across
+  form, CLI, broker and coordinator. Compressed prose case inventories into
+  named production functions with adversarial strategies and mechanical guards.
+  The scope and operator flow are unchanged.
