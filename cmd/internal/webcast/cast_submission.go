@@ -98,7 +98,7 @@ func (c *Cast) PrepareSubmission(parent context.Context, id string, target core.
 			}
 			sub.Notes[i].Crop = core.Crop{Unavailable: crop.Unavailable}
 		} else {
-			if crop.Document != selected.Document || crop.Box != boxes[i] {
+			if crop.Document != selected.Document || crop.Box != boxes[i].Box {
 				return empty, nil, fmt.Errorf("crop capture identity changed")
 			}
 			if err = core.ValidatePNG(crop.PNG); err != nil {
@@ -107,6 +107,10 @@ func (c *Cast) PrepareSubmission(parent context.Context, id string, target core.
 			name := fmt.Sprintf("crop-%d.png", i)
 			sub.Notes[i].Crop = core.Crop{File: name, Box: crop.Box, CapturedAt: crop.CapturedAt, Document: crop.Document}
 			crops[name] = crop.PNG
+		}
+		sub.Notes[i].BoxText = crop.BoxText
+		if crop.Unavailable == "" && crop.BoxText.Region != boxes[i].Region {
+			return empty, nil, fmt.Errorf("box text region changed")
 		}
 		if replayBase != "" {
 			sub.Notes[i].Replay = ReplayLink(replayBase, sub.Source.RecordingID, sub.Notes[i].T)

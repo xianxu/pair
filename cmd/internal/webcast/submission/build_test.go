@@ -1,9 +1,12 @@
 package submission
 
 import (
+	"encoding/json"
 	core "github.com/xianxu/pair/cmd/internal/submission"
 	"github.com/xianxu/pair/cmd/internal/webcast/board"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -71,5 +74,63 @@ func TestSubmissionBuildMissingElementKeepsAnchorText(t *testing.T) {
 		if !strings.Contains(n.Element, "unavailable") || n.Context.Text != "Original save" {
 			t.Fatal(n)
 		}
+	}
+}
+
+func TestSubmissionBuildReadingGuideSurvivesStoreRoundTrip(t *testing.T) {
+	b, selected := buildFixture()
+	recordingPath := filepath.Join(t.TempDir(), "recordings with spaces", "rec")
+	sub, _, err := Build(b.Recs, selected, "guide", target(), recordingPath, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := core.ReadingGuide(recordingPath)
+	if sub.HowToRead != want {
+		t.Fatalf("Build lost reading guide: got %q, want %q", sub.HowToRead, want)
+	}
+	for _, fragment := range []string{
+		"submission.json", "crop-N.png", recordingPath,
+		"couch --broadcast-web-query DIR notes|dom|events|link",
+		"dom --at <t> --sel @N", "events --from <t-10000> --to <t>",
+		"link --at <t>", "couch --skill",
+	} {
+		if !strings.Contains(sub.HowToRead, fragment) {
+			t.Fatalf("guide missing %q: %s", fragment, sub.HowToRead)
+		}
+	}
+	storeRoot := filepath.Join(t.TempDir(), "bundles")
+	store, err := core.NewStore(storeRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest, err := store.Prepare(sub, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := core.NewStore(storeRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	restored, err := reopened.Read(sub.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if restored.HowToRead != sub.HowToRead || restored.Source.RecordingPath != recordingPath {
+		t.Fatalf("store changed reading instructions: %+v", restored)
+	}
+	data, err := os.ReadFile(manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wire map[string]json.RawMessage
+	if err := json.Unmarshal(data, &wire); err != nil {
+		t.Fatal(err)
+	}
+	var encodedGuide string
+	if err := json.Unmarshal(wire["how_to_read"], &encodedGuide); err != nil {
+		t.Fatal("reading guide missing from manifest JSON", err)
+	}
+	if encodedGuide != want {
+		t.Fatalf("manifest guide changed: %q", encodedGuide)
 	}
 }

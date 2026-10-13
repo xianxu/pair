@@ -2,16 +2,16 @@ package webcast
 
 import (
 	"context"
+	core "github.com/xianxu/pair/cmd/internal/submission"
 	"github.com/xianxu/pair/cmd/internal/webcast/recorder"
-	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
 // CropSource captures the cast tab through its existing recording connection.
 type CropSource interface {
-	CaptureCrops(context.Context, int, []recording.Box) ([]recorder.CapturedCrop, error)
+	CaptureCrops(context.Context, int, []core.CaptureRegion) ([]recorder.CapturedCrop, error)
 }
 
-func (c *Chrome) CaptureCrops(ctx context.Context, doc int, boxes []recording.Box) ([]recorder.CapturedCrop, error) {
+func (c *Chrome) CaptureCrops(ctx context.Context, doc int, boxes []core.CaptureRegion) ([]recorder.CapturedCrop, error) {
 	if c.rec == nil {
 		return nil, ErrNotRecording
 	}

@@ -9,9 +9,11 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	core "github.com/xianxu/pair/cmd/internal/submission"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
@@ -32,7 +34,12 @@ func TestLiveSubmissionCrop(t *testing.T) {
 		fmt.Fprint(w, `<!doctype html><html><head><title>Submission crop coordinates</title><style>
  html,body { margin:0; width:800px; height:2400px; background:white; }
  #region { position:absolute; left:80px; top:1400px; width:400px; height:250px; background:rgb(0,0,255); }
- </style></head><body><div id="region">Crop reference</div></body></html>`)
+  #current { position:absolute;left:170px;top:1460px;font-size:10px;line-height:12px; }
+ </style></head><body><div id="region">Crop reference</div>
+ <button id="current" aria-label="Exact current name" title="Current tip"><span>Old</span></button>
+ <span style="position:absolute;left:110px;top:1430px">Padding only</span>
+ <span aria-hidden="true" style="position:absolute;left:170px;top:1475px">Hidden</span>
+ </body></html>`)
 	}))
 	defer page.Close()
 	pageURL := page.URL + "/"
@@ -110,6 +117,7 @@ func TestLiveSubmissionCrop(t *testing.T) {
 		"expression": `(async () => {
  const region = document.getElementById('region');
  region.style.background = 'rgb(255, 0, 0)';
+ document.querySelector('#current span').textContent = 'New exact';
  window.scrollTo(0, 1100);
  await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
  return {dpr: devicePixelRatio, scroll: scrollY, top: region.getBoundingClientRect().top + scrollY};
@@ -119,7 +127,7 @@ func TestLiveSubmissionCrop(t *testing.T) {
 	}
 	boxes := []recording.Box{{100, 1420, 120, 80}, {160, 1450, 120, 80}}
 	began := time.Now()
-	crops, err := c.CaptureCrops(ctx, document, boxes)
+	crops, err := c.CaptureCrops(ctx, document, []core.CaptureRegion{{Box: boxes[0], Region: recording.Box{160, 1450, 80, 40}}, {Box: boxes[1], Region: recording.Box{160, 1450, 80, 40}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,6 +137,16 @@ func TestLiveSubmissionCrop(t *testing.T) {
 	for i, crop := range crops {
 		if crop.Unavailable != "" || crop.Document != document || crop.Box != boxes[i] || crop.CapturedAt.Before(began) {
 			t.Fatalf("crop %d metadata: %+v", i, crop)
+		}
+		var visible, names strings.Builder
+		for _, entry := range crop.BoxText.VisibleText {
+			visible.WriteString(entry.Text)
+		}
+		for _, entry := range crop.BoxText.AccessibleNames {
+			names.WriteString(entry.Text)
+		}
+		if !strings.Contains(visible.String(), "New exact") || strings.Contains(visible.String(), "Old") || strings.Contains(visible.String(), "Padding") || strings.Contains(visible.String(), "Hidden") || !strings.Contains(names.String(), "Exact current name") {
+			t.Fatalf("crop %d text: %+v", i, crop.BoxText)
 		}
 		img, err := png.Decode(bytes.NewReader(crop.PNG))
 		if err != nil {

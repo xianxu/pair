@@ -19,10 +19,10 @@ import (
 
 type submissionBrowser struct {
 	*FakeBrowser
-	capture func(context.Context, int, []recording.Box) ([]recorder.CapturedCrop, error)
+	capture func(context.Context, int, []core.CaptureRegion) ([]recorder.CapturedCrop, error)
 }
 
-func (b *submissionBrowser) CaptureCrops(ctx context.Context, doc int, boxes []recording.Box) ([]recorder.CapturedCrop, error) {
+func (b *submissionBrowser) CaptureCrops(ctx context.Context, doc int, boxes []core.CaptureRegion) ([]recorder.CapturedCrop, error) {
 	return b.capture(ctx, doc, boxes)
 }
 func castSubmissionFixture(t *testing.T) (*Cast, *submissionBrowser, *recording.Builder, *int) {
@@ -57,12 +57,12 @@ func castSubmissionFixture(t *testing.T) (*Cast, *submissionBrowser, *recording.
 		}
 	}
 	browser := &submissionBrowser{FakeBrowser: NewFakeBrowser()}
-	browser.capture = func(ctx context.Context, doc int, boxes []recording.Box) ([]recorder.CapturedCrop, error) {
+	browser.capture = func(ctx context.Context, doc int, boxes []core.CaptureRegion) ([]recorder.CapturedCrop, error) {
 		var out []recorder.CapturedCrop
 		for _, box := range boxes {
 			var data bytes.Buffer
 			png.Encode(&data, image.NewRGBA(image.Rect(0, 0, 2, 2)))
-			out = append(out, recorder.CapturedCrop{PNG: data.Bytes(), Box: box, Document: doc, CapturedAt: time.Now()})
+			out = append(out, recorder.CapturedCrop{PNG: data.Bytes(), Box: box.Box, BoxText: core.BoxText{Region: box.Region}, Document: doc, CapturedAt: time.Now()})
 		}
 		return out, nil
 	}
@@ -107,7 +107,7 @@ func TestCastSubmissionPrepareAndResolve(t *testing.T) {
 func TestCastSubmissionCaptureFailureAndGonePage(t *testing.T) {
 	c, browser, _, writes := castSubmissionFixture(t)
 	selected, _ := c.SubmissionSelection()
-	browser.capture = func(context.Context, int, []recording.Box) ([]recorder.CapturedCrop, error) {
+	browser.capture = func(context.Context, int, []core.CaptureRegion) ([]recorder.CapturedCrop, error) {
 		return nil, errors.New("navigation during capture")
 	}
 	if _, _, err := c.PrepareSubmission(context.Background(), "submission", castSubmissionTarget(), selected, ""); err == nil {
@@ -116,7 +116,7 @@ func TestCastSubmissionCaptureFailureAndGonePage(t *testing.T) {
 	if *writes != 0 {
 		t.Fatal("resolved on failed preparation")
 	}
-	browser.capture = func(context.Context, int, []recording.Box) ([]recorder.CapturedCrop, error) {
+	browser.capture = func(context.Context, int, []core.CaptureRegion) ([]recorder.CapturedCrop, error) {
 		return []recorder.CapturedCrop{{Unavailable: "page changed"}}, nil
 	}
 	sub, crops, err := c.PrepareSubmission(context.Background(), "submission", castSubmissionTarget(), selected, "")

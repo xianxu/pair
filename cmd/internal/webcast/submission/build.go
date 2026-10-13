@@ -16,7 +16,7 @@ var recordingID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`)
 
 // Build keeps selected order and computes each crop separately at the note's
 // recorded moment. Current screenshots are attached later by the cast owner.
-func Build(recs []recording.Record, selected board.Selection, id string, target core.Target, path string, replay func(int64) string) (core.Submission, []recording.Box, error) {
+func Build(recs []recording.Record, selected board.Selection, id string, target core.Target, path string, replay func(int64) string) (core.Submission, []core.CaptureRegion, error) {
 	out := core.Submission{Version: 1, ID: id, Target: target, Delivery: core.Prepared, Source: core.Source{Kind: "dom", RecordingPath: path, TabID: selected.TabID, Document: selected.Document}}
 	if len(recs) == 0 {
 		return out, nil, fmt.Errorf("recording is empty")
@@ -26,6 +26,7 @@ func Build(recs []recording.Record, selected board.Selection, id string, target 
 		return out, nil, fmt.Errorf("recording has no valid head")
 	}
 	out.Source.RecordingID = head.ID
+	out.HowToRead = core.ReadingGuide(path)
 	model := notes.Structural{}
 	views, err := query.New(recs, model).Notes(5000)
 	if err != nil {
@@ -46,6 +47,7 @@ func Build(recs []recording.Record, selected board.Selection, id string, target 
 		wanted[n.ID] = true
 	}
 	boxes := map[string]recording.Box{}
+	regions := map[string]recording.Box{}
 	state := recording.NewState()
 	for _, r := range recs {
 		if err = state.Apply(r); err != nil {
@@ -83,8 +85,24 @@ func Build(recs []recording.Record, selected board.Selection, id string, target 
 			return out, nil, err
 		}
 		boxes[note.ID] = crops[0]
+		region := note.Region
+		if region == nil {
+			region = note.At.Box
+		}
+		if region == nil {
+			if b, ok := state.Boxes[note.At.Node]; ok {
+				region = &b
+			}
+		}
+		if region == nil {
+			return out, nil, fmt.Errorf("note %s has no text region", note.ID)
+		}
+		if err = core.ValidateBox(*region); err != nil {
+			return out, nil, err
+		}
+		regions[note.ID] = *region
 	}
-	var ordered []recording.Box
+	var ordered []core.CaptureRegion
 	for _, selectedNote := range selected.Notes {
 		view, exists := byID[selectedNote.ID]
 		box, hasBox := boxes[selectedNote.ID]
@@ -101,7 +119,7 @@ func Build(recs []recording.Record, selected board.Selection, id string, target 
 			note.Replay = replay(n.T)
 		}
 		out.Notes = append(out.Notes, note)
-		ordered = append(ordered, box)
+		ordered = append(ordered, core.CaptureRegion{Box: box, Region: regions[n.ID]})
 	}
 	if err = core.Validate(out); err != nil {
 		return out, nil, err
