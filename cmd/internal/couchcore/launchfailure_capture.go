@@ -20,6 +20,27 @@ type launchFailureError struct {
 
 func (e *launchFailureError) Unwrap() error { return errors.Join(e.cause, e.saveError) }
 func (e *launchFailureError) Error() string {
+	text := e.operatorLine()
+	if cause := e.Unwrap(); cause != nil {
+		text += "\n" + cause.Error()
+	}
+	return text
+}
+
+// OperatorError keeps launch diagnostics complete for programmatic callers while
+// presenting one bounded explanation and action at UI and receipt boundaries.
+func OperatorError(err error) string {
+	if err == nil {
+		return ""
+	}
+	var failed *launchFailureError
+	if errors.As(err, &failed) {
+		return failed.operatorLine()
+	}
+	return err.Error()
+}
+
+func (e *launchFailureError) operatorLine() string {
 	f := e.failure
 	happened := "launch failed during " + f.Stage + ": " + failureSummary(f.LaunchError)
 	if f.BeforeExit != nil {

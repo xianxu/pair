@@ -44,7 +44,7 @@ func TestLaunchFailureCaptureBeforeCleanup(t *testing.T) {
 	if len(store.records) != 2 || store.records[1].BeforeExit != nil || store.records[1].AfterExit == nil || *store.records[1].AfterExit != 23 {
 		t.Fatalf("observations: %+v", store.records)
 	}
-	if strings.Contains(got.Error(), "\n") || !strings.Contains(got.Error(), "couch --show") {
+	if strings.Contains(OperatorError(got), "\n") || !strings.Contains(got.Error(), "couch --show") {
 		t.Fatal(got)
 	}
 }
@@ -92,7 +92,7 @@ func TestLaunchFailureCaptureSwitchFinalError(t *testing.T) {
 	if !strings.Contains(last.FinalError, "target launch failed") || last.LaunchError == "" || last.Agent != "codex" {
 		t.Fatalf("%+v", last)
 	}
-	if strings.Contains(err.Error(), "\n") || !strings.Contains(err.Error(), "couch --show") {
+	if strings.Contains(OperatorError(err), "\n") || !strings.Contains(err.Error(), "couch --show") {
 		t.Fatal(err)
 	}
 }
@@ -172,7 +172,7 @@ func TestLaunchFailureCaptureOutputAndExitBeforeRegistration(t *testing.T) {
 func TestLaunchFailureOperatorLineOneAction(t *testing.T) {
 	f := LaunchFailure{Stage: "spawn", StartingPath: "/slot", LaunchError: "fork failed\nretry and resume old\x1b[2J"}
 	err := &launchFailureError{failure: f, cause: errors.New(f.LaunchError)}
-	got := err.Error()
+	got := OperatorError(err)
 	if strings.ContainsAny(got, "\n\r\x1b") || strings.Count(got, "couch --show") != 1 || strings.Contains(got, "retry") || !strings.Contains(got, "fork failed") {
 		t.Fatal(got)
 	}
@@ -200,7 +200,7 @@ func TestLaunchFailureCaptureCorrelatesAttemptAndStore(t *testing.T) {
 			if writeFails && !errors.Is(got, diskErr) {
 				t.Fatal("lost storage cause")
 			}
-			if strings.Contains(got.Error(), "\n") || strings.Count(got.Error(), "inspect with") != 1 {
+			if strings.Contains(OperatorError(got), "\n") || strings.Count(OperatorError(got), "inspect with") != 1 {
 				t.Fatal(got)
 			}
 		})
@@ -224,5 +224,33 @@ func TestLaunchFailureCapturePartialStartEvidence(t *testing.T) {
 	f := records[0]
 	if !f.HelperStarted || f.BeforeExit == nil || *f.BeforeExit != 23 || f.AfterExit == nil || *f.AfterExit != 23 || string(f.Output) != "helper failed before registration" || !strings.Contains(f.CleanupError, "runner cleanup failed") || !strings.Contains(f.CleanupError, "rollback failed") {
 		t.Fatalf("lost partial-start evidence: %+v", f)
+	}
+}
+
+func TestLaunchFailureFullTextAndCauseChain(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	store := &captureFailureStore{}
+	env.Couch.LaunchFailures = store
+	launch := errors.New("launch refused; original launch detail\nnext line")
+	cleanup := &ResumeRefusal{Code: ResumeUnknown, Diagnostic: "cleanup observation unavailable"}
+	in := trackedThreadLaunch{Thread: ThreadRecord{StartingPath: "/repo"}, Nonce: "attempt"}
+	got := env.Couch.captureLaunchFailure(in, "spawn", nil, launch, func() error { return cleanup })
+	var typed *ResumeRefusal
+	if !errors.Is(got, launch) || !errors.As(got, &typed) || typed != cleanup {
+		t.Fatalf("lost cause identity: %v", got)
+	}
+	for _, want := range []string{launch.Error(), cleanup.Error()} {
+		if !strings.Contains(got.Error(), want) {
+			t.Fatalf("missing %q in %v", want, got)
+		}
+	}
+	final := env.Couch.finishSwitchFailure(in, fmt.Errorf("source still parked: %w", got))
+	records := store.records
+	if !strings.Contains(records[len(records)-1].FinalError, cleanup.Error()) || records[len(records)-1].CleanupError != cleanup.Error() {
+		t.Fatalf("lost stored detail: %+v", records)
+	}
+	line := OperatorError(final)
+	if strings.ContainsAny(line, "\n\r\x1b") || strings.Count(line, "inspect with") != 1 || strings.Contains(line, cleanup.Error()) {
+		t.Fatalf("bad operator line: %s", line)
 	}
 }

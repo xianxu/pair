@@ -1335,7 +1335,7 @@ func dimCodes(w io.Writer) (string, string) {
 // (pair#170 M4): couch-lite has no capacity to exceed, so there is no refusal to
 // give a next action to.
 func renderError(w io.Writer, err error) {
-	fmt.Fprintf(w, "couch: %v\n", err)
+	fmt.Fprintf(w, "couch: %s\n", couchcore.OperatorError(err))
 }
 
 func usage(w io.Writer) { usageWith(w, couchkeys.Bindings()) }

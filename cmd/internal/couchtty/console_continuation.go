@@ -321,7 +321,7 @@ func (c *Console) finishContinuationOperation(completed operationCompletion, err
 	c.mu.Unlock()
 	if err != nil && !busy {
 		// A busy refusal is retried on the next scan, silently.
-		c.setNotice(fmt.Sprintf("Continuation %s: %v", address.Tag, err))
+		c.setNotice(fmt.Sprintf("Continuation %s: %v", address.Tag, couchcore.OperatorError(err)))
 	}
 	c.requestMenuRefresh()
 }

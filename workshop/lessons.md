@@ -1607,6 +1607,7 @@ proof; record the surprising case so the next change starts from evidence.
 
 - When integrating capture availability changes, test a batch containing both visible and off-screen notes. Pixel unavailability does not imply lost document identity; preserve navigation rejection separately.
 
+- #535: Keep error text and wrapped causes complete; apply concise summaries only at operator presentation boundaries. Run the full affected package and use make -k after an early prerequisite failure so one known timing failure cannot hide later regressions. Cancellation tests should cancel at the intended observation seam, not race unrelated filesystem work against a tiny deadline.
 - #533: An operation deadline cannot bound an editing lock while its synchronous subprocesses are unbounded. Carry one remaining-time budget through every external effect and render progress before entering waits. Verify an actual blocked child and embedded UI redraw ordering, not only model state.
 
 - #533 embedded UI: provide the full production startup environment in private fixture files and strip live-session variables. Capture the rendered screen on RPC timeout: a missing completion path caused a hit-enter prompt, which otherwise looked like an unexplained transport stall.
