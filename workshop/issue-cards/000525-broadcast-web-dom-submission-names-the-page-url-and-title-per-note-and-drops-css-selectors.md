@@ -1,6 +1,6 @@
 ---
 id: 000525
-status: working
+status: codecomplete
 created: 2026-10-12
 updated: 2026-10-13
 estimate_hours: 2.544
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.95
+tracker:
+    version: 1
+    completion:
+        token: close-5b21deee2c76
+        repository: github.com/xianxu/pair
+        reviewed_head: 925eda92cf69d4877f0143309f37cc98b549ca01
+        evidence_commit: f800aab4626d4a074108d51da625aa2871b65d02
 ---
 
 # broadcast-web: DOM submission names the page (URL and title per note) and drops CSS selectors
