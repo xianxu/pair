@@ -235,6 +235,10 @@ M1 review against 2efe103cf returned REWORK: BR-1 unknown evidence promoted to l
 
 - 2026-10-13 — Integrated main cleanly at 0a0369285 before the noon integration boundary. make build passed on that exact HEAD (/tmp/pair528-integrated-build.log). Full tests for merged artifactpath/couchcmd/couchtty/submission/webcast/termcmd packages and DOM submission integration passed (/tmp/pair528-integrated-tests.log, /tmp/pair528-integrated-dom.log). M1 behavior packages had passed the preceding full make test; its only remaining documentation guard was corrected and passed both targeted and integrated termcmd runs. BR-5 is ready for re-review; M1 still open pending verdict.
 
+### 2026-10-13 — M2 implementation checkpoint
+
+M1 closed SHIP at 3ef0ebf54; TL authorized M2 in receipt b15bc8c6. Parser/scorer, bounded contextual native collector, explicit preview/key codec, schema-3 recovery intent/context, one-shot orientation builder and UI/CLI wiring are implemented in the working tree. Integration is still in progress: archived-source preservation, both launch gates, legacy/live ownership retirement, post-start alternatives and full acceptance have not been verified. Automatic inference remains disabled; no live slot was changed. New witness timestamp and retained-message count bounds are recorded in the plan Revisions. Targeted key codec, orientation, parser/collector, threadrecord, protocol and menu checks have passed independently; no M2 full-suite or boundary claim yet.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against
