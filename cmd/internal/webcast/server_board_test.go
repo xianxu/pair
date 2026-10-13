@@ -19,13 +19,16 @@ import (
 
 // boardCast is a cast with a board as #458 wires it: the recorder's records
 // and the board's go through one writer into the hub viewers stream from and
-// into the board, which follows them.
+// into the board, which follows them. url is the pointer link, which may
+// annotate; viewURL is the view-only link (pair#506).
 type boardCast struct {
-	url string
-	hub *recording.Hub
-	w   *board.Writer
-	b   *recording.Builder
-	p   recording.Node // a paragraph on the page
+	url     string
+	viewURL string
+	bd      *board.Board
+	hub     *recording.Hub
+	w       *board.Writer
+	b       *recording.Builder
+	p       recording.Node // a paragraph on the page
 }
 
 func newBoardCast(t *testing.T) *boardCast {
@@ -33,10 +36,10 @@ func newBoardCast(t *testing.T) *boardCast {
 	c := &boardCast{hub: recording.NewHub(256), b: recording.NewBuilder("rec")}
 	bd := board.New(notes.Structural{}, func(r recording.Record, doc int) error { return c.w.Emit(r, doc) })
 	c.w = board.NewWriter(recording.Tee(bd, c.hub), nil)
-	srv := httptest.NewServer(NewServer("tok", NewFakeBrowser(), time.Second, c.hub, nil).WithBoard(bd))
+	srv := httptest.NewServer(NewServer("view", NewFakeBrowser(), time.Second, c.hub, nil).WithBoard(bd).WithPointer("tok"))
 	t.Cleanup(srv.Close)
 	t.Cleanup(func() { c.hub.Close() })
-	c.url = srv.URL + "/tok/"
+	c.url, c.viewURL, c.bd = srv.URL+"/tok/", srv.URL+"/view/", bd
 	c.p = c.b.El("p", []string{"id", "p"}, c.b.Txt("Hello"))
 	c.b.Page(recording.SegLive, "http://app/", c.p)
 	c.flush(t)
@@ -198,8 +201,8 @@ func TestBoardAssets(t *testing.T) {
 		t.Errorf("palette.json without a board: %d", code)
 	}
 	code, ctype, body := get(c.url + "palette.json")
-	var palette []string
-	if code != 200 || ctype != "application/json" || json.Unmarshal([]byte(body), &palette) != nil || len(palette) != 6 {
+	var palette paletteAnswer
+	if code != 200 || ctype != "application/json" || json.Unmarshal([]byte(body), &palette) != nil || len(palette.Palette) != 6 {
 		t.Errorf("palette.json: %d %s %s", code, ctype, body)
 	}
 	for _, base := range []string{plain.URL + "/tok/", c.url} {
@@ -270,6 +273,49 @@ func TestBoardRoutesRefuseWhilePaused(t *testing.T) {
 	} {
 		if code, text := post(t, c.url+route, "application/json", body); code != http.StatusConflict || text != refusePaused {
 			t.Errorf("%s while paused: %d %q", route, code, text)
+		}
+	}
+}
+
+// pair#506: the view-only link may watch but not annotate. The refusal comes
+// before admission, so a view-only link spends no body read, in-flight slot
+// or rate budget: an over-limit body is refused as view-only (403), not as
+// too large (413).
+func TestBoardRoutesRefuseTheViewOnlyLink(t *testing.T) {
+	c := newBoardCast(t)
+	huge := strings.Repeat("x", board.MaxNoteBody+1)
+	for _, route := range []string{"stroke", "note", "note-state"} {
+		for _, body := range []string{noteBody(1, c.p.ID, 0), huge} {
+			if code, text := post(t, c.viewURL+route, "application/json", body); code != http.StatusForbidden || text != refuseViewOnly {
+				t.Errorf("POST %s under the view link: %d %q", route, code, text)
+			}
+		}
+	}
+	if n := len(c.bd.Live()); n != 0 {
+		t.Fatalf("a view-only post reached the board: %d notes", n)
+	}
+	if code, _ := post(t, c.url+"note", "application/json", noteBody(1, c.p.ID, 0)); code != http.StatusNoContent {
+		t.Fatalf("a note under the pointer link: %d", code)
+	}
+	if n := len(c.bd.Live()); n != 1 {
+		t.Fatalf("the pointer link's note: %d notes", n)
+	}
+}
+
+// palette.json answers both links with the swatches' colors, and says which
+// may annotate, so a view-only viewer mounts strokes and notes read-only.
+func TestPaletteSaysWhetherTheLinkAnnotates(t *testing.T) {
+	c := newBoardCast(t)
+	for url, want := range map[string]bool{c.url: true, c.viewURL: false} {
+		resp, err := http.Get(url + "palette.json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got paletteAnswer
+		err = json.NewDecoder(resp.Body).Decode(&got)
+		resp.Body.Close()
+		if err != nil || len(got.Palette) != 6 || got.Annotate != want {
+			t.Errorf("%spalette.json: %+v %v, want annotate %v", url, got, err, want)
 		}
 	}
 }

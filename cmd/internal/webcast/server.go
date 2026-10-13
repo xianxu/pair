@@ -108,7 +108,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// The only routes that read a body are the board's (#470) and remote
 	// driving's (#467) POSTs; every
 	// other path is GET-only and never reads one.
-	if r.Method == http.MethodPost && ok && link != linkNone && (s.boardRoute(w, r, rest) || s.driveRoute(w, r, rest, link.drives())) {
+	if r.Method == http.MethodPost && ok && link != linkNone && (s.boardRoute(w, r, rest, link) || s.driveRoute(w, r, rest, link.drives())) {
 		return
 	}
 	if r.Method != http.MethodGet {
@@ -130,7 +130,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.proxy.Serve(w, r, hash)
 		return
 	}
-	if s.boardAsset(w, rest) {
+	if s.boardAsset(w, rest, link) {
 		return
 	}
 	serveViewerFile(w, r, rest)

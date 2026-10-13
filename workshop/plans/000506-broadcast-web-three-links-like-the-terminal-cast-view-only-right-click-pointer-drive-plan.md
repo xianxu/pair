@@ -211,3 +211,7 @@ func (l castLink) drives() bool    { return l == linkDrive }
     - `readPalette`: a table seeded with legacy (bare array) and malformed shapes.
     - Couch copies: one test per control asserting which link reaches the clipboard and that no notice contains a link.
     - The case lists in Tasks 2, 4, 6 and 8 are examples of these strategies, not separate requirements.
+- 2026-10-12, during M1: **Tasks 6 and 7 (the viewer's palette reading and the live view-only viewer) moved into M1.** The server and the viewer ship in one binary. Changing `palette.json` to `{palette, annotate}` without the viewer reading it made every viewer lose its rail; the live two-viewer test showed it. M1 is now the whole cast side: server, cast and viewer. M2 is Couch: the copy commands, the 👆/👽 mapping after #501, docs and the smoke test.
+  - The read-only mount keeps the rail permanently hidden under a view-only link rather than not building it, so `renderRail`/`placeRail` stay one code path. No mode can be picked, so the layer stays in watch mode, and a pin opens with `resolvable: annotate`.
+  - The live test's existing viewers moved to the pointer link (`/tok/`), and the view link is `/view/`. The cast board tests use `c.pointerToken`.
+  - Mutation-checked (each revert fails a test): the board refusal, palette's annotate flag (unit and live), the pointer stream counted as view, Resolve hidden, the rail hidden.

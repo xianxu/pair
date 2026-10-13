@@ -53,11 +53,15 @@ type CastConfig struct {
 	DriveGrace time.Duration
 }
 
-// Update is what Couch shows of a cast: the browser's state and the viewer
-// link. Link is "" until it answers; LinkErr says why there is none.
+// Update is what Couch shows of a cast: the browser's state and its links
+// (pair#506). Link is the view-only link, "" until it answers; LinkErr says
+// why there is none.
 type Update struct {
 	State State
 	Link  string
+	// PointerLink lets its viewers point and leave notes as well. "" until
+	// the link answers, or when the cast takes no notes (not recorded).
+	PointerLink string
 	// DriveLink is the drive link (#467): the same viewer, offering a seat
 	// to drive. "" until the link answers, or when the cast can't be driven.
 	DriveLink string
@@ -88,11 +92,13 @@ type Cast struct {
 	recDir string
 	check  func(context.Context, string) (string, error)
 	logf   func(string, ...any)
-	// server and token: for tests. driveToken is the drive link's (#467),
-	// "" when the cast can't be driven.
-	server     *Server
-	token      string
-	driveToken string
+	// server and token: for tests. pointerToken is the pointer link's
+	// (pair#506), "" when the cast takes no notes; driveToken is the drive
+	// link's (#467), "" when the cast can't be driven.
+	server       *Server
+	token        string
+	pointerToken string
+	driveToken   string
 	// driveOff says why the cast can't be driven ("" when it can).
 	driveOff string
 }
@@ -137,6 +143,12 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 		return nil, err
 	}
 	token, err := broadcast.NewToken()
+	// A cast that takes notes has a pointer link; without its token the cast
+	// can't be what it was asked to be, so it doesn't start (pair#506).
+	var pointerToken string
+	if err == nil && bd != nil {
+		pointerToken, err = broadcast.NewToken()
+	}
 	if err != nil {
 		b.Close()
 		if bd != nil {
@@ -170,9 +182,9 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 	} else {
 		c.driveOff = "the cast isn't recorded"
 	}
-	srv := NewServer(token, b, cfg.Ping, live, cfg.Presence).WithBoard(bd).WithDrive(c.drive, driveToken)
+	srv := NewServer(token, b, cfg.Ping, live, cfg.Presence).WithBoard(bd).WithPointer(pointerToken).WithDrive(c.drive, driveToken)
 	srv.proxy = proxy
-	c.server, c.token, c.driveToken = srv, token, driveToken
+	c.server, c.token, c.pointerToken, c.driveToken = srv, token, pointerToken, driveToken
 	go c.run(mountCtx, cfg.Host, srv, token)
 	return c, nil
 }
@@ -253,13 +265,16 @@ func (c *Cast) run(ctx context.Context, host *broadcast.Host, srv *Server, token
 			} else {
 				mount, lost = r.m, r.m.Exited()
 				cur.Link = r.m.Base() + "/" + token + "/"
+				if c.pointerToken != "" {
+					cur.PointerLink = r.m.Base() + "/" + c.pointerToken + "/"
+				}
 				if c.driveToken != "" {
 					cur.DriveLink = r.m.Base() + "/" + c.driveToken + "/"
 				}
 			}
 		case <-lost:
 			lost = nil
-			cur.Link, cur.DriveLink, cur.LinkErr = "", "", mount.Err()
+			cur.Link, cur.PointerLink, cur.DriveLink, cur.LinkErr = "", "", "", mount.Err()
 		}
 		c.pub.publish(cur)
 	}
