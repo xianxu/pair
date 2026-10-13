@@ -105,8 +105,9 @@ the operator says it on the call.
   operator-only layer (`terminal.OperatorLayer`), which is applied after the
   tap takes its frame, so no broadcast frame carries a code.
   `console_castcodes.go` draws three things there:
-  - **Hover tooltip:** hovering LIVE (or its 👆) or the Chrome cell shows that
-    cast's codes, for example `view 4821 · pointer 7730`.
+  - **Hover tooltip:** it hangs on the link controls. LIVE's 👆 shows the
+    screen broadcast's codes (`view 4821 · pointer 7730`); the Chrome cell's
+    👆 and 👽 (#501) show the view code and the drive code.
   - **Codes menu:** Alt+click on the cell opens it. It rotates one link's
     code or "rotate all", and a rotation disconnects that link's viewers.
   - **Flash:** a new code flashes three times.
@@ -114,8 +115,6 @@ the operator says it on the call.
     notice says that a code changed and never what it is.
     - A guess-rotation notice is coalesced per link every 30 s.
     - Rotations apply in `Gen` order.
-  - When #501 lands, the tooltips move to the cells' link controls: LIVE's
-    👆, and Chrome's 👆 (view) and 👽 (drive).
 - **Registry.** `broadcast.LinkLocks` is one per cast: a lock per link token,
   minted with the token (`Mint`), routed by `LockFor`, listed by `Codes`, and
   rotated and ended together. A new link is one `Mint`.

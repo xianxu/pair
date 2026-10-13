@@ -1004,7 +1004,9 @@ server, an agent's mock, anything). While it runs the tab bar shows
 `Chrome ▶`; press `Shift+Ctrl+Alt+b` again, click `Chrome ▶`, or press the
 **Go live** button Couch puts at the bottom right of the page, and the active tab
 is cast (`Chrome ⏸`). The same three pause and resume it, and the browser stays
-open while paused. Right-click the cell to copy the **view link** (watch, point, leave
+open while paused. Beside the cell, `↗` brings the cast Chrome window and tab
+to the front, `👆` copies the **view link** and `👽` the **drive link**
+(`Chrome ⏸ ↗ 👆 👽`). Right-click the cell to copy the **view link** (watch, point, leave
 notes); `Alt` (Option)+right-click copies the **drive link** (below); `Ctrl`+click
 (left or right) ends the cast and closes Chrome. Closing Chrome yourself ends the
 cast too. The cast follows whichever tab is active, including tabs opened later.
@@ -1055,7 +1057,7 @@ shows the agent. It follows the page as it scrolls, stays through a pause, and l
 page; anyone can tap a pin to read it and resolve it. While the cast is paused, viewers can't point, leave, or resolve
 notes: the rail's controls and an open note's Save and Resolve are greyed out ("The cast is paused.") until it
 resumes; a draft keeps its text. In Couch the open notes show as
-`💭N` after the Chrome cell (`Chrome ⏸ 💭2`); click it for the same notes box the screen
+`💭N` after the Chrome cell (`Chrome ⏸ ↗ 👆 👽 💭2`); click it for the same notes box the screen
 broadcast uses, with each note's author: click one to copy its text, right-click to copy
 and resolve it. Unlike the screen broadcast's
 notes, these are part of the recording: notes and strokes, with their authors, are
@@ -1070,9 +1072,9 @@ viewer's name; the cast's server sends nothing without the code, not even the st
 Send the link however you like and say the code on the call. A link may carry the code
 as `link#4821`: the page reads it and drops it from the address bar, and link previews
 never see it.
-- **Seeing the codes.** Hover a cast cell (`LIVE`, its `👆`, or `Chrome`) to see that
-  cast's codes, for example `view 4821 · pointer 7730`. View and pointer codes are 4
-  digits; the drive code is 6.
+- **Seeing the codes.** Hover the link controls to see their codes: LIVE's `👆` shows
+  the screen broadcast's (`view 4821 · pointer 7730`), the Chrome cell's `👆` its view
+  code and `👽` its drive code. View and pointer codes are 4 digits; the drive code is 6.
 - **Rotating codes.** `Alt+click` the cell for its Codes menu: rotate one link's code,
   or all of them. Rotating disconnects everyone who used the old code.
 - **Wrong guesses.** About 8 wrong tries on one code rotate it by themselves. Couch

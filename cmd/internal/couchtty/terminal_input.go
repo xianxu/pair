@@ -149,8 +149,25 @@ func (c *Console) routeMouseEvent(event terminal.InputEvent) {
 	if ok && !hit.Release {
 		button := mouseinput.BaseButton(hit.Button)
 		c.mu.Lock()
-		rows, cell, driveSpan := int(c.size.Rows), c.statusWebcast, c.statusWebDrive
+		rows, cell, focusSpan, driveSpan := int(c.size.Rows), c.statusWebcast, c.statusWebFocus, c.statusWebDrive
+		viewLink, driveLink := c.statusWebViewLink, c.statusWebDriveLink
 		c.mu.Unlock()
+		// The Chrome group's buttons (#501): ↗ brings Chrome to the front,
+		// 👆 copies the view link, 👽 the drive link. Right-click and
+		// Alt+right-click on the cell stay as shortcuts for the links.
+		if button == 0 && hit.Y == rows && hit.Button&mouseinput.ModCtrl == 0 {
+			switch {
+			case focusSpan.Contains(hit.X - 1):
+				c.focusWebcast()
+				return
+			case viewLink.Contains(hit.X - 1):
+				c.copyWebcastLink()
+				return
+			case driveLink.Contains(hit.X - 1):
+				c.copyWebcastDriveLink()
+				return
+			}
+		}
 		// Remote driving's span (#467): a click opens the drive menu;
 		// Ctrl with either button takes control back, whatever is open.
 		if (button == 0 || button == 2) && hit.Y == rows && driveSpan.Contains(hit.X-1) {

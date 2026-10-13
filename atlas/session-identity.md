@@ -133,8 +133,11 @@ last quiet moment (`quietAt`, less a minute of slack); an older file cannot
 hold the round. An unbound watcher exits after `IdleExpiry` (24h) with neither
 a send nor agent output, and the next relaunch spawns a fresh one. Reads of a bound session
 (`QuerySession`'s proof validation, `ActivityForSession`) stat only the
-proof's artifacts through `Runtime.StatFile`, never `ListFiles`. The remaining
-per-query cost is the ledger parse (pair#431).
+proof's artifacts through `Runtime.StatFile`, never `ListFiles`; so does
+following an appended transcript (`resampleArtifact`, #507). The remaining
+per-query cost is the ledger parse (pair#431), which a runtime with an
+`OwnerLaunchCache` (Couch's idle fading) pays only when the ledger changes
+(#507); the ledgers' size is #508.
 
 The watcher commits confirmation only while that launch is current. Requested
 A and observed D are separate ledger facts, preserving both the effective

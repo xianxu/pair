@@ -34,7 +34,7 @@ func TestCastCodesShowOnlyOnTheOperatorsScreen(t *testing.T) {
 	s := f.startLive(t)
 	v := openViewer(t, s)
 	code := viewCode(t, s)
-	f.hoverStatus(2)
+	f.hoverStatus(f.pointerSpan().Start + 1) // LIVE's 👆
 	waitFor(t, "the codes tooltip", func() bool { return strings.Contains(f.screenText(), "view "+code) })
 	// A frame after the tooltip is up reaches the viewer, without it.
 	f.child.Feed([]byte("AFTER-HOVER"))
@@ -119,19 +119,34 @@ func TestGuessRotationAlertAndFlash(t *testing.T) {
 	waitFor(t, "the flash over", func() bool { return !strings.Contains(f.screenText(), "LIVE view 2222") })
 }
 
-// The Chrome cell's tooltip shows the web cast's view code and, when it can be
-// driven, its six-digit drive code; Alt+click opens its Codes menu without
-// toggling the cast.
+// The web cast's codes hang on #501's link controls: Chrome's 👆 shows the
+// view code and 👽 the six-digit drive code; the Chrome cell itself shows
+// none. Alt+click on the cell opens its Codes menu without toggling the cast.
 func TestWebCastCodesOnTheChromeCell(t *testing.T) {
 	c := newDriveCast(t)
 	codes := c.cast().Codes()
 	if len(codes) != 2 || codes[1].Link != broadcast.LinkDrive || len(codes[1].Code) != 6 {
 		t.Fatalf("codes %+v", codes)
 	}
+	c.con.mu.Lock()
+	viewIcon, driveIcon := c.con.statusWebViewLink, c.con.statusWebDriveLink
+	c.con.mu.Unlock()
+	if viewIcon.End <= viewIcon.Start || driveIcon.End <= driveIcon.Start {
+		t.Fatalf("no link controls: %+v %+v", viewIcon, driveIcon)
+	}
+	hover := func(x int) { _, _ = fmt.Fprintf(c.stdin, "\x1b[<35;%d;24M", x+1) }
+	hover(viewIcon.Start)
+	waitFor(t, "the view code on 👆", func() bool { return strings.Contains(c.screenText(), "view "+codes[0].Code) })
+	if strings.Contains(c.screenText(), codes[1].Code) {
+		t.Fatal("👆 showed the drive code")
+	}
+	hover(driveIcon.Start)
+	waitFor(t, "the drive code on 👽", func() bool { return strings.Contains(c.screenText(), "drive "+codes[1].Code) })
+	hover(c.cell())
+	waitFor(t, "no tooltip on the cell", func() bool {
+		return !strings.Contains(c.screenText(), "drive "+codes[1].Code) && !strings.Contains(c.screenText(), "view "+codes[0].Code)
+	})
 	x := c.cell()
-	_, _ = fmt.Fprintf(c.stdin, "\x1b[<35;%d;24M", x+1)
-	want := "view " + codes[0].Code + " · drive " + codes[1].Code
-	waitFor(t, "the Chrome tooltip", func() bool { return strings.Contains(c.screenText(), want) })
 	before := c.wphase()
 	_, _ = fmt.Fprintf(c.stdin, "\x1b[<8;%d;24M\x1b[<8;%d;24m", x+1, x+1)
 	waitFor(t, "the Chrome Codes menu", func() bool { return strings.Contains(c.screenText(), "Chrome codes") })

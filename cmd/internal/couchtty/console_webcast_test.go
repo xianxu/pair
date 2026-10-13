@@ -341,3 +341,56 @@ func TestReplayShareReadyIsANotice(t *testing.T) {
 		shares.Close()
 	}
 }
+
+// A click on ↗ (#501) asks the browser to come to the front; the Chrome
+// cell itself still toggles live.
+func TestWebcastFocusButton(t *testing.T) {
+	r := newWebcastRig(t, nil)
+	f := r.open(t)
+	x := r.cell() + len([]rune(WebcastIdleLabel)) + 1 // 1-based column of ↗
+	if got := []rune(r.lastRow())[x-1]; string(got) != WebcastFocusLabel {
+		t.Fatalf("no button at %d: %q", x, r.lastRow())
+	}
+	_, _ = fmt.Fprintf(r.stdin, "\x1b[<0;%d;24M\x1b[<0;%d;24m", x, x)
+	waitFor(t, "browser focused", func() bool { return f.Stats().Focuses == 1 })
+	if f.State().Phase != webcast.PhaseIdle {
+		t.Fatal("the button toggled the cast")
+	}
+}
+
+// 👆 and 👽 in the Chrome group (#501) copy the view and the drive link, as
+// right-click and Alt+right-click on the cell do.
+func TestWebcastLinkButtons(t *testing.T) {
+	r := newWebcastRig(t, nil)
+	r.open(t)
+	var u webcast.Update
+	waitFor(t, "links", func() bool {
+		r.con.mu.Lock()
+		defer r.con.mu.Unlock()
+		u = r.con.wcast.update
+		return u.Link != ""
+	})
+	click := func(span func(*Console) ColumnSpan) {
+		r.con.mu.Lock()
+		x := span(r.con).Start + 1
+		r.con.mu.Unlock()
+		if x == 1 {
+			t.Fatal("button not drawn")
+		}
+		_, _ = fmt.Fprintf(r.stdin, "\x1b[<0;%d;24M\x1b[<0;%d;24m", x, x)
+	}
+	click(func(c *Console) ColumnSpan { return c.statusWebViewLink })
+	osc := "\x1b]52;c;" + base64.StdEncoding.EncodeToString([]byte(u.Link))
+	waitFor(t, "view link copied", func() bool { return strings.Contains(r.host.Written(), osc) })
+	click(func(c *Console) ColumnSpan { return c.statusWebDriveLink })
+	if u.DriveLink != "" {
+		osc = "\x1b]52;c;" + base64.StdEncoding.EncodeToString([]byte(u.DriveLink))
+		waitFor(t, "drive link copied", func() bool { return strings.Contains(r.host.Written(), osc) })
+	} else {
+		// A fake can't be driven: the click says why instead.
+		waitFor(t, "drive notice", func() bool { return strings.Contains(r.notice(), "can't be driven") })
+	}
+	if f := r.browser(); f.State().Phase != webcast.PhaseIdle {
+		t.Fatal("a link button toggled the cast")
+	}
+}

@@ -1,6 +1,7 @@
 package drive
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -24,6 +25,9 @@ func TestAnswer(t *testing.T) {
 		{fmt.Errorf("%w: twice", recording.ErrControl), http.StatusConflict},
 		{ErrBatchLimit, http.StatusBadRequest},
 		{ErrClosed, http.StatusGone},
+		{fmt.Errorf("%w: Input.dispatchMouseEvent: closed", ErrInput), http.StatusBadGateway},
+		{context.Canceled, http.StatusServiceUnavailable},
+		{fmt.Errorf("ask: %w", context.DeadlineExceeded), http.StatusServiceUnavailable},
 		{errors.New("disk full"), http.StatusInternalServerError},
 	} {
 		status, say := Answer(c.err)
