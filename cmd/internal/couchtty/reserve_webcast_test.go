@@ -48,7 +48,7 @@ func TestRenderWebcastCell(t *testing.T) {
 func TestRenderWebcastFocusButtonAndLiveStyle(t *testing.T) {
 	for _, cell := range []WebcastCell{WebcastIdle, WebcastLive} {
 		row := RenderStatusRow(80, StatusModel{Webcast: cell, WebNotes: 2})
-		spans := []ColumnSpan{row.Webcast, row.WebFocus, row.WebViewLink, row.WebDriveLink, row.WebNotes}
+		spans := []ColumnSpan{row.Webcast, row.WebFocus, row.WebPointerLink, row.WebDriveLink, row.WebNotes}
 		widths := []int{len([]rune(WebcastLiveLabel)), 1, 2, 2, 3}
 		for i, s := range spans {
 			if s.End-s.Start != widths[i] || (i > 0 && s.Start != spans[i-1].End+1) {
@@ -60,7 +60,7 @@ func TestRenderWebcastFocusButtonAndLiveStyle(t *testing.T) {
 			t.Fatalf("group drawn as %q", row.Body)
 		}
 	}
-	if row := RenderStatusRow(80, StatusModel{}); row.WebFocus != (ColumnSpan{}) || row.WebViewLink != (ColumnSpan{}) || row.WebDriveLink != (ColumnSpan{}) || strings.Contains(row.Body, WebcastFocusLabel) {
+	if row := RenderStatusRow(80, StatusModel{}); row.WebFocus != (ColumnSpan{}) || row.WebPointerLink != (ColumnSpan{}) || row.WebDriveLink != (ColumnSpan{}) || strings.Contains(row.Body, WebcastFocusLabel) {
 		t.Fatalf("button without Chrome: %q", row.Body)
 	}
 	live := RenderStatusRow(80, StatusModel{Webcast: WebcastLive})

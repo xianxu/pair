@@ -261,16 +261,30 @@ export const MODE_TIPS = {
   note: 'Note: drag a box, or tap for a small one, to leave a note. Click again to stop.',
 };
 
+// readPalette reads palette.json (pair#506): the swatches' colors and
+// whether this viewer's link may annotate. Any other shape, including the
+// bare array an older server sent, is null: the cast takes no notes.
+export function readPalette(x) {
+  if (!x || typeof x !== 'object' || Array.isArray(x) || typeof x.annotate !== 'boolean') return null;
+  const p = x.palette;
+  if (!Array.isArray(p) || !p.length || !p.every((c) => typeof c === 'string' && HEX_COLOR.test(c))) return null;
+  return { palette: p, annotate: x.annotate };
+}
+
 // mountAnnotate adds pointing and notes to the viewer. v is the viewer's
 // surface (couchViewer: boxOf, nodeAt, toPage, fromPage, onRecord, model).
-// It mounts only when the cast takes notes (palette.json answers).
+// It mounts only when the cast takes notes (palette.json answers). Under a
+// view-only link (annotate false) it draws others' strokes and notes
+// read-only: the rail never shows, so no mode can be picked, and a note
+// opens without Resolve; the server refuses the posts too.
 export async function mountAnnotate(doc, win, v) {
-  let palette;
+  let answer;
   try {
     const r = await win.fetch('palette.json', { credentials: 'same-origin', cache: 'no-store' });
-    palette = r.ok ? await r.json() : null;
-  } catch { palette = null; }
-  if (!Array.isArray(palette) || !palette.length || !palette.every((c) => typeof c === 'string' && HEX_COLOR.test(c))) return null;
+    answer = r.ok ? readPalette(await r.json()) : null;
+  } catch { answer = null; }
+  if (!answer) return null;
+  const { palette, annotate } = answer;
 
   let storage = null;
   try { storage = win.localStorage; } catch { /* no storage: nothing remembered */ }
@@ -370,7 +384,7 @@ export async function mountAnnotate(doc, win, v) {
     const at = railAt(r.width ? r : stage.getBoundingClientRect(), win.innerWidth);
     rail.style.top = `${at.top}px`;
     rail.style.right = `${at.right}px`;
-    rail.hidden = !(v.model && v.model.seg > 0 && !v.model.ended);
+    rail.hidden = !annotate || !(v.model && v.model.seg > 0 && !v.model.ended);
   };
   function setMode(m) {
     endGesture();
@@ -483,7 +497,7 @@ export async function mountAnnotate(doc, win, v) {
   const pinned = pinLayer(doc, pins, (n, by) => {
     author.textContent = by;
     name.hidden = true;
-    dialog.view({ id: n.id, text: n.text }, { resolvable: true });
+    dialog.view({ id: n.id, text: n.text }, { resolvable: annotate });
   });
   function drawPins() {
     const notes = liveNotes(v.model);
@@ -532,5 +546,5 @@ export async function mountAnnotate(doc, win, v) {
   win.addEventListener('resize', schedule);
   setMode('watch');
   schedule();
-  return { setMode, dialog, strokes, who };
+  return { setMode, dialog, strokes, who, annotate };
 }

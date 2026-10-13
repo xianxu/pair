@@ -695,6 +695,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/webcast/chrome_find.go",
 	"cmd/internal/webcast/doc.go",
 	"cmd/internal/webcast/fake.go",
+	// pair#506: which cast link a request came under; tokens in memory only.
+	"cmd/internal/webcast/link.go",
 	"cmd/internal/webcast/publish.go",
 	"cmd/internal/webcast/server.go",
 	// #470: the board's POST routes; they write only through the board.

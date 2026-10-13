@@ -160,9 +160,10 @@ what the viewer's renderer draws at the same moments.
   drawn in `broadcast.LiveSGR`, LIVE's own style, so the two cast indicators read as one family (#501);
   `IndicatorShown` matches LIVE's text, so it doesn't mistake one for the other.
 - **The Chrome group (#501)** follows the screen broadcast's `LIVE ⏸ 👆`: `Chrome ⏸ ↗ 👆 👽 💭N 🕹Ana` (its 👽 is real, `WebcastDriveLinkLabel`; #503 removed the broadcast's placeholder), each button its own
-  `RenderedStatusRow` span (`WebFocus`, `WebViewLink`, `WebDriveLink`), so a click knows which link it copies. The codes
-  show on hovering the cell itself, not these (#495).
-  👆 copies the view link, 👽 the drive link, on a left or right click; a right-click on the cell copies the view-only link (the cast row's rule, #495).
+  `RenderedStatusRow` span (`WebFocus`, `WebPointerLink`, `WebDriveLink`), so a click knows which link it copies. The
+  codes show on hovering the cell itself, not these (#495).
+  👆 copies the pointer link, 👽 the drive link (pair#506), on a left or right click; a right-click on the cell copies
+  the view-only link (the cast row's rule, #495).
   `↗` calls `Browser.Focus`: the real Chrome sends `Target.activateTarget` for the cast tab, then activates its own
   process by PID (`activateProcess`, macOS JXA → `NSRunningApplication`; by PID because the cast Chrome
   shares its bundle id with the operator's own Chrome). Only `Launch` of a windowed Chrome sets the
@@ -175,10 +176,11 @@ what the viewer's renderer draws at the same moments.
     - On the driver's row, "uploads and downloads off while Ana drives", any click takes control back.
     - On an asker's row, a left click grants and a right click denies.
   - **Revoke.** Ctrl with either button on the span revokes, from any state, with the menu open or closed.
-  - **Two links.** Right-click on the Chrome cell copies the view link (watch, point, notes);
-    👽 (left or right click) or the Codes menu copies the drive link, the only one that offers a seat (#495
-    dropped Alt+right-click for it). Shift+click is the
-    terminal's own selection. `couch --broadcast-list` lists `screen`, `web view` and `web drive` shares
+  - **Three links (pair#506).** Right-click on the Chrome cell copies the view-only link (watch), 👆 the pointer link
+    (watch, point, notes; `copyWebcastPointerLink`, "takes no notes" on an unrecorded cast), and 👽 the drive link,
+    the only one that offers a seat; 👆 and 👽 take a left or right click, and the Codes menu (Alt+click on the cell,
+    #495) has a row, code and copy action for each of the three (#495 dropped Alt+right-click). Shift+click is the
+    terminal's own selection. A pointer-link viewer counts as a `web view` viewer. `couch --broadcast-list` lists `screen`, `web view` and `web drive` shares
     (`Console.Shares`, `couchmessage.ShareStatus`), the drive one with who drives and how many ask.
   - **Failures.** A control change that fails says why (`driveFailure`): a race, the cast ended, not recording
     yet, or a failure with its cause.
@@ -192,6 +194,17 @@ what the viewer's renderer draws at the same moments.
 - **Cast:** `webcast.Cast` = Browser + the viewer `Server` mounted on the shared `broadcast.Host`. Chrome comes
   up first; the link opens in the background (`Update.Link` / `LinkErr`). The cast ends when its Browser does;
   viewers get `end`, then the mount goes.
+- **Three links (pair#506):** a cast has a view token, a pointer token (only when recorded: no board, no pointing)
+  and a drive token (#467). `Update` carries `Link`, `PointerLink` and `DriveLink`. Each grants what the one
+  before it does, and more: view watches; pointer also draws strokes and leaves and resolves notes; drive also offers
+  a seat. `castLink` (`webcast/link.go`) is the request's link, from `Server.linkOf` (constant-time token compare),
+  and each route asks it: `annotates()` for the board, `drives()` for the drive routes.
+  - Board POSTs under the view-only link answer 403 "This link is view-only." *before* admission, so they spend no body
+    read, in-flight slot or rate budget.
+  - `palette.json` answers `{palette, annotate}`. Under the view-only link the viewer's `mountAnnotate` (`readPalette`)
+    still draws others' strokes and notes, read-only: the rail never shows and a note opens without Resolve.
+  - A pointer-link stream counts with the view streams in `Server.Viewers()`: only drive-link streams hold a seat.
+  - The terminal cast's pointer link is a phase switched on and off, so the web cast keeps its own fixed-link model.
 - **Shared Host:** `broadcast.Host` (`host.go`) holds one listener, server and tunnel for every cast, opened by the
   first mount and closed after the last, routing by the token in the first path segment (`Mountable.Owns`). A named
   cloudflared tunnel can be claimed once, so the screen broadcast and the web cast must share it. `couchcmd` builds

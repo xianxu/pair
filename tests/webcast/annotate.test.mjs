@@ -1,7 +1,7 @@
 // Pointing and notes in the web cast viewer (#470): the pure helpers.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { identityStore, validName, strokesAt, chunker, strokeStore, liveNotes, noteBox, regionOf, noteDraft, MAX_POINTS, FADE_MS } from '../../cmd/internal/webcast/web/annotate.js';
+import { identityStore, validName, strokesAt, chunker, strokeStore, liveNotes, noteBox, regionOf, noteDraft, readPalette, MAX_POINTS, FADE_MS } from '../../cmd/internal/webcast/web/annotate.js';
 
 const crypto = { getRandomValues: (b) => { b.fill(0xab); return b; } };
 const memStorage = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), m }; };
@@ -140,4 +140,16 @@ test('pins: the box, and the chip outside a thin one', async () => {
   assert.equal(pins.length, 2);
   assert.ok(!pins[0].classList.contains('thin'));
   assert.ok(pins[1].classList.contains('thin'));
+});
+
+// palette.json is input from outside the module (pair#506): the swatches'
+// colors and whether this link may annotate. Anything else, including the
+// bare array an older server sent, reads as "this cast takes no notes".
+test('readPalette: palette and annotate, or null for any other shape', () => {
+  assert.deepEqual(readPalette({ palette: ['#112233', '#aabbcc'], annotate: true }), { palette: ['#112233', '#aabbcc'], annotate: true });
+  assert.deepEqual(readPalette({ palette: ['#112233'], annotate: false }), { palette: ['#112233'], annotate: false });
+  for (const bad of [null, 'x', ['#112233'], {}, { palette: [], annotate: true }, { palette: ['red'], annotate: true },
+    { palette: ['#112233'] }, { palette: ['#112233'], annotate: 'yes' }, { palette: '#112233', annotate: true }]) {
+    assert.equal(readPalette(bad), null, JSON.stringify(bad));
+  }
 });

@@ -110,7 +110,7 @@ func (s *Server) DriveToken() string {
 }
 
 // driveRoute serves one POST; false when rest isn't a drive route. Under
-// the view link's token (driveLink false) the routes are not found.
+// the view-only and pointer links (driveLink false) the routes are not found.
 func (s *Server) driveRoute(w http.ResponseWriter, r *http.Request, rest string, driveLink bool) bool {
 	switch rest {
 	case "drive/hello", "drive/control", "drive/input":

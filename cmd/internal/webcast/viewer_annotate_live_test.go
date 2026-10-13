@@ -50,7 +50,7 @@ func TestAnnotateLiveTwoViewers(t *testing.T) {
 			}
 		}
 	}
-	viewer := NewServer("tok", NewFakeBrowser(), time.Second, hub, nil).WithBoard(bd)
+	viewer := NewServer("view", NewFakeBrowser(), time.Second, hub, nil).WithBoard(bd).WithPointer("tok") // its viewers annotate (pair#506)
 	viewer.Assets().Bind(store)
 	srv := httptest.NewServer(viewer)
 	t.Cleanup(func() { srv.CloseClientConnections(); srv.Close() })
@@ -159,6 +159,27 @@ func TestAnnotateLiveTwoViewers(t *testing.T) {
 		t.Fatalf("B's dragged note %+v: want its dragged box", region)
 	}
 	waitEval(t, a, "B's box in A", fmt.Sprintf(`(() => { const p = document.querySelector('.pin[data-note=%q]'); return p && !p.hidden ? 'shown' : 'none'; })()`, region.ID), "shown")
+
+	// C watches by the view-only link (pair#506): it sees B's note, has no
+	// rail, opens the note without Resolve, and the cast refuses its posts.
+	cv := headlessPage(t)
+	cv.call(t, cv.session, "Emulation.setDeviceMetricsOverride", map[string]any{"width": 1024, "height": 700, "deviceScaleFactor": 1, "mobile": false}, nil)
+	cv.call(t, cv.session, "Page.navigate", map[string]any{"url": srv.URL + "/view/?viewer=v3"}, nil)
+	waitEval(t, cv, "the view-only mount", `(() => window.couchViewer && couchViewer.annotate ? String(couchViewer.annotate.annotate) : 'pending')()`, "false")
+	waitEval(t, cv, "B's box in C", fmt.Sprintf(`(() => { const p = document.querySelector('.pin[data-note=%q]'); return p && !p.hidden ? 'shown' : 'none'; })()`, region.ID), "shown")
+	waitEval(t, cv, "C's rail", `(() => { const r = document.querySelector('.annotate-rail'); return !r || r.hidden ? 'hidden' : 'shown'; })()`, "hidden")
+	cv.eval(t, fmt.Sprintf(`(() => { document.querySelector('.pin[data-note=%q] .chip').click(); return ''; })()`, region.ID))
+	waitEval(t, cv, "B's note open in C, without Resolve", `(() => {
+		const d = document.querySelector('.note-dialog');
+		if (d.classList.contains('hidden')) return 'closed';
+		const r = [...d.querySelectorAll('.note-buttons button')].find((x) => x.textContent === 'Resolve');
+		return d.querySelector('.note-text').textContent + (r && !r.classList.contains('hidden') ? ' +resolve' : '');
+	})()`, "Too much space here.")
+	// Refused before the body is read, so any body shows it.
+	waitEval(t, cv, "C's note refused", `(async () => {
+		const r = await fetch('note', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+		return r.status + ' ' + (await r.text()).trim();
+	})()`, "403 This link is view-only.")
 
 	// B, still in note mode, taps A's pin by touch and resolves it: the pin
 	// goes in both viewers, and the recording says so.
