@@ -70,6 +70,10 @@ node. Save never resolves a potentially moved path again. Writes settle from the
 recorder sink outcome, not enqueue success. A lost reply is checked using the same
 monotonic request ID; an uncertain write cannot create another note. Reconciliation
 can only complete its originating action/body; another draft stays open and unsent.
+Projection document changes (including inactive tabs and cast end) retire pending
+transport state before UI updates, without replaying writes. IDs remain monotonic;
+late replies and resolved continuations cannot settle a newer document’s operation.
+Same-document pause and driving retain reconciliation.
 Operator Escape is captured at the window boundary so a Couch menu selection works
 with page focus unchanged; Off and unavailable modes leave page Escape alone.
 

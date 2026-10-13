@@ -29,6 +29,39 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - "n": 2
+      timestamp: "2026-10-12T23:36:38-07:00"
+      dispatched: "2026-10-12T23:31:47-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: operator.js:34–42 binds reconciliation to the originating action/body. Reverting this fix in a disposable checkout failed all three transport regressions; restored HEAD passed.
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: annotate.js:594 registers operator Escape on window capture. Reverting this fix failed the page-focused Escape regression; restored HEAD passed.
+          round: 2
+        - id: BR-3
+          disposition: addressed
+          note: Plan line 48 now classifies the recorded node path helper as INTEGRATION, with the correction recorded at lines 417–419. observer.js:53–69 confirms its live-DOM and document dependencies.
+          round: 2
+      findings:
+        - id: BR-4
+          severity: Critical
+          title: A lost save reply blocks future saves after switching away and back
+          detail: 'operator.js:31–43 retains unsettled across projection/document changes at lines 100–104, while recorder/operator.go:156–161 replaces OperatorSession when the recording document changes. Reproduced an accepted save with its reply lost, followed by A→B→A: the recorder returns “result is no longer retained,” and every new save sends status for the old request forever. ARCH-ORDER, ARCH-PURPOSE. This is the 2nd finding in family operation-result-identity. Do NOT fix only this instance: define operation ownership across session/context/document/action, enumerate the lifecycle boundaries, and retire old-scope transport state without resubmitting old writes or accepting late replies into a new scope.'
+          family: operation-result-identity
+          round: 2
+        - id: BR-5
+          severity: Important
+          title: Ordinary record updates replace color buttons during interaction
+          detail: annotate.js:587 calls sync for every record; transition at line 392 calls renderRail, whose line 403 invokes renderSwatches. collab.js:127 replaces every color button. Confirmed on both viewer and operator mounts that an unchanged-model scroll record detaches the pressed button; updates between pointer-down and pointer-up can therefore cancel color selection. Preserve button identity and update attributes in place, or avoid rebuilding on unchanged state. Add an interleaved-record click regression. ARCH-ORDER, ARCH-CONSTRAINTS.
+          family: interactive-dom-identity
+          round: 2
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#494 (boundary-review)
@@ -47,8 +80,22 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-3** [Critical] `core-concept-purity-classification` The plan labels a live-DOM helper PURE
   workshop/plans/000494-operator-overlay-plan.md:23 classifies the recorded node path helper as PURE, but recorder/observer.js:53–69 reads live DOM structure and global document identity. Promote it to INTEGRATION and record the correction under Revisions, or extract a deterministic core over supplied data (ARCH-PURE).
 
+## Round 2 — 2026-10-12T23:36:38-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — operator.js:34–42 binds reconciliation to the originating action/body. Reverting this fix in a disposable checkout failed all three transport regressions; restored HEAD passed.
+- BR-2 — addressed — annotate.js:594 registers operator Escape on window capture. Reverting this fix failed the page-focused Escape regression; restored HEAD passed.
+- BR-3 — addressed — Plan line 48 now classifies the recorded node path helper as INTEGRATION, with the correction recorded at lines 417–419. observer.js:53–69 confirms its live-DOM and document dependencies.
+
+### Raised
+
+- **BR-4** [Critical] `operation-result-identity` A lost save reply blocks future saves after switching away and back
+  operator.js:31–43 retains unsettled across projection/document changes at lines 100–104, while recorder/operator.go:156–161 replaces OperatorSession when the recording document changes. Reproduced an accepted save with its reply lost, followed by A→B→A: the recorder returns “result is no longer retained,” and every new save sends status for the old request forever. ARCH-ORDER, ARCH-PURPOSE. This is the 2nd finding in family operation-result-identity. Do NOT fix only this instance: define operation ownership across session/context/document/action, enumerate the lifecycle boundaries, and retire old-scope transport state without resubmitting old writes or accepting late replies into a new scope.
+- **BR-5** [Important] `interactive-dom-identity` Ordinary record updates replace color buttons during interaction
+  annotate.js:587 calls sync for every record; transition at line 392 calls renderRail, whose line 403 invokes renderSwatches. collab.js:127 replaces every color button. Confirmed on both viewer and operator mounts that an unchanged-model scroll record detaches the pressed button; updates between pointer-down and pointer-up can therefore cancel color selection. Preserve button identity and update attributes in place, or avoid rebuilding on unchanged state. Add an interleaved-record click regression. ARCH-ORDER, ARCH-CONSTRAINTS.
+
 ## Open findings
 
-- **BR-1** [Critical] `operation-result-identity` Reconciliation reports another draft's save as successful
-- **BR-2** [Critical] `keyboard-event-boundary` Escape cannot turn annotation off while focus remains on the page
-- **BR-3** [Critical] `core-concept-purity-classification` The plan labels a live-DOM helper PURE
+- **BR-4** [Critical] `operation-result-identity` A lost save reply blocks future saves after switching away and back
+- **BR-5** [Important] `interactive-dom-identity` Ordinary record updates replace color buttons during interaction

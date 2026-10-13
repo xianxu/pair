@@ -319,3 +319,46 @@ func TestOperatorSameDocumentTabReturnGetsFreshDraftScope(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+func TestOperatorTabReturnRetiresAcceptedLedgerAndAllowsFreshSave(t *testing.T) {
+	h, _, ch := operatorHarness(t)
+	first := prepareOperator(t, h, ch)
+	h.r.Send(operatorEvent(operatorRequest("save-note", "2", map[string]any{"draft": first.Draft, "color": 0, "text": "accepted before switching"}), 7))
+	if got := takeOperator(t, ch); got.Outcome != board.OperatorPending {
+		t.Fatal(got)
+	}
+	accepted := takeOperator(t, ch)
+	if accepted.Outcome != board.OperatorAccepted || accepted.ID == "" {
+		t.Fatalf("original save %+v", accepted)
+	}
+	// Treat this acceptance as lost in transit to Chrome. The recorder's ledger
+	// can still reconcile it until A stops being the recording document.
+	h.r.Send(operatorEvent(operatorRequest("status", "2", map[string]any{}), 7))
+	if got := takeOperator(t, ch); got.Outcome != board.OperatorAccepted || got.ID != accepted.ID {
+		t.Fatalf("original ledger %+v", got)
+	}
+	p := h.page("B", "http://b/", "L9")
+	h.ctxCreated("B", p.frameID, 8)
+	h.r.Send(Live{Tab: rec.Tab{ID: p.frameID}, Session: "B"})
+	h.settle()
+	h.r.Send(Live{Tab: rec.Tab{ID: "T-A"}, Session: "A"})
+	h.settle()
+	// The same Chrome context 7 now belongs to recording document 3. Asking
+	// forever about the old accepted operation cannot recover its retired ledger.
+	h.r.Send(operatorEvent(operatorRequest("status", "2", map[string]any{}), 7))
+	if got := takeOperator(t, ch); got.Outcome != board.OperatorUnknown {
+		t.Fatalf("retired ledger %+v", got)
+	}
+	h.r.Send(operatorEvent(operatorRequest("prepare-note", "3", map[string]any{"seg": 3, "path": []int{1, 2, 0}, "box": []int{1, 2, 30, 40}, "region": []int{3, 4, 10, 10}}), 7))
+	fresh := takeOperator(t, ch)
+	if fresh.Outcome != board.OperatorAccepted || fresh.Doc != 3 || fresh.Draft == "" || fresh.Draft == first.Draft {
+		t.Fatalf("fresh draft %+v", fresh)
+	}
+	h.r.Send(operatorEvent(operatorRequest("save-note", "4", map[string]any{"draft": fresh.Draft, "color": 0, "text": "fresh annotation"}), 7))
+	if got := takeOperator(t, ch); got.Outcome != board.OperatorPending {
+		t.Fatal(got)
+	}
+	if got := takeOperator(t, ch); got.Outcome != board.OperatorAccepted || got.ID == "" || got.ID == accepted.ID {
+		t.Fatalf("fresh save %+v", got)
+	}
+}

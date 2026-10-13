@@ -1480,3 +1480,6 @@ proof; record the surprising case so the next change starts from evidence.
 - A reconciliation success belongs to its original operation, never the editor currently asking about it. Test cancellation followed by a new draft and transitions between action types; an unsent body cannot receive success.
 - A shadow root is not a global keyboard boundary. Focus-preserving commands need a document/window listener for Escape, with explicit guards that leave unavailable/Off page input alone. Test the real page-focused delivery path.
 - Classify helpers by what they read, not by the shape of their result: a DOM-to-path function is INTEGRATION even when it returns only numbers.
+
+- **#494 reconciliation lifetime:** operation identity includes the authority’s lifetime, not only request ID/body. Retire browser state when the server’s document ledger retires; test switch-return plus lost reply and late completion, not each lifecycle independently.
+- **#494 interactive identity:** a record stream can update between pointer-down and pointer-up. Preserve swatch/control DOM nodes across unrelated updates, and test an interleaved record against the originally pressed element on every shared surface.

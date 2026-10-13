@@ -3,6 +3,8 @@ export function operatorTransport(report, win) {
   let serial = 0;
   const waiting = new Map();
   let unsettled = null;
+  let scope, generation = 0;
+  const stale = 'The recording document changed. Start a new annotation.';
   const wire = (request) => report({ t: 'operator', request });
   const ask = (op, body, id = String(++serial)) => {
     if (waiting.has(id)) return waiting.get(id).promise;
@@ -19,6 +21,20 @@ export function operatorTransport(report, win) {
     return promise;
   };
   return {
+    setScope(doc, ended = false) {
+      const next = ended ? 0 : doc;
+      if (next === scope) return;
+      scope = next;
+      generation++;
+      // The recorder discards this document's operation ledger on retirement.
+      // Forget reconciliation with it, without claiming the write was accepted.
+      unsettled = null;
+      for (const [id, pending] of waiting) {
+        win.clearTimeout(pending.timer);
+        pending.resolve({ request: id, outcome: 'refused', error: stale });
+      }
+      waiting.clear();
+    },
     reply(reply) {
       const p = waiting.get(reply.request);
       if (!p) return;
@@ -29,7 +45,7 @@ export function operatorTransport(report, win) {
     },
     ask,
     async mutate(op, body) {
-      if (!unsettled) unsettled = { id: String(++serial), op, body };
+      if (!unsettled) unsettled = { id: String(++serial), op, body, generation };
       const current = unsettled;
       const same = current.op === op && JSON.stringify(current.body) === JSON.stringify(body);
       // Even an edited draft cannot create another note while the previous
@@ -37,6 +53,7 @@ export function operatorTransport(report, win) {
       const sent = current.sent;
       current.sent = true;
       const result = await ask(sent ? 'status' : current.op, sent ? {} : current.body, current.id);
+      if (current.generation !== generation) return { status: 409, text: stale };
       const settled = result.outcome === 'accepted' || result.outcome === 'refused';
       if (settled && unsettled === current) unsettled = null;
       if (!same && settled) return { status: 409, text: 'The previous annotation is settled. This change was not submitted; keep its text and save again or start a new note.' };
@@ -100,6 +117,7 @@ export function mountOperator({ host, root, report }, { annotate, palette, css }
   win.__couchcastOperatorView = (snapshot) => {
     if (snapshot.revision < revision) return;
     revision = snapshot.revision;
+    transport.setScope(snapshot.doc, snapshot.ended);
     view.model = { seg: snapshot.seg, docSeg: snapshot.doc, paused: snapshot.paused, ended: snapshot.ended, driver: snapshot.driver, notes: snapshot.notes.map((note) => ({ note, seg: snapshot.doc, state: 'open' })) };
     callback({ k: 'view', t: snapshot.t }, view.model);
     for (const stroke of snapshot.strokes) {

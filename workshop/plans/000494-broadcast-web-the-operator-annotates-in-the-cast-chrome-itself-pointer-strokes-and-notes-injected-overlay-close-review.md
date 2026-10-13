@@ -100,3 +100,97 @@ findings:
     detail: |
       workshop/plans/000494-operator-overlay-plan.md:23 classifies the recorded node path helper as PURE, but recorder/observer.js:53–69 reads live DOM structure and global document identity. Promote it to INTEGRATION and record the correction under Revisions, or extract a deterministic core over supplied data (ARCH-PURE).
 ```
+
+---
+
+## Re-review — 2026-10-12T23:36:38-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 494 — broadcast-web: the operator annotates in the cast Chrome itself (pointer strokes and notes, injected overlay) |
+| repo | pair |
+| issue file | workshop/issues/000494-broadcast-web-the-operator-annotates-in-the-cast-chrome-itself-pointer-strokes-and-notes-injected-overlay.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | addd45e19d528471163e0d6803e8cb65718b89a7..d0f3e0ca02a44ca4d4a0d478ca98215884cefa5b |
+| command | sdlc close --issue 494 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-12T23:36:38-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+All three prior findings are addressed, with mutation-tested evidence for BR-1 and BR-2. Shared UI reuse, recording admission, and capture suppression are well covered. Two remaining problems need correction: unresolved operations survive a document-scope change and block subsequent saves, and routine record updates replace color buttons during interaction.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      operator.js:34–42 binds reconciliation to the originating action/body. Reverting this fix in a disposable checkout failed all three transport regressions; restored HEAD passed.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      annotate.js:594 registers operator Escape on window capture. Reverting this fix failed the page-focused Escape regression; restored HEAD passed.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Plan line 48 now classifies the recorded node path helper as INTEGRATION, with the correction recorded at lines 417–419. observer.js:53–69 confirms its live-DOM and document dependencies.
+findings:
+  - id: new
+    severity: Critical
+    family: operation-result-identity
+    title: |
+      A lost save reply blocks future saves after switching away and back
+    detail: |
+      operator.js:31–43 retains unsettled across projection/document changes at lines 100–104, while recorder/operator.go:156–161 replaces OperatorSession when the recording document changes. Reproduced an accepted save with its reply lost, followed by A→B→A: the recorder returns “result is no longer retained,” and every new save sends status for the old request forever. ARCH-ORDER, ARCH-PURPOSE. This is the 2nd finding in family operation-result-identity. Do NOT fix only this instance: define operation ownership across session/context/document/action, enumerate the lifecycle boundaries, and retire old-scope transport state without resubmitting old writes or accepting late replies into a new scope.
+  - id: new
+    severity: Important
+    family: interactive-dom-identity
+    title: |
+      Ordinary record updates replace color buttons during interaction
+    detail: |
+      annotate.js:587 calls sync for every record; transition at line 392 calls renderRail, whose line 403 invokes renderSwatches. collab.js:127 replaces every color button. Confirmed on both viewer and operator mounts that an unchanged-model scroll record detaches the pressed button; updates between pointer-down and pointer-up can therefore cancel color selection. Preserve button identity and update attributes in place, or avoid rebuilding on unchanged state. Add an interleaved-record click regression. ARCH-ORDER, ARCH-CONSTRAINTS.
+```
+
+1. **Strengths**
+   - Viewer and operator share gesture geometry, dialogs, and annotation policy.
+   - Recorder tests exercise ordering-time refusal, stale contexts, stable anchors, and uncertain write outcomes.
+   - Capture suppression requires confirmation before and after capture and releases the exact document’s token.
+   - README and atlas cover the new controls, transport, capture behavior, and recovery path.
+
+2. **Critical findings**
+   - The document-scope transport failure above remains blocking. The disposable recorder test confirmed that an old accepted operation becomes unqueryable after same-context tab return; the production browser adapter repeatedly queried that old ID instead of submitting the new draft.
+
+3. **Important findings**
+   - Preserve interactive color-button identity across unrelated record updates.
+
+4. **Minor findings**
+   - None raised.
+
+5. **Test coverage notes**
+   - Passed: all **206 browser tests**, all webcast Go packages, and targeted Board/recorder race tests.
+   - Mutation checks independently confirmed BR-1 and BR-2 regressions fail without their fixes.
+   - Headless conformance could not execute: Chrome crashed during startup with “GPU process isn't usable.”
+   - Menu tests and artifact checks failed because generated runtime assets are absent from this checkout.
+   - Disposable test directories were removed; tracked files remain unchanged.
+
+6. **Architectural notes**
+   - **ARCH-DRY — pass:** shared UI, validation, path grammar, and capture helper.
+   - **ARCH-PURE — pass:** pure policies and protocol values are separated from DOM/CDP integration; BR-3 classification corrected.
+   - **ARCH-PURPOSE — flag:** document changes can permanently prevent further note saves.
+   - **ARCH-MOCK — pass:** stateful recorder/CDP seams exercise production paths; live conformance remains unverified here.
+   - **ARCH-CONSTRAINTS — flag:** unconditional control rebuilding adds work on every record and disrupts interaction.
+   - **ARCH-SECURE — pass:** bounded parsing, trusted context admission, and reserved operator attribution.
+   - **ARCH-ORDER — flag:** transport ownership does not follow recorder document scope; record arrivals can invalidate active UI targets.
+   - **ARCH-FUNERAL — pass:** new state is bounded or owned by context/cast lifetime; no new persistent artifact family.
+
+7. **Plan revision recommendations**
+   - Add a `## Revisions` entry defining operation lifetime across tab switches, document replacement, late replies, and unresolved outcomes. Require sequence tests spanning browser transport and recorder scope changes.
+   - Record the invariant that unrelated projection updates preserve interactive DOM nodes, with viewer/operator interleaving coverage.

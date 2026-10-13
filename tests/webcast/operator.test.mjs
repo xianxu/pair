@@ -224,3 +224,24 @@ test('operator Escape with page focus cancels menu-selected modes without touchi
   escape();assert.equal(ui.dialog.open,true,'remote Escape discarded held editor');
   assert.equal(stopped,2);
 });
+
+for (const operator of [false,true]) {
+  test(`${operator?'operator':'viewer'} keeps a pressed color button across unrelated records`, () => {
+    const root=new Element(operator?'shadow':'body'),box=new Element('box');root.append(box);
+    const doc={body:root,createElement:tag=>new Element(tag)};
+    const win={innerWidth:100,crypto:{getRandomValues:b=>b.fill(1)},performance:{now:()=>0},requestAnimationFrame:()=>{},addEventListener:()=>{},setTimeout:()=>1,clearTimeout:()=>{},clearInterval:()=>{}};
+    let receive, picked=0;
+    const v={model:{seg:1,docSeg:1,notes:[]},onRecord:fn=>{receive=fn;},toPage:(x,y)=>[x,y],fromPage:(x,y)=>[x,y]};
+    mountAnnotation(doc,win,v,{root,box,stage:box,palette:['#ff0000','#00ff00'],who:{id:()=> 'named',name:()=> 'Named',viewer:()=>({id:'named',name:'Named'})},colors:{get:()=>picked,set:n=>{picked=n;}},post:async()=>({status:204}),operator});
+    const swatches=root.querySelector('.swatches');
+    const pressed=swatches.children[1]; // pointerdown starts on this exact element
+    for(const k of ['scroll','ptr','focus','view']) receive({k,t:1},v.model);
+    assert.equal(swatches.children[1],pressed,'record detached the pressed button');
+    for(const fn of pressed.listeners.click)fn(); // pointerup completes its click
+    assert.equal(picked,1);
+    const selected=swatches.children[1];
+    receive({k:'scroll',t:2},v.model);
+    assert.equal(swatches.children[1],selected);
+    assert.ok(selected.className.split(' ').includes('on'));
+  });
+}

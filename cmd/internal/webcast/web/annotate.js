@@ -399,8 +399,14 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
   // The rail's controls are rendered only when their state changes (a pick,
   // a mode, a pause or a resume); each frame only places the rail, so
   // nothing that takes input is replaced under a click.
+  let renderedColor = -1;
   const renderRail = () => {
-    renderSwatches(swatches, palette, color(), (i) => { picked = i; colors.set(i); renderRail(); }, (tag) => doc.createElement(tag));
+    // Projection updates may arrive between pointer-down and pointer-up.
+    // Keep the clicked element attached until a color pick actually changes it.
+    if (renderedColor !== color()) {
+      renderedColor = color();
+      renderSwatches(swatches, palette, renderedColor, (i) => { picked = i; colors.set(i); renderRail(); }, (tag) => doc.createElement(tag));
+    }
     for (const [m, b] of Object.entries(modeButtons)) {
       b.classList.toggle('on', state.mode === m);
       b.setAttribute('aria-pressed', String(state.mode === m));

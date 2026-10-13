@@ -424,3 +424,22 @@ was REWORK, not final; a new close review will dispose of these findings. The
 reviewer's isolated checkout lacked the generated runtime and its Chrome could not
 start; our actual repository headless run and earlier full suite supply those
 independent checks without waiving a gate.
+
+### 2026-10-12 — close round 2 fixes (BR-4, BR-5)
+
+Round 2 independently mutation-tested and accepted BR-1..3, then found transport
+scope retirement and swatch identity gaps. BR-4: transport operation ownership
+now follows recording document lifetime as well as action/body. Accepted projection
+changes retire waiters/timers/unsettled state before updating UI; inactive tab,
+replacement document and cast end retire it, while same-document pause/driving do
+not. Request IDs stay monotonic across retirement; a generation check rejects even
+an already-resolved old continuation without clearing a newer operation. Retirement
+never resubmits the old write and never invents its success. New adapter/transport
+sequence tests reproduce lost reply, switch-return, late reply and end races.
+
+BR-5: shared swatches only rebuild when the selected color actually changes.
+Unrelated scroll/pointer/focus/projection records retain the exact pressed element.
+Both viewer/operator interleaved-click tests demonstrated RED→GREEN. Audited other
+interactive nodes: mode/dialog controls stay mounted, and pinLayer already keys
+chips by note ID. All 215 browser tests and bounded headless operator/shared-module
+checks pass (latest operator 0.94s). No new scope or UI control was added.
