@@ -6,14 +6,14 @@ github_issue:
 created: 2026-10-12
 updated: 2026-10-13
 estimate_hours:
-card_mirror: 'd72c320c83650c3a4272349929b81580131d7a60' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '64607a4bfbd0e74499185c51c206c05b8b2cf953' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T22:49:33-07:00
 claimant:
     operator: Xian Xu
     machine: 4716879978a7b90f6b583da1716fd0e9
     machine_name: Xian’s MacBook Pro
-    workspace: pair:6
-    worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
+    workspace: pair:0
+    worktree: /Users/xianxu/workspace/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
 actual_hours: 2.67
@@ -123,3 +123,8 @@ Removed all target geometry/style exclusions. Node fixtures fail on the prior pr
 ### 2026-10-13 — final verification before third review
 
 Existing TestLiveSubmissionCrop passes with merged #494 capture helper (3.11 s). Serial full suite completed after the document-wide correction and main merge: all shell/editor checks and changed Go packages passed. Full run was not green: TestObserveDependencies/deleted encountered workspace-host creation busy; isolated rerun of the complete TestObserveDependencies passed in 4.583 s, and the issue patch changes no couchcore files. Known TestNotificationBrokerBeforeExecAndCleanup pair#519 also failed as before. Evidence: /tmp/pair524-probe/full-suite-document-wide.log. No test invariant weakened. Close review must evaluate BR-1 against the approved document-wide policy, which supersedes geometry-based relevance in earlier plan text.
+
+
+### 2026-10-13 — operator smoke blocker scope revision
+
+TL requested folding the #483 store scan blocker into #524 (receipt 0a7fad73-59a4-4f59-b9d7-fb7727002cc3). Finder's .DS_Store is treated as an invalid submission by Pending, which also gates Prepare. Ignore non-directory entries and directories whose names cannot be submission IDs; preserve strict validation of actual submission directories and existing storage bounds. ARCH-PURPOSE: foreign filesystem metadata must not prevent collecting the crop needed for smoke. Plan: reproduce with .DS_Store/dotfiles/stray files, change the scan filter, retain corrupt-bundle refusal, run store and affected integration tests, review the small diff, rebuild in pair:0 and hand back the measured HEAD for smoke.
