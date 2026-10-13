@@ -189,6 +189,13 @@ Durable plan: [000523-cast-capability-switches-plan.md](../plans/000523-cast-cap
   BR-2 acknowledged production control writes remains in progress. M1 is not
   closed. #494 landed at 889fafd05 / PR303; merge and overlay wiring follow M1.
 
+- BR-2 fixed in 42ea9cdde: ordinary control writes await the actual Recorder
+  reducer/sink outcome through liveGate and Chrome. Production-adapter stateful
+  regressions cover delayed success/failure, closed recorder before/after first
+  live, queued versus started cancellation and controller Close joining writes.
+  Webcast/drive/recorder race suites and artifactpath pass. BR-1/3/4 fixes are
+  committed in 570518fb2; rerunning the M1 gate with all four addressed.
+
 ## Revisions
 
 - 2026-10-12 22:58 PDT: Added approved defaults/copy semantics and proposed
