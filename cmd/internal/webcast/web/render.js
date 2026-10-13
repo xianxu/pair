@@ -26,6 +26,16 @@ export const HOVER = '__couch-hover';
 // browser shows <noscript>, which the operator's tab did not.
 const VIEWER_CSS = 'noscript{display:none!important}';
 
+// UNCAPTURED: the elements whose content the recording can't hold (pair#513):
+// a canvas's pixels, a video's frames, a plugin's output, a frame whose
+// document wasn't recorded. The shell labels them where they are drawn.
+const UNCAPTURED = new Set(['canvas', 'video', 'object', 'embed', 'iframe', 'frame']);
+// CANVAS_ATTR marks a drawn canvas for its size rule: with scripts off a
+// browser draws a canvas as its fallback content (an empty inline box), so
+// the viewer gives it the operator's live size, at zero specificity, as the
+// browser's own sizing would be (author CSS still wins).
+const CANVAS_ATTR = 'data-couch-canvas';
+
 // URL-bearing attributes, by element (null: any element).
 const URL_ATTRS = {
   src: ['img', 'source', 'video', 'audio', 'input', 'embed', 'track', 'image'],
@@ -52,6 +62,7 @@ export class Renderer {
   reset() {
     this.revokeAll();
     this.dom = new Map(); // id -> DOM node
+    this.uncapturable = new Set(); // ids of drawn UNCAPTURED elements
     this.ids = new WeakMap(); // DOM node -> id
     this.shadows = new Map(); // host id -> shadow root (closed ones too)
     this.pending = new Map(); // absolute URL -> Map(key -> redraw) waiting for its asset
@@ -156,6 +167,44 @@ export class Renderer {
     }
     this.drawSelection();
     this.drawHover();
+    this.drawCanvasSizes();
+  }
+
+  // drawCanvasSizes sizes each drawn canvas as the operator's was: its live
+  // layout box, or (before one arrives) its width and height attributes, as
+  // a canvas's own default size is (300x150).
+  drawCanvasSizes() {
+    const rules = new Map(); // document -> rule text
+    for (const id of this.uncapturable) {
+      const n = this.dom.get(id);
+      if (!n || !n.isConnected) { this.uncapturable.delete(id); continue; }
+      if (n.localName !== 'canvas') continue;
+      const b = this.model.boxes.get(id);
+      const w = b ? b[2] : Number(n.getAttribute('width')) || 300, h = b ? b[3] : Number(n.getAttribute('height')) || 150;
+      const doc = n.ownerDocument;
+      rules.set(doc, (rules.get(doc) || '') + `:where(canvas[${CANVAS_ATTR}="${id}"]){display:inline-block;width:${w}px;height:${h}px}`);
+    }
+    for (const doc of new Set([...rules.keys(), ...this.sized || []])) {
+      const text = VIEWER_CSS + (rules.get(doc) || '');
+      const s = this.viewerSheet(doc);
+      if (s.__text !== text) { s.replaceSync(text); s.__text = text; }
+    }
+    this.sized = new Set(rules.keys());
+  }
+
+  // uncaptured lists the drawn elements whose content the recording can't
+  // hold, by id and kind; a frame counts only when its document wasn't
+  // recorded (nothing drawn in it).
+  uncaptured() {
+    const out = [];
+    for (const id of this.uncapturable) {
+      const n = this.dom.get(id);
+      if (!n || !n.isConnected) continue;
+      const kind = n.localName;
+      if ((kind === 'iframe' || kind === 'frame') && n.contentDocument && this.ids.has(n.contentDocument)) continue; // a recorded document is drawn in it
+      out.push({ id, kind });
+    }
+    return out;
   }
 
   warn(e) { if (typeof console !== 'undefined') console.warn('couch viewer:', e); }
@@ -263,6 +312,8 @@ export class Renderer {
       el = doc.createElement('span'); // a tag the DOM refuses; its values stay in the model
     }
     if (el.localName === 'iframe' || el.localName === 'frame') el.setAttribute('sandbox', 'allow-same-origin');
+    if (UNCAPTURED.has(el.localName)) this.uncapturable.add(n.id);
+    if (el.localName === 'canvas') el.setAttribute(CANVAS_ATTR, String(n.id));
     const model = this.model.node(n.id) || n;
     for (const name of Object.keys(model.a || {})) this.drawAttr(el, model, name);
     return el;

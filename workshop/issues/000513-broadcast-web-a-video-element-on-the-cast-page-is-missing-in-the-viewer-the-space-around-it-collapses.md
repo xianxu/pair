@@ -34,7 +34,18 @@ Find where the video is lost (recorder snapshot or mutation, asset fetch for its
 
 ## Plan
 
-- [ ]
+- [x] Recorder: `DOM.childNodeCountUpdated` for children the mirror doesn't hold → `Expand` (`DOM.requestChildNodes`
+  → `setChildNodes`). Root cause, measured below.
+- [x] Viewer: a drawn `<canvas>` takes the operator's live layout box (else its attributes) at zero specificity
+  (`drawCanvasSizes`): with scripts off a canvas draws its empty fallback (0x18, measured in the sweep).
+- [x] Revision: placeholders for what the recording can't hold (canvas, video, object/embed, an unrecorded frame):
+  `Renderer.uncaptured()` + `placeholders.js` (dashed outline + "kind: not captured" at the drawn box, redrawn on
+  every record, so it follows the live size). #515 (canvas snapshots) filed unassigned.
+- [x] Tests: TestMirrorExpandsANodeFilledAfterItsInsert (default run, red before), TestLiveReplacedElements
+  (WEBCAST_LIVE_CHROME: video, iframe, canvas resized live to 400x100, picture, object, a node filled after its insert;
+  sizes match the cast, labels exactly canvas/object/video; fails without the recorder fix and without the canvas
+  sizing), tests/webcast/placeholders.test.mjs (default run).
+- [x] atlas/webcast.md, README.
 
 ## Log
 
@@ -46,6 +57,19 @@ Find where the video is lost (recorder snapshot or mutation, asset fetch for its
   overlay. The player renders `div.ap-term` = `<canvas>` (background and colour blocks via `getContext('2d')`) +
   `<svg class="ap-term-symbols">` + `<pre class="ap-term-text">` of spans. Check: canvas pixels (never in the DOM),
   the dynamically inserted stylesheet, and the lazy mutation after the first snapshot.
+- **The operator's recording 20261012T171139-ddad, measured:** both full-document captures (`kids` at 621634 and
+  2639691) hold `div.cast-embed` (with `data-mounted`) and no children; at 2557975 an `ins` adds an empty `div` and
+  the caption, and nothing is ever inserted into that `div`. The player's CSS (dynamic `<style>`) is recorded.
+- **The live page (separate headless Chrome, read-only GETs to the dev server):** `div.cast-embed > div >
+  div.ap-wrapper > div.ap-player > div.ap-term{canvas, svg, pre}`, controls and the play overlay, 720x640, plain DOM
+  (no shadow root). Through the real recorder: the inner `div` recorded, none of its children; no drops, no desync.
+- **Cause:** CDP sends `DOM.childNodeInserted` only under a parent whose children it has sent. The inner `div` came
+  as an empty insert, so when the player filled it Chrome sent only `DOM.childNodeCountUpdated`, which the mirror
+  ignored. With the fix the whole player subtree is recorded and the viewer shows the embed at 708x629 (cast 720x640
+  at a slightly different width) with its poster frame, play button, caption and Screenkey box; the canvas-drawn
+  cursor and background tint are the only difference (canvas pixels: #515).
+- **Replaced-element sweep (TestLiveReplacedElements):** video (poster), iframe (recorded), picture/srcset, object:
+  shown at the cast's size. canvas: collapsed to 0x18 in the viewer (scripts off → fallback) → fixed above.
 
 ## Revisions
 

@@ -1043,6 +1043,10 @@ line. The web cast shares the screen broadcast's tunnel
 is found in the usual macOS locations or on `PATH`; set `COUCH_WEBCAST_CHROME` to
 the binary to choose another (Couch refuses to start if it doesn't exist).
 
+**What a web cast can't show.** A canvas's pixels, a video's frames, a plugin's output and a frame the cast couldn't
+record aren't in the recording. The viewer keeps their place at the operator's size and marks each with a dashed
+outline and a label such as "canvas: not captured", so the page never collapses around them.
+
 **Pointing and notes on a web cast (#470).** Anyone with the viewer link can point
 and leave notes; there is no separate pointer link. On the viewer's page, the rail at
 the right edge has the six pointer colors, ✏️ (point: draw on the page, everyone sees
