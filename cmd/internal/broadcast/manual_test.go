@@ -44,7 +44,7 @@ func TestManualViewerServer(t *testing.T) {
 	pointer := os.Getenv("BROADCAST_MANUAL_POINTER") == "1"
 	chrome := liveChrome("REC 21%  ariadne:2  brain  pair")
 	if pointer {
-		chrome = LiveSGR + LiveLabel + "\x1b[0m " + PointerSGR + PointerLabel + "\x1b[0m " + ControlLabel + "  ariadne:2  brain"
+		chrome = LiveSGR + LiveLabel + "\x1b[0m " + PointerSGR + PointerLabel + "\x1b[0m  ariadne:2  brain"
 	}
 	s, err := Start(context.Background(), cfg)
 	if err != nil {

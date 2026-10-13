@@ -296,10 +296,10 @@ func TestOracleReadsCursorShape(t *testing.T) {
 	}
 }
 
-// #412: the broadcast's capability markers are two columns in the viewer's
+// #412: the broadcast's pointer marker is two columns in the viewer's
 // parser too, so the status row's spans match what viewers see.
 func TestOracleCapabilityMarkersAreWide(t *testing.T) {
-	glyphs := []string{"👆", "👽"}
+	glyphs := []string{"👆"}
 	chunks := make([]string, len(glyphs))
 	for i, g := range glyphs {
 		chunks[i] = "\x1b[1;3H" + g
