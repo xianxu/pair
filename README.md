@@ -1008,13 +1008,15 @@ open while paused. A web cast has three links, like the screen broadcast
 (#506), each granting more than the one before:
 - right-click the cell for the **view-only link**: its viewers watch, and see
   others' strokes and notes but can't add any;
-- `👆` copies the **pointer link**: its viewers also point and leave and resolve
-  notes;
-- `👽` copies the **drive link** (below): its viewers can also ask to drive.
+- `👆` copies the **pointer link** (left or right click): its viewers also point
+  and leave and resolve notes;
+- `👽` copies the **drive link** (below; left or right click): its viewers can
+  also ask to drive.
 
-Beside the cell, `↗` brings the cast Chrome window and tab to the front
-(`Chrome ⏸ ↗ 👆 👽`). `Alt` (Option)+right-click also copies the drive link,
-and `Ctrl`+click (left or right) ends the cast and closes Chrome. Closing Chrome yourself ends the
+Each link has its own code (hover the cell to see them; Alt+click it for the
+Codes menu, which copies any of the three). Beside the cell, `↗` brings the cast
+Chrome window and tab to the front (`Chrome ⏸ ↗ 👆 👽`). `Ctrl`+click (left or
+right) ends the cast and closes Chrome. Closing Chrome yourself ends the
 cast too. The cast follows whichever tab is active, including tabs opened later.
 Viewers' page shows whether the cast is live and, while it is, the page's title
 and URL; nothing you do while paused reaches them.
@@ -1051,14 +1053,18 @@ line. The web cast shares the screen broadcast's tunnel
 is found in the usual macOS locations or on `PATH`; set `COUCH_WEBCAST_CHROME` to
 the binary to choose another (Couch refuses to start if it doesn't exist).
 
+**What a web cast can't show.** A canvas's pixels, a video's frames, a plugin's output and a frame the cast couldn't
+record aren't in the recording. The viewer keeps their place at the operator's size and marks each with a dashed
+outline and a label such as "canvas: not captured", so the page never collapses around them.
+
 **Pointing and notes on a web cast (#470).** Anyone with the pointer link (👆) or the
 drive link can point and leave notes; the view-only link can't, and the cast refuses
 its posts ("This link is view-only."). On the viewer's page, the rail at
 the right edge has the six pointer colors, ✏️ (point: draw on the page, everyone sees
 the stroke fade after a moment) and 💭 (note: drag a box around what the note is
 about, or tap for a small box around that spot, then write; on a phone, drag a little
-further than a tap). The first note asks for a name; the page remembers it and the color in this
-browser. Every note is its box: everyone sees it outlined in the author's color with
+further than a tap). The name comes from the lock page (below); the page remembers it and
+the color in this browser. Every note is its box: everyone sees it outlined in the author's color with
 the 💭 inside its top-right corner, and the box is the part of the page a submission
 shows the agent. It follows the page as it scrolls, stays through a pause, and leaves the page when the cast moves to another
 page; anyone can tap a pin to read it and resolve it. While the cast is paused, viewers can't point, leave, or resolve
@@ -1071,6 +1077,45 @@ notes, these are part of the recording: notes and strokes, with their authors, a
 saved in `notes.jsonl` and `pointer.jsonl`, and `couch --broadcast-web-query DIR
 notes` lists them. The name a viewer gives is theirs to choose: it attributes, it
 doesn't authenticate.
+
+**Codes on every cast link (#495).** Every link a cast hands out opens with a short
+code first: the screen broadcast's view and pointer links, and the web cast's view and
+drive links. A link alone shows only a lock page that asks for the code and the
+viewer's name; the cast's server sends nothing without the code, not even the stream.
+Send the link however you like and say the code on the call. A link may carry the code
+as `link#4821`: the page reads it and drops it from the address bar, and link previews
+never see it.
+- **Seeing the codes.** Hover `LIVE ⏸` or `Chrome ⏸` to see all of that cast's codes,
+  for example `view 4821 · pointer 7730`. View and pointer codes are 4 digits; the drive
+  code is 6.
+- **The Codes menu.** `Alt+click` `LIVE ⏸` or `Chrome ⏸`. It shows one row per link:
+  `view 3926 · rotate · copy-link`, then `rotate all`.
+  - Each blue word is its own button: click it, or pick it with Up/Down (row) and
+    Left/Right (word) and press Enter.
+  - The menu stays open after an action: the word flashes to show it ran, and a
+    rotated code changes in place. Escape or `×` closes it.
+  - Rotating disconnects everyone who used the old code.
+  - Before pointing first makes the pointer link, its row shows `pointer (not made
+    yet)`, with no actions; click `👆` to make it.
+- **Wrong guesses.** About 8 wrong tries on one code rotate it by themselves. Couch
+  says so, and viewers already in stay connected.
+- **What viewers see.** The codes show on your screen only, never in what the LIVE
+  broadcast sends, and a notice says that a code changed, never what it is. A new code
+  flashes three times over its cell.
+- **Re-entering the code.** Opening the link again from a chat app asks for the code
+  again.
+
+The cast row follows one rule: a left click acts or toggles, a right-click copies that
+control's link, and `Alt+click` opens the Codes menu (on `LIVE ⏸` and `Chrome ⏸` only).
+
+| control | left click | right-click | Alt+click | hover |
+| --- | --- | --- | --- | --- |
+| `LIVE ⏸` | stop the broadcast (#518 adds pause) | copy view-only link | Codes menu | all its codes |
+| `👆` (screen) | toggle pointing (makes the link the first time) | copy pointer link | — | — |
+| `Chrome ⏸` / `▶` | pause / resume (`Ctrl`+click ends) | copy view-only link | Codes menu | all its codes |
+| `↗` | bring the cast Chrome forward | — | — | — |
+| `👆` (web) | copy view link | copy view link | — | — |
+| `👽` | copy drive link | copy drive link | — | — |
 
 With an empty root filter, **Space** toggles the **normal view** and **focus view**.
 Focus view shows only live threads with a published summary, in normal-view

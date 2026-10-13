@@ -11,6 +11,7 @@
 - [How-to-bring-up-a-new-harness-cli](how-to-bring-up-a-new-harness-cli.md) — guide on integrating a new agent harness CLI.
 - [couch](couch.md) — the session supervisor (`cmd/couch`): one leased namespace, Couch-owned composite durable threads coordinated with Pair-owned address claims, recoverable pre-exec starts, stale-thread/checkpoint recovery, explicit archive, tty routing, and the after-restart recover plan with resume/reboot over the message socket (#367).
 - [Workspace provisioning](workspace-provisioning.md) — repeatable numbered worktree setup, local Couch state, Weave readiness and durable recovery (#305–306); the slot resource table, observation and reconcile plan (#387); repository-family admission and subdirectory propagation are mapped in [couch](couch.md).
+- [Agent scratch volume](agent-scratch-volume.md) — Go build cache and agent/test temp roots on an APFS volume fseventsd doesn't journal (#496): setup, verify, lifecycle, teardown.
 - [Review workbench](review-workbench.md) — embedded nvim document-review pane (#66): agent proposes edit records, nvim applies them undo-ably + journals rounds via docflow.
 
 ## See also
@@ -118,7 +119,7 @@
 - [Managed retention I/O](storage-retention-io.md) — Checked entrypoints, protected artifacts, guard call chains, meaningful-use rules and behavioral evidence.
 
 - [Terminal ownership](terminal.md) — Shared endpoint, presenter, profile, transport and qualification boundaries.
-- [Couch broadcast](broadcast.md) — view-only streaming of the composed Couch screen: Presenter tap, LIVE-gated hub, switcher privacy (#395).
+- [Couch broadcast](broadcast.md) — view-only streaming of the composed Couch screen: Presenter tap, LIVE-gated hub, switcher privacy (#395); the code lock on every cast link, the Host gate, the operator-only codes UI and the threat model (#495).
 - [Couch broadcast-web](webcast.md) — the cast Chrome (#454): CDP over the debugging pipe, the `Browser` seam and its fake, active-tab inference, the isolated-world in-page control; the recorder (#458) on the CDP side of the seam; the asset store and proxy (#459); the fidelity check (#478): each recording's frames vs the viewer's replay, a report per recording, `couch --broadcast-web-fidelity` and at the end of a cast.
 - [Broadcast-web recording format](webcast-format.md) — the recording (#457): one record stream live and on disk, stable node ids, the reference reducer and validator, the seams, fakes and fixtures each wave-1 component builds against, and the notes model (#461): anchors (with their `kind`/`path`), focused context, and crops that are the note's box plus a margin (#488). Agent queries (#462): `couch --broadcast-web-query`; replay with a scrubber (#471): `couch --broadcast-web-replay`, shared through a running Couch's tunnel for remote viewers (#477), in [webcast.md](webcast.md#replay-471). Remote driving (#466): `ctl` control records, `by` attribution, and `drive`'s input wire, confinement, `Injector` and `Controller` seams.
 

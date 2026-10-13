@@ -359,8 +359,9 @@ func TestWebcastFocusButton(t *testing.T) {
 }
 
 // 👆 and 👽 in the Chrome group (#501) copy the pointer and the drive link
-// (pair#506); right-click on the cell keeps the view-only link. A recorded
-// cast, so it takes notes and has a pointer link.
+// (pair#506) on a left or a right click (pair#495's row rule); right-click on
+// the cell keeps the view-only link. A recorded cast, so it takes notes and
+// has a pointer link.
 func TestWebcastLinkButtons(t *testing.T) {
 	r := newWebNotesCast(t, false)
 	var u webcast.Update
@@ -370,22 +371,25 @@ func TestWebcastLinkButtons(t *testing.T) {
 		u = r.con.wcast.update
 		return u.Link != "" && u.PointerLink != ""
 	})
-	click := func(span func(*Console) ColumnSpan) {
+	click := func(span func(*Console) ColumnSpan, button int) {
 		r.con.mu.Lock()
 		x := span(r.con).Start + 1
 		r.con.mu.Unlock()
 		if x == 1 {
 			t.Fatal("button not drawn")
 		}
-		_, _ = fmt.Fprintf(r.stdin, "\x1b[<0;%d;24M\x1b[<0;%d;24m", x, x)
+		_, _ = fmt.Fprintf(r.stdin, "\x1b[<%d;%d;24M\x1b[<%d;%d;24m", button, x, button, x)
 	}
-	click(func(c *Console) ColumnSpan { return c.statusWebPointerLink })
 	osc := "\x1b]52;c;" + base64.StdEncoding.EncodeToString([]byte(u.PointerLink))
-	waitFor(t, "pointer link copied", func() bool { return strings.Contains(r.host.Written(), osc) })
+	for i, button := range []int{0, 2} {
+		click(func(c *Console) ColumnSpan { return c.statusWebPointerLink }, button)
+		want := i + 1
+		waitFor(t, "pointer link copied", func() bool { return strings.Count(r.host.Written(), osc) == want })
+	}
 	if strings.Contains(r.host.Written(), "\x1b]52;c;"+base64.StdEncoding.EncodeToString([]byte(u.Link))) {
 		t.Fatal("👆 copied the view-only link")
 	}
-	click(func(c *Console) ColumnSpan { return c.statusWebDriveLink })
+	click(func(c *Console) ColumnSpan { return c.statusWebDriveLink }, 2)
 	if u.DriveLink != "" {
 		osc = "\x1b]52;c;" + base64.StdEncoding.EncodeToString([]byte(u.DriveLink))
 		waitFor(t, "drive link copied", func() bool { return strings.Contains(r.host.Written(), osc) })

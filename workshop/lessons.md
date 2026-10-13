@@ -7,6 +7,17 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- A late asynchronous report is checked against whether its source is still live, not against a counter that only
+  moves on the next start. #495's rotation callback compared the cast's start attempt, which an ended cast keeps until
+  a new one begins, so a report after the end still passed. Test the window where the source has ended and nothing
+  has replaced it. (#495 BR-23)
+- A writer that turns text into terminal cells measures by grapheme width, never by rune count, in its layout and
+  its drawing alike. One wide character (an emoji in a label) otherwise yields a frame that fails validation, and the
+  whole paint is dropped silently. Test a drawn surface with a wide character in it. (#495)
+- A runbook or atlas page states what was measured, not what was hoped: #496's page first called the scratch volume
+  "the fix" although its own series showed no fseventsd CPU drop. Write the measured outcome, including the null result,
+  in the same commit as the mechanism. On macOS, `mktemp` without a template ignores `$TMPDIR` and is denied in the
+  agent sandbox; always pass `"${TMPDIR:-/tmp}/name.XXXXXX"` and `|| exit 1`. (#496 BR-1, BR-2)
 - A change to what a user does (a gesture, a control, what a pin shows) updates README's how-to paragraph in the same
   commit as the atlas. The atlas is the agent's map and README is the operator's; grep README for the old verbs
   ("tap", "drag", "pin") before closing. (#488 BR-1)
@@ -1428,3 +1439,11 @@ proof; record the surprising case so the next change starts from evidence.
 ## Re-meaning a named surface: sweep every doc for the old term in the same commit (pair#506)
 - **What went wrong:** #506 split the web cast's "view link" into view-only and pointer links. The atlas page I was editing was updated, but `atlas/webcast-format.md` and two README lines still said the view link allows pointing and notes. Two review rounds flagged the same family.
 - **Rule:** when a change gives an existing name new grants or meaning (a link, a mode, a flag), `git grep` atlas/ and README.md for the old term and its synonyms ("view link", "viewer link", "two links") before committing, and fix or date every hit.
+- **A viewer-side rule that stands in for the browser must act like the browser everywhere (#513 close).** The
+  live-size rule meant to replace a canvas's UA sizing was author-origin, so it beat the UA's `[hidden]`, and it
+  lived in the document sheet, which shadow trees don't see. When a viewer rule substitutes for browser behaviour,
+  list the browser's own conditions (hidden, display:none, shadow trees, frames) and make each a test case.
+- **Changing a rule means grepping for every statement of it (#516 close; #489's lesson again).** The wheel's stale
+  rule was restated in `Act`'s doc, `ErrStale`'s doc and `onTarget`'s comment; updating `Injector.Inject` and the
+  atlas left three stale copies. Before committing a rule change, `rg` the rule's nouns (here "stale", "wheel")
+  across the package and the atlas, and make every other site name the rule's owner instead of restating it.

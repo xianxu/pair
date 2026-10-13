@@ -531,8 +531,8 @@ it (and can revoke it at any moment), and the driver gives it back. Internal vie
 driving). Package `cmd/internal/webcast/drive` is the contract; #467 builds the HTTP routes, the CDP injector and the
 UI against it.
 
-**Three links (#467, pair#506).** Each has its own token, and each grants what the one before it does, and more
-(`castLink`, `webcast/link.go`):
+**Three links (#467, pair#506).** Each has its own token and its own code (#495), and each grants what the one
+before it does, and more (`castLink`, `webcast/link.go`):
 - **The view-only link** (the cast's token, `Update.Link`) watches. Its board POSTs answer 403 "This link is
   view-only." before admission, and its `palette.json` says `annotate: false`, so its viewer draws others' strokes
   and notes read-only.
@@ -540,9 +540,9 @@ UI against it.
 - **The drive link** (`Server.DriveToken`, `Update.DriveLink`) serves the same viewer plus the drive routes below,
   which answer 404 under the other two. A stream holds a seat only under the drive link.
 
-Couch copies them with a right-click on the Chrome cell, its 👆, and its 👽 (or Alt+right-click). `couch
---broadcast-list` lists each share by kind (`screen`, `web view`, `web drive`), never with its token. A pointer-link
-viewer counts under `web view`.
+Couch copies them with a right-click on the Chrome cell, its 👆 and its 👽, or from the Codes menu (Alt+click on the
+cell, #495). `couch --broadcast-list` lists each share by kind (`screen`, `web view`, `web drive`), never with its
+token. A pointer-link viewer counts under `web view`.
 
 **Seats.** Anyone with the drive link can watch and take a seat; driving needs a grant:
 - `POST <cast>/drive/hello` `{"name":"Ana"}` returns `{"viewer":"v3","key":"<64 hex>","name":"Ana"}`, from
@@ -577,8 +577,8 @@ record. Viewers learn the state from the `ctl` records in their stream, and Couc
   - 204 when injected;
   - 401 `Join the cast again.` (`ErrNoSeat`);
   - 403 `Ask the operator for control first.` (`ErrNotDriver`);
-  - 409 `The page changed. Try again.` (`ErrStale`: the element isn't at that point in the tab any more; the acts
-    before it stand);
+  - 409 `The page changed. Try again.` (`ErrStale`: a down's or click's element isn't at that point in the tab any
+    more, or a wheel's point has nothing under it; the acts before it stand);
   - 409 `The cast is paused.` (`ErrNotLive`, also a batch for a gone segment);
   - 409 `Control has already changed.` (a control op the state doesn't allow);
   - 422 `That isn't allowed while driving.` (`ErrRefused`);
@@ -631,7 +631,9 @@ it dispatches, so a batch overtaken by a revoke is refused there (`ErrNotDriver`
 
 **As built (#467).** The injector's rules are stated once, in `drive.TabInjector`, over a `drive.Tab` seam: who
 drives, live and segment, `Confine`, then per act a hit test (`onTarget`: the element at the point is the aimed one
-or inside it, or an out-of-process frame's owner holding it) and the dispatch. The fake injector is the same rules
+or inside it, or an out-of-process frame's owner holding it) and the dispatch. A wheel skips the identity check
+(pair#516, the operator's call: it scrolls whatever is under the pointer, and a flick scrolls the tab ahead of the
+viewer); it keeps the bounds check, a point with nothing under it. The fake injector is the same rules
 over a reduced page. The real tab is the recorder (`Recorder.WithTab`). A batch is one queue input:
 - **Hold.** The recorder holds the in-page observer (`__couchcastHold(by)`, in every observer context of the cast
   tab) and records what it had pending without `by`. During the hold the observer tags everything it sends with

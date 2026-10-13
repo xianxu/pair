@@ -547,3 +547,23 @@ func TestHasPinStopsAtTheFirstSpot(t *testing.T) {
 		t.Errorf("1000 parses of a whole-grid box took %v", d)
 	}
 }
+
+// pair#495: a note carries the name the viewer gave the lock page, on every
+// cast's rule; the field is optional, and a name off the rule is refused.
+func TestParseNoteAuthor(t *testing.T) {
+	body := func(author string) []byte {
+		return []byte(fmt.Sprintf(`{"cols":80,"rows":24,"box":[3,4,2,1],"color":0,"text":"hi","author":%q}`, author))
+	}
+	n, err := ParseNote(body("  Ada  "))
+	if err != nil || n.Note.Author != "Ada" {
+		t.Fatalf("author: %+v %v", n.Note, err)
+	}
+	if n, err := ParseNote([]byte(okNote)); err != nil || n.Note.Author != "" {
+		t.Fatalf("no author: %+v %v", n.Note, err)
+	}
+	for _, bad := range []string{"A\nB", "A​B", strings.Repeat("x", MaxViewerNameRunes+1)} {
+		if _, err := ParseNote(body(bad)); err != ErrNoteText {
+			t.Errorf("author %q: %v", bad, err)
+		}
+	}
+}

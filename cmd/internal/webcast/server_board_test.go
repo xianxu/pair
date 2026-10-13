@@ -58,7 +58,7 @@ func (c *boardCast) flush(t *testing.T) {
 
 func post(t *testing.T, url, contentType, body string) (int, string) {
 	t.Helper()
-	resp, err := http.Post(url, contentType, strings.NewReader(body))
+	resp, err := castClient.Post(url, contentType, strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,7 +167,7 @@ func TestBoardRoutesNeedABoard(t *testing.T) {
 	} {
 		req, _ := http.NewRequest(r.method, c.url+r.path, strings.NewReader("{}"))
 		req.Header.Set("Content-Type", "application/json")
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := castClient.Do(req)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -189,7 +189,7 @@ func TestBoardAssets(t *testing.T) {
 	t.Cleanup(plain.Close)
 	c := newBoardCast(t)
 	get := func(url string) (int, string, string) {
-		resp, err := http.Get(url)
+		resp, err := castClient.Get(url)
 		if err != nil {
 			t.Fatal(err)
 		}

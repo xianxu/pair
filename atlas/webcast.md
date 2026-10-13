@@ -48,7 +48,11 @@ and strokes) enter its queue as `recorder.Emit`, stamped on arrival and checked 
   included) and the id map (`backendNodeId` → id per session for one document, keyed by loader id, with a 50 000-node
   graveyard so moves keep ids). Every record goes through its own reducer first, so the output validates by
   construction; refusals are counted (`Stats`). It leaves out the control (`data-couchcast-ui`), user-agent shadow
-  trees, and password values. `IDOf`/`NodeOf` expose the map (#467).
+  trees, and password values. `IDOf`/`NodeOf` expose the map (#467). CDP sends a node's children only once they are
+  requested: a node that arrives with a count but no children, or that later reports `DOM.childNodeCountUpdated`
+  for children the mirror doesn't hold (one inserted empty and filled by script, as asciinema-player fills the
+  blog's cast embed: pair#513, measured), goes on `Expand`, and the shell's `DOM.requestChildNodes` brings them as
+  `setChildNodes`.
 - **Shell:** `Recorder` (`recorder.go`): one goroutine, a FIFO of stamped inputs (record `t` = arrival), synchronous
   CDP calls in queue order. CDP events carry `cdp.Event.Seq`; a snapshot drops queued events of its session read
   before its reply (`Conn.CallSeq`). Over 100 000 queued events it drops and resyncs. Side workers (`side.go`) fetch
@@ -156,9 +160,10 @@ what the viewer's renderer draws at the same moments.
   drawn in `broadcast.LiveSGR`, LIVE's own style, so the two cast indicators read as one family (#501);
   `IndicatorShown` matches LIVE's text, so it doesn't mistake one for the other.
 - **The Chrome group (#501)** follows the screen broadcast's `LIVE ⏸ 👆`: `Chrome ⏸ ↗ 👆 👽 💭N 🕹Ana` (its 👽 is real, `WebcastDriveLinkLabel`; #503 removed the broadcast's placeholder), each button its own
-  `RenderedStatusRow` span (`WebFocus`, `WebPointerLink`, `WebDriveLink`), so a hover can tell them apart (#495).
-  👆 copies the pointer link, 👽 the drive link (pair#506); right-click on the cell copies the view-only link, and
-  Alt+right-click the drive link.
+  `RenderedStatusRow` span (`WebFocus`, `WebPointerLink`, `WebDriveLink`), so a click knows which link it copies. The
+  codes show on hovering the cell itself, not these (#495).
+  👆 copies the pointer link, 👽 the drive link (pair#506), on a left or right click; a right-click on the cell copies
+  the view-only link (the cast row's rule, #495).
   `↗` calls `Browser.Focus`: the real Chrome sends `Target.activateTarget` for the cast tab, then activates its own
   process by PID (`activateProcess`, macOS JXA → `NSRunningApplication`; by PID because the cast Chrome
   shares its bundle id with the operator's own Chrome). Only `Launch` of a windowed Chrome sets the
@@ -172,8 +177,9 @@ what the viewer's renderer draws at the same moments.
     - On an asker's row, a left click grants and a right click denies.
   - **Revoke.** Ctrl with either button on the span revokes, from any state, with the menu open or closed.
   - **Three links (pair#506).** Right-click on the Chrome cell copies the view-only link (watch), 👆 the pointer link
-    (watch, point, notes; `copyWebcastPointerLink`, "takes no notes" on an unrecorded cast), and 👽 or
-    Alt (Option)+right-click the drive link, the only one that offers a seat. Shift+click is the
+    (watch, point, notes; `copyWebcastPointerLink`, "takes no notes" on an unrecorded cast), and 👽 the drive link,
+    the only one that offers a seat; 👆 and 👽 take a left or right click, and the Codes menu (Alt+click on the cell,
+    #495) has a row, code and copy action for each of the three (#495 dropped Alt+right-click). Shift+click is the
     terminal's own selection. A pointer-link viewer counts as a `web view` viewer. `couch --broadcast-list` lists `screen`, `web view` and `web drive` shares
     (`Console.Shares`, `couchmessage.ShareStatus`), the drive one with who drives and how many ask.
   - **Failures.** A control change that fails says why (`driveFailure`): a race, the cast ended, not recording
@@ -230,6 +236,18 @@ what the viewer's renderer draws at the same moments.
     (no `allow-scripts`). It never sets `on*` attributes, gives nested frames no `src`, and sends every URL through
     `resolveAsset`; a URL with no asset loads nothing. An image with nothing to load is drawn as not yet loaded (no
     alt text), as a lazy image is in the tab.
+  - What the recording can't hold (pair#513): a canvas's pixels, a video's frames, a plugin's output (`object`,
+    `embed`), a frame whose document wasn't recorded. Their size often comes from what isn't recorded (with scripts
+    off a browser draws a `<canvas>` as its empty fallback; a video sized by loaded metadata has none, and Safari
+    draws no box), so the renderer sizes each to the operator's live layout box (else its `width`/`height`
+    attributes) with a zero-specificity rule in the document's viewer sheet, border-box and with the box's
+    `aspect-ratio`, so author `height:auto` keeps the operator's height (`liveSizeRule`, `drawLiveSizes`; author CSS
+    still wins). The rule never applies to `[hidden]`; once a layout has arrived, an element without a box (not
+    rendered) gets none; and it lives in a live-size sheet per tree (document or shadow root), adopted before the
+    page's own sheets. `Renderer.uncaptured()` lists them, and `placeholders.js` marks each over the page box: a dashed outline
+    at its drawn box and "canvas: not captured", redrawn on every record, so it follows the operator's size. Canvas
+    snapshots are #515. Checked by `TestLiveReplacedElements` (video, iframe, canvas resized live, picture, object,
+    a node filled after its insert) and `tests/webcast/placeholders.test.mjs`.
   - Paint holding (#475): as a browser's render-blocking CSS does, the renderer draws a new top document into a
     second frame placed before the first in document order, so the first, keeping the previous paint, covers it (and
     the shell's overlay covers both), until the new document's `<link rel=stylesheet>`s (media matching, not alternate
@@ -296,6 +314,36 @@ what the viewer's renderer draws at the same moments.
     pointer, and `boxOf` against the tab's own layout boxes (305 of 306 on rec-blog).
 - **Known transient:** for a moment after a navigation, the title can be Chrome's placeholder (the URL, as in
   Chrome's own tab) until the page reports its `<title>`; it is never the previous page's title (`DocumentChanged`).
+
+## Code lock (#495)
+
+The web cast's links are locked like the terminal broadcast's; see
+[Code lock](broadcast.md#code-lock-495) for the gate, the session cookie and
+the budget.
+
+- **Two locks.** `StartCast` mints the `view` lock (4 digits) before
+  anything else, and the `drive` lock (6 digits,
+  `broadcast.DriveCodeDigits`) with the drive token.
+  - If the drive lock can't be made, there is no drive link: driving is off,
+    and the operator is told why.
+  - The locks are attached with `Server.WithLocks` before `Mount`, and they
+    end after `Unmount` in `run`, so a viewer still receives the cast's end.
+- **Codes and rotation.** `Cast.Codes` and `Cast.RotateCode` are Couch's
+  handles (M3); `OnCodeRotated` reports each rotation with its `Gen`.
+- **Separate codes.** The view code never opens the drive link: each token
+  has its own lock and its own cookie path.
+- **Cookie coverage.** The page's iframe is sandboxed with
+  `allow-same-origin`, so its recorded assets (`assets/<hash>`) carry the
+  session cookie. `TestLiveLockPage` checks this in Chrome.
+- **Viewer name.** The lock page asks for it with the code.
+  - Every cast page keeps it under `couch.viewerName`, by one rule:
+    `validName` in `collab.js` and `broadcast.ViewerName` in Go (the board's
+    `MaxNameRunes` is the same bound).
+  - The note dialog asks only when no name is stored.
+  - Terminal notes carry it as `author`, and Couch's notes menu shows
+    `name: text`.
+- **Not locked.** Replay share links (#477) are a follow-up (pair#509); their
+  `LockFor` is nil.
 
 ## Replay (#471)
 

@@ -1,6 +1,8 @@
 package webcast
 
 import (
+	"github.com/xianxu/pair/cmd/internal/castlock"
+
 	"embed"
 	"encoding/json"
 	"net/http"
@@ -14,7 +16,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
-//go:embed web/index.html web/viewer.js web/viewer.css web/model.js web/render.js web/css.js web/annotate.js web/annotate.css web/drive.js web/drive.css web/replay.js web/replay.css web/replayer.js web/fidelity.html web/fidelity.js
+//go:embed web/index.html web/viewer.js web/viewer.css web/model.js web/render.js web/css.js web/annotate.js web/annotate.css web/placeholders.js web/drive.js web/drive.css web/replay.js web/replay.css web/replayer.js web/fidelity.html web/fidelity.js
 var webFS embed.FS
 
 // contentSecurityPolicy: the page runs only its own script, talks only to
@@ -35,6 +37,8 @@ var assets = map[string]struct{ file, contentType string }{
 	// swatches and dialog shared with the terminal viewer.
 	"annotate.js":  {"web/annotate.js", "text/javascript; charset=utf-8"},
 	"annotate.css": {"web/annotate.css", "text/css; charset=utf-8"},
+	// The marks for what the recording can't hold (#513).
+	"placeholders.js": {"web/placeholders.js", "text/javascript; charset=utf-8"},
 	// Remote driving (#467).
 	"drive.js":   {"web/drive.js", "text/javascript; charset=utf-8"},
 	"drive.css":  {"web/drive.css", "text/css; charset=utf-8"},
@@ -72,7 +76,18 @@ type Server struct {
 	// the cast has none.
 	pointerToken string
 	drive        *driveRoutes // nil: no remote driving (WithDrive)
+	// locks guard the links (pair#495; WithLocks).
+	locks *broadcast.LinkLocks
 }
+
+// WithLocks sets the links' code locks; call it before the server is mounted.
+func (s *Server) WithLocks(locks *broadcast.LinkLocks) *Server {
+	s.locks = locks
+	return s
+}
+
+// LockFor is the lock guarding segment: the view-only, pointer or drive link's.
+func (s *Server) LockFor(segment string) *castlock.Lock { return s.locks.LockFor(segment) }
 
 // Presence is told that viewer id's stream opened; leave is called when it
 // closes. It is how remote driving (#466, #467) knows who is watching.

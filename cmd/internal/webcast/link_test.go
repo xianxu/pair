@@ -5,10 +5,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/broadcast"
+	"github.com/xianxu/pair/cmd/internal/castlock"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
@@ -82,10 +84,23 @@ func TestPointerStreamCountsAsView(t *testing.T) {
 func TestCastPublishesThreeLinks(t *testing.T) {
 	c, _ := startDrivenCast(t, &recording.MemSink{})
 	u := waitUpdate(t, c, "links", func(u Update) bool { return u.Link != "" && u.PointerLink != "" && u.DriveLink != "" })
+	locks := map[*castlock.Lock]bool{}
 	for link, want := range map[string]castLink{u.Link: linkView, u.PointerLink: linkPointer, u.DriveLink: linkDrive} {
 		if got := c.server.linkOf(path.Base(link)); got != want {
 			t.Errorf("%s is link %d, want %d", link, got, want)
 		}
+		// Each link has its own code lock (pair#495), the pointer link's too.
+		locks[c.server.LockFor(path.Base(link))] = true
+	}
+	if len(locks) != 3 || locks[nil] {
+		t.Errorf("the three links share or lack locks: %v", locks)
+	}
+	var labels []string
+	for _, code := range c.Codes() {
+		labels = append(labels, code.Link)
+	}
+	if strings.Join(labels, " ") != "view pointer drive" {
+		t.Errorf("codes %v, want view pointer drive", labels)
 	}
 	plain, _ := startCast(t, &broadcast.FakeTunnel{})
 	if u := waitUpdate(t, plain, "link", func(u Update) bool { return u.Link != "" }); u.PointerLink != "" {

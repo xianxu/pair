@@ -1,6 +1,8 @@
 package couchtty
 
 import (
+	"github.com/xianxu/pair/cmd/internal/castlock"
+
 	"context"
 	"errors"
 	"fmt"
@@ -98,6 +100,8 @@ func (c *Console) startWebcast(cfg webcast.CastConfig) {
 	c.wcast = webcastState{phase: webcastStarting, attempt: c.wcast.attempt + 1, cancel: cancel}
 	attempt := c.wcast.attempt
 	c.mu.Unlock()
+	// Its links' codes (pair#495), bound to this start.
+	cfg.OnCodeRotated = func(link string, r castlock.Rotation) { c.onCodeRotated(castWeb, attempt, link, r) }
 	c.setNotice("Starting Chrome…")
 	c.GoTracked(func() {
 		cast, err := webcast.StartCast(ctx, cfg)
@@ -237,6 +241,7 @@ func (c *Console) webcastEnded(cast *webcast.Cast) {
 	byOperator := c.wcast.phase == webcastEnding
 	c.wcast = webcastState{attempt: c.wcast.attempt}
 	c.mu.Unlock()
+	c.forgetCastCodes(castWeb)
 	c.forgetWebNotes()
 	c.forgetDrive()
 	c.syncOverlay(overlayWeb, false)
@@ -279,7 +284,7 @@ type webcastLink struct {
 
 var (
 	webcastViewOnlyLink = webcastLink{name: "view-only", url: func(u webcast.Update) string { return u.Link },
-		grants: "its viewers watch. 👆 copies the pointer link, 👽 the drive link."}
+		grants: "its viewers watch; 👆 copies the pointer link, 👽 the drive link."}
 	webcastPointerLink = webcastLink{name: "pointer", url: func(u webcast.Update) string { return u.PointerLink },
 		grants: "its viewers watch, point and leave notes.",
 		missing: func(*webcast.Cast) string {
@@ -310,7 +315,8 @@ func (c *Console) copyWebcastLinkOf(l webcastLink) {
 	case !running:
 	case link != "":
 		c.copyLink(link)
-		c.setNotice("Chrome cast " + l.name + " link copied: " + l.grants)
+		// Every link is locked by its own code (pair#495).
+		c.setNotice("Chrome cast " + l.name + " link copied: " + l.grants + " Its viewers need its code: hover Chrome to see it.")
 	case u.LinkErr != nil:
 		c.setNotice("Chrome cast " + l.name + " link unavailable: " + u.LinkErr.Error())
 	case missing != "":
@@ -320,14 +326,16 @@ func (c *Console) copyWebcastLinkOf(l webcastLink) {
 	}
 }
 
-// copyWebcastLink is a right-click on the Chrome cell: the view-only link.
+// copyWebcastLink is a right-click on the Chrome cell, or the Codes menu's
+// copy action on the view row: the view-only link.
 func (c *Console) copyWebcastLink() { c.copyWebcastLinkOf(webcastViewOnlyLink) }
 
-// copyWebcastPointerLink is a click on the Chrome group's 👆.
+// copyWebcastPointerLink is a click (left or right) on the Chrome group's 👆,
+// or the Codes menu's copy action on the pointer row (pair#506).
 func (c *Console) copyWebcastPointerLink() { c.copyWebcastLinkOf(webcastPointerLink) }
 
-// copyWebcastDriveLink is a click on the Chrome group's 👽, or an
-// Alt+right-click on the Chrome cell (#467).
+// copyWebcastDriveLink is a click (left or right) on the Chrome group's 👽,
+// or the Codes menu's copy action on the drive row (#467, pair#495).
 func (c *Console) copyWebcastDriveLink() { c.copyWebcastLinkOf(webcastDriveLink) }
 
 // endWebcastForShutdown ends a running or starting cast before the presenter

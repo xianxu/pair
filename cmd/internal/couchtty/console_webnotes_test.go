@@ -68,13 +68,14 @@ func newWebNotesCast(t *testing.T, screen bool) *webNotesCast {
 		c.link = r.con.wcast.update.PointerLink
 		return c.link != ""
 	})
+	unlockWebCast(t, r.con)
 	return c
 }
 
 func (c *webNotesCast) note(t *testing.T, name, text string) {
 	t.Helper()
 	body := fmt.Sprintf(`{"viewer":{"id":"v-%s","name":%q},"seg":1,"node":%d,"box":[1,2,3,4],"region":[1,2,30,40],"color":2,"text":%q}`, name, name, c.p.ID, text)
-	resp, err := http.Post(c.link+"note", "application/json", strings.NewReader(body))
+	resp, err := castClient.Post(c.link+"note", "application/json", strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -220,7 +221,7 @@ func TestWebNotesMenuSourceAndStableIDs(t *testing.T) {
 	}
 	// A viewer resolves a under the open menu.
 	body := fmt.Sprintf(`{"viewer":{"id":"v-cy"},"id":%q,"state":"resolved"}`, a.noteID)
-	resp, err := http.Post(r.link+"note-state", "application/json", strings.NewReader(body))
+	resp, err := castClient.Post(r.link+"note-state", "application/json", strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}

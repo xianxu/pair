@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/castlock"
 )
 
 // HostConfig opens a Host.
@@ -21,10 +23,14 @@ type HostConfig struct {
 }
 
 // Mountable is a handler that answers its own first path segments (its
-// capability tokens).
+// capability tokens). LockFor names the lock guarding an owned segment, or nil
+// for a link served without one (pair#495); a mount creates its locks with its
+// tokens, before Mount, so no owned segment is ever served unlocked by
+// accident, and they end with it.
 type Mountable interface {
 	http.Handler
 	Owns(segment string) bool
+	LockFor(segment string) *castlock.Lock
 }
 
 // Host is the public endpoint every cast shares (#454): one listener, one
@@ -272,20 +278,30 @@ func (h *Host) beginCloseLocked() *hostAttempt {
 	return a
 }
 
-// ServeHTTP routes /<segment>/… to the mount that owns segment.
+// ServeHTTP routes /<segment>/… to the mount that owns segment, through the
+// segment's lock when it has one.
 func (h *Host) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	segment, _, ok := splitPath(r.URL.Path)
+	segment, rest, ok := splitPath(r.URL.Path)
 	if ok {
 		h.mu.Lock()
 		var owner Mountable
+		var base string
 		for mt := range h.mounts {
 			if mt.m.Owns(segment) {
-				owner = mt.m
+				owner, base = mt.m, mt.base
 				break
 			}
 		}
 		h.mu.Unlock()
 		if owner != nil {
+			if l := owner.LockFor(segment); l != nil {
+				admitted, done := gate(w, r, segment, rest, l, isSecureBase(base))
+				if admitted == nil {
+					return
+				}
+				defer done()
+				r = admitted
+			}
 			owner.ServeHTTP(w, r)
 			return
 		}
