@@ -185,6 +185,10 @@ func (c *Console) reduceMenu(event MenuEvent) {
 }
 
 func (c *Console) onMenuKey(key PanelKey) {
+	if key.Kind == KeyCopyNotice {
+		c.copyLastNotice()
+		return
+	}
 	c.reduceMenu(MenuEvent{Kind: MenuEventKey, Key: key})
 }
 
@@ -378,4 +382,25 @@ func (c *Console) finishMenuPreview(result menuPreviewResult) {
 	if panelFocused {
 		c.showMenu()
 	}
+}
+
+// copyLastNotice reads retained history rather than the expiring/clipped row.
+// Clipboard I/O happens outside mu; feedback stays out of the feed so another
+// Ctrl+Y copies the same diagnostic, not the copy confirmation.
+func (c *Console) copyLastNotice() {
+	c.mu.Lock()
+	messages := c.feed.Messages()
+	c.mu.Unlock()
+	notice := infoMenuNotice("No notice to copy.")
+	if len(messages) > 0 {
+		if err := c.presenter.Copy(c.lifetime, []byte(messages[len(messages)-1].Body)); err != nil {
+			notice = errorMenuNotice("Couldn’t copy notice; press Ctrl+Y to retry: " + err.Error())
+		} else {
+			notice = infoMenuNotice("Full notice copy requested; your terminal may not support it.")
+		}
+	}
+	c.mu.Lock()
+	c.menu.Notice = notice
+	c.mu.Unlock()
+	c.showMenu()
 }

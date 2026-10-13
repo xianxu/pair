@@ -91,6 +91,20 @@ Durable plan: [000523-cast-capability-switches-plan.md](../plans/000523-cast-cap
 
 ## Log
 
+### 2026-10-13 — Full notice copy verified
+
+- Switcher Ctrl+Y now copies the full latest retained notice, after clipping or
+  expiry. The visible hint occupies the existing blank line. Copy feedback stays
+  in the menu, preserving repeat-copy and focused-child passthrough.
+- Raw-input tests reproduced absent clipboard/empty feedback before the fix and
+  pass after it. Menu/notice/panel race subset passed (6.006s); full couchcmd
+  passed (32.374s), full couchtty passed (31.253s) after updating only the
+  expected hint line in grouped snapshots. Read-only ad-hoc review found no
+  correctness findings. No running Couch or tunnel process touched.
+- LocalOnly settings and session tests passed. Operator can run the #523 smoke
+  with COUCH_BROADCAST_TUNNEL=off and COUCH_BROADCAST_HOSTNAME empty/unset;
+  external tunnel transport remains outside that local-only verification.
+
 ### 2026-10-13 08:56 PDT — Smoke feedback
 
 - Merged main/#517 and rebuilt on pair:0 at d276e4f461728bb64eaa47f4cae7ce8a707b3821.

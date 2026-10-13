@@ -1191,6 +1191,10 @@ focus view explains how to tag a thread. The switcher remembers the last view us
 exits. Reopening clears search text but keeps the view. With text in the filter,
 Space is a literal search character; it does not toggle views.
 
+In the switcher, `Ctrl+Y` copies the full last retained status notice, including
+text clipped from the status row and after that row expires. Repeating it copies
+the same notice until another arrives. In an actor, `Ctrl+Y` still goes to the actor.
+
 Printable input filters the current list from memory (typeahead), matching what a
 row shows: its label, its path, and the published summary in both default and
 focus views. Matching is case-insensitive; default results show the matching
