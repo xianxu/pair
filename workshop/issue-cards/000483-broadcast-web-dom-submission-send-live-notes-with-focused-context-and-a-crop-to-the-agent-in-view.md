@@ -1,6 +1,6 @@
 ---
 id: 000483
-status: working
+status: codecomplete
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours: 3.82
@@ -13,6 +13,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+actual_hours: 14.32
 tracker:
     version: 1
     handoff:
@@ -25,6 +26,11 @@ tracker:
         source_blob: 9ae3eea1ed33736d6f55209a5bafef2a5eed979a
         destination: workshop/issues/000483-broadcast-web-dom-submission-send-live-notes-with-focused-context-and-a-crop-to-the-agent-in-view.md
         main_commit: 4020e12cbed39e8b774aa9319d58b20edfebd036
+    completion:
+        token: close-cf85dc285faf
+        repository: github.com/xianxu/pair
+        reviewed_head: 5f9f9b5b11d452428ec7d7d82407835e89de9676
+        evidence_commit: de901afa53fd1c7f39d4d1e118924a356b2962c3
 ---
 
 # broadcast-web: DOM submission — send live notes with focused context and a crop to the agent in view
