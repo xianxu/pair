@@ -36,6 +36,35 @@ record, separate preferences, and retained history. Each backend uses the existi
 lock, revision checks and recoverable journal. The supervisor lease still belongs
 to the selected global namespace beneath the account lease.
 
+### Failed-launch evidence (#531)
+
+`launchfailure.go` owns bounded attempt evidence and retention independently of
+ThreadRecord. `launchfailure_store.go` atomically stores the newest 16 failures
+in `<namespace>/launch-diagnostics/failures.json` (0600), under a private bounded
+file lock. Records carry scope/tag/nonce, target, starting path and failure stage,
+16 KiB raw output tail, 4 KiB per error, and separate observed pre/post-cleanup
+exit codes. The entire encoded history is capped at 1 MiB. Failed persistence is
+reported beside the original error; later success does not clear evidence.
+
+Runner setup refusals that occur after spawning carry a `blockedStartError` with
+immutable output and pre/post-cleanup observations, even when no handle can be
+returned. The shared `launchTrackedThread` failure path consumes that evidence,
+records before its own cleanup and enriches afterward; `SwitchAgent` adds its final error by attempt identity. The typed error
+preserves errors.Is/As while its operator text names the attempt, diagnostic file, and one inspection action.
+`couch --show` reads retained evidence by exact address or canonical starting
+path, including after rollback removed the thread, without creating lifecycle
+records. `couchcmd/launchfailure.go` sanitizes child text line by line.
+
+`LaunchOutputHandle` reuses the PTY child's existing ring (combined stdout/stderr).
+ExecRunner forwards stderr through a bounded tee; stdin/stdout retain their
+routing, but stderr is now a pipe, so isatty(2) is false. After direct child exit,
+a one-second drain budget prevents descendants holding stderr from indefinitely
+blocking reaping; subsequent descendant writes can receive EPIPE. Exit sampling
+only reads Wait after Exited closes. The fake models direct-child completion
+separately from process-group liveness. Unobserved exit stays unknown; an exit
+first observed after cleanup is not attributed to a startup crash. Abrupt kill
+before the recorder runs and output beyond the retained tail remain limits.
+
 ### Singleton adoption and isolation (#366)
 
 `couchsingleton.Manager` separates read, preview, adoption and lifetime ownership.

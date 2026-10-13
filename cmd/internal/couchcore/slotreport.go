@@ -23,8 +23,10 @@ type SlotReport struct {
 // ShowResult is couch --show's answer: the matching threads, and the slot's
 // report when the reference names a :1+ slot (with or without a thread).
 type ShowResult struct {
-	Threads []ThreadSummary
-	Slot    *SlotReport
+	LaunchFailures     []LaunchFailure
+	LaunchFailureError string
+	Threads            []ThreadSummary
+	Slot               *SlotReport
 }
 
 // slotAgentEvidence is the agent evidence for a slot from its thread rows:

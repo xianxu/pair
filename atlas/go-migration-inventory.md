@@ -186,10 +186,11 @@ Build/install callers:
 - `make build` builds `GO_BINS` into `bin/`; `pair` and `pair-go` are both built
   from `cmd/pair-go` with `defaultPairHome=$(CURDIR)`, while copied builds with
   no adjacent/default root use the embedded fallback.
-- `make install` copies `GO_BINS` to `~/.local/bin` and symlinks only retained
-  shell wrappers such as `pair-dev`. Installed `pair` is a regular Go binary;
-  if it has no sibling assets, it falls back to the build-time source root when
-  that exists and otherwise extracts the embedded runtime.
+- `make install` symlinks `GO_BINS` and retained shell wrappers into
+  `~/.local/bin`, pointing to the checkout’s `bin/`. Keep the checkout in place;
+  rebuilds become visible through those links without reinstalling. Separately
+  copied binaries fall back to their build-time source root when it exists and
+  otherwise extract the embedded runtime.
 - Homebrew first generates the embedded runtime bundle while `bin/`, `nvim/`,
   and `zellij/` are still in the build directory, installs those trees under
   `libexec`, then builds the single Go `pair` binary from `cmd/pair-go` into

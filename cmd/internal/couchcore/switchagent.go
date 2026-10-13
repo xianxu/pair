@@ -278,7 +278,7 @@ func (c *Couch) prepareAgentSwitch(ctx context.Context, address ThreadAddress, a
 	}, nil
 }
 
-func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (SwitchAgentResult, error) {
+func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (_ SwitchAgentResult, returnedErr error) {
 	result := SwitchAgentResult{Outcome: SwitchRefused}
 	if ctx == nil {
 		ctx = context.Background()
@@ -325,6 +325,11 @@ func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (Sw
 	if err != nil {
 		return result, err
 	}
+	defer func() {
+		if returnedErr != nil {
+			returnedErr = c.finishSwitchFailure(trackedThreadLaunch{Thread: prepared.record, Nonce: nonce, Args: StartArgs{Stack: request.Agent}, Fresh: true}, returnedErr)
+		}
+	}()
 	profileRaw, err := launcher.BuildCouchFreshLaunchProfile(string(request.Address.Tag), request.Agent, prepared.Profile.Argv, string(AgentSourceExplicit), string(ArgvSourceExplicit))
 	if err != nil {
 		return result, err
