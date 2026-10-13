@@ -103,3 +103,7 @@ Name the Lua risk targets explicitly: `dom_submission_state.step` uses determini
 ### 2026-10-13 — verification scheduling
 
 The corrected full suite is launched and queued behind machine-wide holders. Close review may run concurrently against committed sources; its verification string must say the full result is pending. Inspect and record that result before landing. No source edits occur during either run unless a concrete finding requires them.
+
+### 2026-10-13 — BR-1: operation ownership includes draft actions
+
+The close review reproduced partial navigation under nomodifiable: navigation changed slot identity before its buffer write failed, and a later autosave overwrote queued text. ARCH-ORDER/ARCH-PURPOSE require guarding the whole owned-draft action before any state/file mutation. While an operation owns its buffer, block navigation, queue insertion, deletion, reset, and alternate send/clear actions with “already sending…”. Keep the existing repeat-DOM behavior and absolute deadline. Release restores these actions on success, failure, and timeout. Enumerate production handlers and add headless regressions asserting selected slot identity and persisted draft/queue contents before and after failure/timeout, plus action recovery after release. This implements the approved operation-only ownership policy without introducing a persistent freeze or changing capture settlement.
