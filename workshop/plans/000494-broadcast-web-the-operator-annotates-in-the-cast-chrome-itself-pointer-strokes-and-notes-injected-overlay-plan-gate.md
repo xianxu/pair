@@ -26,6 +26,24 @@ rounds:
           family: function-level-test-strategy
           round: 1
       blocked: true
+    - "n": 2
+      timestamp: "2026-10-12T20:23:58-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Names authoritative recorder settlement, operation states, reservation cleanup and bounded same-ID reconciliation without duplicate writes.
+          round: 2
+        - id: PQ-2
+          disposition: addressed
+          note: Separates caller return from CDP completion and retains target-wide protection through uncertainty until exact completion or teardown.
+          round: 2
+        - id: PQ-3
+          disposition: addressed
+          note: Replaces test-case inventories with named-function adversarial strategies and mechanical guards.
+          round: 2
+      blocked: false
+content_hash: 894b2d5ab0f65237baf52319e8a46198f4b4925367b7d027e9d8b61209432ceb
 ---
 
 # Gate ledger — pair#494 (plan-quality)
@@ -44,8 +62,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **PQ-3** [Important] `function-level-test-strategy` Compress test-case inventories into named-function strategies.
   Tasks 1–5 enumerate test cases while leaving several tested functions unnamed. Replace those inventories with function names and one strategy line per risky function identifying the adversarial input or ordering class and mechanical guard.
 
+## Round 2 — 2026-10-12T20:23:58-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Names authoritative recorder settlement, operation states, reservation cleanup and bounded same-ID reconciliation without duplicate writes.
+- PQ-2 — addressed — Separates caller return from CDP completion and retains target-wide protection through uncertainty until exact completion or teardown.
+- PQ-3 — addressed — Replaces test-case inventories with named-function adversarial strategies and mechanical guards.
+
 ## Open findings
 
-- **PQ-1** [Important] `asynchronous-write-outcome-contract` Define authoritative settlement for queued operator writes.
-- **PQ-2** [Important] `suppression-follows-effect-lifetime` Do not restore authority controls while remote input has an unconfirmed outcome.
-- **PQ-3** [Important] `function-level-test-strategy` Compress test-case inventories into named-function strategies.
+(none — every finding has been disposed)
