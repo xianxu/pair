@@ -68,6 +68,14 @@ Durable plan: [agent switch plan](../plans/000517-agent-switch-plan.md).
 
 ## Log
 
+- 2026-10-12 21:34 PDT — verified TL approval 60b20071-4145-4fd1-a177-11240322a715:
+  durable one-action recovery is the selected invariant. Recovery failure remains
+  visible/actionable; unknown presence offers guarded Resume old thread. Record
+  before park, restart primary action+notice, tests for every failure row. Audited
+  f756c2bf9 read-only with core and UI owners before reuse; documented reusable
+  seams and persistence/presentation gaps. Extended executable M2 plan; run its
+  plan-quality gate before new implementation. No source-retaining launch added.
+
 - 2026-10-12 21:29 PDT — TL paused M2 for an operator-visible recovery design,
   then clarified that internal states need a small projection rather than forced
   reduction. All implementation agents stopped. M1 remains SHIP at 37707f73b;
@@ -152,6 +160,12 @@ Durable plan: [agent switch plan](../plans/000517-agent-switch-plan.md).
   `--request ID` plus exact source identity and names risk-focused test seams.
 
 ## Revisions
+
+- 2026-10-12 21:34 PDT — TL approved the one-action recovery interpretation with
+  idempotence, visible failed-recovery fallback, restart presentation and per-row
+  tests (receipt 60b20071-4145-4fd1-a177-11240322a715). Appended concrete owners,
+  admission-before-ack durability and exact source-native preservation to the
+  plan. Earlier pause is lifted subject to the revised plan-quality gate.
 
 - 2026-10-12 21:29 PDT — operator recovery review via ops:0, clarified in receipt
   `5a859539-2444-44a0-b156-6402cfb3227a`: preserve necessary internal states,

@@ -484,3 +484,133 @@ claim that the no-empty-slot requirement has been met. Wait for the TL's answer
 before elaborating the selected recovery design, rerunning plan-quality and
 resuming M2. The existing estimate must be revisited after the chosen design
 passes that gate; it is not silently reused for a larger launch transaction.
+
+
+### 2026-10-12 21:34 PDT — Approved recovery invariant and executable M2 delta
+
+TL approval `60b20071-4145-4fd1-a177-11240322a715` selects durable one-action
+recovery, not the larger candidate-launch transaction. The preceding decision
+is settled. Its 8 → 5 projection and failure rows are approved. Additional
+conditions: recovery is idempotent; its own failure retains an action; unknown
+presence says what could not be proved and offers **Resume old thread** as the
+fallback; restart surfaces **Switch needs recovery** automatically as the row's
+primary action plus a notice. That fallback invokes the SAME proof-preserving
+recovery operation: it is never permission to start over an unknown live target.
+Each failure row must have a test of its rendered outcome and action.
+
+**WIP audit before reuse:** `f756c2bf9` has reusable source-authenticated CLI,
+verbatim file validation, acknowledgment-after-write barrier, model sequencing,
+fresh-launch nonce independent of orientation, and console delivery/admission
+hooks. It does not satisfy this recovery contract. Its ephemeral receipts,
+global switch cap, internal-phase-only presentation, missing persistence and
+ordinary form refusal for parked sources are not accepted as finished behavior.
+No M2 boundary is closed. Keep the tested transport/core pieces only after the
+new tests prove them in this flow.
+
+The audit found two ordering requirements beyond a cosmetic projection:
+(a) initial admission must be durable BEFORE acknowledgment, so interrupted
+waiting requests also have an outcome after restart; (b) partial registration
+can change SessionBinding and successful registration changes the launch profile,
+so recovery must retain the original profile and exact native ID independently.
+
+#### Additional core concepts and owners
+
+| Name | Lives in | Status |
+|---|---|---|
+| SwitchRecovery (validated durable source/target/content snapshot) | `cmd/internal/threadrecord/switch_recovery.go` | new |
+| AgentSwitchView / ProjectAgentSwitch | `cmd/internal/couchcore/agent_switch_view.go` | new |
+| ThreadRecord / Record | `cmd/internal/couchcore/thread.go`, `cmd/internal/threadrecord/record.go` | modified |
+| ActionableThreadSummary | `cmd/internal/couchcore/actionableinventory.go` | modified |
+| OperationReceipt | `cmd/internal/couchmessage/operation.go` | modified |
+
+| Integration | Lives in | Status | Reuses |
+|---|---|---|---|
+| Persist and recover saved switch | `cmd/internal/couchcore/switch_recovery.go` | new | ThreadStore CAS, exact session/process observations, existing park/start/resume |
+| Persist target and restored-source witnesses atomically | `cmd/internal/couchcore/starttransaction.go`, `threadstore.go` | modified | existing session-bound/helper-recorded/registered events |
+| Saved-native-ID resume | `cmd/internal/couchcore/resume.go` | modified | existing cold resume pipeline with pinned native-ID equality |
+| Surface recovery before ordinary actions | `cmd/internal/couchcore/recover_action.go`, `slot_operation.go`; `cmd/internal/couchtty/menu_actions.go`, `menu.go`, `menu_render.go` | modified | existing Recover and menu action dispatch |
+| Restart-visible recovery and exact copy | `cmd/internal/couchtty/console_menu.go`, `console_switchagent.go`, `menu_reattach.go` | modified | inventory refresh and copy action; no automatic submission |
+| Durable admission and status | `cmd/internal/couchcmd/agent_switch_service.go`, `agent_switch.go`, `message_service.go`, `slot_operations.go` | modified | broker auth, existing receipt schema and queue |
+
+`SwitchRecovery` keeps one request ID and admission owner per thread, timestamps,
+immutable source process/session/native ID/profile, accepted target profile,
+selected content (including explicit waiting-for-brief before selection), exact
+launch attempt/binding/helper witnesses, last outcome and error. A restoration
+attempt is distinguished from the original target attempt. Use tagged outcomes,
+not independent booleans that imply undocumented combinations. Validate the
+record on decode, constrain identity/address relationships, clone every nested
+slice/pointer, and reuse the existing orientation body contract. Preserve old
+record compatibility. No recovery record is process-liveness authority.
+
+The source snapshot is retained until a later resolved switch supersedes it or
+the thread is deleted. Unresolved recovery blocks replacement by a new request.
+Recovery uses exact source and target session observations; a current slot index
+or latest native transcript cannot prove either one absent. Successful recovery
+records its selected survivor so a repeat reattaches or returns it. Unknown
+presence stays in visible state 3 with Resume old thread and concrete diagnostic;
+that action rechecks rather than bypasses proof. Source native-ID equality is
+checked again immediately before child effects, including same-agent switches.
+
+#### Ordered M2 implementation and verification
+
+- [ ] Pure data and projection: add strict durable-record validation and clone
+  tests; add ProjectAgentSwitch table tests for every approved failure row,
+  all eight internal phases, unknown presence, and failed recovery. Then implement
+  the record and shared five-outcome projection. Keep diagnostic detail separate
+  from its single primary action. Run threadrecord and projection targeted tests.
+- [ ] Admission: reserve one canonical slot request, write its initial recovery
+  record before acknowledgment, then activate only after successful response
+  write. A failed durable write authorizes no park. Preserve immutable argv;
+  after the admission CAS updates revision, return a renewed fingerprint only
+  after comparing the original accepted configuration. Persist callback/fallback
+  content before it can authorize switching. Tests inject write failures,
+  duplicate/colliding admissions, stale callbacks and restart before park.
+- [ ] Switch transaction: checkpoint selected body and target attempt before
+  ParkExpected. Atomically copy the target binding/helper/registration witness
+  from existing start events into the recovery record; do the same for an
+  authorized restoration attempt. Persist submitted delivery only on actual
+  wrapper confirmation; write failure leaves a recoverable/copyable result,
+  never fabricated success. Tests kill the coordinator between each existing
+  durable step and completion callback, then reload the same store.
+- [ ] Recovery: add RecoverAgentSwitch under the existing reentrant thread gate;
+  dispatch generic Recover to it before ordinary reboot/reap policy. First prove
+  exact survivor/absence. Reuse warm-only attach for a live detached survivor.
+  Reconcile a matching open park only after selecting the safe recovery path;
+  absent-source/missing-completion must either reconcile with proof or retain the
+  same visible action, never tombstone the source to make progress. Restore the
+  saved source profile/native identity only after proving target absent, then use
+  the existing resume pipeline with required native-ID equality. Tests cover two
+  consecutive recovery calls, crash during recovery, stale request IDs, same-agent
+  targets, unknown process/session, changed native binding and recovery's own
+  failure. Assert actual launch count and exact agent/native ID, not only return
+  codes. A missing old native session remains visibly actionable with the exact
+  reason; no silent fresh-context substitution.
+- [ ] Restart: skip ordinary automatic park/re-attach for unresolved switch
+  records. Project their current evidence into inventory immediately, show the
+  primary recovery action and a persistent notice on the first refresh, and
+  restore copyable exact content without starting a delivery watch or submitting.
+  Tests render each failure row after a simulated supervisor restart and activate
+  its primary action through the real menu reducer/dispatcher.
+- [ ] Receipts: latest result per canonical slot, one pending per slot; remove
+  switch dependence on the global 64 generic-operation admission cap and
+  five-minute memory-only lifetime. Rebuild status from durable records for the
+  authenticated source/owner or hub; other peers cannot read the brief. CLI and
+  form display ProjectAgentSwitch outcome/action rather than internal phase.
+  Tests exercise Unix-socket auth, duplicate ID after target replacement,
+  unauthorized authored brief, status after restart and self acknowledgment.
+- [ ] Run targeted commands as each owner lands:
+  `go test ./cmd/internal/threadrecord ./cmd/internal/couchcore -run 'Test.*(SwitchRecovery|AgentSwitchView|RecoverAgentSwitch|SwitchAgent)' -count=1`;
+  `go test ./cmd/internal/couchcmd ./cmd/internal/couchtty ./cmd/internal/couchmessage -run 'Test.*(Switch|Recovery|Remote|ResponseAfterWrite)' -count=1`;
+  then the corresponding concurrency-sensitive selections with `-race`.
+  Re-run exact authored-byte and fresh-no-orientation layout/wrapper acceptance.
+- [ ] Register new source paths, update README/atlas and issue Log. Run the full
+  machine-gated suite before M2 close. Review only through milestone-close, then
+  proceed to M3's TL procedure and authorized live acceptance.
+
+This delta uses existing storage, liveness and launch owners (ARCH-DRY), adds
+pure projection with a thin orchestration shell (ARCH-PURE), and tests the whole
+failure class rather than a single happy-path handoff (ARCH-PURPOSE/MOCK).
+Restoring availability is an explicit operator action after restart, never
+unbounded background retries. Durability is one record per slot with a named
+supersession/deletion lifecycle (ARCH-FUNERAL); immutable accepted configuration,
+exact identities and closed decoding enforce trust (ARCH-SECURE/ORDER).
