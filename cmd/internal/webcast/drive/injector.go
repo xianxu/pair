@@ -37,8 +37,8 @@ var (
 	// ErrNotLive: the cast is paused or ended, or the batch was aimed at a
 	// segment that has gone.
 	ErrNotLive = errors.New("drive: the cast isn't showing that page")
-	// ErrStale: the element the viewer aimed at isn't at that point in the
-	// tab any more.
+	// ErrStale: the act's point in the tab no longer holds what it needs
+	// (the rule is Inject's).
 	ErrStale = errors.New("drive: the page changed")
 	// ErrDialog: the cast tab is showing a JavaScript dialog, which stops
 	// input and the page's script until the operator answers it (#467).

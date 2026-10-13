@@ -52,12 +52,10 @@ func (s *errSpy) Inject(ctx context.Context, by string, b drive.Batch) error {
 	err := s.next.Inject(ctx, by, b)
 	a.done, a.err = time.Now(), err
 	s.mu.Lock()
-	s.arrived = append(s.arrived, a)
-	s.mu.Unlock()
-	s.mu.Lock()
 	defer s.mu.Unlock()
-	for _, a := range b.Acts {
-		s.acts = append(s.acts, fmt.Sprintf("%s(%.0f,%.0f %s x%d)", a.A, a.X, a.Y, a.Button, a.Count))
+	s.arrived = append(s.arrived, a)
+	for _, x := range b.Acts {
+		s.acts = append(s.acts, fmt.Sprintf("%s(%.0f,%.0f %s x%d)", x.A, x.X, x.Y, x.Button, x.Count))
 	}
 	switch {
 	case errors.Is(err, drive.ErrRefused):
@@ -85,15 +83,6 @@ func (s *errSpy) report() (int, []string) {
 
 const blogPage = `<!doctype html><title>blog</title><body style="margin:0;font:16px sans-serif">%s</body>`
 
-// pair#505: remote driving through the whole production chain: the real
-// cast Chrome and its recorder, the TabInjector over it (as StartCast wires
-// it), the viewer routes, and a viewer's real drive.js in a second Chrome.
-// The cast tab can run at a device-pixel ratio of 2 (WEBCAST_DRIVE_DPR), as
-// the operator's retina window does. A wheel scrolls the page and a click
-// follows a link; every batch must be injected.
-//
-//	WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run DriveRealCast -v
-//
 // realCast is the production chain, live and driven: the cast Chrome with
 // its recorder, a TabInjector behind a spy, the viewer routes, and a
 // viewer's real drive.js in a second Chrome holding control.
@@ -207,10 +196,17 @@ func startRealCast(t *testing.T, path string) *realCast {
 	return &realCast{c: c, h: h, v: v, spy: spy, ctrl: ctrl, mem: mem}
 }
 
+// pair#505: remote driving through the whole production chain: the real
+// cast Chrome and its recorder, the TabInjector over it (as StartCast wires
+// it), the viewer routes, and a viewer's real drive.js in a second Chrome.
+// The cast tab can run at a device-pixel ratio of 2 (WEBCAST_DRIVE_DPR), as
+// the operator's retina window does. A wheel scrolls the page and a click
+// follows a link; every batch must be injected.
+//
+//	WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run DriveRealCast -v
 func TestDriveRealCast(t *testing.T) {
 	cast := startRealCast(t, "/")
-	c, h, v, spy := cast.c, cast.h, cast.v, cast.spy
-	_ = c
+	h, v, spy := cast.h, cast.v, cast.spy
 	// A wheel over the page scrolls the cast tab.
 	mid := clientOf(t, v, 400, 300)
 	v.call(t, v.session, "Input.dispatchMouseEvent", map[string]any{"type": "mouseWheel", "x": mid[0], "y": mid[1], "deltaX": 0, "deltaY": 400}, nil)

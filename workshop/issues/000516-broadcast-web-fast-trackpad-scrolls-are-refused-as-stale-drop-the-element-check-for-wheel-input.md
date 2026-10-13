@@ -72,3 +72,6 @@ No coalescing up front: measure a fast flick end to end first (injector queue de
   viewer's timestamp; if the measurement shows uneven arrival at Couch, add a small playout buffer (hold ~1-2 frames,
   inject each bucket at its original time offset). Measure arrival spacing at Couch in the flick test and record it
   in the Log either way.
+- 2026-10-12 (close review): Done-when 1's "the test fails on main" is met by the injector contract's wheel case
+  (deterministic, mutation-checked); the live flick test reproduces the refusal on main only intermittently (Log),
+  and is the end-to-end check and the measurement after the fix.

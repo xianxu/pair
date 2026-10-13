@@ -185,7 +185,7 @@ func (t *TabInjector) inject(ctx context.Context, tab Tab, by string, b Batch) e
 	return nil
 }
 
-// onTarget is the stale rule: the element the tab has at the point (hit)
+// onTarget is a down's and click's stale rule: the element the tab has at the point (hit)
 // is the one the viewer aimed at (id) or inside it; or hit is a frame's
 // owner and id is inside that frame (the tab's hit test stops at an
 // out-of-process frame, where the viewer's nodeAt went on).

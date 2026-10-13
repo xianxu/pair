@@ -1428,3 +1428,7 @@ proof; record the surprising case so the next change starts from evidence.
   live-size rule meant to replace a canvas's UA sizing was author-origin, so it beat the UA's `[hidden]`, and it
   lived in the document sheet, which shadow trees don't see. When a viewer rule substitutes for browser behaviour,
   list the browser's own conditions (hidden, display:none, shadow trees, frames) and make each a test case.
+- **Changing a rule means grepping for every statement of it (#516 close; #489's lesson again).** The wheel's stale
+  rule was restated in `Act`'s doc, `ErrStale`'s doc and `onTarget`'s comment; updating `Injector.Inject` and the
+  atlas left three stale copies. Before committing a rule change, `rg` the rule's nouns (here "stale", "wheel")
+  across the package and the atlas, and make every other site name the rule's owner instead of restating it.
