@@ -117,3 +117,7 @@ Write-site inventory for BR-1: focus pad insertion (scheduled focus/tick) and re
 ### 2026-10-13 — inherited #531 artifact-inventory integration failure
 
 After SHIP, the full suite reached Go and found seven #531 production files absent from the exhaustive source inventory. Ops:0 authorized fixing this in #533 (receipt ccd0c91d-912e-4875-977b-9caff9ee08d7). Inspect each file; classify launch diagnostics model/capture/show/store/fake, output capture and command renderer as NonArtifactSources because none constructs or consumes the checked Pair artifact filename families. The store owns namespace-local launch-diagnostics/failures.json, outside those families. Do not add known-violation exceptions. Existing exhaustive classification test is the RED regression; rerun artifactpath after adding explicit entries and re-close the changed source. Allow the in-progress full suite to finish so other failures remain visible. If #514 timing fails in a future suite, use make -k to run remaining targets rather than treating that first stop as full-suite evidence.
+
+### 2026-10-13 — BR-2: full review for inherited correction
+
+The narrow post-close review verified all seven classifications and mutation-tested the inventory regression, finding no implementation defect. It requires full close because the inherited #531 correction expands scope beyond BR-1. Run full sdlc close over the final revised branch; retain BR-1 addressed and the explicit #535/#519 verification exceptions.

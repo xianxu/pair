@@ -42,6 +42,25 @@ rounds:
       isolation: fenced
       reviewed: 16f6b7fd9ee457f42a7fb1a56aeb158a97e4cd9f
       blocked: false
+    - "n": 4
+      timestamp: "2026-10-13T15:28:38-07:00"
+      dispatched: "2026-10-13T15:26:12-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Retain the finalized prior disposition. This interdiff changes none of the ownership guards or regression tests; it records the previous review result.
+          round: 4
+      findings:
+        - id: BR-2
+          severity: Critical
+          title: scope changed after close — run a full `sdlc close`
+          detail: 'workshop/plans/000533-submission-progress-plan.md:117 adds a revision for inherited #531 artifact-inventory work, implemented at cmd/internal/artifactpath/manifest.go:609. This extends scope beyond the prior finding; the recorded operator authorization does not expand this narrow review. Run a full close review covering the revised scope.'
+          family: post-close-scope-requires-full-review
+          round: 4
+      recipe: fix-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#533 (boundary-review)
@@ -68,6 +87,17 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - BR-1 — addressed — Entry guards protect navigation and draft mutations; focus padding now respects ownership and retains deferred cleanup. Production draft/queue failure/timeout cases and embedded focus tests pass. Removing navigation guards makes dom_submission_integration_test.lua:72 fail; removing the focus guard at init.lua:338 reproduces nomodifiable, Press ENTER, and RPC timeout in dom-submission-ui-test.lua:129.
 
+## Round 4 — 2026-10-13T15:28:38-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — Retain the finalized prior disposition. This interdiff changes none of the ownership guards or regression tests; it records the previous review result.
+
+### Raised
+
+- **BR-2** [Critical] `post-close-scope-requires-full-review` scope changed after close — run a full `sdlc close`
+  workshop/plans/000533-submission-progress-plan.md:117 adds a revision for inherited #531 artifact-inventory work, implemented at cmd/internal/artifactpath/manifest.go:609. This extends scope beyond the prior finding; the recorded operator authorization does not expand this narrow review. Run a full close review covering the revised scope.
+
 ## Open findings
 
-(none — every finding has been disposed)
+- **BR-2** [Critical] `post-close-scope-requires-full-review` scope changed after close — run a full `sdlc close`

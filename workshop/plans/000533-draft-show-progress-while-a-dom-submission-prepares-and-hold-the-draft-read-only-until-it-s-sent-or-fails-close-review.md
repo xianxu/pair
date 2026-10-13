@@ -245,3 +245,77 @@ Full `make test`, race checks, and live-Chrome conformance were not rerun here.
 **7. Plan revision recommendations**
 
 None. Existing BR-1 revisions accurately describe the correction. Record the outstanding stable-source full-suite result before landing, as the plan already requires.
+
+---
+
+## Re-review — 2026-10-13T15:28:37-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 533 — draft: show progress while a DOM submission prepares, and hold the draft read-only until it's sent or fails |
+| repo | pair |
+| issue file | workshop/issues/000533-draft-show-progress-while-a-dom-submission-prepares-and-hold-the-draft-read-only-until-it-s-sent-or-fails.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 5ddfe2dbb9fcffecd84dff375fd04a13c933020b..da4fac8f90f123534189ec9457643a353828ceb5 |
+| command | sdlc close --issue 533 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-13T15:28:37-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The inventory correction is sound and has verified regression coverage. However, this interdiff adds an unrelated #531 correction under the plan’s `## Revisions`, beyond the prior findings. The explicit fix-review scope rule requires a full `sdlc close`. BR-1 remains disposed; no new implementation defect was found.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Retain the finalized prior disposition. This interdiff changes none of the ownership guards or regression tests; it records the previous review result.
+findings:
+  - id: new
+    severity: Critical
+    family: post-close-scope-requires-full-review
+    title: |
+      scope changed after close — run a full `sdlc close`
+    detail: |
+      workshop/plans/000533-submission-progress-plan.md:117 adds a revision for inherited #531 artifact-inventory work, implemented at cmd/internal/artifactpath/manifest.go:609. This extends scope beyond the prior finding; the recorded operator authorization does not expand this narrow review. Run a full close review covering the revised scope.
+```
+
+1. **Strengths**
+
+   - All seven inventory classifications match their source files, including the namespace-local diagnostics store.
+   - The correction uses the existing exhaustive inventory and leaves the known-violation exceptions unchanged.
+
+2. **Critical findings**
+
+   - The scope expansion above requires full close review before shipping. No code correction is indicated by the focused inspection.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - After generating runtime assets, `TestProductionArtifactReferencesAreExactlyClassified` passes at pinned HEAD.
+   - Restoring only the base manifest makes it fail with exactly seven missing-inventory errors.
+   - `git diff --check` passes. Disposable copies were removed; the checkout remains unchanged.
+   - Full-suite results were not independently rerun.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — Pass:** Reuses the existing inventory and enforcement test.
+   - **ARCH-PURE — Pass:** Adds declarative classifications without introducing IO or business logic.
+   - **ARCH-PURPOSE — Pass for the correction:** Covers all seven missing entries, confirmed by mutation testing.
+   - No new user-facing or architectural surface is introduced by these classifications; no README or atlas update is needed for this interdiff.
+
+7. **Plan revision recommendations**
+
+   Amend the new revision to require a full `sdlc close` for the expanded scope, then record that review’s result.
