@@ -72,7 +72,7 @@ func TestPeekPreviousAndFullCLI(t *testing.T) {
 func TestPeekFullHelpNamesCosts(t *testing.T) {
 	var out bytes.Buffer
 	usage(&out)
-	for _, text := range []string{"--previous", "--all", "recording [heavy]", "previous recording [seconds]"} {
+	for _, text := range []string{"--previous", "--all", "recording [heavy]", "previous tty only [seconds]"} {
 		if !strings.Contains(out.String(), text) {
 			t.Errorf("help lacks %q", text)
 		}

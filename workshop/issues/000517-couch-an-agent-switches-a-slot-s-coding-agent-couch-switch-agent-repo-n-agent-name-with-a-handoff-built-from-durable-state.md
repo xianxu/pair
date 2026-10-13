@@ -68,6 +68,15 @@ Durable plan: [agent switch plan](../plans/000517-agent-switch-plan.md).
 
 ## Log
 
+- 2026-10-12 22:42 PDT — full-suite integration caught missing artifact
+  classifications for new CLI/service files, missing verb cost registrations,
+  and unused archive handoff code after the scope cut. Fixed those through the
+  existing registries, removed the unused interface/method/reader-handoff logic,
+  preserved current transcript and continuation readers. Updated CLI router and
+  arity contracts for the agent selector, and the previous-tty help expectation;
+  public-help test now checks command invocations rather than the substring
+  start in startup. Targeted registry, help, context/readiness tests pass.
+
 - 2026-10-12 22:37 PDT — targeted switch race tests pass across core/cmd/tty
   (18.214s / 23.966s / 5.844s). Removed the unused self-switch response-write
   barrier; ordinary transport and all targeted transport/switch/receipt tests
