@@ -66,8 +66,8 @@ pair:6 read-only while measuring; no live recovery/reboot is authorized here.
 
 - [x] Measure native metadata, exact pair:6 evidence and current recovery owners.
 - [ ] Approve durable design: workshop/plans/000528-slot-recovery-plan.md.
-- [ ] M1 — Native recovery evidence and truthful agent liveness.
-- [ ] M2 — Confirmed inferred resume and fresh tty-oriented fallback.
+- [ ] M1 — Prevent split terminal incarnations and show attachable-agent liveness.
+- [ ] M2 — Calibrated native recovery with tty context and safe fresh fallback.
 
 
 ## Revisions
@@ -78,6 +78,18 @@ pair:6 read-only while measuring; no live recovery/reboot is authorized here.
   subagent/tool execution by source/parent metadata, not originator alone.
   The original Spec above retains the dispatched wording as provenance; these
   corrections govern implementation.
+
+- 2026-10-13 09:12 PDT — TL receipts 08e69ac9 and f0c32c35 supersede the
+  initial ladder priority and unconditional-confirmation policy. The original
+  pair:6 agent remains alive; a second same-name Zellij server claimed the
+  operator-facing socket. Prevent split incarnations first, with shared
+  ownership observations and a Pair process lock; measure serialization-off
+  configuration on isolated scratch sessions before considering a Zellij fork.
+  Liveness means the agent the operator can attach to. After safe ownership is
+  established, calibrated strong inference auto-selects, close calls ask, and
+  resumed native conversation receives tty-tail context. Pair:6 is read-only;
+  its live recovery stays with the operator. See the authoritative revision in
+  workshop/plans/000528-slot-recovery-plan.md.
 
 ## Log
 
