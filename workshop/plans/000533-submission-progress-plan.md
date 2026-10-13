@@ -89,3 +89,9 @@ ARCH-ORDER: reducer transitions decide ownership; adapters execute effects and r
 - [ ] Run sdlc close with actual verification evidence, address findings, publish PR, wait for CI, land on SHIP as authorized, report hub.
 
 Test strategy: production reducer sequence tests establish ownership independently of IO; adapter tests hold and reorder real effect results; headless tests inspect actual buffer options and evaluated statusline before releasing work. Backend progress tests inspect observable status while a fake CDP/cast blocks, then ensure terminal delivery states remain unchanged. A deliberately blocked child proves timeout rather than a mock merely returning a timeout string. No prose duplication of executable case inventories.
+
+## Revisions
+
+### 2026-10-13 — approved design and display details
+
+Ops:0 approved plan 84e3ca051 and the absolute36-second budget (verified receipt e5054a62-e77f-434b-a431-597d7c6d9c3d). On active repeat chord retain operation identity/deadline and display “already sending…” rather than remaining silent. Render settling as “waiting for the page to settle, crop i/N”. Keep #524 settlement unchanged. This supersedes only the initial wording of active-send display.
