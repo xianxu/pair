@@ -225,4 +225,61 @@ func TestLiveSubmissionCrop(t *testing.T) {
 		t.Fatalf("offscreen region returned evidence: %+v", evidence[1].BoxText)
 	}
 
+	// Form values are never text evidence, including names derived by ancestors.
+	// Keep this in real Chrome to check native editability and shadow traversal.
+	call("Runtime.evaluate", map[string]any{"expression": `(()=>{
+ const fixture=document.createElement('div');fixture.id='form-fixture';fixture.setAttribute('role','group');
+ fixture.style.cssText='position:absolute;left:20px;top:1120px;width:430px;height:240px;font:12px/16px monospace';
+ fixture.innerHTML='<span>Static before</span><label>Static input label<input id="private-input" aria-label="Input label"></label>'+
+ '<label>Static textarea label<textarea id="private-textarea" aria-label="Textarea label">VALUE_SENTINEL_DEFAULT</textarea></label>'+
+ '<div id="private-editor" contenteditable="true" role="textbox" aria-label="Editor label"><span>VALUE_SENTINEL_EDITABLE</span><span contenteditable="false">VALUE_SENTINEL_NESTED</span></div>'+
+ '<div id="private-shadow"></div><div id="private-editable-host" contenteditable="true"></div><span>Static after</span>';
+ document.body.append(fixture);
+ document.getElementById('private-shadow').attachShadow({mode:'open'}).innerHTML='<span>Static shadow label</span><div contenteditable="plaintext-only"><span>VALUE_SENTINEL_SHADOW</span></div>';
+ document.getElementById('private-editable-host').attachShadow({mode:'open'}).innerHTML='<span>VALUE_SENTINEL_HOST</span>';
+ })()`, "returnByValue": true}, nil)
+	for _, id := range []string{"private-input", "private-textarea", "private-editor"} {
+		call("Runtime.evaluate", map[string]any{"expression": fmt.Sprintf("document.getElementById(%q).focus({preventScroll:true})", id)}, nil)
+		call("Input.insertText", map[string]any{"text": "VALUE_SENTINEL_TYPED"}, nil)
+	}
+	var typed struct {
+		Result struct {
+			Value bool `json:"value"`
+		} `json:"result"`
+	}
+	call("Runtime.evaluate", map[string]any{"expression": `['private-input','private-textarea'].every(id=>document.getElementById(id).value.includes('VALUE_SENTINEL_TYPED')) && document.getElementById('private-editor').textContent.includes('VALUE_SENTINEL_TYPED')`, "returnByValue": true}, &typed)
+	if !typed.Result.Value {
+		t.Fatal("form fixture did not receive actual Chrome text input")
+	}
+	call("Runtime.evaluate", map[string]any{"expression": `new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))`, "awaitPromise": true}, nil)
+	formEvidence, err := c.CaptureCrops(ctx, document, []core.CaptureRegion{
+		{Box: recording.Box{20, 1120, 430, 240}, Region: recording.Box{20, 1120, 430, 240}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(formEvidence) != 1 || formEvidence[0].Unavailable != "" {
+		t.Fatalf("form evidence unavailable: %+v", formEvidence)
+	}
+	visible.Reset()
+	names.Reset()
+	for _, entry := range formEvidence[0].BoxText.VisibleText {
+		visible.WriteString(entry.Text)
+	}
+	for _, entry := range formEvidence[0].BoxText.AccessibleNames {
+		names.WriteString(entry.Text)
+	}
+	if strings.Contains(visible.String()+names.String(), "VALUE_SENTINEL") {
+		t.Fatalf("form values leaked into text evidence: %+v", formEvidence[0].BoxText)
+	}
+	for _, label := range []string{"Static before", "Static after", "Static input label", "Static textarea label", "Static shadow label"} {
+		if !strings.Contains(visible.String(), label) || !strings.Contains(names.String(), label) {
+			t.Fatalf("static surrounding text or ancestor name lost %q: %+v", label, formEvidence[0].BoxText)
+		}
+	}
+	for _, label := range []string{"Input label", "Textarea label", "Editor label"} {
+		if !strings.Contains(names.String(), label) {
+			t.Fatalf("static field label lost %q: %+v", label, formEvidence[0].BoxText)
+		}
+	}
 }

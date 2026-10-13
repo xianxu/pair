@@ -4,7 +4,7 @@ const collect = eval('(' + fs.readFileSync('box_text.js', 'utf8') + ')');
 let elements;
 function text(s, x=0, y=0) { return {nodeType:3,nodeValue:s,x,y,childNodes:[]}; }
 function el(tag, attrs={}, kids=[], x=0, y=0, w=150, h=10) {
- const n={clientLeft:0,clientTop:0,clientWidth:w,clientHeight:h,offsetWidth:w,offsetHeight:h,nodeType:1,localName:tag,childNodes:kids,attrs,style:{display:'block',visibility:'visible'},getAttribute:k=>attrs[k]||null,
+ const n={clientLeft:0,clientTop:0,clientWidth:w,clientHeight:h,offsetWidth:w,offsetHeight:h,nodeType:1,localName:tag,childNodes:kids,attrs,style:{display:'block',visibility:'visible'},getAttribute:k=>Object.hasOwn(attrs,k)?attrs[k]:null,
  getBoundingClientRect:()=>({left:x,top:y,right:x+w,bottom:y+h,width:w,height:h}), getClientRects(){return [this.getBoundingClientRect()]}};
  kids.forEach((k,i)=>{k.parentElement=n;k.nextSibling=kids[i+1]||null}); n.firstChild=kids[0]||null; elements.push(n); return n;
 }
@@ -47,6 +47,26 @@ setup([nested,label,labelled,gone,invisible,zero]);out=collect([0,0,200,200]);
 assert(out.accessible_names.some(x=>x.role==='button'&&x.text==='Nested exact'));
 assert(out.accessible_names.some(x=>x.role==='checkbox'&&x.text==='Referenced name'));
 assert(!JSON.stringify(out).includes('secret'));
+// Editable descendants must not contribute text to their own or ancestor names.
+for(const editable of [
+ () => el('textarea',{'aria-label':'Static field label'},[text('VALUE_SENTINEL')]),
+ ...['', 'true', 'TRUE', 'plaintext-only'].map(value => () => el('div',{contenteditable:value},[
+   el('span',{role:'button','aria-label':'VALUE_SENTINEL'},[text('VALUE_SENTINEL')]),
+   el('span',{contenteditable:'false'},[text('VALUE_SENTINEL')])])),
+ () => {const n=el('span',{},[text('VALUE_SENTINEL')]);n.isContentEditable=true;return n;},
+ () => {const n=el('x-editor',{contenteditable:'true'},[]);n.shadowRoot={nodeType:11,firstChild:el('span',{},[text('VALUE_SENTINEL')])};return n;},
+ () => {const n=el('x-field',{},[]);n.shadowRoot={nodeType:11,firstChild:el('textarea',{},[text('VALUE_SENTINEL')])};return n;},
+ () => {const n=el('input',{'aria-label':'Static field label'},[]);Object.defineProperty(n,'value',{get(){throw new Error('input value must not be read');}});return n;}
+]) {
+ elements=[];const field=editable();setup([el('div',{role:'group'},[text('Static before '),field,text(' Static after')])]);
+ out=collect([0,0,200,200]);
+ assert(!JSON.stringify(out).includes('VALUE_SENTINEL'),'editable text leaked: '+JSON.stringify(out));
+ assert.equal(out.visible_text.map(x=>x.text).join(''),'Static before  Static after');
+ assert(out.accessible_names.some(x=>x.role==='group'&&x.text==='Static before  Static after'));
+ if(field.getAttribute('aria-label'))assert(out.accessible_names.some(x=>x.text==='Static field label'));
+}
+elements=[];setup([el('div',{contenteditable:'false'},[text('Static noneditable')])]);out=collect([0,0,200,200]);
+assert(out.visible_text.some(x=>x.text==='Static noneditable'));
 elements=[];const host=el('x-host',{},[]);host.shadowRoot={nodeType:11,firstChild:el('p',{id:'shadow'},[text('Shadow exact')])};
 setup([host,el('iframe',{},[]),el('object',{},[])]);out=collect([0,0,200,200]);
 assert(out.visible_text.some(x=>x.text==='Shadow exact'));assert(out.truncated);assert(out.skipped.includes('cross-origin frame'));assert(out.skipped.includes('object/embed'));

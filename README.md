@@ -1125,10 +1125,15 @@ doesn't authenticate.
 **Submit web notes (#483).** Press **Shift+Ctrl+Alt+Return** in the draft to send
 its text and all open cast-tab notes to the agent in view, with recorded context,
 current box text and one current PNG crop per note. The message includes the
-recording path and commands for reading the bundle. The draft can be empty. Submitted notes become
+recording path and commands for reading the bundle. Crops cover the current
+viewport; offscreen notes retain context with an unavailable crop. Capture waits
+briefly for document-wide animations and labels any unsettled result, without scrolling or
+forcing styles. The draft can be empty. Submitted notes become
 resolved: submitting transfers ownership of the notes to the agent; whatever
 follows (a pensive, an issue, a fix) is the agent's. See
 [submission evidence and recovery](atlas/webcast-submission.md).
+
+🤖{**Issue evidence privacy (#526).** Submissions default to private. Only the operator edits `<COUCH_STORE_DIR>/webcast/origin-privacy.json`, for example `{"origins":[{"origin":"http://localhost:4321","privacy":"shareable"}]}`; rules match exact HTTP(S) origins, with default ports normalized. Couch rereads the file for each submission and records the matched policy in the bundle. Missing files mean private; invalid or unreadable files still allow submission as private, with a reason in the bundle and a notice naming the file. Agents write issue evidence as text, summarize private page text, and attach only relevant crops when both the bundle and repository asset policy permit it. Recordings stay local and may expire; issues must stand on their own. [Policy details](atlas/webcast-submission.md#origin-privacy-and-issue-evidence-526).}
 
 **Codes on every cast link (#495).** Every link a cast hands out opens with a short
 code first: the screen broadcast's view and pointer links, and the web cast's view and

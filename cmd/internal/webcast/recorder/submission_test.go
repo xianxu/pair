@@ -37,7 +37,7 @@ func TestCropCaptureUsesPageCoordinatesAndOnePNGPerBox(t *testing.T) {
 			return nil, nil, false
 		}
 		clips = append(clips, params["clip"].(map[string]any))
-		if params["captureBeyondViewport"] != true || params["format"] != "png" {
+		if params["captureBeyondViewport"] != false || params["format"] != "png" {
 			t.Errorf("capture params: %v", params)
 		}
 		return map[string]any{"data": base64.StdEncoding.EncodeToString(pngbuf.Bytes())}, nil, true
@@ -49,6 +49,9 @@ func TestCropCaptureUsesPageCoordinatesAndOnePNGPerBox(t *testing.T) {
 	}
 	if len(got) != 2 || len(clips) != 2 || clips[0]["y"] != float64(1200) || clips[0]["scale"] != float64(1) {
 		t.Fatalf("captures %v / %v", got, clips)
+	}
+	if got[0].Origin != "http://app" {
+		t.Fatalf("capture origin %q", got[0].Origin)
 	}
 	if got[0].Document != doc || got[0].CapturedAt.IsZero() || !bytes.Equal(got[0].PNG, pngbuf.Bytes()) {
 		t.Fatalf("capture metadata %+v", got[0])
@@ -241,5 +244,19 @@ func TestCropCaptureRequiresUIConfirmation(t *testing.T) {
 	}
 	if h.fc.countCalls("Page.captureScreenshot") != 0 {
 		t.Fatal("captured before hiding Couch UI")
+	}
+}
+
+func TestCropCaptureRejectsOriginChangeDuringText(t *testing.T) {
+	h, doc := cropHarness(t)
+	h.fc.more = func(_ string, method string, params map[string]any, _ *fakePage) (any, error, bool) {
+		if method != "Runtime.callFunctionOn" {
+			return nil, nil, false
+		}
+		h.r.Send(Event{Session: "A", Method: "Page.navigatedWithinDocument", Seq: h.fc.next(), Params: raw(map[string]any{"frameId": "tab", "url": "https://private.test/"})})
+		return map[string]any{"result": map[string]any{"value": core.BoxText{Region: textRequestRegion(params)}}}, nil, true
+	}
+	if _, err := h.r.CaptureCrops(context.Background(), doc, captureRequests([]rec.Box{{0, 0, 20, 10}})); err == nil || !strings.Contains(err.Error(), "changed") {
+		t.Fatalf("origin change accepted: %v", err)
 	}
 }

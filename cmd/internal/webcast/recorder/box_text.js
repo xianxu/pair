@@ -100,6 +100,12 @@ function(region) {
         }
         if(['iframe','frame','object','embed'].includes(n.localName)){out.truncated=true;let kind='object/embed';if(n.localName==='iframe'||n.localName==='frame'){try{kind=n.contentDocument?'frame':'cross-origin frame';}catch(_){kind='cross-origin frame';}}if(!out.skipped.includes(kind))out.skipped.push(kind);}
       }
+      // Keep static field labels, but never collect form-value descendants or
+      // feed them into ancestor names. Prune before shadow/slot traversal too.
+      // isContentEditable covers inherited editability, including designMode.
+      const editable=n.getAttribute('contenteditable');
+      if(n.localName==='textarea'||n.isContentEditable||
+        (editable!==null&&['','true','plaintext-only'].includes(editable.toLowerCase())))continue;
       const paint=/paint|strict|content/.test(style.contain||'');
       const clipX=paint||clippedAxis(style.overflowX), clipY=paint||clippedAxis(style.overflowY);
       if(clipX||clipY)clip=intersection(clip,scrollport(n,rect),clipX,clipY);
