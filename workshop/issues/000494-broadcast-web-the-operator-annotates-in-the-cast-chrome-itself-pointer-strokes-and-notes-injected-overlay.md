@@ -35,12 +35,15 @@ In the web cast, viewers point and leave notes (pair#470), but the operator, who
 
 - The operator draws and leaves notes in the cast Chrome; viewers see them live, attributed to the operator; the page's DOM in the recording has no overlay nodes; replay and queries show the operator's notes (after #493).
 - Tests; the operator smoke-tested it.
+- Fidelity screenshots and submission page captures contain no Couch UI; failed or unconfirmed suppression never publishes a contaminated capture.
+- Driver requests can be granted/denied and control taken back in the cast Chrome (M2); annotation is off and disabled while a viewer drives, with an open draft held until control returns.
+- Navigation, pause, return of control and lost replies follow the document-scoped behavior in Revisions; remote input cannot activate operator controls.
 
 ## Plan
 
 - [ ] Write and approve the durable implementation plan at `workshop/plans/000494-operator-overlay-plan.md`.
-- [ ] Implement the operator bridge and shared annotation UI, with targeted regression tests.
-- [ ] Verify headless end to end; obtain the operator smoke acceptance through the hub.
+- [ ] M1 — Operator annotation: shared Off/Pen/Note UI, Board/recorder bridge, capture exclusion, document identity and driving-disable behavior; targeted/headless proof and milestone review.
+- [ ] M2 — Grant / Deny / Take back in cast Chrome; deferred Couch menu integration after #506 and hub release; operator smoke acceptance and milestone review.
 - [ ] Close, merge fresh main, publish the PR and land on SHIP.
 
 ## Log
@@ -122,3 +125,36 @@ survive replay/query, overlay DOM and pixels are excluded, page input works when
 and remote mouse/keyboard input bypasses the overlay even with a note editor open.
 Use no foreground activation and no broad concurrent suites. The operator's live
 smoke test remains required; arrange it through the hub before declaring Done.
+
+### 2026-10-12 — TL approval and milestone order
+
+The TL approved e4e1280f3, including exclusion of all Couch UI from captures with
+restoration on failure. M1 is annotation plus recording/capture/document correctness;
+M2 adds Grant / Deny / Take back and must not hold M1's review/readiness. The Chrome
+Alt-click menu is owned by pair:4 (#495), then pair:5 (#506). Do not edit it before
+#506 lands and the hub says to merge main and proceed. No staging in pair:0 without
+an explicit hub request.
+
+### 2026-10-12 — operator correction: annotation is unavailable while driving
+
+This supersedes both the original Spec's “while a viewer drives” behavior and the
+proposal's concurrent-input arbitration. The TL clarified that simultaneous operator
+annotation was the TL's requirement, not the operator's. While a viewer drives,
+annotation turns off; Pen/Note and pins are disabled with “X is driving”. A note draft
+is held, hidden and unfocused, never lost merely because driving starts. After control
+returns on the same document, editing is available again and the pen stays off.
+
+The earlier remote-focus handoff and 300 ms typing-idle / 500 ms maximum hold proposal
+is withdrawn in full: implement no typing delay or concurrent editor arbitration.
+Remote input remains unblocked. A small document-scoped UI suppression bracket around
+remote hit testing/dispatch protects the remaining Go-live and (M2) authority buttons
+from synthetic input; it is not a concurrency mode for annotation. Lost suppression
+confirmation refuses that input safely rather than risking an operator action.
+
+Spec-review findings incorporated into the plan: capture and input suppression share
+token ownership so an overlapping release cannot expose UI early; bindings and drafts
+carry exact document identities; accepted writes are not rolled back when their reply
+is lost; retries reconcile a bounded operation identity. Already accepted stroke chunks
+remain recorded when a gesture is cancelled. Correct the original isolation wording:
+page scripts cannot access the isolated bindings, but can see/change the shared host
+DOM. All page coordinates remain attached to the draft's original box after scrolling.
