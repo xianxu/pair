@@ -881,13 +881,17 @@ Key files: `couchtty/thread_presentation.go`, `console_presentation.go`,
 ### The hub leads its section (pair#491)
 
 The hub is the slot Couch started from (`hubWorktree`, pair#463). It is marked
-by position only.
+by its leading position and reverse-video colours (pair#521).
 - **Tab bar:** the hub is drawn first, then every other slot grouped by
   repository: `ops  ariadne  :1  :2  blog  pair  :1  :2`. The hub stands alone,
   so its repository's other slots stay in their alphabetical group (`ops:1`).
-  `[…]` still marks the active chip.
+  `[…]` still marks the active chip. Hub label, glyphs and brackets reverse
+  their existing colours; red/attention/idle precedence stays the same. Gaps
+  and folded `+N` counts keep normal colours.
 - **Switcher:** the hub is the first line. Every other row, and the message
-  lines under it, sits one indent level (2 spaces) deeper.
+  lines under it, sits one indent level (2 spaces) deeper. The hub main row
+  is inverted; selection adds bold beside the cursor arrow and preserves red
+  for a blocked hub. Attention detail lines keep their usual styling.
 - **Data path:** couchcmd hands the root to `Console.SetHub` at startup. It is
   reduced as `MenuEventHub` into `MenuState.Hub`, which re-sorts the installed
   inventory (`reorderMenuInventory`). `PresentThreads(rows, git, hub)` puts the
