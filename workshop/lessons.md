@@ -1617,3 +1617,5 @@ proof; record the surprising case so the next change starts from evidence.
 - #533 close BR-1 round2: enumerate actual write sites, not only user commands. Focus/cursor/autocmd/timer decorations can write real bytes and open a blocking prompt under nomodifiable. Preserve deferred cleanup bookkeeping and exercise focus loss/gain in an embedded UI.
 
 - #533 integration of #531: a full make test stopped by the known #514 timing check has not exercised later Go packages. Run remaining targets with make -k and inspect all failures before citing the exception; new production files still require exhaustive artifact-source inventory entries.
+
+- #536: Sharing note-box geometry does not share gesture timing. Keep threshold crossing and drag latching shared too; test each consumer's press, sub-threshold movement, release, and drag back toward its origin.

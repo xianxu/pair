@@ -516,8 +516,11 @@ watch) or the broadcast ends.
   routes taps:
   - 💭 → open.
   - Pointing off → nothing.
-  - Comment mode → a box gesture. A dashed `.drag-box` follows the drag, and on release a draft with
-    `gestureBox`'s box opens. A finger needs 2 cells and a mouse 1. A box with only the controls under it
+  - Comment mode → a box gesture. Press draws nothing. The shared `collab.js`
+    `noteGesture` latches a drag at 8 CSS px for mouse or 16 for touch on either
+    axis; a dashed `.drag-box` follows it, even after moving back below the
+    threshold. On release `gestureBox` opens a draft with the dragged cell box,
+    or the default box if no drag began. A box with only the controls under it
     (`boxHasPin`) gets no draft.
   - Pointer mode → a stroke. Turning pointing off resets to pointer
   mode and closes the dialog. `noteDialog` is one fixed-size sticky note: the
