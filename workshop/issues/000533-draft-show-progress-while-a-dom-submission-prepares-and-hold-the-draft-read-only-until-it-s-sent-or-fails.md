@@ -1,12 +1,12 @@
 ---
 id: 000533
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-13
 updated: 2026-10-13
 estimate_hours: 2.199
-card_mirror: 'fa987f74c0d57634421ae045c361d1ddacd78d69' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '2c3b38005ce19949113fa0d9c6abe19566785e7f' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-13T14:01:25-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: 2.26
 ---
 
 # draft: show progress while a DOM submission prepares, and hold the draft read-only until it's sent or fails
