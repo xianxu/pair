@@ -143,6 +143,7 @@ func TestPrepareSlotOperation(t *testing.T) {
 		t.Fatal(err)
 	}
 	env.Proc.Set(5151, "slot-live")
+	env.Artifacts.SetSessionPresence(live.Address, SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{Usable: true}})
 	_, _, err = env.Couch.PrepareSlotOperation(ctx, "resume", address, LiveRestartOptions{})
 	var refusal *SlotOperationError
 	if !errors.As(err, &refusal) || refusal.Code != SlotOpNotOffered || refusal.Detail != address+" is live" {
@@ -238,6 +239,7 @@ func TestPrepareSlotOperationRelaunchLive(t *testing.T) {
 		t.Fatal(err)
 	}
 	env.Proc.Set(5151, "slot-live")
+	env.Artifacts.SetSessionPresence(live.Address, SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{Usable: true}})
 	ctx := context.Background()
 
 	// No probe wired: refused as unavailable, never guessed.
@@ -297,6 +299,7 @@ func liveSlotFixture(t *testing.T) (*testEnv, string, ThreadRecord) {
 		t.Fatal(err)
 	}
 	env.Proc.Set(5151, "slot-live")
+	env.Artifacts.SetSessionPresence(live.Address, SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{Usable: true}})
 	return env, address, created
 }
 

@@ -15,8 +15,8 @@ import (
 func TestOrphanRefusalNamesTheReapMechanism(t *testing.T) {
 	t.Parallel()
 
-	text := orphanStartRefusal("/repo", ThreadAddress{Tag: "couch-1"}, &launcher.SessionServerIdentity{PID: 9090, Session: "📁repo-1"})
-	for _, want := range []string{"server PID 9090 lost its socket", "Tab → recover", "couch-1"} {
+	text := unsafeTerminalStartRefusal("/repo", ThreadAddress{Tag: "couch-1"}, &launcher.SessionServerIdentity{PID: 9090, Session: "📁repo-1"})
+	for _, want := range []string{"server PID 9090 lost its socket", "Tab → relaunch", "couch-1"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("refusal lacks %q:\n%s", want, text)
 		}
@@ -35,10 +35,10 @@ func TestAnOrphanRowWithoutItsServerStillBlocksStartup(t *testing.T) {
 
 	row := ActionableThreadSummary{Address: ThreadAddress{RepoScope: "s", Tag: "couch-1"}, WorkingPath: "/repo",
 		State: ThreadUnusable, Reason: ReasonOrphanedServer}
-	if _, held := ScopeHoldsOrphanedThread([]ActionableThreadSummary{row}, "s"); !held {
+	if _, held := ScopeHoldsUnsafeTerminal([]ActionableThreadSummary{row}, "s"); !held {
 		t.Fatal("an orphan without server details read as debris")
 	}
-	if text := orphanStartRefusal("/repo", row.Address, nil); !strings.Contains(text, "lost its socket") || !strings.Contains(text, "Tab → recover") {
+	if text := unsafeTerminalStartRefusal("/repo", row.Address, nil); !strings.Contains(text, "cannot be attached safely") || !strings.Contains(text, "Tab → relaunch") {
 		t.Fatalf("refusal without a server = %q", text)
 	}
 }
@@ -68,5 +68,15 @@ func TestOneAgentRankingForBothReports(t *testing.T) {
 		if _, ok := agentRank[a]; !ok {
 			t.Fatalf("agent %q has no rank", a)
 		}
+	}
+}
+
+func TestUnsafeTerminalWithoutOrphanMetadataBlocksStartup(t *testing.T) {
+	row := ActionableThreadSummary{Address: ThreadAddress{RepoScope: "s", Tag: "t"}, State: ThreadUnusable, Reason: ReasonNeedsRelaunch}
+	if _, held := ScopeHoldsUnsafeTerminal([]ActionableThreadSummary{row}, "s"); !held {
+		t.Fatal("unsafe terminal treated as free primary")
+	}
+	if _, held := ScopeHoldsUnsafeTerminal([]ActionableThreadSummary{row}, "other"); held {
+		t.Fatal("foreign scope blocked")
 	}
 }

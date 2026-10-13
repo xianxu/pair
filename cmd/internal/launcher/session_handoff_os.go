@@ -75,6 +75,11 @@ func ObserveTerminalUsability(server SessionServerIdentity, root, scope, tag str
 		return result
 	}
 	result.Policy = policy
+	canonicalObserved, err := canonicalSocket(server.Socket)
+	if err != nil || policy.Socket != canonicalObserved {
+		result.Reason = "terminal launch policy belongs to another socket → relaunch"
+		return result
+	}
 	if policy.Scope != scope || policy.Tag != tag || policy.Name != server.Session || policy.ServerPID != server.PID || policy.ServerIdentity != server.Identity {
 		result.Reason = "terminal launch policy belongs to another generation → relaunch"
 		return result
@@ -279,11 +284,42 @@ func (a *terminalOSAttempt) Check(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if raw, e := os.ReadFile(AgentReadyPath(owner.Directory(), a.tag, a.agent)); e == nil {
-		if ready, e := readiness.Decode(string(raw)); e == nil && procutil.Alive(strconv.Itoa(ready.PID)) {
+	for _, agent := range AgentInventory() {
+		path := AgentReadyPath(owner.Directory(), a.tag, agent)
+		f, e := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+		if errors.Is(e, os.ErrNotExist) {
+			continue
+		}
+		if e != nil {
+			return fmt.Errorf("cannot inspect retained agent readiness → relaunch: %w", e)
+		}
+		st, statErr := f.Stat()
+		if statErr != nil || !st.Mode().IsRegular() {
+			f.Close()
+			return errors.New("retained agent readiness is not a readable regular file → relaunch")
+		}
+		const maxReadyBytes = 8192
+		raw, e := io.ReadAll(io.LimitReader(f, maxReadyBytes+1))
+		f.Close()
+		if e != nil {
+			return fmt.Errorf("cannot read retained agent readiness → relaunch: %w", e)
+		}
+		if len(raw) > maxReadyBytes {
+			return errors.New("retained agent readiness exceeds bound → relaunch")
+		}
+		ready, e := readiness.Decode(string(raw))
+		if e != nil || ready.Tag != a.tag || ready.Agent != agent {
+			return errors.New("retained agent readiness is invalid → relaunch")
+		}
+		e = syscall.Kill(ready.PID, 0)
+		if e == nil || errors.Is(e, syscall.EPERM) {
 			return errors.New("thread still has a live agent → relaunch")
 		}
+		if !errors.Is(e, syscall.ESRCH) {
+			return fmt.Errorf("retained agent presence is unknown → relaunch: %w", e)
+		}
 	}
+
 	return nil
 }
 

@@ -81,6 +81,33 @@ func TestTerminalUsabilityRejectsOldAgentBehindReplacementServer(t *testing.T) {
 	if got := ObserveTerminalUsability(server, root, "", p.Tag, table); !got.Usable {
 		t.Fatalf("healthy: %+v", got)
 	}
+	otherDir := filepath.Join(dir, "other")
+	if err = os.Mkdir(otherDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	otherSocket := filepath.Join(otherDir, filepath.Base(socket))
+	otherListener, err := net.Listen("unix", otherSocket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer otherListener.Close()
+	p.Socket = otherSocket
+	p.SocketDevice, p.SocketInode, err = socketFileID(otherSocket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ = json.Marshal(p)
+	if err = os.WriteFile(path, raw, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if got := ObserveTerminalUsability(server, root, "", p.Tag, table); got.Usable {
+		t.Fatal("policy for another socket certified observed server")
+	}
+	p.Socket = socket
+	p.SocketDevice = dev
+	p.SocketInode = ino
+	raw, _ = json.Marshal(p)
+	os.WriteFile(path, raw, 0600)
 	table[1].PPID = 99
 	if got := ObserveTerminalUsability(server, root, "", p.Tag, table); got.Usable {
 		t.Fatal("old agent made replacement usable")

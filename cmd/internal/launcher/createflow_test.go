@@ -466,9 +466,6 @@ func TestAssignLaunchSessionNamesRefusesUnreadableIndex(t *testing.T) {
 	}
 }
 
-func (f *fakeRuntime) RemoveReadyRecord(tag, agent string) {
-	f.Remove(AgentReadyPath("/data", tag, agent))
-}
 func (f *fakeRuntime) MintLaunchNonce() string { return "fake-launch-nonce" }
 func (f *fakeRuntime) WaitReadyRecord(expect ReadyExpectation, timeout time.Duration) (readiness.ReadyRecord, error) {
 	if f.readyErr != nil {

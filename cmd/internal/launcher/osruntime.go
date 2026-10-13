@@ -548,10 +548,6 @@ func (OSRuntime) MintUUID() string {
 
 // --- ReadinessOps ----------------------------------------------------------
 
-func (r OSRuntime) RemoveReadyRecord(tag, agent string) {
-	r.Remove(AgentReadyPath(r.DataDir, tag, agent))
-}
-
 func (OSRuntime) MintLaunchNonce() string {
 	var b [16]byte
 	if _, err := rand.Read(b[:]); err != nil {

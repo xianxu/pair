@@ -509,10 +509,6 @@ func (c ScopedThreadArtifactCollisionChecker) SessionPresence(ctx context.Contex
 		}
 		table, tableErr := tableReader()
 		if tableErr == nil {
-			observe := c.TerminalUsability
-			if observe == nil {
-				observe = launcher.ObserveTerminalUsability
-			}
 			for _, binding := range bindings {
 				item := out[binding.Address]
 				server, found := servers[binding.SessionName]
@@ -524,11 +520,7 @@ func (c ScopedThreadArtifactCollisionChecker) SessionPresence(ctx context.Contex
 				if item.State != SessionPresent || server.Verdict != launcher.ServerReachable {
 					continue
 				}
-				terminal := observe(server.Server, c.GlobalDataDir, binding.Address.RepoScope, string(binding.Address.Tag), table)
-				if binding.Agent != "" && terminal.Policy.Agent != binding.Agent {
-					terminal.Usable = false
-					terminal.Reason = "terminal policy does not match the bound agent"
-				}
+				terminal := c.terminalUsability(server.Server, binding, table)
 				item.Terminal = &terminal
 				out[binding.Address] = item
 			}
@@ -551,6 +543,21 @@ func (c ScopedThreadArtifactCollisionChecker) SessionPresence(ctx context.Contex
 		}
 	}
 	return out, nil
+}
+
+// terminalUsability shares the launcher attestation and bound-agent check
+// between inventory projection and selected-action eligibility.
+func (c ScopedThreadArtifactCollisionChecker) terminalUsability(server launcher.SessionServerIdentity, binding SessionNameBinding, table []procutil.Process) launcher.TerminalSafety {
+	observe := c.TerminalUsability
+	if observe == nil {
+		observe = launcher.ObserveTerminalUsability
+	}
+	terminal := observe(server, c.GlobalDataDir, binding.Address.RepoScope, string(binding.Address.Tag), table)
+	if binding.Agent != "" && terminal.Policy.Agent != binding.Agent {
+		terminal.Usable = false
+		terminal.Reason = "terminal policy does not match the bound agent"
+	}
+	return terminal
 }
 
 // DetachedSessions answers which of the supplied threads have a live zellij
@@ -612,6 +619,14 @@ func (c ScopedThreadArtifactCollisionChecker) DetachedSessions(ctx context.Conte
 	// ownership supersedes stale index claim counts, while a foreign server
 	// cannot select the warm path for this conversation.
 	live := indexSessionsByName(sessions)
+	tableReader := c.ProcessTable
+	if tableReader == nil {
+		tableReader = procutil.Table
+	}
+	table, err := tableReader()
+	if err != nil {
+		return nil, fmt.Errorf("observe detached terminal processes: %w", err)
+	}
 	var owned []SessionNameBinding
 	claims := map[string]int{}
 	for _, binding := range bindings {
@@ -622,7 +637,10 @@ func (c ScopedThreadArtifactCollisionChecker) DetachedSessions(ctx context.Conte
 		if err != nil {
 			return nil, err
 		}
-		if !observed.Present {
+		if !observed.Present || observed.Owner == nil {
+			continue
+		}
+		if terminal := c.terminalUsability(observed.Owner.Server, binding, table); !terminal.Usable {
 			continue
 		}
 		owned = append(owned, binding)

@@ -145,7 +145,7 @@ func expectedRowActions(s menuRowShape) []string {
 		offers := expectedUnusableActions(s, unfinished)
 		// An unusable :0 whose directory is present still offers add slot
 		// (pair#402); unknown and missing-directory rows offer what they did.
-		if !s.slot && len(offers) > 0 && s.reason != couchcore.ReasonPathMissing {
+		if !s.slot && len(offers) > 0 && s.reason != couchcore.ReasonPathMissing && s.reason != couchcore.ReasonNeedsRelaunch {
 			offers = append(offers, "add-slot")
 		}
 		return offers
@@ -157,6 +157,8 @@ func expectedRowActions(s menuRowShape) []string {
 // wherever any actor operation is offered (#399).
 func expectedUnusableActions(s menuRowShape, unfinished bool) []string {
 	switch {
+	case s.reason == couchcore.ReasonNeedsRelaunch:
+		return []string{"relaunch"}
 	case s.reason == couchcore.ReasonUnknown:
 		return nil
 	// An orphaned server's agent may still be writing: neither resume nor
@@ -225,6 +227,10 @@ func TestEnterResumesEveryRowThatOffersResume(t *testing.T) {
 		case s.row.Live():
 			if len(effects) != 1 || effects[0].Operation != "switch" {
 				t.Errorf("%s: Enter on a live row dispatched %+v, want switch", s.name, effects)
+			}
+		case slices.Contains(items, "relaunch") && s.reason == couchcore.ReasonNeedsRelaunch:
+			if len(effects) != 0 || next.CurrentFrame().Kind != MenuFrameConfirmation || next.CurrentFrame().Action != "relaunch" {
+				t.Errorf("%s: Enter should open relaunch confirmation, got frame=%+v effects=%+v", s.name, next.CurrentFrame(), effects)
 			}
 		case slices.Contains(items, "resume"):
 			if len(effects) != 1 || effects[0].Operation != "resume" {
@@ -671,5 +677,29 @@ func TestLiveRebootDispatchCarriesTheIdleVerdict(t *testing.T) {
 		if len(effects) != 1 || effects[0].Operation != "reboot" || effects[0].Args["require-settled"] != tc.want {
 			t.Fatalf("%s: effects %+v, want require-settled %q", tc.state, effects, tc.want)
 		}
+	}
+}
+
+func TestUnsafeTerminalOffersExplicitRelaunch(t *testing.T) {
+	row := menuSlotRow(1, "couch-unsafe")
+	row.State, row.Reason = couchcore.ThreadUnusable, couchcore.ReasonNeedsRelaunch
+	if got := menuActionItems(row); !slices.Equal(got, []string{"relaunch"}) {
+		t.Fatalf("unsafe terminal actions = %v", got)
+	}
+	if got := enterOperationFor(row); got != "relaunch" {
+		t.Fatalf("Enter = %q", got)
+	}
+	if got := unusableThreadNotice(row); !strings.Contains(got, "relaunch") {
+		t.Fatalf("notice = %q", got)
+	}
+}
+
+func TestUnsafeTerminalEnterRequiresConfirmation(t *testing.T) {
+	row := menuSlotRow(1, "couch-unsafe")
+	row.State, row.Reason = couchcore.ThreadUnusable, couchcore.ReasonNeedsRelaunch
+	state := NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
+	next, effects := dispatchMenuRow(state, enterOperationFor(row), row)
+	if len(effects) != 0 || next.CurrentFrame().Kind != MenuFrameConfirmation || next.CurrentFrame().SelectedItem != "cancel" {
+		t.Fatalf("unsafe terminal acted before confirmation: frame=%+v effects=%+v", next.CurrentFrame(), effects)
 	}
 }

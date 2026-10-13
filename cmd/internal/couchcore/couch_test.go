@@ -426,24 +426,25 @@ func testComposedPairRegistrationBoundary(t *testing.T, freshSlot bool) {
 	ready := filepath.Join(t.TempDir(), "zellij-ready")
 	release := filepath.Join(t.TempDir(), "zellij-release")
 	zellijLog := filepath.Join(t.TempDir(), "zellij.log")
-	writeExecutableForTest(t, filepath.Join(binDir, "claude"), "#!/bin/sh\nexit 0\n")
-	writeExecutableForTest(t, filepath.Join(binDir, "zellij"), `#!/bin/sh
-printf '%s\n' "$*" >> "$PAIR_TEST_ZELLIJ_LOG"
-case " $* " in
-  *" --new-session-with-layout "*)
-	printf '{"tag":"%s","agent":"%s","session":"%s","nonce":"%s","pid":%d}\n' \
-	  "$PAIR_TAG" "$PAIR_AGENT" "$PAIR_SESSION_NAME" "$PAIR_LAUNCH_NONCE" "$PPID" > "$PAIR_AGENT_READY_PATH"
-    printf ready > "$PAIR_TEST_ZELLIJ_READY"
-	i=0
-	while [ ! -f "$PAIR_TEST_ZELLIJ_RELEASE" ] && [ "$i" -lt 1000 ]; do
-	  sleep 0.01
-	  i=$((i + 1))
-	done
-	[ -f "$PAIR_TEST_ZELLIJ_RELEASE" ] || exit 124
-    ;;
-esac
-exit 0
-`)
+
+	fixtureBinary, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"zellij", "pair-wrap", "claude"} {
+		if err := os.Symlink(fixtureBinary, filepath.Join(binDir, name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	socketRoot, err := os.MkdirTemp("/tmp", "pair-registration-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(socketRoot) })
+	t.Setenv("ZELLIJ_SOCKET_DIR", socketRoot)
+	t.Setenv("PAIR_TEST_COUCH_TERMINAL_FIXTURE", "1")
+	t.Setenv("PAIR_TEST_ZELLIJ_PANES", filepath.Join(t.TempDir(), "panes.json"))
+
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_DATA_HOME", "")
@@ -647,6 +648,20 @@ exit 0
 	for key, want := range wantOpaque {
 		if got := environmentValue(child.Env, key); got != want {
 			t.Errorf("%s = %q, want %q", key, got, want)
+		}
+	}
+
+	// The client must remain alive until production admission has attested its
+	// real server/socket/descendant and published the generation-bound policy.
+	for {
+		safety, safetyErr := launcher.ObserveTerminalSafety(waitCtx, preAck.Incarnations[0].Start.SessionBinding.Name, pairData, scope.Key, string(address.Tag))
+		if safetyErr == nil && safety.Usable {
+			break
+		}
+		select {
+		case <-waitCtx.Done():
+			t.Fatalf("terminal admission never attested fixture: %+v, %v", safety, safetyErr)
+		case <-time.After(10 * time.Millisecond):
 		}
 	}
 	if err := os.WriteFile(release, []byte("release"), 0o600); err != nil {
@@ -1498,6 +1513,7 @@ func TestNameSurvivesActorReplacement(t *testing.T) {
 
 	env.Runner.SetExited(h.ID(), 0)
 	env.Proc.Kill(first.PID)
+	env.Artifacts.SetSessionPresence(first.Thread, SessionObservation{State: SessionAbsent})
 	if err := env.Couch.Forget("/repo", first.ID); err != nil {
 		t.Fatalf("Forget: %v", err)
 	}
@@ -2078,8 +2094,8 @@ func TestSpawnBesideAnOrphanedPrimaryRefuses(t *testing.T) {
 	if err == nil {
 		t.Fatal("a second primary started beside an orphaned one")
 	}
-	if !strings.Contains(err.Error(), launcher.OrphanDiagnostic("📁repo-1", 9090)) {
-		t.Fatalf("refusal %q does not name the orphaned server", err)
+	if !strings.Contains(strings.ToLower(err.Error()), "relaunch") {
+		t.Fatalf("refusal %q does not offer explicit relaunch", err)
 	}
 	if len(env.Runner.Ops) != opsBefore {
 		t.Fatalf("the refusal had effects: %q", env.Runner.Ops[opsBefore:])

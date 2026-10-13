@@ -370,7 +370,7 @@ func pendingPlaceholders(pass ReattachPass) []ReattachPlaceholder {
 // Enter's verb, the leave count, rendering -- treats it as live. Pending and
 // failed rows keep their inventory state; readers ask passViewOf for those.
 func overlayPassRow(pass ReattachPass, row couchcore.ActionableThreadSummary) couchcore.ActionableThreadSummary {
-	if view, owned := passViewOf(pass, row.Address); owned && view.State == PassAttached {
+	if view, owned := passViewOf(pass, row.Address); owned && view.State == PassAttached && row.Reason != couchcore.ReasonNeedsRelaunch {
 		row.State = couchcore.ThreadLive
 		row.Reason = ""
 	}

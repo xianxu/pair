@@ -7,6 +7,9 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- Before claiming a design extends existing metadata, inspect the actual owner/schema. A path decoder is not a persisted attestation. Name the new authority explicitly and test its publication boundary. (#528 PQ-2)
+- Admission locks protect the observable transition, not just process creation. Release after verified ownership/readiness and before waiting for the long-lived client; test both orderings with controlled events. (#528 PQ-1)
+
 - A late asynchronous report is checked against whether its source is still live, not against a counter that only
   moves on the next start. #495's rotation callback compared the cast's start attempt, which an ended cast keeps until
   a new one begins, so a report after the end still passed. Test the window where the source has ended and nothing

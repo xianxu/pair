@@ -128,7 +128,17 @@ touch -t 202001030000 "$pair_data/runtime/$old_c"
 # runs; the `command -v pair` check inside the stub zellij then proves the
 # launcher fronted $pairbin (dir os.Executable) on the session PATH. Without that
 # #104-M3 prepend, `pair` wouldn't resolve inside → exit 21.
-PATH="$bin_dir:/usr/bin:/bin" "$pairbin/pair" resume smoke >/dev/null
+# The fixture validates extraction and invocation, but starts no real terminal
+# server or agent. A successful stub exit cannot attest an interactive session.
+if PATH="$bin_dir:/usr/bin:/bin" "$pairbin/pair" resume smoke >"$tmp/launch.out" 2>&1; then
+  printf 'unverified terminal fixture was admitted\n' >&2
+  exit 1
+fi
+if ! grep -q 'terminal client exited before admission was verified' "$tmp/launch.out"; then
+  cat "$tmp/launch.out" >&2
+  printf 'expected terminal admission refusal after embedded runtime invocation\n' >&2
+  exit 1
+fi
 
 test -s "$PAIR_SMOKE_ROOT"
 root="$(cat "$PAIR_SMOKE_ROOT")"

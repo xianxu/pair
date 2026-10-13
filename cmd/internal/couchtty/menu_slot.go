@@ -29,6 +29,13 @@ func menuThreadTarget(state MenuState, key couchcore.ThreadRowKey, address couch
 // or replaced under the row, so the tag is not what names it. Its in-flight
 // operation is then keyed by row, not by an address the operation replaces.
 func dispatchMenuRow(state MenuState, operation string, row couchcore.ActionableThreadSummary) (MenuState, []MenuEffect) {
+	// Enter on an unsafe terminal is an explicit recovery request; preserve
+	// the confirmation boundary used by the action menu before any effects.
+	if operation == "relaunch" && row.Reason == couchcore.ReasonNeedsRelaunch && state.CurrentFrame().Kind != MenuFrameConfirmation {
+		appendMenuFrame(&state, MenuFrame{Kind: MenuFrameConfirmation, Action: operation, Thread: row.Address, RowKey: menuRowKey(row), SelectedItem: "cancel"})
+		return state, nil
+	}
+
 	if row.Target.Kind == couchcore.ThreadTargetSlot && actorOperation(operation) {
 		next, effects := dispatchMenuOperation(state, MenuEffect{Operation: operation, Args: couchcore.ActorOperationArgs(row, operation)}, row.Address)
 		if len(effects) > 0 {

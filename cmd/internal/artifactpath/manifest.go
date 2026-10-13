@@ -1456,6 +1456,8 @@ type GCClassification struct {
 // GCClassifications must cover every artifact family explicitly.
 // pair:m5-concept pure
 var GCClassifications = map[string]GCClassification{
+	"session-policy":            {SessionRetention, GCProtected, "PairCachePaths.SessionPolicy; retired under terminal lease after exact-owner quiescence"},
+	"session-lock":              {SessionRetention, GCProtected, "PairCachePaths.TerminalLease; stable coordination inode, never unlinked"},
 	"agent-default":             {SessionRetention, GCShared, "ScopePaths.AgentDefault"},
 	"native-session":            {SessionRetention, GCProtected, "LifecyclePaths.Request (embedded metadata only)"},
 	"session-binding":           {SessionRetention, GCShared, "ScopePaths.SessionBindings"},

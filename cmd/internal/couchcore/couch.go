@@ -530,8 +530,8 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, r
 				"  the record:  %s",
 			held.Tag, resolution.CanonicalPath, held.Tag, recordPath)
 	}
-	if held, orphaned := ScopeHoldsOrphanedThread(rows, scope.Key); orphaned {
-		return ActorRecord{}, nil, errors.New(orphanStartRefusal(scope.Root, held.Address, held.Orphan))
+	if held, unsafe := ScopeHoldsUnsafeTerminal(rows, scope.Key); unsafe {
+		return ActorRecord{}, nil, errors.New(unsafeTerminalStartRefusal(scope.Root, held.Address, held.Orphan))
 	}
 	if held, occupied := ScopeHoldsUsableThread(rows, scope.Key); occupied {
 		// The next steps have to be ones that WORK from where the operator is.
@@ -1408,22 +1408,17 @@ func (c *Couch) allocateConversationTag(ctx context.Context, repo string) (strin
 	return result.PairTag, err
 }
 
-// orphanStartRefusal is startup's refusal beside an orphaned primary (#399).
-//
-// The advice is the reap mechanism itself, not a hand-written recipe (M1/M2
-// review: two hand-written recipes were both wrong about the 2026-10-06 tree).
-// Couch will not start in this repository, and `couch --reap` is a slot-socket
-// operation, so the gesture that works from here is the switcher in another
-// repository -- the same escape the unreadable-record refusal names.
-func orphanStartRefusal(root string, address ThreadAddress, server *launcher.SessionServerIdentity) string {
-	headline := fmt.Sprintf("thread %s's zellij server lost its socket", address.Tag)
+// unsafeTerminalStartRefusal preserves the one-primary rule when terminal
+// evidence cannot authorize attachment. Recovery is explicit from the switcher
+// in another repository; startup never implicitly retires the old owner.
+func unsafeTerminalStartRefusal(root string, address ThreadAddress, server *launcher.SessionServerIdentity) string {
+	headline := fmt.Sprintf("thread %s's terminal cannot be attached safely", address.Tag)
 	if server != nil {
 		headline = launcher.OrphanDiagnostic(server.Session, server.PID)
 	}
 	return fmt.Sprintf("%s\n"+
 		"its agent may still be running, so couch will not start a second primary in %s\n"+
-		"  recover it:  run couch in another repository, select %s, Tab → recover\n"+
-		"               (it reaps the orphaned server and everything under it, then resumes)\n"+
+		"  recover it:  run couch in another repository, select %s, Tab → relaunch\n"+
 		"  inspect it:  couch --show %s",
 		headline, root, address.Tag, address.Tag)
 }

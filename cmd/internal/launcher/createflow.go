@@ -898,7 +898,8 @@ func prepareLaunchReadiness(rt Runtime, tag, agent, session string) (ReadyExpect
 	return prepareLaunchReadinessWithNonce(rt, tag, agent, session, "")
 }
 func prepareLaunchReadinessWithNonce(rt Runtime, tag, agent, session, nonce string) (ReadyExpectation, error) {
-	rt.RemoveReadyRecord(tag, agent)
+	// Keep the previous agent evidence until the locked handoff has checked it.
+	// A fresh nonce prevents old readiness from satisfying this attempt.
 	if nonce == "" {
 		nonce = rt.MintLaunchNonce()
 	}

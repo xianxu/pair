@@ -26,6 +26,7 @@ const (
 	menuPhaseLiveContinuationRunning              // the request owns the thread: retry is the only exit
 	menuPhaseLiveContinuationPending              // the request is about to run: nothing to do yet
 	menuPhaseLiveOrphaned                         // live, but its server lost its socket (#399)
+	menuPhaseNeedsRelaunch                        // explicit recovery only, never automatic reattach
 	menuPhaseUnknown                              // unusable/unknown: no verdict this round, offer nothing
 	menuPhaseResumable                            // parked or detached
 	menuPhaseUnusable                             // unusable, or not live with an unfinished request
@@ -81,7 +82,9 @@ func menuRowFactsOf(row couchcore.ActionableThreadSummary) menuRowFacts {
 		f.Phase = menuPhaseResumable
 	case couchcore.ThreadUnusable:
 		f.Phase = menuPhaseUnusable
-		if row.Reason == couchcore.ReasonUnknown {
+		if row.Reason == couchcore.ReasonNeedsRelaunch {
+			f.Phase = menuPhaseNeedsRelaunch
+		} else if row.Reason == couchcore.ReasonUnknown {
 			f.Phase = menuPhaseUnknown
 		}
 	}
@@ -95,6 +98,8 @@ func menuRowFactsOf(row couchcore.ActionableThreadSummary) menuRowFacts {
 // nothing on says why through menuRowNotice, which reads the same phase.
 func menuRowActions(f menuRowFacts) []string {
 	switch f.Phase {
+	case menuPhaseNeedsRelaunch:
+		return []string{"relaunch"}
 	case menuPhaseLive, menuPhaseLiveContinuationFailed:
 		// Detach first: it is the safe, everyday gesture -- the agent keeps
 		// running and only the client goes. Park is destructive and sits
@@ -193,6 +198,8 @@ type menuRowAdvice struct {
 func menuRowAdviceOf(f menuRowFacts) menuRowAdvice {
 	var a menuRowAdvice
 	switch {
+	case f.Phase == menuPhaseNeedsRelaunch:
+		a.Notice.Text = "terminal cannot be attached safely → relaunch"
 	case f.Phase == menuPhaseBusy:
 		a.Notice.Text = "starting elsewhere"
 	case f.Phase == menuPhaseUnknown:

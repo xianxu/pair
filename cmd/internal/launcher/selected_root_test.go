@@ -83,7 +83,11 @@ case "$1" in
   list-sessions)
     if [ -f "$PAIR_ROOT_TEST_STATE" ]; then cat "$PAIR_ROOT_TEST_STATE"; fi
     exit 0 ;;
-  --session) printf 'CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n'; exit 0 ;;
+  --session)
+    # Pane shape is valid; there is still no server identity or launch policy.
+    # Warm resume must reach ownership admission and refuse before attachment.
+    printf '%s\n' '{"0":[{"id":0,"title":"claude","terminal_command":"pair wrap claude"},{"id":1,"title":"draft","terminal_command":"nvim draft.md"},{"id":2,"title":"terminal","terminal_command":"pair term"}]}'
+    exit 0 ;;
   --config-dir)
     if [ "$3" = attach ]; then
       printf 'attach\n' >> "$PAIR_ROOT_TEST_EFFECTS"

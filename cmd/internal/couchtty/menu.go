@@ -740,7 +740,7 @@ func reduceParkHotkey(state MenuState, event MenuEvent) (MenuState, []MenuEffect
 	}
 	if event.Operation == "park" || event.Operation == "relaunch" {
 		thread, ok := menuThread(state, event.Address)
-		if !ok || !thread.Live() {
+		if !ok || (!thread.Live() && !(event.Operation == "relaunch" && thread.Reason == couchcore.ReasonNeedsRelaunch)) {
 			state.Notice = errorMenuNotice("only a running thread can be " + pastParticiple(event.Operation))
 			return state, nil
 		}
@@ -791,6 +791,9 @@ func pastParticiple(operation string) string {
 func enterOperationFor(thread couchcore.ActionableThreadSummary) string {
 	if thread.Live() {
 		return "switch"
+	}
+	if thread.Reason == couchcore.ReasonNeedsRelaunch && containsMenuItem(menuActionItems(thread), "relaunch") {
+		return "relaunch"
 	}
 	if containsMenuItem(menuActionItems(thread), "resume") {
 		return "resume"

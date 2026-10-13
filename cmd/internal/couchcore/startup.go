@@ -116,13 +116,12 @@ func ScopeHoldsUsableThread(rows []ActionableThreadSummary, repoScope string) (A
 	return ActionableThreadSummary{}, false
 }
 
-// ScopeHoldsOrphanedThread reports this repository's primary thread whose
-// zellij server is alive but lost its socket (#399). Unusable rows are debris to
-// ScopeHoldsUsableThread, but an orphan is not debris: its agent is RUNNING, and
-// starting a fresh primary beside it would put two agents in one tree.
-func ScopeHoldsOrphanedThread(rows []ActionableThreadSummary, repoScope string) (ActionableThreadSummary, bool) {
+// ScopeHoldsUnsafeTerminal reports a primary whose terminal needs explicit
+// recovery. Such rows are not debris: an agent may still be running behind
+// a lost socket, contested name or unverified launch policy.
+func ScopeHoldsUnsafeTerminal(rows []ActionableThreadSummary, repoScope string) (ActionableThreadSummary, bool) {
 	for _, row := range rows {
-		if primaryOfScope(row, repoScope) && row.Reason == ReasonOrphanedServer {
+		if primaryOfScope(row, repoScope) && (row.Reason == ReasonOrphanedServer || row.Reason == ReasonNeedsRelaunch || row.Orphan != nil) {
 			return row, true
 		}
 	}

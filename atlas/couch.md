@@ -12,6 +12,34 @@ the pty console, actor panel, notices, and complete local lifecycle shipped in
 
 ## What exists today
 
+### Terminal admission and capture provenance (#528)
+
+A hosted helper or listed Zellij name alone no longer proves a usable agent.
+The inventory combines one process snapshot with the exact server/socket
+identity, a non-serializing launch policy, and matching agent readiness from
+that server's descendant tree. Missing observations remain unknown; observed
+legacy, contested, orphaned or empty terminals show **needs relaunch**. A
+successful client attach cannot overwrite that unsafe verdict in the menu.
+The menu offers explicit Relaunch; inferred-conversation preview and execution
+are the next #528 implementation boundary, not an automatic recovery policy.
+
+Pair serializes terminal admission through a canonical socket-keyed lease.
+Creation uses an explicit serialization=false Zellij option and publishes the
+policy only after server, pane and agent proof. Warm attachment requires that
+policy and the same live generation. The lease ends after verified admission,
+not after the client exits. Failure cancels only the attempted client; it does
+not delete saved layouts or kill an unverified server. Policy files and stable
+lock inodes are excluded from ordinary session GC.
+
+New tty captures start with an events witness naming their file identities,
+capture generation and producing launch ordinal/nonce. Archive metadata v2
+preserves that witness; v1 remains readable. Certification additionally needs
+a native binding for the same launch ordinal. A capture witness alone is not
+conversation proof, and historical files are never retroactively certified.
+Implementation: launcher/session_handoff*.go, launcher/session_lease.go,
+couchcore/agent_usability.go, artifactpath/session_policy.go and
+artifactpath/capture_witness.go.
+
 [DOM submission](webcast-submission.md) (#483) sends the cast tab's open notes
 from the draft's Shift+Ctrl+Alt+Return chord. Couch owns the durable JSON/PNG
 bundle and acknowledgment; the existing authored-draft transaction delivers

@@ -166,7 +166,6 @@ type ThreadAddressClaimOps interface {
 }
 
 type ReadinessOps interface {
-	RemoveReadyRecord(tag, agent string)
 	MintLaunchNonce() string
 	WaitReadyRecord(expect ReadyExpectation, timeout time.Duration) (readiness.ReadyRecord, error)
 	PIDAlive(pid int) bool

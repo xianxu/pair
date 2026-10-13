@@ -287,3 +287,13 @@ func TestCloneMenuStateCopiesThePassDeeply(t *testing.T) {
 		t.Fatal("a nil map must stay nil, or DeepEqual comparisons of whole states break")
 	}
 }
+
+func TestReattachOverlayCannotHideUnsafeTerminal(t *testing.T) {
+	address := menuAddress("couch-a")
+	pass := ReattachPass{Attached: map[couchcore.ThreadAddress]uint64{address: 10}}
+	row := couchcore.ActionableThreadSummary{Address: address, State: couchcore.ThreadUnusable, Reason: couchcore.ReasonNeedsRelaunch}
+	got := overlayPassRow(pass, row)
+	if got.State != row.State || got.Reason != row.Reason {
+		t.Fatalf("successful client attach hid unsafe terminal: %+v", got)
+	}
+}
