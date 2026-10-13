@@ -340,3 +340,13 @@ All webcast Go packages passed; crop/lock-page real headless conformance passed.
 The operator headless test additionally proves its note reaches a live subscriber
 and the still-open on-disk query (2.17s). View-only shared-mount regression passed.
 Operator smoke and single close review remain pending.
+
+### 2026-10-12 — full suite passed; staging authorized
+
+`make test` passed (exit 0): all shell/Lua checks and uncached `go test ./...`,
+including couchcore (225.854s), couchtty (35.780s), artifact inventory and all webcast
+packages. Log: `/tmp/pair494-full.log`. Targeted Board/recorder race checks also passed.
+TL receipt 1dbbe706 releases pair:0 and authorizes merge-main, move and build for
+operator smoke. Fresh main merge contained only #526’s issue document; no code conflict.
+The source checkout stayed fixed until the suite finished; operator acceptance remains
+pending after staging.
