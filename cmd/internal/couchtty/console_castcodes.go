@@ -424,13 +424,17 @@ func (c *Console) onCodeRotated(kind castKind, attempt uint64, link string, r ca
 	now := c.now()
 	// No caller holds the console's locks while a code rotates (the gate's
 	// unlock, or the menu's RotateCode), so the console can be read here.
+	// c.mu is held until the flash is set, so the attempt check and the
+	// write are one step: a cast that ends in between (its forgetCastCodes
+	// runs after it resets the cast under c.mu) never gets a dead code
+	// flashed. c.mu before codes.mu is the order everywhere.
 	c.mu.Lock()
 	cell, current := c.codeAnchorLocked(kind), c.bcast.attempt
 	if kind == castWeb {
 		current = c.wcast.attempt
 	}
-	c.mu.Unlock()
 	if attempt != current {
+		c.mu.Unlock()
 		return // a late report from a cast that has ended
 	}
 	c.codes.mu.Lock()
@@ -439,6 +443,7 @@ func (c *Console) onCodeRotated(kind castKind, attempt uint64, link string, r ca
 	}
 	if r.Gen <= c.codes.gens[key] {
 		c.codes.mu.Unlock()
+		c.mu.Unlock()
 		return // an older rotation delivered late
 	}
 	c.codes.gens[key] = r.Gen
@@ -465,6 +470,7 @@ func (c *Console) onCodeRotated(kind castKind, attempt uint64, link string, r ca
 		}
 	}
 	c.codes.mu.Unlock()
+	c.mu.Unlock() // before GoTracked, which takes c.mu
 	c.GoTracked(func() {
 		if notice != "" {
 			c.setNotice(notice)

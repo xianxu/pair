@@ -282,7 +282,7 @@ func (c *Console) copyWebcastLink() {
 	case !running:
 	case u.Link != "":
 		c.copyLink(u.Link)
-		c.setNotice("Chrome cast view link copied (watch, point, notes). 👽 copies the drive link.")
+		c.setNotice("Chrome cast view link copied (watch, point, notes). 👽 copies the drive link. Its viewers need its code: hover Chrome to see it.")
 	case u.LinkErr != nil:
 		c.setNotice("Chrome cast viewer link unavailable: " + u.LinkErr.Error())
 	default:
@@ -303,7 +303,7 @@ func (c *Console) copyWebcastDriveLink() {
 	case !running:
 	case u.DriveLink != "":
 		c.copyLink(u.DriveLink)
-		c.setNotice("Chrome cast drive link copied: its viewers can ask to drive; you grant.")
+		c.setNotice("Chrome cast drive link copied: its viewers can ask to drive; you grant. Its viewers need its code: hover Chrome to see it.")
 	case u.LinkErr != nil:
 		c.setNotice("Chrome cast drive link unavailable: " + u.LinkErr.Error())
 	case u.Link != "" && cast != nil && cast.DriveOff() != "":

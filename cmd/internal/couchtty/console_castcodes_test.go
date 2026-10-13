@@ -167,6 +167,14 @@ func TestWebCastCodesOnTheChromeCell(t *testing.T) {
 	if copies(c.consoleFixture, c.link) != 1 {
 		t.Fatal("Alt+right-click still copies the drive link")
 	}
+	// rotate all, run from the menu: every link's code changes.
+	mouse(8, c.cell()-1)
+	waitFor(t, "the menu again", func() bool { return strings.Contains(c.screenText(), "Chrome codes") })
+	c.chooseCodes(t, codesAction{})
+	waitFor(t, "every code rotated", func() bool {
+		now := c.cast().Codes()
+		return len(now) == 2 && now[0].Code != codes[0].Code && now[1].Code != codes[1].Code
+	})
 }
 
 // The screen broadcast's Codes menu copies its view-only link too.

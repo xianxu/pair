@@ -228,7 +228,7 @@ func (c *Console) broadcastStarted(attempt uint64, s *broadcast.Session, err err
 	}
 	// The notice never contains the link: it would be drawn into the very
 	// frames being broadcast.
-	c.setNotice("Broadcast live — link copied. Click LIVE or press Ctrl+Alt+b to stop.")
+	c.setNotice("Broadcast live — link copied. Click LIVE or press Ctrl+Alt+b to stop. Viewers need its code: hover LIVE to see it.")
 	s.Activate()
 	c.GoTracked(func() {
 		select {
