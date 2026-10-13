@@ -91,6 +91,15 @@ Durable plan: [000523-cast-capability-switches-plan.md](../plans/000523-cast-cap
 
 ## Log
 
+### 2026-10-13 — M2 SHIP and completed headless conformance
+
+- M2 re-review SHIP at 29ac1fe53, evidence commit d6f98c3d1: BR-5 and BR-6
+  disposed, no open findings. Full headless Live suite passed (231.868s).
+- Couch core package rerun hit additional instances of the same 100ms host-lock
+  settling failure under parallel fork/exec activity. All four failing tests
+  passed serially (65.212s). No unrelated production changes; full Go suite is
+  now running with -parallel 4 to reduce fork/exec contention.
+
 ### 2026-10-13 — Headless acknowledgement and merged-suite results
 - 2026-10-13: closed M2 — Operator smoke and final display accepted. BR-5 origin-generation regressions pass for operator, viewer annotations and drive; webcast race packages and 158 viewer plus 46 operator Node tests pass. Pre-merge make test passed; merged targeted packages pass. Merged full suite had one unrelated host-creation-busy Couch core fixture failure; complete package rerun and full headless rerun are in progress and must pass before issue close. Headless operator acknowledgement fix passed 15 repeats and controlled delayed reply. Main merged cleanly; pair:0 restored to main.; review verdict: SHIP
 

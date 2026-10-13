@@ -271,7 +271,7 @@ Chrome/operator seams listed above if #494 is on main, plus scripted/live tests.
 - [x] Send TL readiness; stage to pair:0 and build only when instructed. Operator
   checks annotation OFF/ON and drive OFF with active/pending viewers, right-copy
   while OFF, terminal pointer behavior and new-page overlay availability.
-- [ ] Close M2 with verified evidence and binary-owned fresh-context review;
+- [x] Close M2 with verified evidence and binary-owned fresh-context review;
   update issue/plan checkboxes and lessons for any review findings.
 - [ ] Merge current main, resolve/test, close issue, open PR, wait for CI and
   SHIP, then `sdlc merge --yes` with all gates enabled; report outcome to hub.
