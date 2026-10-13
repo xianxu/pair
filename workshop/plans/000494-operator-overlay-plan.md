@@ -36,7 +36,8 @@
   readiness; viewer annotation rules do not gain the operator's driving restriction.
 - suppressionPolicy owns document-local token acquisition/release. Its result says
   whether Couch UI is visible/hittable. A release removes only its own token.
-  Capture and remote-dispatch tokens compose; old-document replies affect nothing.
+  Capture and confirmed remote-dispatch tokens compose; unknown input promotes its
+  guard to target lifetime, inherited by replacement documents until target teardown.
 - The observer's existing path function becomes callable inside the same isolated
   world. The operator adapter uses that function; it does not invent selectors or
   another child-index grammar. Recorder nodeAt resolves it in event order.
@@ -98,8 +99,25 @@ The remaining operator authority buttons must not receive CDP-driven clicks.
 3. Save names that handle and a request ID. Board validates color/text and the current
    live/non-driving operator predicate, then uses its existing Note/Emit path. Save
    never re-resolves the path. Resolve and stroke use the same operator admission.
-4. Keep one outstanding mutating note operation per context and its result until the
-   UI acknowledges it or that context dies. Repeating its ID returns its prior result;
+4. Board's OperatorOperation owns one outstanding mutating note operation per context
+   and its result until the UI acknowledges it or that context dies. Its pure
+   nextOperatorOperation transition enumerates pending, accepted, refused and unknown.
+   Add a completion seam to recorder.Emit: a nonblocking settlement callback runs
+   exactly once after ordering-time admission and the writer's sink result. Enqueueing
+   yields pending, never accepted. OnDoc/driver refusal settles refused and releases
+   Board's pending note reservation; successful sink delivery settles accepted. A sink
+   error after a possibly partial write settles unknown, disables resubmission, reports
+   the recording fault and reconciles by the operation's stable note ID against the
+   writer/Board's observed note (never by issuing a fresh write). If evidence remains
+   inconclusive, return a visible unknown result requiring cast recovery; do not leave
+   an indefinitely spinning pending operation. Chrome shutdown settles pending callers
+   with an ended/unknown outcome according to whether ordering began. The bridge owns
+   a five-second response budget, which reports pending/unknown but never retries a
+   write under a new ID. The recorder owns actual settlement; a late completion may
+   update the retained same-ID outcome but cannot revive old-document UI.
+   Reservation removal is idempotent and keyed to the reserved note ID, not color.
+   Both operator Note and NoteState use this completion seam; stroke chunks need no
+   retry but ordering-time refusal must still surface as a visible failure. Repeating its ID returns its prior result;
    an unknown reply leaves the UI pending and reconciliation uses the same ID. A
    later note requires a new ID. No automatic duplicate save after timeout. A note
    accepted on an old document stays in that document's recording; its UI reply is
@@ -150,10 +168,11 @@ operator buttons around the existing recorder driver hit-test/dispatch bracket.
 The capture helper captures the original session/context/document, acquires and
 confirms a token, performs Page.captureScreenshot, and releases in defer against the
 same context. A failed/unconfirmed acquire skips the frame and reports the reason;
-never save potentially contaminated bytes. Release failure leaves a bounded expiry
-owned by the original document; navigation destroys that owner. Tokens compose with
-remote dispatch and other captures. Expiry is longer than the CDP call deadline; if
-capture times out or expires, do not publish its bytes. The screenshot worker carries
+never save potentially contaminated bytes. Capture release failure leaves a bounded expiry owned by the original document;
+navigation destroys that capture owner. Tokens compose with remote dispatch and other
+captures. Capture expiry is longer than its CDP call deadline; if capture times out or
+expires, do not publish its bytes. Input tokens do not use this expiry: an input effect
+has no discard operation, and the rule below owns its uncertain lifetime. The screenshot worker carries
 this identity with shotJob; its late result is checked again before PutFrame.
 
 Use this helper for every production cast-page capture. Current source inspection
@@ -189,7 +208,7 @@ operator UI and are not routed through cast suppression.
   recording's retention policy. Draft/results/token sets die with their context;
   temporary profiles with test cleanup; worker and subscriptions with Cast/Chrome.
   Stroke cache bounded to 128 chunks and fade lifetime; draft operation state is one
-  per context; suppression tokens have deadlines and end on navigation/shutdown.
+  per context; capture tokens have deadlines; unknown-input suppression ends only when its CDP target is destroyed (see below).
 - **ARCH-MOCK:** stateful Board Writer, recorder Caller/peer and FakeDriven cover
   event ordering, context replacement, hide failure and shutdown. Headless conformance
   runs once per milestone and after changes to the relevant external assumptions.
@@ -199,15 +218,14 @@ operator UI and are not routed through cast suppression.
 ### Task 1: operator protocol and Board authority
 
 Files: create `board/operator.go`, `board/operator_view.go` and colocated tests;
-modify `board/wire.go`, `board/board.go` only to share validation/projection hooks.
+modify `board/wire.go`, `board/board.go` to share validation/projection hooks.
 
-- [ ] Write table/sequence tests for reserved author, malformed request, unsafe color,
-      exact text/point bounds, live/paused/driving, duplicate Save, bounded view cache,
-      same-document resume, navigation and closed Board. Assert no emission on refusal.
-- [ ] Run `go test -p 1 ./cmd/internal/webcast/board -run 'Operator' -count=1` and confirm RED.
-- [ ] Implement typed parsing and operator-only entry points reusing existing validators;
-      preserve HTTP rejection tests. Implement projection and one pending operation.
-- [ ] Run the entire Board package, then new tests with `-race`; commit `#494 M1: ...`.
+- [ ] Write failing tests for ParseOperatorRequest, nextOperatorOperation and
+      projectOperatorView using the strategies below; run
+      `go test -p 1 ./cmd/internal/webcast/board -run 'Operator' -count=1` for RED.
+- [ ] Implement operator-only entry points, shared validation, operation settlement
+      and bounded projection; retain the HTTP parser's reserved-author rule.
+- [ ] Run the Board package and new tests with `-race`; commit `#494 M1: ...`.
 
 ### Task 2: ordered recorder bridge and capture suppression
 
@@ -215,17 +233,12 @@ Files: create `recorder/operator.go`, `recorder/ui_capture.go` and tests;
 modify `recorder/observer.js`, `recorder/recorder.go`, `recorder/drive.go`,
 `recorder/side.go`, `chrome.go`, `cast.go`; create `chrome_operator.go`.
 
-- [ ] First add scripted CDP/Writer tests: old context cannot prepare/save; path reused
-      after prepare does not retarget; pause/grant between admission and emit drops it;
-      Save reply lost does not duplicate; shutdown joins delivery and clears subscribers.
-- [ ] Add suppression overlap tests with two captures and remote dispatch in both
-      completion orders; failed hide skips capture; failed restore expires; context
-      replacement cannot be modified by an old release/result. Assert no contaminated
-      frame reaches FrameWriter and old-document accepted notes remain recorded.
-- [ ] Run `go test -p 1 ./cmd/internal/webcast/recorder ./cmd/internal/webcast -run 'Operator|Suppression' -count=1` for RED.
-- [ ] Implement exact-context routing, bounded bridge and shared capture helper. Keep
-      driver operations behind suppression confirmation and normal drive admission.
-- [ ] Run targeted recorder/Chrome lifecycle tests and race tests; commit the bridge.
+- [ ] Write failing stateful tests for handleOperator, settleOperatorWrite,
+      captureWithoutUI and withInputSuppressed. Run
+      `go test -p 1 ./cmd/internal/webcast/recorder ./cmd/internal/webcast -run 'Operator|Suppression' -count=1` for RED.
+- [ ] Implement ordered binding resolution, completion callbacks, bounded delivery
+      and capture helper with the confirmed/unknown effect rules below.
+- [ ] Run affected recorder/Chrome lifecycle and race tests; commit the bridge.
 
 ### Task 3: shared annotation mount and injected operator adapter
 
@@ -234,37 +247,28 @@ Files: modify `web/annotate.js`, `web/annotate.css`,
 `operator-policy.js`, `operator.js`, `operator_script.go` and tests. Update embedded
 asset tables and `cmd/internal/artifactpath/manifest.go` for new production Go files.
 
-- [ ] Add Node policy tests for the state table, held draft, ignored old replies,
-      scrolling, Off-mode hit targets, driver start during a stroke, duplicate view
-      snapshots and nested suppression tokens. Add shared-mount fake DOM tests.
-- [ ] Run `node --test tests/webcast/annotate.test.mjs tests/webcast/operator.test.mjs`
-      for RED; implement the shared mount and operator adapter to turn GREEN.
-- [ ] Make module assembly fail on missing/unsupported imports; test exact injected
-      bytes, then existing live/replay/terminal module closure tests.
-- [ ] Verify UI handling uses shadow-root mount targets and all its nodes are excluded;
-      update README and atlas/webcast.md plus index as needed; commit shared UI.
+- [ ] Write failing tests for annotationPolicy, suppressionPolicy, mountAnnotation
+      and assembleOperatorScript. Run
+      `node --test tests/webcast/annotate.test.mjs tests/webcast/operator.test.mjs` for RED.
+- [ ] Implement shared mount and operator adapter; keep terminal/live/replay/operator
+      consumers on the shared helpers and serve every imported module.
+- [ ] Run Node/module closure tests; update README/atlas and commit the shared UI.
 
 ### Task 4: headless proof and M1 boundary
 
 Files: create `cmd/internal/webcast/live_operator_test.go`; extend existing
 `cast_board_test.go`, recorder mirror/capture tests and `tests/webcast` cases.
 
-- [ ] Add one temporary-profile real-Chrome scenario with a second headless viewer:
-      off-mode page click/input; Pen stroke; Note drag and default-box click; Operator
-      attribution live and on disk before stopping; replay/query output; no injected
-      DOM/style/editor text in events; clean page screenshot pixels with UI visible.
-- [ ] Exercise scroll, zoom/DPR, open shadow and iframe-host anchoring; pause/resume;
-      navigation with draft/reply in flight; start driving with editor open, preserved
-      draft after release, remote mouse/wheel/keys reach page and never operator UI.
-- [ ] Run `WEBCAST_LIVE_CHROME=1 go test -p 1 ./cmd/internal/webcast -run '^TestLiveOperator' -count=1 -v`.
-      Inspect a saved headless UI screenshot for layout; no foreground activation.
+- [ ] Implement TestLiveOperator using the acceptance strategy below. Run
+      `WEBCAST_LIVE_CHROME=1 go test -p 1 ./cmd/internal/webcast -run '^TestLiveOperator' -count=1 -v`.
+      Inspect a saved headless UI screenshot; no foreground activation.
 - [ ] Run relevant Node tests, affected Go packages with `-p 1`, artifactpath inventory
-      check, `git diff --check`; mutation-check the key rejection/suppression wiring.
-- [ ] Record evidence in the issue Log, update README/atlas and required project
-      references through the gate's authorized mechanism (do not hand-edit ops).
-- [ ] Commit and run `sdlc milestone-close --issue 494 --milestone M1` with required
-      evidence per help. Fix Important/Critical findings; this is the one boundary
-      review. Report M1 ready to hub so M2 does not delay annotation smoke readiness.
+      check and `git diff --check`; mutation-check critical rejection/suppression wiring.
+- [ ] Record evidence in issue Log, update README/atlas and required project references
+      through the gate's authorized mechanism (do not hand-edit ops).
+- [ ] Commit and run `sdlc milestone-close --issue 494 --milestone M1` with evidence
+      per help. Fix Important/Critical findings; this is the one boundary review.
+      Report M1 ready to hub; M2 must not delay annotation smoke readiness.
 
 ## M2 — browser driving authority and deferred Couch entry point
 
@@ -274,34 +278,76 @@ Files: create `chrome_operator_drive.go` and tests; modify `cast_drive.go`,
 `chrome_operator.go`, `operator.js`, `inject.js`, `drive/controller.go` and its memory
 implementation only as needed for atomic stale-request checks.
 
-- [ ] Write tests where a request is withdrawn/recreated for the same viewer before
-      a click applies: the old button must not grant the new request. Test stale
-      driver state, pause, denied/granted result, cast end and synthetic remote click.
+- [ ] Write failing tests for applyOperatorControl using the strategy below.
 - [ ] Extend Controller with an atomic expected-state operation if its existing API
-      cannot express that check; do not check then call Grant outside its lock.
-- [ ] Subscribe to Controller state and project request buttons/driver name. Route
-      isolated commands through bounded exact-context bridge to Controller; show
-      fixed errors. Revoke addresses the visible generation; no optimistic success.
-- [ ] Run Controller and Chrome targeted/race tests; headless Grant/Deny/Take-back
-      scenario while annotations are disabled; update README/atlas and commit.
+      cannot express it; never check then call Grant outside its lock.
+- [ ] Project Controller's request/driver state; route bounded exact-context commands
+      to its atomic operation and present fixed errors without optimistic success.
+- [ ] Run Controller/Chrome targeted and race tests plus headless driving-controls
+      acceptance; update README/atlas and commit.
 
 ### Task 6: integrate latest menu, smoke, close and land
 
 - [ ] Wait for hub confirmation that #506 has landed, then merge fresh main before
-      touching menu files. Read #495/#506's actual shared menu model and append
-      annotation rows using it. Left acts, right copies link, Alt menu only LIVE/Chrome.
-      Do not create a competing menu. Targeted tests prove the existing link/code rows.
+      touching menu files. Read #495/#506's shared menu model and add annotation rows
+      using it: left acts, right copies, Alt menu only LIVE/Chrome. Targeted menu tests.
 - [ ] Arrange operator smoke through hub; stage/build in pair:0 only on explicit
-      instruction. Fresh session needed for a new binary. Preserve selected HEAD.
-- [ ] Record operator acceptance; run M2 checks after last changes and invoke
-      `sdlc milestone-close --issue 494 --milestone M2` with evidence. Fix findings.
+      instruction. Fresh session for the binary; preserve selected HEAD.
+- [ ] Record operator acceptance; run M2 checks after the last changes and invoke
+      `sdlc milestone-close --issue 494 --milestone M2` with evidence; fix findings.
 - [ ] Run `sdlc close --issue 494 --verified '<actual recorded evidence>'`; measured
-      actuals are adopted by the binary. Do not fabricate smoke or bypass checks.
+      actuals are adopted by the binary. No fabricated smoke or bypassed checks.
 - [ ] Merge fresh origin/main, resolve conflicts, rerun affected checks, `sdlc pr`.
       On SHIP run `sdlc merge --yes` (never --no-validate), report PR to hub and stop.
+
+## Function-level verification strategies
+
+| Function | Adversarial class and mechanical guard |
+|---|---|
+| ParseOperatorRequest | Fuzz closed tagged JSON over arbitrary bytes/bounds; malformed input cannot produce an admitted typed command or claimed author. |
+| nextOperatorOperation / settleOperatorWrite | Model event sequences with delayed/lost completion and sink failure; assert at most one write per operation and accepted iff writer evidence confirms it; no leaked reservation after refusal. |
+| projectOperatorView | Generate document/control histories and burst strokes; projection always matches Board's authoritative open-note set and stays within its chunk/point bounds. |
+| handleOperator | Script CDP context/path replacement order; exact provenance must resolve the original recorded node or refuse without any write. |
+| annotationPolicy | Sequence-test production transitions with interruptions/late replies; unavailable state has no annotation effect, preserved drafts never cross documents. |
+| suppressionPolicy | Permute acquisitions, releases and deadlines; no UI visible while any live guard exists, no old guard changes a replacement context. |
+| captureWithoutUI | Stateful Caller delays/fails each phase and changes documents; FrameWriter receives bytes only after confirmed suppression and matching capture identity. |
+| withInputSuppressed | Stateful Caller returns dialog/timeout before delayed dispatch completion; authority controls never return while the effect is unknown. |
+| assembleOperatorScript | Parse/evaluate exact assembled embedded bytes and import closure; unsupported syntax fails construction, shared exported functions match the ESM consumers. |
+| mountAnnotation | Run shared mount with controlled DOM/event source; handlers execute policy effects and never create UI outside the supplied excluded root. |
+| applyOperatorControl | Stateful Controller sequences replace pending requests for the same viewer; stale expected revision cannot affect a replacement request. |
+| TestLiveOperator | Real headless user gestures through Cast and a viewer, then disk/replay/query plus screenshots; independently assert operator authorship, page fidelity, exclusion and off/held-draft input behavior across lifecycle changes. |
+
+## Unknown remote-input outcomes (PQ-2)
+
+withInputSuppressed owns the real input call's completion, not merely inputCall's
+caller return. Add a completion result that distinguishes a CDP reply from caller
+cancellation/dialog wakeup. Confirmed replies permit release (including a confirmed
+CDP refusal); a timeout, lost connection, or early dialog return does not prove the
+command stopped. Promote such a token to a target-scoped quarantine immediately:
+all Couch controls in that CDP target remain hidden/non-interactive, and replacement
+contexts inherit the guard before their setup is released. Do not expire this guard.
+Stop further remote input to that target, report the uncertainty through Couch, and
+instruct closing/reopening the cast Chrome. The ordinary Couch revoke/end controls
+remain available. Target/process teardown is the bounded escalation and definitive
+end of any late command; no background polling or automatic restart/focus stealing.
+If the original pending call still produces a positive completion before teardown,
+its exact operation can release its guard; an abandoned response cannot be fabricated
+by a later ping. Capture tokens retain their separate safe-to-discard expiry rule.
+
+## Non-goals
+
+No simultaneous operator annotation and remote driving, no editor typing-delay queue,
+no extension/SDK, no new recording format, no page-origin network or credentials,
+no new replay interaction mode, no restyling of unrelated cast controls, and no
+menu edits until the hub releases #506. Existing recording retention remains intact.
 
 ## Revisions
 
 - 2026-10-12: Initial plan uses the operator's corrected driving rule. The earlier
   simultaneous-typing proposal is intentionally absent. M1 remains independent of
   the delayed menu and M2 controls; no implementation has started.
+
+- 2026-10-12 (PQ-1..3): Added authoritative async write settlement and reservation
+  cleanup; separated discardable capture expiry from unknown remote-input lifetime;
+  compressed test inventories into named-function adversarial strategies. These
+  refine implementation contracts without changing the approved operator experience.

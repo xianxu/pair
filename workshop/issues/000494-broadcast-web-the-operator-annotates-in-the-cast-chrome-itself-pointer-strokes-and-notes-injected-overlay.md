@@ -158,3 +158,11 @@ is lost; retries reconcile a bounded operation identity. Already accepted stroke
 remain recorded when a gesture is cancelled. Correct the original isolation wording:
 page scripts cannot access the isolated bindings, but can see/change the shared host
 DOM. All page coordinates remain attached to the draft's original box after scrolling.
+
+### 2026-10-12 — plan-quality round 1
+
+PQ-1..3 identified enqueue-versus-recorded settlement, input calls outliving their
+caller and over-enumerated test prose. The plan now requires explicit completion and
+reservation cleanup, target-lifetime protection on unconfirmed remote input, and
+named-function adversarial strategies. No code has started. Full flow inferred from
+M1/M2; approval for execution received from TL on cefcb28c2.
