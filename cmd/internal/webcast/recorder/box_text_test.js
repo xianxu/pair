@@ -4,7 +4,7 @@ const collect = eval('(' + fs.readFileSync('box_text.js', 'utf8') + ')');
 let elements;
 function text(s, x=0, y=0) { return {nodeType:3,nodeValue:s,x,y,childNodes:[]}; }
 function el(tag, attrs={}, kids=[], x=0, y=0, w=150, h=10) {
- const n={nodeType:1,localName:tag,childNodes:kids,attrs,style:{display:'block',visibility:'visible'},getAttribute:k=>attrs[k]||null,
+ const n={clientLeft:0,clientTop:0,clientWidth:w,clientHeight:h,offsetWidth:w,offsetHeight:h,nodeType:1,localName:tag,childNodes:kids,attrs,style:{display:'block',visibility:'visible'},getAttribute:k=>attrs[k]||null,
  getBoundingClientRect:()=>({left:x,top:y,right:x+w,bottom:y+h,width:w,height:h}), getClientRects(){return [this.getBoundingClientRect()]}};
  kids.forEach((k,i)=>{k.parentElement=n;k.nextSibling=kids[i+1]||null}); n.firstChild=kids[0]||null; elements.push(n); return n;
 }
@@ -54,8 +54,39 @@ elements=[];const dense=[];for(let i=0;i<21000;i++)dense.push(el('p',{},[]));set
 elements=[];setup([el('p',{'aria-label':'é'.repeat(8192)},[])]);out=collect([0,0,200,200]);assert(out.truncated);
 assert(Buffer.byteLength(out.accessible_names.map(x=>Object.values(x).join('')).join(''))<=8192);
 
-elements=[];const slotted=el('span',{id:'slotted'},[text('Slot exact')]);const slotHost=el('x-host',{id:'host'},[slotted]);slotHost.shadowRoot={nodeType:11,firstChild:el('slot',{},[])};setup([slotHost]);out=collect([0,0,200,200]);assert(out.visible_text.some(x=>x.text==='Slot exact'));
+elements=[];const slotted=el('span',{id:'slotted'},[text('Slot exact')]);const slotHost=el('x-host',{id:'host'},[slotted]);slotHost.shadowRoot={nodeType:11,firstChild:el('slot',{},[])};slotHost.shadowRoot.firstChild.assignedNodes=()=>[slotted];setup([slotHost]);out=collect([0,0,200,200]);assert(out.visible_text.some(x=>x.text==='Slot exact'));
 
 elements=[];const zeroParent=el('div',{},[el('p',{},[text('Visible positioned child')])],0,0,0,0);const hiddenParent=el('div',{},[el('span',{},[text('Visible override')])]);hiddenParent.style.visibility='hidden';setup([zeroParent,hiddenParent]);out=collect([0,0,200,200]);assert(out.visible_text.some(x=>x.text==='Visible positioned child'));assert(out.visible_text.some(x=>x.text==='Visible override'));
 elements=[];const plainHost=el('x-host',{id:'host'},[]);plainHost.shadowRoot={nodeType:11,firstChild:el('span',{},[text('Anonymous shadow')])};setup([plainHost]);out=collect([0,0,200,200]);
 assert.equal(out.visible_text.find(x=>x.text==='Anonymous shadow').selector,'#host >>> span:nth-child(1)');
+// Regression BR-4: raw range/element rects do not prove visibility.
+elements=[];
+const clippedChild=el('button',{'aria-label':'Clipped name'},[text('Clipped text',30,0)],30,0,50,10);
+const clipParent=el('div',{},[clippedChild],0,0,10,10);clipParent.style.overflowX=clipParent.style.overflowY='hidden';
+setup([clipParent]);out=collect([0,0,100,100]);
+assert.deepEqual(out.visible_text,[],'overflow hidden text is invisible');assert.deepEqual(out.accessible_names,[],'overflow hidden names are invisible');
+elements=[];setup([el('div',{'aria-label':'Wide ancestor'},[],0,0,1000,1000)]);out=collect([300,300,10,10]);
+assert.deepEqual(out.visible_text,[]);assert.deepEqual(out.accessible_names,[],'empty note/viewport intersection is not a rectangle');
+elements=[];
+const clippedLine=el('span',{'aria-label':'Line'},[text('abcdefghij',0,0)],0,0,10,10);
+const innerClip=el('div',{},[clippedLine],2,-5,3,20);innerClip.style.overflowX='scroll';innerClip.style.overflowY='visible';
+const outerClip=el('div',{},[innerClip],0,0,20,5);outerClip.style.overflowX='visible';outerClip.style.overflowY='auto';
+setup([outerClip]);out=collect([0,0,100,100]);assert.equal(out.visible_text.map(x=>x.text).join(''),'cde');assert(out.accessible_names.some(x=>x.text==='Line'));
+elements=[];const transparent=el('div',{},[el('button',{'aria-label':'Transparent'},[text('Transparent')])]);transparent.style.opacity='0';setup([transparent]);out=collect([0,0,100,100]);assert.equal(out.visible_text.length+out.accessible_names.length,0);
+// Client scrollports exclude borders/scrollbars and inherit transform scaling.
+elements=[];
+const borderLine=el('span',{},[text('abcdefghijklmnop',0,0)],0,0,30,10);
+const scaledClip=el('div',{},[borderLine],0,0,20,20);scaledClip.offsetWidth=10;scaledClip.offsetHeight=10;scaledClip.clientLeft=2;scaledClip.clientTop=0;scaledClip.clientWidth=3;scaledClip.clientHeight=10;scaledClip.style.overflowX='hidden';scaledClip.style.transform='matrix(2, 0, 0, 2, 0, 0)';
+setup([scaledClip]);out=collect([0,0,100,100]);assert.equal(out.visible_text.map(x=>x.text).join(''),'efghij');
+elements=[];const painted=el('div',{},[el('span',{'aria-label':'Paint clipped'},[text('Paint clipped',30,0)],30,0)],0,0,10,10);painted.style.contain='paint';setup([painted]);out=collect([0,0,100,100]);assert.equal(out.visible_text.length+out.accessible_names.length,0);
+elements=[];const slotNode=el('slot',{},[]);const slottedClipped=el('button',{'aria-label':'Slot clipped'},[text('Slot clipped',30,0)],30,0);slotNode.assignedNodes=()=>[slottedClipped];
+const shadowClip=el('div',{},[slotNode],0,0,10,10);shadowClip.style.overflowX='hidden';
+const clippedHost=el('x-host',{},[slottedClipped]);clippedHost.shadowRoot={nodeType:11,firstChild:shadowClip};setup([clippedHost]);out=collect([0,0,100,100]);assert.equal(out.visible_text.length+out.accessible_names.length,0,'slot uses composed shadow clip');
+for(const styles of [{clipPath:'circle(5px)'},{maskImage:'url(mask.png)'},{clip:'rect(0px, 2px, 2px, 0px)'},{transform:'matrix(0, 1, -1, 0, 0, 0)'},{overflowX:'hidden',borderTopLeftRadius:'10px'}]) {
+ elements=[];const shaped=el('div',{'aria-label':'Unsupported'},[text('Unsupported')]);Object.assign(shaped.style,styles);setup([shaped]);out=collect([0,0,100,100]);assert.equal(out.visible_text.length+out.accessible_names.length,0);assert(out.truncated);assert(out.skipped.includes('unsupported clipping'));
+}
+// A fixed descendant escapes an ordinary overflow ancestor; no second traversal.
+elements=[];const fixed=el('button',{'aria-label':'Fixed visible'},[text('Fixed visible',30,0)],30,0);fixed.style.position='fixed';const flowClip=el('div',{},[fixed],0,0,10,10);flowClip.style.overflowX='hidden';setup([flowClip]);out=collect([0,0,100,100]);assert(out.visible_text.some(x=>x.text==='Fixed visible'));
+console.log('effective clip fixtures passed');
+// Refuse before assignedNodes materializes a host list beyond the visit budget.
+elements=[];const hugeSlot=el('slot',{},[]);hugeSlot.getRootNode=()=>({host:{childNodes:{length:21000}}});hugeSlot.assignedNodes=()=>{throw new Error('unbounded slot enumeration')};setup([hugeSlot]);out=collect([0,0,100,100]);assert(out.truncated);

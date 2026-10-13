@@ -162,4 +162,67 @@ func TestLiveSubmissionCrop(t *testing.T) {
 			t.Fatalf("crop %d center RGBA=(%d,%d,%d,%d); want current red pixels at page CSS coordinates", i, red, green, blue, alpha)
 		}
 	}
+	// BR-4: intersect notes, viewport and composed ancestor scrollports. Raw
+	// DOM rectangles remain outside overflow clips, including assigned slots.
+	call("Runtime.evaluate", map[string]any{"expression": `(async()=>{
+ const fixture=document.createElement('div');fixture.id='clip-fixture';
+ fixture.style.cssText='position:absolute;left:500px;top:1400px;width:250px;height:220px;font:10px/12px monospace';
+ fixture.innerHTML='<div style="position:absolute;left:0;top:0;width:20px;height:20px;overflow:hidden"><span aria-label="Hidden overflow name" style="position:absolute;left:40px;top:0">HiddenOverflow</span></div>'+
+'<div id="partial-clip" style="position:absolute;left:0;top:30px;width:24px;height:20px;overflow:hidden"><span id="partial-text">ABCDEFGHIJ</span></div>'+
+'<div style="position:absolute;left:120px;top:30px;transform:scale(2);transform-origin:top left;width:12px;height:12px;border:2px solid black;overflow:hidden"><span id="scaled-text">123456</span></div>'+
+'<div id="outer-scroll" style="position:absolute;left:0;top:60px;width:100px;height:12px;overflow-x:hidden;overflow-y:auto"><div style="position:relative;width:100px;height:60px;overflow-x:clip;overflow-y:visible"><span aria-label="Hidden nested name" style="position:absolute;top:0">HiddenNested</span><span style="position:absolute;top:30px">Nested visible</span></div></div>'+
+'<div id="slot-host" style="position:absolute;left:0;top:100px;width:100px;height:20px"><span aria-label="Hidden slot name" style="position:absolute;left:40px;top:0">HiddenSlot</span></div>'+
+'<div style="position:absolute;left:0;top:130px;opacity:0"><span aria-label="Hidden opacity name">HiddenOpacity</span></div>'+
+'<div style="position:absolute;left:0;top:160px;clip-path:circle(5px)"><span aria-label="Unsupported shape name">UnsupportedShape</span></div>';
+ document.body.append(fixture);
+ document.getElementById('outer-scroll').scrollTop=30;
+ document.getElementById('slot-host').attachShadow({mode:'open'}).innerHTML='<div style="position:relative;width:20px;height:20px;overflow:hidden"><slot></slot></div>';
+ const wide=document.createElement('div');wide.setAttribute('aria-label','Wide offscreen ancestor');wide.style.cssText='position:absolute;left:0;top:1400px;width:1200px;height:200px;pointer-events:none';document.body.append(wide);
+ await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+ })()`, "awaitPromise": true}, nil)
+	evidence, err := c.CaptureCrops(ctx, document, []core.CaptureRegion{
+		{Box: recording.Box{500, 1400, 250, 220}, Region: recording.Box{500, 1400, 250, 220}},
+		{Box: recording.Box{900, 1400, 10, 10}, Region: recording.Box{900, 1400, 10, 10}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var visible, names strings.Builder
+	for _, entry := range evidence[0].BoxText.VisibleText {
+		visible.WriteString(entry.Text)
+	}
+	for _, entry := range evidence[0].BoxText.AccessibleNames {
+		names.WriteString(entry.Text)
+	}
+	if strings.Contains(visible.String(), "Hidden") || strings.Contains(names.String(), "Hidden") || strings.Contains(visible.String(), "UnsupportedShape") {
+		t.Fatalf("clipped content claimed visible: %+v", evidence[0].BoxText)
+	}
+	if !strings.Contains(visible.String(), "Nested visible") {
+		t.Fatalf("nested scroll lost visible text: %+v", evidence[0].BoxText)
+	}
+	foundPartial, foundScaled := false, false
+	for _, entry := range evidence[0].BoxText.VisibleText {
+		if entry.Selector == "#partial-text" {
+			foundPartial = true
+			if entry.Text != "ABCD" {
+				t.Fatalf("partial characters = %q", entry.Text)
+			}
+		}
+		if entry.Selector == "#scaled-text" {
+			foundScaled = true
+			if entry.Text != "12" {
+				t.Fatalf("scaled scrollport characters = %q", entry.Text)
+			}
+		}
+	}
+	if !foundPartial || !foundScaled {
+		t.Fatalf("missing clipped text: %+v", evidence[0].BoxText)
+	}
+	if !evidence[0].BoxText.Truncated || !strings.Contains(strings.Join(evidence[0].BoxText.Skipped, ","), "unsupported clipping") {
+		t.Fatalf("unsupported clip not explicit: %+v", evidence[0].BoxText)
+	}
+	if len(evidence[1].BoxText.VisibleText)+len(evidence[1].BoxText.AccessibleNames) != 0 {
+		t.Fatalf("offscreen region returned evidence: %+v", evidence[1].BoxText)
+	}
+
 }

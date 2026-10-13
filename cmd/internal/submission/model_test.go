@@ -52,3 +52,14 @@ func TestBoxTextLimits(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestBoxTextUnsupportedClippingIsExplicit(t *testing.T) {
+	b := BoxText{Region: [4]float64{0, 0, 10, 10}, Truncated: true, Skipped: []string{"unsupported clipping"}}
+	if err := ValidateBoxText(b); err != nil {
+		t.Fatal(err)
+	}
+	b.Truncated = false
+	if ValidateBoxText(b) == nil {
+		t.Fatal("skipped clipping needs explicit truncation")
+	}
+}

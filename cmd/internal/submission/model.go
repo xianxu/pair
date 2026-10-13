@@ -94,12 +94,12 @@ func ReadingGuide(recordingPath string) string {
 }
 
 func ValidateBoxText(b BoxText) error {
-	if len(b.Skipped) > 4 {
+	if len(b.Skipped) > 5 {
 		return fmt.Errorf("too many skipped content kinds")
 	}
 	for _, kind := range b.Skipped {
 		switch kind {
-		case "frame", "cross-origin frame", "object/embed", "closed shadow root":
+		case "frame", "cross-origin frame", "object/embed", "closed shadow root", "unsupported clipping":
 		default:
 			return fmt.Errorf("invalid skipped content kind")
 		}

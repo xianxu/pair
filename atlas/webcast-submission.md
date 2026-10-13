@@ -46,7 +46,13 @@ region (or anchor box), alongside the historical anchor text. `visible_text`
 contains visible intersecting text in reading order, without repeating parent
 and child text. `accessible_names` separately labels aria-label, alt, title,
 and role/name entries. Both include selectors. Hidden, zero-size, off-screen,
-and aria-hidden content is excluded. The PNG is the definitive appearance;
+and aria-hidden content is excluded. Both text and names must intersect a
+nonempty note/viewport region and the applicable ancestor clipping rectangles.
+Rectangular overflow, scrolling, paint containment and positive axis-aligned scaling
+are handled in the composed-tree traversal. A subtree with clip-path, masks,
+legacy clip, non-axis-aligned/non-positive transforms, rounded overflow clips or
+nonzero overflow-clip-margin is omitted and reported as
+`truncated: true`, `skipped: ["unsupported clipping"]`. Its PNG remains complete. The PNG is the definitive appearance;
 box text preserves characters and selectors locate elements.
 
 The `scope` is `top-document-and-open-shadow-roots`. Separate frame documents,
