@@ -1076,7 +1076,7 @@ proof; record the surprising case so the next change starts from evidence.
   up to `RowMetadata.UsedColumns` and treats the rest as blank tail, so a 💭 on an empty row vanished while marks
   (background only) showed. A frame edit that adds content past the old text updates the metadata too.
 - **A user-visible addition to the tab bar is a README change (#447).** The M1 review blocked on it; grep the
-  README for the row's current spelling (`LIVE ⏸ 👆 👽`) whenever the row gains a cell.
+  README for the row's current spelling (`LIVE ⏸ 👆` since #503) whenever the row gains a cell.
 - **Rule out the host before bisecting a "regression" (#450).** Four workers called `test-review` a regression since
   #436 and the issue asked for a bisect, but the failure reproduced at #436's own merge: they ran the suite inside the
   agent sandbox, which refuses unix sockets and PTYs, while #436 was verified outside it. Before bisecting, rerun the
