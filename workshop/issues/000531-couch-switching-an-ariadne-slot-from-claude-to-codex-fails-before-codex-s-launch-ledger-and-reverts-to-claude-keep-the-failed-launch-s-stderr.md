@@ -46,7 +46,7 @@ Only targeted tests while machine load is at least 40. No full suite until load 
 
 - [x] Approve the diagnostic design and durable implementation plan.
 - [x] Implement bounded capture, persistence and failure reporting through the shared launch seams.
-- [ ] Verify targeted regressions and documentation; run the required full suite only below the operator's load threshold, then close and land through SDLC.
+- [x] Verify targeted regressions and documentation; attempt full suite below the load threshold, then proceed to close with the authorized #514 exception.
 
 ## Log
 
@@ -89,3 +89,7 @@ Combined targeted race run passed for launch failures/output, switch and cold-re
 ### 2026-10-13 13:24 PDT — full-suite attempt blocked by host-sensitive performance check
 
 After one-minute load fell to 37.17, started the machine-gated full command `GOMAXPROCS=2 GOFLAGS=-p=2 make test`, log /tmp/pair531-full-suite.log. It exited 2 at unchanged doctor/perf_test.sh: capture took 11 s against a 6 s budget. Earlier shell/Neovim checks passed; the Go suite was not reached. Load rose to 125.86 during the run and was 105.25 at completion. No second full suite started while above the operator's threshold. Targeted combined race and isolated installer checks remain passing; full validation, boundary review and landing are pending a host-load window below 40. Main merged at 6f02ec4bb; only merge conflict was this issue's previously published text, resolved to retain the newer approved record. No live slots or ~/.local/bin changed.
+
+### 2026-10-13 13:41 PDT — close authorized with #514 exception
+
+TL receipt a521528a-f421-4f8c-ae55-6b12485aa4ed authorizes proceeding to close, citing #514 for the only failure observed in the full-suite attempt (11 s versus 6 s). This supersedes waiting for another below-40 window. The run stopped before the Go suite; do not call it a full passing run. Targeted combined race tests and installer regression are the passing evidence. Hub sends failed because its wrapper was briefly absent; TL recovered the report by peeking. For future not-live delivery failures, retry after a few minutes rather than ending work immediately.

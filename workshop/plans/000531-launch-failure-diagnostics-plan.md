@@ -105,3 +105,7 @@ TL approved this plan and added two requirements. Immediate failures are one san
 ### 2026-10-13 — implementation checkpoint
 
 Tasks 1–3 implementation and targeted race/installer checks complete. Code is checkpointed together because storage, runner capability and shared capture share the compile boundary. Full suite, boundary review and landing remain. HelperStarted is explicit so a pre-spawn failure does not imply a process existed. FakeRunner's direct-exit completion now matches the production Handle contract. Timing details moved to retained evidence; immediate failure text gives one inspection action. Ordinary stderr drain is bounded to one second after direct child exit, with the descriptor limitation documented in atlas.
+
+### 2026-10-13 13:41 PDT — validation exception authorized
+
+TL authorizes closing with #514 cited for the full-suite attempt's timing failure. Full make test was attempted below load40 but stopped before Go tests; targeted race tests passed. Do not await another idle window or claim the full suite passed. Boundary review and validated landing remain.
