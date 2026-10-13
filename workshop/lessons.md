@@ -1493,3 +1493,8 @@ proof; record the surprising case so the next change starts from evidence.
   still claimed launchprofile.go changed. For each active core-concepts row,
   check the actual owner, pure/integration class and new/modified/reused status
   with git diff; append a replacement table and explicitly supersede old rows.
+
+- **Pure selectors need value-only tests even when integration covers them (#517 M2).**
+  Construct records directly for projection, validation and defensive-copy
+  cases; a filesystem-backed Couch fixture proves integration, not the pure
+  seam's independent contract.

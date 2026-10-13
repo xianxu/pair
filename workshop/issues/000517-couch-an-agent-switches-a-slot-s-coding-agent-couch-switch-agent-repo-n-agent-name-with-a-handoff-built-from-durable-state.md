@@ -68,6 +68,20 @@ Durable plan: [agent switch plan](../plans/000517-agent-switch-plan.md).
 
 ## Log
 
+- 2026-10-12 23:41 PDT — BR-9: added value-only tests in
+  previous_session_pure_test.go and peek_selection_test.go. No store, filesystem
+  fixture, or process double: missing park/capture, exact outgoing/current
+  authority, legacy context exclusion, invalid identity/token/time evidence,
+  and bidirectional defensive-copy checks pass (0.244s). Production unchanged.
+
+- 2026-10-12 23:37 PDT — M2 review round 5 verified and disposed BR-6/7/8,
+  independently killed all three recovery mutations, and found no new
+  correctness defect. FIX-THEN-SHIP raised BR-9 Important: direct value-only
+  tests are missing for previousSessionEvidence and SelectPeekSource. Existing
+  coverage uses filesystem-backed integration fixtures. Ledger correctly left
+  the milestone unfinalized; add pure tests for missing/malformed evidence,
+  exact selection and defensive copying, then re-review as the gate directs.
+
 - 2026-10-12 23:28 PDT — Final make test at a5aae57e8 completed exit 0
   (/tmp/pair-517-recovery-full.log). Read-only ariadne:1 incident investigation:
   scope 6640c766feade3d0 correctly names its worktree, including the older

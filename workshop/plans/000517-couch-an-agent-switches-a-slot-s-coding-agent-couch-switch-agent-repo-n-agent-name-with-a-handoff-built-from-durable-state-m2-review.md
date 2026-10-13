@@ -100,3 +100,84 @@ findings:
     detail: |
       atlas/couch.md:1330 refers to dropOrientationLocked, removed from cmd/internal/couchtty/console_continuation.go in this range. Update the passage to describe reconcileContinuationOrientationLocked.
 ```
+
+---
+
+## Re-review — 2026-10-12T23:34:55-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 517 — couch: an agent switches a slot's coding agent (couch --switch-agent repo:N --agent NAME), with a handoff built from durable state |
+| repo | pair |
+| issue file | workshop/issues/000517-couch-an-agent-switches-a-slot-s-coding-agent-couch-switch-agent-repo-n-agent-name-with-a-handoff-built-from-durable-state.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 192c68f08ee46edc34fdd46596cbd94af49fa400..e829fa4c4b4ff65fdea419d769a633903a356dee |
+| command | sdlc milestone-close --issue 517 --milestone M2 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-12T23:34:55-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The implementation matches the revised M2 scope. All three prior findings are addressed, including BR-6’s executable regression evidence. No new correctness defect was found. One inexpensive testing gap remains: pure tty-selection logic lacks direct tests without IO.
+
+```findings
+dispose:
+  - id: BR-6
+    disposition: addressed
+    note: |
+      resume.go checks pending profile/binding authority and rechecks before cleanup. Three isolated mutations each fail TestInterruptedSwitchResumePreservesTargetAuthority; restored tests pass.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      Plan lines 1020–1088 replace the active inventory with a baseline-specific ownership/classification rule and complete table. Checked owners and unchanged dependencies against M1 37707f73b; launchprofile.go remains correctly classified unchanged.
+  - id: BR-8
+    disposition: addressed
+    note: |
+      atlas/couch.md:1330 now names reconcileContinuationOrientationLocked, matching the implementation at console_continuation.go:152 and removal of dropOrientationLocked.
+findings:
+  - id: new
+    severity: Important
+    family: pure-core-tested-without-io
+    title: |
+      Pure previous-tty projection and selection lack direct tests without IO
+    detail: |
+      ARCH-PURE: previous_session_test.go:62 constructs filesystem-backed Couch state through newTestEnv/createParkedThreadInCouch; peek_previous_test.go exercises SelectPeekSource only through integration paths. Add value-only tests for previousSessionEvidence and SelectPeekSource covering missing park/capture, exact source selection, malformed evidence, and defensive copying. The functions themselves are pure; retain that classification.
+```
+
+1. **Strengths**
+   - Recovery tests cover pending, reconciled, promoted and registered replacement identities, including a target appearing between probes.
+   - Remote admission authenticates the hub and rechecks source identity, settled state and configuration before effects.
+   - Fresh registration works independently of orientation delivery.
+   - README and atlas document the revised command, recovery behavior and tty-only compatibility.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** Add direct pure-core tests described above.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+   - Focused core, protocol, CLI, console, launcher, previous-session and replay tests passed.
+   - Removing pending-profile handling reproduced the original revision `7→10` identity loss. Removing pending-binding handling or the pre-cleanup recheck also failed regressions.
+   - Generated runtime assets and mutations were confined to a disposable copy, subsequently removed. Reviewed checkout remains clean.
+   - Full `make test` and live operator acceptance were not independently rerun.
+
+6. **Architectural notes**
+   - **ARCH-DRY — pass:** existing resolver, receipts, queue and lifecycle reused.
+   - **ARCH-PURE — flag:** direct pure tests missing as detailed above.
+   - **ARCH-PURPOSE — pass:** implements the documented scope revisions.
+   - **ARCH-MOCK — pass:** stateful process/session doubles and existing conformance seams retained.
+   - **ARCH-CONSTRAINTS — pass:** existing queue, receipt and replay bounds retained.
+   - **ARCH-SECURE — pass:** authenticated callers, server-selected configuration and validated persisted evidence.
+   - **ARCH-ORDER — pass:** uncertainty preserves replacement authority; mutation-tested interruption sequences.
+   - **ARCH-FUNERAL — pass:** bounded receipts and existing thread/capture cleanup own retained state.
+
+7. **Plan revision recommendations:** No ownership correction needed. Record the direct pure-test coverage when added.

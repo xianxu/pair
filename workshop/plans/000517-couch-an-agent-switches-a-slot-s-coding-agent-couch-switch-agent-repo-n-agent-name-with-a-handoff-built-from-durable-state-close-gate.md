@@ -121,6 +121,34 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - "n": 5
+      timestamp: "2026-10-12T23:34:55-07:00"
+      dispatched: "2026-10-12T23:28:27-07:00"
+      agent: codex
+      dispose:
+        - id: BR-6
+          disposition: addressed
+          note: resume.go checks pending profile/binding authority and rechecks before cleanup. Three isolated mutations each fail TestInterruptedSwitchResumePreservesTargetAuthority; restored tests pass.
+          round: 5
+        - id: BR-7
+          disposition: addressed
+          note: Plan lines 1020–1088 replace the active inventory with a baseline-specific ownership/classification rule and complete table. Checked owners and unchanged dependencies against M1 37707f73b; launchprofile.go remains correctly classified unchanged.
+          round: 5
+        - id: BR-8
+          disposition: addressed
+          note: atlas/couch.md:1330 now names reconcileContinuationOrientationLocked, matching the implementation at console_continuation.go:152 and removal of dropOrientationLocked.
+          round: 5
+      findings:
+        - id: BR-9
+          severity: Important
+          title: Pure previous-tty projection and selection lack direct tests without IO
+          detail: 'ARCH-PURE: previous_session_test.go:62 constructs filesystem-backed Couch state through newTestEnv/createParkedThreadInCouch; peek_previous_test.go exercises SelectPeekSource only through integration paths. Add value-only tests for previousSessionEvidence and SelectPeekSource covering missing park/capture, exact source selection, malformed evidence, and defensive copying. The functions themselves are pure; retain that classification.'
+          family: pure-core-tested-without-io
+          round: 5
+      boundary: M2
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#517 (boundary-review)
@@ -175,8 +203,19 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-8** [Minor] `documentation-referents-match-implementation` Atlas still names a deleted orientation-pruning helper
   atlas/couch.md:1330 refers to dropOrientationLocked, removed from cmd/internal/couchtty/console_continuation.go in this range. Update the passage to describe reconcileContinuationOrientationLocked.
 
+## Round 5 — 2026-10-12T23:34:55-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-6 — addressed — resume.go checks pending profile/binding authority and rechecks before cleanup. Three isolated mutations each fail TestInterruptedSwitchResumePreservesTargetAuthority; restored tests pass.
+- BR-7 — addressed — Plan lines 1020–1088 replace the active inventory with a baseline-specific ownership/classification rule and complete table. Checked owners and unchanged dependencies against M1 37707f73b; launchprofile.go remains correctly classified unchanged.
+- BR-8 — addressed — atlas/couch.md:1330 now names reconcileContinuationOrientationLocked, matching the implementation at console_continuation.go:152 and removal of dropOrientationLocked.
+
+### Raised
+
+- **BR-9** [Important] `pure-core-tested-without-io` Pure previous-tty projection and selection lack direct tests without IO
+  ARCH-PURE: previous_session_test.go:62 constructs filesystem-backed Couch state through newTestEnv/createParkedThreadInCouch; peek_previous_test.go exercises SelectPeekSource only through integration paths. Add value-only tests for previousSessionEvidence and SelectPeekSource covering missing park/capture, exact source selection, malformed evidence, and defensive copying. The functions themselves are pure; retain that classification.
+
 ## Open findings
 
-- **BR-6** [Critical] `replacement-recovery-preserves-unconfirmed-effects` Resume can discard a surviving replacement's pending start identity
-- **BR-7** [Critical] `core-concepts-match-implementation` The active core-concepts table claims a resolver change absent from the implementation
-- **BR-8** [Minor] `documentation-referents-match-implementation` Atlas still names a deleted orientation-pruning helper
+- **BR-9** [Important] `pure-core-tested-without-io` Pure previous-tty projection and selection lack direct tests without IO
