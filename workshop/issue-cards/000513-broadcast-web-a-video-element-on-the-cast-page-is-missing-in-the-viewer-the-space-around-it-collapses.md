@@ -1,6 +1,6 @@
 ---
 id: 000513
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 447ed9c0c64fb362ae2ba204f20428fb74b271ff
         evidence_commit: 3a5c72be8de538ea5978ae15334b5d2eaeb2a5d0
+        landed_commit: 1e34a8ef6cd5fb057cc5eba0a12ba396a001dc25
 ---
 
 # broadcast-web: a video element on the cast page is missing in the viewer (the space around it collapses)
