@@ -104,3 +104,97 @@ None.
 **7. Plan revision recommendations**
 
 Add a `## Revisions` entry stating that acknowledged ordinary control operations must execute outside terminal input handlers. Enumerate the four entry paths, their worker ownership and completion fencing, and the responsiveness regression test.
+
+---
+
+## Re-review — 2026-10-13T12:16:45-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 523 — broadcast: 👆 and 👽 are capability switches on both casts (👆 off: no one annotates; 👽 off: no one drives from outside) |
+| repo | pair |
+| issue file | workshop/issues/000523-broadcast-and-are-capability-switches-on-both-casts-off-no-one-annotates-off-no-one-drives-from-outside.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 2cdc490c153a6cef0c1a3e15247b95d3085b5d01..79be8f1878d82151068a8835cf11817a80e36af6 |
+| command | sdlc close --issue 523 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-13T12:16:45-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+The pinned implementation matches the capability-switch contracts, and BR-7 is addressed with regression evidence that fails without the fix. No new blocking findings. Confidence is limited by local Chrome startup failures: headless tests crashed before exercising capability behavior.
+
+```findings
+dispose:
+  - id: BR-7
+    disposition: addressed
+    note: |
+      console_drive.go:204 routes all four entry paths through one tracked slot with generation and cast fencing. TestDriveActionsDoNotBlockTerminal passes at HEAD; replacing asynchronous dispatch with synchronous execution fails all six ACK/release cases. Stale-completion and shutdown tests also pass.
+  - id: BR-1
+    disposition: addressed
+    note: |
+      replay.js retains annotation-clear and resets retained note IDs. Replay prefix and arbitrary-seek regressions in replay.test.mjs:86 and :93 pass.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      liveGate forwards WriteControl to the acknowledged recorder operation. cast_control_ack_test.go covers delayed commitment, closed recorder, cancellation and ownership; the webcast suite passes.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      The Plan’s integration table names board/board.go and annotation.go; both exist and contain the stated Board admission implementation in the pinned diff.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      README.md:1057 documents independent default-OFF capabilities and persistent links. Board/controller zero states are Off, and default/admission tests pass.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Browser requests carry originating generations; HTTP and operator ingress validate them. Pre-ingress Off/On regressions cover annotation mutations and drive request/release/input and pass.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      The Plan’s BR-6 revision explicitly permits one 250ms unresolved-delivery timer. chrome_operator.go:100 implements that exception, removes acknowledged deliveries from timer selection, and stops the ticker on worker exit.
+```
+
+1. **Strengths**
+
+   - Shared pure capability transitions distinguish admission generations, cleanup attempts, retryable failures and terminal uncertainty.
+   - BR-7 preserves acknowledged writes while moving recorder/CDP waits off terminal input handlers.
+   - Recording clear behavior covers Go/JS reduction, catch-up, replay and transient annotation caches.
+   - README and atlas updates cover defaults, controls, recovery and recording semantics.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Passed: 238 browser tests; full Couch, broadcast and webcast package suites.
+   - Passed: race tests for Board, capability, drive and recorder packages.
+   - BR-7 mutation check: synchronous dispatch makes all six responsiveness cases fail.
+   - Generated missing runtime assets only in the disposable copy. Broadcast passed with `TMPDIR=/tmp`.
+   - Headless integration remained unverified because Chrome crashed during startup.
+   - Disposable copy removed; review checkout remains unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared transition, click-policy and acknowledged-write helpers.
+   - **ARCH-PURE — pass:** deterministic policy/reducers remain separate from integration owners.
+   - **ARCH-PURPOSE — pass:** enforcement covers viewers, operator bindings, queued work and recording consumers.
+   - **ARCH-MOCK — pass:** stateful doubles exercise production seams; live conformance exists but could not run successfully here.
+   - **ARCH-CONSTRAINTS — pass:** bounded operation slots and latest-value subscriptions; BR-7 responsiveness verified.
+   - **ARCH-SECURE — pass:** role intersection and generation validation fail closed.
+   - **ARCH-ORDER — pass:** explicit transitions and controlled ordering tests cover stale completion, cancellation and uncertain outcomes.
+   - **ARCH-FUNERAL — pass:** new state and workers have cast/console ownership; recording additions use the existing artifact lifecycle.
+
+7. **Plan revision recommendations:** None.

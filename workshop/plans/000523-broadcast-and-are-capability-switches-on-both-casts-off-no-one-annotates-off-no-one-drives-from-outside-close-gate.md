@@ -140,6 +140,43 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - "n": 6
+      timestamp: "2026-10-13T12:16:45-07:00"
+      dispatched: "2026-10-13T12:13:21-07:00"
+      agent: codex
+      dispose:
+        - id: BR-7
+          disposition: addressed
+          note: console_drive.go:204 routes all four entry paths through one tracked slot with generation and cast fencing. TestDriveActionsDoNotBlockTerminal passes at HEAD; replacing asynchronous dispatch with synchronous execution fails all six ACK/release cases. Stale-completion and shutdown tests also pass.
+          round: 6
+        - id: BR-1
+          disposition: addressed
+          note: replay.js retains annotation-clear and resets retained note IDs. Replay prefix and arbitrary-seek regressions in replay.test.mjs:86 and :93 pass.
+          round: 6
+        - id: BR-2
+          disposition: addressed
+          note: liveGate forwards WriteControl to the acknowledged recorder operation. cast_control_ack_test.go covers delayed commitment, closed recorder, cancellation and ownership; the webcast suite passes.
+          round: 6
+        - id: BR-3
+          disposition: addressed
+          note: The Plan’s integration table names board/board.go and annotation.go; both exist and contain the stated Board admission implementation in the pinned diff.
+          round: 6
+        - id: BR-4
+          disposition: addressed
+          note: README.md:1057 documents independent default-OFF capabilities and persistent links. Board/controller zero states are Off, and default/admission tests pass.
+          round: 6
+        - id: BR-5
+          disposition: addressed
+          note: Browser requests carry originating generations; HTTP and operator ingress validate them. Pre-ingress Off/On regressions cover annotation mutations and drive request/release/input and pass.
+          round: 6
+        - id: BR-6
+          disposition: addressed
+          note: The Plan’s BR-6 revision explicitly permits one 250ms unresolved-delivery timer. chrome_operator.go:100 implements that exception, removes acknowledged deliveries from timer selection, and stops the ticker on worker exit.
+          round: 6
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 79be8f1878d82151068a8835cf11817a80e36af6
+      blocked: false
 ---
 
 # Gate ledger — pair#523 (boundary-review)
@@ -201,6 +238,18 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-7** [Critical] `operating-envelope-traceability` Acknowledged drive actions block Couch's input loop
   ARCH-CONSTRAINTS: controller_mem.go:204–212 now synchronously awaits WriteControl and Release, but console_drive.go:180–199 still calls Grant, Deny and Revoke directly from mouse handlers. A gated-writer reproduction confirmed revokeDrive cannot return before acknowledgment. This is the 2nd finding in family operating-envelope-traceability. Enforce the rule that no terminal input handler awaits recorder/CDP completion: sweep grant, deny, popup revoke and Ctrl-click revoke, dispatch them through bounded owned work, and fence completion by cast identity. Preserve the acknowledged writer.
 
+## Round 6 — 2026-10-13T12:16:45-07:00 (codex) — passed
+
+### Disposed
+
+- BR-7 — addressed — console_drive.go:204 routes all four entry paths through one tracked slot with generation and cast fencing. TestDriveActionsDoNotBlockTerminal passes at HEAD; replacing asynchronous dispatch with synchronous execution fails all six ACK/release cases. Stale-completion and shutdown tests also pass.
+- BR-1 — addressed — replay.js retains annotation-clear and resets retained note IDs. Replay prefix and arbitrary-seek regressions in replay.test.mjs:86 and :93 pass.
+- BR-2 — addressed — liveGate forwards WriteControl to the acknowledged recorder operation. cast_control_ack_test.go covers delayed commitment, closed recorder, cancellation and ownership; the webcast suite passes.
+- BR-3 — addressed — The Plan’s integration table names board/board.go and annotation.go; both exist and contain the stated Board admission implementation in the pinned diff.
+- BR-4 — addressed — README.md:1057 documents independent default-OFF capabilities and persistent links. Board/controller zero states are Off, and default/admission tests pass.
+- BR-5 — addressed — Browser requests carry originating generations; HTTP and operator ingress validate them. Pre-ingress Off/On regressions cover annotation mutations and drive request/release/input and pass.
+- BR-6 — addressed — The Plan’s BR-6 revision explicitly permits one 250ms unresolved-delivery timer. chrome_operator.go:100 implements that exception, removes acknowledged deliveries from timer selection, and stops the ticker on worker exit.
+
 ## Open findings
 
-- **BR-7** [Critical] `operating-envelope-traceability` Acknowledged drive actions block Couch's input loop
+(none — every finding has been disposed)

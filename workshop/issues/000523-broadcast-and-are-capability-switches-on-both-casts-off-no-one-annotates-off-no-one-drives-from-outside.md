@@ -92,6 +92,7 @@ Durable plan: [000523-cast-capability-switches-plan.md](../plans/000523-cast-cap
 ## Log
 
 ### 2026-10-13 — Integrated final verification
+- 2026-10-13: closed — Operator smoke and final driver-chip look passed. BR-7 all four ordinary drive actions use bounded tracked dispatch; ACK/release barriers prove responsive typing, stale admission/completion fences and shutdown joining; repeated normal/race checks passed. Clean main merge includes #524/#525. Complete GOMAXPROCS=4 make test passed (pair-523-integrated-final-full.log); complete real headless Chrome Live suite passed 166.777s (pair-523-integrated-final-headless.log). Atlas and recovery guidance updated; full notices copyable; pair:0 previously restored, now left to TL.; review verdict: SHIP
 
 - Complete `GOMAXPROCS=4 make test` passed, exit 0, after the clean merge of
   main containing #524 and #525 (`/tmp/pair-523-integrated-final-full.log`).
