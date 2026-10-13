@@ -17,10 +17,10 @@ actual_hours: 0.03
 tracker:
     version: 1
     completion:
-        token: close-1de337c43dec
+        token: close-c7af75a17363
         repository: github.com/xianxu/pair
-        reviewed_head: a5edec14048bde1abd649e89ab789cd99c1323f9
-        evidence_commit: 89ea9c5aa85535904c4a7418727137b2a2b0b1ff
+        reviewed_head: 8f3c52df91bcc525505c556c1d8f3a3762f2d0ae
+        evidence_commit: a4a4f7560ce056f4585e1dd109286a92e0b6fd90
 ---
 
 # broadcast-web: a note crop can catch a fade-in animation (dark crop); settle or finish animations in the box before capture
