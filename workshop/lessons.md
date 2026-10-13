@@ -1481,3 +1481,15 @@ proof; record the surprising case so the next change starts from evidence.
 - An injected adapter is still integration code: pure state/event transitions own retry state; the adapter interprets effects and ignores stale completions by attempt identity.
 - Reuse a shared recipient identity/parser when adding a routing consumer; keep each caller's uniqueness and incarnation policy separate.
 - Visible evidence needs a valid, nonempty effective intersection, including ancestor clips. Share that predicate across text and accessibility entries; test wholly off-screen regions and clipped descendants in both the DOM fixture and a real browser.
+
+- **A lifecycle guard checks every representation of its authority (#517 M2).**
+  Before registration, a replacement profile lives in Start.LaunchProfile;
+  after registration or unknown promotion it lives on the incarnation. A guard
+  reading only the latter can erase a surviving target during cleanup. Enumerate
+  interruption points, exercise startup reconciliation then the user action,
+  and assert identities as well as errors and launch counts.
+- **Audit the whole active owner table against a named baseline (#517 M2).**
+  A scope cut moved missing-config policy into switchagent.go while the plan
+  still claimed launchprofile.go changed. For each active core-concepts row,
+  check the actual owner, pure/integration class and new/modified/reused status
+  with git diff; append a replacement table and explicitly supersede old rows.

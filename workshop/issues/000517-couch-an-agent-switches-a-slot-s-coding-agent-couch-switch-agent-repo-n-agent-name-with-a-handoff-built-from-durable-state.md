@@ -68,6 +68,24 @@ Durable plan: [agent switch plan](../plans/000517-agent-switch-plan.md).
 
 ## Log
 
+- 2026-10-12 23:03 PDT — verified TL live-acceptance receipt
+  2e2d8743-a85f-44d7-9722-2cb37ac4dca6: operator watched pair:5 switch
+  Claude to Codex, accepted then succeeded in about eight seconds
+  (22:59:29–22:59:37), same tag 1-pair-20, empty composer and no orientation
+  paste. Previous/full peek returned 4,051 old Claude lines and exact raw/events
+  paths. Controlled failed-start and recovery tests were rerun: fork failure
+  preserves verified park and resumes old-native Claude; present/unknown target
+  or helper refuses; exact absent target permits old resume; defaults survive
+  uncertain registration (2.409s). No forced live failure was performed.
+- 2026-10-12 23:03 PDT — M2 fresh review returned REWORK (not finalized):
+  BR-6 found pending replacement authority in Start.LaunchProfile bypassing the
+  resume guard before unknown promotion; BR-7 found stale active core-concepts
+  ownership; minor atlas reference names removed dropOrientationLocked. Fix
+  every pending/completed replacement representation and sweep the active owner
+  table, with failing regressions and updated Revisions. TL receipt
+  1f49877d-31a5-42c5-a045-1588c6bc5c2b requests release of pair:0 for #494;
+  checkpoint review evidence then move branch back to pair:2 for fixes.
+
 - 2026-10-12 22:53 PDT — branch moved with sdlc to pair:0; make build
   passed there and HEAD remained c136ea66d. Sent built commit to hub. M2 gate
   initially refused actual measurement because its default transcript roots

@@ -94,6 +94,33 @@ rounds:
       isolation: fenced
       reviewed: 0f3a7543cb999a96c70c2d80b64a9c71ecd73691
       blocked: false
+    - "n": 4
+      timestamp: "2026-10-12T23:01:40-07:00"
+      dispatched: "2026-10-12T22:54:40-07:00"
+      agent: codex
+      findings:
+        - id: BR-6
+          severity: Critical
+          title: Resume can discard a surviving replacement's pending start identity
+          detail: 'ARCH-ORDER / ARCH-PURPOSE: cmd/internal/couchcore/resume.go:459 checks incarnation.LaunchProfile but misses incarnation.Start.LaunchProfile before registration or unknown promotion. An isolated regression with dead supervisor/helper and a surviving target terminal remained pending after startup reconciliation, then resume erased the target claim (revision 7 to 10, incarnations empty) and returned resume-session-gone. Cover every pending/completed replacement representation before lifecycle cleanup and add interruption-sequence tests asserting retained identity and permitted effects.'
+          family: replacement-recovery-preserves-unconfirmed-effects
+          round: 4
+        - id: BR-7
+          severity: Critical
+          title: The active core-concepts table claims a resolver change absent from the implementation
+          detail: 'ARCH-PURE traceability: workshop/plans/000517-agent-switch-plan.md:872 claims LaunchProfileResolution gained an explicit configured/missing result, but cmd/internal/couchcore/launchprofile.go:52 is unchanged and the check lives in switchagent.go:241. This is the 2nd finding in family core-concepts-match-implementation. Earlier rounds fixed instances; do not fix only this row. Apply a rule requiring every active row''s owner, classification and change status to match the implementation against a named baseline, sweep the table, and document the correction under Revisions. One concrete entity contradiction was verified.'
+          family: core-concepts-match-implementation
+          round: 4
+        - id: BR-8
+          severity: Minor
+          title: Atlas still names a deleted orientation-pruning helper
+          detail: atlas/couch.md:1330 refers to dropOrientationLocked, removed from cmd/internal/couchtty/console_continuation.go in this range. Update the passage to describe reconcileContinuationOrientationLocked.
+          family: documentation-referents-match-implementation
+          round: 4
+      boundary: M2
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#517 (boundary-review)
@@ -137,6 +164,19 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-2 — addressed — The plan's M1 file map and Revisions identify previous_session.go, peek_selection.go, bounded.go, and run.go as implemented owners and distinguish unchanged dependencies.
 - BR-3 — addressed — Controlled collection during exact-capture replay verifies protection and subsequent lease release on success and failure.
 
+## Round 4 — 2026-10-12T23:01:40-07:00 (codex) — BLOCKED
+
+### Raised
+
+- **BR-6** [Critical] `replacement-recovery-preserves-unconfirmed-effects` Resume can discard a surviving replacement's pending start identity
+  ARCH-ORDER / ARCH-PURPOSE: cmd/internal/couchcore/resume.go:459 checks incarnation.LaunchProfile but misses incarnation.Start.LaunchProfile before registration or unknown promotion. An isolated regression with dead supervisor/helper and a surviving target terminal remained pending after startup reconciliation, then resume erased the target claim (revision 7 to 10, incarnations empty) and returned resume-session-gone. Cover every pending/completed replacement representation before lifecycle cleanup and add interruption-sequence tests asserting retained identity and permitted effects.
+- **BR-7** [Critical] `core-concepts-match-implementation` The active core-concepts table claims a resolver change absent from the implementation
+  ARCH-PURE traceability: workshop/plans/000517-agent-switch-plan.md:872 claims LaunchProfileResolution gained an explicit configured/missing result, but cmd/internal/couchcore/launchprofile.go:52 is unchanged and the check lives in switchagent.go:241. This is the 2nd finding in family core-concepts-match-implementation. Earlier rounds fixed instances; do not fix only this row. Apply a rule requiring every active row's owner, classification and change status to match the implementation against a named baseline, sweep the table, and document the correction under Revisions. One concrete entity contradiction was verified.
+- **BR-8** [Minor] `documentation-referents-match-implementation` Atlas still names a deleted orientation-pruning helper
+  atlas/couch.md:1330 refers to dropOrientationLocked, removed from cmd/internal/couchtty/console_continuation.go in this range. Update the passage to describe reconcileContinuationOrientationLocked.
+
 ## Open findings
 
-(none — every finding has been disposed)
+- **BR-6** [Critical] `replacement-recovery-preserves-unconfirmed-effects` Resume can discard a surviving replacement's pending start identity
+- **BR-7** [Critical] `core-concepts-match-implementation` The active core-concepts table claims a resolver change absent from the implementation
+- **BR-8** [Minor] `documentation-referents-match-implementation` Atlas still names a deleted orientation-pruning helper
