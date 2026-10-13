@@ -34,7 +34,7 @@ func TestCastCodesShowOnlyOnTheOperatorsScreen(t *testing.T) {
 	s := f.startLive(t)
 	v := openViewer(t, s)
 	code := viewCode(t, s)
-	f.hoverStatus(f.pointerSpan().Start + 1) // LIVE's 👆
+	f.hoverStatus(f.liveSpan().Start + 1) // LIVE ⏸
 	waitFor(t, "the codes tooltip", func() bool { return strings.Contains(f.screenText(), "view "+code) })
 	// A frame after the tooltip is up reaches the viewer, without it.
 	f.child.Feed([]byte("AFTER-HOVER"))
@@ -58,16 +58,7 @@ func TestCodesMenuRotatesAndDisconnects(t *testing.T) {
 	if f.phase() != broadcastLive {
 		t.Fatal("Alt+click stopped the broadcast")
 	}
-	f.con.codes.mu.Lock()
-	box := f.con.codes.menuBox
-	f.con.codes.mu.Unlock()
-	var top int
-	for _, it := range box.items {
-		if it.ID == 1 {
-			top = it.Top
-		}
-	}
-	_, _ = fmt.Fprintf(f.stdin, "\x1b[<0;%d;%dM\x1b[<0;%d;%dm", box.X+3, top+1, box.X+3, top+1)
+	f.chooseCodes(t, codesAction{link: broadcast.LinkView})
 	waitFor(t, "a new view code", func() bool { return viewCode(t, s) != old })
 	waitFor(t, "the notice", func() bool { return strings.Contains(f.screenText(), "New LIVE view code") })
 	if strings.Contains(f.lastRow(), viewCode(t, s)) {
@@ -119,9 +110,10 @@ func TestGuessRotationAlertAndFlash(t *testing.T) {
 	waitFor(t, "the flash over", func() bool { return !strings.Contains(f.screenText(), "LIVE view 2222") })
 }
 
-// The web cast's codes hang on #501's link controls: Chrome's 👆 shows the
-// view code and 👽 the six-digit drive code; the Chrome cell itself shows
-// none. Alt+click on the cell opens its Codes menu without toggling the cast.
+// The cast row's rule on the web cast (pair#495 smoke): hovering Chrome ⏸
+// shows all its codes and its link controls show none; Alt+click opens the
+// Codes menu on the cell only; the menu's blue entries copy the links; and a
+// right-click on the cell copies the view-only link, with or without Alt.
 func TestWebCastCodesOnTheChromeCell(t *testing.T) {
 	c := newDriveCast(t)
 	codes := c.cast().Codes()
@@ -131,31 +123,91 @@ func TestWebCastCodesOnTheChromeCell(t *testing.T) {
 	c.con.mu.Lock()
 	viewIcon, driveIcon := c.con.statusWebViewLink, c.con.statusWebDriveLink
 	c.con.mu.Unlock()
-	if viewIcon.End <= viewIcon.Start || driveIcon.End <= driveIcon.Start {
-		t.Fatalf("no link controls: %+v %+v", viewIcon, driveIcon)
+	mouse := func(button, x int) {
+		_, _ = fmt.Fprintf(c.stdin, "\x1b[<%d;%d;24M\x1b[<%d;%d;24m", button, x+1, button, x+1)
 	}
 	hover := func(x int) { _, _ = fmt.Fprintf(c.stdin, "\x1b[<35;%d;24M", x+1) }
-	hover(viewIcon.Start)
-	waitFor(t, "the view code on 👆", func() bool { return strings.Contains(c.screenText(), "view "+codes[0].Code) })
-	if strings.Contains(c.screenText(), codes[1].Code) {
-		t.Fatal("👆 showed the drive code")
+	all := "view " + codes[0].Code + " · drive " + codes[1].Code
+	hover(c.cell() - 1)
+	waitFor(t, "all codes on Chrome ⏸", func() bool { return strings.Contains(c.screenText(), all) })
+	for _, icon := range []ColumnSpan{viewIcon, driveIcon} {
+		hover(icon.Start)
+		waitFor(t, "no codes on a link control", func() bool {
+			s := c.screenText()
+			return !strings.Contains(s, codes[0].Code) && !strings.Contains(s, codes[1].Code)
+		})
 	}
-	hover(driveIcon.Start)
-	waitFor(t, "the drive code on 👽", func() bool { return strings.Contains(c.screenText(), "drive "+codes[1].Code) })
-	hover(c.cell())
-	waitFor(t, "no tooltip on the cell", func() bool {
-		return !strings.Contains(c.screenText(), "drive "+codes[1].Code) && !strings.Contains(c.screenText(), "view "+codes[0].Code)
-	})
-	x := c.cell()
 	before := c.wphase()
-	_, _ = fmt.Fprintf(c.stdin, "\x1b[<8;%d;24M\x1b[<8;%d;24m", x+1, x+1)
+	mouse(8, viewIcon.Start) // Alt+click on 👆: copies, no menu
+	time.Sleep(100 * time.Millisecond)
+	if strings.Contains(c.screenText(), "Chrome codes") {
+		t.Fatal("Alt+click on a link control opened the menu")
+	}
+	mouse(8, c.cell()-1)
 	waitFor(t, "the Chrome Codes menu", func() bool { return strings.Contains(c.screenText(), "Chrome codes") })
 	if c.wphase() != before {
 		t.Fatal("Alt+click toggled the cast")
 	}
-	if !strings.Contains(c.screenText(), "rotate all") {
-		t.Fatal("no rotate-all item with two links")
+	for _, want := range []string{"Copy view-only link", "Copy drive link", "rotate all"} {
+		if !strings.Contains(c.screenText(), want) {
+			t.Fatalf("menu lacks %q", want)
+		}
 	}
+	if !strings.Contains(c.host.Written(), "38;5;75") {
+		t.Fatal("the copy entries are not drawn in the link blue")
+	}
+	c.chooseCodes(t, codesAction{copy: true, link: broadcast.LinkDrive})
+	waitFor(t, "drive link copied from the menu", func() bool { return copies(c.consoleFixture, c.link) == 1 })
+	mouse(2|8, c.cell()-1) // Alt+right-click: the view link now, never the drive link
+	waitFor(t, "view link copied", func() bool { return copies(c.consoleFixture, c.viewLink) >= 1 })
+	if copies(c.consoleFixture, c.link) != 1 {
+		t.Fatal("Alt+right-click still copies the drive link")
+	}
+}
+
+// The screen broadcast's Codes menu copies its view-only link too.
+func TestScreenCodesMenuCopiesTheViewLink(t *testing.T) {
+	f := broadcastFixture(t, &broadcast.FakeTunnel{}, nil)
+	s := f.startLive(t)
+	x := f.liveSpan().Start + 1
+	_, _ = fmt.Fprintf(f.stdin, "\x1b[<8;%d;24M\x1b[<8;%d;24m", x, x)
+	waitFor(t, "the LIVE Codes menu", func() bool { return strings.Contains(f.screenText(), "Copy view-only link") })
+	before := copies(f, s.Link())
+	f.chooseCodes(t, codesAction{copy: true, link: broadcast.LinkView})
+	waitFor(t, "view link copied", func() bool { return copies(f, s.Link()) == before+1 })
+	if f.phase() != broadcastLive {
+		t.Fatal("the menu stopped the broadcast")
+	}
+}
+
+func (f *consoleFixture) liveSpan() ColumnSpan {
+	f.con.mu.Lock()
+	defer f.con.mu.Unlock()
+	return f.con.statusControl
+}
+
+// chooseCodes clicks the open Codes menu's entry that does want.
+func (f *consoleFixture) chooseCodes(t *testing.T, want codesAction) {
+	t.Helper()
+	f.con.codes.mu.Lock()
+	box, actions := f.con.codes.menuBox, f.con.codes.menuItems
+	f.con.codes.mu.Unlock()
+	id := 0
+	for k, a := range actions {
+		if a == want {
+			id = k
+		}
+	}
+	top := -1
+	for _, it := range box.items {
+		if it.ID == id {
+			top = it.Top
+		}
+	}
+	if id == 0 || top < 0 {
+		t.Fatalf("no menu entry %+v", want)
+	}
+	_, _ = fmt.Fprintf(f.stdin, "\x1b[<0;%d;%dM\x1b[<0;%d;%dm", box.X+3, top+1, box.X+3, top+1)
 }
 
 func (f *consoleFixture) screenAttempt() uint64 {

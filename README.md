@@ -1005,10 +1005,9 @@ server, an agent's mock, anything). While it runs the tab bar shows
 **Go live** button Couch puts at the bottom right of the page, and the active tab
 is cast (`Chrome ⏸`). The same three pause and resume it, and the browser stays
 open while paused. Beside the cell, `↗` brings the cast Chrome window and tab
-to the front, `👆` copies the **view link** and `👽` the **drive link**
-(`Chrome ⏸ ↗ 👆 👽`). Right-click the cell to copy the **view link** (watch, point, leave
-notes); `Alt` (Option)+right-click copies the **drive link** (below); `Ctrl`+click
-(left or right) ends the cast and closes Chrome. Closing Chrome yourself ends the
+to the front, `👆` copies the **view link** and `👽` the **drive link**, on a left or a
+right click (`Chrome ⏸ ↗ 👆 👽`). Right-click the cell to copy the **view link** (watch,
+point, leave notes); `Ctrl`+click (left or right) ends the cast and closes Chrome. Closing Chrome yourself ends the
 cast too. The cast follows whichever tab is active, including tabs opened later.
 Viewers' page shows whether the cast is live and, while it is, the page's title
 and URL; nothing you do while paused reaches them.
@@ -1076,11 +1075,14 @@ viewer's name; the cast's server sends nothing without the code, not even the st
 Send the link however you like and say the code on the call. A link may carry the code
 as `link#4821`: the page reads it and drops it from the address bar, and link previews
 never see it.
-- **Seeing the codes.** Hover the link controls to see their codes: LIVE's `👆` shows
-  the screen broadcast's (`view 4821 · pointer 7730`), the Chrome cell's `👆` its view
-  code and `👽` its drive code. View and pointer codes are 4 digits; the drive code is 6.
-- **Rotating codes.** `Alt+click` the cell for its Codes menu: rotate one link's code,
-  or all of them. Rotating disconnects everyone who used the old code.
+- **Seeing the codes.** Hover `LIVE ⏸` or `Chrome ⏸` to see all of that cast's codes,
+  for example `view 4821 · pointer 7730`. View and pointer codes are 4 digits; the drive
+  code is 6.
+- **The Codes menu.** `Alt+click` `LIVE ⏸` or `Chrome ⏸`:
+  - its blue entries copy the cast's links ("Copy view-only link", "Copy pointer link",
+    "Copy drive link");
+  - the others rotate one link's code, or all of them. Rotating disconnects everyone
+    who used the old code.
 - **Wrong guesses.** About 8 wrong tries on one code rotate it by themselves. Couch
   says so, and viewers already in stay connected.
 - **What viewers see.** The codes show on your screen only, never in what the LIVE
@@ -1088,6 +1090,18 @@ never see it.
   flashes three times over its cell.
 - **Re-entering the code.** Opening the link again from a chat app asks for the code
   again.
+
+The cast row follows one rule: a left click acts or toggles, a right-click copies that
+control's link, and `Alt+click` opens the Codes menu (on `LIVE ⏸` and `Chrome ⏸` only).
+
+| control | left click | right-click | Alt+click | hover |
+| --- | --- | --- | --- | --- |
+| `LIVE ⏸` | stop the broadcast (#518 adds pause) | copy view-only link | Codes menu | all its codes |
+| `👆` (screen) | toggle pointing (makes the link the first time) | copy pointer link | — | — |
+| `Chrome ⏸` / `▶` | pause / resume (`Ctrl`+click ends) | copy view-only link | Codes menu | all its codes |
+| `↗` | bring the cast Chrome forward | — | — | — |
+| `👆` (web) | copy view link | copy view link | — | — |
+| `👽` | copy drive link | copy drive link | — | — |
 
 With an empty root filter, **Space** toggles the **normal view** and **focus view**.
 Focus view shows only live threads with a published summary, in normal-view

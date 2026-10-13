@@ -271,8 +271,8 @@ func (c *Console) focusWebcast() {
 	})
 }
 
-// copyWebcastLink is a click on the Chrome group's 👆, or a right-click on
-// the Chrome cell. The notice never
+// copyWebcastLink is a click (left or right) on the Chrome group's 👆, a
+// right-click on the Chrome cell, or the Codes menu's "Copy view-only link". The notice never
 // contains the link: a screen broadcast would draw it to viewers.
 func (c *Console) copyWebcastLink() {
 	c.mu.Lock()
@@ -290,8 +290,8 @@ func (c *Console) copyWebcastLink() {
 	}
 }
 
-// copyWebcastDriveLink is a click on the Chrome group's 👽, or an
-// Alt+right-click on the Chrome cell (#467):
+// copyWebcastDriveLink is a click (left or right) on the Chrome group's 👽,
+// or the Codes menu's "Copy drive link" (#467, pair#495):
 // the drive link, whose viewers can ask to drive the cast tab (the
 // operator still grants). Like the view link, never in the notice.
 func (c *Console) copyWebcastDriveLink() {

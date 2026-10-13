@@ -105,11 +105,17 @@ the operator says it on the call.
   operator-only layer (`terminal.OperatorLayer`), which is applied after the
   tap takes its frame, so no broadcast frame carries a code.
   `console_castcodes.go` draws three things there:
-  - **Hover tooltip:** it hangs on the link controls. LIVE's 👆 shows the
-    screen broadcast's codes (`view 4821 · pointer 7730`); the Chrome cell's
-    👆 and 👽 (#501) show the view code and the drive code.
-  - **Codes menu:** Alt+click on the cell opens it. It rotates one link's
-    code or "rotate all", and a rotation disconnects that link's viewers.
+  - **Hover tooltip:** hovering a cast's cell (`LIVE ⏸` or `Chrome ⏸`, the
+    main entrance) shows all of its codes, for example
+    `view 4821 · pointer 7730`. The link controls beside it show none.
+  - **Codes menu:** Alt+click on the cell (only there) opens it.
+    - Its blue entries (`notesMenuLink`) copy the cast's links.
+    - The rest rotate one link's code, or "rotate all"; a rotation
+      disconnects that link's viewers.
+  - **The cast row's rule** (operator, at the #495 smoke test): a left click
+    acts or toggles, a right-click copies that control's link, and Alt+click
+    opens the Codes menu. The README has the per-control table. `LIVE ⏸`'s
+    left click still stops the broadcast; pause is #518.
   - **Flash:** a new code flashes three times.
   - **Notices:** the status row and the notice line are broadcast, so a
     notice says that a code changed and never what it is.

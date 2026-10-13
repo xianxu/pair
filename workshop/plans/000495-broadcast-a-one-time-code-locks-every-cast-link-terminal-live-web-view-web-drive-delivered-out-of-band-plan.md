@@ -184,3 +184,10 @@ Status: decided; M1 and M2 closed; M3 in progress. The body below is the origina
   - So the web cast gets three codes.
   - **M3 first step:** a shared `broadcast.LinkLocks` registry (label + token → lock), with `LockFor`, `Codes`, `Rotate` and `End`. Both the terminal `Session` and the web `Cast` use it, so a new link is one `Add`.
   - Coordination with pair:5 goes through the hub.
+- 2026-10-12, operator smoke test of the codes: passed ("tested the code, it's working well"). Ergonomics revision from that test (via the hub), built before landing.
+  - **The cast row's rule:** a left click acts or toggles, a right-click copies that control's link, and Alt+click opens the Codes menu, only on `LIVE ⏸` and `Chrome ⏸`.
+  - **Hover:** it moves to `LIVE ⏸` and `Chrome ⏸` (the main entrance) and shows all of that cast's codes. The emoji show none. A new code flashes over the cell.
+  - **Codes menu:** it gains copy actions, drawn in the link blue: "Copy view-only link", "Copy pointer link" (once the screen pointer link exists), and for Chrome "Copy drive link". The rotate entries keep their style.
+  - **Chrome cell:** Alt+right-click no longer copies the drive link (👽 and the menu do), so a right-click on the cell copies the view-only link. `Ctrl`+click still ends the cast. The web 👆 and 👽 copy on a left or a right click.
+  - **`LIVE ⏸` left click:** it stays "stop" (hub decision (a)). The screen broadcast has no pause; it is filed unassigned as #518, which notes that the ⏸ glyph promises a pause it doesn't have.
+  - **#506 (pair:5)** renames `WebViewLink` to `WebPointerLink` and lands after #495, following this rule.

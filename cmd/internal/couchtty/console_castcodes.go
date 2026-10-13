@@ -16,9 +16,9 @@ import (
 
 // Cast link codes in Couch (pair#495). Each cast link opens only with its
 // code, which the operator says on the call. Couch shows the codes to the
-// operator alone: hovering a cast's link control (LIVE's 👆, the Chrome cell's
-// 👆 and 👽) shows its codes, Alt+click on a cast cell opens a
-// Codes menu that rotates one link's code or all of them, and a code that
+// operator alone: hovering a cast's cell (LIVE ⏸ or Chrome ⏸) shows all its
+// codes, and Alt+click on it opens a Codes menu that copies its links (drawn
+// blue) and rotates one link's code or all of them, and a code that
 // changes flashes three times. All of it is drawn in the presenter's
 // operator-only layer, which no broadcast frame carries; the status row and
 // the notice line are broadcast, so a notice says that a code changed and
@@ -63,7 +63,7 @@ type castCodes struct {
 	// hovered one.
 	menu      castKind
 	menuBox   NotesMenu
-	menuItems map[int]string // menu id → link label; "" rotates every link
+	menuItems map[int]codesAction // menu id → what the entry does
 	menuHover int
 	// flash is a code that just changed.
 	flash *codeFlash
@@ -107,52 +107,28 @@ func (c *Console) castCodesOf(k castKind) []broadcast.LinkCode {
 	return nil
 }
 
-// hoverAnchorAt is the code tooltip a status-row column shows: LIVE's 👆
-// shows the screen broadcast's codes (view and pointer); the Chrome cell's 👆
-// (#501) its view code and 👽 its drive code. only names the one link a
-// control holds ("" for all of a cast's), at where the tooltip starts.
-func (c *Console) hoverAnchorAt(x int) (kind castKind, at int, only string) {
+// castCellAt is the cast whose cell -- LIVE ⏸ or Chrome ⏸, the main
+// entrance -- covers column x, and where that cell starts. Its link controls
+// (the 👆 and 👽 beside it) are not the cell: they copy their links.
+func (c *Console) castCellAt(x int) (castKind, int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	switch {
-	case c.statusPointer.Contains(x):
-		return castScreen, c.statusPointer.Start, ""
-	case c.statusWebViewLink.Contains(x):
-		return castWeb, c.statusWebViewLink.Start, broadcast.LinkView
-	case c.statusWebDriveLink.Contains(x):
-		return castWeb, c.statusWebDriveLink.Start, broadcast.LinkDrive
+	case c.statusControl.Contains(x):
+		return castScreen, c.statusControl.Start
+	case c.statusWebcast.Contains(x):
+		return castWeb, c.statusWebcast.Start
 	}
-	return castNone, 0, ""
+	return castNone, 0
 }
 
-// menuAnchorAt is the cast whose cell or control covers column x, for
-// Alt+click's Codes menu.
-func (c *Console) menuAnchorAt(x int) castKind {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	switch {
-	case c.statusControl.Contains(x), c.statusPointer.Contains(x):
-		return castScreen
-	case c.statusWebcast.Contains(x), c.statusWebViewLink.Contains(x), c.statusWebDriveLink.Contains(x):
-		return castWeb
+// codeAnchorLocked is where a link's code flashes: over its cast's cell,
+// where the hover shows the codes. Callers hold c.mu.
+func (c *Console) codeAnchorLocked(kind castKind) int {
+	if kind == castWeb {
+		return c.statusWebcast.Start
 	}
-	return castNone
-}
-
-// codeAnchorLocked is where a link's code flashes: over the control that
-// holds the link, or the cast's cell. Callers hold c.mu.
-func (c *Console) codeAnchorLocked(kind castKind, link string) int {
-	switch {
-	case kind == castScreen && c.statusPointer.End > c.statusPointer.Start:
-		return c.statusPointer.Start
-	case kind == castScreen:
-		return c.statusControl.Start
-	case link == broadcast.LinkView && c.statusWebViewLink.End > c.statusWebViewLink.Start:
-		return c.statusWebViewLink.Start
-	case link == broadcast.LinkDrive && c.statusWebDriveLink.End > c.statusWebDriveLink.Start:
-		return c.statusWebDriveLink.Start
-	}
-	return c.statusWebcast.Start
+	return c.statusControl.Start
 }
 
 // routeCastCodes takes the mouse for the codes: the open Codes menu owns
@@ -196,15 +172,15 @@ func (c *Console) routeCastCodes(raw []byte) bool {
 
 	onRow := y == rows-1
 	if motion {
-		kind, at, only := castNone, 0, ""
+		kind, at := castNone, 0
 		if onRow {
-			kind, at, only = c.hoverAnchorAt(x)
+			kind, at = c.castCellAt(x)
 		}
-		c.setCodesHover(kind, at, only)
+		c.setCodesHover(kind, at)
 		return false
 	}
 	if onRow && button == 0 && hit.Button&mouseinput.ModAlt != 0 {
-		if kind := c.menuAnchorAt(x); kind != castNone {
+		if kind, _ := c.castCellAt(x); kind != castNone {
 			c.openCodesMenu(kind)
 			return true
 		}
@@ -212,17 +188,12 @@ func (c *Console) routeCastCodes(raw []byte) bool {
 	return false
 }
 
-// setCodesHover shows kind's codes (only one link's, when only is set) at
-// column at above the status row, or hides them.
-func (c *Console) setCodesHover(kind castKind, at int, only string) {
+// setCodesHover shows all of kind's codes at column at above the status
+// row, or hides them.
+func (c *Console) setCodesHover(kind castKind, at int) {
 	var codes []broadcast.LinkCode
 	if kind != castNone {
-		for _, code := range c.castCodesOf(kind) {
-			if only == "" || code.Link == only {
-				codes = append(codes, code)
-			}
-		}
-		if len(codes) == 0 {
+		if codes = c.castCodesOf(kind); len(codes) == 0 {
 			kind = castNone
 		}
 	}
@@ -235,6 +206,15 @@ func (c *Console) setCodesHover(kind castKind, at int, only string) {
 	}
 }
 
+// codesAction is one Codes menu entry: copy a link, or rotate a link's code
+// ("" rotates every link).
+type codesAction struct {
+	copy bool
+	link string
+}
+
+// openCodesMenu opens kind's Codes menu: first the links it can copy (drawn
+// blue), then each link's code to rotate, and rotate all.
 func (c *Console) openCodesMenu(kind castKind) {
 	codes := c.castCodesOf(kind)
 	if len(codes) == 0 {
@@ -242,21 +222,33 @@ func (c *Console) openCodesMenu(kind castKind) {
 	}
 	c.mu.Lock()
 	cols, rows := int(c.size.Cols), int(c.size.Rows)
+	pointerLink := kind == castScreen && c.bcast.session != nil && c.bcast.session.PointerLink() != ""
 	c.mu.Unlock()
-	items := map[int]string{}
-	var rowsText []broadcast.Note
-	for i, code := range codes {
-		items[i+1] = code.Link
-		rowsText = append(rowsText, broadcast.Note{ID: i + 1, Text: fmt.Sprintf("%s %s · rotate", code.Link, code.Code)})
+	actions := map[int]codesAction{}
+	var items []menuItem
+	add := func(text string, a codesAction) {
+		id := len(items) + 1
+		actions[id] = a
+		items = append(items, menuItem{ID: id, Text: text, Link: a.copy})
+	}
+	add("Copy view-only link", codesAction{copy: true, link: broadcast.LinkView})
+	for _, code := range codes {
+		switch {
+		case code.Link == broadcast.LinkPointer && pointerLink:
+			add("Copy pointer link", codesAction{copy: true, link: broadcast.LinkPointer})
+		case code.Link == broadcast.LinkDrive:
+			add("Copy drive link", codesAction{copy: true, link: broadcast.LinkDrive})
+		}
+	}
+	for _, code := range codes {
+		add(fmt.Sprintf("%s %s · rotate", code.Link, code.Code), codesAction{link: code.Link})
 	}
 	if len(codes) > 1 {
-		all := len(codes) + 1
-		items[all] = ""
-		rowsText = append(rowsText, broadcast.Note{ID: all, Text: "rotate all"})
+		add("rotate all", codesAction{})
 	}
-	box := RenderTitledMenu(kind.name()+" codes", rowsText, cols, rows)
+	box := renderMenu(kind.name()+" codes", items, cols, rows)
 	c.codes.mu.Lock()
-	c.codes.menu, c.codes.menuBox, c.codes.menuItems, c.codes.menuHover = kind, box, items, 0
+	c.codes.menu, c.codes.menuBox, c.codes.menuItems, c.codes.menuHover = kind, box, actions, 0
 	c.codes.mu.Unlock()
 	c.repaint()
 }
@@ -281,25 +273,30 @@ func (c *Console) setCodesMenuHover(id int) {
 	}
 }
 
-// chooseCodesItem rotates the chosen link's code, or every link's.
+// chooseCodesItem copies the chosen link, or rotates its code (or every
+// link's).
 func (c *Console) chooseCodesItem(id int) {
 	c.codes.mu.Lock()
-	kind, link, ok := c.codes.menu, "", false
+	kind, action, ok := c.codes.menu, codesAction{}, false
 	if c.codes.menuItems != nil {
-		link, ok = c.codes.menuItems[id]
+		action, ok = c.codes.menuItems[id]
 	}
 	c.codes.mu.Unlock()
 	c.closeCodesMenu()
 	if !ok {
 		return
 	}
+	if action.copy {
+		c.copyCastLink(kind, action.link)
+		return
+	}
 	var links []string
-	if link == "" {
+	if action.link == "" {
 		for _, code := range c.castCodesOf(kind) {
 			links = append(links, code.Link)
 		}
 	} else {
-		links = []string{link}
+		links = []string{action.link}
 	}
 	if err := c.rotateCastCodes(kind, links); err != nil {
 		c.setNotice(kind.name() + ": couldn't change the code: " + err.Error())
@@ -310,6 +307,20 @@ func (c *Console) chooseCodesItem(id int) {
 		what = "codes"
 	}
 	c.setNotice(fmt.Sprintf("New %s %s; its viewers were disconnected. Hover %s to see it.", kind.name(), what, kind.name()))
+}
+
+// copyCastLink copies one of a cast's links, as its control's click does.
+func (c *Console) copyCastLink(kind castKind, link string) {
+	switch {
+	case kind == castScreen && link == broadcast.LinkView:
+		c.copyViewLink()
+	case kind == castScreen && link == broadcast.LinkPointer:
+		c.onPointerClick(true)
+	case kind == castWeb && link == broadcast.LinkView:
+		c.copyWebcastLink()
+	case kind == castWeb && link == broadcast.LinkDrive:
+		c.copyWebcastDriveLink()
+	}
 }
 
 func (c *Console) rotateCastCodes(kind castKind, links []string) error {
@@ -344,7 +355,7 @@ func (c *Console) onCodeRotated(kind castKind, attempt uint64, link string, r ca
 	// No caller holds the console's locks while a code rotates (the gate's
 	// unlock, or the menu's RotateCode), so the console can be read here.
 	c.mu.Lock()
-	cell, current := c.codeAnchorLocked(kind, link), c.bcast.attempt
+	cell, current := c.codeAnchorLocked(kind), c.bcast.attempt
 	if kind == castWeb {
 		current = c.wcast.attempt
 	}
@@ -468,7 +479,7 @@ func codeTip(text string, at, cols, rows int) NotesMenu {
 		return NotesMenu{}
 	}
 	x := min(max(at, 0), cols-w)
-	return NotesMenu{X: x, Y: rows - 2, W: w, H: 1, lines: []notesMenuLine{{text: line}}}
+	return NotesMenu{X: x, Y: rows - 2, W: w, H: 1, lines: []notesMenuLine{{text: line, tip: true}}}
 }
 
 // installCodesLayer puts the codes on the operator's screen only.
