@@ -54,3 +54,76 @@ findings:
     detail: |
       cmd/internal/webcast/chrome_operator.go:107 introduces a 250 ms retry ticker, while workshop/plans/000523-cast-capability-switches-plan.md:177 promises no new periodic polling. ARCH-CONSTRAINTS: document the retry lifetime, bounds, and termination policy in a Revisions entry, or replace polling with readiness-driven delivery.
 ```
+
+---
+
+## Re-review — 2026-10-13T10:48:22-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 523 — broadcast: 👆 and 👽 are capability switches on both casts (👆 off: no one annotates; 👽 off: no one drives from outside) |
+| repo | pair |
+| issue file | workshop/issues/000523-broadcast-and-are-capability-switches-on-both-casts-off-no-one-annotates-off-no-one-drives-from-outside.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 3c37f26ee6222a17e75f60ed31a59e8a1de57cc4..29ac1fe53accedd49a9f30b7798372dc390cdbb3 |
+| command | sdlc milestone-close --issue 523 --milestone M2 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-13T10:48:22-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+The pinned M2 implementation matches the reviewed capability contracts. BR-5 and BR-6 are addressed, with mutation testing confirming BR-5’s regression coverage. No new substantive findings. Confidence is limited by live Chrome failing during GPU startup before exercising the feature.
+
+```findings
+dispose:
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Origin generations reach operator, viewer annotation, and drive admission; ordered dispatch retains its checks. Independently removing each provenance guard made its regression fail. Removing annotation-clear gesture cancellation also failed capability-ui.test.mjs:70.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      The plan revision at workshop/plans/000523-cast-capability-switches-plan.md:551 explicitly documents the 250ms unresolved-delivery retry exception, deadlines, acknowledgment behavior, context pruning, and shutdown. These match cmd/internal/webcast/chrome_operator.go:107-195.
+```
+
+1. **Strengths**
+
+   - Origin-bound admission covers all four operator mutation kinds, all three viewer annotation routes, and drive request/release/input.
+   - Controlled regressions exercise delayed ingress, queued writes, held gestures, stale completions, and replacement contexts.
+   - Shared click intent preserves terminal pointer safety while adding copy-only link creation.
+   - README and atlas document defaults, recovery actions, stable links, generation headers, and the new notice-copy shortcut.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None substantive.
+
+5. **Test coverage notes**
+
+   - Passed: 238 browser tests; all webcast Go packages; Couch and broadcast packages; race tests for webcast, Board, drive, and recorder.
+   - Four independent mutation checks failed as expected, establishing that BR-5 tests detect removal of the fixes.
+   - Couch required runtime-bundle generation in the disposable copy. Broadcast passed with a short temporary path.
+   - Live `TestOperatorLiveAnnotation` failed twice before page creation: Chrome reported “GPU process isn't usable.” Live conformance and full `make test` are therefore not independently certified by this review.
+   - Disposable copy removed; tracked checkout unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — Pass:** shared click policy and existing capability authorities remain authoritative.
+   - **ARCH-PURE — Pass:** transition and rendering logic remain directly testable; integration seams own IO.
+   - **ARCH-PURPOSE — Pass:** the provenance repair covers the enumerable operator/viewer/drive mutation paths.
+   - **ARCH-MOCK — Pass:** stateful fixtures exercise production boundaries; live conformance execution has the limitation above.
+   - **ARCH-CONSTRAINTS — Pass:** bounded workers and delivery deadlines match the revised retry envelope.
+   - **ARCH-SECURE — Pass:** missing, malformed, and retired generations fail closed without widening link roles.
+   - **ARCH-ORDER — Pass:** generation/attempt checks and controlled event-order tests prevent stale authority restoration.
+   - **ARCH-FUNERAL — Pass:** permission state, subscriptions, and timers have context/cast termination paths; no new durable artifact family.
+
+7. **Plan revision recommendations:** None. The existing revisions cover provenance, retry behavior, and the approved UI refinements.

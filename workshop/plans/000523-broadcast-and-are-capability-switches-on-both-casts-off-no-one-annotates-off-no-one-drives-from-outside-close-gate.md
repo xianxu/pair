@@ -83,6 +83,24 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - "n": 4
+      timestamp: "2026-10-13T10:48:23-07:00"
+      dispatched: "2026-10-13T10:44:01-07:00"
+      agent: codex
+      dispose:
+        - id: BR-5
+          disposition: addressed
+          note: Origin generations reach operator, viewer annotation, and drive admission; ordered dispatch retains its checks. Independently removing each provenance guard made its regression fail. Removing annotation-clear gesture cancellation also failed capability-ui.test.mjs:70.
+          round: 4
+        - id: BR-6
+          disposition: addressed
+          note: The plan revision at workshop/plans/000523-cast-capability-switches-plan.md:551 explicitly documents the 250ms unresolved-delivery retry exception, deadlines, acknowledgment behavior, context pruning, and shutdown. These match cmd/internal/webcast/chrome_operator.go:107-195.
+          round: 4
+      boundary: M2
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 29ac1fe53accedd49a9f30b7798372dc390cdbb3
+      blocked: false
 ---
 
 # Gate ledger — pair#523 (boundary-review)
@@ -121,7 +139,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-6** [Minor] `operating-envelope-traceability` Permission retry polling contradicts the documented operating envelope
   cmd/internal/webcast/chrome_operator.go:107 introduces a 250 ms retry ticker, while workshop/plans/000523-cast-capability-switches-plan.md:177 promises no new periodic polling. ARCH-CONSTRAINTS: document the retry lifetime, bounds, and termination policy in a Revisions entry, or replace polling with readiness-driven delivery.
 
+## Round 4 — 2026-10-13T10:48:23-07:00 (codex) — passed
+
+### Disposed
+
+- BR-5 — addressed — Origin generations reach operator, viewer annotation, and drive admission; ordered dispatch retains its checks. Independently removing each provenance guard made its regression fail. Removing annotation-clear gesture cancellation also failed capability-ui.test.mjs:70.
+- BR-6 — addressed — The plan revision at workshop/plans/000523-cast-capability-switches-plan.md:551 explicitly documents the 250ms unresolved-delivery retry exception, deadlines, acknowledgment behavior, context pruning, and shutdown. These match cmd/internal/webcast/chrome_operator.go:107-195.
+
 ## Open findings
 
-- **BR-5** [Critical] `capability-generation-provenance` Pre-OFF annotations can acquire fresh authority after OFF/ON
-- **BR-6** [Minor] `operating-envelope-traceability` Permission retry polling contradicts the documented operating envelope
+(none — every finding has been disposed)

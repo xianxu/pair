@@ -85,13 +85,14 @@ an older ON cannot win after OFF. No overlay implementation is duplicated here.
 ## Plan
 
 - [x] M1 — Implement capability enforcement, ordered annotation clear/control reset, server state and race tests.
-- [ ] M2 — Implement shared click behavior, viewer controls, overlay integration as landing order permits, documentation and acceptance.
+- [x] M2 — Implement shared click behavior, viewer controls, overlay integration as landing order permits, documentation and acceptance.
 
 Durable plan: [000523-cast-capability-switches-plan.md](../plans/000523-cast-capability-switches-plan.md).
 
 ## Log
 
 ### 2026-10-13 — Headless acknowledgement and merged-suite results
+- 2026-10-13: closed M2 — Operator smoke and final display accepted. BR-5 origin-generation regressions pass for operator, viewer annotations and drive; webcast race packages and 158 viewer plus 46 operator Node tests pass. Pre-merge make test passed; merged targeted packages pass. Merged full suite had one unrelated host-creation-busy Couch core fixture failure; complete package rerun and full headless rerun are in progress and must pass before issue close. Headless operator acknowledgement fix passed 15 repeats and controlled delayed reply. Main merged cleanly; pair:0 restored to main.; review verdict: SHIP
 
 - The operator Pen failure was a fixture race: Board publication precedes the
   asynchronous save reply, so the test drew while the note dialog still blocked
