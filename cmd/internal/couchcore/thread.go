@@ -55,8 +55,10 @@ type ThreadIncarnation struct {
 }
 
 type PreviousSession = threadrecord.PreviousSession
+type SwitchRecovery = threadrecord.SwitchRecovery
 
 type ThreadRecord struct {
+	SwitchRecovery      *SwitchRecovery               `json:"switch_recovery,omitempty"`
 	PreviousSession     *PreviousSession              `json:"previous_session,omitempty"`
 	SessionBinding      *couchidentity.SessionBinding `json:"session_binding,omitempty"`
 	Continuation        *checkpoint.Request           `json:"continuation,omitempty"`
@@ -111,6 +113,7 @@ func toPersistedThreadAddress(address ThreadAddress) threadrecord.Address {
 func toPersistedThreadRecord(record ThreadRecord) threadrecord.Record {
 	out := threadrecord.Record{
 		PreviousSession: threadrecord.ClonePreviousSession(record.PreviousSession),
+		SwitchRecovery:  threadrecord.CloneSwitchRecovery(record.SwitchRecovery),
 		SessionBinding:  cloneSessionBinding(record.SessionBinding),
 		SchemaVersion:   record.SchemaVersion, Address: toPersistedThreadAddress(record.Address),
 		StartingPath: record.StartingPath, WorkingPath: record.WorkingPath, CreatedAt: record.CreatedAt,
@@ -172,6 +175,7 @@ func toPersistedThreadRecord(record ThreadRecord) threadrecord.Record {
 func fromPersistedThreadRecord(record threadrecord.Record) ThreadRecord {
 	out := ThreadRecord{
 		PreviousSession: threadrecord.ClonePreviousSession(record.PreviousSession),
+		SwitchRecovery:  threadrecord.CloneSwitchRecovery(record.SwitchRecovery),
 		SessionBinding:  cloneSessionBinding(record.SessionBinding),
 		SchemaVersion:   record.SchemaVersion,
 		Address:         ThreadAddress{RepoScope: record.Address.RepoScope, Tag: ThreadTag(record.Address.Tag)},
@@ -247,6 +251,7 @@ func cloneThreadRecord(record ThreadRecord) ThreadRecord {
 	copy := record
 	copy.PreviousSession = threadrecord.ClonePreviousSession(record.PreviousSession)
 	copy.SessionBinding = cloneSessionBinding(record.SessionBinding)
+	copy.SwitchRecovery = threadrecord.CloneSwitchRecovery(record.SwitchRecovery)
 	if record.Continuation != nil {
 		request := record.Continuation.Clone()
 		copy.Continuation = &request

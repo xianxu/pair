@@ -21,6 +21,7 @@ type AgentSwitchGuard interface {
 }
 
 type SwitchAgentRequest struct {
+	RequestID           string
 	Content             SwitchContent
 	Source              string
 	Address             ThreadAddress

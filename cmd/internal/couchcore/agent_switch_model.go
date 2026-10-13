@@ -7,48 +7,32 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/xianxu/pair/cmd/internal/orientation"
+	"github.com/xianxu/pair/cmd/internal/threadrecord"
 )
 
-type SwitchContentKind string
+type SwitchContentKind = threadrecord.SwitchContentKind
 
 const (
-	SwitchContentFresh    SwitchContentKind = "fresh"
-	SwitchContentAuthored SwitchContentKind = "authored"
-	SwitchContentFallback SwitchContentKind = "fallback"
+	SwitchContentFresh    = threadrecord.SwitchContentFresh
+	SwitchContentAuthored = threadrecord.SwitchContentAuthored
+	SwitchContentFallback = threadrecord.SwitchContentFallback
 )
 
-type SwitchContent struct {
-	Kind SwitchContentKind `json:"kind"`
-	Body string            `json:"body,omitempty"`
-}
+type SwitchContent = threadrecord.SwitchContent
 
-// ValidateSwitchContent is shared by switch admission and its transports.
-func ValidateSwitchContent(c SwitchContent) error {
-	switch c.Kind {
-	case SwitchContentFresh:
-		if c.Body == "" {
-			return nil
-		}
-		return errors.New("switch-agent: fresh content must have an empty body")
-	case SwitchContentAuthored, SwitchContentFallback:
-		return orientation.ValidateBody(c.Body)
-	default:
-		return errors.New("switch-agent: invalid content kind")
-	}
-}
+func ValidateSwitchContent(c SwitchContent) error { return threadrecord.ValidateSwitchContent(c) }
 
-type AgentSwitchPhase string
+type AgentSwitchPhase = threadrecord.SwitchPhase
 
 const (
-	AgentSwitchWaitingBrief    AgentSwitchPhase = "waiting-brief"
-	AgentSwitchWaitingSettled  AgentSwitchPhase = "waiting-settled"
-	AgentSwitchSwitching       AgentSwitchPhase = "switching"
-	AgentSwitchDeliveryPending AgentSwitchPhase = "delivery-pending"
-	AgentSwitchSucceeded       AgentSwitchPhase = "succeeded"
-	AgentSwitchRefused         AgentSwitchPhase = "refused"
-	AgentSwitchFailure         AgentSwitchPhase = "failed"
-	AgentSwitchUnconfirmed     AgentSwitchPhase = "unconfirmed"
+	AgentSwitchWaitingBrief    = threadrecord.SwitchWaitingBrief
+	AgentSwitchWaitingSettled  = threadrecord.SwitchWaitingSettled
+	AgentSwitchSwitching       = threadrecord.SwitchSwitching
+	AgentSwitchDeliveryPending = threadrecord.SwitchDeliveryPending
+	AgentSwitchSucceeded       = threadrecord.SwitchSucceeded
+	AgentSwitchRefused         = threadrecord.SwitchRefused
+	AgentSwitchFailure         = threadrecord.SwitchFailure
+	AgentSwitchUnconfirmed     = threadrecord.SwitchUnconfirmed
 )
 
 // AgentSwitchSpec captures admission evidence. Source is the shell's opaque

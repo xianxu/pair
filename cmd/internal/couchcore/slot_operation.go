@@ -173,7 +173,8 @@ func (c *Couch) prepareSlotOperation(ctx context.Context, op, target string, opt
 		return c.prepareLiveRestart(ctx, op, target, row, path, RestingBranch(ref.Number), opts)
 	}
 	offered := ActorActions(ActorRowFactsOf(row))
-	if !slices.Contains(offered, op) && !(op == "recover" && RecoverOffered(offered)) {
+	switchRecovery := op == "recover" && row.AgentSwitch != nil && (row.AgentSwitch.Action == AgentSwitchRecover || row.AgentSwitch.Action == AgentSwitchResumeOld)
+	if !switchRecovery && !slices.Contains(offered, op) && !(op == "recover" && RecoverOffered(offered)) {
 		state := string(row.State)
 		if row.Reason != "" {
 			state += " (" + string(row.Reason) + ")"

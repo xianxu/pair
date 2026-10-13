@@ -166,6 +166,9 @@ func passViewOf(pass ReattachPass, address couchcore.ThreadAddress) (PassView, b
 // detached", so it is included; warm-only re-proves every thread at attempt
 // time and refuses one that is not really warm, which the pass then skips.
 func reattachCandidate(row couchcore.ActionableThreadSummary) bool {
+	if row.AgentSwitch != nil && row.AgentSwitch.Outcome != couchcore.AgentSwitchReady {
+		return false
+	}
 	if row.Detached() {
 		return true
 	}
@@ -370,6 +373,9 @@ func pendingPlaceholders(pass ReattachPass) []ReattachPlaceholder {
 // Enter's verb, the leave count, rendering -- treats it as live. Pending and
 // failed rows keep their inventory state; readers ask passViewOf for those.
 func overlayPassRow(pass ReattachPass, row couchcore.ActionableThreadSummary) couchcore.ActionableThreadSummary {
+	if row.AgentSwitch != nil && row.AgentSwitch.Outcome != couchcore.AgentSwitchReady {
+		return row
+	}
 	if view, owned := passViewOf(pass, row.Address); owned && view.State == PassAttached {
 		row.State = couchcore.ThreadLive
 		row.Reason = ""

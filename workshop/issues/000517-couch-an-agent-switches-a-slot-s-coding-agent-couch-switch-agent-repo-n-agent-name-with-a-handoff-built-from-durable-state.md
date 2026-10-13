@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
-estimate_hours: 5.422
-card_mirror: '5c1a5b98ee9c887045a05d32fa3372877b074f37' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 8.64
+card_mirror: 'a1a4cddf35d8ffa69afaf93f7cfe79705e058041' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T20:05:23-07:00
 claimant:
     operator: Xian Xu
@@ -67,6 +67,24 @@ Durable plan: [agent switch plan](../plans/000517-agent-switch-plan.md).
 - [ ] M3 — Wire the form, TL procedure, live acceptance and rollout.
 
 ## Log
+
+- 2026-10-12 21:42 PDT — context checkpoint: all M2 owners stopped after atomic
+  edits. Recovery schema/projection, exact-native resolver seam and menu
+  projection are written; core recovery is an unwired draft. Root targeted
+  threadrecord/couchcore/couchtty command matching TestSwitchRecovery,
+  TestAgentSwitch, TestMenuAgentSwitch and TestNativeBindingResolverResolveExact
+  passed; diff check passed. These selections do not establish transaction,
+  restart or receipt integration. Continuation records exact ownership, draft
+  defects and next actions; checkpoint is explicitly unverified M2 WIP.
+
+- 2026-10-12 21:39 PDT — revised change-code gate passed: plan-quality round 4
+  CLEAN, prior findings remain addressed. Gate commit d1604e0dc. Its estimate
+  advisory is addressed below by preserving the original derivation and adding
+  approved recovery primitives, current forecast 8.640 hours. M2 implementation
+  is authorized; no M2 boundary or full integration success claimed. Recovery
+  audit also found latest-ledger native selection would reject an older saved
+  session after a same-agent switch; exact named validation must continue through
+  the launcher. Context checkpoint underway; in-flight owner edits remain WIP.
 
 - 2026-10-12 21:34 PDT — verified TL approval 60b20071-4145-4fd1-a177-11240322a715:
   durable one-action recovery is the selected invariant. Recovery failure remains
@@ -233,7 +251,7 @@ stack; no external library replaces the source-bound coordination model.
 Familiarity 1.0 for this established stack; thorough-plan design buffer 15%.
 Design subtotal 1.48; implementation subtotal 3.72; total 5.422 hours.
 
-```estimate
+```estimate-original
 model: estimate-logic-v3.1
 familiarity: 1.0
 item: issue-spec design=0.5 impl=0.08
@@ -255,4 +273,55 @@ item: milestone-review design=0.02 impl=0.20
 item: atlas-docs design=0.02 impl=0.08
 design-buffer: 0.15
 total: 5.422
+```
+
+### 2026-10-12 revised forecast after durable recovery approval
+
+The original 5.422-hour forecast above remains provenance, not the current
+scope. Plan-quality round 4 was CLEAN; estimate-quality correctly identified
+that the approved recovery delta adds work not represented by that forecast.
+Method A and the same provisional v3.1 calibration remain in use. Add three Go
+concerns (durable recovery data/projection, proof-based recovery orchestration,
+and durable admission/restart receipt integration), each 0.20 design + 0.32
+scaled implementation. Add two smaller seams (exact native-session restoration
+and atomic launch witnesses), each 0.04 + 0.20. Add the recovery UI projection
+and primary-action integration at 0.20 + 0.40, distinct from the original switch
+form. Allow two additional review/fix iterations at 0.02 + 0.20 each for the
+expanded failure matrix. Existing store, native resolver, resume, and menu
+owners are reused; no new external stack is introduced. These are scope
+primitives, not measured hours or a backfit to elapsed time.
+
+Delta design 0.92, implementation 2.16; revised design 2.40 and implementation
+5.88. Familiarity stays 1.0 and design buffer 15%: 2.40 × 1.15 + 5.88 = 8.640.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.5 impl=0.08
+item: smaller-go-module design=0.04 impl=0.20
+item: smaller-go-module design=0.04 impl=0.20
+item: smaller-go-module design=0.04 impl=0.20
+item: smaller-go-module design=0.04 impl=0.20
+item: greenfield-go-module design=0.20 impl=0.32
+item: greenfield-go-module design=0.20 impl=0.32
+item: tui-screen design=0.20 impl=0.40
+item: skill-or-dispatcher design=0.12 impl=0.20
+item: real-api-discovery design=0 impl=0.24
+item: real-api-discovery design=0 impl=0.24
+item: real-api-discovery design=0 impl=0.24
+item: milestone-review design=0.02 impl=0.20
+item: milestone-review design=0.02 impl=0.20
+item: milestone-review design=0.02 impl=0.20
+item: milestone-review design=0.02 impl=0.20
+item: atlas-docs design=0.02 impl=0.08
+item: greenfield-go-module design=0.20 impl=0.32
+item: greenfield-go-module design=0.20 impl=0.32
+item: greenfield-go-module design=0.20 impl=0.32
+item: smaller-go-module design=0.04 impl=0.20
+item: smaller-go-module design=0.04 impl=0.20
+item: tui-screen design=0.20 impl=0.40
+item: milestone-review design=0.02 impl=0.20
+item: milestone-review design=0.02 impl=0.20
+design-buffer: 0.15
+total: 8.640
 ```
