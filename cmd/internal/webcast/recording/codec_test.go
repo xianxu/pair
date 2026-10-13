@@ -81,6 +81,29 @@ func TestEncodeSetsKindAndEnvelopeFirst(t *testing.T) {
 	}
 }
 
+func TestSubmissionRevisionGuardNeverEntersRecordingWire(t *testing.T) {
+	revision := uint64(42)
+	guarded := &NoteState{ID: "n1", State: NoteResolved, IfRevision: &revision}
+	line, err := Encode(guarded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := Encode(&NoteState{ID: "n1", State: NoteResolved})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(line) != string(want) {
+		t.Fatalf("process-only revision guard leaked into wire: %s", line)
+	}
+	decoded, err := Decode(line)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decoded.(*NoteState).IfRevision != nil {
+		t.Fatal("decoded wire acquired a process-only revision guard")
+	}
+}
+
 func TestAttributionEncodesOnlyWhenSet(t *testing.T) {
 	for _, c := range []struct {
 		r    Record

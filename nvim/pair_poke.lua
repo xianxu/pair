@@ -10,6 +10,7 @@ local M = {}
 local pair_nvim_dir = vim.fn.fnamemodify(debug.getinfo(1, 'S').source:sub(2), ':p:h')
 local zellij_trace = dofile(pair_nvim_dir .. '/zellij_trace.lua')
 local draft_send = dofile(pair_nvim_dir .. '/draft_send.lua')
+local pane_identity = dofile(pair_nvim_dir .. '/pane_identity.lua')
 
 -- Pure: the ordered zellij argv list for one poke. The body is one bracketed
 -- paste, framed by the draft send's own rule (pair#211). Submit is a semantic
@@ -21,41 +22,18 @@ function M._cmds(body, agent_id, review_id)
   }
 end
 
--- Recursively collect pane objects (have both `id` and `is_floating`) from the
--- decoded list-panes JSON — mirrors scrollback-open's `.. | objects | select`.
-local function collect_panes(node, out)
-  if type(node) ~= 'table' then return out end
-  if node.id ~= nil and node.is_floating ~= nil then out[#out + 1] = node end
-  for _, v in pairs(node) do
-    if type(v) == 'table' then collect_panes(v, out) end
-  end
-  return out
-end
-
 local function list_panes()
   local res = zellij_trace.action('review.poke.list-panes', { 'zellij', 'action', 'list-panes', '--json', '--command' }).stdout
   local ok, decoded = pcall(vim.json.decode, res)
   if not ok or type(decoded) ~= 'table' then return {} end
-  return collect_panes(decoded, {})
-end
-
--- Positive agent identity: right terminals also have non-draft titles, so
--- names and inventory ordering cannot identify the agent.
-local function find_agent(panes)
-  for _, p in ipairs(panes) do
-    if p.is_plugin == false and p.is_floating == false
-        and type(p.terminal_command) == 'string'
-        and p.terminal_command:find('pair wrap', 1, true) then
-      return p.id
-    end
-  end
+  return pane_identity.agents(decoded)
 end
 
 -- Send `body` to the agent without moving focus away from the caller.
 -- Returns false (+ notify) if the agent pane can't be resolved.
 function M.send(body)
   local panes = list_panes()
-  local agent = find_agent(panes)
+  local agent = panes[1] and panes[1].id
   if not agent then
     vim.notify('review: could not find the agent pane to poke', vim.log.levels.ERROR)
     return false

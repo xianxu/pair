@@ -153,6 +153,7 @@ one-line description can't carry.
 |---|---|---|
 | **Alt+h** | non-agent panes | Pop up the keybinding list in a floating pane (`q` or `Esc` to dismiss). Same content as `pair keys`. When Couch presents the thread, Couch's keys come first. |
 | **Alt+Return** | nvim (normal/insert) | Send buffer to agent. Note for consistency, claude's keybinding also changed to Alt+return as send, and return as newline |
+| **Shift+Ctrl+Alt+Return** | draft nvim (normal/insert) | Send draft text plus all open cast-tab notes, recorded context, current box text and a PNG crop per note to the agent in view. An empty draft can send notes. [Evidence and retry behavior](atlas/webcast-submission.md). |
 | **Return** | agent pane | Insert a newline in Claude, Codex, Agy, and Qoder composers; Pair translates it to Muse's native Shift+Return and Grok's native Alt+Enter. The rewrite is *positively gated* for every agent: Pair rewrites only while it can see a live composer on screen, so in a permission picker, a selection menu, or any state it doesn't recognize, Return stays a plain Enter and the dialog confirms. Set `PAIR_WRAP_REMAP_RETURN=0` to turn the rewrite off entirely (that also disables overlay detection and its telemetry). |
 | **Alt+Return** | agent pane | Always submits, in every state. |
 | **Alt+Shift+Return** | any Pair pane | Cycle the selected right terminal: **focus** (floating, centered at 75% width and full height, agent pane dimmed) → **maximize** (native fullscreen; Zellij's bars remain visible) → back to the tiling, focusing the invoking pane. A split acts only on the selected half. No-op without a right terminal. |
@@ -1069,6 +1070,14 @@ notes, these are part of the recording: notes and strokes, with their authors, a
 saved in `notes.jsonl` and `pointer.jsonl`, and `couch --broadcast-web-query DIR
 notes` lists them. The name a viewer gives is theirs to choose: it attributes, it
 doesn't authenticate.
+
+**Submit web notes (#483).** Press **Shift+Ctrl+Alt+Return** in the draft to send
+its text and all open cast-tab notes to the agent in view, with recorded context,
+current box text and one current PNG crop per note. The message includes the
+recording path and commands for reading the bundle. The draft can be empty. Submitted notes become
+resolved: submitting transfers ownership of the notes to the agent; whatever
+follows (a pensive, an issue, a fix) is the agent's. See
+[submission evidence and recovery](atlas/webcast-submission.md).
 
 **Codes on every cast link (#495).** Every link a cast hands out opens with a short
 code first: the screen broadcast's view and pointer links, and the web cast's view and
