@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-13
-estimate_hours:
-card_mirror: '508b4239ede6d8aafda6b7d86f74fe63937e20e4' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 2.544
+card_mirror: '0392da6fd224d7fcffadd43e2fbeec7f8ba45ea6' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-13T10:20:26-07:00
 claimant:
     operator: Xian Xu
@@ -15,6 +15,7 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # broadcast-web: DOM submission names the page (URL and title per note) and drops CSS selectors
@@ -53,3 +54,24 @@ The operator (2026-10-12):
 ### 2026-10-13 — design clarification
 
 Hub approved preserving box_text's existing per-text-node granularity and order, with tag/classes replacing selectors; no flattening or regrouping. One source page (URL, title, provenance) is bound to the capture batch and referenced by each note. #526 landed first; this issue derives privacy from that same captured URL. The durable plan proposes a bounded CDP probe in the admitted context, version-2 output with v1 read compatibility, and explicit unavailable-page behavior. Awaiting hub review of the concrete plan before change-code.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only; stale calibration means provisional rates. Scope includes implementation, tests, docs, one close review and staging for the operator's blog check.
+
+Incurred issue/spec design is 0.5h plus 0.2h base implementation. Schema/projection extends existing Go seams (0.3 design, 0.5 impl); CDP capture/fence integration uses the API integration primitive (1.0 design, 1.0 impl). Collector refactor is 0.5 design/0.5 impl, docs 0.1/0.2, guide 0.3/0.3, review 0.1/0.5, and live API discovery 0/0.4. Resolved plan discounts downstream design by 0.2; incurred authoring is not discounted. v3.1 scales every implementation figure by 0.4. Familiarity is 1.0, design buffer 15%. Existing CDP/JSON/URL machinery provides the libraries; no novel runtime or greenfield service is assumed.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.5 impl=0.08
+item: smaller-go-module design=0.06 impl=0.2
+item: api-integration design=0.2 impl=0.4
+item: cross-cutting-refactor design=0.1 impl=0.2
+item: atlas-docs design=0.02 impl=0.08
+item: skill-or-dispatcher design=0.06 impl=0.12
+item: milestone-review design=0.02 impl=0.2
+item: real-api-discovery design=0 impl=0.16
+design-buffer: 0.15
+total: 2.544
+```
