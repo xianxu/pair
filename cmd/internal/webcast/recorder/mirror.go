@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -861,7 +862,11 @@ func (m *mirror) Event(t int64, session, method string, params json.RawMessage) 
 		var count int
 		if n != nil && get("childNodeCount", &count) && count != len(n.Children) && !n.hidden {
 			n.ChildNodeCount = count
-			m.Expand = append(m.Expand, Expand{Session: s.id, NodeID: n.NodeID})
+			// Once per node while queued: a script filling it sends a
+			// count per insert, and one request brings them all.
+			if e := (Expand{Session: s.id, NodeID: n.NodeID}); !slices.Contains(m.Expand, e) {
+				m.Expand = append(m.Expand, e)
+			}
 		}
 	case "DOM.inlineStyleInvalidated", "DOM.documentUpdated",
 		"DOM.pseudoElementAdded", "DOM.pseudoElementRemoved", "DOM.shadowRootPopped", "DOM.distributedNodesUpdated":

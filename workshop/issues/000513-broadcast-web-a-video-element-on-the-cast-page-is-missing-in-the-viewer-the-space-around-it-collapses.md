@@ -32,13 +32,16 @@ Find where the video is lost (recorder snapshot or mutation, asset fetch for its
 
 - The parley blog's demo video shows in the viewer at its place and size, with its poster.
 - A test with a video page fails before the fix; the replaced-element sweep is recorded in the Log.
+- (Revision) What the recording can't hold (canvas, video, object/embed, an unrecorded frame) keeps the operator's
+  live size in the viewer (also a video sized only by metadata, the operator's iPad case; also inside shadow roots;
+  never un-hiding a hidden one) and carries a "kind: not captured" mark that follows its size.
 
 ## Plan
 
 - [x] Recorder: `DOM.childNodeCountUpdated` for children the mirror doesn't hold → `Expand` (`DOM.requestChildNodes`
   → `setChildNodes`). Root cause, measured below.
 - [x] Viewer: a drawn `<canvas>` takes the operator's live layout box (else its attributes) at zero specificity
-  (`drawCanvasSizes`): with scripts off a canvas draws its empty fallback (0x18, measured in the sweep).
+  (`drawLiveSizes`, since generalized to every uncaptured kind): with scripts off a canvas draws its empty fallback (0x18, measured in the sweep).
 - [x] Revision: placeholders for what the recording can't hold (canvas, video, object/embed, an unrecorded frame):
   `Renderer.uncaptured()` + `placeholders.js` (dashed outline + "kind: not captured" at the drawn box, redrawn on
   every record, so it follows the live size). #515 (canvas snapshots) filed unassigned.
@@ -88,3 +91,11 @@ Find where the video is lost (recorder snapshot or mutation, asset fetch for its
   every paint too (a replay applied before they mounted drew none). TestLiveReplacedElements adds a video sized only
   by metadata from a source the viewer can't load (a MediaRecorder clip, `height:auto`): without the aspect ratio it
   shows 346x150 against 346x174 and fails.
+- **Close review round 1 (FIX-THEN-SHIP):** BR-1 (right): the rule's `display:inline-block` (author origin) beat the
+  UA's `[hidden]{display:none}`, and a hidden canvas fell back to its attributes. Fixed by class ("the viewer's sizing
+  never un-hides"): `:not([hidden])`, and once a layout has arrived an element without a box gets no rule. BR-2
+  (right): document rules don't pierce shadow trees; rules now go to a live-size sheet per root (`getRootNode()`),
+  adopted before the page's sheets. BR-3: Done when gains the revision's bullet. Minors: expansions de-duplicated
+  while queued; stale names fixed; pure `liveSizeRule`/`isUncaptured` with default-run node tests. Live test adds a
+  hidden canvas (stays `display:none`, unmarked) and a shadow-hosted canvas (200x60, marked); routing rules to the
+  document instead of the root fails it (mutation-checked).

@@ -292,6 +292,9 @@ func TestMirrorExpandsANodeFilledAfterItsInsert(t *testing.T) {
 		t.Fatalf("an empty insert asked for children: %v", m.Expand)
 	}
 	feed(t, m, 2, []fevent{{"DOM.childNodeCountUpdated", raw(map[string]any{"nodeId": 600, "childNodeCount": 1})}})
+	// A script inserting several children sends a count per insert: one
+	// request covers them.
+	feed(t, m, 2, []fevent{{"DOM.childNodeCountUpdated", raw(map[string]any{"nodeId": 600, "childNodeCount": 2})}})
 	if len(m.Expand) != 1 || m.Expand[0].NodeID != 600 || m.Expand[0].Session != sess {
 		t.Fatalf("expand %v", m.Expand)
 	}

@@ -217,7 +217,10 @@ what the viewer's renderer draws at the same moments.
     off a browser draws a `<canvas>` as its empty fallback; a video sized by loaded metadata has none, and Safari
     draws no box), so the renderer sizes each to the operator's live layout box (else its `width`/`height`
     attributes) with a zero-specificity rule in the document's viewer sheet, border-box and with the box's
-    `aspect-ratio`, so author `height:auto` keeps the operator's height (`drawLiveSizes`; author CSS still wins). `Renderer.uncaptured()` lists them, and `placeholders.js` marks each over the page box: a dashed outline
+    `aspect-ratio`, so author `height:auto` keeps the operator's height (`liveSizeRule`, `drawLiveSizes`; author CSS
+    still wins). The rule never applies to `[hidden]`; once a layout has arrived, an element without a box (not
+    rendered) gets none; and it lives in a live-size sheet per tree (document or shadow root), adopted before the
+    page's own sheets. `Renderer.uncaptured()` lists them, and `placeholders.js` marks each over the page box: a dashed outline
     at its drawn box and "canvas: not captured", redrawn on every record, so it follows the operator's size. Canvas
     snapshots are #515. Checked by `TestLiveReplacedElements` (video, iframe, canvas resized live, picture, object,
     a node filled after its insert) and `tests/webcast/placeholders.test.mjs`.

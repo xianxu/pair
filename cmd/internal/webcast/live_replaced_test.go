@@ -30,7 +30,12 @@ const replacedPage = `<!doctype html><title>replaced</title>
 <object id=object class=box data="/poster.png" type="image/png" width=160 height=90></object>
 <div id=embed class=box></div>
 <video id=vmeta class=box controls></video>
+<canvas id=hiddencv width=320 height=80 hidden></canvas>
+<div id=host></div>
 <script>
+// A canvas inside a web component's shadow root (close review: document
+// rules don't pierce shadow trees).
+document.getElementById('host').attachShadow({ mode: 'open' }).innerHTML = '<canvas id=shadowcv width=200 height=60></canvas>';
 // A video sized only by its loaded metadata (no width or height), from a
 // source the viewer can't load: the operator's iPad video (pair#513).
 {
@@ -142,7 +147,12 @@ func TestLiveReplacedElements(t *testing.T) {
 	// Every element whose content the recording can't hold is marked;
 	// the recorded frame and the late-filled embed are not.
 	time.Sleep(500 * time.Millisecond)
-	if got := v.evalString(t, `[...document.querySelectorAll('.uncaptured-mark span')].map((s) => s.textContent).sort().join(', ')`); got != "canvas: not captured, object: not captured, video: not captured, video: not captured" {
+	// A hidden canvas stays hidden and unmarked; the shadow-hosted one is
+	// sized and marked (two canvases).
+	if got := v.evalString(t, `(() => { const d = document.getElementById('page').contentDocument; const h = d.getElementById('hiddencv'); const sc = d.getElementById('host').shadowRoot.getElementById('shadowcv').getBoundingClientRect(); return getComputedStyle(h).display + ' ' + sc.width + 'x' + sc.height; })()`); got != "none 200x60" {
+		t.Errorf("hidden canvas display and shadow canvas size: %q, want \"none 200x60\"", got)
+	}
+	if got := v.evalString(t, `[...document.querySelectorAll('.uncaptured-mark span')].map((s) => s.textContent).sort().join(', ')`); got != "canvas: not captured, canvas: not captured, object: not captured, video: not captured, video: not captured" {
 		t.Errorf("the viewer's marks: %q", got)
 	}
 	if got := v.evalString(t, `(() => { const f = document.querySelector('iframe#page'); const d = f ? f.contentDocument : document; const p = d.querySelector('#embed .ap-term-text'); return p ? p.textContent : 'none'; })()`); got != "$ parley" {

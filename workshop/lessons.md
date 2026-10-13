@@ -1418,3 +1418,7 @@ proof; record the surprising case so the next change starts from evidence.
   `pointerup.detail`, and its node tests fed fake events with `detail: 2`, which real Chrome never sends (pointer
   events carry 0). Before a gesture rule reads an event field, log that field from a real browser once, and make
   the fakes match it.
+- **A viewer-side rule that stands in for the browser must act like the browser everywhere (#513 close).** The
+  live-size rule meant to replace a canvas's UA sizing was author-origin, so it beat the UA's `[hidden]`, and it
+  lived in the document sheet, which shadow trees don't see. When a viewer rule substitutes for browser behaviour,
+  list the browser's own conditions (hidden, display:none, shadow trees, frames) and make each a test case.

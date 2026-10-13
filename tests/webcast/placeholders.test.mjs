@@ -4,6 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { label, mountPlaceholders } from '../../cmd/internal/webcast/web/placeholders.js';
+import { liveSizeRule, isUncaptured } from '../../cmd/internal/webcast/web/render.js';
 
 function fakeDoc() {
   const el = () => {
@@ -44,4 +45,26 @@ test('marks follow the uncaptured elements and their boxes', () => {
   list = [{ id: 7, kind: 'canvas' }];
   p.draw();
   assert.deepEqual(marks().map((m) => m[0]), ['canvas: not captured']);
+});
+
+// The renderer's live-size rule (render.js liveSizeRule), pure: what each
+// uncaptured element is sized to, and when it isn't sized at all.
+
+test('liveSizeRule: the live box, border-box with its aspect ratio, never [hidden]', () => {
+  const r = liveSizeRule(7, 'video', [0, 10, 346, 174], true, {});
+  assert.match(r, /^:where\(\[data-couch-live-size="7"\]:not\(\[hidden\]\)\)\{/);
+  for (const part of ['display:inline-block', 'box-sizing:border-box', 'width:346px', 'height:174px', 'aspect-ratio:346/174']) assert.ok(r.includes(part), part);
+});
+
+test('liveSizeRule: before any layout a canvas takes its attributes; after, no box means not rendered', () => {
+  assert.ok(liveSizeRule(1, 'canvas', undefined, false, { width: '320', height: '80' }).includes('width:320px;height:80px'));
+  assert.ok(liveSizeRule(1, 'canvas', undefined, false, {}).includes('width:300px;height:150px'));
+  assert.equal(liveSizeRule(1, 'video', undefined, false, { width: '320', height: '80' }), '', 'a video waits for its box');
+  assert.equal(liveSizeRule(1, 'canvas', undefined, true, { width: '320', height: '80' }), '', 'laid out without a box: hidden');
+  assert.equal(liveSizeRule(1, 'canvas', [0, 0, 0, 0], true, {}), '', 'a zero box sizes nothing');
+});
+
+test('isUncaptured: the kinds the recording cannot hold', () => {
+  for (const k of ['canvas', 'video', 'object', 'embed', 'iframe', 'frame']) assert.ok(isUncaptured(k), k);
+  for (const k of ['img', 'div', 'picture', 'audio']) assert.ok(!isUncaptured(k), k);
 });

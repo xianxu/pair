@@ -2,9 +2,9 @@
 // canvas's pixels, a video's frames, a plugin's output, a frame whose
 // document wasn't recorded. Each gets a dashed outline at its drawn box and a
 // small label ("canvas: not captured"), so a viewer, or an agent reading the
-// page, knows something is there. The renderer sizes a canvas to the
-// operator's live layout, so the box (and the label with it) follows the
-// operator's size as it changes. Recording the content itself is #515.
+// page, knows something is there. The renderer sizes each such element to
+// the operator's live layout (liveSizeRule), so the box (and the label with
+// it) follows the operator's size as it changes. Recording the content itself is #515.
 
 // label is the sentence a placeholder shows.
 export function label(kind) {
