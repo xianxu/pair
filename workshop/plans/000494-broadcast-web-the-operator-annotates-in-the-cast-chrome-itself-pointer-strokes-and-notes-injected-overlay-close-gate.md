@@ -62,6 +62,35 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - "n": 3
+      timestamp: "2026-10-12T23:45:07-07:00"
+      dispatched: "2026-10-12T23:42:00-07:00"
+      agent: codex
+      dispose:
+        - id: BR-4
+          disposition: addressed
+          note: operator.js:24 retires document-owned waiters, timers and reconciliation state; line 56 rejects stale continuations. operator-scope.test.mjs:77 reproduces lost-reply switch/return and fails without the fix. Recorder tests independently verify ledger retirement and fresh saves.
+          round: 3
+        - id: BR-5
+          disposition: addressed
+          note: annotate.js:402 preserves swatches when color is unchanged. Both interleaved-record regressions in operator.test.mjs:229 pass at head and fail with detached-button assertions when the fix is removed.
+          round: 3
+        - id: BR-1
+          disposition: addressed
+          note: Prior disposition retained. Action/body matching and identity-specific settlement remain in operator.js:48–59; both different-draft reconciliation regressions pass.
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: Prior disposition retained. Operator Escape remains captured at the window boundary with unavailable-state guards; the page-focus event regression passes.
+          round: 3
+        - id: BR-3
+          disposition: addressed
+          note: Prior disposition retained. The plan lists the recorded-node path helper under Integration points, matching observer.js's live DOM ancestry traversal.
+          round: 3
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: bc69501b32cec152e616d1d25e3475a1962fec87
+      blocked: false
 ---
 
 # Gate ledger — pair#494 (boundary-review)
@@ -95,7 +124,16 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-5** [Important] `interactive-dom-identity` Ordinary record updates replace color buttons during interaction
   annotate.js:587 calls sync for every record; transition at line 392 calls renderRail, whose line 403 invokes renderSwatches. collab.js:127 replaces every color button. Confirmed on both viewer and operator mounts that an unchanged-model scroll record detaches the pressed button; updates between pointer-down and pointer-up can therefore cancel color selection. Preserve button identity and update attributes in place, or avoid rebuilding on unchanged state. Add an interleaved-record click regression. ARCH-ORDER, ARCH-CONSTRAINTS.
 
+## Round 3 — 2026-10-12T23:45:07-07:00 (codex) — passed
+
+### Disposed
+
+- BR-4 — addressed — operator.js:24 retires document-owned waiters, timers and reconciliation state; line 56 rejects stale continuations. operator-scope.test.mjs:77 reproduces lost-reply switch/return and fails without the fix. Recorder tests independently verify ledger retirement and fresh saves.
+- BR-5 — addressed — annotate.js:402 preserves swatches when color is unchanged. Both interleaved-record regressions in operator.test.mjs:229 pass at head and fail with detached-button assertions when the fix is removed.
+- BR-1 — addressed — Prior disposition retained. Action/body matching and identity-specific settlement remain in operator.js:48–59; both different-draft reconciliation regressions pass.
+- BR-2 — addressed — Prior disposition retained. Operator Escape remains captured at the window boundary with unavailable-state guards; the page-focus event regression passes.
+- BR-3 — addressed — Prior disposition retained. The plan lists the recorded-node path helper under Integration points, matching observer.js's live DOM ancestry traversal.
+
 ## Open findings
 
-- **BR-4** [Critical] `operation-result-identity` A lost save reply blocks future saves after switching away and back
-- **BR-5** [Important] `interactive-dom-identity` Ordinary record updates replace color buttons during interaction
+(none — every finding has been disposed)

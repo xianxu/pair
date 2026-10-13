@@ -194,3 +194,90 @@ findings:
 7. **Plan revision recommendations**
    - Add a `## Revisions` entry defining operation lifetime across tab switches, document replacement, late replies, and unresolved outcomes. Require sequence tests spanning browser transport and recorder scope changes.
    - Record the invariant that unrelated projection updates preserve interactive DOM nodes, with viewer/operator interleaving coverage.
+
+---
+
+## Re-review — 2026-10-12T23:45:07-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 494 — broadcast-web: the operator annotates in the cast Chrome itself (pointer strokes and notes, injected overlay) |
+| repo | pair |
+| issue file | workshop/issues/000494-broadcast-web-the-operator-annotates-in-the-cast-chrome-itself-pointer-strokes-and-notes-injected-overlay.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | addd45e19d528471163e0d6803e8cb65718b89a7..bc69501b32cec152e616d1d25e3475a1962fec87 |
+| command | sdlc close --issue 494 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-12T23:45:07-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+Both open findings are addressed, with regression tests that fail when their fixes are removed. The implementation follows the revised annotation-only scope, and README/atlas cover the new surface. No new blocking findings emerged. Confidence is limited by two local verification failures: Chrome crashed during startup, and Couch menu tests lacked the generated runtime bundle.
+
+```findings
+dispose:
+  - id: BR-4
+    disposition: addressed
+    note: |
+      operator.js:24 retires document-owned waiters, timers and reconciliation state; line 56 rejects stale continuations. operator-scope.test.mjs:77 reproduces lost-reply switch/return and fails without the fix. Recorder tests independently verify ledger retirement and fresh saves.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      annotate.js:402 preserves swatches when color is unchanged. Both interleaved-record regressions in operator.test.mjs:229 pass at head and fail with detached-button assertions when the fix is removed.
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Prior disposition retained. Action/body matching and identity-specific settlement remain in operator.js:48–59; both different-draft reconciliation regressions pass.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Prior disposition retained. Operator Escape remains captured at the window boundary with unavailable-state guards; the page-focus event regression passes.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Prior disposition retained. The plan lists the recorded-node path helper under Integration points, matching observer.js's live DOM ancestry traversal.
+```
+
+1. **Strengths**
+
+   - Shared annotation mounting and gesture helpers keep viewer/operator behavior aligned.
+   - Recorder admission rechecks document, context, pause and driving state before writing; acceptance follows sink settlement.
+   - Screenshot suppression requires confirmation before and after capture and targets the original context during restoration.
+   - Transport regressions exercise retirement, late replies, already-resolved continuations and same-document reconciliation.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** No substantive findings. `git diff --check` reports trailing whitespace in the stored close-review document at line 74.
+
+5. **Test coverage notes**
+
+   - Passed all **215 browser tests**.
+   - Passed `go test -p 1 ./cmd/internal/webcast/... -count=1`.
+   - Passed targeted Board/recorder race tests.
+   - Independently mutation-tested BR-4 and BR-5 in a temporary copy, subsequently removed.
+   - Live Chrome verification failed before opening a page: GPU process startup failure.
+   - Couch menu tests could not compile: missing `runtimebundle/assets/runtime/files`.
+   - Pinned-range stat, name-status and targeted inspections succeeded; tracked files remain unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared UI, validation predicates, observer path grammar and capture helper.
+   - **ARCH-PURE — pass:** deterministic policies/parsing are separated from DOM/CDP integration.
+   - **ARCH-PURPOSE — pass:** browser annotations, recording, viewer delivery and Couch entry point are wired.
+   - **ARCH-MOCK — pass:** stateful recorder/CDP fakes and real-browser conformance tests exist; live execution was locally blocked.
+   - **ARCH-CONSTRAINTS — pass:** bounded payloads, queues, retained results and stroke history; latest-value projection delivery.
+   - **ARCH-SECURE — pass:** trusted context admission, strict payload parsing and Go-assigned operator identity.
+   - **ARCH-ORDER — pass:** document retirement and operation identity have controllable sequence regressions.
+   - **ARCH-FUNERAL — pass:** subscriptions/workers have owners; transient state is bounded or context-owned; recordings reuse existing retention.
+
+7. **Plan revision recommendations:** None required. Existing revisions document implementation names, scope changes and both reviewed fixes.

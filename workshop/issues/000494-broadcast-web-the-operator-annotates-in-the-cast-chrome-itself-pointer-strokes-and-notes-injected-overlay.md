@@ -91,6 +91,7 @@ Close, PR and SHIP-authorized landing follow this acceptance checkpoint.
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed — Operator smoke PASS (799f7b20). BR-1..5 addressed with mutation-sensitive regressions: 215 browser tests, real headless operator/module conformance (0.94s), recorder tab-return ledger/fresh-save race tests passed. Earlier full make test passed; final full rerun failed only two unrelated couchcore host-creation-busy tests, both passed unchanged isolated rerun (21.628s), recorded with exact logs. All webcast packages and menu checks pass. Pair:0 restored to main; #523 wires hook second.; review verdict: SHIP
 
 - Claimed in pair:1 and entered planning from fresh main. start-plan refreshed the
   ariadne layer and required a second invocation; no implementation changes made.
