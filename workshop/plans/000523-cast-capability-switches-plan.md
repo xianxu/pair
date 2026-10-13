@@ -268,7 +268,7 @@ Chrome/operator seams listed above if #494 is on main, plus scripted/live tests.
   table, stable links, clear semantics, error behavior and overlay handoff.
 - [x] Run `make test` and targeted race tests for capability owners. Check full
   logs and exit codes. Fix failures without widening unrelated scope.
-- [ ] Send TL readiness; stage to pair:0 and build only when instructed. Operator
+- [x] Send TL readiness; stage to pair:0 and build only when instructed. Operator
   checks annotation OFF/ON and drive OFF with active/pending viewers, right-copy
   while OFF, terminal pointer behavior and new-page overlay availability.
 - [ ] Close M2 with verified evidence and binary-owned fresh-context review;

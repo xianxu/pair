@@ -91,6 +91,18 @@ Durable plan: [000523-cast-capability-switches-plan.md](../plans/000523-cast-cap
 
 ## Log
 
+### 2026-10-13 — Final operator acceptance and test-fixture correction
+
+- Final display look PASSED at 1fb95c261; TL authorizes close/land and restoring
+  pair:0 to main (receipt da5ee984-1f29-4ba4-b7d5-7b3b47138817).
+- Full suite exposed a test-fixture race in stale-completion coverage: On is
+  published before the enable worker releases its admission slot. A concurrent
+  test disable can correctly return ErrCapabilityBusy. Fatal before releasing
+  the held terminal command then blocked fixture cleanup. Collected test-process
+  stack with SIGQUIT; no operator process touched. Fix awaits admission of the
+  newer disable and always releases the barrier on failure. Thirty repetitions
+  under race detection passed (13.510s); fresh full-suite rerun follows.
+
 ### 2026-10-13 — Operator smoke passed; driver display refined
 
 - Operator confirmed right-copy, annotation clear/draft retention/pen Off,

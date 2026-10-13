@@ -195,6 +195,13 @@ func TestWebCapabilityStaleCompletionDoesNotCopy(t *testing.T) {
 				t.Fatal(err)
 			}
 			entered, release, done := make(chan struct{}), make(chan struct{}), make(chan struct{})
+			defer func() {
+				select {
+				case <-release:
+				default:
+					close(release)
+				}
+			}()
 			go func() {
 				_ = r.con.runTerminalCommand(r.con.lifetime, func() error { close(entered); <-release; return nil })
 				close(done)
@@ -205,8 +212,19 @@ func TestWebCapabilityStaleCompletionDoesNotCopy(t *testing.T) {
 			waitFor(t, "enabled before UI completion", func() bool { return cast.Capabilities().Drive.Phase == capability.On })
 			if end {
 				r.con.endWebcast()
-			} else if err := cast.SetCapability(context.Background(), webcast.CapabilityDrive, false); err != nil {
-				t.Fatal(err)
+			} else {
+				// Authority publishes On before the enable worker releases its slot.
+				// Wait for admission of the newer operation, not that earlier phase.
+				waitFor(t, "newer disable admitted", func() bool {
+					err := cast.SetCapability(context.Background(), webcast.CapabilityDrive, false)
+					if errors.Is(err, webcast.ErrCapabilityBusy) {
+						return false
+					}
+					if err != nil {
+						t.Fatal(err)
+					}
+					return true
+				})
 			}
 			close(release)
 			<-done

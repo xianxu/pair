@@ -1551,3 +1551,8 @@ proof; record the surprising case so the next change starts from evidence.
 - #523 M2: independent SSE channels may deliver initial permission and catch-up
   control in either order. Retain evidence while unavailable; gate its projection
   and invalidate consent on authority-generation changes.
+
+- #523: A published capability phase is not worker completion. Concurrent test
+  operations must await admission or their own completion receipt. Always defer
+  release of a held test barrier before an assertion can fail, so failure reports
+  remain visible instead of hanging fixture teardown.
