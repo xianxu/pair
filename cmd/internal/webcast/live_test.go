@@ -225,6 +225,7 @@ func TestLiveCastEndToEnd(t *testing.T) {
 	}
 	t.Cleanup(cast.End)
 	u := waitUpdate(t, cast, "link", func(u Update) bool { return u.Link != "" })
+	unlockCast(t, cast, u)
 	v := openSSE(t, u.Link+"events")
 	if got := v.nextState(); got != (wireState{}) {
 		t.Fatalf("join: %+v", got)

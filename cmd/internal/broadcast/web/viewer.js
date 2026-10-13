@@ -5,7 +5,7 @@
 // pick (#446).
 
 import { noteAt, boxHasPin, parseNotes } from './notes.js';
-import { HEX_COLOR, pointerColor, colorStore, railAt, renderSwatches, noteDialog, poster, gestureBox, dragMin } from './collab.js';
+import { HEX_COLOR, pointerColor, colorStore, railAt, renderSwatches, noteDialog, poster, gestureBox, dragMin, sessionLost, storedName } from './collab.js';
 
 export { pointerColor, colorStore, RAIL_INSET, railAt, renderSwatches } from './collab.js';
 
@@ -111,8 +111,8 @@ function endText(data) {
 // connect runs the viewer's connection state machine. The screen is never
 // left looking live while it isn't: any lost connection dims it and says so.
 // deps: open() → EventSource-like; render(frame); theme(palette); reset();
-// show(text); setStale(bool); later(fn, ms); caps(capabilities) and
-// notes(list), optional.
+// show(text); setStale(bool); later(fn, ms); caps(capabilities),
+// notes(list), and sessionLost() → Promise<bool> with relock(), optional.
 export function connect(deps) {
   let attempt = 0;
   let ended = false;
@@ -169,13 +169,22 @@ export function connect(deps) {
         return;
       }
       events.close();
-      if (attempt >= RETRY_DELAYS.length) {
-        deps.show('Disconnected');
+      const retry = () => {
+        if (attempt >= RETRY_DELAYS.length) {
+          deps.show('Disconnected');
+          return;
+        }
+        const delay = RETRY_DELAYS[attempt++];
+        deps.show(`Disconnected — retrying in ${delay / 1000}s`);
+        deps.later(open, delay);
+      };
+      // A stream refused because the code was rotated (pair#495) goes back
+      // to the lock page rather than retrying a session that is gone.
+      if (!deps.sessionLost) {
+        retry();
         return;
       }
-      const delay = RETRY_DELAYS[attempt++];
-      deps.show(`Disconnected — retrying in ${delay / 1000}s`);
-      deps.later(open, delay);
+      deps.sessionLost().then((lost) => (lost ? deps.relock() : retry()));
     };
   };
   open();
@@ -280,7 +289,15 @@ async function start() {
   const dialog = noteDialog({
     root: byId('note'), text: byId('note-text'), input: byId('note-input'), count: byId('note-count'),
     msg: byId('note-msg'), save: byId('note-save'), cancel: byId('note-cancel'), resolve: byId('note-resolve'),
-  }, { post: postJSON, color: () => pointer.color() });
+  }, {
+    post: postJSON,
+    color: () => pointer.color(),
+    // The name the lock page kept (pair#495) attributes the note.
+    beforeSave: () => {
+      const name = storedName(storage);
+      return name ? { author: name } : {};
+    },
+  });
   pointer = pointerMode(term, stage, {
     notes: () => notes,
     dialog,
@@ -310,6 +327,8 @@ async function start() {
   });
   connect({
     open: () => new EventSource('events'),
+    sessionLost: () => sessionLost(fetch),
+    relock: () => location.reload(),
     render: (m) => {
       const resized = term.cols !== m.cols || term.rows !== m.rows;
       if (resized) {

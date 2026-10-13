@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"strings"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -54,6 +55,9 @@ type Note struct {
 	// context (file names, a heading off screen), never on the pages'
 	// wire: a page neither sends nor receives it.
 	Anchor *NoteAnchor `json:"-"`
+	// Author is the name the viewer gave the lock page (pair#495); "" when
+	// none was sent. It is attribution, not authentication.
+	Author string `json:"author,omitempty"`
 	// On is the grid the note was placed on (NoteBoard.Add): a box means
 	// the screen of that size.
 	On terminal.Geometry `json:"-"`
@@ -143,6 +147,25 @@ func NoteCrop(n Note, cols, rows, margin int) CellBox {
 	return CellBox{c0, r0, max(c1-c0, 0), max(r1-r0, 0)}
 }
 
+// MaxViewerNameRunes bounds a viewer's name on every cast; web/collab.js's
+// validName is the same rule, for the pages.
+const MaxViewerNameRunes = 40
+
+// ViewerName is a viewer's name as every cast takes it: trimmed, one line of
+// plain text (no control or format character), at most MaxViewerNameRunes.
+func ViewerName(s string) (string, bool) {
+	s = strings.TrimSpace(s)
+	if utf8.RuneCountInString(s) > MaxViewerNameRunes {
+		return "", false
+	}
+	for _, r := range s {
+		if unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
+			return "", false
+		}
+	}
+	return s, true
+}
+
 // NoteBoard is a broadcast's open notes. Pure: the caller owns locking.
 type NoteBoard struct {
 	notes  []Note
@@ -229,11 +252,12 @@ type NoteRequest struct {
 // the input.
 func ParseNote(body []byte) (NoteRequest, error) {
 	var raw struct {
-		Cols  *int    `json:"cols"`
-		Rows  *int    `json:"rows"`
-		Box   *[]*int `json:"box"`
-		Color *int    `json:"color"`
-		Text  *string `json:"text"`
+		Cols   *int    `json:"cols"`
+		Rows   *int    `json:"rows"`
+		Box    *[]*int `json:"box"`
+		Color  *int    `json:"color"`
+		Text   *string `json:"text"`
+		Author *string `json:"author"` // optional (pair#495)
 	}
 	// The decoder would turn invalid UTF-8 into U+FFFD; refuse it instead.
 	if !utf8.Valid(body) || !DecodeStrict(body, &raw) {
@@ -260,6 +284,13 @@ func ParseNote(body []byte) (NoteRequest, error) {
 	}
 	if !PlainText(n.Text) {
 		return NoteRequest{}, ErrNoteText
+	}
+	if raw.Author != nil {
+		name, ok := ViewerName(*raw.Author)
+		if !ok {
+			return NoteRequest{}, ErrNoteText
+		}
+		n.Author = name
 	}
 	return NoteRequest{Cols: cols, Rows: rows, Note: n}, nil
 }

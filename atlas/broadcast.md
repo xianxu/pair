@@ -49,8 +49,11 @@ is the current one, for late joiners.
 `broadcast.Server` is read-only by construction:
 - **GET only:** every other method gets 405, and no request body is read.
 - **Token gate:** everything lives under `/<token>/`, and the token is
-  compared in constant time. Only five assets and `events` are served; any
-  other path, or a wrong token, gets 404.
+  compared in constant time. Only the page's fixed assets (`assets` in
+  `server.go`) and `events` are served; any other path, or a wrong token,
+  gets 404.
+- **Code lock (#495):** see [Code lock](#code-lock-495) below. Before a
+  session the Host serves the lock page instead of any of the above.
 - **Headers on every response:** `Cache-Control: no-store`,
   `Referrer-Policy: no-referrer` (the token is in the path), `nosniff`, and a
   CSP that confines the page to its own origin. Scripts are strict. Inline
@@ -61,6 +64,98 @@ is the current one, for late joiners.
   - `event: end` carries `{reason}`.
   - A `: ping` every 15s keeps Cloudflare from closing an idle stream (it does
     at 100s). A failed ping ends that viewer, which frees its slot.
+
+## Code lock (#495)
+
+Every cast link is locked behind a short numeric code, delivered out of band:
+the operator says it on the call.
+
+- **Core.** `castlock.Lock` holds one link's code and its wrong-try budget
+  (8 per code, counted across every client), plus the sessions it issued.
+  - **Spent budget:** the code rotates and the existing sessions are kept.
+  - **Operator rotation** (`Session.RotateCode`): revokes every session and
+    closes the generation's `Revoked` channel.
+  - **Ordering:** one mutex orders unlocks and rotations.
+- **Gate.** `Mountable.LockFor(segment)` names a link's lock, and the
+  `Host` gate (`lockgate.go`) runs before any mount sees a request.
+  - **Without a session:** `GET /<token>/` gets the lock page, plus
+    `lock.js`, `lock.css` and `POST unlock`. Everything else gets `401 locked`.
+  - **With a session:** the request reaches the mount under a context that
+    is cancelled on revoke, so live streams end with the session.
+  - **`GET session`:** the gate's own probe, `204` for a live session and
+    `401` otherwise. A page whose stream closed uses it to return to the
+    lock page.
+- **Session cookie.** It is `HttpOnly`, `SameSite=Strict`, scoped to
+  `/<token>/` and has no expiry. It is `Secure` on https links.
+  - The page's own fetches send it with same-origin credentials.
+  - **Trade-off:** a viewer who re-opens the link from a chat app
+    (cross-site) is asked for the code again.
+- **Unlock attempts** are rate-limited per lock (a burst of 5, then 1/s),
+  so a guesser can force at most about one rotation every 8 seconds.
+- **Terminal broadcast.** Each link has its own 4-digit code:
+  - `view`: the lock exists before `Mount`;
+  - `pointer`: the lock is minted with the pointer token.
+  - Both locks end in `teardown`, after the hub's `end` event, so viewers
+    still see why the broadcast ended.
+- **Lock page** (`web/lock.*`): asks for the code and the viewer's name; the
+  name is stored as `couch.viewerName`.
+  - `URL#NNNN` pre-fills the code, and the page strips it from history at
+    once.
+- **Couch.** Every link's codes reach the operator through the presenter's
+  operator-only layer (`terminal.OperatorLayer`), which is applied after the
+  tap takes its frame, so no broadcast frame carries a code.
+  `console_castcodes.go` draws three things there:
+  - **Hover tooltip:** hovering a cast's cell (`LIVE ⏸` or `Chrome ⏸`, the
+    main entrance) shows all of its codes, for example
+    `view 4821 · pointer 7730`. The link controls beside it show none.
+  - **Codes menu:** Alt+click on the cell (only there) opens it.
+    - `codes_menu.go` is a pure model: layout, a hit target per word,
+      selection and drawing.
+    - It has one row per link (`view 3926 · rotate · copy-link`), then
+      `rotate all`. Each action word is a click target drawn in the link blue
+      (`notesMenuLink`).
+    - Keyboard: Up/Down pick the row, Left/Right the word, Enter runs it, and
+      Escape closes the menu.
+    - Running a word keeps the menu open: the word is drawn pressed for
+      `codesPress` (180 ms), and a rotation rebuilds the menu in place with the
+      new code, keeping the selection (`refreshCodesMenu`). Only Escape or ×
+      closes it.
+    - A rotation disconnects that link's viewers.
+    - The screen pointer link's row has no actions until pointing makes the
+      link: copy-link never turns pointing on.
+  - **The cast row's rule** (operator, at the #495 smoke test): a left click
+    acts or toggles, a right-click copies that control's link, and Alt+click
+    opens the Codes menu. The README has the per-control table. `LIVE ⏸`'s
+    left click still stops the broadcast; pause is #518.
+  - **Flash:** a new code flashes three times.
+  - **Notices:** the status row and the notice line are broadcast, so a
+    notice says that a code changed and never what it is.
+    - A guess-rotation notice is coalesced per link every 30 s.
+    - Rotations apply in `Gen` order.
+- **Registry.** `broadcast.LinkLocks` is one per cast: a lock per link token,
+  minted with the token (`Mint`), routed by `LockFor`, listed by `Codes`, and
+  rotated and ended together. A new link is one `Mint`.
+
+### Threat model
+
+- **What the code protects against:** a cast link that leaked.
+  - A link pasted in a chat log, kept in browser history or a proxy log, or
+    fetched by a chat app's link preview is still only half the credential.
+  - The code travels out of band: said on the call.
+  - A `#code` fragment is never sent to a server, and preview fetchers don't
+    run the page's script.
+  - Guessing is bounded by the per-code budget and the per-lock rate.
+  - Rotating a code revokes every session that used it.
+- **What it does not protect against:**
+  - a viewer who has the code: they can share what they see, or pass on
+    both link and code;
+  - a stolen session cookie, which stays good until rotation or the cast's
+    end (it is `HttpOnly` and scoped to the link's path);
+  - anyone who can read the operator's screen, including the operator's own
+    local diagnostic capture.
+- **LIVE viewers see the tab bar**, but never the codes: these draw only in
+  the operator-only layer.
+- **Replay share links** are not locked yet (pair#509).
 
 The page (`web/`), a vendored `@xterm/xterm` 6.0.0 with `@xterm/addon-unicode11`
 (Unicode 11 widths, so emoji are two columns as in Couch; #412),

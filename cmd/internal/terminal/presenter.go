@@ -71,6 +71,7 @@ type Presenter struct {
 	history          HistoryState
 	tap              Tap
 	overlay          Overlay
+	operatorLayer    OperatorLayer
 	panel            Frame      // the panel on screen, kept for Refresh; zero while an endpoint is selected
 	class            FrameClass // of what is on screen: Select → public, Panel → its argument
 	modesKnown       bool
@@ -427,6 +428,15 @@ func (p *Presenter) paintPublication(ctx context.Context, f Frame, history *Hist
 			return err
 		}
 	}
+	// What a tap may see is fixed here; the operator-only layer draws on the
+	// operator's copy alone (pair#495).
+	tapped := f
+	if p.operatorLayer != nil {
+		f = p.operatorLayer(f, p.class)
+		if err := f.Validate(); err != nil {
+			return err
+		}
+	}
 	v := p.View()
 	kind := PublishFrame
 	if selection {
@@ -493,7 +503,7 @@ func (p *Presenter) paintPublication(ctx context.Context, f Frame, history *Hist
 	}
 	_, err = p.transition(ViewEvent{Kind: PresentView, EndpointID: f.EndpointID, Token: v.Token, Generation: f.Generation, GeometryEpoch: f.GeometryEpoch})
 	if err == nil && painted && p.tap != nil {
-		p.tap(f.Clone(), p.class)
+		p.tap(tapped.Clone(), p.class)
 	}
 	return err
 }
