@@ -1070,6 +1070,13 @@ saved in `notes.jsonl` and `pointer.jsonl`, and `couch --broadcast-web-query DIR
 notes` lists them. The name a viewer gives is theirs to choose: it attributes, it
 doesn't authenticate.
 
+**Submit web notes (#483).** Press **Shift+Ctrl+Alt+Return** in the draft to send
+its text and all open cast-tab notes to the agent in view, with recorded context
+and one current PNG crop per note. The draft can be empty. Submitted notes become
+resolved: submitting transfers ownership of the notes to the agent; whatever
+follows (a pensive, an issue, a fix) is the agent's. See
+[submission evidence and recovery](atlas/webcast-submission.md).
+
 With an empty root filter, **Space** toggles the **normal view** and **focus view**.
 Focus view shows only live threads with a published summary, in normal-view
 order, as `label ◆ summary`. Tag a thread with `! …` in its Pair draft. An empty

@@ -7,6 +7,9 @@ link, and its own current PNG crop. Overlapping notes still get separate crops.
 The selection is frozen when Couch admits the request; notes added afterward
 wait for the next submission.
 
+Submitted notes become resolved: submitting transfers ownership of the notes to
+the agent; whatever follows (a pensive, an issue, a fix) is the agent's.
+
 The draft is optional: an empty or comment-only draft can send notes. With no
 notes, nonempty text follows ordinary draft submission; with neither, the chord
 does nothing. Ordinary Alt+Return keeps its existing behavior. A paused cast

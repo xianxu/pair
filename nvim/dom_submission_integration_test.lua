@@ -31,6 +31,11 @@ _G.PairTestZellijExecutor=function(label,argv)
  return {code=0}
 end
 vim.api.nvim_buf_set_lines(0,0,-1,false,{body})
+if case=='queue' then
+ vim.fn.maparg('<M-Right>','n',false,true).callback()
+ body='queued'
+ assert(vim.api.nvim_get_current_line()==body)
+end
 local map=vim.fn.maparg('<C-S-M-CR>',mode,false,true)
 assert(type(map.callback)=='function','DOM chord absent in '..mode)
 map.callback()
@@ -49,6 +54,12 @@ else
   map.callback()
   assert(#sent==1 and preps==1 and acks==2)
   assert(vim.api.nvim_get_current_line()=='next draft')
+ end
+ if case=='queue' then
+  local path=assert(os.getenv('PAIR_QUEUE_DIR'))
+  assert(vim.fn.filereadable(path..'/500000.md')==0,'sent queue item not consumed')
+  local files=vim.fn.readdir(path)
+  assert(#files==1 and table.concat(vim.fn.readfile(path..'/'..files[1]),'\n')=='draft','star draft not preserved')
  end
  if case=='comments' then assert(vim.api.nvim_buf_get_lines(0,0,-1,false)[1]=='=== keep') end
 end

@@ -56,6 +56,8 @@ Operator-shaped (the operator shapes it in the slot); the TL's starting proposal
 
 ## Done when
 
+- 2026-10-12 acceptance-order revision (TL receipt 0146066c-f885-4a42-a2d6-eb731bd9e8fe): run the authorized low-parallel full suite and one bounded headless Chrome crop check, then close. Operator smoke on pair:0 follows #495/#506 when TL schedules it. This supersedes the older before-close ordering below, not the outstanding live acceptance itself.
+
 - Current acceptance: two viewers leave notes on the blog; the single draft hotkey sends all open notes and
   optional draft text to the agent in view, with one PNG per note and readable recorded context; the agent fixes
   at least one correctly from the bundle alone. Empty draft, safe failure/retry, successful resolution on every
@@ -93,10 +95,10 @@ total: 3.82
 
 ## Plan
 
-- [ ] Shared submission format and pure builder/transition tests.
-- [ ] Bounded atomic store, note snapshot, current-tab crops and guarded resolution.
-- [ ] Couch prepare/status/ack RPC with fixed recipient and replay links.
-- [ ] Draft hotkey using the existing authored-send transaction with frozen retry identity.
+- [x] Shared submission format and pure builder/transition tests.
+- [x] Bounded atomic store, note snapshot, current-tab crops and guarded resolution.
+- [x] Couch prepare/status/ack RPC with fixed recipient and replay links.
+- [x] Draft hotkey using the existing authored-send transaction with frozen retry identity.
 - [ ] Docs, bounded verification, hub-scheduled operator smoke, SDLC review and SHIP landing.
 
 Detailed plan: [DOM submission implementation plan](../plans/000483-dom-submission-plan.md).
@@ -140,6 +142,12 @@ TL authorized a serial full suite with Go parallelism 1 / GOMAXPROCS 2 and one b
 - Coordination delta (#494; receipts d337fc0e-dbd8-4265-9a0d-fe57d61aff3d and a0310d7c-6814-4d28-b5dd-b6315cdd7fcf): whichever lands second integrates annotation suppression into centralized Recorder.CaptureCrops. The proposed seam is recorder.CaptureScreenshot(ctx, call, session, contextID, params, result); pass the exact admitted top-frame couchcast context, never consume bytes on error. Check main before landing.
 
 
+### 2026-10-12 — conformance and full-suite findings
+
+One authorized headless Chrome run passed: TestLiveSubmissionCrop (4.72 s) with a temporary profile, DPR 2, two overlapping clips below the initial viewport, scroll 1100 CSS px, and current red pixels after an initially blue recording. PNG sizes and page-coordinate centers matched. Headless DOM draft integration now also verifies queue-item consumption while preserving the parked star draft.
+
+The full make test shell/Lua stages passed. Its Go stage found the newly introduced sources absent from the exhaustive artifact inventory; accurate Couch-namespace and generated-mirror entries were added, and TestProductionArtifactReferencesAreExactlyClassified then passed (1.968 s). Remaining Go packages are still running. Additional writer/recorder interleaving tests prove a resolve/reopen between admission and emission is preserved and the local revision guard never enters JSON recordings.
+
 ## Revisions
 
 - 2026-10-12 — pair:6 resumed after the hub released the old shaping claim. The operator's later decisions now
@@ -152,3 +160,5 @@ TL authorized a serial full suite with Go parallelism 1 / GOMAXPROCS 2 and one b
 - 2026-10-12 — crop source: the note's box (pair#488), not `NoteCrops` snapping/clustering. If #488 hasn't landed when #483 builds, crop from the note's `region` (always set once #488 lands) through the notes seam #488 fills.
 
 - 2026-10-12 — TL: #488's plan settles the crop as each note's box + 16 px margin; structure-snapped crops and per-URL crop hints are retired. #483 builds its crop on the note's box through the notes seam #488 fills.
+
+- 2026-10-12 — Operator confirms resolve-after-delivery (via TL receipt dde5ab61-cea4-4617-ad8f-6e4a67b32b86): submitting transfers ownership of the notes to the agent; whatever follows (a pensive, an issue, a fix) is the agent's. README and atlas state this ownership transfer explicitly; implementation already matches.
