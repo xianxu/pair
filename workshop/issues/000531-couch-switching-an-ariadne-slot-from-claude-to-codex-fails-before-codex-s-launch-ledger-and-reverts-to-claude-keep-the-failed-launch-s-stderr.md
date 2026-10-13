@@ -1,12 +1,12 @@
 ---
 id: 000531
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-13
 updated: 2026-10-13
 estimate_hours:
-card_mirror: '27453f877a15aa5dc424b3c9370de632eb3eb6e6' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '0291c1356917378beb97b6c1f2eb316171e985d5' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-13T13:00:09-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 1.47
 ---
 
 # couch: switching an ariadne slot from Claude to Codex fails before Codex's launch ledger and reverts to Claude; keep the failed launch's stderr
