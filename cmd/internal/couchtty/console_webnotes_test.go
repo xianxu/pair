@@ -59,10 +59,12 @@ func newWebNotesCast(t *testing.T, screen bool) *webNotesCast {
 			t.Fatal(err)
 		}
 	}
-	waitFor(t, "link", func() bool {
+	// Viewers who leave notes hold the pointer link; the view link only
+	// watches (pair#506).
+	waitFor(t, "pointer link", func() bool {
 		r.con.mu.Lock()
 		defer r.con.mu.Unlock()
-		c.link = r.con.wcast.update.Link
+		c.link = r.con.wcast.update.PointerLink
 		return c.link != ""
 	})
 	return c
