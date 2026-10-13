@@ -1,12 +1,20 @@
 ---
 id: 000516
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: 'ae458fff91213329487f6b1d7b152bd48b08572d' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'bbbd88a5a607dd0d1144159d42c818cfb5671d17' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-12T19:10:50-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:6
+    worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
+    repository: github.com/xianxu/pair
 ---
 
 # broadcast-web: fast trackpad scrolls are refused as stale; drop the element check for wheel input
@@ -33,3 +41,14 @@ No coalescing up front: measure a fast flick end to end first (injector queue de
 ## Log
 
 ### 2026-10-12
+
+## Revisions
+
+- 2026-10-12 (operator via TL): if the flick measurement shows coalescing is needed, merge by TIME, not by count or
+  "whatever queued up": bucket wheel deltas by their arrival time at the viewer, one bucket per animation frame
+  (~16 ms), and send the buckets in order with their time, so the momentum curve macOS produces (e.g.
+  1 1 2 3 4 4 3 1 1 → 2 5 8 4 1) keeps its shape at frame resolution. Never collapse a backlog into one jump.
+- 2026-10-12 (operator via TL): keep the gesture's acceleration shape, not just totals. Tag each bucket with the
+  viewer's timestamp; if the measurement shows uneven arrival at Couch, add a small playout buffer (hold ~1-2 frames,
+  inject each bucket at its original time offset). Measure arrival spacing at Couch in the flick test and record it
+  in the Log either way.
