@@ -1,12 +1,12 @@
 ---
 id: 000494
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours: 4.775
-card_mirror: 'ec8d291bd696f4f27982ae4b47d453acd2ac43e1' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '014fa68f4234408becc9734f55d3dd7c20cfb861' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T20:05:32-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 3.40
 ---
 
 # broadcast-web: the operator annotates in the cast Chrome itself (pointer strokes and notes, injected overlay)
