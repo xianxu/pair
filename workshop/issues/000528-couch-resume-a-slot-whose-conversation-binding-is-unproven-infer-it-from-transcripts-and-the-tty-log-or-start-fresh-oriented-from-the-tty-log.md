@@ -253,6 +253,8 @@ M2 build/race checkpoint (2026-10-13 13:16 PDT): make build PASS; /tmp/pair528-m
 
 2026-10-13 13:33 PDT — BR-6/BR-7 corrections verified. Native ownership now joins the observed wrapper to the exact live readiness agent PID/start and launch ordinal, refusing missing or changed association instead of borrowing the latest tag-level launch; source exemptions and the stateful fake use the same rule. Unsafe Enter, mouse, explicit Relaunch and restart shortcuts now share the recovery chooser, preserving healthy relaunch confirmation. Serialized targeted race tests PASS (couchcore 8.516s, launcher 1.309s; /tmp/pair528-m2-review-fixes-race.log), full couchtty PASS43.893s (/tmp/pair528-m2-br7-couchtty.log), diff check clean. The exact-generation regression kills the prior latest-launch mutation. Review's marker-publication test passes locally isolated and count=3; no unrelated fix made. No new full suite started; #514 remains the observed prerequisite failure and the rest remains unverified pending TL capacity. Resubmit fixes for boundary review; operator live acceptance still outstanding.
 
+2026-10-13 13:40 PDT — Second M2 boundary REWORK: BR-6 and BR-7 addressed, independently mutation-tested by the reviewer; new Important BR-8 requests recovery-specific native conformance. Existing conformance indeed calls legacy scanners only. Extend that read-only path and add drift regression per plan revision. Build at 5be717b9e passed with all three binaries vcs.modified=false. Reviewer targeted suites passed; full-suite and live acceptance still outstanding.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against

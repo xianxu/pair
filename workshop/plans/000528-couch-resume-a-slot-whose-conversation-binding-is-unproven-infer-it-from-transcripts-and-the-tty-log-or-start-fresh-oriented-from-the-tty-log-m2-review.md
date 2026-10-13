@@ -84,3 +84,94 @@ findings:
     detail: |
       cmd/internal/couchtty/menu.go:864 handles only the new resume-candidates item, appended separately at menu_switchagent.go:204. Unsafe-row Enter/mouse still select relaunch at menu.go:803 and open the old confirmation through menu_slot.go:34; the old executor requires established binding. The primary-route regression fails with the confirmation frame and no preview effect. Route Enter, mouse, and the unsafe-row Relaunch item through the same evidence preview while preserving ordinary healthy relaunch behavior. ARCH-PURPOSE.
 ```
+
+---
+
+## Re-review — 2026-10-13T13:39:33-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 528 — couch: resume a slot whose conversation binding is unproven: infer it from transcripts and the tty log, or start fresh oriented from the tty log |
+| repo | pair |
+| issue file | workshop/issues/000528-couch-resume-a-slot-whose-conversation-binding-is-unproven-infer-it-from-transcripts-and-the-tty-log-or-start-fresh-oriented-from-the-tty-log.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 525444d45a521bde3dca685d02e6905d2d9bc2e0..5be717b9e09eef04e2223e8a4ae36ed86a3888b7 |
+| command | sdlc milestone-close --issue 528 --milestone M2 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-13T13:39:33-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: medium
+```
+
+Both prior Critical findings are addressed, with independently confirmed failing mutations. The implementation follows the revised explicit-selection design, preserves recovery evidence, and documents the new commands. One Important architecture gap remains: live conformance does not exercise the new recovery-specific native contract. Full-suite and operator acceptance remain outstanding under the documented boundary exception.
+
+```findings
+dispose:
+  - id: BR-6
+    disposition: addressed
+    note: |
+      Ownership now resolves the launch ordinal associated with the observed wrapper's live readiness generation. Checked preflight, final Couch check, Pair admission, source exemptions, and the stateful double. TestRecoveryNativeOwnerOldWrapperCannotBorrowNewLaunch passes at head and fails when CurrentLaunch receives the entire tag ledger again.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      Unsafe Enter, mouse, Relaunch item, and restart shortcut share the recovery preview route. Production reducer tests pass; disabling the shared routing predicate fails all four cases. Healthy relaunch retains its existing confirmation.
+findings:
+  - id: new
+    severity: Important
+    family: external-contract-conformance
+    title: |
+      Recovery-specific native parsing is outside live conformance
+    detail: |
+      ARCH-MOCK: cmd/internal/sessioninventory/recovery_candidate.go:192 introduces eligibility based on Claude entrypoint and related provenance, but conformance.go:52 checks only the existing scanners; conformance_live_test.go:21 never invokes the recovery parser or collector. Native changes can therefore leave conformance green while recovery eligibility or tail evidence stops working. Extend the existing read-only conformance path through the production recovery parser, covering provenance, cwd, activity and authored tails, with explicit unsupported/absent-sample outcomes and the existing contract-change/monthly cadence.
+```
+
+**1. Strengths**
+
+- Exact-generation ownership is enforced before source exemptions and rechecked after observation (`recovery_native_owner.go:67–91`).
+- Primary recovery routes now share one predicate and preview; tests cover all four entry routes and healthy relaunch.
+- Recovery intent survives completion and rollback through the existing start transaction machinery.
+- Bounded file reads, capture preservation, strict schema migration, and explicit candidate keys have substantive tests. README and atlas cover the new user-facing commands.
+
+**2. Critical findings**
+
+None remaining.
+
+**3. Important findings**
+
+The ARCH-MOCK conformance gap above. Extend `TestLiveNativeSessionShapeConformance` to exercise the new production recovery interpretation, and add a regression demonstrating that recovery-specific contract drift is detected.
+
+**4. Minor findings**
+
+None.
+
+**5. Test coverage notes**
+
+- Passed targeted recovery tests across launcher, couchcore, couchtty, couchcmd, sessioninventory, threadrecord, orientation, and couchmessage.
+- Passed full sessioninventory, threadrecord, orientation, scrollbackcmd, and artifactpath suites.
+- Independently killed both prior-defect mutations.
+- UI/CLI compilation and artifact tests initially encountered absent generated runtime assets. They passed after generating those assets in disposable pinned-head copies; those copies were removed.
+- No full repository suite, live acceptance, or independent race rerun was completed.
+
+**6. Architectural notes**
+
+| Marker | Result | Evidence |
+|---|---|---|
+| ARCH-DRY | Pass | Shared preview, bounded reader, capture publisher, and lifecycle owners. |
+| ARCH-PURE | Pass | Parsing, ranking, keys, schema validation, and orientation have direct value tests. |
+| ARCH-PURPOSE | Pass | Explicit alternatives and fresh fallback follow the latest revisions; primary routing is repaired. |
+| ARCH-MOCK | **Flag** | New recovery interpretation lacks live conformance coverage. |
+| ARCH-CONSTRAINTS | Pass | Explicit scan, byte, metadata, candidate, and message bounds; cancellation checks. |
+| ARCH-SECURE | Pass | Strict persisted-input validation and exact process/artifact revalidation. |
+| ARCH-ORDER | Pass | Start-claim transfer, stale-preview rejection, ownership rechecks, and uncertain-delivery handling. |
+| ARCH-FUNERAL | Pass | Bounded retained context and existing capture retention; no new growing suggestion store. |
+
+**7. Plan revision recommendations**
+
+Add a `## Revisions` entry naming recovery-specific conformance coverage, its production parser/collector seam, supported-agent expectations, absent-sample behavior, and execution cadence. The reconciled implementation-owner table otherwise matches the inspected code.

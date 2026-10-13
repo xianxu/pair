@@ -1628,3 +1628,5 @@ proof; record the surprising case so the next change starts from evidence.
 
 - **#528 exact native ownership:** a live wrapper plus the newest tag-level ledger entry is not a causal join. Bind the wrapper generation through readiness's exact live agent and launch ordinal; test an older live wrapper alongside a newer same-owner launch. Apply the same association rule to source exemptions and fakes.
 - **#528 primary recovery routing:** a new secondary action does not satisfy the primary recovery contract. Test Enter, mouse, explicit Relaunch and equivalent restart gestures against the shared preview, preserving ordinary healthy behavior.
+
+- **#528 recovery conformance:** extending a native format consumer creates a new contract even when the older scanner still parses the file. Exercise the new production interpretation in installed-native conformance, and prove recovery-only drift fails while legacy inventory remains valid.

@@ -119,6 +119,30 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - "n": 5
+      timestamp: "2026-10-13T13:39:34-07:00"
+      dispatched: "2026-10-13T13:34:13-07:00"
+      agent: codex
+      dispose:
+        - id: BR-6
+          disposition: addressed
+          note: Ownership now resolves the launch ordinal associated with the observed wrapper's live readiness generation. Checked preflight, final Couch check, Pair admission, source exemptions, and the stateful double. TestRecoveryNativeOwnerOldWrapperCannotBorrowNewLaunch passes at head and fails when CurrentLaunch receives the entire tag ledger again.
+          round: 5
+        - id: BR-7
+          disposition: addressed
+          note: Unsafe Enter, mouse, Relaunch item, and restart shortcut share the recovery preview route. Production reducer tests pass; disabling the shared routing predicate fails all four cases. Healthy relaunch retains its existing confirmation.
+          round: 5
+      findings:
+        - id: BR-8
+          severity: Important
+          title: Recovery-specific native parsing is outside live conformance
+          detail: 'ARCH-MOCK: cmd/internal/sessioninventory/recovery_candidate.go:192 introduces eligibility based on Claude entrypoint and related provenance, but conformance.go:52 checks only the existing scanners; conformance_live_test.go:21 never invokes the recovery parser or collector. Native changes can therefore leave conformance green while recovery eligibility or tail evidence stops working. Extend the existing read-only conformance path through the production recovery parser, covering provenance, cwd, activity and authored tails, with explicit unsupported/absent-sample outcomes and the existing contract-change/monthly cadence.'
+          family: external-contract-conformance
+          round: 5
+      boundary: M2
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#528 (boundary-review)
@@ -172,7 +196,18 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-7** [Critical] `recovery-primary-action-routing` The advertised primary Relaunch action never opens the new recovery preview
   cmd/internal/couchtty/menu.go:864 handles only the new resume-candidates item, appended separately at menu_switchagent.go:204. Unsafe-row Enter/mouse still select relaunch at menu.go:803 and open the old confirmation through menu_slot.go:34; the old executor requires established binding. The primary-route regression fails with the confirmation frame and no preview effect. Route Enter, mouse, and the unsafe-row Relaunch item through the same evidence preview while preserving ordinary healthy relaunch behavior. ARCH-PURPOSE.
 
+## Round 5 — 2026-10-13T13:39:34-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-6 — addressed — Ownership now resolves the launch ordinal associated with the observed wrapper's live readiness generation. Checked preflight, final Couch check, Pair admission, source exemptions, and the stateful double. TestRecoveryNativeOwnerOldWrapperCannotBorrowNewLaunch passes at head and fails when CurrentLaunch receives the entire tag ledger again.
+- BR-7 — addressed — Unsafe Enter, mouse, Relaunch item, and restart shortcut share the recovery preview route. Production reducer tests pass; disabling the shared routing predicate fails all four cases. Healthy relaunch retains its existing confirmation.
+
+### Raised
+
+- **BR-8** [Important] `external-contract-conformance` Recovery-specific native parsing is outside live conformance
+  ARCH-MOCK: cmd/internal/sessioninventory/recovery_candidate.go:192 introduces eligibility based on Claude entrypoint and related provenance, but conformance.go:52 checks only the existing scanners; conformance_live_test.go:21 never invokes the recovery parser or collector. Native changes can therefore leave conformance green while recovery eligibility or tail evidence stops working. Extend the existing read-only conformance path through the production recovery parser, covering provenance, cwd, activity and authored tails, with explicit unsupported/absent-sample outcomes and the existing contract-change/monthly cadence.
+
 ## Open findings
 
-- **BR-6** [Critical] `exact-process-generation-authority` Native ownership substitutes the latest tag-level launch for the live wrapper's launch
-- **BR-7** [Critical] `recovery-primary-action-routing` The advertised primary Relaunch action never opens the new recovery preview
+- **BR-8** [Important] `external-contract-conformance` Recovery-specific native parsing is outside live conformance
