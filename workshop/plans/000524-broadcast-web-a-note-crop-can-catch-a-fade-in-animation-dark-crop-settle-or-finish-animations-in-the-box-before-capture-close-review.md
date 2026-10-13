@@ -151,3 +151,71 @@ dispose:
 7. **Plan revision recommendations**
 
    Add a `## Revisions` entry replacing the claim that plain off-box leaves are safely irrelevant with a conservative painted-influence contract. Document the enumerated mechanisms and regression coverage, and update the matching atlas statement.
+
+---
+
+## Re-review — 2026-10-13T07:53:28-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 524 — broadcast-web: a note crop can catch a fade-in animation (dark crop); settle or finish animations in the box before capture |
+| repo | pair |
+| issue file | workshop/issues/000524-broadcast-web-a-note-crop-can-catch-a-fade-in-animation-dark-crop-settle-or-finish-animations-in-the-box-before-capture.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 805031105e60cc0eae0a37adee4b937b39c21f49..f5338dbc5ad7996f2ce6cb30d861d662acddb7b2 |
+| command | sdlc close --issue 524 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-13T07:53:28-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+The implementation matches the revised, approved document-wide observation policy and addresses BR-1 without another paint-geometry exception. No blocking code findings remain. Affected package tests and mutation checks passed; confidence is limited because live Chrome crashed during startup, preventing independent pixel verification in this review.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      capture_ready.js:44-63 removes target-geometry exclusions across supported animation roots. The pinned Node regression passes; substituting the prior probe fails, including the leaf-shadow assertion at capture_ready_test.js:96. Live fixtures cover overflowing children, pseudo-elements, box-shadow and drop-shadow pixels, but Chrome startup failed before those assertions could execute here.
+```
+
+1. **Strengths**
+
+   - Conservative observation resolves the entire known influence class rather than accumulating CSS exceptions (`cmd/internal/webcast/recorder/capture_ready.js:44`).
+   - Bounded polling distinguishes timeout evidence from cancellation and preserves explicit uncertainty (`cmd/internal/webcast/recorder/capture_ready.go:87`).
+   - Capture preserves viewport geometry and uses the existing document-scoped screenshot helper (`cmd/internal/webcast/recorder/submission.go:181`).
+   - Metadata validation, propagation, old-bundle compatibility, README and atlas updates accompany the behavior change.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Passed all four affected packages: submission, recorder, webcast/submission and webcast.
+   - Confirmed the production JavaScript regression fails with the prior probe and passes at pinned HEAD. Temporary mutation fixtures were removed.
+   - Both `TestLiveSubmissionCaptureReady` and `TestLiveSubmissionCrop` failed before opening a page: Chrome reported “GPU process isn't usable.” Their pixel/timeline assertions were inspected but not independently executed successfully.
+   - Full repository suite was not rerun; implementor logs were not treated as independent verification.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Shared crop validation, intersection and screenshot boundaries remain centralized.
+   - **ARCH-PURE — pass:** Geometry and schema rules remain pure; browser observation belongs to integration code.
+   - **ARCH-PURPOSE — pass:** Document-wide observation eliminates the known geometry-exclusion family; viewport-preserving capture addresses the restart mechanism.
+   - **ARCH-MOCK — pass:** Production and stateful fake use the same CDP seam; live conformance fixtures exist. Execution limitation noted above.
+   - **ARCH-CONSTRAINTS — pass:** Polling, animation enumeration and traversal have explicit bounds and uncertainty outcomes.
+   - **ARCH-SECURE — pass:** Browser replies and evidence receive validation; tests use temporary browser profiles and storage.
+   - **ARCH-ORDER — pass:** Sequential capture retains identity barriers, cancellation and viewport checks; no persistent animation ownership is introduced.
+   - **ARCH-FUNERAL — pass:** No new durable artifact family; added metadata uses existing bounded submission storage.
+
+7. **Plan revision recommendations:** None required. The latest approval revision explicitly supersedes geometry-based relevance and records integration with the screenshot-suppression helper.

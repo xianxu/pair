@@ -15,7 +15,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "a10a038e", done: "7d2bc21a"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # broadcast-web: a note crop can catch a fade-in animation (dark crop); settle or finish animations in the box before capture
@@ -47,6 +47,10 @@ Detailed proposal: [animation capture plan](../plans/000524-animation-capture-pl
 
 ## Log
 
+
+
+- 2026-10-13: closed — BR-1 fixed by TL-approved document-wide animation observation: no target paint-bound exclusions; unchanged 1500ms/50ms/512/30s limits, explicit cap uncertainty. Node RED then GREEN includes leaf shadows and no geometry access. Live crop readiness passes twice (8.08s, 6.93s), child/pseudo/box-shadow/drop-shadow pixels and off-box infinite unsettled; initial strict timing mismatch disclosed with improved diagnostic. Existing crop conformance passes 3.11s with merged #494 helper and captureBeyondViewport=false. Full serial make test completed: changed packages/shell checks pass; known #519 failed, plus TestObserveDependencies/deleted workspace-host busy (isolated full test rerun PASS 4.583s; no couchcore issue diff). Log /tmp/pair524-probe/full-suite-document-wide.log. Docs and Revisions updated. Stage only on TL instruction.; review verdict: SHIP
+- 2026-10-13: flow upgraded quick → full — 403 added lines in code files (limit 100); an earlier round of this close already ran the full review
 ### 2026-10-12 — capture-time restart measured
 
 Original evidence: the first article already had data-animated=true and no no-intersect at recording start. Its fadeInUp animation is 1 s, opacity 0→1 and translateY(2rem)→0. Periodic recorded frames immediately before and after the dark crop show settled content. The original viewport was 864×997 at DPR 2; crop right edge 870.5 exceeded it by 6.5 CSS px. No live operator browser was touched.
