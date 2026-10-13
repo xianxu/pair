@@ -38,10 +38,11 @@ Remove the 👽 control from the terminal cast: the status row becomes `LIVE ⏸
 - [x] Remove the control: `broadcast.ControlLabel`, `RenderedStatusRow.Remote`, `Console.statusRemote`, `onRemoteClick` and its click branch; `StatusGuardCols` shrinks to `LIVE ⏸ 👆` (12 → 9 columns).
 - [x] Tests: the exact-row, span and guard tests read `LIVE ⏸ 👆`; the 👽 click test goes; the shared pin-spot table (`tests/broadcast-viewer/pinspots.json`) and `TestNoteVisible` follow the narrower guard.
 - [x] Docs: README, atlas/broadcast.md, atlas/webcast.md; #407's Log notes the removal.
-- [ ] Merge main (#495 touches the same row), full suite, close.
+- [x] Merge main (#495 touches the same row), full suite, close.
 
 ## Log
 
 ### 2026-10-12
 - The guard width reaches the web viewer over the wire (`event: notes` carries `guard`), so the viewer needs no change; its `.mjs` fixtures carry their own guard. Only the shared pin-spot table pins the number, and Go checks it equals `StatusGuardCols`.
 - `TestNoteVisible` now derives its columns from `StatusGuardCols` rather than hard-coding a column inside the old guard.
+- Merged origin/main (with #491; #495 not landed yet, so it absorbs the overlap). Full suite: 101 packages ok; couchcore TestRealRunnersExitedPrecedesTheGroup/pty fails, pre-existing (5/20 on a clean main checkout, no couchcore change here).
