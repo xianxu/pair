@@ -2,6 +2,7 @@ package webcast
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -50,6 +51,24 @@ func TestLiveLockPage(t *testing.T) {
 	t.Cleanup(mount.Unmount)
 	link := mount.Base() + "/tok/"
 
+	waitNav := func(what, expr, want string) {
+		t.Helper()
+		deadline := time.Now().Add(20 * time.Second)
+		got := ""
+		for time.Now().Before(deadline) {
+			var res struct {
+				Result struct{ Value json.RawMessage }
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			err := page.conn.Call(ctx, page.session, "Runtime.evaluate", map[string]any{"expression": expr, "awaitPromise": true, "returnByValue": true}, &res)
+			cancel()
+			if err == nil && json.Unmarshal(res.Result.Value, &got) == nil && got == want {
+				return
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+		t.Fatalf("%s: got %.300q, want %q", what, got, want)
+	}
 	navigate := func(url string) {
 		page.call(t, page.session, "Page.navigate", map[string]any{"url": url}, nil)
 	}
@@ -57,24 +76,24 @@ func TestLiveLockPage(t *testing.T) {
 
 	// Typed entry: a wrong code is refused on the page; the right one opens.
 	navigate(link)
-	waitEval(t, page, "the lock page", onLockPage, "lock")
+	waitNav("the lock page", onLockPage, "lock")
 	submit := func(code, name string) {
-		page.evalString(t, fmt.Sprintf(`(() => {
+		waitNav("the submit", fmt.Sprintf(`(() => {
 			document.getElementById('code').value = %q;
 			document.getElementById('name').value = %q;
 			document.getElementById('lock').requestSubmit();
 			return 'ok';
-		})()`, code, name))
+		})()`, code, name), "ok")
 	}
 	wrong := []byte(lock.Code())
 	wrong[0] = '0' + (wrong[0]-'0'+1)%10
 	submit(string(wrong), "Ada")
-	waitEval(t, page, "the refusal", `document.getElementById('message').textContent`, "That code isn't right.")
+	waitNav("the refusal", `document.getElementById('message').textContent`, "That code isn't right.")
 	submit(lock.Code(), "Ada")
-	waitEval(t, page, "the viewer after typing the code", onLockPage, "viewer")
-	waitEval(t, page, "the name kept for notes", `localStorage.getItem('couch.viewerName')`, "Ada")
-	waitEval(t, page, "the drawn page", `String((document.getElementById('page').contentDocument?.body?.childElementCount || 0) > 0)`, "true")
-	waitEval(t, page, "recorded assets loaded with the session", `(() => {
+	waitNav("the viewer after typing the code", onLockPage, "viewer")
+	waitNav("the name kept for notes", `localStorage.getItem('couch.viewerName')`, "Ada")
+	waitNav("the drawn page", `String((document.getElementById('page').contentDocument?.body?.childElementCount || 0) > 0)`, "true")
+	waitNav("recorded assets loaded with the session", `(() => {
 		const got = performance.getEntriesByType('resource').filter((e) => e.name.includes('/tok/assets/'));
 		return got.length > 0 && got.every((e) => e.responseStatus === 200) ? 'ok' : 'statuses ' + got.map((e) => e.responseStatus).join(',');
 	})()`, "ok")
@@ -83,14 +102,14 @@ func TestLiveLockPage(t *testing.T) {
 	if _, err := lock.Rotate(); err != nil {
 		t.Fatal(err)
 	}
-	waitEval(t, page, "the lock page after rotation", onLockPage, "lock")
+	waitNav("the lock page after rotation", onLockPage, "lock")
 
 	// URL#code with the name remembered: in by itself, the code gone from the URL.
 	// From elsewhere, as a viewer opens it: on the same document a new
 	// fragment alone would not reload the page.
 	navigate("about:blank")
-	waitEval(t, page, "a blank page", `location.href`, "about:blank")
+	waitNav("a blank page", `location.href`, "about:blank")
 	navigate(link + "#" + lock.Code())
-	waitEval(t, page, "the viewer from the fragment", onLockPage, "viewer")
-	waitEval(t, page, "no code left in the URL", `location.hash`, "")
+	waitNav("the viewer from the fragment", onLockPage, "viewer")
+	waitNav("no code left in the URL", `location.hash`, "")
 }
