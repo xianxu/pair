@@ -36,7 +36,7 @@ func TestCropCaptureUsesPageCoordinatesAndOnePNGPerBox(t *testing.T) {
 			return nil, nil, false
 		}
 		clips = append(clips, params["clip"].(map[string]any))
-		if params["captureBeyondViewport"] != true || params["format"] != "png" {
+		if params["captureBeyondViewport"] != false || params["format"] != "png" {
 			t.Errorf("capture params: %v", params)
 		}
 		return map[string]any{"data": base64.StdEncoding.EncodeToString(pngbuf.Bytes())}, nil, true

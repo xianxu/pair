@@ -11,8 +11,10 @@ import (
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 	"image"
 	"image/png"
+	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -203,5 +205,112 @@ func TestCastSubmissionLateAckDoesNotResolveNewDocument(t *testing.T) {
 	}
 	if *writes != 0 {
 		t.Fatal("late ack emitted note resolution")
+	}
+}
+
+func TestCastSubmissionSettlementAndClipping(t *testing.T) {
+	cases := []struct {
+		name    string
+		mutate  func(*recorder.CapturedCrop)
+		wantErr bool
+	}{
+		{"settled full crop", func(c *recorder.CapturedCrop) { c.Settlement = &core.CaptureSettlement{Status: "settled"} }, false},
+		{"unsettled clipped crop", func(c *recorder.CapturedCrop) {
+			c.Box[0] += 10
+			c.Box[2] -= 10
+			c.ClippedToViewport = true
+			c.Settlement = &core.CaptureSettlement{Status: "unsettled", Reason: "timeout"}
+		}, false},
+		{"clipped without flag", func(c *recorder.CapturedCrop) { c.Box[2] -= 10 }, true},
+		{"flag without clipping", func(c *recorder.CapturedCrop) { c.ClippedToViewport = true }, true},
+		{"outside requested", func(c *recorder.CapturedCrop) { c.Box[0] -= 1; c.ClippedToViewport = true }, true},
+		{"expanded requested", func(c *recorder.CapturedCrop) { c.Box[2] += 1; c.ClippedToViewport = true }, true},
+		{"invalid coordinates", func(c *recorder.CapturedCrop) { c.Box[0] = math.NaN(); c.ClippedToViewport = true }, true},
+		{"changed document", func(c *recorder.CapturedCrop) { c.Document++ }, true},
+		{"invalid settlement", func(c *recorder.CapturedCrop) {
+			c.Settlement = &core.CaptureSettlement{Status: "settled", Reason: "timeout"}
+		}, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c, browser, _, writes := castSubmissionFixture(t)
+			base := browser.capture
+			var captured recorder.CapturedCrop
+			browser.capture = func(ctx context.Context, doc int, regions []core.CaptureRegion) ([]recorder.CapturedCrop, error) {
+				crops, err := base(ctx, doc, regions)
+				if err != nil {
+					return nil, err
+				}
+				crops[0].BoxText.VisibleText = []core.BoxTextEntry{{Selector: "button", Text: "current text"}}
+				tc.mutate(&crops[0])
+				captured = crops[0]
+				return crops, nil
+			}
+			selected, err := c.SubmissionSelection()
+			if err != nil {
+				t.Fatal(err)
+			}
+			sub, pngs, err := c.PrepareSubmission(context.Background(), "submission", castSubmissionTarget(), selected, "")
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("accepted invalid capture", sub)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			crop := sub.Notes[0].Crop
+			if crop.Settlement == nil || *crop.Settlement != *captured.Settlement || crop.ClippedToViewport != captured.ClippedToViewport || crop.Box != captured.Box {
+				t.Fatalf("capture metadata not propagated: %+v", crop)
+			}
+			if len(pngs) != 1 || *writes != 0 || sub.Notes[0].BoxText.VisibleText[0].Text != "current text" {
+				t.Fatal("lost evidence or resolved during capture", sub)
+			}
+		})
+	}
+}
+func TestCastSubmissionOutsideViewportPreservesNote(t *testing.T) {
+	c, browser, _, writes := castSubmissionFixture(t)
+	browser.capture = func(context.Context, int, []core.CaptureRegion) ([]recorder.CapturedCrop, error) {
+		return []recorder.CapturedCrop{{Unavailable: "outside viewport", BoxText: core.BoxText{Unavailable: "outside viewport"}}}, nil
+	}
+	selected, err := c.SubmissionSelection()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sub, pngs, err := c.PrepareSubmission(context.Background(), "submission", castSubmissionTarget(), selected, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sub.Notes) != 1 || sub.Notes[0].ID != "n" || sub.Notes[0].At.Text != "Save" || !strings.Contains(sub.Notes[0].Element, "Save") {
+		t.Fatal("unavailable capture lost recorded context", sub)
+	}
+	crop := sub.Notes[0].Crop
+	if crop.Unavailable != "outside viewport" || crop.Settlement != nil || crop.ClippedToViewport || len(pngs) != 0 || *writes != 0 {
+		t.Fatal("unavailable capture has current pixels or delivery effects", sub)
+	}
+}
+func TestCastSubmissionUnavailableRefusesCurrentMetadata(t *testing.T) {
+	for _, mutate := range []func(*recorder.CapturedCrop){
+		func(c *recorder.CapturedCrop) { c.Settlement = &core.CaptureSettlement{Status: "settled"} },
+		func(c *recorder.CapturedCrop) { c.ClippedToViewport = true },
+		func(c *recorder.CapturedCrop) { c.Box = recording.Box{1, 1, 2, 2} },
+		func(c *recorder.CapturedCrop) { c.CapturedAt = time.Now() },
+		func(c *recorder.CapturedCrop) { c.Document = 1 },
+	} {
+		c, browser, _, _ := castSubmissionFixture(t)
+		browser.capture = func(context.Context, int, []core.CaptureRegion) ([]recorder.CapturedCrop, error) {
+			crop := recorder.CapturedCrop{Unavailable: "outside viewport"}
+			mutate(&crop)
+			return []recorder.CapturedCrop{crop}, nil
+		}
+		selected, err := c.SubmissionSelection()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err = c.PrepareSubmission(context.Background(), "submission", castSubmissionTarget(), selected, ""); err == nil {
+			t.Fatal("unavailable capture silently dropped contradictory current metadata")
+		}
 	}
 }

@@ -715,6 +715,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/webcast/cast_submission.go",
 	"cmd/internal/webcast/chrome_submission.go",
 	"cmd/internal/webcast/recorder/submission.go",
+	"cmd/internal/webcast/recorder/capture_ready.go",
 	"cmd/internal/webcast/submission/build.go",
 	// #457 recording format and the wave-1 seams: pure records, reducer and
 	// validator; DirWriter writes a recording into the directory its caller

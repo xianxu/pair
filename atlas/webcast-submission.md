@@ -39,7 +39,26 @@ its anchor, context, compact element and `before` actions describe that recorded
 moment. `crop.captured_at` is the wall-clock time of a screenshot taken during
 submission, and `crop.document` identifies the captured document. Boxes use
 `[x, y, width, height]` in page CSS pixels. A crop is the note's recorded box
-plus a margin, captured from the actual cast tab now.
+plus a margin, intersected with the current viewport and captured from the actual
+cast tab now. `crop.box` is the actual intersection; `clipped_to_viewport: true`
+means the requested crop was narrowed. Wholly offscreen notes keep their recorded
+context and report `crop.unavailable: "outside viewport"`. Couch never scrolls the
+page to collect missing pixels.
+
+Before each crop, Couch observes relevant animations/transitions for at most
+1500 ms, polling every 50 ms and inspecting at most 512 browser animations. It
+waits for natural completion; it never finishes or overrides animation styles.
+`crop.settlement` records `status: "settled"` when those observations finish, or
+`status: "unsettled"` with a reason: `timeout`, `paused animation`,
+`infinite animation`, `inspection limit`, or `inspection unavailable`. Missing
+settlement metadata in older bundles means unknown. Observation covers the top
+document and accessible open-shadow animations affecting the visible crop;
+it is not a guarantee about video, canvas, separate frames or future page changes.
+
+Screenshots use the existing viewport (`captureBeyondViewport: false`): the
+beyond-viewport CDP path can restart responsive animations even after they finish.
+Document, viewport, scroll or pixel-ratio changes during capture refuse preparation.
+The PNG remains current evidence even when its animation is explicitly unsettled.
 
 Each note's `box_text` captures current characters inside its original unpadded
 region (or anchor box), alongside the historical anchor text. `visible_text`
@@ -115,7 +134,8 @@ note generation used by acknowledgment.
 }
 ```
 
-Preparation allows 30 seconds overall, with a 5-second limit per screenshot.
+Preparation allows 30 seconds overall, including each note's settling allowance,
+with a 5-second limit per screenshot.
 Each crop is bounded to 4 megapixels and 8 MiB of PNG data; a complete bundle is
 bounded to 64 MiB. Reading the source recording has a 128 MiB input budget.
 Couch runs one submission preparation or resolution job at a time, capturing
@@ -176,6 +196,7 @@ automatic reset or resend command.
 | Recorded context and one crop calculation per note | `cmd/internal/webcast/submission/build.go` |
 | Frozen open-note selection and revision-guarded resolution | `cmd/internal/webcast/board/submission.go` |
 | Current CDP screenshots and document checks | `cmd/internal/webcast/recorder/submission.go` |
+| Viewport-preserving capture and bounded animation observations | `cmd/internal/webcast/recorder/capture_ready.go`, `capture_ready.js` |
 | Recording inputs and crop assembly | `cmd/internal/webcast/cast_submission.go` |
 | Background preparation, replay sharing and acknowledgment | `cmd/internal/couchtty/console_submission.go` |
 | Local CLI/RPC and current caller validation | `cmd/internal/couchcmd/submission.go`, `cmd/internal/couchmessage/protocol.go` |
