@@ -1,6 +1,6 @@
 ---
 id: 000533
-status: codecomplete
+status: done
 created: 2026-10-13
 updated: 2026-10-13
 estimate_hours: 2.199
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: b3eb4272813003800d9c9f32a222884bd7c6b9b6
         evidence_commit: cb268863594eb9a9db3f61b15658ca8f80e236e8
+        landed_commit: a42759417ede63bc2d464fb618ec7740fbc81e12
 ---
 
 # draft: show progress while a DOM submission prepares, and hold the draft read-only until it's sent or fails
