@@ -91,6 +91,20 @@ Durable plan: [000523-cast-capability-switches-plan.md](../plans/000523-cast-cap
 
 ## Log
 
+### 2026-10-13 — Integrated final verification
+
+- Complete `GOMAXPROCS=4 make test` passed, exit 0, after the clean merge of
+  main containing #524 and #525 (`/tmp/pair-523-integrated-final-full.log`).
+- Complete real headless Chrome Live suite passed, 166.777s, with
+  `GOMAXPROCS=4 WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run Live
+  -count=1 -timeout=8m -v` (`/tmp/pair-523-integrated-final-headless.log`).
+- BR-7 normal/race repetitions cover all four ordinary drive actions, ACK and
+  release waits, typing, bounded clicks, stale completion and shutdown. The
+  stale-coordinate fixture regression has a controlled red/green reproduction.
+- Operator smoke and final display acceptance remain recorded; no new visible
+  behavior was introduced by the close fix. Pair:0 was returned to main before
+  the TL staged subsequent items there; this verification leaves it untouched.
+
 ### 2026-10-13 — Close BR-7 rework
 
 Final close returned REWORK: acknowledged ordinary controller operations still
