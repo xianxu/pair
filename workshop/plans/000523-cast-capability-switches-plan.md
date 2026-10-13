@@ -196,12 +196,12 @@ Files: new capability/state.go and state_test.go; recording/annotations.go,
 recording/control.go, record.go registry, reduce.go, codec/validation/canonical,
 catchup.go and colocated tests; web/model.js and tests/webcast/model.test.mjs.
 
-- [ ] Write failing tests using the Task 1 function strategies below.
-- [ ] Run `go test ./cmd/internal/webcast/capability ./cmd/internal/webcast/recording -count=1`
+- [x] Write failing tests using the Task 1 function strategies below.
+- [x] Run `go test ./cmd/internal/webcast/capability ./cmd/internal/webcast/recording -count=1`
   and `node --test tests/webcast/model.test.mjs`; confirm expected red.
-- [ ] Implement the pure types/transitions and register additive format kinds;
+- [x] Implement the pure types/transitions and register additive format kinds;
   include clear in catch-up context and enforce reset operator attribution.
-- [ ] Run the same tests green; commit `#523 M1: model capability transitions and ordered clears`.
+- [x] Run the same tests green; commit `#523 M1: model capability transitions and ordered clears`.
 
 ### Task 2: Admission and bounded cleanup
 
@@ -419,3 +419,12 @@ executable cases belong in tests. Proposed function names are marked new.
 | 5 | startOperator, refreshOperator, annotationPageLocked, operatorAdmission (#494) | Replaced contexts and delayed permissions; scripted CDP peer plus isolated headless conformance proves exact-context fail-closed admission. |
 
 The full test commands and the two review boundaries above remain unchanged.
+
+### 2026-10-12 23:23 PDT — Persisted ordering of annotation clears
+
+Task 2 must preserve the clear barrier across Split/Merge, not only the live
+queue. Existing recording/files.go Merge orders equal timestamps by events,
+notes, pointer; therefore recorder mirror.emit and reference Writer cleanup
+stamp AnnotationClear at max(clock, previous record T+1). All subsequent emits
+retain the existing monotonic clamp. Add a stateful equal-clock split/replay
+strategy to their tests. No file rank or old recording ordering is changed.

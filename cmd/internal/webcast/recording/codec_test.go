@@ -43,6 +43,8 @@ func sample() []Record {
 		&Hover{ID: 3},
 		&Ptr{X: 1.5, Y: 2},
 		&Frame{File: "frames/0.png", W: 640, H: 400, Scale: 0.5},
+		&AnnotationClear{Who: Author{ID: OperatorID}},
+		&Ctl{Op: CtlReset, Who: Author{ID: OperatorID}},
 		&Stop{Why: StopEnd},
 	}
 }

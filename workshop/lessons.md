@@ -1464,3 +1464,7 @@ proof; record the surprising case so the next change starts from evidence.
 - An injected adapter is still integration code: pure state/event transitions own retry state; the adapter interprets effects and ignores stale completions by attempt identity.
 - Reuse a shared recipient identity/parser when adding a routing consumer; keep each caller's uniqueness and incarnation policy separate.
 - Visible evidence needs a valid, nonempty effective intersection, including ancestor clips. Share that predicate across text and accessibility entries; test wholly off-screen regions and clipped descendants in both the DOM fixture and a real browser.
+
+- pair#523 plan review: retryable cleanup must retain evidence until the external effect is acknowledged. Audit every caller of a reused release helper; clearing local state before CDP replies makes a later retry falsely succeed. Uncertain delivery needs an explicit terminal recovery path.
+- pair#523 plan review: describe tests by production function, adversarial input class and mechanical guard. Keep acceptance behavior in the spec; executable case inventories belong in tests.
+- pair#523 reducer review: test each stale-completion guard independently. An old completion delivered only after failure exercises the phase guard, not the attempt guard; deliver it while the newer attempt is Running and mutation-check that removing attempt equality fails.

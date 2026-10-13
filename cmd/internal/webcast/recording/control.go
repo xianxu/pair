@@ -21,6 +21,8 @@ type attributed interface{ source() string }
 
 // Control ops (#466).
 const (
+	// CtlReset clears active and pending control in one operator action.
+	CtlReset = "reset"
 	// CtlRequest: a viewer asks to drive.
 	CtlRequest = "request"
 	// CtlGrant: the operator lets a pending viewer drive; a previous
@@ -79,6 +81,12 @@ var ErrControl = errors.New("recording: control op not allowed here")
 // record against it, and a controller produces its records with it. It
 // never changes c.
 func NextControl(c Control, op string, who Author) (Control, error) {
+	if op == CtlReset {
+		if who.ID != OperatorID {
+			return c, fmt.Errorf("%w: reset requires operator attribution", ErrControl)
+		}
+		return Control{}, nil
+	}
 	if who.ID == "" {
 		return c, fmt.Errorf("%w: no viewer", ErrControl)
 	}
@@ -139,6 +147,9 @@ type Ctl struct {
 func (*Ctl) Kind() string { return "ctl" }
 
 func (r *Ctl) check() error {
+	if r.Op == CtlReset {
+		return need(r.Who.ID == OperatorID, "operator attribution")
+	}
 	return errors.Join(need(oneOf(r.Op, CtlRequest, CtlGrant, CtlDeny, CtlRevoke, CtlRelease, CtlLeave), "op"),
 		need(r.Who.ID != "", "who.id"))
 }
@@ -172,6 +183,12 @@ func (s *State) applyCtl(r *Ctl) error {
 // consistent: the stated control is one the op can leave behind: no viewer
 // twice, and the viewer where the op puts it.
 func (r *Ctl) consistent() error {
+	if r.Op == CtlReset {
+		if r.Who.ID != OperatorID || r.Driver != nil || len(r.Pending) != 0 {
+			return fmt.Errorf("%w: reset must leave no driver or requests", ErrControl)
+		}
+		return nil
+	}
 	if r.Driver != nil && r.Driver.ID == "" {
 		return fmt.Errorf("%w: a driver without an id", ErrControl)
 	}

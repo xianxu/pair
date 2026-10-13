@@ -104,6 +104,28 @@ Durable plan: [000523-cast-capability-switches-plan.md](../plans/000523-cast-cap
   at prepare and ordered write; chrome_operator.go startOperator/refreshOperator
   with exact session/context identity. #494 owner wires if it lands second.
 
+- Plan-quality PQ-1/PQ-2 addressed; change-code passed after calibrated
+  estimate (7.02h). Estimate review notes optimistic integration grouping:
+  row 5 owns controller workers plus typed transport/release progress, row 3
+  owns pure Go/JS/codec tests, row 4 owns ordered queue integration tests;
+  rows 4–7 own races/full regression, row 10 headless, row 8 active staging and
+  acceptance. Scheduling idle time excluded; actual remains measured.
+- M1 recording tests observed missing clear/reset API (Go) and stale marks
+  (browser) before implementation. Go recording suite and 13 browser-model tests
+  now pass, including shared timeline data, every catch-up prefix and split-file
+  validation. Capability reducer is being implemented independently.
+- Ordering discovery for Task 2: recording/files.go merges equal timestamps as
+  events then notes then strokes. AnnotationClear must be stamped strictly after
+  the previous record (at least previous T+1), or a previously emitted note can
+  replay after its clear. Subsequent records keep normal monotonic clamping.
+
+- M1 Task 1 complete: pure capability reducer, generation/attempt fences,
+  annotation-clear and atomic CtlReset, Go/JS reducers and shared recording
+  timeline. Spec review compliant; quality review found a missing stale-attempt
+  assertion, now fixed and mutation-verified (removing the attempt guard fails).
+  Capability and recording Go suites plus all 13 model tests pass. No milestone
+  boundary crossed yet; server/controller enforcement remains outstanding.
+
 ## Revisions
 
 - 2026-10-12 22:58 PDT: Added approved defaults/copy semantics and proposed
