@@ -1049,6 +1049,8 @@ the binary to choose another (Couch refuses to start if it doesn't exist).
 record aren't in the recording. The viewer keeps their place at the operator's size and marks each with a dashed
 outline and a label such as "canvas: not captured", so the page never collapses around them.
 
+🤖{**Operator annotation in the cast Chrome (#494).** Use Off, Pen or Note in the cast Chrome to draw or leave a note on the actual page. It starts Off. Notes and strokes use the same recording and viewer display, attributed to Operator. While a remote viewer drives, annotations are disabled and an open draft is hidden and held; returning control makes annotation available again with the pen Off. A pause holds the draft, while navigation discards it. All Couch UI is excluded from page recording and hidden during fidelity and submission captures. Broadcast and driving control stay in Couch's cast row. If Couch reports uncertain remote input, close and reopen the cast Chrome to recover its hidden UI. The injected host shares the page DOM and is not a security boundary.}
+
 **Pointing and notes on a web cast (#470).** Anyone with the viewer link can point
 and leave notes; there is no separate pointer link. On the viewer's page, the rail at
 the right edge has the six pointer colors, ✏️ (point: draw on the page, everyone sees

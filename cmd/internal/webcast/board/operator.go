@@ -231,13 +231,47 @@ func refused(request string, err error) OperatorReply {
 }
 func (s *OperatorSession) Status(request string) OperatorReply {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	var found *operatorOperation
 	for _, op := range []*operatorOperation{s.last, s.stroke} {
 		if op != nil && op.reply.Request == request {
-			return op.reply
+			found = op
+			break
 		}
 	}
-	return OperatorReply{Request: request, Outcome: OperatorUnknown, Error: "board: result is no longer retained"}
+	if found == nil {
+		s.mu.Unlock()
+		return OperatorReply{Request: request, Outcome: OperatorUnknown, Error: "board: result is no longer retained"}
+	}
+	reply := found.reply
+	s.mu.Unlock()
+	// A note's stable ID identifies this exact write. Board.Put follows the
+	// production writer's disk sink, so its observed note is evidence even
+	// when a later fanout failed. Never consult the recorder's ahead-of-sink
+	// mirror, and never hold the session lock while reading the Board.
+	if reply.Outcome == OperatorUnknown && reply.ID != "" && s.board.observedOperatorNote(reply.ID) {
+		s.mu.Lock()
+		if found.reply.Outcome == OperatorUnknown {
+			found.reply.Outcome = OperatorAccepted
+			found.reply.Error = ""
+			if s.active == found {
+				s.active = nil
+			}
+		}
+		reply = found.reply
+		s.mu.Unlock()
+	}
+	return reply
+}
+
+func (b *Board) observedOperatorNote(id string) bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	for _, note := range b.st.Notes {
+		if note.ID == id && note.Author.ID == Operator {
+			return true
+		}
+	}
+	return false
 }
 func (s *OperatorSession) Close() {
 	s.mu.Lock()
@@ -257,6 +291,9 @@ func (s *OperatorSession) Stroke(request string, in StrokeIn) OperatorReply {
 	return s.run(request, "stroke", in, func(emit Emit) (string, error) { return "", s.board.stroke(in, true, emit) })
 }
 func (s *OperatorSession) SetState(request string, seg int, in StateIn) OperatorReply {
+	// A NoteState has no operation-specific record ID. Observing the target
+	// state could reflect another person's resolve/reopen, so unknown state
+	// writes remain conservative until their own writer confirms completion.
 	in.Viewer = Viewer{ID: Operator, Name: "Operator"}
 	return s.run(request, "state", struct {
 		Seg   int

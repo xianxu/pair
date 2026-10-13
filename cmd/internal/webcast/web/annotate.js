@@ -306,15 +306,18 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
   swatches.setAttribute('role', 'group');
   swatches.setAttribute('aria-label', 'Pointer color');
   const modeButtons = {};
-  for (const [mode, glyph] of [['point', '✏️'], ['note', '💭']]) {
+  for (const [mode, glyph] of (operator ? [['watch','Off'],['point','Pen'],['note','Note']] : [['point', '✏️'], ['note', '💭']])) {
     const b = el('button', 'mode', rail);
     b.type = 'button';
     b.textContent = glyph;
-    b.title = MODE_TIPS[mode];
-    b.setAttribute('aria-label', MODE_TIPS[mode]);
+    b.title = MODE_TIPS[mode] || 'Annotations off';
+    b.setAttribute('aria-label', MODE_TIPS[mode] || 'Annotations off');
     b.addEventListener('click', () => setMode(mode === state.mode ? 'watch' : mode));
     modeButtons[mode] = b;
   }
+
+  const hint = el('span', 'annotation-hint', rail);
+  hint.setAttribute('role','status');
 
   // The dialog: collab.js's, with a name field the first time.
   const dlg = el('div', 'note-dialog hidden', root);
@@ -350,7 +353,7 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
     },
   });
 
-  const state = { mode: 'watch', drag: null, stroke: null, timer: null };
+  const state = { mode: 'watch', drag: null, stroke: null, timer: null, pointer: null };
   const strokes = strokeStore();
   // The document now: the module mounts after the catch-up may have been
   // applied, so it starts from the model's, not from nothing.
@@ -360,17 +363,19 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
   // controls are disabled and say why, and the note dialog is held; the
   // server refuses the posts too.
   let policy;
+  let gestureVersion = 0;
   const unavailable = () => policy?.phase !== 'ready';
   function transition(event) {
     const next = annotationPolicy(policy, event);
     policy = next.state;
-    if (next.effects.includes('cancel')) endGesture(true);
+    if (next.effects.includes('cancel')) { gestureVersion++; endGesture(true); }
     if (next.effects.includes('discard')) dialog.close();
     state.mode = policy.mode;
     layer.classList.toggle('point', state.mode === 'point');
     layer.classList.toggle('note', state.mode === 'note');
     // Off is transparent in the operator's actual page, including pins.
     layer.classList.toggle('operator-off', operator && (unavailable() || state.mode === 'watch'));
+    layer.classList.toggle('operator-driving', operator && policy.phase === 'driving');
     dlg.hidden = operator && policy.phase === 'driving';
     if (dlg.hidden) input.blur?.();
     renderRail();
@@ -393,7 +398,8 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
     const reason = policy?.driver ? `${policy.driver} is driving.` : 'The cast is paused.';
     rail.classList.toggle('paused', off);
     for (const b of rail.querySelectorAll('button')) b.disabled = off;
-    for (const [m, b] of Object.entries(modeButtons)) b.title = off ? reason : MODE_TIPS[m];
+    for (const [m, b] of Object.entries(modeButtons)) b.title = off ? reason : (MODE_TIPS[m] || 'Annotations off');
+    hint.textContent = operator && off ? reason : '';
     dialog.hold(off ? reason : ''); // an open note, or a pin opened while paused
   };
   const placeRail = () => {
@@ -424,6 +430,8 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
   // end, a cancelled pointer.
   function endGesture(discard = false) {
     endStroke(discard);
+    if (state.pointer !== null && layer.hasPointerCapture?.(state.pointer)) layer.releasePointerCapture(state.pointer);
+    state.pointer = null;
     if (state.drag) { state.drag = null; drawDrag(); }
   }
   const pagePoint = (e) => v.toPage(e.clientX, e.clientY);
@@ -433,6 +441,7 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
     if (state.mode === 'watch' || !(v.model && v.model.seg > 0) || unavailable() || dialog.open) return;
     e.preventDefault();
     layer.setPointerCapture?.(e.pointerId);
+    state.pointer = e.pointerId;
     const p = pagePoint(e);
     if (state.mode === 'point') {
       endStroke();
@@ -466,10 +475,10 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
     drawDrag();
     const region = regionOf(from, to, pageView(), pointerType);
     if (prepareDraft) {
-      const document = docSeg;
+      const document = docSeg, version = gestureVersion;
       try {
         const payload = await prepareDraft(region);
-        if (payload && document === docSeg && !unavailable() && state.mode === 'note') openDraft(payload);
+        if (payload && version === gestureVersion && document === docSeg && !unavailable() && state.mode === 'note') openDraft(payload);
       } catch (err) { say(err.message || 'Could not anchor this note.'); }
       return;
     }

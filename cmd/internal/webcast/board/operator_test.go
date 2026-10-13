@@ -269,3 +269,99 @@ func TestOperatorViewPruningAdvancesRevision(t *testing.T) {
 		t.Fatalf("changed view retained revision %d", next.Revision)
 	}
 }
+
+func TestOperatorUnknownNoteReconcilesOnlyObservedStableID(t *testing.T) {
+	for _, observed := range []bool{false, true} {
+		name := "absent"
+		if observed {
+			name = "observed"
+		}
+		t.Run(name, func(t *testing.T) {
+			r := newRig(t).page(recording.SegLive)
+			var submitted recording.Record
+			var doc int
+			writes := 0
+			s := r.bd.NewOperator(func(rec recording.Record, d int, done func(OperatorOutcome, error)) error {
+				writes++
+				submitted = rec
+				doc = d
+				done(OperatorUnknown, errors.New("later fanout failed"))
+				return nil
+			})
+			in := NoteIn{Seg: r.seg(), Node: r.p1.ID, Box: recording.Box{1, 1, 10, 10}, Region: recording.Box{1, 1, 10, 10}, Color: 0, Text: "stable"}
+			first := s.Note("1", in)
+			if first.Outcome != OperatorUnknown || first.ID == "" {
+				t.Fatal(first)
+			}
+			if got := s.Status("1"); got.Outcome != OperatorUnknown {
+				t.Fatalf("invented evidence: %+v", got)
+			}
+			// A different observed note proves nothing about this stable ID.
+			if _, err := r.note(r.p1.ID, 1); err != nil {
+				t.Fatal(err)
+			}
+			if got := s.Status("1"); got.Outcome != OperatorUnknown {
+				t.Fatalf("other note reconciled operation: %+v", got)
+			}
+			if observed {
+				if err := r.w.Emit(submitted, doc); err != nil {
+					t.Fatal(err)
+				}
+			}
+			var wg sync.WaitGroup
+			for i := 0; i < 8; i++ {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					got := s.Status("1")
+					want := OperatorUnknown
+					if observed {
+						want = OperatorAccepted
+					}
+					if got.Outcome != want || got.ID != first.ID {
+						t.Errorf("status %+v want %s", got, want)
+					}
+					if observed && got.Error != "" {
+						t.Errorf("accepted retains uncertainty: %+v", got)
+					}
+				}()
+			}
+			wg.Wait()
+			got := s.Note("1", in)
+			if writes != 1 {
+				t.Fatalf("reconciliation retried write %d", writes)
+			}
+			if observed {
+				if got.Outcome != OperatorAccepted {
+					t.Fatal(got)
+				}
+				s.Note("2", in)
+				if writes != 2 {
+					t.Fatal("reconciliation did not release outstanding operation")
+				}
+			} else {
+				if got := s.Note("2", in); got.Outcome != OperatorRefused || writes != 1 {
+					t.Fatalf("unknown allowed a second write %+v", got)
+				}
+			}
+		})
+	}
+}
+func TestOperatorUnknownResolveRemainsConservative(t *testing.T) {
+	r := newRig(t).page(recording.SegLive)
+	id, err := r.note(r.p1.ID, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := r.bd.NewOperator(func(rec recording.Record, doc int, done func(OperatorOutcome, error)) error {
+		if err := r.w.Emit(rec, doc); err != nil {
+			return err
+		}
+		done(OperatorUnknown, errors.New("later fanout failed"))
+		return nil
+	})
+	s.SetState("1", r.seg(), StateIn{ID: id, State: recording.NoteResolved})
+	if got := s.Status("1"); got.Outcome != OperatorUnknown {
+		t.Fatalf("target state alone attributed to this resolve: %+v", got)
+	}
+}

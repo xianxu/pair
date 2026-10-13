@@ -1,10 +1,11 @@
 package board
 
 import (
-	"github.com/xianxu/pair/cmd/internal/broadcast"
-	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 	"slices"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/broadcast"
+	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
 // OperatorStroke is one recorded chunk, not an accumulated stroke. Seq never

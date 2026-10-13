@@ -1,3 +1,4 @@
+import { operatorTransport } from '../../cmd/internal/webcast/operator.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { annotationPolicy } from '../../cmd/internal/webcast/web/annotation-policy.js';
@@ -73,4 +74,23 @@ test('pause holds a draft while navigation and explicit Escape discard it', () =
   const ended = annotationPolicy(ready, { type: 'sync', doc: 1, ended: true });
   assert.equal(ended.state.phase, 'ended');
   assert.ok(ended.effects.includes('discard'));
+});
+
+// A timeout is reconciliation, never permission to submit a duplicate note.
+test('operator transport retries the same mutation by status even after draft edits', async () => {
+  const sent = [], timers = new Map(); let n = 0;
+  const win = { setTimeout(fn) { timers.set(++n, fn); return n; }, clearTimeout(id) { timers.delete(id); } };
+  const t = operatorTransport((m) => sent.push(m.request), win);
+  const first = t.mutate('save-note', {draft:'d',text:'one',color:0});
+  timers.values().next().value();
+  assert.equal((await first).status, 409);
+  const retry = t.mutate('save-note', {draft:'d',text:'edited',color:0});
+  assert.equal(sent[1].op, 'status');
+  assert.equal(sent[1].request, sent[0].request);
+  t.reply({request:sent[1].request,outcome:'accepted'});
+  assert.equal((await retry).status, 204);
+  const next = t.mutate('save-note', {draft:'e',text:'two',color:0});
+  assert.notEqual(sent[2].request, sent[0].request);
+  t.reply({request:sent[2].request,outcome:'refused',error:'paused'});
+  assert.equal((await next).text, 'paused');
 });

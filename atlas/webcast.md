@@ -37,6 +37,45 @@ Setup per page (`goSetup`): auto-attach holds each new page before its first doc
 and Page domains, and the script (`runImmediately`) are set up, then the page is released — always, since a page
 left waiting is a frozen tab. Without `Page.enable` the script never reaches the next document.
 
+## Operator annotation (#494)
+
+The cast Chrome uses the viewer's `mountAnnotation` (`web/annotate.js`) and
+`collab.js` dialog, swatches and geometry inside the existing excluded closed
+shadow host. `operator_script.go` assembles these trusted embedded modules into
+isolated-world script scopes; `operator.js` supplies local page coordinates and
+the CDP binding transport. No page-origin HTTP or localStorage is involved.
+Off/Pen/Note start Off. A remote driver disables annotations and hides/unfocuses
+an open editor while retaining its draft; control returning leaves the pen Off.
+Navigation discards the draft. Pausing holds it on the same document.
+
+The Board remains the authority (`board/operator.go`, `operator_view.go`): Go
+assigns operator authorship, HTTP cannot claim it, and a bounded latest-value view
+carries current open notes plus recent stroke chunks. The recorder's operator
+adapter accepts only the current top-frame isolated context. Prepare resolves the
+observer's node path once and binds a draft handle to that document and recorded
+node. Save never resolves a potentially moved path again. Writes settle from the
+recorder sink outcome, not enqueue success. A lost reply is checked using the same
+monotonic request ID; an uncertain write cannot create another note.
+
+`recorder.CaptureScreenshot` hides the entire Couch host with a document-local
+lease, requires confirmation before and after capture, and restores only that
+lease on every exit. Missing/expired confirmation means discard the pixels.
+The periodic fidelity worker uses it. Submission captures use the same seam when
+#483 and #494 are both landed (the second issue to land wires the call).
+
+Remote input acquires a non-expiring suppression token before hit testing or
+synthetic dispatch. Confirmed completion releases it. A timeout or dialog that
+leaves execution uncertain retains the target guard across replacement documents,
+refuses further remote batches, and asks the operator in Couch to close/reopen the
+cast Chrome. A new document starts hidden until Couch supplies that target's
+current guard state. UI state updates carry a sequence so late replies cannot
+undo a newer guard. Annotation never delays input to protect an editor: it is
+already off while a viewer drives.
+
+The isolated world protects JavaScript binding identity, not the shared DOM: page
+code can see or remove the host. The host is not a security boundary. Existing
+broadcast/driving controls stay in Couch; #494 adds no browser control authority.
+
 ## The recorder (#458)
 
 `Chrome` starts it when `LaunchOptions.Record` is set, forwards **every** CDP event to it (`Send` never blocks the

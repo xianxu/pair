@@ -87,6 +87,7 @@ type memOut struct {
 
 // harness drives a Recorder over a fakeChrome.
 type harness struct {
+	ui  *fakeControlUI
 	t   *testing.T
 	fc  *fakeChrome
 	r   *Recorder

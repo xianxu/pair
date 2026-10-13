@@ -218,12 +218,12 @@ operator UI and are not routed through cast suppression.
 Files: create `board/operator.go`, `board/operator_view.go` and colocated tests;
 modify `board/wire.go`, `board/board.go` to share validation/projection hooks.
 
-- [ ] Write failing tests for ParseOperatorRequest, nextOperatorOperation and
+- [x] Write failing tests for ParseOperatorRequest, nextOperatorOperation and
       projectOperatorView using the strategies below; run
       `go test -p 1 ./cmd/internal/webcast/board -run 'Operator' -count=1` for RED.
-- [ ] Implement operator-only entry points, shared validation, operation settlement
+- [x] Implement operator-only entry points, shared validation, operation settlement
       and bounded projection; retain the HTTP parser's reserved-author rule.
-- [ ] Run the Board package and new tests with `-race`; commit `#494 M1: ...`.
+- [x] Run the Board package and new tests with `-race`; commit `#494 M1: ...`.
 
 ### Task 2: ordered recorder bridge and capture suppression
 
@@ -231,12 +231,12 @@ Files: create `recorder/operator.go`, `recorder/ui_capture.go` and tests;
 modify `recorder/observer.js`, `recorder/recorder.go`, `recorder/drive.go`,
 `recorder/side.go`, `chrome.go`, `cast.go`; create `chrome_operator.go`.
 
-- [ ] Write failing stateful tests for handleOperator, settleOperatorWrite,
+- [x] Write failing stateful tests for handleOperator, settleOperatorWrite,
       captureWithoutUI and withInputSuppressed. Run
       `go test -p 1 ./cmd/internal/webcast/recorder ./cmd/internal/webcast -run 'Operator|Suppression' -count=1` for RED.
-- [ ] Implement ordered binding resolution, completion callbacks, bounded delivery
+- [x] Implement ordered binding resolution, completion callbacks, bounded delivery
       and capture helper with the confirmed/unknown effect rules below.
-- [ ] Run affected recorder/Chrome lifecycle and race tests; commit the bridge.
+- [x] Run affected recorder/Chrome lifecycle and race tests; commit the bridge.
 
 ### Task 3: shared annotation mount and injected operator adapter
 
@@ -245,22 +245,22 @@ Files: modify `web/annotate.js`, `web/annotate.css`,
 `operator-policy.js`, `operator.js`, `operator_script.go` and tests. Update embedded
 asset tables and `cmd/internal/artifactpath/manifest.go` for new production Go files.
 
-- [ ] Write failing tests for annotationPolicy, suppressionPolicy, mountAnnotation
+- [x] Write failing tests for annotationPolicy, suppressionPolicy, mountAnnotation
       and assembleOperatorScript. Run
       `node --test tests/webcast/annotate.test.mjs tests/webcast/operator.test.mjs` for RED.
-- [ ] Implement shared mount and operator adapter; keep terminal/live/replay/operator
+- [x] Implement shared mount and operator adapter; keep terminal/live/replay/operator
       consumers on the shared helpers and serve every imported module.
-- [ ] Run Node/module closure tests; update README/atlas and commit the shared UI.
+- [x] Run Node/module closure tests; update README/atlas and commit the shared UI.
 
 ### Task 4: headless proof
 
 Files: create `cmd/internal/webcast/live_operator_test.go`; extend existing
 `cast_board_test.go`, recorder mirror/capture tests and `tests/webcast` cases.
 
-- [ ] Implement TestLiveOperator using the acceptance strategy below. Run
+- [x] Implement TestLiveOperator using the acceptance strategy below. Run
       `WEBCAST_LIVE_CHROME=1 go test -p 1 ./cmd/internal/webcast -run '^TestLiveOperator' -count=1 -v`.
       Inspect a saved headless UI screenshot; no foreground activation.
-- [ ] Run relevant Node tests, affected Go packages with `-p 1`, artifactpath inventory
+- [x] Run relevant Node tests, affected Go packages with `-p 1`, artifactpath inventory
       check and `git diff --check`; mutation-check critical rejection/suppression wiring.
 - [ ] Record evidence in issue Log, update README/atlas and required project references
       through the gate's authorized mechanism (do not hand-edit ops).
@@ -335,3 +335,20 @@ menu edits until the hub releases #506. Existing recording retention remains int
   The transient shield/Chrome authority request (fd133ced) was never implemented.
   One atomic delivery now closes with one review, full-flow retained. The approved
   annotation design is unchanged; no milestone-close or M2 code is to be produced.
+
+### 2026-10-12 — implementation checkpoint and capture integration order
+
+The annotation-only tasks 1–3 and headless proof are implemented. Actual entry
+points are OperatorSession.run/Status, Recorder.handleOperator/writeOperator,
+recorder.CaptureScreenshot, Recorder.withTab and TestOperatorLiveAnnotation in
+operator_live_test.go. A same-loader/document tab return may acquire a fresh
+recording DocSeg; old draft handles and old-segment requests remain invalid.
+Headless screenshot and pixel witness inspected; missing-confirmation mutation
+was caught and restored. Test evidence is recorded in the issue.
+
+Per TL receipt 057ac00b, #494 owns CaptureScreenshot and whichever issue lands
+second wires #483 submission capture through it. #506 still owns the Chrome menu;
+no menu edits or pair:0 staging have occurred. Remaining steps: menu release/main
+merge, submission integration if #483 precedes us, operator smoke, single close
+review and SHIP-authorized merge. Project progress goes through hub/gate, not manual
+ops edits.

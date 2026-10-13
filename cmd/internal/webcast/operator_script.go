@@ -1,7 +1,10 @@
 package webcast
 
 import (
+	_ "embed"
+	"encoding/json"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/broadcast"
 	"regexp"
 	"strings"
 )
@@ -44,4 +47,30 @@ func assembleOperatorModule(source string, imports map[string]string) (string, e
 		}
 	}
 	return "(() => {\n" + strings.Join(lines, "\n") + "\nreturn {" + strings.Join(names, ",") + "};\n})()", nil
+}
+
+//go:embed operator.js
+var operatorJS string
+
+//go:embed operator-policy.js
+var suppressionJS string
+
+func buildOperatorScript() string {
+	module := func(source string, imports map[string]string) string {
+		result, err := assembleOperatorModule(source, imports)
+		if err != nil {
+			panic(err)
+		}
+		return result
+	}
+	read := func(name string) string {
+		b, err := webFS.ReadFile("web/" + name)
+		if err != nil {
+			panic(err)
+		}
+		return string(b)
+	}
+	palette, _ := json.Marshal(broadcast.PointerPalette())
+	css, _ := json.Marshal(read("annotate.css"))
+	return "(()=>{const collab=" + module(string(broadcast.CollabJS()), nil) + ";const policy=" + module(read("annotation-policy.js"), nil) + ";const annotate=" + module(read("annotate.js"), map[string]string{"./collab.js": "collab", "./annotation-policy.js": "policy"}) + ";const operator=" + module(operatorJS, nil) + ";const suppression=" + module(suppressionJS, nil) + ";globalThis.__couchcastSuppressionPolicy=suppression.suppressionPolicy;globalThis.__couchcastMountOperator=(parts)=>operator.mountOperator(parts,{annotate,palette:" + string(palette) + ",css:" + string(css) + "});})();\n" + controlJS
 }

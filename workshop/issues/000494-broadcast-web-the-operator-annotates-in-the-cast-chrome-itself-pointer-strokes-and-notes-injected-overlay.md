@@ -80,9 +80,9 @@ Design 2.10 × 1.15 + implementation 2.36 = **4.775 focused ship-hours**.
 ## Plan
 
 - [x] Write and approve durable plan; clear change-code's full-flow gate.
-- [ ] Implement operator Board protocol and bounded current annotation projection.
-- [ ] Implement shared annotation mount, isolated bridge and capture exclusion.
-- [ ] Verify off/paused/driving/document lifecycles headlessly and update README/atlas.
+- [x] Implement operator Board protocol and bounded current annotation projection.
+- [x] Implement shared annotation mount, isolated bridge and capture exclusion.
+- [x] Verify off/paused/driving/document lifecycles headlessly and update README/atlas.
 - [ ] After #506 and hub release, merge main and add Couch annotation menu rows.
 - [ ] Obtain operator smoke acceptance through hub; close, PR and merge on SHIP.
 
@@ -233,3 +233,53 @@ undiscounted 0.05 h exception. Conformance implementation is included in recorde
 capture and shared-UI rows; real-api-discovery covers probing external behavior only.
 
 - 2026-10-12 implementation checkpoint: shared annotation mount now accepts an excluded root and pure availability policy. Driving hides/blurs but retains a draft; return stays Off; navigation discards it. Node targeted annotation/operator tests: 12 passed. Trusted module assembly executes shared modules under Node through targeted Go tests. Board adapter has bounded typed requests, fixed operator identity, settlement outcomes and bounded projection; Board package/race passed. Recorder/Chrome integration, capture/input suppression, menu (awaiting #506 release), and live verification remain outstanding.
+
+### 2026-10-12 — capture integration ownership
+
+TL receipt 057ac00b confirms #494 owns `recorder.CaptureScreenshot`; whichever of
+#483 and #494 lands second wires submission crop capture through this helper.
+The helper requires the exact couchcast top context and discards bytes if either
+suppression confirmation is missing. #506 remains unlanded; menu is untouched.
+
+### 2026-10-12 — integration evidence
+
+The actual shared UI prepared and saved an operator note in a temporary headless
+Chrome (TestOperatorLiveAnnotation, 2.22s), through recorder ordering and Board,
+with fixed operator attribution. Recorded DOM contains no Couch host/marker.
+Capture suppression confirmed and restored the exact document host. Targeted
+shared annotation/injection tests: 22 passed. Recorder operator race tests pass.
+Existing screenshot fake tests need the now-mandatory isolated context and
+suppression protocol; extending those fakes without weakening fail-closed capture.
+
+### 2026-10-12 — annotation implementation verified; menu dependency remains
+
+- Shared operator UI/Board/recorder integration is implemented. The remaining
+  menu work is explicitly blocked until the hub releases #506; no menu rows changed.
+  The Cast/Chrome mode seam is ready and never calls Focus.
+- `TestOperatorLiveAnnotation` passed in a temporary headless Chrome (latest 2.55s):
+  real Note and Pen gestures are recorded, fixed operator attribution, driver grant
+  holds/hides/unfocuses a draft, remote hit-testing and text reach a page field under
+  the old Couch button, release restores the draft with the pen Off. A magenta pixel
+  witness proves the entire host is absent from suppressed captures and restored.
+  Recorder output contains no Couch host or marker. Saved and inspected
+  `/tmp/pair494-operator.png`; operator labels widened after visual inspection.
+- Targeted terminal/shared/viewer/replay Node tests: 80 passed; later injection
+  sequencing test also passed. Chrome lifecycle/operator tests and Couch webcast
+  tests passed. Artifactpath production inventory check passed. Board and recorder
+  operator/input/capture race subsets passed, including A→B→A same-Chrome-document
+  return, rejection of old drafts/segments, stale capture discard and retained
+  guards after uncertain input completes late. No full-machine suite or foreground
+  Chrome was run.
+- Mutation check: removing the capture acquire confirmation made all three capture
+  protocol tests fail (including a screenshot issued without confirmation). Restored
+  production helper; the same targeted test passed. Diff whitespace check clean.
+- Filename/name mapping: planned live_operator_test.go/TestLiveOperator is
+  implemented as operator_live_test.go/TestOperatorLiveAnnotation. Board's bounded
+  operation transition lives in OperatorSession.run/Status; shared UI policy and
+  suppression policy are pure JavaScript modules used by production injection.
+
+- Final settlement audit: Status reconciles an unknown note only from the exact
+  stable operator note ID actually observed by Board, without another write.
+  Unknown resolve stays conservative because its record has no operation-specific
+  ID; matching target state alone cannot prove this operation committed. Targeted
+  Operator race tests passed after a RED→GREEN regression.

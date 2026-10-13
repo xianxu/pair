@@ -29,11 +29,13 @@ type assetJob struct {
 }
 
 type shotJob struct {
-	at       time.Time
-	top      string
-	sessions []string
-	vp       rec.Viewport
-	scroll   [2]float64
+	contextID int64
+	doc       int
+	at        time.Time
+	top       string
+	sessions  []string
+	vp        rec.Viewport
+	scroll    [2]float64
 }
 
 // Asset ownership: a URL's body is fetched once per recording, by the first
@@ -300,7 +302,7 @@ func (r *Recorder) maybeShot(now time.Time) {
 	if !r.live || r.frames == nil || r.opts.ShotEvery < 0 || now.Before(r.nextShot) {
 		return
 	}
-	j := shotJob{at: now, top: r.top, sessions: r.castSessions(), vp: r.m.st.VP, scroll: r.m.TopScroll()}
+	j := shotJob{contextID: r.topUIContext(), doc: r.m.st.DocSeg, at: now, top: r.top, sessions: r.castSessions(), vp: r.m.st.VP, scroll: r.m.TopScroll()}
 	select {
 	case r.shotQ <- j:
 		r.nextShot = now.Add(r.opts.ShotEvery)
@@ -319,14 +321,14 @@ type layoutDoc struct {
 func (r *Recorder) shotWorker() {
 	defer r.side.Done()
 	for j := range r.shotQ {
-		d := shotDone{at: j.at}
+		d := shotDone{at: j.at, doc: j.doc, top: j.top}
 		var res struct {
 			Data string `json:"data"`
 		}
 		// A screenshot shows the page as of its capture: its time is the
 		// call's midpoint, as #453's harness stamped the fixtures' frames.
 		t0 := r.opts.Now()
-		_, err := r.call(j.top, "Page.captureScreenshot", map[string]any{"format": "png"}, &res)
+		err := CaptureScreenshot(r.ctx, r.opts.Call, j.top, j.contextID, map[string]any{"format": "png"}, &res)
 		d.at = t0.Add(r.opts.Now().Sub(t0) / 2)
 		if err != nil {
 			d.failed = err
@@ -397,7 +399,7 @@ func (r *Recorder) captureLayout(session string) []layoutDoc {
 // shotDone writes a screenshot and the layout boxes taken with it, mapped
 // into top-page coordinates.
 func (r *Recorder) shotDone(d shotDone) {
-	if !r.live || r.frames == nil {
+	if !r.live || r.frames == nil || d.doc != r.m.st.DocSeg || d.top != r.top {
 		return
 	}
 	if d.failed != nil {
