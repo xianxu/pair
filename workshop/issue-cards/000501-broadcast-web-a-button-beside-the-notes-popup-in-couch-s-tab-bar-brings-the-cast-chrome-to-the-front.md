@@ -1,6 +1,6 @@
 ---
 id: 000501
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 0331d3da8df4bcbaa46d322de2c0473be5de8f8d
         evidence_commit: 759eef5acc6078c1470bfd2f2b74f56fc186ec30
+        landed_commit: f834e65f21c87ca01a5f04abd4f197a847e220e5
 ---
 
 # broadcast-web: a button beside the notes popup in Couch's tab bar brings the cast Chrome to the front
