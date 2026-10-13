@@ -68,6 +68,8 @@ Durable plan: [agent switch plan](../plans/000517-agent-switch-plan.md).
 
 ## Log
 
+
+- 2026-10-13: closed — M1 and M2 SHIP with no open findings. Full make test passed at a5aae57e8; later pure tests pass and three mutations fail. Operator accepted live pair:5 switch and previous full tty read. Interrupted-start recovery restores original native thread after proven absence, preserving uncertain targets. Merged origin/main cleanly; overlapping protocol, console and artifact inventory changes inspected, targeted Switch/Peek/Previous/Protocol/Manifest/Cost tests pass in couchmessage, couchtty and artifactpath. No new issue surface since M2.; review verdict: SHIP
 - 2026-10-12 23:41 PDT — BR-9: added value-only tests in
   previous_session_pure_test.go and peek_selection_test.go. No store, filesystem
   fixture, or process double: missing park/capture, exact outgoing/current

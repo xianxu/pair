@@ -175,6 +175,51 @@ rounds:
       isolation: fenced
       reviewed: 902ecdf391aa4d28136c7f0cb63273a4027ffed9
       blocked: false
+    - "n": 7
+      timestamp: "2026-10-13T07:41:22-07:00"
+      dispatched: "2026-10-13T07:35:56-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Successive-source tests pass; removing source-identity comparison fails both in-switch and separately parked cases.
+          round: 7
+        - id: BR-2
+          disposition: addressed
+          note: The authoritative BR-7 inventory supersedes historical tables and identifies implemented owners and classifications.
+          round: 7
+        - id: BR-3
+          disposition: addressed
+          note: Lease tests exercise collection during replay and release on success/error; removing lease closure makes both cases fail.
+          round: 7
+        - id: BR-4
+          disposition: addressed
+          note: Capacity-loss tests cover rows, cells, bytes and subsequent history clearing; disabling loss checks makes them fail.
+          round: 7
+        - id: BR-5
+          disposition: addressed
+          note: Geometry tests pass; replacing checked emulator construction makes the geometry regression test fail.
+          round: 7
+        - id: BR-6
+          disposition: addressed
+          note: Interrupted-target sequence tests pass; bypassing pending Start authority causes record-preservation assertions to fail.
+          round: 7
+        - id: BR-7
+          disposition: addressed
+          note: The active inventory correctly calls ResolveLaunchProfile unchanged and places known-configuration admission in switchagent.go; comparison against the named M1 baseline confirms this.
+          round: 7
+        - id: BR-8
+          disposition: addressed
+          note: Atlas now names reconcileContinuationOrientationLocked, matching the existing pruning implementation and call sites in console_continuation.go.
+          round: 7
+        - id: BR-9
+          disposition: addressed
+          note: Direct projection/selection tests use values without IO; removing the selected binding copy fails the aliasing assertion.
+          round: 7
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 489ec0bfc6c07ef2864d9399415e629f9aa10d98
+      blocked: false
 ---
 
 # Gate ledger — pair#517 (boundary-review)
@@ -250,6 +295,20 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-6 — addressed — Prior disposition retained. resume.go checks pending replacement authority and rechecks absence before cleanup; interrupted-switch recovery sequence tests pass.
 - BR-7 — addressed — Prior disposition retained. The active plan inventory identifies ResolveLaunchProfile as unchanged and known-configuration admission as integration code in switchagent.go; comparison against the named M1 baseline confirms the unchanged dependencies.
 - BR-8 — addressed — Prior disposition retained. atlas/couch.md now names reconcileContinuationOrientationLocked, which exists in console_continuation.go and owns continuation prompt pruning.
+
+## Round 7 — 2026-10-13T07:41:22-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Successive-source tests pass; removing source-identity comparison fails both in-switch and separately parked cases.
+- BR-2 — addressed — The authoritative BR-7 inventory supersedes historical tables and identifies implemented owners and classifications.
+- BR-3 — addressed — Lease tests exercise collection during replay and release on success/error; removing lease closure makes both cases fail.
+- BR-4 — addressed — Capacity-loss tests cover rows, cells, bytes and subsequent history clearing; disabling loss checks makes them fail.
+- BR-5 — addressed — Geometry tests pass; replacing checked emulator construction makes the geometry regression test fail.
+- BR-6 — addressed — Interrupted-target sequence tests pass; bypassing pending Start authority causes record-preservation assertions to fail.
+- BR-7 — addressed — The active inventory correctly calls ResolveLaunchProfile unchanged and places known-configuration admission in switchagent.go; comparison against the named M1 baseline confirms this.
+- BR-8 — addressed — Atlas now names reconcileContinuationOrientationLocked, matching the existing pruning implementation and call sites in console_continuation.go.
+- BR-9 — addressed — Direct projection/selection tests use values without IO; removing the selected binding copy fails the aliasing assertion.
 
 ## Open findings
 
