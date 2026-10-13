@@ -124,6 +124,11 @@ local ok,err=xpcall(function()
   ]])
   assert(markers.pin and markers.pin:find('preparing submission',1,true),'preparing was not rendered before held pin')
   assert(lua('return vim.bo.modifiable')==false,'active draft was editable')
+  -- The real focus autocmd schedules an EOL padding write one loop later.
+  lua([[vim.cmd('startinsert');vim.api.nvim_win_set_cursor(0,{1,5});vim.api.nvim_exec_autocmds('FocusLost',{})]])
+  assert(lua('return vim.bo.modifiable')==false,'focus loss released ownership')
+  lua([[vim.api.nvim_exec_autocmds('FocusGained',{})]])
+  assert(lua("return vim.api.nvim_buf_get_lines(0,0,-1,false)[1]")=='draft','focus cycle changed owned text')
   lua([[local cb=held;held=nil;cb({state='preparing',slot='pair:6',progress={phase='settling',current=1,total=3}})]])
   assert(vim.wait(1500,function()return saw('waiting for the page to settle, crop 1/3')end,5),'settle progress never rendered')
   assert(vim.wait(1000,function()return lua('return held ~= nil')end,10))
@@ -139,6 +144,35 @@ local ok,err=xpcall(function()
   assert(vim.wait(1000,function()return saw('capture refused')end,5),'failure was not rendered')
   assert(lua('return vim.bo.modifiable')==true,'failure retained draft lock')
   assert(lua("return vim.api.nvim_buf_get_lines(0,0,-1,false)[1]")=='retry draft','failure lost authored text')
+  for _,outcome in ipairs({'failure','timeout'}) do
+    -- Begin with genuine focus padding, then block its removal. FocusGained
+    -- must retain the pad's buffer/row even after retiring the blink timer.
+    lua([[vim.api.nvim_buf_set_lines(0,0,-1,false,{'focus draft'});vim.cmd('silent write');vim.cmd('startinsert');vim.api.nvim_win_set_cursor(0,{1,11});vim.api.nvim_exec_autocmds('FocusLost',{})]])
+    assert(lua("return vim.api.nvim_buf_get_lines(0,0,-1,false)[1]")=='focus draft ','fixture did not create focus pad')
+    lua([[vim.bo.modifiable=false;vim.api.nvim_exec_autocmds('FocusGained',{})]])
+    assert(lua("return vim.api.nvim_buf_get_lines(0,0,-1,false)[1]")=='focus draft ','blocked cleanup changed text')
+    lua([[
+      vim.bo.modifiable=true
+      _G.PairTestDOMArm=function(fn) _G.expire_submission=fn;return function()end end
+      PairSendDOM()
+    ]])
+    assert(lua("return vim.api.nvim_buf_get_lines(0,0,-1,false)[1]")=='focus draft','submission included stale cosmetic pad')
+    assert(lua('return vim.bo.modifiable')==false,'operation did not lock after pad cleanup')
+    lua([[vim.api.nvim_win_set_cursor(0,{1,11});vim.api.nvim_exec_autocmds('FocusLost',{})]])
+    assert(lua('return vim.bo.modifiable')==false,'focus loss unlocked active operation')
+    lua([[vim.api.nvim_exec_autocmds('FocusGained',{})]])
+    if outcome=='failure' then lua([[held({state='failed',error='focus capture refused'})]])
+    else lua([[expire_submission()]]) end
+    assert(lua('return vim.bo.modifiable')==true,outcome..' retained focus lock')
+    assert(lua("return vim.api.nvim_buf_get_lines(0,0,-1,false)[1]")=='focus draft',outcome..' corrupted focus text')
+    assert(lua("return table.concat(vim.fn.readfile(vim.env.PAIR_DRAFT_PATH),'\\n')")=='focus draft',outcome..' persisted cosmetic padding')
+    -- Normal focus padding/removal still works after the terminal result.
+    lua([[vim.api.nvim_win_set_cursor(0,{1,11});vim.api.nvim_exec_autocmds('FocusLost',{})]])
+    assert(lua("return vim.api.nvim_buf_get_lines(0,0,-1,false)[1]")=='focus draft ','released focus padding did not resume')
+    lua([[vim.api.nvim_exec_autocmds('FocusGained',{})]])
+    assert(lua("return vim.api.nvim_buf_get_lines(0,0,-1,false)[1]")=='focus draft','released focus cleanup did not resume')
+  end
+  assert(not saw('Press ENTER'),'focus lifecycle raised a blocking prompt')
 end,debug.traceback)
 pcall(function()request('nvim_command',{'qa!'},true)end)
 vim.wait(1000,function()return exited end,10)

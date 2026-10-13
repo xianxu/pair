@@ -328,12 +328,14 @@ vim.api.nvim_set_hl(0, 'PairFocusBlock', { link = 'Cursor', default = true })
 --     buffer; our pad lands a tick later.
 --   - `modified` is restored around both insert and remove so the
 --     dirty flag doesn't flicker.
-local pair_focus_eol_padded = false
-local pair_focus_eol_row    = nil
+-- The pad owns its buffer independently of the active focus animation: a
+-- FocusGained during read-only ownership must retain cleanup for unlock.
+local pair_focus_eol_pad = nil
 
 local function pair_eol_ensure_pad()
-  if pair_focus_eol_padded then return end
+  if pair_focus_eol_pad then return end
   if not pair_focus_buf or not vim.api.nvim_buf_is_loaded(pair_focus_buf) then return end
+  if _G.PairDraftMutationBlocked(pair_focus_buf, true) or not vim.bo[pair_focus_buf].modifiable then return end
   local win = vim.fn.bufwinid(pair_focus_buf)
   if win == -1 then return end
   local row, col = unpack(vim.api.nvim_win_get_cursor(win))
@@ -342,25 +344,24 @@ local function pair_eol_ensure_pad()
   local was_modified = vim.bo[pair_focus_buf].modified
   vim.api.nvim_buf_set_text(pair_focus_buf, row - 1, #line, row - 1, #line, { ' ' })
   vim.bo[pair_focus_buf].modified = was_modified
-  pair_focus_eol_padded = true
-  pair_focus_eol_row    = row
+  pair_focus_eol_pad = {buf=pair_focus_buf,row=row}
 end
 
 local function pair_eol_remove_pad()
-  if not pair_focus_eol_padded then return end
-  local row = pair_focus_eol_row
-  pair_focus_eol_padded = false
-  pair_focus_eol_row    = nil
-  if not row or not pair_focus_buf or not vim.api.nvim_buf_is_loaded(pair_focus_buf) then
-    return
+  local pad = pair_focus_eol_pad
+  if not pad then return true end
+  if not vim.api.nvim_buf_is_loaded(pad.buf) then pair_focus_eol_pad = nil; return true end
+  if _G.PairDraftMutationBlocked(pad.buf, true) or not vim.bo[pad.buf].modifiable then return false end
+  if pad.row <= vim.api.nvim_buf_line_count(pad.buf) then
+    local line = vim.api.nvim_buf_get_lines(pad.buf, pad.row - 1, pad.row, false)[1] or ''
+    if line:sub(-1) == ' ' then
+      local was_modified = vim.bo[pad.buf].modified
+      vim.api.nvim_buf_set_text(pad.buf, pad.row - 1, #line - 1, pad.row - 1, #line, {})
+      vim.bo[pad.buf].modified = was_modified
+    end
   end
-  if row > vim.api.nvim_buf_line_count(pair_focus_buf) then return end
-  local line = vim.api.nvim_buf_get_lines(pair_focus_buf, row - 1, row, false)[1] or ''
-  if line:sub(-1) == ' ' then
-    local was_modified = vim.bo[pair_focus_buf].modified
-    vim.api.nvim_buf_set_text(pair_focus_buf, row - 1, #line - 1, row - 1, #line, {})
-    vim.bo[pair_focus_buf].modified = was_modified
-  end
+  pair_focus_eol_pad = nil
+  return true
 end
 
 -- Render the cursor cell with an overlay extmark. Always toggle between
@@ -412,6 +413,7 @@ end
 
 local function pair_block_start()
   if pair_focus_timer_id then return end
+  if not pair_eol_remove_pad() then return end
   pair_focus_buf = vim.api.nvim_get_current_buf()
   -- Defer the actual work past the synchronous FocusLost autocmd chain
   -- so autosave (registered later, runs after us) sees a clean buffer.
@@ -1706,6 +1708,9 @@ do
     end
   end})
   function _G.PairSendDOM()
+    -- Cosmetic focus padding is not authored input. Remove it before the
+    -- operation snapshots and locks the draft.
+    if pair_focus_eol_pad and pair_focus_eol_pad.buf == vim.api.nvim_get_current_buf() then pair_eol_remove_pad() end
     local body, pos, buf = buffer_text(), nav.pos, vim.api.nvim_get_current_buf()
     local text = strip_comments(body)
     local tag = dofile(dir .. 'bang_tag.lua').parse(text)
@@ -2062,6 +2067,7 @@ end
 -- — the flag that turns bare digits into pickers — is declared above the
 -- completers; see its comment.)
 local function spell_suggest_popup()
+  if _G.PairDraftMutationBlocked() then return end
   local row, col = unpack(vim.api.nvim_win_get_cursor(0))  -- col is 0-indexed
   local line = vim.api.nvim_get_current_line()
   if line == '' then return end
@@ -2094,7 +2100,12 @@ local function spell_suggest_popup()
   vim.api.nvim_win_set_cursor(0, { row, e - 1 })
   spell_popup_active = true
   vim.cmd('startinsert')
+  local buf = vim.api.nvim_get_current_buf()
   vim.schedule(function()
+    if vim.api.nvim_get_current_buf() ~= buf or _G.PairDraftMutationBlocked(buf, true) then
+      spell_popup_active = false
+      return
+    end
     vim.fn.complete(s, indexed_items(suggestions, ''))
   end)
 end
@@ -4016,6 +4027,7 @@ local complete_pending = nil
 -- rather than #202's chain -- while the report claimed the chain and told the
 -- reader to EXCLUDE #202 on the strength of it.
 local function complete_now()
+  if _G.PairDraftMutationBlocked(nil, true) then return end
   -- The explicit z= gesture (spell_suggest_popup) owns the popup while it's
   -- active, so the as-you-type completers must stay out of its way. Without
   -- this guard, startinsert's TextChangedI drives spell_complete to pop its own

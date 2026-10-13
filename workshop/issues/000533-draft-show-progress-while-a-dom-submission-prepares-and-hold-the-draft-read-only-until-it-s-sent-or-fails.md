@@ -96,3 +96,7 @@ total: 2.199
 - Close round2 REWORK on BR-1: navigation regression passes and mutation-check fails as intended; FocusLost scheduled padding still bypassed lock, raising nomodifiable and a hit-enter prompt. Accepted; expanding enumeration to every direct/indirect draft write including focus pad cleanup with embedded event sequences. Full-suite attempt3 stopped while queued, exit130; no full-suite success claimed.
 
 - Integration correction after main merge: #531 changed README's Couch-section opening sentence, making TestREADMEDocumentsEveryPanelControl/EveryCouchChord fail their existing delimiter precondition. Reproduced both RED on merged source; restored explicit “make install also installs” wording without changing behavior. Both tests PASS (0.254s) after the one-line docs correction.
+
+- Round2 independent TestCouchParentCaptureStableAcrossChildMouseModes failure was not reproduced: exact focused run PASS unchanged (0.341s). No full-suite result inferred.
+
+- BR-1 focus RED reproduced in embedded UI: scheduled FocusLost pad write raised nomodifiable then hit-enter and RPC timeout. GREEN: focus pad insertion checks ownership; removal retains {buffer,row} until allowed; cosmetic padding is removed before submission snapshot. Spelling scheduled callback and completion debounce also honor ownership. Full14-site/indirect inventory is in plan Revisions. Embedded cases verify failure/timeout, clean stored/authored text, no prompt, and resumed focus padding/removal. Full DOM suite, completion-mode, autopair and diff checks PASS.
