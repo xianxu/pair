@@ -1147,8 +1147,8 @@ control's link, and `Alt+click` opens the Codes menu (on `LIVE ⏸` and `Chrome 
 | `👆` (screen) | toggle pointing (makes the link the first time) | copy pointer link | — | — |
 | `Chrome ⏸` / `▶` | pause / resume (`Ctrl`+click ends) | copy view-only link | Codes menu | all its codes |
 | `↗` | bring the cast Chrome forward | — | — | — |
-| `👆` (web) | copy pointer link | copy pointer link | — | — |
-| `👽` | copy drive link | copy drive link | — | — |
+| `👆` (web) | toggle annotation; enabling copies pointer link | copy pointer link without enabling | — | — |
+| `👽` | toggle driving; enabling copies drive link | copy drive link without enabling | — | — |
 
 With an empty root filter, **Space** toggles the **normal view** and **focus view**.
 Focus view shows only live threads with a published summary, in normal-view

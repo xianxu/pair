@@ -91,6 +91,15 @@ Durable plan: [000523-cast-capability-switches-plan.md](../plans/000523-cast-cap
 
 ## Log
 
+### 2026-10-13 07:37 PDT — Staged for operator acceptance
+
+- TL authorized pair:0 staging (receipt 32d72a02-378c-4871-a6ae-e934637c4139).
+  Fetched origin and merged main: already up to date, including #494 PR303 and
+  the completed capability hook wiring. sdlc move :0 relocated branch/ownership.
+- make build passed in /Users/xianxu/workspace/pair; HEAD verified against the
+  selected branch. Corrected two stale README click-table rows discovered while
+  preparing smoke instructions. No visible window opened; operator smoke pending.
+
 ### 2026-10-13 M2 verification complete
 
 - Fresh make test exited 0: all shell checks and go test ./... -count=1 passed.
