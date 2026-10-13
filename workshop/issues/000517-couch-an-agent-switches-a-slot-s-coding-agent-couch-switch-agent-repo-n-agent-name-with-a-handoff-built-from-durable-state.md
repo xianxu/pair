@@ -68,6 +68,18 @@ Durable plan: [agent switch plan](../plans/000517-agent-switch-plan.md).
 
 ## Log
 
+- 2026-10-12 21:29 PDT — TL paused M2 for an operator-visible recovery design,
+  then clarified that internal states need a small projection rather than forced
+  reduction. All implementation agents stopped. M1 remains SHIP at 37707f73b;
+  the subsequent full `make test` completed successfully. Unreviewed M2 WIP
+  checkpointed at f756c2bf9. Targeted model/coordinator/transport/form tests and
+  race checks passed; authored-byte layout/wrapper and fresh-no-prompt readiness
+  acceptance passed. Full M2 integration/review has NOT completed. The plan's
+  newest Revisions entry maps 8 internal states to 5 visible outcomes and exposes
+  park/start failures that can leave neither agent running. Awaiting TL's choice
+  between durable one-action recovery and a larger source-retaining replacement
+  transaction; no further M2 implementation until approval.
+
 - 2026-10-12 BR-4/BR-5 correction: replay sets explicit row/cell/byte/area
   bounds and uses checked construction/resize. VT's monotonic primary-history
   capacity-loss counter catches eviction and rejected rows even before a later
@@ -140,6 +152,13 @@ Durable plan: [agent switch plan](../plans/000517-agent-switch-plan.md).
   `--request ID` plus exact source identity and names risk-focused test seams.
 
 ## Revisions
+
+- 2026-10-12 21:29 PDT — operator recovery review via ops:0, clarified in receipt
+  `5a859539-2444-44a0-b156-6402cfb3227a`: preserve necessary internal states,
+  require their projection onto a small set of human outcomes with one recovery
+  action each. Added the projection and full failure rows to the durable plan.
+  Proposal removes the unmeasured global switch cap. Honest current failure
+  evidence requires a scope decision before M2 continues; no approval inferred.
 
 - 2026-10-12 — the operator: the switch is driven by the TL's skill. Done when also: a "switch a slot's agent" procedure in
   ops' `skills-draft/xx-tl/SKILL.md` (when to switch, how to write the brief, the exact couch call, how to check the new

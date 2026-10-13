@@ -373,3 +373,114 @@ after the `sdlc change-code` plan-quality gate passes.
   form, CLI, broker and coordinator. Compressed prose case inventories into
   named production functions with adversarial strategies and mechanical guards.
   The scope and operator flow are unchanged.
+
+
+### 2026-10-12 21:29 PDT — M2 projection and recovery review; approval pending
+
+**Reason:** ops:0 relayed the operator's concern about complex internals hiding
+unrecoverable outcomes, then clarified that internal states may remain as complex
+as the mechanics require (receipt `5a859539-2444-44a0-b156-6402cfb3227a`).
+This revision supersedes the user-facing interpretation of the earlier table,
+the 64-switch admission limit, and the assumption that switch recovery can be
+entirely ephemeral. M1 stands. M2 implementation is paused pending TL approval.
+Work already begun under the earlier approval is preserved, explicitly unreviewed,
+at `f756c2bf9`; it does not implement this revision.
+
+**Count:** retain 8 internal states; project them to 5 visible outcomes. This is
+not a cosmetic renaming: all terminal failures carry one selected recovery
+operation, and the same projection supplies the slot row, its primary action,
+notice and CLI receipt. Internal step names belong only in diagnostic details.
+
+| Internal state and observed evidence | User-visible outcome | One next action |
+|---|---|---|
+| waiting-brief, waiting-settled, switching, delivery-pending; operation still within its deadline | Switch in progress (short reason: waiting for handoff / waiting for turn / starting agent) | Wait; the deadline produces one of the outcomes below |
+| refused, or failed before stopping the exact source; old agent verified live | Old agent still running | Retry switch |
+| failed/unconfirmed with old source stopped and no verified target, incomplete park, or process evidence not yet sufficient to select a survivor | Switch needs recovery | Recover slot |
+| unconfirmed delivery with exact new agent verified live | New agent running; handoff needs attention | Copy brief |
+| succeeded with exact new agent registered and either fresh content or submitted brief | New agent ready | Continue |
+
+`Recover slot` is ONE operation, not instructions to choose among retry/recover/
+abandon. It reconciles the saved exact source and target first, reattaches a
+verified survivor, or resumes the saved old thread only after proving no target
+is running. An unknown process never authorizes a second launch. On success the
+row returns to the corresponding live-agent outcome. On unavailable external
+resources it stays visibly recoverable with the same action and a concrete error;
+it never becomes a spinner with no exit. `Copy brief` copies the exact saved
+bytes; the notice says to inspect any text already in the composer first. It does
+not paste or submit again automatically.
+
+The failure rows for the **existing park-then-start architecture** are honest:
+
+| Failure | What remains in the slot | One recovery action | Where shown |
+|---|---|---|---|
+| Brief never arrives | Old agent remains running until settled; at brief deadline select neutral pointers, then proceed. If the overall deadline expires, old agent still runs. | Retry switch after an overall timeout | Slot row primary action, persistent notice, operation-status |
+| Agent stays busy | Old agent still running; never parked by the timeout | Retry switch after its turn ends | Same three surfaces |
+| Park fails before source exit | Old agent still running if exact liveness confirms it; no target launched | Retry switch | Same three surfaces |
+| Park fails after source exit or completion is uncertain | Old thread may be stopped; target has not started. This is a real gap in the current design. | Recover slot (reconcile, then resume old thread) | Same three surfaces; survives Couch restart |
+| Target start fails | Old thread is parked. A partially started target is reconciled before resuming anything; neither agent may currently run. | Recover slot (reattach surviving target, otherwise resume old thread) | Same three surfaces; survives Couch restart |
+| Delivery partial/timeout | New agent still running if verified live; retain exact brief and never auto-resend. If it exited, use the recovery row above. | Copy brief | Target row primary action, persistent notice, operation-status |
+| Couch restarts mid-switch before park | Old agent remains in its Zellij session; waiting request is cancelled, not replayed | Retry switch | Rebuilt slot row and recovered receipt |
+| Couch restarts after park, before target is verified | Old may be stopped and new may be absent or alive; do not guess from a lost receipt | Recover slot | Rebuilt slot row and recovered receipt |
+| Couch restarts with verified target but no confirmed delivery | New agent running; exact saved brief available, no automatic repeat submission | Copy brief | Rebuilt slot row and recovered receipt |
+
+**Decision needed, not a false guarantee:** these rows expose two cases that do
+NOT satisfy the earlier literal requirement that one agent always be running.
+Automatic resume after a failed start cannot guarantee that either: resume can
+also fail. The projection above eliminates hidden limbo but cannot turn a stopped
+process into a live one by labeling it. Approval must explicitly choose whether
+visible, one-action recovery is the intended invariant, or uninterrupted agent
+availability is mandatory.
+
+If uninterrupted availability is mandatory, the current park/start transaction
+must be replaced: keep the old session alive while a replacement registers in a
+separate candidate session; publish a durable choice of active session before
+retiring the old one. Candidate startup failure then leaves old running; park
+failure leaves the registered replacement running; partial delivery leaves new
+running; supervisor restart reconciles the durable choice and surviving sessions.
+This requires a separate candidate identity and exclusive input ownership (so two
+agents cannot accept work in the same slot), plus restart reconciliation. Current
+`launchTrackedThread` binds launch to the one thread identity and its artifact
+paths, and `CommitStartClaim` refuses an occupied thread: launching first is NOT
+an available reorder of today's calls. It is a substantial scope change that
+needs approval and its own executable design, not an untested rollback promise.
+Host failure or independent death of both agents still cannot be covered by an
+absolute process-availability promise. No such scope change is being built now.
+
+**Concrete delta proposed for the one-action recovery interpretation:**
+
+- Keep the honest internal transition model (ARCH-ORDER). Add pure
+  `ProjectAgentSwitch` in `cmd/internal/couchcore/agent_switch_model.go`, returning
+  one of the five outcomes above and its sole action from exact liveness and
+  transaction evidence. CLI and form consume it (ARCH-DRY, ARCH-PURE).
+- Remove the switch-specific/global 64-admission policy. One pending switch per
+  canonical slot is the admission rule. Keep one latest switch result per slot,
+  superseded by that slot's next request; existing unrelated operation admission
+  limits stay owned by their existing code. No new queue-size knob or arbitrary
+  global switch count (ARCH-CONSTRAINTS).
+- Before park, save one validated `SwitchRecovery` record with request/source
+  identity, old launch/resume evidence, accepted target parameters and exact
+  selected content. Reuse the thread store's atomic, revision-checked writes;
+  `cmd/internal/threadrecord/switch_recovery.go` and
+  `cmd/internal/couchcore/switch_recovery.go` own conversion/reconciliation.
+  Never infer completion from receipt loss. Replace this record at the next
+  admitted switch only after prior recovery/cleanup is complete; drop with its
+  thread. One record per slot, bounded body by the existing orientation wire
+  contract (ARCH-SECURE, ARCH-FUNERAL).
+- `cmd/internal/couchcore/switchagent.go` records destructive progress before
+  returning; the recovery operation uses existing park reconciliation, process
+  identity and resume services. `agent_switch_service.go` rebuilds the visible
+  result on supervisor startup. Recovery never sends a brief implicitly.
+- Add controlled fake-runner/store/session tests interrupting every destructive
+  boundary, including target startup followed by lost acknowledgment. Assert
+  actual surviving process identities, a visible row and exactly one recovery
+  action. Restart against the same portable store and prove repeated recovery
+  does not launch a duplicate or submit the brief twice (ARCH-MOCK/PURPOSE).
+- Test the projection exhaustively across all 8 internal states and known/unknown
+  process evidence. Exercise the actual menu action and CLI receipt, not just
+  serialization. Register new paths and update atlas at the M2 boundary.
+
+This revision is a reviewable design choice, not implementation approval or a
+claim that the no-empty-slot requirement has been met. Wait for the TL's answer
+before elaborating the selected recovery design, rerunning plan-quality and
+resuming M2. The existing estimate must be revisited after the chosen design
+passes that gate; it is not silently reused for a larger launch transaction.
