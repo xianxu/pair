@@ -73,6 +73,21 @@ type Update struct {
 	LinkErr   error
 }
 
+// LinkFor is the link of kind (broadcast.LinkView, LinkPointer or LinkDrive,
+// the codes' labels): "" for a link the cast doesn't have, or any other kind.
+// The one place a kind becomes a URL (pair#506).
+func (u Update) LinkFor(kind string) string {
+	switch kind {
+	case broadcast.LinkView:
+		return u.Link
+	case broadcast.LinkPointer:
+		return u.PointerLink
+	case broadcast.LinkDrive:
+		return u.DriveLink
+	}
+	return ""
+}
+
 // Cast is one web cast: a Browser, served to viewers under a token on the
 // shared Host. It ends when its Browser does.
 type Cast struct {
@@ -156,10 +171,10 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 	}
 	token, err := broadcast.NewToken()
 	if err == nil {
-		// The view link's lock comes with its token (pair#495).
+		// The view-only link's lock comes with its token (pair#495).
 		err = locks.Mint(broadcast.LinkView, token, castlock.DefaultDigits, cfg.OnCodeRotated)
 	}
-	// A cast that takes notes has a pointer link, locked like the view link;
+	// A cast that takes notes has a pointer link, locked like the view-only link;
 	// without its token the cast can't be what it was asked to be, so it
 	// doesn't start (pair#506).
 	var pointerToken string

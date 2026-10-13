@@ -287,7 +287,7 @@ func TestBoardRoutesRefuseTheViewOnlyLink(t *testing.T) {
 	for _, route := range []string{"stroke", "note", "note-state"} {
 		for _, body := range []string{noteBody(1, c.p.ID, 0), huge} {
 			if code, text := post(t, c.viewURL+route, "application/json", body); code != http.StatusForbidden || text != refuseViewOnly {
-				t.Errorf("POST %s under the view link: %d %q", route, code, text)
+				t.Errorf("POST %s under the view-only link: %d %q", route, code, text)
 			}
 		}
 	}

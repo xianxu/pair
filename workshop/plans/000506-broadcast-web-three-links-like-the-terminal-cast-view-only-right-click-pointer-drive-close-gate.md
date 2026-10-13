@@ -93,6 +93,53 @@ rounds:
       isolation: fenced
       reviewed: 713fffbc2d845a1ef8bc27fda8d81c908bb3a124
       blocked: false
+    - "n": 4
+      timestamp: "2026-10-12T22:37:31-07:00"
+      dispatched: "2026-10-12T22:35:16-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: "console_webcast.go webcastViewOnlyLink grants \"its viewers watch\"; \U0001F446 copies PointerLink; TestWebcastCopiesEachLink pins both notices."
+          round: 4
+        - id: BR-2
+          disposition: addressed
+          note: atlas/webcast-format.md:426 now adds "(without it under the view-only link, pair#506)".
+          round: 4
+        - id: BR-3
+          disposition: addressed
+          note: TestCastLinksClearTogetherWhenTheMountIsLost; reverting the PointerLink clear in cast.go turns it red (verified).
+          round: 4
+        - id: BR-4
+          disposition: addressed
+          note: linkURL(base, token) in cast.go is the one constructor of all three URLs.
+          round: 4
+        - id: BR-8
+          disposition: not-addressed
+          note: 'Still says view link: cast.go:159 and cast.go:162 (production), plus test comments server_drive_test.go:297, viewer_drive_live_test.go:216 (now false), lock_helpers_test.go:24, server_board_test.go:290.'
+          round: 4
+      findings:
+        - id: BR-9
+          severity: Important
+          title: "README.md:1117 cast-row table still says the web \U0001F446 copies the view link"
+          detail: '3rd finding in this family. The row should read "copy pointer link" in both columns; it arrived with the 495 merge and contradicts README''s own paragraph at lines 1004-1034. Rule: a rename sweep covers README.md tables, atlas, production comments and test comments, and is re-run after every merge from main.'
+          family: one-name-per-surface
+          round: 4
+        - id: BR-10
+          severity: Minor
+          title: unlockCast maps a pointer code to the view-only URL; link kind to URL is restated three times
+          detail: '3rd finding in this family. lock_helpers_test.go:26-32 would post the pointer code at u.Link on a recorded cast (latent trap; today''s callers are unrecorded). Rule: one Update.LinkFor(kind) accessor used by the webcastLink table, unlockCast and unlockWebCast.'
+          family: shared-helper-for-repeated-construction
+          round: 4
+        - id: BR-11
+          severity: Minor
+          title: 'lessons.md: the new pair 506 section is inserted mid-section, so the 513 and 516 bullets now sit under it'
+          detail: workshop/lessons.md:1439; move the new heading and its two bullets after the 516 bullet.
+          family: insert-preserves-section-structure
+          round: 4
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#506 (boundary-review)
@@ -137,10 +184,28 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-8** [Minor] `one-name-per-surface` Web-cast code comments still say "view link" / "viewer link"; drive/controller.go:11 is now wrong
   2nd finding in this family. Sites: webcast/drive/controller.go:11 ("Anyone with the viewer link may take a seat", but only the drive link gets a seat), webcast/server.go:227 (the view count includes pointer streams), webcast/server_drive.go:113 (the drive routes are also not found under the pointer token), webcast/link.go:25, webcast/cast.go:106, couchtty/console_webcast.go:45, couchtty/console_drive.go:236, atlas/webcast.md:196. Rule: in web-cast code and docs "view link" is retired; use "view-only link" where only it applies, "the view-only and pointer links" where both do, and include code comments in rename sweeps (git grep -nE 'view(er)? link' cmd/internal/webcast cmd/internal/couchtty atlas/webcast*.md). atlas/broadcast.md is the terminal cast and is correct.
 
+## Round 4 — 2026-10-12T22:37:31-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — console_webcast.go webcastViewOnlyLink grants "its viewers watch"; 👆 copies PointerLink; TestWebcastCopiesEachLink pins both notices.
+- BR-2 — addressed — atlas/webcast-format.md:426 now adds "(without it under the view-only link, pair#506)".
+- BR-3 — addressed — TestCastLinksClearTogetherWhenTheMountIsLost; reverting the PointerLink clear in cast.go turns it red (verified).
+- BR-4 — addressed — linkURL(base, token) in cast.go is the one constructor of all three URLs.
+- BR-8 — not-addressed — Still says view link: cast.go:159 and cast.go:162 (production), plus test comments server_drive_test.go:297, viewer_drive_live_test.go:216 (now false), lock_helpers_test.go:24, server_board_test.go:290.
+
+### Raised
+
+- **BR-9** [Important] `one-name-per-surface` README.md:1117 cast-row table still says the web 👆 copies the view link
+  3rd finding in this family. The row should read "copy pointer link" in both columns; it arrived with the 495 merge and contradicts README's own paragraph at lines 1004-1034. Rule: a rename sweep covers README.md tables, atlas, production comments and test comments, and is re-run after every merge from main.
+- **BR-10** [Minor] `shared-helper-for-repeated-construction` unlockCast maps a pointer code to the view-only URL; link kind to URL is restated three times
+  3rd finding in this family. lock_helpers_test.go:26-32 would post the pointer code at u.Link on a recorded cast (latent trap; today's callers are unrecorded). Rule: one Update.LinkFor(kind) accessor used by the webcastLink table, unlockCast and unlockWebCast.
+- **BR-11** [Minor] `insert-preserves-section-structure` lessons.md: the new pair 506 section is inserted mid-section, so the 513 and 516 bullets now sit under it
+  workshop/lessons.md:1439; move the new heading and its two bullets after the 516 bullet.
+
 ## Open findings
 
-- **BR-1** [Minor] `couch-notice-matches-link-grants` Right-click notice still says the copied link points and takes notes; at M1 it is view-only
-- **BR-2** [Minor] `atlas-tracks-surface-change` atlas/webcast-format.md:431 still says a pin's chip opens the note with Resolve
-- **BR-3** [Minor] `plan-step-test-delivered` Plan Task 4's "all three links clear when the mount is lost" assertion is not tested
-- **BR-4** [Minor] `shared-helper-for-repeated-construction` The link URL Base()+"/"+token+"/" is built three times in Cast.run
 - **BR-8** [Minor] `one-name-per-surface` Web-cast code comments still say "view link" / "viewer link"; drive/controller.go:11 is now wrong
+- **BR-9** [Important] `one-name-per-surface` README.md:1117 cast-row table still says the web 👆 copies the view link
+- **BR-10** [Minor] `shared-helper-for-repeated-construction` unlockCast maps a pointer code to the view-only URL; link kind to URL is restated three times
+- **BR-11** [Minor] `insert-preserves-section-structure` lessons.md: the new pair 506 section is inserted mid-section, so the 513 and 516 bullets now sit under it

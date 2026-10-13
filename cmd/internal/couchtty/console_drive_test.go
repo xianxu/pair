@@ -212,7 +212,7 @@ func TestDriveFromCouch(t *testing.T) {
 		t.Fatalf("links: view %q drive %q", c.viewLink, c.link)
 	}
 	c.clickCell(t, 2)
-	waitFor(t, "view link copied", func() bool { return copies(c.consoleFixture, c.viewLink) == 1 })
+	waitFor(t, "view-only link copied", func() bool { return copies(c.consoleFixture, c.viewLink) == 1 })
 	c.con.mu.Lock()
 	alien := c.con.statusWebDriveLink.Start + 1
 	c.con.mu.Unlock()
@@ -228,7 +228,7 @@ func TestDriveFromCouch(t *testing.T) {
 	}
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusNotFound {
-		t.Fatalf("a seat by the view link: %d", resp.StatusCode)
+		t.Fatalf("a seat by the view-only link: %d", resp.StatusCode)
 	}
 	v1 := c.viewer(t, "Ana")
 	span := c.span(t, "✋Ana")

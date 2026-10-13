@@ -49,9 +49,8 @@ func unlockWebCast(t *testing.T, con *Console) {
 	con.mu.Lock()
 	cast, u := con.wcast.cast, con.wcast.update
 	con.mu.Unlock()
-	linkOf := map[string]string{broadcast.LinkView: u.Link, broadcast.LinkPointer: u.PointerLink, broadcast.LinkDrive: u.DriveLink}
 	for _, code := range cast.Codes() {
-		link := linkOf[code.Link]
+		link := u.LinkFor(code.Link)
 		if link == "" {
 			continue
 		}

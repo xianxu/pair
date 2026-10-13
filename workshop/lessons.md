@@ -1436,9 +1436,6 @@ proof; record the surprising case so the next change starts from evidence.
   events carry 0). Before a gesture rule reads an event field, log that field from a real browser once, and make
   the fakes match it.
 
-## Re-meaning a named surface: sweep every doc for the old term in the same commit (pair#506)
-- **What went wrong:** #506 split the web cast's "view link" into view-only and pointer links. The atlas page I was editing was updated, but `atlas/webcast-format.md` and two README lines still said the view link allows pointing and notes. Two review rounds flagged the same family.
-- **Rule:** when a change gives an existing name new grants or meaning (a link, a mode, a flag), `git grep` atlas/ and README.md for the old term and its synonyms ("view link", "viewer link", "two links") before committing, and fix or date every hit.
 - **A viewer-side rule that stands in for the browser must act like the browser everywhere (#513 close).** The
   live-size rule meant to replace a canvas's UA sizing was author-origin, so it beat the UA's `[hidden]`, and it
   lived in the document sheet, which shadow trees don't see. When a viewer rule substitutes for browser behaviour,
@@ -1447,3 +1444,8 @@ proof; record the surprising case so the next change starts from evidence.
   rule was restated in `Act`'s doc, `ErrStale`'s doc and `onTarget`'s comment; updating `Injector.Inject` and the
   atlas left three stale copies. Before committing a rule change, `rg` the rule's nouns (here "stale", "wheel")
   across the package and the atlas, and make every other site name the rule's owner instead of restating it.
+
+## Re-meaning a named surface: sweep for the old term, and sweep again after every merge (pair#506)
+- **What went wrong:** #506 split the web cast's "view link" into view-only and pointer links. Three review rounds flagged the old term: first in `atlas/webcast-format.md` and the README prose, then in code comments, then in a README table that #495's merge brought in after the sweep.
+- **Rule:** when a change gives an existing name new grants or meaning (a link, a mode, a flag), `git grep` the old term and its synonyms ("view link", "viewer link", "two links") across README.md (tables too), atlas/, production comments and test comments before committing, and fix or date every hit. Re-run that grep after every merge from main: a branch that lands second inherits the other side's uses of the old term.
+- **And:** when several places map a kind to a value (a link label to its URL), give the type one accessor (`Update.LinkFor`) before the third copy appears; the copies drift (one unlock helper sent the pointer code to the view-only URL).

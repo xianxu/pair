@@ -1114,7 +1114,7 @@ control's link, and `Alt+click` opens the Codes menu (on `LIVE ⏸` and `Chrome 
 | `👆` (screen) | toggle pointing (makes the link the first time) | copy pointer link | — | — |
 | `Chrome ⏸` / `▶` | pause / resume (`Ctrl`+click ends) | copy view-only link | Codes menu | all its codes |
 | `↗` | bring the cast Chrome forward | — | — | — |
-| `👆` (web) | copy view link | copy view link | — | — |
+| `👆` (web) | copy pointer link | copy pointer link | — | — |
 | `👽` | copy drive link | copy drive link | — | — |
 
 With an empty root filter, **Space** toggles the **normal view** and **focus view**.

@@ -109,7 +109,7 @@ func TestCastPublishesThreeLinks(t *testing.T) {
 }
 
 // Every link goes with the mount: a lost tunnel clears the pointer link with
-// the view link, so Couch never copies a dead one (pair#506).
+// the view-only link, so Couch never copies a dead one (pair#506).
 func TestCastLinksClearTogetherWhenTheMountIsLost(t *testing.T) {
 	tunnel := &broadcast.FakeTunnel{}
 	c, err := StartCast(context.Background(), CastConfig{
@@ -126,5 +126,16 @@ func TestCastLinksClearTogetherWhenTheMountIsLost(t *testing.T) {
 	tunnel.Exit()
 	if u := waitUpdate(t, c, "link lost", func(u Update) bool { return u.LinkErr != nil }); u.Link != "" || u.PointerLink != "" || u.DriveLink != "" {
 		t.Fatalf("links after the mount was lost: %+v", u)
+	}
+}
+
+// LinkFor is the one place a code's label becomes its link's URL: unlocking,
+// the Codes menu and Couch's copies all read it (pair#506).
+func TestUpdateLinkFor(t *testing.T) {
+	u := Update{Link: "v/", PointerLink: "p/", DriveLink: "d/"}
+	for kind, want := range map[string]string{broadcast.LinkView: "v/", broadcast.LinkPointer: "p/", broadcast.LinkDrive: "d/", "other": ""} {
+		if got := u.LinkFor(kind); got != want {
+			t.Errorf("LinkFor(%q) = %q, want %q", kind, got, want)
+		}
 	}
 }

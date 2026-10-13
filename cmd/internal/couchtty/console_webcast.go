@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/broadcast"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/webcast"
 )
@@ -276,21 +277,21 @@ func (c *Console) focusWebcast() {
 // view-only link answered may still have none of this kind.
 type webcastLink struct {
 	name   string
-	url    func(webcast.Update) string
+	kind   string // the link's label, broadcast.LinkView/LinkPointer/LinkDrive
 	grants string
 	// missing says why the cast has no such link; "" means it isn't ready.
 	missing func(*webcast.Cast) string
 }
 
 var (
-	webcastViewOnlyLink = webcastLink{name: "view-only", url: func(u webcast.Update) string { return u.Link },
+	webcastViewOnlyLink = webcastLink{name: "view-only", kind: broadcast.LinkView,
 		grants: "its viewers watch; 👆 copies the pointer link, 👽 the drive link."}
-	webcastPointerLink = webcastLink{name: "pointer", url: func(u webcast.Update) string { return u.PointerLink },
+	webcastPointerLink = webcastLink{name: "pointer", kind: broadcast.LinkPointer,
 		grants: "its viewers watch, point and leave notes.",
 		missing: func(*webcast.Cast) string {
 			return "This cast takes no notes (it isn't recorded), so it has no pointer link."
 		}}
-	webcastDriveLink = webcastLink{name: "drive", url: func(u webcast.Update) string { return u.DriveLink },
+	webcastDriveLink = webcastLink{name: "drive", kind: broadcast.LinkDrive,
 		grants: "its viewers can ask to drive; you grant.",
 		missing: func(cast *webcast.Cast) string {
 			if cast != nil && cast.DriveOff() != "" {
@@ -311,7 +312,7 @@ func (c *Console) copyWebcastLinkOf(l webcastLink) {
 	if u.Link != "" && l.missing != nil {
 		missing = l.missing(cast)
 	}
-	switch link := l.url(u); {
+	switch link := u.LinkFor(l.kind); {
 	case !running:
 	case link != "":
 		c.copyLink(link)

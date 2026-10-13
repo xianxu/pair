@@ -60,7 +60,7 @@ func newWebNotesCast(t *testing.T, screen bool) *webNotesCast {
 			t.Fatal(err)
 		}
 	}
-	// Viewers who leave notes hold the pointer link; the view link only
+	// Viewers who leave notes hold the pointer link; the view-only link only
 	// watches (pair#506).
 	waitFor(t, "pointer link", func() bool {
 		r.con.mu.Lock()

@@ -167,8 +167,8 @@ func TestWebCastCodesOnTheChromeCell(t *testing.T) {
 	pointerCopies := copies(c.consoleFixture, pointerLink)
 	c.chooseCodes(t, codesAction{copy: true, link: broadcast.LinkPointer})
 	waitFor(t, "pointer link copied from the menu", func() bool { return copies(c.consoleFixture, pointerLink) == pointerCopies+1 })
-	mouse(2|8, c.cell()-1) // Alt+right-click: the view link now, never the drive link
-	waitFor(t, "view link copied", func() bool { return copies(c.consoleFixture, c.viewLink) >= 1 })
+	mouse(2|8, c.cell()-1) // Alt+right-click: the view-only link now, never the drive link
+	waitFor(t, "view-only link copied", func() bool { return copies(c.consoleFixture, c.viewLink) >= 1 })
 	// The click outside the (still open) popup closed it.
 	waitFor(t, "the popup closed", func() bool { return !strings.Contains(c.screenText(), "Chrome codes") })
 	if copies(c.consoleFixture, c.link) != 1 {

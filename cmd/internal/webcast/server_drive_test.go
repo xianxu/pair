@@ -294,9 +294,8 @@ func TestDriveSeatTableSweepsIdleKeys(t *testing.T) {
 	}
 }
 
-// Two links (operator, 10-12): the view link watches, points and notes;
-// only the drive link takes a seat, control and input, and only its stream
-// holds a seat.
+// Of the cast's links, only the drive link takes a seat, control and input,
+// and only its stream holds a seat.
 func TestDriveOnlyUnderTheDriveLink(t *testing.T) {
 	f := newDriveFixture(t, 100*time.Millisecond)
 	if !f.srv.Owns("drv") || !f.srv.Owns("tok") || f.srv.Owns("nope") || f.srv.DriveToken() != "drv" {
@@ -308,7 +307,7 @@ func TestDriveOnlyUnderTheDriveLink(t *testing.T) {
 		w := httptest.NewRecorder()
 		f.srv.ServeHTTP(w, r)
 		if w.Code != http.StatusNotFound {
-			t.Errorf("%s under the view link: %d", route, w.Code)
+			t.Errorf("%s under the view-only link: %d", route, w.Code)
 		}
 	}
 	srv := httptest.NewServer(f.srv)
@@ -319,7 +318,7 @@ func TestDriveOnlyUnderTheDriveLink(t *testing.T) {
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/tok/events?viewer="+viewer, nil)
 	resp, err := castClient.Do(req)
 	if err != nil || resp.StatusCode != http.StatusOK {
-		t.Fatalf("watching by the view link: %v %v", resp, err)
+		t.Fatalf("watching by the view-only link: %v %v", resp, err)
 	}
 	defer resp.Body.Close()
 	time.Sleep(300 * time.Millisecond) // past the grace: a view stream holds no seat
