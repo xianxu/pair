@@ -37,9 +37,9 @@ Restore full launch/cleanup/persistence error text and errors.Is/As access. Keep
 
 ## Plan
 
-- [ ] Reproduce failures, separate full error text from shared operator formatting (ARCH-PURE, ARCH-DRY); sweep launch presentation callers.
-- [ ] Test cleanup text, cause identity, stored diagnostics and concise operator output; investigate cancellation timing.
-- [ ] Run full couchcore and make -k test, close and land.
+- [x] Reproduce failures, separate full error text from shared operator formatting (ARCH-PURE, ARCH-DRY); sweep launch presentation callers.
+- [x] Test cleanup text, cause identity, stored diagnostics and concise operator output; investigate cancellation timing.
+- [x] Run full couchcore and make -k test, close and land.
 
 ## Log
 
@@ -55,3 +55,7 @@ Restore full launch/cleanup/persistence error text and errors.Is/As access. Keep
 - Full couchcore completed in 421.472s: all four reported #535 tests passed. Three unrelated tests returned workspace host creation is busy: TestAcceptanceReportBudgetTenSlots, TestObserveHealthySlot, TestConvergeWorktreeAddOverAStaleRegistration (/tmp/pair535-couchcore.log). Isolated rerun passed all three in 19.163s (/tmp/pair535-host-busy-rerun.log). Existing hostCreationSettle documents a 100ms inherited-descriptor fork/exec window (#436); contention is plausible, not proven. No lease behavior changed.
 
 - make -k test acquired the machine gate after 775s. Shell prerequisites including the #514 capture timing check passed and the Go suite ran. Its initial snapshot hit the seven inventory entries and two README-delimiter checks fixed by #533. On TL instruction merged #533/main without code conflicts at 7a20f13911de7b6e633024fb926b690a6aef7c92 while the remaining suite ran. Rechecked the exact inventory and README tests on merged main: both packages passed (1.985s / 0.297s; /tmp/pair535-main-recheck.log). No README or inventory edits authored in #535.
+
+- make -k test completed (/tmp/pair535-make-k.log): full couchcore PASS 261.160s; couchtty PASS 41.143s; shell prerequisites passed. Besides the pre-#533 inventory/README failures, merging main mid-run caused stale nvim/init.lua embedding in keyhelp and mixed-version SubmissionProgress compile errors in webcast/recorder. Regenerated runtime bundle and rerunning all five affected packages on stable merged source. An unrelated TestNotificationBrokerBeforeExecAndCleanup failed once (startup hook absent), then passed 3/3 isolated reruns (1.868s, /tmp/pair535-wrap-rerun.log); no wrapper edits in this issue.
+
+- Stable merged-source recheck PASS: artifactpath 6.923s, couchcmd 43.678s, keyhelp 0.165s, webcast 11.828s, recorder 4.689s (/tmp/pair535-merged-packages.log). All full-suite failures accounted for by post-main passing packages or isolated passing reruns. No atlas update: restores existing diagnostic/presentation contract without a new user-facing surface.
