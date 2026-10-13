@@ -63,6 +63,7 @@ Use native reverse video rather than manually swapping RGB palette values.
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed — operator waived smoke (TL receipt 3bd37039-4734-4649-aa06-dcffac391576); make test passed on feature; post-main-merge go test ./cmd/internal/couchtty -count=1 passed; cell-level state, clipping, folding and style-leak tests pass; BR-1 corrected Done when for both surfaces and waiver; README and atlas updated; review verdict: SHIP
 
 - Claimed and started in pair:7; TL approved the composition table and implementation via Couch.
 - ARCH-DRY/PURE: reuse existing Hub projection, colour precedence and pure renderers.

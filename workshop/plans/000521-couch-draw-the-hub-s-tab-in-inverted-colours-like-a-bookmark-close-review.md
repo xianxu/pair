@@ -63,3 +63,64 @@ findings:
     detail: |
       workshop/issues/000521-couch-draw-the-hub-s-tab-in-inverted-colours-like-a-bookmark.md:53 still names only tab-bar acceptance. Enumerated gaps are switcher main-row inversion, selected-hub arrow/bold and blocked-red preservation, unchanged attention-detail styling, and mandatory live approval superseded by the recorded waiver. Update Done when to cover all these contract changes and record the synchronization in Revisions.
 ```
+
+---
+
+## Re-review — 2026-10-12T22:32:43-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 521 — couch: draw the hub's tab in inverted colours, like a bookmark |
+| repo | pair |
+| issue file | workshop/issues/000521-couch-draw-the-hub-s-tab-in-inverted-colours-like-a-bookmark.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 08e14f2ae729a0181259101c65e20da79f4d1bd2..23fb1c94d4f03d07b2844bd359be561d472a288f |
+| command | sdlc close --issue 521 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-12T22:32:43-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+BR-1 is addressed: acceptance criteria now cover the expanded rendering contract and recorded smoke waiver. Source inspection found no blocking implementation defect. Runtime confidence is limited because package tests could not compile without generated runtime assets.
+
+1. **Strengths**
+   - `reserve.go:366` composes inversion with existing colour precedence and preserves click spans.
+   - `menu_render.go:618` confines inversion to the hub main row, retaining selected bold, arrow, and blocked red.
+   - Cell-level tests exercise 768 tab combinations plus folding and switcher states.
+   - README and atlas both document the changed presentation.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None remaining.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+   - Tests exercise real, deterministic renderers without mocks.
+   - `git diff --check` passed.
+   - `go test ./cmd/internal/couchtty` failed during setup: `runtimebundle/embed.go:8` requires missing `assets/runtime/files`. Full-suite success remains independently unverified.
+   - BR-1 is a prose-only correction; no behavioral regression test is required for its disposition.
+
+6. **Architectural notes**
+   - **ARCH-DRY: pass.** Reuses existing hub projection and colour helpers.
+   - **ARCH-PURE: pass.** Changes stay within deterministic presentation functions.
+   - **ARCH-PURPOSE: pass.** Both tab and switcher consumers implement the specified treatment.
+   - No Core concepts table or state-format migration applies.
+
+7. **Plan revision recommendations:** None; the synchronization is recorded under `## Revisions`.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The issue's Done when at lines 53–55 now covers both rendering surfaces, selected arrow/bold and blocked red, unchanged attention details, containment, and the recorded smoke waiver. Revisions at lines 101–104 records this synchronization. These criteria match the approved composition at lines 32–49 and the implementation in reserve.go:366 and menu_render.go:618; this is a prose-only correction.
+```
