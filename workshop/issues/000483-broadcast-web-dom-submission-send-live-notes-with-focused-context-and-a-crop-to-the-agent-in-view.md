@@ -110,6 +110,13 @@ Operator smoke on pair:0 follows #495/#506, scheduled by the hub. Do not stage o
 
 ## Log
 
+### 2026-10-12 22:40 PDT — operator smoke passed; landing authorized
+
+- TL relayed operator acceptance in Couch receipt `ee1834f5-68ac-4b8e-bb55-65baceb6e134`: delivery succeeded, submitted notes resolved for everyone, focus stayed with the operator, and the receiving agent read all three notes, crops and box text.
+- Smoke build: `5d94bbe79efc388442853edaeaa15e96cd3ccec8`; pair, couch and pair-launch-helper all reported `vcs.modified=false`. Post-merge Couch submission tests passed. This supplements the automated verification recorded by close above.
+- Nonblocking smoke finding: a crop caught a blog card fade-in near opacity zero. TL filed **pair#524** to settle/finish animations before capture and explicitly accepted it as a follow-up, not a #483 landing blocker.
+- Returned the branch to pair:6 with `sdlc move :6`, restoring pair:0 to main. Merged current origin/main before landing; #494 capture suppression has not landed, so its second-lander integration rule remains in effect.
+
 ### 2026-10-12 — plan approval in pair:6
 - 2026-10-12: closed — Full serial make -j1 test at 14d427d7 completed with GOMAXPROCS=2 and nested Go package parallelism 1; every shell/Lua stage and Go package passed except unchanged TestNotificationBrokerBeforeExecAndCleanup, proven pre-existing on main via the earlier 25-production-file baseline overlay, tracked as pair#519 and accepted by TL. Log /tmp/pair483-tests/full-suite-revised.log. Since that run only BR-4 clipping correction, validation of its explicit marker, tests and docs changed. Final submission, recorder, webcast/submission and webcast package tests all pass; expanded temporary-profile headless Chrome conformance passes 1.21s (no foreground window), covering clipped text and names, empty offscreen intersection, nested scroll, partial chars, axis scaling, borders and composed slots. Collector regression failed before BR-4 fix; unsupported-clipping validation mutation fails as expected. Prior close disposed BR-1/2/3 with mutation evidence. Guide persistence and actual delivered text name the recording path and notes/dom/events/link/skill commands. Runtime/inventory, all eight draft hotkey cases and existing review-poke tests passed. TL approved explicit truncated omission of unsupported clipping and directed remaining fidelity edge cases to a follow-up note, now recorded. Latest main was merged cleanly. Operator smoke on pair:0 remains scheduled by hub after #495/#506; close locally now, do not merge before smoke.; review verdict: SHIP
 
@@ -203,3 +210,5 @@ complex occlusion/compositing and out-of-flow descendants escaping containing-bl
 clips as a separate fidelity study. Do not expand #483 into a full browser paint
 model; the current PNG is the complete visual evidence and explicit truncation
 records the supported collector boundary.
+
+- 2026-10-12 22:40 PDT — Acceptance revision: the operator smoke passed on three notes and TL authorized landing. This supersedes the pending-smoke hold above. Animation settling is deferred to pair#524 as explicitly nonblocking; no further capture scope is added here.
