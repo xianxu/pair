@@ -1449,6 +1449,28 @@ proof; record the surprising case so the next change starts from evidence.
   atlas left three stale copies. Before committing a rule change, `rg` the rule's nouns (here "stale", "wheel")
   across the package and the atlas, and make every other site name the rule's owner instead of restating it.
 
+- **An incarnation does not identify a request (#517 plan review).** When an
+  asynchronous callback can outlive cancellation and retry on the same source,
+  carry both the source incarnation and the parent request ID end to end.
+  A late reply must never satisfy the next request merely because the process
+  stayed alive. Distinguish standalone commands from callbacks explicitly.
+
+- **Retained evidence belongs to a source, not a lifecycle label (#517 M1).**
+  A previous-session descriptor survived A→B correctly, but a separate park of B
+  followed by B→C reused A's evidence because the source was already parked.
+  Compare the saved source identity with the current verified park before reuse;
+  test both same-source retries and a different source parked through another path.
+  Test retention through the new reader itself: collect while its lease is held,
+  then prove release after both successful replay and an error.
+- **A plan's owner map follows the actual diff (#517 M1).** When implementation
+  splits a concern into a new file, check every core-concepts location and the
+  milestone file inventory against the diff; record the correction in Revisions.
+- **A full read must detect every capacity loss in its dependency (#517 M1).**
+  Raising the emulator's row cap left its cell and byte caps silently evicting
+  history, and accepting 1000×1000 geometry exceeded its screen-area limit.
+  Read the dependency's complete limit model; use checked construction/resize
+  and an explicit loss signal that survives later clears. Test each independent
+  limit and loss followed by erase in one input, not only a row-count overflow.
 - #494 visual review: when mounting an existing viewer control inside another
   surface, reuse its glyphs, tooltips and dimensions as well as its handlers.
   Text labels substituted into icon-sized buttons can clip and make the two
@@ -1472,6 +1494,22 @@ proof; record the surprising case so the next change starts from evidence.
 - **Measure screenshot side effects before adding waits (#524).** CDP captureBeyondViewport restarted an already-finished responsive fade by changing render viewport state; waiting longer before capture could never fix it. Compare animation identity and pixels before/after the actual capture, not only readiness before it. A browser animation enumeration is root-scoped: real Chrome excluded open-shadow animations from document.getAnimations, so test the scope with a real shadow fixture before trusting a fake.
 
 - Animation target bounds do not bound its painted influence: inherited opacity/filter/transform can affect overflowing children and pseudo-elements. Prove exclusion conservatively and test zero-size/off-box ancestors with real crop pixels.
+- **A lifecycle guard checks every representation of its authority (#517 M2).**
+  Before registration, a replacement profile lives in Start.LaunchProfile;
+  after registration or unknown promotion it lives on the incarnation. A guard
+  reading only the latter can erase a surviving target during cleanup. Enumerate
+  interruption points, exercise startup reconciliation then the user action,
+  and assert identities as well as errors and launch counts.
+- **Audit the whole active owner table against a named baseline (#517 M2).**
+  A scope cut moved missing-config policy into switchagent.go while the plan
+  still claimed launchprofile.go changed. For each active core-concepts row,
+  check the actual owner, pure/integration class and new/modified/reused status
+  with git diff; append a replacement table and explicitly supersede old rows.
+
+- **Pure selectors need value-only tests even when integration covers them (#517 M2).**
+  Construct records directly for projection, validation and defensive-copy
+  cases; a filesystem-backed Couch fixture proves integration, not the pure
+  seam's independent contract.
 ### #494 — publish measured commit identifiers
 
 - A smoke handoff accidentally sent a placeholder commit identifier. Read `git rev-parse --short HEAD` after the commit, then copy that exact output into the report. Never draft a send command with a placeholder hash; omit the hash until it is known.
@@ -1488,3 +1526,10 @@ proof; record the surprising case so the next change starts from evidence.
 - **#494 interactive identity:** a record stream can update between pointer-down and pointer-up. Preserve swatch/control DOM nodes across unrelated updates, and test an interleaved record against the originally pressed element on every shared surface.
 
 - For animation settlement, border-box intersection is not a painted-influence proof even on leaves (shadows/filters/outline). Prefer bounded conservative document-wide observation to accumulating incomplete paint exclusions; label uncertainty explicitly.
+- **A plan names verification functions and strategies, not a prose copy of test cases (#526 plan-quality).** For each risky function, name the adversarial input class and mechanical guard. Retention claims must distinguish actual operator deletion and capacity refusal from staging cleanup; a staging remover is not an automatic retained-evidence sweeper.
+
+- **A new production Go file must enter the exhaustive source inventory (#526).** Register its artifact ownership in `cmd/internal/artifactpath/manifest.go` alongside the package's existing sources, then run `TestProductionArtifactReferencesAreExactlyClassified`; targeted package tests alone do not exercise this repository-wide invariant.
+
+- Privacy/permission JSON must validate exact schema keys before Go struct decoding: DisallowUnknownFields still accepts case-folded aliases, including Unicode. Test conflicting aliases at each envelope and nested evidence boundary.
+
+- When fixing permission-decoding ambiguity, enumerate root manifests as well as nested policy/rule codecs. A strict nested decoder cannot defend permissively decoded top-level permission fields; exercise store reload, not only standalone policy parsing.

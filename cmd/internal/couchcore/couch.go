@@ -55,8 +55,10 @@ type Couch struct {
 	FreshRegistration func(context.Context, ThreadAddress, string, string) (bool, error)
 	OrientationStatus func(context.Context, ThreadAddress, string, string) (orientation.DeliveryState, error)
 	SwitchContext     SwitchContextResolver
+	SwitchGuard       AgentSwitchGuard
 	// SlotTerminal renders a thread's live terminal recording (peek, pair#362).
 	SlotTerminal SlotTerminalReader
+	SlotCapture  SlotCaptureReader
 	// SlotTail reads a thread's live tail from its wrapper (peek, pair#425).
 	SlotTail          SlotTailReader
 	SwitchLaunchCheck func(agent string) error

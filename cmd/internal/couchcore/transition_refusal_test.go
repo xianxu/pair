@@ -89,6 +89,14 @@ func TestEveryLifecycleTransitionIsDrivenIntoItsOwnRefusal(t *testing.T) {
 	}
 
 	refusals := map[string]refusal{
+		"RecordPreviousSession": {
+			shape: noShape,
+			call: func(t *testing.T, s *ThreadStore, r ThreadRecord) error {
+				_, err := s.RecordPreviousSession(r.Address, r.Revision, PreviousSession{})
+				return err
+			},
+			want: "does not name the verified source park",
+		},
 		"PublishContinuation": {
 			shape: withPendingContinuation,
 			call: func(t *testing.T, s *ThreadStore, r ThreadRecord) error {

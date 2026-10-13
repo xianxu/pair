@@ -31,8 +31,8 @@ The agent receives the draft text, absolute manifest path, and the manifest's `h
 authored log retains the original draft; generated evidence references belong
 to the outgoing prompt. Crops are files, not clipboard attachments. The folder
 is portable, with relative crop paths; its recording and replay references
-continue to point to their original sources. Ticket asset copying and terminal
-submission are separate work; only the common Go submission type is shared.
+continue to point to their original sources. Agents externalize issue evidence under the privacy rule below. Terminal
+submission remains separate work; only the common Go submission type is shared.
 
 There are two clocks. A note's `t` is milliseconds since the recording began;
 its anchor, context, compact element and `before` actions describe that recorded
@@ -69,7 +69,9 @@ region (or anchor box), alongside the historical anchor text. `visible_text`
 contains visible intersecting text in reading order, without repeating parent
 and child text. `accessible_names` separately labels aria-label, alt, title,
 and role/name entries. Both include selectors. Hidden, zero-size, off-screen,
-and aria-hidden content is excluded. Both text and names must intersect a
+and aria-hidden content is excluded. Input values are never read; textarea and
+editable descendants are omitted from text and derived names for every origin,
+while static field labels remain. This does not redact pixels or historical DOM. Both text and names must intersect a
 nonempty note/viewport region and the applicable ancestor clipping rectangles.
 Rectangular overflow, scrolling, paint containment and positive axis-aligned scaling
 are handled in the composed-tree traversal. A subtree with clip-path, masks,
@@ -113,6 +115,9 @@ note generation used by acknowledgment.
 ```json
 {
   "version": 1,
+  "privacy": "private",
+  "privacy_rule": null,
+  "privacy_origin": "https://example.test",
   "how_to_read": "Read the manifest and PNGs; query the recording as described above.",
   "id": "example-1",
   "target": {"scope": "scope", "tag": "thread", "session": "session", "nonce": "launch"},
@@ -152,6 +157,48 @@ Bundles remain until explicitly removed. The store has a 1 GiB admission cap,
 including interrupted staging directories; a full store reports its path for
 cleanup and never evicts evidence automatically. Directories are private
 (`0700`), files are private (`0600`), and replay tokens stay inside the bundle.
+
+## Origin privacy and issue evidence (#526)
+
+The operator may create `<COUCH_STORE_DIR>/webcast/origin-privacy.json`:
+
+```json
+{"origins":[{"origin":"http://localhost:4321","privacy":"shareable"}]}
+```
+
+Couch never writes this file; agents must not edit it to obtain a sharing grant.
+Rules are exact HTTP(S) origins, with lowercase hosts and default ports normalized;
+paths (except a root slash), queries, fragments, wildcards, credentials and duplicate
+normalized rules are invalid. Each rule chooses `shareable` or `private`. No rule,
+missing file or unknown capture identity means private. The file is limited to
+64 KiB and 256 rules and is read once per preparation; operator changes apply to
+later submissions. Existing prepared bundles retain their original decision.
+
+Invalid, oversized or unreadable policy does not strand the submission: Couch
+uses private for all origins, records `privacy_rule: "invalid policy file: <reason>"`,
+and posts a notice naming the file. Reasons are safe categories without policy
+contents. Valid matching rules are objects such as
+`{"origin":"http://localhost:4321","privacy":"shareable"}`; no match is null.
+New bundles always record top-level `privacy` and `privacy_rule`. `privacy_origin`
+is the normalized origin observed within the current screenshot/text identity
+fence, not the recording's initial URL; missing/unavailable identity cannot grant
+sharing. Older bundles without these fields are private. #525 owns the full
+capture-bound source URL; its integration must derive the decision from that
+same captured identity rather than introduce a second URL authority.
+
+When notes become an issue, write evidence as self-contained text: a page URL
+without secrets, element/classes, the operator request, appropriate text evidence
+and one line describing what the crop demonstrates. For private evidence,
+summarize instead of quoting box text, and attach no crops. A shareable bundle
+allows only relevant crops and only when the repository's asset policy permits
+its issue asset folder (ariadne#337); absent or unclear repository policy means
+text only. This is an agent rule, repeated in the shipped Couch skill and
+`how_to_read`; Couch does not copy assets or create issues. A sharing rule never
+requires publishing unrelated sensitive content.
+
+Recordings stay local until operator deletion, may expire, and must never be
+uploaded or required to understand a durable issue. Replay links are investigation
+aids, not a substitute for issue text or permission to publish private evidence.
 
 ## Delivery and recovery
 
@@ -199,6 +246,8 @@ automatic reset or resend command.
 
 | Responsibility | Implementation |
 | --- | --- |
+| Pure origin policy and decision validation | `cmd/internal/submission/privacy.go` |
+| Operator policy file reader and cast wiring | `cmd/internal/couchcmd/privacy.go`, `webcast.go` |
 | Shared schema, limits, atomic store and delivery transitions | `cmd/internal/submission/` |
 | Recorded context and one crop calculation per note | `cmd/internal/webcast/submission/build.go` |
 | Frozen open-note selection and revision-guarded resolution | `cmd/internal/webcast/board/submission.go` |

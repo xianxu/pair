@@ -93,8 +93,8 @@ func TestRelaunchRefusesAThreadThatNeverTookATurn(t *testing.T) {
 }
 
 // Every fresh launch waits for a ready file carrying the nonce Couch awaits;
-// Pair learns a Couch nonce only through the orientation's attempt, so a fresh
-// launch without one (or with another) is refused before any child starts.
+// Pair learns that nonce through its trusted launch profile; any orientation
+// must agree with it, and an empty nonce is refused before any child starts.
 func TestFreshLaunchMustHandPairItsNonce(t *testing.T) {
 	t.Parallel()
 
@@ -105,7 +105,8 @@ func TestFreshLaunchMustHandPairItsNonce(t *testing.T) {
 	}{
 		{"not fresh", trackedThreadLaunch{Nonce: "n"}, true},
 		{"fresh with its nonce", trackedThreadLaunch{Nonce: "n", Fresh: true, Orientation: orientationAttempt("n")}, true},
-		{"fresh without an orientation", trackedThreadLaunch{Nonce: "n", Fresh: true}, false},
+		{"fresh without an orientation", trackedThreadLaunch{Nonce: "n", Fresh: true}, true},
+		{"fresh without a nonce", trackedThreadLaunch{Fresh: true}, false},
 		{"fresh with another attempt", trackedThreadLaunch{Nonce: "n", Fresh: true, Orientation: orientationAttempt("m")}, false},
 	} {
 		err := freshNonceReachesPair(c.in)

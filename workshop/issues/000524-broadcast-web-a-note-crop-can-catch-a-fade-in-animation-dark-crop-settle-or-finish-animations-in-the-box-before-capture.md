@@ -48,6 +48,10 @@ Detailed proposal: [animation capture plan](../plans/000524-animation-capture-pl
 
 ## Log
 
+### 2026-10-13 — recovered session and main integration
+
+Merged origin/main at 844d29e698e481712f6a58f37f04e4d717a405f3 for operator staging. Resolved three conflicts by retaining both settlement/clipping tests and privacy tests, plus both capture settlement and origin metadata. ARCH-ORDER: retained #526 capture-origin identity comparison and origin propagation alongside #494 exact-context screenshot suppression. Fresh four-package run passed (submission, recorder, webcast/submission, webcast); opt-in headless TestLiveSubmissionCaptureReady passed in 8.39 s and TestLiveSubmissionCrop in 1.72 s. Operator smoke remains pending before landing.
+
 
 
 - 2026-10-13: closed — BR-1 fixed by TL-approved document-wide animation observation: no target paint-bound exclusions; unchanged 1500ms/50ms/512/30s limits, explicit cap uncertainty. Node RED then GREEN includes leaf shadows and no geometry access. Live crop readiness passes twice (8.08s, 6.93s), child/pseudo/box-shadow/drop-shadow pixels and off-box infinite unsettled; initial strict timing mismatch disclosed with improved diagnostic. Existing crop conformance passes 3.11s with merged #494 helper and captureBeyondViewport=false. Full serial make test completed: changed packages/shell checks pass; known #519 failed, plus TestObserveDependencies/deleted workspace-host busy (isolated full test rerun PASS 4.583s; no couchcore issue diff). Log /tmp/pair524-probe/full-suite-document-wide.log. Docs and Revisions updated. Stage only on TL instruction.; review verdict: SHIP

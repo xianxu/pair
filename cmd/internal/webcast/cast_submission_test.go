@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	core "github.com/xianxu/pair/cmd/internal/submission"
 	"github.com/xianxu/pair/cmd/internal/webcast/board"
 	"github.com/xianxu/pair/cmd/internal/webcast/notes"
@@ -312,5 +313,73 @@ func TestCastSubmissionUnavailableRefusesCurrentMetadata(t *testing.T) {
 		if _, _, err = c.PrepareSubmission(context.Background(), "submission", castSubmissionTarget(), selected, ""); err == nil {
 			t.Fatal("unavailable capture silently dropped contradictory current metadata")
 		}
+	}
+}
+
+func TestCastSubmissionPrivacyUsesCaptureAndSurvivesInvalidPolicy(t *testing.T) {
+	for _, tc := range []struct{ url, want, reason string }{
+		{"https://captured.test", "shareable", ""}, {"https://example.test", "private", ""},
+		{"", "private", ""}, {"https://captured.test", "private", "invalid JSON"},
+	} {
+		t.Run(tc.url+tc.reason, func(t *testing.T) {
+			c, b, _, _ := castSubmissionFixture(t)
+			original := b.capture
+			b.capture = func(ctx context.Context, doc int, boxes []core.CaptureRegion) ([]recorder.CapturedCrop, error) {
+				crops, err := original(ctx, doc, boxes)
+				for i := range crops {
+					crops[i].Origin = tc.url
+				}
+				return crops, err
+			}
+			reads := 0
+			notice := ""
+			c.logf = func(format string, args ...any) { notice = fmt.Sprintf(format, args...) }
+			c.readOriginPolicy = func() (core.OriginPolicy, string) {
+				reads++
+				if tc.reason != "" {
+					return core.InvalidOriginPolicy(tc.reason), "/couch/webcast/origin-privacy.json: invalid policy; using private"
+				}
+				p, err := core.ParseOriginPolicy([]byte(`{"origins":[{"origin":"https://captured.test","privacy":"shareable"}]}`))
+				if err != nil {
+					t.Fatal(err)
+				}
+				return p, ""
+			}
+			selected, _ := c.SubmissionSelection()
+			sub, crops, err := c.PrepareSubmission(context.Background(), "privacy", castSubmissionTarget(), selected, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(sub.Privacy) != tc.want || reads != 1 {
+				t.Fatalf("decision=%+v reads=%d", sub.PrivacyDecision, reads)
+			}
+			if tc.reason != "" && (sub.PrivacyRule.Invalid != tc.reason || !strings.Contains(notice, "origin-privacy.json")) {
+				t.Fatalf("missing invalid-policy evidence %v %s", sub.PrivacyRule, notice)
+			}
+			store, err := core.NewStore(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err = store.Prepare(sub, crops); err != nil {
+				t.Fatal(err)
+			}
+			for _, event := range []core.Event{core.Begin, core.Ack, core.Complete} {
+				if _, err = store.Transition(sub.ID, sub.Target, event); err != nil {
+					t.Fatal("invalid policy blocked delivery", err)
+				}
+			}
+		})
+	}
+}
+
+func TestCastSubmissionPrivacyDefault(t *testing.T) {
+	c, _, _, _ := castSubmissionFixture(t)
+	selected, _ := c.SubmissionSelection()
+	sub, _, err := c.PrepareSubmission(context.Background(), "privacy", castSubmissionTarget(), selected, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sub.Privacy != core.Private {
+		t.Fatalf("default %q", sub.Privacy)
 	}
 }

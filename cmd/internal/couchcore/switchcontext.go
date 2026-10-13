@@ -12,20 +12,13 @@ import (
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"github.com/xianxu/pair/cmd/internal/orientation"
-	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 	"github.com/xianxu/pair/cmd/internal/readiness"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
-	"github.com/xianxu/pair/cmd/internal/storagegc"
 )
 
-// SwitchContextResolver captures outgoing source evidence before park.
+// SwitchContextResolver resolves the current agent's transcript evidence.
 type SwitchContextResolver interface {
 	Resolve(context.Context, ThreadRecord) (orientation.OrientationContext, error)
-}
-
-// SwitchArchiveResolver refreshes only the exact capture committed by park.
-type SwitchArchiveResolver interface {
-	ResolveArchive(ThreadRecord, *orientation.OrientationContext) error
 }
 
 // OSSwitchContextResolver authorizes native evidence through the inventory owner
@@ -111,74 +104,6 @@ func (r OSSwitchContextResolver) Resolve(ctx context.Context, record ThreadRecor
 	}
 	result.NativeTranscripts = []string{path}
 	return result, nil
-}
-
-func (r OSSwitchContextResolver) ResolveArchive(record ThreadRecord, result *orientation.OrientationContext) error {
-	if result == nil {
-		return errors.New("switch context is nil")
-	}
-	if err := retireCaptureHandoff(result); err != nil {
-		return err
-	}
-	result.ScrollbackRaw, result.ScrollbackEvents = "", ""
-	result.Renderer = r.Renderer
-	if record.VerifiedPark == nil || record.VerifiedPark.Scrollback == nil {
-		result.Unavailable = append(result.Unavailable, "park has no exact preserved Pair TTY descriptor")
-		return nil
-	}
-	park := record.VerifiedPark
-	if park.Identity.Address != record.Address {
-		return errors.New("preserved Pair TTY identity does not match thread")
-	}
-	descriptor := park.Scrollback
-	if err := pairlifecycle.ValidatePreservedScrollback(descriptor); err != nil {
-		return err
-	}
-	if result.SourceAgent != "" && descriptor.Agent != result.SourceAgent {
-		return errors.New("preserved Pair TTY agent does not match outgoing agent")
-	}
-	paths, err := artifactpath.Resolve(artifactpath.Address{DataDir: r.DataDir, RepoScope: park.Identity.Address.RepoScope, Tag: string(park.Identity.Address.Tag)})
-	if err != nil {
-		return err
-	}
-	archive, err := paths.ParkedScrollbackArtifacts(descriptor.Token)
-	if err != nil {
-		return err
-	}
-	coordinator, err := storagegc.NewCoordinator(r.DataDir)
-	if err != nil {
-		return err
-	}
-	owner, err := artifactpath.NewStorageOwner(coordinator.Root, record.Address.RepoScope, string(record.Address.Tag))
-	if err != nil {
-		return err
-	}
-	result.Owner = &owner
-	canonicalPaths, _ := artifactpath.ResolveScoped(owner.Directory(), owner.Tag)
-	canonicalCapture, _ := canonicalPaths.ParkedScrollbackArtifacts(descriptor.Token)
-	process, err := storagegc.CurrentProcessIdentity(os.Getpid())
-	if err != nil {
-		return err
-	}
-	result.ReaderIntent, err = coordinator.BeginUse(context.Background(), owner, process, canonicalCapture.Raw)
-	if err != nil {
-		return err
-	}
-	if readableSwitchFile(archive.Raw) {
-		result.ScrollbackRaw = archive.Raw
-	} else {
-		result.Unavailable = append(result.Unavailable, "exact preserved Pair TTY raw capture is unavailable")
-	}
-	if descriptor.Events && result.ScrollbackRaw != "" && readableSwitchFile(archive.Events) {
-		result.ScrollbackEvents = archive.Events
-	}
-	if result.ScrollbackRaw != "" && result.Renderer == "" {
-		result.Unavailable = append(result.Unavailable, "Pair scrollback renderer is unavailable")
-	}
-	if result.ScrollbackRaw == "" || result.Renderer == "" {
-		return retireCaptureHandoff(result)
-	}
-	return nil
 }
 
 // Open nonblocking and without following the final symlink so a stale artifact
@@ -368,36 +293,6 @@ func (r OSOrientationStatusReader) Registered(ctx context.Context, address Threa
 		return false, nil
 	}
 	return ready != nil, err
-}
-
-// An abandoned or superseded selection must not strand a live selector's
-// intent. A delivered selection is retired by the renderer after registration;
-// a dead selector's unresolved intent follows normal RecoverUse handling.
-func retireCaptureHandoff(result *orientation.OrientationContext) error {
-	if result.ReaderIntent == "" {
-		return nil
-	}
-	if result.Owner == nil {
-		return errors.New("capture handoff has no owner")
-	}
-	c, err := storagegc.NewCoordinator(result.Owner.DataDir)
-	if err != nil {
-		return err
-	}
-	state, err := c.ReadOwner(*result.Owner)
-	if err != nil {
-		return err
-	}
-	for _, intent := range state.Intents {
-		if intent.ID == result.ReaderIntent {
-			if err := c.CancelUnchangedUse(context.Background(), *result.Owner, intent.ID); err != nil {
-				return err
-			}
-			break
-		}
-	}
-	result.ReaderIntent = ""
-	return nil
 }
 
 // Generation reads durable attempt correlation even after the target dies.

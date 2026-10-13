@@ -222,9 +222,7 @@ type Console struct {
 	paletteFG, paletteBG bool
 	// now is the console's clock for idle fading, so tests can cross the day
 	// and three-day bands without waiting.
-	now                func() time.Time
-	orientationResults chan orientationWatchResult
-	orientationWatches map[couchcore.ThreadAddress]orientationWatch
+	now func() time.Time
 	// orientationFrom records which producer wrote each menu.Orientation entry;
 	// see setOrientationLocked.
 	orientationFrom      map[couchcore.ThreadAddress]string
@@ -286,7 +284,6 @@ func New(host hostty.Host, stdin io.Reader) *Console {
 		activityInterval:    defaultActivityInterval,
 		blockedUpdates:      make(chan map[couchcore.ThreadAddress]bool, 1),
 		now:                 time.Now,
-		orientationResults:  make(chan orientationWatchResult, 8),
 		continuationResults: make(chan continuationScanResult, 1),
 		continuations:       make(map[couchcore.ThreadAddress]continuationWatch),
 		previewResults:      make(chan menuPreviewResult, 1),
@@ -962,8 +959,6 @@ func (c *Console) Run() (code int) {
 			c.menu, _ = ReduceMenu(c.menu, MenuEvent{Kind: MenuEventBlocked, Blocked: blocked})
 			c.mu.Unlock()
 			c.repaintVisible()
-		case result := <-c.orientationResults:
-			c.finishOrientation(result)
 		case result := <-c.continuationResults:
 			c.acceptContinuationRequests(result)
 		case result := <-c.previewResults:
@@ -1763,10 +1758,6 @@ func (c *Console) runMenuOperation(effect MenuEffect) {
 		}
 	}
 	if effect.Operation == "switch-agent" {
-		if previous, ok := c.orientationWatches[origin.Address]; ok {
-			previous.cancel()
-			delete(c.orientationWatches, origin.Address)
-		}
 		c.supersedeOrientationLocked(origin.Address)
 		origin.PanelOrigin = c.focus.IsPanel()
 		c.menu.InFlight.PanelOrigin = origin.PanelOrigin
@@ -2058,9 +2049,6 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 	if result, ok := completed.value.(couchcore.SwitchAgentResult); ok && err == nil {
 		if result.Warning != "" {
 			c.reduceMenu(MenuEvent{Kind: MenuEventNotice, Error: result.Warning})
-		}
-		if result.Orientation != nil {
-			c.watchOrientation(address, startedHandleID, *result.Orientation)
 		}
 	}
 	c.requestMenuRefresh()

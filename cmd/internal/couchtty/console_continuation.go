@@ -127,14 +127,9 @@ func (c *Console) watchContinuations() {
 	}
 }
 
-// An orientation prompt has two producers -- a continuation's delivery and
-// switch-agent's orientation watch -- sharing menu.Orientation by thread
-// address. Each entry records its producer, and a prune removes an entry only
-// when THAT producer's fact vanishes (#280, ARCH-ORDER). Without provenance the
-// continuation scan, which visits every hosted thread, deleted switch-agent's
-// still-useful Copy orientation prompt on every tick.
+// Each retained continuation prompt belongs to its request, so a later request
+// on the same thread cannot keep an obsolete prompt alive.
 func continuationProducer(requestID string) string { return "continuation:" + requestID }
-func switchAgentProducer(attempt string) string    { return "switch-agent:" + attempt }
 
 // setOrientationLocked is the only writer of menu.Orientation. Callers hold c.mu.
 func (c *Console) setOrientationLocked(address couchcore.ThreadAddress, request orientation.Request, producer string) {
@@ -146,15 +141,6 @@ func (c *Console) setOrientationLocked(address couchcore.ThreadAddress, request 
 	}
 	c.menu.Orientation[address] = request
 	c.orientationFrom[address] = producer
-}
-
-// dropOrientationLocked removes the address's prompt only if producer wrote it.
-func (c *Console) dropOrientationLocked(address couchcore.ThreadAddress, producer string) {
-	if producer == "" || c.orientationFrom[address] != producer {
-		return
-	}
-	delete(c.menu.Orientation, address)
-	delete(c.orientationFrom, address)
 }
 
 // reconcileContinuationOrientationLocked is the ONE place a continuation's

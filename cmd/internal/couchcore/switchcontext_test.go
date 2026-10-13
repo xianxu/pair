@@ -12,27 +12,22 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/orientation"
-	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 	"github.com/xianxu/pair/cmd/internal/readiness"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
-	"github.com/xianxu/pair/cmd/internal/storagegc"
 	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
-func TestSwitchContextUsesExactOutgoingOwnerAndArchive(t *testing.T) {
+func TestSwitchContextUsesExactOutgoingOwner(t *testing.T) {
 	t.Parallel()
 
 	record := verifiedResumeThread(t)
-	descriptor := &pairlifecycle.PreservedScrollback{Agent: "codex", Token: "exact-capture", Events: true}
-	record.VerifiedPark.Scrollback = descriptor
 	dataDir := t.TempDir()
 	paths, err := artifactpath.Resolve(artifactpath.Address{DataDir: dataDir, RepoScope: record.Address.RepoScope, Tag: string(record.Address.Tag)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	archive, _ := paths.ParkedScrollbackArtifacts(descriptor.Token)
 	native := filepath.Join(t.TempDir(), "root.jsonl")
-	for _, path := range []string{archive.Raw, archive.Events, paths.Log(), native} {
+	for _, path := range []string{paths.Log(), native} {
 		if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 			t.Fatal(err)
 		}
@@ -60,18 +55,8 @@ func TestSwitchContextUsesExactOutgoingOwnerAndArchive(t *testing.T) {
 	if got.SourceSession != "source-native" || !reflect.DeepEqual(got.NativeTranscripts, []string{native}) || got.PairLog != paths.Log() {
 		t.Fatalf("context = %+v", got)
 	}
-	if err := resolver.ResolveArchive(record, &got); err != nil {
-		t.Fatal(err)
-	}
-	if got.ScrollbackRaw != archive.Raw || got.ScrollbackEvents != archive.Events || got.Renderer != "/bin/pair" || calls != 1 {
-		t.Fatalf("archive lost or native rescanned: %+v calls=%d", got, calls)
-	}
-	record.VerifiedPark.Scrollback = nil
-	if err := resolver.ResolveArchive(record, &got); err != nil {
-		t.Fatal(err)
-	}
-	if got.ScrollbackRaw != "" || got.ScrollbackEvents != "" {
-		t.Fatal("stale archive retained", got)
+	if calls != 1 {
+		t.Fatalf("native query calls=%d", calls)
 	}
 }
 
@@ -88,9 +73,6 @@ func TestSwitchContextMissingAndAmbiguousSourcesStayUnavailable(t *testing.T) {
 	}
 	if got.SourceSession != "" || len(got.NativeTranscripts) != 0 || len(got.Unavailable) == 0 {
 		t.Fatalf("guessed context: %+v", got)
-	}
-	if err := resolver.ResolveArchive(record, &got); err != nil {
-		t.Fatal(err)
 	}
 	got.TargetAgent = "claude"
 	body, err := orientation.BuildPrompt(got)
@@ -262,46 +244,6 @@ func TestSwitchContextRejectsNonRegularEvidenceWithoutBlocking(t *testing.T) {
 		}
 	case <-testwait.After(t):
 		t.Fatal("context lookup blocked on FIFO")
-	}
-}
-
-func TestOrientationCaptureHasRecoverableReaderHandoff(t *testing.T) {
-	t.Parallel()
-
-	record := verifiedResumeThread(t)
-	record.VerifiedPark.Scrollback = &pairlifecycle.PreservedScrollback{Agent: "codex", Token: "20260913T010101", Events: true}
-	root := t.TempDir()
-	paths, _ := artifactpath.Resolve(artifactpath.Address{DataDir: root, RepoScope: record.Address.RepoScope, Tag: string(record.Address.Tag)})
-	capture, _ := paths.ParkedScrollbackArtifacts(record.VerifiedPark.Scrollback.Token)
-	if err := os.MkdirAll(paths.ScopeDir(), 0700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(capture.Raw, []byte("capture"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	resolver := OSSwitchContextResolver{DataDir: root, Renderer: "/bin/pair"}
-	result := orientation.OrientationContext{Tag: string(record.Address.Tag), SourceAgent: "codex"}
-	if err := resolver.ResolveArchive(record, &result); err != nil {
-		t.Fatal(err)
-	}
-	if result.Owner == nil || result.ReaderIntent == "" {
-		t.Fatal("capture handoff not protected")
-	}
-	c, err := storagegc.NewCoordinator(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	state, err := c.ReadOwner(*result.Owner)
-	if err != nil || len(state.Intents) != 1 || state.Intents[0].ID != result.ReaderIntent || state.Intents[0].Process.PID != os.Getpid() {
-		t.Fatalf("handoff lacks actual selector: %+v %v", state, err)
-	}
-	record.VerifiedPark.Scrollback = nil
-	if err := resolver.ResolveArchive(record, &result); err != nil {
-		t.Fatal(err)
-	}
-	state, err = c.ReadOwner(*result.Owner)
-	if err != nil || len(state.Intents) != 0 {
-		t.Fatalf("superseded handoff stranded: %+v %v", state, err)
 	}
 }
 

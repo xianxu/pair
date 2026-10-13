@@ -90,7 +90,6 @@ var ResolvedBindings = append([]ResolvedBinding{
 	{Name: "scoped-ledger", Family: "ledger", Resolver: "ResolveScoped", Member: "Ledger"},
 	{Name: "composite-switch-log", Family: "log", Resolver: "Resolve", Member: "Log"},
 	{Name: "composite-switch-ready", Family: "agent-ready", Resolver: "Resolve", Member: "AgentReadyChecked"},
-	{Name: "composite-switch-archive", Family: "parked-scrollback", Resolver: "Resolve", Member: "ParkedScrollbackArtifacts"},
 	{Name: "composite-slug-proposed", Family: "slug", Resolver: "Resolve", Member: "SlugProposed"},
 	{Name: "scoped-log", Family: "log", Resolver: "ResolveScoped", Member: "Log"},
 	{Name: "scoped-nvim-pid", Family: "nvim-pid", Resolver: "ResolveScoped", Member: "NvimPID"},
@@ -230,6 +229,8 @@ var Families = []Family{
 // shell, Lua, and KDL sources.
 // pair:m5-concept pure
 var SourceClassifications = []SourceClassification{
+	{Path: "cmd/internal/couchcmd/run.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/scrollbackcmd/bounded.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/pairlog/retention.go", Kind: ResolvedConsumer, Families: []string{"log"}, BindingNames: []string{"scoped-log"}, Vocabulary: []VocabularyAllowance{goCallVocabulary("log", "prompt-log-writer", "github.com/xianxu/pair/cmd/internal/storagegc.AcquireSelectedProcess", 2, 1)}},
 	{Path: "cmd/internal/orientation/model.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/couchcmd/shortcut_focus.go", Kind: ResolvedConsumer},
@@ -446,7 +447,7 @@ var SourceClassifications = []SourceClassification{
 		Families: []string{"session-binding", "pane"}, BindingNames: []string{"composite-scope-session-binding", "composite-pane-glob"}},
 	{Path: "cmd/internal/couchcore/slotsessions.go", Kind: ResolvedConsumer,
 		Families: []string{"session-binding", "thread-claim"}, BindingNames: []string{"selected-session-binding", "composite-thread-claim", "direct-thread-claim-recognition"}},
-	{Path: "cmd/internal/couchcore/switchcontext.go", Kind: ResolvedConsumer, Families: []string{"log", "agent-ready", "parked-scrollback"}, BindingNames: []string{"composite-switch-log", "composite-switch-ready", "composite-switch-archive"}},
+	{Path: "cmd/internal/couchcore/switchcontext.go", Kind: ResolvedConsumer, Families: []string{"log", "agent-ready"}, BindingNames: []string{"composite-switch-log", "composite-switch-ready"}},
 	{Path: "cmd/internal/couchcore/slug.go", Kind: ResolvedConsumer, Families: []string{"slug"}, BindingNames: []string{"composite-slug-proposed"}},
 	{Path: "cmd/internal/couchcore/park.go", Kind: ResolvedConsumer,
 		Families: []string{"lifecycle-completion", "lifecycle-request"}, BindingNames: []string{"composite-lifecycle-completion", "composite-lifecycle-request"}},
@@ -686,6 +687,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/cdp/doc.go",
 	"cmd/internal/cdp/frame.go",
 	"cmd/internal/couchcmd/webcast.go",
+	"cmd/internal/couchcmd/privacy.go",
 	"cmd/internal/couchtty/console_webcast.go",
 	"cmd/internal/couchtty/console_castcodes.go",
 	"cmd/internal/couchtty/codes_menu.go",
@@ -712,6 +714,7 @@ var NonArtifactSources = []string{
 	// model, capture/board adapters and RPCs introduce no Pair artifact family.
 	"cmd/internal/submission/delivery.go",
 	"cmd/internal/submission/model.go",
+	"cmd/internal/submission/privacy.go",
 	"cmd/internal/submission/store.go",
 	"cmd/internal/couchcmd/submission.go",
 	"cmd/internal/couchtty/console_submission.go",
@@ -960,7 +963,6 @@ var NonArtifactSources = []string{
 	"cmd/internal/contextcmd/contextcmd.go",
 	"cmd/internal/continuationcmd/git.go",
 	"cmd/internal/couchcmd/cli.go",
-	"cmd/internal/couchcmd/run.go",
 	"cmd/internal/couchkeys/couchkeys.go",
 	"cmd/internal/couchcore/actionableinventory.go",
 	"cmd/internal/couchcore/threadreason.go",
@@ -1047,6 +1049,8 @@ var NonArtifactSources = []string{
 	// #362 peek: projects a thread's recording and transcripts through
 	// injected readers (scrollbackcmd, OSSwitchContextResolver); no paths here.
 	"cmd/internal/couchcore/peek.go",
+	"cmd/internal/couchcore/peek_selection.go",
+	"cmd/internal/couchcore/previous_session.go",
 	// #367 recover-plan: the sdlc fleet decoder, its source and fake, the
 	// resume/reboot admission table and the pure join. No artifact paths.
 	"cmd/internal/couchcore/recoverplan_fleet.go",
@@ -1057,6 +1061,9 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/slot_operation.go",
 	"cmd/internal/couchtty/console_remote.go",
 	"cmd/internal/couchcmd/slot_operations.go",
+	// #517 authenticated switch admission and receipt CLI use owners, not artifact paths.
+	"cmd/internal/couchcmd/agent_switch_service.go",
+	"cmd/internal/couchcmd/switch_agent_cli.go",
 	"cmd/internal/couchcore/store.go",
 	"cmd/internal/couchcore/storejournal.go",
 	"cmd/internal/couchcore/storelock.go",
@@ -1261,6 +1268,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/textwidth/textwidth.go",
 	"cmd/internal/threadrecord/lifecycle.go",
 	"cmd/internal/threadrecord/record.go",
+	"cmd/internal/threadrecord/previous_session.go",
 	"cmd/internal/titlepoller/runcli.go",
 	"cmd/internal/titlepoller/titlepoller.go",
 	"cmd/internal/workbenchshortcut/generatecmd/main.go",
