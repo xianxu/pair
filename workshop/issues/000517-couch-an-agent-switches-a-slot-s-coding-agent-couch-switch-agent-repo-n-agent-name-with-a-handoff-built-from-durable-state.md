@@ -68,6 +68,16 @@ Durable plan: [agent switch plan](../plans/000517-agent-switch-plan.md).
 
 ## Log
 
+- 2026-10-12 BR-4/BR-5 correction: replay sets explicit row/cell/byte/area
+  bounds and uses checked construction/resize. VT's monotonic primary-history
+  capacity-loss counter catches eviction and rejected rows even before a later
+  erase; bounded replay stops after detecting loss. A 2,000×80-line regression
+  is retained in full. Independent cell/byte loss, initial/later geometry,
+  malformed event evidence and intentional erase tests pass. Six mutations
+  detected missing enforcement and were restored. Direct reply discard removes
+  the obsolete drain goroutine. Targeted replay/core/inventory checks and the
+  nested VT suite pass; fresh full make test is running.
+
 - 2026-10-12 M1 round 2 disposed BR-1/BR-2/BR-3 and returned REWORK on
   BR-4/BR-5: emulator history cell/byte limits can silently evict lines, and
   accepted geometry can exceed its screen-area limit. The plan now records

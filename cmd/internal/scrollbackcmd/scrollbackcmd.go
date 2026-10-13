@@ -84,14 +84,22 @@ func parseEvents(path string) ([]scrollbackEvent, error) {
 }
 
 func parseEventData(data []byte) []scrollbackEvent {
+	out, _ := decodeEventData(data, false)
+	return out
+}
+
+func decodeEventData(data []byte, strict bool) ([]scrollbackEvent, error) {
 	var out []scrollbackEvent
-	for _, line := range strings.Split(string(data), "\n") {
+	for i, line := range strings.Split(string(data), "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
 		}
 		var e scrollbackEvent
 		if err := json.Unmarshal([]byte(line), &e); err != nil {
+			if strict {
+				return nil, fmt.Errorf("event line %d: %w", i+1, err)
+			}
 			continue
 		}
 		// Keep both known types: resize boundaries AND time stamps (#59).
@@ -100,7 +108,7 @@ func parseEventData(data []byte) []scrollbackEvent {
 			out = append(out, e)
 		}
 	}
-	return out
+	return out, nil
 }
 
 // initialSize pulls (cols, rows) from the first usable resize event, or
@@ -138,6 +146,35 @@ type dateMark struct {
 // an offset beyond EOF (saw this once with a half-written events file after a
 // hard kill); without clamping we'd panic on the slice.
 func feedSegments(em *vt.Emulator, raw []byte, events []scrollbackEvent) []dateMark {
+	marks, _ := feedSegmentsChecked(em, raw, events, false)
+	return marks
+}
+
+func feedSegmentsChecked(em *vt.Emulator, raw []byte, events []scrollbackEvent, checked bool) ([]dateMark, error) {
+	checkLoss := func() error {
+		if checked && em.HistoryCapacityLoss() != 0 {
+			return fmt.Errorf("rendered history exceeds capacity; lost %d rows", em.HistoryCapacityLoss())
+		}
+		return nil
+	}
+	write := func(data []byte) error {
+		for len(data) > 0 {
+			n := len(data)
+			// Stop soon after overflow rather than repeatedly evicting a large
+			// history for the rest of an adversarial recording.
+			if checked {
+				n = min(n, 4096)
+			}
+			if _, err := em.Write(data[:n]); err != nil {
+				return err
+			}
+			if err := checkLoss(); err != nil {
+				return err
+			}
+			data = data[n:]
+		}
+		return nil
+	}
 	var cursor int64
 	var marks []dateMark
 	for _, e := range events {
@@ -146,12 +183,23 @@ func feedSegments(em *vt.Emulator, raw []byte, events []scrollbackEvent) []dateM
 			off = int64(len(raw))
 		}
 		if off > cursor {
-			_, _ = em.Write(raw[cursor:off])
+			if err := write(raw[cursor:off]); err != nil {
+				return nil, err
+			}
 			cursor = off
 		}
 		switch e.Type {
 		case "resize":
-			em.Resize(e.Cols, e.Rows)
+			if checked {
+				if err := em.ResizeChecked(e.Cols, e.Rows); err != nil {
+					return nil, fmt.Errorf("resize %dx%d: %w", e.Cols, e.Rows, err)
+				}
+			} else {
+				em.Resize(e.Cols, e.Rows)
+			}
+			if err := checkLoss(); err != nil {
+				return nil, err
+			}
 		case "time":
 			if d := dateOf(e.Ts); d != "" {
 				marks = append(marks, dateMark{line: em.Scrollback().Len(), date: d})
@@ -159,9 +207,11 @@ func feedSegments(em *vt.Emulator, raw []byte, events []scrollbackEvent) []dateM
 		}
 	}
 	if cursor < int64(len(raw)) {
-		_, _ = em.Write(raw[cursor:])
+		if err := write(raw[cursor:]); err != nil {
+			return nil, err
+		}
 	}
-	return marks
+	return marks, nil
 }
 
 // tsMarkerLine is the wire format the distiller parses (#59). MUST stay in sync
@@ -378,34 +428,31 @@ func replay(rawPath, eventsPath string, plain bool, maxLines int) (replayed, err
 // replayData shares emulator and serialization behavior with bounded readers.
 // rowLimit uses an extra history row as an overflow sentinel.
 func replayData(raw []byte, events []scrollbackEvent, plain bool, historyLimit, rowLimit int) (replayed, error) {
+	limits := vt.DefaultLimits()
+	if rowLimit > 0 {
+		limits = boundedReplayLimits(rowLimit)
+	}
+	return replayDataWithLimits(raw, events, plain, historyLimit, rowLimit, limits)
+}
+
+func replayDataWithLimits(raw []byte, events []scrollbackEvent, plain bool, historyLimit, rowLimit int, limits vt.Limits) (replayed, error) {
 	cols, rows := initialSize(events)
-	em := vt.NewEmulator(cols, rows)
+	em, err := vt.NewEmulatorWithLimits(cols, rows, limits)
+	if err != nil {
+		return replayed{}, fmt.Errorf("initial resize %dx%d: %w", cols, rows, err)
+	}
+	defer em.Close()
 	em.Scrollback().SetMaxLines(historyLimit)
+	// Replay has no controlling app; discard terminal replies synchronously.
+	em.SetReplyWriter(io.Discard)
+	marks, err := feedSegmentsChecked(em, raw, events, rowLimit > 0)
+	if rowLimit > 0 && em.HistoryCapacityLoss() != 0 {
+		return replayed{}, fmt.Errorf("rendered history exceeds capacity (%d rows, %d cells, %d bytes); lost %d rows", rowLimit, limits.HistoryCells, limits.HistoryBytes, em.HistoryCapacityLoss())
+	}
+	if err != nil {
+		return replayed{}, err
+	}
 
-	// Drain the emulator's input pipe in the background. CSI status
-	// queries (DSR, Device Attributes, etc.) in the captured stream
-	// trigger handlers that *write a reply back* into this pipe — in a
-	// real terminal those bytes go to the controlling app. Offscreen
-	// replay has no reader, so the handler's WriteString blocks
-	// forever and deadlocks the Write goroutine. Discarding the bytes
-	// preserves emulation correctness; we never act on the replies.
-	//
-	// The emulator is deliberately never closed, and this goroutine is
-	// deliberately allowed to park. vt.Emulator.closed is a plain bool
-	// written by Close() and read by Read() with no synchronisation, so
-	// closing while the drainer is blocked in Read is a data race inside the
-	// dependency. The obvious inversion -- wait for the drainer, then close
-	// -- deadlocks, because Close() is the only thing that can unblock that
-	// Read; an earlier attempt here hit exactly that (its comment survived
-	// after the ordering was flipped back).
-	//
-	// So the drainer stays parked on the pipe for the life of the process.
-	// `pair scrollback` renders once and exits, so the leak is bounded by
-	// process lifetime, and a parked goroutine is cheaper than either a real
-	// race or a fork of the dependency. Revisit if vt makes closed atomic.
-	go func() { _, _ = io.Copy(io.Discard, em) }()
-
-	marks := feedSegments(em, raw, events)
 	if rowLimit > 0 && em.Scrollback().Len() > rowLimit {
 		return replayed{}, fmt.Errorf("rendered history exceeds %d rows", rowLimit)
 	}

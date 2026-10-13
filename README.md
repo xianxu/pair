@@ -451,6 +451,14 @@ couch --skill            print the bundled agent coordination skill
 couch --adopt-store /absolute/store     preview adoption of an existing store
 ```
 
+Previous-session peeks select the saved incarnation exactly. `--all` returns
+its complete retained terminal history or an explicit error naming the files;
+it never labels a capacity-truncated tail complete. Replay limits are 64 MiB
+raw, 8 MiB events, 100,000 rows, 1,048,576 history cells / 128 MiB logical
+history bytes, and screen dimensions 1–1000 with at most 262,144 cells.
+Terminal erase-history commands retain their normal meaning; native transcripts
+remain the complementary source for erased content.
+
 `couch --help` ends each verb's line with its relative cost, measured on this
 machine (pair#490), and `couch --skill` lists the same tiers:
 

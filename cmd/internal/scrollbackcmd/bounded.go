@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/charmbracelet/x/vt"
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/storagegc"
 	"golang.org/x/sys/unix"
@@ -15,7 +16,21 @@ const (
 	maxEventsBytes  = 8 << 20
 	maxRenderedRows = 100000
 	maxDimension    = 1000
+	maxHistoryCells = 1 << 20
+	maxHistoryBytes = 128 << 20
+	maxScreenCells  = 262144
 )
+
+// Keep every retention bound explicit: increasing only rows leaves VT's smaller
+// live-view cell/byte caps active and can silently return a truncated tail.
+func boundedReplayLimits(rowLimit int) vt.Limits {
+	limits := vt.DefaultLimits()
+	limits.MaxCells = maxScreenCells
+	limits.HistoryLines = rowLimit + 1
+	limits.HistoryCells = maxHistoryCells
+	limits.HistoryBytes = maxHistoryBytes
+	return limits
+}
 
 // RenderBoundedLines replays a recording under the CLI safety envelope. Full
 // reads (maxLines <= 0) either return the complete retained history projection
@@ -34,10 +49,21 @@ func renderBoundedLines(rawPath, eventsPath string, maxLines, rowLimit int) ([]s
 	if err != nil {
 		return nil, err
 	}
-	events := parseEventData(data)
+	events, err := decodeEventData(data, true)
+	if err != nil {
+		return nil, fmt.Errorf("recording %s: %w", eventsPath, err)
+	}
+	var previousOffset int64
 	for _, e := range events {
+		if e.Offset < previousOffset || e.Offset > int64(len(raw)) {
+			return nil, fmt.Errorf("recording %s: %s offset %d outside ordered raw range %d..%d", eventsPath, e.Type, e.Offset, previousOffset, len(raw))
+		}
+		previousOffset = e.Offset
 		if e.Type == "resize" && (e.Cols <= 0 || e.Rows <= 0 || e.Cols > maxDimension || e.Rows > maxDimension) {
 			return nil, fmt.Errorf("recording %s: resize %dx%d outside 1..%d", eventsPath, e.Cols, e.Rows, maxDimension)
+		}
+		if e.Type == "resize" && e.Cols > maxScreenCells/e.Rows {
+			return nil, fmt.Errorf("recording %s: resize %dx%d exceeds %d screen cells", eventsPath, e.Cols, e.Rows, maxScreenCells)
 		}
 	}
 	r, err := replayData(raw, events, true, rowLimit+1, rowLimit)

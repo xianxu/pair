@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/x/vt"
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/storagegc"
 	"golang.org/x/sys/unix"
@@ -253,5 +254,161 @@ func TestBoundedRowsAtLimitAreComplete(t *testing.T) {
 	got, err := renderBoundedLines(r, e, 0, 2)
 	if err != nil || !reflect.DeepEqual(got, []string{"first", "second"}) {
 		t.Fatalf("got %q %v", got, err)
+	}
+}
+
+func TestBoundedFullRetainsTwoThousandWideLines(t *testing.T) {
+	var raw strings.Builder
+	for i := 0; i < 2000; i++ {
+		fmt.Fprintf(&raw, "%04d%s\r\n", i, strings.Repeat("x", 76))
+	}
+	r, e := boundedFixture(t, raw.String(), `{"type":"resize","cols":80,"rows":24}`)
+	got, err := RenderBoundedLines(r, e, 0)
+	if err != nil || len(got) != 2000 || !strings.HasPrefix(got[0], "0000") {
+		t.Fatalf("got %d lines, error %v; want all 2000", len(got), err)
+	}
+}
+
+func TestBoundedRejectsScreenArea(t *testing.T) {
+	for _, initial := range []bool{true, false} {
+		t.Run(fmt.Sprintf("initial=%t", initial), func(t *testing.T) {
+			events := `{"type":"resize","cols":1000,"rows":1000}`
+			if !initial {
+				events = `{"type":"resize","cols":80,"rows":24}` + "\n" + `{"type":"resize","offset":1,"cols":1000,"rows":1000}`
+			}
+			r, e := boundedFixture(t, "text", events)
+			defer func() {
+				if p := recover(); p != nil {
+					t.Errorf("untrusted dimensions panicked: %v", p)
+				}
+			}()
+			got, err := RenderBoundedLines(r, e, 0)
+			if err == nil || len(got) != 0 || !strings.Contains(err.Error(), e) {
+				t.Fatalf("got %q, %v; want visible area refusal naming events", got, err)
+			}
+		})
+	}
+}
+
+func TestBoundedCapacityLossIsVisible(t *testing.T) {
+	for _, kind := range []string{"cells", "bytes", "oversized-row", "oversized-byte-row", "rows"} {
+		for _, clearAfter := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/clear=%t", kind, clearAfter), func(t *testing.T) {
+				limits := boundedReplayLimits(100)
+				switch kind {
+				case "cells":
+					limits.HistoryCells = 6 // two four-cell rows overflow cells alone
+				case "bytes":
+					limits.HistoryBytes = 600 // one row fits, two overflow bytes alone
+				case "oversized-byte-row":
+					limits.HistoryBytes = 1
+				case "oversized-row":
+					limits.HistoryCells = 3
+				case "rows":
+					limits.HistoryLines = 1
+				}
+				if kind == "cells" || kind == "bytes" {
+					prefix, err := replayDataWithLimits([]byte("aaaa\r\n"), []scrollbackEvent{{Type: "resize", Cols: 10, Rows: 1}}, true, limits.HistoryLines, 100, limits)
+					if err != nil || !reflect.DeepEqual(prefix.lines, []string{"aaaa"}) {
+						t.Fatalf("a single row must fit: %q %v", prefix.lines, err)
+					}
+				}
+				raw := "aaaa\r\nbbbb\r\ncccc"
+				if clearAfter {
+					raw += "\x1b[3J"
+				}
+				got, err := replayDataWithLimits([]byte(raw), []scrollbackEvent{{Type: "resize", Cols: 10, Rows: 1}}, true, limits.HistoryLines, 100, limits)
+				if err == nil || len(got.lines) != 0 || !strings.Contains(err.Error(), "capacity") {
+					t.Fatalf("got %q, %v; want visible capacity refusal", got.lines, err)
+				}
+			})
+		}
+	}
+}
+
+func TestBoundedIntentionalHistoryClear(t *testing.T) {
+	r, e := boundedFixture(t, "before\r\nold\r\n\x1b[3Jafter", `{"type":"resize","cols":20,"rows":1}`)
+	got, err := RenderBoundedLines(r, e, 0)
+	if err != nil || !reflect.DeepEqual(got, []string{"after"}) {
+		t.Fatalf("got %q %v", got, err)
+	}
+}
+
+func TestReplayCheckedGeometryErrors(t *testing.T) {
+	for _, initial := range []bool{true, false} {
+		t.Run(fmt.Sprintf("initial=%t", initial), func(t *testing.T) {
+			limits := boundedReplayLimits(100)
+			limits.MaxCells = 100
+			events := []scrollbackEvent{{Type: "resize", Cols: 11, Rows: 10}}
+			if !initial {
+				events = append([]scrollbackEvent{{Type: "resize", Cols: 10, Rows: 10}}, events...)
+			}
+			got, err := replayDataWithLimits(nil, events, true, 101, 100, limits)
+			if err == nil || len(got.lines) != 0 || !strings.Contains(err.Error(), "resize 11x10") {
+				t.Fatalf("got %q %v", got.lines, err)
+			}
+		})
+	}
+}
+
+func TestBoundedRejectsMalformedResizeEvidence(t *testing.T) {
+	for _, events := range []string{
+		`{"type":"resize","cols":20,"rows":1`,
+		`{"type":"resize","cols":9999999999999999999999999,"rows":1}`,
+		`{"type":"resize","cols":20,"rows":1,"offset":-1}`,
+		`{"type":"resize","cols":20,"rows":1,"offset":6}`,
+		`{"type":"resize","cols":20,"rows":1,"offset":3}` + "\n" + `{"type":"resize","cols":10,"rows":1,"offset":1}`,
+	} {
+		t.Run(events, func(t *testing.T) {
+			r, e := boundedFixture(t, "hello", events)
+			got, err := RenderBoundedLines(r, e, 0)
+			if err == nil || len(got) != 0 || !strings.Contains(err.Error(), e) {
+				t.Fatalf("got %q %v", got, err)
+			}
+			if _, err := RenderLines(r, e, 0); err != nil {
+				t.Fatalf("ordinary viewer lost tolerant decoding: %v", err)
+			}
+		})
+	}
+}
+
+func TestBoundedAcceptsScreenAreaBoundary(t *testing.T) {
+	for _, initial := range []bool{true, false} {
+		events := `{"type":"resize","cols":512,"rows":512}`
+		if !initial {
+			events = `{"type":"resize","cols":80,"rows":24}` + "\n" + `{"type":"resize","cols":512,"rows":512}`
+		}
+		r, e := boundedFixture(t, "accepted", events)
+		got, err := RenderBoundedLines(r, e, 0)
+		if err != nil || !reflect.DeepEqual(got, []string{"accepted"}) {
+			t.Fatalf("initial=%t: %q %v", initial, got, err)
+		}
+	}
+}
+
+func TestBoundedFeedStopsAfterCapacityLoss(t *testing.T) {
+	limits := boundedReplayLimits(1)
+	em, err := vt.NewEmulatorWithLimits(10, 1, limits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer em.Close()
+	// A later clear/title would hide evidence of continuing through the whole
+	// recording. Stop soon after overflow instead of repeatedly evicting history.
+	raw := strings.Repeat("x\r\n", 2000) + "\x1b[3J"
+	_, err = feedSegmentsChecked(em, []byte(raw), nil, true)
+	if err == nil || em.HistorySnapshot().ClearEpoch != 0 {
+		t.Fatalf("feed did not stop at capacity loss: %v", err)
+	}
+}
+
+func TestBoundedResizeCapacityLoss(t *testing.T) {
+	limits := boundedReplayLimits(100)
+	limits.HistoryCells = 3
+	raw := []byte("abcdefgh")
+	events := []scrollbackEvent{{Type: "resize", Cols: 10, Rows: 1}, {Type: "resize", Offset: int64(len(raw)), Cols: 2, Rows: 1}}
+	got, err := replayDataWithLimits(raw, events, true, 101, 100, limits)
+	if err == nil || len(got.lines) != 0 || !strings.Contains(err.Error(), "capacity") {
+		t.Fatalf("resize lost history without refusal: %q %v", got.lines, err)
 	}
 }

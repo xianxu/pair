@@ -1449,3 +1449,9 @@ proof; record the surprising case so the next change starts from evidence.
 - **A plan's owner map follows the actual diff (#517 M1).** When implementation
   splits a concern into a new file, check every core-concepts location and the
   milestone file inventory against the diff; record the correction in Revisions.
+- **A full read must detect every capacity loss in its dependency (#517 M1).**
+  Raising the emulator's row cap left its cell and byte caps silently evicting
+  history, and accepting 1000×1000 geometry exceeded its screen-area limit.
+  Read the dependency's complete limit model; use checked construction/resize
+  and an explicit loss signal that survives later clears. Test each independent
+  limit and loss followed by erase in one input, not only a row-count overflow.

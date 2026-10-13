@@ -21,10 +21,12 @@ current native transcript before park; `ResolveArchive` resolves the verified
 park's exact capture. `starttransaction.go` clears `VerifiedPark` on successful
 start. Thus neither a latest-file glob nor keeping the current peek is sufficient.
 
-`scrollbackcmd.RenderLines(..., 0)` already returns uncapped plain text. It reads
-the raw file and builds emulator history in memory, and keeps one drain goroutine
-until process exit. Reuse it only in a short-lived CLI, one full recording per
-invocation. No new transcript parser or summary generator.
+The original `scrollbackcmd.RenderLines(..., 0)` relaxed only the history row
+limit; M1 review found hidden cell/byte caps. Reuse the shared replay with
+explicit limits and loss detection for full reads. Replay remains in the
+short-lived CLI, one recording per invocation. The local VT reply-writer API
+allows direct reply discard and emulator closure without a drain goroutine.
+No new transcript parser or summary generator.
 
 pair#414 currently contains only its title (Grok attach refused, orientation
 lost), no reproduction. Treat it as a regression target: exercise actual launch
@@ -112,6 +114,7 @@ and notice text. A fresh idle launch sends no orientation request at all.
 | AgentSwitch | `cmd/internal/couchcore/agent_switch_model.go` | new |
 | SwitchContent | `cmd/internal/couchcore/agent_switch_model.go` | new |
 | PeekSelection | `cmd/internal/couchcore/peek_selection.go` | new |
+| History capacity-loss counter | `third_party/vt/scrollback.go` (`Emulator.HistoryCapacityLoss`) | new |
 | SwitchAgentRequest | `cmd/internal/couchcore/switchagent.go` | modified |
 | Request | `cmd/internal/couchmessage/protocol.go` | modified |
 
@@ -338,7 +341,11 @@ after the `sdlc change-code` plan-quality gate passes.
   be concealed by later terminal erase-history commands. Use error-returning
   emulator construction and resize. Tests cover cell and byte loss separately,
   initial and later oversized geometry, and intentional erase versus lost
-  history. This is required to fulfill complete-or-visible-refusal semantics,
+  history. Bounded event decoding also refuses malformed resize data instead
+  of silently dropping it; ordinary viewer replay keeps its tolerant policy.
+  Use VT's existing reply-writer seam to discard replies synchronously and
+  close the emulator, replacing the obsolete drain-goroutine assumption.
+  This is required to fulfill complete-or-visible-refusal semantics,
   not a change to the handoff workflow. Run VT's nested-module tests separately.
 
 - 2026-10-12 — M1 boundary review BR-1/BR-2/BR-3: corrected the core-concepts

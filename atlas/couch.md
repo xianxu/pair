@@ -1505,8 +1505,12 @@ is reported explicitly.
 `--all` selects a complete retained terminal-history projection in the short-lived
 CLI, not the Couch server. It conflicts with `--lines`; previous and full reads
 accept one slot. Replay holds the existing capture retention lease and refuses
-recordings above 64 MiB raw, 8 MiB events, 100,000 rendered rows, or resize
-dimensions outside 1–1000. Refusals name the files. Full reads preserve ordinary
+recordings above 64 MiB raw, 8 MiB events, 100,000 rendered rows, resize
+dimensions outside 1–1000 or screen area above 262,144 cells. Retained history
+is capped at 1,048,576 cells and 128 MiB logical bytes. Any capacity-driven
+history loss refuses the read, even if a later terminal erase clears history;
+checked emulator construction and resize report invalid geometry. Refusals
+name the files. Full reads preserve ordinary
 terminal erase-history semantics: the native transcript remains the complementary
 source for content erased from terminal history. Output names the recording files
 and source binding; previous reads cost seconds and full replay is heavy.
