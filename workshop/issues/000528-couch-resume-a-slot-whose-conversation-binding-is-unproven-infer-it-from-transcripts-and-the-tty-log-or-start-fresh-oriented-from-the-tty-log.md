@@ -104,6 +104,13 @@ pair:6 read-only while measuring; no live recovery/reboot is authorized here.
   The three-pair threshold is provisional until the broader corpus is measured.
   No deletion or live pair:6 recovery is authorized.
 
+- 2026-10-13 09:30 PDT — TL receipt 4c8b05d4 replaces the single correction
+  action with ranked resume alternatives (default plus up to four), each with
+  evidence, in both slot actions and programmatic candidate listing/selection.
+  Alternatives persist after automatic resume. Read-only socket investigation
+  confirms the current pathname is a replacement born at 07:55:48; causative
+  deletion remains unknown. See plan revision for exact evidence and guards.
+
 ## Log
 
 - Measurement: pair:6 scope 50f39cf60172c338, tag 1-pair-42. Root
@@ -147,3 +154,32 @@ pair:6 read-only while measuring; no live recovery/reboot is authorized here.
   labels must come from native binding/park evidence independently of overlap;
   score every same-cwd candidate with a capture-time native event cutoff.
   Production code remains unchanged pending this pre-change-code requirement.
+
+- 09:30 PDT — Read-only ps/lsof/lstat: original PID 41843 and replacement
+  PID 9682 remain alive with distinct Unix socket objects under the same name.
+  Current socket inode 466359361 was born at Oct 13 07:55:48.344482, matching
+  replacement startup. The current entry exists; historical unlink cause is
+  not observable from this snapshot. No pair:6 process or socket was changed.
+
+- 09:32 PDT — Expanded provenance audit: 92 unique retained thread records,
+  157 parked capture manifests, 294 typed native-binding rows (Claude 211,
+  Codex 70, Qoder 3, Muse 10), and 88 readiness records. Owners having both
+  binding records and captures: Claude 30, Codex 13, Qoder 2, Muse 4; no Grok
+  label. These are evidence counts, not 49 proven capture/conversation pairs.
+  Certified labels: **0**. Capture manifests retain raw/events identity and
+  timestamp but no producing launch ordinal/nonce; native binding rows prove
+  conversation identity independently, without that historical capture join.
+  Neither overlap nor temporal proximity was used to fabricate a label.
+- Three possible single-native-history cases remain excluded: you-decide13's
+  latest resume requests lack binding confirmation; xianxu18 lacks a witness
+  linking its one chosen launch to its one capture; 42shots30 includes earlier
+  Qoder captures under the same tag. Therefore right-versus-best-wrong margins
+  are **not measurable on a certified corpus**, and no expanded automatic
+  threshold is justified. This is a pre-change-code evidence limitation.
+- Audit manifest/exclusions: /var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair528-provenance-2hqx1nyh/.
+  Offline scorer: /tmp/pair528-offline/ (run.sh, overlay.json, score_test.go,
+  scoring-manifest.json, metrics.json, README.md). Uses production VT rendering
+  and equal native capture-time timestamp cutoff for every candidate; cutoff
+  is explicitly an approximation, not a generation witness. Empty-corpus
+  plumbing test PASS (0.118s); it validates no ranking or threshold. No native
+  transcript, capture, slot record, process or cache was mutated.
