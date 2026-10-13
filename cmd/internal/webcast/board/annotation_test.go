@@ -260,3 +260,33 @@ func TestWriterClearSinkFailureRemainsTerminal(t *testing.T) {
 		t.Fatal("uncertain sink outcome retried")
 	}
 }
+
+func TestAnnotationAdmissionUsesOriginatingGeneration(t *testing.T) {
+	r := newRig(t).page(recording.SegLive)
+	g := r.bd.AnnotationCapability().Generation
+	if _, err := r.bd.AdmitAnnotationGeneration(g + 1); !errors.Is(err, ErrDisabled) {
+		t.Fatalf("future generation: %v", err)
+	}
+	a, err := r.bd.AdmitAnnotationGeneration(g)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.bd.SetAnnotationAllowed(context.Background(), false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.bd.AdmitAnnotationGeneration(r.bd.AnnotationCapability().Generation); !errors.Is(err, ErrDisabled) {
+		t.Fatalf("off authority: %v", err)
+	}
+	if err := r.bd.SetAnnotationAllowed(context.Background(), true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.bd.AdmitAnnotationGeneration(g); !errors.Is(err, ErrDisabled) {
+		t.Fatalf("retired generation: %v", err)
+	}
+	if err := a.Check(); !errors.Is(err, ErrDisabled) {
+		t.Fatalf("retired permit: %v", err)
+	}
+	if _, err := r.bd.AdmitAnnotationGeneration(r.bd.AnnotationCapability().Generation); err != nil {
+		t.Fatal(err)
+	}
+}

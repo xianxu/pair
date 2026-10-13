@@ -217,7 +217,13 @@ when the HTTP caller leaves. Cast owns bounded, single-flight button workers.
 The `capabilities` SSE event carries annotation/drive support, link permission,
 effective availability, visible state, generation and attempt. It replays the
 latest snapshot on reconnect and does not expose internal errors. Cast updates
-carry the same authority state for the operator's recovery notice. The shared
+carry the same authority state for the operator's recovery notice. Viewer mutations
+carry their request-creation generation in `X-Couch-Annotation-Generation` or
+`X-Couch-Drive-Generation`; isolated-world operator requests carry a decimal-string
+`generation` from the acknowledged permission delivery. Admission matches that
+origin generation under the authority lock, then rechecks the permit at ordered
+write/input dispatch. Missing or retired generations fail closed, including payloads
+created before off but delivered after re-enable. The shared
 `capability.Project` maps lifecycle to one action: enable, disable, wait, retry,
 end cast or start a new cast. See `cast_capabilities.go`, `server_capabilities.go`,
 `board/annotation.go`, `drive/capability.go` and `recorder/capability.go`.

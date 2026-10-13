@@ -3,6 +3,7 @@ package recorder
 import (
 	"context"
 	"errors"
+	"strconv"
 	"testing"
 	"time"
 
@@ -38,8 +39,12 @@ func operatorHarness(t *testing.T) (*harness, *board.Board, chan OperatorReply) 
 func operatorEvent(request any, ctx int64) Event {
 	return Event{Session: "A", Method: "Runtime.bindingCalled", Params: raw(map[string]any{"name": "__couchcast", "executionContextId": ctx, "payload": string(raw(map[string]any{"t": "operator", "request": request}))})}
 }
-func operatorRequest(op, id string, body any) any {
-	return map[string]any{"op": op, "request": id, "body": body}
+func operatorRequest(op, id string, body any, generation ...uint64) any {
+	g := uint64(1)
+	if len(generation) > 0 {
+		g = generation[0]
+	}
+	return map[string]any{"op": op, "request": id, "body": body, "generation": strconv.FormatUint(g, 10)}
 }
 func takeOperator(t *testing.T, ch <-chan OperatorReply) OperatorReply {
 	t.Helper()
@@ -429,7 +434,7 @@ func TestOperatorQueuedSaveGenerationAndHeldDraft(t *testing.T) {
 		t.Fatal("stale write reached sink")
 	}
 	// The draft is content, not authority: a fresh save may use the same handle.
-	h.r.Send(operatorEvent(operatorRequest("save-note", "3", map[string]any{"draft": draft.Draft, "color": 0, "text": "held text"}), 7))
+	h.r.Send(operatorEvent(operatorRequest("save-note", "3", map[string]any{"draft": draft.Draft, "color": 0, "text": "held text"}, b.AnnotationCapability().Generation), 7))
 	if got := takeOperator(t, replies); got.Outcome != board.OperatorPending {
 		t.Fatal(got)
 	}
@@ -502,5 +507,36 @@ func TestOperatorQueuedWriterDoesNotWaitForCleanupCommand(t *testing.T) {
 	}
 	if len(b.OperatorView().Notes) != 0 {
 		t.Fatal("write crossed clear")
+	}
+}
+
+func TestOperatorOriginGenerationBeforeIngressCannotCrossOffOn(t *testing.T) {
+	for _, op := range []string{"stroke", "prepare-note", "save-note", "resolve"} {
+		t.Run(op, func(t *testing.T) {
+			h, b, replies := operatorHarness(t)
+			draft := prepareOperator(t, h, replies)
+			bodies := map[string]any{
+				"stroke":       map[string]any{"seg": 1, "id": "old", "color": 0, "pts": [][3]float64{{1, 2, 0}}},
+				"prepare-note": map[string]any{"seg": 1, "path": []int{1, 2, 0}, "box": []int{1, 2, 30, 40}, "region": []int{3, 4, 10, 10}},
+				"save-note":    map[string]any{"draft": draft.Draft, "color": 0, "text": "old save"},
+				"resolve":      map[string]any{"seg": 1, "id": "old", "state": "resolved"},
+			}
+			// Constructed by the page before OFF, delivered to ingress only after ON.
+			delayed := operatorEvent(operatorRequest(op, "2", bodies[op]), 7)
+			if err := b.SetAnnotationAllowed(context.Background(), false); err != nil {
+				t.Fatal(err)
+			}
+			if err := b.SetAnnotationAllowed(context.Background(), true); err != nil {
+				t.Fatal(err)
+			}
+			h.r.Send(delayed)
+			got := takeOperator(t, replies)
+			if got.Outcome != board.OperatorRefused || got.Error != board.ErrDisabled.Error() {
+				t.Fatalf("old originating generation acquired new authority: %+v", got)
+			}
+			if v := b.OperatorView(); len(v.Strokes) != 0 || len(v.Notes) != 0 {
+				t.Fatal("old mutation reached sink")
+			}
+		})
 	}
 }

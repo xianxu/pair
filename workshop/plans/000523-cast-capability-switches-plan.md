@@ -556,3 +556,11 @@ context state is discarded with replaced contexts. Each CDP delivery is bounded
 by its call deadline. Readiness events remain the primary trigger; this bounded
 retry covers an unavailable hook or unacknowledged delivery, without treating
 an uncertain ON as permission to mutate.
+
+BR-5 drive audit confirmed the same delayed-before-ingress risk for request,
+release and input. All three now carry their originating drive generation;
+input batches freeze it when created. Tests reject missing/retired generations
+after off/on even after a fresh grant, while current-generation requests succeed.
+BR-6 clarification: normal notifications can reconcile sooner than 250ms; the
+single worker's timer only supplies unresolved-delivery retries. An acknowledged
+delivery removes the timer from selection, and cast shutdown stops it.

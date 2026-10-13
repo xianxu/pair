@@ -86,10 +86,20 @@ func newWebNotesCast(t *testing.T, screen bool) *webNotesCast {
 	return c
 }
 
+func (c *webNotesCast) annotationGeneration() uint64 {
+	c.con.mu.Lock()
+	cast := c.con.wcast.cast
+	c.con.mu.Unlock()
+	return cast.Capabilities().Annotation.Generation
+}
+
 func (c *webNotesCast) note(t *testing.T, name, text string) {
 	t.Helper()
 	body := fmt.Sprintf(`{"viewer":{"id":"v-%s","name":%q},"seg":1,"node":%d,"box":[1,2,3,4],"region":[1,2,30,40],"color":2,"text":%q}`, name, name, c.p.ID, text)
-	resp, err := castClient.Post(c.link+"note", "application/json", strings.NewReader(body))
+	req, _ := http.NewRequest(http.MethodPost, c.link+"note", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Couch-Annotation-Generation", fmt.Sprint(c.annotationGeneration()))
+	resp, err := castClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -235,7 +245,10 @@ func TestWebNotesMenuSourceAndStableIDs(t *testing.T) {
 	}
 	// A viewer resolves a under the open menu.
 	body := fmt.Sprintf(`{"viewer":{"id":"v-cy"},"id":%q,"state":"resolved"}`, a.noteID)
-	resp, err := castClient.Post(r.link+"note-state", "application/json", strings.NewReader(body))
+	req, _ := http.NewRequest(http.MethodPost, r.link+"note-state", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Couch-Annotation-Generation", fmt.Sprint(r.annotationGeneration()))
+	resp, err := castClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}

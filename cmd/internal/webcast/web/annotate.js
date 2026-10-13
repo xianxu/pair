@@ -292,9 +292,9 @@ export async function mountAnnotate(doc, win, v) {
   const who = identityStore(storage, win.crypto);
   if (v.seat) who.adopt(v.seat.viewer);
   const colors = colorStore(storage);
-  const post = poster((url, init) => win.fetch(url, init), NOTE_ROUTES);
-  const ui = mountAnnotation(doc, win, v, { root: doc.body, box: doc.getElementById('box'), stage: doc.getElementById('stage'), palette, who, colors, post, annotate, annotationAllowed: false });
   let generation;
+  const post = poster((url, init) => win.fetch(url, {...init, headers: {...init.headers, 'X-Couch-Annotation-Generation': String(generation)}}), NOTE_ROUTES);
+  const ui = mountAnnotation(doc, win, v, { root: doc.body, box: doc.getElementById('box'), stage: doc.getElementById('stage'), palette, who, colors, post, annotate, annotationAllowed: false });
   v.onCapabilities?.((caps) => {
     const c = caps?.annotation;
     ui.setAnnotationAllowed(c?.allowed === true, generation !== c?.generation, c?.state);
@@ -593,7 +593,7 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
       docSeg = model.docSeg;
       if (was) { strokes.clear(); endGesture(true); }
     }
-    if (r.k === 'annotation-clear') strokes.clear();
+    if (r.k === 'annotation-clear') { strokes.clear(); gestureVersion++; endGesture(true); setMode('watch'); }
     if (r.k === 'stroke') strokes.record(r, win.performance.now(), `${who.id()}.`);
     // A pause or the end puts the pen down (setMode ends the gesture and
     // renders the rail, disabled while paused); a resume enables it again.

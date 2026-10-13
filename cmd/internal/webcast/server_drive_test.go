@@ -49,6 +49,7 @@ func newDriveFixture(t *testing.T, grace time.Duration) *driveFixture {
 func (f *driveFixture) post(route, key, body string) (int, string) {
 	r := httptest.NewRequest(http.MethodPost, "/drv/drive/"+route, strings.NewReader(body))
 	r.Header.Set("Content-Type", "application/json")
+	r.Header.Set("X-Couch-Drive-Generation", fmt.Sprint(f.ctrl.DriveCapability().Generation))
 	if key != "" {
 		r.Header.Set(drive.SeatHeader, key)
 	}
@@ -150,6 +151,7 @@ func TestDriveRoutesShape(t *testing.T) {
 	for _, route := range []string{"hello", "control", "input"} {
 		r := httptest.NewRequest(http.MethodPost, "/tok/drive/"+route, strings.NewReader(`{}`))
 		r.Header.Set("Content-Type", "application/json")
+		r.Header.Set("X-Couch-Drive-Generation", "1")
 		w := httptest.NewRecorder()
 		plain.ServeHTTP(w, r)
 		if w.Code != http.StatusNotFound {
@@ -308,6 +310,7 @@ func TestDriveOnlyUnderTheDriveLink(t *testing.T) {
 	for _, route := range []string{"hello", "control", "input"} {
 		r := httptest.NewRequest(http.MethodPost, "/tok/drive/"+route, strings.NewReader(`{}`))
 		r.Header.Set("Content-Type", "application/json")
+		r.Header.Set("X-Couch-Drive-Generation", fmt.Sprint(f.ctrl.DriveCapability().Generation))
 		w := httptest.NewRecorder()
 		f.srv.ServeHTTP(w, r)
 		if w.Code != http.StatusNotFound {

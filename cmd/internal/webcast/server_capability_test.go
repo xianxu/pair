@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -87,7 +88,9 @@ func TestDriveOffRefusesBeforeBodyAndAfterDelayedBody(t *testing.T) {
 		}
 		r := httptest.NewRequest(http.MethodPost, "/drv/drive/control", body)
 		r.Header.Set("Content-Type", "application/json")
+		r.Header.Set("X-Couch-Annotation-Generation", "1")
 		r.Header.Set(drive.SeatHeader, key)
+		r.Header.Set("X-Couch-Drive-Generation", "1")
 		w := httptest.NewRecorder()
 		f.srv.ServeHTTP(w, r)
 		status, message := drive.Answer(drive.ErrDriveUnavailable)
@@ -136,6 +139,7 @@ func TestAnnotationOffRefusesBeforeBodyAndAfterDelayedBody(t *testing.T) {
 		}
 		r := httptest.NewRequest(http.MethodPost, "/point/note", body)
 		r.Header.Set("Content-Type", "application/json")
+		r.Header.Set("X-Couch-Annotation-Generation", "1")
 		w := httptest.NewRecorder()
 		s.ServeHTTP(w, r)
 		if w.Code != http.StatusForbidden || strings.TrimSpace(w.Body.String()) != "Annotation is off." {
@@ -209,10 +213,94 @@ func TestOldReleaseBodyCannotRevokeNewGrant(t *testing.T) {
 	}}
 	r := httptest.NewRequest(http.MethodPost, "/drv/drive/control", body)
 	r.Header.Set("Content-Type", "application/json")
+	r.Header.Set("X-Couch-Annotation-Generation", "1")
 	r.Header.Set(drive.SeatHeader, key)
+	r.Header.Set("X-Couch-Drive-Generation", "1")
 	w := httptest.NewRecorder()
 	f.srv.ServeHTTP(w, r)
 	if w.Code != http.StatusForbidden || f.ctrl.Control().Driving() != viewer {
 		t.Fatalf("late release revoked newgrant: code=%d control=%+v", w.Code, f.ctrl.Control())
+	}
+}
+
+func TestAnnotationGenerationRejectsPreIngressAcrossOffOn(t *testing.T) {
+	for _, route := range []string{"stroke", "note", "note-state"} {
+		t.Run(route, func(t *testing.T) {
+			c := newBoardCast(t)
+			s := NewServer("view", NewFakeBrowser(), time.Second, c.hub, nil).WithBoard(c.bd).WithPointer("point")
+			old := c.bd.AnnotationCapability().Generation
+			if err := c.bd.SetAnnotationAllowed(context.Background(), false); err != nil {
+				t.Fatal(err)
+			}
+			if err := c.bd.SetAnnotationAllowed(context.Background(), true); err != nil {
+				t.Fatal(err)
+			}
+			// Current-generation work must still succeed after re-enable.
+			fresh := httptest.NewRequest(http.MethodPost, "/point/note", strings.NewReader(noteBody(1, c.p.ID, 0)))
+			fresh.Header.Set("Content-Type", "application/json")
+			fresh.Header.Set("X-Couch-Annotation-Generation", fmt.Sprint(c.bd.AnnotationCapability().Generation))
+			answer := httptest.NewRecorder()
+			s.ServeHTTP(answer, fresh)
+			if answer.Code != http.StatusNoContent {
+				t.Fatalf("fresh note: %d %s", answer.Code, answer.Body.String())
+			}
+			for _, generation := range []string{fmt.Sprint(old), "", "bogus"} {
+				body := &capabilityBody{Reader: strings.NewReader(`{}`)}
+				r := httptest.NewRequest(http.MethodPost, "/point/"+route, body)
+				r.Header.Set("Content-Type", "application/json")
+				r.Header.Set("X-Couch-Annotation-Generation", generation)
+				w := httptest.NewRecorder()
+				s.ServeHTTP(w, r)
+				if w.Code != http.StatusForbidden || body.reads != 0 {
+					t.Fatalf("generation=%q: code=%d reads=%d", generation, w.Code, body.reads)
+				}
+			}
+		})
+	}
+}
+
+func TestDriveGenerationRejectsPreIngressAcrossOffOn(t *testing.T) {
+	for _, op := range []string{"request", "release", "input"} {
+		t.Run(op, func(t *testing.T) {
+			f := newDriveFixture(t, time.Minute)
+			id, key := f.hello(t, "Ana")
+			old := f.ctrl.DriveCapability().Generation
+			if err := f.ctrl.SetDriveAllowed(context.Background(), false); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.ctrl.SetDriveAllowed(context.Background(), true); err != nil {
+				t.Fatal(err)
+			}
+			if op != "request" {
+				if err := f.ctrl.Request(key); err != nil {
+					t.Fatal(err)
+				}
+				if err := f.ctrl.Grant(id); err != nil {
+					t.Fatal(err)
+				}
+			}
+			before := len(f.stream.Records())
+			route, body := "control", `{"op":"`+op+`"}`
+			if op == "input" {
+				route, body = "input", f.click("q")
+			}
+			for _, gen := range []string{fmt.Sprint(old), "", "bad"} {
+				r := httptest.NewRequest(http.MethodPost, "/drv/drive/"+route, strings.NewReader(body))
+				r.Header.Set("Content-Type", "application/json")
+				r.Header.Set(drive.SeatHeader, key)
+				r.Header.Set("X-Couch-Drive-Generation", gen)
+				w := httptest.NewRecorder()
+				f.srv.ServeHTTP(w, r)
+				if w.Code != http.StatusForbidden {
+					t.Fatalf("%s gen%q accepted: %d %s", op, gen, w.Code, w.Body.String())
+				}
+			}
+			if len(f.stream.Records()) != before {
+				t.Fatal("retired generation changed recording")
+			}
+			if code, body := f.post(route, key, body); code != http.StatusNoContent {
+				t.Fatalf("fresh generation: %d %s", code, body)
+			}
+		})
 	}
 }

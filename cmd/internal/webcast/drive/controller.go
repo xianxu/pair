@@ -33,6 +33,7 @@ type Controller interface {
 	SetDriveAllowed(context.Context, bool) error
 	RetryDrive(context.Context) error
 	AdmitDrive() (DriveAdmission, error)
+	AdmitDriveGeneration(uint64) (DriveAdmission, error)
 	// Join gives a new viewer a seat. name is the viewer's own label.
 	Join(name string) (Seat, error)
 	// Attach marks a seat present for the life of one viewer stream (the

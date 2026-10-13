@@ -18,10 +18,18 @@ type DriveAdmission struct {
 }
 
 func (f *MemController) AdmitDrive() (DriveAdmission, error) {
+	return f.admitDrive(nil)
+}
+
+// AdmitDriveGeneration binds a browser operation to its originating authority.
+func (f *MemController) AdmitDriveGeneration(generation uint64) (DriveAdmission, error) {
+	return f.admitDrive(&generation)
+}
+func (f *MemController) admitDrive(generation *uint64) (DriveAdmission, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	p, ok := f.authority.Permit()
-	if !ok || f.closed || f.busy != nil {
+	if !ok || f.closed || f.busy != nil || (generation != nil && *generation != f.authority.Generation) {
 		return DriveAdmission{}, ErrDriveUnavailable
 	}
 	return DriveAdmission{f, p}, nil

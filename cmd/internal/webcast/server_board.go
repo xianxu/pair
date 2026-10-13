@@ -6,6 +6,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -112,7 +113,12 @@ func (s *Server) boardRoute(w http.ResponseWriter, r *http.Request, rest string,
 		return true
 	}
 	var err error
-	admission, err = s.board.board.AdmitAnnotation()
+	generation, parseErr := strconv.ParseUint(r.Header.Get("X-Couch-Annotation-Generation"), 10, 64)
+	if parseErr != nil {
+		http.Error(w, refuseAnnotationOff, http.StatusForbidden)
+		return true
+	}
+	admission, err = s.board.board.AdmitAnnotationGeneration(generation)
 	if err != nil {
 		status, text := boardAnswer(err)
 		http.Error(w, text, status)

@@ -8,7 +8,7 @@ function harness() {
  const root=new Element('body'), box=new Element('box'),bar=new Element('bar');bar.className='bar';root.append(box,bar);
  const doc={body:root,createElement:tag=>new Element(tag),getElementById:()=>box,querySelector:s=>root.querySelector(s)};
  const timers=new Map(), posts=[];let serial=0, caps={annotation:{allowed:false},drive:{allowed:false}}, receiveCaps=[],receive=[];
- const win={innerWidth:100,crypto:{getRandomValues:b=>b.fill(1)},performance:{now:()=>100},requestAnimationFrame:()=>{},addEventListener:()=>{},setTimeout:fn=>{timers.set(++serial,fn);return serial;},clearTimeout:id=>timers.delete(id),setInterval:fn=>{timers.set(++serial,fn);return serial;},clearInterval:id=>timers.delete(id),fetch:async(url,init)=>{posts.push({url,body:init?.body});return {ok:true,status:204,json:async()=>({palette:['#ff0000'],annotate:true}),text:async()=>''};}};
+ const win={innerWidth:100,crypto:{getRandomValues:b=>b.fill(1)},performance:{now:()=>100},requestAnimationFrame:()=>{},addEventListener:()=>{},setTimeout:fn=>{timers.set(++serial,fn);return serial;},clearTimeout:id=>timers.delete(id),setInterval:fn=>{timers.set(++serial,fn);return serial;},clearInterval:id=>timers.delete(id),fetch:async(url,init)=>{posts.push({url,body:init?.body,headers:init?.headers});return {ok:true,status:204,json:async()=>({palette:['#ff0000'],annotate:true}),text:async()=>''};}};
  const v={model:{seg:1,docSeg:1,live:true,notes:[]},onCapabilities:fn=>{receiveCaps.push(fn);fn(caps);},onRecord:fn=>receive.push(fn),toPage:(x,y)=>[x,y],fromPage:(x,y)=>[x,y],nodeAt:()=>7,boxOf:()=>[0,0,100,100]};
  return {root,box,doc,win,v,posts,timers,caps(a,d,g=1){caps={annotation:{allowed:a,state:a?'on':'off',generation:g},drive:{allowed:d,state:d?'on':'off',generation:g}};for(const fn of receiveCaps)fn(caps);},rec(r){for(const fn of receive)fn(r,v.model);},async event(el,k,extra={}){for(const fn of el.listeners[k]||[])await fn({target:el,pointerId:1,pointerType:'mouse',clientX:30,clientY:30,preventDefault(){},...extra});}};
 }
@@ -32,16 +32,19 @@ test('late annotation mount takes latest permission; off cancels stroke and hold
 });
 test('drive off drops queued input and requires fresh consent after enable',async()=>{
  const h=harness();let release;
- h.win.fetch=async(url,init)=>{h.posts.push({url,body:JSON.parse(init.body)});if(url==='drive/input')return new Promise(r=>release=r);return {status:204,text:async()=>''};};
+ h.win.fetch=async(url,init)=>{h.posts.push({url,body:JSON.parse(init.body),headers:init.headers});if(url==='drive/input')return new Promise(r=>release=r);return {status:204,text:async()=>''};};
  const ui=mountDrive(h.doc,h.win,h.v,{viewer:'me',key:'key'});
  await ui.control('request');assert.equal(h.posts.length,0,'default off posted');
  h.caps(false,true);await ui.control('request');h.rec({k:'ctl',op:'grant',driver:{id:'me'},pending:[]});assert.equal(ui.view().capture,true);
  const keys=h.root.querySelector('.drive-keys');keys.value='first';await h.event(keys,'input');keys.value='queued';await h.event(keys,'input');
+ const old=h.posts.slice();assert.ok(old.length>=2);for(const p of old)assert.equal(p.headers['X-Couch-Drive-Generation'],'1');
  h.caps(false,false,2);assert.equal(ui.view().capture,false);assert.equal(keys.focused,false);
  h.caps(false,true,3);assert.equal(ui.view().capture,false,'old grant revived');
  release({status:403,text:async()=> 'old refusal'});await Promise.resolve();await Promise.resolve();for(const fn of [...h.timers.values()])fn();
  assert.equal(h.posts.filter(p=>p.url==='drive/input').length,1,'queued input escaped');
- await ui.control('request');h.rec({k:'ctl',op:'grant',driver:{id:'me'},pending:[]});assert.equal(ui.view().capture,true);
+ await ui.control('request');assert.equal(h.posts.at(-1).headers['X-Couch-Drive-Generation'],'3');for(const p of old)assert.equal(p.headers['X-Couch-Drive-Generation'],'1');
+ h.rec({k:'ctl',op:'grant',driver:{id:'me'},pending:[]});assert.equal(ui.view().capture,true);
+ await ui.control('release');assert.equal(h.posts.at(-1).headers['X-Couch-Drive-Generation'],'3');
 });
 
 test('drive disconnect at the same generation can resume its existing grant',async()=>{
@@ -62,4 +65,22 @@ test('current grant reaches initial and reconnect viewers in either SSE order',(
  h.caps(false,true,3);assert.equal(ui.view().capture,true,'reconnect grant before capability lost');
  h.caps(false,false,4);h.rec({k:'ctl',driver:{id:'me'},pending:[]});h.caps(false,true,5);
  assert.equal(ui.view().capture,false,'prior generation revived');
+});
+
+test('annotation request carries originating generation and clear cancels held gesture before capability arrives',async()=>{
+ const h=harness();h.caps(true,false,11);const ui=await mountAnnotate(h.doc,h.win,h.v);
+ ui.setMode('point');const layer=h.root.querySelector('.annotate');
+ await h.event(layer,'pointerdown');await h.event(layer,'pointermove',{clientX:40});
+ for(const fn of [...h.timers.values()])fn();
+ const request=h.posts.find(p=>p.url==='stroke');assert.ok(request);
+ assert.equal(request.headers['X-Couch-Annotation-Generation'],'11');
+ const before=h.posts.length;h.rec({k:'annotation-clear',t:10});
+ assert.equal(ui.mode,'watch');assert.equal(layer.captured,null);
+ await h.event(layer,'pointermove',{clientX:50});await h.event(layer,'pointerup');
+ for(const fn of [...h.timers.values()])fn();assert.equal(h.posts.length,before);
+ h.caps(true,false,13);assert.equal(request.headers['X-Couch-Annotation-Generation'],'11');
+ ui.who.setName('Viewer');ui.dialog.draft({seg:1,node:7,box:[0,0,1,1],region:[0,0,10,10]});
+ const input=h.root.querySelector('.note-input');input.value='fresh save';await h.event(input,'input');
+ await h.event(h.root.querySelector('.note-buttons').children.at(-1),'click');
+ assert.equal(h.posts.at(-1).headers['X-Couch-Annotation-Generation'],'13');
 });

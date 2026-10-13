@@ -155,6 +155,13 @@ func TestOperatorLiveAnnotation(t *testing.T) {
 		t.Fatal("permission projection did not settle")
 	}
 	waitPermission(true)
+	var deliveredGeneration string
+	if err := json.Unmarshal(eval(`globalThis.__couchcastAnnotationDelivery.generation`), &deliveredGeneration); err != nil {
+		t.Fatal(err)
+	}
+	if deliveredGeneration != strconv.FormatUint(bd.AnnotationCapability().Generation, 10) {
+		t.Fatalf("operator received wrong authority generation: %s", deliveredGeneration)
+	}
 	if err = bd.SetAnnotationAllowed(context.Background(), false); err != nil {
 		t.Fatal(err)
 	}

@@ -82,6 +82,7 @@ test('operator transport retries the same mutation by status even after draft ed
   const sent = [], timers = new Map(); let n = 0;
   const win = { setTimeout(fn) { timers.set(++n, fn); return n; }, clearTimeout(id) { timers.delete(id); } };
   const t = operatorTransport((m) => sent.push(m.request), win);
+  t.setAnnotationGeneration('1');
   const first = t.mutate('save-note', {draft:'d',text:'one',color:0});
   timers.values().next().value();
   assert.equal((await first).status, 409);
@@ -174,6 +175,7 @@ for (const previous of ['save-note', 'resolve']) {
     const sent=[], timers=new Map(); let serial=0;
     const win={setTimeout(fn){timers.set(++serial,fn);return serial;},clearTimeout(id){timers.delete(id);}};
     const transport=operatorTransport(m=>sent.push(m.request),win);
+  transport.setAnnotationGeneration('1');
     const first=transport.mutate(previous,previous==='save-note'?{draft:'A',text:'old',color:0}:{seg:1,id:'old-note',state:'resolved'});
     timers.values().next().value();
     assert.equal((await first).status,409);
@@ -261,15 +263,47 @@ for (const coalesced of [false,true]) test(`operator permission clears browser s
  win.__couchcastOperatorView({revision:1,seg:1,doc:1,t:0,notes:[],strokes:[]});
  assert.equal(root.querySelector('.mode').disabled,true);
  win.__couchcastAnnotationAllowed(true);
+ assert.equal(root.querySelector('.mode').disabled,true); // missing generation never enables
+ win.__couchcastAnnotationAllowed(true,'1');
  ui.dialog.draft({draft:'held'});
  root.querySelector('.note-input').value='keep this draft';
  win.__couchcastOperatorView({revision:2,seg:1,doc:1,t:0,notes:[],strokes:[{seq:1,id:'viewer.pen',t:0,color:'#f00',pts:[[1,2,0]]}]});
  assert.equal(ui.strokes.visible(100).length,1);
- if (!coalesced) win.__couchcastAnnotationAllowed(false);
+ if (!coalesced) win.__couchcastAnnotationAllowed(false,'2');
  win.__couchcastOperatorView({revision:3,seg:1,doc:1,t:0,notes:[],strokes:[]});
- win.__couchcastAnnotationAllowed(true);
+ win.__couchcastAnnotationAllowed(true,'3');
  ui.setMode('point');
  assert.equal(ui.strokes.visible(100).length,0);
  assert.equal(ui.dialog.open,true);
  assert.equal(root.querySelector('.note-input').value,'keep this draft');
+});
+
+test('operator mutation retains originating generation across delayed delivery and reconciliation', async () => {
+ const sent=[],timers=new Map(); let serial=0;
+ const win={setTimeout(fn){timers.set(++serial,fn);return serial;},clearTimeout(id){timers.delete(id);}};
+ const transport=operatorTransport(m=>sent.push(m.request),win);
+ transport.setAnnotationGeneration('9007199254740993');
+ const pending=transport.mutate('save-note',{draft:'held',color:0,text:'text'});
+ assert.equal(sent[0].generation,'9007199254740993');
+ transport.setAnnotationGeneration('9007199254740995');
+ timers.values().next().value();
+ await pending;
+ const retry=transport.mutate('save-note',{draft:'held',color:0,text:'text'});
+ assert.equal(sent[1].op,'status');
+ assert.equal(sent[1].generation,'9007199254740993');
+ transport.reply({request:sent[1].request,outcome:'refused'});
+ await retry;
+ const fresh=transport.mutate('save-note',{draft:'held',color:0,text:'text'});
+ assert.equal(sent[2].generation,'9007199254740995');
+ transport.reply({request:sent[2].request,outcome:'accepted'});
+ await fresh;
+});
+
+for (const generation of [undefined,null,1,'01','-1','18446744073709551616','']) test(`operator transport fails closed for invalid originating generation ${generation}`,async()=>{
+ const sent=[];
+ const t=operatorTransport(m=>sent.push(m.request),{setTimeout(){throw Error('invalid request queued');},clearTimeout(){}});
+ assert.equal(t.setAnnotationGeneration(generation),false);
+ const result=await t.ask('stroke',{seg:1,id:'pen',color:0,pts:[[1,2,0]]});
+ assert.equal(result.outcome,'refused');
+ assert.equal(sent.length,0);
 });

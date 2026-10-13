@@ -63,7 +63,13 @@ func (c *boardCast) flush(t *testing.T) {
 
 func post(t *testing.T, url, contentType, body string) (int, string) {
 	t.Helper()
-	resp, err := castClient.Post(url, contentType, strings.NewReader(body))
+	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", contentType)
+	req.Header.Set("X-Couch-Annotation-Generation", "1")
+	resp, err := castClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}

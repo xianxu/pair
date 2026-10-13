@@ -284,10 +284,10 @@ func (r *Recorder) Send(in any) {
 // results. False once closing.
 func (r *Recorder) enqueue(in any, bounded bool) bool {
 	// Board is a leaf lock; capture before queue ownership. A binding waiting
-	// across Off/On must retain its original admission generation.
+	// across Off/On must retain its originating generation, even before ingress.
 	if e, ok := in.(Event); ok && r.opts.Operator != nil {
 		if _, req, operator := operatorMessage(e); operator && req.Op != "status" && req.Op != "cancel-draft" {
-			e.annotation, _ = r.opts.Operator.AdmitAnnotation()
+			e.annotation, _ = r.opts.Operator.AdmitAnnotationGeneration(req.Generation)
 			in = e
 		}
 	}

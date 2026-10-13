@@ -34,6 +34,7 @@ type OperatorResolve struct {
 }
 type OperatorRequest struct {
 	Op, Request string
+	Generation  uint64
 	Prepare     *OperatorPrepare
 	Save        *OperatorSave
 	Stroke      *StrokeIn
@@ -43,17 +44,29 @@ type OperatorRequest struct {
 
 // ParseOperatorRequest accepts only the closed operator command union. Attribution
 // is absent from the wire and is assigned by OperatorSession after CDP admission.
+// Mutation generation is the canonical decimal uint64 the isolated client saw
+// when it created the request, never an authority assigned on arrival.
 func ParseOperatorRequest(body []byte) (OperatorRequest, error) {
 	var raw struct {
-		Op      *string         `json:"op"`
-		Request *string         `json:"request"`
-		Body    json.RawMessage `json:"body"`
+		Op         *string         `json:"op"`
+		Generation *string         `json:"generation"`
+		Request    *string         `json:"request"`
+		Body       json.RawMessage `json:"body"`
 	}
 	fail := func() (OperatorRequest, error) { return OperatorRequest{}, ErrShape }
-	if len(body) > MaxOperatorBody || !decodeOperator(body, &raw, "op request body") || raw.Op == nil || raw.Request == nil || !idPattern.MatchString(*raw.Request) || len(raw.Body) == 0 || bytes.Equal(bytes.TrimSpace(raw.Body), []byte("null")) {
+	if len(body) > MaxOperatorBody || !decodeOperator(body, &raw, "op request generation body") || raw.Op == nil || raw.Request == nil || !idPattern.MatchString(*raw.Request) || len(raw.Body) == 0 || bytes.Equal(bytes.TrimSpace(raw.Body), []byte("null")) {
 		return fail()
 	}
 	out := OperatorRequest{Op: *raw.Op, Request: *raw.Request}
+	if raw.Generation != nil {
+		generation, err := strconv.ParseUint(*raw.Generation, 10, 64)
+		if err != nil || strconv.FormatUint(generation, 10) != *raw.Generation {
+			return fail()
+		}
+		out.Generation = generation
+	} else if out.Op != "status" && out.Op != "cancel-draft" {
+		return fail()
+	}
 	switch out.Op {
 	case "prepare-note":
 		var v struct {

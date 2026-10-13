@@ -1556,3 +1556,8 @@ proof; record the surprising case so the next change starts from evidence.
   operations must await admission or their own completion receipt. Always defer
   release of a held test barrier before an assertion can fail, so failure reports
   remain visible instead of hanging fixture teardown.
+
+- #523 M2 review: ingress is already too late to assign revocable authority.
+  Carry request-creation generation across the browser/network boundary and test
+  delayed-before-ingress payloads as well as already-queued writes. Audit sibling
+  mutation routes (request, release and input) for the same temporal gap.

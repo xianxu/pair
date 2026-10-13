@@ -13,19 +13,19 @@ import (
 
 func TestOperatorParserClosedShapes(t *testing.T) {
 	good := []string{
-		`{"op":"prepare-note","request":"r1","body":{"seg":1,"path":[0,-1,2],"box":[0,0,10,10],"region":[1,1,5,5]}}`,
-		`{"op":"save-note","request":"r2","body":{"draft":"d1","color":0,"text":"hello"}}`,
-		`{"op":"stroke","request":"r3","body":{"seg":1,"id":"s","color":0,"pts":[[0,0,0]]}}`,
-		`{"op":"resolve","request":"r4","body":{"seg":1,"id":"n","state":"resolved"}}`,
-		`{"op":"cancel-draft","request":"r5","body":{"draft":"d1"}}`,
-		`{"op":"status","request":"r2","body":{}}`,
+		`{"generation":"1","op":"prepare-note","request":"r1","body":{"seg":1,"path":[0,-1,2],"box":[0,0,10,10],"region":[1,1,5,5]}}`,
+		`{"generation":"1","op":"save-note","request":"r2","body":{"draft":"d1","color":0,"text":"hello"}}`,
+		`{"generation":"1","op":"stroke","request":"r3","body":{"seg":1,"id":"s","color":0,"pts":[[0,0,0]]}}`,
+		`{"generation":"1","op":"resolve","request":"r4","body":{"seg":1,"id":"n","state":"resolved"}}`,
+		`{"generation":"1","op":"cancel-draft","request":"r5","body":{"draft":"d1"}}`,
+		`{"generation":"1","op":"status","request":"r2","body":{}}`,
 	}
 	for _, s := range good {
 		if _, err := ParseOperatorRequest([]byte(s)); err != nil {
 			t.Errorf("valid %s: %v", s, err)
 		}
 	}
-	bad := []string{`null`, `{}`, `{"op":"status","request":"r","body":{"author":"operator"}}`, `{"op":"prepare-note","request":"r","body":{"seg":1,"path":[-2],"box":[0,0,1,1],"region":[0,0,1,1]}}`, `{"op":"stroke","request":"r","body":{"seg":1,"id":"s","color":0,"pts":[[0,0,null]]}}`, `{"op":"save-note","request":"r","body":{"draft":"d","color":0,"text":" "}}`}
+	bad := []string{`null`, `{}`, `{"generation":"1","op":"status","request":"r","body":{"author":"operator"}}`, `{"generation":"1","op":"prepare-note","request":"r","body":{"seg":1,"path":[-2],"box":[0,0,1,1],"region":[0,0,1,1]}}`, `{"generation":"1","op":"stroke","request":"r","body":{"seg":1,"id":"s","color":0,"pts":[[0,0,null]]}}`, `{"generation":"1","op":"save-note","request":"r","body":{"draft":"d","color":0,"text":" "}}`}
 	for _, s := range bad {
 		if _, err := ParseOperatorRequest([]byte(s)); err == nil {
 			t.Errorf("accepted %s", s)
@@ -234,7 +234,7 @@ func TestOperatorViewWallTimeAndClose(t *testing.T) {
 	}
 }
 func FuzzOperatorParser(f *testing.F) {
-	f.Add([]byte(`{"op":"status","request":"1","body":{}}`))
+	f.Add([]byte(`{"generation":"1","op":"status","request":"1","body":{}}`))
 	f.Fuzz(func(t *testing.T, b []byte) {
 		v, err := ParseOperatorRequest(b)
 		if err == nil {
@@ -250,10 +250,10 @@ func FuzzOperatorParser(f *testing.F) {
 
 func TestOperatorParserRejectsAmbiguousKeys(t *testing.T) {
 	for _, raw := range []string{
-		`{"op":"status","op":"status","request":"1","body":{}}`,
+		`{"generation":"1","op":"status","op":"status","request":"1","body":{}}`,
 		`{"Op":"status","request":"1","body":{}}`,
-		`{"op":"save-note","request":"1","body":{"draft":"d","color":0,"text":"one","text":"two"}}`,
-		`{"op":"save-note","request":"1","body":{"Draft":"d","color":0,"text":"one"}}`,
+		`{"generation":"1","op":"save-note","request":"1","body":{"draft":"d","color":0,"text":"one","text":"two"}}`,
+		`{"generation":"1","op":"save-note","request":"1","body":{"Draft":"d","color":0,"text":"one"}}`,
 	} {
 		if _, err := ParseOperatorRequest([]byte(raw)); err == nil {
 			t.Errorf("accepted ambiguous input: %s", raw)
@@ -394,5 +394,24 @@ func TestOperatorProjectionClearsTransientStrokes(t *testing.T) {
 	}
 	if len(r.bd.OperatorView().Strokes) != 0 {
 		t.Fatal("clear left operator stroke replay")
+	}
+}
+
+func TestOperatorGenerationRequiresCanonicalUint64String(t *testing.T) {
+	for _, generation := range []string{``, `,"generation":null`, `,"generation":1`, `,"generation":"01"`, `,"generation":"-1"`, `,"generation":"18446744073709551616"`, `,"generation":""`} {
+		body := `{"op":"stroke","request":"1","body":{"seg":1,"id":"pen","color":0,"pts":[[1,2,0]]}` + generation + `}`
+		if _, err := ParseOperatorRequest([]byte(body)); err == nil {
+			t.Fatalf("admitted generation %s", generation)
+		}
+	}
+	body := `{"op":"stroke","request":"1","generation":"18446744073709551615","body":{"seg":1,"id":"pen","color":0,"pts":[[1,2,0]]}}`
+	req, err := ParseOperatorRequest([]byte(body))
+	if err != nil || req.Generation != ^uint64(0) {
+		t.Fatalf("lost uint64 precision: %+v %v", req, err)
+	}
+	for _, body := range []string{`{"op":"status","request":"1","body":{}}`, `{"op":"cancel-draft","request":"1","body":{"draft":"held"}}`} {
+		if _, err := ParseOperatorRequest([]byte(body)); err != nil {
+			t.Fatalf("reconciliation needs no grant: %v", err)
+		}
 	}
 }

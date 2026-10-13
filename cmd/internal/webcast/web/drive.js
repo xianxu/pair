@@ -66,8 +66,8 @@ export async function joinSeat(fetchFn, name) {
 }
 
 // seatPoster posts to a drive route with the seat's key: {status, text}.
-export function seatPoster(fetchFn, key) {
-  const post = poster(fetchFn, DRIVE_ROUTES, { [SEAT_HEADER]: key });
+export function seatPoster(fetchFn, key, generation) {
+  const post = poster(fetchFn, DRIVE_ROUTES, { [SEAT_HEADER]: key, 'X-Couch-Drive-Generation': String(generation) });
   return (route, body) => post(`drive/${route}`, body).then((r) => ({ status: r.status, text: r.text.trim() }));
 }
 const DRIVE_ROUTES = ['drive/control', 'drive/input'];
@@ -342,7 +342,7 @@ export function driveView(ctl, me, { live = true, lost = false, allowed = true, 
 // joinSeat gave (null: nothing mounts).
 export function mountDrive(doc, win, v, seat) {
   if (!seat) return null;
-  const post = seatPoster((url, init) => win.fetch(url, init), seat.key);
+  const postAt = (g) => seatPoster((url, init) => win.fetch(url, init), seat.key, g);
   const el = (tag, cls, parent) => { const e = doc.createElement(tag); if (cls) e.className = cls; parent?.append(e); return e; };
   const bar = doc.querySelector('.bar');
   const button = el('button', 'drive-button', bar);
@@ -390,6 +390,7 @@ export function mountDrive(doc, win, v, seat) {
     layer.classList.toggle('on', view.capture);
     doc.body.classList.toggle('driving', driving(view.state));
     if (driving(view.state) && !batch) {
+      const post = postAt(generation);
       batch = batcher({ send: (b) => post('input', b), seg: () => v.model.seg, later: (fn, ms) => win.setTimeout(fn, ms), now: () => win.performance.now(), refused });
       v.annotate?.setMode('watch'); // pointing and notes wait while driving
     } else if (!driving(view.state) && batch) {
@@ -408,7 +409,7 @@ export function mountDrive(doc, win, v, seat) {
     if (!allowed || !['request', 'release'].includes(op)) return Promise.resolve();
     const started = epoch;
     if (op === 'request') consent = true;
-    return post('control', { op }).then((r) => {
+    return postAt(generation)('control', { op }).then((r) => {
       if (started !== epoch) return;
       if (r.status !== 204) { if (op === 'request') consent = false; refused(r.status, r.text); }
     }, () => { if (started === epoch) say("Couldn't reach the cast."); });

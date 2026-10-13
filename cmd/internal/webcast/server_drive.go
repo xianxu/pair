@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -149,7 +150,12 @@ func (s *Server) driveRoute(w http.ResponseWriter, r *http.Request, rest string,
 		d.answer(w, drive.ErrNoSeat)
 		return true
 	}
-	admission, err := d.ctrl.AdmitDrive()
+	generation, err := strconv.ParseUint(r.Header.Get("X-Couch-Drive-Generation"), 10, 64)
+	if err != nil {
+		d.answer(w, drive.ErrDriveUnavailable)
+		return true
+	}
+	admission, err := d.ctrl.AdmitDriveGeneration(generation)
 	if err != nil {
 		d.answer(w, err)
 		return true

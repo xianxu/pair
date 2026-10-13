@@ -33,6 +33,21 @@ func (b *Board) WithAnnotationCleanup(fn AnnotationCleanup) *Board {
 func (b *Board) AdmitAnnotation() (AnnotationAdmission, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	return b.admitAnnotationLocked()
+}
+
+// AdmitAnnotationGeneration binds externally originated work to the authority
+// observed by its sender, rather than granting fresh authority on arrival.
+func (b *Board) AdmitAnnotationGeneration(expected uint64) (AnnotationAdmission, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if expected != b.annotation.Generation {
+		return AnnotationAdmission{}, ErrDisabled
+	}
+	return b.admitAnnotationLocked()
+}
+
+func (b *Board) admitAnnotationLocked() (AnnotationAdmission, error) {
 	if b.closed {
 		return AnnotationAdmission{}, ErrClosed
 	}

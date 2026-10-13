@@ -125,6 +125,7 @@ func (c *driveCast) viewer(t *testing.T, name string) string {
 	post := func(route, key, body string) *http.Response {
 		req, _ := http.NewRequest(http.MethodPost, c.link+"drive/"+route, strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Couch-Drive-Generation", fmt.Sprint(c.cast().Capabilities().Drive.Generation))
 		if key != "" {
 			req.Header.Set(drive.SeatHeader, key)
 		}

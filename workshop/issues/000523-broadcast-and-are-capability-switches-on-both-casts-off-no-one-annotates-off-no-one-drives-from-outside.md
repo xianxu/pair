@@ -91,6 +91,24 @@ Durable plan: [000523-cast-capability-switches-plan.md](../plans/000523-cast-cap
 
 ## Log
 
+### 2026-10-13 — M2 review BR-5/BR-6 repair
+
+- M2 boundary returned REWORK: BR-5 identified a genuine pre-ingress gap.
+  A browser request created before Off could arrive after On and receive a
+  fresh permit. Operator envelopes and viewer annotation/drive HTTP mutations
+  now carry their origin generation; leaf authority admission matches it
+  atomically, and existing ordered-dispatch checks remain. Missing/malformed
+  generations fail closed. Annotation-clear also cancels held viewer gestures.
+- Regression tests rejected old/missing/bad annotation and drive generations
+  after Off/On, including a fresh same-seat grant. Operator stroke/prepare/save/
+  resolve tests fail under a mutation restoring ingress-time authority. Fresh
+  held-draft saves remain available. Focused and full webcast package race tests,
+  Couch packages, all 158 viewer Node tests and 46 operator Node tests passed.
+  Headless TestOperatorLiveAnnotation passed (1.700s). Full suite rerun pending.
+- BR-6 plan revision now names the existing single-worker 250ms unresolved
+  permission-delivery retry timer, its ACK/context/shutdown exits and bounded
+  calls; notifications may reconcile sooner. It never retries capability cleanup.
+
 ### 2026-10-13 — Final verification before M2 review
 
 - Fresh make test passed from pair:7 after merging current main and fixing the

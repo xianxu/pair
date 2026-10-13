@@ -51,12 +51,13 @@ func (p *operatorPermission) want(generation uint64, active, allowed bool, next 
 		return
 	}
 	p.generation, p.active, p.desired = generation, active, allowed
+	p.revision = next()
 	if p.phase != operatorPermissionFencing {
-		p.revision, p.phase = next(), operatorPermissionPending
+		p.phase = operatorPermissionPending
 	}
 }
-func operatorPermissionExpression(revision uint64, allowed bool) string {
-	return fmt.Sprintf(`(()=>{const hook=globalThis.__couchcastAnnotationAllowed;if(typeof hook!=='function')return null;const revision=%q;const previous=globalThis.__couchcastAnnotationDelivery;if(!previous||BigInt(revision)>BigInt(previous.revision)){hook(%t);globalThis.__couchcastAnnotationDelivery={revision,allowed:%t};}return globalThis.__couchcastAnnotationDelivery;})()`, strconv.FormatUint(revision, 10), allowed, allowed)
+func operatorPermissionExpression(revision, generation uint64, allowed bool) string {
+	return fmt.Sprintf(`(()=>{const hook=globalThis.__couchcastAnnotationAllowed;if(typeof hook!=='function')return null;const revision=%q;const previous=globalThis.__couchcastAnnotationDelivery;if(!previous||BigInt(revision)>BigInt(previous.revision)){hook(%t,%q);globalThis.__couchcastAnnotationDelivery={revision,generation:%q,allowed:%t};}return globalThis.__couchcastAnnotationDelivery;})()`, strconv.FormatUint(revision, 10), allowed, strconv.FormatUint(generation, 10), strconv.FormatUint(generation, 10), allowed)
 }
 func (c *Chrome) deliverOperatorPermission(target operatorTarget, p *operatorPermission, next func() uint64) {
 	if p.phase == operatorPermissionReady {
@@ -66,17 +67,18 @@ func (c *Chrome) deliverOperatorPermission(target operatorTarget, p *operatorPer
 	var result struct {
 		Result struct {
 			Value *struct {
-				Revision string `json:"revision"`
-				Allowed  bool   `json:"allowed"`
+				Revision   string `json:"revision"`
+				Generation string `json:"generation"`
+				Allowed    bool   `json:"allowed"`
 			} `json:"value"`
 		} `json:"result"`
 		Exception json.RawMessage `json:"exceptionDetails"`
 	}
 	ctx, cancel := context.WithTimeout(c.ctx, callTimeout)
-	err := c.conn.Call(ctx, target.session, "Runtime.evaluate", map[string]any{"contextId": target.context, "returnByValue": true, "expression": operatorPermissionExpression(p.revision, allowed)}, &result)
+	err := c.conn.Call(ctx, target.session, "Runtime.evaluate", map[string]any{"contextId": target.context, "returnByValue": true, "expression": operatorPermissionExpression(p.revision, p.generation, allowed)}, &result)
 	cancel()
 	receipt := result.Result.Value
-	if err == nil && len(result.Exception) == 0 && receipt != nil && receipt.Revision == strconv.FormatUint(p.revision, 10) && receipt.Allowed == allowed {
+	if err == nil && len(result.Exception) == 0 && receipt != nil && receipt.Revision == strconv.FormatUint(p.revision, 10) && receipt.Allowed == allowed && receipt.Generation == strconv.FormatUint(p.generation, 10) {
 		if p.phase == operatorPermissionFencing && p.desired {
 			p.revision, p.phase = next(), operatorPermissionPending
 		} else {
@@ -104,6 +106,10 @@ func (c *Chrome) startOperator(b *board.Board) {
 		defer c.work.Done()
 		defer cancel()
 		defer cancelPermissions()
+		// One worker and one 250ms timer reconcile unacknowledged contexts; normal
+		// notifications may reconcile sooner. Each call has callTimeout, with no
+		// overlapping delivery goroutines. ACK disables timer selection; context
+		// disappearance prunes state, and cast shutdown stops worker and ticker.
 		retry := time.NewTicker(250 * time.Millisecond)
 		defer retry.Stop()
 		states := map[operatorContextID]*operatorPermission{}

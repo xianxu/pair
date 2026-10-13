@@ -572,6 +572,12 @@ token. A pointer-link viewer counts under `web view`.
 
 Seats are memory only; they die with the cast.
 
+**Capability provenance (#523).** Mutating annotation POSTs require
+`X-Couch-Annotation-Generation`; drive control/input POSTs require
+`X-Couch-Drive-Generation`, alongside the seat key. Each is the decimal generation
+from the capability snapshot at request creation. Missing, malformed or retired
+generations answer 403. Taking a seat remains available while drive is off.
+
 **Control.** `POST <cast>/drive/control` `{"op":"request"}` or `{"op":"release"}`, with the seat key. The operator
 grants, denies and revokes from Couch (`Controller.Grant`, `Deny`, `Revoke`). `Revoke` never waits on a viewer: it
 takes control back in any state, including mid-batch, and does nothing when nobody drives. Every change is a `ctl`
