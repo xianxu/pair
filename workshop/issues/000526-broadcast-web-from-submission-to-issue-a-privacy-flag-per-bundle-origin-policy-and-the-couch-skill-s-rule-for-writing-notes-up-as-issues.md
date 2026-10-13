@@ -64,3 +64,7 @@ Hub confirmed top-level `privacy` and `privacy_rule`, an operator-edited local e
 ### 2026-10-13 — approved plan; invalid policy must not strand submission
 
 Hub approved commit `5738858e62f3ab31716f641a7f1af8de87db4fa1` with the operator's no-limbo correction. This supersedes decision 3, the partial-JSON failure wording, and task 2's refusal expectation: missing policy remains private; unreadable, oversized or invalid policy makes every origin private, preserves submission/delivery, records `privacy_rule: "invalid policy file: <reason>"`, and emits a Couch notice naming the policy file. Reasons are bounded safe categories, never raw policy content. Valid matched rules remain objects, unmatched defaults null; the typed rule representation must support the explicit invalid-policy string variant and validate that it occurs only with private. Tests must prove successful preparation/delivery and the notice on these failure paths. No estimate until the plan-quality gate passes.
+
+### 2026-10-13 — plan-quality revision
+
+PQ-1 addressed with named risky-function strategies instead of prose case inventories; PQ-2 corrected operator-owned retention versus admission capacity. Full plan-quality rerun required before implementation.
