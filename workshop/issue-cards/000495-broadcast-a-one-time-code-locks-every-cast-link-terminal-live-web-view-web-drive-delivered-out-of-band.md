@@ -1,6 +1,6 @@
 ---
 id: 000495
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours: 8.05
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 20ae28ee57f3a54b9210f45bef8974d0e524adb0
         evidence_commit: 27c28ece6bc5175781042a7f17d34f4761b59716
+        landed_commit: dd5225422d6a126096b77741c7b4658ff8b7408d
 ---
 
 # broadcast: a one-time code locks every cast link (terminal LIVE, web view, web drive); delivered out of band
