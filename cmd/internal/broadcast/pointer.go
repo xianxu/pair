@@ -14,13 +14,16 @@ import (
 // critical section, so "off" and "no notes" are one state. mu is a leaf lock:
 // nothing called while holding it takes mu or waits on another goroutine.
 type PointerState struct {
-	mu      sync.Mutex
-	token   string
-	on      bool
-	gen     uint64 // bumped on every flip; a late watch report names the gen it saw
-	stopped bool   // the broadcast ended: pointing can't be turned on again
-	limit   *RateLimit
-	changed chan struct{} // closed and replaced on every flip
+	mu    sync.Mutex
+	token string
+	// mintLock makes the pointer link's code lock (pair#495) in the same
+	// step as its token, so the link is never routable unlocked.
+	mintLock func(token string) error
+	on       bool
+	gen      uint64 // bumped on every flip; a late watch report names the gen it saw
+	stopped  bool   // the broadcast ended: pointing can't be turned on again
+	limit    *RateLimit
+	changed  chan struct{} // closed and replaced on every flip
 	// inFlight is a semaphore: a request holds a slot while it is read and
 	// handled.
 	inFlight chan struct{}
@@ -34,8 +37,8 @@ type PointerState struct {
 	noteLimit    *RateLimit
 }
 
-func newPointerState() *PointerState {
-	return &PointerState{limit: NewRateLimit(PointRatePerSec, PointRatePerSec), changed: make(chan struct{}),
+func newPointerState(mintLock func(token string) error) *PointerState {
+	return &PointerState{mintLock: mintLock, limit: NewRateLimit(PointRatePerSec, PointRatePerSec), changed: make(chan struct{}),
 		inFlight: make(chan struct{}, MaxPointInFlight), notesChanged: make(chan struct{}),
 		noteLimit: NewRateLimit(NoteRatePerSec, NoteBurst)}
 }
@@ -90,6 +93,11 @@ func (p *PointerState) set(on bool, mint func() (string, error)) (string, bool, 
 		token, err := mint()
 		if err != nil {
 			return "", false, err
+		}
+		if p.mintLock != nil {
+			if err := p.mintLock(token); err != nil {
+				return "", false, err
+			}
 		}
 		p.token = token
 	}

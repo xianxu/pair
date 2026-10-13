@@ -1,6 +1,8 @@
 package webcast
 
 import (
+	"github.com/xianxu/pair/cmd/internal/castlock"
+
 	"bufio"
 	"bytes"
 	"encoding/json"
@@ -73,6 +75,10 @@ func ReplayLink(base, id string, t int64) string {
 }
 
 func (s *ReplayServer) Owns(segment string) bool { return broadcast.OwnsToken(segment, s.token) }
+
+// LockFor is nil: replay links are served without a code for now; they are
+// read-only recordings, and locking them is a follow-up to pair#495.
+func (s *ReplayServer) LockFor(string) *castlock.Lock { return nil }
 
 func (s *ReplayServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	broadcast.SetSecurityHeaders(w.Header(), contentSecurityPolicy)

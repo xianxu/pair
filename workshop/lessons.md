@@ -7,6 +7,13 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- A late asynchronous report is checked against whether its source is still live, not against a counter that only
+  moves on the next start. #495's rotation callback compared the cast's start attempt, which an ended cast keeps until
+  a new one begins, so a report after the end still passed. Test the window where the source has ended and nothing
+  has replaced it. (#495 BR-23)
+- A writer that turns text into terminal cells measures by grapheme width, never by rune count, in its layout and
+  its drawing alike. One wide character (an emoji in a label) otherwise yields a frame that fails validation, and the
+  whole paint is dropped silently. Test a drawn surface with a wide character in it. (#495)
 - A runbook or atlas page states what was measured, not what was hoped: #496's page first called the scratch volume
   "the fix" although its own series showed no fseventsd CPU drop. Write the measured outcome, including the null result,
   in the same commit as the mechanism. On macOS, `mktemp` without a template ignores `$TMPDIR` and is denied in the
