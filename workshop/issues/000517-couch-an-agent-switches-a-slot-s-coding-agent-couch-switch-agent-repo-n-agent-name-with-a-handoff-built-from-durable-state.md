@@ -195,6 +195,57 @@ Durable plan: [agent switch plan](../plans/000517-agent-switch-plan.md).
   scoped and cannot correlate an outgoing callback alone. Plan now specifies
   `--request ID` plus exact source identity and names risk-focused test seams.
 
+### 2026-10-12 22:06 PDT — restart observation and read-only launch-prompt audit
+
+TL receipt 44f6e16b-3d81-48d4-af1c-9d5fe1a3eeb5 was verified submitted,
+from ops:0 to this pair:2 incarnation, with the exact instruction body.
+**M2 is ON HOLD** while the operator rethinks agent switching; the continuation's
+NEXT ACTION is context only and does not authorize further implementation.
+This restart again began with an empty composer and no automatic orientation
+(TL-reported UI observation; this session's first task arrived as that peer
+message). The TL again supplied the continuation path manually. No cause is
+established by that observation.
+
+Read-only local CLI measurements (version/help; no agent conversation launched
+or resumed) show these advertised interactive command surfaces:
+
+| Installed agent | Fresh initial prompt | Existing conversation plus prompt |
+| --- | --- | --- |
+| Claude Code 2.1.296 | `claude 'PROMPT'` | `claude --resume SESSION_ID 'PROMPT'` |
+| Codex CLI 0.162.1 | `codex 'PROMPT'` | `codex resume SESSION_ID 'PROMPT'` |
+| Grok 1.0.50 (c58f321264ba) | `grok 'PROMPT'` | `grok --resume SESSION_ID 'PROMPT'` |
+
+Codex's resume help explicitly lists both positional arguments. Claude and
+Grok expose the prompt positional and resume option in the same command;
+their combination is supported by the advertised CLI grammar, but actual
+submission on resume was not exercised. Headless print/single-turn flags are
+not needed for the interactive positional prompt. These observations do not
+prove a prompt is merely prefilled versus submitted or acknowledged live.
+
+Pair's public parser forwards everything after its first `--` into AgentArgs
+(`cmd/internal/launcher/args.go:141`). Thus `pair claude -- 'PROMPT'`,
+`pair codex -- 'PROMPT'`, and `pair grok -- 'PROMPT'` can carry fresh prompts;
+resume forms likewise fit after that separator. `composeResumeArgs` prepends
+Codex's resume subcommand and inserts Claude/Grok resume flags before an inner
+`--`; inline/session flags also preserve that prompt boundary
+(`agentargs.go:172`). `createflow.go:807` encodes the final argv in
+PAIR_AGENT_COMMAND; `wrapcmd/wrap.go:2819` decodes it as exact arguments.
+Saved config strips session selectors, not prompt text, so supplying a
+one-time prompt as ordinary saved argv can replay it on later launches.
+
+Continuation text currently follows a separate path: `createflow.go:780`
+seeds the draft; optional fresh-launch orientation uses an environment request
+and the wrapper's composer-gated terminal delivery (`wrapcmd/orientation.go`).
+Neither is automatically appended as a CLI prompt. The capability exists at
+the argv seam, but this audit neither changes that policy nor proves it would
+fix the observed restart. ARCH-DRY: any future design should account for the
+existing exact-argv owner rather than adding another quoting transport.
+
+Existing launcher tests TestComposeResumeArgsOrdering,
+TestPairInsertedTokensPrecedeDoubleDash and TestStripHelpersStopAtDoubleDash
+passed with `-count=1`; wrapper TestLaunchEnvCommandExactArguments also passed.
+No source changes or live slot operations were made.
+
 ## Revisions
 
 - 2026-10-12 21:34 PDT — TL approved the one-action recovery interpretation with
