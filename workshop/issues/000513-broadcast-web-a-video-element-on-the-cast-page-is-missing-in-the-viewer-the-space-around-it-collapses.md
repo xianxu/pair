@@ -15,6 +15,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "c448eb7e", done: "480d7b03"}
 ---
 
 # broadcast-web: a video element on the cast page is missing in the viewer (the space around it collapses)
