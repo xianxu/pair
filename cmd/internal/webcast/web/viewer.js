@@ -10,6 +10,7 @@
 import { Model } from './model.js';
 import { Renderer } from './render.js';
 import { mountAnnotate, identityStore } from './annotate.js';
+import { mountPlaceholders } from './placeholders.js';
 import { joinSeat, mountDrive } from './drive.js';
 import { replayPath, mountReplay } from './replay.js';
 import { sessionLost } from './collab.js';
@@ -158,7 +159,7 @@ export function mount(doc, win) {
   const shell = {
     renderer: (model) => new Renderer(frame(), model, resolveAsset),
     show: render,
-    frame: () => { layout(); drawPointer(); },
+    frame: () => { layout(); drawPointer(); win.couchViewer?.placeholders?.draw(); },
     schedule: (fn) => win.requestAnimationFrame(fn),
   };
   // A recording (#471) plays from its records; a cast follows its stream,
@@ -194,6 +195,9 @@ export function mount(doc, win) {
     canonical: () => v.renderer.canonical(),
     ready: async () => { await started; await v.loaded; return v.renderer.ready(); }, // a replay first loads its records
     boxOf: (id) => v.renderer.boxOf(id),
+    // uncaptured: the drawn elements whose content the recording can't
+    // hold (pair#513), as [{id, kind}].
+    uncaptured: () => v.renderer.uncaptured(),
     nodeAt: (x, y) => v.renderer.nodeAt(x, y),
     toPage: (clientX, clientY) => {
       const r = box.getBoundingClientRect();
@@ -211,6 +215,7 @@ export function mount(doc, win) {
   };
   const surface = { ...win.couchViewer, get model() { return v.model; }, get seat() { return seat; }, get annotate() { return win.couchViewer.annotate; } };
   started.then(() => {
+    win.couchViewer.placeholders = mountPlaceholders(doc, win, win.couchViewer);
     // Pointing and notes (#470), when the cast takes them; remote driving
     // (#467), when it offers a seat.
     mountAnnotate(doc, win, surface).then((a) => { win.couchViewer.annotate = a; });
