@@ -1,12 +1,12 @@
 ---
 id: 000521
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: 'dbb6e478f6afc6be3b9c744aa5414c8450ff9669' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '2c7b3d4694a70e69ff94ac85b5ac8cda92f89083' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T21:51:05-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "49889759", done: "8024e07e"}
+actual_hours: 0.61
 ---
 
 # couch: draw the hub's tab in inverted colours, like a bookmark
