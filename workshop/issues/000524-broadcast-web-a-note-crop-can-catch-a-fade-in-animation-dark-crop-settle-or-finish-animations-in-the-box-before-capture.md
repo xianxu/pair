@@ -32,18 +32,20 @@ Find why the card was still faded at capture (measure first: does the CDP captur
 
 - The operator's blog card crop shows its text at full opacity; a test page with a fade-in on intersection reproduces the dark crop before the fix and passes after; a capture that can't settle is marked.
 
+- Responsive fades already finished before capture stay finished with the same animation identity; capture itself emits no induced viewport change. A mutation restoring captureBeyondViewport=true fails the pixel/timeline regression.
+- Approved viewport policy is enforced: partial crops carry their actual box and clipped_to_viewport, fully offscreen notes keep context with outside-viewport unavailable, and no page scrolling/style forcing occurs.
+- Finite, delayed, paused/infinite and open-shadow animations produce validated settled/unsettled evidence under 1500 ms/note, 50 ms polls, 512 animations/20k traversal and 30 s total; old bundles remain readable as unknown.
+
 ## Plan
 
 - [x] Measure the original bundle/recording and reproduce in a separate bounded headless Chrome.
 - [x] Obtain TL approval of the measured design and viewport-only crop policy below.
-- [ ] Add deterministic animation/capture regressions; implement bounded settling and unchanged-viewport screenshot capture.
-- [ ] Verify metadata propagation, navigation/cancellation, real-browser pixels, full suite and docs; close, then stage only on TL instruction.
+- [x] Add deterministic animation/capture regressions; implement bounded settling and unchanged-viewport screenshot capture.
+- [ ] Verify metadata propagation, navigation/cancellation, real-browser pixels, full suite and docs.
 
 Detailed proposal: [animation capture plan](../plans/000524-animation-capture-plan.md).
 
 ## Log
-
-### 2026-10-12
 
 ### 2026-10-12 — capture-time restart measured
 
@@ -55,12 +57,6 @@ A direct Page.captureScreenshot A/B changed only captureBeyondViewport, with fro
 
 Probe logs: /tmp/pair524-probe/blog.log and flags.log; measurement-only Go overlays live beside them. Synthetic finite-delay probe also showed that still-running fades legitimately produce black pixels before finishing, so bounded settling remains useful after removing the capture-induced restart. No product code changed.
 
-## Revisions
-
-- 2026-10-12 — Measured cause revises the initial hypothesis: the screenshot path restarts an already-finished responsive fade. Proposed design avoids viewport-changing capture, then waits boundedly for relevant finite animations. Proposed viewport intersection and explicit offscreen-unavailable policy require TL approval before implementation; see the durable plan. ARCH-PURPOSE: fix the capture-induced restart rather than adding a sleep before it.
-
-- 2026-10-12 22:56 PDT — TL approved the full proposal (receipt 5992b8ba-8060-42e0-949a-d52fc973ae69): captureBeyondViewport=false, 1500 ms/note with 50 ms polling and 512-animation cap inside 30 s, explicit settled/unsettled, viewport-intersected crops/clipped_to_viewport, outside-viewport unavailable with recorded context retained. No forced styles or scrolling. change-code admitted implementation.
-
 ### 2026-10-12 — first implementation verification
 
 Implemented unchanged-viewport screenshots, synchronous bounded animation observations with Go-owned polling, clipped/offscreen evidence, and strict settlement schema/propagation. Targeted schema/recorder/builder/webcast packages pass; existing headless crop coordinate/conformance test passes (1.70 s). New capture option test failed on true before the fix. Fractional CSS box regression exposed spurious clipping from subtraction rounding; unchanged axes now retain their original dimensions. New responsive animation browser fixture and mutation checks are next. #494 notified that its pending branch wraps the screenshot with CaptureScreenshot; preserve that helper if it lands before #524.
@@ -68,3 +64,20 @@ Implemented unchanged-viewport screenshots, synchronous bounded animation observ
 ### 2026-10-12 — real-browser regression and mutation
 
 The new responsive fade fixture confirms the fix preserves the completed CSSAnimation identity/startTime and bright pixels. Mutation overlay restoring captureBeyondViewport=true failed because animation identity changed to a new running fade. Conformance also corrected two test/model assumptions: Chrome reports one 800 ms finite endTime as 799.9999999999999 (assert finished/progress instead of a rounded constant), and document.getAnimations excludes open-shadow animations. Implement explicit bounded open-shadow-root enumeration; the approved scope already includes these roots.
+
+### 2026-10-12 — final bounded browser evidence
+
+TestLiveSubmissionCaptureReady passes in 2.91 s: finished responsive fade identity/pixels, naturally completed finite and open-shadow animations, irrelevant infinite animation, in-box infinite metadata, viewport clip and fully offscreen unavailable. Existing TestLiveSubmissionCrop passed in 1.70 s. The isolated localhost blog production-path check passes in 3.52 s: actual box [0.4,282.2,863.6,138.7], clipped=true, settled, 19891 bright pixels, opacity stays 1 and animation startTime stays unchanged. Measurement logs remain /tmp/pair524-probe/blog-fixed.log and flags.log. Mutation reverting the screenshot option fails the live test on restarted animation identity; mutation dropping settlement propagation fails Cast tests. Latest main (#506) merged cleanly; serial full suite now running with GOMAXPROCS=2 and all nested Go package parallelism limited to 1.
+
+## Revisions
+
+- 2026-10-12 — Measured cause revises the initial hypothesis: the screenshot path restarts an already-finished responsive fade. Proposed design avoids viewport-changing capture, then waits boundedly for relevant finite animations. Proposed viewport intersection and explicit offscreen-unavailable policy require TL approval before implementation; see the durable plan. ARCH-PURPOSE: fix the capture-induced restart rather than adding a sleep before it.
+
+- 2026-10-12 22:56 PDT — TL approved the full proposal (receipt 5992b8ba-8060-42e0-949a-d52fc973ae69): captureBeyondViewport=false, 1500 ms/note with 50 ms polling and 512-animation cap inside 30 s, explicit settled/unsettled, viewport-intersected crops/clipped_to_viewport, outside-viewport unavailable with recorded context retained. No forced styles or scrolling. change-code admitted implementation.
+
+
+- 2026-10-12 — Done-when refined to spell out the approved viewport policy, measured responsive-restart regression and metadata/scope bounds. Original goal remains; no new feature scope.
+
+## Shipment handoff
+
+Close through SDLC after verified automated evidence; stage only on TL instruction, then land after acceptance and report to the hub. #494 screenshot-suppression integration remains the second lander's responsibility.
