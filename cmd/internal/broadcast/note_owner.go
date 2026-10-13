@@ -15,6 +15,14 @@ const OperatorNoteOwner = "operator"
 
 type noteOwnerKey struct{}
 
+// The lock closes revoked synchronously when its session generation ends.
+// Keep that proof with the owner so delayed requests cannot use stale authority
+// while the gate's cancellation goroutine is still waiting to run.
+type noteOwnerProof struct {
+	owner   string
+	revoked <-chan struct{}
+}
+
 func sessionNoteOwner(session string) string {
 	sum := sha256.Sum256([]byte("couch-note-owner\x00" + session))
 	return hex.EncodeToString(sum[:])
@@ -23,6 +31,11 @@ func sessionNoteOwner(session string) string {
 // NoteOwnerFromContext returns the owner supplied after cookie validation.
 // Requests outside the gate have no owner; body/header claims cannot set it.
 func NoteOwnerFromContext(ctx context.Context) string {
-	owner, _ := ctx.Value(noteOwnerKey{}).(string)
-	return owner
+	proof, _ := ctx.Value(noteOwnerKey{}).(noteOwnerProof)
+	select {
+	case <-proof.revoked:
+		return ""
+	default:
+		return proof.owner
+	}
 }

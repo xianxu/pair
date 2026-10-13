@@ -70,7 +70,7 @@ func gate(w http.ResponseWriter, r *http.Request, segment, rest string, l *castl
 				w.WriteHeader(http.StatusNoContent)
 				return nil, nil
 			}
-			ctx, cancel := context.WithCancel(context.WithValue(r.Context(), noteOwnerKey{}, owner))
+			ctx, cancel := context.WithCancel(context.WithValue(r.Context(), noteOwnerKey{}, noteOwnerProof{owner: owner, revoked: revoked}))
 			go func() {
 				select {
 				case <-revoked:

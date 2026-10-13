@@ -74,3 +74,16 @@ func TestNoteOwnerCannotBeClaimedByRequest(t *testing.T) {
 		t.Fatal("unneeded owner header on stream")
 	}
 }
+
+func TestNoteOwnerRevocationIsSynchronous(t *testing.T) {
+	revoked := make(chan struct{})
+	// A live parent context deliberately has no cancellation goroutine.
+	ctx := context.WithValue(context.Background(), noteOwnerKey{}, noteOwnerProof{owner: "owner", revoked: revoked})
+	if NoteOwnerFromContext(ctx) != "owner" {
+		t.Fatal("live proof missing")
+	}
+	close(revoked)
+	if NoteOwnerFromContext(ctx) != "" {
+		t.Fatal("revoked proof retained authority")
+	}
+}

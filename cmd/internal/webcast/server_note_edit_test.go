@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/cookiejar"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -81,5 +82,68 @@ func TestWebNoteEditUsesCookieNotPublicIdentity(t *testing.T) {
 	}
 	if status, body := request(clients[0], "note-edit", edit); status != 403 {
 		t.Fatalf("fresh session edited previous session's note: %d %s", status, body)
+	}
+}
+
+type rotateWebNoteBody struct {
+	io.Reader
+	rotate func()
+}
+
+func (b *rotateWebNoteBody) Read(p []byte) (int, error) {
+	if b.rotate != nil {
+		f := b.rotate
+		b.rotate = nil
+		f()
+	}
+	return b.Reader.Read(p)
+}
+
+func TestWebNoteEditRefusesRotationDuringBodyRead(t *testing.T) {
+	c := newBoardCast(t)
+	locks := &broadcast.LinkLocks{}
+	if err := locks.Mint("pointer", "tok", 4, nil); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(locks.End)
+	srv := NewServer("view", NewFakeBrowser(), time.Second, c.hub, nil).WithBoard(c.bd).WithPointer("tok").WithLocks(locks)
+	host := broadcast.NewHost(broadcast.HostConfig{Tunnel: &broadcast.FakeTunnel{}, ProbeTimeout: time.Second})
+	mt, err := host.Mount(context.Background(), srv, "tok/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(mt.Unmount)
+	unlock := httptest.NewRequest(http.MethodPost, "/tok/unlock", strings.NewReader(fmt.Sprintf(`{"code":%q}`, locks.LockFor("tok").Code())))
+	unlock.Header.Set("Content-Type", "application/json")
+	uw := httptest.NewRecorder()
+	host.ServeHTTP(uw, unlock)
+	cookies := uw.Result().Cookies()
+	if uw.Code != 200 || len(cookies) != 1 {
+		t.Fatalf("unlock: %d", uw.Code)
+	}
+	request := func(route string, body io.Reader) *httptest.ResponseRecorder {
+		r := httptest.NewRequest(http.MethodPost, "/tok/"+route, body)
+		r.Header.Set("Content-Type", "application/json")
+		r.Header.Set("X-Couch-Annotation-Generation", "1")
+		r.AddCookie(cookies[0])
+		w := httptest.NewRecorder()
+		host.ServeHTTP(w, r)
+		return w
+	}
+	if w := request("note", strings.NewReader(noteBody(1, c.p.ID, 0))); w.Code != 204 {
+		t.Fatalf("create: %d %s", w.Code, w.Body.String())
+	}
+	original := c.bd.Live()[0]
+	body := &rotateWebNoteBody{Reader: strings.NewReader(fmt.Sprintf(`{"seg":1,"id":%q,"text":"late"}`, original.ID)), rotate: func() {
+		if _, err := locks.LockFor("tok").Rotate(); err != nil {
+			t.Fatal(err)
+		}
+	}}
+	w := request("note-edit", body)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("revoked edit: %d %s", w.Code, w.Body.String())
+	}
+	if got := c.bd.Live()[0].Text; got != original.Text {
+		t.Fatalf("revoked edit changed note: %q", got)
 	}
 }

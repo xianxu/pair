@@ -3,9 +3,13 @@ package broadcast
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
+	"time"
 )
 
 func TestTerminalNoteEditOwnSessionOnly(t *testing.T) {
@@ -140,5 +144,56 @@ func TestTerminalResolutionRetentionAndEditGeneration(t *testing.T) {
 	p.stop()
 	if len(s.Resolutions()) != 0 {
 		t.Fatal("cast end retained history")
+	}
+}
+
+// rotateNoteBody holds back the body until the already-admitted session is
+// revoked. No cancellation-goroutine scheduling is needed to trigger the race.
+type rotateNoteBody struct {
+	io.Reader
+	rotate func()
+}
+
+func (b *rotateNoteBody) Read(p []byte) (int, error) {
+	if b.rotate != nil {
+		f := b.rotate
+		b.rotate = nil
+		f()
+	}
+	return b.Reader.Read(p)
+}
+
+func TestTerminalNoteEditRefusesRotationDuringBodyRead(t *testing.T) {
+	p := onPointer(t)
+	l, err := NewLinkLock(4, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	session, _ := l.Unlock(time.Now(), l.Code())
+	n, err := p.addNote(Note{Box: CellBox{3, 1, 2, 1}, Text: "original", Owner: sessionNoteOwner(session)}, 40, 4, p.generation())
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := &rotateNoteBody{Reader: strings.NewReader(fmt.Sprintf(`{"id":%d,"text":"late"}`, n.ID)), rotate: func() {
+		if _, err := l.Rotate(); err != nil {
+			t.Fatal(err)
+		}
+	}}
+	req := httptest.NewRequest(http.MethodPost, "/"+p.token+"/note-edit", body)
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(&http.Cookie{Name: sessionCookie, Value: session})
+	w := httptest.NewRecorder()
+	admitted, done := gate(w, req, p.token, "note-edit", l, false)
+	if admitted == nil {
+		t.Fatal("initial session admission failed")
+	}
+	defer done()
+	srv := NewServer(ServerOptions{Pointer: p, OnNoteEdit: func(in NoteEditRequest) error { return p.editNote(in, p.generation()) }})
+	srv.ServeHTTP(w, admitted)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("revoked edit: %d %s", w.Code, w.Body.String())
+	}
+	if got := p.board.List()[0].Text; got != "original" {
+		t.Fatalf("revoked edit changed note: %q", got)
 	}
 }
