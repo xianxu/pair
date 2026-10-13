@@ -935,7 +935,7 @@ dies with the broadcast.
 
 `couch --broadcast-list [--json]`, from any shell, lists every link out by kind.
 - **`screen`** is the screen broadcast: its state, start time, mode and viewer count.
-- **`web view`** is the web cast's view link: its state and viewers.
+- **`web view`** is the web cast's view-only and pointer links: their state and viewers.
 - **`web drive`** is the web cast's drive link: its state and viewers, and who drives and how many ask.
 
 It never prints a link or its token, because the token is the link's only credential. While recordings are shared
@@ -1041,10 +1041,19 @@ server, an agent's mock, anything). While it runs the tab bar shows
 `Chrome ▶`; press `Shift+Ctrl+Alt+b` again, click `Chrome ▶`, or press the
 **Go live** button Couch puts at the bottom right of the page, and the active tab
 is cast (`Chrome ⏸`). The same three pause and resume it, and the browser stays
-open while paused. Beside the cell, `↗` brings the cast Chrome window and tab
-to the front, `👆` copies the **view link** and `👽` the **drive link**, on a left or a
-right click (`Chrome ⏸ ↗ 👆 👽`). Right-click the cell to copy the **view link** (watch,
-point, leave notes); `Ctrl`+click (left or right) ends the cast and closes Chrome. Closing Chrome yourself ends the
+open while paused. A web cast has three links, like the screen broadcast
+(#506), each granting more than the one before:
+- right-click the cell for the **view-only link**: its viewers watch, and see
+  others' strokes and notes but can't add any;
+- `👆` copies the **pointer link** (left or right click): its viewers also point
+  and leave and resolve notes;
+- `👽` copies the **drive link** (below; left or right click): its viewers can
+  also ask to drive.
+
+Each link has its own code (hover the cell to see them; Alt+click it for the
+Codes menu, which copies any of the three). Beside the cell, `↗` brings the cast
+Chrome window and tab to the front (`Chrome ⏸ ↗ 👆 👽`). `Ctrl`+click (left or
+right) ends the cast and closes Chrome. Closing Chrome yourself ends the
 cast too. The cast follows whichever tab is active, including tabs opened later.
 Viewers' page shows whether the cast is live and, while it is, the page's title
 and URL; nothing you do while paused reaches them.
@@ -1064,7 +1073,7 @@ While anyone drives:
 - A banner in your tab names the driver.
 - The recording attributes their actions to them (`by`).
 
-The view link never offers driving.
+Only the drive link offers driving; the view-only and pointer links never do.
 
 **Recording (#458).** From the first time you go live, the cast tab is recorded
 to `<couch store>/webcast/recordings/<id>/` (the format is in
@@ -1085,8 +1094,11 @@ the binary to choose another (Couch refuses to start if it doesn't exist).
 record aren't in the recording. The viewer keeps their place at the operator's size and marks each with a dashed
 outline and a label such as "canvas: not captured", so the page never collapses around them.
 
-**Pointing and notes on a web cast (#470).** Anyone with the viewer link can point
-and leave notes; there is no separate pointer link. On the viewer's page, the rail at
+🤖{**Operator annotation in the cast Chrome (#494).** Use the viewer's same ✏️ and 💭 buttons in the cast Chrome to draw or leave a note on the actual page; hover for their tooltips. It starts Off; click the selected icon again or press Escape to turn annotation off. Couch’s Chrome Alt-click menu also offers Annotation · Off · Pen · Note without switching windows. Notes and strokes use the same recording and viewer display, attributed to Operator. While a remote viewer drives, annotations are disabled and an open draft is hidden and held; returning control makes annotation available again with the pen Off. A pause holds the draft, while navigation discards it. All Couch UI is excluded from page recording and hidden during fidelity and submission captures. Broadcast and driving control stay in Couch's cast row. If Couch reports uncertain remote input, close and reopen the cast Chrome to recover its hidden UI. The injected host shares the page DOM and is not a security boundary.}
+
+**Pointing and notes on a web cast (#470).** Anyone with the pointer link (👆) or the
+drive link can point and leave notes; the view-only link can't, and the cast refuses
+its posts ("This link is view-only."). On the viewer's page, the rail at
 the right edge has the six pointer colors, ✏️ (point: draw on the page, everyone sees
 the stroke fade after a moment) and 💭 (note: drag a box around what the note is
 about, or tap for a small box around that spot, then write; on a phone, drag a little
@@ -1149,7 +1161,7 @@ control's link, and `Alt+click` opens the Codes menu (on `LIVE ⏸` and `Chrome 
 | `👆` (screen) | toggle pointing (makes the link the first time) | copy pointer link | — | — |
 | `Chrome ⏸` / `▶` | pause / resume (`Ctrl`+click ends) | copy view-only link | Codes menu | all its codes |
 | `↗` | bring the cast Chrome forward | — | — | — |
-| `👆` (web) | copy view link | copy view link | — | — |
+| `👆` (web) | copy pointer link | copy pointer link | — | — |
 | `👽` | copy drive link | copy drive link | — | — |
 
 With an empty root filter, **Space** toggles the **normal view** and **focus view**.

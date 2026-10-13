@@ -37,6 +37,66 @@ Setup per page (`goSetup`): auto-attach holds each new page before its first doc
 and Page domains, and the script (`runImmediately`) are set up, then the page is released — always, since a page
 left waiting is a frozen tab. Without `Page.enable` the script never reaches the next document.
 
+## Operator annotation (#494)
+
+The cast Chrome uses the viewer's `mountAnnotation` (`web/annotate.js`) and
+`collab.js` dialog, swatches and geometry inside the existing excluded closed
+shadow host. `operator_script.go` assembles these trusted embedded modules into
+isolated-world script scopes; `operator.js` supplies local page coordinates and
+the CDP binding transport. No page-origin HTTP or localStorage is involved.
+Off/Pen/Note start Off. The shared note gesture previews nothing on pointer-down;
+crossing the movement threshold draws a drag box, while a click places its default
+box only on release. The completed box stays visible while its draft is edited.
+A remote driver disables annotations and hides/unfocuses
+an open editor while retaining its draft; control returning leaves the pen Off.
+Navigation discards the draft. Pausing holds it on the same document.
+Couch’s Chrome Alt-click menu adds `Annotation · Off · Pen · Note` below the
+code rows, using their shared layout and hit-testing. It sends the same isolated-world
+mode command without focusing Chrome; a refusal appears in Couch’s notice. Cast-row
+left actions, right-click link copies, and Alt menus only on LIVE/Chrome are unchanged.
+The isolated-world input `__couchcastAnnotationAllowed(boolean)` delegates to the
+shared mount's `setAnnotationAllowed`. It defaults to allowed; false forces Off,
+cancels gestures and hides/holds the operator editor with a disabled hint. Returning
+true leaves the pen Off and does not override driving or pause. View snapshots do
+not reset the input. #523 owns supplying it on each new document, the 👆 switch,
+and authoritative server admission; #494 only exposes this overlay input.
+
+The Board remains the authority (`board/operator.go`, `operator_view.go`): Go
+assigns operator authorship, HTTP cannot claim it, and a bounded latest-value view
+carries current open notes plus recent stroke chunks. The recorder's operator
+adapter accepts only the current top-frame isolated context. Prepare resolves the
+observer's node path once and binds a draft handle to that document and recorded
+node. Save never resolves a potentially moved path again. Writes settle from the
+recorder sink outcome, not enqueue success. A lost reply is checked using the same
+monotonic request ID; an uncertain write cannot create another note. Reconciliation
+can only complete its originating action/body; another draft stays open and unsent.
+Projection document changes (including inactive tabs and cast end) retire pending
+transport state before UI updates, without replaying writes. IDs remain monotonic;
+late replies and resolved continuations cannot settle a newer document’s operation.
+Same-document pause and driving retain reconciliation.
+Operator Escape is captured at the window boundary so a Couch menu selection works
+with page focus unchanged; Off and unavailable modes leave page Escape alone.
+
+`recorder.CaptureScreenshot` hides the entire Couch host with a document-local
+lease, requires confirmation before and after capture, and restores only that
+lease on every exit. Missing/expired confirmation means discard the pixels.
+The periodic fidelity worker and `Recorder.CaptureCrops` submission capture both
+use it. Capture identity and event barriers still protect the submission text/PNG
+interval across navigation and tab changes.
+
+Remote input acquires a non-expiring suppression token before hit testing or
+synthetic dispatch. Confirmed completion releases it. A timeout or dialog that
+leaves execution uncertain retains the target guard across replacement documents,
+refuses further remote batches, and asks the operator in Couch to close/reopen the
+cast Chrome. A new document starts hidden until Couch supplies that target's
+current guard state. UI state updates carry a sequence so late replies cannot
+undo a newer guard. Annotation never delays input to protect an editor: it is
+already off while a viewer drives.
+
+The isolated world protects JavaScript binding identity, not the shared DOM: page
+code can see or remove the host. The host is not a security boundary. Existing
+broadcast/driving controls stay in Couch; #494 adds no browser control authority.
+
 ## The recorder (#458)
 
 `Chrome` starts it when `LaunchOptions.Record` is set, forwards **every** CDP event to it (`Send` never blocks the
@@ -160,9 +220,10 @@ what the viewer's renderer draws at the same moments.
   drawn in `broadcast.LiveSGR`, LIVE's own style, so the two cast indicators read as one family (#501);
   `IndicatorShown` matches LIVE's text, so it doesn't mistake one for the other.
 - **The Chrome group (#501)** follows the screen broadcast's `LIVE ⏸ 👆`: `Chrome ⏸ ↗ 👆 👽 💭N 🕹Ana` (its 👽 is real, `WebcastDriveLinkLabel`; #503 removed the broadcast's placeholder), each button its own
-  `RenderedStatusRow` span (`WebFocus`, `WebViewLink`, `WebDriveLink`), so a click knows which link it copies. The codes
-  show on hovering the cell itself, not these (#495).
-  👆 copies the view link, 👽 the drive link, on a left or right click; a right-click on the cell copies the view-only link (the cast row's rule, #495).
+  `RenderedStatusRow` span (`WebFocus`, `WebPointerLink`, `WebDriveLink`), so a click knows which link it copies. The
+  codes show on hovering the cell itself, not these (#495).
+  👆 copies the pointer link, 👽 the drive link (pair#506), on a left or right click; a right-click on the cell copies
+  the view-only link (the cast row's rule, #495).
   `↗` calls `Browser.Focus`: the real Chrome sends `Target.activateTarget` for the cast tab, then activates its own
   process by PID (`activateProcess`, macOS JXA → `NSRunningApplication`; by PID because the cast Chrome
   shares its bundle id with the operator's own Chrome). Only `Launch` of a windowed Chrome sets the
@@ -175,10 +236,11 @@ what the viewer's renderer draws at the same moments.
     - On the driver's row, "uploads and downloads off while Ana drives", any click takes control back.
     - On an asker's row, a left click grants and a right click denies.
   - **Revoke.** Ctrl with either button on the span revokes, from any state, with the menu open or closed.
-  - **Two links.** Right-click on the Chrome cell copies the view link (watch, point, notes);
-    👽 (left or right click) or the Codes menu copies the drive link, the only one that offers a seat (#495
-    dropped Alt+right-click for it). Shift+click is the
-    terminal's own selection. `couch --broadcast-list` lists `screen`, `web view` and `web drive` shares
+  - **Three links (pair#506).** Right-click on the Chrome cell copies the view-only link (watch), 👆 the pointer link
+    (watch, point, notes; `copyWebcastPointerLink`, "takes no notes" on an unrecorded cast), and 👽 the drive link,
+    the only one that offers a seat; 👆 and 👽 take a left or right click, and the Codes menu (Alt+click on the cell,
+    #495) has a row, code and copy action for each of the three (#495 dropped Alt+right-click). Shift+click is the
+    terminal's own selection. A pointer-link viewer counts as a `web view` viewer. `couch --broadcast-list` lists `screen`, `web view` and `web drive` shares
     (`Console.Shares`, `couchmessage.ShareStatus`), the drive one with who drives and how many ask.
   - **Failures.** A control change that fails says why (`driveFailure`): a race, the cast ended, not recording
     yet, or a failure with its cause.
@@ -192,6 +254,17 @@ what the viewer's renderer draws at the same moments.
 - **Cast:** `webcast.Cast` = Browser + the viewer `Server` mounted on the shared `broadcast.Host`. Chrome comes
   up first; the link opens in the background (`Update.Link` / `LinkErr`). The cast ends when its Browser does;
   viewers get `end`, then the mount goes.
+- **Three links (pair#506):** a cast has a view token, a pointer token (only when recorded: no board, no pointing)
+  and a drive token (#467). `Update` carries `Link`, `PointerLink` and `DriveLink`. Each grants what the one
+  before it does, and more: view watches; pointer also draws strokes and leaves and resolves notes; drive also offers
+  a seat. `castLink` (`webcast/link.go`) is the request's link, from `Server.linkOf` (constant-time token compare),
+  and each route asks it: `annotates()` for the board, `drives()` for the drive routes.
+  - Board POSTs under the view-only link answer 403 "This link is view-only." *before* admission, so they spend no body
+    read, in-flight slot or rate budget.
+  - `palette.json` answers `{palette, annotate}`. Under the view-only link the viewer's `mountAnnotate` (`readPalette`)
+    still draws others' strokes and notes, read-only: the rail never shows and a note opens without Resolve.
+  - A pointer-link stream counts with the view streams in `Server.Viewers()`: only drive-link streams hold a seat.
+  - The terminal cast's pointer link is a phase switched on and off, so the web cast keeps its own fixed-link model.
 - **Shared Host:** `broadcast.Host` (`host.go`) holds one listener, server and tunnel for every cast, opened by the
   first mount and closed after the last, routing by the token in the first path segment (`Mountable.Owns`). A named
   cloudflared tunnel can be claimed once, so the screen broadcast and the web cast must share it. `couchcmd` builds

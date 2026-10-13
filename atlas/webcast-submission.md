@@ -79,6 +79,9 @@ recorded context and has `crop: {"unavailable":"page changed"}` instead of a
 file. Missing recorded elements have explicit unavailable context and retain
 the anchor text. Navigation or tab replacement during capture fails preparation;
 it does not silently drop selected notes or publish a partial bundle.
+`Recorder.CaptureCrops` uses the document-scoped `CaptureScreenshot` helper (#494):
+all injected Couch UI is hidden for each PNG and restored on success or failure.
+Missing suppression confirmation fails preparation without publishing the pixels.
 
 This abbreviated one-note example shows the version-1 manifest fields. The
 target pins the calling thread and launch incarnation; `revision` pins the

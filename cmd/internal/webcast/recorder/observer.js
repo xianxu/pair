@@ -66,6 +66,7 @@
     }
     return n === document ? steps.reverse() : null;
   };
+  globalThis.__couchcastPath = path;
   const target = (e) => (e.composedPath && e.composedPath()[0]) || e.target;
 
   // collect turns coalesced scrolls and the selection into pending items.

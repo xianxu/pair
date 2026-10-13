@@ -25,7 +25,7 @@ func (c *Chrome) setDriving(s *loopState, driver string) {
 	was := s.driver != ""
 	s.driver = driver
 	for session, ctx := range s.contexts {
-		c.goSetControl(session, ctx, s.phase == PhaseLive, driver)
+		c.goSetControl(session, ctx, s.phase == PhaseLive, driver, s.uiGuards[session] != "")
 	}
 	driving := driver != ""
 	if was == driving {

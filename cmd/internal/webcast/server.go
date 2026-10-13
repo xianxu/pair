@@ -16,7 +16,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
-//go:embed web/index.html web/viewer.js web/viewer.css web/model.js web/render.js web/css.js web/annotate.js web/annotate.css web/placeholders.js web/drive.js web/drive.css web/replay.js web/replay.css web/replayer.js web/fidelity.html web/fidelity.js
+//go:embed web/index.html web/viewer.js web/viewer.css web/model.js web/render.js web/css.js web/annotate.js web/annotation-policy.js web/annotate.css web/placeholders.js web/drive.js web/drive.css web/replay.js web/replay.css web/replayer.js web/fidelity.html web/fidelity.js
 var webFS embed.FS
 
 // contentSecurityPolicy: the page runs only its own script, talks only to
@@ -35,8 +35,9 @@ var assets = map[string]struct{ file, contentType string }{
 	"css.js":     {"web/css.js", "text/javascript; charset=utf-8"},
 	// Pointing and notes (#470): this package's module and style, and the
 	// swatches and dialog shared with the terminal viewer.
-	"annotate.js":  {"web/annotate.js", "text/javascript; charset=utf-8"},
-	"annotate.css": {"web/annotate.css", "text/css; charset=utf-8"},
+	"annotation-policy.js": {"web/annotation-policy.js", "text/javascript; charset=utf-8"},
+	"annotate.js":          {"web/annotate.js", "text/javascript; charset=utf-8"},
+	"annotate.css":         {"web/annotate.css", "text/css; charset=utf-8"},
 	// The marks for what the recording can't hold (#513).
 	"placeholders.js": {"web/placeholders.js", "text/javascript; charset=utf-8"},
 	// Remote driving (#467).
@@ -72,7 +73,10 @@ type Server struct {
 	// its own counter, so neither is derived from two reads.
 	viewViewers, driveViewers atomic.Int32
 	board                     *boardRoutes // nil: no pointing or notes (WithBoard)
-	drive                     *driveRoutes // nil: no remote driving (WithDrive)
+	// pointerToken is the pointer link's (pair#506, WithPointer): "" means
+	// the cast has none.
+	pointerToken string
+	drive        *driveRoutes // nil: no remote driving (WithDrive)
 	// locks guard the links (pair#495; WithLocks).
 	locks *broadcast.LinkLocks
 }
@@ -83,7 +87,7 @@ func (s *Server) WithLocks(locks *broadcast.LinkLocks) *Server {
 	return s
 }
 
-// LockFor is the lock guarding segment: the view link's or the drive link's.
+// LockFor is the lock guarding segment: the view-only, pointer or drive link's.
 func (s *Server) LockFor(segment string) *castlock.Lock { return s.locks.LockFor(segment) }
 
 // Presence is told that viewer id's stream opened; leave is called when it
@@ -107,26 +111,20 @@ func NewServer(token string, b Browser, ping time.Duration, live recording.Live,
 // recorder, and until then the proxy answers 404.
 func (s *Server) Assets() *castassets.Proxy { return s.proxy }
 
-// Owns is the Host's routing: this cast answers only its tokens, the view
-// link's and, with remote driving, the drive link's (#467).
+// Owns is the Host's routing: this cast answers only its links' tokens
+// (view, pointer, drive; linkOf).
 func (s *Server) Owns(segment string) bool {
-	return broadcast.OwnsToken(segment, s.token) || s.drivesUnder(segment)
-}
-
-// drivesUnder: segment is the drive link's token. Only that link offers a
-// seat and takes control and input (operator, 10-12): the view link is for
-// watching, pointing and notes.
-func (s *Server) drivesUnder(segment string) bool {
-	return s.drive != nil && broadcast.OwnsToken(segment, s.drive.token)
+	return s.linkOf(segment) != linkNone
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	broadcast.SetSecurityHeaders(w.Header(), contentSecurityPolicy)
 	segment, rest, ok := strings.Cut(strings.TrimPrefix(r.URL.Path, "/"), "/")
+	link := s.linkOf(segment)
 	// The only routes that read a body are the board's (#470) and remote
 	// driving's (#467) POSTs; every
 	// other path is GET-only and never reads one.
-	if r.Method == http.MethodPost && ok && s.Owns(segment) && (s.boardRoute(w, r, rest) || s.driveRoute(w, r, rest, s.drivesUnder(segment))) {
+	if r.Method == http.MethodPost && ok && link != linkNone && (s.boardRoute(w, r, rest, link) || s.driveRoute(w, r, rest, link.drives())) {
 		return
 	}
 	if r.Method != http.MethodGet {
@@ -134,19 +132,21 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if !ok || !s.Owns(segment) {
+	if !ok || link == linkNone {
 		http.NotFound(w, r)
 		return
 	}
 	if rest == "events" {
-		s.events(w, r, s.drivesUnder(segment))
+		// A pointer-link stream counts as a view stream: only the drive
+		// link's streams can hold a seat (pair#506).
+		s.events(w, r, link.drives())
 		return
 	}
 	if hash, ok := strings.CutPrefix(rest, "assets/"); ok {
 		s.proxy.Serve(w, r, hash)
 		return
 	}
-	if s.boardAsset(w, rest) {
+	if s.boardAsset(w, rest, link) {
 		return
 	}
 	serveViewerFile(w, r, rest)
@@ -240,8 +240,8 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request, driveLink bool) 
 	}
 }
 
-// Viewers is how many streams are open, by link: the view link's and the
-// drive link's (#467, `couch --broadcast-list`).
+// Viewers is how many streams are open, by link: the view-only and pointer
+// links' together (pair#506), and the drive link's (#467, `couch --broadcast-list`).
 func (s *Server) Viewers() (view, drive int) {
 	return int(s.viewViewers.Load()), int(s.driveViewers.Load())
 }

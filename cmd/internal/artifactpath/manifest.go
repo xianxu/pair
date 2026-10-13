@@ -693,9 +693,13 @@ var NonArtifactSources = []string{
 	"cmd/internal/webcast/browser.go",
 	"cmd/internal/webcast/cast.go",
 	"cmd/internal/webcast/chrome.go",
+	"cmd/internal/webcast/chrome_operator.go",
+	"cmd/internal/webcast/operator_script.go",
 	"cmd/internal/webcast/chrome_find.go",
 	"cmd/internal/webcast/doc.go",
 	"cmd/internal/webcast/fake.go",
+	// pair#506: which cast link a request came under; tokens in memory only.
+	"cmd/internal/webcast/link.go",
 	"cmd/internal/webcast/publish.go",
 	"cmd/internal/webcast/server.go",
 	// #470: the board's POST routes; they write only through the board.
@@ -742,6 +746,8 @@ var NonArtifactSources = []string{
 	// #470 board: viewers' strokes and notes become records through the
 	// cast's recorder (its Emit); the board writes no files itself.
 	"cmd/internal/webcast/board/board.go",
+	"cmd/internal/webcast/board/operator.go",
+	"cmd/internal/webcast/board/operator_view.go",
 	"cmd/internal/webcast/board/wire.go",
 	"cmd/internal/webcast/board/writer.go",
 	// #471 replay: reads recordings under <store>/webcast/recordings (or a
@@ -800,6 +806,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/webcast/recorder/observe.go",
 	"cmd/internal/webcast/recorder/recorder.go",
 	"cmd/internal/webcast/recorder/side.go",
+	"cmd/internal/webcast/recorder/operator.go",
+	"cmd/internal/webcast/recorder/ui_capture.go",
 	// #466 remote-driving contract: input wire, confinement, control and
 	// injection seams with fakes; seats are memory only, no artifact paths.
 	"cmd/internal/webcast/drive/act.go",

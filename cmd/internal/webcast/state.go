@@ -34,7 +34,9 @@ type Tab struct {
 // State is everything a Browser publishes. HasTab is false while no page is
 // open (a windowless Chrome about to be closed).
 type State struct {
-	Phase  Phase
-	Tab    Tab
-	HasTab bool
+	// Recovery is a concrete operator action after uncertain remote input.
+	Recovery string
+	Phase    Phase
+	Tab      Tab
+	HasTab   bool
 }

@@ -41,18 +41,16 @@ func unlockCastLink(t *testing.T, client *http.Client, s *broadcast.Session, whi
 	}
 }
 
-// unlockWebCast enters the running web cast's codes at its links, through
-// castClient: the view link, and the drive link when there is one.
+// unlockWebCast enters the running web cast's codes at their links, through
+// castClient: the view-only link, and the pointer and drive links when the
+// cast has them (pair#506), each with its own code.
 func unlockWebCast(t *testing.T, con *Console) {
 	t.Helper()
 	con.mu.Lock()
 	cast, u := con.wcast.cast, con.wcast.update
 	con.mu.Unlock()
 	for _, code := range cast.Codes() {
-		link := u.Link
-		if code.Link == broadcast.LinkDrive {
-			link = u.DriveLink
-		}
+		link := u.LinkFor(code.Link)
 		if link == "" {
 			continue
 		}
