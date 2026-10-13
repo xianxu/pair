@@ -152,7 +152,17 @@ what the viewer's renderer draws at the same moments.
   `couchkeys.ActionWebcast` → `HitWebcast`) starts the cast Chrome, then toggles live. The tab bar's
   `WebcastCell` draws `Chrome ▶` / `Chrome ⏸` **after** the screen broadcast's `LIVE ⏸ 👆 💭N`, so the
   broadcast's fixed-column indicator check never moves. Click toggles, right-click copies the link, Ctrl with
-  either button ends (macOS terminals may send Ctrl+left as a right click with the Ctrl bit).
+  either button ends (macOS terminals may send Ctrl+left as a right click with the Ctrl bit). Live, the cell is
+  drawn in `broadcast.LiveSGR`, LIVE's own style, so the two cast indicators read as one family (#501);
+  `IndicatorShown` matches LIVE's text, so it doesn't mistake one for the other.
+- **The Chrome group (#501)** follows the screen broadcast's `LIVE ⏸ 👆`: `Chrome ⏸ ↗ 👆 👽 💭N 🕹Ana` (its 👽 is real, `WebcastDriveLinkLabel`; #503 removed the broadcast's placeholder), each button its own
+  `RenderedStatusRow` span (`WebFocus`, `WebPointerLink`, `WebDriveLink`), so a hover can tell them apart (#495).
+  👆 copies the pointer link, 👽 the drive link (pair#506); right-click on the cell copies the view-only link, and
+  Alt+right-click the drive link.
+  `↗` calls `Browser.Focus`: the real Chrome sends `Target.activateTarget` for the cast tab, then activates its own
+  process by PID (`activateProcess`, macOS JXA → `NSRunningApplication`; by PID because the cast Chrome
+  shares its bundle id with the operator's own Chrome). Only `Launch` of a windowed Chrome sets the
+  activator, so headless and scripted-pipe tests can never take the operator's focus.
 - **Remote driving (#467, `couchtty/console_drive.go`):**
   - **The span.** After the Chrome cell and its `💭N` comes a span: `🕹Ana` while Ana drives, `✋Bo` when Bo asks
     (`✋2` for more). It follows `Cast.Drive().Subscribe()`.
@@ -161,9 +171,10 @@ what the viewer's renderer draws at the same moments.
     - On the driver's row, "uploads and downloads off while Ana drives", any click takes control back.
     - On an asker's row, a left click grants and a right click denies.
   - **Revoke.** Ctrl with either button on the span revokes, from any state, with the menu open or closed.
-  - **Two links.** Right-click on the Chrome cell copies the view link (watch, point, notes);
-    Alt (Option)+right-click copies the drive link, the only one that offers a seat. Shift+click is the
-    terminal's own selection. `couch --broadcast-list` lists `screen`, `web view` and `web drive` shares
+  - **Three links (pair#506).** Right-click on the Chrome cell copies the view-only link (watch), 👆 the pointer link
+    (watch, point, notes; `copyWebcastPointerLink`, "takes no notes" on an unrecorded cast), and 👽 or
+    Alt (Option)+right-click the drive link, the only one that offers a seat. Shift+click is the
+    terminal's own selection. A pointer-link viewer counts as a `web view` viewer. `couch --broadcast-list` lists `screen`, `web view` and `web drive` shares
     (`Console.Shares`, `couchmessage.ShareStatus`), the drive one with who drives and how many ask.
   - **Failures.** A control change that fails says why (`driveFailure`): a race, the cast ended, not recording
     yet, or a failure with its cause.

@@ -24,7 +24,7 @@ func (c *Chrome) Opened() bool { return c.rec != nil && c.rec.Opened() }
 // WithTab runs a driver's batch on the recorder's queue.
 func (c *Chrome) WithTab(ctx context.Context, by string, fn func(drive.Tab) error) error {
 	if c.rec == nil {
-		return ErrNotRecording
+		return drive.ErrNotLive // nothing recorded, nothing cast to drive (pair#505: no unmapped error)
 	}
 	return c.rec.WithTab(ctx, by, fn)
 }

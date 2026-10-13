@@ -41,6 +41,10 @@ var (
 	// ErrDialog: the cast tab is showing a JavaScript dialog, which stops
 	// input and the page's script until the operator answers it (#467).
 	ErrDialog = errors.New("drive: the page is showing a dialog")
+	// ErrInput: the tab failed to take an act it was allowed (a CDP input
+	// call or hit test failed). It wraps the cause, for the operator's log;
+	// the viewer is told only that it didn't work (pair#505).
+	ErrInput = errors.New("drive: the cast couldn't take the input")
 )
 
 // confineAll checks a whole batch before anything is dispatched.

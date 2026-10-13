@@ -173,6 +173,13 @@ type RenderedStatusRow struct {
 	// Webcast is the Chrome cell's span (#454); empty when Chrome isn't
 	// running or the cell was clipped.
 	Webcast ColumnSpan
+	// WebFocus is the go-to-Chrome button's span (#501).
+	WebFocus ColumnSpan
+	// WebPointerLink and WebDriveLink are the 👆 and 👽 that copy the pointer and
+	// drive links (#501, pair#506), in the screen broadcast's `LIVE ⏸ 👆` family.
+	// Each is its own span, so a hover can say which link it holds.
+	WebPointerLink ColumnSpan
+	WebDriveLink   ColumnSpan
 	// WebNotes is the web cast's 💭N span (#470).
 	WebNotes ColumnSpan
 	// WebDrive is remote driving's span (#467).
@@ -258,7 +265,7 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 			}
 		}
 	}
-	var webcastSpan, webNotesSpan, webDriveSpan ColumnSpan
+	var webcastSpan, webFocusSpan, webPointerLinkSpan, webDriveLinkSpan, webNotesSpan, webDriveSpan ColumnSpan
 	if label, sgr := webcastLabel(m.Webcast); label != "" {
 		if used > 0 {
 			appendText(" ", "")
@@ -268,6 +275,20 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 		if used > start {
 			webcastSpan = ColumnSpan{Start: start, End: used}
 		}
+		// The go-to-Chrome button and the two link glyphs (#501) sit right
+		// after the cell, at columns that don't move with the note count.
+		button := func(label string) ColumnSpan {
+			appendText(" ", "")
+			start := used
+			appendText(label, "")
+			if used == start {
+				return ColumnSpan{}
+			}
+			return ColumnSpan{Start: start, End: used}
+		}
+		webFocusSpan = button(WebcastFocusLabel)
+		webPointerLinkSpan = button(broadcast.PointerLabel)
+		webDriveLinkSpan = button(WebcastDriveLinkLabel)
 		if m.WebNotes > 0 {
 			appendText(" ", "")
 			start := used
@@ -360,7 +381,7 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 		}
 		appendText(n, "")
 	}
-	return RenderedStatusRow{Body: row.String(), Chips: chips, Control: control, Pointer: pointer, Notes: notes, Webcast: webcastSpan, WebNotes: webNotesSpan, WebDrive: webDriveSpan}
+	return RenderedStatusRow{Body: row.String(), Chips: chips, Control: control, Pointer: pointer, Notes: notes, Webcast: webcastSpan, WebFocus: webFocusSpan, WebPointerLink: webPointerLinkSpan, WebDriveLink: webDriveLinkSpan, WebNotes: webNotesSpan, WebDrive: webDriveSpan}
 }
 
 // WebcastCell is the cast Chrome's state on the tab bar (#454).
@@ -375,12 +396,19 @@ const (
 	WebcastLive
 )
 
-// Chrome cell labels and styles. Distinct from the screen broadcast's
-// LIVE red, which its indicator check reads.
+// Chrome cell labels and styles. Live, it is drawn as the screen
+// broadcast's LIVE cell is (#501), so the two cast indicators read as one
+// family; the broadcast's indicator check matches LIVE's text, not this.
 const (
 	WebcastIdleLabel = "Chrome ▶"
 	WebcastLiveLabel = "Chrome ⏸"
-	webcastLiveSGR   = "\x1b[1;31m"
+	// WebcastFocusLabel is the button that brings the cast Chrome to the
+	// front (#501).
+	WebcastFocusLabel = "↗"
+	// WebcastDriveLinkLabel copies the drive link (#501). The 👆 before it
+	// is the screen broadcast's own PointerLabel; the broadcast has no 👽
+	// since #503 removed its remote-control placeholder.
+	WebcastDriveLinkLabel = "👽"
 	// webDriveSGR: someone else's hands on the operator's tab, in bold.
 	webDriveSGR = "\x1b[1m"
 )
@@ -390,7 +418,7 @@ func webcastLabel(c WebcastCell) (string, string) {
 	case WebcastIdle:
 		return WebcastIdleLabel, ""
 	case WebcastLive:
-		return WebcastLiveLabel, webcastLiveSGR
+		return WebcastLiveLabel, broadcast.LiveSGR
 	}
 	return "", ""
 }

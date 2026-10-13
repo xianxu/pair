@@ -72,7 +72,7 @@ func QuerySessionContext(ctx context.Context, runtime Runtime, scopeKey, tag str
 		return SessionQuery{}, err
 	}
 	query := SessionQuery{Status: BindingUnbound}
-	current, _, ok, diagnostics, err := readOwnerLaunch(ctx, runtime, scopeKey, tag, agent)
+	current, ok, diagnostics, err := readCurrentLaunch(ctx, runtime, scopeKey, tag, agent)
 	query.Diagnostics = diagnostics
 	if err != nil {
 		return SessionQuery{}, err
@@ -365,42 +365,76 @@ func RootTranscript(root Node) (Artifact, error) {
 
 // readOwnerLaunch reads only Pair-owned identity records, never native bodies.
 func readOwnerLaunch(ctx context.Context, runtime Runtime, scopeKey, tag string, agent Agent) (sessionledger.Current, []sessionledger.Record, bool, []Diagnostic, error) {
+	ledger, found, diagnostics, err := findOwnerLedger(ctx, runtime, tag)
+	if err != nil || !found {
+		return sessionledger.Current{}, nil, false, diagnostics, err
+	}
+	current, records, ok, parsed, err := parseOwnerLedger(ctx, runtime, ledger.Artifact, scopeKey, tag, agent)
+	return current, records, ok, append(diagnostics, parsed...), err
+}
+
+// readCurrentLaunch is readOwnerLaunch for a caller that needs only the
+// current launch: through the runtime's OwnerLaunchCache when it has one, so
+// an unchanged ledger is not decoded again (#507).
+func readCurrentLaunch(ctx context.Context, runtime Runtime, scopeKey, tag string, agent Agent) (sessionledger.Current, bool, []Diagnostic, error) {
+	ledger, found, diagnostics, err := findOwnerLedger(ctx, runtime, tag)
+	if err != nil || !found {
+		return sessionledger.Current{}, false, diagnostics, err
+	}
+	cache := ownerLaunchCacheOf(runtime)
+	key := ownerLaunchKey{rootPath: runtime.PairDataRoot().Path, ledger: ledger.Artifact, scopeKey: scopeKey, tag: tag, agent: agent}
+	fingerprint := fingerprintFromEntry(ledger)
+	if hit, ok := cache.get(key, fingerprint); ok {
+		current, cached := hit.answer()
+		return current, hit.ok, append(diagnostics, cached...), nil
+	}
+	current, _, ok, parsed, err := parseOwnerLedger(ctx, runtime, ledger.Artifact, scopeKey, tag, agent)
+	if err != nil {
+		return sessionledger.Current{}, false, diagnostics, err
+	}
+	cache.put(key, ownerLaunchEntry{fingerprint: fingerprint, current: current, ok: ok, diagnostics: parsed})
+	return current, ok, append(diagnostics, parsed...), nil
+}
+
+// findOwnerLedger lists the Pair data root for tag's ledger.
+func findOwnerLedger(ctx context.Context, runtime Runtime, tag string) (FileEntry, bool, []Diagnostic, error) {
 	var diagnostics []Diagnostic
 	pairRoot := runtime.PairDataRoot()
 	files, listErr := runtime.ListFiles(pairRoot)
 	if err := ctx.Err(); err != nil {
-		return sessionledger.Current{}, nil, false, diagnostics, err
+		return FileEntry{}, false, diagnostics, err
 	}
 	var issues *ListingIssuesError
 	if listErr != nil && !errors.As(listErr, &issues) {
-		return sessionledger.Current{}, nil, false, diagnostics, listErr
+		return FileEntry{}, false, diagnostics, listErr
 	}
 	if issues != nil {
 		for _, artifact := range issues.Artifacts {
 			diagnostics = append(diagnostics, artifactDiagnostic(DiagnosticArtifactPathInvalid, "", nil, artifact, "non-regular Pair storage entry rejected"))
 		}
 	}
-	var ledger Artifact
 	for _, file := range files {
 		candidateTag, ok := artifactpath.TagFromHistorySidecar(file.Artifact.RelativePath)
 		if ok && candidateTag == tag && artifactpath.IsLedgerHistorySidecar(file.Artifact.RelativePath) {
-			ledger = file.Artifact
-			break
+			return file, true, diagnostics, nil
 		}
 	}
-	if ledger.RelativePath == "" {
-		return sessionledger.Current{}, nil, false, diagnostics, nil
-	}
+	return FileEntry{}, false, diagnostics, nil
+}
+
+// parseOwnerLedger reads and parses one ledger for the owner's current launch.
+func parseOwnerLedger(ctx context.Context, runtime Runtime, ledger Artifact, scopeKey, tag string, agent Agent) (sessionledger.Current, []sessionledger.Record, bool, []Diagnostic, error) {
 	// Both the ledger and its launch boundary snapshots grow without a writer
-	// size cap. Keep chunked reads without imposing a reader-only cutoff.
+	// size cap (#508). Keep chunked reads without imposing a reader-only cutoff.
 	raw, err := readJSONLArtifact(runtime, ledger, unlimitedRecordSize)
 	if err != nil {
-		return sessionledger.Current{}, nil, false, diagnostics, err
+		return sessionledger.Current{}, nil, false, nil, err
 	}
 	if err := ctx.Err(); err != nil {
-		return sessionledger.Current{}, nil, false, diagnostics, err
+		return sessionledger.Current{}, nil, false, nil, err
 	}
 	parsed := sessionledger.ParseLedger(raw)
+	var diagnostics []Diagnostic
 	for _, ordinal := range parsed.MalformedOrdinals {
 		diagnostics = append(diagnostics, diagnosticWithSource(DiagnosticPairRecordMalformed, agent, nil, fmt.Sprintf("ledger:%s:%d", tag, ordinal), "Pair ledger row is malformed"))
 	}

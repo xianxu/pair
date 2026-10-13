@@ -799,6 +799,10 @@ var NonArtifactSources = []string{
 	"cmd/internal/webcast/server_drive.go",
 	"cmd/internal/webcast/recorder/drive.go",
 	"cmd/internal/webcast/recorder/drive_cdp.go",
+	// #501 go to Chrome: activates the cast Chrome's process by PID. No
+	// files, no paths.
+	"cmd/internal/webcast/activate_darwin.go",
+	"cmd/internal/webcast/activate_other.go",
 	"cmd/internal/ptychild/publication.go",
 	"cmd/internal/ptychild/terminal.go",
 	"cmd/internal/runtimebundle/terminal.go",
@@ -1184,6 +1188,9 @@ var NonArtifactSources = []string{
 	"cmd/internal/sessioninventory/handshake.go",
 	"cmd/internal/sessioninventory/inventory.go",
 	"cmd/internal/sessioninventory/incremental_inventory.go",
+	// #507: owners' current launches cached by ledger fingerprint, in
+	// memory; holds no paths of its own.
+	"cmd/internal/sessioninventory/launch_cache.go",
 	"cmd/internal/sessioninventory/jsonl_incremental.go",
 	"cmd/internal/sessioninventory/model.go",
 	"cmd/internal/sessioninventory/offline.go",

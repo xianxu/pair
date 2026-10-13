@@ -132,7 +132,7 @@ func (c *Console) webcastStarted(attempt uint64, cast *webcast.Cast, err error, 
 	}
 	c.wcast.phase, c.wcast.cast, c.wcast.update = webcastRunning, cast, cast.Current()
 	c.mu.Unlock()
-	c.setNotice("Chrome is open. Press Shift+Ctrl+Alt+b or click Chrome ▶ to go live; right-click it for the viewer link.")
+	c.setNotice("Chrome is open. Press Shift+Ctrl+Alt+b or click Chrome ▶ to go live; right-click the cell for the view-only link, 👆 for the pointer link, 👽 for the drive link; ↗ brings Chrome to the front.")
 	c.syncOverlay(overlayWeb, true) // the notes menu draws in it
 	notes, stopNotes := cast.Notes()
 	c.GoTracked(func() {
@@ -250,6 +250,22 @@ func (c *Console) webcastEnded(cast *webcast.Cast) {
 	}
 }
 
+// focusWebcast is a click on the ↗ button (#501): the operator's own
+// action, so bringing Chrome in front of Couch is the point.
+func (c *Console) focusWebcast() {
+	c.mu.Lock()
+	cast, running := c.wcast.cast, c.wcast.phase == webcastRunning
+	c.mu.Unlock()
+	if !running {
+		return
+	}
+	c.GoTracked(func() {
+		if err := cast.Focus(); err != nil {
+			c.setNotice("Chrome cast: " + err.Error())
+		}
+	})
+}
+
 // copyWebcastLink is a right-click on the Chrome cell: the view-only link,
 // whose viewers watch and see others' notes but can't add any (pair#506).
 // The notice never contains the link: a screen broadcast would draw it to
@@ -262,7 +278,7 @@ func (c *Console) copyWebcastLink() {
 	case !running:
 	case u.Link != "":
 		c.copyLink(u.Link)
-		c.setNotice("Chrome cast view-only link copied: its viewers watch. Alt+right-click for the drive link.")
+		c.setNotice("Chrome cast view-only link copied: its viewers watch. 👆 copies the pointer link, 👽 the drive link.")
 	case u.LinkErr != nil:
 		c.setNotice("Chrome cast viewer link unavailable: " + u.LinkErr.Error())
 	default:
@@ -270,8 +286,8 @@ func (c *Console) copyWebcastLink() {
 	}
 }
 
-// copyWebcastPointerLink copies the pointer link (pair#506), whose viewers
-// also point and leave notes. Like the others, never in the notice.
+// copyWebcastPointerLink is a click on the Chrome group's 👆: the pointer
+// link (pair#506), whose viewers also point and leave notes. Like the others, never in the notice.
 func (c *Console) copyWebcastPointerLink() {
 	c.mu.Lock()
 	u, running := c.wcast.update, c.wcast.phase == webcastRunning
@@ -290,7 +306,8 @@ func (c *Console) copyWebcastPointerLink() {
 	}
 }
 
-// copyWebcastDriveLink is an Alt+right-click on the Chrome cell (#467):
+// copyWebcastDriveLink is a click on the Chrome group's 👽, or an
+// Alt+right-click on the Chrome cell (#467):
 // the drive link, whose viewers can ask to drive the cast tab (the
 // operator still grants). Like the view link, never in the notice.
 func (c *Console) copyWebcastDriveLink() {

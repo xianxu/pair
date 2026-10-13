@@ -521,3 +521,25 @@ func TestChromeCastTabDialog(t *testing.T) {
 	p.send(`{"method":"Target.targetCreated","params":{"targetInfo":{"targetId":"T4","type":"page","url":"https://x/","title":"","openerId":"T1"}}}`)
 	p.expectAll(`|Target.closeTarget|"targetId":"T4"`)
 }
+
+// Focus (#501) activates the cast tab, the active one. A scripted Chrome
+// has no OS activator, so no test here can take the operator's focus.
+func TestChromeFocusActivatesTheCastTab(t *testing.T) {
+	c, p := startPeer(t, nil)
+	p.openPage("T1", "S1")
+	p.expect("S1", "Runtime.runIfWaitingForDebugger")
+	waitState(t, c, "first page", func(s State) bool { return s.Tab.ID == "T1" })
+	if c.activate != nil {
+		t.Fatal("a scripted Chrome got an OS activator")
+	}
+	if err := c.Focus(); err != nil {
+		t.Fatal(err)
+	}
+	if m := p.expect("", "Target.activateTarget"); !strings.Contains(string(m.Params), `"targetId":"T1"`) {
+		t.Fatalf("activated %s", m.Params)
+	}
+	c.Close()
+	if err := c.Focus(); !errors.Is(err, ErrEnded) {
+		t.Fatalf("focus after close: %v", err)
+	}
+}

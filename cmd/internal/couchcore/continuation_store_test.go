@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -252,5 +253,58 @@ func TestRetryAndDismissalSerializeInEitherOrder(t *testing.T) {
 				t.Fatalf("dismissal after retry = %v", err)
 			}
 		})
+	}
+}
+
+// The watcher's scan (#507) reuses a thread's status while its record file is
+// the one it read, and reads again once a write replaces it.
+func TestContinuationRequestsReuseAnUnchangedRecord(t *testing.T) {
+	t.Parallel()
+
+	store, _ := newTestThreadStore(t)
+	record, err := store.CreateThread(validThreadRecord(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := &Couch{Threads: store}
+	scan := func() ([]ContinuationStatus, error) {
+		return c.ContinuationRequests(context.Background(), []ThreadAddress{record.Address})
+	}
+	if statuses, err := scan(); err != nil || len(statuses) != 0 {
+		t.Fatalf("before a request: %+v %v", statuses, err)
+	}
+	request := testContinuationRequest(t, record)
+	if _, err := store.PublishContinuation(record.Address, record.Revision, request); err != nil {
+		t.Fatal(err)
+	}
+	if statuses, err := scan(); err != nil || len(statuses) != 1 || statuses[0].RequestID != request.ID {
+		t.Fatalf("a published request was not read: %+v %v", statuses, err)
+	}
+	// Overwrite in place, keeping the file, its size and its mtime: the scan
+	// must not read it (it would fail to decode).
+	path := store.recordPath(record.Address)
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, err := os.OpenFile(path, os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.Write(bytes.Repeat([]byte("x"), int(info.Size()))); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+	if err := os.Chtimes(path, info.ModTime(), info.ModTime()); err != nil {
+		t.Fatal(err)
+	}
+	if statuses, err := scan(); err != nil || len(statuses) != 1 {
+		t.Fatalf("an unchanged record was read again: %+v %v", statuses, err)
+	}
+	if err := os.WriteFile(path, []byte("broken"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := scan(); err == nil {
+		t.Fatal("a changed record was not read again")
 	}
 }

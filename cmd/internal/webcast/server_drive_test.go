@@ -3,6 +3,7 @@ package webcast
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -327,5 +328,53 @@ func TestDriveOnlyUnderTheDriveLink(t *testing.T) {
 	}
 	if err := f.ctrl.Request(key); err != drive.ErrNoSeat {
 		t.Fatalf("a seat held by a view-link stream: %v", err)
+	}
+}
+
+// failingInjector fails every batch with err once the driver passes its own
+// checks: the tab couldn't take the input (pair#505).
+type failingInjector struct {
+	*drive.FakeInjector
+	err error
+}
+
+func (f *failingInjector) Inject(context.Context, string, drive.Batch) error { return f.err }
+
+// pair#505: every drive input answered 500 "Something went wrong." and
+// nothing told the operator why. A failure that isn't the viewer's gets its
+// own sentence when it is known, and every one is logged with its cause,
+// once per distinct message.
+func TestDriveRoutesLogWhatTheViewerCantFix(t *testing.T) {
+	for _, c := range []struct {
+		name   string
+		err    error
+		status int
+	}{
+		{"the tab refused the input", fmt.Errorf("%w: Input.dispatchMouseEvent: cdp: session closed", drive.ErrInput), http.StatusBadGateway},
+		{"the cast was busy", context.DeadlineExceeded, http.StatusServiceUnavailable},
+		{"anything unmapped", errors.New("disk full"), http.StatusInternalServerError},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			f := newDriveFixture(t, time.Minute)
+			ctrl := drive.NewMemController(recording.Tee(f.stream, f.inj), &failingInjector{f.inj, c.err}, func() int64 { return f.inj.Page().T + 1 }, time.Minute)
+			t.Cleanup(func() { ctrl.Close() })
+			var logs []string
+			f.srv = NewServer("tok", NewFakeBrowser(), time.Second, nil, nil).WithDrive(ctrl, "drv").
+				WithDriveLog(func(format string, args ...any) { logs = append(logs, fmt.Sprintf(format, args...)) })
+			ana, key := f.hello(t, "Ana")
+			f.post("control", key, `{"op":"request"}`)
+			if err := ctrl.Grant(ana); err != nil {
+				t.Fatal(err)
+			}
+			_, say := drive.Answer(c.err)
+			for i := 0; i < 2; i++ {
+				if code, body := f.post("input", key, f.click("q")); code != c.status || body != say {
+					t.Fatalf("input: %d %q, want %d %q", code, body, c.status, say)
+				}
+			}
+			if len(logs) != 1 || !strings.Contains(logs[0], c.err.Error()) {
+				t.Fatalf("operator's log %q, want the cause once", logs)
+			}
+		})
 	}
 }

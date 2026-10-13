@@ -1004,9 +1004,17 @@ server, an agent's mock, anything). While it runs the tab bar shows
 `Chrome ▶`; press `Shift+Ctrl+Alt+b` again, click `Chrome ▶`, or press the
 **Go live** button Couch puts at the bottom right of the page, and the active tab
 is cast (`Chrome ⏸`). The same three pause and resume it, and the browser stays
-open while paused. Right-click the cell to copy the **view link** (watch, point, leave
-notes); `Alt` (Option)+right-click copies the **drive link** (below); `Ctrl`+click
-(left or right) ends the cast and closes Chrome. Closing Chrome yourself ends the
+open while paused. A web cast has three links, like the screen broadcast
+(#506), each granting more than the one before:
+- right-click the cell for the **view-only link**: its viewers watch, and see
+  others' strokes and notes but can't add any;
+- `👆` copies the **pointer link**: its viewers also point and leave and resolve
+  notes;
+- `👽` copies the **drive link** (below): its viewers can also ask to drive.
+
+Beside the cell, `↗` brings the cast Chrome window and tab to the front
+(`Chrome ⏸ ↗ 👆 👽`). `Alt` (Option)+right-click also copies the drive link,
+and `Ctrl`+click (left or right) ends the cast and closes Chrome. Closing Chrome yourself ends the
 cast too. The cast follows whichever tab is active, including tabs opened later.
 Viewers' page shows whether the cast is live and, while it is, the page's title
 and URL; nothing you do while paused reaches them.
@@ -1043,8 +1051,9 @@ line. The web cast shares the screen broadcast's tunnel
 is found in the usual macOS locations or on `PATH`; set `COUCH_WEBCAST_CHROME` to
 the binary to choose another (Couch refuses to start if it doesn't exist).
 
-**Pointing and notes on a web cast (#470).** Anyone with the viewer link can point
-and leave notes; there is no separate pointer link. On the viewer's page, the rail at
+**Pointing and notes on a web cast (#470).** Anyone with the pointer link (👆) or the
+drive link can point and leave notes; the view-only link can't, and the cast refuses
+its posts ("This link is view-only."). On the viewer's page, the rail at
 the right edge has the six pointer colors, ✏️ (point: draw on the page, everyone sees
 the stroke fade after a moment) and 💭 (note: drag a box around what the note is
 about, or tap for a small box around that spot, then write; on a phone, drag a little
@@ -1055,7 +1064,7 @@ shows the agent. It follows the page as it scrolls, stays through a pause, and l
 page; anyone can tap a pin to read it and resolve it. While the cast is paused, viewers can't point, leave, or resolve
 notes: the rail's controls and an open note's Save and Resolve are greyed out ("The cast is paused.") until it
 resumes; a draft keeps its text. In Couch the open notes show as
-`💭N` after the Chrome cell (`Chrome ⏸ 💭2`); click it for the same notes box the screen
+`💭N` after the Chrome cell (`Chrome ⏸ ↗ 👆 👽 💭2`); click it for the same notes box the screen
 broadcast uses, with each note's author: click one to copy its text, right-click to copy
 and resolve it. Unlike the screen broadcast's
 notes, these are part of the recording: notes and strokes, with their authors, are

@@ -558,7 +558,8 @@ record. Viewers learn the state from the `ctl` records in their stream, and Couc
 {"seg":3,"acts":[{"a":"click","id":412,"x":530,"y":1210},{"a":"text","v":"invoice"},{"a":"key","type":"down","key":"Enter"}]}
 ```
 
-- **Acts:** `down`, `up`, `move` and `click` (`count` 2 is a double click), `wheel` (`dx`, `dy`), `key` (`type`
+- **Acts:** `down`, `up`, `move` and `click` (`count` 2 is a double click; the viewer's `gestures` counts it from
+  time and place, `DOUBLE_MS` and `DRAG_PX`, because Chrome's pointer events carry `detail` 0 — pair#505), `wheel` (`dx`, `dy`), `key` (`type`
   `down`/`up`, `key`, `code`, `mods`), `text` (inserted at the focus: typing as values), and `ime` (a composition, `v` and
   `sel`).
 - **Targets:** pointer coordinates are top-page CSS px (the viewer's `toPage`). `id` is the element the viewer's
@@ -575,9 +576,14 @@ record. Viewers learn the state from the `ctl` records in their stream, and Couc
   - 409 `Control has already changed.` (a control op the state doesn't allow);
   - 422 `That isn't allowed while driving.` (`ErrRefused`);
   - 400 on a malformed or oversized body;
-  - 410 once the cast has ended.
+  - 410 once the cast has ended (also the recorder closing under a request);
+  - 502 `The cast couldn't do that. Try again.` (`ErrInput`: a CDP input call or hit test failed; it wraps the cause);
+  - 503 `The cast is busy. Try again.` (the request's context ended while it waited on the recorder);
+  - 500 `Something went wrong.` for anything unmapped (a bug).
 
-  The sentences are fixed and never echo the request.
+  The sentences are fixed and never echo the request. Every 5xx is logged for the operator with its cause (the
+  cast's `Logf`, Couch's notice line; `Server.WithDriveLog`), once per distinct message (pair#505: every input
+  answered 500 and nothing said why).
 - **Limits:** a rate and in-flight budget per seat, as the pointer routes have (`broadcast`'s `RateLimit`, 4 in flight).
 
 **Confinement** (`drive.Confine`, every act, before anything is dispatched). What the page alone handles is allowed;
@@ -625,8 +631,11 @@ over a reduced page. The real tab is the recorder (`Recorder.WithTab`). A batch 
   `by`, through the binding and in order. A click goes at once, so one that follows a link is recorded before its
   document goes (a take can't reach a document that has gone).
 - **Dispatch.** CDP input (`cdpAct`: `Input.dispatchMouseEvent`/`dispatchKeyEvent` with editing commands for the
-  A/Z/Y chords, `insertText`, `imeSetComposition`). Hit tests use `DOM.getNodeForLocation`, without user-agent
-  shadow DOM: an input's inner editor isn't a recorded node.
+  A/Z/Y chords, `insertText`, `imeSetComposition`). Input coordinates are viewport px (the act's page px less the top
+  document's scroll). Hit tests use `DOM.getNodeForLocation` at the act's **page** px as they are (pair#505,
+  measured: it hit-tests document coordinates within the viewport; subtracting the scroll made every click after a
+  scroll stale), without user-agent shadow DOM: an input's inner editor isn't a recorded node. "No node found" is
+  stale; any other hit-test failure is `ErrInput`.
 - **Take.** `__couchcastTake` sends what is still coalesced, tagged, and returns nothing; it ends the hold. A
   tagged report ordered after control moved (a revoke between a batch and its reports) keeps the act and loses the
   attribution: the recorder writes it without `by`, since the stream can't state a driver who no longer drives.

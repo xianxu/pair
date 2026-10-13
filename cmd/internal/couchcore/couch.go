@@ -41,7 +41,9 @@ type Couch struct {
 	IDs                    IDGen
 	Threads                *ThreadStore
 	Entropy                io.Reader
-	Artifacts              ThreadArtifactController
+	// continuations is ContinuationRequests' per-thread cache (#507).
+	continuations continuationScanCache
+	Artifacts     ThreadArtifactController
 	// LiveRestart gathers live-slot facts for relaunch and reload-context
 	// (pair#421). Nil refuses both as unavailable.
 	LiveRestart LiveRestartProbe
