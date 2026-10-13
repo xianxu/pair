@@ -114,7 +114,9 @@ func TestDriveRealCast(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	c, err := Launch(ctx, LaunchOptions{Binary: bin, ProfileDir: t.TempDir(), Headless: true,
+	// WEBCAST_DRIVE_WINDOWED=1 runs the cast Chrome in a window, as the
+	// operator's is (it takes focus: with the operator's OK only).
+	c, err := Launch(ctx, LaunchOptions{Binary: bin, ProfileDir: t.TempDir(), Headless: os.Getenv("WEBCAST_DRIVE_WINDOWED") == "",
 		Record: &RecordOptions{ID: "live", Out: out, ShotEvery: -1, Logf: t.Logf}})
 	if err != nil {
 		t.Fatal(err)

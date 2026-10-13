@@ -78,3 +78,8 @@ middle click, accelerators, clipboard, pickers, downloads, new windows). A windo
   TestDriveRealCast now wheels from the top AND again after the page has scrolled (asserting it scrolls further);
   with the scroll-subtracting hit test restored, the second wheel times out, matching the operator. The operator
   re-checks scrolling first when this build is staged.
+- **Windowed run (operator-approved, one run, 14 s):** WEBCAST_DRIVE_WINDOWED=1, the cast Chrome in a window, the
+  fixed build: the whole list passes (wheel from the top and after a scroll, link, hover, double click, drag,
+  typing, select-all, delete, undo, IME, right click refused) with no injector error at all. The 500 the operator
+  saw on 620356e7 is not reproduced, windowed or headless; on the old code a wheel after a scroll answers 409
+  stale. Any 5xx on this build is mapped or logged with its cause on Couch's notice line.
