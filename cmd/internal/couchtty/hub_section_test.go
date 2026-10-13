@@ -12,7 +12,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 )
 
-// pair#491: the hub leads its section and is marked by position only.
+// pair#491: the hub leads its section; colour composition is tested in hub_inversion_test.go.
 
 func hubRows() []couchcore.ActionableThreadSummary {
 	return []couchcore.ActionableThreadSummary{
@@ -76,7 +76,7 @@ func TestSwitcherIndentsTheHubSection(t *testing.T) {
 	state := NewMenuState(hubRows(), couchcore.ThreadAddress{})
 	state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventHub, Hub: "/src/ops"})
 	lines, _ := renderRootMenuFrame(state, state.CurrentFrame(), 120, 40, time.Date(2026, 10, 12, 12, 0, 0, 0, time.UTC), false)
-	body := strings.Join(lines, "\n")
+	body := string(ansi.Strip([]byte(strings.Join(lines, "\n"))))
 	// The cursor stays on the row it was on (ariadne); "▸ " and "  " are the
 	// marker column, then the indent.
 	for _, want := range []string{"\n  ops  /src/ops", "▸   ariadne  ", "\n      ariadne:1", "\n    blog  ", "\n      ops:1", "\n    pair  ", "\n      pair:2"} {
@@ -101,14 +101,14 @@ func hubModel() []StatusActor {
 }
 
 func TestRenderStatusRowHubSection(t *testing.T) {
-	if got, want := RenderStatusRow(200, StatusModel{Actors: hubModel()}).Body, "ops  ariadne  :1  :2  blog  pair  :1  :2"; got != want {
+	if got, want := rowPlain(RenderStatusRow(200, StatusModel{Actors: hubModel()})), "ops  ariadne  :1  :2  blog  pair  :1  :2"; got != want {
 		t.Fatalf("row %q, want %q", got, want)
 	}
 	// A numbered hub stands alone: its repository's next slot is not its :N.
 	hub := hubActor("ops:1", "ops", 1)
 	hub.Hub = true
 	actors := []StatusActor{hub, hubActor("ops:2", "ops", 2)}
-	if got, want := RenderStatusRow(200, StatusModel{Actors: actors}).Body, "ops:1  ops:2"; got != want {
+	if got, want := rowPlain(RenderStatusRow(200, StatusModel{Actors: actors})), "ops:1  ops:2"; got != want {
 		t.Fatalf("numbered hub: %q, want %q", got, want)
 	}
 	// A second hub starts a section after a separator; the active chip keeps [].
@@ -116,7 +116,7 @@ func TestRenderStatusRowHubSection(t *testing.T) {
 	second.Hub = true
 	actors = append(hubModel()[:2], second, hubActor("pair:3", "pair", 3), hubActor("pair:4", "pair", 4))
 	actors[1].Active = true
-	if got, want := RenderStatusRow(200, StatusModel{Actors: actors}).Body, "ops  [ariadne] │ ops:1  pair:3  :4"; got != want {
+	if got, want := rowPlain(RenderStatusRow(200, StatusModel{Actors: actors})), "ops  [ariadne] │ ops:1  pair:3  :4"; got != want {
 		t.Fatalf("two sections: %q, want %q", got, want)
 	}
 }

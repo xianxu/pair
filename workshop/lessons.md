@@ -323,6 +323,10 @@ representative evidence, not an exhaustive index.
 
 ## Planning, review, and repository hygiene
 
+- When acceptance changes, synchronize Done when itself with the expanded surface
+  and any explicit waiver, alongside the append-only revision. A revision alone
+  leaves the primary acceptance checklist stale. (#521 BR-1)
+
 - When reusing lifecycle machinery, name its transition authority and cancellation
   owner explicitly. New durable files also need a final consumer and removal
   policy; tests should name risky functions and their mechanical guard. (#306)
