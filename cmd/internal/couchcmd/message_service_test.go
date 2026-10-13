@@ -739,3 +739,16 @@ func TestMessageHubTargetIsReservedAheadOfRepositoryNames(t *testing.T) {
 		}
 	}
 }
+
+type hubRecorder []string
+
+func (h *hubRecorder) SetHub(root string) { *h = append(*h, root) }
+
+// pair#491: the Console's hub is the authority's, the slot "hub" reaches.
+func TestShowHubHandsTheConsoleTheAuthorityHub(t *testing.T) {
+	var got hubRecorder
+	(&messageService{authority: messageAuthority{hub: "/src/ops"}}).showHub(&got)
+	if len(got) != 1 || got[0] != "/src/ops" {
+		t.Fatalf("SetHub calls %q, want [/src/ops]", got)
+	}
+}

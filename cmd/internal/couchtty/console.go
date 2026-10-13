@@ -179,10 +179,9 @@ type Console struct {
 	pnotes pointerNotes
 	// anchors resolves the notes' anchors (#488).
 	anchors noteAnchors
-	// statusPointer and statusRemote are the 👆 and 👽 spans on the last
+	// statusPointer and statusNotes are the 👆 and 💭N spans on the last
 	// drawn row.
 	statusPointer ColumnSpan
-	statusRemote  ColumnSpan
 	statusNotes   ColumnSpan
 	// ansiPalette is the terminal's 16 ANSI colours from OSC 4 replies, for
 	// broadcast viewers; ansiKnown marks which arrived. Under mu.

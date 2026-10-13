@@ -99,7 +99,9 @@ func (c *webNotesCast) webSpan(t *testing.T) ColumnSpan {
 func TestWebNotesInCouch(t *testing.T) {
 	r := newWebNotesCast(t, false)
 	r.note(t, "Ana", "fix the header")
-	waitFor(t, "Chrome ▶ 💭1", func() bool { return strings.Contains(r.lastRow(), WebcastIdleLabel+webcastButtons+" "+broadcast.NoteGlyph+"1") })
+	waitFor(t, "Chrome ▶ 💭1", func() bool {
+		return strings.Contains(r.lastRow(), WebcastIdleLabel+webcastButtons+" "+broadcast.NoteGlyph+"1")
+	})
 	span := r.webSpan(t)
 	if r.notesSpan() != (ColumnSpan{}) {
 		t.Fatal("the screen broadcast's 💭N must not show for web notes")

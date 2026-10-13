@@ -791,6 +791,17 @@ their thread. The focused tab, the selected switcher row, and a thread with a
 pending notification never fade. If the terminal doesn't report its colours,
 both idle levels use the same theme grey; `NO_COLOR` turns fading off.
 
+A thread whose agent is waiting on a picker (a permission prompt or a question)
+shows red in the tabs and the switcher until the picker closes, even when it's
+the focused tab, and never fades.
+
+The tab bar starts with the hub, the checkout you started Couch from, and then
+lists every other slot grouped by repository:
+`ops  ariadne  :1  :2  blog  pair  :1  :2`. In the switcher the hub is the first line and the rest sit indented
+under it. When the tabs don't fit, a repository's numbered slots fold into a
+count (`pair  +2`), starting from the right. A red, belled or focused tab is
+never folded away, and the switcher always lists everything.
+
 Each numbered slot keeps its Couch metadata in its environment's `.couch/`
 directory. Opening it resumes its conversation; **Start fresh** replaces the
 conversation in the same slot after confirming its managed sessions are stopped.
@@ -947,7 +958,7 @@ Broadcasts reach viewers through [`cloudflared`](https://developers.cloudflare.c
 if Couch crashes or is killed.
 
 **Remote pointer (#412).** While broadcasting, the status row reads
-`LIVE ⏸ 👆 👽`. Clicking `👆` creates a separate **pointer link**, copies it to
+`LIVE ⏸ 👆`. Clicking `👆` creates a separate **pointer link**, copies it to
 your clipboard, and turns pointing on (`👆` turns amber). Give that link to the
 person helping you. Anyone holding it sees the same live view and can tap or
 drag on it (an iPad works well), leaving colored marks that hold for a moment and
@@ -955,14 +966,14 @@ then fade quickly on your screen and every viewer's. Each viewer draws in one of
 six colorblind-safe colors (#446): Couch gives a new viewer a color nobody else
 is using, and the column of swatches at the screen's right edge lets them pick another, which their
 browser remembers. Marks are only drawn: they never
-type or click anything in your programs, never cover the `LIVE ⏸ 👆 👽`
+type or click anything in your programs, never cover the `LIVE ⏸ 👆`
 controls (the rest of the tab bar can be pointed at), and aren't drawn while
 the switcher is open. Clicking `👆` again turns pointing
 off, clears the marks and leaves the link as view-only; clicking once more
 turns it back on for the same link. Right-click `👆` to copy the link again.
 Right-click `LIVE ⏸` to copy the view-only link again. Stopping the
-broadcast ends every link. `👽` is reserved for remote control and does
-nothing yet.
+broadcast ends every link. Remote control of the terminal cast isn't built
+yet (#407); the web cast can be driven remotely through its drive link.
 
 **Sticky notes (#447).** People on the pointer link can also leave a short
 plain-text note on part of the screen: the two buttons under the color
@@ -974,7 +985,7 @@ Couch outlines the box in its author's color, on your screen and every
 viewer's, and draws a `💭` inside its top-right corner, on a
 chip of its author's color inside a soft glow that flashes when the note
 arrives and every 15 seconds until it is resolved, and the status row shows
-the open count after the controls (`LIVE ⏸ 👆 👽 💭2`). Click `💭2` to list the
+the open count after the controls (`LIVE ⏸ 👆 💭2`). Click `💭2` to list the
 notes in a box over your screen: hovering one highlights it and makes its `💭`
 glow so you can tell which is which, clicking one copies its text,
 right-clicking one copies it and resolves it, and `×` or
@@ -1043,7 +1054,9 @@ further than a tap). The first note asks for a name; the page remembers it and t
 browser. Every note is its box: everyone sees it outlined in the author's color with
 the 💭 inside its top-right corner, and the box is the part of the page a submission
 shows the agent. It follows the page as it scrolls, stays through a pause, and leaves the page when the cast moves to another
-page; anyone can tap a pin to read it and resolve it. In Couch the open notes show as
+page; anyone can tap a pin to read it and resolve it. While the cast is paused, viewers can't point, leave, or resolve
+notes: the rail's controls and an open note's Save and Resolve are greyed out ("The cast is paused.") until it
+resumes; a draft keeps its text. In Couch the open notes show as
 `💭N` after the Chrome cell (`Chrome ⏸ ↗ 👆 👽 💭2`); click it for the same notes box the screen
 broadcast uses, with each note's author: click one to copy its text, right-click to copy
 and resolve it. Unlike the screen broadcast's

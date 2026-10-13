@@ -1076,7 +1076,7 @@ proof; record the surprising case so the next change starts from evidence.
   up to `RowMetadata.UsedColumns` and treats the rest as blank tail, so a 💭 on an empty row vanished while marks
   (background only) showed. A frame edit that adds content past the old text updates the metadata too.
 - **A user-visible addition to the tab bar is a README change (#447).** The M1 review blocked on it; grep the
-  README for the row's current spelling (`LIVE ⏸ 👆 👽`) whenever the row gains a cell.
+  README for the row's current spelling (`LIVE ⏸ 👆` since #503) whenever the row gains a cell.
 - **Rule out the host before bisecting a "regression" (#450).** Four workers called `test-review` a regression since
   #436 and the issue asked for a bisect, but the failure reproduced at #436's own merge: they ran the suite inside the
   agent sandbox, which refuses unix sockets and PTYs, while #436 was verified outside it. Before bisecting, rerun the
@@ -1401,3 +1401,20 @@ proof; record the surprising case so the next change starts from evidence.
   readers see records mid-cast, and with that the reader's strict decode (any bad line fails the whole recording)
   became a live hazard: a replay racing a write could fail outright. When a writer's output becomes readable while
   open, the reader takes complete lines only and leaves torn-tail detection to the validator of a finished file.
+- **"Disable every action" means listing every surface first (#499 close).** The pause guard disabled the rail's
+  pen, swatches and 💭 but left the note dialog's Save and Resolve live, including on a pin opened during the pause;
+  only the server's refusal caught them. Before a mode turns user actions off, enumerate every control that posts
+  (rail, dialog, pins, keyboard), gate them at one place, and put each in the test.
+
+## A count or abbreviation must be anchored to a drawn member of its own group (pair#491)
+- **What went wrong:** the tab bar's narrow-width collapse hid every numbered slot of a group, including its first member when the group had no `:0`. The `+N` then sat after the previous repository's chip and read as its count.
+- **Rule:** when compressing a run of related items into a summary (`+N`, `:N`, `…`), keep the run's first item drawn so the summary has an owner on screen; test a run that lacks its usual leader.
+- **And:** state a value handed across a package boundary at startup (here the hub root) is tested where it is set *and* where a lazy rebuild could drop it.
+- **An error translation is behavior; each needs a test that fails without it (#505 close).** Mapping `errClosed` to
+  `ErrClosed`, a CDP failure to `ErrInput` and a nil recorder to `ErrNotLive` were each one line, and reverting any
+  left the suite green: the route test injected a ready-made `ErrInput`. Test the translation at the seam that
+  produces it (the recorder's fake tab, the nil-recorder Chrome), and mutation-check it once.
+- **A browser event's field is a measurement, not an assumption (#505).** drive.js counted double clicks from
+  `pointerup.detail`, and its node tests fed fake events with `detail: 2`, which real Chrome never sends (pointer
+  events carry 0). Before a gesture rule reads an event field, log that field from a real browser once, and make
+  the fakes match it.

@@ -189,3 +189,35 @@ test('viewing a note moves focus into the dialog so Escape reaches it', () => {
   els.root.fire('keydown', { key: 'Escape' });
   assert.ok(!d.open);
 });
+
+// pair#499: a paused web cast holds the dialog. A held draft can't be saved,
+// says why and keeps its text; a held view's Resolve is off and a click posts
+// nothing; releasing the hold restores both and clears the reason.
+test('hold disables Save and Resolve, keeps a draft, and releases', async () => {
+  const f = dialog();
+  f.d.draft({ cols: 80, rows: 24, col: 0, row: 0 });
+  f.type('kept');
+  f.d.hold('The cast is paused.');
+  assert.ok(f.els.save.disabled, 'a held draft cannot be saved');
+  assert.equal(f.els.msg.textContent, 'The cast is paused.');
+  f.els.save.fire('click');
+  await f.settle();
+  assert.equal(f.posts.length, 0, 'a held Save posts nothing');
+  assert.equal(f.els.input.value, 'kept', 'the draft keeps its text');
+  f.d.hold('');
+  assert.ok(!f.els.save.disabled, 'released, Save is back');
+  assert.equal(f.els.msg.textContent, '');
+
+  f.d.hold('The cast is paused.');
+  f.d.view({ id: 7, text: 'x' }, { resolvable: true });
+  assert.ok(f.els.resolve.disabled, 'a view opened while held has Resolve off');
+  assert.equal(f.els.msg.textContent, 'The cast is paused.');
+  f.els.resolve.fire('click');
+  await f.settle();
+  assert.equal(f.posts.length, 0, 'a held Resolve posts nothing');
+  f.d.hold('');
+  assert.ok(!f.els.resolve.disabled);
+  f.els.resolve.fire('click');
+  await f.settle();
+  assert.equal(f.posts.length, 1, 'released, Resolve posts');
+});

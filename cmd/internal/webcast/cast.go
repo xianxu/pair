@@ -170,7 +170,7 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 	} else {
 		c.driveOff = "the cast isn't recorded"
 	}
-	srv := NewServer(token, b, cfg.Ping, live, cfg.Presence).WithBoard(bd).WithDrive(c.drive, driveToken)
+	srv := NewServer(token, b, cfg.Ping, live, cfg.Presence).WithBoard(bd).WithDrive(c.drive, driveToken).WithDriveLog(cfg.Logf)
 	srv.proxy = proxy
 	c.server, c.token, c.driveToken = srv, token, driveToken
 	go c.run(mountCtx, cfg.Host, srv, token)

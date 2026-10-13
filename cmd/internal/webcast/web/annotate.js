@@ -351,15 +351,24 @@ export async function mountAnnotate(doc, win, v) {
   // applied, so it starts from the model's, not from nothing.
   let docSeg = v.model ? v.model.docSeg : 0;
 
+  // While the cast is paused viewers do nothing (pair#499): the rail's
+  // controls are disabled and say why, and the note dialog is held; the
+  // server refuses the posts too.
+  const paused = () => !!(v.model && v.model.paused);
   // The rail's controls are rendered only when their state changes (a pick,
-  // a mode); each frame only places the rail, so nothing that takes input is
-  // replaced under a click.
+  // a mode, a pause or a resume); each frame only places the rail, so
+  // nothing that takes input is replaced under a click.
   const renderRail = () => {
     renderSwatches(swatches, palette, color(), (i) => { picked = i; colors.set(i); renderRail(); }, (tag) => doc.createElement(tag));
     for (const [m, b] of Object.entries(modeButtons)) {
       b.classList.toggle('on', state.mode === m);
       b.setAttribute('aria-pressed', String(state.mode === m));
     }
+    const off = paused();
+    rail.classList.toggle('paused', off);
+    for (const b of rail.querySelectorAll('button')) b.disabled = off;
+    for (const [m, b] of Object.entries(modeButtons)) b.title = off ? 'The cast is paused.' : MODE_TIPS[m];
+    dialog.hold(off ? 'The cast is paused.' : ''); // an open note, or a pin opened while paused
   };
   const placeRail = () => {
     const r = box.getBoundingClientRect();
@@ -402,7 +411,7 @@ export async function mountAnnotate(doc, win, v) {
 
   layer.addEventListener('pointerdown', (e) => {
     if (e.target.closest && e.target.closest('.chip')) return; // a pin's chip opens its note, in any mode
-    if (state.mode === 'watch' || !(v.model && v.model.seg > 0) || dialog.open) return;
+    if (state.mode === 'watch' || !(v.model && v.model.seg > 0) || paused() || dialog.open) return;
     e.preventDefault();
     layer.setPointerCapture?.(e.pointerId);
     const p = pagePoint(e);
@@ -519,7 +528,10 @@ export async function mountAnnotate(doc, win, v) {
       if (was) { strokes.clear(); endGesture(); }
     }
     if (r.k === 'stroke') strokes.record(r, win.performance.now(), `${who.id()}.`);
-    if (r.k === 'stop' && r.why === 'end') { setMode('watch'); dialog.close(); } // setMode ends the gesture
+    // A pause or the end puts the pen down (setMode ends the gesture and
+    // renders the rail, disabled while paused); a resume enables it again.
+    if (r.k === 'stop') { setMode('watch'); if (r.why === 'end') dialog.close(); }
+    if (r.k === 'seg') renderRail();
     schedule();
   });
   win.addEventListener('resize', schedule);

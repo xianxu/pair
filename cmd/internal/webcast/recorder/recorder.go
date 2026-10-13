@@ -512,7 +512,8 @@ func (r *Recorder) handle(in stamped) {
 		switch {
 		case !r.opened || v.Record == nil:
 		case v.Doc > 0 && !r.m.State().OnDoc(v.Doc):
-			// The viewer's document has gone: nobody is on that page now.
+			// The viewer's document has gone, or the cast is paused on it
+			// (pair#499): nobody may act on that page now.
 		case !emittable[v.Record.Kind()]:
 			// A page record from outside would part the mirror from its
 			// reducer: refused, and counted.

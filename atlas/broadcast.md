@@ -288,7 +288,7 @@ and it is kept narrow.
   long-lived event streams.
 - **Marks** (`marks.go`): pure. A batch's points are joined by line fill; an
   off-grid point is dropped before any line reaches it. The broadcast's controls
-  (`StatusGuardCols`, the width of `LIVE ⏸ 👆 👽` at the left of the last row)
+  (`StatusGuardCols`, the width of `LIVE ⏸ 👆` at the left of the last row)
   are never marked or tinted: the overlay refuses them whatever put a mark
   there. The rest of the tab bar can be marked. At most 1/8 of the grid is
   marked, oldest first. A cell keeps its batch's color. A mark holds 1.5s at
@@ -306,11 +306,12 @@ and it is kept narrow.
 under `c.mu`, with transitions on the Run loop; the header comment has the
 table.
 
-- **Status row:** while live it reads `LIVE ⏸ 👆 👽`. `👆` is dim when off and
+- **Status row:** while live it reads `LIVE ⏸ 👆`. `👆` is dim when off and
   on `PointerSGR` amber when on (`StatusModel.Pointer`). Its span
   (`RenderedStatusRow.Pointer`) takes a left click (toggle) and a right click
   (re-copy the link). A right click on `LIVE ⏸` re-copies the view-only link.
-  A click on `👽` only gives a notice (#407).
+  The `👽` placeholder for remote control (#407) was removed until that is
+  built (#503); it comes back with its own span and a guard one control wider.
   `routeMouseEvent` checks these spans before anything else on the row.
 - **Toggling:** the first click calls `Session.EnablePointer` and copies the
   link (the notice never shows it). Later clicks flip pointing for the same
@@ -394,7 +395,7 @@ watch) or the broadcast ends.
   keeps it only from the live session while pointing is on and only if newer;
   every pointer-phase change resyncs from `Session.Notes()`. One snapshot under
   the leaf lock `pointerNotes.mu` feeds both `screenOverlay` (notes, then marks,
-  public frames only) and the status row's `💭N` count after `👽`
+  public frames only) and the status row's `💭N` count after `👆`
   (`StatusModel.Notes`, outside the guarded columns).
 - **Notes menu** (`couchtty/notes_menu.go` pure, `console_notes.go`, M4): a left
   click on `💭N` (`RenderedStatusRow.Notes`) toggles a box over the bottom right,

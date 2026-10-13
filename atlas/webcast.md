@@ -150,12 +150,12 @@ what the viewer's renderer draws at the same moments.
 
 - **Key and cell:** `Shift+Ctrl+Alt+b` (`\x1b[98;8u`, or `66;8u` from a terminal reporting the shifted code;
   `couchkeys.ActionWebcast` → `HitWebcast`) starts the cast Chrome, then toggles live. The tab bar's
-  `WebcastCell` draws `Chrome ▶` / `Chrome ⏸` **after** the screen broadcast's `LIVE ⏸ 👆 👽 💭N`, so the
+  `WebcastCell` draws `Chrome ▶` / `Chrome ⏸` **after** the screen broadcast's `LIVE ⏸ 👆 💭N`, so the
   broadcast's fixed-column indicator check never moves. Click toggles, right-click copies the link, Ctrl with
   either button ends (macOS terminals may send Ctrl+left as a right click with the Ctrl bit). Live, the cell is
   drawn in `broadcast.LiveSGR`, LIVE's own style, so the two cast indicators read as one family (#501);
   `IndicatorShown` matches LIVE's text, so it doesn't mistake one for the other.
-- **The Chrome group (#501)** mirrors the screen broadcast's: `Chrome ⏸ ↗ 👆 👽 💭N 🕹Ana`, each button its own
+- **The Chrome group (#501)** follows the screen broadcast's `LIVE ⏸ 👆`: `Chrome ⏸ ↗ 👆 👽 💭N 🕹Ana` (its 👽 is real, `WebcastDriveLinkLabel`; #503 removed the broadcast's placeholder), each button its own
   `RenderedStatusRow` span (`WebFocus`, `WebViewLink`, `WebDriveLink`), so a hover can tell them apart (#495).
   👆 copies the view link, 👽 the drive link (right-click and Alt+right-click on the cell stay as shortcuts).
   `↗` calls `Browser.Focus`: the real Chrome sends `Target.activateTarget` for the cast tab, then activates its own
