@@ -15,6 +15,7 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "49889759", done: "8024e07e"}
 ---
 
 # couch: draw the hub's tab in inverted colours, like a bookmark
