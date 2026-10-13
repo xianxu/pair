@@ -71,6 +71,10 @@ Use native reverse video rather than manually swapping RGB palette values.
   architecture constraints preserve existing owners and lifecycles.
 - Live acceptance and staging await TL scheduling; no visible window opened.
 
+- Full `make test` passed (exit 0): shell/Lua prerequisites and all Go packages.
+  Log: `/tmp/pair521-full.log`. Awaiting TL staging after #506 and operator live
+  approval before close/PR/SHIP.
+
 ## Revisions
 
 - 2026-10-12: Expanded Spec with TL-approved state table and small implementation plan.
