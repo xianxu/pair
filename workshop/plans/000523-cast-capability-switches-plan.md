@@ -228,7 +228,7 @@ server_board_test.go, server_drive_test.go, server_test.go, stream tests.
   bounded latest-value SSE updates derived from authorities.
 - [x] Run the webcast package tests and relevant race tests; update
   atlas/webcast.md and atlas/webcast-format.md for the new surface.
-- [ ] Commit; run `sdlc milestone-close --issue 523 --milestone M1` with verified
+- [x] Commit; run `sdlc milestone-close --issue 523 --milestone M1` with verified
   behavior evidence and measured actual as the gate requests. Resolve findings.
 
 ## M2 — Controls, viewers and integration

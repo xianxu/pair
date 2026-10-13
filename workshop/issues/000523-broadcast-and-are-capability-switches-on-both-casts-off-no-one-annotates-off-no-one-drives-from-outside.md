@@ -175,6 +175,13 @@ Durable plan: [000523-cast-capability-switches-plan.md](../plans/000523-cast-cap
   Registered the nine capability source files as non-artifact-path producers;
   artifactpath suite passes. Full-suite remainder is still running before M1.
 
+- M1 full-suite result: make test completed; all shell/Lua checks and Go packages
+  passed except artifactpath inventory and legacy couchtty note/drive fixtures.
+  Both causes fixed, then complete artifactpath+couchtty package rerun passed
+  (logs /tmp/pair-523-m1-suite.log and /tmp/pair-523-m1-fixed-packages.log).
+  No remaining full-suite failure. Full fresh make test remains required at M2
+  acceptance after controls/viewers/overlay integration.
+
 ## Revisions
 
 - 2026-10-12 22:58 PDT: Added approved defaults/copy semantics and proposed
