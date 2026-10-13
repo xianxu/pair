@@ -294,6 +294,66 @@ rounds:
       isolation: fenced
       reviewed: 3bf5f83bfac0357b746abeff1d8e76fdd738ed53
       blocked: false
+    - "n": 8
+      timestamp: "2026-10-12T21:40:42-07:00"
+      dispatched: "2026-10-12T21:35:26-07:00"
+      agent: claude
+      dispose:
+        - id: BR-6
+          disposition: addressed
+          note: 'Current design line 15 states there is no event: locked; the draft is fenced as superseded (line 32), naming event: locked and sessionFrom(r) explicitly.'
+          round: 8
+        - id: BR-11
+          disposition: not-addressed
+          note: The Tests bullet (line 28) records TestLiveLockPage, but collab.js is still missing from the pre-session lists at plan line 13 and atlas/broadcast.md:82, while lockgate.go:38 serves it.
+          round: 8
+        - id: BR-12
+          disposition: addressed
+          note: README.md:1071-1095 adds a code-lock section covering every link (view, pointer, drive), the lock page and URL#code, which covers the web-cast paragraph at :1051.
+          round: 8
+        - id: BR-13
+          disposition: not-addressed
+          note: storedName and beforeSave author are still pinned only by the source grep in server_test.go:167-172; no .mjs test drives them.
+          round: 8
+        - id: BR-14
+          disposition: not-addressed
+          note: lock.html:20 maxlength="40" and collab.js:96 MAX_VIEWER_NAME=40 still have no parity test against board.MaxNameRunes.
+          round: 8
+        - id: BR-15
+          disposition: not-addressed
+          note: cast_test.go:57 still GETs u.Link without unlockCast and accepts the lock page's 200 as "viewer page".
+          round: 8
+        - id: BR-19
+          disposition: addressed
+          note: Issue Spec item 6 now describes rotation from the Codes menu (Alt+click, rotate / rotate all); there is no click-to-rotate text left.
+          round: 8
+        - id: BR-20
+          disposition: addressed
+          note: console_castcodes_test.go:170-177 clicks the rotate all word through chooseCodes(t, codesAction{}) and asserts both codes change. Passes under -race.
+          round: 8
+        - id: BR-21
+          disposition: addressed
+          note: Every link-copy notice (console_broadcast.go:231, console_pointer.go:109/130/148, console_webcast.go:285/306) now says viewers need the code and where to hover, without the code itself.
+          round: 8
+        - id: BR-22
+          disposition: not-addressed
+          note: atlas/webcast.md:178-179 still says "Alt (Option)+right-click copies the drive link"; commit 276d2dd8 edited lines 160-164 instead. The test at console_castcodes_test.go:165 asserts the opposite.
+          round: 8
+        - id: BR-23
+          disposition: not-addressed
+          note: 'Ineffective: broadcastEnded/webcastEnded keep attempt unchanged (console_broadcast.go:268, console_webcast.go:242), so a rotation after end passes attempt==current. A probe (stop, wait for session nil, onCodeRotated with the old attempt) sets a flash for code 9999. Fix: also require session/cast non-nil under c.mu.'
+          round: 8
+      findings:
+        - id: BR-24
+          severity: Minor
+          title: 'Plan Current design contradicts the closed M3: tooltip on link controls, status "M3 in progress", LinkLocks "Add"'
+          detail: "7th finding in this family. Plan line 23 says the hover hangs on \U0001F446/\U0001F47D, but castCellAt (console_castcodes.go:115) and atlas/webcast.md:163 put it on the LIVE/Chrome cells. Line 3 says M3 is in progress, and line 11 names Add instead of Mint. Earlier rules applied per artifact still miss sites. Rule: at a milestone close, compare the Current design summary line by line against the closing Revisions and the code, as part of the close commit."
+          family: spec-moves-with-decisions
+          round: 8
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: dab29e48d993290317187021ff68229ea1179cbf
+      blocked: false
 ---
 
 # Gate ledger — pair#495 (boundary-review)
@@ -414,16 +474,33 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-23** [Minor] `unordered-async-notifications` onCodeRotated checks the cast attempt under c.mu but writes the flash later under codes.mu, so a cast ending in between still flashes its dead code
   This is the 3rd finding in family unordered-async-notifications. Rule: the currency check and the state write for an async notification happen in one critical section against the same state that end-of-producer clears. Fix: have forgetCastCodes record the ended attempt (or the current attempt) in castCodes and check it under codes.mu at console_castcodes.go:436.
 
+## Round 8 — 2026-10-12T21:40:42-07:00 (claude) — passed
+
+### Disposed
+
+- BR-6 — addressed — Current design line 15 states there is no event: locked; the draft is fenced as superseded (line 32), naming event: locked and sessionFrom(r) explicitly.
+- BR-11 — not-addressed — The Tests bullet (line 28) records TestLiveLockPage, but collab.js is still missing from the pre-session lists at plan line 13 and atlas/broadcast.md:82, while lockgate.go:38 serves it.
+- BR-12 — addressed — README.md:1071-1095 adds a code-lock section covering every link (view, pointer, drive), the lock page and URL#code, which covers the web-cast paragraph at :1051.
+- BR-13 — not-addressed — storedName and beforeSave author are still pinned only by the source grep in server_test.go:167-172; no .mjs test drives them.
+- BR-14 — not-addressed — lock.html:20 maxlength="40" and collab.js:96 MAX_VIEWER_NAME=40 still have no parity test against board.MaxNameRunes.
+- BR-15 — not-addressed — cast_test.go:57 still GETs u.Link without unlockCast and accepts the lock page's 200 as "viewer page".
+- BR-19 — addressed — Issue Spec item 6 now describes rotation from the Codes menu (Alt+click, rotate / rotate all); there is no click-to-rotate text left.
+- BR-20 — addressed — console_castcodes_test.go:170-177 clicks the rotate all word through chooseCodes(t, codesAction{}) and asserts both codes change. Passes under -race.
+- BR-21 — addressed — Every link-copy notice (console_broadcast.go:231, console_pointer.go:109/130/148, console_webcast.go:285/306) now says viewers need the code and where to hover, without the code itself.
+- BR-22 — not-addressed — atlas/webcast.md:178-179 still says "Alt (Option)+right-click copies the drive link"; commit 276d2dd8 edited lines 160-164 instead. The test at console_castcodes_test.go:165 asserts the opposite.
+- BR-23 — not-addressed — Ineffective: broadcastEnded/webcastEnded keep attempt unchanged (console_broadcast.go:268, console_webcast.go:242), so a rotation after end passes attempt==current. A probe (stop, wait for session nil, onCodeRotated with the old attempt) sets a flash for code 9999. Fix: also require session/cast non-nil under c.mu.
+
+### Raised
+
+- **BR-24** [Minor] `spec-moves-with-decisions` Plan Current design contradicts the closed M3: tooltip on link controls, status "M3 in progress", LinkLocks "Add"
+  7th finding in this family. Plan line 23 says the hover hangs on 👆/👽, but castCellAt (console_castcodes.go:115) and atlas/webcast.md:163 put it on the LIVE/Chrome cells. Line 3 says M3 is in progress, and line 11 names Add instead of Mint. Earlier rules applied per artifact still miss sites. Rule: at a milestone close, compare the Current design summary line by line against the closing Revisions and the code, as part of the close commit.
+
 ## Open findings
 
-- **BR-6** [Minor] `spec-moves-with-decisions` The plan still says revoke sends event: locked and that a sessionFrom(r) seam exists; the code does neither
 - **BR-11** [Minor] `spec-moves-with-decisions` Plan M2 says the Chrome live tests were "updated to unlock first", but they bypass the Host; TestLiveLockPage replaces them, which the plan does not record
-- **BR-12** [Minor] `docs-gate-surface` README web-cast sections (e.g. line 1021, "Anyone with the viewer link can point") don't mention the code lock
 - **BR-13** [Minor] `behavior-without-default-test` Terminal viewer's note author (viewer.js beforeSave, collab.js storedName) has only a source-grep test, no behavioral one
 - **BR-14** [Minor] `restated-constant-unpinned` The 40-char viewer-name bound is restated in collab.js, notes.go and lock.html maxlength with no parity test
 - **BR-15** [Minor] `test-asserts-weaker-than-name` TestCastBrowserFirstThenLink now passes on the lock page's 200 and no longer proves the viewer page is served
-- **BR-19** [Minor] `spec-moves-with-decisions` Issue Spec item 6 still says clicking the code in the tab bar rotates it
-- **BR-20** [Minor] `behavior-without-default-test` The Codes menu's "rotate all" item is never invoked by a test
-- **BR-21** [Minor] `operator-affordance-discoverability` Link-copy notices do not tell the operator that viewers need a code or where to see it
 - **BR-22** [Minor] `spec-moves-with-decisions` atlas/webcast.md:178 still says Alt+right-click on the Chrome cell copies the drive link, which this range removed
 - **BR-23** [Minor] `unordered-async-notifications` onCodeRotated checks the cast attempt under c.mu but writes the flash later under codes.mu, so a cast ending in between still flashes its dead code
+- **BR-24** [Minor] `spec-moves-with-decisions` Plan Current design contradicts the closed M3: tooltip on link controls, status "M3 in progress", LinkLocks "Add"

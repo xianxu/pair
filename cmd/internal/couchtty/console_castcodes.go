@@ -424,16 +424,20 @@ func (c *Console) onCodeRotated(kind castKind, attempt uint64, link string, r ca
 	now := c.now()
 	// No caller holds the console's locks while a code rotates (the gate's
 	// unlock, or the menu's RotateCode), so the console can be read here.
-	// c.mu is held until the flash is set, so the attempt check and the
-	// write are one step: a cast that ends in between (its forgetCastCodes
-	// runs after it resets the cast under c.mu) never gets a dead code
-	// flashed. c.mu before codes.mu is the order everywhere.
+	// The rotation counts only while the cast that made it is live: the
+	// same start attempt AND its session or cast still running. A cast that
+	// ended keeps its attempt number until the next start, so the attempt
+	// alone can't tell (BR-23). c.mu is held until the flash is set, so the
+	// check and the write are one step against the end's reset, which runs
+	// under c.mu. c.mu before codes.mu is the order everywhere.
 	c.mu.Lock()
 	cell, current := c.codeAnchorLocked(kind), c.bcast.attempt
+	live := c.bcast.session != nil && c.bcast.phase == broadcastLive
 	if kind == castWeb {
 		current = c.wcast.attempt
+		live = c.wcast.cast != nil && c.wcast.phase == webcastRunning
 	}
-	if attempt != current {
+	if attempt != current || !live {
 		c.mu.Unlock()
 		return // a late report from a cast that has ended
 	}

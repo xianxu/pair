@@ -363,3 +363,29 @@ func TestCodesMenuStaysOpenAndShowsThePress(t *testing.T) {
 	_, _ = fmt.Fprintf(f.stdin, "\x1b[<0;%d;%dM\x1b[<0;%d;%dm", box.X+box.W-1, box.Y+1, box.X+box.W-1, box.Y+1)
 	waitFor(t, "× closes it", func() bool { return !strings.Contains(f.screenText(), "LIVE codes") })
 }
+
+// BR-23: a rotation reported after its cast ended -- no newer cast started,
+// so the attempt still matches -- is dropped too: liveness, not the attempt
+// alone, decides.
+func TestRotationAfterTheCastEndedIsDropped(t *testing.T) {
+	f := broadcastFixture(t, &broadcast.FakeTunnel{}, nil)
+	f.startLive(t)
+	attempt := f.screenAttempt()
+	f.clickStatus(f.liveSpan().Start + 1) // stop
+	waitFor(t, "broadcast off", func() bool { return f.phase() == broadcastOff })
+	waitFor(t, "session gone", func() bool {
+		f.con.mu.Lock()
+		defer f.con.mu.Unlock()
+		return f.con.bcast.session == nil
+	})
+	if f.screenAttempt() != attempt {
+		t.Fatalf("the end bumped the attempt (%d → %d); this test needs the same one", attempt, f.screenAttempt())
+	}
+	f.con.onCodeRotated(castScreen, attempt, broadcast.LinkView, castlock.Rotation{Code: "9999", Reason: castlock.ReasonOperator, Gen: 9})
+	f.con.codes.mu.Lock()
+	fl := f.con.codes.flash
+	f.con.codes.mu.Unlock()
+	if fl != nil {
+		t.Fatalf("an ended cast's rotation flashed: %+v", fl)
+	}
+}
