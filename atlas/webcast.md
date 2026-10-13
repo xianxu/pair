@@ -282,6 +282,12 @@ end cast or start a new cast. See `cast_capabilities.go`, `server_capabilities.g
     #495) has a row, code and copy action for each of the three (#495 dropped Alt+right-click). Shift+click is the
     terminal's own selection. A pointer-link viewer counts as a `web view` viewer. `couch --broadcast-list` lists `screen`, `web view` and `web drive` shares
     (`Console.Shares`, `couchmessage.ShareStatus`), the drive one with who drives and how many ask.
+  - **Acknowledged actions (#523).** Grant, deny, popup revoke and Ctrl-click revoke
+    run outside the terminal input loop in one tracked operation slot. Busy clicks
+    ask the operator to wait; no action queue accumulates. Admission keeps the
+    clicked capability generation through worker dispatch. Terminal completions
+    are fenced by cast and generation, and shutdown joins the work while the
+    controller owns recorder/CDP deadlines and cast-close cancellation.
   - **Failures.** A control change that fails says why (`driveFailure`): a race, the cast ended, not recording
     yet, or a failure with its cause.
   - **Notices.** Couch says when someone asks, what a grant turns off ("Uploads and downloads are off until control

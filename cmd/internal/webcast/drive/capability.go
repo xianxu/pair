@@ -54,6 +54,35 @@ func (a DriveAdmission) viewerOp(key, op string) error {
 	}
 	return f.changeLocked(op, s.Viewer)
 }
+
+// Operator actions retain the admission captured on the terminal input loop.
+// Validation and changeLocked share mu, so scheduling cannot refresh authority.
+func (a DriveAdmission) Grant(viewer string) error { return a.operatorOp(viewer, recording.CtlGrant) }
+func (a DriveAdmission) Deny(viewer string) error  { return a.operatorOp(viewer, recording.CtlDeny) }
+func (a DriveAdmission) Revoke() error             { return a.operatorOp("", recording.CtlRevoke) }
+func (a DriveAdmission) operatorOp(viewer, op string) error {
+	if a.owner == nil {
+		return ErrDriveUnavailable
+	}
+	f := a.owner
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.closed || !f.authority.Admits(a.permit) || f.busy != nil {
+		return ErrDriveUnavailable
+	}
+	if op == recording.CtlRevoke {
+		if f.control.Driver == nil {
+			return nil
+		}
+		return f.changeLocked(op, *f.control.Driver)
+	}
+	s := f.seats[viewer]
+	if s == nil {
+		return ErrNoSeat
+	}
+	return f.changeLocked(op, s.Viewer)
+}
+
 func (a DriveAdmission) Input(ctx context.Context, key string, b Batch) error {
 	if a.owner == nil {
 		return ErrDriveUnavailable

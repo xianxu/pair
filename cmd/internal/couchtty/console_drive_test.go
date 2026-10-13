@@ -1,12 +1,14 @@
 package couchtty
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -89,7 +91,7 @@ type driveCast struct {
 	link, viewLink string
 }
 
-func newDriveCast(t *testing.T) *driveCast {
+func newDriveCast(t *testing.T, wrap ...func(*webcast.FakeDriven) webcast.Browser) *driveCast {
 	t.Helper()
 	var d *webcast.FakeDriven
 	r := newWebcastRig(t, func(r *webcastRig) {
@@ -97,6 +99,9 @@ func newDriveCast(t *testing.T) *driveCast {
 			var err error
 			if d, err = webcast.NewFakeDriven(f, drive.DrivenPage(100), &recording.MemSink{}); err != nil {
 				t.Fatal(err)
+			}
+			if len(wrap) != 0 {
+				return wrap[0](d)
 			}
 			return d
 		}
@@ -321,7 +326,7 @@ func TestDriveFromCouch(t *testing.T) {
 	c.d.FailEmits(errors.New("recorder stopped"))
 	c.mouse(16, sp.Start, 23, false)
 	c.mouse(16, sp.Start, 23, true)
-	waitFor(t, "the failure said", func() bool { return strings.Contains(c.notice(), "control is unchanged: recorder stopped") })
+	waitFor(t, "the failure said", func() bool { return c.cast().Capabilities().Broken() && strings.Contains(c.lastRow(), "Cast broken") })
 	if c.control().Driver == nil {
 		t.Fatal("a failed revoke changed control")
 	}
@@ -352,5 +357,225 @@ func TestDriveFailure(t *testing.T) {
 		if got := driveFailure(tc.err); got != tc.want {
 			t.Errorf("%v: %q, want %q", tc.err, got, tc.want)
 		}
+	}
+}
+
+// driveACKBrowser holds the real controller at its acknowledged writer seam.
+type driveACKBrowser struct {
+	*webcast.FakeDriven
+	armed            atomic.Bool
+	calls            atomic.Int32
+	entered, release chan struct{}
+	canceled, settle chan struct{}
+	releaseGate      bool
+}
+
+func (b *driveACKBrowser) wait(ctx context.Context) error {
+	if b.calls.Add(1) == 1 {
+		close(b.entered)
+	}
+	select {
+	case <-b.release:
+		return nil
+	case <-ctx.Done():
+		if b.canceled != nil {
+			close(b.canceled)
+			<-b.settle
+		}
+		return ctx.Err()
+	}
+}
+func (b *driveACKBrowser) WriteControl(ctx context.Context, ctl *recording.Ctl) error {
+	if b.armed.Load() && !b.releaseGate {
+		if err := b.wait(ctx); err != nil {
+			return err
+		}
+	}
+	return b.FakeDriven.WriteControl(ctx, ctl)
+}
+func (b *driveACKBrowser) WithTab(ctx context.Context, by string, fn func(drive.Tab) error) error {
+	if b.armed.Load() && b.releaseGate && by == "" {
+		if err := b.wait(ctx); err != nil {
+			return err
+		}
+	}
+	return b.FakeDriven.WithTab(ctx, by, fn)
+}
+func TestDriveActionsDoNotBlockTerminal(t *testing.T) {
+	for _, action := range []string{"grant", "deny", "popup-revoke", "ctrl-revoke", "popup-release", "ctrl-release"} {
+		t.Run(action, func(t *testing.T) {
+			var b *driveACKBrowser
+			r := newDriveCast(t, func(d *webcast.FakeDriven) webcast.Browser {
+				b = &driveACKBrowser{FakeDriven: d, entered: make(chan struct{}), release: make(chan struct{}), releaseGate: strings.HasSuffix(action, "release")}
+				return b
+			})
+			defer close(b.release)
+			who := r.viewer(t, "Ana")
+			if action != "grant" && action != "deny" {
+				if err := r.cast().Drive().Grant(who); err != nil {
+					t.Fatal(err)
+				}
+				r.viewer(t, "Bo")
+			}
+			b.armed.Store(true)
+			if strings.HasPrefix(action, "ctrl-") {
+				span := r.span(t, "✋Bo")
+				r.mouse(16, span.Start, 23, false)
+				r.mouse(16, span.Start, 23, true)
+			} else {
+				prefix, button := "Ana asks", 0
+				if action == "deny" {
+					button = 2
+				}
+				if strings.HasPrefix(action, "popup-") {
+					prefix = "Ana is driving"
+				}
+				r.clickRow(t, r.span(t, map[bool]string{true: "✋Bo", false: "✋Ana"}[strings.HasPrefix(action, "popup-")]), prefix, button)
+			}
+			select {
+			case <-b.entered:
+			case <-time.After(time.Second):
+				t.Fatal("action did not reach writer")
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+			defer cancel()
+			if err := r.con.runTerminalCommand(ctx, func() error { return nil }); err != nil {
+				t.Fatalf("terminal blocked awaiting %s ACK: %v", action, err)
+			}
+			// Unrelated keyboard input is also serviced while ACK is held.
+			r.con.runTerminalCommand(ctx, func() error {
+				r.con.pnotes.mu.Lock()
+				r.con.pnotes.menuOpen = false
+				r.con.pnotes.mu.Unlock()
+				return nil
+			})
+			fmt.Fprint(r.stdin, "z")
+			waitFor(t, "typing while ACK held", func() bool { return bytes.Contains(bytes.Join(r.child.Writes(), nil), []byte("z")) })
+			// Further clicks must not allocate another acknowledged operation.
+			r.con.mu.Lock()
+			pending := r.con.drivePending
+			r.con.mu.Unlock()
+			for i := 0; i < 10; i++ {
+				r.con.revokeDrive()
+			}
+			if b.calls.Load() != 1 {
+				t.Fatalf("unbounded operations: %d", b.calls.Load())
+			}
+			r.con.mu.Lock()
+			same := pending != nil && r.con.drivePending == pending
+			r.con.mu.Unlock()
+			if !same || !strings.Contains(r.notice(), "wait for the current action") {
+				t.Fatal("repeat click replaced the operation slot")
+			}
+
+		})
+	}
+}
+
+func closeDriveBarrier(ch chan struct{}) {
+	select {
+	case <-ch:
+	default:
+		close(ch)
+	}
+}
+func TestDriveActionStaleCompletion(t *testing.T) {
+	for _, mode := range []string{"generation", "replacement"} {
+		t.Run(mode, func(t *testing.T) {
+			var b *driveACKBrowser
+			r := newDriveCast(t, func(d *webcast.FakeDriven) webcast.Browser {
+				b = &driveACKBrowser{FakeDriven: d, entered: make(chan struct{}), release: make(chan struct{})}
+				return b
+			})
+			cast := r.cast()
+			t.Cleanup(func() { closeDriveBarrier(b.release); r.con.mu.Lock(); r.con.wcast.cast = cast; r.con.mu.Unlock() })
+			who := r.viewer(t, "Ana")
+			b.armed.Store(true)
+			r.con.startDriveOperation(cast, recording.CtlDeny, recording.Author{ID: who, Name: "Ana"})
+			<-b.entered
+			entered, release, finished := make(chan struct{}), make(chan struct{}), make(chan struct{})
+			t.Cleanup(func() { closeDriveBarrier(release) })
+			go func() {
+				r.con.runTerminalCommand(r.con.lifetime, func() error { close(entered); <-release; return nil })
+				close(finished)
+			}()
+			<-entered
+			// Hold the terminal callback after dispatch settles, then change its owner.
+			close(b.release)
+			waitFor(t, "deny acknowledged", func() bool { return len(cast.Drive().Control().Pending) == 0 })
+			r.con.mu.Lock()
+			pending := r.con.drivePending
+			r.con.mu.Unlock()
+			if mode == "generation" {
+				if err := cast.SetCapability(context.Background(), webcast.CapabilityDrive, false); err != nil {
+					t.Fatal(err)
+				}
+				if err := cast.SetCapability(context.Background(), webcast.CapabilityDrive, true); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				r.con.mu.Lock()
+				r.con.wcast.cast = nil
+				r.con.mu.Unlock()
+				r.con.forgetDrive()
+				r.con.mu.Lock()
+				if r.con.drivePending != pending {
+					t.Error("forget released live operation slot")
+				}
+				r.con.mu.Unlock()
+			}
+			r.con.setNotice("newer state")
+			close(release)
+			<-finished
+			waitFor(t, "old worker finished", func() bool { r.con.mu.Lock(); defer r.con.mu.Unlock(); return r.con.drivePending == nil })
+			if strings.Contains(r.notice(), "Said no") {
+				t.Fatal("stale completion published success")
+			}
+			// Restore the fixture owner only after its old completion has been fenced.
+			if mode == "replacement" {
+				r.con.mu.Lock()
+				r.con.wcast.cast = cast
+				r.con.mu.Unlock()
+			}
+		})
+	}
+}
+
+func TestDriveActionShutdownJoinsAndRejectsClicks(t *testing.T) {
+	var b *driveACKBrowser
+	r := newDriveCast(t, func(d *webcast.FakeDriven) webcast.Browser {
+		b = &driveACKBrowser{FakeDriven: d, entered: make(chan struct{}), release: make(chan struct{}), canceled: make(chan struct{}), settle: make(chan struct{})}
+		return b
+	})
+	t.Cleanup(func() { closeDriveBarrier(b.release); closeDriveBarrier(b.settle) })
+	who := r.viewer(t, "Ana")
+	cast := r.cast()
+	b.armed.Store(true)
+	r.con.startDriveOperation(cast, recording.CtlGrant, recording.Author{ID: who})
+	<-b.entered
+	r.con.Stop()
+	select {
+	case <-b.canceled:
+	case <-time.After(time.Second):
+		t.Fatal("shutdown did not cancel writer")
+	}
+	select {
+	case <-r.done:
+		t.Fatal("shutdown did not join ACK worker")
+	default:
+	}
+	r.con.startDriveOperation(cast, recording.CtlGrant, recording.Author{ID: who})
+	if b.calls.Load() != 1 {
+		t.Fatal("shutdown admitted another click")
+	}
+	close(b.settle)
+	select {
+	case <-r.done:
+	case <-time.After(time.Second):
+		t.Fatal("shutdown did not finish after writer settled")
+	}
+	r.con.startDriveOperation(cast, recording.CtlGrant, recording.Author{ID: who})
+	if b.calls.Load() != 1 {
+		t.Fatal("stopped GoTracked dispatched inline")
 	}
 }

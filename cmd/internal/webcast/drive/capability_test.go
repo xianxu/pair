@@ -650,3 +650,59 @@ func TestReportedControlFailureRetriesCleanupOnce(t *testing.T) {
 		t.Fatalf("release calls=%d state=%+v", inj.calls, c.DriveCapability())
 	}
 }
+
+func TestOperatorAdmissionCannotCrossOffOn(t *testing.T) {
+	for _, op := range []string{"grant", "deny", "revoke"} {
+		t.Run(op, func(t *testing.T) {
+			c := NewMemController(&recording.MemSink{}, nil, func() int64 { return 1 }, time.Hour)
+			defer c.Close()
+			c.WithControlReset(func(context.Context, uint64) error { return nil })
+			c.SetDriveAllowed(context.Background(), true)
+			a, err := c.AdmitDrive()
+			if err != nil {
+				t.Fatal(err)
+			}
+			c.SetDriveAllowed(context.Background(), false)
+			c.SetDriveAllowed(context.Background(), true)
+			seat, _ := c.Join("A")
+			c.Request(seat.Key)
+			if op == "revoke" {
+				c.Grant(seat.Viewer.ID)
+			}
+			before := c.Control()
+			switch op {
+			case "grant":
+				err = a.Grant(seat.Viewer.ID)
+			case "deny":
+				err = a.Deny(seat.Viewer.ID)
+			case "revoke":
+				err = a.Revoke()
+			}
+			if !errors.Is(err, ErrDriveUnavailable) {
+				t.Fatalf("old admission: %v", err)
+			}
+			if !before.Equal(c.Control()) {
+				t.Fatal("stale operation changed control")
+			}
+
+			fresh, err := c.AdmitDrive()
+			if err != nil {
+				t.Fatal(err)
+			}
+			switch op {
+			case "grant":
+				err = fresh.Grant(seat.Viewer.ID)
+			case "deny":
+				err = fresh.Deny(seat.Viewer.ID)
+			case "revoke":
+				err = fresh.Revoke()
+			}
+			if err != nil {
+				t.Fatalf("fresh admission: %v", err)
+			}
+			if before.Equal(c.Control()) {
+				t.Fatal("fresh operation did not change control")
+			}
+		})
+	}
+}

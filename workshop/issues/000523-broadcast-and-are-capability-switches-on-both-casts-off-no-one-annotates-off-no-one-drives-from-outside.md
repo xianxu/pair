@@ -99,6 +99,14 @@ or CDP waits. Fix the class through bounded tracked dispatch with generation-
 bound admission and identity-checked terminal completion; keep ordered ACKs.
 The durable plan records the revised worker and verification envelope.
 
+The fix routes grant, deny, popup revoke and Ctrl-click revoke through one
+console-owned tracked operation. Admission is captured before scheduling and
+checked under the controller lock at dispatch; completion checks the cast,
+generation and operation identity. The slot survives cast replacement until
+the old worker settles, and shutdown cancels and joins it. Controller ACK and
+held-input release remain authoritative. Barrier regressions cover all four
+actions, typing during waits, repeated clicks, stale completion and shutdown.
+
 ### 2026-10-13 — Final verification complete
 
 - Complete merged-tree Go suite passed: go test ./... -count=1 -parallel 4,

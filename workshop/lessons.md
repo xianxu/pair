@@ -1576,3 +1576,8 @@ proof; record the surprising case so the next change starts from evidence.
 - #523 operator fixture: recorded publication precedes browser acknowledgement.
   Before the next gesture, await the editor's acknowledged completion, not only
   the Board record; verify with a deliberately delayed reply.
+
+- #523 close review: strengthening a formerly synchronous enqueue into an
+  acknowledged external write changes every caller's latency contract. Enumerate
+  all input-handler callers and move waits onto bounded lifetime-owned work;
+  carry admission identity across scheduling and test responsiveness with ACKs held.

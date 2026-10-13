@@ -169,7 +169,6 @@ func (c *Console) driveActionLocked(id int, right bool) func() {
 	if cast == nil || cast.Drive() == nil {
 		return nil
 	}
-	ctrl := cast.Drive()
 	for _, r := range c.pnotes.drive.rows {
 		if r.menuID != id {
 			continue
@@ -177,11 +176,11 @@ func (c *Console) driveActionLocked(id int, right bool) func() {
 		who := r.who
 		switch {
 		case r.driver:
-			return func() { c.driveResult(ctrl.Revoke(), "") }
+			return func() { c.startDriveOperation(cast, recording.CtlRevoke, who) }
 		case right:
-			return func() { c.driveResult(ctrl.Deny(who.ID), "Said no to "+who.Name+".") }
+			return func() { c.startDriveOperation(cast, recording.CtlDeny, who) }
 		default:
-			return func() { c.driveResult(ctrl.Grant(who.ID), "") }
+			return func() { c.startDriveOperation(cast, recording.CtlGrant, who) }
 		}
 	}
 	return nil
@@ -196,7 +195,70 @@ func (c *Console) revokeDrive() {
 	if cast == nil || cast.Drive() == nil {
 		return
 	}
-	c.driveResult(cast.Drive().Revoke(), "")
+	c.startDriveOperation(cast, recording.CtlRevoke, recording.Author{})
+}
+
+// One slot belongs to the console, not the cast's replaceable menu state.
+// It stays occupied through ACK and terminal completion; repeated clicks never
+// create a queue or detached workers.
+type driveOperation struct{ op string }
+
+func (c *Console) startDriveOperation(cast *webcast.Cast, op string, who recording.Author) {
+	c.mu.Lock()
+	if !c.started || c.lifetime.Err() != nil || c.wcast.cast != cast || c.wcast.phase != webcastRunning {
+		c.mu.Unlock()
+		return
+	}
+	if c.drivePending != nil {
+		c.mu.Unlock()
+		c.setNotice("Remote driving: wait for the current action.")
+		return
+	}
+	pending := &driveOperation{op: op}
+	c.drivePending = pending
+	c.mu.Unlock()
+	generation := cast.Drive().DriveCapability().Generation
+	admission, err := cast.Drive().AdmitDriveGeneration(generation)
+	if err != nil {
+		c.mu.Lock()
+		c.drivePending = nil
+		c.mu.Unlock()
+		c.driveResult(err, "")
+		return
+	}
+	c.GoTracked(func() {
+		defer func() {
+			c.mu.Lock()
+			if c.drivePending == pending {
+				c.drivePending = nil
+			}
+			c.mu.Unlock()
+		}()
+		// GoTracked runs inline after teardown begins. Never dispatch in that case.
+		if c.lifetime.Err() != nil {
+			return
+		}
+		var err error
+		done := ""
+		switch pending.op {
+		case recording.CtlGrant:
+			err = admission.Grant(who.ID)
+		case recording.CtlDeny:
+			err = admission.Deny(who.ID)
+			done = "Said no to " + who.Name + "."
+		case recording.CtlRevoke:
+			err = admission.Revoke()
+		}
+		_ = c.runTerminalCommand(c.lifetime, func() error {
+			c.mu.Lock()
+			current := c.lifetime.Err() == nil && c.wcast.cast == cast && c.wcast.phase == webcastRunning && c.drivePending == pending
+			c.mu.Unlock()
+			if current && cast.Drive().DriveCapability().Generation == generation {
+				c.driveResult(err, done)
+			}
+			return nil
+		})
+	})
 }
 
 // driveResult tells the operator a control change that didn't happen;
@@ -215,7 +277,7 @@ func (c *Console) driveResult(err error, done string) {
 // as it was.
 func driveFailure(err error) string {
 	switch {
-	case errors.Is(err, drive.ErrNoSeat), errors.Is(err, drive.ErrControlOp):
+	case errors.Is(err, drive.ErrNoSeat), errors.Is(err, drive.ErrControlOp), errors.Is(err, drive.ErrDriveUnavailable):
 		return "Remote driving: that changed meanwhile."
 	case errors.Is(err, drive.ErrClosed):
 		return "Remote driving: the cast has ended."
