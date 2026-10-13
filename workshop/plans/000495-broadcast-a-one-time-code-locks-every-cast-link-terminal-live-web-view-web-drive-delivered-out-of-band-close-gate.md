@@ -197,6 +197,56 @@ rounds:
       isolation: fenced
       reviewed: 7eb6a1dc1b90e0b88f9b8099ade5f7dcb8fbb73a
       blocked: false
+    - "n": 6
+      timestamp: "2026-10-12T17:25:49-07:00"
+      dispatched: "2026-10-12T17:18:00-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Plan now leads with a Current design section (Couch layer/tooltip/Alt+click menu/flash, SameSite=Strict at line 16) and fences the draft under an explicit superseded banner (line 32); current M3 deliverables live in the issue Plan checklist.
+          round: 6
+      findings:
+        - id: BR-16
+          severity: Important
+          title: Code-rotation ordering is keyed by (cast kind, link), so a late rotation from an ended cast poisons the next cast
+          detail: 'castlock fires OnRotated outside its mutex and Gen restarts at 1 per lock; onCodeRotated (console_castcodes.go:283) keys gens by linkKey(kind, link), which forgetCastCodes clears at cast end. A late callback re-inserts the old Gen, so the next cast''s first guess rotations are dropped (no alert or flash), a dead code flashes, and a hovered tooltip shows the dead code. 2nd in family. Rule: order async notifications by (producer instance, Gen) and drop ones from a non-current producer. Fix: capture the cast attempt in the OnCodeRotated closures (console_broadcast.go:161, console_webcast.go:62) and check it on delivery; add a test that ends cast A, delivers A''s rotation, starts B and delivers B''s Gen 1.'
+          family: unordered-async-notifications
+          round: 6
+        - id: BR-17
+          severity: Important
+          title: README never mentions the cast-link code, the lock page, the hover tooltip or Alt+click Codes menu
+          detail: 'README.md:865-872 still says viewers open the link and see the screen live; the pointer (950-955), web view and drive (982-995) paragraphs omit the code, and the drive link needs a 6-digit code. 2nd in family. Rule: the README gate covers changed behaviour of already-documented surfaces, not only new commands. Sweep every README paragraph describing a cast link recipient''s or the operator''s actions in the same range.'
+          family: docs-gate-surface
+          round: 6
+        - id: BR-18
+          severity: Important
+          title: M3's operator smoke test on desktop and iPad is not recorded
+          detail: It is in the M3 checklist and Done-when, and absent from the issue Log. The iPad pass must confirm that hover and Alt+click (which need a trackpad and keyboard) can reach the codes, or record a fallback.
+          family: done-when-item-unverified
+          round: 6
+        - id: BR-19
+          severity: Minor
+          title: Issue Spec item 6 still says clicking the code in the tab bar rotates it
+          detail: 'This contradicts Spec item 7 (no inline codes; the Alt+click Codes menu). 5th in family. Rule: a decision that replaces another greps every artifact restating it (issue Spec, Done-when, plan, atlas) for the old terms in the same commit.'
+          family: spec-moves-with-decisions
+          round: 6
+        - id: BR-20
+          severity: Minor
+          title: The Codes menu's "rotate all" item is never invoked by a test
+          detail: 'TestWebCastCodesOnTheChromeCell only asserts the item is present. 3rd in family. Rule: every Spec''d user action (each menu item) has a test that invokes it and asserts its effect, here that every link''s code changes and its viewers disconnect.'
+          family: behavior-without-default-test
+          round: 6
+        - id: BR-21
+          severity: Minor
+          title: Link-copy notices do not tell the operator that viewers need a code or where to see it
+          detail: console_broadcast.go:228, console_pointer.go:130 and :148, and console_webcast.go:268 copy a now-locked link without hinting to hover for its code.
+          family: operator-affordance-discoverability
+          round: 6
+      boundary: M3
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#495 (boundary-review)
@@ -278,12 +328,38 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-15** [Minor] `test-asserts-weaker-than-name` TestCastBrowserFirstThenLink now passes on the lock page's 200 and no longer proves the viewer page is served
   cast_test.go:57 fetches u.Link without unlockCast, so the 200 is the lock page. Unlock first and assert the viewer page's marker, or assert the lock page explicitly and rename the test.
 
+## Round 6 — 2026-10-12T17:25:49-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — Plan now leads with a Current design section (Couch layer/tooltip/Alt+click menu/flash, SameSite=Strict at line 16) and fences the draft under an explicit superseded banner (line 32); current M3 deliverables live in the issue Plan checklist.
+
+### Raised
+
+- **BR-16** [Important] `unordered-async-notifications` Code-rotation ordering is keyed by (cast kind, link), so a late rotation from an ended cast poisons the next cast
+  castlock fires OnRotated outside its mutex and Gen restarts at 1 per lock; onCodeRotated (console_castcodes.go:283) keys gens by linkKey(kind, link), which forgetCastCodes clears at cast end. A late callback re-inserts the old Gen, so the next cast's first guess rotations are dropped (no alert or flash), a dead code flashes, and a hovered tooltip shows the dead code. 2nd in family. Rule: order async notifications by (producer instance, Gen) and drop ones from a non-current producer. Fix: capture the cast attempt in the OnCodeRotated closures (console_broadcast.go:161, console_webcast.go:62) and check it on delivery; add a test that ends cast A, delivers A's rotation, starts B and delivers B's Gen 1.
+- **BR-17** [Important] `docs-gate-surface` README never mentions the cast-link code, the lock page, the hover tooltip or Alt+click Codes menu
+  README.md:865-872 still says viewers open the link and see the screen live; the pointer (950-955), web view and drive (982-995) paragraphs omit the code, and the drive link needs a 6-digit code. 2nd in family. Rule: the README gate covers changed behaviour of already-documented surfaces, not only new commands. Sweep every README paragraph describing a cast link recipient's or the operator's actions in the same range.
+- **BR-18** [Important] `done-when-item-unverified` M3's operator smoke test on desktop and iPad is not recorded
+  It is in the M3 checklist and Done-when, and absent from the issue Log. The iPad pass must confirm that hover and Alt+click (which need a trackpad and keyboard) can reach the codes, or record a fallback.
+- **BR-19** [Minor] `spec-moves-with-decisions` Issue Spec item 6 still says clicking the code in the tab bar rotates it
+  This contradicts Spec item 7 (no inline codes; the Alt+click Codes menu). 5th in family. Rule: a decision that replaces another greps every artifact restating it (issue Spec, Done-when, plan, atlas) for the old terms in the same commit.
+- **BR-20** [Minor] `behavior-without-default-test` The Codes menu's "rotate all" item is never invoked by a test
+  TestWebCastCodesOnTheChromeCell only asserts the item is present. 3rd in family. Rule: every Spec'd user action (each menu item) has a test that invokes it and asserts its effect, here that every link's code changes and its viewers disconnect.
+- **BR-21** [Minor] `operator-affordance-discoverability` Link-copy notices do not tell the operator that viewers need a code or where to see it
+  console_broadcast.go:228, console_pointer.go:130 and :148, and console_webcast.go:268 copy a now-locked link without hinting to hover for its code.
+
 ## Open findings
 
-- **BR-1** [Minor] `spec-moves-with-decisions` Durable plan body still shows the replaced inline-code, click-span, and Strict-cookie design
 - **BR-6** [Minor] `spec-moves-with-decisions` The plan still says revoke sends event: locked and that a sessionFrom(r) seam exists; the code does neither
 - **BR-11** [Minor] `spec-moves-with-decisions` Plan M2 says the Chrome live tests were "updated to unlock first", but they bypass the Host; TestLiveLockPage replaces them, which the plan does not record
 - **BR-12** [Minor] `docs-gate-surface` README web-cast sections (e.g. line 1021, "Anyone with the viewer link can point") don't mention the code lock
 - **BR-13** [Minor] `behavior-without-default-test` Terminal viewer's note author (viewer.js beforeSave, collab.js storedName) has only a source-grep test, no behavioral one
 - **BR-14** [Minor] `restated-constant-unpinned` The 40-char viewer-name bound is restated in collab.js, notes.go and lock.html maxlength with no parity test
 - **BR-15** [Minor] `test-asserts-weaker-than-name` TestCastBrowserFirstThenLink now passes on the lock page's 200 and no longer proves the viewer page is served
+- **BR-16** [Important] `unordered-async-notifications` Code-rotation ordering is keyed by (cast kind, link), so a late rotation from an ended cast poisons the next cast
+- **BR-17** [Important] `docs-gate-surface` README never mentions the cast-link code, the lock page, the hover tooltip or Alt+click Codes menu
+- **BR-18** [Important] `done-when-item-unverified` M3's operator smoke test on desktop and iPad is not recorded
+- **BR-19** [Minor] `spec-moves-with-decisions` Issue Spec item 6 still says clicking the code in the tab bar rotates it
+- **BR-20** [Minor] `behavior-without-default-test` The Codes menu's "rotate all" item is never invoked by a test
+- **BR-21** [Minor] `operator-affordance-discoverability` Link-copy notices do not tell the operator that viewers need a code or where to see it
