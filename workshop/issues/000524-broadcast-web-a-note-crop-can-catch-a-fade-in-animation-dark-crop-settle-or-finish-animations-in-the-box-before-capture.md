@@ -1,12 +1,20 @@
 ---
 id: 000524
-status: open
+status: working
 deps: [pair#483]
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: 'cfba515948b319088ac40c5fd017ee3e4be1329b' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'd3a52c351fa4be9cc3dd441a79d0e1cfc33b397f' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-12T22:49:33-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:6
+    worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
+    repository: github.com/xianxu/pair
 ---
 
 # broadcast-web: a note crop can catch a fade-in animation (dark crop); settle or finish animations in the box before capture
@@ -25,8 +33,27 @@ Find why the card was still faded at capture (measure first: does the CDP captur
 
 ## Plan
 
-- [ ]
+- [x] Measure the original bundle/recording and reproduce in a separate bounded headless Chrome.
+- [ ] Obtain TL approval of the measured design and viewport-only crop policy below.
+- [ ] Add deterministic animation/capture regressions; implement bounded settling and unchanged-viewport screenshot capture.
+- [ ] Verify metadata propagation, navigation/cancellation, real-browser pixels, full suite and docs; close, then stage only on TL instruction.
+
+Detailed proposal: [animation capture plan](../plans/000524-animation-capture-plan.md).
 
 ## Log
 
 ### 2026-10-12
+
+### 2026-10-12 — capture-time restart measured
+
+Original evidence: the first article already had data-animated=true and no no-intersect at recording start. Its fadeInUp animation is 1 s, opacity 0→1 and translateY(2rem)→0. Periodic recorded frames immediately before and after the dark crop show settled content. The original viewport was 864×997 at DPR 2; crop right edge 870.5 exceeded it by 6.5 CSS px. No live operator browser was touched.
+
+Bounded isolated headless probes (temporary profile, 30 s test ceiling) used the production CaptureCrops path and localhost:4321 blog. A settled card had opacity=1, animation state=finished, currentTime=1000 before capture. It returned to opacity≈0.033 and a new animation startTime afterward. The same failure occurred with a crop entirely inside the viewport, so overflow alone is not the cause.
+
+A direct Page.captureScreenshot A/B changed only captureBeyondViewport, with fromSurface=true and the exact original clip. true→false→true→false yielded bright-pixel counts 0→19891→0→19891. True emitted resize/media-query notifications and restarted the animation; false emitted neither and preserved the finished timeline. Thus pre-capture waiting alone cannot fix this bug: capture itself restarts the responsive animation. Background throttling and an unmet intersection trigger are not required to reproduce it. This identifies the causative CDP option, not every Chromium internal step.
+
+Probe logs: /tmp/pair524-probe/blog.log and flags.log; measurement-only Go overlays live beside them. Synthetic finite-delay probe also showed that still-running fades legitimately produce black pixels before finishing, so bounded settling remains useful after removing the capture-induced restart. No product code changed.
+
+## Revisions
+
+- 2026-10-12 — Measured cause revises the initial hypothesis: the screenshot path restarts an already-finished responsive fade. Proposed design avoids viewport-changing capture, then waits boundedly for relevant finite animations. Proposed viewport intersection and explicit offscreen-unavailable policy require TL approval before implementation; see the durable plan. ARCH-PURPOSE: fix the capture-induced restart rather than adding a sleep before it.

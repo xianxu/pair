@@ -1,0 +1,77 @@
+# Stable animation capture implementation plan
+
+> **For agentic workers:** Consult AGENTS.md Section 3 (Subagent Strategy) to determine the appropriate execution approach: use superpowers-subagent-driven-development for bounded independent tasks or superpowers-executing-plans for the measured capture path. Steps use checkbox syntax for tracking.
+
+**Goal:** Capture a settled blog card without restarting its animation, and explicitly label captures that cannot settle.
+
+**Architecture:** Keep capture in Recorder.CaptureCrops and its existing admitted-document/CDP seam. Disable viewport-changing screenshot capture, intersect each requested crop with the current viewport, and wait boundedly for relevant finite animations before collecting box text and pixels. Do not alter animation styles/timelines or operator focus.
+
+**Tech Stack:** Go, CDP, browser Web Animations API, existing node fixtures and opt-in temporary-profile headless Chrome tests.
+
+## Approval point
+
+This proposal awaits TL approval. A current-surface crop is the requested padded box intersected with the current viewport. Report the actual captured box and `clipped_to_viewport=true` if narrowed; fully offscreen boxes retain recorded context and report crop unavailable (outside viewport). The original unpadded region still defines box-text collection, whose existing contract already uses visible intersection. This changes the prior beyond-viewport pixel behavior and must be explicitly approved. No scrolling, resizing, focusing, synthetic visibility, or forced CSS state is proposed.
+
+## Measurement and alternatives
+
+See issue Log for production-path and direct-CDP A/B measurements. Waiting alone failed because capture restarted a completed responsive fade. With identical clip and settled card, captureBeyondViewport=true produced zero bright pixels and reset animation currentTime; false produced 19891 bright pixels and preserved the finished timeline, twice each.
+
+1. **Recommended:** unchanged-viewport screenshot plus bounded natural settling. Preserves the live page; offscreen pixels are explicitly unavailable.
+2. Force/restore final animation styles around capture: could preserve beyond-viewport reach but must suppress responsive restarts, handle pseudo-elements/shadow trees and animation callbacks, and reconcile mutations on cancellation. More invasive and risks recording synthetic DOM/style state.
+3. Wait before the existing screenshot: rejected by direct measurement; the capture restarts already-finished animation.
+
+## Core concepts
+
+### Pure entities
+
+| Name | Lives in | Status |
+| --- | --- | --- |
+| Crop evidence | cmd/internal/submission/model.go | modified |
+| Crop/viewport intersection | cmd/internal/webcast/recorder/submission.go or small colocated helper | new |
+
+Each note owns one crop. Add optional settlement evidence with an explicit outcome (`settled` or `unsettled`) and bounded reason for timeout, infinite/paused animation or inspection limit. Older manifests without it remain readable as unknown, never inferred settled. Record clipped-to-viewport separately from animation outcome and preserve existing document/time/unavailable fields. Validation owns the vocabulary; tests reject malformed outcomes/reasons. Reuse recording.Box validation and one intersection function; do not duplicate the box-text DOM traversal (ARCH-DRY, ARCH-PURE).
+
+### Integration points
+
+| Name | Lives in | Status | Wraps |
+| --- | --- | --- | --- |
+| Crop readiness probe | cmd/internal/webcast/recorder/capture_ready.js | new | viewport and browser animation observations |
+| CaptureCrops | cmd/internal/webcast/recorder/submission.go | modified | existing Caller.CallSeq + document barriers |
+| Crop propagation | cmd/internal/webcast/cast_submission.go | modified | captured evidence → durable manifest |
+
+The probe observes animations whose target/ancestor intersects the crop; includes transitions, delayed animations and pseudo-element targets as exposed by Web Animations. Browser observation is integration code, not a pure model. Reuse stateful fakeChrome to control animation completion, paused/infinite results, cancellation, context loss and navigation. Real Chrome is the conformance oracle for media-query animation restart and pixels (ARCH-MOCK).
+
+## Operating envelope and ordering
+
+- One existing preparation, sequential notes; retain 30 s total and existing screenshot/PNG/bundle/store limits. No new process or durable artifact family.
+- Proposed settling budget: at most 1500 ms per note inside the existing total budget, polling at 50 ms, at most 512 animation entries inspected per probe. These are proposed product limits, not measured performance promises. A page hitting the budget is captured as unsettled with an explicit reason; a canceled outer operation or navigation fails preparation, as before. API enumeration itself is browser-owned; never serialize an unbounded animation list over CDP.
+- Scope: same top document and accessible open-shadow surface used by current text evidence; no separate-frame traversal. Unsupported inspection is explicit unsettled evidence, never empty-list success.
+- Preserve exact admitted execution-context identity. Sequence: identity check → readiness/viewport observation → bounded polling → actual crop-box derivation → box text → identity check → screenshot with captureBeyondViewport=false → identity check → evidence. A viewport/scroll change across observation/capture refuses rather than pairing mismatched geometry/text/pixels.
+- No persistent animation ownership or restore operation exists because the implementation observes natural progress and does not mutate animation state. Interrupted Go calls release their contexts; no browser-side async loop survives return. Existing delivery state machine is unchanged (ARCH-ORDER).
+- Reasons are fixed strings/enums, bounded bytes; metadata stays under the existing 64 MiB bundle and 1 GiB retained-store cap with no silent eviction (ARCH-CONSTRAINTS, ARCH-FUNERAL). Untrusted CDP results are decoded/validated before use (ARCH-SECURE).
+
+## Implementation and tests (single review boundary)
+
+### 1. Regression first
+
+- [ ] Extend cmd/internal/webcast/live_submission_test.go with a small local page: intersection-triggered, media-query-scoped opacity+translate fade at DPR 2. Wait until finished, capture a small crop, and independently assert bright pixels, unchanged animation identity/startTime and viewport. Verify the old path fails. Keep the test opt-in and temporary-profile headless, bounded by its existing deadline.
+- [ ] Add finite delay/transition, long-running, paused/infinite, unrelated off-box animation and partially/fully offscreen cases in stateful JS/CDP fixtures. Assert explicit outcomes and no animation mutation/focus effects.
+- [ ] Add pure intersection tables and metadata JSON compatibility/validation tests before implementation.
+
+### 2. Implement one capture path
+
+- [ ] Add compact readiness probe and bounded Go polling under the existing context; use the exact admitted execution context. Re-query after progress so newly started relevant animations cannot be ignored.
+- [ ] Use unchanged-viewport capture, actual visible clip, and propagate settlement/clipping metadata through CapturedCrop and Cast into submission.Crop. Preserve unavailable-note semantics and strict navigation refusal.
+- [ ] Extend stateful recorder tests for cancellation/timeout/navigation and viewport changes at every capture boundary. Mutation-check the capture option and settlement metadata wiring.
+- [ ] If #494 lands first, route the screenshot through its document-scoped capture suppression helper, preserving its exact context and error contract; otherwise coordinate its second-lander hook. Keep a single screenshot call site.
+
+### 3. Verify and ship
+
+- [ ] Run GOMAXPROCS=2 go test -p 1 ./cmd/internal/submission ./cmd/internal/webcast/recorder ./cmd/internal/webcast/submission ./cmd/internal/webcast.
+- [ ] Run the opt-in bounded headless regression and original crop conformance once after the final behavior change; separately confirm the localhost blog with an isolated profile. Never focus/reload the operator's Chrome.
+- [ ] Update README and atlas/webcast-submission.md with settled/unsettled and viewport evidence semantics; update artifact inventory for any new scanned sources and generated mirrors as required.
+- [ ] Run the full suite serially under the machine gate, record all failures honestly (baseline #519 if still present), and close through SDLC's own fresh review. Request smoke/staging via hub only; land on authorization, report, stop.
+
+## Revisions
+
+- 2026-10-12 — Initial measured proposal. No implementation authorized yet; viewport/offscreen policy is the principal approval question.
