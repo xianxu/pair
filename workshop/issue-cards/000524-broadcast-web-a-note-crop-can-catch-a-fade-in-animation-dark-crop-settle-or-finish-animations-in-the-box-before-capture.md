@@ -13,14 +13,14 @@ claimant:
     workspace: pair:0
     worktree: /Users/xianxu/workspace/pair
     repository: github.com/xianxu/pair
-actual_hours: 2.67
+actual_hours: 0.03
 tracker:
     version: 1
     completion:
-        token: close-c931d7a0b3ee
+        token: close-1de337c43dec
         repository: github.com/xianxu/pair
-        reviewed_head: f5338dbc5ad7996f2ce6cb30d861d662acddb7b2
-        evidence_commit: 14daded2e759c3212ba47ba2d378bbd547c6fc5f
+        reviewed_head: a5edec14048bde1abd649e89ab789cd99c1323f9
+        evidence_commit: 89ea9c5aa85535904c4a7418727137b2a2b0b1ff
 ---
 
 # broadcast-web: a note crop can catch a fade-in animation (dark crop); settle or finish animations in the box before capture
