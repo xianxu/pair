@@ -12,7 +12,7 @@
 
 ## Approved scope and open approval
 
-The operator's successful ariadne:5 switch with exactly `--sandbox danger-full-access` supersedes the requested live reproduction. No further live repro, startup-policy changes, retries, or work on #529. This diagnostic design awaits hub approval before change-code. One atomic close boundary; tasks below are implementation steps, not milestones.
+The operator's successful ariadne:5 switch with exactly `--sandbox danger-full-access` supersedes the requested live reproduction. No further live repro, startup-policy changes, retries, or work on #529. This diagnostic design was approved by the hub before change-code. One atomic close boundary; tasks below are implementation steps, not milestones.
 
 ## Core concepts
 
@@ -101,3 +101,7 @@ The issue Log retains the investigation and successful operator repro. This plan
 ### 2026-10-13 13:12 PDT — approved with recovery guidance and install audit
 
 TL approved this plan and added two requirements. Immediate failures are one sanitized line describing what happened plus exactly one recovery action (retry / resume old / inspect with `couch --show <slot>`); verbose retained output belongs in inspection. Extend rendering tests to assert this contract. Audit repo installation targets and read-only metadata for the stale ~/.local/bin/couch; make copying install targets create links to the built repo binary, with a temporary-prefix test proving rebuilds are visible. Never run install against ~/.local/bin. Record provenance evidence and any uncertainty in the issue Log. This is an authorized scope addition; no further live repro.
+
+### 2026-10-13 — implementation checkpoint
+
+Tasks 1–3 implementation and targeted race/installer checks complete. Code is checkpointed together because storage, runner capability and shared capture share the compile boundary. Full suite, boundary review and landing remain. HelperStarted is explicit so a pre-spawn failure does not imply a process existed. FakeRunner's direct-exit completion now matches the production Handle contract. Timing details moved to retained evidence; immediate failure text gives one inspection action. Ordinary stderr drain is bounded to one second after direct child exit, with the descriptor limitation documented in atlas.

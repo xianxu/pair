@@ -44,8 +44,8 @@ Only targeted tests while machine load is at least 40. No full suite until load 
 
 ## Plan
 
-- [ ] Approve the diagnostic design and durable implementation plan.
-- [ ] Implement bounded capture, persistence and failure reporting through the shared launch seams.
+- [x] Approve the diagnostic design and durable implementation plan.
+- [x] Implement bounded capture, persistence and failure reporting through the shared launch seams.
 - [ ] Verify targeted regressions and documentation; run the required full suite only below the operator's load threshold, then close and land through SDLC.
 
 ## Log
@@ -75,3 +75,13 @@ Supersedes the initial two-part scope (diagnostics, then agent-driven live inves
 ### 2026-10-13 13:12 PDT — approved design and operator-facing failure rule
 
 TL approved plan 2572f5a2 (receipt 2c92fd96-1536-4649-a9ed-6f5aa76f89b1). Every visible failure must state what happened in one line and name one action: retry, resume the old agent, or inspect with `couch --show <slot>`. Retained detail must not replace that concise recovery guidance. Added authorized install audit: identify the stale ~/.local/bin/couch provenance and change any repo install target from copying to linking; do not modify ~/.local/bin itself.
+
+### 2026-10-13 — install provenance and implementation observations
+
+The stale ~/.local/bin/couch is a regular file with birth/modification time Sep 30 18:06:50 and embedded revision 10c444b4829e9af3f2800af7396f2555903dfb49 (modified build). Makefile.local's supported install recipe copied GO_BINS using install -m755; that recipe dates to 14dc87970a (May 10). This matches an old make install but does not prove the actual invocation. The repo target now links Go binaries to the checkout; a temporary-prefix regression covers stale copies, old symlinks, spaces, repeated install, and rebuilt source replacement. ~/.local/bin was not changed.
+
+The ordinary stderr tee changes isatty(2) to false. Its one-second drain budget bounds descendants retaining stderr after direct exit; later writes may see EPIPE. A real subprocess test measured exit visibility around 1.034 s with an inherited descriptor held for 10 s. PTY capture reuses its existing ring. While exercising direct exit, targeted tests found FakeRunner.Wait waited for process-group death even after Exited closed; the fake is being corrected to match the real direct-child contract. Existing timing-detail tests now inspect retained LaunchError, since the operator-visible error is intentionally one line.
+
+### 2026-10-13 — targeted verification
+
+Combined targeted race run passed for launch failures/output, switch and cold-resume paths, show resolution and rendering: GOMAXPROCS=2 go test -p 1 ./cmd/internal/couchcore ./cmd/internal/couchcmd -run 'Test(LaunchFailure|LaunchOutput|ShowLaunchFailure|RenderLaunchFailures|RenderShowIncludesLaunchFailures|SwitchAgent|UncertainSwitch|ColdResume)' -race -count=1 -timeout=180s (core 14.206 s, cmd 11.472 s). Temporary-prefix install link regression passed; git diff --check clean. An earlier broad targeted run was stopped after finding the fake direct-child Wait mismatch, now fixed and covered; timing assertions now verify retained detail instead of truncated one-line UI. Real PTY process-group conformance failed once on background-child timing and passed isolated rerun; no live slots changed.

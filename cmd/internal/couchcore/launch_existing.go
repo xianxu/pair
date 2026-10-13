@@ -42,8 +42,15 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		ctx = context.Background()
 	}
 	steps := newLaunchSteps(in.Begun)
+	stage := "prepare"
+	fail := func(h Handle, cause error, cleanup func() error) error {
+		return c.captureLaunchFailure(in, stage, h, cause, cleanup)
+	}
+	rollback := func(thread ThreadRecord, cause error) error {
+		return fail(nil, cause, func() error { return c.rollbackTrackedStart(thread, in.Nonce) })
+	}
 	if err := freshNonceReachesPair(in); err != nil {
-		return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(in.Thread, in.Nonce))
+		return ActorRecord{}, nil, rollback(in.Thread, err)
 	}
 	thread := in.Thread
 	if c.Slots != nil {
@@ -64,7 +71,7 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 			}
 		}
 		if err != nil {
-			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, in.Nonce))
+			return ActorRecord{}, nil, rollback(thread, err)
 		}
 		in.Args.Cwd = cwd
 		in.Args.Worktree = tree
@@ -113,22 +120,22 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		}
 		var raw []byte
 		if err != nil {
-			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, in.Nonce))
+			return ActorRecord{}, nil, rollback(thread, err)
 		}
 		var profile launcher.TrustedLaunchProfile
 		if err := json.Unmarshal([]byte(in.ProfileRaw), &profile); err != nil {
-			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, in.Nonce))
+			return ActorRecord{}, nil, rollback(thread, err)
 		}
 		profile.Orientation = in.Orientation
 		if in.Fresh {
 			profile.FreshNonce = in.Nonce
 		}
 		if err := launcher.ValidateTrustedLaunchProfile(profile); err != nil {
-			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, in.Nonce))
+			return ActorRecord{}, nil, rollback(thread, err)
 		}
 		raw, err = json.Marshal(profile)
 		if err != nil {
-			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, in.Nonce))
+			return ActorRecord{}, nil, rollback(thread, err)
 		}
 		in.ProfileRaw = string(raw)
 	}
@@ -152,11 +159,11 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	}
 	binding, err := c.sessionBindingForLaunch(ctx, thread, in.Nonce, in.Warm)
 	if err != nil {
-		return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, in.Nonce))
+		return ActorRecord{}, nil, rollback(thread, err)
 	}
 	bound, err := c.Threads.AdvanceStart(thread.Address, thread.Revision, StartEvent{Kind: StartSessionBound, Nonce: in.Nonce, Binding: &binding})
 	if err != nil {
-		return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, in.Nonce))
+		return ActorRecord{}, nil, rollback(thread, err)
 	}
 	thread = bound
 	disposition := "create"
@@ -165,21 +172,19 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	}
 	intent, err := json.Marshal(launcher.CouchSessionIntent{Scope: thread.Address.RepoScope, Tag: string(thread.Address.Tag), Name: binding.Name, Nonce: in.Nonce, Disposition: disposition})
 	if err != nil {
-		return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, in.Nonce))
+		return ActorRecord{}, nil, rollback(thread, err)
 	}
 	argv = append([]string{argv[0], launcher.CouchSessionFlag}, argv[1:]...)
 	env = append(env, launcher.CouchSessionIntentEnv+"="+string(intent))
 	steps.mark("prepare")
+	stage = "spawn"
 	h, err := c.Runner.StartBlocked(ctx, in.Args.WorkingDir(), argv, env, 10*time.Second)
 	steps.mark("spawn")
 	if err != nil {
-		return ActorRecord{}, nil, errors.Join(
-			fmt.Errorf("spawn %s: %w", in.Args.Worktree, err),
-			c.rollbackTrackedStart(thread, in.Nonce),
-		)
+		return ActorRecord{}, nil, rollback(thread, fmt.Errorf("spawn %s: %w", in.Args.Worktree, err))
 	}
 	if err := ctx.Err(); err != nil {
-		return ActorRecord{}, h, c.failTrackedPreAckStart(thread, in.Nonce, h, err)
+		return ActorRecord{}, h, fail(h, err, func() error { return c.failTrackedPreAckStart(thread, in.Nonce, h, nil) })
 	}
 	recorded, err := c.Threads.AdvanceStart(thread.Address, thread.Revision, StartEvent{
 		Kind:   StartHelperRecorded,
@@ -187,19 +192,13 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		Helper: ProcessIdentity{PID: h.PID(), Identity: h.Identity()},
 	})
 	if err != nil {
-		cancelErr := h.Cancel()
-		if cancelErr == nil {
-			_ = h.Wait()
-		}
-		var rollbackErr error
-		if cancelErr == nil && !h.Alive() {
-			rollbackErr = c.rollbackTrackedStart(thread, in.Nonce)
-		}
-		return ActorRecord{}, h, errors.Join(fmt.Errorf("record blocked helper %+v: %w", thread.Address, err), cancelErr, rollbackErr)
+		return ActorRecord{}, h, fail(h, fmt.Errorf("record blocked helper %+v: %w", thread.Address, err), func() error {
+			return c.failTrackedPreAckStart(thread, in.Nonce, h, nil)
+		})
 	}
 	thread = recorded
 	if err := ctx.Err(); err != nil {
-		return ActorRecord{}, h, c.failTrackedPreAckStart(thread, in.Nonce, h, err)
+		return ActorRecord{}, h, fail(h, err, func() error { return c.failTrackedPreAckStart(thread, in.Nonce, h, nil) })
 	}
 	// A cold resume starts a new zellij server, so its registration must not
 	// ask zellij anything until the thread's pane has been born (#287).
@@ -210,16 +209,17 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	if shape == StartColdResume {
 		var err error
 		if birth, err = c.coldResumeBirthBaseline(thread.Address); err != nil {
-			return ActorRecord{}, h, c.failTrackedPreAckStart(thread, in.Nonce, h, err)
+			return ActorRecord{}, h, fail(h, err, func() error { return c.failTrackedPreAckStart(thread, in.Nonce, h, nil) })
 		}
 	}
 	steps.mark("record+baseline")
+	stage = "acknowledge"
 	if err := h.Acknowledge(); err != nil {
 		cause := fmt.Errorf("acknowledge blocked helper %+v: %w", thread.Address, err)
-		return ActorRecord{}, h, c.failTrackedPostAckStart(shape, thread, in.Nonce, h, cause)
+		return ActorRecord{}, h, fail(h, cause, func() error { return c.failTrackedPostAckStart(shape, thread, in.Nonce, h, nil) })
 	}
 	if err := ctx.Err(); err != nil {
-		return ActorRecord{}, h, c.failTrackedPostAckStart(shape, thread, in.Nonce, h, err)
+		return ActorRecord{}, h, fail(h, err, func() error { return c.failTrackedPostAckStart(shape, thread, in.Nonce, h, nil) })
 	}
 	registrationTimeout := pairRegistrationTimeout
 	if (in.Resume || in.Fresh) && c.resumeRegistrationTimeout > 0 {
@@ -246,6 +246,7 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		}
 		return c.awaitThreadRegistration(ctx, thread.Address)
 	}
+	stage = "registration"
 	err = await(registrationContext)
 	cancelRegistration()
 	exited := stopExitWatch()
@@ -265,7 +266,7 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 			diagnosis = " (Pair exited before registering -- look at the launch: its stderr and the zellij log)"
 		}
 		cause := fmt.Errorf("await Pair registration %+v: %w [steps: %s]%s", thread.Address, err, steps, diagnosis)
-		return ActorRecord{}, h, c.failTrackedPostAckStart(shape, thread, in.Nonce, h, cause)
+		return ActorRecord{}, h, fail(h, cause, func() error { return c.failTrackedPostAckStart(shape, thread, in.Nonce, h, nil) })
 	}
 	// The layout witness rides this transaction, and only at a cold boundary:
 	// `in.Warm` chose no layout (see the argv above), so it records none -- nil,
@@ -275,12 +276,13 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		chosen := c.Layout
 		registeredLayout = &chosen
 	}
+	stage = "promote registration"
 	registeredThread, err := c.Threads.AdvanceStart(thread.Address, thread.Revision, StartEvent{
 		Kind: StartRegistered, Nonce: in.Nonce, Layout: registeredLayout,
 	})
 	if err != nil {
 		cause := fmt.Errorf("promote registered thread %+v: %w", thread.Address, err)
-		return ActorRecord{}, h, c.failTrackedPostAckStart(shape, thread, in.Nonce, h, cause)
+		return ActorRecord{}, h, fail(h, cause, func() error { return c.failTrackedPostAckStart(shape, thread, in.Nonce, h, nil) })
 	}
 	thread = registeredThread
 
@@ -293,7 +295,7 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		pruned, _ := c.withoutDead(reg)
 		return pruned.Insert(record), nil
 	}); err != nil {
-		return record, h, c.failPostAckStart(thread.Address, h, shape, fmt.Errorf("persist registry: %w", err))
+		return record, h, fail(h, fmt.Errorf("persist registry: %w", err), func() error { return c.failPostAckStart(thread.Address, h, shape, nil) })
 	}
 	return record, h, nil
 }

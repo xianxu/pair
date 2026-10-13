@@ -223,3 +223,10 @@ func (h *acknowledgedHandle) resolve(acknowledge bool) error {
 	_, writeErr := writer.Write([]byte{launchAckByte})
 	return errors.Join(writeErr, writer.Close())
 }
+
+func (h *acknowledgedHandle) LaunchOutput() (string, []byte) {
+	if output, ok := h.Handle.(LaunchOutputHandle); ok {
+		return output.LaunchOutput()
+	}
+	return "", nil
+}

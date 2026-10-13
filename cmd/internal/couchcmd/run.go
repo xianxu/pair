@@ -1113,6 +1113,7 @@ func render(w io.Writer, op couchcore.Operation, result any) int {
 		if v.Slot != nil {
 			renderSlotReport(w, *v.Slot)
 		}
+		renderLaunchFailures(w, v.LaunchFailures, v.LaunchFailureError)
 	case couchcore.Worktree:
 		fmt.Fprintf(w, "%s\n", v)
 	case couchcore.ArchiveResult:

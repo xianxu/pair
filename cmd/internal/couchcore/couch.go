@@ -32,6 +32,7 @@ type Couch struct {
 	ContinuationGeneration func(context.Context, ThreadAddress, string, string) (*checkpoint.TargetGeneration, error)
 	ContinuationSource     func(context.Context, ThreadAddress) (ContinuationSource, error)
 	Namespace              CouchNamespace
+	LaunchFailures         LaunchFailureStorage
 	Runner                 Runner
 	Path                   PathOps
 	Git                    GitRunner
@@ -193,9 +194,10 @@ func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOp
 		}
 	}
 	result := &Couch{
-		Namespace: namespace,
-		Layout:    DefaultLayout,
-		Runner:    r, Path: p, Git: g, Proc: proc, Store: s, Clock: c, IDs: ids,
+		Namespace:      namespace,
+		LaunchFailures: NewLaunchFailureStore(namespace),
+		Layout:         DefaultLayout,
+		Runner:         r, Path: p, Git: g, Proc: proc, Store: s, Clock: c, IDs: ids,
 		Threads: threads, Entropy: entropy,
 		Artifacts: artifacts,
 		reg:       reg, names: names,
