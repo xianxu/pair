@@ -35,6 +35,8 @@ Coordinate with #525, which adds the page URL to the same manifest. Build on mai
 
 ## Done when
 
+- Invalid origin policy does not refuse submission: bundle is private with `privacy_rule: "invalid policy file: <reason>"`, and a Couch notice names the file.
+
 - A submission from an explicitly shareable origin records `shareable` and its matching rule; unlisted origins record `private`, as do explicit private rules.
 - The Couch skill and `how_to_read` carry the text-first evidence rule, the two conditions for crop attachment, private-text summarization, and the local/expiring recording limitation.
 - Tests pin the manifest privacy field, matched rule, private default, and exclusion of typed input values for private origins.
@@ -58,3 +60,7 @@ Coordinate with #525, which adds the page URL to the same manifest. Build on mai
 ### 2026-10-12 — hub coordination with #525
 
 Hub confirmed top-level `privacy` and `privacy_rule`, an operator-edited local exact-origin list, default private, and no edit CLI. #525 owns the capture-bound source URL; whichever issue lands second integrates the fields, without building on the other's unlanded branch. The draft plan proposes excluding editable values for all origins to keep the protection independent of publication permission.
+
+### 2026-10-13 — approved plan; invalid policy must not strand submission
+
+Hub approved commit `5738858e62f3ab31716f641a7f1af8de87db4fa1` with the operator's no-limbo correction. This supersedes decision 3, the partial-JSON failure wording, and task 2's refusal expectation: missing policy remains private; unreadable, oversized or invalid policy makes every origin private, preserves submission/delivery, records `privacy_rule: "invalid policy file: <reason>"`, and emits a Couch notice naming the policy file. Reasons are bounded safe categories, never raw policy content. Valid matched rules remain objects, unmatched defaults null; the typed rule representation must support the explicit invalid-policy string variant and validate that it occurs only with private. Tests must prove successful preparation/delivery and the notice on these failure paths. No estimate until the plan-quality gate passes.

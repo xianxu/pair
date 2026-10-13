@@ -107,3 +107,9 @@ Files: modify `README.md`, `atlas/webcast-submission.md`; update existing atlas 
 ## Approval checkpoint
 
 The operator requirements arrived through the hub on 2026-10-12. Hub follow-up confirmed top-level privacy/privacy_rule, exact local operator-edited origins, default private, no edit CLI, main-based development and second-lander integration with #525. This durable plan also proposes exact file/schema/error behavior and conservative editable-value exclusion; send it to the hub for the required plan approval before `sdlc change-code`. Do not derive an estimate before plan-quality passes.
+
+## Revisions
+
+### 2026-10-13 — approved plan; invalid policy must not strand submission
+
+Hub approved commit `5738858e62f3ab31716f641a7f1af8de87db4fa1` with the operator's no-limbo correction. This supersedes decision 3, the partial-JSON failure wording, and task 2's refusal expectation: missing policy remains private; unreadable, oversized or invalid policy makes every origin private, preserves submission/delivery, records `privacy_rule: "invalid policy file: <reason>"`, and emits a Couch notice naming the policy file. Reasons are bounded safe categories, never raw policy content. Valid matched rules remain objects, unmatched defaults null; the typed rule representation must support the explicit invalid-policy string variant and validate that it occurs only with private. Tests must prove successful preparation/delivery and the notice on these failure paths. No estimate until the plan-quality gate passes.
