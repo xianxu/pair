@@ -1496,6 +1496,8 @@ that thread record. Before launching a replacement, Couch stores the exact
 verified park identity and capture token, terminal binding, native session and
 transcript paths. Successful registration may clear `VerifiedPark` without
 losing this descriptor; a failed launch and retry preserve the original source.
+A different verified park supersedes it, including a source parked separately
+before the switch. Reuse depends on the exact source identity.
 `couch --peek repo:N --previous --transcripts` reads that descriptor and its exact
 parked recording, never substitutes the current incarnation. Missing evidence
 is reported explicitly.

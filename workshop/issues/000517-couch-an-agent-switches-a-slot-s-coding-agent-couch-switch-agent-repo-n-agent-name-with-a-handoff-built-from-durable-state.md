@@ -68,6 +68,17 @@ Durable plan: [agent switch plan](../plans/000517-agent-switch-plan.md).
 
 ## Log
 
+- 2026-10-12 M1 boundary round 1 returned REWORK (BR-1/BR-2/BR-3).
+  Reproduced stale previous evidence after A→B, separate park B, B→C;
+  reuse now compares the current verified park identity (ARCH-ORDER).
+  Updated the plan's actual file owners with a Revisions entry. Added real
+  retention collection interleavings through RenderOwnedCaptureLines, covering
+  success and replay failure; disabling acquisition or release fails both cases.
+  Targeted previous/switch/peek/operation checks and scrollback package pass;
+  the scrollback race suite passed. Full make test exposed missing artifact
+  inventory classifications; corrected them and the inventory check passes.
+  Full suite is still running; M1 re-review follows its outcome.
+
 - 2026-10-12 recovery evidence: after continuation commit d32489907, this
   session received no automatic orientation. TL ops:0 supplied the continuation
   path and next action in verified receipt b75ae41d-6538-4630-ad7c-ad8f751b48d5.

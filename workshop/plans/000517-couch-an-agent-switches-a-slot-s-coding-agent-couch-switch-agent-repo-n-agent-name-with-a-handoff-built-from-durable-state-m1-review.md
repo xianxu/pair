@@ -1,0 +1,92 @@
+# Boundary Review — pair#517 (milestone M1)
+
+| field | value |
+|-------|-------|
+| issue | 517 — couch: an agent switches a slot's coding agent (couch --switch-agent repo:N --agent NAME), with a handoff built from durable state |
+| repo | pair |
+| issue file | workshop/issues/000517-couch-an-agent-switches-a-slot-s-coding-agent-couch-switch-agent-repo-n-agent-name-with-a-handoff-built-from-durable-state.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | e8d839f8d5012bf1560787284615a6f3f4dabbfc..e337c825c5d8e1cf7f2f6fa454f3e3063c84959b |
+| command | sdlc milestone-close --issue 517 --milestone M1 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-12T20:49:39-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+M1 adds bounded previous-session persistence, exact capture selection, and documented CLI access. However, switching an already-parked source can retain evidence from an older incarnation. The core-concepts table also contradicts the implemented M1 locations. Relevant core tests and the full scrollback suite passed; CLI verification was blocked by missing generated runtime assets.
+
+1. **Strengths**
+
+- Descriptor validation and defensive cloning cover malformed persisted data, size limits, legacy absence, and pointer ownership.
+- `RecordPreviousSession` checks the verified park, capture, binding, and record revision before persisting evidence.
+- Previous/full peeks bypass current live-tail selection; tests explicitly prohibit current-source fallback.
+- README and atlas document the new flags, costs, limits, and terminal-history semantics.
+
+2. **Critical findings**
+
+- **Incorrect previous incarnation after a separate park — ARCH-ORDER / ARCH-PURPOSE.** At `cmd/internal/couchcore/switchagent.go:361`, an existing descriptor is retained whenever the source is already parked. Sequence: switch A→B, park B separately, switch B→C. `FinalizePark` updates `VerifiedPark` but retains A’s descriptor; the switch consequently skips recording B. Preserve a descriptor only when its source identity matches the current verified park. Add this sequence alongside the existing failed-launch retry test.
+
+- **Core-concepts locations contradict M1 implementation.** At `workshop/plans/000517-agent-switch-plan.md:114`, `PeekSelection` is assigned to `peek.go`, but exists in `peek_selection.go`. Lines 139–143 similarly claim modifications to `threadstore.go`, `retention.go`, and `peek_fast.go` that are absent; the implementation instead introduces `previous_session.go`, `bounded.go`, and runtime wiring in `run.go`. Update the table and add a `## Revisions` entry. This is Critical under the explicit core-concepts cross-check rule, not a runtime defect. M2/M3 entities are appropriately deferred.
+
+3. **Important findings**
+
+- **Promised capture-lease ordering coverage is absent — ARCH-MOCK / ARCH-ORDER.** `cmd/internal/scrollbackcmd/bounded_test.go:98` verifies token selection but never observes an active lease, interleaves collection, or checks release after failure. The older retention test exercises another entry point. Add controlled tests through `RenderOwnedCaptureLines` proving collection cannot remove the selected capture during replay and that success/error paths release its lease.
+
+4. **Minor findings**
+
+None.
+
+5. **Test coverage notes**
+
+- Passed: selected threadrecord/core tests covering previous sessions, switching, peeking, and operations; full `scrollbackcmd` suite; pinned-range `git diff --check`.
+- Blocked: `couchcmd` failed compilation at `cmd/internal/runtimebundle/embed.go:8`: `assets/runtime/files` was missing. CLI integration remains unverified.
+- Existing successive-switch coverage performs both parks inside switching; it misses the separate-park sequence above.
+- No prior findings required disposition. No repository files were changed.
+
+6. **Architectural notes for upcoming work**
+
+- **ARCH-DRY — pass:** reuses replay, path validation, retention leases, and lifecycle operations.
+- **ARCH-PURE — pass:** descriptor validation/cloning and source selection are pure; recording IO is injected.
+- **ARCH-PURPOSE — flag:** stale evidence defeats exact previous-incarnation access.
+- **ARCH-MOCK — flag:** the new capture reader lacks the planned controlled retention interaction test.
+- **ARCH-CONSTRAINTS — pass:** byte, dimension, row, and single-reference limits are enforced and tested.
+- **ARCH-SECURE — pass:** strict descriptor validation and bounded regular-file reads protect the new persistence/read boundaries.
+- **ARCH-ORDER — flag:** descriptor reuse relies on parked status rather than matching source identity.
+- **ARCH-FUNERAL — pass:** one bounded descriptor replaces its predecessor; captures reuse existing retention and readers close leases.
+
+7. **Plan revision recommendations**
+
+Add entries recording the actual M1 file locations and the invariant: “Reuse previous-session evidence only for the same verified source park; a different park supersedes it.” Retain the promised lease-interleaving tests as unfinished until demonstrated.
+
+```findings
+findings:
+  - id: new
+    severity: Critical
+    family: evidence-reuse-requires-source-identity
+    title: |
+      Switching an already-parked source retains an older incarnation's evidence
+    detail: |
+      cmd/internal/couchcore/switchagent.go:361 preserves any existing descriptor for a parked source. After A→B, a separate park of B, and B→C, previous-session access still selects A. ARCH-ORDER and ARCH-PURPOSE require comparing the descriptor's source with the current verified park, retaining it only for the same source. Add a regression sequence covering separate parking while preserving failed-launch retry behavior.
+  - id: new
+    severity: Critical
+    family: core-concepts-match-implementation
+    title: |
+      M1 core-concepts locations and modification claims contradict the diff
+    detail: |
+      workshop/plans/000517-agent-switch-plan.md:114 and :139–143 name incorrect M1 locations or unchanged files. PeekSelection lives in peek_selection.go; persistence and capture reading introduce previous_session.go and bounded.go, with runtime wiring in run.go. Correct the table and add a Revisions entry, as required by the core-concepts cross-check.
+  - id: new
+    severity: Important
+    family: retention-ordering-regression-coverage
+    title: |
+      Exact capture reader lacks the promised lease and collection ordering tests
+    detail: |
+      cmd/internal/scrollbackcmd/bounded_test.go:98 tests selection only. ARCH-MOCK and ARCH-ORDER require controlled coverage through RenderOwnedCaptureLines proving the exact capture is protected during replay and leases release after both success and failure. Existing retention tests exercise a different entry point.
+```

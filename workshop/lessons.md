@@ -1438,3 +1438,14 @@ proof; record the surprising case so the next change starts from evidence.
   carry both the source incarnation and the parent request ID end to end.
   A late reply must never satisfy the next request merely because the process
   stayed alive. Distinguish standalone commands from callbacks explicitly.
+
+- **Retained evidence belongs to a source, not a lifecycle label (#517 M1).**
+  A previous-session descriptor survived A→B correctly, but a separate park of B
+  followed by B→C reused A's evidence because the source was already parked.
+  Compare the saved source identity with the current verified park before reuse;
+  test both same-source retries and a different source parked through another path.
+  Test retention through the new reader itself: collect while its lease is held,
+  then prove release after both successful replay and an error.
+- **A plan's owner map follows the actual diff (#517 M1).** When implementation
+  splits a concern into a new file, check every core-concepts location and the
+  milestone file inventory against the diff; record the correction in Revisions.

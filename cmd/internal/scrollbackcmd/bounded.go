@@ -81,6 +81,9 @@ func readBoundedRecording(path string, limit int64) ([]byte, error) {
 	return data, nil
 }
 
+// replayOwnedCapture is the replay IO seam for deterministic collection ordering.
+var replayOwnedCapture = RenderBoundedLines
+
 // RenderOwnedCaptureLines selects the current capture for an empty token, or
 // the exact parked token, and holds the existing retention lease through replay.
 func RenderOwnedCaptureLines(dataDir, scope, tag, agent, token string, maxLines int) ([]string, error) {
@@ -116,5 +119,5 @@ func RenderOwnedCaptureLines(dataDir, scope, tag, agent, token string, maxLines 
 		return nil, fmt.Errorf("retention raw %s events %s: %w", raw, events, err)
 	}
 	defer lease.Close()
-	return RenderBoundedLines(raw, events, maxLines)
+	return replayOwnedCapture(raw, events, maxLines)
 }

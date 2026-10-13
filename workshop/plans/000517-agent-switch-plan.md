@@ -111,7 +111,7 @@ and notice text. A fresh idle launch sends no orientation request at all.
 | PreviousSession | `cmd/internal/threadrecord/previous_session.go` | new |
 | AgentSwitch | `cmd/internal/couchcore/agent_switch_model.go` | new |
 | SwitchContent | `cmd/internal/couchcore/agent_switch_model.go` | new |
-| PeekSelection | `cmd/internal/couchcore/peek.go` | new |
+| PeekSelection | `cmd/internal/couchcore/peek_selection.go` | new |
 | SwitchAgentRequest | `cmd/internal/couchcore/switchagent.go` | modified |
 | Request | `cmd/internal/couchmessage/protocol.go` | modified |
 
@@ -136,11 +136,11 @@ distinguishes fresh, authored, and fallback; empty content cannot mean all three
 
 | Name | Lives in | Status | Wraps |
 |---|---|---|---|
-| Previous-session persistence | `cmd/internal/couchcore/threadstore.go`, `thread.go`, `switchagent.go` | modified | strict thread store, revision checked writes |
+| Previous-session persistence | `cmd/internal/couchcore/previous_session.go` (new), `thread.go`, `switchagent.go` (modified) | new/modified | strict thread store, revision checked writes |
 | Switch coordinator | `cmd/internal/couchcmd/agent_switch.go` | new | broker identities, clock, Git/settled probe, operation queue |
 | Slot request transport | `cmd/internal/couchcmd/cli.go`, `messages.go`, `slot_operations.go` | modified | CLI file read, socket requests/receipts |
-| Exact capture reader | `cmd/internal/scrollbackcmd/retention.go` | modified | owner-scoped retention lease and renderer |
-| Peek projection | `cmd/internal/couchcmd/peek_fast.go`, `cmd/internal/couchcore/peek.go` | modified | short-lived read-only CLI |
+| Exact capture reader | `cmd/internal/scrollbackcmd/bounded.go` (new), `scrollbackcmd.go` (modified) | new/modified | unchanged retention lease API and shared replay |
+| Peek projection | `cmd/internal/couchcmd/run.go`, `cmd/internal/couchcore/peek.go` | modified | short-lived read-only CLI; existing fast peek remains unchanged |
 | Form handoff request | `cmd/internal/couchtty/menu_switchagent.go`, `console_remote.go` | modified | same coordinator and broker delivery seam |
 | New-agent delivery | `cmd/internal/couchtty/console_switchagent.go`, `cmd/internal/wrapcmd/orientation.go` | modified | existing guarded paste/submit and ready records |
 
@@ -230,10 +230,13 @@ the current source; it never resumes a stale pending command automatically.
 ## M1 — Previous-session evidence and full recording reads
 
 Files: `threadrecord/previous_session.go` and `_test.go` (new),
-`threadrecord/record.go`, `couchcore/thread.go`, `couchcore/threadstore.go`,
-`couchcore/switchagent.go`, `couchcore/peek.go`, `couchcmd/cli.go`,
-`couchcmd/peek_fast.go`, `scrollbackcmd/retention.go` and relevant tests.
-All paths are under `cmd/internal/`.
+`threadrecord/record.go`, `couchcore/thread.go`, `couchcore/couch.go`,
+`couchcore/previous_session.go` and `peek_selection.go` (new),
+`couchcore/switchagent.go`, `couchcore/peek.go`, `couchcore/ops.go`,
+`couchcore/operationdispatch.go`, `couchcmd/cli.go`, `couchcmd/run.go`,
+`scrollbackcmd/bounded.go` (new), `scrollbackcmd/scrollbackcmd.go` and relevant tests.
+All paths are under `cmd/internal/`. Register new source files and the newly
+resolved recording consumer in `artifactpath/manifest.go`'s exhaustive inventory.
 
 - [ ] Write failing tests using the function strategies below for descriptor
   persistence and previous/full selection.
@@ -319,6 +322,17 @@ full-read operating envelope before implementation. Estimates are derived only
 after the `sdlc change-code` plan-quality gate passes.
 
 ## Revisions
+
+- 2026-10-12 — M1 boundary review BR-1/BR-2/BR-3: corrected the core-concepts
+  and M1 file map to the implemented owners (previous_session.go,
+  peek_selection.go, bounded.go and run.go); unchanged threadstore.go,
+  retention.go and peek_fast.go are reused dependencies. Evidence reuse is
+  valid only when its source matches the current verified source park;
+  separately parking a newer incarnation must supersede the old descriptor.
+  Add that sequence and controlled exact-capture lease/collection tests before
+  M1 closes. These corrections preserve the approved scope and limits.
+  The full suite also exposed missing source classification entries; register
+  the new files and run.go's resolved-path consumer in artifactpath/manifest.go.
 
 - 2026-10-12 — TL approved implementation (receipt
   `ebf27554-f0e7-4d4e-8b00-2b46b83c529f`), including three milestones,

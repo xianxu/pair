@@ -168,37 +168,50 @@ func TestPreviousSessionFailedLaunchRetryPreservesSource(t *testing.T) {
 
 func TestPreviousSessionSuccessiveSourceParksChooseImmediatePrevious(t *testing.T) {
 	t.Parallel()
-	env, source := switchEnvWithLiveThread(t)
-	env.Couch.SwitchContext = switchContextFunc(func(_ context.Context, r ThreadRecord) (orientation.OrientationContext, error) {
-		return orientation.OrientationContext{Tag: string(r.Address.Tag), WorkingPath: r.WorkingPath, SourceAgent: RecordAgent(r), SourceSession: "native-" + RecordAgent(r)}, nil
-	})
-	first, err := switchPreviousSession(t, env.testEnv, source.Address, "codex")
-	if err != nil {
-		t.Fatal(err)
-	}
-	current, err := env.Couch.Threads.GetThread(source.Address)
-	if err != nil {
-		t.Fatal(err)
-	}
-	firstPrevious := threadrecord.ClonePreviousSession(current.PreviousSession)
-	if firstPrevious == nil || firstPrevious.Agent != "claude" {
-		t.Fatal("first switch lost claude source")
-	}
-	// Wire the second exact process into the same stateful lifecycle and store.
-	env = withParkLifecycle(t, env.testEnv, current, first.Record.PID, first.Record.Identity)
-	env.Couch.PairLifecycle.Nonce = func() (string, error) { return "park-second", nil }
-	env.Artifacts.SetPairSession(current.Address, current.SessionBinding.Name, true)
-	env.model.SetSession(current.SessionBinding.Name, true)
-	second, err := switchPreviousSession(t, env.testEnv, source.Address, "claude")
-	if err != nil || second.Outcome != SwitchStarted {
-		t.Fatalf("second=%+v err=%v", second, err)
-	}
-	after, err := env.Couch.Threads.GetThread(source.Address)
-	if err != nil {
-		t.Fatal(err)
-	}
-	previous := after.PreviousSession
-	if previous == nil || previous.Agent != "codex" || previous.NativeSession != "native-codex" || previous.Source.PID != first.Record.PID || previous.Source.ProcessIdentity != first.Record.Identity || previous.Source == firstPrevious.Source {
-		t.Fatalf("previous did not advance to immediate source: %+v", previous)
+	for _, separatePark := range []bool{false, true} {
+		t.Run(map[bool]string{false: "park during switch", true: "separate park before switch"}[separatePark], func(t *testing.T) {
+			env, source := switchEnvWithLiveThread(t)
+			env.Couch.SwitchContext = switchContextFunc(func(_ context.Context, r ThreadRecord) (orientation.OrientationContext, error) {
+				return orientation.OrientationContext{Tag: string(r.Address.Tag), WorkingPath: r.WorkingPath, SourceAgent: RecordAgent(r), SourceSession: "native-" + RecordAgent(r)}, nil
+			})
+			first, err := switchPreviousSession(t, env.testEnv, source.Address, "codex")
+			if err != nil {
+				t.Fatal(err)
+			}
+			current, err := env.Couch.Threads.GetThread(source.Address)
+			if err != nil {
+				t.Fatal(err)
+			}
+			firstPrevious := threadrecord.ClonePreviousSession(current.PreviousSession)
+			if firstPrevious == nil || firstPrevious.Agent != "claude" {
+				t.Fatal("first switch lost claude source")
+			}
+			// Wire the second exact process into the same stateful lifecycle and store.
+			env = withParkLifecycle(t, env.testEnv, current, first.Record.PID, first.Record.Identity)
+			env.Couch.PairLifecycle.Nonce = func() (string, error) { return "park-second", nil }
+			env.Artifacts.SetPairSession(current.Address, current.SessionBinding.Name, true)
+			env.model.SetSession(current.SessionBinding.Name, true)
+			if separatePark {
+				parked, err := env.Couch.PairLifecycle.ParkExpected(context.Background(), current.Address, current.Revision)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if parked.Thread.VerifiedPark == nil || !reflect.DeepEqual(parked.Thread.PreviousSession, firstPrevious) {
+					t.Fatal("separate park must retain the old descriptor until the next switch")
+				}
+			}
+			second, err := switchPreviousSession(t, env.testEnv, source.Address, "claude")
+			if err != nil || second.Outcome != SwitchStarted {
+				t.Fatalf("second=%+v err=%v", second, err)
+			}
+			after, err := env.Couch.Threads.GetThread(source.Address)
+			if err != nil {
+				t.Fatal(err)
+			}
+			previous := after.PreviousSession
+			if previous == nil || previous.Agent != "codex" || previous.NativeSession != "native-codex" || previous.Source.PID != first.Record.PID || previous.Source.ProcessIdentity != first.Record.Identity || previous.Source == firstPrevious.Source {
+				t.Fatalf("previous did not advance to immediate source: %+v", previous)
+			}
+		})
 	}
 }

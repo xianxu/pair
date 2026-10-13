@@ -230,6 +230,8 @@ var Families = []Family{
 // shell, Lua, and KDL sources.
 // pair:m5-concept pure
 var SourceClassifications = []SourceClassification{
+	{Path: "cmd/internal/couchcmd/run.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/scrollbackcmd/bounded.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/pairlog/retention.go", Kind: ResolvedConsumer, Families: []string{"log"}, BindingNames: []string{"scoped-log"}, Vocabulary: []VocabularyAllowance{goCallVocabulary("log", "prompt-log-writer", "github.com/xianxu/pair/cmd/internal/storagegc.AcquireSelectedProcess", 2, 1)}},
 	{Path: "cmd/internal/orientation/model.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/couchcmd/shortcut_focus.go", Kind: ResolvedConsumer},
@@ -927,7 +929,6 @@ var NonArtifactSources = []string{
 	"cmd/internal/contextcmd/contextcmd.go",
 	"cmd/internal/continuationcmd/git.go",
 	"cmd/internal/couchcmd/cli.go",
-	"cmd/internal/couchcmd/run.go",
 	"cmd/internal/couchkeys/couchkeys.go",
 	"cmd/internal/couchcore/actionableinventory.go",
 	"cmd/internal/couchcore/threadreason.go",
@@ -1014,6 +1015,8 @@ var NonArtifactSources = []string{
 	// #362 peek: projects a thread's recording and transcripts through
 	// injected readers (scrollbackcmd, OSSwitchContextResolver); no paths here.
 	"cmd/internal/couchcore/peek.go",
+	"cmd/internal/couchcore/peek_selection.go",
+	"cmd/internal/couchcore/previous_session.go",
 	// #367 recover-plan: the sdlc fleet decoder, its source and fake, the
 	// resume/reboot admission table and the pure join. No artifact paths.
 	"cmd/internal/couchcore/recoverplan_fleet.go",
@@ -1228,6 +1231,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/textwidth/textwidth.go",
 	"cmd/internal/threadrecord/lifecycle.go",
 	"cmd/internal/threadrecord/record.go",
+	"cmd/internal/threadrecord/previous_session.go",
 	"cmd/internal/titlepoller/runcli.go",
 	"cmd/internal/titlepoller/titlepoller.go",
 	"cmd/internal/workbenchshortcut/generatecmd/main.go",

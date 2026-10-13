@@ -1,16 +1,129 @@
 package scrollbackcmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/storagegc"
 	"golang.org/x/sys/unix"
 )
+
+func TestOwnedCaptureLeaseProtectsReplayAndReleases(t *testing.T) {
+	for _, failReplay := range []bool{false, true} {
+		t.Run(fmt.Sprintf("failure=%t", failReplay), func(t *testing.T) {
+			ctx := context.Background()
+			c, err := storagegc.NewCoordinator(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			now := time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC)
+			c.Now = func() time.Time { return now }
+			scope, tag := "0123456789abcdef", "couch-0123456789abcdef"
+			owner, err := artifactpath.NewStorageOwner(c.Root, scope, tag)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.MkdirAll(owner.Directory(), 0700); err != nil {
+				t.Fatal(err)
+			}
+			if err := c.Initialize(ctx, owner); err != nil {
+				t.Fatal(err)
+			}
+			if err := c.CompleteMigration(ctx, nil); err != nil {
+				t.Fatal(err)
+			}
+			paths, err := artifactpath.ResolveScoped(owner.Directory(), tag)
+			if err != nil {
+				t.Fatal(err)
+			}
+			selected, _ := paths.ParkedScrollbackArtifacts("20260913T010101")
+			other, _ := paths.ParkedScrollbackArtifacts("20260913T020202")
+			for _, capture := range []artifactpath.ParkedScrollbackArtifactSet{selected, other} {
+				events := `{"type":"resize","cols":20,"rows":2}`
+				if failReplay && capture.Raw == selected.Raw {
+					events = `{"type":"resize","cols":1001,"rows":2}`
+				}
+				for path, body := range map[string]string{capture.Raw: "selected history", capture.Events: events} {
+					if err := os.WriteFile(path, []byte(body), 0600); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if err := c.PublishCaptureMetadata(ctx, owner, artifactpath.ParkedCapture{Raw: capture.Raw, Events: capture.Events, Metadata: capture.Metadata}, now.Add(-storagegc.CaptureRetentionPeriod-time.Hour)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			gc := &storagegc.Collector{Coordinator: c, Agents: []string{"claude"}, Legacy: func(context.Context, artifactpath.StorageOwner) (storagegc.Liveness, error) {
+				return storagegc.ProcessDead, nil
+			}}
+			collect := func(want int) {
+				t.Helper()
+				report, err := gc.Apply(ctx, 100)
+				if err != nil || report.Collected != want {
+					t.Fatalf("collection: %+v, %v; want %d collected", report, err, want)
+				}
+			}
+			assertProtected := func() {
+				t.Helper()
+				state, err := c.ReadOwner(owner)
+				if err != nil || len(state.Processes) != 1 || state.Processes[0].Target != selected.Raw || state.Processes[0].Role != "scrollback-reader" {
+					t.Fatalf("replay lacks exact selected capture lease: %+v, %v", state, err)
+				}
+				for _, path := range []string{selected.Raw, selected.Events, selected.Metadata} {
+					if _, err := os.Stat(path); err != nil {
+						t.Fatalf("selected capture removed during replay: %s: %v", path, err)
+					}
+				}
+			}
+			original := replayOwnedCapture
+			t.Cleanup(func() { replayOwnedCapture = original })
+			called := false
+			replayOwnedCapture = func(raw, events string, maxLines int) ([]string, error) {
+				called = true
+				if raw != selected.Raw || events != selected.Events || maxLines != 0 {
+					t.Fatalf("wrong replay selection: %s %s %d", raw, events, maxLines)
+				}
+				assertProtected()
+				collect(1) // The other old capture is collectible while this one is leased.
+				assertProtected()
+				if _, err := os.Stat(other.Raw); !os.IsNotExist(err) {
+					t.Fatalf("unselected capture retained: %v", err)
+				}
+				lines, err := original(raw, events, maxLines)
+				collect(0)
+				assertProtected()
+				return lines, err
+			}
+			lines, err := RenderOwnedCaptureLines(c.Root, scope, tag, "claude", "20260913T010101", 0)
+			if !called || (err != nil) != failReplay {
+				t.Fatalf("replay called=%t lines=%q error=%v", called, lines, err)
+			}
+			if failReplay {
+				if !strings.Contains(err.Error(), "resize 1001x2") {
+					t.Fatalf("unexpected replay failure: %v", err)
+				}
+			} else if strings.Join(lines, "\n") != "selected history" {
+				t.Fatalf("wrong replay: %q", lines)
+			}
+			state, err := c.ReadOwner(owner)
+			if err != nil || len(state.Processes) != 0 {
+				t.Fatalf("replay leaked its lease: %+v, %v", state, err)
+			}
+			collect(1)
+			for _, path := range []string{selected.Raw, selected.Events, selected.Metadata} {
+				if _, err := os.Stat(path); !os.IsNotExist(err) {
+					t.Fatalf("capture retained after replay returned: %s: %v", path, err)
+				}
+			}
+		})
+	}
+}
 
 func boundedFixture(t *testing.T, raw, events string) (string, string) {
 	t.Helper()
