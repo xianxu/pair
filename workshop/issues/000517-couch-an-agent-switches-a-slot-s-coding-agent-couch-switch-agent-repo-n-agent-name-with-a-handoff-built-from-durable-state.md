@@ -68,6 +68,15 @@ Durable plan: [agent switch plan](../plans/000517-agent-switch-plan.md).
 
 ## Log
 
+- 2026-10-12 21:42 PDT — TL confirmed in submitted receipt
+  219fab30-c4e7-4241-a696-00247406ecba that the previous failed continuation
+  was superseded operationally by the TL's manual re-orientation, yet still
+  blocks a subsequent handoff. The operator will dismiss it in the switcher;
+  wait for TL confirmation, then retry the saved 9bfe12878 checkpoint.
+  Observed product gap: no live-supervisor CLI path to clear this failed
+  handoff; the error only offers internal retry/dismiss after Couch exits.
+  A person must discover and clear the stale failure before the next handoff.
+
 - 2026-10-12 21:42 PDT — continuation writer committed and pushed 9bfe12878
   (workshop/continuation/20261012T214122-agent-switch-517.md), then restart
   refused because prior continuation
