@@ -310,3 +310,54 @@ Interaction semantics are approved by TL receipt
 code. Run the full-flow `sdlc change-code` plan-quality gate after design
 approval; derive the estimate only after that gate requests it. No
 implementation or tests have been changed while authoring this plan.
+
+## Revisions
+
+### 2026-10-12 23:08 PDT — Visible recovery for every capability phase
+
+TL approved the design at 2ddb90a9f (receipt
+6f882976-021f-41f3-833c-5a2e0c30aba4), requiring a small user-facing state
+projection with one recovery action. This revision supersedes the earlier
+unspecified cleanup retry and extends castControlIntent beyond an on/off bit.
+No hidden automatic retry loop is permitted. Apply this rule to both annotation
+clear and drive reset/held-input release, including their overlay integration.
+
+| Internal phase / cleanup result | Operator cast row and notice | Viewer projection | One operator action |
+| --- | --- | --- | --- |
+| Off | Dim control, OFF | "Annotation is off" / "Driving is off" | Left-click that control to enable and copy |
+| On | Amber control, ON | Relevant tools available, subject to link role | Left-click that control to turn off |
+| Disabling / operation in flight | Dim control, "Turning annotation/driving off…" | Capability off; gestures/input canceled | Wait for this bounded operation; repeated clicks do not enqueue duplicates |
+| Disabling / retryable cleanup failure | Dim control; "Couldn't clear marks: <reason>; click 👆 to retry" or "Couldn't release control: <reason>; click 👽 to retry" | "Annotation/Driving is off; waiting for the operator to retry" | Left-click that same control to retry cleanup |
+| Disabling / terminal recorder or CDP loss, or cast fatal failure | Both controls unavailable; "Cast broken: <reason>; end the cast" | "Cast unavailable; waiting for the operator to end it" | End the cast using its existing end action |
+| Ended | Existing ended/removed cast row | "Cast ended" | No recovery in this cast; start a new cast through the existing start action |
+
+The in-flight row is bounded by existing operation timeouts and must settle to
+Off, retryable failure or broken. The failure notice remains discoverable with
+the control's status until resolved; a transient notice alone is insufficient.
+Detailed errors accompany the action and never replace it. Read-only viewers
+cannot perform these operator actions; their messages name who must act.
+
+Cleanup outcome is owned by the authority/Cast, not reconstructed from a UI
+boolean or error string: typed retryable versus terminal results drive the
+projection. Cancellation because the cast ended projects Ended; a closed
+recorder, detached/unrecoverable CDP session or a fatal cast error projects
+broken. A timeout while the dependencies remain alive is retryable. Each attempt
+is single-flight. A retry reconciles ordered state idempotently, including an
+earlier attempt whose acknowledgement was lost; it cannot reopen admission or
+duplicate releases. Successful retry finishes OFF, clears the failure notice
+and offers the normal enable action. It does not enable as a side effect.
+
+Right-click remains copy-only in all supported active-cast states, including
+cleanup failure; it never starts a retry or changes admission. Broken and
+in-flight left-clicks show their existing action/status rather than accidentally
+enabling. Terminal pointing keeps its existing lifecycle and gains only the
+approved ensure-link/copy behavior.
+
+Add to M1 tests: retryable and terminal outcomes for both authorities, timeout
+classification, lost acknowledgements, retry idempotence, no background retries,
+single-flight operation and no enable before successful cleanup. Add to M2
+tests: exhaustive phase/outcome-to-row/viewer/action projection; actual click
+dispatch for failed annotation and drive cleanup; retry succeeds to OFF then
+next click enables; broken cast directs end; stale completions cannot erase a
+newer failure. Include these recovery paths in the operator acceptance script
+and README/atlas documentation.

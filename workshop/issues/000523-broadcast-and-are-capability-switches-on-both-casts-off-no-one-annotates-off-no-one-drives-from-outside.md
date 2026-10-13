@@ -78,6 +78,7 @@ an older ON cannot win after OFF. No overlay implementation is duplicated here.
 - Drive OFF refuses new requests, stale grants and queued input, clears active and pending control, and releases held input; re-enable requires fresh consent.
 - Left toggles and copies on enable; right copies without enabling, including making the terminal pointer link when absent. Stable links/codes, terminal pointer safety and hover/Alt-click remain intact; no terminal driving is added.
 - Viewer and cast-row states stay current across reconnect, asynchronous module mount and document replacement. #494 integration is completed by the second landing issue using the agreed hook and server admission seams.
+- Every capability phase projects to a clear row/viewer state and one recovery action: failed cleanup is OFF with left-click retry; lost recorder/CDP makes the cast visibly broken with an explicit end-cast action. No automatic retry or hidden enable refusal.
 - Tests pin admission and delayed-operation sequences, clearing/replay, click behavior and rendering. Full suite and headless conformance pass; operator approves on pair:0 when TL schedules staging.
 
 ## Plan
@@ -108,3 +109,7 @@ Durable plan: [000523-cast-capability-switches-plan.md](../plans/000523-cast-cap
   enforcement design. Done when now enumerates the full surface rather than
   relying on a revision to supersede a stale checklist. #494 is a coordinated
   integration boundary, not an unlanded branch dependency.
+- 2026-10-12 23:08 PDT: TL approved design at 2ddb90a9f conditional on visible
+  recovery (receipt 6f882976-021f-41f3-833c-5a2e0c30aba4). Plan Revisions now
+  defines the phase-to-row/viewer/action table, single-flight click retry and
+  terminal failure/end-cast projection for both capabilities, plus tests.
