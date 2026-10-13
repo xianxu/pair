@@ -91,6 +91,18 @@ Durable plan: [000523-cast-capability-switches-plan.md](../plans/000523-cast-cap
 
 ## Log
 
+### 2026-10-13 — Main integration and headless fixture readiness
+
+- make test passed after the provenance fix (ed447bacf; log
+  /tmp/pair-523-provenance-full.log). Merged current main including #526 cleanly
+  at c10d547c3. Merged webcast/Couch-command/submission/artifactpath packages and
+  all 158 viewer Node tests passed; a fresh merged full suite is running.
+- Broad headless run exposed lock-form submission before its module attached;
+  focused rerun also exposed canonical viewer access before initialization.
+  Tests now await document completion and the viewer's existing ready contract.
+  Five repetitions passed both lock and viewer cases. One operator repetition
+  missed a recorded stroke; investigation remains open before review.
+
 ### 2026-10-13 — M2 review BR-5/BR-6 repair
 
 - M2 boundary returned REWORK: BR-5 identified a genuine pre-ingress gap.

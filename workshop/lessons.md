@@ -1568,3 +1568,7 @@ proof; record the surprising case so the next change starts from evidence.
 - Privacy/permission JSON must validate exact schema keys before Go struct decoding: DisallowUnknownFields still accepts case-folded aliases, including Unicode. Test conflicting aliases at each envelope and nested evidence boundary.
 
 - When fixing permission-decoding ambiguity, enumerate root manifests as well as nested policy/rule codecs. A strict nested decoder cannot defend permissively decoded top-level permission fields; exercise store reload, not only standalone policy parsing.
+
+- #523 headless conformance: DOM element/global existence is not readiness.
+  Wait for module completion before submitting forms and await the viewer's
+  explicit ready contract before reading its renderer.

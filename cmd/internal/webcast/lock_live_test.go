@@ -72,7 +72,8 @@ func TestLiveLockPage(t *testing.T) {
 	navigate := func(url string) {
 		page.call(t, page.session, "Page.navigate", map[string]any{"url": url}, nil)
 	}
-	onLockPage := `document.getElementById('lock') ? 'lock' : (document.getElementById('page') ? 'viewer' : 'loading')`
+	// The form exists before its module's submit listener is installed.
+	onLockPage := `document.readyState !== 'complete' ? 'loading' : (document.getElementById('lock') ? 'lock' : (document.getElementById('page') ? 'viewer' : 'loading'))`
 
 	// Typed entry: a wrong code is refused on the page; the right one opens.
 	navigate(link)
