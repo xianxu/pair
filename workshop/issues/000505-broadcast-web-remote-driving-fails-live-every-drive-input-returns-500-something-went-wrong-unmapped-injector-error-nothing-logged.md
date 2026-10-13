@@ -1,12 +1,12 @@
 ---
 id: 000505
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: '5ccb9c8738b1bcb9ef03cdffb654a7e1af9a1ea5' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'a704300184dcf0cbd84144dcc27ac341eebb6fa9' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T15:30:23-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 2.12
 ---
 
 # broadcast-web: remote driving fails live — every drive input returns 500 'Something went wrong' (unmapped injector error, nothing logged)
