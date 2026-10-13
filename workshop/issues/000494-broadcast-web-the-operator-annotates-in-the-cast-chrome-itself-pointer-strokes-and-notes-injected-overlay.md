@@ -1,12 +1,20 @@
 ---
 id: 000494
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: '929a19c67982ffbb41b3fddf946f614ad115a02a' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '4a54f309bdd1cf897822fa6eb1454e4bfb6c1d5c' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-12T20:05:32-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # broadcast-web: the operator annotates in the cast Chrome itself (pointer strokes and notes, injected overlay)
@@ -30,8 +38,87 @@ In the web cast, viewers point and leave notes (pair#470), but the operator, who
 
 ## Plan
 
-- [ ]
+- [ ] Write and approve the durable implementation plan at `workshop/plans/000494-operator-overlay-plan.md`.
+- [ ] Implement the operator bridge and shared annotation UI, with targeted regression tests.
+- [ ] Verify headless end to end; obtain the operator smoke acceptance through the hub.
+- [ ] Close, merge fresh main, publish the PR and land on SHIP.
 
 ## Log
 
 ### 2026-10-12
+
+- Claimed in pair:1 and entered planning from fresh main. start-plan refreshed the
+  ariadne layer and required a second invocation; no implementation changes made.
+- Read the issue, project decisions, relevant lessons, control/Board/recorder seams.
+  The isolated world protects JavaScript, not the shared host DOM. The recorder's
+  DOM exclusion already exists; its screenshot worker has no UI-hiding bracket.
+
+## Revisions
+
+### 2026-10-12 — design proposal from the assigned slot
+
+Reason: the project adds browser-side driving controls, and inspection exposes input,
+recording and document-lifetime constraints. This elaborates the original Spec; it does
+not retire its acceptance criteria. Pending hub approval.
+
+**Experience.** The cast Chrome's existing Go-live control gains Off, Pen and Note
+controls with the viewer's color rail. Annotation is off at launch and in each new
+document. Pen draws transient strokes; Note draws a box (a click uses the shared
+one-tenth-viewport default) and opens the shared note editor. Identity is fixed to
+`operator` / `Operator`, never requested from or stored in the page. The ordinary
+pointer continues through the existing observer. Turning annotation off immediately
+returns page input; Escape cancels the current gesture/editor and turns it off.
+Accepted notes and viewers' notes appear as the same boxes/pins on the cast page.
+
+**Driving.** Pending driver requests appear beside Go live with named Grant / Deny
+buttons. While someone drives, show their name and Take back control. These invoke
+the existing Controller, as the Couch controls do. They remain usable while paused;
+annotation writes do not. An operator can annotate while a viewer drives. Each
+remote-input batch temporarily removes the overlay from hit testing, releases its
+pointer capture and directs remote keys to the page rather than the note editor.
+An interrupted operator gesture is cancelled, not completed by the remote pointer.
+The editor retains its draft. Cleanup runs on success, error, expiry and navigation.
+
+**Recording.** Reuse Board validation, anchoring, limits and the recorder's single
+writer. Notes and strokes carry operator authorship and reach current live viewers,
+disk, replay and queries through the existing record types. HTTP viewer requests must
+continue to reject the reserved operator identity. No overlay nodes, styles, note
+editor text, or control interactions enter recorded page content. Hide the entire
+Couch UI during fidelity screenshots and submission captures, restoring it even when
+capture fails, so its pixels do not contaminate the page image. No new file format.
+
+**Document identity.** An annotation request is scoped to its CDP session, isolated
+execution context and recorded document. Resolve a draft's anchor when the box is
+completed, and retain that node/document identity through Save; never reinterpret an
+old path on a replacement node. Navigation, tab changes and cast end cancel pending
+input and stale replies. Pause cancels gestures, disables annotation and holds a draft;
+resume on the same document may resume editing, but does not auto-enable the pen.
+Errors use the Board's existing fixed refusal messages in the overlay.
+
+**Reuse and delivery.** Reuse collab.js's dialog, swatches and box geometry, and
+annotate.js's stroke/pin rendering and gesture rules through an injected adapter.
+Keep one implementation for viewer and operator gestures. The operator adapter uses
+CDP, never page-origin HTTP, injected credentials, localStorage or a public viewer URL.
+The host and its closed shadow tree use the existing data-couchcast-ui exclusion.
+Isolation protects bindings and closure state; the host remains in the shared DOM.
+
+**Couch entry point.** Add annotation choices to the Chrome cell's Alt+left-click
+menu, sharing its state with the browser controls. Preserve the dispatched cast-row
+rule: left click acts, right click copies a link, Alt+click menus only on LIVE/Chrome.
+Coordinate with the current cast-menu owner before touching this integration. Do not
+stage or build in pair:0 until the hub requests it.
+
+**Alternatives considered.** A separate operator viewer avoids injection complexity
+but fails the operator's requirement to work in the cast Chrome. A standalone copied
+annotation implementation avoids refactoring but duplicates gesture, pause and box
+rules. The recommended adapter keeps the existing Board and shared UI as authorities
+(ARCH-DRY, ARCH-PURPOSE).
+
+**Verification contract.** Targeted pure tests and stateful CDP tests cover stale
+contexts/anchors, malformed bindings, bounds, author reservation, pause, navigation,
+shutdown, driver failure and capture restoration. A headless temporary-profile Chrome
+run proves the real operator gestures reach a viewer and mid-cast recording, notes
+survive replay/query, overlay DOM and pixels are excluded, page input works when off,
+and remote mouse/keyboard input bypasses the overlay even with a note editor open.
+Use no foreground activation and no broad concurrent suites. The operator's live
+smoke test remains required; arrange it through the hub before declaring Done.
