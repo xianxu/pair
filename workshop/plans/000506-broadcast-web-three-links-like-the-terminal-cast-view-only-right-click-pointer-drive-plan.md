@@ -200,3 +200,14 @@ func (l castLink) drives() bool    { return l == linkDrive }
 - [ ] `atlas/webcast.md`: the three links, `castLink`, the refusal, `palette.json`'s answer. `README.md`: the web cast's link paragraph. #495's and #501's Logs: one line each on the mapping.
 - [ ] Full `make -k test` (it queues on the suite lock), then merge main.
 - [ ] Ask ops:0 to arrange the operator's smoke test, then `sdlc close --issue 506`.
+
+## Revisions
+- 2026-10-12, plan-quality round 1 (three Minors, no blockers):
+  - **Viewer counts:** a pointer-link stream counts as a view stream. `Server.Viewers()` keeps `(view, drive)`, and `couch --broadcast-list` is unchanged. Both kinds are watchers without a seat; only the drive link's streams can hold one. `events(w, r, link)` picks `driveViewers` when `link.drives()`, and `viewViewers` otherwise. Task 1 asserts this with a pointer stream.
+  - **Why `castLink` is the web cast's own:** the terminal cast's pointer link is a phase, minted lazily and switched on and off (`broadcast.PointerState`), and it has no drive level. The web cast's three links are fixed for the cast's life. Sharing one enum would bring the terminal's on/off phase into a model that doesn't have it. When #407 builds terminal remote control, the terminal gets a drive level, and moving `castLink` into `broadcast` becomes the natural step; until then a shared type is speculative (YAGNI).
+  - **Test strategy, one line per risky function:**
+    - `castLink`: a grant table.
+    - `boardRoute`: ordering, proved by a 403-not-413 over-limit body under the view link.
+    - `readPalette`: a table seeded with legacy (bare array) and malformed shapes.
+    - Couch copies: one test per control asserting which link reaches the clipboard and that no notice contains a link.
+    - The case lists in Tasks 2, 4, 6 and 8 are examples of these strategies, not separate requirements.
