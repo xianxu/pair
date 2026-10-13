@@ -220,11 +220,6 @@ func clampExtents(extents []ActorExtent, drawn int) []ActorExtent {
 
 func renderedMenuNotice(state MenuState) string {
 	notice := state.Notice
-	if notice.Level != MenuNoticeError && notice.Level != MenuNoticeProgress {
-		if projected := switchRecoveryNotice(state); projected != "" {
-			return projected
-		}
-	}
 	if notice.Text == "" {
 		if state.ProjectionPending {
 			return "refresh pending"
@@ -343,7 +338,7 @@ func renderMenuFrame(state MenuState, frame MenuFrame, width, height int, now ti
 		if height < len(details)+3 {
 			details = nil
 		}
-		lines := renderItemMenuFrame("actions · "+thread.Label(), filterMenuItems(menuActionsFor(state, thread), frame.Filter, switchActionLabel(thread)), frame.SelectedItem, frame.Filter, width, height-len(details), switchActionLabel(thread))
+		lines := renderItemMenuFrame("actions · "+thread.Label(), filterMenuItems(menuActionsFor(state, thread), frame.Filter), frame.SelectedItem, frame.Filter, width, height-len(details))
 		if thread.Recovery != nil && len(lines) > 1 {
 			lines[1] = clipMenuLine(thread.Recovery.Diagnosis, width)
 		}
@@ -442,9 +437,6 @@ func renderStartMenuFrame(state MenuState, frame MenuFrame, width, height int) [
 // "continuing…" until someone retries it. So the state always shows, and the
 // request is appended.
 func rootStateText(thread couchcore.ActionableThreadSummary, now time.Time) string {
-	if thread.AgentSwitch != nil {
-		return switchRowText(thread.AgentSwitch)
-	}
 	if request := thread.Continuation; request != nil {
 		if label := continuationLabel(request.Phase); label != "" {
 			return threadStateText(thread, now) + " · " + label
@@ -502,7 +494,7 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 	if frame.Filter != "" {
 		rowBudget--
 	}
-	if renderedMenuNotice(state) != "" {
+	if state.Notice.Text != "" || state.ProjectionPending {
 		rowBudget--
 	}
 	if rowBudget < 1 {
@@ -662,11 +654,7 @@ func colorMenuGlyph(line, head, glyph, outer string, palette Palette, idle IdleL
 	return b.String() + line[len(head)+len(glyph):]
 }
 
-func renderItemMenuFrame(title string, items []string, selected, filter string, width, height int, labels ...func(string) string) []string {
-	label := menuItemLabel
-	if len(labels) > 0 {
-		label = labels[0]
-	}
+func renderItemMenuFrame(title string, items []string, selected, filter string, width, height int) []string {
 	lines := []string{clipMenuLine(title, width), ""}
 	budget := height - len(lines)
 	if filter != "" {
@@ -696,7 +684,7 @@ func renderItemMenuFrame(title string, items []string, selected, filter string, 
 		if isSelected {
 			marker = "▸ "
 		}
-		lines = append(lines, selectedMenuLine(marker+label(item), isSelected, width))
+		lines = append(lines, selectedMenuLine(marker+menuItemLabel(item), isSelected, width))
 	}
 	if filter != "" {
 		lines = append(lines, clipMenuLine("filter: "+filter, width))

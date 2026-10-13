@@ -789,9 +789,6 @@ func pastParticiple(operation string) string {
 // One authority, because a click must take Enter's rule rather than a restatement
 // of it -- the restatement had already diverged on its first day (pair#172).
 func enterOperationFor(thread couchcore.ActionableThreadSummary) string {
-	if thread.AgentSwitch != nil && thread.AgentSwitch.Action != couchcore.AgentSwitchContinue {
-		return switchPrimaryOperation(thread.AgentSwitch)
-	}
 	if thread.Live() {
 		return "switch"
 	}
@@ -825,25 +822,20 @@ func reduceActionKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 		if key.Rune != utf8.RuneError && utf8.ValidRune(key.Rune) && utf8.RuneLen(key.Rune) > 0 && len(candidate) <= menuFilterLimit {
 			frame.Filter = candidate
 		}
-		reconcileItemSelection(frame, filterMenuItems(items, frame.Filter, switchActionLabel(thread)))
+		reconcileItemSelection(frame, filterMenuItems(items, frame.Filter))
 	case KeyBackspace:
 		frame.Filter = removeLastRune(frame.Filter)
-		reconcileItemSelection(frame, filterMenuItems(items, frame.Filter, switchActionLabel(thread)))
+		reconcileItemSelection(frame, filterMenuItems(items, frame.Filter))
 	case KeyUp:
-		moveItemSelection(frame, filterMenuItems(items, frame.Filter, switchActionLabel(thread)), -1)
+		moveItemSelection(frame, filterMenuItems(items, frame.Filter), -1)
 	case KeyDown:
-		moveItemSelection(frame, filterMenuItems(items, frame.Filter, switchActionLabel(thread)), 1)
+		moveItemSelection(frame, filterMenuItems(items, frame.Filter), 1)
 	case KeyEscape:
 		state.Frames = state.Frames[:len(state.Frames)-1]
 	case KeyEnter:
 		if !containsMenuItem(items, frame.SelectedItem) {
 			state.Notice = errorMenuNotice("no selection")
 			return state, nil
-		}
-		if frame.SelectedItem == switchPrimaryOperation(thread.AgentSwitch) {
-			if next, effects, handled := dispatchSwitchPrimary(state, thread); handled {
-				return next, effects
-			}
 		}
 		switch frame.SelectedItem {
 		case "copy-orientation":
@@ -1407,17 +1399,13 @@ func confirmationMenuItems(state MenuState, frame MenuFrame) []string {
 	return []string{"cancel", item}
 }
 
-func filterMenuItems(items []string, query string, labels ...func(string) string) []string {
-	label := menuItemLabel
-	if len(labels) > 0 {
-		label = labels[0]
-	}
+func filterMenuItems(items []string, query string) []string {
 	if query == "" {
 		return append([]string(nil), items...)
 	}
 	out := make([]string, 0, len(items))
 	for _, item := range items {
-		if strings.Contains(strings.ToLower(label(item)), strings.ToLower(query)) {
+		if strings.Contains(strings.ToLower(menuItemLabel(item)), strings.ToLower(query)) {
 			out = append(out, item)
 		}
 	}

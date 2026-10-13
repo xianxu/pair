@@ -57,9 +57,7 @@ type cliInvocation struct {
 	messageBody              string
 	// messageFile is --message-file's path (pair#486); the send reads the
 	// body from it, so the parser stays free of IO.
-	messageFile   string
-	handoffFile   string
-	switchRequest string
+	messageFile string
 	// messageAgent narrows --send-to to slots running that agent.
 	messageAgent string
 	// confirmed is --confirm on a slot operation whose declaration requires

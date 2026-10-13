@@ -155,6 +155,9 @@ func (c *Couch) PeekThread(ctx context.Context, ref string, address ThreadAddres
 }
 
 func (c *Couch) PeekThreadSelection(ctx context.Context, ref string, address ThreadAddress, selection PeekSelection) (PeekResult, error) {
+	if selection.Previous && selection.Transcripts {
+		return PeekResult{}, fmt.Errorf("--previous provides only terminal history; capture native coordinates before switching")
+	}
 	lines, transcripts := selection.Lines, selection.Transcripts
 	if selection.All && lines != 0 {
 		return PeekResult{}, fmt.Errorf("--all and --lines are mutually exclusive")
@@ -171,13 +174,7 @@ func (c *Couch) PeekThreadSelection(ctx context.Context, ref string, address Thr
 		return result, nil
 	}
 	result.Agent = source.Agent
-	if selection.Previous {
-		result.NativeSession = source.NativeSession
-		result.Unavailable = append(result.Unavailable, source.Unavailable...)
-		if transcripts {
-			result.Transcripts = source.Transcripts
-		}
-	}
+
 	if transcripts && !selection.Previous {
 		if c.SwitchContext == nil {
 			result.Unavailable = append(result.Unavailable, "transcript resolver is not configured")

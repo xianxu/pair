@@ -28,7 +28,7 @@ func parkPreviousSessionSource(t *testing.T, store *ThreadStore, live ThreadReco
 
 func TestPreviousSessionStoreRequiresExactVerifiedSource(t *testing.T) {
 	t.Parallel()
-	for _, mode := range []string{"no verified park", "wrong nonce", "wrong process", "wrong PID", "wrong capture", "missing capture", "wrong binding"} {
+	for _, mode := range []string{"no verified park", "wrong nonce", "wrong process", "wrong PID", "wrong capture", "missing capture"} {
 		t.Run(mode, func(t *testing.T) {
 			store, ns := newTestThreadStore(t)
 			live, identity, _ := createParkableThread(t, store, ns, "park-first")
@@ -43,7 +43,7 @@ func TestPreviousSessionStoreRequiresExactVerifiedSource(t *testing.T) {
 			if mode != "no verified park" {
 				current = parkPreviousSessionSource(t, store, live, identity, capture)
 			}
-			previous := PreviousSession{Source: toPersistedParkIdentity(identity), Binding: binding, Agent: "codex", Capture: pairlifecycle.ClonePreservedScrollback(capture), CapturedAt: time.Unix(100, 0).UTC()}
+			previous := PreviousSession{Source: toPersistedParkIdentity(identity), Agent: "codex", Capture: pairlifecycle.ClonePreservedScrollback(capture), CapturedAt: time.Unix(100, 0).UTC()}
 			switch mode {
 			case "wrong nonce":
 				previous.Source.Nonce = "other-park"
@@ -55,10 +55,7 @@ func TestPreviousSessionStoreRequiresExactVerifiedSource(t *testing.T) {
 				previous.Capture.Token = "foreign-capture"
 			case "missing capture":
 				previous.Capture = nil
-			case "wrong binding":
-				b := *binding
-				b.StartNonce = "replacement-start"
-				previous.Binding = &b
+
 			}
 			if _, err := store.RecordPreviousSession(current.Address, current.Revision, previous); err == nil {
 				t.Fatal("accepted evidence unrelated to verified source")
@@ -80,7 +77,7 @@ func TestPreviousSessionStoreRevisionAndDefensiveCopies(t *testing.T) {
 	live, identity, _ := createParkableThread(t, store, ns, "park-first")
 	capture := &pairlifecycle.PreservedScrollback{Agent: "codex", Token: "source-capture", Events: true}
 	parked := parkPreviousSessionSource(t, store, live, identity, capture)
-	previous := previousSessionEvidence(live, parked, orientation.OrientationContext{SourceAgent: "codex", SourceSession: "native-first", NativeTranscripts: []string{"/private/first.jsonl"}, Unavailable: []string{"optional unavailable"}})
+	previous := previousSessionEvidence(live, parked)
 	saved, err := store.RecordPreviousSession(parked.Address, parked.Revision, *previous)
 	if err != nil {
 		t.Fatal(err)
@@ -90,8 +87,6 @@ func TestPreviousSessionStoreRevisionAndDefensiveCopies(t *testing.T) {
 		t.Fatal("write did not advance revision")
 	}
 	previous.Capture.Token = "caller-mutated"
-	previous.Transcripts[0] = "/caller-mutated"
-	saved.PreviousSession.Unavailable[0] = "returned-mutated"
 	saved.PreviousSession.Capture.Token = "returned-mutated"
 	got, err := NewThreadStore(ns).GetThread(parked.Address)
 	if err != nil {
@@ -107,7 +102,7 @@ func TestPreviousSessionStoreRevisionAndDefensiveCopies(t *testing.T) {
 	}
 	// Both conversion directions must own their mutable descriptor fields.
 	persisted := toPersistedThreadRecord(got)
-	persisted.PreviousSession.Transcripts[0] = "/persisted-mutated"
+	persisted.PreviousSession.Capture.Token = "persisted-mutated"
 	if !reflect.DeepEqual(got.PreviousSession, want) {
 		t.Fatal("to-persisted conversion aliases evidence")
 	}
@@ -126,7 +121,7 @@ func switchPreviousSession(t *testing.T, env *testEnv, address ThreadAddress, ag
 	if err != nil {
 		t.Fatal(err)
 	}
-	return env.Couch.SwitchAgent(context.Background(), SwitchAgentRequest{Content: SwitchContent{Kind: SwitchContentFresh}, Address: address, Agent: agent, Argv: args, AcceptedFingerprint: prepared.Fingerprint})
+	return env.Couch.SwitchAgent(context.Background(), SwitchAgentRequest{Address: address, Agent: agent, Argv: args, AcceptedFingerprint: prepared.Fingerprint})
 }
 
 func TestPreviousSessionFailedLaunchRetryPreservesSource(t *testing.T) {
@@ -144,7 +139,7 @@ func TestPreviousSessionFailedLaunchRetryPreservesSource(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if failed.PreviousSession == nil || failed.PreviousSession.NativeSession != "original-native" || failed.VerifiedPark == nil {
+	if failed.PreviousSession == nil || failed.PreviousSession.Agent != "claude" || failed.VerifiedPark == nil {
 		t.Fatalf("failed target lost source: %+v", failed)
 	}
 	want := threadrecord.ClonePreviousSession(failed.PreviousSession)
@@ -209,7 +204,7 @@ func TestPreviousSessionSuccessiveSourceParksChooseImmediatePrevious(t *testing.
 				t.Fatal(err)
 			}
 			previous := after.PreviousSession
-			if previous == nil || previous.Agent != "codex" || previous.NativeSession != "native-codex" || previous.Source.PID != first.Record.PID || previous.Source.ProcessIdentity != first.Record.Identity || previous.Source == firstPrevious.Source {
+			if previous == nil || previous.Agent != "codex" || previous.Source.PID != first.Record.PID || previous.Source.ProcessIdentity != first.Record.Identity || previous.Source == firstPrevious.Source {
 				t.Fatalf("previous did not advance to immediate source: %+v", previous)
 			}
 		})

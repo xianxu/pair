@@ -46,7 +46,7 @@ func TestEveryLifecycleEntryRefusesAHeldThread(t *testing.T) {
 		{"park", func() error { _, err := c.Park(bg, address, ""); return err }},
 		{"park retry", func() error { _, err := c.Park(bg, address, "retry"); return err }},
 		{"switch-agent", func() error {
-			_, err := c.SwitchAgent(bg, SwitchAgentRequest{Content: SwitchContent{Kind: SwitchContentFresh}, Address: address, Agent: "codex", Argv: []string{}, AcceptedFingerprint: "x"})
+			_, err := c.SwitchAgent(bg, SwitchAgentRequest{Address: address, Agent: "codex", Argv: []string{}, AcceptedFingerprint: "x"})
 			return err
 		}},
 		{"continue-thread", func() error { _, err := c.Continue(bg, address, "req"); return err }},

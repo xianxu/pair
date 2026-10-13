@@ -68,6 +68,17 @@ Durable plan: [agent switch plan](../plans/000517-agent-switch-plan.md).
 
 ## Log
 
+- 2026-10-12 22:35 PDT — approved lean implementation checkpoint: replaced the
+  bespoke switch coordinator with ordinary operation receipts and the console
+  queue; remote requests select only the target agent, validate other-slot
+  identity, settled/clean source and saved config before admission and again
+  before park. Human form keeps its existing explicit argv path. Removed
+  switch recovery/orientation state and unused exact-resume override; retained
+  FreshNonce registration and tty-only previous evidence. Targeted cmd/message
+  admission and prompt-free real-helper acceptance pass (8.258s / 0.156s); core
+  known-config/resume and tty/form owner tests pass. Full suite, build, boundary
+  review and TL-coordinated live acceptance remain outstanding.
+
 - 2026-10-12 21:42 PDT — TL confirmed in submitted receipt
   219fab30-c4e7-4241-a696-00247406ecba that the previous failed continuation
   was superseded operationally by the TL's manual re-orientation, yet still

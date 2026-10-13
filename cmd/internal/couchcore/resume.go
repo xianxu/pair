@@ -2,7 +2,6 @@ package couchcore
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -71,11 +70,7 @@ const (
 // running, and refuses everything else BEFORE any effect -- which is what makes
 // it safe to run behind the operator's back.
 type ResumeOptions struct {
-	// NativeSession selects saved recovery evidence, not the latest ledger.
-	NativeSession string
-	// SwitchRequest binds the source restoration start to its durable recovery.
-	SwitchRequest string
-	WarmOnly      bool
+	WarmOnly bool
 }
 
 type ResumeRefusal struct {
@@ -458,6 +453,19 @@ func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, op
 	if thread.LatestLaunchProfile != nil {
 		agent = thread.LatestLaunchProfile.Agent
 	}
+	// An unconfirmed replacement keeps the last successful profile for rollback.
+	// Its surviving terminal must not be reattached or retired as that old agent.
+	for _, incarnation := range thread.Incarnations {
+		if incarnation.LaunchProfile != nil && incarnation.LaunchProfile.Agent != agent {
+			if recordSessionBinding(thread) == nil {
+				return ActorRecord{}, nil, refuseResume(ResumeUnknown, "target terminal identity is unavailable; inspect before resuming")
+			}
+			observed, observeErr := c.observeRecoverySession(ctx, thread, RecoveryEvidence{})
+			if observeErr != nil || observed.Presence != PresenceAbsent || observeExactProcess(c.Proc, ProcessIdentity{PID: incarnation.PID, Identity: incarnation.Identity}) != Dead {
+				return ActorRecord{}, nil, refuseResume(ResumeUnknown, "target startup remains unresolved; inspect and recover before resuming")
+			}
+		}
+	}
 	// Resolve the binding ONLY where it is the authority -- the cold path, which
 	// is about to pass `--resume <native-id>`. A detached thread resumes warm off
 	// its surviving session and needs no native id, so it asks for none: the
@@ -510,13 +518,6 @@ func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, op
 			return ActorRecord{}, nil, errors.New("resume: native binding resolver is unavailable")
 		}
 		resolved, err := c.resumeEvidence(ctx, thread)
-		if opts.NativeSession != "" {
-			exact, ok := c.Artifacts.(ExactNativeBindingResolver)
-			if !ok {
-				return ActorRecord{}, nil, errors.New("exact native resolver unavailable")
-			}
-			resolved, err = exact.ResolveExact(ctx, address.RepoScope, string(address.Tag), agent, opts.NativeSession)
-		}
 		// A binding DIAGNOSTIC is evidence, not a verdict, and it travels with
 		// the resolution it describes (every resolver returns both). Bailing on
 		// it here made DecideResume's cold-refusal branch unreachable from the
@@ -610,9 +611,6 @@ func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, op
 		}
 	} else {
 		currentBinding, err := bindings.ResolveEstablished(ctx, address.RepoScope, string(address.Tag), eligible.Profile.Agent)
-		if opts.NativeSession != "" {
-			currentBinding, err = c.Artifacts.(ExactNativeBindingResolver).ResolveExact(ctx, address.RepoScope, string(address.Tag), eligible.Profile.Agent, opts.NativeSession)
-		}
 		if err != nil {
 			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
 		}
@@ -622,18 +620,6 @@ func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, op
 		built, err := launcher.BuildCouchResumeLaunchProfile(string(address.Tag), eligible.Profile.Agent, eligible.Profile.Argv, eligible.RequiredSessionID)
 		if err != nil {
 			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
-		}
-		if opts.NativeSession != "" {
-			var p launcher.TrustedLaunchProfile
-			if err := json.Unmarshal([]byte(built), &p); err != nil {
-				return ActorRecord{}, nil, err
-			}
-			p.ExactResume = true
-			raw, err := json.Marshal(p)
-			if err != nil {
-				return ActorRecord{}, nil, err
-			}
-			built = string(raw)
 		}
 		profileRaw = built
 	}

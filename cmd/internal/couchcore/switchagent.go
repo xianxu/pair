@@ -9,7 +9,6 @@ import (
 	"fmt"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
-	"github.com/xianxu/pair/cmd/internal/orientation"
 )
 
 var ErrSwitchResolutionChanged = errors.New("switch-agent: thread or path preferences changed; review the parameters again")
@@ -21,8 +20,7 @@ type AgentSwitchGuard interface {
 }
 
 type SwitchAgentRequest struct {
-	RequestID           string
-	Content             SwitchContent
+	KnownConfig         bool
 	Source              string
 	Address             ThreadAddress
 	Agent               string
@@ -59,11 +57,10 @@ const (
 )
 
 type SwitchAgentResult struct {
-	Outcome     SwitchAgentOutcome
-	Record      ActorRecord
-	Handle      Handle
-	Orientation *orientation.Request
-	Warning     string
+	Outcome SwitchAgentOutcome
+	Record  ActorRecord
+	Handle  Handle
+	Warning string
 }
 
 func (r SwitchAgentResult) Started() (StartResult, bool) {
@@ -127,6 +124,16 @@ func (c *Couch) classifyForAction(ctx context.Context, address ThreadAddress) (A
 // PrepareAgentSwitch reads the authoritative thread and shared path preference.
 // Accepted argv is optional here so the form can first request a prefill.
 func (c *Couch) PrepareAgentSwitch(ctx context.Context, address ThreadAddress, agent string, argv *[]string) (PreparedAgentSwitch, error) {
+	return c.prepareAgentSwitch(ctx, address, agent, argv, false)
+}
+
+// PrepareKnownAgentSwitch accepts only an existing successful path configuration
+// or an explicit repository default, including configured empty arguments.
+func (c *Couch) PrepareKnownAgentSwitch(ctx context.Context, address ThreadAddress, agent string) (PreparedAgentSwitch, error) {
+	return c.prepareAgentSwitch(ctx, address, agent, nil, true)
+}
+
+func (c *Couch) prepareAgentSwitch(ctx context.Context, address ThreadAddress, agent string, argv *[]string, known bool) (PreparedAgentSwitch, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -146,6 +153,10 @@ func (c *Couch) PrepareAgentSwitch(ctx context.Context, address ThreadAddress, a
 	if err != nil {
 		return PreparedAgentSwitch{}, err
 	}
+	if record.LatestLaunchProfile != nil && record.LatestLaunchProfile.Agent == agent {
+		return PreparedAgentSwitch{}, errors.New("switch-agent: select a different agent")
+	}
+
 	if err := continuationGuard(record); err != nil {
 		return PreparedAgentSwitch{}, err
 	}
@@ -217,7 +228,8 @@ func (c *Couch) PrepareAgentSwitch(ctx context.Context, address ThreadAddress, a
 	if found {
 		input.Path = &preference
 	}
-	if c.RepoAgentDefault != nil {
+	_, hasPathArgs := preference.ArgvByAgent[agent]
+	if c.RepoAgentDefault != nil && (!known || !hasPathArgs) {
 		profile, exists, err := c.repoLaunchDefault(record.StartingPath, record.StartingPath, agent, repoIdentity, record.Address.RepoScope)
 		if err != nil {
 			return PreparedAgentSwitch{}, err
@@ -225,6 +237,9 @@ func (c *Couch) PrepareAgentSwitch(ctx context.Context, address ThreadAddress, a
 		if exists {
 			input.RepoDefault = &profile
 		}
+	}
+	if known && !hasPathArgs && input.RepoDefault == nil {
+		return PreparedAgentSwitch{}, fmt.Errorf("switch-agent: no saved configuration for %s; the operator must configure it in the switch form first", agent)
 	}
 	resolution, err := ResolveLaunchProfile(input)
 	if err != nil {
@@ -234,8 +249,8 @@ func (c *Couch) PrepareAgentSwitch(ctx context.Context, address ThreadAddress, a
 		return PreparedAgentSwitch{}, errors.New("switch-agent: startup parameters exceed 4096 bytes")
 	}
 	// Prefill exposes remembered values for editing, including old resume
-	// selectors. Only an explicit acceptance can authorize a fresh launch.
-	if argv != nil {
+	// selectors. Execution and known-configuration admission require fresh args.
+	if argv != nil || known {
 		if err := launcher.ValidateFreshAgentArgs(agent, resolution.Profile.Argv); err != nil {
 			return PreparedAgentSwitch{}, err
 		}
@@ -271,13 +286,13 @@ func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (Sw
 	if c == nil || c.FreshRegistration == nil {
 		return result, errors.New("switch-agent: fresh registration observer unavailable")
 	}
-	if request.AcceptedFingerprint == "" || request.Argv == nil {
+	if request.AcceptedFingerprint == "" || (!request.KnownConfig && request.Argv == nil) {
 		return result, errors.New("switch-agent: review and accept the startup parameters first")
 	}
-	if err := ValidateSwitchContent(request.Content); err != nil {
-		return result, err
+	if request.KnownConfig && request.Argv != nil {
+		return result, errors.New("switch-agent: saved configuration cannot include explicit arguments")
 	}
-	if request.Source != "" {
+	if c.SwitchGuard != nil || request.Source != "" {
 		if c.SwitchGuard == nil {
 			return result, errors.New("switch-agent: source guard unavailable")
 		}
@@ -290,7 +305,12 @@ func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (Sw
 		return result, err
 	}
 	defer release()
-	prepared, err := c.PrepareAgentSwitch(ctx, request.Address, request.Agent, &request.Argv)
+	var prepared PreparedAgentSwitch
+	if request.KnownConfig {
+		prepared, err = c.PrepareKnownAgentSwitch(ctx, request.Address, request.Agent)
+	} else {
+		prepared, err = c.PrepareAgentSwitch(ctx, request.Address, request.Agent, &request.Argv)
+	}
 	if err != nil {
 		return result, err
 	}
@@ -305,23 +325,11 @@ func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (Sw
 	if err != nil {
 		return result, err
 	}
-	profileRaw, err := launcher.BuildCouchFreshLaunchProfile(string(request.Address.Tag), request.Agent, request.Argv, string(AgentSourceExplicit), string(ArgvSourceExplicit))
+	profileRaw, err := launcher.BuildCouchFreshLaunchProfile(string(request.Address.Tag), request.Agent, prepared.Profile.Argv, string(AgentSourceExplicit), string(ArgvSourceExplicit))
 	if err != nil {
 		return result, err
 	}
-	contextData := orientation.OrientationContext{
-		Tag: string(request.Address.Tag), WorkingPath: prepared.WorkingPath, SourceAgent: prepared.SourceAgent, TargetAgent: request.Agent,
-	}
-	if c.SwitchContext != nil {
-		resolved, resolveErr := c.SwitchContext.Resolve(ctx, prepared.record)
-		if resolveErr != nil {
-			contextData.Unavailable = append(contextData.Unavailable, resolveErr.Error())
-		} else {
-			contextData = resolved
-			contextData.TargetAgent = request.Agent
-		}
-	}
-	if request.Source != "" {
+	if c.SwitchGuard != nil || request.Source != "" {
 		if err := c.SwitchGuard.ConfirmAgentSwitch(ctx, request.Address, request.Source); err != nil {
 			return result, err
 		}
@@ -362,29 +370,16 @@ func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (Sw
 	} else if cleared != nil {
 		thread = *cleared
 	}
-	if c.SwitchContext != nil {
-		// Only update the preserved Pair paths after park. Native evidence was
-		// selected while the outgoing agent still owned its ledger entry.
-		if archive, ok := c.SwitchContext.(SwitchArchiveResolver); ok {
-			if err := archive.ResolveArchive(thread, &contextData); err != nil {
-				contextData.Unavailable = append(contextData.Unavailable, err.Error())
-			}
-		}
-	}
 	// A retry from the same verified park retains its original native binding;
 	// a separately parked replacement must supersede the older source evidence.
 	if thread.VerifiedPark != nil && (thread.PreviousSession == nil || thread.PreviousSession.Source != toPersistedParkIdentity(thread.VerifiedPark.Identity)) {
-		if previous := previousSessionEvidence(prepared.record, thread, contextData); previous != nil {
+		if previous := previousSessionEvidence(prepared.record, thread); previous != nil {
 			thread, err = c.Threads.RecordPreviousSession(thread.Address, thread.Revision, *previous)
 			if err != nil {
 				result.Outcome = SwitchStartFailed
 				return result, fmt.Errorf("switch-agent: preserve previous session: %w", err)
 			}
 		}
-	}
-	var orient *orientation.Request
-	if request.Content.Kind != SwitchContentFresh {
-		orient = &orientation.Request{SchemaVersion: 1, Tag: string(request.Address.Tag), Agent: request.Agent, Attempt: nonce, Body: request.Content.Body}
 	}
 	if err := ctx.Err(); err != nil {
 		result.Outcome = SwitchStartFailed
@@ -403,8 +398,8 @@ func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (Sw
 		return result, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
 	}
 	record, handle, err := c.launchTrackedThread(trackedThreadLaunch{
-		Context: ctx, Thread: thread, Nonce: nonce, Args: StartArgs{Worktree: Worktree(thread.StartingPath), Cwd: thread.WorkingPath, Stack: request.Agent, ExtraArgs: cloneArgv(request.Argv)},
-		StartedAt: startedAt, ProfileRaw: profileRaw, Fresh: true, Orientation: orient,
+		Context: ctx, Thread: thread, Nonce: nonce, Args: StartArgs{Worktree: Worktree(thread.StartingPath), Cwd: thread.WorkingPath, Stack: request.Agent, ExtraArgs: cloneArgv(prepared.Profile.Argv)},
+		StartedAt: startedAt, ProfileRaw: profileRaw, Fresh: true,
 	})
 	if err != nil {
 		result.Outcome = SwitchStartFailed
@@ -414,6 +409,6 @@ func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (Sw
 		}
 		return result, fmt.Errorf("switch-agent: target launch failed; %s: %w", recovery, err)
 	}
-	result.Outcome, result.Record, result.Handle, result.Orientation = SwitchStarted, record, handle, orient
+	result.Outcome, result.Record, result.Handle = SwitchStarted, record, handle
 	return result, nil
 }

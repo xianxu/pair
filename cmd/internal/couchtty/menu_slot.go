@@ -29,11 +29,6 @@ func menuThreadTarget(state MenuState, key couchcore.ThreadRowKey, address couch
 // or replaced under the row, so the tag is not what names it. Its in-flight
 // operation is then keyed by row, not by an address the operation replaces.
 func dispatchMenuRow(state MenuState, operation string, row couchcore.ActionableThreadSummary) (MenuState, []MenuEffect) {
-	if operation == switchPrimaryOperation(row.AgentSwitch) {
-		if next, effects, handled := dispatchSwitchPrimary(state, row); handled {
-			return next, effects
-		}
-	}
 	if row.Target.Kind == couchcore.ThreadTargetSlot && actorOperation(operation) {
 		next, effects := dispatchMenuOperation(state, MenuEffect{Operation: operation, Args: couchcore.ActorOperationArgs(row, operation)}, row.Address)
 		if len(effects) > 0 {

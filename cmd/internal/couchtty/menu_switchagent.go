@@ -178,7 +178,7 @@ func renderSwitchAgentMenu(frame MenuFrame, width, height int) []string {
 		if frame.SelectedItem == "parameters" {
 			mark = "▸ "
 		}
-		lines = []string{"switch coding agent", fmt.Sprintf("%s → %s · same thread", source, frame.Agent), "Fresh conversation; read source context and summarize orientation.", "Edit startup parameters (empty is allowed)", mark + "parameters  " + frame.Input}
+		lines = []string{"switch coding agent", fmt.Sprintf("%s → %s · same thread", source, frame.Agent), "Fresh conversation in the same workspace.", "Edit startup parameters (empty is allowed)", mark + "parameters  " + frame.Input}
 		for _, item := range []string{"switch", "cancel"} {
 			mark = "  "
 			if item == frame.SelectedItem {

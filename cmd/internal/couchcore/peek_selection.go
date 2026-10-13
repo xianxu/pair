@@ -13,9 +13,8 @@ type PeekSelection struct {
 }
 
 type PeekSource struct {
-	Agent, Token, NativeSession string
-	Binding                     *couchidentity.SessionBinding
-	Transcripts, Unavailable    []string
+	Agent, Token string
+	Binding      *couchidentity.SessionBinding
 }
 
 // SelectPeekSource never infers history from filenames or the current native
@@ -31,8 +30,7 @@ func SelectPeekSource(record ThreadRecord, previous bool) (PeekSource, error) {
 	if err := p.Validate(toPersistedThreadAddress(record.Address)); err != nil {
 		return PeekSource{}, err
 	}
-	source := PeekSource{Agent: p.Agent, Binding: p.Binding, NativeSession: p.NativeSession,
-		Transcripts: p.Transcripts, Unavailable: p.Unavailable}
+	source := PeekSource{Agent: p.Agent}
 	if p.Capture != nil {
 		source.Token = p.Capture.Token
 	}

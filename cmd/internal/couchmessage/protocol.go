@@ -16,8 +16,6 @@ import (
 // full binding and must pass the supervisor adapter's live identity check.
 type Request struct {
 	Op, Scope, Tag, Session, Nonce, ID, Target, Body string
-	// SwitchRequest correlates a self callback to its source-bound parent.
-	SwitchRequest string `json:",omitempty"`
 	// Agent narrows a send or selects the switch destination harness.
 	Agent string `json:",omitempty"`
 	// Confirmed declares the operator's confirmation for an operation whose
@@ -111,9 +109,6 @@ func validMessageID(id string) bool {
 }
 
 func ValidateRequest(r Request) error {
-	if r.SwitchRequest != "" && r.Op != "switch-agent" {
-		return errors.New("switch request applies only to switch-agent")
-	}
 	// Caller identity and target fields cannot exceed a complete binding's budget.
 	for _, field := range []string{r.Op, r.Scope, r.Tag, r.Session, r.Nonce, r.Target, r.Agent, r.TailScope, r.TailTag} {
 		if len(field) > MaxBindingBytes {
@@ -190,17 +185,13 @@ func ValidateRequest(r Request) error {
 		if !validMessageID(r.ID) || !r.Confirmed || !launcher.IsSupportedAgent(r.Agent) {
 			return errors.New("switch-agent requires a request ID, supported agent and confirmation")
 		}
-		if r.Target != "self" {
-			if _, _, err := parseSlot(r.Target); err != nil {
-				return err
-			}
-		}
-		if r.SwitchRequest != "" && (!validMessageID(r.SwitchRequest) || r.Target != "self" || r.Body == "") {
-			return errors.New("switch request requires self, authored body and a valid parent ID")
+		if _, _, err := parseSlot(r.Target); err != nil {
+			return err
 		}
 		if r.Body != "" {
-			return couchcore.ValidateSwitchContent(couchcore.SwitchContent{Kind: couchcore.SwitchContentAuthored, Body: r.Body})
+			return errors.New("switch-agent does not accept content")
 		}
+
 	case couchcore.IsSlotOperation(r.Op):
 		// One exact slot: a primitive acts on one slot, never a family.
 		if !validMessageID(r.ID) || r.Body != "" {

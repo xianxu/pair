@@ -54,7 +54,6 @@ type TrustedLaunchProfile struct {
 	AgentSource       string               `json:"agent_source"`
 	ArgvSource        string               `json:"argv_source"`
 	FreshRequired     bool                 `json:"fresh_required,omitempty"`
-	ExactResume       bool                 `json:"exact_resume,omitempty"`
 	ResumeRequired    bool                 `json:"resume_required,omitempty"`
 	RequiredSessionID string               `json:"required_session_id,omitempty"`
 }
@@ -109,9 +108,6 @@ func BuildCouchFreshLaunchProfile(tag, agent string, argv []string, agentSource,
 }
 
 func ValidateTrustedLaunchProfile(profile TrustedLaunchProfile) error {
-	if profile.ExactResume && !profile.ResumeRequired {
-		return fmt.Errorf("exact native selection requires resume")
-	}
 	if profile.FreshNonce != "" {
 		if !profile.FreshRequired || len(profile.FreshNonce) > 1024 || !utf8.ValidString(profile.FreshNonce) || strings.IndexFunc(profile.FreshNonce, unicode.IsControl) >= 0 {
 			return fmt.Errorf("invalid fresh launch nonce")
@@ -197,7 +193,6 @@ func ApplyCouchLaunchProfile(args LaunchArgs, raw string) (LaunchArgs, string, e
 	args.FreshRequired = profile.FreshRequired
 	args.FreshNonce = profile.FreshNonce
 	args.ResumeRequired = profile.ResumeRequired
-	args.ExactResume = profile.ExactResume
 	args.RequiredSessionID = profile.RequiredSessionID
 	return args, profile.ArgvSource, nil
 }

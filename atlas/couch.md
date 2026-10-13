@@ -1193,9 +1193,9 @@ after claiming dispatched work, publishing `repo#N <title>` so the sender sees
 which slot holds the issue (#419; the `couch --skill` receiving step); the op
 prints one confirmation line. `prepare-start`, `start`,
 `attach`, `switch`, `park`, `resume`, `relaunch`, `prepare-switch-agent`,
-`switch-agent`, `leave`, `stop`, `alias` and `reboot` are TUI/in-process
-operations. `orientation-status` is an internal owner operation for one launch
-attempt. #363 removed `open-slot`, `fresh-slot`, `name`, `describe`, `archive`,
+`leave`, `stop`, `alias` and `reboot` are TUI/in-process
+operations. `switch-agent` also has the confirmed hub-only remote form described
+below. `orientation-status` is an internal owner operation for one launch attempt. #363 removed `open-slot`, `fresh-slot`, `name`, `describe`, `archive`,
 `recover-thread` and `recover-checkpoint` from the declarations: resume and
 reboot replace them, and their couchcore internals (`OpenSlot`,
 `StartFreshSlot`, `Couch.ArchiveThread`, `RecoverThread`, `ApplyThreadMetadata`)
@@ -1315,12 +1315,10 @@ Continuation has five internal operations (`pair#249`, `pair#280`):
   drives one row per call site and scans that every call site has a row.
   `pair continue --retry` does not know the phase and uses the phase-neutral
   wording (`Exits("", tag)`).
-- **Orientation prompts carry their producer.** `menu.Orientation` is written
-  by continuation delivery and by switch-agent's orientation watch. Each entry
-  records which (`setOrientationLocked`), and a prune removes only its own
-  producer's entry (`dropOrientationLocked`). A new switch-agent launch
-  supersedes any prompt. Without that, the continuation scan deleted
-  switch-agent's Copy orientation prompt on every tick.
+- **Orientation prompts carry their producer.** Continuation delivery writes
+  `menu.Orientation` through `setOrientationLocked`; pruning removes only the
+  matching producer's entry through `dropOrientationLocked`. Agent switches
+  create no orientation prompt.
 
 Before #280, a failed request replaced the state text, the action set and
 relaunch's admission indefinitely.
@@ -1474,33 +1472,48 @@ capability returns the typed cross-actor routing refusal and never falls back
 to a second process. No caller produces that refusal today: cross-actor routing
 was punted with `pair#147`.
 
-Switch agent (`pair#184`) uses the highlighted thread's action menu. The form
-selects claude, codex, agy, muse, qoder, or grok, then edits parameters loaded from the shared
-starting-path preference. Confirming `switch-agent` revalidates the accepted
-`prepare-switch-agent` fingerprint, parks the exact outgoing incarnation and
-starts a fresh context at the same thread address and working path. Selecting
-the current agent also starts fresh. Successful registration changes the path's
-default agent and its argv; other agents' parameters remain available.
+Switch agent (`pair#184`, `pair#517`) has a human form and a hub-only remote API:
+`couch --switch-agent repo:N --agent NAME --confirm [--json]`. The API accepts one
+exact other slot and a different supported agent; `self`, family/range targets
+and the caller's own slot refuse. The current authenticated wrapper must be
+connected, known idle and on a clean worktree. Unknown state refuses too.
+`couchcmd/agent_switch_service.go` checks those facts at admission and again when
+the queued operation executes; the core guard rechecks immediately before park.
+The operation uses the existing slot queue and receipts, inspected through
+`couch --operation-status ID [--json]`.
 
-The outgoing Pair TTY archive is carried through cleanup completion into
-`VerifiedPark`, using the exact collision-safe artifact token. Retry recovery
-checks at most 32 prior completions, newest first, and honors cancellation; an
-unresolved history beyond that budget fails explicitly before cleanup. The context
-resolver captures the native session before park and adds readable supporting
-transcript and sent-prompt paths. Missing evidence is reported in the generated
-orientation prompt. The target renders and reads the TTY log, summarizes the
-work and waits. No draft or operator-authored log is seeded by the switch.
+`PrepareKnownAgentSwitch` resolves the target agent's last successful argv for
+the starting path, then an explicit repository default if no saved target-agent
+argv exists. An explicitly configured empty argv is valid. Missing configuration
+refuses before park and directs the operator to configure the agent. The remote
+API accepts no argv, brief or defaults edits. The operator's Switch coding agent
+form still selects the agent and edits parameters; its accepted
+`prepare-switch-agent` fingerprint is revalidated before execution. Successful
+registration changes the path's default agent and its argv while preserving
+other agents' saved parameters.
 
-Previous-session evidence (`pair#517`) is now a separate durable descriptor in
-that thread record. Before launching a replacement, Couch stores the exact
-verified park identity and capture token, terminal binding, native session and
-transcript paths. Successful registration may clear `VerifiedPark` without
-losing this descriptor; a failed launch and retry preserve the original source.
-A different verified park supersedes it, including a source parked separately
-before the switch. Reuse depends on the exact source identity.
-`couch --peek repo:N --previous --transcripts` reads that descriptor and its exact
-parked recording, never substitutes the current incarnation. Missing evidence
-is reported explicitly.
+The switch parks the exact outgoing incarnation and starts a fresh conversation
+at the same thread address and working path. Its composer is empty: the switch
+neither gathers native context nor delivers a prompt. The hub or operator
+captures any needed context beforehand and decides what to send afterward.
+Compaction and continuation retain their separate flows.
+
+The outgoing Pair tty archive survives cleanup in `VerifiedPark`, using the exact
+collision-safe artifact token. Retry recovery checks at most 32 prior completions,
+newest first, and honors cancellation; unresolved history beyond that budget
+fails explicitly before cleanup. Before target launch, `RecordPreviousSession`
+retains only the verified park identity, source agent, capture token and capture
+time. Registration may clear `VerifiedPark` without losing these tty coordinates.
+A failed launch/retry keeps the original source; a different verified park
+supersedes it, including one performed separately before the switch. Old records'
+context fields remain readable and validated for compatibility, but are omitted
+when rewritten (`threadrecord/previous_session.go`).
+
+`couch --peek repo:N --previous [--lines N | --all]` reads that exact parked tty
+recording and never substitutes the current incarnation. Missing capture evidence
+is reported explicitly. `--previous --transcripts` refuses with guidance to
+capture native coordinates before switching. Current `--transcripts` reads still
+resolve the current native transcript and sent-prompt paths.
 
 `--all` selects a complete retained terminal-history projection in the short-lived
 CLI, not the Couch server. It conflicts with `--lines`; previous and full reads
@@ -1510,18 +1523,19 @@ dimensions outside 1–1000 or screen area above 262,144 cells. Retained history
 is capped at 1,048,576 cells and 128 MiB logical bytes. Any capacity-driven
 history loss refuses the read, even if a later terminal erase clears history;
 checked emulator construction and resize report invalid geometry. Refusals
-name the files. Full reads preserve ordinary
-terminal erase-history semantics: the native transcript remains the complementary
-source for content erased from terminal history. Output names the recording files
-and source binding; previous reads cost seconds and full replay is heavy.
+name the files. Full reads preserve ordinary terminal erase-history semantics;
+a separately located native transcript can supply content erased from tty history.
+Output names the recording files. Previous reads cost seconds and full replay is heavy.
 
 Fresh registration requires a ready record matching the new launch nonce,
-agent, session and process. Until then a failed launch cannot establish the path
-default or authorize deletion of a session that raced for the same name.
-`orientation-status` separately reports prompt delivery after adoption. The
-wrapper owns paste and submit alongside normal input; operator input cancels
-automatic delivery. Failed or uncertain delivery offers manual recovery without
-resending. The panel retains focus for a panel-origin switch.
+agent, session and process. The nonce travels in the trusted launch profile
+independently of orientation. Existing park/start/resume state owns failures:
+a still-running source permits another switch attempt; a definitively failed
+target leaves the old successful profile available for resume. A possibly
+surviving target must be resolved through ordinary recovery before another cold
+launch. Registration is the commit point for the new agent; later attachment
+errors concern that committed target. The panel retains focus for a panel-origin
+switch. There is no separate switch recovery record or delivery lifecycle.
 
 Start is a two-operation owner contract. Agent-facing `prepare-start` resolves
 canonical path, selected agent/argv and provenance, preference revision,

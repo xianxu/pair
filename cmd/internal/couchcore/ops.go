@@ -209,7 +209,7 @@ func Operations() []Operation {
 			Args:         switchAgentArguments(false),
 		},
 		{
-			Name: "switch-agent", Summary: "Start a fresh agent context using the outgoing thread's evidence",
+			Name: "switch-agent", Summary: "Switch to another coding agent using the saved startup configuration",
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultStart,
 			Presentation: PresentationTUI, RowAction: true,
 			Args: switchAgentArguments(true),
@@ -505,13 +505,12 @@ func switchAgentArguments(accepted bool) []ArgSpec {
 		{Name: "repo-scope", Summary: "exact thread repository scope", Required: true, Implicit: true},
 		{Name: "tag", Summary: "exact thread tag", Required: true, Implicit: true},
 		{Name: "agent", Summary: "selected coding agent", Required: true, Implicit: true},
-		{Name: "argv", Summary: "JSON array of startup parameters; empty array selects no parameters", Required: accepted, Implicit: true},
+		{Name: "argv", Summary: "JSON array of startup parameters; empty array selects no parameters", Implicit: true},
 	}
 	if accepted {
 		args = append(args,
 			ArgSpec{Name: "fingerprint", Summary: "accepted preview fingerprint", Required: true, Implicit: true},
-			ArgSpec{Name: "content-kind", Summary: "explicit fresh, authored, or fallback content", Implicit: true},
-			ArgSpec{Name: "body", Summary: "verbatim authored or fallback handoff", Implicit: true},
+			ArgSpec{Name: "known-config", Summary: "use existing saved target configuration", Implicit: true},
 			ArgSpec{Name: "source", Summary: "authenticated source incarnation token", Implicit: true},
 		)
 	}

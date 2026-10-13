@@ -147,6 +147,7 @@ func TestPreviousSessionStrictPersistedShapeAndLegacyAbsence(t *testing.T) {
 		t.Fatal(err)
 	}
 	decoded, err = DecodePersisted(raw, record.Address, testValidators)
+	previous.Binding, previous.NativeSession, previous.Transcripts, previous.Unavailable = nil, "", nil, nil
 	if err != nil || !reflect.DeepEqual(decoded.PreviousSession, &previous) {
 		t.Fatalf("round trip: %+v, %v", decoded.PreviousSession, err)
 	}
@@ -158,5 +159,55 @@ func TestPreviousSessionStrictPersistedShapeAndLegacyAbsence(t *testing.T) {
 		if _, err := DecodePersisted([]byte(corrupt), record.Address, testValidators); err == nil {
 			t.Fatal("accepted unknown or duplicate descriptor field")
 		}
+	}
+}
+
+func TestPreviousSessionLegacyContextValidatedButNotRewritten(t *testing.T) {
+	t.Parallel()
+	record := validRecord()
+	legacy := validPreviousSession()
+	legacy.Source.Address = record.Address
+	legacy.Binding.ScopeKey, legacy.Binding.Tag = record.Address.RepoScope, record.Address.Tag
+	// Alias bypasses the write projection, modeling bytes from an older binary.
+	type legacyPrevious PreviousSession
+	raw, err := json.Marshal(legacyPrevious(legacy))
+	if err != nil {
+		t.Fatal(err)
+	}
+	recordRaw, err := json.Marshal(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wire map[string]json.RawMessage
+	if err := json.Unmarshal(recordRaw, &wire); err != nil {
+		t.Fatal(err)
+	}
+	wire["previous_session"] = raw
+	recordRaw, _ = json.Marshal(wire)
+	decoded, err := DecodePersisted(recordRaw, record.Address, testValidators)
+	if err != nil {
+		t.Fatalf("legacy record refused: %v", err)
+	}
+	rewritten, err := json.Marshal(decoded.PreviousSession)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(rewritten, &fields); err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"binding", "native_session", "transcripts", "unavailable"} {
+		if _, ok := fields[key]; ok {
+			t.Errorf("rewrote obsolete context %q: %s", key, rewritten)
+		}
+	}
+	for _, key := range []string{"source", "agent", "capture", "captured_at"} {
+		if _, ok := fields[key]; !ok {
+			t.Errorf("lost tty coordinate %q", key)
+		}
+	}
+	corrupt := strings.Replace(string(recordRaw), "native-source", "bad\\nidentity", 1)
+	if _, err := DecodePersisted([]byte(corrupt), record.Address, testValidators); err == nil {
+		t.Fatal("discarded invalid legacy context before validating it")
 	}
 }

@@ -110,7 +110,6 @@ const (
 // to be `continue` statements in an IO loop, so no test could see them and no
 // row could report one (ARCH-PURE).
 type ThreadEvidence struct {
-	AgentSwitch AgentSwitchEvidence
 	// Live is this console's proof that it hosts the recorded process.
 	Live []ProcessIdentity
 	// Session is this thread's zellij session: present, absent, or unresolved.
@@ -171,7 +170,6 @@ type ThreadEvidence struct {
 // ActionableThreadSummary contains only fields the ordinary switcher needs.
 // It deliberately excludes diagnostic lifecycle state.
 type ActionableThreadSummary struct {
-	AgentSwitch      *AgentSwitchView    `json:"agent_switch,omitempty"`
 	Target           ThreadTarget        `json:"target"`
 	RowKey           ThreadRowKey        `json:"row_key"`
 	Recovery         *RecoveryDecision   `json:"recovery,omitempty"`
@@ -320,14 +318,8 @@ func ProjectActionableThreads(input ThreadProjectionInput) []ActionableThreadSum
 	}
 	for _, record := range records {
 		state, reason := ClassifyThread(record, evidence[record.Address])
-		var agentSwitch *AgentSwitchView
-		if record.SwitchRecovery != nil {
-			view := ProjectAgentSwitch(record.SwitchRecovery, evidence[record.Address].AgentSwitch)
-			agentSwitch = &view
-		}
 		rows = append(rows, ActionableThreadSummary{
 			Address:          record.Address,
-			AgentSwitch:      agentSwitch,
 			Continuation:     continuationStatus(record),
 			Recovery:         ProjectRecoveryChoices(record, evidence[record.Address], state, reason),
 			StartingPath:     record.StartingPath,

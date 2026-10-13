@@ -150,9 +150,8 @@ type messageService struct {
 	after func(time.Duration, func())
 	// slotOps answers resume, reboot and operation-status (pair#367 M2);
 	// nil answers them unsupported.
-	slotOps       *slotOperations
-	switches      atomic.Pointer[switchCoordinator]
-	prepareSwitch func(context.Context, couchcore.ThreadAddress, string, *[]string) (couchcore.PreparedAgentSwitch, error)
+	slotOps  *slotOperations
+	switches atomic.Pointer[agentSwitchService]
 	// broadcastStatus answers broadcast-status (pair#413). Installed after the
 	// service is serving, so it is an atomic pointer; nil answers unsupported.
 	broadcastStatus atomic.Pointer[func() (couchmessage.BroadcastStatus, bool)]
@@ -233,10 +232,6 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 	}
 	// Validated before any socket is taken: a bad knob refuses the start.
 	threshold, err := waitNoticeThreshold(os.Getenv)
-	if err != nil {
-		return nil, err
-	}
-	briefTimeout, settleTimeout, err := switchTimeouts(os.Getenv)
 	if err != nil {
 		return nil, err
 	}
@@ -378,7 +373,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 		return nil, err
 	}
 	probe.service.Store(service)
-	service.installSwitchCoordinator(console, c, switchGuard, briefTimeout, settleTimeout)
+	service.installAgentSwitchService(console, c, switchGuard)
 	console.SetMessageBroker(service.broker)
 	service.SetBroadcastStatus(console.BroadcastStatus)
 	service.SetShares(console.Shares)

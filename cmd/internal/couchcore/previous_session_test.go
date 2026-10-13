@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"testing"
@@ -14,8 +15,8 @@ func TestPreviousSessionSurvivesSuccessfulSwitch(t *testing.T) {
 	env.Couch.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) { return true, nil }
 	source := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
 	env.Couch.SwitchContext = switchContextFunc(func(context.Context, ThreadRecord) (orientation.OrientationContext, error) {
-		return orientation.OrientationContext{Tag: string(source.Address.Tag), WorkingPath: source.WorkingPath,
-			SourceAgent: "claude", SourceSession: "source-native", NativeTranscripts: []string{"/fixture/source.jsonl"}}, nil
+		t.Fatal("tty-only switch resolved native context")
+		return orientation.OrientationContext{}, nil
 	})
 	env.Runner.AfterAcknowledge = func(id string) error {
 		env.Artifacts.SetPairSession(source.Address, continuationChildSession(t, env.Runner, id), true)
@@ -26,7 +27,7 @@ func TestPreviousSessionSurvivesSuccessfulSwitch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := env.Couch.SwitchAgent(context.Background(), SwitchAgentRequest{Content: SwitchContent{Kind: SwitchContentFresh}, Address: source.Address,
+	if _, err := env.Couch.SwitchAgent(context.Background(), SwitchAgentRequest{Address: source.Address,
 		Agent: "codex", Argv: args, AcceptedFingerprint: prepared.Fingerprint}); err != nil {
 		t.Fatal(err)
 	}
@@ -53,8 +54,29 @@ func TestPreviousSessionSurvivesSuccessfulSwitch(t *testing.T) {
 	if err := json.Unmarshal(raw, &saved); err != nil {
 		t.Fatal(err)
 	}
-	if saved.Previous == nil || saved.Previous.Agent != "claude" || saved.Previous.NativeSession != "source-native" ||
-		len(saved.Previous.Transcripts) != 1 || saved.Previous.Transcripts[0] != "/fixture/source.jsonl" {
+	if saved.Previous == nil || saved.Previous.Agent != "claude" || saved.Previous.NativeSession != "" || len(saved.Previous.Transcripts) != 0 {
 		t.Fatalf("outgoing evidence lost after registration: %s", raw)
+	}
+}
+
+func TestPreviousSessionEvidenceContainsOnlyTTYCoordinates(t *testing.T) {
+	t.Parallel()
+	env := newTestEnv(t, "/repo")
+	source := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
+	previous := previousSessionEvidence(source, source)
+	if previous == nil || previous.Binding != nil || previous.NativeSession != "" || len(previous.Transcripts) != 0 || len(previous.Unavailable) != 0 {
+		t.Fatalf("context retained: %+v", previous)
+	}
+	raw, err := json.Marshal(previous)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"binding", "native_session", "transcripts", "unavailable"} {
+		if bytes.Contains(raw, []byte(`"`+key+`"`)) {
+			t.Fatalf("persisted context key %s: %s", key, raw)
+		}
+	}
+	if previous.Capture != nil {
+		t.Fatal("fixture unexpectedly includes capture")
 	}
 }

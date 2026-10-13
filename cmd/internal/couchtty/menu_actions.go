@@ -34,9 +34,8 @@ const (
 
 // menuRowFacts is everything the action table reads about a row.
 type menuRowFacts struct {
-	AgentSwitch *couchcore.AgentSwitchView
-	Kind        menuRowKind
-	Phase       menuRowPhase
+	Kind  menuRowKind
+	Phase menuRowPhase
 	// Actor is what couchcore's resume/reboot admission table reads; the
 	// resumable and unusable phases offer exactly couchcore.ActorActions.
 	Actor          couchcore.ActorRowFacts
@@ -47,7 +46,6 @@ type menuRowFacts struct {
 func menuRowFactsOf(row couchcore.ActionableThreadSummary) menuRowFacts {
 	f := menuRowFacts{
 		Kind:         menuRowPrimary,
-		AgentSwitch:  row.AgentSwitch,
 		Actor:        couchcore.ActorRowFactsOf(row),
 		AliasOffered: menuAliasOffered(row),
 	}
@@ -96,12 +94,6 @@ func menuRowFactsOf(row couchcore.ActionableThreadSummary) menuRowFacts {
 // slot unless its checkout is missing (pair#402). A row the table offers
 // nothing on says why through menuRowNotice, which reads the same phase.
 func menuRowActions(f menuRowFacts) []string {
-	if f.AgentSwitch != nil && f.AgentSwitch.Action != couchcore.AgentSwitchContinue {
-		if op := switchPrimaryOperation(f.AgentSwitch); op != "" {
-			return []string{op}
-		}
-		return nil
-	}
 	switch f.Phase {
 	case menuPhaseLive, menuPhaseLiveContinuationFailed:
 		// Detach first: it is the safe, everyday gesture -- the agent keeps
@@ -199,9 +191,6 @@ type menuRowAdvice struct {
 }
 
 func menuRowAdviceOf(f menuRowFacts) menuRowAdvice {
-	if f.AgentSwitch != nil {
-		return menuRowAdvice{Notice: menuNextStep{Text: switchRowText(f.AgentSwitch)}, Enter: menuNextStep{Text: f.AgentSwitch.ActionLabel()}}
-	}
 	var a menuRowAdvice
 	switch {
 	case f.Phase == menuPhaseBusy:

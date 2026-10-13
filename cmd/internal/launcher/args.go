@@ -26,7 +26,6 @@ type LaunchArgs struct {
 	// exact native root at launch and may never fall back to a fresh session.
 	Orientation       *orientation.Request
 	FreshRequired     bool
-	ExactResume       bool
 	ResumeRequired    bool
 	RequiredSessionID string
 	Layout            LayoutRequest

@@ -311,10 +311,15 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 			if call.Operation.Name == "prepare-switch-agent" {
 				return c.PrepareAgentSwitch(ctx, address, a["agent"], argv)
 			}
-			if argv == nil {
+			known := a["known-config"] == "true"
+			if argv == nil && !known {
 				return nil, fmt.Errorf("accepted startup parameters are required")
 			}
-			return c.SwitchAgent(ctx, SwitchAgentRequest{Address: address, Agent: a["agent"], Argv: *argv, AcceptedFingerprint: a["fingerprint"], Source: a["source"], Content: SwitchContent{Kind: SwitchContentKind(a["content-kind"]), Body: a["body"]}})
+			var args []string
+			if argv != nil {
+				args = *argv
+			}
+			return c.SwitchAgent(ctx, SwitchAgentRequest{Address: address, Agent: a["agent"], KnownConfig: known, Argv: args, AcceptedFingerprint: a["fingerprint"], Source: a["source"]})
 		case "reboot":
 			if path := a["path"]; path != "" {
 				return c.Reboot(ctx, RebootTarget{Path: path, Agent: a["agent"], RequireSettled: a[requireSettledArg]})

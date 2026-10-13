@@ -66,7 +66,6 @@ type Incarnation struct {
 }
 
 type Record struct {
-	SwitchRecovery  *SwitchRecovery               `json:"switch_recovery,omitempty"`
 	PreviousSession *PreviousSession              `json:"previous_session,omitempty"`
 	SessionBinding  *couchidentity.SessionBinding `json:"session_binding,omitempty"`
 	Continuation    *checkpoint.Request           `json:"continuation,omitempty"`
@@ -116,11 +115,6 @@ func ValidateAddress(address Address, validators Validators) error {
 // persisted records. Policy values are evidence interpreted elsewhere; their
 // exact JSON shape is still enforced by Record plus strictjson.Decode.
 func Validate(record Record, validators Validators) error {
-	if record.SwitchRecovery != nil {
-		if err := record.SwitchRecovery.Validate(record.Address); err != nil {
-			return fmt.Errorf("switch recovery: %w", err)
-		}
-	}
 	if record.PreviousSession != nil {
 		if err := record.PreviousSession.Validate(record.Address); err != nil {
 			return fmt.Errorf("previous session: %w", err)

@@ -5,14 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/launcher"
-	"github.com/xianxu/pair/cmd/internal/orientation"
-	"golang.org/x/sys/unix"
 )
 
 func parseSwitchAgentCLI(args []string) (cliInvocation, error) {
@@ -34,12 +31,11 @@ func parseSwitchAgentCLI(args []string) (cliInvocation, error) {
 		}
 		return inv, nil
 	}
-	if inv.ref != "self" {
-		r, ok, err := couchcore.ParseWorkspaceReference(inv.ref)
-		if err != nil || !ok || r.Repo == "" {
-			return bad()
-		}
+	r, ok, err := couchcore.ParseWorkspaceReference(inv.ref)
+	if err != nil || !ok || r.Repo == "" {
+		return bad()
 	}
+
 	seen := map[string]bool{}
 	for i := 2; i < len(args); i++ {
 		flag := args[i]
@@ -52,19 +48,13 @@ func parseSwitchAgentCLI(args []string) (cliInvocation, error) {
 			inv.confirmed = true
 		case "--json":
 			inv.jsonOutput = true
-		case "--agent", "--handoff-file", "--request":
+		case "--agent":
 			if i+1 == len(args) || args[i+1] == "" {
 				return bad()
 			}
 			i++
-			switch flag {
-			case "--agent":
-				inv.messageAgent = args[i]
-			case "--handoff-file":
-				inv.handoffFile = args[i]
-			case "--request":
-				inv.switchRequest = args[i]
-			}
+			inv.messageAgent = args[i]
+
 		default:
 			return bad()
 		}
@@ -72,54 +62,11 @@ func parseSwitchAgentCLI(args []string) (cliInvocation, error) {
 	if !inv.confirmed || !launcher.IsSupportedAgent(inv.messageAgent) {
 		return bad()
 	}
-	if inv.switchRequest != "" {
-		if inv.ref != "self" || inv.handoffFile == "" {
-			return bad()
-		}
-		if couchmessage.ValidateRequest(couchmessage.Request{Op: "operation-status", Scope: "s", Tag: "t", Session: "s", Nonce: "n", ID: inv.switchRequest}) != nil {
-			return bad()
-		}
-	}
+
 	return inv, nil
 }
 
-func readSwitchHandoff(path string) (string, error) {
-	fail := func(err error) (string, error) {
-		return "", fmt.Errorf("handoff file %q: %w; use a regular UTF-8 file of at most 16 KiB with LF line endings", path, err)
-	}
-	fd, err := unix.Open(path, unix.O_RDONLY|unix.O_NOFOLLOW|unix.O_NONBLOCK|unix.O_CLOEXEC, 0)
-	if err != nil {
-		return fail(err)
-	}
-	f := os.NewFile(uintptr(fd), path)
-	defer f.Close()
-	info, err := f.Stat()
-	if err != nil {
-		return fail(err)
-	}
-	if !info.Mode().IsRegular() {
-		return fail(fmt.Errorf("not a regular file"))
-	}
-	const limit = orientation.MaxBodyBytes
-	if info.Size() > limit {
-		return fail(fmt.Errorf("exceeds 16 KiB"))
-	}
-	body, err := io.ReadAll(io.LimitReader(f, limit+1))
-	if err != nil {
-		return fail(err)
-	}
-	if len(body) > limit {
-		return fail(fmt.Errorf("exceeds 16 KiB"))
-	}
-	content := couchcore.SwitchContent{Kind: couchcore.SwitchContentAuthored, Body: string(body)}
-	if err := couchcore.ValidateSwitchContent(content); err != nil {
-		return fail(err)
-	}
-	return content.Body, nil
-}
-
-// Switches are asynchronous even for a supervised slot. In particular self
-// must return admission so its source can settle before the coordinator acts.
+// runSwitchAgentCLI admits one remote switch and leaves status on the existing receipt path.
 func runSwitchAgentCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer, call messageCall) int {
 	fail := func(err error) int { fmt.Fprintln(stderr, "couch:", err); return 1 }
 	namespace := rt.Getenv("COUCH_STORE_DIR")
@@ -137,13 +84,7 @@ func runSwitchAgentCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer, 
 		if err != nil {
 			return fail(err)
 		}
-		r.Target, r.Agent, r.Confirmed, r.SwitchRequest = inv.ref, inv.messageAgent, inv.confirmed, inv.switchRequest
-		if inv.handoffFile != "" {
-			r.Body, err = readSwitchHandoff(inv.handoffFile)
-			if err != nil {
-				return fail(err)
-			}
-		}
+		r.Target, r.Agent, r.Confirmed = inv.ref, inv.messageAgent, inv.confirmed
 	}
 	if err = couchmessage.ValidateRequest(r); err != nil {
 		return fail(err)

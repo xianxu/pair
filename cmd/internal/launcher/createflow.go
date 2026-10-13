@@ -562,14 +562,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		return launchStep{code: 1}, nil
 	}
 	if opts.Args.ResumeRequired {
-		actual, status := "", sessioninventory.BindingUnbound
-		if opts.Args.ExactResume {
-			if rt.AgentSessionExists(agent, opts.Args.RequiredSessionID, env.Cwd) {
-				actual, status = opts.Args.RequiredSessionID, sessioninventory.BindingEstablished
-			}
-		} else {
-			actual, status = rt.EstablishedSessionID(scope.Key, chosenTag, agent)
-		}
+		actual, status := rt.EstablishedSessionID(scope.Key, chosenTag, agent)
 		if err := RequireNativeResumeBinding(opts.Args.RequiredSessionID, actual, status); err != nil {
 			fmt.Fprintf(stderr, "pair: %v\n", err)
 			return launchStep{code: 1}, nil

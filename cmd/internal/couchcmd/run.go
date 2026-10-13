@@ -1342,11 +1342,16 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	verbLine(w, "--peek", "       couch --peek repo:N[:M...][,repo:N...] [--lines N | --all] [--previous] [--json] [--transcripts]")
 	fmt.Fprintln(w, "             Read-only: a slot's recent terminal; --transcripts adds where its transcripts\n"+
 		"             live, and costs seconds.\n"+
-		"             --previous: exact previous recording [seconds]; --all: complete recording [heavy].")
+		"             --previous: exact previous tty only [seconds], incompatible with --transcripts; --all: complete recording [heavy].")
 	verbLine(w, "--archived", "       couch --archived")
 	verbLine(w, "--recover-plan-from-sdlc", "       couch --recover-plan-from-sdlc")
 	fmt.Fprintln(w, "             Recovery report: one JSON row per slot joining sdlc's claims and")
 	fmt.Fprintln(w, "             slot verdicts with Couch's threads, with a suggested next step.")
+	verbLine(w, "--switch-agent", "       couch --switch-agent repo:N --agent NAME --confirm [--json]")
+	fmt.Fprintln(w, "             Hub only, another idle clean slot: use NAME's last successful path config,")
+	fmt.Fprintln(w, "             then repo default. Missing config: ask the operator to set it in the switch form.")
+	fmt.Fprintln(w, "             No self, startup parameter edits or context delivery. Read the receipt before retrying.")
+	verbLine(w, "--operation-status", "       couch --operation-status ID [--json]")
 	verbLine(w, "--resume", "       couch --resume repo:N [--json]")
 	verbLine(w, "--reboot", "       couch --reboot repo:N --confirm [--force-unknown] [--json]")
 	fmt.Fprintln(w, "             Archive the slot's conversation and replace it with a fresh agent on the current")

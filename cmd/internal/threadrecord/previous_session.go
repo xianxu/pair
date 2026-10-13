@@ -13,10 +13,12 @@ import (
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 )
 
-// PreviousSession retains the evidence selected from one outgoing incarnation.
+// PreviousSession retains the terminal recording from one outgoing incarnation.
 // It is replaced by the next source park, never by target registration or retry.
 type PreviousSession struct {
-	Source        ParkIdentity                       `json:"source"`
+	Source ParkIdentity `json:"source"`
+	// Deprecated context fields are decode-only compatibility. MarshalJSON validates
+	// them before omitting them; new descriptors carry only tty coordinates.
 	Binding       *couchidentity.SessionBinding      `json:"binding,omitempty"`
 	Agent         string                             `json:"agent"`
 	NativeSession string                             `json:"native_session,omitempty"`
@@ -58,7 +60,8 @@ func (p PreviousSession) Validate(address Address) error {
 			return fmt.Errorf("invalid previous-session unavailability reason")
 		}
 	}
-	raw, err := json.Marshal(p)
+	type wire PreviousSession
+	raw, err := json.Marshal(wire(p))
 	if err != nil || len(raw) > 32*1024 {
 		return fmt.Errorf("previous session exceeds 32 KiB")
 	}
@@ -78,4 +81,16 @@ func ClonePreviousSession(p *PreviousSession) *PreviousSession {
 	out.Transcripts = append([]string(nil), p.Transcripts...)
 	out.Unavailable = append([]string(nil), p.Unavailable...)
 	return &out
+}
+
+// MarshalJSON retires old context without letting malformed stored values evade
+// validation. Keep normal decoding so strict persisted decoding still rejects
+// unknown or duplicate fields.
+func (p PreviousSession) MarshalJSON() ([]byte, error) {
+	if err := p.Validate(p.Source.Address); err != nil {
+		return nil, err
+	}
+	type wire PreviousSession
+	p.Binding, p.NativeSession, p.Transcripts, p.Unavailable = nil, "", nil, nil
+	return json.Marshal(wire(p))
 }

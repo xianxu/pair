@@ -5,18 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
-	"golang.org/x/sys/unix"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
 
 func TestSwitchAgentCLIForms(t *testing.T) {
 	for _, args := range [][]string{
-		{"--switch-agent", "self", "--agent", "codex", "--confirm"},
-		{"--switch-agent", "pair:2", "--handoff-file", "brief", "--agent", "claude", "--json", "--confirm"},
-		{"--switch-agent", "self", "--agent", "codex", "--handoff-file", "brief", "--request", "parent", "--confirm"},
+		{"--switch-agent", "pair:2", "--agent", "codex", "--confirm"},
+		{"--switch-agent", "pair:0", "--agent", "claude", "--json", "--confirm"},
 		{"--operation-status", "parent", "--json"},
 	} {
 		if _, err := ParseCLI(args, nil); err != nil {
@@ -24,10 +20,10 @@ func TestSwitchAgentCLIForms(t *testing.T) {
 		}
 	}
 	for _, tail := range []string{
-		"self --agent codex", "pair --agent codex --confirm", "self --agent bogus --confirm",
-		"self --agent codex --confirm --confirm", "self --agent codex --confirm --layout2",
-		"self --agent codex --confirm --request parent", "pair:2 --agent codex --confirm --handoff-file brief --request parent",
-		"self --agent codex --confirm --handoff-file", "self --agent codex --agent claude --confirm",
+		"self --agent codex --confirm", "pair --agent codex --confirm", "pair:2 --agent bogus --confirm",
+		"pair:2 --agent codex", "pair:2 --agent codex --confirm --confirm", "pair:2 --agent codex --confirm --layout2",
+		"pair:2 --agent codex --confirm --request parent", "pair:2 --agent codex --confirm --handoff-file brief",
+		"pair:2 --agent codex --confirm --argv []", "pair:2 --agent codex --agent claude --confirm",
 	} {
 		if _, err := ParseCLI(append([]string{"--switch-agent"}, strings.Fields(tail)...), nil); err == nil {
 			t.Errorf("accepted %s", tail)
@@ -35,71 +31,29 @@ func TestSwitchAgentCLIForms(t *testing.T) {
 	}
 }
 
-func TestSwitchAgentCLIAdmissionOneCallAndExactFile(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "brief")
-	body := "  context\n\tNext step\n"
-	if err := os.WriteFile(path, []byte(body), 0600); err != nil {
-		t.Fatal(err)
-	}
-	inv, err := ParseCLI([]string{"--switch-agent", "self", "--agent", "codex", "--handoff-file", path, "--request", "parent", "--confirm", "--json"}, nil)
+func TestSwitchAgentCLIAdmissionCarriesOnlySelection(t *testing.T) {
+	inv, err := ParseCLI([]string{"--switch-agent", "pair:2", "--agent", "codex", "--confirm", "--json"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var out, errout bytes.Buffer
 	calls := 0
-	call := func(_ context.Context, _ string, raw, out any) error {
+	code := runMessageCLIWithCall(inv, messageRuntime(), &out, &errout, func(_ context.Context, _ string, raw, reply any) error {
 		calls++
-		if calls > 1 {
-			t.Fatal("polled admission")
-		}
 		r := raw.(couchmessage.Request)
-		encoded, _ := json.Marshal(r)
-		var fields map[string]any
-		json.Unmarshal(encoded, &fields)
-		if r.Body != body || r.Agent != "codex" || r.Target != "self" || fields["SwitchRequest"] != "parent" || r.Scope != "scope" || strings.Contains(string(encoded), path) {
-			t.Fatalf("request %s", encoded)
+		if r.Body != "" || r.Target != "pair:2" || r.Agent != "codex" || !r.Confirmed || r.Scope != "scope" {
+			t.Fatalf("request %#v", r)
 		}
-		*out.(*couchmessage.Response) = couchmessage.Response{Code: "accepted", Operation: &couchmessage.OperationReceipt{ID: r.ID, Op: r.Op, Status: couchmessage.ReceiptQueued}}
+		*reply.(*couchmessage.Response) = couchmessage.Response{Code: "accepted", Operation: &couchmessage.OperationReceipt{ID: r.ID, Op: r.Op, Status: couchmessage.ReceiptQueued}}
 		return nil
-	}
-	if code := runMessageCLIWithCall(inv, messageRuntime(), &out, &errout, call); code != 0 {
-		t.Fatalf("%d: %s", code, &errout)
-	}
-	var response couchmessage.Response
-	if err := json.Unmarshal(out.Bytes(), &response); err != nil || response.Operation == nil || calls != 1 {
-		t.Fatalf("response %s calls %d: %v", &out, calls, err)
-	}
-}
-
-func TestSwitchAgentHandoffFileRefusesBeforeTransport(t *testing.T) {
-	dir := t.TempDir()
-	regular := filepath.Join(dir, "regular")
-	os.WriteFile(regular, []byte("ok"), 0600)
-	paths := []string{filepath.Join(dir, "symlink"), filepath.Join(dir, "fifo"), dir}
-	os.Symlink(regular, paths[0])
-	if err := unix.Mkfifo(paths[1], 0600); err != nil {
-		t.Fatal(err)
-	}
-	for i, body := range []string{"", "\r\n", "bad\x00", "\xff", strings.Repeat("x", 16385)} {
-		path := filepath.Join(dir, string(rune('a'+i)))
-		os.WriteFile(path, []byte(body), 0600)
-		paths = append(paths, path)
-	}
-	for _, path := range paths {
-		inv, err := ParseCLI([]string{"--switch-agent", "self", "--agent", "codex", "--confirm", "--handoff-file", path}, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		var out, errout bytes.Buffer
-		code := runMessageCLIWithCall(inv, messageRuntime(), &out, &errout, func(context.Context, string, any, any) error { t.Fatal("invalid file sent"); return nil })
-		if code == 0 || !strings.Contains(errout.String(), path) {
-			t.Errorf("%s: %d %s", path, code, &errout)
-		}
+	})
+	if code != 0 || calls != 1 {
+		t.Fatalf("code %d calls %d stderr %s", code, calls, &errout)
 	}
 }
 
 func TestSwitchAgentCLIUncertainJSONRetainsID(t *testing.T) {
-	inv, err := ParseCLI([]string{"--switch-agent", "self", "--agent", "codex", "--confirm", "--json"}, nil)
+	inv, err := ParseCLI([]string{"--switch-agent", "pair:2", "--agent", "codex", "--confirm", "--json"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,7 +101,7 @@ func FuzzSwitchCLIClosedShape(f *testing.F) {
 		if extra == "--json" {
 			return
 		}
-		args := []string{"--switch-agent", "self", "--agent", "codex", "--confirm", extra}
+		args := []string{"--switch-agent", "pair:2", "--agent", "codex", "--confirm", extra}
 		if _, err := ParseCLI(args, nil); err == nil {
 			t.Fatalf("accepted extra %q", extra)
 		}
