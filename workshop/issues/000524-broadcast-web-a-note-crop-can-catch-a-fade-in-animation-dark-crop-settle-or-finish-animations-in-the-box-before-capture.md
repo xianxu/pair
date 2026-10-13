@@ -85,3 +85,12 @@ Serial full make test completed (GOMAXPROCS=2, nested Go package parallelism 1).
 ## Shipment handoff
 
 Close through SDLC after verified automated evidence; stage only on TL instruction, then land after acceptance and report to the hub. #494 screenshot-suppression integration remains the second lander's responsibility.
+
+
+## Revisions (continued)
+
+### 2026-10-12 — BR-1 animation influence correction
+
+ARCH-PURPOSE: target geometry alone does not bound animated paint. Direct targets and enclosing ancestors remain covered; zero-size/off-box targets with light children, shadow content, or generated pseudo-elements can affect overflowing pixels. Conservatively treat those active animations as potentially relevant within the existing 512-animation and 1500 ms limits. Finite animations wait naturally; paused/infinite ones remain explicitly unsettled. No per-animation descendant walk or mutation is needed. Plain off-box leaf targets without generated content remain irrelevant. Regression fixtures cover finite/paused/infinite cases and browser pixel evidence. This corrects influence detection within the approved capture contract, with no new scope or limits.
+
+BR-1 verification: production-probe Node regression first failed on finite overflowing-parent influence, then passes finite/paused/infinite child, shadow, generated pseudo, pseudo-object and pseudo-effect cases. Recorder package passes (4.146 s). Bounded live browser regression with the old probe overlay failed: settled at 49.96 ms of a 900 ms parent fade, still running, 0/28800 bright pixels. Fixed probe passes in 4.88 s, with naturally finished timelines and bright pixels for both overflowing child and ::before. Serial full suite is running again after this correction.

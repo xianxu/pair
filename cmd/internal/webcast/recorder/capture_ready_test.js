@@ -4,6 +4,7 @@ const inspect = eval('(' + fs.readFileSync('capture_ready.js','utf8') + ')');
 const box=[20,120,40,30];
 global.scrollX=10;global.scrollY=100;global.innerWidth=800;global.innerHeight=600;global.devicePixelRatio=2;
 let animations=[];
+global.getComputedStyle=(node,pseudo)=>({content:node.pseudoContent?.[pseudo] ?? "none"});
 global.document={getAnimations:()=>animations,documentElement:{}};
 function target(rect={left:10,top:20,width:40,height:30}) {return {nodeType:1,getBoundingClientRect:()=>({...rect,right:rect.left+rect.width,bottom:rect.top+rect.height}),getRootNode:()=>document};}
 function animation(state='running',node=target(),timing={iterations:1,duration:1000,endTime:1000}) {
@@ -62,3 +63,23 @@ localTarget.shadowRoot=nestedRoot;nestedTarget.getRootNode=()=>nestedRoot;
 assert.equal(inspect(box).pending,true);assert.equal(rootEnumerations,2,'each open shadow root enumerated once');
 nestedAnimation.playState='finished';assert.equal(inspect(box).pending,false);
 console.log('separate shadow-root enumeration fixtures passed');
+
+// BR-1: geometry of an animation target does not bound its painted influence.
+document.documentElement={};animations=[];
+for (const kind of ['child','shadow','pseudo','pseudo-object','pseudo-effect']) {
+ const parent=target({left:500,top:500,width:0,height:0});
+ if(kind==='child') parent.firstChild=target();
+ if(kind==='shadow') parent.shadowRoot={mode:'open'};
+ if(kind==='pseudo') parent.pseudoContent={'::before':'"visible"'};
+ const effectTarget=kind==='pseudo-object'?{element:parent,type:'::before'}:parent;
+ for(const state of ['running','paused','infinite']) {
+  animations=[animation(state==='paused'?'paused':'running',effectTarget,
+   {iterations:state==='infinite'?Infinity:1,endTime:state==='infinite'?Infinity:1000})];
+  if(kind==='pseudo-effect') animations[0].effect.pseudoElement='::after';
+  const observed=inspect(box);
+  assert.equal(observed.pending,true,kind+' '+state+' overflow cannot be settled');
+  assert.equal(observed.reason,state==='paused'?'paused animation':state==='infinite'?'infinite animation':'');
+ }
+ animations[0].playState='finished';assert.equal(inspect(box).pending,false);
+}
+console.log('overflow influence readiness fixtures passed');

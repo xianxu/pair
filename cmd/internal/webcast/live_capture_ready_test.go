@@ -42,8 +42,14 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:black}
 #shadow{position:absolute;left:320px;top:80px;width:180px;height:140px}
 #unrelated{position:absolute;left:720px;top:280px;width:80px;height:80px;background:white}
 #edge{position:absolute;left:820px;top:440px;width:140px;height:120px;background:white}
+#overflow,#pseudo{position:absolute;left:-100px;top:-100px;width:0;height:0;overflow:visible}
+#overflow>div{position:absolute;left:420px;top:400px;width:180px;height:100px;background:white}
+#pseudo::before{content:'';position:absolute;left:420px;top:540px;width:180px;height:100px;background:white}
+@keyframes overflowFade{0%,70%{opacity:0}100%{opacity:1}}
+#pseudo.active::before{animation:overflowFade 900ms linear both}
 </style></head><body><div id="fade" class="card"></div><div id="finite" class="card"></div>
-<div id="shadow"></div><div id="unrelated"></div><div id="edge"></div><script>
+<div id="shadow"></div><div id="unrelated"></div><div id="edge"></div>
+<div id="overflow"><div></div></div><div id="pseudo"></div><script>
 const fade=document.getElementById('fade');
 new IntersectionObserver(entries=>{if(entries.some(e=>e.isIntersecting))fade.classList.add('seen')}).observe(fade);
 const root=document.getElementById('shadow').attachShadow({mode:'open'});
@@ -214,6 +220,33 @@ window.snapshot=()=>{
 			eval(`({state:finiteAnimation.playState,time:finiteAnimation.currentTime,timing:finiteAnimation.effect.getComputedTiming(),unrelated:unrelated.playState})`, &detail)
 			t.Fatalf("capture did not wait for natural completion shadow=%v: %+v", shadow, detail)
 		}
+	}
+	// The animation target's own rectangle is not its painted footprint: a
+	// zero-size offscreen parent changes its overflowing child's opacity, and
+	// an overflowing pseudo-element paints beyond its zero-size host.
+	for _, pseudo := range []bool{false, true} {
+		box := recording.Box{340, 320, 120, 60}
+		start := `const target=document.getElementById('overflow');window.overflowAnimation=target.animate([{opacity:0,offset:0},{opacity:0,offset:.7},{opacity:1}],{duration:900,fill:'both'});`
+		if pseudo {
+			box = recording.Box{340, 460, 120, 60}
+			start = `const target=document.getElementById('pseudo');target.classList.add('active');window.overflowAnimation=document.getAnimations().find(a=>a.animationName==='overflowFade');`
+		}
+		var active bool
+		eval(`(async()=>{`+start+`await overflowAnimation.ready;const r=target.getBoundingClientRect();return overflowAnimation.playState==='running' && r.width===0 && r.height===0 && r.right<0 && r.bottom<0})()`, &active)
+		if !active {
+			t.Fatalf("overflow animation fixture not active with offscreen zero-size target, pseudo=%v", pseudo)
+		}
+		crop = capture(box)
+		var timing struct {
+			State string
+			Time  float64
+		}
+		eval(`({state:overflowAnimation.playState,time:overflowAnimation.currentTime})`, &timing)
+		if timing.State != "finished" || timing.Time < 900 {
+			t.Errorf("overflow capture preceded natural completion, pseudo=%v: %+v; settlement=%+v", pseudo, timing, crop.Settlement)
+		}
+		settled(crop)
+		bright(crop, box)
 	}
 	var running bool
 	eval(`(async()=>{window.inBox=document.getElementById('fade').animate([{opacity:1},{opacity:.8}],{duration:300,iterations:Infinity});await inBox.ready;return inBox.playState==='running'})()`, &running)

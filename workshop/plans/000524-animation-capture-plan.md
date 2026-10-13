@@ -81,3 +81,8 @@ SDLC fresh close review is next. Request smoke/staging via hub only; land on aut
 - 2026-10-12 — Initial measured proposal. No implementation authorized yet; viewport/offscreen policy is the principal approval question.
 
 - 2026-10-12 22:56 PDT — TL approved this proposal including viewport-only crops and all budgets (receipt 5992b8ba-8060-42e0-949a-d52fc973ae69); the approval hold above is satisfied.
+
+
+### 2026-10-12 — BR-1 animation influence correction
+
+ARCH-PURPOSE: target geometry alone does not bound animated paint. Direct targets and enclosing ancestors remain covered; zero-size/off-box targets with light children, shadow content, or generated pseudo-elements can affect overflowing pixels. Conservatively treat those active animations as potentially relevant within the existing 512-animation and 1500 ms limits. Finite animations wait naturally; paused/infinite ones remain explicitly unsettled. No per-animation descendant walk or mutation is needed. Plain off-box leaf targets without generated content remain irrelevant. Regression fixtures cover finite/paused/infinite cases and browser pixel evidence. This corrects influence detection within the approved capture contract, with no new scope or limits.

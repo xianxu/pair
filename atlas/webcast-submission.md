@@ -53,7 +53,11 @@ waits for natural completion; it never finishes or overrides animation styles.
 `status: "unsettled"` with a reason: `timeout`, `paused animation`,
 `infinite animation`, `inspection limit`, or `inspection unavailable`. Missing
 settlement metadata in older bundles means unknown. Observation covers the top
-document and accessible open-shadow animations affecting the visible crop;
+document and accessible open-shadow animations affecting the visible crop.
+An off-box animation target with children, shadow content or generated
+pseudo-elements is conservatively included because its painted content can
+overflow into the crop; it may consume the wait budget even when that content
+is ultimately outside the crop. Plain off-box leaf targets can be excluded;
 it is not a guarantee about video, canvas, separate frames or future page changes.
 
 Screenshots use the existing viewport (`captureBeyondViewport: false`): the
