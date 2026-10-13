@@ -1,12 +1,12 @@
 ---
 id: 000507
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: '721df1a2b82974c9a728740e1b49358182cca78c' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '1a4606ac039487fb5017412f4a899c8a516ae637' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T15:58:19-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 2.80
 ---
 
 # couch: idle fading re-decodes session transcripts every tick (~1.5 cores at rest)
