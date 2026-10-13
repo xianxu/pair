@@ -62,13 +62,15 @@ func gate(w http.ResponseWriter, r *http.Request, segment, rest string, l *castl
 	}
 	if c, err := r.Cookie(sessionCookie); err == nil {
 		if revoked, ok := l.Valid(c.Value); ok {
+			owner := sessionNoteOwner(c.Value)
 			if r.Method == http.MethodGet && rest == "session" {
 				// The page's probe after a lost stream: the session holds.
 				SetSecurityHeaders(w.Header(), contentSecurityPolicy)
+				w.Header().Set(NoteOwnerHeader, owner)
 				w.WriteHeader(http.StatusNoContent)
 				return nil, nil
 			}
-			ctx, cancel := context.WithCancel(r.Context())
+			ctx, cancel := context.WithCancel(context.WithValue(r.Context(), noteOwnerKey{}, owner))
 			go func() {
 				select {
 				case <-revoked:

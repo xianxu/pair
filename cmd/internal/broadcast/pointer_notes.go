@@ -54,15 +54,28 @@ func (p *PointerState) setNoteAnchor(id int, a NoteAnchor) bool {
 
 // resolveNote removes note id while pointing is on, reporting whether there
 // was one.
-func (p *PointerState) resolveNote(id int) (bool, error) {
+func (p *PointerState) resolveNote(event NoteResolution) (bool, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if !p.on {
 		return false, ErrPointerOff
 	}
-	if !p.board.Resolve(id) {
+	found := false
+	for _, n := range p.board.notes {
+		if n.ID == event.ID {
+			found = true
+			break
+		}
+	}
+	if !found {
 		return false, nil
 	}
+	if len(p.resolutions) == MaxNoteResolutions {
+		copy(p.resolutions, p.resolutions[1:])
+		p.resolutions = p.resolutions[:MaxNoteResolutions-1]
+	}
+	p.resolutions = append(p.resolutions, event)
+	p.board.Resolve(event.ID)
 	p.notesChangedLocked()
 	return true, nil
 }
