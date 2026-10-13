@@ -29,6 +29,19 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - "n": 3
+      timestamp: "2026-10-13T15:10:03-07:00"
+      dispatched: "2026-10-13T15:04:08-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Entry guards protect navigation and draft mutations; focus padding now respects ownership and retains deferred cleanup. Production draft/queue failure/timeout cases and embedded focus tests pass. Removing navigation guards makes dom_submission_integration_test.lua:72 fail; removing the focus guard at init.lua:338 reproduces nomodifiable, Press ENTER, and RPC timeout in dom-submission-ui-test.lua:129.
+          round: 3
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 16f6b7fd9ee457f42a7fb1a56aeb158a97e4cd9f
+      blocked: false
 ---
 
 # Gate ledger — pair#533 (boundary-review)
@@ -49,6 +62,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - BR-1 — not-addressed — The navigation correction passes production regressions; disabling its guard makes the Alt+Right regression fail. The required mutator sweep remains incomplete: nvim/init.lua:343 still writes from the scheduled FocusLost handler while DOM ownership sets nomodifiable. An embedded-UI reproduction enters insert mode at EOL during held preparation, fires FocusLost, and reaches “Buffer is not modifiable” followed by a blocking “Press ENTER” prompt. Cover focus padding/removal and other asynchronous mutators under the same ownership rule, with production event-sequence regressions (ARCH-ORDER, ARCH-PURPOSE).
 
+## Round 3 — 2026-10-13T15:10:03-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Entry guards protect navigation and draft mutations; focus padding now respects ownership and retains deferred cleanup. Production draft/queue failure/timeout cases and embedded focus tests pass. Removing navigation guards makes dom_submission_integration_test.lua:72 fail; removing the focus guard at init.lua:338 reproduces nomodifiable, Press ENTER, and RPC timeout in dom-submission-ui-test.lua:129.
+
 ## Open findings
 
-- **BR-1** [Critical] `operation-ownership-must-guard-mutators` Read-only DOM preparation permits partial navigation that overwrites queued text
+(none — every finding has been disposed)

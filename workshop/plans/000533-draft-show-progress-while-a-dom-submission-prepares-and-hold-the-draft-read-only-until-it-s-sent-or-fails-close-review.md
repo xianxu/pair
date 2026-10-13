@@ -168,3 +168,80 @@ dispose:
 7. **Plan revision recommendations**
 
    Add a `## Revisions` entry enumerating asynchronous draft mutators alongside keybindings, explicitly including focus padding/removal. Require ownership-safe deferral and production focus-event regressions before considering BR-1 addressed.
+
+---
+
+## Re-review — 2026-10-13T15:10:03-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 533 — draft: show progress while a DOM submission prepares, and hold the draft read-only until it's sent or fails |
+| repo | pair |
+| issue file | workshop/issues/000533-draft-show-progress-while-a-dom-submission-prepares-and-hold-the-draft-read-only-until-it-s-sent-or-fails.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 514ce3b4d36a51f403e9741004fd4697bdecffeb..16f6b7fd9ee457f42a7fb1a56aeb158a97e4cd9f |
+| command | sdlc close --issue 533 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-13T15:10:03-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+The pinned implementation satisfies the submission-progress and temporary read-only contracts. BR-1 is addressed, including asynchronous focus padding; production regressions pass and fail when the relevant guards are removed. No additional findings. Full-suite and live-Chrome results were not independently established in this review and remain subject to the plan’s pre-landing verification requirement.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Entry guards protect navigation and draft mutations; focus padding now respects ownership and retains deferred cleanup. Production draft/queue failure/timeout cases and embedded focus tests pass. Removing navigation guards makes dom_submission_integration_test.lua:72 fail; removing the focus guard at init.lua:338 reproduces nomodifiable, Press ENTER, and RPC timeout in dom-submission-ui-test.lua:129.
+```
+
+**1. Strengths**
+
+- Progress follows actual preparation work through immutable, mutex-protected snapshots (`cmd/internal/couchtty/console_submission.go:280`).
+- The adapter establishes ownership and an absolute deadline before effects, releases ownership before clearing, and fences late callbacks (`nvim/dom_submission.lua:62`).
+- Production tests verify rendered status, persisted draft/queue contents, and recovery—not merely mocked call counts.
+- README and atlas both document the changed interaction and timeout behavior.
+
+**2. Critical findings:** None.
+
+**3. Important findings:** None.
+
+**4. Minor findings:** None.
+
+**5. Test coverage notes**
+
+Passed:
+
+- DOM headless and embedded-UI suites.
+- Lua reducer, adapter, and transport tests; sender tests under Neovim.
+- Zellij timeout and trace-redaction tests.
+- All six affected Go packages: `submission`, `couchmessage`, `couchcmd`, `couchtty`, `webcast/recorder`, and `webcast`.
+- Pinned-range `git diff --check`.
+
+Two Go packages initially lacked generated runtime assets; both passed after generation in the disposable copy. Both BR-1 mutation checks produced the expected failures. The disposable copy was removed, and the review checkout remains unchanged.
+
+Full `make test`, race checks, and live-Chrome conformance were not rerun here.
+
+**6. Architectural notes**
+
+- **ARCH-DRY — Pass:** Reuses existing polling, submission reducer, capture pipeline, and a shared mutation guard.
+- **ARCH-PURE — Pass:** Transition and formatting logic remain independent of IO; declared core entities match their implementations.
+- **ARCH-PURPOSE — Pass:** Covers preparation, dispatch, terminal release, and the enumerated mutation paths, including asynchronous focus callbacks.
+- **ARCH-MOCK — Pass:** Controlled manager/CDP/pane fixtures share production seams; existing live-conformance paths remain intact.
+- **ARCH-CONSTRAINTS — Pass:** Absolute client budget propagates to external calls; repeated submission does not renew it.
+- **ARCH-SECURE — Pass:** Progress fields are validated, status text is escaped, slot identity comes from the authenticated caller, and trace redaction remains tested.
+- **ARCH-ORDER — Pass:** Production transitions use the reducer; tests exercise held, duplicate, expired, and late results without transferring ownership.
+- **ARCH-FUNERAL — Pass:** Timers and operation contexts retire; progress adds no durable artifact family.
+
+**7. Plan revision recommendations**
+
+None. Existing BR-1 revisions accurately describe the correction. Record the outstanding stable-source full-suite result before landing, as the plan already requires.
