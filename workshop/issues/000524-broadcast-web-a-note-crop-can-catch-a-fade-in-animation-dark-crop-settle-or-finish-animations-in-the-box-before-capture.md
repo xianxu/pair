@@ -1,12 +1,12 @@
 ---
 id: 000524
-status: working
+status: codecomplete
 deps: [pair#483]
 github_issue:
 created: 2026-10-12
-updated: 2026-10-12
+updated: 2026-10-13
 estimate_hours:
-card_mirror: 'd3a52c351fa4be9cc3dd441a79d0e1cfc33b397f' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'd72c320c83650c3a4272349929b81580131d7a60' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T22:49:33-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 2.67
 ---
 
 # broadcast-web: a note crop can catch a fade-in animation (dark crop); settle or finish animations in the box before capture
