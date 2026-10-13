@@ -14,7 +14,7 @@ import (
 
 func postNote(t *testing.T, link string, col, row int, text string) (int, string) {
 	t.Helper()
-	body := fmt.Sprintf(`{"cols":80,"rows":24,"col":%d,"row":%d,"color":0,"text":%q}`, col, row, text)
+	body := fmt.Sprintf(`{"cols":80,"rows":24,"box":[%d,%d,2,1],"color":0,"text":%q}`, col, row, text)
 	resp, err := castClient.Post(link+"note", "application/json", strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)

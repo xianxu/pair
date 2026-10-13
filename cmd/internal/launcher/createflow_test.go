@@ -784,6 +784,32 @@ func TestCreateIdentifiesExactCouchOwnedClaim(t *testing.T) {
 	}
 }
 
+// pair#489: a Couch-launched create never rebuilds. The rebuild ran inside
+// Couch's registration wait, once per slot (a no-op make build took 9.6 s at
+// load ~200); a plain pair-dev create still rebuilds.
+func TestCreateRebuildsOnlyOutsideCouch(t *testing.T) {
+	plain := newFakeRuntime()
+	if code, err := run(t, baseOpts(LaunchArgs{ForcedTag: "work"}), plain); err != nil || code != 0 {
+		t.Fatalf("run = %d, %v", code, err)
+	}
+	if !plain.devRebuilt {
+		t.Fatal("a direct create skipped the dev rebuild")
+	}
+	hosted := newFakeRuntime()
+	opts := baseOpts(LaunchArgs{ForcedTag: "work"})
+	scope, err := ResolveRepoScope(opts.Env.Cwd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	opts.Env.CouchThreadScope, opts.Env.CouchThreadTag = scope.Key, "work"
+	if code, err := run(t, opts, hosted); err != nil || code != 0 {
+		t.Fatalf("run = %d, %v", code, err)
+	}
+	if hosted.devRebuilt {
+		t.Fatal("a Couch-launched create ran the dev rebuild inside Couch's registration wait")
+	}
+}
+
 func TestRunLaunchIgnoresCouchStateForExactTag(t *testing.T) {
 	for _, tag := range []string{"compiler-fix", "couch-3dcfba1308775e82"} {
 		t.Run(tag, func(t *testing.T) {

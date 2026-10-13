@@ -18,7 +18,10 @@ func TestRouting(t *testing.T) {
 		{"too recent", "pair", func(c *Candidate) { c.LastActivity = c.LastActivity.Add(time.Nanosecond) }, ErrNoRecipient},
 		{"issue branch", "pair", func(c *Candidate) { c.Resting = false }, ErrNoRecipient},
 		{"unknown", "pair", func(c *Candidate) { c.Known = false }, ErrNoRecipient},
-		{"pending", "pair:1", func(c *Candidate) { c.Pending = true }, ErrRecipientBusy},
+		// A busy exact recipient queues the message (pair#492); a family
+		// route still picks only a free slot.
+		{"pending exact queues", "pair:1", func(c *Candidate) { c.Pending = true }, nil},
+		{"pending family", "pair", func(c *Candidate) { c.Pending = true }, ErrNoRecipient},
 		{"budget", "pair:1", func(c *Candidate) { c.Remaining = 0 }, ErrBudgetExhausted},
 		{"unsupported", "pair:1", func(c *Candidate) { c.Supported = false }, ErrUnsupported},
 		{"missing", "pair:2", nil, ErrUnavailable}, {"bad target", "pair:01", nil, ErrInvalidTarget},

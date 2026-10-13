@@ -424,7 +424,9 @@ couch --reap repo:N --confirm [--json]     from a live slot: end an orphaned ser
 couch --recover repo:N [--json]               from a live slot: run the report's steps for it
 couch --relaunch repo:N --confirm [--same-binary] [--force-unknown] [--json]
                          from a live slot: restart an idle slot on the current binary, same conversation (Alt+n);
-                         refuses busy, dirty or an unchanged binary, naming the fix
+                         refuses busy, dirty or an unchanged binary, naming the fix (under couch-dev too:
+                         run make build once before a sweep); a start slowed by load is waited for, with a
+                         "still running" line every 15 s, and fails at once if Pair exits before registering
 couch --reload-context repo:N --confirm [--force-unknown] [--json]
                          from a live slot: a fresh agent conversation in an idle slot's Pair (Shift+Alt+N);
                          same busy/dirty refusals; succeeds only once the restarted wrapper reconnects
@@ -439,7 +441,8 @@ couch --send-to hub --message TEXT      send to the hub (the slot Couch started 
 couch --send-to TARGET [--agent NAME] --message-file PATH
                          any form above, the body read verbatim from PATH (less one trailing newline):
                          write a message containing code or shell syntax with an editor, never quote it
-couch --message-status ID [--json]      inspect a message receipt
+couch --message-status ID [--json]      inspect a message receipt; a send to a busy slot
+                         waits in line, in order (`queued`, `position N`) (pair#492)
 couch --skill            print the bundled agent coordination skill
 couch --adopt-store /absolute/store     preview adoption of an existing store
 ```
@@ -526,6 +529,13 @@ production supervisor. A second launch refuses with the owner/store diagnostic.
 After a crash, rerun Couch: the kernel releases the lease, and the selected store
 and existing slots remain available. Use machine-local filesystems; shared homes
 across machines are unsupported.
+
+Couch starts each slot at nice +10, so the builds, test suites and agents a slot
+runs yield to Couch and your terminal when the machine is saturated; Couch itself
+keeps normal priority. Set `COUCH_SLOT_NICE` (0–20, `0` turns it off) before
+starting Couch to change it. A Couch that already runs nicer than that (started
+from a niced shell) passes its own niceness down instead, since only root can lower it. It applies to slots started or relaunched after
+that; running slots keep their priority until relaunched (or `renice`d by hand).
 
 **Adopt existing state before cutover.** Stop and upgrade all old Couch binaries
 first. Couch keeps the chosen store in place, along with its Pair data directory
@@ -781,6 +791,17 @@ their thread. The focused tab, the selected switcher row, and a thread with a
 pending notification never fade. If the terminal doesn't report its colours,
 both idle levels use the same theme grey; `NO_COLOR` turns fading off.
 
+A thread whose agent is waiting on a picker (a permission prompt or a question)
+shows red in the tabs and the switcher until the picker closes, even when it's
+the focused tab, and never fades.
+
+The tab bar starts with the hub, the checkout you started Couch from, and then
+lists every other slot grouped by repository:
+`ops  ariadne  :1  :2  blog  pair  :1  :2`. In the switcher the hub is the first line and the rest sit indented
+under it. When the tabs don't fit, a repository's numbered slots fold into a
+count (`pair  +2`), starting from the right. A red, belled or focused tab is
+never folded away, and the switcher always lists everything.
+
 Each numbered slot keeps its Couch metadata in its environment's `.couch/`
 directory. Opening it resumes its conversation; **Start fresh** replaces the
 conversation in the same slot after confirming its managed sessions are stopped.
@@ -937,7 +958,7 @@ Broadcasts reach viewers through [`cloudflared`](https://developers.cloudflare.c
 if Couch crashes or is killed.
 
 **Remote pointer (#412).** While broadcasting, the status row reads
-`LIVE ⏸ 👆 👽`. Clicking `👆` creates a separate **pointer link**, copies it to
+`LIVE ⏸ 👆`. Clicking `👆` creates a separate **pointer link**, copies it to
 your clipboard, and turns pointing on (`👆` turns amber). Give that link to the
 person helping you. Anyone holding it sees the same live view and can tap or
 drag on it (an iPad works well), leaving colored marks that hold for a moment and
@@ -945,29 +966,33 @@ then fade quickly on your screen and every viewer's. Each viewer draws in one of
 six colorblind-safe colors (#446): Couch gives a new viewer a color nobody else
 is using, and the column of swatches at the screen's right edge lets them pick another, which their
 browser remembers. Marks are only drawn: they never
-type or click anything in your programs, never cover the `LIVE ⏸ 👆 👽`
+type or click anything in your programs, never cover the `LIVE ⏸ 👆`
 controls (the rest of the tab bar can be pointed at), and aren't drawn while
 the switcher is open. Clicking `👆` again turns pointing
 off, clears the marks and leaves the link as view-only; clicking once more
 turns it back on for the same link. Right-click `👆` to copy the link again.
 Right-click `LIVE ⏸` to copy the view-only link again. Stopping the
-broadcast ends every link. `👽` is reserved for remote control and does
-nothing yet.
+broadcast ends every link. Remote control of the terminal cast isn't built
+yet (#407); the web cast can be driven remotely through its drive link.
 
-**Sticky notes (#447).** People on the pointer link can also pin a short
-plain-text note to a spot on the screen: the button under the color swatches
-switches between pointing (👆) and placing notes (💭); hover a control for
-what it does. Couch draws a `💭` there, on your screen and every viewer's, on a
+**Sticky notes (#447).** People on the pointer link can also leave a short
+plain-text note on part of the screen: the two buttons under the color
+swatches pick pointing (👆) or placing notes (💭), the current one
+highlighted, as on the web cast; hover a control for
+what it does. In 💭 mode, drag a box around what the note is about, or tap for
+a small box around that spot (on a phone, drag a little further than a tap).
+Couch outlines the box in its author's color, on your screen and every
+viewer's, and draws a `💭` inside its top-right corner, on a
 chip of its author's color inside a soft glow that flashes when the note
 arrives and every 15 seconds until it is resolved, and the status row shows
-the open count after the controls (`LIVE ⏸ 👆 👽 💭2`). Click `💭2` to list the
+the open count after the controls (`LIVE ⏸ 👆 💭2`). Click `💭2` to list the
 notes in a box over your screen: hovering one highlights it and makes its `💭`
 glow so you can tell which is which, clicking one copies its text,
 right-clicking one copies it and resolves it, and `×` or
 another click on `💭2` closes the box (Shift- or Option-drag selects text in it,
 as anywhere in Couch). On a viewer's page, anyone on either link can tap a `💭`
 to read it, and anyone on the pointer link can resolve it; you resolve one by
-right-clicking it in the box. A note stays on the cell where it was placed, whatever scrolls
+right-clicking it in the box. A note stays where it was placed, whatever scrolls
 underneath. Turning pointing off deletes every note, as it clears the marks,
 and stopping the broadcast ends them too; nothing is saved to disk.
 
@@ -1021,11 +1046,15 @@ the binary to choose another (Couch refuses to start if it doesn't exist).
 **Pointing and notes on a web cast (#470).** Anyone with the viewer link can point
 and leave notes; there is no separate pointer link. On the viewer's page, the rail at
 the right edge has the six pointer colors, ✏️ (point: draw on the page, everyone sees
-the stroke fade after a moment) and 💭 (note: tap an element, or drag a region, then
-write). The name comes from the lock page (below); the page remembers it and the
-color in this browser. A note pins to its element (or region) for everyone, follows it as the page
-scrolls, stays through a pause, and leaves the page when the cast moves to another
-page; anyone can tap a pin to read it and resolve it. In Couch the open notes show as
+the stroke fade after a moment) and 💭 (note: drag a box around what the note is
+about, or tap for a small box around that spot, then write; on a phone, drag a little
+further than a tap). The name comes from the lock page (below); the page remembers it and
+the color in this browser. Every note is its box: everyone sees it outlined in the author's color with
+the 💭 inside its top-right corner, and the box is the part of the page a submission
+shows the agent. It follows the page as it scrolls, stays through a pause, and leaves the page when the cast moves to another
+page; anyone can tap a pin to read it and resolve it. While the cast is paused, viewers can't point, leave, or resolve
+notes: the rail's controls and an open note's Save and Resolve are greyed out ("The cast is paused.") until it
+resumes; a draft keeps its text. In Couch the open notes show as
 `💭N` after the Chrome cell (`Chrome ⏸ 💭2`); click it for the same notes box the screen
 broadcast uses, with each note's author: click one to copy its text, right-click to copy
 and resolve it. Unlike the screen broadcast's
@@ -1311,7 +1340,7 @@ public `📁...` name, `pair resume <public-name>` and `pair rename <public-name
 <new-tag>` resolve it through the ledger. The new rename target is always a bare
 tag, not a public session name.
 
-**Hacking on pair?** Use `pair-dev` instead of `pair` — same arguments, but it rebuilds the `pair` binary from source (`make build`) on launch and on every Alt+n whole-workbench reload, so the zellij-spawned `pair wrap` always matches your working tree. Shift+Alt+N restarts only the already-running wrapper's agent child. (Deployed installs run `pair`, which uses the prebuilt binary and needs no Go toolchain.) Under Couch, start it with `couch-dev` instead of `couch`: it rebuilds once and runs Couch with dev mode on, so every slot it launches rebuilds Pair the same way.
+**Hacking on pair?** Use `pair-dev` instead of `pair` — same arguments, but it rebuilds the `pair` binary from source (`make build`) on launch and on every Alt+n whole-workbench reload, so the zellij-spawned `pair wrap` always matches your working tree. Shift+Alt+N restarts only the already-running wrapper's agent child. (Deployed installs run `pair`, which uses the prebuilt binary and needs no Go toolchain.) Under Couch, start it with `couch-dev` instead of `couch`: it rebuilds once and runs Couch with dev mode on. Slots Couch launches do not rebuild Pair (a rebuild per slot slowed every launch under load), so run `make build` once before relaunching slots onto a new build.
 
 When `pair` runs and there's anything to pick — a detached Pair session owned by this repo **or** a tag from this repo used within the last 14 days — it shows an `fzf` picker. Detached rows come first, then historical rows annotated `(Nd ago, no live session)`, then a `+ new <agent> session` sentinel. A historical row whose session has prompts parked in its queue also carries an amber `[⏎ N queued]` badge, so you don't resume a session without remembering the work you queued up in it. Picking a historical row reuses the repo-local tag and any surviving draft / saved agent config (same path as `pair resume <tag>`). Override the 14-day window with `PAIR_HISTORY_DAYS`; `PAIR_DEBUG_HISTORY=1 pair` prints the scan and exits without launching.
 

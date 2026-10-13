@@ -154,6 +154,9 @@ func (c *Console) startBroadcast(cfg broadcast.Config) {
 	if cfg.OnNotes == nil {
 		cfg.OnNotes = c.onNotes
 	}
+	if cfg.AnchorNote == nil {
+		cfg.AnchorNote = c.anchorNote
+	}
 	if cfg.Now == nil {
 		cfg.Now = c.now
 	}

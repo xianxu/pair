@@ -21,7 +21,8 @@ import (
 // over the blog fixture, every record through one writer (as the recorder's
 // queue is). Viewer A uses a mouse, viewer B touch (an iPad's input). A's
 // stroke shows on B's canvas; A's note pins on its element in B within 2 px;
-// B's dragged region shows in A; both stay while paused and clear on a
+// B's dragged region shows in A; both stay while paused (when the rail's
+// controls are disabled, pair#499) and clear on a
 // navigation; the recording holds the notes and the stroke and reduces.
 //
 //	WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run AnnotateLive -v
@@ -120,12 +121,17 @@ func TestAnnotateLiveTwoViewers(t *testing.T) {
 	if noted == nil || !within(st.Node(noted.At.Node), target) {
 		t.Fatalf("A's note %+v: want it on the link %d or inside it", noted, target)
 	}
-	nb, ok := st.Boxes[noted.At.Node] // the operator's layout of the element
-	if !ok {
-		nb = tb
+	// A tap's note is the default box (#488): a tenth of the page shown each
+	// way, centred on the tap; its pin is that box.
+	if noted.Region == nil {
+		t.Fatalf("A's tapped note has no box: %+v", noted)
+	}
+	nb := *noted.Region
+	if c := [2]float64{nb[0] + nb[2]/2, nb[1] + nb[3]/2}; math.Abs(c[0]-(tb[0]+tb[2]/2)) > 1 || math.Abs(c[1]-(tb[1]+tb[3]/2)) > 1 {
+		t.Errorf("A's default box %v is not centred on the tap %v", nb, c)
 	}
 	wantPin := clientOf(t, b, nb[0], nb[1])
-	waitEval(t, b, "A's note pinned on its element in B", fmt.Sprintf(`(() => {
+	waitEval(t, b, "A's note pinned as its box in B", fmt.Sprintf(`(() => {
 		const p = document.querySelector('.pin[data-note=%q]');
 		if (!p || p.hidden) return 'none';
 		const r = p.getBoundingClientRect();
@@ -143,13 +149,16 @@ func TestAnnotateLiveTwoViewers(t *testing.T) {
 	}
 	touch(t, b, "touchEnd", r1)
 	fillAndSave(t, b, "Bo", "Too much space here.")
-	waitEval(t, a, "B's region in A", `(() => document.querySelector('.pin.region:not([hidden])') ? 'shown' : 'none')()`, "shown")
 	var region *recording.Note
 	for _, r := range mem.Records() {
 		if n, ok := r.(*recording.Note); ok && n.Author.Name == "Bo" {
 			region = n
 		}
 	}
+	if region == nil || region.Region == nil || region.Region[2] < 100 {
+		t.Fatalf("B's dragged note %+v: want its dragged box", region)
+	}
+	waitEval(t, a, "B's box in A", fmt.Sprintf(`(() => { const p = document.querySelector('.pin[data-note=%q]'); return p && !p.hidden ? 'shown' : 'none'; })()`, region.ID), "shown")
 
 	// B, still in note mode, taps A's pin by touch and resolves it: the pin
 	// goes in both viewers, and the recording says so.
@@ -183,12 +192,28 @@ func TestAnnotateLiveTwoViewers(t *testing.T) {
 		}
 	}
 
-	// Paused: the notes stay. A navigation: they clear in both.
+	// Paused: the notes stay, and viewers do nothing: every control on the
+	// rail is disabled until the resume (pair#499). A navigation: the notes
+	// clear in both.
+	railOff := `(() => String([...document.querySelectorAll('.annotate-rail button')].every((b) => b.disabled)))()`
+	railAnyOff := `(() => String([...document.querySelectorAll('.annotate-rail button')].some((b) => b.disabled)))()`
+	// The note dialog too (close review): Resolve on a viewed note and Save
+	// on a typed draft, as [resolve off, save off].
+	dialogOff := `(() => { const d = window.couchViewer.annotate.dialog;
+		d.view({id: 'n', text: 't'}, {resolvable: true});
+		const res = document.querySelectorAll('.note-buttons button')[0].disabled;
+		d.draft({});
+		const inp = document.querySelector('.note-input'); inp.value = 'hello'; inp.dispatchEvent(new Event('input'));
+		const save = document.querySelectorAll('.note-buttons button')[2].disabled;
+		d.close();
+		return String([res, save]); })()`
 	pins := fmt.Sprintf(`(() => String([%q, %q].filter((id) => { const p = document.querySelector('.pin[data-note="' + id + '"]'); return p && !p.hidden; }).length))()`, noted.ID, region.ID)
 	w.Put(decode(t, fmt.Sprintf(`{"t":%d,"k":"stop","why":"pause"}`, at+100)))
 	time.Sleep(300 * time.Millisecond)
 	for _, p := range []*chromePage{a, b} {
 		waitEval(t, p, "notes while paused", pins, "1")
+		waitEval(t, p, "the rail disabled while paused", railOff, "true")
+		waitEval(t, p, "the note dialog's Resolve and Save while paused", dialogOff, "true,true")
 	}
 	// Resume (the same document, ids kept): the notes stay.
 	w.Put(decode(t, fmt.Sprintf(`{"t":%d,"k":"seg","seg":%d,"why":"resume","tab":{"id":"tab1","url":%q},"vp":{"w":1280,"h":800,"dpr":1}}`, at+150, st.Seg+1, st.URL)))
@@ -206,6 +231,8 @@ func TestAnnotateLiveTwoViewers(t *testing.T) {
 	}
 	for _, p := range []*chromePage{a, b} {
 		waitEval(t, p, "notes after a resume", pins, "1")
+		waitEval(t, p, "the rail enabled after a resume", railAnyOff, "false")
+		waitEval(t, p, "the note dialog's Resolve and Save after a resume", dialogOff, "false,false")
 	}
 
 	seg := st.Seg + 2
@@ -229,7 +256,7 @@ func TestAnnotateLiveTwoViewers(t *testing.T) {
 	switch {
 	case ana == nil || bo == nil:
 		t.Fatalf("notes by %v", byName)
-	case ana.At.Sel == "" || ana.Region != nil:
+	case ana.At.Sel == "" || ana.At.Kind != recording.AnchorElement || len(ana.At.Path) == 0 || ana.Region == nil: // a tap has the default box (#488)
 		t.Errorf("A's note anchor %+v", ana.Note)
 	case bo.Region == nil:
 		t.Errorf("B's note has no region")

@@ -13,7 +13,7 @@
 // terminal viewer's (served from broadcast.CollabJS; the file here is a
 // symlink, for the node tests).
 
-import { HEX_COLOR, pointerColor, colorStore, safeStorage, poster, sayer, railAt, renderSwatches, noteDialog, validName, VIEWER_NAME_KEY, MAX_VIEWER_NAME } from './collab.js';
+import { HEX_COLOR, pointerColor, colorStore, safeStorage, poster, sayer, railAt, renderSwatches, noteDialog, gestureBox, dragMin, boxCentre, validName, VIEWER_NAME_KEY, MAX_VIEWER_NAME } from './collab.js';
 
 export { validName };
 
@@ -23,9 +23,6 @@ export const CHUNK_MS = 50;
 export const MAX_POINTS = 64;
 // FADE_MS: a stroke fades out over this long after its last point.
 export const FADE_MS = 1500;
-// MIN_REGION: a drag smaller than this (CSS px of the page, either side) is
-// a tap.
-export const MIN_REGION = 8;
 
 const MAX_NAME = MAX_VIEWER_NAME;
 const ID_KEY = 'couch.viewerId';
@@ -136,27 +133,27 @@ export function liveNotes(model) {
   return model.notes.filter((n) => n.seg >= model.docSeg && n.state === 'open').map((n) => n.note);
 }
 
-// noteBox is where a note shows, in page px: its region; else its element's
-// box now (boxOf), while the element is drawn; else the box it was made on.
+// noteBox is where a note shows, in page px: its region (every note made
+// since #488 has one); else, for an older note, its element's box now
+// (boxOf), while the element is drawn; else the box it was made on.
 export function noteBox(note, boxOf) {
   if (note.region) return note.region;
   const b = note.at && note.at.node ? boxOf(note.at.node) : null;
   return b || (note.at && note.at.box) || null;
 }
 
-// regionOf is the region two page points span, or null for a tap.
-export function regionOf(a, b) {
-  const x = Math.min(a[0], b[0]), y = Math.min(a[1], b[1]);
-  const w = Math.abs(a[0] - b[0]), h = Math.abs(a[1] - b[1]);
-  return w < MIN_REGION && h < MIN_REGION ? null : [round(x), round(y), round(Math.max(w, 1)), round(Math.max(h, 1))];
+// regionOf is a note gesture's box (#488), in page px: the dragged box, or
+// for a tap the default box; view is the page shown, pointerType the
+// pointer's (a finger must drag further).
+export function regionOf(a, b, view, pointerType) {
+  return gestureBox(a, b, view, { min: dragMin('px', pointerType) });
 }
 
-// noteDraft is a new note's anchor, the payload the dialog posts: the
-// segment shown, the element, its box as drawn here, and the region.
+// noteDraft is a new note's payload, what the dialog posts: the segment
+// shown, the element it anchors on (the one at the box's centre), that
+// element's box as drawn here, and the note's box, its region.
 export function noteDraft(seg, node, box, region) {
-  const d = { seg, node, box: box.map(round) };
-  if (region) d.region = region;
-  return d;
+  return { seg, node, box: box.map(round), region };
 }
 
 // strokesAt is what a reader at moment t of a recording shows of its
@@ -209,6 +206,10 @@ export function paintStrokes(canvas, list, toClient, rect, dpr) {
   g.globalAlpha = 1;
 }
 
+// CHIP_ROOM is the size, in client px, a box needs to hold its 💭 chip
+// (26 px) inside its corner.
+export const CHIP_ROOM = 34;
+
 // pinLayer keeps one pin per note in container: draw(notes, boxOf, place)
 // adds and removes pins only when the set changes and otherwise moves them,
 // so a chip being tapped is never replaced under the finger. open(note,
@@ -217,7 +218,7 @@ export function pinLayer(doc, container, open) {
   const els = new Map(); // note id -> element
   const make = (n) => {
     const pin = doc.createElement('div');
-    pin.className = n.region ? 'pin region' : 'pin';
+    pin.className = 'pin';
     pin.dataset.note = n.id;
     pin.style.setProperty('--pin', n.author && HEX_COLOR.test(n.author.color || '') ? n.author.color : '#888888');
     const chip = doc.createElement('button');
@@ -241,7 +242,11 @@ export function pinLayer(doc, container, open) {
         els.set(n.id, pin);
         const b = noteBox(n, boxOf);
         pin.hidden = !b;
-        if (b) place(pin, b);
+        if (b) {
+          place(pin, b);
+          // A box too thin for the chip carries it outside its corner.
+          pin.classList.toggle('thin', parseFloat(pin.style.width) < CHIP_ROOM || parseFloat(pin.style.height) < CHIP_ROOM);
+        }
       }
     },
   };
@@ -253,7 +258,7 @@ const NOTE_ROUTES = ['stroke', 'note', 'note-state'];
 
 export const MODE_TIPS = {
   point: 'Point: draw on the page for everyone. Click again to stop.',
-  note: 'Note: tap an element or drag a region to leave a note. Click again to stop.',
+  note: 'Note: drag a box, or tap for a small one, to leave a note. Click again to stop.',
 };
 
 // mountAnnotate adds pointing and notes to the viewer. v is the viewer's
@@ -341,15 +346,24 @@ export async function mountAnnotate(doc, win, v) {
   // applied, so it starts from the model's, not from nothing.
   let docSeg = v.model ? v.model.docSeg : 0;
 
+  // While the cast is paused viewers do nothing (pair#499): the rail's
+  // controls are disabled and say why, and the note dialog is held; the
+  // server refuses the posts too.
+  const paused = () => !!(v.model && v.model.paused);
   // The rail's controls are rendered only when their state changes (a pick,
-  // a mode); each frame only places the rail, so nothing that takes input is
-  // replaced under a click.
+  // a mode, a pause or a resume); each frame only places the rail, so
+  // nothing that takes input is replaced under a click.
   const renderRail = () => {
     renderSwatches(swatches, palette, color(), (i) => { picked = i; colors.set(i); renderRail(); }, (tag) => doc.createElement(tag));
     for (const [m, b] of Object.entries(modeButtons)) {
       b.classList.toggle('on', state.mode === m);
       b.setAttribute('aria-pressed', String(state.mode === m));
     }
+    const off = paused();
+    rail.classList.toggle('paused', off);
+    for (const b of rail.querySelectorAll('button')) b.disabled = off;
+    for (const [m, b] of Object.entries(modeButtons)) b.title = off ? 'The cast is paused.' : MODE_TIPS[m];
+    dialog.hold(off ? 'The cast is paused.' : ''); // an open note, or a pin opened while paused
   };
   const placeRail = () => {
     const r = box.getBoundingClientRect();
@@ -392,7 +406,7 @@ export async function mountAnnotate(doc, win, v) {
 
   layer.addEventListener('pointerdown', (e) => {
     if (e.target.closest && e.target.closest('.chip')) return; // a pin's chip opens its note, in any mode
-    if (state.mode === 'watch' || !(v.model && v.model.seg > 0) || dialog.open) return;
+    if (state.mode === 'watch' || !(v.model && v.model.seg > 0) || paused() || dialog.open) return;
     e.preventDefault();
     layer.setPointerCapture?.(e.pointerId);
     const p = pagePoint(e);
@@ -405,7 +419,7 @@ export async function mountAnnotate(doc, win, v) {
       state.timer = win.setInterval(flush, CHUNK_MS);
       schedule();
     } else {
-      state.drag = { from: p, to: p };
+      state.drag = { from: p, to: p, pointerType: e.pointerType };
       drawDrag();
     }
   });
@@ -423,11 +437,11 @@ export async function mountAnnotate(doc, win, v) {
   const up = () => {
     if (state.stroke) endStroke();
     if (!state.drag) return;
-    const { from, to } = state.drag;
+    const { from, to, pointerType } = state.drag;
     state.drag = null;
     drawDrag();
-    const region = regionOf(from, to);
-    const at = region ? [region[0] + region[2] / 2, region[1] + region[3] / 2] : from;
+    const region = regionOf(from, to, pageView(), pointerType);
+    const at = boxCentre(region);
     const node = v.nodeAt(at[0], at[1]);
     const b = node && v.boxOf(node);
     if (!node || !b) return;
@@ -443,10 +457,17 @@ export async function mountAnnotate(doc, win, v) {
     dialog.draft(payload);
   }
 
-  // The drag outline, while a region is being drawn.
+  // pageView is the part of the page shown, in page px.
+  const pageView = () => {
+    const r = box.getBoundingClientRect();
+    const [x0, y0] = v.toPage(r.left, r.top), [x1, y1] = v.toPage(r.right, r.bottom);
+    return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+  };
+  // The outline while a box is drawn: the box the gesture would make now,
+  // the default box until the pointer has moved far enough to drag.
   const dragBox = el('div', 'drag-region', layer);
   function drawDrag() {
-    const d = state.drag && regionOf(state.drag.from, state.drag.to);
+    const d = state.drag && regionOf(state.drag.from, state.drag.to, pageView(), state.drag.pointerType);
     dragBox.hidden = !d;
     if (d) place(dragBox, d);
   }
@@ -502,7 +523,10 @@ export async function mountAnnotate(doc, win, v) {
       if (was) { strokes.clear(); endGesture(); }
     }
     if (r.k === 'stroke') strokes.record(r, win.performance.now(), `${who.id()}.`);
-    if (r.k === 'stop' && r.why === 'end') { setMode('watch'); dialog.close(); } // setMode ends the gesture
+    // A pause or the end puts the pen down (setMode ends the gesture and
+    // renders the rail, disabled while paused); a resume enables it again.
+    if (r.k === 'stop') { setMode('watch'); if (r.why === 'end') dialog.close(); }
+    if (r.k === 'seg') renderRail();
     schedule();
   });
   win.addEventListener('resize', schedule);

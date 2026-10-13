@@ -146,23 +146,6 @@ func TestPointerRightClickRecopies(t *testing.T) {
 	}
 }
 
-func TestRemoteClickIsANoticeOnly(t *testing.T) {
-	f := broadcastFixture(t, &broadcast.FakeTunnel{}, nil)
-	f.startLive(t)
-	var span ColumnSpan
-	waitFor(t, "👽 drawn", func() bool {
-		f.con.mu.Lock()
-		span = f.con.statusRemote
-		f.con.mu.Unlock()
-		return span != (ColumnSpan{})
-	})
-	_, _ = fmt.Fprintf(f.stdin, "\x1b[<0;%d;24M\x1b[<0;%d;24m", span.Start+1, span.Start+1)
-	waitFor(t, "notice", func() bool { return strings.Contains(f.notice(), "isn't available yet") })
-	if f.pointerPhase() != pointerNone || f.phase() != broadcastLive {
-		t.Fatal("👽 changed something")
-	}
-}
-
 func TestPointerDroppedWhileSwitcherOpen(t *testing.T) {
 	f, _, link := pointerOnFixture(t, nil)
 	// First prove points land, so the drop below is the switcher's doing;

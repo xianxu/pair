@@ -65,7 +65,7 @@ func post(t *testing.T, url, contentType, body string) (int, string) {
 }
 
 func noteBody(seg int, node recording.NodeID, color int) string {
-	return fmt.Sprintf(`{"viewer":{"id":"ana","name":"Ana"},"seg":%d,"node":%d,"box":[1,2,3,4],"color":%d,"text":"hi"}`, seg, node, color)
+	return fmt.Sprintf(`{"viewer":{"id":"ana","name":"Ana"},"seg":%d,"node":%d,"box":[1,2,3,4],"region":[1,2,30,40],"color":%d,"text":"hi"}`, seg, node, color)
 }
 
 // A note posted by one viewer reaches another's stream as a rec.
@@ -254,5 +254,22 @@ func TestViewerImportsAreServed(t *testing.T) {
 	}
 	if !slices.Contains(sheets, "drive.css") || !slices.Contains(sheets, "annotate.css") {
 		t.Errorf("the page's stylesheets: %v", sheets)
+	}
+}
+
+// While the cast is paused every board route refuses with one sentence
+// (pair#499), as the drive routes refuse while not live.
+func TestBoardRoutesRefuseWhilePaused(t *testing.T) {
+	c := newBoardCast(t)
+	c.b.Add(&recording.Stop{Why: recording.StopPause})
+	c.flush(t)
+	for route, body := range map[string]string{
+		"stroke":     `{"viewer":{"id":"ana"},"seg":1,"id":"s1","color":1,"pts":[[1,2,0]]}`,
+		"note":       noteBody(1, c.p.ID, 0),
+		"note-state": `{"viewer":{"id":"ana"},"id":"n1","state":"resolved"}`,
+	} {
+		if code, text := post(t, c.url+route, "application/json", body); code != http.StatusConflict || text != refusePaused {
+			t.Errorf("%s while paused: %d %q", route, code, text)
+		}
 	}
 }

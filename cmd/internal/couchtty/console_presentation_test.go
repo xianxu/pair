@@ -215,7 +215,7 @@ func TestPrimaryInASubdirectoryLabelsByRepositoryOnTabBarAndSwitcher(t *testing.
 	if !found {
 		t.Fatalf("no tab for the primary: %+v", model.Actors)
 	}
-	for _, entry := range PresentThreads(menuRows(menu), nil) {
+	for _, entry := range PresentThreads(menuRows(menu), nil, "") {
 		if entry.Label != "repo" {
 			t.Fatalf("switcher label = %q, want repo", entry.Label)
 		}

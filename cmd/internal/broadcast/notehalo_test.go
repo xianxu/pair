@@ -219,7 +219,7 @@ func TestDrawNotesOrderIndependentWithGlow(t *testing.T) {
 		f := textFrame(t, 24, 8, "字字ab字\n\n字a字a字a字a\n\n\nxx字字", "")
 		var board NoteBoard
 		for k := 0; k < 5; k++ {
-			board.Add(Note{Col: rng.Intn(24), Row: rng.Intn(7), Color: rng.Intn(PointerColors), Text: "x", At: t0.Add(-time.Duration(rng.Intn(20000)) * time.Millisecond)})
+			board.Add(Note{Box: CellBox{rng.Intn(23), rng.Intn(7), 2 + rng.Intn(8), 1 + rng.Intn(4)}, Color: rng.Intn(PointerColors), Text: "x", At: t0.Add(-time.Duration(rng.Intn(20000)) * time.Millisecond)}, 24, 8)
 		}
 		notes := board.List()
 		style := NoteStyle{BG: color.RGBA{0, 0, 0, 0xff}, Blend: true, Now: t0}

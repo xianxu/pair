@@ -150,7 +150,7 @@ what the viewer's renderer draws at the same moments.
 
 - **Key and cell:** `Shift+Ctrl+Alt+b` (`\x1b[98;8u`, or `66;8u` from a terminal reporting the shifted code;
   `couchkeys.ActionWebcast` → `HitWebcast`) starts the cast Chrome, then toggles live. The tab bar's
-  `WebcastCell` draws `Chrome ▶` / `Chrome ⏸` **after** the screen broadcast's `LIVE ⏸ 👆 👽 💭N`, so the
+  `WebcastCell` draws `Chrome ▶` / `Chrome ⏸` **after** the screen broadcast's `LIVE ⏸ 👆 💭N`, so the
   broadcast's fixed-column indicator check never moves. Click toggles, right-click copies the link, Ctrl with
   either button ends (macOS terminals may send Ctrl+left as a right click with the Ctrl bit).
 - **Remote driving (#467, `couchtty/console_drive.go`):**

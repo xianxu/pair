@@ -2,7 +2,8 @@
 // cap, list parsing, and the dialog. Run by TestViewerNode via `node --test`.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { noteAt, noteCell, noteBytes, noteVisible, parseNotes, noteDialog, MAX_NOTE_BYTES } from '../../cmd/internal/broadcast/web/notes.js';
+import { readFileSync } from 'node:fs';
+import { noteAt, boxHasPin, noteBytes, noteVisible, parseNotes, noteDialog, MAX_NOTE_BYTES } from '../../cmd/internal/broadcast/web/notes.js';
 
 const list = { guard: 12, notes: [{ id: 1, col: 10, row: 5, color: 0, text: 'a' }, { id: 2, col: 78, row: 2, color: 1, text: 'b' }] };
 
@@ -22,9 +23,11 @@ test('a hidden note is not hit', () => {
   assert.ok(noteVisible({ col: 12, row: 5 }, 80, 6, 12));
 });
 
-test('a tap on the last column places the 💭 one to the left', () => {
-  assert.deepEqual(noteCell([79, 3], 80), [78, 3]);
-  assert.deepEqual(noteCell([5, 3], 80), [5, 3]);
+test('a box has a pin spot as Couch decides (the shared case table)', () => {
+  const table = JSON.parse(readFileSync(new URL('./pinspots.json', import.meta.url), 'utf8'));
+  for (const c of table.cases) {
+    assert.equal(boxHasPin(c.box, c.cols, c.rows, table.guard), c.has, c.name);
+  }
 });
 
 test('the byte cap counts UTF-8 like Couch', () => {
@@ -34,9 +37,12 @@ test('the byte cap counts UTF-8 like Couch', () => {
 });
 
 test('parseNotes keeps only well-formed entries', () => {
-  const got = parseNotes({ guard: 12, notes: [{ id: 1, col: 1, row: 1, color: 0, text: 'ok', extra: 'x' }, { id: '2', col: 1, row: 1, color: 0, text: 'x' },
-    { id: 3, col: 1.5, row: 1, color: 0, text: 'x' }, { id: 4, col: 1, row: 1, color: 0, text: 5 }, null] });
-  assert.deepEqual(got, { guard: 12, notes: [{ id: 1, col: 1, row: 1, color: 0, text: 'ok' }] });
+  const box = [0, 1, 4, 2];
+  const got = parseNotes({ guard: 12, notes: [{ id: 1, col: 1, row: 1, box, color: 0, text: 'ok', extra: 'x' }, { id: '2', col: 1, row: 1, box, color: 0, text: 'x' },
+    { id: 3, col: 1.5, row: 1, box, color: 0, text: 'x' }, { id: 4, col: 1, row: 1, box, color: 0, text: 5 }, null,
+    { id: 5, col: 1, row: 1, color: 0, text: 'no box' }, { id: 6, col: 1, row: 1, box: [0, 1, 0, 2], color: 0, text: 'empty box' },
+    { id: 8, col: 1, row: 1, box: [0, 1, 4], color: 0, text: 'short box' }] });
+  assert.deepEqual(got, { guard: 12, notes: [{ id: 1, col: 1, row: 1, box, color: 0, text: 'ok' }] });
   for (const junk of [null, 'x', {}, { guard: -1, notes: [] }, { guard: 1, notes: 'x' }]) {
     assert.deepEqual(parseNotes(junk), { guard: 0, notes: [] });
   }
@@ -182,4 +188,36 @@ test('viewing a note moves focus into the dialog so Escape reaches it', () => {
   assert.equal(focused, 'cancel');
   els.root.fire('keydown', { key: 'Escape' });
   assert.ok(!d.open);
+});
+
+// pair#499: a paused web cast holds the dialog. A held draft can't be saved,
+// says why and keeps its text; a held view's Resolve is off and a click posts
+// nothing; releasing the hold restores both and clears the reason.
+test('hold disables Save and Resolve, keeps a draft, and releases', async () => {
+  const f = dialog();
+  f.d.draft({ cols: 80, rows: 24, col: 0, row: 0 });
+  f.type('kept');
+  f.d.hold('The cast is paused.');
+  assert.ok(f.els.save.disabled, 'a held draft cannot be saved');
+  assert.equal(f.els.msg.textContent, 'The cast is paused.');
+  f.els.save.fire('click');
+  await f.settle();
+  assert.equal(f.posts.length, 0, 'a held Save posts nothing');
+  assert.equal(f.els.input.value, 'kept', 'the draft keeps its text');
+  f.d.hold('');
+  assert.ok(!f.els.save.disabled, 'released, Save is back');
+  assert.equal(f.els.msg.textContent, '');
+
+  f.d.hold('The cast is paused.');
+  f.d.view({ id: 7, text: 'x' }, { resolvable: true });
+  assert.ok(f.els.resolve.disabled, 'a view opened while held has Resolve off');
+  assert.equal(f.els.msg.textContent, 'The cast is paused.');
+  f.els.resolve.fire('click');
+  await f.settle();
+  assert.equal(f.posts.length, 0, 'a held Resolve posts nothing');
+  f.d.hold('');
+  assert.ok(!f.els.resolve.disabled);
+  f.els.resolve.fire('click');
+  await f.settle();
+  assert.equal(f.posts.length, 1, 'released, Resolve posts');
 });

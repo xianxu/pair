@@ -352,13 +352,21 @@ type (
 )
 
 // NoteAt is where a note points: the element, a stable selector, its text
-// (at most 200 characters) and its box, at the note's time.
+// (at most 200 characters) and its box, at the note's time. Kind and Path
+// are the anchor's shape shared with the terminal's notes (#488, which
+// gives those a layout anchor of the same shape): kind "element", and the path of meaningful
+// containers down to the element (e.g. main › article › p#first).
 type NoteAt struct {
-	Node NodeID `json:"node"`
-	Sel  string `json:"sel,omitempty"`
-	Text string `json:"text,omitempty"`
-	Box  *Box   `json:"box,omitempty"`
+	Node NodeID   `json:"node"`
+	Kind string   `json:"kind,omitempty"`
+	Path []string `json:"path,omitempty"`
+	Sel  string   `json:"sel,omitempty"`
+	Text string   `json:"text,omitempty"`
+	Box  *Box     `json:"box,omitempty"`
 }
+
+// AnchorElement is an element anchor's Kind.
+const AnchorElement = "element"
 
 // Note states.
 const (

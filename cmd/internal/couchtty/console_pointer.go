@@ -148,11 +148,6 @@ func (c *Console) copyViewLink() {
 	c.setNotice("Broadcast link copied.")
 }
 
-// onRemoteClick is a click on 👽, which waits for #407.
-func (c *Console) onRemoteClick() {
-	c.setNotice("Remote control isn't available yet.")
-}
-
 // pointerOff ends pointing on the console's side: phase off, marks cleared
 // and repainted away, with a notice.
 func (c *Console) pointerOff(notice string) {
@@ -267,4 +262,5 @@ func (c *Console) resetPointer() {
 	}
 	c.pmarks.mu.Unlock()
 	c.forgetNotes()
+	c.forgetAnchors()
 }

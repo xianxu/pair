@@ -354,12 +354,25 @@ func TestSlotOperationCLIPollLoop(t *testing.T) {
 			return couchmessage.Response{}, errors.New("dial unix broker.sock: connect: no such file or directory")
 		}, 1, "", uncertainLine, 2},
 		{"an unavailable caller mid-poll (Couch restarted) is uncertain", admitThen(couchmessage.Response{Code: "unavailable", Error: "no binding"}), 1, "", uncertainLine, 2},
-		{"a per-call timeout mid-poll is uncertain", func(n int, r couchmessage.Request) (couchmessage.Response, error) {
+		// pair#489: a status read is idempotent, so a poll Couch answers late
+		// is asked again; only the budget turns persistent timeouts uncertain.
+		{"per-call timeouts mid-poll are retried", func(n int, r couchmessage.Request) (couchmessage.Response, error) {
+			switch n {
+			case 0:
+				return receiptResponse("accepted", couchmessage.ReceiptQueued), nil
+			case 1:
+				return couchmessage.Response{}, context.DeadlineExceeded
+			case 2:
+				return couchmessage.Response{}, os.ErrDeadlineExceeded
+			}
+			return succeeded, nil
+		}, 0, "pair:1 resume succeeded (tag t9)", "", 4},
+		{"timeouts until the budget are uncertain", func(n int, r couchmessage.Request) (couchmessage.Response, error) {
 			if n == 0 {
 				return receiptResponse("accepted", couchmessage.ReceiptQueued), nil
 			}
 			return couchmessage.Response{}, context.DeadlineExceeded
-		}, 1, "", uncertainLine, 2},
+		}, 1, "", uncertainLine, 0},
 		{"an admission transport error is uncertain and names the request", func(int, couchmessage.Request) (couchmessage.Response, error) {
 			return couchmessage.Response{}, context.DeadlineExceeded
 		}, 1, "", uncertainLine, 1},
@@ -379,6 +392,67 @@ func TestSlotOperationCLIPollLoop(t *testing.T) {
 				t.Fatalf("%d calls ran on an expired or overlong context", run.contextFaults)
 			}
 		})
+	}
+}
+
+// pair#489: a start slowed by load can take minutes, so the CLI says it is
+// still running every 15 s instead of sitting silent until the receipt lands.
+func TestSlotOperationCLIReportsProgressWhileRunning(t *testing.T) {
+	polls := int(40 * time.Second / slotOperationPollInterval)
+	statuses := []couchmessage.Response{}
+	for range polls {
+		statuses = append(statuses, receiptResponse("ok", couchmessage.ReceiptRunning))
+	}
+	statuses = append(statuses, receiptResponse("ok", couchmessage.ReceiptSucceeded))
+	run := runSlotScript(t, cliInvocation{kind: cliMessage, messageOp: "resume", ref: "pair:1"}, messageRuntime(), admitThen(statuses...))
+	if run.code != 0 {
+		t.Fatalf("exit %d: %q %q", run.code, run.stdout, run.stderr)
+	}
+	for _, want := range []string{"couch: pair:1 resume still running after 15s\n", "couch: pair:1 resume still running after 30s\n"} {
+		if !strings.Contains(run.stderr, want) {
+			t.Fatalf("stderr %q lacks %q", run.stderr, want)
+		}
+	}
+	if n := strings.Count(run.stderr, "still running"); n != 2 {
+		t.Fatalf("%d progress lines over ~40s, want 2: %q", n, run.stderr)
+	}
+}
+
+// After status polls time out, the progress line says its status is the last
+// answer received, and stops saying so once Couch answers again; the budget
+// message says the same (close review).
+func TestSlotOperationCLIProgressNamesTimedOutPolls(t *testing.T) {
+	quiet := int(20 * time.Second / slotOperationPollInterval)
+	answered := int(40 * time.Second / slotOperationPollInterval)
+	script := func(n int, r couchmessage.Request) (couchmessage.Response, error) {
+		switch {
+		case n == 0:
+			return receiptResponse("accepted", couchmessage.ReceiptQueued), nil
+		case n == 1:
+			return receiptResponse("ok", couchmessage.ReceiptRunning), nil
+		case n <= quiet:
+			return couchmessage.Response{}, context.DeadlineExceeded
+		case n <= answered:
+			return receiptResponse("ok", couchmessage.ReceiptRunning), nil
+		}
+		return receiptResponse("ok", couchmessage.ReceiptSucceeded), nil
+	}
+	run := runSlotScript(t, cliInvocation{kind: cliMessage, messageOp: "resume", ref: "pair:1"}, messageRuntime(), script)
+	lines := strings.Split(strings.TrimSpace(run.stderr), "\n")
+	if run.code != 0 || len(lines) != 2 ||
+		!strings.Contains(lines[0], "still running after 15s (last answer ") || !strings.Contains(lines[0], " ago; status polls are timing out)") ||
+		lines[1] != "couch: pair:1 resume still running after 30s" {
+		t.Fatalf("exit %d, stderr %q", run.code, run.stderr)
+	}
+
+	timedOut := runSlotScript(t, cliInvocation{kind: cliMessage, messageOp: "resume", ref: "pair:1"}, messageRuntime(), func(n int, r couchmessage.Request) (couchmessage.Response, error) {
+		if n == 0 {
+			return receiptResponse("accepted", couchmessage.ReceiptQueued), nil
+		}
+		return couchmessage.Response{}, context.DeadlineExceeded
+	})
+	if timedOut.code != 1 || !strings.Contains(timedOut.stderr, "still queued after 5m0s (last answer ") {
+		t.Fatalf("budget message hides the timeouts: %q", timedOut.stderr)
 	}
 }
 
@@ -552,5 +626,50 @@ func TestEverySlotOperationIsRoutedToTheSlotPath(t *testing.T) {
 	}
 	if n < 6 {
 		t.Fatalf("only %d slot operations enumerated", n)
+	}
+}
+
+// A queued send names its place in line, and a cancelled one says why and
+// what to do, on the send and on --message-status (pair#492).
+func TestMessageCLIPrintsQueuePositionAndCancelReason(t *testing.T) {
+	root, err := os.MkdirTemp("/tmp", "couch-cli-test-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(root)
+	socket := filepath.Join(root, "broker.sock")
+	const reason = "ops:0 disconnected (relaunched or exited) before delivery; resend"
+	s, err := couchmessage.StartServer(context.Background(), socket, func(_ context.Context, raw []byte) ([]byte, error) {
+		var request couchmessage.Request
+		if err := strictjson.Decode(raw, &request); err != nil {
+			return nil, err
+		}
+		message := couchmessage.Message{ID: request.ID, From: couchmessage.Binding{Slot: "pair:1"}, To: couchmessage.Binding{Slot: "ops:0"}, Body: "report"}
+		response := couchmessage.Response{Code: "ok", Receipt: &couchmessage.Receipt{Message: message, Status: couchmessage.Cancelled, Detail: reason}}
+		if request.Op == "send" {
+			response.Code = "accepted"
+			response.Receipt = &couchmessage.Receipt{Message: message, Status: couchmessage.Queued, Detail: "position 2"}
+		}
+		return json.Marshal(response)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	call := func(ctx context.Context, _ string, request any, response any) error {
+		return couchmessage.Call(ctx, socket, request, response)
+	}
+	for _, tc := range []struct {
+		inv  cliInvocation
+		want string
+	}{
+		{cliInvocation{kind: cliMessage, messageOp: "send", ref: "hub", messageBody: "report"}, "queued\nposition 2\n"},
+		{cliInvocation{kind: cliMessage, messageOp: "status", ref: "00000000-0000-4000-8000-000000000000"}, "cancelled\n" + reason + "\n"},
+	} {
+		var out, errout bytes.Buffer
+		runMessageCLIWithCall(tc.inv, messageRuntime(), &out, &errout, call)
+		if !strings.Contains(out.String(), tc.want) {
+			t.Errorf("%s: %q lacks %q (stderr %q)", tc.inv.messageOp, out.String(), tc.want, errout.String())
+		}
 	}
 }
