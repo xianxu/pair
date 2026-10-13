@@ -1,12 +1,12 @@
 ---
 id: 000503
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: '0aad4715728e7b4899c904be9eb0c2fd0c0df409' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'a3fe489cbfde0d320c8b232a2b41b6868f014788' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T15:12:48-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "9e39e630", done: "bde13a86"}
+actual_hours: 2.06
 ---
 
 # broadcast: remove the 👽 remote-control placeholder from the terminal cast until it's built
