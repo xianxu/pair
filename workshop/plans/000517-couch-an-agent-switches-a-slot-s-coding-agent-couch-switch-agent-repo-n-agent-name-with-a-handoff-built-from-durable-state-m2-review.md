@@ -181,3 +181,80 @@ findings:
    - **ARCH-FUNERAL — pass:** bounded receipts and existing thread/capture cleanup own retained state.
 
 7. **Plan revision recommendations:** No ownership correction needed. Record the direct pure-test coverage when added.
+
+---
+
+## Re-review — 2026-10-12T23:44:59-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 517 — couch: an agent switches a slot's coding agent (couch --switch-agent repo:N --agent NAME), with a handoff built from durable state |
+| repo | pair |
+| issue file | workshop/issues/000517-couch-an-agent-switches-a-slot-s-coding-agent-couch-switch-agent-repo-n-agent-name-with-a-handoff-built-from-durable-state.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 192c68f08ee46edc34fdd46596cbd94af49fa400..902ecdf391aa4d28136c7f0cb63273a4027ffed9 |
+| command | sdlc milestone-close --issue 517 --milestone M2 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-12T23:44:59-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range satisfies the revised M2 contract: authenticated switching with saved configuration, prompt-free startup, and exact previous tty evidence. BR-9 is addressed with direct pure tests and independently verified mutation failures. No new blocking findings.
+
+```findings
+dispose:
+  - id: BR-9
+    disposition: addressed
+    note: |
+      previous_session_pure_test.go:13 and peek_selection_test.go:29,52,80 use value-only fixtures covering missing evidence, exact selection, malformed evidence and defensive copying. Removing capture copying, binding copying or validation independently fails these tests; restored code passes.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      Prior disposition retained. resume.go checks pending replacement authority and rechecks absence before cleanup; interrupted-switch recovery sequence tests pass.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      Prior disposition retained. The active plan inventory identifies ResolveLaunchProfile as unchanged and known-configuration admission as integration code in switchagent.go; comparison against the named M1 baseline confirms the unchanged dependencies.
+  - id: BR-8
+    disposition: addressed
+    note: |
+      Prior disposition retained. atlas/couch.md now names reconcileContinuationOrientationLocked, which exists in console_continuation.go and owns continuation prompt pruning.
+```
+
+1. **Strengths**
+   - Source identity, settled state and Git cleanliness are checked at admission and before effects (`agent_switch_service.go:28`).
+   - Saved configuration distinguishes missing settings from explicitly empty argv and is fingerprinted before execution (`switchagent.go:228`).
+   - BR-9 tests exercise production functions without filesystem fixtures or mocks.
+   - README and atlas document the revised command, recovery semantics and tty-only previous reads.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None requiring action.
+
+5. **Test coverage notes**
+
+   Targeted tests passed across couchcore, couchcmd, couchmessage, couchtty, launcher, threadrecord and scrollbackcmd, including interrupted replacement recovery. Three independent mutations failed the new pure tests; restoration passed.
+
+   Socket/console tests required generating runtime assets in a disposable pinned-source copy, which was removed afterward. The full `make test` suite and live harness conformance were not rerun.
+
+6. **Architectural notes**
+   - **ARCH-DRY — Pass:** Reuses profile resolution, operation receipts, queue and lifecycle machinery.
+   - **ARCH-PURE — Pass:** Evidence projection and selection now have direct value-only tests.
+   - **ARCH-PURPOSE — Pass:** Implements the explicitly revised 22:17/22:19 scope.
+   - **ARCH-MOCK — Pass:** Stateful lifecycle and queue doubles exercise production seams; existing live conformance targets remain available.
+   - **ARCH-CONSTRAINTS — Pass:** Existing bounded queue, receipt retention and replay limits remain applicable.
+   - **ARCH-SECURE — Pass:** Authenticated hub admission, server-selected argv and validated persisted evidence preserve trust boundaries.
+   - **ARCH-ORDER — Pass:** Existing transition machinery retains uncertain replacement identity; recovery tests exercise interrupted stages and changing observations.
+   - **ARCH-FUNERAL — Pass:** Previous evidence replaces one descriptor; receipts expire; existing lifecycle and retention owners handle residue.
+
+7. **Plan revision recommendations:** None.

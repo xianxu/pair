@@ -149,6 +149,32 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - "n": 6
+      timestamp: "2026-10-12T23:44:59-07:00"
+      dispatched: "2026-10-12T23:38:54-07:00"
+      agent: codex
+      dispose:
+        - id: BR-9
+          disposition: addressed
+          note: previous_session_pure_test.go:13 and peek_selection_test.go:29,52,80 use value-only fixtures covering missing evidence, exact selection, malformed evidence and defensive copying. Removing capture copying, binding copying or validation independently fails these tests; restored code passes.
+          round: 6
+        - id: BR-6
+          disposition: addressed
+          note: Prior disposition retained. resume.go checks pending replacement authority and rechecks absence before cleanup; interrupted-switch recovery sequence tests pass.
+          round: 6
+        - id: BR-7
+          disposition: addressed
+          note: Prior disposition retained. The active plan inventory identifies ResolveLaunchProfile as unchanged and known-configuration admission as integration code in switchagent.go; comparison against the named M1 baseline confirms the unchanged dependencies.
+          round: 6
+        - id: BR-8
+          disposition: addressed
+          note: Prior disposition retained. atlas/couch.md now names reconcileContinuationOrientationLocked, which exists in console_continuation.go and owns continuation prompt pruning.
+          round: 6
+      boundary: M2
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 902ecdf391aa4d28136c7f0cb63273a4027ffed9
+      blocked: false
 ---
 
 # Gate ledger — pair#517 (boundary-review)
@@ -216,6 +242,15 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-9** [Important] `pure-core-tested-without-io` Pure previous-tty projection and selection lack direct tests without IO
   ARCH-PURE: previous_session_test.go:62 constructs filesystem-backed Couch state through newTestEnv/createParkedThreadInCouch; peek_previous_test.go exercises SelectPeekSource only through integration paths. Add value-only tests for previousSessionEvidence and SelectPeekSource covering missing park/capture, exact source selection, malformed evidence, and defensive copying. The functions themselves are pure; retain that classification.
 
+## Round 6 — 2026-10-12T23:44:59-07:00 (codex) — passed
+
+### Disposed
+
+- BR-9 — addressed — previous_session_pure_test.go:13 and peek_selection_test.go:29,52,80 use value-only fixtures covering missing evidence, exact selection, malformed evidence and defensive copying. Removing capture copying, binding copying or validation independently fails these tests; restored code passes.
+- BR-6 — addressed — Prior disposition retained. resume.go checks pending replacement authority and rechecks absence before cleanup; interrupted-switch recovery sequence tests pass.
+- BR-7 — addressed — Prior disposition retained. The active plan inventory identifies ResolveLaunchProfile as unchanged and known-configuration admission as integration code in switchagent.go; comparison against the named M1 baseline confirms the unchanged dependencies.
+- BR-8 — addressed — Prior disposition retained. atlas/couch.md now names reconcileContinuationOrientationLocked, which exists in console_continuation.go and owns continuation prompt pruning.
+
 ## Open findings
 
-- **BR-9** [Important] `pure-core-tested-without-io` Pure previous-tty projection and selection lack direct tests without IO
+(none — every finding has been disposed)

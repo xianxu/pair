@@ -63,7 +63,7 @@ refuses without interrupting work. The detailed plan proposes limits for review.
 Durable plan: [agent switch plan](../plans/000517-agent-switch-plan.md).
 
 - [x] M1 — Preserve exact previous-session evidence and expose previous/full tty reads.
-- [ ] M2 — Lean remote switch using saved configuration, tty-only previous evidence, verification and acceptance (22:19 scope).
+- [x] M2 — Lean remote switch using saved configuration, tty-only previous evidence, verification and acceptance (22:19 scope).
 - M3 withdrawn by the 22:19 revision; its remaining verification belongs to M2.
 
 ## Log
@@ -278,6 +278,7 @@ Durable plan: [agent switch plan](../plans/000517-agent-switch-plan.md).
   atlas explain retained-history semantics and costs. M1 boundary review pending.
 
 ### 2026-10-12
+- 2026-10-12: closed M2 — Full make test passed at a5aae57e8; production unchanged since that run. Build and targeted race pass. BR-6/7/8 verified and disposed by round 5. BR-9 value-only projection/selection tests pass 0.244s; capture alias, binding alias and skipped-validation mutations all fail. Operator pair:5 switch succeeded in eight seconds and previous full tty read returned 4051 lines. Restart-reconciled absent target restores original Claude native thread; uncertain target preserved. TL accepted no further live repro for ariadne restart interruption; pair:0 released.; review verdict: SHIP
 - 2026-10-12: closed M1 — BR-4/BR-5 regressions pass: 2000x80 lines retained; independent history cell/byte/row loss and loss before ED3 refuse; initial/later excessive geometry refuses; strict bounded events refuse malformed evidence. Six enforcement mutations fail and are restored. Scrollback and nested VT full race suites pass; previous-session, lifecycle refusal and artifact inventory targeted tests pass; diff clean. Fresh full make test underway.; review verdict: SHIP
 
 - Claimed in pair:2; start-plan refreshed the local ariadne tools, then started
