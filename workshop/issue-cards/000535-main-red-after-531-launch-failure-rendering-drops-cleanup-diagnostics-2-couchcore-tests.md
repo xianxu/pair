@@ -1,6 +1,6 @@
 ---
 id: 000535
-status: codecomplete
+status: done
 created: 2026-10-13
 updated: 2026-10-13
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 4730ab3dd19d8040ecde2246f7cf5011cace2c79
         evidence_commit: b537c5f804b98a3f0ce82dc4e104d8f7bd33aad3
+        landed_commit: c28b5b790ab350cd0c857f19b728614e0c414c64
 ---
 
 # main red after #531: launch-failure rendering drops cleanup diagnostics (2 couchcore tests)
