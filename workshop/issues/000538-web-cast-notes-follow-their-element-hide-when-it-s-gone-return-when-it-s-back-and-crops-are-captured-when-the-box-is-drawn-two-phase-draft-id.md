@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-13
 updated: 2026-10-13
-estimate_hours:
-card_mirror: 'a6f4ac20e92d887f0e07a9555f1e78186ad098d4' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 5.48
+card_mirror: 'a2f8f4ee751a0ca4edd1f3e48f155344bc6285b7' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-13T16:08:28-07:00
 claimant:
     operator: Xian Xu
@@ -15,6 +15,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # web cast: notes follow their element (hide when it's gone, return when it's back) and crops are captured when the box is drawn (two-phase draft id)
@@ -65,3 +66,25 @@ Durable design: [anchored notes and draw-time captures](../plans/000538-anchored
 - Hub approved plan fbbbcbbf with explicit projection for queue/store bounds: show capture-busy or storage-full reason at mouseup, primary action Save note remains available, and persist honest unavailable evidence without crop bytes. Added authoritative Revisions entry and tests; proceeding to change-code.
 
 - Plan-quality round 1 raised PQ-1 ownership transitions, PQ-2 named function test strategies and PQ-3 reference/intent cleanup. Added a single Step authority, concrete uncertainty transitions, sequence/recovery test seams, quota accounting and sweep hooks in plan Revisions. Baseline Go notes/board/recording packages and 45 targeted Node tests pass. #537 confirmed no resolved-list/history/reopen UI.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only, after plan-quality CLEAN round 3. Calibration is marked stale by estimate-source, so these are provisional ship-wall-clock hours.
+
+Primitive mapping: issue/spec; pure anchor scoring; private capture store/recovery; lifecycle model/service; viewer/operator capture API integration; bundle publication/provenance integration; shared browser dialog/list (TUI-screen interaction analogue); docs; one boundary review. Raw design picks 1.0/1.0/1.5/1.5/2.0/2.0/1.5/0.3/0.1 with thorough-spec ×0.2 except docs 0.06 and review 0.1 direct. Impl raw picks 0.3/0.6/0.8/0.8/1.5/1.5/1.0/0.2/0.5, each scaled ×0.4 once. Familiarity 1.0: current Go/CDP/JS stack and #524/#533 seams are known. Library check: existing capture readiness, private submission publication, board authority and DOM renderer are reused; no library substitutes for cast-specific ownership or scored evidence, so no speculative library discount. Design 2.26 ×1.15 + impl 2.88 = 5.479, rounded 5.48.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.2 impl=0.12
+item: greenfield-go-module design=0.2 impl=0.24
+item: greenfield-go-module design=0.3 impl=0.32
+item: greenfield-go-module design=0.3 impl=0.32
+item: api-integration design=0.4 impl=0.6
+item: api-integration design=0.4 impl=0.6
+item: tui-screen design=0.3 impl=0.4
+item: atlas-docs design=0.06 impl=0.08
+item: milestone-review design=0.1 impl=0.2
+design-buffer: 0.15
+total: 5.48
+```
