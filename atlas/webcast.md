@@ -250,18 +250,21 @@ end cast or start a new cast. See `cast_capabilities.go`, `server_capabilities.g
   either button ends (macOS terminals may send Ctrl+left as a right click with the Ctrl bit). Live, the cell is
   drawn in `broadcast.LiveSGR`, LIVE's own style, so the two cast indicators read as one family (#501);
   `IndicatorShown` matches LIVE's text, so it doesn't mistake one for the other.
-- **The Chrome group (#501)** follows the screen broadcast's `LIVE ⏸ 👆`: `Chrome ⏸ ↗ 👆 👽 💭N 🕹Ana` (its 👽 is real, `WebcastDriveLinkLabel`; #503 removed the broadcast's placeholder), each button its own
+- **The Chrome group (#501)** follows the screen broadcast's `LIVE ⏸ 👆`: `Chrome ⏸ ↗ 👆 👽 Ana 💭N ✋Bo` (its 👽 is real, `WebcastDriveLinkLabel`; #503 removed the broadcast's placeholder), each button its own
   `RenderedStatusRow` span (`WebFocus`, `WebPointerLink`, `WebDriveLink`), so a click knows which link it copies. The
   codes show on hovering the cell itself, not these (#495).
-  👆 copies the pointer link, 👽 the drive link (pair#506), on a left or right click; a right-click on the cell copies
+  👆 and 👽 toggle on left-click (enabling copies their link); right-click only copies. A right-click on the cell copies
   the view-only link (the cast row's rule, #495).
   `↗` calls `Browser.Focus`: the real Chrome sends `Target.activateTarget` for the cast tab, then activates its own
   process by PID (`activateProcess`, macOS JXA → `NSRunningApplication`; by PID because the cast Chrome
   shares its bundle id with the operator's own Chrome). Only `Launch` of a windowed Chrome sets the
   activator, so headless and scripted-pipe tests can never take the operator's focus.
 - **Remote driving (#467, `couchtty/console_drive.go`):**
-  - **The span.** After the Chrome cell and its `💭N` comes a span: `🕹Ana` while Ana drives, `✋Bo` when Bo asks
-    (`✋2` for more). It follows `Cast.Drive().Subscribe()`.
+  - **The capability chip.** OFF is plain `👽`, ON idle is amber `👽`, and occupied is amber `👽 Ana`.
+    The full name belongs to `WebDriveLink`: left-click turns driving off, revoking driver and requests;
+    right-click copies its stable link. Driver text is sanitized and clipped with the same hit span.
+  - **The request span.** After `💭N`, `✋Bo` names an asker (`✋2` for more).
+    It follows `Cast.Drive().Subscribe()`; active driver identity is only in the capability chip.
   - **The drive menu.** A click on the span opens it: the notes menu's box and gesture router, as a third source,
     titled "Remote driving".
     - On the driver's row, "uploads and downloads off while Ana drives", any click takes control back.
@@ -269,7 +272,7 @@ end cast or start a new cast. See `cast_capabilities.go`, `server_capabilities.g
   - **Revoke.** Ctrl with either button on the span revokes, from any state, with the menu open or closed.
   - **Three links (pair#506).** Right-click on the Chrome cell copies the view-only link (watch), 👆 the pointer link
     (watch, point, notes; `copyWebcastPointerLink`, "takes no notes" on an unrecorded cast), and 👽 the drive link,
-    the only one that offers a seat; 👆 and 👽 take a left or right click, and the Codes menu (Alt+click on the cell,
+    the only one that offers a seat; right-click copies without toggling, and the Codes menu (Alt+click on the cell,
     #495) has a row, code and copy action for each of the three (#495 dropped Alt+right-click). Shift+click is the
     terminal's own selection. A pointer-link viewer counts as a `web view` viewer. `couch --broadcast-list` lists `screen`, `web view` and `web drive` shares
     (`Console.Shares`, `couchmessage.ShareStatus`), the drive one with who drives and how many ask.

@@ -32,8 +32,8 @@ func TestDriveSpanRowsAndNotices(t *testing.T) {
 		{"nobody", recording.Control{}, "", nil},
 		{"one asks", recording.Control{Pending: []recording.Author{bo}}, "✋Bo", []string{"Bo asks to drive. Click to let Bo drive; right-click to say no."}},
 		{"two ask", recording.Control{Pending: []recording.Author{bo, cy}}, "✋2", []string{"Bo asks", "Cy asks"}},
-		{"a driver", recording.Control{Driver: &ana}, "🕹Ana", []string{"Ana is driving: uploads and downloads off while Ana drives. Click to take control back."}},
-		{"a driver and an asker", recording.Control{Driver: &ana, Pending: []recording.Author{bo}}, "🕹Ana ✋Bo", []string{"Ana is driving", "Bo asks"}},
+		{"a driver", recording.Control{Driver: &ana}, "", []string{"Ana is driving: uploads and downloads off while Ana drives. Click to take control back."}},
+		{"a driver and an asker", recording.Control{Driver: &ana, Pending: []recording.Author{bo}}, "✋Bo", []string{"Ana is driving", "Bo asks"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := driveSpan(tc.c); got != tc.span {
@@ -66,17 +66,17 @@ func TestDriveSpanRowsAndNotices(t *testing.T) {
 // The span sits after the Chrome cell and its 💭N, plain text, its own
 // click target.
 func TestRenderDriveSpan(t *testing.T) {
-	row := RenderStatusRow(80, StatusModel{Webcast: WebcastLive, WebNotes: 2, WebDrive: "🕹Ana ✋Bo"})
-	if row.WebDrive == (ColumnSpan{}) || row.WebDrive.Start <= row.WebNotes.End || row.WebNotes.Start <= row.Webcast.End {
+	row := RenderStatusRow(80, StatusModel{Webcast: WebcastLive, WebDrivingOn: true, WebDriverName: "Ana", WebNotes: 2, WebDrive: "✋Bo"})
+	if row.WebDrive == (ColumnSpan{}) || row.WebDrive.Start <= row.WebNotes.End || row.WebNotes.Start <= row.WebDriveLink.End {
 		t.Fatalf("spans: cell %+v notes %+v drive %+v", row.Webcast, row.WebNotes, row.WebDrive)
 	}
-	if !strings.Contains(row.Body, "🕹Ana ✋Bo") {
+	if !strings.Contains(row.Body, "✋Bo") {
 		t.Fatalf("body %q", row.Body)
 	}
-	if row := RenderStatusRow(80, StatusModel{Webcast: WebcastLive, WebDrive: "🕹A\x1b[2Jna"}); strings.Contains(row.Body, "\x1b[2J") {
+	if row := RenderStatusRow(80, StatusModel{Webcast: WebcastLive, WebDrive: "✋A\x1b[2Jna"}); strings.Contains(row.Body, "\x1b[2J") {
 		t.Fatalf("a name reached the terminal raw: %q", row.Body)
 	}
-	if row := RenderStatusRow(80, StatusModel{WebDrive: "🕹Ana"}); row.WebDrive != (ColumnSpan{}) {
+	if row := RenderStatusRow(80, StatusModel{WebDrive: "✋Ana"}); row.WebDrive != (ColumnSpan{}) {
 		t.Fatal("a drive span without Chrome")
 	}
 }
@@ -243,11 +243,11 @@ func TestDriveFromCouch(t *testing.T) {
 	waitFor(t, "Ana drives", func() bool { return c.control().Driving() == v1 })
 	waitFor(t, "the grant's notice", func() bool { return strings.Contains(c.notice(), "Uploads and downloads are off") })
 	waitFor(t, "Chrome told", func() bool { return c.d.Driving() == "Ana" })
-	span = c.span(t, "🕹Ana")
+	waitFor(t, "driver chip named", func() bool { return strings.Contains(c.lastRow(), "👽 Ana") })
 
 	// Bo asks; a right click on Bo's row says no.
 	v2 := c.viewer(t, "Bo")
-	span = c.span(t, "🕹Ana ✋Bo")
+	span = c.span(t, "✋Bo")
 	c.clickRow(t, span, "Bo asks", 2)
 	waitFor(t, "Bo turned down", func() bool { return len(c.control().Pending) == 0 })
 	waitFor(t, "the deny said", func() bool { return strings.Contains(c.notice(), "Said no to Bo.") })
@@ -255,11 +255,17 @@ func TestDriveFromCouch(t *testing.T) {
 		t.Fatal("saying no to Bo moved control")
 	}
 
-	// A left click on the driver's row takes control back.
-	c.clickRow(t, c.span(t, "🕹Ana"), "Ana is driving", 0)
+	// Clicking the named capability control disables drive and takes control back.
+	c.con.mu.Lock()
+	driverSpan := c.con.statusWebDriveLink
+	c.con.mu.Unlock()
+	c.mouse(0, driverSpan.End-1, 23, false)
+	c.mouse(0, driverSpan.End-1, 23, true)
 	waitFor(t, "control back", func() bool { return c.control().Driver == nil })
-	waitFor(t, "back notice", func() bool { return strings.Contains(c.notice(), "back with you") })
 	waitFor(t, "Chrome told nobody drives", func() bool { return c.d.Driving() == "" })
+	waitFor(t, "drive disabled", func() bool { return !c.cast().Capabilities().Project("drive").Enabled })
+	<-c.con.onWebCapabilityClick("drive", false)
+	waitFor(t, "drive enabled", func() bool { return c.cast().Capabilities().Project("drive").Enabled })
 
 	// Ctrl+click on the span takes control back with the menu closed, and
 	// with someone else asking.
@@ -269,7 +275,7 @@ func TestDriveFromCouch(t *testing.T) {
 		t.Fatal(err)
 	}
 	v2 = c.viewer(t, "Bo")
-	span = c.span(t, "🕹Ana ✋Bo")
+	span = c.span(t, "✋Bo")
 	if open, _, _ := c.notesMenu(); open {
 		c.clickStatus(span.Start + 1) // close it
 		waitFor(t, "menu closed", func() bool { open, _, _ := c.notesMenu(); return !open })
@@ -292,22 +298,26 @@ func TestDriveFromCouch(t *testing.T) {
 	// Bo drives; with the menu open, Ctrl+right on the span revokes.
 	c.clickRow(t, c.span(t, "✋Bo"), "Bo asks", 0)
 	waitFor(t, "Bo drives", func() bool { return c.control().Driving() == v2 })
-	if open, _, _ := c.notesMenu(); !open { // it stays open on Bo's driver row
-		c.clickStatus(c.span(t, "🕹Bo").Start + 1)
+	c.viewer(t, "Cy")
+	if open, _, _ := c.notesMenu(); !open {
+		c.clickStatus(c.span(t, "✋Cy").Start + 1)
 	}
 	waitFor(t, "menu open", func() bool { open, _, _ := c.notesMenu(); return open })
-	sp := c.span(t, "🕹Bo")
+	sp := c.span(t, "✋Cy")
 	c.mouse(18, sp.Start, 23, false) // Ctrl+right
 	c.mouse(18, sp.Start, 23, true)
 	waitFor(t, "revoked with the menu open", func() bool { return c.control().Driver == nil })
+	c.clickRow(t, c.span(t, "✋Cy"), "Cy asks", 2)
+	waitFor(t, "Cy declined", func() bool { return len(c.control().Pending) == 0 })
 
 	// A revoke that fails (the recorder stopped) is said as a failure,
 	// not as a race, and control stays.
 	c.viewer(t, "Ana")
 	c.clickRow(t, c.span(t, "✋Ana"), "Ana asks", 0)
 	waitFor(t, "Ana drives again", func() bool { return c.control().Driver != nil })
+	c.viewer(t, "Bo")
+	sp = c.span(t, "✋Bo")
 	c.d.FailEmits(errors.New("recorder stopped"))
-	sp = c.span(t, "🕹Ana")
 	c.mouse(16, sp.Start, 23, false)
 	c.mouse(16, sp.Start, 23, true)
 	waitFor(t, "the failure said", func() bool { return strings.Contains(c.notice(), "control is unchanged: recorder stopped") })

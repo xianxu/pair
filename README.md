@@ -1057,7 +1057,8 @@ remain valid when a capability is off, but holding them does not enable it:
 the server refuses annotation or driving until the operator enables that
 capability. Turning annotation off clears the current marks while preserving
 recorded history; turning driving off revokes the driver and pending requests.
-Both controls are dim when off and amber when on. Left-click to enable and copy
+👆 is dim when off; 👽 is plain when off. Both are amber when on; the driver’s
+name joins the same chip while occupied (for example, `👽 Ana`). Left-click to enable and copy
 the link, or to disable. Right-click copies in any state without toggling; links
 and codes stay the same. Terminal casts have 👆 only.
 
@@ -1080,10 +1081,11 @@ and URL; nothing you do while paused reaches them.
 **drive link** can **Ask to drive**. The tab bar then shows
 `✋Ana` after the Chrome cell (`✋2` for more), and Couch says so. Click it for the drive menu:
 - **Grant.** Click the asker to let them drive. They use the page through their viewer with mouse, touch and
-  keyboard, and the tab bar shows `🕹Ana`.
+  keyboard, and the capability chip shows amber `👽 Ana`.
 - **Deny.** Right-click an asker to say no.
-- **Take back.** Click the driver's row to take control back. `Ctrl`+click on the span takes it back at any time,
-  menu open or not.
+- **Turn driving off.** Click `👽 Ana` (or idle `👽`) to revoke control and drop pending requests.
+  Right-click anywhere on that chip still copies the drive link. The request popup also
+  retains its driver row for taking control back without turning the capability off.
 
 While anyone drives:
 - Uploads and downloads are off in the cast tab, yours too, and Couch says so.

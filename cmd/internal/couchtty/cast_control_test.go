@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/broadcast"
+	"github.com/xianxu/pair/cmd/internal/textwidth"
 	"github.com/xianxu/pair/cmd/internal/webcast"
 	"github.com/xianxu/pair/cmd/internal/webcast/capability"
 	"github.com/xianxu/pair/cmd/internal/webcast/drive"
@@ -37,6 +38,9 @@ func TestWebCapabilityRowStatesAndRecovery(t *testing.T) {
 				on    bool
 			}{{broadcast.PointerLabel, a}, {WebcastDriveLinkLabel, d}} {
 				sgr := dimSGR
+				if v.label == WebcastDriveLinkLabel {
+					sgr = ""
+				}
 				if v.on {
 					sgr = broadcast.PointerSGR
 				}
@@ -212,5 +216,85 @@ func TestWebCapabilityStaleCompletionDoesNotCopy(t *testing.T) {
 				t.Fatal("stale enable copied")
 			}
 		})
+	}
+}
+
+func TestDriveChipNameClicksToggleAndCopy(t *testing.T) {
+	r := newDriveCast(t)
+	a := r.viewer(t, "Ana")
+	r.viewer(t, "Bo")
+	if err := r.cast().Drive().Grant(a); err != nil {
+		t.Fatal(err)
+	}
+	var span ColumnSpan
+	waitFor(t, "named drive chip", func() bool {
+		r.con.mu.Lock()
+		defer r.con.mu.Unlock()
+		row := RenderStatusRow(120, r.con.statusModelLocked())
+		span = r.con.statusWebDriveLink
+		return span == row.WebDriveLink && strings.Contains(row.Body, broadcast.PointerSGR+"👽 Ana")
+	})
+	// Final visible name cell belongs to the same capability target.
+	before := copies(r.consoleFixture, r.link)
+	r.mouse(2, span.End-1, 23, false)
+	r.mouse(2, span.End-1, 23, true)
+	waitFor(t, "drive name copied", func() bool { return copies(r.consoleFixture, r.link) == before+1 })
+	if got := r.control(); got.Driving() != a || len(got.Pending) != 1 {
+		t.Fatalf("right copy changed control: %+v", got)
+	}
+	r.mouse(0, span.End-1, 23, false)
+	r.mouse(0, span.End-1, 23, true)
+	waitFor(t, "name click disables drive", func() bool { return r.cast().Capabilities().Drive.Phase == capability.Off })
+	if got := r.control(); got.Driver != nil || len(got.Pending) != 0 {
+		t.Fatalf("name click did not clear control: %+v", got)
+	}
+}
+
+func TestDriveOffChipHasNoDimStyle(t *testing.T) {
+	row := RenderStatusRow(120, StatusModel{Webcast: WebcastLive})
+	if strings.Contains(row.Body, dimSGR+"👽") || strings.Contains(row.Body, broadcast.PointerSGR+"👽") {
+		t.Fatalf("off drive has colour: %q", row.Body)
+	}
+}
+
+func TestDriveChipThreeStatesAndClipping(t *testing.T) {
+	for _, tc := range []struct {
+		name                string
+		on                  bool
+		driver, want, style string
+	}{
+		{"off", false, "Ana", "👽", ""},
+		{"idle", true, "", "👽", broadcast.PointerSGR},
+		{"occupied", true, "Ana", "👽 Ana", broadcast.PointerSGR},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			row := RenderStatusRow(120, StatusModel{Webcast: WebcastLive, WebDrivingOn: tc.on, WebDriverName: tc.driver})
+			suffix := tc.style + tc.want
+			if tc.style != "" {
+				suffix += "\x1b[0m"
+			}
+			if !strings.HasSuffix(row.Body, suffix) {
+				t.Fatalf("wrong chip/style: %q want suffix %q", row.Body, suffix)
+			}
+			if row.WebDrive != (ColumnSpan{}) {
+				t.Fatal("driver appeared in asks span")
+			}
+			if row.WebDriveLink.End-row.WebDriveLink.Start != textwidth.Width(tc.want) {
+				t.Fatalf("chip target %+v does not cover %q", row.WebDriveLink, tc.want)
+			}
+		})
+	}
+	for width := 1; width < 70; width++ {
+		row := RenderStatusRow(width, StatusModel{Webcast: WebcastLive, WebDrivingOn: true, WebDriverName: strings.Repeat("Ana", 30), WebDrive: "✋Bo"})
+		if row.WebDriveLink.End > width {
+			t.Fatalf("width%d target%+v", width, row.WebDriveLink)
+		}
+		if row.WebDriveLink != (ColumnSpan{}) && row.WebDriveLink.End != textwidth.Width(rowPlain(row)) {
+			t.Fatalf("clipped name target not drawn end width%d: %+v %q", width, row.WebDriveLink, rowPlain(row))
+		}
+	}
+	row := RenderStatusRow(120, StatusModel{Webcast: WebcastLive, WebDrivingOn: true, WebDriverName: "A\x1b[2Jna\n"})
+	if strings.Contains(row.Body, "\x1b[2J") || strings.Contains(row.Body, "\n") {
+		t.Fatalf("raw driver name reached terminal: %q", row.Body)
 	}
 }

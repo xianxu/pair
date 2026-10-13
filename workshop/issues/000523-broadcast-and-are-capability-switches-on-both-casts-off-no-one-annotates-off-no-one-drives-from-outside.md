@@ -91,6 +91,21 @@ Durable plan: [000523-cast-capability-switches-plan.md](../plans/000523-cast-cap
 
 ## Log
 
+### 2026-10-13 — Operator smoke passed; driver display refined
+
+- Operator confirmed right-copy, annotation clear/draft retention/pen Off,
+  drive revoke with pending-request removal and fresh requests after enable
+  (receipt 762b6600-ba7b-4038-b46e-d34383665f67).
+- Applied requested three-state drive chip: plain OFF, amber ON idle, amber
+  with driver name while occupied. The entire name shares the capability click
+  target; requests keep their separate hand-raise popup and grant/deny behavior.
+- Tests reproduced old dim OFF/separate-driver behavior, then passed the three
+  exact styles, clipping/sanitization, raw name right-copy and left-disable,
+  and existing ask popup flows. Full couchtty passed (40.033s), targeted race
+  tests passed (4.555s), ad-hoc review found no material issues.
+- Fresh make test is running on the merged branch and both smoke follow-up
+  fixes. Final operator quick look remains required before landing.
+
 ### 2026-10-13 — Full notice copy verified
 
 - Switcher Ctrl+Y now copies the full latest retained notice, after clipping or

@@ -105,8 +105,10 @@ type StatusModel struct {
 	// WebNotes is the web cast's open notes (#470), drawn as 💭N after the
 	// Chrome cell; a click opens the notes menu with them.
 	WebNotes int
-	// WebDrive is remote driving's span (#467), after them: who drives
-	// (🕹Ana) and who asks (✋Bo); a click opens the drive menu.
+	// WebDriverName belongs to the enabled 👽 capability control.
+	WebDriverName string
+	// WebDrive is the separate pending-request span (✋Bo or ✋N).
+	// A click opens the drive menu.
 	WebDrive string
 	// Spinner is the loading placeholder's spinner frame (pair#206).
 	Spinner uint8
@@ -180,12 +182,12 @@ type RenderedStatusRow struct {
 	WebFocus ColumnSpan
 	// WebPointerLink and WebDriveLink are the 👆 and 👽 controls for pointer and
 	// drive links (#501, pair#506), in the screen broadcast's `LIVE ⏸ 👆` family.
-	// Each is its own span, so a hover can say which link it holds.
+	// The drive span includes the driver name while driving is enabled.
 	WebPointerLink ColumnSpan
 	WebDriveLink   ColumnSpan
 	// WebNotes is the web cast's 💭N span (#470).
 	WebNotes ColumnSpan
-	// WebDrive is remote driving's span (#467).
+	// WebDrive is the pending drive requests' popup span (#467).
 	WebDrive ColumnSpan
 }
 
@@ -291,7 +293,14 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 		}
 		webFocusSpan = button(WebcastFocusLabel, "")
 		webPointerLinkSpan = button(broadcast.PointerLabel, capabilitySGR(m.WebAnnotationOn))
-		webDriveLinkSpan = button(WebcastDriveLinkLabel, capabilitySGR(m.WebDrivingOn))
+		driveLabel, driveStyle := WebcastDriveLinkLabel, ""
+		if m.WebDrivingOn {
+			driveStyle = broadcast.PointerSGR
+			if name := rowtext.Sanitize(m.WebDriverName); name != "" {
+				driveLabel += " " + name
+			}
+		}
+		webDriveLinkSpan = button(driveLabel, driveStyle)
 		if m.WebNotes > 0 {
 			appendText(" ", "")
 			start := used

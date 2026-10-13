@@ -13,9 +13,9 @@ import (
 
 // Remote driving in Couch (#467). The web cast's controller tells Couch who
 // drives the cast tab and who asks; the tab bar shows it after the Chrome
-// cell (🕹Ana for the driver, ✋Bo for one asker, ✋2 for more), and a click
-// there opens the drive menu: a left click on the driver takes control
-// back, on an asker lets them drive; a right click turns an asker down.
+// cell (👽 Ana on the enabled drive control, ✋Bo for one asker, ✋2
+// for more). The driver chip toggles driving off or copies its link;
+// the asking span opens the drive menu: left grants, right declines.
 // Ctrl+click on the span takes control back whatever is open: the operator
 // always has the last word. While anyone drives, the cast tab's uploads and
 // downloads are off (the operator's too), and Couch says so.
@@ -65,27 +65,16 @@ func driveMenuRows(c recording.Control, menuID func(key string) int) ([]driveRow
 	return rows, items
 }
 
-// driveSpan is the tab bar's text for control: "" when nobody drives or
-// asks.
+// driveSpan shows pending requests separately from the 👽 driver control.
 func driveSpan(c recording.Control) string {
-	var out string
-	if c.Driver != nil {
-		out = "🕹" + c.Driver.Name
-	}
 	switch n := len(c.Pending); {
 	case n == 1:
-		out = joinSpan(out, "✋"+c.Pending[0].Name)
+		return "✋" + c.Pending[0].Name
 	case n > 1:
-		out = joinSpan(out, "✋"+strconv.Itoa(n))
+		return "✋" + strconv.Itoa(n)
+	default:
+		return ""
 	}
-	return out
-}
-
-func joinSpan(a, b string) string {
-	if a == "" {
-		return b
-	}
-	return a + " " + b
 }
 
 // driveNotices is what Couch says when control moves from was to now: the
@@ -162,11 +151,15 @@ func (c *Console) forgetDrive() {
 	c.pnotes.mu.Unlock()
 }
 
-// webDriveSpan is the span's text for the status row.
-func (c *Console) webDriveSpan() string {
+// webDriveLabels derives both row labels from one delivered control snapshot.
+func (c *Console) webDriveLabels() (driver, asking string) {
 	c.pnotes.mu.Lock()
 	defer c.pnotes.mu.Unlock()
-	return driveSpan(c.pnotes.drive.control)
+	ctl := c.pnotes.drive.control
+	if ctl.Driver != nil {
+		driver = ctl.Driver.Name
+	}
+	return driver, driveSpan(ctl)
 }
 
 // driveActionLocked is what a click on menu row id does (nil: nothing):
