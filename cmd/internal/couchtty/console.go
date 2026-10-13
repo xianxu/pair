@@ -1970,7 +1970,7 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 		Background: completed.origin.Background,
 	}
 	if err != nil {
-		event.Error = err.Error()
+		event.Error = couchcore.OperatorError(err)
 		// A code, so the pass tells a skip from a failure without matching text.
 		event.Diagnostic = couchcore.ResumeDiagnosticOf(err)
 		event.Busy = couchcore.IsThreadBusy(err)

@@ -2,6 +2,7 @@ package couchcmd
 
 import (
 	"bytes"
+	"errors"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"strings"
 	"testing"
@@ -38,5 +39,37 @@ func TestRenderShowIncludesLaunchFailures(t *testing.T) {
 	render(&out, couchcore.Operation{Name: "show"}, couchcore.ShowResult{LaunchFailures: []couchcore.LaunchFailure{{FinalError: "source still parked"}}})
 	if !strings.Contains(out.String(), "source still parked") {
 		t.Fatalf("show dropped evidence: %s", out.String())
+	}
+}
+
+func TestLaunchFailurePresentationKeepsFullErrorForShow(t *testing.T) {
+	rt := newRT(t, "/repo")
+	c, err := rt.NewCouch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cause := errors.New("fork failed; complete diagnostic\nsecond diagnostic line")
+	rt.runner.FailNextStart(cause)
+	_, _, err = c.Spawn(couchcore.StartArgs{Cwd: "/repo", Stack: "codex"})
+	if !errors.Is(err, cause) || !strings.Contains(err.Error(), cause.Error()) {
+		t.Fatalf("lost original: %v", err)
+	}
+	var out bytes.Buffer
+	renderError(&out, err)
+	line := out.String()
+	receipt := slotOperationOutcome(nil, err)
+	for _, got := range []string{strings.TrimSuffix(line, "\n"), receipt.Detail} {
+		if strings.ContainsAny(got, "\n\r\x1b") || strings.Count(got, "inspect with") != 1 || strings.Contains(got, "second diagnostic") {
+			t.Fatalf("not concise: %q", got)
+		}
+	}
+	failures, readErr := couchcore.NewLaunchFailureStore(c.Namespace).Read()
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	out.Reset()
+	renderLaunchFailures(&out, failures, "")
+	if !strings.Contains(out.String(), "second diagnostic line") {
+		t.Fatalf("show lost full text: %s", out.String())
 	}
 }

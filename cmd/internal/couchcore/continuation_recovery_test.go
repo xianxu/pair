@@ -7,6 +7,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/orientation"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -328,20 +329,23 @@ func TestContinuationRetrySessionObservationHonorsCancellation(t *testing.T) {
 	f.env.Runner.SetExited(first.Handle.ID(), 0)
 	f.env.Artifacts.SetPairSession(f.source.Address, f.sessionName(t), false)
 	before, _ := c.Threads.GetThread(f.source.Address)
+	// Cancel only once observation starts: preflight filesystem work must not
+	// race the 20 ms deadline this test previously used.
+	ctx, cancel := context.WithTimeout(context.Background(), testwait.Budget(t))
+	defer cancel()
 	observed := false
 	c.Artifacts = recoveryContextArtifacts{FakeThreadArtifactCollisionChecker: f.env.Artifacts, observe: func(ctx context.Context, _ ThreadAddress) (PairSessionBinding, error) {
 		observed = true
 		if _, ok := ctx.Deadline(); !ok {
 			return PairSessionBinding{}, errors.New("caller deadline lost")
 		}
+		cancel()
 		<-ctx.Done()
 		return PairSessionBinding{}, ctx.Err()
 	}}
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
-	defer cancel()
 	_, err = c.RetryContinuation(ctx, f.source.Address, f.status.RequestID)
 	after, _ := c.Threads.GetThread(f.source.Address)
-	if !observed || !errors.Is(err, context.DeadlineExceeded) || after.Revision != before.Revision || f.launches != 1 {
+	if !observed || !errors.Is(err, context.Canceled) || after.Revision != before.Revision || f.launches != 1 {
 		t.Fatalf("observation=%v err=%v revision=%d→%d launches=%d", observed, err, before.Revision, after.Revision, f.launches)
 	}
 }
