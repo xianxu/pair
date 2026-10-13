@@ -6,15 +6,25 @@ local tmp = vim.fn.tempname()
 vim.fn.mkdir(tmp .. '/queue', 'p')
 vim.fn.writefile({'draft'}, tmp .. '/draft.md')
 vim.fn.writefile({}, tmp .. '/log.md')
+vim.fn.writefile({}, tmp .. '/agent-picks')
+vim.fn.writefile({}, tmp .. '/agent-output')
 local env = vim.fn.environ()
+-- An attached UI exercises production startup hooks. Never inherit the live
+-- operator's pane identity, PID files, sidecar paths, or Couch connection.
+for key in pairs(env) do
+  if key:match('^PAIR_') or key:match('^COUCH_') or key:match('^ZELLIJ') or key:match('^NVIM') then env[key]=nil end
+end
 for key,value in pairs({PAIR_HOME=root,PAIR_DATA_DIR=tmp,PAIR_TAG='ui-test',
   PAIR_DRAFT_PATH=tmp..'/draft.md',PAIR_LOG_PATH=tmp..'/log.md',
-  PAIR_QUEUE_DIR=tmp..'/queue',PAIR_LAYOUT_MODE_PATH=tmp..'/layout'}) do env[key]=value end
+  PAIR_QUEUE_DIR=tmp..'/queue',PAIR_LAYOUT_MODE_PATH=tmp..'/layout',
+  PAIR_AGENT_PICKS_PATH=tmp..'/agent-picks',PAIR_AGENT_OUTPUT_PATH=tmp..'/agent-output',
+  XDG_STATE_HOME=tmp..'/state',XDG_CACHE_HOME=tmp..'/cache'}) do env[key]=value end
 local child_env={}
 for key,value in pairs(env) do child_env[#child_env+1]=key..'='..value end
 local stdin,stdout,stderr=uv.new_pipe(false),uv.new_pipe(false),uv.new_pipe(false)
 local responses,frames,markers,grid={},{},{},{}
 local stderr_text,parse_error='',nil
+local ready=false
 local unpacker=vim.mpack.Unpacker()
 local function screen()
   local rows={}
@@ -22,7 +32,8 @@ local function screen()
   return table.concat(rows,'\n')
 end
 local function receive(message)
-  if message[1]==1 then responses[message[2]]=message
+  if message[1]==2 and message[2]=='test_ready' then ready=true
+  elseif message[1]==1 then responses[message[2]]=message
   elseif message[1]==2 and message[2]=='test_phase' then
     markers[message[3][1]]=screen()
   elseif message[1]==2 and message[2]=='redraw' then
@@ -44,7 +55,7 @@ local function receive(message)
   end
 end
 local child,exited
-child=assert(uv.spawn(vim.v.progpath,{args={'--embed','--headless','-u',root..'/nvim/init.lua',tmp..'/draft.md'},
+child=assert(uv.spawn(vim.v.progpath,{args={'--embed','--headless','--cmd',"autocmd VimEnter * lua vim.defer_fn(function() vim.g.dom_ui_fixture_ready=true; vim.rpcnotify(1,'test_ready') end,100)", '-u',root..'/nvim/init.lua',tmp..'/draft.md'},
   env=child_env,stdio={stdin,stdout,stderr}},function()exited=true end))
 stdout:read_start(function(err,data)
   if err then parse_error=err end
@@ -67,7 +78,7 @@ local function request(method,args,async)
   local id=serial
   stdin:write(vim.mpack.encode({0,id,method,args}))
   if async then return id end
-  assert(vim.wait(5000,function()return responses[id] or parse_error or exited end,5),'RPC timeout: '..method..' '..stderr_text)
+  assert(vim.wait(5000,function()return responses[id] or parse_error or exited end,5),'RPC timeout: '..method..' '..vim.inspect(args)..'\nSCREEN:\n'..screen()..'\nSTDERR:\n'..stderr_text)
   assert(not parse_error,tostring(parse_error))
   local response=assert(responses[id],'child exited: '..stderr_text)
   assert(response[3]==vim.NIL,vim.inspect(response[3]))
@@ -80,7 +91,16 @@ local function saw(text)
 end
 local ok,err=xpcall(function()
   request('nvim_ui_attach',{120,18,{ext_linegrid=true}})
+  -- UI attachment can service RPC before deferred startup has finished. The
+  -- delayed VimEnter notification deliberately tests that the client waits.
+  assert(vim.wait(5000,function()return ready or exited or parse_error end,5),
+    'startup-ready timeout\nSCREEN:\n'..screen()..'\nSTDERR:\n'..stderr_text)
+  assert(ready,'child failed before startup-ready: '..tostring(parse_error)..' '..stderr_text)
   lua([[
+    assert(vim.g.dom_ui_fixture_ready, 'client started submission before startup-ready handshake')
+    -- Exercise completion's environment contract deterministically: without
+    -- its picks path, TextChangedI throws and the attached UI waits at ENTER.
+    vim.api.nvim_exec_autocmds('TextChangedI', {buffer=0})
     vim.notify=function()end
     _G.PairTestSessionLogAppend=function()return true end
     _G.PairTestSessionLogCommit=function()return true end
@@ -125,5 +145,5 @@ vim.wait(1000,function()return exited end,10)
 if not exited then child:kill('sigkill');vim.wait(1000,function()return exited end,10) end
 for _,handle in ipairs({stdin,stdout,stderr,child}) do if not handle:is_closing() then handle:close() end end
 vim.fn.delete(tmp,'rf')
-if not ok then error(err) end
+if not ok then error(err..'\nLAST SCREEN:\n'..screen()..'\nSTDERR:\n'..stderr_text) end
 print('dom-submission-ui-test: passed')
