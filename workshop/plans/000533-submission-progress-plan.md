@@ -71,20 +71,20 @@ ARCH-ORDER: reducer transitions decide ownership; adapters execute effects and r
 
 ### 2. Progress through preparation
 
-- [ ] Add failing tests at submissionManager.request/prepare and Recorder.CaptureCrops using controlled barriers to inspect progress while work is held. Verify job identity and no callback-under-lock deadlock. Run focused tests to establish RED.
-- [ ] Add typed progress and explicit callbacks across current interfaces, update all implementers/test doubles, and annotate actual phase boundaries. Carry caller.Slot in RPC responses. Keep durable manifest state untouched.
-- [ ] Run affected Go tests/race checks; commit with issue reference.
+- [x] Add failing tests at submissionManager.request/prepare and Recorder.CaptureCrops using controlled barriers to inspect progress while work is held. Verify job identity and no callback-under-lock deadlock. Run focused tests to establish RED.
+- [x] Add typed progress and explicit callbacks across current interfaces, update all implementers/test doubles, and annotate actual phase boundaries. Carry caller.Slot in RPC responses. Keep durable manifest state untouched.
+- [x] Run affected Go tests/race checks; commit with issue reference.
 
 ### 3. Bounded draft operation UI
 
-- [ ] Extend pure reducer tests over active admission, terminal paths, stale epochs and progress validation. Extend adapter fixtures with controllable clock/defer/completions, errors thrown by effects, and budget exhaustion. Establish RED before implementation.
-- [ ] Implement shared terminal handling, deadline/budget propagation, and buffer ownership/rendering. Return specific failure reason through the fresh sender; preserve confirmed dispatch despite later UI/marker warnings.
-- [ ] Extend headless production chord tests to hold preparation, inspect actual statusline and nomodifiable, release into failure/success, exercise timed-out subprocess and late callback interleavings, and demonstrate editable retry with new text. Use fixture state assertions rather than production-call counts alone.
-- [ ] Run Lua state/adapter/transport/sender tests and full headless submission transaction script; commit.
+- [x] Extend pure reducer tests over active admission, terminal paths, stale epochs and progress validation. Extend adapter fixtures with controllable clock/defer/completions, errors thrown by effects, and budget exhaustion. Establish RED before implementation.
+- [x] Implement shared terminal handling, deadline/budget propagation, and buffer ownership/rendering. Return specific failure reason through the fresh sender; preserve confirmed dispatch despite later UI/marker warnings.
+- [x] Extend headless production chord tests to hold preparation, inspect actual statusline and nomodifiable, release into failure/success, exercise timed-out subprocess and late callback interleavings, and demonstrate editable retry with new text. Use fixture state assertions rather than production-call counts alone.
+- [x] Run Lua state/adapter/transport/sender tests and full headless submission transaction script; commit.
 
 ### 4. Integration and close
 
-- [ ] Update atlas/webcast-submission.md and operator-facing key documentation for operation-only read-only behavior.
+- [x] Update atlas/webcast-submission.md and operator-facing key documentation for operation-only read-only behavior.
 - [ ] Run make runtimebundle-generate, affected Go packages with GOMAXPROCS=2 and -p=1, applicable headless suites, real-Chrome crop readiness conformance, and full make test against stable committed sources. Record any unrelated failure precisely.
 - [ ] Run sdlc close with actual verification evidence, address findings, publish PR, wait for CI, land on SHIP as authorized, report hub.
 
@@ -99,3 +99,7 @@ Ops:0 approved plan 84e3ca051 and the absolute36-second budget (verified receipt
 ### 2026-10-13 — plan-review advisory PQ-1
 
 Name the Lua risk targets explicitly: `dom_submission_state.step` uses deterministic reordered event sequences and asserts ownership/terminal invariants; `progress_text` rejects arbitrary malformed progress values and formats only recognized bounded fields. `dom_submission.new`/`send` use a controlled clock and delayed/throwing dependencies to prove release and epoch fencing. `dom_transport.new`'s rpc/pin/validate receive an expiring budget and stateful identity changes to prove no post-deadline external effect. `submit_fresh_operator_text` preserves confirmed dispatch under post-send errors and forwards the same budget to append/commit/send. `zellij_trace.action` runs a blocked child to prove enforced timeout with trace redaction. `PairSendDOM`/`PairStatusline` are exercised in real headless/embedded Neovim to establish buffer option ownership and visible status before held work completes.
+
+### 2026-10-13 — verification scheduling
+
+The corrected full suite is launched and queued behind machine-wide holders. Close review may run concurrently against committed sources; its verification string must say the full result is pending. Inspect and record that result before landing. No source edits occur during either run unless a concrete finding requires them.

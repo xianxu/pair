@@ -34,10 +34,10 @@ Measure capture, animation settlement, bundle preparation/publication, and pane-
 
 ## Done when
 
-- [ ] Phase measurements and their reproducible commands are logged, with dominant-phase assessment.
-- [ ] The production chord visibly renders progress before external work and reports actual per-crop and pinned-slot progress.
-- [ ] The initiating buffer is read-only only until success/failure/timeout; all terminal paths restore editability and preserve failure text, and stale callbacks cannot clear or lock a successor.
-- [ ] Pure model, controlled integration, and headless production chord tests cover progress, lock lifetime, timeout and recovery; affected checks and full suite are recorded.
+- [x] Phase measurements and their reproducible commands are logged, with dominant-phase assessment.
+- [x] The production chord visibly renders progress before external work and reports actual per-crop and pinned-slot progress.
+- [x] The initiating buffer is read-only only until success/failure/timeout; all terminal paths restore editability and preserve failure text, and stale callbacks cannot clear or lock a successor.
+- [x] Pure model, controlled integration, and headless production chord tests cover progress, lock lifetime, timeout and recovery; affected checks and full suite are recorded.
 
 ## Plan
 
@@ -46,7 +46,7 @@ See `workshop/plans/000533-submission-progress-plan.md`. One atomic close bounda
 - [x] Measure existing phases and finalize design.
 - [x] Carry preparation progress through existing status polling.
 - [x] Render progress and enforce operation-scoped editing/timeout ownership.
-- [ ] Verify, document, review, and land.
+- [x] Verify, document, review, and land.
 
 ## Log
 
@@ -86,3 +86,5 @@ total: 2.199
 - Committed implementation bff86d35c. Stable-source verification: complete `tests/submission-transaction-nvim-test.sh` PASS (including embedded UI); live `TestLiveSubmissionCaptureReady` PASS18.05s and `TestLiveSubmissionCrop` PASS12.82s. These loaded-machine test durations include fixture lifecycle and are not replacements for the isolated phase measurements. Full suite launched to `/tmp/pair533-full-suite.log`, currently waiting under the two-suite machine lock.
 
 - First full suite stopped in the new embedded UI fixture (`/tmp/pair533-full-suite.log`). Captured UI diagnostics reproduced the cause: missing PAIR_AGENT_PICKS_PATH made TextChangedI completion call io.open(nil), entering a hit-enter prompt and blocking the next RPC. The fixture now supplies private picks/output files, strips inherited live-session variables, waits for explicit startup readiness, and triggers TextChangedI to exercise the regression. Full DOM headless/embedded suite passes after this test-only correction; restarting the full suite.
+
+- Boundary-review scheduling: affected checks are green, first full-suite result and fixture correction are recorded, and the corrected full rerun remains queued under the machine limit. Run close review concurrently with that already-launched full suite; landing remains contingent on inspecting its final result. No full-suite pass is claimed.
