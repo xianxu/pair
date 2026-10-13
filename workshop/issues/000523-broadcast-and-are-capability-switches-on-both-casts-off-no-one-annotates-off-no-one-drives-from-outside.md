@@ -107,6 +107,15 @@ the old worker settles, and shutdown cancels and joins it. Controller ACK and
 held-input release remain authoritative. Barrier regressions cover all four
 actions, typing during waits, repeated clicks, stale completion and shutdown.
 
+Targeted normal/race runs passed. The first full run passed every package except
+Couch TTY, where a new popup test retained a pre-grant coordinate: adding the
+driver name moved the request chip, so the click could disable driving instead
+of opening its menu. A controlled stale-coordinate regression reproduced that
+failure. The fixture now awaits the committed projection and refreshes the hit
+span, without retrying clicks; its waits have bounded failure diagnostics.
+Five focused normal/race repetitions and the complete TTY package passed after
+this test-only correction. The complete make suite is being rerun.
+
 ### 2026-10-13 — Final verification complete
 
 - Complete merged-tree Go suite passed: go test ./... -count=1 -parallel 4,

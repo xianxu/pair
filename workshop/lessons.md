@@ -1581,3 +1581,9 @@ proof; record the surprising case so the next change starts from evidence.
   acknowledged external write changes every caller's latency contract. Enumerate
   all input-handler callers and move waits onto bounded lifetime-owned work;
   carry admission identity across scheduling and test responsiveness with ACKs held.
+
+- #523 drive fixture: controller acknowledgement can precede UI delivery and
+  paint. A named chip can move neighboring hit targets; sample the committed
+  projection before clicking, never combine a new screen with old coordinates.
+  Bound fixture waits independently of the package deadline so one missed menu
+  does not consume the entire suite's time budget.

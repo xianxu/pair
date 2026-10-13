@@ -159,14 +159,52 @@ func (c *driveCast) cast() *webcast.Cast {
 	return c.con.wcast.cast
 }
 
+// waitDrive bounds fixture setup independently of the package's deadline.
+// A lost menu click must fail here, not consume the full suite's ten minutes.
+func (c *driveCast) waitDrive(t *testing.T, what string, ready func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for !ready() {
+		if time.Now().After(deadline) {
+			c.con.mu.Lock()
+			span, phase, pending := c.con.statusWebDrive, c.con.wcast.phase, c.con.drivePending != nil
+			c.con.mu.Unlock()
+			c.con.pnotes.mu.Lock()
+			menu, source, control := c.con.pnotes.menuOpen, c.con.pnotes.source, c.con.pnotes.drive.control
+			c.con.pnotes.mu.Unlock()
+			t.Fatalf("waiting for %s: span=%+v phase=%v pending=%v menu=%v source=%v control=%+v row=%q", what, span, phase, pending, menu, source, control, c.lastRow())
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
+}
+func awaitDrive(t *testing.T, what string, done <-chan struct{}) {
+	t.Helper()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatalf("waiting for %s", what)
+	}
+}
+
+// Read the hit target only once its current control projection has committed.
+// Sampling lastRow separately can pair a new visible row with an old hit span.
 func (c *driveCast) span(t *testing.T, text string) ColumnSpan {
 	t.Helper()
 	var span ColumnSpan
-	waitFor(t, "the drive span "+text, func() bool {
+	c.waitDrive(t, "committed drive target "+text, func() bool {
+		want := c.control()
+		c.con.pnotes.mu.Lock()
+		current := c.con.pnotes.drive.control.Equal(want)
+		c.con.pnotes.mu.Unlock()
+		if !current {
+			return false
+		}
 		c.con.mu.Lock()
+		defer c.con.mu.Unlock()
+		model := c.con.statusModelLocked()
 		span = c.con.statusWebDrive
-		c.con.mu.Unlock()
-		return span != ColumnSpan{} && strings.Contains(c.lastRow(), text)
+		row := RenderStatusRow(int(c.con.size.Cols), model)
+		return c.con.drivePending == nil && span != (ColumnSpan{}) && span == row.WebDrive && (text == "" || model.WebDrive == text)
 	})
 	return span
 }
@@ -176,20 +214,23 @@ func (c *driveCast) span(t *testing.T, text string) ColumnSpan {
 func (c *driveCast) clickRow(t *testing.T, span ColumnSpan, prefix string, button int) {
 	t.Helper()
 	// Couch has the controller's state (its delivery can lag a change).
-	waitFor(t, "Couch caught up with control", func() bool {
+	c.waitDrive(t, "Couch caught up with control", func() bool {
 		want := c.control() // takes c.mu: never under pnotes.mu, a leaf lock
 		c.con.pnotes.mu.Lock()
 		defer c.con.pnotes.mu.Unlock()
 		return c.con.pnotes.drive.control.Equal(want)
 	})
 	if open, m, _ := c.notesMenu(); !open || !m.Open() {
+		// The caller's span can predate control delivery (a driver's name moves
+		// the asks target). Refresh it after the committed projection catches up.
+		span = c.span(t, "")
 		c.clickStatus(span.Start + 1)
 	}
 	// The menu on screen is the one the mouse hits: wait until the frame
 	// drawn shows the rows delivered (a change redraws it), then click.
 	var m NotesMenu
 	y := -1
-	waitFor(t, "the drive menu drawn with row "+prefix, func() bool {
+	c.waitDrive(t, "the drive menu drawn with row "+prefix, func() bool {
 		c.con.pnotes.mu.Lock()
 		defer c.con.pnotes.mu.Unlock()
 		m = c.con.pnotes.menu
@@ -450,7 +491,7 @@ func TestDriveActionsDoNotBlockTerminal(t *testing.T) {
 				return nil
 			})
 			fmt.Fprint(r.stdin, "z")
-			waitFor(t, "typing while ACK held", func() bool { return bytes.Contains(bytes.Join(r.child.Writes(), nil), []byte("z")) })
+			r.waitDrive(t, "typing while ACK held", func() bool { return bytes.Contains(bytes.Join(r.child.Writes(), nil), []byte("z")) })
 			// Further clicks must not allocate another acknowledged operation.
 			r.con.mu.Lock()
 			pending := r.con.drivePending
@@ -492,17 +533,17 @@ func TestDriveActionStaleCompletion(t *testing.T) {
 			who := r.viewer(t, "Ana")
 			b.armed.Store(true)
 			r.con.startDriveOperation(cast, recording.CtlDeny, recording.Author{ID: who, Name: "Ana"})
-			<-b.entered
+			awaitDrive(t, "writer entered", b.entered)
 			entered, release, finished := make(chan struct{}), make(chan struct{}), make(chan struct{})
 			t.Cleanup(func() { closeDriveBarrier(release) })
 			go func() {
 				r.con.runTerminalCommand(r.con.lifetime, func() error { close(entered); <-release; return nil })
 				close(finished)
 			}()
-			<-entered
+			awaitDrive(t, "terminal barrier entered", entered)
 			// Hold the terminal callback after dispatch settles, then change its owner.
 			close(b.release)
-			waitFor(t, "deny acknowledged", func() bool { return len(cast.Drive().Control().Pending) == 0 })
+			r.waitDrive(t, "deny acknowledged", func() bool { return len(cast.Drive().Control().Pending) == 0 })
 			r.con.mu.Lock()
 			pending := r.con.drivePending
 			r.con.mu.Unlock()
@@ -526,8 +567,8 @@ func TestDriveActionStaleCompletion(t *testing.T) {
 			}
 			r.con.setNotice("newer state")
 			close(release)
-			<-finished
-			waitFor(t, "old worker finished", func() bool { r.con.mu.Lock(); defer r.con.mu.Unlock(); return r.con.drivePending == nil })
+			awaitDrive(t, "terminal barrier finished", finished)
+			r.waitDrive(t, "old worker finished", func() bool { r.con.mu.Lock(); defer r.con.mu.Unlock(); return r.con.drivePending == nil })
 			if strings.Contains(r.notice(), "Said no") {
 				t.Fatal("stale completion published success")
 			}
@@ -552,7 +593,7 @@ func TestDriveActionShutdownJoinsAndRejectsClicks(t *testing.T) {
 	cast := r.cast()
 	b.armed.Store(true)
 	r.con.startDriveOperation(cast, recording.CtlGrant, recording.Author{ID: who})
-	<-b.entered
+	awaitDrive(t, "writer entered", b.entered)
 	r.con.Stop()
 	select {
 	case <-b.canceled:
@@ -578,4 +619,22 @@ func TestDriveActionShutdownJoinsAndRejectsClicks(t *testing.T) {
 	if b.calls.Load() != 1 {
 		t.Fatal("stopped GoTracked dispatched inline")
 	}
+}
+
+// Control ACK precedes the console's delivery and paint. A helper must refresh
+// a coordinate captured before a grant adds the driver's name to the chip.
+func TestDriveMenuClickRefreshesPreGrantCoordinate(t *testing.T) {
+	r := newDriveCast(t)
+	ana := r.viewer(t, "Ana")
+	old := r.span(t, "✋Ana")
+	if err := r.cast().Drive().Grant(ana); err != nil {
+		t.Fatal(err)
+	}
+	r.viewer(t, "Bo")
+	current := r.span(t, "✋Bo")
+	if old.Start == current.Start {
+		t.Fatal("fixture did not move drive target")
+	}
+	r.clickRow(t, old, "Ana is driving", 0)
+	r.waitDrive(t, "revoked through refreshed coordinate", func() bool { return r.control().Driver == nil })
 }
