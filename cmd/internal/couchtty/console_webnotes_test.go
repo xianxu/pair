@@ -1,6 +1,7 @@
 package couchtty
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 	"net/http"
@@ -19,6 +20,13 @@ import (
 type recordedFake struct {
 	*webcast.FakeBrowser
 	w *board.Writer
+}
+
+func (r *recordedFake) ClearAnnotations(ctx context.Context, generation uint64) error {
+	if r.w == nil {
+		return nil
+	}
+	return r.w.ClearAnnotations(ctx, generation)
 }
 
 func (r *recordedFake) Emit(rec recording.Record, doc int) error { return r.w.Emit(rec, doc) }
@@ -69,6 +77,12 @@ func newWebNotesCast(t *testing.T, screen bool) *webNotesCast {
 		return c.link != ""
 	})
 	unlockWebCast(t, r.con)
+	r.con.mu.Lock()
+	cast := r.con.wcast.cast
+	r.con.mu.Unlock()
+	if err := cast.SetCapability(context.Background(), webcast.CapabilityAnnotation, true); err != nil {
+		t.Fatal(err)
+	}
 	return c
 }
 

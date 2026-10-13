@@ -1,6 +1,7 @@
 package couchtty
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -105,6 +106,9 @@ func newDriveCast(t *testing.T) *driveCast {
 	r.open(t)
 	d.Open()
 	c := &driveCast{webcastRig: r, d: d}
+	if err := c.cast().SetCapability(context.Background(), webcast.CapabilityDrive, true); err != nil {
+		t.Fatal(err)
+	}
 	waitFor(t, "link", func() bool {
 		r.con.mu.Lock()
 		defer r.con.mu.Unlock()
