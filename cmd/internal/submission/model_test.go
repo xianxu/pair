@@ -63,3 +63,12 @@ func TestBoxTextUnsupportedClippingIsExplicit(t *testing.T) {
 		t.Fatal("skipped clipping needs explicit truncation")
 	}
 }
+
+func TestReadingGuidePrivacyContract(t *testing.T) {
+	guide := ReadingGuide("/local/recording")
+	for _, want := range []string{"privacy", "private", "shareable", "summarize", "box text", "repository", "asset policy", "page URL", "element", "classes", "request", "crop shows", "local evidence", "may expire", "operator", "never upload"} {
+		if !strings.Contains(guide, want) {
+			t.Errorf("guide missing %q", want)
+		}
+	}
+}

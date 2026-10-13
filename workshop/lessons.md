@@ -1561,3 +1561,10 @@ proof; record the surprising case so the next change starts from evidence.
   Carry request-creation generation across the browser/network boundary and test
   delayed-before-ingress payloads as well as already-queued writes. Audit sibling
   mutation routes (request, release and input) for the same temporal gap.
+- **A plan names verification functions and strategies, not a prose copy of test cases (#526 plan-quality).** For each risky function, name the adversarial input class and mechanical guard. Retention claims must distinguish actual operator deletion and capacity refusal from staging cleanup; a staging remover is not an automatic retained-evidence sweeper.
+
+- **A new production Go file must enter the exhaustive source inventory (#526).** Register its artifact ownership in `cmd/internal/artifactpath/manifest.go` alongside the package's existing sources, then run `TestProductionArtifactReferencesAreExactlyClassified`; targeted package tests alone do not exercise this repository-wide invariant.
+
+- Privacy/permission JSON must validate exact schema keys before Go struct decoding: DisallowUnknownFields still accepts case-folded aliases, including Unicode. Test conflicting aliases at each envelope and nested evidence boundary.
+
+- When fixing permission-decoding ambiguity, enumerate root manifests as well as nested policy/rule codecs. A strict nested decoder cannot defend permissively decoded top-level permission fields; exercise store reload, not only standalone policy parsing.

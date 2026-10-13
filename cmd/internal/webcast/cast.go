@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	core "github.com/xianxu/pair/cmd/internal/submission"
 	"os"
 	"path/filepath"
 	"time"
@@ -23,6 +24,9 @@ import (
 
 // CastConfig starts a Cast.
 type CastConfig struct {
+	// ReadOriginPolicy snapshots operator-owned sharing rules per submission.
+	// A notice reports a private fallback without refusing the submission.
+	ReadOriginPolicy func() (core.OriginPolicy, string)
 	// Launch starts the cast Chrome (real, or a FakeBrowser in tests),
 	// recording it as rec says when rec is non-nil. A FakeBrowser records
 	// nothing.
@@ -114,9 +118,10 @@ type Cast struct {
 	drive drive.Controller
 	// recDir is the recording's directory ("" when not recording); check
 	// and logf run the fidelity check on it once the cast has ended.
-	recDir string
-	check  func(context.Context, string) (string, error)
-	logf   func(string, ...any)
+	readOriginPolicy func() (core.OriginPolicy, string)
+	recDir           string
+	check            func(context.Context, string) (string, error)
+	logf             func(string, ...any)
 	// server and token: for tests. pointerToken is the pointer link's
 	// (pair#506), "" when the cast takes no notes; driveToken is the drive
 	// link's (#467), "" when the cast can't be driven.
@@ -203,7 +208,7 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 	}
 	mountCtx, cancel := context.WithCancel(context.Background())
 	c := &Cast{browser: b, pub: newPublisher(Update{State: b.State()}), cancel: cancel, done: make(chan struct{}), liveSink: liveSink,
-		board: bd, recDir: recDir, check: cfg.Check, logf: cfg.Logf}
+		board: bd, readOriginPolicy: cfg.ReadOriginPolicy, recDir: recDir, check: cfg.Check, logf: cfg.Logf}
 	if d, ok := b.(Driven); ok && ro != nil {
 		grace := cfg.DriveGrace
 		if grace <= 0 {
