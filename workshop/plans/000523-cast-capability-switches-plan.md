@@ -449,3 +449,26 @@ modified board/board.go; the concept table and task paths now name those files.
 BR-4: README now documents default-OFF admission and distinguishes persistent
 link permissions from capability availability; M2's visible switches remain
 explicitly pending until implemented.
+
+### 2026-10-13 00:34 PDT — Landed overlay seam integration
+
+#494 landed in PR303 (889fafd05); #523 lands second and owns its wiring.
+Keep the approved held-draft behavior: an unsent prepared draft remains usable
+on a fresh save after re-enable in the same document. Capture authority at
+binding ingress, then recheck the captured permit at prepare completion and
+ordered mutation dispatch. This fences already queued work across Off/On without
+invalidating the operator's unsent text or requiring a replacement draft.
+Status/cancel remain available for reconciliation while Off.
+
+Recorder operator processing must not acquire Board.command: disable holds
+that serialization lock while awaiting its ordered recorder clear. Operator
+admission therefore uses the leaf Board.mu check and recorder ordering for its
+final write, while viewer mutations retain command serialization.
+
+New isolated contexts construct annotation UI disabled. The injected script's
+initial hello may precede DOMContentLoaded and hook installation; report readiness
+again after mount so the existing refresh path applies current capability to
+that exact context. Missing hooks do not count as successful delivery. Permission
+updates must not reset pen mode on unrelated view refreshes, and delayed older
+permission must not overwrite a newer one. Scripted-context and headless tests
+cover readiness, replacement, authority changes and held-draft restoration.
