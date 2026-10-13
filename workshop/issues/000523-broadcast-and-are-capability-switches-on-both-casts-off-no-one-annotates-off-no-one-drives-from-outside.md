@@ -91,6 +91,14 @@ Durable plan: [000523-cast-capability-switches-plan.md](../plans/000523-cast-cap
 
 ## Log
 
+### 2026-10-13 — Final verification before M2 review
+
+- Fresh make test passed from pair:7 after merging current main and fixing the
+  test admission barrier (/tmp/pair-523-final-suite-fixed.log, exit 0). Earlier
+  complete headless Live suite and webcast race packages passed; UI follow-ups
+  have full couchtty and targeted race coverage. Operator smoke and final look
+  passed. pair:0 restored to main with sdlc move :7; running Couch untouched.
+
 ### 2026-10-13 — Final operator acceptance and test-fixture correction
 
 - Final display look PASSED at 1fb95c261; TL authorizes close/land and restoring
