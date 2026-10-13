@@ -164,6 +164,19 @@ func TestDriveRealCast(t *testing.T) {
 	v.call(t, v.session, "Input.dispatchMouseEvent", map[string]any{"type": "mouseWheel", "x": mid[0], "y": mid[1], "deltaX": 0, "deltaY": 400}, nil)
 	var scrolled string
 	eventually(t, "the cast tab scrolled", func() bool { h.eval(t, `String(window.scrollY)`, &scrolled); return scrolled != "0" && scrolled != "" })
+	// And again once the page has scrolled (the operator's failing case,
+	// pair#505): the wheel's hit test is at page px, past the scroll.
+	time.Sleep(500 * time.Millisecond) // the viewer has the first scroll
+	first := scrolled
+	mid = clientOf(t, v, 400, 500)
+	v.call(t, v.session, "Input.dispatchMouseEvent", map[string]any{"type": "mouseWheel", "x": mid[0], "y": mid[1], "deltaX": 0, "deltaY": 400}, nil)
+	eventually(t, "the cast tab scrolled again", func() bool {
+		var y, y0 float64
+		h.eval(t, `String(window.scrollY)`, &scrolled)
+		fmt.Sscan(scrolled, &y)
+		fmt.Sscan(first, &y0)
+		return y > y0
+	})
 
 	// A click on a link in view follows it.
 	time.Sleep(500 * time.Millisecond) // the viewer has the scroll

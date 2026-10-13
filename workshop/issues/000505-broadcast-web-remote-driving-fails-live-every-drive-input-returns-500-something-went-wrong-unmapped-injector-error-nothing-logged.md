@@ -73,3 +73,8 @@ middle click, accelerators, clipboard, pickers, downloads, new windows). A windo
 - The operator's 500 itself isn't reproduced headless: bug 1 answers 409 "The page changed", not 500. The live
   500 needs an unmapped error the windowed Chrome produces; with this change it is either mapped (CDP input
   failure → 502, busy → 503) or logged with its cause on Couch's notice line. Asked the TL for one windowed run.
+- **Operator data point (TL, #501 build, before these fixes):** everything worked except scrolling. That is bug 1:
+  the first wheel from the top hit-tests correctly (scroll 0), every wheel after the page has scrolled misses.
+  TestDriveRealCast now wheels from the top AND again after the page has scrolled (asserting it scrolls further);
+  with the scroll-subtracting hit test restored, the second wheel times out, matching the operator. The operator
+  re-checks scrolling first when this build is staged.
