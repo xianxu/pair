@@ -148,8 +148,8 @@ func TestMessageCLIPre540SupervisorCompatibility(t *testing.T) {
 	if code := runMessageCLIWithCall(inv, messageRuntime(), &out, &stderr, call); code != 1 || out.Len() != 0 {
 		t.Fatalf("notify: exit=%d stdout=%s stderr=%s", code, &out, &stderr)
 	}
-	if !strings.Contains(stderr.String(), "invalid-request") {
-		t.Fatalf("notify did not report legacy refusal: %s", &stderr)
+	if !strings.Contains(stderr.String(), "Couch is older than this CLI") || !strings.Contains(stderr.String(), "restart Couch") {
+		t.Fatalf("notify lacks version recovery: %s", &stderr)
 	}
 	if requests.Load() != 6 {
 		t.Fatalf("notify repeated a write: %d requests", requests.Load())
