@@ -16,6 +16,9 @@ type DriveObservation struct {
 	Instance string
 	Sequence uint64
 	Idle     bool
+	// Recoverable positively identifies a known composer without an active turn,
+	// picker or buffered input; only recovery-only keys may use it.
+	Recoverable bool
 }
 
 func (o DriveObservation) Validate() error {

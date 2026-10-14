@@ -84,3 +84,31 @@ func TestDriveEndpointStartOnceAndReadStatus(t *testing.T) {
 		t.Fatalf("started %d times", starts.Load())
 	}
 }
+
+func TestDriveEndpointRecoveryObservationIsTyped(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	dir, err := os.MkdirTemp("/tmp", "drive-recovery-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+	server, err := StartServer(ctx, filepath.Join(dir, "drive.sock"), func(_ context.Context, raw []byte) ([]byte, error) {
+		var request EndpointRequest
+		if err := json.Unmarshal(raw, &request); err != nil {
+			return nil, err
+		}
+		if request.Op != "drive-observe" {
+			t.Fatalf("unexpected operation %s", request.Op)
+		}
+		return json.Marshal(EndpointResponse{DriveObservation: &DriveObservation{Instance: "occupied-composer", Sequence: 7, Recoverable: true}})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer server.Close()
+	observation, err := (RemoteEndpoint{Binding: protocolBinding("pair:1"), socket: server.socket}).ObserveDrive(ctx)
+	if err != nil || observation.Idle || !observation.Recoverable || observation.Sequence != 7 {
+		t.Fatalf("observation %+v %v", observation, err)
+	}
+}

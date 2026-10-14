@@ -260,3 +260,106 @@ func TestModelDriveScopeIntentAndDirtyCheckout(t *testing.T) {
 		t.Fatalf("changed scope %+v", got)
 	}
 }
+
+func TestDriveRecoveryOnlyNeedsPositiveWrapperProof(t *testing.T) {
+	for _, scenario := range []struct {
+		name        string
+		keys        agentdrive.KeySequence
+		recoverable bool
+		accepted    bool
+	}{
+		{"clear occupied", agentdrive.KeySequence{{Kind: agentdrive.KeyClearLine}}, true, true},
+		{"escape and clear", agentdrive.KeySequence{{Kind: agentdrive.KeyEsc}, {Kind: agentdrive.KeyClearLine}, {Kind: agentdrive.KeyEsc}}, true, true},
+		{"missing positive proof", agentdrive.KeySequence{{Kind: agentdrive.KeyClearLine}}, false, false},
+		{"generic enter", agentdrive.KeySequence{{Kind: agentdrive.KeyEnter}}, true, false},
+		{"mixed clear and text", agentdrive.KeySequence{{Kind: agentdrive.KeyClearLine}, {Kind: agentdrive.KeyText, Text: "new input"}}, true, false},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			r, q, hub, worker, e := driveRig(t)
+			e.observation.Idle = false
+			e.observation.Recoverable = scenario.recoverable
+			old := r.s.liveness.Load()
+			next := make(map[string]couchmessage.SlotLiveness)
+			for k, v := range *old {
+				next[k] = v
+			}
+			live := next[worker.Slot]
+			settled := false
+			live.Settled = &settled
+			next[worker.Slot] = live
+			r.s.liveness.Store(&next)
+			req := driveRequest(hub, "recovery-proof", worker.Slot)
+			req.Drive.Keys = scenario.keys
+			response := switchCall(t, r, req)
+			if (response.Code == "accepted") != scenario.accepted {
+				t.Fatalf("response %+v", response)
+			}
+			if !scenario.accepted {
+				if q.count() != 0 {
+					t.Fatal("refused recovery queued work")
+				}
+				return
+			}
+			call, err := q.job(0).prepare(context.Background())
+			if err != nil {
+				t.Fatalf("occupied execution guard: %v", err)
+			}
+			value, err := executeAgentDrive(call)
+			if err != nil || value.(agentdrive.Result).Outcome != agentdrive.OutcomeConfirmed {
+				t.Fatalf("execution %#v %v", value, err)
+			}
+		})
+	}
+}
+func TestDriveQueuedRecoveryRechecksProofAndIdentity(t *testing.T) {
+	for _, fault := range []string{"proof lost", "sequence changed", "target session changed", "caller session changed"} {
+		t.Run(fault, func(t *testing.T) {
+			r, q, hub, worker, e := driveRig(t)
+			e.observation.Idle = false
+			e.observation.Recoverable = true
+			req := driveRequest(hub, "queued-recovery", worker.Slot)
+			req.Drive.Keys = agentdrive.KeySequence{{Kind: agentdrive.KeyClearLine}}
+			if got := switchCall(t, r, req); got.Code != "accepted" {
+				t.Fatalf("admission %+v", got)
+			}
+			switch fault {
+			case "proof lost":
+				e.observation.Recoverable = false
+			case "sequence changed":
+				e.observation.Sequence++
+			default:
+				old := r.s.liveness.Load()
+				next := make(map[string]couchmessage.SlotLiveness)
+				for k, v := range *old {
+					next[k] = v
+				}
+				key := worker.Slot
+				if fault == "caller session changed" {
+					key = hub.Slot
+				}
+				v := next[key]
+				v.Session++
+				next[key] = v
+				r.s.liveness.Store(&next)
+			}
+			if _, err := q.job(0).prepare(context.Background()); err == nil {
+				t.Fatal("queued recovery accepted stale proof")
+			}
+			if starts, _ := e.counts(); starts != 0 {
+				t.Fatal("stale recovery wrote input")
+			}
+		})
+	}
+}
+
+func TestModelDriveDoesNotUseRecoveryProof(t *testing.T) {
+	r, q, hub, worker, e := driveRig(t)
+	e.observation.Idle = false
+	e.observation.Recoverable = true
+	req := callerRequest(hub, "set-model")
+	req.ID, req.Target, req.Confirmed = "occupied-model", worker.Slot, true
+	req.Drive = &agentdrive.Request{Model: &agentdrive.ModelRequest{Model: "gpt-6.1-sol"}}
+	if response := switchCall(t, r, req); response.Code == "accepted" || q.count() != 0 {
+		t.Fatalf("model used recovery-only proof: %+v", response)
+	}
+}

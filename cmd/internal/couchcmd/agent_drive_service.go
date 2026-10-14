@@ -83,8 +83,9 @@ func (s *messageService) handleAgentDrive(ctx context.Context, r couchmessage.Re
 		return refuse(errors.New("caller wrapper unavailable"))
 	}
 	callerToken := switchSourceToken(callerLive)
+	recoveryOnly := r.Drive.RecoveryOnly()
 	targetLive, ok := s.LivenessForThread(target.Scope, target.Tag)
-	if !ok || targetLive.Binding != target || targetLive.Settled == nil || !*targetLive.Settled {
+	if !ok || targetLive.Binding != target || !recoveryOnly && (targetLive.Settled == nil || !*targetLive.Settled) {
 		return refuse(errors.New("wait until the agent composer is empty and its turn finishes"))
 	}
 	targetToken := switchSourceToken(targetLive)
@@ -92,7 +93,10 @@ func (s *messageService) handleAgentDrive(ctx context.Context, r couchmessage.Re
 	if err != nil {
 		return refuse(fmt.Errorf("observe agent drive: %w; relaunch the slot on the new build if unsupported", err))
 	}
-	if !observation.Idle || observation.Instance == "" {
+	admissible := func(observation couchmessage.DriveObservation) bool {
+		return observation.Idle || recoveryOnly && observation.Recoverable
+	}
+	if !admissible(observation) || observation.Instance == "" {
 		return refuse(errors.New("wait until the agent composer is empty and its turn finishes"))
 	}
 	callerCurrent := func(ctx context.Context) error {
@@ -123,7 +127,7 @@ func (s *messageService) handleAgentDrive(ctx context.Context, r couchmessage.Re
 			return err
 		}
 		latest, ok := s.LivenessForThread(target.Scope, target.Tag)
-		if !ok || switchSourceToken(latest) != targetToken || !s.isConnected(target) || latest.Settled == nil || !*latest.Settled {
+		if !ok || switchSourceToken(latest) != targetToken || !s.isConnected(target) || !recoveryOnly && (latest.Settled == nil || !*latest.Settled) {
 			return errors.New("target wrapper changed or is busy; wait until the agent composer is empty and its turn finishes")
 		}
 		if _, err := s.authority.current(ctx, target); err != nil {
@@ -133,7 +137,7 @@ func (s *messageService) handleAgentDrive(ctx context.Context, r couchmessage.Re
 		if err != nil {
 			return err
 		}
-		if !fresh.Idle || fresh.Instance != observation.Instance || fresh.Sequence != observation.Sequence {
+		if !admissible(fresh) || fresh.Instance != observation.Instance || fresh.Sequence != observation.Sequence {
 			return errors.New("target composer changed; inspect with couch --peek before retrying")
 		}
 		return ctx.Err()
