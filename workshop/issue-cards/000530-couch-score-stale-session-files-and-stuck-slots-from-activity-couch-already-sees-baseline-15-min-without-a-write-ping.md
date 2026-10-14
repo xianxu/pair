@@ -1,6 +1,6 @@
 ---
 id: 000530
-status: working
+status: codecomplete
 created: 2026-10-13
 updated: 2026-10-13
 estimate_hours:
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
+actual_hours: 2.41
+tracker:
+    version: 1
+    completion:
+        token: close-1ea4cce3d115
+        repository: github.com/xianxu/pair
+        reviewed_head: 2b0b19c37c73169826ee96eaefa64ace3f681c30
+        evidence_commit: b4305fc273bab635996c6e6fcbd6e7c5f669d61f
 ---
 
 # couch: score stale session files and stuck slots from activity Couch already sees (baseline: 15 min without a write → ping)
