@@ -49,6 +49,7 @@ Unverified hypothesis: the survivor is `sh -c '(trap "" HUP; exec sleep 30) & ex
 - 2026-10-12: unclaimed: filed for ops:0 as an unassigned follow-up; nothing pending
 
 ### 2026-10-13 — resolved by #542
+- 2026-10-13: closed — Administrative closure only: #511 is resolved by reviewed and landed #542, PR #321, merge eb63b610aade75c040337047459669bf9d8359b9 (confirmed ancestor of this branch). Its FIFO survivor readiness fixture passed 50 runs under natural load 67 and 50 at load 7 to 6.7, focused race checks and full make -k test passed, independent review SHIP/no findings, CI 4 green. This branch only records the pointer; no code changed. Development effort is already accounted in #542, so no separate actual hours apply.; review verdict: SHIP
 
 - Implemented and landed in [PR #321](https://github.com/xianxu/pair/pull/321), merge `eb63b610aade75c040337047459669bf9d8359b9` (verified with git rev-parse). The FIFO handshake in `TestRealRunnersExitedPrecedesTheGroup` proves that the survivor ignores SIGHUP before the leader exits; the parent exit code confirms readiness succeeded. No timing threshold changed.
 - The old fixture failed 2 of 5 PTY repetitions with the old liveness behavior too; the raw group probe returned ESRCH (/tmp/pair542-descendant-baseline.log). The ready-before-exit fixture passed 50 repetitions at natural parallel load 67.32, and 50 at load 7.19 → 6.70 (2.393s, /tmp/pair542-survivor-idle50.log). The combined focused tests passed 50 times at load 35 → 34, and race checks passed.
