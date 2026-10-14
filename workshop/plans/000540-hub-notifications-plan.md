@@ -186,12 +186,12 @@ cmd/internal/artifactpath/manifest.go; issue and this plan.
 - [x] Document swallowed slot notifications/counts, hub-only command and examples,
   no-retry uncertainty, preserved BEL, and light cost in help/embedded skill.
   Update help/cost contract tests. TL supplies ariadne#350's prose.
-- [ ] Run `go test ./cmd/internal/notifyosc ./cmd/internal/terminal ./cmd/internal/couchmessage ./cmd/internal/couchtty ./cmd/internal/couchcmd ./cmd/internal/artifactpath -count=1`.
-- [ ] Run focused race checks on notify service/presenter/console fixtures and
+- [x] Run `go test ./cmd/internal/notifyosc ./cmd/internal/terminal ./cmd/internal/couchmessage ./cmd/internal/couchtty ./cmd/internal/couchcmd ./cmd/internal/artifactpath -count=1` (covered by package runs and full suite).
+- [x] Run focused race checks on notify service/presenter/console fixtures and
   headless `TestNotificationPTYConformance` and `TestNativeConsoleWrapperZellij`
   using their documented opt-in environment after reading each fixture guard.
   No host desktop notifications from tests; use captured fake host output.
-- [ ] Run full queued `make -k test` to completion on the stable final source
+- [x] Run full queued `make -k test` to completion on the stable final source
   tree; retain all failures, distinguish known flakes with evidence, rerun only
   affected checks when warranted. Do not bypass machine queue.
 - [ ] Commit evidence and docs. Send TL real `git rev-parse HEAD` and smoke:
@@ -219,3 +219,16 @@ cmd/internal/artifactpath/manifest.go; issue and this plan.
   outcomes explicitly covered above; no resend on lost acknowledgment.
 - ARCH-FUNERAL: counters die with panes; existing bounded trace owns retention;
   request data dies on return; no new durable artifact or background process.
+
+## Revisions
+
+### 2026-10-13 — full-suite integration consumer follow-up
+
+The completed full suite found an old wrapper-to-Couch integration expectation
+in wrapcmd/codex_working_test.go, outside the consumer package's test inventory.
+It waited for notification text that this design intentionally suppresses and
+exhausted the package deadline. Update that test to prove suppression after a
+positive processing/render barrier, then rerun the regression and full wrapcmd
+package so the interrupted later tests also complete. All other full-suite
+packages and prerequisites passed. This is test coverage within the approved
+scope; production semantics and smoke gates are unchanged.
