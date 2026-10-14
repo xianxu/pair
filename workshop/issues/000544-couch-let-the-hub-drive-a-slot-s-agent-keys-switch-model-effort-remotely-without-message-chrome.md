@@ -75,6 +75,8 @@ Durable implementation plan: [agent keys and model selection](../plans/000544-ag
 
 - 2026-10-14 — resumed after #553 landed, authorized by verified TL receipt fa4556db-8b96-499c-8856-9fe7a23e4944. Checkpoint aa6ef7d2 restored and origin/main merged cleanly at 006843476c28241b713bb2b47c843186f7e8e312. Pair:0 remains reserved for #528; no staging. Focused agentdrive/couchmessage/couchcmd drive, key and wait tests PASS (0.190s/0.156s/1.125s). Wrapper recovery integration and real Run/socket/native input-protocol conformance proceed as bounded independent tasks. Reference retrieval RED: README, atlas and embedded skill categorically refused occupied-composer recovery; documentation updated to describe only strict ESC/clear-line recovery, preserving empty-composer guards for all other requests and the same absolute deadline.
 
+- 2026-10-14 — wrapper recovery committed at 0fdc58f3b: typed Recoverable proof for occupied Claude/Codex composers, strict recovery-only takeover of awaiting-empty leases, exact single-line /model timeout proof and current-screen ticks. Initial tests reproduced occupied refusal, absent timeout cleanup and a subsequent ESC escaping after recovery proof changed; all are GREEN. Split display-only screen snapshots from peer-mutex-owned mailbox/lease projection to preserve concurrent reader safety. Root focused races PASS: agentdrive1.306s, wrapcmd9.450s, couchmessage1.214s, couchcmd2.356s; inventory PASS9.034s. Submit protocol remains under actual Run/socket/native-child investigation; no repaired-build or stage claim yet.
+
 ## Revisions
 
 - 2026-10-14 02:15 — add (TL, from the first fleet-wide remote switch): (1) `--set-model` takes an explicit scope:
