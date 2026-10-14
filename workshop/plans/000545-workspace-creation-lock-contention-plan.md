@@ -55,3 +55,14 @@ There is no task queue, reservation, renumbering, lock stealing, or background r
 ## Scope and principles
 
 The descriptor-open sweep found creation already uses O_CLOEXEC. Go os.OpenFile opens are close-on-exec too. Raw missing flags in diagnosticlog.openRegular and notifytransport.lockNamespace are independent descriptor hygiene; both lock paths explicitly unlock. Report them to TL rather than broaden this ownership fix. No slot attach/resume state or UI changes. ARCH-DRY keeps metadata in the existing inode; ARCH-PURE isolates retry decisions; ARCH-MOCK uses real kernel conformance; ARCH-CONSTRAINTS bounds all retry and fixture lifetimes; ARCH-STATE specifies owner turnover and errors; ARCH-FUNERAL creates no growing record; ARCH-PURPOSE requires forced and natural-load evidence. No new abstract helper process is introduced in production.
+
+## Revisions
+
+### 2026-10-14 — fixture cleanup and retry representation
+
+Compile the tiny native fixture per invocation in t.TempDir instead of sharing
+a process-global temporary executable: this gives it an existing explicit cleanup
+owner without editing the package TestMain. The extra compile cost is small and
+reported separately from acquisition. Cancellation kills the helper process group
+so a child retaining stdout cannot strand readiness. creationLeaseRetry is a pure
+function of elapsed time, attempt count and hint rather than a mutable value.

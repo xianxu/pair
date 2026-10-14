@@ -139,3 +139,18 @@ locks explicitly unlock. Reported separately; no unrelated changes planned.
 History confirms #436's 100ms was a measured implementation choice reduced from
 500ms because intentional contention paid the full budget, not a requirement
 for instantaneous refusal. The new plan preserves fast active-owner refusal.
+
+### 2026-10-14 — implementation regression evidence
+
+TL approved bdaf65c4 in receipt cc82ffc3-c4f5-4c1c-9e9a-5b2fb14f5340;
+change-code passed (quick inferred). The real paused-fork regression failed
+against unchanged production (50/50 failures, /tmp/pair545-forced-before-50.log),
+and the first fixed run passed 50/50 (/tmp/pair545-forced-fixed-50.log).
+
+A broader targeted run exposed a flaw in the old dup fixture: syscall.Dup made
+a non-CLOEXEC duplicate, so unrelated execs could inherit it beyond the timer's
+close. The test now duplicates atomically with F_DUPFD_CLOEXEC to match the real
+lease; this is distinct from the intentional pre-exec fork window. One failure
+in /tmp/pair545-targeted-final.log led to this fixture correction. No production
+exclusion failure was observed. Follow-up descriptor hygiene issue filed #551;
+publishing its body needs a main merge because it was created after this branch.
