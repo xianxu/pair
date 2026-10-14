@@ -1020,6 +1020,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/artifactcollision_fake.go",
 	"cmd/internal/couchcore/panebirth.go",
 	"cmd/internal/couchcore/clock.go",
+	"cmd/internal/couchcore/hub_claim.go",
+	"cmd/internal/couchcore/hub_ownership.go",
 	"cmd/internal/couchcore/couch.go",
 	"cmd/internal/couchcore/detach.go",
 	"cmd/internal/couchcore/detachedsessions.go",

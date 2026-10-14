@@ -98,3 +98,5 @@ item: api-integration design=0.20 impl=0.60
 design-buffer: 0.15
 total: 4.19
 ```
+
+- 2026-10-14 implementation checkpoint: change-code admitted full flow after CLEAN plan review and INFO estimate review (authority/integration allowances may be low). Added pure claim parser, immutable ownership projection/revision transitions and durable edit planner. Initial TestHub run failed on absent APIs; focused suite now passes (0.220s). Additional RED found already-satisfied exact claims moving past comments; GREEN preserves their position. Batch authority, independent runtime/persistence, copy isolation and restart fallback covered. Focused race verification running. #548 details published and claim released.
