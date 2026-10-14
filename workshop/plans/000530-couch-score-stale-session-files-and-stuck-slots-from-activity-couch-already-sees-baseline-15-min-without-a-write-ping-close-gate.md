@@ -59,6 +59,31 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - "n": 3
+      timestamp: "2026-10-13T22:22:20-07:00"
+      dispatched: "2026-10-13T22:19:03-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: supervision.go:124 retains provenance while delivery accounting remains active. TestSupervisionReviewLateDeliveryKeepsGeneratedProvenance passes at head; removing that guard fails startup, rules-nudge, and ordinary-wait cases with unwanted ledger obligations. The genuine-message control remains recorded.
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: Prior disposition retained. Terminal-prompt and queued-cancellation regressions pass; reconciliation produces one actionable notice without regenerating the prompt.
+          round: 3
+        - id: BR-3
+          disposition: addressed
+          note: Prior disposition retained. Failed attempts no longer occupy a capped history; the regression exceeding MaxReceipts still tracks a subsequent report and confirmed reply.
+          round: 3
+        - id: BR-4
+          disposition: addressed
+          note: Prior disposition retained. The issue's Done when explicitly assigns file pings to parley.nvim#321 and logging to pair#543, consistent with the revised plan and implemented rules-only scope.
+          round: 3
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 2b0b19c37c73169826ee96eaefa64ace3f681c30
+      blocked: false
 ---
 
 # Gate ledger — pair#530 (boundary-review)
@@ -88,6 +113,15 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-3 — addressed — Failed attempts no longer consume a separate capped observation history. The regression exceeding MaxReceipts and then sending a successful report/reply passes at head and fails against the pre-fix implementation.
 - BR-4 — addressed — The pinned Done when diff now requires rules, startup prompts, exclusions, and outcome coverage, explicitly assigning file pings to parley.nvim#321 and logging to pair#543. This matches the approved rules-only revision and implemented scope.
 
+## Round 3 — 2026-10-13T22:22:20-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — supervision.go:124 retains provenance while delivery accounting remains active. TestSupervisionReviewLateDeliveryKeepsGeneratedProvenance passes at head; removing that guard fails startup, rules-nudge, and ordinary-wait cases with unwanted ledger obligations. The genuine-message control remains recorded.
+- BR-2 — addressed — Prior disposition retained. Terminal-prompt and queued-cancellation regressions pass; reconciliation produces one actionable notice without regenerating the prompt.
+- BR-3 — addressed — Prior disposition retained. Failed attempts no longer occupy a capped history; the regression exceeding MaxReceipts still tracks a subsequent report and confirmed reply.
+- BR-4 — addressed — Prior disposition retained. The issue's Done when explicitly assigns file pings to parley.nvim#321 and logging to pair#543, consistent with the revised plan and implemented rules-only scope.
+
 ## Open findings
 
-- **BR-1** [Critical] `generated-message-accounting` Generated wait notices still create session-file obligations
+(none — every finding has been disposed)

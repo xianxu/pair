@@ -15,7 +15,7 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "971ba722", done: "a8801e87"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # couch: score stale session files and stuck slots from activity Couch already sees (baseline: 15 min without a write → ping)
@@ -60,6 +60,8 @@ Durable plan: [supervision baseline](../plans/000530-supervision-baseline-plan.m
 ## Log
 
 ### 2026-10-13
+- 2026-10-13: closed — Full make -k test passed exit 0 at fa5e9b4ae7e37a497c089e12d34cbe5806821fb2 (/tmp/pair530-full-suite-lifetime.log), all targets, no baseline exclusions. Focused race tests passed. Controlled sender-disconnect/late-callback tests fail before the fix for startup prompts, rules nudges and ordinary waiting notices; now pass, preserve genuine-message obligations and release completed metadata. Broker snapshot tests prove terminal receipt versus active delivery distinction. Private-socket/clock acceptance approved by TL, no stage. File pings and fact logging remain parley.nvim#321 and pair#543.; review verdict: SHIP
+- 2026-10-13: flow upgraded quick → full — 462 added lines in code files (limit 100); an earlier round of this close already ran the full review
 
 - Claimed in pair:7; start-plan completed after its requested weave refresh.
 - Read-only exploration found the ping in Parley's existing session_sync.lua

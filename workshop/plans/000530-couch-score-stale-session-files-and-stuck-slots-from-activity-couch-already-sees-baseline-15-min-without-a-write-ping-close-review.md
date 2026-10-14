@@ -204,3 +204,81 @@ dispose:
     note: |
       The pinned Done when diff now requires rules, startup prompts, exclusions, and outcome coverage, explicitly assigning file pings to parley.nvim#321 and logging to pair#543. This matches the approved rules-only revision and implemented scope.
 ```
+
+---
+
+## Re-review — 2026-10-13T22:22:20-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 530 — couch: score stale session files and stuck slots from activity Couch already sees (baseline: 15 min without a write → ping) |
+| repo | pair |
+| issue file | workshop/issues/000530-couch-score-stale-session-files-and-stuck-slots-from-activity-couch-already-sees-baseline-15-min-without-a-write-ping.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 386e0b48e13a57bf37f4a0584291015aab630c75..2b0b19c37c73169826ee96eaefa64ace3f681c30 |
+| command | sdlc close --issue 530 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-13T22:22:20-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned implementation matches the revised rules-only scope. BR-1 is addressed with verified red/green regression evidence across all three generated-message paths. No new blocking findings emerged. The reviewed repository remains unchanged, and the disposable test copy was removed.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      supervision.go:124 retains provenance while delivery accounting remains active. TestSupervisionReviewLateDeliveryKeepsGeneratedProvenance passes at head; removing that guard fails startup, rules-nudge, and ordinary-wait cases with unwanted ledger obligations. The genuine-message control remains recorded.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Prior disposition retained. Terminal-prompt and queued-cancellation regressions pass; reconciliation produces one actionable notice without regenerating the prompt.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Prior disposition retained. Failed attempts no longer occupy a capped history; the regression exceeding MaxReceipts still tracks a subsequent report and confirmed reply.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Prior disposition retained. The issue's Done when explicitly assigns file pings to parley.nvim#321 and logging to pair#543, consistent with the revised plan and implemented rules-only scope.
+```
+
+1. **Strengths**
+   - Generated-message provenance survives terminal receipts until endpoint accounting completes (`supervision.go:121`; `broker.go:395`).
+   - Controlled late-return tests exercise cancellation ordering and verify both exclusion and eventual metadata cleanup (`supervision_review_test.go:175`).
+   - Pure rules cover thresholds, completion after returning to main, stale outcomes, suppression, and once-per-address startup attempts.
+   - README, atlas, embedded skill, and artifact inventory document the new surface.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+   - Passed full `couchcmd`, `couchmessage`, and `sessionsync` package tests.
+   - Passed focused supervision tests with `-race`.
+   - Verified BR-1 fails without the lifetime guard.
+   - Initial couchcmd compilation required the repository’s generated runtime assets; generated these only in the disposable copy.
+   - Full repository `make -k test` and live smoke were not independently rerun.
+
+6. **Architectural notes**
+   - **ARCH-DRY — pass:** Reuses normal broker admission and the existing watcher.
+   - **ARCH-PURE — pass:** Rule transitions remain free of IO; the coordinator performs effects.
+   - **ARCH-PURPOSE — pass:** Revised acceptance is implemented; all three generated-message paths use provenance accounting.
+   - **ARCH-MOCK — pass:** Integration tests use stateful endpoints and private sockets through production seams.
+   - **ARCH-CONSTRAINTS — pass:** Reuses broker capacity and cached observations without another worker or retained report history.
+   - **ARCH-SECURE — pass:** Authenticated observations and structural provenance prevent matching prose from acquiring an exemption.
+   - **ARCH-ORDER — pass:** Controlled tests reproduce terminal-receipt/late-callback ordering; production preserves uncertainty until accounting completes.
+   - **ARCH-FUNERAL — pass:** Completed metadata is reconciled away; report and attempt state has an explicit supervisor lifetime.
+
+7. **Plan revision recommendations:** None. Existing revisions reconcile the historical concept tables with the final implementation.
