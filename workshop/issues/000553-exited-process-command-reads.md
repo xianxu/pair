@@ -49,6 +49,7 @@ Run the local close review now. Landing remains held until the operator's real d
 ## Log
 
 ### 2026-10-14
+- 2026-10-14: closed — Recorded full suite sdlc-local/suite PASS on ec7a395a609a57d75ba58785f5b762b2671b1bcf (10m53s); full procutil, launcher and diagnosticlog race packages PASS; controlled exit-between-table-and-read and real Darwin zombie regressions GREEN, permission/unknown failures remain fail-closed, identity fences retained; clean pair:0 build remains staged at that hash. TL authorizes local review now; operator detach/restart repro pending and merge/landing held until TL confirms it. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
 
 TL scope approval receipt d4dbaf0a-01d5-4876-a060-9f69f8f2c390 verified; quick flow authorized. #544 checkpointed at aa6ef7d2ea9e6900751a8667d86433fd0bdc426c; pair:0 stage cleared. Discovery: Snapshot preserves per-row procargs failures, launcher treats possible Zellij error rows as hard uncertainty, and diagnostics has a second environment read with the same exit race. Preserve genuine inspection failures; use one error-classification source.
 
