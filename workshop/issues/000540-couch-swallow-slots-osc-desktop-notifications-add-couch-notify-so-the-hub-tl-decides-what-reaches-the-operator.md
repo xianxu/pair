@@ -97,6 +97,15 @@ The operator (2026-10-13):
   machine gate. Implementation and targeted verification are complete; waiting
   for suite execution and TL's staging/smoke instruction.
 
+- Full `make -k test` completed with exit 2 after the weighted queue admitted it.
+  All other packages and prerequisites passed; wrapcmd's old
+  TestCodexWorkingNotificationReachesCouchStatusAndSwitcher still expected
+  swallowed notification text. Its 587.61s wait exhausted the 10-minute package
+  deadline and interrupted later fixture tests. This is a missed test consumer,
+  not an unrelated flake. Correcting the integration expectation, then running
+  the focused regression and full wrapcmd package; full log remains
+  /tmp/pair540-full-suite.log. No production change is indicated by this failure.
+
 ## Revisions
 
 ### 2026-10-13 — proposed design for TL approval

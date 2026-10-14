@@ -1643,3 +1643,7 @@ proof; record the surprising case so the next change starts from evidence.
   does not prove the current wrapper still owns the accepted launch; revalidate
   at effect admission. Exercise lost acknowledgments after a real side effect
   through the socket, not only an error-returning client stub.
+- #540 verification: when changing a consumer's notification policy, search
+  upstream integration tests too. Wrapper-to-Couch tests can encode forwarding
+  expectations outside the consumer package. Prove suppression after a positive
+  processing barrier; never wait for an intentionally absent notification.
