@@ -1085,3 +1085,11 @@ TL 23c5d13c narrows the notice correction: only the bare initial unavailable
 placeholder clears after success; real unavailable-with-error notices remain.
 Supersedes this revision's broader inventory-error clearing intent. Keep
 unrelated borrowed and operation notices; test all three ownership cases.
+
+### 2026-10-14 — show outcome separately from pane attachment
+
+TL 9d117536 adds rendering-only pane state from the existing pass: Continue ·
+attaching… while loading, plain Continue when attached, Continue · pane failed:
+reason (retry) on failure. Keep outcome authoritative and add snapshots for the
+three cases. No new lifecycle state or behavior; queued rows retain Continue
+with a queued pane annotation. Final recorded suite must cover this new head.
