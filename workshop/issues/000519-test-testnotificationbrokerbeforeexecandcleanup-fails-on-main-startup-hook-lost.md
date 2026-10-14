@@ -1,12 +1,20 @@
 ---
 id: 000519
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-12
-updated: 2026-10-12
+updated: 2026-10-13
 estimate_hours:
-card_mirror: 'bc8d192968ba7d50d4923fd1f021df27d48faa3a' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '2e25a680188420fabe3fefdd4e22fbc50bc941ab' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-13T17:55:33-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # test: TestNotificationBrokerBeforeExecAndCleanup fails on main ('startup hook lost')
@@ -25,8 +33,23 @@ Find when it started failing (bisect on main), confirm the cause, and fix the ro
 
 ## Plan
 
-- [ ]
+- [ ] Reproduce with ordered fixtures and locate introduction; compare the cited suite failures.
+- [ ] Drain accepted notification work before broker/terminal shutdown, keeping existing bounds and validation.
+- [ ] Prove the fix with regression red/green, 20 consecutive startup-test passes, affected-package checks and make -k test; file unrelated cancellation evidence.
 
 ## Log
 
 ### 2026-10-12
+
+## Revisions
+
+### 2026-10-13 — TL assigns root-cause work
+
+- Require 20 consecutive passes; inspect the suite-only PTY cancellation and wrap startup-notification reports, folding shared causes into this issue and filing independent failures. Bisect main only if needed to locate the introduction; no timing relaxation.
+
+## Investigation
+
+- Source/history: broker and early-child test were introduced together by d36fef2118df5719b1a96ec9ecce90072494863f (#255 M4). The same EOF return and deferred immediate broker close remain today. Send succeeds once the datagram reaches the kernel; no delivery acknowledgement orders it before child exit. masterPump can select PTY EOF before a queued broker message, and Close can also discard a datagram before the receive goroutine runs. Two pending-work boundaries must drain.
+- /tmp/pair535-make-k.log, /tmp/pair536-make-k.log and /tmp/pair533-full-suite4.log all name the exact same TestNotificationBrokerBeforeExecAndCleanup and banner-only output. The cited wrap startup failure is not a second test.
+- The PTY cancellation failure is independent: it uses couchcore runner/helper process-group liveness, without notification transport or wrapcmd. Its root remains unproved; the existing log lacks group-member evidence. File separately rather than changing its timing here.
+- Current load averages are above 80; honoring this issue's quiet-machine constraint, investigation is read-only so far. No reproduction/stress loop has run.
