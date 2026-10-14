@@ -94,6 +94,20 @@ func TestKeyStepInputBytes(t *testing.T) {
 	}
 }
 
+func TestRecipeDirectionKeysAreInternal(t *testing.T) {
+	for _, tc := range []struct {
+		kind  KeyKind
+		bytes string
+	}{{KeyLeft, "\x1b[D"}, {KeyRight, "\x1b[C"}} {
+		if string((KeyStep{Kind: tc.kind}).InputBytes()) != tc.bytes {
+			t.Fatal("wrong internal direction bytes")
+		}
+		if _, err := ParseKeySequence([]string{string(tc.kind)}); err == nil {
+			t.Fatal("internal direction exposed to caller")
+		}
+	}
+}
+
 func FuzzParseKeySequence(f *testing.F) {
 	for _, seed := range []string{"text:hello\x00enter", "esc\x00enter", "wait:0", "wait:1000", "wait:-1", "wait:99999999999999999999", "text:\xff", "text:a\nb", "text:\x1b", "wait:1000\x00wait:1000\x00wait:1000\x00wait:1000\x00wait:1000\x00wait:1", strings.Join(repeatSpec("enter", 65), "\x00"), "text:" + strings.Repeat("x", 8193)} {
 		f.Add(seed)

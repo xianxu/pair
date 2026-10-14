@@ -123,6 +123,10 @@ func (k KeyStep) InputBytes() []byte {
 		return []byte("\x1b[A")
 	case KeyDown:
 		return []byte("\x1b[B")
+	case KeyLeft:
+		return []byte("\x1b[D")
+	case KeyRight:
+		return []byte("\x1b[C")
 	case KeyEsc:
 		return []byte{'\x1b'}
 	case KeyClearLine:

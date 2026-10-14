@@ -1,0 +1,394 @@
+package agentdrive
+
+import (
+	"fmt"
+	"strings"
+	"time"
+	"unicode/utf8"
+)
+
+type EventKind string
+
+const (
+	EventStart       EventKind = "start"
+	EventScreen      EventKind = "screen"
+	EventWritten     EventKind = "written"
+	EventWriteFailed EventKind = "write-failed"
+	EventCancel      EventKind = "cancel"
+	EventTick        EventKind = "tick"
+)
+
+type DriveEvent struct {
+	Kind   EventKind
+	At     time.Time
+	Screen Screen
+	Error  string
+}
+type EffectKind string
+
+const (
+	EffectWrite   EffectKind = "write"
+	EffectObserve EffectKind = "observe"
+	EffectWait    EffectKind = "wait"
+)
+
+type DriveEffect struct {
+	Kind    EffectKind
+	Key     KeyStep
+	Control bool
+	Delay   time.Duration
+}
+
+// Internal recipe directions are excluded from ParseKeySequence's caller syntax.
+const (
+	KeyLeft  KeyKind = "recipe-left"
+	KeyRight KeyKind = "recipe-right"
+)
+
+type drivePhase uint8
+
+const (
+	phaseNew drivePhase = iota
+	phaseWriting
+	phaseRaw
+	phaseWaiting
+	phaseFinal
+	phaseModel
+	phaseEffort
+	phaseApplied
+	phaseBackout
+	phaseTerminal
+)
+
+type DriveState struct {
+	request                              Request
+	agent                                string
+	deadline                             time.Time
+	phase, after                         drivePhase
+	index, command, navigation, backouts int
+	epoch, writeEpoch                    uint64
+	waitUntil                            time.Time
+	effort                               string
+	evidence                             ScreenEvidence
+	result                               Result
+	priorConfirmations                   map[string]int
+}
+
+func NewDrive(r Request, agent string, deadline time.Time) (DriveState, error) {
+	if err := r.Validate(); err != nil {
+		return DriveState{}, err
+	}
+	if deadline.IsZero() {
+		return DriveState{}, fmt.Errorf("drive needs an absolute deadline")
+	}
+	if r.Model != nil && agent != "codex" && agent != "claude" {
+		return DriveState{}, fmt.Errorf("unsupported model recipe for %q", agent)
+	}
+	if r.Model != nil && agent == "claude" && r.Model.EffectiveScope() == ScopeDefault {
+		return DriveState{}, fmt.Errorf("Claude default scope is not supported by a verified recipe; use session scope")
+	}
+	return cloneDrive(DriveState{request: r, agent: agent, deadline: deadline}), nil
+}
+func cloneDrive(s DriveState) DriveState {
+	s.request.Keys = append(KeySequence(nil), s.request.Keys...)
+	if s.request.Model != nil {
+		m := *s.request.Model
+		s.request.Model = &m
+	}
+	s.evidence.Labels = append([]string(nil), s.evidence.Labels...)
+	s.result.Tail = append([]string(nil), s.result.Tail...)
+	counts := map[string]int{}
+	for key, n := range s.priorConfirmations {
+		counts[key] = n
+	}
+	s.priorConfirmations = counts
+	return s
+}
+func (s DriveState) Terminal() bool { return s.phase == phaseTerminal }
+func (s DriveState) Result() Result {
+	r := s.result
+	r.Tail = append([]string(nil), r.Tail...)
+	return r
+}
+func boundedTail(lines []string) []string {
+	out := []string{}
+	remaining := MaxResultTailBytes
+	for i := len(lines) - 1; i >= 0 && remaining > 0; i-- {
+		line := lines[i]
+		if len(line) >= remaining {
+			line = line[len(line)-(remaining-1):]
+			for !utf8.ValidString(line) && len(line) > 0 {
+				line = line[1:]
+			}
+		}
+		out = append(out, line)
+		remaining -= len(line) + 1
+	}
+	for i, j := 0, len(out)-1; i < j; i, j = i+1, j-1 {
+		out[i], out[j] = out[j], out[i]
+	}
+	return out
+}
+func finish(s DriveState, out Outcome, detail string) (DriveState, []DriveEffect) {
+	s.phase = phaseTerminal
+	s.result.Outcome = out
+	s.result.Detail = detail
+	return s, nil
+}
+func observe(s DriveState) (DriveState, []DriveEffect) {
+	return s, []DriveEffect{{Kind: EffectObserve}}
+}
+func write(s DriveState, k KeyStep, next drivePhase) (DriveState, []DriveEffect) {
+	s.phase = phaseWriting
+	s.after = next
+	s.writeEpoch = s.epoch
+	return s, []DriveEffect{{Kind: EffectWrite, Key: k, Control: s.request.Model != nil}}
+}
+func uncertain(s DriveState) Outcome {
+	if s.result.Step > 0 || s.phase == phaseWriting || s.phase == phaseApplied {
+		return OutcomeUnconfirmed
+	}
+	return OutcomeRefused
+}
+func rawNext(s DriveState, at time.Time) (DriveState, []DriveEffect) {
+	if s.index == len(s.request.Keys) {
+		s.phase = phaseFinal
+		return observe(s)
+	}
+	key := s.request.Keys[s.index]
+	if key.Kind == KeyWait {
+		s.index++
+		s.phase = phaseWaiting
+		s.waitUntil = at.Add(time.Duration(key.WaitMS) * time.Millisecond)
+		return s, []DriveEffect{{Kind: EffectWait, Delay: time.Duration(key.WaitMS) * time.Millisecond}}
+	}
+	return write(s, key, phaseRaw)
+}
+func commandNext(s DriveState) (DriveState, []DriveEffect) {
+	keys := []KeyStep{{Kind: KeyClearLine}, {Kind: KeyText, Text: "/model"}, {Kind: KeySubmit}}
+	if s.command == len(keys) {
+		s.phase = phaseModel
+		return observe(s)
+	}
+	return write(s, keys[s.command], phaseModel)
+}
+func backout(s DriveState, detail string) (DriveState, []DriveEffect) {
+	s.result.Detail = detail
+	if s.backouts >= 2 {
+		return finish(s, OutcomeUnconfirmed, detail+"; prompt recovery unconfirmed")
+	}
+	s.backouts++
+	return write(s, KeyStep{Kind: KeyEsc}, phaseBackout)
+}
+
+// ReduceDrive is the sole transition owner. IO supplies one acknowledgement per
+// emitted write and fresh screen epochs; no admission or effect is retried here.
+func ReduceDrive(input DriveState, event DriveEvent) (DriveState, []DriveEffect) {
+	s := cloneDrive(input)
+	if s.Terminal() {
+		return s, nil
+	}
+	if event.Kind == EventCancel {
+		return finish(s, uncertain(s), "drive canceled; inspect the slot before sending more input")
+	}
+	if !event.At.Before(s.deadline) {
+		return finish(s, uncertain(s), "drive deadline expired; inspect the slot before sending more input")
+	}
+	if event.Kind == EventWriteFailed {
+		return finish(s, OutcomeUnconfirmed, "input outcome unconfirmed: "+event.Error)
+	}
+	if event.Screen.TurnActive {
+		return finish(s, uncertain(s), "agent turn started; input stopped")
+	}
+	switch event.Kind {
+	case EventStart:
+		if s.phase != phaseNew {
+			return s, nil
+		}
+		if !event.Screen.Idle || !event.Screen.Complete {
+			return finish(s, OutcomeRefused, "wait until the agent composer is empty and its turn finishes")
+		}
+		s.epoch = event.Screen.Epoch
+		s.result.Tail = boundedTail(event.Screen.Lines)
+		if !rememberConfirmations(&s, event.Screen.Lines) {
+			return finish(s, OutcomeRefused, "confirmation history exceeds observed-label limit")
+		}
+		if s.request.Model == nil {
+			return rawNext(s, event.At)
+		}
+		return commandNext(s)
+	case EventWritten:
+		if s.phase != phaseWriting {
+			return s, nil
+		}
+		s.result.Step++
+		if event.Screen.Epoch > s.writeEpoch {
+			s.writeEpoch = event.Screen.Epoch
+		}
+		s.phase = s.after
+		if s.request.Model == nil {
+			s.index++
+			return rawNext(s, event.At)
+		}
+		if s.command < 3 {
+			s.command++
+			return commandNext(s)
+		}
+		return observe(s)
+	case EventTick:
+		if s.phase == phaseWaiting && !event.At.Before(s.waitUntil) {
+			return rawNext(s, event.At)
+		}
+		return observe(s)
+	case EventScreen:
+		if event.Screen.Epoch <= s.epoch || !event.Screen.Complete {
+			return observe(s)
+		}
+		s.epoch = event.Screen.Epoch
+		s.result.Tail = boundedTail(event.Screen.Lines)
+		if s.phase != phaseApplied && !(s.phase == phaseWriting && s.after == phaseApplied) {
+			if !rememberConfirmations(&s, event.Screen.Lines) {
+				return finish(s, OutcomeUnconfirmed, "confirmation history exceeds observed-label limit")
+			}
+		}
+		if s.phase == phaseWriting || s.phase == phaseNew || s.phase == phaseWaiting {
+			return s, nil
+		}
+		if s.request.Model == nil {
+			if s.phase == phaseFinal && s.epoch > s.writeEpoch {
+				return finish(s, OutcomeConfirmed, "key bytes and final observation confirmed")
+			}
+			return observe(s)
+		}
+		evidence := ReadModelScreen(s.agent, event.Screen)
+		s.evidence = evidence
+		if s.phase == phaseBackout {
+			if event.Screen.Idle {
+				return finish(s, OutcomeFailed, s.result.Detail+"; back at empty prompt")
+			}
+			if evidence.Phase == ScreenModel || evidence.Phase == ScreenEffort || evidence.Phase == ScreenCombined {
+				return backout(s, s.result.Detail)
+			}
+			return finish(s, OutcomeUnconfirmed, s.result.Detail+"; prompt recovery unconfirmed")
+		}
+		if s.phase == phaseApplied {
+			req := s.request.Model
+			if evidence.Phase == ScreenStatus && evidence.Model == strings.ToLower(req.Model) && evidence.Effort == s.effort && evidence.Scope == req.EffectiveScope() && event.Screen.Idle && s.epoch > s.writeEpoch && evidence.ConfirmationCount > s.priorConfirmations[evidence.Confirmation] {
+				s.result.Model = evidence.Model
+				s.result.Effort = evidence.Effort
+				s.result.Scope = evidence.Scope
+				return finish(s, OutcomeConfirmed, "model, effort and scope confirmed")
+			}
+			return observe(s)
+		}
+		if evidence.Phase == ScreenUnknown {
+			return finish(s, OutcomeUnconfirmed, "unrecognized screen; inspect the slot before sending more input")
+		}
+		if s.navigation >= MaxNavigationSteps {
+			return backout(s, "navigation limit reached")
+		}
+		target := strings.ToLower(s.request.Model.Model)
+		if evidence.Phase == ScreenModel || evidence.Phase == ScreenCombined {
+			if s.phase != phaseModel {
+				return backout(s, "unexpected model picker")
+			}
+			selected, targetIndex := -1, -1
+			for i, label := range evidence.Labels {
+				if label == evidence.Selected {
+					selected = i
+				}
+				if label == target {
+					targetIndex = i
+				}
+			}
+			if targetIndex < 0 {
+				return backout(s, "requested model not among observed choices")
+			}
+			if selected != targetIndex {
+				s.navigation++
+				k := KeyDown
+				if selected > targetIndex {
+					k = KeyUp
+				}
+				return write(s, KeyStep{Kind: k}, phaseModel)
+			}
+			if evidence.Phase == ScreenModel {
+				return write(s, KeyStep{Kind: KeyEnter}, phaseEffort)
+			}
+			s.effort = evidence.Effort
+			if s.request.Model.Effort != "" && canonicalEffort(s.request.Model.Effort) != s.effort {
+				levels := []string{"low", "medium", "high", "xhigh", "max", "ultra"}
+				current, want := -1, -1
+				for i, l := range levels {
+					if l == s.effort {
+						current = i
+					}
+					if l == canonicalEffort(s.request.Model.Effort) {
+						want = i
+					}
+				}
+				if current < 0 || want < 0 {
+					return backout(s, "unsupported observed effort")
+				}
+				s.navigation++
+				k := KeyRight
+				if current > want {
+					k = KeyLeft
+				}
+				return write(s, KeyStep{Kind: k}, phaseModel)
+			}
+			return apply(s)
+		}
+		if evidence.Phase == ScreenEffort {
+			if s.phase != phaseEffort || evidence.Model != target {
+				return backout(s, "unexpected effort picker")
+			}
+			effort := canonicalEffort(s.request.Model.Effort)
+			if effort == "" {
+				effort = evidence.Selected
+			}
+			selected, targetIndex := -1, -1
+			for i, label := range evidence.Labels {
+				if label == evidence.Selected {
+					selected = i
+				}
+				if label == effort {
+					targetIndex = i
+				}
+			}
+			if targetIndex < 0 {
+				return backout(s, "requested effort not among observed choices")
+			}
+			if selected != targetIndex {
+				s.navigation++
+				k := KeyDown
+				if selected > targetIndex {
+					k = KeyUp
+				}
+				return write(s, KeyStep{Kind: k}, phaseEffort)
+			}
+			s.effort = effort
+			return apply(s)
+		}
+	}
+	return s, nil
+}
+
+func rememberConfirmations(s *DriveState, lines []string) bool {
+	for key, n := range confirmationCounts(lines) {
+		if _, ok := s.priorConfirmations[key]; !ok && len(s.priorConfirmations) >= MaxObservedLabels {
+			return false
+		}
+		if n > s.priorConfirmations[key] {
+			s.priorConfirmations[key] = n
+		}
+	}
+	return true
+}
+func apply(s DriveState) (DriveState, []DriveEffect) {
+	key := KeyStep{Kind: KeyEnter}
+	if s.request.Model.EffectiveScope() == ScopeSession {
+		key = KeyStep{Kind: KeyText, Text: "s"}
+	}
+	return write(s, key, phaseApplied)
+}
