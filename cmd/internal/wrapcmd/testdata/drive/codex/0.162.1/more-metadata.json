@@ -1,0 +1,12 @@
+{
+  "agent": "codex",
+  "capture": "fresh isolated PTY; /model only; auth copies removed on cleanup",
+  "defaults_after_sha256": "a493a12004283d9248037c306abab7f029cecc5adf4a787262f59e5546115220",
+  "defaults_before_sha256": "a493a12004283d9248037c306abab7f029cecc5adf4a787262f59e5546115220",
+  "effort": "not applied",
+  "model": "gpt-6.1-sol",
+  "more_reasoning_cancelled": true,
+  "recovery": "ESC from Advanced Reasoning returned ordinary reasoning picker; no apply; disposable child terminated; full prompt recovery not captured",
+  "scope": "none",
+  "version": "codex-cli 0.162.1"
+}

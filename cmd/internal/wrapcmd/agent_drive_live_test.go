@@ -20,14 +20,21 @@ const (
 	modelCaptureModelSelected
 	modelCaptureEffortSelected
 	modelCaptureApplied
-	modelCaptureRecoveryCommand
 	modelCaptureRecoverySubmitted
 	modelCaptureCancelled
 	modelCaptureRecovered
+	modelCaptureMoreNavigating
+	modelCaptureMoreExpanded
+	modelCaptureMoreBack
+	modelCaptureMoreCancelled
+	modelCaptureMoreBackCaptured
 )
 
 // TestAgentDriveLiveCapture probes only fresh PTYs. No generated agent turn is
-// submitted; the sole command is the built-in /model control.
+// submitted; the sole command is the built-in /model control. Set
+// PAIR_LIVE_MODEL_SCOPE=default only to persist a selection in disposable state.
+// PAIR_LIVE_MODEL_MORE=1 records Advanced Reasoning and its first ESC without
+// applying a selection; the harness then tears down its disposable child.
 func TestAgentDriveLiveCapture(t *testing.T) {
 	agent := os.Getenv("PAIR_LIVE_MODEL_HARNESS")
 	if agent == "" {
@@ -35,6 +42,21 @@ func TestAgentDriveLiveCapture(t *testing.T) {
 	}
 	if agent != "codex" {
 		t.Fatal("live model capture supports isolated Codex only; Claude conformance is hub-owned")
+	}
+	scope := os.Getenv("PAIR_LIVE_MODEL_SCOPE")
+	if scope == "" {
+		scope = "session"
+	}
+	if scope != "session" && scope != "default" {
+		t.Fatal("invalid capture scope")
+	}
+	more := os.Getenv("PAIR_LIVE_MODEL_MORE") == "1"
+	prefix := ""
+	if scope == "default" {
+		prefix = "default-"
+	}
+	if more {
+		prefix = "more-"
 	}
 	tempRoot, err := os.MkdirTemp("/tmp", "pair-model-")
 	if err != nil {
@@ -80,9 +102,12 @@ func TestAgentDriveLiveCapture(t *testing.T) {
 	captures := map[string][]byte{}
 	var retainedOutput []byte
 	var styledScreen string
+	var lastSelected string
+	navigation := 0
+	sanitize := strings.NewReplacer(root, "/scratch", filepath.Base(root), "scratch")
 	save := func(name string) {
-		captures[name+".raw"] = []byte(strings.ReplaceAll(string(retainedOutput), root, "/scratch"))
-		captures[name+".screen"] = []byte(strings.ReplaceAll(styledScreen, root, "/scratch"))
+		captures[prefix+name+".raw"] = []byte(sanitize.Replace(string(retainedOutput)))
+		captures[prefix+name+".screen"] = []byte(strings.TrimRight(sanitize.Replace(styledScreen), "\n") + "\n")
 	}
 	_, state, captureErr := captureHarnessTTYClassified(harnessTTYCaptureRequest{Executable: executable, Args: args, Env: env, Dir: cwd, StartupTimeout: 25 * time.Second,
 		Classify: func(chunk, retained []byte) harnessTTYConformanceState {
@@ -127,9 +152,25 @@ func TestAgentDriveLiveCapture(t *testing.T) {
 				save("effort-picker")
 				phase = modelCaptureEffortSelected
 				pending = []byte("s")
+				if scope == "default" {
+					pending = []byte("\r")
+				}
+				if more {
+					phase = modelCaptureMoreNavigating
+					pending = []byte("\x1b[B")
+					for _, line := range lines {
+						if strings.Contains(line, "‹rev››") {
+							lastSelected = line
+						}
+					}
+				}
 			}
-			if phase == modelCaptureEffortSelected && strings.Contains(screen, "Model changed to gpt-6.1-sol low for this session only") && strings.Contains(screen, "GPT-6.1-Sol low") && peerComposerState(agent, snap) == PeerComposerEmpty {
-				save("session-status")
+			if phase == modelCaptureEffortSelected && strings.Contains(screen, "Model changed to gpt-6.1-sol low") && (scope == "default" || strings.Contains(screen, "for this session only")) && strings.Contains(screen, "GPT-6.1-Sol low") && peerComposerState(agent, snap) == PeerComposerEmpty {
+				if scope == "default" {
+					save("status")
+				} else {
+					save("session-status")
+				}
 				phase = modelCaptureApplied
 				pending = []byte("/model")
 			}
@@ -147,6 +188,51 @@ func TestAgentDriveLiveCapture(t *testing.T) {
 				phase = modelCaptureRecovered
 				return harnessTTYRecognized
 			}
+			if phase == modelCaptureMoreNavigating {
+				selected := ""
+				for _, line := range lines {
+					if strings.Contains(line, "‹rev››") {
+						selected = line
+					}
+				}
+				if selected != "" && selected != lastSelected {
+					lastSelected = selected
+					navigation++
+					if strings.Contains(selected, "More reasoning") {
+						save("entry")
+						phase = modelCaptureMoreExpanded
+						pending = []byte("\r")
+					} else if navigation < 6 {
+						pending = []byte("\x1b[B")
+					}
+				}
+			}
+			if phase == modelCaptureMoreExpanded {
+				for _, line := range lines {
+					if strings.Contains(line, "‹rev››") && strings.Contains(line, "Max") && !strings.Contains(line, "More reasoning") {
+						save("expanded")
+						phase = modelCaptureMoreBack
+						pending = []byte("\x1b")
+					}
+				}
+			}
+			if phase == modelCaptureMoreBack && strings.Contains(screen, "Select Reasoning Level for GPT-6.1-Sol") && strings.Contains(screen, "More reasoning") && !strings.Contains(screen, "Advanced Reasoning") {
+				save("back-effort")
+				phase = modelCaptureMoreBackCaptured
+				return harnessTTYRecognized
+			}
+
+			if phase == modelCaptureMoreBack && strings.Contains(screen, "Select Model and Effort") {
+				save("back-model")
+				phase = modelCaptureMoreCancelled
+				pending = []byte("\x1b")
+			}
+			if phase == modelCaptureMoreCancelled && peerComposerState(agent, snap) == PeerComposerEmpty {
+				save("recovery-prompt")
+				phase = modelCaptureRecovered
+				return harnessTTYRecognized
+			}
+
 			return harnessTTYWaiting
 		}, Input: func([]byte) []byte {
 			b := pending
@@ -163,12 +249,15 @@ func TestAgentDriveLiveCapture(t *testing.T) {
 	}
 	t.Logf("defaults before=%x after=%x", sha256.Sum256(before), sha256.Sum256(after))
 	if captureErr != nil {
-		t.Fatalf("isolated model capture blocked: state=%s phase=%d: %v", state, phase, captureErr)
+		t.Fatalf("isolated model capture blocked: state=%s phase=%d: %v; final styled screen=%s", state, phase, captureErr, strings.ReplaceAll(styledScreen, root, "/scratch"))
 	}
-	if !bytes.Equal(before, after) {
+	if (scope == "session" || more) && !bytes.Equal(before, after) {
 		t.Fatal("session selection changed disposable defaults")
 	}
-	if phase != modelCaptureRecovered {
+	if scope == "default" && !more && bytes.Equal(before, after) {
+		t.Fatal("default apply did not persist disposable defaults")
+	}
+	if phase != modelCaptureRecovered && !(more && phase == modelCaptureMoreBackCaptured) {
 		t.Fatal("session/recovery phases unconfirmed")
 	}
 	if dir := *peerLiveCaptureFlag; dir != "" {
@@ -183,12 +272,20 @@ func TestAgentDriveLiveCapture(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		metadata := map[string]any{"agent": agent, "version": strings.TrimSpace(string(version)), "model": "gpt-6.1-sol", "effort": "low", "scope": "session", "defaults_before_sha256": fmt.Sprintf("%x", sha256.Sum256(before)), "defaults_after_sha256": fmt.Sprintf("%x", sha256.Sum256(after)), "recovery": "separate ESC returned fresh empty composer", "capture": "fresh isolated PTY; /model only; auth copies removed on cleanup"}
+		recovery := "separate ESC returned fresh empty composer"
+		if more {
+			recovery = "ESC from Advanced Reasoning returned ordinary reasoning picker; no apply; disposable child terminated; full prompt recovery not captured"
+		}
+		metadata := map[string]any{"agent": agent, "version": strings.TrimSpace(string(version)), "model": "gpt-6.1-sol", "effort": "low", "scope": scope, "defaults_before_sha256": fmt.Sprintf("%x", sha256.Sum256(before)), "defaults_after_sha256": fmt.Sprintf("%x", sha256.Sum256(after)), "recovery": recovery, "capture": "fresh isolated PTY; /model only; auth copies removed on cleanup", "more_reasoning_cancelled": more}
+		if more {
+			metadata["effort"] = "not applied"
+			metadata["scope"] = "none"
+		}
 		b, err := json.MarshalIndent(metadata, "", "  ")
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(filepath.Join(dir, "metadata.json"), append(b, '\n'), 0600); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, prefix+"metadata.json"), append(b, '\n'), 0600); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -197,14 +294,14 @@ func TestAgentDriveLiveCapture(t *testing.T) {
 // Replay raw bytes through the shared terminal emulator: the recorded paint,
 // rather than a hand-authored screen, must supply recipe evidence.
 func TestAgentDriveRecordedCaptureReplay(t *testing.T) {
-	expected := map[string]string{"startup": "Ask Codex to do anything", "model-picker": "Select Model and Effort", "effort-picker": "Select Reasoning Level for GPT-6.1-Sol", "session-status": "Model changed to gpt-6.1-sol low for this session only", "recovery-picker": "Select Model and Effort", "recovery-prompt": "GPT-6.1-Sol low"}
+	expected := map[string]string{"startup": "Ask Codex to do anything", "model-picker": "Select Model and Effort", "effort-picker": "Select Reasoning Level for GPT-6.1-Sol", "session-status": "Model changed to gpt-6.1-sol low for this session only", "recovery-picker": "Select Model and Effort", "recovery-prompt": "GPT-6.1-Sol low", "default-status": "Model changed to gpt-6.1-sol low", "default-recovery-prompt": "GPT-6.1-Sol low", "more-entry": "More reasoning…", "more-expanded": "Advanced Reasoning", "more-back-effort": "Select Reasoning Level for GPT-6.1-Sol"}
 	for phase, marker := range expected {
 		t.Run(phase, func(t *testing.T) {
 			raw, err := os.ReadFile(filepath.Join("testdata", "drive", "codex", "0.162.1", phase+".raw"))
 			if err != nil {
 				t.Fatal(err)
 			}
-			for _, private := range []string{"/Users/", "/private/tmp/pair-model-", "access_token", "refresh_token", "id_token"} {
+			for _, private := range []string{"/Users/", "pair-model-", "access_token", "refresh_token", "id_token"} {
 				if bytes.Contains(raw, []byte(private)) {
 					t.Fatal("capture contains private state")
 				}
@@ -213,10 +310,19 @@ func TestAgentDriveRecordedCaptureReplay(t *testing.T) {
 			defer classifier.Close()
 			classifier.Observe(raw, raw)
 			screen := strings.Join(classifier.proxy.agentTail(38).Lines, "\n")
+			if phase == "more-expanded" && (!strings.Contains(screen, "› 1. Max") || !strings.Contains(screen, "2. Ultra")) {
+				t.Fatal("advanced reasoning labels absent")
+			}
+			if phase == "more-back-effort" && strings.Contains(screen, "Advanced Reasoning") {
+				t.Fatal("ESC did not leave advanced reasoning")
+			}
+			if phase == "default-status" && strings.Contains(screen, "for this session only") {
+				t.Fatal("default apply capture has session scope")
+			}
 			if !strings.Contains(screen, marker) {
 				t.Fatalf("replayed %s did not paint expected recipe evidence", phase)
 			}
-			if phase == "recovery-prompt" && peerComposerState("codex", classifier.proxy.terminal.Snapshot()) != PeerComposerEmpty {
+			if strings.HasSuffix(phase, "recovery-prompt") && peerComposerState("codex", classifier.proxy.terminal.Snapshot()) != PeerComposerEmpty {
 				t.Fatal("replay did not recover empty composer")
 			}
 		})
