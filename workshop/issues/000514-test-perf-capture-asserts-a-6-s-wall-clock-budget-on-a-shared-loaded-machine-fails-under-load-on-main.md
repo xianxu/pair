@@ -36,9 +36,9 @@ Default verification must still catch real scheduling-policy regressions: a stat
 
 ## Done when
 
-- [ ] Default capture test accepts a controlled overrun, logs timing, and retains all shape/parser/failure assertions.
-- [ ] The same controlled overrun fails with `PAIR_PERF_BUDGETS=1`; boundary-equal and under-budget captures pass.
-- [ ] Controlled production-script tests catch lost work shedding, duplicate expensive collection, skipped reserved probes and probes run after exhaustion.
+- [x] Default capture test accepts a controlled overrun, logs timing, and retains all shape/parser/failure assertions.
+- [x] The same controlled overrun fails with `PAIR_PERF_BUDGETS=1`; boundary-equal and under-budget captures pass.
+- [x] Controlled production-script tests catch lost work shedding, duplicate expensive collection, skipped reserved probes and probes run after exhaustion.
 - [ ] `make test-perf-budgets` includes the isolated capture check; targeted tests, full `make -k test`, and review/CI evidence are recorded before landing.
 
 ## Plan
@@ -56,3 +56,5 @@ Default verification must still catch real scheduling-policy regressions: a stat
 - Claimed from the hub after #538 landed. Reproduced unchanged main: `sh doctor/perf_test.sh` reports `capture took 13s over a 6s budget` in `/tmp/pair514-baseline.log`. The measured interval includes external top/iostat/ps/probe processes and intentional sample sleep. Existing #436/#481 convention already isolates elapsed-time budgets; this shell check missed it. Production budget is cooperative work shedding, not a hard subprocess deadline, so CPU-time replacement would assert a different property. Quick-flow scope: test scripts, Make target wiring and atlas only; no product behavior change.
 
 - Controlled regression suite: 8 tests pass (17.860 s), exercising default/opt-in overrun policy, equal/under-budget cases, malformed timing, collector counts, reserve-boundary shedding and probe priority/exhaustion. Initial gate test was RED against unchanged `perf_test.sh`; it rejected the controlled 7/6-second report. Live opt-in check correctly remains red under present load: 9/6 seconds (`/tmp/pair514-isolated-live.log`), so no quiet-host performance pass is claimed. Full `make -k test` is queued through the refreshed ordered machine gate; targeted capture/environment tests are running.
+
+- Final controlled suite 9/9 passed (10.955 s, `/tmp/pair514-budget-final.log`). All six temporary mutations were caught by assertions: removed collector shedding, ignored budget exhaustion, duplicate top, lost reserved probes, restored default ceiling and removed opt-in ceiling (`/tmp/pair514-mutations.log`). Real `make test-perf-capture test-make-env` passed: shape checks intact, live elapsed 6/6 s, and all 166 derived environment knobs retained while session identity was scrubbed. Full-suite evidence is still pending at the machine gate.
