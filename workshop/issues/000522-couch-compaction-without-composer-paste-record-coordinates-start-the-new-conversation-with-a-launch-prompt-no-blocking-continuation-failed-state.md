@@ -40,7 +40,7 @@ The operator (2026-10-12): record the last conversation's coordinates and let th
 Durable plan: [compaction launch prompt plan](../plans/000522-couch-compaction-without-composer-paste-record-coordinates-start-the-new-conversation-with-a-launch-prompt-no-blocking-continuation-failed-state-plan.md).
 
 - [x] M1 — Launch prompt (one-time, never persisted), coordinates recorded on compaction, completion at registration, one non-blocking line.
-- [ ] M2 — Retire the composer paste and the retry/dismiss surface; sweep references.
+- [x] M2 — Retire the composer paste and the retry/dismiss surface; sweep references.
 - [ ] Live: a Claude and a Codex slot compact with no paste, after the operator's OK through the TL.
 
 ## Estimate
@@ -67,6 +67,8 @@ total: 4.83
 ## Log
 
 
+
+- 2026-10-13: closed M2 — Round 3 fixes in the latest commit: BR-9 rule applied -- a written list of every retired identifier/path/env/op/fixture dir (in plan Revisions) grepped across all tracked file types; all hits cleared (nvim/draft_send.lua, wait_notice.go, launcher/args.go comments; switchcontext/guard test names; codex 0.154.0 captures moved to testdata/tty, orphaned agy captures and .gitattributes line removed); tombstone: removal condition stated and Encode refuses it (test); Settled-without-gate disposed with reasoning in plan. wrapcmd, couchcore, readiness, artifactpath, couchcmd green unsandboxed. Earlier full make -k test on M2 was green apart from the render-epoch regression that test caught (fixed).; review verdict: SHIP
 - 2026-10-13: closed M1 — Round 1 REWORK fixed in 887a44bf9: BR-1 executeContinuation keeps its record on a RecordPreviousSession error and failContinuation refuses a record without its request (TestFailContinuationWithoutItsRequestReturnsTheCause); BR-2 PromptArgs puts the prompt first (agy -i first) so no multi-value saved flag swallows it (table incl --add-dir a b, codex --image; real wrapper/layout acceptance asserts argv[0]==prompt, once); BR-3 launchEnvCommand split + TestAnInPaneFreshStartDropsTheLaunchPrompt; minors: targetMayExist single rule, stale comments, Miss.Path rationale, strict-decode note in plan. Packages checkpoint/launcher/wrapcmd/couchcmd/artifactpath green unsandboxed; couchcore green except TestFleetInventoryLiveConformance (pair:0 staged: the #539 'staged' grammar gap, unrelated). Full make -k test was green on ec93571ae+ca52528bd apart from a docs check since fixed.; review verdict: SHIP
 ### 2026-10-12
 - 2026-10-13: claimed at pair:3 (TL dispatch). Measured the pipeline; plan written and sent to the hub before building.
