@@ -73,6 +73,8 @@ pair:6 read-only while measuring; no live recovery/reboot is authorized here.
 
 ## Revisions
 
+- 2026-10-13 — Operator direction 15876eb2 supersedes 3cd0aa805: Couch always starts; terminal liveness is Zellij list-sessions (listed/non-EXITED live). At selected attach only, live attaches normally; not live never attaches, deletes the exact stale saved session without force and offers Relaunch. Remove policy/custom socket admission; retain attach lock, new-session serialization off and resume ladder. Exact pre-upgrade restart compatibility and honest list→attach death-race measurement are required. PLAN ONLY, operator approval before code/build; see latest durable-plan revision.
+
 - 2026-10-13 — TL/operator correction 6bf45548 supersedes policy-based attach admission: answering live server/socket attaches as before, old or new, with no session-policy requirement; absent answering server never resurrects and offers Relaunch. Re-plan recorded in durable plan; M1 prior SHIP does not certify this new compatibility rule. Await TL approval before code.
 
 - 2026-10-13 11:39: BR-5 extends the bounded persisted-input rule to the complete M1 consumer set through shared osfs IO; config is bounded at 1 MiB and capture events keep their existing whole-file 8 MiB limit.
@@ -271,6 +273,8 @@ Per TL 4e054fd4, `make -k test` entered the machine gate and acquired after 312s
 2026-10-13 — `sdlc stage --build` succeeded on pair:0 at e1876500ec010e3d2fc59e8361d6641798ed701b; pair:2 retains the issue branch. couch, pair, pair-launch-helper and pair-slug embed that revision; the stage command warns auxiliary pair-hoprtt remains 2284b412 (modified). TL handoff fd62e544-2de3-4f84-b571-e2435422cb28 names the exact stage, full-run failure/focused correction evidence, scratch acceptance procedure in the durable plan and compile-checked policy fixture source. Awaiting TL/operator acceptance after their Couch restart; no scratch/live mutation executed here and whole-issue close not yet run.
 
 2026-10-13 — Emergency rollback requested after staged policy admission hid ~20 legacy live slots and blocked Couch startup. sdlc stage --clear found pair:0 already on main with no stage. make build there passed; couch/pair/pair-launch-helper each embed local main9ea3bdcbdcd360324337d910ed419dc6a65443db with vcs.modified=false, clean checkout. Local main is270 commits behind origin/main; no pull performed during urgent rollback. TL notified f1aa0ef3. Appended operator-directed live-socket admission re-plan; no code change/restage.
+
+2026-10-13 — Recorded operator replacement design from verified TL receipt15876eb2. This is plan-only: no code, test process, layout cleanup, rebuild or restage. pair:0 remains on main after prior rollback. The list→attach race is explicitly unresolved for old saved sessions pending scratch measurement after approval.
 
 ## Estimate
 
