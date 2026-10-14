@@ -2,8 +2,10 @@ package couchcmd
 
 import (
 	"context"
+	"path/filepath"
 
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/notifyosc"
 )
 
 func (s *messageService) SetDesktopNotify(write func(context.Context, string, string) error) {
@@ -40,7 +42,19 @@ func (s *messageService) handleNotify(ctx context.Context, r couchmessage.Reques
 	if err := ctx.Err(); err != nil {
 		return couchmessage.Response{Code: "refused", Error: err.Error()}
 	}
-	if err := (*write)(ctx, r.Title, r.Body); err != nil {
+	title := r.Title
+	if hubs := s.authority.hubs; hubs != nil && len(hubs.snapshot().Hubs()) > 1 {
+		name := filepath.Base(workspace.WorktreeRoot)
+		if workspace.Address != nil {
+			name = *workspace.Address
+		}
+		name = truncateBytes(notifyosc.Sanitize([]byte(name)), 120)
+		title = "[" + name + "] " + notifyosc.Sanitize([]byte(title))
+		if len(title) > notifyosc.MaxTitleBytes {
+			title = truncateBytes(title, notifyosc.MaxTitleBytes-3)
+		}
+	}
+	if err := (*write)(ctx, title, r.Body); err != nil {
 		return couchmessage.Response{Code: "uncertain", Error: err.Error()}
 	}
 	return couchmessage.Response{Code: "ok"}
