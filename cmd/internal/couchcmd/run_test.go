@@ -807,7 +807,7 @@ func TestPublicHelpListsOnlyPublicSurface(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d", code)
 	}
-	for _, want := range []string{"couch [path]", "couch --list", "couch --show", "couch --recover-plan-from-sdlc", "couch --resume repo:N", "couch --reboot repo:N --confirm", "couch --help"} {
+	for _, want := range []string{"couch [path ...]", "couch --move-slot repo:N[,repo:N...] --to-hub HUB [--persist]", "couch --list", "couch --show", "couch --recover-plan-from-sdlc", "couch --resume repo:N", "couch --reboot repo:N --confirm", "couch --help"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("help omits %q", want)
 		}
