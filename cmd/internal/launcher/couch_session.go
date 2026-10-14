@@ -82,9 +82,11 @@ func validateCouchSessionLaunch(args LaunchArgs, env Env) error {
 	if args.ForcedTag != intent.Tag || args.Command != "" || (args.SelectedTag != "" && args.SelectedTag != intent.Tag) {
 		return errors.New("couch session selected address changed")
 	}
-	scope, err := ResolveRepoScope(envScopeRoot(env))
-	if err != nil || scope.Key != intent.Scope {
-		return errors.New("couch session repository scope changed")
+	if intent.Disposition != "attach" {
+		scope, err := ResolveRepoScope(envScopeRoot(env))
+		if err != nil || scope.Key != intent.Scope {
+			return errors.New("couch session repository scope changed")
+		}
 	}
 	if env.CouchThreadScope != intent.Scope || env.CouchThreadTag != intent.Tag {
 		return errors.New("couch session does not match hosted thread address")

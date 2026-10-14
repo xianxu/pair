@@ -2,6 +2,7 @@ package couchcore
 
 import (
 	"context"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -337,4 +338,68 @@ func (a warmSessionArtifacts) NamedPairSessionContext(ctx context.Context, addre
 	return a.PairSessionIO.(interface {
 		NamedPairSessionContext(context.Context, ThreadAddress, string) (PairSessionBinding, error)
 	}).NamedPairSessionContext(ctx, address, name)
+}
+
+// Continue consumes the live terminal, not the cold-launch metadata saved for
+// recreating its agent. Exercise the executor, including the child boundary.
+func TestWarmResumeExecutorIgnoresColdMetadataDefects(t *testing.T) {
+	for _, defect := range []string{"missing-profile", "incomplete-profile", "unsupported-agent", "missing-working-path"} {
+		t.Run(defect, func(t *testing.T) {
+			env := newTestEnv(t, "/repo")
+			record := warmDetachedRecord(t)
+			record.StartingPath, record.WorkingPath = "/repo", "/repo"
+			record.Reservation = false
+			switch defect {
+			case "missing-profile":
+				record.LatestLaunchProfile = nil
+			case "incomplete-profile":
+				// The store normalizes legacy null argv to configured-empty;
+				// preserve that case without manufacturing an invalid record.
+				record.LatestLaunchProfile.Argv = nil
+			case "unsupported-agent":
+				record.LatestLaunchProfile.Agent = "old-unsupported-agent"
+			case "missing-working-path":
+				env.Couch.Path.(*FakePathOps).Fail("/repo")
+			}
+			created, err := env.Couch.Threads.CreateThread(record)
+			if err != nil {
+				t.Fatal(err)
+			}
+			session := "pair-" + string(created.Address.Tag)
+			env.Artifacts.SetDetachedSession(created.Address, session)
+			env.Runner.AfterAcknowledge = func(string) error { env.Artifacts.SetPairSession(created.Address, session, true); return nil }
+			_, handle, err := env.Couch.ResumeContextWith(context.Background(), created.Address, ResumeOptions{WarmOnly: true})
+			if err != nil {
+				t.Fatalf("Continue refused saved %s: %v", defect, err)
+			}
+			if handle == nil {
+				t.Fatal("Continue did not start attachment")
+			}
+			child := env.Runner.Child(handle.ID())
+			if defect == "missing-working-path" && child.Dir != "/" {
+				t.Fatalf("missing workspace helper cwd=%q, want safe host root", child.Dir)
+			}
+			if !slices.Equal(child.Argv, []string{"pair", "--couch-session-v1", "resume", string(created.Address.Tag)}) {
+				t.Fatalf("not exact warm attachment: %q", child.Argv)
+			}
+			if env.Artifacts.BindingResolutions() != 0 {
+				t.Fatal("Continue resolved native conversation")
+			}
+			for _, entry := range child.Env {
+				if strings.HasPrefix(entry, launcher.CouchLaunchProfileEnv+"=") {
+					t.Fatalf("Continue fabricated cold launch authority: %q", entry)
+				}
+			}
+			after, err := env.Couch.Threads.GetThread(created.Address)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if after.WorkingPath != created.WorkingPath {
+				t.Fatalf("Continue rewrote saved working path: before=%q after=%q", created.WorkingPath, after.WorkingPath)
+			}
+			if !reflect.DeepEqual(after.LatestLaunchProfile, created.LatestLaunchProfile) {
+				t.Fatalf("Continue rewrote saved profile: before=%+v after=%+v", created.LatestLaunchProfile, after.LatestLaunchProfile)
+			}
+		})
+	}
 }

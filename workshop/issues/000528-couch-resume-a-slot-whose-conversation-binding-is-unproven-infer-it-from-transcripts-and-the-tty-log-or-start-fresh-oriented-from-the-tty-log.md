@@ -363,3 +363,14 @@ The final revision in `workshop/plans/000528-slot-recovery-plan.md` supersedes p
   sweep failing; the corrected sweep and actual blank-key Fresh admission edge
   passed the full couchtty package (40.867s). Build passed. Evidence:
   /tmp/pair528-m1-full-after-main.log and /tmp/pair528-m1-ui-sweep-fixed.log.
+
+- 2026-10-13 21:58 PDT — BR-9 correction separates exact warm attach from
+  cold launch prerequisites throughout core and Pair. Warm claims carry no
+  native profile; unavailable original cwd uses the existing host root only
+  for the helper, preserving the saved path and hosted artifact scope. Exact
+  terminal ownership checks and the final positive listing remain. Focused
+  independent rerun passed core 1.816s / launcher 0.107s; tests cover four saved
+  metadata/path cases, unchanged cold refusal matrix, changed-owner refusal,
+  and unchanged persisted profile/path. Existing public-binary harness now
+  covers neutral-cwd scope routing and wrong hosted scope/name refusals.
+  Full suite running at /tmp/pair528-m1-br9-full.log; no staging.

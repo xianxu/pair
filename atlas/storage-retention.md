@@ -50,7 +50,9 @@ remain stable. For isolated retention experiments, use `COUCH_ISOLATED_ROOT`
 with all effective roots beneath it and `tests/with-isolated-pair.sh` to clear
 ambient Pair overrides. Existing C/N/M and retained conversations are unchanged.
 
-After migration, running Pair/Couch schedules bounded background sweeps after
+Couch startup only observes slots; it does not enroll stores or schedule
+collection. Explicit reference publication enrolls the store before writing.
+After migration, running Pair schedules bounded background sweeps after
 readiness, at most once per completed daily pass. Work resumes from a cursor;
 automatic pages visit at most 100 owners, including retained owners, with a
 cooperative two-second budget and nonblocking root-lock acquisition. Contention

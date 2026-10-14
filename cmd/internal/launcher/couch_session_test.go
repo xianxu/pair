@@ -213,7 +213,7 @@ type couchSessionRuntime struct {
 	ownerState            SessionOwnerState
 	observed, revalidated int
 	changed               bool
-	changeDuringLayout    bool
+	changeDuringOuterTTY  bool
 	changeDuringCmux      bool
 	changeDuringRetention bool
 	appearDuringRetention bool
@@ -308,16 +308,15 @@ func TestCouchSessionRunLaunchCreatesExactNameAndReplacesAssociation(t *testing.
 	}
 }
 
-func (f *couchSessionRuntime) ProbeLiveLayout(name string) (LayoutMode, error) {
-	mode, err := f.fakeRuntime.ProbeLiveLayout(name)
-	if f.changeDuringLayout {
+func (f *couchSessionRuntime) RecordOuterTTY(tag string, couch bool) {
+	f.fakeRuntime.RecordOuterTTY(tag, couch)
+	if f.changeDuringOuterTTY {
 		f.changed = true
 	}
-	return mode, err
 }
-func TestCouchSessionWarmGenerationRevalidatedAfterLayoutProbe(t *testing.T) {
+func TestCouchSessionWarmGenerationRevalidatedAfterOuterTTY(t *testing.T) {
 	opts := managedSessionOptions("attach")
-	rt := &couchSessionRuntime{fakeRuntime: newFakeRuntime(), ownerState: SessionOwnerOwned, changeDuringLayout: true}
+	rt := &couchSessionRuntime{fakeRuntime: newFakeRuntime(), ownerState: SessionOwnerOwned, changeDuringOuterTTY: true}
 	rt.sessions = []Session{{Name: opts.Args.CouchSession.Name, State: SessionDetached}}
 	var stderr bytes.Buffer
 	code, err := RunLaunch(opts, rt, &stderr)
@@ -403,5 +402,32 @@ func TestCouchSessionCreateRefusesExistingConversationTerminal(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// A selected warm terminal remains attachable even when its former workspace
+// and native launch hints cannot describe a new launch.
+func TestCouchSessionWarmAttachFromSafeHostDirectory(t *testing.T) {
+	for _, agent := range []string{"", "unsupported-retired-agent"} {
+		t.Run("agent="+agent, func(t *testing.T) {
+			opts := managedSessionOptions("attach")
+			opts.Env.DataDir = filepath.Join(opts.GlobalDataDir, "repos", opts.Args.CouchSession.Scope)
+			opts.Env.Cwd = "/safe-host"
+			opts.Env.RepoRoot = "/safe-host"
+			rt := &couchSessionRuntime{fakeRuntime: newFakeRuntime(), ownerState: SessionOwnerOwned}
+			rt.inferAgent[opts.Args.ForcedTag] = agent
+			rt.sessions = []Session{{Name: opts.Args.CouchSession.Name, State: SessionDetached}}
+			var stderr bytes.Buffer
+			code, err := RunLaunch(opts, rt, &stderr)
+			if err != nil || code != 0 || len(rt.attached) != 1 || rt.attached[0] != opts.Args.CouchSession.Name {
+				t.Fatalf("warm attach code=%d err=%v attached=%v stderr=%s", code, err, rt.attached, &stderr)
+			}
+			if rt.launchCount != 0 || len(rt.preparedLaunches) != 0 || rt.defaultReads != 0 || len(rt.ledger) != 0 {
+				t.Fatalf("warm attach inferred cold launch: launches=%d prepared=%v defaults=%d ledger=%v", rt.launchCount, rt.preparedLaunches, rt.defaultReads, rt.ledger)
+			}
+			if rt.observed != 1 || rt.revalidated != 2 {
+				t.Fatalf("lost exact owner checks: observed=%d revalidated=%d", rt.observed, rt.revalidated)
+			}
+		})
 	}
 }

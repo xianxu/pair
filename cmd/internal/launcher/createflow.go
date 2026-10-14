@@ -273,6 +273,41 @@ type launchStep struct {
 // natively (#99 M5c — no shell to fall back to): a handled abort/error returns
 // handedOff=false with the exit code already messaged on stderr.
 func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchStep, error) {
+	if intent := opts.Args.CouchSession; intent != nil && intent.Disposition == "attach" {
+		// This is already a selected terminal, never a native launch request.
+		// History, saved agent configuration and cwd cannot choose another one.
+		var sessions []Session
+		var err error
+		for attempt := 0; attempt < 2; attempt++ {
+			sessions, err = rt.SessionLiveness()
+			if err == nil {
+				break
+			}
+		}
+		if err != nil {
+			fmt.Fprintf(stderr, "pair: failed to query zellij sessions: %v\n", err)
+			return launchStep{code: 1}, nil
+		}
+		matches := 0
+		live := false
+		for _, session := range sessions {
+			if session.Name == intent.Name {
+				matches++
+				live = session.State != SessionExited
+			}
+		}
+		if matches != 1 || !live {
+			fmt.Fprintln(stderr, "pair: exact Couch session is not uniquely listed live; refusing attach fallback")
+			return launchStep{code: 1}, nil
+		}
+		agent := rt.InferAgent(intent.Tag) // Optional title metadata only; no default or launch profile.
+		code, err, retained := runAttach(opts, env, rt, intent.Tag, intent.Name, agent, nil)
+		if err != nil {
+			fmt.Fprintf(stderr, "pair: failed to attach session '%s': %v\n", intent.Name, err)
+			return launchStep{code: 1}, nil
+		}
+		return launchStep{code: code, session: intent.Name, tag: intent.Tag, agent: agent, handedOff: true, retention: retained}, nil
+	}
 	agent := opts.Args.Agent
 	// The agent the forwarded `-- <args>` were typed against. If a pick below
 	// resolves a DIFFERENT agent (resume-by-name inference), those args are

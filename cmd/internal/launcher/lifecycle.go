@@ -119,7 +119,9 @@ func attachWithRetention(opts LaunchOptions, env Env, rt Runtime, tag, session, 
 	// count here. No meter beats a wrong one. The attach itself never refuses
 	// over this -- the meter is optional, the handoff is not.
 	scopeKey := ""
-	if scope, err := ResolveRepoScope(envScopeRoot(env)); err == nil {
+	if intent := opts.Args.CouchSession; intent != nil && intent.Disposition == "attach" {
+		scopeKey = intent.Scope
+	} else if scope, err := ResolveRepoScope(envScopeRoot(env)); err == nil {
 		scopeKey = scope.Key
 	} else if env.CouchThreadTag == tag && ValidateRepoScopeKey(env.CouchThreadScope) == nil {
 		scopeKey = env.CouchThreadScope

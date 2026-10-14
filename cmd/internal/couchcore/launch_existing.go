@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/couchidentity"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -34,8 +35,8 @@ type trackedThreadLaunch struct {
 	Begun time.Time
 }
 
-// launchTrackedThread is the single post-claim launch path for both a newly
-// allocated thread and an exact cold resume.
+// launchTrackedThread is the post-claim helper path for a new thread,
+// an exact cold resume, or attachment to an existing terminal.
 func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle, error) {
 	ctx := in.Context
 	if ctx == nil {
@@ -53,7 +54,7 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		return ActorRecord{}, nil, rollback(in.Thread, err)
 	}
 	thread := in.Thread
-	if c.Slots != nil {
+	if c.Slots != nil && !in.Warm {
 		cwd, err := c.Path.Physical(in.Args.WorkingDir())
 		var tree Worktree
 		if err == nil {
@@ -178,7 +179,13 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	env = append(env, launcher.CouchSessionIntentEnv+"="+string(intent))
 	steps.mark("prepare")
 	stage = "spawn"
-	h, err := c.Runner.StartBlocked(ctx, in.Args.WorkingDir(), argv, env, 10*time.Second)
+	launchDir := in.Args.WorkingDir()
+	if in.Warm && !c.workingPathExists(thread) {
+		// A client attaches independently of the pane's original checkout.
+		// Keep recorded paths intact; use a neutral existing helper directory.
+		launchDir = string(filepath.Separator)
+	}
+	h, err := c.Runner.StartBlocked(ctx, launchDir, argv, env, 10*time.Second)
 	steps.mark("spawn")
 	if err != nil {
 		return ActorRecord{}, nil, rollback(thread, fmt.Errorf("spawn %s: %w", in.Args.Worktree, err))

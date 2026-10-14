@@ -610,7 +610,9 @@ func (s *ThreadStore) FinalizePark(address ThreadAddress, expectedRevision uint6
 // park or a surviving detached session -- and the revision CAS is what makes
 // the decision still true at the moment of the write.
 func (s *ThreadStore) CommitStartClaim(address ThreadAddress, expectedRevision uint64, repoIdentity string, startedAt time.Time, event StartEvent) (ThreadRecord, error) {
-	if repoIdentity == "" {
+	// Warm attachment operates on a proved terminal, including one whose
+	// checkout is unavailable. It does not create repository-owned artifacts.
+	if repoIdentity == "" && event.Shape != StartWarmReattach {
 		return ThreadRecord{}, errors.New("start claim has no repository identity")
 	}
 	return s.updateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
