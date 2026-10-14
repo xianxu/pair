@@ -1,6 +1,6 @@
 ---
 id: 000550
-status: codecomplete
+status: done
 created: 2026-10-14
 updated: 2026-10-14
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 50ce66473a08977b9bf3107a03c64b997d398ca8
         evidence_commit: 452334cc6a28789e72f54104e9c9332088028114
+        landed_commit: b3a2489399d2884e2363a6b3dcfa80beeb69647e
 ---
 
 # Qoder slots never connect to Couch: wrapper creates no message endpoint and never settles (pair:4, 10-14)
