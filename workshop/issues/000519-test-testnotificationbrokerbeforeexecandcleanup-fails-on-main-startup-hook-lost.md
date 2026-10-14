@@ -53,3 +53,10 @@ Find when it started failing (bisect on main), confirm the cause, and fix the ro
 - /tmp/pair535-make-k.log, /tmp/pair536-make-k.log and /tmp/pair533-full-suite4.log all name the exact same TestNotificationBrokerBeforeExecAndCleanup and banner-only output. The cited wrap startup failure is not a second test.
 - The PTY cancellation failure is independent: it uses couchcore runner/helper process-group liveness, without notification transport or wrapcmd. Its root remains unproved; the existing log lacks group-member evidence. File separately rather than changing its timing here.
 - Current load averages are above 80; honoring this issue's quiet-machine constraint, investigation is read-only so far. No reproduction/stress loop has run.
+
+### 2026-10-13 — bounded shutdown design and test authorization
+
+- TL confirms bounded deterministic targeted tests may run now; 20-pass qualification should run below approximately 40 load, or retain load evidence if the machine never quiets tonight.
+- Design: broker Close interrupts and joins its reader, then nonblocking-drains the socket under a fixed receive budget through the same validation/enqueue logic, then closes channels/socket and removes its owned files. The wrapper closes and consumes remaining broker messages/diagnostics before finishing stdout. No sleeps, longer test deadlines, wire-format changes, or extra goroutines.
+- ARCH-DRY/PURE: one datagram validator/enqueue policy and the existing single stdout owner. ARCH-PURPOSE/ORDER: cover both buffered-message and kernel-datagram loss at EOF; preserve detached reader ownership and process no datagram twice. ARCH-MOCK: real isolated Unix sockets and pipes test shutdown order. ARCH-CONSTRAINTS: nonblocking drain is bounded by QueueSize; overflow/exhaustion is diagnosed, as with normal queue overflow. ARCH-SECURE: retain socket ownership/identity checks and message sanitation. ARCH-FUNERAL: existing binding/socket cleanup remains idempotent and joined; no new durable artifact.
+- Independent cancellation follow-up filed as #542. The two wrap startup reports are one test and remain in #519.
