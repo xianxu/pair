@@ -630,3 +630,42 @@ Console.teardown waited in endWebcastForShutdown -> Cast.End -> Mount.Unmount
 already exited. Existing HTTP shutdown budget is two seconds; this test waits
 one second. Log /tmp/pair528-drive-shutdown-probe-2.log. This is unchanged-main
 HTTP shutdown evidence, not an ACK regression; no timeout or production edits.
+
+Third local-check attempt pinned 5594eb85a12fec01e8edb73f57082d45d2987b5f
+was still waiting at 1173s, with no suite execution, when the approved M1 runtime
+delta superseded it. Cancelled the exact owned local-check process 16430
+(SIGINT, exit 130); process cwd verified as pair-slot2/pair and no child/check
+process for worktree sdlc-local-4103953598 remained. No test-lock manipulation.
+Final runtime head will receive a new recorded suite. Parent independently ran
+the subprocess reconnect and resolver regressions: couchcmd 1.347s, exit 0.
+
+### 2026-10-14 — final M1 runtime regression evidence before recorded suite
+
+Parent verification of broker/slot authority group: go test
+./cmd/internal/couchmessage ./cmd/internal/couchcmd -run
+'Test(Message|Lifecycle|Hub|SlotOperation|CandidateResume|ResumeCandidates|Notify|SessionWrite|SessionSync|Supervision)'
+-count=1 -timeout=120s passes (message 0.177s, cmd 13.632s). Real subprocess
+wrappers reconnect and exchange via actual Unix endpoints without pane events.
+Production preserves process/ready/launch/workspace proofs and uses exact native
+listing at use time; a detached client alone no longer disconnects its wrapper.
+
+Parent core verification: go test ./cmd/internal/couchcore -run
+'Test(WarmAttachment|WarmListing|DeadClientRepair|PublicWarmAttach|AttachmentNotice|StartupAttaches)'
+-count=1 -timeout=90s passes 20.051s. Includes narrow dead-client replacement,
+open claims and current parked metadata unchanged, producing launch metadata
+and closed history preserved, changed proof at atomic publication, missing
+store reported without creation, bounded read/helper retries and cancellation.
+The shape matrix uses independent explicit expected outcomes. An earlier new
+fixture wrongly combined verified-current-park with a live incarnation; it was
+corrected into closed-history preservation and valid current-park borrowing,
+without weakening record validation. First-row Enter/click via real operation
+dispatch passes 1.097s; exhausted attempts show a visible reason. No background
+reattach sweep and no real pair:1 writes. Ephemeral attachment notices are
+excluded from persisted registry JSON and surfaced in console/hub receipts.
+
+Initial hub attachment uses the same ephemeral warning, queued through the
+existing standing console notice so it survives slow startup until first paint.
+Parent TestInitialHubBorrowedAttachmentNoticeAppearsOnFirstPaint passes 0.314s;
+failed initial attachment shows no success/borrowed warning. It does not arm
+background attachment. Final runtime checkpoint follows; full recorded suite
+remains required and acceptance remains with the operator/hub.

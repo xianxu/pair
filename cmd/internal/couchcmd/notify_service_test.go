@@ -48,8 +48,7 @@ func TestNotifyServiceHubAdmission(t *testing.T) {
 			case "replaced-wrapper":
 				world.set(hub, func(s *worldSlot) { s.pidFile++ })
 			case "disconnected":
-				r.attach(hub, "")
-				r.waitConnected(hub, false)
+				r.disconnect(hub)
 			case "writer-closed":
 				_ = host.Close()
 			}

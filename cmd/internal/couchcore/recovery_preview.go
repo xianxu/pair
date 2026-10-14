@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
@@ -58,6 +59,16 @@ type RecoveryResumeResult struct {
 }
 
 func (r RecoveryResumeResult) Started() (StartResult, bool) { return r.Start, r.Start.Handle != nil }
+
+func (r RecoveryResumeResult) Warning() string {
+	parts := []string{}
+	for _, note := range []string{r.Notice, r.Start.Warning()} {
+		if note != "" {
+			parts = append(parts, note)
+		}
+	}
+	return strings.Join(parts, "; ")
+}
 
 // DecideSlotRecovery offers explicit choices even for a sole perfect match.
 // Every key binds the original capture and complete ordered evidence snapshot;

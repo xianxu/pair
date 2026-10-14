@@ -167,8 +167,7 @@ func TestHubMoveSocketQueuedStaleAuthority(t *testing.T) {
 			case "caller", "caller-after-prepare":
 				r.world.set(r.callers[1], func(s *worldSlot) { s.binding.Nonce = "replacement" })
 			case "disconnect":
-				r.attach(r.callers[1], "")
-				r.waitConnected(r.callers[1], false)
+				r.disconnect(r.callers[1])
 			}
 			if fault == "caller-after-prepare" {
 				job := r.queue.job(0)

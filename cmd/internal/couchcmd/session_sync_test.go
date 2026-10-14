@@ -297,8 +297,7 @@ func TestSessionWriteServiceAuthenticatesOwner(t *testing.T) {
 			case "replaced":
 				r.world.set(b, func(s *worldSlot) { s.pidFile++ })
 			case "disconnected":
-				r.attach(b, "")
-				r.waitConnected(b, false)
+				r.disconnect(b)
 			}
 			var got couchmessage.Response
 			if err := couchmessage.Call(context.Background(), r.brokerSock, req, &got); err != nil {

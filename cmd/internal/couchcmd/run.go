@@ -901,6 +901,11 @@ func beginConsole(console *couchtty.Console, start couchcore.StartResult) error 
 	if err := dispatchInitialAttach(console, start); err != nil {
 		return err
 	}
+	if warning := start.Warning(); warning != "" {
+		// Startup adoption bypasses finishOperation; queue a standing notice
+		// for the first paint so slow startup cannot hide borrowed ownership.
+		console.Notify(couchtty.Notice{Kind: "status", Control: true, Body: warning})
+	}
 	return nil
 }
 

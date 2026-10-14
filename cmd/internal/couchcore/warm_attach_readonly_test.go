@@ -12,6 +12,16 @@ import (
 // Use the same accepted shapes as the classifier contract: a positive exact
 // terminal listing must not become permission to retire somebody else's work.
 func TestPublicWarmAttachPreservesEveryListedRecordShape(t *testing.T) {
+	// These fixtures each contain exactly one complete historical client and
+	// no lifecycle claim. Only their explicitly Dead variant may be repaired.
+	repairShapes := map[string]bool{
+		"live and hosted": true,
+		"recorded incarnation is gone and so is the session":            true,
+		"recorded helper could not be asked about, session survived":    true,
+		"hosted, with a second recorded process nobody could ask about": true,
+		"recorded helper could not be asked about, session gone":        true,
+		"session survived a dead launcher":                              true,
+	}
 	for _, tc := range everyThreadShape(t) {
 		if len(tc.record.Incarnations) == 0 {
 			continue
@@ -26,7 +36,7 @@ func TestPublicWarmAttachPreservesEveryListedRecordShape(t *testing.T) {
 					t.Fatalf("classifier refused fixture: %s/%s", state, reason)
 				}
 				env, before, session := readonlyWarmFixture(t, tc.record, owner)
-				assertReadonlyWarmAttach(t, env, before, session)
+				assertReadonlyWarmAttach(t, env, before, session, owner == Dead && repairShapes[tc.name])
 			})
 		}
 	}
@@ -67,7 +77,7 @@ func readonlyWarmFixture(t *testing.T, record ThreadRecord, owner Liveness) (*te
 	return env, before, session
 }
 
-func assertReadonlyWarmAttach(t *testing.T, env *testEnv, before ThreadRecord, session string) (ActorRecord, Handle) {
+func assertReadonlyWarmAttach(t *testing.T, env *testEnv, before ThreadRecord, session string, expectRepair ...bool) (ActorRecord, Handle) {
 	t.Helper()
 	actor, h, err := env.Couch.ResumeContextWith(context.Background(), before.Address, ResumeOptions{WarmOnly: true})
 	if err != nil {
@@ -87,7 +97,11 @@ func assertReadonlyWarmAttach(t *testing.T, env *testEnv, before ThreadRecord, s
 	if env.Artifacts.BindingResolutions() != 0 {
 		t.Fatal("plain attach resolved native binding")
 	}
-	assertWarmRecordUnchanged(t, env, before)
+	if len(expectRepair) > 0 && expectRepair[0] {
+		assertWarmClientRepair(t, env, before, actor)
+	} else {
+		assertWarmRecordUnchanged(t, env, before)
+	}
 	return actor, h
 }
 
@@ -157,7 +171,7 @@ func TestPublicWarmAttachRechecksListingBeforeHelperExec(t *testing.T) {
 				queries := 0
 				env.Artifacts.ListedSessionHook = func(ThreadAddress) error {
 					queries++
-					if queries == boundary {
+					if queries >= boundary {
 						if failure == "error" {
 							return errors.New("listing became unavailable")
 						}

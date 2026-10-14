@@ -961,3 +961,60 @@ Continue must attach and repair only that dead client; never select Fresh.
 Fixtures cover changed owner identity at effect and open claims. The queued
 5594eb85a12fec01e8edb73f57082d45d2987b5f suite predates this runtime delta;
 the final runtime head requires its own recorded full local check before stage.
+
+
+### 2026-10-14 — untouched pair:1 dead-client acceptance procedure
+
+This is an operator/hub-run acceptance case; the implementation agent must not
+attach, detach, signal, relaunch or otherwise alter the real pair:1 session.
+First record a read-only baseline from the existing inventory, exact session
+listing and process/readiness observations: pair:1 maps to positively listed
+Zellij session 📁1-217; server 86286, wrapper 86287 and agent 86303 are alive;
+its retained client helper PID 27163 is dead by exact PID/start identity.
+PIDs are the observed baseline, not reusable authority: if any identity changed,
+refresh the observation and do not treat these numbers alone as ownership.
+Save the current record and compare its native binding, park history,
+incarnations, revision and every lifecycle claim before and after acceptance.
+
+The operator/hub selects pair:1 Continue once in the newly built Couch, then
+observes the same running agent conversation and messages. Continue may replace
+only the proven-dead helper incarnation with the returned locally owned helper's
+exact PID/start identity; retain every unrelated incarnation, binding and park
+history. It must never choose Fresh, create a native conversation, restart the
+wrapper/agent/server, clear an open claim, or replay lifecycle work. Compare the
+same session/server/wrapper/agent identities and native binding after completion.
+
+If an open lifecycle claim, live/unknown old client, incomplete old identity or
+changed write-gate proof prevents that narrow replacement, Continue still
+attaches. The visible result says BORROWED ATTACH with the precise reason and
+that retained client state was left unchanged. Verify both the console notice
+and explicit hub receipt warning, and verify byte-unchanged durable state in
+this borrowed case. Repeat attachment only under operator direction; repeated
+local attachment must retain the accurate borrowed reason. Attachment notices
+are ephemeral result data and disappear from persisted/restored registries.
+
+Exact commands for the operator/hub (refresh changed identities first):
+
+```sh
+couch --show pair:1 --json
+zellij list-sessions --no-formatting
+ps -p 86286,86287,86303,27163 -o pid,ppid,lstart,command
+cp /Users/xianxu/workspace/worktree/pair-slot1/.couch/thread.json /tmp/pair528-pair1-before.json
+```
+
+Then either select Continue in the row, or run the hub action:
+
+```sh
+couch --resume pair:1 --json
+couch --operation-status RETURNED_OPERATION_ID --json
+couch --show pair:1 --json
+couch --peek pair:1 --lines 20
+```
+
+Read the returned receipt to completion before repeating any action. Compare
+/tmp/pair528-pair1-before.json to the slot's thread.json: only the sole client
+incarnation's PID/Identity/State and record Revision may change; StartedAt,
+launch profile, session binding/nonces, parks/history, capture/native evidence
+and all claims stay equal. With an open claim or failed death proof, the whole
+record stays equal and the receipt/console show the borrowed reason. These
+commands are acceptance instructions, not measurements run by this agent.

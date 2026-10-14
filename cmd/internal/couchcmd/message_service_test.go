@@ -182,6 +182,7 @@ type serviceRig struct {
 	mu                  sync.Mutex
 	slotGit             map[string]couchcore.SlotGitStatus
 	retries             []func()
+	wrapperStops        map[couchmessage.Binding]func()
 	// slotOps answers resume/reboot/operation-status; nil = unsupported.
 	slotOps *slotOperations
 }
@@ -248,8 +249,27 @@ func (r *serviceRig) wrapper(b couchmessage.Binding) (*couchmessage.SessionClien
 		c.Run(ctx, r.regSock, b, couchmessage.DefaultReconnectBackoff, 10*time.Millisecond)
 	}()
 	stop := func() { cancel(); <-done }
+	r.mu.Lock()
+	if r.wrapperStops == nil {
+		r.wrapperStops = map[couchmessage.Binding]func(){}
+	}
+	r.wrapperStops[b] = stop
+	r.mu.Unlock()
 	r.t.Cleanup(stop)
 	return c, stop
+}
+
+// disconnect ends the wrapper's actual Unix session, independent of its pane.
+func (r *serviceRig) disconnect(b couchmessage.Binding) {
+	r.t.Helper()
+	r.mu.Lock()
+	stop := r.wrapperStops[b]
+	r.mu.Unlock()
+	if stop == nil {
+		r.t.Fatal("no live wrapper session to disconnect")
+	}
+	stop()
+	r.waitConnected(b, false)
 }
 
 func (r *serviceRig) waitConnected(b couchmessage.Binding, want bool) {
@@ -308,21 +328,26 @@ func TestMessageIdleMultiSlotRunsNoProbes(t *testing.T) {
 	}
 }
 
-// Detach and reattach are lifecycle events: detach costs nothing, each
-// reattach costs exactly one full check.
-func TestMessageDetachAndReattachCheckOncePerEvent(t *testing.T) {
+// Client presentation changes do not spend admission probes or disconnect
+// an authenticated wrapper whose listed terminal and process remain live.
+func TestMessageDetachAndReattachKeepWrapperMembership(t *testing.T) {
 	r := newServiceRig(t)
 	b := r.connect(1)
 	before := r.world.counts()[0]
-	r.attach(b, "")
-	r.waitConnected(b, false)
-	if _, err := r.s.broker.Caller(b.Scope, b.Tag, b.Session, b.Nonce); err == nil {
-		t.Fatal("detached slot still a broker caller")
+	for _, pane := range []couchmessage.PaneHandle{"", "h1-again"} {
+		r.attach(b, pane)
+		if err := r.s.post(couchmessage.RegistryEvent{Kind: couchmessage.PaneChanged, Thread: b.Thread(), Pane: pane}, true); err != nil {
+			t.Fatal(err)
+		}
+		if !r.s.isConnected(b) {
+			t.Fatal("client presentation change disconnected live wrapper")
+		}
+		if _, err := r.s.broker.Caller(b.Scope, b.Tag, b.Session, b.Nonce); err != nil {
+			t.Fatal(err)
+		}
 	}
-	r.attach(b, "h1-again")
-	r.waitConnected(b, true)
-	if got := r.world.counts()[0]; got != before+1 {
-		t.Fatalf("detach+reattach ran %d launch checks, want 1", got-before)
+	if got := r.world.counts()[0]; got != before {
+		t.Fatalf("client presentation spent %d admission probes", got-before)
 	}
 }
 
@@ -445,7 +470,7 @@ func TestMessageEndpointUseTimeCheckIsCheapAndRefusesMovedOn(t *testing.T) {
 	for name, change := range map[string]func(*worldSlot){
 		"pid":      func(s *worldSlot) { s.pidFile++ },
 		"recorded": func(s *worldSlot) { s.recorded = false },
-		"pane":     func(s *worldSlot) { s.live = false },
+		"terminal": func(s *worldSlot) { s.live = false },
 	} {
 		r.world.set(b, change)
 		if _, err := endpoint.Observe(context.Background()); err == nil {
@@ -460,7 +485,9 @@ func TestMessageEndpointUseTimeCheckIsCheapAndRefusesMovedOn(t *testing.T) {
 		r.world.set(b, func(s *worldSlot) { s.pidFile, s.recorded, s.live = b.PID, true, true })
 	}
 	// Not connected in the registry: refused without consulting anything.
-	r.attach(b, "")
+	if err := r.s.post(couchmessage.RegistryEvent{Kind: couchmessage.SessionClosed, Token: (*r.s.liveness.Load())[b.Slot].Session}, true); err != nil {
+		t.Fatal(err)
+	}
 	r.waitConnected(b, false)
 	if _, err := endpoint.Observe(context.Background()); !errors.Is(err, couchmessage.ErrUnavailable) {
 		t.Fatalf("detached observe %v", err)

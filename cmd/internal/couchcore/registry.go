@@ -6,12 +6,14 @@ import "time"
 // of process by comparing Identity, because Couch owns the console and so every
 // read runs in a second process with no Handle.
 type ActorRecord struct {
-	ID        ActorID       `json:"id"`
-	Thread    ThreadAddress `json:"thread,omitempty"`
-	Args      StartArgs     `json:"args"`
-	StartedAt time.Time     `json:"started_at"`
-	PID       int           `json:"pid"`
-	Identity  string        `json:"identity"`
+	// AttachmentNotice is one attachment result, never durable registry state.
+	AttachmentNotice string        `json:"-"`
+	ID               ActorID       `json:"id"`
+	Thread           ThreadAddress `json:"thread,omitempty"`
+	Args             StartArgs     `json:"args"`
+	StartedAt        time.Time     `json:"started_at"`
+	PID              int           `json:"pid"`
+	Identity         string        `json:"identity"`
 	// Shape records WHICH kind of start this was: a spawn, a cold resume, or a
 	// warm reattach onto a session that already existed. Cleanup reads it to
 	// decide whether it may end that session (pair#230), and it is read from

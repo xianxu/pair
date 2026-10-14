@@ -21,7 +21,9 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/couchtty"
+	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/testwait"
 )
@@ -1822,5 +1824,57 @@ func TestCandidateResumeRetainsQueuedHubGuard(t *testing.T) {
 	ownershipChanged = true
 	if queuedGuard == nil || queuedGuard(context.Background()) == nil {
 		t.Fatal("queued candidate resume lost the ownership recheck")
+	}
+}
+
+func TestInitialHubBorrowedAttachmentNoticeAppearsOnFirstPaint(t *testing.T) {
+	for _, attachErr := range []error{nil, errors.New("attach refused")} {
+		host := hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 160})
+		input, writer := io.Pipe()
+		console := couchtty.New(host, input)
+		runner := couchcore.NewFakeRunner()
+		handle, err := runner.Start("/repo", []string{"pair"}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		start := couchcore.StartResult{Record: couchcore.ActorRecord{Thread: couchcore.ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0123456789abcdef"}, AttachmentNotice: "BORROWED ATTACH: old client is alive; retained lifecycle state was preserved."}, Handle: handle}
+		console.SetOperationDispatcher(func(call couchcore.OperationCall) (any, error) {
+			if call.Name != "attach" {
+				t.Fatalf("startup dispatched %s", call.Name)
+			}
+			return start.Record.Thread, attachErr
+		})
+		err = beginConsole(console, start)
+		if (err != nil) != (attachErr != nil) {
+			t.Fatalf("adoption error=%v", err)
+		}
+		done := make(chan struct{})
+		go func() { console.Run(); close(done) }()
+		paintDeadline := testwait.After(t)
+		painted := false
+		for !painted {
+			select {
+			case <-host.Writes():
+				painted = strings.Contains(host.Written(), "threads")
+			case <-paintDeadline:
+				console.Stop()
+				writer.Close()
+				t.Fatal("no initial console paint")
+			}
+		}
+		console.Stop()
+		writer.Close()
+		select {
+		case <-done:
+		case <-testwait.After(t):
+			t.Fatal("console did not stop")
+		}
+		visible := strings.Contains(host.Written(), start.Warning())
+		if visible != (attachErr == nil) {
+			t.Fatalf("initial borrowed warning visible=%v after adoption error=%v; paint=%q", visible, attachErr, host.Written())
+		}
+		if console.ReattachPassArmed() {
+			t.Fatal("startup notice armed background attachment")
+		}
 	}
 }

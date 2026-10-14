@@ -139,6 +139,10 @@ type StartedChild interface {
 // Started makes a StartResult its own adoption payload.
 func (s StartResult) Started() (StartResult, bool) { return s, true }
 
+// Warning reports why a successful attachment borrowed the terminal without
+// replacing its retained client record. The notice is not persisted.
+func (s StartResult) Warning() string { return s.Record.AttachmentNotice }
+
 // StopResult reports what stopping actually did: a record for an already-dead
 // actor is forgotten without a signal, and saying so avoids implying a running
 // agent was terminated.

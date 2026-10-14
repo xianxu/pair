@@ -242,9 +242,6 @@ func slotOperationOutcome(value any, err error) couchmessage.ReceiptOutcome {
 		return out
 	}
 	out := couchmessage.ReceiptOutcome{Status: couchmessage.ReceiptSucceeded}
-	if recovered, ok := value.(couchcore.RecoveryResumeResult); ok {
-		out.Warning = recovered.Notice
-	}
 	if child, ok := value.(couchcore.StartedChild); ok {
 		if started, _ := child.Started(); started.Record.Thread.Tag != "" {
 			out.Tag = string(started.Record.Thread.Tag)

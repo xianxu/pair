@@ -347,31 +347,36 @@ holds one long-lived session on the namespace's `registry` socket
 (`couchmessage.SessionClient` / `SessionServer`). The hello carries the binding,
 and the kernel's peer PID must equal `Binding.PID`. The connection closing *is*
 the death or exec event: Go sockets are close-on-exec, so a SIGUSR2 re-exec
-reconnects as a new session even when its binding is byte-identical. The
-Console posts each thread's current pane to a coalescing
-`couchmessage.PaneMailbox`. `SubscribeMessageLifecycle` replays the panes
-attached before the service started (the startup pane and the reattach pass).
+reconnects as a new session even when its binding is byte-identical. A live
+wrapper reconnects after Couch restarts without an attached or focused client.
+The message service does not subscribe to Console pane events; attachment and
+messaging have independent owners. No startup enumeration or reattach sweep is
+needed for registration.
 
 One pure `couchmessage.Registry` decides which bindings may receive:
-- **Admission:** a binding is connected when its newest session is admitted
-  against the thread's current pane. `messageService` executes the registry's
-  effects: one full authority check per admission, then broker
+- **Admission:** the wrapper hello immediately requests admission, including
+  when Couch has no pane for its thread. `messageService` executes the registry's
+  effects: one full authority check per wrapper admission, then broker
   `Register`/`Disconnect`.
 - **Ordering:** the registry owns same-slot displacement, the newest session
-  wins, and late admission results for a closed session or a replaced pane are
-  discarded.
+  wins, and late admission results for a closed or displaced session are
+  discarded. Local pane replacement or detachment does not change membership.
 - **Failed checks:** retry on a bounded ladder (0.5–8 s), then the session goes
-  dormant until something touches it: an attach, a submit, a reconnect, or a
+  dormant until something touches it: a submit, a reconnect, or a
   send that targets its slot.
 - **Exact recipient:** the newest admitted session wins. A request already
   committed to the old incarnation may still finish there, or end
   `Indeterminate`; it is never redirected to the new one.
 
-A full check (`messageAuthority.live`) runs the ps/zellij ownership probe, so it
-runs only at admission. Observe, Reserve, Deliver and a sending caller use
-`messageAuthority.current` instead, which spawns nothing. It checks the pane is
-live, the PID file still names the wrapper, and the launch's recorded ready file
-and session index still name its nonce and session.
+A full check (`messageAuthority.live`) verifies the wrapper's exact process
+identity, workspace, launch nonce and ready agent, plus its positively listed
+terminal. Observe, Reserve, Deliver and a sending caller use
+`messageAuthority.current`: `messageThreadResolver` reads the retained working
+path and performs the native session listing for that exact terminal, while the
+PID file, ready file and session index must still name this wrapper, nonce and
+session. These use-time reads can spawn the native listing command; they never
+attach, launch, stop, or mutate a retained record. Admission additionally runs
+the full ready-agent/process ownership probes. None runs on an idle timer.
 
 The wrapper pushes observation changes coalesced to at most one frame a second,
 submissions at once, and nothing while idle. `--actors` reads that memory. An
@@ -999,9 +1004,10 @@ and `couch --reboot repo:N --confirm` act on one slot from a live Couch slot:
 2. `messageService.handle` intercepts the three ops before the broker
    protocol: `ValidateRequest` (one exact `repo:N`, `Confirmed` only on
    resume/reboot), then `liveCaller`, which authenticates by Couch's own
-   liveness rather than messaging registration (operator decision after the
-   smoke test): the thread named by the request's scope and tag has a live
-   Couch pane (`authority.thread`), and the launch its record names
+   listed-terminal and launch identity rather than messaging registration
+   (operator decision after the smoke test): the thread named by the request's
+   scope and tag retains a working path and has a positively listed terminal
+   (`authority.thread`), and the launch its record names
    (`authority.agent` reads the agent) records this shell's session and nonce
    (`authority.recorded`). No broker binding or wrapper PID is needed, so a
    slot whose wrapper's peer setup failed can still recover others. A

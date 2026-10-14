@@ -14,6 +14,34 @@ import (
 // attachListedTerminal owns a client helper, never the terminal's lifecycle.
 // In particular, an independently owned start or park transaction is unchanged.
 func (c *Couch) attachListedTerminal(ctx context.Context, thread ThreadRecord, session string, opts ResumeOptions) (result ActorRecord, handle Handle, resultErr error) {
+	for attempt := 1; attempt <= 2; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return result, handle, errors.Join(resultErr, err)
+		}
+		result, handle, resultErr = c.attachListedTerminalOnce(ctx, thread, session, opts)
+		if resultErr == nil {
+			return result, handle, nil
+		}
+		// A committed client or an unquiesced helper cannot be repeated without
+		// duplicating effects. Cancellation likewise owns cleanup, never retry.
+		if result.ID != "" || (handle != nil && handle.Alive()) || ctx.Err() != nil {
+			return result, handle, errors.Join(resultErr, ctx.Err())
+		}
+		if attempt == 2 {
+			return result, handle, fmt.Errorf("attach to terminal %q failed after 2 attempts: %w", session, resultErr)
+		}
+		timer := time.NewTimer(100 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return result, handle, errors.Join(resultErr, ctx.Err())
+		case <-timer.C:
+		}
+	}
+	panic("unreachable attachment attempt")
+}
+
+func (c *Couch) attachListedTerminalOnce(ctx context.Context, thread ThreadRecord, session string, opts ResumeOptions) (result ActorRecord, handle Handle, resultErr error) {
 
 	args := StartArgs{Worktree: Worktree(thread.StartingPath), Cwd: thread.WorkingPath}
 	if profile := thread.LatestLaunchProfile; profile != nil {
@@ -116,6 +144,7 @@ func (c *Couch) attachListedTerminal(ctx context.Context, thread ThreadRecord, s
 	}
 	c.warmClients[actor.ID] = h
 	c.regMu.Unlock()
+	actor.AttachmentNotice = c.attachmentClientNotice(ctx, thread, actor, h)
 	return actor, h, nil
 }
 
@@ -173,11 +202,29 @@ func (c *Couch) listedTerminal(ctx context.Context, thread ThreadRecord) (string
 	if !ok {
 		return "", false, errors.New("selected session listing unavailable")
 	}
-	observed, err := observer.ListedPairSessionContext(ctx, thread.Address, recordSessionName(thread))
-	if err != nil {
-		return "", false, err
+	// Observation and execution have separate bounds: one retry of a failed
+	// listing read, and at most two client-helper attempts in attachment.
+	// A successful absent listing is final and never launches a helper.
+	for attempt := 1; attempt <= 2; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return "", false, err
+		}
+		observed, err := observer.ListedPairSessionContext(ctx, thread.Address, recordSessionName(thread))
+		if err == nil {
+			return observed.Name, observed.Present && observed.Name != "", nil
+		}
+		if attempt == 2 || ctx.Err() != nil {
+			return "", false, errors.Join(err, ctx.Err())
+		}
+		timer := time.NewTimer(100 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return "", false, errors.Join(err, ctx.Err())
+		case <-timer.C:
+		}
 	}
-	return observed.Name, observed.Present && observed.Name != "", nil
+	panic("unreachable listing attempt")
 }
 
 func (c *Couch) confirmListedTerminal(ctx context.Context, thread ThreadRecord, session string) error {
