@@ -1,6 +1,6 @@
 ---
 id: 000542
-status: codecomplete
+status: done
 created: 2026-10-13
 updated: 2026-10-13
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: b31ad711c02706281e933fab1d272b39544f848b
         evidence_commit: 429da05b8c342bc383019b84c2b36855670d75fa
+        landed_commit: eb63b610aade75c040337047459669bf9d8359b9
 ---
 
 # PTY canceled-before-ack reports a live process group after the child is reaped
