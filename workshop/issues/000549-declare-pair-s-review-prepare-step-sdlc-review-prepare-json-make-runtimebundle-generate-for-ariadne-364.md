@@ -15,6 +15,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "f89d6add", done: "cbf818c8"}
 ---
 
 # Declare pair's review prepare step (.sdlc/review-prepare.json: make runtimebundle-generate) for ariadne#364
