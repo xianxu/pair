@@ -178,6 +178,10 @@ Nvim shell-outs and binary dependencies:
 
 Build/install callers:
 
+- SDLC boundary reviews read `.sdlc/review-prepare.json` from the pinned commit
+  and run `make runtimebundle-generate` in their disposable checkout before
+  testing, with a ten-minute timeout. This supplies the ignored embed assets
+  without changing tracked sources.
 - `make runtimebundle-generate` refreshes the gitignored embedded runtime asset
   tree and manifest; `make runtimebundle-drift-check` verifies the generated
   bundle is reproducible. The generator imports the manifest model without

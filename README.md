@@ -394,6 +394,8 @@ still works. See [atlas/couch.md](atlas/couch.md).
 
 ```
 couch [<repo>]           open the Couch TUI (default: .)
+couch . ../bench         open several hubs; first is main
+couch --move-slot pair:7,pair:8 --to-hub bench:0 [--persist]
 couch --layout2          opt into pair's two-pane workbench
 couch --layout3          threads also get pair's right-hand terminal (the default)
 couch --list             every durable work thread across all repositories
@@ -450,7 +452,7 @@ couch --prepare repo:N --confirm [--force-unknown] [--json]
 couch --send-to repo:N --message TEXT   send to an exact live slot
 couch --send-to repo --message TEXT     select an eligible slot in that family
 couch --send-to repo --agent NAME --message TEXT   ...running that agent
-couch --send-to hub --message TEXT      send to the hub (the slot Couch started from), resolved at send time
+couch --send-to hub --message TEXT      send to your slot’s owning hub, resolved at send time
 couch --notify [--title T] MESSAGE      hub only: one desktop notification (default title: Couch)
 couch --send-to TARGET [--agent NAME] --message-file PATH
                          any form above, the body read verbatim from PATH (less one trailing newline):
@@ -882,6 +884,14 @@ focus brackets still mark the active tab, and the selected hub row is bold
 with a cursor arrow. When the tabs don't fit, a repository's numbered slots fold into a
 count (`pair  +2`), starting from the right. A red, belled or focused tab is
 never folded away, and the switcher always lists everything.
+
+With `couch . ../bench`, each directory is a hub. The first owns unclaimed slots;
+each started hub’s `.hub` file can claim repositories or exact slots. Exact claims
+win over broad repository claims; ties use command-line order and warn. The
+switcher shows each hub’s section and ownership, and tabs belonging to other hubs
+are dimmed relative to focus. A hub TL moves its own or main’s slots with
+`couch --move-slot pair:7,pair:8 --to-hub bench:0`; add `--persist` to save claims.
+Without it, the move lasts until Couch restarts. Omitted hubs’ claims are ignored.
 
 Each numbered slot keeps its Couch metadata in its environment's `.couch/`
 directory. Opening it resumes its conversation; **Start fresh** replaces the
@@ -1521,6 +1531,11 @@ public `📁...` name, `pair resume <public-name>` and `pair rename <public-name
 tag, not a public session name.
 
 **Hacking on pair?** Use `pair-dev` instead of `pair` — same arguments, but it rebuilds the `pair` binary from source (`make build`) on launch and on every Alt+n whole-workbench reload, so the zellij-spawned `pair wrap` always matches your working tree. Shift+Alt+N restarts only the already-running wrapper's agent child. (Deployed installs run `pair`, which uses the prebuilt binary and needs no Go toolchain.) Under Couch, start it with `couch-dev` instead of `couch`: it rebuilds once and runs Couch with dev mode on. Slots Couch launches do not rebuild Pair (a rebuild per slot slowed every launch under load), so run `make build` once before relaunching slots onto a new build.
+
+SDLC reviews use the pinned commit’s `.sdlc/review-prepare.json` (version 1,
+`command: ["make", "runtimebundle-generate"]`, `timeout_minutes: 10`) to generate
+the ignored runtime embed assets in a disposable checkout before tests run.
+Preparation leaves tracked sources unchanged. See the [runtime bundle map](atlas/go-migration-inventory.md).
 
 When `pair` runs and there's anything to pick — a detached Pair session owned by this repo **or** a tag from this repo used within the last 14 days — it shows an `fzf` picker. Detached rows come first, then historical rows annotated `(Nd ago, no live session)`, then a `+ new <agent> session` sentinel. A historical row whose session has prompts parked in its queue also carries an amber `[⏎ N queued]` badge, so you don't resume a session without remembering the work you queued up in it. Picking a historical row reuses the repo-local tag and any surviving draft / saved agent config (same path as `pair resume <tag>`). Override the 14-day window with `PAIR_HISTORY_DAYS`; `PAIR_DEBUG_HISTORY=1 pair` prints the scan and exits without launching.
 

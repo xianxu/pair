@@ -287,3 +287,21 @@ func TestCloneMenuStateCopiesThePassDeeply(t *testing.T) {
 		t.Fatal("a nil map must stay nil, or DeepEqual comparisons of whole states break")
 	}
 }
+
+func TestReattachSeedLeavesExplicitHubsToTheirLaunchOwner(t *testing.T) {
+	main, extra, worker := presentationOrdinary("/src/ops", "main"), presentationOrdinary("/src/bench", "extra"), presentationOrdinary("/src/project", "worker")
+	for _, row := range []*couchcore.ActionableThreadSummary{&main, &extra, &worker} {
+		row.State = couchcore.ThreadDetached
+	}
+	inventory := []couchcore.ActionableThreadSummary{main, extra, worker}
+	state := armReattach(NewMenuState(nil, main.Address), main.Address)
+	legacy := seedReattach(state, inventory)
+	if len(legacy.Reattach.Queue) != 2 {
+		t.Fatalf("legacy pass changed: %+v", legacy.Reattach.Queue)
+	}
+	state.HubOwnership = multiHubFixture(t)
+	explicit := seedReattach(state, inventory)
+	if !reflect.DeepEqual(explicit.Reattach.Queue, []couchcore.ThreadAddress{worker.Address}) {
+		t.Fatalf("explicit hub reached background pass: %+v", explicit.Reattach.Queue)
+	}
+}

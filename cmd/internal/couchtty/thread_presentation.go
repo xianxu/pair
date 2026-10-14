@@ -29,6 +29,8 @@ type ThreadPresentation struct {
 	// section's other rows sit one indent level under it. A hub is marked by
 	// position and reverse-video styling.
 	Hub bool
+	// OwnerHub is the canonical owning hub root in multi-hub mode only.
+	OwnerHub string
 	// root is this ordinary row's own scope-proven repository root, empty
 	// when the row's starting path does not prove one.
 	root string
@@ -47,7 +49,7 @@ type threadPresentationGroup struct {
 // their lexical ancestors can prove a scope match without consulting current cwd.
 // git holds the last slot git observations by checkout path; nil shows no glyphs.
 // hub is the hub slot's worktree root, or "" for none (pair#491).
-func PresentThreads(rows []couchcore.ActionableThreadSummary, git map[string]couchcore.SlotGitStatus, hub string) []ThreadPresentation {
+func PresentThreads(rows []couchcore.ActionableThreadSummary, git map[string]couchcore.SlotGitStatus, hub string, ownership ...couchcore.HubOwnership) []ThreadPresentation {
 	groups := make(map[string]*threadPresentationGroup)
 	for _, row := range rows {
 		row = presentationRow(row)
@@ -169,14 +171,16 @@ func PresentThreads(rows []couchcore.ActionableThreadSummary, git map[string]cou
 		}
 		out = append(out, g.rows...)
 	}
+	if len(ownership) > 0 && len(ownership[0].Hubs()) > 1 {
+		return hubOwnershipSections(out, ownership[0])
+	}
 	return hubSection(out, hub)
 }
 
 // hubSection leads with the hub's row and puts every other row one level
 // under it (pair#491). The hub stands alone: its repository's other slots
-// stay in their alphabetical group. Every row belongs to the one hub today;
-// designating more hubs and assigning slots to them would split this into
-// one section per hub, each in this shape.
+// stay in their alphabetical group. Multi-hub presentation applies this same
+// shape to each ownership group in command-line order.
 func hubSection(rows []ThreadPresentation, hub string) []ThreadPresentation {
 	at := slices.IndexFunc(rows, func(p ThreadPresentation) bool { return hub != "" && p.Path == hub })
 	if at < 0 {
@@ -262,4 +266,27 @@ func presentationRow(row couchcore.ActionableThreadSummary) couchcore.Actionable
 	}
 	row.Target, row.RowKey = target, key
 	return row
+}
+
+// hubOwnershipSections uses the same immutable ownership fact as routing. Unknown
+// native rows stay with main; rendering never discovers repositories or reads files.
+func hubOwnershipSections(rows []ThreadPresentation, ownership couchcore.HubOwnership) []ThreadPresentation {
+	groups := make(map[string][]ThreadPresentation)
+	for _, p := range rows {
+		p.OwnerHub = ownership.Main()
+		if ownership.IsHub(p.Path) {
+			p.OwnerHub = p.Path
+		} else if p.Row.Target.Kind == couchcore.ThreadTargetSlot {
+			slot := p.Row.Target.Slot
+			p.OwnerHub = ownership.Resolve(couchcore.HubSlot{Repository: slot.PrimaryRoot, Number: slot.Number}).Hub
+		} else if p.root != "" {
+			p.OwnerHub = ownership.Resolve(couchcore.HubSlot{Repository: p.root}).Hub
+		}
+		groups[p.OwnerHub] = append(groups[p.OwnerHub], p)
+	}
+	out := make([]ThreadPresentation, 0, len(rows))
+	for _, hub := range ownership.Hubs() {
+		out = append(out, hubSection(groups[hub.Root], hub.Root)...)
+	}
+	return out
 }

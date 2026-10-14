@@ -1021,7 +1021,7 @@ Key files: `couchtty/thread_presentation.go`, `console_presentation.go`,
 
 ### The hub leads its section (pair#491)
 
-The hub is the slot Couch started from (`hubWorktree`, pair#463). It is marked
+Bare Couch’s hub is the slot it started from (`hubWorktree`, pair#463). Each hub is marked
 by its leading position and reverse-video colours (pair#521).
 - **Tab bar:** the hub is drawn first, then every other slot grouped by
   repository: `ops  ariadne  :1  :2  blog  pair  :1  :2`. The hub stands alone,
@@ -1038,13 +1038,11 @@ by its leading position and reverse-video colours (pair#521).
   inventory (`reorderMenuInventory`). `PresentThreads(rows, git, hub)` puts the
   hub row first, flags it `Hub` and adds the indent (`hubSection`). That one
   order serves the switcher, the tab bar and clicks.
-- **Several hubs:** not built. The intended model:
-  - a hub is a designated slot;
-  - each slot is assigned to one hub;
-  - a new slot inherits the hub of the slot it was started from.
-
-  `hubSection` would become one section per hub. The renderer already starts
-  a section at each `Hub` chip after the first, behind a ` │ ` separator.
+- **Several hubs (#546):** explicit directories define ordered hubs. Their
+  `.hub` claims and ephemeral CLI moves feed `HubOwnership`; unclaimed slots
+  belong to the first hub. `Console.SetHubOwnership` supplies one section per
+  hub, with a ` │ ` separator and focus-relative fading. Exact claims override
+  repository claims; no assignment is stored on thread records.
 - **Narrow widths:** `fitChips` (`reserve.go`, pure) lays out the actor cells.
   - It first collapses each repository's numbered slots into a `+N` count,
     groups giving way from the right.
@@ -3585,3 +3583,31 @@ For an explicitly opted-in session, `COUCH_CAPTURE_DIR` enables both display
 boundaries with exact bytes, geometry and timing. Regular Couch is supported;
 `COUCH_ISOLATED_ROOT` remains optional. Capture stays disabled by default. See the
 [live capture runbook](couch-live-capture.md) for launch, limits and extraction.
+
+Explicit multi-directory launches enqueue the typed `start-hub` operation on
+the existing console operation queue. It reuses StartInteractive for each extra
+hub while preserving the first hub’s focus and the one supervisor lifetime.
+
+The typed `move-slot` operation commits an authenticated hub ownership move on
+the same console queue; CLI receipts include the destination and persist mode.
+The queue has concurrent workers. `dispatchHubOperation` serializes ownership moves
+and process mutations at their effects; extra-hub admission is chained after each
+prior adoption to preserve command-line order.
+
+Multi-hub ownership (#546) lives in `couchcore.HubOwnership`: ordered active
+hub definitions, bounded parsed `.hub` claims, and revisioned ephemeral moves.
+Exact claims beat repository claims; equal specificity picks the first CLI hub
+and warns; everything else falls back to main. Thread records carry no hub field.
+`couchcmd.hubRuntime` publishes that one immutable snapshot to routing, mutation
+guards, supervision and `Console.SetHubOwnership`. A move runs on the existing
+operation queue with caller and revision rechecks inside that effect gate. Persistence uses bounded
+no-follow reads and expected-content atomic replacements; incomplete writes retain
+runtime ownership and give inspect/retry guidance. Claims are reread only for an
+explicit persistent move. No file watcher or per-hub supervisor is added.
+
+Bare startup bypasses this configuration path. Explicit extra hubs reuse
+StartInteractive and the existing background adoption path. Per-row hub sections
+and focus-relative fading use memory-only projection; the cast remains a singleton.
+Switcher move controls are deferred to #548. Confirmed delivery facts cover every
+active hub; recipient hub classification is retained before external delivery so
+a disconnect during completion does not erase the evidence.

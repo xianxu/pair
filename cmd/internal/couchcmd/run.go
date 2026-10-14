@@ -372,7 +372,7 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 			return 1
 		}
 		op, _ := Resolve("start")
-		return runTypedOperation(op, map[string]string{}, map[string]string{"path": invocation.path}, true, invocation.layout, inFile, outFile, stdin, stdout, stderr, rt)
+		return runTypedOperation(op, map[string]string{}, map[string]string{"path": invocation.path}, true, invocation.layout, inFile, outFile, stdin, stdout, stderr, rt, invocation.hubPaths...)
 	}
 
 	var op couchcore.Operation
@@ -438,12 +438,21 @@ func terminalFiles(stdin io.Reader, stdout io.Writer) (*os.File, *os.File, bool)
 	return inFile, outFile, inOK && outOK && isTerminal(inFile) && isTerminal(outFile)
 }
 
-func runTypedOperation(op couchcore.Operation, parsed, prepareArgs map[string]string, forceConsole bool, layout couchcore.Layout, inFile, outFile *os.File, stdin io.Reader, stdout, stderr io.Writer, rt Runtime) int {
+func runTypedOperation(op couchcore.Operation, parsed, prepareArgs map[string]string, forceConsole bool, layout couchcore.Layout, inFile, outFile *os.File, stdin io.Reader, stdout, stderr io.Writer, rt Runtime, hubPaths ...string) int {
+	var hubs *hubRuntime
+	var setup []func(*couchcore.Couch) error
+	if len(hubPaths) > 0 {
+		setup = append(setup, func(c *couchcore.Couch) error {
+			var err error
+			hubs, err = prepareExplicitHubs(context.Background(), c, hubPaths)
+			return err
+		})
+	}
 	armPass := armsReattachPass(op.Name)
 	finish := func(console *couchtty.Console, c *couchcore.Couch, start couchcore.StartResult, out io.Writer) int {
-		return runConsole(console, c, start, out, armPass)
+		return runConsole(console, c, start, out, armPass, hubs)
 	}
-	return runTypedOperationWithConsole(op, parsed, prepareArgs, forceConsole, layout, inFile, outFile, stdin, stdout, stderr, rt, finish)
+	return runTypedOperationWithConsole(op, parsed, prepareArgs, forceConsole, layout, inFile, outFile, stdin, stdout, stderr, rt, finish, setup...)
 }
 
 type consoleFinisher func(*couchtty.Console, *couchcore.Couch, couchcore.StartResult, io.Writer) int
@@ -461,7 +470,7 @@ func singleReference(op couchcore.Operation, ref string) string {
 	return ref
 }
 
-func runTypedOperationWithConsole(op couchcore.Operation, parsed, prepareArgs map[string]string, forceConsole bool, layout couchcore.Layout, inFile, outFile *os.File, stdin io.Reader, stdout, stderr io.Writer, rt Runtime, finishConsole consoleFinisher) (code int) {
+func runTypedOperationWithConsole(op couchcore.Operation, parsed, prepareArgs map[string]string, forceConsole bool, layout couchcore.Layout, inFile, outFile *os.File, stdin io.Reader, stdout, stderr io.Writer, rt Runtime, finishConsole consoleFinisher, setup ...func(*couchcore.Couch) error) (code int) {
 	_, workspaceRef, referenceErr := couchcore.ParseWorkspaceReference(singleReference(op, parsed["ref"]))
 	if referenceErr != nil {
 		renderError(stderr, referenceErr)
@@ -533,6 +542,12 @@ func runTypedOperationWithConsole(op couchcore.Operation, parsed, prepareArgs ma
 	if err != nil {
 		fmt.Fprintf(stderr, "couch: %v\n", err)
 		return 1
+	}
+	for _, prepare := range setup {
+		if err := prepare(c); err != nil {
+			renderError(stderr, err)
+			return 1
+		}
 	}
 	if console != nil && ownsLive {
 		// No defer: cmd/couch's main ends capture after a normal return.
@@ -843,10 +858,10 @@ func armsReattachPass(operation string) bool { return operation == "start" }
 // runConsole attaches the spawned child and hands the terminal over. This
 // displaces render's StartResult branch, which printed a line and then blocked
 // on Handle.Wait for the child's lifetime.
-func runConsole(console *couchtty.Console, c *couchcore.Couch, start couchcore.StartResult, stdout io.Writer, armPass bool) int {
+func runConsole(console *couchtty.Console, c *couchcore.Couch, start couchcore.StartResult, stdout io.Writer, armPass bool, configuredHubs ...*hubRuntime) int {
 	// Wire the switcher's actionable projection HERE, on the path that actually
 	// runs a console. Typeahead stays pure over the resulting in-memory rows.
-	wireResolver(console, c)
+	wireResolver(console, c, configuredHubs...)
 
 	_, ok := start.Handle.(couchcore.TerminalHandle)
 	if !ok {
@@ -867,13 +882,16 @@ func runConsole(console *couchtty.Console, c *couchcore.Couch, start couchcore.S
 		return 1
 	}
 	defer func() { maintenance.Stop(); _ = maintenance.Wait() }()
-	messages, messageErr := startMessageService(console, c)
+	messages, messageErr := startMessageService(console, c, configuredHubs...)
 	if messageErr != nil {
 		renderError(stdout, messageErr)
 		return 1
 	}
 	if messages != nil {
 		defer messages.Close()
+	}
+	if len(configuredHubs) > 0 && configuredHubs[0] != nil {
+		startExplicitHubs(console, configuredHubs[0])
 	}
 	code := console.Run()
 	recordConsoleExit(console.TerminalFailure())
@@ -923,7 +941,7 @@ func dispatchInitialAttach(console *couchtty.Console, start couchcore.StartResul
 
 // wireResolver supplies the proof-bearing actionable projection. Reference
 // matching for keystrokes is intentionally in-memory inside the pure menu.
-func wireResolver(console *couchtty.Console, c *couchcore.Couch) {
+func wireResolver(console *couchtty.Console, c *couchcore.Couch, configuredHubs ...*hubRuntime) {
 	artifacts, _ := c.Artifacts.(shortcutFocusArtifacts)
 	console.SetShortcutFocusProbe(shortcutFocusProbe(artifacts, queryShortcutClients))
 	console.SetPaneRects(paneRectsOf(artifacts, queryPaneGeometry, readNoteFile))
@@ -957,10 +975,13 @@ func wireResolver(console *couchtty.Console, c *couchcore.Couch) {
 	// there is no operator action the advisor cannot also perform (#148's
 	// design test) and no way for the switcher to grow a private verb.
 	couchLive := couchcore.CouchLiveOwnerExecutor(c)
-	console.SetOperationDispatcher(func(call couchcore.OperationCall) (any, error) {
+	dispatch := func(call couchcore.OperationCall) (any, error) {
 		return couchcore.DispatchOperation(couchcore.OperationExecutors{
 			DirectStore: couchcore.DirectStoreExecutor(c),
 			LiveOwner: func(call couchcore.OperationCall) (any, error) {
+				if call.Name == "move-slot" {
+					return executeHubMove(call)
+				}
 				if call.Operation.Effect == couchcore.EffectConsole {
 					result, err := console.ExecuteConsoleOperation(call)
 					if err != nil && call.Operation.Name == "attach" {
@@ -985,7 +1006,12 @@ func wireResolver(console *couchtty.Console, c *couchcore.Couch) {
 				return couchLive(call)
 			},
 		}, call)
-	})
+	}
+	var hubs *hubRuntime
+	if len(configuredHubs) > 0 {
+		hubs = configuredHubs[0]
+	}
+	console.SetOperationDispatcher(func(call couchcore.OperationCall) (any, error) { return dispatchHubOperation(hubs, call, dispatch) })
 }
 
 // bindArgs maps positional argv onto the operation's declared ArgSpecs, plus
@@ -1339,7 +1365,7 @@ func usage(w io.Writer) { usageWith(w, couchkeys.Bindings()) }
 func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "couch - supervise agent actors, one per working tree")
 	fmt.Fprintln(w)
-	verbLine(w, launchVerb, "usage: couch [path] [--layout2|--layout3]")
+	verbLine(w, launchVerb, "usage: couch [path ...] [--layout2|--layout3]")
 	verbLine(w, "--list", "       couch --list")
 	verbLine(w, "--show", "       couch --show <thread>")
 	verbLine(w, "--reconcile", "       couch --reconcile repo:N")
@@ -1384,12 +1410,14 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "             Stop and upgrade old Couch supervisors first. Exclusions preserve data.")
 	fmt.Fprintln(w, "             One supervisor per OS account on local storage; a second launch refuses.")
 	fmt.Fprintln(w, "             COUCH_ISOLATED_ROOT explicitly separates diagnostic/test runtimes.")
+	verbLine(w, "--move-slot", "       couch --move-slot repo:N[,repo:N...] --to-hub HUB [--persist]")
+	fmt.Fprintln(w, "             Hub TLs move their own slots or main’s; --persist edits started hubs’ .hub files.")
 	verbLine(w, "--send-to", "       couch --send-to repo[:N]|hub [--agent NAME] --message TEXT|--message-file PATH")
 	fmt.Fprintln(w, "             --message-file sends the file verbatim (less one trailing newline): write a")
 	fmt.Fprintln(w, "             message containing code or shell syntax with an editor, never quote it.")
 	verbLine(w, "--message-status", "       couch --message-status ID [--json]")
 	verbLine(w, "--notify", "       couch --notify [--title T] MESSAGE")
-	fmt.Fprintln(w, "             Only the live hub notifies (default title: Couch); other slots send to the hub.")
+	fmt.Fprintln(w, "             Only a live hub notifies (default title: Couch); other slots send to their hub.")
 	fmt.Fprintln(w, "             Slots' OSC 9/777/99 notifications are swallowed, including the hub's; BEL is unchanged.")
 	fmt.Fprintln(w, "             Title: 256 bytes; message: 4096 bytes. Uncertain write: do not retry automatically.")
 	verbLine(w, query.Flag, "       couch "+query.Flag+" DIR dom|events|notes|link ...")

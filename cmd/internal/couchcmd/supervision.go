@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 )
 
@@ -17,6 +18,10 @@ type supervisionSend struct {
 	system   bool
 	prompt   string
 	admitted bool
+	// Retain ownership at initiation through queueing and delivery. The snapshot
+	// is immutable and shares the pending send lifetime, not receipt history.
+	ownership *couchcore.HubOwnership
+	hubRoot   string
 }
 
 // supervisionCoordinator adapts live evidence to the pure rules. Never hold mu
@@ -44,7 +49,7 @@ func (c *supervisionCoordinator) remember(id string, from couchmessage.Binding, 
 // sending is called only for authenticated CLI sends, before resolving hub so
 // a live supervisor can retain the fact of a refused hub report (not its body).
 func (c *supervisionCoordinator) sending(from couchmessage.Binding, r couchmessage.Request) bool {
-	hub, hasHub := c.service.hubBinding()
+	hub, hasHub := c.service.hubBindingFor(from)
 	toHub := r.Target == couchmessage.HubTarget || (hasHub && r.Target == hub.Slot)
 	if !toHub && (!hasHub || from != hub) {
 		return false
@@ -59,6 +64,15 @@ func (c *supervisionCoordinator) sending(from couchmessage.Binding, r couchmessa
 		return false
 	}
 	now := c.now()
+	var ownership *couchcore.HubOwnership
+	var hubRoot string
+	if hasHub && from == hub && !toHub && c.service.authority.hubs != nil {
+		snapshot := c.service.authority.hubs.snapshot()
+		ownership = &snapshot
+		c.service.mu.Lock()
+		hubRoot = c.service.workspaces[from].WorktreeRoot
+		c.service.mu.Unlock()
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if toHub && (!hasHub || from != hub) {
@@ -66,7 +80,13 @@ func (c *supervisionCoordinator) sending(from couchmessage.Binding, r couchmessa
 		return false
 	}
 	if hasHub && from == hub && !toHub {
-		return c.remember(r.ID, from, now, false)
+		if !c.remember(r.ID, from, now, false) {
+			return false
+		}
+		v := c.sends[r.ID]
+		v.ownership, v.hubRoot = ownership, hubRoot
+		c.sends[r.ID] = v
+		return true
 	}
 	return false
 }
@@ -154,13 +174,19 @@ func (c *supervisionCoordinator) delivered(m couchmessage.Message, r couchmessag
 	if err != nil || r.Status != couchmessage.Submitted {
 		return
 	}
-	hub, ok := c.service.hubBinding()
+	hub, ok := c.service.hubBindingFor(m.To)
 	if !ok || m.From != hub {
 		return
 	}
+	c.service.mu.Lock()
+	identity, known := c.service.workspaces[m.To]
+	c.service.mu.Unlock()
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if v, ok := c.sends[m.ID]; ok && v.from == m.From && !v.system {
+		if c.service.authority.hubs != nil && (v.ownership == nil || !known || v.hubRoot == "" || hubOwner(*v.ownership, identity) != v.hubRoot) {
+			return
+		}
 		c.state.reply(m.To, v.at)
 	}
 }
@@ -203,11 +229,13 @@ func (c *supervisionCoordinator) tick(ctx context.Context, now time.Time, muted 
 		}
 		log.snapshot(now, rows, liveness, c.service.broker)
 	}
+	available := map[couchmessage.Binding]bool{}
 	var facts []supervisionFacts
 	for _, r := range rows {
-		if hasHub && r.Binding == hub {
+		if c.service.isHubBinding(r.Binding) {
 			continue
 		}
+		_, available[r.Binding] = c.service.hubBindingFor(r.Binding)
 		f := supervisionFacts{binding: r.Binding, known: r.Known, resting: r.Resting, pending: r.Pending, quiet: now.Sub(r.LastActivity)}
 		if live != nil {
 			if l, ok := (*live)[r.Binding.Slot]; ok && l.Binding == r.Binding {
@@ -219,7 +247,7 @@ func (c *supervisionCoordinator) tick(ctx context.Context, now time.Time, muted 
 		facts = append(facts, f)
 	}
 	c.mu.Lock()
-	effects := c.state.tick(now, facts, hasHub)
+	effects := c.state.tick(now, facts, hasHub, available)
 	c.mu.Unlock()
 	for _, fx := range effects {
 		if ctx.Err() != nil {
@@ -238,6 +266,10 @@ func (c *supervisionCoordinator) tick(ctx context.Context, now time.Time, muted 
 		}
 		if fx.kind == supervisionEscalate {
 			c.notice(fmt.Sprintf("slot %s: %d min with no later hub message or operator submission observed; inspect with couch --peek %s", fx.binding.Slot, int(fx.age/time.Minute), fx.binding.Slot))
+			continue
+		}
+		hub, available := c.service.hubBindingFor(fx.binding)
+		if !available {
 			continue
 		}
 		from, to, body := hub, fx.binding, startupResendPrompt

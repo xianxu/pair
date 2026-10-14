@@ -35,10 +35,10 @@ func (c *Console) ensureMenuLocked(address couchcore.ThreadAddress) {
 	if c.menuReady {
 		return
 	}
-	palette, hub := c.menu.Palette, c.menu.Hub
+	palette, hub, ownership := c.menu.Palette, c.menu.Hub, c.menu.HubOwnership
 	c.menu = NewMenuState(nil, address)
 	c.menu.Notice = infoMenuNotice("thread inventory unavailable")
-	c.menu.Palette, c.menu.Hub = palette, hub
+	c.menu.Palette, c.menu.Hub, c.menu.HubOwnership = palette, hub, ownership
 	c.menuReady = true
 }
 
