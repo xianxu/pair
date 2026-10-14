@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-13
 updated: 2026-10-13
-estimate_hours:
-card_mirror: '8033390a8dde4737db481cce03a0848239f51b3a' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 4.19
+card_mirror: 'd648fecd289840c29b9bb8cddd036de56cdadd25' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-13T23:46:06-07:00
 claimant:
     operator: Xian Xu
@@ -73,3 +73,27 @@ Hub explicitly approved a separate startup helper reusing StartInteractive, CLI 
 Ops:0 approved plan a5c4842799590f5dfc3aaa09d93a55757810a603 (receipt 676cf232-af54-4067-b179-874215cf0fba), with the switcher move action and persist toggle removed. Those are now dependent follow-up pair#548. This overrides the active plan’s item 7, Hub move reducer/menu_hub.go entity, menu action changes and move-UI task: do not implement them in #546. Keep per-row hub display, sections and other-hub fading. CLI move-slot and all routing, authority, supervision, startup and persistence behavior remain in scope. The operator UI origin is future work in #548; #546’s remote CLI requires a verified hub TL. Proceed through full change-code review before implementation.
 
 - 2026-10-14 plan review: PQ-1 clarified mode-specific idempotency (persist reconciles claims even after an ephemeral move); PQ-2 now names parser/resolver/edit/state/IO/authorization/routing/supervision/presentation function strategies. No code yet. Re-running change-code.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. Calibration is marked stale by estimate-source; this is provisional ship wall-clock, not a deadline.
+
+Decomposition: issue shaping 0.6 design + 0.2 base implementation; pure claims/ownership 1.0 + 0.8; five bounded Go extensions (claim files, startup, authority/routing, supervision, CLI operation) each 0.3 + 0.5; display-only TUI 0.5 + 0.7; docs 0.1 + 0.2; close review 0 + 0.5; integrated multi-hub fixture 1.0 + 1.5. Thorough approved specification discounts implementation-phase design by 0.2; shaping remains undiscounted. Reuse durablefile, operation queues, message fixtures and console renderer; no external library replaces the domain-specific resolver, and there is no novel external API discovery. Familiar stack multiplier 1.0; implementation values below are already scaled by 0.40. Design subtotal 1.42; implementation subtotal 2.56; 15% design buffer yields 4.193 hours, rounded 4.19. Verification is included in each component and the final integration fixture; no extra test surcharge.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.6 impl=0.08
+item: greenfield-go-module design=0.2 impl=0.32
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: tui-screen design=0.10 impl=0.28
+item: atlas-docs design=0.02 impl=0.08
+item: milestone-review design=0 impl=0.20
+item: api-integration design=0.20 impl=0.60
+design-buffer: 0.15
+total: 4.19
+```
