@@ -473,8 +473,8 @@ reads input from its indented origin, and distinguishes its captured grey
 placeholder from authored text using the painted cursor and matching hint style.
 Qoder idle (1.1.71) and folder trust (1.1.66) fixtures are frozen from pair:4;
 tests cover registration, live-tail transport, settling, trust refusal and one
-paste/submit through the real broker seam. Native Qoder submit is still awaiting
-the authorized live smoke. Every launcher agent has an explicit receiver policy,
+paste/submit through the real broker seam. Native Qoder submit and reply, live peek, actor registration and idle settling
+were confirmed by the hub in the authorized #550 pair:4 smoke. Every launcher agent has an explicit receiver policy,
 checked against AgentInventory; Agy, Muse and Grok remain disabled pending
 captured peer-input support. Human Couch acceptance remains a separate step.
 

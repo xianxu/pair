@@ -37,6 +37,7 @@ Find why a Qoder wrapper never brings up its message endpoint / registration and
 
 - A Qoder slot appears in `couch --actors`, settles when idle, and receives `couch --send-to` messages; `--peek` shows source `live`.
 - Recorded-screen tests cover Qoder's idle prompt and its trust dialog.
+- Every AgentInventory entry has an explicit receiver policy; enabled receivers require a captured empty-composer parser, so new agents cannot silently miss admission.
 
 ## Plan
 
@@ -45,7 +46,7 @@ Find why a Qoder wrapper never brings up its message endpoint / registration and
 - [x] Admit Qoder to the receiver profiles; share its ruled-box specification between Return recognition and peer parsing (ARCH-DRY). Derive its text origin and empty cursor position from captured geometry; recognize only the captured placeholder presentation, keeping drafts occupied (ARCH-PURE).
 - [x] Exercise Qoder through the existing stateful harness fake and broker/socket delivery seam, including trust -> idle -> paste -> submit -> clear and interruption by operator input/picker (ARCH-MOCK, ARCH-ORDER). Reuse existing delivery transitions and runtime teardown; add no new lifecycle or artifacts (ARCH-FUNERAL).
 - [ ] Update the Couch atlas support statement. Run targeted wrapper tests, make -k build, and the suite through sdlc local-check run --name suite against the pushed final head. Terminal parsing stays bounded by the existing snapshot dimensions and existing delivery deadlines (ARCH-CONSTRAINTS); captured external screen bytes fail closed on unknown shape and fixtures carry no secrets (ARCH-SECURE).
-- [ ] With hub authorization only, relaunch pair:4 on the built selected head; prove actor registration, Settled, live peek and one harmless peer receipt. Close via the mandatory SDLC review and report the outcome to ops:0 (ARCH-PURPOSE).
+- [x] With hub authorization only, relaunch pair:4 on the built selected head; prove actor registration, Settled, live peek and one harmless peer receipt. Close via the mandatory SDLC review and report the outcome to ops:0 (ARCH-PURPOSE).
 
 ## Log
 
@@ -72,3 +73,9 @@ Qoder receiver policy is enabled; Return and peer input share qoderComposerSpec.
 Recorded trust opens the existing Enterselect overlay marker; bare operator Enter consumes it before idle output, matching production. Private registry test executes startPeerRuntime and reads live tail through its endpoint. The existing real broker/socket test now runs for Qoder as well as Claude. Tests prove one bracketed paste, one bare CR, clear confirmation, settling, operator input/draft/picker refusal. Mutation disabling Qoder admission and its composer case correctly fails startup, idle, settle and broker delivery tests; restored focused tests pass. make -k build passed. Full wrapper and race checks are running; full suite and live smoke remain pending. No pair:4 input or relaunch occurred.
 
 - Full wrapper package passed: go test ./cmd/internal/wrapcmd -count=1 (80.804s). Focused race check passed: go test -race ./cmd/internal/wrapcmd -run 'TestPeer(Qoder|ReceiverInventory|RuntimeBroker)' -count=1. Enabled receiver coverage additionally requires a captured empty-composer parser for every admitted agent; deliberately disabled agents remain explicit.
+
+### 2026-10-14 — live smoke accepted by hub
+
+Hub ops:0 confirmed the authorized live smoke PASSED (receipt dfe32439-0383-45b8-a92f-983bfedd2779): pair:4 was relaunched onto staged b54b991dc3824a007a5520e186f35c1a3c4f38ac; Qoder appeared in actors as active, peek reported source live, received the hub's harmless message, replied to the hub (receipt prefix 406d4cb5), and settled. Staged pair:0 bin/pair embedded that revision with modified=false; SHA256 b0f73760fae0a157d115069b1ba30429d70d1e1cf1a2f66ece46d57b4af74dcb.
+
+Ran sdlc stage --clear after hub authorization; pair:0 returned to main, releasing it for #528's smoke. Required suite on b54b991dc3824a007a5520e186f35c1a3c4f38ac remains queued behind machine-wide suite holders. No further source changes are needed for live conformance.
