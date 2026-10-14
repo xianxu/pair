@@ -34,6 +34,12 @@ The operator (2026-10-13):
 ## Done when
 
 - A slot emitting OSC 9/777/99 produces no notification on the operator's terminal; `couch --notify` from the hub produces exactly one; tests cover both and that non-notification OSC passes through.
+- Existing actors/send/status commands work against the strict pre-#540 request
+  contract; missing registration and unsupported notify responses name the
+  restart recovery action without unsupported claims about supervisor age.
+- Every notify/send remains one exchange with no automatic effect retry. A
+  stalled or incomplete notification write never reports written success and
+  never replays the notification after presenter recovery.
 
 ## Plan
 
@@ -131,6 +137,18 @@ The operator (2026-10-13):
   couchmessage, couchtty and artifactpath (/tmp/pair540-postmerge.log).
 
 ## Revisions
+
+### 2026-10-13 — close review BR-1/BR-2
+
+First close returned REWORK. BR-1 correctly found that the shared best-effort
+write helper drops controls while stalled and hides recoverable timeout errors;
+Notify inherited false success. Keep presenter recovery but give acknowledged
+notification requests a truthful non-success outcome, with regressions for
+pre-existing and notification-induced stalls and no replay after recovery.
+The notification path is the affected new acknowledgment surface; ordinary
+child effect policy is intentionally best-effort and must remain unchanged.
+BR-2 requires Done-when to include the approved compatibility work; appended
+those criteria and the explicit stalled-write outcome contract above.
 
 ### 2026-10-13 — final verification passed
 

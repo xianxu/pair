@@ -222,6 +222,16 @@ cmd/internal/artifactpath/manifest.go; issue and this plan.
 
 ## Revisions
 
+### 2026-10-13 — close review: truthful notification acknowledgment
+
+BR-1: distinguish explicit Notify acknowledgments from best-effort child effects.
+Already-stalled and newly timed-out notification writes must return non-success
+while preserving the presenter's existing stall/recovery lifecycle. Nothing
+queues or replays the notification. Add stateful stall-before and stall-during
+regressions and recovery assertions before fixing, then rerun affected packages.
+BR-2: Done-when now includes the approved legacy request compatibility and
+restart diagnostics, single-exchange behavior and truthful write outcomes.
+
 ### 2026-10-13 — mixed-version CLI/supervisor follow-up
 
 Live notification smoke passed per TL. Before close, add a private socket
