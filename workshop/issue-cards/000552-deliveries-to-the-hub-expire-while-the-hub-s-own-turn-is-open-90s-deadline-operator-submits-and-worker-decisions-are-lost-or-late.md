@@ -1,6 +1,6 @@
 ---
 id: 000552
-status: codecomplete
+status: done
 created: 2026-10-14
 updated: 2026-10-14
 estimate_hours: 2.112
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: ca8f17e75e93c1f257b7af28ab8ad4f3b4d64d7f
         evidence_commit: a162cef195d273647b65f61a2b2d33ede7dd96de
+        landed_commit: 0cf366658301c0366e2e149a055adaf37bc1df93
 ---
 
 # Deliveries to the hub expire while the hub's own turn is open (90s deadline): operator submits and worker decisions are lost or late
