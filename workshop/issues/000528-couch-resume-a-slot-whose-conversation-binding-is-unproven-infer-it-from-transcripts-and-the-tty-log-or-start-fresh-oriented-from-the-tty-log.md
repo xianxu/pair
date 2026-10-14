@@ -281,6 +281,8 @@ Per TL 4e054fd4, `make -k test` entered the machine gate and acquired after 312s
 
 - 2026-10-13 — Added the operator-approved slot-continuity target verbatim from ops draft, per verified TL receipt 7a3c544d-15c1-4c7a-b01c-5f36479f40f7; linked issue frontmatter and atlas index. Checked the manifest/table against every commitment and appended a target-conformance review to the plan. Conflicts include indefinite pending/retry states and complete-scan prerequisites for Fresh, the proposed native listing write exception, and the old-wrapper reconnect gap; hub authority is now explicit. Target copied byte-for-byte; no implementation authorized or changed.
 
+- 2026-10-13 — Verified TL decision cb59774f-021f-480a-8d44-a7a344416088 and appended revised plan: one bounded observation retry then Continue / Resume / Fresh, Fresh always offered, unknown/foreign remnants left intact with fresh-name fallback, person-or-hub confirmation. Native listing cleanup, legacy attach death race and old-wrapper messaging limitation explicitly accepted. Replaced execution sequence with three separately reviewed/operator-accepted milestones: M1 startup/attach/projection; M2 recovery execution; M3 endpoint repair. Historical M1/M2 closes do not satisfy these revised boundaries. Documentation only; awaiting TL confirmation of revised plan before M1 code.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against
@@ -330,3 +332,7 @@ collection (automatic enabling is deferred).
 ## Revisions — 2026-10-13 20:20 PDT
 
 The operator's three-outcome frame supersedes incompatible policy-based and narrow attach revisions. The current design and source-verified state manifest/reconciliation table are the final appendix of `workshop/plans/000528-slot-recovery-plan.md`. Startup observes slots without recovery effects and never blocks Couch; broken messaging does not justify teardown of an attachable live agent. Recovery requires evidence, preserved context and explicit confirmation before stopping a running agent. This is a plan for operator/TL review, not authorization to implement.
+
+## Revisions — 2026-10-13 operator-approved recovery decisions
+
+The final revision in `workshop/plans/000528-slot-recovery-plan.md` supersedes pending-only projection and the prior gap decisions. Its three unchecked milestones replace the implementation sequence for remaining work; prior checked milestones/review records are historical. TL confirmation of this revised plan is required before M1 implementation; each revised milestone needs its own operator acceptance session.
