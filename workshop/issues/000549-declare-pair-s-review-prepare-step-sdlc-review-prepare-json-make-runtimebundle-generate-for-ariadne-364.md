@@ -39,6 +39,7 @@ After ariadne#364 lands, add `.sdlc/review-prepare.json` to pair: `{"version": 1
 ## Log
 
 ### 2026-10-14
+- 2026-10-14: closed — Clean snapshot runtimebundle tests fail without assets and pass after declared argv (0.181s), tracked source hashes unchanged. Round 1 independently reproduced RED/GREEN and passed runtimebundle/runtimebundlegen tests. BR-1 README now documents version, command, timeout and atlas link; git diff --check clean. Config-only change, focused generation/tests sufficient; full suite not run. Pinned preparation exercised by close. PR stops for operator local-gates-verified label; no agent label/merge.; review verdict: SHIP
 
 ### 2026-10-14 — authorized delivery scope
 
