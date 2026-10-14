@@ -2,7 +2,7 @@ package couchcore
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -173,8 +173,13 @@ func TestProjectActionableThreadsFailsClosedOnContradictoryEvidence(t *testing.T
 				observation.Address = record.Address
 				observations = append(observations, observation)
 			}
-			if rows := actionableRows([]ThreadRecord{record}, observations, nil, nil); len(rows) != 0 {
-				t.Fatalf("contradictory row projected as actionable: %+v", rows)
+			rows := actionableRows([]ThreadRecord{record}, observations, nil, nil)
+			if tc.observation != nil {
+				if len(rows) != 1 || ContinuityOutcome(rows[0]) != Continue {
+					t.Fatalf("positive listing lost Continue: %+v", rows)
+				}
+			} else if len(rows) != 0 {
+				t.Fatalf("unproved contradictory row became actionable: %+v", rows)
 			}
 		})
 	}
@@ -343,7 +348,10 @@ func TestActionableThreadInventoryCancelsBlockedBindingResolution(t *testing.T) 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() {
-		_, err := couch.ActionableThreadInventoryContext(ctx, nil)
+		rows, err := couch.ActionableThreadInventoryContext(ctx, nil)
+		if err == nil && (len(rows) != 1 || ContinuityOutcome(rows[0]) != Fresh) {
+			err = fmt.Errorf("canceled observation lost Fresh row: %+v", rows)
+		}
 		done <- err
 	}()
 
@@ -357,8 +365,8 @@ func TestActionableThreadInventoryCancelsBlockedBindingResolution(t *testing.T) 
 	}
 	select {
 	case err := <-done:
-		if !errors.Is(err, context.Canceled) {
-			t.Fatalf("inventory error = %v, want context canceled", err)
+		if err != nil {
+			t.Fatalf("canceled observation discarded known inventory: %v", err)
 		}
 	case <-testwait.After(t):
 		t.Fatal("canceled inventory did not return")
@@ -465,14 +473,14 @@ func TestProjectActionableThreadsDetached(t *testing.T) {
 			observed: detached, want: ThreadDetached, wantRow: true,
 		},
 		{
-			name:     "no launch profile means nothing to reattach with",
+			name:     "listed terminal does not need a saved launch profile",
 			mutate:   func(r *ThreadRecord) { r.LatestLaunchProfile = nil },
-			observed: detached,
+			observed: detached, want: ThreadDetached, wantRow: true,
 		},
 		{
-			name:     "a reserved record is never actionable",
+			name:     "listed terminal overrides stale reservation",
 			mutate:   func(r *ThreadRecord) { r.Reservation = true },
-			observed: detached,
+			observed: detached, want: ThreadDetached, wantRow: true,
 		},
 		{
 			name:     "an observation for another address does not match",
@@ -529,10 +537,8 @@ func TestProjectActionableThreadsDetachedDoesNotDisturbOtherStates(t *testing.T)
 	}
 }
 
-// The detached branch must fail closed on its own, not because the caller
-// happened to filter candidates: a row whose saved agent is unsupported, or
-// whose argv was never recorded, offers an Enter that cannot work.
-func TestProjectActionableThreadsDetachedRequiresAUsableProfile(t *testing.T) {
+// Continue attaches a listed terminal without reconstructing native launch argv.
+func TestProjectActionableThreadsDetachedNeedsNoLaunchProfile(t *testing.T) {
 	t.Parallel()
 
 	address := ThreadAddress{RepoScope: "scope-a", Tag: "couch-0000000000000001"}
@@ -544,8 +550,8 @@ func TestProjectActionableThreadsDetachedRequiresAUsableProfile(t *testing.T) {
 		wantRow bool
 	}{
 		{name: "supported agent with argv", profile: &LaunchProfile{Agent: "claude", Argv: []string{}}, wantRow: true},
-		{name: "unsupported agent", profile: &LaunchProfile{Agent: "not-an-agent", Argv: []string{}}},
-		{name: "nil argv was never recorded", profile: &LaunchProfile{Agent: "claude"}},
+		{name: "unsupported agent", profile: &LaunchProfile{Agent: "not-an-agent", Argv: []string{}}, wantRow: true},
+		{name: "nil argv was never recorded", profile: &LaunchProfile{Agent: "claude"}, wantRow: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			record := ThreadRecord{

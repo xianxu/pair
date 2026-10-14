@@ -142,11 +142,26 @@ func (c *Couch) recoveryTarget(ctx context.Context, t ResumeTarget) (*ThreadStor
 		record, err := view.GetThread(t.Address)
 		return c.Threads, record, err
 	}
-	local, _, err := c.selectedSlot(ctx, t.Path)
+	if c.Slots == nil {
+		return nil, ThreadRecord{}, errors.New("slot services unavailable")
+	}
+	target, _, err := c.resolveSlotInput(ctx, t.Path)
 	if err != nil {
 		return nil, ThreadRecord{}, err
 	}
-	observed, err := local.observeSlotCurrent()
+	if target == nil || target.Kind != ThreadTargetSlot {
+		return nil, ThreadRecord{}, errors.New("recovery path does not identify an existing slot")
+	}
+	local := newSlotThreadStore(c.Namespace, target.Slot)
+	local.coordinator = c.Threads.coordinator
+	view := *local
+	view.readOnly = true
+	var observed slotCurrentObservation
+	err = view.withPreviewLockContext(ctx, func() error {
+		var readErr error
+		observed, readErr = view.readSlotCurrentLocked()
+		return readErr
+	})
 	if err != nil {
 		return nil, ThreadRecord{}, err
 	}

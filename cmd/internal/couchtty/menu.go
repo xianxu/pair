@@ -795,15 +795,8 @@ func pastParticiple(operation string) string {
 	return operation + "ed"
 }
 
-// enterOperationFor is what landing on a row DOES: a live row switches, and a
-// row that offers resume resumes -- parked, detached, or unusable where resume
-// has a route (a slot, a recoverable survivor, a retained request). Every
-// other row does nothing on Enter and says why. It reads the action table
-// rather than restating it, so Enter can never land on an action the row does
-// not offer.
-//
-// One authority, because a click must take Enter's rule rather than a restatement
-// of it -- the restatement had already diverged on its first day (pair#172).
+// enterOperationFor maps the shared continuity outcome to the existing effect.
+// Enter and mouse selection share this rule; Fresh opens confirmation first.
 func enterOperationFor(thread couchcore.ActionableThreadSummary) string {
 	switch couchcore.ContinuityOutcome(thread) {
 	case couchcore.Continue:

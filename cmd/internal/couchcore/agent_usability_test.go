@@ -97,3 +97,43 @@ func TestListedLiveOverridesStartMarkersWithoutChangingThem(t *testing.T) {
 		}
 	}
 }
+
+func TestInventoryListingBudgetExpiryStillProjectsFresh(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	actor, _ := env.spawn(t, StartArgs{Worktree: "/repo"})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	calls := 0
+	env.Artifacts.SessionPresenceHook = func([]ThreadAddress) error { calls++; cancel(); return context.DeadlineExceeded }
+	rows, err := env.Couch.ActionableThreadInventoryContext(ctx, nil)
+	if err != nil {
+		t.Fatalf("known inventory discarded on listing expiry: %v", err)
+	}
+	for _, row := range rows {
+		if row.Address == actor.Thread {
+			if ContinuityOutcome(row) != Fresh {
+				t.Fatalf("expired listing offered %s", ContinuityOutcome(row))
+			}
+			if calls != 1 {
+				t.Fatalf("retried after cancellation: %d", calls)
+			}
+			return
+		}
+	}
+	t.Fatal("known thread disappeared after listing timeout")
+}
+
+func TestContinueProofNeedsNoSavedLaunchProfile(t *testing.T) {
+	record := actionableTestThread("couch-0000000000000001", time.Unix(100, 0).UTC())
+	observed := []DetachedSessionObservation{{Address: record.Address, SessionName: "listed-session"}}
+	for _, profile := range []*LaunchProfile{nil, {Agent: "legacy-unknown"}, {Agent: "claude", Argv: nil}} {
+		record.LatestLaunchProfile = profile
+		if !detachedResumeProofMatches(record, observed) {
+			t.Fatalf("listed Continue depended on saved profile: %+v", profile)
+		}
+	}
+	observed[0].Address.Tag = "different"
+	if detachedResumeProofMatches(record, observed) {
+		t.Fatal("foreign address accepted")
+	}
+}

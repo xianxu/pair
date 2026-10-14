@@ -469,8 +469,14 @@ func threadStateText(thread couchcore.ActionableThreadSummary, now time.Time) st
 	}
 	switch couchcore.ContinuityOutcome(thread) {
 	case couchcore.Continue:
+		if thread.State == couchcore.ThreadDetached && hasRecordedActivity(thread.LastActiveAt) {
+			return "Continue · " + relativeMenuAge(now, thread.LastActiveAt)
+		}
 		return "Continue"
 	case couchcore.ResumeDisk:
+		if hasRecordedActivity(thread.LastActiveAt) {
+			return "Resume from disk · " + relativeMenuAge(now, thread.LastActiveAt)
+		}
 		return "Resume from disk"
 	default:
 		label := "Start fresh"

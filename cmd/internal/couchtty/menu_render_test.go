@@ -183,7 +183,7 @@ func TestRenderMenuSanitizesClipsAndKeepsStateText(t *testing.T) {
 		{Address: menuAddress("parked"), Name: "parked", WorkingPath: "/repo", State: couchcore.ThreadParked, LastActiveAt: now.Add(-2 * 24 * time.Hour)},
 	}
 	got := RenderMenu(NewMenuState(threads, threads[0].Address), 40, 10, now, false)
-	if strings.Contains(got, "\x1b[2J") || !strings.Contains(string(ansi.Strip([]byte(got))), "live") || !strings.Contains(got, "2d ago") {
+	if strings.Contains(got, "\x1b[2J") || !strings.Contains(string(ansi.Strip([]byte(got))), "Continue") || !strings.Contains(got, "2d ago") {
 		t.Fatalf("rendered unsafe or missing state text: %q", got)
 	}
 	if strings.Contains(strings.Split(got, "\r\n")[2], "ago") {
@@ -205,7 +205,7 @@ func TestRenderMenuProtectsStateAgeAndBellSuffixAtMinimumWidth(t *testing.T) {
 	}
 	plain := string(ansi.Strip([]byte(RenderMenu(state, 40, 10, now, false))))
 	lines := strings.Split(plain, "\r\n")
-	if len(lines) < 6 || !strings.HasSuffix(lines[2], "live") || strings.TrimSpace(lines[3]) != "└─ ready" || !strings.HasSuffix(lines[4], "parked · 2d ago") || strings.TrimSpace(lines[5]) != "└─ approval" {
+	if len(lines) < 6 || !strings.HasSuffix(lines[2], "Continue") || strings.TrimSpace(lines[3]) != "└─ ready" || !strings.HasSuffix(lines[4], "Resume from disk · 2d ago") || strings.TrimSpace(lines[5]) != "└─ approval" {
 		t.Fatalf("minimum-width semantic suffixes were clipped: %q", plain)
 	}
 	assertRenderedBounds(t, plain, 40, 10)
@@ -381,9 +381,7 @@ func stateTextRow(state couchcore.ActionableThreadState, reason couchcore.Thread
 	}
 }
 
-// The operator's own switcher labelled a DETACHED thread "parked", because
-// everything that was not live took the parked branch. Each state says what it
-// is now, and the two that carry an age keep it.
+// Internal states project to the three user outcomes; recorded activity stays visible.
 func TestRootStateTextNamesEveryState(t *testing.T) {
 	now := time.Date(2026, 9, 3, 12, 0, 0, 0, time.UTC)
 	active := now.Add(-4 * time.Hour)
@@ -392,12 +390,12 @@ func TestRootStateTextNamesEveryState(t *testing.T) {
 		reason couchcore.ThreadReason
 		want   string
 	}{
-		{couchcore.ThreadLive, "", "live"},
-		{couchcore.ThreadDetached, "", "detached · 4h ago"},
-		{couchcore.ThreadParked, "", "parked · 4h ago"},
-		{couchcore.ThreadBusy, "", "starting elsewhere"},
-		{couchcore.ThreadUnusable, couchcore.ReasonBindingLost, "binding lost — repairable"},
-		{couchcore.ThreadUnusable, couchcore.ReasonProfileMissing, "no saved launch"},
+		{couchcore.ThreadLive, "", "Continue"},
+		{couchcore.ThreadDetached, "", "Continue · 4h ago"},
+		{couchcore.ThreadParked, "", "Resume from disk · 4h ago"},
+		{couchcore.ThreadBusy, "", "Start fresh · starting elsewhere"},
+		{couchcore.ThreadUnusable, couchcore.ReasonBindingLost, "Start fresh"},
+		{couchcore.ThreadUnusable, couchcore.ReasonProfileMissing, "Start fresh"},
 	} {
 		if got := rootStateText(stateTextRow(tc.state, tc.reason, active), now); got != tc.want {
 			t.Fatalf("%s/%s = %q, want %q", tc.state, tc.reason, got, tc.want)
@@ -406,19 +404,14 @@ func TestRootStateTextNamesEveryState(t *testing.T) {
 }
 
 // Go cannot check a switch for exhaustiveness, so the vocabulary checks itself:
-// every reason renders something, and no two render the same thing.
-func TestEveryReasonRendersADistinctLabel(t *testing.T) {
+// every unusable reason retains Start fresh, with detail when available.
+func TestEveryUnusableReasonProjectsStartFresh(t *testing.T) {
 	now := time.Date(2026, 9, 3, 12, 0, 0, 0, time.UTC)
-	seen := map[string]couchcore.ThreadReason{}
 	for _, reason := range couchcore.AllThreadReasons() {
 		label := rootStateText(stateTextRow(couchcore.ThreadUnusable, reason, now), now)
-		if label == "" || label == string(reason) {
-			t.Errorf("reason %q has no label of its own (rendered %q)", reason, label)
+		if !strings.HasPrefix(label, "Start fresh") {
+			t.Errorf("reason %q hid Start fresh (rendered %q)", reason, label)
 			continue
 		}
-		if other, clash := seen[label]; clash {
-			t.Errorf("reasons %q and %q both render %q", reason, other, label)
-		}
-		seen[label] = reason
 	}
 }

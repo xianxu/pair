@@ -24,12 +24,12 @@ import (
 // these predicates also answer callers that reach the API without a row.
 func TestActionOfferedImpliesPermitted(t *testing.T) {
 	// resumeAdmitted is resume's admission as ResumeTarget's route states it:
-	// ResumableState, plus every unusable row, because the route hands those
+	// Parked/detached, plus every unusable row, because the route hands those
 	// to OpenSlot, RecoverThread or RetryContinuation, each with its own
 	// refusal -- and an unknown classification is refused by the table, not
 	// here.
 	resumeAdmitted := func(state couchcore.ActionableThreadState, reason couchcore.ThreadReason) bool {
-		return couchcore.ResumableState(state, reason) || state == couchcore.ThreadUnusable
+		return state == couchcore.ThreadParked || state == couchcore.ThreadDetached || state == couchcore.ThreadUnusable
 	}
 	actions := []struct {
 		item      string
@@ -59,6 +59,18 @@ func TestActionOfferedImpliesPermitted(t *testing.T) {
 				continue
 			}
 			everOffered[i] = true
+			// #528 replacement M1 projects Fresh even when its destructive
+			// execution needs the M2 person-or-hub confirmation path. Keep
+			// those existing stop guards closed at this boundary; widening
+			// them here would authorize teardown without the approved proof.
+			deferredFresh := action.item == "reboot" && (shape.state == couchcore.ThreadBusy ||
+				(shape.state == couchcore.ThreadUnusable && (shape.reason == couchcore.ReasonUnknown || shape.reason == couchcore.ReasonNeedsRelaunch)))
+			if deferredFresh {
+				if action.permitted(shape.state, shape.reason) {
+					t.Errorf("%s: M1 widened teardown admission before M2 confirmation", shape.name)
+				}
+				continue
+			}
 			if !action.permitted(shape.state, shape.reason) {
 				t.Errorf("%s: the switcher offers %s and the guard refuses it — "+
 					"an action that always fails is how a switcher teaches an operator to distrust it",

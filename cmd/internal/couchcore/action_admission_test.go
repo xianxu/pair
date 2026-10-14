@@ -293,9 +293,8 @@ func TestArchiveKeepsAnUnprovenIncarnationItCouldNotProveDead(t *testing.T) {
 	if err == nil {
 		t.Fatal("archived a thread whose recorded helper could not be proved dead")
 	}
-	// DISCRIMINATING: the classification is what must refuse, so its answer has
-	// to be in the message. A bare err != nil would pass on any of four guards.
-	if !strings.Contains(err.Error(), ReasonUnknown.Label()) {
+	// Continue remains available, but archive must still prove owner death.
+	if !strings.Contains(err.Error(), "recorded process could not be proved dead") {
 		t.Fatalf("refusal does not name the unresolved classification: %v", err)
 	}
 	if got := artifacts.Quiesces(); len(got) != 0 {

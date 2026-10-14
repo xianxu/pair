@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
+	"github.com/xianxu/pair/cmd/internal/threadrecord"
 )
 
 // Every named lifecycle transition is driven into its OWN refusal, and a refusal
@@ -227,6 +228,14 @@ func TestEveryLifecycleTransitionIsDrivenIntoItsOwnRefusal(t *testing.T) {
 				return err
 			},
 			want: "open start claim",
+		},
+		"PreserveRecoveryBeforeRetirement": {
+			shape: noShape,
+			call: func(t *testing.T, s *ThreadStore, r ThreadRecord) error {
+				_, err := s.PreserveRecoveryBeforeRetirement(r.Address, r.Revision, threadrecord.RecoveryIntent{})
+				return err
+			},
+			want: "recovery context version or address mismatch",
 		},
 		"ClearVerifiedPark": {
 			shape: noShape,

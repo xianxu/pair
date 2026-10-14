@@ -41,7 +41,7 @@ func TestTheSwitcherShowsEachPassStateOnItsRow(t *testing.T) {
 		rowOf[extent.Thread] = lines[extent.Start]
 	}
 	for tag, want := range map[string]string{
-		"couch-a": "live",
+		"couch-a": "Continue",
 		"couch-b": "reattach failed: resume-path-missing",
 		"couch-c": "reattaching…",
 		"couch-d": "queued",
@@ -56,7 +56,7 @@ func TestTheSwitcherShowsEachPassStateOnItsRow(t *testing.T) {
 		}
 	}
 	// A row outside the pass is untouched.
-	if row := rowOf[menuAddress("couch-parked")]; !strings.Contains(row, "parked") {
+	if row := rowOf[menuAddress("couch-parked")]; !strings.Contains(row, "Resume from disk") {
 		t.Fatalf("parked row = %q, want today's text", row)
 	}
 }

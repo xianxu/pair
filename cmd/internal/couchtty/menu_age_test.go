@@ -47,13 +47,13 @@ func TestRootStateTextOmitsTheAgeItDoesNotHave(t *testing.T) {
 		at    time.Time
 		want  string
 	}{
-		{"detached with no recorded activity", couchcore.ThreadDetached, time.Time{}, "detached"},
-		{"parked with no recorded activity", couchcore.ThreadParked, time.Time{}, "parked"},
-		{"detached two hours ago", couchcore.ThreadDetached, now.Add(-2 * time.Hour), "detached · 2h ago"},
+		{"detached with no recorded activity", couchcore.ThreadDetached, time.Time{}, "Continue"},
+		{"parked with no recorded activity", couchcore.ThreadParked, time.Time{}, "Resume from disk"},
+		{"detached two hours ago", couchcore.ThreadDetached, now.Add(-2 * time.Hour), "Continue · 2h ago"},
 		// 1970 is not absence. It is an age, and a big one.
-		{"detached at the epoch", couchcore.ThreadDetached, time.Unix(0, 0), "detached · 19675d ago"},
+		{"detached at the epoch", couchcore.ThreadDetached, time.Unix(0, 0), "Continue · 19675d ago"},
 		// Clock skew: a future timestamp clamps rather than rendering negative.
-		{"detached in the future", couchcore.ThreadDetached, now.Add(time.Hour), "detached · <1h ago"},
+		{"detached in the future", couchcore.ThreadDetached, now.Add(time.Hour), "Continue · <1h ago"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := rootStateText(row(tc.state, tc.at), now); got != tc.want {
@@ -113,7 +113,7 @@ func TestAnUnrenderablyOldTimeDoesNotResurrectTheSaturatedAge(t *testing.T) {
 		Address: menuAddress("brain"), Name: "brain",
 		State: couchcore.ThreadDetached, LastActiveAt: ancient,
 	}
-	if got, want := rootStateText(row, now), "detached · long ago"; got != want {
+	if got, want := rootStateText(row, now), "Continue · long ago"; got != want {
 		t.Errorf("rootStateText = %q, want %q", got, want)
 	}
 	if got := AgeBandFor(now, ancient); got != AgeOld {

@@ -64,9 +64,9 @@ func TestFailedContinuationComposesWithALiveRowsActions(t *testing.T) {
 		phase checkpoint.Phase
 		want  []string
 	}{
-		{couchcore.ThreadBusy, checkpoint.Failed, nil},
+		{couchcore.ThreadBusy, checkpoint.Failed, []string{"reboot"}},
 		{couchcore.ThreadLive, checkpoint.Running, []string{"retry-continuation"}},
-		{couchcore.ThreadLive, checkpoint.Pending, nil},
+		{couchcore.ThreadLive, checkpoint.Pending, []string{"reboot"}},
 		// Not live: resume routes the request to its own executor, reboot
 		// retires it with the conversation.
 		{couchcore.ThreadDetached, checkpoint.Failed, []string{"recover", "resume", "reboot"}},

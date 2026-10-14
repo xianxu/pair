@@ -470,16 +470,6 @@ func RebootAdmitted(state ActionableThreadState, reason ThreadReason, liveVerdic
 	return RebootableState(state, reason) || (liveVerdict && state == ThreadLive)
 }
 
-// ResumableState accepts either a surviving terminal or proven disk resume.
-// The selected action revalidates the appropriate evidence before effects.
-func ResumableState(state ActionableThreadState, _ ThreadReason) bool {
-	switch state {
-	case ThreadDetached, ThreadParked:
-		return true
-	}
-	return false
-}
-
 // ClassifyThread is the single, TOTAL lifecycle rule: every record and its
 // evidence produce a state, and an unusable one always says why.
 //
@@ -718,12 +708,11 @@ func startInFlight(record ThreadRecord, evidence ThreadEvidence) bool {
 // thread. Occupancy belongs to the caller's lifecycle stage, since the final
 // recheck runs after the attempt has claimed a creating incarnation.
 func detachedResumeProofMatches(record ThreadRecord, observations []DetachedSessionObservation) bool {
-	if record.LatestLaunchProfile == nil || !launcher.IsSupportedAgent(record.LatestLaunchProfile.Agent) || record.LatestLaunchProfile.Argv == nil || len(observations) != 1 {
+	if len(observations) != 1 {
 		return false
 	}
 	observation := observations[0]
 	return observation.Address == record.Address && observation.SessionName != "" &&
-		observation.Agent == record.LatestLaunchProfile.Agent &&
 		(recordSessionName(record) == "" || observation.SessionName == recordSessionName(record))
 }
 
@@ -912,12 +901,15 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 	resolver, _ := c.Artifacts.(NativeBindingResolver)
 	for i := range snapshot.Records {
 		record := snapshot.Records[i]
-		if err := ctx.Err(); err != nil {
-			return ThreadSnapshot{}, nil, err
-		}
 		item := ThreadEvidence{
 			Live: observed[record.Address], Unproven: unproven[record.Address],
 			Session: presence[record.Address],
+		}
+		// Once records are known, exhausted observation budget must not erase
+		// the inventory. Unasked evidence stays unresolved and projects Fresh.
+		if ctx.Err() != nil {
+			evidence[record.Address] = item
+			continue
 		}
 		// Who is driving this thread's start, if anything is. Gathered BEFORE
 		// the resume-shaped gate below, because a record mid-start has no
@@ -1021,9 +1013,6 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 		}
 		evidence[record.Address] = item
 	}
-	if err := ctx.Err(); err != nil {
-		return ThreadSnapshot{}, nil, err
-	}
 
 	for _, observation := range resumable {
 		item := evidence[observation.Address]
@@ -1031,9 +1020,6 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 		evidence[observation.Address] = item
 	}
 
-	if err := ctx.Err(); err != nil {
-		return ThreadSnapshot{}, nil, err
-	}
 	return snapshot, evidence, nil
 }
 

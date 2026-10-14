@@ -368,10 +368,8 @@ func (c ScopedThreadArtifactCollisionChecker) PaneSidecars(address ThreadAddress
 // DetachedSessionResolver observes which of the supplied threads currently have
 // a live zellij session with no client attached.
 //
-// It takes addresses rather than returning the whole set because the
-// session-name index is PER REPO SCOPE (`<dataDir>/repos/<scope>/session-names.jsonl`):
-// a whole-set method would need a `repos/*` enumeration this checker does not
-// have. Taking addresses mirrors PairSession(address) and ResolveEstablished.
+// The selected addresses bound client queries. Namespace claims include the
+// existing scope indexes so an unselected address cannot be borrowed silently.
 type DetachedSessionResolver interface {
 	DetachedSessions(ctx context.Context, candidates []DetachedCandidate) ([]DetachedSessionObservation, error)
 }
@@ -397,20 +395,43 @@ func (c ScopedThreadArtifactCollisionChecker) resolveScopedBindings(ctx context.
 		byScope[address.RepoScope] = append(byScope[address.RepoScope], address)
 	}
 
+	// Session names are host-wide. Include other stored scopes in claim counts
+	// even when the caller selects one address; otherwise a stale local row can
+	// borrow another scope's listed terminal.
+	if len(scopes) != 0 {
+		selectedDir, err := artifactpath.ResolveScopeDir(c.GlobalDataDir, scopes[0])
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		entries, err := os.ReadDir(filepath.Dir(selectedDir))
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return nil, nil, nil, err
+		}
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+			if _, seen := byScope[entry.Name()]; seen {
+				continue
+			}
+			if _, err := artifactpath.ResolveScopeDir(c.GlobalDataDir, entry.Name()); err != nil {
+				continue
+			}
+			scopes = append(scopes, entry.Name())
+			byScope[entry.Name()] = nil
+		}
+	}
 	var reads []scopedIndexRead
 	readable := make(map[string]bool, len(scopes))
 	for _, scope := range scopes {
 		if err := ctx.Err(); err != nil {
 			return nil, nil, nil, err
 		}
-		scoped := byScope[scope]
-		paths, err := artifactpath.Resolve(artifactpath.Address{
-			DataDir: c.GlobalDataDir, RepoScope: scope, Tag: string(scoped[0].Tag),
-		})
+		scopeDir, err := artifactpath.ResolveScopeDir(c.GlobalDataDir, scope)
 		if err != nil {
 			return nil, nil, nil, err
 		}
-		index, err := launcher.NewScopedOSRuntime(c.GlobalDataDir, paths.ScopeDir(), "").ReadSessionNameIndex()
+		index, err := launcher.NewScopedOSRuntime(c.GlobalDataDir, scopeDir, "").ReadSessionNameIndex()
 		if err != nil {
 			continue
 		}

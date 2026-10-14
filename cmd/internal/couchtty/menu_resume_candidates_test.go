@@ -60,7 +60,7 @@ func TestRecoveryMenuActivityNamesLocalTimezone(t *testing.T) {
 }
 
 func TestRecoveryAlternativesOpenReadOnlyPreview(t *testing.T) {
-	for _, route := range []string{"candidates-item", "restart-hotkey"} {
+	for _, route := range []string{"candidates-item"} {
 		t.Run(route, func(t *testing.T) {
 			row := menuSlotRow(1, "couch-unsafe")
 			row.State, row.Reason = couchcore.ThreadUnusable, couchcore.ReasonNeedsRelaunch
@@ -68,16 +68,11 @@ func TestRecoveryAlternativesOpenReadOnlyPreview(t *testing.T) {
 			state.InventoryReady = true
 			var effects []MenuEffect
 			switch route {
-			case "enter":
-				state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventKey, Key: PanelKey{Kind: KeyEnter}})
-			case "mouse":
-				state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventMouseSwitch, Address: row.Address, RowKey: menuRowKey(row)})
 			case "candidates-item":
 				state, _ = reduceRootKey(state, PanelKey{Kind: KeyTab})
 				state.Frames[len(state.Frames)-1].SelectedItem = "resume-candidates"
 				state, effects = reduceActionKey(state, PanelKey{Kind: KeyEnter})
-			case "restart-hotkey":
-				state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventParkHotkey, Operation: "relaunch", Address: row.Address})
+
 			}
 			frame := state.CurrentFrame()
 			if frame.Kind != MenuFrameRecovery || len(effects) != 1 || effects[0].Preview == nil || effects[0].Operation != "" || state.InFlight != (MenuOperationOrigin{}) {

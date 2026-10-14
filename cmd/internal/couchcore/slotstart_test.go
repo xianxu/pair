@@ -383,7 +383,7 @@ func TestExplicitOpenRepairsPartialSlotWithoutCreatingConversation(t *testing.T)
 	}
 }
 
-func TestPrimaryStartupEnrollsExistingDirectoriesBeforeInventory(t *testing.T) {
+func TestPrimaryStartupDoesNotEnrollExistingDirectories(t *testing.T) {
 	t.Parallel()
 
 	f := newProvisionFixture(t)
@@ -401,8 +401,8 @@ func TestPrimaryStartupEnrollsExistingDirectoriesBeforeInventory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(snapshot.Slots) != 1 || snapshot.Slots[0].Identity.WorktreeRoot != f.host(1) {
-		t.Fatalf("primary hid existing slot: %+v", snapshot.Slots)
+	if len(snapshot.Slots) != 0 || len(env.Runner.Ops) != 0 {
+		t.Fatalf("observation startup enrolled or launched: slots=%+v ops=%v", snapshot.Slots, env.Runner.Ops)
 	}
 }
 

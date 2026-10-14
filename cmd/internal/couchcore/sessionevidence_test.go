@@ -736,16 +736,15 @@ func TestProjectSessionPresenceSeesAnOrphan(t *testing.T) {
 	}
 }
 
-// An orphan and a fresh server for the same name: the name is contested, so it
-// is unresolved -- never "present", which would hide the orphan (#399 M1 review).
-func TestAContestedServerNameIsNeverPresent(t *testing.T) {
+// Process metadata cannot override an unambiguous positive terminal listing.
+func TestPositiveListingOutranksServerMetadata(t *testing.T) {
 	t.Parallel()
 
 	a := presenceAddress("couch-0000000000000031")
 	bindings := []SessionNameBinding{{Address: a, SessionName: "twice"}}
 	sessions := []launcher.Session{{Name: "twice", State: launcher.SessionLive}}
 	servers := map[string]launcher.ServerState{"twice": {Verdict: launcher.ServerContested}}
-	if got := ProjectSessionPresence(bindings, sessions, servers, claimsFromSessionBindings(bindings)); got[a].State != SessionUnresolved {
+	if got := ProjectSessionPresence(bindings, sessions, servers, claimsFromSessionBindings(bindings)); got[a].State != SessionPresent {
 		t.Fatalf("got %v", got[a].State)
 	}
 	// An unreadable socket for a lone, listed-live server stays present.
