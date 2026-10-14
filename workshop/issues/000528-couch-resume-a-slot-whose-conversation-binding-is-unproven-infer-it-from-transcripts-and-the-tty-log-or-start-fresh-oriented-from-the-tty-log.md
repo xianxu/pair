@@ -382,3 +382,9 @@ The final revision in `workshop/plans/000528-slot-recovery-plan.md` supersedes p
   sends no cold launch profile to Pair. Successful warm registration skips
   default/preference edits. The continuation regression plus warm executor and
   cold eligibility matrix passed independently (1.583s). No new state/schema.
+
+- 2026-10-13 21:57 PDT — Full suite caught the new
+  direct artifactpath import in the command entry point. Reused existing
+  NewScopedPaths.Validate/ScopeDir instead of widening the artifact manifest;
+  ownership check passed (1.151s) and public real-binary attach regression
+  passed (4.839s). Full-suite remainder still running.
