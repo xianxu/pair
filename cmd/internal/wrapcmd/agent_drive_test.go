@@ -171,6 +171,69 @@ func TestAgentDriveRealInputLoopForwardsOperatorAndStopsDrive(t *testing.T) {
 		t.Fatal("automatic input continued after operator")
 	}
 }
+func TestAgentDriveRealInputLoopHandsOffToNormalDelivery(t *testing.T) {
+	f, d, _ := driveFixture(t)
+	d.now = time.Now
+	in, operator := io.Pipe()
+	out := newDrainBuffer()
+	done := make(chan struct{})
+	go func() { f.proxy.translateStdinFrom(in, out, time.Millisecond); close(done) }()
+	t.Cleanup(func() {
+		operator.Close()
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+			t.Error("input writer did not stop")
+		}
+	})
+	o := d.agentDriveObservation()
+	r, err := d.startAgentDrive("handoff-drive", couchmessage.DriveStart{
+		Request:  agentdrive.Request{Keys: agentdrive.KeySequence{{Kind: agentdrive.KeyText, Text: "/status"}, {Kind: agentdrive.KeyClearLine}}},
+		Instance: o.Instance, Sequence: o.Sequence, Deadline: time.Now().Add(couchmessage.DriveBudget),
+	})
+	if err != nil || r.Terminal() {
+		t.Fatalf("admit %+v: %v", r, err)
+	}
+	if !waitFor(t, func() bool { return strings.Contains(string(out.Bytes()), "/status\x15") }) {
+		t.Fatal("key drive did not use input writer")
+	}
+	f.output("\x1b[?2026h" + peerEmptyComposer() + "\x1b[?2026l")
+	if !waitFor(t, func() bool { r, _ := d.agentDriveResult("handoff-drive"); return r.Terminal() }) {
+		t.Fatal("key drive did not finish on fresh empty composer")
+	}
+	r, _ = d.agentDriveResult("handoff-drive")
+	if r.Outcome != agentdrive.OutcomeConfirmed {
+		t.Fatalf("drive %+v", r)
+	}
+	m := peerTestMessage(time.Now())
+	m.To = d.binding
+	m.ID = "after-key-drive"
+	m.Deadline = time.Now().Add(couchmessage.DeliveryTimeout)
+	if err := d.reserve(m.ID, d.agentDriveObservation().Sequence); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.enqueue(m); err != nil {
+		t.Fatal(err)
+	}
+	pasted := func() bool { return strings.Contains(string(out.Bytes()), peerEnvelope(m)) }
+	if !waitFor(t, func() bool {
+		r := d.receipt()
+		return pasted() || r.Status.Terminal() || strings.Contains(r.Detail, "waiting for previous automatic input to clear")
+	}) || !pasted() {
+		t.Fatalf("normal delivery wedged after key drive: %+v", d.receipt())
+	}
+	peerRender(f, d, "\x1b[?2026h"+peerFilledComposer("[Pasted text #1 +3 lines]")+"\x1b[?2026l")
+	if !waitFor(t, func() bool { return bytes.HasSuffix(out.Bytes(), []byte("\r")) }) {
+		t.Fatalf("normal delivery did not submit: %+v", d.receipt())
+	}
+	peerRender(f, d, "\x1b[?2026h"+peerEmptyComposer()+"\x1b[?2026l")
+	if !waitFor(t, func() bool { return d.receipt().Status.Terminal() }) {
+		t.Fatal("normal delivery did not confirm")
+	}
+	if r := d.receipt(); r.Status != couchmessage.Submitted {
+		t.Fatalf("normal delivery failed after drive: %+v", r)
+	}
+}
 func TestAgentDriveAdmissionProofAndBusyRefusal(t *testing.T) {
 	_, d, _ := driveFixture(t)
 	o := d.agentDriveObservation()
