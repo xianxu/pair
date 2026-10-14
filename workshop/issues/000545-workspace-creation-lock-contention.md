@@ -207,3 +207,9 @@ full suite with the inventory fix continues at /tmp/pair545-complete-suite.log.
 
 Added the approved 100ms/2s admission limits explicitly to Done when (the
 Revisions design already specified them), so acceptance tracks the final scope.
+
+### 2026-10-14 — full suite green
+
+The complete make -k test with the inventory correction passed, exit 0:
+/tmp/pair545-complete-suite.log; couchcore 333.434s. No suite bypass or early
+stop. The fixed natural batch is finishing its remaining repetitions.
