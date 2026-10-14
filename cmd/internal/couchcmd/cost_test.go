@@ -84,6 +84,9 @@ func assertCosts(t *testing.T, surface string, got map[string]verbCost) {
 // Every verb in --help and in the skill carries the tag the table records,
 // so an agent reading either one learns the same cost (pair#490).
 func TestHelpAndSkillCarryEveryVerbCost(t *testing.T) {
+	if verbCosts["--notify"] != costLight {
+		t.Error("notify must be a light verb")
+	}
 	assertCosts(t, "couch --help", helpCosts(t))
 	skill, section := skillCosts(t)
 	assertCosts(t, "couch --skill", skill)
@@ -103,6 +106,18 @@ func TestHelpAndSkillCarryEveryVerbCost(t *testing.T) {
 	}
 	if !strings.Contains(flat(string(readme)), flat(costGuidance)) {
 		t.Error("README lacks the cost guidance")
+	}
+}
+
+func TestNotifyHelpAndSkillExplainHubAuthority(t *testing.T) {
+	var help bytes.Buffer
+	usage(&help)
+	for name, text := range map[string]string{"help": help.String(), "skill": couchSkill} {
+		for _, want := range []string{"--notify [--title T] MESSAGE", "swallowed", "hub", "do not retry automatically"} {
+			if !strings.Contains(text, want) {
+				t.Errorf("%s missing %q", name, want)
+			}
+		}
 	}
 }
 

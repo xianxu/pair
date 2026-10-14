@@ -900,6 +900,10 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcmd/wait_notice.go",
 	// #490 verb costs: help text only; no artifact paths.
 	"cmd/internal/couchcmd/cost.go",
+	// #540 notifications use the existing broker and presenter; no artifacts.
+	"cmd/internal/couchcmd/notify.go",
+	"cmd/internal/couchcmd/notify_service.go",
+	"cmd/internal/couchtty/desktop_notify.go",
 	"cmd/internal/terminal/endpoint_input.go",
 	"cmd/internal/terminal/history.go",
 	"cmd/internal/terminal/history_render.go",
