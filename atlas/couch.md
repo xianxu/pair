@@ -614,6 +614,11 @@ CLI. It runs in-process against the store and needs no supervisor.
 
 ### Recover plan after a restart (#367)
 
+Fleet `staged` holds (ariadne#344, pair#539) preserve measured git facts. A
+confirmed healthy staged host checkout is reported as `staged`, held without
+a recovery action. It remains detached for reboot safety; ordinary detached
+checkouts, dirt, operations and unavailable evidence keep their existing guards.
+
 `couch --recover-plan-from-sdlc` (operation `recover-plan`, `ExecuteDirectStore`,
 `EffectRead`, `PresentationRecoverPlan`) runs in the CLI process like `--list`
 and never touches the console. Flow:

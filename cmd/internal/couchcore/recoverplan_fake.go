@@ -64,7 +64,7 @@ type fakeFleetSlot struct {
 type fakeFleetMember struct {
 	role, path, resting, repoRoot string
 	branch                        string
-	detached, missing             bool
+	detached, staged, missing     bool
 	dirty                         int
 	operation                     string
 	ahead                         int
@@ -210,7 +210,7 @@ var fakeIssueBranch = regexp.MustCompile(`^([0-9]{6})-`)
 func (fl *FakeFleet) SetBranch(address, branch string) {
 	defer fl.lock()()
 	m := fl.host(address)
-	m.branch, m.detached, m.issueStatus = branch, false, ""
+	m.branch, m.detached, m.staged, m.issueStatus = branch, false, false, ""
 	if fakeIssueBranch.MatchString(branch) {
 		m.issueStatus = "working"
 	}
@@ -221,7 +221,7 @@ func (fl *FakeFleet) SetBranch(address, branch string) {
 func (fl *FakeFleet) SetMemberBranch(path, branch string) {
 	defer fl.lock()()
 	m := fl.member(path)
-	m.branch, m.detached, m.issueStatus = branch, false, ""
+	m.branch, m.detached, m.staged, m.issueStatus = branch, false, false, ""
 	if fakeIssueBranch.MatchString(branch) {
 		m.issueStatus = "working"
 	}
@@ -255,7 +255,14 @@ func (fl *FakeFleet) SetMemberOperation(path, operation string) {
 func (fl *FakeFleet) SetDetached(address string) {
 	defer fl.lock()()
 	m := fl.host(address)
-	m.branch, m.detached, m.issueStatus = "", true, ""
+	m.branch, m.detached, m.staged, m.issueStatus = "", true, false, ""
+}
+
+// SetStaged models sdlc stage: an intentionally detached smoke checkout.
+func (fl *FakeFleet) SetStaged(address string) {
+	defer fl.lock()()
+	m := fl.host(address)
+	m.branch, m.detached, m.staged, m.issueStatus = "", true, true, ""
 }
 
 // SetIssueStatus sets the declared status of the host branch's issue.
@@ -327,7 +334,7 @@ func (m *fakeFleetMember) row() FleetRow {
 	dirty, ahead := m.dirty, m.ahead
 	row := FleetRow{
 		RepoIdentity: filepath.Join(m.repoRoot, ".git"), RepoRoot: m.repoRoot, TreePath: m.path,
-		Branch: m.branch, Detached: m.detached,
+		Branch: m.branch, Detached: m.detached, Staged: m.staged,
 		Facts:       FleetFacts{Available: true, BaseAvailable: !m.baseUnavailable, Behind: &zero, DirtyCount: &dirty},
 		Issues:      []FleetIssue{},
 		Claims:      []FleetClaim{},
@@ -364,7 +371,9 @@ func fakeJudge(row FleetRow, operation, resting string) (string, []string) {
 	} else if *f.Ahead > 0 {
 		holds = append(holds, "unlanded-commits")
 	}
-	if row.Detached {
+	if row.Detached && row.Staged {
+		holds = append(holds, "staged")
+	} else if row.Detached {
 		recovery = append(recovery, "detached")
 	}
 	if row.Branch != "" && row.Branch != resting {
