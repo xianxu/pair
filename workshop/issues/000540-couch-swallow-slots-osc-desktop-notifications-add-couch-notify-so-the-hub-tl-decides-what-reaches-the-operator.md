@@ -15,6 +15,7 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "cafb2d9c", done: "c88d2fe0"}
 ---
 
 # couch: swallow slots' OSC desktop notifications; add couch --notify so the hub (TL) decides what reaches the operator
