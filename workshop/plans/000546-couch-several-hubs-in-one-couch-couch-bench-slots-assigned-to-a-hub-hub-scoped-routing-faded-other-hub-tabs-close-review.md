@@ -93,3 +93,96 @@ findings:
    - Admission ownership provenance for reply evidence and delayed-delivery sequence tests.
 
    The final reconciliation otherwise accounts for the implemented paths and approved switcher-move deferral.
+
+---
+
+## Re-review — 2026-10-14T01:31:29-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 546 — couch: several hubs in one Couch (couch . ../bench): slots assigned to a hub, hub-scoped routing, faded other-hub tabs |
+| repo | pair |
+| issue file | workshop/issues/000546-couch-several-hubs-in-one-couch-couch-bench-slots-assigned-to-a-hub-hub-scoped-routing-faded-other-hub-tabs.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | b63f4bd76e3e81d1433cfeda544bb3bed8501522..ea90c472427c275666b8da843995d61170f63e5f |
+| command | sdlc close --issue 546 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-14T01:31:29-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The approved CLI-first scope is implemented, and all three prior findings are verified addressed. One Important gap remains: supervision delivery logging still recognizes only the main hub, silently omitting confirmed deliveries to secondary hubs. Fix that consumer and add regression coverage before closing.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      hub_move.go:159-176 confirms unchanged claim snapshots. Removing this correction makes both TestHubMoveRetryConfirmsAlreadyVisibleClaims cases fail; pinned-head tests pass.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      supervision.go:187 checks retained admission ownership alongside current ownership. Removing the guard makes TestHubSupervisionDelayedReplyPreservesAdmissionOwnership/foreign-to-own fail; pinned-head tests pass.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      atlas/couch.md:3593-3595 now identifies concurrent queue workers, dispatchHubOperation's effect gate, and the adoption chain; hubs.go implements both ordering mechanisms.
+findings:
+  - id: new
+    severity: Important
+    family: ownership-consumers-share-projection
+    title: |
+      Secondary-hub deliveries disappear from supervision facts
+    detail: |
+      cmd/internal/couchcmd/message_service.go:1093-1102 still uses hubBinding(), which resolves only authority.hub (main), to admit hub_delivery facts. A disposable production-adapter test confirmed that main receives one fact while a confirmed secondary-hub delivery receives zero. ARCH-PURPOSE: classify every active hub through the shared ownership projection, retaining recipient evidence across delivery, and test main, secondary, and non-hub recipients.
+```
+
+1. **Strengths**
+
+   - Persistence retries now require directory durability confirmation, including fully visible batches.
+   - Delayed reply tests exercise both reassignment directions and unchanged ownership.
+   - Pure ownership and edit planning remain separate from bounded filesystem IO.
+   - README, atlas, CLI help, and source inventory cover the new surface.
+
+2. **Critical findings**
+
+   None remaining.
+
+3. **Important findings**
+
+   - **Missing secondary-hub delivery facts** — `message_service.go:1093`. Replace the main-only predicate with shared active-hub classification captured before delivery. Preserve explicit cross-hub logging semantics and test all recipient classes.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   - Full couchcmd, couchmessage, couchtty, and artifactpath tests passed.
+   - Focused hub/core tests and hub/supervision race checks passed.
+   - Both prior behavioral corrections independently produced failing tests when removed.
+   - The exploratory logging test reproduced the new finding.
+   - Full `make -k test` was not independently rerun. Disposable checkout removed; review tree unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY:** Pass — shared ownership and mutation guards.
+   - **ARCH-PURE:** Pass — pure claims, resolution, edits, and presentation.
+   - **ARCH-PURPOSE:** Flag — delivery logging retains the single-hub assumption.
+   - **ARCH-MOCK:** Pass — stateful socket/process fixtures and injected failures.
+   - **ARCH-CONSTRAINTS:** Pass — bounded claims, overrides, and cancellable effects.
+   - **ARCH-SECURE:** Pass — authenticated capabilities and bounded no-follow reads.
+   - **ARCH-ORDER:** Pass — effect gate, adoption chain, revision checks, and controlled sequences.
+   - **ARCH-FUNERAL:** Pass — bounded configuration replacement and process-lifetime overrides.
+
+7. **Plan revision recommendation**
+
+   Add a `## Revisions` entry stating that supervision fact logging is an ownership consumer: all active hubs must receive delivery facts, with recipient classification retained across delivery. Include regression coverage for main, secondary, and non-hub recipients.

@@ -29,6 +29,33 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - "n": 2
+      timestamp: "2026-10-14T01:31:29-07:00"
+      dispatched: "2026-10-14T01:25:09-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: hub_move.go:159-176 confirms unchanged claim snapshots. Removing this correction makes both TestHubMoveRetryConfirmsAlreadyVisibleClaims cases fail; pinned-head tests pass.
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: supervision.go:187 checks retained admission ownership alongside current ownership. Removing the guard makes TestHubSupervisionDelayedReplyPreservesAdmissionOwnership/foreign-to-own fail; pinned-head tests pass.
+          round: 2
+        - id: BR-3
+          disposition: addressed
+          note: atlas/couch.md:3593-3595 now identifies concurrent queue workers, dispatchHubOperation's effect gate, and the adoption chain; hubs.go implements both ordering mechanisms.
+          round: 2
+      findings:
+        - id: BR-4
+          severity: Important
+          title: Secondary-hub deliveries disappear from supervision facts
+          detail: 'cmd/internal/couchcmd/message_service.go:1093-1102 still uses hubBinding(), which resolves only authority.hub (main), to admit hub_delivery facts. A disposable production-adapter test confirmed that main receives one fact while a confirmed secondary-hub delivery receives zero. ARCH-PURPOSE: classify every active hub through the shared ownership projection, retaining recipient evidence across delivery, and test main, secondary, and non-hub recipients.'
+          family: ownership-consumers-share-projection
+          round: 2
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#546 (boundary-review)
@@ -47,8 +74,19 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-3** [Minor] `architecture-docs-match-execution` Atlas still describes the operation queue as serial
   atlas/couch.md:3592 and 3600 attribute serialization to the queue, although it has multiple workers. Document dispatchHubOperation's effect gate and the explicit startup adoption chain as the ordering mechanisms. ARCH-ORDER.
 
+## Round 2 — 2026-10-14T01:31:29-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — hub_move.go:159-176 confirms unchanged claim snapshots. Removing this correction makes both TestHubMoveRetryConfirmsAlreadyVisibleClaims cases fail; pinned-head tests pass.
+- BR-2 — addressed — supervision.go:187 checks retained admission ownership alongside current ownership. Removing the guard makes TestHubSupervisionDelayedReplyPreservesAdmissionOwnership/foreign-to-own fail; pinned-head tests pass.
+- BR-3 — addressed — atlas/couch.md:3593-3595 now identifies concurrent queue workers, dispatchHubOperation's effect gate, and the adoption chain; hubs.go implements both ordering mechanisms.
+
+### Raised
+
+- **BR-4** [Important] `ownership-consumers-share-projection` Secondary-hub deliveries disappear from supervision facts
+  cmd/internal/couchcmd/message_service.go:1093-1102 still uses hubBinding(), which resolves only authority.hub (main), to admit hub_delivery facts. A disposable production-adapter test confirmed that main receives one fact while a confirmed secondary-hub delivery receives zero. ARCH-PURPOSE: classify every active hub through the shared ownership projection, retaining recipient evidence across delivery, and test main, secondary, and non-hub recipients.
+
 ## Open findings
 
-- **BR-1** [Critical] `durable-success-requires-confirmation` Persistent retries can report success without confirming durability
-- **BR-2** [Critical] `reply-evidence-preserves-admission-ownership` Reassignment can turn a cross-hub message into reply evidence
-- **BR-3** [Minor] `architecture-docs-match-execution` Atlas still describes the operation queue as serial
+- **BR-4** [Important] `ownership-consumers-share-projection` Secondary-hub deliveries disappear from supervision facts

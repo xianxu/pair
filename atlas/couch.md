@@ -3608,4 +3608,6 @@ explicit persistent move. No file watcher or per-hub supervisor is added.
 Bare startup bypasses this configuration path. Explicit extra hubs reuse
 StartInteractive and the existing background adoption path. Per-row hub sections
 and focus-relative fading use memory-only projection; the cast remains a singleton.
-Switcher move controls are deferred to #548.
+Switcher move controls are deferred to #548. Confirmed delivery facts cover every
+active hub; recipient hub classification is retained before external delivery so
+a disconnect during completion does not erase the evidence.

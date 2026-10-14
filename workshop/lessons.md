@@ -1704,3 +1704,5 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
 - #546 retry evidence: after a successful move, the original caller may no longer own the target. Authenticate the caller and answer its retained full-intent receipt before checking authority for a new effect. Include persistence mode and destination in deduplication; no-op durable commands must not advance the ownership revision.
 
 - #546 close review: retries that replan from visible filesystem state still need durability confirmation; unchanged bytes do not prove a failed directory sync later succeeded. Admission-time authority evidence must survive delayed delivery, rather than being reconstructed only from the current owner.
+
+- #546 multi-owner changes must enumerate observability consumers as well as routing/guards: delivery facts are part of the behavior contract, and a main-only logging predicate can silently lose confirmed secondary-owner evidence.
