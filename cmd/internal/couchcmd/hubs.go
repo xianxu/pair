@@ -104,20 +104,34 @@ func (h *hubRuntime) target(name string) (string, error) {
 // path, preserving the first hub's focus and the single reattach pass.
 func startExplicitHubs(console *couchtty.Console, hubs *hubRuntime) {
 	console.SetHubOwnership(hubs.snapshot())
-	for _, hub := range hubs.snapshot().Hubs()[1:] {
-		root := hub.Root
+	queueExplicitHubs(hubs.snapshot().Hubs()[1:], console.EnqueueRemoteOperation, func(root string, err error) {
+		console.Notify(couchtty.Notice{Kind: "status", Body: fmt.Sprintf("hub failed; open it in the switcher to retry: %s: %v", root, err)})
+	})
+}
+
+// Only enqueue the next hub after the prior one has finished adoption. Queue
+// worker scheduling cannot reorder the operator's explicit launch sequence.
+func queueExplicitHubs(hubs []couchcore.HubDefinition, enqueue func(string, string, func(context.Context) (couchcore.OperationCall, error), func(), func(any, error)) error, report func(string, error)) {
+	var next func(int)
+	next = func(index int) {
+		if index >= len(hubs) {
+			return
+		}
+		root := hubs[index].Root
 		finish := func(_ any, err error) {
 			if err != nil {
-				console.Notify(couchtty.Notice{Kind: "status", Body: fmt.Sprintf("hub failed; open it in the switcher to retry: %s: %v", root, err)})
+				report(root, err)
 			}
+			next(index + 1)
 		}
-		err := console.EnqueueRemoteOperation("hub-start:"+root, "start-hub", func(ctx context.Context) (couchcore.OperationCall, error) {
+		err := enqueue("hub-start:"+root, "start-hub", func(ctx context.Context) (couchcore.OperationCall, error) {
 			return couchcore.OperationCall{Name: "start-hub", Args: map[string]string{"path": root}}, ctx.Err()
 		}, func() {}, finish)
 		if err != nil {
 			finish(nil, err)
 		}
 	}
+	next(0)
 }
 
 func (s *messageService) sameHubBindings(from, to couchmessage.Binding) bool {

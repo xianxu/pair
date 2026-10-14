@@ -113,3 +113,29 @@ func TestHubConflictWarningsNameEqualSpecificityOnly(t *testing.T) {
 		t.Fatalf("warnings %v", warnings)
 	}
 }
+
+func TestHubStartupQueueWaitsForEachAdoption(t *testing.T) {
+	_, defs, _ := moveFixture(t)
+	var finished []func(any, error)
+	var roots []string
+	queueExplicitHubs(defs[1:], func(_ string, _ string, prepare func(context.Context) (couchcore.OperationCall, error), _ func(), finish func(any, error)) error {
+		call, err := prepare(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		roots = append(roots, call.Args["path"])
+		finished = append(finished, finish)
+		return nil
+	}, func(string, error) {})
+	if len(roots) != 1 || roots[0] != defs[1].Root {
+		t.Fatalf("eager starts %v", roots)
+	}
+	finished[0](nil, nil)
+	if len(roots) != 2 || roots[1] != defs[2].Root {
+		t.Fatalf("order %v", roots)
+	}
+	finished[1](nil, nil)
+	if len(roots) != 2 {
+		t.Fatal("extra launch")
+	}
+}
