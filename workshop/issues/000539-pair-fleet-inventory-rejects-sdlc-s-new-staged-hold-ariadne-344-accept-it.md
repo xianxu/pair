@@ -44,6 +44,7 @@ Accept `staged` through the shared fleet reason grammar. Preserve the producerâ€
 ## Log
 
 ### 2026-10-13
+- 2026-10-13: closed â€” make -k test passed in full (exit 0), /tmp/pair539-make-k.log; couchcore 441.750s; focused stage lifecycle, grammar, recovery-domain and live fleet conformance passed; red grammar reproduced before fix. Reason-list consumer sweep complete. Latest main merge after suite changed only workshop artifacts.; review verdict: SHIP
 
 - Read producer JudgeCheckout and TreeRow: detached + staged is holds-work; dirty/operation take precedence, unread base remains unknown. Swept Go consumers: one reason grammar, the shared memberGit reader, recovery classifier, and stateful fleet fake. No other hard-coded hold lists found.
 - ARCH-PURPOSE: acceptance also needs a normal-stage recovery explanation. ARCH-DRY/PURE: reuse grammar and existing evidence/classifier seams. No new IO, background work, durable state, or resource budget; ARCH-SECURE/CONSTRAINTS/FUNERAL do not introduce additional mechanisms. Preserve existing safety ordering (ARCH-ORDER).
