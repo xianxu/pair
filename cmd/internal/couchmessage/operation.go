@@ -1,9 +1,14 @@
 package couchmessage
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
+	"unicode/utf8"
+
+	"github.com/xianxu/pair/cmd/internal/agentdrive"
 )
 
 // ReceiptStatus is a slot-operation receipt's state (pair#367 M2). A receipt
@@ -40,13 +45,15 @@ const ReceiptRetention = 5 * time.Minute
 
 // OperationReceipt is the typed outcome of one resume or reboot request.
 type OperationReceipt struct {
-	ToHub   string `json:",omitempty"`
-	Persist bool   `json:",omitempty"`
-	ID      string
-	Op      string
-	Target  string
-	Agent   string `json:",omitempty"`
-	Status  ReceiptStatus
+	IntentDigest string             `json:",omitempty"`
+	Drive        *agentdrive.Result `json:",omitempty"`
+	ToHub        string             `json:",omitempty"`
+	Persist      bool               `json:",omitempty"`
+	ID           string
+	Op           string
+	Target       string
+	Agent        string `json:",omitempty"`
+	Status       ReceiptStatus
 	// Code is a refusal's code (SlotOperationError's, e.g. not-offered).
 	Code string `json:",omitempty"`
 	// Detail is the refusal's or failure's factual text.
@@ -85,12 +92,14 @@ const (
 
 // ReceiptOutcome is a finish event's terminal result.
 type ReceiptOutcome struct {
+	Drive                                                  *agentdrive.Result
 	Status                                                 ReceiptStatus
 	Code, Detail, Diagnostic, Tag, Archived, Warning, Path string
 }
 
 // ReceiptEvent drives ApplyReceiptEvent.
 type ReceiptEvent struct {
+	IntentDigest          string
 	ToHub                 string
 	Persist               bool
 	Kind                  ReceiptEventKind
@@ -119,9 +128,9 @@ func ApplyReceiptEvent(r OperationReceipt, e ReceiptEvent) (OperationReceipt, er
 		return r, nil
 	case ReceiptAdmit:
 		if r.Status == ReceiptNone {
-			return OperationReceipt{ID: e.ID, Op: e.Op, Target: e.Target, Agent: e.Agent, ToHub: e.ToHub, Persist: e.Persist, Status: ReceiptQueued, Admitted: e.At}, nil
+			return OperationReceipt{IntentDigest: e.IntentDigest, ID: e.ID, Op: e.Op, Target: e.Target, Agent: e.Agent, ToHub: e.ToHub, Persist: e.Persist, Status: ReceiptQueued, Admitted: e.At}, nil
 		}
-		if e.Op != r.Op || e.Target != r.Target || e.Agent != r.Agent || e.ToHub != r.ToHub || e.Persist != r.Persist {
+		if e.IntentDigest != r.IntentDigest || e.Op != r.Op || e.Target != r.Target || e.Agent != r.Agent || e.ToHub != r.ToHub || e.Persist != r.Persist {
 			return r, ErrReceiptIDConflict
 		}
 		return r, nil
@@ -139,6 +148,10 @@ func ApplyReceiptEvent(r OperationReceipt, e ReceiptEvent) (OperationReceipt, er
 			return refuse("finish without a terminal outcome")
 		}
 		o := e.Outcome
+		r.Drive = boundedDriveResult(o.Drive)
+		if r.Drive != nil {
+			o.Detail = r.Drive.Detail
+		}
 		r.Status, r.Code, r.Detail, r.Diagnostic, r.Tag, r.Archived, r.Warning, r.Path, r.Finished = o.Status, o.Code, o.Detail, o.Diagnostic, o.Tag, o.Archived, o.Warning, o.Path, e.At
 		return r, nil
 	case ReceiptExpire:
@@ -160,4 +173,41 @@ func orNoReceipt(s ReceiptStatus) string {
 		return "no receipt"
 	}
 	return string(s)
+}
+
+// A receipt owns its result and retains at most 32 KiB of encoded drive data.
+func boundedDriveResult(source *agentdrive.Result) *agentdrive.Result {
+	if source == nil {
+		return nil
+	}
+	result := *source
+	clip := func(value string, limit int) string {
+		value = strings.ToValidUTF8(value, "?")
+		if len(value) <= limit {
+			return value
+		}
+		value = value[:limit]
+		for !utf8.ValidString(value) {
+			value = value[:len(value)-1]
+		}
+		return value
+	}
+	result.Detail = clip(result.Detail, 1024)
+	result.Model = clip(result.Model, 128)
+	result.Effort = clip(result.Effort, 32)
+	result.Scope = agentdrive.ModelScope(clip(string(result.Scope), 32))
+	result.ID = clip(result.ID, 128)
+	result.Tail = nil
+	for i := len(source.Tail) - 1; i >= 0 && len(result.Tail) < 200; i-- {
+		line := clip(source.Tail[i], agentdrive.MaxResultTailBytes/6)
+		candidate := append([]string{line}, result.Tail...)
+		previous := result.Tail
+		result.Tail = candidate
+		encoded, _ := json.Marshal(result)
+		if len(encoded) > agentdrive.MaxResultTailBytes {
+			result.Tail = previous
+			break
+		}
+	}
+	return &result
 }

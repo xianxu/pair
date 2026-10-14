@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/agentdrive"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/couchtty"
@@ -120,7 +121,7 @@ func (s *slotOperations) admit(ctx context.Context, caller couchmessage.Binding,
 	defer s.mu.Unlock()
 	s.sweepLocked()
 	existing, held := s.receipts[key]
-	receipt, err := couchmessage.ApplyReceiptEvent(existing, couchmessage.ReceiptEvent{Kind: couchmessage.ReceiptAdmit, ID: r.ID, Op: r.Op, Target: r.Target, Agent: r.Agent, ToHub: r.ToHub, Persist: r.Persist, At: s.now()})
+	receipt, err := couchmessage.ApplyReceiptEvent(existing, couchmessage.ReceiptEvent{Kind: couchmessage.ReceiptAdmit, IntentDigest: driveIntentDigest(r), ID: r.ID, Op: r.Op, Target: r.Target, Agent: r.Agent, ToHub: r.ToHub, Persist: r.Persist, At: s.now()})
 	switch {
 	case errors.Is(err, couchmessage.ErrReceiptIDConflict):
 		return couchmessage.Response{Code: "id-conflict", Error: err.Error()}
@@ -202,6 +203,18 @@ func (s *slotOperations) queueKey(ctx context.Context, target string) (string, e
 // slot refusal is refused with its code, any other error failed with its
 // resume diagnostic, and a success names the thread left running.
 func slotOperationOutcome(value any, err error) couchmessage.ReceiptOutcome {
+	if result, ok := value.(agentdrive.Result); ok && err == nil {
+		out := couchmessage.ReceiptOutcome{Drive: &result, Detail: result.Detail, Status: couchmessage.ReceiptFailed}
+		switch result.Outcome {
+		case agentdrive.OutcomeConfirmed:
+			out.Status = couchmessage.ReceiptSucceeded
+		case agentdrive.OutcomeRefused:
+			out.Status = couchmessage.ReceiptRefused
+		case agentdrive.OutcomeUnconfirmed:
+			out.Code = "unconfirmed"
+		}
+		return out
+	}
 	var refusal *couchcore.SlotOperationError
 	var recoverRefusal *couchcore.RecoverRefusal
 	var reapRefusal *couchcore.ReapRefusal

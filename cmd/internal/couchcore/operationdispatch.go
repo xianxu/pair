@@ -481,6 +481,8 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 				return nil, err
 			}
 			return c.ResumeTarget(ctx, ResumeTarget{Address: address})
+		case "keys", "set-model":
+			return nil, fmt.Errorf("%s requires the authenticated live supervisor and wrapper drive capability", call.Operation.Name)
 		case "switch", "attach", "move-slot":
 			return nil, fmt.Errorf("%s requires an active couch console", call.Operation.Name)
 		default:

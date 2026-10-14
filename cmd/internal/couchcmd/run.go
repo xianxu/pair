@@ -979,6 +979,9 @@ func wireResolver(console *couchtty.Console, c *couchcore.Couch, configuredHubs 
 		return couchcore.DispatchOperation(couchcore.OperationExecutors{
 			DirectStore: couchcore.DirectStoreExecutor(c),
 			LiveOwner: func(call couchcore.OperationCall) (any, error) {
+				if call.Name == "keys" || call.Name == "set-model" {
+					return executeAgentDrive(call)
+				}
 				if call.Name == "move-slot" {
 					return executeHubMove(call)
 				}
