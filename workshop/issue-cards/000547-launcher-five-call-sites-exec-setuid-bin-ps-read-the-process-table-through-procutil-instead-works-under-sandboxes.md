@@ -3,7 +3,7 @@ id: 000547
 status: working
 created: 2026-10-13
 updated: 2026-10-14
-estimate_hours:
+estimate_hours: 3.59
 github_issue:
 started: 2026-10-14T00:00:06-07:00
 claimant:
