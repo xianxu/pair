@@ -1,12 +1,20 @@
 ---
 id: 000529
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-13
 updated: 2026-10-13
 estimate_hours:
-card_mirror: '561aeb9dc9c3cc3866ea653f7e57b963b1f3d551' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '08b93a22f121af15e84ad91fa9729d9278629a4c' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-13T18:57:14-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:6
+    worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Couch start-slot form has no selectable agents
@@ -39,3 +47,7 @@ Use the canonical launcher agent inventory for the start form as the switch-agen
 Read-only investigation requested by ops:0. Confirmed against main-era source: `menu.go` NewMenuState, openStartForm, reduceStartKey and selectStartAgent; production references to `Agents` only read or clone it. `menu_switchagent.go` uses launcher.AgentInventory directly. Existing menu tests set Agents themselves.
 
 Independent temporary Go-overlay diagnostic passed (0.271s): production constructor with RootAgent=claude leaves the start agent empty; Right does nothing and AgentSticky remains false. Positive control supplying the canonical inventory makes the same selector choose Codex with AgentSticky=true. No repository implementation files or live slots were changed. Filed from a scratch checkout outside the numbered-slot layout; leave unclaimed.
+
+### 2026-10-13 — implementation design
+
+Initialize `MenuState.Agents` in `NewMenuState` with `launcher.AgentInventory()`, which already returns an owned copy. This keeps both start and add-slot forms on the canonical inventory without duplicating choices or changing resolver authority (ARCH-DRY). Use constructor-based tests for both entry points: untouched previews omit an explicit agent and accept the resolver default; Left/Right selection requests Codex, rejects stale preview completions, retains the current preview and dispatches Codex. Existing focused tests may still inject restricted inventories when testing unrelated behavior. One production initialization change; no live slot operations, new state lifecycle or API. Run RED/GREEN reducer tests, package tests and full `make -k test`, then close/CI/land.
