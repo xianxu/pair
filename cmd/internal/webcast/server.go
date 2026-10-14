@@ -8,16 +8,18 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/broadcast"
 	castassets "github.com/xianxu/pair/cmd/internal/webcast/assets"
 	"github.com/xianxu/pair/cmd/internal/webcast/capability"
+	"github.com/xianxu/pair/cmd/internal/webcast/notedraft"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
-//go:embed web/index.html web/viewer.js web/viewer.css web/model.js web/render.js web/css.js web/annotate.js web/annotation-policy.js web/annotate.css web/placeholders.js web/drive.js web/drive.css web/replay.js web/replay.css web/replayer.js web/fidelity.html web/fidelity.js
+//go:embed web/index.html web/viewer.js web/viewer.css web/model.js web/render.js web/css.js web/annotate.js web/annotation-policy.js web/annotation-anchor.js web/annotation-placement.js web/capture-draft.js web/annotate.css web/placeholders.js web/drive.js web/drive.css web/replay.js web/replay.css web/replayer.js web/fidelity.html web/fidelity.js
 var webFS embed.FS
 
 // contentSecurityPolicy: the page runs only its own script, talks only to
@@ -36,9 +38,12 @@ var assets = map[string]struct{ file, contentType string }{
 	"css.js":     {"web/css.js", "text/javascript; charset=utf-8"},
 	// Pointing and notes (#470): this package's module and style, and the
 	// swatches and dialog shared with the terminal viewer.
-	"annotation-policy.js": {"web/annotation-policy.js", "text/javascript; charset=utf-8"},
-	"annotate.js":          {"web/annotate.js", "text/javascript; charset=utf-8"},
-	"annotate.css":         {"web/annotate.css", "text/css; charset=utf-8"},
+	"annotation-anchor.js":    {"web/annotation-anchor.js", "text/javascript; charset=utf-8"},
+	"capture-draft.js":        {"web/capture-draft.js", "text/javascript; charset=utf-8"},
+	"annotation-placement.js": {"web/annotation-placement.js", "text/javascript; charset=utf-8"},
+	"annotation-policy.js":    {"web/annotation-policy.js", "text/javascript; charset=utf-8"},
+	"annotate.js":             {"web/annotate.js", "text/javascript; charset=utf-8"},
+	"annotate.css":            {"web/annotate.css", "text/css; charset=utf-8"},
 	// The marks for what the recording can't hold (#513).
 	"placeholders.js": {"web/placeholders.js", "text/javascript; charset=utf-8"},
 	// Remote driving (#467).
@@ -62,14 +67,18 @@ const endedReason = "ended"
 // With a board (WithBoard) it also takes viewers' strokes and notes by POST
 // (#470); everything else is GET only.
 type Server struct {
-	token      string
-	browser    Browser
-	live       recording.Live
-	proxy      *castassets.Proxy
-	presence   Presence
-	ping       time.Duration
-	maxViewers int32
-	viewers    atomic.Int32
+	noteDrafts    *notedraft.Service
+	noteOwner     func(*http.Request) string
+	noteStreamsMu sync.Mutex
+	noteStreams   map[string]int
+	token         string
+	browser       Browser
+	live          recording.Live
+	proxy         *castassets.Proxy
+	presence      Presence
+	ping          time.Duration
+	maxViewers    int32
+	viewers       atomic.Int32
 	// viewViewers and driveViewers: the streams on each link (#467), each
 	// its own counter, so neither is derived from two reads.
 	viewViewers, driveViewers atomic.Int32
@@ -166,6 +175,9 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request, link castLink) {
 		return
 	}
 	defer s.viewers.Add(-1)
+	if link.annotates() {
+		defer s.attachNoteStream(r)()
+	}
 	byLink := &s.viewViewers
 	if driveLink {
 		byLink = &s.driveViewers

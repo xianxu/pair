@@ -193,8 +193,8 @@ top page by the recorder. The viewport position at time t is the top document's 
 
 | Kind | File | Fields | Meaning |
 |---|---|---|---|
-| `note` | notes | `id` (string), `author` `{id,name,color}`, `text`, `at` `{node,kind,path,sel,text,box}`, `region` `[x,y,w,h]` | A note on a box of the page at its `t` (#488). `region` is the note's box: what the viewer dragged, or the default box of a tap. It is the area a submission crops, and the board writes it on every note. A note from before #488 may lack it. `at` anchors the note on the smallest element containing the box's centre. `at.node` is the element's id. `at.kind` is `element`. `at.path` is the meaningful containers down to it (`main › article › p#first`). `at.sel` is a stable CSS selector. `at.text` is the element's text, trimmed to 200 characters. `at.box` is the element's box. |
-| `note-edit` | notes | `id`, `text` | A text revision of an open note on the current document. Preserves the original author, creation time, anchor and region; marks the projected note `edited`. |
+| `note` | notes | `id` (string), `author` `{id,name,color}`, `text`, `at` `{node,kind,path,sel,text,box,tag,classes,stable,route}`, `region` `[x,y,w,h]`, optional `capture` | A note on a box of the page at its `t` (#488). `region` is the note's box: what the viewer dragged, or the default box of a tap. It is the area captured at draw time, and the board writes it on every note. `capture` is the opaque private capture reference; it exposes no file path or pixels. A note from before #488 may lack it. `at` anchors the note on the smallest element containing the box's centre. `at.node` is the element's id. `at.kind` is `element`. `at.path` is the meaningful containers down to it (`main › article › p#first`). `at.sel` is a stable CSS selector. `at.text` is the element's text, trimmed to 200 characters. `at.box` is the element's box. |
+| `note-edit` | notes | `id`, `text` | A text revision of any open note, admitted against the current document. Preserves the original author, creation time, anchor, region and capture; marks the projected note `edited`. |
 | `note-state` | notes | `id`, `state`: `open` or `resolved`, optional `who` `{id,name,color}` | A note was resolved or reopened. Resolver attribution is retained in `NoteView.ResolvedBy` and note query results. |
 | `stroke` | pointer | `id`, `author`, `color`, `pts` `[[x,y,dt],…]` | One pointer stroke, or one chunk of it; `dt` is ms after the record's `t`. A live stroke streams as several records sharing an `id` (#470: one per viewer POST, about every 50 ms), each continuing it; a viewer's stroke id is its viewer id, `.`, and the shell's own stroke id, so two viewers' strokes never join. |
 | `frame` | frames/index | `file`, `w`, `h`, `scale` | A screenshot of the real tab at `t` (the fidelity check), `w`×`h` image pixels; `scale` is image pixels per CSS pixel, the one source of that mapping for every consumer: 0.5 (the viewport at half its CSS size) whatever the device pixel ratio, except under a ratio of 0.5, where a screenshot isn't upsampled and `scale` is the ratio. `t` is the capture's midpoint. Not in the live stream. |
@@ -204,9 +204,9 @@ generated once per browser and a name it asked for once, with the color of the s
 **attribution, not authentication**: anyone with the cast link can write as any id (one always-on link for internal
 viewers, TL 10-12). Remote driving (#467) swaps in seat identity. The id `operator` is reserved for Couch.
 
-Notes stay in the recording after a reload. That live notes clear on reload (project, Direction) is the notes model's
-rule (#461): the notes "on" the current document are those since the document began (`State.DocSeg`), so a pause and
-resume keeps them and a navigation clears them. The shape is shared with the terminal's notes (#455, #488). `author`
+Notes stay open in the recording after navigation until resolved. The live open-note list spans documents;
+a pin appears only when its anchor is confidently placed on the current view. Historical replay's `liveNotes`
+filter uses `State.DocSeg`, retaining notes across pause/resume while limiting its historical page's pins. The shape is shared with the terminal's notes (#455, #488). `author`
 and `text` stay the same. Both carry a box, in their own units: page px here, cells on the terminal. Both carry an
 anchor read as `{kind, path, text}`: here `kind: element` and the containers' path; on the terminal, Couch's layout
 path, which #488 M3 adds (atlas/broadcast.md).
@@ -214,10 +214,12 @@ path, which #488 M3 adds (atlas/broadcast.md).
 ## The notes model (#461)
 
 [DOM submission](webcast-submission.md) (#483) packages all open notes selected
-on the cast document at admission. It reuses this model for recorded context
-and calls `NoteCrops` separately for each note, preserving one current PNG per
-note even when boxes overlap. Its manifest distinguishes note-time context
-from capture-time pixels and pins note revisions for guarded acknowledgment.
+across the recording's documents at admission. It reuses this model for recorded
+context and reads each note's stored draw-time capture, preserving separate PNGs
+even when boxes overlap. Its version-3 manifest carries per-note page/document
+and privacy, distinguishing recorded context from saved pixels and pinning note
+revisions for guarded acknowledgment. Missing legacy evidence is unavailable,
+never silently recaptured from the current page.
 
 `notes.Structural` is the real `notes.Model` (`cmd/internal/webcast/notes`), pure over the reducer's state at a
 moment. It runs `notes.RunModelContract` like the fake.
@@ -225,7 +227,9 @@ moment. It runs `notes.RunModelContract` like the fake.
 **A note** is `recording.Note`: `id`, `author` `{id,name,color}`, `text`, `t`, its box `region`, and the anchor `at`.
 A terminal note keeps `author` and `text`, with a box in cells and Couch's layout anchor (#488).
 
-**The anchor** `at` is `{node, kind, path, sel, text, box}`:
+**The anchor** `at` retains `{node, kind, path, sel, text, box}` and freezes
+`tag`, bounded `classes`, stable identity attributes and exact `route` for live
+replacement matching:
 - `kind` is `element`. `path` is `pathOf`: the meaningful containers above the element (the landmark rule below),
   outermost first, then the element itself. Each step is named by its tag and its id or role. The innermost six
   steps are kept.
@@ -388,7 +392,7 @@ live phase, so it feeds the active tab's CDP events to the recorder while `Phase
 and a tab switch from `Tracker.Active` emits a new `seg`. `CastConfig` gains the `recording.Live` that fans the
 same records out, and `Server.events` sends them as `rec` events. The route, the token and the shared `broadcast.Host` stay.
 
-**Viewers' strokes and notes (#470).** `POST <cast>/stroke`, `/note`, `/note-edit` and `/note-state` are the only routes that read
+**Viewers’ strokes and notes (#470).** The `POST <cast>/stroke`, `/note`, `/note-edit` and `/note-state` routes read
 a body (`webcast/server_board.go`), admitted like the terminal pointer routes: a JSON content type, 4 in flight, a
 budget per cast (strokes 60/s, notes and states 2/s with a burst of 5), a prompt body within 8 KiB. Bodies are parsed
 strictly by `board.Parse*` (each names its `viewer` `{id,name}` and the `seg` it was made on; a note its `node`, the
@@ -417,6 +421,28 @@ click copies and resolves). The collaboration overlay the menu draws in is insta
 cast needs it (`syncOverlay`). Lifecycle: the board lives with the cast (the recorder closes it with the recording); its pending
 entries end when their record is seen, the emit fails, or a new document begins.
 
+**Draw-time capture (#538).** New viewer notes use `POST prepare-note` with
+`{request,seg,node,box,region}`, then `draft-status` with `{request,draft?}`.
+`save-note` sends `{request,draft,viewer,color,text}`; `cancel-draft` retires the
+pending request or signed token. These routes keep the annotation-generation
+header, existing note-rate budget and bounded admission; the envelope limit is
+40 KiB to accommodate opaque tokens up to 32 KiB. The operator uses corresponding
+isolated-world operations, supplying the recorder's structural `path` at Prepare
+and private owner/session authority from CDP. Browser request IDs are correlation,
+not ownership. A private capture record owns pixels and metadata; the public
+recording note carries only its opaque `capture` reference.
+
+The shared controller opens an editable draft immediately at mouseup, projects
+pending/ready/failure without replacing text, and enables Save once ready. The
+capture tick requires confirmed captured time. Ordinary capture failure offers
+Retry capture; bounded queue/store pressure offers Save with explicitly unavailable
+evidence. Save waits for the writer's acknowledgment; pending/unknown is never
+success, and edited retry is admitted only after the previous writer is proved
+absent. Cancellation is fenced from late answers and cannot retire an attached note.
+The capture store is local, outside served recording roots; preparation alone never
+adds pixels to the public asset map. Details and limits are in
+[submission evidence](webcast-submission.md#draw-capture-and-save-538).
+
 **The JS viewer contract (#460).** The viewer applies records to a sandboxed frame without `allow-scripts`
 (`webcast/web/`: `model.js` applies, `render.js` draws). On `window.couchViewer`:
 - `resolveAsset(absURL)` returns the proxy URL for an asset (`<cast>/assets/<hash>`), or nothing;
@@ -424,6 +450,8 @@ entries end when their record is seen, the emit fails, or a new document begins.
   the model), and `ready()` resolves once its stylesheets, fonts and images have loaded;
 - `boxOf(id)` is a node's box in top-page CSS px from the viewer's own unscaled layout. A note made in the viewer
   carries this box from click time.
+- `placementOf(note)` returns a verified live region or null; `onPlacementChange(fn)`
+  requests repaint after DOM/layout changes without replacing the record pipeline.
 - `nodeAt(pageX, pageY)` is the id of the innermost drawn element at a top-page point (into frames and shadow roots):
   the target of a driver's act (#466). `toPage(clientX, clientY)` maps a point in the viewer's window to top-page CSS px,
   and `fromPage(pageX, pageY)` back (#470's pins and strokes).
@@ -442,17 +470,34 @@ the terminal viewer:
 - A tap gets the default box: a tenth of the page shown each way, centred on the tap. It is shifted, not shrunk,
   to stay in view.
 - The note anchors on `nodeAt`'s element at the box's centre.
-- Pins are the model's live notes (since `docSeg`, open). Each frame they are drawn as the box, outlined in the
-  author's color (an older note without one: its element's box as drawn by `boxOf`, else the box it was made on).
+- `openNotes` lists every open note across recording documents. Live pins use
+  `placementOf` only: removed, hidden, clipped, offscreen or ambiguous anchors have
+  no box, while their list entry reads **not on this view**. No historical box is
+  substituted into the live page.
 - The 💭 chip sits inside the box's top-right corner and opens the note with Resolve (without it under the view-only link, pair#506). The identity (`couch.viewerId`, made once;
 `couch.viewerName`, asked in the first draft) is kept in localStorage behind try/catch, and a stored name is read by
 the board's rules (else asked again). Controls that take input (swatches, mode buttons, pin chips) are rebuilt only
 when their data changes; each frame only places them. For replay (#477), the drawing is pure over the model at t:
 `liveNotes(model)`, `strokesAt(model, t)` (chunks joined by id, the points drawn by t, fading 1.5 s after the last),
 `paintStrokes(canvas, strokes, toClient, rect, dpr)` and `pinLayer(doc, container, open).draw(notes, boxOf, place)`.
-The live viewer draws with `liveNotes`, `pinLayer` and `paintStrokes` (its strokes fade on arrival time, `strokeStore`);
-`strokesAt` is the at-t counterpart. The replay draws with exactly these (#477, `replayMarks` in `replay.js`), so a
-note's pin follows `noteBox` (its region first, then its element, then the box it carried) live and in replay alike.
+The live viewer draws with `openNotes`, strict `placementOf`, `pinLayer` and
+`paintStrokes` (its strokes fade on arrival time, `strokeStore`); `strokesAt` is the
+at-t counterpart. Replay (#477, `replayMarks` in `replay.js`) deliberately retains
+`liveNotes` and historical `noteBox` (recorded region, then element, then carried box).
+
+`annotation-anchor.js` shares its scoring contract with Go: matching tag is
+mandatory; stable identity contributes 50, useful exact normalized text 40,
+meaningful ancestor suffix 20, class overlap at most 10. Replacement requires at
+least 60 and a 20-point margin; weak/common text and truncated scans cannot win.
+`annotation-placement.js` performs the shared bounded DOM/visibility walk (2,000
+nodes), preserves shadow scope uniqueness, and refuses frame replacement without
+frame-route evidence. A connected recording ID is authoritative only for a note
+from the current document; conflicting evidence hides it. Its original normalized
+region follows the live anchor geometry, through visibility/clipping checks.
+DOM/text/attribute mutation invalidates candidate facts; scroll, resize and
+animation completion request another placement. Operator IDs cannot map to live
+recording IDs, so the operator always uses scored evidence. Pin and list callbacks
+read the latest note record; moving or hiding a pin never rewrites saved pixels.
 In replay mode the notes module doesn't mount (the replay server
 serves no `palette.json`).
 
@@ -745,3 +790,5 @@ Reducers copy the original note before changing text, so query context still
 comes from its creation record. Catch-up, replay and live pins use the latest
 revision; retired notes cannot be revived by a late edit. Resolve remains shared
 housekeeping and records `who`, including operator submission resolution.
+
+A reconnect catch-up retains note records, revisions and states across documents, with bare segment records preserving anchor provenance. It sends only the latest document snapshot and current-document strokes; off-view notes remain available in the open-note list.

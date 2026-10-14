@@ -98,6 +98,9 @@ func (c *Console) toggleWebcast() {
 func (c *Console) startWebcast(cfg webcast.CastConfig) {
 	ctx, cancel := context.WithCancel(c.lifetime)
 	c.mu.Lock()
+	if c.submissions != nil {
+		cfg.ObservePublication = c.submissions.observePublication
+	}
 	c.wcast = webcastState{phase: webcastStarting, attempt: c.wcast.attempt + 1, cancel: cancel}
 	attempt := c.wcast.attempt
 	c.mu.Unlock()

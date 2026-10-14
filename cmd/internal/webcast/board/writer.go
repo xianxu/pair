@@ -46,7 +46,9 @@ func (w *Writer) Put(r recording.Record) error {
 func (w *Writer) Emit(r recording.Record, doc int) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	if !w.st.OnDoc(doc) {
+	noteState, conditional := r.(*recording.NoteState)
+	historicalResolution := doc == 0 && conditional && noteState.IfRevision != nil && noteState.State == recording.NoteResolved
+	if !historicalResolution && !w.st.OnDoc(doc) {
 		if w.st.Paused() && w.st.DocSeg == doc {
 			return ErrPaused
 		}

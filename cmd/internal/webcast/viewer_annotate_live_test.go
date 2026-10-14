@@ -1,21 +1,37 @@
 package webcast
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/png"
 	"math"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	core "github.com/xianxu/pair/cmd/internal/submission"
 	"github.com/xianxu/pair/cmd/internal/webcast/board"
+	"github.com/xianxu/pair/cmd/internal/webcast/notedraft"
 	"github.com/xianxu/pair/cmd/internal/webcast/notes"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
+
+// The replay fixture has no live source browser. Supply deterministic pixels at
+// the capture seam; real capture conformance is covered by the operator fixture.
+type replayFixtureCapture struct{}
+
+func (replayFixtureCapture) Capture(_ context.Context, p board.PreparedNote) (notedraft.Evidence, []byte, error) {
+	var pixels bytes.Buffer
+	err := png.Encode(&pixels, image.NewRGBA(image.Rect(0, 0, 2, 2)))
+	return notedraft.Evidence{Page: core.PageIdentity{URL: p.At.Route, Provenance: "cdp"}, Crop: core.Crop{File: "crop-0.png", Document: p.Document, Box: p.Region, CapturedAt: time.Now().UTC()}, BoxText: core.BoxText{Region: p.Region}}, pixels.Bytes(), err
+}
 
 // Two viewers point and leave notes on the blog cast (#470), end to end in
 // two headless Chromes: the real viewer page, served by Server with a board
@@ -55,7 +71,8 @@ func TestAnnotateLiveTwoViewers(t *testing.T) {
 			}
 		}
 	}
-	viewer := NewServer("view", NewFakeBrowser(), time.Second, hub, nil).WithBoard(bd).WithPointer("tok") // its viewers annotate (pair#506)
+	drafts := replayNoteDraftService(t, bd, w)
+	viewer := NewServer("view", NewFakeBrowser(), time.Second, hub, nil).WithBoard(bd).WithPointer("tok").WithNoteDrafts(drafts, func(*http.Request) string { return "trusted-fixture-session" }) // private test authentication, independent of viewer attribution
 	viewer.Assets().Bind(store)
 	srv := httptest.NewServer(viewer)
 	t.Cleanup(func() { srv.CloseClientConnections(); srv.Close() })
@@ -128,6 +145,9 @@ func TestAnnotateLiveTwoViewers(t *testing.T) {
 	}
 	// A tap's note is the default box (#488): a tenth of the page shown each
 	// way, centred on the tap; its pin is that box.
+	if noted.Capture == "" {
+		t.Fatal("viewer note omitted draw-time capture")
+	}
 	if noted.Region == nil {
 		t.Fatalf("A's tapped note has no box: %+v", noted)
 	}
@@ -230,7 +250,7 @@ func TestAnnotateLiveTwoViewers(t *testing.T) {
 		const res = document.querySelectorAll('.note-buttons button')[0].disabled;
 		d.draft({});
 		const inp = document.querySelector('.note-input'); inp.value = 'hello'; inp.dispatchEvent(new Event('input'));
-		const save = document.querySelectorAll('.note-buttons button')[2].disabled;
+		const save = [...document.querySelectorAll('.note-buttons button')].find(b => b.textContent === 'Save').disabled;
 		d.close();
 		return String([res, save]); })()`
 	pins := fmt.Sprintf(`(() => String([%q, %q].filter((id) => { const p = document.querySelector('.pin[data-note="' + id + '"]'); return p && !p.hidden; }).length))()`, noted.ID, region.ID)
@@ -255,6 +275,18 @@ func TestAnnotateLiveTwoViewers(t *testing.T) {
 	if err := w.Put(snap); err != nil {
 		t.Fatalf("resume snapshot: %v", err)
 	}
+	// A real resumed snapshot also records viewport scroll. Restoring
+	// only the tree resets the viewport and correctly hides off-screen anchors.
+	for id, xy := range st.Scrolls {
+		if id != st.Top.ID {
+			continue
+		} // only the top document was replayed above
+		r := &recording.Scroll{ID: id, X: xy[0], Y: xy[1]}
+		r.SetTime(at + 150)
+		if err := w.Put(r); err != nil {
+			t.Fatal(err)
+		}
+	}
 	for _, p := range []*chromePage{a, b} {
 		waitEval(t, p, "notes after a resume", pins, "1")
 		waitEval(t, p, "the rail enabled after a resume", railAnyOff, "false")
@@ -266,7 +298,8 @@ func TestAnnotateLiveTwoViewers(t *testing.T) {
 	w.Put(decode(t, fmt.Sprintf(`{"t":%d,"k":"doc","doc":9000001,"url":"http://other/","tree":{"id":9000001,"y":"doc","c":[{"id":9000002,"y":"el","n":"html","c":[{"id":9000003,"y":"el","n":"head"},{"id":9000004,"y":"el","n":"body"}]}]}}`, at+200)))
 	for _, p := range []*chromePage{a, b} {
 		waitEval(t, p, "notes after a navigation", pins, "0")
-		waitEval(t, p, "no pins after a navigation", `(() => String(document.querySelectorAll('.pin').length))()`, "0")
+		waitEval(t, p, "open note remains listed off-view", `(() => document.querySelector('.annotation-note-row[data-placement=absent]')?.textContent.includes('not on this view') ? 'listed' : 'missing')()`, "listed")
+		waitEval(t, p, "no pins after a navigation", `(() => String(document.querySelectorAll('.pin:not([hidden])').length))()`, "0")
 	}
 
 	// The recording holds both viewers' notes and A's stroke, and reduces.
@@ -357,9 +390,11 @@ func fillAndSave(t *testing.T, p *chromePage, name, text string) {
 		const n = document.querySelector('.note-name');
 		if (!n.hidden) set(n, %q);
 		set(document.querySelector('.note-input'), %q);
-		[...document.querySelectorAll('.note-buttons button')].find((b) => b.textContent === 'Save').click();
+
 		return '';
 	})()`, name, text))
+	waitEval(t, p, "capture acknowledged before Save", `(() => { const b = [...document.querySelectorAll('.note-buttons button')].find(b => b.textContent === 'Save'); return b && !b.disabled ? 'ready' : document.querySelector('.note-msg').textContent; })()`, "ready")
+	p.eval(t, `(() => { [...document.querySelectorAll('.note-buttons button')].find(b => b.textContent === 'Save').click(); return ''; })()`)
 	waitEval(t, p, "the draft saved", `(() => { const d = document.querySelector('.note-dialog'); return d.classList.contains('hidden') ? 'saved' : d.querySelector('.note-msg').textContent || 'open'; })()`, "saved")
 }
 
@@ -371,4 +406,38 @@ func within(n *recording.DOMNode, id recording.NodeID) bool {
 		}
 	}
 	return false
+}
+
+// replayNoteDraftService exercises the durable protocol with deterministic pixels
+// when the recorded source fixture has no live browser.
+func replayNoteDraftService(t *testing.T, bd *board.Board, w *board.Writer) *notedraft.Service {
+	t.Helper()
+	drafts, err := notedraft.New(notedraft.Options{Root: t.TempDir(), RecordingPath: filepath.Join(t.TempDir(), "replay-fixture"), Capture: replayFixtureCapture{}, Release: bd.ReleaseNoteReservation,
+		Write: func(ctx context.Context, admission board.AnnotationAdmission, n board.NoteReservation, check func() error, settle func(board.OperatorOutcome, error)) error {
+			err := ctx.Err()
+			if err == nil {
+				err = admission.Check()
+			}
+			if err == nil && check != nil {
+				err = check()
+			}
+			if err == nil {
+				err = w.Emit(&n.Note, n.Document)
+			}
+			if err != nil {
+				settle(board.OperatorRefused, err)
+			} else {
+				settle(board.OperatorAccepted, nil)
+			}
+			return nil
+		}, Observe: func(_ context.Context, id string) (*recording.Note, bool, error) {
+			n, ok := bd.ObservedNote(id)
+			return n, ok, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { drafts.Close() })
+	return drafts
 }

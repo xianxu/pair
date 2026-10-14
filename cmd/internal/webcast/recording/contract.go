@@ -280,7 +280,7 @@ func sameRecords(a, b []Record) bool {
 
 // CheckCatchUp reports whether joining after recs, at t, gives a viewer
 // what the whole recording gives: the same canonical page, assets,
-// document start (DocSeg) and notes on the current document. Every
+// document start (DocSeg) and all retained notes. Every
 // catch-up check uses it, so none compares less than consumers read.
 func CheckCatchUp(recs []Record, t int64) error {
 	all, err := Reduce(recs, t)
@@ -304,8 +304,8 @@ func CheckCatchUp(recs []Record, t int64) error {
 		return fmt.Errorf("the asset table differs")
 	case all.DocSeg != cu.DocSeg:
 		return fmt.Errorf("the document began in segment %d, the catch-up says %d", all.DocSeg, cu.DocSeg)
-	case liveNotes(all) != liveNotes(cu):
-		return fmt.Errorf("current-document notes %q, the catch-up has %q", liveNotes(all), liveNotes(cu))
+	case retainedNotes(all) != retainedNotes(cu):
+		return fmt.Errorf("retained notes %q, the catch-up has %q", retainedNotes(all), retainedNotes(cu))
 	case all.Hover != cu.Hover || !samePtr(all.Ptr, cu.Ptr):
 		return fmt.Errorf("hover %d ptr %v, the catch-up has %d %v", all.Hover, all.Ptr, cu.Hover, cu.Ptr)
 	case !all.Control.Equal(cu.Control):
@@ -331,20 +331,18 @@ func sameAssets(a, b map[string]*Asset) bool {
 	return true
 }
 
-// liveNotes: the current document's notes with their states, as the notes
-// model reads them.
-func liveNotes(s *State) string {
+// retainedNotes covers every note the open-note list can expose.
+func retainedNotes(s *State) string {
 	var out []string
 	for _, n := range s.Notes {
-		if n.Seg >= s.DocSeg {
-			wire, _ := json.Marshal(struct {
-				Note       *Note
-				State      string
-				Revision   uint64
-				ResolvedBy *Author
-			}{n.Note, n.State, n.Revision, n.ResolvedBy})
-			out = append(out, string(wire))
-		}
+		wire, _ := json.Marshal(struct {
+			Note       *Note
+			Seg        int
+			State      string
+			Revision   uint64
+			ResolvedBy *Author
+		}{n.Note, n.Seg, n.State, n.Revision, n.ResolvedBy})
+		out = append(out, string(wire))
 	}
 	return strings.Join(out, ",")
 }

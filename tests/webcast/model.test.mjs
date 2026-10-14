@@ -126,3 +126,13 @@ test('note edits copy creation records, retain view identity, and attribute reso
   assert.throws(()=>m.apply({t:6,k:'note-edit',id:'n',text})); assert.equal(m.t,5);
  }
 });
+
+test('historical open note edits preserve its original capture, anchor and document identity',()=>{
+ const original={t:2,k:'note',id:'old',author:{id:'a'},owner:'owner',text:'draw-time text',capture:'original-capture',region:[1,2,3,4],at:{node:3,route:'https://old/'}};
+ const m=reduce([head,seg(1),doc,original]);const view=m.notes[0];
+ m.apply({...seg(2,'navigate'),t:3});m.apply({...doc,t:4});
+ m.apply({t:5,k:'note-edit',id:'old',text:'edited from off-view list'});
+ assert.equal(view.note.text,'edited from off-view list');assert.equal(view.revision,1);assert.equal(view.seg,1);
+ assert.equal(view.note.capture,original.capture);assert.deepEqual(view.note.at,original.at);assert.deepEqual(view.note.region,original.region);assert.equal(original.text,'draw-time text');
+ m.apply({t:6,k:'stop',why:'pause'});assert.throws(()=>m.apply({t:7,k:'note-edit',id:'old',text:'paused'}),/live/);
+});
