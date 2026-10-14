@@ -22,6 +22,9 @@ func runMessageCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer) int 
 }
 
 func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writer, call messageCall) int {
+	if inv.messageOp == "notify" {
+		return runNotifyCLI(inv, rt, stdout, stderr, call)
+	}
 	// The one verb list (pair#424): a hand-kept list here let relaunch and
 	// reload-context fall through to the message path, which sends no ID.
 	if inv.messageOp == "switch-agent" || inv.messageOp == "operation-status" {
