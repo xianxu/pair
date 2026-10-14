@@ -46,7 +46,7 @@ in receipt cc82ffc3-c4f5-4c1c-9e9a-5b2fb14f5340.
 
 - [x] Add failing kernel FD_CLOEXEC tests for diagnostic regular files and the held notification namespace lock, plus an AST guard over every production raw open in the two modules to prove atomic O_CLOEXEC rather than a later fcntl fix.
 - [x] Add O_CLOEXEC at all four discovered opens: diagnosticlog.openRegular, diagnosticlog.directoryNames, notifytransport.lockNamespace and notifytransport.readPID. Preserve NOFOLLOW/NONBLOCK, validation, file modes, bounded reads and explicit lock release (ARCH-PURPOSE, ARCH-DRY).
-- [ ] Run both package suites and focused race tests, make -k build, and the required sdlc local-check suite on the pushed head. Close via SDLC review and land on SHIP; this descriptor bugfix creates no new architectural surface.
+- [x] Run both package suites and focused race tests, make -k build, and the required sdlc local-check suite on the pushed head. Close via SDLC review and land on SHIP; this descriptor bugfix creates no new architectural surface.
 
 ## Log
 
@@ -71,6 +71,10 @@ Pushed implementation 54aac8349cceb33280711abc1b288b29ec2cb80f. make -k -B bin/p
 ### 2026-10-14 — authorized separate follow-up
 
 After this issue lands, hub ops:0 authorized filing and fixing a separate quick-flow issue from main for the embedded Couch skill receiver-list drift (receipt 2a83ee65-f057-480a-97c4-406b81781fe4). cmd/internal/couchcmd/skills/couch/SKILL.md:502 omits Qoder support from #550. Sweep the skill and docs for other two-agent receiver-support lists, fixing the class while retaining intentional two-agent examples. Do not fold this independent work into #551 or start it on this unlanded branch.
+
+### 2026-10-14 — full verification passed
+
+make -k build and a final make -k -B build passed. Pair and Couch both embed fa0757f86688c04649a1b7fecf37e528e3252e2d with modified=false; that head only adds a Log entry beyond the implementation. Required sdlc local-check suite passed on 54aac8349cceb33280711abc1b288b29ec2cb80f (exit 0, 10m31s, after a 1550-second queue wait); no anchored FAIL/make Error entries. Log SHA256 fe3a000df6173b0b8f0d61381ffb313dc9d0886bd92682a062ce35b965a0c41f. Subsequent commits contain only issue Log updates.
 
 ## Revisions
 
