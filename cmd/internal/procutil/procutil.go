@@ -131,9 +131,10 @@ func WaitCode(cmd *exec.Cmd) int {
 	return -1
 }
 
-// Process is one row of Table: a pid, its parent, and its start identity, all
-// from the same read.
+// Process is one row of Table: a pid, its parent, its start identity and
+// its niceness (#502), all from the same read.
 type Process struct {
 	PID, PPID int
 	Identity  string
+	Nice      int
 }

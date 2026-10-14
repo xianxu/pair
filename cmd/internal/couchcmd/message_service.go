@@ -238,6 +238,14 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 	if err != nil {
 		return nil, err
 	}
+	reniceLevel, err := slotNiceSettings(os.Getenv)
+	if err != nil {
+		return nil, err
+	}
+	reniceEvery, err := reniceInterval(os.Getenv)
+	if err != nil {
+		return nil, err
+	}
 	switchGuard := &switchServiceGuard{}
 	c.SwitchGuard = switchGuard
 	namespace := c.Namespace.Dir()
@@ -388,6 +396,19 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 	watcher := newWaitWatcher(service, threshold, namespace)
 	service.workers.Add(1)
 	go func() { defer service.workers.Done(); watcher.run(service.lifetime, waitTick) }()
+	// The slot renicer (#502): what each slot's agent spawns runs at
+	// COUCH_SLOT_NICE; Couch, the wrapper, zellij and the agent stay at
+	// normal priority.
+	rn := newRenicer(osProcs{}, service.broker.Connected, func(b couchmessage.Binding) (int, error) {
+		paths, err := artifactpath.Resolve(artifactpath.Address{DataDir: artifacts.PairLifecycleDataDir(), RepoScope: b.Scope, Tag: b.Tag})
+		if err != nil {
+			return 0, err
+		}
+		return readMessageWrapperPID(paths.AgentPID()) // the same bare-decimal pid file
+	}, reniceLevel, os.Getpid(), func(text string) { console.Notify(couchtty.Notice{Kind: "status", Body: text}) })
+	service.broker.SetNiceView(rn.view)
+	service.workers.Add(1)
+	go func() { defer service.workers.Done(); rn.run(service.lifetime, reniceEvery) }()
 	// After the loop runs: the replay of already-attached panes lands in the
 	// mailbox the loop drains.
 	console.SubscribeMessageLifecycle(panes)

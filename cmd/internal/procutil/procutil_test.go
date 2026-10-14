@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestAlive(t *testing.T) {
@@ -156,4 +157,39 @@ func TestTableMatchesIdentityAndParent(t *testing.T) {
 		return
 	}
 	t.Fatal("this process is missing from the table")
+}
+
+// Table reads niceness (#502): a child started under `nice -n 7` shows 7
+// more than this process.
+func TestTableReadsNice(t *testing.T) {
+	// nice(1) warns and runs the command anyway when it may not lower it.
+	if out, err := exec.Command("nice", "-n", "7", "true").CombinedOutput(); err != nil || len(out) > 0 {
+		t.Skipf("lowering priority is refused here (a sandbox): %v %s", err, out)
+	}
+	cmd := exec.Command("nice", "-n", "7", "sleep", "5")
+	if err := cmd.Start(); err != nil {
+		t.Skip(err)
+	}
+	defer func() { cmd.Process.Kill(); cmd.Wait() }()
+	// nice(1) lowers itself, then execs sleep: wait for that.
+	var got, own int
+	for deadline := time.Now().Add(3 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+		rows, err := Table()
+		if err != nil {
+			t.Skipf("process table unavailable: %v", err)
+		}
+		got, own = -100, -100
+		for _, r := range rows {
+			switch r.PID {
+			case os.Getpid():
+				own = r.Nice
+			case cmd.Process.Pid:
+				got = r.Nice
+			}
+		}
+		if own != -100 && got == min(own+7, 20) {
+			return
+		}
+	}
+	t.Fatalf("child nice %d, want %d", got, min(own+7, 20))
 }
