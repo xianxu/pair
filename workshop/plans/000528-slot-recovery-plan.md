@@ -1030,3 +1030,45 @@ fail-closed behavior. The embedded runtime fixture uses main's controlled
 reparenting for real native ancestry, while retaining #528's refusal when the
 stub client exits without a verified session. No new design mechanism.
 The new runtime paths require a fresh recorded full suite before stage/build.
+
+### 2026-10-14 — operator-approved startup auto-attachment supersedes lazy startup
+
+Operator decision delivered by TL d62e0729 supersedes 03666e08 and the
+subsequent no-background-attach revisions. Startup now performs no recovery
+writes, but automatically attaches every Continue worker row in the background.
+Requested hubs keep their current explicit launch/attach path and are excluded
+from the worker pass to avoid duplicate startup owners. Native resumes, fresh
+launches and teardown remain explicit. The narrow guarded dead-client metadata
+repair is part of successful client attachment, including this background pass;
+it changes no conversation, binding, park, claim or producing-launch metadata.
+
+| Entity | File | Delta |
+|---|---|---|
+| ReattachPass / pass row projection | couchtty/menu_reattach.go | Seed only ContinuityOutcome Continue; preserve row outcome and expose every final failure |
+| MenuState inventory notice | couchtty/menu.go | Clear only inventory-owned loading/failure notice on successful inventory; preserve unrelated notices |
+| Startup attach composition | couchcmd/run.go | Arm existing pass after named hub adoption and before Run; UI starts before worker attempts complete |
+| Background attach execution | couchtty/console_reattach.go, couchcore/warm_attach.go | Reuse bounded queue, warm-only dispatch, two-attempt shared helper and exact guarded client repair |
+
+Use existing LifecycleParallelism captured by the pass and existing operation
+queue capacity; no second scheduler or retry loop (ARCH-DRY). Every helper
+attempt rechecks positive listing; absent/failed listing never falls back to
+cold launch. Busy, gone, mismatched or other failed attempts all retain a
+visible row reason; a row still projected Continue has its one-click retry.
+Successful/failed worker completion does not steal hub focus or block Console.
+Cancellation/leave cancels the pass's own work and cleans only its client
+helpers; never kills wrapper, agent or terminal. Do not extend the seed after
+the first successful inventory, so explicit later detach stays detached.
+
+- [ ] Update seed and failure transitions with independent pure tests for live,
+  exited, uncertain, busy and failed rows; failures remain selectable Continue.
+- [ ] Arm startup and add mixed-row stateful integration: named hub stays
+  focused, worker attachment is parallel and blocked on controlled barriers,
+  Couch paints/responds before those barriers release; only Continue rows
+  invoke warm-only attachment. Assert no native resume/fresh/teardown, and
+  dead-client repair uses the unchanged exact-identity guard.
+- [ ] Reproduce stale inventory loading notice, then clear only inventory-owned
+  notices on successful refresh. Failed reads preserve their details and rows;
+  unrelated borrowed/operation notices survive success.
+- [ ] Update atlas/README and Log; checkpoint runtime; run a recorded full suite
+  matching the staged head, restage/build pair:0, send the new built hash, then
+  operator repeats acceptance. Do not claim the current stage accepted.

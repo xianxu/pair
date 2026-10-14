@@ -780,3 +780,22 @@ Sent built hash and evidence to hub: receipt
 acceptance remain pending; named pair:1 case remains untouched. This later
 log-only checkpoint does not alter the staged commit or require a restage.
 Keep pair:0 staged until the hub directs otherwise. No M2/M3 work started.
+
+### 2026-10-14 — live acceptance evidence and operator startup correction
+
+TL ec749007 reports 13:33 restart on 2808a71a: supervisor starts, three outcomes
+render, pair:1 Continue/source-live, all 20 wrappers admitted without focus.
+Read-only checks found ops hub attachment present: Couch32496 -> helper35242
+resume1-ops-33 -> Zellijclient36717 attach📁1-233, registry warm-reattach, original
+server38324/wrapper38785 retained. Current on-screen focus is not persisted.
+Bare thread inventory unavailable is the initial RefreshStarted placeholder,
+not a named failed read; successful inventory never clears it. Actual failed
+reads include an error suffix. Current crash log is empty, no event trace open.
+Reported findings to hub, receipt c86e0e8b-8f5e-47a6-9d3a-1f795c3b3ff6 queued.
+
+TL d62e0729 conveys operator's approved M1 delta: auto-attach every Continue
+row at startup with bounded concurrency and one retry; preserve failed rows
+with visible reason/retry, no startup recovery execution. Hubs unchanged.
+Include guarded pair:1 dead-client repair in automatic attachment and the
+inventory notice correction. Appended the authoritative plan Revision before
+code. Recorded suite and new staged build precede repeat operator acceptance.
