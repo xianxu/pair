@@ -73,6 +73,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
 	"github.com/xianxu/pair/cmd/internal/sessionwatch"
 	"github.com/xianxu/pair/cmd/internal/storagegc"
+	"github.com/xianxu/pair/cmd/internal/ttyio"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
 
@@ -202,6 +203,8 @@ type proxy struct {
 	dimmer               sgrDimmer
 	inputAdmission       sync.Mutex
 	automaticInput       automaticInputTransaction
+	driveControl         atomic.Bool
+	childIO              *ttyio.File
 	automaticRenderEpoch atomic.Uint64
 	peer                 *peerDelivery
 	peerHumanSubmit      bool // owned by the stdin writer; consumed after a full write
@@ -1494,7 +1497,7 @@ const pendingFlushAfter = 30 * time.Millisecond
 //   - chunk-tail that's a strict prefix of any known marker → held
 //     over to the next read.
 func (p *proxy) translateStdin() {
-	p.translateStdinFrom(p.stdin, p.ptmx, pendingFlushAfter)
+	p.translateStdinFrom(p.stdin, p.childIO, pendingFlushAfter)
 }
 
 // translateStdinFrom is the testable inner loop. Takes an explicit
@@ -2870,7 +2873,20 @@ argsDone:
 	}
 	p.cmd = cmd
 	p.ptmx = ptmx
+	childIO, err := ttyio.NewFile(ptmx, ptmx, false)
+	if err != nil {
+		_ = ptmx.Close()
+		_ = cmd.Process.Kill()
+		_, _ = cmd.Process.Wait()
+		return 0, fmt.Errorf("initialize child terminal transport: %w", err)
+	}
+	p.childIO = childIO
+	defer func() {
+		_ = childIO.Close()
+		_ = ptmx.Close()
+	}()
 	if err := p.configureHarnessTTY(os.Getenv("PAIR_WRAP_REMAP_RETURN") != "0", 80, 24); err != nil {
+		_ = childIO.Close()
 		_ = ptmx.Close()
 		_ = cmd.Process.Kill()
 		_, _ = cmd.Process.Wait()
@@ -2886,7 +2902,6 @@ argsDone:
 	p.traceWrap("child-start", map[string]any{
 		"child_pid": cmd.Process.Pid,
 	})
-	defer ptmx.Close()
 	maintenance, readyErr := gcruntime.StartAfterReady(context.Background(), os.Getenv("PAIR_DATA_DIR"), func() error { return p.publishAgentReady(cmd.Process.Pid) })
 	if peerRuntime, peerErr := p.startPeerRuntime(argv[0]); peerErr != nil {
 		p.debug("PEER-start-fail", peerErr.Error())
@@ -3052,14 +3067,21 @@ func (p *proxy) masterPump() {
 	ch := make(chan readEv, 4)
 	readerStop := make(chan struct{})
 	readerDone := make(chan struct{})
-	defer func() { close(readerStop); _ = p.ptmx.Close(); <-readerDone }()
+	defer func() {
+		close(readerStop)
+		if p.childIO != nil {
+			_ = p.childIO.Close()
+		}
+		_ = p.ptmx.Close()
+		<-readerDone
+	}()
 	// Reader goroutine. Copies into a fresh slice each time so the receiver
 	// can hang onto the bytes without racing the next read.
 	go func() {
 		defer close(readerDone)
 		buf := make([]byte, readBufSize)
 		for {
-			n, err := p.ptmx.Read(buf)
+			n, err := p.childIO.Read(buf)
 			if n > 0 {
 				if p.peer != nil {
 					p.peer.observeOutput(buf[:n])

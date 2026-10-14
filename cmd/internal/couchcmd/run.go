@@ -1381,6 +1381,8 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "             Recovery report: one JSON row per slot joining sdlc's claims and")
 	fmt.Fprintln(w, "             slot verdicts with Couch's threads, with a suggested next step.")
 	verbLine(w, "--switch-agent", "       couch --switch-agent repo:N --agent NAME --confirm [--json]")
+	verbLine(w, "--keys", "       couch --keys repo:N STEP... [--json]")
+	verbLine(w, "--set-model", "       couch --set-model repo:N --model NAME --effort LEVEL [--scope session|default] --confirm [--json]")
 	fmt.Fprintln(w, "             Hub only, another idle clean slot: use NAME's last successful path config,")
 	fmt.Fprintln(w, "             then repo default. Missing config: ask the operator to set it in the switch form.")
 	fmt.Fprintln(w, "             No self, startup parameter edits or context delivery. Read the receipt before retrying.")

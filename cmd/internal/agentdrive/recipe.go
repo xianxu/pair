@@ -92,6 +92,7 @@ const (
 // Result names the knowledge retained after input stops. Unconfirmed never
 // authorizes replay; Step names only writes acknowledged by the local writer.
 type Result struct {
+	ID      string `json:",omitempty"`
 	Outcome Outcome
 	Detail  string     `json:",omitempty"`
 	Step    int        `json:",omitempty"`
