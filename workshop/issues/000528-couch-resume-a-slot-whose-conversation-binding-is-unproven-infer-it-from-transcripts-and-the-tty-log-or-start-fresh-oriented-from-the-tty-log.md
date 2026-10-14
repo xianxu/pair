@@ -70,8 +70,8 @@ pair:6 read-only while measuring; no live recovery/reboot is authorized here.
 - [x] Approve durable design: workshop/plans/000528-slot-recovery-plan.md.
 - [x] Historical first implementation — terminal policy and native recovery (prior M1/M2 reviews retained; superseded by operator revision).
 - [x] M1 — Always-start preview-only Couch, listed-live attach, policy removal and three-outcome projection; separate pre-upgrade operator acceptance.
-- [ ] M2 — Resume/Fresh execution, person-or-hub confirmation and always-reachable Fresh; separate operator acceptance.
-- [ ] M3 — New-wrapper endpoint repair without child restart/input replay; separate operator acceptance.
+- [x] Split remaining revised M2 — Resume/Fresh execution, person-or-hub confirmation and always-reachable Fresh — into #556; not implemented or accepted as part of #528.
+- [x] Split remaining revised M3 — new-wrapper endpoint repair without child restart/input replay — into #557; not implemented or accepted as part of #528.
 
 
 ## Revisions
@@ -887,3 +887,14 @@ Choose TL's recommended landing of accepted M1 now. Remaining revised M2/M3
 contracts move to #556 (confirmed disk/fresh recovery) and #557 (new-wrapper
 endpoint repair), respectively; preserve their exact acceptance requirements.
 No follow-up implementation starts on this branch.
+
+- Graceful-shutdown regression added in warm_attach_repair_test.go: old
+  LeaveDetach removes only the exact dead client (+1 revision); a true new
+  Couch then WarmOnly-attaches the listed terminal as borrowed, with a local
+  owned helper and no further durable/native/teardown effects. Targeted attachment
+  group PASS4.028s. No runtime change was necessary.
+- Pre-close main merge95997fa92 retains #552's automatic-input reporting and
+  #528's pane-independent admission. Sole conflict was NonArtifactSources:
+  retained both recovery classifications and main automatic-input classifications.
+  New follow-up skeletons #556/#557 came in with main; publish filled contracts
+  before releasing their claims. The accepted stage stays fc145480 until landing.
