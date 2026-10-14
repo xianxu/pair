@@ -111,3 +111,7 @@ reason to hold that issue open.
 The measurements in `## Problem` were taken while closing `#215` and are the
 reason this issue is narrow: four plausible suspects are already dead, which is
 worth more than an open-ended "make startup faster".
+
+## Revisions
+
+- 2026-10-14 — add (operator via TL): concrete case. At the operator's 14:33 restart, Couch's background attaches spawned 21 zellij clients between 14:33:37 and 14:33:47 (~6 at a time): roughly 2–3 s per attach, against ~10–20 ms for `zellij list-sessions` and an expected ~100–300 ms floor (list, lease, one record write, spawn client, first frame). Detach ("leave couch") is unmeasured but also inspects each slot's session server. Trace one attach and one detach step by step; the likely waste is a whole process-table read (native argv for every process since #547) per slot. Probably one shared snapshot per startup or detach pass instead.
