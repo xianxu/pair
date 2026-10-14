@@ -432,3 +432,9 @@ receipts and then discards metadata. Unconfirmed startup delivery emits one
 notice with the recovery action “hub should request fresh status”; no prompt is
 regenerated. The primary issue Done when now states the approved rules-only
 acceptance, with deferred file pings/logging linked to their companion issues.
+
+Verification: post-review full `make -k test` passed (exit 0) at
+`751de842253cf1e76b478323d4719f016cee0763`, recorded in
+`/tmp/pair530-full-suite-review-fixed.log`. Focused race tests and regression
+red/green evidence are in the issue Log. No stage; TL accepted the headless
+private-socket/clock scenarios.

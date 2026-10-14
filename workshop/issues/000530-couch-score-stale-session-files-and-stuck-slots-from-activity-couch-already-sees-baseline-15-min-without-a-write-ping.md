@@ -177,3 +177,10 @@ recorded in Spec and the earlier revisions, with #321/#543 as their owners.
   prompt outcomes, and queued cancellation with no Deliver callback. Targeted
   rules/wait/broker tests and focused race tests pass. A fresh full make -k test
   follows the review fixes before the next close attempt.
+
+- Post-review full `make -k test` completed with exit 0 on
+  `751de842253cf1e76b478323d4719f016cee0763`; log:
+  `/tmp/pair530-full-suite-review-fixed.log`. All targets completed, with no
+  failures or baseline exclusions. This supersedes the earlier failing full
+  run as final verification. Headless private-socket/clock acceptance remains
+  approved by TL; no stage is required.
