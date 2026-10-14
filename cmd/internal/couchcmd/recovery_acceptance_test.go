@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -371,7 +372,11 @@ func runRecoveryMenuAcceptance(t *testing.T, mode string) {
 	if err != nil || current.Address != source.Address {
 		t.Fatalf("address changed: %+v %v", current, err)
 	}
-	if current.SessionBinding == nil || current.SessionBinding.Name != managedChildSession(t, rt.runner, start.Handle.ID()) {
+	if mode == "warm" {
+		if !reflect.DeepEqual(current, source) || managedChildSession(t, rt.runner, start.Handle.ID()) != session {
+			t.Fatalf("Continue changed retained record or selected terminal: before=%+v after=%+v", source, current)
+		}
+	} else if current.SessionBinding == nil || current.SessionBinding.Name != managedChildSession(t, rt.runner, start.Handle.ID()) {
 		t.Fatalf("promoted terminal differs from launched intent: %+v", current.SessionBinding)
 	}
 	if mode != "warm" && (current.Continuation.Source.Session != session || current.Continuation.SourceAbsence == nil || current.Continuation.SourceAbsence.Session != session || current.Continuation.Target == nil || current.Continuation.Target.Generation == nil || current.Continuation.Target.Generation.Session != current.SessionBinding.Name) {
