@@ -6,15 +6,9 @@ github_issue:
 created: 2026-10-14
 updated: 2026-10-14
 estimate_hours:
-card_mirror: '649619f850b06a6fa36cfd10d16ad2efadebf174' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'b6c118073c88d7be172c42d47505511412c4c973' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-14T15:23:08-07:00
-claimant:
-    operator: Xian Xu
-    machine: 4716879978a7b90f6b583da1716fd0e9
-    machine_name: Xian’s MacBook Pro
-    workspace: pair:7
-    worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
-    repository: github.com/xianxu/pair
+
 ---
 
 # couch skill and docs still say only Claude and Codex are receiver profiles; add Qoder (#550)
@@ -38,3 +32,7 @@ Update the skill paragraph to name Qoder, and the explicitly disabled agents as 
 ## Log
 
 ### 2026-10-14
+
+## Revisions
+
+- 2026-10-14 16:05 — prep by pair:4 (Qoder trial, paused before any claim; preserved here so a restart doesn't lose it): sweep found only `cmd/internal/couchcmd/skills/couch/SKILL.md:502` stale (README:649 and atlas already name Qoder; couchcmd help clean; the peer_live_test "claude or codex" flag text describes harness capability, so leave it and log why). Design: export a receiver-policy accessor from wrapcmd and pin the SKILL.md receiver sentence to the AgentInventory policies with a couchcmd test. The pair:7 claim was released (no owner); claim it fresh.
