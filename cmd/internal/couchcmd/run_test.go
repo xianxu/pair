@@ -1851,7 +1851,7 @@ func TestThreadStateTextUsesSharedContinuityOutcome(t *testing.T) {
 		{couchcore.ThreadDetached, "", "Continue (no client attached; the agent is still running)"},
 		{couchcore.ThreadParked, "", "Resume from disk (no agent running)"},
 		{couchcore.ThreadUnusable, couchcore.ReasonProfileMissing, "Start fresh: no saved launch"},
-		{couchcore.ThreadBusy, "", "Start fresh (couch claimed a start and has not finished it)"},
+		{couchcore.ThreadBusy, "", "Starting (couch claimed a start and has not finished it)"},
 		{couchcore.ThreadArchived, "", "archived (restore by moving it back and re-adding the address)"},
 	} {
 		got := threadStateText(couchcore.ThreadSummary{State: tc.state, Reason: tc.reason})

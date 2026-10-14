@@ -98,8 +98,12 @@ func menuRowFactsOf(row couchcore.ActionableThreadSummary) menuRowFacts {
 // nothing on says why through menuRowNotice, which reads the same phase.
 func menuRowActions(f menuRowFacts) []string {
 	switch f.Phase {
-	case menuPhaseNeedsRelaunch, menuPhaseUnknown, menuPhaseBusy, menuPhaseLiveContinuationPending:
-		return []string{"reboot"}
+	case menuPhaseBusy:
+		return nil
+	case menuPhaseNeedsRelaunch, menuPhaseUnknown:
+		return []string{"relaunch"}
+	case menuPhaseLiveContinuationPending:
+		return nil
 	case menuPhaseLive, menuPhaseLiveContinuationFailed:
 		// Detach first: it is the safe, everyday gesture -- the agent keeps
 		// running and only the client goes. Park is destructive and sits
@@ -144,8 +148,8 @@ func menuRowActions(f menuRowFacts) []string {
 		// recovery report decides for this row (#399).
 		actions := couchcore.ActorActions(f.Actor)
 		items := append([]string(nil), actions...)
-		if !slices.Contains(items, "reboot") {
-			items = append(items, "reboot")
+		if len(items) == 0 {
+			items = []string{"relaunch"}
 		}
 		if couchcore.RecoverOffered(actions) {
 			items = append([]string{"recover"}, actions...)
@@ -204,7 +208,7 @@ func menuRowAdviceOf(f menuRowFacts) menuRowAdvice {
 	case f.Phase == menuPhaseNeedsRelaunch:
 		a.Notice.Text = "terminal unavailable; previous conversation may be recoverable"
 	case f.Phase == menuPhaseBusy:
-		a.Notice.Text = "starting elsewhere"
+		a.Notice.Text = "Starting"
 	case f.Phase == menuPhaseUnknown:
 		// "checking…" read like progress; it is the absence of a verdict, and
 		// reboot stops a session, so nothing is offered until there is one.

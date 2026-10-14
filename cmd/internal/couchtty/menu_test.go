@@ -1282,15 +1282,15 @@ func TestRebootConfirmationDispatchesAndSurvivesARefresh(t *testing.T) {
 }
 
 // A busy row offers Fresh, while confirmation keeps the first gesture inert.
-func TestEnterOnABusyRowOffersFreshOnlyAfterConfirmation(t *testing.T) {
+func TestEnterOnABusyRowOpensReadOnlyDetails(t *testing.T) {
 	busy := couchcore.ActionableThreadSummary{Address: menuAddress("couch-one"), WorkingPath: "/repo/compiler", State: couchcore.ThreadBusy}
 	state := NewMenuState([]couchcore.ActionableThreadSummary{busy}, couchcore.ThreadAddress{})
 	got, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
-	if len(effects) != 0 || got.CurrentFrame().Kind != MenuFrameConfirmation || got.CurrentFrame().Action != "reboot" {
+	if len(effects) != 1 || effects[0].Preview == nil || effects[0].Operation != "" || got.CurrentFrame().Kind != MenuFrameRecovery {
 		t.Fatalf("busy row bypassed confirmation: %+v %+v", got.CurrentFrame(), effects)
 	}
-	items := menuActionItems(busy)
-	if len(items) != 1 || items[0] != "reboot" {
+	items := menuActionsFor(state, busy)
+	if len(items) != 1 || items[0] != "resume-candidates" {
 		t.Fatalf("busy row actions: %v", items)
 	}
 }

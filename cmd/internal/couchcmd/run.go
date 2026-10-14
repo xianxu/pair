@@ -1305,14 +1305,17 @@ func threadStateText(thread couchcore.ThreadSummary) string {
 		return "Continue"
 	case couchcore.ResumeDisk:
 		return "Resume from disk (no agent running)"
+	case couchcore.ContinuityStarting:
+		return "Starting (couch claimed a start and has not finished it)"
 	default:
-		if thread.State == couchcore.ThreadBusy {
-			return "Start fresh (couch claimed a start and has not finished it)"
+		label := "Start fresh"
+		if !couchcore.RebootAdmitted(thread.State, thread.Reason, false) {
+			label = "Relaunch"
 		}
 		if thread.Reason != "" {
-			return "Start fresh: " + thread.Reason.Label()
+			return label + ": " + thread.Reason.Label()
 		}
-		return "Start fresh"
+		return label
 	}
 }
 

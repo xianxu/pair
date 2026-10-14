@@ -804,3 +804,13 @@ The earlier closed M1/M2 entries and SHIP reviews describe the pre-revision impl
   - **Operator acceptance session M3:** on a newly launched scratch wrapper, lose its message endpoint and observe recreation/re-registration; same native PID/session continues, messaging returns, no duplicate input. Contrast with pre-upgrade wrapper notice; no working-slot endpoint deletion.
 
 Each milestone has its own fresh-context SDLC boundary review and its own scheduled operator acceptance. The next authorized scope after TL confirms this revised plan is **M1 only**. M2/M3 remain planned, not permission to implement them early. No implementation, tests, build, staging or live mutations were performed for this revision.
+
+### 2026-10-13T21:34:22-0700 — M1 executable actions and in-flight start exception
+
+Authority: verified TL receipts 5e7063f1-5997-4597-aa6c-6d6127feee05 and 46c487bc-ee81-4987-abbe-282a0029b2a2. This supersedes the earlier temporary M1 offer of Fresh where its execution would be refused.
+
+- M1 shows only actions with working paths: retain the existing Relaunch/resume recovery path when Fresh requires M2 confirmation; do not offer a guaranteed-refused reboot. Candidate evidence remains readable when native resume is unsafe, but is not a selectable resume action. Restore the offered-implies-permitted regression without a deferred-Fresh exception.
+- Positively listed sessions always project Continue, including an agent working on a turn or a stale start marker. A failed listing never projects Continue.
+- Narrow approved M1 exception: an unfinished Couch StartClaim with no positive listing shows **Starting**, with a read-only details action. This internal claim is distinct from native agent busyness. No new persistent state or ownership mechanism.
+- **M2 obligation:** a start whose owner is dead or whose age exceeds a time bound must exit Starting into Resume from disk / Start fresh through the confirmed retirement path. Do not build that rare-case execution in M1.
+- The prior boundary review was interrupted after this steer; rerun the review on the corrected committed window. Operator acceptance/staging remains separately scheduled.

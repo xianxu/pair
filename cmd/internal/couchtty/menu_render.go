@@ -478,8 +478,13 @@ func threadStateText(thread couchcore.ActionableThreadSummary, now time.Time) st
 			return "Resume from disk · " + relativeMenuAge(now, thread.LastActiveAt)
 		}
 		return "Resume from disk"
+	case couchcore.ContinuityStarting:
+		return "Starting"
 	default:
 		label := "Start fresh"
+		if !couchcore.RebootAdmitted(thread.State, thread.Reason, false) {
+			label = "Relaunch"
+		}
 		if notice := menuRowNotice(menuRowFactsOf(thread)); notice != "" {
 			label += " · " + notice
 		}

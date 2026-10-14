@@ -75,7 +75,7 @@ func TestContinuityOutcomeReusesProofClassification(t *testing.T) {
 		want  ContinuityAction
 	}{
 		{ThreadLive, Continue}, {ThreadDetached, Continue}, {ThreadParked, ResumeDisk},
-		{ThreadUnusable, Fresh}, {ThreadBusy, Fresh},
+		{ThreadUnusable, Fresh}, {ThreadBusy, ContinuityStarting},
 	} {
 		if got := ContinuityOutcome(ActionableThreadSummary{State: tc.state}); got != tc.want {
 			t.Fatalf("%s: %s want %s", tc.state, got, tc.want)
@@ -135,5 +135,30 @@ func TestContinueProofNeedsNoSavedLaunchProfile(t *testing.T) {
 	observed[0].Address.Tag = "different"
 	if detachedResumeProofMatches(record, observed) {
 		t.Fatal("foreign address accepted")
+	}
+}
+
+func TestClaimedStartListsContinueOnlyWithPositiveSessionEvidence(t *testing.T) {
+	var record ThreadRecord
+	for _, tc := range everyThreadShape(t) {
+		if tc.name == "start this couch is driving" {
+			record = tc.record
+			break
+		}
+	}
+	if !startClaimed(record) {
+		t.Fatal("fixture does not contain a start claim")
+	}
+	for _, owner := range []Liveness{Live, Unknown} {
+		for _, session := range []SessionState{SessionPresent, SessionAbsent, SessionUnresolved} {
+			state, reason := ClassifyThread(record, ThreadEvidence{StartOwner: owner, Session: SessionObservation{State: session}})
+			want := ContinuityStarting
+			if session == SessionPresent {
+				want = Continue
+			}
+			if got := ContinuityOutcome(ActionableThreadSummary{State: state, Reason: reason}); got != want {
+				t.Fatalf("owner=%v session=%v: %s want %s", owner, session, got, want)
+			}
+		}
 	}
 }

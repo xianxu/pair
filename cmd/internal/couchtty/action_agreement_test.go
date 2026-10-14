@@ -59,18 +59,6 @@ func TestActionOfferedImpliesPermitted(t *testing.T) {
 				continue
 			}
 			everOffered[i] = true
-			// #528 replacement M1 projects Fresh even when its destructive
-			// execution needs the M2 person-or-hub confirmation path. Keep
-			// those existing stop guards closed at this boundary; widening
-			// them here would authorize teardown without the approved proof.
-			deferredFresh := action.item == "reboot" && (shape.state == couchcore.ThreadBusy ||
-				(shape.state == couchcore.ThreadUnusable && (shape.reason == couchcore.ReasonUnknown || shape.reason == couchcore.ReasonNeedsRelaunch)))
-			if deferredFresh {
-				if action.permitted(shape.state, shape.reason) {
-					t.Errorf("%s: M1 widened teardown admission before M2 confirmation", shape.name)
-				}
-				continue
-			}
 			if !action.permitted(shape.state, shape.reason) {
 				t.Errorf("%s: the switcher offers %s and the guard refuses it — "+
 					"an action that always fails is how a switcher teaches an operator to distrust it",
@@ -84,6 +72,20 @@ func TestActionOfferedImpliesPermitted(t *testing.T) {
 	for i, action := range actions {
 		if !everOffered[i] {
 			t.Errorf("no row offers %s at all; this table is passing by vacuity", action.item)
+		}
+	}
+}
+
+func TestNonLiveUncertainPrimaryOpensRecoveryWithoutLifecycleEffects(t *testing.T) {
+	for _, row := range []couchcore.ActionableThreadSummary{
+		{Address: menuAddress("unknown"), State: couchcore.ThreadUnusable, Reason: couchcore.ReasonUnknown},
+		{Address: menuAddress("legacy"), State: couchcore.ThreadUnusable, Reason: couchcore.ReasonNeedsRelaunch},
+		{Address: menuAddress("busy"), State: couchcore.ThreadBusy},
+	} {
+		state := NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
+		next, effects := reduceRootKey(state, PanelKey{Kind: KeyEnter})
+		if len(effects) != 1 || effects[0].Preview == nil || effects[0].Operation != "" || next.CurrentFrame().Kind != MenuFrameRecovery {
+			t.Errorf("%s/%s: expected recovery preview, got %+v %+v", row.State, row.Reason, next.CurrentFrame(), effects)
 		}
 	}
 }

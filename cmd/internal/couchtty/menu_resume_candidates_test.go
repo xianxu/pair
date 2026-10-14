@@ -60,7 +60,7 @@ func TestRecoveryMenuActivityNamesLocalTimezone(t *testing.T) {
 }
 
 func TestRecoveryAlternativesOpenReadOnlyPreview(t *testing.T) {
-	for _, route := range []string{"candidates-item"} {
+	for _, route := range []string{"candidates-item", "enter", "relaunch-item"} {
 		t.Run(route, func(t *testing.T) {
 			row := menuSlotRow(1, "couch-unsafe")
 			row.State, row.Reason = couchcore.ThreadUnusable, couchcore.ReasonNeedsRelaunch
@@ -68,6 +68,12 @@ func TestRecoveryAlternativesOpenReadOnlyPreview(t *testing.T) {
 			state.InventoryReady = true
 			var effects []MenuEffect
 			switch route {
+			case "enter":
+				state, effects = reduceRootKey(state, PanelKey{Kind: KeyEnter})
+			case "relaunch-item":
+				state, _ = reduceRootKey(state, PanelKey{Kind: KeyTab})
+				state.Frames[len(state.Frames)-1].SelectedItem = "relaunch"
+				state, effects = reduceActionKey(state, PanelKey{Kind: KeyEnter})
 			case "candidates-item":
 				state, _ = reduceRootKey(state, PanelKey{Kind: KeyTab})
 				state.Frames[len(state.Frames)-1].SelectedItem = "resume-candidates"

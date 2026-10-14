@@ -34,9 +34,9 @@ func dispatchMenuRow(state MenuState, operation string, row couchcore.Actionable
 		appendMenuFrame(&state, MenuFrame{Kind: MenuFrameConfirmation, RowKey: menuRowKey(row), Thread: row.Address, Action: operation, SelectedItem: "cancel"})
 		return state, nil
 	}
-	// Unsafe terminals need an explicit evidence choice, not ordinary relaunch's
-	// established-binding confirmation. Every primary gesture shares this route.
-	if menuRowNeedsRecoveryPreview(row, operation) {
+	// Non-live relaunch and starting-row details first observe recovery evidence.
+	// They never dispatch a lifecycle operation merely by opening the preview.
+	if operation == "resume-candidates" || menuRowNeedsRecoveryPreview(row, operation) {
 		return openRecoveryPreview(state, row)
 	}
 
@@ -85,5 +85,5 @@ func menuFrameOperationInFlight(state MenuState, frame MenuFrame) bool {
 }
 
 func menuRowNeedsRecoveryPreview(row couchcore.ActionableThreadSummary, operation string) bool {
-	return operation == "relaunch" && !row.Live() && row.Reason == couchcore.ReasonNeedsRelaunch
+	return operation == "relaunch" && !row.Live()
 }

@@ -17,8 +17,8 @@ func TestContinuityRowsAlwaysNameOnePrimaryAction(t *testing.T) {
 		{couchcore.ThreadLive, "", "Continue", "switch"},
 		{couchcore.ThreadDetached, "", "Continue", "resume"},
 		{couchcore.ThreadParked, "", "Resume from disk", "resume"},
-		{couchcore.ThreadUnusable, couchcore.ReasonUnknown, "Start fresh", "reboot"},
-		{couchcore.ThreadUnusable, couchcore.ReasonNeedsRelaunch, "Start fresh", "reboot"},
+		{couchcore.ThreadUnusable, couchcore.ReasonUnknown, "Relaunch", "relaunch"},
+		{couchcore.ThreadUnusable, couchcore.ReasonNeedsRelaunch, "Relaunch", "relaunch"},
 	} {
 		row := menuSlotRow(1, "continuity")
 		row.State, row.Reason = tc.state, tc.reason
@@ -33,7 +33,7 @@ func TestContinuityRowsAlwaysNameOnePrimaryAction(t *testing.T) {
 
 func TestFreshPrimaryRequiresExistingConfirmation(t *testing.T) {
 	row := menuSlotRow(1, "uncertain")
-	row.State, row.Reason = couchcore.ThreadUnusable, couchcore.ReasonUnknown
+	row.State, row.Reason = couchcore.ThreadUnusable, couchcore.ReasonBindingLost
 	state := NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
 	state.InventoryReady = true
 	next, effects := ReduceMenu(state, MenuEvent{Kind: MenuEventKey, Key: PanelKey{Kind: KeyEnter}})
@@ -44,7 +44,7 @@ func TestFreshPrimaryRequiresExistingConfirmation(t *testing.T) {
 
 func TestFailedRecoveryPreviewStillOffersConfirmedFresh(t *testing.T) {
 	row := menuSlotRow(1, "failed-preview")
-	row.State, row.Reason = couchcore.ThreadUnusable, couchcore.ReasonUnknown
+	row.State, row.Reason = couchcore.ThreadUnusable, couchcore.ReasonBindingLost
 	state := NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
 	state, _ = openRecoveryPreview(state, row)
 	generation := state.CurrentFrame().Generation

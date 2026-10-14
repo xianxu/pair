@@ -381,7 +381,7 @@ func stateTextRow(state couchcore.ActionableThreadState, reason couchcore.Thread
 	}
 }
 
-// Internal states project to the three user outcomes; recorded activity stays visible.
+// Continuity choices and unfinished starts retain distinct, truthful labels.
 func TestRootStateTextNamesEveryState(t *testing.T) {
 	now := time.Date(2026, 9, 3, 12, 0, 0, 0, time.UTC)
 	active := now.Add(-4 * time.Hour)
@@ -393,7 +393,7 @@ func TestRootStateTextNamesEveryState(t *testing.T) {
 		{couchcore.ThreadLive, "", "Continue"},
 		{couchcore.ThreadDetached, "", "Continue · 4h ago"},
 		{couchcore.ThreadParked, "", "Resume from disk · 4h ago"},
-		{couchcore.ThreadBusy, "", "Start fresh · starting elsewhere"},
+		{couchcore.ThreadBusy, "", "Starting"},
 		{couchcore.ThreadUnusable, couchcore.ReasonBindingLost, "Start fresh"},
 		{couchcore.ThreadUnusable, couchcore.ReasonProfileMissing, "Start fresh"},
 	} {
@@ -405,12 +405,12 @@ func TestRootStateTextNamesEveryState(t *testing.T) {
 
 // Go cannot check a switch for exhaustiveness, so the vocabulary checks itself:
 // every unusable reason retains Start fresh, with detail when available.
-func TestEveryUnusableReasonProjectsStartFresh(t *testing.T) {
+func TestEveryUnusableReasonNamesAnAdmittedRecoveryPath(t *testing.T) {
 	now := time.Date(2026, 9, 3, 12, 0, 0, 0, time.UTC)
 	for _, reason := range couchcore.AllThreadReasons() {
 		label := rootStateText(stateTextRow(couchcore.ThreadUnusable, reason, now), now)
-		if !strings.HasPrefix(label, "Start fresh") {
-			t.Errorf("reason %q hid Start fresh (rendered %q)", reason, label)
+		if !strings.HasPrefix(label, "Start fresh") && !strings.HasPrefix(label, "Relaunch") {
+			t.Errorf("reason %q hid recovery (rendered %q)", reason, label)
 			continue
 		}
 	}

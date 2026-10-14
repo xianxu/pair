@@ -2,6 +2,7 @@ package couchtty
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -796,9 +797,12 @@ func pastParticiple(operation string) string {
 }
 
 // enterOperationFor maps the shared continuity outcome to the existing effect.
-// Enter and mouse selection share this rule; Fresh opens confirmation first.
+// Enter and mouse selection share this rule. Only admitted Fresh confirms;
+// unfinished starts expose read-only details, and uncertain rows open recovery.
 func enterOperationFor(thread couchcore.ActionableThreadSummary) string {
 	switch couchcore.ContinuityOutcome(thread) {
+	case couchcore.ContinuityStarting:
+		return "resume-candidates"
 	case couchcore.Continue:
 		if thread.Live() {
 			return "switch"
@@ -807,7 +811,13 @@ func enterOperationFor(thread couchcore.ActionableThreadSummary) string {
 	case couchcore.ResumeDisk:
 		return "resume"
 	default:
-		return "reboot"
+		offered := menuActionItems(thread)
+		for _, operation := range []string{"resume-candidates", "relaunch", "resume", "reboot", "recover"} {
+			if slices.Contains(offered, operation) {
+				return operation
+			}
+		}
+		return ""
 	}
 }
 

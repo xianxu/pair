@@ -1132,6 +1132,8 @@ const (
 	Continue   ContinuityAction = "continue"
 	ResumeDisk ContinuityAction = "resume-disk"
 	Fresh      ContinuityAction = "fresh"
+	// ContinuityStarting describes an unfinished operation, not a new lifecycle state.
+	ContinuityStarting ContinuityAction = "starting"
 )
 
 // ContinuityOutcome reuses the inventory classifier's proof boundary.
@@ -1141,6 +1143,8 @@ func ContinuityOutcome(row ActionableThreadSummary) ContinuityAction {
 		return Continue
 	case ThreadParked:
 		return ResumeDisk
+	case ThreadBusy:
+		return ContinuityStarting
 	default:
 		return Fresh
 	}

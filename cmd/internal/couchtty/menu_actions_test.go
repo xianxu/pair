@@ -107,7 +107,7 @@ func expectedRowActions(s menuRowShape) []string {
 	unfinished := s.phase != "" && s.phase != checkpoint.Complete
 	switch s.state {
 	case couchcore.ThreadBusy:
-		return []string{"reboot"}
+		return nil
 	case couchcore.ThreadLive:
 		switch {
 		// The live orphan (#399): its pane still works, but detach, park,
@@ -120,7 +120,7 @@ func expectedRowActions(s menuRowShape) []string {
 		case unfinished && s.phase == checkpoint.Running:
 			return []string{"retry-continuation"}
 		case unfinished && s.phase == checkpoint.Pending:
-			return []string{"reboot"}
+			return nil
 		case unfinished && s.phase == checkpoint.Failed:
 			// relaunch and switch-agent are what a failed request refuses.
 			if s.slot {
@@ -157,15 +157,15 @@ func expectedRowActions(s menuRowShape) []string {
 func expectedUnusableActions(s menuRowShape, unfinished bool) []string {
 	switch {
 	case s.reason == couchcore.ReasonNeedsRelaunch:
-		return []string{"reboot"}
+		return []string{"relaunch"}
 	case s.reason == couchcore.ReasonUnknown:
-		return []string{"reboot"}
+		return []string{"relaunch"}
 	// An orphaned server's agent may still be writing: neither resume nor
 	// reboot is safe; only the confirmed reap (#399).
 	case s.reason == couchcore.ReasonOrphanedServer:
 		return []string{"recover", "reap"}
 	case s.reason == couchcore.ReasonPathMissing && s.slot:
-		return []string{"reboot"}
+		return []string{"relaunch"}
 	case s.reason == couchcore.ReasonPathMissing:
 		return []string{"recover", "reboot"}
 	// A parked slot whose conversation cannot be resolved (its agent
@@ -202,13 +202,13 @@ func TestBusyRowSaysStartingElsewhere(t *testing.T) {
 	busy := couchcore.ActionableThreadSummary{
 		Address: menuAddress("couch-one"), WorkingPath: "/repo/one", State: couchcore.ThreadBusy,
 	}
-	if got := rootStateText(busy, time.Now()); !strings.Contains(got, "starting elsewhere") {
-		t.Fatalf("busy status = %q, want %q", got, "starting elsewhere")
+	if got := rootStateText(busy, time.Now()); got != "Starting" {
+		t.Fatalf("busy status = %q, want %q", got, "Starting")
 	}
 	state := NewMenuState([]couchcore.ActionableThreadSummary{busy}, couchcore.ThreadAddress{})
 	state.InventoryReady = true
 	got, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
-	if len(effects) != 0 || got.CurrentFrame().Kind != MenuFrameConfirmation || got.CurrentFrame().Action != "reboot" {
+	if len(effects) != 1 || effects[0].Preview == nil || effects[0].Operation != "" || got.CurrentFrame().Kind != MenuFrameRecovery {
 		t.Fatalf("Enter on busy: effects %v, notice %q", effects, got.Notice.Text)
 	}
 }
@@ -231,10 +231,15 @@ func TestEnterUsesContinuityOutcome(t *testing.T) {
 			if len(effects) != 1 || effects[0].Operation != "resume" {
 				t.Errorf("%s: Resume disk effects %+v", s.name, effects)
 			}
-		case couchcore.Fresh:
-			if len(effects) != 0 || next.CurrentFrame().Kind != MenuFrameConfirmation || next.CurrentFrame().Action != "reboot" {
-				t.Errorf("%s: Fresh bypassed confirmation: %+v %+v", s.name, next.CurrentFrame(), effects)
+		default:
+			if len(effects) == 0 {
+				if next.CurrentFrame().Kind != MenuFrameConfirmation || next.CurrentFrame().Action != "reboot" || !couchcore.RebootAdmitted(s.row.State, s.row.Reason, true) {
+					t.Errorf("%s: unusable primary: %+v", s.name, next.CurrentFrame())
+				}
+			} else if len(effects) != 1 || (effects[0].Preview == nil && effects[0].Operation != "resume" && effects[0].Operation != "recover") {
+				t.Errorf("%s: recovery effects %+v", s.name, effects)
 			}
+
 		}
 	}
 }
@@ -466,7 +471,7 @@ func TestPathMissingRowExplainsItsNextStep(t *testing.T) {
 		state := NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
 		state.InventoryReady = true
 		next, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
-		if len(effects) != 0 || next.CurrentFrame().Kind != MenuFrameConfirmation || next.CurrentFrame().Action != "reboot" {
+		if tc.row.Target.Kind == couchcore.ThreadTargetSlot && (len(effects) != 1 || effects[0].Preview == nil) || tc.row.Target.Kind != couchcore.ThreadTargetSlot && (len(effects) != 0 || next.CurrentFrame().Kind != MenuFrameConfirmation) {
 			t.Errorf("%s Enter: effects %v, notice %q", row.Label(), effects, next.Notice.Text)
 		}
 	}
@@ -672,13 +677,13 @@ func TestLiveRebootDispatchCarriesTheIdleVerdict(t *testing.T) {
 	}
 }
 
-func TestUnknownTerminalOffersConfirmedFresh(t *testing.T) {
+func TestUnknownTerminalOffersRecoveryPreview(t *testing.T) {
 	row := menuSlotRow(1, "couch-unsafe")
 	row.State, row.Reason = couchcore.ThreadUnusable, couchcore.ReasonNeedsRelaunch
-	if got := menuActionItems(row); !slices.Equal(got, []string{"reboot"}) {
+	if got := menuActionItems(row); !slices.Equal(got, []string{"relaunch"}) {
 		t.Fatalf("unsafe terminal actions = %v", got)
 	}
-	if got := enterOperationFor(row); got != "reboot" {
+	if got := enterOperationFor(row); got != "relaunch" {
 		t.Fatalf("Enter = %q", got)
 	}
 	if got := unusableThreadNotice(row); !strings.Contains(got, "terminal unavailable") {
@@ -686,12 +691,12 @@ func TestUnknownTerminalOffersConfirmedFresh(t *testing.T) {
 	}
 }
 
-func TestUnknownTerminalEnterRequiresFreshConfirmation(t *testing.T) {
+func TestUnknownTerminalEnterOpensRecoveryPreview(t *testing.T) {
 	row := menuSlotRow(1, "couch-unsafe")
 	row.State, row.Reason = couchcore.ThreadUnusable, couchcore.ReasonNeedsRelaunch
 	state := NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
 	next, effects := dispatchMenuRow(state, enterOperationFor(row), row)
-	if len(effects) != 0 || next.CurrentFrame().Kind != MenuFrameConfirmation || next.CurrentFrame().Action != "reboot" {
+	if len(effects) != 1 || effects[0].Preview == nil || effects[0].Operation != "" || next.CurrentFrame().Kind != MenuFrameRecovery {
 		t.Fatalf("unknown terminal bypassed Fresh confirmation: frame=%+v effects=%+v", next.CurrentFrame(), effects)
 	}
 }

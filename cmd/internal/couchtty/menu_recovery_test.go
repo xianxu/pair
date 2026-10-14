@@ -15,9 +15,9 @@ func recoveryMenuRow() couchcore.ActionableThreadSummary {
 func TestRecoveryMenuPrimaryUsesContinuityOutcome(t *testing.T) {
 	row := recoveryMenuRow()
 	state := NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
-	next, effects := reduceRootKey(state, PanelKey{Kind: KeyEnter})
-	if len(effects) != 0 || next.CurrentFrame().Kind != MenuFrameConfirmation || next.CurrentFrame().Action != "reboot" {
-		t.Fatalf("unproven row did not require fresh confirmation: %+v %v", next.CurrentFrame(), effects)
+	_, effects := reduceRootKey(state, PanelKey{Kind: KeyEnter})
+	if len(effects) != 1 || effects[0].Operation != "resume" {
+		t.Fatalf("existing checkpoint recovery unavailable: %+v", effects)
 	}
 	row.State, row.Reason = couchcore.ThreadDetached, ""
 	state = NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)

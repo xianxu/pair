@@ -21,7 +21,13 @@ sessions launched by older Pair binaries without policy files. A failed
 listing never authorizes attachment. Observations get one bounded retry;
 uncertainty is disclosed with a recovery action rather than a pending-only row.
 An attributed running owner prevents executable Resume until the recovery
-confirmation path can retire it. Fresh remains a visible recovery choice.
+confirmation path can retire it. In replacement M1, rows whose Fresh execution
+needs M2 confirmation retain their existing Relaunch/recovery path instead of
+a refused Fresh button. Ineligible native candidates remain read-only evidence.
+An unfinished Couch start claim without a positive listing shows **Starting**
+and read-only details; M2 must bound that state by owner liveness and age, then
+provide confirmed Resume/Fresh. Agent activity never demotes a positively
+listed session from Continue.
 
 Couch startup observes existing slots with preview reads. It does not complete
 interrupted starts/parks, replay slot-store journals, or repair a slot as a
