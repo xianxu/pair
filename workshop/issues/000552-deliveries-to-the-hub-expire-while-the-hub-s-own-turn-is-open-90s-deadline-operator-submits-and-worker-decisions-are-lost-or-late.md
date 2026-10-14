@@ -6,7 +6,15 @@ github_issue:
 created: 2026-10-14
 updated: 2026-10-14
 estimate_hours:
-card_mirror: '785eb10589981fe0cbf6baa4b0f3cc0268733f64' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '2f77c795d618a789b3fc9ee45c6de03335da0025' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-14T11:23:25-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:7
+    worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Deliveries to the hub expire while the hub's own turn is open (90s deadline): operator submits and worker decisions are lost or late
@@ -50,3 +58,5 @@ cause, and `--relaunch` must not report "composer holds text" when the composer 
 ## Revisions
 
 - 2026-10-14 — add (TL, from the code): the gate is `automaticInputAwaitingEmpty` (wrapcmd/automatic_input.go). After an automatic submit it clears only when the render epoch passes the recorded fence AND `peerComposerState(agent, snapshot)` reads Empty. Check both causes: a render-epoch increment no longer emitted (pair#522 removed an observer that "held the only render-epoch increment peer delivery needs"), and a composer parse that never reads Empty around pickers or "Model changed" lines. Give AwaitingEmpty a bounded exit: release with a diagnostic once the box parses empty or the agent is idle for N seconds.
+
+- 2026-10-14 — revise (operator): **root cause first; no silent release.** (1) Reproduce (raw-key drive then a normal delivery; or the hub case) and fix the actual cause; the reproduction must pass with any automatic release disabled. (2) Keep a bounded release only as a tripwire: each firing sends a `couch --notify` desktop alert to the operator, a hub notice and a diagnostic with the screen state; after the fix it should never fire.
