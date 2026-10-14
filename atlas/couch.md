@@ -74,9 +74,15 @@ proofs remain the message authority. An unfocused live slot can send and receive
 A broken message channel does not authorize restarting a functioning agent.
 Older wrappers with an unlinked endpoint remain usable by terminal, with
 “messaging unavailable until next relaunch.” New-wrapper endpoint repair is a
-separate milestone. Resume/Fresh execution and confirmation by the person or
-hub are also a separate acceptance boundary; M1's projection is not a claim
+separate follow-up (#557). Resume/Fresh execution and confirmation by the person
+or hub are tracked in #556 with a separate acceptance boundary; M1's projection is not a claim
 those revised execution paths have been accepted.
+
+Graceful Couch detach can retire a proven-dead helper before the next Couch
+starts. A listed-live terminal with no retained incarnation then attaches as
+borrowed: the registry and local handle own the client. Narrow dead-client
+repair replaces an existing exact identity only; it never invents a durable
+incarnation, agent PID or wrapper PID from this empty state.
 
 New tty captures start with an events witness naming their file identities,
 capture generation and producing launch ordinal/nonce. Archive metadata v2

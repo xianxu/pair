@@ -239,9 +239,13 @@ func (r *serviceRig) attach(b couchmessage.Binding, pane couchmessage.PaneHandle
 }
 
 // wrapper runs b's session client until the returned stop is called.
-func (r *serviceRig) wrapper(b couchmessage.Binding) (*couchmessage.SessionClient, func()) {
+func (r *serviceRig) wrapper(b couchmessage.Binding, initial ...couchmessage.Observation) (*couchmessage.SessionClient, func()) {
 	c := couchmessage.NewSessionClient()
-	c.Update(couchmessage.Observation{LastActivity: time.Now(), Sequence: 1})
+	observation := couchmessage.Observation{LastActivity: time.Now(), Sequence: 1}
+	if len(initial) > 0 {
+		observation = initial[0]
+	}
+	c.Update(observation)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() {

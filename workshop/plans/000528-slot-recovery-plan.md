@@ -778,7 +778,7 @@ These decisions settle the corresponding conflicts in the target-conformance rev
 
 The earlier closed M1/M2 entries and SHIP reviews describe the pre-revision implementation and remain historical evidence. They do **not** satisfy these replacement milestones. “M1/M2/M3” below are the operator's revised acceptance sequence; preserve prior review records and ensure each revised boundary reviews the actual new change window rather than treating a historical same-named close as completion.
 
-- [ ] **M1 — Couch startup, attach and three-outcome projection.**
+- [x] **M1 — Couch startup, attach and three-outcome projection.**
   - Files: `couchcore/couch.go`, `startup.go`, `threadstore_preview.go`, `sessionevidence.go`, `actionableinventory.go`, `agent_usability.go`; `couchcmd/run.go`; `launcher/zellij.go`, `session_handoff*.go`, `session_lease.go`; `artifactpath/session_policy.go`/manifest and affected fixtures; existing menu projection.
   - Pure decision owns the three outcomes and one-retry exhaustion rule; UI/CLI derive from it. Consult the vocabulary model before editing any lifecycle/status set. Reuse the Zellij listing seam and preview reads (ARCH-PURE, ARCH-DRY).
   - Add failing regressions first: mixed old live/no-policy, EXITED, missing session, missing record, pending journal/start/park, failed/changed/over-budget observations. Console opens; one bad slot never blocks it or another slot; every row has an action; startup invokes no Pair recovery writes.
@@ -1069,7 +1069,7 @@ the first successful inventory, so explicit later detach stays detached.
 - [x] Reproduce stale inventory loading notice, then clear only inventory-owned
   notices on successful refresh. Failed reads preserve their details and rows;
   unrelated borrowed/operation notices survive success.
-- [ ] Update atlas/README and Log; checkpoint runtime; run a recorded full suite
+- [x] Update atlas/README and Log; checkpoint runtime; run a recorded full suite
   matching the staged head, restage/build pair:0, send the new built hash, then
   operator repeats acceptance. Do not claim the current stage accepted.
 

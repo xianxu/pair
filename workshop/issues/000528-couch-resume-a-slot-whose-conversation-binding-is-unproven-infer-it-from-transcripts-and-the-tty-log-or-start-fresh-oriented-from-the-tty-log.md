@@ -898,3 +898,13 @@ No follow-up implementation starts on this branch.
   retained both recovery classifications and main automatic-input classifications.
   New follow-up skeletons #556/#557 came in with main; publish filled contracts
   before releasing their claims. The accepted stage stays fc145480 until landing.
+
+- #552 merge fixture correction: pane disappearance no longer disconnects an
+  authenticated live wrapper. Its stall tests now close/reopen the actual
+  wrapper connection, preserving last-activity/sequence and reporting safeguards.
+  Added unfocused-wrapper positive reporting/dedup case. Targeted stall group
+  PASS0.876s, shared AutomaticInputStall/HubMessages/Message/Lifecycle group
+  PASS7.154s. Only tests changed. #556/#557 filled contracts published together
+  on main c07a31921 and merged; both claims released. Updated atlas pointers and
+  the intended empty-incarnation attachment explanation. Full post-merge suite
+  and normal M1 review are next; accepted stage remains fc145480 until landing.

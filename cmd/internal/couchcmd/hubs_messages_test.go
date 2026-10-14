@@ -61,15 +61,7 @@ func hubMessageRigWithWorkerEndpoint(t *testing.T, endpoint couchmessage.Deliver
 		}
 		r.world.mu.Unlock()
 		r.attach(b, couchmessage.PaneHandle(fmt.Sprintf("h%d", n)))
-		client := couchmessage.NewSessionClient()
-		client.Update(couchmessage.Observation{LastActivity: at, Sequence: 2})
-		ctx, cancel := context.WithCancel(context.Background())
-		done := make(chan struct{})
-		go func() {
-			defer close(done)
-			client.Run(ctx, r.regSock, b, couchmessage.DefaultReconnectBackoff, 10*time.Millisecond)
-		}()
-		t.Cleanup(func() { cancel(); <-done })
+		r.wrapper(b, couchmessage.Observation{LastActivity: at, Sequence: 2})
 		r.waitConnected(b, true)
 		slots = append(slots, b)
 	}
