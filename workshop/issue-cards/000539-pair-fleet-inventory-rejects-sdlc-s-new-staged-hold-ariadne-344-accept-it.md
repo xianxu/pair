@@ -1,6 +1,6 @@
 ---
 id: 000539
-status: codecomplete
+status: done
 created: 2026-10-13
 updated: 2026-10-13
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: dec78bab09004984ec15e2e0a5dc8a223bce9d01
         evidence_commit: bf3e0a5e6d536b598c19ff8fdda2cc171fb218bc
+        landed_commit: 904aa07d323c94b9ca05d00fd5e8d9d20ac54034
 ---
 
 # pair: fleet inventory rejects sdlc's new 'staged' hold (ariadne#344); accept it
