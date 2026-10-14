@@ -204,3 +204,8 @@ cleanup (ARCH-ORDER, ARCH-FUNERAL).
   `/tmp/pair530-lifetime-race.log`. The three generated late-callback cases
   failed before the fix, while the genuine-message control passed. A full
   suite will verify this final code change before the next close.
+
+Final lifetime-fix verification: full `make -k test` completed with exit 0 at
+`fa5e9b4ae7e37a497c089e12d34cbe5806821fb2`, all targets, no baseline exclusions;
+log `/tmp/pair530-full-suite-lifetime.log`. Focused race and controlled
+late-callback regression checks also passed. Ready for the next close review.

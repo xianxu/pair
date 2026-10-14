@@ -452,3 +452,8 @@ three failures; a genuine hub message with identical prose still creates an
 uncertain file obligation. Completed jobs release the metadata on reconciliation.
 This supersedes the earlier assumption that a terminal receipt alone permits
 cleanup (ARCH-ORDER, ARCH-FUNERAL).
+
+Final lifetime-fix verification: full `make -k test` completed with exit 0 at
+`fa5e9b4ae7e37a497c089e12d34cbe5806821fb2`, all targets, no baseline exclusions;
+log `/tmp/pair530-full-suite-lifetime.log`. Focused race and controlled
+late-callback regression checks also passed. Ready for the next close review.
