@@ -94,3 +94,31 @@ through parent exit. Go releases syscall.ForkLock before waiting for child exec,
 so that mutex alone cannot settle incidental copies. Unconditional LOCK_UN
 would violate the existing child/parent-death tests. Investigating an ownership
 fix rather than increasing 100ms or serializing tests.
+
+### 2026-10-14 — fork probe and resumed direction
+
+The baseline full make -k test completed successfully (/tmp/pair545-baseline-suite.log).
+The traced full-core binary was accidentally run from the repository root; its
+relative-source inventory failures are a probe harness error, not product failures.
+It found only expected busy holders in exclusion tests, not a historical failure.
+The two targeted batches remain 80/80 passes each; the second used tracing.
+
+A controlled native fork probe (/tmp/pair545-fork-probe.c) set FD_CLOEXEC, locked
+the file, forked a child paused before exec, and closed the parent's descriptor.
+A fresh open still returned EWOULDBLOCK (errno 35); after the child execed true,
+the fresh descriptor acquired the lock. Creation already opens O_CLOEXEC. This
+proves the kernel mechanism, but does not yet identify a holder from an actual
+loaded-suite failure.
+
+## Revisions
+
+### 2026-10-14 — TL narrows the remedy after the kernel probe
+
+TL receipt 78aedcac-58c2-43ef-8322-b937f8a0f009 approves investigating a short
+bounded backoff when a busy acquirer has evidence the previous owner released.
+This refines the initial prohibition on increasing a timeout: preserve kernel
+exclusion and distinguish a released descriptor still inherited before exec
+from active ownership, rather than merely increasing the unconditional 100ms.
+Check the atlas's busy/no-queue contract, add a paused-fork regression, and retain
+exact before/after load counts. Receipt 6c74a424-9044-48d3-89ad-39909f05d11c
+asks to resume this work after model capacity failures. No production changes yet.
