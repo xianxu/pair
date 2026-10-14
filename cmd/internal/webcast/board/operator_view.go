@@ -101,7 +101,7 @@ func (b *Board) operatorViewLocked() OperatorView {
 			v.Driver = b.st.Control.Driver.ID
 		}
 	}
-	for _, n := range b.model.Live(b.st) {
+	for _, n := range b.st.Notes {
 		if n.State == recording.NoteOpen {
 			v.Notes = append(v.Notes, cloneNote(n.Note))
 		}

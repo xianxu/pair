@@ -540,3 +540,39 @@ func TestOperatorOriginGenerationBeforeIngressCannotCrossOffOn(t *testing.T) {
 		})
 	}
 }
+
+func TestOperatorResolveRefusesRevisionChangedBeforeWrite(t *testing.T) {
+	h, b, ch := operatorHarness(t)
+	draft := prepareOperator(t, h, ch)
+	h.r.Send(operatorEvent(operatorRequest("save-note", "2", map[string]any{"draft": draft.Draft, "color": 0, "text": "original"}), 7))
+	if got := takeOperator(t, ch); got.Outcome != board.OperatorPending {
+		t.Fatal(got)
+	}
+	saved := takeOperator(t, ch)
+	if saved.Outcome != board.OperatorAccepted {
+		t.Fatal(saved)
+	}
+	if err := h.r.ask(context.Background(), func() {
+		// Admission freezes the revision, then a reopen wins before its queued writer.
+		event := operatorEvent(operatorRequest("resolve", "3", map[string]any{"seg": 1, "id": saved.ID, "state": rec.NoteResolved}), 7)
+		event.annotation, _ = b.AdmitAnnotation()
+		h.r.operatorBinding(event)
+		if !h.r.m.Emit(h.r.m.State().T, &rec.NoteState{ID: saved.ID, State: rec.NoteResolved}) || !h.r.m.Emit(h.r.m.State().T, &rec.NoteState{ID: saved.ID, State: rec.NoteOpen}) {
+			t.Error("fixture transition rejected")
+		}
+		if err := h.r.write(); err != nil {
+			t.Error(err)
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if got := takeOperator(t, ch); got.Outcome != board.OperatorPending {
+		t.Fatal(got)
+	}
+	if got := takeOperator(t, ch); got.Outcome != board.OperatorRefused || got.Error != board.ErrStale.Error() {
+		t.Fatalf("late resolve: %+v", got)
+	}
+	if got := b.OperatorView(); len(got.Notes) != 1 || got.Notes[0].ID != saved.ID {
+		t.Fatal("late resolve removed reopened note")
+	}
+}

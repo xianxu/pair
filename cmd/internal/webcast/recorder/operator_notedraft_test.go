@@ -2,6 +2,7 @@ package recorder
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -24,7 +25,7 @@ func (c heldDraftCapture) Capture(ctx context.Context, p board.PreparedNote) (no
 func TestOperatorDraftCaptureDoesNotBlockRecorder(t *testing.T) {
 	h, b, ch := operatorHarness(t)
 	capture := heldDraftCapture{make(chan struct{}), make(chan struct{})}
-	svc, err := notedraft.New(notedraft.Options{Root: t.TempDir(), RecordingPath: "test", Capture: capture, Write: h.r.WritePrepared, Observe: h.r.ObserveNote, Release: b.ReleaseNoteReservation})
+	svc, err := notedraft.New(notedraft.Options{Root: t.TempDir(), RecordingPath: filepath.Join(t.TempDir(), "recording"), Capture: capture, Write: h.r.WritePrepared, Observe: h.r.ObserveNote, Release: b.ReleaseNoteReservation})
 	if err != nil {
 		t.Fatal(err)
 	}

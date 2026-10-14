@@ -43,7 +43,13 @@ func TestOperatorLiveAnnotation(t *testing.T) {
 	viewer, unsubscribe := hub.Subscribe()
 	defer unsubscribe()
 
-	c, err := Launch(context.Background(), LaunchOptions{Binary: bin, Headless: true, ProfileDir: t.TempDir(), StartURL: "data:text/html,<title>Operator test</title><body><h1 id=target>Hello</h1><input id=field></body>", Record: &RecordOptions{ID: "operator", Operator: bd, ShotEvery: -1, Out: func() (recorder.Opened, error) { return recorder.Opened{Sink: recording.Tee(disk, hub, mem, bd)}, nil }}})
+	var c *Chrome
+	drafts, err := newCastNoteDrafts(dir, bd, func(context.Context) (Browser, error) { return c, nil }, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer drafts.Close()
+	c, err = Launch(context.Background(), LaunchOptions{Binary: bin, Headless: true, ProfileDir: t.TempDir(), StartURL: "data:text/html,<title>Operator test</title><body><h1 id=target>Hello</h1><input id=field></body>", Record: &RecordOptions{ID: "operator", Operator: bd, NoteDrafts: drafts, ShotEvery: -1, Out: func() (recorder.Opened, error) { return recorder.Opened{Sink: recording.Tee(disk, hub, mem, bd)}, nil }}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -216,6 +222,18 @@ func TestOperatorLiveAnnotation(t *testing.T) {
 		t.Fatal("note release did not place the default box")
 	}
 	eval(`testRoot.querySelector('.note-input').value='Held operator draft'`)
+	// Capture starts at the gesture; typed text survives its asynchronous acknowledgment.
+	deadline = time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		if string(eval(`testRoot.querySelector('.note-msg').textContent.includes('Captured')`)) == "true" {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if string(eval(`testRoot.querySelector('.note-msg').textContent.includes('Captured')`)) != "true" {
+		t.Fatalf("capture did not become ready: %s", eval(`testRoot.querySelector('.note-msg').textContent`))
+	}
+	deadline = time.Now().Add(10 * time.Second)
 	if path := os.Getenv("WEBCAST_OPERATOR_SHOT"); path != "" {
 		var shot struct {
 			Data string `json:"data"`
@@ -301,6 +319,9 @@ func TestOperatorLiveAnnotation(t *testing.T) {
 	if len(v.Notes) != 1 {
 		t.Fatalf("note not committed: UI %s; view %+v", eval(`testRoot.querySelector('.note-msg').textContent`), v)
 	}
+	if v.Notes[0].Capture == "" {
+		t.Fatal("operator note omitted draw-time capture")
+	}
 	if v.Notes[0].Author.ID != "operator" {
 		t.Fatal("operator identity lost")
 	}
@@ -329,9 +350,8 @@ func TestOperatorLiveAnnotation(t *testing.T) {
 		t.Fatalf("live recording query lost operator note: %+v, %v", queried, err)
 	}
 
-	// Board publication precedes the asynchronous operator reply. The next
-	// gesture is unavailable until that reply closes the editor; drawing while
-	// dialog.open is intentionally ignored by the shared annotation mount.
+	// Board publication precedes the asynchronous operator reply. Wait for
+	// its acknowledgment to close the editor before the next independent gesture.
 	saveDeadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(saveDeadline) {
 		if string(eval(`testRoot.querySelector('.note-dialog').classList.contains('hidden')`)) == "true" {

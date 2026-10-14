@@ -322,6 +322,10 @@ func (r *Recorder) writeOperator(at time.Time, in operatorWrite) {
 		in.settle(board.OperatorRefused, err)
 		return
 	}
+	if state, ok := in.record.(*rec.NoteState); ok && state.IfRevision != nil && !r.m.State().NoteUnchanged(state.ID, *state.IfRevision) {
+		in.settle(board.OperatorRefused, board.ErrStale)
+		return
+	}
 	if !r.m.Emit(r.t(at), in.record) {
 		in.settle(board.OperatorRefused, board.ErrShape)
 		return

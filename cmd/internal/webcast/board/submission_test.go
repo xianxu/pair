@@ -96,12 +96,15 @@ func TestSubmissionResolutionPreservesChangedAndNewDocument(t *testing.T) {
 		t.Fatal("manually reopened note resolved")
 	}
 	r.page(recording.SegNavigate)
-	r.note(r.p1.ID, 0)
+	newID, err := r.note(r.p1.ID, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := r.bd.ResolveSelection(context.Background(), sel); err != nil {
 		t.Fatal(err)
 	}
-	if len(r.bd.Live()) != 1 {
-		t.Fatal("new page note resolved")
+	if live := r.bd.Live(); len(live) != 2 || !hasLive(live, id) || !hasLive(live, newID) {
+		t.Fatal("reopened historical or new page note resolved")
 	}
 }
 
