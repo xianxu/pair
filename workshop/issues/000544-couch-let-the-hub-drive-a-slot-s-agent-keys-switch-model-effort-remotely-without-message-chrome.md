@@ -52,13 +52,20 @@ Agents' pickers differ and change across versions; recipes live in one table per
 
 Durable implementation plan: [agent keys and model selection](../plans/000544-agent-keys-model-plan.md).
 
-- [ ] Implement typed bounded key driving and verified per-agent model recipes through the exact-bound wrapper.
-- [ ] Wire hub ownership/idle guards, receipts and model-control submission accounting; prevent false prompt waits.
+- [x] Implement typed bounded key driving and verified per-agent model recipes through the exact-bound wrapper.
+- [x] Wire hub ownership/idle guards, receipts and model-control submission accounting; prevent false prompt waits.
 - [ ] Verify recorded screens, stateful socket/PTY sequences and isolated live conformance; update docs, close and land.
 
 ## Log
 
-### 2026-10-13
+### 2026-10-14 — implementation and conformance checkpoint
+
+- Implementation HEAD ac8de5d4cc974bd461a4f6d40dfeefa7b610d70e built cleanly; bin/couch reported that exact revision with vcs.modified=false. Typed input uses the existing writer, exact binding/session/ownership guards, coherent current-viewport evidence and bounded retained outcomes. No credential plumbing or ops TL skill edit.
+- Ad-hoc fresh-eyes review found stale cached picker actions, decision-time confirmation fences, Return-remap-disabled submission accounting and mixed terminal snapshots. Regression tests reproduced each class; fixes bind semantic picker proof to an atomic terminal generation, fence after actual emission, retain normal raw-input accounting, and separate visible viewport authority from scrollback evidence. Operator interruption is proved through the real input loop and a blocked context-aware writer.
+- Real isolated Codex0.162.1 new-driver conformance passed all three cases (15.615s): session selection confirmed in five writes with disposable defaults unchanged; explicit default confirmed in five writes with only disposable defaults changed; unsupported effort recovered to a fresh empty composer in six writes with defaults unchanged. Native configuration bytes stayed unchanged in every case; model controls produced lifecycle generation0 and no submission events. Live session race check passed6.335s; screen fuzz passed37,570 executions.
+- Recorded Claude2.1.299 evidence includes the combined picker, left/right effort, s=session, successful “Set model to Opus 5.5 for this session only” line and medium footer. Claude default scope refuses before input because default success evidence is absent. Actual new-driver Claude conformance remains pending with the hub/operator.
+- Full affected packages passed: wrapcmd136.278s, couchcmd51.915s, couchmessage7.240s, agentdrive0.160s and artifactpath8.928s; prior unchanged couchcore214.905s, couchtty36.808s and ttyio5.773s also passed. Root focused wrapper/drive/socket races and docs/cost checks passed. Initial broad verification exposed master-pump fixtures missing the newly required transport; six direct fixture sites now initialize it and affected races pass. An initial full make -k run compiled during the viewport API change and failed only those build targets; final stable-head full make -k is queued at the native test gate. No full-suite success claim yet.
+- TL receipt097a24f1-6418-4492-806e-079efcafced9 verified: operator-owned restarts and live Claude check are deferred to morning, after pair#528 M1 acceptance. Hold before close. A stage/build started before that instruction was received; it restarted no process, was cleared back to main, and main was rebuilt. #549 PR328 continues to await the operator’s protected-path label.
 
 ## Revisions
 
