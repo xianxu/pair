@@ -138,7 +138,7 @@ func TestPublicWarmAttachRequiresCurrentPositiveListing(t *testing.T) {
 			if missing {
 				env.Artifacts.SetDetachedSession(before.Address, "")
 			} else {
-				env.Artifacts.DetachedSessionsHook = func([]ThreadAddress) error { return errors.New("listing failed") }
+				env.Artifacts.ListedSessionHook = func(ThreadAddress) error { return errors.New("listing failed") }
 			}
 			_, h, err := env.Couch.ResumeContextWith(context.Background(), before.Address, ResumeOptions{WarmOnly: true})
 			if err == nil || h != nil || len(env.Runner.Ops) != 0 {
@@ -155,7 +155,7 @@ func TestPublicWarmAttachRechecksListingBeforeHelperExec(t *testing.T) {
 			t.Run(fmt.Sprintf("%s/query=%d", failure, boundary), func(t *testing.T) {
 				env, before, _ := readonlyWarmFixture(t, warmDetachedRecord(t), Live)
 				queries := 0
-				env.Artifacts.DetachedSessionsHook = func([]ThreadAddress) error {
+				env.Artifacts.ListedSessionHook = func(ThreadAddress) error {
 					queries++
 					if queries == boundary {
 						if failure == "error" {
@@ -207,5 +207,15 @@ func TestPublicWarmAttachDoesNotAcquireIndependentLifecycleHold(t *testing.T) {
 	var busy *ThreadBusyError
 	if !errors.As(err, &busy) || busy.Running != "independent-start" {
 		t.Fatalf("original hold changed: %v", err)
+	}
+}
+
+func TestPublicWarmAttachAcceptsListedTerminalWithAttachedClients(t *testing.T) {
+	env, before, session := readonlyWarmFixture(t, warmDetachedRecord(t), Live)
+	env.Artifacts.SetDetachedSession(before.Address, "")
+	env.Artifacts.SetPairSession(before.Address, session, true)
+	assertReadonlyWarmAttach(t, env, before, session)
+	if env.Artifacts.DetachedQueries() != 0 {
+		t.Fatal("public attach queried client attachment state")
 	}
 }

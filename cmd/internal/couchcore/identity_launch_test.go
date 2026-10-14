@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"context"
 	"encoding/json"
 	"github.com/xianxu/pair/cmd/internal/couchidentity"
 	"github.com/xianxu/pair/cmd/internal/launcher"
@@ -88,17 +89,26 @@ func TestManagedTerminalLifetimesThroughColdAndWarmResume(t *testing.T) {
 	if current.SessionBinding.Name != "📁1-1" || second.Shape != StartWarmReattach {
 		t.Fatalf("warm identity: %+v %+v", current.SessionBinding, second)
 	}
-	env.Proc.Kill(second.PID)
-	env.Runner.SetExited(h2.ID(), 0)
-	env.Couch.reg = env.Couch.reg.RemoveActor(second.Args.Worktree, second.ID)
-	identity := ParkIdentity{Nonce: "park-lifecycle", Address: current.Address, PID: second.PID, ProcessIdentity: second.Identity}
-	current, err = env.Couch.Threads.BeginPark(current.Address, current.Revision, identity)
+	// Public Continue owns only its helper. Explicit Park must adopt that
+	// exact locally owned helper through the lifecycle API before stopping it.
+	parkEnv := withParkLifecycle(t, env, current, second.PID, second.Identity)
+	parkEnv.model.SetSession(current.SessionBinding.Name, true)
+	env.Artifacts.SetPairSession(current.Address, current.SessionBinding.Name, true)
+	quit := env.Artifacts.TriggerQuitHook
+	env.Artifacts.TriggerQuitHook = func(session string, intent launcher.QuitIntent) error {
+		if err := quit(session, intent); err != nil {
+			return err
+		}
+		env.Runner.SetExited(h2.ID(), 0)
+		return nil
+	}
+	parkResult, err := env.Couch.Park(context.Background(), current.Address, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	current, err = env.Couch.Threads.FinalizePark(current.Address, current.Revision, identity, 1, env.Now)
-	if err != nil {
-		t.Fatal(err)
+	current = parkResult.Thread
+	if current.VerifiedPark == nil || len(current.Incarnations) != 0 || h2.Alive() {
+		t.Fatalf("explicit park did not finish: %+v", current)
 	}
 	env.Artifacts.SetDetachedSession(current.Address, "")
 	env.Artifacts.SetPairSession(current.Address, "📁1-1", false)

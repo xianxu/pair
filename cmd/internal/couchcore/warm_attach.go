@@ -77,17 +77,20 @@ func (c *Couch) attachListedTerminal(ctx context.Context, thread ThreadRecord, s
 	if deadline == nil {
 		deadline = context.WithTimeout
 	}
-	registration, stopWatch := whileHelperAlive(ctx, h)
-	registration, cancel := deadline(registration, budget)
-	err = c.awaitResumeRegistration(registration, thread.Address, nil)
+	attachment, stopWatch := whileHelperAlive(ctx, h)
+	attachment, cancel := deadline(attachment, budget)
+	// A public Continue borrows the listed terminal; lifecycle registration
+	// and wrapper ownership are neither prerequisites nor effects of attachment.
+	err = c.confirmListedTerminal(attachment, thread, session)
 	cancel()
 	exited := stopWatch()
+	select {
+	case <-h.Exited():
+		exited = true
+	default:
+	}
 	if exited {
-		final, stop := context.WithTimeout(ctx, exitedFinalLook)
-		if c.awaitResumeRegistration(final, thread.Address, nil) == nil {
-			err = nil
-		}
-		stop()
+		err = errors.New("Pair attachment helper exited before attachment completed")
 	}
 	if err != nil {
 		return abort(fmt.Errorf("await Pair attachment %+v: %w", thread.Address, err), true)
