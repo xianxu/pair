@@ -1,20 +1,63 @@
 # Send cast notes to the agent (#483)
 
 Press **Shift+Ctrl+Alt+Return** in the draft Neovim, in normal or insert mode,
-to send the draft text and all open notes on the cast tab's current document to
-the agent in that view. Each note carries focused recorded context, a replay
-link, current box text, and its own current PNG crop. Overlapping notes still get separate crops.
+to send the draft text and all open notes across the cast recording's documents
+to the agent in that view. Each note carries focused recorded context, a replay
+link, draw-time box text, and its saved PNG crop when available. Overlapping notes
+retain separate captures; submission never recaptures a changed page.
 The selection is frozen when Couch admits the request; notes added afterward
 wait for the next submission.
 
-Submitted notes become resolved: submitting transfers ownership of the notes to
-the agent; whatever follows (a pensive, an issue, a fix) is the agent's.
+Confirmed submissions resolve their selected note revisions: acknowledgment
+transfers ownership of those notes to the agent; whatever follows (a pensive, an issue, a fix) is the agent's.
 
 The draft is optional: an empty or comment-only draft can send notes. With no
 notes, nonempty text follows ordinary draft submission; with neither, the chord
 does nothing. Ordinary Alt+Return keeps its existing behavior. A paused cast
-refuses crop capture; resume it before submitting. Pause also blocks note-state
-writes, so resume before retrying pending note resolution.
+refuses new draw-time captures and note-state writes; resume before drawing a
+new note or retrying pending note resolution.
+
+## Draw, capture and save (#538)
+
+In the viewer or operator overlay, releasing a note box starts a private server
+capture and immediately opens its text editor. The editor shows `Capturing…`;
+typing remains available while Save waits. A confirmed timestamp shows `✓ Captured`.
+Save attaches the text to that capture token and closes only after the note writer
+acknowledges it. Pending writer responses are checked by status; they do not prove
+that a note exists. A rejected write keeps the text editable for another Save.
+An uncertain write retains its request identity until reconciliation proves its
+outcome; edited text is never silently substituted into that request.
+
+Capture failures show the reason and Retry capture. Retry preserves authored text
+and prepares a new capture. Capacity pressure is different: `crop unavailable:
+capture busy` and `capture store full: submit or resolve notes to free space`
+produce a signed unavailable-evidence draft, so the note can still be saved.
+Cancel, a new note gesture or navigation retires the old draft; late answers cannot
+reopen it. Cancelling after an acknowledged Save cannot delete that saved note.
+
+`prepare-note`, `draft-status`, `save-note` and `cancel-draft` are the viewer's POST
+routes and the operator adapter's corresponding operations. Each retains the
+originating annotation generation. Tokens come from the server; request IDs merely
+correlate operations. The shared browser controller polls no faster than once per
+second, bounds each RPC to 4 seconds and each operation to 36 seconds. Save alone
+briefly makes its editor read-only while its acknowledgment is outstanding; every
+failure releases it. These optional dialog hooks do not change terminal notes.
+
+Live pins follow a connected anchor or a confident unique replacement on the same
+route, projecting the original region onto its new box. Removed, hidden, clipped,
+offscreen, conflicting or ambiguous anchors show no box. The shared list retains
+all open notes, including notes on earlier documents, labelled **not on this view**
+when placement is unavailable. Weak/common text cannot select a replacement;
+truncated searches cannot claim uniqueness. Frame replacement requires frame-route
+evidence that is not currently recorded, so it stays unavailable. Historical
+replay retains recorded placement. Moving a live pin never changes its saved pixels.
+
+The private draw-time store is outside served recording directories, at the recording
+parent path with `.note-captures` appended. Drafts expire after 10 minutes; the store
+admits at most 128 records and 256 MiB, with at most 8 MiB per PNG. Saved-note evidence
+is protected until note resolution or confirmed transfer into a submission bundle;
+capacity pressure never silently evicts another open note's pixels. The capture
+service owns cleanup and retains durable uncertain write/publication intent.
 
 ## Evidence and storage
 
@@ -36,11 +79,11 @@ submission remains separate work; only the common Go submission type is shared.
 
 There are two clocks. A note's `t` is milliseconds since the recording began;
 its anchor, context, compact element and `before` actions describe that recorded
-moment. `crop.captured_at` is the wall-clock time of a screenshot taken during
-submission, and `crop.document` identifies the captured document. Boxes use
-`[x, y, width, height]` in page CSS pixels. A crop is the note's recorded box
-plus a margin, intersected with the current viewport and captured from the actual
-cast tab now. `crop.box` is the actual intersection; `clipped_to_viewport: true`
+moment. `crop.captured_at` is the wall-clock time of the original draw-time capture,
+and `crop.document` identifies that captured document. Boxes use
+`[x, y, width, height]` in page CSS pixels. A crop is the note's drawn region,
+intersected with the viewport when drawn and captured from the
+actual cast tab then. `crop.box` is the actual intersection; `clipped_to_viewport: true`
 means the requested crop was narrowed. Wholly offscreen notes keep their recorded
 context and report `crop.unavailable: "outside viewport"`. Couch never scrolls the
 page to collect missing pixels.
@@ -62,19 +105,22 @@ it is not a guarantee about video, canvas, separate frames or future page change
 Screenshots use the existing viewport (`captureBeyondViewport: false`): the
 beyond-viewport CDP path can restart responsive animations even after they finish.
 Document, viewport, scroll or pixel-ratio changes during capture refuse preparation.
-The PNG remains current evidence even when its animation is explicitly unsettled.
+The saved PNG remains draw-time evidence even when its animation is explicitly unsettled.
 
-Version-2 bundles store the actual page in `source.page`: its full URL, title and
-`provenance: "cdp"`. Every note's `source_document` references `source.document`.
+Version-3 bundles put the actual captured page on each note as `page`: its full
+URL, title and `provenance: "cdp"`, beside `capture_id`, `source_document` and that
+note's privacy decision. A bundle may span documents; the top-level source document
+is the submission context, not a replacement for each note's capture identity.
 URL/title are read in the same admitted isolated context as the capture, checked
 across the text/pixel fences, and bounded to 16 KiB / 8 KiB. Navigation or changed
-metadata rejects capture. An unavailable batch claims no page and stays private.
-Version-1 bundles remain readable, including their legacy selector fields. New
+metadata rejects capture. An unavailable note capture claims no page and stays private.
+Version-1 and version-2 bundles remain readable; version 2 keeps its legacy
+batch identity in `source.page`, and version 1 may retain selector fields. New
 bundles omit anchor `sel` and box-text `selector`; recording/query selectors and
 the historical `at.node` handle remain available. Text-node granularity and
 reading order are preserved, including mixed parent/child content.
 
-Each note's `box_text` captures current characters inside its original unpadded
+Each note's `box_text` preserves draw-time characters inside its original unpadded
 region (or anchor box), alongside the historical anchor text. `visible_text`
 contains visible intersecting text in reading order, without repeating parent
 and child text. `accessible_names` separately labels aria-label, alt, title,
@@ -99,7 +145,7 @@ The PNG retains their visible appearance.
 Each text group has an 8 KiB budget including its element metadata and labels; the two
 groups share a 256-entry limit. Traversal stops at 20,000 nodes and reports
 `truncated: true` when evidence reaches a limit. Box text belongs to the same
-capture document and interval as its PNG, not the note's historical moment.
+draw-time capture document and interval as its PNG. It is not refreshed at submission.
 
 Read `submission.json`, then its relative `crop-N.png` files. To explore the
 recording named in `source.recording_path`, start with
@@ -109,31 +155,27 @@ recorded element and `events --from <t-10000> --to <t>` for preceding actions;
 path. Run `couch --skill` for the full query guide. These pointers are also
 included in `how_to_read` and the delivered text.
 
-If the selected document has already gone before capture, the note retains its
-recorded context and has `crop: {"unavailable":"page changed"}` instead of a
-file. Missing recorded elements have explicit unavailable context and retain
-the anchor text. Navigation or tab replacement during capture fails preparation;
-it does not silently drop selected notes or publish a partial bundle.
-`Recorder.CaptureCrops` uses the document-scoped `CaptureScreenshot` helper (#494):
-all injected Couch UI is hidden for each PNG and restored on success or failure.
-Missing suppression confirmation fails preparation without publishing the pixels.
+A later navigation, tab switch, hidden anchor or removed element does not change
+saved evidence. Submission reads the stored capture and validates its original
+document/region; legacy notes or unavailable captures keep recorded context and
+an explicit `crop.unavailable` reason instead of taking fresh pixels. Navigation
+during the draw-time capture fails that preparation. `CaptureScreenshot` hides
+injected Couch UI and restores it on success or failure; missing suppression
+confirmation refuses the pixels.
 
-This abbreviated one-note example shows the version-1 manifest fields. The
-target pins the calling thread and launch incarnation; `revision` pins the
-note generation used by acknowledgment.
+This abbreviated version-3 example shows one note. The target pins the calling
+thread and launch incarnation; `revision` pins the note generation acknowledged.
 
 ```json
 {
-  "version": 2,
+  "version": 3,
   "privacy": "private",
   "privacy_rule": null,
-  "privacy_origin": "https://example.test",
   "how_to_read": "Read the manifest and PNGs; query the recording as described above.",
   "id": "example-1",
   "target": {"scope": "scope", "tag": "thread", "session": "session", "nonce": "launch"},
   "source": {
     "kind": "dom",
-    "page": {"url":"https://example.test/settings", "title":"Settings", "provenance":"cdp"},
     "recording_id": "recording-1",
     "recording_path": "/absolute/couch/webcast/recordings/recording-1",
     "tab_id": "tab-1",
@@ -141,6 +183,11 @@ note generation used by acknowledgment.
   },
   "notes": [{
     "id": "note-1",
+    "capture_id": "capture-1",
+    "page": {"url":"https://example.test/settings", "title":"Settings", "provenance":"cdp"},
+    "privacy": "private",
+    "privacy_rule": null,
+    "privacy_origin": "https://example.test",
     "source_document": 1,
     "revision": 0,
     "author": {"id": "viewer-1", "name": "Ana", "color": "#ff0000"},
@@ -152,18 +199,19 @@ note generation used by acknowledgment.
     "element": "<button id=\"save\">Save</button>",
     "before": ["click Save"],
     "replay": "https://example.invalid/token/r/recording-1/#t=1530",
-    "crop": {"file": "crop-0.png", "box": [10, 70, 120, 52], "captured_at": "2026-10-12T18:30:00Z", "document": 1}
+    "crop": {"file": "crop-0.png", "box": [20, 80, 100, 32], "captured_at": "2026-10-12T18:30:00Z", "document": 1}
   }],
   "delivery": "prepared"
 }
 ```
 
-Preparation allows 30 seconds overall, including each note's settling allowance,
-with a 5-second limit per screenshot.
+Draw-time capture has a 36-second service budget, including its settling
+allowance, with a 5-second limit per screenshot. Submission preparation retains
+its 30-second budget for assembling stored evidence and publishing the bundle.
 Each crop is bounded to 4 megapixels and 8 MiB of PNG data; a complete bundle is
 bounded to 64 MiB. Reading the source recording has a 128 MiB input budget.
-Couch runs one submission preparation or resolution job at a time, capturing
-the selected notes sequentially. Exceeding a limit produces a visible failure.
+Couch runs one submission preparation or resolution job at a time. Draw-time
+captures use the separate bounded capture queue. Exceeding a limit produces a visible failure.
 
 Bundles remain until explicitly removed. The store has a 1 GiB admission cap,
 including interrupted staging directories; a full store reports its path for
@@ -191,16 +239,18 @@ uses private for all origins, records `privacy_rule: "invalid policy file: <reas
 and posts a notice naming the file. Reasons are safe categories without policy
 contents. Valid matching rules are objects such as
 `{"origin":"http://localhost:4321","privacy":"shareable"}`; no match is null.
-New bundles always record top-level `privacy` and `privacy_rule`. `privacy_origin`
-is derived from `source.page.url` and validated against that same captured URL,
-not the recording's initial URL. Missing/unavailable identity cannot grant
+Version 3 records `privacy`, `privacy_rule` and any `privacy_origin` on each
+note, derived from and validated against that note's captured `page.url`. The
+top-level privacy value is a conservative summary: shareable only when every
+note is shareable. It cannot grant permission for an individual private note.
+Version 2 retains its policy decision against `source.page.url`. Missing/unavailable identity cannot grant
 sharing. Older bundles without privacy fields are private.
 
 When notes become an issue, write evidence as self-contained text: a page URL
 without secrets, element/classes, the operator request, appropriate text evidence
-and one line describing what the crop demonstrates. For private evidence,
-summarize instead of quoting box text, and attach no crops. A shareable bundle
-allows only relevant crops and only when the repository's asset policy permits
+and one line describing what the crop demonstrates. For each private note,
+summarize instead of quoting box text, and attach no crops. Explicitly shareable
+note evidence allows only relevant crops and only when the repository's asset policy permits
 its issue asset folder (ariadne#337); absent or unclear repository policy means
 text only. This is an agent rule, repeated in the shipped Couch skill and
 `how_to_read`; Couch does not copy assets or create issues. A sharing rule never
@@ -217,12 +267,11 @@ The manifest records `prepared → delivering → dispatched → resolved`.
 before reporting success after a failed publication sync. It does **not** prove
 that the agent received the message. `dispatched` records the draft transaction's
 successful send. Acknowledgment then resolves only the submitted notes whose
-recording, document and revision still match. New notes, reopened notes and
-notes on a replacement page remain untouched.
+recording, original note identity and revision still match, even after a page
+change. New or changed note revisions remain untouched.
 
-The draft status line immediately shows preparation, including “waiting for the
-page to settle, crop 2/3”, capture and bundle publication, then “sending to
-pair:N…” and “sent” or the failure reason. While that operation is active, only
+The draft status line immediately shows submission preparation and bundle
+publication, then “sending to pair:N…” and “sent” or the failure reason. While that operation is active, only
 its initiating buffer is read-only. Navigation, queue, delete, reset and alternate
 send actions on that draft are blocked before changing slot identity or saved
 content. Another chord reports “already sending…” without replacing the operation
@@ -235,7 +284,7 @@ clear; every failure or timeout restores editing and keeps the draft. Terminal
 status remains until the draft changes or another submission starts.
 
 After completion or failure, Ctrl+Shift+Alt+Return starts a new submission from
-the current draft with a new ID and fresh evidence. A changed view prevents its
+the current draft with a new ID and the saved evidence of its selected notes. A changed view prevents its
 older preparation from sending. Late completions cannot clear a newer draft;
 a late confirmed dispatch can still acknowledge its own notes. Duplicate
 messages are acceptable after an uncertain paste. No original text needs to be
@@ -286,7 +335,10 @@ bundles, remains under the existing store caps and explicit local cleanup.
 | Shared schema, limits, atomic store and delivery transitions | `cmd/internal/submission/` |
 | Recorded context and one crop calculation per note | `cmd/internal/webcast/submission/build.go` |
 | Frozen open-note selection and revision-guarded resolution | `cmd/internal/webcast/board/submission.go` |
-| Current CDP screenshots and document checks | `cmd/internal/webcast/recorder/submission.go` |
+| Private draw-time capture lifecycle, persistence and ownership transfer | `cmd/internal/webcast/notedraft/` |
+| Prepared note capture and acknowledged writes | `cmd/internal/webcast/cast_notedraft.go`, `chrome_prepared.go`, `recorder/prepared_note.go` |
+| Shared browser capture workflow and live placement | `web/capture-draft.js`, `web/annotation-placement.js`, `web/annotation-anchor.js` |
+| Current CDP screenshots and document checks at draw time | `cmd/internal/webcast/recorder/submission.go` |
 | Viewport-preserving capture and bounded animation observations | `cmd/internal/webcast/recorder/capture_ready.go`, `capture_ready.js` |
 | Recording inputs and crop assembly | `cmd/internal/webcast/cast_submission.go` |
 | Background preparation, replay sharing and acknowledgment | `cmd/internal/couchtty/console_submission.go` |

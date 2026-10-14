@@ -8,7 +8,7 @@ function harness() {
  const root=new Element('body'), box=new Element('box'),bar=new Element('bar');bar.className='bar';root.append(box,bar);
  const doc={body:root,createElement:tag=>new Element(tag),getElementById:()=>box,querySelector:s=>root.querySelector(s)};
  const timers=new Map(), posts=[];let serial=0, caps={annotation:{allowed:false},drive:{allowed:false}}, receiveCaps=[],receive=[];
- const win={innerWidth:100,crypto:{getRandomValues:b=>b.fill(1)},performance:{now:()=>100},requestAnimationFrame:()=>{},addEventListener:()=>{},setTimeout:fn=>{timers.set(++serial,fn);return serial;},clearTimeout:id=>timers.delete(id),setInterval:fn=>{timers.set(++serial,fn);return serial;},clearInterval:id=>timers.delete(id),fetch:async(url,init)=>{posts.push({url,body:init?.body,headers:init?.headers});return {ok:true,status:204,json:async()=>({palette:['#ff0000'],annotate:true}),text:async()=>''};}};
+ const win={innerWidth:100,crypto:{getRandomValues:b=>b.fill(1)},performance:{now:()=>100},requestAnimationFrame:()=>{},addEventListener:()=>{},setTimeout:fn=>{timers.set(++serial,fn);return serial;},clearTimeout:id=>timers.delete(id),setInterval:fn=>{timers.set(++serial,fn);return serial;},clearInterval:id=>timers.delete(id),fetch:async(url,init)=>{posts.push({url,body:init?.body,headers:init?.headers});return {ok:true,status:204,json:async()=>url==='palette.json'?({palette:['#ff0000'],annotate:true}):url==='save-note'?({state:'saved',id:'saved'}):({state:'ready',draft:'signed-capture',captured_at:'2026-10-13T12:00:00Z'}),text:async()=>''};}};
  const v={model:{seg:1,docSeg:1,live:true,notes:[]},onCapabilities:fn=>{receiveCaps.push(fn);fn(caps);},onRecord:fn=>receive.push(fn),toPage:(x,y)=>[x,y],fromPage:(x,y)=>[x,y],nodeAt:()=>7,boxOf:()=>[0,0,100,100]};
  return {root,box,doc,win,v,posts,timers,caps(a,d,g=1){caps={annotation:{allowed:a,state:a?'on':'off',generation:g},drive:{allowed:d,state:d?'on':'off',generation:g}};for(const fn of receiveCaps)fn(caps);},rec(r){for(const fn of receive)fn(r,v.model);},async event(el,k,extra={}){for(const fn of el.listeners[k]||[])await fn({target:el,pointerId:1,pointerType:'mouse',clientX:30,clientY:30,preventDefault(){},...extra});}};
 }
@@ -22,11 +22,11 @@ test('late annotation mount takes latest permission; off cancels stroke and hold
  await h.event(layer,'pointerdown');await h.event(layer,'pointermove',{clientX:40});
  const posted=h.posts.length;h.caps(false,false,4);await h.event(layer,'pointerup');for(const fn of [...h.timers.values()])fn();
  assert.equal(ui.mode,'watch');assert.equal(h.posts.length,posted);assert.equal(layer.captured,null);
- h.caps(true,false,5);ui.dialog.draft({seg:1,node:7,box:[0,0,1,1],region:[0,0,10,10]});
+ h.caps(true,false,5);ui.setMode('note');await h.event(layer,'pointerdown');await h.event(layer,'pointerup');for(let i=0;i<12;i++)await Promise.resolve();const heldPosts=h.posts.length;
  const input=h.root.querySelector('.note-input');input.value='held text';await h.event(input,'input');
- h.caps(false,false,6);const save=h.root.querySelector('.note-buttons').children.at(-1);await h.event(save,'click');assert.equal(h.posts.length,posted);
+ h.caps(false,false,6);const save=h.root.querySelector('.note-buttons').children.at(-1);await h.event(save,'click');assert.equal(h.posts.length,heldPosts);
  h.caps(true,false,7);assert.equal(input.value,'held text');assert.equal(ui.mode,'watch');
- ui.who.setName('Viewer');await h.event(save,'click');assert.equal(h.posts.length,posted+1);
+ ui.who.setName('Viewer');await h.event(save,'click');for(let i=0;i<12;i++)await Promise.resolve();assert.equal(h.posts.length,heldPosts+1);assert.equal(h.posts.at(-1).url,'save-note');
  h.rec({k:'stroke',t:8,id:'other.s',color:'#ff0000',pts:[[1,2,0]]});assert.ok(ui.strokes.size>0);
  h.rec({k:'annotation-clear',t:9});assert.equal(ui.strokes.size,0);
 });
@@ -79,7 +79,7 @@ test('annotation request carries originating generation and clear cancels held g
  await h.event(layer,'pointermove',{clientX:50});await h.event(layer,'pointerup');
  for(const fn of [...h.timers.values()])fn();assert.equal(h.posts.length,before);
  h.caps(true,false,13);assert.equal(request.headers['X-Couch-Annotation-Generation'],'11');
- ui.who.setName('Viewer');ui.dialog.draft({seg:1,node:7,box:[0,0,1,1],region:[0,0,10,10]});
+ ui.who.setName('Viewer');ui.setMode('note');await h.event(layer,'pointerdown');await h.event(layer,'pointerup');for(let i=0;i<12;i++)await Promise.resolve();
  const input=h.root.querySelector('.note-input');input.value='fresh save';await h.event(input,'input');
  await h.event(h.root.querySelector('.note-buttons').children.at(-1),'click');
  assert.equal(h.posts.at(-1).headers['X-Couch-Annotation-Generation'],'13');

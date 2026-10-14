@@ -224,10 +224,13 @@ export function noteDialog(els, deps) {
   const refreshCount = () => {
     const n = noteBytes(els.input.value);
     els.count.textContent = `${n} / ${MAX_NOTE_BYTES}`;
-    els.save.disabled = held !== '' || n === 0 || n > MAX_NOTE_BYTES || els.input.value.trim() === '';
+    els.save.disabled = held !== '' || !!state?.blocked || !!state?.saving || n === 0 || n > MAX_NOTE_BYTES || els.input.value.trim() === '';
   };
-  const close = () => {
+  const discard = () => { if (state?.kind === 'draft') deps.onDiscard?.(state.payload); };
+  const close = (discardDraft = true) => {
+    if (discardDraft) discard();
     gen++;
+    if (deps.saveDraft) els.input.readOnly = false;
     state = null;
     els.input.value = '';
     say('');
@@ -248,7 +251,8 @@ export function noteDialog(els, deps) {
     }).catch(() => sent === gen && say("Couldn't reach the broadcast. Try again."));
   };
   els.input.addEventListener('input', refreshCount);
-  els.cancel.addEventListener('click', close);
+  els.cancel.addEventListener('click', () => close());
+  els.retry?.addEventListener('click', () => deps.onRetry?.());
   els.save.addEventListener('click', () => {
     if (state?.kind !== 'draft' || els.save.disabled) {
       return;
@@ -258,8 +262,15 @@ export function noteDialog(els, deps) {
       return;
     }
     els.save.disabled = true;
-    answer(deps.post('note', { ...state.payload, color: deps.color(), text: els.input.value, ...extra }), close)
-      .finally(() => state?.kind === 'draft' && refreshCount());
+    const sent = state;
+    const body = { ...state.payload, color: deps.color(), text: els.input.value, ...extra };
+    if (deps.saveDraft) { state.saving = true; els.input.readOnly = true; }
+    const request = deps.saveDraft ? deps.saveDraft(body) : deps.post('note', body);
+    answer(request, () => close(false)).finally(() => {
+      if (state !== sent) return;
+      if (deps.saveDraft) { state.saving = false; els.input.readOnly = false; }
+      if (state?.kind === 'draft') refreshCount();
+    });
   });
   els.resolve.addEventListener('click', () => {
     if (state?.kind === 'view' && held === '') {
@@ -273,8 +284,11 @@ export function noteDialog(els, deps) {
   });
   return {
     draft(payload) {
+      discard();
       gen++;
-      state = { kind: 'draft', payload };
+      state = { kind: 'draft', payload, blocked: !!payload.capturePending };
+      if (deps.saveDraft) els.input.readOnly = false;
+      if (els.retry) els.retry.hidden = true;
       els.root.classList.add('draft');
       els.root.classList.remove('view');
       els.text.textContent = '';
@@ -287,8 +301,23 @@ export function noteDialog(els, deps) {
       show(true);
       els.input.focus?.();
     },
+    // Capture/status projection never replaces the authored input or opens a
+    // retired dialog. A retry may rekey its payload without resetting text.
+    projectDraft(request, update) {
+      if (state?.kind !== 'draft' || state.payload.request !== request) return false;
+      state.payload = { ...state.payload, ...update.payload };
+      if ('blocked' in update) state.blocked = !!update.blocked;
+      else if ('pending' in update) state.blocked = !!update.pending;
+      state.message = update.message || '';
+      say(held || state.message);
+      if (els.retry) els.retry.hidden = !update.retry;
+      refreshCount();
+      return true;
+    },
     view(note, { resolvable }) {
+      discard();
       gen++;
+      if (els.retry) els.retry.hidden = true;
       state = { kind: 'view', id: note.id };
       els.root.classList.add('view');
       els.root.classList.remove('draft');
@@ -315,7 +344,7 @@ export function noteDialog(els, deps) {
         refreshCount();
       }
       if (state && held !== was) {
-        say(held);
+        say(held || state.message);
       }
     },
     close,
