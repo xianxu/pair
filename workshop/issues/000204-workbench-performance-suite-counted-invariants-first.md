@@ -149,3 +149,7 @@ with a different machine state.
 Governed by `workshop/targets/workbench-latency.md`, written alongside this
 issue, and by `ariadne#216`, which amends `ARCH-CONSTRAINTS` so a measured basis
 must name the probe that reproduces it.
+
+## Revisions
+
+- 2026-10-14 — add (operator: "think of how to catch those issues before it's released"): a fourth case shipped today. After pair#528 M1, Couch burned 40–100% CPU at idle (pair#559) because every UI activity tick re-decoded each row's launch ledger (15–33 MB), catalog and transcripts, and every peer message re-decoded session-name indexes. Review and the full suite passed; the operator found it through timeouts. Add **counted invariants** for Couch's steady state: (1) bytes read/decoded per idle UI tick with N=20 synthetic slots and 30 MB ledgers = 0 for unchanged files; (2) the same per peer message; (3) process-table scans per attach ≤ 1 (pair#218); (4) an idle-CPU smoke in the acceptance runbook: restart over a 20-slot fixture, Couch CPU < 5% averaged over 60 s after attaches settle. Counted invariants run in the normal suite (deterministic); the CPU smoke is part of every Couch acceptance session.
