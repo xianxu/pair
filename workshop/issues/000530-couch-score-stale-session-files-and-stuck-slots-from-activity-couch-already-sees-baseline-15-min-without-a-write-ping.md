@@ -15,6 +15,7 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "971ba722", done: "a8801e87"}
 ---
 
 # couch: score stale session files and stuck slots from activity Couch already sees (baseline: 15 min without a write → ping)
