@@ -5,12 +5,14 @@ import (
 	"strconv"
 )
 
-// defaultSlotNice keeps slot wrappers, and the builds and suites they run,
-// behind Couch and the operator's terminal on a loaded machine (#498).
+// defaultSlotNice keeps what slots' agents run (builds, suites, tools) behind
+// Couch, the agents and the operator's terminal on a loaded machine (#498,
+// #502: the renicer's level).
 const defaultSlotNice = 10
 
-// slotNiceSettings reads COUCH_SLOT_NICE: unset means defaultSlotNice, 0 turns
-// the lowering off, and anything outside 0-20 refuses to start.
+// slotNiceSettings reads COUCH_SLOT_NICE, the slot renicer's level (#502):
+// unset means defaultSlotNice, 0 turns the lowering off, and anything outside
+// 0-20 refuses to start.
 func slotNiceSettings(getenv func(string) string) (int, error) {
 	raw := getenv("COUCH_SLOT_NICE")
 	if raw == "" {

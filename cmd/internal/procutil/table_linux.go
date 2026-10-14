@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// Table reads each process's parent and start identity from ONE read of its
+// Table reads each process's parent, start identity and niceness from ONE read of its
 // /proc/<pid>/stat (#399 close review BR-15). Identity matches Identity's format.
 func Table() ([]Process, error) {
 	entries, err := os.ReadDir("/proc")
@@ -37,7 +37,11 @@ func Table() ([]Process, error) {
 		if err != nil {
 			continue
 		}
-		out = append(out, Process{PID: pid, PPID: ppid, Identity: fields[19]})
+		nice, err := strconv.Atoi(fields[16]) // stat field 19
+		if err != nil {
+			continue
+		}
+		out = append(out, Process{PID: pid, PPID: ppid, Identity: fields[19], Nice: nice})
 	}
 	return out, nil
 }
