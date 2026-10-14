@@ -15,6 +15,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "6de427fd", done: "dca3f81b"}
 ---
 
 # couchcore: TestRealRunnersExitedPrecedesTheGroup/pty flakes on main (Alive = false while the backgrounded group member still runs)
