@@ -3,9 +3,9 @@ package launcher
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
-	"os/exec"
 	"strconv"
 	"strings"
 
@@ -27,18 +27,53 @@ func ParseServerProcesses(raw string) []SessionServerIdentity {
 		if len(fields) != 4 {
 			continue
 		}
-		socket := fields[3]
-		session := socketSession(socket)
-		if session == "" || !isExactZellijServerCommand(strings.Join(fields[1:], " "), session) {
-			continue
-		}
 		pid, err := strconv.Atoi(fields[0])
-		if err != nil || pid <= 0 {
+		if err != nil {
 			continue
 		}
-		out = append(out, SessionServerIdentity{PID: pid, Session: session, Socket: socket})
+		if server, ok := parseServerCommand(pid, strings.Join(fields[1:], " ")); ok {
+			out = append(out, server)
+		}
 	}
 	return out
+}
+
+func parseServerCommand(pid int, command string) (SessionServerIdentity, bool) {
+	fields := strings.Fields(command)
+	if pid <= 0 || len(fields) != 3 {
+		return SessionServerIdentity{}, false
+	}
+	socket := fields[2]
+	session := socketSession(socket)
+	if session == "" || !isExactZellijServerCommand(command, session) {
+		return SessionServerIdentity{}, false
+	}
+	return SessionServerIdentity{PID: pid, Session: session, Socket: socket}, true
+}
+
+// serverProcesses preserves unavailable candidate evidence; an unreadable
+// zellij cannot establish that no server exists. Successful argv remains the
+// matching authority, including processes whose argv[0] was changed.
+func serverProcesses(rows []procutil.Observation) ([]SessionServerIdentity, error) {
+	var out []SessionServerIdentity
+	for _, row := range rows {
+		if row.Err != nil {
+			if row.Name == "zellij" || row.Name == "" {
+				return nil, fmt.Errorf("process inspection unavailable for possible zellij server %d: %w", row.PID, row.Err)
+			}
+			continue
+		}
+		server, ok := parseServerCommand(row.PID, strings.Join(row.Args, " "))
+		if !ok {
+			continue
+		}
+		if row.Identity == "" {
+			return nil, fmt.Errorf("process identity unavailable for zellij server %d", row.PID)
+		}
+		server.Identity = row.Identity
+		out = append(out, server)
+	}
+	return out, nil
 }
 
 func socketSession(socket string) string {
@@ -132,7 +167,7 @@ func ClassifyServers(servers []SessionServerIdentity, sockets map[string]SocketS
 }
 
 // ServerStates is the one bulk server observation for a refresh: every zellij
-// server on the host with its socket verdict, by session name. One `ps` plus an
+// server on the host with its socket verdict, by session name. One native snapshot plus an
 // Lstat per server -- never a probe per thread.
 type ServerStates interface {
 	ServerStates(ctx context.Context) (map[string]ServerState, error)
@@ -144,25 +179,20 @@ type ServerStates interface {
 type OSServerStates struct{}
 
 func (OSServerStates) ServerStates(ctx context.Context) (map[string]ServerState, error) {
-	out, err := exec.CommandContext(ctx, "ps", "-axo", "pid=,command=").Output()
+	rows, err := procutil.Snapshot(ctx)
 	if err != nil {
 		return nil, err
 	}
-	servers := ParseServerProcesses(string(out))
+	servers, err := serverProcesses(rows)
+	if err != nil {
+		return nil, err
+	}
 	sockets := make(map[string]SocketState, len(servers))
-	for _, s := range servers {
-		sockets[s.Socket] = ObserveSocket(os.Lstat(s.Socket))
-	}
-	states := ClassifyServers(servers, sockets)
-	for name, state := range states {
-		if state.Verdict != ServerOrphaned {
-			continue
+	for _, server := range servers {
+		if err := ctx.Err(); err != nil {
+			return nil, err
 		}
-		state.Server.Identity = procutil.Identity(strconv.Itoa(state.Server.PID))
-		if state.Server.Identity == "" {
-			state = ServerState{Verdict: ServerUnresolved}
-		}
-		states[name] = state
+		sockets[server.Socket] = ObserveSocket(os.Lstat(server.Socket))
 	}
-	return states, nil
+	return ClassifyServers(servers, sockets), nil
 }

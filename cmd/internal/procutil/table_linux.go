@@ -5,7 +5,6 @@ package procutil
 import (
 	"os"
 	"strconv"
-	"strings"
 )
 
 // Table reads each process's parent, start identity and niceness from ONE read of its
@@ -25,23 +24,11 @@ func Table() ([]Process, error) {
 		if err != nil {
 			continue // gone between the listing and the read
 		}
-		end := strings.LastIndexByte(string(raw), ')')
-		if end < 0 {
-			continue
-		}
-		fields := strings.Fields(string(raw[end+1:]))
-		if len(fields) <= 19 {
-			continue
-		}
-		ppid, err := strconv.Atoi(fields[1])
+		p, err := parseLinuxStat(pid, raw)
 		if err != nil {
 			continue
 		}
-		nice, err := strconv.Atoi(fields[16]) // stat field 19
-		if err != nil {
-			continue
-		}
-		out = append(out, Process{PID: pid, PPID: ppid, Identity: fields[19], Nice: nice})
+		out = append(out, p)
 	}
 	return out, nil
 }
