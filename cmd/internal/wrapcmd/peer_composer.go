@@ -19,10 +19,17 @@ func peerComposerState(agent string, s terminalSnapshot) PeerComposerState {
 	if !ok {
 		return PeerComposerUnknown
 	}
-	if text != "" || s.Cursor.X != 2 {
+	if text != "" || s.Cursor.X != peerInputColumn(agent) {
 		return PeerComposerOccupied
 	}
 	return PeerComposerEmpty
+}
+
+func peerInputColumn(agent string) int {
+	if agent == "qoder" {
+		return qoderPromptCol + 2
+	}
+	return 2
 }
 
 // peerComposerText reads the complete qualified composer. Attachments, admitted
@@ -35,6 +42,12 @@ func peerComposerText(agent string, s terminalSnapshot) (string, bool) {
 		var ok bool
 		top, bottom, ok = ruledBoxComposerBounds(s, claudeComposerSpec())
 		if !ok || s.CellAt(0, top).Content != "❯" {
+			return "", false
+		}
+	case "qoder":
+		var ok bool
+		top, bottom, ok = ruledBoxComposerBounds(s, qoderComposerSpec())
+		if !ok {
 			return "", false
 		}
 	case "codex":
@@ -68,7 +81,7 @@ func peerComposerText(agent string, s terminalSnapshot) (string, bool) {
 	lines := make([]string, 0, bottom-top)
 	for y := top; y < bottom; y++ {
 		var b strings.Builder
-		for x := 2; x < s.Width; x++ {
+		for x := peerInputColumn(agent); x < s.Width; x++ {
 			c := s.CellAt(x, y)
 			if c == nil {
 				return "", false
@@ -88,7 +101,7 @@ func peerComposerText(agent string, s terminalSnapshot) (string, bool) {
 		lines = lines[:len(lines)-1]
 	}
 	text := strings.Join(lines, "\n")
-	if peerPlaceholder(s, top, text) {
+	if (agent == "qoder" && peerQoderPlaceholder(s, top, text)) || (agent != "qoder" && peerPlaceholder(s, top, text)) {
 		return "", true
 	}
 	if strings.HasPrefix(strings.TrimSpace(text), "/") || strings.HasPrefix(strings.TrimSpace(text), "!") {
@@ -165,4 +178,29 @@ func peerCodexModernStartup(s terminalSnapshot) bool {
 		}
 	}
 	return false
+}
+
+// Qoder's captured placeholder is plain grey, preceded by a painted cursor
+// and a space. Wording alone cannot authorize overwriting an operator draft.
+func peerQoderPlaceholder(s terminalSnapshot, row int, text string) bool {
+	if s.Cursor.X != peerInputColumn("qoder") || s.Cursor.Y != row || text != "  Type your message or @path/to/file" {
+		return false
+	}
+	cursor := s.CellAt(s.Cursor.X, row)
+	if cursor == nil || cursor.Content != " " || cursor.Style.Bg == nil {
+		return false
+	}
+	for x := s.Cursor.X + 1; x < s.Width; x++ {
+		c := s.CellAt(x, row)
+		if c == nil {
+			return false
+		}
+		if strings.TrimSpace(c.Content) == "" {
+			continue
+		}
+		if !sameForeground(c.Style.Fg, cursor.Style.Bg) {
+			return false
+		}
+	}
+	return true
 }

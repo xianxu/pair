@@ -313,7 +313,11 @@ var qoderPromptGlyphs = map[string]bool{">": true, "*": true}
 // unbounded like Claude's: the box cannot absorb distant chrome because its
 // closing rule is the first painted column-0 row below the prompt.
 func qoderComposerActive(snapshot terminalSnapshot) bool {
-	return ruledBoxComposerActive(snapshot, ruledBoxComposerSpec{
+	return ruledBoxComposerActive(snapshot, qoderComposerSpec())
+}
+
+func qoderComposerSpec() ruledBoxComposerSpec {
+	return ruledBoxComposerSpec{
 		promptOK: func(c uv.Cell) bool {
 			return qoderPromptGlyphs[c.Content]
 		},
@@ -325,7 +329,7 @@ func qoderComposerActive(snapshot terminalSnapshot) bool {
 		promptCol:         qoderPromptCol,
 		minCursorX:        2,
 		allowHiddenCursor: true,
-	})
+	}
 }
 
 // grokPromptCol is the ONE authority for the column Grok paints its prompt
