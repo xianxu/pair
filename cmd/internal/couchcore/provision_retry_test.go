@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 func TestCreationLeaseRetryBoundaries(t *testing.T) {
@@ -104,5 +106,36 @@ func TestProvisionLeaseUnknownHintsDoNotGrantAdmission(t *testing.T) {
 				t.Fatalf("live owner admitted: %v", err)
 			}
 		})
+	}
+}
+
+func TestProvisionLeaseFailedHeldHintClosesDescriptor(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "lock")
+	if err := os.WriteFile(path, []byte("H"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	if err = unix.Flock(int(file.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
+		t.Fatal(err)
+	}
+	lease, err := newHostCreationLease(file)
+	if lease != nil || err == nil {
+		t.Fatalf("unwritable held hint admitted: lease=%v err=%v", lease, err)
+	}
+	if _, err = file.Stat(); !errors.Is(err, os.ErrClosed) {
+		t.Fatalf("failed acquisition retained descriptor: %v", err)
+	}
+	// The failed initialization must release kernel exclusion too.
+	next, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer next.Close()
+	if err = unix.Flock(int(next.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
+		t.Fatalf("failed acquisition retained flock: %v", err)
 	}
 }

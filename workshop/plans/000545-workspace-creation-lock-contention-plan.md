@@ -66,3 +66,14 @@ owner without editing the package TestMain. The extra compile cost is small and
 reported separately from acquisition. Cancellation kills the helper process group
 so a child retaining stdout cannot strand readiness. creationLeaseRetry is a pure
 function of elapsed time, attempt count and hint rather than a mutable value.
+
+### 2026-10-14 — final test seams and source inventory
+
+The final pure function lives in provision_retry_unix.go (superseding the
+initial table's provision_lock_unix.go location) to keep the IO boundary visible.
+Its tests live in provision_retry_test.go; the native adapter lives in
+provision_fork_test.go. newHostCreationLease in provision_lock_unix.go owns
+initialization of the already-locked descriptor; factoring that existing final
+step permits a real read-only descriptor test of held-mark failure, descriptor
+cleanup and kernel exclusion release without a fake filesystem or injected
+syscall callbacks. No retry or admission behavior changes in this extraction.

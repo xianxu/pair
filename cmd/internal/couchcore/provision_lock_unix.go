@@ -74,8 +74,13 @@ func AcquireHostCreationLease(commonDir string) (*HostCreationLease, error) {
 		}
 		break
 	}
-	// Advisory only: a stale R can add bounded waiting, but only flock admits.
-	if _, err = file.WriteAt([]byte{'H'}, 0); err != nil {
+	return newHostCreationLease(file)
+}
+
+// newHostCreationLease owns an already-locked descriptor, including cleanup if
+// recording ownership fails. A stale R is only bounded retry advice.
+func newHostCreationLease(file *os.File) (*HostCreationLease, error) {
+	if _, err := file.WriteAt([]byte{'H'}, 0); err != nil {
 		return nil, errors.Join(fmt.Errorf("mark creation lease held: %w", err), file.Close())
 	}
 	return &HostCreationLease{file: file}, nil
