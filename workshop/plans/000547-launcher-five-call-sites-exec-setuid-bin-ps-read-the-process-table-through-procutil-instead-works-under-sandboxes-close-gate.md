@@ -176,6 +176,13 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+disputes:
+    - id: BR-3
+      rationale: The outer reviewer fence cannot apply a nested sandbox, so sandbox_apply failure is an environment limit before test execution. Native probes were measured on the host under the required setuid-denying profile using binaries built at fb37a86a8a5f014ba73f6e879e73e59f9d850ad2. The only delta since the reviewed head is BR-2 fixture synchronization plus docs; production behavior is unchanged.
+      evidence: 'At fb37a86a8, go test -c built /tmp/pair547-procutil-fb37.test and /tmp/pair547-launcher-fb37.test. sandbox-exec -p (version 1)(allow default) procutil binary ran six native self/child/identity/zombie probes: PASS, no skips. PAIR_LIVE_COUCH=1 sandbox-exec with the same profile ran TestSessionQuiescenceLive: PASS 1.12s. The same host profile running /bin/ps -p 1 -o pid,comm exited 71: execvp Operation not permitted. Thus native probes pass in a measured environment that refuses setuid ps; nested sandbox_apply refusal is reproduced only inside the reviewer fence.'
+      after: 3
+      timestamp: "2026-10-14T16:00:38Z"
+      by: Xian Xu on Xian’s MacBook Pro at pair:5 (/Users/xianxu/workspace/worktree/pair-slot5/pair)
 ---
 
 # Gate ledger — pair#547 (boundary-review)
@@ -209,7 +216,15 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-3** [Important] `sandbox-acceptance-evidence` (kind: unverifiable) Required seatbelt acceptance cannot be verified in this review environment
   Running sandbox-exec -p '(version 1)(allow default)' /tmp/pair547-review-procutil.test with the selected native process probes exited 71 with “sandbox_apply: Operation not permitted”; no test executed under that profile. Direct native probes pass, but /bin/ps also executes here, so those results do not establish the required setuid-denying environment. Provide measured host results from binaries built at the reviewed head for the native probes and launcher process acceptance under the required profile, or an environment permitting that verification.
 
+## Disputes
+
+Findings the implementer declined (`sdlc finding dispute`), each answered by the
+next review round.
+
+- **BR-3** — after round 3 (2026-10-14T16:00:38Z, Xian Xu on Xian’s MacBook Pro at pair:5 (/Users/xianxu/workspace/worktree/pair-slot5/pair))
+  rationale: The outer reviewer fence cannot apply a nested sandbox, so sandbox_apply failure is an environment limit before test execution. Native probes were measured on the host under the required setuid-denying profile using binaries built at fb37a86a8a5f014ba73f6e879e73e59f9d850ad2. The only delta since the reviewed head is BR-2 fixture synchronization plus docs; production behavior is unchanged.
+  evidence: At fb37a86a8, go test -c built /tmp/pair547-procutil-fb37.test and /tmp/pair547-launcher-fb37.test. sandbox-exec -p (version 1)(allow default) procutil binary ran six native self/child/identity/zombie probes: PASS, no skips. PAIR_LIVE_COUCH=1 sandbox-exec with the same profile ran TestSessionQuiescenceLive: PASS 1.12s. The same host profile running /bin/ps -p 1 -o pid,comm exited 71: execvp Operation not permitted. Thus native probes pass in a measured environment that refuses setuid ps; nested sandbox_apply refusal is reproduced only inside the reviewer fence.
+
 ## Open findings
 
 - **BR-2** [Important] `process-test-state-synchronization` (kind: defect) Zombie fixture returns before the child reaches terminal kernel state
-- **BR-3** [Important] `sandbox-acceptance-evidence` (kind: unverifiable) Required seatbelt acceptance cannot be verified in this review environment
