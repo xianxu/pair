@@ -1,12 +1,12 @@
 ---
 id: 000552
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-14
 updated: 2026-10-14
 estimate_hours: 2.112
-card_mirror: '4f7b6b6f696c45f5cdd13caecc20f5d461d0b573' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '75b2413ae683e366b7571d4152050be602fb4bd2' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-14T11:23:25-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: 1.05
 ---
 
 # Deliveries to the hub expire while the hub's own turn is open (90s deadline): operator submits and worker decisions are lost or late
