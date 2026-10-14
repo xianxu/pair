@@ -43,3 +43,14 @@ Agents' pickers differ and change across versions; recipes live in one table per
 ## Log
 
 ### 2026-10-13
+
+## Revisions
+
+- 2026-10-14 02:15 — add (TL, from the first fleet-wide remote switch): (1) `--set-model` takes an explicit scope:
+  Codex offers "session only" (`s`) vs "save as default" (Enter); default to session-only, since Codex's default is
+  shared by every Codex slot. (2) After a remote switch, the agent's own confirmation line ("Model changed to … for
+  this session only") must not trigger Couch's 10-minute "waiting on a prompt" notice: three false notices came from
+  ariadne:5, parley.nvim:1 and others on 10-14. (3) The verified recipe used (Codex 0.x): Ctrl+U, `/model`,
+  Alt+Enter (plain Enter is a newline in Pair's agent pane), ↑/↓ until the reverse-video row shows the label,
+  Enter, ↓ to the effort label, `s`; confirm from the footer `GPT-6.1-Sol medium`. Skip slots whose screen shows
+  "esc to interrupt" (mid-turn).
