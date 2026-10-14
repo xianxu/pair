@@ -461,14 +461,22 @@ still-booting Claude.
   `RemoteEndpoint.Deliver` hands each interim receipt to the broker
   (`DeliveryProgress`), so the sender's `couch` status reads `held` too.
 
-Receiver profiles exist for Claude Code and Codex CLI at any installed version
+Receiver profiles exist for Claude Code, Codex CLI and Qoder CLI at any installed version
 (`peerReceiverAgents`; the exact-version allowlist was removed in #360 after
 auto-updates silently dropped slots). Fixtures under `wrapcmd/testdata/peer/`
 and `TestPeerLiveConformance` were captured on Claude Code 2.1.286 and Codex
 CLI 0.159.2; per-version evidence from daily use is #368. Every captured paste
 shape must read as an occupied composer
 (`TestPeerComposerCapturedPastesReadOccupied`), since that is all delivery reads
-after a paste. Human Couch acceptance remains a separate step.
+after a paste. Qoder's profile shares the Return recognizer's ruled-box geometry,
+reads input from its indented origin, and distinguishes its captured grey
+placeholder from authored text using the painted cursor and matching hint style.
+Qoder idle (1.1.71) and folder trust (1.1.66) fixtures are frozen from pair:4;
+tests cover registration, live-tail transport, settling, trust refusal and one
+paste/submit through the real broker seam. Native Qoder submit is still awaiting
+the authorized live smoke. Every launcher agent has an explicit receiver policy,
+checked against AgentInventory; Agy, Muse and Grok remain disabled pending
+captured peer-input support. Human Couch acceptance remains a separate step.
 
 Single-line suggested prompts in recognized agent composers use shared ANSI faint styling
 and the cursor at the input origin, independent of wording or RGB color.
