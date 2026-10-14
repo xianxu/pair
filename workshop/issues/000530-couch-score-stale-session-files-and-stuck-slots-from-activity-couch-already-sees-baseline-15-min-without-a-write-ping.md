@@ -184,3 +184,23 @@ recorded in Spec and the earlier revisions, with #321/#543 as their owners.
   failures or baseline exclusions. This supersedes the earlier failing full
   run as final verification. Headless private-socket/clock acceptance remains
   approved by TL; no stage is required.
+
+### 2026-10-13 — delivery provenance survives terminal receipts
+
+Round 2 left BR-1 open: sender disconnect can finalize a receipt before the
+endpoint returns. The lifetime rule is now explicit: generated provenance stays
+until both the receipt is terminal and the broker delivery job has finished
+endpoint accounting. The broker snapshot exposes that existing job fact
+atomically with the receipt; no new queue or retention timer is introduced.
+This covers startup prompts, rules nudges, and ordinary wait notices, including
+the interval before endpoint entry. Controlled late-return tests reproduce all
+three failures; a genuine hub message with identical prose still creates an
+uncertain file obligation. Completed jobs release the metadata on reconciliation.
+This supersedes the earlier assumption that a terminal receipt alone permits
+cleanup (ARCH-ORDER, ARCH-FUNERAL).
+
+- Focused supervision/wait/broker tests passed after the lifetime fix; focused
+  race run also passed, logs `/tmp/pair530-lifetime-fix.log` and
+  `/tmp/pair530-lifetime-race.log`. The three generated late-callback cases
+  failed before the fix, while the genuine-message control passed. A full
+  suite will verify this final code change before the next close.

@@ -384,12 +384,15 @@ func (b *Broker) Status(caller Binding, id string) (Receipt, error) {
 
 // ReceiptSnapshot reads the supervisor's retained receipt without a live
 // caller. It performs no endpoint IO and keeps the normal expiry/retention
-// rules, including when the sender has disconnected.
-func (b *Broker) ReceiptSnapshot(id string) (Receipt, bool) {
+// rules, including when the sender has disconnected. The final bool reports an
+// active delivery callback: disconnection can make its receipt terminal before
+// endpoint accounting finishes. Consumers must retain provenance until it ends.
+func (b *Broker) ReceiptSnapshot(id string) (Receipt, bool, bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.sweep()
-	return b.receiptLocked(id)
+	r, known := b.receiptLocked(id)
+	return r, known, b.jobs[id] != nil
 }
 
 // receiptLocked is every read of a stored receipt. A queued message's expiry

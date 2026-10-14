@@ -118,8 +118,10 @@ func (c *supervisionCoordinator) reconcile() {
 	}
 	c.mu.Unlock()
 	for id, v := range pending {
-		receipt, known := c.service.broker.ReceiptSnapshot(id)
-		if known && !receipt.Status.Terminal() {
+		receipt, known, delivering := c.service.broker.ReceiptSnapshot(id)
+		// A terminal receipt may precede endpoint return on disconnect. The job
+		// owns provenance until all delivery accounting has finished.
+		if delivering || (known && !receipt.Status.Terminal()) {
 			continue
 		}
 		c.mu.Lock()

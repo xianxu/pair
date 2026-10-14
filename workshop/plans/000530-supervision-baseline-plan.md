@@ -438,3 +438,17 @@ Verification: post-review full `make -k test` passed (exit 0) at
 `/tmp/pair530-full-suite-review-fixed.log`. Focused race tests and regression
 red/green evidence are in the issue Log. No stage; TL accepted the headless
 private-socket/clock scenarios.
+
+### 2026-10-13 — delivery provenance survives terminal receipts
+
+Round 2 left BR-1 open: sender disconnect can finalize a receipt before the
+endpoint returns. The lifetime rule is now explicit: generated provenance stays
+until both the receipt is terminal and the broker delivery job has finished
+endpoint accounting. The broker snapshot exposes that existing job fact
+atomically with the receipt; no new queue or retention timer is introduced.
+This covers startup prompts, rules nudges, and ordinary wait notices, including
+the interval before endpoint entry. Controlled late-return tests reproduce all
+three failures; a genuine hub message with identical prose still creates an
+uncertain file obligation. Completed jobs release the metadata on reconciliation.
+This supersedes the earlier assumption that a terminal receipt alone permits
+cleanup (ARCH-ORDER, ARCH-FUNERAL).

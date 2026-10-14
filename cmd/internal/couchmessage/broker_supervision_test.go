@@ -55,12 +55,12 @@ func TestSupervisionReceiptSnapshot(t *testing.T) {
 			b := NewBroker(context.Background(), now, nil)
 			defer b.Close()
 			view, ok := any(b).(interface {
-				ReceiptSnapshot(string) (Receipt, bool)
+				ReceiptSnapshot(string) (Receipt, bool, bool)
 			})
 			if !ok {
 				t.Fatal("broker does not expose supervisor receipt snapshots")
 			}
-			if _, ok := view.ReceiptSnapshot("unknown"); ok {
+			if _, ok, _ := view.ReceiptSnapshot("unknown"); ok {
 				t.Fatal("unknown receipt exists")
 			}
 			hub, worker := brokerBinding("ops:0"), brokerBinding("pair:7")
@@ -75,7 +75,7 @@ func TestSupervisionReceiptSnapshot(t *testing.T) {
 			if err != nil || r.Status != Queued {
 				t.Fatalf("send: %+v, %v", r, err)
 			}
-			if got, ok := view.ReceiptSnapshot("prompt"); !ok || got.Status != Queued || got.Message != r.Message {
+			if got, ok, _ := view.ReceiptSnapshot("prompt"); !ok || got.Status != Queued || got.Message != r.Message {
 				t.Fatalf("queued snapshot: %+v, %v", got, ok)
 			}
 			want := Expired
@@ -88,14 +88,80 @@ func TestSupervisionReceiptSnapshot(t *testing.T) {
 			} else {
 				clock.Add(int64(QueueWait))
 			}
-			got, ok := view.ReceiptSnapshot("prompt")
+			got, ok, _ := view.ReceiptSnapshot("prompt")
 			if !ok || got.Status != want {
 				t.Fatalf("terminal snapshot: %+v, %v; want %s", got, ok, want)
 			}
 			clock.Store(got.RetainUntil.UnixNano())
-			if _, ok := view.ReceiptSnapshot("prompt"); ok {
+			if _, ok, _ := view.ReceiptSnapshot("prompt"); ok {
 				t.Fatal("snapshot kept receipt beyond retention horizon")
 			}
 		})
+	}
+}
+
+// A terminal receipt is not proof that the endpoint has finished accounting.
+type supervisionLateEndpoint struct {
+	*FakeDeliveryEndpoint
+	entered, release chan struct{}
+}
+
+func (e *supervisionLateEndpoint) Deliver(ctx context.Context, _ Message, _ func(Receipt)) (Receipt, error) {
+	close(e.entered)
+	<-e.release
+	return Receipt{}, ctx.Err()
+}
+func TestSupervisionReceiptSnapshotDeliveryLifetime(t *testing.T) {
+	now := time.Now()
+	b := NewBroker(context.Background(), func() time.Time { return now }, nil)
+	defer b.Close()
+	view, ok := any(b).(interface {
+		ReceiptSnapshot(string) (Receipt, bool, bool)
+	})
+	if !ok {
+		t.Fatal("receipt snapshot does not distinguish active delivery from terminal outcome")
+	}
+	hub, worker := brokerBinding("ops:0"), brokerBinding("pair:7")
+	endpoint := &supervisionLateEndpoint{FakeDeliveryEndpoint: newFakeEndpoint(now), entered: make(chan struct{}), release: make(chan struct{})}
+	defer func() {
+		select {
+		case <-endpoint.release:
+		default:
+			close(endpoint.release)
+		}
+	}()
+	if err := b.Register(hub, newFakeEndpoint(now)); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.Register(worker, endpoint); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.Send(context.Background(), hub, "late", Route{Target: worker.Slot}, "generated"); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-endpoint.entered:
+	case <-time.After(3 * time.Second):
+		t.Fatal("endpoint never entered")
+	}
+	b.Disconnect(hub)
+	r, known, active := view.ReceiptSnapshot("late")
+	if !known || !r.Status.Terminal() || !active {
+		t.Fatalf("cancelled delivery must remain active: %+v known=%v active=%v", r, known, active)
+	}
+	close(endpoint.release)
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		r, known, active = view.ReceiptSnapshot("late")
+		if !active {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("delivery remained active after endpoint returned")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if !known || !r.Status.Terminal() {
+		t.Fatalf("lost final receipt: %+v known=%v", r, known)
 	}
 }

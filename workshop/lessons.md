@@ -1680,3 +1680,9 @@ proof; record the surprising case so the next change starts from evidence.
   never call Deliver. A bounded diagnostic cache must not become an admission
   gate for authoritative facts; retain pending metadata and release it at the
   existing receipt lifecycle boundary instead of building a second history.
+
+- #530 round 2: terminal receipt and completed callback are different facts.
+  Disconnect may publish an outcome while endpoint accounting is still running.
+  Retain generated-message provenance through the broker job lifetime, checked
+  atomically with its receipt; test cancellation before a blocked callback returns
+  for every producer, plus genuine-message inclusion and eventual cleanup.

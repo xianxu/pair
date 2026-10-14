@@ -110,3 +110,97 @@ findings:
     detail: |
       workshop/issues/000530-couch-score-stale-session-files-and-stuck-slots-from-activity-couch-already-sees-baseline-15-min-without-a-write-ping.md:35–37 requires the file-ping baseline, feature vectors, and sampling despite the approved rules-only revision. Update the primary section to the revised acceptance criteria and retain links to the companion issues.
 ```
+
+---
+
+## Re-review — 2026-10-13T22:00:52-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 530 — couch: score stale session files and stuck slots from activity Couch already sees (baseline: 15 min without a write → ping) |
+| repo | pair |
+| issue file | workshop/issues/000530-couch-score-stale-session-files-and-stuck-slots-from-activity-couch-already-sees-baseline-15-min-without-a-write-ping.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 386e0b48e13a57bf37f4a0584291015aab630c75..03ef39d94b27982d1c793574d1612005c1d3d0c1 |
+| command | sdlc close --issue 530 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-13T22:00:52-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+BR-2, BR-3, and BR-4 are addressed. BR-1 remains blocking: receipt reconciliation can discard generated-message provenance while a delivery callback is still running, allowing automatic notices to create session-file obligations. A deterministic test reproduced this for both startup and worker-to-hub generated sends in all three repetitions.
+
+1. **Strengths**
+
+   - Pure transition tests cover thresholds, suppression, coalescing, replacements, and stale report generations.
+   - Generated sends reuse normal broker admission and queue behavior.
+   - BR-2 and BR-3 regression tests pass at the pinned head and fail with the pre-fix implementation restored.
+   - README and atlas document the new behavior; the issue’s primary acceptance criteria correctly defer file pings and logging.
+
+2. **Critical findings**
+
+   **BR-1 — not-addressed; `generated-message-accounting` (ARCH-ORDER, ARCH-PURPOSE).**
+   At [supervision.go:128](/Users/xianxu/Library/Caches/sdlc/review-checkouts/7245ed5d2f9f6b1f/cmd/internal/couchcmd/supervision.go:128), reconciliation deletes provenance after observing a terminal receipt. However, sender disconnection can make that receipt terminal before the endpoint returns. [message_service.go:1060](/Users/xianxu/Library/Caches/sdlc/review-checkouts/7245ed5d2f9f6b1f/cmd/internal/couchcmd/message_service.go:1060) subsequently looks up the deleted provenance and records an uncertain owed row.
+
+   Reproduction: block endpoint delivery → disconnect sender → reconcile receipts → release endpoint with cancellation error → observe an owed row for the generated message.
+
+   **This is the 2nd finding in family `generated-message-accounting`.** Fix the rule across startup prompts, rules nudges, and ordinary wait notices: generated provenance must remain available through completion of delivery accounting, independently of receipt terminality. Capture immutable provenance before entering endpoint IO, or otherwise retain it until the callback finishes. Add controlled late-completion regressions across these generated-message paths.
+
+3. **Important findings**
+
+   None beyond the unresolved critical finding.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   - Pinned-head supervision/wait tests passed in both affected packages.
+   - Focused regression and broker tests passed under `-race`.
+   - Restoring pre-fix production files made all BR-1/2/3 review regressions fail, confirming meaningful coverage of their original cases.
+   - The added late-completion test failed consistently; existing tests omit this ordering.
+   - Generated missing runtime assets in a disposable copy. Removed that copy afterward; the review checkout remains unchanged. The full suite was not independently rerun.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared generated-send adapter and existing broker policy.
+   - **ARCH-PURE — pass:** deterministic report transitions separated from IO.
+   - **ARCH-PURPOSE — flag:** BR-1 leaves the generated-message exclusion contract incomplete.
+   - **ARCH-MOCK — pass:** stateful endpoint fixtures and private socket/storage seams.
+   - **ARCH-CONSTRAINTS — pass:** separate observation-cap failure removed; saturation regression verified.
+   - **ARCH-SECURE — pass:** authenticated report hooks and structural provenance rather than text-prefix exemptions.
+   - **ARCH-ORDER — flag:** terminal receipt does not imply delivery callback completion.
+   - **ARCH-FUNERAL — flag:** provenance cleanup occurs before its last consumer finishes.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry distinguishing receipt completion from callback completion. State the provenance lifetime invariant, enumerate all generated-message producers, and require controlled disconnect/late-completion tests. Amend the boundary-correction passage that currently treats terminal receipts as sufficient grounds for deleting all metadata.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: not-addressed
+    note: |
+      Registration is fixed, but supervision.go:128 removes provenance before an in-flight endpoint callback necessarily finishes. message_service.go:1060 then records generated traffic as owed. Controlled disconnect/reconcile/late-return tests fail for both generated-send directions in three repetitions. Preserve provenance through delivery accounting across the entire generated-message-accounting family.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Terminal prompt outcomes and queued cancellation now produce one actionable notice without resending. Relevant regressions pass at pinned head and fail with pre-fix production files restored; broker tests also verify queue expiry.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Failed attempts no longer consume a separate capped observation history. The regression exceeding MaxReceipts and then sending a successful report/reply passes at head and fails against the pre-fix implementation.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      The pinned Done when diff now requires rules, startup prompts, exclusions, and outcome coverage, explicitly assigning file pings to parley.nvim#321 and logging to pair#543. This matches the approved rules-only revision and implemented scope.
+```

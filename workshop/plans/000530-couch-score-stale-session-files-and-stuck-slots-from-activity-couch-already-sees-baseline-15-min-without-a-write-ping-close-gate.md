@@ -35,6 +35,30 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - "n": 2
+      timestamp: "2026-10-13T22:00:52-07:00"
+      dispatched: "2026-10-13T21:56:45-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: not-addressed
+          note: Registration is fixed, but supervision.go:128 removes provenance before an in-flight endpoint callback necessarily finishes. message_service.go:1060 then records generated traffic as owed. Controlled disconnect/reconcile/late-return tests fail for both generated-send directions in three repetitions. Preserve provenance through delivery accounting across the entire generated-message-accounting family.
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: Terminal prompt outcomes and queued cancellation now produce one actionable notice without resending. Relevant regressions pass at pinned head and fail with pre-fix production files restored; broker tests also verify queue expiry.
+          round: 2
+        - id: BR-3
+          disposition: addressed
+          note: Failed attempts no longer consume a separate capped observation history. The regression exceeding MaxReceipts and then sending a successful report/reply passes at head and fails against the pre-fix implementation.
+          round: 2
+        - id: BR-4
+          disposition: addressed
+          note: The pinned Done when diff now requires rules, startup prompts, exclusions, and outcome coverage, explicitly assigning file pings to parley.nvim#321 and logging to pair#543. This matches the approved rules-only revision and implemented scope.
+          round: 2
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#530 (boundary-review)
@@ -55,9 +79,15 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-4** [Important] `acceptance-scope-consistency` Primary Done-when criteria still require explicitly deferred work
   workshop/issues/000530-couch-score-stale-session-files-and-stuck-slots-from-activity-couch-already-sees-baseline-15-min-without-a-write-ping.md:35–37 requires the file-ping baseline, feature vectors, and sampling despite the approved rules-only revision. Update the primary section to the revised acceptance criteria and retain links to the companion issues.
 
+## Round 2 — 2026-10-13T22:00:52-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — not-addressed — Registration is fixed, but supervision.go:128 removes provenance before an in-flight endpoint callback necessarily finishes. message_service.go:1060 then records generated traffic as owed. Controlled disconnect/reconcile/late-return tests fail for both generated-send directions in three repetitions. Preserve provenance through delivery accounting across the entire generated-message-accounting family.
+- BR-2 — addressed — Terminal prompt outcomes and queued cancellation now produce one actionable notice without resending. Relevant regressions pass at pinned head and fail with pre-fix production files restored; broker tests also verify queue expiry.
+- BR-3 — addressed — Failed attempts no longer consume a separate capped observation history. The regression exceeding MaxReceipts and then sending a successful report/reply passes at head and fails against the pre-fix implementation.
+- BR-4 — addressed — The pinned Done when diff now requires rules, startup prompts, exclusions, and outcome coverage, explicitly assigning file pings to parley.nvim#321 and logging to pair#543. This matches the approved rules-only revision and implemented scope.
+
 ## Open findings
 
 - **BR-1** [Critical] `generated-message-accounting` Generated wait notices still create session-file obligations
-- **BR-2** [Critical] `asynchronous-outcome-reconciliation` Startup prompt failures after admission produce no required notice
-- **BR-3** [Critical] `bounded-observation-overflow` Observation capacity exhaustion silently disables report and reply tracking
-- **BR-4** [Important] `acceptance-scope-consistency` Primary Done-when criteria still require explicitly deferred work
