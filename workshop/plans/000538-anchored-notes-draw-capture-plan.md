@@ -201,3 +201,35 @@ Measurement scope clarification: #538 measured drawing through capture and Save,
 ### 2026-10-13 — suite starvation disposition
 
 The hub authorizes close on all affected Go packages, 334 Node tests, artifact inventory, clean build, five real-Chrome cases and required PR CI (including macOS conformance). The full `make -k test` remained queued for over 51 minutes in the polled non-FIFO gate; ariadne#357 owns starvation. It was interrupted on instruction and is recorded as not run, not passing. This explicitly supersedes the full-suite prerequisite for this close; publish still requires green PR checks. If review requires the full suite despite that disposition, report it to the hub. The final review/publish/land checkbox remains pending until those gates actually complete.
+
+### 2026-10-13 — close review BR-1/BR-2: original identity and final inventory
+
+Close review returned REWORK. BR-1 identified that the operator adapter omitted the connected-original lookup, so a still-connected common-text element or an element on a large page could be hidden by replacement-candidate bounds. Supply the actual original DOM object through the recorder's document-scoped backend identity and the trusted isolated-world CDP bridge. Cache weak references only for current open-note identities, reject stale documents and rebinding, and preserve the existing conflict/visibility checks. Replacement scoring and its search bounds remain unchanged. Adapter regressions cover both unchanged originals and refusal of impostor/reused identities; real Chrome exercises the actual bridge, including viewer-authored notes. This separates original identity from replacement evidence (ARCH-ORDER).
+
+The following inventory **supersedes the initial Core concepts and Integration points tables**, whose design names and proposed file changes were stale (BR-2). Status is relative to the close base; unqualified paths below are under `cmd/internal/webcast/`. PURE describes values/functions without IO capabilities; INTEGRATION includes clocks, cancellation, actor authority, DOM and filesystem handles (ARCH-PURE).
+
+| Actual entity or function | Classification | Actual location | Status |
+|---|---|---|---|
+| `AnchorCandidate`, `ScoreAnchor`, `ChooseAnchor` | PURE | `notes/anchor.go` | new |
+| `scoreAnchor`, `chooseAnchor`, `projectRegion` | PURE | `web/annotation-anchor.js` | new |
+| `NoteAt`, `Note` capture/anchor fields | PURE | `recording/record.go` | modified |
+| `Phase`, `State`, `EventKind`, `Event`, `Effect`, `Observation`, `Step`, `Capacity`, `Reconcile` | PURE | `notedraft/model.go` | new |
+| `Owner`, `Evidence`, `Status` | PURE data | `notedraft/service.go` | new |
+| `Selection`, `SelectedNote` | PURE data | `board/submission.go` | modified |
+| `NoteReservation` | PURE data | `board/prepared_note.go` | new |
+| v3 `Submission`, `Source`, `Note`, `PageIdentity`, `Crop` | PURE data | `cmd/internal/submission/model.go` (repo-relative) | modified |
+| `Service`, `Options`, `CaptureSource`, private `captureRecord` | INTEGRATION: capture/writer, clock, admission and cancellation authority | `notedraft/service.go`, `save.go`, `references.go`, `transfer.go` | new |
+| private `diskStore` | INTEGRATION: private disk, atomic metadata and recovery | `notedraft/store.go` | new |
+| `PreparedNote` and board prepare/reserve/commit methods | INTEGRATION: board/admission authority | `board/prepared_note.go` | new |
+| Viewer draft HTTP handlers | INTEGRATION: trusted request identity and bounded transport | `server_notedraft.go` | new |
+| Existing viewer board handlers and server wiring | INTEGRATION | `server_board.go`, `server.go` | modified |
+| Operator draft actor adapter | INTEGRATION: isolated context and recorder actor | `recorder/operator_notedraft.go` | new |
+| Existing operator dispatch and browser mount | INTEGRATION | `recorder/operator.go`, `operator.js` | modified |
+| Operator original-node bridge | INTEGRATION: current document/session identity and CDP object handles | `recorder/operator_original.go`, `chrome_operator_original.go` | new |
+| Shared DOM placement and draft controller | INTEGRATION: DOM/layout, transport, timers | `web/annotation-placement.js`, `web/capture-draft.js` | new |
+| Viewer rendering and annotation adapters | INTEGRATION | `web/render.js`, `web/annotate.js` | modified |
+| Stored-capture submission source/build | INTEGRATION: capture references and historical recording queries | `cast_submission.go`, `submission/build.go` | modified |
+| Existing wire contract | INTEGRATION adapter support | `board/wire.go` | reused unchanged |
+| Settled capture engine and UI suppression | INTEGRATION: CDP | `recorder/submission.go`, `recorder/capture_ready.go`, `recorder/ui_capture.go` | reused unchanged |
+
+There is no production `AnchorEvidence`, `MatchDecision`, exported `CaptureRecord`, or `NoteDrafts` type. The pure lifecycle is `State` plus `Step`; the private service `captureRecord` also owns cancellation/admission handles and is therefore integration state. No new capture-engine behavior is part of this issue.
