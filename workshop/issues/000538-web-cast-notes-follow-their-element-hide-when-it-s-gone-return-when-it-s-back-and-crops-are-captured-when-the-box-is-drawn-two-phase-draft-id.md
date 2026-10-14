@@ -1,12 +1,12 @@
 ---
 id: 000538
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-13
 updated: 2026-10-13
 estimate_hours: 5.48
-card_mirror: 'a2f8f4ee751a0ca4edd1f3e48f155344bc6285b7' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '814672f7d2e50d5b855bd924b4ae16f9b5d28c19' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-13T16:08:28-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: 6.85
 ---
 
 # web cast: notes follow their element (hide when it's gone, return when it's back) and crops are captured when the box is drawn (two-phase draft id)
