@@ -15,6 +15,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "ce386477", done: "92c14d9a"}
 ---
 
 # PTY canceled-before-ack reports a live process group after the child is reaped
