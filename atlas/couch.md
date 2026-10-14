@@ -3220,7 +3220,7 @@ by construction, and a guard that cannot fail is not a guard.
 
 The guard's reach (relaunch, switch-agent, a cold start claim; `pair#280`) stays
 falsifiable because the list's oracle is the guard's BEHAVIOUR, not another
-predicate: `TestContinuationRefusesMatchesTheGuardForEveryRowAction` drives every
+predicate: `TestTheContinuationGuardsReachMatchesEveryRowAction` drives every
 declared row action through the production dispatcher on a live thread holding a
 request in flight (a failed one no longer exists, #522). A listed operation must be refused by the guard itself, and an
 unlisted one must succeed. A list that drifts from the guard sites fails there.

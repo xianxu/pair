@@ -80,7 +80,7 @@ func TestAMissedContinuationBlocksNothing(t *testing.T) {
 // would read as "not guarded" when it never got that far. Every declared row
 // action is either driven here or exempt with a reason, so a new one cannot
 // arrive unclassified (#280).
-func TestContinuationRefusesMatchesTheGuardForEveryRowAction(t *testing.T) {
+func TestTheContinuationGuardsReachMatchesEveryRowAction(t *testing.T) {
 	t.Parallel()
 
 	type drive struct {

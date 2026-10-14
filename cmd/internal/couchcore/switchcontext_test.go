@@ -81,7 +81,7 @@ func TestSwitchContextMissingAndAmbiguousSourcesStayUnavailable(t *testing.T) {
 	}
 }
 
-func TestOrientationStatusRequiresExactReadyIdentity(t *testing.T) {
+func TestReadyReaderRequiresExactReadyIdentity(t *testing.T) {
 	t.Parallel()
 
 	address := verifiedResumeThread(t).Address
@@ -253,7 +253,7 @@ func TestContinuationGenerationReceiptSurvivesTargetDeath(t *testing.T) {
 	}
 }
 
-func TestOrientationSessionObservationHonorsCallerDeadline(t *testing.T) {
+func TestReadyReaderSessionObservationHonorsCallerDeadline(t *testing.T) {
 	t.Parallel()
 
 	for _, operation := range []string{"generation", "registered"} {

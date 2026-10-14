@@ -16,4 +16,7 @@ func TestALegacyOrientationStateStillDecodes(t *testing.T) {
 	if err != nil || len(raw) == 0 || strings.Contains(raw, "orientation") {
 		t.Fatalf("encode %q %v", raw, err)
 	}
+	if _, err := Encode(got); err == nil {
+		t.Fatal("the decode-only orientation field was written back")
+	}
 }

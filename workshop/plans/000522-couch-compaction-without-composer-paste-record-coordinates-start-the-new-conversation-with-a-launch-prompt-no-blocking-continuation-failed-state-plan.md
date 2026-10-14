@@ -213,3 +213,45 @@ machine just to serve them. So the boundary follows the layers instead:
     `continuation_missed`. That is accepted, as for #517's `previous_session`.
     Couch and Pair ship as one build (`make build`), and rolling back to an
     older build is not a supported path while threads hold the line.
+
+### 2026-10-13: M2 review round 3 (FIX-THEN-SHIP, BR-9)
+
+- **The retirement sweep starts from a written list.** These identifiers, paths,
+  env vars, operation names and fixture directories were grepped across every
+  tracked file type (Go, Lua, Markdown, test names, testdata, `.gitattributes`;
+  `workshop/history` and dated continuations excluded):
+  - **Wrapper and its delivery:** `wrapcmd/orientation.go`, `orientationDelivery`,
+    `PAIR_ORIENTATION_REQUEST`, `orientation.Env`, `DeliveryState`/`DeliveryPhase`/`AdvanceDelivery`.
+  - **Operations and Couch's reader:** `orientation-status`, `OrientationStatus`,
+    `ReadOrientationStatus`, `OSOrientationStatusReader`, `retry-continuation`,
+    `dismiss-continuation`, `continuation-status`, `RetryContinuation`,
+    `DismissContinuation`, `DismissFailedContinuation`, `ReconcileContinuation`.
+  - **Switcher:** `copy-orientation`/`copyOrientation`/"Copy orientation",
+    `setOrientationLocked`.
+  - **Composer gate:** `orientationPromptCol`, `orientationRuleCellTolerant`,
+    `orientationPromptOK`, `promptGlyphAuthorities`, `orientationComposerActive`,
+    `codexOrientationStartupStatus`, `orientationRowText`.
+  - **Renamed:** `orientationReplies`/`orientationEscape` (now `terminalReplies`/`terminalEscape`).
+  - **Other:** "continuation failed", `ContinuationRefuses`,
+    `RetireProvedDeadIncarnations`, `checkpoint.Exits`, `CheckDismissible`,
+    "stuck orientation", "orientation delivery", "orientation auto-submit",
+    `automaticInputOrientation`, `orientationPending`, `testdata/orientation`.
+
+  Every hit was cleared in one pass. The Codex 0.154.0 captures peer tests still
+  read moved to `testdata/tty/codex/0.154.0`, and the orphaned agy captures and
+  their `.gitattributes` line went. Test names now follow their APIs
+  (`TestReadyReader…`, `TestTheContinuationGuardsReachMatchesEveryRowAction`).
+  Mentions that remain are deliberate history: the atlas line naming what #522
+  retired, the #280 symptom comment, the legacy-decode test and tombstone, and
+  the retired-name assertions.
+- **The tombstone's end:** `ReadyRecord.DeprecatedOrientation` may be deleted
+  once every slot has been relaunched on a #522+ build. Encode refuses a
+  non-empty value, so never-written is structural.
+- **Settled without the orienting gate (Minor, disposed):** a launch-prompted
+  session is unsettled for the same reasons as any other: Settled needs
+  `SettleInterval` (3 s) of byte-quiet, no open turn, no overlay, and an empty
+  composer. An agent consuming its first message is drawing output or holding a
+  turn. If it never takes the prompt (swallowed by a trust screen), it is
+  idle, and Settled is the truth. A gate that waits for a first turn would hold
+  such a slot unsettled forever and block peer delivery to it. No test can pin
+  an agent's start-up timing; the live check exercises it.

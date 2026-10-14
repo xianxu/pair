@@ -13,7 +13,8 @@ type ReadyRecord struct {
 	// DeprecatedOrientation is a TOMBSTONE: a wrapper before #522 published
 	// its composer-paste delivery state here. A ready record written by such a
 	// wrapper -- a slot launched by the old build, still running -- must still
-	// decode, so it is accepted and ignored, never written.
+	// decode, so it is accepted and ignored. Encode refuses it, so it is never
+	// written. Delete it once every slot has been relaunched on a #522+ build.
 	DeprecatedOrientation json.RawMessage `json:"orientation,omitempty"`
 	Tag                   string          `json:"tag"`
 	Agent                 string          `json:"agent"`
@@ -23,6 +24,9 @@ type ReadyRecord struct {
 }
 
 func Encode(record ReadyRecord) (string, error) {
+	if len(record.DeprecatedOrientation) != 0 {
+		return "", fmt.Errorf("ready record: the orientation field is decode-only")
+	}
 	if err := Validate(record); err != nil {
 		return "", err
 	}

@@ -52,7 +52,7 @@ func needsTail(f waitFacts, threshold time.Duration) bool {
 
 // classifyWait is the one definition of "waiting for someone". An unsettled
 // slot that has been byte-quiet that long has something on screen asking for
-// input (a dialog, a draft, a stuck orientation); a settled one waits if its
+// input (a dialog or a draft); a settled one waits if its
 // turn ended with a question, or if it stopped off its resting branch with
 // nothing in flight to it.
 func classifyWait(f waitFacts, threshold time.Duration, tail []string) (waitReason, string, bool) {
