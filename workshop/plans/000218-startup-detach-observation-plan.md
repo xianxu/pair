@@ -118,3 +118,16 @@ Non-goals: no ownership/contested-name relaxation; no process snapshot serializa
 ### 2026-10-14 — measurement transparency discovery
 
 The existing zellijcalls instrument wraps internal --server reexec and therefore creates a second exact server argv claimant, making real ownership ambiguous. Fix the instrument with native exec passthrough for leading --server; exclude server lifetime from client timing. A process-level PID/argv/env/status regression must fail on the old wrapper and pass on the transparent exec. This changes measurement instrumentation only, before native discovery optimization. Component and failed-parent-return measurements must not be labeled complete startup evidence; the controlled client first frame and production detach must be observed.
+
+### 2026-10-14 — attribute measured residuals before M1 review
+
+Complete warm attach and production detach baselines passed on unchanged native
+behavior. Their residuals require the Spec's next stage instrument: child timing
+is env-gated stderr, off by default, with consecutive monotonic deltas stopping
+before the blocking handoff. Reuse parent launchSteps through a private
+context-scoped fixture observer, then reuse that observer for sequential detach
+claim/read/signal/exit/retirement phases. Keep nested owner/process measurements
+separate from the stage sum. Attribute unoptimized behavior in a disposable
+archive of the frozen baseline plus timing-only overlays; retain original frozen
+binaries for comparative runs. This is measurement implementation within M1,
+not an ownership change.

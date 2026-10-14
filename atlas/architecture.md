@@ -1308,6 +1308,17 @@ immutable publications and physical-parent presentation ownership. See
 and Pair production use these adapters. Composed live verification and operator
 smoke acceptance remain necessary to establish disappearance of the reported symptoms.
 
+### Startup timing probes
+
+`PAIR_STARTUP_TIMING=1` enables monotonic child-launch phase lines on stderr.
+Consecutive deltas partition the interval from launcher package initialization
+through the attach/create handoff; elapsed time is cumulative and must not be
+summed. Native loader time and readiness after handoff remain outside that clock.
+The clock stops before a blocking client lifetime. Ordinary launches are silent.
+`launchSteps` retains parent timings in failures and accepts a context-scoped
+observer for the opt-in real lifecycle fixture, without emitting UI or disk data.
+Nested owner/process durations explain parent stages and are not additive to them.
+
 ### Native process inspection
 
 `cmd/internal/procutil` owns host process observations without launching `ps`.

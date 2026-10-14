@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycletest"
+	"github.com/xianxu/pair/cmd/internal/ptychild"
 )
 
 type startupPhase struct {
@@ -102,6 +104,7 @@ func TestStartupManagedAttachDetachTimingLive(t *testing.T) {
 		t.Setenv(key, dir)
 	}
 	t.Setenv("SHELL", "/bin/sh")
+	t.Setenv("PAIR_STARTUP_TIMING", "1")
 	for _, key := range []string{"ZELLIJ", "ZELLIJ_SESSION_NAME", "PAIR_DATA_DIR", "COUCH_TREE", "COUCH_STORE_DIR", "COUCH_THREAD_TAG", "COUCH_THREAD_SCOPE", "PAIR_COUCH_LAUNCH_PROFILE"} {
 		t.Setenv(key, "")
 	}
@@ -150,7 +153,20 @@ func TestStartupManagedAttachDetachTimingLive(t *testing.T) {
 	phases := &startupPhases{}
 	checker := NewScopedThreadArtifactCollisionChecker(data)
 	checker.OwnerProbe = startupOwnerTiming{phases}
-	runner := &PtyRunner{LaunchHelper: filepath.Join(bin, "pair-launch-helper")}
+	// The regular failure tail can lose startup lines once Zellij renders its
+	// screen. Preserve a bounded prefix at the real PTY sink before first byte.
+	var childOutputMu sync.Mutex
+	var childOutputPrefix []byte
+	runner := &PtyRunner{LaunchHelper: filepath.Join(bin, "pair-launch-helper"), Sink: func(_ context.Context, _ string, batch ptychild.OutputBatch) error {
+		childOutputMu.Lock()
+		defer childOutputMu.Unlock()
+		remaining := 64*1024 - len(childOutputPrefix)
+		if remaining > len(batch.Raw) {
+			remaining = len(batch.Raw)
+		}
+		childOutputPrefix = append(childOutputPrefix, batch.Raw[:remaining]...)
+		return nil
+	}}
 	c, err := New(ns, runner, OSPathOps{}, ExecGit{}, startupProcTiming{phases: phases}, NewStore(ns.Dir()), SystemClock{}, NewFixedIDGen("baseline"), rand.Reader, checker)
 	if err != nil {
 		t.Fatal(err)
@@ -202,9 +218,18 @@ func TestStartupManagedAttachDetachTimingLive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	stagePhases := &startupPhases{}
+	ctx = context.WithValue(ctx, launchTimingObserverKey{}, launchTimingObserver(func(name string, elapsed time.Duration) {
+		stagePhases.mu.Lock()
+		stagePhases.rows = append(stagePhases.rows, startupPhase{name, elapsed})
+		stagePhases.mu.Unlock()
+	}))
 	start := time.Now()
 	_, handle, err := c.ResumeContextWith(ctx, record.Address, ResumeOptions{WarmOnly: true})
-	phases.report(t, "managed_resume", time.Since(start))
+	resumeWall := time.Since(start)
+	phases.report(t, "managed_resume", resumeWall)
+	stagePhases.report(t, "managed_resume_stages", resumeWall)
+	t.Log("owner/proc phases are nested inside launch stages; do not add the two measured totals")
 	if handle != nil {
 		t.Cleanup(func() { _ = handle.Signal(TermSignal); handle.Wait() })
 	}
@@ -235,9 +260,20 @@ func TestStartupManagedAttachDetachTimingLive(t *testing.T) {
 		}
 	}
 	t.Logf("managed_attach_ready after_parent_return=%s startup_total=%s", time.Since(ready), time.Since(start))
+	childOutputMu.Lock()
+	childStartupOutput := string(childOutputPrefix)
+	childOutputMu.Unlock()
+	for _, line := range strings.Split(childStartupOutput, "\n") {
+		if at := strings.Index(line, "pair startup:"); at >= 0 {
+			t.Logf("child %s", strings.TrimSpace(line[at:]))
+		}
+	}
+	t.Log("child deltas partition startup through blocking handoff entry; elapsed_ms is cumulative; parent registration overlaps child startup")
 	start = time.Now()
 	detached, err := c.Detach(ctx, record.Address)
-	phases.report(t, "detach", time.Since(start))
+	detachWall := time.Since(start)
+	phases.report(t, "detach", detachWall)
+	stagePhases.report(t, "detach_stages", detachWall)
 	if err != nil {
 		t.Fatal(err)
 	}

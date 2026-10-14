@@ -43,7 +43,7 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	steps := newLaunchSteps(in.Begun)
+	steps := newLaunchSteps(ctx, in.Begun)
 	stage := "prepare"
 	fail := func(h Handle, cause error, cleanup func() error) error {
 		return c.captureLaunchFailure(in, stage, h, cause, cleanup)
@@ -291,6 +291,7 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	}); err != nil {
 		return record, h, fail(h, fmt.Errorf("persist registry: %w", err), func() error { return c.failPostAckStart(thread.Address, h, shape, nil) })
 	}
+	steps.mark("promotion+registry")
 	return record, h, nil
 }
 
@@ -482,12 +483,22 @@ func whileHelperAlive(ctx context.Context, h Handle) (context.Context, func() bo
 // operator asked that an earlier slow step never hide behind the one that
 // timed out). It writes nothing; failures carry its text.
 type launchSteps struct {
-	last  time.Time
-	steps []string
+	last    time.Time
+	steps   []string
+	observe launchTimingObserver
 }
 
-func newLaunchSteps(begun time.Time) *launchSteps {
+// The observer is a local measurement seam. It has no environment, terminal,
+// persistence or UI behavior; timings still appear only in retained failures
+// unless the caller explicitly supplies an observer in its operation context.
+type launchTimingObserverKey struct{}
+type launchTimingObserver func(string, time.Duration)
+
+func newLaunchSteps(ctx context.Context, begun time.Time) *launchSteps {
 	s := &launchSteps{last: time.Now()}
+	if ctx != nil {
+		s.observe, _ = ctx.Value(launchTimingObserverKey{}).(launchTimingObserver)
+	}
 	if !begun.IsZero() {
 		s.last = begun
 		s.mark("claim")
@@ -496,9 +507,16 @@ func newLaunchSteps(begun time.Time) *launchSteps {
 }
 
 func (s *launchSteps) mark(step string) {
+	if s == nil {
+		return
+	}
 	now := time.Now()
-	s.steps = append(s.steps, step+" "+now.Sub(s.last).Round(time.Millisecond).String())
+	elapsed := now.Sub(s.last)
+	s.steps = append(s.steps, step+" "+elapsed.Round(time.Millisecond).String())
 	s.last = now
+	if s.observe != nil {
+		s.observe(step, elapsed)
+	}
 }
 
 func (s *launchSteps) String() string { return strings.Join(s.steps, ", ") }
