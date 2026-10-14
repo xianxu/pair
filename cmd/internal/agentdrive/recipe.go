@@ -56,6 +56,20 @@ type Request struct {
 	Model *ModelRequest `json:",omitempty"`
 }
 
+// RecoveryOnly grants only a bounded user-requested ESC/clear-line sequence
+// access to a positively recognized occupied composer.
+func (r Request) RecoveryOnly() bool {
+	if r.Validate() != nil || r.Model != nil {
+		return false
+	}
+	for _, key := range r.Keys {
+		if key.Kind != KeyEsc && key.Kind != KeyClearLine {
+			return false
+		}
+	}
+	return true
+}
+
 func (r Request) Validate() error {
 	if (len(r.Keys) == 0) == (r.Model == nil) {
 		return errors.New("drive requires exactly one key sequence or model request")

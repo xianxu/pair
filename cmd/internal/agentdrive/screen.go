@@ -14,6 +14,8 @@ type Screen struct {
 	// Nil falls back to Lines for standalone pure callers and old fixtures.
 	History                    []string
 	Idle, TurnActive, Complete bool
+	Recoverable                bool
+	ComposerText               string
 }
 
 func screenHistory(screen Screen) []string {
@@ -32,6 +34,7 @@ const (
 	ScreenAdvanced ScreenPhase = "advanced"
 	ScreenStatus   ScreenPhase = "status"
 	ScreenCombined ScreenPhase = "combined"
+	ScreenCommand  ScreenPhase = "command"
 )
 
 type ScreenEvidence struct {
@@ -42,6 +45,7 @@ type ScreenEvidence struct {
 	Confirmation            string
 	ConfirmationCount       int
 	Footer                  string
+	ComposerText            string
 }
 
 var codexRow = regexp.MustCompile(`^[›]?\s*\d+\.\s+(GPT-[A-Za-z0-9.-]+)(?:\s|$)`)
@@ -133,6 +137,9 @@ func ReadModelScreen(agent string, screen Screen) ScreenEvidence {
 		plain[i] = tailmarkup.Strip(line)
 	}
 	heading := -1
+	if (agent == "codex" || agent == "claude") && screen.Recoverable && screen.ComposerText == "/model" {
+		return ScreenEvidence{Phase: ScreenCommand, ComposerText: screen.ComposerText}
+	}
 	phase := ScreenUnknown
 	model := ""
 	for i, line := range plain {

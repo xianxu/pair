@@ -371,6 +371,88 @@ func TestDriveUnknownPostSubmitFrameObservesUntilDeadline(t *testing.T) {
 	}
 }
 
+func TestDriveRecoveryOnlyAdmissionAndFinalNoop(t *testing.T) {
+	now := time.Unix(100, 0)
+	request := Request{Keys: KeySequence{{Kind: KeyClearLine}, {Kind: KeyEsc}}}
+	if !request.RecoveryOnly() {
+		t.Fatal("recovery shape refused")
+	}
+	for _, r := range []Request{{}, {Keys: KeySequence{{Kind: KeyText, Text: "x"}}}, {Keys: KeySequence{{Kind: KeyWait}}}, {Keys: KeySequence{{Kind: KeySubmit}}}, {Keys: KeySequence{{Kind: KeyEsc, Text: "extra"}}}} {
+		if r.RecoveryOnly() {
+			t.Fatalf("unsafe recovery %#v", r)
+		}
+	}
+	s, _ := NewDrive(request, "codex", now.Add(time.Minute))
+	s, fx := ReduceDrive(s, DriveEvent{Kind: EventStart, At: now, Screen: Screen{Epoch: 1, Complete: true, Recoverable: true, ComposerText: "occupied"}})
+	if s.Terminal() || len(fx) != 1 || fx[0].Key.Kind != KeyClearLine {
+		t.Fatalf("occupied recovery refused %#v", s.Result())
+	}
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventWritten, At: now, Screen: Screen{Epoch: 2}})
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventWritten, At: now, Screen: Screen{Epoch: 3}})
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 3, Complete: true, Idle: true}})
+	if s.Result().Outcome != OutcomeConfirmed {
+		t.Fatalf("final noop recovery %#v", s.Result())
+	}
+	generic, _ := NewDrive(Request{Keys: KeySequence{{Kind: KeyEnter}}}, "codex", now.Add(time.Minute))
+	generic, _ = ReduceDrive(generic, DriveEvent{Kind: EventStart, At: now, Screen: Screen{Epoch: 1, Complete: true, Recoverable: true}})
+	if generic.Result().Outcome != OutcomeRefused {
+		t.Fatal("generic sequence admitted occupied composer")
+	}
+}
+
+func TestDriveModelReservedCleanupOwnCommand(t *testing.T) {
+	s, now := modelAtPicker(t, ModelRequest{Model: "gpt-6.1-sol"})
+	screen := Screen{Epoch: 2, Complete: true, Recoverable: true, ComposerText: "/model"}
+	s, fx := ReduceDrive(s, DriveEvent{Kind: EventTick, At: now.Add(57 * time.Second), Screen: screen})
+	if s.Terminal() || len(fx) != 1 || fx[0].Key.Kind != KeyClearLine || !fx[0].MatchesScreen("codex", screen) {
+		t.Fatalf("owned command cleanup missing %#v %#v", s.Result(), fx)
+	}
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventWritten, At: now.Add(57 * time.Second), Screen: screen})
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now.Add(58 * time.Second), Screen: Screen{Epoch: 3, Complete: true, Idle: true}})
+	if s.Result().Outcome != OutcomeFailed || !strings.Contains(s.Result().Detail, "back at empty prompt") {
+		t.Fatalf("recovery proof missing %#v", s.Result())
+	}
+}
+
+func TestDriveReservedCleanupRefusesUnsafeFrames(t *testing.T) {
+	for _, screen := range []Screen{{Epoch: 2, Complete: true, Lines: []string{"unknown"}}, {Epoch: 2, Complete: true, Recoverable: true, ComposerText: "operator"}, {Epoch: 2, Complete: true, Recoverable: true, ComposerText: "/model\n"}, {Epoch: 2, Complete: true, Recoverable: true, ComposerText: "/model", TurnActive: true}} {
+		s, now := modelAtPicker(t, ModelRequest{Model: "gpt-6.1-sol"})
+		s, fx := ReduceDrive(s, DriveEvent{Kind: EventTick, At: now.Add(57 * time.Second), Screen: screen})
+		if !s.Terminal() || len(fx) != 0 || s.Result().Outcome == OutcomeConfirmed {
+			t.Fatalf("unsafe cleanup %#v %#v", s.Result(), fx)
+		}
+	}
+}
+
+func TestDriveReservedCleanupPickerAndCancellation(t *testing.T) {
+	s, now := modelAtPicker(t, ModelRequest{Model: "gpt-6.1-sol"})
+	screen := Screen{Epoch: 2, Complete: true, Lines: capture(t, "model-picker")}
+	s, fx := ReduceDrive(s, DriveEvent{Kind: EventTick, At: now.Add(57 * time.Second), Screen: screen})
+	if len(fx) != 1 || fx[0].Key.Kind != KeyEsc || !fx[0].MatchesScreen("codex", screen) {
+		t.Fatalf("picker recovery missing %#v", fx)
+	}
+	s, fx = ReduceDrive(s, DriveEvent{Kind: EventCancel, At: now.Add(57 * time.Second), Error: "operator input"})
+	s, fx = ReduceDrive(s, DriveEvent{Kind: EventTick, At: now.Add(58 * time.Second), Screen: screen})
+	if !s.Terminal() || len(fx) != 0 {
+		t.Fatal("recovery continued after human cancellation")
+	}
+	s, now = modelAtPicker(t, ModelRequest{Model: "gpt-6.1-sol"})
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventWriteFailed, At: now, Error: "partial submit"})
+	s, fx = ReduceDrive(s, DriveEvent{Kind: EventTick, At: now.Add(57 * time.Second), Screen: Screen{Epoch: 2, Complete: true, Recoverable: true, ComposerText: "/model"}})
+	if !s.Terminal() || len(fx) != 0 {
+		t.Fatal("uncertain write received cleanup")
+	}
+}
+
+func TestDriveShortBudgetReservesFraction(t *testing.T) {
+	now := time.Unix(100, 0)
+	s, _ := NewDrive(Request{Model: &ModelRequest{Model: "gpt-6.1-sol"}}, "codex", now.Add(time.Second))
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventStart, At: now, Screen: Screen{Epoch: 1, Complete: true, Idle: true}})
+	if !s.recoverAt.Equal(now.Add(900 * time.Millisecond)) {
+		t.Fatalf("reserve moved budget %#v", s.recoverAt)
+	}
+}
+
 func TestDriveClaudeDefaultScopeRefusedBeforeInput(t *testing.T) {
 	_, err := NewDrive(Request{Model: &ModelRequest{Model: "opus 5.5", Scope: ScopeDefault}}, "claude", time.Now().Add(time.Minute))
 	if err == nil {

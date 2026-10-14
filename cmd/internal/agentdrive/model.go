@@ -58,7 +58,7 @@ func (e DriveEffect) MatchesScreen(agent string, screen Screen) bool {
 	}
 	fresh := ReadModelScreen(agent, screen)
 	old := e.proof
-	if fresh.Phase != old.Phase || fresh.Selected != old.Selected || fresh.Model != old.Model || fresh.Effort != old.Effort || fresh.Scope != old.Scope || fresh.Footer != old.Footer || len(fresh.Labels) != len(old.Labels) {
+	if fresh.Phase != old.Phase || fresh.Selected != old.Selected || fresh.Model != old.Model || fresh.Effort != old.Effort || fresh.Scope != old.Scope || fresh.Footer != old.Footer || fresh.ComposerText != old.ComposerText || len(fresh.Labels) != len(old.Labels) {
 		return false
 	}
 	for i, label := range fresh.Labels {
@@ -95,6 +95,8 @@ type DriveState struct {
 	request                              Request
 	agent                                string
 	deadline                             time.Time
+	recoverAt                            time.Time
+	lastWriteAt                          time.Time
 	phase, after                         drivePhase
 	index, command, navigation, backouts int
 	epoch, writeEpoch                    uint64
@@ -179,11 +181,45 @@ func write(s DriveState, k KeyStep, next drivePhase) (DriveState, []DriveEffect)
 	}
 	effect := DriveEffect{Kind: EffectWrite, Key: k, Control: s.request.Model != nil}
 	if s.request.Model != nil && s.command >= 3 {
-		effect.ScreenEpoch = s.epoch
-		effect.proof = s.evidence
-		effect.proof.Labels = append([]string(nil), s.evidence.Labels...)
+		bindProof(&effect, s)
 	}
 	return s, []DriveEffect{effect}
+}
+
+func bindProof(effect *DriveEffect, s DriveState) {
+	effect.ScreenEpoch = s.epoch
+	effect.proof = s.evidence
+	effect.proof.Labels = append([]string(nil), s.evidence.Labels...)
+}
+
+func reservedRecovery(s DriveState, screen Screen) (DriveState, []DriveEffect) {
+	detail := "model drive timed out"
+	if s.phase == phaseApplied || (s.phase == phaseWriting && s.after == phaseApplied) || !screen.Complete || screen.TurnActive || screen.Epoch == 0 || screen.Epoch < s.writeEpoch {
+		return finish(s, OutcomeUnconfirmed, detail+"; outcome unconfirmed; inspect the slot before sending more input")
+	}
+	s.epoch = screen.Epoch
+	s.result.Tail = boundedTail(screenHistory(screen))
+	s.evidence = ReadModelScreen(s.agent, screen)
+	if screen.Idle {
+		return finish(s, OutcomeFailed, detail+"; back at empty prompt")
+	}
+	switch s.evidence.Phase {
+	case ScreenCommand:
+		if s.command < 2 {
+			return finish(s, OutcomeUnconfirmed, detail+"; command ownership unconfirmed; inspect the slot")
+		}
+		s.result.Detail = detail
+		s, fx := write(s, KeyStep{Kind: KeyClearLine}, phaseBackout)
+		bindProof(&fx[0], s)
+		return s, fx
+	case ScreenModel, ScreenEffort, ScreenAdvanced, ScreenCombined:
+		if s.command < 3 {
+			return finish(s, OutcomeUnconfirmed, detail+"; picker ownership unconfirmed; inspect the slot")
+		}
+		return backout(s, detail)
+	default:
+		return finish(s, OutcomeUnconfirmed, detail+"; prompt recovery unconfirmed; inspect the slot before sending more input")
+	}
 }
 func uncertain(s DriveState) Outcome {
 	if s.result.Step > 0 || s.phase == phaseWriting || s.phase == phaseApplied {
@@ -245,12 +281,15 @@ func ReduceDrive(input DriveState, event DriveEvent) (DriveState, []DriveEffect)
 	if event.Screen.TurnActive {
 		return finish(s, uncertain(s), "agent turn started; input stopped")
 	}
+	if event.Kind == EventTick && s.request.Model != nil && !s.recoverAt.IsZero() && !event.At.Before(s.recoverAt) && s.phase != phaseBackout && !(s.phase == phaseWriting && s.after == phaseBackout) {
+		return reservedRecovery(s, event.Screen)
+	}
 	switch event.Kind {
 	case EventStart:
 		if s.phase != phaseNew {
 			return s, nil
 		}
-		if !event.Screen.Idle || !event.Screen.Complete {
+		if (!event.Screen.Idle && !(s.request.RecoveryOnly() && event.Screen.Recoverable)) || !event.Screen.Complete {
 			return finish(s, OutcomeRefused, "wait until the agent composer is empty and its turn finishes")
 		}
 		s.epoch = event.Screen.Epoch
@@ -261,12 +300,20 @@ func ReduceDrive(input DriveState, event DriveEvent) (DriveState, []DriveEffect)
 		if s.request.Model == nil {
 			return rawNext(s, event.At)
 		}
+		reserve := s.deadline.Sub(event.At) / 10
+		if reserve > 3*time.Second {
+			reserve = 3 * time.Second
+		}
+		s.recoverAt = s.deadline.Add(-reserve)
 		return commandNext(s)
 	case EventWritten:
 		if s.phase != phaseWriting {
 			return s, nil
 		}
 		s.result.Step++
+		if event.At.After(s.lastWriteAt) {
+			s.lastWriteAt = event.At
+		}
 		if event.Screen.Epoch > s.writeEpoch {
 			s.writeEpoch = event.Screen.Epoch
 		}
@@ -286,6 +333,10 @@ func ReduceDrive(input DriveState, event DriveEvent) (DriveState, []DriveEffect)
 		}
 		return observe(s)
 	case EventScreen:
+		if s.request.RecoveryOnly() && s.phase == phaseFinal && !event.At.Before(s.lastWriteAt) && event.Screen.Complete && event.Screen.Idle && event.Screen.Epoch >= s.writeEpoch {
+			s.result.Tail = boundedTail(screenHistory(event.Screen))
+			return finish(s, OutcomeConfirmed, "recovery key bytes accepted and current empty composer observed")
+		}
 		if event.Screen.Epoch <= s.epoch || event.Screen.Epoch <= s.writeEpoch || !event.Screen.Complete {
 			return observe(s)
 		}
