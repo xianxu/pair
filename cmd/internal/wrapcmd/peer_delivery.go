@@ -124,7 +124,7 @@ func newPeerDelivery(binding couchmessage.Binding, now func() time.Time) *peerDe
 // PeerSubmitDelay is the fixed pause between the paste and the submit key,
 // the draft pane's rule (nvim/draft_send.lua) with margin. Nothing reads how
 // the agent rendered the paste: pair renders, never classifies (pair#427).
-const PeerSubmitDelay = 150 * time.Millisecond
+const PeerSubmitDelay = agentdrive.TextSubmitDelay
 
 // peerPastedPoll paces a delivery past its paste, so the submit delay and the
 // confirmation are not quantized to the queued poll's second.

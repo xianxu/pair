@@ -37,11 +37,18 @@ type DriveEffect struct {
 	Key     KeyStep
 	Control bool
 	Delay   time.Duration
+	// NotBefore keeps Enter out of a receiver's rapid-text paste window.
+	// The existing writer polls this bound inside the absolute drive deadline.
+	NotBefore time.Time
 	// ScreenEpoch pins writes derived from picker evidence. Zero denotes a raw
 	// caller step or initial command entry, which has no picker observation.
 	ScreenEpoch uint64
 	proof       ScreenEvidence
 }
+
+// TextSubmitDelay also paces ordinary peer submissions. Codex 0.162.1 retains
+// a 120ms Enter-suppression window after a rapid text burst has rendered.
+const TextSubmitDelay = 150 * time.Millisecond
 
 // MatchesScreen permits a repaint only when the complete parsed picker evidence
 // is identical to the evidence supporting this action. Ordered labels, selection
@@ -97,6 +104,8 @@ type DriveState struct {
 	deadline                             time.Time
 	recoverAt                            time.Time
 	lastWriteAt                          time.Time
+	textQuietUntil                       time.Time
+	writingKey                           KeyKind
 	phase, after                         drivePhase
 	index, command, navigation, backouts int
 	epoch, writeEpoch                    uint64
@@ -140,6 +149,12 @@ func cloneDrive(s DriveState) DriveState {
 }
 func (s DriveState) Terminal() bool { return s.phase == phaseTerminal }
 func (s DriveState) Started() bool  { return s.phase != phaseNew }
+
+// RecoveryDue also preempts a queued key whose quiet period would consume the
+// cleanup reserve. The wrapper must not replace other pending effects on ticks.
+func (s DriveState) RecoveryDue(at time.Time) bool {
+	return !s.Terminal() && s.request.Model != nil && !s.recoverAt.IsZero() && !at.Before(s.recoverAt) && s.phase != phaseBackout && !(s.phase == phaseWriting && s.after == phaseBackout)
+}
 func (s DriveState) Result() Result {
 	r := s.result
 	r.Tail = append([]string(nil), r.Tail...)
@@ -176,10 +191,14 @@ func observe(s DriveState) (DriveState, []DriveEffect) {
 func write(s DriveState, k KeyStep, next drivePhase) (DriveState, []DriveEffect) {
 	s.phase = phaseWriting
 	s.after = next
+	s.writingKey = k.Kind
 	if s.epoch > s.writeEpoch {
 		s.writeEpoch = s.epoch
 	}
 	effect := DriveEffect{Kind: EffectWrite, Key: k, Control: s.request.Model != nil}
+	if s.agent == "codex" && (k.Kind == KeyEnter || k.Kind == KeySubmit) {
+		effect.NotBefore = s.textQuietUntil
+	}
 	if s.request.Model != nil && s.command >= 3 {
 		bindProof(&effect, s)
 	}
@@ -201,6 +220,9 @@ func reservedRecovery(s DriveState, screen Screen) (DriveState, []DriveEffect) {
 	s.result.Tail = boundedTail(screenHistory(screen))
 	s.evidence = ReadModelScreen(s.agent, screen)
 	if screen.Idle {
+		if screen.Epoch <= s.writeEpoch {
+			return finish(s, OutcomeUnconfirmed, detail+"; fresh empty prompt unconfirmed; inspect the slot")
+		}
 		return finish(s, OutcomeFailed, detail+"; back at empty prompt")
 	}
 	switch s.evidence.Phase {
@@ -281,7 +303,7 @@ func ReduceDrive(input DriveState, event DriveEvent) (DriveState, []DriveEffect)
 	if event.Screen.TurnActive {
 		return finish(s, uncertain(s), "agent turn started; input stopped")
 	}
-	if event.Kind == EventTick && s.request.Model != nil && !s.recoverAt.IsZero() && !event.At.Before(s.recoverAt) && s.phase != phaseBackout && !(s.phase == phaseWriting && s.after == phaseBackout) {
+	if event.Kind == EventTick && s.RecoveryDue(event.At) {
 		return reservedRecovery(s, event.Screen)
 	}
 	switch event.Kind {
@@ -311,6 +333,9 @@ func ReduceDrive(input DriveState, event DriveEvent) (DriveState, []DriveEffect)
 			return s, nil
 		}
 		s.result.Step++
+		if s.writingKey == KeyText {
+			s.textQuietUntil = event.At.Add(TextSubmitDelay)
+		}
 		if event.At.After(s.lastWriteAt) {
 			s.lastWriteAt = event.At
 		}
@@ -322,7 +347,7 @@ func ReduceDrive(input DriveState, event DriveEvent) (DriveState, []DriveEffect)
 			s.index++
 			return rawNext(s, event.At)
 		}
-		if s.command < 3 {
+		if s.command < 3 && s.phase != phaseBackout {
 			s.command++
 			return commandNext(s)
 		}

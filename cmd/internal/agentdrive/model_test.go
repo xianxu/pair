@@ -580,3 +580,26 @@ func TestDriveCapturedModelSession(t *testing.T) {
 		t.Fatalf("%#v", s.Result())
 	}
 }
+
+func TestDriveTextQuietStartsAtAcknowledgmentAndOverlapsWait(t *testing.T) {
+	now := time.Unix(100, 0)
+	s, err := NewDrive(Request{Keys: KeySequence{{Kind: KeyText, Text: "/model"}, {Kind: KeyWait, WaitMS: 50}, {Kind: KeySubmit}}}, "codex", now.Add(time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventStart, At: now, Screen: Screen{Epoch: 1, Complete: true, Idle: true}})
+	ack := now.Add(time.Second)
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventWritten, At: ack})
+	_, effects := ReduceDrive(s, DriveEvent{Kind: EventTick, At: ack.Add(50 * time.Millisecond)})
+	if len(effects) != 1 || effects[0].Key.Kind != KeySubmit || !effects[0].NotBefore.Equal(ack.Add(TextSubmitDelay)) {
+		t.Fatalf("quiet period ignored acknowledgment or explicit wait: %#v", effects)
+	}
+}
+
+func TestDriveReservedRecoveryNeedsFreshEmptyProof(t *testing.T) {
+	s, now := modelAtPicker(t, ModelRequest{Model: "gpt-6.1-sol"})
+	s, effects := ReduceDrive(s, DriveEvent{Kind: EventTick, At: now.Add(57 * time.Second), Screen: Screen{Epoch: s.writeEpoch, Complete: true, Idle: true}})
+	if s.Result().Outcome != OutcomeUnconfirmed || len(effects) != 0 {
+		t.Fatalf("unchanged pre-text prompt claimed recovery: %+v %#v", s.Result(), effects)
+	}
+}

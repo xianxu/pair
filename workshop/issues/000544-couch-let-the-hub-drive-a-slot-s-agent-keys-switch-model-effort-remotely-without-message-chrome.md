@@ -79,6 +79,14 @@ Durable implementation plan: [agent keys and model selection](../plans/000544-ag
 
 ## Revisions
 
+### 2026-10-14 — measured submit timing and native selection evidence
+
+**Reason:** Actual Run/socket/native-child conformance reproduced the operator failure in both scratch and Pair virtual terminals: `/model` and CR can reach Codex in one rapid input burst. Changing CR to CSI13u did not fix it. A 150ms quiet gap did open the picker. The pinned [Codex 0.162.1 paste-burst implementation](https://raw.githubusercontent.com/openai/codex/rust-v0.162.1/codex-rs/tui/src/bottom_pane/paste_burst.rs) retains Enter suppression for 120ms after fast text, even after the text has rendered. Keyboard negotiation differs between Ghostty and the old scratch environment, but is not the demonstrated cause. Native raw capture also proves selected picker rows may use a unique `›` without reverse-video styling.
+
+**Delta:** Keep submit bytes unchanged. Share the existing 150ms peer-submit delay as a pure effect NotBefore bound after acknowledged Codex text, covering raw and model Enter/submit. The single writer retains pending effects without sleeping or extending the absolute budget. Reserved model recovery preempts an un-emitted delayed key; absolute-clock checks fence input even before a context callback runs. Require fresh post-write empty evidence for automatic cleanup. Codex selection accepts exactly one explicit `›` under the recognized complete heading/footer, with duplicate/unknown/incomplete/stale evidence still refused. Preserve the recorded reverse-video cases as compatible evidence.
+
+Native multiline Ctrl+U capture leaves `/model` behind after the empty second line is removed; it does not establish whole-composer deletion. Automatic cleanup therefore remains limited to the acknowledged exact single-line command or recognized owned picker. Explicit recovery clears the current line. Actual Run/socket conformance covers both scratch and Pair terminal negotiation plus explicit dirty-composer recovery; direct native cases retain session/default/unsupported-effort checks. No live peer input, restart or staging is authorized here; pair:0 remains reserved for #528.
+
 - 2026-10-14 02:15 — add (TL, from the first fleet-wide remote switch): (1) `--set-model` takes an explicit scope:
   Codex offers "session only" (`s`) vs "save as default" (Enter); default to session-only, since Codex's default is
   shared by every Codex slot. (2) After a remote switch, the agent's own confirmation line ("Model changed to … for

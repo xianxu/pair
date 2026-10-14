@@ -240,7 +240,7 @@ func (p *proxy) dispatchAgentDrive(out io.Writer) {
 		p.inputAdmission.Unlock()
 		return
 	}
-	if r.ctx.Err() != nil {
+	if r.ctx.Err() != nil || !d.now().Before(r.start.Deadline) {
 		r.state, r.effects = agentdrive.ReduceDrive(r.state, agentdrive.DriveEvent{Kind: agentdrive.EventTick, At: d.now(), Screen: screen})
 		if !r.state.Terminal() {
 			d.cancelDriveLocked("drive context ended")
@@ -256,7 +256,7 @@ func (p *proxy) dispatchAgentDrive(out io.Writer) {
 			p.automaticInput.phase = automaticInputDrive
 		}
 		r.state, r.effects = agentdrive.ReduceDrive(r.state, agentdrive.DriveEvent{Kind: agentdrive.EventStart, At: d.now(), Screen: screen})
-	} else if len(r.effects) == 0 && !r.state.Terminal() {
+	} else if (len(r.effects) == 0 || r.state.RecoveryDue(d.now())) && !r.state.Terminal() {
 		r.state, r.effects = agentdrive.ReduceDrive(r.state, agentdrive.DriveEvent{Kind: agentdrive.EventTick, At: d.now(), Screen: screen})
 		if len(r.effects) == 0 && !r.state.Terminal() {
 			r.state, r.effects = agentdrive.ReduceDrive(r.state, agentdrive.DriveEvent{Kind: agentdrive.EventScreen, At: d.now(), Screen: screen})
@@ -283,6 +283,11 @@ func (p *proxy) dispatchAgentDrive(out io.Writer) {
 		return
 	}
 	effect := r.effects[0]
+	if effect.Kind == agentdrive.EffectWrite && d.now().Before(effect.NotBefore) {
+		d.mu.Unlock()
+		p.inputAdmission.Unlock()
+		return
+	}
 	if effect.Kind == agentdrive.EffectWrite && effect.ScreenEpoch != 0 && !effect.MatchesScreen(p.agentBasename, screen) {
 		d.cancelDriveLocked("screen changed before input; cached picker action refused")
 		p.finishAgentDriveLocked(r, screen)
