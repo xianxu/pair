@@ -1,12 +1,20 @@
 ---
 id: 000547
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-13
-updated: 2026-10-13
+updated: 2026-10-14
 estimate_hours:
-card_mirror: 'feb85bd2aef684f37596be065080e40f75c3c9e9' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'e812acd9611b79d08b2dab29bdbf78bbd22011f1' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-14T00:00:06-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:5
+    worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
+    repository: github.com/xianxu/pair
 ---
 
 # launcher: five call sites exec setuid /bin/ps; read the process table through procutil instead (works under sandboxes)
@@ -30,8 +38,16 @@ Route all five through `procutil` (extend it for argv/command where it lacks it:
 
 ## Plan
 
-- [ ]
+- [ ] Implement and verify the native process inspection plan: [plan](../plans/000547-native-process-inspection-plan.md).
 
 ## Log
 
 ### 2026-10-13
+
+### 2026-10-14 — design
+
+Claimed and started from fresh main. Hub approved sweeping all production ps calls and full flow. Plan above records native argv/executable distinction, per-row uncertainty and snapshot identity fencing (ARCH-DRY, ARCH-ORDER). Prior continuation commit remains on its own branch; untracked pensive preserved. #528 overlap coordinated with pair:2.
+
+## Revisions
+
+- 2026-10-14: enumerated the full no-ps contract beyond the five launcher sites: procutil helpers/unsupported fallback and diagnostic runtime inventory are in scope, approved by the hub.
