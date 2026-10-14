@@ -669,3 +669,21 @@ Parent TestInitialHubBorrowedAttachmentNoticeAppearsOnFirstPaint passes 0.314s;
 failed initial attachment shows no success/borrowed warning. It does not arm
 background attachment. Final runtime checkpoint follows; full recorded suite
 remains required and acceptance remains with the operator/hub.
+
+### 2026-10-14 — recorded final suite integration corrections
+
+Local-check on ef04492b462c60cefffd1b60a95822cde3d1b350 entered after
+1581s queued. Shell/editor/runtime integrations passed, including capture
+performance (5s against 6s budget). Installed Couch smoke passed 8.503s.
+The Go phase found two integration omissions: exhaustive artifact source
+inventory lacked warm_attach_repair.go, and the real-helper-death warm-menu
+acceptance still asserted unconditional record equality. Classified the file
+as NonArtifactSources alongside warm_attach.go/threadstore.go: it constructs
+no artifact filename and uses existing ThreadStore-owned paths. The ratchet
+exception list is unchanged. Its exact classification check passes 4.507s.
+Warm acceptance now independently permits only helper PID/Identity/State and
+Revision replacement after the fixture's actual old-process death proof,
+requiring all other metadata and the exact terminal unchanged. Whole actual
+helper-death acceptance passes 9.825s. No production behavior changed. The
+recorded suite's remaining packages are still running; a corrected-head full
+check follows its result.

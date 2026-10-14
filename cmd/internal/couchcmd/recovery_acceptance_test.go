@@ -379,8 +379,16 @@ func runRecoveryMenuAcceptance(t *testing.T, mode string) {
 		t.Fatalf("address changed: %+v %v", current, err)
 	}
 	if mode == "warm" {
-		if !reflect.DeepEqual(current, source) || managedChildSession(t, rt.runner, start.Handle.ID()) != session {
-			t.Fatalf("Continue changed retained record or selected terminal: before=%+v after=%+v", source, current)
+		// The source client was independently proved dead above. Continue may
+		// replace only its client identity with the locally owned attach helper.
+		expected := source
+		expected.Incarnations = append([]couchcore.ThreadIncarnation(nil), source.Incarnations...)
+		expected.Incarnations[0].PID = start.Handle.PID()
+		expected.Incarnations[0].Identity = start.Handle.Identity()
+		expected.Incarnations[0].State = couchcore.IncarnationLive
+		expected.Revision++
+		if !reflect.DeepEqual(current, expected) || managedChildSession(t, rt.runner, start.Handle.ID()) != session {
+			t.Fatalf("Continue changed more than its dead client identity or selected terminal: before=%+v after=%+v", source, current)
 		}
 	} else if current.SessionBinding == nil || current.SessionBinding.Name != managedChildSession(t, rt.runner, start.Handle.ID()) {
 		t.Fatalf("promoted terminal differs from launched intent: %+v", current.SessionBinding)
