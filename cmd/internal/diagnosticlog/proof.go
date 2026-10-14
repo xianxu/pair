@@ -209,7 +209,9 @@ func (o OSInspection) Runtimes(ctx context.Context) ([]Runtime, error) {
 			}
 			continue
 		}
-		base := filepath.Base(row.Executable)
+		// Linux appends this marker when an executable is replaced/unlinked;
+		// that still-running generation remains a possible writer.
+		base := strings.TrimSuffix(filepath.Base(row.Executable), " (deleted)")
 		if !isRuntimeExecutable(base) {
 			continue
 		}

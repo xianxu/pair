@@ -65,3 +65,11 @@ func TestRuntimeInventoryHonorsCanceledContext(t *testing.T) {
 		t.Fatalf("cancellation=%v", err)
 	}
 }
+
+func TestRuntimeInventoryRecognizesUnlinkedExecutable(t *testing.T) {
+	w := &processWorld{rows: []procutil.Observation{{Process: procutil.Process{PID: 123, Name: "pair", Identity: "old"}, CommandInfo: procutil.CommandInfo{Executable: "/bin/pair (deleted)", Args: []string{"pair"}}}}, generation: "old", strict: "birth"}
+	got, err := (OSInspection{processes: w}).Runtimes(context.Background())
+	if err != nil || len(got) != 1 {
+		t.Fatalf("unlinked running executable disappeared: %+v %v", got, err)
+	}
+}
