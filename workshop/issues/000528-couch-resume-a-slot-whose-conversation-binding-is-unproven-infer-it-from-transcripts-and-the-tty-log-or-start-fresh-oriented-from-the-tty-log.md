@@ -355,3 +355,11 @@ The final revision in `workshop/plans/000528-slot-recovery-plan.md` supersedes p
 - First full replacement-M1 make -k test completed: shell/editor checks and most Go packages passed; failures were old startup/attach fixture expectations (corrected and targeted green), the live fleet's new staged reason (already fixed by landed #539; integrate main rather than copy it), and TestSpawnTimerMeasuresTheCommandNotTheHarness (19.524 ms under suite load; isolated rerun passed2.861s). Corrected installed-command + full couchcmd rerun passed4.062s/76.909s. Full suite log /tmp/pair528-m1-full.log; next run will include main's fleet compatibility.
 
 - 2026-10-13T21:34:22-0700: TL corrected the M1 action boundary (receipts 5e7063f1 and 46c487bc). Removed guaranteed-refused Fresh offers and their test exception; uncertain rows retain working Relaunch/recovery preview, while ineligible native bindings remain evidence rather than selectable resume actions. Positive live listing always gives Continue. The rare nonlisted unfinished StartClaim displays Starting with read-only details; M2 must bound its lifetime and add confirmed retirement. Appended plan Revision and interrupted the stale-window boundary review; no milestone finalized.
+
+- 2026-10-13 21:48 PDT — M1 review of 0d4565a9 returned REWORK: BR-9 found
+  listed-live Continue still hitting cold profile/path executor gates; BR-10
+  requested README alignment. Fixing both before rerunning the boundary.
+  The post-main full `make -k test` completed with only the old menu action
+  sweep failing; the corrected sweep and actual blank-key Fresh admission edge
+  passed the full couchtty package (40.867s). Build passed. Evidence:
+  /tmp/pair528-m1-full-after-main.log and /tmp/pair528-m1-ui-sweep-fixed.log.

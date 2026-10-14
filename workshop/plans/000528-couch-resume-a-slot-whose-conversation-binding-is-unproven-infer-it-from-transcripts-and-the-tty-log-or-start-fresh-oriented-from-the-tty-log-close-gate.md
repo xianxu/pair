@@ -165,6 +165,48 @@ rounds:
       isolation: fenced
       reviewed: 81a4fc7d5a62180663d7b84245c0c985fedbec21
       blocked: false
+    - "n": 7
+      timestamp: "2026-10-13T21:42:34-07:00"
+      dispatched: "2026-10-13T21:37:49-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: The approved replacement contract distinguishes positive listing from failed observation. TestListedLiveIsContinueAuthority and TestAttributedOwnerCannotResumeDisk pass; unknown observations do not authorize Continue.
+          round: 7
+        - id: BR-2
+          disposition: addressed
+          note: Exact agent-generation comparison remains in terminal_agent.go. TestTerminalAgentRequiresExactServerAndLiveDescendant passes and fails when that comparison is removed.
+          round: 7
+        - id: BR-3
+          disposition: addressed
+          note: Policy reads were removed from admission. Remaining readiness reads in session_handoff_os.go use contextual ReadRegularMetadata; bounded metadata regressions pass.
+          round: 7
+        - id: BR-4
+          disposition: addressed
+          note: session_lock.go preserves the 256-stripe bound and policy publication is removed. TestTerminalLeasePathsHaveFixedBound passes and fails when full socket hashes replace stripe keys.
+          round: 7
+        - id: BR-5
+          disposition: addressed
+          note: Admission-config reads were removed. Capture-witness reads still use ReadRegularMetadata in recovery_evidence_os.go:141; bounded metadata and wrong-witness regressions pass.
+          round: 7
+      findings:
+        - id: BR-9
+          severity: Critical
+          title: Continue is offered where the resume executor still refuses attachment
+          detail: 'actionableinventory.go:494 now projects any positively listed session as Continue, but ResumeContextWith calls DecideResume, whose resume.go:186 preconditions still reject missing/incomplete profiles, unsupported saved agents, and unavailable working paths. A temporary review regression reproduced all four refusals. This is the 2nd finding in family recovery-primary-action-routing: state and enforce the rule that every offered Continue reaches a warm attach using listed-session authority; sweep all downstream warm-path gates rather than patching one profile check. ARCH-PURPOSE.'
+          family: recovery-primary-action-routing
+          round: 7
+        - id: BR-10
+          severity: Important
+          title: README update appears missing for changed Couch startup and action semantics
+          detail: startup.go:73 removes automatic launch/resume on ordinary Couch startup, and menu.go:1446 changes visible action labels. README.md:389 remains unchanged throughout the pinned range. Document observation-only startup, explicit action selection, and the M1 recovery limitations alongside the existing usage instructions; atlas/couch.md already describes these changes.
+          family: user-facing-contract-documentation
+          round: 7
+      boundary: M1
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#528 (boundary-review)
@@ -238,6 +280,24 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-6 — addressed — recovery_native_owner.go resolves the readiness-proved launch ordinal only after associating the exact live agent generation with its wrapper. Exact-generation and source-exemption regressions passed.
 - BR-7 — addressed — Unsafe primary activation and relaunch routes use the recovery chooser. TestReviewNeedsRelaunchPrimaryOpensRecovery and the targeted UI routing tests passed.
 
+## Round 7 — 2026-10-13T21:42:34-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — The approved replacement contract distinguishes positive listing from failed observation. TestListedLiveIsContinueAuthority and TestAttributedOwnerCannotResumeDisk pass; unknown observations do not authorize Continue.
+- BR-2 — addressed — Exact agent-generation comparison remains in terminal_agent.go. TestTerminalAgentRequiresExactServerAndLiveDescendant passes and fails when that comparison is removed.
+- BR-3 — addressed — Policy reads were removed from admission. Remaining readiness reads in session_handoff_os.go use contextual ReadRegularMetadata; bounded metadata regressions pass.
+- BR-4 — addressed — session_lock.go preserves the 256-stripe bound and policy publication is removed. TestTerminalLeasePathsHaveFixedBound passes and fails when full socket hashes replace stripe keys.
+- BR-5 — addressed — Admission-config reads were removed. Capture-witness reads still use ReadRegularMetadata in recovery_evidence_os.go:141; bounded metadata and wrong-witness regressions pass.
+
+### Raised
+
+- **BR-9** [Critical] `recovery-primary-action-routing` Continue is offered where the resume executor still refuses attachment
+  actionableinventory.go:494 now projects any positively listed session as Continue, but ResumeContextWith calls DecideResume, whose resume.go:186 preconditions still reject missing/incomplete profiles, unsupported saved agents, and unavailable working paths. A temporary review regression reproduced all four refusals. This is the 2nd finding in family recovery-primary-action-routing: state and enforce the rule that every offered Continue reaches a warm attach using listed-session authority; sweep all downstream warm-path gates rather than patching one profile check. ARCH-PURPOSE.
+- **BR-10** [Important] `user-facing-contract-documentation` README update appears missing for changed Couch startup and action semantics
+  startup.go:73 removes automatic launch/resume on ordinary Couch startup, and menu.go:1446 changes visible action labels. README.md:389 remains unchanged throughout the pinned range. Document observation-only startup, explicit action selection, and the M1 recovery limitations alongside the existing usage instructions; atlas/couch.md already describes these changes.
+
 ## Open findings
 
-(none — every finding has been disposed)
+- **BR-9** [Critical] `recovery-primary-action-routing` Continue is offered where the resume executor still refuses attachment
+- **BR-10** [Important] `user-facing-contract-documentation` README update appears missing for changed Couch startup and action semantics

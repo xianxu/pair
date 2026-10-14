@@ -1693,3 +1693,9 @@ proof; record the surprising case so the next change starts from evidence.
 - #542/#511: A signal-probe permission error is not positive process-group membership evidence on every OS. Confirm ambiguous results through the OS membership boundary and retain ownership on query failure. Survivor fixtures must acknowledge signal-handler readiness before their parent exits; a fork is not a readiness event.
 
 - #511 close review: count repeated test outcomes from the complete log, using exact per-subtest records. A terminal tail or truncated tool result is not evidence of the total failure count.
+
+- #528 M1 BR-9: Test an offered Continue through the real resume executor and
+  launcher, including missing profile, incomplete argv, unsupported saved agent,
+  and missing original cwd. Projection-only tests do not prove downstream cold
+  launch requirements were removed from warm attachment. BR-10: startup and
+  primary-action changes must update README usage as well as the atlas.

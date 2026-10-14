@@ -2,6 +2,7 @@ package couchtty
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -77,7 +78,7 @@ func restrictRecoveryChoices(state *MenuState, frame *MenuFrame) {
 		preview.Fresh = nil
 		return
 	}
-	if preview.Fresh != nil && preview.Fresh.Key == "" && !couchcore.RebootAdmitted(row.State, row.Reason, false) {
+	if preview.Fresh != nil && preview.Fresh.Key == "" && !slices.Contains(menuActionItems(row), "reboot") {
 		preview.Fresh = nil
 	}
 }

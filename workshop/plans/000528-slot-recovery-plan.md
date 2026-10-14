@@ -814,3 +814,18 @@ Authority: verified TL receipts 5e7063f1-5997-4597-aa6c-6d6127feee05 and 46c487b
 - Narrow approved M1 exception: an unfinished Couch StartClaim with no positive listing shows **Starting**, with a read-only details action. This internal claim is distinct from native agent busyness. No new persistent state or ownership mechanism.
 - **M2 obligation:** a start whose owner is dead or whose age exceeds a time bound must exit Starting into Resume from disk / Start fresh through the confirmed retirement path. Do not build that rare-case execution in M1.
 - The prior boundary review was interrupted after this steer; rerun the review on the corrected committed window. Operator acceptance/staging remains separately scheduled.
+
+### 2026-10-13T21:48:00-0700 — M1 boundary corrections (BR-9 / BR-10)
+
+The corrected-window review found a real mismatch between listed-live Continue
+and the executor: cold-launch profile/path prerequisites could still refuse
+warm attachment. Keep M1 scope and remove those prerequisites only from the
+exact listed-session attach path, without inventing an agent profile or changing
+the recorded working path. Cover the public executor and downstream launcher,
+not only classification (ARCH-DRY). Cold creation keeps its existing gates.
+
+Update README startup, attach, recovery-preview and retention instructions.
+The action sweep also checks that a blank-key Fresh fallback is offered only
+when that row actually offers reboot; a missing numbered-slot directory has no
+such executable action. These corrections require another committed boundary
+review. Starting/details and M2's bounded-exit obligation remain as approved.

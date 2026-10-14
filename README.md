@@ -392,6 +392,14 @@ is separate from `pair` on purpose: pair is what you sit inside, so a supervisor
 bug must not break your ability to fix it, and launching pair directly always
 still works. See [atlas/couch.md](atlas/couch.md).
 
+Opening Couch observes registered slots and opens the menu. It does not start
+agents, resume interrupted starts, replay recovery journals, or repair slots.
+One unavailable slot does not prevent Couch or other slots from opening.
+Choose **Continue** for a session Zellij lists live, **Resume from disk** for a
+recoverable stopped conversation, or the offered **Start fresh** action to begin
+again. A live session remains Continue while its agent is working on a turn;
+it does not need a saved launch profile or a policy file to attach.
+
 ```
 couch [<repo>]           open the Couch TUI (default: .)
 couch --layout2          opt into pair's two-pane workbench
@@ -465,10 +473,20 @@ couch --skill            print the bundled agent coordination skill
 couch --adopt-store /absolute/store     preview adoption of an existing store
 ```
 
-A slot marked **needs relaunch** has no safely attachable terminal, even if an
-old helper or an empty restored layout is still present. It is not reported as
-live or automatically attached. Select **Relaunch** to request recovery; Pair
-refuses unsafe attachment instead of recreating a saved terminal layout.
+Couch attaches only after a fresh `zellij list-sessions` result lists the
+session live (not EXITED). An absent session or failed listing never authorizes
+attach. New Pair sessions disable saved layouts. Older sessions retain a small
+race: if their server dies between the listing and attach, Zellij can resurrect
+the saved layout.
+
+For a slot whose state needs recovery, **Relaunch** opens a read-only candidate
+preview with transcript and terminal evidence. Selection is explicit; Couch
+does not automatically choose an inferred conversation. Evidence whose old
+owner may still be running is readable but cannot be selected for native resume.
+Fresh is offered where its existing confirmed execution path is available.
+An unfinished Couch start shows **Starting**, with read-only details on Enter.
+An older live wrapper with a broken message endpoint remains usable through its
+terminal and reports “messaging unavailable until next relaunch.”
 
 `couch --switch-agent` accepts one exact slot and a different agent. It refuses
 `self`, the caller's own slot, busy or dirty targets, and targets whose state
@@ -1339,26 +1357,25 @@ ordinary filter text—there is no command namespace or numbered jump mode.
 | parked or detached, any slot | resume, reboot (`:0` adds add slot) |
 | cannot be entered, but resume has a route | resume, reboot (`:0` adds add slot) |
 | cannot be entered otherwise (`:0`) | reboot, add slot |
-| state could not be checked | nothing; the next refresh decides |
+| state could not be checked | Relaunch opens read-only recovery evidence |
 | directory missing | `:0`: reboot (archives the record only; restore the checkout to start there again); `:1+`: add slot recreates it (it reuses the leftover number and reconciles it); `couch --reconcile repo:N` does the same from the CLI |
-| starting elsewhere | nothing |
+| starting elsewhere, with no listed live session | Starting; Enter opens read-only details |
 
-`Enter` switches to a live row and resumes a row that offers resume; on any
-other row it says why, and names `Tab → reboot` when the row offers it. Every
-next step a row names is one that row can take (a `:1+` whose directory is gone
-points at add slot on its repository's `:0`). Add slot needs nothing from `:0`'s
-agent, so a parked `:0` offers it too; a `:0` whose checkout is gone does not.
+`Enter` follows the row's continuity action: Continue attaches to a positively
+listed session; Resume from disk resumes an eligible stopped conversation;
+Relaunch opens recovery evidence for an uncertain row. Starting opens read-only
+details. Start fresh uses the row's existing reboot confirmation where offered.
+A missing `:1+` directory can be recreated with add slot on the repository's
+`:0`, or `couch --reconcile repo:N`. Add slot needs nothing from `:0`'s agent,
+so a parked `:0` offers it too; a `:0` whose checkout is gone does not.
 
-**Resume** brings the old conversation back by whichever path works: a retained
-continuation is retried where it stands (a failed or running request) or
-re-delivered from its saved checkpoint (a pending one); a slot reattaches,
-resumes cold, or adopts a still-running agent whose pointer couch lost (on a cold,
-proven binding only); a `:0` thread whose session survives reattaches to it;
-otherwise a warm reattach, then a cold resume. A surviving detached session
-reattaches to the same running agent without needing a native transcript binding;
-native resume of a parked conversation still needs its verified binding. When the
-transcript cannot come back, the refusal says so and names reboot; a transient
-refusal (still starting, parking, checking) says to retry instead.
+**Resume** attaches to a surviving listed session without requiring a native
+transcript binding or saved agent launch settings. Starting a stopped agent
+instead requires eligible conversation evidence and launch settings. Recovery
+previews list supported candidates with evidence; the operator or hub chooses
+one explicitly. A possibly running old owner prevents native resume until it
+has been safely retired. Existing continuation actions remain available where
+a continuation request owns the thread.
 
 **Reboot** archives the record with its evidence (checkpoint, native binding,
 scrollback) and starts a fresh agent in the same slot or path under a new tag,
@@ -1569,7 +1586,7 @@ Ordinary Couch startup keeps unavailable registrations intact.
 items in bounded batches: up to 100 eligible groups and the first 100 diagnostic
 paths per invocation. Repeating it can collect remaining session/capture groups;
 the automatic worker uses a saved cursor to cover larger diagnostic inventories.
-Blocked groups report why they remain. Running Pair/Couch schedules these
+Blocked groups report why they remain. Running Pair schedules these
 resumable daily sweeps after readiness, visiting up to 100 owners per page with
 a cooperative two-second budget. Incomplete inventories retain data.
 Retention does not impose a global disk-space ceiling on active session history.

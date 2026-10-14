@@ -280,3 +280,109 @@ dispose:
    - **ARCH-FUNERAL — pass:** locks have a fixed aggregate bound, policies have lifecycle retirement, and archives reuse retention ownership.
 
 7. **Plan revision recommendations:** None required. Latest revisions identify the shared reader and its consumers; M2 remains unimplemented.
+
+---
+
+## Re-review — 2026-10-13T21:42:34-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 528 — couch: resume a slot whose conversation binding is unproven: infer it from transcripts and the tty log, or start fresh oriented from the tty log |
+| repo | pair |
+| issue file | workshop/issues/000528-couch-resume-a-slot-whose-conversation-binding-is-unproven-infer-it-from-transcripts-and-the-tty-log-or-start-fresh-oriented-from-the-tty-log.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | f59a1b6e21d449d9b6d5c5713b8d14083d3bf5a8..0d4565a9aff0d0983b7c4a567bb06af6aa4c5725 |
+| command | sdlc milestone-close --issue 528 --milestone M1 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-13T21:42:34-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+M1 removes startup recovery effects and policy-based attach admission as the revised plan requires. However, Continue is now offered for records that the unchanged resume executor rejects. A review regression reproduces four such cases. The changed startup and menu behavior also lacks the required README update.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The approved replacement contract distinguishes positive listing from failed observation. TestListedLiveIsContinueAuthority and TestAttributedOwnerCannotResumeDisk pass; unknown observations do not authorize Continue.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Exact agent-generation comparison remains in terminal_agent.go. TestTerminalAgentRequiresExactServerAndLiveDescendant passes and fails when that comparison is removed.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Policy reads were removed from admission. Remaining readiness reads in session_handoff_os.go use contextual ReadRegularMetadata; bounded metadata regressions pass.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      session_lock.go preserves the 256-stripe bound and policy publication is removed. TestTerminalLeasePathsHaveFixedBound passes and fails when full socket hashes replace stripe keys.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Admission-config reads were removed. Capture-witness reads still use ReadRegularMetadata in recovery_evidence_os.go:141; bounded metadata and wrong-witness regressions pass.
+findings:
+  - id: new
+    severity: Critical
+    family: recovery-primary-action-routing
+    title: |
+      Continue is offered where the resume executor still refuses attachment
+    detail: |
+      actionableinventory.go:494 now projects any positively listed session as Continue, but ResumeContextWith calls DecideResume, whose resume.go:186 preconditions still reject missing/incomplete profiles, unsupported saved agents, and unavailable working paths. A temporary review regression reproduced all four refusals. This is the 2nd finding in family recovery-primary-action-routing: state and enforce the rule that every offered Continue reaches a warm attach using listed-session authority; sweep all downstream warm-path gates rather than patching one profile check. ARCH-PURPOSE.
+  - id: new
+    severity: Important
+    family: user-facing-contract-documentation
+    title: |
+      README update appears missing for changed Couch startup and action semantics
+    detail: |
+      startup.go:73 removes automatic launch/resume on ordinary Couch startup, and menu.go:1446 changes visible action labels. README.md:389 remains unchanged throughout the pinned range. Document observation-only startup, explicit action selection, and the M1 recovery limitations alongside the existing usage instructions; atlas/couch.md already describes these changes.
+```
+
+1. **Strengths**
+
+   - Startup and constructor regressions verify that pending journals remain untouched.
+   - Recovery-preview tests verify that inspection neither provisions a slot nor enrolls its store.
+   - Attach tests require positive listing, reject failed-query output, and prevent replaying the interactive client.
+   - Missing-endpoint errors preserve their underlying cause while explaining the legacy messaging limitation.
+
+2. **Critical findings**
+
+   The Continue mismatch is at [actionableinventory.go:494](/Users/xianxu/Library/Caches/sdlc/review-checkouts/ad36b0aca20bf2e2/cmd/internal/couchcore/actionableinventory.go:494), with the downstream refusal at [resume.go:186](/Users/xianxu/Library/Caches/sdlc/review-checkouts/ad36b0aca20bf2e2/cmd/internal/couchcore/resume.go:186). Separate warm attachment requirements from cold-launch requirements without fabricating a launch profile. Add tests through `ResumeContextWith` that verify an attach effect for all four cases.
+
+3. **Important findings**
+
+   Update [README.md:389](/Users/xianxu/Library/Caches/sdlc/review-checkouts/ad36b0aca20bf2e2/README.md:389) for the changed usage contract. No wording-presence test is needed.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   Focused launcher, artifactpath, couchcore, couchmessage, and metadata tests passed. Temporary Go overlays reproduced the four Continue refusals and killed the BR-2/BR-4 mutations; temporary files were removed and the checkout remains clean.
+
+   The broader run could not compile couchtty/couchcmd because generated `runtimebundle/assets/runtime/files` were absent. I interrupted the remaining broad run; no full-suite pass is claimed.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** continuity labels share the core projection.
+   - **ARCH-PURE — pass:** classification and recovery decisions remain directly testable value functions.
+   - **ARCH-PURPOSE — flag:** projection changed without completing its downstream Continue contract.
+   - **ARCH-MOCK — pass for inspected seams:** injected listing/handoff and stateful endpoint tests exercise production boundaries. Live legacy-race conformance was not independently rerun.
+   - **ARCH-CONSTRAINTS — pass for inspected changes:** listing retries are finite; retained metadata reads remain bounded.
+   - **ARCH-SECURE — pass:** failed listing cannot authorize attach; exact-generation checks remain.
+   - **ARCH-ORDER — pass:** startup no longer completes persisted operations implicitly; the approved Starting exception remains explicit.
+   - **ARCH-FUNERAL — pass:** lock storage retains its fixed bound, and policy publication is removed.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry enumerating the downstream Continue gates and requiring executable attach coverage for missing/incomplete profiles, unsupported saved agents, and unavailable paths. Include the README update in M1 completion checks.
