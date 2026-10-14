@@ -42,6 +42,7 @@ Commit exactly weave-generated ignores for xx-tl-lead and xx-tl-worker under .ag
 ## Log
 
 ### 2026-10-14
+- 2026-10-14: closed — Four exact generated ignores, all confirmed by git check-ignore; repeat weave compile passed at pair 678c62ddc0d9709f6009d10677c937924040eb93 and ariadne 7a7223628f1ec78a213ad4dd6ea4f0f9761c9f31, unchanged ignore blob fbbe4444974662bbc3fa32e5bff00738ae6c0583 and no tracked product changes. BR-1 measured host evidence in issue Log. No new architectural surface. Full suite required and running; landing stays gated.; review verdict: SHIP
 
 TL approved this exact generated maintenance change and quick flow. Initial refresh completed; diff is exactly four ignore additions. No durable plan needed. Full suite will run because the landing gate requires it.
 
