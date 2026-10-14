@@ -39,7 +39,7 @@ Route all five through `procutil` (extend it for argv/command where it lacks it:
 
 ## Plan
 
-- [ ] Implement and verify the native process inspection plan: [plan](../plans/000547-native-process-inspection-plan.md).
+- [x] Implement and verify the native process inspection plan: [plan](../plans/000547-native-process-inspection-plan.md).
 
 ## Log
 
@@ -79,3 +79,6 @@ total: 3.59
 - Procutil native parser/snapshot implementation delegated as bounded work. Initial API tests failed before implementation. Additional red/green tests enforce Darwin argc allocation bound and reject numeric PIDs that would truncate into a live PID at Darwin's int32 syscall boundary.
 - Full targeted package runs passed: procutil, launcher, diagnosticlog, gccmd, gcruntime. Artifact source inventory test passed. A real argv-spoofed helper was found, classified and authorized through native launcher observations under sandbox-exec (version 1)(allow default), with all six selected tests passing and no skips.
 - Estimate advisory allocation: Darwin API item includes shared snapshot/error/fencing fake tests and seatbelt conformance; Linux API item includes portable procfs fixture/cross-build/native CI verification. Consumer refactors include targeted race/full-suite execution and fresh-main conflict integration; review item covers the single close boundary. Spec hours describe completed shaping, not additional unresolved design.
+
+- Acceptance limitation approved by ops:0 (receipt e1e6c492-6689-4734-a050-582a546a575f): Linux: portable procfs fixture and cross-build pass; native Linux procutil is untested (pair has no Linux test runner, and pair runs on macOS in practice). No new runner and no colima. Actual workflow inspection found Ubuntu merge-check only runs duplicate-ID checks, plus local-gates-guard; no native Linux test execution is claimed.
+- make -k build passed. Targeted race tests in procutil, launcher and diagnosticlog passed. Fresh Darwin binary passed TestNativeProcessInspectionWithoutPS, TestCommand, TestIdentity, TestTableMatchesIdentityAndParent, TestDarwinArgCountBound and TestPIDRejectsTruncationToLiveProcess under seatbelt, without skips. Full suite is running before close.

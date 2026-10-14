@@ -47,10 +47,10 @@ Tests use a stateful process-reader fake (table and command/identity reads can r
 
 ## Tasks
 
-- [ ] Add failing tests for command decoding and native self/child inspection; remove ps-unavailable skips on supported platforms. Add pure Linux stat fixtures and short-name coverage. Run targeted tests and record red.
-- [ ] Implement native command readers and enriched snapshot with per-row errors, cancellation and identity fencing. Convert Command, ProcessChildren and unsupported Identity. Run pure/fake tests, real Darwin probes, Linux cross-build (Linux native tests in CI).
-- [ ] Add failing production no-ps guard and launcher projection/ancestry regressions. Migrate all five launcher sites to typed procutil observations; preserve server identities for reachable and orphaned rows when integrating #528. Run targeted launcher/procutil tests.
-- [ ] Migrate diagnostic runtime inventory with full executable names and StrictIdentity checks. Replace ps PATH fixtures with an explicit existing/new inventory injection seam in diagnostic/gccmd tests, preserving maintenance cancellation and isolation from real unrelated processes. Run both package suites.
+- [x] Add failing tests for command decoding and native self/child inspection; remove ps-unavailable skips on supported platforms. Add pure Linux stat fixtures and short-name coverage. Run targeted tests and record red.
+- [x] Implement native command readers and enriched snapshot with per-row errors, cancellation and identity fencing. Convert Command, ProcessChildren and unsupported Identity. Run pure/fake tests, real Darwin probes, Linux cross-build (Linux native tests in CI).
+- [x] Add failing production no-ps guard and launcher projection/ancestry regressions. Migrate all five launcher sites to typed procutil observations; preserve server identities for reachable and orphaned rows when integrating #528. Run targeted launcher/procutil tests.
+- [x] Migrate diagnostic runtime inventory with full executable names and StrictIdentity checks. Replace ps PATH fixtures with an explicit existing/new inventory injection seam in diagnostic/gccmd tests, preserving maintenance cancellation and isolation from real unrelated processes. Run both package suites.
 - [ ] Update artifact ownership inventory and atlas architecture description. Merge fresh main, resolve overlap preserving both purposes, then run targeted race tests, make -k build and full make -k test in background.
 - [ ] Build process test binaries and run them under sandbox-exec with (version 1)(allow default); require native process probes and launcher process tests to pass, without ps skips. Record actual commands/results and commit. Close with SDLC fresh-context review, fix findings, then PR/merge and report real hashes to hub.
 
@@ -92,3 +92,7 @@ Non-goals: no zellij authorization redesign (owned by #528), no new whitespace-b
 ### 2026-10-14 — implementation locations and safety discovery
 
 Shared decoders live in command_parse.go (rather than the provisional table_parse.go); portable Linux IO lives in command_procfs.go. Diagnostic process-reader injection stays private to OSInspection, while the existing public Inspection interface is injected through NewWithInspection and the command's service constructor. Added positivePID's signed-32-bit limit after a red test proved a larger PID could truncate to self on Darwin; this is within native boundary validation scope. No other scope change.
+
+### 2026-10-14 — Linux acceptance limitation
+
+Hub explicitly accepted portable Linux adapter fixtures and cross-build, with native Linux execution untested: the repository has no Linux test runner. Do not start colima or create a runner for this issue. This supersedes the earlier native-Linux-CI verification expectation; Darwin native plus seatbelt remains required and has passed.
