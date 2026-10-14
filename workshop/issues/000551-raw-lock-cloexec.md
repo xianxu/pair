@@ -15,6 +15,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "d95d3f01", done: "c80b9267"}
 ---
 
 # locks: close raw diagnostic and notification descriptors on exec
