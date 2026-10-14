@@ -72,14 +72,15 @@ func (t *traceFile) writeLine(line string) {
 // "-" stands for an absent address or detail. The trace records addresses,
 // counts and timings, never content.
 const (
-	traceStartup       = "startup"        // the process began: stamped with its start, not when the trace opened
-	traceFirstFrame    = "first-frame"    // the console's first paint of its own row
-	traceInventory     = "inventory"      // an inventory landed; counting them gives the refreshes during the pass
-	traceSlotGit       = "slot-git"       // a slot quick-status git pass landed (pair#317)
-	traceActivity      = "activity"       // an idle-fading activity pass landed (pair#247)
-	tracePassSeeded    = "pass-seeded"    // the pass took its queue from an inventory
-	traceReattachStart = "reattach-start" // one pass attempt was dispatched
-	traceReattachDone  = "reattach-done"  // ... and finished
+	traceNotifySuppressed = "notify-suppressed" // acknowledged child packets, identity and count only
+	traceStartup          = "startup"           // the process began: stamped with its start, not when the trace opened
+	traceFirstFrame       = "first-frame"       // the console's first paint of its own row
+	traceInventory        = "inventory"         // an inventory landed; counting them gives the refreshes during the pass
+	traceSlotGit          = "slot-git"          // a slot quick-status git pass landed (pair#317)
+	traceActivity         = "activity"          // an idle-fading activity pass landed (pair#247)
+	tracePassSeeded       = "pass-seeded"       // the pass took its queue from an inventory
+	traceReattachStart    = "reattach-start"    // one pass attempt was dispatched
+	traceReattachDone     = "reattach-done"     // ... and finished
 	// traceNoDestination is an operation dropped because the presenter held no
 	// endpoint for it. It exists because the state that produces it is DURABLE,
 	// not transient: focus can sit on an actor the presenter does not hold

@@ -121,7 +121,7 @@ func TestNotificationPTYConformance(t *testing.T) {
 			retained = f.con.attention.Projection(pane.thread)
 		}
 		f.con.mu.Unlock()
-		return bytes.Count([]byte(f.host.Written()), envelope) == 1 && len(retained) == 1 && retained[0].Text == message
+		return suppressedCount(f.con, "notify") == 1 && bytes.Count([]byte(f.host.Written()), envelope) == 0 && len(retained) == 0
 	})
 
 	assertPrivateNotificationSocket(t, socketDir)
@@ -141,7 +141,7 @@ func TestNotificationPTYConformance(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitFor(t, "focused PTY notification", func() bool {
-		return bytes.Count([]byte(f.host.Written()), envelope) == 2
+		return suppressedCount(f.con, "notify") == 2 && bytes.Count([]byte(f.host.Written()), envelope) == 0
 	})
 	f.con.mu.Lock()
 	retained := f.con.attention.Projection(address)

@@ -71,8 +71,8 @@ func TestSplitNotificationAcrossTakeover(t *testing.T) {
 	con.switchTo("c2", false, arrivalOrdinary)
 	host.Reset()
 	con.onChunk(chunk{id: "c1", batch: observedBatch(con.panes["c1"].child, envelope[cut:])})
-	if got := []byte(host.Written()); !bytes.Contains(got, []byte("\x1b]777;notify;pair;review ready\x1b\\")) {
-		t.Fatalf("completed envelope was not forwarded atomically: %q", got)
+	if got := []byte(host.Written()); bytes.Contains(got, []byte("\x1b]777;notify;pair;review ready\x1b\\")) {
+		t.Fatalf("completed envelope reached host: %q", got)
 	}
 }
 
@@ -80,12 +80,12 @@ func TestHiddenNotificationDoesNotWaitForActivePartialSequence(t *testing.T) {
 	con, host := notificationConsole(t)
 	con.onChunk(chunk{id: "c1", batch: observedBatch(con.panes["c1"].child, []byte("\x1b[31"))})
 	con.onChunk(chunk{id: "c2", batch: observedBatch(con.panes["c2"].child, notifyosc.Encode("tests need approval"))})
-	if !stringsContains(host.Written(), "\x1b]777;notify;pair;tests need approval\x1b\\") {
-		t.Fatalf("hidden notification blocked: %q", host.Written())
+	if stringsContains(host.Written(), "\x1b]777;notify;pair;tests need approval\x1b\\") {
+		t.Fatalf("hidden notification reached host: %q", host.Written())
 	}
 }
 
-func TestConsoleInactiveNotificationCreatesAttentionAndFocusedDoesNot(t *testing.T) {
+func TestConsoleNotificationsNeverCreateAttention(t *testing.T) {
 	con, _ := notificationConsole(t)
 	inactive := observedBatch(con.panes["c2"].child, notifyosc.Encode("review ready"))
 	con.onChunk(chunk{id: "c2", batch: inactive, focusedAtDelivery: false})
@@ -93,7 +93,7 @@ func TestConsoleInactiveNotificationCreatesAttentionAndFocusedDoesNot(t *testing
 	c2 := con.panes["c2"].thread
 	got := attentionTexts(con.attention.Projection(c2))
 	con.mu.Unlock()
-	if len(got) != 1 || got[0] != "review ready" {
+	if len(got) != 0 {
 		t.Fatalf("inactive attention = %v", got)
 	}
 
