@@ -1,12 +1,20 @@
 ---
 id: 000546
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-13
 updated: 2026-10-13
 estimate_hours:
-card_mirror: '408a77d55fca3825014fcbd24abd7fa0df75545b' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '8033390a8dde4737db481cce03a0848239f51b3a' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-13T23:46:06-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:6
+    worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
+    repository: github.com/xianxu/pair
 ---
 
 # couch: several hubs in one Couch (couch . ../bench): slots assigned to a hub, hub-scoped routing, faded other-hub tabs
@@ -38,8 +46,14 @@ Operator's model (2026-10-14), refined with the TL:
 
 ## Plan
 
-- [ ]
+Durable plan: [Several hubs](../plans/000546-several-hubs-plan.md).
+
+- [ ] Implement stable slot ownership, explicit hub launch and scoped authority.
+- [ ] Project hub sections/reassignment/fading; verify supervision, persistence and unchanged default behavior.
+- [ ] Run affected checks and full make -k, close review, green CI and land.
 
 ## Log
 
 ### 2026-10-13
+
+- 2026-10-14 planning: claim/start-plan complete. Reused current authenticated workspace, broker, store-journal and console-operation seams in the design (ARCH-DRY). Stable slot ownership is separate from replaceable thread records to avoid #528 recovery changes. Hub notified that cli.go and narrow run.go startup wiring are unavoidable. Asked how bare couch treats assignments to an omitted hub; proposed retaining unavailable assignments, never silently reassigning. No implementation edits.
