@@ -63,7 +63,7 @@ a complete suite. Preserve parent-death and intentionally inherited lease safety
 ## Plan
 
 - [x] Investigate and design the smallest ownership fix; approval before code.
-- [ ] Implement with regression and loaded before/after evidence.
+- [x] Implement with regression and loaded before/after evidence.
 - [ ] Complete suite, documentation, review and landing.
 
 ## Log
@@ -213,3 +213,30 @@ Revisions design already specified them), so acceptance tracks the final scope.
 The complete make -k test with the inventory correction passed, exit 0:
 /tmp/pair545-complete-suite.log; couchcore 333.434s. No suite bypass or early
 stop. The fixed natural batch is finishing its remaining repetitions.
+
+### 2026-10-14 — final comparison counts
+
+Both natural batches completed exit 0. Each of the eight historical top-level
+cases passed exactly 50 times; branch=broken/elsewhere passed 50 times within
+the Reconcile parent. Before and fixed binaries were built from the same base
+before main's #546 integration; their lease behavior differs by #545. The
+final constructor extraction only factors existing initialization/cleanup and
+is covered by targeted tests (7.035s, /tmp/pair545-final-error-coverage.log).
+
+| Scenario | Baseline failures/attempts | Fixed failures/attempts |
+|---|---:|---:|
+| Eight historical cases, 50 each | 0/400 | 0/400 |
+| Historical Reconcile subcase (included above) | 0/50 | 0/50 |
+| Controlled real paused fork, matched final harness | 50/50 | 0/50 |
+
+Logs: /tmp/pair545-before-50.log, /tmp/pair545-fixed-50.log,
+/tmp/pair545-forced-baseline-final-50.log, /tmp/pair545-forced-final-50.log.
+The natural samples overlapped full suites, with observed one-minute load up
+to 25.97; the remaining fixed tail ran after a suite ended. No natural-rate
+reduction can be estimated because the unchanged baseline was green. The
+controlled fixture proves the release/fork/exec failure and correction.
+
+The final full suite after the initialization error-path test/refactoring is
+queued by the existing weighted test gate (/tmp/pair545-final-coverage-suite.log);
+no bypass, manual lock change or custom wait loop. The previous complete suite
+passed, and final targeted lease/retry/recovery/cancellation tests passed.

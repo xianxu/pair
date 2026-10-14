@@ -1711,3 +1711,8 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
   inventory (SourceClassifications or NonArtifactSources). Run that package
   when adding the file; focused tests in the new file's own package cannot
   detect a missing repository-wide inventory entry.
+
+- #545: A duplicate of a CLOEXEC lease must itself be duplicated atomically
+  with F_DUPFD_CLOEXEC. Plain Dup in a transient-fork fixture creates exec-time
+  inheritance the real lease does not have, so unrelated children can keep the
+  fixture locked after its scheduled close.
