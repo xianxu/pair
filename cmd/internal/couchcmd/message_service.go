@@ -53,7 +53,7 @@ type messageAuthority struct {
 	// record reads a thread's record, so a tail read by slot (pair#429)
 	// names its agent and working path as the typed peek does; nil names the
 	// binding's agent only.
-	record func(couchcore.ThreadAddress) (couchcore.ThreadRecord, error)
+	record func(context.Context, couchcore.ThreadAddress) (couchcore.ThreadRecord, error)
 	// hub is the worktree root Couch started from: the TL slot, which gets
 	// the larger peer-message bucket (#433). "" when Couch started outside a
 	// checkout.
@@ -322,11 +322,11 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 			return messageFamilies(names), nil
 		},
 		thread: messageThreadResolver(c), workspace: resolver.ResolveWorkspace,
-		record: func(address couchcore.ThreadAddress) (couchcore.ThreadRecord, error) {
+		record: func(ctx context.Context, address couchcore.ThreadAddress) (couchcore.ThreadRecord, error) {
 			if c.Threads == nil {
 				return couchcore.ThreadRecord{}, errors.New("no thread store")
 			}
-			return c.Threads.GetThread(address)
+			return c.Threads.PreviewThreadContext(ctx, address)
 		},
 		agent: func(ctx context.Context, address couchcore.ThreadAddress) (string, error) {
 			if err := ctx.Err(); err != nil {
@@ -335,7 +335,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 			if c.Threads == nil {
 				return "", errors.New("no thread store")
 			}
-			record, err := c.Threads.GetThread(address)
+			record, err := c.Threads.PreviewThreadContext(ctx, address)
 			if err != nil {
 				return "", err
 			}
@@ -896,19 +896,19 @@ func (s *messageService) handleTail(ctx context.Context, request couchmessage.Re
 	if err != nil {
 		return couchmessage.Response{Code: "unavailable", Error: err.Error()}
 	}
-	return couchmessage.Response{Code: "ok", Tail: &tail, TailThread: s.tailThread(binding)}
+	return couchmessage.Response{Code: "ok", Tail: &tail, TailThread: s.tailThread(ctx, binding)}
 }
 
 // tailThread names whose tail it is with what the typed peek reads from the
 // thread record -- its agent (couchcore.RecordAgent) and working path -- so a
 // fast peek answers in the same shape (pair#429). Without a readable record
 // it names the wrapper's own agent and no path.
-func (s *messageService) tailThread(b couchmessage.Binding) *couchmessage.TailThread {
+func (s *messageService) tailThread(ctx context.Context, b couchmessage.Binding) *couchmessage.TailThread {
 	thread := &couchmessage.TailThread{Slot: b.Slot, Tag: b.Tag, Agent: b.Agent}
 	if s.authority.record == nil {
 		return thread
 	}
-	record, err := s.authority.record(couchcore.ThreadAddress{RepoScope: b.Scope, Tag: couchcore.ThreadTag(b.Tag)})
+	record, err := s.authority.record(ctx, couchcore.ThreadAddress{RepoScope: b.Scope, Tag: couchcore.ThreadTag(b.Tag)})
 	if err != nil {
 		return thread
 	}
@@ -1221,7 +1221,7 @@ func messageThreadResolver(c *couchcore.Couch) func(context.Context, couchmessag
 			return "", errors.New("no thread store")
 		}
 		address := couchcore.ThreadAddress{RepoScope: binding.Scope, Tag: couchcore.ThreadTag(binding.Tag)}
-		record, err := c.Threads.GetThread(address)
+		record, err := c.Threads.PreviewThreadContext(ctx, address)
 		if err != nil {
 			return "", err
 		}

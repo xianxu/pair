@@ -295,19 +295,41 @@ func (s *ThreadStore) GetThread(address ThreadAddress) (ThreadRecord, error) {
 // stamp, so a caller that finds the same stamp later may reuse the record.
 // The one read path, so AfterGetThread fires for every read.
 func (s *ThreadStore) getThreadStamped(address ThreadAddress) (ThreadRecord, recordStamp, error) {
+	return s.getThreadStampedContext(context.Background(), address)
+}
+
+func (s *ThreadStore) getThreadStampedContext(ctx context.Context, address ThreadAddress) (ThreadRecord, recordStamp, error) {
+	record, stamp, err := s.readThreadStampedContext(ctx, address)
+	if err == nil {
+		err = ctx.Err()
+	}
+	if err == nil && s.hooks.AfterGetThread != nil {
+		if hookErr := s.hooks.AfterGetThread(address); hookErr != nil {
+			return ThreadRecord{}, recordStamp{}, hookErr
+		}
+	}
+	return record, stamp, err
+}
+
+func (s *ThreadStore) readThreadStampedContext(ctx context.Context, address ThreadAddress) (ThreadRecord, recordStamp, error) {
+	if err := ctx.Err(); err != nil {
+		return ThreadRecord{}, recordStamp{}, err
+	}
 	if err := validateThreadAddress(address); err != nil {
 		return ThreadRecord{}, recordStamp{}, err
 	}
-	backend, routeErr := s.storeForAddress(address)
+	backend, routeErr := s.storeForAddressContext(ctx, address)
 	if routeErr != nil {
 		return ThreadRecord{}, recordStamp{}, routeErr
 	}
 	if backend != s {
-		return backend.getThreadStamped(address)
+		return backend.readThreadStampedContext(ctx, address)
 	}
 	var result ThreadRecord
 	var stamp recordStamp
-	err := s.withLock(func() error {
+	read := false
+	err := s.withReadLockContext(ctx, func() error {
+		read = true
 		path := s.recordPath(address)
 		info, statErr := os.Lstat(path)
 		record, err := s.readThreadLocked(address)
@@ -320,10 +342,8 @@ func (s *ThreadStore) getThreadStamped(address ThreadAddress) (ThreadRecord, rec
 		result = cloneThreadRecord(record)
 		return nil
 	})
-	if err == nil && s.hooks.AfterGetThread != nil {
-		if hookErr := s.hooks.AfterGetThread(address); hookErr != nil {
-			return ThreadRecord{}, recordStamp{}, hookErr
-		}
+	if err == nil && !read {
+		err = fmt.Errorf("%w: %+v", ErrThreadNotFound, address)
 	}
 	return result, stamp, err
 }

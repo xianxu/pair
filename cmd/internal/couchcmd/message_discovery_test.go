@@ -296,3 +296,64 @@ func TestMessageThreadResolverRefusesUnlistedAndForeignTerminal(t *testing.T) {
 		t.Fatal("disappeared session stayed authorized")
 	}
 }
+
+// Automatic registration must refuse an interrupted transaction, rather than
+// gaining lifecycle authority to replay it merely by reading a retained thread.
+func TestMessageThreadResolverLeavesPendingJournalUntouched(t *testing.T) {
+	rt := newRT(t, "/repo")
+	record := seedDetachedThread(t, rt, "/repo")
+	c, err := rt.NewCouch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	recordPath, err := c.Threads.RecordPath(record.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(recordPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var pending map[string]any
+	if err := json.Unmarshal(before, &pending); err != nil {
+		t.Fatal(err)
+	}
+	pending["description"] = "must not publish from broker startup"
+	pending["revision"] = record.Revision + 1
+	after, err := json.Marshal(pending)
+	if err != nil {
+		t.Fatal(err)
+	}
+	storeRoot := filepath.Join(c.Namespace.Dir(), "threadstore")
+	relative, err := filepath.Rel(storeRoot, recordPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	journal, err := json.Marshal(map[string]any{"schema_version": 1, "entries": []map[string]any{{"path": relative, "expected": before, "after": after}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	journalPath := filepath.Join(storeRoot, "journal.json")
+	if err := os.WriteFile(journalPath, journal, 0600); err != nil {
+		t.Fatal(err)
+	}
+	binding := couchmessage.Binding{Scope: record.Address.RepoScope, Tag: string(record.Address.Tag), Session: "listed-terminal"}
+	rt.artifacts.SetDetachedSession(record.Address, binding.Session)
+	if _, err := messageThreadResolver(c)(context.Background(), binding); err == nil {
+		t.Fatal("automatic resolver accepted pending transaction")
+	}
+	retained, err := os.ReadFile(recordPath)
+	if err != nil || string(retained) != string(before) {
+		t.Fatalf("automatic resolver rewrote record: %v", err)
+	}
+	pendingJournal, err := os.ReadFile(journalPath)
+	if err != nil || string(pendingJournal) != string(journal) {
+		t.Fatalf("automatic resolver recovered journal: %v", err)
+	}
+	// Prove this is a replayable transaction, not a malformed fixture that
+	// every accessor would reject. Only this explicit lifecycle read may apply it.
+	replayed, err := c.Threads.GetThread(record.Address)
+	if err != nil || replayed.Description != "must not publish from broker startup" {
+		t.Fatalf("explicit lifecycle recovery fixture: %+v %v", replayed, err)
+	}
+}

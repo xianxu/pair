@@ -947,3 +947,16 @@ No follow-up implementation starts on this branch.
   birth16:22:19, parent4470 verified) via INT; exit130. It acquired the machine
   gate after478s and began early script checks before cancellation. No pass or
   recorded status is claimed. Other slots' suite holders were left alone.
+
+- BR-12 regression RED: the previous writable getter replayed valid pending
+  journals in global/local/routed-local layouts (nil error, changed payload).
+  Shared PreviewThreadContext now uses the same decoder and stamped-read hook
+  with preview-only locks; contextual routing covers manifest, legacy and local
+  backend reads. Broker thread/agent/record callbacks all use it, and tail
+  metadata carries request context. Families were already preview/contextual.
+  Preview tests PASS4.555s: pending-journal preservation across3layouts, absent
+  store/retention non-enrollment across2, cancellation/contended lock bounds and
+  exactly-once unlocked originating read hook across3. Broker resolver pending-
+  journal regression passes; explicit lifecycle GetThread afterward proves the
+  retained fixture journal remains replayable. Full core/cmd packages pending;
+  no final success claim yet. No lifecycle/protocol/agent restart change.

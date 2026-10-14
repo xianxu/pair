@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- A getter may replay durable transactions or enroll retention through its lock path. Automatic startup/authentication readers use a shared preview accessor, and regressions preserve a valid pending journal in global and routed slot-local stores; prove explicit lifecycle reads can still replay the same journal. Carry cancellation through routing as well as the final file read. (#528 BR-12)
+
 - Terminal integration assertions read projected cells, not concatenated delta writes: a cursor-positioned suffix can complete a phrase that never occurs contiguously in the byte stream. Await a view-specific marker before releasing concurrent effects; status-bar labels do not prove the switcher opened. Split effect-count and visible-outcome assertions so failures identify the missing observation. (#528 BR-11)
 
 - A process-survival fixture synchronizes after the child installs its signal handler, before the parent exits. Forking does not establish that order; a FIFO handshake avoids false liveness failures under load. (#528)

@@ -71,6 +71,12 @@ Authenticated wrappers reconnect and join the broker independently of panes;
 retained thread/workspace, positive terminal listing, readiness and exact process
 proofs remain the message authority. An unfocused live slot can send and receive.
 
+Automatic broker admission and use-time thread/agent/tail authority use the
+shared context-bounded preview getter, including backend-routing reads. Pending
+store journals remain untouched until an explicit lifecycle action; an authority
+read cannot enroll retention or recover a transaction merely because a wrapper
+reconnects. Explicit lifecycle getters retain their recovery behavior.
+
 A broken message channel does not authorize restarting a functioning agent.
 Older wrappers with an unlinked endpoint remain usable by terminal, with
 “messaging unavailable until next relaunch.” New-wrapper endpoint repair is a

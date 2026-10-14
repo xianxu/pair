@@ -25,6 +25,31 @@ func (s *ThreadStore) PreviewPathLaunchPreference(repoIdentity, path, scope stri
 	view.readOnly = true
 	return view.getPathLaunchPreference(repoIdentity, path, scope)
 }
+
+// PreviewThreadContext reads through the regular decoder and backend router,
+// without initializing stores, enrolling retention or replaying pending journals.
+func (s *ThreadStore) PreviewThreadContext(ctx context.Context, address ThreadAddress) (ThreadRecord, error) {
+	if s == nil {
+		return ThreadRecord{}, errors.New("thread store unavailable")
+	}
+	view := *s
+	view.readOnly = true
+	record, _, err := view.getThreadStampedContext(ctx, address)
+	return record, err
+}
+
+// withReadLockContext retains lifecycle recovery for ordinary getters while
+// preview views carry the caller's cancellation through every routed read.
+func (s *ThreadStore) withReadLockContext(ctx context.Context, fn func() error) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if s.readOnly {
+		return s.withPreviewLockContext(ctx, fn)
+	}
+	return s.withLock(fn)
+}
+
 func (s *ThreadStore) withPreviewLock(fn func() error) error {
 	return s.withPreviewLockContext(context.Background(), fn)
 }
