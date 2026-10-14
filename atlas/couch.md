@@ -478,7 +478,7 @@ were confirmed by the hub in the authorized #550 pair:4 smoke. Every launcher ag
 checked against AgentInventory; Agy, Muse and Grok remain disabled pending
 captured peer-input support. Human Couch acceptance remains a separate step.
 
-Single-line suggested prompts in recognized agent composers use shared ANSI faint styling
+Claude and Codex single-line suggested prompts use shared ANSI faint styling
 and the cursor at the input origin, independent of wording or RGB color.
 Delivery reads the current composer, not a sticky human-draft flag. Buffered
 input/output blocks inspection; newly forwarded human input gets one second to
