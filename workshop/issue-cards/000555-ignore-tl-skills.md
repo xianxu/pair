@@ -1,6 +1,6 @@
 ---
 id: 000555
-status: codecomplete
+status: done
 created: 2026-10-14
 updated: 2026-10-14
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 83acc49861bda051bbb7cf72162a7ab18bda4f47
         evidence_commit: 02929027861aacdfcbfe384581cf99ec515a95dc
+        landed_commit: d1b2b8c50e172ed8b01ef4477e68a259e20cfceb
 ---
 
 # Ignore generated TL skills
