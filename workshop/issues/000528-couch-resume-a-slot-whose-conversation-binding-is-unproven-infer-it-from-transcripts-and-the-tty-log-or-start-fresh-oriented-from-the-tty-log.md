@@ -837,3 +837,24 @@ code. Recorded suite and new staged build precede repeat operator acceptance.
   old labels. No lifecycle changes. Recorded suite on 8493ccecf is still
   running and cannot certify this later head; run a new recorded suite before
   staging the final head. No native recovery or live-slot actions performed.
+
+### 2026-10-14 — final auto-attach stage ready; repeat acceptance pending
+
+Recorded `sdlc local-check run --name suite` on 8493ccecf passed11m21s,
+log sha2563a2dcab807be (core402.485s/cmd70.758s/tty46.041s). That head
+preceded the final notice/render clarification and was not staged.
+Final runtime head fc14548007f69b3cc6f9802a96b119ebb54b7ac5 passed its own
+recorded suite8m20s after45s queue wait; log sha2566d7e009dae36, stored at
+.git/sdlc/local-checks/fc14548007f69b3cc6f9802a96b119ebb54b7ac5/suite.log.
+Core246.537s, cmd44.351s, tty36.475s, messaging6.892s, launcher22.710s,
+wrapper43.782s. Exit0, recorded sdlc-local/suite. No gate bypass.
+
+`sdlc stage --build` replaced pair:0's2808a71a stage with exact fc14548007f6.
+Build exited0; Couch, Pair, launch-helper and slug all report exact full staged
+revision. Target HEAD rechecked exact. Diagnostic pair-hoprtt remains old2284b412
+(modified), already disclosed and outside standard build target. Sent final
+built hash and evidence to hub, receipt757592ad-3082-447f-b128-b77d7aed61f1
+queued. Operator restart/repeat acceptance, including pair:1 narrow live record
+repair, remains pending. Keep this stage; no live slot was attached, relaunched
+or mutated by this agent. This log-only checkpoint does not change the tested
+or staged runtime commit. M2/M3 execution remains out of scope.
