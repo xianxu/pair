@@ -390,5 +390,6 @@ operator counters to the public Candidate wire shape. Existing wait-notice-off
 also mutes the new report reminders; picker/prompt notices retain their behavior.
 A bounded volatile send-ID table distinguishes genuine hub replies from generated
 prompts and deduplicates observed CLI attempts; it uses the broker receipt cap and
-lifetime, never message bodies or persistence. The coordinator rechecks report IDs
+a two-receipt-lifetime retention window (queue plus operator hold can exceed one
+hour), never message bodies or persistence. The coordinator rechecks report IDs
 before applying effects. No feature-log machinery was added.

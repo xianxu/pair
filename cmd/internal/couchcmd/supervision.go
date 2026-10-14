@@ -33,7 +33,7 @@ func newSupervisionCoordinator(s *messageService, notice func(string)) *supervis
 }
 func (c *supervisionCoordinator) remember(id string, from couchmessage.Binding, now time.Time, system bool) bool {
 	for key, v := range c.sends {
-		if now.Sub(v.at) > couchmessage.ReceiptLifetime {
+		if now.Sub(v.at) > 2*couchmessage.ReceiptLifetime {
 			delete(c.sends, key)
 		}
 	}
