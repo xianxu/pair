@@ -1,6 +1,6 @@
 ---
 id: 000551
-status: codecomplete
+status: done
 created: 2026-10-14
 updated: 2026-10-14
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 34e9fa8a743f4870c9d6c386a2f7f3552ec86e54
         evidence_commit: 322c829b0e8cfdd3dc8727423ccc204480b11809
+        landed_commit: 0775ac14360a977ffb2e819c8db15b20ec4428f1
 ---
 
 # locks: close raw diagnostic and notification descriptors on exec
