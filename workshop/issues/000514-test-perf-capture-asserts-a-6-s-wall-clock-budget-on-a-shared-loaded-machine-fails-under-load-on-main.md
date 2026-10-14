@@ -39,7 +39,7 @@ Default verification must still catch real scheduling-policy regressions: a stat
 - [x] Default capture test accepts a controlled overrun, logs timing, and retains all shape/parser/failure assertions.
 - [x] The same controlled overrun fails with `PAIR_PERF_BUDGETS=1`; boundary-equal and under-budget captures pass.
 - [x] Controlled production-script tests catch lost work shedding, duplicate expensive collection, skipped reserved probes and probes run after exhaustion.
-- [ ] Privacy guidance tests pin v3 per-note scope, aggregate non-authority and legacy fallback.
+- [x] Privacy guidance tests pin v3 per-note scope, aggregate non-authority and legacy fallback.
 - [ ] `make test-perf-budgets` includes the isolated capture check; targeted tests, full `make -k test`, and review/CI evidence are recorded before landing.
 
 ## Plan
@@ -65,3 +65,5 @@ Default verification must still catch real scheduling-policy regressions: a stat
 ### 2026-10-13 — inherited #538 privacy assertion
 
 Main was red after #538: `TestSkillBroadcastPrivacyContract/explicit_grant` expected the old exact sentence, while the shipped guidance correctly describes v3 per-note privacy. The test and guidance are identical to origin/main; a focused run reproduces the failure (`/tmp/pair514-inherited-privacy.log`). Hub receipt 47bf5cb5-e163-406b-8ded-3b42ee99ee64 authorizes folding this test-only repair into #514. Replace the stale assertion and additionally pin per-note selection, legacy submission-level fallback and aggregate privacy never granting private-note sharing. No privacy behavior or guidance changes.
+
+- Full `make -k test` completed (`/tmp/pair514-full-suite.log`): all shell/editor targets and Go packages passed except the pre-fix Couch privacy assertion from #538. The complete `go test ./cmd/internal/couchcmd -count=1` rerun passes after the assertion repair (163.234 s, `/tmp/pair514-couchcmd-green.log`); no other full-suite failure. Couch core passed in 439.254 s. This is a completed full run plus the repaired package rerun, not a claim that the original invocation exited zero. Remaining checkboxes include the close/CI/landing gates themselves.
