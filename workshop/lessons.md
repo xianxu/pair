@@ -1741,3 +1741,5 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
   --name suite` on a pushed head. A direct `make -k test` log is valid behavior
   evidence but creates no required sdlc-local/suite status, so landing must run
   the declared suite again. Inspect the declaration before scheduling the run.
+
+- #555: For generated-output changes, record both consumer and substrate revisions, before/after blob identity, and repeat-generation result. Disposable review checkouts may lack sibling sources; measured host evidence lets review verify provenance without modifying its environment.
