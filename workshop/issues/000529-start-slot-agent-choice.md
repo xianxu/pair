@@ -38,8 +38,8 @@ Use the canonical launcher agent inventory for the start form as the switch-agen
 
 ## Plan
 
-- [ ] Reuse the canonical agent inventory in start-form initialization/navigation and add the constructor-based regression.
-- [ ] Verify both start and add-slot paths plus sticky selection across preview updates.
+- [x] Reuse the canonical agent inventory in start-form initialization/navigation and add the constructor-based regression.
+- [x] Verify both start and add-slot paths plus sticky selection across preview updates.
 
 ## Log
 
@@ -54,3 +54,5 @@ Independent temporary Go-overlay diagnostic passed (0.271s): production construc
 Initialize `MenuState.Agents` in `NewMenuState` with `launcher.AgentInventory()`, which already returns an owned copy. This keeps both start and add-slot forms on the canonical inventory without duplicating choices or changing resolver authority (ARCH-DRY). Use constructor-based tests for both entry points: untouched previews omit an explicit agent and accept the resolver default; Left/Right selection requests Codex, rejects stale preview completions, retains the current preview and dispatches Codex. Existing focused tests may still inject restricted inventories when testing unrelated behavior. One production initialization change; no live slot operations, new state lifecycle or API. Run RED/GREEN reducer tests, package tests and full `make -k test`, then close/CI/land.
 
 - Constructor regressions RED on unchanged code: both explicit start/add-slot paths failed to select Codex, and the canonical-inventory assertion saw an empty slice (`/tmp/pair529-red.log`). One-line constructor initialization makes all new and existing start/add-slot focused tests pass (0.275 s, `/tmp/pair529-green.log`). Tests cover Left/Right, stale and current preview completion, visible selection, explicit commit arguments, untouched resolver defaults and independent inventory ownership. Full suite queued; focused race and complete package verification running.
+
+- Verification: focused start/add-slot regression suite passed (0.275 s), focused race run passed (1.342 s), complete couchtty package passed (34.695 s) and clean `make build` passed. Full `make -k test` is queued in `/tmp/pair529-full-suite.log`; no full-suite success claim. No live slot was started or changed.
