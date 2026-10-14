@@ -94,3 +94,7 @@ total: 2.112
 ```
 
 Rows respectively cover status parsing, completion-evidence wiring, the pure lease/tripwire transition, typed report/protocol validation, supervisor notification admission, runtime reporter/shutdown, atlas and one close review. The first two use v2 smaller-module design 0.15 and implementation 0.5; the next uses greenfield design 1.0 and implementation 0.8; three adapters use smaller-module design 0.3 and implementation 0.5. Atlas uses 0.1/0.1; review 0.1/0.5. Design sum 0.48 ×1.15 plus implementation sum 1.56 = 2.112 hours. No arbitrary total or additional discovery allowance.
+
+### 2026-10-14 — implementation checkpoint
+
+TL approved the plan in 323226c7-e429-4a71-97cb-d259e135af11. Full-flow change-code passed after PQ-1/PQ-2 were addressed and the 2.112h v3.1 estimate was derived; estimate-quality INFO notes reporter integration is tight and shipping verification belongs to the test/review rows. Root regressions failed on refreshed main, then passed with only case-insensitive field labels and same-observation Empty completion added. No recovery existed during this red/green proof. Turn-only and Indeterminate cases retain AwaitingEmpty. Targeted wrapper/message tests passed; full wrapper package passed in 45.183s. Baseline /tmp/pair552-root-red.log; green /tmp/pair552-root-green.log and /tmp/pair552-root-wrap.log. Tripwire model tests are next; backend adapter is independently in progress. Original wrapper untouched.

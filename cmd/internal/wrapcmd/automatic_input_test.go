@@ -16,7 +16,7 @@ func TestAutomaticInputSubmittedOwnerWaitsForEmptyRepaint(t *testing.T) {
 		t.Fatal("an idle lease refused its writer")
 	}
 	p.automaticInput.phase = automaticInputPeer
-	p.finishAutomaticInput(automaticInputPeer)
+	p.finishAutomaticInput(automaticInputPeer, false)
 	if p.automaticInputAvailable(automaticInputPeer) {
 		t.Fatal("the next write ran before any repaint")
 	}

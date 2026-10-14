@@ -28,8 +28,12 @@ func (p *proxy) automaticInputAvailable(owner automaticInputPhase) bool {
 	return tx.phase == automaticInputIdle || tx.phase == owner
 }
 
-func (p *proxy) finishAutomaticInput(owner automaticInputPhase) {
+func (p *proxy) finishAutomaticInput(owner automaticInputPhase, confirmedEmpty bool) {
 	if p.automaticInput.phase == owner {
+		if confirmedEmpty {
+			p.automaticInput = automaticInputTransaction{}
+			return
+		}
 		p.automaticInput = automaticInputTransaction{
 			phase:       automaticInputAwaitingEmpty,
 			renderFence: p.automaticRenderEpoch.Load(),

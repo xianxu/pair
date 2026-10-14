@@ -2,6 +2,7 @@ package wrapcmd
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"strings"
 	"testing"
@@ -169,6 +170,12 @@ func TestPeerDeliverySubmitsAfterDelayThenConfirms(t *testing.T) {
 			if r.Status != tc.want || !strings.Contains(r.Detail, tc.evidence) || (tc.want == couchmessage.Indeterminate && !strings.HasPrefix(r.Detail, "uncertain: ")) {
 				t.Fatalf("receipt %+v, want %s with %q", r, tc.want, tc.evidence)
 			}
+			if tc.name == "turn opens" && f.proxy.automaticInput.phase != automaticInputAwaitingEmpty {
+				t.Fatal("turn-only confirmation discarded fresh-empty protection")
+			}
+			if tc.want == couchmessage.Indeterminate && f.proxy.automaticInput.phase != automaticInputAwaitingEmpty {
+				t.Fatal("uncertain outcome discarded fresh-empty protection")
+			}
 			if out.String() != paste+"\r" {
 				t.Fatalf("extra automatic bytes: %q", out.String())
 			}
@@ -284,5 +291,51 @@ func TestPeerReservationExpiresAndOutputInvalidatesObservation(t *testing.T) {
 	}
 	if err := d.reserve("new", 1); err != nil {
 		t.Fatalf("expired reservation stranded: %v", err)
+	}
+}
+
+func TestPeerDeliveryConfirmedEmptyNeedsNoExtraFrame(t *testing.T) {
+	for _, busy := range []bool{false, true} {
+		t.Run(fmt.Sprint("already-running=", busy), func(t *testing.T) {
+			now := time.Now()
+			f := newHarnessSessionFake(t, "claude", true)
+			defer f.close()
+			f.output(peerEmptyComposer())
+			m := peerTestMessage(now)
+			d := newPeerDelivery(m.To, func() time.Time { return now })
+			f.proxy.peer = d
+			if err := d.reserve(m.ID, 0); err != nil {
+				t.Fatal(err)
+			}
+			if err := d.enqueue(m); err != nil {
+				t.Fatal(err)
+			}
+			var out bytes.Buffer
+			f.proxy.dispatchPeer(&out)
+			peerRender(f, d, peerFilledComposer("echo"))
+			now = now.Add(PeerSubmitDelay + time.Second)
+			f.proxy.turnActive.Store(busy)
+			f.proxy.dispatchPeer(&out)
+			peerRender(f, d, peerEmptyComposer())
+			f.proxy.dispatchPeer(&out)
+			if r := d.receipt(); r.Status != couchmessage.Submitted {
+				t.Fatal(r)
+			}
+			// Let the previous reservation expire, without any render or operator key.
+			now = now.Add(couchmessage.AdmissionTimeout + time.Second)
+			m.ID = "second-552"
+			m.Deadline = now.Add(time.Minute)
+			if err := d.reserve(m.ID, d.sequence); err != nil {
+				t.Fatal(err)
+			}
+			if err := d.enqueue(m); err != nil {
+				t.Fatal(err)
+			}
+			n := out.Len()
+			f.proxy.dispatchPeer(&out)
+			if n == out.Len() {
+				t.Fatalf("second delivery blocked after confirmed empty: %+v", d.receipt())
+			}
+		})
 	}
 }

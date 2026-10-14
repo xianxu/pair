@@ -514,6 +514,7 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 				turn := p.turnActive.Load()
 				cleared := d.sawOccupied && composer == PeerComposerEmpty && d.sequence > d.submitSequence
 				event.Ready = cleared || (turn && !d.turnAtSubmit)
+				event.EmptyConfirmed = cleared
 				d.current.Detail = peerConfirmEvidence(composer, d.sawOccupied, turn, d.turnAtSubmit)
 			} else {
 				event.Kind = couchmessage.PeerRenderObserved
@@ -556,7 +557,7 @@ func (p *proxy) advancePeer(event couchmessage.PeerDeliveryEvent, out io.Writer)
 		n, err := out.Write(data)
 		p.advancePeer(couchmessage.PeerDeliveryEvent{Kind: couchmessage.PeerSubmitCompleted, Written: n, Expected: len(data), Failed: err != nil}, out)
 	case couchmessage.PeerPublish:
-		p.finishAutomaticInput(automaticInputPeer)
+		p.finishAutomaticInput(automaticInputPeer, state.Outcome() == couchmessage.Submitted && event.EmptyConfirmed)
 		d.current.Status = state.Outcome()
 		if d.current.Detail != "" && (event.Kind == couchmessage.PeerDeadlineElapsed || state.Outcome() == couchmessage.Indeterminate) {
 			d.current.Detail = state.Reason + ": " + d.current.Detail
