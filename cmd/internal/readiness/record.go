@@ -4,22 +4,22 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"strings"
-	"unicode"
-	"unicode/utf8"
 
-	"github.com/xianxu/pair/cmd/internal/orientation"
 	"github.com/xianxu/pair/cmd/internal/strictjson"
 )
 
 type ReadyRecord struct {
-	LaunchOrdinal uint64                     `json:"launch_ordinal,omitempty"`
-	Orientation   *orientation.DeliveryState `json:"orientation,omitempty"`
-	Tag           string                     `json:"tag"`
-	Agent         string                     `json:"agent"`
-	Session       string                     `json:"session"`
-	Nonce         string                     `json:"nonce"`
-	PID           int                        `json:"pid"`
+	LaunchOrdinal uint64 `json:"launch_ordinal,omitempty"`
+	// DeprecatedOrientation is a TOMBSTONE: a wrapper before #522 published
+	// its composer-paste delivery state here. A ready record written by such a
+	// wrapper -- a slot launched by the old build, still running -- must still
+	// decode, so it is accepted and ignored, never written.
+	DeprecatedOrientation json.RawMessage `json:"orientation,omitempty"`
+	Tag                   string          `json:"tag"`
+	Agent                 string          `json:"agent"`
+	Session               string          `json:"session"`
+	Nonce                 string          `json:"nonce"`
+	PID                   int             `json:"pid"`
 }
 
 func Encode(record ReadyRecord) (string, error) {
@@ -47,25 +47,6 @@ func Decode(raw string) (ReadyRecord, error) {
 }
 
 func Validate(record ReadyRecord) error {
-	if s := record.Orientation; s != nil {
-		if len(s.Reason) > 1024 || !utf8.ValidString(s.Reason) || strings.IndexFunc(s.Reason, unicode.IsControl) >= 0 {
-			return fmt.Errorf("ready record: invalid orientation reason")
-		}
-		switch s.Phase {
-		case orientation.DeliveryWaiting, orientation.DeliveryPasting, orientation.DeliveryFailed:
-			if s.BodyWritten {
-				return fmt.Errorf("ready record: unexpected orientation body")
-			}
-		case orientation.DeliverySettling, orientation.DeliverySubmitting, orientation.DeliverySubmitted, orientation.DeliveryIndeterminate:
-			if !s.BodyWritten {
-				return fmt.Errorf("ready record: missing orientation body")
-			}
-		case orientation.DeliveryCancelled:
-		default:
-			return fmt.Errorf("ready record: unknown orientation phase")
-		}
-	}
-
 	switch {
 	case record.Tag == "":
 		return fmt.Errorf("ready record: tag is empty")

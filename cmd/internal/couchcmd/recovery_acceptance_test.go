@@ -158,8 +158,8 @@ func runRecoveryMenuAcceptance(t *testing.T, mode string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	receipt := couchcore.OSOrientationStatusReader{DataDir: data, Session: rt.artifacts.PairSession, Proc: rt.proc}
-	c.FreshRegistration, c.OrientationStatus = receipt.Registered, receipt.Read
+	receipt := couchcore.OSReadyReader{DataDir: data, Session: rt.artifacts.PairSession, Proc: rt.proc}
+	c.FreshRegistration = receipt.Registered
 	c.ContinuationGeneration = receipt.Generation
 	rt.runner.AfterAcknowledge = func(id string) error {
 		if mode == "reboot" {

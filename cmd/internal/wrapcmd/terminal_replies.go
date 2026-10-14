@@ -7,16 +7,16 @@ import (
 	"github.com/xianxu/pair/cmd/internal/ansi"
 )
 
-// orientationReplies recognizes only responses to queries actually forwarded
+// terminalReplies recognizes only responses to queries actually forwarded
 // by this wrapper. It does not consume or rewrite input bytes. Tracking partial
 // framing prevents a split terminal response from masquerading as keystrokes.
-type orientationReplies struct {
+type terminalReplies struct {
 	queries       map[string]int
 	output, input []byte
 	inFlight      int
 }
 
-func (t *orientationReplies) observeQueries(data []byte) {
+func (t *terminalReplies) observeQueries(data []byte) {
 	t.output = append(t.output, data...)
 	for len(t.output) > 0 {
 		at := bytes.IndexByte(t.output, 0x1b)
@@ -25,7 +25,7 @@ func (t *orientationReplies) observeQueries(data []byte) {
 			return
 		}
 		t.output = t.output[at:]
-		n, status := orientationEscape(t.output)
+		n, status := terminalEscape(t.output)
 		if status == ansi.Incomplete {
 			if len(t.output) > 4096 {
 				t.output = nil
@@ -76,7 +76,7 @@ func (t *orientationReplies) observeQueries(data []byte) {
 		t.output = t.output[n:]
 	}
 }
-func orientationEscape(data []byte) (int, ansi.Status) {
+func terminalEscape(data []byte) (int, ansi.Status) {
 	if len(data) >= 2 && (data[1] == ']' || data[1] == 'P') {
 		if at := bytes.Index(data[2:], []byte("\x1b\\")); at >= 0 {
 			return at + 4, ansi.Complete
@@ -91,16 +91,16 @@ func orientationEscape(data []byte) (int, ansi.Status) {
 	return ansi.Frame(data)
 }
 
-// operatorData is orientation's conservative reading: any input that is not
+// operatorData is the conservative reading: any input that is not
 // a reply to a query this wrapper forwarded is operator input.
-func (t *orientationReplies) operatorData(data []byte) bool {
+func (t *terminalReplies) operatorData(data []byte) bool {
 	t.input = append(t.input, data...)
 	for len(t.input) > 0 {
 		if t.input[0] != 0x1b {
 			t.input = nil
 			return true
 		}
-		n, status := orientationEscape(t.input)
+		n, status := terminalEscape(t.input)
 		if status == ansi.Incomplete {
 			if len(t.input) > 4096 {
 				t.input = nil
@@ -120,7 +120,7 @@ func (t *orientationReplies) operatorData(data []byte) bool {
 // operatorKeystrokes is peer delivery's reading (pair#428): whether the input
 // holds a real keystroke. Focus, mouse and terminal reports are not
 // keystrokes, solicited or not; a solicited reply still settles its query.
-func (t *orientationReplies) operatorKeystrokes(data []byte) bool {
+func (t *terminalReplies) operatorKeystrokes(data []byte) bool {
 	t.input = append(t.input, data...)
 	for len(t.input) > 0 {
 		if t.input[0] != 0x1b {
@@ -151,15 +151,15 @@ func (t *orientationReplies) operatorKeystrokes(data []byte) bool {
 
 // flushPartial resolves a frame the input stream left unfinished once no
 // continuation arrived: a lone ESC, or Alt+] read as an OSC opener, is a key.
-func (t *orientationReplies) flushPartial() bool {
+func (t *terminalReplies) flushPartial() bool {
 	partial := len(t.input) > 0
 	t.input = nil
 	return partial
 }
 
 // solicited consumes one outstanding query when frame answers it.
-func (t *orientationReplies) solicited(frame string) bool {
-	key := orientationReplyKind(frame)
+func (t *terminalReplies) solicited(frame string) bool {
+	key := terminalReplyKind(frame)
 	if key == "" || t.queries[key] == 0 {
 		return false
 	}
@@ -167,7 +167,7 @@ func (t *orientationReplies) solicited(frame string) bool {
 	return true
 }
 
-// inputFrame is orientationEscape plus the X10 mouse report, whose three
+// inputFrame is terminalEscape plus the X10 mouse report, whose three
 // coordinate bytes follow a bare CSI M.
 func inputFrame(data []byte) (int, ansi.Status) {
 	if bytes.HasPrefix(data, []byte("\x1b[M")) {
@@ -176,7 +176,7 @@ func inputFrame(data []byte) (int, ansi.Status) {
 		}
 		return 6, ansi.Complete
 	}
-	return orientationEscape(data)
+	return terminalEscape(data)
 }
 
 // terminalReport is a complete input frame the terminal, not the operator,
@@ -210,7 +210,7 @@ func terminalReport(frame string) bool {
 	return false
 }
 
-func orientationReplyKind(reply string) string {
+func terminalReplyKind(reply string) string {
 	// DECRPM is a response to DECRQM for one exact private mode. Mode
 	// reports are terminal negotiation, but unsolicited reports remain input.
 	// Track only the synchronized-output and grapheme modes observed at startup.

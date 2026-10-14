@@ -257,7 +257,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 	if err != nil {
 		return nil, err
 	}
-	reader := couchcore.OSOrientationStatusReader{DataDir: artifacts.PairLifecycleDataDir(), Session: artifacts.PairSession, Proc: c.Proc}
+	reader := couchcore.OSReadyReader{DataDir: artifacts.PairLifecycleDataDir(), Session: artifacts.PairSession, Proc: c.Proc}
 	session := func(ctx context.Context, address couchcore.ThreadAddress) (couchcore.PairSessionBinding, error) {
 		if err := ctx.Err(); err != nil {
 			return couchcore.PairSessionBinding{}, err

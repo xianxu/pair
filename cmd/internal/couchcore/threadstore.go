@@ -111,6 +111,10 @@ type threadStoreHooks struct {
 	// with a panic left the whole suite green, including the test named for
 	// that branch.
 	AfterGetThread func(ThreadAddress) error
+	// BeforeUpdate sees each validated update before it is written and may
+	// refuse it, so a test can fail one named transition inside a longer
+	// operation (#522: a compaction's previous-session write).
+	BeforeUpdate func(current, next ThreadRecord) error
 }
 
 func newThreadStoreWithHooks(namespace CouchNamespace, hooks threadStoreHooks) *ThreadStore {
@@ -425,6 +429,11 @@ func (s *ThreadStore) updateExistingThread(address ThreadAddress, expectedRevisi
 		next.Revision++
 		if err := ValidateThreadRecord(next); err != nil {
 			return err
+		}
+		if s.hooks.BeforeUpdate != nil {
+			if err := s.hooks.BeforeUpdate(current, next); err != nil {
+				return err
+			}
 		}
 		raw, err := json.MarshalIndent(toPersistedThreadRecord(next), "", "  ")
 		if err != nil {

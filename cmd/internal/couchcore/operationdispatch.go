@@ -351,12 +351,6 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 				return nil, err
 			}
 			return c.Continue(ctx, address, a["request-id"])
-		case "orientation-status":
-			address, err := resolveOperationThread(c, a)
-			if err != nil {
-				return nil, err
-			}
-			return c.ReadOrientationStatus(ctx, address, a["agent"], a["attempt"])
 		case "prepare-start":
 			path := a["path"]
 			if path == "" {

@@ -373,3 +373,30 @@ func unrecordTarget(next *ThreadRecord) {
 	next.Continuation.Phase = checkpoint.Running
 	next.Continuation.Target = nil
 }
+
+// BR-1 (#522 M1 review): when the compaction's previous-session write fails
+// after the source was parked, the request still ends as the thread's line --
+// the error path keeps its record rather than replacing it.
+func TestAFailedPreviousSessionWriteLeavesTheLine(t *testing.T) {
+	t.Parallel()
+
+	f := newContinuationFixture(t)
+	c := f.env.Couch
+	c.Threads.hooks.BeforeUpdate = func(current, next ThreadRecord) error {
+		if next.PreviousSession != nil && next.PreviousSession.Continuation != "" && (current.PreviousSession == nil || current.PreviousSession.Continuation == "") {
+			return errors.New("injected previous-session write failure")
+		}
+		return nil
+	}
+	result, err := c.Continue(context.Background(), f.source.Address, f.status.RequestID)
+	if err == nil || result.Missed == nil || !strings.Contains(result.Missed.Reason, "injected previous-session write failure") {
+		t.Fatalf("= %+v, %v; want the line", result.Missed, err)
+	}
+	if f.launches != 0 {
+		t.Fatalf("a target launched after the failure: %d", f.launches)
+	}
+	record, err := c.Threads.GetThread(f.source.Address)
+	if err != nil || record.Continuation != nil || record.ContinuationMissed == nil || record.VerifiedPark == nil {
+		t.Fatalf("after: %+v / %+v, %v", record.Continuation, record.ContinuationMissed, err)
+	}
+}

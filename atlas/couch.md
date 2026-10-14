@@ -296,9 +296,9 @@ now would interrupt nothing (`Settled`) and which executable it runs (`Build`:
 content sha256, vcs revision and dirty bit, via
 `couchmessage.BuildIdentityOfFile`).
 - **What Settled means:** no turn is open (an atomic mirror of the
-  notification lifecycle), no overlay is up, the startup orientation has
-  finalized (pair#427: a fresh session is not ready until it has been briefed;
-  finalizing re-arms the check), the composer reads empty through the
+  notification lifecycle), no overlay is up (a fresh session's first message
+  is its launch prompt since #522, so the turn it opens covers its briefing),
+  the composer reads empty through the
   recognizer peer delivery uses, and nothing is pending.
 - **When it is checked:** only after `wrapcmd.SettleInterval` (3s) without
   output or input (`peer_settle.go`), so a streaming agent pays nothing. Any
@@ -373,7 +373,7 @@ still-booting Claude.
   messages"), and the composer clears. That is the ordinary confirm evidence,
   so a queued message ends `submitted`.
 - **Operator input means keystrokes (pair#428).** The wrapper classifies its
-  own stdin (`orientationReplies.operatorKeystrokes`), never the agent's screen.
+  own stdin (`terminalReplies.operatorKeystrokes`), never the agent's screen.
   Text, control and editing keys, kitty/legacy key encodings and an operator's
   bracketed paste count. Focus events, mouse reports (SGR, urxvt, X10) and
   terminal reports do not, whether solicited or not. Those reports are
@@ -381,8 +381,7 @@ still-booting Claude.
   replies. A CPR (`CSI r;c R`) is a report only when solicited, because
   modified F3 looks the same. Those bytes still reach the agent unchanged. A
   lone ESC resolves as a key at the 30ms flush, so it no longer stalls a
-  delivery. Orientation keeps its stricter rule, where anything unsolicited is
-  input. Other panes can't block: each has its own PTY. A draft send reaches
+  delivery. Other panes can't block: each has its own PTY. A draft send reaches
   this stdin only as focus events and its paste.
 - **The composer must be in view (pair#428).** Before pasting, the wrapper
   aligns zellij's scrolled viewport (`dump-screen -p terminal_$ZELLIJ_PANE_ID`)
@@ -462,9 +461,10 @@ two seconds for read-only receipt collection; this never extends the wrapper's
 deadlines. Waiting
 receipts report the blocking guard and retain that reason on expiry. Senders
 query `--message-status` for final outcomes; admission returns before delivery.
-Orientation and peer delivery share automatic-input ownership across the entire
-paste/submit/confirm transaction. The next automatic writer waits for a fresh,
-empty composer after that transaction terminates, including cancellation.
+Peer delivery, the one automatic writer since #522 retired the orientation
+paste, holds automatic-input ownership across the entire paste/submit/confirm
+transaction. The next delivery waits for a fresh, empty composer after that
+transaction terminates, including cancellation.
 
 Transport frames are bounded at 577 KiB to carry all 128 actors with bounded
 4 KiB encoded bindings, or a fully escaped 8 KiB message. Receipt diagnostics
@@ -496,8 +496,8 @@ report it. `waitWatcher` (`couchcmd/wait_notice.go`) ticks every 15s
   other value refuses Couch's start) with a
   Settled claim costs one tail read from its own wrapper (the peek path); a
   nil Settled (pre-hello-v2 wrapper) is unknown and never waiting.
-- **Waiting (`classifyWait`):** unsettled (a dialog, a draft, a stuck
-  orientation: byte-quiet that long with something open), or settled with the
+- **Waiting (`classifyWait`):** unsettled (a dialog or a draft: byte-quiet
+  that long with something open), or settled with the
   last prose line ending `?`, or settled off its resting branch with no message
   in flight. Settled on the resting branch after a normal ending is not.
   `lastProseLine` reads above the composer prompt (`❯`/`›`) and skips chrome
@@ -772,8 +772,8 @@ idempotent, and nothing is journaled.
 
 **Restarts return when ready (pair#427).** A `--relaunch` or
 `--reload-context` receipt reports `succeeded` only once a NEW wrapper
-session for the thread reports Settled. Settled means booted, briefed by its
-orientation, and idle, so a message sent right after it is pasted into a ready
+session for the thread reports Settled. Settled means booted, its turns
+(including a launch prompt's) finished, and idle, so a message sent right after it is pasted into a ready
 composer.
 - **Before the effect:** admission's prepare step records the session to
   replace (`liveRestartProbe.readinessAfter`).
@@ -1239,7 +1239,7 @@ prints one confirmation line. `prepare-start`, `start`,
 `attach`, `switch`, `park`, `resume`, `relaunch`, `prepare-switch-agent`,
 `leave`, `stop`, `alias` and `reboot` are TUI/in-process
 operations. `switch-agent` also has the confirmed hub-only remote form described
-below. `orientation-status` is an internal owner operation for one launch attempt. #363 removed `open-slot`, `fresh-slot`, `name`, `describe`, `archive`,
+below. #363 removed `open-slot`, `fresh-slot`, `name`, `describe`, `archive`,
 `recover-thread` and `recover-checkpoint` from the declarations: resume and
 reboot replace them, and their couchcore internals (`OpenSlot`,
 `StartFreshSlot`, `Couch.ArchiveThread`, `RecoverThread`, `ApplyThreadMetadata`)
@@ -1589,8 +1589,7 @@ a separately located native transcript can supply content erased from tty histor
 Output names the recording files. Previous reads cost seconds and full replay is heavy.
 
 Fresh registration requires a ready record matching the new launch nonce,
-agent, session and process. The nonce travels in the trusted launch profile
-independently of orientation. Existing park/start/resume state owns failures:
+agent, session and process. The nonce travels in the trusted launch profile. Existing park/start/resume state owns failures:
 a still-running source permits another switch attempt; a definitively failed
 target leaves the old successful profile available for resume. A possibly
 surviving target must be resolved through ordinary recovery before another cold

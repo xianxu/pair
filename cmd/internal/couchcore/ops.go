@@ -72,7 +72,6 @@ const (
 	ResultStop
 	ResultThread
 	ResultConsole
-	ResultOrientationStatus
 	ResultWorkspace
 	ResultRepositoryAlias
 	ResultRecoverPlan
@@ -213,17 +212,6 @@ func Operations() []Operation {
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultStart,
 			Presentation: PresentationTUI, RowAction: true,
 			Args: switchAgentArguments(true),
-		},
-		{
-			Name: "orientation-status", Summary: "Read delivery status for one fresh agent launch",
-			Execution: ExecuteLiveOwner, Effect: EffectRead, Confirmation: ConfirmNone, Result: ResultOrientationStatus,
-			Presentation: PresentationTUI,
-			Args: []ArgSpec{
-				{Name: "repo-scope", Summary: "exact thread repository scope", Required: true, Implicit: true},
-				{Name: "tag", Summary: "exact thread tag", Required: true, Implicit: true},
-				{Name: "agent", Summary: "target coding agent", Required: true, Implicit: true},
-				{Name: "attempt", Summary: "unique fresh launch attempt", Required: true, Implicit: true},
-			},
 		},
 		{
 			Name: "start", Summary: "Start an agent on a peer repo (or a subdirectory of one)",

@@ -22,13 +22,6 @@ type harnessTTYProfile struct {
 	// the composer returning after a picker hid it means the picker closed,
 	// however it closed (pair#464). Measured for claude only.
 	overlayHidesComposer bool
-	// orientationPromptCol and orientationRuleCellTolerant serve the
-	// orientation auto-submit gate's composer probe, which re-reads the same
-	// harness quirks the recognizer spec encodes. They live here so a harness
-	// quirk is declared once, at its profile row, rather than as an
-	// agentBasename comparison inside orientation.go.
-	orientationPromptCol        int
-	orientationRuleCellTolerant bool
 	// progressShapes are fragments of this harness's own activity renders
 	// (spinners, generation footers) that the generic tripwire's shapes can
 	// collide with. A near-miss whose matched LINE carries one of these is
@@ -105,9 +98,7 @@ var harnessTTYProfiles = map[string]harnessTTYProfile{
 		recognize:    qoderComposerActive,
 		// The generation footer "⠋ Generating... (esc to cancel, 0s)" hits
 		// the tripwire's "esc to cancel"; live smoke vocabulary only.
-		progressShapes:              []string{"generating...", "thinking..."},
-		orientationPromptCol:        qoderPromptCol,
-		orientationRuleCellTolerant: true,
+		progressShapes: []string{"generating...", "thinking..."},
 	},
 	// Grok submits on bare CR and inserts a newline on Alt+Enter (its own
 	// shortcut sheet: "Shift+Enter or Alt+Enter — Insert newline"), so plain
@@ -120,10 +111,9 @@ var harnessTTYProfiles = map[string]harnessTTYProfile{
 			altCR:   []byte{'\r'},
 			altBS:   []byte{0x15},
 		},
-		overlay:              detectGrokOverlayOpen,
-		composerGate:         composerGatePositive,
-		recognize:            grokComposerActive,
-		orientationPromptCol: grokPromptCol,
+		overlay:      detectGrokOverlayOpen,
+		composerGate: composerGatePositive,
+		recognize:    grokComposerActive,
 	},
 }
 

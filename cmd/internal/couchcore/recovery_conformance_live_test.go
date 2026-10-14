@@ -164,8 +164,8 @@ func runRecoveryLiveFixture(t *testing.T, warm bool) {
 	}
 	c.PairLifecycle = &PairLifecycleController{Threads: c.Threads, DataDir: data, Lifecycle: PairLifecycleStoreIO{Store: pairlifecycle.Store{Runtime: pairlifecycle.OSRuntime{}}}, Sessions: checker, Proc: c.Proc, Clock: c.Clock}
 	c.ContinuationSource = (OSContinuationSourceReader{DataDir: data}).Read
-	reader := OSOrientationStatusReader{DataDir: data, Session: checker.PairSession, Proc: OSProcOps{}}
-	c.FreshRegistration, c.OrientationStatus = reader.Registered, reader.Read
+	reader := OSReadyReader{DataDir: data, Session: checker.PairSession, Proc: OSProcOps{}}
+	c.FreshRegistration = reader.Registered
 	c.ContinuationGeneration = reader.Generation
 	agentPIDFile := filepath.Join(base, "source-agent.pid")
 	inputFile := filepath.Join(base, "source-input")

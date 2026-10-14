@@ -57,7 +57,7 @@ func TestContinuationZellijSeedTransportLive(t *testing.T) {
 	dataDir := t.TempDir()
 	indexSessionForConformance(t, dataDir, source.Address, session)
 	checker := NewScopedThreadArtifactCollisionChecker(dataDir)
-	reader := OSOrientationStatusReader{DataDir: dataDir, Session: checker.PairSession, Proc: OSProcOps{}}
+	reader := OSReadyReader{DataDir: dataDir, Session: checker.PairSession, Proc: OSProcOps{}}
 	env.Couch.FreshRegistration = reader.Registered
 	paths, err := artifactpath.Resolve(artifactpath.Address{DataDir: dataDir, RepoScope: source.Address.RepoScope, Tag: string(source.Address.Tag)})
 	if err != nil {

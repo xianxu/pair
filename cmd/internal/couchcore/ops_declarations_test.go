@@ -21,7 +21,6 @@ func TestOperationDeclarationsAreClosureFreeCompleteAndOwned(t *testing.T) {
 		"provision-workspace":  {ExecuteDirectStore, EffectProcess, ConfirmNone, ResultWorkspace, PresentationInternal},
 		"prepare-switch-agent": {ExecuteLiveOwner, EffectRead, ConfirmNone, ResultStartResolution, PresentationTUI},
 		"switch-agent":         {ExecuteLiveOwner, EffectProcess, ConfirmRequired, ResultStart, PresentationTUI},
-		"orientation-status":   {ExecuteLiveOwner, EffectRead, ConfirmNone, ResultOrientationStatus, PresentationTUI},
 		"prepare-start":        {ExecuteLiveOwner, EffectAuthority, ConfirmNone, ResultStartResolution, PresentationTUI},
 		"start":                {ExecuteLiveOwner, EffectProcess, ConfirmNone, ResultStart, PresentationTUI},
 		"list":                 {ExecuteDirectStore, EffectRead, ConfirmNone, ResultThreadInventory, PresentationList},

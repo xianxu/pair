@@ -223,14 +223,13 @@ func (r OSRuntime) NewCouchWith(runner couchcore.Runner, namespace couchcore.Cou
 		return nil
 	}
 	if sessions, ok := c.Artifacts.(couchcore.PairSessionIO); ok {
-		status := couchcore.OSOrientationStatusReader{DataDir: dataDir, Session: sessions.PairSession, Proc: c.Proc}
+		status := couchcore.OSReadyReader{DataDir: dataDir, Session: sessions.PairSession, Proc: c.Proc}
 		if observer, ok := c.Artifacts.(interface {
 			PairSessionContext(context.Context, couchcore.ThreadAddress) (couchcore.PairSessionBinding, error)
 		}); ok {
 			status.SessionContext = observer.PairSessionContext
 		}
 
-		c.OrientationStatus = status.Read
 		c.FreshRegistration = status.Registered
 		c.ContinuationGeneration = status.Generation
 	}

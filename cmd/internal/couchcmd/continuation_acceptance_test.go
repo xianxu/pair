@@ -358,7 +358,7 @@ func completeContinuationAcceptance(t *testing.T, rt testRT, c *couchcore.Couch,
 	if err != nil {
 		t.Fatal(err)
 	}
-	reader := couchcore.OSOrientationStatusReader{DataDir: data, Session: rt.artifacts.PairSession, Proc: rt.proc}
+	reader := couchcore.OSReadyReader{DataDir: data, Session: rt.artifacts.PairSession, Proc: rt.proc}
 	c.FreshRegistration = reader.Registered
 	var ready readiness.ReadyRecord
 	var targetSeed, targetProfile, prompt string

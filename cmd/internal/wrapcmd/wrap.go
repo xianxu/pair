@@ -69,7 +69,6 @@ import (
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/layoutcmd"
 	"github.com/xianxu/pair/cmd/internal/notifytransport"
-	"github.com/xianxu/pair/cmd/internal/orientation"
 	"github.com/xianxu/pair/cmd/internal/readiness"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
 	"github.com/xianxu/pair/cmd/internal/sessionwatch"
@@ -207,7 +206,6 @@ type proxy struct {
 	peer                 *peerDelivery
 	peerHumanSubmit      bool // owned by the stdin writer; consumed after a full write
 	notificationBroker   *notifytransport.Broker
-	orientation          *orientationDelivery
 	// Real stdio, injected by Run so the proxy is testable without touching
 	// the process globals. In production stdin/stdout ARE os.Stdin/os.Stdout,
 	// so stdinFile/stdoutFile (the *os.File view needed for raw-mode, winsize
@@ -596,9 +594,6 @@ func (p *proxy) resolvePaths() {
 }
 
 func (p *proxy) publishAgentReady(pid int) error {
-	return p.publishAgentReadyStatus(pid, nil)
-}
-func (p *proxy) publishAgentReadyStatus(pid int, status *orientation.DeliveryState) error {
 	tag := os.Getenv("PAIR_TAG")
 	session := os.Getenv("PAIR_SESSION_NAME")
 	nonce := os.Getenv("PAIR_LAUNCH_NONCE")
@@ -615,7 +610,6 @@ func (p *proxy) publishAgentReadyStatus(pid int, status *orientation.DeliverySta
 	}
 	raw, err := readiness.Encode(readiness.ReadyRecord{
 		LaunchOrdinal: launchOrdinal,
-		Orientation:   status,
 		Tag:           tag,
 		Agent:         p.agentBasename,
 		Session:       session,
@@ -1541,21 +1535,6 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 		peerWake = p.peer.wake
 		defer func() { p.peer.mu.Lock(); p.peer.exited = true; p.peer.mu.Unlock(); p.dispatchPeer(out) }()
 	}
-	var orientationWake <-chan struct{}
-	var orientationDeadline <-chan time.Time
-	var deadlineTimer *time.Timer
-	settleTimer := time.NewTimer(time.Hour)
-	if !settleTimer.Stop() {
-		<-settleTimer.C
-	}
-	defer settleTimer.Stop()
-	if p.orientation != nil {
-		orientationWake = p.orientation.wake
-		deadlineTimer = time.NewTimer(p.orientation.deadlineAfter)
-		orientationDeadline = deadlineTimer.C
-		defer deadlineTimer.Stop()
-		defer p.advanceOrientation(orientation.DeliveryEvent{Kind: orientation.ChildExited}, out, settleTimer)
-	}
 
 	// Timer for flushing pending. Starts in a stopped+drained state so
 	// the select can wait on it without an immediate spurious fire.
@@ -1608,9 +1587,6 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 	var held heldInput
 	defer held.stop()
 
-	// Timer receipt and deadline dispatch are separate: giving queued input
-	// priority must not discard the consumed deadline (BR-1, ARCH-ORDER).
-	settleDue := false
 	for {
 		peerTick := peerPoll.update(p.peer)
 		var ev readEv
@@ -1620,16 +1596,6 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 			ev, ok = readEv{data: data, human: human}, true
 			goto ordinaryInput
 		}
-		if settleDue {
-			select {
-			case ev, ok = <-ch:
-				goto ordinaryInput
-			default:
-			}
-			settleDue = false
-			p.dispatchOrientationObservation(out, settleTimer, true)
-			continue
-		}
 		select {
 		case <-peerWake:
 			p.dispatchPeer(out)
@@ -1637,29 +1603,9 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 		case <-peerTick:
 			p.dispatchPeer(out)
 			continue
-		case <-orientationWake:
-			// An admitted operator chunk wins over a composer observation.
-			select {
-			case ev, ok = <-ch:
-				goto ordinaryInput
-			default:
-			}
-			p.dispatchOrientationObservation(out, settleTimer, false)
-			continue
-		case <-settleTimer.C:
-			settleDue = true
-			if p.orientation.settleReadyHook != nil {
-				p.orientation.settleReadyHook()
-			}
-			continue
-		case <-orientationDeadline:
-			p.advanceOrientation(orientation.DeliveryEvent{Kind: orientation.DeadlineElapsed}, out, settleTimer)
-			orientationDeadline = nil
-			continue
 		case <-held.timerC():
 			continue
 		case <-flushTimer.Expired():
-			p.cancelIncompleteOrientationReply(out, settleTimer)
 			if p.peer != nil {
 				p.peer.flushPartialInput()
 			}
@@ -1686,13 +1632,6 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 				_, _ = out.Write(rest)
 			}
 			return
-		}
-		if p.orientation != nil {
-			p.orientation.mu.Lock()
-			if p.orientation.operator {
-				p.advanceOrientation(orientation.DeliveryEvent{Kind: orientation.OperatorInput}, out, settleTimer)
-			}
-			p.orientation.mu.Unlock()
 		}
 		data := ev.data
 		p.traceWrap("stdin-read", map[string]any{
@@ -1759,14 +1698,11 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 			}
 			data = rest
 		}
-		orientationPending, peerPartial := false, false
+		peerPartial := false
 		if p.peer != nil {
 			peerPartial = p.peer.inputForwarded(ev.human, len(pending) > 0 || inPaste)
 		}
-		if p.orientation != nil {
-			orientationPending = p.orientation.inputForwarded()
-		}
-		if len(pending) > 0 || orientationPending || peerPartial {
+		if len(pending) > 0 || peerPartial {
 			armTimer()
 		} else {
 			disarmTimer()
@@ -1781,7 +1717,7 @@ func (p *proxy) hasReturnRemap() bool {
 func (p *proxy) configureHarnessTTY(remapEnabled bool, cols, rows int) error {
 	// Every early return clears the terminal too: a live terminal paired with a
 	// nil profile would keep consuming output nothing consults.
-	profile, ok := profileForHarness(p.agentBasename, remapEnabled || p.orientation != nil)
+	profile, ok := profileForHarness(p.agentBasename, remapEnabled)
 	if !ok {
 		p.ttyProfile = nil
 		return p.releaseTerminal()
@@ -1990,16 +1926,9 @@ type overlayDetection struct {
 }
 
 // observationProfile is the profile the observation layers read: the wrapped
-// harness's own when stdin is being translated, and orientation's otherwise, so
-// an orientation-only session still detects overlays.
+// harness's own when stdin is being translated.
 func (p *proxy) observationProfile() *harnessTTYProfile {
-	if p.ttyProfile != nil {
-		return p.ttyProfile
-	}
-	if p.orientation != nil {
-		return &p.orientation.profile
-	}
-	return nil
+	return p.ttyProfile
 }
 
 // checkOverlayOpen flips pickerActive when the current agent's output
@@ -2636,7 +2565,7 @@ func freshAgentInvocation(wrapperExecutable, scrollbackLog string, currentArgv [
 		launchOrdinal = prepared.Launch.Ordinal
 	}
 
-	nextEnv := setEnv(withoutOrientation(env), "PAIR_SESSION_ID", sessionID)
+	nextEnv := setEnv(env, "PAIR_SESSION_ID", sessionID)
 	command, err := launcher.EncodeAgentCommand(launcher.AgentCommand{Executable: currentArgv[0], Argv: append([]string{}, freshArgs...)})
 	if err != nil {
 		return nil, err
@@ -2843,17 +2772,7 @@ argsDone:
 
 	p.agentBasename = filepath.Base(argv[0])
 	p.notificationRewriter.BellAttention = bellAttentionHarnesses[p.agentBasename]
-	childEnv := withoutOrientation(os.Environ())
-	if fromLaunchEnv {
-		request, clean, err := consumeOrientation(os.Environ(), p.agentBasename)
-		if err != nil {
-			return 0, err
-		}
-		childEnv = clean
-		if request != nil {
-			p.orientation = newOrientationDelivery(*request)
-		}
-	}
+	childEnv := os.Environ()
 	p.scrollbackEvents = os.Getenv("PAIR_SCROLLBACK_EVENTS_PATH")
 	p.resolvePaths()
 
@@ -2968,13 +2887,6 @@ argsDone:
 		"child_pid": cmd.Process.Pid,
 	})
 	defer ptmx.Close()
-	if p.orientation != nil {
-		p.orientation.publish = func(state orientation.DeliveryState) {
-			if err := p.publishAgentReadyStatus(cmd.Process.Pid, &state); err != nil {
-				p.debug("ORIENTATION-status-fail", err.Error())
-			}
-		}
-	}
 	maintenance, readyErr := gcruntime.StartAfterReady(context.Background(), os.Getenv("PAIR_DATA_DIR"), func() error { return p.publishAgentReady(cmd.Process.Pid) })
 	if peerRuntime, peerErr := p.startPeerRuntime(argv[0]); peerErr != nil {
 		p.debug("PEER-start-fail", peerErr.Error())
@@ -3092,10 +3004,6 @@ argsDone:
 	}()
 
 	p.masterPump()
-	if p.orientation != nil {
-		p.orientation.observe(false, false, true)
-		<-p.orientation.finalized
-	}
 	p.traceWrap("master-pump-return", nil)
 
 	// Wait for the child and propagate its exit code. The pre-extraction
@@ -3336,12 +3244,10 @@ func (p *proxy) handleChunk(data []byte, rolling *[]byte) {
 	if p.peer != nil {
 		defer p.peer.outputForwarded()
 	}
-	if p.orientation != nil {
-		p.orientation.mu.Lock()
-		p.orientation.replies.observeQueries(data)
-		p.orientation.mu.Unlock()
-	}
-	defer p.observeOrientationTerminal()
+	// Every chunk is a render the automatic-input lease can trust once the
+	// terminal model has consumed it: deferred, so it lands after this chunk is
+	// fed. A submitted delivery waits for an epoch past its fence.
+	defer p.automaticRenderEpoch.Add(1)
 	offsetBefore := p.scrollbackBytes
 	p.traceWrap("master-chunk", map[string]any{
 		"raw_len":              len(data),

@@ -15,7 +15,6 @@ import (
 
 	"github.com/creack/pty"
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
-	"github.com/xianxu/pair/cmd/internal/orientation"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 )
 
@@ -46,8 +45,8 @@ func TestCouchLaunchPromptTransportHelper(t *testing.T) {
 		t.Fatalf("create %d %v", code, err)
 	}
 	if args.Prompt == "" {
-		if args.FreshNonce == "" || rt.env["PAIR_LAUNCH_NONCE"] != args.FreshNonce || rt.env[orientation.Env] != "" {
-			t.Fatalf("fresh readiness mismatch: nonce=%q expected=%q orientation=%q", rt.env["PAIR_LAUNCH_NONCE"], args.FreshNonce, rt.env[orientation.Env])
+		if args.FreshNonce == "" || rt.env["PAIR_LAUNCH_NONCE"] != args.FreshNonce {
+			t.Fatalf("fresh readiness mismatch: nonce=%q expected=%q", rt.env["PAIR_LAUNCH_NONCE"], args.FreshNonce)
 		}
 		if err := os.WriteFile(os.Getenv("PAIR184_ACCEPT_OUTPUT"), []byte(rt.env["PAIR_LAUNCH_NONCE"]), 0600); err != nil {
 			t.Fatal(err)

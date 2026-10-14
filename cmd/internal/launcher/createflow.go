@@ -3,7 +3,6 @@ package launcher
 import (
 	"errors"
 	"fmt"
-	"github.com/xianxu/pair/cmd/internal/orientation"
 	"io"
 	"os"
 	"path/filepath"
@@ -814,7 +813,6 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		return launchStep{code: 1}, nil
 	}
 	rt.SetEnv(AgentCommandEnv, command)
-	rt.SetEnv(orientation.Env, "")
 	rt.SetEnv("PAIR_SESSION_ID", sessionID)
 	// The pane title is the agent name and nothing more (#133): zellij renders
 	// "<session name> | <focused pane title>", and the session half is already
