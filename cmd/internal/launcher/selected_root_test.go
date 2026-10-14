@@ -82,6 +82,7 @@ func TestSelectedRootNativeCreateListAndListedResume(t *testing.T) {
 	fake := `#!/bin/sh
 case "$1" in
   list-sessions)
+    if [ "$PAIR_ROOT_TEST_LIST_FAIL" = 1 ]; then exit 1; fi
     if [ -f "$PAIR_ROOT_TEST_STATE" ]; then cat "$PAIR_ROOT_TEST_STATE"; fi
     exit 0 ;;
   --session)
@@ -91,6 +92,7 @@ case "$1" in
   --config-dir)
     if [ "$3" = attach ]; then
       printf 'attach\n' >> "$PAIR_ROOT_TEST_EFFECTS"
+      printf '%s\n' "$4" > "$PAIR_ROOT_TEST_ATTACHED"
     else
       printf '%s\n' "$PAIR_SESSION_NAME" > "$PAIR_ROOT_TEST_STATE"
       printf 'create\n' >> "$PAIR_ROOT_TEST_EFFECTS"
@@ -116,7 +118,7 @@ exit 0
 	paths := NewScopedPaths(selected, scope, tag)
 	baseEnv := []string{"PATH=" + bin + ":/usr/bin:/bin", "HOME=" + home, "XDG_DATA_HOME=" + ambient,
 		"PAIR_HOME=" + pairHome, "COUCH_PAIR_DATA_DIR=" + selected, "COUCH_THREAD_SCOPE=" + scope.Key, "COUCH_THREAD_TAG=" + tag,
-		"PAIR_ROOT_TEST_STATE=" + filepath.Join(root, "sessions"), "PAIR_ROOT_TEST_EFFECTS=" + filepath.Join(root, "effects"), "PAIR_ROOT_TEST_ENV=" + filepath.Join(root, "child-env")}
+		"PAIR_ROOT_TEST_ATTACHED=" + filepath.Join(root, "attached"), "PAIR_ROOT_TEST_STATE=" + filepath.Join(root, "sessions"), "PAIR_ROOT_TEST_EFFECTS=" + filepath.Join(root, "effects"), "PAIR_ROOT_TEST_ENV=" + filepath.Join(root, "child-env")}
 	runDir := filepath.Join(repo, "subdir")
 	run := func(extra []string, args ...string) (string, error) {
 		t.Helper()
@@ -178,8 +180,8 @@ exit 0
 
 	// Enter the real LaunchNative path from a neutral helper cwd, preserving the
 	// hosted artifact namespace even though the original checkout is not its cwd.
-	// This fixture intentionally has no server process: reaching the exact owner
-	// refusal proves routing, while the stateful Runtime tests prove attachment.
+	// This legacy fixture has no server process or owner metadata: its positive
+	// native listing alone authorizes attachment to the exact selected name.
 	runDir = home
 	sessionName, err := os.ReadFile(filepath.Join(root, "sessions"))
 	if err != nil {
@@ -187,7 +189,8 @@ exit 0
 	}
 	intent := CouchSessionIntent{Scope: scope.Key, Tag: tag, Name: strings.TrimSpace(string(sessionName)), Nonce: "hosted-attach", Disposition: "attach"}
 	for _, tc := range []struct{ name, hostedScope, sessionName, want string }{
-		{"neutral helper", scope.Key, intent.Name, "ownership is not proven"},
+		{"neutral helper", scope.Key, intent.Name, ""},
+		{"failed listing", scope.Key, intent.Name, "query zellij sessions"},
 		{"wrong hosted scope", "0123456789abcdef", intent.Name, "does not match hosted thread address"},
 		{"wrong terminal name", scope.Key, "📁1-999999", "not uniquely listed live"},
 	} {
@@ -198,15 +201,28 @@ exit 0
 			if err != nil {
 				t.Fatal(err)
 			}
-			out, err := run([]string{"PAIR_DATA_DIR=" + paths.ScopeDir(), "COUCH_THREAD_SCOPE=" + tc.hostedScope, "PAIR_COUCH_SESSION_INTENT=" + string(raw)}, "--couch-session-v1", "resume", tag)
-			if err == nil || !strings.Contains(out, tc.want) {
+			extra := []string{"PAIR_DATA_DIR=" + paths.ScopeDir(), "COUCH_THREAD_SCOPE=" + tc.hostedScope, "PAIR_COUCH_SESSION_INTENT=" + string(raw)}
+			if tc.name == "failed listing" {
+				extra = append(extra, "PAIR_ROOT_TEST_LIST_FAIL=1")
+			}
+			out, err := run(extra, "--couch-session-v1", "resume", tag)
+			if tc.want == "" {
+				if err != nil {
+					t.Fatalf("listed legacy hosted attach: %v %s", err, out)
+				}
+				attached, err := os.ReadFile(filepath.Join(root, "attached"))
+				if err != nil || string(attached) != intent.Name+"\n" {
+					t.Fatalf("attached terminal: %q %v", attached, err)
+				}
+				effects = append(effects, []byte("attach\n")...)
+			} else if err == nil || !strings.Contains(out, tc.want) {
 				t.Fatalf("hosted attach: %v %s; want %q", err, out, tc.want)
 			}
 		})
 	}
 	after, err := os.ReadFile(filepath.Join(root, "effects"))
 	if err != nil || !bytes.Equal(after, effects) {
-		t.Fatalf("unproven hosted attach changed terminal effects: %q %v", after, err)
+		t.Fatalf("hosted attach created a session or refusal changed terminal effects: %q %v", after, err)
 	}
 	runDir = filepath.Join(repo, "subdir")
 	for _, bad := range []string{selected, filepath.Join(selected, "repos", "other"), filepath.Join(root, "outside")} {
