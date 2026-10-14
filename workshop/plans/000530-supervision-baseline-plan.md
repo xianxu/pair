@@ -352,23 +352,23 @@ ID; stale outcomes cannot mark a successor report notified.
 
 #### Current implementation tasks — one close boundary
 
-- [ ] Write failing pure tests in supervision_model_test.go: exact 15/30-minute
+- [x] Write failing pure tests in supervision_model_test.go: exact 15/30-minute
   boundaries, unknown/active/pending suppression, completion after main, normal
   report on main ignored, response/submission reset, duplicate IDs, stale effects,
   notice coalescing and once-per-address startup attempt across replacements.
-- [ ] Implement supervision_model.go minimally; run
+- [x] Implement supervision_model.go minimally; run
   `go test ./cmd/internal/couchcmd -run 'TestSupervision' -count=1` green.
-- [ ] Extend existing stateful wait-notice and message-service fixtures in
+- [x] Extend existing stateful wait-notice and message-service fixtures in
   supervision_test.go and message_service_test.go. Red tests cover authenticated
   failed hub send, confirmed vs queued reply, genuine operator submission,
   startup normal busy queue, reconnect and lost acknowledgement without a second
   coordinator send. Tests use private sockets and injected clocks, not live Couch.
-- [ ] Implement supervision.go and the hook/snapshot/coalescing changes named
+- [x] Implement supervision.go and the hook/snapshot/coalescing changes named
   above, then run focused couchcmd and couchmessage tests and relevant race tests.
-- [ ] Add the reconstructed overnight scenario: completion report, return to
+- [x] Add the reconstructed overnight scenario: completion report, return to
   main, no hub action, one nudge, one escalation; a restart produces one fresh
   resend request without original report replay. Label reconstruction honestly.
-- [ ] Update README, atlas/couch.md, embedded Couch skill and artifact inventory.
+- [x] Update README, atlas/couch.md, embedded Couch skill and artifact inventory.
   Parley #321 remains the sole file watcher; its change can use existing LastWrite
   and observed mtime without waiting for #543 telemetry. Do not implement it here.
 - [ ] Run full `make -k`, complete all targets, cite any known failures. Request
@@ -393,3 +393,18 @@ prompts and deduplicates observed CLI attempts; it uses the broker receipt cap a
 a two-receipt-lifetime retention window (queue plus operator hold can exceed one
 hour), never message bodies or persistence. The coordinator rechecks report IDs
 before applying effects. No feature-log machinery was added.
+
+
+### 2026-10-13 — final rules inventory and acceptance
+
+The current pure implementation names are supervisionState, reportEpisode,
+supervisionFacts and supervisionEffect in supervision_model.go, plus completionHint.
+Events enter through report/reply/nudged/tick transition methods; no separate
+supervisionEvent struct or Candidate wire field was necessary. Integration uses
+supervisionCoordinator and Broker.Submission as described above. The historical
+original-draft concepts and task checkboxes are retired, not unfinished work.
+
+TL receipt 018dd090-c2ec-45bc-8425-b9c1394204d9 accepts the private-socket/clock
+scenarios; no stage or operator restart is required. The full command is
+make -k test (bare make -k prints help here). The machine gate queues it; no
+custom wait loop or resource override is used.
