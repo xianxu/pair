@@ -1667,3 +1667,22 @@ proof; record the surprising case so the next change starts from evidence.
 - #542/#511: A signal-probe permission error is not positive process-group membership evidence on every OS. Confirm ambiguous results through the OS membership boundary and retain ownership on query failure. Survivor fixtures must acknowledge signal-handler readiness before their parent exits; a fork is not a readiness event.
 
 - #511 close review: count repeated test outcomes from the complete log, using exact per-subtest records. A terminal tail or truncated tool result is not evidence of the total failure count.
+
+- #530: When a fixture advances a synthetic clock, first await completion of all
+  independently admitted deliveries that affect its rule inputs, not just the
+  endpoint whose messages the assertion counts. An in-flight startup prompt
+  correctly makes a worker Pending; drain its submitted receipt before testing
+  an idle-time rule. Preserve facts newer than the liveness snapshot pruning them.
+
+- #530 close: if the contract distinguishes generated traffic from agent traffic,
+  cover every generated-send path, including older reminders. Observe terminal
+  broker receipts as well as endpoint callbacks: queued expiry/cancellation may
+  never call Deliver. A bounded diagnostic cache must not become an admission
+  gate for authoritative facts; retain pending metadata and release it at the
+  existing receipt lifecycle boundary instead of building a second history.
+
+- #530 round 2: terminal receipt and completed callback are different facts.
+  Disconnect may publish an outcome while endpoint accounting is still running.
+  Retain generated-message provenance through the broker job lifetime, checked
+  atomically with its receipt; test cancellation before a blocked callback returns
+  for every producer, plus genuine-message inclusion and eventual cleanup.
