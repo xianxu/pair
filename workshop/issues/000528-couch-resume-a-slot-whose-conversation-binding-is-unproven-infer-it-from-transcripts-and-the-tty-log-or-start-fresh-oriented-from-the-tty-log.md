@@ -422,3 +422,13 @@ The final revision in `workshop/plans/000528-slot-recovery-plan.md` supersedes p
   regressions cover actual local-pane reuse and listed row without local pane
   (warm-only fallback), red before fix and green after (0.354s). Explicit
   lifecycle compatibility and upstream resume routing remain in progress.
+
+- 2026-10-13 22:36 PDT — Core helper-only progress checkpointed at
+  d2360a4f0a8a0838b16fc3dbe4d618b00d054f39; integration verification pending.
+  New production selected-list tests pass (0.848s), including attached clients,
+  no owner metadata, recorded-name precedence and failed/ambiguous listing.
+  Independent combined run caught stale detached-query fault-injection hooks;
+  migrate those tests to the actual listing seam. Inspection also found hidden
+  owner-probe requirements after helper acknowledgement and inside Pair attach;
+  remove them only from Continue, preserving lifecycle ownership requirements.
+  No stage or live-slot mutation.

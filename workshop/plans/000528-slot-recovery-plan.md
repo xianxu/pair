@@ -879,3 +879,19 @@ It is pruned on registry removal. Console routing reuses a real local pane for
 repeated ordinary remote resume; if a listed row lacks a local pane, Continue
 routes to warm-only resume for a fresh exact-terminal check and normal adoption
 of the returned view. Cold creation is impossible on that fallback.
+
+### 2026-10-13T22:36:00-0700 — carry listed-session authority through the whole attach path
+
+The BR-9 correction must hold after helper acknowledgement and inside Pair as
+well as at the Couch entry point. Public Continue completion and the launcher
+attach-only path use the same exact positive Zellij listing, including sessions
+with existing clients. They must not reintroduce lifecycle PID/socket/pane
+ownership proof as an attach prerequisite. Keep the existing attach lease and
+final listing; absent/failed listing cannot authorize attach, and no create
+fallback is added. Cold creation and explicit lifecycle adoption retain their
+own proofs. The accepted legacy list-to-attach race remains unchanged.
+
+Production-boundary fixtures cover attached and detached sessions without owner
+metadata, recorded-name override, duplicate attribution and failed listing;
+executor/launcher tests must cover the complete public route too. This is the
+approved M1 authority rule applied end to end, not new recovery execution.
