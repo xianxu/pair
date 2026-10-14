@@ -128,3 +128,12 @@ claimed as shipped by this rules-only change.
   The next natural Couch restart will expose the startup prompt for observation.
 - Bare make -k invokes this repository's help target; the actual full run is
   make -k test, now queued by the machine gate. No suite result claimed yet.
+
+- First full suite exposed a test synchronization bug: completion-after-main
+  advanced its fake clock while the startup prompt was still Pending. Repeated
+  instrumentation confirmed worker Pending=true at both fake ticks. The fixture
+  now waits for the startup receipt and broker reservation to settle before
+  advancing time; production Pending suppression remains unchanged.
+- Added a red/green pure regression for an older connected snapshot racing a
+  newly received report. Pruning now preserves reports newer than the tick's
+  snapshot time; a later disconnected observation still removes them.

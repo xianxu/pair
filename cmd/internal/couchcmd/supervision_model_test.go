@@ -158,3 +158,19 @@ func TestSupervisionPromptProvenanceSurvivesQueueAndHold(t *testing.T) {
 		t.Fatal("other sender inherited exemption")
 	}
 }
+
+func TestSupervisionSnapshotCannotPruneNewerReport(t *testing.T) {
+	now := time.Unix(1000, 0)
+	s := newSupervisionState()
+	b := couchmessage.Binding{Slot: "pair:7"}
+	s.report(b, "new", now.Add(time.Second), 0, true)
+	// The tick began before a newly connected worker submitted its report.
+	s.tick(now, nil, false)
+	if !s.unanswered(b) {
+		t.Fatal("older liveness snapshot discarded a newer report")
+	}
+	s.tick(now.Add(2*time.Second), nil, false)
+	if s.unanswered(b) {
+		t.Fatal("later disconnected snapshot retained old report")
+	}
+}

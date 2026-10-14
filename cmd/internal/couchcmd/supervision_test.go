@@ -52,6 +52,7 @@ func TestSupervisionIntegrationCompletionAfterMain(t *testing.T) {
 	if got := w.tickAt(0); len(got) != 1 {
 		t.Fatalf("initial deliveries: %+v", got)
 	}
+	supervisionDrainStartup(t, w)
 	w.watcher.tick(context.Background(), at.Add(15*time.Minute))
 	got := w.tickAt(16 * time.Minute)
 	if len(got) != 2 {
@@ -76,6 +77,7 @@ func TestSupervisionIntegrationEarlierWaitCoalescesNudge(t *testing.T) {
 	if got := w.tickAt(0); len(got) != 1 {
 		t.Fatalf("initial report: %+v", got)
 	}
+	supervisionDrainStartup(t, w)
 	if got := w.tickAt(11 * time.Minute); len(got) != 2 {
 		t.Fatalf("existing wait notice missing: %+v", got)
 	}
@@ -169,6 +171,26 @@ func TestSupervisionIntegrationStartupOnceAcrossReconnectAndUncertainty(t *testi
 	if got := endpoint.count(); got != 1 {
 		t.Fatalf("uncertain startup prompt replayed: %d deliveries", got)
 	}
+}
+
+// supervisionDrainStartup waits for the worker's startup delivery, which the
+// waitRig hub inbox barrier does not cover. Advance the synthetic supervision
+// clock only after this real asynchronous broker work reaches its outcome.
+func supervisionDrainStartup(t *testing.T, w *waitRig) {
+	t.Helper()
+	c := w.s.supervision.Load()
+	c.mu.Lock()
+	var ids []string
+	for id, send := range c.sends {
+		if send.system && send.from == w.hub {
+			ids = append(ids, id)
+		}
+	}
+	c.mu.Unlock()
+	if len(ids) != 1 {
+		t.Fatalf("want one initial startup prompt, got IDs %v", ids)
+	}
+	supervisionWaitReceipt(t, w.serviceRig, w.hub, ids[0], couchmessage.Submitted)
 }
 
 func supervisionEventually(t *testing.T, what string, ready func() bool) {

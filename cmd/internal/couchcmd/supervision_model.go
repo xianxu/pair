@@ -100,8 +100,9 @@ func (s *supervisionState) tick(now time.Time, facts []supervisionFacts, hub boo
 			effects = append(effects, supervisionEffect{kind: supervisionEscalate, binding: b, report: r.id, age: age})
 		}
 	}
-	for b := range s.reports {
-		if !live[b] {
+	for b, report := range s.reports {
+		// A report can arrive after the tick took its connected snapshot.
+		if !live[b] && !report.at.After(now) {
 			delete(s.reports, b)
 		}
 	}
