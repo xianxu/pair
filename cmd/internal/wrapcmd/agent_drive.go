@@ -5,6 +5,8 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	uv "github.com/charmbracelet/ultraviolet"
+	"github.com/charmbracelet/x/vt"
 	"github.com/xianxu/pair/cmd/internal/agentdrive"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/ttyio"
@@ -44,7 +46,15 @@ func (p *proxy) agentDriveScreen() agentdrive.Screen {
 	// observes an active turn or picker instead of combining permissive samples.
 	turnBefore, pickerBefore := p.turnActive.Load(), p.pickerActive.Load()
 	evidence := p.terminal.DriveSnapshot(couchmessage.MaxTailLines)
-	s.Epoch, s.Lines, s.Complete = evidence.Generation, evidence.Tail.Lines, evidence.Complete
+	s.Epoch, s.History, s.Complete = evidence.Generation, evidence.Tail.Lines, evidence.Complete
+	// Picker authority comes from the current viewport. Scrollback is durable
+	// outcome evidence, but an old picker there must never authorize a key.
+	snap := evidence.Snapshot
+	rows := make([][]uv.Cell, snap.Height)
+	for y := range rows {
+		rows[y] = snap.Cells[y*snap.Width : (y+1)*snap.Width]
+	}
+	s.Lines = renderTail(rows, couchmessage.MaxTailLines, snap.Cursor.X, snap.Cursor.Y, vt.Cursor{Hidden: !snap.CursorVisible}).Lines
 	s.TurnActive = turnBefore || p.turnActive.Load()
 	s.Idle = wrapperSettled(peerComposerState(p.agentBasename, evidence.Snapshot), s.TurnActive, pickerBefore || p.pickerActive.Load())
 	return s
@@ -239,7 +249,7 @@ func (p *proxy) dispatchAgentDrive(out io.Writer) {
 		return
 	}
 	effect := r.effects[0]
-	if effect.Kind == agentdrive.EffectWrite && effect.ScreenEpoch != 0 && (effect.ScreenEpoch != screen.Epoch || !screen.Complete) {
+	if effect.Kind == agentdrive.EffectWrite && effect.ScreenEpoch != 0 && !effect.MatchesScreen(p.agentBasename, screen) {
 		d.cancelDriveLocked("screen changed before input; cached picker action refused")
 		p.finishAgentDriveLocked(r, screen)
 		d.mu.Unlock()

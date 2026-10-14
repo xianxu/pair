@@ -68,6 +68,25 @@ func TestAgentDriveRejectsCachedApplyAfterRepaint(t *testing.T) {
 		})
 	}
 }
+func TestAgentDriveRevalidatesIdenticalPickerRepaint(t *testing.T) {
+	f, d, _ := driveFixture(t)
+	_, err := driveStart(t, d, agentdrive.Request{Model: &agentdrive.ModelRequest{Model: "opus 5.5", Effort: "medium"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	for i := 0; i < 3; i++ {
+		f.proxy.dispatchAgentDrive(&out)
+	}
+	paintDrivePicker(t, f)
+	f.proxy.dispatchAgentDrive(&out)
+	before := out.String()
+	paintDrivePicker(t, f) // identical evidence, new terminal generation
+	f.proxy.dispatchAgentDrive(&out)
+	if out.String() != before+"s" {
+		t.Fatalf("identical picker was not revalidated: %q", out.String())
+	}
+}
 func driveStart(t *testing.T, d *peerDelivery, r agentdrive.Request) (agentdrive.Result, error) {
 	t.Helper()
 	o := d.agentDriveObservation()
