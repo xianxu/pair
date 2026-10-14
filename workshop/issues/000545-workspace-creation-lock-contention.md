@@ -64,7 +64,7 @@ a complete suite. Preserve parent-death and intentionally inherited lease safety
 
 - [x] Investigate and design the smallest ownership fix; approval before code.
 - [x] Implement with regression and loaded before/after evidence.
-- [ ] Complete suite, documentation, review and landing.
+- [x] Complete suite, documentation, review and landing.
 
 ## Log
 
@@ -240,3 +240,21 @@ The final full suite after the initialization error-path test/refactoring is
 queued by the existing weighted test gate (/tmp/pair545-final-coverage-suite.log);
 no bypass, manual lock change or custom wait loop. The previous complete suite
 passed, and final targeted lease/retry/recovery/cancellation tests passed.
+
+### 2026-10-14 — final full suite and close readiness
+
+The final make -k test after the initialization/error-path extraction completed
+exit 0 (/tmp/pair545-final-coverage-suite.log), couchcore 378.533s. The weighted
+gate admitted it normally after queueing; no bypass or early stop. The source
+under test includes all #545 production changes (4a025e78c); later branch commits
+before the final main merge only updated issue evidence and lessons.
+
+Merged current main, including #547, without conflicts at
+e067bcf04101ee010ac0ed28166fefdc72e78874. Targeted provisioning/retry/inventory
+checks on the combined tree are the final integration check. Implementation
+checklists are now handed to the SDLC close/landing gates; this entry does not
+claim SHIP or landing before those gates complete.
+
+The combined-tree integration check passed: go test ./cmd/internal/couchcore
+./cmd/internal/artifactpath -run '^(TestProductionArtifactReferencesAreExactlyClassified|TestCreationLeaseRetry|TestProvision)'
+-count=1, /tmp/pair545-main-integration.log.

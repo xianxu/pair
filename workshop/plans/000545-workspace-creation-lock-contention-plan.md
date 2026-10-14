@@ -46,11 +46,11 @@ There is no task queue, reservation, renumbering, lock stealing, or background r
 
 ## Tasks
 
-- [ ] Add pure retry boundary tests and real-descriptor marker tests in provision_lock_test.go. Retain alias, inheritance and parent-death tests. Replace the old transient-copy test's private 30s override with the production policy. Cover release then held, EOF/malformed marker, held-write/release-write errors, and released live producer exhaustion.
-- [ ] Add the native paused-fork fixture and regression. Run against unchanged production code first to demonstrate failure beyond 100ms. Keep its kernel ordering distinct from the pure clock boundary oracle.
-- [ ] Implement the one-byte lifecycle and bounded retry in provision_lock_unix.go; remove the test-only settle override if unused. Run targeted tests, including provision cancellation and recovery-marker tests, then commit.
-- [ ] Build baseline and fixed test binaries using a scratch overlay for the baseline source. Interleave at least 50 repetitions per variant of the eight historically affected cases alongside a full make -k test run. Also record at least 50 forced paused-child attempts per variant. Preserve complete logs, exact test/subtest denominators, load samples and failures. Run binaries from cmd/internal/couchcore so relative inventory tests work. Do not claim an improved natural failure rate if baseline natural runs remain green.
-- [ ] Update atlas/workspace-provisioning.md's contention contract, issue evidence and plan checkboxes. Run make -k test to completion, cite known failures, close through SDLC review, merge main, create PR and land with sdlc merge --yes after SHIP/validation; report hub and stop.
+- [x] Add pure retry boundary tests and real-descriptor marker tests in provision_lock_test.go. Retain alias, inheritance and parent-death tests. Replace the old transient-copy test's private 30s override with the production policy. Cover release then held, EOF/malformed marker, held-write/release-write errors, and released live producer exhaustion.
+- [x] Add the native paused-fork fixture and regression. Run against unchanged production code first to demonstrate failure beyond 100ms. Keep its kernel ordering distinct from the pure clock boundary oracle.
+- [x] Implement the one-byte lifecycle and bounded retry in provision_lock_unix.go; remove the test-only settle override if unused. Run targeted tests, including provision cancellation and recovery-marker tests, then commit.
+- [x] Build baseline and fixed test binaries using a scratch overlay for the baseline source. Interleave at least 50 repetitions per variant of the eight historically affected cases alongside a full make -k test run. Also record at least 50 forced paused-child attempts per variant. Preserve complete logs, exact test/subtest denominators, load samples and failures. Run binaries from cmd/internal/couchcore so relative inventory tests work. Do not claim an improved natural failure rate if baseline natural runs remain green.
+- [x] Update atlas/workspace-provisioning.md's contention contract, issue evidence and plan checkboxes. Run make -k test to completion, cite known failures, close through SDLC review, merge main, create PR and land with sdlc merge --yes after SHIP/validation; report hub and stop.
 
 ## Scope and principles
 
@@ -77,3 +77,10 @@ initialization of the already-locked descriptor; factoring that existing final
 step permits a real read-only descriptor test of held-mark failure, descriptor
 cleanup and kernel exclusion release without a fake filesystem or injected
 syscall callbacks. No retry or admission behavior changes in this extraction.
+
+### 2026-10-14 — implementation checklist handed to SDLC
+
+The implementation, controlled/natural comparison, atlas and complete-suite
+work are verified in the issue Log. The final task's close/PR/landing verbs
+remain the SDLC-controlled handoff, tracked by the card and completion record;
+checkboxes indicate implementation readiness, not a premature landing claim.
