@@ -182,7 +182,7 @@ type ServerStates interface {
 type OSServerStates struct{}
 
 func (OSServerStates) ServerStates(ctx context.Context) (map[string]ServerState, error) {
-	rows, err := procutil.Snapshot(ctx)
+	rows, err := procutil.SnapshotNamed(ctx, "zellij")
 	if err != nil {
 		return nil, err
 	}

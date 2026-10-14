@@ -1321,8 +1321,14 @@ while metadata tables retain them. Darwin uses
 `kern.proc.all` and `kern.procargs2`; Linux reads `/proc`. Unsupported platforms
 return an explicit unsupported error; legacy string helpers return unavailable.
 
-Launcher ancestry derives from one table. Server discovery keeps argv authority
-and snapshot identities; unreadable possible zellij rows refuse an absence proof.
+Launcher ancestry derives from one table. `SnapshotNamed(ctx, "zellij")` selects
+known zellij and unavailable short names before native argv enrichment; metadata
+is only a candidate filter. Server discovery keeps exact argv authority and
+snapshot identities; unreadable possible zellij rows refuse an absence proof.
+SessionOwnerProbe still freshly enumerates candidates after pane queries and
+before effects, requiring exactly one unchanged generation and socket. A second
+claimant invalidates authority even if the original server survives. The full
+`Snapshot` contract remains available to diagnostic inventory and other consumers.
 Diagnostic inventory uses full executable names, since kernel names truncate,
 and keeps strict identity fencing across environment inspection. Its Inspection
 seam is shared by storage and diagnostic cleanup, including test compositions.

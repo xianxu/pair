@@ -49,7 +49,23 @@ func (nativeReader) identity(pid int) string              { return Identity(strc
 // fence PID reuse during each read. It keeps
 // per-row failures; cancellation or table failure aborts the whole observation.
 func Snapshot(ctx context.Context) ([]Observation, error) { return snapshot(ctx, nativeReader{}) }
+
+// SnapshotNamed enriches only rows with the exact short kernel name or an
+// unavailable name. Metadata selects candidates; native executable and argv
+// evidence still determine their meaning. Unknown names retain uncertainty.
+func SnapshotNamed(ctx context.Context, name string) ([]Observation, error) {
+	return snapshotSelected(ctx, nativeReader{}, func(p Process) bool { return processNameCandidate(p, name) })
+}
+
+func processNameCandidate(p Process, name string) bool {
+	return p.Name == name || p.Name == ""
+}
+
 func snapshot(ctx context.Context, r processReader) ([]Observation, error) {
+	return snapshotSelected(ctx, r, nil)
+}
+
+func snapshotSelected(ctx context.Context, r processReader, selectRow func(Process) bool) ([]Observation, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -62,7 +78,7 @@ func snapshot(ctx context.Context, r processReader) ([]Observation, error) {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if p.Zombie {
+		if p.Zombie || (selectRow != nil && !selectRow(p)) {
 			continue
 		}
 		o := Observation{Process: p}

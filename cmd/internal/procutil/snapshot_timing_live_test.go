@@ -52,3 +52,20 @@ func TestStartupNativeSnapshotTimingLive(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// Compare the same native enrichment implementation with only candidate argv.
+func TestStartupNamedSnapshotTimingLive(t *testing.T) {
+	if os.Getenv("PAIR_LIVE_COUCH") != "1" || os.Getenv("PAIR_LIVE_STARTUP_PERF") != "1" {
+		t.Skip("set PAIR_LIVE_COUCH=1 PAIR_LIVE_STARTUP_PERF=1")
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
+	defer cancel()
+	r := &startupTimingReader{}
+	start := time.Now()
+	observations, err := snapshotSelected(ctx, r, func(p Process) bool { return processNameCandidate(p, "zellij") })
+	wall := time.Since(start)
+	t.Logf("native named snapshot: rows=%d observations=%d command_calls=%d identity_calls=%d table=%s argv=%s identity=%s wall=%s residual=%s", r.rows, len(observations), r.commands, r.identities, r.tableTime, r.commandTime, r.identityTime, wall, wall-r.tableTime-r.commandTime-r.identityTime)
+	if err != nil {
+		t.Fatal(err)
+	}
+}

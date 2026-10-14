@@ -70,16 +70,30 @@ func TestNativeServerObservationHonorsCanceledContext(t *testing.T) {
 	}
 }
 
-// The process is a test helper with zellij argv, matching the existing live
-// quiescence sentinel. Its executable/kernel name must not hide valid argv.
+// Match both the kernel candidate name and exact native server argv. The
+// short name selects enrichment; argv and generation still authorize effects.
 func TestNativeSnapshotFindsArgvServer(t *testing.T) {
 	dir := t.TempDir()
 	session := "pair547-controlled-server"
-	child := &exec.Cmd{Path: os.Args[0], Args: []string{filepath.Join(dir, "zellij"), "--server", filepath.Join(dir, session)}, Env: append(os.Environ(), "PAIR_ZELLIJ_KILL_SENTINEL=1")}
+	binary := controlledServerExecutable(t, dir)
+	child := &exec.Cmd{Path: binary, Args: []string{binary, "--server", filepath.Join(dir, session)}, Env: append(os.Environ(), "PAIR_ZELLIJ_KILL_SENTINEL=1")}
 	if err := child.Start(); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = child.Process.Kill(); _ = child.Wait() })
+	rows, err := procutil.Table()
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundName := false
+	for _, row := range rows {
+		if row.PID == child.Process.Pid {
+			foundName = row.Name == "zellij"
+		}
+	}
+	if !foundName {
+		t.Fatal("controlled server lacks native zellij candidate name")
+	}
 	ops := newOSSessionQuiescenceOps()
 	servers, err := ops.SessionServers(t.Context(), session)
 	if err != nil {
@@ -141,4 +155,19 @@ func TestServerProcessesPermissionAndUnknownStayFailClosed(t *testing.T) {
 			}
 		}
 	}
+}
+
+// A copied executable gives the native table the same short name as real Zellij;
+// merely replacing argv[0] on launcher.test would not exercise that boundary.
+func controlledServerExecutable(t *testing.T, dir string) string {
+	t.Helper()
+	binary := filepath.Join(dir, "zellij")
+	content, err := os.ReadFile(os.Args[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(binary, content, 0700); err != nil {
+		t.Fatal(err)
+	}
+	return binary
 }
