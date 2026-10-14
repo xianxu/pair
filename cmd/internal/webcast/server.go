@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -66,16 +67,18 @@ const endedReason = "ended"
 // With a board (WithBoard) it also takes viewers' strokes and notes by POST
 // (#470); everything else is GET only.
 type Server struct {
-	noteDrafts *notedraft.Service
-	noteOwner  func(*http.Request) string
-	token      string
-	browser    Browser
-	live       recording.Live
-	proxy      *castassets.Proxy
-	presence   Presence
-	ping       time.Duration
-	maxViewers int32
-	viewers    atomic.Int32
+	noteDrafts    *notedraft.Service
+	noteOwner     func(*http.Request) string
+	noteStreamsMu sync.Mutex
+	noteStreams   map[string]int
+	token         string
+	browser       Browser
+	live          recording.Live
+	proxy         *castassets.Proxy
+	presence      Presence
+	ping          time.Duration
+	maxViewers    int32
+	viewers       atomic.Int32
 	// viewViewers and driveViewers: the streams on each link (#467), each
 	// its own counter, so neither is derived from two reads.
 	viewViewers, driveViewers atomic.Int32
@@ -172,6 +175,9 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request, link castLink) {
 		return
 	}
 	defer s.viewers.Add(-1)
+	if link.annotates() {
+		defer s.attachNoteStream(r)()
+	}
 	byLink := &s.viewViewers
 	if driveLink {
 		byLink = &s.driveViewers

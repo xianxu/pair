@@ -3,12 +3,14 @@ package webcast
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
+	core "github.com/xianxu/pair/cmd/internal/submission"
 	"github.com/xianxu/pair/cmd/internal/webcast/board"
 	"github.com/xianxu/pair/cmd/internal/webcast/notedraft"
+	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 )
@@ -16,11 +18,11 @@ import (
 type unavailableDraftCapture struct{}
 
 func (unavailableDraftCapture) Capture(context.Context, board.PreparedNote) (notedraft.Evidence, []byte, error) {
-	return notedraft.Evidence{}, nil, errors.New("test capture unavailable")
+	return notedraft.Evidence{Crop: core.Crop{Unavailable: notedraft.CaptureBusy}}, nil, nil
 }
 func TestViewerDraftPrepareSavePrivateOwner(t *testing.T) {
 	c := newBoardCast(t)
-	svc, err := notedraft.New(notedraft.Options{Root: t.TempDir(), RecordingPath: "rec", Capture: unavailableDraftCapture{}, Write: func(ctx context.Context, a board.AnnotationAdmission, n board.NoteReservation, check func() error, settle func(board.OperatorOutcome, error)) error {
+	svc, err := notedraft.New(notedraft.Options{Root: t.TempDir(), RecordingPath: t.TempDir(), Capture: unavailableDraftCapture{}, Write: func(ctx context.Context, a board.AnnotationAdmission, n board.NoteReservation, check func() error, settle func(board.OperatorOutcome, error)) error {
 		err := c.w.Emit(&n.Note, n.Document)
 		if err != nil {
 			settle(board.OperatorRefused, err)
@@ -56,7 +58,7 @@ func TestViewerDraftPrepareSavePrivateOwner(t *testing.T) {
 		_, body = post(t, url+"draft-status", "application/json", `{"request":"prepare1"}`)
 		json.Unmarshal([]byte(body), &status)
 	}
-	if status.State != "ready" && status.State != "failed" {
+	if status.State != "ready" {
 		t.Fatal(status)
 	}
 	payload, _ := json.Marshal(map[string]any{"request": "save1", "draft": status.Draft, "viewer": map[string]string{"id": "ana", "name": "Ana"}, "color": 0, "text": "hello"})
@@ -88,3 +90,75 @@ func TestViewerDraftPrepareSavePrivateOwner(t *testing.T) {
 		t.Fatal(code)
 	}
 }
+
+func TestViewerFinalAuthenticatedStreamDisconnectRevokesOnlyItsDrafts(t *testing.T) {
+	c := newBoardCast(t)
+	svc, err := notedraft.New(notedraft.Options{Root: t.TempDir(), RecordingPath: t.TempDir(), Capture: unavailableDraftCapture{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer svc.Close()
+	server := NewServer("view", NewFakeBrowser(), time.Second, nil, nil).WithBoard(c.bd).WithPointer("tok").WithNoteDrafts(svc, func(r *http.Request) string { return r.Header.Get("X-Test-Owner") })
+	open := func(owner, viewer string) (context.CancelFunc, <-chan struct{}) {
+		ctx, cancel := context.WithCancel(context.Background())
+		req := httptest.NewRequest(http.MethodGet, "/tok/events?viewer="+viewer, nil).WithContext(ctx)
+		req.Header.Set("X-Test-Owner", owner)
+		writer := &draftStreamWriter{ResponseRecorder: httptest.NewRecorder(), ready: make(chan struct{})}
+		done := make(chan struct{})
+		go func() { defer close(done); server.ServeHTTP(writer, req) }()
+		select {
+		case <-writer.ready:
+		case <-time.After(time.Second):
+			cancel()
+			t.Fatal("stream did not open")
+		}
+		return cancel, done
+	}
+	one, doneOne := open("private-A", "public1")
+	defer one()
+	two, doneTwo := open("private-A", "different-public")
+	defer two()
+	other, doneOther := open("private-B", "public1")
+	defer other()
+	a, err := c.bd.AdmitAnnotation()
+	if err != nil {
+		t.Fatal(err)
+	}
+	prepared, err := a.PrepareNote(board.PrepareNoteIn{Seg: 1, Node: c.p.ID, Box: recording.Box{1, 2, 30, 40}, Region: recording.Box{1, 2, 20, 20}}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	owner := func(private string) notedraft.Owner {
+		req := httptest.NewRequest(http.MethodGet, "/tok/prepare-note", nil)
+		req.Header.Set("X-Test-Owner", private)
+		return notedraft.Owner{Scope: server.noteOwnerScope(req), Generation: 1}
+	}
+	for _, private := range []string{"private-A", "private-B"} {
+		if _, err = svc.Prepare(context.Background(), owner(private), "prepare", a, prepared, false); err != nil {
+			t.Fatal(err)
+		}
+	}
+	one()
+	<-doneOne
+	if got, err := svc.Status(owner("private-A"), "prepare"); err != nil || got.State == "cancelled" {
+		t.Fatal("another live stream lost draft", got, err)
+	}
+	two()
+	<-doneTwo
+	if got, err := svc.Status(owner("private-A"), "prepare"); err != nil || got.State != "cancelled" {
+		t.Fatal("final disconnect retained draft", got, err)
+	}
+	if got, err := svc.Status(owner("private-B"), "prepare"); err != nil || got.State == "cancelled" {
+		t.Fatal("public viewer ID crossed owners", got, err)
+	}
+	other()
+	<-doneOther
+}
+
+type draftStreamWriter struct {
+	*httptest.ResponseRecorder
+	ready chan struct{}
+	once  sync.Once
+}
+
+func (w *draftStreamWriter) Flush() { w.ResponseRecorder.Flush(); w.once.Do(func() { close(w.ready) }) }

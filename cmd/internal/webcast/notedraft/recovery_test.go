@@ -520,3 +520,72 @@ func TestRecoveryCorruptNeighborDoesNotBlockExistingReadySave(t *testing.T) {
 		t.Fatal("save ownership was not persisted", saved, err)
 	}
 }
+
+func TestRevokeScopeRetiresOnlyUnsavedOwnedPreparations(t *testing.T) {
+	s, err := New(Options{Root: t.TempDir(), RecordingPath: t.TempDir(), Capture: &heldCapture{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	a, p := preparation(t)
+	_ = a
+	now := time.Now()
+	for _, item := range []struct {
+		id, scope  string
+		phase      Phase
+		generation uint64
+	}{{"ready", "owner", Ready, 1}, {"pending", "owner", Preparing, 2}, {"uncertain", "owner", Attaching, 1}, {"saved", "owner", Attached, 1}, {"foreign", "other", Ready, 1}} {
+		r := &captureRecord{ID: item.id, Owner: Owner{Scope: item.scope, Generation: item.generation}, Request: item.id, RecordingPath: s.opts.RecordingPath, Prepared: p, Created: now, Expires: now.Add(DraftTTL), State: State{Phase: item.phase}}
+		if item.phase == Attaching || item.phase == Attached {
+			r.NoteID = item.id + "-note"
+		}
+		data, _ := json.Marshal(r)
+		if err = s.disk.put(r.ID, data, nil); err != nil {
+			t.Fatal(err)
+		}
+		s.records[r.ID] = r
+	}
+	s.RevokeScope("owner")
+	for id, want := range map[string]Phase{"ready": Retired, "pending": Retired, "uncertain": Attaching, "saved": Attached, "foreign": Ready} {
+		if r := s.records[id]; r.State.Phase != want {
+			t.Fatal(id, r.State)
+		}
+	}
+	if !s.records["uncertain"].State.Abandoned {
+		t.Fatal("unknown save lost abandonment")
+	}
+	for _, id := range []string{"uncertain", "saved", "foreign"} {
+		if _, err = s.disk.metadata(id); err != nil {
+			t.Fatal("retained owner lost evidence", id, err)
+		}
+	}
+}
+
+func TestRevokeScopeCancelsOldCapacityTokenButAllowsReconnect(t *testing.T) {
+	now := time.Now()
+	s, err := New(Options{Root: t.TempDir(), RecordingPath: t.TempDir(), Capture: &heldCapture{}, Now: func() time.Time { return now }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	owner := Owner{Scope: "owner", Generation: 1}
+	r := &captureRecord{ID: "capacity", Owner: owner, RecordingPath: s.opts.RecordingPath, Request: "prepare", Created: now, Expires: now.Add(DraftTTL), State: State{Phase: Ready, Unavailable: StoreFull}}
+	old, err := s.token(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.RevokeScope(owner.Scope)
+	if _, err := s.Status(owner, old); err == nil {
+		t.Fatal("disconnected capacity token survived")
+	}
+	now = now.Add(time.Second)
+	r.Created = now
+	r.Expires = now.Add(DraftTTL)
+	fresh, err := s.token(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := s.Status(owner, fresh); err != nil || got.State != "ready" {
+		t.Fatal(got, err)
+	}
+}

@@ -36,8 +36,8 @@ func (s *Server) noteDraftRoute(w http.ResponseWriter, r *http.Request, rest str
 		http.Error(w, refuseViewOnly, http.StatusForbidden)
 		return true
 	}
-	private := s.noteOwner(r)
-	if private == "" {
+	scope := s.noteOwnerScope(r)
+	if scope == "" {
 		http.Error(w, refuseViewOnly, http.StatusForbidden)
 		return true
 	}
@@ -62,9 +62,7 @@ func (s *Server) noteDraftRoute(w http.ResponseWriter, r *http.Request, rest str
 		http.Error(w, msg, code)
 		return true
 	}
-	segment, _, _ := strings.Cut(strings.TrimPrefix(r.URL.Path, "/"), "/")
-	hash := sha256.Sum256([]byte(private + "\x00" + segment))
-	owner := notedraft.Owner{Scope: hex.EncodeToString(hash[:]), Generation: generation}
+	owner := notedraft.Owner{Scope: scope, Generation: generation}
 	var status notedraft.Status
 	switch rest {
 	case "prepare-note":
@@ -144,4 +142,44 @@ func draftBox(v []*float64) bool {
 		}
 	}
 	return true
+}
+
+// noteOwnerScope uses only authenticated host identity and the admitted link.
+func (s *Server) noteOwnerScope(r *http.Request) string {
+	if s.noteOwner == nil {
+		return ""
+	}
+	private := s.noteOwner(r)
+	if private == "" {
+		return ""
+	}
+	segment, _, _ := strings.Cut(strings.TrimPrefix(r.URL.Path, "/"), "/")
+	hash := sha256.Sum256([]byte(private + "\x00" + segment))
+	return hex.EncodeToString(hash[:])
+}
+
+func (s *Server) attachNoteStream(r *http.Request) func() {
+	if s.noteDrafts == nil {
+		return func() {}
+	}
+	scope := s.noteOwnerScope(r)
+	if scope == "" {
+		return func() {}
+	}
+	s.noteStreamsMu.Lock()
+	if s.noteStreams == nil {
+		s.noteStreams = make(map[string]int)
+	}
+	s.noteStreams[scope]++
+	s.noteStreamsMu.Unlock()
+	return func() {
+		s.noteStreamsMu.Lock()
+		defer s.noteStreamsMu.Unlock()
+		s.noteStreams[scope]--
+		if s.noteStreams[scope] == 0 {
+			delete(s.noteStreams, scope)
+			// Serialize final cleanup with another stream joining this owner.
+			s.noteDrafts.RevokeScope(scope)
+		}
+	}
 }

@@ -371,6 +371,26 @@ func (s *Service) Revoke(owner Owner) {
 	}
 }
 
+// RevokeScope retires unsaved work across permission generations when the
+// authenticated owner's final event stream disconnects. Uncertain writes retain
+// their evidence until the writer outcome can be observed.
+func (s *Service) RevokeScope(scope string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if scope == "" {
+		return
+	}
+	s.revoked["scope\x00"+scope] = s.opts.Now().Add(DraftTTL)
+	for _, r := range s.records {
+		if r.Owner.Scope == scope && (r.State.Phase == Preparing || r.State.Phase == Ready || r.State.Phase == Attaching) {
+			if r.cancel != nil {
+				r.cancel()
+			}
+			_ = s.applyLocked(r, Event{Kind: Expire})
+		}
+	}
+}
+
 // RevokePreparations retires unsaved work on a view/capability change. An
 // uncertain attachment retains its evidence until the writer is reconciled.
 func (s *Service) RevokePreparations() {
@@ -596,6 +616,9 @@ func (s *Service) untoken(owner Owner, token string) (*captureRecord, error) {
 	}
 	if r.Owner != owner || r.RecordingPath != s.opts.RecordingPath || !s.opts.Now().Before(r.Expires) {
 		return nil, errors.New("capture token expired or belongs to another viewer")
+	}
+	if until, ok := s.revoked["scope\x00"+owner.Scope]; ok && !r.Created.After(until.Add(-DraftTTL)) && s.records[r.ID] == nil {
+		return nil, errors.New("capture draft cancelled")
 	}
 	if s.isRevoked(owner, r.Request) {
 		return nil, errors.New("capture draft cancelled")
