@@ -735,3 +735,24 @@ uses the declared session-environment isolation and passes. No runtime change
 was made to hide that fixture environment failure. No unmerged paths or
 diff-check errors remain. Fresh recorded full suite follows this merge;
 previous passing record 35ec94d0 does not cover these changed runtime paths.
+
+### 2026-10-14 — native recovery-reader integration correction
+
+Recorded merge-head a49a5911831d9f18589290eaffe1169baed33b1d suite exited 2
+in 8m31s after 366s gate wait. Only TestProductionDoesNotExecPS failed: #528's
+recovery_terminal_os.go still executed ps outside the two conflicted files.
+Core 261.115s, cmd 45.056s, tty 37.812s, message 6.871s and all other packages
+passed; source inventory and embedded native ancestry passed. Log:
+/Users/xianxu/workspace/pair/.git/sdlc/local-checks/a49a5911831d9f18589290eaffe1169baed33b1d/suite.log.
+
+Migrated that reader to procutil.Snapshot plus the final native Table bracket.
+A pure projection keeps whole-row identity/parent stability, withholds missing
+or changed descendant command evidence, refuses a moved exact named server,
+and retains the aggregate 8MiB command bound. Shared serverProcesses preserves
+#553 gone/zombie omission and unknown/permission refusal. No ps fallback, guard
+exception, new recovery mechanism or M2 execution change. Parent regression
+command go test ./cmd/internal/launcher -run
+'TestRecoveryNative|TestRecoveryTerminal|TestProductionDoesNotExecPS|TestServerProcesses'
+-count=1 -timeout=60s passes 0.553s. New tests independently cover changed
+generation/parent, gone vs unknown rows, duplicates, bounds and cancellation.
+Fresh recorded corrected-head suite is required before staging.

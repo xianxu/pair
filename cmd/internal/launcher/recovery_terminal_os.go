@@ -6,7 +6,6 @@ import (
 	"errors"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -121,14 +120,8 @@ func (o recoveryTerminalOS) Observe(ctx context.Context, session string) (recove
 	if err := ctx.Err(); err != nil {
 		return result, err
 	}
-	before, err := procutil.Table()
+	rows, err := procutil.Snapshot(ctx)
 	if err != nil {
-		return result, err
-	}
-	var output recoveryCommandOutput
-	cmd := exec.CommandContext(ctx, "ps", "-axo", "pid=,command=")
-	cmd.Stdout = &output
-	if err := cmd.Run(); err != nil {
 		return result, err
 	}
 	after, err := procutil.Table()
@@ -138,51 +131,75 @@ func (o recoveryTerminalOS) Observe(ctx context.Context, session string) (recove
 	if err := ctx.Err(); err != nil {
 		return result, err
 	}
-	prior := map[int]procutil.Process{}
-	for _, p := range before {
-		if _, exists := prior[p.PID]; exists {
-			return result, errors.New("duplicate process identity")
-		}
-		prior[p.PID] = p
-	}
-	current := map[int]procutil.Process{}
+	return projectRecoveryTerminalSnapshot(session, rows, after)
+}
+
+// The native snapshot already fences each argv read by process generation.
+// The final table also fences parent relationships across the whole observation:
+// unstable or unavailable descendant argv remains missing evidence, and a
+// changed exact named server refuses the observation rather than moving authority.
+func projectRecoveryTerminalSnapshot(session string, rows []procutil.Observation, after []procutil.Process) (recoveryTerminalSnapshot, error) {
+	result := recoveryTerminalSnapshot{Processes: after, Commands: map[int]string{}}
+	current := make(map[int]procutil.Process, len(after))
 	for _, p := range after {
 		if _, exists := current[p.PID]; exists {
 			return result, errors.New("duplicate process identity")
 		}
 		current[p.PID] = p
 	}
-	result.Processes = after
-	result.Commands = map[int]string{}
-	for _, line := range strings.Split(output.String(), "\n") {
-		line = strings.TrimSpace(line)
-		pidText, command, ok := strings.Cut(line, " ")
-		if !ok {
-			continue
-		}
-		pid, err := strconv.Atoi(pidText)
-		if err != nil {
-			continue
-		}
-		// Commands are meaningful only for a start/parent identity stable across ps.
-		p, exists := current[pid]
-		if !exists || p.Identity == "" || prior[pid] != p {
-			continue
-		}
-		if _, duplicate := result.Commands[pid]; duplicate {
+	seen := make(map[int]bool, len(rows))
+	var output recoveryCommandOutput
+	for _, row := range rows {
+		if seen[row.PID] {
 			return result, errors.New("duplicate process command")
 		}
-		result.Commands[pid] = strings.TrimSpace(command)
+		seen[row.PID] = true
+		if row.Err != nil || row.Zombie || len(row.Args) == 0 {
+			continue
+		}
+		// Bound all successfully observed commands, including ones whose final
+		// generation/parent check below prevents them from becoming authority.
+		if _, err := output.Write([]byte(strconv.Itoa(row.PID) + " ")); err != nil {
+			return result, err
+		}
+		for i, arg := range row.Args {
+			if i > 0 {
+				if _, err := output.Write([]byte(" ")); err != nil {
+					return result, err
+				}
+			}
+			if _, err := output.Write([]byte(arg)); err != nil {
+				return result, err
+			}
+		}
+		if _, err := output.Write([]byte("\n")); err != nil {
+			return result, err
+		}
+		p, exists := current[row.PID]
+		if !exists || p.Identity == "" || row.Process != p {
+			continue
+		}
+		command := strings.TrimSpace(strings.Join(row.Args, " "))
+		if command != "" {
+			result.Commands[row.PID] = command
+		}
 	}
-	for _, server := range ParseServerProcesses(output.String()) {
+	servers, err := serverProcesses(rows)
+	if err != nil {
+		return result, err
+	}
+	for _, server := range servers {
 		if server.Session != session {
 			continue
 		}
 		p, exists := current[server.PID]
-		if !exists || p.Identity == "" || prior[server.PID] != p {
+		if !exists || p.Identity == "" {
 			return result, errors.New("terminal generation moved during command observation")
 		}
-		server.Identity = p.Identity
+		// The command map contains only rows stable in identity and ancestry.
+		if _, stable := result.Commands[server.PID]; !stable {
+			return result, errors.New("terminal generation moved during command observation")
+		}
 		result.Servers = append(result.Servers, server)
 	}
 	return result, nil
