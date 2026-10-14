@@ -8,10 +8,21 @@ import (
 )
 
 type Screen struct {
-	Epoch                      uint64
-	Lines                      []string
+	Epoch uint64
+	Lines []string
+	// History is retained tail evidence, never an actionable picker viewport.
+	// Nil falls back to Lines for standalone pure callers and old fixtures.
+	History                    []string
 	Idle, TurnActive, Complete bool
 }
+
+func screenHistory(screen Screen) []string {
+	if screen.History != nil {
+		return screen.History
+	}
+	return screen.Lines
+}
+
 type ScreenPhase string
 
 const (
@@ -30,6 +41,7 @@ type ScreenEvidence struct {
 	Scope                   ModelScope
 	Confirmation            string
 	ConfirmationCount       int
+	Footer                  string
 }
 
 var codexRow = regexp.MustCompile(`^[›]?\s*\d+\.\s+(GPT-[A-Za-z0-9.-]+)(?:\s|$)`)
@@ -165,19 +177,37 @@ func ReadModelScreen(agent string, screen Screen) ScreenEvidence {
 					label = strings.ToLower(m[1])
 					sel = reverse[i] && strings.HasPrefix(strings.TrimSpace(screen.Lines[i]), "‹rev››") && strings.HasPrefix(line, "›")
 				}
-				footer = footer || line == "enter select · esc back"
+				if line == "enter select · esc back" {
+					if e.Footer != "" {
+						return unknown
+					}
+					e.Footer = line
+					footer = true
+				}
 			case ScreenEffort:
 				if m := effortRow.FindStringSubmatch(line); m != nil {
 					label = canonicalEffort(m[1])
 					sel = reverse[i] && strings.HasPrefix(strings.TrimSpace(screen.Lines[i]), "‹rev››") && strings.HasPrefix(line, "›")
 				}
-				footer = footer || line == "enter default · s session · esc back" || line == "enter select · esc back"
+				if line == "enter default · s session · esc back" || line == "enter select · esc back" {
+					if e.Footer != "" {
+						return unknown
+					}
+					e.Footer = line
+					footer = true
+				}
 			case ScreenAdvanced:
 				if m := advancedRow.FindStringSubmatch(line); m != nil {
 					label = canonicalEffort(m[1])
 					sel = reverse[i] && strings.HasPrefix(strings.TrimSpace(screen.Lines[i]), "‹rev››") && strings.HasPrefix(line, "›")
 				}
-				footer = footer || line == "enter default · s session · esc back"
+				if line == "enter default · s session · esc back" {
+					if e.Footer != "" {
+						return unknown
+					}
+					e.Footer = line
+					footer = true
+				}
 			case ScreenCombined:
 				if m := claudeRow.FindStringSubmatch(line); m != nil {
 					label = strings.ToLower(m[1])
@@ -189,7 +219,13 @@ func ReadModelScreen(agent string, screen Screen) ScreenEvidence {
 						e.Effort = canonicalEffort(fields[1])
 					}
 				}
-				footer = footer || line == "Enter to set as default · s to use this session only · Esc to cancel"
+				if line == "Enter to set as default · s to use this session only · Esc to cancel" {
+					if e.Footer != "" {
+						return unknown
+					}
+					e.Footer = line
+					footer = true
+				}
 			}
 			if label == "" {
 				continue
@@ -215,11 +251,7 @@ func ReadModelScreen(agent string, screen Screen) ScreenEvidence {
 			if e.Selected == "more" {
 				expected = "enter select · esc back"
 			}
-			found := false
-			for _, line := range plain {
-				found = found || line == expected
-			}
-			if !found {
+			if e.Footer != expected {
 				return unknown
 			}
 		}
@@ -258,7 +290,7 @@ func ReadModelScreen(agent string, screen Screen) ScreenEvidence {
 			}
 		}
 		if footer && composer {
-			e.ConfirmationCount = confirmationCounts(screen.Lines)[e.Confirmation]
+			e.ConfirmationCount = confirmationCounts(screenHistory(screen))[e.Confirmation]
 			return e
 		}
 	}
@@ -290,7 +322,7 @@ func ReadModelScreen(agent string, screen Screen) ScreenEvidence {
 			}
 		}
 		if composer && e.Effort != "" {
-			e.ConfirmationCount = confirmationCounts(screen.Lines)[e.Confirmation]
+			e.ConfirmationCount = confirmationCounts(screenHistory(screen))[e.Confirmation]
 			return e
 		}
 	}

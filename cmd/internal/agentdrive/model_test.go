@@ -278,6 +278,99 @@ func TestDriveCancelPreservesReason(t *testing.T) {
 	}
 }
 
+func TestDriveEffectSemanticRepaintProof(t *testing.T) {
+	s, now := modelAtPicker(t, ModelRequest{Model: "gpt-6-astra"})
+	lines := capture(t, "model-picker")
+	_, fx := ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 2, Complete: true, Lines: lines}})
+	if len(fx) != 1 {
+		t.Fatal("effect missing")
+	}
+	effect := fx[0]
+	if !effect.MatchesScreen("codex", Screen{Epoch: 3, Complete: true, Lines: lines}) {
+		t.Fatal("identical parsed repaint refused")
+	}
+	for _, screen := range []Screen{{Epoch: 1, Complete: true, Lines: lines}, {Epoch: 3, Lines: lines}, {Epoch: 3, Complete: true, TurnActive: true, Lines: lines}, {Epoch: 3, Complete: true, Lines: []string{"unknown"}}} {
+		if effect.MatchesScreen("codex", screen) {
+			t.Fatalf("unsafe repaint accepted %#v", screen)
+		}
+	}
+	changed := append([]string{}, lines...)
+	for i, line := range changed {
+		changed[i] = strings.ReplaceAll(line, "GPT-6-Astra", "GPT-6-Changed")
+	}
+	if effect.MatchesScreen("codex", Screen{Epoch: 3, Complete: true, Lines: changed}) {
+		t.Fatal("changed choices accepted")
+	}
+	changed = append([]string{}, lines...)
+	for i, line := range changed {
+		changed[i] = strings.ReplaceAll(line, "enter ‹dim›select ·‹/dim› esc ‹dim›back‹/dim›", "enter ‹dim›default ·‹/dim› s ‹dim›session ·‹/dim› esc ‹dim›back‹/dim›")
+	}
+	if effect.MatchesScreen("codex", Screen{Epoch: 3, Complete: true, Lines: changed}) {
+		t.Fatal("changed footer accepted")
+	}
+	changed = append([]string{}, lines...)
+	for i, line := range changed {
+		if strings.Contains(line, "1. GPT-6.1-Sol") {
+			changed[i] = strings.ReplaceAll(strings.ReplaceAll(line, "‹rev››", "  "), "‹/rev›", "")
+		}
+		if strings.Contains(line, "2. GPT-6-Astra") {
+			changed[i] = "‹rev›› " + strings.TrimSpace(line) + "‹/rev›"
+		}
+	}
+	if effect.MatchesScreen("codex", Screen{Epoch: 3, Complete: true, Lines: changed}) {
+		t.Fatal("changed selection accepted")
+	}
+}
+
+func TestDriveUnknownRecoveryFrameStopsWithoutCleanup(t *testing.T) {
+	s, now := modelAtPicker(t, ModelRequest{Model: "gpt-missing"})
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 2, Complete: true, Lines: capture(t, "model-picker")}})
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventWritten, At: now})
+	s, fx := ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 3, Complete: true, Lines: []string{"unknown replacement screen"}}})
+	if !s.Terminal() || s.Result().Outcome != OutcomeUnconfirmed || len(fx) != 0 {
+		t.Fatalf("unknown recovery received cleanup: %#v %#v", s.Result(), fx)
+	}
+}
+
+func TestDriveEffectHistoryCannotAuthorizeCurrentInput(t *testing.T) {
+	s, now := modelAtPicker(t, ModelRequest{Model: "gpt-6-astra"})
+	lines := capture(t, "model-picker")
+	_, fx := ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 2, Complete: true, Lines: lines}})
+	effect := fx[0]
+	if effect.MatchesScreen("codex", Screen{Epoch: 3, Complete: true, Lines: []string{"unknown current viewport"}, History: lines}) {
+		t.Fatal("old historical picker authorized input")
+	}
+	history := append(append([]string{}, lines...), lines...)
+	if !effect.MatchesScreen("codex", Screen{Epoch: 3, Complete: true, Lines: lines, History: history}) {
+		t.Fatal("duplicate historical headings defeated identical current viewport")
+	}
+}
+
+func TestDriveRetainsHistoryWithoutParsingItAsCurrentPicker(t *testing.T) {
+	s, now := modelAtPicker(t, ModelRequest{Model: "gpt-6.1-sol"})
+	history := append(capture(t, "model-picker"), "retained prose")
+	s, fx := ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 2, Complete: true, Lines: []string{"unknown current viewport"}, History: history}})
+	if s.Terminal() || len(fx) != 1 || fx[0].Kind != EffectObserve {
+		t.Fatal("historical picker was actionable")
+	}
+	tail := s.Result().Tail
+	if len(tail) == 0 || tail[len(tail)-1] != "retained prose" {
+		t.Fatal("history tail was not retained")
+	}
+}
+
+func TestDriveUnknownPostSubmitFrameObservesUntilDeadline(t *testing.T) {
+	s, now := modelAtPicker(t, ModelRequest{Model: "gpt-6.1-sol"})
+	s, fx := ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 2, Complete: true, Lines: []string{"› /model‹cursor›"}}})
+	if s.Terminal() || len(fx) != 1 || fx[0].Kind != EffectObserve {
+		t.Fatalf("transient frame terminated: %#v %#v", s.Result(), fx)
+	}
+	s, fx = ReduceDrive(s, DriveEvent{Kind: EventTick, At: now.Add(time.Minute)})
+	if !s.Terminal() || s.Result().Outcome != OutcomeUnconfirmed || len(fx) != 0 {
+		t.Fatalf("unknown screen exceeded deadline: %#v %#v", s.Result(), fx)
+	}
+}
+
 func TestDriveClaudeDefaultScopeRefusedBeforeInput(t *testing.T) {
 	_, err := NewDrive(Request{Model: &ModelRequest{Model: "opus 5.5", Scope: ScopeDefault}}, "claude", time.Now().Add(time.Minute))
 	if err == nil {

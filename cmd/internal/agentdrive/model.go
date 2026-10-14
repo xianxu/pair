@@ -40,6 +40,33 @@ type DriveEffect struct {
 	// ScreenEpoch pins writes derived from picker evidence. Zero denotes a raw
 	// caller step or initial command entry, which has no picker observation.
 	ScreenEpoch uint64
+	proof       ScreenEvidence
+}
+
+// MatchesScreen permits a repaint only when the complete parsed picker evidence
+// is identical to the evidence supporting this action. Ordered labels, selection
+// and footer remain part of the proof; an epoch change alone is not authority.
+func (e DriveEffect) MatchesScreen(agent string, screen Screen) bool {
+	if !screen.Complete || screen.TurnActive {
+		return false
+	}
+	if e.ScreenEpoch == 0 {
+		return true
+	}
+	if screen.Epoch < e.ScreenEpoch || e.proof.Phase == ScreenUnknown {
+		return false
+	}
+	fresh := ReadModelScreen(agent, screen)
+	old := e.proof
+	if fresh.Phase != old.Phase || fresh.Selected != old.Selected || fresh.Model != old.Model || fresh.Effort != old.Effort || fresh.Scope != old.Scope || fresh.Footer != old.Footer || len(fresh.Labels) != len(old.Labels) {
+		return false
+	}
+	for i, label := range fresh.Labels {
+		if label != old.Labels[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // Internal recipe directions are excluded from ParseKeySequence's caller syntax.
@@ -153,6 +180,8 @@ func write(s DriveState, k KeyStep, next drivePhase) (DriveState, []DriveEffect)
 	effect := DriveEffect{Kind: EffectWrite, Key: k, Control: s.request.Model != nil}
 	if s.request.Model != nil && s.command >= 3 {
 		effect.ScreenEpoch = s.epoch
+		effect.proof = s.evidence
+		effect.proof.Labels = append([]string(nil), s.evidence.Labels...)
 	}
 	return s, []DriveEffect{effect}
 }
@@ -225,8 +254,8 @@ func ReduceDrive(input DriveState, event DriveEvent) (DriveState, []DriveEffect)
 			return finish(s, OutcomeRefused, "wait until the agent composer is empty and its turn finishes")
 		}
 		s.epoch = event.Screen.Epoch
-		s.result.Tail = boundedTail(event.Screen.Lines)
-		if !rememberConfirmations(&s, event.Screen.Lines) {
+		s.result.Tail = boundedTail(screenHistory(event.Screen))
+		if !rememberConfirmations(&s, screenHistory(event.Screen)) {
 			return finish(s, OutcomeRefused, "confirmation history exceeds observed-label limit")
 		}
 		if s.request.Model == nil {
@@ -261,9 +290,9 @@ func ReduceDrive(input DriveState, event DriveEvent) (DriveState, []DriveEffect)
 			return observe(s)
 		}
 		s.epoch = event.Screen.Epoch
-		s.result.Tail = boundedTail(event.Screen.Lines)
+		s.result.Tail = boundedTail(screenHistory(event.Screen))
 		if s.phase != phaseApplied && !(s.phase == phaseWriting && s.after == phaseApplied) {
-			if !rememberConfirmations(&s, event.Screen.Lines) {
+			if !rememberConfirmations(&s, screenHistory(event.Screen)) {
 				return finish(s, OutcomeUnconfirmed, "confirmation history exceeds observed-label limit")
 			}
 		}
@@ -298,7 +327,7 @@ func ReduceDrive(input DriveState, event DriveEvent) (DriveState, []DriveEffect)
 			return observe(s)
 		}
 		if evidence.Phase == ScreenUnknown {
-			return finish(s, OutcomeUnconfirmed, "unrecognized screen; inspect the slot before sending more input")
+			return observe(s)
 		}
 		if s.navigation >= MaxNavigationSteps {
 			return backout(s, "navigation limit reached")

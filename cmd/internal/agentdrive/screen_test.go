@@ -82,6 +82,18 @@ func TestReadModelScreenCodexAdvancedAndDefaultCaptured(t *testing.T) {
 	}
 }
 
+func TestReadModelScreenCurrentStatusCountsHistoricalConfirmations(t *testing.T) {
+	lines := capture(t, "session-status")
+	history := append(append([]string{}, lines...), lines...)
+	e := ReadModelScreen("codex", Screen{Complete: true, Idle: true, Lines: lines, History: history})
+	if e.Phase != ScreenStatus || e.ConfirmationCount != 2 {
+		t.Fatalf("history confirmation evidence %#v", e)
+	}
+	if e := ReadModelScreen("codex", Screen{Complete: true, Idle: true, Lines: []string{"unknown viewport"}, History: history}); e.Phase != ScreenUnknown {
+		t.Fatalf("historical status actionable %#v", e)
+	}
+}
+
 func FuzzReadModelScreen(f *testing.F) {
 	for _, path := range []string{"../wrapcmd/testdata/drive/codex/0.162.1/model-picker.screen", "../wrapcmd/testdata/drive/codex/0.162.1/effort-picker.screen", "../wrapcmd/testdata/drive/codex/0.162.1/session-status.screen", "../wrapcmd/testdata/drive/codex/0.162.1/more-entry.screen", "../wrapcmd/testdata/drive/codex/0.162.1/more-expanded.screen", "../wrapcmd/testdata/drive/codex/0.162.1/default-status.screen", "../wrapcmd/testdata/drive/claude/2.1.299/session-before.screen", "../wrapcmd/testdata/drive/claude/2.1.299/session-status.screen"} {
 		b, e := os.ReadFile(path)
