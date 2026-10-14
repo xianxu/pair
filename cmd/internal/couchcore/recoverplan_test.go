@@ -159,6 +159,8 @@ func primaryRebootOnly(p *planFixture) {
 
 func recoverPlanCases() []recoverPlanCase {
 	return []recoverPlanCase{
+		{name: "healthy stage held", address: "pair:0", want: RecoverStaged, hold: []string{"staged"},
+			setup: func(p *planFixture) { p.fleet.AddSlot("pair:0"); p.fleet.SetStaged("pair:0") }},
 		{name: "dangling claim on a vanished slot", address: "pair:5", want: RecoverDirectoryMissing, hold: []string{"directory-missing"},
 			setup: func(p *planFixture) {
 				p.fleet.AddSlot("pair:0")
