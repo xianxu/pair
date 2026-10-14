@@ -43,7 +43,11 @@ rounds:
           note: Named-function adversarial strategies and independent invariants supersede the prose inventories while preserving the stateful integration harness.
           round: 2
       blocked: false
-content_hash: 857be186189a5d0c76ca7fe22e60da23faa1bb9ac03e60c3b11429746d14b80b
+    - "n": 3
+      timestamp: "2026-10-14T02:11:09-07:00"
+      agent: codex
+      blocked: false
+content_hash: 6b636307909a4d815bada91cf46503c322d3d2abce4a9f7372596b426986d26d
 ---
 
 # Gate ledger — pair#544 (plan-quality)
@@ -69,6 +73,8 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - PQ-1 — addressed — Console/wrapper lifetime ownership and registered-session cancellation are explicitly independent of short-lived RPC contexts.
 - PQ-2 — addressed — Model capture requires disposable authentication/configuration and explicitly rejects native-HOME/config fallback before launch.
 - PQ-3 — addressed — Named-function adversarial strategies and independent invariants supersede the prose inventories while preserving the stateful integration harness.
+
+## Round 3 — 2026-10-14T02:11:09-07:00 (codex) — passed
 
 ## Open findings
 
