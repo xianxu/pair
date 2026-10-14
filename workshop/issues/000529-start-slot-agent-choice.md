@@ -44,6 +44,7 @@ Use the canonical launcher agent inventory for the start form as the switch-agen
 ## Log
 
 ### 2026-10-13
+- 2026-10-13: closed — Production-constructor regressions failed before the fix on both start and add-slot selection, then passed after canonical inventory initialization. Focused start/add-slot tests pass (0.275s), focused race checks pass (1.342s), entire couchtty package passes (34.695s), clean make build and diff checks pass. Tests cover both arrows, stale/current preview completion, explicit Codex launch arguments, untouched resolver defaults and inventory ownership. Full make -k test has been started but remains queued at the machine gate; no full-suite pass claim.; review verdict: SHIP
 
 Read-only investigation requested by ops:0. Confirmed against main-era source: `menu.go` NewMenuState, openStartForm, reduceStartKey and selectStartAgent; production references to `Agents` only read or clone it. `menu_switchagent.go` uses launcher.AgentInventory directly. Existing menu tests set Agents themselves.
 
