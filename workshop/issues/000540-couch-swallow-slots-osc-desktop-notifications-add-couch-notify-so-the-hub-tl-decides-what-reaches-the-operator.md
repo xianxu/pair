@@ -148,6 +148,9 @@ recovery. Full terminal/notifyosc passed (80.446s/0.143s), targeted race passed
 (16.526s). Console/broker/CLI already propagate errors to unconfirmed/nonzero.
 Another full `make -k test` is running at /tmp/pair540-stallfix-full-suite.log
 before re-close. BR-2 acceptance criteria are updated above.
+The corrected full suite finished with exit 0; all checks passed in
+/tmp/pair540-stallfix-full-suite.log. No exceptions needed. Re-closing with
+BR-1 red/green stall and no-replay proof plus BR-2 acceptance updates.
 
 ### 2026-10-13 — close review BR-1/BR-2
 
