@@ -39,7 +39,7 @@ A shared procutil predicate classifies wrapped EINVAL, ESRCH and ENOENT from ind
 
 ## Plan
 
-- [ ] Add shared gone classification and apply it to snapshots and native process-read callers, with RED/GREEN regression tests.
+- [x] Add shared gone classification and apply it to snapshots and native process-read callers, with RED/GREEN regression tests.
 - [ ] Build/stage clean HEAD for operator verification; run recorded suite, close review and land.
 
 
@@ -49,3 +49,7 @@ A shared procutil predicate classifies wrapped EINVAL, ESRCH and ENOENT from ind
 ### 2026-10-14
 
 TL scope approval receipt d4dbaf0a-01d5-4876-a060-9f69f8f2c390 verified; quick flow authorized. #544 checkpointed at aa6ef7d2ea9e6900751a8667d86433fd0bdc426c; pair:0 stage cleared. Discovery: Snapshot preserves per-row procargs failures, launcher treats possible Zellij error rows as hard uncertainty, and diagnostics has a second environment read with the same exit race. Preserve genuine inspection failures; use one error-classification source.
+
+- RED: controlled Table→command exit and real Darwin zombie retained a possible-live error row with invalid argument; reused/missing rows also survived as uncertainty. Caller tests reproduced gone/zombie errors during discovery and later environment reads. Shared predicate and filters added; permission/unknown failures and identity signaling fences remain unchanged. One old zombie fixture used absent argv to model unreadable-live; it now explicitly supplies EPERM so that test continues to defend genuine uncertainty.
+
+- GREEN: procutil full race package PASS5.276s; launcher full race package PASS18.748s; diagnosticlog full race package PASS23.112s. Focused caller/reauthorization races also pass. Tests cover wrapped gone errnos, controlled exit between table and argv, a real Darwin zombie after a stale live table, PID reuse, continued permission uncertainty and later environment disappearance. Preparing clean staged build and recorded suite; operator detach/restart acceptance remains pending.

@@ -1314,6 +1314,8 @@ smoke acceptance remain necessary to establish disappearance of the reported sym
 `Table` remains a cheap metadata snapshot (PID, parent, start identity, niceness
 and short kernel name). `Snapshot` enriches rows with native executable/argv and
 rechecks start identity, retaining unavailable evidence per live row. Native
+per-process `EINVAL`, `ESRCH` and `ENOENT` mean gone and are omitted, including
+exit races during later environment reads; permission and unknown failures remain visible.
 zombie status excludes confirmed terminated processes from command snapshots
 while metadata tables retain them. Darwin uses
 `kern.proc.all` and `kern.procargs2`; Linux reads `/proc`. Unsupported platforms

@@ -120,11 +120,41 @@ func TestSnapshotExcludesExitedUnreapedChild(t *testing.T) {
 	}
 }
 
-func TestSnapshotSkipsOnlyConfirmedZombieRows(t *testing.T) {
+type staleNativeTable struct {
+	nativeReader
+	row Process
+}
+
+func (r staleNativeTable) table() ([]Process, error) { return []Process{r.row}, nil }
+func TestSnapshotSkipsZombieCreatedAfterTableRead(t *testing.T) {
+	if runtime.GOOS != "darwin" && runtime.GOOS != "linux" {
+		t.Skip("native inspection unsupported")
+	}
+	pid := exitedUnreapedChild(t)
+	rows, err := Table()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range rows {
+		if p.PID != pid {
+			continue
+		}
+		p.Zombie = false // Earlier table saw a live process; command read sees the real zombie.
+		got, err := snapshot(context.Background(), staleNativeTable{row: p})
+		if err != nil || len(got) != 0 {
+			t.Fatalf("late zombie retained: %+v %v", got, err)
+		}
+		return
+	}
+	t.Fatal("native zombie row missing")
+}
+
+func TestSnapshotKeepsLiveInspectionFailureBesideZombie(t *testing.T) {
 	w := &snapshotWorld{
-		rows:       []Process{{PID: 1, Identity: "dead", Name: "zellij", Zombie: true}, {PID: 2, Identity: "live", Name: "zellij"}},
-		commands:   map[int]CommandInfo{},
-		identities: map[int]string{1: "dead", 2: "live"},
+		rows:          []Process{{PID: 1, Identity: "dead", Name: "zellij", Zombie: true}, {PID: 2, Identity: "live", Name: "zellij"}},
+		identities:    map[int]string{1: "dead", 2: "live"},
+		commands:      map[int]CommandInfo{2: {}},
+		commandErrors: map[int]error{2: os.ErrPermission},
 	}
 	rows, err := snapshot(context.Background(), w)
 	if err != nil || len(rows) != 1 || rows[0].PID != 2 || rows[0].Err == nil {
