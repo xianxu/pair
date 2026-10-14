@@ -143,3 +143,56 @@ func TestPresenterDesktopCancelBlockedHostWrite(t *testing.T) {
 		t.Fatal("cancelled blocked host accepted bytes")
 	}
 }
+
+// Both ways into a stall must report non-success without queuing a replay.
+func TestPresenterDesktopNotifyStallsReportFailureWithoutReplay(t *testing.T) {
+	for _, alreadyStalled := range []bool{true, false} {
+		name := "notification stalls"
+		if alreadyStalled {
+			name = "already stalled"
+		}
+		t.Run(name, func(t *testing.T) {
+			p, host, e, _ := presenterFixture(t, AnyMotion)
+			selectPresenter(t, p, e)
+			gate := make(chan struct{})
+			var release sync.Once
+			defer release.Do(func() { close(gate) })
+			for i := 0; i < 200; i++ {
+				host.Enqueue(ttyio.WriteStep{Block: gate})
+			}
+			if alreadyStalled {
+				// Existing best-effort controls still initiate recovery without failing Couch.
+				if err := p.Copy(context.Background(), []byte("dropped")); err != nil {
+					t.Fatal(err)
+				}
+			}
+			before := len(host.Bytes())
+			err := p.Notify(context.Background(), "Couch", "must-not-replay")
+			if err == nil {
+				t.Error("dropped notification reported success")
+			}
+			if !alreadyStalled && !errors.Is(err, context.DeadlineExceeded) {
+				t.Errorf("notification write deadline lost: %v", err)
+			}
+			if p.Stalls() != 1 || presenterFailed(p) {
+				t.Fatal("stall did not preserve recoverable presenter")
+			}
+			if len(host.Bytes()) != before {
+				t.Fatal("blocked host accepted notification bytes")
+			}
+			e.Feed([]byte("\x1b[Hback"), time.Now())
+			if err := p.Present(context.Background(), e); err != nil {
+				t.Fatal(err)
+			}
+			release.Do(func() { close(gate) })
+			waitFor(t, "repaint after notify stall", func() bool { return strings.Contains(string(host.Bytes()[before:]), "back") })
+			if err := p.Notify(context.Background(), "Couch", "fresh"); err != nil {
+				t.Fatal(err)
+			}
+			wire := string(host.Bytes()[before:])
+			if strings.Contains(wire, "must-not-replay") || strings.Count(wire, "777;notify;") != 1 {
+				t.Fatalf("notification replayed: %q", wire)
+			}
+		})
+	}
+}
