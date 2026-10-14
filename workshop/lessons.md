@@ -1667,3 +1667,9 @@ proof; record the surprising case so the next change starts from evidence.
 - #542/#511: A signal-probe permission error is not positive process-group membership evidence on every OS. Confirm ambiguous results through the OS membership boundary and retain ownership on query failure. Survivor fixtures must acknowledge signal-handler readiness before their parent exits; a fork is not a readiness event.
 
 - #511 close review: count repeated test outcomes from the complete log, using exact per-subtest records. A terminal tail or truncated tool result is not evidence of the total failure count.
+
+- #530: When a fixture advances a synthetic clock, first await completion of all
+  independently admitted deliveries that affect its rule inputs, not just the
+  endpoint whose messages the assertion counts. An in-flight startup prompt
+  correctly makes a worker Pending; drain its submitted receipt before testing
+  an idle-time rule. Preserve facts newer than the liveness snapshot pruning them.

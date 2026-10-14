@@ -43,7 +43,7 @@ Durable plan: [supervision baseline](../plans/000530-supervision-baseline-plan.m
 - [x] Obtain TL approval of the durable plan, then pass change-code.
 - [x] Add pure rules for stuck reports, coalescing and restart prompts.
 - [x] Wire existing supervision tick and normal Send startup prompts.
-- [ ] Verify reconstructed overnight scenario, queues, uncertainty and full make -k;
+- [x] Verify reconstructed overnight scenario, queues, uncertainty and full make -k;
   document and hand off parley.nvim#321 and pair#543, then close and land through SDLC.
 
 ## Log
@@ -137,3 +137,12 @@ claimed as shipped by this rules-only change.
 - Added a red/green pure regression for an older connected snapshot racing a
   newly received report. Pruning now preserves reports newer than the tick's
   snapshot time; a later disconnected observation still removes them.
+
+- Full make -k test completed (exit 2), /tmp/pair530-full-suite.log: its sole
+  failing test was TestSupervisionIntegrationCompletionAfterMain's startup
+  Pending race described above; all other targets/packages completed green.
+  After the fix: all integration cases passed 50 repetitions (26.819s), focused
+  race checks passed, and the entire couchcmd package passed (83.902s), logs
+  /tmp/pair530-race-fixed.log and /tmp/pair530-couchcmd-fixed.log. No known
+  baseline failures were present. Do not describe the original full run as green.
+- Ready for the mandatory close review; TL accepted headless evidence, no stage.

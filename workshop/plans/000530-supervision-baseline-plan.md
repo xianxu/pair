@@ -408,3 +408,13 @@ TL receipt 018dd090-c2ec-45bc-8425-b9c1394204d9 accepts the private-socket/clock
 scenarios; no stage or operator restart is required. The full command is
 make -k test (bare make -k prints help here). The machine gate queues it; no
 custom wait loop or resource override is used.
+
+
+### 2026-10-13 — full-run result
+
+make -k test ran every target to completion. The only failure was the new
+completion-after-main fixture racing its startup delivery. The submitted-receipt
+barrier fixed it; all integration cases passed 50 repetitions, focused race tests
+passed, and the full affected package passed afterward. The snapshot ordering
+regression also passed red/green. Mandatory close review is next; the original
+full-run exit remains nonzero and is recorded honestly in the issue Log.
