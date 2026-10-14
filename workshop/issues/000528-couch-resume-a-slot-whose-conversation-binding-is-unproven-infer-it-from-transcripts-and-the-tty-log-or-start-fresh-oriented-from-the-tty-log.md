@@ -960,3 +960,12 @@ No follow-up implementation starts on this branch.
   journal regression passes; explicit lifecycle GetThread afterward proves the
   retained fixture journal remains replayable. Full core/cmd packages pending;
   no final success claim yet. No lifecycle/protocol/agent restart change.
+
+- BR-12 complete core/cmd checks passed on99035: core296.499s, cmd70.737s.
+  Round13 verified the journal fix/mutation but returned new Critical BR-13:
+  global persisted-file byte reads escape preview deadlines on a FIFO. The
+  complete reachable read graph and shared OS reader correction are recorded
+  in the appended plan Revision; do not claim lock bounds also bound byte IO.
+  No skip/dispute. Canceled own obsolete99035 suite process83401 (birth16:40:15,
+  parent4470 verified), INT exit130; no complete pass/recorded status claimed.
+  Only that run was stopped; the final suite will follow the source correction.

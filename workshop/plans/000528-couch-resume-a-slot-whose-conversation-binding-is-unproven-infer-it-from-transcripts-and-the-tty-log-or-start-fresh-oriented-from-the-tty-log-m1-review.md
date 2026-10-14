@@ -895,3 +895,129 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-14T16:44:44-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 528 — couch: resume a slot whose conversation binding is unproven: infer it from transcripts and the tty log, or start fresh oriented from the tty log |
+| repo | pair |
+| issue file | workshop/issues/000528-couch-resume-a-slot-whose-conversation-binding-is-unproven-infer-it-from-transcripts-and-the-tty-log-or-start-fresh-oriented-from-the-tty-log.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | e272745337452f9b3df2949e5c4a6faa97c85d59..99035c559e3dd445a7ac568ebef91815a61079dd |
+| command | sdlc milestone-close --issue 528 --milestone M1 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-14T16:44:44-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+BR-12’s journal-replay correction is verified, including a regression that fails when writable admission is restored. The revised M1 startup and attachment tests pass. One blocking defect remains: the new contextual preview accessor reaches blocking persisted-file reads, allowing malformed artifacts to defeat broker deadlines.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Remains disposed under the revised listing-based contract; uncertainty is retained in recovery admission.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Exact process-generation checks remain in readiness and native-owner authority.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Policy admission was removed; the previously corrected readiness reads remain bounded.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Permanent terminal coordination remains bounded to 256 stripes.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      The corrected capture/config reader contracts remain intact; the new finding concerns newly contextualized ThreadStore authority reads.
+  - id: BR-9
+    disposition: addressed
+    note: |
+      Listed-live Continue uses the shared warm attachment route; focused attachment and reattach tests pass.
+  - id: BR-10
+    disposition: addressed
+    note: |
+      README.md documents startup attachment, retry, recovery actions and compatibility limits, consistent with the revised implementation.
+  - id: BR-11
+    disposition: addressed
+    note: |
+      The rendered-cell startup oracle and mixed startup integration pass in the focused couchcmd run.
+  - id: BR-12
+    disposition: addressed
+    note: |
+      All three broker callbacks use PreviewThreadContext. Global/local/routed journal and retention tests pass; restoring GetThread makes TestMessageThreadResolverLeavesPendingJournalUntouched fail.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: bounded-untrusted-artifact-reads
+    title: |
+      Contextual broker previews still block indefinitely on persisted-file reads
+    detail: |
+      PreviewThreadContext reaches os.ReadFile in threadstore_location.go:217 and global readPayload/readOptionalPayload in threadstore_layout.go:163/136. Context bounds lock acquisition but cannot interrupt these reads. Two controlled disposable-checkout regressions, covering routed legacy lookup and direct global record lookup, remained blocked beyond a 25ms deadline until a FIFO writer released them after 200ms; without that writer they cannot finish. This defeats automatic admission/use-time cancellation while holding the store lock (ARCH-CONSTRAINTS, ARCH-SECURE). This is the 3rd finding in family bounded-untrusted-artifact-reads: state and enforce one rule for every persisted byte read reachable from broker preview, enumerating manifest, routing record/archive and final record readers. Use bounded regular-file/no-follow/nonblocking reads with contextual cancellation, and add consumer regressions across global, local and routed backends.
+```
+
+1. **Strengths**
+
+   - Shared preview decoding and routing avoid a parallel authority implementation (`threadstore_preview.go:31`).
+   - Pending-journal tests assert unchanged directory contents across three backend shapes.
+   - The broker regression proves its pending journal is valid and replayable.
+   - README and atlas updates explain the revised startup and authority contracts.
+
+2. **Critical findings**
+
+   - The preview deadline defect above blocks shipping. Fix the complete reachable reader set, preserving writable lifecycle recovery behavior.
+
+3. **Important findings**
+
+   - None.
+
+4. **Minor findings**
+
+   - None.
+
+5. **Test coverage notes**
+
+   Focused tests passed across couchcore, couchcmd, couchtty, launcher and couchmessage. Targeted preview/resolver race tests passed. The journal mutation failed as required. Both supplemental FIFO regressions reproduced the blocking defect. Disposable artifacts were removed; tracked files remain unchanged. A full suite was not run.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared getter, decoder and attachment machinery.
+   - **ARCH-PURE — pass:** classification remains pure; storage and process observation stay in integration owners.
+   - **ARCH-PURPOSE — flag:** finish the bounded-reader family sweep rather than correcting another isolated reader.
+   - **ARCH-MOCK — pass:** focused stateful attachment and broker integration coverage passes.
+   - **ARCH-CONSTRAINTS — flag:** preview file reads escape caller deadlines.
+   - **ARCH-SECURE — flag:** global persisted artifacts can be opened as blocking special files.
+   - **ARCH-ORDER — pass:** preview refuses journal recovery; explicit lifecycle getters retain it.
+   - **ARCH-FUNERAL — pass:** no new durable preview cache; coordination artifacts retain their aggregate bound.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry enumerating every persisted byte reader reachable through broker preview, its enforced size/type/cancellation contract, and consumer regression coverage. Narrow the current “context-bounded preview getter” claim until those reads satisfy it.
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.451851917s
+head: "99035c559e3dd445a7ac568ebef91815a61079dd"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

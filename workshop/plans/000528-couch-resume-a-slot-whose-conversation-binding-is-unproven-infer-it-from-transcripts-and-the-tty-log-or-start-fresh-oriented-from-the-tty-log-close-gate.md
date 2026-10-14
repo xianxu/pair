@@ -742,6 +742,244 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 99035c559e3dd445a7ac568ebef91815a61079dd
+        tracker_head: bfa42af5ea5d8cdf04e7986af0fda5bed5b6e5d7
+        branch_point: c07a31921d66b891e36ae300e266bd7794bede3e
+        since: "2026-10-13T08:57:28-07:00"
+        until: "2026-10-14T16:39:58-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-13T08:57:28-07:00"
+              end: "2026-10-14T16:39:58-07:00"
+              began: "2026-10-13T08:57:28-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot2/pair
+        sources:
+            - harness: codex
+              id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 07db6e12c729840dfc5e4c47bb41f9a1f24d03d107a8237af5087c244e611b71
+              started: "2026-10-13T05:05:19.479Z"
+              spawned: false
+              bytes: 46076858
+              windows:
+                - start: "2026-10-13T08:57:28-07:00"
+                  end: "2026-10-14T16:39:58-07:00"
+            - harness: codex
+              id: 01a13604-7f67-7c71-8862-d652ff00507c
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              digest: b41b7a545560a75e22708b5d1399ed0c43c186a6cae81a5f61981dddcb7c3c26
+              started: "2026-10-13T16:07:06.952Z"
+              spawned: true
+              bytes: 687525
+              windows:
+                - start: "2026-10-13T16:07:06.952Z"
+                  end: "2026-10-14T16:39:58-07:00"
+            - harness: codex
+              id: 01a1361a-aa08-77d0-8a39-fcac18d7aec7
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 048dd253370c5d447ca62a2e36eea18b6389d43cdaf73fa89d7cfafd6434d5f5
+              started: "2026-10-13T16:31:19.827Z"
+              spawned: false
+              bytes: 782141
+              windows:
+                - start: "2026-10-13T16:31:19.827Z"
+                  end: "2026-10-14T16:39:58-07:00"
+            - harness: codex
+              id: 01a1361e-8991-7f03-8a7b-3d5973745b61
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 92b2c39dd8e4cb64ba521e35394d47eca35dfc839b69df5ad0f8afee6011c7f5
+              started: "2026-10-13T16:35:33.749Z"
+              spawned: false
+              bytes: 538951
+              windows:
+                - start: "2026-10-13T16:35:33.749Z"
+                  end: "2026-10-14T16:39:58-07:00"
+            - harness: codex
+              id: 01a13620-2019-7901-9606-4ef4c7d27b1c
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 2df34f8d5aa5d7b6c236ce7bc2e70e77e4c35f5180e6f7addab471e95be82791
+              started: "2026-10-13T16:37:17.75Z"
+              spawned: false
+              bytes: 541231
+              windows:
+                - start: "2026-10-13T16:37:17.75Z"
+                  end: "2026-10-14T16:39:58-07:00"
+            - harness: codex
+              id: 01a13620-de40-7632-a9af-061a59f0a52b
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: a3f94580afaea679dbf2cecb0237c4d6ec3d2ae1ef8542ff997cd18a35b3043f
+              started: "2026-10-13T16:38:06.405Z"
+              spawned: false
+              bytes: 521917
+              windows:
+                - start: "2026-10-13T16:38:06.405Z"
+                  end: "2026-10-14T16:39:58-07:00"
+            - harness: codex
+              id: 01a13883-ab89-7992-ab0c-79b093c13b95
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 750bd23d4285903b71f354129fa6927c5a9776752ffc18e2b00d5ee3b3a5ed3f
+              started: "2026-10-14T03:45:15.863Z"
+              spawned: false
+              bytes: 831906
+              windows:
+                - start: "2026-10-14T03:45:15.863Z"
+                  end: "2026-10-14T16:39:58-07:00"
+            - harness: codex
+              id: 01a13884-4286-73c2-b7b2-17540c9cac4a
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: ee61a169ede4b6e959c5a65aee80abf76ddc3a35ff0c484a0eada3b4c77eca0a
+              started: "2026-10-14T03:45:54.508Z"
+              spawned: false
+              bytes: 492551
+              windows:
+                - start: "2026-10-14T03:45:54.508Z"
+                  end: "2026-10-14T16:39:58-07:00"
+            - harness: codex
+              id: 01a13b23-d0ac-7b81-a844-510e6c4484bd
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              digest: ef3b2239b591af4f1c5b3f9f7195aad53a8700812c6c47e60620fa7b92489f62
+              started: "2026-10-14T15:59:25.5Z"
+              spawned: true
+              bytes: 5569518
+              windows:
+                - start: "2026-10-14T15:59:25.5Z"
+                  end: "2026-10-14T16:39:58-07:00"
+            - harness: codex
+              id: 01a13b23-eb0b-7642-9e0f-496f67490264
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              digest: cc6243fd7178ee354ca679c48f70fe4c573eb09eba800d5f94831a0a98f49efc
+              started: "2026-10-14T15:59:32.235Z"
+              spawned: true
+              bytes: 2730708
+              windows:
+                - start: "2026-10-14T15:59:32.235Z"
+                  end: "2026-10-14T16:39:58-07:00"
+            - harness: codex
+              id: 01a13b24-1965-7260-926a-536a068a83f7
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              digest: dcf26ef7ba000949ac4c87be468b24a1f030923e3e098845ec7160668034561f
+              started: "2026-10-14T15:59:44.113Z"
+              spawned: true
+              bytes: 4064482
+              windows:
+                - start: "2026-10-14T15:59:44.113Z"
+                  end: "2026-10-14T16:39:58-07:00"
+        excluded_brain_sessions: 1
+        excluded_brain_minutes: 75.37058333333333
+        cuts:
+            - boundary: M1
+              dispatched: "2026-10-13T10:58:01-07:00"
+              finalized: "2026-10-13T11:01:13-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-13T11:30:13-07:00"
+              finalized: "2026-10-13T11:34:12-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-13T12:03:38-07:00"
+              finalized: "2026-10-13T12:06:16-07:00"
+              finalizing: true
+            - boundary: M2
+              dispatched: "2026-10-13T13:20:56-07:00"
+              finalized: "2026-10-13T13:26:16-07:00"
+              finalizing: false
+            - boundary: M2
+              dispatched: "2026-10-13T13:34:13-07:00"
+              finalized: "2026-10-13T13:39:34-07:00"
+              finalizing: false
+            - boundary: M2
+              dispatched: "2026-10-13T13:44:33-07:00"
+              finalized: "2026-10-13T13:49:02-07:00"
+              finalizing: true
+            - boundary: M1
+              dispatched: "2026-10-13T21:37:49-07:00"
+              finalized: "2026-10-13T21:42:34-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-13T22:08:52-07:00"
+              finalized: "2026-10-13T22:11:38-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-13T22:56:16-07:00"
+              finalized: "2026-10-13T23:03:06-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-13T23:10:32-07:00"
+              finalized: "2026-10-13T23:12:54-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-14T15:16:46-07:00"
+              finalized: "2026-10-14T15:20:38-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-14T16:23:08-07:00"
+              finalized: "2026-10-14T16:27:24-07:00"
+              finalizing: false
+      "n": 13
+      timestamp: "2026-10-14T16:44:45-07:00"
+      dispatched: "2026-10-14T16:41:22-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Remains disposed under the revised listing-based contract; uncertainty is retained in recovery admission.
+          round: 13
+        - id: BR-2
+          disposition: addressed
+          note: Exact process-generation checks remain in readiness and native-owner authority.
+          round: 13
+        - id: BR-3
+          disposition: addressed
+          note: Policy admission was removed; the previously corrected readiness reads remain bounded.
+          round: 13
+        - id: BR-4
+          disposition: addressed
+          note: Permanent terminal coordination remains bounded to 256 stripes.
+          round: 13
+        - id: BR-5
+          disposition: addressed
+          note: The corrected capture/config reader contracts remain intact; the new finding concerns newly contextualized ThreadStore authority reads.
+          round: 13
+        - id: BR-9
+          disposition: addressed
+          note: Listed-live Continue uses the shared warm attachment route; focused attachment and reattach tests pass.
+          round: 13
+        - id: BR-10
+          disposition: addressed
+          note: README.md documents startup attachment, retry, recovery actions and compatibility limits, consistent with the revised implementation.
+          round: 13
+        - id: BR-11
+          disposition: addressed
+          note: The rendered-cell startup oracle and mixed startup integration pass in the focused couchcmd run.
+          round: 13
+        - id: BR-12
+          disposition: addressed
+          note: All three broker callbacks use PreviewThreadContext. Global/local/routed journal and retention tests pass; restoring GetThread makes TestMessageThreadResolverLeavesPendingJournalUntouched fail.
+          round: 13
+      findings:
+        - kind: defect
+          id: BR-13
+          severity: Critical
+          title: Contextual broker previews still block indefinitely on persisted-file reads
+          detail: 'PreviewThreadContext reaches os.ReadFile in threadstore_location.go:217 and global readPayload/readOptionalPayload in threadstore_layout.go:163/136. Context bounds lock acquisition but cannot interrupt these reads. Two controlled disposable-checkout regressions, covering routed legacy lookup and direct global record lookup, remained blocked beyond a 25ms deadline until a FIFO writer released them after 200ms; without that writer they cannot finish. This defeats automatic admission/use-time cancellation while holding the store lock (ARCH-CONSTRAINTS, ARCH-SECURE). This is the 3rd finding in family bounded-untrusted-artifact-reads: state and enforce one rule for every persisted byte read reachable from broker preview, enumerating manifest, routing record/archive and final record readers. Use bounded regular-file/no-follow/nonblocking reads with contextual cancellation, and add consumer regressions across global, local and routed backends.'
+          family: bounded-untrusted-artifact-reads
+          round: 13
+      boundary: M1
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#528 (boundary-review)
@@ -896,6 +1134,25 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-12** [Critical] `observation-only-store-access` (kind: defect) Automatic wrapper admission replays pending thread-store journals
   cmd/internal/couchcmd/message_service.go:1224 calls writable GetThread during automatic wrapper admission; GetThread reaches withStoreLock and journal recovery (threadstore.go:205). A temporary overlay regression demonstrated recordChanged=true, journalRemoved=true, resolveErr=<nil>, without any requested lifecycle action. ARCH-PURPOSE / ARCH-ORDER: enforce preview-only storage access across automatic admission and use-time authority reads, sweeping the thread resolver and record/agent callbacks at lines 329 and 338; add pending-journal regressions that assert unchanged records, journals and retention enrollment.
 
+## Round 13 — 2026-10-14T16:44:45-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — Remains disposed under the revised listing-based contract; uncertainty is retained in recovery admission.
+- BR-2 — addressed — Exact process-generation checks remain in readiness and native-owner authority.
+- BR-3 — addressed — Policy admission was removed; the previously corrected readiness reads remain bounded.
+- BR-4 — addressed — Permanent terminal coordination remains bounded to 256 stripes.
+- BR-5 — addressed — The corrected capture/config reader contracts remain intact; the new finding concerns newly contextualized ThreadStore authority reads.
+- BR-9 — addressed — Listed-live Continue uses the shared warm attachment route; focused attachment and reattach tests pass.
+- BR-10 — addressed — README.md documents startup attachment, retry, recovery actions and compatibility limits, consistent with the revised implementation.
+- BR-11 — addressed — The rendered-cell startup oracle and mixed startup integration pass in the focused couchcmd run.
+- BR-12 — addressed — All three broker callbacks use PreviewThreadContext. Global/local/routed journal and retention tests pass; restoring GetThread makes TestMessageThreadResolverLeavesPendingJournalUntouched fail.
+
+### Raised
+
+- **BR-13** [Critical] `bounded-untrusted-artifact-reads` (kind: defect) Contextual broker previews still block indefinitely on persisted-file reads
+  PreviewThreadContext reaches os.ReadFile in threadstore_location.go:217 and global readPayload/readOptionalPayload in threadstore_layout.go:163/136. Context bounds lock acquisition but cannot interrupt these reads. Two controlled disposable-checkout regressions, covering routed legacy lookup and direct global record lookup, remained blocked beyond a 25ms deadline until a FIFO writer released them after 200ms; without that writer they cannot finish. This defeats automatic admission/use-time cancellation while holding the store lock (ARCH-CONSTRAINTS, ARCH-SECURE). This is the 3rd finding in family bounded-untrusted-artifact-reads: state and enforce one rule for every persisted byte read reachable from broker preview, enumerating manifest, routing record/archive and final record readers. Use bounded regular-file/no-follow/nonblocking reads with contextual cancellation, and add consumer regressions across global, local and routed backends.
+
 ## Open findings
 
-- **BR-12** [Critical] `observation-only-store-access` (kind: defect) Automatic wrapper admission replays pending thread-store journals
+- **BR-13** [Critical] `bounded-untrusted-artifact-reads` (kind: defect) Contextual broker previews still block indefinitely on persisted-file reads

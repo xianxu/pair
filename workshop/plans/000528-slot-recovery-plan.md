@@ -1160,3 +1160,33 @@ bytes and retention enrollment unchanged, no write/replay; canceled/contended
 reads remain bounded. Current queued9a167 suite is obsolete and canceled; the
 corrected runtime head requires a new recorded suite, normal re-review, and
 honest operator notification of the narrow observation-only fix. No gate skip.
+
+### 2026-10-14 — BR-13: complete preview persisted-byte reader rule
+
+Round13 verified BR-12 but reproduced FIFO blocking beyond the preview deadline.
+Lock cancellation alone does not bound payload IO. Narrow the earlier claim:
+99035's preview locks/routing honor context, but its byte reads are not yet a
+complete deadline boundary. Finish the reachable reader class before re-close.
+
+Read graph: PreviewThreadContext -> global manifest -> legacy routing record or
+archive -> local membership (including damaged-envelope salvage/archive) ->
+final record. RepositoryNamesContext also reaches manifest/aliases; inspection
+has its own bounded opener. Every persisted byte read on those preview paths
+must enforce regular-file type, a size limit, no-follow/nonblocking open and
+caller cancellation, without replay or retention enrollment. Retain local
+physical descriptor-relative Openat parent authority. Reuse osfs metadata IO by
+extracting its opened-file read core for local/inspection descriptors; do not
+add parallel byte loops, context flags, goroutine-per-read or durable machinery.
+Use existing4MiB metadata bounds; preserve explicit migration journal256MiB
+behavior and regular writable lifecycle recovery APIs.
+
+Files/owners: osfs/metadata_read.go shared opened-file reader; threadstore.go
+manifest/final contextual wrappers; threadstore_layout.go payload/context/local
+Openat; threadstore_location.go legacy/salvage/archive routing; retention.go
+archive reader; repositoryalias_store.go family aliases; storeinspection.go
+inspection byte loop; existing preview tests and metadata regressions. Add
+actual consumer FIFO RED cases for global final/routed legacy first, then
+manifest/archive/local/alias branches, symlink/oversize/canceled and unchanged
+record/journal/retention proofs. Existing lock opener already has a regular-file
+contract; verify it rather than adding another mechanism. Re-review normally,
+then run the final recorded full suite after the last source change.
