@@ -104,3 +104,7 @@ The full suite exposed an additional ps-dependent fixture in tests/pair-embedded
 ### 2026-10-14 — complete ancestry fixture sweep
 
 The preceding fixture note omitted cmd/pair-go/main_test.go's public command acceptance helper. Its targeted run reproduced the same inherited-Zellij failure; it now shares the bounded reparented worker and uses native sidecar inspection. That supersedes the claim that only negative ps assertions remained after the shell fix.
+
+### 2026-10-14 — live quiescence terminal-process evidence
+
+Real Zellij quiescence under seatbelt exposed a metadata row persisting after process exit while kern.procargs2 returned EINVAL. EINVAL alone must remain unknown. Extend Process with the native terminal/zombie status from the same metadata read, and omit only confirmed terminated rows from command Snapshot; Table retains them for tree consumers. A controlled exited-but-unreaped child will confirm the cause and pin behavior, with fake native rows covering terminal versus unreadable live evidence. This refines the existing disappeared-process contract, not zellij authorization.
