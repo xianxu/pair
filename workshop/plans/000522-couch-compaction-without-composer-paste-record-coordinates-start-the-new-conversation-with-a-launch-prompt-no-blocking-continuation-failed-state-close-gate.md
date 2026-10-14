@@ -159,6 +159,27 @@ rounds:
       isolation: fenced
       reviewed: 5a9eddbf10942a2e07da7f94b333e81e98cfaf16
       blocked: false
+    - "n": 5
+      timestamp: "2026-10-13T22:41:22-07:00"
+      dispatched: "2026-10-13T22:34:24-07:00"
+      agent: claude
+      dispose:
+        - id: BR-8
+          disposition: not-addressed
+          note: Still no regression test. No commit after round 2 adds a RecordPreviousSession failure-injection test; continuation.go:369-373 keeps the record correctly but nothing pins it. Minor, does not block.
+          round: 5
+        - id: BR-12
+          disposition: addressed
+          note: e9611d97d deletes operatorData (terminal_replies.go), BuildPrompt/validateBody/literal/MaxBodyBytes and the ReaderIntent/TargetAgent fields (orientation/model.go), plus the test that used them. Grep of cmd/ finds no leftovers. The plan's Revisions section records the deadcode pass and why pre-#522 unreachable code was left.
+          round: 5
+        - id: BR-13
+          disposition: addressed
+          note: Captures renamed to testdata/peer/codex/0.154.0, peer_composer_test.go paths updated, .gitattributes covers testdata/peer/**/*.raw. wrapcmd suite green.
+          round: 5
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 290eb67d30924bd6ade0d66927ac1d22b252baec
+      blocked: false
 ---
 
 # Gate ledger — pair#522 (boundary-review)
@@ -226,8 +247,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-13** [Minor] `fixture-home-convention` Codex 0.154.0 peer captures moved into testdata/tty, whose contract requires metadata.json, so the conformance replay skips them
   testdata/tty/codex/0.154.0 has no metadata.json, so TestHarnessTTYFixtureConformance skips it, yet it looks like Codex's newest conformance version. Peer-only README captures already live in testdata/peer/<agent>/<version>; move them there and extend the .gitattributes binary rule to that tree.
 
+## Round 5 — 2026-10-13T22:41:22-07:00 (claude) — passed
+
+### Disposed
+
+- BR-8 — not-addressed — Still no regression test. No commit after round 2 adds a RecordPreviousSession failure-injection test; continuation.go:369-373 keeps the record correctly but nothing pins it. Minor, does not block.
+- BR-12 — addressed — e9611d97d deletes operatorData (terminal_replies.go), BuildPrompt/validateBody/literal/MaxBodyBytes and the ReaderIntent/TargetAgent fields (orientation/model.go), plus the test that used them. Grep of cmd/ finds no leftovers. The plan's Revisions section records the deadcode pass and why pre-#522 unreachable code was left.
+- BR-13 — addressed — Captures renamed to testdata/peer/codex/0.154.0, peer_composer_test.go paths updated, .gitattributes covers testdata/peer/**/*.raw. wrapcmd suite green.
+
 ## Open findings
 
 - **BR-8** [Minor] `fix-unpinned-by-test` BR-1's keep-the-record change in executeContinuation has no test that fails without it
-- **BR-12** [Minor] `stale-retired-references` Symbols orphaned by the retirement survive: terminalReplies.operatorData, orientation.BuildPrompt/validateBody/MaxBodyBytes/ReaderIntent/TargetAgent
-- **BR-13** [Minor] `fixture-home-convention` Codex 0.154.0 peer captures moved into testdata/tty, whose contract requires metadata.json, so the conformance replay skips them
