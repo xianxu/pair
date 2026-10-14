@@ -33,7 +33,20 @@ rounds:
           note: The replacement table names risky functions and supplies adversarial strategies and mechanical guards, retaining integration seams and verification commands.
           round: 2
       blocked: false
-content_hash: 2ba332ad1b9599ec7cf856ffbacef31a6ea61061e25abc8cd2633958be81a59b
+    - "n": 3
+      timestamp: "2026-10-14T00:11:06-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Mode-specific satisfaction requires persistent retries to reconcile claim files independently of runtime ownership.
+          round: 3
+        - id: PQ-2
+          disposition: addressed
+          note: Named function strategies and mechanical guards explicitly replace the earlier prose test inventories.
+          round: 3
+      blocked: false
+content_hash: 1502b4068451cb1caa5e9291cff7d5702c16de9a92f19e26d3474b320dfced22
 ---
 
 # Gate ledger — pair#546 (plan-quality)
@@ -56,6 +69,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - PQ-1 — addressed — Persistent satisfaction requires freshly read durable claims without runtime overrides; retries reconcile incomplete persistence even when runtime ownership matches.
 - PQ-2 — addressed — The replacement table names risky functions and supplies adversarial strategies and mechanical guards, retaining integration seams and verification commands.
+
+## Round 3 — 2026-10-14T00:11:06-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Mode-specific satisfaction requires persistent retries to reconcile claim files independently of runtime ownership.
+- PQ-2 — addressed — Named function strategies and mechanical guards explicitly replace the earlier prose test inventories.
 
 ## Open findings
 
