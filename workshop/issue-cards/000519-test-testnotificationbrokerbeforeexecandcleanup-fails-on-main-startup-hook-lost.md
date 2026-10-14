@@ -1,6 +1,6 @@
 ---
 id: 000519
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-13
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: cbae39e8c2d71559725afa9c0e5c92a4ebf3a351
         evidence_commit: 1d33c6d8a600792329ff18432327a6e31817d62d
+        landed_commit: 20ffe5ddc15c646470a13aad902f885e35555c28
 ---
 
 # test: TestNotificationBrokerBeforeExecAndCleanup fails on main ('startup hook lost')
