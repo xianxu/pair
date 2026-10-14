@@ -107,6 +107,9 @@ envelope without knowing what fills it.
 - [ ] Fix what the breakdown indicts, or record irreducibility.
 - [ ] Update `pairRegistrationTimeout`'s comment to cite the breakdown.
 
+- [ ] M1 — baseline attach/detach timings and native candidate/fencing foundation ([durable plan](../plans/000218-startup-detach-observation-plan.md)).
+- [ ] M2 — shared pass capture, 6/20/40 experiment and measured tuning.
+
 ## Log
 
 ### 2026-09-08
@@ -120,16 +123,14 @@ The measurements in `## Problem` were taken while closing `#215` and are the
 reason this issue is narrow: four plausible suspects are already dead, which is
 worth more than an open-ended "make startup faster".
 
+### 2026-10-14 — planning trace
+
+Claimed by pair:5, started from main 9a2aff687 after slot substrate refresh. Operator approved one snapshot per pass; durable implementation plan: [startup/detach observation](../plans/000218-startup-detach-observation-plan.md). Read-only path trace shows two full native snapshots per healthy SessionOwnerProbe, repeated by Couch prelaunch/registration checks and four child Pair checks (approximately twelve scans for healthy single-poll attach), and approximately six on healthy detach. These are path counts, not measurements. Baseline real attach/detach timing and existing zellij PATH trace precede behavior edits. ARCH-DRY reuse ServerStates, ARCH-ORDER exact fresh fences, ARCH-CONSTRAINTS measure 6/20/40 after reducing duplicate observation.
+
 ## Revisions
 
 - 2026-10-14 — add (operator via TL): concrete case. At the operator's 14:33 restart, Couch's background attaches spawned 21 zellij clients between 14:33:37 and 14:33:47 (~6 at a time): roughly 2–3 s per attach, against ~10–20 ms for `zellij list-sessions` and an expected ~100–300 ms floor (list, lease, one record write, spawn client, first frame). Detach ("leave couch") is unmeasured but also inspects each slot's session server. Trace one attach and one detach step by step; the likely waste is a whole process-table read (native argv for every process since #547) per slot. Probably one shared snapshot per startup or detach pass instead.
 
 - 2026-10-14 — add (operator): try much higher attach parallelism (operator suggests 40; today `LifecycleParallelism = NumCPU/2` = 6 on a 12-core Mac). Run the same restart at 6 / 20 / 40 with a temporary override; record total time and peak load; keep what the numbers support. If per-slot whole-process-table reads dominate, fix those first (shared snapshot per pass).
 
-### 2026-10-14 — planning trace
-
-Claimed by pair:5, started from main 9a2aff687 after slot substrate refresh. Operator approved one snapshot per pass; durable implementation plan: [startup/detach observation](../plans/000218-startup-detach-observation-plan.md). Read-only path trace shows two full native snapshots per healthy SessionOwnerProbe, repeated by Couch prelaunch/registration checks and four child Pair checks (approximately twelve scans for healthy single-poll attach), and approximately six on healthy detach. These are path counts, not measurements. Baseline real attach/detach timing and existing zellij PATH trace precede behavior edits. ARCH-DRY reuse ServerStates, ARCH-ORDER exact fresh fences, ARCH-CONSTRAINTS measure 6/20/40 after reducing duplicate observation.
-
-### 2026-10-14 — plan addition
-
-Add the durable two-boundary plan above to the existing measurement contract: M1 baseline + native candidate/fencing foundation; M2 shared parent pass + remeasurement/concurrency selection. Child Pair cannot reuse Couch's in-memory capture, so named native discovery is required there too. No permanent cache, trust weakening, or live operator-session experiment.
+- 2026-10-14 — add (implementation plan): M1 baseline plus native candidate/fencing foundation; M2 shared parent pass and remeasurement/concurrency selection. Child Pair cannot reuse Couch memory, so narrowed standalone discovery is included. Preserve #553 and exact-generation effect checks.
