@@ -1,12 +1,12 @@
 ---
 id: 000546
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-13
-updated: 2026-10-13
+updated: 2026-10-14
 estimate_hours: 4.19
-card_mirror: 'd648fecd289840c29b9bb8cddd036de56cdadd25' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '8a5a006357a79049498a8430717209db6d9a42a5' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-13T23:46:06-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: 3.42
 ---
 
 # couch: several hubs in one Couch (couch . ../bench): slots assigned to a hub, hub-scoped routing, faded other-hub tabs
