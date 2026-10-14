@@ -12,7 +12,7 @@ import (
 )
 
 // hubMoveCall is an owner-local capability, never populated from wire JSON.
-// The console's existing serial queue orders it against agent mutations.
+// dispatchHubOperation's effect gate orders it against agent mutations.
 type hubMoveCall struct {
 	service *messageService
 	caller  couchmessage.Binding
@@ -156,7 +156,24 @@ func (h *hubRuntime) applyMove(ctx context.Context, move couchcore.HubMove, pers
 		if err := verify(); err != nil {
 			return fail(err)
 		}
-		if err := files.Apply(ctx, edits); err != nil {
+		// Replanning visible bytes can omit an earlier rename whose directory
+		// sync failed. Retain every unchanged snapshot as a confirmation-only
+		// edit, so no persistent success bypasses durability reconciliation.
+		confirm := append([]couchcore.HubClaimEdit(nil), edits...)
+		for _, def := range defs {
+			changed := false
+			for _, edit := range edits {
+				if edit.Root == def.Root {
+					changed = true
+					break
+				}
+			}
+			if !changed {
+				raw := def.Claims.Bytes()
+				confirm = append(confirm, couchcore.HubClaimEdit{Root: def.Root, Before: raw, After: raw})
+			}
+		}
+		if err := files.Apply(ctx, confirm); err != nil {
 			return fail(err)
 		}
 		for i := range defs {

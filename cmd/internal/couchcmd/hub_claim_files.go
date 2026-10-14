@@ -70,7 +70,8 @@ func readHubClaimBytes(root string) ([]byte, os.FileMode, error) {
 // filesystem across calls, including a failure after rename; it is not a claim
 // that several independent hub files can be atomically committed together.
 type hubClaimFiles struct {
-	write func(string, []byte, os.FileMode) error
+	write         func(string, []byte, os.FileMode) error
+	syncDirectory func(string) error
 }
 
 func (f hubClaimFiles) Apply(ctx context.Context, edits []couchcore.HubClaimEdit) error {
@@ -107,11 +108,15 @@ func (f hubClaimFiles) Apply(ctx context.Context, edits []couchcore.HubClaimEdit
 			return durablefile.WriteAtomicMode(path, raw, ".hub-", mode)
 		}
 	}
+	syncDirectory := f.syncDirectory
+	if syncDirectory == nil {
+		syncDirectory = durablefile.SyncDirectory
+	}
 	for _, e := range edits {
 		done, mode, err := check(e)
 		if err == nil {
 			if done {
-				err = durablefile.SyncDirectory(e.Root)
+				err = syncDirectory(e.Root)
 			} else {
 				err = write(filepath.Join(e.Root, ".hub"), e.After, mode)
 			}

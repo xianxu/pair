@@ -260,3 +260,7 @@ The historical checklists above retain superseded scope for provenance. This fin
 - [x] Full make -k test exited 0; affected packages, focused races, clean build, bounded/generated cases and parser fuzz passed. Exact evidence is in the issue Log.
 
 Close review and green-CI landing remain the next gate-owned actions; no live operator smoke is claimed.
+
+### 2026-10-14 — close review round 1 recovery
+
+REWORK identified two event-ordering gaps (BR-1, BR-2), plus stale serial-queue prose (BR-3). Persistent moves must confirm directory durability even when rereading visible bytes leaves no edits; reconcile unchanged active claim snapshots as well as changed files before publishing success. Reply evidence must retain ownership at admission and still satisfy ownership at delivery, so moving a worker cannot convert a foreign send into its hub reply. Add production-path regression sequences for failed rename-sync retries (partial and fully visible batches) and delayed delivery in both reassignment directions. The console queue has concurrent workers: the effect gate and explicit extra-hub adoption chain own ordering. These changes preserve the approved ownership and CLI scope.

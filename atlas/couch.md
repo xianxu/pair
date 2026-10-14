@@ -3589,7 +3589,10 @@ the existing console operation queue. It reuses StartInteractive for each extra
 hub while preserving the first hub’s focus and the one supervisor lifetime.
 
 The typed `move-slot` operation commits an authenticated hub ownership move on
-the same serial console queue; CLI receipts include the destination and persist mode.
+the same console queue; CLI receipts include the destination and persist mode.
+The queue has concurrent workers. `dispatchHubOperation` serializes ownership moves
+and process mutations at their effects; extra-hub admission is chained after each
+prior adoption to preserve command-line order.
 
 Multi-hub ownership (#546) lives in `couchcore.HubOwnership`: ordered active
 hub definitions, bounded parsed `.hub` claims, and revisioned ephemeral moves.
@@ -3597,7 +3600,7 @@ Exact claims beat repository claims; equal specificity picks the first CLI hub
 and warns; everything else falls back to main. Thread records carry no hub field.
 `couchcmd.hubRuntime` publishes that one immutable snapshot to routing, mutation
 guards, supervision and `Console.SetHubOwnership`. A move runs on the existing
-serial operation queue with caller and revision rechecks. Persistence uses bounded
+operation queue with caller and revision rechecks inside that effect gate. Persistence uses bounded
 no-follow reads and expected-content atomic replacements; incomplete writes retain
 runtime ownership and give inspect/retry guidance. Claims are reread only for an
 explicit persistent move. No file watcher or per-hub supervisor is added.
