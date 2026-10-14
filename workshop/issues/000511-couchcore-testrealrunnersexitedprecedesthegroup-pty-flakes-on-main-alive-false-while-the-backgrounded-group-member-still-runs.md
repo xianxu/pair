@@ -57,8 +57,16 @@ Unverified hypothesis: the survivor is `sh -c '(trap "" HUP; exec sleep 30) & ex
 - Full make -k test passed in #542 (/tmp/pair542-make-k-final.log; couchcore 377.409s). Its independent reviewer repeated 50 focused runs and race checks, then returned SHIP with no findings. All four PR CI checks passed.
 - This branch records the closure only: implementation, full-suite verification and development effort belong to #542. No additional code, architectural surface or independently chargeable development work is introduced here (ARCH-DRY/ARCH-PURPOSE).
 
+### 2026-10-13 — baseline-count erratum (review BR-1)
+
+The complete /tmp/pair542-descendant-baseline.log contains **3 failing and 2 passing PTY repetitions (3/5 failures)**. Earlier 2/5 statements in this record were counted from a truncated terminal excerpt and are superseded by this correction. The reproduction, readiness fix, and all post-fix qualification results are unchanged. Verified by counting the complete per-subtest FAIL/PASS records.
+
 ## Revisions
 
 ### 2026-10-13 — close with the landed resolution pointer
 
 TL explicitly folded this fixture correction into #542 and requested closing #511 after that landing. The original acceptance criteria are satisfied by #542's implementation and qualification. This administrative closure preserves the original diagnosis and its evidence rather than reimplementing the fix or duplicating its development hours.
+
+### 2026-10-13 — evidence-count correction
+
+Preserve the append-only Log and record its corrected baseline above: 3/5, not 2/5. This addresses the evidence-count-accuracy family across both #511 and #542; no executable behavior or acceptance criterion changes.
