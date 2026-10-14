@@ -92,3 +92,81 @@ findings:
     detail: |
       README.md:1047 and :1147 still describe pin clicks as read/resolve interactions, and README.md is unchanged in the pinned range. Document both casts and the operator overlay, Save/Cancel, edited markers, and the approved session-bound ownership lifetime; atlas additions alone do not satisfy the README gate.
 ```
+
+---
+
+## Re-review — 2026-10-13T17:18:42-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 537 — web cast: click a note's icon to edit an existing note (as the terminal cast already allows) |
+| repo | pair |
+| issue file | workshop/issues/000537-web-cast-click-a-note-s-icon-to-edit-an-existing-note-as-the-terminal-cast-already-allows.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 3a0355cb8ec51e3720c550a0dcfd6b038b7bd009..8d1719f3363b6039a67043f5f9af9d603930ebbb |
+| command | sdlc close --issue 537 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-13T17:18:42-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+All three prior findings are addressed. The implementation matches the revised ownership and editing contract, preserves recording history, and rejects stale edits. No new blocking findings emerged. Confidence is limited by headless Chrome crashing before the browser checks could exercise editing.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      collab.js:233,271 blocks draft input during creation. Four regressions at tests/broadcast-viewer/notes.test.mjs:330-364 pass at HEAD and fail when the fix is removed in a disposable copy, which was subsequently deleted.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      workshop/plans/000537-web-note-editing-plan.md:290 explicitly supersedes the earlier inventories with corrected definition paths and PURE/INTEGRATION classifications. Checked the replacement rows against source, including both note_edit.go files and note_resolution.go.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      README.md:1053 and :1168 now document both casts, operator ownership, Save/Cancel, edited markers and session lifetime. These descriptions agree with cookie-derived ownership, Board/operator admission and the shared dialog.
+```
+
+1. **Strengths**
+
+   - Ownership comes from validated session context; strict edit parsers reject injected ownership fields.
+   - `recording/reduce.go:240` copies creation records before editing and increments revisions, preserving history and submission guards.
+   - `board/operator.go:319` correctly requires operation-specific confirmation rather than treating target existence as proof of success.
+   - Frozen-clock tests exercise actual split/merge persistence ordering.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - All **283 Node tests passed**.
+   - Go packages **board, recording, query, recorder and webcast passed**.
+   - Targeted Board/recorder race tests passed.
+   - Broadcast’s package run failed only `TestNamedTunnelServesFromPrivateSocket`; that test and the targeted ownership/edit tests passed with `TMPDIR=/tmp`.
+   - Both headless editing tests failed during Chrome startup with CDP EOF/GPU-process errors, including a retry with the shorter temporary path. Browser behavior was therefore not independently confirmed this round.
+   - `git diff --check` passed. Full `make -k test` was not rerun; its recorded evidence was inspected.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — Pass:** shared dialog, ownership seam and timestamp-ordering helper are reused.
+   - **ARCH-PURE — Pass:** parsers, reducers and dialog transitions separate decisions from injected effects.
+   - **ARCH-PURPOSE — Pass:** viewer, terminal, operator, replay and query paths implement the revised scope.
+   - **ARCH-MOCK — Pass:** stateful recorder, transport and query fixtures use production boundaries; live verification has the limitation above.
+   - **ARCH-CONSTRAINTS — Pass:** edits reuse request, text-size, rate and single-dialog bounds.
+   - **ARCH-SECURE — Pass:** public attribution grants no edit authority; revoked ownership and malformed requests have regression coverage.
+   - **ARCH-ORDER — Pass:** production transitions own dialog state; tests control delayed replies, retirement and uncertain operator outcomes.
+   - **ARCH-FUNERAL — Pass:** terminal resolution history is bounded and cleared at cast end; edit records inherit the documented recording deletion policy.
+
+7. **Plan revision recommendations:** None. The existing revisions reconcile scope, implementation locations and the corrected pending-creation behavior.

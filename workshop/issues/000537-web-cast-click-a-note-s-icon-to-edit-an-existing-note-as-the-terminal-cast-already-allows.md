@@ -114,6 +114,7 @@ total: 4.545
 ## Log
 
 ### 2026-10-13 implementation checkpoint
+- 2026-10-13: closed — Operator smoke passed on c9a02b5e9 (receipt a6b30dff-7111-4cb2-b2a4-6a607bf24534); stage cleared. First full make -k test completed: stale same-origin assertion fixed with full broadcast rerun green; external new staged-reason fleet gap reported, isolated conformance green after clearing stage. BR-1 creation regression reproduced red then fixed: 283 Node tests and both real headless viewer/operator tests pass. BR-2 final classified concept inventory in plan Revisions; BR-3 README updated. Board/recorder race and artifact inventory pass. Second full suite queued under machine gate; landing will wait for its completion.; review verdict: SHIP
 
 - change-code passed: plan-quality CLEAN (three recorded rounds), estimate
   INFO. Estimate covers the whole claim-to-ship window including completed

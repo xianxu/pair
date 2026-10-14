@@ -29,6 +29,27 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - "n": 2
+      timestamp: "2026-10-13T17:18:42-07:00"
+      dispatched: "2026-10-13T17:15:53-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: collab.js:233,271 blocks draft input during creation. Four regressions at tests/broadcast-viewer/notes.test.mjs:330-364 pass at HEAD and fail when the fix is removed in a disposable copy, which was subsequently deleted.
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: workshop/plans/000537-web-note-editing-plan.md:290 explicitly supersedes the earlier inventories with corrected definition paths and PURE/INTEGRATION classifications. Checked the replacement rows against source, including both note_edit.go files and note_resolution.go.
+          round: 2
+        - id: BR-3
+          disposition: addressed
+          note: README.md:1053 and :1168 now document both casts, operator ownership, Save/Cancel, edited markers and session lifetime. These descriptions agree with cookie-derived ownership, Board/operator admission and the shared dialog.
+          round: 2
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 8d1719f3363b6039a67043f5f9af9d603930ebbb
+      blocked: false
 ---
 
 # Gate ledger — pair#537 (boundary-review)
@@ -47,8 +68,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-3** [Important] `user-surface-documentation` README update is missing for existing-note editing
   README.md:1047 and :1147 still describe pin clicks as read/resolve interactions, and README.md is unchanged in the pinned range. Document both casts and the operator overlay, Save/Cancel, edited markers, and the approved session-bound ownership lifetime; atlas additions alone do not satisfy the README gate.
 
+## Round 2 — 2026-10-13T17:18:42-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — collab.js:233,271 blocks draft input during creation. Four regressions at tests/broadcast-viewer/notes.test.mjs:330-364 pass at HEAD and fail when the fix is removed in a disposable copy, which was subsequently deleted.
+- BR-2 — addressed — workshop/plans/000537-web-note-editing-plan.md:290 explicitly supersedes the earlier inventories with corrected definition paths and PURE/INTEGRATION classifications. Checked the replacement rows against source, including both note_edit.go files and note_resolution.go.
+- BR-3 — addressed — README.md:1053 and :1168 now document both casts, operator ownership, Save/Cancel, edited markers and session lifetime. These descriptions agree with cookie-derived ownership, Board/operator admission and the shared dialog.
+
 ## Open findings
 
-- **BR-1** [Critical] `committed-operation-state` Successful draft creation remains eligible to create another note
-- **BR-2** [Critical] `core-concept-traceability` Core concept tables disagree with implementation locations and omit classifications
-- **BR-3** [Important] `user-surface-documentation` README update is missing for existing-note editing
+(none — every finding has been disposed)
