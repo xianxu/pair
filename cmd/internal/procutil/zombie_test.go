@@ -2,6 +2,8 @@ package procutil
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -10,9 +12,59 @@ import (
 	"time"
 )
 
+// waitForUnreapedChild keeps command failures as diagnostic evidence. They do
+// not establish that the kernel has published a terminal process state.
+func waitForUnreapedChild(pid int, table func() ([]Process, error), command func(int) (CommandInfo, error), timeout time.Duration) error {
+	var commandErr error
+	for deadline := time.Now().Add(timeout); time.Now().Before(deadline); time.Sleep(time.Millisecond) {
+		rows, err := table()
+		if err != nil {
+			return fmt.Errorf("read PID %d terminal metadata: %w", pid, err)
+		}
+		_, commandErr = command(pid)
+		for _, row := range rows {
+			if row.PID == pid && row.Zombie {
+				return nil
+			}
+		}
+	}
+	return fmt.Errorf("PID %d did not become terminal (last command error: %v)", pid, commandErr)
+}
+
+func TestUnreapedChildWaitsForTerminalMetadata(t *testing.T) {
+	const pid = 41
+	reads := 0
+	table := func() ([]Process, error) {
+		reads++
+		return []Process{{PID: pid, Zombie: reads >= 2}}, nil
+	}
+	command := func(int) (CommandInfo, error) {
+		return CommandInfo{}, errors.New("command storage already unavailable")
+	}
+	if err := waitForUnreapedChild(pid, table, command, time.Second); err != nil {
+		t.Fatal(err)
+	}
+	if reads != 2 {
+		t.Fatalf("fixture returned before terminal metadata: table reads=%d, want 2", reads)
+	}
+}
+
+func TestUnreapedChildWaitHasBoundedDeadline(t *testing.T) {
+	const pid = 41
+	table := func() ([]Process, error) {
+		return []Process{{PID: pid}}, nil
+	}
+	command := func(int) (CommandInfo, error) {
+		return CommandInfo{}, errors.New("command storage already unavailable")
+	}
+	if err := waitForUnreapedChild(pid, table, command, 5*time.Millisecond); err == nil {
+		t.Fatal("fixture accepted a nonterminal row after its deadline")
+	}
+}
+
 // Keep the exited child unreaped until cleanup so its table row remains while
-// its command storage has gone. Pipe EOF proves the child has closed its files;
-// nativeCommand may lag briefly as exit completes.
+// its command storage has gone. Pipe EOF and unavailable command storage can
+// precede the kernel terminal state, so readiness requires a zombie table row.
 func exitedUnreapedChild(t *testing.T) int {
 	t.Helper()
 	exe, err := os.Executable()
@@ -32,14 +84,10 @@ func exitedUnreapedChild(t *testing.T) int {
 	if _, err := io.Copy(io.Discard, stdout); err != nil {
 		t.Fatal(err)
 	}
-	for deadline := time.Now().Add(3 * time.Second); time.Now().Before(deadline); time.Sleep(time.Millisecond) {
-		if _, err := nativeCommand(cmd.Process.Pid); err != nil {
-			t.Logf("exited unreaped PID %d: command error %v", cmd.Process.Pid, err)
-			return cmd.Process.Pid
-		}
+	if err := waitForUnreapedChild(cmd.Process.Pid, Table, nativeCommand, 3*time.Second); err != nil {
+		t.Fatal(err)
 	}
-	t.Fatal("exited child still has command evidence")
-	return 0
+	return cmd.Process.Pid
 }
 
 func TestSnapshotExcludesExitedUnreapedChild(t *testing.T) {
