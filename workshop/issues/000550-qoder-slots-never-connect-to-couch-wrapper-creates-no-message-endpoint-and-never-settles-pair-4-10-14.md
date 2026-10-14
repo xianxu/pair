@@ -83,3 +83,11 @@ Ran sdlc stage --clear after hub authorization; pair:0 returned to main, releasi
 ### 2026-10-14 — required suite passed
 
 sdlc local-check run --name suite passed on b54b991dc3824a007a5520e186f35c1a3c4f38ac, exit 0 in 10m36s, after a 380-second machine-slot wait. Success recorded as sdlc-local/suite. Full log has no anchored FAIL/--- FAIL/make Error entries; SHA256 fd0b0445004a2f4b1a81529d2f49f97dce52df802861a18c3a98a34b4798dce8. Subsequent commits are documentation-only: live-smoke record and placeholder wording clarification.
+
+### 2026-10-14 — close review BR-1
+
+Round 1 found no correctness defect; focused tests and a fresh full wrapper run passed (136.264s), both fixture hashes matched, and ARCH-DRY/PURE/PURPOSE passed. BR-1 identified README's receiver paragraph as still listing only Claude/Codex. Swept README receiver-support references plus atlas/couch.md and peer_runtime.go. README now includes Qoder and its recorded/native evidence. The same paragraph's old echoed-text validation claims contradicted the existing fixed-delay delivery path, so it now describes bracketed paste, delayed submit and clear/turn confirmation; no executable behavior changed. The ledger blocked finalization despite FIX-THEN-SHIP, so close must rerun to dispose BR-1.
+
+### 2026-10-14 — README documentation revision
+
+Extend the documentation checklist to sweep README's receiver-support and submission paragraph alongside atlas/couch.md. This resolves the user-facing-surface-documentation class; all changed prose was checked against peer_runtime.go and dispatchPeer/advancePeer. The required passing suite remains applicable because only documentation changed after its tested head.
