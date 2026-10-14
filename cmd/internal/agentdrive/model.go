@@ -37,6 +37,9 @@ type DriveEffect struct {
 	Key     KeyStep
 	Control bool
 	Delay   time.Duration
+	// ScreenEpoch pins writes derived from picker evidence. Zero denotes a raw
+	// caller step or initial command entry, which has no picker observation.
+	ScreenEpoch uint64
 }
 
 // Internal recipe directions are excluded from ParseKeySequence's caller syntax.
@@ -144,8 +147,14 @@ func observe(s DriveState) (DriveState, []DriveEffect) {
 func write(s DriveState, k KeyStep, next drivePhase) (DriveState, []DriveEffect) {
 	s.phase = phaseWriting
 	s.after = next
-	s.writeEpoch = s.epoch
-	return s, []DriveEffect{{Kind: EffectWrite, Key: k, Control: s.request.Model != nil}}
+	if s.epoch > s.writeEpoch {
+		s.writeEpoch = s.epoch
+	}
+	effect := DriveEffect{Kind: EffectWrite, Key: k, Control: s.request.Model != nil}
+	if s.request.Model != nil && s.command >= 3 {
+		effect.ScreenEpoch = s.epoch
+	}
+	return s, []DriveEffect{effect}
 }
 func uncertain(s DriveState) Outcome {
 	if s.result.Step > 0 || s.phase == phaseWriting || s.phase == phaseApplied {
@@ -192,7 +201,11 @@ func ReduceDrive(input DriveState, event DriveEvent) (DriveState, []DriveEffect)
 		return s, nil
 	}
 	if event.Kind == EventCancel {
-		return finish(s, uncertain(s), "drive canceled; inspect the slot before sending more input")
+		detail := "drive canceled"
+		if event.Error != "" {
+			detail += ": " + event.Error
+		}
+		return finish(s, uncertain(s), detail+"; inspect the slot before sending more input")
 	}
 	if !event.At.Before(s.deadline) {
 		return finish(s, uncertain(s), "drive deadline expired; inspect the slot before sending more input")
@@ -244,7 +257,7 @@ func ReduceDrive(input DriveState, event DriveEvent) (DriveState, []DriveEffect)
 		}
 		return observe(s)
 	case EventScreen:
-		if event.Screen.Epoch <= s.epoch || !event.Screen.Complete {
+		if event.Screen.Epoch <= s.epoch || event.Screen.Epoch <= s.writeEpoch || !event.Screen.Complete {
 			return observe(s)
 		}
 		s.epoch = event.Screen.Epoch

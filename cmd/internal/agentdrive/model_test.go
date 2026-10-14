@@ -210,6 +210,74 @@ func TestDriveCodexAdvancedRecoveryThreeEscapes(t *testing.T) {
 	}
 }
 
+func TestDriveScreenDerivedWritesCarryObservationProof(t *testing.T) {
+	for _, tc := range []struct {
+		model string
+		key   KeyKind
+	}{{"gpt-6-astra", KeyDown}, {"gpt-6.1-sol", KeyEnter}, {"gpt-missing", KeyEsc}} {
+		s, now := modelAtPicker(t, ModelRequest{Model: tc.model, Effort: "low"})
+		_, fx := ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 17, Complete: true, Lines: capture(t, "model-picker")}})
+		if len(fx) != 1 || fx[0].Key.Kind != tc.key || fx[0].ScreenEpoch != 17 {
+			t.Fatalf("%s proof missing: %#v", tc.model, fx)
+		}
+	}
+	s, now := modelAtPicker(t, ModelRequest{Model: "gpt-6.1-sol", Effort: "low"})
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 17, Complete: true, Lines: capture(t, "model-picker")}})
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventWritten, At: now, Screen: Screen{Epoch: 17}})
+	_, fx := ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 18, Complete: true, Lines: capture(t, "effort-picker")}})
+	if len(fx) != 1 || fx[0].Key.Text != "s" || fx[0].ScreenEpoch != 18 {
+		t.Fatalf("apply proof missing: %#v", fx)
+	}
+}
+
+func TestDriveCommandWritesHaveNoPickerProof(t *testing.T) {
+	now := time.Unix(100, 0)
+	s, _ := NewDrive(Request{Model: &ModelRequest{Model: "gpt-6.1-sol"}}, "codex", now.Add(time.Minute))
+	s, fx := ReduceDrive(s, DriveEvent{Kind: EventStart, At: now, Screen: Screen{Epoch: 10, Complete: true, Idle: true}})
+	for i := 0; i < 3; i++ {
+		if len(fx) != 1 || fx[0].ScreenEpoch != 0 {
+			t.Fatalf("command depends on picker proof %#v", fx)
+		}
+		s, fx = ReduceDrive(s, DriveEvent{Kind: EventWritten, At: now, Screen: Screen{Epoch: uint64(10 + i)}})
+	}
+}
+
+func TestDriveRawFinalFenceUsesActualEmissionEpoch(t *testing.T) {
+	now := time.Unix(100, 0)
+	s, _ := NewDrive(Request{Keys: KeySequence{{Kind: KeyText, Text: "a"}, {Kind: KeyEnter}}}, "codex", now.Add(time.Minute))
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventStart, At: now, Screen: Screen{Epoch: 1, Complete: true, Idle: true}})
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventWritten, At: now, Screen: Screen{Epoch: 10}})
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventWritten, At: now, Screen: Screen{Epoch: 11}})
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 11, Complete: true, Idle: true}})
+	if s.Terminal() {
+		t.Fatal("emission epoch mistaken for fresh final paint")
+	}
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 12, Complete: true, Idle: true}})
+	if s.Result().Outcome != OutcomeConfirmed {
+		t.Fatalf("%#v", s.Result())
+	}
+}
+
+func TestDriveModelDoesNotActOnPreEmissionFrame(t *testing.T) {
+	s, now := modelAtPicker(t, ModelRequest{Model: "gpt-6.1-sol", Effort: "low"})
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 2, Complete: true, Lines: capture(t, "model-picker")}})
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventWritten, At: now, Screen: Screen{Epoch: 10}})
+	_, fx := ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 3, Complete: true, Lines: capture(t, "effort-picker")}})
+	for _, effect := range fx {
+		if effect.Kind == EffectWrite {
+			t.Fatalf("pre-emission frame authorized effect %#v", effect)
+		}
+	}
+}
+
+func TestDriveCancelPreservesReason(t *testing.T) {
+	s, now := modelAtPicker(t, ModelRequest{Model: "gpt-6.1-sol"})
+	s, fx := ReduceDrive(s, DriveEvent{Kind: EventCancel, At: now, Error: "screen changed before write"})
+	if len(fx) != 0 || !strings.Contains(s.Result().Detail, "screen changed before write") || !strings.Contains(s.Result().Detail, "inspect") {
+		t.Fatalf("reason lost %#v", s.Result())
+	}
+}
+
 func TestDriveClaudeDefaultScopeRefusedBeforeInput(t *testing.T) {
 	_, err := NewDrive(Request{Model: &ModelRequest{Model: "opus 5.5", Scope: ScopeDefault}}, "claude", time.Now().Add(time.Minute))
 	if err == nil {
