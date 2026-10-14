@@ -51,6 +51,7 @@ Find why a Qoder wrapper never brings up its message endpoint / registration and
 ## Log
 
 ### 2026-10-14
+- 2026-10-14: closed — Required sdlc-local/suite passed on b54b991dc3824a007a5520e186f35c1a3c4f38ac (exit 0, 10m36s); wrapper and focused race passed. Hub live Qoder smoke passed registration, live peek, receive/reply and settling on that clean build; stage cleared. Recorded screens and real endpoint/broker tests pass. BR-1 fixed by sweeping README receiver support and submission prose against production; only documentation changed after the tested head.; review verdict: SHIP
 
 - Refresh completed on main-slot3; design base from git rev-parse HEAD: 41861430868ce99ad949ce01b1154b61ec584077. Claimed and started #550 in pair:3.
 - Root cause: peer_runtime.go explicitly admits only codex and claude, returning before endpoint creation for qoder. peer_composer.go likewise has no qoder case and assumes column 2 for all input origins. Endpoint startup is not gated by observed screen readiness; Qoder lacks a receiver profile entirely.
