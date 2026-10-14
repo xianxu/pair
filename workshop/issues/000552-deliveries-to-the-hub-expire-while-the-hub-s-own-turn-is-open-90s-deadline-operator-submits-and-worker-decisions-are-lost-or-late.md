@@ -59,6 +59,7 @@ Durable design: [automatic-input plan](../plans/000552-automatic-input-plan.md).
 ## Log
 
 ### 2026-10-14
+- 2026-10-14: closed — Complete make -k test exited 0, no failures/exclusions (/tmp/pair552-full-suite.log; couchcore 356.652s, couchcmd 63.254s, couchmessage 7.324s, wrapcmd 45.293s). Targeted wrapper/supervisor/protocol race tests passed. Both root regressions proved red then green without recovery and also pass with recovery enabled. Preserved parley raw replay 6752804 bytes at 94x39 reads complete Empty and relaunch-idle accepted. Latest origin/main already integrated. TL accepted headless evidence and authorized landing; original wrapper untouched, live relaunch/delivery check is TL-owned after main rebuild.; review verdict: SHIP
 
 - Investigation: original wrapper pid 84975 preserved. Production read-only Observe/Tail agrees with raw replay at 94×39. `/status` capitalized field labels cause `codexStartupStatus` to return pending despite an active empty composer; removing only the title row yields Empty. Sanitized scratch regression fails current code.
 - Investigation: real dispatch paste → occupied echo → submit → empty confirmation → Submitted leaves phase AwaitingEmpty with fence=epoch=3. A distinct next delivery, without another render, waits at the exact reported gate. Scratch regression fails without any fallback present.
