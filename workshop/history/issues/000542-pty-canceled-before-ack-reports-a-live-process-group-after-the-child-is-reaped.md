@@ -62,6 +62,10 @@ This is independent of #519: it uses couchcore runner/helper code, not notifytra
 - Full make -k test passed (exit 0, /tmp/pair542-make-k-final.log); couchcore passed in 377.409s. Linux/amd64 couchcore test binary cross-compiled successfully (/tmp/pair542-linux-build.log). #511 passed another 50 repetitions at load 7.19 → 6.70 in 2.393s (/tmp/pair542-survivor-idle50.log). No verification exceptions.
 - Merged main after the stable full-suite run: unrelated #529 start-form inventory initialization plus documentation, with no code conflict or change to the verified runner implementation. #511's implementation, qualification and review are covered by this issue; its card will receive the landing pointer after merge.
 
+### 2026-10-13 — baseline-count erratum (review BR-1)
+
+The complete /tmp/pair542-descendant-baseline.log contains **3 failing and 2 passing PTY repetitions (3/5 failures)**. Earlier 2/5 statements in this record were counted from a truncated terminal excerpt and are superseded by this correction. The reproduction, readiness fix, and all post-fix qualification results are unchanged. Verified by counting the complete per-subtest FAIL/PASS records.
+
 ## Revisions
 
 ### 2026-10-13 — measured ambiguous Darwin group probe
@@ -73,3 +77,7 @@ Keep the common signal probe. On EPERM only, Darwin queries kern.proc.pgrp; a su
 ### 2026-10-13 — include #511's survivor readiness fixture
 
 TL approved folding #511 into #542 and closing it with a landing pointer. The existing survivor test failed with the old liveness behavior (2/5 PTY repetitions, raw group ESRCH, /tmp/pair542-descendant-baseline.log). Its parent exits concurrently with the child's installation of SIGHUP ignore. Add a FIFO readiness handshake after the trap, before parent exit, with no changed deadline. Redirect survivor stdio away from the PTY so only group membership, not retained terminal descriptors, defines this fixture. Qualify #511's 50 repetitions under natural machine load; do not generate load. The initial full suite was stopped while still queued, before it ran, to preserve a stable test snapshot.
+
+### 2026-10-13 — evidence-count correction
+
+Preserve the append-only Log and record its corrected baseline above: 3/5, not 2/5. This addresses the evidence-count-accuracy family across both #511 and #542; no executable behavior or acceptance criterion changes.

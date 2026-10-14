@@ -1665,3 +1665,5 @@ proof; record the surprising case so the next change starts from evidence.
 - #529: Selection tests must enter through the production constructor before supplying optional test overrides. Injecting a choice inventory in every test can hide a nil production inventory even when navigation and preview reducers are individually correct.
 
 - #542/#511: A signal-probe permission error is not positive process-group membership evidence on every OS. Confirm ambiguous results through the OS membership boundary and retain ownership on query failure. Survivor fixtures must acknowledge signal-handler readiness before their parent exits; a fork is not a readiness event.
+
+- #511 close review: count repeated test outcomes from the complete log, using exact per-subtest records. A terminal tail or truncated tool result is not evidence of the total failure count.
