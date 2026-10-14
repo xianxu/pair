@@ -34,11 +34,12 @@ This is independent of #519: it uses couchcore runner/helper code, not notifytra
 
 - Root cause reproduced with retained process evidence and fixed without a sleep or weakened descendant check.
 - Cancellation conformance passes repeatedly alone and in the full suite.
+- #511 survivor conformance passes 50 times both at low load and under natural parallel host load, with readiness established before parent exit.
 
 ## Plan
 
 - [x] Retain failure diagnostics and establish the failing observation sequence.
-- [ ] Fix ownership or observation at its source; add regression coverage and verify.
+- [x] Fix ownership or observation at its source; add regression coverage and verify.
 
 ## Log
 
@@ -55,6 +56,9 @@ This is independent of #519: it uses couchcore runner/helper code, not notifytra
 - #511 readiness fixture passed 50 repetitions under existing parallel host load (3.849s; load 67.32; /tmp/pair542-descendant50.log). Added explicit successful parent-exit confirmation and the same ambiguous-probe path against its surviving descendant. Artifact-source classification passes.
 
 - Final focused qualification: cancellation conformance, ambiguous empty/live groups, unknown-membership safety, and the handshaked survivor fixture all passed 50 consecutive repetitions (8.615s; /tmp/pair542-qualification50.log), load 35.06 → 34.09 (/tmp/pair542-qualification-load.log). Race-enabled same cases passed (1.634s; /tmp/pair542-race.log).
+
+- Full make -k test passed (exit 0, /tmp/pair542-make-k-final.log); couchcore passed in 377.409s. Linux/amd64 couchcore test binary cross-compiled successfully (/tmp/pair542-linux-build.log). #511 passed another 50 repetitions at load 7.19 → 6.70 in 2.393s (/tmp/pair542-survivor-idle50.log). No verification exceptions.
+- Merged main after the stable full-suite run: unrelated #529 start-form inventory initialization plus documentation, with no code conflict or change to the verified runner implementation. #511's implementation, qualification and review are covered by this issue; its card will receive the landing pointer after merge.
 
 ## Revisions
 
