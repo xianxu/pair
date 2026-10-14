@@ -581,8 +581,8 @@ the supervisor; historical generations belong to the existing diagnostic collect
 `python3 scripts/supervision-labels/labels.py LOG...` derives ten-minute labels
 from selected local segments. See its [skill](../scripts/supervision-labels/SKILL.md)
 for the input limits and interpretation. True means a write was observed for the
-hub subject; false requires contiguous same-generation coverage through ten
-minutes; missing, corrupt or dropped evidence gives null. False is only “no
+hub subject; false requires contiguous same-generation coverage strictly beyond
+the inclusive ten-minute endpoint; missing, corrupt or dropped evidence gives null. False is only “no
 write observed,” not neglect: failed telemetry calls before admission cannot be
 reconstructed. The script writes JSONL to stdout and changes no runtime behavior.
 

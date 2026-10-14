@@ -53,9 +53,25 @@ class LabelsTest(unittest.TestCase):
         self.assertEqual(list(labels.derive_labels([dict(delivery, generated=True)], False)), [])
 
     def test_permutations_identical_duplicates(self):
-        rows = [fact(10, 0, 'hub_delivery'), fact(11, 600000), fact(11, 600000)]
+        rows = [fact(10, 0, 'hub_delivery'), fact(11, 600001), fact(11, 600001)]
         for perm in itertools.permutations(rows):
             self.assertIs(self.label(perm)['label'], False)
+
+    def test_inclusive_boundary_tail_is_incomplete(self):
+        rows = [fact(1, 0, 'hub_delivery'), fact(2, 600000)]
+        self.assertIsNone(self.label(rows)['label'])
+        # A later sequence can still carry a qualifying write at that timestamp.
+        self.assertIs(self.label(rows + [fact(3, 600000, 'session_write')])['label'], True)
+        self.assertIs(self.label(rows + [fact(3, 600001)])['label'], False)
+
+    def test_inclusive_boundary_gap_is_incomplete(self):
+        rows = [fact(1, 0, 'hub_delivery'), fact(2, 600000), fact(4, 600001)]
+        for perm in itertools.permutations(rows):
+            result = self.label(perm)
+            self.assertIsNone(result['label'])
+            self.assertEqual(result['reason'], 'sequence_gap')
+        self.assertIs(self.label(rows + [fact(3, 600000, 'session_write')])['label'], True)
+        self.assertIs(self.label(rows + [fact(3, 600000)])['label'], False)
 
     def test_coverage_corruption_never_proves_negative(self):
         delivery = fact(1, 0, 'hub_delivery')

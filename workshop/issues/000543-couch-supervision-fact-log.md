@@ -113,6 +113,15 @@ hard generation bound so failed rotation cannot grow this log indefinitely.
 Existing retained generations still follow diagnosticlog GC, not a new cleaner.
 No changes to pair:0, currently staged for #522.
 
+### 2026-10-13 — close BR-1: complete inclusive horizons
+
+A negative label now requires contiguous evidence strictly beyond the inclusive
+10-minute endpoint. Equal timestamps can still precede a qualifying write, so a
+tail ending exactly at the endpoint, or a gap immediately after it, stays unknown.
+Both cases reproduced false negatives before the fix; all 16 Python tests now
+pass, including permutations and restoration of the missing boundary write.
+The change affects only the offline comparison; online facts are unchanged.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against

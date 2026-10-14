@@ -180,3 +180,12 @@ Full-suite verification completed with the six unchanged creation-lock failures
 recorded in the issue Log; all passed on the isolated rerun. The clean main merge
 and all affected package checks passed. The final SDLC review and landing are
 the remaining workflow gates, not implementation tasks.
+
+### 2026-10-13 — close BR-1: complete inclusive horizons
+
+A negative label now requires contiguous evidence strictly beyond the inclusive
+10-minute endpoint. Equal timestamps can still precede a qualifying write, so a
+tail ending exactly at the endpoint, or a gap immediately after it, stays unknown.
+Both cases reproduced false negatives before the fix; all 16 Python tests now
+pass, including permutations and restoration of the missing boundary write.
+The change affects only the offline comparison; online facts are unchanged.

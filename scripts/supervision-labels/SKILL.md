@@ -21,7 +21,8 @@ Interpret labels as observations:
 
 - `true`: a same-subject write in the same supervisor generation has a later
   sequence and elapsed time in `(delivery, delivery + 600000 ms]`.
-- `false`: contiguous sequence evidence covers that horizon without a write.
+- `false`: contiguous sequence evidence advances strictly beyond the inclusive
+  ten-minute endpoint without a write.
   This means no observed write, not neglect or a failed delivery.
 - `null`: insufficient evidence; preserve the reason when analyzing results.
 

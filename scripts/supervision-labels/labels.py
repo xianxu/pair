@@ -183,7 +183,8 @@ def derive_labels(records, gaps=False):
                 reason = 'conflict_or_backwards_clock'
             elif dropped:
                 reason = 'dropped_facts'
-            elif times[ends[i]] >= row['elapsed_ms'] + HORIZON_MS:
+            # Equal timestamps may still precede a qualifying write.
+            elif times[ends[i]] > row['elapsed_ms'] + HORIZON_MS:
                 label, reason = False, 'complete_horizon'
             elif ends[i] < len(rows) - 1:
                 reason = 'sequence_gap'
