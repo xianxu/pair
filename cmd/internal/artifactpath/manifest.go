@@ -909,6 +909,12 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcmd/wait_notice.go",
 	"cmd/internal/couchcmd/supervision.go",
 	"cmd/internal/couchcmd/supervision_model.go",
+	// #543 optional diagnostic JSONL under the Couch namespace, registered with
+	// diagnosticlog retention; no Pair lifecycle artifact filenames.
+	"cmd/internal/couchcmd/supervision_fact_events.go",
+	"cmd/internal/couchcmd/supervision_factlog.go",
+	"cmd/internal/couchcmd/supervision_facts.go",
+	"cmd/internal/couchcmd/supervision_write.go",
 	// #490 verb costs: help text only; no artifact paths.
 	"cmd/internal/couchcmd/cost.go",
 	// #540 notifications use the existing broker and presenter; no artifacts.

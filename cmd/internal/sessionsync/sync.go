@@ -63,6 +63,8 @@ type WriteRequest struct {
 
 // Result reports what a write did beyond the write itself.
 type Result struct {
+	// Owner is the owner observed under the successful write guard.
+	Owner  string
 	Folded []string
 	// Hash is the written section's (or file's) new hash, for a next write.
 	Hash string
@@ -111,9 +113,9 @@ type file struct {
 	// what it read whole. hasShadow is false before the first write.
 	shadow    string
 	hasShadow bool
-	holder  Holder
-	owner   string
-	state   State
+	holder    Holder
+	owner     string
+	state     State
 }
 
 func readOptional(p string) (string, bool, error) {
@@ -411,7 +413,7 @@ func (s *Sync) write(f *file, req WriteRequest) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	res := Result{Folded: req.Fold, Hash: Hash(written)}
+	res := Result{Owner: f.owner, Folded: req.Fold, Hash: Hash(written)}
 	// The guard and the write can't be one step against parley, which takes
 	// no flock; say so when the operator took their turn in between.
 	if lock, exists, _ := readOptional(f.paths.Lock); ParseHolder(lock, exists) == HolderOperator {

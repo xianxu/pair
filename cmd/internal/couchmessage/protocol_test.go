@@ -3,6 +3,7 @@ package couchmessage
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -214,5 +215,40 @@ func TestValidateRequestOverridesOnlyOnRelaunch(t *testing.T) {
 	reload.Op, reload.SameBinary = "reload-context", false
 	if err := ValidateRequest(reload); err != nil {
 		t.Fatalf("reload-context with --force-unknown: %v", err)
+	}
+}
+
+func TestSessionWriteRequestClosedShape(t *testing.T) {
+	base := Request{Op: "session-write", Scope: "scope", Tag: "tag", Session: "session", Nonce: "nonce", Target: "pair:1"}
+	if err := ValidateRequest(base); err != nil {
+		t.Fatal(err)
+	}
+	for _, field := range []string{"Scope", "Tag", "Session", "Nonce", "Target", "Body", "ID", "Title", "Agent", "Confirmed", "SameBinary", "ForceUnknown", "TailScope", "TailTag", "Lines", "Binding"} {
+		t.Run(field, func(t *testing.T) {
+			r := base
+			v := reflect.ValueOf(&r).Elem().FieldByName(field)
+			switch field {
+			case "Scope", "Tag", "Session", "Nonce", "Target":
+				v.SetString("")
+			case "Binding":
+				r.Binding = &Binding{}
+			default:
+				switch v.Kind() {
+				case reflect.String:
+					v.SetString("unexpected")
+				case reflect.Bool:
+					v.SetBool(true)
+				case reflect.Int:
+					v.SetInt(1)
+				}
+			}
+			if ValidateRequest(r) == nil {
+				t.Fatal("accepted extraneous or missing field")
+			}
+		})
+	}
+	base.Target = "pair"
+	if ValidateRequest(base) == nil {
+		t.Fatal("accepted family owner")
 	}
 }

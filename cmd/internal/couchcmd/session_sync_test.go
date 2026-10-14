@@ -2,15 +2,18 @@ package couchcmd
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/sessionsync"
 )
 
@@ -200,5 +203,136 @@ func TestSessionSyncReleaseIsARetiredNoOp(t *testing.T) {
 	}
 	if _, out, _ = runSS(t, rt, "status", file); !strings.Contains(out, "owed: 1") || !strings.Contains(out, "lock: none") {
 		t.Fatalf("release must fold nothing: %q", out)
+	}
+}
+
+func TestSessionSyncWriteTelemetryBestEffort(t *testing.T) {
+	for _, mode := range []string{"ok", "older", "missing", "timeout"} {
+		t.Run(mode, func(t *testing.T) {
+			rt, file := sessionSyncRT(t)
+			rt.env = messageRuntime().env
+			rt.env["COUCH_STORE_DIR"] = rt.namespace.Dir()
+			socket, err := couchmessage.SocketPath(rt.namespace.Dir(), "broker")
+			if err != nil {
+				t.Fatal(err)
+			}
+			var calls atomic.Int32
+			requests := make(chan couchmessage.Request, 4)
+			if mode != "missing" {
+				server, err := couchmessage.StartServer(context.Background(), socket, func(ctx context.Context, raw []byte) ([]byte, error) {
+					calls.Add(1)
+					var req couchmessage.Request
+					if err := json.Unmarshal(raw, &req); err != nil {
+						return nil, err
+					}
+					requests <- req
+					if mode == "timeout" {
+						time.Sleep(600 * time.Millisecond)
+					}
+					code := "ok"
+					if mode == "older" {
+						code = "invalid-request"
+					}
+					return json.Marshal(couchmessage.Response{Code: code})
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer server.Close()
+			}
+			body := filepath.Join(t.TempDir(), "body")
+			os.WriteFile(body, []byte("handled d1"), 0600)
+			start := time.Now()
+			code, out, errout := runSS(t, rt, "write", "--section", "Needs you", body, file, "--fold", "d1", "--if-hash", sessionsync.Hash("\nold\n"))
+			if elapsed := time.Since(start); elapsed > 500*time.Millisecond {
+				t.Fatalf("telemetry exceeded budget: %v", elapsed)
+			}
+			if code != 0 || errout != "" || !strings.Contains(out, "wrote ## Needs you") {
+				t.Fatalf("write %d %q %q", code, out, errout)
+			}
+			raw, _ := os.ReadFile(file)
+			if !strings.Contains(string(raw), "handled d1") {
+				t.Fatal("write lost")
+			}
+			if mode != "missing" {
+				if calls.Load() != 1 {
+					t.Fatalf("calls %d", calls.Load())
+				}
+				req := <-requests
+				want := callerIdentity(rt, "session-write")
+				want.Target = "ops:0"
+				if !reflect.DeepEqual(req, want) {
+					t.Fatalf("request %+v want %+v", req, want)
+				}
+
+				code, _, _ = runSS(t, rt, "write", "--section", "Needs you", body, file, "--if-hash", "stale")
+				if code == 0 || calls.Load() != 1 {
+					t.Fatalf("failed write reported: code=%d calls=%d", code, calls.Load())
+				}
+			}
+		})
+	}
+}
+
+func TestSessionWriteServiceAuthenticatesOwner(t *testing.T) {
+	for _, fault := range []string{"none", "no-recorder", "owner", "nonce", "session", "replaced", "disconnected"} {
+		t.Run(fault, func(t *testing.T) {
+			r := &serviceRig{t: t, world: newMessageWorld(), slotGit: map[string]couchcore.SlotGitStatus{}}
+			r.init()
+			b := r.connect(0)
+			sink := &factSink{}
+			log := testFactLog(t, sink)
+			if fault != "no-recorder" {
+				r.s.facts.Store(log)
+			}
+			req := callerRequest(b, "session-write")
+			req.Target = b.Slot
+			switch fault {
+			case "owner":
+				req.Target = "pair:1"
+			case "nonce":
+				req.Nonce = "old"
+			case "session":
+				req.Session = "old"
+			case "replaced":
+				r.world.set(b, func(s *worldSlot) { s.pidFile++ })
+			case "disconnected":
+				r.attach(b, "")
+				r.waitConnected(b, false)
+			}
+			var got couchmessage.Response
+			if err := couchmessage.Call(context.Background(), r.brokerSock, req, &got); err != nil {
+				t.Fatal(err)
+			}
+			if (got.Code == "ok") != (fault == "none" || fault == "no-recorder") {
+				t.Fatalf("response %+v", got)
+			}
+
+			log.offer(supervisionFact{Event: "snapshot"})
+			supervisionEventually(t, "sentinel not written", func() bool {
+				for _, row := range sink.rows(t) {
+					if row.Event == "snapshot" {
+						return true
+					}
+				}
+				return false
+			})
+			count := 0
+			for _, row := range sink.rows(t) {
+				if row.Event == "session_write" {
+					count++
+					if row.Subject != log.subject(b) || row.Incarnation != log.incarnation(b) {
+						t.Fatalf("wrong identity: %+v", row)
+					}
+				}
+			}
+			want := 0
+			if fault == "none" {
+				want = 1
+			}
+			if count != want {
+				t.Fatalf("writes=%d want=%d", count, want)
+			}
+		})
 	}
 }

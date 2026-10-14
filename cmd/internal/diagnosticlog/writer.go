@@ -32,6 +32,7 @@ const MaxGenerationBytes int64 = 64 << 20
 
 var ErrBusy = errors.New("diagnostic log busy")
 var ErrUnknownWriters = errors.New("diagnostic writer inventory incomplete")
+var ErrLimit = errors.New("diagnostic generation byte limit reached")
 
 type Registration struct {
 	PID   int    `json:"pid"`
@@ -47,11 +48,14 @@ type Options struct {
 	Context  context.Context
 	Now      func() time.Time
 	MaxBytes int64
-	Proof    Proof
-	Root     string
-	Registry func(context.Context, RegistryEntry) error
-	Retire   func(context.Context, RegistryEntry) error
-	Fault    func(step string) error
+	// HardMaxBytes rejects a complete write when it cannot fit after rotation.
+	// The default policy allows growth while rotation is blocked.
+	HardMaxBytes bool
+	Proof        Proof
+	Root         string
+	Registry     func(context.Context, RegistryEntry) error
+	Retire       func(context.Context, RegistryEntry) error
+	Fault        func(step string) error
 	// SynchronousMaintenance is for explicit batch writers and fault harnesses;
 	// terminal emitters leave it false and never inspect processes on append.
 	SynchronousMaintenance bool
@@ -211,7 +215,11 @@ func (w *Writer) Write(b []byte) (int, error) {
 	if len(b) == 0 {
 		return 0, nil
 	}
+	if w.options.HardMaxBytes && int64(len(b)) > w.options.MaxBytes {
+		return 0, ErrLimit
+	}
 	n := 0
+	nextBytes := int64(len(b))
 	maintenanceDue := false
 	e := locked(w.path, false, func() error {
 		if err := recoverPublication(w.path, w.options); err != nil {
@@ -263,7 +271,9 @@ func (w *Writer) Write(b []byte) (int, error) {
 			}
 		}
 		now := w.options.Now().UTC()
-		if !s.Current.Start.IsZero() && exists && (st.Size() >= w.options.MaxBytes || !now.Before(s.Current.Start.Add(GenerationPeriod))) {
+		if !s.Current.Start.IsZero() && exists && (st.Size() >= w.options.MaxBytes ||
+			(w.options.HardMaxBytes && nextBytes > w.options.MaxBytes-st.Size()) ||
+			!now.Before(s.Current.Start.Add(GenerationPeriod))) {
 			maintenanceDue = true
 			if w.options.SynchronousMaintenance && w.prove(s) == nil {
 				if e = rotate(w.path, &s, w.options); e != nil {
@@ -274,6 +284,9 @@ func (w *Writer) Write(b []byte) (int, error) {
 		}
 		if e := ensureCurrent(w.path, &s, w.options); e != nil {
 			return e
+		}
+		if w.options.HardMaxBytes && nextBytes > w.options.MaxBytes-s.Current.Size {
+			return ErrLimit
 		}
 		for len(b) > 0 {
 			chunk := b[:min(len(b), maxAppendBytes)]
@@ -287,7 +300,7 @@ func (w *Writer) Write(b []byte) (int, error) {
 		return nil
 	})
 	if maintenanceDue && !w.options.SynchronousMaintenance {
-		w.scheduleMaintenance()
+		w.scheduleMaintenance(nextBytes)
 	}
 	return n, e
 }
@@ -753,19 +766,29 @@ var _ io.WriteCloser = (*Writer)(nil)
 
 // Called with w.mu held. Failed proof gets a cooldown, so a legacy writer
 // cannot cause one process scan per terminal chunk.
-func (w *Writer) scheduleMaintenance() {
+func (w *Writer) scheduleMaintenance(nextBytes int64) {
 	now := w.options.Now()
 	if w.maintenanceRunning || (!w.lastMaintenance.IsZero() && now.Before(w.lastMaintenance.Add(time.Minute))) {
 		return
 	}
 	w.maintenanceRunning = true
 	w.lastMaintenance = now
-	w.maintenance.Go(func() { _ = Maintain(w.path, w.options); w.mu.Lock(); w.maintenanceRunning = false; w.mu.Unlock() })
+	w.maintenance.Go(func() {
+		_ = maintain(w.path, w.options, nextBytes)
+		w.mu.Lock()
+		w.maintenanceRunning = false
+		w.mu.Unlock()
+	})
 }
 
 // Maintain is scheduled work, never a terminal callback. It performs one
 // pending recovery or generation rotation, with nonblocking coordination.
 func Maintain(path string, options Options) error {
+	return maintain(path, options, 0)
+}
+
+// nextBytes preserves an append's need for room even below the size threshold.
+func maintain(path string, options Options, nextBytes int64) error {
 	if err := options.checkContext(); err != nil {
 		return err
 	}
@@ -815,7 +838,8 @@ func Maintain(path string, options Options) error {
 		if e = matches(st, s.Current); e != nil {
 			return e
 		}
-		if !options.Now().Before(s.Current.Start.Add(GenerationPeriod)) || st.Size() >= options.MaxBytes {
+		if !options.Now().Before(s.Current.Start.Add(GenerationPeriod)) || st.Size() >= options.MaxBytes ||
+			(options.HardMaxBytes && nextBytes > options.MaxBytes-st.Size()) {
 			return rotate(p, &s, options)
 		}
 		return nil

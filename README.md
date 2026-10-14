@@ -867,6 +867,13 @@ and does not regenerate the prompt on reconnect within the same Couch lifetime.
 If the prompt cannot be delivered or confirmed, a Couch notice names the slot
 and asks the hub to request fresh status.
 
+Couch records content-free supervision facts locally in its namespace
+`supervision.jsonl`: hub deliveries, session-file writes, accepted submissions,
+slot changes and minute snapshots. Logging is best-effort and capped per diagnostic
+generation; gaps are not inactivity. The [offline labeling script](scripts/supervision-labels/SKILL.md)
+compares observed writes within ten minutes without changing Couch decisions.
+See [the fact-log contract](atlas/couch.md#supervision-fact-log-543) for coverage and retention.
+
 The tab bar starts with the hub, the checkout you started Couch from, and then
 lists every other slot grouped by repository:
 `ops  ariadne  :1  :2  blog  pair  :1  :2`. In the switcher the hub is the first line and the rest sit indented

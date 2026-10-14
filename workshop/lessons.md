@@ -1691,3 +1691,11 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
   Retain generated-message provenance through the broker job lifetime, checked
   atomically with its receipt; test cancellation before a blocked callback returns
   for every producer, plus genuine-message inclusion and eventual cleanup.
+
+- #543 plan review: best-effort diagnostic writers still need explicit ordering,
+  shutdown and late-open ownership. Offline labeling must validate bounded input
+  before inference and treat malformed or incomplete coverage as unknown.
+
+- #543 close BR-1: inclusive time windows need coverage strictly beyond their
+  endpoint when timestamps can tie. Test truncated tails and sequence gaps at
+  the endpoint; an equal-time observation cannot exclude a later equal-time event.
