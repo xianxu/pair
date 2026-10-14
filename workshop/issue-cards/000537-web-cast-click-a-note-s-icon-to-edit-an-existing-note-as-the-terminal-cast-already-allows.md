@@ -1,6 +1,6 @@
 ---
 id: 000537
-status: codecomplete
+status: done
 created: 2026-10-13
 updated: 2026-10-13
 estimate_hours: 4.545
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 8d1719f3363b6039a67043f5f9af9d603930ebbb
         evidence_commit: abca2e2232263ce4e8896b20ca85132bad8534d4
+        landed_commit: 51ab81e9815ea65e819577cc92d504d2d524f1f5
 ---
 
 # web cast: click a note's icon to edit an existing note (as the terminal cast already allows)
