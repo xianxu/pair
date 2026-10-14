@@ -40,10 +40,10 @@ The operator (2026-10-13): a simple local model (not an LLM), kept simple.
 Durable plan: [supervision baseline](../plans/000530-supervision-baseline-plan.md).
 
 - [ ] Obtain TL approval of the durable plan, then pass change-code.
-- [ ] Add factual file observations and pure supervision/sampling transitions.
-- [ ] Wire bounded telemetry, existing supervision tick and immediate startup prompts.
+- [ ] Add pure rules for stuck reports, coalescing and restart prompts.
+- [ ] Wire existing supervision tick and normal Send startup prompts.
 - [ ] Verify reconstructed overnight scenario, queues, uncertainty and full make -k;
-  document and hand off parley.nvim#321, then close and land through SDLC.
+  document and hand off parley.nvim#321 and pair#543, then close and land through SDLC.
 
 ## Log
 
@@ -89,3 +89,20 @@ Durable plan: [supervision baseline](../plans/000530-supervision-baseline-plan.m
   queued and redelivered when the hub returns, rather than the sender giving up (pair:1's #531 report failed this way at
   13:24; reports were lost the same way overnight 10-12). The stuck-slot nudge treats an undelivered hub message as a
   strong signal.
+
+### 2026-10-13 20:53 PDT — TL-approved rules-only scope
+
+Receipts ddcbf61f-f57a-4aa9-a740-f4614830f5c3 and
+addd69f2-20e6-4697-8404-8fa5396f0d52 approve 15/30-minute defaults,
+completion-after-main and observable-action wording. Startup prompts now use
+normal Send, allowing #492's in-memory queue; one coordinator attempt per
+address per supervisor lifetime, no persistent/offline replay. This supersedes
+the earlier immediate/bypass-queue requirement. Fact logging moves to dependent
+pair#543: event rows plus minute snapshots, labels offline, no online sampling.
+#530 has one implementation/close boundary; land it before #543 starts.
+
+Revised Done when: rules nudge/escalation and one-shot restart prompts pass the
+reconstructed overnight scenario and transport/coalescing tests; full make -k
+completes, operator notices are documented. File-ping acceptance is owned by
+parley.nvim#321, and logging acceptance by pair#543, not prerequisites falsely
+claimed as shipped by this rules-only change.

@@ -10,6 +10,11 @@
 
 ---
 
+> **Superseded draft:** The sections below preserve the original proposal. The
+> 2026-10-13 Revision at the end is the authoritative rules-only implementation
+> plan. Fact logging is now pair#543; none of the online sampling or immediate
+> broker admission proposals below will be implemented.
+
 ## Approval and boundaries
 
 Draft for TL approval; no implementation or change-code yet. The operator's
@@ -265,3 +270,114 @@ durable state. There is no automatic operator-facing desktop notification.
   trigger replay or become confirmed action; all work belongs to service lifetime.
 - ARCH-FUNERAL: volatile episodes expire on action/disconnect/shutdown; file
   watches expire after one hour; logs use existing diagnostic retention/GC.
+
+
+## Revisions
+
+### 2026-10-13 20:53 PDT — approved simplification and separate landing
+
+TL receipts ddcbf61f-f57a-4aa9-a740-f4614830f5c3 and
+addd69f2-20e6-4697-8404-8fa5396f0d52 supersede the original scope, concepts,
+transitions and tasks above. #530 is single-pass rules only, one sdlc close.
+Fact logging is separately filed as **pair#543**, depends on pair#530, with the
+revised design in its Spec. No feature logging or sampling boundary remains in
+#530. No new immediate-admission broker policy. Normal Send is the single owner
+of admission and its existing in-memory queue remains unchanged (ARCH-DRY).
+
+#### Current core concepts
+
+| Name | Lives in | Status |
+|------|----------|--------|
+| supervisionState, reportEpisode, supervisionEvent/effect | cmd/internal/couchcmd/supervision_model.go | new PURE |
+| completionHint | cmd/internal/couchcmd/supervision_model.go | new PURE |
+| Candidate operator submission observation | cmd/internal/couchmessage/routing.go | modified PURE data |
+
+One state owns current-binding report episodes and per-lifetime attempted slot
+addresses. State changes only through transition methods. No IO or clock reads
+inside transitions. Reports contain time, ID and completion hint, never retained
+body text. The bounded first line recognizes explicit landed/merged wording;
+negated, quoted or ambiguous text remains noncompletion. A hint only preserves
+eligibility on main; it is never proof that work landed.
+
+| Integration | Lives in | Status | Wraps |
+|------|------|------|------|
+| supervision coordinator | cmd/internal/couchcmd/supervision.go | new | mutex around pure transitions, effects outside lock |
+| report attempt/reply hooks | cmd/internal/couchcmd/message_service.go | modified | authenticated send entry and confirmed endpoint delivery |
+| submission facts | cmd/internal/couchmessage/broker.go | modified | copy existing accepted submission counter into candidate snapshot |
+| common tick and coalescing | cmd/internal/couchcmd/wait_notice.go | modified | existing 15-second watcher and wait episode |
+| visible escalation | cmd/internal/couchcmd/message_service.go | modified | existing console.Notify status notice |
+
+No registry lifecycle, attach, resume or recovery mutation. No extra polling or
+background workers. Coordinator uses the existing waitWatcher tick and service
+lifetime. Endpoint callbacks and ticks serialize model transitions with one
+mutex, releasing it before Send/Notify. Effects carry current binding and report
+ID; stale outcomes cannot mark a successor report notified.
+
+#### Rules and recovery
+
+- Authenticate a worker send before recording its report attempt. Reserved hub
+  targets are recorded even if hubRecipient refuses because the hub is absent;
+  an exact current hub slot target is also recognized. Malformed/unauthenticated
+  requests do not create reports. Deduplicate the same message ID.
+- Record confirmed hub-to-worker endpoint submissions as action. Queued,
+  cancelled, expired or indeterminate messages are not answers. Supervisor
+  prompts and wait notices must not enter report/action hooks or file obligations.
+- On first snapshot capture the existing operator submission counter; only a
+  subsequent increase clears an existing episode. Key by full binding so a
+  replacement never inherits old observations. A submission racing a new report
+  must be compared against the report's captured submission generation.
+- At 15 minutes since a report, nudge if the current worker is known, settled,
+  quiet at least 30 seconds, with no pending incoming delivery, and is off its
+  resting branch OR has an explicit completion hint. Unknown facts suppress it.
+  Text says “no later hub message or operator submission observed”; one action
+  is couch --peek SLOT. Output/redraw alone does not clear a report.
+- Preserve earlier ordinary wait/picker notices and their retries. A successfully
+  admitted wait notice for the same report generation counts as the first nudge;
+  a rules nudge likewise suppresses a duplicate ordinary wait notice for that
+  episode. Do not treat old notices preceding the report as coalesced. At 30
+  minutes without action emit one operator Couch notice, never desktop notify.
+- Successful hub nudge admission advances notified state; failure permits the
+  ordinary next-tick retry. Operator notice is emitted once. A new report or
+  confirmed response resets the episode; disconnect discards per-binding state.
+- When a hub is available, each connected nonhub slot address gets one startup
+  prompt attempt per supervisor lifetime. Mark attempted before normal Send;
+  reconnect/replacement cannot prompt twice. Busy queueing is allowed within
+  this lifetime. There is no new retry by the coordinator, persistence or
+  replay across restart. Late-connected workers receive their one attempt too.
+- Prompt: “Couch restarted and the hub is available. If your last report to the
+  hub is still unanswered and relevant, resend it now. Otherwise do nothing.”
+  Identify supervisor-generated messages structurally, not by user-forgeable
+  prefixes; system effects bypass report/action accounting. A prompt failure
+  produces one readable Couch notice advising the hub to request fresh status.
+
+#### Current implementation tasks — one close boundary
+
+- [ ] Write failing pure tests in supervision_model_test.go: exact 15/30-minute
+  boundaries, unknown/active/pending suppression, completion after main, normal
+  report on main ignored, response/submission reset, duplicate IDs, stale effects,
+  notice coalescing and once-per-address startup attempt across replacements.
+- [ ] Implement supervision_model.go minimally; run
+  `go test ./cmd/internal/couchcmd -run 'TestSupervision' -count=1` green.
+- [ ] Extend existing stateful wait-notice and message-service fixtures in
+  supervision_test.go and message_service_test.go. Red tests cover authenticated
+  failed hub send, confirmed vs queued reply, genuine operator submission,
+  startup normal busy queue, reconnect and lost acknowledgement without a second
+  coordinator send. Tests use private sockets and injected clocks, not live Couch.
+- [ ] Implement supervision.go and the hook/snapshot/coalescing changes named
+  above, then run focused couchcmd and couchmessage tests and relevant race tests.
+- [ ] Add the reconstructed overnight scenario: completion report, return to
+  main, no hub action, one nudge, one escalation; a restart produces one fresh
+  resend request without original report replay. Label reconstruction honestly.
+- [ ] Update README, atlas/couch.md, embedded Couch skill and artifact inventory.
+  Parley #321 remains the sole file watcher; its change can use existing LastWrite
+  and observed mtime without waiting for #543 telemetry. Do not implement it here.
+- [ ] Run full `make -k`, complete all targets, cite any known failures. Request
+  live smoke through TL only if needed. Run one sdlc close; on SHIP merge main,
+  PR/CI/sdlc merge --yes, report and stop. #543 waits for this landing.
+
+ARCH-PURE/ORDER: one private transition owner, effects after decisions, exact
+binding/report generations for outcomes. ARCH-MOCK: reuse stateful endpoint and
+service fixtures. ARCH-CONSTRAINTS/FUNERAL: only connected report state plus the
+required per-lifetime attempted-address set; no report body retention, no disk
+queue, no new watcher. ARCH-SECURE: authenticated observations and existing Send
+authority; supervisor effects cannot masquerade as worker reports or hub replies.
