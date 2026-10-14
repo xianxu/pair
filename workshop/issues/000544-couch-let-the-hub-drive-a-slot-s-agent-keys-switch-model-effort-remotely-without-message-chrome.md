@@ -106,3 +106,5 @@ total: 6.29
 ```
 
 - 2026-10-14 — plan-quality round 2 CLEAN, all three findings addressed. Derived estimate after approval/gate; no implementation yet.
+
+- Capture checkpoint: Codex0.162.1 model picker uses reverse-video selected numbered row; effort picker explicitly offers Enter=default and s=session. Session selection yields fresh model/effort footer plus “for this session only”; disposable default hash unchanged. Claude private credential copy lacks usable tokens and is expired; isolated composer says Not logged in. No native writable-HOME/config fallback used. Asked TL for an isolation-compatible credential-source Revision; raw-key/Codex core can continue independently. Estimate review INFO: auth helper lives in wrapper integration, final checks/CI/landing span integration and review allowances, which may be optimistic.
