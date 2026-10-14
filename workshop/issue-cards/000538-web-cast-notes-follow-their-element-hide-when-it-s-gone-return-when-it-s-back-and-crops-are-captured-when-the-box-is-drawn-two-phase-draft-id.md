@@ -1,6 +1,6 @@
 ---
 id: 000538
-status: codecomplete
+status: done
 created: 2026-10-13
 updated: 2026-10-13
 estimate_hours: 5.48
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 4ad125006c605beedf3bae51ca96bf65c09b7be4
         evidence_commit: 205f4ef8576e446bdce3b7a6d5428a6e5161054b
+        landed_commit: fd432e9cff3c3af5178e71efc09fb58d195bd05a
 ---
 
 # web cast: notes follow their element (hide when it's gone, return when it's back) and crops are captured when the box is drawn (two-phase draft id)
