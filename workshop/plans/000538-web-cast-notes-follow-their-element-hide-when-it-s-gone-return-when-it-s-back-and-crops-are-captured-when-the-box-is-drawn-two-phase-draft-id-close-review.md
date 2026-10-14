@@ -83,3 +83,77 @@ findings:
     detail: |
       workshop/plans/000538-anchored-notes-draw-capture-plan.md:23-44 lists nonexistent AnchorEvidence/MatchDecision entities, places CaptureRecord in model.go instead of service.go, and marks unchanged board/wire.go and capture-engine files modified. Correct names, paths, pure/integration classifications and statuses in a Revisions entry; the required core-concept gate treats these contradictions as Critical (ARCH-PURE).
 ```
+
+---
+
+## Re-review — 2026-10-13T18:22:36-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 538 — web cast: notes follow their element (hide when it's gone, return when it's back) and crops are captured when the box is drawn (two-phase draft id) |
+| repo | pair |
+| issue file | workshop/issues/000538-web-cast-notes-follow-their-element-hide-when-it-s-gone-return-when-it-s-back-and-crops-are-captured-when-the-box-is-drawn-two-phase-draft-id.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 6788a2dffb4d3383d32fae0b4dbb77f0b5bfe7bb..4ad125006c605beedf3bae51ca96bf65c09b7be4 |
+| command | sdlc close --issue 538 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-13T18:22:36-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+Both prior findings are addressed, and no new blocking defects were identified. The implementation connects operator placement to trusted original-node identity, preserves capture ownership through uncertain outcomes, and documents the new surfaces. Confidence is limited by Chrome startup failures that prevented fresh live-browser verification.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      operator.js:93 supplies the original resolver through recorder/operator_original.go:13 and chrome_operator_original.go:66. Removing that resolver in a disposable copy made five adapter regressions fail, including common-text originals and pages exceeding the scan cap; the pinned implementation passes.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      workshop/plans/000538-anchored-notes-draw-capture-plan.md:209 explicitly supersedes the stale tables. The replacement inventory matches the inspected definitions, classifies captureRecord in service.go as integration state, and correctly identifies board/wire.go and the capture-engine files as reused unchanged.
+```
+
+1. **Strengths**
+
+   - Original-node authority is document/context scoped; stale identities and rebinding are rejected.
+   - Shared placement logic keeps viewer and operator confidence rules aligned.
+   - Capture ownership distinguishes uncertain writes/publications from confirmed absence, with recovery tests.
+   - README and atlas updates explain draw-time capture, hidden notes, schema v3, privacy, and legacy fallback.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage**
+
+   - Passed all **242 webcast Node tests**.
+   - Passed eight affected Go packages: notedraft, notes, board, recording, recorder, webcast, webcast/submission, and submission.
+   - Passed focused original-node bridge/recorder race tests and range whitespace checks.
+   - BR-1 mutation check produced **five expected failures**; disposable files were removed.
+   - Both requested live Chrome cases failed before opening a page with GPU-process errors; one also reported sandbox initialization failure. No browser assertions ran.
+   - Full-suite starvation remains explicitly documented as “not run,” with the plan’s approved verification disposition.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared placement and capture ownership.
+   - **ARCH-PURE — pass:** value-based scoring/transitions separated from integration adapters.
+   - **ARCH-PURPOSE — pass:** both annotation surfaces and cross-document submission are wired.
+   - **ARCH-MOCK — pass:** controlled capture/writer/CDP seams and browser conformance tests exist; live execution limitation noted above.
+   - **ARCH-CONSTRAINTS — pass:** bounded candidate scans, capture queue, storage, and bridge retries.
+   - **ARCH-SECURE — pass:** authenticated ownership, scoped debugger identities, and bounded persisted-input validation.
+   - **ARCH-ORDER — pass:** explicit ownership transitions and uncertainty-preserving reconciliation.
+   - **ARCH-FUNERAL — pass:** expiry, resolution cleanup, publication transfer, and debugger-handle release have defined paths.
+
+7. **Plan revision recommendations:** None; the authoritative revision matches the inspected implementation.

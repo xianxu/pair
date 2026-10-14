@@ -55,6 +55,7 @@ Durable design: [anchored notes and draw-time captures](../plans/000538-anchored
 ## Log
 
 ### 2026-10-13
+- 2026-10-13: closed — All affected Go packages passed; 342 Node tests, inventory, clean build and five real-Chrome cases passed. BR-1 original-node bridge additionally passes race tests and real Chrome with common Save anchors on a 2100-node page for operator and viewer-authored notes; BR-2 final inventory reconciled. Original crops survive edits and submit performs zero captures. Full suite starved at the gate, ariadne#357; hub authorized this evidence plus required PR CI including macOS conformance. --no-plan-check: only this review and subsequent publish/land row remains unchecked; no claim future gates are complete.; review verdict: SHIP
 
 - Received operator design through ops:0; verified submitted Couch receipt 3db8432f-0b02-44e1-92dd-138eff615d47. #538 already claimed by pair:6. No implementation yet. Initial start-plan refreshed this slot and its ariadne tools, then requested rerun with the refreshed binary.
 - Initial inspection: Board.Selection uses model.Live over current DocSeg; submission.Build enforces one selected document and asks the cast owner for new crops. Structural.Resolve accepts a unique selector even without matching text. These seams must change so note evidence survives view changes while projection remains conservative.
