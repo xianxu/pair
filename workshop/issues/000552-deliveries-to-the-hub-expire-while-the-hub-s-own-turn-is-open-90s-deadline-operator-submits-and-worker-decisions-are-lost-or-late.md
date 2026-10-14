@@ -1,12 +1,12 @@
 ---
 id: 000552
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-14
 updated: 2026-10-14
 estimate_hours:
-card_mirror: '2f77c795d618a789b3fc9ee45c6de03335da0025' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '757d6d79868525d9911aed2d5cc31877bb6ef33b' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-14T11:23:25-07:00
 claimant:
     operator: Xian Xu
@@ -49,14 +49,24 @@ cause, and `--relaunch` must not report "composer holds text" when the composer 
 
 ## Plan
 
-- [ ]
+Durable design: [automatic-input plan](../plans/000552-automatic-input-plan.md).
+
+- [ ] Fix capitalized Codex status labels and confirmed-empty lease completion; both root regressions pass with tripwire recovery disabled.
+- [ ] Add a bounded, safe tripwire with detailed cause, local screen diagnostic, owning-hub notice and supervisor desktop alert; prove admission and shutdown behavior headlessly.
+- [ ] Replay the preserved parley recording read-only, update atlas, finish the full suite, close review and land after acceptance.
 
 ## Log
 
 ### 2026-10-14
+
+- Investigation: original wrapper pid 84975 preserved. Production read-only Observe/Tail agrees with raw replay at 94×39. `/status` capitalized field labels cause `codexStartupStatus` to return pending despite an active empty composer; removing only the title row yields Empty. Sanitized scratch regression fails current code.
+- Investigation: real dispatch paste → occupied echo → submit → empty confirmation → Submitted leaves phase AwaitingEmpty with fence=epoch=3. A distinct next delivery, without another render, waits at the exact reported gate. Scratch regression fails without any fallback present.
+- Coordination: initial claim waited for another live SDLC merge; claim subsequently succeeded. Missing caller registration and temporary missing couch command prevented earlier reports. Restart report 5d19956a-58f8-4aa6-8063-869bdecb98a1 queued successfully; TL receipt e4f76aee-471c-4759-b27c-79af37dc4ba8 confirms both root causes and requests this plan. Refreshed start-plan succeeded on the issue branch; no production edits.
 
 ## Revisions
 
 - 2026-10-14 — add (TL, from the code): the gate is `automaticInputAwaitingEmpty` (wrapcmd/automatic_input.go). After an automatic submit it clears only when the render epoch passes the recorded fence AND `peerComposerState(agent, snapshot)` reads Empty. Check both causes: a render-epoch increment no longer emitted (pair#522 removed an observer that "held the only render-epoch increment peer delivery needs"), and a composer parse that never reads Empty around pickers or "Model changed" lines. Give AwaitingEmpty a bounded exit: release with a diagnostic once the box parses empty or the agent is idle for N seconds.
 
 - 2026-10-14 — revise (operator): **root cause first; no silent release.** (1) Reproduce (raw-key drive then a normal delivery; or the hub case) and fix the actual cause; the reproduction must pass with any automatic release disabled. (2) Keep a bounded release only as a tripwire: each firing sends a `couch --notify` desktop alert to the operator, a hub notice and a diagnostic with the screen state; after the fix it should never fire.
+
+- 2026-10-14 — root causes confirmed with TL; plan both fixes and the exceptional tripwire. Parse status labels correctly and let the confirmation's own post-submit empty evidence satisfy the lease. Proposed 30-second tripwire interval measures eligible blocked delivery time, not quiet time since completion. Every firing records bounded screen evidence and requests owning-hub and desktop notification; uncertain writes or an unrecognized/occupied composer never gain permission from elapsed time. The original parley.nvim:1 wrapper remains untouched through local verification. See the durable plan for transitions, budgets, projection and acceptance tests. Plan awaiting TL approval before change-code.
