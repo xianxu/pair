@@ -55,7 +55,7 @@ func TestSelectedRootValidationBeforeNativeEffects(t *testing.T) {
 	}
 }
 
-func TestSelectedRootNativeCreateListAndUnverifiedResume(t *testing.T) {
+func TestSelectedRootNativeCreateListAndListedResume(t *testing.T) {
 	root, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -84,8 +84,7 @@ case "$1" in
     if [ -f "$PAIR_ROOT_TEST_STATE" ]; then cat "$PAIR_ROOT_TEST_STATE"; fi
     exit 0 ;;
   --session)
-    # Pane shape is valid; there is still no server identity or launch policy.
-    # Warm resume must reach ownership admission and refuse before attachment.
+    # Legacy panes have no launch policy; a positive listing permits attach.
     printf '%s\n' '{"0":[{"id":0,"title":"claude","terminal_command":"pair wrap claude"},{"id":1,"title":"draft","terminal_command":"nvim draft.md"},{"id":2,"title":"terminal","terminal_command":"pair term"}]}'
     exit 0 ;;
   --config-dir)
@@ -163,12 +162,12 @@ exit 0
 	if out, err := run(nil, "continue"); err != nil || !strings.Contains(out, "selected-root") {
 		t.Fatalf("continuation listing from repository subdir: %v %s", err, out)
 	}
-	if out, err := run([]string{"PAIR_DATA_DIR=" + paths.ScopeDir()}, "resume", tag); err == nil || !strings.Contains(out, "needs relaunch") {
-		t.Fatalf("unverified scoped warm resume: %v %s", err, out)
+	if out, err := run([]string{"PAIR_DATA_DIR=" + paths.ScopeDir()}, "resume", tag); err != nil {
+		t.Fatalf("listed scoped warm resume: %v %s", err, out)
 	}
 	effects, err := os.ReadFile(filepath.Join(root, "effects"))
-	if err != nil || string(effects) != "create\n" {
-		t.Fatalf("unverified resume performed another terminal effect: %q %v", effects, err)
+	if err != nil || string(effects) != "create\nattach\n" {
+		t.Fatalf("listed resume must attach exactly once: %q %v", effects, err)
 	}
 	childEnv, err := os.ReadFile(filepath.Join(root, "child-env"))
 	if err != nil || string(childEnv) != selected+"\n"+paths.ScopeDir()+"\n" {

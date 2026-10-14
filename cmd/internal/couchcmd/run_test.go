@@ -959,7 +959,7 @@ func TestListShowsATreeWithNoAgent(t *testing.T) {
 	// row appears WITH a stated reason: a named tree the operator cannot enter
 	// must still say why, which is the whole of #181. The parked/detached
 	// wording has its own test below.
-	if !strings.Contains(out, "unusable: no saved launch") {
+	if !strings.Contains(out, "Start fresh: no saved launch") {
 		t.Fatalf("out = %q; a row that cannot be entered must state why", out)
 	}
 }
@@ -1833,5 +1833,25 @@ func TestRecoverPlanCLIEmitsTheReport(t *testing.T) {
 	}
 	if rt.supervisor.acquired != 0 || len(rt.runner.Ops) != 0 {
 		t.Fatalf("the read-only report acquired the supervisor (%d) or ran children (%v)", rt.supervisor.acquired, rt.runner.Ops)
+	}
+}
+
+func TestThreadStateTextUsesSharedContinuityOutcome(t *testing.T) {
+	for _, tc := range []struct {
+		state  couchcore.ActionableThreadState
+		reason couchcore.ThreadReason
+		want   string
+	}{
+		{couchcore.ThreadLive, "", "Continue"},
+		{couchcore.ThreadDetached, "", "Continue (no client attached; the agent is still running)"},
+		{couchcore.ThreadParked, "", "Resume from disk (no agent running)"},
+		{couchcore.ThreadUnusable, couchcore.ReasonProfileMissing, "Start fresh: no saved launch"},
+		{couchcore.ThreadBusy, "", "Start fresh (couch claimed a start and has not finished it)"},
+		{couchcore.ThreadArchived, "", "archived (restore by moving it back and re-adding the address)"},
+	} {
+		got := threadStateText(couchcore.ThreadSummary{State: tc.state, Reason: tc.reason})
+		if got != tc.want {
+			t.Fatalf("%s: %q want %q", tc.state, got, tc.want)
+		}
 	}
 }

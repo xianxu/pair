@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
@@ -72,6 +73,15 @@ func newColdResumeRig(t *testing.T) *coldResumeRig {
 	if err := c.Threads.EnrollSlotRepository(context.Background(), couchcore.SlotRepository{Identity: identity}); err != nil {
 		t.Fatal(err)
 	}
+	// Opening Couch observes the parked primary; only the later explicit
+	// menu/remote resume is permitted to start its cold registration sequence.
+	startup, err := c.StartInteractive(context.Background(), couchcore.StartArgs{Cwd: primary})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if startup.Handle != nil || len(rt.runner.Ops) != 0 {
+		t.Fatal("startup launched before explicit Resume from disk")
+	}
 	host := hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 100})
 	reader, input := io.Pipe()
 	t.Cleanup(func() { _ = reader.Close(); _ = input.Close() })
@@ -111,6 +121,8 @@ func newColdResumeRig(t *testing.T) *coldResumeRig {
 func (r *coldResumeRig) awaitResumeAndAttach(t *testing.T) couchcore.OperationCall {
 	t.Helper()
 	var resume couchcore.OperationCall
+	timeout := time.NewTimer(min(30*time.Second, testwait.Budget(t)))
+	defer timeout.Stop()
 	for {
 		select {
 		case d := <-r.calls:
@@ -123,7 +135,7 @@ func (r *coldResumeRig) awaitResumeAndAttach(t *testing.T) couchcore.OperationCa
 			if d.call.Name == "attach" {
 				return resume
 			}
-		case <-testwait.After(t):
+		case <-timeout.C:
 			t.Fatalf("no resume and attach: %s", r.host.Written())
 		}
 	}
@@ -169,9 +181,9 @@ func TestColdResumeOfAParkedPrimaryRegistersFromBothOrigins(t *testing.T) {
 		}
 		// The header paints before the first inventory lands; Enter on that
 		// empty menu is "no selection". Wait for the parked row itself (pair#436);
-		// its long temp path is truncated, so match its state.
+		// its long temp path is truncated, so match its explicit action label.
 		waitWarmAcceptance(t, "switcher row", func() bool {
-			return strings.Contains(r.host.Written(), "threads") && strings.Contains(r.host.Written(), "parked ·")
+			return strings.Contains(r.host.Written(), "threads") && strings.Contains(r.host.Written(), "Resume from disk")
 		})
 		if _, err := r.input.Write([]byte{'\r'}); err != nil {
 			t.Fatal(err)

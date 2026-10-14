@@ -1295,24 +1295,29 @@ func renderThreadRows(w io.Writer, threads []couchcore.ThreadSummary, includeAdd
 	}
 }
 
-// threadStateText is the diagnostic wording for a classified state. It says
-// more than the switcher's column has room for, and the two cannot disagree
-// about WHICH state a thread is in -- only about how much room they have to
-// describe it.
+// threadStateText shares the switcher's continuity choice, with room for
+// diagnostic detail. Archived records retain their separate restore wording.
 func threadStateText(thread couchcore.ThreadSummary) string {
-	switch thread.State {
-	case couchcore.ThreadLive:
-		return "live"
-	case couchcore.ThreadDetached:
-		return "detached (no client attached; the agent is still running)"
-	case couchcore.ThreadParked:
-		return "parked (no agent running; resumable)"
-	case couchcore.ThreadBusy:
-		return "starting (couch claimed this start and has not finished it)"
-	case couchcore.ThreadArchived:
+	if thread.State == couchcore.ThreadArchived {
 		return "archived (restore by moving it back and re-adding the address)"
 	}
-	return "unusable: " + thread.Reason.Label()
+	switch couchcore.ContinuityOutcome(couchcore.ActionableThreadSummary{State: thread.State, Reason: thread.Reason}) {
+	case couchcore.Continue:
+		if thread.State == couchcore.ThreadDetached {
+			return "Continue (no client attached; the agent is still running)"
+		}
+		return "Continue"
+	case couchcore.ResumeDisk:
+		return "Resume from disk (no agent running)"
+	default:
+		if thread.State == couchcore.ThreadBusy {
+			return "Start fresh (couch claimed a start and has not finished it)"
+		}
+		if thread.Reason != "" {
+			return "Start fresh: " + thread.Reason.Label()
+		}
+		return "Start fresh"
+	}
 }
 
 // dimCodes returns ANSI dim/reset only when the destination is a real
