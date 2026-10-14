@@ -1,6 +1,6 @@
 ---
 id: 000546
-status: codecomplete
+status: done
 created: 2026-10-13
 updated: 2026-10-14
 estimate_hours: 4.19
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 9effccd231e0121e6c54cded1017eb3979f3db26
         evidence_commit: 7c261d18c6035c64495c8ba7cd707556cc6f2abf
+        landed_commit: d0654337ff005090117d4b5062f8ef9bb9a1a487
 ---
 
 # couch: several hubs in one Couch (couch . ../bench): slots assigned to a hub, hub-scoped routing, faded other-hub tabs
