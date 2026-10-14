@@ -34,7 +34,11 @@ not adopt or retire the thread's durable start, park, or incarnation. Its client
 is tracked in the registry and an in-memory handle map owned by this Couch.
 Detach, ordinary leave and failed-attach cleanup end only that exact helper.
 A persisted registry entry alone is never proof that this Couch owns its handle.
-Explicit continuation recovery keeps its separately authorized adoption path.
+Public completion and Pair’s final attach handoff also use positive listing,
+not lifecycle owner metadata. Explicit Park/relaunch/switch may adopt the exact
+locally owned helper through existing transactions after their admission checks;
+foreign or unresolved lifecycle owners remain protected. Explicit continuation
+recovery keeps its separately authorized adoption path.
 
 Couch startup observes existing slots with preview reads. It does not complete
 interrupted starts/parks, replay slot-store journals, or repair a slot as a

@@ -1704,3 +1704,8 @@ proof; record the surprising case so the next change starts from evidence.
   of the agent it views. Sweep executor behavior across all record shapes the
   classifier accepts, and preserve independent start/park records. Persisted
   registry PIDs are not proof of a terminal handle owned by this process.
+
+- #528 M1 BR-9 authority sweep: follow an offered action through its post-ack
+  completion and the real launcher. Removing a prerequisite at the first gate
+  is insufficient when registration or final handoff imposes it again. Keep
+  attachment evidence separate from lifecycle retirement authority end to end.
