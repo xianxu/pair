@@ -69,22 +69,6 @@ esac
 SH
 chmod +x "$bin_dir/zellij"
 
-cat >"$bin_dir/ps" <<'SH'
-#!/usr/bin/env bash
-case "$*" in
-  "-o comm= -p "*)
-    printf 'sh\n'
-    ;;
-  "-o ppid= -p "*)
-    printf '1\n'
-    ;;
-  *)
-    exec /bin/ps "$@"
-    ;;
-esac
-SH
-chmod +x "$bin_dir/ps"
-
 # Stub agent CLI: the create path validates the agent resolves on PATH before the
 # zellij handoff. A no-op stub suffices — the stub zellij intercepts the handoff
 # before the agent would actually run.
@@ -128,9 +112,12 @@ touch -t 202001030000 "$pair_data/runtime/$old_c"
 # runs; the `command -v pair` check inside the stub zellij then proves the
 # launcher fronted $pairbin (dir os.Executable) on the session PATH. Without that
 # #104-M3 prepend, `pair` wouldn't resolve inside → exit 21.
-# The fixture validates extraction and invocation, but starts no real terminal
-# server or agent. A successful stub exit cannot attest an interactive session.
-if PATH="$bin_dir:/usr/bin:/bin" "$pairbin/pair" resume smoke >"$tmp/launch.out" 2>&1; then
+# Native ancestry cannot be replaced by a PATH stub. Reparent this controlled
+# launch to init, so discovery sees no developer Zellij ancestor.
+python_bin="$(command -v python3)"
+# Extraction/invocation starts no real server or agent: stub exit is not proof
+# of an interactive terminal. Preserve the admission refusal assertion.
+if PATH="$bin_dir:/usr/bin:/bin" "$python_bin" "$repo_root/tests/without-ancestors.py" "$pairbin/pair" resume smoke >"$tmp/launch.out" 2>&1; then
   printf 'unverified terminal fixture was admitted\n' >&2
   exit 1
 fi
@@ -139,6 +126,7 @@ if ! grep -q 'terminal client exited before admission was verified' "$tmp/launch
   printf 'expected terminal admission refusal after embedded runtime invocation\n' >&2
   exit 1
 fi
+
 
 test -s "$PAIR_SMOKE_ROOT"
 root="$(cat "$PAIR_SMOKE_ROOT")"

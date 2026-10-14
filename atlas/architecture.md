@@ -261,9 +261,9 @@ the draft first so the writer reads fresh WIP off disk.
 
 The writer's restart exec (`newContinueRestartCmd`) sets **`PAIR_FAKE_IN_ZELLIJ=1`**:
 the child `pair continue` re-derives "in a pane?" via `InZellijPane`'s process-ancestry
-walk, which the **agent's command sandbox blocks** (process introspection → EPERM) —
-the actual "restart stopped working" root cause found by #105's live smoke, since the
-old agent-run `pair continue` hit the same wall. The writer already confirmed the
+walk. This was introduced after #105 found sandboxed `ps` execution failed.
+#547 now uses native process inspection, which passes the seatbelt conformance
+probe; the existing continuation override is retained by this migration. The writer already confirmed the
 context via the `ZELLIJ_SESSION_NAME` / `PAIR_SESSION_NAME` exact match (no introspection),
 so it fakes *only* that ancestry half; `pair continue`'s own session-name match still
 guards the session identity.
@@ -1307,3 +1307,23 @@ immutable publications and physical-parent presentation ownership. See
 [Terminal ownership](terminal.md) for boundaries, profile and verification. Couch
 and Pair production use these adapters. Composed live verification and operator
 smoke acceptance remain necessary to establish disappearance of the reported symptoms.
+
+### Native process inspection
+
+`cmd/internal/procutil` owns host process observations without launching `ps`.
+`Table` remains a cheap metadata snapshot (PID, parent, start identity, niceness
+and short kernel name). `Snapshot` enriches rows with native executable/argv and
+rechecks start identity, retaining unavailable evidence per live row. Native
+per-process `EINVAL`, `ESRCH` and `ENOENT` mean gone and are omitted, including
+exit races during later environment reads; permission and unknown failures remain visible.
+zombie status excludes confirmed terminated processes from command snapshots
+while metadata tables retain them. Darwin uses
+`kern.proc.all` and `kern.procargs2`; Linux reads `/proc`. Unsupported platforms
+return an explicit unsupported error; legacy string helpers return unavailable.
+
+Launcher ancestry derives from one table. Server discovery keeps argv authority
+and snapshot identities; unreadable possible zellij rows refuse an absence proof.
+Diagnostic inventory uses full executable names, since kernel names truncate,
+and keeps strict identity fencing across environment inspection. Its Inspection
+seam is shared by storage and diagnostic cleanup, including test compositions.
+`TestProductionDoesNotExecPS` guards production Go calls against reintroducing ps.

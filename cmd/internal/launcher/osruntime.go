@@ -22,6 +22,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/continuationcmd"
 	"github.com/xianxu/pair/cmd/internal/osfs"
+	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/readiness"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
@@ -459,16 +460,26 @@ func (OSRuntime) SetEnv(key, value string) { _ = os.Setenv(key, value) }
 // InZellijPane walks the PPID chain looking for a zellij ancestor — the ground
 // truth (env vars leak across cmux panes, so $ZELLIJ can't be trusted).
 func (OSRuntime) InZellijPane() bool {
-	pid := os.Getpid()
-	for pid > 1 {
-		if base := lastPathElem(procComm(pid)); base == "zellij" {
-			return true
-		}
-		parent := procPPID(pid)
-		if parent <= 1 || parent == pid {
+	rows, err := procutil.Table()
+	return err == nil && hasProcessAncestor(rows, os.Getpid(), "zellij")
+}
+
+func hasProcessAncestor(rows []procutil.Process, pid int, name string) bool {
+	byPID := make(map[int]procutil.Process, len(rows))
+	for _, row := range rows {
+		byPID[row.PID] = row
+	}
+	seen := make(map[int]bool)
+	for pid > 1 && !seen[pid] {
+		seen[pid] = true
+		row, ok := byPID[pid]
+		if !ok {
 			return false
 		}
-		pid = parent
+		if row.Name == name {
+			return true
+		}
+		pid = row.PPID
 	}
 	return false
 }
@@ -861,7 +872,7 @@ func (r OSRuntime) ReapNvim(tag string) {
 }
 
 // SweepOrphanNvim reaps nvim --embed processes whose Pair session is not live —
-// candidates come from the nvim-pid-* sidecars and a full `ps` argv scan (catches
+// candidates come from the nvim-pid-* sidecars and a native argv snapshot (catches
 // embeds with no pidfile), shell 1117-1158.
 func (r OSRuntime) SweepOrphanNvim(liveTags []string) {
 	scope, err := artifactpath.ResolveSelectedScope(r.DataDir)
@@ -885,8 +896,12 @@ func (r OSRuntime) SweepOrphanNvim(liveTags []string) {
 			}
 		}
 	}
-	if out, err := exec.Command("ps", "-ww", "-A", "-o", "args=").Output(); err == nil {
-		for _, argv := range strings.Split(string(out), "\n") {
+	if rows, err := procutil.Snapshot(context.Background()); err == nil {
+		for _, row := range rows {
+			if row.Err != nil {
+				continue
+			}
+			argv := strings.Join(row.Args, " ")
 			if !strings.Contains(argv, "nvim") || !strings.Contains(argv, "--embed") {
 				continue
 			}
@@ -1176,24 +1191,4 @@ func lastPathElem(s string) string {
 		return s[i+1:]
 	}
 	return s
-}
-
-func procComm(pid int) string {
-	out, err := exec.Command("ps", "-o", "comm=", "-p", fmt.Sprintf("%d", pid)).Output()
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(out))
-}
-
-func procPPID(pid int) int {
-	out, err := exec.Command("ps", "-o", "ppid=", "-p", fmt.Sprintf("%d", pid)).Output()
-	if err != nil {
-		return 0
-	}
-	var ppid int
-	if _, err := fmt.Sscanf(strings.TrimSpace(string(out)), "%d", &ppid); err != nil {
-		return 0
-	}
-	return ppid
 }

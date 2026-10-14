@@ -380,7 +380,7 @@ func locked(path string, create bool, fn func() error) error {
 	return fn()
 }
 func openRegular(path string, flags int) (*os.File, error) {
-	fd, e := syscall.Open(path, flags|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0600)
+	fd, e := syscall.Open(path, flags|syscall.O_NOFOLLOW|syscall.O_NONBLOCK|syscall.O_CLOEXEC, 0600)
 	if e != nil {
 		return nil, e
 	}

@@ -712,3 +712,26 @@ pair:2 incarnation is not registered with Couch; no message receipt was issued.
 Waiting for the hub's release/reassignment of pair:0 and restored messaging.
 Real pair:1 remains untouched. Operator acceptance and the next M2/close review
 cover the merge and runtime delta; neither is claimed complete here.
+
+### 2026-10-14 — merge main after #553 acceptance and stage release
+
+Verified TL a9a15486: pair:0 free, #553 landed, final suite must cover stage.
+Merged origin/main 918341db2be241260af23dc1fb42d35f821cd649, including #553
+625957fd. Three conflicts: launcher/session_quiescence.go and
+launcher/session_servers.go keep #528's exact attributed generations, socket
+and argv effect rechecks, two absence observations and saved-layout retention;
+adopt main's native procutil snapshot and #553's gone/zombie omission while
+unknown/permission rows fail closed. No ps fallback or policy-file authority.
+tests/pair-embedded-runtime-test.sh combines controlled native-ancestry
+reparenting with the unverified-client-exit admission refusal, not a fake
+successful session. Other main changes include creation-lease retry (#545),
+Qoder receivers (#550) and raw-open CLOEXEC (#551).
+
+Parent launcher targeted native/server/quiescence checks pass 0.226s.
+make test-pair-embedded-runtime passes (five reparenting tests 1.781s, embedded
+runtime smoke). A direct shell invocation initially retained this slot's live
+Couch scope and refused its isolated PAIR_DATA_DIR; the sanctioned Make target
+uses the declared session-environment isolation and passes. No runtime change
+was made to hide that fixture environment failure. No unmerged paths or
+diff-check errors remain. Fresh recorded full suite follows this merge;
+previous passing record 35ec94d0 does not cover these changed runtime paths.

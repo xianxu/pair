@@ -6,9 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -21,7 +19,7 @@ import (
 
 // Public command composition: real metadata, migration, archive transactions,
 // inventory and collection. Global process/open-file inventories are isolated
-// command fixtures; the live owner's birth identity is checked by the real OS.
+// inspection fixtures; the live owner's birth identity is checked by the real OS.
 func TestPublicApplyPreservesProtectedOwnersAndCollectsIndependentBuckets(t *testing.T) {
 	ctx := context.Background()
 	c, err := storagegc.NewCoordinator(t.TempDir())
@@ -39,21 +37,7 @@ func TestPublicApplyPreservesProtectedOwnersAndCollectsIndependentBuckets(t *tes
 	}
 	old := now.Add(-(oldest + 24*time.Hour))
 	c.Now = func() time.Time { return old }
-	ps, err := exec.LookPath("ps")
-	if err != nil {
-		t.Fatal(err)
-	}
-	bin := t.TempDir()
-	shellQuote := func(s string) string { return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'" }
-	// Only the broad legacy inventory is synthetic. Other ps requests retain
-	// actual process identity behavior on platforms that use ps for that purpose.
-	psBody := "#!/bin/sh\nif [ \"$1\" = -axo ] && [ \"$2\" = 'pid=,comm=' ]; then exit 0; fi\nexec " + shellQuote(ps) + " \"$@\"\n"
-	for name, body := range map[string]string{"ps": psBody, "lsof": "#!/bin/sh\nexit 1\n"} {
-		if err := os.WriteFile(filepath.Join(bin, name), []byte(body), 0700); err != nil {
-			t.Fatal(err)
-		}
-	}
-	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	inspection := &applyInspection{}
 	storeRoot, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -171,7 +155,7 @@ func TestPublicApplyPreservesProtectedOwnersAndCollectsIndependentBuckets(t *tes
 		t.Helper()
 		var out, errout bytes.Buffer
 		args = append([]string{"--root", c.Root}, args...)
-		if code := Run(args, func(string) string { return "" }, &out, &errout); code != 0 {
+		if code := runWithService(args, func(string) string { return "" }, &out, &errout, func(root string) (*gcruntime.Service, error) { return gcruntime.NewWithInspection(root, inspection) }); code != 0 {
 			t.Fatalf("pair gc %v: code=%d %s", args, code, &errout)
 		}
 		return out.String()
@@ -215,6 +199,13 @@ func TestPublicApplyPreservesProtectedOwnersAndCollectsIndependentBuckets(t *tes
 			t.Fatalf("preview %s=%s want %s; %+v", label, got, want, preview.Storage)
 		}
 	}
+	// One external legacy writer must veto both storage and diagnostic cleanup.
+	inspection.runtimes = []diagnosticlog.Runtime{{Process: diagnosticlog.Registration{PID: 999999, Birth: "fixture-legacy", Root: c.Root}}}
+	blocked := report("--apply")
+	if blocked.Storage.Collected != 0 || blocked.DiagnosticCollectedBytes != 0 {
+		t.Fatalf("legacy writer failed to protect both inventories: %+v", blocked)
+	}
+	inspection.runtimes = nil
 	applied := report("--apply")
 	if applied.Storage.Collected != 3 || applied.DiagnosticCollectedBytes != int64(len("old diagnostic")) {
 		t.Fatalf("expected two owners, one capture and diagnostic: %+v", applied)
@@ -245,4 +236,17 @@ func TestPublicApplyPreservesProtectedOwnersAndCollectsIndependentBuckets(t *tes
 		t.Fatalf("repeat apply not idempotent: %+v", again)
 	}
 	t.Log(fmt.Sprintf("public preview/migration/apply: old standalone+archive+capture+diagnostic collected; parked/new archive/live retained; repeat collected=%d", again.Storage.Collected))
+}
+
+// Mutable inventories model external writers without querying unrelated host processes.
+type applyInspection struct {
+	holders  []diagnosticlog.Registration
+	runtimes []diagnosticlog.Runtime
+}
+
+func (i *applyInspection) OpenFiles(context.Context, string) ([]diagnosticlog.Registration, error) {
+	return i.holders, nil
+}
+func (i *applyInspection) Runtimes(context.Context) ([]diagnosticlog.Runtime, error) {
+	return i.runtimes, nil
 }

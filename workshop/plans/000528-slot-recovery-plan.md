@@ -1018,3 +1018,15 @@ launch profile, session binding/nonces, parks/history, capture/native evidence
 and all claims stay equal. With an open claim or failed death proof, the whole
 record stays equal and the receipt/console show the borrowed reason. These
 commands are acceptance instructions, not measurements run by this agent.
+
+### 2026-10-14 — final acceptance merge after #553 release
+
+TL a9a15486 released pair:0 after #553 landed and requires the recorded suite
+to cover the staged head. Merge origin/main 918341db2be241260af23dc1fb42d35f821cd649
+(including #553 merge 625957fd) before that check. Keep #528's exact-generation
+quiescence and listed-live attachment rules, adopt native procutil snapshots
+and omission of gone/zombie rows from #547/#553, and preserve unknown/permission
+fail-closed behavior. The embedded runtime fixture uses main's controlled
+reparenting for real native ancestry, while retaining #528's refusal when the
+stub client exits without a verified session. No new design mechanism.
+The new runtime paths require a fresh recorded full suite before stage/build.

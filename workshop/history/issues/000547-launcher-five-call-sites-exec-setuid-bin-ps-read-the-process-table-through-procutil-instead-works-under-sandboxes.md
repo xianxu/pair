@@ -1,0 +1,110 @@
+---
+id: 000547
+status: done
+deps: []
+github_issue:
+created: 2026-10-13
+updated: 2026-10-14
+estimate_hours: 3.59
+card_mirror: '25669e2f7b18964019b0828afa8230f86050dd4b' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-14T00:00:06-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:5
+    worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
+    repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
+actual_hours: 3.15
+---
+
+# launcher: five call sites exec setuid /bin/ps; read the process table through procutil instead (works under sandboxes)
+
+## Problem
+
+pair#528 M1's boundary review looped ten rounds because its sandbox couldn't run `/bin/ps`. ariadne:3 measured why (ariadne#364, 2026-10-14): on macOS `/bin/ps` is **setuid root**, and seatbelt refuses to exec setuid binaries even under `(allow default)`; non-setuid `pgrep`, which reads the process table in-process, works under the same profile. pair still shells out to `ps` in five places:
+- `cmd/internal/launcher/osruntime.go:903` (`ps -ww -A -o args=`), `:1113` (`ps -o comm= -p`), `:1121` (`ps -o ppid= -p`)
+- `cmd/internal/launcher/session_quiescence.go:129` and `session_servers.go:147` (`ps -axo pid=,command=`)
+
+So these paths fail under any sandboxed reviewer or agent, and they duplicate `procutil.Table`, which already reads every process in one `kern.proc.all` sysctl (ARCH-DRY).
+
+## Spec
+
+Route all five through `procutil` (extend it for argv/command where it lacks it: `kern.procargs2` on darwin, `/proc/<pid>/cmdline` on linux), with one snapshot per decision where several facts must describe the same moment. Keep behaviour identical; no `ps` exec remains in non-test code (add a test or lint that fails on `exec.Command("ps"`).
+
+## Done when
+
+- No non-test code execs `ps`; the five call sites use procutil, with tests on both platforms' table readers.
+- The process-dependent tests pass inside a seatbelt profile that denies setuid exec (e.g. `sandbox-exec` with `(allow default)`), demonstrating reviewer-sandbox compatibility.
+
+## Plan
+
+- [x] Implement and verify the native process inspection plan: [plan](../plans/000547-native-process-inspection-plan.md).
+
+## Log
+
+### 2026-10-13
+
+### 2026-10-14 — design
+- 2026-10-14: closed — Recorded full sdlc-local/suite pass on integrated 5b28268ce (8m47s, log sha256 11aa2c88e74d); BR-2 subsequent test-only synchronization fix passed deterministic red/green, terminal tests count200 concurrently with full procutil race count5, and race count10. Final suite record on fb37a86a8 is running before landing. Fresh binaries built at fb37a86a8 passed six procutil native/identity/zombie probes and five launcher process probes under sandbox-exec (version 1)(allow default), no skips. PAIR_LIVE_COUCH=1 TestSessionQuiescenceLive passed same profile (1.12s). Same profile refuses /bin/ps with exit71; BR-3 dispute records measured host evidence for the nested sandbox limitation. Linux: portable procfs fixture and cross-build pass; native Linux procutil is untested (pair has no Linux test runner, and pair runs on macOS in practice). Hub accepted this limitation.; review verdict: SHIP
+
+Claimed and started from fresh main. Hub approved sweeping all production ps calls and full flow. Plan above records native argv/executable distinction, per-row uncertainty and snapshot identity fencing (ARCH-DRY, ARCH-ORDER). Prior continuation commit remains on its own branch; untracked pensive preserved. #528 overlap coordinated with pair:2.
+
+## Revisions
+
+- 2026-10-14: enumerated the full no-ps contract beyond the five launcher sites: procutil helpers/unsupported fallback and diagnostic runtime inventory are in scope, approved by the hub.
+
+- Plan-quality round 1 requested named risky functions and mechanical test strategies (PQ-1), plus explicit non-goals (PQ-2). Appended concrete interfaces, strategy table, composition seams and scope boundaries to the plan. Baseline seatbelt probe: TestCommand skips because ps is unavailable, while TestTableMatchesIdentityAndParent passes; replacement must remove that skip on supported OSes.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only; calibration is marked stale and provisional. Native adapters reuse x/sys/unix and existing procfs/sysctl patterns; no greenfield library is needed. Thorough reviewed plan applies 0.2 design discount to implementation primitives, implementation values use v3.1's 0.4 scale, familiarity 1.0. Two API items represent Darwin and Linux adapters plus conformance; two refactors represent launcher and diagnostic/composition migrations. Spec item accounts for the actual cross-consumer shaping rather than discounting it away.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.70 impl=0.08
+item: api-integration design=0.20 impl=0.60
+item: api-integration design=0.20 impl=0.60
+item: cross-cutting-refactor design=0.12 impl=0.20
+item: cross-cutting-refactor design=0.12 impl=0.20
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.04 impl=0.20
+design-buffer: 0.15
+total: 3.59
+```
+
+### 2026-10-14 — implementation and focused verification
+
+- Replaced all nine production ps executions with procutil native metadata/argv observations; AST guard failed on the nine original calls and now passes. Launcher ancestry uses one table and cycle detection; server projection retains snapshot identity and refuses unreadable possible servers. Diagnostic inventory distinguishes full executable identity from argv and short names. Both cleanup proof paths share an injected Inspection; the public apply fixture verifies a legacy writer blocks both, then removing it permits collection.
+- Procutil native parser/snapshot implementation delegated as bounded work. Initial API tests failed before implementation. Additional red/green tests enforce Darwin argc allocation bound and reject numeric PIDs that would truncate into a live PID at Darwin's int32 syscall boundary.
+- Full targeted package runs passed: procutil, launcher, diagnosticlog, gccmd, gcruntime. Artifact source inventory test passed. A real argv-spoofed helper was found, classified and authorized through native launcher observations under sandbox-exec (version 1)(allow default), with all six selected tests passing and no skips.
+- Estimate advisory allocation: Darwin API item includes shared snapshot/error/fencing fake tests and seatbelt conformance; Linux API item includes portable procfs fixture/cross-build/native CI verification. Consumer refactors include targeted race/full-suite execution and fresh-main conflict integration; review item covers the single close boundary. Spec hours describe completed shaping, not additional unresolved design.
+
+- Acceptance limitation approved by ops:0 (receipt e1e6c492-6689-4734-a050-582a546a575f): Linux: portable procfs fixture and cross-build pass; native Linux procutil is untested (pair has no Linux test runner, and pair runs on macOS in practice). No new runner and no colima. Actual workflow inspection found Ubuntu merge-check only runs duplicate-ID checks, plus local-gates-guard; no native Linux test execution is claimed.
+- make -k build passed. Targeted race tests in procutil, launcher and diagnosticlog passed. Fresh Darwin binary passed TestNativeProcessInspectionWithoutPS, TestCommand, TestIdentity, TestTableMatchesIdentityAndParent, TestDarwinArgCountBound and TestPIDRejectsTruncationToLiveProcess under seatbelt, without skips. Full suite is running before close.
+
+- First full make -k test finished with one failure: embedded-runtime smoke still faked ps ancestry, so native Table correctly detected the developer's Zellij parent. Replaced that fake with a bounded, test-only reparented command helper (tests/without-ancestors.py); the real native ancestry now sees init as parent. Targeted make -k test-pair-embedded-runtime passed. Direct script execution retains live Couch environment and is not a valid substitute for the make target's environment sanitization.
+- Extended the fixture sweep to cmd/pair-go/main_test.go: TestPublicPairCommandFamiliesIgnoreCouchStore failed in all launch families before switching its ancestry fixture to the same bounded reparented helper; it now passes. Its test-owned sidecar cleanup uses procutil Snapshot, so sandbox verification does not depend on a hidden ps call. Remaining test ps uses are negative assertions or an independent niceness oracle.
+- Added a red/green runtime-inventory regression for Linux's unlinked-executable suffix: /proc/PID/exe may end in " (deleted)" after a binary replacement, but the live generation remains a possible diagnostic writer. Normalize that marker for executable-name classification; never silently omit the writer. The inventory tests now pass.
+- Additional real TestSessionQuiescenceLive seatbelt probe exposed persistent possible-zellij EINVAL after deletion (PID 44367): investigate exited/unreaped native process status instead of treating argv failure as absence. Paused close for a native terminal-state regression and rerun of the live acceptance probe.
+- Confirmed the live failure with a controlled exited-but-unreaped child: Darwin P_stat=5 (SZOMB), argv EINVAL. Red regression retained it as unknown; fix adds native Process.Zombie (Darwin 5, Linux Z/X/x), keeps Table rows and excludes only confirmed terminal rows from Snapshot. Unreadable live rows remain errors. Procutil race, Linux cross-build and five seatbelt conformance repetitions passed. Fresh TestSessionQuiescenceLive under seatbelt passed in 1.93s after the fix.
+- Full make -k test rerun passed (all shell/editor and Go packages). Repeating the final full suite after the terminal-state delta; no further production edits planned.
+
+- Final verification after b541927de: make -k test passed with exit 0 (/tmp/pair547-test-verified.log), including all shell/editor tests and go test ./... -count=1. make -k build passed (/tmp/pair547-build-verified.log). Fresh main merged with only #549 issue documentation, no code conflicts. Ready for the single SDLC close review.
+
+- Close round 1 returned REWORK with BR-1 (owned-process-lifetime): the new ancestry fixture could leave a grandchild alive after timeout. Native focused packages and launcher process tests passed in review; nested seatbelt invocation was refused by sandbox_apply and the disposable checkout lacked generated runtime assets. Parent-run final full-suite/build and seatbelt evidence remains recorded above. Addressing helper failure/cancellation cleanup with real descendant regressions before re-close.
+
+- BR-1 fixed: supervisor owns the private process group before the worker launches; a startup handshake prevents commands after cancellation, and failure/cancellation kills that group while successful sidecars retain their lifetime. Red regressions reproduced surviving descendants after timeout and SIGTERM/SIGINT. Five real-process lifecycle tests passed ten consecutive runs (50 tests, 80 startup cancellation cases). make -k test-pair-embedded-runtime (now includes lifecycle regression target) and TestPublicPairCommandFamiliesIgnoreCouchStore passed. Fresh native procutil seatbelt probes and TestSessionQuiescenceLive passed again without skips. No production changes after the final full-suite/build pass.
+
+- Close round 2: BR-1 addressed with reviewer-confirmed red/green regression; no new Critical, Important or Minor code findings. REWORK remains solely because nested sandbox-exec fails sandbox_apply and disposable checkout runtimebundle assets are absent. Host evidence: final make -k test exit 0 and make -k build pass; after helper-only change, make -k test-pair-embedded-runtime and public CLI acceptance pass; fresh /tmp/pair547-procutil-reviewed.test passes six native/self/child/zombie tests under sandbox-exec (version 1)(allow default), without skips, and PAIR_LIVE_COUCH=1 /tmp/pair547-launcher-final.test TestSessionQuiescenceLive passes under that profile (1.98s). Reviewer directly passed native probes inside its own fence.
+- Hub hold (receipt fb93c571-0f48-463e-8186-a06576ef828e): stop close attempts and remain idle until hub confirms ariadne#364 and pair#549 landed. #549 supplies the generated-asset prepare declaration and needs the operator-held label. Then re-close; #364 permits an unverifiable nested-sandbox finding to be disputed with the recorded host seatbelt evidence. No gates bypassed. Implementation head 7c766e0239e34bef57a8ee6c96062bc1ecc5f99c.
+
+- Resumed after hub confirmed #549/#364 landed. Merged origin/main cleanly at 5b28268ce; no #528 code conflict. Refreshed slot substrate from its clean resting branch to be822fcf and compiled; issue branch unchanged, old pensive restored. sdlc local-check run --name suite completed all tests successfully on 5b28268ce, but GitHub API connection failure prevented status publication; retry underway through the same supported command. Fresh integrated native procutil seatbelt probes passed six tests without skips; fresh PAIR_LIVE_COUCH=1 launcher TestSessionQuiescenceLive passed (0.55s). Linux limitation remains accepted and unchanged.
+
+- Prepared close round 3: BR-1 remains addressed, runtimebundle preparation fixed. BR-2 identifies a test readiness race (nativeCommand EINVAL may precede kernel zombie state); correcting with bounded native-metadata synchronization and deterministic regression. BR-3 is explicitly unverifiable nested-seatbelt acceptance; host profile independently refuses /bin/ps with exit 71 (execvp Operation not permitted) while fresh native probes and live quiescence pass. Will dispute BR-3 with exact pinned-head host binaries after fixture fix.
+
+- BR-2 fixed in test fixture only: bounded Table polling requires Zombie before returning. Deterministic regression failed against command-error readiness (zero metadata reads), passes live-then-terminal sequence, and pins deadline behavior. Both native terminal tests passed count100, then count200 concurrently with whole procutil race count5; separate whole-package race count10 passed. No production delta.
+
+- Final close round 4 returned SHIP: BR-1 and BR-2 addressed; BR-3 withdrawn with measured host evidence and executable-code equivalence. No remaining findings. Final sdlc local-check suite passed on 38bdf06ac1cd89509bcca6a9dbda2735db6387bf (12m19s including slot wait), recorded sdlc-local/suite, log SHA256 prefix 507581000cc4. PR #329 is open and all three workflow checks plus local-gates verdict pass. Landing through sdlc merge next.
