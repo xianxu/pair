@@ -154,3 +154,23 @@ lease; this is distinct from the intentional pre-exec fork window. One failure
 in /tmp/pair545-targeted-final.log led to this fixture correction. No production
 exclusion failure was observed. Follow-up descriptor hygiene issue filed #551;
 publishing its body needs a main merge because it was created after this branch.
+
+### 2026-10-14 — stable verification in progress
+
+After merging main (including #546), the final matched native-fork harness was
+built twice: current sources, and a scratch Go overlay replacing only
+provision_lock_unix.go with its unchanged baseline. Final counts: baseline
+50/50 failures (/tmp/pair545-forced-baseline-final-50.log), fixed 50/50 passes
+(/tmp/pair545-forced-final-50.log). Both run alongside the natural-load batches
+and suite. The fixture now uses t.TempDir per build and process-group cancellation.
+
+Targeted lease/retry/recovery/cancellation tests passed in 4.966s after correcting
+the dup fixture (/tmp/pair545-targeted-corrected.log). A load-only make -k test
+was allowed to complete but overlapped source construction and failed compiling
+the not-yet-added creationLeaseRetry symbol; it is not final verification. A fresh
+full suite runs on committed stable sources (/tmp/pair545-final-suite.log).
+The natural before/fixed batches each target 50 repetitions of eight historical
+cases; do not infer a natural failure-rate reduction from forced-fork results.
+
+#551's body is published and its claim released after merging the publication
+back into this branch. It remains independent and unstarted.
