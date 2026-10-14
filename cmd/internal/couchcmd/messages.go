@@ -33,7 +33,7 @@ func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writ
 	if inv.messageOp == couchcore.OpPrepare {
 		return runPrepareCLI(inv, rt, stdout, stderr, call, slotPollClock{now: time.Now, sleep: time.Sleep}, couchcore.OSProvisionIO{})
 	}
-	if couchcore.IsSlotOperation(inv.messageOp) {
+	if couchcore.IsSlotOperation(inv.messageOp) || inv.messageOp == "move-slot" {
 		return runSlotOperationCLI(inv, rt, stdout, stderr, call, slotPollClock{now: time.Now, sleep: time.Sleep})
 	}
 	if inv.messageOp == "broadcast-status" {
@@ -248,6 +248,7 @@ func exchangeSlotOperation(inv cliInvocation, op string, rt Runtime, call messag
 	}
 	admit := callerIdentity(rt, op)
 	admit.Target, admit.Confirmed = inv.ref, inv.confirmed
+	admit.ToHub, admit.Persist = inv.toHub, inv.persistHub
 	admit.SameBinary, admit.ForceUnknown = inv.sameBinary, inv.forceUnknown
 	if admit.ID, err = newRequestID(); err != nil {
 		return none, fmt.Errorf("create request ID: %w", err)

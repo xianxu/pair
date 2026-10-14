@@ -1,0 +1,168 @@
+package couchcmd
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/couchtty"
+)
+
+// hubMoveCall is an owner-local capability, never populated from wire JSON.
+// The console's existing serial queue orders it against agent mutations.
+type hubMoveCall struct {
+	service *messageService
+	caller  couchmessage.Binding
+	move    couchcore.HubMove
+	persist bool
+}
+type hubMoveService struct {
+	enqueue func(string, string, func(context.Context) (couchcore.OperationCall, error), func(), func(any, error)) error
+	publish func(couchcore.HubOwnership)
+	files   hubClaimFiles
+}
+
+func (s *messageService) installHubMoves(console *couchtty.Console) {
+	if s.authority.hubs == nil {
+		return
+	}
+	s.hubMoves.Store(&hubMoveService{enqueue: console.EnqueueRemoteOperation, publish: console.SetHubOwnership})
+	console.SetHubOwnership(s.authority.hubs.snapshot())
+}
+func (s *messageService) handleHubMove(ctx context.Context, r couchmessage.Request) couchmessage.Response {
+	refuse := func(err error) couchmessage.Response {
+		return couchmessage.Response{Code: "refused", Error: err.Error()}
+	}
+	if err := couchmessage.ValidateRequest(r); err != nil {
+		return refuse(err)
+	}
+	service := s.hubMoves.Load()
+	if service == nil || s.slotOps == nil || s.authority.hubs == nil || s.authority.hubTarget == nil {
+		return refuse(errors.New("hub moves unavailable; start Couch with explicit hub directories"))
+	}
+	caller, err := s.switchCaller(ctx, r)
+	if err != nil {
+		return refuse(err)
+	}
+	identity, err := s.connectedWorkspace(ctx, caller)
+	if err != nil {
+		return refuse(err)
+	}
+	if !s.authority.isHub(identity) {
+		return refuse(errors.New("only a verified hub may move slots; ask your hub"))
+	}
+	target, err := s.authority.hubs.target(r.ToHub)
+	if err != nil {
+		return refuse(err)
+	}
+	state := s.authority.hubs.snapshot()
+	move := couchcore.HubMove{Caller: identity.WorktreeRoot, Target: target, Revision: state.Revision()}
+	for _, name := range strings.Split(r.Target, ",") {
+		slot, err := s.authority.hubTarget(ctx, name)
+		if err != nil {
+			return refuse(err)
+		}
+		move.Slots = append(move.Slots, slot)
+	}
+	if _, err := state.Apply(move); err != nil {
+		return refuse(err)
+	}
+	payload := hubMoveCall{service: s, caller: caller, move: move, persist: r.Persist}
+	return s.slotOps.admit(ctx, caller, r, func(key string, started func(), finished func(any, error)) error {
+		return service.enqueue(key, "move-slot", func(ctx context.Context) (couchcore.OperationCall, error) {
+			if _, err := s.authority.current(ctx, caller); err != nil {
+				return couchcore.OperationCall{}, err
+			}
+			if !s.isConnected(caller) {
+				return couchcore.OperationCall{}, errors.New("hub disconnected; retry from its current session")
+			}
+			return couchcore.OperationCall{Name: "move-slot", TypedPayload: payload}, nil
+		}, started, finished)
+	}, "hub-move")
+}
+func executeHubMove(call couchcore.OperationCall) (any, error) {
+	payload, ok := call.TypedPayload.(hubMoveCall)
+	if !ok || payload.service == nil {
+		return nil, errors.New("move-slot requires the authenticated console capability")
+	}
+	s := payload.service
+	service := s.hubMoves.Load()
+	if service == nil {
+		return nil, errors.New("hub moves unavailable")
+	}
+	h := s.authority.hubs
+	state, err := h.applyMove(call.Context, payload.move, payload.persist, service.files, func() error {
+		if !s.isConnected(payload.caller) {
+			return errors.New("hub disconnected; retry from its current session")
+		}
+		_, err := s.authority.current(call.Context, payload.caller)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	if service.publish != nil {
+		service.publish(state)
+	}
+	return nil, nil
+}
+func (h *hubRuntime) applyMove(ctx context.Context, move couchcore.HubMove, persist bool, files hubClaimFiles, verify func() error) (couchcore.HubOwnership, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	fail := func(err error) (couchcore.HubOwnership, error) { return h.state, err }
+	if err := ctx.Err(); err != nil {
+		return fail(err)
+	}
+	if err := verify(); err != nil {
+		return fail(err)
+	}
+	next, err := h.state.Apply(move)
+	if err != nil {
+		return fail(err)
+	}
+	if persist {
+		defs := h.state.Hubs()
+		for i := range defs {
+			doc, err := ReadHubClaimFile(defs[i].Root)
+			if err != nil {
+				return fail(err)
+			}
+			defs[i].Claims = doc
+		}
+		edits, err := couchcore.PlanHubClaimEdits(defs, move.Slots, move.Target)
+		if err != nil {
+			return fail(err)
+		}
+		if err := verify(); err != nil {
+			return fail(err)
+		}
+		if err := files.Apply(ctx, edits); err != nil {
+			return fail(err)
+		}
+		for i := range defs {
+			for _, edit := range edits {
+				if edit.Root == defs[i].Root {
+					defs[i].Claims, err = couchcore.ParseHubClaims(edit.After)
+					if err != nil {
+						return fail(err)
+					}
+				}
+			}
+		}
+		next, err = next.WithClaims(defs, next.Revision())
+		if err != nil {
+			return fail(fmt.Errorf("claims saved but projection failed: %w", err))
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return fail(err)
+	}
+	if err := verify(); err != nil {
+		return fail(err)
+	}
+	h.state = next
+	return next, nil
+}

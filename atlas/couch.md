@@ -3585,3 +3585,10 @@ For an explicitly opted-in session, `COUCH_CAPTURE_DIR` enables both display
 boundaries with exact bytes, geometry and timing. Regular Couch is supported;
 `COUCH_ISOLATED_ROOT` remains optional. Capture stays disabled by default. See the
 [live capture runbook](couch-live-capture.md) for launch, limits and extraction.
+
+Explicit multi-directory launches enqueue the typed `start-hub` operation on
+the existing console operation queue. It reuses StartInteractive for each extra
+hub while preserving the first hub’s focus and the one supervisor lifetime.
+
+The typed `move-slot` operation commits an authenticated hub ownership move on
+the same serial console queue; CLI receipts include the destination and persist mode.

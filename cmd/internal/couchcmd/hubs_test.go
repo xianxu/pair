@@ -1,0 +1,99 @@
+package couchcmd
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"reflect"
+	"testing"
+
+	"github.com/xianxu/pair/cmd/internal/couchcore"
+)
+
+func TestHubCLIExplicitDirectoriesAndDefault(t *testing.T) {
+	defaultCall, err := ParseCLI(nil, couchcore.Operations())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(defaultCall, cliInvocation{kind: cliLaunch, path: ".", layout: couchcore.DefaultLayout}) {
+		t.Fatalf("default changed: %+v", defaultCall)
+	}
+	for _, args := range [][]string{{".", "../bench"}, {"--layout3", ".", "../bench"}, {"--", ".", "../bench"}} {
+		got, err := ParseCLI(args, couchcore.Operations())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(got.hubPaths, []string{".", "../bench"}) {
+			t.Fatalf("%v: %+v", args, got)
+		}
+	}
+	for _, args := range [][]string{{".", "--bogus"}, {".", ""}} {
+		if _, err := ParseCLI(args, couchcore.Operations()); err == nil {
+			t.Fatalf("accepted %q", args)
+		}
+	}
+}
+func TestHubMoveCLI(t *testing.T) {
+	got, err := ParseCLI([]string{"--move-slot", "pair:7,pair:8", "--to-hub", "bench:0", "--persist"}, couchcore.Operations())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.messageOp != "move-slot" || got.ref != "pair:7,pair:8" || got.toHub != "bench:0" || !got.persistHub {
+		t.Fatalf("%+v", got)
+	}
+	for _, args := range [][]string{{"--move-slot", "pair", "--to-hub", "bench:0"}, {"--move-slot", "pair:7", "--persist"}, {"--move-slot", "pair:7", "--to-hub", "bench:0", "--persist", "--persist"}} {
+		if _, err := ParseCLI(args, couchcore.Operations()); err == nil {
+			t.Fatalf("accepted %q", args)
+		}
+	}
+}
+
+func TestHubPreparationReadsOnlyActiveFiles(t *testing.T) {
+	root, _ := filepath.EvalSymlinks(t.TempDir())
+	paths := []string{filepath.Join(root, "ops"), filepath.Join(root, "bench")}
+	catalog := &couchcore.SlotCatalogFake{Workspaces: map[string]couchcore.WorkspaceIdentity{}}
+	for _, p := range paths {
+		if err := os.Mkdir(p, 0700); err != nil {
+			t.Fatal(err)
+		}
+		n := 0
+		catalog.Workspaces[p] = couchcore.WorkspaceIdentity{WorktreeRoot: p, PrimaryRoot: p, FleetRoot: root, Slot: &n}
+	}
+	c := &couchcore.Couch{Slots: catalog}
+	if err := os.WriteFile(filepath.Join(paths[1], ".hub"), []byte("pair:7\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	hubs, err := prepareExplicitHubs(context.Background(), c, paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := hubs.snapshot().Resolve(couchcore.HubSlot{Repository: filepath.Join(root, "pair"), Number: 7}).Hub; got != paths[1] {
+		t.Fatal(got)
+	}
+	if err := os.WriteFile(filepath.Join(paths[1], ".hub"), []byte("!bad"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := prepareExplicitHubs(context.Background(), c, paths); err == nil {
+		t.Fatal("corrupt claims treated as empty")
+	}
+	if _, err := prepareExplicitHubs(context.Background(), c, paths[:1]); err != nil {
+		t.Fatal("read omitted hub", err)
+	}
+	if _, err := prepareExplicitHubs(context.Background(), c, []string{paths[0], paths[0]}); err == nil {
+		t.Fatal("duplicate hub")
+	}
+}
+
+func TestHubStartupOperationUsesDeclaredDispatch(t *testing.T) {
+	called := false
+	_, err := couchcore.DispatchOperation(couchcore.OperationExecutors{LiveOwner: func(call couchcore.OperationCall) (any, error) {
+		called = true
+		if call.Args["path"] != "/work/bench" {
+			t.Fatal(call)
+		}
+		return nil, nil
+	}}, couchcore.OperationCall{Name: "start-hub", Args: map[string]string{"path": "/work/bench"}, Implicit: true, Context: context.Background()})
+	if err != nil || !called {
+		t.Fatalf("start-hub dispatch: %v called=%v", err, called)
+	}
+}

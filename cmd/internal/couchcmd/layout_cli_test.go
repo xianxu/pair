@@ -28,13 +28,13 @@ func TestParseCLIAcceptsLayoutFlag(t *testing.T) {
 		{"flag alone", []string{"--layout3"},
 			cliInvocation{kind: cliLaunch, path: ".", layout: couchcore.Layout3}},
 		{"flag before path", []string{"--layout3", "../pair"},
-			cliInvocation{kind: cliLaunch, path: "../pair", layout: couchcore.Layout3}},
+			cliInvocation{kind: cliLaunch, path: "../pair", hubPaths: []string{"../pair"}, layout: couchcore.Layout3}},
 		{"flag after path", []string{"../pair", "--layout3"},
-			cliInvocation{kind: cliLaunch, path: "../pair", layout: couchcore.Layout3}},
+			cliInvocation{kind: cliLaunch, path: "../pair", hubPaths: []string{"../pair"}, layout: couchcore.Layout3}},
 		{"explicit layout2", []string{"--layout2"},
 			cliInvocation{kind: cliLaunch, path: ".", layout: couchcore.Layout2}},
 		{"flag with a dash path", []string{"--layout3", "--", "-repo"},
-			cliInvocation{kind: cliLaunch, path: "-repo", layout: couchcore.Layout3}},
+			cliInvocation{kind: cliLaunch, path: "-repo", hubPaths: []string{"-repo"}, layout: couchcore.Layout3}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := ParseCLI(tt.args, operations)
