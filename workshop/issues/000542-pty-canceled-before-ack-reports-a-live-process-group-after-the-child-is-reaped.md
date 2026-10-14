@@ -44,6 +44,7 @@ This is independent of #519: it uses couchcore runner/helper code, not notifytra
 ## Log
 
 ### 2026-10-13
+- 2026-10-13: closed — Reproduced original PTY cancellation false positive: reaped PID ESRCH, group EPERM, no remaining group member. Deterministic injected-EPERM/real-kernel regression failed before fix, passes after. Cancellation, ambiguity, uncertainty and survivor regressions passed 50 times at load 35 to 34; #511 survivor fixture also passed 50 under load 67 and 50 at load 7 to 6.7. Race checks and Linux cross-compile pass. Full make -k test exit 0 (couchcore 377.409s), /tmp/pair542-make-k-final.log; then merged unrelated #529 main cleanly, runner code unchanged. No timing relaxation, no verification exceptions.; review verdict: SHIP
 
 - Filed from #519 investigation at TL request. Read-only source analysis confirms a separate subsystem; no live-slot changes or additional cancellation loops run.
 
