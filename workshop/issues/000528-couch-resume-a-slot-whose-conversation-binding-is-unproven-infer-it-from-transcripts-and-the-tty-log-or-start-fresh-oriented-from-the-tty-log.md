@@ -266,6 +266,8 @@ The final M2 reviewer observed unchanged `TestProvisionRecoveryLostSuccessPublic
 
 Per TL 4e054fd4, `make -k test` entered the machine gate and acquired after 312s. All Make prerequisites passed, including the previously load-sensitive capture budget. The complete Go run reached every package and failed only `TestArbitraryLifecycleMutationHasNoDoor`: ResumeCandidate directly supplied a callback to updateExistingThread. Log: /tmp/pair528-full-20261013-final.log. The recorded TestProvisionRecoveryLostSuccessPublication flake did not recur, so no follow-up filed. Corrected the authority boundary with typed ThreadStore.PreserveRecoveryBeforeRetirement, validating the selected intent and retaining clone/CAS semantics. The unchanged architecture guard plus all TestResumeCandidate cases and DeleteStart recovery checks pass (4.117s, /tmp/pair528-transition-fix.log); diff check clean. This is a failed full run followed by passing focused correction verification, not a claimed green rerun. Staging follows for the TL's scratch live acceptance before close.
 
+2026-10-13 — `sdlc stage --build` succeeded on pair:0 at e1876500ec010e3d2fc59e8361d6641798ed701b; pair:2 retains the issue branch. couch, pair, pair-launch-helper and pair-slug embed that revision; the stage command warns auxiliary pair-hoprtt remains 2284b412 (modified). TL handoff fd62e544-2de3-4f84-b571-e2435422cb28 names the exact stage, full-run failure/focused correction evidence, scratch acceptance procedure in the durable plan and compile-checked policy fixture source. Awaiting TL/operator acceptance after their Couch restart; no scratch/live mutation executed here and whole-issue close not yet run.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against
