@@ -106,6 +106,15 @@ The operator (2026-10-13):
   the focused regression and full wrapcmd package; full log remains
   /tmp/pair540-full-suite.log. No production change is indicated by this failure.
 
+- Corrected wrapper-to-Couch integration now verifies canonical wrapper output,
+  waits for the suppression trace and switcher render, then checks complete host
+  history for leaked envelope/body. Focused regression passed (0.418s); complete
+  `go test ./cmd/internal/wrapcmd -count=1` passed (120.249s), including the fixture
+  tests interrupted in the full run. Evidence: /tmp/pair540-wrapcmd-corrected.log.
+  Fresh-eyes review approved the correction. Sweep found no other stale
+  wrapper-to-Couch forwarding expectations. Only tests/docs changed after the
+  completed full suite; no product code changed. Waiting for TL's stage clearance.
+
 ## Revisions
 
 ### 2026-10-13 — proposed design for TL approval
