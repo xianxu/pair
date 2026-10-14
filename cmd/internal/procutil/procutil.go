@@ -14,7 +14,7 @@ import (
 
 func positivePID(pid string) (int, bool) {
 	n, err := strconv.Atoi(pid)
-	return n, err == nil && n > 0
+	return n, err == nil && n > 0 && n <= 1<<31-1
 }
 
 // Alive reports whether pid names a live process. An empty, non-numeric or
@@ -44,32 +44,16 @@ func Alive(pid string) bool {
 	return err == nil || errors.Is(err, syscall.EPERM)
 }
 
-// Command returns pid's full command line via `ps -p <pid> -o command=`, trimmed
-// of the trailing newline. Empty string on any error (dead pid, no ps, etc.) —
-// callers treat "no argv" as "not our process".
-func Command(pid string) string {
-	if pid == "" {
-		return ""
-	}
-	out, err := exec.Command("ps", "-p", pid, "-o", "command=").Output()
-	if err != nil {
-		return ""
-	}
-	return strings.TrimRight(string(out), "\n")
-}
-
+// ProcessChildren groups a single native table by parent PID.
 func ProcessChildren() map[string][]string {
-	out, err := exec.Command("ps", "-axo", "pid=,ppid=").Output()
+	rows, err := Table()
 	if err != nil {
 		return nil
 	}
 	children := make(map[string][]string)
-	for _, line := range strings.Split(string(out), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) < 2 {
-			continue
-		}
-		children[fields[1]] = append(children[fields[1]], fields[0])
+	for _, p := range rows {
+		parent := strconv.Itoa(p.PPID)
+		children[parent] = append(children[parent], strconv.Itoa(p.PID))
 	}
 	return children
 }
@@ -131,10 +115,13 @@ func WaitCode(cmd *exec.Cmd) int {
 	return -1
 }
 
-// Process is one row of Table: a pid, its parent, its start identity and
-// its niceness (#502), all from the same read.
+// Process is one row of Table: a pid, its parent, start identity, niceness,
+// and short kernel Name, all from the same read. Name may be truncated.
 type Process struct {
 	PID, PPID int
 	Identity  string
 	Nice      int
+	Name      string
+	// Zombie means the kernel reports a terminated process, retained until reaped.
+	Zombie bool
 }
