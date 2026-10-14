@@ -5,8 +5,8 @@ deps: [pair#530]
 github_issue:
 created: 2026-10-13
 updated: 2026-10-13
-estimate_hours:
-card_mirror: 'd41c393402ce739cb5431e3c88ed6bff27330529' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 2.835
+card_mirror: 'b7665addbea28e28f03c2bb746f55459d3613490' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-13T20:50:26-07:00
 claimant:
     operator: Xian Xu
@@ -81,3 +81,32 @@ Inspection found MaxBytes is currently a soft rotation threshold; add an opt-in
 hard generation bound so failed rotation cannot grow this log indefinitely.
 Existing retained generations still follow diagnosticlog GC, not a new cleaner.
 No changes to pair:0, currently staged for #522.
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against
+baseline-v3.1.md, Method A only; source currently marked stale, provisional.
+Familiar Go/Python territory. Thorough plan gives x0.2 design discount and 15%
+design buffer; implementation is v2 hours x0.4. Recorder and offline reader
+reuse diagnosticlog/standard libraries, halving their design base before the
+spec discount. No external API discovery or cross-repo propagation.
+
+Order: schema (typed prototype .5/.5 base); recorder (greenfield 1.5/.8);
+offline reader (greenfield 1.5/.5); five event adapters (integration 2/1.5);
+hard-cap extension (smaller module .3/.5); docs (.1/.2); close review (.1/.5).
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: typed-data-prototype design=0.10 impl=0.20
+item: greenfield-go-module design=0.15 impl=0.32
+item: greenfield-go-module design=0.15 impl=0.20
+item: api-integration design=0.40 impl=0.60
+item: smaller-go-module design=0.06 impl=0.20
+item: atlas-docs design=0.02 impl=0.08
+item: milestone-review design=0.02 impl=0.20
+design-buffer: 0.15
+total: 2.835
+```
+
+Design subtotal 0.90 x1.15 + implementation 1.80 = 2.835 focused hours.

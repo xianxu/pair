@@ -26,6 +26,24 @@ rounds:
           family: function-level-test-strategy
           round: 1
       blocked: true
+    - "n": 2
+      timestamp: "2026-10-13T22:35:13-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Named lifecycle transitions, mutex-ordered admission/accounting, an unclosed channel, worker joining and controlled IO sequences define recorder ordering and shutdown.
+          round: 2
+        - id: PQ-2
+          disposition: addressed
+          note: Named parsing and reading functions enforce line/batch limits and validation; corrupt input conservatively invalidates negative coverage before label derivation.
+          round: 2
+        - id: PQ-3
+          disposition: addressed
+          note: The revision replaces the operative test strategy with named production functions, adversarial input classes and mechanical guards, retaining concise integration guarantees.
+          round: 2
+      blocked: false
+content_hash: 9789acd9924ad767dde758c5e74a7ef298290b665edf9a83a749a9882b07d9eb
 ---
 
 # Gate ledger — pair#543 (plan-quality)
@@ -44,8 +62,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **PQ-3** [Important] `function-level-test-strategy` Replace the test-case inventory with named functions and adversarial strategies.
   Plan lines 87–97 enumerate cases such as threshold edges, gaps, duplicates and restarts, while only derive_labels is named as a tested function. Compress this into named production functions for parsing/classification, label derivation, recorder transitions and hard-cap enforcement, each with one adversarial input class and mechanical guard. Retain concise integration guarantees for optional telemetry failure; do not expand the prose into additional case lists.
 
+## Round 2 — 2026-10-13T22:35:13-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Named lifecycle transitions, mutex-ordered admission/accounting, an unclosed channel, worker joining and controlled IO sequences define recorder ordering and shutdown.
+- PQ-2 — addressed — Named parsing and reading functions enforce line/batch limits and validation; corrupt input conservatively invalidates negative coverage before label derivation.
+- PQ-3 — addressed — The revision replaces the operative test strategy with named production functions, adversarial input classes and mechanical guards, retaining concise integration guarantees.
+
 ## Open findings
 
-- **PQ-1** [Important] `explicit-concurrent-state-contract` Define recorder ordering and shutdown transitions.
-- **PQ-2** [Important] `bounded-validated-offline-input` Bound and validate the offline reader before sorting retained logs.
-- **PQ-3** [Important] `function-level-test-strategy` Replace the test-case inventory with named functions and adversarial strategies.
+(none — every finding has been disposed)
