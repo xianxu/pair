@@ -40,6 +40,8 @@ Find when it started failing (bisect on main), confirm the cause, and fix the ro
 
 ## Log
 
+
+- 2026-10-13: closed — 20 consecutive startup-notification passes at load 28.51–36.22 (/tmp/pair519-qualification.log); deterministic EOF and kernel-backlog regressions red/green; reverted fix fails startup test (/tmp/pair519-reverted.log); transport race checks passed; make -k test passed fully, wrapcmd 54.374s and couchcore 444.729s (/tmp/pair519-make-k.log). After unrelated main #538 merge, regenerated assets and focused checks passed. Independent cancellation filed unclaimed #542.; review verdict: SHIP
 ### 2026-10-12
 
 ## Revisions
