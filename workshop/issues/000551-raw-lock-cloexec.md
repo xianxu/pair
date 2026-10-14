@@ -1,19 +1,19 @@
 ---
 id: 000551
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-14
 updated: 2026-10-14
 estimate_hours:
-card_mirror: 'aea372223acc999409c7944adf860eedd6c0d4a9' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '2ea8a08b29b28a54723027e8f29401bd83527520' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-14T08:51:33-07:00
 claimant:
     operator: Xian Xu
     machine: 4716879978a7b90f6b583da1716fd0e9
     machine_name: Xian’s MacBook Pro
-    workspace: pair:7
-    worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
 ---
 
@@ -43,10 +43,16 @@ in receipt cc82ffc3-c4f5-4c1c-9e9a-5b2fb14f5340.
 
 ## Plan
 
-- [ ] Inspect the raw open family, add regression tests, fix flags, verify and land.
+- [ ] Add failing kernel FD_CLOEXEC tests for diagnostic regular files and the held notification namespace lock, plus an AST guard over every production raw open in the two modules to prove atomic O_CLOEXEC rather than a later fcntl fix.
+- [ ] Add O_CLOEXEC at all four discovered opens: diagnosticlog.openRegular, diagnosticlog.directoryNames, notifytransport.lockNamespace and notifytransport.readPID. Preserve NOFOLLOW/NONBLOCK, validation, file modes, bounded reads and explicit lock release (ARCH-PURPOSE, ARCH-DRY).
+- [ ] Run both package suites and focused race tests, make -k build, and the required sdlc local-check suite on the pushed head. Close via SDLC review and land on SHIP; this descriptor bugfix creates no new architectural surface.
 
 ## Log
 
 ### 2026-10-14
 
 Filed from #545 investigation; independent follow-up, not started.
+
+### 2026-10-14 — pair:3 design
+
+Hub ops:0 assigned this small fix and authorized claim, brief plan, build and landing on SHIP (receipt ca952211-058c-443e-83d8-1229b13c2e65). Claimed in pair:3. start-plan caught up the base layer and required a repeat with its rebuilt binary; the repeat entered planning. Raw-open sweep found the issue's three sites plus diagnosticlog.directoryNames in pages.go. A later CloseOnExec call would retain the fork/exec race, so add the flag to the existing opens; no new IO seam or helper is needed. Kernel flag tests plus the source inventory guard cover the actual descriptor policy and its atomic placement.
