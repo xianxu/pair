@@ -91,6 +91,11 @@ The operator (2026-10-13):
   started via weighted machine queue; evidence path /tmp/pair540-full-suite.log.
   TL reserved staging after #528's acceptance session, per verified receipt
   47ef690a-6165-499c-ad4d-30357d8e4b73; no pair:0 action until TL says clear.
+- Console spec and quality reviews both approved dc428db5c; no remaining
+  in-session review findings. The full-suite command remains queued, not failed
+  or cancelled. Tests have not started while earlier Ariadne suites hold the
+  machine gate. Implementation and targeted verification are complete; waiting
+  for suite execution and TL's staging/smoke instruction.
 
 ## Revisions
 
