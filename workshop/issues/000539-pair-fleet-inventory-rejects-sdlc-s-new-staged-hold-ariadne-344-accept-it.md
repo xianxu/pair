@@ -15,6 +15,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "1797c705", done: "50dc2343"}
 ---
 
 # pair: fleet inventory rejects sdlc's new 'staged' hold (ariadne#344); accept it
