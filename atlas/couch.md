@@ -2521,10 +2521,10 @@ what an agent spawns.
   are never lowered.
 - **Applying it:** each process is identity-checked again (`procutil.Identity`), then
   `setpriority(PRIO_PROCESS, pid, COUCH_SLOT_NICE)`. A process that has exited (ESRCH) is skipped. A refusal
-  (EPERM/EACCES) is counted and that pid is never asked again. `COUCH_SLOT_NICE=0` only reports.
+  (EPERM/EACCES) is counted and that pid is never asked again. `COUCH_SLOT_NICE=0` only reports (the agent's nice; nothing is counted as lowered).
 - **Facts:** per binding (`couchmessage.NiceFacts`: confirmed, agent nice, lowered, at level, denied), read by
-  `couch --actors` through `Broker.SetNiceView`. A confirmed agent found below normal gets one notice: relaunch
-  the slot to restore its priority.
+  `couch --actors` through `Broker.SetNiceView`. A confirmed agent found below Couch's own priority (its nice above
+  Couch's, from the same snapshot) gets one notice: relaunch the slot to restore its priority (#541).
 - **Lifetime:** facts, refusals and notices go with their binding, so nothing durable is created.
 - **Cost:** 0.44 ms per pass over 1,425 processes (`BenchmarkReniceScan`), about 0.009% of a core at 5 s.
 

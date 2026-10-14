@@ -218,6 +218,25 @@ func TestRenicerNoticesALowAgentOnceAndForgetsGoneSlots(t *testing.T) {
 	}
 }
 
+// Couch started from a niced shell launches its agents at its own nice:
+// that is not low, and the notice (relaunch) couldn't help. Only an agent
+// below Couch's own priority is noticed.
+func TestRenicerNoticeComparesAgainstCouchsOwnNice(t *testing.T) {
+	m := slotMachine()
+	m.set(pr(100, 1, 5, "couch"))
+	m.set(pr(300, 200, 5, "agent@1"))
+	r, notices := newTestRenicer(m, []couchmessage.Binding{slot3}, map[couchmessage.Binding]int{slot3: 300})
+	r.pass()
+	if len(*notices) != 0 {
+		t.Fatalf("an agent at Couch's nice was noticed: %q", *notices)
+	}
+	m.set(pr(300, 200, 10, "agent@1"))
+	r.pass()
+	if len(*notices) != 1 || !strings.Contains((*notices)[0], "nice 10") {
+		t.Errorf("an agent below Couch's priority: notices %q", *notices)
+	}
+}
+
 func TestRenicerLevelZeroOnlyReports(t *testing.T) {
 	m := slotMachine()
 	r := newRenicer(m, func() []couchmessage.Binding { return []couchmessage.Binding{slot3} }, func(couchmessage.Binding) (int, error) { return 300, nil }, 0, 100, nil)
@@ -225,8 +244,8 @@ func TestRenicerLevelZeroOnlyReports(t *testing.T) {
 	if len(m.renices) != 0 {
 		t.Errorf("level 0 reniced %v", m.renices)
 	}
-	if f, ok := r.view(slot3); !ok || !f.Confirmed {
-		t.Errorf("level 0 still reports: %+v", f)
+	if f, ok := r.view(slot3); !ok || !f.Confirmed || f.Lowered+f.AtLevel != 0 {
+		t.Errorf("level 0 still reports, and lowers nothing: %+v", f)
 	}
 }
 

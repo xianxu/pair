@@ -91,7 +91,7 @@ func TestPlanReniceNever(t *testing.T) {
 	if l := pids(got[0].Lower); slices.Contains(l, 330) || slices.Contains(l, 320) || slices.Contains(l, 310) {
 		t.Errorf("Couch or its ancestors lowered: %v", l)
 	}
-	if got := PlanRenice(reniceMachine(), roots[:1], 0, 100); len(got[0].Lower) != 0 || !got[0].Confirmed {
+	if got := PlanRenice(reniceMachine(), roots[:1], 0, 100); len(got[0].Lower) != 0 || got[0].AtLevel != 0 || !got[0].Confirmed {
 		t.Errorf("level 0: %+v", got[0])
 	}
 	cycle := append(reniceMachine(), procutil.Process{PID: 600, PPID: 601}, procutil.Process{PID: 601, PPID: 600})
