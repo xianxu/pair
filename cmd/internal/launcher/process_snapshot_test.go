@@ -3,9 +3,11 @@ package launcher
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"syscall"
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/procutil"
@@ -113,5 +115,30 @@ func TestNativeSnapshotFindsArgvServer(t *testing.T) {
 	}
 	if state := states[session]; state.Server.PID != child.Process.Pid || state.Server.Identity == "" || state.Verdict != ServerOrphaned {
 		t.Fatalf("native server state: %+v", state)
+	}
+}
+
+func TestServerProcessesSkipsGonePossibleServersAndZombies(t *testing.T) {
+	for _, name := range []string{"zellij", ""} {
+		for _, gone := range []error{syscall.EINVAL, syscall.ESRCH, syscall.ENOENT} {
+			row := procutil.Observation{Process: procutil.Process{PID: 10, Name: name, Identity: "generation"}, Err: fmt.Errorf("process command: %w", gone)}
+			if got, err := serverProcesses([]procutil.Observation{row}); err != nil || len(got) != 0 {
+				t.Fatalf("gone %q %v: servers=%v err=%v", name, gone, got, err)
+			}
+		}
+	}
+	row := procutil.Observation{Process: procutil.Process{PID: 10, Name: "zellij", Identity: "generation", Zombie: true}, CommandInfo: procutil.CommandInfo{Args: []string{"zellij", "--server", "/tmp/session"}}}
+	if got, err := serverProcesses([]procutil.Observation{row}); err != nil || len(got) != 0 {
+		t.Fatalf("zombie server=%v err=%v", got, err)
+	}
+}
+func TestServerProcessesPermissionAndUnknownStayFailClosed(t *testing.T) {
+	for _, name := range []string{"zellij", ""} {
+		for _, failure := range []error{syscall.EPERM, syscall.EACCES, errors.New("unrecognized process read")} {
+			row := procutil.Observation{Process: procutil.Process{PID: 10, Name: name, Identity: "generation"}, Err: fmt.Errorf("process command: %w", failure)}
+			if _, err := serverProcesses([]procutil.Observation{row}); err == nil {
+				t.Fatalf("%q %v became absence", name, failure)
+			}
+		}
 	}
 }

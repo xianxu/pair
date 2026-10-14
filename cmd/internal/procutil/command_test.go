@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -119,6 +121,32 @@ func (w *snapshotWorld) command(pid int) (CommandInfo, error) {
 	return c, w.commandErrors[pid]
 }
 func (w *snapshotWorld) identity(pid int) string { return w.identities[pid] }
+func TestSnapshotSkipsProcessExitDuringCommandRead(t *testing.T) {
+	for _, gone := range []error{syscall.EINVAL, syscall.ESRCH, os.ErrNotExist} {
+		w := &snapshotWorld{rows: []Process{{PID: 1, Identity: "old", Name: "zellij"}, {PID: 2, Identity: "live"}}, commands: map[int]CommandInfo{1: {}, 2: {Executable: "/app", Args: []string{"ok"}}}, commandErrors: map[int]error{1: fmt.Errorf("procargs: %w", gone)}, identities: map[int]string{1: "old", 2: "live"}}
+		w.after = func(pid int) {
+			if pid == 1 {
+				delete(w.identities, pid)
+			}
+		}
+		rows, err := snapshot(context.Background(), w)
+		if err != nil || len(rows) != 1 || rows[0].PID != 2 || rows[0].Err != nil {
+			t.Fatalf("gone %v retained: %+v %v", gone, rows, err)
+		}
+	}
+}
+func TestIsProcessGonePreservesInspectionUncertainty(t *testing.T) {
+	for _, err := range []error{syscall.EINVAL, syscall.ESRCH, os.ErrNotExist} {
+		if !IsProcessGone(fmt.Errorf("process read: %w", err)) {
+			t.Fatalf("lost gone classification: %v", err)
+		}
+	}
+	for _, err := range []error{nil, syscall.EPERM, syscall.EACCES, syscall.EIO, ErrUnsupported, errors.New("malformed argv")} {
+		if IsProcessGone(err) {
+			t.Fatalf("inspection failure hidden: %v", err)
+		}
+	}
+}
 func TestSnapshotFencesReusedAndMissingProcesses(t *testing.T) {
 	w := &snapshotWorld{rows: []Process{{PID: 1, Identity: "old", Name: "unrelated"}, {PID: 2, Identity: "same"}, {PID: 3, Identity: "same"}}, commands: map[int]CommandInfo{1: {Executable: "/app", Args: []string{"old"}}, 2: {Executable: "/app", Args: []string{"ok"}}}, identities: map[int]string{1: "old", 2: "same", 3: "same"}}
 	w.after = func(pid int) {
@@ -127,10 +155,10 @@ func TestSnapshotFencesReusedAndMissingProcesses(t *testing.T) {
 		}
 	}
 	got, err := snapshot(context.Background(), w)
-	if err != nil || len(got) != 3 || w.tableCalls != 1 || !reflect.DeepEqual(w.calls, []int{1, 2, 3}) {
+	if err != nil || len(got) != 1 || w.tableCalls != 1 || !reflect.DeepEqual(w.calls, []int{1, 2, 3}) {
 		t.Fatalf("%+v %v calls=%v", got, err, w.calls)
 	}
-	if got[0].Err == nil || len(got[0].Args) != 0 || got[0].Executable != "" || got[2].Err == nil || len(got[2].Args) != 0 || got[1].Err != nil || got[1].Args[0] != "ok" {
+	if got[0].PID != 2 || got[0].Err != nil || got[0].Args[0] != "ok" {
 		t.Fatalf("bad fences: %+v", got)
 	}
 }
