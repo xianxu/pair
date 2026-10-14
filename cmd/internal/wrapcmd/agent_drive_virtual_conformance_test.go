@@ -5,10 +5,12 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	ossignal "os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -20,6 +22,7 @@ import (
 	"github.com/creack/pty"
 	"github.com/xianxu/pair/cmd/internal/agentdrive"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/terminal"
 	"github.com/xianxu/pair/cmd/internal/ttyio"
 	"golang.org/x/term"
@@ -67,29 +70,118 @@ func TestAgentDriveNativeRelayHelper(t *testing.T) {
 	if size.Rows == 0 || size.Cols == 0 {
 		t.Fatal("outer wrapper did not transfer terminal size")
 	}
+	shutdown := make(chan os.Signal, 1)
+	ossignal.Notify(shutdown, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM)
+	defer ossignal.Stop(shutdown)
 	c := exec.Command(native, args...)
 	c.Env = os.Environ()
 	master, err := pty.StartWithSize(c, size)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer master.Close()
 	root := os.Getenv("PAIR_DRIVE_BOUNDARY_ROOT")
-	if err := os.WriteFile(filepath.Join(root, "native.pid"), []byte(strconv.Itoa(c.Process.Pid)), 0600); err != nil {
+	owner := boundaryProcessOwner{PID: c.Process.Pid, Start: procutil.StrictIdentity(strconv.Itoa(c.Process.Pid))}
+	nativeIO, err := ttyio.NewFile(master, master, false)
+	if err != nil {
+		c.Process.Kill()
+		c.Wait()
+		master.Close()
 		t.Fatal(err)
 	}
-	record, err := os.OpenFile(filepath.Join(root, "accepted.jsonl"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
+	inputIO, err := ttyio.NewFile(os.Stdin, os.Stdout, false)
+	if err != nil {
+		nativeIO.Close()
+		c.Process.Kill()
+		c.Wait()
+		master.Close()
+		t.Fatal(err)
+	}
+	var record, raw *os.File
+	relayCtx, cancelRelay := context.WithCancel(context.Background())
+	waited := make(chan struct{})
+	var waitErr error
+	go func() { waitErr = c.Wait(); close(waited) }()
+	inputDone, outputDone := make(chan struct{}), make(chan struct{})
+	// Setup failures have no pumps to join; replace these once pumps start.
+	joinPumps := func(time.Duration) bool { return true }
+	defer func() {
+		cleanupErr := teardownHarnessTTY(harnessTTYTeardownOps{
+			cancel:   func() { cancelRelay(); inputIO.Close() },
+			closePTY: func() error { nativeIO.Close(); return master.Close() },
+			signal: func() error {
+				select {
+				case <-waited:
+					return os.ErrProcessDone
+				default:
+				}
+				return signalBoundaryGroup(owner, procutil.StrictIdentity, boundaryProbe, syscall.Kill, syscall.SIGINT)
+			},
+			kill: func() error {
+				return signalBoundaryGroup(owner, procutil.StrictIdentity, boundaryProbe, syscall.Kill, syscall.SIGKILL)
+			},
+			waitBounded: func(d time.Duration) (error, bool) {
+				select {
+				case <-waited:
+					return waitErr, true
+				case <-time.After(d):
+					return nil, false
+				}
+			},
+			joinReader: func(d time.Duration) bool { return joinPumps(d) }, grace: time.Second,
+		})
+		if cleanupErr != nil {
+			t.Error(cleanupErr)
+		}
+		if record != nil {
+			record.Close()
+		}
+		if raw != nil {
+			raw.Close()
+		}
+		if cleanupErr == nil {
+			if e := os.WriteFile(filepath.Join(root, "relay.cleaned"), []byte("native reaped; input and output pumps joined\n"), 0600); e != nil {
+				t.Error(e)
+			}
+		}
+	}()
+	if owner.Start == "" {
+		t.Fatal("native process identity unavailable; group signaling refused")
+	}
+	ownerBytes, _ := json.Marshal(owner)
+	if err := os.WriteFile(filepath.Join(root, "native.owner"), ownerBytes, 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	record, err = os.OpenFile(filepath.Join(root, "accepted.jsonl"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer record.Close()
+
+	raw, err = os.OpenFile(filepath.Join(root, "native.raw"), os.O_CREATE|os.O_WRONLY, 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	joinPumps = func(d time.Duration) bool {
+		timer := time.NewTimer(d)
+		defer timer.Stop()
+		for _, done := range []<-chan struct{}{inputDone, outputDone} {
+			select {
+			case <-done:
+			case <-timer.C:
+				return false
+			}
+		}
+		return true
+	}
 	go func() {
+		defer close(inputDone)
 		buf := make([]byte, 4096)
 		for {
-			n, e := os.Stdin.Read(buf)
+			n, e := inputIO.ReadContext(relayCtx, buf)
 			if n > 0 {
 				nativeInput := buf[:n]
-				accepted, we := master.Write(nativeInput)
+				accepted, we := nativeIO.WriteContext(relayCtx, nativeInput)
 				json.NewEncoder(record).Encode(struct {
 					Hex   string
 					N     int
@@ -104,17 +196,20 @@ func TestAgentDriveNativeRelayHelper(t *testing.T) {
 			}
 		}
 	}()
-	raw, err := os.OpenFile(filepath.Join(root, "native.raw"), os.O_CREATE|os.O_WRONLY, 0600)
-	if err != nil {
-		t.Fatal(err)
+	go func() { defer close(outputDone); io.Copy(io.MultiWriter(raw, inputIO), nativeIO) }()
+	select {
+	case <-waited:
+	case <-shutdown:
+		return
 	}
-	defer raw.Close()
-	go io.Copy(io.MultiWriter(os.Stdout, raw), master)
-	err = c.Wait()
-	if err != nil {
-		os.Exit(1)
+	// Drain native output to EOF before closing its transport. A failed drain is
+	// explicit rather than claiming the final output was retained.
+	select {
+	case <-outputDone:
+	case <-time.After(time.Second):
+		t.Error("native output did not drain before teardown")
 	}
-	os.Exit(0)
+
 }
 
 func TestAgentDriveRunBoundaryHelper(t *testing.T) {
@@ -230,11 +325,29 @@ func runAgentDriveBoundary(t *testing.T, virtual bool) {
 	done := make(chan error, 1)
 	go func() { done <- wrapper.Wait() }()
 	t.Cleanup(func() {
-		if b, e := os.ReadFile(filepath.Join(root, "native.pid")); e == nil {
-			if pid, e := strconv.Atoi(string(b)); e == nil && pid > 0 {
-				syscall.Kill(-pid, syscall.SIGKILL)
+		if b, e := os.ReadFile(filepath.Join(root, "native.owner")); e == nil {
+			var owner boundaryProcessOwner
+			if e = json.Unmarshal(b, &owner); e != nil {
+				t.Error(e)
+			} else if e = signalBoundaryGroup(owner, procutil.StrictIdentity, boundaryProbe, syscall.Kill, syscall.SIGKILL); e != nil && !errors.Is(e, os.ErrProcessDone) {
+				t.Error(e)
 			}
 		}
+
+		if _, e := os.Stat(filepath.Join(root, "native.owner")); e == nil {
+			joined := false
+			for until := time.Now().Add(3 * time.Second); time.Now().Before(until); {
+				if _, e := os.Stat(filepath.Join(root, "relay.cleaned")); e == nil {
+					joined = true
+					break
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
+			if !joined {
+				t.Error("relay did not acknowledge native reap and pump joins")
+			}
+		}
+
 		master.Close()
 		select {
 		case <-done:
@@ -305,7 +418,8 @@ func runAgentDriveBoundary(t *testing.T, virtual bool) {
 	select {
 	case binding = <-hello:
 	case <-time.After(25 * time.Second):
-		t.Fatalf("wrapper not registered; output=%q", strings.ReplaceAll(string(screen.bytes()[max(0, len(screen.bytes())-4000):]), root, "/scratch"))
+		raw := screen.bytes()
+		t.Fatalf("wrapper not registered; output=%q", strings.ReplaceAll(string(raw[max(0, len(raw)-4000):]), root, "/scratch"))
 	}
 	endpoint := couchmessage.RemoteEndpoint{Namespace: namespace, Binding: binding}
 	ctx, stop := context.WithTimeout(context.Background(), 25*time.Second)
@@ -319,7 +433,8 @@ func runAgentDriveBoundary(t *testing.T, virtual bool) {
 		time.Sleep(20 * time.Millisecond)
 	}
 	if err != nil || !observed.Idle {
-		t.Fatalf("no settled empty composer: %v observation=%+v output=%q", err, observed, strings.ReplaceAll(string(screen.bytes()[max(0, len(screen.bytes())-4000):]), root, "/scratch"))
+		raw := screen.bytes()
+		t.Fatalf("no settled empty composer: %v observation=%+v output=%q", err, observed, strings.ReplaceAll(string(raw[max(0, len(raw)-4000):]), root, "/scratch"))
 	}
 	request := agentdrive.Request{Model: &agentdrive.ModelRequest{Model: "gpt-6.1-sol", Effort: "low"}}
 	result, err := endpoint.StartDrive(ctx, "boundary-model", couchmessage.DriveStart{Request: request, Instance: observed.Instance, Sequence: observed.Sequence, Deadline: time.Now().Add(12 * time.Second)})
@@ -376,13 +491,28 @@ func boundaryDirtyRecovery(t *testing.T, endpoint couchmessage.RemoteEndpoint, i
 		t.Fatalf("dirty recovery observation %+v: %v", observation, err)
 	}
 	request := agentdrive.Request{Keys: agentdrive.KeySequence{{Kind: agentdrive.KeyClearLine}}}
-	result, err := endpoint.StartDrive(ctx, "boundary-recovery", couchmessage.DriveStart{Request: request, Instance: observation.Instance, Sequence: observation.Sequence, Deadline: time.Now().Add(5 * time.Second)})
-	if err != nil {
-		t.Fatal(err)
+	var result agentdrive.Result
+	operationID := ""
+	for attempt := 0; attempt < 3; attempt++ {
+		observation, err = endpoint.ObserveDrive(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		operationID = fmt.Sprintf("boundary-recovery-%d", attempt)
+		result, err = endpoint.StartDrive(ctx, operationID, couchmessage.DriveStart{Request: request, Instance: observation.Instance, Sequence: observation.Sequence, Deadline: time.Now().Add(5 * time.Second)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		// A stale admission emitted no keys. Re-observe rather than replaying any
+		// accepted operation; every admitted operation below is polled exactly once.
+		if result.Outcome != agentdrive.OutcomeRefused || result.Step != 0 || result.Detail != "wrapper observation changed; inspect the slot and send a new request" {
+			break
+		}
 	}
+
 	for !result.Terminal() && ctx.Err() == nil {
 		time.Sleep(20 * time.Millisecond)
-		result, err = endpoint.DriveStatus(ctx, "boundary-recovery")
+		result, err = endpoint.DriveStatus(ctx, operationID)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -399,5 +529,68 @@ func boundaryDirtyRecovery(t *testing.T, endpoint couchmessage.RemoteEndpoint, i
 	}
 	if err != nil || !observation.Idle {
 		t.Fatalf("recovery did not settle empty: %+v %v", observation, err)
+	}
+}
+
+// An identity is persisted with the PID because teardown can run after an
+// asynchronous native exit. Never signal a recycled or unobservable group.
+type boundaryProcessOwner struct {
+	PID   int
+	Start string
+}
+
+func signalBoundaryGroup(owner boundaryProcessOwner, identity func(string) string, probe func(int) error, signal func(int, syscall.Signal) error, sig syscall.Signal) error {
+	if owner.PID <= 0 || owner.Start == "" {
+		return fmt.Errorf("invalid native process ownership")
+	}
+	current := identity(strconv.Itoa(owner.PID))
+	if current == "" {
+		if errors.Is(probe(owner.PID), syscall.ESRCH) {
+			return os.ErrProcessDone
+		}
+		return fmt.Errorf("native process identity unavailable; group signal refused")
+	}
+	if current != owner.Start {
+		return os.ErrProcessDone
+	}
+	return signal(-owner.PID, sig)
+}
+func boundaryProbe(pid int) error { return syscall.Kill(pid, 0) }
+
+func TestBoundaryGroupSignalRequiresCurrentIdentity(t *testing.T) {
+	for _, current := range []string{"", "reused", "owned"} {
+		t.Run(current, func(t *testing.T) {
+			calls := 0
+			err := signalBoundaryGroup(boundaryProcessOwner{PID: 4321, Start: "owned"}, func(string) string { return current }, func(int) error { return nil }, func(pid int, sig syscall.Signal) error {
+				calls++
+				if pid != -4321 || sig != syscall.SIGKILL {
+					t.Fatalf("unexpected signal %d %v", pid, sig)
+				}
+				return nil
+			}, syscall.SIGKILL)
+			if current == "owned" {
+				if calls != 1 || err != nil {
+					t.Fatalf("owned signal calls=%d err=%v", calls, err)
+				}
+			} else if calls != 0 || err == nil {
+				t.Fatalf("unproved signal calls=%d err=%v", calls, err)
+			}
+		})
+	}
+}
+
+func TestBoundaryGroupSignalGoneOrUnobservable(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		probe error
+		gone  bool
+	}{{"gone", syscall.ESRCH, true}, {"permission", syscall.EPERM, false}, {"unknown-alive", nil, false}} {
+		t.Run(tc.name, func(t *testing.T) {
+			calls := 0
+			err := signalBoundaryGroup(boundaryProcessOwner{PID: 4321, Start: "owned"}, func(string) string { return "" }, func(int) error { return tc.probe }, func(int, syscall.Signal) error { calls++; return nil }, syscall.SIGKILL)
+			if calls != 0 || err == nil || errors.Is(err, os.ErrProcessDone) != tc.gone {
+				t.Fatalf("calls=%d err=%v gone=%v", calls, err, tc.gone)
+			}
+		})
 	}
 }
