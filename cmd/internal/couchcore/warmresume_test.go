@@ -312,12 +312,12 @@ func TestWarmProofMatcherAcceptsOnlyExactSessionEvidence(t *testing.T) {
 	}
 }
 
-func TestWarmRecheckRefusesSessionReplacementAfterClaim(t *testing.T) {
+func TestWarmRecheckRefusesSessionReplacementBeforeHelper(t *testing.T) {
 	t.Parallel()
 
 	env, address := warmDetachedThread(t)
 	calls := 0
-	env.Artifacts.DetachedSessionsHook = func([]ThreadAddress) error {
+	env.Artifacts.ListedSessionHook = func(ThreadAddress) error {
 		calls++
 		if calls == 2 {
 			env.Artifacts.SetDetachedSession(address, "pair-replacement")
@@ -416,4 +416,10 @@ func TestWarmResumeExecutorIgnoresColdMetadataDefects(t *testing.T) {
 			}
 		})
 	}
+}
+
+func (a warmSessionArtifacts) ListedPairSessionContext(ctx context.Context, address ThreadAddress, name string) (PairSessionBinding, error) {
+	return a.PairSessionIO.(interface {
+		ListedPairSessionContext(context.Context, ThreadAddress, string) (PairSessionBinding, error)
+	}).ListedPairSessionContext(ctx, address, name)
 }

@@ -35,11 +35,6 @@ func TestEveryLifecycleEntryRefusesAHeldThread(t *testing.T) {
 		name string
 		call func() error
 	}{
-		{"resume", func() error { _, _, err := c.ResumeContext(bg, address); return err }},
-		{"warm-only resume", func() error {
-			_, _, err := c.ResumeContextWith(bg, address, ResumeOptions{WarmOnly: true})
-			return err
-		}},
 		{"relaunch", func() error { _, err := c.Relaunch(bg, address); return err }},
 		{"detach", func() error { _, err := c.Detach(bg, address); return err }},
 		{"park", func() error { _, err := c.Park(bg, address, ""); return err }},
@@ -67,9 +62,9 @@ func TestEveryLifecycleEntryRefusesAHeldThread(t *testing.T) {
 }
 
 // The 2026-09-08 incident (pair#214) in today's code: a resume arriving while
-// a relaunch is mid-park is refused naming the relaunch, and the relaunch
-// completes undisturbed.
-func TestAResumeDuringARelaunchIsRefusedAndTheThreadStaysResumable(t *testing.T) {
+// Continue can attach while relaunch is mid-park, without acquiring its claim;
+// the existing relaunch completes undisturbed.
+func TestContinueDuringRelaunchPreservesItsLifecycleHold(t *testing.T) {
 	t.Parallel()
 
 	env, live := envWithLiveThread(t)
@@ -92,10 +87,30 @@ func TestAResumeDuringARelaunchIsRefusedAndTheThreadStaysResumable(t *testing.T)
 	}()
 	<-reached
 
-	_, _, err := c.ResumeContext(context.Background(), live.Address)
+	before, err := c.Threads.GetThread(live.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	actor, helper, err := c.ResumeContext(context.Background(), live.Address)
+	if err != nil || helper == nil || actor.Shape != StartWarmReattach {
+		close(proceed)
+		<-done
+		t.Fatalf("listed Continue refused while relaunch owns lifecycle: %v", err)
+	}
+	t.Cleanup(func() { env.Runner.SetExited(helper.ID(), 0) })
+	assertWarmRecordUnchanged(t, env.testEnv, before)
+	_, unexpectedRelease, holdErr := c.hold(context.Background(), live.Address, "replacement")
+	if holdErr == nil {
+		unexpectedRelease()
+		close(proceed)
+		<-done
+		t.Fatal("Continue released relaunch hold")
+	}
 	var busy *ThreadBusyError
-	if !errors.As(err, &busy) || busy.Running != "relaunch" {
-		t.Fatalf("resume during relaunch = %v, want ThreadBusyError naming relaunch", err)
+	if !errors.As(holdErr, &busy) || busy.Running != "relaunch" {
+		close(proceed)
+		<-done
+		t.Fatalf("wrong hold: %v", holdErr)
 	}
 	close(proceed)
 	got := <-done
