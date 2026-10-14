@@ -895,3 +895,16 @@ Production-boundary fixtures cover attached and detached sessions without owner
 metadata, recorded-name override, duplicate attribution and failed listing;
 executor/launcher tests must cover the complete public route too. This is the
 approved M1 authority rule applied end to end, not new recovery execution.
+
+### 2026-10-13T22:50:45-07:00 — preserve existing explicit-operation compatibility
+
+Full-suite verification exposed consumers that had treated every Continue as
+durable lifecycle adoption. Keep the new nonmutating thread contract and adapt
+those consumers: explicit use still refreshes existing retention activity;
+read-only inventory recognizes a proven local client without turning restored
+registry entries into local ownership; checkpoint publication may record one
+exact live source helper from a separate process, while execution still needs
+the owning Couch's handle before adoption. Missing local slot records return
+to the existing recovery route. No new recovery confirmation or M2 execution
+is introduced. Existing lifecycle tests retain their ownership protection;
+plain-view tests assert unchanged thread records and active holds.

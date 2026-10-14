@@ -445,3 +445,15 @@ The final revision in `workshop/plans/000528-slot-recovery-plan.md` supersedes p
   (core 3.012s, console 0.200s). make build passed
   (/tmp/pair528-m1-continue-build.log). Full make -k test is still running;
   no final suite or review claim yet. No staging.
+
+- 2026-10-13 22:53 PDT — Full make -k test completed exit 2
+  (/tmp/pair528-m1-continue-full.log), with failures confined to couchcore,
+  couchcmd and launcher. Corrections preserve existing continuation publication
+  and execution after nonowning Continue, missing-slot adoption routing, explicit
+  retention use and recovery-report convergence. Old warm-adoption assertions
+  now verify unchanged records; explicit lifecycle ownership tests remain.
+  Targeted core continuation passes 27.000s, command continuation 18.273s,
+  routing/switch 28.245s, recovery menu 5.595s, retention/report 48.937s, and
+  restored-registry ownership 1.183s. Complete launcher package passes 31.589s.
+  Final affected-package rerun is /tmp/pair528-m1-corrected-packages.log; the
+  corrected make build already passed. No new failure is attributed to load.
