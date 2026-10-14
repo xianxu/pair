@@ -805,16 +805,17 @@ func pastParticiple(operation string) string {
 // One authority, because a click must take Enter's rule rather than a restatement
 // of it -- the restatement had already diverged on its first day (pair#172).
 func enterOperationFor(thread couchcore.ActionableThreadSummary) string {
-	if thread.Live() {
-		return "switch"
-	}
-	if thread.Reason == couchcore.ReasonNeedsRelaunch && containsMenuItem(menuActionItems(thread), "relaunch") {
-		return "relaunch"
-	}
-	if containsMenuItem(menuActionItems(thread), "resume") {
+	switch couchcore.ContinuityOutcome(thread) {
+	case couchcore.Continue:
+		if thread.Live() {
+			return "switch"
+		}
 		return "resume"
+	case couchcore.ResumeDisk:
+		return "resume"
+	default:
+		return "reboot"
 	}
-	return ""
 }
 
 // enterRefusalNotice is what Enter says on a row it will not act on: why, and
@@ -1440,6 +1441,12 @@ func filterMenuItems(items []string, query string) []string {
 }
 
 func menuItemLabel(item string) string {
+	if item == "resume" {
+		return "Resume from disk"
+	}
+	if item == "reboot" {
+		return "Start fresh"
+	}
 	if item == "add-slot" {
 		return "add slot"
 	}

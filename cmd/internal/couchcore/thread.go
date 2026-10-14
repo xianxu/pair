@@ -233,10 +233,8 @@ func fromPersistedThreadRecord(record threadrecord.Record) ThreadRecord {
 		// no top-level `repo_identity`, so ignoring the tombstone loads it as
 		// "" -- and advanceSuccessfulStart refuses an empty identity. That
 		// fires whenever an interrupted start written by the old binary is
-		// promoted after the upgrade: reconcileInterruptedStarts runs inside
-		// New(), so couch would refuse to START AT ALL. Decoding without
-		// carrying the value forward is the same whole-store blast radius the
-		// tombstone exists to prevent.
+		// promoted by an explicit lifecycle action after the upgrade. Carrying
+		// the value forward preserves that action's original repository proof.
 		out.Incarnations[i].RepoIdentity = incarnation.RepoIdentity
 		if out.Incarnations[i].RepoIdentity == "" {
 			out.Incarnations[i].RepoIdentity = deprecatedPolicyRepoIdentity(incarnation.DeprecatedPolicy)

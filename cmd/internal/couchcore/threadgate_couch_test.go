@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
-	"github.com/xianxu/pair/cmd/internal/pairlifecycletest"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/testwait"
 )
@@ -306,60 +305,6 @@ func TestParkJoinModeNeverBegins(t *testing.T) {
 	}
 }
 
-// RecoverActiveParks is a drain: it waits for a thread's holder, then
-// recovers the open park (BR-4).
-func TestParkRecoveryWaitsForAHolderThenRecovers(t *testing.T) {
-	t.Parallel()
-
-	store, _, thread := createControllerThread(t)
-	identity := ParkIdentity{Nonce: "park-wait", Address: thread.Address, PID: 42, ProcessIdentity: "pair-helper"}
-	thread, err := store.BeginPark(thread.Address, thread.Revision, identity)
-	if err != nil {
-		t.Fatal(err)
-	}
-	now := time.Unix(300, 0).UTC()
-	model := pairlifecycletest.New(now)
-	model.SetSession("pair-exact", true)
-	lifecycle := &fakeControllerLifecycle{model: model}
-	artifacts := NewFakeThreadArtifactCollisionChecker()
-	artifacts.SetPairSession(thread.Address, "pair-exact", true)
-	artifacts.TriggerQuitHook = func(string, launcher.QuitIntent) error {
-		completion := successCompletion(lifecycle.lastRequest, now)
-		lifecycle.completion = &completion
-		return nil
-	}
-	controller := &PairLifecycleController{
-		Threads: store, DataDir: t.TempDir(), Lifecycle: lifecycle, Sessions: artifacts,
-		Proc: NewFakeProcOps(), Clock: FixedClock{T: now},
-		Nonce: func() (string, error) { return "unused", nil },
-	}
-	c := &Couch{Threads: store, PairLifecycle: controller}
-	_, release, err := c.hold(context.Background(), thread.Address, "resume")
-	if err != nil {
-		t.Fatal(err)
-	}
-	done := make(chan error, 1)
-	go func() { done <- c.RecoverActiveParks(context.Background()) }()
-	select {
-	case err := <-done:
-		t.Fatalf("park recovery returned while the thread was held: %v", err)
-	case <-time.After(150 * time.Millisecond):
-	}
-	if got := len(artifacts.TriggeredQuits()); got != 0 {
-		t.Fatalf("park recovery acted on a held thread: %d quits", got)
-	}
-	release()
-	if err := <-done; err != nil {
-		t.Fatalf("park recovery after release = %v", err)
-	}
-	recovered, err := store.GetThread(thread.Address)
-	if err != nil || recovered.Park != nil || recovered.VerifiedPark == nil {
-		t.Fatalf("recovered thread = %+v, %v; want the park closed and verified", recovered, err)
-	}
-}
-
-// AbortStarted waits for a holder; once released, a start that still owns its
-// thread is cleaned up in full, session included (BR-4).
 func TestAbortStartedWaitsForAHolderThenQuiesces(t *testing.T) {
 	t.Parallel()
 

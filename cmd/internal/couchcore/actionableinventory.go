@@ -470,21 +470,8 @@ func RebootAdmitted(state ActionableThreadState, reason ThreadReason, liveVerdic
 	return RebootableState(state, reason) || (liveVerdict && state == ThreadLive)
 }
 
-// ResumableState is resume's admission rule over the classification.
-//
-// It reads no reason, and that is a property of ClassifyThread rather than an
-// oversight: resume authority is checked BEFORE either resume-shaped state is
-// emitted (the path, the profile, the agent, and for `parked` the ledger), so a
-// row that carries a reason at all is a row whose resume was already refused.
-// The parameter stays for the signature the action table iterates.
-//
-// Unlike the other two this has no couch-level guard to pair with:
-// ResumeContextWith gathers its own strict evidence -- one `list-clients` for
-// the thread the operator pressed Enter on, then the ledger only if that did
-// not answer -- and re-deriving the classification there would buy a second
-// whole evidence round for a question already decided (ARCH-CONSTRAINTS). Its
-// consumer is SelectResumableRoot, which is the other place production asks
-// "can this row be resumed" and hand-listed the same two states.
+// ResumableState accepts either a surviving terminal or proven disk resume.
+// The selected action revalidates the appropriate evidence before effects.
 func ResumableState(state ActionableThreadState, _ ThreadReason) bool {
 	switch state {
 	case ThreadDetached, ThreadParked:
@@ -513,35 +500,26 @@ func ResumableState(state ActionableThreadState, _ ThreadReason) bool {
 // is not a liveness claim: it is couch's durable record of its OWN in-flight
 // operation, with recovery semantics of its own (see startClaimed).
 func ClassifyThread(record ThreadRecord, evidence ThreadEvidence) (ActionableThreadState, ThreadReason) {
+	// A positive exact listing outranks stale persisted lifecycle metadata.
+	if evidence.Session.State == SessionPresent {
+		if len(evidence.Live) != 0 {
+			return ThreadLive, ""
+		}
+		return ThreadDetached, ""
+	}
 	if ValidateThreadRecord(record) != nil {
 		return ThreadUnusable, ReasonInvalid
 	}
 	if record.Reservation {
 		return ThreadUnusable, ReasonNeverStarted
 	}
-	// A start couch claimed, has not finished, and is still driving. This must
-	// precede every session verdict: between claiming a start and the launcher
-	// acquiring a pid there is no session yet, and without this branch a thread
-	// starting NORMALLY would classify `session-gone` -- an archive-eligible
-	// reason.
+	// Without a positive listing, an actively driven start remains occupied.
 	if startInFlight(record, evidence) {
 		return ThreadBusy, ""
 	}
-	// A helper or a listed terminal alone does not prove an attachable agent.
-	// Orphaned and contested terminal evidence outranks a hosted helper.
-	if len(evidence.Live) != 0 && evidence.Session.State == SessionOrphaned {
-		return ThreadUnusable, ReasonNeedsRelaunch
-	}
-	if len(evidence.Live) != 0 || evidence.Session.State == SessionPresent || evidence.Session.Terminal != nil {
-		if reason := agentUsabilityReason(evidence.Session); reason != "" {
-			return ThreadUnusable, reason
-		}
-		if record.LatestLaunchProfile != nil && evidence.Session.Terminal != nil && evidence.Session.Terminal.Policy.Agent != "" && evidence.Session.Terminal.Policy.Agent != record.LatestLaunchProfile.Agent {
-			return ThreadUnusable, ReasonNeedsRelaunch
-		}
-		if len(evidence.Live) != 0 {
-			return ThreadLive, ""
-		}
+	// A surviving attributed owner must not get a duplicate native resume.
+	if len(evidence.Live) != 0 {
+		return ThreadUnusable, agentUsabilityReason(evidence.Session)
 	}
 	// No live proof, and a recorded process couch could not ask about. That is
 	// ignorance, not absence, and every verdict below is a positive claim: the
@@ -568,12 +546,7 @@ func ClassifyThread(record ThreadRecord, evidence ThreadEvidence) (ActionableThr
 	if evidence.Session.State == SessionOrphaned {
 		return ThreadUnusable, ReasonNeedsRelaunch
 	}
-	// Resume authority gates BOTH the warm and the cold path, and must be
-	// checked before either. Reattaching still goes through DecideResume, which
-	// needs the path and the profile -- so a row shown `detached` without them
-	// would be offered a resume that always fails, the precise anti-pattern this
-	// issue exists to remove. These are checked AFTER the live branch, because a
-	// thread couch is hosting is not made unusable by a directory that moved.
+	// Disk resume additionally requires a usable saved launch and path.
 	if evidence.PathError != nil {
 		return ThreadUnusable, ReasonPathMissing
 	}
@@ -582,13 +555,6 @@ func ClassifyThread(record ThreadRecord, evidence ThreadEvidence) (ActionableThr
 	}
 	if !launcher.IsSupportedAgent(record.LatestLaunchProfile.Agent) || record.LatestLaunchProfile.Argv == nil {
 		return ThreadUnusable, ReasonAgentUnsupported
-	}
-	if evidence.Session.State == SessionPresent {
-		// The session outlived whatever hosted it. Reattaching is a fresh
-		// `pair resume` onto the surviving session; no cold-resume proof is
-		// needed, because nothing is being relaunched. Warm beats cold, so this
-		// stays above the park branch.
-		return ThreadDetached, ""
 	}
 	// COLD-RESUME authority is the LEDGER, and it is DURABLE: it does not depend
 	// on the session existing, because a parked thread's session was torn down
@@ -867,7 +833,7 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 	if err := ctx.Err(); err != nil {
 		return ThreadSnapshot{}, nil, err
 	}
-	snapshot, err := c.Threads.Snapshot()
+	snapshot, err := c.Threads.PreviewSnapshot()
 	if err != nil {
 		return ThreadSnapshot{}, nil, err
 	}
@@ -932,8 +898,12 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 		// proof map, and two different "what we saw" values under one name in
 		// one function is how a reader loses track of which world is being
 		// described.
-		if resolved, presenceErr := presenceResolver.SessionPresence(ctx, addresses); presenceErr == nil {
-			presence = resolved
+		for attempt := 0; attempt < 2 && ctx.Err() == nil; attempt++ {
+			resolved, presenceErr := presenceResolver.SessionPresence(ctx, addresses)
+			if presenceErr == nil {
+				presence = resolved
+				break
+			}
 		}
 	}
 
@@ -1167,4 +1137,25 @@ func DisambiguateLabels(rows []LabelRow) map[ThreadAddress]string {
 		out[row.Address] = row.Label + "·" + tag
 	}
 	return out
+}
+
+// ContinuityAction is an ephemeral presentation choice, not a stored lifecycle.
+type ContinuityAction string
+
+const (
+	Continue   ContinuityAction = "continue"
+	ResumeDisk ContinuityAction = "resume-disk"
+	Fresh      ContinuityAction = "fresh"
+)
+
+// ContinuityOutcome reuses the inventory classifier's proof boundary.
+func ContinuityOutcome(row ActionableThreadSummary) ContinuityAction {
+	switch row.State {
+	case ThreadLive, ThreadDetached:
+		return Continue
+	case ThreadParked:
+		return ResumeDisk
+	default:
+		return Fresh
+	}
 }

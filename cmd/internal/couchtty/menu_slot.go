@@ -29,6 +29,11 @@ func menuThreadTarget(state MenuState, key couchcore.ThreadRowKey, address couch
 // or replaced under the row, so the tag is not what names it. Its in-flight
 // operation is then keyed by row, not by an address the operation replaces.
 func dispatchMenuRow(state MenuState, operation string, row couchcore.ActionableThreadSummary) (MenuState, []MenuEffect) {
+	// The primary Fresh gesture uses the same confirmation as the action menu.
+	if operation == "reboot" && (state.CurrentFrame().Kind != MenuFrameConfirmation || state.CurrentFrame().Action != "reboot") {
+		appendMenuFrame(&state, MenuFrame{Kind: MenuFrameConfirmation, RowKey: menuRowKey(row), Thread: row.Address, Action: operation, SelectedItem: "cancel"})
+		return state, nil
+	}
 	// Unsafe terminals need an explicit evidence choice, not ordinary relaunch's
 	// established-binding confirmation. Every primary gesture shares this route.
 	if menuRowNeedsRecoveryPreview(row, operation) {

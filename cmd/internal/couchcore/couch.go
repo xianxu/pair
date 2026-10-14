@@ -109,45 +109,12 @@ type Couch struct {
 
 // ReconcileActiveParks performs an explicit active-park reconciliation pass.
 // It may query external Pair/Zellij state, so constructors must never call it;
-// interactive composition uses the context-bound RecoverActiveParks worker.
+// recovery is performed only by an explicit operator action.
 func (c *Couch) ReconcileActiveParks(ctx context.Context) error {
 	if c == nil || c.PairLifecycle == nil {
 		return errors.New("Couch Pair lifecycle controller is unavailable")
 	}
 	return c.PairLifecycle.ReconcileActive(ctx)
-}
-
-// RecoverActiveParks performs the blocking half of restart recovery serially.
-// The composition root runs it in one context-bound worker after construction,
-// so external Pair/Zellij teardown can never delay startup or fan out.
-func (c *Couch) RecoverActiveParks(ctx context.Context) error {
-	if c == nil || c.PairLifecycle == nil {
-		return errors.New("Couch Pair lifecycle controller is unavailable")
-	}
-	snapshot, err := c.Threads.Snapshot()
-	if err != nil {
-		return err
-	}
-	var result error
-	for _, record := range snapshot.Records {
-		if record.Park == nil {
-			continue
-		}
-		// A drain (pair#205): wait for any operation holding the thread rather
-		// than fail boot recovery because the reattach pass reached it first.
-		held, release, holdErr := c.holdWait(ctx, record.Address, "park-recovery")
-		if holdErr != nil {
-			result = errors.Join(result, holdErr)
-			break
-		}
-		_, recoverErr := c.PairLifecycle.Recover(held, record.Address)
-		release()
-		result = errors.Join(result, recoverErr)
-		if ctx.Err() != nil {
-			break
-		}
-	}
-	return result
 }
 
 func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOps, s Store, c Clock, ids IDGen, entropy io.Reader, artifacts ThreadArtifactController) (*Couch, error) {
@@ -207,9 +174,6 @@ func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOp
 		resumeRegistrationTimeout: pairRegistrationTimeout,
 		sleep:                     time.Sleep,
 		after:                     time.After,
-	}
-	if err := result.reconcileInterruptedStarts(); err != nil {
-		return nil, fmt.Errorf("reconcile interrupted starts: %w", err)
 	}
 	if environment, ok := artifacts.(PairLifecycleEnvironment); ok {
 		result.PairLifecycle = &PairLifecycleController{
@@ -532,9 +496,6 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, r
 				"  retire it:   run couch in another repository, select it, Tab → reboot\n"+
 				"  the record:  %s",
 			held.Tag, resolution.CanonicalPath, held.Tag, recordPath)
-	}
-	if held, unsafe := ScopeHoldsUnsafeTerminal(rows, scope.Key); unsafe {
-		return ActorRecord{}, nil, errors.New(unsafeTerminalStartRefusal(scope.Root, held.Address, held.Orphan))
 	}
 	if held, occupied := ScopeHoldsUsableThread(rows, scope.Key); occupied {
 		// The next steps have to be ones that WORK from where the operator is.
@@ -1409,19 +1370,4 @@ func (c *Couch) allocateConversationTag(ctx context.Context, repo string) (strin
 	}
 	result, err := c.Identities.Allocate(ctx, couchidentity.AllocationRequest{Conversation: true, RepositoryToken: repo})
 	return result.PairTag, err
-}
-
-// unsafeTerminalStartRefusal preserves the one-primary rule when terminal
-// evidence cannot authorize attachment. Recovery is explicit from the switcher
-// in another repository; startup never implicitly retires the old owner.
-func unsafeTerminalStartRefusal(root string, address ThreadAddress, server *launcher.SessionServerIdentity) string {
-	headline := fmt.Sprintf("thread %s's terminal cannot be attached safely", address.Tag)
-	if server != nil {
-		headline = launcher.OrphanDiagnostic(server.Session, server.PID)
-	}
-	return fmt.Sprintf("%s\n"+
-		"its agent may still be running, so couch will not start a second primary in %s\n"+
-		"  recover it:  run couch in another repository, select %s, Tab → relaunch\n"+
-		"  inspect it:  couch --show %s",
-		headline, root, address.Tag, address.Tag)
 }

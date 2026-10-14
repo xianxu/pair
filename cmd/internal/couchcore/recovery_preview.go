@@ -65,13 +65,18 @@ func (r RecoveryResumeResult) Started() (StartResult, bool) { return r.Start, r.
 // changed rank, root identity or capture requires a new explicit selection.
 func DecideSlotRecovery(record ThreadRecord, observation RecoveryObservation, now time.Time) (RecoveryPreview, error) {
 	p := RecoveryPreview{Address: record.Address, Revision: record.Revision, Candidates: []RecoveryChoice{}, Incomplete: observation.Incomplete, Reasons: append([]string(nil), observation.Reasons...)}
+	// Always project Fresh. An empty key is deliberately not native-resume
+	// authority: the UI uses its existing confirmed fresh-start action instead.
+	p.Fresh = &RecoveryChoice{Label: "Start fresh", Agent: observation.Agent, LastActivity: observation.Capture.LastActivity}
+
 	if observation.Incomplete {
 		return p, nil
 	}
 	capture := observation.Capture
 	expiry := capture.CapturedAt.Add(storagegc.CaptureRetentionPeriod)
 	if capture.CapturedAt.IsZero() || now.Before(capture.CapturedAt) || !now.Before(expiry) {
-		return p, errors.New("recovery screen evidence expired or has no capture time; refresh resume candidates")
+		p.Reasons = append(p.Reasons, "Previous screen is unavailable or expired; a fresh conversation may lose its working context.")
+		return p, nil
 	}
 	snapshot := threadrecord.RecoveryContext{Version: 1, Address: threadrecord.Address{RepoScope: record.Address.RepoScope, Tag: string(record.Address.Tag)}, Capture: capture, Generation: observation.Generation, CreatedAt: now, ExpiresAt: expiry, Branch: observation.Branch, Issue: observation.Issue}
 	for _, ranked := range observation.Ranked {
@@ -132,7 +137,9 @@ func (c *Couch) recoveryTarget(ctx context.Context, t ResumeTarget) (*ThreadStor
 		return nil, ThreadRecord{}, errors.New("recovery needs exactly one slot path or thread address")
 	}
 	if t.Path == "" {
-		record, err := c.Threads.GetThread(t.Address)
+		view := *c.Threads
+		view.readOnly = true
+		record, err := view.GetThread(t.Address)
 		return c.Threads, record, err
 	}
 	local, _, err := c.selectedSlot(ctx, t.Path)
@@ -161,17 +168,41 @@ func (c *Couch) ResumeCandidates(ctx context.Context, t ResumeTarget) (RecoveryP
 	defer cancel()
 	_, record, err := c.recoveryTarget(ctx, t)
 	if err != nil {
-		return RecoveryPreview{}, err
+		return RecoveryPreview{Address: t.Address, Incomplete: true, Reasons: []string{err.Error()}, Fresh: &RecoveryChoice{Label: "Start fresh"}}, nil
 	}
+	observation := RecoveryObservation{Agent: RecordAgent(record)}
 	if c.RecoveryEvidence == nil {
-		return RecoveryPreview{}, errors.New("recovery evidence reader unavailable")
+		observation.Incomplete = true
+		observation.Reasons = []string{"recovery evidence reader unavailable; a fresh conversation may lose working context"}
+	} else {
+		for attempt := 0; attempt < 2; attempt++ {
+			observation, err = c.RecoveryEvidence(ctx, record)
+			if err == nil && !observation.Incomplete {
+				break
+			}
+			if ctx.Err() != nil {
+				break
+			}
+		}
+		if err != nil {
+			observation = RecoveryObservation{Agent: RecordAgent(record), Incomplete: true, Reasons: []string{err.Error(), "Conversation evidence unavailable; a fresh conversation may lose working context."}}
+		}
 	}
-	evidence, err := c.RecoveryEvidence(ctx, record)
+	preview, err := DecideSlotRecovery(record, observation, c.Clock.Now())
 	if err != nil {
-		return RecoveryPreview{}, err
+		preview.Candidates = nil
+		preview.Incomplete = true
+		preview.Reasons = append(preview.Reasons, err.Error())
 	}
-	if err := ctx.Err(); err != nil {
-		return RecoveryPreview{}, err
+	if refusal := c.recoverySourceInactive(record); refusal != nil {
+		for i := range preview.Candidates {
+			preview.Candidates[i].Key = ""
+		}
+		// Fresh is a confirmed separate action, never an implicit native retirement.
+		if preview.Fresh != nil {
+			preview.Fresh.Key = ""
+		}
+		preview.Reasons = append(preview.Reasons, refusal.Error())
 	}
-	return DecideSlotRecovery(record, evidence, c.Clock.Now())
+	return preview, nil
 }

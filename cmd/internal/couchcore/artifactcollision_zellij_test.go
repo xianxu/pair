@@ -13,7 +13,6 @@ import (
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycletest"
-	"github.com/xianxu/pair/cmd/internal/procutil"
 )
 
 // sandboxedChecker is the ONLY way these tests build the production checker,
@@ -46,11 +45,6 @@ func sandboxedChecker(t *testing.T, dataDir string, sessions map[string]string) 
 	checker.Zellij = launcher.ZellijSource{Path: path}
 	// The host's real servers are never this fixture's evidence.
 	checker.Servers = fakeServerStates{}
-	// This fixture models a healthy agent separately from ownership and indexes.
-	checker.ProcessTable = func() ([]procutil.Process, error) { return nil, nil }
-	checker.TerminalUsability = func(launcher.SessionServerIdentity, string, string, string, []procutil.Process) launcher.TerminalSafety {
-		return launcher.TerminalSafety{State: launcher.TerminalUsable, Policy: artifactpath.SessionLaunchPolicy{Agent: "claude"}}
-	}
 	// Runtime ownership is independent evidence, initialized from this fixture's
 	// registrations once. Subsequent index changes cannot change its live owner.
 	world := &sessionOwnerWorld{root: dataDir, owners: map[string]ThreadAddress{}, generation: "test-server"}

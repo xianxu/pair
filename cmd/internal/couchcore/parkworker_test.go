@@ -82,7 +82,7 @@ func TestParkWorkerBoundsAndCoalesces(t *testing.T) {
 	}
 }
 
-func TestParkCoordinatorCoalescesStartupRecoveryAndInteractiveRetry(t *testing.T) {
+func TestParkCoordinatorCoalescesExplicitRecoveryAndRetry(t *testing.T) {
 	t.Parallel()
 
 	store, _, thread := createControllerThread(t)
@@ -125,12 +125,13 @@ func TestParkCoordinatorCoalescesStartupRecoveryAndInteractiveRetry(t *testing.T
 	}
 	recoveryDone := make(chan error, 1)
 	go func() {
-		recoveryDone <- couch.RecoverActiveParks(context.Background())
+		_, err := couch.Park(context.Background(), thread.Address, "recover")
+		recoveryDone <- err
 	}()
 	select {
 	case <-triggerEntered:
 	case <-testwait.After(t):
-		t.Fatal("startup recovery did not reach the exact trigger")
+		t.Fatal("explicit recovery did not reach the exact trigger")
 	}
 	retryDone := make(chan outcome, 1)
 	go func() {

@@ -68,8 +68,10 @@ pair:6 read-only while measuring; no live recovery/reboot is authorized here.
 
 - [x] Measure native metadata, exact pair:6 evidence and current recovery owners.
 - [x] Approve durable design: workshop/plans/000528-slot-recovery-plan.md.
-- [x] M1 — Prevent split terminal incarnations and show attachable-agent liveness.
-- [x] M2 — Calibrated native recovery with tty context and safe fresh fallback.
+- [x] Historical first implementation — terminal policy and native recovery (prior M1/M2 reviews retained; superseded by operator revision).
+- [ ] M1 — Always-start preview-only Couch, listed-live attach, policy removal and three-outcome projection; separate pre-upgrade operator acceptance.
+- [ ] M2 — Resume/Fresh execution, person-or-hub confirmation and always-reachable Fresh; separate operator acceptance.
+- [ ] M3 — New-wrapper endpoint repair without child restart/input replay; separate operator acceptance.
 
 
 ## Revisions
@@ -283,6 +285,8 @@ Per TL 4e054fd4, `make -k test` entered the machine gate and acquired after 312s
 
 - 2026-10-13 — Verified TL decision cb59774f-021f-480a-8d44-a7a344416088 and appended revised plan: one bounded observation retry then Continue / Resume / Fresh, Fresh always offered, unknown/foreign remnants left intact with fresh-name fallback, person-or-hub confirmation. Native listing cleanup, legacy attach death race and old-wrapper messaging limitation explicitly accepted. Replaced execution sequence with three separately reviewed/operator-accepted milestones: M1 startup/attach/projection; M2 recovery execution; M3 endpoint repair. Historical M1/M2 closes do not satisfy these revised boundaries. Documentation only; awaiting TL confirmation of revised plan before M1 code.
 
+- 2026-10-13 — TL confirmed plan 1de34a1a3 in receipt e09b7c38-e67f-4961-906e-6419ec146e81, authorizing M1 only and no staging. Added explicit M1 constraints: failed listing never Continue; attributed live transcript owner never executable Resume. change-code passed (plan-quality CLEAN, estimate-quality INFO) at 303756eba. Estimate advisory says original derivation covers previous scope; keep it as historical whole-issue baseline, reconcile replacement/M3 increment before the next milestone rather than presenting it as remaining effort. Active Plan rows now represent the replacement M1/M2/M3; previous closes/review evidence remain in Log/sidecars. TDD implementation split by source ownership (startup; terminal admission; projection/menu); full suite and boundary review remain outstanding.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against
@@ -336,3 +340,10 @@ The operator's three-outcome frame supersedes incompatible policy-based and narr
 ## Revisions — 2026-10-13 operator-approved recovery decisions
 
 The final revision in `workshop/plans/000528-slot-recovery-plan.md` supersedes pending-only projection and the prior gap decisions. Its three unchecked milestones replace the implementation sequence for remaining work; prior checked milestones/review records are historical. TL confirmation of this revised plan is required before M1 implementation; each revised milestone needs its own operator acceptance session.
+
+### 2026-10-13 — Revised M1 implementation checkpoint
+
+- Implementing only the confirmed replacement M1 (plan 1de34a1a3; change-code checkpoint 303756eba). Startup no longer recovers interrupted starts, active parks or journals, provisions slots, or automatically reattaches. Preview inventory and explicit listed-live attach replace session-policy authority; the existing attach lock and serialization-off launch remain.
+- Targeted startup, launcher and three-outcome projection regressions pass. Candidate execution now refuses a live/unproven attributed source before lifecycle effects; incomplete candidate evidence retains Start fresh. Menu tests exercise primary Fresh confirmation and ordinary Continue. Broader package tests are in progress; this is a checkpoint, not a completed milestone.
+- Accepted legacy race measured with installed Zellij 0.45.1 on isolated scratch names/HOME/config/socket root /tmp/z528-4yd9qd4d. Legacy session z528-fa3324e10f-legacy was listed live with a saved layout, then its exact server (1710) was killed; plain attach resurrected server 4020. Session z528-2e515bbb9a-off was created with options --session-serialization false, listed live, and had no saved layout after two serialization intervals; after exact server 4412 died, plain attach exited 1 ('No session with the name ... found!') and created no replacement server. Only scratch owners were stopped; final ownership scan found no scratch servers/panes. Script /tmp/pair528-zellij-race.py and report /tmp/z528-4yd9qd4d/report.json retain raw measurement. This confirms the documented accepted legacy list-to-attach race and the no-layout behavior for new servers.
+- No staging: operator acceptance is separately scheduled by the hub after the M1 boundary review.

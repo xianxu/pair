@@ -27,7 +27,7 @@ func (r OSRuntime) DeleteSessionContext(ctx context.Context, session string) err
 	if err := quiesceZellijSession(ctx, session, ops, wait, poll); err != nil {
 		return err
 	}
-	return r.retireSessionPolicy(ctx, session)
+	return nil
 }
 
 func (r OSRuntime) ReapNvimContext(ctx context.Context, paths lifecycleEditorPaths) error {

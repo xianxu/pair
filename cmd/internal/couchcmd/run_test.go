@@ -336,11 +336,9 @@ func seedDetachedThread(t *testing.T, rt testRT, path string) couchcore.ThreadRe
 	return created
 }
 
-// The M3 acceptance case, across a RESTART: a couch that detached a thread and
-// went away, then `couch` again in that tree. Driven through production
-// interactive routing all the way to initial Console attach -- not below it,
-// because reducer support is not user reachability.
-func TestInteractiveLaunchReattachesUniqueDetachedRoot(t *testing.T) {
+// Interactive startup only observes. An explicit console action still reaches
+// production resume routing and attaches the selected surviving thread.
+func TestInteractiveLaunchWaitsForExplicitDetachedResume(t *testing.T) {
 	// This legacy fixture predates layout witnesses; request its layout explicitly.
 	rt := newRT(t, "/repo")
 	detached := seedDetachedThread(t, rt, "/repo")
@@ -364,7 +362,22 @@ func TestInteractiveLaunchReattachesUniqueDetachedRoot(t *testing.T) {
 
 	var attached couchcore.StartResult
 	finish := func(console *couchtty.Console, c *couchcore.Couch, start couchcore.StartResult, _ io.Writer) int {
+		if start.Handle != nil || len(rt.runner.Ops) != 0 {
+			t.Fatal("interactive startup launched before explicit action")
+		}
 		wireResolver(console, c)
+		result, err := console.Ops()(couchcore.OperationCall{Name: "resume", Implicit: true, Args: map[string]string{"repo-scope": detached.Address.RepoScope, "tag": string(detached.Address.Tag)}})
+		if err != nil {
+			t.Fatalf("explicit action: %v", err)
+		}
+		child, ok := result.(couchcore.StartedChild)
+		if !ok {
+			t.Fatalf("explicit action returned %T", result)
+		}
+		start, ok = child.Started()
+		if !ok {
+			t.Fatal("explicit action did not start child")
+		}
 		if err := dispatchInitialAttach(console, start); err != nil {
 			t.Fatalf("initial attach: %v", err)
 		}
@@ -395,11 +408,9 @@ func TestInteractiveLaunchReattachesUniqueDetachedRoot(t *testing.T) {
 	}
 }
 
-// RESTATED for #256 M2. A gone session is not by itself a missing resume
-// authority: the ledger may still name a conversation, and then couch
-// cold-resumes instead of starting a second thread in the same tree. Startup
-// creates a NEW thread when the session is gone AND the ledger resolves nothing.
-func TestInteractiveLaunchStartsNewWhenNoSessionSurvives(t *testing.T) {
+// A missing session and unbound ledger never cause implicit creation. The
+// operator can explicitly start a new thread after the read-only startup.
+func TestInteractiveLaunchWaitsForExplicitFreshStart(t *testing.T) {
 	rt := newRT(t, "/repo")
 	stale := seedDetachedThread(t, rt, "/repo")
 	rt.artifacts.SetNativeBinding(stale.Address, "claude", sessioninventory.BindingUnbound, "")
@@ -418,7 +429,30 @@ func TestInteractiveLaunchStartsNewWhenNoSessionSurvives(t *testing.T) {
 
 	var attached couchcore.StartResult
 	finish := func(console *couchtty.Console, c *couchcore.Couch, start couchcore.StartResult, _ io.Writer) int {
+		if start.Handle != nil || len(rt.runner.Ops) != 0 {
+			t.Fatal("interactive startup launched before explicit action")
+		}
 		wireResolver(console, c)
+		preview, err := console.Ops()(couchcore.OperationCall{Name: "prepare-start", Implicit: true, Args: map[string]string{"path": "/repo"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		resolution, ok := preview.(couchcore.PreparedStart)
+		if !ok {
+			t.Fatalf("preview returned %T", preview)
+		}
+		result, err := console.Ops()(couchcore.OperationCall{Name: "start", Implicit: true, Args: map[string]string{"path": "/repo", "fingerprint": string(resolution.Resolution.Fingerprint)}})
+		if err != nil {
+			t.Fatalf("explicit action: %v", err)
+		}
+		child, ok := result.(couchcore.StartedChild)
+		if !ok {
+			t.Fatalf("explicit action returned %T", result)
+		}
+		start, ok = child.Started()
+		if !ok {
+			t.Fatal("explicit action did not start child")
+		}
 		if err := dispatchInitialAttach(console, start); err != nil {
 			t.Fatalf("initial attach: %v", err)
 		}
@@ -438,7 +472,7 @@ func TestInteractiveLaunchStartsNewWhenNoSessionSurvives(t *testing.T) {
 	}
 }
 
-func TestInteractiveLaunchResumesUniqueParkedRoot(t *testing.T) {
+func TestInteractiveLaunchWaitsForExplicitParkedResume(t *testing.T) {
 	rt := newRT(t, "/repo")
 	parked := seedVerifiedPark(t, rt, "/repo")
 	rt.artifacts.SetNativeBinding(parked.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
@@ -459,7 +493,22 @@ func TestInteractiveLaunchResumesUniqueParkedRoot(t *testing.T) {
 
 	var attached couchcore.StartResult
 	finish := func(console *couchtty.Console, c *couchcore.Couch, start couchcore.StartResult, _ io.Writer) int {
+		if start.Handle != nil || len(rt.runner.Ops) != 0 {
+			t.Fatal("interactive startup launched before explicit action")
+		}
 		wireResolver(console, c)
+		result, err := console.Ops()(couchcore.OperationCall{Name: "resume", Implicit: true, Args: map[string]string{"repo-scope": parked.Address.RepoScope, "tag": string(parked.Address.Tag)}})
+		if err != nil {
+			t.Fatalf("explicit action: %v", err)
+		}
+		child, ok := result.(couchcore.StartedChild)
+		if !ok {
+			t.Fatalf("explicit action returned %T", result)
+		}
+		start, ok = child.Started()
+		if !ok {
+			t.Fatal("explicit action did not start child")
+		}
 		if err := dispatchInitialAttach(console, start); err != nil {
 			t.Fatalf("initial attach: %v", err)
 		}

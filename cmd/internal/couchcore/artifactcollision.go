@@ -11,7 +11,6 @@ import (
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
-	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
@@ -92,9 +91,6 @@ type ScopedThreadArtifactCollisionChecker struct {
 	// Servers is the host's zellij server snapshot, the only place an orphaned
 	// server is visible (#399). Nil is the real host.
 	Servers launcher.ServerStates
-	// ProcessTable is shared by all metadata-only usability observations.
-	ProcessTable      func() ([]procutil.Process, error)
-	TerminalUsability func(launcher.SessionServerIdentity, string, string, string, []procutil.Process) launcher.TerminalSafety
 }
 
 func (c ScopedThreadArtifactCollisionChecker) serverStates() launcher.ServerStates {
@@ -498,33 +494,14 @@ func (c ScopedThreadArtifactCollisionChecker) SessionPresence(ctx context.Contex
 		}
 		servers, serverErr := c.serverStates().ServerStates(ctx)
 		if serverErr != nil {
-			// Without the server snapshot an orphan would read absent -- the
-			// "no session" that offers a resume onto a running agent. Fail closed.
-			return nil, fmt.Errorf("observe zellij servers: %w", serverErr)
-		}
-		out = ProjectSessionPresence(bindings, sessions, servers, claimsFromBindings(current))
-		tableReader := c.ProcessTable
-		if tableReader == nil {
-			tableReader = procutil.Table
-		}
-		table, tableErr := tableReader()
-		if tableErr == nil {
+			// A failed process observation cannot erase a listed live session;
+			// it also cannot prove absence for the remaining bindings.
+			servers = map[string]launcher.ServerState{}
 			for _, binding := range bindings {
-				item := out[binding.Address]
-				server, found := servers[binding.SessionName]
-				if item.State == SessionPresent && !found {
-					item.Terminal = &launcher.TerminalSafety{State: launcher.TerminalUnsafe, Reason: "listed terminal has no live server; relaunch required"}
-					out[binding.Address] = item
-					continue
-				}
-				if item.State != SessionPresent || server.Verdict != launcher.ServerReachable {
-					continue
-				}
-				terminal := c.terminalUsability(server.Server, binding, table)
-				item.Terminal = &terminal
-				out[binding.Address] = item
+				servers[binding.SessionName] = launcher.ServerState{Verdict: launcher.ServerUnresolved}
 			}
 		}
+		out = ProjectSessionPresence(bindings, sessions, servers, claimsFromBindings(current))
 	}
 	// An address in a READABLE scope with no index row was asked about, and
 	// there is no session: absent, not unresolved. Only an address whose scope
@@ -543,21 +520,6 @@ func (c ScopedThreadArtifactCollisionChecker) SessionPresence(ctx context.Contex
 		}
 	}
 	return out, nil
-}
-
-// terminalUsability shares the launcher attestation and bound-agent check
-// between inventory projection and selected-action eligibility.
-func (c ScopedThreadArtifactCollisionChecker) terminalUsability(server launcher.SessionServerIdentity, binding SessionNameBinding, table []procutil.Process) launcher.TerminalSafety {
-	observe := c.TerminalUsability
-	if observe == nil {
-		observe = launcher.ObserveTerminalUsability
-	}
-	terminal := observe(server, c.GlobalDataDir, binding.Address.RepoScope, string(binding.Address.Tag), table)
-	if terminal.Usable() && binding.Agent != "" && terminal.Policy.Agent != binding.Agent {
-		terminal.State = launcher.TerminalUnsafe
-		terminal.Reason = "terminal policy does not match the bound agent"
-	}
-	return terminal
 }
 
 // DetachedSessions answers which of the supplied threads have a live zellij
@@ -580,9 +542,8 @@ func (c ScopedThreadArtifactCollisionChecker) DetachedSessions(ctx context.Conte
 	for _, candidate := range candidates {
 		if candidate.SessionName != "" {
 			exact = append(exact, SessionNameBinding{Address: candidate.Address, Agent: candidate.Agent, SessionName: candidate.SessionName})
-		} else {
-			addresses = append(addresses, candidate.Address)
 		}
+		addresses = append(addresses, candidate.Address)
 		proof[candidate.Address] = candidate
 	}
 	if len(candidates) == 0 {
@@ -591,13 +552,24 @@ func (c ScopedThreadArtifactCollisionChecker) DetachedSessions(ctx context.Conte
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	bindings, _, _, err := c.resolveScopedBindings(ctx, addresses, func(address ThreadAddress) string {
+	bindings, current, _, err := c.resolveScopedBindings(ctx, addresses, func(address ThreadAddress) string {
 		return proof[address].Agent
 	})
 	if err != nil {
 		return nil, err
 	}
-	bindings = append(bindings, exact...)
+	// Explicit recorded names replace this address's stale index row, while
+	// other addresses' claims still participate in namespace ambiguity.
+	for _, chosen := range exact {
+		filtered := bindings[:0]
+		for _, binding := range bindings {
+			if binding.Address != chosen.Address {
+				filtered = append(filtered, binding)
+			}
+		}
+		bindings = append(filtered, chosen)
+		current[chosen.Address] = chosen.SessionName
+	}
 	if len(bindings) == 0 {
 		return nil, nil
 	}
@@ -615,38 +587,7 @@ func (c ScopedThreadArtifactCollisionChecker) DetachedSessions(ctx context.Conte
 	if err != nil {
 		return nil, fmt.Errorf("observe zellij sessions: %w", err)
 	}
-	// Unlike passive inventory this is a selected action. Positive runtime
-	// ownership supersedes stale index claim counts, while a foreign server
-	// cannot select the warm path for this conversation.
-	live := indexSessionsByName(sessions)
-	tableReader := c.ProcessTable
-	if tableReader == nil {
-		tableReader = procutil.Table
-	}
-	table, err := tableReader()
-	if err != nil {
-		return nil, fmt.Errorf("observe detached terminal processes: %w", err)
-	}
-	var owned []SessionNameBinding
-	claims := map[string]int{}
-	for _, binding := range bindings {
-		if !live.live[binding.SessionName] || live.ambiguous[binding.SessionName] {
-			continue
-		}
-		observed, err := c.NamedPairSessionContext(ctx, binding.Address, binding.SessionName)
-		if err != nil {
-			return nil, err
-		}
-		if !observed.Present || observed.Owner == nil {
-			continue
-		}
-		if terminal := c.terminalUsability(observed.Owner.Server, binding, table); !terminal.Usable() {
-			continue
-		}
-		owned = append(owned, binding)
-		claims[binding.SessionName]++
-	}
-	return ProjectDetachedSessions(owned, sessions, claims)
+	return ProjectDetachedSessions(bindings, sessions, claimsFromBindings(current))
 }
 
 func (c ScopedThreadArtifactCollisionChecker) TriggerQuit(session string, intent launcher.QuitIntent) error {

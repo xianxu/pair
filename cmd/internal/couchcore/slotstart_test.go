@@ -354,7 +354,7 @@ func TestManagedPartialSlotPathPreviewsWithoutCreatingHost(t *testing.T) {
 	}
 }
 
-func TestStartInteractiveRepairsPartialSlotWithoutCreatingConversation(t *testing.T) {
+func TestExplicitOpenRepairsPartialSlotWithoutCreatingConversation(t *testing.T) {
 	t.Parallel()
 
 	f := newProvisionFixture(t)
@@ -368,7 +368,7 @@ func TestStartInteractiveRepairsPartialSlotWithoutCreatingConversation(t *testin
 	env.Couch.Path = OSPathOps{}
 	env.Couch.Slots = NewOSSlotCatalog(f)
 	env.Couch.Workspaces = NewWorkspaceProvisioner(f)
-	_, err := env.Couch.StartInteractive(context.Background(), StartArgs{Cwd: f.host(1)})
+	_, err := env.Couch.StartInteractive(context.Background(), StartArgs{Cwd: f.host(1), Action: StartOpen})
 	if err == nil {
 		t.Fatal("missing conversation silently became fresh")
 	}

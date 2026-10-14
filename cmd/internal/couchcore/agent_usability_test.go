@@ -3,192 +3,97 @@ package couchcore
 import (
 	"context"
 	"errors"
-	"github.com/xianxu/pair/cmd/internal/launcher"
-	"github.com/xianxu/pair/cmd/internal/procutil"
+	"fmt"
 	"testing"
 	"time"
 )
 
-func TestAgentUsabilityHelperAloneDoesNotProveLive(t *testing.T) {
-	record := actionableTestThread("couch-0000000000000001", time.Unix(100, 0).UTC())
-	record.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
-	for _, session := range []SessionObservation{{}, {State: SessionPresent}, {State: SessionAbsent}} {
-		state, _ := ClassifyThread(record, ThreadEvidence{Live: []ProcessIdentity{{PID: 42, Identity: "helper"}}, Session: session})
-		if state == ThreadLive {
-			t.Fatalf("helper without usable agent classified live: %+v", session)
+func TestListedLiveIsContinueAuthority(t *testing.T) {
+	r := actionableTestThread("couch-0000000000000001", time.Unix(100, 0).UTC())
+	for _, hosted := range []bool{false, true} {
+		e := ThreadEvidence{Session: SessionObservation{State: SessionPresent}}
+		want := ThreadDetached
+		if hosted {
+			e.Live = []ProcessIdentity{{PID: 42, Identity: "helper"}}
+			want = ThreadLive
+		}
+		got, reason := ClassifyThread(r, e)
+		if got != want || reason != "" {
+			t.Fatalf("hosted=%v got %s/%s", hosted, got, reason)
+		}
+	}
+}
+func TestAttributedOwnerCannotResumeDisk(t *testing.T) {
+	r := actionableTestThread("couch-0000000000000001", time.Unix(100, 0).UTC())
+	r.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
+	for _, state := range []SessionState{SessionAbsent, SessionUnresolved, SessionOrphaned} {
+		for _, unknown := range []bool{false, true} {
+			e := ThreadEvidence{Session: SessionObservation{State: state}, ParkedStatus: ProofResolved, Parked: []ParkedResumeObservation{{Address: r.Address, Agent: "claude", NativeID: "native"}}}
+			if unknown {
+				e.Unproven = []ProcessIdentity{{PID: 42, Identity: "owner"}}
+			} else {
+				e.Live = []ProcessIdentity{{PID: 42, Identity: "owner"}}
+			}
+			got, _ := ClassifyThread(r, e)
+			if got == ThreadParked || got == ThreadDetached || got == ThreadLive {
+				t.Fatalf("owner unknown=%v session=%v got %s", unknown, state, got)
+			}
 		}
 	}
 }
 
-func TestAgentUsabilityListedSessionDoesNotProveDetached(t *testing.T) {
-	record := actionableTestThread("couch-0000000000000001", time.Unix(100, 0).UTC())
-	record.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
-	state, _ := ClassifyThread(record, ThreadEvidence{Session: SessionObservation{State: SessionPresent}})
-	if state == ThreadDetached {
-		t.Fatal("listed session without usable agent classified detached")
-	}
-}
-
-func TestAgentUsabilityExplicitEvidence(t *testing.T) {
-	record := actionableTestThread("couch-0000000000000001", time.Unix(100, 0).UTC())
-	record.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
-	for _, tc := range []struct {
-		name    string
-		session SessionObservation
-		live    bool
-		want    ActionableThreadState
-		reason  ThreadReason
-	}{
-		{"healthy detached", SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{State: launcher.TerminalUsable}}, false, ThreadDetached, ""},
-		{"healthy hosted", SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{State: launcher.TerminalUsable}}, true, ThreadLive, ""},
-		{"legacy", SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{State: launcher.TerminalUnsafe, Reason: "missing policy"}}, false, ThreadUnusable, ReasonNeedsRelaunch},
-		{"helper only", SessionObservation{State: SessionAbsent}, true, ThreadUnusable, ReasonNeedsRelaunch},
-		{"contested hosted", SessionObservation{State: SessionUnresolved}, true, ThreadUnusable, ReasonUnknown},
-		{"orphan hosted", SessionObservation{State: SessionOrphaned}, true, ThreadUnusable, ReasonNeedsRelaunch},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			evidence := ThreadEvidence{Session: tc.session}
-			if tc.live {
-				evidence.Live = []ProcessIdentity{{PID: 42, Identity: "helper"}}
+func TestInventoryRetriesOneSharedListing(t *testing.T) {
+	for _, recover := range []bool{false, true} {
+		t.Run(fmt.Sprint(recover), func(t *testing.T) {
+			env := newTestEnv(t, "/repo")
+			actor, _ := env.spawn(t, StartArgs{Worktree: "/repo"})
+			calls := 0
+			env.Artifacts.SessionPresenceHook = func([]ThreadAddress) error {
+				calls++
+				if !recover || calls == 1 {
+					return errors.New("listing unavailable")
+				}
+				return nil
 			}
-			state, reason := ClassifyThread(record, evidence)
-			if state != tc.want || reason != tc.reason {
-				t.Fatalf("got %s/%s want %s/%s", state, reason, tc.want, tc.reason)
+			_, evidence, err := env.Couch.gatherThreadEvidence(context.Background(), nil, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if calls != 2 {
+				t.Fatalf("shared listing calls=%d", calls)
+			}
+			if got := evidence[actor.Thread].Session.Present(); got != recover {
+				t.Fatalf("presence=%v recovered=%v", got, recover)
 			}
 		})
 	}
-	if ArchivableState(ThreadUnusable, ReasonNeedsRelaunch) || len(ActorActions(ActorRowFacts{State: ThreadUnusable, Reason: ReasonNeedsRelaunch})) != 0 {
-		t.Fatal("unsafe terminal offered automatic lifecycle action")
-	}
 }
 
-func TestAgentUsabilityRefreshSharesOneProcessTable(t *testing.T) {
-	data := t.TempDir()
-	indexSession(t, data, addressA, "📁repo-a")
-	indexSession(t, data, addressB, "📁repo-b")
-	checker, _ := sandboxedChecker(t, data, map[string]string{"📁repo-a": "detached", "📁repo-b": "detached"})
-	checker.Servers = fakeServerStates{"📁repo-a": {Verdict: launcher.ServerReachable, Server: launcher.SessionServerIdentity{Session: "📁repo-a", PID: 1, Identity: "one"}}, "📁repo-b": {Verdict: launcher.ServerReachable, Server: launcher.SessionServerIdentity{Session: "📁repo-b", PID: 2, Identity: "two"}}}
-	reads, calls := 0, 0
-	checker.ProcessTable = func() ([]procutil.Process, error) { reads++; return []procutil.Process{{PID: 99}}, nil }
-	checker.TerminalUsability = func(server launcher.SessionServerIdentity, root, scope, tag string, table []procutil.Process) launcher.TerminalSafety {
-		calls++
-		if len(table) != 1 || table[0].PID != 99 {
-			t.Fatal("process table not shared")
-		}
-		return launcher.TerminalSafety{State: launcher.TerminalUsable}
-	}
-	got, err := checker.SessionPresence(context.Background(), []ThreadAddress{addressA, addressB})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if reads != 1 || calls != 2 {
-		t.Fatalf("reads=%d calls=%d", reads, calls)
-	}
-	for _, a := range []ThreadAddress{addressA, addressB} {
-		if got[a].Terminal == nil || !got[a].Terminal.Usable() {
-			t.Fatalf("missing usability for %v", a)
+func TestContinuityOutcomeReusesProofClassification(t *testing.T) {
+	for _, tc := range []struct {
+		state ActionableThreadState
+		want  ContinuityAction
+	}{
+		{ThreadLive, Continue}, {ThreadDetached, Continue}, {ThreadParked, ResumeDisk},
+		{ThreadUnusable, Fresh}, {ThreadBusy, Fresh},
+	} {
+		if got := ContinuityOutcome(ActionableThreadSummary{State: tc.state}); got != tc.want {
+			t.Fatalf("%s: %s want %s", tc.state, got, tc.want)
 		}
 	}
 }
 
-func TestAgentUsabilityUnreadableProcessTableStaysUnknown(t *testing.T) {
-	data := t.TempDir()
-	indexSession(t, data, addressA, "📁repo-a")
-	checker, _ := sandboxedChecker(t, data, map[string]string{"📁repo-a": "detached"})
-	checker.Servers = fakeServerStates{"📁repo-a": {Verdict: launcher.ServerReachable, Server: launcher.SessionServerIdentity{Session: "📁repo-a", PID: 1, Identity: "one"}}}
-	checker.ProcessTable = func() ([]procutil.Process, error) { return nil, errors.New("cannot read processes") }
-	checker.TerminalUsability = func(launcher.SessionServerIdentity, string, string, string, []procutil.Process) launcher.TerminalSafety {
-		t.Fatal("observed without process snapshot")
-		return launcher.TerminalSafety{State: launcher.TerminalUsable}
-	}
-	got, err := checker.SessionPresence(context.Background(), []ThreadAddress{addressA})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got[addressA].Terminal != nil || agentUsabilityReason(got[addressA]) != ReasonUnknown {
-		t.Fatalf("unreadable became a positive verdict: %+v", got[addressA])
-	}
-}
-
-func TestAgentUsabilitySuccessfulFixtureStartHasReadyAgent(t *testing.T) {
-	env := newTestEnv(t, "/repo")
-	actor, _ := env.spawn(t, StartArgs{Worktree: "/repo"})
-	got, err := env.Artifacts.SessionPresence(context.Background(), []ThreadAddress{actor.Thread})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if reason := agentUsabilityReason(got[actor.Thread]); reason != "" {
-		t.Fatalf("successful fixture launch lacks agent-ready evidence: %s", reason)
-	}
-}
-
-func TestAgentUsabilityRejectsDifferentSavedAgent(t *testing.T) {
-	record := actionableTestThread("couch-0000000000000001", time.Unix(100, 0).UTC())
-	record.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
-	terminal := launcher.TerminalSafety{State: launcher.TerminalUsable}
-	terminal.Policy.Agent = "codex"
-	state, reason := ClassifyThread(record, ThreadEvidence{Session: SessionObservation{State: SessionPresent, Terminal: &terminal}})
-	if state != ThreadUnusable || reason != ReasonNeedsRelaunch {
-		t.Fatalf("different agent classified %s/%s", state, reason)
-	}
-}
-
-func TestAgentUsabilityContestedServerNeedsRelaunch(t *testing.T) {
-	record := actionableTestThread("couch-0000000000000001", time.Unix(100, 0).UTC())
-	record.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
-	observed := ProjectSessionPresence([]SessionNameBinding{{Address: record.Address, SessionName: "session"}}, []launcher.Session{{Name: "session", State: launcher.SessionLive}}, map[string]launcher.ServerState{"session": {Verdict: launcher.ServerContested}}, map[string]int{"session": 1})
-	state, reason := ClassifyThread(record, ThreadEvidence{Session: observed[record.Address]})
-	if state != ThreadUnusable || reason != ReasonNeedsRelaunch {
-		t.Fatalf("contested classified %s/%s", state, reason)
-	}
-}
-
-func TestAgentUsabilityOrphanNeedsManualRelaunch(t *testing.T) {
-	record := actionableTestThread("couch-0000000000000001", time.Unix(100, 0).UTC())
-	server := launcher.SessionServerIdentity{PID: 42, Identity: "server"}
-	e := ThreadEvidence{Session: SessionObservation{State: SessionOrphaned, Orphan: &server}}
-	state, reason := ClassifyThread(record, e)
-	if state != ThreadUnusable || reason != ReasonNeedsRelaunch {
-		t.Fatalf("orphan classified %s/%s", state, reason)
-	}
-	orphan := orphanOf(state, reason, e)
-	if orphan == nil || *orphan != server {
-		t.Fatal("lost direct reap identity")
-	}
-	if actions := ActorActions(ActorRowFacts{State: state, Reason: reason, Orphaned: true}); len(actions) != 0 {
-		t.Fatalf("unsafe terminal offers automatic actions %v", actions)
-	}
-}
-
-func TestAgentUsabilityListedButServerGoneNeedsRelaunch(t *testing.T) {
-	data := t.TempDir()
-	indexSession(t, data, addressA, "📁repo-a")
-	checker, _ := sandboxedChecker(t, data, map[string]string{"📁repo-a": "detached"})
-	checker.Servers = fakeServerStates{}
-	checker.ProcessTable = func() ([]procutil.Process, error) { return nil, nil }
-	got, err := checker.SessionPresence(context.Background(), []ThreadAddress{addressA})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if reason := agentUsabilityReason(got[addressA]); reason != ReasonNeedsRelaunch {
-		t.Fatalf("listed terminal without server: %s", reason)
-	}
-}
-
-func TestAgentUsabilityUnknownInspectionStaysUnknown(t *testing.T) {
-	observation := SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{Reason: "policy inspection unavailable"}}
-	t.Run("projection", func(t *testing.T) {
-		if got := agentUsabilityReason(observation); got != ReasonUnknown {
-			t.Fatalf("unknown inspection projected %s", got)
+func TestListedLiveOverridesStartMarkersWithoutChangingThem(t *testing.T) {
+	for _, tc := range everyThreadShape(t) {
+		if len(tc.record.Incarnations) == 0 {
+			continue
 		}
-	})
-	t.Run("agent mismatch", func(t *testing.T) {
-		checker := ScopedThreadArtifactCollisionChecker{TerminalUsability: func(launcher.SessionServerIdentity, string, string, string, []procutil.Process) launcher.TerminalSafety {
-			return *observation.Terminal
-		}}
-		got := checker.terminalUsability(launcher.SessionServerIdentity{}, SessionNameBinding{Agent: "claude"}, nil)
-		if got.State != launcher.TerminalUnknown || got.Reason != observation.Terminal.Reason {
-			t.Fatalf("missing policy agent overwrote unknown inspection: %+v", got)
+		evidence := tc.evidence
+		evidence.Session = SessionObservation{State: SessionPresent}
+		evidence.StartOwner = Live
+		state, reason := ClassifyThread(tc.record, evidence)
+		if state != ThreadLive && state != ThreadDetached {
+			t.Fatalf("%s: %s/%s", tc.name, state, reason)
 		}
-	})
+	}
 }

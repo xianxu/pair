@@ -98,8 +98,8 @@ func menuRowFactsOf(row couchcore.ActionableThreadSummary) menuRowFacts {
 // nothing on says why through menuRowNotice, which reads the same phase.
 func menuRowActions(f menuRowFacts) []string {
 	switch f.Phase {
-	case menuPhaseNeedsRelaunch:
-		return []string{"relaunch"}
+	case menuPhaseNeedsRelaunch, menuPhaseUnknown, menuPhaseBusy, menuPhaseLiveContinuationPending:
+		return []string{"reboot"}
 	case menuPhaseLive, menuPhaseLiveContinuationFailed:
 		// Detach first: it is the safe, everyday gesture -- the agent keeps
 		// running and only the client goes. Park is destructive and sits
@@ -143,7 +143,10 @@ func menuRowActions(f menuRowFacts) []string {
 		// Recover leads: it is the default gesture, running whatever the
 		// recovery report decides for this row (#399).
 		actions := couchcore.ActorActions(f.Actor)
-		items := actions
+		items := append([]string(nil), actions...)
+		if !slices.Contains(items, "reboot") {
+			items = append(items, "reboot")
+		}
 		if couchcore.RecoverOffered(actions) {
 			items = append([]string{"recover"}, actions...)
 		}
@@ -199,7 +202,7 @@ func menuRowAdviceOf(f menuRowFacts) menuRowAdvice {
 	var a menuRowAdvice
 	switch {
 	case f.Phase == menuPhaseNeedsRelaunch:
-		a.Notice.Text = "terminal cannot be attached safely → relaunch"
+		a.Notice.Text = "terminal unavailable; previous conversation may be recoverable"
 	case f.Phase == menuPhaseBusy:
 		a.Notice.Text = "starting elsewhere"
 	case f.Phase == menuPhaseUnknown:

@@ -40,12 +40,11 @@ type StoreRetentionSnapshot struct {
 	Archives []ArchiveRetention
 }
 
+// NewCoordinatedThreadStore installs retention coordination without enrolling
+// the namespace. The first explicit store operation publishes its ownership.
 func NewCoordinatedThreadStore(namespace CouchNamespace, c *storagegc.Coordinator) (*ThreadStore, error) {
 	if c == nil {
 		return nil, errors.New("coordinated store needs retention coordinator")
-	}
-	if err := c.RegisterStore(context.Background(), namespace.Dir()); err != nil {
-		return nil, err
 	}
 	s := NewThreadStore(namespace)
 	s.coordinator = c

@@ -1,7 +1,6 @@
 package couchcore
 
 import (
-	"github.com/xianxu/pair/cmd/internal/launcher"
 	"testing"
 	"time"
 
@@ -89,7 +88,7 @@ func TestTheWorldDecidesWhateverTheRecordSaysAboutItself(t *testing.T) {
 		{
 			name: "the session survived",
 			evidence: ThreadEvidence{
-				Session: SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{State: launcher.TerminalUsable}}, StartOwner: Dead,
+				Session: SessionObservation{State: SessionPresent}, StartOwner: Dead,
 			},
 			wantState: ThreadDetached,
 		},

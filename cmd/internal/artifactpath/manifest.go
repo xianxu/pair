@@ -57,7 +57,6 @@ type ResolvedBinding struct {
 
 // pair:m5-concept pure
 var ResolvedBindings = append([]ResolvedBinding{
-	{Name: "cache-session-policy", Family: "session-policy", Resolver: "ResolvePairCache", Member: "SessionPolicy"},
 	{Name: "cache-session-lock", Family: "session-lock", Resolver: "ResolvePairCache", Member: "TerminalLease"},
 	{Name: "matched-changelog-family", Family: "changelog", Resolver: "MatchArtifact"},
 	{Name: "parsed-parked-capture", Family: "parked", Resolver: "ParseParkedCapture"},
@@ -178,7 +177,6 @@ type SourceClassification struct {
 // family requires adding its constructor and classifying every source consumer.
 // pair:m5-concept pure
 var Families = []Family{
-	{Name: "session-policy", Token: "session-policy"},
 	{Name: "session-lock", Token: "session-locks"},
 	{Name: "fullscreen-return", Token: "fullscreen-return-"},
 	{Name: "fullscreen-lock", Token: "fullscreen-lock-"},
@@ -242,8 +240,8 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/threadrecord/recovery.go", Kind: ResolvedConsumer},
 
 	{Path: "cmd/internal/wrapcmd/capture_witness.go", Kind: ResolvedConsumer},
-	{Path: "cmd/internal/artifactpath/session_policy.go", Kind: Constructor, Families: []string{"session-policy", "session-lock"}},
-	{Path: "cmd/internal/launcher/session_handoff_os.go", Kind: ResolvedConsumer, Families: []string{"session-policy", "session-lock"}, BindingNames: []string{"cache-session-policy", "cache-session-lock"}},
+	{Path: "cmd/internal/artifactpath/session_lock.go", Kind: Constructor, Families: []string{"session-lock"}},
+	{Path: "cmd/internal/launcher/session_handoff_os.go", Kind: ResolvedConsumer, Families: []string{"session-lock"}, BindingNames: []string{"cache-session-lock"}},
 	{Path: "cmd/internal/couchcmd/run.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/scrollbackcmd/bounded.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/pairlog/retention.go", Kind: ResolvedConsumer, Families: []string{"log"}, BindingNames: []string{"scoped-log"}, Vocabulary: []VocabularyAllowance{goCallVocabulary("log", "prompt-log-writer", "github.com/xianxu/pair/cmd/internal/storagegc.AcquireSelectedProcess", 2, 1)}},
@@ -1497,7 +1495,6 @@ type GCClassification struct {
 // GCClassifications must cover every artifact family explicitly.
 // pair:m5-concept pure
 var GCClassifications = map[string]GCClassification{
-	"session-policy":            {SessionRetention, GCProtected, "PairCachePaths.SessionPolicy; retired under terminal lease after exact-owner quiescence"},
 	"session-lock":              {SessionRetention, GCProtected, "PairCachePaths.TerminalLease; stable coordination inode, never unlinked"},
 	"agent-default":             {SessionRetention, GCShared, "ScopePaths.AgentDefault"},
 	"native-session":            {SessionRetention, GCProtected, "LifecyclePaths.Request (embedded metadata only)"},

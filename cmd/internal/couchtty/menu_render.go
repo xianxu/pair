@@ -464,20 +464,21 @@ func continuationLabel(phase checkpoint.Phase) string {
 }
 
 func threadStateText(thread couchcore.ActionableThreadSummary, now time.Time) string {
-	if notice := menuRowNotice(menuRowFactsOf(thread)); notice != "" {
-		return notice
-	}
-	switch thread.State {
-	case couchcore.ThreadLive:
-		return "live"
-	case couchcore.ThreadDetached:
-		return withMenuAge("detached", now, thread.LastActiveAt)
-	case couchcore.ThreadParked:
-		return withMenuAge("parked", now, thread.LastActiveAt)
-	case couchcore.ThreadArchived:
+	if thread.State == couchcore.ThreadArchived {
 		return "archived"
 	}
-	return thread.Reason.Label()
+	switch couchcore.ContinuityOutcome(thread) {
+	case couchcore.Continue:
+		return "Continue"
+	case couchcore.ResumeDisk:
+		return "Resume from disk"
+	default:
+		label := "Start fresh"
+		if notice := menuRowNotice(menuRowFactsOf(thread)); notice != "" {
+			label += " · " + notice
+		}
+		return label
+	}
 }
 
 // renderRootMenuFrame returns the drawn lines and, for the root list, where each

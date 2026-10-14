@@ -1,6 +1,8 @@
 package couchcore
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -81,16 +83,16 @@ func TestRecoveryPreviewBoundsAlternativesAndRefusesIncomplete(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !p.Incomplete || p.Fresh != nil || len(p.Candidates) != 0 {
-		t.Fatalf("incomplete scan grants choices %+v", p)
+	if !p.Incomplete || p.Fresh == nil || p.Fresh.Key != "" || len(p.Candidates) != 0 {
+		t.Fatalf("incomplete scan hid Fresh or granted native authority %+v", p)
 	}
 }
 
 func TestRecoveryPreviewExpiredEvidenceCannotSelect(t *testing.T) {
 	record, observation, now := recoveryPreviewFixture()
-	_, err := DecideSlotRecovery(record, observation, now.AddDate(2, 0, 0))
-	if err == nil {
-		t.Fatal("expired screen accepted")
+	preview, err := DecideSlotRecovery(record, observation, now.AddDate(2, 0, 0))
+	if err != nil || len(preview.Candidates) != 0 || preview.Fresh == nil || preview.Fresh.Key != "" {
+		t.Fatalf("expired screen must offer only Fresh without native authority: %+v %v", preview, err)
 	}
 }
 
@@ -105,5 +107,41 @@ func TestRecoveryPreviewFreshUsesOriginalActivity(t *testing.T) {
 		if !p.Fresh.LastActivity.Equal(original) {
 			t.Fatalf("fresh activity = %v; original = %v", p.Fresh.LastActivity, original)
 		}
+	}
+}
+
+func TestFreshProjectionSurvivesIncompleteOrMissingScreen(t *testing.T) {
+	for _, kind := range []string{"incomplete", "missing", "expired"} {
+		t.Run(kind, func(t *testing.T) {
+			record, observed, now := recoveryPreviewFixture()
+			switch kind {
+			case "incomplete":
+				observed.Incomplete = true
+			case "missing":
+				observed.Capture = threadrecord.RecoveryCapture{}
+			case "expired":
+				now = now.AddDate(2, 0, 0)
+			}
+			preview, _ := DecideSlotRecovery(record, observed, now)
+			if preview.Fresh == nil || preview.Fresh.Label == "" {
+				t.Fatalf("fresh hidden: %+v", preview)
+			}
+			if preview.Fresh.Key != "" {
+				t.Fatal("projection manufactured execution authority for missing evidence")
+			}
+		})
+	}
+}
+
+func TestResumeCandidatesReadFailureStillProjectsFresh(t *testing.T) {
+	f := newRecoveryExecutionFixture(t)
+	calls := 0
+	f.Couch.RecoveryEvidence = func(context.Context, ThreadRecord) (RecoveryObservation, error) {
+		calls++
+		return RecoveryObservation{}, errors.New("unreadable capture")
+	}
+	preview, err := f.Couch.ResumeCandidates(context.Background(), ResumeTarget{Address: f.record.Address})
+	if err != nil || preview.Fresh == nil || len(preview.Candidates) != 0 || calls != 2 {
+		t.Fatalf("failed observation hid recovery: preview=%+v err=%v calls=%d", preview, err, calls)
 	}
 }

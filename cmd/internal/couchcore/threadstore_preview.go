@@ -63,7 +63,7 @@ func (s *ThreadStore) withPreviewLockWithin(ctx context.Context, wait time.Durat
 	}
 	defer func() { err = errors.Join(err, lock.Close()) }()
 	if _, err := os.Lstat(s.journalPath()); err == nil {
-		return errors.New("thread store recovery pending; open the workspace before previewing")
+		return errors.New("thread store recovery pending; an explicit lifecycle action is required")
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}

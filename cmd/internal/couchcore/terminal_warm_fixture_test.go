@@ -2,9 +2,11 @@ package couchcore
 
 import (
 	"context"
+	"github.com/xianxu/pair/cmd/internal/procutil"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -13,7 +15,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/launcher"
 )
 
-func TestAttestedDetachedTerminalAttachesWithoutNewServer(t *testing.T) {
+func TestListedDetachedTerminalAttachesWithoutNewServer(t *testing.T) {
 	home := t.TempDir()
 	root := t.TempDir()
 	root, err := filepath.EvalSymlinks(root)
@@ -146,19 +148,14 @@ func TestAttestedDetachedTerminalAttachesWithoutNewServer(t *testing.T) {
 	if err = server.Start(); err != nil {
 		t.Fatal(err)
 	}
-	var before launcher.TerminalSafety
-	for {
-		before, err = launcher.ObserveTerminalSafety(ctx, name, root, scope, tag)
-		if err == nil && before.Usable() {
-			break
-		}
-		select {
-		case <-ctx.Done():
-			t.Fatalf("cold not attested: %+v %v", before, err)
-		case <-time.After(10 * time.Millisecond):
-		}
+	waitFile(paths.AgentReady("claude"))
+	waitFixtureHandoffLease(t, ctx, string(socket))
+	before := procutil.Identity(strconv.Itoa(server.Process.Pid))
+	if before == "" {
+		t.Fatal("fixture server identity unavailable")
 	}
-	// Admission published its policy; detach only the client, leaving the server alive.
+	// Detach only the client, leaving its listed server alive.
+
 	if err = os.WriteFile(clientRelease, []byte("detach"), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -189,7 +186,7 @@ func TestAttestedDetachedTerminalAttachesWithoutNewServer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	leasePath, err := cache.TerminalLease(before.Policy.Socket)
+	leasePath, err := cache.TerminalLease(string(socket))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -210,10 +207,11 @@ func TestAttestedDetachedTerminalAttachesWithoutNewServer(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal(ctx.Err())
 	}
-	after, err := launcher.ObserveTerminalSafety(ctx, name, root, scope, tag)
-	if err != nil || !after.Usable() || after.Owner.Server != before.Owner.Server || after.Policy != before.Policy {
-		t.Fatalf("warm replaced terminal: before=%+v after=%+v err=%v", before, after, err)
+	after := procutil.Identity(strconv.Itoa(server.Process.Pid))
+	if after != before {
+		t.Fatalf("warm replaced server: before=%s after=%s", before, after)
 	}
+
 	readyAfter, err := os.ReadFile(paths.AgentReady("claude"))
 	if err != nil || string(readyAfter) != string(readyBefore) {
 		t.Fatalf("warm attach changed agent readiness: %v", err)
@@ -224,5 +222,28 @@ func TestAttestedDetachedTerminalAttachesWithoutNewServer(t *testing.T) {
 	}
 	if strings.Count(string(calls), "--new-session-with-layout") != 1 || strings.Count(string(calls), "--server ") != 1 || strings.Count(string(calls), " attach ") != 1 {
 		t.Fatalf("warm created another terminal: %s", calls)
+	}
+}
+
+func waitFixtureHandoffLease(t *testing.T, ctx context.Context, socket string) {
+	t.Helper()
+	dir, err := filepath.EvalSymlinks(filepath.Dir(socket))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cache, err := artifactpath.ResolvePairCache(os.Getenv("HOME"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	path, err := cache.TerminalLease(filepath.Join(dir, filepath.Base(socket)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lease, err := launcher.AcquireTerminalLease(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := lease.Close(); err != nil {
+		t.Fatal(err)
 	}
 }

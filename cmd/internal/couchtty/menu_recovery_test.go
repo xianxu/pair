@@ -12,18 +12,18 @@ import (
 func recoveryMenuRow() couchcore.ActionableThreadSummary {
 	return couchcore.ActionableThreadSummary{Address: menuAddress("recovery"), State: couchcore.ThreadUnusable, Reason: couchcore.ReasonSessionGone, Recovery: &couchcore.RecoveryDecision{Recover: true, FromCheckpoint: true, Archive: true, Diagnosis: "helper absent; exact session must be checked", CheckpointPath: "/saved/checkpoint.md", CheckpointDigest: "abcdef"}}
 }
-func TestRecoveryMenuEnterResumesAndAnUnrecoverableRowNamesReboot(t *testing.T) {
+func TestRecoveryMenuPrimaryUsesContinuityOutcome(t *testing.T) {
 	row := recoveryMenuRow()
 	state := NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
-	_, effects := reduceRootKey(state, PanelKey{Kind: KeyEnter})
-	if len(effects) != 1 || effects[0].Operation != "resume" {
-		t.Fatalf("recoverable Enter: %v", effects)
-	}
-	row.Recovery.Recover = false
-	state = NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
 	next, effects := reduceRootKey(state, PanelKey{Kind: KeyEnter})
-	if len(effects) != 0 || !strings.Contains(next.Notice.Text, row.Recovery.Diagnosis) || !strings.Contains(next.Notice.Text, "Tab → reboot") {
-		t.Fatalf("unrecoverable Enter: %v, %s", effects, next.Notice.Text)
+	if len(effects) != 0 || next.CurrentFrame().Kind != MenuFrameConfirmation || next.CurrentFrame().Action != "reboot" {
+		t.Fatalf("unproven row did not require fresh confirmation: %+v %v", next.CurrentFrame(), effects)
+	}
+	row.State, row.Reason = couchcore.ThreadDetached, ""
+	state = NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
+	_, effects = reduceRootKey(state, PanelKey{Kind: KeyEnter})
+	if len(effects) != 1 || effects[0].Operation != "resume" || effects[0].Args["tag"] != string(row.Address.Tag) || effects[0].Args["repo-scope"] != row.Address.RepoScope {
+		t.Fatalf("Continue: %+v", effects)
 	}
 }
 
@@ -39,15 +39,14 @@ func TestRecoveryActionsShowCheckpointIdentityAndDiagnosis(t *testing.T) {
 		}
 	}
 }
-func TestRecoveryRebootConfirmationInvalidatesWhenEligibilityChanges(t *testing.T) {
+func TestRecoveryRebootConfirmationInvalidatesWhenRowDisappears(t *testing.T) {
 	row := recoveryMenuRow()
 	state := NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
 	state, _ = reduceRootKey(state, PanelKey{Kind: KeyTab})
 	state.Frames[len(state.Frames)-1].SelectedItem = "reboot"
 	state, _ = reduceActionKey(state, PanelKey{Kind: KeyEnter})
-	// "checking…" is not a verdict, and reboot stops a session.
-	row.Reason, row.Recovery = couchcore.ReasonUnknown, nil
-	state.Inventory = []couchcore.ActionableThreadSummary{row}
+	// A removed row cannot authorize the pending destructive action.
+	state.Inventory = nil
 	next := reconcileMenuFrames(state)
 	if next.CurrentFrame().Kind == MenuFrameConfirmation {
 		t.Fatal("reboot confirmation survived loss of eligibility")
@@ -106,8 +105,12 @@ func TestRecoveryAndRebootUseExistingOwnerQueue(t *testing.T) {
 func TestWarmRecoveryAdoptsExactTerminalWithoutCreatingContinuation(t *testing.T) {
 	f := newFixture(t, 24, 100)
 	row := recoveryMenuRow()
+	row.State, row.Reason = couchcore.ThreadDetached, ""
 	state := NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
 	state, effects := reduceRootKey(state, PanelKey{Kind: KeyEnter})
+	if len(effects) != 1 || effects[0].Operation != "resume" || effects[0].Args["tag"] != string(row.Address.Tag) || effects[0].Args["repo-scope"] != row.Address.RepoScope {
+		t.Fatalf("Continue did not dispatch exact row: %+v", effects)
+	}
 	started, _ := attachStartResult(t, "recovered-agent", row.Address)
 	terminal := started.Handle.(couchcore.TerminalHandle).Terminal()
 	terminal.Feed([]byte("SAME-RECOVERED-AGENT"))

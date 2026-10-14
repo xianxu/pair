@@ -2,7 +2,6 @@ package couchcore
 
 import (
 	"context"
-	"errors"
 	"slices"
 	"strings"
 	"testing"
@@ -137,70 +136,7 @@ func TestWarmReattachSendsNoResumeProfileAndNoLayout(t *testing.T) {
 	}
 }
 
-// Startup keeps its no-fallback rule -- a tree holding one resumable thread
-// must not quietly gain a second -- but the refusal has to be actionable. The
-// operator used to get a diagnostic code and no next step.
-func TestStartupResumeRefusalNamesTheThreadAndTheWayForward(t *testing.T) {
-	t.Parallel()
-
-	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0001020304050607"}
-	wrapped := startupResumeRefusal(address, refuseResume(ResumeSessionGone, "the detached session is no longer running"))
-	if wrapped == nil {
-		t.Fatal("a refusal became a success")
-	}
-	message := wrapped.Error()
-	for _, want := range []string{
-		string(ResumeSessionGone), // what happened
-		string(address.Tag),       // which thread
-		"couch --show",            // how to inspect it
-		"pair",                    // how to work anyway
-	} {
-		if !strings.Contains(message, want) {
-			t.Fatalf("refusal %q does not mention %q", message, want)
-		}
-	}
-	// The typed refusal must survive wrapping: callers switch on the code.
-	if got := ResumeDiagnosticOf(wrapped); got != ResumeSessionGone {
-		t.Fatalf("wrapped diagnostic = %q, want %q", got, ResumeSessionGone)
-	}
-}
-
-// RESTATED for #256. A non-refusal used to pass through UNTOUCHED, which is how
-// an internal store message reached the operator with no next step and refused
-// `couch` in the whole tree. It is now decorated too -- but with a message that
-// is TRUE of it: couch could not tell, rather than claiming to have found a
-// resumable thread it never read.
-func TestStartupResumeRefusalExplainsAnInternalFailureWithoutClaimingAThread(t *testing.T) {
-	t.Parallel()
-
-	plain := errors.New("store is unreadable")
-	got := startupResumeRefusal(ThreadAddress{}, plain)
-	if got == nil || !errors.Is(got, plain) {
-		t.Fatalf("the original error must stay reachable: %v", got)
-	}
-	if strings.Contains(got.Error(), "found one resumable thread") {
-		t.Fatalf("an unreadable store was reported as a thread couch found:\n%s", got)
-	}
-	for _, want := range []string{"could not resume", "couch --show", "work anyway"} {
-		if !strings.Contains(got.Error(), want) {
-			t.Fatalf("internal failure is not actionable — missing %q:\n%s", want, got)
-		}
-	}
-	if startupResumeRefusal(ThreadAddress{}, nil) != nil {
-		t.Fatal("startupResumeRefusal invented an error")
-	}
-}
-
-// pair#206 M2: the background pass's resume can only REATTACH, never start.
-//
-// The pass runs behind the operator's back, so a thread that has stopped being
-// warm by the time its turn comes -- parked in the meantime, its session gone,
-// or attached elsewhere -- must be refused before any effect. A resume without
-// warm-only would cold-start a parked thread's agent, which is exactly what the
-// Spec rules out ("parked threads are not resumed at startup").
-//
-// Each row asserts the refusal comes BEFORE CommitStartClaim (the revision is
-// unchanged) and before any child is spawned.
+// An explicit warm-only request never cold-starts a stopped agent.
 func TestWarmOnlyResumeNeverStartsAnAgent(t *testing.T) {
 	t.Parallel()
 

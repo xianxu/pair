@@ -34,7 +34,6 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/crashreport"
 	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
-	"github.com/xianxu/pair/cmd/internal/gcruntime"
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/keyhelp"
 	"github.com/xianxu/pair/cmd/internal/launcher"
@@ -620,16 +619,12 @@ func runTypedOperationWithConsole(op couchcore.Operation, parsed, prepareArgs ma
 		renderError(stderr, err)
 		return 1
 	}
-	if ownsLive && c.PairLifecycle != nil {
-		recoveryContext, stopRecovery := context.WithCancel(context.Background())
-		defer stopRecovery()
-		go func() {
-			// Every failure is already durable on the occupied park transaction.
-			// The worker must not paint concurrently with the terminal owner.
-			_ = c.RecoverActiveParks(recoveryContext)
-		}()
-	}
 	if console != nil {
+		if forceConsole && op.Name == "start" {
+			if start, ok := result.(couchcore.StartResult); ok {
+				return finishConsole(console, c, start, stdout)
+			}
+		}
 		if child, ok := result.(couchcore.StartedChild); ok {
 			if start, hasChild := child.Started(); hasChild {
 				return finishConsole(console, c, start, stdout)
@@ -850,16 +845,15 @@ var processStartedAt = time.Now()
 // to come back behind it.
 func armsReattachPass(operation string) bool { return operation == "start" }
 
-// runConsole attaches the spawned child and hands the terminal over. This
-// displaces render's StartResult branch, which printed a line and then blocked
-// on Handle.Wait for the child's lifetime.
+// runConsole opens the switcher when startup has no child. Explicit launch
+// results attach their child before handing the terminal over.
 func runConsole(console *couchtty.Console, c *couchcore.Couch, start couchcore.StartResult, stdout io.Writer, armPass bool) int {
 	// Wire the switcher's actionable projection HERE, on the path that actually
 	// runs a console. Typeahead stays pure over the resulting in-memory rows.
 	wireResolver(console, c)
 
 	_, ok := start.Handle.(couchcore.TerminalHandle)
-	if !ok {
+	if start.Handle != nil && !ok {
 		// A runner that cannot offer a terminal: fall back rather than crash.
 		fmt.Fprintf(stdout, "couch: no terminal available; running without a console\n")
 		if start.Handle != nil {
@@ -867,16 +861,10 @@ func runConsole(console *couchtty.Console, c *couchcore.Couch, start couchcore.S
 		}
 		return 1
 	}
-	root := ""
-	if c != nil && c.PairLifecycle != nil {
-		root = c.PairLifecycle.DataDir
-	}
-	maintenance, err := gcruntime.StartAfterReady(context.Background(), root, func() error { return beginConsole(console, start, armPass) })
-	if err != nil {
+	if err := beginConsole(console, start, armPass); err != nil {
 		renderError(stdout, err)
 		return 1
 	}
-	defer func() { maintenance.Stop(); _ = maintenance.Wait() }()
 	messages, messageErr := startMessageService(console, c)
 	if messageErr != nil {
 		renderError(stdout, messageErr)
@@ -906,6 +894,9 @@ func recordConsoleExit(failure error) {
 // is the one the pass seeds from. Split from runConsole so that ordering is
 // testable without a live terminal.
 func beginConsole(console *couchtty.Console, start couchcore.StartResult, armPass bool) error {
+	if start.Handle == nil {
+		return nil
+	}
 	if err := dispatchInitialAttach(console, start); err != nil {
 		return err
 	}

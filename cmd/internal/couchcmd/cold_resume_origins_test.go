@@ -13,7 +13,6 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/hostty"
-	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/testwait"
@@ -59,7 +58,7 @@ func newColdResumeRig(t *testing.T) *coldResumeRig {
 		rt.artifacts.SetPaneSidecar(parked.Address, "claude")
 		rt.artifacts.SetPairSession(parked.Address, managedChildSession(t, rt.runner, id), true)
 		// Registration and a helper PID alone do not prove an interactive agent.
-		rt.artifacts.SetSessionPresence(parked.Address, couchcore.SessionObservation{State: couchcore.SessionPresent, Terminal: &launcher.TerminalSafety{State: launcher.TerminalUsable}})
+		rt.artifacts.SetSessionPresence(parked.Address, couchcore.SessionObservation{State: couchcore.SessionPresent})
 		return nil
 	}
 	c, err := rt.NewCouch()

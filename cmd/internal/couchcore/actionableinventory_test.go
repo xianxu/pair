@@ -3,7 +3,6 @@ package couchcore
 import (
 	"context"
 	"errors"
-	"github.com/xianxu/pair/cmd/internal/launcher"
 	"reflect"
 	"testing"
 	"time"
@@ -212,7 +211,7 @@ func TestActionableThreadInventorySnapshotsAndOwnsRows(t *testing.T) {
 		t.Fatal(err)
 	}
 	artifacts := NewFakeThreadArtifactCollisionChecker()
-	artifacts.SetSessionPresence(created.Address, SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{State: launcher.TerminalUsable}})
+	artifacts.SetSessionPresence(created.Address, SessionObservation{State: SessionPresent})
 	couch := &Couch{Threads: store, Artifacts: artifacts}
 	observations := []LiveTTYObservation{{
 		Address: created.Address,
@@ -609,10 +608,6 @@ func TestActionableInventoryPhysicalizesDetachedRowsLikeParkedOnes(t *testing.T)
 	if rows[0].WorkingPath != "/real/repo" {
 		t.Fatalf("detached WorkingPath = %q, want the physical path, the kind parked rows carry",
 			rows[0].WorkingPath)
-	}
-	// And the selector still finds it.
-	if _, ok := SelectResumableRoot(rows, created.Address.RepoScope); !ok {
-		t.Fatal("the detached row was not selectable")
 	}
 }
 

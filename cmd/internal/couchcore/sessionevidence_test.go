@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -303,7 +302,7 @@ func TestDeadLauncherWithLiveSessionIsDetached(t *testing.T) {
 	detached := crashed
 	detached.Incarnations = nil
 
-	evidence := ThreadEvidence{Session: SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{State: launcher.TerminalUsable}}}
+	evidence := ThreadEvidence{Session: SessionObservation{State: SessionPresent}}
 
 	crashedState, crashedReason := ClassifyThread(crashed, evidence)
 	detachedState, _ := ClassifyThread(detached, evidence)
@@ -609,52 +608,6 @@ func TestUnobservableLauncherWithLiveSessionRefusesLegibly(t *testing.T) {
 	}
 }
 
-// TestEveryStartupResumeFailureIsActionable pins BR-11's rule where it belongs:
-// at the CONSUMER that needed a marker, not on every producer.
-//
-// startupResumeRefusal used to decorate only errors carrying a
-// ResumeDiagnosticCode, so an internal failure -- a store CAS, a repo-identity
-// lookup -- reached the operator as a raw message with no next step and refused
-// `couch` in the whole tree. Forcing every producer to carry a code "fixed" that
-// by changing what the code MEANS, which broke the readers that used the
-// distinction. The guidance does not depend on the code, so it is given
-// unconditionally and the code goes back to meaning one thing.
-func TestEveryStartupResumeFailureIsActionable(t *testing.T) {
-	t.Parallel()
-
-	address := ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-00000000000000f1"}
-	for _, tc := range []struct {
-		name string
-		err  error
-	}{
-		{"a structured refusal", refuseResume(ResumeNotDetached, "not warm")},
-		{"a bare internal error", errors.New("thread already has 1 incarnation(s)")},
-		{"a wrapped internal error", fmt.Errorf("commit: %w", errors.New("revision conflict"))},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			decorated := startupResumeRefusal(address, tc.err)
-			if decorated == nil {
-				t.Fatal("a startup failure must never be dropped")
-			}
-			for _, want := range []string{"couch --show", "pair", "will not start a second"} {
-				if !strings.Contains(decorated.Error(), want) {
-					t.Fatalf("refusal is not actionable — missing %q:\n%s", want, decorated)
-				}
-			}
-			// The original must stay reachable: errors.Is/As and Unwrap are how
-			// callers distinguish a deadline from a refusal, and rebuilding the
-			// error from its string silently broke that.
-			if !errors.Is(decorated, tc.err) {
-				t.Fatalf("decoration hid the original error: %v", decorated)
-			}
-		})
-	}
-}
-
-// TestResumeCodeStillMeansAStructuredRefusal is the other half: the code must
-// NOT be applied to internal failures, or every reader that branches on it --
-// the background reattach pass renders the error's first line only when the code
-// is empty -- starts showing "resume-unknown" instead of what went wrong.
 func TestResumeCodeStillMeansAStructuredRefusal(t *testing.T) {
 	t.Parallel()
 

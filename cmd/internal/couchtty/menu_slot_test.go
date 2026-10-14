@@ -30,8 +30,9 @@ func TestMenuSelectsAddresslessSlotsIndependently(t *testing.T) {
 	if !ok || row.RowKey != second.RowKey {
 		t.Fatalf("selection %+v", row)
 	}
-	_, effects := reduceRootKey(state, PanelKey{Kind: KeyEnter})
-	if len(effects) != 1 || effects[0].Operation != "resume" || effects[0].Args["path"] != second.WorkingPath {
+	state, effects := reduceRootKey(state, PanelKey{Kind: KeyEnter})
+	state, effects = confirmSlotFresh(t, state, effects)
+	if len(effects) != 1 || effects[0].Operation != "reboot" || effects[0].Args["path"] != second.WorkingPath {
 		t.Fatalf("effects %+v", effects)
 	}
 }
@@ -49,7 +50,7 @@ func TestMenuSlotSelectionSurvivesConversationReplacement(t *testing.T) {
 func TestMenuSlotRebootConfirmsAndSendsThePath(t *testing.T) {
 	row := menuSlotRow(1, "")
 	items := menuActionItems(row)
-	if !slices.Equal(items, []string{"recover", "resume", "reboot"}) {
+	if !slices.Contains(items, "reboot") {
 		t.Fatalf("actions %v", items)
 	}
 	state := NewMenuState([]couchcore.ActionableThreadSummary{row}, couchcore.ThreadAddress{})
@@ -75,7 +76,8 @@ func TestMenuSlotMouseAndFilterPreserveDistinctRows(t *testing.T) {
 		t.Fatalf("filter: %+v", rows)
 	}
 	state.Frames[0].Filter = ""
-	_, effects := ReduceMenu(state, MenuEvent{Kind: MenuEventMouseSwitch, RowKey: second.RowKey})
+	state, effects := ReduceMenu(state, MenuEvent{Kind: MenuEventMouseSwitch, RowKey: second.RowKey})
+	state, effects = confirmSlotFresh(t, state, effects)
 	if len(effects) != 1 || effects[0].Args["path"] != second.WorkingPath {
 		t.Fatalf("click effects: %+v", effects)
 	}
@@ -96,8 +98,22 @@ func TestMenuSlotOperationCompletionAcceptsNewConversation(t *testing.T) {
 	row := menuSlotRow(1, "")
 	state := NewMenuState([]couchcore.ActionableThreadSummary{row}, couchcore.ThreadAddress{})
 	state, effects := reduceRootKey(state, PanelKey{Kind: KeyEnter})
-	next := reduceOperationResult(state, MenuEvent{Operation: "resume", Attempt: effects[0].Attempt, Success: true, Address: couchcore.ThreadAddress{RepoScope: "scope", Tag: "created"}})
+	state, effects = confirmSlotFresh(t, state, effects)
+	next := reduceOperationResult(state, MenuEvent{Operation: "reboot", Attempt: effects[0].Attempt, Success: true, Address: couchcore.ThreadAddress{RepoScope: "scope", Tag: "created"}})
 	if next.InFlight.Operation != "" || !next.ProjectionPending {
 		t.Fatalf("completion not consumed: %+v", next.InFlight)
 	}
+}
+
+func confirmSlotFresh(t *testing.T, state MenuState, effects []MenuEffect) (MenuState, []MenuEffect) {
+	t.Helper()
+	if len(effects) != 0 || state.CurrentFrame().Kind != MenuFrameConfirmation || state.CurrentFrame().Action != "reboot" {
+		t.Fatalf("fresh bypassed confirmation: %+v %+v", state.CurrentFrame(), effects)
+	}
+	state.Frames[len(state.Frames)-1].SelectedItem = "reboot"
+	next, effects := reduceConfirmationKey(state, PanelKey{Kind: KeyEnter})
+	if len(effects) != 1 || effects[0].Operation != "reboot" {
+		t.Fatalf("fresh confirmation effects: %+v", effects)
+	}
+	return next, effects
 }

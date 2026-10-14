@@ -42,6 +42,8 @@ func reduceRecoveryPreview(state MenuState, event MenuEvent) (MenuState, []MenuE
 	frame.PreviewPending = 0
 	if event.Error != "" || event.RecoveryPreview == nil {
 		state.Notice = errorMenuNotice(event.Error)
+		frame.RecoveryPreview = &couchcore.RecoveryPreview{Address: frame.Thread, Incomplete: true, Reasons: []string{event.Error, "Conversation evidence unavailable; starting fresh may lose working context."}, Fresh: &couchcore.RecoveryChoice{Label: "Start fresh"}}
+		frame.SelectedItem = "0"
 		return state, nil
 	}
 	preview := *event.RecoveryPreview
@@ -79,6 +81,11 @@ func reduceRecoveryKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) 
 		}
 		choice := choices[index]
 		if choice.Key == "" {
+			if choice.NativeID == "" {
+				if row, ok := menuThreadTarget(state, frame.RowKey, frame.Thread); ok {
+					return dispatchMenuRow(state, "reboot", row)
+				}
+			}
 			return state, nil
 		}
 		args := map[string]string{"candidate": choice.Key, "repo-scope": frame.Thread.RepoScope}

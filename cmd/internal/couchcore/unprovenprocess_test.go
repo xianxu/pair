@@ -1,7 +1,6 @@
 package couchcore
 
 import (
-	"github.com/xianxu/pair/cmd/internal/launcher"
 	"testing"
 	"time"
 )
@@ -89,7 +88,7 @@ func TestAnUnprovableRecordedProcessIsNotConfirmedAbsence(t *testing.T) {
 			tc.arrange(proc)
 			artifacts := NewFakeThreadArtifactCollisionChecker()
 			if tc.wantState == ThreadLive {
-				artifacts.SetSessionPresence(created.Address, SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{State: launcher.TerminalUsable}})
+				artifacts.SetSessionPresence(created.Address, SessionObservation{State: SessionPresent})
 			}
 			couch := &Couch{Threads: store, Artifacts: artifacts, Proc: proc, Path: NewFakePathOps(nil)}
 

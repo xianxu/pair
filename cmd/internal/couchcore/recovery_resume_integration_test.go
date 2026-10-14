@@ -12,7 +12,6 @@ import (
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/orientation"
-	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
@@ -58,7 +57,7 @@ func newRecoveryExecutionFixture(t *testing.T) *recoveryExecutionFixture {
 	env.Runner.AfterAcknowledge = func(id string) error {
 		env.Artifacts.SetPaneSidecar(created.Address, "codex")
 		env.Artifacts.SetPairSession(created.Address, continuationChildSession(t, env.Runner, id), true)
-		env.Artifacts.SetSessionPresence(created.Address, SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{State: launcher.TerminalUsable}})
+		env.Artifacts.SetSessionPresence(created.Address, SessionObservation{State: SessionPresent})
 		return nil
 	}
 	env.Couch.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) { return true, nil }
@@ -219,14 +218,14 @@ func TestResumeCandidateBusyOwnedSourceRefusesBeforePreservation(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = f.Couch.ResumeCandidate(context.Background(), ResumeTarget{Address: f.record.Address}, key)
-	if err == nil || !strings.Contains(err.Error(), "busy") {
+	if err == nil || !strings.Contains(err.Error(), "confirmation") {
 		t.Fatalf("busy refusal = %v", err)
 	}
 	after, readErr := f.Couch.Threads.GetThread(f.record.Address)
 	if readErr != nil || !reflect.DeepEqual(before, after) || len(f.Runner.Ops) != 0 || f.preserved != 0 || f.prepared != 0 || f.Proc.Exists(42) != Live {
 		t.Fatal("busy source was changed")
 	}
-	if len(probe.busyChecks) != 1 || len(probe.forced) != 1 || probe.forced[0] {
+	if len(probe.busyChecks) != 0 || len(probe.forced) != 0 {
 		t.Fatalf("busy guard bypassed: %+v", probe)
 	}
 }
@@ -265,57 +264,20 @@ func (f *recoveryExecutionFixture) registerLiveChildren(t *testing.T) {
 	}
 }
 
-func TestResumeCandidateLiveSourcePersistsArchivedScreenBeforePark(t *testing.T) {
+func TestResumeCandidateLiveSourceRequiresFutureConfirmation(t *testing.T) {
 	f := newRecoveryExecutionFixture(t)
-	f.useRetainedCaptureSource(t)
-	after := f.Runner.AfterAcknowledge
-	live := withParkLifecycle(t, f.testEnv, f.record, 42, "old-helper")
-	f.Runner.AfterAcknowledge = after
-	f.registerLiveChildren(t)
-	f.Couch.reg = f.Couch.reg.Insert(ActorRecord{ID: "source-actor", Thread: f.record.Address, Args: StartArgs{Worktree: Worktree(f.record.StartingPath)}, PID: 42, Identity: "old-helper"})
-	probe := &fakeLiveRestartProbe{}
-	f.Couch.LiveRestart = probe
 	key := f.preview(t).Candidates[0].Key
-	original := f.observation.Capture
-	archived := original
-	archived.Raw, archived.Events = "/archive/original.raw", "/archive/original.events"
-	archived.RawIdentity.Inode += 10
-	archived.EventsIdentity.Inode += 10
-	f.Couch.RecoveryPreserve = func(_ context.Context, _ ThreadRecord, observation RecoveryObservation) (RecoveryObservation, error) {
-		f.preserved++
-		if f.Proc.Exists(42) != Live || observation.Capture != original || live.Lifecycle.lastRequest.Attempt != 0 {
-			t.Fatal("original screen not preserved before park")
-		}
-		observation.Capture = archived
-		return observation, nil
+	lifecycle := withParkLifecycle(t, f.testEnv, f.record, 42, "old-helper")
+	f.Couch.reg = f.Couch.reg.Insert(ActorRecord{ID: "source-actor", Thread: f.record.Address, Args: StartArgs{Worktree: Worktree(f.record.StartingPath)}, PID: 42, Identity: "old-helper"})
+	f.Couch.LiveRestart = &fakeLiveRestartProbe{}
+	before, _ := f.Couch.Threads.GetThread(f.record.Address)
+	_, err := f.Couch.ResumeCandidate(context.Background(), ResumeTarget{Address: f.record.Address}, key)
+	if err == nil {
+		t.Fatal("live source retired without explicit confirmation")
 	}
-	published := 0
-	live.Lifecycle.onPublish = func(pairlifecycle.QuitRequest) {
-		published++
-		record, err := f.Couch.Threads.GetThread(f.record.Address)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if record.RecoveryContext == nil || record.RecoveryContext.Capture != archived || record.RecoveryContext.SelectedNativeID != "native" || record.RecoveryContext.SelectedKey == "" {
-			t.Fatalf("quit published without retained original selection: %+v", record.RecoveryContext)
-		}
-		if f.preserved != 1 {
-			t.Fatal("park preceded preservation")
-		}
-	}
-	result, err := f.Couch.ResumeCandidate(context.Background(), ResumeTarget{Address: f.record.Address}, key)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := result.Started(); !ok || published != 1 || len(probe.busyChecks) != 2 || f.Proc.Exists(42) != Dead {
-		t.Fatalf("live transition incomplete: result=%+v parks=%d checks=%d", result, published, len(probe.busyChecks))
-	}
-	record, err := f.Couch.Threads.GetThread(f.record.Address)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if record.RecoveryContext == nil || record.RecoveryContext.Capture != archived {
-		t.Fatal("successful launch dropped original capture")
+	after, _ := f.Couch.Threads.GetThread(f.record.Address)
+	if !reflect.DeepEqual(before, after) || f.preserved != 0 || f.prepared != 0 || lifecycle.Lifecycle.lastRequest.Attempt != 0 {
+		t.Fatal("refused selection changed live source")
 	}
 }
 
@@ -340,13 +302,9 @@ func TestResumeCandidateSecondAlternativeUsesOriginalRetainedScreen(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	after := f.Runner.AfterAcknowledge
-	live := withParkLifecycle(t, f.testEnv, current, first.Start.Record.PID, first.Start.Record.Identity)
-	session := recordSessionName(current)
-	live.model.SetSession(session, true)
-	f.Artifacts.SetPairSession(current.Address, session, true)
-	f.Runner.AfterAcknowledge = after
-	f.Couch.LiveRestart = &fakeLiveRestartProbe{}
+	f.Proc.Kill(first.Start.Record.PID)
+	f.Artifacts.SetPairSession(current.Address, recordSessionName(current), false)
+	f.Artifacts.SetSessionPresence(current.Address, SessionObservation{State: SessionAbsent})
 	// The current screen belongs to the first attempted candidate. It must not
 	// replace the retained screen that the operator originally selected from.
 	f.observation.Capture.Raw = "/current/first-attempt.raw"

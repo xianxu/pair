@@ -204,7 +204,7 @@ func newTestEnv(t *testing.T, trees ...string) *testEnv {
 			return nil
 		}
 		address := ThreadAddress{RepoScope: environmentValue(child.Env, "COUCH_THREAD_SCOPE"), Tag: ThreadTag(environmentValue(child.Env, "COUCH_THREAD_TAG"))}
-		artifacts.SetSessionPresence(address, SessionObservation{State: SessionPresent, Terminal: &launcher.TerminalSafety{State: launcher.TerminalUsable}})
+		artifacts.SetSessionPresence(address, SessionObservation{State: SessionPresent})
 		return nil
 	}
 
@@ -657,19 +657,10 @@ func testComposedPairRegistrationBoundary(t *testing.T, freshSlot bool) {
 		}
 	}
 
-	// The client must remain alive until production admission has attested its
-	// real server/socket/descendant and published the generation-bound policy.
-	for {
-		safety, safetyErr := launcher.ObserveTerminalSafety(waitCtx, preAck.Incarnations[0].Start.SessionBinding.Name, pairData, scope.Key, string(address.Tag))
-		if safetyErr == nil && safety.Usable() {
-			break
-		}
-		select {
-		case <-waitCtx.Done():
-			t.Fatalf("terminal admission never attested fixture: %+v, %v", safety, safetyErr)
-		case <-time.After(10 * time.Millisecond):
-		}
-	}
+	// Readiness proves the fixture acquired admission's lock. Wait for that
+	// lock to be released before ending its client; no policy file is involved.
+	waitFixtureHandoffLease(t, waitCtx, filepath.Join(socketRoot, "contract_version_1", preAck.Incarnations[0].Start.SessionBinding.Name))
+
 	if err := os.WriteFile(release, []byte("release"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -1290,7 +1281,7 @@ func TestSpawnPostAckFailuresQuiesceRealPersistentDescendant(t *testing.T) {
 	}
 }
 
-func TestNewReconcilesDeadUnregisteredHelperByExactNonce(t *testing.T) {
+func TestExplicitReconcileDeletesDeadUnregisteredHelperByExactNonce(t *testing.T) {
 	t.Parallel()
 
 	ns := testCouchNamespace(t)
@@ -1310,16 +1301,19 @@ func TestNewReconcilesDeadUnregisteredHelperByExactNonce(t *testing.T) {
 	}
 	artifacts := NewFakeThreadArtifactCollisionChecker()
 	artifacts.SetRegistration(record.Address, RegistrationAbsent, nil)
-	_, err := New(ns, NewFakeRunner(), NewFakePathOps(nil), NewFakeGit(nil), NewFakeProcOps(), NewStore(ns.Dir()), FixedClock{}, NewFixedIDGen("id"), newIncrementingEntropy(), artifacts)
+	c, err := New(ns, NewFakeRunner(), NewFakePathOps(nil), NewFakeGit(nil), NewFakeProcOps(), NewStore(ns.Dir()), FixedClock{}, NewFixedIDGen("id"), newIncrementingEntropy(), artifacts)
 	if err != nil {
 		t.Fatalf("New: %v", err)
+	}
+	if err := c.reconcileInterruptedStarts(); err != nil {
+		t.Fatal(err)
 	}
 	if _, err := store.GetThread(record.Address); !errors.Is(err, ErrThreadNotFound) {
 		t.Fatalf("dead unregistered start remained: %v", err)
 	}
 }
 
-func TestNewPromotesEstablishedSurvivingHelper(t *testing.T) {
+func TestExplicitReconcilePromotesEstablishedSurvivingHelper(t *testing.T) {
 	t.Parallel()
 
 	ns := testCouchNamespace(t)
@@ -1342,9 +1336,12 @@ func TestNewPromotesEstablishedSurvivingHelper(t *testing.T) {
 	proc.Set(42, "helper-token")
 	artifacts := NewFakeThreadArtifactCollisionChecker()
 	artifacts.SetRegistration(record.Address, RegistrationEstablished, nil)
-	_, err = New(ns, NewFakeRunner(), NewFakePathOps(nil), NewFakeGit(nil), proc, NewStore(ns.Dir()), FixedClock{}, NewFixedIDGen("id"), newIncrementingEntropy(), artifacts)
+	c, err := New(ns, NewFakeRunner(), NewFakePathOps(nil), NewFakeGit(nil), proc, NewStore(ns.Dir()), FixedClock{}, NewFixedIDGen("id"), newIncrementingEntropy(), artifacts)
 	if err != nil {
 		t.Fatalf("New: %v", err)
+	}
+	if err := c.reconcileInterruptedStarts(); err != nil {
+		t.Fatal(err)
 	}
 	got, err := store.GetThread(record.Address)
 	if err != nil || got.Revision != created.Revision+1 || got.Incarnations[0].State != IncarnationLive || got.Incarnations[0].Start != nil {
@@ -1664,7 +1661,11 @@ func TestStartInANonGitDirectoryRefuses(t *testing.T) {
 	args := StartArgs{Cwd: "/plain"}
 	for name, start := range map[string]func() error{
 		"start form": func() error { _, err := env.Couch.PrepareStart(context.Background(), args); return err },
-		"startup":    func() error { _, err := env.Couch.StartInteractive(context.Background(), args); return err },
+		"explicit startup": func() error {
+			args.Action = StartCreate
+			_, err := env.Couch.StartInteractive(context.Background(), args)
+			return err
+		},
 	} {
 		err := start()
 		if err == nil || !strings.Contains(err.Error(), "resolve worktree") {

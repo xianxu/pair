@@ -71,6 +71,9 @@ func (c *Couch) ResumeCandidate(ctx context.Context, t ResumeTarget, key string)
 	if err != nil {
 		return result, err
 	}
+	if err := c.recoverySourceInactive(record); err != nil {
+		return result, err
+	}
 	if c.RecoveryEvidence == nil || c.RecoveryPreserve == nil {
 		return result, errors.New("recovery evidence preservation unavailable")
 	}
@@ -272,51 +275,8 @@ func (c *Couch) recoverySlotAddress(ctx context.Context, record ThreadRecord) (s
 }
 
 func (c *Couch) prepareRecoveryRetirement(ctx context.Context, record ThreadRecord) (func(context.Context, ThreadRecord) (ThreadRecord, error), error) {
-	var live *ThreadIncarnation
-	for i := range record.Incarnations {
-		inc := &record.Incarnations[i]
-		state := observeExactProcess(c.Proc, ProcessIdentity{PID: inc.PID, Identity: inc.Identity})
-		if state == Unknown {
-			return nil, errors.New("recovery source ownership is unknown; inspect its process before relaunch")
-		}
-		if state == Live {
-			if live != nil || inc.Start != nil || inc.State != IncarnationLive {
-				return nil, errors.New("recovery source is busy with another launch")
-			}
-			live = inc
-		}
-	}
-	if live != nil {
-		owned := false
-		for _, actor := range c.actorRegistry().Records() {
-			if actor.Thread == record.Address && actor.PID == live.PID && actor.Identity == live.Identity {
-				owned = true
-				break
-			}
-		}
-		if !owned || c.LiveRestart == nil {
-			return nil, errors.New("recovery source is not a verified hosted actor; attach it before choosing another conversation")
-		}
-		if err := c.LiveRestart.ConfirmNotBusy(ctx, record.Address, false); err != nil {
-			return nil, err
-		}
-		if c.PairLifecycle == nil {
-			return nil, errors.New("recovery park controller unavailable")
-		}
-		pid, identity := live.PID, live.Identity
-		return func(ctx context.Context, current ThreadRecord) (ThreadRecord, error) {
-			if observeExactProcess(c.Proc, ProcessIdentity{PID: pid, Identity: identity}) != Live {
-				return current, errors.New("recovery source changed before park; refresh candidates")
-			}
-			if err := c.LiveRestart.ConfirmNotBusy(ctx, current.Address, false); err != nil {
-				return current, err
-			}
-			parked, err := c.PairLifecycle.ParkExpected(ctx, current.Address, current.Revision)
-			if err != nil {
-				return current, fmt.Errorf("recovery park did not complete; recover the park before resuming: %w", err)
-			}
-			return parked.Thread, parked.CleanupError
-		}, nil
+	if err := c.recoverySourceInactive(record); err != nil {
+		return nil, err
 	}
 	if err := c.confirmRecoveryAbsent(ctx, record); err == nil {
 		return nil, nil
@@ -350,6 +310,17 @@ func (c *Couch) confirmRecoveryAbsent(ctx context.Context, record ThreadRecord) 
 	}
 	if observation.Presence != PresenceAbsent {
 		return errors.New("recovery terminal still exists; retire its verified owner before relaunch")
+	}
+	return nil
+}
+
+// recoverySourceInactive prevents implicit retirement of an attributed source.
+// Confirmation for a live source belongs to the subsequent recovery milestone.
+func (c *Couch) recoverySourceInactive(record ThreadRecord) error {
+	for _, owner := range c.ObserveRecordedProcesses([]ThreadRecord{record}) {
+		if owner.Liveness != Dead {
+			return errors.New("recovery source is running or its ownership is unknown; explicit confirmation is not available yet")
+		}
 	}
 	return nil
 }

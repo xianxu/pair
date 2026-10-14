@@ -12,29 +12,37 @@ the pty console, actor panel, notices, and complete local lifecycle shipped in
 
 ## What exists today
 
-### Terminal admission and capture provenance (#528)
+### Slot continuity and capture provenance (#528)
 
-A hosted helper or listed Zellij name alone no longer proves a usable agent.
-The inventory combines one process snapshot with the exact server/socket
-identity, a non-serializing launch policy, and matching agent readiness from
-that server's descendant tree, including the exact agent PID/start identity.
-Missing or failed observations remain unknown; observed
-legacy, contested, orphaned or empty terminals show **needs relaunch**. A
-successful client attach cannot overwrite an unknown or unsafe verdict in the menu.
-The menu offers explicit Relaunch; inferred-conversation preview and execution
-are the next #528 implementation boundary, not an automatic recovery policy.
+The [slot-continuity target](../workshop/targets/slot-continuity.md) defines
+three outcomes: **Continue**, **Resume from disk**, and **Start fresh**.
+Zellij's positive non-EXITED listing authorizes Continue/attach, including
+sessions launched by older Pair binaries without policy files. A failed
+listing never authorizes attachment. Observations get one bounded retry;
+uncertainty is disclosed with a recovery action rather than a pending-only row.
+An attributed running owner prevents executable Resume until the recovery
+confirmation path can retire it. Fresh remains a visible recovery choice.
 
-Pair serializes terminal admission through a canonical socket-keyed lease.
-Creation uses an explicit serialization=false Zellij option and publishes the
-policy only after server, pane and agent proof. Warm attachment requires that
-policy and the same live generation. The lease ends after verified admission,
-not after the client exits. Failure cancels only the attempted client; it does
-not delete saved layouts or kill an unverified server. Policy files and stable
-lock inodes are excluded from ordinary session GC. Locks occupy 256 permanent
-stripes in session-locks-v2; socket-key collisions only serialize admission.
-Policy, readiness, effective config and capture-witness reads share
-osfs.ReadRegularMetadata: bounded regular-file reads with nonblocking open,
-context checks and inode revalidation.
+Couch startup observes existing slots with preview reads. It does not complete
+interrupted starts/parks, replay slot-store journals, or repair a slot as a
+side effect of opening the console. An unhealthy slot never blocks Couch or
+other slots. Explicit per-slot actions own recovery writes. Zellij listing's
+own connection-refused stale-socket deletion is an accepted native side effect.
+
+Pair retains its canonical socket-keyed attach lease and disables layout
+serialization for newly created sessions. Attach is a write, never a probe;
+it is invoked only after a positive live listing. The lease serializes Pair
+callers but cannot prevent server death between listing and attach. For legacy
+saved layouts, that resurrection race is accepted and measured on scratch
+sessions; no policy-file authority or custom probe attempts to eliminate it.
+Stable lock inodes occupy 256 stripes in session-locks-v2 and are retained.
+
+A broken message channel does not authorize restarting a functioning agent.
+Older wrappers with an unlinked endpoint remain usable by terminal, with
+“messaging unavailable until next relaunch.” New-wrapper endpoint repair is a
+separate milestone. Resume/Fresh execution and confirmation by the person or
+hub are also a separate acceptance boundary; M1's projection is not a claim
+those revised execution paths have been accepted.
 
 New tty captures start with an events witness naming their file identities,
 capture generation and producing launch ordinal/nonce. Archive metadata v2
@@ -42,7 +50,7 @@ preserves that witness; v1 remains readable. Certification additionally needs
 a native binding for the same launch ordinal. A capture witness alone is not
 conversation proof, and historical files are never retroactively certified.
 Implementation: launcher/session_handoff*.go, launcher/session_lease.go,
-couchcore/agent_usability.go, artifactpath/session_policy.go and
+couchcore/startup.go, couchcore/sessionevidence.go and
 artifactpath/capture_witness.go.
 
 [DOM submission](webcast-submission.md) (#483) sends the cast tab's open notes
