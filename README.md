@@ -590,8 +590,8 @@ low when the machine is saturated. Set `COUCH_SLOT_NICE` (0–20, `0` turns it o
 before starting Couch to change the level, and `COUCH_RENICE_INTERVAL` (a
 duration, at least `1s`) to change how often it looks. `couch --actors` shows
 each slot's agent niceness and how many of its processes run low. A slot whose
-agent itself runs below normal (started under the earlier whole-slot nice) gets
-one notice; only root can raise a priority again, so relaunch the slot to restore
+agent itself runs below Couch's own priority (started under the earlier
+whole-slot nice) gets one notice; only root can raise a priority again, so relaunch the slot to restore
 it.
 
 **Adopt existing state before cutover.** Stop and upgrade all old Couch binaries
