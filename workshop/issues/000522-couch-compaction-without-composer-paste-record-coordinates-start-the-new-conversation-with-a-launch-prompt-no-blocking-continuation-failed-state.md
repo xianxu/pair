@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-13
-estimate_hours:
-card_mirror: 'dd003d5c78c1a8d6cdcc28b3bba19ce9e4ee166a' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 4.83
+card_mirror: '800199d33cdbb05b5a399246a8cba7baa850c8d0' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-13T17:50:17-07:00
 claimant:
     operator: Xian Xu
@@ -15,6 +15,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: inferred}
 ---
 
 # couch: compaction without composer paste: record coordinates, start the new conversation with a launch prompt, no blocking 'continuation failed' state
@@ -41,6 +42,27 @@ Durable plan: [compaction launch prompt plan](../plans/000522-couch-compaction-w
 - [ ] M1 — Launch prompt (one-time, never persisted), coordinates recorded on compaction, completion at registration, one non-blocking line.
 - [ ] M2 — Retire the composer paste and the retry/dismiss surface; sweep references.
 - [ ] Live: a Claude and a Codex slot compact with no paste, after the operator's OK through the TL.
+
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: smaller-go-module        design=0.3 impl=0.6
+item: smaller-go-module        design=0.4 impl=0.8
+item: cross-cutting-refactor   design=0.3 impl=1.0
+item: tui-screen               design=0.1 impl=0.3
+item: atlas-docs               design=0.0 impl=0.3
+item: milestone-review         design=0.0 impl=0.4
+design-buffer: 0.30
+total: 4.83
+```
+
+- smaller-go-module 1: the one-time prompt end to end (PromptArgs, AgentCommand.Prompt, profile admission, no-replay tests).
+- smaller-go-module 2: the request state machine (completion at registration, MissContinuation, Failed decode, guards) and coordinates.
+- cross-cutting-refactor: M2 retires the paste machinery and retry/dismiss across wrapcmd, couchcore, couchtty, couchcmd and the tests.
+- tui-screen: the switcher row's line and the notice.
+- milestone-review ×2: M1 and M2 boundaries.
 
 ## Log
 

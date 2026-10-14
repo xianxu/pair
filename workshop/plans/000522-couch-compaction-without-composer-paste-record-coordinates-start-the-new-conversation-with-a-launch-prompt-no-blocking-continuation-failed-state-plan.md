@@ -122,3 +122,43 @@ Issue: `workshop/issues/000522-…md`.
   sweep the references.
 - [ ] Live, after the operator's OK through the TL: a Claude and a Codex slot compact and pick up their
   continuation with no paste; a later relaunch shows no replayed prompt.
+
+## Revisions
+
+### 2026-10-13: plan-quality round 1
+
+- **PQ-1, a target that may still be alive.** The duplicate-agent guard is the thread's incarnation invariant,
+  not the continuation phase. Two existing pieces already enforce it:
+  - **Starts:** every start goes through `CommitStartClaim`, which refuses while any incarnation remains
+    (`threadstore.go:606`).
+  - **Relaunch:** it parks the one exact incarnation before it resumes (`relaunch.go:117-121`: no incarnation →
+    "not running; Enter resumes it"; otherwise `soleParkableIncarnation`, then park).
+
+  So the Missed line has two kinds, and each takes the switcher's existing action for its row state:
+  - **No target:** the failure came before launch, or `rollbackTrackedStart`/`AbortStarted` removed the target's
+    incarnation. The line reads "…; continuation at <path>", and the row's action is **resume** (Enter), which
+    brings back the parked old conversation. Old conversation running (a pre-park failure): the row is live, and
+    the action is compact again.
+  - **Target may exist:** the target's incarnation is still recorded (an `AbortStarted` cleanup error, or the
+    unresolved start at `continuation.go:254`). The line adds "the new conversation may be running", and the action
+    is **relaunch**, which parks that exact target first. Any other start is refused by the incarnation guard, not
+    by the continuation phase.
+
+  Tests:
+  - an `AbortStarted` cleanup failure, then relaunch, never gives two incarnations or two agents;
+  - a post-park launch failure, then resume, gives back the old conversation (`VerifiedPark` survives
+    `rollbackTrackedStart`); this replaces what `RetryAbsent` did.
+- **Non-goals, stated:**
+  - Completion at registration doesn't prove the agent consumed the prompt. That is deliberate: the paste's
+    composer recognition is the fragile part this issue removes. A swallowed prompt (for example under Codex's
+    trust screen) shows as an idle new conversation whose previous-session coordinates and continuation are
+    recorded. The live check includes a trust-screen case.
+  - Resume with a prompt (offered in the Spec) is not built: compaction always starts a fresh conversation, so no
+    caller needs it (YAGNI).
+- **Pure transition changes (`checkpoint/request.go`):**
+  - `Advance` at `Registered` completes the request (Running → Complete); `Submitted` is removed.
+  - `Fail`, `RetryAbsent` and `RetryObserve` are removed; `Failed` is kept only as a decode-time phase.
+  - `CheckDismissible` goes.
+  - The store gains `ThreadStore.MissContinuation(address, requestID, attempt, miss)`, which clears
+    `Continuation` and writes `ContinuationMissed` in one revision-checked update. The decode migration maps a
+    stored `Failed` the same way.
