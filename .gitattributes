@@ -5,3 +5,4 @@ workshop/lessons.md merge=union
 # whitespace/EOL normalisation from silently corrupting a fixture whose SHA-256
 # is pinned in metadata.json.
 cmd/internal/wrapcmd/testdata/tty/**/*.raw binary
+cmd/internal/wrapcmd/testdata/peer/**/*.raw binary

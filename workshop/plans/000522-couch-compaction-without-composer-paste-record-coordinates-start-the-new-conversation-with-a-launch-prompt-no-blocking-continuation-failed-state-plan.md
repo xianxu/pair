@@ -255,3 +255,19 @@ machine just to serve them. So the boundary follows the layers instead:
   idle, and Settled is the truth. A gate that waits for a first turn would hold
   such a slot unsettled forever and block peer delivery to it. No test can pin
   an agent's start-up timing; the live check exercises it.
+
+### 2026-10-13: after M2's SHIP, the two remaining advisories
+
+- **Fixture home:** the Codex 0.154.0 peer captures live in
+  `testdata/peer/codex/0.154.0` (peer captures need no `metadata.json`), and
+  `.gitattributes` marks that tree binary.
+- **Symbols the retirement orphaned:** a mechanical pass
+  (`golang.org/x/tools/cmd/deadcode` over `./cmd/...`) was compared with
+  `origin/main`'s callers.
+  - **Deleted:** `terminalReplies.operatorData` (its one caller was the
+    orientation delivery), and `orientation.BuildPrompt`. `BuildPrompt` has
+    been test-only since #517 dropped the switch brief, and with it went
+    `validateBody`, `literal`, `MaxBodyBytes` and the never-set
+    `ReaderIntent`/`TargetAgent` fields.
+  - **Left alone:** the other unreachable functions it lists predate #522 and
+    are outside this issue.

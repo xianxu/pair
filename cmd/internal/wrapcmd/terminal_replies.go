@@ -91,32 +91,6 @@ func terminalEscape(data []byte) (int, ansi.Status) {
 	return ansi.Frame(data)
 }
 
-// operatorData is the conservative reading: any input that is not
-// a reply to a query this wrapper forwarded is operator input.
-func (t *terminalReplies) operatorData(data []byte) bool {
-	t.input = append(t.input, data...)
-	for len(t.input) > 0 {
-		if t.input[0] != 0x1b {
-			t.input = nil
-			return true
-		}
-		n, status := terminalEscape(t.input)
-		if status == ansi.Incomplete {
-			if len(t.input) > 4096 {
-				t.input = nil
-				return true
-			}
-			return false
-		}
-		if n == 0 || !t.solicited(string(t.input[:n])) {
-			t.input = nil
-			return true
-		}
-		t.input = t.input[n:]
-	}
-	return false
-}
-
 // operatorKeystrokes is peer delivery's reading (pair#428): whether the input
 // holds a real keystroke. Focus, mouse and terminal reports are not
 // keystrokes, solicited or not; a solicited reply still settles its query.

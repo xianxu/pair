@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
-	"github.com/xianxu/pair/cmd/internal/orientation"
 	"github.com/xianxu/pair/cmd/internal/readiness"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/testwait"
@@ -73,11 +72,6 @@ func TestSwitchContextMissingAndAmbiguousSourcesStayUnavailable(t *testing.T) {
 	}
 	if got.SourceSession != "" || len(got.NativeTranscripts) != 0 || len(got.Unavailable) == 0 {
 		t.Fatalf("guessed context: %+v", got)
-	}
-	got.TargetAgent = "claude"
-	body, err := orientation.BuildPrompt(got)
-	if err != nil || !strings.Contains(body, "unavailable") {
-		t.Fatalf("missing context prevented prompt: %v %s", err, body)
 	}
 }
 
