@@ -71,3 +71,26 @@ a complete suite. Preserve parent-death and intentionally inherited lease safety
   repo-name basenames. Leading hypothesis is incidental fork inheritance of the
   descriptor flock: Close retains lock while any fork copy exists, and the
   existing 100ms settle is not a lifetime proof. Intentional inheritance must stay.
+
+### 2026-10-13 — additional baseline and investigation
+
+pair:2 receipt da32d999-8b91-47c8-a7df-fe843719cb57 confirms #528 failed
+TestOpenRefusesWithTheHandoffWhenSetupCannotConverge and
+TestReconcileAgreesWithRealGit/branch=broken/elsewhere once each in
+/tmp/pair528-m1-corrected-packages.log (core 296.305s). Both passed an unchanged
+isolated rerun (20.384s) and a subsequent complete core rerun (363.825s).
+
+On this branch, the first repeated baseline batch passed 80/80 top-level
+executions (eight cases x10; the Reconcile case included all subcases) while
+make -k test ran. A second x10 batch with temporary busy-holder tracing and the
+single failing Reconcile subcase also passed 80/80. Logs are
+/tmp/pair545-before-load.log and /tmp/pair545-trace-load.log. The tracer is a
+Go build overlay in /tmp, not a production edit; a full traced core run is next.
+Do not interpret this as a zero real-world rate or confirmed causality.
+
+Fixture common directories derive from unique t.TempDir roots, not the shared
+repo-name label. The lock is close-only intentionally: producer fd3 must keep it
+through parent exit. Go releases syscall.ForkLock before waiting for child exec,
+so that mutex alone cannot settle incidental copies. Unconditional LOCK_UN
+would violate the existing child/parent-death tests. Investigating an ownership
+fix rather than increasing 100ms or serializing tests.
