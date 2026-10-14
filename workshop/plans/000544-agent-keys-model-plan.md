@@ -160,3 +160,11 @@ ARCH-DRY: one key/recipe driver and shared identity/translator/receipts, not Zel
 | `peerLiveIsolatedModelAuth` | Table tests with private temp login files prove every writable path remains disposable and native-path fallback is rejected; no credential bytes enter output/captures. |
 
 Approval already covers the feature and bounds at 44e2e723. These refinements make the existing contract precise without changing its scope. TL skill owner/path is now known: ops/skills-draft/xx-tl/SKILL.md, updated by the hub after landing. Pair’s embedded couch skill and atlas own this issue’s documentation; do not edit the ops skill.
+
+### 2026-10-14 — operator-directed Claude evidence and recipe revision
+
+TL supersedes the isolated-Claude authentication work: **no credential plumbing and no Keychain reuse**. Claude’s local credential file has no usable tokens. The hub provided real read-only captures from idle pair:4, cancelled with ESC; observed header is Claude Code2.1.299. Import sanitized screen fixtures and retain their provenance. Future Claude live conformance is performed through the hub on an idle real slot, with session-only scope, not through a new login/helper. Remove the proposed peerLiveIsolatedModelAuth entity/strategy for Claude; Codex continues using the existing disposable copied-auth harness.
+
+Claude has a **combined** model/effort picker: ❯ indicates selection, ✔ indicates current model; effort is adjusted with left/right on the same screen. Its footer explicitly names Enter=default and s=session, so session default is s for both recipes. The model’s effort default may change when navigating to another model; use fresh observed evidence. Internal recipe-only left/right effects are needed, while the approved raw key grammar stays unchanged. The supplied captures prove picker/navigation/scope controls and ESC recovery; they do not prove successful application. Obtain a hub-captured session apply/confirmation before enabling Claude confirmed-success recognition, and include hub-mediated live driver evidence before close.
+
+This is the required stop-and-revise after observing a different agent’s recipe; the TL supplied/authorized this path in message197b2a5f. No ops TL skill edits. The implementation remains one driver with per-agent phase tables.
