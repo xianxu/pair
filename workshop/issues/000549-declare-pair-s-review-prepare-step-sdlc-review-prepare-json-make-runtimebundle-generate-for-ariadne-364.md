@@ -1,12 +1,20 @@
 ---
 id: 000549
-status: open
+status: working
 deps: [ariadne#364]
 github_issue:
 created: 2026-10-14
 updated: 2026-10-14
 estimate_hours:
-card_mirror: 'e5e3244aea682fa658ddffcd83b771c4a85870fd' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'ed6aeb4017d6f2dd14a3266492243d49b29cf396' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-14T01:47:41-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:6
+    worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Declare pair's review prepare step (.sdlc/review-prepare.json: make runtimebundle-generate) for ariadne#364
@@ -25,8 +33,12 @@ After ariadne#364 lands, add `.sdlc/review-prepare.json` to pair: `{"version": 1
 
 ## Plan
 
-- [ ]
+- [ ] Declare the approved version-1 preparation command, verify clean-checkout generation and runtimebundle tests, then open a PR for the operator label.
 
 ## Log
 
 ### 2026-10-14
+
+### 2026-10-14 — authorized delivery scope
+
+The TL approved the exact version-1 declaration and a PR stopping at the protected-path label. Reuse the existing runtimebundle generator (ARCH-DRY); no new executable logic or schema. Verify a fresh source snapshot lacks embedded assets, then execute the declared argv and runtimebundle tests without tracked-source changes. The boundary review itself consumes the pinned declaration. The operator owns local-gates-verified; this slot will not label or merge the PR.
