@@ -46,3 +46,7 @@ cause, and `--relaunch` must not report "composer holds text" when the composer 
 ## Log
 
 ### 2026-10-14
+
+## Revisions
+
+- 2026-10-14 — add (TL, from the code): the gate is `automaticInputAwaitingEmpty` (wrapcmd/automatic_input.go). After an automatic submit it clears only when the render epoch passes the recorded fence AND `peerComposerState(agent, snapshot)` reads Empty. Check both causes: a render-epoch increment no longer emitted (pair#522 removed an observer that "held the only render-epoch increment peer delivery needs"), and a composer parse that never reads Empty around pickers or "Model changed" lines. Give AwaitingEmpty a bounded exit: release with a diagnostic once the box parses empty or the agent is idle for N seconds.
