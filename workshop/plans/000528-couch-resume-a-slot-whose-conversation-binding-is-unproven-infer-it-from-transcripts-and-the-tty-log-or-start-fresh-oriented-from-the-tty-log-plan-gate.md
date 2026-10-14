@@ -74,7 +74,11 @@ rounds:
           note: The authoritative test table names functions and adversarial strategies, superseding historical case inventories.
           round: 3
       blocked: false
-content_hash: 738a11c1bba8c8b6831312c432246a7b5357dd914811042cd07fcb909de6d7ad
+    - "n": 4
+      timestamp: "2026-10-13T20:45:53-07:00"
+      agent: codex
+      blocked: false
+content_hash: 10238408ee0509ba664b4e2ef2e8509267c3bb3aa02f379ae4804cc2c31c2403
 ---
 
 # Gate ledger — pair#528 (plan-quality)
@@ -112,6 +116,8 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - PQ-2 — addressed — A new versioned SessionLaunchPolicy has explicit publication, validation and cleanup owners.
 - PQ-3 — addressed — RecoveryContext receives intent before claim clearing and expires with the original capture.
 - PQ-4 — addressed — The authoritative test table names functions and adversarial strategies, superseding historical case inventories.
+
+## Round 4 — 2026-10-13T20:45:53-07:00 (codex) — passed
 
 ## Open findings
 
