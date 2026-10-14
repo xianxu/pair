@@ -515,3 +515,16 @@ exited **0**, **363.825s** (/tmp/pair528-core-final-confirmation.log), without
 changes or raised deadlines. Together with the corrected full command and
 launcher package runs, every failed package from make -k test has now passed
 in full. Earlier transient workspace-lock failures remain recorded above.
+
+- 2026-10-13 23:13 PDT — Boundary round 10 at
+  e690b4d30098c471422f0e0254563c9af78717f6 again returns REWORK with
+  **zero new/open code findings**. It explicitly finds the revised M1 contract
+  implemented, but refuses verification because its fence denies /bin/ps and
+  its disposable checkout lacks generated runtimebundle/assets/runtime/files
+  needed to build console/public-binary tests. The host counter-measurement
+  was read but the reviewer says it cannot replace its own blocked inspection.
+  No design or production correction requested. Per TL's verified instruction
+  1d3d9b89-19fc-4a04-97c6-94c3bd22e43e, report this environment-only blocker
+  and stop rather than loop or waive gates. All failed packages from the host
+  full make run now pass in full; M1 is still not finalized or accepted.
+  No staging, no M2 implementation, and no review configuration changes.

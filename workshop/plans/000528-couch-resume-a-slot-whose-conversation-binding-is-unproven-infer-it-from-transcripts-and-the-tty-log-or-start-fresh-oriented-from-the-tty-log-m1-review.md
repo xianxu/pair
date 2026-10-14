@@ -581,3 +581,99 @@ dispose:
 7. **Plan revision recommendations**
 
    No design revision required. Record the blocked validation and its eventual rerun result; operator acceptance remains outstanding.
+
+---
+
+## Re-review — 2026-10-13T23:12:54-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 528 — couch: resume a slot whose conversation binding is unproven: infer it from transcripts and the tty log, or start fresh oriented from the tty log |
+| repo | pair |
+| issue file | workshop/issues/000528-couch-resume-a-slot-whose-conversation-binding-is-unproven-infer-it-from-transcripts-and-the-tty-log-or-start-fresh-oriented-from-the-tty-log.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | f59a1b6e21d449d9b6d5c5713b8d14083d3bf5a8..e690b4d30098c471422f0e0254563c9af78717f6 |
+| command | sdlc milestone-close --issue 528 --milestone M1 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-13T23:12:54-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The inspected implementation follows the revised M1 contract: startup observes, positive listing authorizes Continue, and attachment preserves independent lifecycle records. No new code defect was established. **REWORK is required because this review environment cannot complete required verification:** `/bin/ps` is denied, and missing generated runtime assets prevent console/public-binary tests from building. Rerun on the pinned head in a prepared, process-capable review environment.
+
+1. **Strengths**
+   - `couchcore/warm_attach.go` separates client attachment from durable lifecycle adoption; the record-shape and cleanup regressions passed.
+   - Startup tests passed for pending journals, malformed records, and legacy sessions without launching recovery.
+   - Listing tests verify failure, cancellation, exact-name matching, bounded retry, and no client replay.
+   - README and atlas describe the revised behavior, accepted legacy resurrection race, and deferred M2/M3 work.
+
+2. **Critical findings**
+   - None newly established.
+
+3. **Important findings**
+   - No new code finding. Verification blockers:
+     - `TestColdLaunchUnknownReadinessRefusesUnderLease` and `TestColdLaunchAcceptsProvenDeadRetainedAgent` fail because `/bin/ps` returns `operation not permitted`.
+     - `TestSelectedRootNativeCreateListAndListedResume` and the selected couchtty suite cannot build: `cmd/internal/runtimebundle/embed.go:8` reports `assets/runtime/files: no matching files found`.
+   - These failures do not establish production defects. Host-run results recorded in the tracker cannot substitute for this review’s failed inspection.
+
+4. **Minor findings**
+   - None newly raised.
+
+5. **Test coverage notes**
+   - Passed targeted couchcore regressions: **8.729s**.
+   - Passed launcher listing/handoff tests, terminal-lease bounds, bounded metadata reads, and capture-witness adverse-input tests.
+   - No complete-suite or console pass is claimed. No mutation testing was performed; existing disposed findings are not reopened merely because this environment blocks verification.
+   - Repository remained unchanged.
+
+6. **Architectural notes**
+   - **ARCH-DRY — pass:** shared listing projection and existing lifecycle transitions are reused.
+   - **ARCH-PURE — pass:** classification remains pure; attachment effects use injected boundaries.
+   - **ARCH-PURPOSE — pass for inspected M1 scope:** the executor shape sweep covers the approved Continue contract; later recovery work remains explicitly deferred.
+   - **ARCH-MOCK — flag, verification limitation:** controlled fake tests pass, but process-dependent and public-binary checks could not complete.
+   - **ARCH-CONSTRAINTS — pass:** bounded listing retry and cancellation are exercised.
+   - **ARCH-SECURE — pass within inspected scope:** failed observations grant no attachment authority; restored registry entries grant no helper ownership.
+   - **ARCH-ORDER — pass:** tests preserve foreign lifecycle records and exercise listing loss and helper exit around acknowledgement.
+   - **ARCH-FUNERAL — pass:** lock artifacts retain their 256-stripe bound; local helper ownership is pruned with registry removal.
+
+7. **Plan revision recommendations**
+   - No design revision requested. Record this review’s exact verification blockers and rerun requirements; do not mark M1 accepted from these partial results.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Retained disposition: failed listing does not authorize Continue; current uncertainty and listing-budget regressions passed.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Retained disposition under the superseding listed-live attach contract; process-dependent cold-path verification remains blocked by denied /bin/ps.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Policy/config admission readers were removed; retained readiness uses bounded regular-file reads. Shared reader regressions passed.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      TerminalLease retains 256 permanent stripes; canonical-path and fixed-bound tests passed.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Capture-witness reads use osfs.ReadRegularMetadata; FIFO, oversize and cancellation regressions passed. The superseded admission-config reader is removed.
+  - id: BR-9
+    disposition: addressed
+    note: |
+      Public Continue enters helper-only attachment before lifecycle adoption. Targeted shape, cleanup, listing and registration regressions passed; console/public-binary verification remains environment-blocked.
+  - id: BR-10
+    disposition: addressed
+    note: |
+      README opening-Couch, attachment, recovery and retention passages match startup.go, warm_attach.go, listing admission and removal of Couch-started maintenance; atlas/couch.md documents the same boundaries.
+```

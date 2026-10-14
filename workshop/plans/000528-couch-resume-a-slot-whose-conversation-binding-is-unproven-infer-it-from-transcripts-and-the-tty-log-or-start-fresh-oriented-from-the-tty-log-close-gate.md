@@ -281,6 +281,43 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: false
+    - "n": 10
+      timestamp: "2026-10-13T23:12:54-07:00"
+      dispatched: "2026-10-13T23:10:32-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: 'Retained disposition: failed listing does not authorize Continue; current uncertainty and listing-budget regressions passed.'
+          round: 10
+        - id: BR-2
+          disposition: addressed
+          note: Retained disposition under the superseding listed-live attach contract; process-dependent cold-path verification remains blocked by denied /bin/ps.
+          round: 10
+        - id: BR-3
+          disposition: addressed
+          note: Policy/config admission readers were removed; retained readiness uses bounded regular-file reads. Shared reader regressions passed.
+          round: 10
+        - id: BR-4
+          disposition: addressed
+          note: TerminalLease retains 256 permanent stripes; canonical-path and fixed-bound tests passed.
+          round: 10
+        - id: BR-5
+          disposition: addressed
+          note: Capture-witness reads use osfs.ReadRegularMetadata; FIFO, oversize and cancellation regressions passed. The superseded admission-config reader is removed.
+          round: 10
+        - id: BR-9
+          disposition: addressed
+          note: Public Continue enters helper-only attachment before lifecycle adoption. Targeted shape, cleanup, listing and registration regressions passed; console/public-binary verification remains environment-blocked.
+          round: 10
+        - id: BR-10
+          disposition: addressed
+          note: README opening-Couch, attachment, recovery and retention passages match startup.go, warm_attach.go, listing admission and removal of Couch-started maintenance; atlas/couch.md documents the same boundaries.
+          round: 10
+      boundary: M1
+      recipe: milestone-review
+      isolation: fenced
+      blocked: false
 ---
 
 # Gate ledger — pair#528 (boundary-review)
@@ -394,6 +431,18 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-4 — addressed — TerminalLease retains the fixed 256-stripe namespace; its bound regression passes.
 - BR-5 — addressed — Prior disposition retained; bounded regular-metadata regressions pass.
 - BR-10 — addressed — README documents observation-only startup, listed-live Continue, untouched lifecycle records, recovery choices, and accepted compatibility limits; these agree with the inspected implementation.
+
+## Round 10 — 2026-10-13T23:12:54-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Retained disposition: failed listing does not authorize Continue; current uncertainty and listing-budget regressions passed.
+- BR-2 — addressed — Retained disposition under the superseding listed-live attach contract; process-dependent cold-path verification remains blocked by denied /bin/ps.
+- BR-3 — addressed — Policy/config admission readers were removed; retained readiness uses bounded regular-file reads. Shared reader regressions passed.
+- BR-4 — addressed — TerminalLease retains 256 permanent stripes; canonical-path and fixed-bound tests passed.
+- BR-5 — addressed — Capture-witness reads use osfs.ReadRegularMetadata; FIFO, oversize and cancellation regressions passed. The superseded admission-config reader is removed.
+- BR-9 — addressed — Public Continue enters helper-only attachment before lifecycle adoption. Targeted shape, cleanup, listing and registration regressions passed; console/public-binary verification remains environment-blocked.
+- BR-10 — addressed — README opening-Couch, attachment, recovery and retention passages match startup.go, warm_attach.go, listing admission and removal of Couch-started maintenance; atlas/couch.md documents the same boundaries.
 
 ## Open findings
 
