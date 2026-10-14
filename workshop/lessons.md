@@ -1646,3 +1646,5 @@ proof; record the surprising case so the next change starts from evidence.
 - #538 close: distinguish trusted connected-original DOM identity from scored replacement evidence on every surface. Test common-text originals and large pages through each adapter; never use a mutable path to grant original identity. Reconcile plan inventories with actual symbols, capabilities and changed-file status before close.
 
 - #514: A collector's cooperative budget is not a hard subprocess deadline. Keep shared-host tests on output and controlled-clock scheduling invariants; retain elapsed-time ceilings in the explicit performance lane and prove both gate modes with the same overrun fixture.
+
+- #529: Selection tests must enter through the production constructor before supplying optional test overrides. Injecting a choice inventory in every test can hide a nil production inventory even when navigation and preview reducers are individually correct.
