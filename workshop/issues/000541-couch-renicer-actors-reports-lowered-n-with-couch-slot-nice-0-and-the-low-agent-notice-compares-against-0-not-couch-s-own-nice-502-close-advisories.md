@@ -47,5 +47,6 @@ Two advisories from #502's close review (PR #313), filed at the TL's request:
 ## Log
 
 ### 2026-10-13
+- 2026-10-13: closed — New tests fail on the old code and pass now: PlanRenice level 0 reports AtLevel 0 (renice_test); renicer at level 0 reports Lowered+AtLevel 0; TestRenicerNoticeComparesAgainstCouchsOwnNice (Couch and agent at 5: no notice; agent at 10: one). Full make -k test green except TestFleetInventoryLiveConformance, which reads the live fleet while pair:0 is staged by pair:7 for #537 (reason 'staged', the #539 gap; unrelated, passed alone earlier today when nothing was staged).; review verdict: SHIP
 - Fixed both. Each new assertion fails on the old code (level 0 counted AtLevel; the notice compared with 0).
   README and atlas wording follow.
