@@ -43,8 +43,8 @@ Default verification must still catch real scheduling-policy regressions: a stat
 
 ## Plan
 
-- [ ] Add RED controlled-clock/process tests in `doctor/perf_budget_test.py`, including default versus opt-in gate behavior and production work-shedding invariants.
-- [ ] Modify `doctor/perf_test.sh` to log timings, validate numeric fields and enforce only in opt-in mode; add `--budget-only` for the single-capture lane. Wire deterministic tests into `test-perf-capture` and the isolated capture into `test-perf-budgets` in `Makefile.local`.
+- [x] Add RED controlled-clock/process tests in `doctor/perf_budget_test.py`, including default versus opt-in gate behavior and production work-shedding invariants.
+- [x] Modify `doctor/perf_test.sh` to log timings, validate numeric fields and enforce only in opt-in mode; add `--budget-only` for the single-capture lane. Wire deterministic tests into `test-perf-capture` and the isolated capture into `test-perf-budgets` in `Makefile.local`.
 - [ ] Run controlled tests and real capture shape tests; mutation-check budget and shedding assertions, run full `make -k test`, and document the testing contract in `atlas/couch.md`. Close, publish, wait for CI, land on SHIP and report.
 
 ## Log
@@ -54,3 +54,5 @@ Default verification must still catch real scheduling-policy regressions: a stat
 
 ### 2026-10-13 — investigation and design
 - Claimed from the hub after #538 landed. Reproduced unchanged main: `sh doctor/perf_test.sh` reports `capture took 13s over a 6s budget` in `/tmp/pair514-baseline.log`. The measured interval includes external top/iostat/ps/probe processes and intentional sample sleep. Existing #436/#481 convention already isolates elapsed-time budgets; this shell check missed it. Production budget is cooperative work shedding, not a hard subprocess deadline, so CPU-time replacement would assert a different property. Quick-flow scope: test scripts, Make target wiring and atlas only; no product behavior change.
+
+- Controlled regression suite: 8 tests pass (17.860 s), exercising default/opt-in overrun policy, equal/under-budget cases, malformed timing, collector counts, reserve-boundary shedding and probe priority/exhaustion. Initial gate test was RED against unchanged `perf_test.sh`; it rejected the controlled 7/6-second report. Live opt-in check correctly remains red under present load: 9/6 seconds (`/tmp/pair514-isolated-live.log`), so no quiet-host performance pass is claimed. Full `make -k test` is queued through the refreshed ordered machine gate; targeted capture/environment tests are running.

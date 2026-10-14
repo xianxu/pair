@@ -116,7 +116,8 @@ test-make-env-production-names:
 # Wall-clock budgets (ARCH-CONSTRAINTS) flake on a loaded host, so the default
 # lane runs their scenarios without asserting the clock (pair#436, pair#481;
 # cmd/internal/perfbudget). Run on a quiet host. Each budget runs on its own.
-test-perf-budgets:
+test-perf-budgets: $(BIN_DIR)/pair
+	PAIR_PERF_BUDGETS=1 sh doctor/perf_test.sh --budget-only
 	PAIR_PERF_BUDGETS=1 go test ./cmd/internal/couchcore -run '^TestAcceptance(ObserveBudget|ReportBudgetTenSlots)$$' -count=1 -v
 	PAIR_PERF_BUDGETS=1 go test ./cmd/internal/wrapcmd -run '^TestTailOverEndpointSocketIsFast$$' -count=1 -v
 
@@ -140,6 +141,7 @@ test-native-terminal-ci: runtimebundle-generate
 # doing, so this pins the report's shape -- which is what consumers parse and
 # what the collector bugs corrupted.
 test-perf-capture: $(BIN_DIR)/pair
+	python3 doctor/perf_budget_test.py
 	sh doctor/perf_test.sh
 
 .PHONY: test-couch-start-recovery test-term-ctrlc test-term-rows test-couch-nested-rows test-zellij-repaint
