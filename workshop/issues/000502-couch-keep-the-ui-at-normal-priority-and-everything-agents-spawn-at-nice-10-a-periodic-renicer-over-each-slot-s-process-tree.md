@@ -15,7 +15,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "6e2165db", done: "e89856dc"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # couch: keep the UI at normal priority and everything agents spawn at nice 10 (a periodic renicer over each slot's process tree)
@@ -69,6 +69,8 @@ Durable plan: `workshop/plans/000502-…-plan.md` (same slug). Single pass (no m
 - **Sandbox:** the agent sandbox refuses `setpriority` (EPERM). The real-seam tests skip there and pass unsandboxed.
 
 ### 2026-10-13
+- 2026-10-13: closed — Unit + stateful-fake + live-seam tests (PlanRenice table incl. decoy/confirmation/never-set; renicer pass: exit, pid reuse, EPERM once, notice once, gone slot pruned; osProcs live renice on own sh>sleep tree; procutil reads nice). Full make -k test on the merged branch (27dca8f4b + live-log commit): all green except TestFleetInventoryLiveConformance, which read the live fleet while a slot was staged (reason 'staged' from ariadne#344, outside pair's fleet reason grammar; unrelated to #502) and passes rerun alone (ok 18s). Scan cost 0.42-0.45 ms/pass over 1425 procs = ~0.009% of a core at 5 s. LIVE (TL, operator restart 16:50 onto 27dca8f4, relaunched ariadne:4): agent-started sleep 90 and its zsh at nice 10; claude, pair wrap, zellij --server at 0; couch --actors 'ariadne:4 claude active nice=0 lowered=3'.; review verdict: SHIP
+- 2026-10-13: flow upgraded quick → full — 389 added lines in code files (limit 100)
 - Merged main (#531/#533/#535): kept #535's switch guard beside the renicer settings; #531's
   `launchoutput_setup_test.go` dropped the removed nice argument. Affected packages green unsandboxed.
 - **Live check PASSED** (staged on pair:0 at 27dca8f4b with `sdlc stage --build`; the operator restarted Couch at
