@@ -1728,3 +1728,5 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
 - #547 BR-2: Pipe EOF and unavailable process argv can precede terminal kernel metadata. A process-state fixture must await the state its assertion requires, with a bounded deadline and a deterministic live-then-terminal regression.
 
 - #551: os.NewFile does not establish atomic close-on-exec for a raw descriptor. Set O_CLOEXEC at the raw open, and sweep transient binding reads and directory paging alongside locks. A final FD_CLOEXEC check alone cannot catch a post-open fork/exec race; defend atomic placement over the whole raw-open family.
+
+- #544 smoke: A native PTY conformance pass does not establish behavior under Pair's virtual terminal. Match the production terminal profile, TERM_PROGRAM and keyboard query replies, and observe the actual child input across the Run/socket/writer path. Terminal negotiation can change key interpretation even when the driver emits the same bytes.
