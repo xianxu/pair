@@ -36,11 +36,11 @@ Capture artifacts remain in the local Couch store before submit. Do not return c
 
 ## Done when
 
-- [ ] Viewer and operator-overlay boxes disappear on hidden/removed anchors and return only on a confident visible match, with ambiguous/reordered/reused-node cases covered.
-- [ ] Draw-time capture and text are attached through a two-phase draft ID; capture feedback is visible and stale/cancelled results cannot attach to another note.
-- [ ] All open notes, including hidden and earlier-view notes, submit their original captures without screenshot/settling work at submit.
-- [ ] Cancel, unsaved expiry, viewer/cast loss, resolve-before-submit and bundle transfer have tested cleanup and crash/retry behavior; disappearing elements retain evidence.
-- [ ] Capture files stay local/private before submission, private-by-default submission rules remain intact, and legacy notes have explicit honest fallback behavior.
+- [x] Viewer and operator-overlay boxes disappear on hidden/removed anchors and return only on a confident visible match, with ambiguous/reordered/reused-node cases covered.
+- [x] Draw-time capture and text are attached through a two-phase draft ID; capture feedback is visible and stale/cancelled results cannot attach to another note.
+- [x] All open notes, including hidden and earlier-view notes, submit their original captures without screenshot/settling work at submit.
+- [x] Cancel, unsaved expiry, viewer/cast loss, resolve-before-submit and bundle transfer have tested cleanup and crash/retry behavior; disappearing elements retain evidence.
+- [x] Capture files stay local/private before submission, private-by-default submission rules remain intact, and legacy notes have explicit honest fallback behavior.
 - [ ] Pure scoring/lifecycle tests, controlled server/recorder tests, viewer/overlay browser conformance, affected checks and full-suite evidence are recorded; docs describe the resulting behavior.
 
 ## Plan
@@ -48,8 +48,8 @@ Capture artifacts remain in the local Couch store before submit. Do not return c
 Durable design: [anchored notes and draw-time captures](../plans/000538-anchored-notes-draw-capture-plan.md). Approved by hub; change-code passed at a478a7b9d.
 
 - [x] Map existing anchors, note recording, capture ownership, privacy and submission seams; write durable plan and obtain approval.
-- [ ] Implement evidence-scored visibility and draw-time capture lifecycle through viewer and operator paths.
-- [ ] Bundle stored captures for every open note and verify cleanup, failures, privacy and latency.
+- [x] Implement evidence-scored visibility and draw-time capture lifecycle through viewer and operator paths.
+- [x] Bundle stored captures for every open note and verify cleanup, failures, privacy and latency.
 - [ ] Review, build, publish and land on SHIP.
 
 ## Log
@@ -105,3 +105,5 @@ total: 5.48
 - Final pre-merge Chrome conformance passed all four named tests in 39.094 s (`/tmp/pair538-chrome-final.log`): stored draw protocol, settled submission crop oracle, isolated operator annotation, and two viewers. Board/Recorder full race packages passed (1.268/13.339 s, `/tmp/pair538-board-recorder-full-race.log`). Lifecycle audit found missing viewer-disconnect wiring despite TTL coverage; authenticated owner scopes now count streams and expire unsaved drafts only on the final disconnect, retaining saved/uncertain evidence and invalidating old capacity tokens. Full webcast/notedraft race packages passed (13.312/11.672 s; tool session 94059 exit 0); regression coverage includes multiple tabs, another owner, unknown writes and reconnect. Full suite remains queued; final #537 owner identity integration is still outstanding.
 
 - Merged main at 6788a2dffb4d3383d32fae0b4dbb77f0b5bfe7bb, including #537 landing 51ab81e9815ea65e819577cc92d504d2d524f1f5 (PR #314). Prepared notes now stamp authenticated public ownership independently of private draft scope, with post-body and pre-write revocation checks. Shared edit/capture transitions retain held-editor protection, latest-note lookup and original capture evidence. Historical open-note edits use current-page admission and unchanged owner checks. Reconnect catch-up now preserves all retained notes and original segments; shared Go/JS prefix equivalence covers revisions and resolver metadata. Node browser+terminal suites 334/334; Board/recording race packages pass (1.417/20.043 s); real Chrome viewer ownership/edit, operator edit/capture and two-viewer tests pass (34.702 s, `/tmp/pair538-merge-edit-live.log`). Post-merge stored/opaque crop tests also pass (12.502 s, `/tmp/pair538-merged-crops.log`). Broad affected Go packages remain running; the machine-gated full suite has not started yet, so its eventual snapshot includes this integration.
+
+- Integration committed at 5e129ac4b; clean-tree `make build` passed. All webcast subpackages and core submission passed the broad merged run; broadcast passed in 125.152 s, with couchtty still running at this checkpoint. Artifact inventory passes. Full suite remains queued under the machine gate.

@@ -93,36 +93,36 @@ Old web notes lacking a capture are included with explicit “not captured when 
 
 Files: new `notes/anchor.go`, `notes/anchor_test.go`, `web/annotation-anchor.js`, `tests/webcast/annotation-anchor.test.mjs`, shared fixture `notes/testdata/anchor-candidates.json`; modify `notes/structural.go`, `notes/structural_test.go`, `recording/record.go`, `web/render.js`, `operator.js`, `web/annotate.js`, `web/annotate.css`, `operator_script.go`, `server.go` and their existing tests.
 
-- [ ] Write failing shared fixtures for stable rerender, reordered siblings, duplicated text, conflicting reused ID/node, changed route, weak evidence, ties and candidate exhaustion. Run Go notes tests and Node anchor tests; verify the old permissive resolver fails negative cases.
-- [ ] Implement pure matching and optional bounded record fields, then adapters/relative projection. Add both-surface list coverage and live missing-anchor regression. Pass targeted tests, inspect diff and commit.
+- [x] Write failing shared fixtures for stable rerender, reordered siblings, duplicated text, conflicting reused ID/node, changed route, weak evidence, ties and candidate exhaustion. Run Go notes tests and Node anchor tests; verify the old permissive resolver fails negative cases.
+- [x] Implement pure matching and optional bounded record fields, then adapters/relative projection. Add both-surface list coverage and live missing-anchor regression. Pass targeted tests, inspect diff and commit.
 
 ### 2. Private capture draft lifecycle
 
 Files: new `cmd/internal/webcast/notedraft/{model,service,store}.go` and colocated `_test.go`; modify `cast_submission.go`, recorder options, `recorder/operator.go`, `recorder/submission.go`, `board/operator.go`, `board/wire.go`, `server_board.go`, and server/cast construction sites.
 
-- [ ] Write lifecycle tests using stateful capture/writer fakes: pending/ready/cancel, TTL/disconnect/end, duplicate prepare/save, unknown writer result, late completion after generation revoke, limits and caller isolation. Verify failures before implementation.
-- [ ] Implement one owner, private atomic storage, reservation/attachment intents and recovery. Add tests at every save write boundary; never re-enter recorder capture synchronously. Run targeted Go tests, including race checks for cancel/save and resolve/transfer; commit.
+- [x] Write lifecycle tests using stateful capture/writer fakes: pending/ready/cancel, TTL/disconnect/end, duplicate prepare/save, unknown writer result, late completion after generation revoke, limits and caller isolation. Verify failures before implementation.
+- [x] Implement one owner, private atomic storage, reservation/attachment intents and recovery. Add tests at every save write boundary; never re-enter recorder capture synchronously. Run targeted Go tests, including race checks for cancel/save and resolve/transfer; commit.
 
 ### 3. Viewer and operator two-phase UI
 
 Files: `web/annotate.js`, `operator.js`, `cmd/internal/broadcast/web/collab.js`, `server_board.go`, `board/wire.go`; tests `tests/webcast/annotate.test.mjs`, `operator.test.mjs`, `operator-scope.test.mjs`, `recorder/operator_test.go`, `server_board_test.go`.
 
-- [ ] Add failing tests for immediate pending status, confirmed tick, disabled Save until ready, editable text on any failure, retry, cancel-before-reply and dialog closure. Preserve terminal tests for shared dialog changes.
-- [ ] Wire both adapters to the service. Increment gesture generation at each new draw; actively cancel abandoned request IDs instead of merely dropping replies. Add an optional discard callback carrying the former draft payload, distinct from success close and #537 edit mode. Run tests and commit.
+- [x] Add failing tests for immediate pending status, confirmed tick, disabled Save until ready, editable text on any failure, retry, cancel-before-reply and dialog closure. Preserve terminal tests for shared dialog changes.
+- [x] Wire both adapters to the service. Increment gesture generation at each new draw; actively cancel abandoned request IDs instead of merely dropping replies. Add an optional discard callback carrying the former draft payload, distinct from success close and #537 edit mode. Run tests and commit.
 
 ### 4. All-note bundle transfer and acknowledgment
 
 Files: `board/submission.go`, `board/operator_view.go`, `recording/reduce.go`, `webcast/submission/build.go`, `cast_submission.go`, `cmd/internal/submission/model.go`, `store.go`, `privacy.go`, and colocated tests.
 
-- [ ] Write failing tests for hidden/earlier-document selection, original pixels after mutation/navigation, zero capture calls at submit, mixed origins/current policy, old formats, legacy missing capture, over-budget whole-selection failure, duplicate acknowledgments and edited/reopened revision protection.
-- [ ] Implement v3 provenance, claim/copy/publish/rebind/unlink and document-independent conditional resolution using acknowledged board ordering. Fault every durable transfer step and test retry from a prior bundle. Pass targeted/race tests and commit.
+- [x] Write failing tests for hidden/earlier-document selection, original pixels after mutation/navigation, zero capture calls at submit, mixed origins/current policy, old formats, legacy missing capture, over-budget whole-selection failure, duplicate acknowledgments and edited/reopened revision protection.
+- [x] Implement v3 provenance, claim/copy/publish/rebind/unlink and document-independent conditional resolution using acknowledged board ordering. Fault every durable transfer step and test retry from a prior bundle. Pass targeted/race tests and commit.
 
 ### 5. Browser conformance, performance and documentation
 
 Files: `live_submission_test.go`, `operator_live_test.go`, `viewer_annotate_live_test.go`; `atlas/webcast-submission.md`, `atlas/webcast-format.md`, `atlas/index.md`, `README.md`; current Couch submission reading guidance at its owning source. Update feature inventory if new source files require classification.
 
-- [ ] Extend a local real-Chrome fixture with fade-in cards, app tabs, collapsed panel, SPA routes, replacement nodes and duplicate candidates. Exercise viewer and operator. Confirm overlays absent from PNGs and stored pixels/text unchanged after page mutation; cancel/resolve removes only appropriate local source files.
-- [ ] Measure draw prepare/capture/settle/store and submit bundle/paste independently on static and animated fixtures. Log numbers; assert zero submit capture/settle calls instead of a brittle shared-machine wall-time threshold.
+- [x] Extend a local real-Chrome fixture with fade-in cards, app tabs, collapsed panel, SPA routes, replacement nodes and duplicate candidates. Exercise viewer and operator. Confirm overlays absent from PNGs and stored pixels/text unchanged after page mutation; cancel/resolve removes only appropriate local source files.
+- [x] Measure draw prepare/capture/settle/store and submit bundle/paste independently on static and animated fixtures. Log numbers; assert zero submit capture/settle calls instead of a brittle shared-machine wall-time threshold.
 - [ ] Run targeted commands below, then full `make -k test` in background and inspect every target. Record inherited failures only with main evidence and owner; never let an early timing check hide Go tests. Run `make build` and documentation/format checks.
 - [ ] Merge main and reconcile #537 edits without replacing capture evidence; rerun affected tests. Close through SDLC with real evidence and automatic fresh review, fix findings, publish PR, wait for CI, land on SHIP, report exact hashes/PR to hub. Stage operator smoke only if requested; do not occupy pair:0 during planning.
 
@@ -195,3 +195,5 @@ The function-level strategy table above **supersedes the prose test-case invento
 ### 2026-10-13 — #537 integration and reconnect projection
 
 Merged #537 ownership/editing after landing at 51ab81e9815ea65e819577cc92d504d2d524f1f5. Capture preparations carry trusted public note-owner identity separately from their private draft scope; the authenticated proof is rechecked after request-body reads and at write dispatch. Existing captures survive text edits. Since the all-open list includes earlier documents, its own-note editor admits historical open-note edits under the current document/generation fence, with the existing author check and revision ordering. Reconnect catch-up retains all note state and original segment identity while limiting DOM snapshots/strokes to the current view; otherwise late joiners would lose the promised list. Regression checks cover historical edits, stale admission refusal, capture preservation, and catch-up equivalence at every event prefix.
+
+Measurement scope clarification: #538 measured drawing through capture and Save, then stored-evidence build, durable bundle publication and source cleanup. It did not dispatch an artificial submission to a live agent to time pane paste; the unchanged #533 dispatch phase is outside this capture change. The fast-submit regression asserts zero capture/settling calls, rather than a shared-machine latency threshold.
