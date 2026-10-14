@@ -687,3 +687,28 @@ requiring all other metadata and the exact terminal unchanged. Whole actual
 helper-death acceptance passes 9.825s. No production behavior changed. The
 recorded suite's remaining packages are still running; a corrected-head full
 check follows its result.
+
+### 2026-10-14 — final recorded suite passed; staging awaits pair:0 release
+
+The ef04492b recorded run finished exit 2 in 11m22s, with only the two
+integration omissions above. Core 405.571s, tty 48.294s, message 7.273s,
+launcher 36.667s and wrapper 38.127s passed; the independent shutdown flake
+did not recur.
+
+Corrected final runtime/test head 35ec94d0169cc2438dcefb70c378a31545bce0ed:
+sdlc local-check run --name suite PASSED exit 0 in 8m30s, recorded as
+sdlc-local/suite, log sha256 prefix ed69b6e867e0. Complete shell/editor checks
+and go test ./... passed. Core 252.238s, cmd 44.431s, tty 35.789s, message
+6.962s, launcher 26.913s, wrapper 40.935s, installed Couch 8.004s and artifact
+classification 3.909s. Log:
+/Users/xianxu/workspace/pair/.git/sdlc/local-checks/35ec94d0169cc2438dcefb70c378a31545bce0ed/suite.log.
+
+Before any staging write, fleet inspection found pair:0 now holding another
+stage: ec7a395a609a57d75ba58785f5b762b2671b1bcf (#553: omit processes that
+vanish during native inspection), clean but staged/unlanded. The previous
+free-slot authorization no longer describes its current hold. Did not replace
+that stage or build there. Hub send and actors inspection refuse because this
+pair:2 incarnation is not registered with Couch; no message receipt was issued.
+Waiting for the hub's release/reassignment of pair:0 and restored messaging.
+Real pair:1 remains untouched. Operator acceptance and the next M2/close review
+cover the merge and runtime delta; neither is claimed complete here.
