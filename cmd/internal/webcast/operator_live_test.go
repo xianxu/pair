@@ -16,6 +16,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/submission"
 	"github.com/xianxu/pair/cmd/internal/webcast/board"
 	"github.com/xianxu/pair/cmd/internal/webcast/drive"
+	"github.com/xianxu/pair/cmd/internal/webcast/notedraft"
 	"github.com/xianxu/pair/cmd/internal/webcast/notes"
 	"github.com/xianxu/pair/cmd/internal/webcast/query"
 	"github.com/xianxu/pair/cmd/internal/webcast/recorder"
@@ -49,7 +50,7 @@ func TestOperatorLiveAnnotation(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer drafts.Close()
-	c, err = Launch(context.Background(), LaunchOptions{Binary: bin, Headless: true, ProfileDir: t.TempDir(), StartURL: "data:text/html,<title>Operator test</title><body><h1 id=target>Hello</h1><input id=field></body>", Record: &RecordOptions{ID: "operator", Operator: bd, NoteDrafts: drafts, ShotEvery: -1, Out: func() (recorder.Opened, error) { return recorder.Opened{Sink: recording.Tee(disk, hub, mem, bd)}, nil }}})
+	c, err = Launch(context.Background(), LaunchOptions{Binary: bin, Headless: true, ProfileDir: t.TempDir(), StartURL: "data:text/html,<title>Operator test</title><body><h1>Save</h1><input id=field><button>Save</button></body>", Record: &RecordOptions{ID: "operator", Operator: bd, NoteDrafts: drafts, ShotEvery: -1, Out: func() (recorder.Opened, error) { return recorder.Opened{Sink: recording.Tee(disk, hub, mem, bd)}, nil }}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,11 +108,14 @@ func TestOperatorLiveAnnotation(t *testing.T) {
 	if err = c.call(session, "DOM.getDocument", map[string]any{"depth": -1, "pierce": true}, &tree); err != nil {
 		t.Fatal(err)
 	}
-	var backend int
+	var backend, viewerBackend int
 	var visit func(json.RawMessage)
 	visit = func(raw json.RawMessage) {
 		var n node
 		json.Unmarshal(raw, &n)
+		if n.Name == "BUTTON" {
+			viewerBackend = n.Backend
+		}
 		if n.Name == "COUCHCAST-CONTROL" && len(n.Shadow) > 0 {
 			var shadow node
 			json.Unmarshal(n.Shadow[0], &shadow)
@@ -199,7 +203,7 @@ func TestOperatorLiveAnnotation(t *testing.T) {
 		t.Fatal(err)
 	}
 	var xy []float64
-	json.Unmarshal(eval(`(()=>{const r=document.querySelector('#target').getBoundingClientRect();return [r.x+40,r.y+10]})()`), &xy)
+	json.Unmarshal(eval(`(()=>{const r=document.querySelector('h1').getBoundingClientRect();return [r.x+40,r.y+10]})()`), &xy)
 	for _, typ := range []string{"mousePressed", "mouseReleased"} {
 		if err = c.call(session, "Input.dispatchMouseEvent", map[string]any{"type": typ, "button": "left", "clickCount": 1, "x": xy[0], "y": xy[1]}, nil); err != nil {
 			t.Fatal(err)
@@ -391,6 +395,58 @@ func TestOperatorLiveAnnotation(t *testing.T) {
 	if len(edited) != 1 || edited[0].ID != v.Notes[0].ID || edited[0].Text != "Operator note edited" || !edited[0].Edited || edited[0].Author != v.Notes[0].Author || edited[0].Capture != v.Notes[0].Capture || *edited[0].Region != *v.Notes[0].Region {
 		t.Fatalf("edited note %+v", edited)
 	}
+
+	// Identity, not replacement scoring: common Save text has too little
+	// replacement evidence. A large document must not hide this connected node,
+	// and a viewer-authored note must get the same trusted debugger binding.
+	waitOverlay(`!testRoot.querySelector('.pin').hidden`, "true")
+	eval(`(()=>{const f=document.createDocumentFragment();for(let i=0;i<2100;i++)f.append(document.createElement('span'));document.body.append(f)})()`)
+	waitOverlay(`!testRoot.querySelector('.pin').hidden`, "true")
+	viewerNode, ok, e := c.rec.IDOf(context.Background(), session, viewerBackend)
+	if e != nil || !ok {
+		t.Fatalf("viewer anchor identity: %v %v", ok, e)
+	}
+	var viewerBox recording.Box
+	json.Unmarshal(eval(`(()=>{const r=document.querySelector('button').getBoundingClientRect();return [r.x+scrollX,r.y+scrollY,r.width,r.height]})()`), &viewerBox)
+	admission, e := bd.AdmitAnnotation()
+	if e != nil {
+		t.Fatal(e)
+	}
+	prepared, e := admission.PrepareNote(board.PrepareNoteIn{Seg: bd.OperatorView().Seg, Node: viewerNode, Box: viewerBox, Region: viewerBox}, false)
+	if e != nil {
+		t.Fatal(e)
+	}
+	owner := notedraft.Owner{Scope: "trusted-live-viewer", Identity: "trusted-live-viewer", Generation: bd.AnnotationCapability().Generation}
+	status, e := drafts.Prepare(context.Background(), owner, "viewer-draw", admission, prepared, false)
+	if e != nil {
+		t.Fatal(e)
+	}
+	until := time.Now().Add(10 * time.Second)
+	for status.State == "pending" && time.Now().Before(until) {
+		time.Sleep(20 * time.Millisecond)
+		status, e = drafts.Status(owner, "viewer-draw")
+		if e != nil {
+			t.Fatal(e)
+		}
+	}
+	if status.State != "ready" {
+		t.Fatalf("viewer draw: %+v", status)
+	}
+	status, e = drafts.Save(context.Background(), owner, "viewer-save", status.Draft, admission, board.Viewer{ID: "viewer", Name: "Viewer"}, 1, "Viewer common Save", nil)
+	if e != nil {
+		t.Fatal(e)
+	}
+	for status.State == "pending" && time.Now().Before(until) {
+		time.Sleep(20 * time.Millisecond)
+		status, e = drafts.Status(owner, "viewer-draw")
+		if e != nil {
+			t.Fatal(e)
+		}
+	}
+	if status.State != "saved" {
+		t.Fatalf("viewer save: %+v", status)
+	}
+	waitOverlay(`testRoot.querySelectorAll('.pin').length===2 && [...testRoot.querySelectorAll('.pin')].every(p=>!p.hidden)`, "true")
 	if err = c.SetAnnotationMode("point"); err != nil {
 		t.Fatal(err)
 	}

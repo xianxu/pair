@@ -48,7 +48,10 @@ route, projecting the original region onto its new box. Removed, hidden, clipped
 offscreen, conflicting or ambiguous anchors show no box. The shared list retains
 all open notes, including notes on earlier documents, labelled **not on this view**
 when placement is unavailable. Weak/common text cannot select a replacement;
-truncated searches cannot claim uniqueness. Frame replacement requires frame-route
+truncated searches cannot claim uniqueness. Operator originals arrive as actual DOM
+objects through a bounded, document-scoped recorder/CDP bridge; weak references
+expire with the last open note or document. A mutable path never grants original
+identity. Frame replacement requires frame-route
 evidence that is not currently recorded, so it stays unavailable. Historical
 replay retains recorded placement. Moving a live pin never changes its saved pixels.
 

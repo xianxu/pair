@@ -736,6 +736,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/webcast/server_capabilities.go",
 	"cmd/internal/webcast/chrome.go",
 	"cmd/internal/webcast/chrome_operator.go",
+	"cmd/internal/webcast/chrome_operator_original.go",
 	"cmd/internal/webcast/operator_script.go",
 	"cmd/internal/webcast/chrome_find.go",
 	"cmd/internal/webcast/doc.go",
@@ -851,6 +852,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/webcast/recorder/recorder.go",
 	"cmd/internal/webcast/recorder/side.go",
 	"cmd/internal/webcast/recorder/operator.go",
+	"cmd/internal/webcast/recorder/operator_original.go",
 	"cmd/internal/webcast/recorder/ui_capture.go",
 	// #466 remote-driving contract: input wire, confinement, control and
 	// injection seams with fakes; seats are memory only, no artifact paths.

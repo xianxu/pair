@@ -79,13 +79,18 @@ export function mountOperator({ host, root, report }, { annotate, palette, css }
   const box = doc.createElement('div'); box.className = 'operator-box'; root.appendChild(box);
   const transport = operatorTransport(report, win);
   let callback = () => {}, revision = -1, strokeSeq = 0;
+  // Only trusted CDP object references establish original identity. Paths and
+  // matching text remain replacement evidence, never an original-node map.
+  // Recorder IDs increase across documents; backend IDs are never used here.
+  const originals = new Map();
+  let originalDocument = 0, visibleNodeIDs = new Set();
   const view = {
     model: { seg: 0, docSeg: 0, notes: [] },
     onRecord(fn) { callback = fn; },
     toPage: (x, y) => [x + win.scrollX, y + win.scrollY],
     fromPage: (x, y) => [x - win.scrollX, y - win.scrollY],
     boxOf: () => null,
-    placementOf: createPlacement({ document: () => doc, route: () => win.location?.href || '', exclude: n => n === host, onChange: () => callback({k:'layout',t:0},view.model) }),
+    placementOf: createPlacement({ document: () => doc, route: () => win.location?.href || '', original: id => originals.get(id)?.deref() || null, exclude: n => n === host, onChange: () => callback({k:'layout',t:0},view.model) }),
   };
   let picked = 0;
   const post = (route, body) => {
@@ -141,9 +146,21 @@ export function mountOperator({ host, root, report }, { annotate, palette, css }
   };
   win.__couchcastOperatorReply = (reply) => transport.reply(reply);
   win.__couchcastOperatorMode = (mode) => { ui.setMode(mode); return ui.mode === mode; };
+  win.__couchcastOperatorOriginal = (document, id, node) => {
+    if (document <= 0 || document !== originalDocument || !visibleNodeIDs.has(id) || node?.nodeType !== 1 || node.ownerDocument !== doc || !node.isConnected || node === host) return false;
+    const previous = originals.get(id);
+    // A dead weak reference still reserves its identity until the note retires.
+    if (previous) return previous.deref() === node;
+    originals.set(id, new WeakRef(node));
+    callback({ k: 'layout', t: 0 }, view.model);
+    return true;
+  };
   win.__couchcastOperatorView = (snapshot) => {
     if (snapshot.revision < revision) return;
     revision = snapshot.revision;
+    if (snapshot.doc !== originalDocument) { originals.clear(); originalDocument = snapshot.doc; }
+    visibleNodeIDs = new Set(snapshot.notes.map(note => note.at?.node));
+    for (const id of originals.keys()) if (!visibleNodeIDs.has(id)) originals.delete(id);
     transport.setScope(snapshot.doc, snapshot.ended);
     view.model = { seg: snapshot.seg, docSeg: snapshot.doc, paused: snapshot.paused, ended: snapshot.ended, driver: snapshot.driver, notes: snapshot.notes.map((note) => ({ note, seg: snapshot.doc, state: 'open' })) };
     callback({ k: 'view', t: snapshot.t }, view.model);

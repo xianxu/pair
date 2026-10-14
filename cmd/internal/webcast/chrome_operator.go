@@ -113,6 +113,7 @@ func (c *Chrome) startOperator(b *board.Board) {
 		retry := time.NewTicker(250 * time.Millisecond)
 		defer retry.Stop()
 		states := map[operatorContextID]*operatorPermission{}
+		originals := map[operatorContextID]*operatorOriginals{}
 		var revision uint64
 		next := func() uint64 { revision++; return revision }
 		var retryC <-chan time.Time
@@ -154,6 +155,7 @@ func (c *Chrome) startOperator(b *board.Board) {
 				return
 			}
 			live := map[operatorContextID]bool{}
+			originalsPending := false
 			for _, target := range targets {
 				key := operatorContextID{target.session, target.context}
 				live[key] = true
@@ -173,17 +175,30 @@ func (c *Chrome) startOperator(b *board.Board) {
 					}
 					name, value = "__couchcastOperatorReply", reply.reply
 				} else if !target.active {
+					delete(originals, key)
 					value = board.OperatorView{Revision: view.Revision, Notes: []*recording.Note{}, Strokes: []board.OperatorStroke{}}
 				}
 				data, _ := json.Marshal(value)
 				ctx, cancel := context.WithTimeout(c.ctx, callTimeout)
 				_ = c.conn.Call(ctx, target.session, "Runtime.evaluate", map[string]any{"expression": "globalThis." + name + " && globalThis." + name + "(" + string(data) + ")", "contextId": target.context}, nil)
 				cancel()
+				if reply == nil && target.active {
+					cache := originals[key]
+					if cache == nil {
+						cache = &operatorOriginals{}
+						originals[key] = cache
+					}
+					originalsPending = c.deliverOperatorOriginals(target, view, cache) || originalsPending
+				}
 			}
 			retryC = nil
+			if originalsPending {
+				retryC = retry.C
+			}
 			for key, p := range states {
 				if !live[key] {
 					delete(states, key)
+					delete(originals, key)
 					continue
 				}
 				if p.phase != operatorPermissionReady {
