@@ -60,6 +60,8 @@ TL scope approval receipt d4dbaf0a-01d5-4876-a060-9f69f8f2c390 verified; quick f
 
 - Recorded full suite: sdlc local-check run --name suite PASS exit0 in10m53s on ec7a395a609a57d75ba58785f5b762b2671b1bcf, status sdlc-local/suite; log sha256 prefix81e4bc6e7c6b. Complete shell+Go checks green (launcher32.449s, diagnostics84.401s, procutil0.327s). Same commit staged and built cleanly on pair:0, bin/couch vcs.modified=false. Await operator-requested real detach/restart acceptance before landing; no claim of that smoke yet.
 
+- Operator acceptance confirmed by TL receipt c70cf5cc-cfc4-4bfb-a465-a691fb277dfd: at 12:45 PDT the operator restarted Couch onto ec7a395a609a57d75ba58785f5b762b2671b1bcf; all slots appeared and are connecting, with no process inspection unavailable errors on detach or reattach. TL authorizes landing and immediate stage clearance for #528.
+
 ## Revisions
 
 - 2026-10-14 11:53 PDT — TL receipt fe7ecadd-51a0-466b-9a0b-c730d637d04d requests local close review while the operator is at lunch. Separate the completed build/suite checkpoint from the remaining landing acceptance: keep pair:0 staged at ec7a395a609a57d75ba58785f5b762b2671b1bcf, run close through review, and hold merge until the TL reports the real repro outcome. The behavior scope and pre-landing smoke requirement are unchanged.
