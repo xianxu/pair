@@ -1,6 +1,6 @@
 ---
 id: 000543
-status: codecomplete
+status: done
 created: 2026-10-13
 updated: 2026-10-13
 estimate_hours: 2.835
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 7b1264211753fd268f9c6c34a1d7685f89cc8cde
         evidence_commit: 13e64a2b69ec1566be9d479e93f2692d8a5c4cc9
+        landed_commit: ea496e070a2a0b088a6333ed48a528d20b383a01
 ---
 
 # couch: log supervision facts for offline baseline evaluation
