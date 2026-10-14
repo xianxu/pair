@@ -194,7 +194,7 @@ cmd/internal/artifactpath/manifest.go; issue and this plan.
 - [x] Run full queued `make -k test` to completion on the stable final source
   tree; retain all failures, distinguish known flakes with evidence, rerun only
   affected checks when warranted. Do not bypass machine queue.
-- [ ] Commit evidence and docs. Send TL real `git rev-parse HEAD` and smoke:
+- [x] Commit evidence and docs. Send TL real `git rev-parse HEAD` and smoke:
   child notifications silent, ordinary BEL unchanged; TL hub notify produces one
   desktop notification; worker refuses with hub advice. Stage only on TL request.
 - [ ] After smoke acceptance/waiver, run `sdlc close --issue 540 --verified ...`,

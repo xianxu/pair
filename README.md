@@ -1627,6 +1627,9 @@ Other slots are refused and should send their message to the hub instead.
 Titles accept at most 256 bytes and messages 4096 bytes, with terminal controls
 removed. Success means written to the terminal, not confirmation of OS display.
 If a write or reply is uncertain, do not retry automatically.
+After rebuilding, restart Couch to use a newly added command. Existing messaging
+commands remain compatible; if running slots report missing messaging
+registrations, restart Couch to reconnect them.
 
 Agent hooks can send the same signal explicitly with `pair notify "message"`
 or the compatibility name `pair-notify "message"`. Legacy `--osc 9` and

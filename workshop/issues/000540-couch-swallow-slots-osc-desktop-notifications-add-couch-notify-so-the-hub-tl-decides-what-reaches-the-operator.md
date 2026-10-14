@@ -132,6 +132,14 @@ The operator (2026-10-13):
 
 ## Revisions
 
+### 2026-10-13 — final verification and stage release
+
+Mixed-version focused tests pass after the diagnostic fix. The accepted stage
+was cleared using `sdlc stage --clear`; pair:0 is back on main. A fresh full
+`make -k test` is running against the final production source, with output at
+/tmp/pair540-final-full-suite.log. Final full couchcmd package is also being
+verified; close/landing follows these results under TL's standing authorization.
+
 ### 2026-10-13 — acceptance and mixed-version messaging follow-up
 
 TL receipt 9c269a35-f57f-4b22-b961-344cc16a0eb3 records live smoke PASSED:
