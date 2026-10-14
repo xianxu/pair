@@ -1637,3 +1637,5 @@ proof; record the surprising case so the next change starts from evidence.
   until acknowledgment or transition explicitly to the committed note, never
   leave a success eligible to create again. BR-2/3: reconcile final entity paths
   and classifications, and update user-facing README instructions alongside atlas.
+
+- #519: A successful datagram send establishes kernel acceptance, not consumer delivery. At stream EOF, join the receiver, boundedly drain its kernel backlog, and consume its channel backlog before finishing the sole output writer. Pin both pending-work boundaries with ordered fixtures rather than extending deadlines.

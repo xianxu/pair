@@ -34,8 +34,8 @@ Find when it started failing (bisect on main), confirm the cause, and fix the ro
 
 ## Plan
 
-- [ ] Reproduce with ordered fixtures and locate introduction; compare the cited suite failures.
-- [ ] Drain accepted notification work before broker/terminal shutdown, keeping existing bounds and validation.
+- [x] Reproduce with ordered fixtures and locate introduction; compare the cited suite failures.
+- [x] Drain accepted notification work before broker/terminal shutdown, keeping existing bounds and validation.
 - [ ] Prove the fix with regression red/green, 20 consecutive startup-test passes, affected-package checks and make -k test; file unrelated cancellation evidence.
 
 ## Log
@@ -61,3 +61,11 @@ Find when it started failing (bisect on main), confirm the cause, and fix the ro
 - Design: broker Close interrupts and joins its reader, then nonblocking-drains the socket under a fixed receive budget through the same validation/enqueue logic, then closes channels/socket and removes its owned files. The wrapper closes and consumes remaining broker messages/diagnostics before finishing stdout. No sleeps, longer test deadlines, wire-format changes, or extra goroutines.
 - ARCH-DRY/PURE: one datagram validator/enqueue policy and the existing single stdout owner. ARCH-PURPOSE/ORDER: cover both buffered-message and kernel-datagram loss at EOF; preserve detached reader ownership and process no datagram twice. ARCH-MOCK: real isolated Unix sockets and pipes test shutdown order. ARCH-CONSTRAINTS: nonblocking drain is bounded by QueueSize; overflow/exhaustion is diagnosed, as with normal queue overflow. ARCH-SECURE: retain socket ownership/identity checks and message sanitation. ARCH-FUNERAL: existing binding/socket cleanup remains idempotent and joined; no new durable artifact.
 - Independent cancellation follow-up filed as #542. The two wrap startup reports are one test and remain in #519.
+
+### 2026-10-13 — red/green and reversion evidence
+
+- Original unchanged startup test passed 20 isolated repetitions (/tmp/pair519-baseline.log); sampling alone did not expose the lost-work race. Added exact EOF teardown coverage within TestNotificationBrokerBeforeExecAndCleanup and a broker fixture that joins its receiver while leaving a real kernel datagram pending.
+- Both new tests failed before the fix (/tmp/pair519-red.log): kernel-queued notification missing after Close, and accepted hook missing at EOF. Both pass after join/drain/consume ordering (/tmp/pair519-green.log).
+- Expanded focused checks passed: queued/channel FIFO, concurrent and repeated Close, full-queue diagnostics, invalid/oversize shutdown packets, closed-socket failure cleanup (/tmp/pair519-focused.log). Targeted notifytransport race checks passed (/tmp/pair519-race.log).
+- Reversion proof: Go overlay restored pre-fix transport and pre-fix teardown behavior while retaining the mechanical helper extraction. TestNotificationBrokerBeforeExecAndCleanup/pending-hook-at-EOF fails with accepted hook lost at EOF (/tmp/pair519-reverted.log). No checkout or live-slot mutation was needed.
+- #542 body published and ownership released; it is open and unclaimed. No duplicate wrap-startup issue filed because #535/#536 cited this same test.
