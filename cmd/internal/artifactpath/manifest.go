@@ -598,6 +598,9 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/zellij/config.kdl", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/zellij/layouts/main-2.kdl", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/zellij/layouts/main-3.kdl", Kind: GeneratedMirror},
+	{Path: "cmd/internal/webcast/board/operator.go", Kind: VocabularyConsumer, Families: []string{"draft"}, Vocabulary: []VocabularyAllowance{goCaseVocabulary("draft", "draft-status", "ParseOperatorRequest", 1)}},
+	{Path: "cmd/internal/webcast/recorder/operator_notedraft.go", Kind: VocabularyConsumer, Families: []string{"draft"}, Vocabulary: []VocabularyAllowance{goCaseVocabulary("draft", "draft-status", "handleDraftOperation", 2)}},
+	{Path: "cmd/internal/webcast/server_notedraft.go", Kind: VocabularyConsumer, Families: []string{"draft"}, Vocabulary: []VocabularyAllowance{goCaseVocabulary("draft", "draft-status", "noteDraftRoute", 1), goComparisonVocabulary("draft", "draft-status", "noteDraftRoute", 1)}},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/manifest.json", Kind: GeneratedMirror},
 }
 
@@ -606,6 +609,20 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	// #538 private web evidence and note protocol, outside Pair artifact families.
+	"cmd/internal/submission/publication.go",
+	"cmd/internal/webcast/board/prepared_note.go",
+	"cmd/internal/webcast/cast_notedraft.go",
+	"cmd/internal/webcast/chrome_prepared.go",
+	"cmd/internal/webcast/notedraft/model.go",
+	"cmd/internal/webcast/notedraft/references.go",
+	"cmd/internal/webcast/notedraft/save.go",
+	"cmd/internal/webcast/notedraft/service.go",
+	"cmd/internal/webcast/notedraft/store.go",
+	"cmd/internal/webcast/notedraft/transfer.go",
+	"cmd/internal/webcast/notes/anchor.go",
+	"cmd/internal/webcast/recorder/prepared_note.go",
+
 	// #531 launch diagnostics live under CouchNamespace, outside the checked
 	// Pair artifact filename families; the remaining files model/render evidence.
 	"cmd/internal/couchcmd/launchfailure.go",
@@ -719,6 +736,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/webcast/server_capabilities.go",
 	"cmd/internal/webcast/chrome.go",
 	"cmd/internal/webcast/chrome_operator.go",
+	"cmd/internal/webcast/chrome_operator_original.go",
 	"cmd/internal/webcast/operator_script.go",
 	"cmd/internal/webcast/chrome_find.go",
 	"cmd/internal/webcast/doc.go",
@@ -774,7 +792,6 @@ var NonArtifactSources = []string{
 	// cast's recorder (its Emit); the board writes no files itself.
 	"cmd/internal/webcast/board/board.go",
 	"cmd/internal/webcast/board/note_edit.go",
-	"cmd/internal/webcast/board/operator.go",
 	"cmd/internal/webcast/board/operator_view.go",
 	"cmd/internal/webcast/board/wire.go",
 	"cmd/internal/webcast/board/writer.go",
@@ -835,6 +852,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/webcast/recorder/recorder.go",
 	"cmd/internal/webcast/recorder/side.go",
 	"cmd/internal/webcast/recorder/operator.go",
+	"cmd/internal/webcast/recorder/operator_original.go",
 	"cmd/internal/webcast/recorder/ui_capture.go",
 	// #466 remote-driving contract: input wire, confinement, control and
 	// injection seams with fakes; seats are memory only, no artifact paths.
@@ -1044,6 +1062,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/repositoryname.go",
 	"cmd/internal/couchcore/resume.go",
 	"cmd/internal/couchcore/runner.go",
+	"cmd/internal/couchcore/runner_group_darwin.go",
+	"cmd/internal/couchcore/runner_group_other.go",
 	"cmd/internal/couchcore/runner_fake.go",
 	"cmd/internal/couchcore/startargs.go",
 	"cmd/internal/couchcore/startcleanup.go",

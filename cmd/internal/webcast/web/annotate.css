@@ -61,3 +61,8 @@
 /* The operator shares these widgets, but Off must leave the page usable. */
 .annotate.operator-off, .annotate.operator-off * { pointer-events: none !important; }
 .note-dialog[hidden] { display: none; }
+
+/* Open notes remain reachable when a route or hidden anchor has no pin. */
+.annotation-notes { position: fixed; right: 12px; top: 110px; width: min(260px, 40vw); max-height: 35vh; overflow: auto; z-index: 9; pointer-events: auto; display: grid; gap: 4px; }
+.annotation-notes[hidden], .annotation-notes.operator-off { display: none; }
+.annotation-note-row { display: block; width: 100%; text-align: left; white-space: pre-wrap; overflow-wrap: anywhere; border: 1px solid #ccc; border-radius: 5px; padding: 6px 8px; color: #222; background: #fff; font: 12px/1.4 system-ui, sans-serif; cursor: pointer; }

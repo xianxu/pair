@@ -68,6 +68,9 @@ type Submission struct {
 	Superseded bool     `json:"superseded,omitempty"`
 }
 type Note struct {
+	PrivacyDecision
+	CaptureID      string           `json:"capture_id,omitempty"`
+	Page           *PageIdentity    `json:"page,omitempty"`
 	SourceDocument int              `json:"source_document,omitempty"`
 	BoxText        BoxText          `json:"box_text"`
 	Revision       uint64           `json:"revision"`
@@ -121,8 +124,8 @@ type BoxText struct {
 
 // ReadingGuide is stored once and forwarded unchanged in the agent message.
 func ReadingGuide(recordingPath string) string {
-	return "submission.json contains note context, current box text, and capture metadata; crop-N.png files beside it show each note's current appearance.\n" +
-		"Version 2 source.page names the real captured page URL/title with CDP provenance; each note source_document references source.document. No page means capture unavailable (or a legacy bundle), never a guessed recording-head URL. Current box_text preserves ordered text-node entries with element tag/classes instead of CSS selectors; historical at.node is the @N recording handle.\n" +
+	return "submission.json contains note context, draw-time box text, and capture metadata; crop-N.png files beside it show each note when drawn.\n" +
+		"Version 3 stores page URL/title, CDP provenance, capture_id, source_document, and privacy on each note; a submission may span documents. Version 2 source.page is the legacy batch page. No page means capture unavailable (or a legacy bundle), never a guessed recording-head URL. Box_text preserves ordered text-node entries with element tag/classes instead of CSS selectors; historical at.node is the @N recording handle.\n" +
 		"The recording at " + recordingPath + " is queryable with couch --broadcast-web-query DIR notes|dom|events|link (replace DIR with that quoted path; start with notes).\n" +
 		"Use dom --at <t> --sel @N for the note's recorded element, events --from <t-10000> --to <t> for what happened before it, and link --at <t> for replay. Run couch --skill for the full guide.\n" +
 		"When notes become an issue, write self-contained evidence as text: page URL without secrets, element and classes, the request, box text or a private summary, and one line on what each crop shows. " +
@@ -173,6 +176,7 @@ func ValidateBoxText(b BoxText) error {
 }
 
 var identifier = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`)
+var captureIdentifier = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
 var cropName = regexp.MustCompile(`^crop-(0|[1-9][0-9]{0,5})\.png$`)
 
 func ValidateBox(b recording.Box) error {
@@ -218,10 +222,14 @@ func ValidateCrop(c Crop) error {
 	return ValidateBox(c.Box)
 }
 func Validate(s Submission) error {
-	if err := s.PrivacyDecision.Validate(); err != nil {
+	if s.Version == 3 {
+		if (s.Privacy != Private && s.Privacy != Shareable) || s.PrivacyOrigin != "" || s.PrivacyRule.Rule != nil || s.PrivacyRule.Invalid != "" {
+			return fmt.Errorf("invalid aggregate note privacy")
+		}
+	} else if err := s.PrivacyDecision.Validate(); err != nil {
 		return err
 	}
-	if (s.Version != 1 && s.Version != 2) || !identifier.MatchString(s.ID) {
+	if (s.Version != 1 && s.Version != 2 && s.Version != 3) || !identifier.MatchString(s.ID) {
 		return fmt.Errorf("invalid submission version or ID")
 	}
 	if s.Target.Scope == "" || s.Target.Tag == "" || s.Target.Session == "" || s.Target.Nonce == "" {
@@ -237,6 +245,9 @@ func Validate(s Submission) error {
 		return fmt.Errorf("incomplete DOM source")
 	}
 	if s.Source.Page != nil {
+		if s.Version == 3 {
+			return fmt.Errorf("version 3 page identity belongs to each note")
+		}
 		if err := s.Source.Page.Validate(); err != nil {
 			return err
 		}
@@ -244,11 +255,11 @@ func Validate(s Submission) error {
 			return fmt.Errorf("privacy origin differs from captured page")
 		}
 	}
-	if s.Version == 2 && s.Source.Kind == "dom" {
+	if s.Version >= 2 && s.Source.Kind == "dom" {
 		if s.Privacy == "" {
 			return fmt.Errorf("current DOM submission requires explicit privacy")
 		}
-		if s.Source.Page == nil && (s.Privacy != Private || s.PrivacyOrigin != "") {
+		if s.Version == 2 && s.Source.Page == nil && (s.Privacy != Private || s.PrivacyOrigin != "") {
 			return fmt.Errorf("unavailable page must be private without an origin")
 		}
 	}
@@ -262,8 +273,16 @@ func Validate(s Submission) error {
 			return fmt.Errorf("empty or duplicate note ID")
 		}
 		ids[n.ID] = true
-		if s.Version == 2 || s.Source.Page != nil {
-			if n.SourceDocument != s.Source.Document {
+		if s.Version == 3 {
+			if err := validateNoteSource(n); err != nil {
+				return err
+			}
+			if s.Privacy == Shareable && n.Privacy != Shareable {
+				return fmt.Errorf("submission privacy is less restrictive than a note")
+			}
+		}
+		if s.Version >= 2 || s.Source.Page != nil {
+			if s.Version != 3 && n.SourceDocument != s.Source.Document {
 				return fmt.Errorf("note source document mismatch")
 			}
 			if n.At.Sel != "" {
@@ -276,7 +295,7 @@ func Validate(s Submission) error {
 					}
 				}
 			}
-			if n.Crop.File != "" && (s.Source.Page == nil || n.Crop.Document != s.Source.Document) {
+			if s.Version != 3 && n.Crop.File != "" && (s.Source.Page == nil || n.Crop.Document != s.Source.Document) {
 				return fmt.Errorf("crop lacks matching captured page")
 			}
 		}
@@ -308,6 +327,38 @@ func Validate(s Submission) error {
 	}
 	if s.Source.Page != nil && !available {
 		return fmt.Errorf("unavailable batch claims a captured page")
+	}
+	return nil
+}
+
+func validateNoteSource(n Note) error {
+	if n.SourceDocument < 1 {
+		return fmt.Errorf("note requires original source document")
+	}
+	if n.CaptureID != "" && !captureIdentifier.MatchString(n.CaptureID) {
+		return fmt.Errorf("invalid note capture ID")
+	}
+	if err := n.PrivacyDecision.Validate(); err != nil {
+		return err
+	}
+	if n.Privacy == "" {
+		return fmt.Errorf("note requires explicit privacy")
+	}
+	if n.Page != nil {
+		if err := n.Page.Validate(); err != nil {
+			return err
+		}
+		if n.PrivacyOrigin != OriginOf(n.Page.URL) {
+			return fmt.Errorf("note privacy origin differs from captured page")
+		}
+	} else if n.PrivacyOrigin != "" {
+		return fmt.Errorf("unavailable note page has a privacy origin")
+	}
+	if (n.Page == nil || n.Crop.Unavailable != "") && n.Privacy != Private {
+		return fmt.Errorf("unavailable note capture must be private")
+	}
+	if n.Crop.File != "" && (n.Page == nil || n.CaptureID == "" || n.Crop.Document != n.SourceDocument) {
+		return fmt.Errorf("crop lacks matching per-note captured source")
 	}
 	return nil
 }

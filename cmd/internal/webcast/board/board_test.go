@@ -167,7 +167,7 @@ func TestRefusals(t *testing.T) {
 // paused): a note, a stroke and a note-state are refused, and nothing from
 // the pause appears after the resume. Notes made before it carry across the
 // resume (the same document); a request made on the old document after a
-// navigation is stale, and the old document's notes are no longer live.
+// navigation is stale, while the old document's open notes remain listed.
 func TestDocumentRules(t *testing.T) {
 	r := newRig(t).page(recording.SegLive)
 	id, err := r.note(r.p1.ID, 0)
@@ -197,8 +197,8 @@ func TestDocumentRules(t *testing.T) {
 		t.Errorf("a viewer one resume behind is on the same document: %v", err)
 	}
 	r.page(recording.SegNavigate)
-	if got := len(r.bd.Live()); got != 0 {
-		t.Errorf("live notes after a navigation: %d, want 0", got)
+	if got := len(r.bd.Live()); got != 2 {
+		t.Errorf("open notes after a navigation: %d, want 2", got)
 	}
 	if _, err := r.bd.Note(NoteIn{Viewer: ana, Seg: 2, Node: r.p1.ID, Region: recording.Box{1, 1, 10, 10}, Color: 0, Text: "x"}); !errors.Is(err, ErrStale) {
 		t.Errorf("a note made on the old document: %v", err)
@@ -353,8 +353,16 @@ func TestSubscribeFollowsTheOpenNotes(t *testing.T) {
 		t.Errorf("after a note %v", got)
 	}
 	r.page(recording.SegNavigate)
+	select {
+	case got := <-ch:
+		t.Errorf("unchanged notes should not publish after navigation: %v", got)
+	default:
+	}
+	if err := r.bd.SetState(StateIn{Viewer: ana, ID: id, State: recording.NoteResolved}); err != nil {
+		t.Fatal(err)
+	}
 	if got := <-ch; len(got) != 0 {
-		t.Errorf("after a navigation %v", got)
+		t.Errorf("after historical resolve %v", got)
 	}
 	r.bd.Close()
 	if _, open := <-ch; open {
@@ -389,7 +397,7 @@ func TestWriterStampsNoEarlierThanTheLastRecord(t *testing.T) {
 }
 
 // The board over a real fixture: a note made before a pause stays live
-// across the resume and is gone after the tab switch; the recording with it
+// across the resume and the tab switch; the recording with it
 // still validates.
 func TestBoardOverTheSegmentsFixture(t *testing.T) {
 	rec, err := recording.ReadDir(recording.Fixture("segments"))
@@ -415,8 +423,8 @@ func TestBoardOverTheSegmentsFixture(t *testing.T) {
 			t.Fatalf("t=%d %s: %v", x.Time(), x.Kind(), err)
 		}
 	}
-	if hasLive(r.bd.Live(), id) {
-		t.Errorf("my note must not be live after the tab switch")
+	if !hasLive(r.bd.Live(), id) {
+		t.Errorf("my open note must remain listed after the tab switch")
 	}
 	if _, err := recording.Reduce(r.mem.Records(), 1<<62); err != nil {
 		t.Errorf("recording with the note: %v", err)

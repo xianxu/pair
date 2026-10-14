@@ -13,7 +13,7 @@ import (
 )
 
 // MaxOperatorBody bounds an entire binding message, including its envelope.
-const MaxOperatorBody = MaxNoteBody + 4096
+const MaxOperatorBody = 40 << 10
 
 var ErrDriving = errors.New("board: a viewer is driving")
 var ErrOperatorBusy = errors.New("board: an operator operation is outstanding")
@@ -105,7 +105,7 @@ func ParseOperatorRequest(body []byte) (OperatorRequest, error) {
 			Color *int    `json:"color"`
 			Text  *string `json:"text"`
 		}
-		if !decodeOperator(raw.Body, &v, "draft color text") || v.Draft == nil || !idPattern.MatchString(*v.Draft) || v.Color == nil || !colorOK(*v.Color) || v.Text == nil || !noteText(*v.Text) {
+		if !decodeOperator(raw.Body, &v, "draft color text") || v.Draft == nil || !draftHandle(*v.Draft) || v.Color == nil || !colorOK(*v.Color) || v.Text == nil || !noteText(*v.Text) {
 			return fail()
 		}
 		out.Save = &OperatorSave{*v.Draft, *v.Color, *v.Text}
@@ -144,11 +144,11 @@ func ParseOperatorRequest(body []byte) (OperatorRequest, error) {
 			return fail()
 		}
 		out.Resolve = &OperatorResolve{*v.Seg, *v.ID, *v.State}
-	case "cancel-draft":
+	case "cancel-draft", "draft-status":
 		var v struct {
 			Draft *string `json:"draft"`
 		}
-		if !decodeOperator(raw.Body, &v, "draft") || v.Draft == nil || !idPattern.MatchString(*v.Draft) {
+		if !decodeOperator(raw.Body, &v, "draft") || v.Draft == nil || !draftHandle(*v.Draft) {
 			return fail()
 		}
 		out.Draft = *v.Draft
@@ -161,6 +161,9 @@ func ParseOperatorRequest(body []byte) (OperatorRequest, error) {
 		return fail()
 	}
 	return out, nil
+}
+func draftHandle(s string) bool {
+	return idPattern.MatchString(s) || (len(s) <= 32768 && strings.HasPrefix(s, "u.") && len(strings.Split(s, ".")) == 3)
 }
 func noteText(s string) bool { return broadcast.PlainText(s) && strings.TrimSpace(s) != "" }
 func validBox(b recording.Box, min float64) bool {

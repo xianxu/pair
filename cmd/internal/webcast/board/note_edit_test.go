@@ -156,3 +156,35 @@ func TestOperatorEditHasNoOverrideOrFalseUnknownProof(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+func TestHistoricalNoteEditPreservesCaptureAndCurrentAdmission(t *testing.T) {
+	r := newRig(t).page(recording.SegLive)
+	a, _ := r.bd.AdmitAnnotation()
+	p, err := a.PrepareNote(PrepareNoteIn{Seg: r.seg(), Node: r.p1.ID, Box: recording.Box{1, 2, 3, 4}, Region: recording.Box{1, 2, 30, 40}}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n, err := a.ReservePreparedNote(p, ana, 0, "original", "capture-id", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n.Note.Owner = "one"
+	if err = r.w.Emit(&n.Note, n.Document); err != nil {
+		t.Fatal(err)
+	}
+	old := r.seg()
+	r.page(recording.SegNavigate)
+	if err = r.bd.Edit(EditIn{Seg: old, ID: n.Note.ID, Owner: "one", Text: "stale"}); !errors.Is(err, ErrStale) {
+		t.Fatal(err)
+	}
+	if err = r.bd.Edit(EditIn{Seg: r.seg(), ID: n.Note.ID, Owner: "other", Text: "stolen"}); !errors.Is(err, ErrOwner) {
+		t.Fatal(err)
+	}
+	if err = r.bd.Edit(EditIn{Seg: r.seg(), ID: n.Note.ID, Owner: "one", Text: "updated"}); err != nil {
+		t.Fatal(err)
+	}
+	got := r.bd.st.Notes[0]
+	if got.Text != "updated" || got.Capture != n.Note.Capture || got.At.Node != n.Note.At.Node || *got.Region != *n.Note.Region || got.Revision != 1 {
+		t.Fatalf("lost original capture: %+v", got)
+	}
+}

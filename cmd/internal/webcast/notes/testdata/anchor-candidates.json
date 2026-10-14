@@ -1,0 +1,601 @@
+[
+  {
+    "name": "rerender",
+    "anchor": {
+      "tag": "button",
+      "stable": {
+        "id": "publish"
+      },
+      "text": "Publish report",
+      "path": [
+        "main",
+        "section#reports",
+        "button#publish"
+      ],
+      "classes": [
+        "primary"
+      ]
+    },
+    "candidates": [
+      {
+        "key": "winner",
+        "tag": "button",
+        "stable": {
+          "id": "publish"
+        },
+        "text": "Publish report",
+        "path": [
+          "main",
+          "section#reports",
+          "button#publish"
+        ],
+        "classes": [
+          "primary"
+        ]
+      }
+    ],
+    "want": "winner"
+  },
+  {
+    "name": "permuted",
+    "anchor": {
+      "tag": "button",
+      "stable": {
+        "id": "publish"
+      },
+      "text": "Publish report",
+      "path": [
+        "main",
+        "section#reports",
+        "button#publish"
+      ],
+      "classes": [
+        "primary"
+      ]
+    },
+    "candidates": [
+      {
+        "key": "wrong",
+        "tag": "button",
+        "stable": {
+          "id": "publish"
+        },
+        "text": "Delete report",
+        "path": [
+          "main",
+          "section#reports",
+          "button#publish"
+        ],
+        "classes": [
+          "primary"
+        ]
+      },
+      {
+        "key": "winner",
+        "tag": "button",
+        "stable": {
+          "id": "publish"
+        },
+        "text": "Publish report",
+        "path": [
+          "main",
+          "section#reports",
+          "button#publish"
+        ],
+        "classes": [
+          "primary"
+        ]
+      }
+    ],
+    "want": "winner"
+  },
+  {
+    "name": "reverse permutation",
+    "anchor": {
+      "tag": "button",
+      "stable": {
+        "id": "publish"
+      },
+      "text": "Publish report",
+      "path": [
+        "main",
+        "section#reports",
+        "button#publish"
+      ],
+      "classes": [
+        "primary"
+      ]
+    },
+    "candidates": [
+      {
+        "key": "winner",
+        "tag": "button",
+        "stable": {
+          "id": "publish"
+        },
+        "text": "Publish report",
+        "path": [
+          "main",
+          "section#reports",
+          "button#publish"
+        ],
+        "classes": [
+          "primary"
+        ]
+      },
+      {
+        "key": "wrong",
+        "tag": "button",
+        "stable": {
+          "id": "publish"
+        },
+        "text": "Delete report",
+        "path": [
+          "main",
+          "section#reports",
+          "button#publish"
+        ],
+        "classes": [
+          "primary"
+        ]
+      }
+    ],
+    "want": "winner"
+  },
+  {
+    "name": "duplicate winner",
+    "anchor": {
+      "tag": "button",
+      "stable": {
+        "id": "publish"
+      },
+      "text": "Publish report",
+      "path": [
+        "main",
+        "section#reports",
+        "button#publish"
+      ],
+      "classes": [
+        "primary"
+      ]
+    },
+    "candidates": [
+      {
+        "key": "winner",
+        "tag": "button",
+        "stable": {
+          "id": "publish"
+        },
+        "text": "Publish report",
+        "path": [
+          "main",
+          "section#reports",
+          "button#publish"
+        ],
+        "classes": [
+          "primary"
+        ]
+      },
+      {
+        "key": "twin",
+        "tag": "button",
+        "stable": {
+          "id": "publish"
+        },
+        "text": "Publish report",
+        "path": [
+          "main",
+          "section#reports",
+          "button#publish"
+        ],
+        "classes": [
+          "primary"
+        ]
+      }
+    ],
+    "want": ""
+  },
+  {
+    "name": "conflicting stable",
+    "anchor": {
+      "tag": "button",
+      "stable": {
+        "id": "publish"
+      },
+      "text": "Publish report",
+      "path": [
+        "main",
+        "section#reports",
+        "button#publish"
+      ],
+      "classes": [
+        "primary"
+      ]
+    },
+    "candidates": [
+      {
+        "key": "winner",
+        "tag": "button",
+        "stable": {
+          "id": "delete"
+        },
+        "text": "Publish report",
+        "path": [
+          "main",
+          "section#reports",
+          "button#publish"
+        ],
+        "classes": [
+          "primary"
+        ]
+      }
+    ],
+    "want": ""
+  },
+  {
+    "name": "conflicting text",
+    "anchor": {
+      "tag": "button",
+      "stable": {
+        "id": "publish"
+      },
+      "text": "Publish report",
+      "path": [
+        "main",
+        "section#reports",
+        "button#publish"
+      ],
+      "classes": [
+        "primary"
+      ]
+    },
+    "candidates": [
+      {
+        "key": "wrong",
+        "tag": "button",
+        "stable": {
+          "id": "publish"
+        },
+        "text": "Delete report",
+        "path": [
+          "main",
+          "section#reports",
+          "button#publish"
+        ],
+        "classes": [
+          "primary"
+        ]
+      }
+    ],
+    "want": ""
+  },
+  {
+    "name": "wrong tag",
+    "anchor": {
+      "tag": "button",
+      "stable": {
+        "id": "publish"
+      },
+      "text": "Publish report",
+      "path": [
+        "main",
+        "section#reports",
+        "button#publish"
+      ],
+      "classes": [
+        "primary"
+      ]
+    },
+    "candidates": [
+      {
+        "key": "winner",
+        "tag": "span",
+        "stable": {
+          "id": "publish"
+        },
+        "text": "Publish report",
+        "path": [
+          "main",
+          "section#reports",
+          "button#publish"
+        ],
+        "classes": [
+          "primary"
+        ]
+      }
+    ],
+    "want": ""
+  },
+  {
+    "name": "sibling reorder",
+    "anchor": {
+      "tag": "button",
+      "stable": {
+        "id": "publish"
+      },
+      "text": "Publish report",
+      "path": [
+        "main",
+        "section#reports",
+        "button#publish"
+      ],
+      "classes": [
+        "primary"
+      ]
+    },
+    "candidates": [
+      {
+        "key": "winner",
+        "tag": "button",
+        "stable": {
+          "id": "publish"
+        },
+        "text": "Publish report",
+        "path": [
+          "main",
+          "section#reports",
+          "button:nth-of-type(3)"
+        ],
+        "classes": [
+          "primary"
+        ]
+      }
+    ],
+    "want": "winner"
+  },
+  {
+    "name": "class only",
+    "anchor": {
+      "tag": "button",
+      "classes": [
+        "primary"
+      ]
+    },
+    "candidates": [
+      {
+        "key": "winner",
+        "tag": "button",
+        "stable": {
+          "id": "publish"
+        },
+        "text": "Publish report",
+        "path": [
+          "main",
+          "section#reports",
+          "button#publish"
+        ],
+        "classes": [
+          "primary"
+        ]
+      }
+    ],
+    "want": ""
+  },
+  {
+    "name": "common text",
+    "anchor": {
+      "tag": "button",
+      "text": "Save",
+      "path": [
+        "main",
+        "button"
+      ]
+    },
+    "candidates": [
+      {
+        "key": "save",
+        "tag": "button",
+        "text": "Save",
+        "path": [
+          "main",
+          "button"
+        ]
+      }
+    ],
+    "want": ""
+  },
+  {
+    "name": "text ancestor",
+    "anchor": {
+      "tag": "h2",
+      "text": "Quarterly earnings",
+      "path": [
+        "main",
+        "section#report",
+        "h2"
+      ]
+    },
+    "candidates": [
+      {
+        "key": "heading",
+        "tag": "h2",
+        "text": "Quarterly earnings",
+        "path": [
+          "main",
+          "section#report",
+          "h2"
+        ]
+      }
+    ],
+    "want": "heading"
+  },
+  {
+    "name": "truncated",
+    "anchor": {
+      "tag": "button",
+      "stable": {
+        "id": "publish"
+      },
+      "text": "Publish report",
+      "path": [
+        "main",
+        "section#reports",
+        "button#publish"
+      ],
+      "classes": [
+        "primary"
+      ]
+    },
+    "candidates": [
+      {
+        "key": "winner",
+        "tag": "button",
+        "stable": {
+          "id": "publish"
+        },
+        "text": "Publish report",
+        "path": [
+          "main",
+          "section#reports",
+          "button#publish"
+        ],
+        "classes": [
+          "primary"
+        ]
+      }
+    ],
+    "want": "",
+    "truncated": true
+  },
+  {
+    "name": "changed route",
+    "anchor": {
+      "tag": "button",
+      "stable": {
+        "id": "publish"
+      },
+      "text": "Publish report",
+      "path": [
+        "main",
+        "section#reports",
+        "button#publish"
+      ],
+      "classes": [
+        "primary"
+      ],
+      "route": "https://x/a"
+    },
+    "candidates": [
+      {
+        "key": "winner",
+        "tag": "button",
+        "stable": {
+          "id": "publish"
+        },
+        "text": "Publish report",
+        "path": [
+          "main",
+          "section#reports",
+          "button#publish"
+        ],
+        "classes": [
+          "primary"
+        ]
+      }
+    ],
+    "want": "",
+    "route": "https://x/b"
+  },
+  {
+    "name": "insufficient margin",
+    "anchor": {
+      "tag": "button",
+      "stable": {
+        "id": "publish"
+      },
+      "text": "Publish report",
+      "path": [
+        "main",
+        "section#reports",
+        "button#publish"
+      ],
+      "classes": [
+        "primary"
+      ]
+    },
+    "candidates": [
+      {
+        "key": "winner",
+        "tag": "button",
+        "stable": {
+          "id": "publish"
+        },
+        "text": "Publish report",
+        "path": [
+          "main",
+          "section#reports",
+          "button#publish"
+        ],
+        "classes": [
+          "primary"
+        ]
+      },
+      {
+        "key": "runner",
+        "tag": "button",
+        "stable": {
+          "id": "publish"
+        },
+        "text": "Publish report",
+        "path": [
+          "main",
+          "section#reports",
+          "button#publish"
+        ],
+        "classes": []
+      }
+    ],
+    "want": ""
+  },
+  {
+    "name": "stable alone",
+    "anchor": {
+      "tag": "button",
+      "stable": {
+        "id": "publish"
+      }
+    },
+    "candidates": [
+      {
+        "key": "winner",
+        "tag": "button",
+        "stable": {
+          "id": "publish"
+        },
+        "text": "Publish report",
+        "path": [
+          "main",
+          "section#reports",
+          "button#publish"
+        ],
+        "classes": [
+          "primary"
+        ]
+      }
+    ],
+    "want": ""
+  },
+  {
+    "name": "unicode whitespace normalization",
+    "anchor": {
+      "tag": "h2",
+      "text": "Quarterly\u0085earnings",
+      "path": [
+        "section#report",
+        "h2"
+      ]
+    },
+    "candidates": [
+      {
+        "key": "normalized",
+        "tag": "h2",
+        "text": "Quarterly earnings",
+        "path": [
+          "section#report",
+          "h2"
+        ]
+      }
+    ],
+    "want": "normalized"
+  }
+]

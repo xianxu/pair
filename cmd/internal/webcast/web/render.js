@@ -7,6 +7,8 @@
 // drawn, which deliberately differs (rewritten URLs, the hover class), so
 // canonical() takes structure and ids from the DOM and values from the model.
 
+import { createPlacement } from './annotation-placement.js';
+
 import { rewriteCSS, resolveURL, rewriteSrcset } from './css.js';
 
 const NS = {
@@ -730,6 +732,16 @@ export class Renderer {
       for (const l of d.querySelectorAll('link[rel~=stylesheet][href]')) if (!l.sheet) waits.push(new Promise((ok) => { l.addEventListener('load', ok, { once: true }); l.addEventListener('error', ok, { once: true }); }));
     }
     await Promise.race([Promise.allSettled(waits), new Promise((ok) => setTimeout(ok, 5000))]);
+  }
+
+  // Annotation boxes use live evidence; replay's boxOf remains historical.
+  placementOf(note) {
+    if (!this.placeAnnotation) this.placeAnnotation = createPlacement({
+      document: () => this.topDoc, route: () => this.model.url,
+      original: (id, note) => this.model.docSeg > 0 && this.model.notes?.some(entry => entry.note.id === note.id && entry.seg >= this.model.docSeg) ? this.dom.get(id) : null, shadow: n => this.shadows.get(this.ids.get(n)) || n.shadowRoot,
+      onChange: () => this.placementChanged?.(),
+    });
+    return this.placeAnnotation(note);
   }
 
   // boxOf is a node's box in top-page CSS px from this frame's own layout:

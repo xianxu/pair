@@ -295,7 +295,7 @@ func (b *Board) note(in NoteIn, operator bool, emit Emit) (string, error) {
 	return id, nil
 }
 
-// SetState resolves or reopens a note on the current document. Anyone may;
+// SetState resolves or reopens a recorded note under the current page admission. Anyone may;
 // setting the state a note already has does nothing.
 func (b *Board) SetState(in StateIn) error {
 	a, err := b.AdmitAnnotation()
@@ -335,7 +335,7 @@ func (b *Board) setState(in StateIn, seg int, operator bool, emit Emit) error {
 		return err
 	}
 	var cur *recording.NoteView
-	for _, n := range b.model.Live(b.st) {
+	for _, n := range b.st.Notes {
 		if n.ID == in.ID {
 			copy := *n
 			cur = &copy
@@ -349,10 +349,15 @@ func (b *Board) setState(in StateIn, seg int, operator bool, emit Emit) error {
 	case unchanged:
 		return nil
 	}
-	return emit(&recording.NoteState{ID: in.ID, State: in.State, Who: &recording.Author{ID: in.Viewer.ID, Name: in.Viewer.Name}}, doc)
+	update := &recording.NoteState{ID: in.ID, State: in.State, Who: &recording.Author{ID: in.Viewer.ID, Name: in.Viewer.Name}}
+	if in.State == recording.NoteResolved {
+		revision := cur.Revision
+		update.IfRevision = &revision
+	}
+	return emit(update, doc)
 }
 
-// Live is the open notes on the current document, oldest first.
+// Live is all open notes across recorded documents, oldest first.
 func (b *Board) Live() []LiveNote {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -407,8 +412,8 @@ func (b *Board) pageLocked(seg int) (int, error) {
 // openLocked counts a color's open notes on this page, pending included.
 func (b *Board) openLocked(color int) int {
 	n := 0
-	for _, l := range b.last {
-		if l.Color == color {
+	for _, l := range b.model.Live(b.st) {
+		if l.State == recording.NoteOpen && l.Author.Color == b.palette[color] {
 			n++
 		}
 	}
@@ -429,7 +434,7 @@ func (b *Board) author(v Viewer, color int) recording.Author {
 // buffer first, so the send never blocks under the lock.
 func (b *Board) refreshLocked() {
 	var open []LiveNote
-	for _, n := range b.model.Live(b.st) {
+	for _, n := range b.st.Notes {
 		if n.State == recording.NoteOpen {
 			open = append(open, LiveNote{ID: n.ID, Author: n.Author, Text: n.Text, Color: slices.Index(b.palette, n.Author.Color), T: n.T})
 		}

@@ -245,8 +245,8 @@ func (s *State) apply(r Record) error {
 		}
 		for _, n := range s.Notes {
 			if n.ID == r.ID {
-				if n.State != NoteOpen || n.Seg < s.DocSeg {
-					return errors.New("note edit requires an open current-document note")
+				if n.State != NoteOpen {
+					return errors.New("note edit requires an open note")
 				}
 				edited := *n.Note
 				edited.Text, edited.Edited = r.Text, true

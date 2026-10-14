@@ -207,11 +207,21 @@ func signalOwnedProcessGroup(pid int, sig os.Signal) error {
 }
 
 func ownedProcessGroupAlive(pid int) bool {
+	return ownedProcessGroupProbeAlive(pid, syscall.Kill, processGroupMembers)
+}
+
+func ownedProcessGroupProbeAlive(pid int, probe func(int, syscall.Signal) error, members func(int) (bool, error)) bool {
 	if pid <= 0 {
 		return false
 	}
-	err := syscall.Kill(-pid, syscall.Signal(0))
-	return err == nil || errors.Is(err, syscall.EPERM)
+	err := probe(-pid, syscall.Signal(0))
+	if errors.Is(err, syscall.EPERM) {
+		// Darwin can report EPERM when no signalable group member remains.
+		// Confirm absence separately; uncertainty must retain ownership.
+		present, err := members(pid)
+		return present || err != nil
+	}
+	return err == nil
 }
 
 func (h *execHandle) LaunchOutput() (string, []byte) { return "stderr", h.output.snapshot() }

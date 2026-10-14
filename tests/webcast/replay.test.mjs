@@ -19,12 +19,12 @@ function reduce(recs) {
 }
 
 // What the catch-up promises (webcast-format.md, Joining mid-cast): the
-// same DOM, assets, DocSeg, current-document notes as the whole prefix.
+// same DOM, assets, DocSeg and all retained notes as the whole prefix.
 function promised(m) {
   return {
     canonical: goJSON(m.canonical()),
     docSeg: m.docSeg,
-    notes: m.notes.filter((n) => n.seg >= m.docSeg).map((n) => [n.note, n.state, n.revision || 0, n.resolvedBy || null]),
+    notes: m.notes.map((n) => [n.note, n.state, n.seg, n.revision || 0, n.resolvedBy || null]),
     strokes: m.strokes.filter((s) => s.seg >= m.docSeg).map((s) => s.stroke),
     assets: [...m.assets].map(([u, a]) => [u, a.hash]).sort(),
     hover: m.hover,

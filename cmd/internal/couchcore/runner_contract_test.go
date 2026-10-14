@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"time"
 
@@ -49,14 +50,17 @@ func TestBlockedRunnerCancellationConformance(t *testing.T) {
 			if err := h.Cancel(); err != nil {
 				t.Fatalf("Cancel: %v", err)
 			}
-			_ = h.Wait()
+			code := h.Wait()
 			if terminal, ok := h.(TerminalHandle); ok {
 				if _, err := terminal.Terminal().Endpoint().Snapshot(time.Now()); !errors.Is(err, os.ErrClosed) {
 					t.Fatalf("canceled unaccepted terminal was not disposed: %v", err)
 				}
 			}
 			if h.Alive() {
-				t.Fatal("canceled blocked child remained alive")
+				pid := h.PID()
+				directErr := syscall.Kill(pid, 0)
+				groupErr := syscall.Kill(-pid, 0)
+				t.Fatalf("canceled blocked child remained alive: pid=%d exit=%d direct=%v group=%v", pid, code, directErr, groupErr)
 			}
 			if tc.child != nil && tc.child(h).ExecCount != 0 {
 				t.Fatalf("canceled blocked fake execed: %+v", tc.child(h))
@@ -124,5 +128,40 @@ func TestRunnerCancellationRejectsCanceledContextBeforeStartingHelper(t *testing
 	}
 	if len(fake.Ops) != 0 {
 		t.Fatalf("pre-canceled fake recorded child effects: %v", fake.Ops)
+	}
+}
+
+// Probe failures must never turn unknown group membership into absence.
+func TestOwnedProcessGroupProbeRetainsUnknownMembership(t *testing.T) {
+	for _, present := range []bool{false, true} {
+		if !ownedProcessGroupProbeAlive(123, func(int, syscall.Signal) error { return syscall.EPERM }, func(pid int) (bool, error) {
+			if pid != 123 {
+				t.Fatalf("membership PID = %d", pid)
+			}
+			return present, errors.New("process table unavailable")
+		}) {
+			t.Fatal("failed membership query released ownership")
+		}
+	}
+}
+
+func TestOwnedProcessGroupProbeSkipsUnneededMembershipQuery(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		pid  int
+		err  error
+		want bool
+	}{
+		{"live", 123, nil, true}, {"absent", 123, syscall.ESRCH, false}, {"invalid", 0, nil, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := ownedProcessGroupProbeAlive(tc.pid, func(int, syscall.Signal) error { return tc.err }, func(int) (bool, error) {
+				t.Fatal("unneeded membership query")
+				return false, nil
+			})
+			if got != tc.want {
+				t.Fatalf("alive = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
