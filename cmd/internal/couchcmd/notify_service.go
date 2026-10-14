@@ -29,6 +29,11 @@ func (s *messageService) handleNotify(ctx context.Context, r couchmessage.Reques
 	if write == nil || *write == nil {
 		return couchmessage.Response{Code: "unavailable", Error: "Couch notification output is unavailable"}
 	}
+	// Workspace lookup can yield while the wrapper is replaced. Revalidate
+	// its recorded identity at admission, immediately before submission.
+	if _, err := s.authority.current(ctx, caller); err != nil {
+		return couchmessage.Response{Code: "refused", Error: err.Error()}
+	}
 	if !s.isConnected(caller) {
 		return couchmessage.Response{Code: "refused", Error: "notification caller disconnected"}
 	}

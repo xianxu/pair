@@ -38,8 +38,8 @@ func TestNotifyTitleRejectedOnOtherOperations(t *testing.T) {
 		raw, _ := json.Marshal(map[string]any{"Op": op, "Scope": "s", "Tag": "t", "Session": "n", "Nonce": "n", "Title": "hidden"})
 		var r Request
 		_ = json.Unmarshal(raw, &r)
-		if err := ValidateRequest(r); err == nil {
-			t.Errorf("title accepted on %s", op)
+		if err := ValidateRequest(r); err == nil || !strings.Contains(err.Error(), "title applies only to notify") {
+			t.Errorf("title was not rejected on %s: %v", op, err)
 		}
 	}
 }

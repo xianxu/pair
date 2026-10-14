@@ -113,7 +113,7 @@ func TestNotifyHelpAndSkillExplainHubAuthority(t *testing.T) {
 	var help bytes.Buffer
 	usage(&help)
 	for name, text := range map[string]string{"help": help.String(), "skill": couchSkill} {
-		for _, want := range []string{"--notify [--title T] MESSAGE", "swallowed", "hub", "do not retry automatically"} {
+		for _, want := range []string{"--notify", "swallowed", "hub", "do not retry automatically"} {
 			if !strings.Contains(text, want) {
 				t.Errorf("%s missing %q", name, want)
 			}

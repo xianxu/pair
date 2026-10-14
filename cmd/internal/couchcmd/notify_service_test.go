@@ -3,6 +3,9 @@ package couchcmd
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -14,7 +17,7 @@ import (
 )
 
 func TestNotifyServiceHubAdmission(t *testing.T) {
-	for _, fault := range []string{"none", "worker", "missing-hub", "stale-nonce", "stale-session", "replaced-wrapper", "disconnected", "no-console", "writer-closed"} {
+	for _, fault := range []string{"none", "worker", "missing-hub", "stale-nonce", "stale-session", "replaced-wrapper", "replaced-during-workspace-check", "disconnected", "no-console", "writer-closed"} {
 		t.Run(fault, func(t *testing.T) {
 			world := newMessageWorld()
 			if fault != "missing-hub" {
@@ -51,6 +54,18 @@ func TestNotifyServiceHubAdmission(t *testing.T) {
 				_ = host.Close()
 			}
 			before := world.counts()
+			if fault == "replaced-during-workspace-check" {
+				original := r.s.authority.thread
+				reads := 0
+				r.s.authority.thread = func(ctx context.Context, b couchmessage.Binding) (string, error) {
+					root, err := original(ctx, b)
+					reads++
+					if reads == 2 {
+						world.set(hub, func(s *worldSlot) { s.pidFile++ })
+					}
+					return root, err
+				}
+			}
 			var got couchmessage.Response
 			if err := couchmessage.Call(context.Background(), r.brokerSock, req, &got); err != nil {
 				t.Fatal(err)
@@ -76,5 +91,50 @@ func TestNotifyServiceHubAdmission(t *testing.T) {
 				t.Fatalf("light command invoked probes: %v -> %v", before, after)
 			}
 		})
+	}
+}
+
+func TestNotifyLostSocketReplyDoesNotRepeatWrittenNotification(t *testing.T) {
+	world := newMessageWorld()
+	world.hub = "/repo0"
+	r := &serviceRig{t: t, world: world, slotGit: map[string]couchcore.SlotGitStatus{}}
+	r.init()
+	hub := r.connect(0)
+	host := hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80})
+	console := couchtty.New(host, bytes.NewReader(nil))
+	t.Cleanup(func() { console.Stop(); console.Run() })
+	r.s.SetDesktopNotify(console.NotifyDesktop)
+	// Execute the real service request, then lose its acknowledgment on the
+	// socket. The caller cannot conclude that the terminal write failed.
+	socket := filepath.Join(filepath.Dir(r.brokerSock), "lost-reply.sock")
+	server, err := couchmessage.StartServer(context.Background(), socket, func(ctx context.Context, raw []byte) ([]byte, error) {
+		var request couchmessage.Request
+		if err := json.Unmarshal(raw, &request); err != nil {
+			return nil, err
+		}
+		response := r.s.handle(ctx, request)
+		if response.Code != "ok" {
+			return json.Marshal(response)
+		}
+		return nil, errors.New("reply lost after write")
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = server.Close() })
+	rt := testRT{env: map[string]string{"COUCH_STORE_DIR": "/test/namespace", "COUCH_THREAD_SCOPE": hub.Scope, "COUCH_THREAD_TAG": hub.Tag, "PAIR_SESSION_NAME": hub.Session, "PAIR_LAUNCH_NONCE": hub.Nonce}}
+	inv, err := ParseCLI([]string{"--notify", "ready"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out, stderr bytes.Buffer
+	code := runMessageCLIWithCall(inv, rt, &out, &stderr, func(ctx context.Context, _ string, request, response any) error {
+		return couchmessage.Call(ctx, socket, request, response)
+	})
+	if code != 1 || !strings.Contains(stderr.String(), "do not retry automatically") {
+		t.Fatalf("code=%d stderr=%s", code, &stderr)
+	}
+	if n := strings.Count(host.Written(), "\x1b]777;notify;Couch;ready\x1b\\"); n != 1 {
+		t.Fatalf("notifications=%d", n)
 	}
 }

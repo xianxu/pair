@@ -75,7 +75,7 @@ run heavy verbs one at a time, after checking uptime's load.
 
 Slots' OSC 9/777/99 desktop notifications are swallowed, including the hub's.
 Couch retains diagnostic counts only; ordinary BEL is unchanged. Only the live
-hub may run `couch --notify [--title T] MESSAGE` (light), for a decision the
+hub may run `couch --notify MESSAGE` or `couch --notify --title T MESSAGE` (light), for a decision the
 operator should see. The default title is `Couch`; titles allow 256 bytes and
 messages 4096 bytes, with terminal controls removed. Other slots must send to
 the hub instead. Success means written to the terminal, not confirmed OS display.
