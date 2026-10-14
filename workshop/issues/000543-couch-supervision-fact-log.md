@@ -1,12 +1,12 @@
 ---
 id: 000543
-status: open
+status: working
 deps: [pair#530]
 github_issue:
 created: 2026-10-13
 updated: 2026-10-13
 estimate_hours:
-card_mirror: '1dce3aa30824e1c21cc84ad8edf6ae730cbc5ec7' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'd41c393402ce739cb5431e3c88ed6bff27330529' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-13T20:50:26-07:00
 claimant:
     operator: Xian Xu
@@ -56,7 +56,12 @@ and addd69f2-20e6-4697-8404-8fa5396f0d52. Implement after #530 lands.
 
 ## Plan
 
-- [ ]
+- [ ] Define fact rows and offline ten-minute labels with focused tests.
+- [ ] Add bounded diagnostic recorder and wire existing observations.
+- [ ] Verify optional telemetry failures preserve writes and delivery.
+- [ ] Update docs, full suite, close review and land.
+
+Durable plan: [supervision facts](../plans/000543-supervision-facts-plan.md).
 
 ## Log
 
@@ -64,3 +69,15 @@ and addd69f2-20e6-4697-8404-8fa5396f0d52. Implement after #530 lands.
 
 - Filed as the dependent fact-log half of #530. Design above supersedes the
   online sampling proposal in #530's original draft. Not started.
+
+## Revisions
+
+### 2026-10-13 — dispatched after #530 landing
+
+TL requests the tiny offline labeling script in this item (previous Spec said
+later script). Record facts only online. Plan selects existing observation hooks,
+private authenticated best-effort write reporting, and the diagnostic writer.
+Inspection found MaxBytes is currently a soft rotation threshold; add an opt-in
+hard generation bound so failed rotation cannot grow this log indefinitely.
+Existing retained generations still follow diagnosticlog GC, not a new cleaner.
+No changes to pair:0, currently staged for #522.
