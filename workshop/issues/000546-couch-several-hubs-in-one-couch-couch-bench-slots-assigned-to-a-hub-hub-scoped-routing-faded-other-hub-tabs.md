@@ -71,3 +71,5 @@ Hub explicitly approved a separate startup helper reusing StartInteractive, CLI 
 ### 2026-10-14 — approved CLI-first scope cut
 
 Ops:0 approved plan a5c4842799590f5dfc3aaa09d93a55757810a603 (receipt 676cf232-af54-4067-b179-874215cf0fba), with the switcher move action and persist toggle removed. Those are now dependent follow-up pair#548. This overrides the active plan’s item 7, Hub move reducer/menu_hub.go entity, menu action changes and move-UI task: do not implement them in #546. Keep per-row hub display, sections and other-hub fading. CLI move-slot and all routing, authority, supervision, startup and persistence behavior remain in scope. The operator UI origin is future work in #548; #546’s remote CLI requires a verified hub TL. Proceed through full change-code review before implementation.
+
+- 2026-10-14 plan review: PQ-1 clarified mode-specific idempotency (persist reconciles claims even after an ephemeral move); PQ-2 now names parser/resolver/edit/state/IO/authorization/routing/supervision/presentation function strategies. No code yet. Re-running change-code.
