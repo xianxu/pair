@@ -122,3 +122,9 @@ claimed as shipped by this rules-only change.
   additions; focused race run passed. Full make -k follows this checkpoint.
 - Published dependent pair#543 with the simplified fact-log Spec; parley.nvim#321
   remains the sole file-ping consumer. Neither is implemented in this branch.
+
+- TL accepted the private-socket/clock scenarios as this change's acceptance
+  (receipt 018dd090-c2ec-45bc-8425-b9c1394204d9); no staging or live restart.
+  The next natural Couch restart will expose the startup prompt for observation.
+- Bare make -k invokes this repository's help target; the actual full run is
+  make -k test, now queued by the machine gate. No suite result claimed yet.

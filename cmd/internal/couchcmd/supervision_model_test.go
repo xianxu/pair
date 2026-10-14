@@ -143,3 +143,18 @@ func TestSupervisionRepositoryQualifiedCompletion(t *testing.T) {
 		t.Fatal("qualified issue landing was not recognized")
 	}
 }
+
+func TestSupervisionPromptProvenanceSurvivesQueueAndHold(t *testing.T) {
+	c := newSupervisionCoordinator(nil, nil)
+	now := time.Unix(1000, 0)
+	hub := couchmessage.Binding{Slot: "ops:0"}
+	c.remember("prompt", hub, now, true)
+	// A queue and then an operator hold can exceed one hour before delivery.
+	c.remember("next", hub, now.Add(couchmessage.QueueWait+couchmessage.MaxHold), false)
+	if !c.systemMessage(couchmessage.Message{ID: "prompt", From: hub}) {
+		t.Fatal("delayed prompt lost supervisor provenance")
+	}
+	if c.systemMessage(couchmessage.Message{ID: "prompt", From: couchmessage.Binding{Slot: "pair:7"}}) {
+		t.Fatal("other sender inherited exemption")
+	}
+}
