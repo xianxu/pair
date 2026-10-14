@@ -1637,3 +1637,9 @@ proof; record the surprising case so the next change starts from evidence.
   until acknowledgment or transition explicitly to the committed note, never
   leave a success eligible to create again. BR-2/3: reconcile final entity paths
   and classifications, and update user-facing README instructions alongside atlas.
+
+- #540 admission review: when identity checks precede a workspace lookup, test a
+  wrapper replacement during that lookup. Cached connection membership alone
+  does not prove the current wrapper still owns the accepted launch; revalidate
+  at effect admission. Exercise lost acknowledgments after a real side effect
+  through the socket, not only an error-returning client stub.

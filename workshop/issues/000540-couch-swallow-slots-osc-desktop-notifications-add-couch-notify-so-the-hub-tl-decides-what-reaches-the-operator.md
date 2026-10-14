@@ -38,9 +38,9 @@ The operator (2026-10-13):
 ## Plan
 
 - Durable plan: [hub notifications](../plans/000540-hub-notifications-plan.md).
-- [ ] Add terminal envelope and explicit presenter notification operation.
+- [x] Add terminal envelope and explicit presenter notification operation.
 - [ ] Suppress child notifications and retain diagnostic counts only.
-- [ ] Add hub-only CLI/protocol/admission with uncertain-write handling.
+- [x] Add hub-only CLI/protocol/admission with uncertain-write handling.
 - [ ] Update docs, run full verification and scheduled smoke, close and land.
 
 ## Log
@@ -59,6 +59,25 @@ The operator (2026-10-13):
   writing-plans, including pure/integration inventory, payload budgets,
   count lifecycle, failure projection and regression/conformance matrix.
   No code changed. TL owns ariadne#350 coordination.
+- TL approved the durable plan aadffa9ec in verified receipt
+  15d29993-9e03-4b2d-b011-84bdedfdd683. change-code passed, inferring quick from
+  design size; implementation exceeds the shell and will require full close
+  review. No gate bypass used.
+- Task 1 b33504ffc: shared bounded desktop envelope, count-only OSC99 event,
+  serialized Presenter.Notify. New tests failed before APIs existed, then full
+  notifyosc and terminal packages passed (terminal 37.155s); focused race passed.
+  Fresh spec and quality subagent reviews approved.
+- CLI/protocol tests first failed on unknown notify operation. 4327d67f7 adds
+  hub-only service admission, console delegation and one-shot CLI transport.
+  Spec review found a wrapper replacement interleaving during workspace lookup:
+  the deterministic test first returned Code:ok, then 7b2f99d85 rechecked current
+  authority immediately before submission and passed. A real socket test drops
+  acknowledgment after output and proves one envelope plus unconfirmed/no-retry
+  advice. Targeted couchmessage/couchcmd race checks passed (1.160s/1.713s).
+- First full couchmessage/couchcmd run found only the embedded-skill command
+  example using optional brackets, which its executable examples parser rejects.
+  Replaced with the two concrete valid forms; focused help/skill tests passed.
+  Full package rerun underway. Artifact inventory package passed (17.485s).
 
 ## Revisions
 
