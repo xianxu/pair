@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-14
 updated: 2026-10-14
-estimate_hours:
-card_mirror: '757d6d79868525d9911aed2d5cc31877bb6ef33b' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 2.112
+card_mirror: '4f7b6b6f696c45f5cdd13caecc20f5d461d0b573' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-14T11:23:25-07:00
 claimant:
     operator: Xian Xu
@@ -15,7 +15,7 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "f2e4f3ea", done: "da822386"}
+flow: {kind: full, provenance: operator}
 ---
 
 # Deliveries to the hub expire while the hub's own turn is open (90s deadline): operator submits and worker decisions are lost or late
@@ -73,3 +73,24 @@ Durable design: [automatic-input plan](../plans/000552-automatic-input-plan.md).
 - 2026-10-14 — root causes confirmed with TL; plan both fixes and the exceptional tripwire. Parse status labels correctly and let the confirmation's own post-submit empty evidence satisfy the lease. Proposed 30-second tripwire interval measures eligible blocked delivery time, not quiet time since completion. Every firing records bounded screen evidence and requests owning-hub and desktop notification; uncertain writes or an unrecognized/occupied composer never gain permission from elapsed time. The original parley.nvim:1 wrapper remains untouched through local verification. See the durable plan for transitions, budgets, projection and acceptance tests. Plan awaiting TL approval before change-code.
 
 - 2026-10-14 — plan-quality refinement: name risky functions and adversarial test strategies instead of prose case inventories (PQ-1). Define monotonic per-wrapper occurrence sequences and atomic supervisor high-water rejection, including old duplicate after new occurrence and same-binding reconnect (PQ-2). Bounded suppression records persist through disconnect and are superseded by a verified replacement; explicit 128-slot saturation refusal preserves duplicate evidence. Existing approved release policy is unchanged.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only; calibration source is marked stale, so rates are provisional. Familiarity 1.0. Thorough executable plan applies the v2 design discount ×0.2 and design buffer +15%; implementation values are the v2 rates ×0.4. No novel external stack: existing terminal, transport, supervisor and presenter seams are reused.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: smaller-go-module design=0.03 impl=0.20
+item: smaller-go-module design=0.03 impl=0.20
+item: greenfield-go-module design=0.20 impl=0.32
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: atlas-docs design=0.02 impl=0.04
+item: milestone-review design=0.02 impl=0.20
+design-buffer: 0.15
+total: 2.112
+```
+
+Rows respectively cover status parsing, completion-evidence wiring, the pure lease/tripwire transition, typed report/protocol validation, supervisor notification admission, runtime reporter/shutdown, atlas and one close review. The first two use v2 smaller-module design 0.15 and implementation 0.5; the next uses greenfield design 1.0 and implementation 0.8; three adapters use smaller-module design 0.3 and implementation 0.5. Atlas uses 0.1/0.1; review 0.1/0.5. Design sum 0.48 ×1.15 plus implementation sum 1.56 = 2.112 hours. No arbitrary total or additional discovery allowance.
