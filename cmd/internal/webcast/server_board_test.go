@@ -162,7 +162,7 @@ func TestBoardColorLimitAndRate(t *testing.T) {
 func TestBoardRoutesNeedABoard(t *testing.T) {
 	srv := httptest.NewServer(NewServer("tok", NewFakeBrowser(), time.Second, nil, nil))
 	t.Cleanup(srv.Close)
-	for _, route := range []string{"note", "stroke", "note-state"} {
+	for _, route := range []string{"note", "stroke", "note-state", "note-edit"} {
 		if code, _ := post(t, srv.URL+"/tok/"+route, "application/json", "{}"); code != http.StatusNotFound {
 			t.Errorf("POST %s without a board: %d", route, code)
 		}
@@ -281,6 +281,7 @@ func TestBoardRoutesRefuseWhilePaused(t *testing.T) {
 		"stroke":     `{"viewer":{"id":"ana"},"seg":1,"id":"s1","color":1,"pts":[[1,2,0]]}`,
 		"note":       noteBody(1, c.p.ID, 0),
 		"note-state": `{"viewer":{"id":"ana"},"id":"n1","state":"resolved"}`,
+		"note-edit":  `{"seg":1,"id":"n1","text":"edited"}`,
 	} {
 		if code, text := post(t, c.url+route, "application/json", body); code != http.StatusConflict || text != refusePaused {
 			t.Errorf("%s while paused: %d %q", route, code, text)
@@ -295,7 +296,7 @@ func TestBoardRoutesRefuseWhilePaused(t *testing.T) {
 func TestBoardRoutesRefuseTheViewOnlyLink(t *testing.T) {
 	c := newBoardCast(t)
 	huge := strings.Repeat("x", board.MaxNoteBody+1)
-	for _, route := range []string{"stroke", "note", "note-state"} {
+	for _, route := range []string{"stroke", "note", "note-state", "note-edit"} {
 		for _, body := range []string{noteBody(1, c.p.ID, 0), huge} {
 			if code, text := post(t, c.viewURL+route, "application/json", body); code != http.StatusForbidden || text != refuseViewOnly {
 				t.Errorf("POST %s under the view-only link: %d %q", route, code, text)

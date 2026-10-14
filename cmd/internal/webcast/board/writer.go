@@ -20,6 +20,7 @@ type Writer struct {
 	clearID      uint64
 	clearFailure error
 	st           *recording.State
+	lastKind     string
 	sink         recording.Sink
 	now          func() int64
 }
@@ -30,7 +31,9 @@ func NewWriter(sink recording.Sink, now func() int64) *Writer {
 	return &Writer{st: recording.NewState(), sink: sink, now: now}
 }
 
-// Put writes one of the recorder's records as it is.
+// Put admits generated live recorder input. Like the recorder mirror it
+// stamps timestamps monotonically and preserves file-merge order. Raw stored
+// records are validated by recording.State.Apply/Validate, without stamping.
 func (w *Writer) Put(r recording.Record) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -64,9 +67,11 @@ func (w *Writer) Emit(r recording.Record, doc int) error {
 func (w *Writer) Close() error { return w.sink.Close() }
 
 func (w *Writer) writeLocked(r recording.Record) error {
+	r.SetTime(recording.OrderedTime(r.Time(), w.st.T, w.lastKind, r.Kind()))
 	if err := w.st.Apply(r); err != nil {
 		return err
 	}
+	w.lastKind = r.Kind()
 	return w.sink.Put(r)
 }
 

@@ -204,138 +204,137 @@ export function noteBytes(text) {
 }
 
 
-// noteDialog drives the one sticky-note dialog, the terminal broadcast's
-// (#447) and the web cast's (#470). els: root, text, input, count, msg,
-// save, cancel, resolve (element-likes). deps: post(route, body) →
-// Promise<{status, text}>, color() → the viewer's pointer color, and
-// optionally resolveRequest(id) → [route, body] (default ['resolve', {id}])
-// and beforeSave() → an object merged into the note body last, or null to
-// stop the save (the web cast's name field). onClose notifies a preview owner;
-// draftPayload exposes the current draft for drawing its box without copying it.
-//   draft(payload)             a new note; Save posts 'note' with payload,
-//                              color and text (the terminal's payload is its
-//                              cell and grid, the web cast's its anchor)
-//   view(note, {resolvable})   an existing note, read-only
-//   update(list)               a new notes list: a viewed note that is gone
-//                              (resolved elsewhere, or pointing turned off)
-//                              closes its dialog
-//   hold(reason)               a non-empty reason disables Save and Resolve
-//                              and says why (a paused web cast, pair#499);
-//                              '' releases it. A draft keeps its text.
-//   close()
+// Public ownership is a UI hint only; the server authenticates the cookie.
+export async function sessionNoteOwner(fetchFn) {
+  try {
+    const r = await fetchFn('session', { credentials: 'same-origin', cache: 'no-store', referrerPolicy: 'no-referrer' });
+    return r.status === 204 ? (r.headers?.get('X-Couch-Note-Owner') || '') : '';
+  } catch { return ''; }
+}
+
+const closedNote = (epoch = 0, held = '') => ({ epoch, mode: 'closed', target: null, payload: null, text: '', held, pending: null, error: '' });
+const validNote = (text) => text.trim() !== '' && noteBytes(text) <= MAX_NOTE_BYTES;
+const HELD_NOTE_RECOVERY = 'Your current note is preserved. Finish or cancel it before opening another note.';
+
+// One pure lifecycle for draft, read-only and existing-note editors. Pending
+// tokens belong to an epoch; neither typing nor a hold permits a second send.
+// Creation locks text until its result: it cannot turn a completed draft into
+// another creation. Existing-note edits can retain newer unsent text safely.
+export function noteDialogTransition(previous, event) {
+  let state = previous || closedNote();
+  let effect = null;
+  const e = event;
+  if (e.type.startsWith('open-') && state.held && ['draft', 'edit'].includes(state.mode)) {
+    state = { ...state, error: HELD_NOTE_RECOVERY };
+  } else if (e.type.startsWith('open-')) {
+    const mode = e.type.slice(5);
+    state = { ...closedNote(state.epoch + 1, state.held), mode, target: e.note || null, payload: e.payload || null, text: e.note?.text || '' };
+  } else if (e.type === 'dismiss' || e.type === 'retire') {
+    state = closedNote(state.epoch + 1, state.held);
+  } else if (e.type === 'input' && ['draft', 'edit'].includes(state.mode) && state.pending?.kind !== 'save-new') {
+    state = { ...state, text: e.text };
+  } else if (e.type === 'hold') {
+    state = { ...state, held: e.reason || '' };
+  } else if ((e.type === 'save' || e.type === 'resolve') && !state.held && !state.pending) {
+    const kind = e.type === 'resolve'
+      ? (['view', 'edit'].includes(state.mode) && state.target?.resolvable ? 'resolve' : null)
+      : (['draft', 'edit'].includes(state.mode) && validNote(state.text) ? (state.mode === 'draft' ? 'save-new' : 'save-edit') : null);
+    if (kind) {
+      const pending = { epoch: state.epoch, kind, text: state.text };
+      state = { ...state, pending, error: '' };
+      effect = { kind, pending, target: state.target, payload: state.payload, text: state.text };
+    }
+  } else if (e.type === 'result' && state.pending && e.pending === state.pending && e.pending.epoch === state.epoch) {
+    if (e.status === 204 && (state.text === state.pending.text || state.pending.kind === 'resolve')) {
+      state = closedNote(state.epoch + 1, state.held);
+    } else {
+      state = { ...state, pending: null, error: e.status === 204 ? 'The earlier text was saved. Save again to submit your latest text.' : (e.text || '').trim() || "That didn't work. Try again." };
+    }
+  } else if (e.type === 'refresh' && state.mode === 'view') {
+    state = { ...state, target: { ...state.target, ...e.note }, text: e.note.text ?? state.text };
+  }
+  return { state, effect };
+}
+
+// DOM adapter: every lifecycle change goes through the transition above.
+// editRequest is optional; default terminal edits contain only id and text.
 export function noteDialog(els, deps) {
-  let state = null; // {kind: 'draft', payload} | {kind: 'view', id}
-  let held = ''; // why Save and Resolve are off; '' when they are on
+  let state = closedNote();
   const resolveRequest = deps.resolveRequest || ((id) => ['resolve', { id }]);
-  // Each open bumps the generation; a request's answer applies only to the
-  // dialog that sent it, not to one opened since.
-  let gen = 0;
-  const show = (on) => els.root.classList.toggle('hidden', !on);
-  const say = (text) => {
-    els.msg.textContent = text || '';
+  const editRequest = deps.editRequest || ((id, text) => ['note-edit', { id, text }]);
+  const render = () => {
+    const editable = ['draft', 'edit'].includes(state.mode);
+    els.root.classList.toggle('hidden', state.mode === 'closed');
+    els.root.classList.toggle('draft', editable);
+    els.root.classList.toggle('view', state.mode === 'view');
+    if (els.input.value !== state.text) els.input.value = state.text;
+    els.input.readOnly = state.pending?.kind === 'save-new';
+    els.text.textContent = state.mode === 'view' ? state.text + (state.target?.edited ? ' (edited)' : '') : '';
+    els.count.textContent = `${state.target?.edited ? '(edited) · ' : ''}${noteBytes(state.text)} / ${MAX_NOTE_BYTES}`;
+    els.msg.textContent = [state.held, state.error].filter(Boolean).join(' ');
+    els.save.classList.toggle('hidden', !editable);
+    els.save.disabled = !editable || !!state.held || !!state.pending || !validNote(state.text);
+    els.resolve.classList.toggle('hidden', !state.target?.resolvable);
+    els.resolve.disabled = !!state.held || !!state.pending || !state.target?.resolvable;
+    els.cancel.textContent = editable ? 'Cancel' : 'Close';
   };
-  const refreshCount = () => {
-    const n = noteBytes(els.input.value);
-    els.count.textContent = `${n} / ${MAX_NOTE_BYTES}`;
-    els.save.disabled = held !== '' || n === 0 || n > MAX_NOTE_BYTES || els.input.value.trim() === '';
+  const dispatch = (event) => {
+    const old = state;
+    const next = noteDialogTransition(state, event);
+    state = next.state;
+    render();
+    if (old.mode !== 'closed' && state.mode === 'closed') deps.onClose?.();
+    return next.effect;
   };
-  const close = () => {
-    gen++;
-    state = null;
-    els.input.value = '';
-    say('');
-    show(false);
-    deps.onClose?.();
+  const answer = (effect, request) => {
+    let promise;
+    try { promise = deps.post(...request); } catch { promise = Promise.reject(); }
+    Promise.resolve(promise).then(
+      (r) => dispatch({ type: 'result', pending: effect.pending, status: r.status, text: r.text }),
+      () => dispatch({ type: 'result', pending: effect.pending, text: "Couldn't reach the broadcast. Try again." }),
+    );
   };
-  const answer = (req, onDone) => {
-    const sent = gen;
-    return req.then((r) => {
-      if (sent !== gen) {
-        return;
-      }
-      if (r.status === 204) {
-        onDone();
-      } else {
-        say((r.text || '').trim() || "That didn't work. Try again.");
-      }
-    }).catch(() => sent === gen && say("Couldn't reach the broadcast. Try again."));
-  };
-  els.input.addEventListener('input', refreshCount);
+  els.input.addEventListener('input', () => dispatch({ type: 'input', text: els.input.value }));
+  const close = () => dispatch({ type: 'dismiss' });
   els.cancel.addEventListener('click', close);
   els.save.addEventListener('click', () => {
-    if (state?.kind !== 'draft' || els.save.disabled) {
-      return;
-    }
-    const extra = deps.beforeSave ? deps.beforeSave() : {};
-    if (!extra) {
-      return;
-    }
-    els.save.disabled = true;
-    answer(deps.post('note', { ...state.payload, color: deps.color(), text: els.input.value, ...extra }), close)
-      .finally(() => state?.kind === 'draft' && refreshCount());
+    if (els.save.disabled) return;
+    const extra = state.mode === 'draft' && deps.beforeSave ? deps.beforeSave() : {};
+    if (!extra) return;
+    const effect = dispatch({ type: 'save' });
+    if (!effect) return;
+    answer(effect, effect.kind === 'save-new'
+      ? ['note', { ...effect.payload, color: deps.color(), text: effect.text, ...extra }]
+      : editRequest(effect.target.id, effect.text));
   });
   els.resolve.addEventListener('click', () => {
-    if (state?.kind === 'view' && held === '') {
-      answer(deps.post(...resolveRequest(state.id)), close);
-    }
+    const effect = dispatch({ type: 'resolve' });
+    if (effect) answer(effect, resolveRequest(effect.target.id));
   });
-  els.root.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      close();
-    }
-  });
+  els.root.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+  const openExisting = (mode, note, resolvable) => {
+    const epoch = state.epoch;
+    dispatch({ type: `open-${mode}`, note: { ...note, resolvable } });
+    const opened = state.epoch !== epoch;
+    (opened && mode === 'edit' ? els.input : els.cancel).focus?.();
+    return opened;
+  };
   return {
-    draft(payload) {
-      gen++;
-      state = { kind: 'draft', payload };
-      els.root.classList.add('draft');
-      els.root.classList.remove('view');
-      els.text.textContent = '';
-      els.input.value = '';
-      say(held);
-      els.resolve.classList.add('hidden');
-      els.save.classList.remove('hidden');
-      els.cancel.textContent = 'Cancel';
-      refreshCount();
-      show(true);
-      els.input.focus?.();
-    },
-    view(note, { resolvable }) {
-      gen++;
-      state = { kind: 'view', id: note.id };
-      els.root.classList.add('view');
-      els.root.classList.remove('draft');
-      els.text.textContent = note.text;
-      say(held);
-      els.resolve.classList.toggle('hidden', !resolvable);
-      els.resolve.disabled = held !== '';
-      els.save.classList.add('hidden');
-      els.cancel.textContent = 'Close';
-      show(true);
-      // Focus inside the dialog, so Escape reaches it as it does a draft.
-      els.cancel.focus?.();
-    },
+    draft(payload) { dispatch({ type: 'open-draft', payload }); els.input.focus?.(); },
+    view(note, { resolvable = false } = {}) { return openExisting('view', note, resolvable); },
+    edit(note, { resolvable = true } = {}) { return openExisting('edit', note, resolvable); },
     update(list) {
-      if (state?.kind === 'view' && !list.notes.some((n) => n.id === state.id)) {
-        close();
-      }
+      if (!['view', 'edit'].includes(state.mode)) return;
+      const note = list.notes.find((n) => n.id === state.target.id);
+      if (!note) dispatch({ type: 'retire' });
+      else dispatch({ type: 'refresh', note });
     },
-    hold(reason) {
-      const was = held;
-      held = reason || '';
-      els.resolve.disabled = held !== '';
-      if (state?.kind === 'draft') {
-        refreshCount();
-      }
-      if (state && held !== was) {
-        say(held);
-      }
-    },
+    hold(reason) { dispatch({ type: 'hold', reason }); },
     close,
-    get open() {
-      return state !== null;
-    },
-    get draftPayload() { return state?.kind === 'draft' ? state.payload : null; },
+    get open() { return state.mode !== 'closed'; },
+    get editable() { return state.mode === 'draft' || state.mode === 'edit'; },
+    get replacementBlocked() { return state.error === HELD_NOTE_RECOVERY; },
+    get draftPayload() { return state.mode === 'draft' ? state.payload : null; },
   };
 }
 

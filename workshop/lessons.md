@@ -1618,4 +1618,22 @@ proof; record the surprising case so the next change starts from evidence.
 
 - #533 integration of #531: a full make test stopped by the known #514 timing check has not exercised later Go packages. Run remaining targets with make -k and inspect all failures before citing the exception; new production files still require exhaustive artifact-source inventory entries.
 
+
+- #537 recording review: when record families merge by timestamp plus file rank,
+  live writers must advance tied timestamps before a transition to an earlier
+  file rank. Test real split/merge equivalence around pause, clear and end.
+- #537 UI review: mutually exclusive presentation phases do not erase independent
+  authority facts. Test OFF/view-only/paused crossed with active driving, and
+  preserve held editor text when newly accessible read-only UI is opened.
 - #536: Sharing note-box geometry does not share gesture timing. Keep threshold crossing and drag latching shared too; test each consumer's press, sub-threshold movement, release, and drag back toward its origin.
+
+- #537 verification: adding an authenticated probe or POST route requires updating
+  the static same-origin transport inventory as well as runtime behavior tests.
+  Stage-aware fleet producers and consumers must agree on the new reason before
+  live conformance runs while a smoke checkout is staged.
+
+- #537 close BR-1: pending-input tests must cover creation separately from edits.
+  A successful creation consumes its draft identity; prevent further draft input
+  until acknowledgment or transition explicitly to the committed note, never
+  leave a success eligible to create again. BR-2/3: reconcile final entity paths
+  and classifications, and update user-facing README instructions alongside atlas.

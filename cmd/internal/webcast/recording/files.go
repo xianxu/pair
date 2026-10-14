@@ -66,15 +66,28 @@ func Merge(files map[string][]Located) []Located {
 	for _, name := range mergeOrder {
 		all = append(all, files[name]...)
 	}
-	rank := func(name string) int { return slices.Index(mergeOrder, name) }
 	slices.SortStableFunc(all, func(a, b Located) int {
 		if a.Time() != b.Time() {
 			return cmpInt(a.Time(), b.Time())
 		}
-		return rank(a.File) - rank(b.File)
+		return fileRank(a.File) - fileRank(b.File)
 	})
 	return all
 }
+
+// OrderedTime stamps a generated live record so splitting and merging its
+// files preserves emission order. Within a millisecond Merge orders files;
+// crossing backward in that order must begin a new millisecond. Raw readers
+// still validate supplied timestamps directly, without rewriting history.
+func OrderedTime(t, lastTime int64, lastKind, kind string) int64 {
+	t = max(t, lastTime)
+	if t == lastTime && lastKind != "" && fileRank(FileOf(kind)) < fileRank(FileOf(lastKind)) {
+		t++
+	}
+	return t
+}
+
+func fileRank(file string) int { return slices.Index(mergeOrder, file) }
 
 func cmpInt(a, b int64) int {
 	switch {

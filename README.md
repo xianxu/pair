@@ -1056,6 +1056,16 @@ right-clicking it in the box. A note stays where it was placed, whatever scrolls
 underneath. Turning pointing off deletes every note, as it clears the marks,
 and stopping the broadcast ends them too; nothing is saved to disk.
 
+Click a note you created in this unlocked browser session to edit its text.
+**Save** updates the same note, preserving its author and box, and adds an
+**edited** marker; **Cancel** leaves it unchanged. Other people's notes remain
+read-only, though anyone allowed to annotate can resolve them. A page refresh
+keeps edit access. A fresh unlock, code rotation, another browser or another
+link makes earlier notes read-only; a matching display name does not grant
+ownership. Notes made before this feature are also read-only. With annotation
+OFF or a view-only link, existing note icons only show their text.
+
+
 **Web cast (#454).** `Shift+Ctrl+Alt+b` opens a dedicated Chrome for casting
 a web app: a normal window with its own profile (kept at
 `<couch store>/webcast/chrome-profile`, so your logins to the app survive; delete
@@ -1160,6 +1170,17 @@ notes, these are part of the recording: notes and strokes, with their authors, a
 saved in `notes.jsonl` and `pointer.jsonl`, and `couch --broadcast-web-query DIR
 notes` lists them. The name a viewer gives is theirs to choose: it attributes, it
 doesn't authenticate.
+
+Existing web notes use the same own-session editing rule as screen notes:
+click your 💭 pin for a populated editor, **Save** to revise its text, or
+**Cancel** to leave it unchanged. The original author and box stay the same,
+and revised notes show **edited**. The operator's overlay in cast Chrome also
+opens existing pins with the pen Off, but can edit only notes made by the
+operator, not viewers' notes. Annotation OFF and view-only links are read-only;
+while a new note's Save is pending, its text is temporarily locked to prevent
+a duplicate creation. Text revisions and resolver attribution stay in the web
+recording; resolved notes still disappear from the live page.
+
 
 **Submit web notes (#483).** Press **Shift+Ctrl+Alt+Return** in the draft to send
 its text and all open cast-tab notes to the agent in view, with recorded context,

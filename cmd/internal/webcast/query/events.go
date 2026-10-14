@@ -18,7 +18,7 @@ import (
 type said struct {
 	t, t0 int64
 	key   string
-	caret bool   // a collapsed caret, by by
+	caret bool // a collapsed caret, by by
 	by    string
 	text  string
 	n     int
@@ -190,7 +190,12 @@ func (n *narrator) line(r recording.Record) string {
 		return viewport(r.Viewport)
 	case *recording.Note:
 		return fmt.Sprintf("note %s by %s on %s: %s", r.ID, who(r.Author.ID, r.Author.Name), n.el(r.At.Node), strconv.Quote(squash(r.Text, textChars)))
+	case *recording.NoteEdit:
+		return fmt.Sprintf("note %s edited: %s", r.ID, strconv.Quote(squash(r.Text, textChars)))
 	case *recording.NoteState:
+		if r.State == recording.NoteResolved && r.Who != nil {
+			return fmt.Sprintf("note %s resolved by %s", r.ID, who(r.Who.ID, r.Who.Name))
+		}
 		return fmt.Sprintf("note %s %s", r.ID, r.State)
 	case *recording.Stroke:
 		return fmt.Sprintf("pointer stroke by %s (%d points)", who(r.Author.ID, r.Author.Name), len(r.Pts))

@@ -54,31 +54,24 @@ func (f FakeSurface) Notes(before int64) ([]NoteView, error) {
 	if len(f.Records) == 0 {
 		return nil, nil
 	}
-	final, err := recording.Reduce(f.Records, f.Records[len(f.Records)-1].Time())
-	if err != nil {
-		return nil, err
-	}
+	st := recording.NewState()
 	var out []NoteView
 	for i, r := range f.Records {
+		if err := st.Apply(r); err != nil {
+			return nil, err
+		}
 		n, ok := r.(*recording.Note)
 		if !ok {
 			continue
 		}
-		st, err := recording.Reduce(f.Records[:i+1], n.T)
-		if err != nil {
-			return nil, err
-		}
 		v := NoteView{Note: st.Notes[len(st.Notes)-1]}
-		for _, fn := range final.Notes { // its state now, not at its making
-			if fn.ID == n.ID {
-				v.Note.State = fn.State
-			}
-		}
 		if el := st.Node(n.At.Node); el != nil {
 			v.Element = Outline(el)
-			if v.Context, err = f.Model.Context(st, n.At); err != nil {
+			ctx, err := f.Model.Context(st, n.At)
+			if err != nil {
 				return nil, err
 			}
+			v.Context = ctx
 		}
 		for _, p := range f.Records[:i] {
 			if p.Time() >= n.T-before && UserAction(p) {

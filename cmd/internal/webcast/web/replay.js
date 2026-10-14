@@ -45,7 +45,7 @@ export function catchUp(recs) {
       case 'annotation-clear':
         if (i >= doc) { out.push(r); kept.clear(); }
         return;
-      case 'note-state':
+      case 'note-edit': case 'note-state':
         if (i >= doc && kept.has(r.id)) out.push(r);
         return;
       case 'stroke':
@@ -462,7 +462,7 @@ export function replayMarks(doc, layer, fromPage, dpr) {
   const pinned = pinLayer(doc, pins, (n, by) => {
     if (shown === n.id) { shown = null; card.hidden = true; return; }
     shown = n.id;
-    card.textContent = `${by}: ${n.text}`;
+    card.textContent = `${by}: ${n.text}${n.edited ? ' (edited)' : ''}`;
     card.dataset.note = n.id;
     placeCard();
   });
@@ -470,6 +470,8 @@ export function replayMarks(doc, layer, fromPage, dpr) {
     const m = player.model, t = player.t;
     const notes = liveNotes(m);
     pinned.draw(notes, (id) => player.renderer.boxOf(id), place);
+    const current = notes.find(n => n.id === shown);
+    if (current) card.textContent = `${current.author?.name || 'A viewer'}: ${current.text}${current.edited ? ' (edited)' : ''}`;
     placeCard();
     const strokes = strokesAt(m, t);
     canvas.dataset.strokes = strokes.map((x) => x.id).join(' ');
