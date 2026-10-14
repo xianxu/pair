@@ -133,7 +133,7 @@ export class Model {
         if (!this.live || this.ended) fail('note edit requires a live segment');
         const n = this.notes.find(x => x.note.id === r.id);
         if (!n) fail(`note ${JSON.stringify(r.id)} is unknown`);
-        if (n.state !== 'open' || n.seg < this.docSeg) fail('note edit requires an open current-document note');
+        if (n.state !== 'open') fail('note edit requires an open note');
         n.note = { ...n.note, text: r.text, edited: true }; n.revision = (n.revision || 0) + 1; return;
       }
       case 'note-state': {

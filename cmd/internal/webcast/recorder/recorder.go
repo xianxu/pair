@@ -28,6 +28,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/webcast/assets"
 	"github.com/xianxu/pair/cmd/internal/webcast/board"
+	"github.com/xianxu/pair/cmd/internal/webcast/notedraft"
 	rec "github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
@@ -65,6 +66,7 @@ type Output func() (Opened, error)
 
 // Options configures a Recorder.
 type Options struct {
+	NoteDrafts *notedraft.Service
 	// UIGuard preserves suppression across replacement documents after uncertain input.
 	UIGuard func(session, action string) error
 	// Operator is the shared Board. OperatorReply must be nonblocking and
@@ -167,6 +169,8 @@ const (
 
 // Recorder records one cast. Start it, Send it inputs, Close it.
 type Recorder struct {
+	draftWork      chan struct{}
+	draftOwner     *operatorDraftOwner
 	inputUncertain bool
 	operator       *operatorContext // loop-owned trusted top-frame context
 	operatorDocs   map[operatorContextKey]operatorDocument
@@ -286,7 +290,7 @@ func (r *Recorder) enqueue(in any, bounded bool) bool {
 	// Board is a leaf lock; capture before queue ownership. A binding waiting
 	// across Off/On must retain its originating generation, even before ingress.
 	if e, ok := in.(Event); ok && r.opts.Operator != nil {
-		if _, req, operator := operatorMessage(e); operator && req.Op != "status" && req.Op != "cancel-draft" {
+		if _, req, operator := operatorMessage(e); operator && req.Op != "status" && (req.Op != "cancel-draft" || r.opts.NoteDrafts != nil) {
 			e.annotation, _ = r.opts.Operator.AdmitAnnotationGeneration(req.Generation)
 			in = e
 		}
@@ -526,6 +530,8 @@ func (r *Recorder) call(session, method string, params, result any) (uint64, err
 
 func (r *Recorder) handle(in stamped) {
 	switch v := in.in.(type) {
+	case preparedNoteWrite:
+		r.writePrepared(in.at, v)
 	case operatorWrite:
 		r.writeOperator(in.at, v)
 	case Barrier:

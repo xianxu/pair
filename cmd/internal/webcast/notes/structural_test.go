@@ -105,8 +105,8 @@ func TestResolveAfterARerender(t *testing.T) {
 	b.Add(&recording.Ins{P: st.Top.Kids[1].Kids[1].ID, After: list.ID, Node: b.El("div", []string{"id", "pair"}, twin, twin2)})
 	st = reduceAll(t, b)
 	gone := recording.NoteAt{Node: 9999, Sel: "#pair > p:nth-of-type(1)", Text: "other"}
-	if id, ok := m.Resolve(st, gone); !ok || id != twin.ID {
-		t.Errorf("one match resolves even when its text changed: %d %v", id, ok)
+	if id, ok := m.Resolve(st, gone); ok {
+		t.Errorf("mismatched unique selector must hide: %d %v", id, ok)
 	}
 }
 
@@ -116,7 +116,7 @@ func TestResolveAmbiguity(t *testing.T) {
 	a, c := b.El("span", []string{"id", "x"}, b.Txt("left")), b.El("span", []string{"id", "x"}, b.Txt("right"))
 	b.Page(recording.SegLive, "http://x/", a, c)
 	st := reduceAll(t, b)
-	if id, ok := m.Resolve(st, recording.NoteAt{Node: 9999, Sel: "#x", Text: "right"}); !ok || id != c.ID {
+	if id, ok := m.Resolve(st, recording.NoteAt{Node: 9999, Sel: "#x", Tag: "span", Text: "right"}); !ok || id != c.ID {
 		t.Errorf("two matches, one with the anchor's text: %d %v", id, ok)
 	}
 	if _, ok := m.Resolve(st, recording.NoteAt{Node: 9999, Sel: "#x", Text: "neither"}); ok {
@@ -151,5 +151,129 @@ func TestContextOfAppReportsIsRenderedText(t *testing.T) {
 	}
 	if strings.Contains(ctx.Text, "getElementById") || strings.Contains(ctx.Text, "insertAdjacentHTML") {
 		t.Errorf("context carries the script body: %q", ctx.Text)
+	}
+}
+
+func TestResolveRejectsConnectedConflictAndRouteChange(t *testing.T) {
+	b := recording.NewBuilder("identity")
+	n := b.El("button", []string{"id", "publish", "class", "primary"}, b.Txt("Publish report"))
+	b.Page(recording.SegLive, "http://x/one", n)
+	st := reduceAll(t, b)
+	at, _ := Structural{}.Anchor(st, n.ID)
+	if at.Tag != "button" || at.Stable["id"] != "publish" || len(at.Classes) != 1 || at.Route != "http://x/one" {
+		t.Fatalf("missing frozen evidence: %+v", at)
+	}
+	st.Node(n.ID).A["id"] = "delete"
+	if _, ok := (Structural{}).Resolve(st, at); ok {
+		t.Fatal("reused connected identity resolved")
+	}
+	st.Node(n.ID).A["id"] = "publish"
+	st.URL = "http://x/two"
+	if _, ok := (Structural{}).Resolve(st, at); ok {
+		t.Fatal("changed route resolved")
+	}
+}
+
+func TestResolveReorderedSiblingAndAmbiguousCopy(t *testing.T) {
+	b := recording.NewBuilder("reorder")
+	old := b.El("li", nil, b.Txt("Quarterly report"))
+	list := b.El("ul", []string{"id", "reports"}, old)
+	b.Page(recording.SegLive, "http://x/", list)
+	st := reduceAll(t, b)
+	at, _ := Structural{}.Anchor(st, old.ID)
+	replacement := b.El("li", nil, b.Txt("Quarterly report"))
+	b.Add(&recording.Kids{P: list.ID, C: []recording.Node{b.El("li", nil, b.Txt("Other report")), replacement}})
+	st = reduceAll(t, b)
+	if id, ok := (Structural{}).Resolve(st, at); !ok || id != replacement.ID {
+		t.Fatalf("reorder: %d %v", id, ok)
+	}
+	b.Add(&recording.Kids{P: list.ID, C: []recording.Node{replacement, b.El("li", nil, b.Txt("Quarterly report"))}})
+	st = reduceAll(t, b)
+	if _, ok := (Structural{}).Resolve(st, at); ok {
+		t.Fatal("duplicate replacement resolved")
+	}
+}
+
+func TestResolveEnumerationExhaustion(t *testing.T) {
+	b := recording.NewBuilder("bounded")
+	old := b.El("li", nil, b.Txt("Quarterly report"))
+	list := b.El("ul", []string{"id", "reports"}, old)
+	b.Page(recording.SegLive, "http://x/", list)
+	st := reduceAll(t, b)
+	at, _ := Structural{}.Anchor(st, old.ID)
+	kids := []recording.Node{b.El("li", nil, b.Txt("Quarterly report"))}
+	for i := 0; i < MaxAnchorCandidates; i++ {
+		kids = append(kids, b.El("li", nil))
+	}
+	b.Add(&recording.Kids{P: list.ID, C: kids})
+	st = reduceAll(t, b)
+	if _, ok := (Structural{}).Resolve(st, at); ok {
+		t.Fatal("truncated search resolved")
+	}
+}
+
+func TestResolveStaysInShadowScope(t *testing.T) {
+	b := recording.NewBuilder("scope")
+	old := b.El("p", []string{"id", "report"}, b.Txt("Quarterly report"))
+	shadow := recording.Node{ID: b.ID(), Y: recording.YShadow, Mode: "open", C: []recording.Node{old}}
+	host := b.El("section", []string{"id", "host"})
+	host.SR = &shadow
+	outside := b.El("p", []string{"id", "report"}, b.Txt("Quarterly report"))
+	b.Page(recording.SegLive, "http://x/", host, outside)
+	st := reduceAll(t, b)
+	at, _ := Structural{}.Anchor(st, old.ID)
+	b.Add(&recording.Kids{P: shadow.ID, C: nil})
+	st = reduceAll(t, b)
+	if _, ok := (Structural{}).Resolve(st, at); ok {
+		t.Fatal("escaped shadow tree")
+	}
+	replacement := b.El("p", []string{"id", "report"}, b.Txt("Quarterly report"))
+	b.Add(&recording.Kids{P: shadow.ID, C: []recording.Node{replacement}})
+	st = reduceAll(t, b)
+	if id, ok := (Structural{}).Resolve(st, at); !ok || id != replacement.ID {
+		t.Fatalf("same scope replacement: %d %v", id, ok)
+	}
+}
+
+func TestLegacyEmptyPathIsSafe(t *testing.T) {
+	b := recording.NewBuilder("empty-path")
+	n := b.El("p", nil)
+	b.Page(recording.SegLive, "http://x/", n)
+	if id, ok := (Structural{}).Resolve(reduceAll(t, b), recording.NoteAt{Node: n.ID, Path: []string{""}}); !ok || id != n.ID {
+		t.Fatal("legacy direct identity should work")
+	}
+}
+
+// A matching selector/text in a navigated frame is not the original document.
+// Until frame-route evidence is persisted, only connected node identity is safe.
+func TestResolveHidesReplacementAfterFrameNavigation(t *testing.T) {
+	for _, nestedShadow := range []bool{false, true} {
+		t.Run(map[bool]string{false: "frame", true: "shadow-in-frame"}[nestedShadow], func(t *testing.T) {
+			b := recording.NewBuilder("frame-route")
+			frame := b.El("iframe", []string{"id", "preview"})
+			b.Page(recording.SegLive, "http://x/", frame)
+			content := func() (recording.Node, recording.Node) {
+				item := b.El("h2", []string{"id", "report"}, b.Txt("Quarterly earnings"))
+				container := b.El("section", []string{"id", "reports"}, item)
+				if nestedShadow {
+					container.C = nil
+					container.SR = &recording.Node{ID: b.ID(), Y: recording.YShadow, Mode: "open", C: []recording.Node{item}}
+				}
+				return recording.Node{ID: b.ID(), Y: recording.YDoc, C: []recording.Node{b.El("html", nil, b.El("body", nil, container))}}, item
+			}
+			first, old := content()
+			b.Add(&recording.Doc{Doc: first.ID, Host: frame.ID, URL: "http://y/original", Tree: first})
+			st := reduceAll(t, b)
+			at, _ := Structural{}.Anchor(st, old.ID)
+			if id, ok := (Structural{}).Resolve(st, at); !ok || id != old.ID {
+				t.Fatal("connected frame anchor must resolve")
+			}
+			next, _ := content()
+			b.Add(&recording.Doc{Doc: next.ID, Host: frame.ID, URL: "http://y/replacement", Tree: next})
+			st = reduceAll(t, b)
+			if id, ok := (Structural{}).Resolve(st, at); ok {
+				t.Fatalf("navigated frame reused anchor on %d", id)
+			}
+		})
 	}
 }

@@ -228,14 +228,17 @@ export function noteDialogTransition(previous, event) {
     state = { ...state, error: HELD_NOTE_RECOVERY };
   } else if (e.type.startsWith('open-')) {
     const mode = e.type.slice(5);
-    state = { ...closedNote(state.epoch + 1, state.held), mode, target: e.note || null, payload: e.payload || null, text: e.note?.text || '' };
+    state = { ...closedNote(state.epoch + 1, state.held), mode, target: e.note || null, payload: e.payload || null, blocked: mode === 'draft' && !!e.payload?.capturePending, text: e.note?.text || '' };
   } else if (e.type === 'dismiss' || e.type === 'retire') {
     state = closedNote(state.epoch + 1, state.held);
   } else if (e.type === 'input' && ['draft', 'edit'].includes(state.mode) && state.pending?.kind !== 'save-new') {
     state = { ...state, text: e.text };
+  } else if (e.type === 'capture' && state.mode === 'draft' && state.payload?.request === e.request) {
+    const update = e.update;
+    state = { ...state, payload: { ...state.payload, ...update.payload }, blocked: 'blocked' in update ? !!update.blocked : 'pending' in update ? !!update.pending : state.blocked, captureMessage: update.message || '', retry: !!update.retry };
   } else if (e.type === 'hold') {
     state = { ...state, held: e.reason || '' };
-  } else if ((e.type === 'save' || e.type === 'resolve') && !state.held && !state.pending) {
+  } else if ((e.type === 'save' || e.type === 'resolve') && !state.held && !state.pending && !(state.mode === 'draft' && state.blocked)) {
     const kind = e.type === 'resolve'
       ? (['view', 'edit'].includes(state.mode) && state.target?.resolvable ? 'resolve' : null)
       : (['draft', 'edit'].includes(state.mode) && validNote(state.text) ? (state.mode === 'draft' ? 'save-new' : 'save-edit') : null);
@@ -271,24 +274,26 @@ export function noteDialog(els, deps) {
     els.input.readOnly = state.pending?.kind === 'save-new';
     els.text.textContent = state.mode === 'view' ? state.text + (state.target?.edited ? ' (edited)' : '') : '';
     els.count.textContent = `${state.target?.edited ? '(edited) · ' : ''}${noteBytes(state.text)} / ${MAX_NOTE_BYTES}`;
-    els.msg.textContent = [state.held, state.error].filter(Boolean).join(' ');
+    els.msg.textContent = [state.held, state.error || state.captureMessage].filter(Boolean).join(' ');
     els.save.classList.toggle('hidden', !editable);
-    els.save.disabled = !editable || !!state.held || !!state.pending || !validNote(state.text);
+    els.save.disabled = !editable || !!state.held || !!state.pending || !!state.blocked || !validNote(state.text);
     els.resolve.classList.toggle('hidden', !state.target?.resolvable);
     els.resolve.disabled = !!state.held || !!state.pending || !state.target?.resolvable;
     els.cancel.textContent = editable ? 'Cancel' : 'Close';
+    if (els.retry) els.retry.hidden = state.mode !== 'draft' || !state.retry;
   };
   const dispatch = (event) => {
     const old = state;
     const next = noteDialogTransition(state, event);
     state = next.state;
     render();
+    if (old.mode === 'draft' && old.epoch !== state.epoch && event.type !== 'result') deps.onDiscard?.(old.payload);
     if (old.mode !== 'closed' && state.mode === 'closed') deps.onClose?.();
     return next.effect;
   };
   const answer = (effect, request) => {
     let promise;
-    try { promise = deps.post(...request); } catch { promise = Promise.reject(); }
+    try { promise = effect.kind === 'save-new' && deps.saveDraft ? deps.saveDraft(request[1]) : deps.post(...request); } catch { promise = Promise.reject(); }
     Promise.resolve(promise).then(
       (r) => dispatch({ type: 'result', pending: effect.pending, status: r.status, text: r.text }),
       () => dispatch({ type: 'result', pending: effect.pending, text: "Couldn't reach the broadcast. Try again." }),
@@ -297,6 +302,7 @@ export function noteDialog(els, deps) {
   els.input.addEventListener('input', () => dispatch({ type: 'input', text: els.input.value }));
   const close = () => dispatch({ type: 'dismiss' });
   els.cancel.addEventListener('click', close);
+  els.retry?.addEventListener('click', () => { if (state.mode === 'draft' && state.retry && !state.pending) deps.onRetry?.(); });
   els.save.addEventListener('click', () => {
     if (els.save.disabled) return;
     const extra = state.mode === 'draft' && deps.beforeSave ? deps.beforeSave() : {};
@@ -321,6 +327,11 @@ export function noteDialog(els, deps) {
   };
   return {
     draft(payload) { dispatch({ type: 'open-draft', payload }); els.input.focus?.(); },
+    projectDraft(request, update) {
+      if (state.mode !== 'draft' || state.payload?.request !== request) return false;
+      dispatch({ type: 'capture', request, update });
+      return true;
+    },
     view(note, { resolvable = false } = {}) { return openExisting('view', note, resolvable); },
     edit(note, { resolvable = true } = {}) { return openExisting('edit', note, resolvable); },
     update(list) {

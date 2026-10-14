@@ -153,7 +153,7 @@ one-line description can't carry.
 |---|---|---|
 | **Alt+h** | non-agent panes | Pop up the keybinding list in a floating pane (`q` or `Esc` to dismiss). Same content as `pair keys`. When Couch presents the thread, Couch's keys come first. |
 | **Alt+Return** | nvim (normal/insert) | Send buffer to agent. Note for consistency, claude's keybinding also changed to Alt+return as send, and return as newline |
-| **Shift+Ctrl+Alt+Return** | draft nvim (normal/insert) | Send draft text plus all open cast-tab notes, recorded context, current box text and a PNG crop per note to the agent in view. An empty draft can send notes. Progress appears in the draft status line; editing resumes when the operation finishes or fails (36s maximum). [Evidence and retry behavior](atlas/webcast-submission.md). |
+| **Shift+Ctrl+Alt+Return** | draft nvim (normal/insert) | Send draft text plus all open cast-tab notes, recorded context, 🤖<current box text and a PNG crop per note>{draw-time box text and each note’s saved PNG crop} to the agent in view. An empty draft can send notes. Progress appears in the draft status line; editing resumes when the operation finishes or fails (36s maximum). [Evidence and retry behavior](atlas/webcast-submission.md). |
 | **Return** | agent pane | Insert a newline in Claude, Codex, Agy, and Qoder composers; Pair translates it to Muse's native Shift+Return and Grok's native Alt+Enter. The rewrite is *positively gated* for every agent: Pair rewrites only while it can see a live composer on screen, so in a permission picker, a selection menu, or any state it doesn't recognize, Return stays a plain Enter and the dialog confirms. Set `PAIR_WRAP_REMAP_RETURN=0` to turn the rewrite off entirely (that also disables overlay detection and its telemetry). |
 | **Alt+Return** | agent pane | Always submits, in every state. |
 | **Alt+Shift+Return** | any Pair pane | Cycle the selected right terminal: **focus** (floating, centered at 75% width and full height, agent pane dimmed) → **maximize** (native fullscreen; Zellij's bars remain visible) → back to the tiling, focusing the invoking pane. A split acts only on the selected half. No-op without a right terminal. |
@@ -1159,7 +1159,7 @@ about, or tap for a small box around that spot, then write; on a phone, drag a l
 further than a tap). The name comes from the lock page (below); the page remembers it and
 the color in this browser. Every note is its box: everyone sees it outlined in the author's color with
 the 💭 inside its top-right corner, and the box is the part of the page a submission
-shows the agent. It follows the page as it scrolls, stays through a pause, and leaves the page when the cast moves to another
+shows the agent. 🤖<It follows the page as it scrolls, stays through a pause, and leaves the page when the cast moves to another>{Its box follows a confidently matched visible anchor; a removed, hidden or ambiguous anchor hides the box. The open-notes list keeps it reachable as “not on this view” on another}
 page; anyone can tap a pin to read it and resolve it. While the cast is paused, viewers can't point, leave, or resolve
 notes: the rail's controls and an open note's Save and Resolve are greyed out ("The cast is paused.") until it
 resumes; a draft keeps its text. In Couch the open notes show as
@@ -1170,6 +1170,8 @@ notes, these are part of the recording: notes and strokes, with their authors, a
 saved in `notes.jsonl` and `pointer.jsonl`, and `couch --broadcast-web-query DIR
 notes` lists them. The name a viewer gives is theirs to choose: it attributes, it
 doesn't authenticate.
+
+🤖{**Capture when drawing (#538).** Releasing a note box in the viewer or cast Chrome starts its capture and opens the editor immediately. Keep typing while “Capturing…” is shown; the tick confirms capture and Save attaches your text to it. Capture failure keeps your text and offers Retry capture. A busy capture queue or full capture store still allows Save with an explicit unavailable crop; submit or resolve notes to free capacity. Cancel or draw a new box to discard a draft. Saved pixels stay local and retain the original appearance even after navigation or re-rendering; moving the live box does not recapture them.}
 
 Existing web notes use the same own-session editing rule as screen notes:
 click your 💭 pin for a populated editor, **Save** to revise its text, or
@@ -1184,18 +1186,18 @@ recording; resolved notes still disappear from the live page.
 
 **Submit web notes (#483).** Press **Shift+Ctrl+Alt+Return** in the draft to send
 its text and all open cast-tab notes to the agent in view, with recorded context,
-current box text and one current PNG crop per note. The message includes the
-recording path and commands for reading the bundle. Crops cover the current
-viewport; offscreen notes retain context with an unavailable crop. Capture waits
+🤖<current box text and one current PNG crop per note.>{draw-time box text and each note’s saved PNG crop.} The message includes the
+recording path and commands for reading the bundle. 🤖<Crops cover the current>{Crops preserve the original draw-time}
+viewport; 🤖<offscreen notes retain context with an unavailable crop. Capture waits>{notes without saved pixels retain context with an unavailable crop. Draw-time capture waits}
 briefly for document-wide animations and labels any unsettled result, without scrolling or
-forcing styles. The draft can be empty. Submitted notes become
+forcing styles. The draft can be empty. 🤖<Submitted notes become>{Acknowledged submissions mark selected note revisions}
 resolved: submitting transfers ownership of the notes to the agent; whatever
 follows (a pensive, an issue, a fix) is the agent's. See
 [submission evidence and recovery](atlas/webcast-submission.md).
 
-🤖{**Captured page identity (#525).** New DOM bundles use version 2: `source.page` contains the actual cast page's URL and title with `provenance: "cdp"`; each note's `source_document` references `source.document`. For example: `{"version":2,"source":{"document":1,"page":{"url":"http://localhost:4321/blog","title":"Blog","provenance":"cdp"}},"notes":[{"source_document":1,"at":{"node":7},"box_text":{"visible_text":[{"element":"<button class=\"save\">","text":"Save"}]}}]}` (other fields omitted). URL/title are bound to current text and pixels; unavailable captures claim no page. Box text preserves its order and text-node entries with tag/classes instead of CSS selectors, and `at.node` remains the `@N` recording handle. Version-1 bundles still load. [Complete schema](atlas/webcast-submission.md).}
+🤖{**Captured page identity (#525, #538).** New DOM bundles use version 3: each note carries its captured `page` URL/title with `provenance: "cdp"`, `capture_id`, `source_document` and privacy decision. A bundle can span documents; read each note’s original page rather than assuming the current submission page. URL/title stay bound to the saved draw-time text and pixels; unavailable captures claim no page. Box text preserves its order and text-node entries with tag/classes instead of CSS selectors, and `at.node` remains the historical `@N` recording handle. Version-1 and version-2 bundles still load; version 2 retains its batch page in `source.page`. [Complete schema](atlas/webcast-submission.md).}
 
-🤖{**Issue evidence privacy (#526).** Submissions default to private. Only the operator edits `<COUCH_STORE_DIR>/webcast/origin-privacy.json`, for example `{"origins":[{"origin":"http://localhost:4321","privacy":"shareable"}]}`; rules match exact HTTP(S) origins, with default ports normalized. Couch rereads the file for each submission and records the matched policy in the bundle. Missing files mean private; invalid or unreadable files still allow submission as private, with a reason in the bundle and a notice naming the file. Agents write issue evidence as text, summarize private page text, and attach only relevant crops when both the bundle and repository asset policy permit it. Recordings stay local and may expire; issues must stand on their own. [Policy details](atlas/webcast-submission.md#origin-privacy-and-issue-evidence-526).}
+🤖{**Issue evidence privacy (#526).** Submissions default to private. Only the operator edits `<COUCH_STORE_DIR>/webcast/origin-privacy.json`, for example `{"origins":[{"origin":"http://localhost:4321","privacy":"shareable"}]}`; rules match exact HTTP(S) origins, with default ports normalized. Couch rereads the file for each submission and records the matched policy for each note’s original captured page. The bundle’s top-level privacy is a conservative summary; it cannot grant permission for an individual private note. Missing files mean private; invalid or unreadable files still allow submission as private, with a reason in the bundle and a notice naming the file. Agents write issue evidence as text, summarize private page text, and attach only relevant crops when that note’s privacy and the repository asset policy permit it. Recordings stay local and may expire; issues must stand on their own. [Policy details](atlas/webcast-submission.md#origin-privacy-and-issue-evidence-526).}
 
 **Codes on every cast link (#495).** Every link a cast hands out opens with a short
 code first: the screen broadcast's view and pointer links, and the web cast's view and

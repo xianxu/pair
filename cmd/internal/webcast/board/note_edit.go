@@ -72,7 +72,7 @@ func (b *Board) edit(in EditIn, operator bool, emit Emit) error {
 	var owner string
 	found := false
 	for _, n := range b.st.Notes {
-		if n.ID == in.ID && n.Seg >= doc && n.State == recording.NoteOpen {
+		if n.ID == in.ID && n.State == recording.NoteOpen {
 			owner = n.Owner
 			found = true
 			break
