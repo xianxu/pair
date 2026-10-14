@@ -39,7 +39,7 @@ The operator (2026-10-12): record the last conversation's coordinates and let th
 
 Durable plan: [compaction launch prompt plan](../plans/000522-couch-compaction-without-composer-paste-record-coordinates-start-the-new-conversation-with-a-launch-prompt-no-blocking-continuation-failed-state-plan.md).
 
-- [ ] M1 — Launch prompt (one-time, never persisted), coordinates recorded on compaction, completion at registration, one non-blocking line.
+- [x] M1 — Launch prompt (one-time, never persisted), coordinates recorded on compaction, completion at registration, one non-blocking line.
 - [ ] M2 — Retire the composer paste and the retry/dismiss surface; sweep references.
 - [ ] Live: a Claude and a Codex slot compact with no paste, after the operator's OK through the TL.
 
@@ -66,6 +66,8 @@ total: 4.83
 
 ## Log
 
+
+- 2026-10-13: closed M1 — Round 1 REWORK fixed in 887a44bf9: BR-1 executeContinuation keeps its record on a RecordPreviousSession error and failContinuation refuses a record without its request (TestFailContinuationWithoutItsRequestReturnsTheCause); BR-2 PromptArgs puts the prompt first (agy -i first) so no multi-value saved flag swallows it (table incl --add-dir a b, codex --image; real wrapper/layout acceptance asserts argv[0]==prompt, once); BR-3 launchEnvCommand split + TestAnInPaneFreshStartDropsTheLaunchPrompt; minors: targetMayExist single rule, stale comments, Miss.Path rationale, strict-decode note in plan. Packages checkpoint/launcher/wrapcmd/couchcmd/artifactpath green unsandboxed; couchcore green except TestFleetInventoryLiveConformance (pair:0 staged: the #539 'staged' grammar gap, unrelated). Full make -k test was green on ec93571ae+ca52528bd apart from a docs check since fixed.; review verdict: SHIP
 ### 2026-10-12
 - 2026-10-13: claimed at pair:3 (TL dispatch). Measured the pipeline; plan written and sent to the hub before building.
 - 2026-10-13: TL approved the plan. Plan-quality cleared in 2 rounds (PQ-1: a target that may still be alive is guarded by the incarnations; sequence test added). M1 built:
