@@ -112,3 +112,7 @@ Real Zellij quiescence under seatbelt exposed a metadata row persisting after pr
 ### 2026-10-14 — BR-1: test helper owns failure cleanup
 
 The close reviewer reproduced a surviving grandchild after the reparented command timed out. The helper must terminate its private process group before returning on timeout or supervisor cancellation (SIGTERM/SIGINT), including startup races. Successful commands retain their existing sidecar lifetime semantics. Add controlled descendant regressions for timeout and cancellation plus status preservation; this is a test-fixture lifetime correction under ARCH-ORDER/ARCH-FUNERAL.
+
+### 2026-10-14 — BR-2: synchronize terminal fixture metadata
+
+The prepared review measured command EINVAL while Darwin P_stat was still 2. The test fixture must wait with a bounded deadline for native Table metadata to mark the child terminal, keeping it unreaped until cleanup; command failure alone cannot establish fixture readiness. Add deterministic ordering regression plus repetition/concurrent-load checks. This corrects test synchronization under ARCH-ORDER without changing production behavior.

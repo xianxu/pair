@@ -159,3 +159,110 @@ dispose:
 7. **Plan revision recommendations**
 
    None. Existing revisions reconcile implementation locations, terminal-process handling, helper lifetime, and the accepted Linux verification limitation.
+
+---
+
+## Re-review — 2026-10-14T08:40:42-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 547 — launcher: five call sites exec setuid /bin/ps; read the process table through procutil instead (works under sandboxes) |
+| repo | pair |
+| issue file | workshop/issues/000547-launcher-five-call-sites-exec-setuid-bin-ps-read-the-process-table-through-procutil-instead-works-under-sandboxes.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 895c7868e0336379c8a6aa33be79b31247999544..5526b83153794bb1df358002477a0ff91112a288 |
+| command | sdlc close --issue 547 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-14T08:40:42-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: medium
+```
+
+The production migration appears sound: all five launcher sites use native inspection, process uncertainty remains explicit, and identity fencing protects against PID reuse. BR-1 is verified addressed. Shipping remains blocked by a flaky terminal-process regression and unavailable seatbelt acceptance verification.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      All five lifecycle tests pass at head. In a temporary fixture using the pre-fix helper, the timeout test fails with a surviving grandchild and both cancellation cases fail. The temporary fixture was removed.
+findings:
+  - id: new
+    severity: Important
+    kind: defect
+    family: process-test-state-synchronization
+    title: |
+      Zombie fixture returns before the child reaches terminal kernel state
+    detail: |
+      cmd/internal/procutil/zombie_test.go:35-38 treats any nativeCommand error as completion. The focused package run failed TestDarwinUnreapedChildStatus: command inspection returned EINVAL, but P_stat was still 2 rather than SZOMB=5. ARCH-ORDER requires synchronization on the state being asserted: wait with a bounded deadline for native terminal metadata before returning the fixture, and verify both terminal-process tests under repetition and concurrent package load.
+  - id: new
+    severity: Important
+    kind: unverifiable
+    family: sandbox-acceptance-evidence
+    title: |
+      Required seatbelt acceptance cannot be verified in this review environment
+    detail: |
+      Running sandbox-exec -p '(version 1)(allow default)' /tmp/pair547-review-procutil.test with the selected native process probes exited 71 with “sandbox_apply: Operation not permitted”; no test executed under that profile. Direct native probes pass, but /bin/ps also executes here, so those results do not establish the required setuid-denying environment. Provide measured host results from binaries built at the reviewed head for the native probes and launcher process acceptance under the required profile, or an environment permitting that verification.
+```
+
+1. **Strengths**
+
+   - `procutil/command.go` clears unavailable command evidence and fences successful reads with the process generation.
+   - Stateful snapshot tests exercise disappearance, PID reuse, cancellation, and partial command failures.
+   - Launcher server discovery preserves snapshot identity and refuses unreadable possible-server evidence.
+   - Both GC proof paths share the injected inspection boundary; the acceptance test verifies that a legacy writer blocks both collectors.
+
+2. **Critical findings**
+
+   None.
+
+3. **Important findings**
+
+   - `cmd/internal/procutil/zombie_test.go:35`: synchronize the fixture on confirmed terminal metadata. The command error can precede SZOMB.
+   - Seatbelt acceptance remains unverifiable, as detailed above.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   Launcher, diagnosticlog, gccmd, gcruntime, artifactpath, public CLI acceptance, and helper lifecycle tests passed. Linux procutil cross-compilation passed; native Linux execution remains the documented accepted limitation.
+
+   The initial procutil run failed on the zombie race. Subsequently, 330 repetitions of the two terminal-process tests passed; this does not invalidate the observed failure. Direct native probes passed without skips.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared native readers and decoders replace duplicated subprocess inspection.
+   - **ARCH-PURE — pass:** decoding, ancestry, and server projection remain pure.
+   - **ARCH-PURPOSE — pass for implementation:** all enumerated production ps consumers migrated; required sandbox evidence remains unavailable.
+   - **ARCH-MOCK — pass:** stateful reader fixtures share the production snapshot seam.
+   - **ARCH-CONSTRAINTS — pass:** serial enrichment, bounded command input, cancellation checks, and no fan-out.
+   - **ARCH-SECURE — pass:** executable identity stays separate from argv; unreadable evidence remains uncertainty.
+   - **ARCH-ORDER — flag:** terminal-process fixture assumes an ordering the kernel does not guarantee.
+   - **ARCH-FUNERAL — pass:** snapshots have scoped lifetimes; BR-1 cleanup has red/green regression evidence.
+
+   Atlas documents the new surface. No new user-facing command, flag, or configuration requires a README change. Core-concept locations match the plan’s implementation-location revision.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry requiring the terminal-process fixture to wait for confirmed native terminal status, rather than command-inspection failure. Record measured pinned-head seatbelt acceptance results when available.
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.425533042s
+head: "5526b83153794bb1df358002477a0ff91112a288"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
