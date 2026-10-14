@@ -1,3 +1,5 @@
+import { createPlacement } from './web/annotation-placement.js';
+
 // Trusted adapter inside couchcast, never the page's JavaScript world.
 export function operatorTransport(report, win) {
   let serial = 0;
@@ -7,7 +9,7 @@ export function operatorTransport(report, win) {
   let scope, generation = 0;
   const stale = 'The recording document changed. Start a new annotation.';
   const wire = (request) => report({ t: 'operator', request });
-  const ask = (op, body, id = String(++serial), origin = annotationGeneration) => {
+  const ask = (op, body, id = String(++serial), origin = annotationGeneration, timeoutMs = 5000) => {
     if (waiting.has(id)) return waiting.get(id).promise;
     let finish;
     const promise = new Promise((resolve) => { finish = resolve; });
@@ -17,7 +19,7 @@ export function operatorTransport(report, win) {
     const timer = win.setTimeout(() => {
       waiting.delete(id);
       resolve({ request: id, outcome: 'unknown', error: 'No confirmation yet. Retry checks the same operation.' });
-    }, 5000);
+    }, Math.min(5000, timeoutMs));
     waiting.set(id, { resolve, timer, promise });
     wire({ op, request: id, body, generation: origin });
     return promise;
@@ -45,12 +47,13 @@ export function operatorTransport(report, win) {
     reply(reply) {
       const p = waiting.get(reply.request);
       if (!p) return;
-      if (reply.outcome === 'pending') return;
+      if (reply.outcome === 'pending' && !reply.state) return;
       waiting.delete(reply.request);
       win.clearTimeout(p.timer);
       p.resolve(reply);
     },
     ask,
+    annotationGeneration: () => annotationGeneration,
     async mutate(op, body) {
       if (!unsettled) unsettled = { id: String(++serial), op, body, generation, origin: annotationGeneration };
       const current = unsettled;
@@ -76,20 +79,27 @@ export function mountOperator({ host, root, report }, { annotate, palette, css }
   const box = doc.createElement('div'); box.className = 'operator-box'; root.appendChild(box);
   const transport = operatorTransport(report, win);
   let callback = () => {}, revision = -1, strokeSeq = 0;
+  // Only trusted CDP object references establish original identity. Paths and
+  // matching text remain replacement evidence, never an original-node map.
+  // Recorder IDs increase across documents; backend IDs are never used here.
+  const originals = new Map();
+  let originalDocument = 0, visibleNodeIDs = new Set();
   const view = {
     model: { seg: 0, docSeg: 0, notes: [] },
     onRecord(fn) { callback = fn; },
     toPage: (x, y) => [x + win.scrollX, y + win.scrollY],
     fromPage: (x, y) => [x - win.scrollX, y - win.scrollY],
     boxOf: () => null,
+    placementOf: createPlacement({ document: () => doc, route: () => win.location?.href || '', original: id => originals.get(id)?.deref() || null, exclude: n => n === host, onChange: () => callback({k:'layout',t:0},view.model) }),
   };
   let picked = 0;
   const post = (route, body) => {
+    if (route === 'note-edit') return transport.mutate('edit-note', { seg: body.seg, id: body.id, text: body.text });
     if (route === 'note') return transport.mutate('save-note', { draft: body.draft, color: body.color, text: body.text });
     if (route === 'note-state') return transport.mutate('resolve', { seg: view.model.seg, id: body.id, state: body.state });
     return transport.ask('stroke', { seg: body.seg, id: body.id, color: body.color, pts: body.pts }).then((r) => ({ status: r.outcome === 'accepted' ? 204 : 409, text: r.error || 'Stroke was not confirmed.' }));
   };
-  const prepareDraft = async (region) => {
+  const prepareDraft = (region) => {
     // Temporarily remove our entire host from hit-testing. The path helper is
     // the recorder observer's own grammar, including open shadow boundaries.
     const display = host.style.display;
@@ -107,12 +117,20 @@ export function mountOperator({ host, root, report }, { annotate, palette, css }
     const path = node && win.__couchcastPath?.(node);
     if (!path) throw Error('This element is not recorded yet.');
     const rect = node.getBoundingClientRect();
-    const reply = await transport.ask('prepare-note', { seg: view.model.seg, path, box: [rect.x + win.scrollX, rect.y + win.scrollY, rect.width, rect.height], region });
-    if (reply.outcome !== 'accepted' || !reply.draft) throw Error(reply.error || 'Could not anchor this note.');
-    return { draft: reply.draft };
+    return { seg: view.model.seg, path, box: [rect.x + win.scrollX, rect.y + win.scrollY, rect.width, rect.height], region };
   };
+  const captureCall = async (op, body, { timeoutMs, context }) => {
+    const { request, viewer, ...payload } = body;
+    if (op === 'draft-status' || op === 'cancel-draft') payload.draft = body.draft || request;
+    // Status and cancellation have distinct envelope IDs; their body identifies
+    // the prepared capture. Save/prepare retain their idempotency request IDs.
+    const reply = await transport.ask(op, payload, op === 'draft-status' || op === 'cancel-draft' ? undefined : request, context, timeoutMs);
+    if (reply.outcome === 'refused' || reply.outcome === 'unknown') throw Error(reply.error || 'Capture was not confirmed. Retry capture.');
+    return reply;
+  };
+  captureCall.context = () => transport.annotationGeneration();
   const ui = annotate.mountAnnotation(doc, win, view, {
-    root, box, stage: box, palette, operator: true, annotationAllowed: false, post, prepareDraft,
+    root, box, stage: box, palette, operator: true, annotationAllowed: false, post, prepareDraft, captureCall,
     who: { id: () => 'operator', name: () => 'Operator', viewer: () => ({ id: 'operator', name: 'Operator' }) },
     colors: { get: () => picked, set: (n) => { picked = n; } },
   });
@@ -128,9 +146,21 @@ export function mountOperator({ host, root, report }, { annotate, palette, css }
   };
   win.__couchcastOperatorReply = (reply) => transport.reply(reply);
   win.__couchcastOperatorMode = (mode) => { ui.setMode(mode); return ui.mode === mode; };
+  win.__couchcastOperatorOriginal = (document, id, node) => {
+    if (document <= 0 || document !== originalDocument || !visibleNodeIDs.has(id) || node?.nodeType !== 1 || node.ownerDocument !== doc || !node.isConnected || node === host) return false;
+    const previous = originals.get(id);
+    // A dead weak reference still reserves its identity until the note retires.
+    if (previous) return previous.deref() === node;
+    originals.set(id, new WeakRef(node));
+    callback({ k: 'layout', t: 0 }, view.model);
+    return true;
+  };
   win.__couchcastOperatorView = (snapshot) => {
     if (snapshot.revision < revision) return;
     revision = snapshot.revision;
+    if (snapshot.doc !== originalDocument) { originals.clear(); originalDocument = snapshot.doc; }
+    visibleNodeIDs = new Set(snapshot.notes.map(note => note.at?.node));
+    for (const id of originals.keys()) if (!visibleNodeIDs.has(id)) originals.delete(id);
     transport.setScope(snapshot.doc, snapshot.ended);
     view.model = { seg: snapshot.seg, docSeg: snapshot.doc, paused: snapshot.paused, ended: snapshot.ended, driver: snapshot.driver, notes: snapshot.notes.map((note) => ({ note, seg: snapshot.doc, state: 'open' })) };
     callback({ k: 'view', t: snapshot.t }, view.model);

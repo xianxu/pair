@@ -48,7 +48,7 @@ end
 do
   local step,state=driver()
   prepare(step,'first','one'); local first=state().epoch
-  prepare(step,'second','two')
+  step('expired'); prepare(step,'second','two')
   assert(#step('prepared',{epoch=first,result={state='prepared',path='/old'}})==0)
   ready(step,'second'); local second=state().epoch
   local fx=step('sent',{sent=true})
@@ -116,3 +116,19 @@ do
   assert(#step('acknowledged',{id='bundle',epoch=epoch,poll=0,error='duplicate'})==0,'duplicate ack callback forked recovery')
 end
 print('dom_submission_state_test: passed')
+
+-- Active ownership cannot be replaced or extended by another chord.
+do
+ local step,state=driver();prepare(step,'one','one');local epoch=state().epoch
+ step('send',{body='two',text='two',input='two'})
+ assert(state().epoch==epoch and state().pending.body=='one','active send replaced owner')
+ assert(state().message=='already sending…')
+ step('prepared',{result={state='preparing',progress={phase='settling',current=2,total=3}}})
+ assert(state().message=='waiting for the page to settle, crop 2/3')
+ step('expired')
+ assert(not state().pending and state().message:find('timed out',1,true))
+end
+assert(M.progress_text({phase='capturing',current=1,total=3})=='preparing submission: capturing crop 1/3…')
+for _,p in ipairs({false,12,'bad',{phase='capturing',current=-1,total=3},{phase='settling',current=0/0,total=3},{phase='evil'}}) do
+ assert(M.progress_text(p)=='preparing submission…')
+end

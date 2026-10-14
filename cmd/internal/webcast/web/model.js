@@ -50,6 +50,7 @@ function checkRecord(r) {
     case 'nav': need(!!r.url, 'url'); break;
     case 'vp': need(r.w > 0 && r.h > 0, 'w, h'); break;
     case 'note': need(!!r.id, 'id'); need(!!(r.author && r.author.id), 'author.id'); need((r.at && r.at.node > 0) || !!r.region, 'at.node or region'); break;
+    case 'note-edit': need(!!r.id, 'id'); need(typeof r.text === 'string' && !!r.text.trim() && new TextEncoder().encode(r.text).length <= 1024 && !/[\p{Cf}\p{Cs}\u0000-\u0008\u000b-\u001f\u007f-\u009f]/u.test(r.text), 'bounded nonblank plain text'); break;
     case 'note-state': need(!!r.id, 'id'); need(r.state === 'open' || r.state === 'resolved', 'state'); break;
     case 'stroke': need(!!r.id, 'id'); need(!!(r.author && r.author.id), 'author.id'); need(Array.isArray(r.pts) && r.pts.length > 0, 'pts'); break;
     case 'annotation-clear': need(r.who?.id === 'operator', 'operator attribution'); break;
@@ -128,10 +129,18 @@ export class Model {
       case 'doc': return this.applyDoc(r);
       case 'asset': this.assets.set(r.url, r); return;
       case 'note': this.notes.push({ note: r, state: 'open', seg: this.seg }); return;
+      case 'note-edit': {
+        if (!this.live || this.ended) fail('note edit requires a live segment');
+        const n = this.notes.find(x => x.note.id === r.id);
+        if (!n) fail(`note ${JSON.stringify(r.id)} is unknown`);
+        if (n.state !== 'open') fail('note edit requires an open note');
+        n.note = { ...n.note, text: r.text, edited: true }; n.revision = (n.revision || 0) + 1; return;
+      }
       case 'note-state': {
         const n = this.notes.find((x) => x.note.id === r.id);
         if (!n) fail(`note ${JSON.stringify(r.id)} is unknown`);
-        n.state = r.state; return;
+        n.state = r.state; n.revision = (n.revision || 0) + 1;
+        n.resolvedBy = r.state === 'resolved' && r.who ? { ...r.who } : null; return;
       }
       case 'stroke': this.strokes.push({ stroke: r, seg: this.seg }); return;
       case 'annotation-clear': this.notes = []; this.strokes = []; return;

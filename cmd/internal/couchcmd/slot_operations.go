@@ -193,7 +193,7 @@ func slotOperationOutcome(value any, err error) couchmessage.ReceiptOutcome {
 	case errors.As(err, &reapRefusal):
 		return couchmessage.ReceiptOutcome{Status: couchmessage.ReceiptRefused, Code: "reap-refused", Detail: reapRefusal.Detail}
 	case err != nil:
-		out := couchmessage.ReceiptOutcome{Status: couchmessage.ReceiptFailed, Detail: err.Error(), Diagnostic: string(couchcore.ResumeDiagnosticOf(err))}
+		out := couchmessage.ReceiptOutcome{Status: couchmessage.ReceiptFailed, Detail: couchcore.OperatorError(err), Diagnostic: string(couchcore.ResumeDiagnosticOf(err))}
 		var unconfirmed *couchcore.ReloadUnconfirmed
 		var unready *couchcore.RestartUnready
 		switch {

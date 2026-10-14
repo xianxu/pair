@@ -38,13 +38,17 @@ local function agent_text(pending, result)
   return text
 end
 
-function M.step(state, event)
+local function transition(state, event)
   local next = copy(state)
   if state.pending then next.pending = copy(state.pending) end
 
   next.receipts = copy(state.receipts)
 
   if event.kind == 'send' then
+    if state.pending then
+      next.message = 'already sending…'
+      return next, {}
+    end
     next.epoch, next.polls = state.epoch + 1, 0
     next.pending = { body = event.body, text = event.text, input = event.input }
     next.phase = 'pinning'
@@ -55,7 +59,7 @@ function M.step(state, event)
   if event.kind == 'acknowledged' then
     local receipt = state.receipts[event.id]
     if not receipt or receipt.epoch ~= event.epoch or receipt.polls ~= event.poll then return next, {} end
-    if not event.error and event.result and event.result.state == 'resolved' then
+    if not event.error and type(event.result) == 'table' and event.result.state == 'resolved' then
       next.receipts[event.id] = nil
       return next, {}
     end
@@ -68,9 +72,26 @@ function M.step(state, event)
     return next, notify(next, 'sent; note resolution needs recovery: couch --broadcast-web-submit ack ' .. event.id)
   end
 
+  -- A deadline releases the draft, but cannot erase a subsequently confirmed
+  -- dispatch. Recover only its notes; never reuse its draft completion callback.
+  if event.kind == 'late_sent' and event.sent and event.id then
+    local count = 0
+    for _ in pairs(state.receipts) do count = count + 1 end
+    if count >= 64 then
+      return next, notify(next, 'sent; note resolution needs recovery: couch --broadcast-web-submit ack ' .. event.id)
+    end
+    next.receipts[event.id] = { epoch = event.epoch, polls = 0 }
+    return next, {{kind='rpc',id=event.id,epoch=event.epoch,op='ack',reply='acknowledged',poll=0}}
+  end
+
   -- A callback from a timed-out/retried attempt cannot act on its successor.
   if event.epoch ~= state.epoch then return next, {} end
+  if (event.kind == 'expired' or event.kind == 'failed') and state.pending then
+    next.pending, next.phase = nil, 'idle'
+    return next, notify(next, event.error or 'submission timed out; edit freely and press the DOM chord again (delivery may be uncertain)')
+  end
   local result = event.result
+  if type(result) == 'table' and type(result.slot) == 'string' and next.pending then next.pending.slot = result.slot end
 
   if event.kind == 'pinned' and state.phase == 'pinning' then
     if not event.available then
@@ -147,7 +168,7 @@ function M.step(state, event)
   if event.kind == 'sent' and state.phase == 'sending' then
     next.pending, next.phase, next.polls = nil, 'idle', 0
     if not event.sent then
-      return next, notify(next, 'send was not confirmed; edit freely and press the DOM chord again (duplicates are possible)')
+      return next, notify(next, (event.error or 'send was not confirmed') .. '; edit freely and press the DOM chord again (duplicates are possible)')
     end
     local id = state.pending.id
     local effects = { effect(next, 'done', { input = state.pending.input }) }
@@ -165,10 +186,47 @@ function M.step(state, event)
   if event.kind == 'ordinary_sent' and state.phase == 'ordinary' then
     next.pending, next.phase = nil, 'idle'
     if event.sent then return next, { effect(next, 'done', { input = state.pending.input }) } end
-    return next, {}
+    return next, notify(next, event.error or 'send was not confirmed; edit freely and press the DOM chord again')
   end
 
   return next, {}
+end
+
+local function literal(value)
+  return tostring(value):gsub('[%z\1-\31\127]', ' '):sub(1, 500)
+end
+function M.progress_text(progress)
+  local fallback = 'preparing submission…'
+  if type(progress) ~= 'table' then return fallback end
+  local phase = progress.phase
+  if phase == 'replay' then return 'preparing submission: opening replay…' end
+  if phase == 'context' then return 'preparing submission: reading context…' end
+  if phase == 'publishing' then return 'preparing submission: saving bundle…' end
+  local i, n = progress.current, progress.total
+  if type(i) ~= 'number' or type(n) ~= 'number' or i ~= math.floor(i) or n ~= math.floor(n)
+    or i < 1 or n < i or n > 1000 then return fallback end
+  if phase == 'settling' then return string.format('waiting for the page to settle, crop %d/%d', i, n) end
+  if phase == 'capturing' then return string.format('preparing submission: capturing crop %d/%d…', i, n) end
+  return fallback
+end
+function M.step(state, event)
+  local next, effects = transition(state, event)
+  if event.kind == 'send' and not state.pending then
+    next.message = 'preparing submission…'
+  elseif event.epoch == state.epoch and state.pending then
+    if not next.pending then
+      next.message = 'nothing to send'
+      for _, fx in ipairs(effects) do
+        if fx.kind == 'done' then next.message = 'sent'; break end
+        if fx.kind == 'notify' then next.message = literal(fx.message) end
+      end
+    elseif next.phase == 'preparing' and type(event.result) == 'table' then
+      next.message = M.progress_text(event.result.progress)
+    elseif next.phase == 'sending' or next.phase == 'ordinary' then
+      next.message = 'sending to ' .. literal(next.pending.slot or 'agent') .. '…'
+    end
+  end
+  return next, effects
 end
 
 return M

@@ -14,6 +14,7 @@ import (
 
 	core "github.com/xianxu/pair/cmd/internal/submission"
 	"github.com/xianxu/pair/cmd/internal/webcast/board"
+	"github.com/xianxu/pair/cmd/internal/webcast/notedraft"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 	dom "github.com/xianxu/pair/cmd/internal/webcast/submission"
 )
@@ -44,14 +45,10 @@ func (c *Cast) RecordingPath() string {
 
 // PrepareSubmission produces evidence only. Publication and delivery are owned
 // by the submission store; this operation never resolves notes or sends text.
-func (c *Cast) PrepareSubmission(parent context.Context, id string, target core.Target, selected board.Selection, replayBase string) (core.Submission, map[string][]byte, error) {
+func (c *Cast) PrepareSubmission(parent context.Context, id string, target core.Target, selected board.Selection, replayBase string, progress func(core.SubmissionProgress)) (core.Submission, map[string][]byte, error) {
 	var empty core.Submission
 	if c.board == nil || c.recDir == "" {
 		return empty, nil, ErrNotRecording
-	}
-	capture, ok := c.browser.(CropSource)
-	if !ok {
-		return empty, nil, fmt.Errorf("cast cannot capture submission crops")
 	}
 	select {
 	case <-c.done:
@@ -71,6 +68,9 @@ func (c *Cast) PrepareSubmission(parent context.Context, id string, target core.
 			c.logf("%s", notice)
 		}
 	}
+	if progress != nil {
+		progress(core.SubmissionProgress{Phase: "context"})
+	}
 	recs, err := readSubmissionRecording(ctx, c.RecordingPath())
 	if err != nil {
 		return empty, nil, err
@@ -79,112 +79,125 @@ func (c *Cast) PrepareSubmission(parent context.Context, id string, target core.
 	if err != nil {
 		return empty, nil, err
 	}
-	captured, err := capture.CaptureCrops(ctx, selected.Document, boxes)
-	if err != nil {
-		return empty, nil, err
-	}
-	if err = ctx.Err(); err != nil {
-		return empty, nil, err
-	}
-	select {
-	case <-c.done:
-		return empty, nil, ErrEnded
-	default:
-	}
-	if len(captured) != len(sub.Notes) {
-		return empty, nil, fmt.Errorf("capture did not return every selected note")
-	}
-	// Every available crop names the same admitted page. Unknown identity is
-	// represented by unavailable evidence, never by pixels with guessed metadata.
-	var page *core.PageIdentity
-	pageUnavailable := false
-	for _, crop := range captured {
-		if crop.Unavailable != "" {
-			// Off-screen notes lack pixels, not document identity. A page change
-			// still cannot be mixed with captures from an admitted document.
-			if crop.Unavailable != "outside viewport" {
-				pageUnavailable = true
-			}
-			continue
-		}
-		if err := crop.Page.Validate(); err != nil {
-			return empty, nil, err
-		}
-		if page == nil {
-			value := crop.Page
-			page = &value
-		} else if *page != crop.Page {
-			return empty, nil, fmt.Errorf("capture page identity changed within batch")
+	// Once Claim starts, even an error may leave durable transfer intent. Keep
+	// the submission identity so the publisher can reconcile absence or uncertainty.
+	crops := map[string][]byte{}
+	var assets map[string]notedraft.Asset
+	var ids []string
+	for _, n := range sub.Notes {
+		if n.CaptureID != "" {
+			ids = append(ids, n.CaptureID)
 		}
 	}
-	if pageUnavailable && page != nil {
-		return empty, nil, fmt.Errorf("capture batch mixes available and unavailable pages")
+	if c.noteDrafts != nil && len(ids) > 0 {
+		assets, err = c.noteDrafts.Claim(ctx, id, ids)
+		if err != nil {
+			return sub, crops, err
+		}
 	}
-	sub.Source.Page = page
-	pageURL := ""
-	if page != nil {
-		pageURL = page.URL
-	}
-	sub.PrivacyDecision = policy.Decide(pageURL)
-
+	sub.PrivacyDecision = core.PrivacyDecision{Privacy: core.Shareable}
 	total := 0
-	for _, crop := range captured {
-		if len(crop.PNG) > core.MaxPNGBytes || len(crop.PNG) > core.MaxBundleBytes-total {
-			return empty, nil, fmt.Errorf("submission crops exceed bundle budget")
+	for i := range sub.Notes {
+		if err = ctx.Err(); err != nil {
+			return sub, crops, err
 		}
-		total += len(crop.PNG)
-	}
-	crops := make(map[string][]byte)
-	for i, crop := range captured {
-		evidence := core.Crop{Box: crop.Box, CapturedAt: crop.CapturedAt, Document: crop.Document,
-			Unavailable: crop.Unavailable, Settlement: crop.Settlement, ClippedToViewport: crop.ClippedToViewport}
-		if crop.Unavailable != "" {
-			if len(crop.PNG) != 0 {
-				return empty, nil, fmt.Errorf("unavailable crop has pixels")
+		note := &sub.Notes[i]
+		if asset, ok := assets[note.CaptureID]; ok {
+			evidence := asset.Evidence
+			if evidence.Crop.Unavailable != "" {
+				if len(asset.PNG) != 0 {
+					return sub, crops, fmt.Errorf("unavailable stored crop has pixels")
+				}
+				note.Crop = evidence.Crop
+				note.BoxText = evidence.BoxText
+			} else {
+				evidence.Crop.File = fmt.Sprintf("crop-%d.png", i)
+				if err = validateStoredNoteAsset(asset, *note, boxes[i].Region, evidence.Crop); err != nil {
+					return sub, crops, err
+				}
+				if len(asset.PNG) > core.MaxPNGBytes || len(asset.PNG) > core.MaxBundleBytes-total {
+					return sub, crops, fmt.Errorf("submission crops exceed bundle budget")
+				}
+				total += len(asset.PNG)
+				page := evidence.Page
+				note.Page = &page
+				note.Crop = evidence.Crop
+				note.BoxText = evidence.BoxText
+				crops[note.Crop.File] = asset.PNG
 			}
-			if err = core.ValidateCrop(evidence); err != nil {
-				return empty, nil, err
+			if asset.Prepared.Document > 0 {
+				if asset.Prepared.Document != note.SourceDocument {
+					return sub, crops, fmt.Errorf("stored capture belongs to another note document")
+				}
+				drawNote, contextErr := dom.ContextAt(recs, *note, asset.Prepared.T)
+				if contextErr != nil {
+					return sub, crops, contextErr
+				}
+				*note = drawNote
 			}
-		} else {
-			evidence.File = fmt.Sprintf("crop-%d.png", i)
-			// Validate finite geometry before Contains performs coordinate arithmetic.
-			if err = core.ValidateCrop(evidence); err != nil {
-				return empty, nil, err
-			}
-			requested := boxes[i].Box
-			if crop.Document != selected.Document || !requested.Contains(crop.Box) || crop.ClippedToViewport != (crop.Box != requested) {
-				return empty, nil, fmt.Errorf("crop capture identity or viewport clipping changed")
-			}
-			if err = core.ValidatePNG(crop.PNG); err != nil {
-				return empty, nil, err
-			}
-			crops[evidence.File] = crop.PNG
 		}
-		sub.Notes[i].Crop = evidence
-		sub.Notes[i].BoxText = crop.BoxText
-		if crop.Unavailable == "" && crop.BoxText.Region != boxes[i].Region {
-			return empty, nil, fmt.Errorf("box text region changed")
+		pageURL := ""
+		if note.Page != nil {
+			pageURL = note.Page.URL
+		}
+		note.PrivacyDecision = policy.Decide(pageURL)
+		if note.Privacy != core.Shareable {
+			sub.Privacy = core.Private
 		}
 		if replayBase != "" {
-			sub.Notes[i].Replay = ReplayLink(replayBase, sub.Source.RecordingID, sub.Notes[i].T)
+			note.Replay = ReplayLink(replayBase, sub.Source.RecordingID, note.T)
 		}
 	}
 	if err = core.Validate(sub); err != nil {
-		return empty, nil, err
+		return sub, crops, err
 	}
 	manifest, err := json.Marshal(sub)
 	if err != nil {
-		return empty, nil, err
+		return sub, crops, err
 	}
 	if len(manifest) > core.MaxBundleBytes-total {
-		return empty, nil, fmt.Errorf("submission exceeds 64 MiB")
+		return sub, crops, fmt.Errorf("submission exceeds 64 MiB")
 	}
 	return sub, crops, nil
 }
 
+func validateStoredNoteAsset(asset notedraft.Asset, note core.Note, region recording.Box, crop core.Crop) error {
+	if err := asset.Evidence.Page.Validate(); err != nil {
+		return err
+	}
+	if err := core.ValidateCrop(crop); err != nil {
+		return err
+	}
+	if err := core.ValidateBoxText(asset.Evidence.BoxText); err != nil {
+		return err
+	}
+	if crop.Document != note.SourceDocument || asset.Prepared.Document != note.SourceDocument || asset.Prepared.Region != region || asset.Evidence.BoxText.Region != region {
+		return fmt.Errorf("stored crop identity or text region changed")
+	}
+	if asset.Prepared.At.Route != "" && asset.Evidence.Page.URL != asset.Prepared.At.Route {
+		return fmt.Errorf("stored capture route differs from original anchor")
+	}
+	if !region.Contains(crop.Box) || crop.ClippedToViewport != (crop.Box != region) {
+		return fmt.Errorf("stored crop viewport clipping changed")
+	}
+	return core.ValidatePNG(asset.PNG)
+}
+
+// ReconcilePreparedSubmission applies independently confirmed publication
+// evidence; errors and unknown outcomes never release a claimed source.
+func (c *Cast) ReconcilePreparedSubmission(ctx context.Context, sub core.Submission, observation core.PublicationObservation) error {
+	if c.noteDrafts == nil {
+		return nil
+	}
+	if sub.Source.Kind != "dom" || sub.Source.RecordingPath != c.RecordingPath() {
+		return fmt.Errorf("publication belongs to another recording")
+	}
+	return c.noteDrafts.ReconcilePublication(ctx, sub, observation)
+}
+
 // ResolveSubmission acknowledges only the frozen generation, after dispatch.
-// An ended cast or a different recording/document is historical evidence and
-// requires no mutation of the current board.
+// An ended cast or a different recording requires no mutation. Historical
+// documents in this recording remain eligible for conditional resolution.
 func (c *Cast) ResolveSubmission(ctx context.Context, sub core.Submission) error {
 	if sub.Delivery != core.Dispatched && sub.Delivery != core.Resolved {
 		return fmt.Errorf("submission has not been dispatched")
@@ -308,4 +321,11 @@ func readSubmissionRecording(ctx context.Context, path string) ([]recording.Reco
 		}
 	}
 	return recording.Records(recording.Merge(files)), nil
+}
+
+func (c *Cast) ReconcilePendingSubmissions(ctx context.Context, observe func(context.Context, string) (core.Submission, core.PublicationObservation, error)) error {
+	if c.noteDrafts == nil {
+		return nil
+	}
+	return c.noteDrafts.ReconcilePending(ctx, observe)
 }

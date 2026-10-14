@@ -48,6 +48,8 @@ type pane struct {
 	// messageHandle names this pane incarnation to the message service; a
 	// reused handleID still gets a new one (#365).
 	messageHandle couchmessage.PaneHandle
+	// Counts acknowledged child notifications for this attachment only.
+	suppressedNotifications uint64
 }
 
 // Console routes the operator's terminal to one child at a time.
@@ -1313,27 +1315,38 @@ func (c *Console) onChunk(ch chunk) {
 		return
 	}
 	var effects []terminal.Effect
+	var effectErr error
 	if len(ch.batch.Terminal.Effects) > 0 {
-		var err error
-		effects, err = c.presenter.EmitEffects(c.lifetime, ch.batch.Terminal.Effects, terminal.EffectPolicy{Bell: active, Title: active, Clipboard: active, Notifications: true})
-		if err != nil {
-			c.terminalError(err)
-			return
-		}
+		effects, effectErr = c.presenter.EmitEffects(c.lifetime, ch.batch.Terminal.Effects, terminal.EffectPolicy{Bell: active, Title: active, Clipboard: active, Notifications: false})
 	}
 	changed := false
+	var suppressed uint64
+	c.mu.Lock()
 	for _, effect := range effects {
-		c.mu.Lock()
-		switch {
-		case effect.Kind == terminal.NotificationEffect && effect.Selection == "pair" && !ch.focusedAtDelivery:
-			c.attention.Mark(p.thread, effect.Text)
-			changed = true
-		case effect.Kind == terminal.BellEffect && !active:
-			c.attention.Mark(p.thread, "")
-			changed = true
+		switch effect.Kind {
+		case terminal.NotificationEffect, terminal.SuppressedNotificationEffect:
+			suppressed++
+			if p.suppressedNotifications < ^uint64(0) {
+				p.suppressedNotifications++
+			}
+		case terminal.BellEffect:
+			if !active {
+				c.attention.Mark(p.thread, "")
+				changed = true
+			}
 		}
+	}
+	if changed {
 		c.syncAttentionLocked()
-		c.mu.Unlock()
+	}
+	totalSuppressed := p.suppressedNotifications
+	c.mu.Unlock()
+	if suppressed > 0 {
+		c.traceEvent(traceNotifySuppressed, p.thread, fmt.Sprintf("endpoint=%s count=%d", p.child.Endpoint().ID(), totalSuppressed))
+	}
+	if effectErr != nil {
+		c.terminalError(effectErr)
+		return
 	}
 	c.terminalError(c.presenter.Present(c.lifetime, p.child.Endpoint()))
 	if changed {
@@ -1970,7 +1983,7 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 		Background: completed.origin.Background,
 	}
 	if err != nil {
-		event.Error = err.Error()
+		event.Error = couchcore.OperatorError(err)
 		// A code, so the pass tells a skip from a failure without matching text.
 		event.Diagnostic = couchcore.ResumeDiagnosticOf(err)
 		event.Busy = couchcore.IsThreadBusy(err)

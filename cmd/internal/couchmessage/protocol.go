@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/notifyosc"
 	"strings"
 	"time"
 	"unicode"
@@ -18,6 +19,7 @@ import (
 // full binding and must pass the supervisor adapter's live identity check.
 type Request struct {
 	Op, Scope, Tag, Session, Nonce, ID, Target, Body string
+	Title                                            string `json:",omitempty"` // notify only
 	// Agent narrows a send or selects the switch destination harness.
 	Agent        string `json:",omitempty"`
 	CandidateKey string `json:",omitempty"`
@@ -64,12 +66,14 @@ type Response struct {
 // SubmissionStatus is a durable evidence submission's current outcome. Polling
 // it never repeats capture or delivery; the client retains ID through retries.
 type SubmissionStatus struct {
-	HowToRead string      `json:"how_to_read,omitempty"`
-	ID        string      `json:"id"`
-	State     string      `json:"state"`
-	Path      string      `json:"path,omitempty"`
-	Error     string      `json:"error,omitempty"`
-	Target    core.Target `json:"target"`
+	Progress  *core.SubmissionProgress `json:"progress,omitempty"`
+	Slot      string                   `json:"slot,omitempty"`
+	HowToRead string                   `json:"how_to_read,omitempty"`
+	ID        string                   `json:"id"`
+	State     string                   `json:"state"`
+	Path      string                   `json:"path,omitempty"`
+	Error     string                   `json:"error,omitempty"`
+	Target    core.Target              `json:"target"`
 }
 
 func IsSubmissionOp(op string) bool {
@@ -134,11 +138,20 @@ func ValidateRequest(r Request) error {
 	if r.CandidateKey != "" && (r.Op != "resume" || !utf8.ValidString(r.CandidateKey) || len(r.CandidateKey) > 512 || strings.IndexFunc(r.CandidateKey, unicode.IsSpace) >= 0 || strings.IndexFunc(r.CandidateKey, unicode.IsControl) >= 0) {
 		return errors.New("candidate key applies only to resume and must be a bounded opaque token")
 	}
+	if r.Op != "notify" && r.Title != "" {
+		return errors.New("a notification title applies only to notify")
+	}
 	// Caller identity and target fields cannot exceed a complete binding's budget.
 	for _, field := range []string{r.Op, r.Scope, r.Tag, r.Session, r.Nonce, r.Target, r.Agent, r.TailScope, r.TailTag} {
 		if len(field) > MaxBindingBytes {
 			return errors.New("request identity exceeds limit")
 		}
+	}
+	if r.Op == "notify" {
+		if r.Binding != nil || r.Scope == "" || r.Tag == "" || r.Session == "" || r.Nonce == "" || r.ID != "" || r.Target != "" || r.Agent != "" || r.Confirmed || r.SameBinary || r.ForceUnknown || r.TailScope != "" || r.TailTag != "" || r.Lines != 0 {
+			return errors.New("notify requires only the calling conversation identity, title and message")
+		}
+		return notifyosc.ValidateDesktop(r.Title, r.Body)
 	}
 	if IsSubmissionOp(r.Op) {
 		if r.Binding != nil || r.Scope == "" || r.Tag == "" || r.Session == "" || r.Nonce == "" || !core.ValidID(r.ID) || r.Target != "" || r.Body != "" || r.Agent != "" || r.Confirmed || r.SameBinary || r.ForceUnknown || r.TailScope != "" || r.TailTag != "" || r.Lines != 0 {

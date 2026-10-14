@@ -17,7 +17,7 @@ test('shared mount keeps all UI in its supplied root and holds a driven editor',
   ui.setMode('note');
   assert.equal(ui.mode,'note');
   ui.dialog.draft({draft:'d1'});
-  const input = root.querySelector('.note-input'); input.value='keep this';
+  const input = root.querySelector('.note-input'); input.value='keep this'; for(const fn of input.listeners.input)fn();
   ui.setAnnotationAllowed(false);
   assert.equal(ui.mode,'watch');
   assert.equal(root.querySelector('.note-dialog').hidden,true);
@@ -245,7 +245,7 @@ test('operator mount starts disabled and a new generation resets pen without dro
   ui.setAnnotationAllowed(true);
   ui.setMode('note');
   ui.dialog.draft({draft:'held'});
-  root.querySelector('.note-input').value='keep me';
+  root.querySelector('.note-input').value='keep me'; for(const fn of root.querySelector('.note-input').listeners.input)fn();
   // The transport coalesced Off/On. This is a new delivered permission, even
   // though the previous delivered boolean was also true.
   ui.setAnnotationAllowed(true, true);
@@ -266,7 +266,7 @@ for (const coalesced of [false,true]) test(`operator permission clears browser s
  assert.equal(root.querySelector('.mode').disabled,true); // missing generation never enables
  win.__couchcastAnnotationAllowed(true,'1');
  ui.dialog.draft({draft:'held'});
- root.querySelector('.note-input').value='keep this draft';
+ root.querySelector('.note-input').value='keep this draft'; for(const fn of root.querySelector('.note-input').listeners.input)fn();
  win.__couchcastOperatorView({revision:2,seg:1,doc:1,t:0,notes:[],strokes:[{seq:1,id:'viewer.pen',t:0,color:'#f00',pts:[[1,2,0]]}]});
  assert.equal(ui.strokes.visible(100).length,1);
  if (!coalesced) win.__couchcastAnnotationAllowed(false,'2');
@@ -306,4 +306,67 @@ for (const generation of [undefined,null,1,'01','-1','18446744073709551616',''])
  const result=await t.ask('stroke',{seg:1,id:'pen',color:0,pts:[[1,2,0]]});
  assert.equal(result.outcome,'refused');
  assert.equal(sent.length,0);
+});
+
+for (const operator of [false,true]) for (const access of ['own','other','legacy','off','view-only','paused','driving','off-driving','paused-driving','view-only-driving']) {
+ test(`${operator?'operator':'viewer'} existing note ${access} obeys ownership in watch mode`,async()=>{
+  const root=new Element('root'),box=new Element('box');root.append(box);
+  const frames=[]; const posts=[];
+  const doc={body:root,createElement:t=>new Element(t)};
+  const win={innerWidth:100,crypto:{getRandomValues:b=>b.fill(1)},performance:{now:()=>0},requestAnimationFrame:fn=>frames.push(fn),addEventListener(){},setTimeout:()=>1,clearTimeout(){},clearInterval(){}};
+  const owner=operator?'operator':'session';
+  const note={id:'n',owner:access==='legacy'?'':access==='other'?'someone':owner,text:'original',region:[0,0,50,50],author:{name:'Ana',color:'#112233'}};
+  const v={model:{seg:3,docSeg:1,notes:[{note,seg:1,state:'open'}],driver:access.includes('driving')?'Driver':'',paused:access.includes('paused')},onRecord(){},toPage:(x,y)=>[x,y],fromPage:(x,y)=>[x,y],boxOf:()=>null};
+  const ui=mountAnnotation(doc,win,v,{root,box,stage:box,palette:['#112233'],owner,operator,annotate:!access.startsWith('view-only'),annotationAllowed:!access.startsWith('off'),who:{id:()=> 'attribution',name:()=>'',viewer:()=>({id:'attribution',name:''})},colors:{get:()=>0,set(){}},post:async(route,body)=>{posts.push({route,body});return {status:204};}});
+  // Only pins are drawn; the canvas fixture need not implement painting.
+  root.querySelector('.strokes').getContext=()=>({setTransform(){},clearRect(){}});
+  while(frames.length)frames.shift()();
+  const chip=root.querySelector('.chip');for(const fn of chip.listeners.click)fn({stopPropagation(){}});
+  const canEdit=access==='own'||(!operator&&access==='driving');
+  if(operator&&access.includes('driving')){
+   assert.equal(ui.dialog.open,false);
+   assert.equal(root.querySelector('.annotate').classList.contains('operator-driving'),true);
+   assert.equal(root.querySelector('.annotate').classList.contains('operator-off'),true);
+   assert.equal(root.querySelector('.note-dialog').hidden,true);
+   assert.equal(posts.length,0);return;
+  }
+  assert.equal(ui.dialog.open,true);
+  assert.equal(root.querySelector('.note-dialog').hidden,false);
+  assert.equal(root.querySelector('.annotate').classList.contains('operator-off'),false);
+  const input=root.querySelector('.note-input'), buttons=root.querySelector('.note-buttons'),save=buttons.children.at(-1);
+  assert.equal(save.classList.contains('hidden'),!canEdit);
+  if(!canEdit)return;
+  assert.equal(input.value,'original');assert.equal(ui.mode,'watch');
+  assert.equal(root.querySelector('.annotate').classList.contains('operator-off'),false);
+  for(const fn of buttons.children[1].listeners.click)fn();assert.equal(posts.length,0);
+  for(const fn of chip.listeners.click)fn({stopPropagation(){}});
+  input.value='revised';for(const fn of input.listeners.input)fn();for(const fn of save.listeners.click)fn();
+  assert.deepEqual(posts,[{route:'note-edit',body:{seg:3,id:'n',text:'revised'}}]);
+  await Promise.resolve();assert.equal(ui.dialog.open,false);
+ });
+}
+
+test('OFF pin inspection reveals the held draft for recovery without replacing its text',()=>{
+ const root=new Element('root'),box=new Element('box');root.append(box);
+ const frames=[];
+ const doc={body:root,createElement:t=>new Element(t)};
+ const win={innerWidth:100,crypto:{getRandomValues:b=>b.fill(1)},performance:{now:()=>0},requestAnimationFrame:fn=>frames.push(fn),addEventListener(){},setTimeout:()=>1,clearTimeout(){},clearInterval(){}};
+ const note={id:'n',owner:'operator',text:'existing',region:[0,0,50,50],author:{name:'Operator',color:'#112233'}};
+ const v={model:{seg:1,docSeg:1,notes:[{note,seg:1,state:'open'}]},onRecord(){},toPage:(x,y)=>[x,y],fromPage:(x,y)=>[x,y],boxOf:()=>null};
+ const ui=mountAnnotation(doc,win,v,{root,box,stage:box,palette:['#112233'],operator:true,who:{id:()=> 'operator',name:()=> 'Operator',viewer:()=>({id:'operator',name:'Operator'})},colors:{get:()=>0,set(){}},post:()=>{throw Error('recovery must not post');}});
+ root.querySelector('.strokes').getContext=()=>({setTransform(){},clearRect(){}});
+ while(frames.length)frames.shift()();
+ const payload={draft:'held'};ui.dialog.draft(payload);
+ const input=root.querySelector('.note-input');input.value='unsaved draft';for(const fn of input.listeners.input)fn();
+ ui.setAnnotationAllowed(false);
+ const chip=root.querySelector('.chip');for(const fn of chip.listeners.click)fn({stopPropagation(){}});
+ assert.equal(ui.dialog.draftPayload,payload);assert.equal(input.value,'unsaved draft');
+ assert.equal(root.querySelector('.note-dialog').hidden,false);
+ assert.match(root.querySelector('.note-msg').textContent,/cancel.*another/i);
+ ui.setAnnotationAllowed(false);assert.equal(root.querySelector('.note-dialog').hidden,false,'projection refresh hid recovery');
+ assert.ok(!root.querySelector('.note-author').textContent);
+ ui.setAnnotationAllowed(true);assert.equal(input.value,'unsaved draft');assert.equal(ui.dialog.draftPayload,payload);
+ const cancel=root.querySelector('.note-buttons').children[1];for(const fn of cancel.listeners.click)fn();
+ for(const fn of chip.listeners.click)fn({stopPropagation(){}});
+ assert.equal(input.value,'existing');assert.equal(ui.dialog.draftPayload,null);
 });

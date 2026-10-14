@@ -153,7 +153,7 @@ one-line description can't carry.
 |---|---|---|
 | **Alt+h** | non-agent panes | Pop up the keybinding list in a floating pane (`q` or `Esc` to dismiss). Same content as `pair keys`. When Couch presents the thread, Couch's keys come first. |
 | **Alt+Return** | nvim (normal/insert) | Send buffer to agent. Note for consistency, claude's keybinding also changed to Alt+return as send, and return as newline |
-| **Shift+Ctrl+Alt+Return** | draft nvim (normal/insert) | Send draft text plus all open cast-tab notes, recorded context, current box text and a PNG crop per note to the agent in view. An empty draft can send notes. [Evidence and retry behavior](atlas/webcast-submission.md). |
+| **Shift+Ctrl+Alt+Return** | draft nvim (normal/insert) | Send draft text plus all open cast-tab notes, recorded context, 🤖<current box text and a PNG crop per note>{draw-time box text and each note’s saved PNG crop} to the agent in view. An empty draft can send notes. Progress appears in the draft status line; editing resumes when the operation finishes or fails (36s maximum). [Evidence and retry behavior](atlas/webcast-submission.md). |
 | **Return** | agent pane | Insert a newline in Claude, Codex, Agy, and Qoder composers; Pair translates it to Muse's native Shift+Return and Grok's native Alt+Enter. The rewrite is *positively gated* for every agent: Pair rewrites only while it can see a live composer on screen, so in a permission picker, a selection menu, or any state it doesn't recognize, Return stays a plain Enter and the dialog confirms. Set `PAIR_WRAP_REMAP_RETURN=0` to turn the rewrite off entirely (that also disables overlay detection and its telemetry). |
 | **Alt+Return** | agent pane | Always submits, in every state. |
 | **Alt+Shift+Return** | any Pair pane | Cycle the selected right terminal: **focus** (floating, centered at 75% width and full height, agent pane dimmed) → **maximize** (native fullscreen; Zellij's bars remain visible) → back to the tiling, focusing the invoking pane. A split acts only on the selected half. No-op without a right terminal. |
@@ -381,6 +381,11 @@ with Neovim and Zellij config carried alongside it. There is no Python and no
 shell runtime; `zellij`, `nvim`, `fzf`, and the agent CLIs are the only external
 programs.
 
+`make install` links the built binaries into `~/.local/bin`, so later checkout
+builds are visible without reinstalling. Keep that checkout in place; these
+links point to its `bin/` directory. Already-running processes keep their old
+binary until restarted.
+
 `make install` also installs a second binary, **`couch`** — a supervisor that
 registers durable work threads, spawns them, and hosts one in your terminal. It
 is separate from `pair` on purpose: pair is what you sit inside, so a supervisor
@@ -450,6 +455,7 @@ couch --send-to repo:N --message TEXT   send to an exact live slot
 couch --send-to repo --message TEXT     select an eligible slot in that family
 couch --send-to repo --agent NAME --message TEXT   ...running that agent
 couch --send-to hub --message TEXT      send to the hub (the slot Couch started from), resolved at send time
+couch --notify [--title T] MESSAGE      hub only: one desktop notification (default title: Couch)
 couch --send-to TARGET [--agent NAME] --message-file PATH
                          any form above, the body read verbatim from PATH (less one trailing newline):
                          write a message containing code or shell syntax with an editor, never quote it
@@ -480,6 +486,17 @@ An accepted receipt means the operation was queued; inspect it with
 operations: retry switching when the old agent is still running; after a failed
 target start is proved gone, resume the old conversation. Uncertain terminal
 ownership must be resolved before another agent starts.
+
+Failed launches leave a one-line explanation, attempt ID, diagnostic file path,
+and an inspection command, such as
+`couch --show ariadne:5`. Inspection retains the target's error, the final switch
+error, output tail, and exits observed before and after cleanup separately.
+An unobserved exit is not proof that the target crashed. Each Couch namespace
+keeps its newest 16 failed attempts, with at most 16 KiB of output per attempt;
+rollback, restart, and a later successful launch do not erase them. Ordinary
+launches capture stderr; terminal launches label their combined stdout/stderr.
+Inspection strips terminal controls. Abrupt termination before Couch records a
+failure can still leave no diagnostic.
 
 Previous-session peeks select only the saved incarnation's tty recording.
 `--previous --transcripts` refuses: capture native coordinates before switching,
@@ -574,12 +591,18 @@ After a crash, rerun Couch: the kernel releases the lease, and the selected stor
 and existing slots remain available. Use machine-local filesystems; shared homes
 across machines are unsupported.
 
-Couch starts each slot at nice +10, so the builds, test suites and agents a slot
-runs yield to Couch and your terminal when the machine is saturated; Couch itself
-keeps normal priority. Set `COUCH_SLOT_NICE` (0–20, `0` turns it off) before
-starting Couch to change it. A Couch that already runs nicer than that (started
-from a niced shell) passes its own niceness down instead, since only root can lower it. It applies to slots started or relaunched after
-that; running slots keep their priority until relaunched (or `renice`d by hand).
+Couch keeps the interactive layer at normal priority and lowers the work: every
+5 seconds it lowers whatever each slot's agent has started (Bash commands,
+builds, test suites, MCP servers) to nice +10. The agent itself, the pair
+wrapper, zellij and Couch are never touched. A command runs at normal priority
+for its first few seconds at most, and the UI stays responsive while work runs
+low when the machine is saturated. Set `COUCH_SLOT_NICE` (0–20, `0` turns it off)
+before starting Couch to change the level, and `COUCH_RENICE_INTERVAL` (a
+duration, at least `1s`) to change how often it looks. `couch --actors` shows
+each slot's agent niceness and how many of its processes run low. A slot whose
+agent itself runs below Couch's own priority (started under the earlier
+whole-slot nice) gets one notice; only root can raise a priority again, so relaunch the slot to restore
+it.
 
 **Adopt existing state before cutover.** Stop and upgrade all old Couch binaries
 first. Couch keeps the chosen store in place, along with its Pair data directory
@@ -1043,6 +1066,16 @@ right-clicking it in the box. A note stays where it was placed, whatever scrolls
 underneath. Turning pointing off deletes every note, as it clears the marks,
 and stopping the broadcast ends them too; nothing is saved to disk.
 
+Click a note you created in this unlocked browser session to edit its text.
+**Save** updates the same note, preserving its author and box, and adds an
+**edited** marker; **Cancel** leaves it unchanged. Other people's notes remain
+read-only, though anyone allowed to annotate can resolve them. A page refresh
+keeps edit access. A fresh unlock, code rotation, another browser or another
+link makes earlier notes read-only; a matching display name does not grant
+ownership. Notes made before this feature are also read-only. With annotation
+OFF or a view-only link, existing note icons only show their text.
+
+
 **Web cast (#454).** `Shift+Ctrl+Alt+b` opens a dedicated Chrome for casting
 a web app: a normal window with its own profile (kept at
 `<couch store>/webcast/chrome-profile`, so your logins to the app survive; delete
@@ -1136,7 +1169,7 @@ about, or tap for a small box around that spot, then write; on a phone, drag a l
 further than a tap). The name comes from the lock page (below); the page remembers it and
 the color in this browser. Every note is its box: everyone sees it outlined in the author's color with
 the 💭 inside its top-right corner, and the box is the part of the page a submission
-shows the agent. It follows the page as it scrolls, stays through a pause, and leaves the page when the cast moves to another
+shows the agent. 🤖<It follows the page as it scrolls, stays through a pause, and leaves the page when the cast moves to another>{Its box follows a confidently matched visible anchor; a removed, hidden or ambiguous anchor hides the box. The open-notes list keeps it reachable as “not on this view” on another}
 page; anyone can tap a pin to read it and resolve it. While the cast is paused, viewers can't point, leave, or resolve
 notes: the rail's controls and an open note's Save and Resolve are greyed out ("The cast is paused.") until it
 resumes; a draft keeps its text. In Couch the open notes show as
@@ -1148,20 +1181,33 @@ saved in `notes.jsonl` and `pointer.jsonl`, and `couch --broadcast-web-query DIR
 notes` lists them. The name a viewer gives is theirs to choose: it attributes, it
 doesn't authenticate.
 
+🤖{**Capture when drawing (#538).** Releasing a note box in the viewer or cast Chrome starts its capture and opens the editor immediately. Keep typing while “Capturing…” is shown; the tick confirms capture and Save attaches your text to it. Capture failure keeps your text and offers Retry capture. A busy capture queue or full capture store still allows Save with an explicit unavailable crop; submit or resolve notes to free capacity. Cancel or draw a new box to discard a draft. Saved pixels stay local and retain the original appearance even after navigation or re-rendering; moving the live box does not recapture them.}
+
+Existing web notes use the same own-session editing rule as screen notes:
+click your 💭 pin for a populated editor, **Save** to revise its text, or
+**Cancel** to leave it unchanged. The original author and box stay the same,
+and revised notes show **edited**. The operator's overlay in cast Chrome also
+opens existing pins with the pen Off, but can edit only notes made by the
+operator, not viewers' notes. Annotation OFF and view-only links are read-only;
+while a new note's Save is pending, its text is temporarily locked to prevent
+a duplicate creation. Text revisions and resolver attribution stay in the web
+recording; resolved notes still disappear from the live page.
+
+
 **Submit web notes (#483).** Press **Shift+Ctrl+Alt+Return** in the draft to send
 its text and all open cast-tab notes to the agent in view, with recorded context,
-current box text and one current PNG crop per note. The message includes the
-recording path and commands for reading the bundle. Crops cover the current
-viewport; offscreen notes retain context with an unavailable crop. Capture waits
+🤖<current box text and one current PNG crop per note.>{draw-time box text and each note’s saved PNG crop.} The message includes the
+recording path and commands for reading the bundle. 🤖<Crops cover the current>{Crops preserve the original draw-time}
+viewport; 🤖<offscreen notes retain context with an unavailable crop. Capture waits>{notes without saved pixels retain context with an unavailable crop. Draw-time capture waits}
 briefly for document-wide animations and labels any unsettled result, without scrolling or
-forcing styles. The draft can be empty. Submitted notes become
+forcing styles. The draft can be empty. 🤖<Submitted notes become>{Acknowledged submissions mark selected note revisions}
 resolved: submitting transfers ownership of the notes to the agent; whatever
 follows (a pensive, an issue, a fix) is the agent's. See
 [submission evidence and recovery](atlas/webcast-submission.md).
 
-🤖{**Captured page identity (#525).** New DOM bundles use version 2: `source.page` contains the actual cast page's URL and title with `provenance: "cdp"`; each note's `source_document` references `source.document`. For example: `{"version":2,"source":{"document":1,"page":{"url":"http://localhost:4321/blog","title":"Blog","provenance":"cdp"}},"notes":[{"source_document":1,"at":{"node":7},"box_text":{"visible_text":[{"element":"<button class=\"save\">","text":"Save"}]}}]}` (other fields omitted). URL/title are bound to current text and pixels; unavailable captures claim no page. Box text preserves its order and text-node entries with tag/classes instead of CSS selectors, and `at.node` remains the `@N` recording handle. Version-1 bundles still load. [Complete schema](atlas/webcast-submission.md).}
+🤖{**Captured page identity (#525, #538).** New DOM bundles use version 3: each note carries its captured `page` URL/title with `provenance: "cdp"`, `capture_id`, `source_document` and privacy decision. A bundle can span documents; read each note’s original page rather than assuming the current submission page. URL/title stay bound to the saved draw-time text and pixels; unavailable captures claim no page. Box text preserves its order and text-node entries with tag/classes instead of CSS selectors, and `at.node` remains the historical `@N` recording handle. Version-1 and version-2 bundles still load; version 2 retains its batch page in `source.page`. [Complete schema](atlas/webcast-submission.md).}
 
-🤖{**Issue evidence privacy (#526).** Submissions default to private. Only the operator edits `<COUCH_STORE_DIR>/webcast/origin-privacy.json`, for example `{"origins":[{"origin":"http://localhost:4321","privacy":"shareable"}]}`; rules match exact HTTP(S) origins, with default ports normalized. Couch rereads the file for each submission and records the matched policy in the bundle. Missing files mean private; invalid or unreadable files still allow submission as private, with a reason in the bundle and a notice naming the file. Agents write issue evidence as text, summarize private page text, and attach only relevant crops when both the bundle and repository asset policy permit it. Recordings stay local and may expire; issues must stand on their own. [Policy details](atlas/webcast-submission.md#origin-privacy-and-issue-evidence-526).}
+🤖{**Issue evidence privacy (#526).** Submissions default to private. Only the operator edits `<COUCH_STORE_DIR>/webcast/origin-privacy.json`, for example `{"origins":[{"origin":"http://localhost:4321","privacy":"shareable"}]}`; rules match exact HTTP(S) origins, with default ports normalized. Couch rereads the file for each submission and records the matched policy for each note’s original captured page. The bundle’s top-level privacy is a conservative summary; it cannot grant permission for an individual private note. Missing files mean private; invalid or unreadable files still allow submission as private, with a reason in the bundle and a notice naming the file. Agents write issue evidence as text, summarize private page text, and attach only relevant crops when that note’s privacy and the repository asset policy permit it. Recordings stay local and may expire; issues must stand on their own. [Policy details](atlas/webcast-submission.md#origin-privacy-and-issue-evidence-526).}
 
 **Codes on every cast link (#495).** Every link a cast hands out opens with a short
 code first: the screen broadcast's view and pointer links, and the web cast's view and
@@ -1581,7 +1627,18 @@ You produce a continuation by pressing **`Alt+Shift+C`** (compact in place — i
 
 ## Notifications
 
-Pair forwards "agent needs attention" signals to your outer terminal automatically — useful for outer wrappers like [cmux](https://github.com/saharNooby/cmux) that surface badges per session.
+Standalone Pair forwards "agent needs attention" signals to your outer terminal automatically — useful for outer wrappers like [cmux](https://github.com/saharNooby/cmux) that surface badges per session.
+
+Couch swallows slots' OSC 9/777/99 desktop notifications, including the hub's,
+and retains diagnostic counts only. The TL in the hub decides when to interrupt
+you with `couch --notify [--title T] MESSAGE`; its default title is `Couch`.
+Other slots are refused and should send their message to the hub instead.
+Titles accept at most 256 bytes and messages 4096 bytes, with terminal controls
+removed. Success means written to the terminal, not confirmation of OS display.
+If a write or reply is uncertain, do not retry automatically.
+After rebuilding, restart Couch to use a newly added command. Existing messaging
+commands remain compatible; if running slots report missing messaging
+registrations, restart Couch to reconnect them.
 
 Agent hooks can send the same signal explicitly with `pair notify "message"`
 or the compatibility name `pair-notify "message"`. Legacy `--osc 9` and
@@ -1608,11 +1665,9 @@ it is the quiet cases — a menu waiting for an answer, a turn that silently wen
 nowhere — that reach it. Set `PAIR_WRAP_IDLE_S` to change the interval, or
 `PAIR_WRAP_IDLE_S=0` to switch the floor off entirely.
 
-Under Couch, unread events color the source actor's existing status label.
-`Ctrl-Space` opens the switcher with the newest unread actor selected; up to
-three messages appear as indented, display-only rows beneath that actor. Enter
-switches to it, and only a successful switch acknowledges the messages that
-were unread when the switch began.
+Under Couch, ordinary BEL attention still colors the source actor's status label.
+`Ctrl-Space` selects the newest unread actor; a successful switch acknowledges
+that attention. Swallowed desktop notifications create no attention messages.
 
 ## Troubleshooting
 

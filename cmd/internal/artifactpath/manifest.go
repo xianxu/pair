@@ -608,6 +608,9 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/zellij/config.kdl", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/zellij/layouts/main-2.kdl", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/zellij/layouts/main-3.kdl", Kind: GeneratedMirror},
+	{Path: "cmd/internal/webcast/board/operator.go", Kind: VocabularyConsumer, Families: []string{"draft"}, Vocabulary: []VocabularyAllowance{goCaseVocabulary("draft", "draft-status", "ParseOperatorRequest", 1)}},
+	{Path: "cmd/internal/webcast/recorder/operator_notedraft.go", Kind: VocabularyConsumer, Families: []string{"draft"}, Vocabulary: []VocabularyAllowance{goCaseVocabulary("draft", "draft-status", "handleDraftOperation", 2)}},
+	{Path: "cmd/internal/webcast/server_notedraft.go", Kind: VocabularyConsumer, Families: []string{"draft"}, Vocabulary: []VocabularyAllowance{goCaseVocabulary("draft", "draft-status", "noteDraftRoute", 1), goComparisonVocabulary("draft", "draft-status", "noteDraftRoute", 1)}},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/manifest.json", Kind: GeneratedMirror},
 }
 
@@ -638,6 +641,29 @@ var NonArtifactSources = []string{
 	"cmd/internal/launcher/session_handoff.go",
 	"cmd/internal/launcher/session_lease.go",
 	"cmd/internal/launcher/terminal_agent.go",
+	// #538 private web evidence and note protocol, outside Pair artifact families.
+	"cmd/internal/submission/publication.go",
+	"cmd/internal/webcast/board/prepared_note.go",
+	"cmd/internal/webcast/cast_notedraft.go",
+	"cmd/internal/webcast/chrome_prepared.go",
+	"cmd/internal/webcast/notedraft/model.go",
+	"cmd/internal/webcast/notedraft/references.go",
+	"cmd/internal/webcast/notedraft/save.go",
+	"cmd/internal/webcast/notedraft/service.go",
+	"cmd/internal/webcast/notedraft/store.go",
+	"cmd/internal/webcast/notedraft/transfer.go",
+	"cmd/internal/webcast/notes/anchor.go",
+	"cmd/internal/webcast/recorder/prepared_note.go",
+
+	// #531 launch diagnostics live under CouchNamespace, outside the checked
+	// Pair artifact filename families; the remaining files model/render evidence.
+	"cmd/internal/couchcmd/launchfailure.go",
+	"cmd/internal/couchcore/launchfailure.go",
+	"cmd/internal/couchcore/launchfailure_capture.go",
+	"cmd/internal/couchcore/launchfailure_show.go",
+	"cmd/internal/couchcore/launchfailure_store.go",
+	"cmd/internal/couchcore/launchfailure_store_fake.go",
+	"cmd/internal/couchcore/launchoutput.go",
 	"cmd/internal/couchcmd/capture.go",
 	"cmd/internal/couchtty/capture.go",
 	"cmd/internal/terminal/observation.go",
@@ -693,6 +719,9 @@ var NonArtifactSources = []string{
 	"cmd/internal/broadcast/pointer.go",
 	// #447 sticky notes: in-memory board and drawing; no artifact paths.
 	"cmd/internal/broadcast/notes.go",
+	"cmd/internal/broadcast/note_edit.go",
+	"cmd/internal/broadcast/note_owner.go",
+	"cmd/internal/broadcast/note_resolution.go",
 	"cmd/internal/broadcast/notehalo.go",
 	"cmd/internal/broadcast/pointer_notes.go",
 	"cmd/internal/broadcast/guard.go",
@@ -739,6 +768,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/webcast/server_capabilities.go",
 	"cmd/internal/webcast/chrome.go",
 	"cmd/internal/webcast/chrome_operator.go",
+	"cmd/internal/webcast/chrome_operator_original.go",
 	"cmd/internal/webcast/operator_script.go",
 	"cmd/internal/webcast/chrome_find.go",
 	"cmd/internal/webcast/doc.go",
@@ -793,7 +823,7 @@ var NonArtifactSources = []string{
 	// #470 board: viewers' strokes and notes become records through the
 	// cast's recorder (its Emit); the board writes no files itself.
 	"cmd/internal/webcast/board/board.go",
-	"cmd/internal/webcast/board/operator.go",
+	"cmd/internal/webcast/board/note_edit.go",
 	"cmd/internal/webcast/board/operator_view.go",
 	"cmd/internal/webcast/board/wire.go",
 	"cmd/internal/webcast/board/writer.go",
@@ -854,6 +884,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/webcast/recorder/recorder.go",
 	"cmd/internal/webcast/recorder/side.go",
 	"cmd/internal/webcast/recorder/operator.go",
+	"cmd/internal/webcast/recorder/operator_original.go",
 	"cmd/internal/webcast/recorder/ui_capture.go",
 	// #466 remote-driving contract: input wire, confinement, control and
 	// injection seams with fakes; seats are memory only, no artifact paths.
@@ -894,6 +925,10 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchtty/cast_control.go",
 	"cmd/internal/couchtty/console_pointer.go",
 	"cmd/internal/couchtty/console_notes.go",
+	// #502 slot renicer: the process table and setpriority; the agent-pid
+	// file it reads is resolved in message_service.go.
+	"cmd/internal/couchcmd/renicer.go",
+	"cmd/internal/couchcore/renice.go",
 	// #488 note anchors: screen layout and pane geometry; no artifact paths.
 	"cmd/internal/couchtty/console_noteanchor.go",
 	"cmd/internal/couchtty/noteanchor.go",
@@ -915,6 +950,10 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcmd/wait_notice.go",
 	// #490 verb costs: help text only; no artifact paths.
 	"cmd/internal/couchcmd/cost.go",
+	// #540 notifications use the existing broker and presenter; no artifacts.
+	"cmd/internal/couchcmd/notify.go",
+	"cmd/internal/couchcmd/notify_service.go",
+	"cmd/internal/couchtty/desktop_notify.go",
 	"cmd/internal/terminal/endpoint_input.go",
 	"cmd/internal/terminal/history.go",
 	"cmd/internal/terminal/history_render.go",
@@ -1055,6 +1094,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/repositoryname.go",
 	"cmd/internal/couchcore/resume.go",
 	"cmd/internal/couchcore/runner.go",
+	"cmd/internal/couchcore/runner_group_darwin.go",
+	"cmd/internal/couchcore/runner_group_other.go",
 	"cmd/internal/couchcore/runner_fake.go",
 	"cmd/internal/couchcore/startargs.go",
 	"cmd/internal/couchcore/startcleanup.go",

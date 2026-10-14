@@ -149,35 +149,70 @@ func (q *Querier) Notes(before int64) ([]NoteView, error) {
 		if err := nar.apply(r); err != nil {
 			return nil, unreadable(i, r, err)
 		}
-		n, ok := r.(*recording.Note)
+		_, ok := r.(*recording.Note)
 		if !ok {
 			continue
 		}
-		v := NoteView{Note: st.Notes[len(st.Notes)-1], URL: st.URL, Header: Header(st)}
-		if node, ok := q.model.Resolve(st, n.At); ok {
-			at := n.At
-			at.Node = node
-			v.Element = Page(st, st.Node(node), ElementLines)
-			ctx, err := q.model.Context(st, at)
-			if err != nil {
-				return nil, err
-			}
-			v.Context, v.Landmark = ctx, Describe(st.Node(ctx.Landmark))
-		}
-		var items []said
-		for j := i - 1; j >= 0 && q.recs[j].Time() >= n.T-before; j-- {
-			if UserAction(q.recs[j]) {
-				v.Before = append(v.Before, q.recs[j])
-				items = append(items, words[j])
-			}
-		}
-		slices.Reverse(v.Before)
-		slices.Reverse(items)
-		v.BeforeLines = fold(items)
-		if k := len(v.BeforeLines) - BeforeLines; k > 0 {
-			v.BeforeLines = append([]string{fmt.Sprintf("… %d earlier actions", k)}, v.BeforeLines[k:]...)
+		v, err := q.noteContext(st, st.Notes[len(st.Notes)-1], i, before, words)
+		if err != nil {
+			return nil, err
 		}
 		out = append(out, v)
 	}
 	return out, nil
+}
+
+// ContextForNote derives a frozen note's contextual evidence at a separate draw
+// moment. It does not add a record or derive contexts for other recorded notes.
+func (q *Querier) ContextForNote(note *recording.Note, at, before int64) (NoteView, error) {
+	if note == nil || at < 0 || at > note.T {
+		return NoteView{}, fmt.Errorf("invalid note context time")
+	}
+	copy := *note
+	copy.SetTime(at)
+	nar := newNarrator()
+	words := map[int]said{}
+	end := 0
+	for i, r := range q.recs {
+		if r.Time() > at {
+			break
+		}
+		if UserAction(r) {
+			words[i] = nar.say(r)
+		}
+		if err := nar.apply(r); err != nil {
+			return NoteView{}, unreadable(i, r, err)
+		}
+		end = i + 1
+	}
+	return q.noteContext(nar.st, &recording.NoteView{Note: &copy, Seg: nar.st.Seg}, end, before, words)
+}
+
+func (q *Querier) noteContext(st *recording.State, view *recording.NoteView, i int, before int64, words map[int]said) (NoteView, error) {
+	n := view.Note
+	v := NoteView{Note: view, URL: st.URL, Header: Header(st)}
+	if node, ok := q.model.Resolve(st, n.At); ok {
+		at := n.At
+		at.Node = node
+		v.Element = Page(st, st.Node(node), ElementLines)
+		ctx, err := q.model.Context(st, at)
+		if err != nil {
+			return NoteView{}, err
+		}
+		v.Context, v.Landmark = ctx, Describe(st.Node(ctx.Landmark))
+	}
+	var items []said
+	for j := i - 1; j >= 0 && q.recs[j].Time() >= n.T-before; j-- {
+		if UserAction(q.recs[j]) {
+			v.Before = append(v.Before, q.recs[j])
+			items = append(items, words[j])
+		}
+	}
+	slices.Reverse(v.Before)
+	slices.Reverse(items)
+	v.BeforeLines = fold(items)
+	if k := len(v.BeforeLines) - BeforeLines; k > 0 {
+		v.BeforeLines = append([]string{fmt.Sprintf("… %d earlier actions", k)}, v.BeforeLines[k:]...)
+	}
+	return v, nil
 }

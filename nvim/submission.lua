@@ -33,27 +33,34 @@ function M.new(append_authored, commit_authored, send_low_level, notify_error, m
 
   -- DOM sends are independent attempts. Their durable append remains evidence
   -- if dispatch is uncertain; a failed marker cannot freeze the next draft.
-  function submit.submit_fresh_operator_text(authored_body, agent_text, attachment)
+  function submit.submit_fresh_operator_text(authored_body, agent_text, attachment, operation)
+    local function failure(message)
+      notify_error(message)
+      return false, message
+    end
     if attachment ~= nil and (type(attachment) ~= 'table' or type(attachment.id) ~= 'string'
       or attachment.id == '' or type(attachment.target) ~= 'table') then
-      notify_error('Pair input dispatch blocked — attachment requires an ID and pinned target')
-      return false
+      return failure('Pair input dispatch blocked — attachment requires an ID and pinned target')
     end
     local target = attachment and snapshot(attachment.target) or nil
-    local id = mint_append_id()
-    local ok, err = append_authored(authored_body, id)
-    if not ok then
-      notify_error('Pair log append failed — ' .. tostring(err or 'unknown error'))
-      return false
-    end
-    local sent, phase, send_err = send_low_level(agent_text, 'start', target)
+    local id
+    -- Keep dispatch knowledge outside the protected pre-dispatch stage. Once
+    -- confirmed, a marker failure (including its timeout) is only a warning.
+    local called, sent, phase, send_err = pcall(function()
+      if operation then operation.check() end
+      id = mint_append_id()
+      local ok, err = append_authored(authored_body, id, operation)
+      if not ok then return false, 'start', 'Pair log append failed — ' .. tostring(err or 'unknown error') end
+      if operation then operation.check() end
+      return send_low_level(agent_text, 'start', target, operation)
+    end)
+    if not called then return failure('Pair input dispatch failed — ' .. tostring(sent)) end
     if phase ~= 'dispatched' then
-      notify_error('Pair input dispatch failed — ' .. tostring(send_err or 'submit was not confirmed'))
-      return false
+      return failure('Pair input dispatch failed — ' .. tostring(send_err or 'submit was not confirmed'))
     end
-    local committed, commit_err = commit_authored(id)
-    if not committed then
-      notify_error('Pair log submit marker failed — ' .. tostring(commit_err or 'unknown error'))
+    local marker_called, committed, commit_err = pcall(commit_authored, id, operation)
+    if not marker_called or not committed then
+      notify_error('Pair log submit marker failed — ' .. tostring(marker_called and (commit_err or 'unknown error') or committed))
     end
     if not sent then
       notify_error('Pair input dispatched with UI warning — ' .. tostring(send_err or 'unknown error'))

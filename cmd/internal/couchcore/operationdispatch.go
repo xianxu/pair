@@ -196,7 +196,8 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 			// thread matched, and is the slot report's error line when one did.
 			// It never reduces the answer to "not a slot".
 			slot, isSlot, slotErr := c.slotOfShowReference(call.Context, a["ref"], matches)
-			if err != nil && !(isSlot && errors.Is(err, ErrThreadReferenceNotFound)) {
+			failures, failureError := c.launchFailuresForShow(call.Context, a["repo-scope"], a["ref"], matches, slot)
+			if err != nil && !((isSlot || len(failures) > 0 || failureError != "") && errors.Is(err, ErrThreadReferenceNotFound)) {
 				if slotErr != nil {
 					return nil, slotErr // the slot reference's own, more specific error
 				}
@@ -222,7 +223,7 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 					narrowed = append(narrowed, row)
 				}
 			}
-			result := ShowResult{Threads: narrowed}
+			result := ShowResult{Threads: narrowed, LaunchFailures: failures, LaunchFailureError: failureError}
 			switch {
 			case slotErr != nil:
 				result.Slot = &SlotReport{PlanError: "slot unresolved: " + slotErr.Error()}

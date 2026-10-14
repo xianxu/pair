@@ -77,6 +77,35 @@ record, separate preferences, and retained history. Each backend uses the existi
 lock, revision checks and recoverable journal. The supervisor lease still belongs
 to the selected global namespace beneath the account lease.
 
+### Failed-launch evidence (#531)
+
+`launchfailure.go` owns bounded attempt evidence and retention independently of
+ThreadRecord. `launchfailure_store.go` atomically stores the newest 16 failures
+in `<namespace>/launch-diagnostics/failures.json` (0600), under a private bounded
+file lock. Records carry scope/tag/nonce, target, starting path and failure stage,
+16 KiB raw output tail, 4 KiB per error, and separate observed pre/post-cleanup
+exit codes. The entire encoded history is capped at 1 MiB. Failed persistence is
+reported beside the original error; later success does not clear evidence.
+
+Runner setup refusals that occur after spawning carry a `blockedStartError` with
+immutable output and pre/post-cleanup observations, even when no handle can be
+returned. The shared `launchTrackedThread` failure path consumes that evidence,
+records before its own cleanup and enriches afterward; `SwitchAgent` adds its final error by attempt identity. The typed error
+preserves errors.Is/As while its operator text names the attempt, diagnostic file, and one inspection action.
+`couch --show` reads retained evidence by exact address or canonical starting
+path, including after rollback removed the thread, without creating lifecycle
+records. `couchcmd/launchfailure.go` sanitizes child text line by line.
+
+`LaunchOutputHandle` reuses the PTY child's existing ring (combined stdout/stderr).
+ExecRunner forwards stderr through a bounded tee; stdin/stdout retain their
+routing, but stderr is now a pipe, so isatty(2) is false. After direct child exit,
+a one-second drain budget prevents descendants holding stderr from indefinitely
+blocking reaping; subsequent descendant writes can receive EPIPE. Exit sampling
+only reads Wait after Exited closes. The fake models direct-child completion
+separately from process-group liveness. Unobserved exit stays unknown; an exit
+first observed after cleanup is not attributed to a startup crash. Abrupt kill
+before the recorder runs and output beyond the retained tail remain limits.
+
 ### Singleton adoption and isolation (#366)
 
 `couchsingleton.Manager` separates read, preview, adoption and lifetime ownership.
@@ -144,6 +173,10 @@ roots do not offer the shortcut. The same StartCreate preview/fingerprint and
 repository admission checks apply as when entering a path manually, so Add slot
 also fills the lowest free number (`:0` included) before adding one, and the
 form lists the repository's parked threads when it adds one (#332).
+Both entry points get their selectable agents from `launcher.AgentInventory()`
+when `NewMenuState` is constructed (#529). Until an arrow makes a choice explicit,
+the preview resolver owns the default; explicit choices remain generation-fenced
+through asynchronous previews and the start commit.
 
 Directory/Git identity supplies the durable slot; native scope/tag identifies its
 current conversation. Slot rows stay selectable when current metadata is missing
@@ -229,6 +262,22 @@ the resumed native conversation ID does not identify a wrapper incarnation.
 Couch-launched Codex disables shell snapshots for that process so tool shells
 inherit the current slot environment instead of restoring an older slot's
 identity. The override is not persisted into saved agent arguments.
+
+`couch --notify [--title T] MESSAGE` is a light, hub-only operation. The message
+service checks the live registered caller and its connected workspace against
+the supervisor's hub root, then calls Console.NotifyDesktop through the shared
+presenter writer. Other callers get advice to send to the hub instead. There is
+no notification queue, receipt store or automatic retry on an uncertain write.
+Existing CLI messaging verbs omit notification-only fields for older supervisors.
+The CLI distinguishes an explicit unsupported-notify decode refusal from missing
+messaging registration and uncertain replies; only the latter leaves the effect
+unconfirmed. Missing registration and unsupported commands provide restart advice,
+never an automatic resend. The legacy socket regression lives in
+`cmd/internal/couchcmd/messages_compat_test.go`.
+Child OSC9/777/99 notifications are swallowed from all panes; only per-pane
+counts enter the existing COUCH_TRACE diagnostics as `notify-suppressed`, and
+ordinary BEL is unchanged. Each aggregate names the pane endpoint and cumulative
+count; a fresh attachment starts a new counter. No notification text is logged.
 
 `couch --actors`, `--send-to repo[:N]|hub [--agent NAME] --message TEXT|--message-file PATH` and `--message-status ID`
 use bounded Unix stream RPC, without constructing another mutable supervisor.
@@ -625,6 +674,11 @@ CLI. It runs in-process against the store and needs no supervisor.
   non-zero with a `Code` other than `ok`.
 
 ### Recover plan after a restart (#367)
+
+Fleet `staged` holds (ariadne#344, pair#539) preserve measured git facts. A
+confirmed healthy staged host checkout is reported as `staged`, held without
+a recovery action. It remains detached for reboot safety; ordinary detached
+checkouts, dirt, operations and unavailable evidence keep their existing guards.
 
 `couch --recover-plan-from-sdlc` (operation `recover-plan`, `ExecuteDirectStore`,
 `EffectRead`, `PresentationRecoverPlan`) runs in the CLI process like `--list`
@@ -2515,13 +2569,30 @@ starts no child. The creating record then gains one
 internal `pair-launch-helper`, which cannot exec Pair until Couch durably adds
 the helper's PID/process-start identity and sends one acknowledgement byte over
 an inherited close-on-exec descriptor. EOF, cancellation, or timeout exits the
-helper without starting any workspace writer. While the helper is parked,
-`startBlockedChild` lowers its process group to the runner's `Nice`
-(`COUCH_SLOT_NICE`, default 10, #498), so Pair and everything a slot forks
-inherit it and yield to Couch and the terminal. A Couch already nicer than the
-setting gets EACCES/EPERM (only root lowers niceness) and its slots keep the
-niceness they inherited; any other `setpriority` error cancels the launch before
-exec. Fakes carry no niceness: only the real runners reach the kernel.
+helper without starting any workspace writer. The target starts at Couch's own
+priority. #498's whole-group nice at launch was replaced by the slot renicer
+(#502, below).
+
+**Slot renicer (#502).** It keeps Couch, the pair wrapper, zellij and the agent at normal priority, and lowers only
+what an agent spawns.
+- **Each pass** (`couchcmd/renicer.go`, every `COUCH_RENICE_INTERVAL`, default 5 s; one goroutine on the message
+  service's lifetime, so passes never overlap):
+  1. reads the broker's connected bindings (`Broker.Connected`: the wrapper's pid and start identity);
+  2. reads each slot's agent-pid file (`Paths.AgentPID()`, through the hardened pid-file reader);
+  3. takes one `procutil.Table()` snapshot (one `sysctl kern.proc.all`, now with `Nice`);
+  4. asks `couchcore.PlanRenice`.
+- **The plan is pure.** A slot is confirmed only when the same snapshot shows the agent's parent is the wrapper
+  and the wrapper's identity is the binding's. It never goes by a process name. Only confirmed slots lower
+  anything: the agent's strict descendants below the level. The agent, the wrappers, and Couch and its ancestors
+  are never lowered.
+- **Applying it:** each process is identity-checked again (`procutil.Identity`), then
+  `setpriority(PRIO_PROCESS, pid, COUCH_SLOT_NICE)`. A process that has exited (ESRCH) is skipped. A refusal
+  (EPERM/EACCES) is counted and that pid is never asked again. `COUCH_SLOT_NICE=0` only reports (the agent's nice; nothing is counted as lowered).
+- **Facts:** per binding (`couchmessage.NiceFacts`: confirmed, agent nice, lowered, at level, denied), read by
+  `couch --actors` through `Broker.SetNiceView`. A confirmed agent found below Couch's own priority (its nice above
+  Couch's, from the same snapshot) gets one notice: relaunch the slot to restore its priority (#541).
+- **Lifetime:** facts, refusals and notices go with their binding, so nothing durable is created.
+- **Cost:** 0.44 ms per pass over 1,425 processes (`BenchmarkReniceScan`), about 0.009% of a core at 5 s.
 
 After acknowledgement, Pair changes the same composite address claim from
 `reserved` to `established`; that is the registration oracle, not PID liveness
@@ -2536,7 +2607,11 @@ registry save failure—treats exec as possible. Both stdio and PTY runners make
 the Pair client the leader of one actor-owned process group; Couch-launched
 session-watcher and title-poller sidecars inherit that group rather than
 detaching. Couch sends TERM and then unconditional KILL to the group, reaps the
-client, and proves the group empty. The remaining process class is the zellij
+client, and proves the group empty. On Darwin, a group signal probe returning
+EPERM is ambiguous even after the client is reaped: Couch confirms membership
+with `kern.proc.pgrp`. An empty successful snapshot proves absence; any member
+(including zombies) or snapshot error retains ownership. Other platforms keep
+the conservative EPERM interpretation. The remaining process class is the zellij
 server and its panes: Couch resolves the exact `{scope, tag}` session-name
 binding, observes its record and exact server PID set, deletes and escalates,
 then requires two stable observations with both absent. Query, deletion, and
@@ -2798,13 +2873,15 @@ enumerated.
 The property that matters: each seam has a fake, and the fakes that model
 *behaviour* rather than data are compared against the real thing by
 `conformance_live_test.go`. `PAIR_LIVE_COUCH=1` checks process/git/pty behavior.
-**Wall-clock budgets (pair#436, pair#481).** A default-lane test asserts its outcome, not a time. "Doesn't block" or
+**Wall-clock budgets (pair#436, pair#481, pair#514).** A default-lane test asserts its outcome, not a time. "Doesn't block" or
 "doesn't wait" is a hang guard around the work while its dependency is held, and a cost that can be counted is
 counted (an operation count, as the broadcast marks' stroke walk does). A real budget stays only where speed is the
-test's subject. It goes through `perfbudget.Check` (`cmd/internal/perfbudget`), which logs every run and fails only
-under `PAIR_PERF_BUDGETS=1`. `make test-perf-budgets` runs each such test on its own on a quiet host, and its recipe
-is the list of them (couchcore's observe and ten-slot report budgets, and wrapcmd's terminal tail): add a new budget
-there, not here. Most
+test's subject. Go checks use `perfbudget.Check` (`cmd/internal/perfbudget`); the doctor shell check uses the same
+`PAIR_PERF_BUDGETS=1` opt-in. Both log elapsed time on every run and enforce the ceiling only in that lane.
+`make test-perf-budgets` runs each budget in isolation on a quiet host; its recipe is the canonical list.
+`make test-perf-capture` always checks report shape and uses controlled clock/tool fixtures to verify the
+capture's work shedding and probe priority. The production six-second budget remains cooperative: it sheds
+later work, but does not preempt an already-running external collector. Most
 couchcore tests are `t.Parallel()`; ones that set process env, chdir, mutate a
 package global, signal real processes or measure wall time stay serial. Its `TestMain` defaults
 `-test.parallel` to 3x GOMAXPROCS (the tests mostly wait on subprocesses); an explicit flag wins.

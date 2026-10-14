@@ -146,3 +146,84 @@ func TestReadingGuidePrivacyContract(t *testing.T) {
 		}
 	}
 }
+
+func v3Fixture() Submission {
+	s := fixture()
+	s.Version = 3
+	s.PrivacyDecision = PrivacyDecision{Privacy: Private}
+	s.Notes = []Note{{ID: "a", SourceDocument: 1, CaptureID: "cap-a", Page: &PageIdentity{URL: "https://a.test/page", Title: "A", Provenance: "cdp"}, PrivacyDecision: PrivacyDecision{Privacy: Private, PrivacyOrigin: "https://a.test"}, Crop: Crop{File: "crop-0.png", Box: recording.Box{0, 0, 2, 2}, CapturedAt: time.Now(), Document: 1}}, {ID: "b", SourceDocument: 2, PrivacyDecision: PrivacyDecision{Privacy: Private}, Crop: Crop{Unavailable: "not captured when drawn"}}}
+	return s
+}
+func TestVersion3PreservesPerNoteProvenance(t *testing.T) {
+	s := v3Fixture()
+	if err := Validate(s); err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got Submission
+	if err = json.Unmarshal(data, &got); err != nil {
+		t.Fatal(err)
+	}
+	if err = Validate(got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Notes[0].CaptureID != "cap-a" || got.Notes[0].Page.URL != "https://a.test/page" || got.Notes[1].SourceDocument != 2 {
+		t.Fatal("lost per-note source", string(data))
+	}
+	for _, mutate := range []func(*Submission){
+		func(s *Submission) { s.Notes[0].Crop.Document = 2 },
+		func(s *Submission) { s.Notes[0].Page = nil },
+		func(s *Submission) { s.Notes[0].CaptureID = "../escape" },
+		func(s *Submission) { s.Notes[0].PrivacyOrigin = "https://b.test" },
+		func(s *Submission) { s.Notes[1].SourceDocument = 0 },
+		func(s *Submission) { s.Notes[1].PrivacyDecision = PrivacyDecision{} },
+		func(s *Submission) { s.Source.Page = s.Notes[0].Page },
+		func(s *Submission) {
+			d := PrivacyDecision{Privacy: Shareable, PrivacyOrigin: "https://a.test", PrivacyRule: PolicyEvidence{Rule: &OriginRule{Origin: "https://a.test", Privacy: Shareable}}}
+			s.PrivacyDecision = d
+		},
+	} {
+		s := v3Fixture()
+		mutate(&s)
+		if err := Validate(s); err == nil {
+			t.Fatalf("accepted invalid v3: %+v", s)
+		}
+	}
+}
+
+func TestVersion3AggregatePrivacyAcrossOrigins(t *testing.T) {
+	s := v3Fixture()
+	s.PrivacyDecision = PrivacyDecision{Privacy: Shareable}
+	for i := range s.Notes {
+		n := &s.Notes[i]
+		n.CaptureID = "capture"
+		origin := "https://a.test"
+		if i == 1 {
+			origin = "https://b.test"
+		}
+		n.Page = &PageIdentity{URL: origin + "/page", Provenance: "cdp"}
+		n.PrivacyDecision = PrivacyDecision{Privacy: Shareable, PrivacyOrigin: origin, PrivacyRule: PolicyEvidence{Rule: &OriginRule{Origin: origin, Privacy: Shareable}}}
+		n.Crop = Crop{File: "crop-0.png", Box: recording.Box{0, 0, 2, 2}, CapturedAt: time.Now(), Document: n.SourceDocument}
+		if i == 1 {
+			n.Crop.File = "crop-1.png"
+		}
+	}
+	if err := Validate(s); err != nil {
+		t.Fatal(err)
+	}
+	s.Notes[1].PrivacyDecision = PrivacyDecision{Privacy: Private, PrivacyOrigin: "https://b.test"}
+	if err := Validate(s); err == nil {
+		t.Fatal("shareable aggregate accepted private note")
+	}
+	s.Privacy = Private
+	if err := Validate(s); err != nil {
+		t.Fatal(err)
+	}
+	s.Notes[0].Crop = Crop{Unavailable: "outside viewport"}
+	if err := Validate(s); err == nil {
+		t.Fatal("unavailable shareable note accepted")
+	}
+}

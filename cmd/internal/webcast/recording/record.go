@@ -3,6 +3,9 @@ package recording
 import (
 	"errors"
 	"fmt"
+	"strings"
+
+	"github.com/xianxu/pair/cmd/internal/broadcast"
 )
 
 // Format and Version are what a head record names. A reader refuses another
@@ -322,13 +325,27 @@ type (
 type (
 	Note struct {
 		Header
+		// Owner is a public opaque digest, never an editing credential. Empty is legacy.
+		Owner  string `json:"owner,omitempty"`
+		Edited bool   `json:"edited,omitempty"`
 		ID     string `json:"id"`
 		Author Author `json:"author"`
 		Text   string `json:"text"`
 		At     NoteAt `json:"at"`
 		Region *Box   `json:"region,omitempty"`
+		// Capture is an opaque local reference; it never exposes a file path or pixels.
+		Capture         string `json:"capture,omitempty"`
+		CropUnavailable string `json:"crop_unavailable,omitempty"`
+	}
+	// NoteEdit changes text in place; the creation record and anchor remain immutable.
+	NoteEdit struct {
+		Header
+		ID   string `json:"id"`
+		Text string `json:"text"`
 	}
 	NoteState struct {
+		// Who is absent in legacy recordings; absence means unknown, not operator.
+		Who *Author `json:"who,omitempty"`
 		// IfRevision is an in-process writer guard, never a wire field.
 		IfRevision *uint64 `json:"-"`
 		Header
@@ -359,12 +376,16 @@ type (
 // gives those a layout anchor of the same shape): kind "element", and the path of meaningful
 // containers down to the element (e.g. main › article › p#first).
 type NoteAt struct {
-	Node NodeID   `json:"node"`
-	Kind string   `json:"kind,omitempty"`
-	Path []string `json:"path,omitempty"`
-	Sel  string   `json:"sel,omitempty"`
-	Text string   `json:"text,omitempty"`
-	Box  *Box     `json:"box,omitempty"`
+	Tag     string            `json:"tag,omitempty"`
+	Classes []string          `json:"classes,omitempty"`
+	Stable  map[string]string `json:"stable,omitempty"`
+	Route   string            `json:"route,omitempty"`
+	Node    NodeID            `json:"node"`
+	Kind    string            `json:"kind,omitempty"`
+	Path    []string          `json:"path,omitempty"`
+	Sel     string            `json:"sel,omitempty"`
+	Text    string            `json:"text,omitempty"`
+	Box     *Box              `json:"box,omitempty"`
 }
 
 // AnchorElement is an element anchor's Kind.
@@ -424,6 +445,7 @@ var kinds = map[string]struct {
 	"ptr":              {func() Record { return &Ptr{} }, FileEvents},
 	"ctl":              {func() Record { return &Ctl{} }, FileEvents},
 	"note":             {func() Record { return &Note{} }, FileNotes},
+	"note-edit":        {func() Record { return &NoteEdit{} }, FileNotes},
 	"note-state":       {func() Record { return &NoteState{} }, FileNotes},
 	"stroke":           {func() Record { return &Stroke{} }, FilePointer},
 	"frame":            {func() Record { return &Frame{} }, FileFrames},
@@ -455,6 +477,7 @@ func (*Layout) Kind() string    { return "layout" }
 func (*Hover) Kind() string     { return "hover" }
 func (*Ptr) Kind() string       { return "ptr" }
 func (*Note) Kind() string      { return "note" }
+func (*NoteEdit) Kind() string  { return "note-edit" }
 func (*NoteState) Kind() string { return "note-state" }
 func (*Stroke) Kind() string    { return "stroke" }
 func (*Frame) Kind() string     { return "frame" }
@@ -515,6 +538,9 @@ func (r *Hover) check() error     { return need(r.ID >= 0, "id") }
 func (r *Ptr) check() error       { return nil }
 func (r *Note) check() error {
 	return errors.Join(need(r.ID != "", "id"), need(r.Author.ID != "", "author.id"), need(r.At.Node > 0 || r.Region != nil, "at.node or region"))
+}
+func (r *NoteEdit) check() error {
+	return errors.Join(need(r.ID != "", "id"), need(strings.TrimSpace(r.Text) != "" && broadcast.PlainText(r.Text), "bounded nonblank plain text"))
 }
 func (r *NoteState) check() error {
 	return errors.Join(need(r.ID != "", "id"), need(oneOf(r.State, NoteOpen, NoteResolved), "state"))

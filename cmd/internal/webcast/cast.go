@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	core "github.com/xianxu/pair/cmd/internal/submission"
+	"net/http"
 	"os"
 	"path/filepath"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/webcast/board"
 	"github.com/xianxu/pair/cmd/internal/webcast/capability"
 	"github.com/xianxu/pair/cmd/internal/webcast/drive"
+	"github.com/xianxu/pair/cmd/internal/webcast/notedraft"
 	"github.com/xianxu/pair/cmd/internal/webcast/notes"
 	"github.com/xianxu/pair/cmd/internal/webcast/recorder"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
@@ -26,7 +28,8 @@ import (
 type CastConfig struct {
 	// ReadOriginPolicy snapshots operator-owned sharing rules per submission.
 	// A notice reports a private fallback without refusing the submission.
-	ReadOriginPolicy func() (core.OriginPolicy, string)
+	ReadOriginPolicy   func() (core.OriginPolicy, string)
+	ObservePublication func(context.Context, string) (core.Submission, core.PublicationObservation, error)
 	// Launch starts the cast Chrome (real, or a FakeBrowser in tests),
 	// recording it as rec says when rec is non-nil. A FakeBrowser records
 	// nothing.
@@ -111,7 +114,8 @@ type Cast struct {
 	// board takes viewers' strokes and notes (#470); nil when the cast
 	// isn't recorded. The recorder closes it with the recording (it is one
 	// of the recording's sinks), the cast when the browser has ended.
-	board *board.Board
+	board      *board.Board
+	noteDrafts *notedraft.Service
 	// drive is remote driving's controller (#467); nil when the browser
 	// can't be driven (not recording, or a fake). Closed when the browser
 	// has ended.
@@ -149,6 +153,19 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 	var bd *board.Board
 	var b Browser // set once launched; the board's requests come after
 	var recDir string
+	var drafts *notedraft.Service
+	launched := make(chan struct{})
+	browserForDraft := func(ctx context.Context) (Browser, error) {
+		select {
+		case <-launched:
+			if b == nil {
+				return nil, ErrNotRecording
+			}
+			return b, nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
 	// The cast's asset proxy exists before Chrome does: the recording (and
 	// its store, bound here) can open at a go-live before the Server is up.
 	proxy := castassets.NewProxy()
@@ -173,10 +190,31 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 		})
 		id := recordingID(time.Now())
 		recDir = filepath.Join(cfg.RecordingsDir, id)
-		ro = &RecordOptions{Operator: bd, ID: id, Out: recordingOutput(cfg, liveSink, bd, id, proxy), Logf: cfg.Logf}
+		var err error
+		drafts, err = newCastNoteDrafts(recDir, bd, browserForDraft, cfg.ObservePublication)
+		if err != nil {
+			bd.Close()
+			if liveSink != nil {
+				liveSink.Close()
+			}
+			return nil, err
+		}
+		out := recordingOutput(cfg, liveSink, bd, id, proxy)
+		ro = &RecordOptions{Operator: bd, NoteDrafts: drafts, ID: id, Logf: cfg.Logf, Out: func() (recorder.Opened, error) {
+			opened, err := out()
+			if err == nil {
+				opened.Sink = &draftEvidenceSink{sink: opened.Sink, notes: drafts, ids: map[string]bool{}, logf: cfg.Logf}
+			}
+			return opened, err
+		}}
 	}
-	b, err := cfg.Launch(ctx, ro)
+	var err error
+	b, err = cfg.Launch(ctx, ro)
+	close(launched)
 	if err != nil {
+		if drafts != nil {
+			drafts.Close()
+		}
 		if bd != nil {
 			bd.Close()
 		}
@@ -201,6 +239,9 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 	}
 	if err != nil {
 		b.Close()
+		if drafts != nil {
+			drafts.Close()
+		}
 		if bd != nil {
 			bd.Close()
 		}
@@ -208,7 +249,7 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 	}
 	mountCtx, cancel := context.WithCancel(context.Background())
 	c := &Cast{browser: b, pub: newPublisher(Update{State: b.State()}), cancel: cancel, done: make(chan struct{}), liveSink: liveSink,
-		board: bd, readOriginPolicy: cfg.ReadOriginPolicy, recDir: recDir, check: cfg.Check, logf: cfg.Logf}
+		board: bd, noteDrafts: drafts, readOriginPolicy: cfg.ReadOriginPolicy, recDir: recDir, check: cfg.Check, logf: cfg.Logf}
 	if d, ok := b.(Driven); ok && ro != nil {
 		grace := cfg.DriveGrace
 		if grace <= 0 {
@@ -243,7 +284,7 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 	} else {
 		c.driveOff = "the cast isn't recorded"
 	}
-	srv := NewServer(token, b, cfg.Ping, live, cfg.Presence).WithBoard(bd).WithPointer(pointerToken).WithDrive(c.drive, driveToken).WithDriveLog(cfg.Logf).WithLocks(locks)
+	srv := NewServer(token, b, cfg.Ping, live, cfg.Presence).WithBoard(bd).WithNoteDrafts(drafts, func(r *http.Request) string { return broadcast.NoteOwnerFromContext(r.Context()) }).WithPointer(pointerToken).WithDrive(c.drive, driveToken).WithDriveLog(cfg.Logf).WithLocks(locks)
 	srv.proxy = proxy
 	c.server, c.token, c.pointerToken, c.driveToken = srv, token, pointerToken, driveToken
 	c.capCtx = mountCtx
@@ -371,6 +412,9 @@ func (c *Cast) run(ctx context.Context, host *broadcast.Host, srv *Server, token
 		c.pub.publish(cur)
 	}
 	c.stopCapabilityWork()
+	if c.noteDrafts != nil {
+		c.noteDrafts.Close()
+	}
 	if c.liveSink != nil {
 		c.liveSink.Close()
 	}

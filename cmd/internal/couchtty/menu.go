@@ -351,7 +351,7 @@ func NewMenuState(inventory []couchcore.ActionableThreadSummary, active couchcor
 	if len(owned) > 0 {
 		selectMenuRow(&root, owned[0])
 	}
-	return MenuState{Inventory: owned, InventoryReady: inventory != nil, Frames: []MenuFrame{root}, ActiveAddress: active, FrameSequence: 1}
+	return MenuState{Agents: launcher.AgentInventory(), Inventory: owned, InventoryReady: inventory != nil, Frames: []MenuFrame{root}, ActiveAddress: active, FrameSequence: 1}
 }
 
 func (s MenuState) CurrentFrame() MenuFrame {

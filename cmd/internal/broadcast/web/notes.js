@@ -44,7 +44,11 @@ export function parseNotes(data) {
     return empty;
   }
   const notes = data.notes.filter((n) => n && isInt(n.id) && isInt(n.col) && isInt(n.row) && isBox(n.box) && isInt(n.color) && typeof n.text === 'string');
-  return { guard: data.guard, notes: notes.map(({ id, col, row, box, color, text }) => ({ id, col, row, box: [...box], color, text })) };
+  return { guard: data.guard, notes: notes.map(({ id, col, row, box, color, text, owner, edited }) => ({
+    id, col, row, box: [...box], color, text,
+    ...(typeof owner === 'string' ? { owner } : {}),
+    ...(typeof edited === 'boolean' ? { edited } : {}),
+  })) };
 }
 
 export { MAX_NOTE_BYTES, noteBytes, noteDialog } from './collab.js';

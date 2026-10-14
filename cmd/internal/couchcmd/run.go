@@ -700,12 +700,8 @@ func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, ou
 	if len(settings) > 0 {
 		getenv = settings[0].getenv
 	}
-	nice, err := slotNiceSettings(getenv)
-	if err != nil {
-		return nil, nil, err
-	}
 	if !WantsConsole(name, hasTerminal) {
-		return nil, couchcore.ExecRunner{Nice: nice}, nil
+		return nil, couchcore.ExecRunner{}, nil
 	}
 
 	path, captureConfig, err := captureSettings(getenv)
@@ -795,7 +791,6 @@ func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, ou
 		return runtimebundle.TerminalEnvironment(root)
 	})
 	return console, &couchcore.PtyRunner{
-		Nice:        nice,
 		Environment: profile,
 		Size:        console.ChildSize,
 		Sink:        console.Deliver,
@@ -1108,6 +1103,7 @@ func render(w io.Writer, op couchcore.Operation, result any) int {
 		if v.Slot != nil {
 			renderSlotReport(w, *v.Slot)
 		}
+		renderLaunchFailures(w, v.LaunchFailures, v.LaunchFailureError)
 	case couchcore.Worktree:
 		fmt.Fprintf(w, "%s\n", v)
 	case couchcore.ArchiveResult:
@@ -1334,7 +1330,7 @@ func dimCodes(w io.Writer) (string, string) {
 // (pair#170 M4): couch-lite has no capacity to exceed, so there is no refusal to
 // give a next action to.
 func renderError(w io.Writer, err error) {
-	fmt.Fprintf(w, "couch: %v\n", err)
+	fmt.Fprintf(w, "couch: %s\n", couchcore.OperatorError(err))
 }
 
 func usage(w io.Writer) { usageWith(w, couchkeys.Bindings()) }
@@ -1394,6 +1390,10 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "             --message-file sends the file verbatim (less one trailing newline): write a")
 	fmt.Fprintln(w, "             message containing code or shell syntax with an editor, never quote it.")
 	verbLine(w, "--message-status", "       couch --message-status ID [--json]")
+	verbLine(w, "--notify", "       couch --notify [--title T] MESSAGE")
+	fmt.Fprintln(w, "             Only the live hub notifies (default title: Couch); other slots send to the hub.")
+	fmt.Fprintln(w, "             Slots' OSC 9/777/99 notifications are swallowed, including the hub's; BEL is unchanged.")
+	fmt.Fprintln(w, "             Title: 256 bytes; message: 4096 bytes. Uncertain write: do not retry automatically.")
 	verbLine(w, query.Flag, "       couch "+query.Flag+" DIR dom|events|notes|link ...")
 	fmt.Fprintln(w, "             Read-only: ask a broadcast-web recording for the page at t, what happened")
 	fmt.Fprintln(w, "             in a window, and every note with its element and the actions before it;")

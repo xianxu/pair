@@ -69,6 +69,9 @@ func (s *Server) WithBoard(b *board.Board) *Server {
 
 // boardRoute serves one POST under link; false when rest isn't a board route.
 func (s *Server) boardRoute(w http.ResponseWriter, r *http.Request, rest string, link castLink) bool {
+	if s.noteDraftRoute(w, r, rest, link) {
+		return true
+	}
 	var admission board.AnnotationAdmission
 	var handle func([]byte) error
 	limit, max := (*boardRoutes).allowNote, int64(board.MaxNoteBody)
@@ -88,8 +91,18 @@ func (s *Server) boardRoute(w http.ResponseWriter, r *http.Request, rest string,
 			if err != nil {
 				return err
 			}
+			in.Owner = broadcast.NoteOwnerFromContext(r.Context())
 			_, err = admission.Note(in)
 			return err
+		}
+	case "note-edit":
+		handle = func(body []byte) error {
+			in, err := board.ParseNoteEdit(body)
+			if err != nil {
+				return err
+			}
+			in.Owner = broadcast.NoteOwnerFromContext(r.Context())
+			return admission.Edit(in)
 		}
 	case "note-state":
 		handle = func(body []byte) error {
@@ -222,6 +235,8 @@ func boardAnswer(err error) (int, string) {
 		return http.StatusNoContent, ""
 	case errors.Is(err, board.ErrDisabled):
 		return http.StatusForbidden, refuseAnnotationOff
+	case errors.Is(err, board.ErrOwner):
+		return http.StatusForbidden, "Only the author can edit this note in its original browser session."
 	case errors.Is(err, board.ErrColorFull):
 		return http.StatusConflict, refuseColorFull
 	case errors.Is(err, board.ErrStale):

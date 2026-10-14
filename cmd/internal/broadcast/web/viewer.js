@@ -5,7 +5,7 @@
 // pick (#446).
 
 import { noteAt, boxHasPin, parseNotes } from './notes.js';
-import { HEX_COLOR, pointerColor, colorStore, railAt, renderSwatches, noteDialog, poster, gestureBox, dragMin, sessionLost, storedName } from './collab.js';
+import { HEX_COLOR, pointerColor, colorStore, railAt, renderSwatches, noteDialog, poster, gestureBox, noteGesture, sessionLost, sessionNoteOwner, storedName } from './collab.js';
 
 export { pointerColor, colorStore, RAIL_INSET, railAt, renderSwatches } from './collab.js';
 
@@ -285,6 +285,8 @@ async function start() {
   const modes = document.getElementById('modes');
   let notes = { guard: 0, notes: [] };
   let pointer = null;
+  let owner = '';
+  sessionNoteOwner(fetch).then((value) => { owner = value; });
   const byId = (id) => document.getElementById(id);
   const dialog = noteDialog({
     root: byId('note'), text: byId('note-text'), input: byId('note-input'), count: byId('note-count'),
@@ -292,6 +294,10 @@ async function start() {
   }, {
     post: postJSON,
     color: () => pointer.color(),
+    resolveRequest: (id) => {
+      const author = storedName(storage);
+      return ['resolve', { id, ...(author ? { author } : {}) }];
+    },
     // The name the lock page kept (pair#495) attributes the note.
     beforeSave: () => {
       const name = storedName(storage);
@@ -300,6 +306,7 @@ async function start() {
   });
   pointer = pointerMode(term, stage, {
     notes: () => notes,
+    owner: () => owner,
     dialog,
     dragBox: screenBox(stage, term),
     modes: {
@@ -387,7 +394,7 @@ function screenBox(stage, term) {
 
 // POST_ROUTES is every request this page makes besides its own assets and
 // stream (#412, #447).
-const POST_ROUTES = ['point', 'note', 'resolve'];
+const POST_ROUTES = ['point', 'note', 'note-edit', 'resolve'];
 
 // postJSON is the page's one request function (collab.js's poster).
 const postJSON = poster((url, init) => fetch(url, init), POST_ROUTES);
@@ -429,7 +436,7 @@ export function pointerMode(term, stage, deps = {}) {
   let on = false;
   // drag is what the pointer is doing, one of: null; {kind: 'stroke', last,
   // pending} (pointer mode, its points posted every 50ms by timer); {kind:
-  // 'box', from, to, pointerType} (comment mode, a note's box being drawn).
+  // 'box', from, to, gesture} (comment mode, a note's box being drawn).
   let drag = null;
   let timer = null;
   let palette = [];
@@ -477,7 +484,7 @@ export function pointerMode(term, stage, deps = {}) {
     const el = screen();
     return el ? cellAt(e.clientX, e.clientY, el.getBoundingClientRect(), term.cols, term.rows) : null;
   };
-  const boxOf = (g) => gestureBox(g.from, g.to, { x: 0, y: 0, w: term.cols, h: term.rows }, { min: dragMin('cells', g.pointerType), cells: true });
+  const boxOf = (g, preview = false) => gestureBox(g.from, g.to, { x: 0, y: 0, w: term.cols, h: term.rows }, { min: g.gesture.dragged ? 0 : Infinity, cells: true, preview });
   // end ends whatever the pointer is doing: a stroke's last points are
   // posted, a box being drawn is dropped.
   const end = () => {
@@ -500,7 +507,8 @@ export function pointerMode(term, stage, deps = {}) {
     if (hit) {
       e.preventDefault();
       end();
-      dialog.view(hit, { resolvable: on });
+      if (on && hit.owner && hit.owner === deps.owner?.()) dialog.edit(hit);
+      else dialog.view(hit, { resolvable: on });
       return;
     }
     if (!on) {
@@ -510,8 +518,7 @@ export function pointerMode(term, stage, deps = {}) {
     stage.setPointerCapture?.(e.pointerId);
     end();
     if (mode === 'comment') {
-      drag = { kind: 'box', from: c, to: c, pointerType: e.pointerType };
-      dragBox.show(boxOf(drag));
+      drag = { kind: 'box', from: c, to: c, gesture: noteGesture([e.clientX, e.clientY], e.pointerType) };
       return;
     }
     drag = { kind: 'stroke', last: null, pending: [c] };
@@ -523,7 +530,10 @@ export function pointerMode(term, stage, deps = {}) {
     if (drag?.kind === 'box') {
       if (c) {
         drag.to = c;
-        dragBox.show(boxOf(drag));
+        drag.gesture.move([e.clientX, e.clientY]);
+        const box = boxOf(drag, true);
+        if (box) dragBox.show(box);
+        else dragBox.hide();
       }
       return;
     }

@@ -3205,12 +3205,7 @@ func (p *proxy) masterPump() {
 	stdoutFlushTick := time.NewTicker(p.stdoutFlushInterval())
 	defer stdoutFlushTick.Stop()
 	p.output()
-	defer func() {
-		// Off: flush any held CSI tail and leave the outer pane un-dimmed.
-		p.stdoutPump.queue(p.dimmer.Feed(p.notificationRewriter.Finish(), false))
-		p.stdoutPump.finish()
-		p.flushStdout("eof")
-	}()
+	defer p.finishMasterOutput()
 	var brokerMessages <-chan string
 	var peerNotices <-chan string
 	if p.peer != nil {
@@ -3308,6 +3303,25 @@ func (p *proxy) masterPump() {
 			p.flushStdout("tick")
 		}
 	}
+}
+
+// finishMasterOutput runs on the output owner when the master stops.
+func (p *proxy) finishMasterOutput() {
+	if p.notificationBroker != nil {
+		if err := p.notificationBroker.Close(); err != nil {
+			p.debug("NOTIFY-close-fail", err.Error())
+		}
+		for message := range p.notificationBroker.Messages() {
+			p.emitNotification(message)
+		}
+		for err := range p.notificationBroker.Diagnostics() {
+			p.debug("NOTIFY-broker", err.Error())
+		}
+	}
+	// Off: flush any held CSI tail and leave the outer pane un-dimmed.
+	p.stdoutPump.queue(p.dimmer.Feed(p.notificationRewriter.Finish(), false))
+	p.stdoutPump.finish()
+	p.flushStdout("eof")
 }
 
 // handleChunk owns the per-chunk work that used to live inline in the

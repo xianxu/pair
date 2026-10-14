@@ -147,7 +147,7 @@ func TestCaptureViewportAndSettlementReachEvidence(t *testing.T) {
 				}
 				return nil, nil, false
 			}
-			got, err := h.r.CaptureCrops(context.Background(), doc, captureRequests([]rec.Box{tt.box}))
+			got, err := h.r.CaptureCrops(context.Background(), doc, captureRequests([]rec.Box{tt.box}), nil)
 			if err != nil || len(got) != 1 {
 				t.Fatalf("%+v %v", got, err)
 			}
@@ -192,7 +192,7 @@ func TestCaptureRefusesViewportChangeBeforeOrDuringScreenshot(t *testing.T) {
 				}
 				return nil, nil, false
 			}
-			got, err := h.r.CaptureCrops(context.Background(), doc, captureRequests([]rec.Box{{10, 10, 20, 10}}))
+			got, err := h.r.CaptureCrops(context.Background(), doc, captureRequests([]rec.Box{{10, 10, 20, 10}}), nil)
 			if err == nil || !strings.Contains(err.Error(), "viewport") || got != nil {
 				t.Fatalf("cropaccepted %+v %v", got, err)
 			}

@@ -73,6 +73,19 @@ func RunSurfaceContract(t recording.TB, newSurface func(recs []recording.Record)
 	if n.Note.State != recording.NoteResolved {
 		t.Errorf("a note resolved after it was made reads %q, want its final state", n.Note.State)
 	}
+	// Edits retain creation context and latest resolution, including after clear.
+	edited := append([]recording.Record(nil), recs[:len(recs)-1]...)
+	edited = append(edited, &recording.NoteEdit{Header: recording.Header{T: 10500}, ID: "n1", Text: "Updated explanation"},
+		&recording.NoteState{Header: recording.Header{T: 11000}, ID: "n1", State: recording.NoteResolved, Who: &recording.Author{ID: "operator"}},
+		&recording.AnnotationClear{Header: recording.Header{T: 12000}, Who: recording.Author{ID: "operator"}})
+	ev, err := newSurface(edited).Notes(9500)
+	if err != nil || len(ev) != 1 {
+		t.Fatalf("edited notes: %v %d", err, len(ev))
+	}
+	en := ev[0]
+	if en.Note.Text != "Updated explanation" || !en.Note.Edited || en.Note.ResolvedBy == nil || en.Note.ResolvedBy.ID != "operator" || en.Note.T != 10000 || !strings.Contains(en.Element, "Save") || en.Context.Node != save {
+		t.Errorf("edited projection: %+v", en)
+	}
 	var before []string
 	for _, r := range n.Before {
 		before = append(before, r.Kind())

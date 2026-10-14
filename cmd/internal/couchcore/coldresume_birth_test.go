@@ -131,7 +131,7 @@ func TestColdResumeTimesOutWhenThePaneIsNeverBorn(t *testing.T) {
 	// The diagnosis is keyed on DeadlineExceeded. The birth wait's own grace
 	// races the registration context, and whichever passes first must still
 	// read as a deadline, or the operator loses the "(waited …)" explanation.
-	if !strings.Contains(err.Error(), "(waited ") {
+	if !strings.Contains(retainedLaunchError(t, env.Couch, err), "(waited ") {
 		t.Fatalf("Resume error = %v, want the deadline diagnosis", err)
 	}
 	// Probes do follow: the failure's diagnosis and the start cleanup's presence

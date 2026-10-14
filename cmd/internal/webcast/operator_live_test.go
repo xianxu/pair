@@ -16,6 +16,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/submission"
 	"github.com/xianxu/pair/cmd/internal/webcast/board"
 	"github.com/xianxu/pair/cmd/internal/webcast/drive"
+	"github.com/xianxu/pair/cmd/internal/webcast/notedraft"
 	"github.com/xianxu/pair/cmd/internal/webcast/notes"
 	"github.com/xianxu/pair/cmd/internal/webcast/query"
 	"github.com/xianxu/pair/cmd/internal/webcast/recorder"
@@ -43,7 +44,13 @@ func TestOperatorLiveAnnotation(t *testing.T) {
 	viewer, unsubscribe := hub.Subscribe()
 	defer unsubscribe()
 
-	c, err := Launch(context.Background(), LaunchOptions{Binary: bin, Headless: true, ProfileDir: t.TempDir(), StartURL: "data:text/html,<title>Operator test</title><body><h1 id=target>Hello</h1><input id=field></body>", Record: &RecordOptions{ID: "operator", Operator: bd, ShotEvery: -1, Out: func() (recorder.Opened, error) { return recorder.Opened{Sink: recording.Tee(disk, hub, mem, bd)}, nil }}})
+	var c *Chrome
+	drafts, err := newCastNoteDrafts(dir, bd, func(context.Context) (Browser, error) { return c, nil }, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer drafts.Close()
+	c, err = Launch(context.Background(), LaunchOptions{Binary: bin, Headless: true, ProfileDir: t.TempDir(), StartURL: "data:text/html,<title>Operator test</title><body><h1>Save</h1><input id=field><button>Save</button></body>", Record: &RecordOptions{ID: "operator", Operator: bd, NoteDrafts: drafts, ShotEvery: -1, Out: func() (recorder.Opened, error) { return recorder.Opened{Sink: recording.Tee(disk, hub, mem, bd)}, nil }}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,11 +108,14 @@ func TestOperatorLiveAnnotation(t *testing.T) {
 	if err = c.call(session, "DOM.getDocument", map[string]any{"depth": -1, "pierce": true}, &tree); err != nil {
 		t.Fatal(err)
 	}
-	var backend int
+	var backend, viewerBackend int
 	var visit func(json.RawMessage)
 	visit = func(raw json.RawMessage) {
 		var n node
 		json.Unmarshal(raw, &n)
+		if n.Name == "BUTTON" {
+			viewerBackend = n.Backend
+		}
 		if n.Name == "COUCHCAST-CONTROL" && len(n.Shadow) > 0 {
 			var shadow node
 			json.Unmarshal(n.Shadow[0], &shadow)
@@ -185,7 +195,7 @@ func TestOperatorLiveAnnotation(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		if string(eval(`testRoot.querySelector('.annotate').classList.contains('operator-off') && document.activeElement===document.querySelector('#field')`)) != "true" {
+		if string(eval(`[...testRoot.querySelectorAll('.mode')].every(b=>b.getAttribute('aria-pressed')==='false') && document.activeElement===document.querySelector('#field')`)) != "true" {
 			t.Fatalf("page-focused Escape did not disable %s without moving focus", mode)
 		}
 	}
@@ -193,7 +203,7 @@ func TestOperatorLiveAnnotation(t *testing.T) {
 		t.Fatal(err)
 	}
 	var xy []float64
-	json.Unmarshal(eval(`(()=>{const r=document.querySelector('#target').getBoundingClientRect();return [r.x+40,r.y+10]})()`), &xy)
+	json.Unmarshal(eval(`(()=>{const r=document.querySelector('h1').getBoundingClientRect();return [r.x+40,r.y+10]})()`), &xy)
 	for _, typ := range []string{"mousePressed", "mouseReleased"} {
 		if err = c.call(session, "Input.dispatchMouseEvent", map[string]any{"type": typ, "button": "left", "clickCount": 1, "x": xy[0], "y": xy[1]}, nil); err != nil {
 			t.Fatal(err)
@@ -215,7 +225,19 @@ func TestOperatorLiveAnnotation(t *testing.T) {
 	if string(eval(`testRoot.querySelector('.drag-region').hidden`)) != "false" {
 		t.Fatal("note release did not place the default box")
 	}
-	eval(`testRoot.querySelector('.note-input').value='Held operator draft'`)
+	eval(`(()=>{const e=testRoot.querySelector('.note-input');e.value='Held operator draft';e.dispatchEvent(new Event('input',{bubbles:true}));})()`)
+	// Capture starts at the gesture; typed text survives its asynchronous acknowledgment.
+	deadline = time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		if string(eval(`testRoot.querySelector('.note-msg').textContent.includes('Captured')`)) == "true" {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if string(eval(`testRoot.querySelector('.note-msg').textContent.includes('Captured')`)) != "true" {
+		t.Fatalf("capture did not become ready: %s", eval(`testRoot.querySelector('.note-msg').textContent`))
+	}
+	deadline = time.Now().Add(10 * time.Second)
 	if path := os.Getenv("WEBCAST_OPERATOR_SHOT"); path != "" {
 		var shot struct {
 			Data string `json:"data"`
@@ -287,7 +309,7 @@ func TestOperatorLiveAnnotation(t *testing.T) {
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	if string(eval(`testRoot.querySelector('.note-input').value==='Held operator draft' && testRoot.querySelector('.annotate').classList.contains('operator-off')`)) != "true" {
+	if string(eval(`testRoot.querySelector('.note-input').value==='Held operator draft' && [...testRoot.querySelectorAll('.mode')].every(b=>b.getAttribute('aria-pressed')==='false')`)) != "true" {
 		t.Fatal("return did not restore held draft with pen off")
 	}
 	eval(`(()=>{const e=testRoot.querySelector('.note-input');e.value='Operator note';e.dispatchEvent(new Event('input',{bubbles:true}));testRoot.querySelector('.note-buttons').lastElementChild.click()})()`)
@@ -300,6 +322,9 @@ func TestOperatorLiveAnnotation(t *testing.T) {
 	v := bd.OperatorView()
 	if len(v.Notes) != 1 {
 		t.Fatalf("note not committed: UI %s; view %+v", eval(`testRoot.querySelector('.note-msg').textContent`), v)
+	}
+	if v.Notes[0].Capture == "" {
+		t.Fatal("operator note omitted draw-time capture")
 	}
 	if v.Notes[0].Author.ID != "operator" {
 		t.Fatal("operator identity lost")
@@ -329,9 +354,8 @@ func TestOperatorLiveAnnotation(t *testing.T) {
 		t.Fatalf("live recording query lost operator note: %+v, %v", queried, err)
 	}
 
-	// Board publication precedes the asynchronous operator reply. The next
-	// gesture is unavailable until that reply closes the editor; drawing while
-	// dialog.open is intentionally ignored by the shared annotation mount.
+	// Board publication precedes the asynchronous operator reply. Wait for
+	// its acknowledgment to close the editor before the next independent gesture.
 	saveDeadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(saveDeadline) {
 		if string(eval(`testRoot.querySelector('.note-dialog').classList.contains('hidden')`)) == "true" {
@@ -342,6 +366,87 @@ func TestOperatorLiveAnnotation(t *testing.T) {
 	if string(eval(`testRoot.querySelector('.note-dialog').classList.contains('hidden')`)) != "true" {
 		t.Fatalf("operator save acknowledgment did not close draft: %s", eval(`testRoot.querySelector('.note-msg').textContent`))
 	}
+	// Own operator note: open in watch, cancel without mutation, then save a
+	// text revision through the real isolated command and ordered recorder.
+	waitOverlay := func(expr, want string) {
+		t.Helper()
+		until := time.Now().Add(5 * time.Second)
+		for time.Now().Before(until) {
+			if string(eval(expr)) == want {
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		t.Fatalf("overlay did not reach %s: %s", want, eval(expr))
+	}
+	waitOverlay(`!!testRoot.querySelector('.pin .chip')`, "true")
+	eval(`testRoot.querySelector('.pin .chip').click()`)
+	if string(eval(`testRoot.querySelector('.note-input').value`)) != `"Operator note"` {
+		t.Fatal("own note did not open populated editor")
+	}
+	eval(`(()=>{const e=testRoot.querySelector('.note-input');e.value='cancelled edit';e.dispatchEvent(new Event('input',{bubbles:true}));[...testRoot.querySelectorAll('.note-buttons button')].find(b=>b.textContent==='Cancel').click()})()`)
+	if bd.OperatorView().Notes[0].Text != "Operator note" {
+		t.Fatal("cancel mutated operator note")
+	}
+	eval(`testRoot.querySelector('.pin .chip').click()`)
+	eval(`(()=>{const e=testRoot.querySelector('.note-input');e.value='Operator note edited';e.dispatchEvent(new Event('input',{bubbles:true}));testRoot.querySelector('.note-buttons').lastElementChild.click()})()`)
+	waitOverlay(`testRoot.querySelector('.note-dialog').classList.contains('hidden')`, "true")
+	edited := bd.OperatorView().Notes
+	if len(edited) != 1 || edited[0].ID != v.Notes[0].ID || edited[0].Text != "Operator note edited" || !edited[0].Edited || edited[0].Author != v.Notes[0].Author || edited[0].Capture != v.Notes[0].Capture || *edited[0].Region != *v.Notes[0].Region {
+		t.Fatalf("edited note %+v", edited)
+	}
+
+	// Identity, not replacement scoring: common Save text has too little
+	// replacement evidence. A large document must not hide this connected node,
+	// and a viewer-authored note must get the same trusted debugger binding.
+	waitOverlay(`!testRoot.querySelector('.pin').hidden`, "true")
+	eval(`(()=>{const f=document.createDocumentFragment();for(let i=0;i<2100;i++)f.append(document.createElement('span'));document.body.append(f)})()`)
+	waitOverlay(`!testRoot.querySelector('.pin').hidden`, "true")
+	viewerNode, ok, e := c.rec.IDOf(context.Background(), session, viewerBackend)
+	if e != nil || !ok {
+		t.Fatalf("viewer anchor identity: %v %v", ok, e)
+	}
+	var viewerBox recording.Box
+	json.Unmarshal(eval(`(()=>{const r=document.querySelector('button').getBoundingClientRect();return [r.x+scrollX,r.y+scrollY,r.width,r.height]})()`), &viewerBox)
+	admission, e := bd.AdmitAnnotation()
+	if e != nil {
+		t.Fatal(e)
+	}
+	prepared, e := admission.PrepareNote(board.PrepareNoteIn{Seg: bd.OperatorView().Seg, Node: viewerNode, Box: viewerBox, Region: viewerBox}, false)
+	if e != nil {
+		t.Fatal(e)
+	}
+	owner := notedraft.Owner{Scope: "trusted-live-viewer", Identity: "trusted-live-viewer", Generation: bd.AnnotationCapability().Generation}
+	status, e := drafts.Prepare(context.Background(), owner, "viewer-draw", admission, prepared, false)
+	if e != nil {
+		t.Fatal(e)
+	}
+	until := time.Now().Add(10 * time.Second)
+	for status.State == "pending" && time.Now().Before(until) {
+		time.Sleep(20 * time.Millisecond)
+		status, e = drafts.Status(owner, "viewer-draw")
+		if e != nil {
+			t.Fatal(e)
+		}
+	}
+	if status.State != "ready" {
+		t.Fatalf("viewer draw: %+v", status)
+	}
+	status, e = drafts.Save(context.Background(), owner, "viewer-save", status.Draft, admission, board.Viewer{ID: "viewer", Name: "Viewer"}, 1, "Viewer common Save", nil)
+	if e != nil {
+		t.Fatal(e)
+	}
+	for status.State == "pending" && time.Now().Before(until) {
+		time.Sleep(20 * time.Millisecond)
+		status, e = drafts.Status(owner, "viewer-draw")
+		if e != nil {
+			t.Fatal(e)
+		}
+	}
+	if status.State != "saved" {
+		t.Fatalf("viewer save: %+v", status)
+	}
+	waitOverlay(`testRoot.querySelectorAll('.pin').length===2 && [...testRoot.querySelectorAll('.pin')].every(p=>!p.hidden)`, "true")
 	if err = c.SetAnnotationMode("point"); err != nil {
 		t.Fatal(err)
 	}
@@ -406,7 +511,7 @@ func TestOperatorLiveAnnotation(t *testing.T) {
 	}
 	// #483 submission crops use the same exact-document suppression path.
 	cropBox := recording.Box{0, 0, 40, 40}
-	crops, err := c.CaptureCrops(context.Background(), bd.OperatorView().Doc, []submission.CaptureRegion{{Box: cropBox, Region: cropBox}})
+	crops, err := c.CaptureCrops(context.Background(), bd.OperatorView().Doc, []submission.CaptureRegion{{Box: cropBox, Region: cropBox}}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

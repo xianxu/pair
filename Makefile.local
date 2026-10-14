@@ -34,7 +34,7 @@ endif
 # `make install` pick it up automatically.
 #
 #   make build      → compile every binary in GO_BINS into ./bin/
-#   make install    → also copy each into ~/.local/bin/
+#   make install    → link each into ~/.local/bin/ (checkout must remain)
 #   make <name>     → build just that one (e.g., `make pair-scribe`)
 #
 # Why ./bin/ for the in-tree build: keeps Go output next to the shell
@@ -116,7 +116,8 @@ test-make-env-production-names:
 # Wall-clock budgets (ARCH-CONSTRAINTS) flake on a loaded host, so the default
 # lane runs their scenarios without asserting the clock (pair#436, pair#481;
 # cmd/internal/perfbudget). Run on a quiet host. Each budget runs on its own.
-test-perf-budgets:
+test-perf-budgets: $(BIN_DIR)/pair
+	PAIR_PERF_BUDGETS=1 sh doctor/perf_test.sh --budget-only
 	PAIR_PERF_BUDGETS=1 go test ./cmd/internal/couchcore -run '^TestAcceptance(ObserveBudget|ReportBudgetTenSlots)$$' -count=1 -v
 	PAIR_PERF_BUDGETS=1 go test ./cmd/internal/wrapcmd -run '^TestTailOverEndpointSocketIsFast$$' -count=1 -v
 
@@ -140,6 +141,7 @@ test-native-terminal-ci: runtimebundle-generate
 # doing, so this pins the report's shape -- which is what consumers parse and
 # what the collector bugs corrupted.
 test-perf-capture: $(BIN_DIR)/pair
+	python3 doctor/perf_budget_test.py
 	sh doctor/perf_test.sh
 
 .PHONY: test-couch-start-recovery test-term-ctrlc test-term-rows test-couch-nested-rows test-zellij-repaint
@@ -182,10 +184,10 @@ test-reattach-cost:
 build: $(addprefix $(BIN_DIR)/,$(GO_BINS)) $(addprefix $(BIN_DIR)/,$(BUSYBOX_LINKS))
 
 install: build
-	@mkdir -p $(INSTALL_DIR)
+	@mkdir -p "$(INSTALL_DIR)"
 	@for b in $(GO_BINS); do \
-	    install -m 755 $(BIN_DIR)/$$b $(INSTALL_DIR)/$$b && \
-	    echo "installed: $(INSTALL_DIR)/$$b"; \
+	    ln -sf "$(CURDIR)/$(BIN_DIR)/$$b" "$(INSTALL_DIR)/$$b" && \
+	    echo "linked: $(INSTALL_DIR)/$$b -> $(CURDIR)/$(BIN_DIR)/$$b"; \
 	done
 	@for l in $(BUSYBOX_LINKS); do \
 	    ln -sf pair "$(INSTALL_DIR)/$$l" && \
@@ -460,9 +462,8 @@ test-adapt-schema:
 test-dev-rebuild:
 	bash tests/dev-rebuild-test.sh
 
-# Go public entrypoint install layout (#79): installed pair is a regular Go
-# binary, pair-go launch shares its pair-shell handoff, and copied local
-# installs fall back to the build-time source root for adjacent assets.
+# Local install links follow checkout rebuilds; copied-binary runtime support
+# is covered separately by test-pair-embedded-runtime.
 test-pair-go-install-layout:
 	bash tests/pair-go-install-layout-test.sh
 

@@ -6,7 +6,8 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { Model, goJSON } from '../../cmd/internal/webcast/web/model.js';
-import { catchUp, timeline, placer, parseMoment, momentHash, Player, GAP_SHARE, replaySource, replayPath, clock } from '../../cmd/internal/webcast/web/replay.js';
+import { catchUp, timeline, placer, parseMoment, momentHash, Player, GAP_SHARE, replaySource, replayPath, clock, replayMarks } from '../../cmd/internal/webcast/web/replay.js';
+import { Element } from './dom-fixture.mjs';
 import { fixtures, records, pins } from './fixtures.mjs';
 
 const sha = (s) => createHash('sha256').update(s).digest('hex');
@@ -18,12 +19,12 @@ function reduce(recs) {
 }
 
 // What the catch-up promises (webcast-format.md, Joining mid-cast): the
-// same DOM, assets, DocSeg, current-document notes as the whole prefix.
+// same DOM, assets, DocSeg and all retained notes as the whole prefix.
 function promised(m) {
   return {
     canonical: goJSON(m.canonical()),
     docSeg: m.docSeg,
-    notes: m.notes.filter((n) => n.seg >= m.docSeg).map((n) => [n.note.id, n.state]),
+    notes: m.notes.map((n) => [n.note, n.state, n.seg, n.revision || 0, n.resolvedBy || null]),
     strokes: m.strokes.filter((s) => s.seg >= m.docSeg).map((s) => s.stroke),
     assets: [...m.assets].map(([u, a]) => [u, a.hash]).sort(),
     hover: m.hover,
@@ -39,7 +40,7 @@ const fakeRenderer = (h) => (model) => { h.renderers++; return { model, apply() 
 function cuts(recs) {
   const at = new Set([0, recs.length]);
   recs.forEach((r, i) => {
-    if (['seg', 'stop', 'ctl', 'note', 'note-state', 'stroke', 'asset', 'doc'].includes(r.k)) { at.add(i); at.add(i + 1); }
+    if (['seg', 'stop', 'ctl', 'note', 'note-edit', 'note-state', 'stroke', 'asset', 'doc'].includes(r.k)) { at.add(i); at.add(i + 1); }
   });
   const step = Math.max(1, Math.floor(recs.length / 60));
   for (let i = 0; i < recs.length; i += step) at.add(i);
@@ -110,7 +111,8 @@ test('the player over synthetic: a seek back across a navigation drops the new n
   p.seek(31);
   assert.deepEqual(promised(p.model), promised(reduce(synthetic.filter((r) => r.t <= 31))));
   p.seek(6);
-  assert.deepEqual(promised(p.model).notes, [['n1', 'open']]);
+  assert.deepEqual(promised(p.model).notes.map(([n, state]) => [n.id, state]), [['n1', 'open']]);
+  assert.equal(p.model.notes[0].note.text, 'edited n1');
 });
 
 test('timeline: segments, a pause as a gap, a tab switch with none, notes', () => {
@@ -337,4 +339,25 @@ test('replayPath and clock', () => {
   assert.equal(replayPath('/tok/r/a/b/'), false);
   assert.equal(clock(61500), '1:01.5');
   assert.equal(clock(0), '0:00.0');
+});
+
+test('an open replay card follows edited text at the playhead', () => {
+ const doc = {createElement(tag) {
+  const e=new Element(tag);
+  e.getContext=()=>({setTransform(){},clearRect(){}});
+  return e;
+ }};
+ const layer=new Element('div'); layer.clientWidth=100;layer.clientHeight=100;
+ const draw=replayMarks(doc,layer,(x,y)=>[x,y],1);
+ const pins=layer.children[1], card=layer.children[2];
+ pins.querySelector=()=>pins.children[0];
+ const oldCSS=globalThis.CSS;globalThis.CSS={escape:s=>s};
+ try {
+  const note={id:'n',author:{name:'Ada'},text:'original',at:{node:1},region:[0,0,20,20]};
+  const player={model:{docSeg:1,notes:[{seg:1,state:'open',note}],strokes:[]},t:1,renderer:{boxOf(){return [0,0,20,20]}}};
+  draw(player);pins.children[0].children[0].listeners.click[0]({stopPropagation(){}});
+  assert.equal(card.textContent,'Ada: original');
+  player.model.notes[0].note={...note,text:'updated',edited:true};draw(player);
+  assert.equal(card.textContent,'Ada: updated (edited)');
+ } finally {globalThis.CSS=oldCSS;}
 });

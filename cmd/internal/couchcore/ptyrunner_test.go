@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -155,18 +156,23 @@ func TestPtyRunnerBlockedStartPreservesTerminalAndWaitsForAcknowledgement(t *tes
 // in its process group lives on, and Alive still answers for that group. The
 // registration wait keys on the first; cleanup keys on the second.
 func TestRealRunnersExitedPrecedesTheGroup(t *testing.T) {
-	// The survivor ignores SIGHUP, which a pty session sends when its leader exits.
-	// The FIFO handshake proves the trap is installed before that exit.
-	argv := []string{"sh", "-c", `mkfifo ready || exit 1; (trap "" HUP; printf "ready\n" > ready; exec sleep 30) & IFS= read -r token < ready; [ "$token" = ready ] || exit 1; exit 0`}
-	for name, start := range map[string]func() (Handle, error){
-		"exec": func() (Handle, error) { return ExecRunner{}.Start(t.TempDir(), argv, nil) },
-		"pty": func() (Handle, error) {
-			r := &PtyRunner{Size: func() ptychild.Size { return ptychild.Size{Rows: 24, Cols: 80} }}
-			return r.Start(t.TempDir(), argv, nil)
-		},
+	// The parent must not exit until the survivor has installed its SIGHUP
+	// handler. Otherwise PTY hangup can kill it before the old child-side trap
+	// runs (#511), making the group-liveness assertion a startup race.
+	argv := []string{"sh", "-c", `(trap "" HUP; printf 'ready\n' > "$1"; exec sleep 30) </dev/null >/dev/null 2>&1 &
+ IFS= read -r ready < "$1"
+ [ "$ready" = ready ]`, "survivor"}
+	for name, runner := range map[string]Runner{
+		"exec": ExecRunner{},
+		"pty":  &PtyRunner{Size: func() ptychild.Size { return ptychild.Size{Rows: 24, Cols: 80} }},
 	} {
 		t.Run(name, func(t *testing.T) {
-			h, err := start()
+			dir := t.TempDir()
+			ready := filepath.Join(dir, "ready")
+			if err := syscall.Mkfifo(ready, 0600); err != nil {
+				t.Fatal(err)
+			}
+			h, err := runner.Start(dir, append(append([]string(nil), argv...), ready), nil)
 			if err != nil {
 				t.Fatalf("Start: %v", err)
 			}
@@ -176,8 +182,14 @@ func TestRealRunnersExitedPrecedesTheGroup(t *testing.T) {
 			case <-time.After(20 * time.Second):
 				t.Fatal("Exited never closed after the direct child exited")
 			}
+			if code := h.Wait(); code != 0 {
+				t.Fatalf("survivor readiness failed: parent exit %d", code)
+			}
 			if !h.Alive() {
 				t.Fatal("Alive = false while the backgrounded group member still runs")
+			}
+			if !ownedProcessGroupProbeAlive(h.PID(), func(int, syscall.Signal) error { return syscall.EPERM }, processGroupMembers) {
+				t.Fatal("ambiguous group probe lost the surviving descendant")
 			}
 		})
 	}

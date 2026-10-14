@@ -232,6 +232,7 @@ const (
 	RecoverLanded              RecoverClass = "landed"
 	RecoverEvidenceUnavailable RecoverClass = "evidence-unavailable"
 	RecoverIdle                RecoverClass = "idle"
+	RecoverStaged              RecoverClass = "staged"
 	RecoverUnidentifiedWork    RecoverClass = "unidentified-work"
 	RecoverNoCouchThread       RecoverClass = "no-couch-thread"
 	RecoverRestoreWorkspace    RecoverClass = "restore-workspace"
@@ -249,7 +250,7 @@ const (
 
 func AllRecoverClasses() []RecoverClass {
 	return []RecoverClass{RecoverDirectoryMissing, RecoverAgentUnknown, RecoverOrphanedServer, RecoverStartUnreconciled, RecoverAmbiguousThreads,
-		RecoverSlotNeedsZero, RecoverReconcilable, RecoverConflict, RecoverAmbiguousClaims, RecoverLanded, RecoverEvidenceUnavailable, RecoverIdle, RecoverUnidentifiedWork,
+		RecoverSlotNeedsZero, RecoverReconcilable, RecoverConflict, RecoverAmbiguousClaims, RecoverLanded, RecoverEvidenceUnavailable, RecoverIdle, RecoverStaged, RecoverUnidentifiedWork,
 		RecoverNoCouchThread, RecoverRestoreWorkspace, RecoverAgrees, RecoverClaimLikelyLost, RecoverPartialEvidence,
 		RecoverNoSafeStep, RecoverNoRule}
 }
@@ -267,6 +268,7 @@ const (
 	HoldConflict              RecoverHold = "conflict" // conflict:<fact>
 	HoldAmbiguousClaims       RecoverHold = "ambiguous-claims"
 	HoldGitUnknown            RecoverHold = "git-unknown"
+	HoldStaged                RecoverHold = "staged"
 	HoldUnidentifiedWork      RecoverHold = "unidentified-work"
 	HoldNoCouchThread         RecoverHold = "no-couch-thread"
 	HoldRebootUnsafeOperation RecoverHold = "reboot-unsafe-operation"
@@ -283,7 +285,7 @@ const (
 
 func AllRecoverHolds() []RecoverHold {
 	return []RecoverHold{HoldDirectoryMissing, HoldCouchUnavailable, HoldStartUnreconciled, HoldAgentUnknown, HoldOrphanedServer, HoldThreads,
-		HoldConflict, HoldAmbiguousClaims, HoldGitUnknown, HoldUnidentifiedWork, HoldNoCouchThread,
+		HoldConflict, HoldAmbiguousClaims, HoldGitUnknown, HoldStaged, HoldUnidentifiedWork, HoldNoCouchThread,
 		HoldRebootUnsafeOperation, HoldRebootUnsafeGit, HoldNoActorAction, HoldResumeOnly, HoldWorkspaceHandoff, HoldNoRule}
 }
 
@@ -377,6 +379,7 @@ const (
 	BranchTerminalIssue EvidenceBranch = "terminal-issue"
 	BranchOther         EvidenceBranch = "other"
 	BranchDetached      EvidenceBranch = "detached"
+	BranchStaged        EvidenceBranch = "staged"
 	BranchUnknown       EvidenceBranch = "unknown"
 
 	ClaimsNone              EvidenceClaims = "none"
@@ -435,7 +438,7 @@ func AllEvidenceOffers() []EvidenceOffer {
 	return []EvidenceOffer{OfferNone, OfferReboot, OfferResumeReboot, OfferReap}
 }
 func AllEvidenceBranches() []EvidenceBranch {
-	return []EvidenceBranch{BranchResting, BranchOpenIssue, BranchTerminalIssue, BranchOther, BranchDetached, BranchUnknown}
+	return []EvidenceBranch{BranchResting, BranchOpenIssue, BranchTerminalIssue, BranchOther, BranchDetached, BranchStaged, BranchUnknown}
 }
 func AllEvidenceClaims() []EvidenceClaims {
 	return []EvidenceClaims{ClaimsNone, ClaimsOneActive, ClaimsOneInactive, ClaimsManyWithActive, ClaimsManyWithoutActive}
@@ -555,6 +558,10 @@ func RecoverSlotClass(r SlotReport) EvidenceReconcile {
 	return ReconcileConverged
 }
 
+func (b EvidenceBranch) detached() bool {
+	return b == BranchDetached || b == BranchStaged
+}
+
 func (e SlotEvidence) gitUnknown() bool {
 	return e.Branch == BranchUnknown || e.Dirty == TriUnknown || e.Unlanded == TriUnknown || e.Operation == TriUnknown
 }
@@ -569,7 +576,7 @@ func (e SlotEvidence) slotOperation() bool {
 }
 
 func (e SlotEvidence) slotGitUnknown() bool {
-	return e.Branch == BranchDetached || e.gitUnknown() || e.DepTree == DepTreeUnknown || e.DepClaims == DepUnknown
+	return e.Branch.detached() || e.gitUnknown() || e.DepTree == DepTreeUnknown || e.DepClaims == DepUnknown
 }
 
 func (e SlotEvidence) slotDirty() bool {
@@ -630,6 +637,8 @@ func classifyRecover(e SlotEvidence) recoverDecision {
 		d = recoverDecision{Class: RecoverLanded, Notes: []RecoverNote{NoteIssueDoneBranch}}
 	case !work && e.Branch != BranchOpenIssue && e.gitUnknown():
 		d = recoverDecision{Class: RecoverEvidenceUnavailable, Hold: []string{string(HoldGitUnknown)}}
+	case !work && e.Branch == BranchStaged && e.Dirty == TriNo && e.Operation == TriNo:
+		d = recoverDecision{Class: RecoverStaged, Hold: []string{string(HoldStaged)}}
 	case !work && e.Branch == BranchResting && hostAtRest(e):
 		d = recoverDecision{Class: RecoverIdle}
 	case !work && e.Branch != BranchOpenIssue:
@@ -640,12 +649,12 @@ func classifyRecover(e SlotEvidence) recoverDecision {
 	case e.Claims == ClaimsOneInactive && e.Branch == BranchResting:
 		// The host's claim is restored; a dependency claim beside it is noted.
 		d = restoreWorkspaceDecision(e, e.Dirty, depNotes(e))
-	case e.Claims == ClaimsOneActive || e.Claims == ClaimsManyWithActive || e.Claims == ClaimsOneInactive && e.Branch == BranchDetached:
+	case e.Claims == ClaimsOneActive || e.Claims == ClaimsManyWithActive || e.Claims == ClaimsOneInactive && e.Branch.detached():
 		notes := depNotes(e)
 		if e.Claims == ClaimsManyWithActive {
 			notes = append(notes, NoteInactiveClaims)
 		}
-		if e.Branch == BranchDetached {
+		if e.Branch.detached() {
 			notes = append(notes, NoteDetachedHead)
 		}
 		if e.gitUnknown() {
@@ -1362,7 +1371,7 @@ func judgeDependency(m FleetMember, row FleetRow, read bool, dangling []string) 
 		d.verdict = DepRestingDirty
 	case states[memberClaimResting] == 1:
 		d.verdict = DepUnknown
-	case d.dirty == TriYes || d.unlanded == TriYes || d.operation == TriYes || branch == BranchOther || branch == BranchDetached || branch == BranchOpenIssue:
+	case d.dirty == TriYes || d.unlanded == TriYes || d.operation == TriYes || branch == BranchOther || branch.detached() || branch == BranchOpenIssue:
 		// Unclaimed work of its own, or a branch no claim names.
 		d.verdict = DepWork
 	case d.dirty == TriUnknown || d.unlanded == TriUnknown || d.operation == TriUnknown || branch == BranchUnknown:
@@ -1431,6 +1440,8 @@ func memberGit(m FleetMember, row FleetRow, read bool) (TriState, TriState, TriS
 // sdlcBranch reads the host's branch state and the issue it names.
 func sdlcBranch(m FleetMember, row FleetRow, repo string) (EvidenceBranch, string, string, string) {
 	switch {
+	case row.Detached && row.Staged && m.Verdict == FleetVerdictHoldsWork:
+		return BranchStaged, "", "", ""
 	case row.Detached:
 		return BranchDetached, "", "", ""
 	case row.Branch == "":
@@ -1652,6 +1663,8 @@ func recoverReason(row RecoverRow, f slotFacts, in RecoverPlanInput) string {
 		text = "issue done; the slot can return to its resting branch"
 	case RecoverEvidenceUnavailable:
 		text = "no claim, and the slot's git state could not be fully read"
+	case RecoverStaged:
+		text = "checkout staged for smoke testing; held with nothing to recover"
 	case RecoverIdle:
 		text = "clean resting branch with no claim; nothing to recover"
 	case RecoverUnidentifiedWork:

@@ -152,8 +152,9 @@ type messageService struct {
 	after func(time.Duration, func())
 	// slotOps answers resume, reboot and operation-status (pair#367 M2);
 	// nil answers them unsupported.
-	slotOps  *slotOperations
-	switches atomic.Pointer[agentSwitchService]
+	slotOps       *slotOperations
+	switches      atomic.Pointer[agentSwitchService]
+	desktopNotify atomic.Pointer[func(context.Context, string, string) error]
 	// broadcastStatus answers broadcast-status (pair#413). Installed after the
 	// service is serving, so it is an atomic pointer; nil answers unsupported.
 	broadcastStatus atomic.Pointer[func() (couchmessage.BroadcastStatus, bool)]
@@ -235,6 +236,14 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 	}
 	// Validated before any socket is taken: a bad knob refuses the start.
 	threshold, err := waitNoticeThreshold(os.Getenv)
+	if err != nil {
+		return nil, err
+	}
+	reniceLevel, err := slotNiceSettings(os.Getenv)
+	if err != nil {
+		return nil, err
+	}
+	reniceEvery, err := reniceInterval(os.Getenv)
 	if err != nil {
 		return nil, err
 	}
@@ -377,6 +386,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 	}
 	probe.service.Store(service)
 	service.installAgentSwitchService(console, c, switchGuard)
+	service.SetDesktopNotify(console.NotifyDesktop)
 	console.SetMessageBroker(service.broker)
 	service.SetBroadcastStatus(console.BroadcastStatus)
 	service.SetShares(console.Shares)
@@ -388,6 +398,19 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 	watcher := newWaitWatcher(service, threshold, namespace)
 	service.workers.Add(1)
 	go func() { defer service.workers.Done(); watcher.run(service.lifetime, waitTick) }()
+	// The slot renicer (#502): what each slot's agent spawns runs at
+	// COUCH_SLOT_NICE; Couch, the wrapper, zellij and the agent stay at
+	// normal priority.
+	rn := newRenicer(osProcs{}, service.broker.Connected, func(b couchmessage.Binding) (int, error) {
+		paths, err := artifactpath.Resolve(artifactpath.Address{DataDir: artifacts.PairLifecycleDataDir(), RepoScope: b.Scope, Tag: b.Tag})
+		if err != nil {
+			return 0, err
+		}
+		return readMessageWrapperPID(paths.AgentPID()) // the same bare-decimal pid file
+	}, reniceLevel, os.Getpid(), func(text string) { console.Notify(couchtty.Notice{Kind: "status", Body: text}) })
+	service.broker.SetNiceView(rn.view)
+	service.workers.Add(1)
+	go func() { defer service.workers.Done(); rn.run(service.lifetime, reniceEvery) }()
 	// After the loop runs: the replay of already-attached panes lands in the
 	// mailbox the loop drains.
 	console.SubscribeMessageLifecycle(panes)
@@ -713,6 +736,8 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 	switch {
 	case request.Op == "resume-candidates":
 		return s.handleResumeCandidates(ctx, request)
+	case request.Op == "notify":
+		return s.handleNotify(ctx, request)
 	case request.Op == "switch-agent":
 		return s.handleAgentSwitch(ctx, request)
 	case couchmessage.IsSubmissionOp(request.Op):

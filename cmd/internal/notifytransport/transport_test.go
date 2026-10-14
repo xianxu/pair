@@ -670,3 +670,155 @@ func TestNamespaceCapacityIncludesInNamespacePIDBinding(t *testing.T) {
 		t.Fatalf("capacity refusal published binding: %v", err)
 	}
 }
+
+// Stop the receiver first, leaving the socket open, so the datagram is known
+// to be queued in the kernel at Close. No sleep or scheduling lottery.
+func TestBrokerCloseDrainsKernelQueuedNotification(t *testing.T) {
+	testNamespace(t)
+	binding, b := startTestBroker(t)
+	stopBrokerReceiver(t, b)
+	if err := Send(binding, "accepted before close"); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.Close(); err != nil {
+		t.Fatal(err)
+	}
+	got, ok := <-b.Messages()
+	if !ok || got != "accepted before close" {
+		t.Fatalf("queued notification lost at close: %q, open=%v", got, ok)
+	}
+	if _, ok := <-b.Messages(); ok {
+		t.Fatal("close retained an open message stream")
+	}
+}
+
+func stopBrokerReceiver(t *testing.T, b *Broker) {
+	t.Helper()
+	if err := b.conn.SetReadDeadline(time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-b.done:
+	case <-testwait.After(t):
+		t.Fatal("receiver did not stop")
+	}
+	if err := <-b.Diagnostics(); !errors.Is(err, os.ErrDeadlineExceeded) {
+		t.Fatalf("stop diagnostic = %v", err)
+	}
+}
+
+func TestBrokerCloseKeepsBufferedOrderAndOverflowPolicy(t *testing.T) {
+	for _, count := range []int{1, QueueSize} {
+		t.Run(fmt.Sprint(count), func(t *testing.T) {
+			testNamespace(t)
+			binding, b := startTestBroker(t)
+			for i := 0; i < count; i++ {
+				if err := Send(binding, fmt.Sprint(i)); err != nil {
+					t.Fatal(err)
+				}
+				testwait.Until(t, "message enqueued", func() bool { return len(b.Messages()) == i+1 })
+			}
+			stopBrokerReceiver(t, b)
+			if err := Send(binding, "last"); err != nil {
+				t.Fatal(err)
+			}
+			results := make(chan error, 4)
+			for i := 0; i < 4; i++ {
+				go func() { results <- b.Close() }()
+			}
+			for i := 0; i < 4; i++ {
+				if err := <-results; err != nil {
+					t.Fatal(err)
+				}
+			}
+			var got []string
+			for message := range b.Messages() {
+				got = append(got, message)
+			}
+			var want []string
+			for i := 0; i < count; i++ {
+				want = append(want, fmt.Sprint(i))
+			}
+			if count < QueueSize {
+				want = append(want, "last")
+			}
+			if strings.Join(got, ",") != strings.Join(want, ",") {
+				t.Fatalf("order/loss: got %v want %v", got, want)
+			}
+			var diagnostics []string
+			for err := range b.Diagnostics() {
+				diagnostics = append(diagnostics, err.Error())
+			}
+			if count == QueueSize && (len(diagnostics) != 1 || !strings.Contains(diagnostics[0], "queue full")) {
+				t.Fatalf("overflow not diagnosed: %v", diagnostics)
+			}
+			if count < QueueSize && len(diagnostics) != 0 {
+				t.Fatalf("unexpected diagnostics: %v", diagnostics)
+			}
+		})
+	}
+}
+
+func TestBrokerShutdownValidatesQueuedDatagrams(t *testing.T) {
+	for _, tc := range []struct{ name, packet, diagnostic string }{
+		{"invalid", "bad\x1bmessage", "invalid notification datagram"},
+		{"oversize", strings.Repeat("x", 4097), "exceeds 4096 bytes"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			testNamespace(t)
+			_, b := startTestBroker(t)
+			stopBrokerReceiver(t, b)
+			c, err := net.DialUnix("unixgram", nil, &net.UnixAddr{Name: b.socket, Net: "unixgram"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer c.Close()
+			if err := c.SetWriteBuffer(8194); err != nil {
+				t.Fatal(err)
+			}
+			if err := c.SetWriteDeadline(time.Now().Add(SendTimeout)); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := c.Write([]byte(tc.packet)); err != nil {
+				t.Fatal(err)
+			}
+			if err := b.Close(); err != nil {
+				t.Fatal(err)
+			}
+			if message, ok := <-b.Messages(); ok {
+				t.Fatalf("invalid message delivered: %q", message)
+			}
+			err, ok := <-b.Diagnostics()
+			if !ok || !strings.Contains(err.Error(), tc.diagnostic) {
+				t.Fatalf("diagnostic = %v, open=%v", err, ok)
+			}
+		})
+	}
+}
+
+func TestBrokerCloseAfterSocketFailureStillClosesAndCleans(t *testing.T) {
+	testNamespace(t)
+	binding := filepath.Join(t.TempDir(), "pid")
+	b, err := Start(binding, os.Getpid())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer b.Close()
+	if err := b.conn.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.Close(); err == nil {
+		t.Fatal("socket failure not retained")
+	}
+	if _, ok := <-b.Messages(); ok {
+		t.Fatal("message channel not closed")
+	}
+	if _, ok := <-b.Diagnostics(); ok {
+		t.Fatal("diagnostic channel not closed")
+	}
+	for _, path := range []string{binding, b.socket} {
+		if _, err := os.Lstat(path); !os.IsNotExist(err) {
+			t.Fatalf("resource retained: %s: %v", path, err)
+		}
+	}
+}

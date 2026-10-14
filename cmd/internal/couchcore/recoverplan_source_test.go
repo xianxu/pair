@@ -417,3 +417,43 @@ func TestRecoverPlanCandidateErrorsAreRecordedNotMissing(t *testing.T) {
 		t.Fatalf("an unreadable primary read as missing: %+v", row)
 	}
 }
+
+func TestStagedFleetHoldLifecycle(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name            string
+		mutate          func(*FakeFleet)
+		verdict, reason string
+		class           RecoverClass
+	}{
+		{"stage", func(*FakeFleet) {}, "holds-work", "staged", RecoverStaged},
+		{"stage ahead", func(f *FakeFleet) { f.SetAhead("pair:0", 2) }, "holds-work", "unlanded-commits,staged", RecoverStaged},
+		{"dirty stage", func(f *FakeFleet) { f.SetDirty("pair:0", 1) }, "needs-recovery", "dirty", RecoverUnidentifiedWork},
+		{"operation in stage", func(f *FakeFleet) { f.SetOperation("pair:0", "rebase-merge") }, "needs-recovery", "operation:rebase-merge", RecoverUnidentifiedWork},
+		{"unread base", func(f *FakeFleet) { f.SetBaseUnavailable("pair:0") }, "unknown", "probe:base", RecoverEvidenceUnavailable},
+		{"ordinary detach", func(f *FakeFleet) { f.SetDetached("pair:0") }, "needs-recovery", "detached", RecoverUnidentifiedWork},
+		{"return to main", func(f *FakeFleet) { f.SetBranch("pair:0", "main") }, "ready", "", RecoverIdle},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := newPlanFixture(t)
+			p.fleet.AddSlot("pair:0")
+			p.fleet.SetStaged("pair:0")
+			tc.mutate(p.fleet)
+			inv, err := runFake(t, p.fake, "/fleet/pair")
+			if err != nil {
+				t.Fatal(err)
+			}
+			slot := fakeSlotOf(t, inv, "pair:0")
+			if slot.Verdict != tc.verdict || strings.Join(slot.Members[0].Reasons, ",") != tc.reason {
+				t.Fatalf("slot = %+v, want %s %s", slot, tc.verdict, tc.reason)
+			}
+			row := findRow(t, DeriveRecoverPlan(p.input()), "pair:0")
+			if row.Class != tc.class || row.Disk.Verdict != tc.verdict || len(row.Next.Steps) != 0 || row.Automatic {
+				t.Fatalf("row = %+v, want %s with no actions", row, tc.class)
+			}
+			if tc.class == RecoverStaged && (!slices.Equal(row.Next.Hold, []string{"staged"}) || !strings.Contains(row.Reason, "staged")) {
+				t.Fatalf("stage not explained as held: %+v", row)
+			}
+		})
+	}
+}

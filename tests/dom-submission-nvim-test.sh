@@ -4,7 +4,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 . "$ROOT/tests/lib/run-headless.sh"
 RT="$(mktemp -d "${TMPDIR:-/tmp}/pair-dom-submission.XXXXXX")"
 trap 'rm -rf "$RT"' EXIT
-for dom_case in notes insert empty comments failure pre_error uncertain no_notes ack changed queue; do
+for dom_case in notes insert empty comments failure pre_error uncertain no_notes ack changed progress timeout queue owned_failure owned_timeout owned_queue_failure owned_queue_timeout; do
   mkdir -p "$RT/$dom_case/queue"
   touch "$RT/$dom_case/draft.md" "$RT/$dom_case/log.md"
   if [[ "$dom_case" == queue ]]; then
@@ -18,4 +18,5 @@ for dom_case in notes insert empty comments failure pre_error uncertain no_notes
     nvim --headless -u "$ROOT/nvim/init.lua" "$RT/$dom_case/draft.md" \
     -l "$ROOT/nvim/dom_submission_integration_test.lua"
 done
+run_headless --timeout 20 -- nvim --headless -u NONE -l "$ROOT/tests/dom-submission-ui-test.lua"
 printf 'dom-submission-nvim-test: passed\n'

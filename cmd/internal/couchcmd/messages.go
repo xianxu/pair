@@ -22,6 +22,9 @@ func runMessageCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer) int 
 }
 
 func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writer, call messageCall) int {
+	if inv.messageOp == "notify" {
+		return runNotifyCLI(inv, rt, stdout, stderr, call)
+	}
 	// The one verb list (pair#424): a hand-kept list here let relaunch and
 	// reload-context fall through to the message path, which sends no ID.
 	if inv.messageOp == "resume-candidates" {
@@ -87,6 +90,16 @@ func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writ
 		printUncertainMessage(stderr, r.ID, result.Error)
 		return 1
 	}
+	// Older supervisors use the recipient error for missing callers too.
+	// Actors/status can only have a missing caller; send may lack either end.
+	// This is registration evidence, not evidence of a protocol version mismatch.
+	if result.Code == "unavailable" && result.Error == couchmessage.ErrUnavailable.Error() {
+		if r.Op == "send" {
+			result.Error = "Couch cannot find a live caller or recipient registration; if the slots are running, restart Couch to reconnect them"
+		} else {
+			result.Error = "this slot is not registered with Couch; restart Couch to reconnect running slots"
+		}
+	}
 	success := result.Code == "ok" || result.Code == "accepted" || result.Code == "not-dispatched"
 	if inv.jsonOutput {
 		if err := json.NewEncoder(stdout).Encode(result); err != nil {
@@ -107,7 +120,7 @@ func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writ
 			if a.Alias != "" {
 				slot += " (" + a.Alias + ")"
 			}
-			fmt.Fprintf(stdout, "%s\t%s\t%s\tallowance=%d/%d\n", slot, a.Binding.Agent, messageActorAvailability(a, now), a.Remaining, a.Capacity)
+			fmt.Fprintf(stdout, "%s\t%s\t%s\tallowance=%d/%d%s\n", slot, a.Binding.Agent, messageActorAvailability(a, now), a.Remaining, a.Capacity, niceColumn(a.Nice))
 		}
 	} else if result.Receipt != nil {
 		receipt := result.Receipt
@@ -375,4 +388,20 @@ func messageActorAvailability(a couchmessage.Candidate, now time.Time) string {
 	default:
 		return "available"
 	}
+}
+
+// niceColumn is a listing's renicer facts (#502): the agent's niceness and
+// how many of its descendants are low; nothing before the renicer looked.
+func niceColumn(f *couchmessage.NiceFacts) string {
+	switch {
+	case f == nil:
+		return ""
+	case !f.Confirmed:
+		return "\tnice=?"
+	}
+	s := fmt.Sprintf("\tnice=%d lowered=%d", f.AgentNice, f.Lowered+f.AtLevel)
+	if f.Denied > 0 {
+		s += fmt.Sprintf(" denied=%d", f.Denied)
+	}
+	return s
 }

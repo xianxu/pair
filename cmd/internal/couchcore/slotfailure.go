@@ -69,7 +69,7 @@ func ClassifyConvergeError(step PlannedStep, err error) ReconcileFailure {
 // errorCause is the operator-facing cause: weave's last "Error:" line when
 // present, else the error text.
 func errorCause(err error) string {
-	text := err.Error()
+	text := OperatorError(err)
 	cause := ""
 	for _, line := range strings.Split(text, "\n") {
 		if i := strings.Index(line, "Error:"); i >= 0 {

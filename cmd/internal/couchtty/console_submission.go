@@ -17,7 +17,7 @@ import (
 type submissionCast interface {
 	RecordingPath() string
 	SubmissionSelection() (board.Selection, error)
-	PrepareSubmission(context.Context, string, core.Target, board.Selection, string) (core.Submission, map[string][]byte, error)
+	PrepareSubmission(context.Context, string, core.Target, board.Selection, string, func(core.SubmissionProgress)) (core.Submission, map[string][]byte, error)
 	ResolveSubmission(context.Context, core.Submission) error
 }
 
@@ -163,6 +163,7 @@ func (m *submissionManager) request(ctx context.Context, op, id string, target c
 			return job.status, nil
 		}
 		job.status.State = "preparing"
+		job.status.Progress = &core.SubmissionProgress{Phase: "replay"}
 		job.busy = true
 		m.job = job
 		work = func() { m.prepare(job, cast, selected) }
@@ -207,6 +208,13 @@ func (m *submissionManager) prepare(job *submissionJob, cast submissionCast, sel
 	ctx, cancel := context.WithTimeout(m.ctx, 30*time.Second)
 	defer cancel()
 	err := ctx.Err()
+	if err == nil {
+		if owner, ok := cast.(interface {
+			ReconcilePendingSubmissions(context.Context, func(context.Context, string) (core.Submission, core.PublicationObservation, error)) error
+		}); ok {
+			err = owner.ReconcilePendingSubmissions(ctx, m.observePublication)
+		}
+	}
 	var base string
 	if err == nil {
 		base, err = m.replay(ctx, filepath.Base(cast.RecordingPath()))
@@ -214,7 +222,8 @@ func (m *submissionManager) prepare(job *submissionJob, cast submissionCast, sel
 	var s core.Submission
 	if err == nil {
 		var crops map[string][]byte
-		s, crops, err = cast.PrepareSubmission(ctx, job.status.ID, job.status.Target, selected, base)
+		published := false
+		s, crops, err = cast.PrepareSubmission(ctx, job.status.ID, job.status.Target, selected, base, func(p core.SubmissionProgress) { m.progress(job, p) })
 		if err == nil {
 			err = m.guard(s.Target)
 		}
@@ -222,18 +231,45 @@ func (m *submissionManager) prepare(job *submissionJob, cast submissionCast, sel
 			err = ctx.Err()
 		}
 		if err == nil {
+			m.progress(job, core.SubmissionProgress{Phase: "publishing"})
+			published = true
 			_, err = m.store.Prepare(s, crops)
+		}
+		if owner, ok := cast.(interface {
+			ReconcilePreparedSubmission(context.Context, core.Submission, core.PublicationObservation) error
+		}); ok && s.ID != "" {
+			// Only reaching Prepare can make publication uncertain. A visible
+			// manifest after an error still needs durability confirmation.
+			obs := core.PublicationObservation{State: core.PublicationAbsent}
+			if published {
+				var confirmationErr error
+				obs, confirmationErr = m.store.ConfirmPrepared(s, crops)
+				err = errors.Join(err, confirmationErr)
+			}
+			// Release proven-absent claims even when the operation expired.
+			// This bounded cleanup never dispatches or reports delivery.
+			cleanup, stop := context.WithTimeout(context.WithoutCancel(ctx), 4*time.Second)
+			err = errors.Join(err, owner.ReconcilePreparedSubmission(cleanup, s, obs))
+			stop()
 		}
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	job.busy = false
 	if err != nil {
+		job.status.Progress = nil
 		job.status.State = "failed"
 		job.status.Error = err.Error()
 		return
 	}
 	job.status = m.status(s)
+}
+
+func (m *submissionManager) observePublication(ctx context.Context, id string) (core.Submission, core.PublicationObservation, error) {
+	if err := ctx.Err(); err != nil {
+		return core.Submission{}, core.PublicationObservation{State: core.PublicationUnknown}, err
+	}
+	return m.store.ObservePublication(id)
 }
 func (m *submissionManager) resolve(job *submissionJob, s core.Submission) {
 	ctx, cancel := context.WithTimeout(m.ctx, 30*time.Second)
@@ -271,4 +307,14 @@ func (m *submissionManager) resolutionWork(s core.Submission) func() {
 	job := &submissionJob{status: m.status(s), busy: true}
 	m.job = job
 	return func() { m.resolve(job, s) }
+}
+
+// progress publishes an immutable snapshot; callbacks from retired jobs cannot
+// overwrite a successor or resurrect progress after preparation finishes.
+func (m *submissionManager) progress(job *submissionJob, p core.SubmissionProgress) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.job == job && job.busy && job.status.State == "preparing" {
+		job.status.Progress = &p
+	}
 }

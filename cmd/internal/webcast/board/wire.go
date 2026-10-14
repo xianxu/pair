@@ -60,6 +60,7 @@ type StrokeIn struct {
 // (couchViewer.boxOf), and the text.
 type NoteIn struct {
 	Viewer Viewer
+	Owner  string // trusted admission identity, never parsed from the body
 	Seg    int
 	Node   recording.NodeID
 	Box    recording.Box

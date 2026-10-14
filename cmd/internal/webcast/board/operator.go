@@ -13,7 +13,7 @@ import (
 )
 
 // MaxOperatorBody bounds an entire binding message, including its envelope.
-const MaxOperatorBody = MaxNoteBody + 4096
+const MaxOperatorBody = 40 << 10
 
 var ErrDriving = errors.New("board: a viewer is driving")
 var ErrOperatorBusy = errors.New("board: an operator operation is outstanding")
@@ -32,6 +32,10 @@ type OperatorResolve struct {
 	Seg       int
 	ID, State string
 }
+type OperatorEdit struct {
+	Seg      int
+	ID, Text string
+}
 type OperatorRequest struct {
 	Op, Request string
 	Generation  uint64
@@ -39,6 +43,7 @@ type OperatorRequest struct {
 	Save        *OperatorSave
 	Stroke      *StrokeIn
 	Resolve     *OperatorResolve
+	Edit        *OperatorEdit
 	Draft       string
 }
 
@@ -100,7 +105,7 @@ func ParseOperatorRequest(body []byte) (OperatorRequest, error) {
 			Color *int    `json:"color"`
 			Text  *string `json:"text"`
 		}
-		if !decodeOperator(raw.Body, &v, "draft color text") || v.Draft == nil || !idPattern.MatchString(*v.Draft) || v.Color == nil || !colorOK(*v.Color) || v.Text == nil || !noteText(*v.Text) {
+		if !decodeOperator(raw.Body, &v, "draft color text") || v.Draft == nil || !draftHandle(*v.Draft) || v.Color == nil || !colorOK(*v.Color) || v.Text == nil || !noteText(*v.Text) {
 			return fail()
 		}
 		out.Save = &OperatorSave{*v.Draft, *v.Color, *v.Text}
@@ -123,6 +128,12 @@ func ParseOperatorRequest(body []byte) (OperatorRequest, error) {
 			return fail()
 		}
 		out.Stroke = &in
+	case "edit-note":
+		in, err := ParseNoteEdit(raw.Body)
+		if err != nil {
+			return fail()
+		}
+		out.Edit = &OperatorEdit{Seg: in.Seg, ID: in.ID, Text: in.Text}
 	case "resolve":
 		var v struct {
 			Seg   *int    `json:"seg"`
@@ -133,11 +144,11 @@ func ParseOperatorRequest(body []byte) (OperatorRequest, error) {
 			return fail()
 		}
 		out.Resolve = &OperatorResolve{*v.Seg, *v.ID, *v.State}
-	case "cancel-draft":
+	case "cancel-draft", "draft-status":
 		var v struct {
 			Draft *string `json:"draft"`
 		}
-		if !decodeOperator(raw.Body, &v, "draft") || v.Draft == nil || !idPattern.MatchString(*v.Draft) {
+		if !decodeOperator(raw.Body, &v, "draft") || v.Draft == nil || !draftHandle(*v.Draft) {
 			return fail()
 		}
 		out.Draft = *v.Draft
@@ -150,6 +161,9 @@ func ParseOperatorRequest(body []byte) (OperatorRequest, error) {
 		return fail()
 	}
 	return out, nil
+}
+func draftHandle(s string) bool {
+	return idPattern.MatchString(s) || (len(s) <= 32768 && strings.HasPrefix(s, "u.") && len(strings.Split(s, ".")) == 3)
 }
 func noteText(s string) bool { return broadcast.PlainText(s) && strings.TrimSpace(s) != "" }
 func validBox(b recording.Box, min float64) bool {
@@ -301,7 +315,15 @@ func (s *OperatorSession) Note(request string, in NoteIn) OperatorReply {
 }
 func (s *OperatorSession) NoteAdmitted(a AnnotationAdmission, request string, in NoteIn) OperatorReply {
 	in.Viewer = Viewer{ID: Operator, Name: "Operator"}
+	in.Owner = broadcast.OperatorNoteOwner
 	return s.run(a, request, "note", in, func(emit Emit) (string, error) { return s.board.note(in, true, emit) })
+}
+
+func (s *OperatorSession) EditAdmitted(a AnnotationAdmission, request string, in EditIn) OperatorReply {
+	in.Owner = broadcast.OperatorNoteOwner
+	// The target already exists: only this request's writer acknowledgement
+	// proves an edit, never observedOperatorNote(target).
+	return s.run(a, request, "edit-note", in, func(emit Emit) (string, error) { return "", s.board.edit(in, true, emit) })
 }
 func (s *OperatorSession) Stroke(request string, in StrokeIn) OperatorReply {
 	a, _ := s.board.AdmitAnnotation()

@@ -2,11 +2,14 @@
 package notifyosc
 
 import (
+	"errors"
 	"strings"
 	"unicode/utf8"
 )
 
 const MaxMessageBytes = 4 << 10
+
+const MaxTitleBytes = 256
 
 const Prefix = "\x1b]777;notify;pair;"
 
@@ -67,4 +70,32 @@ func DecodeOSC(sequence []byte) (Notification, bool) {
 		return Notification{}, false
 	}
 	return Notification{Message: Sanitize(sequence[len(Prefix):end])}, true
+}
+
+// ValidateDesktop validates raw byte budgets and requires visible sanitized text.
+// It is shared by notification ingress and the final presenter boundary.
+func ValidateDesktop(title, body string) error {
+	if len(title) > MaxTitleBytes {
+		return errors.New("notification title exceeds 256 bytes")
+	}
+	if len(body) > MaxMessageBytes {
+		return errors.New("notification message exceeds 4096 bytes")
+	}
+	if strings.TrimSpace(Sanitize([]byte(title))) == "" {
+		return errors.New("notification title is blank")
+	}
+	if strings.TrimSpace(Sanitize([]byte(body))) == "" {
+		return errors.New("notification message is blank")
+	}
+	return nil
+}
+
+// EncodeDesktop returns one sanitized, ST-terminated OSC 777 notification.
+// Semicolons delimit the title field but are ordinary text in the body.
+func EncodeDesktop(title, body string) ([]byte, error) {
+	if err := ValidateDesktop(title, body); err != nil {
+		return nil, err
+	}
+	title = strings.ReplaceAll(Sanitize([]byte(title)), ";", ",")
+	return []byte("\x1b]777;notify;" + title + ";" + Sanitize([]byte(body)) + "\x1b\\"), nil
 }

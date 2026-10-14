@@ -12,6 +12,7 @@ representative evidence, not an exhaustive index.
 
 - Before claiming a design extends existing metadata, inspect the actual owner/schema. A path decoder is not a persisted attestation. Name the new authority explicitly and test its publication boundary. (#528 PQ-2)
 - Admission locks protect the observable transition, not just process creation. Release after verified ownership/readiness and before waiting for the long-lived client; test both orderings with controlled events. (#528 PQ-1)
+- A spawn API can return an error after it created and cleaned up a process. Preserve bounded evidence before that cleanup and carry it through the error; a nil returned handle does not prove nothing started. Test the post-spawn setup refusal, not only exec failure and registration failure. (#531 BR-1)
 
 - A late asynchronous report is checked against whether its source is still live, not against a counter that only
   moves on the next start. #495's rotation callback compared the cast's start attempt, which an ended cast keeps until
@@ -1632,3 +1633,63 @@ proof; record the surprising case so the next change starts from evidence.
 - **#528 recovery conformance:** extending a native format consumer creates a new contract even when the older scanner still parses the file. Exercise the new production interpretation in installed-native conformance, and prove recovery-only drift fails while legacy inventory remains valid.
 
 - **#528 store authority:** coordinators call named typed ThreadStore transitions, never updateExistingThread callbacks. Include TestArbitraryLifecycleMutationHasNoDoor alongside targeted lifecycle integration checks; behavioral tests alone do not cover the authority boundary.
+- #535: Keep error text and wrapped causes complete; apply concise summaries only at operator presentation boundaries. Run the full affected package and use make -k after an early prerequisite failure so one known timing failure cannot hide later regressions. Cancellation tests should cancel at the intended observation seam, not race unrelated filesystem work against a tiny deadline.
+- #533: An operation deadline cannot bound an editing lock while its synchronous subprocesses are unbounded. Carry one remaining-time budget through every external effect and render progress before entering waits. Verify an actual blocked child and embedded UI redraw ordering, not only model state.
+
+- #533 embedded UI: provide the full production startup environment in private fixture files and strip live-session variables. Capture the rendered screen on RPC timeout: a missing completion path caused a hit-enter prompt, which otherwise looked like an unexplained transport stall.
+
+- #533 close BR-1: nomodifiable only guards buffer writes. Navigation, queue, delete, reset and send handlers may mutate logical identity or files first; operation ownership must reject the whole action before those effects. Test persisted contents after failure/timeout and subsequent navigation, not only edit rejection.
+
+- #533 close BR-1 round2: enumerate actual write sites, not only user commands. Focus/cursor/autocmd/timer decorations can write real bytes and open a blocking prompt under nomodifiable. Preserve deferred cleanup bookkeeping and exercise focus loss/gain in an embedded UI.
+
+- #533 integration of #531: a full make test stopped by the known #514 timing check has not exercised later Go packages. Run remaining targets with make -k and inspect all failures before citing the exception; new production files still require exhaustive artifact-source inventory entries.
+
+- #538: A recorded node ID is document-scoped evidence even if the live recorder usually allocates globally. Before giving a connected ID priority over scored anchors, verify the note belongs to the current document; test a same-tag ID reused after navigation.
+- #538: Recovery tests must restart the real lifecycle identity. If a new cast always gets a new recording path, reopening a service with the old path alone misses orphaned save/publication intents; exercise a new cast recovering an inactive prior recording.
+
+- #537 recording review: when record families merge by timestamp plus file rank,
+  live writers must advance tied timestamps before a transition to an earlier
+  file rank. Test real split/merge equivalence around pause, clear and end.
+- #537 UI review: mutually exclusive presentation phases do not erase independent
+  authority facts. Test OFF/view-only/paused crossed with active driving, and
+  preserve held editor text when newly accessible read-only UI is opened.
+- #536: Sharing note-box geometry does not share gesture timing. Keep threshold crossing and drag latching shared too; test each consumer's press, sub-threshold movement, release, and drag back toward its origin.
+
+- #537 verification: adding an authenticated probe or POST route requires updating
+  the static same-origin transport inventory as well as runtime behavior tests.
+  Stage-aware fleet producers and consumers must agree on the new reason before
+  live conformance runs while a smoke checkout is staged.
+
+- #537 close BR-1: pending-input tests must cover creation separately from edits.
+  A successful creation consumes its draft identity; prevent further draft input
+  until acknowledgment or transition explicitly to the committed note, never
+  leave a success eligible to create again. BR-2/3: reconcile final entity paths
+  and classifications, and update user-facing README instructions alongside atlas.
+
+- #540 admission review: when identity checks precede a workspace lookup, test a
+  wrapper replacement during that lookup. Cached connection membership alone
+  does not prove the current wrapper still owns the accepted launch; revalidate
+  at effect admission. Exercise lost acknowledgments after a real side effect
+  through the socket, not only an error-returning client stub.
+- #540 verification: when changing a consumer's notification policy, search
+  upstream integration tests too. Wrapper-to-Couch tests can encode forwarding
+  expectations outside the consumer package. Prove suppression after a positive
+  processing barrier; never wait for an intentionally absent notification.
+- #540 close BR-1: best-effort output helpers may intentionally collapse dropped
+  or timed-out writes into nil. Explicit commands claiming a completed effect
+  must retain the actual write outcome through degradation/recovery; test both
+  pre-existing stalls and stalls caused by the command, including no replay.
+  BR-2: append acceptance criteria when approved revisions expand behavior;
+  a detailed plan revision does not update Done-when by itself.
+- #519: A successful datagram send establishes kernel acceptance, not consumer delivery. At stream EOF, join the receiver, boundedly drain its kernel backlog, and consume its channel backlog before finishing the sole output writer. Pin both pending-work boundaries with ordered fixtures rather than extending deadlines.
+- #538 integration: expanding a list across documents also expands reconnect and edit consumers. Check catch-up equivalence against every retained note (including source segment), and test a historical note through current admission, owner checks, edit, and submission; a current-document-only oracle hides missing list entries.
+
+- #538 close: distinguish trusted connected-original DOM identity from scored replacement evidence on every surface. Test common-text originals and large pages through each adapter; never use a mutable path to grant original identity. Reconcile plan inventories with actual symbols, capabilities and changed-file status before close.
+
+- #514: A collector's cooperative budget is not a hard subprocess deadline. Keep shared-host tests on output and controlled-clock scheduling invariants; retain elapsed-time ceilings in the explicit performance lane and prove both gate modes with the same overrun fixture.
+
+- #529: Selection tests must enter through the production constructor before supplying optional test overrides. Injecting a choice inventory in every test can hide a nil production inventory even when navigation and preview reducers are individually correct.
+
+- #542/#511: A signal-probe permission error is not positive process-group membership evidence on every OS. Confirm ambiguous results through the OS membership boundary and retain ownership on query failure. Survivor fixtures must acknowledge signal-handler readiness before their parent exits; a fork is not a readiness event.
+
+- #511 close review: count repeated test outcomes from the complete log, using exact per-subtest records. A terminal tail or truncated tool result is not evidence of the total failure count.

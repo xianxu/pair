@@ -6,7 +6,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
-// Selection is a frozen set of open notes, scoped to one recorded document.
+// Selection is a frozen set of open notes, across recorded documents.
 type Selection struct {
 	Document int
 	TabID    string
@@ -30,7 +30,7 @@ func (b *Board) Selection() (Selection, error) {
 		return Selection{}, ErrNotLive
 	}
 	out := Selection{Document: b.st.DocSeg, TabID: b.st.Tab.ID}
-	for _, n := range b.model.Live(b.st) {
+	for _, n := range b.st.Notes {
 		if n.State == recording.NoteOpen {
 			out.Notes = append(out.Notes, SelectedNote{n.ID, n.Revision})
 		}
@@ -39,7 +39,7 @@ func (b *Board) Selection() (Selection, error) {
 }
 
 // ResolveSelection waits for actual recorded outcomes. A changed/reopened
-// note or a gone document no longer belongs to this acknowledgment.
+// note no longer belongs to this acknowledgment; navigation preserves ownership.
 func (b *Board) ResolveSelection(ctx context.Context, s Selection) error {
 	admission, err := b.AdmitAnnotation()
 	if err != nil {
@@ -58,10 +58,6 @@ func (b *Board) ResolveSelection(ctx context.Context, s Selection) error {
 			b.mu.Unlock()
 			return ErrBroken
 		}
-		if b.st.DocSeg != s.Document || b.st.Tab.ID != s.TabID {
-			b.mu.Unlock()
-			return nil
-		}
 		var pending []SelectedNote
 		for _, n := range s.Notes {
 			if b.st.NoteUnchanged(n.ID, n.Revision) {
@@ -77,7 +73,7 @@ func (b *Board) ResolveSelection(ctx context.Context, s Selection) error {
 				continue
 			}
 			rev := n.Revision
-			err := admission.resolveSelected(&recording.NoteState{ID: n.ID, State: recording.NoteResolved, IfRevision: &rev}, s.Document)
+			err := admission.resolveSelected(&recording.NoteState{ID: n.ID, State: recording.NoteResolved, IfRevision: &rev, Who: &recording.Author{ID: Operator, Name: "Operator"}}, 0)
 			if err != nil && !errors.Is(err, ErrStale) {
 				return err
 			}

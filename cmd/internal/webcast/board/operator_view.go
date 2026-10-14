@@ -1,6 +1,7 @@
 package board
 
 import (
+	"maps"
 	"slices"
 	"time"
 
@@ -80,6 +81,8 @@ func (b *Board) refreshOperatorLocked(r recording.Record) {
 func cloneNote(n *recording.Note) *recording.Note {
 	c := *n
 	c.At.Path = slices.Clone(n.At.Path)
+	c.At.Classes = slices.Clone(n.At.Classes)
+	c.At.Stable = maps.Clone(n.At.Stable)
 	if n.At.Box != nil {
 		x := *n.At.Box
 		c.At.Box = &x
@@ -98,7 +101,7 @@ func (b *Board) operatorViewLocked() OperatorView {
 			v.Driver = b.st.Control.Driver.ID
 		}
 	}
-	for _, n := range b.model.Live(b.st) {
+	for _, n := range b.st.Notes {
 		if n.State == recording.NoteOpen {
 			v.Notes = append(v.Notes, cloneNote(n.Note))
 		}
