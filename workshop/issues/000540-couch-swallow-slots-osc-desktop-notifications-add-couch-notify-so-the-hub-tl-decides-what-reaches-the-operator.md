@@ -132,6 +132,24 @@ The operator (2026-10-13):
 
 ## Revisions
 
+### 2026-10-13 — acceptance and mixed-version messaging follow-up
+
+TL receipt 9c269a35-f57f-4b22-b961-344cc16a0eb3 records live smoke PASSED:
+hub notify produced the operator's alert, pair:7's exact notify command refused
+with send-to-hub advice, and child notifications stayed silent. TL authorizes
+stage clear, close and landing after the mixed-version follow-up.
+
+TL observed the CLI built at 18a2aa74 receiving `unavailable: recipient is not
+live` from the still-running ccc0ee88 supervisor on both send and actors;
+restarting Couch recovered. Add mixed-version regression coverage and a truthful
+recovery diagnostic within #540. Investigation finds unchanged caller identity,
+socket derivation and session protocol; the added Title is omitted for old verbs.
+The exact error means the broker had no connected caller binding. Its loss is
+not yet explained; do not claim a protocol mismatch without evidence.
+Verify the new CLI against the strict old request contract with registered
+callers before choosing a fix. Preserve one-shot send/notify behavior and never
+replay effects to diagnose a failed call (ARCH-ORDER, ARCH-SECURE).
+
 ### 2026-10-13 — proposed design for TL approval
 
 **Approach.** Reuse terminal effects and the presenter's serialized host writer

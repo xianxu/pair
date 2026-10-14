@@ -222,6 +222,17 @@ cmd/internal/artifactpath/manifest.go; issue and this plan.
 
 ## Revisions
 
+### 2026-10-13 — mixed-version CLI/supervisor follow-up
+
+Live notification smoke passed per TL. Before close, add a private socket
+regression for current CLI send/actors/status against the strict pre-#540 request
+contract (ccc0ee88), with registered stateful broker callers. The observed
+unavailable response identifies missing caller registration, while protocol and
+caller fields are unchanged. Diagnose that accurately; never infer supervisor
+age from every unavailable response or retry a possibly admitted effect.
+Record the evidence and recovery choice, then clear the accepted stage and
+complete the normal close/landing gates. TL authorized this scope addition.
+
 ### 2026-10-13 — full-suite integration consumer follow-up
 
 The completed full suite found an old wrapper-to-Couch integration expectation
