@@ -36,7 +36,11 @@ The operator (2026-10-13):
 
 ## Plan
 
-- [ ]
+- Durable plan: [hub notifications](../plans/000540-hub-notifications-plan.md).
+- [ ] Add terminal envelope and explicit presenter notification operation.
+- [ ] Suppress child notifications and retain diagnostic counts only.
+- [ ] Add hub-only CLI/protocol/admission with uncertain-write handling.
+- [ ] Update docs, run full verification and scheduled smoke, close and land.
 
 ## Log
 
@@ -49,6 +53,11 @@ The operator (2026-10-13):
   serialized presenter writer, plus live caller / connected workspace / hub
   authority already used by switch-agent. No implementation or live desktop
   notification performed during design.
+- TL approved design d9c0c376 in verified receipt
+  30983ef5-6aa1-4752-9d6d-cfcd95ebf510. Durable implementation plan authored via
+  writing-plans, including pure/integration inventory, payload budgets,
+  count lifecycle, failure projection and regression/conformance matrix.
+  No code changed. TL owns ariadne#350 coordination.
 
 ## Revisions
 
