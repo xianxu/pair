@@ -1330,7 +1330,7 @@ Continuation has two internal operations (`pair#249`; #522 retired
 `retry-continuation`, `dismiss-continuation` and `continuation-status`):
 
 - `request-continuation`, invoked as `couch --internal request-continuation <absolute-path>`, durably accepts the hosted source's exact checkpoint. The inherited scope, tag, agent, session, launch ordinal, and expected digest bind publication to the writer's validated bytes and current source generation. This metadata operation can run in another worktree without becoming a second supervisor.
-- `continue-thread`, run by the Console's watcher under the live owner, executes an accepted request, or continues one a previous Couch left running.
+- `continue-thread`, declared as `couch --internal continue-thread` and run by the Console's watcher under the live owner, executes an accepted request, or continues one a previous Couch left running.
 
 **Compaction without composer paste (#522).**
 - **The launch prompt:** `executeContinuation` starts the new conversation fresh,

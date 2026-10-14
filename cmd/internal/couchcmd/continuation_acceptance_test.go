@@ -425,7 +425,8 @@ func completeContinuationAcceptance(t *testing.T, rt testRT, c *couchcore.Couch,
 		return os.WriteFile(readyPath, []byte(raw), 0600)
 	}
 	var start couchcore.StartResult
-	{		result, err := c.Continue(context.Background(), source.Address, source.Continuation.ID)
+	{
+		result, err := c.Continue(context.Background(), source.Address, source.Continuation.ID)
 		if err != nil {
 			t.Fatal(err)
 		}
