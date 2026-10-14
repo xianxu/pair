@@ -1,12 +1,12 @@
 ---
 id: 000540
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-13
 updated: 2026-10-13
 estimate_hours:
-card_mirror: '5e1736cfaf2373a3e72496f9bc4ae74516af63a0' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '63674fd617d2e7d270e987bd6d693bfd4d6346c0' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-13T17:52:26-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 2.88
 ---
 
 # couch: swallow slots' OSC desktop notifications; add couch --notify so the hub (TL) decides what reaches the operator
