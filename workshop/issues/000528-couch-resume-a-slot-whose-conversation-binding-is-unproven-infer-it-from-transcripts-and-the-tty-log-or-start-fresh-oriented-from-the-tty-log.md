@@ -756,3 +756,27 @@ command go test ./cmd/internal/launcher -run
 -count=1 -timeout=60s passes 0.553s. New tests independently cover changed
 generation/parent, gone vs unknown rows, duplicates, bounds and cancellation.
 Fresh recorded corrected-head suite is required before staging.
+
+### 2026-10-14 — merged-head suite passed and acceptance build staged
+
+Corrected runtime head 2808a71a98c4a8994ac34a54587ae64558c1df31 passed
+sdlc local-check run --name suite: exit 0 in 10m23s after 103s gate wait,
+recorded as sdlc-local/suite, log sha256 prefix bf540f71cbeb. Whole shell/editor
+suite and go test ./... passed, including the native no-ps guard. Core
+329.197s, cmd 46.506s, tty 37.789s, message 7.175s, launcher 35.850s and
+wrapper 56.439s. Log:
+/Users/xianxu/workspace/pair/.git/sdlc/local-checks/2808a71a98c4a8994ac34a54587ae64558c1df31/suite.log.
+
+Under TL a9a15486 release, verified pair:0 clean on main, then ran
+sdlc stage --build successfully. pair:0 HEAD and bin/couch, bin/pair,
+bin/pair-launch-helper and bin/pair-slug all report staged revision
+2808a71a98c4a8994ac34a54587ae64558c1df31. The tool also reported an existing
+bin/pair-hoprtt from 2284b412 (modified), which the standard build did not
+rebuild; no claim is made that this separate binary matches the stage.
+The acceptance binaries above match the exact successful suite head.
+
+Sent built hash and evidence to hub: receipt
+6623411b-8923-42f3-b8b9-f8d26f7316af, queued. Operator restart and M1 live
+acceptance remain pending; named pair:1 case remains untouched. This later
+log-only checkpoint does not alter the staged commit or require a restage.
+Keep pair:0 staged until the hub directs otherwise. No M2/M3 work started.
