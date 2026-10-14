@@ -122,3 +122,19 @@ from active ownership, rather than merely increasing the unconditional 100ms.
 Check the atlas's busy/no-queue contract, add a paused-fork regression, and retain
 exact before/after load counts. Receipt 6c74a424-9044-48d3-89ad-39909f05d11c
 asks to resume this work after model capacity failures. No production changes yet.
+
+### 2026-10-14 — concrete design
+
+Durable plan: workshop/plans/000545-workspace-creation-lock-contention-plan.md.
+Read-only peer review supports a held/released advisory byte, with kernel flock
+as sole admission and one absolute bounded retry window. Unknown/held retains
+100ms; released permits 2s with backoff. Native C paused-fork conformance plus
+pure retry boundary tests avoid forking inside Go. TL proposal sent as receipt
+27999969-68e9-4b54-9ff4-b7c6c294e132.
+
+The open-site sweep found no missing CLOEXEC on creation. Raw opens lacking the
+flag exist in diagnosticlog.openRegular and notifytransport.lockNamespace; both
+locks explicitly unlock. Reported separately; no unrelated changes planned.
+History confirms #436's 100ms was a measured implementation choice reduced from
+500ms because intentional contention paid the full budget, not a requirement
+for instantaneous refusal. The new plan preserves fast active-owner refusal.
