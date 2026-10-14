@@ -132,6 +132,10 @@ roots do not offer the shortcut. The same StartCreate preview/fingerprint and
 repository admission checks apply as when entering a path manually, so Add slot
 also fills the lowest free number (`:0` included) before adding one, and the
 form lists the repository's parked threads when it adds one (#332).
+Both entry points get their selectable agents from `launcher.AgentInventory()`
+when `NewMenuState` is constructed (#529). Until an arrow makes a choice explicit,
+the preview resolver owns the default; explicit choices remain generation-fenced
+through asynchronous previews and the start commit.
 
 Directory/Git identity supplies the durable slot; native scope/tag identifies its
 current conversation. Slot rows stay selectable when current metadata is missing
