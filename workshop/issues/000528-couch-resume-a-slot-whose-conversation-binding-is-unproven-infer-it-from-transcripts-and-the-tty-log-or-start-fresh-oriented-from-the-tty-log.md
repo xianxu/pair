@@ -413,3 +413,12 @@ The final revision in `workshop/plans/000528-slot-recovery-plan.md` supersedes p
   thread records; explicit continuation retains its adoption path. The prior
   full suite and affected-package green results remain evidence for that head,
   not a pass for the forthcoming correction. No staging or M2 work.
+
+- 2026-10-13 22:24 PDT — BR-9 executor shape sweep
+  now covers all 13 accepted listed-live fixtures across live/dead/unknown
+  owners, immutable records, held foreign lifecycle operations, and exact
+  helper-only cleanup. Old production fails the shape sweep. Independent
+  focused core/menu/artifact checks passed (3.863s/0.236s/2.364s). Console
+  regressions cover actual local-pane reuse and listed row without local pane
+  (warm-only fallback), red before fix and green after (0.354s). Explicit
+  lifecycle compatibility and upstream resume routing remain in progress.

@@ -1169,6 +1169,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/threadstore_snapshot.go",
 	"cmd/internal/couchcore/threadtarget.go",
 	"cmd/internal/couchcore/threadtag.go",
+	"cmd/internal/couchcore/warm_attach.go",
 	"cmd/internal/couchcore/workspaceref.go",
 	"cmd/internal/couchcore/worktree.go",
 	"cmd/internal/mouseinput/mouseinput.go",

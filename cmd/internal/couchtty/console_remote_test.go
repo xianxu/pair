@@ -311,3 +311,29 @@ func TestRemoteFailureCarriesItsStepTimings(t *testing.T) {
 		t.Fatalf("the timings hid the typed refusal: %v", err)
 	}
 }
+
+func TestRemoteResumeReusesLocallyAttachedPane(t *testing.T) {
+	r := newRemoteRig(t)
+	address := menuAddress("source")
+	call := couchcore.OperationCall{Name: "resume", Args: map[string]string{"repo-scope": address.RepoScope, "tag": string(address.Tag)}}
+	if err := r.enqueue("existing", "resume", prepared(call)); err != nil {
+		t.Fatal(err)
+	}
+	r.drain(t)
+	if len(r.calls) != 0 || len(r.c.panes) != 1 || len(r.finished) != 1 || r.finished[0].err != nil {
+		t.Fatalf("duplicate resume: calls=%v panes=%d finished=%v", r.calls, len(r.c.panes), r.finished)
+	}
+	if r.c.focus != FocusActor("source") {
+		t.Fatalf("focus changed: %+v", r.c.focus)
+	}
+	// Explicit recovery choices must still execute, even when the old pane exists.
+	call.Args["candidate"] = "chosen"
+	r.resume = func(couchcore.OperationCall) (any, error) { return address, nil }
+	if err := r.enqueue("candidate", "resume", prepared(call)); err != nil {
+		t.Fatal(err)
+	}
+	r.drain(t)
+	if len(r.calls) != 1 || r.calls[0].Args["candidate"] != "chosen" {
+		t.Fatalf("candidate bypassed: %v", r.calls)
+	}
+}

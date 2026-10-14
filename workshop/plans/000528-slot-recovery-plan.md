@@ -862,3 +862,20 @@ when an independent supervisor owns its start or park record.
   Cover cross-agent replacement and continuation metadata, not just the newly
   reported StartClaim. Run affected suites and the boundary again (ARCH-PURPOSE,
   ARCH-ORDER). M2 confirmation/retirement and staged acceptance remain deferred.
+
+### 2026-10-13T22:24:06-0700 — preserve explicit lifecycle actions after Continue
+
+The helper-only attach route must not regress ordinary Park/relaunch/switch
+following Continue. Those already explicit lifecycle actions may adopt the
+exact client owned by this Couch through existing start-transaction transitions,
+under the existing lifecycle gate. Their read-only admission may derive the
+same local-helper facts; it cannot perform adoption. Existing debris checks
+still refuse retirement of a foreign/live/unknown owner. No new confirmation
+protocol, persistent state or inferred-native recovery is introduced in M1.
+
+An in-memory map of exact handles, under the existing registry mutex, supplies
+local client ownership; restored registry entries cannot authorize signalling.
+It is pruned on registry removal. Console routing reuses a real local pane for
+repeated ordinary remote resume; if a listed row lacks a local pane, Continue
+routes to warm-only resume for a fresh exact-terminal check and normal adoption
+of the returned view. Cold creation is impossible on that fallback.

@@ -398,7 +398,9 @@ One unavailable slot does not prevent Couch or other slots from opening.
 Choose **Continue** for a session Zellij lists live, **Resume from disk** for a
 recoverable stopped conversation, or the offered **Start fresh** action to begin
 again. A live session remains Continue while its agent is working on a turn;
-it does not need a saved launch profile or a policy file to attach.
+it does not need a saved launch profile or a policy file to attach. Continue
+leaves any outstanding start or park record untouched; detaching that view
+closes only the client Couch attached.
 
 ```
 couch [<repo>]           open the Couch TUI (default: .)

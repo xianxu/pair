@@ -1699,3 +1699,8 @@ proof; record the surprising case so the next change starts from evidence.
   and missing original cwd. Projection-only tests do not prove downstream cold
   launch requirements were removed from warm attachment. BR-10: startup and
   primary-action changes must update README usage as well as the atlas.
+
+- #528 M1 BR-9 follow-up: A terminal client does not need lifecycle ownership
+  of the agent it views. Sweep executor behavior across all record shapes the
+  classifier accepts, and preserve independent start/park records. Persisted
+  registry PIDs are not proof of a terminal handle owned by this process.

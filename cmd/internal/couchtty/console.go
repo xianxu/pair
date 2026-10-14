@@ -2130,7 +2130,24 @@ func (c *Console) ExecuteConsoleOperation(call couchcore.OperationCall) (any, er
 		}
 		c.mu.Unlock()
 		if target == "" {
-			return nil, fmt.Errorf("thread %s/%s is not attached to this console", address.RepoScope, address.Tag)
+			// A restored registry entry does not restore its PTY handle. Route
+			// through resume's fresh terminal proof and let normal completion
+			// install the returned helper, rather than treating the row as lost.
+			c.mu.Lock()
+			fn := c.ops
+			listed := false
+			for _, row := range menuRows(c.menu) {
+				if row.Address == address && couchcore.ContinuityOutcome(row) == couchcore.Continue {
+					listed = true
+					break
+				}
+			}
+			c.mu.Unlock()
+			if fn == nil || !listed {
+				return nil, fmt.Errorf("thread %s/%s is not attached to this console", address.RepoScope, address.Tag)
+			}
+			return fn(couchcore.OperationCall{Name: "resume", Context: call.Context, Implicit: true,
+				Args: map[string]string{"repo-scope": address.RepoScope, "tag": string(address.Tag), "warm-only": "true"}})
 		}
 		err := c.runTerminalCommand(call.Context, func() error { _, err := c.selectActorContext(call.Context, target, true, how); return err })
 		return address, err

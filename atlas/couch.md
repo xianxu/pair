@@ -29,6 +29,13 @@ and read-only details; M2 must bound that state by owner liveness and age, then
 provide confirmed Resume/Fresh. Agent activity never demotes a positively
 listed session from Continue.
 
+Public Continue borrows the terminal through `couchcore/warm_attach.go`; it does
+not adopt or retire the thread's durable start, park, or incarnation. Its client
+is tracked in the registry and an in-memory handle map owned by this Couch.
+Detach, ordinary leave and failed-attach cleanup end only that exact helper.
+A persisted registry entry alone is never proof that this Couch owns its handle.
+Explicit continuation recovery keeps its separately authorized adoption path.
+
 Couch startup observes existing slots with preview reads. It does not complete
 interrupted starts/parks, replay slot-store journals, or repair a slot as a
 side effect of opening the console. An unhealthy slot never blocks Couch or
