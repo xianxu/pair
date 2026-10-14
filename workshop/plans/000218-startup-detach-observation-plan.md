@@ -91,3 +91,26 @@ The pass supplies initial server evidence only. Probe's after-pane check and Rev
 ## Coordination
 
 #528 pair:2 is landing changes to launcher session_quiescence/session_servers and couchcore ownership. Start from main (9a2aff687 at start-plan), merge main often, and preserve exact-generation authorization. Do not stack on its unlanded branch. Initial substrate refreshed to ariadne 7a722362; generated TL skill ignore diff parked separately, no lifecycle configuration changes in #218.
+
+## Revisions
+
+### 2026-10-14 — PQ-1/PQ-2/PQ-3: preserve fresh exclusivity and lifecycle progress
+
+This revision supersedes M1 step 6 and the O(1) fresh-fence proposal: preserving the current authority contract requires proving that the original server remains the ONLY claimant, not merely that its PID/argv is unchanged. Reuse SessionOwnerProbe's existing after-pane and Revalidate SessionServers reads. Those reads use narrowed native discovery (zellij/unknown metadata candidates), retain exactly-one-server comparison including exact socket and generation, and keep #553's gone semantics. This intentionally performs a cheap fresh table/candidate enumeration at authority fences; it never repeats host-wide argv enrichment. No new direct-PID-only validator is introduced. The candidate set can change between observations: fresh discovery detects a competing server even when the original generation remains intact. Existing effect guards remain authoritative; no authorization contract changes.
+
+SessionOwnerPass supplies only the initial before-probe value from one shared ServerStates map. The after-probe read and Revalidate always use live IO, never the map. A snapshot error or contested/unresolved row refuses. Missing initial evidence is not positive ownership. The pass is wired only to warm-only background reattach and LeaveDetach, not cold/park/create operations. awaitResumeRegistration explicitly bypasses any pass and uses fresh narrowed discovery: post-launch registration must discover new server generations rather than inherit prelaunch absence. Standalone root startup and child Pair keep their own narrowed fresh reads. This bounds the accepted performance claim: one shared initial bulk observation per parent pass, plus required fresh candidate-only authority checks.
+
+The earlier case inventories in M1 steps 4/6 and M2 steps 1/4 are superseded by this compact executable test contract (retained as design history per the artifact revision rule):
+
+| Risky function | Strategy and mechanical guard |
+|---|---|
+| processNameCandidate(Process, name) | Metadata-selection property tests ensure no known unrelated process is selected, while unknown names preserve uncertainty. |
+| snapshotSelected(ctx, reader, selector) / SnapshotNamed | Stateful reader drives generation changes and read failures; independently assert exact selected read count, gone omission, error retention, and cancellation boundary. |
+| SessionOwnerProbe.Probe / Revalidate | Stateful owner world inserts competing claimants and changes generation during pane IO; exactly-one-and-equal original server is the authority invariant. Revalidate always reads live IO. |
+| SessionOwnerPass.Probe | Controlled concurrent callers share one source capture; live after-reads introduce new claimants, proving cached equality cannot masquerade as exclusivity. Capture failure/cancellation never grants ownership. |
+| ScopedThreadArtifactCollisionChecker.NamedPairSessionContext | Pass-bound reader count plus independent owner identity invariant; contexts from different roots/passes cannot share evidence. |
+| awaitResumeRegistration | Controlled birth after an initially absent snapshot must become observable through fresh discovery; old absence never causes warm/create authority. |
+| Console.runBackgroundOperation / Couch.Leave | Real worker-pool/fleet worlds use barriers for cancellation and completion ordering; assert one initial capture per pass and unchanged exact-effect guards. |
+| Couch.Detach / retireDetachedIncarnation | Stateful generations change between pre-signal and record retirement; signal and conditional retirement require current exact client/server authority, even with shared initial evidence. |
+
+Non-goals: no ownership/contested-name relaxation; no process snapshot serialization to child Pair; no permanent cache; no unconditional parallelism increase; no new supported OS; no optimization of diagnostic writer inventory; no operator-session restart experiment; no redesign of #528 quiescence.
