@@ -1313,7 +1313,9 @@ smoke acceptance remain necessary to establish disappearance of the reported sym
 `cmd/internal/procutil` owns host process observations without launching `ps`.
 `Table` remains a cheap metadata snapshot (PID, parent, start identity, niceness
 and short kernel name). `Snapshot` enriches rows with native executable/argv and
-rechecks start identity, retaining unavailable evidence per row. Darwin uses
+rechecks start identity, retaining unavailable evidence per live row. Native
+zombie status excludes confirmed terminated processes from command snapshots
+while metadata tables retain them. Darwin uses
 `kern.proc.all` and `kern.procargs2`; Linux reads `/proc`. Unsupported platforms
 return an explicit unsupported error; legacy string helpers return unavailable.
 

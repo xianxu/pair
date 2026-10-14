@@ -37,7 +37,8 @@ func (nativeReader) command(pid int) (CommandInfo, error) { return nativeCommand
 func (nativeReader) identity(pid int) string              { return Identity(strconv.Itoa(pid)) }
 
 // Snapshot reads the metadata table once and enriches every row with native
-// command evidence. Start identities fence PID reuse during each read. It keeps
+// command evidence, excluding kernel-confirmed terminated rows. Start identities
+// fence PID reuse during each read. It keeps
 // per-row failures; cancellation or table failure aborts the whole observation.
 func Snapshot(ctx context.Context) ([]Observation, error) { return snapshot(ctx, nativeReader{}) }
 func snapshot(ctx context.Context, r processReader) ([]Observation, error) {
@@ -52,6 +53,9 @@ func snapshot(ctx context.Context, r processReader) ([]Observation, error) {
 	for _, p := range rows {
 		if err := ctx.Err(); err != nil {
 			return nil, err
+		}
+		if p.Zombie {
+			continue
 		}
 		o := Observation{Process: p}
 		if p.PID <= 0 || p.Identity == "" {

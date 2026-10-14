@@ -122,4 +122,6 @@ type Process struct {
 	Identity  string
 	Nice      int
 	Name      string
+	// Zombie means the kernel reports a terminated process, retained until reaped.
+	Zombie bool
 }

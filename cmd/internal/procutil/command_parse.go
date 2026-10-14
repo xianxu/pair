@@ -87,5 +87,9 @@ func parseLinuxStat(pid int, raw []byte) (Process, error) {
 	if _, err := strconv.ParseUint(fields[19], 10, 64); err != nil {
 		return Process{}, bad
 	}
-	return Process{PID: pid, PPID: ppid, Identity: fields[19], Nice: nice, Name: s[start+1 : end]}, nil
+	return Process{
+		PID: pid, PPID: ppid, Identity: fields[19], Nice: nice, Name: s[start+1 : end],
+		// Z is zombie; X/x are Linux's dead states (x on older kernels).
+		Zombie: fields[0] == "Z" || fields[0] == "X" || fields[0] == "x",
+	}, nil
 }
