@@ -1736,3 +1736,8 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
 - #552: Cancellation and a queued item can be ready in the same select. Recheck
   cancellation after dequeue, preserve accepted diagnostic evidence, and suppress
   new external effects; test the ordering with a blocked real transport.
+
+- #552: Run the first complete pre-close suite through `sdlc local-check run
+  --name suite` on a pushed head. A direct `make -k test` log is valid behavior
+  evidence but creates no required sdlc-local/suite status, so landing must run
+  the declared suite again. Inspect the declaration before scheduling the run.

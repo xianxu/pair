@@ -114,3 +114,5 @@ total: 2.112
 ```
 
 Rows respectively cover status parsing, completion-evidence wiring, the pure lease/tripwire transition, typed report/protocol validation, supervisor notification admission, runtime reporter/shutdown, atlas and one close review. The first two use v2 smaller-module design 0.15 and implementation 0.5; the next uses greenfield design 1.0 and implementation 0.8; three adapters use smaller-module design 0.3 and implementation 0.5. Atlas uses 0.1/0.1; review 0.1/0.5. Design sum 0.48 ×1.15 plus implementation sum 1.56 = 2.112 hours. No arbitrary total or additional discovery allowance.
+
+Model-Revision: close reports the last five trusted estimates more than 2× above build time. This issue's 2.112h estimate measured 1.05h; rates remain provisional pending shared calibration. A direct pre-close full suite passed but did not create the required local-check commit status, so the landing gate must record a second declared run; use sdlc local-check for the first run in future.
