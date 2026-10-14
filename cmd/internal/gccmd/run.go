@@ -24,6 +24,10 @@ func (p *pathsFlag) String() string         { return fmt.Sprint([]string(*p)) }
 func (p *pathsFlag) Set(value string) error { *p = append(*p, value); return nil }
 
 func Run(args []string, getenv func(string) string, stdout, stderr io.Writer) int {
+	return runWithService(args, getenv, stdout, stderr, gcruntime.New)
+}
+
+func runWithService(args []string, getenv func(string) string, stdout, stderr io.Writer, newService func(string) (*gcruntime.Service, error)) int {
 	fail := func(err error) int { fmt.Fprintf(stderr, "pair gc: %v\n", err); return 1 }
 	flags := flag.NewFlagSet("pair gc", flag.ContinueOnError)
 	flags.SetOutput(stderr)
@@ -61,7 +65,7 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer) in
 	if err != nil {
 		return fail(err)
 	}
-	service, err := gcruntime.New(resolved)
+	service, err := newService(resolved)
 	if err != nil {
 		return fail(err)
 	}

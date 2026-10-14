@@ -9,7 +9,7 @@ import (
 // StrictIdentity is an incarnation token suitable for persisted ownership.
 // Linux includes its boot ID because start ticks repeat across reboots. Other
 // platforms must supply native identity before opting into destructive cleanup;
-// the second-resolution ps fallback used by Identity is insufficient here.
+// unsupported platforms return no identity.
 func StrictIdentity(pid string) string {
 	if _, ok := positivePID(pid); !ok {
 		return ""

@@ -126,23 +126,19 @@ func (osSessionQuiescenceOps) SessionPresent(ctx context.Context, session string
 }
 
 func (o osSessionQuiescenceOps) SessionServers(ctx context.Context, session string) ([]SessionServerIdentity, error) {
-	out, err := exec.CommandContext(ctx, "ps", "-axo", "pid=,command=").Output()
+	rows, err := procutil.Snapshot(ctx)
+	if err != nil {
+		return nil, err
+	}
+	servers, err := serverProcesses(rows)
 	if err != nil {
 		return nil, err
 	}
 	var result []SessionServerIdentity
-	for _, server := range ParseServerProcesses(string(out)) {
-		if server.Session != session {
-			continue
+	for _, server := range servers {
+		if server.Session == session {
+			result = append(result, server)
 		}
-		server.Identity = o.identity()(strconv.Itoa(server.PID))
-		if server.Identity == "" {
-			// The process may have exited between snapshots, but treating an
-			// observed exact server as absent would be a false proof. Retry the
-			// complete observation instead.
-			return nil, fmt.Errorf("process identity unavailable for zellij server %d", server.PID)
-		}
-		result = append(result, server)
 	}
 	return result, nil
 }

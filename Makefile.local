@@ -467,7 +467,7 @@ test-dev-rebuild:
 test-pair-go-install-layout:
 	bash tests/pair-go-install-layout-test.sh
 
-test-pair-embedded-runtime:
+test-pair-embedded-runtime: test-without-ancestors
 	bash tests/pair-embedded-runtime-test.sh
 
 # pair restart/quit Go subcommands (#94 M1, ported from bin/pair-{restart,quit}.sh):
@@ -537,3 +537,7 @@ test-couch-recovery-smoke:
 .PHONY: test-supervision-labels
 test-supervision-labels:
 	python3 -m unittest discover -s scripts/supervision-labels
+
+.PHONY: test-without-ancestors
+test-without-ancestors:
+	python3 tests/without-ancestors-test.py
