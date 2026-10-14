@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-13
 updated: 2026-10-14
-estimate_hours:
-card_mirror: 'e812acd9611b79d08b2dab29bdbf78bbd22011f1' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 3.59
+card_mirror: '2a468a35224412ddcce31958cdfe6960ac8ed1d2' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-14T00:00:06-07:00
 claimant:
     operator: Xian Xu
@@ -15,6 +15,7 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # launcher: five call sites exec setuid /bin/ps; read the process table through procutil instead (works under sandboxes)
@@ -53,3 +54,21 @@ Claimed and started from fresh main. Hub approved sweeping all production ps cal
 - 2026-10-14: enumerated the full no-ps contract beyond the five launcher sites: procutil helpers/unsupported fallback and diagnostic runtime inventory are in scope, approved by the hub.
 
 - Plan-quality round 1 requested named risky functions and mechanical test strategies (PQ-1), plus explicit non-goals (PQ-2). Appended concrete interfaces, strategy table, composition seams and scope boundaries to the plan. Baseline seatbelt probe: TestCommand skips because ps is unavailable, while TestTableMatchesIdentityAndParent passes; replacement must remove that skip on supported OSes.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only; calibration is marked stale and provisional. Native adapters reuse x/sys/unix and existing procfs/sysctl patterns; no greenfield library is needed. Thorough reviewed plan applies 0.2 design discount to implementation primitives, implementation values use v3.1's 0.4 scale, familiarity 1.0. Two API items represent Darwin and Linux adapters plus conformance; two refactors represent launcher and diagnostic/composition migrations. Spec item accounts for the actual cross-consumer shaping rather than discounting it away.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.70 impl=0.08
+item: api-integration design=0.20 impl=0.60
+item: api-integration design=0.20 impl=0.60
+item: cross-cutting-refactor design=0.12 impl=0.20
+item: cross-cutting-refactor design=0.12 impl=0.20
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.04 impl=0.20
+design-buffer: 0.15
+total: 3.59
+```
