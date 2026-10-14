@@ -68,6 +68,10 @@ The namespace flag test matches its private lock inode in a bounded kernel FD sc
 
 Pushed implementation 54aac8349cceb33280711abc1b288b29ec2cb80f. make -k -B bin/pair passed, and its embedded vcs.revision matches that commit with vcs.modified=false; SHA256 f88908cc6f024b3adbf44708e072880228e1e1b052eec8050de38262fee3b9f0. Required sdlc local-check run --name suite is queued behind earlier machine-wide requests. This is a pure flag-hygiene bugfix with no new module interface, operator flow or architectural surface; the close will acknowledge no atlas change via --no-atlas and retain this reason in verification.
 
+### 2026-10-14 — authorized separate follow-up
+
+After this issue lands, hub ops:0 authorized filing and fixing a separate quick-flow issue from main for the embedded Couch skill receiver-list drift (receipt 2a83ee65-f057-480a-97c4-406b81781fe4). cmd/internal/couchcmd/skills/couch/SKILL.md:502 omits Qoder support from #550. Sweep the skill and docs for other two-agent receiver-support lists, fixing the class while retaining intentional two-agent examples. Do not fold this independent work into #551 or start it on this unlanded branch.
+
 ## Revisions
 
 ### 2026-10-14 — complete raw-open family
