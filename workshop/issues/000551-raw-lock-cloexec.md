@@ -51,6 +51,7 @@ in receipt cc82ffc3-c4f5-4c1c-9e9a-5b2fb14f5340.
 ## Log
 
 ### 2026-10-14
+- 2026-10-14: closed — All four raw opens use atomic O_CLOEXEC; kernel flag and atomic source-family regressions failed before the fix and pass now. Both affected package suites and focused race passed; full make -k build passed with clean embedded revision. Required sdlc-local/suite passed on 54aac8349cceb33280711abc1b288b29ec2cb80f (exit 0, 10m31s). No atlas change: pure descriptor-flag bugfix, existing validation/locking/interfaces/flows preserved, no new architectural surface. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
 
 Filed from #545 investigation; independent follow-up, not started.
 
