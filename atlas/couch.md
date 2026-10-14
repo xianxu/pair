@@ -1419,9 +1419,15 @@ in the qualified composer and selection in a picker; `submit` means Alt+Return.
 A lone ESC is flushed as one separate step. Raw success confirms acknowledged
 input and the final styled observation, without claiming an arbitrary command's
 semantic result. Printable UTF-8 text cannot hide terminal controls.
+Codex Enter/submit waits at least the shared 150ms submission interval after an
+acknowledged text write, avoiding its rapid-input paste suppression. This is a
+pure effect deadline serviced by the same writer, within the absolute budget;
+reserved model cleanup can preempt an un-emitted key.
 
 Model scope defaults to `session`. Codex 0.162.1 has separate model, reasoning
-and optional Advanced Reasoning phases; `s` applies only to this session,
+and optional Advanced Reasoning phases. A unique explicit `›` marks the selected
+row under a recognized complete heading/footer; reverse styling is compatible
+but not required by current native captures. `s` applies only to this session,
 while Enter on an effort applies defaults. Claude 2.1.299 combines model and
 effort: `❯` selects a row, `✔` marks the current model, and left/right adjusts
 effort. Its verified session action is `s`; default scope is refused before
