@@ -30,6 +30,9 @@ func consoleSlotOperations(console *couchtty.Console, c *couchcore.Couch, probe 
 			note = n
 			if err == nil {
 				await = probe.readinessAfter(op, call.Args)
+				if guard != nil {
+					call.TypedPayload = hubMutationPayload{original: call.TypedPayload, guard: guard}
+				}
 			}
 			return call, err
 		}, started, awaitReadiness(&await, withAdmissionNote(&note, finished)))

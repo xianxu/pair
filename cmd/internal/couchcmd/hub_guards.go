@@ -109,3 +109,23 @@ func (s *messageService) hubReceiptFilter(ctx context.Context, identity couchcor
 		return err == nil && authorizeHubMutation(identity, target, s.authority.hubs.snapshot()) == nil
 	}
 }
+
+// hubMutationPayload is a supervisor-local capability, never decoded from wire
+// data. The effect gate unwraps it only after revalidating queued authority.
+type hubMutationPayload struct {
+	original any
+	guard    func(context.Context) error
+}
+
+func unwrapHubMutation(ctx context.Context, payload any) (any, error) {
+	if held, ok := payload.(hubMutationPayload); ok {
+		if held.guard == nil {
+			return nil, fmt.Errorf("mutation authority guard unavailable")
+		}
+		if err := held.guard(ctx); err != nil {
+			return nil, err
+		}
+		return held.original, nil
+	}
+	return payload, nil
+}
