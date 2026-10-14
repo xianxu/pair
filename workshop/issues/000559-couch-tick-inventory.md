@@ -1,12 +1,20 @@
 ---
 id: 000559
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-14
 updated: 2026-10-14
-estimate_hours:
-card_mirror: '5e6409f45f76e7005461f5bdda48cc61c3916b1f' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 2.106
+card_mirror: '87180bbb553fae5be0306e1b1cf1e32494bb0686' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-14T16:33:51-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:7
+    worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Stop reparsing inventory on Couch ticks
@@ -31,6 +39,27 @@ The operator's Couch supervisor pid 16699 (reported build fc145480, staged #528 
 - Every changed input triggers existing validation; tests reject stale authority after same-size rewrite, replacement, missing/corrupt inputs and concurrent change/cancellation.
 - A synthetic 15–33 MiB fixture gives before/after CPU or allocation profiles plus deterministic byte/read-count regression; native growth and previous-launch tests remain correct.
 - Targeted/race checks and full required suite pass; close review SHIP; rollout/live CPU and normal-delivery check coordinated with hub.
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only; calibration is flagged stale by sdlc, so provisional. Use v2.1 thorough-spec design ×0.2 and +15% design buffer, v3.1 implementation ×0.40, familiarity ×1.0. Standard-library synchronization and existing fingerprint/parser/catalog APIs avoid a novel stack; session-index cache design receives the library-availability half. No new external API discovery.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.10 impl=0.08
+item: greenfield-go-module design=0.05 impl=0.32
+item: greenfield-go-module design=0.10 impl=0.32
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: atlas-docs design=0.01 impl=0.08
+item: milestone-review design=0.00 impl=0.20
+design-buffer: 0.15
+total: 2.106
+```
+
+Rows map to issue/spec, session-name cache, activity cache, ledger reuse, message invariant fixture, idle invariant fixture, atlas, one close review. Greenfield implementation uses upper v2 0.8h ×0.4; smaller modules use upper 0.5h ×0.4 for stateful/race coverage. Design subtotal 0.44h, buffered 0.506h; implementation 1.60h, total 2.106h. Prior high-estimate warnings noted: no extra generic risk multiplier or second implementation scale applied.
 
 ## Plan
 
