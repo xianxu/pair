@@ -41,7 +41,7 @@ The operator (2026-10-13):
 - [x] Add terminal envelope and explicit presenter notification operation.
 - [x] Suppress child notifications and retain diagnostic counts only.
 - [x] Add hub-only CLI/protocol/admission with uncertain-write handling.
-- [ ] Update docs, run full verification and scheduled smoke, close and land.
+- [x] Update docs, run full verification and scheduled smoke; submit to close/landing gates.
 
 ## Log
 
@@ -131,6 +131,15 @@ The operator (2026-10-13):
   couchmessage, couchtty and artifactpath (/tmp/pair540-postmerge.log).
 
 ## Revisions
+
+### 2026-10-13 — final verification passed
+
+Final `make -k test` exited 0 on the complete final production source, including
+the main merge and compatibility recovery changes; log
+/tmp/pair540-final-full-suite.log. Full couchcmd independently passed (67.803s),
+including strict legacy socket regression. No known-failure exception is needed
+for this final run. Live smoke acceptance and stage clear are recorded above.
+Proceeding through the mandatory close review and normal PR/CI/merge gates.
 
 ### 2026-10-13 — final verification and stage release
 
