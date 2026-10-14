@@ -18,7 +18,6 @@ import (
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"github.com/xianxu/pair/cmd/internal/launcher"
-	"github.com/xianxu/pair/cmd/internal/orientation"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycletest"
 	"github.com/xianxu/pair/cmd/internal/readiness"
@@ -165,8 +164,8 @@ func runRecoveryLiveFixture(t *testing.T, warm bool) {
 	}
 	c.PairLifecycle = &PairLifecycleController{Threads: c.Threads, DataDir: data, Lifecycle: PairLifecycleStoreIO{Store: pairlifecycle.Store{Runtime: pairlifecycle.OSRuntime{}}}, Sessions: checker, Proc: c.Proc, Clock: c.Clock}
 	c.ContinuationSource = (OSContinuationSourceReader{DataDir: data}).Read
-	reader := OSOrientationStatusReader{DataDir: data, Session: checker.PairSession, Proc: OSProcOps{}}
-	c.FreshRegistration, c.OrientationStatus = reader.Registered, reader.Read
+	reader := OSReadyReader{DataDir: data, Session: checker.PairSession, Proc: OSProcOps{}}
+	c.FreshRegistration = reader.Registered
 	c.ContinuationGeneration = reader.Generation
 	agentPIDFile := filepath.Join(base, "source-agent.pid")
 	inputFile := filepath.Join(base, "source-input")
@@ -247,7 +246,7 @@ func runRecoveryLiveFixture(t *testing.T, warm bool) {
 				}
 			}
 		}
-		if profile.Orientation == nil || !profile.FreshRequired {
+		if profile.Prompt == "" || !profile.FreshRequired || profile.FreshNonce == "" {
 			return fmt.Errorf("recovery lost fresh seed")
 		}
 		target, err := ledger.Append(paths.Ledger(), sessionledger.Record{Version: 1, Kind: sessionledger.RecordLaunch, ScopeKey: scope.Key, Tag: string(source.Address.Tag), Agent: "claude"})
@@ -258,15 +257,11 @@ func runRecoveryLiveFixture(t *testing.T, warm bool) {
 		if err != nil {
 			return err
 		}
-		encoded, err := json.Marshal(profile.Orientation)
-		if err != nil {
-			return err
-		}
 		executable, err := os.Executable()
 		if err != nil {
 			return err
 		}
-		script, err := standInPaneScript(base, []string{"PAIR_RECOVERY_LIVE_AGENT=1", orientation.Env + "=" + string(encoded), "PAIR_RECOVERY_LIVE_READY=" + readyPath, "PAIR_RECOVERY_LIVE_ORDINAL=" + strconv.FormatUint(target.Ordinal, 10), "PAIR_RECOVERY_LIVE_CAPTURE=" + filepath.Join(base, "target-seed")}, executable, "TestRecoveryLiveAgentStandIn")
+		script, err := standInPaneScript(base, []string{"PAIR_RECOVERY_LIVE_AGENT=1", "PAIR_RECOVERY_LIVE_PROMPT=" + profile.Prompt, "PAIR_RECOVERY_LIVE_TAG=" + profile.Tag, "PAIR_RECOVERY_LIVE_NONCE=" + profile.FreshNonce, "PAIR_RECOVERY_LIVE_READY=" + readyPath, "PAIR_RECOVERY_LIVE_ORDINAL=" + strconv.FormatUint(target.Ordinal, 10), "PAIR_RECOVERY_LIVE_CAPTURE=" + filepath.Join(base, "target-seed")}, executable, "TestRecoveryLiveAgentStandIn")
 		if err != nil {
 			return err
 		}
@@ -304,15 +299,15 @@ func runRecoveryLiveFixture(t *testing.T, warm bool) {
 		if err != nil || string(captured) != body {
 			t.Fatalf("exact target seed: %q %v", captured, err)
 		}
-		if _, err := c.RetryContinuation(ctx, source.Address, result.Status.RequestID); err != nil {
+		// Registration completed it (#522); continuing again starts nothing.
+		if result.Status.Phase != checkpoint.Complete {
+			t.Fatalf("target receipt: %+v", result.Status)
+		}
+		if _, err := c.Continue(ctx, source.Address, result.Status.RequestID); err != nil {
 			t.Fatal(err)
 		}
 		if starts != 1 {
-			t.Fatalf("retry duplicated a surviving checkpoint target: %d starts", starts)
-		}
-		state, err := c.ReconcileContinuation(ctx, source.Address, result.Status.RequestID, result.Status.Attempt)
-		if err != nil || state.Phase != checkpoint.Complete {
-			t.Fatalf("target receipt: %+v %v", state, err)
+			t.Fatalf("continuing duplicated a surviving checkpoint target: %d starts", starts)
 		}
 	}
 	after, err := c.Threads.GetThread(untouched.Address)
@@ -333,23 +328,13 @@ func TestRecoveryLiveAgentStandIn(t *testing.T) {
 	if os.Getenv("PAIR_RECOVERY_LIVE_AGENT") != "1" {
 		t.Skip("controlled Zellij only")
 	}
-	var request orientation.Request
-	if err := json.Unmarshal([]byte(os.Getenv(orientation.Env)), &request); err != nil {
-		t.Fatal(err)
-	}
-	if err := request.Validate(); err != nil {
-		t.Fatal(err)
-	}
-	quoted, err := strconv.QuotedPrefix(strings.TrimPrefix(request.Body, "Read the saved continuation at "))
-	if err != nil {
-		t.Fatal(err)
-	}
-	path, err := strconv.Unquote(quoted)
+	prompt := os.Getenv("PAIR_RECOVERY_LIVE_PROMPT")
+	path, err := continuationPromptPath(prompt)
 	if err != nil {
 		t.Fatal(err)
 	}
 	cp, err := checkpoint.ReadFile(path)
-	if err != nil || !strings.Contains(request.Body, cp.Digest) {
+	if err != nil {
 		t.Fatalf("exact snapshot %v", err)
 	}
 	if err := os.WriteFile(os.Getenv("PAIR_RECOVERY_LIVE_CAPTURE"), []byte(cp.Body), 0600); err != nil {
@@ -359,7 +344,7 @@ func TestRecoveryLiveAgentStandIn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	raw, err := readiness.Encode(readiness.ReadyRecord{Tag: request.Tag, Agent: request.Agent, Session: os.Getenv("ZELLIJ_SESSION_NAME"), Nonce: request.Attempt, PID: os.Getpid(), LaunchOrdinal: ordinal, Orientation: &orientation.DeliveryState{Phase: orientation.DeliverySubmitted, BodyWritten: true}})
+	raw, err := readiness.Encode(readiness.ReadyRecord{Tag: os.Getenv("PAIR_RECOVERY_LIVE_TAG"), Agent: "claude", Session: os.Getenv("ZELLIJ_SESSION_NAME"), Nonce: os.Getenv("PAIR_RECOVERY_LIVE_NONCE"), PID: os.Getpid(), LaunchOrdinal: ordinal})
 	if err != nil {
 		t.Fatal(err)
 	}

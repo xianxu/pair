@@ -72,7 +72,6 @@ const (
 	ResultStop
 	ResultThread
 	ResultConsole
-	ResultOrientationStatus
 	ResultWorkspace
 	ResultRepositoryAlias
 	ResultRecoverPlan
@@ -215,17 +214,6 @@ func Operations() []Operation {
 			Args: switchAgentArguments(true),
 		},
 		{
-			Name: "orientation-status", Summary: "Read delivery status for one fresh agent launch",
-			Execution: ExecuteLiveOwner, Effect: EffectRead, Confirmation: ConfirmNone, Result: ResultOrientationStatus,
-			Presentation: PresentationTUI,
-			Args: []ArgSpec{
-				{Name: "repo-scope", Summary: "exact thread repository scope", Required: true, Implicit: true},
-				{Name: "tag", Summary: "exact thread tag", Required: true, Implicit: true},
-				{Name: "agent", Summary: "target coding agent", Required: true, Implicit: true},
-				{Name: "attempt", Summary: "unique fresh launch attempt", Required: true, Implicit: true},
-			},
-		},
-		{
 			Name: "start", Summary: "Start an agent on a peer repo (or a subdirectory of one)",
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmNone, Result: ResultStart,
 			Presentation: PresentationTUI,
@@ -283,27 +271,9 @@ func Operations() []Operation {
 			},
 		},
 		{
-			Name: "continue-thread", Summary: "Execute or reconcile an accepted continuation",
+			Name: "continue-thread", Summary: "Execute an accepted continuation, or resume one Couch left mid-way",
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmNone, Result: ResultStart, Presentation: PresentationInternal,
-			Args: continuationArguments(false),
-		},
-		{
-			Name: "retry-continuation", Summary: "Retry the retained continuation without duplicating its target",
-			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmNone, Result: ResultStart, Presentation: PresentationInternal, RowAction: true,
-			Args: continuationArguments(true),
-		},
-		{
-			// A record write that stops nothing: direct-store, and no confirmation,
-			// like retry. Arguments take park's shape -- an optional ref for the CLI
-			// and the exact implicit tag from the switcher, never both (#280).
-			Name: "dismiss-continuation", Summary: "Drop a failed continuation the thread has moved on from",
-			Execution: ExecuteDirectStore, Effect: EffectMetadata, Confirmation: ConfirmNone, Result: ResultThread, Presentation: PresentationInternal, RowAction: true,
-			Args: continuationArguments(true),
-		},
-		{
-			Name: "continuation-status", Summary: "Reconcile the exact continuation delivery receipt",
-			Execution: ExecuteLiveOwner, Effect: EffectMetadata, Confirmation: ConfirmNone, Result: ResultThread, Presentation: PresentationInternal,
-			Args: append(continuationArguments(false), ArgSpec{Name: "attempt", Summary: "exact continuation launch attempt", Implicit: true}),
+			Args: continuationArguments(),
 		},
 		{
 			Name: "publish-description", Summary: "Publish this session's own one-line summary (run by the agent inside its thread)",
@@ -517,16 +487,6 @@ func switchAgentArguments(accepted bool) []ArgSpec {
 	return args
 }
 
-func continuationArguments(operatorFacing bool) []ArgSpec {
-	args := []ArgSpec{{Name: "repo-scope", Summary: "exact repository scope for the continuation", Required: true, Implicit: true}, {Name: "tag", Summary: "exact thread tag supplied by the owner", Implicit: true}, {Name: "request-id", Summary: "stable retained continuation request ID", Required: !operatorFacing, Implicit: true}}
-	// Operator-facing entries (retry, dismiss) are addressed by the switcher's
-	// exact implicit tag or a CLI ref, and default to the retained request.
-	if operatorFacing {
-		// Optional, like park's and detach's: the switcher addresses the row by
-		// its exact implicit tag, and resolveOperationThread refuses a call that
-		// carries both. A required ref forced the switcher to send both, so its
-		// retry never reached the thread (#280).
-		args = append([]ArgSpec{{Name: "ref", Summary: "thread tag or path"}}, args...)
-	}
-	return args
+func continuationArguments() []ArgSpec {
+	return []ArgSpec{{Name: "repo-scope", Summary: "exact repository scope for the continuation", Required: true, Implicit: true}, {Name: "tag", Summary: "exact thread tag supplied by the owner", Implicit: true}, {Name: "request-id", Summary: "stable retained continuation request ID", Required: true, Implicit: true}}
 }

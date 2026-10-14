@@ -6,14 +6,11 @@ import (
 	"errors"
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"github.com/xianxu/pair/cmd/internal/launcher"
-	"github.com/xianxu/pair/cmd/internal/orientation"
-	"github.com/xianxu/pair/cmd/internal/testwait"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 )
 
 type continuationFixture struct {
@@ -21,7 +18,6 @@ type continuationFixture struct {
 	source     ThreadRecord
 	status     ContinuationStatus
 	registered map[string]bool
-	delivery   orientation.DeliveryState
 	launches   int
 }
 
@@ -51,9 +47,6 @@ func newContinuationFixture(t *testing.T) *continuationFixture {
 	env.Couch.FreshRegistration = func(_ context.Context, _ ThreadAddress, _ string, attempt string) (bool, error) {
 		return f.registered[attempt], nil
 	}
-	env.Couch.OrientationStatus = func(context.Context, ThreadAddress, string, string) (orientation.DeliveryState, error) {
-		return f.delivery, nil
-	}
 	env.Runner.AfterAcknowledge = func(id string) error {
 		f.launches++
 		record, err := env.Couch.Threads.GetThread(source.Address)
@@ -63,48 +56,14 @@ func newContinuationFixture(t *testing.T) *continuationFixture {
 		inc := record.Incarnations[0]
 		env.Proc.Set(inc.PID, inc.Identity)
 		env.Artifacts.SetPairSession(source.Address, continuationChildSession(t, env.Runner, id), true)
-		if inc.Start != nil && inc.Start.Nonce == record.Continuation.Attempt {
+		if record.Continuation != nil && inc.Start != nil && inc.Start.Nonce == record.Continuation.Attempt {
 			f.registered[record.Continuation.Attempt] = true
 		}
 		return nil
 	}
 	return f
 }
-func TestContinuationRetryAfterProvedTargetDeath(t *testing.T) {
-	t.Parallel()
 
-	f := newContinuationFixture(t)
-	c := f.env.Couch
-	first, err := c.Continue(context.Background(), f.source.Address, f.status.RequestID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	f.delivery = orientation.DeliveryState{Phase: orientation.DeliveryIndeterminate, BodyWritten: true, Reason: "interrupted"}
-	failed, err := c.ReconcileContinuation(context.Background(), f.source.Address, f.status.RequestID, first.Status.Attempt)
-	if err == nil || failed.Phase != checkpoint.Failed {
-		t.Fatalf("failure %+v %v", failed, err)
-	}
-	// Retry while the target is live reobserves only; uncertain input is never
-	// pasted again and a second helper is not authorized.
-	if _, err := c.RetryContinuation(context.Background(), f.source.Address, f.status.RequestID); err == nil {
-		t.Fatal("uncertain target reported complete")
-	}
-	if f.launches != 1 {
-		t.Fatalf("live target duplicated %d", f.launches)
-	}
-	f.registered[first.Status.Attempt] = false
-	f.env.Proc.Kill(first.Record.PID)
-	f.env.Runner.SetExited(first.Handle.ID(), 0)
-	f.env.Artifacts.SetPairSession(f.source.Address, f.sessionName(t), false)
-	f.delivery = orientation.DeliveryState{}
-	second, err := c.RetryContinuation(context.Background(), f.source.Address, f.status.RequestID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if f.launches != 2 || second.Status.Attempt == first.Status.Attempt || second.Record.Thread != first.Record.Thread {
-		t.Fatalf("retry %+v launches=%d", second, f.launches)
-	}
-}
 func TestContinuationRegistrationCrashReconcilesWithoutSpawn(t *testing.T) {
 	t.Parallel()
 
@@ -115,10 +74,9 @@ func TestContinuationRegistrationCrashReconcilesWithoutSpawn(t *testing.T) {
 		t.Fatal(err)
 	}
 	record, _ := c.Threads.GetThread(f.source.Address)
-	if _, err := c.Threads.updateExistingThread(record.Address, record.Revision, func(next *ThreadRecord) error { next.Continuation.Target = nil; return nil }); err != nil {
+	if _, err := c.Threads.updateExistingThread(record.Address, record.Revision, func(next *ThreadRecord) error { unrecordTarget(next); return nil }); err != nil {
 		t.Fatal(err)
 	}
-	f.delivery = orientation.DeliveryState{Phase: orientation.DeliverySubmitted}
 	again, err := c.Continue(context.Background(), f.source.Address, f.status.RequestID)
 	if err != nil {
 		t.Fatal(err)
@@ -127,27 +85,27 @@ func TestContinuationRegistrationCrashReconcilesWithoutSpawn(t *testing.T) {
 		t.Fatalf("recovery %+v", again)
 	}
 }
-func TestContinuationForkFailureRetainsParkAndSnapshot(t *testing.T) {
+func TestContinuationForkFailureLeavesTheLineAndResumesTheOldConversation(t *testing.T) {
 	t.Parallel()
 
 	f := newContinuationFixture(t)
 	c := f.env.Couch
 	f.env.Runner.FailNextStart(errors.New("fork unavailable"))
-	if _, err := c.Continue(context.Background(), f.source.Address, f.status.RequestID); err == nil {
-		t.Fatal("fork failure ignored")
+	result, err := c.Continue(context.Background(), f.source.Address, f.status.RequestID)
+	if err == nil || result.Missed == nil || !strings.Contains(result.Missed.Reason, "fork unavailable") || result.Missed.TargetMayExist {
+		t.Fatalf("fork failure = %+v, %v", result.Missed, err)
 	}
 	record, err := c.Threads.GetThread(f.source.Address)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if record.VerifiedPark == nil || len(record.Incarnations) != 0 || record.Continuation.Phase != checkpoint.Failed || record.Continuation.Checkpoint.Body == "" {
+	// The park stays the resume authority; the line names the continuation
+	// and blocks nothing.
+	if record.VerifiedPark == nil || len(record.Incarnations) != 0 || record.Continuation != nil || record.ContinuationMissed == nil || record.ContinuationMissed.Path != record.PreviousSession.Continuation && record.ContinuationMissed.Path == "" {
 		t.Fatalf("failure lost state %+v", record)
 	}
-	if _, err := c.RetryContinuation(context.Background(), f.source.Address, f.status.RequestID); err != nil {
-		t.Fatal(err)
-	}
-	if f.launches != 1 {
-		t.Fatalf("retry launches %d", f.launches)
+	if err := continuationGuard(record); err != nil {
+		t.Fatalf("the line blocks: %v", err)
 	}
 }
 
@@ -166,23 +124,18 @@ func TestContinuationWarmTargetRecoveryAfterOwnerDeath(t *testing.T) {
 	record, _ := c.Threads.GetThread(f.source.Address)
 	if _, err := c.Threads.updateExistingThread(record.Address, record.Revision, func(next *ThreadRecord) error {
 		next.Incarnations[0].State = IncarnationUnknown
-		next.Continuation.Target = nil
+		unrecordTarget(next)
 		return nil
 	}); err != nil {
 		t.Fatal(err)
 	}
 	f.env.Artifacts.SetDetachedSession(record.Address, record.SessionBinding.Name)
-	f.delivery = orientation.DeliveryState{Phase: orientation.DeliverySubmitted}
 	recovered, err := c.Continue(context.Background(), record.Address, f.status.RequestID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if recovered.Status.Phase != checkpoint.Running || recovered.Handle == nil || recovered.Record.Shape != StartWarmReattach || recovered.Status.Attempt != first.Status.Attempt {
+	if recovered.Status.Phase != checkpoint.Complete || recovered.Handle == nil || recovered.Record.Shape != StartWarmReattach || recovered.Status.Attempt != first.Status.Attempt {
 		t.Fatalf("warm recovery %+v", recovered)
-	}
-	completed, err := c.ReconcileContinuation(context.Background(), record.Address, f.status.RequestID, first.Status.Attempt)
-	if err != nil || completed.Phase != checkpoint.Complete {
-		t.Fatalf("receipt after adoption %+v %v", completed, err)
 	}
 	child := f.env.Runner.Child(recovered.Handle.ID())
 	for _, arg := range child.Env {
@@ -236,12 +189,7 @@ func TestContinuationArchivePreservesSnapshotRemovesDerivedCopy(t *testing.T) {
 
 	f := newContinuationFixture(t)
 	c := f.env.Couch
-	started, err := c.Continue(context.Background(), f.source.Address, f.status.RequestID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	f.delivery = orientation.DeliveryState{Phase: orientation.DeliverySubmitted}
-	if _, err := c.ReconcileContinuation(context.Background(), f.source.Address, f.status.RequestID, started.Status.Attempt); err != nil {
+	if _, err := c.Continue(context.Background(), f.source.Address, f.status.RequestID); err != nil {
 		t.Fatal(err)
 	}
 	record, _ := c.Threads.GetThread(f.source.Address)
@@ -257,96 +205,6 @@ func TestContinuationArchivePreservesSnapshotRemovesDerivedCopy(t *testing.T) {
 	archived, err := c.Threads.ArchivedThreads()
 	if err != nil || len(archived) != 1 || archived[0].Continuation.Checkpoint.Body != record.Continuation.Checkpoint.Body {
 		t.Fatalf("archive lost snapshot %+v %v", archived, err)
-	}
-}
-
-func TestContinuationRetryDoesNotStealUnrecordedHelperFromLiveOwner(t *testing.T) {
-	t.Parallel()
-
-	f := newContinuationFixture(t)
-	c := f.env.Couch
-	f.env.Runner.FailNextStart(errors.New("fork unavailable"))
-	if _, err := c.Continue(context.Background(), f.source.Address, f.status.RequestID); err == nil {
-		t.Fatal("expected fork failure")
-	}
-	record, _ := c.Threads.GetThread(f.source.Address)
-	attempt := "start-1234567890abcdef"
-	record, err := c.Threads.AdvanceContinuation(record.Address, record.Revision, checkpoint.Event{Kind: checkpoint.RetryAbsent, RequestID: f.status.RequestID, Attempt: attempt})
-	if err != nil {
-		t.Fatal(err)
-	}
-	owner, _ := c.Proc.Current()
-	record, err = c.Threads.CommitStartClaim(record.Address, record.Revision, "repo", c.Clock.Now(), StartEvent{Kind: StartClaimed, Nonce: attempt, Owner: SupervisorOwner{PID: owner.PID, Identity: owner.Identity}, Profile: record.LatestLaunchProfile, Shape: StartFreshExisting})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = c.Threads.AdvanceContinuation(record.Address, record.Revision, checkpoint.Event{Kind: checkpoint.Fail, RequestID: f.status.RequestID, Attempt: attempt, Failure: "interrupted before helper record"}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err = c.RetryContinuation(context.Background(), record.Address, f.status.RequestID); err == nil {
-		t.Fatal("stole claim while owner could still fork")
-	}
-	if f.launches != 0 {
-		t.Fatal("launched duplicate owner")
-	}
-}
-
-func TestContinuationUnconfirmedSubmissionTimesOutDurably(t *testing.T) {
-	t.Parallel()
-
-	f := newContinuationFixture(t)
-	c := f.env.Couch
-	result, err := c.Continue(context.Background(), f.source.Address, f.status.RequestID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	c.Clock = FixedClock{T: f.env.Now.Add(31 * time.Second)}
-	status, err := c.ReconcileContinuation(context.Background(), f.source.Address, f.status.RequestID, result.Status.Attempt)
-	if err == nil || status.Phase != checkpoint.Failed {
-		t.Fatalf("unconfirmed receipt never timed out: %+v %v", status, err)
-	}
-	record, _ := c.Threads.GetThread(f.source.Address)
-	if record.Continuation.Target == nil || record.Continuation.Checkpoint.Body == "" {
-		t.Fatal("timeout lost recovery evidence")
-	}
-}
-
-func TestContinuationRetrySessionObservationHonorsCancellation(t *testing.T) {
-	t.Parallel()
-
-	f := newContinuationFixture(t)
-	c := f.env.Couch
-	first, err := c.Continue(context.Background(), f.source.Address, f.status.RequestID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	f.delivery = orientation.DeliveryState{Phase: orientation.DeliveryIndeterminate, BodyWritten: true, Reason: "interrupted"}
-	if _, err := c.ReconcileContinuation(context.Background(), f.source.Address, f.status.RequestID, first.Status.Attempt); err == nil {
-		t.Fatal("expected failed delivery")
-	}
-	f.registered[first.Status.Attempt] = false
-	f.env.Proc.Kill(first.Record.PID)
-	f.env.Runner.SetExited(first.Handle.ID(), 0)
-	f.env.Artifacts.SetPairSession(f.source.Address, f.sessionName(t), false)
-	before, _ := c.Threads.GetThread(f.source.Address)
-	// Cancel only once observation starts: preflight filesystem work must not
-	// race the 20 ms deadline this test previously used.
-	ctx, cancel := context.WithTimeout(context.Background(), testwait.Budget(t))
-	defer cancel()
-	observed := false
-	c.Artifacts = recoveryContextArtifacts{FakeThreadArtifactCollisionChecker: f.env.Artifacts, observe: func(ctx context.Context, _ ThreadAddress) (PairSessionBinding, error) {
-		observed = true
-		if _, ok := ctx.Deadline(); !ok {
-			return PairSessionBinding{}, errors.New("caller deadline lost")
-		}
-		cancel()
-		<-ctx.Done()
-		return PairSessionBinding{}, ctx.Err()
-	}}
-	_, err = c.RetryContinuation(ctx, f.source.Address, f.status.RequestID)
-	after, _ := c.Threads.GetThread(f.source.Address)
-	if !observed || !errors.Is(err, context.Canceled) || after.Revision != before.Revision || f.launches != 1 {
-		t.Fatalf("observation=%v err=%v revision=%d→%d launches=%d", observed, err, before.Revision, after.Revision, f.launches)
 	}
 }
 
@@ -367,7 +225,7 @@ func TestRegisteredUnknownTargetRecoveryInterruptionAndProofRefusals(t *testing.
 			record, _ := c.Threads.GetThread(f.source.Address)
 			record, err = c.Threads.updateExistingThread(record.Address, record.Revision, func(next *ThreadRecord) error {
 				next.Incarnations[0].State = IncarnationUnknown
-				next.Continuation.Target = nil
+				unrecordTarget(next)
 				return nil
 			})
 			if err != nil {
@@ -489,6 +347,7 @@ func TestContinuationRegisteredTargetUsesNewTerminalBinding(t *testing.T) {
 		t.Fatal("fixture did not allocate a distinct target terminal")
 	}
 	record.Incarnations[0].State = IncarnationUnknown
+	unrecordTarget(&record)
 	proof := RegisteredTargetProof{RequestID: record.Continuation.ID, Agent: record.Continuation.Source.Agent, Session: record.Continuation.Source.Session, Attempt: first.Status.Attempt, Helper: ProcessIdentity{PID: first.Record.PID, Identity: first.Record.Identity}}
 	if _, err := ReconcileRegisteredTarget(record, proof); err == nil {
 		t.Fatal("previous source session authorized target retirement")
@@ -505,5 +364,39 @@ func TestContinuationRegisteredTargetUsesNewTerminalBinding(t *testing.T) {
 		if (err == nil) != (session == record.SessionBinding.Name) {
 			t.Fatalf("target generation session=%q err=%v", session, err)
 		}
+	}
+}
+
+// unrecordTarget models Couch dying after the target registered and before it
+// recorded that: the request is still running and names no target.
+func unrecordTarget(next *ThreadRecord) {
+	next.Continuation.Phase = checkpoint.Running
+	next.Continuation.Target = nil
+}
+
+// BR-1 (#522 M1 review): when the compaction's previous-session write fails
+// after the source was parked, the request still ends as the thread's line --
+// the error path keeps its record rather than replacing it.
+func TestAFailedPreviousSessionWriteLeavesTheLine(t *testing.T) {
+	t.Parallel()
+
+	f := newContinuationFixture(t)
+	c := f.env.Couch
+	c.Threads.hooks.BeforeUpdate = func(current, next ThreadRecord) error {
+		if next.PreviousSession != nil && next.PreviousSession.Continuation != "" && (current.PreviousSession == nil || current.PreviousSession.Continuation == "") {
+			return errors.New("injected previous-session write failure")
+		}
+		return nil
+	}
+	result, err := c.Continue(context.Background(), f.source.Address, f.status.RequestID)
+	if err == nil || result.Missed == nil || !strings.Contains(result.Missed.Reason, "injected previous-session write failure") {
+		t.Fatalf("= %+v, %v; want the line", result.Missed, err)
+	}
+	if f.launches != 0 {
+		t.Fatalf("a target launched after the failure: %d", f.launches)
+	}
+	record, err := c.Threads.GetThread(f.source.Address)
+	if err != nil || record.Continuation != nil || record.ContinuationMissed == nil || record.VerifiedPark == nil {
+		t.Fatalf("after: %+v / %+v, %v", record.Continuation, record.ContinuationMissed, err)
 	}
 }

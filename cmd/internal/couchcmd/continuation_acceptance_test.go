@@ -15,14 +15,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/creack/pty"
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/launcher"
-	"github.com/xianxu/pair/cmd/internal/orientation"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/cmd/internal/readiness"
@@ -313,7 +311,7 @@ func runContinuationPublicationAcceptance(t *testing.T, pair, helper, assetRoot,
 	if err != nil || retained.Continuation == nil || retained.Continuation.Checkpoint.Body != committed {
 		t.Fatalf("request depends on removed worktree file: %v", err)
 	}
-	completeContinuationAcceptance(t, rt, c, retained, handle, data, scope, committed, mode)
+	completeContinuationAcceptance(t, rt, c, retained, handle, data, scope, committed, pair)
 	if got, err := os.ReadFile(paths.Log()); err != nil || string(got) != "PROMPT-HISTORY-EXACT-249\n" {
 		t.Fatalf("handoff replaced prompt history: %q %v", got, err)
 	}
@@ -335,7 +333,7 @@ func (l *continuationAcceptanceLifecycle) PublishRequest(paths artifactpath.Life
 	return l.PairLifecycleStoreIO.PublishRequest(paths, request)
 }
 
-func completeContinuationAcceptance(t *testing.T, rt testRT, c *couchcore.Couch, source couchcore.ThreadRecord, old couchcore.Handle, data string, scope launcher.RepoScope, committed string, mode string) {
+func completeContinuationAcceptance(t *testing.T, rt testRT, c *couchcore.Couch, source couchcore.ThreadRecord, old couchcore.Handle, data string, scope launcher.RepoScope, committed string, pair string) {
 	t.Helper()
 	lifecycle := &continuationAcceptanceLifecycle{PairLifecycleStoreIO: couchcore.PairLifecycleStoreIO{Store: pairlifecycle.Store{Runtime: pairlifecycle.OSRuntime{}}}}
 	c.PairLifecycle = &couchcore.PairLifecycleController{Threads: c.Threads, DataDir: data, Lifecycle: lifecycle, Sessions: rt.artifacts, Proc: rt.proc, Clock: c.Clock, Nonce: func() (string, error) { return "acceptance-park-249", nil }, CompletionTimeout: time.Second, PollInterval: time.Millisecond}
@@ -360,10 +358,10 @@ func completeContinuationAcceptance(t *testing.T, rt testRT, c *couchcore.Couch,
 	if err != nil {
 		t.Fatal(err)
 	}
-	reader := couchcore.OSOrientationStatusReader{DataDir: data, Session: rt.artifacts.PairSession, Proc: rt.proc}
-	c.FreshRegistration, c.OrientationStatus = reader.Registered, reader.Read
+	reader := couchcore.OSReadyReader{DataDir: data, Session: rt.artifacts.PairSession, Proc: rt.proc}
+	c.FreshRegistration = reader.Registered
 	var ready readiness.ReadyRecord
-	var targetSeed string
+	var targetSeed, targetProfile, prompt string
 	rt.runner.AfterAcknowledge = func(id string) error {
 		record, err := c.Threads.GetThread(source.Address)
 		if err != nil {
@@ -387,10 +385,20 @@ func completeContinuationAcceptance(t *testing.T, rt testRT, c *couchcore.Couch,
 		if !profile.FreshRequired || profile.ResumeRequired || profile.RequiredSessionID != "" || profile.Tag != string(source.Address.Tag) || profile.Agent != "claude" {
 			return fmt.Errorf("replacement lost fresh launch identity: %+v", profile)
 		}
-		if profile.Orientation == nil || profile.Orientation.Attempt != record.Continuation.Attempt {
-			return fmt.Errorf("target lost orientation attempt")
+		if profile.FreshNonce != record.Continuation.Attempt || profile.Prompt == "" {
+			return fmt.Errorf("target lost its attempt or launch prompt: %+v", profile)
 		}
-		quoted, err := strconv.QuotedPrefix(strings.TrimPrefix(profile.Orientation.Body, "Read the saved continuation at "))
+		for _, entry := range child.Env {
+			if raw, ok := strings.CutPrefix(entry, launcher.CouchLaunchProfileEnv+"="); ok {
+				targetProfile = raw
+			}
+		}
+		prompt = profile.Prompt
+		rest, ok := strings.CutPrefix(profile.Prompt, "Continue from the saved continuation at ")
+		if !ok {
+			return fmt.Errorf("not a continuation prompt: %q", profile.Prompt)
+		}
+		quoted, err := strconv.QuotedPrefix(rest)
 		if err != nil {
 			return err
 		}
@@ -402,14 +410,14 @@ func completeContinuationAcceptance(t *testing.T, rt testRT, c *couchcore.Couch,
 		if err != nil {
 			return err
 		}
-		if seed.Body != committed || seed.Digest != source.Continuation.Checkpoint.Digest || !strings.Contains(profile.Orientation.Body, seed.Digest) {
+		if seed.Body != committed || seed.Digest != source.Continuation.Checkpoint.Digest {
 			return fmt.Errorf("fresh target received different checkpoint")
 		}
 		inc := record.Incarnations[0]
 		rt.proc.Set(inc.PID, inc.Identity)
 		targetSession := managedChildSession(t, rt.runner, id)
 		rt.artifacts.SetPairSession(source.Address, targetSession, true)
-		ready = readiness.ReadyRecord{Tag: string(source.Address.Tag), Agent: "claude", Nonce: record.Continuation.Attempt, Session: targetSession, PID: inc.PID, Orientation: &orientation.DeliveryState{Phase: orientation.DeliveryWaiting}}
+		ready = readiness.ReadyRecord{Tag: string(source.Address.Tag), Agent: "claude", Nonce: record.Continuation.Attempt, Session: targetSession, PID: inc.PID}
 		raw, err := readiness.Encode(ready)
 		if err != nil {
 			return err
@@ -417,42 +425,14 @@ func completeContinuationAcceptance(t *testing.T, rt testRT, c *couchcore.Couch,
 		return os.WriteFile(readyPath, []byte(raw), 0600)
 	}
 	var start couchcore.StartResult
-	if mode == "warm-reattached" {
-		// Explicit retry bootstraps a real owner lease and reaches the same attachment
-		// finisher used by initial CLI launch, with the accepted on-disk request.
-		master, slave, err := pty.Open()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := pty.Setsize(slave, &pty.Winsize{Rows: 24, Cols: 80}); err != nil {
-			t.Fatal(err)
-		}
-		defer master.Close()
-		defer slave.Close()
-		op, _ := Resolve("retry-continuation")
-		var stdout, stderr bytes.Buffer
-		rt.currentRepoScope = scope.Key
-		runtime := continuationPublicationRuntime{testRT: rt, dataDir: data, owner: c}
-		finish := func(console *couchtty.Console, owner *couchcore.Couch, got couchcore.StartResult, _ io.Writer) int {
-			defer console.Stop()
-			if rt.supervisor.acquired != 1 || rt.supervisor.released != 0 || owner != c {
-				t.Error("retry finisher lacks live owner lease")
-			}
-			wireResolver(console, owner)
-			if err := dispatchInitialAttach(console, got); err != nil {
-				t.Fatalf("retry attachment while lease held: %v", err)
-			}
-			start = got
-			return 0
-		}
-		code := runTypedOperationWithConsole(op, map[string]string{"ref": string(source.Address.Tag)}, nil, true, "", slave, slave, slave, &stdout, &stderr, runtime, finish)
-		if code != 0 || rt.supervisor.acquired != 1 || rt.supervisor.released != 1 {
-			t.Fatalf("retry owner bootstrap: code=%d lease=%+v stderr=%s", code, rt.supervisor, stderr.String())
-		}
-	} else {
+	{
 		result, err := c.Continue(context.Background(), source.Address, source.Continuation.ID)
 		if err != nil {
 			t.Fatal(err)
+		}
+		// Registration completes it (#522): the prompt was part of the launch.
+		if result.Status.Phase != checkpoint.Complete {
+			t.Fatalf("not complete at registration: %+v", result.Status)
 		}
 		var ok bool
 		start, ok = result.Started()
@@ -464,21 +444,22 @@ func completeContinuationAcceptance(t *testing.T, rt testRT, c *couchcore.Couch,
 		t.Fatalf("wrong replacement: %+v", start)
 	}
 	t.Cleanup(func() { rt.runner.SetExited(start.Handle.ID(), 0) })
-	state, err := c.ReconcileContinuation(context.Background(), source.Address, source.Continuation.ID, ready.Nonce)
-	if err != nil || state.Phase != checkpoint.Running {
-		t.Fatalf("registration must wait for submission: %+v %v", state, err)
+	// The production layout stanza and wrapper exec the agent with the prompt
+	// as its first argument, exactly once (#522).
+	output := filepath.Join(t.TempDir(), "argv")
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	command := exec.CommandContext(ctx, "go", "test", "../launcher", "-run", "^TestCouchLaunchPromptTransportHelper$", "-count=1", "-v")
+	command.Env = append(os.Environ(), "PAIR184_ACCEPT_PROFILE="+targetProfile, "PAIR184_ACCEPT_OUTPUT="+output, "PAIR184_ACCEPT_BINARY="+pair)
+	if out, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("production transport failed: %v\n%s", err, out)
 	}
-	ready.Orientation = &orientation.DeliveryState{Phase: orientation.DeliverySubmitted, BodyWritten: true}
-	raw, err := readiness.Encode(ready)
+	argv, err := os.ReadFile(output)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(readyPath, []byte(raw), 0600); err != nil {
-		t.Fatal(err)
-	}
-	state, err = c.ReconcileContinuation(context.Background(), source.Address, source.Continuation.ID, ready.Nonce)
-	if err != nil || state.Phase != checkpoint.Complete {
-		t.Fatalf("target receipt incomplete: %+v %v", state, err)
+	if args := strings.Split(string(argv), "\x00"); len(args) == 0 || args[0] != prompt || strings.Count(string(argv), prompt) != 1 {
+		t.Fatalf("agent argv %q, want the prompt first and once", args)
 	}
 	if got, err := os.ReadFile(targetSeed); err != nil || string(got) != committed {
 		t.Fatalf("materialized exact snapshot: %v", err)

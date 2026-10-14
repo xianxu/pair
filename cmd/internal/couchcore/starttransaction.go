@@ -105,6 +105,9 @@ func AdvanceStartTransaction(record ThreadRecord, event StartEvent) (ThreadRecor
 			// Pair registration is the commit point for a resume. Until this
 			// transition the verified park remains the rollback authority.
 			next.VerifiedPark = nil
+			// A conversation is running again: the line a compaction that
+			// didn't finish left has been acted on (#522).
+			next.ContinuationMissed = nil
 			// Record the layout witness in the SAME transaction that commits
 			// the start, so there is no second write and no expectedRevision to
 			// reconcile against a revision this CAS has just moved. nil means a
@@ -268,7 +271,7 @@ type RegisteredTargetProof struct {
 // receipt can explain its finished start without making its dead process Live.
 func ReconcileRegisteredTarget(record ThreadRecord, proof RegisteredTargetProof) (ThreadRecord, error) {
 	request := record.Continuation
-	if request == nil || (request.Phase != checkpoint.Running && request.Phase != checkpoint.Failed) || request.ID != proof.RequestID || proof.Attempt == "" || request.Attempt != proof.Attempt || request.Source.Agent != proof.Agent || continuationTargetSession(record) != proof.Session {
+	if request == nil || request.Phase != checkpoint.Running || request.ID != proof.RequestID || proof.Attempt == "" || request.Attempt != proof.Attempt || request.Source.Agent != proof.Agent || continuationTargetSession(record) != proof.Session {
 		return ThreadRecord{}, errors.New("registered target proof does not match the current continuation")
 	}
 	if record.Park != nil || len(record.Incarnations) != 1 {

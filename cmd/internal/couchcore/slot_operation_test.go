@@ -436,7 +436,7 @@ func TestReloadContextRefusesWhenNoLongerLive(t *testing.T) {
 	probe := &fakeLiveRestartProbe{}
 	env.Couch.LiveRestart = probe
 	env.Proc.Kill(5151)
-	if _, err := env.Couch.Threads.RetireProvedDeadIncarnations(created.Address, created.Revision); err != nil {
+	if _, err := env.Couch.Threads.updateExistingThread(created.Address, created.Revision, func(next *ThreadRecord) error { next.Incarnations = nil; return nil }); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := env.Couch.ReloadContext(context.Background(), created.Address, false); slotOperationCode(err) != LiveRestartNotLive || len(probe.restarts) != 0 {

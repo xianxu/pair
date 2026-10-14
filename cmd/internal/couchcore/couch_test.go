@@ -506,7 +506,7 @@ exit 0
 		if err != nil {
 			return err
 		}
-		if profile.FreshRequired || profile.ResumeRequired || profile.Orientation != nil || environmentValue(child.Env, "COUCH_THREAD_RESUME") != "" {
+		if profile.FreshRequired || profile.ResumeRequired || profile.Prompt != "" || environmentValue(child.Env, "COUCH_THREAD_RESUME") != "" {
 			return fmt.Errorf("new address received existing-conversation profile: %+v", profile)
 		}
 		thread, err := couch.Threads.GetThread(address)

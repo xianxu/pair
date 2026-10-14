@@ -9,7 +9,6 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/xianxu/pair/cmd/internal/orientation"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/strictjson"
 )
@@ -45,17 +44,17 @@ func RequireNativeResumeBinding(required, actual string, status sessioninventory
 }
 
 type TrustedLaunchProfile struct {
-	FreshNonce        string               `json:"fresh_nonce,omitempty"`
-	Orientation       *orientation.Request `json:"orientation,omitempty"`
-	SchemaVersion     int                  `json:"schema_version"`
-	Tag               string               `json:"tag"`
-	Agent             string               `json:"agent"`
-	Argv              []string             `json:"argv"`
-	AgentSource       string               `json:"agent_source"`
-	ArgvSource        string               `json:"argv_source"`
-	FreshRequired     bool                 `json:"fresh_required,omitempty"`
-	ResumeRequired    bool                 `json:"resume_required,omitempty"`
-	RequiredSessionID string               `json:"required_session_id,omitempty"`
+	FreshNonce        string   `json:"fresh_nonce,omitempty"`
+	Prompt            string   `json:"prompt,omitempty"`
+	SchemaVersion     int      `json:"schema_version"`
+	Tag               string   `json:"tag"`
+	Agent             string   `json:"agent"`
+	Argv              []string `json:"argv"`
+	AgentSource       string   `json:"agent_source"`
+	ArgvSource        string   `json:"argv_source"`
+	FreshRequired     bool     `json:"fresh_required,omitempty"`
+	ResumeRequired    bool     `json:"resume_required,omitempty"`
+	RequiredSessionID string   `json:"required_session_id,omitempty"`
 }
 
 func BuildCouchLaunchProfile(tag, agent string, argv []string, agentSource, argvSource string) (string, error) {
@@ -112,14 +111,14 @@ func ValidateTrustedLaunchProfile(profile TrustedLaunchProfile) error {
 		if !profile.FreshRequired || len(profile.FreshNonce) > 1024 || !utf8.ValidString(profile.FreshNonce) || strings.IndexFunc(profile.FreshNonce, unicode.IsControl) >= 0 {
 			return fmt.Errorf("invalid fresh launch nonce")
 		}
-		if profile.Orientation != nil && profile.Orientation.Attempt != profile.FreshNonce {
-			return fmt.Errorf("orientation attempt does not match fresh launch nonce")
-		}
 	}
 
-	if profile.Orientation != nil {
-		if !profile.FreshRequired || !profile.Orientation.Matches(profile.Tag, profile.Agent, profile.Orientation.Attempt) {
-			return fmt.Errorf("orientation requires a matching fresh launch")
+	if profile.Prompt != "" {
+		if !profile.FreshRequired {
+			return fmt.Errorf("a launch prompt requires a fresh launch")
+		}
+		if err := ValidatePrompt(profile.Prompt); err != nil {
+			return err
 		}
 	}
 
@@ -189,7 +188,7 @@ func ApplyCouchLaunchProfile(args LaunchArgs, raw string) (LaunchArgs, string, e
 	}
 	args.AgentArgsExplicit = true
 	args.AgentArgsFromCouch = true
-	args.Orientation = profile.Orientation
+	args.Prompt = profile.Prompt
 	args.FreshRequired = profile.FreshRequired
 	args.FreshNonce = profile.FreshNonce
 	args.ResumeRequired = profile.ResumeRequired

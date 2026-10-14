@@ -7,7 +7,6 @@ type automaticInputPhase uint8
 
 const (
 	automaticInputIdle automaticInputPhase = iota
-	automaticInputOrientation
 	automaticInputPeer
 	automaticInputAwaitingEmpty
 )

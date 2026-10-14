@@ -57,7 +57,7 @@ type peerDelivery struct {
 	view      peerView
 	viewProbe func() bool
 	exited    bool
-	replies   orientationReplies
+	replies   terminalReplies
 	wake      chan struct{}
 	notices   chan string
 	// session receives every observation change (#365); nil outside Couch.

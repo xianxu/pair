@@ -10,7 +10,6 @@ import (
 
 	"encoding/json"
 	"github.com/xianxu/pair/cmd/internal/launcher"
-	"github.com/xianxu/pair/cmd/internal/orientation"
 	"github.com/xianxu/pair/cmd/internal/panebirth"
 )
 
@@ -25,7 +24,10 @@ type trackedThreadLaunch struct {
 	UseRepoDefault bool
 	Resume         bool
 	Fresh          bool
-	Orientation    *orientation.Request
+	// Prompt is a fresh launch's one-time first message (#522). It reaches
+	// the trusted profile only: never StartArgs, the start claim or any
+	// saved launch profile, so nothing can replay it.
+	Prompt string
 	// Warm marks a REATTACH: the agent is alive behind a client-less zellij
 	// session and Pair only has to attach to it.
 	Warm bool
@@ -113,27 +115,19 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	if in.Resume || in.Fresh {
 		env = append(env, "COUCH_THREAD_RESUME=1")
 	}
-	if in.Fresh || in.Orientation != nil {
-		var err error
-		if in.Orientation != nil {
-			err = in.Orientation.Validate()
-		}
-		var raw []byte
-		if err != nil {
-			return ActorRecord{}, nil, rollback(thread, err)
-		}
+	if in.Fresh || in.Prompt != "" {
 		var profile launcher.TrustedLaunchProfile
 		if err := json.Unmarshal([]byte(in.ProfileRaw), &profile); err != nil {
 			return ActorRecord{}, nil, rollback(thread, err)
 		}
-		profile.Orientation = in.Orientation
+		profile.Prompt = in.Prompt
 		if in.Fresh {
 			profile.FreshNonce = in.Nonce
 		}
 		if err := launcher.ValidateTrustedLaunchProfile(profile); err != nil {
 			return ActorRecord{}, nil, rollback(thread, err)
 		}
-		raw, err = json.Marshal(profile)
+		raw, err := json.Marshal(profile)
 		if err != nil {
 			return ActorRecord{}, nil, rollback(thread, err)
 		}
@@ -669,13 +663,13 @@ func (c *Couch) sessionBindingForLaunch(ctx context.Context, thread ThreadRecord
 var errFreshNonceUnreachable = errors.New("fresh launch nonce cannot reach Pair")
 
 // freshNonceReachesPair checks the nonce before launchTrackedThread writes it to
-// the trusted profile. An optional orientation must name that same attempt.
+// the trusted profile.
 func freshNonceReachesPair(in trackedThreadLaunch) error {
 	if !in.Fresh {
 		return nil
 	}
-	if in.Nonce == "" || (in.Orientation != nil && in.Orientation.Attempt != in.Nonce) {
-		return fmt.Errorf("%w: fresh launch requires a nonce matching any orientation attempt", errFreshNonceUnreachable)
+	if in.Nonce == "" {
+		return fmt.Errorf("%w: fresh launch requires a nonce", errFreshNonceUnreachable)
 	}
 	return nil
 }

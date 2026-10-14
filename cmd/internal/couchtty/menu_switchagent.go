@@ -199,11 +199,7 @@ func renderSwitchAgentMenu(frame MenuFrame, width, height int) []string {
 }
 
 func menuActionsFor(state MenuState, thread couchcore.ActionableThreadSummary) []string {
-	items := menuActionItems(thread)
-	if _, ok := state.Orientation[thread.Address]; ok {
-		items = append(items, "copy-orientation")
-	}
-	return items
+	return menuActionItems(thread)
 }
 
 func invalidateSwitchEdit(state *MenuState, frame *MenuFrame) {

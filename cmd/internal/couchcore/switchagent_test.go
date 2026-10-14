@@ -328,7 +328,7 @@ func TestSwitchAgentUsesSharedStartingPathPreferenceAndPreservesOtherAgents(t *t
 					}
 				}
 			}
-			if !profile.FreshRequired || profile.ResumeRequired || profile.Orientation != nil || profile.FreshNonce == "" {
+			if !profile.FreshRequired || profile.ResumeRequired || profile.Prompt != "" || profile.FreshNonce == "" {
 				t.Fatal(profile)
 			}
 		})

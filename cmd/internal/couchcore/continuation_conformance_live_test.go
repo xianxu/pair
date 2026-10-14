@@ -4,7 +4,9 @@ package couchcore
 // The deterministic pane checks the exact materialized seed and emits the same
 // readiness wire schema as pair-wrap. Source parking and blocked-helper process
 // ownership remain fake here; the existing park conformance checks real teardown.
-// No paid agent runs, and this does not claim real composer recognition/submission.
+// No paid agent runs. The launch prompt (#522) reaches the stand-in exactly as
+// the trusted profile carries it; the wrapper's exec of it is pinned by
+// launcher's TestCreateLayoutWrapperPreservesAgentCommand.
 
 import (
 	"context"
@@ -21,7 +23,6 @@ import (
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"github.com/xianxu/pair/cmd/internal/launcher"
-	"github.com/xianxu/pair/cmd/internal/orientation"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycletest"
 	"github.com/xianxu/pair/cmd/internal/readiness"
 )
@@ -56,9 +57,8 @@ func TestContinuationZellijSeedTransportLive(t *testing.T) {
 	dataDir := t.TempDir()
 	indexSessionForConformance(t, dataDir, source.Address, session)
 	checker := NewScopedThreadArtifactCollisionChecker(dataDir)
-	reader := OSOrientationStatusReader{DataDir: dataDir, Session: checker.PairSession, Proc: OSProcOps{}}
+	reader := OSReadyReader{DataDir: dataDir, Session: checker.PairSession, Proc: OSProcOps{}}
 	env.Couch.FreshRegistration = reader.Registered
-	env.Couch.OrientationStatus = reader.Read
 	paths, err := artifactpath.Resolve(artifactpath.Address{DataDir: dataDir, RepoScope: source.Address.RepoScope, Tag: string(source.Address.Tag)})
 	if err != nil {
 		t.Fatal(err)
@@ -71,7 +71,6 @@ func TestContinuationZellijSeedTransportLive(t *testing.T) {
 		t.Fatal(err)
 	}
 	captured := filepath.Join(t.TempDir(), "captured.md")
-	release := filepath.Join(t.TempDir(), "submit")
 	executable, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)
@@ -79,30 +78,22 @@ func TestContinuationZellijSeedTransportLive(t *testing.T) {
 	scriptDir := t.TempDir()
 	env.Runner.AfterAcknowledge = func(id string) error {
 		child := env.Runner.Child(id)
-		raw := ""
+		var profile launcher.TrustedLaunchProfile
 		for _, entry := range child.Env {
 			if strings.HasPrefix(entry, launcher.CouchLaunchProfileEnv+"=") {
-				var profile launcher.TrustedLaunchProfile
 				if err := json.Unmarshal([]byte(strings.TrimPrefix(entry, launcher.CouchLaunchProfileEnv+"=")), &profile); err != nil {
 					return err
 				}
-				if profile.Orientation != nil {
-					encoded, err := json.Marshal(profile.Orientation)
-					if err != nil {
-						return err
-					}
-					raw = string(encoded)
-				}
 			}
 		}
-		if raw == "" {
-			return fmt.Errorf("fresh target received no orientation request")
+		if profile.Prompt == "" || profile.FreshNonce == "" {
+			return fmt.Errorf("fresh target received no launch prompt: %+v", profile)
 		}
 		script, err := standInPaneScript(scriptDir, []string{
-			"PAIR_CONTINUATION_LIVE_HELPER=1", orientation.Env + "=" + raw,
+			"PAIR_CONTINUATION_LIVE_HELPER=1", "PAIR_CONTINUATION_LIVE_PROMPT=" + profile.Prompt,
+			"PAIR_CONTINUATION_LIVE_TAG=" + profile.Tag, "PAIR_CONTINUATION_LIVE_NONCE=" + profile.FreshNonce,
 			"PAIR_CONTINUATION_LIVE_SEED=" + mustContinuationPath(t, env.Couch, source.Address),
 			"PAIR_CONTINUATION_LIVE_READY=" + readyPath, "PAIR_CONTINUATION_LIVE_CAPTURE=" + captured,
-			"PAIR_CONTINUATION_LIVE_RELEASE=" + release,
 		}, executable, "TestContinuationZellijAgentStandIn")
 		if err != nil {
 			return err
@@ -117,8 +108,9 @@ func TestContinuationZellijSeedTransportLive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Status.Phase != checkpoint.Running || result.Orientation == nil {
-		t.Fatalf("registration completed too early: %+v", result)
+	// Registration completes it (#522): the prompt was part of the launch.
+	if result.Status.Phase != checkpoint.Complete || result.Missed != nil {
+		t.Fatalf("registration did not complete the request: %+v", result)
 	}
 	if got, err := os.ReadFile(captured); err != nil || string(got) != body {
 		t.Fatalf("pane seed = %q, %v", got, err)
@@ -137,28 +129,6 @@ func TestContinuationZellijSeedTransportLive(t *testing.T) {
 	if matched, err := reader.Registered(ctx, source.Address, "claude", "obsolete-attempt"); err != nil || matched {
 		t.Fatalf("obsolete target matched: %v, %v", matched, err)
 	}
-	env.Proc.Set(result.Record.PID, result.Record.Identity)
-	pending, err := env.Couch.ReconcileContinuation(ctx, source.Address, accepted.RequestID, result.Status.Attempt)
-	if err != nil || pending.Phase != checkpoint.Running {
-		t.Fatalf("waiting receipt = %+v, %v", pending, err)
-	}
-	if err := os.WriteFile(release, []byte("submit"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	for {
-		completed, err := env.Couch.ReconcileContinuation(ctx, source.Address, accepted.RequestID, result.Status.Attempt)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if completed.Phase == checkpoint.Complete {
-			break
-		}
-		select {
-		case <-ctx.Done():
-			t.Fatal(ctx.Err())
-		case <-time.After(25 * time.Millisecond):
-		}
-	}
 	// The retained receipt is not authority once its exact Zellij session is gone.
 	if err := checker.Quiesce(source.Address); err != nil {
 		t.Fatal(err)
@@ -174,44 +144,25 @@ func TestContinuationZellijAgentStandIn(t *testing.T) {
 	if os.Getenv("PAIR_CONTINUATION_LIVE_HELPER") != "1" {
 		t.Skip("launched only in the controlled Zellij pane")
 	}
-	var request orientation.Request
-	if err := json.Unmarshal([]byte(os.Getenv(orientation.Env)), &request); err != nil {
-		t.Fatal(err)
-	}
-	if err := request.Validate(); err != nil {
-		t.Fatal(err)
-	}
+	prompt := os.Getenv("PAIR_CONTINUATION_LIVE_PROMPT")
 	path := os.Getenv("PAIR_CONTINUATION_LIVE_SEED")
 	seed, err := checkpoint.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(request.Body, strconv.Quote(path)) || !strings.Contains(request.Body, seed.Digest) {
-		t.Fatal("orientation does not bind the exact checkpoint path and digest")
+	if !strings.Contains(prompt, strconv.Quote(path)) || strings.ContainsAny(prompt, "\r\n") {
+		t.Fatalf("the launch prompt does not name the exact continuation in one line: %q", prompt)
 	}
 	if err := os.WriteFile(os.Getenv("PAIR_CONTINUATION_LIVE_CAPTURE"), []byte(seed.Body), 0600); err != nil {
 		t.Fatal(err)
 	}
-	ready := readiness.ReadyRecord{Tag: request.Tag, Agent: request.Agent, Nonce: request.Attempt, Session: os.Getenv("ZELLIJ_SESSION_NAME"), PID: os.Getpid(), Orientation: &orientation.DeliveryState{Phase: orientation.DeliveryWaiting}}
-	publish := func() {
-		raw, err := readiness.Encode(ready)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := writeAtomicBytes(os.Getenv("PAIR_CONTINUATION_LIVE_READY"), []byte(raw)); err != nil {
-			t.Fatal(err)
-		}
+	ready := readiness.ReadyRecord{Tag: os.Getenv("PAIR_CONTINUATION_LIVE_TAG"), Agent: "claude", Nonce: os.Getenv("PAIR_CONTINUATION_LIVE_NONCE"), Session: os.Getenv("ZELLIJ_SESSION_NAME"), PID: os.Getpid()}
+	raw, err := readiness.Encode(ready)
+	if err != nil {
+		t.Fatal(err)
 	}
-	publish()
-	deadline := time.Now().Add(20 * time.Second)
-	for time.Now().Before(deadline) {
-		if _, err := os.Stat(os.Getenv("PAIR_CONTINUATION_LIVE_RELEASE")); err == nil {
-			ready.Orientation = &orientation.DeliveryState{Phase: orientation.DeliverySubmitted, BodyWritten: true}
-			publish()
-			time.Sleep(20 * time.Second) // keep the exact ready PID live until fixture teardown
-			return
-		}
-		time.Sleep(25 * time.Millisecond)
+	if err := writeAtomicBytes(os.Getenv("PAIR_CONTINUATION_LIVE_READY"), []byte(raw)); err != nil {
+		t.Fatal(err)
 	}
-	t.Fatal("stand-in never received submission release")
+	time.Sleep(20 * time.Second) // keep the exact ready PID live until fixture teardown
 }

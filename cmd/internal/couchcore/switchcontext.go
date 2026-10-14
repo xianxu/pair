@@ -136,49 +136,12 @@ func readableSwitchFile(path string) bool {
 	return true
 }
 
-func (c *Couch) ReadOrientationStatus(ctx context.Context, address ThreadAddress, agent, attempt string) (orientation.DeliveryState, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	if err := ctx.Err(); err != nil {
-		return orientation.DeliveryState{}, err
-	}
-	if c == nil || c.Threads == nil {
-		return orientation.DeliveryState{}, errors.New("orientation status services are unavailable")
-	}
-	record, err := c.Threads.GetThread(address)
-	if err != nil {
-		return orientation.DeliveryState{}, err
-	}
-	if agent == "" || attempt == "" || len(record.Incarnations) != 1 {
-		return orientation.DeliveryState{}, errors.New("orientation target incarnation is obsolete")
-	}
-	incarnation := record.Incarnations[0]
-	if incarnation.LaunchProfile == nil || incarnation.LaunchProfile.Agent != agent {
-		return orientation.DeliveryState{}, errors.New("orientation target agent is obsolete")
-	}
-	if incarnation.Start != nil && incarnation.Start.Nonce != attempt {
-		return orientation.DeliveryState{}, errors.New("orientation target attempt is obsolete")
-	}
-	if c.Proc != nil && incarnation.PID > 0 {
-		switch observeExactProcess(c.Proc, ProcessIdentity{PID: incarnation.PID, Identity: incarnation.Identity}) {
-		case Dead:
-			return orientation.DeliveryState{}, errors.New("orientation target exited")
-		case Unknown:
-			return orientation.DeliveryState{}, fmt.Errorf("cannot verify orientation target pid %d", incarnation.PID)
-		}
-	}
-	if c.OrientationStatus == nil {
-		return orientation.DeliveryState{}, nil
-	}
-	return c.OrientationStatus(ctx, address, agent, attempt)
-}
+var errObsoleteReady = errors.New("ready record belongs to an obsolete target")
 
-var errObsoleteOrientationReady = errors.New("orientation ready record belongs to an obsolete target")
-
-// OSOrientationStatusReader reads the wrapper's existing exact ready artifact.
+// OSReadyReader reads the wrapper's exact ready artifact: a fresh launch's
+// registration, its recorded session and its generation.
 // Session supplies the authoritative Pair session binding for the thread.
-type OSOrientationStatusReader struct {
+type OSReadyReader struct {
 	DataDir        string
 	Session        func(ThreadAddress) (PairSessionBinding, error)
 	SessionContext func(context.Context, ThreadAddress) (PairSessionBinding, error)
@@ -187,7 +150,7 @@ type OSOrientationStatusReader struct {
 
 // sessionBinding prefers the cancellable production observer. Session remains
 // compatible with in-memory observers and older embedders.
-func (r OSOrientationStatusReader) sessionBinding(ctx context.Context, address ThreadAddress) (PairSessionBinding, error) {
+func (r OSReadyReader) sessionBinding(ctx context.Context, address ThreadAddress) (PairSessionBinding, error) {
 	if err := ctx.Err(); err != nil {
 		return PairSessionBinding{}, err
 	}
@@ -195,7 +158,7 @@ func (r OSOrientationStatusReader) sessionBinding(ctx context.Context, address T
 		return r.SessionContext(ctx, address)
 	}
 	if r.Session == nil {
-		return PairSessionBinding{}, errors.New("orientation session binding unavailable")
+		return PairSessionBinding{}, errors.New("ready session binding unavailable")
 	}
 	binding, err := r.Session(address)
 	if err == nil {
@@ -204,12 +167,12 @@ func (r OSOrientationStatusReader) sessionBinding(ctx context.Context, address T
 	return binding, err
 }
 
-func (r OSOrientationStatusReader) readReadyFile(ctx context.Context, address ThreadAddress, agent, attempt string) (*readiness.ReadyRecord, error) {
+func (r OSReadyReader) readReadyFile(ctx context.Context, address ThreadAddress, agent, attempt string) (*readiness.ReadyRecord, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	if agent == "" || attempt == "" {
-		return nil, errors.New("orientation ready identity is empty")
+		return nil, errors.New("ready identity is empty")
 	}
 	paths, err := artifactpath.Resolve(artifactpath.Address{DataDir: r.DataDir, RepoScope: address.RepoScope, Tag: string(address.Tag)})
 	if err != nil {
@@ -232,19 +195,19 @@ func (r OSOrientationStatusReader) readReadyFile(ctx context.Context, address Th
 		return nil, err
 	}
 	if len(raw) > 16*1024 {
-		return nil, errors.New("orientation ready record exceeds size limit")
+		return nil, errors.New("ready record exceeds size limit")
 	}
 	ready, err := readiness.Decode(string(raw))
 	if err != nil {
 		return nil, err
 	}
 	if ready.Tag != string(address.Tag) || ready.Agent != agent || ready.Nonce != attempt {
-		return nil, errObsoleteOrientationReady
+		return nil, errObsoleteReady
 	}
 	return &ready, nil
 }
 
-func (r OSOrientationStatusReader) readReady(ctx context.Context, address ThreadAddress, agent, attempt string) (*readiness.ReadyRecord, error) {
+func (r OSReadyReader) readReady(ctx context.Context, address ThreadAddress, agent, attempt string) (*readiness.ReadyRecord, error) {
 	ready, err := r.readReadyFile(ctx, address, agent, attempt)
 	if err != nil || ready == nil {
 		return ready, err
@@ -254,10 +217,10 @@ func (r OSOrientationStatusReader) readReady(ctx context.Context, address Thread
 		return nil, err
 	}
 	if !session.Present || session.Name != ready.Session {
-		return nil, fmt.Errorf("%w: Pair session does not match", errObsoleteOrientationReady)
+		return nil, fmt.Errorf("%w: Pair session does not match", errObsoleteReady)
 	}
 	if r.Proc == nil || r.Proc.Exists(ready.PID) != Live {
-		return nil, errors.New("orientation agent process is not live")
+		return nil, errors.New("ready agent process is not live")
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -265,20 +228,12 @@ func (r OSOrientationStatusReader) readReady(ctx context.Context, address Thread
 	return ready, nil
 }
 
-func (r OSOrientationStatusReader) Read(ctx context.Context, address ThreadAddress, agent, attempt string) (orientation.DeliveryState, error) {
-	ready, err := r.readReady(ctx, address, agent, attempt)
-	if err != nil || ready == nil || ready.Orientation == nil {
-		return orientation.DeliveryState{}, err
-	}
-	return *ready.Orientation, nil
-}
-
 // RecordedSession is the session named by the launch's ready file, read from
 // the file alone: it proves the launch nonce is the recorded one without an
 // ownership probe (#365). ok is false when no current ready file exists.
-func (r OSOrientationStatusReader) RecordedSession(ctx context.Context, address ThreadAddress, agent, attempt string) (session string, ok bool, err error) {
+func (r OSReadyReader) RecordedSession(ctx context.Context, address ThreadAddress, agent, attempt string) (session string, ok bool, err error) {
 	ready, err := r.readReadyFile(ctx, address, agent, attempt)
-	if errors.Is(err, errObsoleteOrientationReady) || (err == nil && ready == nil) {
+	if errors.Is(err, errObsoleteReady) || (err == nil && ready == nil) {
 		return "", false, nil
 	}
 	if err != nil {
@@ -287,9 +242,9 @@ func (r OSOrientationStatusReader) RecordedSession(ctx context.Context, address 
 	return ready.Session, true, nil
 }
 
-func (r OSOrientationStatusReader) Registered(ctx context.Context, address ThreadAddress, agent, attempt string) (bool, error) {
+func (r OSReadyReader) Registered(ctx context.Context, address ThreadAddress, agent, attempt string) (bool, error) {
 	ready, err := r.readReady(ctx, address, agent, attempt)
-	if errors.Is(err, errObsoleteOrientationReady) {
+	if errors.Is(err, errObsoleteReady) {
 		return false, nil
 	}
 	return ready != nil, err
@@ -297,9 +252,9 @@ func (r OSOrientationStatusReader) Registered(ctx context.Context, address Threa
 
 // Generation reads durable attempt correlation even after the target dies.
 // Unlike Registered, it proves provenance, never current process liveness.
-func (r OSOrientationStatusReader) Generation(ctx context.Context, address ThreadAddress, agent, attempt string) (*checkpoint.TargetGeneration, error) {
+func (r OSReadyReader) Generation(ctx context.Context, address ThreadAddress, agent, attempt string) (*checkpoint.TargetGeneration, error) {
 	ready, err := r.readReadyFile(ctx, address, agent, attempt)
-	if errors.Is(err, errObsoleteOrientationReady) {
+	if errors.Is(err, errObsoleteReady) {
 		return nil, nil
 	}
 	if err != nil || ready == nil {

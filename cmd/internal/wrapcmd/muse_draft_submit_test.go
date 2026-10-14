@@ -165,19 +165,6 @@ func TestMuseComposerActive_RejectsSelectionMarkers(t *testing.T) {
 	}
 }
 
-// TestMusePromptAuthorityIsShared pins the invariant BR-4 names: the Return
-// remap's gate and the orientation auto-submit gate must admit exactly the same
-// prompt glyphs. A glyph accepted by one and refused by the other is a state
-// where Return inserts a newline into a composer orientation will not submit
-// into — the drift that put the same literal list in two files twice.
-func TestMusePromptAuthorityIsShared(t *testing.T) {
-	for _, glyph := range []string{"⟩", "›", "❯", ">", "!", "●", "▶", "▸", "◆", "x", "─"} {
-		if got, want := orientationPromptOK("muse", glyph), musePromptGlyphs[glyph]; got != want {
-			t.Errorf("orientationPromptOK(muse, %q) = %t, musePromptGlyphs = %t", glyph, got, want)
-		}
-	}
-}
-
 // TestMuseComposerActive_RelaxedRuleFaint ensures a rule style change
 // (non-faint "─") does not break recognition when both rules share the same
 // faint state. A mismatched faint pair must still be rejected.

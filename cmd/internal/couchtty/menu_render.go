@@ -430,17 +430,18 @@ func renderStartMenuFrame(state MenuState, frame MenuFrame, width, height int) [
 // label, and the guard that keeps it that way iterates the vocabulary rather
 // than listing cases here (Go has no exhaustive-switch check).
 //
-// A retained continuation is information ABOUT the thread, never a
-// replacement for it (#280), in every phase. The failed case read
-// "continuation failed" for hours on a thread the operator was typing into, and
-// an in-flight phase is not bounded either: a request whose owner died reads
-// "continuing…" until someone retries it. So the state always shows, and the
-// request is appended.
+// A continuation is information ABOUT the thread, never a replacement for it
+// (#280): an in-flight request, or the line one that didn't finish left
+// (#522), is appended to the state, which always shows.
 func rootStateText(thread couchcore.ActionableThreadSummary, now time.Time) string {
 	if request := thread.Continuation; request != nil {
 		if label := continuationLabel(request.Phase); label != "" {
 			return threadStateText(thread, now) + " · " + label
 		}
+	}
+	if thread.ContinuationMissed != nil {
+		// The focused row's summary carries the whole line (#522).
+		return threadStateText(thread, now) + " · compaction didn't finish"
 	}
 	return threadStateText(thread, now)
 }
@@ -453,8 +454,6 @@ func continuationLabel(phase checkpoint.Phase) string {
 		return "continuation queued"
 	case checkpoint.Running:
 		return "continuing…"
-	case checkpoint.Failed:
-		return "continuation failed"
 	}
 	return ""
 }

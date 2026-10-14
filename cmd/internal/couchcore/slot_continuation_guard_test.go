@@ -46,12 +46,6 @@ func slotContinuationFixture(t *testing.T, phase checkpoint.Phase, target bool) 
 			t.Fatal(err)
 		}
 	}
-	if phase == checkpoint.Failed {
-		record, err = local.AdvanceContinuation(record.Address, record.Revision, checkpoint.Event{Kind: checkpoint.Fail, RequestID: request.ID, Attempt: "continuation-attempt", Failure: "interrupted"})
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
 	return env, local, record
 }
 
@@ -107,8 +101,10 @@ func TestSlotRebootContinuationProtectsLiveAndUnknownOwners(t *testing.T) {
 func TestSlotRebootRetainsStoppedContinuationInTheArchive(t *testing.T) {
 	t.Parallel()
 
+	// A pending request is the only stopped one a record holds: a request
+	// that didn't finish is gone, leaving its line (#522).
 	for _, phase := range checkpoint.AllPhases() {
-		if phase != checkpoint.Pending && phase != checkpoint.Failed {
+		if phase != checkpoint.Pending {
 			continue
 		}
 		t.Run(string(phase), func(t *testing.T) {
@@ -133,11 +129,11 @@ func TestSlotRebootRetainsStoppedContinuationInTheArchive(t *testing.T) {
 func TestSlotOpenColdUsesContinuationGuard(t *testing.T) {
 	t.Parallel()
 
-	env, local, record := slotContinuationFixture(t, checkpoint.Failed, false)
-	// OpenSlot directly: resume routes a failed request to RetryContinuation
-	// before it reaches OpenSlot, so the guard is OpenSlot's own defence.
+	env, local, record := slotContinuationFixture(t, checkpoint.Pending, false)
+	// OpenSlot directly: resume routes a retained request to RecoverThread or
+	// Continue before it reaches OpenSlot, so the guard is OpenSlot's own defence.
 	_, err := env.Couch.OpenSlot(context.Background(), record.StartingPath, "claude")
-	if err == nil || !strings.Contains(err.Error(), "continuation "+record.Continuation.ID+" is failed;") {
+	if err == nil || !strings.Contains(err.Error(), "continuation "+record.Continuation.ID+" is pending;") {
 		t.Fatalf("cold slot open bypassed continuation guard: %v", err)
 	}
 	current, readErr := local.GetThread(record.Address)
