@@ -26,17 +26,26 @@ func seedStartupDetached(t *testing.T, env *testEnv, tag ThreadTag, layout Layou
 	return created
 }
 
-// Existing layouts do not prevent opening the console or authorize attachment.
-func TestStartupOpensConsoleOverLegacyAndParkedLayouts(t *testing.T) {
+// A selected hub starts without changing other retained layouts.
+func TestStartupLaunchesHubOverOtherRetainedLayouts(t *testing.T) {
 	for _, parked := range []bool{false, true} {
 		env := newTestEnv(t, "/repo")
+		address := detachedThreadAt(t, env, "/other", "layout")
+		bumpLayout(t, env, address, "")
 		if parked {
-			seedStartupParked(t, env, "couch-0000000000000001", "/repo")
-		} else {
-			seedStartupDetached(t, env, "couch-0000000000000001", "")
+			current, err := env.Couch.Threads.GetThread(address)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := env.Couch.Threads.updateExistingThread(address, current.Revision, func(next *ThreadRecord) error {
+				markActionableParked(next, time.Unix(100, 0).UTC())
+				return nil
+			}); err != nil {
+				t.Fatal(err)
+			}
 		}
 		start, err := env.Couch.StartInteractive(context.Background(), StartArgs{Cwd: "/repo"})
-		if err != nil || start.Handle != nil || len(env.Runner.Ops) != 0 {
+		if err != nil || start.Handle == nil || len(env.Runner.Ops) != 2 {
 			t.Fatalf("startup: %+v %v %v", start, err, env.Runner.Ops)
 		}
 	}

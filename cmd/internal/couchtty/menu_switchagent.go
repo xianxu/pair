@@ -203,9 +203,6 @@ func menuActionsFor(state MenuState, thread couchcore.ActionableThreadSummary) [
 	if thread.Address.RepoScope != "" && thread.Address.Tag != "" {
 		items = append(items, "resume-candidates")
 	}
-	if _, ok := state.Orientation[thread.Address]; ok {
-		items = append(items, "copy-orientation")
-	}
 	return items
 }
 

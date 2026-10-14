@@ -20,14 +20,14 @@ func (s *ThreadStore) PublishContinuation(address ThreadAddress, revision uint64
 				return nil
 			}
 			if old.Phase != checkpoint.Complete {
-				return fmt.Errorf("continuation %s is %s; resolve it before publishing another: %s", old.ID, old.Phase, checkpoint.Exits(old.Phase, string(address.Tag)))
+				return fmt.Errorf("continuation %s is %s; %s", old.ID, old.Phase, checkpoint.InFlight)
 			}
 			if request.Source.LaunchOrdinal <= old.Source.LaunchOrdinal {
 				return errors.New("continuation source generation did not advance")
 			}
 		}
 		copy := request.Clone()
-		record.Continuation = &copy
+		record.Continuation, record.ContinuationMissed = &copy, nil
 		return nil
 	})
 }
@@ -55,18 +55,20 @@ func (s *ThreadStore) BeginContinuationFromRetiredIncarnations(address ThreadAdd
 	})
 }
 
-// DismissFailedContinuation retires a FAILED continuation by deleting it: the
-// operator's decision that the thread has moved on (#280). It is Failed's only
-// exit besides retry, and deletion rather than a terminal phase on purpose --
-// records decode strictly, so a new phase would make every pre-change binary
-// reject the whole record. It refuses, writing nothing, for anything but the
-// exact failed request; an empty requestID means the retained one.
-func (s *ThreadStore) DismissFailedContinuation(address ThreadAddress, revision uint64, requestID string) (ThreadRecord, error) {
+// MissContinuation ends the exact request without finishing it (#522): it
+// clears the request and leaves the one visible line, in ONE update, so no
+// reader sees both or neither. The line blocks nothing; a target that may
+// still be alive stays guarded by the thread's incarnations.
+func (s *ThreadStore) MissContinuation(address ThreadAddress, revision uint64, requestID string, miss func(ThreadRecord) checkpoint.Miss) (ThreadRecord, error) {
 	return s.updateExistingThread(address, revision, func(record *ThreadRecord) error {
-		if err := checkpoint.CheckDismissible(record.Continuation, requestID); err != nil {
+		if record.Continuation == nil || record.Continuation.ID != requestID {
+			return errors.New("obsolete continuation request")
+		}
+		m := miss(*record)
+		if err := m.Validate(); err != nil {
 			return err
 		}
-		record.Continuation = nil
+		record.Continuation, record.ContinuationMissed = nil, &m
 		return nil
 	})
 }

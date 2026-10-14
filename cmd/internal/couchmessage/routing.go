@@ -109,7 +109,7 @@ func canonicalTarget(target string, candidates []Candidate, families map[string]
 // and pending-slot reservation under one lock against unchanged observations.
 // families maps every enrolled family (directory name) to its operator alias,
 // "" when it has none.
-func ResolveRecipient(route Route, candidates []Candidate, families map[string]string, now time.Time) (Binding, error) {
+func ResolveRecipient(route Route, candidates []Candidate, families map[string]string, now time.Time, eligible ...func(Binding) bool) (Binding, error) {
 	target, _, err := canonicalTarget(route.Target, candidates, families)
 	if err != nil {
 		return Binding{}, err
@@ -187,6 +187,9 @@ func ResolveRecipient(route Route, candidates []Candidate, families map[string]s
 		}
 	}
 	for _, c := range matches {
+		if len(eligible) > 0 && eligible[0] != nil && !eligible[0](c.Binding) {
+			continue
+		}
 		if route.Agent != "" && c.Binding.Agent != route.Agent {
 			continue
 		}

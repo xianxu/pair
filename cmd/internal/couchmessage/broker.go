@@ -70,20 +70,32 @@ type admission struct {
 }
 type deliveryJob struct{ cancel context.CancelFunc }
 type Broker struct {
-	mu           sync.Mutex
-	ctx          context.Context
-	cancel       context.CancelFunc
-	now          func() time.Time
-	resting      func(context.Context, Binding) (bool, error)
-	restingView  func(Binding) (resting, known bool)
-	niceView     func(Binding) (NiceFacts, bool)
-	families     func(context.Context) (map[string]string, error)
-	actors       map[Binding]*SlotActor
-	receipts     map[string]Receipt
-	destinations map[string]Route
-	admissions   map[string]*admission
-	jobs         map[string]*deliveryJob
-	workers      sync.WaitGroup
+	familyEligible     func(Binding, Binding) bool
+	submissionObserver func(Binding, uint64)
+	mu                 sync.Mutex
+	ctx                context.Context
+	cancel             context.CancelFunc
+	now                func() time.Time
+	resting            func(context.Context, Binding) (bool, error)
+	restingView        func(Binding) (resting, known bool)
+	niceView           func(Binding) (NiceFacts, bool)
+	families           func(context.Context) (map[string]string, error)
+	actors             map[Binding]*SlotActor
+	receipts           map[string]Receipt
+	destinations       map[string]Route
+	admissions         map[string]*admission
+	jobs               map[string]*deliveryJob
+	workers            sync.WaitGroup
+}
+
+// SetFamilyEligibility installs the supervisor's trusted ownership projection.
+// It filters implicit selection only, after global repository identity checks.
+// Install before serving; the callback must read memory only.
+func (b *Broker) SetFamilyEligibility(eligible func(Binding, Binding) bool) {
+	b.familyEligible = eligible
+}
+func (b *Broker) eligible(from, to Binding) bool {
+	return b.familyEligible == nil || b.familyEligible(from, to)
 }
 
 // SetFamilies installs the enrolled-repository source: every enrolled family
@@ -283,6 +295,19 @@ func (b *Broker) operatorEvent(binding Binding, kind EventKind) {
 }
 func (b *Broker) OperatorInput(binding Binding) { b.operatorEvent(binding, OperatorInput) }
 
+// Submission reports the accepted genuine operator-submission generation for
+// a connected binding. It reads memory only; stale or rejected observations
+// never advance this counter.
+func (b *Broker) Submission(binding Binding) (uint64, bool) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	a := b.actors[binding]
+	if a == nil || !a.state.Connected() {
+		return 0, false
+	}
+	return a.submission, true
+}
+
 // ReconcileObservation consumes trusted wrapper evidence once per submission
 // generation. A delayed notification cannot replenish an already-spent epoch.
 // Registration adapters may supply their just-verified handshake observation.
@@ -308,6 +333,9 @@ func (b *Broker) reconcileObservation(a *SlotActor, observed Observation) error 
 		return err
 	}
 	a.submission = observed.Submission
+	if b.submissionObserver != nil {
+		b.submissionObserver(a.binding, a.submission)
+	}
 	return nil
 }
 
@@ -367,6 +395,19 @@ func (b *Broker) Status(caller Binding, id string) (Receipt, error) {
 		return Receipt{}, errors.New("receipt unavailable for this actor")
 	}
 	return r, nil
+}
+
+// ReceiptSnapshot reads the supervisor's retained receipt without a live
+// caller. It performs no endpoint IO and keeps the normal expiry/retention
+// rules, including when the sender has disconnected. The final bool reports an
+// active delivery callback: disconnection can make its receipt terminal before
+// endpoint accounting finishes. Consumers must retain provenance until it ends.
+func (b *Broker) ReceiptSnapshot(id string) (Receipt, bool, bool) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.sweep()
+	r, known := b.receiptLocked(id)
+	return r, known, b.jobs[id] != nil
 }
 
 // receiptLocked is every read of a stored receipt. A queued message's expiry
@@ -558,7 +599,7 @@ func (b *Broker) admit(ctx context.Context, from Binding, id string, route Route
 			}
 			candidates = append(candidates, c)
 		}
-		to, err := ResolveRecipient(route, candidates, families, b.now())
+		to, err := ResolveRecipient(route, candidates, families, b.now(), func(to Binding) bool { return b.eligible(from, to) })
 		if err != nil {
 			b.mu.Unlock()
 			return Receipt{}, err
@@ -632,6 +673,9 @@ func (b *Broker) tryAdmission(ctx context.Context, a *SlotActor, seq uint64, fro
 	}
 	if b.actors[to] != a || a.reservation != id || !b.caller(to) || a.sequence != seq || !b.caller(from) {
 		return Receipt{}, ErrUnavailable
+	}
+	if family && !b.eligible(from, to) {
+		return Receipt{}, ErrNoRecipient
 	}
 	if err = b.reconcileObservation(a, obs); err != nil {
 		return Receipt{}, err
@@ -940,4 +984,12 @@ func (b *Broker) Close() error {
 	b.mu.Unlock()
 	b.workers.Wait()
 	return nil
+}
+
+// SetSubmissionObserver receives accepted counter advances under the broker
+// lock. The observer must only offer bounded memory data, never IO or broker calls.
+func (b *Broker) SetSubmissionObserver(observe func(Binding, uint64)) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.submissionObserver = observe
 }

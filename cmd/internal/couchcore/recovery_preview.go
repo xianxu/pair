@@ -10,7 +10,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/xianxu/pair/cmd/internal/orientation"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/storagegc"
 	"github.com/xianxu/pair/cmd/internal/threadrecord"
@@ -54,9 +53,8 @@ type RecoveryObservation struct {
 type RecoveryEvidenceReader func(context.Context, ThreadRecord) (RecoveryObservation, error)
 
 type RecoveryResumeResult struct {
-	Start       StartResult
-	Notice      string
-	Orientation orientation.DeliveryState
+	Start  StartResult
+	Notice string
 }
 
 func (r RecoveryResumeResult) Started() (StartResult, bool) { return r.Start, r.Start.Handle != nil }

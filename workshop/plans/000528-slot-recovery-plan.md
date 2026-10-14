@@ -908,3 +908,25 @@ the owning Couch's handle before adoption. Missing local slot records return
 to the existing recovery route. No new recovery confirmation or M2 execution
 is introduced. Existing lifecycle tests retain their ownership protection;
 plain-view tests assert unchanged thread records and active holds.
+
+### 2026-10-14 — acceptance merge and explicit hub startup clarification
+
+Operator/TL decisions 4d827d80 and 03666e08 supersede blanket preview-only
+startup and the earlier recovery delivery protocol. Every CLI hub, including
+bare couch’s cwd, is an explicit request: listed live means Continue; otherwise
+the normal path resumes a proven conversation or starts fresh. The #546 queued
+extra-hub operation follows this same rule. Non-hub slots remain observation
+only; no startup reattach sweep, interrupted-start recovery, active-park recovery
+or journal replay. ARCH-PURPOSE: hub selection is an action, slot enumeration
+is a read. Hub-scoped routing and mutation guards apply at preparation and effect
+to candidate recovery as well as ordinary operations.
+
+Use main #522’s single launch Prompt mechanism. Fresh prompts point to the
+previous screen, branch and issue; exact retained capture coordinates remain
+literal data, and screen text never enters argv. Native resumes receive no
+prompt. Remove recovery delivery/status callbacks. No recovery-only mechanism.
+
+The merge of origin/main 962f3c0478ef4b46766f6e29b4f28092b909735f is
+covered by the next M2/issue-close review window, not the already closed M1.
+Before staging, run the full suite through sdlc local-check run --name suite.
+Operator acceptance still owns live pre-upgrade restart verification.

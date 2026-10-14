@@ -1,26 +1,13 @@
 package couchtty
 
 import (
-	"encoding/base64"
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
-	"github.com/xianxu/pair/cmd/internal/orientation"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 )
-
-func TestCopyOrientationUsesExactOSC52AndLeavesDraftUntouched(t *testing.T) {
-	f := newFixture(t, 24, 80)
-	request := orientation.Request{Tag: "work", Agent: "codex", Attempt: "one", Body: "Read the outgoing log.\nWait for instructions."}
-	f.host.Reset()
-	f.con.copyOrientation(request)
-	want := "\x1b]52;c;" + base64.StdEncoding.EncodeToString([]byte(request.Body)) + "\x1b\\"
-	if !strings.Contains(string(f.host.Written()), want) {
-		t.Fatalf("missing exact copy sequence: %q", f.host.Written())
-	}
-}
 
 func TestConsoleSwitchAgentUsesNormalQueueAndPreservesEditedArgv(t *testing.T) {
 	f := newFixture(t, 24, 100)
@@ -47,9 +34,6 @@ func TestConsoleSwitchAgentUsesNormalQueueAndPreservesEditedArgv(t *testing.T) {
 		t.Fatal("switch form did not use normal dispatcher")
 	}
 	waitFor(t, "switch completion", func() bool { return f.con.menuSnapshot().InFlight.Operation == "" })
-	if len(f.con.menuSnapshot().Orientation) != 0 {
-		t.Fatal("switch created an orientation prompt")
-	}
 	select {
 	case call := <-called:
 		t.Fatalf("unexpected follow-up operation: %s", call.Name)

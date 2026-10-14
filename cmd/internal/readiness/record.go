@@ -8,22 +8,29 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/xianxu/pair/cmd/internal/orientation"
 	"github.com/xianxu/pair/cmd/internal/strictjson"
 )
 
 type ReadyRecord struct {
-	AgentIdentity string                     `json:"agent_identity,omitempty"`
-	LaunchOrdinal uint64                     `json:"launch_ordinal,omitempty"`
-	Orientation   *orientation.DeliveryState `json:"orientation,omitempty"`
-	Tag           string                     `json:"tag"`
-	Agent         string                     `json:"agent"`
-	Session       string                     `json:"session"`
-	Nonce         string                     `json:"nonce"`
-	PID           int                        `json:"pid"`
+	AgentIdentity string `json:"agent_identity,omitempty"`
+	LaunchOrdinal uint64 `json:"launch_ordinal,omitempty"`
+	// DeprecatedOrientation is a TOMBSTONE: a wrapper before #522 published
+	// its composer-paste delivery state here. A ready record written by such a
+	// wrapper -- a slot launched by the old build, still running -- must still
+	// decode, so it is accepted and ignored. Encode refuses it, so it is never
+	// written. Delete it once every slot has been relaunched on a #522+ build.
+	DeprecatedOrientation json.RawMessage `json:"orientation,omitempty"`
+	Tag                   string          `json:"tag"`
+	Agent                 string          `json:"agent"`
+	Session               string          `json:"session"`
+	Nonce                 string          `json:"nonce"`
+	PID                   int             `json:"pid"`
 }
 
 func Encode(record ReadyRecord) (string, error) {
+	if len(record.DeprecatedOrientation) != 0 {
+		return "", fmt.Errorf("ready record: the orientation field is decode-only")
+	}
 	if err := Validate(record); err != nil {
 		return "", err
 	}
@@ -50,24 +57,6 @@ func Decode(raw string) (ReadyRecord, error) {
 func Validate(record ReadyRecord) error {
 	if len(record.AgentIdentity) > 256 || !utf8.ValidString(record.AgentIdentity) || strings.IndexFunc(record.AgentIdentity, unicode.IsControl) >= 0 {
 		return fmt.Errorf("ready record: invalid agent process identity")
-	}
-	if s := record.Orientation; s != nil {
-		if len(s.Reason) > 1024 || !utf8.ValidString(s.Reason) || strings.IndexFunc(s.Reason, unicode.IsControl) >= 0 {
-			return fmt.Errorf("ready record: invalid orientation reason")
-		}
-		switch s.Phase {
-		case orientation.DeliveryWaiting, orientation.DeliveryPasting, orientation.DeliveryFailed:
-			if s.BodyWritten {
-				return fmt.Errorf("ready record: unexpected orientation body")
-			}
-		case orientation.DeliverySettling, orientation.DeliverySubmitting, orientation.DeliverySubmitted, orientation.DeliveryIndeterminate:
-			if !s.BodyWritten {
-				return fmt.Errorf("ready record: missing orientation body")
-			}
-		case orientation.DeliveryCancelled:
-		default:
-			return fmt.Errorf("ready record: unknown orientation phase")
-		}
 	}
 
 	switch {

@@ -230,8 +230,7 @@ func (c *Couch) ResumeCandidate(ctx context.Context, t ResumeTarget, key string)
 	if err != nil {
 		return fail(err)
 	}
-	request := orientation.Request{SchemaVersion: 1, Tag: string(record.Address.Tag), Agent: profile.Agent, Attempt: nonce, Body: body}
-	actor, handle, err := c.launchTrackedThread(trackedThreadLaunch{Context: ctx, Thread: record, Nonce: nonce, Args: StartArgs{Worktree: Worktree(record.StartingPath), Cwd: record.WorkingPath, Stack: profile.Agent, ExtraArgs: cloneArgv(profile.Argv)}, StartedAt: startedAt, ProfileRaw: raw, Fresh: selected.NativeID == "", Resume: selected.NativeID != "", Orientation: &request, Begun: begun})
+	actor, handle, err := c.launchTrackedThread(trackedThreadLaunch{Context: ctx, Thread: record, Nonce: nonce, Args: StartArgs{Worktree: Worktree(record.StartingPath), Cwd: record.WorkingPath, Stack: profile.Agent, ExtraArgs: cloneArgv(profile.Argv)}, StartedAt: startedAt, ProfileRaw: raw, Fresh: selected.NativeID == "", Resume: selected.NativeID != "", Prompt: body, Begun: begun})
 	if err != nil {
 		return result, fmt.Errorf("recovery launch failed; the selected evidence is retained for retry: %w", err)
 	}
@@ -239,19 +238,6 @@ func (c *Couch) ResumeCandidate(ctx context.Context, t ResumeTarget, key string)
 	result.Notice = fmt.Sprintf("resumed %s: last active %s, %.0f%% tail match", selected.NativeID, selected.LastActivity.Local().Format("15:04 MST"), selected.TailMatch)
 	if selected.NativeID == "" {
 		result.Notice = "started fresh from the previous screen"
-	}
-	result.Orientation, err = c.ReadOrientationStatus(ctx, record.Address, profile.Agent, nonce)
-	if err != nil {
-		result.Notice += "; previous-screen orientation status unavailable: " + err.Error()
-	} else if result.Orientation.Phase != orientation.DeliverySubmitted {
-		phase := string(result.Orientation.Phase)
-		if phase == "" {
-			phase = "pending"
-		}
-		result.Notice += "; previous-screen orientation " + phase
-		if result.Orientation.Reason != "" {
-			result.Notice += ": " + result.Orientation.Reason
-		}
 	}
 	return result, nil
 }

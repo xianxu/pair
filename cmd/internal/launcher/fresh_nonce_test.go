@@ -17,7 +17,7 @@ func TestOrdinaryStandaloneCreateHasCaptureAndTerminalNonce(t *testing.T) {
 	}
 }
 
-func TestFreshLaunchNonceWithoutOrientationReachesReadiness(t *testing.T) {
+func TestFreshLaunchNonceWithoutPromptReachesReadiness(t *testing.T) {
 	raw := `{"schema_version":1,"tag":"work","agent":"codex","argv":[],"agent_source":"explicit","argv_source":"explicit","fresh_required":true,"fresh_nonce":"couch-exact-attempt"}`
 	args, _, err := ApplyCouchLaunchProfile(LaunchArgs{ForcedTag: "work"}, raw)
 	if err != nil {
@@ -32,15 +32,15 @@ func TestFreshLaunchNonceWithoutOrientationReachesReadiness(t *testing.T) {
 	if rt.env["PAIR_LAUNCH_NONCE"] != "couch-exact-attempt" {
 		t.Fatalf("nonce changed: %q", rt.env["PAIR_LAUNCH_NONCE"])
 	}
-	if args.Orientation != nil {
-		t.Fatal("fresh created an orientation")
+	if args.Prompt != "" {
+		t.Fatal("fresh created a prompt")
 	}
 }
 
 func TestTrustedFreshNonceRefusesMismatchAndNonFresh(t *testing.T) {
 	for _, raw := range []string{
 		`{"schema_version":1,"tag":"work","agent":"codex","argv":[],"agent_source":"explicit","argv_source":"explicit","fresh_nonce":"n"}`,
-		`{"schema_version":1,"tag":"work","agent":"codex","argv":[],"agent_source":"explicit","argv_source":"explicit","fresh_required":true,"fresh_nonce":"n","orientation":{"schema_version":1,"tag":"work","agent":"codex","attempt":"other","body":"brief"}}`,
+		`{"schema_version":1,"tag":"work","agent":"codex","argv":[],"agent_source":"explicit","argv_source":"explicit","fresh_nonce":"n","prompt":"read it"}`,
 		`{"schema_version":1,"tag":"work","agent":"codex","argv":[],"agent_source":"explicit","argv_source":"explicit","fresh_required":true,"fresh_nonce":"bad\nnonce"}`,
 	} {
 		var profile TrustedLaunchProfile

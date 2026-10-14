@@ -38,7 +38,7 @@ func peerComposerText(agent string, s terminalSnapshot) (string, bool) {
 			return "", false
 		}
 	case "codex":
-		if card, pending := codexOrientationStartupStatus(s); card && pending && !peerCodexModernStartup(s) {
+		if card, pending := codexStartupStatus(s); card && pending && !peerCodexModernStartup(s) {
 			return "", false
 		}
 		if !codexComposerActive(s) {
@@ -146,7 +146,7 @@ func peerCodexFooter(s terminalSnapshot, row int) bool {
 func peerCodexModernStartup(s terminalSnapshot) bool {
 	title, path := false, false
 	for y := 0; y < s.Cursor.Y; y++ {
-		line := strings.TrimSpace(orientationRowText(s, y))
+		line := strings.TrimSpace(terminalRowText(s, y))
 		if strings.HasPrefix(line, ">_ OpenAI Codex (v") {
 			title = true
 			continue

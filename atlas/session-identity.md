@@ -367,7 +367,7 @@ at once with `resume-binding-unbound`, naming reboot, and a parked slot whose
 conversation is lost (`binding-lost`) is not offered resume at all (pair#367,
 reversing #346 M2's fresh restart, which waited for a ready nonce Pair never
 learned). Every fresh launch must hand Pair its registration nonce through the
-orientation's attempt (`freshNonceReachesPair`). It never allocates or adopts a marker, chooses
+trusted launch profile (`freshNonceReachesPair`). It never allocates or adopts a marker, chooses
 a newest transcript, or consults current path/root/repository launch defaults.
 The ledger owns native identity; the native forest supplies parsed observations.
 Couch stores the last successfully registered launch profile.

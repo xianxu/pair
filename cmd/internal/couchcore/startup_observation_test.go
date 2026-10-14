@@ -5,49 +5,72 @@ import (
 	"context"
 	"errors"
 	"os"
+	"reflect"
 	"testing"
+	"time"
 )
 
-func TestStartupObservesWithoutReplayingOrLaunching(t *testing.T) {
-	for _, mode := range []string{"empty", "parked", "pending-journal", "broken-record", "pre-upgrade-live", "mixed"} {
+func TestStartupLaunchesHubWithoutChangingOtherRetainedRecords(t *testing.T) {
+	for _, mode := range []string{"empty", "parked", "broken-record", "pre-upgrade-live", "mixed"} {
 		t.Run(mode, func(t *testing.T) {
 			env := newTestEnv(t, "/repo")
 			if mode != "empty" {
-				r := seedStartupParked(t, env, "couch-0000000000000001", "/repo")
-				if mode == "pre-upgrade-live" || mode == "mixed" {
-					env.Artifacts.SetDetachedSession(r.Address, "legacy-no-policy")
-				}
-				if mode == "mixed" {
-					broken := seedStartupParked(t, env, "couch-0000000000000002", "/other")
-					if err := os.WriteFile(env.Couch.Threads.recordPath(broken.Address), []byte("broken"), 0600); err != nil {
+				address := detachedThreadAt(t, env, "/other", mode)
+				if mode == "parked" || mode == "pre-upgrade-live" {
+					current, err := env.Couch.Threads.GetThread(address)
+					if err != nil {
 						t.Fatal(err)
 					}
+					if _, err := env.Couch.Threads.updateExistingThread(address, current.Revision, func(next *ThreadRecord) error {
+						if mode == "parked" {
+							markActionableParked(next, time.Unix(100, 0).UTC())
+						} else {
+							next.LatestLaunchProfile = nil
+							next.Layout = ""
+						}
+						return nil
+					}); err != nil {
+						t.Fatal(err)
+					}
+					if mode == "parked" {
+						env.Artifacts.SetDetachedSession(address, "")
+						env.Artifacts.SetPairSession(address, "pair-"+string(address.Tag), false)
+					}
 				}
-				if mode == "broken-record" {
-					if err := os.WriteFile(env.Couch.Threads.recordPath(r.Address), []byte("broken"), 0600); err != nil {
+				if mode == "broken-record" || mode == "mixed" {
+					if err := os.WriteFile(env.Couch.Threads.recordPath(address), []byte("broken"), 0600); err != nil {
 						t.Fatal(err)
 					}
 				}
 			}
-			if mode == "pending-journal" {
-				if err := os.WriteFile(env.Couch.Threads.journalPath(), []byte("pending incomplete journal"), 0600); err != nil {
-					t.Fatal(err)
-				}
+			before, err := env.Couch.Threads.PreviewSnapshot()
+			if err != nil {
+				t.Fatal(err)
 			}
-			before, _ := os.ReadFile(env.Couch.Threads.manifestPath())
 			result, err := env.Couch.StartInteractive(context.Background(), StartArgs{Cwd: "/repo"})
-			if err != nil || result.Handle != nil || len(env.Runner.Ops) != 0 {
-				t.Fatalf("startup acted/refused: %+v err=%v ops=%v", result, err, env.Runner.Ops)
+			if err != nil || result.Handle == nil || len(env.Runner.Ops) != 2 {
+				t.Fatalf("startup: %+v err=%v ops=%v", result, err, env.Runner.Ops)
 			}
-			after, _ := os.ReadFile(env.Couch.Threads.manifestPath())
-			if !bytes.Equal(before, after) {
-				t.Fatal("startup wrote manifest")
+			after, err := env.Couch.Threads.PreviewSnapshot()
+			if err != nil {
+				t.Fatal(err)
 			}
-			if mode == "pending-journal" {
-				b, _ := os.ReadFile(env.Couch.Threads.journalPath())
-				if string(b) != "pending incomplete journal" {
-					t.Fatal("startup changed journal")
+			for _, old := range before.Records {
+				found := false
+				for _, next := range after.Records {
+					if old.Address == next.Address {
+						found = true
+						if !reflect.DeepEqual(old, next) {
+							t.Fatal("startup changed unrelated retained record")
+						}
+					}
 				}
+				if !found {
+					t.Fatal("startup removed unrelated retained record")
+				}
+			}
+			if !reflect.DeepEqual(before.Unreadable, after.Unreadable) {
+				t.Fatal("startup changed unreadable retained records")
 			}
 		})
 	}

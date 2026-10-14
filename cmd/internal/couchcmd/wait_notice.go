@@ -52,7 +52,7 @@ func needsTail(f waitFacts, threshold time.Duration) bool {
 
 // classifyWait is the one definition of "waiting for someone". An unsettled
 // slot that has been byte-quiet that long has something on screen asking for
-// input (a dialog, a draft, a stuck orientation); a settled one waits if its
+// input (a dialog or a draft); a settled one waits if its
 // turn ended with a question, or if it stopped off its resting branch with
 // nothing in flight to it.
 func classifyWait(f waitFacts, threshold time.Duration, tail []string) (waitReason, string, bool) {
@@ -278,10 +278,30 @@ func (w *waitWatcher) run(ctx context.Context, every time.Duration) {
 // the registry's newest admitted incarnation of that slot, so a replacement
 // still settling never makes the choice arbitrary.
 func (s *messageService) hubBinding() (couchmessage.Binding, bool) {
+	return s.hubBindingAt(s.authority.hub)
+}
+
+func (s *messageService) hubBindingFor(from couchmessage.Binding) (couchmessage.Binding, bool) {
+	if s.authority.hubs == nil {
+		return s.hubBinding()
+	}
+	s.mu.Lock()
+	identity, ok := s.workspaces[from]
+	s.mu.Unlock()
+	if !ok {
+		return couchmessage.Binding{}, false
+	}
+	return s.hubBindingAt(s.authority.owner(identity))
+}
+
+func (s *messageService) hubBindingAt(root string) (couchmessage.Binding, bool) {
+	if root == "" {
+		return couchmessage.Binding{}, false
+	}
 	slot := ""
 	s.mu.Lock()
 	for b, identity := range s.workspaces {
-		if s.authority.isHub(identity) {
+		if identity.WorktreeRoot == root {
 			slot = b.Slot
 			break
 		}
@@ -298,10 +318,28 @@ func (s *messageService) hubBinding() (couchmessage.Binding, bool) {
 	return live.Binding, true
 }
 
+func (s *messageService) isHubBinding(b couchmessage.Binding) bool {
+	s.mu.Lock()
+	identity, ok := s.workspaces[b]
+	s.mu.Unlock()
+	return ok && s.authority.isHub(identity)
+}
+
 func (w *waitWatcher) tick(ctx context.Context, now time.Time) {
+	coordinator := w.svc.supervision.Load()
+	if coordinator != nil {
+		defer func() {
+			text, _ := os.ReadFile(w.optOut)
+			coordinator.tick(ctx, now, parseWaitOptOut(string(text)))
+		}()
+	}
 	hub, ok := w.svc.hubBinding()
 	if !ok {
-		return
+		connected := w.svc.broker.Connected()
+		if len(connected) == 0 {
+			return
+		}
+		hub = connected[0]
 	}
 	rows, err := w.svc.broker.Actors(ctx, hub)
 	if err != nil {
@@ -317,8 +355,16 @@ func (w *waitWatcher) tick(ctx context.Context, now time.Time) {
 	for _, row := range rows {
 		b := row.Binding
 		listed[b] = true
-		if b == hub || !row.Known {
+		if w.svc.isHubBinding(b) || !row.Known {
 			continue
+		}
+		hub, hasHub := w.svc.hubBindingFor(b)
+		if !hasHub {
+			continue
+		}
+		reportID := ""
+		if coordinator != nil {
+			reportID, _ = coordinator.waitState(b)
 		}
 		since := row.LastActivity
 		f := waitFacts{Resting: row.Resting, Pending: row.Pending}
@@ -366,6 +412,11 @@ func (w *waitWatcher) tick(ctx context.Context, now time.Time) {
 			w.seen[b] = waitEpisode{key: key, judgedNot: true}
 			continue
 		}
+		if coordinator != nil && reason == waitIdle {
+			if _, notified := coordinator.waitState(b); notified {
+				continue
+			}
+		}
 		judged := string(reason) + "\x00" + summary
 		if ep, ok := w.seen[b]; ok && ep.notified && ep.judged == judged {
 			w.seen[b] = waitEpisode{key: key, notified: true, judged: judged} // output without a turn
@@ -378,10 +429,24 @@ func (w *waitWatcher) tick(ctx context.Context, now time.Time) {
 		body := waitNoticeBody(b.Slot, f.Quiet, reason, summary, w.optOut) + muteErr
 		// From the waiting slot to the hub's exact slot: the notice is an
 		// ordinary message, so it gets the hub's breaker, delivery and ledger.
-		if _, err := w.svc.broker.Send(ctx, b, id, couchmessage.Route{Target: hub.Slot}, body); err != nil {
+		// Tail reading may yield while ownership changes. Resolve again at admission.
+		hub, hasHub = w.svc.hubBindingFor(b)
+		if !hasHub {
+			continue
+		}
+		var sendErr error
+		if coordinator != nil {
+			_, sendErr = coordinator.sendGenerated(ctx, b, hub, id, body, false)
+		} else {
+			_, sendErr = w.svc.broker.Send(ctx, b, id, couchmessage.Route{Target: hub.Slot}, body)
+		}
+		if sendErr != nil {
 			continue // hub busy or out of allowance: retried next tick
 		}
 		w.seen[b] = waitEpisode{key: key, notified: true, judged: judged}
+		if coordinator != nil {
+			coordinator.waitNudged(b, reportID)
+		}
 	}
 	for b := range w.seen {
 		if !listed[b] {

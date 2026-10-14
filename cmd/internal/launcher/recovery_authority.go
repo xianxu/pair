@@ -79,9 +79,6 @@ func validateRecoveryProfile(p TrustedLaunchProfile) error {
 	if p.FreshRequired && p.FreshNonce != a.Attempt {
 		return errors.New("recovery fresh nonce mismatch")
 	}
-	if p.Orientation != nil && p.Orientation.Attempt != a.Attempt {
-		return errors.New("recovery orientation attempt mismatch")
-	}
 	if a.Intent.NativeID != "" {
 		for _, c := range a.Intent.Context.Candidates {
 			if c.Key == a.Intent.SelectedKey && c.Agent != p.Agent {

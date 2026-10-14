@@ -22,8 +22,7 @@ type menuRowPhase uint8
 
 const (
 	menuPhaseLive                    menuRowPhase = iota + 1
-	menuPhaseLiveContinuationFailed               // #280: a failed request composes with live actions
-	menuPhaseLiveContinuationRunning              // the request owns the thread: retry is the only exit
+	menuPhaseLiveContinuationRunning              // the request owns the thread until Couch finishes it
 	menuPhaseLiveContinuationPending              // the request is about to run: nothing to do yet
 	menuPhaseLiveOrphaned                         // live, but its server lost its socket (#399)
 	menuPhaseNeedsRelaunch                        // explicit recovery only, never automatic reattach
@@ -69,8 +68,6 @@ func menuRowFactsOf(row couchcore.ActionableThreadSummary) menuRowFacts {
 			break
 		}
 		switch unfinished {
-		case checkpoint.Failed:
-			f.Phase = menuPhaseLiveContinuationFailed
 		case checkpoint.Running:
 			f.Phase = menuPhaseLiveContinuationRunning
 		case checkpoint.Pending:
@@ -104,28 +101,14 @@ func menuRowActions(f menuRowFacts) []string {
 		return []string{"relaunch"}
 	case menuPhaseLiveContinuationPending:
 		return nil
-	case menuPhaseLive, menuPhaseLiveContinuationFailed:
+	case menuPhaseLive:
 		// Detach first: it is the safe, everyday gesture -- the agent keeps
 		// running and only the client goes. Park is destructive and sits
 		// behind it, in the position the operator has to travel to.
-		items := []string{}
-		for _, op := range []string{"detach", "relaunch", "park", "switch-agent"} {
-			// A failed request COMPOSES with a live thread's actions (#280).
-			// Only what continuationGuard refuses goes, and that list is
-			// couchcore's, not restated here.
-			if f.Phase == menuPhaseLiveContinuationFailed && couchcore.ContinuationRefuses(op) {
-				continue
-			}
-			items = append(items, op)
-			if op == "detach" && f.Phase == menuPhaseLiveContinuationFailed {
-				items = append(items, "retry-continuation", "dismiss-continuation")
-			}
-		}
+		items := []string{"detach", "relaunch", "park", "switch-agent"}
 		// Reboot (pair#456) is the way out when relaunch has no conversation
-		// to resume. Not under a failed request: its guard would refuse.
-		if f.Phase == menuPhaseLive {
-			items = append(items, "reboot")
-		}
+		// to resume.
+		items = append(items, "reboot")
 		if f.Kind == menuRowPrimary && f.AliasOffered {
 			items = append(items, "alias")
 		}
@@ -133,11 +116,6 @@ func menuRowActions(f menuRowFacts) []string {
 			items = append(items, "add-slot")
 		}
 		return items
-	case menuPhaseLiveContinuationRunning:
-		// While a request is in flight the continuation owns the thread:
-		// parking or detaching mid-replacement races its own reconciliation.
-		// Retry is the exit, including for a request whose owner died (#280).
-		return []string{"retry-continuation"}
 	case menuPhaseResumable, menuPhaseUnusable, menuPhaseLiveOrphaned:
 		// The actor operations are couchcore's one admission table, shared
 		// with the recover-plan report (pair#367). On a live orphan it offers
@@ -162,7 +140,7 @@ func menuRowActions(f menuRowFacts) []string {
 		}
 		return items
 	}
-	// Busy, unknown, live with a pending request: nothing to offer, and
+	// Busy, unknown, live with a request in flight: nothing to offer, and
 	// menuRowNotice says why. "checking…" is not a verdict, and reboot stops a
 	// session.
 	return nil

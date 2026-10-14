@@ -44,8 +44,6 @@ func TestEveryLifecycleEntryRefusesAHeldThread(t *testing.T) {
 			return err
 		}},
 		{"continue-thread", func() error { _, err := c.Continue(bg, address, "req"); return err }},
-		{"retry-continuation", func() error { _, err := c.RetryContinuation(bg, address, "req"); return err }},
-		{"continuation-status", func() error { _, err := c.ReconcileContinuation(bg, address, "req", ""); return err }},
 		{"reboot", func() error { _, err := c.Reboot(bg, RebootTarget{Address: address}); return err }},
 		{"recover", func() error { _, err := c.RecoverThread(bg, address, ""); return err }},
 		{"stop", func() error { _, err := c.Stop(ActorRecord{ID: "a", Thread: address}); return err }},

@@ -10,11 +10,14 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchtty"
 )
 
-func TestInteractiveStartupOpensConsoleWithoutLaunching(t *testing.T) {
+func TestInteractiveHubStartupOpensConsoleWithSelectedChild(t *testing.T) {
 	rt := newRT(t, "/repo")
 	rt.runner = couchcore.NewFakeRunner()
 	master, slave, err := pty.Open()
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pty.Setsize(slave, &pty.Winsize{Rows: 24, Cols: 80}); err != nil {
 		t.Fatal(err)
 	}
 	defer master.Close()
@@ -22,11 +25,11 @@ func TestInteractiveStartupOpensConsoleWithoutLaunching(t *testing.T) {
 	finished := false
 	finish := func(console *couchtty.Console, c *couchcore.Couch, start couchcore.StartResult, _ io.Writer) int {
 		finished = true
-		if console == nil || c == nil || start.Handle != nil || len(rt.runner.Ops) != 0 {
-			t.Fatalf("startup launched before choice: %+v ops=%v", start, rt.runner.Ops)
+		if console == nil || c == nil || start.Handle == nil || len(rt.runner.Ops) == 0 {
+			t.Fatalf("selected hub startup did not launch: %+v ops=%v", start, rt.runner.Ops)
 		}
 		wireResolver(console, c)
-		if err := beginConsole(console, start, true); err != nil {
+		if err := beginConsole(console, start); err != nil {
 			t.Fatalf("empty console initialization: %v", err)
 		}
 		return 0

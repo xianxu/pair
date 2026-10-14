@@ -11,7 +11,6 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/launcher"
-	"github.com/xianxu/pair/cmd/internal/orientation"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
@@ -161,8 +160,11 @@ func TestResumeCandidateLaunchKeepsExactSelectionAndSavedConfiguration(t *testin
 			if profile.Tag != string(f.record.Address.Tag) || profile.Agent != "codex" || !reflect.DeepEqual(profile.Argv, f.record.LatestLaunchProfile.Argv) || profile.Recovery == nil || profile.Recovery.Intent.NativeID != choice.NativeID {
 				t.Fatalf("launch drift: %+v", profile)
 			}
-			if profile.Orientation == nil || profile.Orientation.Tag != string(f.record.Address.Tag) || !strings.Contains(profile.Orientation.Body, f.observation.Capture.Raw) {
-				t.Fatalf("missing original screen orientation: %+v", profile.Orientation)
+			if fresh && (!strings.Contains(profile.Prompt, "--previous --all") || !strings.Contains(profile.Prompt, f.observation.Capture.Raw)) {
+				t.Fatalf("missing previous-screen coordinates: %q", profile.Prompt)
+			}
+			if !fresh && profile.Prompt != "" {
+				t.Fatalf("native resume received prompt: %q", profile.Prompt)
 			}
 			if fresh != (profile.FreshNonce != "") {
 				t.Fatalf("fresh nonce %q", profile.FreshNonce)
@@ -325,40 +327,24 @@ func TestResumeCandidateSecondAlternativeUsesOriginalRetainedScreen(t *testing.T
 	if err := json.Unmarshal([]byte(environmentValue(child.Env, launcher.CouchLaunchProfileEnv)), &profile); err != nil {
 		t.Fatal(err)
 	}
-	if profile.Recovery == nil || profile.Recovery.Intent.NativeID != "second-native" || profile.Recovery.Intent.Context.Capture != original || profile.Orientation == nil || !strings.Contains(profile.Orientation.Body, original.Raw) || strings.Contains(profile.Orientation.Body, "first-attempt.raw") {
+	if profile.Recovery == nil || profile.Recovery.Intent.NativeID != "second-native" || profile.Recovery.Intent.Context.Capture != original || profile.Prompt != "" {
 		t.Fatalf("second selection changed original context: %+v", profile)
 	}
 }
 
-func TestResumeCandidateOrientationNoticeDoesNotResend(t *testing.T) {
-	for _, phase := range []orientation.DeliveryPhase{orientation.DeliveryWaiting, orientation.DeliveryIndeterminate} {
-		t.Run(string(phase), func(t *testing.T) {
-			f := newRecoveryExecutionFixture(t)
-			f.registerLiveChildren(t)
-			reads := 0
-			f.Couch.OrientationStatus = func(_ context.Context, address ThreadAddress, agent, attempt string) (orientation.DeliveryState, error) {
-				reads++
-				if address != f.record.Address || agent != "codex" || attempt == "" {
-					t.Fatal("status read lost exact target")
-				}
-				return orientation.DeliveryState{Phase: phase, BodyWritten: phase == orientation.DeliveryIndeterminate, Reason: "delivery status evidence"}, nil
-			}
-			result, err := f.Couch.ResumeCandidate(context.Background(), ResumeTarget{Address: f.record.Address}, f.preview(t).Candidates[0].Key)
-			if err != nil {
-				t.Fatal(err)
-			}
-			expected := string(phase)
-			if expected == "" {
-				expected = "pending"
-			}
-			if _, ok := result.Started(); !ok || result.Orientation.Phase != phase || !strings.Contains(result.Notice, "orientation "+expected) || reads != 1 {
-				t.Fatalf("status lost or polled for retry: %+v reads=%d", result, reads)
-			}
-			child := f.Runner.Child(result.Start.Handle.ID())
-			if child.ExecCount != 1 || len(child.Signals) != 0 || len(f.Runner.order) != 1 {
-				t.Fatalf("orientation uncertainty restarted child: %+v", child)
-			}
-		})
+func TestResumeCandidateLaunchNoticeDoesNotResend(t *testing.T) {
+	f := newRecoveryExecutionFixture(t)
+	f.registerLiveChildren(t)
+	result, err := f.Couch.ResumeCandidate(context.Background(), ResumeTarget{Address: f.record.Address}, f.preview(t).Candidates[0].Key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := result.Started(); !ok || !strings.Contains(result.Notice, "resumed ") {
+		t.Fatalf("launch status lost: %+v", result)
+	}
+	child := f.Runner.Child(result.Start.Handle.ID())
+	if child.ExecCount != 1 || len(child.Signals) != 0 || len(f.Runner.order) != 1 {
+		t.Fatalf("launch notice restarted child: %+v", child)
 	}
 }
 

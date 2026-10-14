@@ -10,7 +10,6 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/launcher"
-	"github.com/xianxu/pair/cmd/internal/orientation"
 )
 
 // MenuControl is one operator-entered switcher surface. README checks consume
@@ -175,7 +174,6 @@ func setBookkeepingNotice(state *MenuState, text string) {
 // MenuState is immutable-by-copy reducer state. Frames retain identities and
 // text; the inventory remains one separately owned slice.
 type MenuState struct {
-	Orientation       map[couchcore.ThreadAddress]orientation.Request
 	Inventory         []couchcore.ActionableThreadSummary
 	InventoryReady    bool
 	RefreshPending    bool
@@ -215,7 +213,8 @@ type MenuState struct {
 	// Hub is the worktree root of the hub slot, the checkout Couch started
 	// from (pair#463), or "" without one. PresentThreads orders and indents
 	// the hub's section by it, for the tab bar and the switcher (pair#491).
-	Hub string
+	Hub          string
+	HubOwnership couchcore.HubOwnership
 }
 
 // MenuOperationOrigin captures the exact frame that emitted asynchronous
@@ -282,6 +281,7 @@ const (
 	MenuEventBlocked
 	// MenuEventHub records the hub's worktree root and reorders (pair#491).
 	MenuEventHub
+	MenuEventHubOwnership
 )
 
 type MenuEvent struct {
@@ -329,18 +329,18 @@ type MenuEvent struct {
 	// Palette is the host terminal's colours as known after one reply.
 	Palette Palette
 	// Hub is the hub slot's worktree root (pair#491).
-	Hub string
+	Hub          string
+	HubOwnership couchcore.HubOwnership
 }
 
 // MenuEffect is an operation request for the thin Console shell.
 type MenuEffect struct {
-	CancelPreview   uint64
-	CopyOrientation *orientation.Request
-	Operation       string
-	Attempt         uint64
-	Args            map[string]string
-	Preview         *PreviewRequest
-	Completion      *CompletionRequest
+	CancelPreview uint64
+	Operation     string
+	Attempt       uint64
+	Args          map[string]string
+	Preview       *PreviewRequest
+	Completion    *CompletionRequest
 	// Background marks a reattach-pass effect (pair#206): enqueued without the
 	// operator's in-flight slot, and attached without taking focus.
 	Background bool
@@ -461,6 +461,14 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 	if event.Kind == MenuEventBlocked {
 		next.Blocked = event.Blocked
 		return next, nil
+	}
+	if event.Kind == MenuEventHubOwnership {
+		if event.HubOwnership.Revision() < next.HubOwnership.Revision() {
+			return next, nil
+		}
+		next.HubOwnership = event.HubOwnership
+		next.Hub = event.HubOwnership.Main()
+		return reorderMenuInventory(next), nil
 	}
 	if event.Kind == MenuEventHub {
 		next.Hub = event.Hub
@@ -864,9 +872,6 @@ func reduceActionKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 			return dispatchMenuRow(state, frame.SelectedItem, thread)
 		}
 		switch frame.SelectedItem {
-		case "copy-orientation":
-			request := state.Orientation[thread.Address]
-			return state, []MenuEffect{{CopyOrientation: &request}}
 		case "add-slot":
 			path := menuAddSlotPath(thread)
 			state, _ = openStartForm(state)
@@ -1456,9 +1461,6 @@ func menuItemLabel(item string) string {
 	if item == "switch-agent" {
 		return "switch coding agent"
 	}
-	if item == "copy-orientation" {
-		return "Copy orientation prompt"
-	}
 	return item
 }
 
@@ -1756,7 +1758,7 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 			state = restoreMenuPrefixPreservingStart(state, 1, origin)
 			state.Frames[0].SelectedAddress = event.Address
 		}
-	case "park", "detach", "resume", "leave", "relaunch", "switch-agent", "retry-continuation", "dismiss-continuation":
+	case "park", "detach", "resume", "leave", "relaunch", "switch-agent":
 		state = restoreMenuPrefixPreservingStart(state, 1, origin)
 		state.Frames[0].SelectedAddress = event.Address
 		if origin.RowKey.Kind == couchcore.ThreadTargetSlot {
@@ -1800,7 +1802,7 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 // child a recover's resume starts is excluded by handle at completion.
 func endsItsOwnChild(operation string) bool {
 	switch operation {
-	case "park", "detach", "relaunch", "switch-agent", "retry-continuation", "continue-thread", "reap", "recover":
+	case "park", "detach", "relaunch", "switch-agent", "continue-thread", "reap", "recover":
 		return true
 	}
 	return false
@@ -1812,7 +1814,7 @@ func endsItsOwnChild(operation string) bool {
 // terminal focus; leave terminates the console and has no next frame to update.
 func operationNeedsProjectionRefresh(operation string) bool {
 	switch operation {
-	case "start", "park", "detach", "resume", "reboot", "reap", "recover", "alias", "relaunch", "reload-context", "switch-agent", "retry-continuation", "dismiss-continuation", "continue-thread":
+	case "start", "park", "detach", "resume", "reboot", "reap", "recover", "alias", "relaunch", "reload-context", "switch-agent", "continue-thread":
 		return true
 	case "switch", "leave", "prepare":
 		// prepare is an admission check; it changes nothing.
@@ -1897,14 +1899,6 @@ func dispatchMenuOperation(state MenuState, effect MenuEffect, address couchcore
 	}
 	state.OperationSequence++
 	effect.Attempt = state.OperationSequence
-	if effect.Operation == "retry-continuation" || effect.Operation == "dismiss-continuation" {
-		// threadEffect already addresses the row by its exact tag. Adding `ref`
-		// as well is refused by resolveOperationThread, which is how the switcher's
-		// retry never reached its thread (#280).
-		if thread, ok := menuThread(state, address); ok && thread.Continuation != nil {
-			effect.Args["request-id"] = thread.Continuation.RequestID
-		}
-	}
 	if effect.Operation == "resume" {
 		// The operator resuming a failed thread by hand clears its mark
 		// (pair#206 cell 9).
@@ -1956,10 +1950,6 @@ func menuOperationProgressText(state MenuState, operation string, address couchc
 		return "leaving couch"
 	case "relaunch":
 		return "restarting " + label + "'s pair…"
-	case "retry-continuation":
-		return "retrying continuation for " + label
-	case "dismiss-continuation":
-		return "dismissing continuation for " + label
 	case "reboot":
 		return "rebooting " + label
 	case "reap":
@@ -2061,12 +2051,6 @@ func mergeObservations[K comparable, V any](prev, observed map[K]V, failed map[K
 
 func cloneMenuState(state MenuState) MenuState {
 	next := state
-	if state.Orientation != nil {
-		next.Orientation = make(map[couchcore.ThreadAddress]orientation.Request, len(state.Orientation))
-		for k, v := range state.Orientation {
-			next.Orientation[k] = v
-		}
-	}
 	next.Inventory = append([]couchcore.ActionableThreadSummary(nil), state.Inventory...)
 	next.Frames = append([]MenuFrame(nil), state.Frames...)
 	for i := range next.Frames {

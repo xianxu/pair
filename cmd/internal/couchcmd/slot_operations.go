@@ -28,11 +28,12 @@ const maxSlotOperationReceipts = 64
 // handlers), started (the queue runner) and finished (the console loop) all
 // take it, and none waits on the queue or the console while holding it.
 type slotOperations struct {
-	run       slotOperationRunner
-	preview   func(context.Context, string) (couchcore.RecoveryPreview, error)
-	candidate func(string, string, string, func(), func(any, error)) error
-	names     func(context.Context) ([]couchcore.RepositoryName, error)
-	now       func() time.Time
+	run        slotOperationRunner
+	guardedRun func(string, string, string, couchcore.LiveRestartOptions, func(context.Context) error, func(), func(any, error)) error
+	preview    func(context.Context, string) (couchcore.RecoveryPreview, error)
+	candidate  func(string, string, string, func(), func(any, error), ...func(context.Context) error) error
+	names      func(context.Context) ([]couchcore.RepositoryName, error)
+	now        func() time.Time
 
 	mu       sync.Mutex
 	receipts map[receiptKey]couchmessage.OperationReceipt
@@ -44,12 +45,27 @@ type receiptKey struct{ scope, tag, id string }
 
 // switchStatus is only called after proving the requesting live binding is the
 // supervisor hub. Ordinary status remains scoped to the admitting slot.
-func (s *slotOperations) switchStatus(id string) (couchmessage.Response, bool) {
+func (s *slotOperations) switchStatus(id string, filters ...func(couchmessage.OperationReceipt) bool) (couchmessage.Response, bool) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.sweepLocked()
+	var candidates []couchmessage.OperationReceipt
 	for _, receipt := range s.receipts {
 		if receipt.ID == id && receipt.Op == "switch-agent" {
+			candidates = append(candidates, receipt)
+		}
+	}
+	s.mu.Unlock()
+	// Ownership resolution may read the catalog; never hold the receipt mutex
+	// across that IO or a queued operation's completion would be blocked.
+	for _, receipt := range candidates {
+		allowed := true
+		for _, filter := range filters {
+			if !filter(receipt) {
+				allowed = false
+				break
+			}
+		}
+		if allowed {
 			return couchmessage.Response{Code: "ok", Operation: &receipt}, true
 		}
 	}
@@ -61,7 +77,7 @@ func newSlotOperations(run slotOperationRunner, names func(context.Context) ([]c
 }
 
 // handle answers one validated request from a verified, current caller.
-func (s *slotOperations) handle(ctx context.Context, caller couchmessage.Binding, r couchmessage.Request) couchmessage.Response {
+func (s *slotOperations) handle(ctx context.Context, caller couchmessage.Binding, r couchmessage.Request, guards ...func(context.Context) error) couchmessage.Response {
 	key := receiptKey{caller.Scope, caller.Tag, r.ID}
 	if r.Op == "operation-status" {
 		s.mu.Lock()
@@ -78,7 +94,13 @@ func (s *slotOperations) handle(ctx context.Context, caller couchmessage.Binding
 			if s.candidate == nil {
 				return errors.New("candidate resume unavailable")
 			}
-			return s.candidate(key, r.Target, r.CandidateKey, started, finished)
+			return s.candidate(key, r.Target, r.CandidateKey, started, finished, guards...)
+		}
+		if len(guards) > 0 {
+			if s.guardedRun == nil {
+				return errors.New("hub-aware operation queue unavailable")
+			}
+			return s.guardedRun(key, r.Op, r.Target, couchcore.LiveRestartOptions{SameBinary: r.SameBinary, ForceUnknown: r.ForceUnknown}, guards[0], started, finished)
 		}
 		return s.run(key, r.Op, r.Target, couchcore.LiveRestartOptions{SameBinary: r.SameBinary, ForceUnknown: r.ForceUnknown}, started, finished)
 	})
@@ -86,12 +108,18 @@ func (s *slotOperations) handle(ctx context.Context, caller couchmessage.Binding
 
 // admit shares the receipt state machine and queue admission across slot operations.
 func (s *slotOperations) admit(ctx context.Context, caller couchmessage.Binding, r couchmessage.Request,
-	run func(string, func(), func(any, error)) error) couchmessage.Response {
+	run func(string, func(), func(any, error)) error, queueKeys ...string) couchmessage.Response {
 	key := receiptKey{caller.Scope, caller.Tag, r.ID}
 	if confirms, _ := couchcore.OperationConfirms(r.Op); confirms && !r.Confirmed {
 		return couchmessage.Response{Code: "confirmation-required", Error: r.Op + " requires --confirm"}
 	}
-	queueKey, err := s.queueKey(ctx, r.Target)
+	var queueKey string
+	var err error
+	if len(queueKeys) > 0 {
+		queueKey = queueKeys[0]
+	} else {
+		queueKey, err = s.queueKey(ctx, r.Target)
+	}
 	if err != nil {
 		return couchmessage.Response{Code: couchcore.SlotOpUnknownSlot, Error: err.Error()}
 	}
@@ -100,7 +128,7 @@ func (s *slotOperations) admit(ctx context.Context, caller couchmessage.Binding,
 	defer s.mu.Unlock()
 	s.sweepLocked()
 	existing, held := s.receipts[key]
-	receipt, err := couchmessage.ApplyReceiptEvent(existing, couchmessage.ReceiptEvent{Kind: couchmessage.ReceiptAdmit, ID: r.ID, Op: r.Op, Target: r.Target, Agent: r.Agent, CandidateKey: r.CandidateKey, At: s.now()})
+	receipt, err := couchmessage.ApplyReceiptEvent(existing, couchmessage.ReceiptEvent{Kind: couchmessage.ReceiptAdmit, ID: r.ID, Op: r.Op, Target: r.Target, Agent: r.Agent, CandidateKey: r.CandidateKey, ToHub: r.ToHub, Persist: r.Persist, At: s.now()})
 	switch {
 	case errors.Is(err, couchmessage.ErrReceiptIDConflict):
 		return couchmessage.Response{Code: "id-conflict", Error: err.Error()}

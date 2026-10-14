@@ -441,21 +441,6 @@ var SourceClassifications = []SourceClassification{
 	}},
 	{Path: "cmd/internal/couchcore/continuation_source.go", Kind: ResolvedConsumer,
 		Families: []string{"ledger", "session-binding"}, BindingNames: []string{"composite-ledger", "legacy-session-binding", "selected-session-binding"}},
-	// The operation name overlaps the continuation artifact prefix. Keep its
-	// vocabulary exceptions tied to exact declaration and dispatch sites.
-	{Path: "cmd/internal/couchcore/ops.go", Kind: VocabularyConsumer, Families: []string{"continuation"}, Vocabulary: []VocabularyAllowance{
-		{Family: "continuation", Value: "continuation-status", Context: GoKeyValueVocabulary, Use: "Operations.Name", Count: 1},
-	}},
-	{Path: "cmd/internal/couchcore/operationdispatch.go", Kind: VocabularyConsumer, Families: []string{"continuation"}, Vocabulary: []VocabularyAllowance{
-		goCaseVocabulary("continuation", "continuation-status", "CouchLiveOwnerExecutor", 1),
-	}},
-	{Path: "cmd/internal/couchtty/console.go", Kind: VocabularyConsumer, Families: []string{"continuation"}, Vocabulary: []VocabularyAllowance{
-		goComparisonVocabulary("continuation", "continuation-status", "finishOperation", 1),
-	}},
-	{Path: "cmd/internal/couchtty/console_continuation.go", Kind: VocabularyConsumer, Families: []string{"continuation"}, Vocabulary: []VocabularyAllowance{
-		{Family: "continuation", Value: "continuation-status", Context: GoReturnVocabulary, Use: "continuationOperation", Count: 1},
-		goComparisonVocabulary("continuation", "continuation-status", "acceptContinuationRequests", 1),
-	}},
 	{Path: "cmd/internal/couchcore/artifactcollision.go", Kind: ResolvedConsumer,
 		Families: []string{"session-binding", "pane"}, BindingNames: []string{"composite-scope-session-binding", "composite-pane-glob"}},
 	{Path: "cmd/internal/couchcore/slotsessions.go", Kind: ResolvedConsumer,
@@ -929,6 +914,12 @@ var NonArtifactSources = []string{
 	// file it reads is resolved in message_service.go.
 	"cmd/internal/couchcmd/renicer.go",
 	"cmd/internal/couchcore/renice.go",
+	"cmd/internal/checkpoint/miss.go",
+	"cmd/internal/launcher/prompt.go",
+	"cmd/internal/couchcore/operationdispatch.go",
+	"cmd/internal/couchcore/ops.go",
+	"cmd/internal/couchtty/console.go",
+	"cmd/internal/couchtty/console_continuation.go",
 	// #488 note anchors: screen layout and pane geometry; no artifact paths.
 	"cmd/internal/couchtty/console_noteanchor.go",
 	"cmd/internal/couchtty/noteanchor.go",
@@ -948,6 +939,14 @@ var NonArtifactSources = []string{
 	// #451 waiting notices: reads the operator's mute list in the Couch
 	// store; writes nothing.
 	"cmd/internal/couchcmd/wait_notice.go",
+	"cmd/internal/couchcmd/supervision.go",
+	"cmd/internal/couchcmd/supervision_model.go",
+	// #543 optional diagnostic JSONL under the Couch namespace, registered with
+	// diagnosticlog retention; no Pair lifecycle artifact filenames.
+	"cmd/internal/couchcmd/supervision_fact_events.go",
+	"cmd/internal/couchcmd/supervision_factlog.go",
+	"cmd/internal/couchcmd/supervision_facts.go",
+	"cmd/internal/couchcmd/supervision_write.go",
 	// #490 verb costs: help text only; no artifact paths.
 	"cmd/internal/couchcmd/cost.go",
 	// #540 notifications use the existing broker and presenter; no artifacts.
@@ -1026,7 +1025,6 @@ var NonArtifactSources = []string{
 	"cmd/internal/launcher/checkpoint_io.go",
 	"cmd/internal/launcher/checkpoint_retry.go",
 	"cmd/internal/couchcore/switchagent.go",
-	"cmd/internal/couchtty/console_switchagent.go",
 	"cmd/internal/couchtty/menu_switchagent.go",
 	"bin/lib/adapt-log.sh",
 	"bin/lib/dev-rebuild.sh",
@@ -1047,6 +1045,13 @@ var NonArtifactSources = []string{
 	"cmd/internal/contextcmd/contextcmd.go",
 	"cmd/internal/continuationcmd/git.go",
 	"cmd/internal/couchcmd/cli.go",
+	// Hub-owned configuration is not a Pair session artifact.
+	"cmd/internal/couchcmd/hub_cli.go",
+	"cmd/internal/couchcmd/hub_claim_files.go",
+	"cmd/internal/couchcmd/hubs.go",
+	"cmd/internal/couchcmd/hub_move.go",
+	"cmd/internal/couchcmd/hub_guards.go",
+	"cmd/internal/couchcmd/console_slot_operations.go",
 	"cmd/internal/couchkeys/couchkeys.go",
 	"cmd/internal/couchcore/actionableinventory.go",
 	"cmd/internal/couchcore/threadreason.go",
@@ -1054,6 +1059,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/artifactcollision_fake.go",
 	"cmd/internal/couchcore/panebirth.go",
 	"cmd/internal/couchcore/clock.go",
+	"cmd/internal/couchcore/hub_claim.go",
+	"cmd/internal/couchcore/hub_ownership.go",
 	"cmd/internal/couchcore/couch.go",
 	"cmd/internal/couchcore/detach.go",
 	"cmd/internal/couchcore/detachedsessions.go",
@@ -1364,8 +1371,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/wrapcmd/composer_recognizers.go",
 	"cmd/internal/wrapcmd/codex_working.go",
 	"cmd/internal/wrapcmd/harness_tty.go",
-	"cmd/internal/wrapcmd/orientation.go",
-	"cmd/internal/wrapcmd/orientation_replies.go",
+	"cmd/internal/wrapcmd/composer_rows.go",
+	"cmd/internal/wrapcmd/terminal_replies.go",
 	"cmd/internal/wrapcmd/notification_lifecycle.go",
 	"cmd/internal/wrapcmd/notification_rewriter.go",
 	"cmd/internal/wrapcmd/notification_output.go",

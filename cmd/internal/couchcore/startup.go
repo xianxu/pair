@@ -2,6 +2,8 @@ package couchcore
 
 import (
 	"context"
+
+	"github.com/xianxu/pair/cmd/internal/launcher"
 )
 
 // The occupancy questions, and why they are not one function.
@@ -68,28 +70,117 @@ func PathHoldsUnreadableThread(rows []ActionableThreadSummary, repoScope string)
 	return ThreadAddress{}, false
 }
 
-// StartInteractive opens the console without changing retained slot state.
-// An explicit action remains a launch request; merely opening Couch is not one.
+// StartInteractive launches the explicitly selected hub. Other retained slots
+// remain observations; startup never recovers their transactions or agents.
 func (c *Couch) StartInteractive(ctx context.Context, args StartArgs) (StartResult, error) {
 	if err := ctx.Err(); err != nil {
 		return StartResult{}, err
-	}
-	if args.Action == "" {
-		return StartResult{}, nil
 	}
 	resolution, err := c.resolveStartResolution(ctx, args)
 	if err != nil {
 		return StartResult{}, err
 	}
 	if resolution.Target.Kind == ThreadTargetSlot {
-		return c.spawnManagedResolution(ctx, resolution)
+		if resolution.Action != StartOpen {
+			return c.spawnManagedResolution(ctx, resolution)
+		}
+		local, _, err := c.selectedSlot(ctx, resolution.Target.Slot.WorktreeRoot)
+		if err != nil {
+			return StartResult{}, err
+		}
+		observed, err := local.observeSlotCurrent()
+		if err != nil {
+			return StartResult{}, err
+		}
+		if observed.Unsupported {
+			return StartResult{}, observed.Err
+		}
+		if observed.Record != nil {
+			name, listed, err := c.listedTerminal(ctx, *observed.Record)
+			if err != nil {
+				return StartResult{}, err
+			}
+			if listed {
+				record, handle, err := c.attachListedTerminal(ctx, *observed.Record, name, ResumeOptions{})
+				return StartResult{Record: record, Handle: handle}, err
+			}
+			binding, err := c.resumeEvidence(ctx, *observed.Record)
+			if err != nil && !isBindingDiagnostic(ResumeDiagnosticOf(err)) {
+				return StartResult{}, err
+			}
+			if err == nil && coldResumeAuthorized(binding) {
+				return c.spawnManagedResolution(ctx, resolution)
+			}
+		}
+		// Existing fresh admission owns the checks for surviving or unresolved
+		// owners. Startup cannot waive them or recover their transactions.
+		return c.StartFreshSlot(ctx, resolution.Target.Slot.WorktreeRoot, resolution.RequestedAgent)
 	}
 	if err := c.enrollPrimaryResolution(ctx, resolution); err != nil {
 		return StartResult{}, err
 	}
-	rows, err := c.ActionableThreadInventoryContext(ctx, nil)
+	scope, err := launcher.ResolveRepoScope(string(resolution.Worktree))
 	if err != nil {
 		return StartResult{}, err
+	}
+	// A positively listed terminal is sufficient attachment authority, including
+	// pre-upgrade sessions with no launch policy or cold-resume metadata.
+	snapshot, err := c.Threads.PreviewSnapshot()
+	if err != nil {
+		return StartResult{}, err
+	}
+	primaries := make(map[ThreadAddress]bool)
+	for _, row := range ProjectActionableThreads(FromSnapshot(snapshot, nil)) {
+		if primaryOfScope(row, scope.Key) {
+			primaries[row.Address] = true
+		}
+	}
+	var warm *ThreadRecord
+	var session string
+	for _, record := range snapshot.Records {
+		if !primaries[record.Address] {
+			continue
+		}
+		name, listed, err := c.listedTerminal(ctx, record)
+		if err != nil {
+			return StartResult{}, err
+		}
+		if listed && (warm == nil || record.LastActiveAt.After(warm.LastActiveAt)) {
+			candidate := record
+			warm, session = &candidate, name
+		}
+	}
+	if warm != nil {
+		record, handle, err := c.attachListedTerminal(ctx, *warm, session, ResumeOptions{})
+		return StartResult{Record: record, Handle: handle}, err
+	}
+	// Native proof is requested only for this hub's primary records. Rows in
+	// other scopes and managed slots cannot authorize a background launch.
+	snapshot, evidence, err := c.gatherThreadEvidence(ctx, nil, func(record ThreadRecord) bool {
+		return false // exact cold proof is read below, independently of projection state
+	})
+	if err != nil {
+		return StartResult{}, err
+	}
+	rows := ProjectActionableThreads(FromSnapshot(snapshot, evidence))
+	var cold *ThreadRecord
+	for _, record := range snapshot.Records {
+		if !primaries[record.Address] {
+			continue
+		}
+		binding, err := c.resumeEvidence(ctx, record)
+		if err != nil && !isBindingDiagnostic(ResumeDiagnosticOf(err)) {
+			return StartResult{}, err
+		}
+		if err == nil && coldResumeAuthorized(binding) && CheckResumePreconditions(record, binding, c.workingPathExists(record)) == nil &&
+			(cold == nil || record.LastActiveAt.After(cold.LastActiveAt)) {
+			candidate := record
+			cold = &candidate
+		}
+	}
+	if cold != nil {
+		record, handle, err := c.ResumeContextWith(ctx, cold.Address, ResumeOptions{})
+		return StartResult{Record: record, Handle: handle}, err
 	}
 	record, handle, err := c.spawnResolved(ctx, resolution, rows)
 	return StartResult{Record: record, Handle: handle}, err

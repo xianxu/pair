@@ -73,15 +73,8 @@ func newColdResumeRig(t *testing.T) *coldResumeRig {
 	if err := c.Threads.EnrollSlotRepository(context.Background(), couchcore.SlotRepository{Identity: identity}); err != nil {
 		t.Fatal(err)
 	}
-	// Opening Couch observes the parked primary; only the later explicit
-	// menu/remote resume is permitted to start its cold registration sequence.
-	startup, err := c.StartInteractive(context.Background(), couchcore.StartArgs{Cwd: primary})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if startup.Handle != nil || len(rt.runner.Ops) != 0 {
-		t.Fatal("startup launched before explicit Resume from disk")
-	}
+	// This rig starts with an already open console: the parked ordinary slot
+	// is resumed only by the menu or remote action exercised below.
 	host := hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 100})
 	reader, input := io.Pipe()
 	t.Cleanup(func() { _ = reader.Close(); _ = input.Close() })

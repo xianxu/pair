@@ -66,7 +66,7 @@ func TestRecoverThreadAbsentSourceRetainsExactSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if record.VerifiedPark != nil || len(record.ParkHistory) != 0 || record.Continuation.SourceAbsence == nil || record.Continuation.Checkpoint != before.Continuation.Checkpoint || f.launches != 1 || result.Orientation == nil {
+	if record.VerifiedPark != nil || len(record.ParkHistory) != 0 || record.Continuation.SourceAbsence == nil || record.Continuation.Checkpoint != before.Continuation.Checkpoint || f.launches != 1 || result.Status.Phase != checkpoint.Complete {
 		t.Fatalf("bad absence recovery: %+v launches=%d", record, f.launches)
 	}
 }
@@ -162,86 +162,6 @@ func TestAdmitRecoveryGenerationRejectsUnownedAdvancement(t *testing.T) {
 	}
 	if err := AdmitRecoveryGeneration(*r.Continuation, ContinuationSource{Agent: "codex", Session: "pair-exact", LaunchOrdinal: 4}); err == nil || !strings.Contains(err.Error(), "generation") {
 		t.Fatalf("foreign agent admitted: %v", err)
-	}
-}
-
-func TestRecoverContinuationRetryDistinguishesOwnTargetGeneration(t *testing.T) {
-	t.Parallel()
-
-	for _, scenario := range []string{"owned", "foreign", "foreign-session", "registration-crash"} {
-		t.Run(scenario, func(t *testing.T) {
-			f := newContinuationFixture(t)
-			c := f.env.Couch
-			ordinal := uint64(2)
-			currentSession := "pair-exact"
-			generations := map[string]checkpoint.TargetGeneration{}
-			c.ContinuationSource = func(context.Context, ThreadAddress) (ContinuationSource, error) {
-				return ContinuationSource{Agent: "claude", Session: currentSession, LaunchOrdinal: ordinal}, nil
-			}
-			c.ContinuationGeneration = func(_ context.Context, _ ThreadAddress, _ string, attempt string) (*checkpoint.TargetGeneration, error) {
-				g, ok := generations[attempt]
-				if !ok {
-					return nil, nil
-				}
-				return &g, nil
-			}
-			prior := f.env.Runner.AfterAcknowledge
-			f.env.Runner.AfterAcknowledge = func(id string) error {
-				if err := prior(id); err != nil {
-					return err
-				}
-				ordinal++
-				currentSession = continuationChildSession(t, f.env.Runner, id)
-				r, _ := c.Threads.GetThread(f.source.Address)
-				generations[r.Continuation.Attempt] = checkpoint.TargetGeneration{Agent: "claude", Session: currentSession, Attempt: r.Continuation.Attempt, LaunchOrdinal: ordinal}
-				return nil
-			}
-			f.env.Proc.Kill(f.source.Incarnations[0].PID)
-			f.env.Artifacts.SetPairSession(f.source.Address, currentSession, false)
-			first, err := c.RecoverThread(context.Background(), f.source.Address, "")
-			if err != nil {
-				t.Fatal(err)
-			}
-			f.env.Proc.Kill(first.Record.PID)
-			f.env.Runner.SetExited(first.Handle.ID(), 0)
-			f.env.Artifacts.SetPairSession(f.source.Address, currentSession, false)
-			f.registered[first.Status.Attempt] = false
-			_, err = c.ReconcileContinuation(context.Background(), f.source.Address, first.Status.RequestID, first.Status.Attempt)
-			if err == nil {
-				t.Fatal("target death not detected")
-			}
-			if scenario == "registration-crash" {
-				record, _ := c.Threads.GetThread(f.source.Address)
-				_, err = c.Threads.updateExistingThread(record.Address, record.Revision, func(next *ThreadRecord) error { next.Continuation.Target = nil; return nil })
-				if err != nil {
-					t.Fatal(err)
-				}
-			}
-			if scenario == "foreign" {
-				ordinal++
-			}
-			if scenario == "foreign-session" {
-				currentSession = "📁999-1"
-				f.env.Artifacts.SetPairSession(f.source.Address, currentSession, false)
-			}
-			second, err := c.RetryContinuation(context.Background(), f.source.Address, first.Status.RequestID)
-			if scenario == "foreign" || scenario == "foreign-session" {
-				if err == nil || f.launches != 1 {
-					t.Fatalf("foreign generation duplicated target: %+v %v launches%d", second, err, f.launches)
-				}
-				return
-			}
-			if err != nil {
-				t.Fatal(err)
-			}
-			record, _ := c.Threads.GetThread(f.source.Address)
-			if record.Continuation.SourceAbsence == nil || record.Continuation.SourceAbsence.Session != "pair-exact" || record.Continuation.PreviousTargetGeneration == nil || record.SessionBinding == nil || record.Continuation.Source.Session != "pair-exact" || record.Continuation.PreviousTargetGeneration.Session != continuationChildSession(t, f.env.Runner, first.Handle.ID()) || record.SessionBinding.Name == record.Continuation.PreviousTargetGeneration.Session {
-				t.Fatalf("terminal lifetimes lost: %+v", record)
-			}
-			if f.launches != 2 || second.Status.Attempt == first.Status.Attempt || record.Continuation.Source.LaunchOrdinal != 2 || record.Continuation.PreviousTargetGeneration == nil || record.Continuation.PreviousTargetGeneration.LaunchOrdinal != 3 {
-				t.Fatalf("wrong retry %+v launches%d", record.Continuation, f.launches)
-			}
-		})
 	}
 }
 
@@ -392,41 +312,6 @@ func TestRecoveryInventoryUsesExistingEvidenceWithoutSourceReads(t *testing.T) {
 	}
 	if got := f.env.Artifacts.DetachedQueries(); got != before {
 		t.Fatalf("recovery added session queries: before%d after%d", before, got)
-	}
-}
-
-func TestContinuationRecoveryRefusesMultipleDeadIncarnations(t *testing.T) {
-	t.Parallel()
-
-	f := newContinuationFixture(t)
-	c := f.env.Couch
-	first, err := c.Continue(context.Background(), f.source.Address, f.status.RequestID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	f.env.Proc.Kill(first.Record.PID)
-	f.env.Runner.SetExited(first.Handle.ID(), 0)
-	f.env.Artifacts.SetPairSession(f.source.Address, "pair-exact", false)
-	f.registered[first.Status.Attempt] = false
-	_, err = c.ReconcileContinuation(context.Background(), f.source.Address, first.Status.RequestID, first.Status.Attempt)
-	if err == nil {
-		t.Fatal("target death ignored")
-	}
-	record, _ := c.Threads.GetThread(f.source.Address)
-	before, err := c.Threads.updateExistingThread(record.Address, record.Revision, func(next *ThreadRecord) error {
-		next.Incarnations = append(next.Incarnations, ThreadIncarnation{PID: 778, Identity: "unrelated", State: IncarnationLive})
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = c.RetryContinuation(context.Background(), record.Address, first.Status.RequestID)
-	if err == nil {
-		t.Fatal("ambiguous helpers allowed retry")
-	}
-	after, _ := c.Threads.GetThread(record.Address)
-	if !reflect.DeepEqual(before, after) || f.launches != 1 {
-		t.Fatal("retry mutated ambiguous owners")
 	}
 }
 

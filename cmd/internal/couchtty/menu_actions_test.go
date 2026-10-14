@@ -117,19 +117,13 @@ func expectedRowActions(s menuRowShape) []string {
 			return []string{"recover", "reap"}
 		case s.orphan:
 			return []string{"recover", "reap", "add-slot"}
-		case unfinished && s.phase == checkpoint.Running:
-			return []string{"retry-continuation"}
-		case unfinished && s.phase == checkpoint.Pending:
+		case unfinished && (s.phase == checkpoint.Running || s.phase == checkpoint.Pending):
+			// An in-flight compaction owns the row until Couch finishes it;
+			// it ends complete or as the row's line (#522).
 			return nil
-		case unfinished && s.phase == checkpoint.Failed:
-			// relaunch and switch-agent are what a failed request refuses.
-			if s.slot {
-				return []string{"detach", "retry-continuation", "dismiss-continuation", "park"}
-			}
-			return []string{"detach", "retry-continuation", "dismiss-continuation", "park", "alias", "add-slot"}
 		}
 		// Reboot (pair#456): a fresh session where relaunch has nothing to
-		// resume. Not under a failed request, whose guard would refuse it.
+		// resume. A failed request never reaches a row (#522).
 		if s.slot {
 			return []string{"detach", "relaunch", "park", "switch-agent", "reboot"}
 		}

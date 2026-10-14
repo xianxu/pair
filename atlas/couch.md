@@ -40,9 +40,12 @@ locally owned helper through existing transactions after their admission checks;
 foreign or unresolved lifecycle owners remain protected. Explicit continuation
 recovery keeps its separately authorized adoption path.
 
-Couch startup observes existing slots with preview reads. It does not complete
-interrupted starts/parks, replay slot-store journals, or repair a slot as a
-side effect of opening the console. An unhealthy slot never blocks Couch or
+Every command-line hub is an explicit launch/attach request, including the cwd
+hub for bare `couch`. A positively listed hub uses Continue; a stopped hub uses
+the normal proven-resume/fresh startup path. Queued extra hubs follow the same
+rule. Non-hub slots use preview reads only: startup never attaches or launches
+them, completes their interrupted starts/parks, replays slot-store journals, or
+repairs them. An unhealthy slot never blocks Couch or
 other slots. Explicit per-slot actions own recovery writes. Zellij listing's
 own connection-refused stale-socket deletion is an accepted native side effect.
 
@@ -374,9 +377,9 @@ now would interrupt nothing (`Settled`) and which executable it runs (`Build`:
 content sha256, vcs revision and dirty bit, via
 `couchmessage.BuildIdentityOfFile`).
 - **What Settled means:** no turn is open (an atomic mirror of the
-  notification lifecycle), no overlay is up, the startup orientation has
-  finalized (pair#427: a fresh session is not ready until it has been briefed;
-  finalizing re-arms the check), the composer reads empty through the
+  notification lifecycle), no overlay is up (a fresh session's first message
+  is its launch prompt since #522, so the turn it opens covers its briefing),
+  the composer reads empty through the
   recognizer peer delivery uses, and nothing is pending.
 - **When it is checked:** only after `wrapcmd.SettleInterval` (3s) without
   output or input (`peer_settle.go`), so a streaming agent pays nothing. Any
@@ -451,7 +454,7 @@ still-booting Claude.
   messages"), and the composer clears. That is the ordinary confirm evidence,
   so a queued message ends `submitted`.
 - **Operator input means keystrokes (pair#428).** The wrapper classifies its
-  own stdin (`orientationReplies.operatorKeystrokes`), never the agent's screen.
+  own stdin (`terminalReplies.operatorKeystrokes`), never the agent's screen.
   Text, control and editing keys, kitty/legacy key encodings and an operator's
   bracketed paste count. Focus events, mouse reports (SGR, urxvt, X10) and
   terminal reports do not, whether solicited or not. Those reports are
@@ -459,8 +462,7 @@ still-booting Claude.
   replies. A CPR (`CSI r;c R`) is a report only when solicited, because
   modified F3 looks the same. Those bytes still reach the agent unchanged. A
   lone ESC resolves as a key at the 30ms flush, so it no longer stalls a
-  delivery. Orientation keeps its stricter rule, where anything unsolicited is
-  input. Other panes can't block: each has its own PTY. A draft send reaches
+  delivery. Other panes can't block: each has its own PTY. A draft send reaches
   this stdin only as focus events and its paste.
 - **The composer must be in view (pair#428).** Before pasting, the wrapper
   aligns zellij's scrolled viewport (`dump-screen -p terminal_$ZELLIJ_PANE_ID`)
@@ -540,9 +542,10 @@ two seconds for read-only receipt collection; this never extends the wrapper's
 deadlines. Waiting
 receipts report the blocking guard and retain that reason on expiry. Senders
 query `--message-status` for final outcomes; admission returns before delivery.
-Orientation and peer delivery share automatic-input ownership across the entire
-paste/submit/confirm transaction. The next automatic writer waits for a fresh,
-empty composer after that transaction terminates, including cancellation.
+Peer delivery, the one automatic writer since #522 retired the orientation
+paste, holds automatic-input ownership across the entire paste/submit/confirm
+transaction. The next delivery waits for a fresh, empty composer after that
+transaction terminates, including cancellation.
 
 Transport frames are bounded at 577 KiB to carry all 128 actors with bounded
 4 KiB encoded bindings, or a fully escaped 8 KiB message. Receipt diagnostics
@@ -563,6 +566,87 @@ table (`couchcmd/cost.go`, pair#490, from timings in that issue's Log).
 which panics on an untagged verb; the skill's "What each verb costs" section
 lists the same tiers, and `cost_test.go` keeps both equal to the table.
 
+### Unanswered-report rules (#530)
+
+`couchcmd/supervision_model.go` owns volatile report episodes and the per-lifetime
+set of slot addresses already offered a startup resend prompt. The coordinator
+in `supervision.go` uses the existing 15-second wait-watcher tick. It does not
+change attach/resume or registry lifecycle transitions.
+
+Authenticated CLI send attempts to `hub` or its exact live address start an
+episode, including hub admission failures visible to this supervisor. A small
+leading-word completion hint keeps a landing report eligible after return to a
+resting branch. A confirmed hub CLI delivery initiated after the report, or an
+increase in the broker's accepted operator submission counter, clears it.
+Queued/uncertain replies and supervisor-generated prompts do not clear it.
+
+Known, settled workers quiet for 30 seconds with no incoming message pending get
+a hub nudge at 15 minutes and one Couch operator notice at 30 minutes. Ordinary
+waiting notices coalesce with the nudge; picker/prompt notices keep their existing
+behavior. The same `wait-notice-off` file mutes report reminders. Operator
+escalation does not require the hub still to be connected and never generates a
+desktop alert. Each notice names one action: inspect with `couch --peek`.
+
+When the hub becomes available, each connected worker address gets one normal
+Send attempt asking it to reconsider its last unanswered report. The ordinary
+busy-recipient queue is unchanged. Attempts are marked before sending, so an
+uncertain result or reconnect cannot regenerate the prompt. Original reports
+are never replayed or retained across Couch restarts. The same tick reads terminal
+broker receipts, reports startup cancellation/expiry/uncertainty once, and drops
+the completed send metadata. There is no separate capped report history. Pending generated IDs
+keep both prompts and ordinary waiting notices out of session-file obligations; matching prose from a real agent
+is not exempt. All episode/attempt metadata dies with the supervisor; disconnected
+bindings lose their report episodes. The separate fact log below does not drive
+these rules. Parley's sole file-ping watcher is parley.nvim#321.
+
+### Supervision fact log (#543)
+
+The message service records best-effort JSONL at `<namespace>/supervision.jsonl`.
+`supervision_facts.go` owns its v1 schema; `supervision_factlog.go` owns one bounded
+writer, and `supervision_fact_events.go` adapts existing observations. There is no
+new watcher, candidate tracking, or online labeling. Rows record:
+
+- `hub_delivery`: endpoint completion to the hub, wording hint (landed,
+  waiting-for-operator, progress, unknown), generated flag and confirmed,
+  uncertain or cancelled outcome. Queue-only failures have no delivery row.
+- `session_write`: one authenticated best-effort report after a guarded write.
+  It carries the owner captured under that write guard; the caller must match
+  the owner. Cross-owner writes, missing launch identity, old/unavailable Couch,
+  and lost report calls leave gaps in this coverage. No file paths are sent.
+- `operator_submit`: accepted submission counter advances (a jump is one
+  observation of a total, not invented events). Stale counters are not events.
+- `slot_state`: changed connected/settled/picker observations, including removal
+  and replacement. Unknown booleans are null; no recovery transition changes.
+- `snapshot`: once a minute on the existing tick, bounded current actor facts,
+  including hub/empty inventory, cached resting state and quiet age.
+
+Every row has schema version, supervisor generation, increasing sequence,
+monotonic elapsed milliseconds, UTC observation time and cumulative dropped-row
+count. Slot, incarnation, sender and message IDs are lifetime-salted opaque hashes.
+No message prose, paths, nonces or transcripts are recorded. Different lifetimes
+cannot be joined by identity. Hints are text classifications, not proof of intent.
+
+Producers never perform disk IO: they offer bounded rows to one 256-entry writer
+buffer. Rows exceed neither 32 KiB nor 128 snapshot actors. Full buffers, open/write
+failure and shutdown drop rows without retry; later sequence gaps expose missing
+rows. Logging failure cannot fail delivery. The CLI's one write-report call is
+limited to 200 ms and cannot invalidate the file write. A missing log means
+unavailable evidence, never zero activity.
+
+The existing diagnostic writer registers the stable path with Pair GC. Its new
+opt-in hard generation limit refuses whole rows at 64 MiB if normal rotation
+cannot proceed; normal daily rotation and 365-day retention still apply. This is
+a generation cap, not a total-store cap. The writer and buffered tail end with
+the supervisor; historical generations belong to the existing diagnostic collector.
+
+`python3 scripts/supervision-labels/labels.py LOG...` derives ten-minute labels
+from selected local segments. See its [skill](../scripts/supervision-labels/SKILL.md)
+for the input limits and interpretation. True means a write was observed for the
+hub subject; false requires contiguous same-generation coverage strictly beyond
+the inclusive ten-minute endpoint; missing, corrupt or dropped evidence gives null. False is only “no
+write observed,” not neglect: failed telemetry calls before admission cannot be
+reconstructed. The script writes JSONL to stdout and changes no runtime behavior.
+
 ### Waiting notices to the hub (#451)
 
 A slot that waits for someone sends nothing, so delivery robustness can't
@@ -574,8 +658,8 @@ report it. `waitWatcher` (`couchcmd/wait_notice.go`) ticks every 15s
   other value refuses Couch's start) with a
   Settled claim costs one tail read from its own wrapper (the peek path); a
   nil Settled (pre-hello-v2 wrapper) is unknown and never waiting.
-- **Waiting (`classifyWait`):** unsettled (a dialog, a draft, a stuck
-  orientation: byte-quiet that long with something open), or settled with the
+- **Waiting (`classifyWait`):** unsettled (a dialog or a draft: byte-quiet
+  that long with something open), or settled with the
   last prose line ending `?`, or settled off its resting branch with no message
   in flight. Settled on the resting branch after a normal ending is not.
   `lastProseLine` reads above the composer prompt (`❯`/`›`) and skips chrome
@@ -855,8 +939,8 @@ idempotent, and nothing is journaled.
 
 **Restarts return when ready (pair#427).** A `--relaunch` or
 `--reload-context` receipt reports `succeeded` only once a NEW wrapper
-session for the thread reports Settled. Settled means booted, briefed by its
-orientation, and idle, so a message sent right after it is pasted into a ready
+session for the thread reports Settled. Settled means booted, its turns
+(including a launch prompt's) finished, and idle, so a message sent right after it is pasted into a ready
 composer.
 - **Before the effect:** admission's prepare step records the session to
   replace (`liveRestartProbe.readinessAfter`).
@@ -998,7 +1082,7 @@ Key files: `couchtty/thread_presentation.go`, `console_presentation.go`,
 
 ### The hub leads its section (pair#491)
 
-The hub is the slot Couch started from (`hubWorktree`, pair#463). It is marked
+Bare Couch’s hub is the slot it started from (`hubWorktree`, pair#463). Each hub is marked
 by its leading position and reverse-video colours (pair#521).
 - **Tab bar:** the hub is drawn first, then every other slot grouped by
   repository: `ops  ariadne  :1  :2  blog  pair  :1  :2`. The hub stands alone,
@@ -1015,13 +1099,11 @@ by its leading position and reverse-video colours (pair#521).
   inventory (`reorderMenuInventory`). `PresentThreads(rows, git, hub)` puts the
   hub row first, flags it `Hub` and adds the indent (`hubSection`). That one
   order serves the switcher, the tab bar and clicks.
-- **Several hubs:** not built. The intended model:
-  - a hub is a designated slot;
-  - each slot is assigned to one hub;
-  - a new slot inherits the hub of the slot it was started from.
-
-  `hubSection` would become one section per hub. The renderer already starts
-  a section at each `Hub` chip after the first, behind a ` │ ` separator.
+- **Several hubs (#546):** explicit directories define ordered hubs. Their
+  `.hub` claims and ephemeral CLI moves feed `HubOwnership`; unclaimed slots
+  belong to the first hub. `Console.SetHubOwnership` supplies one section per
+  hub, with a ` │ ` separator and focus-relative fading. Exact claims override
+  repository claims; no assignment is stored on thread records.
 - **Narrow widths:** `fitChips` (`reserve.go`, pure) lays out the actor cells.
   - It first collapses each repository's numbered slots into a `+N` count,
     groups giving way from the right.
@@ -1322,7 +1404,7 @@ prints one confirmation line. `prepare-start`, `start`,
 `attach`, `switch`, `park`, `resume`, `relaunch`, `prepare-switch-agent`,
 `leave`, `stop`, `alias` and `reboot` are TUI/in-process
 operations. `switch-agent` also has the confirmed hub-only remote form described
-below. `orientation-status` is an internal owner operation for one launch attempt. #363 removed `open-slot`, `fresh-slot`, `name`, `describe`, `archive`,
+below. #363 removed `open-slot`, `fresh-slot`, `name`, `describe`, `archive`,
 `recover-thread` and `recover-checkpoint` from the declarations: resume and
 reboot replace them, and their couchcore internals (`OpenSlot`,
 `StartFreshSlot`, `Couch.ArchiveThread`, `RecoverThread`, `ApplyThreadMetadata`)
@@ -1338,7 +1420,7 @@ conversation back by whatever path works: a pure `ChooseResumeRoute` hands the
 row to `OpenSlot` (warm, cold, or adopting a conversation whose pointer couch
 lost -- on resume's guessed agent only through the native ledger, which binds
 per agent; a record-less detached survivor is refused `resume-survivor-unproven`
-because the detached proof cannot tell which agent runs), `RetryContinuation`,
+because the detached proof cannot tell which agent runs), `Continue`,
 `RecoverThread` or `ResumeContextWith`. It takes a slot `path` or a thread
 address; `warm-only` (the background reattach pass) stays a direct warm-only
 resume. A refusal whose transcript cannot come back names reboot; the
@@ -1409,49 +1491,62 @@ Numbered directory preparation uses `couch --internal provision-workspace <prima
 See [workspace provisioning](workspace-provisioning.md) for readiness, repeat-call
 recovery and the #306 lifecycle integration boundary.
 
-Continuation has five internal operations (`pair#249`, `pair#280`):
+Continuation has two internal operations (`pair#249`; #522 retired
+`retry-continuation`, `dismiss-continuation` and `continuation-status`):
 
 - `request-continuation`, invoked as `couch --internal request-continuation <absolute-path>`, durably accepts the hosted source's exact checkpoint. The inherited scope, tag, agent, session, launch ordinal, and expected digest bind publication to the writer's validated bytes and current source generation. This metadata operation can run in another worktree without becoming a second supervisor.
-- `continue-thread`, invoked in process through `couch --internal continue-thread`'s declared operation, executes or reconciles an accepted request under the live owner.
-- `retry-continuation`, exposed in the switcher's thread actions, reconciles a retained failure. After Couch has exited, `couch --internal retry-continuation <tag>` in the thread's repository acquires the normal singleton lease and opens a Console for recovery. It refuses a competing owner.
-- `dismiss-continuation`, offered beside Retry on a row whose request FAILED, deletes the retained request. It records the operator's decision that the thread has moved on, typically because they took over the target before automatic orientation finished and a retry would re-deliver a stale handoff into a live conversation. It is a direct-store record write with no process effect and no supervisor lease. After or during Couch, the CLI form is `couch --internal dismiss-continuation <tag>`. It deletes rather than adding a terminal phase because records decode strictly (`DisallowUnknownFields`), so a new phase would make every pre-change binary, including long-running `pair` helpers, reject the whole record. Couch's private checkpoint copy is left for the next publish or archive to replace, and the repository's checkpoint file is never touched.
-- `continuation-status`, represented by `couch --internal continuation-status`, reconciles the exact launch attempt's orientation receipt under the live owner. The Console supplies the address, request ID, and attempt through the typed operation arguments.
+- `continue-thread`, declared as `couch --internal continue-thread` and run by the Console's watcher under the live owner, executes an accepted request, or continues one a previous Couch left running.
 
-**A retained request composes with its thread; it does not replace it**
+**Compaction without composer paste (#522).**
+- **The launch prompt:** `executeContinuation` starts the new conversation fresh,
+  with `ContinuationPrompt` as a one-time first message. It names Couch's private
+  continuation copy, its NEXT ACTION, and `couch --peek <tag> --previous`.
+  - It travels as `TrustedLaunchProfile.Prompt` (fresh profiles only), then
+    `LaunchArgs.Prompt`, then `AgentCommand.Prompt` in `PAIR_AGENT_COMMAND`.
+  - The wrapper adds it only to the exec argv (`launcher.PromptArgs`): a
+    leading positional, `-i PROMPT` for agy. It goes first so that a saved
+    flag taking several values can't swallow it.
+  - No saved profile, ledger entry, config, `StartArgs.ExtraArgs` or the
+    wrapper's in-pane fresh start ever carries it, so nothing replays it.
+- **The coordinates:** after park, the compaction records #517's
+  `PreviousSession` with its `Continuation` path.
+- **Completion:** registration completes the request: `checkpoint.Advance`
+  `Registered` moves Running to Complete. There is no delivery receipt to wait
+  for.
+
+**A request that doesn't finish leaves one line, never a blocking state.**
+- **How it ends:** `failContinuation` calls `ThreadStore.MissContinuation`. That
+  clears the request and writes `ThreadRecord.ContinuationMissed`
+  (`checkpoint.Miss`: reason, continuation path, `TargetMayExist`) in one
+  revision.
+- **Where it shows:** the row reads `<state> · compaction didn't finish`. The
+  focused row and one console notice give `Miss.Line`, which names one action:
+  - compact again, if the old conversation runs;
+  - resume, if it was parked;
+  - relaunch, if the new conversation may be running.
+- **What it blocks:** nothing. The next registered start or published request
+  clears it.
+- **A target that may still exist:** an incarnation recorded after the source's
+  retirement. It is guarded by the thread's incarnations, not the continuation:
+  `CommitStartClaim` refuses while one is recorded, and relaunch parks the exact
+  one first.
+- **Old records:** a request stored as `failed` before #522 decodes into the line
+  (`fromPersistedThreadRecord`). The next write persists that.
+
+**An in-flight request composes with its thread; it does not replace it**
 (`pair#280`).
-- **State text, in every phase:** `<state> · continuation queued|continuing…|continuation failed`,
-  for example `live · continuation failed`. In-flight phases are NOT bounded
-  in time: a request whose owner died reads `continuing…` until someone retries
-  it. So the state always shows.
-- **Actions of a live row with a failed request:** the row's own actions minus
-  exactly those `continuationGuard` refuses (`couchcore.ContinuationRefuses`:
-  relaunch, switch-agent, cold resume, start), plus retry and dismiss. Park and
-  detach stay, because neither reads the request.
-- **Actions of an in-flight request:** kept restricted on purpose, because the
-  continuation owns the thread mid-replacement. On a live row `Running` offers
-  only `retry-continuation` (which reconciles a stalled request), and `Pending`
-  offers nothing until it runs. A row that is not live offers resume (which
-  routes the request to `RetryContinuation` or `RecoverThread`) and reboot.
-- **Refusals:** every refusal a retained request causes names its exits
-  through one wording, `checkpoint.Exits`, which names each row's own actions:
-  retry/dismiss on a live thread, resume/reboot on one that is not. The guard and publish call it
-  directly. Each other check wraps its refusals ONCE, at its boundary, in
-  `withContinuationExits`: `RecoverThread`, `prepareAbsentContinuation`
-  (through `admitRetainedRecovery`), `archiveContinuationVacant` and
-  `validateContinuationWarm`. `TestEveryRefusalARetainedRequestCausesNamesBothExits`
-  drives one row per call site and scans that every call site has a row.
-  `pair continue --retry` does not know the phase and uses the phase-neutral
-  wording (`Exits("", tag)`).
-- **Orientation prompts carry their producer.** Continuation delivery writes
-  `menu.Orientation` through `setOrientationLocked`; pruning removes only the
-  matching producer's entry through `reconcileContinuationOrientationLocked`. Agent switches
-  create no orientation prompt.
-
-Before #280, a failed request replaced the state text, the action set and
-relaunch's admission indefinitely.
-The switcher's Retry also never reached its thread: it sent `ref` and `tag`,
-which `resolveOperationThread` refuses. Both continuation exits now address the
-row by its exact implicit tag alone.
+- **State text:** `<state> · continuation queued|continuing…`.
+- **Actions:** an in-flight request owns a live row (no actions) until Couch
+  finishes it. A row that is not live offers resume (which routes the request to
+  `Continue` or `RecoverThread`) and reboot.
+- **Refusals:** every refusal an in-flight request causes uses one wording,
+  `checkpoint.InFlight`.
+  - `continuationGuard` (relaunch, switch-agent, cold resume, start) and publish
+    use it directly.
+  - Each other check wraps its refusals once, in `withContinuationExits`:
+    `RecoverThread`, `prepareAbsentContinuation`, `archiveContinuationVacant`
+    and `validateContinuationWarm`.
+  - `TestEveryRefusalARequestInFlightCausesSaysSo` drives one row per call site.
 
 ### Stale-thread recovery
 
@@ -1482,7 +1577,7 @@ proved absent; unrelated newer generations refuse admission.
 Archive uses the same reconciliation, then checks that the continuation's source
 and target are proved absent before quiescing.
 A final record revision check prevents archiving a concurrently replaced
-request. An empty record may be archived with its pending/failed continuation
+request. An empty record may be archived with its pending continuation
 intact; a live source or target cannot. The existing store journal preserves
 the request in the archive and removes only its derived materialized file.
 Disposable helper/session fault fixtures exercise warm recovery, checkpoint
@@ -1509,35 +1604,39 @@ and starts a fresh conversation through the existing blocked-helper claim and
 registration protocol. The Pair scope and tag stay unchanged, preserving prompt
 history. An unsubmitted checkpoint needs no native conversation binding.
 
-Acceptance is not completion. Registration proves a fresh target exists;
-`complete` requires the matching orientation `submitted` receipt. A failed,
-canceled, or unconfirmed delivery remains recoverable, and text may already be
-present in the target. Retry observes or reattaches an existing matching target
-instead of automatically submitting again. Another fresh attempt requires proof
-that the previous target is absent; unknown ownership refuses. Inspect the
-existing agent and use the available copy-orientation action before manually
-sending text whose delivery is uncertain.
+Acceptance is not completion, and registration is (#522). The fresh target's
+launch prompt names the materialized copy, so the target that registers with the
+request's exact attempt has its continuation. A failure leaves the thread's one
+line (`ContinuationMissed`), not a request. The line blocks nothing; a target
+that may still be running is guarded by the thread's incarnations and parked
+exactly by relaunch. Whether the agent then acts on its first message is the
+agent's: a prompt swallowed by a startup screen shows as an idle new
+conversation, whose coordinates (`--peek --previous`) and continuation are
+recorded.
 
 The embedded snapshot remains authoritative if the original file is edited,
 removed, or saved in a sibling worktree. It is retained through failure and
 completion until superseded, and remains in the archived ThreadRecord. Archive
 removes the derived materialized file. Active requests prevent unrelated cold
-resume, agent switching, or relaunch from bypassing their ownership. Explicit
-archive may retain an incomplete request only after proving its source/target
-unoccupied; it never marks an unfinished request complete.
+resume, agent switching, or relaunch from bypassing their ownership while the
+compaction is in flight. Explicit archive may retain a pending request only after
+proving its source/target unoccupied; it never marks an unfinished request
+complete.
 Hosted inner `pair restart` and address-changing rename routes refuse before
 teardown; use Couch's tracked relaunch or name action. Standalone Pair retains
 its outer restart-loop ownership and draft-seeding workflow.
 
 `make test-couch-zellij-live` exercises continuation seed transport alongside
 real park teardown. A deterministic pane under real Zellij reads the exact
-materialized snapshot from the launch profile's orientation prompt and publishes
-waiting/submitted readiness records. The production reader verifies session,
-agent, tag, attempt, and live PID; registration alone cannot complete the request,
-and deleting the session invalidates its receipt. This fixture uses temporary
-stores and no paid agents. It uses the stateful fake for source parking and the
-blocked launch helper; real composer recognition and actual agent submission
-remain operator smoke tests. The conformance workflow runs on relevant changes
+materialized snapshot named by the launch profile's prompt and publishes its
+readiness record. The production reader verifies session, agent, tag, attempt and
+live PID; that registration completes the request, and deleting the session
+invalidates its receipt. This fixture uses temporary stores and no paid agents.
+It uses the stateful fake for source parking and the blocked launch helper. The
+wrapper's exec of the prompt is pinned by launcher's
+`TestCreateLayoutWrapperPreservesAgentCommand` and couchcmd's continuation
+acceptance. A real agent acting on its first message remains an operator smoke
+test. The conformance workflow runs on relevant changes
 and weekly.
 
 Live Zellij fixtures have two traps (pair#324):
@@ -1655,8 +1754,7 @@ a separately located native transcript can supply content erased from tty histor
 Output names the recording files. Previous reads cost seconds and full replay is heavy.
 
 Fresh registration requires a ready record matching the new launch nonce,
-agent, session and process. The nonce travels in the trusted launch profile
-independently of orientation. Existing park/start/resume state owns failures:
+agent, session and process. The nonce travels in the trusted launch profile. Existing park/start/resume state owns failures:
 a still-running source permits another switch attempt; a definitively failed
 target leaves the old successful profile available for resume. A possibly
 surviving target must be resolved through ordinary recovery before another cold
@@ -3291,12 +3389,11 @@ pairs it with that statement (resumable, or unusable). It is deliberately
 not filtered through the predicate: a filter makes offered-implies-permitted true
 by construction, and a guard that cannot fail is not a guard.
 
-A live row with a failed continuation IS filtered, through
-`ContinuationRefuses` (`pair#280`), and it stays falsifiable because the
-list's oracle is the guard's BEHAVIOUR, not another predicate:
-`TestContinuationRefusesMatchesTheGuardForEveryRowAction` drives every
+The guard's reach (relaunch, switch-agent, a cold start claim; `pair#280`) stays
+falsifiable because the list's oracle is the guard's BEHAVIOUR, not another
+predicate: `TestTheContinuationGuardsReachMatchesEveryRowAction` drives every
 declared row action through the production dispatcher on a live thread holding a
-failed request. A listed operation must be refused by the guard itself, and an
+request in flight (a failed one no longer exists, #522). A listed operation must be refused by the guard itself, and an
 unlisted one must succeed. A list that drifts from the guard sites fails there.
 
 **What the resume row does NOT cover.** `ResumableState`'s consumer is startup's
@@ -3353,7 +3450,6 @@ the caller's authority is recorded:
 |---|---|
 | `RetireIncarnation` | this live incarnation's process was just stopped |
 | `RetireUnprovenIncarnation` | this exact `{PID, identity}` was observed **Dead** |
-| `RetireProvedDeadIncarnations` | every recorded process was observed Dead, and none carries a start claim |
 | `ClearVerifiedPark` | the thread is attached again, so the receipt describes an undone teardown |
 | `BeginContinuationFromRetiredIncarnations` | the request and the retirement are ONE write, because a record must never carry both |
 
@@ -3550,3 +3646,36 @@ boundaries with exact bytes, geometry and timing. Regular Couch is supported;
 [live capture runbook](couch-live-capture.md) for launch, limits and extraction.
 
 Recovery candidates are an explicit choice: `couch --resume-candidates repo:N --json` lists the best candidate and up to four alternatives with native identity, last activity, tail match and a stable selection key. `couch --resume repo:N --candidate KEY` selects that evidence snapshot. The menu uses the same preview and offers fresh startup from the previous screen. Automatic inference is disabled pending a witnessed calibration corpus.
+
+Explicit multi-directory launches enqueue the typed `start-hub` operation on
+the existing console operation queue. It reuses StartInteractive for each extra
+hub while preserving the first hub’s focus and the one supervisor lifetime.
+
+The typed `move-slot` operation commits an authenticated hub ownership move on
+the same console queue; CLI receipts include the destination and persist mode.
+The queue has concurrent workers. `dispatchHubOperation` serializes ownership moves
+and process mutations at their effects; extra-hub admission is chained after each
+prior adoption to preserve command-line order.
+
+Multi-hub ownership (#546) lives in `couchcore.HubOwnership`: ordered active
+hub definitions, bounded parsed `.hub` claims, and revisioned ephemeral moves.
+Exact claims beat repository claims; equal specificity picks the first CLI hub
+and warns; everything else falls back to main. Thread records carry no hub field.
+`couchcmd.hubRuntime` publishes that one immutable snapshot to routing, mutation
+guards, supervision and `Console.SetHubOwnership`. A move runs on the existing
+operation queue with caller and revision rechecks inside that effect gate. Persistence uses bounded
+no-follow reads and expected-content atomic replacements; incomplete writes retain
+runtime ownership and give inspect/retry guidance. Claims are reread only for an
+explicit persistent move. No file watcher or per-hub supervisor is added.
+
+Bare startup bypasses this configuration path. Explicit extra hubs reuse
+StartInteractive and the existing background adoption path. Per-row hub sections
+and focus-relative fading use memory-only projection; the cast remains a singleton.
+Switcher move controls are deferred to #548. Confirmed delivery facts cover every
+active hub; recipient hub classification is retained before external delivery so
+a disconnect during completion does not erase the evidence.
+
+Recovery uses #522’s one-time launch Prompt: a fresh start receives only evidence
+coordinates (previous-screen peek, branch, issue and exact retained capture paths),
+never screen contents. Native resume receives no prompt. Launch notices report
+startup, without delivery callbacks or pasted-input status.

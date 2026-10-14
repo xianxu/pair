@@ -16,6 +16,8 @@ import (
 
 // Crosses the production create boundary, the actual embedded layout's shell
 // stanza, a recording pair shim, and the public wrapper into a real child.
+// The one-time launch prompt (#522) reaches the child as its first argument,
+// exactly, and nowhere else.
 func TestCreateLayoutWrapperPreservesAgentCommand(t *testing.T) {
 	dir := t.TempDir()
 	binary := filepath.Join(dir, "pair-real")
@@ -27,7 +29,8 @@ func TestCreateLayoutWrapperPreservesAgentCommand(t *testing.T) {
 		t.Run(layout, func(t *testing.T) {
 			rt := newFakeRuntime()
 			want := []string{"--model", "a b", "", "雪", "*", "$(touch should-not-exist)", "one\ntwo", "a'\"b"}
-			code, err := run(t, baseOpts(LaunchArgs{Agent: "codex", AgentExplicit: true, ForcedTag: "work", AgentArgs: want, AgentArgsExplicit: true, AgentArgsFromCouch: true, FreshRequired: true}), rt)
+			prompt := `Continue from the saved continuation at "/s p/$(touch prompt-ran).md": read it.`
+			code, err := run(t, baseOpts(LaunchArgs{Agent: "codex", AgentExplicit: true, ForcedTag: "work", AgentArgs: want, AgentArgsExplicit: true, AgentArgsFromCouch: true, FreshRequired: true, Prompt: prompt}), rt)
 			if err != nil || code != 0 {
 				t.Fatalf("launch %d %v", code, err)
 			}
@@ -84,8 +87,11 @@ func TestCreateLayoutWrapperPreservesAgentCommand(t *testing.T) {
 			if got := readArgs("wrapper.args"); !reflect.DeepEqual(got, []string{"wrap", "--scrollback-log", filepath.Join(dir, "scroll.raw"), "--from-launch-env"}) {
 				t.Fatalf("wrapper argv %#v", got)
 			}
-			if got := readArgs("child.args"); !reflect.DeepEqual(got, append(append([]string{}, want...), "--no-alt-screen")) {
+			if got := readArgs("child.args"); !reflect.DeepEqual(got, append(append([]string{prompt}, want...), "--no-alt-screen")) {
 				t.Fatalf("child argv %#v", got)
+			}
+			if _, err := os.Stat(filepath.Join(dir, "prompt-ran")); err == nil {
+				t.Fatal("the prompt reached a shell")
 			}
 		})
 	}

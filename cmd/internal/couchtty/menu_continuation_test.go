@@ -2,6 +2,7 @@ package couchtty
 
 import (
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -10,13 +11,14 @@ import (
 )
 
 // A retained continuation is information about its thread, never a
-// replacement for it, in EVERY phase (#280): the state always shows, and a
-// non-complete request is appended. The phases come from the vocabulary, so a
-// new one cannot slip past the table.
+// replacement for it, in EVERY phase (#280): the state always shows, and an
+// in-flight request is appended. The phases come from the vocabulary, so a
+// new one cannot slip past the table. A failed request never reaches a row
+// (#522: the record reads it as its line), so it adds nothing here.
 func TestContinuationPhaseComposesWithTheStateText(t *testing.T) {
 	now := time.Date(2026, 9, 17, 22, 0, 0, 0, time.UTC)
 	active := now.Add(-3 * time.Hour)
-	labels := map[checkpoint.Phase]string{checkpoint.Pending: "continuation queued", checkpoint.Running: "continuing…", checkpoint.Failed: "continuation failed", checkpoint.Complete: ""}
+	labels := map[checkpoint.Phase]string{checkpoint.Pending: "continuation queued", checkpoint.Running: "continuing…", checkpoint.Failed: "", checkpoint.Complete: ""}
 	for _, state := range couchcore.AllThreadStates() {
 		reason := couchcore.ThreadReason("")
 		if state == couchcore.ThreadUnusable {
@@ -38,25 +40,34 @@ func TestContinuationPhaseComposesWithTheStateText(t *testing.T) {
 				t.Errorf("%s + %s = %q, want %q", state, phase, got, want)
 			}
 		}
+		row := stateTextRow(state, reason, active)
+		row.ContinuationMissed = &checkpoint.Miss{RequestID: "request", Path: "/repo/c.md", Reason: "fork failed", At: active}
+		if got := rootStateText(row, now); got != plain+" · compaction didn't finish" {
+			t.Errorf("%s + a miss = %q", state, got)
+		}
 	}
 }
 
-// A failed request composed with a live row keeps the row's own actions minus
-// exactly what the guard refuses -- couchcore's list, not a restatement -- and
-// adds both exits. Other phases and non-live rows keep their shapes.
-func TestFailedContinuationComposesWithALiveRowsActions(t *testing.T) {
+// A compaction that didn't finish blocks nothing (#522): its row keeps exactly
+// the actions it would have without it, and the focused row says the one line
+// -- what happened, where the continuation is, and the action for its state.
+// An in-flight request still owns a live row until Couch finishes it.
+func TestAMissedRowKeepsItsActionsAndShowsItsLine(t *testing.T) {
 	address := menuAddress("pair")
-	row := func(state couchcore.ActionableThreadState, phase checkpoint.Phase) couchcore.ActionableThreadSummary {
-		return couchcore.ActionableThreadSummary{Address: address, State: state,
-			Continuation: &couchcore.ContinuationStatus{Address: address, RequestID: "request", Phase: phase}}
-	}
-	live := menuActionItems(row(couchcore.ThreadLive, checkpoint.Failed))
-	if want := []string{"detach", "retry-continuation", "dismiss-continuation", "park"}; !slices.Equal(live, want) {
-		t.Fatalf("live + failed = %v, want %v", live, want)
-	}
-	for _, op := range live {
-		if couchcore.ContinuationRefuses(op) {
-			t.Fatalf("offered %q, which the continuation guard refuses", op)
+	for _, state := range []couchcore.ActionableThreadState{couchcore.ThreadLive, couchcore.ThreadDetached} {
+		plain := couchcore.ActionableThreadSummary{Address: address, State: state}
+		missed := plain
+		missed.ContinuationMissed = &checkpoint.Miss{RequestID: "request", Path: "/repo/workshop/continuation/c.md", Reason: "fork unavailable", At: time.Unix(1, 0)}
+		if got, want := menuActionItems(missed), menuActionItems(plain); !slices.Equal(got, want) {
+			t.Errorf("%s: a miss changed the actions %v -> %v", state, want, got)
+		}
+		line := menuFocusSummary(missed)
+		want := "Resume the slot"
+		if state == couchcore.ThreadLive {
+			want = "Compact again"
+		}
+		if !strings.Contains(line, "compaction didn't finish: fork unavailable; continuation at /repo/workshop/continuation/c.md") || !strings.Contains(line, want) {
+			t.Errorf("%s: focus line %q, want the line with %q", state, line, want)
 		}
 	}
 	for _, tc := range []struct {
@@ -64,49 +75,19 @@ func TestFailedContinuationComposesWithALiveRowsActions(t *testing.T) {
 		phase checkpoint.Phase
 		want  []string
 	}{
-		{couchcore.ThreadBusy, checkpoint.Failed, nil},
-		{couchcore.ThreadLive, checkpoint.Running, []string{"retry-continuation"}},
+		{couchcore.ThreadLive, checkpoint.Running, nil},
 		{couchcore.ThreadLive, checkpoint.Pending, nil},
 		// Not live: resume routes the request to its own executor, reboot
 		// retires it with the conversation.
-		{couchcore.ThreadDetached, checkpoint.Failed, []string{"recover", "resume", "reboot"}},
 		{couchcore.ThreadUnusable, checkpoint.Running, []string{"recover", "resume", "reboot"}},
 	} {
-		r := row(tc.state, tc.phase)
+		r := couchcore.ActionableThreadSummary{Address: address, State: tc.state,
+			Continuation: &couchcore.ContinuationStatus{Address: address, RequestID: "request", Phase: tc.phase}}
 		if tc.state == couchcore.ThreadUnusable {
 			r.Reason = couchcore.ReasonSessionGone
 		}
 		if got := menuActionItems(r); !slices.Equal(got, tc.want) {
 			t.Errorf("%s + %s = %v, want %v", tc.state, tc.phase, got, tc.want)
 		}
-	}
-}
-
-// Dismiss from the switcher crosses the PRODUCTION dispatcher and deletes the
-// request from the real store -- addressed by the exact tag alone, the dialect
-// retry got wrong (#280).
-func TestDismissFromTheSwitcherDeletesTheRequestThroughTheRealDispatcher(t *testing.T) {
-	c, address, requestID := failedContinuationCouch(t)
-	row := couchcore.ActionableThreadSummary{Address: address, State: couchcore.ThreadLive,
-		Continuation: &couchcore.ContinuationStatus{Address: address, RequestID: requestID, Phase: checkpoint.Failed}}
-	if !slices.Contains(menuActionItems(row), "dismiss-continuation") {
-		t.Fatalf("a failed live row must offer dismiss: %v", menuActionItems(row))
-	}
-	state := NewMenuState([]couchcore.ActionableThreadSummary{row}, address)
-	_, effects := dispatchThreadOperation(state, "dismiss-continuation", address)
-	if len(effects) != 1 || effects[0].Args["request-id"] != requestID || effects[0].Args["ref"] != "" {
-		t.Fatalf("dismiss effect must carry the exact tag and request, never a ref: %v", effects)
-	}
-	result, err := couchcore.DispatchOperation(couchcore.OperationExecutors{DirectStore: couchcore.DirectStoreExecutor(c)},
-		couchcore.OperationCall{Name: effects[0].Operation, Args: effects[0].Args, Implicit: true})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if record, ok := result.(couchcore.ThreadRecord); !ok || record.Continuation != nil {
-		t.Fatalf("dismiss result = %#v", result)
-	}
-	stored, err := c.Threads.GetThread(address)
-	if err != nil || stored.Continuation != nil {
-		t.Fatalf("stored continuation after dismiss = %+v, %v", stored.Continuation, err)
 	}
 }

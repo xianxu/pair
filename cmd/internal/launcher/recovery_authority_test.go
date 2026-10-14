@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
-	"github.com/xianxu/pair/cmd/internal/orientation"
 	"github.com/xianxu/pair/cmd/internal/storagegc"
 	"github.com/xianxu/pair/cmd/internal/threadrecord"
 	"strings"
@@ -37,14 +36,21 @@ func TestRecoveryLaunchProfileIsExplicitAndAttemptBound(t *testing.T) {
 		if args.Recovery == nil || args.FreshRequired != fresh || args.ResumeRequired == fresh || args.RequiredSessionID != a.Intent.NativeID {
 			t.Fatalf("wrong recovery launch flags: %+v", args)
 		}
-		p := TrustedLaunchProfile{SchemaVersion: 1, Tag: "work", Agent: "codex", Argv: []string{}, AgentSource: "saved", ArgvSource: "saved", ResumeRequired: true, RequiredSessionID: "native", Recovery: &a, Orientation: &orientation.Request{SchemaVersion: 1, Tag: "work", Agent: "codex", Attempt: "wrong", Body: "context"}}
+		p := TrustedLaunchProfile{SchemaVersion: 1, Tag: "work", Agent: "codex", Argv: []string{}, Recovery: &a, FreshRequired: fresh, FreshNonce: args.FreshNonce, ResumeRequired: !fresh, RequiredSessionID: a.Intent.NativeID}
+		if fresh {
+			p.AgentSource, p.ArgvSource = "explicit", "explicit"
+			p.FreshNonce = "wrong"
+		} else {
+			p.AgentSource, p.ArgvSource = "saved", "saved"
+			p.RequiredSessionID = "wrong"
+		}
 		if ValidateTrustedLaunchProfile(p) == nil {
-			t.Fatal("accepted mismatched orientation attempt")
+			t.Fatal("accepted recovery profile with a changed launch identity")
 		}
 	}
-	ordinary := TrustedLaunchProfile{SchemaVersion: 1, Tag: "work", Agent: "codex", Argv: []string{}, AgentSource: "saved", ArgvSource: "saved", ResumeRequired: true, RequiredSessionID: "native", Orientation: &orientation.Request{SchemaVersion: 1, Tag: "work", Agent: "codex", Attempt: "attempt", Body: "context"}}
+	ordinary := TrustedLaunchProfile{SchemaVersion: 1, Tag: "work", Agent: "codex", Argv: []string{}, AgentSource: "saved", ArgvSource: "saved", ResumeRequired: true, RequiredSessionID: "native", Prompt: "context"}
 	if ValidateTrustedLaunchProfile(ordinary) == nil {
-		t.Fatal("ordinary resume gained orientation")
+		t.Fatal("ordinary resume gained a launch prompt")
 	}
 }
 
@@ -108,7 +114,6 @@ func TestRecoveryLaunchSecondGateRefusesChangedClaimBeforeEffects(t *testing.T) 
 			}
 			opts.Args.CouchSessionV1 = true
 			opts.Args.CouchSession = &CouchSessionIntent{Scope: scope.Key, Tag: "work", Name: "📁1-3", Nonce: a.Attempt, Disposition: "create"}
-			opts.Args.Orientation = &orientation.Request{SchemaVersion: 1, Tag: "work", Agent: "codex", Attempt: a.Attempt, Body: "recovery context"}
 			opts.Env.CouchThreadScope = scope.Key
 			opts.Env.CouchThreadTag = "work"
 			rt := &recoveryGateRuntime{couchSessionRuntime: &couchSessionRuntime{fakeRuntime: newFakeRuntime()}, record: recoveryAuthorityRecord(a, opts.Env.Cwd, "codex", 42, "helper")}
@@ -128,7 +133,7 @@ func TestRecoveryLaunchSecondGateRefusesChangedClaimBeforeEffects(t *testing.T) 
 					t.Fatalf("effects after refusal: code %d launch %d prepared %v", code, rt.launchCount, rt.preparedLaunches)
 				}
 			} else {
-				if code != 0 || rt.launchCount != 1 || rt.env["PAIR_SESSION_ID"] != "native" || rt.env["PAIR_LAUNCH_NONCE"] != a.Attempt || rt.env[orientation.Env] == "" {
+				if code != 0 || rt.launchCount != 1 || rt.env["PAIR_SESSION_ID"] != "native" || rt.env["PAIR_LAUNCH_NONCE"] != a.Attempt {
 					t.Fatalf("explicit exact resume failed: code %d launch %d: %s", code, rt.launchCount, stderr.String())
 				}
 			}

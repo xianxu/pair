@@ -135,7 +135,9 @@ func expectedResumeRoute(in ResumeRouteInput) ResumeRoute {
 	}
 	if in.HasRecord {
 		switch in.Continuation {
-		case checkpoint.Failed, checkpoint.Running:
+		case checkpoint.Running:
+			// A failed request is never in a record (#522): it reads as
+			// the thread's line, so it routes as no request.
 			return ResumeRouteContinuation
 		case checkpoint.Pending:
 			return ResumeRouteRecover
@@ -327,10 +329,11 @@ func TestResumeReattachesASurvivorOfAnUnusablePrimary(t *testing.T) {
 	}
 }
 
-// A parked thread whose continuation failed is retried where it stands: the
-// request moves on rather than the generic resume refusing it with the
-// continuation guard.
-func TestResumeOperationRetriesAFailedContinuation(t *testing.T) {
+// A compaction whose new conversation never started leaves the old one
+// parked and one line (#522): resume brings the old conversation back through
+// the ordinary resume -- the parked record's own resume authority -- with no
+// launch prompt, and the line goes when it registers.
+func TestResumeAfterAMissedContinuationReturnsTheOldConversation(t *testing.T) {
 	t.Parallel()
 
 	f := newContinuationFixture(t)
@@ -339,22 +342,28 @@ func TestResumeOperationRetriesAFailedContinuation(t *testing.T) {
 		t.Fatal("fork failure ignored")
 	}
 	before, err := f.env.Couch.Threads.GetThread(f.source.Address)
-	if err != nil || before.Continuation == nil || before.Continuation.Phase != checkpoint.Failed {
-		t.Fatalf("fixture is not a failed continuation: %+v, %v", before.Continuation, err)
+	if err != nil || before.Continuation != nil || before.ContinuationMissed == nil || before.VerifiedPark == nil {
+		t.Fatalf("fixture is not a missed continuation: %+v / %+v, %v", before.Continuation, before.ContinuationMissed, err)
 	}
+	f.env.Artifacts.SetNativeBinding(f.source.Address, "claude", sessioninventory.BindingEstablished, "native-old")
 	value, err := dispatchResume(f.env.testEnv, map[string]string{"repo-scope": f.source.Address.RepoScope, "tag": string(f.source.Address.Tag)})
 	if err != nil {
-		t.Fatalf("resume refused a failed continuation: %v", err)
+		t.Fatalf("resume refused after a missed continuation: %v", err)
 	}
-	if _, ok := value.(ContinuationResult); !ok {
-		t.Fatalf("resume did not take the continuation retry: %#v", value)
+	child, ok := value.(StartedChild)
+	if !ok {
+		t.Fatalf("resume started nothing: %#v", value)
 	}
-	after, err := f.env.Couch.Threads.GetThread(f.source.Address)
-	if err != nil || after.Continuation == nil || after.Continuation.Phase == checkpoint.Failed {
-		t.Fatalf("the request did not advance: %+v, %v", after.Continuation, err)
+	started, ok := child.Started()
+	if !ok {
+		t.Fatalf("resume started nothing: %#v", value)
 	}
-	if f.launches != 1 {
-		t.Fatalf("retry launches %d, want 1", f.launches)
+	var profile launcher.TrustedLaunchProfile
+	if err := json.Unmarshal([]byte(childEnvValue(f.env.Runner.Child(started.Handle.ID()).Env, launcher.CouchLaunchProfileEnv)), &profile); err != nil {
+		t.Fatal(err)
+	}
+	if !profile.ResumeRequired || profile.RequiredSessionID != "native-old" || profile.Prompt != "" {
+		t.Fatalf("not the old conversation, or a prompt replayed: %+v", profile)
 	}
 }
 
@@ -428,7 +437,7 @@ func TestOpenSlotZeroSurvivorsIsATypedRefusal(t *testing.T) {
 }
 
 // The background reattach pass asks for warm-only, and it must stay a direct
-// warm-only resume: routing it through RetryContinuation or RecoverThread
+// warm-only resume: routing it through Continue or RecoverThread
 // could start an agent behind the operator's back.
 func TestWarmOnlyResumeIsUnrouted(t *testing.T) {
 	t.Parallel()

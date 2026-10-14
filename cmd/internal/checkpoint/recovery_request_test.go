@@ -96,47 +96,6 @@ func TestRecoverySourceAbsentPhaseTransitions(t *testing.T) {
 	}
 }
 
-func TestRecoveryTargetGenerationSurvivesSuccessiveRetries(t *testing.T) {
-	r := recoveryRequest(t)
-	next, err := Advance(r, Event{Kind: Begin, RequestID: r.ID, Attempt: "a"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	r = next
-	for i, attempt := range []string{"a", "b"} {
-		generation := TargetGeneration{Agent: "codex", Session: "📁1-" + attempt, Attempt: attempt, LaunchOrdinal: uint64(4 + i)}
-		target := Process{PID: 43 + i, Identity: attempt}
-		r, err = Advance(r, Event{Kind: Registered, RequestID: r.ID, Attempt: attempt, At: time.Unix(20+int64(i), 0), Target: &target, TargetGeneration: &generation})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if r.Target.Generation == nil || *r.Target.Generation != generation {
-			t.Fatalf("lost generation: %+v", r)
-		}
-		clone := r.Clone()
-		clone.Target.Generation.Session = "other"
-		if r.Target.Generation.Session != generation.Session {
-			t.Fatal("target generation alias")
-		}
-		r, err = Advance(r, Event{Kind: Fail, RequestID: r.ID, Attempt: attempt, Failure: "target dead"})
-		if err != nil {
-			t.Fatal(err)
-		}
-		r, err = Advance(r, Event{Kind: RetryAbsent, RequestID: r.ID, Attempt: string(rune('b' + i))})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if r.Target != nil || r.PreviousTargetGeneration == nil || *r.PreviousTargetGeneration != generation || r.Source.LaunchOrdinal != 3 {
-			t.Fatalf("bad retry witness: %+v", r)
-		}
-		clone = r.Clone()
-		clone.PreviousTargetGeneration.Session = "other"
-		if r.PreviousTargetGeneration.Session != generation.Session {
-			t.Fatal("previous generation alias")
-		}
-	}
-}
-
 func TestRecoveryTargetGenerationRejectsForeignWitness(t *testing.T) {
 	r := recoveryRequest(t)
 	r.Phase = Running
@@ -185,21 +144,5 @@ func TestRecoveryRegisteredGenerationCannotBeReplacedOrErased(t *testing.T) {
 	}
 	if !reflect.DeepEqual(r, before) {
 		t.Fatal("registration mutated request input")
-	}
-}
-
-func TestRecoveryRetryAbsentAdoptsExactGenerationReceipt(t *testing.T) {
-	r := recoveryRequest(t)
-	r.Phase = Failed
-	r.Attempt = "a"
-	r.Failure = "owner exited before saving target"
-	generation := TargetGeneration{Agent: "codex", Session: "pair-source", Attempt: "a", LaunchOrdinal: 4}
-	next, err := Advance(r, Event{Kind: RetryAbsent, RequestID: r.ID, Attempt: "b", TargetGeneration: &generation})
-	if err != nil || next.PreviousTargetGeneration == nil || *next.PreviousTargetGeneration != generation {
-		t.Fatalf("retry lost recovered receipt: %+v %v", next, err)
-	}
-	generation.Attempt = "foreign"
-	if _, err := Advance(r, Event{Kind: RetryAbsent, RequestID: r.ID, Attempt: "b", TargetGeneration: &generation}); err == nil {
-		t.Fatal("retry accepted foreign attempt receipt")
 	}
 }

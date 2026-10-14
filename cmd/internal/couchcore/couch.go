@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
-	"github.com/xianxu/pair/cmd/internal/orientation"
 	"github.com/xianxu/pair/cmd/internal/storagegc"
 )
 
@@ -57,7 +56,6 @@ type Couch struct {
 	RootAgent         string
 	RepoAgentDefault  func(repoRoot, agent string) (LaunchProfile, bool, error)
 	FreshRegistration func(context.Context, ThreadAddress, string, string) (bool, error)
-	OrientationStatus func(context.Context, ThreadAddress, string, string) (orientation.DeliveryState, error)
 	SwitchContext     SwitchContextResolver
 	SwitchGuard       AgentSwitchGuard
 	// SlotTerminal renders a thread's live terminal recording (peek, pair#362).

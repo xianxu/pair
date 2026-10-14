@@ -2,14 +2,13 @@ package launcher
 
 import (
 	"fmt"
-	"github.com/xianxu/pair/cmd/internal/orientation"
 	"strings"
 )
 
 // LaunchArgs is the pure parse result for the guarded pair-go launch prototype.
 type LaunchArgs struct {
 	Recovery *RecoveryAuthority
-	// FreshNonce binds readiness independently of optional orientation delivery.
+	// FreshNonce binds a fresh launch's readiness to Couch's attempt.
 	FreshNonce        string
 	CouchSessionV1    bool
 	CouchSession      *CouchSessionIntent
@@ -25,7 +24,9 @@ type LaunchArgs struct {
 	AgentArgsFromCouch bool
 	// ResumeRequired carries trusted Couch authority. Pair must revalidate the
 	// exact native root at launch and may never fall back to a fresh session.
-	Orientation       *orientation.Request
+	// Prompt is a fresh launch's one-time first message (#522): appended to
+	// the agent's exec argv only, never saved or re-derived.
+	Prompt            string
 	FreshRequired     bool
 	ResumeRequired    bool
 	RequiredSessionID string

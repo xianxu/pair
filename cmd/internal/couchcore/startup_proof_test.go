@@ -3,6 +3,7 @@ package couchcore
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
@@ -91,12 +92,23 @@ func threadCounter(suffix string) uint64 {
 	return h
 }
 
-func TestStartupDoesNotProbeOrAttachRetainedThreads(t *testing.T) {
+func TestStartupAttachesOnlySelectedHub(t *testing.T) {
 	for _, n := range []int{0, 20} {
-		env, _ := startupFixture(t, n, Layout3)
+		env, hub := startupFixture(t, n, Layout3)
+		before, err := env.Couch.Threads.PreviewSnapshot()
+		if err != nil {
+			t.Fatal(err)
+		}
 		result, err := env.Couch.StartInteractive(context.Background(), StartArgs{Cwd: "/repo"})
-		if err != nil || result.Handle != nil || len(env.Runner.Ops) != 0 || len(env.Artifacts.Calls()) != 0 || env.Artifacts.SessionPresenceQueries() != 0 || env.Artifacts.DetachedQueries() != 0 {
-			t.Fatalf("startup: %+v %v %v", result, err, env.Runner.Ops)
+		if err != nil || result.Handle == nil || result.Record.Thread != hub || len(env.Runner.Ops) != 2 || len(env.Artifacts.Calls()) != 0 || env.Artifacts.DetachedQueries() != 0 {
+			t.Fatalf("startup: %+v %v %v calls=%v", result, err, env.Runner.Ops, env.Artifacts.Calls())
+		}
+		after, err := env.Couch.Threads.PreviewSnapshot()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(before, after) {
+			t.Fatal("hub attachment changed retained slots")
 		}
 	}
 }

@@ -529,3 +529,41 @@ in full. Earlier transient workspace-lock failures remain recorded above.
   and stop rather than loop or waive gates. All failed packages from the host
   full make run now pass in full; M1 is still not finalized or accepted.
   No staging, no M2 implementation, and no review configuration changes.
+
+### 2026-10-14 — main integration before operator M1 acceptance
+
+Refreshed on main-slot2: ariadne substrate 407e48a39057503fab7cdecaf6c69ce338ce7631;
+returned to #528 and merged origin/main 962f3c0478ef4b46766f6e29b4f28092b909735f.
+Conflict files: README.md; atlas/couch.md; couchcmd message_service.go, messages.go,
+run.go, run_test.go, skills/couch/SKILL.md, slot_operations.go; couchcore
+continuation_conformance_live_test.go, recovery_conformance_live_test.go,
+transition_refusal_test.go; couchmessage operation.go/protocol.go; couchtty
+action_agreement_test.go, console_menu.go, menu.go, menu_actions.go,
+menu_reattach_test.go, menu_switchagent.go; launcher args.go, createflow.go,
+fresh_nonce_test.go, launch_args_policy.go; readiness/record.go; wrapcmd/wrap.go.
+
+Kept #546 hub ownership, scoped routing/guards and queued extra-hub operations,
+including candidate guards at queue preparation and effect. Kept #528 positive
+listed-live Continue, immutable lifecycle records for borrowed attachments,
+recovery candidates/evidence and policy removal. Adopted #522 Prompt and its
+legacy decode-only tombstone; removed recovery-only delivery/status APIs. Fresh
+starts point at retained evidence; native resumes receive no prompt. Exact
+readiness agent identity and recovery authority/attempt nonce remain pinned.
+
+TL clarified hubs are explicit startup requests (including bare couch cwd);
+only non-hub slots are preview-only. No per-slot startup reattach/recovery sweep.
+Adjusted native-live fixtures to retain identity without delivery callbacks;
+removed a stale test for a transition main deleted. Next boundary covers this
+merge. Targeted candidate/startup/attach/launcher tests pass (core 11.338s,
+launcher 7.509s); orientation/menu and candidate hub-guard tests pass. Full
+local-check suite and staging remain pending at this checkpoint.
+
+Merge regression checks: selected-hub tests pass (22.795s), including proven
+cold resume, legacy live attach without saved launch profile/layout, fresh
+new-tag startup beside an unchanged orphan, and unrelated retained slots left
+untouched. Multi-hub focus regression initially failed because its first fake
+hub child registered without publishing Zellij liveness: inventory showed ops
+unusable/needs-relaunch, and Escape truthfully reported no live focus target.
+The fixture now publishes the exact acknowledged session’s positive listing;
+production projection remains unchanged. Added candidate mutation guard tests
+for both queue preparation and effect. Full suite follows this merge checkpoint.

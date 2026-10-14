@@ -214,7 +214,7 @@ pair: $(BIN_DIR)/pair
 #                     inside the vt.Emulator library API itself, which is
 #                     outside our scope to fix — exclude that package
 #                     here rather than chase a library-level race.
-test: test-host-preflight runtimebundle-generate test-retention test-run-headless test-lua test-lifecycle-command test-perf-capture test-queue test-submission-transaction test-bang-tag test-autopair test-draft-complete test-pair-doctor test-perf-key-conformance test-plan-superseded test-paint-gate-consumers test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review test-make-env
+test: test-supervision-labels test-host-preflight runtimebundle-generate test-retention test-run-headless test-lua test-lifecycle-command test-perf-capture test-queue test-submission-transaction test-bang-tag test-autopair test-draft-complete test-pair-doctor test-perf-key-conformance test-plan-superseded test-paint-gate-consumers test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review test-make-env
 	go test ./... -count=1
 
 # First prerequisite of test (pair#450): an agent sandbox refuses unix sockets,
@@ -533,3 +533,7 @@ test-retention:
 .PHONY: test-couch-recovery-smoke
 test-couch-recovery-smoke:
 	sh tests/couch-recovery-smoke.sh $(MODE)
+
+.PHONY: test-supervision-labels
+test-supervision-labels:
+	python3 -m unittest discover -s scripts/supervision-labels

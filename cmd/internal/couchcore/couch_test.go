@@ -526,7 +526,7 @@ func testComposedPairRegistrationBoundary(t *testing.T, freshSlot bool) {
 		if err != nil {
 			return err
 		}
-		if profile.FreshRequired || profile.ResumeRequired || profile.Orientation != nil || environmentValue(child.Env, "COUCH_THREAD_RESUME") != "" {
+		if profile.FreshRequired || profile.ResumeRequired || profile.Prompt != "" || environmentValue(child.Env, "COUCH_THREAD_RESUME") != "" {
 			return fmt.Errorf("new address received existing-conversation profile: %+v", profile)
 		}
 		thread, err := couch.Threads.GetThread(address)
@@ -2074,8 +2074,8 @@ func TestSpawnRefusesAnEmptyPath(t *testing.T) {
 	}
 }
 
-// Observation-only startup leaves an orphaned primary untouched.
-func TestStartupBesideAnOrphanedPrimaryDoesNotSpawn(t *testing.T) {
+// A fresh hub receives a new name and leaves its orphaned predecessor alone.
+func TestStartupBesideAnOrphanedPrimaryUsesANewName(t *testing.T) {
 	t.Parallel()
 
 	env := newTestEnv(t, "/repo")
@@ -2089,15 +2089,38 @@ func TestStartupBesideAnOrphanedPrimaryDoesNotSpawn(t *testing.T) {
 	server := launcher.SessionServerIdentity{PID: 9090, Identity: "t", Session: "📁repo-1"}
 	env.Artifacts.SetSessionPresence(first.Thread, SessionObservation{State: SessionOrphaned, Orphan: &server})
 	opsBefore := len(env.Runner.Ops)
+	retained, err := env.Couch.Threads.GetThread(first.Thread)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := json.Marshal(retained)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	result, err := env.Couch.StartInteractive(context.Background(), StartArgs{Cwd: "/repo"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Handle != nil || result.Record.PID != 0 {
-		t.Fatal("observation startup launched beside remnant")
+	if result.Handle == nil || result.Record.Thread == first.Thread {
+		t.Fatal("hub did not start under a fresh name beside remnant")
 	}
-	if len(env.Runner.Ops) != opsBefore {
-		t.Fatalf("startup had effects: %q", env.Runner.Ops[opsBefore:])
+	if len(env.Runner.Ops) != opsBefore+2 {
+		t.Fatalf("startup had unexpected effects: %q", env.Runner.Ops[opsBefore:])
 	}
+	retained, err = env.Couch.Threads.GetThread(first.Thread)
+	if err != nil {
+		t.Fatal(err)
+	}
+	after, err := json.Marshal(retained)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(before) != string(after) {
+		t.Fatal("fresh hub changed orphan record")
+	}
+	if len(env.Proc.Signals[server.PID]) != 0 {
+		t.Fatal("fresh hub signalled orphan owner")
+	}
+
 }

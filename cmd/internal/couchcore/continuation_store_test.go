@@ -156,7 +156,9 @@ func TestContinuationRequestsBoundedOwnedSet(t *testing.T) {
 
 // failedContinuation publishes a request and drives it to Failed through the
 // production transitions, returning the record and the request.
-func failedContinuation(t *testing.T, store *ThreadStore, record ThreadRecord) (ThreadRecord, checkpoint.Request) {
+// runningContinuation publishes a request on record and begins it: an
+// in-flight compaction, the one state that still constrains a thread.
+func runningContinuation(t *testing.T, store *ThreadStore, record ThreadRecord) (ThreadRecord, checkpoint.Request) {
 	t.Helper()
 	request := testContinuationRequest(t, record)
 	record, err := store.PublishContinuation(record.Address, record.Revision, request)
@@ -167,16 +169,34 @@ func failedContinuation(t *testing.T, store *ThreadStore, record ThreadRecord) (
 	if err != nil {
 		t.Fatal(err)
 	}
-	record, err = store.AdvanceContinuation(record.Address, record.Revision, checkpoint.Event{Kind: checkpoint.Fail, RequestID: request.ID, Attempt: "start-0102030405060708", Failure: "operator input interrupted automatic orientation"})
+	return record, *record.Continuation
+}
+
+// legacyFailedContinuation stores what a Couch before #522 left on a thread
+// whose compaction failed: a retained request in phase failed. It writes the
+// record directly, as no event reaches that phase any more.
+func legacyFailedContinuation(t *testing.T, store *ThreadStore, record ThreadRecord) (ThreadRecord, checkpoint.Request) {
+	t.Helper()
+	running, request := runningContinuation(t, store, record)
+	failed := request.Clone()
+	failed.Phase, failed.Failure = checkpoint.Failed, "operator input interrupted automatic orientation"
+	if _, err := store.updateExistingThread(running.Address, running.Revision, func(next *ThreadRecord) error {
+		next.Continuation = &failed
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	read, err := store.GetThread(running.Address)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return record, request
+	return read, failed
 }
 
-// Dismissal retires ONLY the exact failed request, and every refusal writes
-// nothing -- asserted by the unchanged revision, not a bare error (#280).
-func TestDismissFailedContinuationRetiresOnlyTheExactFailedRequest(t *testing.T) {
+// A request that failed before #522 blocked its thread until retry or
+// dismissal. It now reads as the one non-blocking line, and the next write
+// persists that.
+func TestALegacyFailedRequestReadsAsItsLine(t *testing.T) {
 	t.Parallel()
 
 	store, _ := newTestThreadStore(t)
@@ -184,75 +204,55 @@ func TestDismissFailedContinuationRetiresOnlyTheExactFailedRequest(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	refuses := func(t *testing.T, r ThreadRecord, id, want string) {
-		t.Helper()
-		_, err := store.DismissFailedContinuation(r.Address, r.Revision, id)
-		if err == nil || !strings.Contains(err.Error(), want) {
-			t.Fatalf("dismiss(%q) = %v, want refusal %q", id, err, want)
-		}
-		after, err := store.GetThread(r.Address)
-		if err != nil || after.Revision != r.Revision {
-			t.Fatalf("refusal wrote: revision %d -> %d (%v)", r.Revision, after.Revision, err)
-		}
+	read, request := legacyFailedContinuation(t, store, created)
+	m := read.ContinuationMissed
+	if read.Continuation != nil || m == nil || m.RequestID != request.ID || m.Reason != request.Failure || m.Path != request.Checkpoint.SourcePath || m.TargetMayExist {
+		t.Fatalf("legacy failed request read as %+v / %+v", read.Continuation, m)
 	}
-
-	refuses(t, created, "", "no continuation request")
-	request := testContinuationRequest(t, created)
-	pending, err := store.PublishContinuation(created.Address, created.Revision, request)
+	if err := continuationGuard(read); err != nil {
+		t.Fatalf("the line blocks: %v", err)
+	}
+	written, err := store.updateExistingThread(read.Address, read.Revision, func(next *ThreadRecord) error { next.Name = "renamed"; return nil })
 	if err != nil {
 		t.Fatal(err)
 	}
-	refuses(t, pending, request.ID, "is pending; only a failed continuation can be dismissed")
-	running, err := store.AdvanceContinuation(pending.Address, pending.Revision, checkpoint.Event{Kind: checkpoint.Begin, RequestID: request.ID, Attempt: "start-0102030405060708"})
-	if err != nil {
-		t.Fatal(err)
+	raw, err := os.ReadFile(store.recordPath(written.Address))
+	if err != nil || bytes.Contains(raw, []byte(`"phase":"failed"`)) || !bytes.Contains(raw, []byte(`"continuation_missed"`)) {
+		t.Fatalf("the next write did not persist the line: %s %v", raw, err)
 	}
-	refuses(t, running, request.ID, "is running; only a failed continuation can be dismissed")
-	failed, err := store.AdvanceContinuation(running.Address, running.Revision, checkpoint.Event{Kind: checkpoint.Fail, RequestID: request.ID, Attempt: "start-0102030405060708", Failure: "interrupted"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	refuses(t, failed, strings.Repeat("0", 64), "obsolete continuation request")
-
-	dismissed, err := store.DismissFailedContinuation(failed.Address, failed.Revision, request.ID)
-	if err != nil || dismissed.Continuation != nil || dismissed.Revision <= failed.Revision {
-		t.Fatalf("dismiss = %+v, %v; want the request deleted in a new revision", dismissed.Continuation, err)
-	}
-	refuses(t, dismissed, request.ID, "no continuation request")
 }
 
-// Retry and dismissal race through the revision CAS: whichever commits first
-// wins, and the other refuses on what it finds -- both orders, driven.
-func TestRetryAndDismissalSerializeInEitherOrder(t *testing.T) {
+// MissContinuation ends only the exact request, clearing it and writing the
+// line in one revision; a refusal writes nothing. Publishing the next request
+// clears the line (#522).
+func TestMissContinuationClearsTheRequestAndLeavesOneLine(t *testing.T) {
 	t.Parallel()
 
-	for _, dismissFirst := range []bool{false, true} {
-		t.Run(map[bool]string{false: "retry-first", true: "dismiss-first"}[dismissFirst], func(t *testing.T) {
-			store, _ := newTestThreadStore(t)
-			created, err := store.CreateThread(validThreadRecord(t))
-			if err != nil {
-				t.Fatal(err)
-			}
-			failed, request := failedContinuation(t, store, created)
-			retry := checkpoint.Event{Kind: checkpoint.RetryAbsent, RequestID: request.ID, Attempt: "start-1111111111111111"}
-			if dismissFirst {
-				gone, err := store.DismissFailedContinuation(failed.Address, failed.Revision, request.ID)
-				if err != nil {
-					t.Fatal(err)
-				}
-				if _, err := store.AdvanceContinuation(gone.Address, gone.Revision, retry); err == nil || !strings.Contains(err.Error(), "no continuation request") {
-					t.Fatalf("retry after dismissal = %v", err)
-				}
-				return
-			}
-			retried, err := store.AdvanceContinuation(failed.Address, failed.Revision, retry)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if _, err := store.DismissFailedContinuation(retried.Address, retried.Revision, request.ID); err == nil || !strings.Contains(err.Error(), "is running") {
-				t.Fatalf("dismissal after retry = %v", err)
-			}
-		})
+	store, _ := newTestThreadStore(t)
+	created, err := store.CreateThread(validThreadRecord(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	running, request := runningContinuation(t, store, created)
+	miss := func(r ThreadRecord) checkpoint.Miss {
+		return checkpoint.MissOf(*r.Continuation, "launch failed", running.CreatedAt, false)
+	}
+	if _, err := store.MissContinuation(running.Address, running.Revision, strings.Repeat("0", 64), miss); err == nil {
+		t.Fatal("an obsolete request was missed")
+	}
+	if after, err := store.GetThread(running.Address); err != nil || after.Revision != running.Revision {
+		t.Fatalf("a refusal wrote: %v", err)
+	}
+	missed, err := store.MissContinuation(running.Address, running.Revision, request.ID, miss)
+	if err != nil || missed.Continuation != nil || missed.ContinuationMissed == nil || missed.ContinuationMissed.RequestID != request.ID || missed.Revision != running.Revision+1 {
+		t.Fatalf("miss = %+v / %+v, %v", missed.Continuation, missed.ContinuationMissed, err)
+	}
+	next := testContinuationRequest(t, missed)
+	next.Source.LaunchOrdinal = 3
+	next.ID = checkpoint.RequestID(missed.Address.RepoScope, string(missed.Address.Tag), 3, next.Checkpoint.Digest)
+	published, err := store.PublishContinuation(missed.Address, missed.Revision, next)
+	if err != nil || published.ContinuationMissed != nil || published.Continuation == nil {
+		t.Fatalf("publishing after a miss = %+v, %v", published.ContinuationMissed, err)
 	}
 }
 

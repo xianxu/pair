@@ -383,7 +383,7 @@ func TestExplicitOpenRepairsPartialSlotWithoutCreatingConversation(t *testing.T)
 	}
 }
 
-func TestPrimaryStartupDoesNotEnrollExistingDirectories(t *testing.T) {
+func TestPrimaryStartupLaunchesHubWithoutOpeningExistingSlots(t *testing.T) {
 	t.Parallel()
 
 	f := newProvisionFixture(t)
@@ -401,8 +401,8 @@ func TestPrimaryStartupDoesNotEnrollExistingDirectories(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(snapshot.Slots) != 0 || len(env.Runner.Ops) != 0 {
-		t.Fatalf("observation startup enrolled or launched: slots=%+v ops=%v", snapshot.Slots, env.Runner.Ops)
+	if len(env.Runner.Ops) != 2 {
+		t.Fatalf("hub startup did not launch exactly one helper: slots=%+v ops=%v", snapshot.Slots, env.Runner.Ops)
 	}
 }
 

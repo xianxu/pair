@@ -19,6 +19,7 @@ import (
 
 	"github.com/creack/pty"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
@@ -336,9 +337,9 @@ func seedDetachedThread(t *testing.T, rt testRT, path string) couchcore.ThreadRe
 	return created
 }
 
-// Interactive startup only observes. An explicit console action still reaches
-// production resume routing and attaches the selected surviving thread.
-func TestInteractiveLaunchWaitsForExplicitDetachedResume(t *testing.T) {
+// A named hub follows production resume routing and attaches its surviving
+// thread without reopening any ordinary slots.
+func TestInteractiveHubLaunchResumesDetachedSession(t *testing.T) {
 	// This legacy fixture predates layout witnesses; request its layout explicitly.
 	rt := newRT(t, "/repo")
 	detached := seedDetachedThread(t, rt, "/repo")
@@ -362,22 +363,10 @@ func TestInteractiveLaunchWaitsForExplicitDetachedResume(t *testing.T) {
 
 	var attached couchcore.StartResult
 	finish := func(console *couchtty.Console, c *couchcore.Couch, start couchcore.StartResult, _ io.Writer) int {
-		if start.Handle != nil || len(rt.runner.Ops) != 0 {
-			t.Fatal("interactive startup launched before explicit action")
+		if start.Handle == nil || len(rt.runner.Ops) == 0 {
+			t.Fatal("explicit hub startup did not launch its child")
 		}
 		wireResolver(console, c)
-		result, err := console.Ops()(couchcore.OperationCall{Name: "resume", Implicit: true, Args: map[string]string{"repo-scope": detached.Address.RepoScope, "tag": string(detached.Address.Tag)}})
-		if err != nil {
-			t.Fatalf("explicit action: %v", err)
-		}
-		child, ok := result.(couchcore.StartedChild)
-		if !ok {
-			t.Fatalf("explicit action returned %T", result)
-		}
-		start, ok = child.Started()
-		if !ok {
-			t.Fatal("explicit action did not start child")
-		}
 		if err := dispatchInitialAttach(console, start); err != nil {
 			t.Fatalf("initial attach: %v", err)
 		}
@@ -408,9 +397,8 @@ func TestInteractiveLaunchWaitsForExplicitDetachedResume(t *testing.T) {
 	}
 }
 
-// A missing session and unbound ledger never cause implicit creation. The
-// operator can explicitly start a new thread after the read-only startup.
-func TestInteractiveLaunchWaitsForExplicitFreshStart(t *testing.T) {
+// A hub with no surviving session or native resume proof starts a new thread.
+func TestInteractiveHubLaunchStartsFreshWithoutResumeProof(t *testing.T) {
 	rt := newRT(t, "/repo")
 	stale := seedDetachedThread(t, rt, "/repo")
 	rt.artifacts.SetNativeBinding(stale.Address, "claude", sessioninventory.BindingUnbound, "")
@@ -429,30 +417,10 @@ func TestInteractiveLaunchWaitsForExplicitFreshStart(t *testing.T) {
 
 	var attached couchcore.StartResult
 	finish := func(console *couchtty.Console, c *couchcore.Couch, start couchcore.StartResult, _ io.Writer) int {
-		if start.Handle != nil || len(rt.runner.Ops) != 0 {
-			t.Fatal("interactive startup launched before explicit action")
+		if start.Handle == nil || len(rt.runner.Ops) == 0 {
+			t.Fatal("explicit hub startup did not launch its child")
 		}
 		wireResolver(console, c)
-		preview, err := console.Ops()(couchcore.OperationCall{Name: "prepare-start", Implicit: true, Args: map[string]string{"path": "/repo"}})
-		if err != nil {
-			t.Fatal(err)
-		}
-		resolution, ok := preview.(couchcore.PreparedStart)
-		if !ok {
-			t.Fatalf("preview returned %T", preview)
-		}
-		result, err := console.Ops()(couchcore.OperationCall{Name: "start", Implicit: true, Args: map[string]string{"path": "/repo", "fingerprint": string(resolution.Resolution.Fingerprint)}})
-		if err != nil {
-			t.Fatalf("explicit action: %v", err)
-		}
-		child, ok := result.(couchcore.StartedChild)
-		if !ok {
-			t.Fatalf("explicit action returned %T", result)
-		}
-		start, ok = child.Started()
-		if !ok {
-			t.Fatal("explicit action did not start child")
-		}
 		if err := dispatchInitialAttach(console, start); err != nil {
 			t.Fatalf("initial attach: %v", err)
 		}
@@ -472,7 +440,7 @@ func TestInteractiveLaunchWaitsForExplicitFreshStart(t *testing.T) {
 	}
 }
 
-func TestInteractiveLaunchWaitsForExplicitParkedResume(t *testing.T) {
+func TestInteractiveHubLaunchResumesProvenParkedThread(t *testing.T) {
 	rt := newRT(t, "/repo")
 	parked := seedVerifiedPark(t, rt, "/repo")
 	rt.artifacts.SetNativeBinding(parked.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
@@ -493,22 +461,10 @@ func TestInteractiveLaunchWaitsForExplicitParkedResume(t *testing.T) {
 
 	var attached couchcore.StartResult
 	finish := func(console *couchtty.Console, c *couchcore.Couch, start couchcore.StartResult, _ io.Writer) int {
-		if start.Handle != nil || len(rt.runner.Ops) != 0 {
-			t.Fatal("interactive startup launched before explicit action")
+		if start.Handle == nil || len(rt.runner.Ops) == 0 {
+			t.Fatal("explicit hub startup did not launch its child")
 		}
 		wireResolver(console, c)
-		result, err := console.Ops()(couchcore.OperationCall{Name: "resume", Implicit: true, Args: map[string]string{"repo-scope": parked.Address.RepoScope, "tag": string(parked.Address.Tag)}})
-		if err != nil {
-			t.Fatalf("explicit action: %v", err)
-		}
-		child, ok := result.(couchcore.StartedChild)
-		if !ok {
-			t.Fatalf("explicit action returned %T", result)
-		}
-		start, ok = child.Started()
-		if !ok {
-			t.Fatal("explicit action did not start child")
-		}
 		if err := dispatchInitialAttach(console, start); err != nil {
 			t.Fatalf("initial attach: %v", err)
 		}
@@ -643,7 +599,7 @@ func TestEveryOperationHasASummaryAndDescribedArgs(t *testing.T) {
 func TestOperationArityMatchesExpectation(t *testing.T) {
 	// Declared in the test rather than read from the operation itself, so
 	// this cannot degrade into asserting X == X.
-	want := map[string]int{"provision-workspace": 3, "request-continuation": 7, "continue-thread": 3, "retry-continuation": 4, "dismiss-continuation": 4, "continuation-status": 4, "prepare-switch-agent": 4, "switch-agent": 7, "orientation-status": 4, "prepare-start": 3, "start": 5, "list": 0, "show": 2, "reconcile": 1, "peek": 7, "stop": 1, "alias": 3, "publish-description": 3, "switch": 2, "attach": 3, "park": 4, "detach": 3, "leave": 1, "resume": 6, "resume-candidates": 4, "reboot": 5, "reap": 3, "recover": 3, "archived": 0, "relaunch": 4, "reload-context": 4, "prepare": 5}
+	want := map[string]int{"provision-workspace": 3, "request-continuation": 7, "continue-thread": 3, "retry-continuation": 4, "dismiss-continuation": 4, "continuation-status": 4, "prepare-switch-agent": 4, "switch-agent": 7, "prepare-start": 3, "start": 5, "start-hub": 1, "list": 0, "show": 2, "reconcile": 1, "peek": 7, "stop": 1, "alias": 3, "publish-description": 3, "switch": 2, "attach": 3, "park": 4, "detach": 3, "leave": 1, "resume": 6, "resume-candidates": 4, "reboot": 5, "reap": 3, "recover": 3, "archived": 0, "relaunch": 4, "reload-context": 4, "prepare": 5}
 	for _, op := range couchcore.Operations() {
 		if got := len(op.Args); got != want[op.Name] {
 			t.Errorf("%s has %d args, want %d", op.Name, got, want[op.Name])
@@ -856,7 +812,7 @@ func TestPublicHelpListsOnlyPublicSurface(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d", code)
 	}
-	for _, want := range []string{"couch [path]", "couch --list", "couch --show", "couch --recover-plan-from-sdlc", "couch --resume repo:N", "couch --reboot repo:N --confirm", "couch --help"} {
+	for _, want := range []string{"couch [path ...]", "couch --move-slot repo:N[,repo:N...] --to-hub HUB [--persist]", "couch --list", "couch --show", "couch --recover-plan-from-sdlc", "couch --resume repo:N", "couch --reboot repo:N --confirm", "couch --help"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("help omits %q", want)
 		}
@@ -1251,7 +1207,7 @@ func TestConsoleGetsCouchsActionableProvider(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Spawn: %v", err)
 	}
-	runConsole(console, c, couchcore.StartResult{Record: rec, Handle: h}, &bytes.Buffer{}, false)
+	runConsole(console, c, couchcore.StartResult{Record: rec, Handle: h}, &bytes.Buffer{})
 
 	provider := console.ActionableProvider()
 	if provider == nil {
@@ -1390,7 +1346,7 @@ func TestConsoleGetsAnActionDispatcher(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Spawn: %v", err)
 	}
-	runConsole(console, c, couchcore.StartResult{Record: rec, Handle: h}, &bytes.Buffer{}, false)
+	runConsole(console, c, couchcore.StartResult{Record: rec, Handle: h}, &bytes.Buffer{})
 
 	ops := console.Ops()
 	if ops == nil {
@@ -1473,7 +1429,7 @@ func TestConsoleExitForgetsThroughCouchRegistry(t *testing.T) {
 		t.Fatal("test setup has no registered actor")
 	}
 
-	runConsole(console, c, couchcore.StartResult{Record: rec, Handle: h}, &bytes.Buffer{}, false)
+	runConsole(console, c, couchcore.StartResult{Record: rec, Handle: h}, &bytes.Buffer{})
 
 	if got := rt.registryRecords(t); len(got) != 0 {
 		t.Fatalf("registry after terminal child exit = %+v, want empty", got)
@@ -1629,27 +1585,8 @@ func TestWarmOnlyIsUnreachableFromTheCommandLine(t *testing.T) {
 	}
 }
 
-// pair#206 decision 9: a start arms the background reattach pass; a resume of
-// one named thread does not.
-func TestOnlyAStartArmsTheReattachPass(t *testing.T) {
-	for operation, want := range map[string]bool{"start": true, "resume": false, "show": false} {
-		if got := armsReattachPass(operation); got != want {
-			t.Errorf("armsReattachPass(%q) = %v, want %v", operation, got, want)
-		}
-	}
-}
-
-// beginConsole is where the ordering lives: the startup child attaches, THEN
-// the pass is armed, and a failed attach never arms. It is tested with a fake
-// dispatcher, the way TestInitialConsoleAttachDispatchesDeclaredOperation tests
-// the attach itself.
-//
-// An earlier version drove runConsole with a child that had already exited, so
-// Run would return at once. But the initial attach refuses an exited child, so
-// runConsole returned before arming anything: the "arms" test failed, and the
-// "never arms on a failed attach" test passed for the wrong reason, since the
-// exited child failed the attach rather than the mismatch it meant to test.
-func TestBeginConsoleArmsThePassOnlyAfterASuccessfulAttach(t *testing.T) {
+// Startup attaches its selected hub child without reopening other slots.
+func TestBeginConsoleAttachesWithoutArmingOtherSlots(t *testing.T) {
 	address := couchcore.ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}
 	runner := couchcore.NewFakeRunner()
 	handle, err := runner.Start("/repo", []string{"pair"}, nil)
@@ -1660,12 +1597,10 @@ func TestBeginConsoleArmsThePassOnlyAfterASuccessfulAttach(t *testing.T) {
 	for _, tt := range []struct {
 		name      string
 		attachErr error
-		armPass   bool
 		wantArmed bool
 	}{
-		{"a start whose attach succeeds is armed", nil, true, true},
-		{"a failed attach never arms", errors.New("attach refused"), true, false},
-		{"a console that is not a start is not armed", nil, false, false},
+		{"a successful hub attach never arms", nil, false},
+		{"a failed attach never arms", errors.New("attach refused"), false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			console, _, _ := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil)
@@ -1675,7 +1610,7 @@ func TestBeginConsoleArmsThePassOnlyAfterASuccessfulAttach(t *testing.T) {
 			console.SetOperationDispatcher(func(couchcore.OperationCall) (any, error) {
 				return address, tt.attachErr
 			})
-			if err := beginConsole(console, start, tt.armPass); (err != nil) != (tt.attachErr != nil) {
+			if err := beginConsole(console, start); (err != nil) != (tt.attachErr != nil) {
 				t.Fatalf("beginConsole err = %v, want the attach's error %v", err, tt.attachErr)
 			}
 			if got := console.ReattachPassArmed(); got != tt.wantArmed {
@@ -1734,7 +1669,7 @@ func TestOSCompositionChecksSwitchExecutablesAndWiresExactStatus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.SwitchContext == nil || c.OrientationStatus == nil || c.FreshRegistration == nil || c.SwitchLaunchCheck == nil {
+	if c.SwitchContext == nil || c.FreshRegistration == nil || c.SwitchLaunchCheck == nil {
 		t.Fatal("production switch seams not composed")
 	}
 	if err := c.SwitchLaunchCheck("codex"); err != nil {
@@ -1858,5 +1793,34 @@ func TestThreadStateTextUsesSharedContinuityOutcome(t *testing.T) {
 		if got != tc.want {
 			t.Fatalf("%s: %q want %q", tc.state, got, tc.want)
 		}
+	}
+}
+
+// A candidate resume must retain hub authority while it waits in the queue.
+func TestCandidateResumeRetainsQueuedHubGuard(t *testing.T) {
+	r, _, _ := slotRig(t)
+	var queuedGuard func(context.Context) error
+	r.slotOps.candidate = func(key, target, candidate string, started func(), finished func(any, error), guards ...func(context.Context) error) error {
+		if candidate != "candidate-token" || len(guards) != 1 {
+			t.Fatalf("candidate admission lost its token or hub guard: %q, %d", candidate, len(guards))
+		}
+		queuedGuard = guards[0]
+		return nil
+	}
+	ownershipChanged := false
+	guard := func(context.Context) error {
+		if ownershipChanged {
+			return errors.New("ownership changed")
+		}
+		return nil
+	}
+	caller := couchmessage.Binding{Scope: "scope", Tag: "caller"}
+	request := couchmessage.Request{Op: "resume", ID: "candidate-resume", Target: "pair:2", CandidateKey: "candidate-token"}
+	if got := r.slotOps.handle(context.Background(), caller, request, guard); got.Code != "accepted" {
+		t.Fatalf("candidate admission: %+v", got)
+	}
+	ownershipChanged = true
+	if queuedGuard == nil || queuedGuard(context.Background()) == nil {
+		t.Fatal("queued candidate resume lost the ownership recheck")
 	}
 }

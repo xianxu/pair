@@ -62,6 +62,7 @@ type ThreadRecord struct {
 	PreviousSession     *PreviousSession              `json:"previous_session,omitempty"`
 	SessionBinding      *couchidentity.SessionBinding `json:"session_binding,omitempty"`
 	Continuation        *checkpoint.Request           `json:"continuation,omitempty"`
+	ContinuationMissed  *checkpoint.Miss              `json:"continuation_missed,omitempty"`
 	SchemaVersion       int                           `json:"schema_version"`
 	Address             ThreadAddress                 `json:"address"`
 	StartingPath        string                        `json:"starting_path"`
@@ -126,6 +127,7 @@ func toPersistedThreadRecord(record ThreadRecord) threadrecord.Record {
 		request := record.Continuation.Clone()
 		out.Continuation = &request
 	}
+	out.ContinuationMissed = cloneMiss(record.ContinuationMissed)
 	if record.LatestLaunchProfile != nil {
 		profile := cloneLaunchProfile(*record.LatestLaunchProfile)
 		out.LatestLaunchProfile = &threadrecord.LaunchProfile{Agent: profile.Agent, Argv: profile.Argv}
@@ -189,6 +191,15 @@ func fromPersistedThreadRecord(record threadrecord.Record) ThreadRecord {
 	if record.Continuation != nil {
 		request := record.Continuation.Clone()
 		out.Continuation = &request
+	}
+	out.ContinuationMissed = cloneMiss(record.ContinuationMissed)
+	if r := out.Continuation; r != nil && r.Phase == checkpoint.Failed {
+		// A request that failed before #522 blocked its thread until retry or
+		// dismissal. It reads as the one non-blocking line instead; the next
+		// write persists that. Its target, if any, is guarded by the thread's
+		// incarnations, as for every miss.
+		miss := checkpoint.MissOf(*r, r.Failure, r.CreatedAt, targetMayExist(out))
+		out.ContinuationMissed, out.Continuation = &miss, nil
 	}
 	if record.LatestLaunchProfile != nil {
 		profile := LaunchProfile{Agent: record.LatestLaunchProfile.Agent, Argv: cloneArgv(record.LatestLaunchProfile.Argv)}
@@ -256,6 +267,7 @@ func cloneThreadRecord(record ThreadRecord) ThreadRecord {
 		request := record.Continuation.Clone()
 		copy.Continuation = &request
 	}
+	copy.ContinuationMissed = cloneMiss(record.ContinuationMissed)
 	copy.Incarnations = append([]ThreadIncarnation{}, record.Incarnations...)
 	for i := range copy.Incarnations {
 		if record.Incarnations[i].Start != nil {
@@ -416,4 +428,12 @@ func cloneSessionBinding(binding *couchidentity.SessionBinding) *couchidentity.S
 	}
 	out := *binding
 	return &out
+}
+
+func cloneMiss(m *checkpoint.Miss) *checkpoint.Miss {
+	if m == nil {
+		return nil
+	}
+	copy := *m
+	return &copy
 }

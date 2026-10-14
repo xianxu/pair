@@ -21,7 +21,6 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/launcher"
-	"github.com/xianxu/pair/cmd/internal/orientation"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/cmd/internal/readiness"
@@ -160,8 +159,8 @@ func runRecoveryMenuAcceptance(t *testing.T, mode string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	receipt := couchcore.OSOrientationStatusReader{DataDir: data, Session: rt.artifacts.PairSession, Proc: rt.proc}
-	c.FreshRegistration, c.OrientationStatus = receipt.Registered, receipt.Read
+	receipt := couchcore.OSReadyReader{DataDir: data, Session: rt.artifacts.PairSession, Proc: rt.proc}
+	c.FreshRegistration = receipt.Registered
 	c.ContinuationGeneration = receipt.Generation
 	rt.runner.AfterAcknowledge = func(id string) error {
 		if mode == "reboot" {
@@ -203,8 +202,8 @@ func runRecoveryMenuAcceptance(t *testing.T, mode string) {
 				}
 			}
 		}
-		if !profile.FreshRequired || profile.ResumeRequired || profile.Orientation == nil {
-			return fmt.Errorf("checkpoint target was not a fresh oriented launch: %+v", profile)
+		if !profile.FreshRequired || profile.ResumeRequired || profile.Prompt == "" || profile.FreshNonce == "" {
+			return fmt.Errorf("checkpoint target was not a fresh launch with its prompt: %+v", profile)
 		}
 		if current.Continuation == nil || current.Continuation.Checkpoint.Body != body {
 			return fmt.Errorf("replacement lost exact selected checkpoint")
@@ -216,7 +215,7 @@ func runRecoveryMenuAcceptance(t *testing.T, mode string) {
 		if err != nil {
 			return err
 		}
-		ready := readiness.ReadyRecord{Tag: string(source.Address.Tag), Agent: "claude", Session: targetSession, Nonce: profile.Orientation.Attempt, PID: inc.PID, LaunchOrdinal: target.Ordinal, Orientation: &orientation.DeliveryState{Phase: orientation.DeliverySubmitted, BodyWritten: true}}
+		ready := readiness.ReadyRecord{Tag: string(source.Address.Tag), Agent: "claude", Session: targetSession, Nonce: profile.FreshNonce, PID: inc.PID, LaunchOrdinal: target.Ordinal}
 		raw, err := readiness.Encode(ready)
 		if err != nil {
 			return err
@@ -390,9 +389,8 @@ func runRecoveryMenuAcceptance(t *testing.T, mode string) {
 			t.Fatal("warm recovery consulted native binding or created a checkpoint")
 		}
 	} else {
-		state, err := c.ReconcileContinuation(context.Background(), source.Address, current.Continuation.ID, current.Continuation.Attempt)
-		if err != nil || state.Phase != checkpoint.Complete {
-			t.Fatalf("recovery receipt: %+v %v", state, err)
+		if current.Continuation.Phase != checkpoint.Complete {
+			t.Fatalf("recovery receipt: %+v", current.Continuation)
 		}
 		if current.VerifiedPark != nil || len(current.ParkHistory) != 0 {
 			t.Fatal("source absence fabricated a park")

@@ -1666,6 +1666,11 @@ proof; record the surprising case so the next change starts from evidence.
   leave a success eligible to create again. BR-2/3: reconcile final entity paths
   and classifications, and update user-facing README instructions alongside atlas.
 
+## Retiring a feature: sweep its side effects, not just its callers (#522)
+
+Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Add(1)`, which lived inside its terminal observer. Peer delivery's post-submit lease reads that epoch, so the next peer message would have waited forever. Every caller compiled, and the dead-symbol scan was clean. Only a unit test of the surviving consumer, written while retiring the old writer, caught it.
+- **Rule:** before deleting a function, list every state write in its body (counters, flags, channels, files). For each one, name its surviving reader and move the write there.
+- **Rule:** when a retirement leaves one consumer of a shared mechanism, pin that consumer's behaviour directly before deleting the other.
 - #540 admission review: when identity checks precede a workspace lookup, test a
   wrapper replacement during that lookup. Cached connection membership alone
   does not prove the current wrapper still owns the accepted launch; revalidate
@@ -1709,3 +1714,36 @@ proof; record the surprising case so the next change starts from evidence.
   completion and the real launcher. Removing a prerequisite at the first gate
   is insufficient when registration or final handoff imposes it again. Keep
   attachment evidence separate from lifecycle retirement authority end to end.
+- #530: When a fixture advances a synthetic clock, first await completion of all
+  independently admitted deliveries that affect its rule inputs, not just the
+  endpoint whose messages the assertion counts. An in-flight startup prompt
+  correctly makes a worker Pending; drain its submitted receipt before testing
+  an idle-time rule. Preserve facts newer than the liveness snapshot pruning them.
+
+- #530 close: if the contract distinguishes generated traffic from agent traffic,
+  cover every generated-send path, including older reminders. Observe terminal
+  broker receipts as well as endpoint callbacks: queued expiry/cancellation may
+  never call Deliver. A bounded diagnostic cache must not become an admission
+  gate for authoritative facts; retain pending metadata and release it at the
+  existing receipt lifecycle boundary instead of building a second history.
+
+- #530 round 2: terminal receipt and completed callback are different facts.
+  Disconnect may publish an outcome while endpoint accounting is still running.
+  Retain generated-message provenance through the broker job lifetime, checked
+  atomically with its receipt; test cancellation before a blocked callback returns
+  for every producer, plus genuine-message inclusion and eventual cleanup.
+
+- #543 plan review: best-effort diagnostic writers still need explicit ordering,
+  shutdown and late-open ownership. Offline labeling must validate bounded input
+  before inference and treat malformed or incomplete coverage as unknown.
+
+- #543 close BR-1: inclusive time windows need coverage strictly beyond their
+  endpoint when timestamps can tie. Test truncated tails and sequence gaps at
+  the endpoint; an equal-time observation cannot exclude a later equal-time event.
+
+- #546 integration: an operation queue may have concurrent workers even when admissions are FIFO. Prove effect ordering with barriers; ownership changes need one shared execution gate, and queued mutations must repeat authority checks after acquiring it. Explicit startup and background recovery must consume the same ownership projection to avoid duplicate starts.
+- #546 retry evidence: after a successful move, the original caller may no longer own the target. Authenticate the caller and answer its retained full-intent receipt before checking authority for a new effect. Include persistence mode and destination in deduplication; no-op durable commands must not advance the ownership revision.
+
+- #546 close review: retries that replan from visible filesystem state still need durability confirmation; unchanged bytes do not prove a failed directory sync later succeeded. Admission-time authority evidence must survive delayed delivery, rather than being reconstructed only from the current owner.
+
+- #546 multi-owner changes must enumerate observability consumers as well as routing/guards: delivery facts are part of the behavior contract, and a main-only logging predicate can silently lose confirmed secondary-owner evidence.

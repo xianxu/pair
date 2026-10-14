@@ -392,9 +392,12 @@ is separate from `pair` on purpose: pair is what you sit inside, so a supervisor
 bug must not break your ability to fix it, and launching pair directly always
 still works. See [atlas/couch.md](atlas/couch.md).
 
-Opening Couch observes registered slots and opens the menu. It does not start
-agents, resume interrupted starts, replay recovery journals, or repair slots.
-One unavailable slot does not prevent Couch or other slots from opening.
+Opening Couch launches or attaches each requested hub, including the cwd hub
+when no directory is given. A hub listed live uses Continue; otherwise its
+normal startup resumes a proven conversation or starts fresh. Other slots are
+observed only: startup does not launch or attach them, resume interrupted starts,
+replay their recovery journals, or repair them. One unavailable slot does not
+prevent Couch or other slots from opening.
 Choose **Continue** for a session Zellij lists live, **Resume from disk** for a
 recoverable stopped conversation, or the offered **Start fresh** action to begin
 again. A live session remains Continue while its agent is working on a turn;
@@ -404,6 +407,8 @@ closes only the client Couch attached.
 
 ```
 couch [<repo>]           open the Couch TUI (default: .)
+couch . ../bench         open several hubs; first is main
+couch --move-slot pair:7,pair:8 --to-hub bench:0 [--persist]
 couch --layout2          opt into pair's two-pane workbench
 couch --layout3          threads also get pair's right-hand terminal (the default)
 couch --list             every durable work thread across all repositories
@@ -464,7 +469,7 @@ couch --prepare repo:N --confirm [--force-unknown] [--json]
 couch --send-to repo:N --message TEXT   send to an exact live slot
 couch --send-to repo --message TEXT     select an eligible slot in that family
 couch --send-to repo --agent NAME --message TEXT   ...running that agent
-couch --send-to hub --message TEXT      send to the hub (the slot Couch started from), resolved at send time
+couch --send-to hub --message TEXT      send to your slot’s owning hub, resolved at send time
 couch --notify [--title T] MESSAGE      hub only: one desktop notification (default title: Couch)
 couch --send-to TARGET [--agent NAME] --message-file PATH
                          any form above, the body read verbatim from PATH (less one trailing newline):
@@ -776,23 +781,22 @@ directory Git does not recognise is refused before anything is created.
 **Compact a Couch thread without changing its tag.** `Alt+Shift+C` saves and
 commits a continuation, then asks Couch to replace the conversation. Couch keeps
 the same thread and prompt history, including when the checkpoint was saved in
-another worktree. The switcher shows the queued or running continuation; saving
-the document means the request was accepted, while completion requires the new
-agent's prompt submission receipt.
+another worktree. The new conversation starts with a one-line launch prompt that
+names the continuation, where to resume (its NEXT ACTION), and `couch --peek
+<tag> --previous` for the conversation it replaced. Nothing is pasted into the
+composer. The prompt is said once: it never lands in the saved startup
+parameters, so a later relaunch or fresh start does not repeat it. The switcher
+shows a queued or running continuation, and the request completes when the new
+agent registers.
 
-If replacement or delivery fails, the checkpoint stays saved and a live thread
-offers **retry-continuation**. Retry first checks for an existing target;
-it does not blindly start or submit again. Inspect that target before manually
-sending anything when delivery is uncertain. If you have already taken the
-thread over (for example, you typed into the new agent before its handoff
-finished) choose **dismiss-continuation** instead. It drops the failed request
-without re-delivering it, the checkpoint file stays where it is, and the thread's
-relaunch and switch-agent come back. Until you retry or dismiss, the row reads
-`<state> · continuation failed`. On a thread that is not live, **resume**
-retries the request and **reboot** archives it with the conversation. If Couch
-itself exited, follow the explicit retry command in its diagnostic to reopen
-recovery. Inner `pair restart` and address-changing rename are refused for
-hosted threads; use Couch's relaunch.
+If the compaction doesn't finish, nothing is blocked. The slot's row reads
+`<state> · compaction didn't finish`, and the focused row and one notice give the
+line: the reason, the continuation's path, and the action. If the old
+conversation is still running, compact again when ready. If it was parked, resume
+the slot to bring it back. If the new conversation may be running, relaunch the
+slot, which parks it exactly before anything else starts. The next start or
+compaction clears the line. Inner `pair restart` and address-changing rename are
+refused for hosted threads; use Couch's relaunch.
 
 **Every other detached thread comes back too, behind you** (pair#206). Once the
 thread you land on is up, couch reattaches the rest in the background, one at a
@@ -882,6 +886,28 @@ A thread whose agent is waiting on a picker (a permission prompt or a question)
 shows red in the tabs and the switcher until the picker closes, even when it's
 the focused tab, and never fades.
 
+Couch also watches reports sent to the hub. If a quiet, settled worker has no
+later confirmed hub message or operator submission after 15 minutes, the hub
+gets one reminder; at 30 minutes Couch shows an operator notice. Earlier waiting
+notices count as the reminder. Explicit landing reports remain eligible after
+the worker returns to main. Inspect the named slot with `couch --peek repo:N`;
+these observations do not prove whether a conversation was meaningfully answered.
+The existing `wait-notice-off` file mutes these reminders too.
+
+On startup, Couch asks each connected worker once to resend its last unanswered
+hub report only if still relevant. The worker decides what to send. The prompt
+uses the ordinary in-memory busy queue, but Couch stores no old report for replay
+and does not regenerate the prompt on reconnect within the same Couch lifetime.
+If the prompt cannot be delivered or confirmed, a Couch notice names the slot
+and asks the hub to request fresh status.
+
+Couch records content-free supervision facts locally in its namespace
+`supervision.jsonl`: hub deliveries, session-file writes, accepted submissions,
+slot changes and minute snapshots. Logging is best-effort and capped per diagnostic
+generation; gaps are not inactivity. The [offline labeling script](scripts/supervision-labels/SKILL.md)
+compares observed writes within ten minutes without changing Couch decisions.
+See [the fact-log contract](atlas/couch.md#supervision-fact-log-543) for coverage and retention.
+
 The tab bar starts with the hub, the checkout you started Couch from, and then
 lists every other slot grouped by repository:
 `ops  ariadne  :1  :2  blog  pair  :1  :2`. In the switcher the hub is the first line and the rest sit indented
@@ -890,6 +916,14 @@ focus brackets still mark the active tab, and the selected hub row is bold
 with a cursor arrow. When the tabs don't fit, a repository's numbered slots fold into a
 count (`pair  +2`), starting from the right. A red, belled or focused tab is
 never folded away, and the switcher always lists everything.
+
+With `couch . ../bench`, each directory is a hub. The first owns unclaimed slots;
+each started hub’s `.hub` file can claim repositories or exact slots. Exact claims
+win over broad repository claims; ties use command-line order and warn. The
+switcher shows each hub’s section and ownership, and tabs belonging to other hubs
+are dimmed relative to focus. A hub TL moves its own or main’s slots with
+`couch --move-slot pair:7,pair:8 --to-hub bench:0`; add `--persist` to save claims.
+Without it, the move lasts until Couch restarts. Omitted hubs’ claims are ignored.
 
 Each numbered slot keeps its Couch metadata in its environment's `.couch/`
 directory. Opening it resumes its conversation; **Start fresh** replaces the
@@ -1353,9 +1387,8 @@ ordinary filter text—there is no command namespace or numbered jump mode.
 |---|---|
 | live `:0` | detach, relaunch, park, switch coding agent, alias, add slot |
 | live `:1+` | detach, relaunch, park, switch coding agent |
-| live, continuation failed | the above minus relaunch and switch coding agent, with retry-continuation and dismiss-continuation after detach |
-| live, continuation running | retry-continuation |
-| live, continuation pending | nothing yet; the request runs on its own |
+| live, compaction running or pending | nothing yet; Couch finishes it on its own |
+| any row whose compaction didn't finish | that row's own actions, unchanged |
 | parked or detached, any slot | resume, reboot (`:0` adds add slot) |
 | cannot be entered, but resume has a route | resume, reboot (`:0` adds add slot) |
 | cannot be entered otherwise (`:0`) | reboot, add slot |
@@ -1529,6 +1562,11 @@ public `📁...` name, `pair resume <public-name>` and `pair rename <public-name
 tag, not a public session name.
 
 **Hacking on pair?** Use `pair-dev` instead of `pair` — same arguments, but it rebuilds the `pair` binary from source (`make build`) on launch and on every Alt+n whole-workbench reload, so the zellij-spawned `pair wrap` always matches your working tree. Shift+Alt+N restarts only the already-running wrapper's agent child. (Deployed installs run `pair`, which uses the prebuilt binary and needs no Go toolchain.) Under Couch, start it with `couch-dev` instead of `couch`: it rebuilds once and runs Couch with dev mode on. Slots Couch launches do not rebuild Pair (a rebuild per slot slowed every launch under load), so run `make build` once before relaunching slots onto a new build.
+
+SDLC reviews use the pinned commit’s `.sdlc/review-prepare.json` (version 1,
+`command: ["make", "runtimebundle-generate"]`, `timeout_minutes: 10`) to generate
+the ignored runtime embed assets in a disposable checkout before tests run.
+Preparation leaves tracked sources unchanged. See the [runtime bundle map](atlas/go-migration-inventory.md).
 
 When `pair` runs and there's anything to pick — a detached Pair session owned by this repo **or** a tag from this repo used within the last 14 days — it shows an `fzf` picker. Detached rows come first, then historical rows annotated `(Nd ago, no live session)`, then a `+ new <agent> session` sentinel. A historical row whose session has prompts parked in its queue also carries an amber `[⏎ N queued]` badge, so you don't resume a session without remembering the work you queued up in it. Picking a historical row reuses the repo-local tag and any surviving draft / saved agent config (same path as `pair resume <tag>`). Override the 14-day window with `PAIR_HISTORY_DAYS`; `PAIR_DEBUG_HISTORY=1 pair` prints the scan and exits without launching.
 
