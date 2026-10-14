@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-13
 updated: 2026-10-14
-estimate_hours:
-card_mirror: '966620b85b400d58c7b4ed982c8eb5d7047624c3' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 6.29
+card_mirror: '62ab2b732b0e7595e1daa0f1b18b04fcc5606d48' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-14T01:55:19-07:00
 claimant:
     operator: Xian Xu
@@ -76,3 +76,32 @@ Durable implementation plan: [agent keys and model selection](../plans/000544-ag
 - 2026-10-14 — durable plan ready for TL approval. Shared wrapper transport/input lease and pure screen-driven reducer provide one driver; no implementation or estimate yet. Added scope and false-wait acceptance to Done when, matching the existing Revision. All outstanding design uncertainty about actual picker shapes is handled by the first isolated capture step and a stop/revision on mismatch.
 
 - 2026-10-14 — plan approved by TL at 44e2e723. Full-flow change-code round 1 requested precise registered-wrapper lifetime, isolated Claude model auth (existing native-HOME fallback is unsuitable), and named-function test strategies. Added an active refinement for each; retained the approved feature/bounds. TL will update ops/skills-draft/xx-tl/SKILL.md after landing; this issue updates Pair docs only.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. Calibration is marked stale: provisional ship wall-clock, not a deadline.
+
+Decomposition: shaping 0.7 design / 0.2 implementation; four pure concerns (keys, recipe, screen evidence, reducer) each 0.8 / 0.6; wrapper protocol/input integration and Couch authority/receipt integration each 2.0 / 1.5; CLI, receipt extension and wait classifier each 0.3 / 0.5; docs 0.1 / 0.2; close review 0 / 0.5; Codex and Claude live discovery each 0 / 0.6. Library availability: existing PTY, terminal rendering, translator, transport and receipt seams are reused; no external library substitutes for versioned picker interpretation and domain transitions. No novel stack multiplier (1.0). Approved plan discounts implementation-phase design by 0.2; shaping is undiscounted. Implementation values below are already scaled by 0.40. Design subtotal 2.34, implementation 3.60, design buffer 15%: 2.34 × 1.15 + 3.60 = 6.291, rounded 6.29h. Tests/conformance are included in component allowances and two discovery primitives; no separate test surcharge.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.70 impl=0.08
+item: greenfield-go-module design=0.16 impl=0.24
+item: greenfield-go-module design=0.16 impl=0.24
+item: greenfield-go-module design=0.16 impl=0.24
+item: greenfield-go-module design=0.16 impl=0.24
+item: api-integration design=0.40 impl=0.60
+item: api-integration design=0.40 impl=0.60
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: atlas-docs design=0.02 impl=0.08
+item: milestone-review design=0 impl=0.20
+item: real-api-discovery design=0 impl=0.24
+item: real-api-discovery design=0 impl=0.24
+design-buffer: 0.15
+total: 6.29
+```
+
+- 2026-10-14 — plan-quality round 2 CLEAN, all three findings addressed. Derived estimate after approval/gate; no implementation yet.

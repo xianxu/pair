@@ -26,6 +26,24 @@ rounds:
           family: function-level-test-strategies
           round: 1
       blocked: true
+    - "n": 2
+      timestamp: "2026-10-14T02:09:22-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Console/wrapper lifetime ownership and registered-session cancellation are explicitly independent of short-lived RPC contexts.
+          round: 2
+        - id: PQ-2
+          disposition: addressed
+          note: Model capture requires disposable authentication/configuration and explicitly rejects native-HOME/config fallback before launch.
+          round: 2
+        - id: PQ-3
+          disposition: addressed
+          note: Named-function adversarial strategies and independent invariants supersede the prose inventories while preserving the stateful integration harness.
+          round: 2
+      blocked: false
+content_hash: 857be186189a5d0c76ca7fe22e60da23faa1bb9ac03e60c3b11429746d14b80b
 ---
 
 # Gate ledger — pair#544 (plan-quality)
@@ -44,8 +62,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **PQ-3** [Important] `function-level-test-strategies` Replace prose test-case inventories with named-function strategies
   The test tasks enumerate cases instead of giving one adversarial-input class and mechanical guard per risky function. Compress them into strategies for ParseKeySequence, ReadModelScreen, ReduceDrive, ApplyReceiptEvent and classifyWait; use malformed-input fuzzing and controlled sequence testing with independent invariants, retaining the stateful integration harness.
 
+## Round 2 — 2026-10-14T02:09:22-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Console/wrapper lifetime ownership and registered-session cancellation are explicitly independent of short-lived RPC contexts.
+- PQ-2 — addressed — Model capture requires disposable authentication/configuration and explicitly rejects native-HOME/config fallback before launch.
+- PQ-3 — addressed — Named-function adversarial strategies and independent invariants supersede the prose inventories while preserving the stateful integration harness.
+
 ## Open findings
 
-- **PQ-1** [Important] `operation-lifetime-independent-of-rpc` Define caller cancellation independently of short-lived RPC connections
-- **PQ-2** [Important] `live-tests-isolate-writable-user-state` Specify isolated authentication for model capture and conformance
-- **PQ-3** [Important] `function-level-test-strategies` Replace prose test-case inventories with named-function strategies
+(none — every finding has been disposed)
