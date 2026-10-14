@@ -626,6 +626,9 @@ var NonArtifactSources = []string{
 	"cmd/internal/launcher/session_handoff.go",
 	"cmd/internal/launcher/session_lease.go",
 	"cmd/internal/launcher/terminal_agent.go",
+	"cmd/internal/wrapcmd/automatic_input_report.go",
+	"cmd/internal/couchmessage/automatic_input_stall.go",
+	"cmd/internal/couchcmd/automatic_input_stall.go",
 	// #538 private web evidence and note protocol, outside Pair artifact families.
 	"cmd/internal/submission/publication.go",
 	"cmd/internal/webcast/board/prepared_note.go",

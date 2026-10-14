@@ -285,6 +285,35 @@ alias and agent.
 
 ### Live peer messages (#353)
 
+The automatic-input lease consumes the post-submit Empty observation that
+confirmed a delivery; publishing its receipt does not create a new render fence
+(#552). Turn-only confirmation and uncertain writes retain fresh-empty protection.
+Codex startup/status field labels are case-insensitive, so `/status` transcript
+output cannot misclassify its empty composer as unresolved startup.
+
+An unexpected lease wait has a 30-second tripwire measured only during eligible
+idle blocked attempts. Human drafts, pickers and input holds do not accrue that
+time. Exceptional release requires a prior Submitted outcome, a complete Empty
+snapshot and all input guards clear. Unknown composers and uncertain writes
+remain blocked. Receipt details name missing-render, unrecognized-composer or
+incomplete-frame evidence. Root regressions run with recovery disabled.
+
+The wrapper's one bounded reporter records `automatic-input-stall` with a styled
+screen capped at 40 rows/16 KiB in existing rotated wrap diagnostics. Its internal
+`automatic-input-stall` RPC gets one two-second attempt. The supervisor validates
+the current incarnation, then issues a console notice, an owning-hub message and
+a desktop alert through the same presenter as `--notify`; hub-origin events use
+the console notice instead of self-messaging. This does not grant general worker
+notification authority. Full-binding occurrence IDs and a monotonic per-wrapper
+sequence prevent repeated effects, including older duplicates after newer events.
+Suppression high-water marks survive same-wrapper reconnect; one record per slot
+is bounded by MaxActors, replaced by a verified new incarnation, and collected at
+supervisor shutdown. Saturation refuses visibly instead of evicting duplicate
+evidence. No offline queue, restart replay or uncertain-write retry is added.
+Reporter work joins before diagnostic teardown. See `wrapcmd/automatic_input.go`,
+`automatic_input_report.go` and `couchcmd/automatic_input_stall.go`.
+
+
 The supervisor owns an ephemeral `couchmessage.Broker` under its existing
 namespace lease. Committed live pane observations validate exact wrapper
 bindings: repository, scope/tag, native session, launch nonce and PID/start

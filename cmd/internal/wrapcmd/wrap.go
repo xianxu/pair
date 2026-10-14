@@ -197,16 +197,20 @@ var (
 type proxy struct {
 	// Focus-mode dim (#417): observeFocus is read on SIGWINCH, dim is the
 	// result the master pump applies through dimmer.
-	observeFocus         func() (bool, error)
-	signalChild          func(syscall.Signal) // test seam; nil signals the child group
-	dim                  atomic.Bool
-	dimmer               sgrDimmer
-	inputAdmission       sync.Mutex
-	automaticInput       automaticInputTransaction
-	automaticRenderEpoch atomic.Uint64
-	peer                 *peerDelivery
-	peerHumanSubmit      bool // owned by the stdin writer; consumed after a full write
-	notificationBroker   *notifytransport.Broker
+	observeFocus           func() (bool, error)
+	signalChild            func(syscall.Signal) // test seam; nil signals the child group
+	dim                    atomic.Bool
+	dimmer                 sgrDimmer
+	inputAdmission         sync.Mutex
+	automaticInput         automaticInputTransaction
+	automaticRecoveryAfter time.Duration // negative disables exceptional recovery
+	automaticInputCause    string        // stdin writer only
+	automaticReportDrops   atomic.Uint64
+	automaticReport        func(couchmessage.AutomaticInputStall, terminalSnapshot) // bounded runtime handoff
+	automaticRenderEpoch   atomic.Uint64
+	peer                   *peerDelivery
+	peerHumanSubmit        bool // owned by the stdin writer; consumed after a full write
+	notificationBroker     *notifytransport.Broker
 	// Real stdio, injected by Run so the proxy is testable without touching
 	// the process globals. In production stdin/stdout ARE os.Stdin/os.Stdout,
 	// so stdinFile/stdoutFile (the *os.File view needed for raw-mode, winsize
@@ -2893,10 +2897,12 @@ argsDone:
 	})
 	defer ptmx.Close()
 	maintenance, readyErr := gcruntime.StartAfterReady(context.Background(), os.Getenv("PAIR_DATA_DIR"), func() error { return p.publishAgentReady(cmd.Process.Pid) })
-	if peerRuntime, peerErr := p.startPeerRuntime(argv[0]); peerErr != nil {
+	var peerRun *peerRuntime
+	if runtime, peerErr := p.startPeerRuntime(argv[0]); peerErr != nil {
 		p.debug("PEER-start-fail", peerErr.Error())
-	} else if peerRuntime != nil {
-		defer peerRuntime.Close()
+	} else if runtime != nil {
+		peerRun = runtime
+		defer peerRun.Close()
 	}
 	if readyErr != nil {
 		p.debug("AGENT-READY-write-fail", readyErr.Error())
@@ -2985,6 +2991,9 @@ argsDone:
 		}
 		if p.eventsFD != nil {
 			_ = p.eventsFD.Close()
+		}
+		if peerRun != nil {
+			peerRun.Close()
 		}
 		if p.wrapEventsFD != nil {
 			p.traceWrap("proxy-defer-close", nil)
