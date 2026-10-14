@@ -1,6 +1,6 @@
 ---
 id: 000514
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-13
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 89d38a9738b732431c815845a2e6b4a3a5933ba5
         evidence_commit: 86bd8e8074a4d55f931b34b8aeb7b96da8a2c61b
+        landed_commit: 40dc5b473c165f7a0ecdc908bfc05e2b3a962412
 ---
 
 # test-perf-capture asserts a 6 s wall-clock budget on a shared loaded machine; fails under load on main
