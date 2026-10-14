@@ -457,3 +457,17 @@ The final revision in `workshop/plans/000528-slot-recovery-plan.md` supersedes p
   restored-registry ownership 1.183s. Complete launcher package passes 31.589s.
   Final affected-package rerun is /tmp/pair528-m1-corrected-packages.log; the
   corrected make build already passed. No new failure is attributed to load.
+
+- 2026-10-13 22:55 PDT — Final affected-package rerun completed:
+  couchcmd passed 44.835s, launcher passed 22.019s. All prior M1 regression
+  failures cleared in couchcore; its 296.305s full run failed only
+  TestOpenRefusesWithTheHandoffWhenSetupCannotConverge and
+  TestReconcileAgreesWithRealGit/branch=broken/elsewhere with
+  `workspace host creation is busy`. Both passed unchanged together in isolation
+  (20.384s, /tmp/pair528-isolated-workspace-failures.log). The unchanged
+  provision_lock_unix.go documents #436's inherited-descriptor fork/exec window
+  and 100ms settle bound; that is a plausible cause, not a measured attribution
+  for these two runs. No timeout was raised and no failure is hidden or claimed
+  as a clean full-suite pass. Final build passed; git diff --check is clean.
+  Rerun the corrected M1 boundary with this exact evidence. Operator acceptance
+  remains pending, with no staging and no M2 implementation.
