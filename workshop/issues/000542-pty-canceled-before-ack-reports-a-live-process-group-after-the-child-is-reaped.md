@@ -1,12 +1,12 @@
 ---
 id: 000542
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-13
 updated: 2026-10-13
 estimate_hours:
-card_mirror: '6e8d14b70cc1aaca216c0496c3a8f05b17ec2db8' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'ba1a6136f8f80c810967fa5f46b947dace49ab18' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-13T18:00:12-07:00
 claimant:
     operator: Xian Xu
@@ -44,3 +44,5 @@ This is independent of #519: it uses couchcore runner/helper code, not notifytra
 ### 2026-10-13
 
 - Filed from #519 investigation at TL request. Read-only source analysis confirms a separate subsystem; no live-slot changes or additional cancellation loops run.
+
+- Started #542 after #519 landed. Unchanged cancellation conformance passed 20 repetitions at load 5.10 (0.618s); retain diagnostics before further reproduction. ARCH-ORDER: distinguish child reaping from whole-group absence; ARCH-PURPOSE: preserve descendant ownership. ARCH-DRY/ARCH-PURE: use existing runner and process seams, keep probes at the OS boundary. ARCH-MOCK: existing fake/exec/PTY conformance remains the oracle. ARCH-CONSTRAINTS: bounded sequential reproduction, no load generation or changed deadlines. ARCH-SECURE/ARCH-FUNERAL: only fixture-owned children and temporary directories, cleaned by each test; no live-slot state or secrets.
