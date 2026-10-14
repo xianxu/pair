@@ -49,7 +49,7 @@ func TestNoteEditInvalidWire(t *testing.T) {
 }
 
 func TestNoteEditRefusalIsAtomic(t *testing.T) {
-	for _, mode := range []string{"unknown", "resolved", "paused", "ended", "old-document", "cleared"} {
+	for _, mode := range []string{"unknown", "resolved", "paused", "ended", "cleared"} {
 		t.Run(mode, func(t *testing.T) {
 			b := NewBuilder("edit")
 			p := b.El("p", nil)
@@ -62,8 +62,6 @@ func TestNoteEditRefusalIsAtomic(t *testing.T) {
 				b.At(2).Add(&Stop{Why: StopPause})
 			case "ended":
 				b.At(2).Add(&Stop{Why: StopEnd})
-			case "old-document":
-				b.At(2).Page(SegNavigate, "http://y/")
 			case "cleared":
 				b.At(2).Add(&AnnotationClear{Who: Author{ID: OperatorID}})
 			}

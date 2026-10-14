@@ -15,6 +15,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/cdp"
 	"github.com/xianxu/pair/cmd/internal/webcast/board"
+	"github.com/xianxu/pair/cmd/internal/webcast/notedraft"
 	"github.com/xianxu/pair/cmd/internal/webcast/recorder"
 	rec "github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
@@ -43,9 +44,10 @@ type LaunchOptions struct {
 
 // RecordOptions configure the cast's recorder.
 type RecordOptions struct {
-	Operator *board.Board
-	ID       string          // the recording's id (its head)
-	Out      recorder.Output // opened at the first go-live
+	NoteDrafts *notedraft.Service
+	Operator   *board.Board
+	ID         string          // the recording's id (its head)
+	Out        recorder.Output // opened at the first go-live
 	// ShotEvery is the fidelity screenshots' period; zero is the
 	// recorder's default.
 	ShotEvery time.Duration
@@ -251,7 +253,7 @@ func start(conn *cdp.Conn, proc process, output *tail, opts LaunchOptions) *Chro
 	}
 	if opts.Record != nil {
 		c.rec = recorder.Start(recorder.Options{ID: opts.Record.ID, Call: conn, Out: opts.Record.Out,
-			ShotEvery: opts.Record.ShotEvery, Logf: opts.Record.Logf, Dialog: c.dialogs.signal, Operator: opts.Record.Operator, OperatorReply: c.operatorReply, UIGuard: c.uiGuard, SyncEvents: conn.SyncEvents})
+			ShotEvery: opts.Record.ShotEvery, Logf: opts.Record.Logf, Dialog: c.dialogs.signal, Operator: opts.Record.Operator, NoteDrafts: opts.Record.NoteDrafts, OperatorReply: c.operatorReply, UIGuard: c.uiGuard, SyncEvents: conn.SyncEvents})
 	}
 	if opts.Record != nil {
 		c.startOperator(opts.Record.Operator)

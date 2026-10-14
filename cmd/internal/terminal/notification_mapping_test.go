@@ -101,3 +101,41 @@ func TestEndpointClaudeFooterNotificationDoesNotPaintAtCursor(t *testing.T) {
 		})
 	}
 }
+
+func TestEndpointOSC99SuppressedAcrossSplits(t *testing.T) {
+	for _, end := range []string{"\a", "\x1b\\"} {
+		wire := []byte("\x1b]99;i=abc:p=title;secret title" + end)
+		for split := 0; split <= len(wire); split++ {
+			e, _ := newEndpointTest(t, "origin")
+			first, err := e.Feed(wire[:split], time.Now())
+			if err != nil {
+				t.Fatal(err)
+			}
+			last, err := e.Feed(wire[split:], time.Now())
+			if err != nil {
+				t.Fatal(err)
+			}
+			effects := append(first.Effects, last.Effects...)
+			if len(effects) != 1 || effects[0].Kind != SuppressedNotificationEffect || effects[0].Text != "" || effects[0].Selection != "" || len(effects[0].Data) != 0 {
+				t.Fatalf("split %d: %+v", split, effects)
+			}
+			e.Snapshot(time.Now())
+			next, err := e.Feed([]byte("\x1b]99;i=abc:p=body;secret body"+end), time.Now())
+			if err != nil || len(next.Effects) != 1 || next.Effects[0].Sequence != effects[0].Sequence+1 {
+				t.Fatalf("second packet: %+v %v", next, err)
+			}
+			next, err = e.Feed(nil, time.Now())
+			if err != nil || len(next.Effects) != 0 {
+				t.Fatalf("replay: %+v %v", next, err)
+			}
+		}
+	}
+}
+
+func TestEndpointOSC99OversizeDiscarded(t *testing.T) {
+	e, _ := newEndpointTest(t, "origin")
+	out, err := e.Feed([]byte("\x1b]99;;"+strings.Repeat("x", 65537)+"\a"), time.Now())
+	if err != nil || len(out.Effects) != 0 {
+		t.Fatalf("oversize: %+v %v", out, err)
+	}
+}

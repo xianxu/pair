@@ -210,8 +210,8 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 	var nextNotification time.Time
 	if wrapped {
 		_, _ = inputW.Write([]byte("\r"))
-		waitFor(t, "one native notification through Zellij output", func() bool {
-			return strings.Count(host.Written(), "\x1b]777;notify;pair;native-fixture-complete\x1b\\") == 1
+		waitFor(t, "one native notification suppressed after Zellij output", func() bool {
+			return suppressedCount(con, handle.ID()) == 1 && strings.Count(host.Written(), "\x1b]777;notify;pair;native-fixture-complete\x1b\\") == 0
 		})
 		assertPrivateNotificationSocket(t, filepath.Join(dir, "notify"))
 		nextNotification = time.Now().Add(600 * time.Millisecond)
@@ -242,7 +242,7 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 	if err := con.presenter.Flush(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if wrapped && strings.Count(host.Written(), "native-fixture-complete") != 1 {
+	if wrapped && strings.Count(host.Written(), "native-fixture-complete") != 0 {
 		t.Fatalf("notification duplicated on switch: %q", host.Written())
 	}
 	assertNativeOracle(t, host.Written(), 110, 28, "native 界 e ready", "native-agent")
@@ -298,6 +298,9 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 		t.Fatal("reattachment reused disposed endpoint identity")
 	}
 	con.Attach(handle.ID(), "native-agent", child)
+	if suppressedCount(con, handle.ID()) != 0 {
+		t.Fatal("fresh attachment retained suppression count")
+	}
 	con.Switch(handle.ID())
 	waitFor(t, "persistent native frame after reattach", func() bool {
 		return con.presenter.View().Admitted == child.Endpoint().ID() && strings.Contains(host.childArea(), "persistent-counter=1") && (!wrapped || strings.Contains(host.childArea(), "native 界 e ready"))
@@ -322,7 +325,7 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 		}
 		_, _ = inputW.Write([]byte("\r"))
 		waitFor(t, "surviving wrapper notification follows reattached client", func() bool {
-			return strings.Count(host.Written(), "\x1b]777;notify;pair;native-fixture-complete\x1b\\") == 2
+			return suppressedCount(con, handle.ID()) == 1 && strings.Count(host.Written(), "\x1b]777;notify;pair;native-fixture-complete\x1b\\") == 0
 		})
 		nextNotification = time.Now().Add(600 * time.Millisecond)
 	}
@@ -396,7 +399,7 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 	t.Log("native selection after persistent reattach highlighted in endpoint and independent xterm before release; clipboard selectabl emitted on release")
 	if wrapped {
 		// The hook command exercises the real bound broker and wrapper writer.
-		// Each unique envelope must cross Zellij exactly once while both actors
+		// Each unique envelope must be suppressed after Zellij exactly once while both actors
 		// keep receiving output, focus transitions and geometry changes.
 		var hookEnvelopes []string
 		for cycle := 0; cycle < 32; cycle++ {
@@ -451,23 +454,20 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 			}
 			envelope := "\x1b]777;notify;pair;" + message + "\x1b\\"
 			hookEnvelopes = append(hookEnvelopes, envelope)
-			waitFor(t, "exact in-band hook notification and attention", func() bool {
-				if strings.Count(host.Written(), envelope) != 1 {
+			waitFor(t, "exact in-band hook suppression without attention", func() bool {
+				if suppressedCount(con, handle.ID()) != uint64(cycle+2) || strings.Count(host.Written(), envelope) != 0 {
 					return false
 				}
 				con.mu.Lock()
 				defer con.mu.Unlock()
 				attention := con.attention.Projection(con.panes[handle.ID()].thread)
-				return !hidden && len(attention) == 0 || hidden && len(attention) == 1 && attention[0].Text == message
+				return len(attention) == 0
 			})
 			nextNotification = time.Now().Add(600 * time.Millisecond)
 			con.mu.Lock()
 			attention := con.attention.Projection(con.panes[handle.ID()].thread)
 			con.mu.Unlock()
-			if hidden && (len(attention) != 1 || attention[0].Text != message) {
-				t.Fatalf("hidden hook cycle%d lost origin: %+v", cycle, attention)
-			}
-			if !hidden && len(attention) != 0 {
+			if len(attention) != 0 {
 				t.Fatalf("focused hook cycle%d created attention: %+v", cycle, attention)
 			}
 		}
@@ -480,12 +480,12 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 			t.Fatal(err)
 		}
 		for _, envelope := range hookEnvelopes {
-			if n := strings.Count(host.Written(), envelope); n != 1 {
+			if n := strings.Count(host.Written(), envelope); n != 0 {
 				t.Fatalf("notification replay after stress:count%d", n)
 			}
 		}
 		assertNativeOracle(t, host.Written(), 110, 28, "stress-output-31", "native-agent")
-		t.Log("native notification stress:32 unique hook envelopes,4096-byte UTF8 body,16hidden/16focused,4resizes,original reattached agent")
+		t.Log("native notification suppression stress:32 unique hook packets,4096-byte UTF8 body,16hidden/16focused,4resizes,original reattached agent")
 	}
 
 	t.Logf("native Console join (wrapped=%t): CPR, fragmented CJK, synchronized update, enhanced key, paste, focus, drag, shell/panel switches, resize; receipts=%s", wrapped, readReceipts())

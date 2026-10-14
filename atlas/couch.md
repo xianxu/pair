@@ -132,6 +132,10 @@ roots do not offer the shortcut. The same StartCreate preview/fingerprint and
 repository admission checks apply as when entering a path manually, so Add slot
 also fills the lowest free number (`:0` included) before adding one, and the
 form lists the repository's parked threads when it adds one (#332).
+Both entry points get their selectable agents from `launcher.AgentInventory()`
+when `NewMenuState` is constructed (#529). Until an arrow makes a choice explicit,
+the preview resolver owns the default; explicit choices remain generation-fenced
+through asynchronous previews and the start commit.
 
 Directory/Git identity supplies the durable slot; native scope/tag identifies its
 current conversation. Slot rows stay selectable when current metadata is missing
@@ -217,6 +221,22 @@ the resumed native conversation ID does not identify a wrapper incarnation.
 Couch-launched Codex disables shell snapshots for that process so tool shells
 inherit the current slot environment instead of restoring an older slot's
 identity. The override is not persisted into saved agent arguments.
+
+`couch --notify [--title T] MESSAGE` is a light, hub-only operation. The message
+service checks the live registered caller and its connected workspace against
+the supervisor's hub root, then calls Console.NotifyDesktop through the shared
+presenter writer. Other callers get advice to send to the hub instead. There is
+no notification queue, receipt store or automatic retry on an uncertain write.
+Existing CLI messaging verbs omit notification-only fields for older supervisors.
+The CLI distinguishes an explicit unsupported-notify decode refusal from missing
+messaging registration and uncertain replies; only the latter leaves the effect
+unconfirmed. Missing registration and unsupported commands provide restart advice,
+never an automatic resend. The legacy socket regression lives in
+`cmd/internal/couchcmd/messages_compat_test.go`.
+Child OSC9/777/99 notifications are swallowed from all panes; only per-pane
+counts enter the existing COUCH_TRACE diagnostics as `notify-suppressed`, and
+ordinary BEL is unchanged. Each aggregate names the pane endpoint and cumulative
+count; a fresh attachment starts a new counter. No notification text is logged.
 
 `couch --actors`, `--send-to repo[:N]|hub [--agent NAME] --message TEXT|--message-file PATH` and `--message-status ID`
 use bounded Unix stream RPC, without constructing another mutable supervisor.
@@ -613,6 +633,11 @@ CLI. It runs in-process against the store and needs no supervisor.
   non-zero with a `Code` other than `ok`.
 
 ### Recover plan after a restart (#367)
+
+Fleet `staged` holds (ariadne#344, pair#539) preserve measured git facts. A
+confirmed healthy staged host checkout is reported as `staged`, held without
+a recovery action. It remains detached for reboot safety; ordinary detached
+checkouts, dirt, operations and unavailable evidence keep their existing guards.
 
 `couch --recover-plan-from-sdlc` (operation `recover-plan`, `ExecuteDirectStore`,
 `EffectRead`, `PresentationRecoverPlan`) runs in the CLI process like `--list`
@@ -2557,7 +2582,11 @@ registry save failure—treats exec as possible. Both stdio and PTY runners make
 the Pair client the leader of one actor-owned process group; Couch-launched
 session-watcher and title-poller sidecars inherit that group rather than
 detaching. Couch sends TERM and then unconditional KILL to the group, reaps the
-client, and proves the group empty. The remaining process class is the zellij
+client, and proves the group empty. On Darwin, a group signal probe returning
+EPERM is ambiguous even after the client is reaped: Couch confirms membership
+with `kern.proc.pgrp`. An empty successful snapshot proves absence; any member
+(including zombies) or snapshot error retains ownership. Other platforms keep
+the conservative EPERM interpretation. The remaining process class is the zellij
 server and its panes: Couch resolves the exact `{scope, tag}` session-name
 binding, observes its record and exact server PID set, deletes and escalates,
 then requires two stable observations with both absent. Query, deletion, and
@@ -2819,13 +2848,15 @@ enumerated.
 The property that matters: each seam has a fake, and the fakes that model
 *behaviour* rather than data are compared against the real thing by
 `conformance_live_test.go`. `PAIR_LIVE_COUCH=1` checks process/git/pty behavior.
-**Wall-clock budgets (pair#436, pair#481).** A default-lane test asserts its outcome, not a time. "Doesn't block" or
+**Wall-clock budgets (pair#436, pair#481, pair#514).** A default-lane test asserts its outcome, not a time. "Doesn't block" or
 "doesn't wait" is a hang guard around the work while its dependency is held, and a cost that can be counted is
 counted (an operation count, as the broadcast marks' stroke walk does). A real budget stays only where speed is the
-test's subject. It goes through `perfbudget.Check` (`cmd/internal/perfbudget`), which logs every run and fails only
-under `PAIR_PERF_BUDGETS=1`. `make test-perf-budgets` runs each such test on its own on a quiet host, and its recipe
-is the list of them (couchcore's observe and ten-slot report budgets, and wrapcmd's terminal tail): add a new budget
-there, not here. Most
+test's subject. Go checks use `perfbudget.Check` (`cmd/internal/perfbudget`); the doctor shell check uses the same
+`PAIR_PERF_BUDGETS=1` opt-in. Both log elapsed time on every run and enforce the ceiling only in that lane.
+`make test-perf-budgets` runs each budget in isolation on a quiet host; its recipe is the canonical list.
+`make test-perf-capture` always checks report shape and uses controlled clock/tool fixtures to verify the
+capture's work shedding and probe priority. The production six-second budget remains cooperative: it sheds
+later work, but does not preempt an already-running external collector. Most
 couchcore tests are `t.Parallel()`; ones that set process env, chdir, mutate a
 package global, signal real processes or measure wall time stay serial. Its `TestMain` defaults
 `-test.parallel` to 3x GOMAXPROCS (the tests mostly wait on subprocesses); an explicit flag wins.

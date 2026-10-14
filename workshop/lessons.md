@@ -1618,6 +1618,8 @@ proof; record the surprising case so the next change starts from evidence.
 
 - #533 integration of #531: a full make test stopped by the known #514 timing check has not exercised later Go packages. Run remaining targets with make -k and inspect all failures before citing the exception; new production files still require exhaustive artifact-source inventory entries.
 
+- #538: A recorded node ID is document-scoped evidence even if the live recorder usually allocates globally. Before giving a connected ID priority over scored anchors, verify the note belongs to the current document; test a same-tag ID reused after navigation.
+- #538: Recovery tests must restart the real lifecycle identity. If a new cast always gets a new recording path, reopening a service with the old path alone misses orphaned save/publication intents; exercise a new cast recovering an inactive prior recording.
 
 - #537 recording review: when record families merge by timestamp plus file rank,
   live writers must advance tied timestamps before a transition to an earlier
@@ -1643,3 +1645,30 @@ proof; record the surprising case so the next change starts from evidence.
 Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Add(1)`, which lived inside its terminal observer. Peer delivery's post-submit lease reads that epoch, so the next peer message would have waited forever. Every caller compiled, and the dead-symbol scan was clean. Only a unit test of the surviving consumer, written while retiring the old writer, caught it.
 - **Rule:** before deleting a function, list every state write in its body (counters, flags, channels, files). For each one, name its surviving reader and move the write there.
 - **Rule:** when a retirement leaves one consumer of a shared mechanism, pin that consumer's behaviour directly before deleting the other.
+- #540 admission review: when identity checks precede a workspace lookup, test a
+  wrapper replacement during that lookup. Cached connection membership alone
+  does not prove the current wrapper still owns the accepted launch; revalidate
+  at effect admission. Exercise lost acknowledgments after a real side effect
+  through the socket, not only an error-returning client stub.
+- #540 verification: when changing a consumer's notification policy, search
+  upstream integration tests too. Wrapper-to-Couch tests can encode forwarding
+  expectations outside the consumer package. Prove suppression after a positive
+  processing barrier; never wait for an intentionally absent notification.
+- #540 close BR-1: best-effort output helpers may intentionally collapse dropped
+  or timed-out writes into nil. Explicit commands claiming a completed effect
+  must retain the actual write outcome through degradation/recovery; test both
+  pre-existing stalls and stalls caused by the command, including no replay.
+  BR-2: append acceptance criteria when approved revisions expand behavior;
+  a detailed plan revision does not update Done-when by itself.
+- #519: A successful datagram send establishes kernel acceptance, not consumer delivery. At stream EOF, join the receiver, boundedly drain its kernel backlog, and consume its channel backlog before finishing the sole output writer. Pin both pending-work boundaries with ordered fixtures rather than extending deadlines.
+- #538 integration: expanding a list across documents also expands reconnect and edit consumers. Check catch-up equivalence against every retained note (including source segment), and test a historical note through current admission, owner checks, edit, and submission; a current-document-only oracle hides missing list entries.
+
+- #538 close: distinguish trusted connected-original DOM identity from scored replacement evidence on every surface. Test common-text originals and large pages through each adapter; never use a mutable path to grant original identity. Reconcile plan inventories with actual symbols, capabilities and changed-file status before close.
+
+- #514: A collector's cooperative budget is not a hard subprocess deadline. Keep shared-host tests on output and controlled-clock scheduling invariants; retain elapsed-time ceilings in the explicit performance lane and prove both gate modes with the same overrun fixture.
+
+- #529: Selection tests must enter through the production constructor before supplying optional test overrides. Injecting a choice inventory in every test can hide a nil production inventory even when navigation and preview reducers are individually correct.
+
+- #542/#511: A signal-probe permission error is not positive process-group membership evidence on every OS. Confirm ambiguous results through the OS membership boundary and retain ownership on query failure. Survivor fixtures must acknowledge signal-handler readiness before their parent exits; a fork is not a readiness event.
+
+- #511 close review: count repeated test outcomes from the complete log, using exact per-subtest records. A terminal tail or truncated tool result is not evidence of the total failure count.

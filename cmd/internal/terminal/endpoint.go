@@ -24,6 +24,8 @@ const (
 	DirectoryEffect
 	ClipboardEffect
 	NotificationEffect
+	// SuppressedNotificationEffect counts a child packet without retaining its content.
+	SuppressedNotificationEffect
 )
 
 // Effect is one output-side action. Position identifies the committed output
@@ -112,6 +114,12 @@ func NewEndpoint(id string, g Geometry, out ttyio.Writer, observers ...Observer)
 			e.effect(Effect{Kind: NotificationEffect, Selection: "pair", Text: n.Message})
 		}
 		return ok
+	})
+	// The VT parser owns framing, split sequences, and bounded string admission.
+	// Kitty notifications are observed only; their content never reaches the host.
+	backend.RegisterOscHandler(99, func([]byte) bool {
+		e.effect(Effect{Kind: SuppressedNotificationEffect})
+		return true
 	})
 	backend.SetCallbacks(vt.Callbacks{
 		Bell:             func() { e.effect(Effect{Kind: BellEffect}) },

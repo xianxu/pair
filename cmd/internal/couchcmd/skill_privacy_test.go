@@ -13,7 +13,10 @@ func TestSkillBroadcastPrivacyContract(t *testing.T) {
 		name string
 		want string
 	}{
-		{"explicit grant", "Only `privacy: shareable` makes captured content eligible for issue evidence"},
+		{"per-note scope", "Read each version-3 note's `privacy` and `privacy_rule` before selecting its evidence"},
+		{"legacy fallback", "(the submission-level fields on older versions)"},
+		{"explicit grant", "Only an explicit `privacy: shareable` decision makes that note's content eligible"},
+		{"aggregate is not a grant", "The version-3 top-level privacy is a conservative summary, never a grant for a private note"},
 		{"private default", "Absent, private, or unrecognized privacy values and invalid policy files mean private"},
 		{"private evidence", "summarize without quoting `box_text` and attach no crops"},
 		{"invalid policy result", "`privacy_rule: 'invalid policy file: <reason>'`"},

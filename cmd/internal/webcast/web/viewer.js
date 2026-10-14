@@ -221,6 +221,8 @@ export function mount(doc, win) {
     canonical: () => v.renderer.canonical(),
     ready: async () => { await started; await v.loaded; return v.renderer.ready(); }, // a replay first loads its records
     boxOf: (id) => v.renderer.boxOf(id),
+    placementOf: (note) => v.renderer.placementOf(note),
+    onPlacementChange: (fn) => { started.then(() => { v.renderer.placementChanged = fn; }); },
     // uncaptured: the drawn elements whose content the recording can't
     // hold (pair#513), as [{id, kind}].
     uncaptured: () => v.renderer.uncaptured(),

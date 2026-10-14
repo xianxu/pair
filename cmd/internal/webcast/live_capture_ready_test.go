@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	core "github.com/xianxu/pair/cmd/internal/submission"
+	"github.com/xianxu/pair/cmd/internal/webcast/board"
 	"github.com/xianxu/pair/cmd/internal/webcast/recorder"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
@@ -140,14 +140,12 @@ window.snapshot=()=>{
 	}
 	capture := func(box recording.Box) recorder.CapturedCrop {
 		t.Helper()
-		crops, err := c.CaptureCrops(ctx, document, []core.CaptureRegion{{Box: box, Region: box}}, nil)
+		source := castDraftCapture{browser: func(context.Context) (Browser, error) { return c, nil }}
+		evidence, pixels, err := source.Capture(ctx, board.PreparedNote{Document: document, Region: box, At: recording.NoteAt{Route: page.URL + "/"}})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(crops) != 1 {
-			t.Fatalf("crops=%d, want one", len(crops))
-		}
-		return crops[0]
+		return recorder.CapturedCrop{Page: evidence.Page, Box: evidence.Crop.Box, BoxText: evidence.BoxText, PNG: pixels, Document: evidence.Crop.Document, CapturedAt: evidence.Crop.CapturedAt, Unavailable: evidence.Crop.Unavailable, Settlement: evidence.Crop.Settlement, ClippedToViewport: evidence.Crop.ClippedToViewport}
 	}
 	bright := func(crop recorder.CapturedCrop, box recording.Box) {
 		t.Helper()

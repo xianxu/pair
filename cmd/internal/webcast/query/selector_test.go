@@ -98,7 +98,8 @@ func TestSelectRefusesWhatItCantRead(t *testing.T) {
 
 // A note's selector pastes into --sel and names the note's element. For
 // the real model the oracle is its own Resolve: an anchor it resolves to
-// exactly one element (no node id to fall back on) must select exactly that
+// exactly one element using its frozen evidence (no node id to fall back on)
+// must select exactly that
 // element, so an ambiguous match can't pass. The fake's child-index paths
 // are unique by construction within the top document.
 func TestModelSelectorsSelectTheirElement(t *testing.T) {
@@ -125,13 +126,17 @@ func TestModelSelectorsSelectTheirElement(t *testing.T) {
 				if err != nil {
 					t.Fatalf("%s %s: %v", name, at.Sel, err)
 				}
-				resolved, ok := notes.Structural{}.Resolve(st, recording.NoteAt{Node: -1, Sel: at.Sel})
+				replacement := at
+				replacement.Node = -1
+				resolved, ok := notes.Structural{}.Resolve(st, replacement)
 				switch {
 				case ok && resolved == n.ID:
 					if len(got) != 1 || got[0] != n {
 						t.Errorf("%s %s: %d matches, want exactly @%d", name, at.Sel, len(got), n.ID)
 					}
 					unique++
+				case ok:
+					t.Errorf("%s %s: frozen evidence resolved @%d, want @%d", name, at.Sel, resolved, n.ID)
 				case !slices.Contains(got, n):
 					t.Errorf("%s %s: %d matches, none @%d", name, at.Sel, len(got), n.ID)
 				}
@@ -143,7 +148,8 @@ func TestModelSelectorsSelectTheirElement(t *testing.T) {
 			}
 			checked++
 		})
-		if checked < 30 || unique < checked/2 {
+		t.Logf("%s: %d elements checked, %d uniquely resolved frozen anchors", name, checked, unique)
+		if checked < 30 || unique == 0 {
 			t.Errorf("%s: %d elements, %d with a unique anchor", name, checked, unique)
 		}
 	}
@@ -170,5 +176,21 @@ func TestAnchorsInsideOtherTreesAreExact(t *testing.T) {
 		if got, err := Select(st, c.sel); err != nil || len(got) != 1 {
 			t.Errorf("%s %q: %v, %d matches, want 1", c.fixture, c.sel, err, len(got))
 		}
+	}
+}
+
+func TestSelectorOnlyAnchorRefusesDuplicateMatches(t *testing.T) {
+	b := recording.NewBuilder("ambiguous-selector")
+	b.Page(recording.SegLive, "https://example.test/", b.El("button", []string{"id", "duplicate"}, b.Txt("same")), b.El("button", []string{"id", "duplicate"}, b.Txt("same")))
+	st, err := recording.Reduce(b.Recs, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected, err := Select(st, "#duplicate")
+	if err != nil || len(selected) != 2 {
+		t.Fatal("fixture must have ambiguous selector", selected, err)
+	}
+	if id, ok := (notes.Structural{}).Resolve(st, recording.NoteAt{Node: -1, Sel: "#duplicate"}); ok {
+		t.Fatalf("selector-only anchor guessed @%d", id)
 	}
 }

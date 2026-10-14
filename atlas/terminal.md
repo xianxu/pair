@@ -194,9 +194,19 @@ owner. `notifytransport` uses the existing exact wrapper PID binding for a priva
 bounded Unix datagram broker. The wrapper frames insertion into its normal pane
 stream; no producer writes Zellij's outer TTY. Pinned Zellij converts OSC777 to
 OSC9, and Endpoint's registered adapter restores the Pair title and full4096-byte
-message before Presenter delivery. Generic backend metadata limits stay unchanged.
-Native qualification covers delayed Unicode chunks, maximum message size,
-focused/hidden attention and persistent-client reattachment.
+message before Presenter consumption. Couch suppresses these child notifications
+for every pane, including the hub, and records counts without retaining their
+content. OSC99 produces a content-free SuppressedNotificationEffect that no
+presenter policy forwards. Standalone Pair's existing OSC9/777 behavior remains.
+Generic backend metadata limits stay unchanged. Native qualification covers
+delayed Unicode chunks, maximum message size, focused/hidden suppression and
+persistent-client reattachment.
+
+The hub's explicit `couch --notify` reaches `Presenter.Notify` through the broker
+and Console.NotifyDesktop. It uses the same serialized parent writer as Copy,
+with no child endpoint or replay identity. `notifyosc.ValidateDesktop` and
+`EncodeDesktop` own bounded, sanitized title/message framing. A failed write or
+lost broker reply is unconfirmed and is never retried automatically.
 
 The broker namespace owns both socket addresses and its persistent lock.
 `PAIR_NOTIFY_SOCKET_DIR` selects an absolute private root; conformance tests and

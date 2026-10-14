@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	uv "github.com/charmbracelet/ultraviolet"
+	"github.com/xianxu/pair/cmd/internal/notifyosc"
 	"github.com/xianxu/pair/cmd/internal/ttyio"
 	"strings"
 	"sync"
@@ -302,10 +303,26 @@ func (p *Presenter) probe(ctx context.Context) (bool, error) {
 // error, so no caller ends couch over it; the caller's own bookkeeping (an
 // effect's sequence, its attention mark) proceeds either way.
 func (p *Presenter) writeUnlessStalled(ctx context.Context, data []byte) error {
-	if p.stalled {
+	err := p.writeOneShot(ctx, data)
+	if errors.Is(err, errParentStalled) {
 		return nil
 	}
-	if err := p.write(ctx, data, true); err != nil && !p.stall(err) {
+	return err
+}
+
+var errParentStalled = errors.New("terminal: parent output stalled; control was not fully written")
+
+// writeOneShot preserves stall recovery but reports a dropped or incomplete
+// control to callers that acknowledge output, such as Notify. No control is
+// retained for recovery; only the latest screen is repainted.
+func (p *Presenter) writeOneShot(ctx context.Context, data []byte) error {
+	if p.stalled {
+		return errParentStalled
+	}
+	if err := p.write(ctx, data, true); err != nil {
+		if p.stall(err) {
+			return errors.Join(errParentStalled, err)
+		}
 		return p.fail(err)
 	}
 	return nil
@@ -849,7 +866,7 @@ func (p *Presenter) EmitEffects(ctx context.Context, effects []Effect, policy Ef
 				if policy.Notifications {
 					s = "\x1b]777;notify;" + strings.ReplaceAll(e.Selection, ";", ",") + ";" + e.Text + "\x1b\\"
 				}
-			case DirectoryEffect:
+			case DirectoryEffect, SuppressedNotificationEffect:
 			default:
 				return errors.New("terminal: unknown effect")
 			}
@@ -1043,4 +1060,17 @@ func (p *Presenter) writeWhole(ctx context.Context, control string) (bool, error
 	err := p.write(ctx, []byte(control), true)
 	var failure *WriteFailure
 	return !errors.As(err, &failure) || failure.Accepted == len(control), err
+}
+
+// Notify emits an application-owned desktop notification through the sole host
+// writer. It reports dropped or incomplete output as an error, including a
+// recoverable parent stall. Like Copy, it is never replayed on repaint.
+func (p *Presenter) Notify(ctx context.Context, title, body string) error {
+	encoded, err := notifyosc.EncodeDesktop(title, body)
+	if err != nil {
+		return err
+	}
+	return p.call(ctx, func(ctx context.Context) error {
+		return p.writeOneShot(ctx, encoded)
+	})
 }
