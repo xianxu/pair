@@ -386,3 +386,97 @@ findings:
 7. **Plan revision recommendations**
 
    Add a `## Revisions` entry enumerating the downstream Continue gates and requiring executable attach coverage for missing/incomplete profiles, unsupported saved agents, and unavailable paths. Include the README update in M1 completion checks.
+
+---
+
+## Re-review — 2026-10-13T22:11:38-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 528 — couch: resume a slot whose conversation binding is unproven: infer it from transcripts and the tty log, or start fresh oriented from the tty log |
+| repo | pair |
+| issue file | workshop/issues/000528-couch-resume-a-slot-whose-conversation-binding-is-unproven-infer-it-from-transcripts-and-the-tty-log-or-start-fresh-oriented-from-the-tty-log.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | f59a1b6e21d449d9b6d5c5713b8d14083d3bf5a8..e7c7c6edcf5316d04133d95f2039e0c2ad09504e |
+| command | sdlc milestone-close --issue 528 --milestone M1 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-13T22:11:38-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The cold-metadata portion of BR-9 is fixed and regression-tested, and BR-10’s README correction is complete. However, Continue still reaches a lifecycle guard that refuses a positively listed session with an outstanding start claim. This contradicts the revised M1 contract and leaves BR-9 open.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Retained disposition. Failed listing does not authorize Continue; the revised contract explicitly supersedes policy-based terminal usability.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Retained disposition. Exact-generation helpers remain; policy/readiness-based warm admission was explicitly removed by the approved replacement design.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Retained disposition. Policy reads were removed; remaining admission readiness reads use bounded ReadRegularMetadata.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      TerminalLease retains the aggregate bound of 256 permanent lock stripes in artifactpath/session_lock.go.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Retained disposition. Shared bounded metadata reading remains; the obsolete admission-config reader was removed.
+  - id: BR-9
+    disposition: not-addressed
+    note: |
+      ARCH-PURPOSE / ARCH-ORDER; family recovery-primary-action-routing remains open. Metadata regressions pass and fail with the old eligibility function restored, but resume.go:556 still calls clearLifecycleDebris, whose lifecycledebris.go:87 refuses an outstanding start owned by a live supervisor. A temporary regression constructed a valid StartClaim, positively listed its exact detached session, verified classification offers Continue, then observed ResumeContextWith(WarmOnly:true) fail with resume-starting before attachment. Separate listed-session attachment from lifecycle retirement; enumerate and test all accepted record shapes through the executor rather than fixing another individual gate.
+  - id: BR-10
+    disposition: addressed
+    note: |
+      README.md:395 now documents observation-only startup and explicit actions; the recovery section documents Starting, restricted Fresh execution, legacy attachment race and unavailable messaging. These passages agree with startup.go:73, the menu projection and atlas/couch.md. This is a prose correction and requires no wording-presence regression.
+```
+
+1. **Strengths**
+   - Warm attachment no longer requires cold-launch profile/path eligibility. Tests also check that attachment preserves saved metadata and preferences.
+   - Startup removes automatic start/park recovery and uses preview inventory reads.
+   - Positive listing, failed listing and cancellation have focused launcher tests.
+   - README and atlas now explain the revised M1 behavior and accepted compatibility limitations.
+
+2. **Critical findings**
+   - **BR-9 remains open:** `cmd/internal/couchcore/resume.go:556` routes warm attachment through lifecycle retirement. `cmd/internal/couchcore/lifecycledebris.go:87` then rejects the listed-live start-claim case. Preserve the claim’s ownership protections while providing an attachment path that does not require retiring it. Extend the executor regression across the record shapes already covered by `TestListedLiveOverridesStartMarkersWithoutChangingThem`.
+
+3. **Important findings**
+   - None newly raised.
+
+4. **Minor findings**
+   - None.
+
+5. **Test coverage notes**
+   - Selected core warm/cold/startup/recovery tests passed.
+   - Selected launcher listing, warm-attach and Couch-session tests passed.
+   - Restoring the old eligibility function through a temporary Go overlay made the metadata regression fail as expected.
+   - The temporary listed-start-claim regression failed at HEAD, reproducing the remaining blocker.
+   - Public-binary and Couch TUI checks could not build because generated `runtimebundle/assets/runtime/files` is absent. No full-suite success is claimed. Temporary overlays were removed; tracked files remain unchanged.
+
+6. **Architectural notes**
+   - **ARCH-DRY — pass:** shared classification, metadata reader and lease constructor remain central.
+   - **ARCH-PURE — pass:** classification and continuity projection remain pure.
+   - **ARCH-PURPOSE — flag:** BR-9’s offered-Continue-implies-attachment rule remains unenforced.
+   - **ARCH-MOCK — pass, limited verification:** stateful handoff seams remain; public-binary verification was blocked.
+   - **ARCH-CONSTRAINTS — pass:** inspected listing retries and admission waits are bounded.
+   - **ARCH-SECURE — pass:** bounded readiness reads and exact selected-session checks remain.
+   - **ARCH-ORDER — flag:** attachment still depends on retiring an independently owned start claim.
+   - **ARCH-FUNERAL — pass:** policy persistence is removed; permanent lease files retain their aggregate bound.
+
+7. **Plan revision recommendations**
+   - Add a `## Revisions` entry recording the remaining BR-9 lifecycle-gate mismatch and an executor-level sweep of accepted record shapes. Keep the approved listed-live Continue contract; do not broaden the Starting exception to hide this refusal.

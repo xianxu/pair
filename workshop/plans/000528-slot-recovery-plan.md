@@ -829,3 +829,36 @@ The action sweep also checks that a blank-key Fresh fallback is offered only
 when that row actually offers reboot; a missing numbered-slot directory has no
 such executable action. These corrections require another committed boundary
 review. Starting/details and M2's bounded-exit obligation remain as approved.
+
+### 2026-10-13T22:14:44-0700 — M1 BR-9: separate terminal attachment from lifecycle adoption
+
+The corrected-window review confirmed the profile/path fix and README change,
+but reproduced a listed-live StartClaim being refused by lifecycle cleanup.
+This is the same approved Continue contract, not an expansion of the Starting
+exception or authorization for M2 retirement. A listed session must attach even
+when an independent supervisor owns its start or park record.
+
+- Public Continue uses a helper-only warm attach path before replacement,
+  continuation, lifecycle-gate and cleanup/claim logic. Reuse the existing
+  blocked Runner, exact hosted terminal intent, launcher attach lock and final
+  positive listing, bounded registration observation, and registry-owned handle.
+  It does not Commit/Advance/DeleteStart, retire an incarnation, abandon a park,
+  modify profiles/defaults, or acquire authority over another owner. No new
+  persistent state, schema, policy file or lock mechanism.
+- Recheck the selected terminal before releasing the blocked helper. Failed or
+  changed listing cannot authorize attachment. Existing scoped identity checks
+  remain. Reuse an already owned matching client rather than duplicate it.
+- Failure, cancellation, detach and ordinary Couch leave clean only the exact
+  locally owned client helper and its registry entry. They must preserve the
+  session, agent, foreign helper, start/park records and thread revision.
+  Explicit park remains a separate authorized lifecycle action.
+- Explicit continuation recovery still needs its existing proved source/target
+  and lifecycle adoption; retain that as an internal route. Merely attaching
+  to view a session does not claim that a continuation source or target is valid.
+- Executor tests sweep the validated record shapes already classified Continue:
+  settled incarnation, active park, and unfinished start, with live/dead/unknown
+  owners and zero-helper claims. Assert successful attachment and unchanged
+  durable records, plus exact helper-only cleanup and failed-list no-effects.
+  Cover cross-agent replacement and continuation metadata, not just the newly
+  reported StartClaim. Run affected suites and the boundary again (ARCH-PURPOSE,
+  ARCH-ORDER). M2 confirmation/retirement and staged acceptance remain deferred.

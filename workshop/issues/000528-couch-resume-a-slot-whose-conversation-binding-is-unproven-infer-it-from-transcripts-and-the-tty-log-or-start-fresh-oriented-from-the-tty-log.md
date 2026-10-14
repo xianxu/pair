@@ -405,3 +405,11 @@ The final revision in `workshop/plans/000528-slot-recovery-plan.md` supersedes p
   Final `make build` passed (/tmp/pair528-m1-final-build2.log) at
   259a826bebe5d7e0393becd761102735baced345. Rerunning the corrected M1 boundary;
   operator acceptance remains pending and nothing is staged.
+
+- 2026-10-13 22:14 PDT — Boundary round 8 REWORK:
+  BR-10 addressed and BR-9 metadata/path regressions verified, but a positively
+  listed StartClaim still reached lifecycle cleanup and refused. Recorded the
+  class-level correction in plan Revisions: public helper-only attach preserves
+  thread records; explicit continuation retains its adoption path. The prior
+  full suite and affected-package green results remain evidence for that head,
+  not a pass for the forthcoming correction. No staging or M2 work.

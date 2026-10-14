@@ -207,6 +207,43 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - "n": 8
+      timestamp: "2026-10-13T22:11:38-07:00"
+      dispatched: "2026-10-13T22:08:52-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Retained disposition. Failed listing does not authorize Continue; the revised contract explicitly supersedes policy-based terminal usability.
+          round: 8
+        - id: BR-2
+          disposition: addressed
+          note: Retained disposition. Exact-generation helpers remain; policy/readiness-based warm admission was explicitly removed by the approved replacement design.
+          round: 8
+        - id: BR-3
+          disposition: addressed
+          note: Retained disposition. Policy reads were removed; remaining admission readiness reads use bounded ReadRegularMetadata.
+          round: 8
+        - id: BR-4
+          disposition: addressed
+          note: TerminalLease retains the aggregate bound of 256 permanent lock stripes in artifactpath/session_lock.go.
+          round: 8
+        - id: BR-5
+          disposition: addressed
+          note: Retained disposition. Shared bounded metadata reading remains; the obsolete admission-config reader was removed.
+          round: 8
+        - id: BR-9
+          disposition: not-addressed
+          note: ARCH-PURPOSE / ARCH-ORDER; family recovery-primary-action-routing remains open. Metadata regressions pass and fail with the old eligibility function restored, but resume.go:556 still calls clearLifecycleDebris, whose lifecycledebris.go:87 refuses an outstanding start owned by a live supervisor. A temporary regression constructed a valid StartClaim, positively listed its exact detached session, verified classification offers Continue, then observed ResumeContextWith(WarmOnly:true) fail with resume-starting before attachment. Separate listed-session attachment from lifecycle retirement; enumerate and test all accepted record shapes through the executor rather than fixing another individual gate.
+          round: 8
+        - id: BR-10
+          disposition: addressed
+          note: README.md:395 now documents observation-only startup and explicit actions; the recovery section documents Starting, restricted Fresh execution, legacy attachment race and unavailable messaging. These passages agree with startup.go:73, the menu projection and atlas/couch.md. This is a prose correction and requires no wording-presence regression.
+          round: 8
+      boundary: M1
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#528 (boundary-review)
@@ -297,7 +334,18 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-10** [Important] `user-facing-contract-documentation` README update appears missing for changed Couch startup and action semantics
   startup.go:73 removes automatic launch/resume on ordinary Couch startup, and menu.go:1446 changes visible action labels. README.md:389 remains unchanged throughout the pinned range. Document observation-only startup, explicit action selection, and the M1 recovery limitations alongside the existing usage instructions; atlas/couch.md already describes these changes.
 
+## Round 8 — 2026-10-13T22:11:38-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — Retained disposition. Failed listing does not authorize Continue; the revised contract explicitly supersedes policy-based terminal usability.
+- BR-2 — addressed — Retained disposition. Exact-generation helpers remain; policy/readiness-based warm admission was explicitly removed by the approved replacement design.
+- BR-3 — addressed — Retained disposition. Policy reads were removed; remaining admission readiness reads use bounded ReadRegularMetadata.
+- BR-4 — addressed — TerminalLease retains the aggregate bound of 256 permanent lock stripes in artifactpath/session_lock.go.
+- BR-5 — addressed — Retained disposition. Shared bounded metadata reading remains; the obsolete admission-config reader was removed.
+- BR-9 — not-addressed — ARCH-PURPOSE / ARCH-ORDER; family recovery-primary-action-routing remains open. Metadata regressions pass and fail with the old eligibility function restored, but resume.go:556 still calls clearLifecycleDebris, whose lifecycledebris.go:87 refuses an outstanding start owned by a live supervisor. A temporary regression constructed a valid StartClaim, positively listed its exact detached session, verified classification offers Continue, then observed ResumeContextWith(WarmOnly:true) fail with resume-starting before attachment. Separate listed-session attachment from lifecycle retirement; enumerate and test all accepted record shapes through the executor rather than fixing another individual gate.
+- BR-10 — addressed — README.md:395 now documents observation-only startup and explicit actions; the recovery section documents Starting, restricted Fresh execution, legacy attachment race and unavailable messaging. These passages agree with startup.go:73, the menu projection and atlas/couch.md. This is a prose correction and requires no wording-presence regression.
+
 ## Open findings
 
 - **BR-9** [Critical] `recovery-primary-action-routing` Continue is offered where the resume executor still refuses attachment
-- **BR-10** [Important] `user-facing-contract-documentation` README update appears missing for changed Couch startup and action semantics
