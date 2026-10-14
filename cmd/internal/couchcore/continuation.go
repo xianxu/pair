@@ -9,7 +9,6 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"github.com/xianxu/pair/cmd/internal/launcher"
-	"github.com/xianxu/pair/cmd/internal/orientation"
 )
 
 type ContinuationSource struct {
@@ -31,9 +30,17 @@ type ContinuationStatus struct {
 type ContinuationResult struct {
 	SourceReattached bool
 	Status           ContinuationStatus
-	Record           ActorRecord
-	Handle           Handle
-	Orientation      *orientation.Request
+	// Missed is the line a request that didn't finish left on its thread.
+	Missed *checkpoint.Miss
+	Record ActorRecord
+	Handle Handle
+}
+
+// ContinuationPrompt is the new conversation's one-line first message
+// (#522): where the continuation is, where to resume, and how to read the
+// conversation it replaces. The path is Couch's own private copy.
+func ContinuationPrompt(path string, tag ThreadTag) string {
+	return fmt.Sprintf("Continue from the saved continuation at %s: read it, then resume from its NEXT ACTION. The conversation it replaces: couch --peek %s --previous.", strconv.Quote(path), tag)
 }
 
 func (r ContinuationResult) Started() (StartResult, bool) {
@@ -183,13 +190,27 @@ func (c *Couch) writeRequestRecord(address ThreadAddress, id string, write func(
 	}
 	return ThreadRecord{}, errors.New("continuation transition raced with thread updates")
 }
+
+// failContinuation ends the request without finishing it (#522): the
+// request goes and the thread keeps one visible line naming the continuation
+// and the reason. It blocks nothing. A target that may still be alive -- an
+// incarnation recorded after the source was parked -- is marked on the line,
+// and the thread's incarnation guard keeps any second start out while
+// relaunch parks it exactly.
 func (c *Couch) failContinuation(record ThreadRecord, cause error) (ContinuationResult, error) {
 	r := record.Continuation
-	next, err := c.advanceContinuation(record.Address, checkpoint.Event{Kind: checkpoint.Fail, RequestID: r.ID, Attempt: r.Attempt, Failure: cause.Error()})
+	now := c.Clock.Now()
+	next, err := c.writeRequestRecord(record.Address, r.ID, func(current ThreadRecord) (ThreadRecord, error) {
+		return c.Threads.MissContinuation(record.Address, current.Revision, r.ID, func(at ThreadRecord) checkpoint.Miss {
+			request := at.Continuation
+			parked := request.SourcePark != "" || request.SourceAbsence != nil
+			return checkpoint.MissOf(*request, cause.Error(), now, parked && len(at.Incarnations) != 0)
+		})
+	})
 	if err == nil {
 		record = next
 	}
-	return ContinuationResult{Status: *continuationStatus(record)}, errors.Join(cause, err)
+	return ContinuationResult{Missed: record.ContinuationMissed}, errors.Join(cause, err)
 }
 func (c *Couch) Continue(ctx context.Context, address ThreadAddress, id string) (ContinuationResult, error) {
 	if ctx == nil {
@@ -209,9 +230,6 @@ func (c *Couch) Continue(ctx context.Context, address ThreadAddress, id string) 
 	}
 	if record.Continuation.Phase == checkpoint.Complete {
 		return ContinuationResult{Status: *continuationStatus(record)}, nil
-	}
-	if record.Continuation.Phase == checkpoint.Failed {
-		return ContinuationResult{Status: *continuationStatus(record)}, continuationGuard(record)
 	}
 	if record.Continuation.Phase == checkpoint.Pending {
 		attempt, err := allocateStartNonce(c.Entropy)
@@ -330,6 +348,17 @@ func (c *Couch) executeContinuation(ctx context.Context, record ThreadRecord) (C
 	if err != nil {
 		return c.failContinuation(record, err)
 	}
+	// The coordinates (#522, #517's descriptor): the parked conversation and
+	// the continuation the next one starts from, kept past registration so
+	// `couch --peek repo:N --previous` reads the conversation this replaced.
+	if park := record.VerifiedPark; park != nil && (record.PreviousSession == nil || record.PreviousSession.Source != toPersistedParkIdentity(park.Identity) || record.PreviousSession.Continuation != path) {
+		if previous := previousSessionEvidence(record, record); previous != nil {
+			previous.Continuation = path
+			if record, err = c.Threads.RecordPreviousSession(record.Address, record.Revision, *previous); err != nil {
+				return c.failContinuation(record, fmt.Errorf("preserve previous session: %w", err))
+			}
+		}
+	}
 	owner, err := c.Proc.Current()
 	if err != nil {
 		return c.failContinuation(record, err)
@@ -362,8 +391,8 @@ func (c *Couch) executeContinuation(ctx context.Context, record ThreadRecord) (C
 		cleanupErr := c.rollbackTrackedStart(claimed, request.Attempt)
 		return c.failContinuation(record, errors.Join(authorityErr, cleanupErr))
 	}
-	orient := orientation.Request{SchemaVersion: 1, Tag: string(record.Address.Tag), Agent: profile.Agent, Attempt: request.Attempt, Body: "Read the saved continuation at " + strconv.Quote(path) + " (SHA-256 " + request.Checkpoint.Digest + "). Resume the task from its NEXT ACTION and preserve the existing Pair thread and prompt history."}
-	actor, handle, err := c.launchTrackedThread(trackedThreadLaunch{Context: ctx, Thread: claimed, Nonce: request.Attempt, Args: StartArgs{Worktree: Worktree(record.StartingPath), Cwd: record.WorkingPath, Stack: profile.Agent, ExtraArgs: argv}, StartedAt: c.Clock.Now(), ProfileRaw: raw, Fresh: true, Orientation: &orient})
+	prompt := ContinuationPrompt(path, record.Address.Tag)
+	actor, handle, err := c.launchTrackedThread(trackedThreadLaunch{Context: ctx, Thread: claimed, Nonce: request.Attempt, Args: StartArgs{Worktree: Worktree(record.StartingPath), Cwd: record.WorkingPath, Stack: profile.Agent, ExtraArgs: argv}, StartedAt: c.Clock.Now(), ProfileRaw: raw, Fresh: true, Prompt: prompt})
 	if err != nil {
 		return c.failContinuation(record, err)
 	}
@@ -389,7 +418,7 @@ func (c *Couch) executeContinuation(ctx context.Context, record ThreadRecord) (C
 		return c.failContinuation(record, errors.Join(persistErr, cleanupErr))
 	}
 	record = registeredRecord
-	return ContinuationResult{Status: *continuationStatus(record), Record: actor, Handle: handle, Orientation: &orient}, persistErr
+	return ContinuationResult{Status: *continuationStatus(record), Record: actor, Handle: handle}, persistErr
 }
 func (c *Couch) ownsContinuationHelper(address ThreadAddress, inc ThreadIncarnation) bool {
 	for _, a := range c.actorRegistry().Records() {
@@ -401,57 +430,21 @@ func (c *Couch) ownsContinuationHelper(address ThreadAddress, inc ThreadIncarnat
 }
 func continuationGuard(record ThreadRecord) error {
 	if r := record.Continuation; r != nil && r.Phase != checkpoint.Complete {
-		return fmt.Errorf("continuation %s is %s; %s", r.ID, r.Phase, checkpoint.Exits(r.Phase, string(record.Address.Tag)))
+		return fmt.Errorf("continuation %s is %s; %s", r.ID, r.Phase, checkpoint.InFlight)
 	}
 	return nil
 }
 
-// withContinuationExits appends the retained request's exits to a refusal that
-// request caused. Every refusal of an operation a retained unfinished request
+// withContinuationExits appends the in-flight request's wording to a refusal
+// that request caused. Every refusal of an operation an unfinished request
 // blocks goes through here or through continuationGuard -- archive, warm
-// reattach, recovery -- so none names only one way out (pair#280).
+// reattach, recovery -- so all say the same thing (pair#280, #522).
 func withContinuationExits(record ThreadRecord, err error) error {
 	r := record.Continuation
 	if err == nil || r == nil || r.Phase == checkpoint.Complete {
 		return err
 	}
-	return fmt.Errorf("%w; the retained continuation is %s: %s", err, r.Phase, checkpoint.Exits(r.Phase, string(record.Address.Tag)))
-}
-
-// ContinuationRefuses is the single statement of continuationGuard's reach:
-// the operations it refuses while a thread retains an unfinished request --
-// relaunch (relaunch.go), switch-agent (switchagent.go) and every non-warm
-// start claim (threadstore.go). Park and detach never read the request. The
-// switcher filters a failed row's actions through this rather than restating
-// the list. TestContinuationRefusesMatchesTheGuardForEveryRowAction drives
-// relaunch, switch-agent's preview (which SwitchAgent re-runs) and a cold start
-// claim into the guard -- refused by its own words, having written nothing --
-// and park and detach to success, through the production dispatcher (#280).
-//
-// The `resume` OPERATION left this list in #363: it routes a retained request
-// to its own executor (ChooseResumeRoute -- RetryContinuation for a failed or
-// running request, RecoverThread for a pending one) instead of meeting the
-// guard. The guard still protects a cold ResumeContextWith reached directly.
-func ContinuationRefuses(operation string) bool {
-	switch operation {
-	case "relaunch", "switch-agent", "prepare-switch-agent", "start":
-		return true
-	}
-	return false
-}
-
-// DismissContinuation deletes the thread's retained FAILED continuation (#280).
-// The operator has decided the thread moved on -- typically by taking over the
-// target before automatic orientation finished -- so re-delivering the handoff
-// would be wrong. Couch's private checkpoint copy is left for the next publish
-// or archive to replace; the repository's checkpoint file is never touched.
-func (c *Couch) DismissContinuation(ctx context.Context, address ThreadAddress, id string) (ThreadRecord, error) {
-	if ctx != nil && ctx.Err() != nil {
-		return ThreadRecord{}, ctx.Err()
-	}
-	return c.writeRequestRecord(address, id, func(r ThreadRecord) (ThreadRecord, error) {
-		return c.Threads.DismissFailedContinuation(address, r.Revision, r.Continuation.ID)
-	})
+	return fmt.Errorf("%w; the continuation is %s: %s", err, r.Phase, checkpoint.InFlight)
 }
 
 func continuationSourceParked(record ThreadRecord) bool {

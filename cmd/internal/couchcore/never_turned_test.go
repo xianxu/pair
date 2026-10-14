@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/xianxu/pair/cmd/internal/orientation"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/sessioninventorytest"
 )
@@ -93,8 +92,8 @@ func TestRelaunchRefusesAThreadThatNeverTookATurn(t *testing.T) {
 }
 
 // Every fresh launch waits for a ready file carrying the nonce Couch awaits;
-// Pair learns that nonce through its trusted launch profile; any orientation
-// must agree with it, and an empty nonce is refused before any child starts.
+// Pair learns that nonce through its trusted launch profile, and an empty
+// nonce is refused before any child starts.
 func TestFreshLaunchMustHandPairItsNonce(t *testing.T) {
 	t.Parallel()
 
@@ -104,10 +103,9 @@ func TestFreshLaunchMustHandPairItsNonce(t *testing.T) {
 		ok   bool
 	}{
 		{"not fresh", trackedThreadLaunch{Nonce: "n"}, true},
-		{"fresh with its nonce", trackedThreadLaunch{Nonce: "n", Fresh: true, Orientation: orientationAttempt("n")}, true},
-		{"fresh without an orientation", trackedThreadLaunch{Nonce: "n", Fresh: true}, true},
+		{"fresh with its nonce and a prompt", trackedThreadLaunch{Nonce: "n", Fresh: true, Prompt: "read it"}, true},
+		{"fresh without a prompt", trackedThreadLaunch{Nonce: "n", Fresh: true}, true},
 		{"fresh without a nonce", trackedThreadLaunch{Fresh: true}, false},
-		{"fresh with another attempt", trackedThreadLaunch{Nonce: "n", Fresh: true, Orientation: orientationAttempt("m")}, false},
 	} {
 		err := freshNonceReachesPair(c.in)
 		if (err == nil) != c.ok {
@@ -117,8 +115,4 @@ func TestFreshLaunchMustHandPairItsNonce(t *testing.T) {
 			t.Errorf("%s: untyped %v", c.name, err)
 		}
 	}
-}
-
-func orientationAttempt(attempt string) *orientation.Request {
-	return &orientation.Request{SchemaVersion: 1, Tag: "t", Agent: "claude", Attempt: attempt, Body: "b"}
 }

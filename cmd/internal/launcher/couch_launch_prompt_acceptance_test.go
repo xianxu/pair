@@ -1,10 +1,8 @@
 package launcher
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -21,8 +19,10 @@ import (
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 )
 
-// Invoked only by couchcmd's acceptance test with the producer's original JSON.
-func TestCouchOrientationTransportHelper(t *testing.T) {
+// Invoked only by couchcmd's acceptance tests with the producer's original
+// JSON. A profile with a launch prompt runs the real layout stanza and
+// wrapper, and the stand-in agent records the argv it was executed with.
+func TestCouchLaunchPromptTransportHelper(t *testing.T) {
 	raw := os.Getenv("PAIR184_ACCEPT_PROFILE")
 	if raw == "" {
 		t.Skip("cross-package transport helper")
@@ -45,9 +45,9 @@ func TestCouchOrientationTransportHelper(t *testing.T) {
 	if code, err := run(t, opts, rt); err != nil || code != 0 {
 		t.Fatalf("create %d %v", code, err)
 	}
-	if args.Orientation == nil {
+	if args.Prompt == "" {
 		if args.FreshNonce == "" || rt.env["PAIR_LAUNCH_NONCE"] != args.FreshNonce || rt.env[orientation.Env] != "" {
-			t.Fatalf("fresh readiness/orientation mismatch: nonce=%q expected=%q orientation=%q", rt.env["PAIR_LAUNCH_NONCE"], args.FreshNonce, rt.env[orientation.Env])
+			t.Fatalf("fresh readiness mismatch: nonce=%q expected=%q orientation=%q", rt.env["PAIR_LAUNCH_NONCE"], args.FreshNonce, rt.env[orientation.Env])
 		}
 		if err := os.WriteFile(os.Getenv("PAIR184_ACCEPT_OUTPUT"), []byte(rt.env["PAIR_LAUNCH_NONCE"]), 0600); err != nil {
 			t.Fatal(err)
@@ -67,7 +67,8 @@ func TestCouchOrientationTransportHelper(t *testing.T) {
 	}
 	for name, body := range map[string]string{
 		"pair":   "#!/bin/sh\nexec \"$PAIR_REAL\" \"$@\"\n",
-		"codex":  "#!/bin/sh\nstty raw -echo\nexec \"$PAIR184_TEST_BINARY\" -test.run '^TestOrientationCaptureChild$'\n",
+		"codex":  "#!/bin/sh\nexec \"$PAIR184_TEST_BINARY\" -test.run '^TestLaunchPromptCaptureChild$' -- \"$@\"\n",
+		"claude": "#!/bin/sh\nexec \"$PAIR184_TEST_BINARY\" -test.run '^TestLaunchPromptCaptureChild$' -- \"$@\"\n",
 		"zellij": "#!/bin/sh\nexit 0\n",
 	} {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0755); err != nil {
@@ -127,24 +128,20 @@ func TestCouchOrientationTransportHelper(t *testing.T) {
 	}
 }
 
-func TestOrientationCaptureChild(t *testing.T) {
+// TestLaunchPromptCaptureChild is the stand-in agent: it records the argv the
+// wrapper executed it with (after the test binary's own `--`), NUL-separated.
+func TestLaunchPromptCaptureChild(t *testing.T) {
 	if os.Getenv("PAIR184_CAPTURE_CHILD") != "1" {
 		t.Skip("wrapper child helper")
 	}
-	// Resolved Codex startup card and empty composer, cursor after the prompt.
-	fmt.Print("\x1b[2J\x1b[1;1HOpenAI Codex (v0.154.0)\r\nmodel: test-model\r\ndirectory: /synthetic\x1b[20;1H\x1b[1m›\x1b[22m \x1b[?25h\x1b[20;3H")
-	var received bytes.Buffer
-	one := make([]byte, 1)
-	for {
-		if _, err := io.ReadFull(os.Stdin, one); err != nil {
-			os.Exit(2)
-		}
-		received.Write(one)
-		if bytes.HasSuffix(received.Bytes(), []byte("\x1b[201~\r")) {
+	args := os.Args
+	for i, arg := range args {
+		if arg == "--" {
+			args = args[i+1:]
 			break
 		}
 	}
-	if err := os.WriteFile(os.Getenv("PAIR184_ACCEPT_OUTPUT"), received.Bytes(), 0600); err != nil {
+	if err := os.WriteFile(os.Getenv("PAIR184_ACCEPT_OUTPUT"), []byte(strings.Join(args, "\x00")), 0600); err != nil {
 		os.Exit(3)
 	}
 	os.Exit(0)

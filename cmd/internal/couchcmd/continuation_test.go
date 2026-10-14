@@ -48,17 +48,16 @@ func TestContinuationEnvironmentRequiresMatchingPaneAddress(t *testing.T) {
 	}
 }
 
-func TestContinuationRetryBootstrapsTheOwner(t *testing.T) {
-	if !operationOwnsLive("retry-continuation") || !operationUsesCurrentRepoScope("retry-continuation") || !WantsConsole("retry-continuation", true) {
-		t.Fatal("explicit continuation retry cannot acquire an owner and Console")
-	}
+// The writer's request never takes a second owner; the exits from a failed
+// request are retired (#522) and no longer reach the CLI at all.
+func TestContinuationCLIVerbs(t *testing.T) {
 	if operationOwnsLive("request-continuation") {
 		t.Fatal("writer request must not acquire a second owner")
 	}
-	// Dismissal is a record write: it takes the caller's repository scope and
-	// never the supervisor lease or a Console, so it works while Couch runs (#280).
-	if operationOwnsLive("dismiss-continuation") || WantsConsole("dismiss-continuation", true) || !operationUsesCurrentRepoScope("dismiss-continuation") {
-		t.Fatal("dismissal must be a scoped record write, not an owner operation")
+	for _, retired := range []string{"retry-continuation", "dismiss-continuation", "continuation-status"} {
+		if _, ok := Resolve(retired); ok || operationOwnsLive(retired) || operationUsesCurrentRepoScope(retired) {
+			t.Errorf("%s still reaches the CLI", retired)
+		}
 	}
 }
 
@@ -71,7 +70,7 @@ func TestContinuationNonConsoleResultWaitsForOwnedChild(t *testing.T) {
 	}
 	var output bytes.Buffer
 	result := couchcore.ContinuationResult{Handle: handle, Record: couchcore.ActorRecord{ID: "target"}}
-	if code := render(&output, couchcore.Operation{Name: "retry-continuation"}, result); code != 7 {
+	if code := render(&output, couchcore.Operation{Name: "continue-thread"}, result); code != 7 {
 		t.Fatalf("code=%d; owner returned without waiting for target: %s", code, output.String())
 	}
 }

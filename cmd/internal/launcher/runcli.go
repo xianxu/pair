@@ -160,7 +160,7 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 	if args.Command == "continue" {
 		if args.ContinueRetry != "" {
 			if env.CouchHosted() {
-				fmt.Fprintln(stderr, "pair: a hosted thread's continuation belongs to Couch: "+checkpoint.Exits("", env.CouchThreadTag))
+				fmt.Fprintln(stderr, "pair: a hosted thread's continuation belongs to Couch: compact again (Alt+Shift+C) to start a new conversation from a continuation")
 				return 1, nil
 			}
 			if err := prepareContinuationRetry(&opts, rt, args.ContinueRetry); err != nil {

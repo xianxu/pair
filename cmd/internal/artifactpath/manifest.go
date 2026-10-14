@@ -428,21 +428,6 @@ var SourceClassifications = []SourceClassification{
 	}},
 	{Path: "cmd/internal/couchcore/continuation_source.go", Kind: ResolvedConsumer,
 		Families: []string{"ledger", "session-binding"}, BindingNames: []string{"composite-ledger", "legacy-session-binding", "selected-session-binding"}},
-	// The operation name overlaps the continuation artifact prefix. Keep its
-	// vocabulary exceptions tied to exact declaration and dispatch sites.
-	{Path: "cmd/internal/couchcore/ops.go", Kind: VocabularyConsumer, Families: []string{"continuation"}, Vocabulary: []VocabularyAllowance{
-		{Family: "continuation", Value: "continuation-status", Context: GoKeyValueVocabulary, Use: "Operations.Name", Count: 1},
-	}},
-	{Path: "cmd/internal/couchcore/operationdispatch.go", Kind: VocabularyConsumer, Families: []string{"continuation"}, Vocabulary: []VocabularyAllowance{
-		goCaseVocabulary("continuation", "continuation-status", "CouchLiveOwnerExecutor", 1),
-	}},
-	{Path: "cmd/internal/couchtty/console.go", Kind: VocabularyConsumer, Families: []string{"continuation"}, Vocabulary: []VocabularyAllowance{
-		goComparisonVocabulary("continuation", "continuation-status", "finishOperation", 1),
-	}},
-	{Path: "cmd/internal/couchtty/console_continuation.go", Kind: VocabularyConsumer, Families: []string{"continuation"}, Vocabulary: []VocabularyAllowance{
-		{Family: "continuation", Value: "continuation-status", Context: GoReturnVocabulary, Use: "continuationOperation", Count: 1},
-		goComparisonVocabulary("continuation", "continuation-status", "acceptContinuationRequests", 1),
-	}},
 	{Path: "cmd/internal/couchcore/artifactcollision.go", Kind: ResolvedConsumer,
 		Families: []string{"session-binding", "pane"}, BindingNames: []string{"composite-scope-session-binding", "composite-pane-glob"}},
 	{Path: "cmd/internal/couchcore/slotsessions.go", Kind: ResolvedConsumer,
@@ -879,6 +864,12 @@ var NonArtifactSources = []string{
 	// file it reads is resolved in message_service.go.
 	"cmd/internal/couchcmd/renicer.go",
 	"cmd/internal/couchcore/renice.go",
+	"cmd/internal/checkpoint/miss.go",
+	"cmd/internal/launcher/prompt.go",
+	"cmd/internal/couchcore/operationdispatch.go",
+	"cmd/internal/couchcore/ops.go",
+	"cmd/internal/couchtty/console.go",
+	"cmd/internal/couchtty/console_continuation.go",
 	// #488 note anchors: screen layout and pane geometry; no artifact paths.
 	"cmd/internal/couchtty/console_noteanchor.go",
 	"cmd/internal/couchtty/noteanchor.go",
@@ -972,7 +963,6 @@ var NonArtifactSources = []string{
 	"cmd/internal/launcher/checkpoint_io.go",
 	"cmd/internal/launcher/checkpoint_retry.go",
 	"cmd/internal/couchcore/switchagent.go",
-	"cmd/internal/couchtty/console_switchagent.go",
 	"cmd/internal/couchtty/menu_switchagent.go",
 	"bin/lib/adapt-log.sh",
 	"bin/lib/dev-rebuild.sh",

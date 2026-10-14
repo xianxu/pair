@@ -251,12 +251,6 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 				alias = &empty
 			}
 			return c.RepositoryAlias(call.Context, a["ref"], alias)
-		case "dismiss-continuation":
-			address, err := resolveOperationThread(c, a)
-			if err != nil {
-				return nil, err
-			}
-			return c.DismissContinuation(call.Context, address, a["request-id"])
 		case "request-continuation":
 			ordinal, err := strconv.ParseUint(a["launch-ordinal"], 10, 64)
 			if err != nil || ordinal == 0 {
@@ -351,19 +345,12 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 				target.Address = address
 			}
 			return c.Recover(ctx, target)
-		case "continue-thread", "retry-continuation", "continuation-status":
+		case "continue-thread":
 			address, err := resolveOperationThread(c, a)
 			if err != nil {
 				return nil, err
 			}
-			switch call.Operation.Name {
-			case "continue-thread":
-				return c.Continue(ctx, address, a["request-id"])
-			case "retry-continuation":
-				return c.RetryContinuation(ctx, address, a["request-id"])
-			default:
-				return c.ReconcileContinuation(ctx, address, a["request-id"], a["attempt"])
-			}
+			return c.Continue(ctx, address, a["request-id"])
 		case "orientation-status":
 			address, err := resolveOperationThread(c, a)
 			if err != nil {

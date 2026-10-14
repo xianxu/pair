@@ -69,12 +69,15 @@ type Record struct {
 	PreviousSession *PreviousSession              `json:"previous_session,omitempty"`
 	SessionBinding  *couchidentity.SessionBinding `json:"session_binding,omitempty"`
 	Continuation    *checkpoint.Request           `json:"continuation,omitempty"`
-	SchemaVersion   int                           `json:"schema_version"`
-	Address         Address                       `json:"address"`
-	StartingPath    string                        `json:"starting_path"`
-	WorkingPath     string                        `json:"working_path"`
-	CreatedAt       time.Time                     `json:"created_at"`
-	Revision        uint64                        `json:"revision"`
+	// ContinuationMissed is the one visible line a compaction that didn't
+	// finish leaves (#522). It blocks nothing.
+	ContinuationMissed *checkpoint.Miss `json:"continuation_missed,omitempty"`
+	SchemaVersion      int              `json:"schema_version"`
+	Address            Address          `json:"address"`
+	StartingPath       string           `json:"starting_path"`
+	WorkingPath        string           `json:"working_path"`
+	CreatedAt          time.Time        `json:"created_at"`
+	Revision           uint64           `json:"revision"`
 	// DeprecatedClaimGeneration is a TOMBSTONE for the same reason as
 	// Incarnation.DeprecatedPolicy -- and a more urgent one: it appeared in
 	// EVERY record in the operator's store, so deleting it would have made the
@@ -118,6 +121,11 @@ func Validate(record Record, validators Validators) error {
 	if record.PreviousSession != nil {
 		if err := record.PreviousSession.Validate(record.Address); err != nil {
 			return fmt.Errorf("previous session: %w", err)
+		}
+	}
+	if record.ContinuationMissed != nil {
+		if err := record.ContinuationMissed.Validate(); err != nil {
+			return err
 		}
 	}
 	if record.Continuation != nil {

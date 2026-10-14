@@ -32,16 +32,15 @@ type ResumeRouteInput struct {
 
 // ChooseResumeRoute is resume's routing as a pure decision.
 //
-// An in-flight continuation outranks everything: a failed or running request
-// is retried where it stands (RetryContinuation), and a pending one belongs to
-// RecoverThread, which owns retained checkpoints. Without one, a slot goes
+// An in-flight continuation outranks everything: a running request continues
+// where it stands (Continue), and a pending one belongs to RecoverThread, which owns retained checkpoints. Without one, a slot goes
 // through OpenSlot -- which also adopts a running agent whose pointer couch
 // lost -- and an ordinary record through RecoverThread when fresh evidence
 // says a session survived an unusable record, else through ResumeContextWith.
 func ChooseResumeRoute(in ResumeRouteInput) ResumeRoute {
 	if in.HasRecord {
 		switch in.Continuation {
-		case checkpoint.Failed, checkpoint.Running:
+		case checkpoint.Running:
 			return ResumeRouteContinuation
 		case checkpoint.Pending:
 			return ResumeRouteRecover
@@ -197,7 +196,7 @@ func (c *Couch) resumeRouted(ctx context.Context, t ResumeTarget) (any, error) {
 		}
 		return c.openSlot(ctx, t.Path, agent, true)
 	case ResumeRouteContinuation:
-		return c.RetryContinuation(ctx, record.Address, record.Continuation.ID)
+		return c.Continue(ctx, record.Address, record.Continuation.ID)
 	case ResumeRouteRecover:
 		return c.RecoverThread(ctx, record.Address, "")
 	default:

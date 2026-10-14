@@ -746,23 +746,22 @@ directory Git does not recognise is refused before anything is created.
 **Compact a Couch thread without changing its tag.** `Alt+Shift+C` saves and
 commits a continuation, then asks Couch to replace the conversation. Couch keeps
 the same thread and prompt history, including when the checkpoint was saved in
-another worktree. The switcher shows the queued or running continuation; saving
-the document means the request was accepted, while completion requires the new
-agent's prompt submission receipt.
+another worktree. The new conversation starts with a one-line launch prompt that
+names the continuation, where to resume (its NEXT ACTION), and `couch --peek
+<tag> --previous` for the conversation it replaced. Nothing is pasted into the
+composer. The prompt is said once: it never lands in the saved startup
+parameters, so a later relaunch or fresh start does not repeat it. The switcher
+shows a queued or running continuation, and the request completes when the new
+agent registers.
 
-If replacement or delivery fails, the checkpoint stays saved and a live thread
-offers **retry-continuation**. Retry first checks for an existing target;
-it does not blindly start or submit again. Inspect that target before manually
-sending anything when delivery is uncertain. If you have already taken the
-thread over (for example, you typed into the new agent before its handoff
-finished) choose **dismiss-continuation** instead. It drops the failed request
-without re-delivering it, the checkpoint file stays where it is, and the thread's
-relaunch and switch-agent come back. Until you retry or dismiss, the row reads
-`<state> · continuation failed`. On a thread that is not live, **resume**
-retries the request and **reboot** archives it with the conversation. If Couch
-itself exited, follow the explicit retry command in its diagnostic to reopen
-recovery. Inner `pair restart` and address-changing rename are refused for
-hosted threads; use Couch's relaunch.
+If the compaction doesn't finish, nothing is blocked. The slot's row reads
+`<state> · compaction didn't finish`, and the focused row and one notice give the
+line: the reason, the continuation's path, and the action. If the old
+conversation is still running, compact again when ready. If it was parked, resume
+the slot to bring it back. If the new conversation may be running, relaunch the
+slot, which parks it exactly before anything else starts. The next start or
+compaction clears the line. Inner `pair restart` and address-changing rename are
+refused for hosted threads; use Couch's relaunch.
 
 **Every other detached thread comes back too, behind you** (pair#206). Once the
 thread you land on is up, couch reattaches the rest in the background, one at a
@@ -1321,9 +1320,8 @@ ordinary filter text—there is no command namespace or numbered jump mode.
 |---|---|
 | live `:0` | detach, relaunch, park, switch coding agent, alias, add slot |
 | live `:1+` | detach, relaunch, park, switch coding agent |
-| live, continuation failed | the above minus relaunch and switch coding agent, with retry-continuation and dismiss-continuation after detach |
-| live, continuation running | retry-continuation |
-| live, continuation pending | nothing yet; the request runs on its own |
+| live, compaction running or pending | nothing yet; Couch finishes it on its own |
+| any row whose compaction didn't finish | that row's own actions, unchanged |
 | parked or detached, any slot | resume, reboot (`:0` adds add slot) |
 | cannot be entered, but resume has a route | resume, reboot (`:0` adds add slot) |
 | cannot be entered otherwise (`:0`) | reboot, add slot |
@@ -1338,8 +1336,8 @@ points at add slot on its repository's `:0`). Add slot needs nothing from `:0`'s
 agent, so a parked `:0` offers it too; a `:0` whose checkout is gone does not.
 
 **Resume** brings the old conversation back by whichever path works: a retained
-continuation is retried where it stands (a failed or running request) or
-re-delivered from its saved checkpoint (a pending one); a slot reattaches,
+continuation continues where it stands (a running request) or is re-delivered
+from its saved checkpoint (a pending one); a slot reattaches,
 resumes cold, or adopts a still-running agent whose pointer couch lost (on a cold,
 proven binding only); a `:0` thread whose session survives reattaches to it;
 otherwise a warm reattach, then a cold resume. A surviving detached session

@@ -712,26 +712,7 @@ func (s *ThreadStore) ClearVerifiedPark(address ThreadAddress, expectedRevision 
 	})
 }
 
-// RetireProvedDeadIncarnations drops every recorded incarnation, on the
-// caller's proof that each names a process observed Dead by exact identity.
-//
-// It refuses one carrying an open start claim, and that is the whole difference
-// between this and the callback it replaced: a claim is couch's own in-flight
-// transaction with a rollback of its own (DeleteStart), and dropping the
-// incarnation underneath it loses the record that would undo it. The caller
-// routes those to rollbackTrackedStart; before this transition existed, nothing
-// made it.
-func (s *ThreadStore) RetireProvedDeadIncarnations(address ThreadAddress, expectedRevision uint64) (ThreadRecord, error) {
-	return s.updateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
-		if err := noOpenStartClaim(*next); err != nil {
-			return err
-		}
-		next.Incarnations = nil
-		return nil
-	})
-}
-
-// noOpenStartClaim is the precondition both retire-everything transitions share:
+// noOpenStartClaim is the retire-everything transition's precondition:
 // a start claim outlives the incarnation that carries it and owns its own undo.
 func noOpenStartClaim(record ThreadRecord) error {
 	for _, incarnation := range record.Incarnations {

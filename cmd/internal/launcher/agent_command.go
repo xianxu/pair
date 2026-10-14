@@ -14,6 +14,10 @@ const AgentCommandEnv = "PAIR_AGENT_COMMAND"
 type AgentCommand struct {
 	Executable string   `json:"executable"`
 	Argv       []string `json:"argv"`
+	// Prompt is a fresh conversation's one-time first message (#522). Only
+	// the wrapper's exec adds it (PromptArgs); Argv stays what a later fresh
+	// start re-derives from.
+	Prompt string `json:"prompt,omitempty"`
 }
 
 func (c AgentCommand) validate() error {
@@ -24,6 +28,9 @@ func (c AgentCommand) validate() error {
 		if strings.ContainsRune(arg, 0) {
 			return fmt.Errorf("agent command argument contains NUL")
 		}
+	}
+	if c.Prompt != "" {
+		return ValidatePrompt(c.Prompt)
 	}
 	return nil
 }

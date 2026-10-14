@@ -162,7 +162,7 @@ func runSwitchAgentTransportAcceptance(t *testing.T, liveSource bool) {
 	output := t.TempDir() + "/received"
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	command := exec.CommandContext(ctx, "go", "test", "../launcher", "-run", "^TestCouchOrientationTransportHelper$", "-count=1", "-v")
+	command := exec.CommandContext(ctx, "go", "test", "../launcher", "-run", "^TestCouchLaunchPromptTransportHelper$", "-count=1", "-v")
 	command.Env = append(os.Environ(), "PAIR184_ACCEPT_PROFILE="+profile, "PAIR184_ACCEPT_OUTPUT="+output, "PAIR184_ACCEPT_BINARY="+renderer)
 	if out, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("production transport failed: %v\n%s", err, out)
@@ -201,7 +201,7 @@ func runSwitchAgentTransportAcceptance(t *testing.T, liveSource bool) {
 	if err := json.Unmarshal([]byte(profile), &launch); err != nil {
 		t.Fatal(err)
 	}
-	if launch.FreshNonce == "" || string(received) != launch.FreshNonce || launch.Orientation != nil {
+	if launch.FreshNonce == "" || string(received) != launch.FreshNonce || launch.Prompt != "" {
 		t.Fatalf("readiness or no-delivery contract broken: %q %+v", received, launch)
 	}
 }

@@ -4,12 +4,10 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
-	"github.com/xianxu/pair/cmd/internal/orientation"
 )
 
 type ContinuationProvider func(context.Context, []couchcore.ThreadAddress) ([]couchcore.ContinuationStatus, error)
@@ -23,9 +21,8 @@ type continuationScanResult struct {
 // An accepted request outlives its source pane. queued lasts through delivery
 // of the operation result, not merely through execution in operationQueue.
 type continuationWatch struct {
-	status  couchcore.ContinuationStatus
-	queued  bool
-	handled bool
+	status couchcore.ContinuationStatus
+	queued bool
 	// marked are the expected-exit marks THIS watch's queued operation added
 	// (pair#205), so a refusal undoes its own marks and never one that a park,
 	// detach or other operation set on the same thread's panes.
@@ -127,56 +124,12 @@ func (c *Console) watchContinuations() {
 	}
 }
 
-// Each retained continuation prompt belongs to its request, so a later request
-// on the same thread cannot keep an obsolete prompt alive.
-func continuationProducer(requestID string) string { return "continuation:" + requestID }
-
-// setOrientationLocked is the only writer of menu.Orientation. Callers hold c.mu.
-func (c *Console) setOrientationLocked(address couchcore.ThreadAddress, request orientation.Request, producer string) {
-	if c.menu.Orientation == nil {
-		c.menu.Orientation = make(map[couchcore.ThreadAddress]orientation.Request)
-	}
-	if c.orientationFrom == nil {
-		c.orientationFrom = make(map[couchcore.ThreadAddress]string)
-	}
-	c.menu.Orientation[address] = request
-	c.orientationFrom[address] = producer
-}
-
-// reconcileContinuationOrientationLocked is the ONE place a continuation's
-// prompt is pruned: it survives only while the address's current watch tracks
-// THAT request and the request is not complete. It runs after every change to
-// c.continuations, so dismissal, a vanished request, completion and replacement
-// are one rule instead of four events -- this family's three findings were
-// three events the enumerated prunes missed (#280). Callers hold c.mu.
-func (c *Console) reconcileContinuationOrientationLocked() {
-	for address, producer := range c.orientationFrom {
-		if !strings.HasPrefix(producer, continuationProducer("")) {
-			continue
-		}
-		watch, ok := c.continuations[address]
-		if !ok || continuationProducer(watch.status.RequestID) != producer || watch.status.Phase == checkpoint.Complete {
-			delete(c.menu.Orientation, address)
-			delete(c.orientationFrom, address)
-		}
-	}
-}
-
-// supersedeOrientationLocked removes the address's prompt whoever wrote it: a
-// new agent launch makes every earlier prompt for the thread obsolete.
-func (c *Console) supersedeOrientationLocked(address couchcore.ThreadAddress) {
-	delete(c.menu.Orientation, address)
-	delete(c.orientationFrom, address)
-}
-
-func continuationOperation(status couchcore.ContinuationStatus, handled bool) string {
+// continuationOperation is what a scanned request needs: Couch drives every
+// unfinished request with continue-thread, including one a previous Couch left
+// running (#522: there is no delivery to reconcile afterwards).
+func continuationOperation(status couchcore.ContinuationStatus) string {
 	switch status.Phase {
-	case checkpoint.Pending:
-		return "continue-thread"
-	case checkpoint.Running:
-		if handled {
-			return "continuation-status"
-		}
+	case checkpoint.Pending, checkpoint.Running:
 		return "continue-thread"
 	default:
 		return ""
@@ -203,7 +156,7 @@ func (c *Console) acceptContinuationRequests(result continuationScanResult) {
 			delete(c.continuations, status.Address)
 			continue
 		}
-		operation := continuationOperation(status, watch.handled)
+		operation := continuationOperation(status)
 		if operation == "" || watch.queued || c.ops == nil || c.menu.InFlight.Attempt != 0 {
 			continue
 		}
@@ -215,12 +168,6 @@ func (c *Console) acceptContinuationRequests(result continuationScanResult) {
 			}
 		}
 		args := map[string]string{"repo-scope": status.Address.RepoScope, "tag": string(status.Address.Tag), "request-id": status.RequestID}
-		if status.Attempt != "" {
-			args["attempt"] = status.Attempt
-		}
-		if operation != "continuation-status" {
-			delete(args, "attempt")
-		}
 		accepted, err := c.operationQueue.Enqueue(operationRequest{
 			key:  "continuation\x00" + status.Address.RepoScope + "\x00" + string(status.Address.Tag) + "\x00" + status.RequestID,
 			name: operation, origin: origin,
@@ -231,7 +178,7 @@ func (c *Console) acceptContinuationRequests(result continuationScanResult) {
 		if err != nil || !accepted {
 			continue
 		}
-		watch.queued, watch.handled = true, true
+		watch.queued = true
 		if operation == "continue-thread" {
 			watch.marked = c.markThreadExitsLocked(status.Address)
 		}
@@ -250,13 +197,23 @@ func (c *Console) acceptContinuationRequests(result continuationScanResult) {
 			delete(c.continuations, address)
 		}
 	}
-	c.reconcileContinuationOrientationLocked()
 	c.mu.Unlock()
 }
 
 func (c *Console) finishContinuationOperation(completed operationCompletion, err error) {
-	// A routed resume (pair#363) returns RecoverThread's or RetryContinuation's
-	// ContinuationResult; a published request in it starts the watch.
+	// A routed resume (pair#363) returns RecoverThread's or Continue's
+	// ContinuationResult; a published request in it starts the watch, and a
+	// request that didn't finish leaves its one line (#522).
+	if missed := missedContinuation(completed.value); missed != nil && completed.origin.ContinuationID == "" {
+		c.mu.Lock()
+		if watch, ok := c.continuations[completed.origin.Address]; ok && !watch.queued {
+			delete(c.continuations, completed.origin.Address)
+		}
+		label, live := c.threadRowLocked(completed.origin.Address)
+		c.mu.Unlock()
+		c.setNotice(missed.Line(label, live))
+		return
+	}
 	if completed.origin.ContinuationID == "" && completed.name == "resume" {
 		if result, ok := completed.value.(couchcore.ContinuationResult); ok && result.Status.RequestID != "" && result.Status.Address == completed.origin.Address {
 			completed.origin.ContinuationID = result.Status.RequestID
@@ -265,8 +222,7 @@ func (c *Console) finishContinuationOperation(completed operationCompletion, err
 				c.mu.Unlock()
 				return
 			}
-			c.continuations[result.Status.Address] = continuationWatch{status: result.Status, handled: !result.SourceReattached}
-			c.reconcileContinuationOrientationLocked()
+			c.continuations[result.Status.Address] = continuationWatch{status: result.Status}
 			c.mu.Unlock()
 		}
 	}
@@ -290,10 +246,6 @@ func (c *Console) finishContinuationOperation(completed operationCompletion, err
 		for _, id := range watch.marked {
 			c.expectedExits.unmark(id)
 		}
-		if completed.name == "continue-thread" {
-			// Re-arm it for the next scan.
-			watch.handled = false
-		}
 	}
 	watch.marked = nil
 	switch result := completed.value.(type) {
@@ -306,22 +258,40 @@ func (c *Console) finishContinuationOperation(completed operationCompletion, err
 			break
 		}
 		watch.status = result.Status
-		if result.SourceReattached {
-			watch.handled = false
-		}
-		if result.Orientation != nil {
-			c.setOrientationLocked(address, *result.Orientation, continuationProducer(watch.status.RequestID))
-		}
 	}
 	c.continuations[address] = watch
-	if watch.status.Phase == checkpoint.Complete {
+	missed := missedContinuation(completed.value)
+	if watch.status.Phase == checkpoint.Complete || missed != nil {
 		delete(c.continuations, address)
 	}
-	c.reconcileContinuationOrientationLocked()
+	label, live := c.threadRowLocked(address)
 	c.mu.Unlock()
-	if err != nil && !busy {
+	if missed != nil {
+		// The one visible line (#522): the request is gone and nothing waits
+		// on it. The slot's row keeps it until the next start or compaction.
+		c.setNotice(missed.Line(label, live))
+	} else if err != nil && !busy {
 		// A busy refusal is retried on the next scan, silently.
 		c.setNotice(fmt.Sprintf("Continuation %s: %v", address.Tag, couchcore.OperatorError(err)))
 	}
 	c.requestMenuRefresh()
+}
+
+// missedContinuation is the line a finished operation reports when its
+// request didn't finish (#522), or nil.
+func missedContinuation(value any) *checkpoint.Miss {
+	if result, ok := value.(couchcore.ContinuationResult); ok {
+		return result.Missed
+	}
+	return nil
+}
+
+// threadRowLocked is the switcher's label for a thread and whether it is live,
+// from the inventory it last drew; the tag when the row isn't there yet.
+// Callers hold c.mu.
+func (c *Console) threadRowLocked(address couchcore.ThreadAddress) (string, bool) {
+	if row, ok := menuThread(c.menu, address); ok {
+		return row.Label(), row.State == couchcore.ThreadLive
+	}
+	return string(address.Tag), false
 }

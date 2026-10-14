@@ -162,3 +162,27 @@ Issue: `workshop/issues/000522-…md`.
   - The store gains `ThreadStore.MissContinuation(address, requestID, attempt, miss)`, which clears
     `Continuation` and writes `ContinuationMissed` in one revision-checked update. The decode migration maps a
     stored `Failed` the same way.
+
+### 2026-10-13: the milestone boundary moves (during M1)
+
+Completion at registration makes `checkpoint.Failed` unreachable. Keeping
+retry/dismiss alive until M2 would have meant keeping dead events in the pure
+machine just to serve them. So the boundary follows the layers instead:
+
+- **M1:** the request's whole lifecycle and its operator surface.
+  - The prompt, the coordinates, completion at registration, and the line.
+  - Retire `Failed` as an event target, along with `RetryContinuation`,
+    `DismissContinuation`, `ReconcileContinuation`, the three operations, the
+    switcher's retry/dismiss items, and the copy-orientation item.
+  - Rework the tests and docs that described them.
+- **M2:** the composer-paste machinery that no longer has a producer.
+  - The wrapper's orientation delivery, `PAIR_ORIENTATION_REQUEST`,
+    `readiness.ReadyRecord.Orientation`, `OSOrientationStatusReader.Read`, the
+    `orientation-status` operation and the `orientation` delivery model.
+  - The composer recognizers stay, for peer delivery.
+- **One test was weakened.** `TestSingletonCommandHeldHostLeaseRefusesBeforeStoreConstruction`
+  used the internal `retry-continuation` as its lease-taking command. Every
+  owner command is now public and adoption-gated first, so on its unmigrated
+  fixture it accepts either refusal; the untouched-authority snapshot is
+  unchanged. `TestHeldSupervisorRefusesBeforeStartingActor` keeps the lease
+  refusal itself.

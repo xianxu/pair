@@ -2793,6 +2793,10 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) (int, error) 
 	// would be heavier than needed; this matches the Python loop shape.
 	argv := args
 	fromLaunchEnv := false
+	// launchPrompt is a fresh conversation's one-time first message (#522).
+	// Only the exec below sees it; argv, which the session watcher and an
+	// in-pane fresh start re-derive from, never carries it.
+	launchPrompt := ""
 	for len(argv) > 0 && strings.HasPrefix(argv[0], "-") {
 		switch {
 		case argv[0] == "--scrollback-log" && len(argv) > 1:
@@ -2821,6 +2825,7 @@ argsDone:
 			return 0, err
 		}
 		argv = append([]string{command.Executable}, command.Argv...)
+		launchPrompt = command.Prompt
 	}
 	if len(argv) == 0 {
 		return 0, errors.New("usage: pair-wrap [--scrollback-log <path>] <command> [args...]")
@@ -2927,7 +2932,7 @@ argsDone:
 	}
 
 	// Spawn child in a fresh PTY.
-	cmd := exec.Command(argv[0], argv[1:]...)
+	cmd := exec.Command(argv[0], launcher.PromptArgs(argv[0], argv[1:], launchPrompt)...)
 	cmd.Env = childEnv
 	agentNotBefore := time.Now()
 	ptmx, err := pty.Start(cmd)

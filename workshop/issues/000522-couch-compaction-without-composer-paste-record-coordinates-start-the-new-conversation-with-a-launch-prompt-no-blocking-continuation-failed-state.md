@@ -68,3 +68,11 @@ total: 4.83
 
 ### 2026-10-12
 - 2026-10-13: claimed at pair:3 (TL dispatch). Measured the pipeline; plan written and sent to the hub before building.
+- 2026-10-13: TL approved the plan. Plan-quality cleared in 2 rounds (PQ-1: a target that may still be alive is guarded by the incarnations; sequence test added). M1 built:
+  - the prompt rides beside argv (`AgentCommand.Prompt`, `launcher.PromptArgs`);
+  - `PreviousSession.Continuation`;
+  - Registered completes the request;
+  - `checkpoint.Miss` with `ThreadStore.MissContinuation`;
+  - Failed decodes into the line;
+  - retry/dismiss/status and copy-orientation retired.
+  The boundary moved: see the plan's Revisions.

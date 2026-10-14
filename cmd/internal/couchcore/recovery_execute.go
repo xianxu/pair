@@ -251,7 +251,7 @@ func (c *Couch) RecoverThread(ctx context.Context, address ThreadAddress, path s
 			targetAttempt = targetAttempt || inc.Start != nil && inc.Start.Nonce == request.Attempt
 		}
 		if targetAttempt {
-			return c.RetryContinuation(ctx, address, request.ID)
+			return c.Continue(ctx, address, request.ID)
 		}
 	}
 	evidence, err := c.observeRecovery(ctx, record)
@@ -284,7 +284,7 @@ func (c *Couch) RecoverThread(ctx context.Context, address ThreadAddress, path s
 	if err != nil {
 		return ContinuationResult{}, err
 	}
-	return c.RetryContinuation(ctx, address, record.Continuation.ID)
+	return c.Continue(ctx, address, record.Continuation.ID)
 }
 
 // admitRetainedRecovery decides whether source recovery may proceed from the

@@ -110,15 +110,17 @@ func TestEveryLifecycleTransitionIsDrivenIntoItsOwnRefusal(t *testing.T) {
 				_, err = s.PublishContinuation(r.Address, r.Revision, other)
 				return err
 			},
-			want: "before publishing another",
+			want: "a compaction is in progress",
 		},
-		"DismissFailedContinuation": {
+		"MissContinuation": {
 			shape: withPendingContinuation,
 			call: func(t *testing.T, s *ThreadStore, r ThreadRecord) error {
-				_, err := s.DismissFailedContinuation(r.Address, r.Revision, r.Continuation.ID)
+				_, err := s.MissContinuation(r.Address, r.Revision, strings.Repeat("0", 64), func(r ThreadRecord) checkpoint.Miss {
+					return checkpoint.MissOf(*r.Continuation, "x", r.CreatedAt, false)
+				})
 				return err
 			},
-			want: "only a failed continuation can be dismissed",
+			want: "obsolete continuation request",
 		},
 		"BeginContinuationFromRetiredIncarnations": {
 			shape: withStartClaim,
@@ -220,14 +222,7 @@ func TestEveryLifecycleTransitionIsDrivenIntoItsOwnRefusal(t *testing.T) {
 			},
 			want: "needs a unknown incarnation",
 		},
-		"RetireProvedDeadIncarnations": {
-			shape: withStartClaim,
-			call: func(t *testing.T, s *ThreadStore, r ThreadRecord) error {
-				_, err := s.RetireProvedDeadIncarnations(r.Address, r.Revision)
-				return err
-			},
-			want: "open start claim",
-		},
+
 		"ClearVerifiedPark": {
 			shape: noShape,
 			call: func(t *testing.T, s *ThreadStore, r ThreadRecord) error {

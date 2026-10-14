@@ -407,6 +407,9 @@ func visibleMenuRows(state MenuState, frame MenuFrame) []couchcore.ActionableThr
 }
 
 func menuFocusSummary(row couchcore.ActionableThreadSummary) string {
+	if m := row.ContinuationMissed; m != nil {
+		return strings.TrimSpace(rowtext.Sanitize(m.Line(row.Label(), row.State == couchcore.ThreadLive)))
+	}
 	return strings.TrimSpace(rowtext.Sanitize(row.DisplaySummary()))
 }
 

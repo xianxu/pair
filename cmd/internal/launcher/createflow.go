@@ -1,7 +1,6 @@
 package launcher
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/orientation"
@@ -36,10 +35,13 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 		fmt.Fprintf(stderr, "pair: %v\n", err)
 		return 1, nil
 	}
-	rt.SetEnv(orientation.Env, "")
-	if request := opts.Args.Orientation; request != nil {
-		if !opts.Args.FreshRequired || !request.Matches(opts.Args.ForcedTag, opts.Args.Agent, request.Attempt) {
-			fmt.Fprintln(stderr, "pair: orientation requires a matching fresh launch")
+	if opts.Args.Prompt != "" {
+		if !opts.Args.FreshRequired {
+			fmt.Fprintln(stderr, "pair: a launch prompt requires a fresh launch")
+			return 1, nil
+		}
+		if err := ValidatePrompt(opts.Args.Prompt); err != nil {
+			fmt.Fprintf(stderr, "pair: %v\n", err)
 			return 1, nil
 		}
 	}
@@ -662,9 +664,6 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	// The native conversation survives resume; the wrapper incarnation does not.
 	if opts.Args.FreshRequired || couchOwned {
 		nonce := opts.Args.FreshNonce
-		if nonce == "" && opts.Args.Orientation != nil {
-			nonce = opts.Args.Orientation.Attempt
-		}
 		if _, err := prepareLaunchReadinessWithNonce(rt, chosenTag, agent, session, nonce); err != nil {
 			fmt.Fprintf(stderr, "pair: %v\n", err)
 			return launchStep{code: 1}, nil
@@ -806,17 +805,16 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		// not a saved user argument; prepend before any prompt/-- delimiter.
 		commandArgs = append([]string{"--disable", "shell_snapshot"}, commandArgs...)
 	}
-	command, commandErr := EncodeAgentCommand(AgentCommand{Executable: agent, Argv: commandArgs})
+	// The prompt rides beside the argv, never in it: the ledger and saved
+	// config above took agentArgs, and the wrapper re-derives a later fresh
+	// start from Argv, so it is said once (#522).
+	command, commandErr := EncodeAgentCommand(AgentCommand{Executable: agent, Argv: commandArgs, Prompt: opts.Args.Prompt})
 	if commandErr != nil {
 		fmt.Fprintf(stderr, "pair: %v\n", commandErr)
 		return launchStep{code: 1}, nil
 	}
 	rt.SetEnv(AgentCommandEnv, command)
 	rt.SetEnv(orientation.Env, "")
-	if opts.Args.FreshRequired && opts.Args.Orientation != nil {
-		raw, _ := json.Marshal(opts.Args.Orientation)
-		rt.SetEnv(orientation.Env, string(raw))
-	}
 	rt.SetEnv("PAIR_SESSION_ID", sessionID)
 	// The pane title is the agent name and nothing more (#133): zellij renders
 	// "<session name> | <focused pane title>", and the session half is already

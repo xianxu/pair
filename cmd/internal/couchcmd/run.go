@@ -648,7 +648,7 @@ func dispatchInteractiveStart(c *couchcore.Couch, args map[string]string) (couch
 
 func operationUsesCurrentRepoScope(name string) bool {
 	switch name {
-	case "show", "peek", "park", "resume", "reboot", "reap", "recover", "retry-continuation", "dismiss-continuation":
+	case "show", "peek", "park", "resume", "reboot", "reap", "recover":
 		return true
 	default:
 		return false
@@ -658,7 +658,7 @@ func operationUsesCurrentRepoScope(name string) bool {
 // operationOwnsLive is the pure entrypoint policy. Both ways into Couch must
 // acquire the same singleton before they can create a child or take a terminal.
 func operationOwnsLive(name string) bool {
-	return name == "start" || name == "resume" || name == "reboot" || name == "reap" || name == "recover" || name == "retry-continuation"
+	return name == "start" || name == "resume" || name == "reboot" || name == "reap" || name == "recover"
 }
 
 // WantsConsole is the console DECISION, separated from building one.

@@ -1255,7 +1255,7 @@ conversation back by whatever path works: a pure `ChooseResumeRoute` hands the
 row to `OpenSlot` (warm, cold, or adopting a conversation whose pointer couch
 lost -- on resume's guessed agent only through the native ledger, which binds
 per agent; a record-less detached survivor is refused `resume-survivor-unproven`
-because the detached proof cannot tell which agent runs), `RetryContinuation`,
+because the detached proof cannot tell which agent runs), `Continue`,
 `RecoverThread` or `ResumeContextWith`. It takes a slot `path` or a thread
 address; `warm-only` (the background reattach pass) stays a direct warm-only
 resume. A refusal whose transcript cannot come back names reboot; the
@@ -1326,49 +1326,61 @@ Numbered directory preparation uses `couch --internal provision-workspace <prima
 See [workspace provisioning](workspace-provisioning.md) for readiness, repeat-call
 recovery and the #306 lifecycle integration boundary.
 
-Continuation has five internal operations (`pair#249`, `pair#280`):
+Continuation has two internal operations (`pair#249`; #522 retired
+`retry-continuation`, `dismiss-continuation` and `continuation-status`):
 
 - `request-continuation`, invoked as `couch --internal request-continuation <absolute-path>`, durably accepts the hosted source's exact checkpoint. The inherited scope, tag, agent, session, launch ordinal, and expected digest bind publication to the writer's validated bytes and current source generation. This metadata operation can run in another worktree without becoming a second supervisor.
-- `continue-thread`, invoked in process through `couch --internal continue-thread`'s declared operation, executes or reconciles an accepted request under the live owner.
-- `retry-continuation`, exposed in the switcher's thread actions, reconciles a retained failure. After Couch has exited, `couch --internal retry-continuation <tag>` in the thread's repository acquires the normal singleton lease and opens a Console for recovery. It refuses a competing owner.
-- `dismiss-continuation`, offered beside Retry on a row whose request FAILED, deletes the retained request. It records the operator's decision that the thread has moved on, typically because they took over the target before automatic orientation finished and a retry would re-deliver a stale handoff into a live conversation. It is a direct-store record write with no process effect and no supervisor lease. After or during Couch, the CLI form is `couch --internal dismiss-continuation <tag>`. It deletes rather than adding a terminal phase because records decode strictly (`DisallowUnknownFields`), so a new phase would make every pre-change binary, including long-running `pair` helpers, reject the whole record. Couch's private checkpoint copy is left for the next publish or archive to replace, and the repository's checkpoint file is never touched.
-- `continuation-status`, represented by `couch --internal continuation-status`, reconciles the exact launch attempt's orientation receipt under the live owner. The Console supplies the address, request ID, and attempt through the typed operation arguments.
+- `continue-thread`, run by the Console's watcher under the live owner, executes an accepted request, or continues one a previous Couch left running.
 
-**A retained request composes with its thread; it does not replace it**
+**Compaction without composer paste (#522).**
+- **The launch prompt:** `executeContinuation` starts the new conversation fresh,
+  with `ContinuationPrompt` as a one-time first message. It names Couch's private
+  continuation copy, its NEXT ACTION, and `couch --peek <tag> --previous`.
+  - It travels as `TrustedLaunchProfile.Prompt` (fresh profiles only), then
+    `LaunchArgs.Prompt`, then `AgentCommand.Prompt` in `PAIR_AGENT_COMMAND`.
+  - The wrapper appends it only to the exec argv (`launcher.PromptArgs`: a
+    trailing positional; `-i PROMPT` for agy).
+  - No saved profile, ledger entry, config, `StartArgs.ExtraArgs` or the
+    wrapper's in-pane fresh start ever carries it, so nothing replays it.
+- **The coordinates:** after park, the compaction records #517's
+  `PreviousSession` with its `Continuation` path.
+- **Completion:** registration completes the request: `checkpoint.Advance`
+  `Registered` moves Running to Complete. There is no delivery receipt to wait
+  for.
+
+**A request that doesn't finish leaves one line, never a blocking state.**
+- **How it ends:** `failContinuation` calls `ThreadStore.MissContinuation`. That
+  clears the request and writes `ThreadRecord.ContinuationMissed`
+  (`checkpoint.Miss`: reason, continuation path, `TargetMayExist`) in one
+  revision.
+- **Where it shows:** the row reads `<state> · compaction didn't finish`. The
+  focused row and one console notice give `Miss.Line`, which names one action:
+  - compact again, if the old conversation runs;
+  - resume, if it was parked;
+  - relaunch, if the new conversation may be running.
+- **What it blocks:** nothing. The next registered start or published request
+  clears it.
+- **A target that may still exist:** an incarnation recorded after the source's
+  retirement. It is guarded by the thread's incarnations, not the continuation:
+  `CommitStartClaim` refuses while one is recorded, and relaunch parks the exact
+  one first.
+- **Old records:** a request stored as `failed` before #522 decodes into the line
+  (`fromPersistedThreadRecord`). The next write persists that.
+
+**An in-flight request composes with its thread; it does not replace it**
 (`pair#280`).
-- **State text, in every phase:** `<state> · continuation queued|continuing…|continuation failed`,
-  for example `live · continuation failed`. In-flight phases are NOT bounded
-  in time: a request whose owner died reads `continuing…` until someone retries
-  it. So the state always shows.
-- **Actions of a live row with a failed request:** the row's own actions minus
-  exactly those `continuationGuard` refuses (`couchcore.ContinuationRefuses`:
-  relaunch, switch-agent, cold resume, start), plus retry and dismiss. Park and
-  detach stay, because neither reads the request.
-- **Actions of an in-flight request:** kept restricted on purpose, because the
-  continuation owns the thread mid-replacement. On a live row `Running` offers
-  only `retry-continuation` (which reconciles a stalled request), and `Pending`
-  offers nothing until it runs. A row that is not live offers resume (which
-  routes the request to `RetryContinuation` or `RecoverThread`) and reboot.
-- **Refusals:** every refusal a retained request causes names its exits
-  through one wording, `checkpoint.Exits`, which names each row's own actions:
-  retry/dismiss on a live thread, resume/reboot on one that is not. The guard and publish call it
-  directly. Each other check wraps its refusals ONCE, at its boundary, in
-  `withContinuationExits`: `RecoverThread`, `prepareAbsentContinuation`
-  (through `admitRetainedRecovery`), `archiveContinuationVacant` and
-  `validateContinuationWarm`. `TestEveryRefusalARetainedRequestCausesNamesBothExits`
-  drives one row per call site and scans that every call site has a row.
-  `pair continue --retry` does not know the phase and uses the phase-neutral
-  wording (`Exits("", tag)`).
-- **Orientation prompts carry their producer.** Continuation delivery writes
-  `menu.Orientation` through `setOrientationLocked`; pruning removes only the
-  matching producer's entry through `reconcileContinuationOrientationLocked`. Agent switches
-  create no orientation prompt.
-
-Before #280, a failed request replaced the state text, the action set and
-relaunch's admission indefinitely.
-The switcher's Retry also never reached its thread: it sent `ref` and `tag`,
-which `resolveOperationThread` refuses. Both continuation exits now address the
-row by its exact implicit tag alone.
+- **State text:** `<state> · continuation queued|continuing…`.
+- **Actions:** an in-flight request owns a live row (no actions) until Couch
+  finishes it. A row that is not live offers resume (which routes the request to
+  `Continue` or `RecoverThread`) and reboot.
+- **Refusals:** every refusal an in-flight request causes uses one wording,
+  `checkpoint.InFlight`.
+  - `continuationGuard` (relaunch, switch-agent, cold resume, start) and publish
+    use it directly.
+  - Each other check wraps its refusals once, in `withContinuationExits`:
+    `RecoverThread`, `prepareAbsentContinuation`, `archiveContinuationVacant`
+    and `validateContinuationWarm`.
+  - `TestEveryRefusalARequestInFlightCausesSaysSo` drives one row per call site.
 
 ### Stale-thread recovery
 
@@ -1399,7 +1411,7 @@ proved absent; unrelated newer generations refuse admission.
 Archive uses the same reconciliation, then checks that the continuation's source
 and target are proved absent before quiescing.
 A final record revision check prevents archiving a concurrently replaced
-request. An empty record may be archived with its pending/failed continuation
+request. An empty record may be archived with its pending continuation
 intact; a live source or target cannot. The existing store journal preserves
 the request in the archive and removes only its derived materialized file.
 Disposable helper/session fault fixtures exercise warm recovery, checkpoint
@@ -1426,35 +1438,39 @@ and starts a fresh conversation through the existing blocked-helper claim and
 registration protocol. The Pair scope and tag stay unchanged, preserving prompt
 history. An unsubmitted checkpoint needs no native conversation binding.
 
-Acceptance is not completion. Registration proves a fresh target exists;
-`complete` requires the matching orientation `submitted` receipt. A failed,
-canceled, or unconfirmed delivery remains recoverable, and text may already be
-present in the target. Retry observes or reattaches an existing matching target
-instead of automatically submitting again. Another fresh attempt requires proof
-that the previous target is absent; unknown ownership refuses. Inspect the
-existing agent and use the available copy-orientation action before manually
-sending text whose delivery is uncertain.
+Acceptance is not completion, and registration is (#522). The fresh target's
+launch prompt names the materialized copy, so the target that registers with the
+request's exact attempt has its continuation. A failure leaves the thread's one
+line (`ContinuationMissed`), not a request. The line blocks nothing; a target
+that may still be running is guarded by the thread's incarnations and parked
+exactly by relaunch. Whether the agent then acts on its first message is the
+agent's: a prompt swallowed by a startup screen shows as an idle new
+conversation, whose coordinates (`--peek --previous`) and continuation are
+recorded.
 
 The embedded snapshot remains authoritative if the original file is edited,
 removed, or saved in a sibling worktree. It is retained through failure and
 completion until superseded, and remains in the archived ThreadRecord. Archive
 removes the derived materialized file. Active requests prevent unrelated cold
-resume, agent switching, or relaunch from bypassing their ownership. Explicit
-archive may retain an incomplete request only after proving its source/target
-unoccupied; it never marks an unfinished request complete.
+resume, agent switching, or relaunch from bypassing their ownership while the
+compaction is in flight. Explicit archive may retain a pending request only after
+proving its source/target unoccupied; it never marks an unfinished request
+complete.
 Hosted inner `pair restart` and address-changing rename routes refuse before
 teardown; use Couch's tracked relaunch or name action. Standalone Pair retains
 its outer restart-loop ownership and draft-seeding workflow.
 
 `make test-couch-zellij-live` exercises continuation seed transport alongside
 real park teardown. A deterministic pane under real Zellij reads the exact
-materialized snapshot from the launch profile's orientation prompt and publishes
-waiting/submitted readiness records. The production reader verifies session,
-agent, tag, attempt, and live PID; registration alone cannot complete the request,
-and deleting the session invalidates its receipt. This fixture uses temporary
-stores and no paid agents. It uses the stateful fake for source parking and the
-blocked launch helper; real composer recognition and actual agent submission
-remain operator smoke tests. The conformance workflow runs on relevant changes
+materialized snapshot named by the launch profile's prompt and publishes its
+readiness record. The production reader verifies session, agent, tag, attempt and
+live PID; that registration completes the request, and deleting the session
+invalidates its receipt. This fixture uses temporary stores and no paid agents.
+It uses the stateful fake for source parking and the blocked launch helper. The
+wrapper's exec of the prompt is pinned by launcher's
+`TestCreateLayoutWrapperPreservesAgentCommand` and couchcmd's continuation
+acceptance. A real agent acting on its first message remains an operator smoke
+test. The conformance workflow runs on relevant changes
 and weekly.
 
 Live Zellij fixtures have two traps (pair#324):
@@ -3202,12 +3218,11 @@ pairs it with that statement (resumable, or unusable). It is deliberately
 not filtered through the predicate: a filter makes offered-implies-permitted true
 by construction, and a guard that cannot fail is not a guard.
 
-A live row with a failed continuation IS filtered, through
-`ContinuationRefuses` (`pair#280`), and it stays falsifiable because the
-list's oracle is the guard's BEHAVIOUR, not another predicate:
-`TestContinuationRefusesMatchesTheGuardForEveryRowAction` drives every
+The guard's reach (relaunch, switch-agent, a cold start claim; `pair#280`) stays
+falsifiable because the list's oracle is the guard's BEHAVIOUR, not another
+predicate: `TestContinuationRefusesMatchesTheGuardForEveryRowAction` drives every
 declared row action through the production dispatcher on a live thread holding a
-failed request. A listed operation must be refused by the guard itself, and an
+request in flight (a failed one no longer exists, #522). A listed operation must be refused by the guard itself, and an
 unlisted one must succeed. A list that drifts from the guard sites fails there.
 
 **What the resume row does NOT cover.** `ResumableState`'s consumer is startup's
@@ -3264,7 +3279,6 @@ the caller's authority is recorded:
 |---|---|
 | `RetireIncarnation` | this live incarnation's process was just stopped |
 | `RetireUnprovenIncarnation` | this exact `{PID, identity}` was observed **Dead** |
-| `RetireProvedDeadIncarnations` | every recorded process was observed Dead, and none carries a start claim |
 | `ClearVerifiedPark` | the thread is attached again, so the receipt describes an undone teardown |
 | `BeginContinuationFromRetiredIncarnations` | the request and the retirement are ONE write, because a record must never carry both |
 
