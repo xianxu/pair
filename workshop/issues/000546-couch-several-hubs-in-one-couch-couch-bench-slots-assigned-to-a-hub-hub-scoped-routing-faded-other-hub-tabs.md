@@ -49,9 +49,9 @@ Operator's model (2026-10-14), refined with the TL:
 
 Durable plan: [Several hubs](../plans/000546-several-hubs-plan.md).
 
-- [ ] Implement stable slot ownership, explicit hub launch and scoped authority.
-- [ ] Project hub sections/reassignment/fading; verify supervision, persistence and unchanged default behavior.
-- [ ] Run affected checks and full make -k, close review, green CI and land.
+- [x] Implement stable slot ownership, explicit hub launch and scoped authority.
+- [x] Project hub sections/CLI reassignment/fading; verify supervision, persistence and unchanged default behavior.
+- [x] Run affected checks and full make -k. Close review, green CI and landing follow through the SDLC gates.
 
 ## Log
 
@@ -120,3 +120,7 @@ acceptance clauses remain, interpreted using this ownership model.
 - 2026-10-14 startup ordering: chain extra-hub queue admissions after each prior adoption, preserving explicit argument order even with concurrent queue workers. Stateful queue/adoption test and startup integration pass (4.158s). Main merge 3c23f136f7da692a9b916ed5b90b0cdbd78c6a74 contains #544 details only; no set-model implementation has landed to reconcile. No #528 startup/recovery-policy files changed.
 
 - 2026-10-14 verification: full couchcmd package now PASS (49.006s) after updating its obsolete public-help expectation. Clean build reports vcs.revision=2b0c2457c39bd33a7a9f4bfef74141169cdf94c2 and vcs.modified=false. Parser fuzz PASS (11,348 executions, two workers); specification-bound checks confirm 128 runtime overrides refuse an additional batch without a partial move and name restart recovery, and the 1024-line claim budget names file repair. Final make -k rerun has entered the machine gate and is executing.
+
+### 2026-10-14 — verification complete and close handoff
+
+Full `make -k test` exited 0 on committed HEAD 699e3ec42 (log `/tmp/pair-546-full-final.log`); couchcmd 57.820s and couchcore 240.733s. All shell, editor, inventory and Go targets passed. Focused races, full couchtty, parser fuzz and clean build evidence above remain applicable. Final fetch found no new main commits. The isolated terminal integration uses real console/start/dispatch paths with stateful fake external processes and private stores; this is not a live operator smoke. Active implementation and verification are complete; close review, CI and landing remain gate-owned. Plan checklist wording now separates completed verification from those pending gate actions, and records the approved CLI-only move scope.

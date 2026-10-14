@@ -248,3 +248,15 @@ check before the real effect. This gives one ordering owner without extra
 per-slot gates or domain recovery policy changes. Explicit hubs are excluded
 from the background reattach pass by the same immutable ownership projection,
 preventing two successful start/adopt paths for a detached extra hub.
+
+### 2026-10-14 — active execution completion
+
+The historical checklists above retain superseded scope for provenance. This final active checklist incorporates the approved CLI-only cut and the execution-gate revision:
+
+- [x] Claims, immutable ownership, bounded file IO, CLI moves and durable retry evidence implemented and tested.
+- [x] Explicit launch, routing, mutation guards, supervision and notifications share ownership; bare launch retains its legacy branch.
+- [x] Hub sections, row ownership and focus-relative fading implemented; switcher moves remain deferred to #548.
+- [x] Documentation, inventory and isolated stateful console/socket integration updated; main reconciled without recovery-policy edits.
+- [x] Full make -k test exited 0; affected packages, focused races, clean build, bounded/generated cases and parser fuzz passed. Exact evidence is in the issue Log.
+
+Close review and green-CI landing remain the next gate-owned actions; no live operator smoke is claimed.
