@@ -871,6 +871,10 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchtty/cast_control.go",
 	"cmd/internal/couchtty/console_pointer.go",
 	"cmd/internal/couchtty/console_notes.go",
+	// #502 slot renicer: the process table and setpriority; the agent-pid
+	// file it reads is resolved in message_service.go.
+	"cmd/internal/couchcmd/renicer.go",
+	"cmd/internal/couchcore/renice.go",
 	// #488 note anchors: screen layout and pane geometry; no artifact paths.
 	"cmd/internal/couchtty/console_noteanchor.go",
 	"cmd/internal/couchtty/noteanchor.go",
