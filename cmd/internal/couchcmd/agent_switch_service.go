@@ -116,6 +116,9 @@ func (s *messageService) handleAgentSwitch(ctx context.Context, r couchmessage.R
 	if source.Scope == caller.Scope && source.Tag == caller.Tag {
 		return refuse(errors.New("switch-agent: a caller cannot switch its own slot"))
 	}
+	if err := s.authorizeHubBinding(ctx, caller, source); err != nil {
+		return refuse(err)
+	}
 	address := couchcore.ThreadAddress{RepoScope: source.Scope, Tag: couchcore.ThreadTag(source.Tag)}
 	live, ok := s.LivenessForThread(source.Scope, source.Tag)
 	if !ok || live.Binding != source {
@@ -131,6 +134,14 @@ func (s *messageService) handleAgentSwitch(ctx context.Context, r couchmessage.R
 	}
 	return s.slotOps.admit(ctx, caller, r, func(key string, started func(), finished func(any, error)) error {
 		return service.enqueue(key, func(ctx context.Context) (couchcore.OperationCall, error) {
+			if s.authority.hubs != nil {
+				if _, err := s.switchCaller(ctx, r); err != nil {
+					return couchcore.OperationCall{}, err
+				}
+			}
+			if err := s.authorizeHubBinding(ctx, caller, source); err != nil {
+				return couchcore.OperationCall{}, err
+			}
 			if err := service.guard.ConfirmAgentSwitch(ctx, address, token); err != nil {
 				return couchcore.OperationCall{}, err
 			}
