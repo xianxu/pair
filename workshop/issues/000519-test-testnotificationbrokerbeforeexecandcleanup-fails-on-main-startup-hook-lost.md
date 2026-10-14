@@ -69,3 +69,6 @@ Find when it started failing (bisect on main), confirm the cause, and fix the ro
 - Expanded focused checks passed: queued/channel FIFO, concurrent and repeated Close, full-queue diagnostics, invalid/oversize shutdown packets, closed-socket failure cleanup (/tmp/pair519-focused.log). Targeted notifytransport race checks passed (/tmp/pair519-race.log).
 - Reversion proof: Go overlay restored pre-fix transport and pre-fix teardown behavior while retaining the mechanical helper extraction. TestNotificationBrokerBeforeExecAndCleanup/pending-hook-at-EOF fails with accepted hook lost at EOF (/tmp/pair519-reverted.log). No checkout or live-slot mutation was needed.
 - #542 body published and ownership released; it is open and unclaimed. No duplicate wrap-startup issue filed because #535/#536 cited this same test.
+
+- Qualification: TestNotificationBrokerBeforeExecAndCleanup (including pending-hook-at-EOF) passed 20 consecutive repetitions in 17.365s, /tmp/pair519-qualification.log. One-minute load 28.51 before and 36.22 after (/tmp/pair519-qualification-load.log), meeting TL’s under-approximately-40 requirement.
+- Full make -k test queued under the machine-wide gate; no bypass or extra suite was launched. Output: /tmp/pair519-make-k.log.
