@@ -15,6 +15,7 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "f2e4f3ea", done: "da822386"}
 ---
 
 # Deliveries to the hub expire while the hub's own turn is open (90s deadline): operator submits and worker decisions are lost or late
