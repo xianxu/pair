@@ -87,6 +87,15 @@ func TestPublicWarmAttachRestoredRegistryIsNotHelperOwnership(t *testing.T) {
 	if !found {
 		t.Fatal("fixture failed to restore persisted actor")
 	}
+	for _, tc := range []struct {
+		c    *Couch
+		want ActionableThreadState
+	}{{env.Couch, ThreadLive}, {restored, ThreadDetached}} {
+		rows, err := tc.c.ActionableThreadInventory(nil)
+		if err != nil || len(rows) != 1 || rows[0].State != tc.want {
+			t.Fatalf("local handle inventory: %+v %v, want %s", rows, err, tc.want)
+		}
+	}
 	if _, err := restored.Detach(context.Background(), before.Address); err == nil {
 		t.Fatal("restored registry authorized helper detach")
 	}

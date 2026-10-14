@@ -13,7 +13,7 @@ import (
 
 // attachListedTerminal owns a client helper, never the terminal's lifecycle.
 // In particular, an independently owned start or park transaction is unchanged.
-func (c *Couch) attachListedTerminal(ctx context.Context, thread ThreadRecord, session string, opts ResumeOptions) (ActorRecord, Handle, error) {
+func (c *Couch) attachListedTerminal(ctx context.Context, thread ThreadRecord, session string, opts ResumeOptions) (result ActorRecord, handle Handle, resultErr error) {
 
 	args := StartArgs{Worktree: Worktree(thread.StartingPath), Cwd: thread.WorkingPath}
 	if profile := thread.LatestLaunchProfile; profile != nil {
@@ -42,6 +42,11 @@ func (c *Couch) attachListedTerminal(ctx context.Context, thread ThreadRecord, s
 	if err := c.confirmListedTerminal(ctx, thread, session); err != nil {
 		return ActorRecord{}, nil, err
 	}
+	finishRetention, err := c.beginResumeRetention(ctx, thread.Address, !opts.WarmOnly)
+	if err != nil {
+		return ActorRecord{}, nil, err
+	}
+	defer func() { resultErr = errors.Join(resultErr, finishRetention(resultErr == nil)) }()
 	h, err := c.Runner.StartBlocked(ctx, dir, []string{"pair", launcher.CouchSessionFlag, "resume", string(thread.Address.Tag)}, env, 10*time.Second)
 	if err != nil {
 		return ActorRecord{}, nil, err

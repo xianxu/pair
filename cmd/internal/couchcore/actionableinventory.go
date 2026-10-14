@@ -852,6 +852,26 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 	for _, observation := range observations {
 		add(observation.Address, observation.Process)
 	}
+	// A borrowed terminal client deliberately has no durable incarnation.
+	// Its local handle still proves this Couch hosts it; a restored registry
+	// entry alone does not. Include that view without adopting thread state.
+	for _, actor := range c.actorRegistry().Records() {
+		c.regMu.Lock()
+		handle := c.warmClients[actor.ID]
+		c.regMu.Unlock()
+		if handle == nil || handle.PID() != actor.PID || handle.Identity() != actor.Identity {
+			continue
+		}
+		select {
+		case <-handle.Exited():
+			continue
+		default:
+		}
+		process := ProcessIdentity{PID: actor.PID, Identity: actor.Identity}
+		if observeExactProcess(c.Proc, process) == Live {
+			add(actor.Thread, process)
+		}
+	}
 	unproven := map[ThreadAddress][]ProcessIdentity{}
 	for _, observation := range c.ObserveRecordedProcesses(snapshot.Records) {
 		switch observation.Liveness {
