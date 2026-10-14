@@ -132,3 +132,24 @@ Files: transaction model/tests above; new `cmd/internal/couchmessage/automatic_i
 - ARCH-SECURE: exact current incarnation, closed report schema, supervisor-composed notification, no arbitrary worker notify or sensitive committed capture.
 - ARCH-ORDER: single input owner, explicit completion evidence, pure transitions, no re-read race, no uncertain-write retry; teardown joins report work.
 - ARCH-FUNERAL: one occurrence per live binding, disconnect cleanup, capped existing diagnostic retention, no durable pending reports or sidecars.
+
+## Revisions
+
+### 2026-10-14 — plan-quality PQ-1/PQ-2
+
+This revision supersedes the prose test inventories and arbitrary-ID deduplication description above, while retaining both executable root reproductions as acceptance evidence. TL approved the root fixes, 30-second eligible interval and strict safe-release qualification in receipt 323226c7-e429-4a71-97cb-d259e135af11.
+
+**Function-level test strategy (PQ-1).** Use these names in implementation; the rows replace the case lists in Tasks 1–2:
+
+| Risky function | Adversarial input / mechanical guard |
+|----------------|--------------------------------------|
+| `codexStartupStatus`, `peerComposerState`, `settledNow` | Captured status/startup paints and styled drafts → sanitized terminal replay plus delivery/idle observations, preserving loading/unknown refusal |
+| `advanceAutomaticInput` | Completion/observation/time event reorderings → pure sequence tests with a fake clock, asserting no unsafe write authority and at most one report |
+| `dispatchPeer`, `advancePeer` | Consecutive real deliveries with no extra output → production harness dispatch; assert second paste with recovery disabled, while uncertain writes stay fenced |
+| `ParseAutomaticInputStall`, `ValidateRequest` | Arbitrary/malformed/oversized JSON and foreign request fields → strict typed decoding, bounded schema, fuzz seeds from malformed forms |
+| `runAutomaticInputReporter` | Delayed IO and cancellation at each boundary → private socket barriers and real capped diagnostic file, proving input remains usable, one attempt and joined teardown |
+| `handleAutomaticInputStall` | Stale callers and reordered/repeated occurrences → stateful service rig, fake host and controlled dispatch barriers, asserting exact notification counts and authority |
+
+**Occurrence ordering (PQ-2).** Each wrapper assigns a monotonically increasing uint64 `Sequence` only when a tripwire fires; the report carries it and the request ID is derived from binding PID plus sequence. Never wrap: exhaustion refuses reporting and records a local diagnostic. Supervisor admission is atomic under its stall-record mutex: retain the exact current binding plus high-water sequence, reject `Sequence <= highWater` with no repeated effects, and reserve a strictly newer sequence before IO. Thus receiving 2 then 1, or duplicating 1 after 2, cannot notify again. Outcomes remain attempted/uncertain, not retryable success.
+
+Keep one small record per slot, with the exact binding inside it. A same-binding reconnect preserves the high-water mark; a verified replacement incarnation supersedes it, and old callers fail current-identity checks. Disconnect alone does not erase duplicate evidence. Bound the map to `couchmessage.MaxActors` (128) slots; do not evict suppression evidence to admit a new slot. At capacity refuse the new report explicitly, retaining its wrapper diagnostic. It dies with the supervisor; this creates no durable/restart queue. This paragraph supersedes immediate disconnect cleanup above (ARCH-ORDER, ARCH-FUNERAL). No broad broker or session protocol change is needed.
