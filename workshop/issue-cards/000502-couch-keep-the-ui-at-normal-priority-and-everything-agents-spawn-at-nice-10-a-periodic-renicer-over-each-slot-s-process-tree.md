@@ -1,6 +1,6 @@
 ---
 id: 000502
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-13
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: f4f6dfbbad2161a965dc2169f60e9fc7fce7a0fd
         evidence_commit: 1658c062ac8e67899cfbeff5ced88b2ace74bc8f
+        landed_commit: 29dce157654ab7850f6a654738d94547bd841ded
 ---
 
 # couch: keep the UI at normal priority and everything agents spawn at nice 10 (a periodic renicer over each slot's process tree)
