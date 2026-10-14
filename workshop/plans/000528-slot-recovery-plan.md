@@ -1078,3 +1078,10 @@ nothing” wording is superseded specifically for warm client attachment by the
 operator's d62e0729 decision. The invariant now excludes recovery writes, not
 client attachment. No change is made to the verbatim operator-authored target;
 no native conversation is launched, resumed or torn down by the worker pass.
+
+### 2026-10-14 — retain real inventory errors after loading succeeds
+
+TL 23c5d13c narrows the notice correction: only the bare initial unavailable
+placeholder clears after success; real unavailable-with-error notices remain.
+Supersedes this revision's broader inventory-error clearing intent. Keep
+unrelated borrowed and operation notices; test all three ownership cases.
