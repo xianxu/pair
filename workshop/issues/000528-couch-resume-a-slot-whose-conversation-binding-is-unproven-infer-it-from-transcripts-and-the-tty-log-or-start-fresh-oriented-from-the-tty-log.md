@@ -69,7 +69,7 @@ pair:6 read-only while measuring; no live recovery/reboot is authorized here.
 - [x] Measure native metadata, exact pair:6 evidence and current recovery owners.
 - [x] Approve durable design: workshop/plans/000528-slot-recovery-plan.md.
 - [x] Historical first implementation — terminal policy and native recovery (prior M1/M2 reviews retained; superseded by operator revision).
-- [ ] M1 — Always-start preview-only Couch, listed-live attach, policy removal and three-outcome projection; separate pre-upgrade operator acceptance.
+- [x] M1 — Always-start preview-only Couch, listed-live attach, policy removal and three-outcome projection; separate pre-upgrade operator acceptance.
 - [ ] M2 — Resume/Fresh execution, person-or-hub confirmation and always-reachable Fresh; separate operator acceptance.
 - [ ] M3 — New-wrapper endpoint repair without child restart/input replay; separate operator acceptance.
 
@@ -169,6 +169,7 @@ pair:6 read-only while measuring; no live recovery/reboot is authorized here.
   completion to live. All three consumers need the same agent-usability fact.
 
 ### 2026-10-13
+- 2026-10-13: closed M1 — 10 review rounds; zero open findings at e690b4d3; reviewer states the revised M1 contract is implemented. Host evidence recorded at 8667a13e: full couchcore PASS 363.825s, couchcmd PASS 44.835s, launcher PASS 22.019s; reviewer-blocked process checks PASS 6.376s (TestSelectedRootNativeCreateListAndListedResume, TestPreparingReadinessRetainsPreviousAgentEvidence, TestColdLaunchUnknownReadinessRefusesUnderLease, TestColdLaunchAcceptsProvenDeadRetainedAgent), ps -p 1 -o pid=,comm= exit 0; make build PASS. Review environment denies /bin/ps and lacks generated runtime assets. operator-approved --no-judge; ariadne review-environment issue filed. Operator live M1 acceptance remains pending; do not stage until TL schedules it.; review verdict: not-run
 - 2026-10-13: closed M2 — BR6 and BR7 disposed by prior review; BR8 adds production recovery parser to existing opt-in live native conformance with bounded reads, explicit skip outcomes and independent authored-tail witness. Targeted tests PASS0.165s and race PASS1.299s; provenance and tail-drop mutations killed; scratch OS fixtures pass. Clean build5be717b9e preceded this conformance-only delta. Installed scan and full suite remain outstanding; TL holds capacity (b70dbf44), previous make test stopped at #514 capture prerequisite before Go. Operator live acceptance outstanding; boundary review requested by TL, no bypasses.; review verdict: SHIP
 - 2026-10-13: closed M1 — BR-5 full added-reader sweep uses shared osfs IO; config/capture consumer FIFO, size and cancellation regressions pass; raw-only optional-sidecar fallback and strict oversize refusal pass. Complete make test passed all behavior packages; sole godoc guard fixed and rerun green. Main merged: build 0a0369285, merged-package full tests and DOM integration pass. Logs /tmp/pair528-read-family-final.log, /tmp/pair528-integrated-tests.log, /tmp/pair528-integrated-build.log; targeted race green. No live slot changes.; review verdict: SHIP
 - Verified dispatch receipt 65b09489-edf7-445a-8c0d-32e0c934eb62.
