@@ -1,12 +1,20 @@
 ---
 id: 000540
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-13
 updated: 2026-10-13
 estimate_hours:
-card_mirror: 'db175baba8482b25814feac6ee877aaa3eb62e73' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '5e1736cfaf2373a3e72496f9bc4ae74516af63a0' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-13T17:52:26-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:7
+    worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
+    repository: github.com/xianxu/pair
 ---
 
 # couch: swallow slots' OSC desktop notifications; add couch --notify so the hub (TL) decides what reaches the operator
@@ -33,3 +41,67 @@ The operator (2026-10-13):
 ## Log
 
 ### 2026-10-13
+
+- Claimed in pair:7 after #537 landed (PR #314). Refreshed the clean resting
+  checkout with `weave refresh`: Pair 7f68b40238de8040e61d5fb39e3d3c09d64babb7,
+  private Ariadne 86ad95c4eb409942630d1a3fc785339e9515e40c. Entered start-plan.
+- Read-only exploration found existing terminal notification effects and a
+  serialized presenter writer, plus live caller / connected workspace / hub
+  authority already used by switch-agent. No implementation or live desktop
+  notification performed during design.
+
+## Revisions
+
+### 2026-10-13 — proposed design for TL approval
+
+**Approach.** Reuse terminal effects and the presenter's serialized host writer
+  (ARCH-DRY). A new raw-byte filter would duplicate the existing chunk-safe VT
+  parser; printing OSC in the CLI would feed the slot terminal and be swallowed.
+  Refuse non-hub callers, with advice to message the hub, instead of silently
+  converting a notification into a different action.
+
+**Swallowing.** Console consumes child notification effects with notification
+  emission disabled, for focused, hidden and hub slots alike. It records only
+  per-slot counts; no notification text enters attention or notice history.
+  Ordinary BEL attention remains. OSC 9 and 777 already map to effects; observe
+  OSC 99 through the same parser as a non-forwardable notification event, without
+  enabling a new standalone terminal notification protocol. Count accepted,
+  bounded complete notification events; malformed/oversized strings remain
+  safely discarded by the parser. Do not assemble Kitty multipart messages.
+  Presenter sequence deduplication prevents replay from increasing the count.
+  Aggregate counts per processed batch in the existing bounded diagnostic trace,
+  identified by slot address; retain no bodies and create no new log family.
+
+**Hub command.** Add the light verb `couch --notify [--title T] MESSAGE`, default
+  title `Couch`. The CLI sends a closed notify request to the existing broker;
+  the supervisor validates the current registered caller and its connected
+  workspace against the hub root, never a caller-provided hub claim. Non-hub,
+  missing hub, stale/disconnected caller, invalid payload or unavailable console
+  yields a refusal without output. Reuse existing text sanitization/UTF-8 bounds,
+  with an explicit title bound and semicolon handling for OSC 777 framing.
+  Valid requests emit one OSC 777 notification through an application-owned
+  presenter method, analogous to clipboard Copy, outside the child-effect path.
+  No git/subprocess work, retries, new credential, queue or durable receipt.
+
+**Outcome contract.** Success means the terminal bytes were written, not proof
+  the OS displayed a notification. A transport timeout or interrupted/partial
+  host write is unconfirmed and must say not to retry automatically. No effect
+  is replayed on focus, repaint or reconnect. A repeat CLI invocation is a new
+  intentional notification. Host serialization and cancellation stay owned by
+  the existing presenter (ARCH-ORDER); request handlers spawn no background work.
+
+**Verification.** Tests cover OSC 9/777/99 with split input and BEL/ST endings,
+  focused/hidden/hub slots, no retained notification content, count deduplication,
+  and unchanged title/clipboard/hyperlink/BEL behavior. CLI/protocol tests cover
+  syntax, payload limits and hostile controls. A stateful fake host plus real
+  broker/console seams proves hub emits once and stale/non-hub requests emit
+  nothing, including cancellation/write failures. Update the existing PTY and
+  headless Zellij notification tests to expect swallowing; run targeted tests
+  and the complete queued `make -k test` before close. Actual desktop smoke only
+  when TL schedules it.
+
+**Documentation and next gate.** Update help, verb-cost table, embedded Couch
+  skill, README and atlas. Send the command contract to TL for ariadne#350's
+  tl-lead prose. After design approval, author the durable implementation plan
+  with explicit entities, bounds and transitions, then run change-code; likely
+  full flow given the CLI/protocol/presenter and regression-test surfaces.
