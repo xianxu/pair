@@ -1,6 +1,6 @@
 ---
 id: 000514
-status: working
+status: codecomplete
 created: 2026-10-12
 updated: 2026-10-13
 estimate_hours:
@@ -13,8 +13,14 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+actual_hours: 23.76
 tracker:
     version: 1
+    completion:
+        token: close-32a136215aa4
+        repository: github.com/xianxu/pair
+        reviewed_head: 89d38a9738b732431c815845a2e6b4a3a5933ba5
+        evidence_commit: 86bd8e8074a4d55f931b34b8aeb7b96da8a2c61b
 ---
 
 # test-perf-capture asserts a 6 s wall-clock budget on a shared loaded machine; fails under load on main
