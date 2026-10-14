@@ -65,3 +65,26 @@ Tests use a stateful process-reader fake (table and command/identity reads can r
 ## Coordination
 
 #528 has unlanded edits at 5bb368c363fc971b944c6601c785e033c7c8cf5c. Do not stack on that branch. Merge main regularly; preserve its immutable server generation authorization and reachable identity enrichment when it lands. Hub approved the class-wide sweep and full flow, including explicit unsupported fallback, receipt f7aa9f0b-b462-4513-81a2-1ff946803f80.
+
+## Revisions
+
+### 2026-10-14 — PQ-1 / PQ-2: executable interfaces and scope
+
+The following replaces the unnamed test-topic paragraph and makes the implementation seams concrete. `CommandInfo` has `Executable string` and `Args []string`. `Observation` embeds `Process` and `CommandInfo`, with `Err error` for unavailable per-process evidence. `Snapshot(context.Context) ([]Observation, error)` enriches all rows (not only kernel-name matches); short names are used only to classify unreadable potential candidates. This preserves spoofed argv coverage in the existing live quiescence sentinel.
+
+| Function | Mechanical verification strategy |
+|---|---|
+| `ParseDarwinProcArgs(raw) (CommandInfo, []byte, error)` | Bounded malformed-buffer fuzzing enforces argc/termination/size bounds; returned remainder starts at environment, never included in argv. Reuse in diagnosticlog's existing `parseDarwinEnvironment` to avoid a second envelope parser. |
+| `parseLinuxStat(pid, raw) (Process, error)` | Portable pure fixtures and fuzzing enforce stat field offsets and parenthesized-name boundaries; production Table and Identity share the parser. |
+| `parseLinuxCmdline(raw) ([]string, error)` | Bounded arbitrary-byte fixtures enforce NUL termination and preserve argument boundaries. |
+| `readLinuxCommand(root, pid) (CommandInfo, error)` | Temporary procfs fixture uses stat/cmdline files and exe symlinks; exercises actual filesystem adapter on either development host. |
+| `snapshot(ctx, reader)` / public `Snapshot(ctx)` | Stateful reader fake removes/recycles rows between table, command and identity reads, asserting unavailable observations cannot acquire another incarnation's command; cancellation prevents subsequent reads. Native own-process probe checks argv/executable/identity agreement on supported hosts. |
+| `Command(pid)` / `ProcessChildren()` | Real child process conformance pins command availability and parent membership with ps absent from PATH; seatbelt run must pass, not skip. |
+| `serverProcesses(observations)` | Direct typed fixtures assert existing exact server matching and fail-closed unreadable zellij candidates; identities derive from the same observation, never a second table. |
+| `hasProcessAncestor(rows, pid, name)` | Pure graph fixtures assert exact short-name ancestry, missing-parent termination and cycle termination using one snapshot. |
+| `OSInspection.Runtimes(ctx)` | Injected snapshot/environment/identity reader uses stateful inventory fixtures to pin long executable names and disappearance during environment inspection; canceled contexts cannot authorize cleanup. |
+| `psExecViolations(root)` | Scan production Go AST call arguments for literal ps and /bin/ps (including wrappers); synthetic violating sources prove direct/context/absolute/wrapped calls are detected. |
+
+Inventory injection: `OSInspection` accepts an optional process snapshot reader, environment reader and strict identity reader (zero value native). `gcruntime.NewWithInspection(root, inspection)` wires the existing Inspection interface to both legacy runtime proof and diagnostic writer proof; `New` delegates with OSInspection. `gccmd.Run` delegates to a private runner accepting the service constructor; acceptance tests inject a stateful Inspection instead of PATH-faking ps. These narrow composition seams preserve the real storage lifecycle tested by public apply.
+
+Non-goals: no zellij authorization redesign (owned by #528), no new whitespace-bearing server matching behavior, no new process cache/daemon, no support for new operating systems. Existing string command consumers keep space-joined argv semantics. Native decoding preserves individual arguments internally. Linux native execution is required in available Linux CI; local verification includes portable Linux-reader fixtures and cross-compilation, explicitly distinguished from native execution if no Linux runtime is available.

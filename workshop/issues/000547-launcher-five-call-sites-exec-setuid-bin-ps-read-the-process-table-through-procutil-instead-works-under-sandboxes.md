@@ -51,3 +51,5 @@ Claimed and started from fresh main. Hub approved sweeping all production ps cal
 ## Revisions
 
 - 2026-10-14: enumerated the full no-ps contract beyond the five launcher sites: procutil helpers/unsupported fallback and diagnostic runtime inventory are in scope, approved by the hub.
+
+- Plan-quality round 1 requested named risky functions and mechanical test strategies (PQ-1), plus explicit non-goals (PQ-2). Appended concrete interfaces, strategy table, composition seams and scope boundaries to the plan. Baseline seatbelt probe: TestCommand skips because ps is unavailable, while TestTableMatchesIdentityAndParent passes; replacement must remove that skip on supported OSes.
