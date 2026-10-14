@@ -39,7 +39,7 @@ The operator (2026-10-13):
 
 - Durable plan: [hub notifications](../plans/000540-hub-notifications-plan.md).
 - [x] Add terminal envelope and explicit presenter notification operation.
-- [ ] Suppress child notifications and retain diagnostic counts only.
+- [x] Suppress child notifications and retain diagnostic counts only.
 - [x] Add hub-only CLI/protocol/admission with uncertain-write handling.
 - [ ] Update docs, run full verification and scheduled smoke, close and land.
 
@@ -78,6 +78,19 @@ The operator (2026-10-13):
   example using optional brackets, which its executable examples parser rejects.
   Replaced with the two concrete valid forms; focused help/skill tests passed.
   Full package rerun underway. Artifact inventory package passed (17.485s).
+- Full broker packages rerun passed: couchmessage 7.268s, couchcmd 49.024s.
+  Admission spec re-review and quality review approved the final checks.
+- Console dc428db5c passes all couchtty tests (64.179s), targeted race (4.702s),
+  and private native direct/wrapped Zellij conformance (29.123s): 32 notifications,
+  4096-byte UTF-8 body, hidden/focused panes, resizes, persistent agent reattach.
+  Native oracle dependencies installed with locked npm ci. Native run preceded
+  only the diagnostic cumulative-count adjustment, verified by targeted/full
+  tests. First package run hit TestDriveActionShutdownJoinsAndRejectsClicks
+  timeout; unchanged targeted rerun and final full package passed.
+- Main merged at 2974107d0c45b5206facfaff6a37519820401412. Full `make -k test`
+  started via weighted machine queue; evidence path /tmp/pair540-full-suite.log.
+  TL reserved staging after #528's acceptance session, per verified receipt
+  47ef690a-6165-499c-ad4d-30357d8e4b73; no pair:0 action until TL says clear.
 
 ## Revisions
 

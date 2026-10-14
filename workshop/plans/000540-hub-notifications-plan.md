@@ -123,15 +123,15 @@ Files: notifyosc/notification.go and notification_test.go;
 terminal/endpoint.go, notification_mapping_test.go, presenter.go and new
 terminal/desktop_notify_test.go (all under cmd/internal).
 
-- [ ] Add failing tests for titled envelope (default, semicolon, control injection,
+- [x] Add failing tests for titled envelope (default, semicolon, control injection,
   Unicode boundaries), non-forwardable OSC 99 packets split at every byte,
   and Presenter.Notify one write/no replay/failed or cancelled writer.
-- [ ] Run `go test ./cmd/internal/notifyosc ./cmd/internal/terminal -count=1`;
+- [x] Run `go test ./cmd/internal/notifyosc ./cmd/internal/terminal -count=1`;
   capture failures proving missing behavior before implementation.
-- [ ] Add titled encoder using Sanitize; add count-only effect and OSC99 handler;
+- [x] Add titled encoder using Sanitize; add count-only effect and OSC99 handler;
   presenter accepts that effect without output. Add Notify using p.call and
   writeUnlessStalled, analogous to Copy, never direct host writes or fake origins.
-- [ ] Rerun those packages green; commit `#540: add explicit desktop notification output`.
+- [x] Rerun those packages green; commit `#540: add explicit desktop notification output`.
 
 ### 2. Swallow slot effects and count them
 
@@ -139,18 +139,18 @@ Files: couchtty/console.go, trace.go, desktop_notify.go and desktop_notify_test.
 notification_test.go, effect_policy_test.go, notification_pty_test.go,
 terminal_native_test.go (under cmd/internal).
 
-- [ ] Add failing assertions for zero host notification envelopes from OSC9/777/99
+- [x] Add failing assertions for zero host notification envelopes from OSC9/777/99
   in focused/hidden/hub panes; no notification attention text; per-pane count,
   duplicate batches and ordinary BEL behavior. Trace must contain count/address
   and never the test's unique secret title/body.
-- [ ] Run `go test ./cmd/internal/couchtty -run 'Notification|EffectPolicy' -count=1`
+- [x] Run `go test ./cmd/internal/couchtty -run 'Notification|EffectPolicy' -count=1`
   and confirm behavior failures.
-- [ ] Disable Notifications in onChunk effect policy; replace notification
+- [x] Disable Notifications in onChunk effect policy; replace notification
   attention marking with the counter/trace logic. Keep Bell branch and other
   effect policies. Add console's application-owned NotifyDesktop delegation.
-- [ ] Update existing forwarding assumptions in PTY/native tests, preserving
+- [x] Update existing forwarding assumptions in PTY/native tests, preserving
   their real input/focus/reattach/stress coverage rather than deleting assertions.
-- [ ] Run package tests; verify OSC2 titles, OSC52 clipboard and OSC8 links still
+- [x] Run package tests; verify OSC2 titles, OSC52 clipboard and OSC8 links still
   work, plus Unicode and non-notification output. Commit suppression changes.
 
 ### 3. CLI, closed protocol and hub admission
@@ -159,22 +159,22 @@ Files: couchcmd/cli.go, notify.go, notify_service.go, messages.go,
 message_service.go, cost.go, notify_test.go, notify_service_test.go;
 couchmessage/protocol.go, protocol_test.go (under cmd/internal).
 
-- [ ] Add failing CLI grammar tests: exactly one opaque message argument, optional
+- [x] Add failing CLI grammar tests: exactly one opaque message argument, optional
   leading --title value, no conflicting flags; a message that begins with a dash
   remains opaque at its expected position. Validate missing values/extra args.
-- [ ] Add request shape tests, including Title on every other operation, hostile
+- [x] Add request shape tests, including Title on every other operation, hostile
   controls/oversize bodies and blank sanitized values.
-- [ ] Add stateful service tests for live hub emits exactly once, non-hub advises
+- [x] Add stateful service tests for live hub emits exactly once, non-hub advises
   send-to hub, missing hub, stale nonce/session, disconnected/replaced binding,
   missing console, write error and lost reply. Assert zero output for refusals.
-- [ ] Run `go test ./cmd/internal/couchmessage ./cmd/internal/couchcmd -run 'Notify' -count=1`
+- [x] Run `go test ./cmd/internal/couchmessage ./cmd/internal/couchcmd -run 'Notify' -count=1`
   and capture red results.
-- [ ] Implement parse/exchange/admission wiring. Reuse broker caller/current and
+- [x] Implement parse/exchange/admission wiring. Reuse broker caller/current and
   connectedWorkspace/isHub; extract shared naming if needed instead of copying
   switch-agent authentication. Use a synchronous console callback installed with
   the existing service wiring pattern. Mark any ambiguous write/exchange result
   unconfirmed with no automatic retry. Plain success output claims only written.
-- [ ] Rerun affected packages green; commit command and admission.
+- [x] Rerun affected packages green; commit command and admission.
 
 ### 4. Documentation and verification
 
@@ -182,8 +182,8 @@ Files: README.md; atlas/couch.md; atlas/terminal.md; atlas/index.md if adding a
 page; cmd/internal/couchcmd/skills/couch/SKILL.md and help renderer;
 cmd/internal/artifactpath/manifest.go; issue and this plan.
 
-- [ ] Register new production files in the exhaustive artifact-source inventory.
-- [ ] Document swallowed slot notifications/counts, hub-only command and examples,
+- [x] Register new production files in the exhaustive artifact-source inventory.
+- [x] Document swallowed slot notifications/counts, hub-only command and examples,
   no-retry uncertainty, preserved BEL, and light cost in help/embedded skill.
   Update help/cost contract tests. TL supplies ariadne#350's prose.
 - [ ] Run `go test ./cmd/internal/notifyosc ./cmd/internal/terminal ./cmd/internal/couchmessage ./cmd/internal/couchtty ./cmd/internal/couchcmd ./cmd/internal/artifactpath -count=1`.
