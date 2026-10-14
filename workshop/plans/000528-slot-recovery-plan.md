@@ -1110,3 +1110,16 @@ that case an empty incarnation plus registry-owned borrowed client is intended.
 Append the acceptance evidence and regression result to Log before re-closing
 M1; normal review covers the merged changes and post-close deltas. Do not clear
 the stage until the accepted work lands.
+
+### 2026-10-14 — M1 re-close BR-11: startup regression needs separate observations
+
+Normal round11 returned REWORK: the mixed startup integration timed out in the
+review checkout both in a focused package run and isolated at95a2b9fe. The
+combined assertion at startup_warm_pass_test.go179 waits for exactly two failed
+attempts and a rendered Continue reason, so the failure alone does not identify
+which observation is absent. Separate those observations, retain bounded
+failure diagnostics, reproduce the cause and correct the runtime or fixture
+without raising a timeout. Verify the complete later repair/explicit-retry path,
+then re-run the normal review. The gate's round-cap demotion is not permission
+to ignore the finding. Operator acceptance remains recorded, while automated
+startup regression conformance is reopened until this discrepancy is resolved.

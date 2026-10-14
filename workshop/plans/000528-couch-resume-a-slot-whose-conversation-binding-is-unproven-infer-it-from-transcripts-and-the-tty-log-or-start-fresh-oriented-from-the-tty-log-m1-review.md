@@ -677,3 +677,124 @@ dispose:
     note: |
       README opening-Couch, attachment, recovery and retention passages match startup.go, warm_attach.go, listing admission and removal of Couch-started maintenance; atlas/couch.md documents the same boundaries.
 ```
+
+---
+
+## Re-review — 2026-10-14T15:20:37-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 528 — couch: resume a slot whose conversation binding is unproven: infer it from transcripts and the tty log, or start fresh oriented from the tty log |
+| repo | pair |
+| issue file | workshop/issues/000528-couch-resume-a-slot-whose-conversation-binding-is-unproven-infer-it-from-transcripts-and-the-tty-log-or-start-fresh-oriented-from-the-tty-log.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | e272745337452f9b3df2949e5c4a6faa97c85d59..95a2b9fe9b8418fad792941b0f09337bd8f7d13d |
+| command | sdlc milestone-close --issue 528 --milestone M1 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-14T15:20:37-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The revised M1 attachment and observation paths are substantially covered, and the focused core, UI, and launcher checks passed. One new startup integration test fails reproducibly, including in isolation, leaving the claimed startup acceptance behavior unverified. The checkout remains unchanged.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Positive-listing classification and failed-list tests preserve uncertainty; warm attachment requires fresh positive evidence.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Agent-generation authority is no longer an attachment prerequisite under the revised contract; exact process checks remain on retirement and dead-client repair.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Policy admission reads were removed; focused cold-launch, readiness and terminal-handoff checks passed.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Terminal leases retain the fixed 256-stripe namespace; session-lock tests passed.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Retained metadata consumers use bounded readers; the full osfs and artifactpath suites passed.
+  - id: BR-9
+    disposition: addressed
+    note: |
+      Public warm attachment bypasses lifecycle adoption; executor tests cover listed record shapes, independent claims and helper-only cleanup.
+  - id: BR-10
+    disposition: addressed
+    note: |
+      README.md:395 and README.md:804 document explicit hubs, background Continue attachment and failure retry, consistent with startup and menu wiring.
+findings:
+  - id: new
+    severity: Important
+    kind: defect
+    family: reproducible-boundary-acceptance
+    title: |
+      New startup integration regression fails reproducibly
+    detail: |
+      cmd/internal/couchcmd/startup_warm_pass_test.go:179 times out awaiting two failed attachment attempts and their visible Continue failure reason. It failed in the focused multi-package run and again with go test ./cmd/internal/couchcmd -run '^TestStartupWarmPassPaintsAndAcceptsInputWhileMixedAttachmentsBlock$' -count=1 -v -timeout=65s (31.542s, exit 1). Separate the retry-count and rendered-reason assertions to expose which invariant fails, correct the runtime or fixture accordingly, and rerun through the later repair and explicit-retry assertions. ARCH-ORDER: the claimed startup sequence currently lacks passing end-to-end evidence.
+```
+
+1. **Strengths**
+
+   - Warm attachment separates client ownership from lifecycle adoption in `couchcore/warm_attach.go`.
+   - Dead-client repair rechecks exact old-process identity at the atomic write gate in `warm_attach_repair.go`.
+   - Executor tests sweep independent start/park claims and verify unchanged durable state.
+   - README and atlas updates accompany the changed startup and attachment semantics.
+
+2. **Critical findings**
+
+   None.
+
+3. **Important findings**
+
+   The reproducible startup test failure above blocks acceptance. Its combined assertion does not establish whether retry count or rendered failure text is responsible; no production root cause is claimed.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   - Focused couchcore, couchtty, launcher and messaging checks passed.
+   - Full osfs, artifactpath, couchmessage, readiness and orientation suites passed.
+   - Additional cold-launch, readiness, lease and handoff checks passed.
+   - Full repository suite, mutation checks and live operator acceptance were not independently rerun.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared attachment and listing seams serve the inspected entry points.
+   - **ARCH-PURE — pass:** classification and menu transitions remain separate from IO.
+   - **ARCH-PURPOSE — pass:** later revisions explicitly transfer remaining recovery execution to #556/#557.
+   - **ARCH-MOCK — pass:** stateful runners and endpoint fixtures exercise production seams.
+   - **ARCH-CONSTRAINTS — pass:** bounded retries and existing worker capacity are retained.
+   - **ARCH-SECURE — pass:** repair preserves exact process identity checks and guarded publication.
+   - **ARCH-ORDER — flag:** startup sequence acceptance fails as reported above.
+   - **ARCH-FUNERAL — pass:** local handles are pruned; lease artifacts remain bounded.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry recording the reproduced startup acceptance failure and its eventual cause and correction. Do not treat that checklist item as verified until the complete test passes.
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 4.408393792s
+head: "95a2b9fe9b8418fad792941b0f09337bd8f7d13d"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

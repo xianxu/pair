@@ -908,3 +908,11 @@ No follow-up implementation starts on this branch.
   on main c07a31921 and merged; both claims released. Updated atlas pointers and
   the intended empty-incarnation attachment explanation. Full post-merge suite
   and normal M1 review are next; accepted stage remains fc145480 until landing.
+
+- Normal M1 re-close round11 at95a2b9fe returned REWORK, one new finding BR-11:
+  mixed startup test times out at its combined failed-attempt-count/rendered-
+  reason assertion, reproduced twice including isolated31.542s. Core/UI/launcher
+  and other focused checks passed. Split observations and investigate actual
+  cause; no timeout widening or gate bypass. Appended plan Revision. The
+  post-merge recorded suite remains queued; no successful M1 re-close or landing
+  is claimed. Generated sidecars checkpoint this failed round for the next review.

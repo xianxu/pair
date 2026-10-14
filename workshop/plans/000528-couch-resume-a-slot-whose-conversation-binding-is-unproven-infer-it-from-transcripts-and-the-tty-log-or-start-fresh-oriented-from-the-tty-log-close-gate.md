@@ -318,6 +318,228 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: false
+    - actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 95a2b9fe9b8418fad792941b0f09337bd8f7d13d
+        tracker_head: bd7678924fab40f33459c29db09b0129278b8e08
+        branch_point: c07a31921d66b891e36ae300e266bd7794bede3e
+        since: "2026-10-13T08:57:28-07:00"
+        until: "2026-10-14T15:15:48-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-13T08:57:28-07:00"
+              end: "2026-10-14T15:15:48-07:00"
+              began: "2026-10-13T08:57:28-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot2/pair
+        sources:
+            - harness: codex
+              id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 4315c85cb45b1acd24b3f2fa78a5d8c68861146b607031db85c7475363bf2a4e
+              started: "2026-10-13T05:05:19.479Z"
+              spawned: false
+              bytes: 44806115
+              windows:
+                - start: "2026-10-13T08:57:28-07:00"
+                  end: "2026-10-14T15:15:48-07:00"
+            - harness: codex
+              id: 01a13604-7f67-7c71-8862-d652ff00507c
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              digest: b41b7a545560a75e22708b5d1399ed0c43c186a6cae81a5f61981dddcb7c3c26
+              started: "2026-10-13T16:07:06.952Z"
+              spawned: true
+              bytes: 687525
+              windows:
+                - start: "2026-10-13T16:07:06.952Z"
+                  end: "2026-10-14T15:15:48-07:00"
+            - harness: codex
+              id: 01a1361a-aa08-77d0-8a39-fcac18d7aec7
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 048dd253370c5d447ca62a2e36eea18b6389d43cdaf73fa89d7cfafd6434d5f5
+              started: "2026-10-13T16:31:19.827Z"
+              spawned: false
+              bytes: 782141
+              windows:
+                - start: "2026-10-13T16:31:19.827Z"
+                  end: "2026-10-14T15:15:48-07:00"
+            - harness: codex
+              id: 01a1361e-8991-7f03-8a7b-3d5973745b61
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 92b2c39dd8e4cb64ba521e35394d47eca35dfc839b69df5ad0f8afee6011c7f5
+              started: "2026-10-13T16:35:33.749Z"
+              spawned: false
+              bytes: 538951
+              windows:
+                - start: "2026-10-13T16:35:33.749Z"
+                  end: "2026-10-14T15:15:48-07:00"
+            - harness: codex
+              id: 01a13620-2019-7901-9606-4ef4c7d27b1c
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 2df34f8d5aa5d7b6c236ce7bc2e70e77e4c35f5180e6f7addab471e95be82791
+              started: "2026-10-13T16:37:17.75Z"
+              spawned: false
+              bytes: 541231
+              windows:
+                - start: "2026-10-13T16:37:17.75Z"
+                  end: "2026-10-14T15:15:48-07:00"
+            - harness: codex
+              id: 01a13620-de40-7632-a9af-061a59f0a52b
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: a3f94580afaea679dbf2cecb0237c4d6ec3d2ae1ef8542ff997cd18a35b3043f
+              started: "2026-10-13T16:38:06.405Z"
+              spawned: false
+              bytes: 521917
+              windows:
+                - start: "2026-10-13T16:38:06.405Z"
+                  end: "2026-10-14T15:15:48-07:00"
+            - harness: codex
+              id: 01a13883-ab89-7992-ab0c-79b093c13b95
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 750bd23d4285903b71f354129fa6927c5a9776752ffc18e2b00d5ee3b3a5ed3f
+              started: "2026-10-14T03:45:15.863Z"
+              spawned: false
+              bytes: 831906
+              windows:
+                - start: "2026-10-14T03:45:15.863Z"
+                  end: "2026-10-14T15:15:48-07:00"
+            - harness: codex
+              id: 01a13884-4286-73c2-b7b2-17540c9cac4a
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: ee61a169ede4b6e959c5a65aee80abf76ddc3a35ff0c484a0eada3b4c77eca0a
+              started: "2026-10-14T03:45:54.508Z"
+              spawned: false
+              bytes: 492551
+              windows:
+                - start: "2026-10-14T03:45:54.508Z"
+                  end: "2026-10-14T15:15:48-07:00"
+            - harness: codex
+              id: 01a13b23-d0ac-7b81-a844-510e6c4484bd
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              digest: 889118e7c9e65c9280146d928c7c80e9b620848b85d4d58f22c63e11ae063f68
+              started: "2026-10-14T15:59:25.5Z"
+              spawned: true
+              bytes: 5153763
+              windows:
+                - start: "2026-10-14T15:59:25.5Z"
+                  end: "2026-10-14T15:15:48-07:00"
+            - harness: codex
+              id: 01a13b23-eb0b-7642-9e0f-496f67490264
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              digest: cc6243fd7178ee354ca679c48f70fe4c573eb09eba800d5f94831a0a98f49efc
+              started: "2026-10-14T15:59:32.235Z"
+              spawned: true
+              bytes: 2730708
+              windows:
+                - start: "2026-10-14T15:59:32.235Z"
+                  end: "2026-10-14T15:15:48-07:00"
+            - harness: codex
+              id: 01a13b24-1965-7260-926a-536a068a83f7
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              digest: cf54076e00d5ae43faa20b726f2b9ce7283462d08b0fd8a00dc7ec39cbe8e317
+              started: "2026-10-14T15:59:44.113Z"
+              spawned: true
+              bytes: 3340012
+              windows:
+                - start: "2026-10-14T15:59:44.113Z"
+                  end: "2026-10-14T15:15:48-07:00"
+        excluded_brain_sessions: 1
+        excluded_brain_minutes: 75.37058333333333
+        cuts:
+            - boundary: M1
+              dispatched: "2026-10-13T10:58:01-07:00"
+              finalized: "2026-10-13T11:01:13-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-13T11:30:13-07:00"
+              finalized: "2026-10-13T11:34:12-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-13T12:03:38-07:00"
+              finalized: "2026-10-13T12:06:16-07:00"
+              finalizing: true
+            - boundary: M2
+              dispatched: "2026-10-13T13:20:56-07:00"
+              finalized: "2026-10-13T13:26:16-07:00"
+              finalizing: false
+            - boundary: M2
+              dispatched: "2026-10-13T13:34:13-07:00"
+              finalized: "2026-10-13T13:39:34-07:00"
+              finalizing: false
+            - boundary: M2
+              dispatched: "2026-10-13T13:44:33-07:00"
+              finalized: "2026-10-13T13:49:02-07:00"
+              finalizing: true
+            - boundary: M1
+              dispatched: "2026-10-13T21:37:49-07:00"
+              finalized: "2026-10-13T21:42:34-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-13T22:08:52-07:00"
+              finalized: "2026-10-13T22:11:38-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-13T22:56:16-07:00"
+              finalized: "2026-10-13T23:03:06-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-13T23:10:32-07:00"
+              finalized: "2026-10-13T23:12:54-07:00"
+              finalizing: false
+      "n": 11
+      timestamp: "2026-10-14T15:20:38-07:00"
+      dispatched: "2026-10-14T15:16:46-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Positive-listing classification and failed-list tests preserve uncertainty; warm attachment requires fresh positive evidence.
+          round: 11
+        - id: BR-2
+          disposition: addressed
+          note: Agent-generation authority is no longer an attachment prerequisite under the revised contract; exact process checks remain on retirement and dead-client repair.
+          round: 11
+        - id: BR-3
+          disposition: addressed
+          note: Policy admission reads were removed; focused cold-launch, readiness and terminal-handoff checks passed.
+          round: 11
+        - id: BR-4
+          disposition: addressed
+          note: Terminal leases retain the fixed 256-stripe namespace; session-lock tests passed.
+          round: 11
+        - id: BR-5
+          disposition: addressed
+          note: Retained metadata consumers use bounded readers; the full osfs and artifactpath suites passed.
+          round: 11
+        - id: BR-9
+          disposition: addressed
+          note: Public warm attachment bypasses lifecycle adoption; executor tests cover listed record shapes, independent claims and helper-only cleanup.
+          round: 11
+        - id: BR-10
+          disposition: addressed
+          note: README.md:395 and README.md:804 document explicit hubs, background Continue attachment and failure retry, consistent with startup and menu wiring.
+          round: 11
+      findings:
+        - kind: defect
+          id: BR-11
+          severity: Important
+          title: New startup integration regression fails reproducibly
+          detail: 'cmd/internal/couchcmd/startup_warm_pass_test.go:179 times out awaiting two failed attachment attempts and their visible Continue failure reason. It failed in the focused multi-package run and again with go test ./cmd/internal/couchcmd -run ''^TestStartupWarmPassPaintsAndAcceptsInputWhileMixedAttachmentsBlock$'' -count=1 -v -timeout=65s (31.542s, exit 1). Separate the retry-count and rendered-reason assertions to expose which invariant fails, correct the runtime or fixture accordingly, and rerun through the later repair and explicit-retry assertions. ARCH-ORDER: the claimed startup sequence currently lacks passing end-to-end evidence.'
+          family: reproducible-boundary-acceptance
+          round: 11
+      boundary: M1
+      recipe: milestone-review
+      isolation: fenced
+      blocked: false
 ---
 
 # Gate ledger — pair#528 (boundary-review)
@@ -444,6 +666,23 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-9 — addressed — Public Continue enters helper-only attachment before lifecycle adoption. Targeted shape, cleanup, listing and registration regressions passed; console/public-binary verification remains environment-blocked.
 - BR-10 — addressed — README opening-Couch, attachment, recovery and retention passages match startup.go, warm_attach.go, listing admission and removal of Couch-started maintenance; atlas/couch.md documents the same boundaries.
 
+## Round 11 — 2026-10-14T15:20:38-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Positive-listing classification and failed-list tests preserve uncertainty; warm attachment requires fresh positive evidence.
+- BR-2 — addressed — Agent-generation authority is no longer an attachment prerequisite under the revised contract; exact process checks remain on retirement and dead-client repair.
+- BR-3 — addressed — Policy admission reads were removed; focused cold-launch, readiness and terminal-handoff checks passed.
+- BR-4 — addressed — Terminal leases retain the fixed 256-stripe namespace; session-lock tests passed.
+- BR-5 — addressed — Retained metadata consumers use bounded readers; the full osfs and artifactpath suites passed.
+- BR-9 — addressed — Public warm attachment bypasses lifecycle adoption; executor tests cover listed record shapes, independent claims and helper-only cleanup.
+- BR-10 — addressed — README.md:395 and README.md:804 document explicit hubs, background Continue attachment and failure retry, consistent with startup and menu wiring.
+
+### Raised
+
+- **BR-11** [Important] `reproducible-boundary-acceptance` (kind: defect) New startup integration regression fails reproducibly
+  cmd/internal/couchcmd/startup_warm_pass_test.go:179 times out awaiting two failed attachment attempts and their visible Continue failure reason. It failed in the focused multi-package run and again with go test ./cmd/internal/couchcmd -run '^TestStartupWarmPassPaintsAndAcceptsInputWhileMixedAttachmentsBlock$' -count=1 -v -timeout=65s (31.542s, exit 1). Separate the retry-count and rendered-reason assertions to expose which invariant fails, correct the runtime or fixture accordingly, and rerun through the later repair and explicit-retry assertions. ARCH-ORDER: the claimed startup sequence currently lacks passing end-to-end evidence.
+
 ## Open findings
 
-(none — every finding has been disposed)
+- **BR-11** [Important] `reproducible-boundary-acceptance` (kind: defect) New startup integration regression fails reproducibly
