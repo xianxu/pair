@@ -1706,3 +1706,5 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
 - #546 close review: retries that replan from visible filesystem state still need durability confirmation; unchanged bytes do not prove a failed directory sync later succeeded. Admission-time authority evidence must survive delayed delivery, rather than being reconstructed only from the current owner.
 
 - #546 multi-owner changes must enumerate observability consumers as well as routing/guards: delivery facts are part of the behavior contract, and a main-only logging predicate can silently lose confirmed secondary-owner evidence.
+
+- #550: A launchable harness can still lack peer messaging entirely. Require an explicit receiver policy for every AgentInventory entry and a captured empty-composer case for every enabled receiver. Prove startup registration through the real endpoint and delivery through the broker seam; Return remapping geometry alone is insufficient.

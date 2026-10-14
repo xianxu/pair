@@ -45,7 +45,7 @@ Find why a Qoder wrapper never brings up its message endpoint / registration and
 - [x] Add failing recorded-screen and generated-input tests for Qoder peer registration, empty versus occupied multiline composer, placeholders, trust/permission/question dialogs, slash commands, settling, and exactly one bracketed paste plus bare-CR submit.
 - [x] Admit Qoder to the receiver profiles; share its ruled-box specification between Return recognition and peer parsing (ARCH-DRY). Derive its text origin and empty cursor position from captured geometry; recognize only the captured placeholder presentation, keeping drafts occupied (ARCH-PURE).
 - [x] Exercise Qoder through the existing stateful harness fake and broker/socket delivery seam, including trust -> idle -> paste -> submit -> clear and interruption by operator input/picker (ARCH-MOCK, ARCH-ORDER). Reuse existing delivery transitions and runtime teardown; add no new lifecycle or artifacts (ARCH-FUNERAL).
-- [ ] Update the Couch atlas support statement. Run targeted wrapper tests, make -k build, and the suite through sdlc local-check run --name suite against the pushed final head. Terminal parsing stays bounded by the existing snapshot dimensions and existing delivery deadlines (ARCH-CONSTRAINTS); captured external screen bytes fail closed on unknown shape and fixtures carry no secrets (ARCH-SECURE).
+- [x] Update the Couch atlas support statement. Run targeted wrapper tests, make -k build, and the suite through sdlc local-check run --name suite against the pushed final head. Terminal parsing stays bounded by the existing snapshot dimensions and existing delivery deadlines (ARCH-CONSTRAINTS); captured external screen bytes fail closed on unknown shape and fixtures carry no secrets (ARCH-SECURE).
 - [x] With hub authorization only, relaunch pair:4 on the built selected head; prove actor registration, Settled, live peek and one harmless peer receipt. Close via the mandatory SDLC review and report the outcome to ops:0 (ARCH-PURPOSE).
 
 ## Log
@@ -79,3 +79,7 @@ Recorded trust opens the existing Enterselect overlay marker; bare operator Ente
 Hub ops:0 confirmed the authorized live smoke PASSED (receipt dfe32439-0383-45b8-a92f-983bfedd2779): pair:4 was relaunched onto staged b54b991dc3824a007a5520e186f35c1a3c4f38ac; Qoder appeared in actors as active, peek reported source live, received the hub's harmless message, replied to the hub (receipt prefix 406d4cb5), and settled. Staged pair:0 bin/pair embedded that revision with modified=false; SHA256 b0f73760fae0a157d115069b1ba30429d70d1e1cf1a2f66ece46d57b4af74dcb.
 
 Ran sdlc stage --clear after hub authorization; pair:0 returned to main, releasing it for #528's smoke. Required suite on b54b991dc3824a007a5520e186f35c1a3c4f38ac remains queued behind machine-wide suite holders. No further source changes are needed for live conformance.
+
+### 2026-10-14 — required suite passed
+
+sdlc local-check run --name suite passed on b54b991dc3824a007a5520e186f35c1a3c4f38ac, exit 0 in 10m36s, after a 380-second machine-slot wait. Success recorded as sdlc-local/suite. Full log has no anchored FAIL/--- FAIL/make Error entries; SHA256 fd0b0445004a2f4b1a81529d2f49f97dce52df802861a18c3a98a34b4798dce8. Subsequent commits are documentation-only: live-smoke record and placeholder wording clarification.
