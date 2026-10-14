@@ -110,3 +110,51 @@ telemetry, lifetime-salted identities, no content. ARCH-ORDER: accepted evidence
 only, monotonic time/sequence, no retries; shutdown owns the writer. ARCH-FUNERAL:
 recorder dies with supervisor, buffers discarded, existing registered GC owns
 rotated segments. No new authoritative state machine.
+
+## Revisions
+
+### 2026-10-13 — plan review PQ-1/2/3
+
+**Recorder order (PQ-1).** `factLogLifecycle.advance(event)` is the small pure
+resource-lifecycle transition, not a supervision candidate model. States are
+opening, active, unavailable, closed. Opened changes opening to active; open
+failure changes it to unavailable; close changes any state to closed. Offers
+in opening/active attempt one enqueue; unavailable/closed drop. Write failure
+records a drop but stays active (a later independent event may work); no retry.
+Late open completion after close closes its returned handle and cannot reopen.
+
+`supervisionFactLog.offer` holds one short mutex while assigning monotonically
+nondecreasing elapsed time, increasing sequence, copying the cumulative drop
+count and trying the bounded channel. It performs no IO. Writer completion and
+close take the same mutex for lifecycle/drop bookkeeping. The channel is never
+closed: cancellation ends the worker, avoiding send-on-closed races. Close marks
+closed, cancels, joins worker; the worker discards buffered rows and closes its
+owned sink. Offers after close do nothing. IO executes outside that mutex; a
+controlled blocked sink/open seam proves producer responsiveness and late-close
+ordering. Sink open failure is permanent for that lifetime, not a retry loop.
+
+**Offline envelope (PQ-2).** `read_facts(paths)` uses bounded binary readline
+(max 32 KiB), limits all input to 64 MiB and 100,000 rows, and refuses oversized
+batches with an actionable nonzero error before labeling. Users select a shorter
+time window/segment set. `parse_fact` validates schema version, closed event and
+hint enums, integer nonnegative sequence/time fields (booleans are not integers),
+opaque identity shapes, known fields and bounded snapshot arrays. Invalid or
+unsupported records are skipped with a stderr count and make all negative
+labels in that input batch unknown; valid positive observations remain usable.
+Conflicting duplicates and backwards elapsed time similarly invalidate negative
+coverage for that lifetime. Contiguous ordered sequence through the horizon is
+required for false; incomplete tails remain null. Sorting is bounded by the
+batch envelope. Parsing/IO is separate from pure `derive_labels(records, gaps)`.
+
+**Function-level test strategy (PQ-3).**
+
+| Production function | Adversarial strategy | Guard proved |
+|---|---|---|
+| factKindHint, encodeFact | control-bearing/oversized Unicode and unknown phrases | closed hints and content-free bounded rows |
+| parse_fact, read_facts | malformed types/schema/oversized line and total input | validation before inference, bounded batch |
+| derive_labels | permuted duplicate/gapped records around exactly ten minutes | no unsupported negative, positive subject/time match |
+| factLogLifecycle.advance, supervisionFactLog.offer | generated offer/open/fail/close sequences plus controlled blocked IO | terminal close, ordered sequence, nonblocking admission |
+| diagnosticlog.Writer.Write hard-limit option | threshold-sized writes with failed rotation/proof | no bytes beyond selected cap; unchanged default policy |
+
+Integration guarantees remain successful delivery/write despite failed telemetry,
+one authenticated write-report attempt, and accepted observation facts only.
