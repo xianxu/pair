@@ -1,6 +1,6 @@
 ---
 id: 000540
-status: codecomplete
+status: done
 created: 2026-10-13
 updated: 2026-10-13
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 0dcc138b6429a7ef620a27723e15e89420d94efe
         evidence_commit: cd1c056476a86f90eaef8967f69a6b6cf0a9eb52
+        landed_commit: 468df7f9550d0a8d52cd4a8a45cbff0aa8029f86
 ---
 
 # couch: swallow slots' OSC desktop notifications; add couch --notify so the hub (TL) decides what reaches the operator
