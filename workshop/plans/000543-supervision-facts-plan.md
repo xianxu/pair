@@ -13,7 +13,9 @@
 | Pure entity | Lives in | Status |
 |---|---|---|
 | supervisionFact and bounded kind hint | cmd/internal/couchcmd/supervision_facts.go | new |
-| derive_labels | scripts/supervision-labels/labels.py | new |
+| supervisionFactSlot, factLogLifecycle.advance | cmd/internal/couchcmd/supervision_facts.go | new |
+| factSlotState, factStates | cmd/internal/couchcmd/supervision_fact_events.go | new |
+| parse_fact, WriteIndex, derive_labels | scripts/supervision-labels/labels.py | new |
 
 Facts carry schema version, random supervisor lifetime, sequence, UTC time and
 monotonic elapsed milliseconds. Subject and sender are opaque lifetime-salted
@@ -25,9 +27,10 @@ progress or unknown. Hints are observations of wording, never intent judgments.
 | Integration | Lives in | Status | Wraps |
 |---|---|---|---|
 | supervisionFactLog | cmd/internal/couchcmd/supervision_factlog.go | new | diagnosticlog, bounded in-memory writer channel |
-| event adapters | cmd/internal/couchcmd/message_service.go, supervision.go | modified | existing registry, delivery callback and wait tick |
+| event adapters | cmd/internal/couchcmd/supervision_fact_events.go (new); message_service.go, supervision.go (modified) | new/modified | existing registry, delivery callback and wait tick |
 | accepted submission observer | cmd/internal/couchmessage/broker.go | modified | accepted monotonic submission evidence |
-| write report | cmd/internal/couchcmd/session_sync.go, cmd/internal/couchmessage/protocol.go, cmd/internal/sessionsync/sync.go | modified | successful guarded write, one private-socket call |
+| write report | cmd/internal/couchcmd/supervision_write.go (new); session_sync.go, couchmessage/protocol.go, sessionsync/sync.go (modified) | new/modified | successful guarded write, one private-socket call |
+| read_facts, main | scripts/supervision-labels/labels.py | new | bounded binary file input and stdout JSONL |
 | optional hard generation bound | cmd/internal/diagnosticlog/writer.go | modified | existing rotation/retention owner |
 
 There is one recorder per supervisor and no online candidate or label state.
@@ -168,3 +171,7 @@ explicit empty array. Input integers are bounded to the Go wire ranges (uint64
 counters, int64 elapsed times), and unknown snapshot values remain null. Docs,
 source inventory and the full-suite Python target are updated. Focused tests
 pass; full suite and the single close review remain outstanding.
+
+The Core concepts inventory now names the implemented lifecycle, slot projection,
+validated parser and write index; adapter and reader paths reflect their final
+files. This is inventory reconciliation, not a scope expansion.
