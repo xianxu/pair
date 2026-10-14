@@ -36,7 +36,7 @@ type ReniceSlot struct {
 // confirmed in the same snapshot, never by a name. self is Couch's pid:
 // Couch and its ancestors, every slot's agent and wrapper, are never
 // lowered, even if the tree would reach them. level 0 lowers nothing (the
-// facts are still reported).
+// facts are still reported, and nothing counts as at the level).
 func PlanRenice(table []procutil.Process, roots []ReniceRoot, level, self int) []ReniceSlot {
 	byPID := make(map[int]procutil.Process, len(table))
 	children := make(map[int][]int, len(table))
@@ -81,8 +81,8 @@ func PlanRenice(table []procutil.Process, roots []ReniceRoot, level, self int) [
 			queue = append(queue, children[pid]...)
 			p := byPID[pid]
 			switch {
-			case never[pid]:
-			case level <= 0 || p.Nice >= level:
+			case never[pid] || level <= 0:
+			case p.Nice >= level:
 				s.AtLevel++
 			default:
 				s.Lower = append(s.Lower, p)

@@ -125,6 +125,12 @@ func (r *renicer) pass() {
 		return // no snapshot, no decision; the facts stand until the next pass
 	}
 	plan := couchcore.PlanRenice(table, roots, r.level, r.self)
+	own := 0 // Couch's own nice: slots launch at it, so only above it is low
+	for _, p := range table {
+		if p.PID == r.self {
+			own = p.Nice
+		}
+	}
 	facts := make(map[couchmessage.Binding]couchmessage.NiceFacts, len(bindings))
 	refused := make(map[couchmessage.Binding]map[string]bool, len(bindings))
 	r.mu.Lock()
@@ -135,7 +141,7 @@ func (r *renicer) pass() {
 		}
 	}
 	r.mu.Unlock()
-	var low []couchmessage.Binding // slots whose agent itself runs below normal
+	var low []couchmessage.Binding // slots whose agent runs below Couch's priority
 	for i, b := range bindings {
 		s := plan[i]
 		f := couchmessage.NiceFacts{Confirmed: s.Confirmed, AgentNice: s.Agent.Nice, AtLevel: s.AtLevel}
@@ -157,7 +163,7 @@ func (r *renicer) pass() {
 			}
 		}
 		facts[b] = f
-		if s.Confirmed && s.Agent.Nice > 0 {
+		if s.Confirmed && s.Agent.Nice > own {
 			low = append(low, b)
 		}
 	}
