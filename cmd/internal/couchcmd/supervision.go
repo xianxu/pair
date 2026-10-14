@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 )
 
@@ -17,6 +18,10 @@ type supervisionSend struct {
 	system   bool
 	prompt   string
 	admitted bool
+	// Retain ownership at initiation through queueing and delivery. The snapshot
+	// is immutable and shares the pending send lifetime, not receipt history.
+	ownership *couchcore.HubOwnership
+	hubRoot   string
 }
 
 // supervisionCoordinator adapts live evidence to the pure rules. Never hold mu
@@ -59,6 +64,15 @@ func (c *supervisionCoordinator) sending(from couchmessage.Binding, r couchmessa
 		return false
 	}
 	now := c.now()
+	var ownership *couchcore.HubOwnership
+	var hubRoot string
+	if hasHub && from == hub && !toHub && c.service.authority.hubs != nil {
+		snapshot := c.service.authority.hubs.snapshot()
+		ownership = &snapshot
+		c.service.mu.Lock()
+		hubRoot = c.service.workspaces[from].WorktreeRoot
+		c.service.mu.Unlock()
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if toHub && (!hasHub || from != hub) {
@@ -66,7 +80,13 @@ func (c *supervisionCoordinator) sending(from couchmessage.Binding, r couchmessa
 		return false
 	}
 	if hasHub && from == hub && !toHub {
-		return c.remember(r.ID, from, now, false)
+		if !c.remember(r.ID, from, now, false) {
+			return false
+		}
+		v := c.sends[r.ID]
+		v.ownership, v.hubRoot = ownership, hubRoot
+		c.sends[r.ID] = v
+		return true
 	}
 	return false
 }
@@ -158,9 +178,15 @@ func (c *supervisionCoordinator) delivered(m couchmessage.Message, r couchmessag
 	if !ok || m.From != hub {
 		return
 	}
+	c.service.mu.Lock()
+	identity, known := c.service.workspaces[m.To]
+	c.service.mu.Unlock()
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if v, ok := c.sends[m.ID]; ok && v.from == m.From && !v.system {
+		if c.service.authority.hubs != nil && (v.ownership == nil || !known || v.hubRoot == "" || hubOwner(*v.ownership, identity) != v.hubRoot) {
+			return
+		}
 		c.state.reply(m.To, v.at)
 	}
 }

@@ -25,6 +25,11 @@ func (e hubQuietEndpoint) Observe(ctx context.Context) (couchmessage.Observation
 // wrappers over the existing registry/session sockets. No process-global stores.
 func hubMessageRig(t *testing.T) (*serviceRig, []couchmessage.Binding) {
 	t.Helper()
+	return hubMessageRigWithWorkerEndpoint(t, nil)
+}
+
+func hubMessageRigWithWorkerEndpoint(t *testing.T, endpoint couchmessage.DeliveryEndpoint) (*serviceRig, []couchmessage.Binding) {
+	t.Helper()
 	r := newServiceRig(t)
 	r.s.Close()
 	r.world.hub = "/repo0"
@@ -51,6 +56,9 @@ func hubMessageRig(t *testing.T) (*serviceRig, []couchmessage.Binding) {
 		})
 		r.world.mu.Lock()
 		r.world.endpoints[b] = hubQuietEndpoint{at: at}
+		if n == 2 && endpoint != nil {
+			r.world.endpoints[b] = endpoint
+		}
 		r.world.mu.Unlock()
 		r.attach(b, couchmessage.PaneHandle(fmt.Sprintf("h%d", n)))
 		client := couchmessage.NewSessionClient()

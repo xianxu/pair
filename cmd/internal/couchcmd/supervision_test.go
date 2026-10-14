@@ -462,7 +462,8 @@ func TestHubSupervisionReplyEvidenceAndResend(t *testing.T) {
 	if !c.state.unanswered(w.worker) {
 		t.Fatal("foreign hub cleared own-hub report")
 	}
-	c.sends["own"] = supervisionSend{from: w.hub, at: at.Add(time.Second)}
+	c.now = func() time.Time { return at.Add(time.Second) }
+	c.sending(w.hub, couchmessage.Request{ID: "own", Target: w.worker.Slot})
 	c.delivered(couchmessage.Message{ID: "own", From: w.hub, To: w.worker}, couchmessage.Receipt{Status: couchmessage.Submitted}, nil)
 	if c.state.unanswered(w.worker) {
 		t.Fatal("own hub reply did not clear report")
@@ -504,5 +505,44 @@ func TestHubSupervisionReassignmentChangesBinding(t *testing.T) {
 	c.delivered(couchmessage.Message{ID: "old", From: w.hub, To: w.worker}, couchmessage.Receipt{Status: couchmessage.Submitted}, nil)
 	if !c.state.unanswered(w.worker) {
 		t.Fatal("old owner cleared report after move")
+	}
+}
+
+func TestHubSupervisionDelayedReplyPreservesAdmissionOwnership(t *testing.T) {
+	for _, scenario := range []string{"foreign-to-own", "own-to-foreign", "same-hub"} {
+		t.Run(scenario, func(t *testing.T) {
+			endpoint := &supervisionControlledEndpoint{busy: true}
+			r, b := hubMessageRigWithWorkerEndpoint(t, endpoint)
+			c := newSupervisionCoordinator(r.s, func(string) {})
+			at := time.Now()
+			c.now = func() time.Time { return at.Add(time.Second) }
+			c.state.report(b[2], "report", at, 0, true)
+			r.s.supervision.Store(c)
+			sender := b[1]
+			if scenario == "foreign-to-own" {
+				sender = b[0]
+			}
+			receipt := supervisionSendCLI(t, r, sender, b[2].Slot, "delayed-reply", "Thanks; stop.")
+			if receipt.Status != couchmessage.Queued {
+				t.Fatalf("want queued: %+v", receipt)
+			}
+			if scenario != "same-hub" {
+				h := r.s.authority.hubs
+				h.mu.Lock()
+				next, err := h.state.Apply(couchcore.HubMove{Slots: []couchcore.HubSlot{{Repository: "/repo", Number: 2}}, Caller: "/repo1", Target: "/repo0", Revision: h.state.Revision()})
+				if err == nil {
+					h.state = next
+				}
+				h.mu.Unlock()
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			endpoint.releaseBusy()
+			supervisionWaitReceipt(t, r, sender, "delayed-reply", couchmessage.Submitted)
+			if got, want := supervisionUnanswered(c, b[2]), scenario != "same-hub"; got != want {
+				t.Fatalf("unanswered=%v, want %v after delayed reply", got, want)
+			}
+		})
 	}
 }
