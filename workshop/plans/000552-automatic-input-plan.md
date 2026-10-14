@@ -161,3 +161,7 @@ Both root reproductions passed with recovery absent, then explicitly disabled af
 Occurrence IDs now hash the full binding, not just PID, plus the monotonic sequence. A PID-reuse test demonstrated the old collision and proves both replacement-incarnation hub messages are admitted. This is the exact-incarnation rule applied consistently to message IDs as well as high-water records.
 
 The reporter captures a bounded styled screen without IO, owns one worker and a one-slot handoff, records overflow counts locally, and drains accepted diagnostic evidence without network effects on cancellation. Runtime Close is idempotent and joins reporting before the existing wrap-diagnostic teardown; there is no detached reporter. Targeted race tests cover the actual handoff/transport and supervisor adapters.
+
+### 2026-10-14 — TL rollout decision
+
+TL receipt 1625cf7b-db6e-4d6d-8442-220ff0eacc93 accepts the pre-landing read-only replay and disabled-recovery regressions. After the complete suite and close review, land normally. Live acceptance is explicitly post-landing: TL rebuilds main after #528 releases pair:0, relaunches parley.nvim:1 and verifies one normal delivery. This slot performs no stage and preserves the original wrapper. This supersedes any implication that landing waits for a pre-landing live window.

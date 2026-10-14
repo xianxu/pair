@@ -54,7 +54,7 @@ Durable design: [automatic-input plan](../plans/000552-automatic-input-plan.md).
 
 - [x] Fix capitalized Codex status labels and confirmed-empty lease completion; both root regressions pass with tripwire recovery disabled.
 - [x] Add a bounded, safe tripwire with detailed cause, local screen diagnostic, owning-hub notice and supervisor desktop alert; prove admission and shutdown behavior headlessly.
-- [ ] Replay the preserved parley recording read-only, update atlas, finish the full suite, close review and land after acceptance.
+- [ ] Replay the preserved parley recording read-only, update atlas and finish the full suite for acceptance; SDLC close/landing follow those checks.
 
 ## Log
 
@@ -72,6 +72,10 @@ TL approved the plan in 323226c7-e429-4a71-97cb-d259e135af11. Full-flow change-c
 
 Pure eligible-time transition, same-snapshot completeness, detailed gate causes, bounded runtime reporter and supervisor-owned notifications implemented. Root tests explicitly disable recovery. Runtime cancellation/blocked IO/timeout/overflow and backend high-water/authority tests pass under race detection: wrapcmd 3.790s, couchcmd 2.043s, couchmessage 1.225s. Full artifactpath package passed in 4.140s. One reporter cancellation test initially exposed selection of a queued item after cancellation; recording cancellation and suppressing the RPC at dequeue resolved it. Full-binding hashed occurrence IDs also fix PID-reuse collision before landing. Original parley raw replay passed: 6,752,804 bytes at 94×39 now reads complete Empty and relaunch-idle accepted; no original process input, attach or restart. Evidence /tmp/pair552-final-target-race.log and /tmp/pair552-preserved-replay.log. Atlas updated; full suite next.
 
+### 2026-10-14 — acceptance and rollout decision
+
+TL receipt 1625cf7b-db6e-4d6d-8442-220ff0eacc93 verifies dd00dc23 and accepts read-only replay plus disabled-recovery regressions as strong pre-landing evidence. Finish the full suite and close review, then land normally. No stage: pair:0 is reserved for #528. TL owns the post-landing live check after main is rebuilt: relaunch parley.nvim:1, then send one normal Couch delivery. Preserve its current wrapper until that TL-run rollout. The full suite is currently running, after 382 seconds in the machine queue.
+
 ## Revisions
 
 - 2026-10-14 — add (TL, from the code): the gate is `automaticInputAwaitingEmpty` (wrapcmd/automatic_input.go). After an automatic submit it clears only when the render epoch passes the recorded fence AND `peerComposerState(agent, snapshot)` reads Empty. Check both causes: a render-epoch increment no longer emitted (pair#522 removed an observer that "held the only render-epoch increment peer delivery needs"), and a composer parse that never reads Empty around pickers or "Model changed" lines. Give AwaitingEmpty a bounded exit: release with a diagnostic once the box parses empty or the agent is idle for N seconds.
@@ -81,6 +85,8 @@ Pure eligible-time transition, same-snapshot completeness, detailed gate causes,
 - 2026-10-14 — root causes confirmed with TL; plan both fixes and the exceptional tripwire. Parse status labels correctly and let the confirmation's own post-submit empty evidence satisfy the lease. Proposed 30-second tripwire interval measures eligible blocked delivery time, not quiet time since completion. Every firing records bounded screen evidence and requests owning-hub and desktop notification; uncertain writes or an unrecognized/occupied composer never gain permission from elapsed time. The original parley.nvim:1 wrapper remains untouched through local verification. See the durable plan for transitions, budgets, projection and acceptance tests. Plan awaiting TL approval before change-code.
 
 - 2026-10-14 — plan-quality refinement: name risky functions and adversarial test strategies instead of prose case inventories (PQ-1). Define monotonic per-wrapper occurrence sequences and atomic supervisor high-water rejection, including old duplicate after new occurrence and same-binding reconnect (PQ-2). Bounded suppression records persist through disconnect and are superseded by a verified replacement; explicit 128-slot saturation refusal preserves duplicate evidence. Existing approved release policy is unchanged.
+
+- 2026-10-14 — TL accepts headless evidence for landing after full suite and close review; live verification moves explicitly after landing and pair:0 rebuild, run by TL. No stage or live-wrapper mutation from this slot. Clarify the last implementation checkbox as pre-close verification, avoiding a circular claim that landing happened before the close gate.
 
 ## Estimate
 
