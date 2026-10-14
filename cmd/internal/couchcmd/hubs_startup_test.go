@@ -65,27 +65,38 @@ func newHubStartupRig(t *testing.T, detached bool) *hubStartupRig {
 	}
 	c.Slots = catalog
 	c.Layout = couchcore.Layout2
-	host := hostty.NewFakeHost(ptychild.Size{Rows: 30, Cols: 600})
+	host := hostty.NewFakeHost(ptychild.Size{Rows: 30, Cols: 100})
 	reader, input := io.Pipe()
 	console := couchtty.New(host, reader)
 	rig := &hubStartupRig{rt: rt, c: c, console: console, host: host, input: input, paths: paths, calls: make(chan dispatchedCall, 32)}
+	t.Cleanup(func() {
+		console.Stop()
+		_ = input.Close()
+		_ = reader.Close()
+		rig.mu.Lock()
+		children := append([]string(nil), rig.children...)
+		rig.mu.Unlock()
+		for _, id := range children {
+			rt.runner.SetExited(id, 0)
+		}
+	})
 	rt.runner.AfterBlockedStart = func(id string) {
 		rig.mu.Lock()
 		rig.children = append(rig.children, id)
 		rig.mu.Unlock()
 		rt.runner.Terminal(id).SetSink(func(ctx context.Context, batch ptychild.OutputBatch) error { return console.Deliver(ctx, id, batch) })
 	}
-	wireResolver(console, c)
-	first, err := c.StartInteractive(context.Background(), couchcore.StartArgs{Cwd: paths[0]})
-	if err != nil {
-		t.Fatal(err)
-	}
-	rig.first = first
 	hubs, err := prepareExplicitHubs(context.Background(), c, paths)
 	if err != nil {
 		t.Fatal(err)
 	}
 	rig.hubs = hubs
+	wireResolver(console, c, hubs)
+	first, err := c.StartInteractive(context.Background(), couchcore.StartArgs{Cwd: paths[0]})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rig.first = first
 	actual := console.Ops()
 	console.SetOperationDispatcher(func(call couchcore.OperationCall) (any, error) {
 		rig.mu.Lock()
@@ -98,17 +109,6 @@ func newHubStartupRig(t *testing.T, detached bool) *hubStartupRig {
 	if err := beginConsole(console, first, true); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() {
-		console.Stop()
-		_ = input.Close()
-		_ = reader.Close()
-		rig.mu.Lock()
-		children := append([]string(nil), rig.children...)
-		rig.mu.Unlock()
-		for _, id := range children {
-			rt.runner.SetExited(id, 0)
-		}
-	})
 	return rig
 }
 
@@ -172,10 +172,12 @@ func TestHubStartupLaterFailureLeavesFirstUsable(t *testing.T) {
 	r.rt.runner.FailNextStart(errors.New("isolated second hub launch refusal"))
 	startExplicitHubs(r.console, r.hubs)
 	r.run(t)
-	if call := r.await(t, "start-hub"); call.err == nil {
-		t.Fatal("second launch unexpectedly succeeded")
+	if call := r.await(t, "start-hub"); call.err == nil || !strings.Contains(call.err.Error(), "isolated second hub launch refusal") {
+		t.Fatalf("second launch did not report its injected refusal: %v", call.err)
 	}
-	waitWarmAcceptance(t, "visible hub refusal", func() bool { return strings.Contains(r.host.Written(), "failed:") })
+	waitWarmAcceptance(t, "visible hub refusal and retry action", func() bool {
+		return strings.Contains(r.host.Written(), "hub failed; open it in the switcher to retry:")
+	})
 	r.assertFirstUsable(t)
 	r.mu.Lock()
 	count := len(r.children)
@@ -189,7 +191,6 @@ func TestHubStartupDetachedExtraIsNotAlsoReattachedByPass(t *testing.T) {
 	r := newHubStartupRig(t, true)
 	entered, release := make(chan struct{}), make(chan struct{})
 	var once sync.Once
-	t.Cleanup(func() { once.Do(func() { close(release) }) })
 	actual := r.console.Ops()
 	r.console.SetOperationDispatcher(func(call couchcore.OperationCall) (any, error) {
 		if call.Name == "start-hub" {
@@ -204,6 +205,8 @@ func TestHubStartupDetachedExtraIsNotAlsoReattachedByPass(t *testing.T) {
 	})
 	startExplicitHubs(r.console, r.hubs)
 	r.run(t)
+	// LIFO cleanup releases the test barrier before Run cleanup joins workers.
+	t.Cleanup(func() { once.Do(func() { close(release) }) })
 	select {
 	case <-entered:
 	case <-testwait.After(t):
