@@ -432,3 +432,16 @@ The final revision in `workshop/plans/000528-slot-recovery-plan.md` supersedes p
   owner-probe requirements after helper acknowledgement and inside Pair attach;
   remove them only from Continue, preserving lifecycle ownership requirements.
   No stage or live-slot mutation.
+
+- 2026-10-13 22:39 PDT — Final Continue correction checkpointed: core ec74f9061,
+  launcher 6bc51034ff5ef683cb84656d3fa7c2793a81b70a. Production checker
+  regressions first reproduced post-ack owner-probe refusal and false success
+  for an exited helper; both pass after the correction. Existing tracked
+  adoption failure coverage is retained on its private route. Actual public
+  Continue → Park → cold resume preserves the conversation identity and creates
+  the next terminal identity. Independent combined attachment-path tests pass:
+  core 17.740s, console 0.317s, launcher 1.062s, artifact inventory 2.298s
+  (/tmp/pair528-final-attach-path.log). Startup/details regressions pass
+  (core 3.012s, console 0.200s). make build passed
+  (/tmp/pair528-m1-continue-build.log). Full make -k test is still running;
+  no final suite or review claim yet. No staging.
