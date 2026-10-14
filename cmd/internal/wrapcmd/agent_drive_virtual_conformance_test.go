@@ -390,7 +390,13 @@ func boundaryDirtyRecovery(t *testing.T, endpoint couchmessage.RemoteEndpoint, i
 	if result.Outcome != agentdrive.OutcomeConfirmed {
 		t.Fatalf("explicit dirty recovery: %s (%s)", result.Outcome, result.Detail)
 	}
-	observation, err = endpoint.ObserveDrive(ctx)
+	for ctx.Err() == nil {
+		observation, err = endpoint.ObserveDrive(ctx)
+		if err == nil && observation.Idle {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 	if err != nil || !observation.Idle {
 		t.Fatalf("recovery did not settle empty: %+v %v", observation, err)
 	}
