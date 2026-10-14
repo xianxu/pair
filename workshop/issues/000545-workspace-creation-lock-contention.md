@@ -174,3 +174,12 @@ cases; do not infer a natural failure-rate reduction from forced-fork results.
 
 #551's body is published and its claim released after merging the publication
 back into this branch. It remains independent and unstarted.
+
+### 2026-10-14 — source inventory correction
+
+The stable full suite found that provision_retry_unix.go was missing from
+artifactpath's exhaustive production-source inventory. Added it beside the
+other provisioning non-artifact sources; the complete artifactpath package then
+passed (13.724s, /tmp/pair545-inventory-rerun.log). The running full suite is
+continuing to completion, as required. This is a manifest correction, not a
+retry behavior change.

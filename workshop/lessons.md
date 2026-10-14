@@ -1706,3 +1706,8 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
 - #546 close review: retries that replan from visible filesystem state still need durability confirmation; unchanged bytes do not prove a failed directory sync later succeeded. Admission-time authority evidence must survive delayed delivery, rather than being reconstructed only from the current owner.
 
 - #546 multi-owner changes must enumerate observability consumers as well as routing/guards: delivery facts are part of the behavior contract, and a main-only logging predicate can silently lose confirmed secondary-owner evidence.
+
+- #545: Every new production source must join artifactpath's exhaustive source
+  inventory (SourceClassifications or NonArtifactSources). Run that package
+  when adding the file; focused tests in the new file's own package cannot
+  detect a missing repository-wide inventory entry.
