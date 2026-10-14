@@ -40,7 +40,9 @@ A shared procutil predicate classifies wrapped EINVAL, ESRCH and ENOENT from ind
 ## Plan
 
 - [x] Add shared gone classification and apply it to snapshots and native process-read callers, with RED/GREEN regression tests.
-- [ ] Build/stage clean HEAD for operator verification; run recorded suite, close review and land.
+- [x] Build/stage clean HEAD for operator verification and pass the recorded suite.
+
+Run the local close review now. Landing remains held until the operator's real detach/restart repro is confirmed by the TL.
 
 
 
@@ -55,3 +57,7 @@ TL scope approval receipt d4dbaf0a-01d5-4876-a060-9f69f8f2c390 verified; quick f
 - GREEN: procutil full race package PASS5.276s; launcher full race package PASS18.748s; diagnosticlog full race package PASS23.112s. Focused caller/reauthorization races also pass. Tests cover wrapped gone errnos, controlled exit between table and argv, a real Darwin zombie after a stale live table, PID reuse, continued permission uncertainty and later environment disappearance. Preparing clean staged build and recorded suite; operator detach/restart acceptance remains pending.
 
 - Recorded full suite: sdlc local-check run --name suite PASS exit0 in10m53s on ec7a395a609a57d75ba58785f5b762b2671b1bcf, status sdlc-local/suite; log sha256 prefix81e4bc6e7c6b. Complete shell+Go checks green (launcher32.449s, diagnostics84.401s, procutil0.327s). Same commit staged and built cleanly on pair:0, bin/couch vcs.modified=false. Await operator-requested real detach/restart acceptance before landing; no claim of that smoke yet.
+
+## Revisions
+
+- 2026-10-14 11:53 PDT — TL receipt fe7ecadd-51a0-466b-9a0b-c730d637d04d requests local close review while the operator is at lunch. Separate the completed build/suite checkpoint from the remaining landing acceptance: keep pair:0 staged at ec7a395a609a57d75ba58785f5b762b2671b1bcf, run close through review, and hold merge until the TL reports the real repro outcome. The behavior scope and pre-landing smoke requirement are unchanged.
