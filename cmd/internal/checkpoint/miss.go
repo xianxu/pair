@@ -23,7 +23,11 @@ type Miss struct {
 	TargetMayExist bool `json:"target_may_exist,omitempty"`
 }
 
-// MissOf is the line a request leaves when it ends without finishing.
+// MissOf is the line a request leaves when it ends without finishing. Its
+// path is the repository's committed checkpoint, deliberately not Couch's
+// private copy (which the launch prompt and PreviousSession name): the private
+// copy is one per thread and the next compaction replaces it, while the
+// committed file is what the operator can find, read and hand on.
 func MissOf(r Request, reason string, at time.Time, targetMayExist bool) Miss {
 	return Miss{RequestID: r.ID, Path: r.Checkpoint.SourcePath, Reason: boundedFailure(reason), At: at, TargetMayExist: targetMayExist}
 }

@@ -445,7 +445,7 @@ func completeContinuationAcceptance(t *testing.T, rt testRT, c *couchcore.Couch,
 	}
 	t.Cleanup(func() { rt.runner.SetExited(start.Handle.ID(), 0) })
 	// The production layout stanza and wrapper exec the agent with the prompt
-	// as its last argument, exactly once (#522).
+	// as its first argument, exactly once (#522).
 	output := filepath.Join(t.TempDir(), "argv")
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
@@ -458,8 +458,8 @@ func completeContinuationAcceptance(t *testing.T, rt testRT, c *couchcore.Couch,
 	if err != nil {
 		t.Fatal(err)
 	}
-	if args := strings.Split(string(argv), "\x00"); len(args) == 0 || args[len(args)-1] != prompt || strings.Count(string(argv), prompt) != 1 {
-		t.Fatalf("agent argv %q, want the prompt last and once", args)
+	if args := strings.Split(string(argv), "\x00"); len(args) == 0 || args[0] != prompt || strings.Count(string(argv), prompt) != 1 {
+		t.Fatalf("agent argv %q, want the prompt first and once", args)
 	}
 	if got, err := os.ReadFile(targetSeed); err != nil || string(got) != committed {
 		t.Fatalf("materialized exact snapshot: %v", err)

@@ -193,7 +193,7 @@ func fromPersistedThreadRecord(record threadrecord.Record) ThreadRecord {
 		// dismissal. It reads as the one non-blocking line instead; the next
 		// write persists that. Its target, if any, is guarded by the thread's
 		// incarnations, as for every miss.
-		miss := checkpoint.MissOf(*r, r.Failure, r.CreatedAt, len(out.Incarnations) != 0 && (r.SourcePark != "" || r.SourceAbsence != nil))
+		miss := checkpoint.MissOf(*r, r.Failure, r.CreatedAt, targetMayExist(out))
 		out.ContinuationMissed, out.Continuation = &miss, nil
 	}
 	if record.LatestLaunchProfile != nil {

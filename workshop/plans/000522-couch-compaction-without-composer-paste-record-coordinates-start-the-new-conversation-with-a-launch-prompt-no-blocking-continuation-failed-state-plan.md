@@ -186,3 +186,30 @@ machine just to serve them. So the boundary follows the layers instead:
   fixture it accepts either refusal; the untouched-authority snapshot is
   unchanged. `TestHeldSupervisorRefusesBeforeStartingActor` keeps the lease
   refusal itself.
+
+### 2026-10-13: M1 review round 1 (REWORK)
+
+- **BR-1 (Critical):** an error from `RecordPreviousSession` replaced the
+  record with a zero one before `failContinuation` dereferenced it.
+  - The class is error paths that clobber the caller's state.
+  - `executeContinuation` now keeps the prior record, and `failContinuation`
+    refuses a record without its request (cause returned, no panic).
+  - No store seam fails that one write inside a live compaction, so the pin is
+    the direct test plus the code fix.
+- **BR-2:** a trailing positional prompt is swallowed by a saved flag that takes
+  several values. `PromptArgs` now puts the prompt FIRST (agy: `-i P` first),
+  so nothing precedes it. It can't be read as a flag (`ValidatePrompt` refuses
+  a leading `-`). The table cases include `--add-dir a b` and codex
+  `--disable … --image f`.
+- **BR-3:** `launchEnvCommand` splits the decoded command. A test feeds a
+  prompt-bearing command through it and `freshAgentInvocation`, and asserts
+  that the fresh start carries no prompt.
+- **Minor:**
+  - **DRY:** `targetMayExist` is the one rule (failure and decode).
+  - **Stale comments:** fixed.
+  - **`Miss.Path`:** it is the committed checkpoint on purpose (the private copy
+    is replaced by the next compaction); the reason is on `MissOf`.
+  - **Strict decode:** a pre-#522 binary can't read a record carrying
+    `continuation_missed`. That is accepted, as for #517's `previous_session`.
+    Couch and Pair ship as one build (`make build`), and rolling back to an
+    older build is not a supported path while threads hold the line.

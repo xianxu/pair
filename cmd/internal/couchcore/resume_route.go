@@ -16,7 +16,7 @@ type ResumeRoute uint8
 
 const (
 	ResumeRouteSlot         ResumeRoute = iota + 1 // OpenSlot: warm, cold, or adopt a still-running agent
-	ResumeRouteContinuation                        // RetryContinuation(request.ID)
+	ResumeRouteContinuation                        // Continue(request.ID)
 	ResumeRouteRecover                             // RecoverThread(address): survivor reattach or retained checkpoint
 	ResumeRouteThread                              // ResumeContextWith: warm, then cold
 )
@@ -107,7 +107,7 @@ type ResumeTarget struct {
 // reboot.
 //
 // The result is whatever the executor returns (StartResult from OpenSlot and
-// ResumeContextWith, ContinuationResult from RetryContinuation and
+// ResumeContextWith, ContinuationResult from Continue and
 // RecoverThread); every consumer of a ResultStart operation already reads both.
 func (c *Couch) ResumeTarget(ctx context.Context, t ResumeTarget) (any, error) {
 	if ctx == nil {

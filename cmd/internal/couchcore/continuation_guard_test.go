@@ -368,3 +368,18 @@ func continuationRefuses(operation string) bool {
 	}
 	return false
 }
+
+// BR-1 (#522 M1 review): an error path that replaced the caller's record with
+// a zero one reached failContinuation, which dereferenced the missing request
+// and took Couch down after the source was parked. A record that no longer
+// names its request is refused with the cause, never a panic.
+func TestFailContinuationWithoutItsRequestReturnsTheCause(t *testing.T) {
+	t.Parallel()
+
+	env, _ := envWithLiveThread(t)
+	cause := errors.New("preserve previous session: revision conflict")
+	result, err := env.Couch.failContinuation(ThreadRecord{}, cause)
+	if !errors.Is(err, cause) || result.Missed != nil {
+		t.Fatalf("= %+v, %v", result, err)
+	}
+}

@@ -1338,8 +1338,9 @@ Continuation has two internal operations (`pair#249`; #522 retired
   continuation copy, its NEXT ACTION, and `couch --peek <tag> --previous`.
   - It travels as `TrustedLaunchProfile.Prompt` (fresh profiles only), then
     `LaunchArgs.Prompt`, then `AgentCommand.Prompt` in `PAIR_AGENT_COMMAND`.
-  - The wrapper appends it only to the exec argv (`launcher.PromptArgs`: a
-    trailing positional; `-i PROMPT` for agy).
+  - The wrapper adds it only to the exec argv (`launcher.PromptArgs`): a
+    leading positional, `-i PROMPT` for agy. It goes first so that a saved
+    flag taking several values can't swallow it.
   - No saved profile, ledger entry, config, `StartArgs.ExtraArgs` or the
     wrapper's in-pane fresh start ever carries it, so nothing replays it.
 - **The coordinates:** after park, the compaction records #517's

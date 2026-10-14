@@ -437,7 +437,7 @@ func TestOpenSlotZeroSurvivorsIsATypedRefusal(t *testing.T) {
 }
 
 // The background reattach pass asks for warm-only, and it must stay a direct
-// warm-only resume: routing it through RetryContinuation or RecoverThread
+// warm-only resume: routing it through Continue or RecoverThread
 // could start an agent behind the operator's back.
 func TestWarmOnlyResumeIsUnrouted(t *testing.T) {
 	t.Parallel()

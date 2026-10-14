@@ -199,12 +199,16 @@ func (c *Couch) writeRequestRecord(address ThreadAddress, id string, write func(
 // relaunch parks it exactly.
 func (c *Couch) failContinuation(record ThreadRecord, cause error) (ContinuationResult, error) {
 	r := record.Continuation
+	if r == nil {
+		// A caller handed in a record that no longer names the request (an
+		// error path that replaced it): there is nothing to end, and guessing
+		// the request from the address could end the wrong one.
+		return ContinuationResult{}, errors.Join(cause, errors.New("continuation failure lost its request record"))
+	}
 	now := c.Clock.Now()
 	next, err := c.writeRequestRecord(record.Address, r.ID, func(current ThreadRecord) (ThreadRecord, error) {
 		return c.Threads.MissContinuation(record.Address, current.Revision, r.ID, func(at ThreadRecord) checkpoint.Miss {
-			request := at.Continuation
-			parked := request.SourcePark != "" || request.SourceAbsence != nil
-			return checkpoint.MissOf(*request, cause.Error(), now, parked && len(at.Incarnations) != 0)
+			return checkpoint.MissOf(*at.Continuation, cause.Error(), now, targetMayExist(at))
 		})
 	})
 	if err == nil {
@@ -212,6 +216,16 @@ func (c *Couch) failContinuation(record ThreadRecord, cause error) (Continuation
 	}
 	return ContinuationResult{Missed: record.ContinuationMissed}, errors.Join(cause, err)
 }
+
+// targetMayExist is the one rule for whether a request that didn't finish may
+// have left its new conversation running: the source was retired (parked or
+// proved absent), and an incarnation is still recorded -- which can then only
+// be the target's.
+func targetMayExist(record ThreadRecord) bool {
+	r := record.Continuation
+	return r != nil && (r.SourcePark != "" || r.SourceAbsence != nil) && len(record.Incarnations) != 0
+}
+
 func (c *Couch) Continue(ctx context.Context, address ThreadAddress, id string) (ContinuationResult, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -354,9 +368,11 @@ func (c *Couch) executeContinuation(ctx context.Context, record ThreadRecord) (C
 	if park := record.VerifiedPark; park != nil && (record.PreviousSession == nil || record.PreviousSession.Source != toPersistedParkIdentity(park.Identity) || record.PreviousSession.Continuation != path) {
 		if previous := previousSessionEvidence(record, record); previous != nil {
 			previous.Continuation = path
-			if record, err = c.Threads.RecordPreviousSession(record.Address, record.Revision, *previous); err != nil {
+			recorded, err := c.Threads.RecordPreviousSession(record.Address, record.Revision, *previous)
+			if err != nil {
 				return c.failContinuation(record, fmt.Errorf("preserve previous session: %w", err))
 			}
+			record = recorded
 		}
 	}
 	owner, err := c.Proc.Current()

@@ -2670,6 +2670,17 @@ func launchWatcherArgv(executable string, argv, env []string, pidNotBefore time.
 	return sessionwatch.CommandArgs(executable, agent, tag, scopeKey, cwd, "", "", ordinal, pidNotBefore, argv[1:])
 }
 
+// launchEnvCommand splits the launcher's encoded command into the argv the
+// wrapper keeps -- what the session watcher and an in-pane fresh start
+// re-derive from -- and the one-time launch prompt only the exec adds (#522).
+func launchEnvCommand(raw string) ([]string, string, error) {
+	command, err := launcher.DecodeAgentCommand(raw)
+	if err != nil {
+		return nil, "", err
+	}
+	return append([]string{command.Executable}, command.Argv...), command.Prompt, nil
+}
+
 func mustFreshExecRequest(wrapperExecutable, scrollbackLog string, currentArgv []string, env []string) error {
 	request, err := freshAgentInvocation(wrapperExecutable, scrollbackLog, currentArgv, env)
 	if err != nil {
@@ -2820,12 +2831,11 @@ argsDone:
 		if len(argv) != 0 {
 			return 0, errors.New("--from-launch-env cannot accompany a command")
 		}
-		command, err := launcher.DecodeAgentCommand(os.Getenv(launcher.AgentCommandEnv))
+		decoded, prompt, err := launchEnvCommand(os.Getenv(launcher.AgentCommandEnv))
 		if err != nil {
 			return 0, err
 		}
-		argv = append([]string{command.Executable}, command.Argv...)
-		launchPrompt = command.Prompt
+		argv, launchPrompt = decoded, prompt
 	}
 	if len(argv) == 0 {
 		return 0, errors.New("usage: pair-wrap [--scrollback-log <path>] <command> [args...]")

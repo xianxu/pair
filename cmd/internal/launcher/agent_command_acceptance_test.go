@@ -16,8 +16,8 @@ import (
 
 // Crosses the production create boundary, the actual embedded layout's shell
 // stanza, a recording pair shim, and the public wrapper into a real child.
-// The one-time launch prompt (#522) reaches the child as its last argument,
-// exactly, and nowhere earlier.
+// The one-time launch prompt (#522) reaches the child as its first argument,
+// exactly, and nowhere else.
 func TestCreateLayoutWrapperPreservesAgentCommand(t *testing.T) {
 	dir := t.TempDir()
 	binary := filepath.Join(dir, "pair-real")
@@ -87,7 +87,7 @@ func TestCreateLayoutWrapperPreservesAgentCommand(t *testing.T) {
 			if got := readArgs("wrapper.args"); !reflect.DeepEqual(got, []string{"wrap", "--scrollback-log", filepath.Join(dir, "scroll.raw"), "--from-launch-env"}) {
 				t.Fatalf("wrapper argv %#v", got)
 			}
-			if got := readArgs("child.args"); !reflect.DeepEqual(got, append(append([]string{}, want...), "--no-alt-screen", prompt)) {
+			if got := readArgs("child.args"); !reflect.DeepEqual(got, append(append([]string{prompt}, want...), "--no-alt-screen")) {
 				t.Fatalf("child argv %#v", got)
 			}
 			if _, err := os.Stat(filepath.Join(dir, "prompt-ran")); err == nil {

@@ -9,8 +9,8 @@ import (
 )
 
 // Each agent's measured first-message grammar (#517's audit, #522's --help
-// read): agy takes `-i PROMPT` before any `--`; the others a trailing
-// positional.
+// read): agy takes `-i PROMPT`; the others a positional. It goes first, so no
+// saved flag that takes several values can swallow it (#522 M1 review).
 func TestPromptArgsPerAgent(t *testing.T) {
 	const p = "Continue from the saved continuation at \"/s/c.md\"."
 	for _, c := range []struct {
@@ -18,13 +18,15 @@ func TestPromptArgsPerAgent(t *testing.T) {
 		argv  []string
 		want  []string
 	}{
-		{"claude", []string{"--model", "opus"}, []string{"--model", "opus", p}},
+		{"claude", []string{"--model", "opus"}, []string{p, "--model", "opus"}},
+		{"claude", []string{"--add-dir", "../a", "../b"}, []string{p, "--add-dir", "../a", "../b"}},
 		{"codex", []string{}, []string{p}},
-		{"grok", []string{"--x"}, []string{"--x", p}},
+		{"codex", []string{"--disable", "shell_snapshot", "--image", "f.png"}, []string{p, "--disable", "shell_snapshot", "--image", "f.png"}},
+		{"grok", []string{"--x"}, []string{p, "--x"}},
 		{"qoder", nil, []string{p}},
-		{"muse", []string{"--y"}, []string{"--y", p}},
-		{"/opt/bin/agy", []string{"--mode", "plan"}, []string{"--mode", "plan", "-i", p}},
-		{"agy", []string{"--a", "--", "x"}, []string{"--a", "-i", p, "--", "x"}},
+		{"muse", []string{"--y"}, []string{p, "--y"}},
+		{"/opt/bin/agy", []string{"--mode", "plan"}, []string{"-i", p, "--mode", "plan"}},
+		{"agy", []string{"--a", "--", "x"}, []string{"-i", p, "--a", "--", "x"}},
 	} {
 		argv := slices.Clone(c.argv)
 		got := PromptArgs(c.agent, argv, p)

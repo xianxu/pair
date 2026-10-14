@@ -23,20 +23,19 @@ func ValidatePrompt(prompt string) error {
 
 // PromptArgs places a fresh conversation's first message (#522) in the
 // agent's own form, from each CLI's measured grammar: agy takes it as
-// `-i PROMPT` before any `--`; the others take a positional prompt at the
-// end. An empty prompt leaves argv as it is. The result is a new slice.
+// `-i PROMPT`; the others take a positional prompt. It goes FIRST, before the
+// saved argv: a trailing positional is swallowed by any saved flag that takes
+// several values (`--add-dir a b`), and nothing precedes the first argument
+// to swallow it. The prompt never starts with '-' (ValidatePrompt), so it is
+// never read as a flag. An empty prompt leaves argv as it is. The result is a
+// new slice.
 func PromptArgs(agent string, argv []string, prompt string) []string {
-	out := append([]string{}, argv...)
 	if prompt == "" {
-		return out
+		return append([]string{}, argv...)
 	}
+	head := []string{prompt}
 	if filepath.Base(agent) == "agy" {
-		for i, arg := range out {
-			if arg == "--" {
-				return append(append(append([]string{}, out[:i]...), "-i", prompt), out[i:]...)
-			}
-		}
-		return append(out, "-i", prompt)
+		head = []string{"-i", prompt}
 	}
-	return append(out, prompt)
+	return append(head, argv...)
 }

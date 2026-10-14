@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -189,4 +190,30 @@ func containsArgPair(args []string, key, value string) bool {
 		}
 	}
 	return false
+}
+
+// A launch prompt (#522) is said once: the wrapper keeps the argv without it,
+// so an in-pane fresh start re-derives a command that carries no prompt, while
+// the exec of this launch carries it exactly once.
+func TestAnInPaneFreshStartDropsTheLaunchPrompt(t *testing.T) {
+	const prompt = `Continue from the saved continuation at "/s/c.md": read it.`
+	raw, err := launcher.EncodeAgentCommand(launcher.AgentCommand{Executable: "claude", Argv: []string{"--model", "opus"}, Prompt: prompt})
+	if err != nil {
+		t.Fatal(err)
+	}
+	argv, got, err := launchEnvCommand(raw)
+	if err != nil || got != prompt || slices.Contains(argv, prompt) {
+		t.Fatalf("kept argv %q, prompt %q, %v", argv, got, err)
+	}
+	if exec := launcher.PromptArgs(argv[0], argv[1:], got); strings.Count(strings.Join(exec, "\x00"), prompt) != 1 {
+		t.Fatalf("exec argv %q", exec)
+	}
+	request, err := freshAgentInvocation("/pair", "", argv, []string{"PAIR_DATA_DIR=" + t.TempDir(), "PAIR_TAG=work", "PAIR_SCOPE_KEY=scope", launcher.AgentCommandEnv + "=" + raw})
+	if err != nil {
+		t.Fatal(err)
+	}
+	next, err := launcher.DecodeAgentCommand(envValue(request.env, launcher.AgentCommandEnv))
+	if err != nil || next.Prompt != "" || slices.Contains(next.Argv, prompt) || slices.Contains(request.argv, prompt) {
+		t.Fatalf("the fresh start carries the prompt: %+v / %q, %v", next, request.argv, err)
+	}
 }
