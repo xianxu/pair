@@ -397,3 +397,11 @@ The final revision in `workshop/plans/000528-slot-recovery-plan.md` supersedes p
   tests passed (7.135s); full affected core/artifactpath packages are rerunning
   at /tmp/pair528-m1-final-packages.log. The full run passed couchcmd 34.926s,
   couchtty 39.185s, launcher 21.032s and wrapcmd 40.136s. No staging.
+
+- 2026-10-13 22:08 PDT — Final affected-package rerun
+  completed exit 0: couchcore 284.517s, artifactpath 14.262s
+  (/tmp/pair528-m1-final-packages.log). Combined with the completed full suite
+  and corrected public-entry regression, all observed failures are resolved.
+  Final `make build` passed (/tmp/pair528-m1-final-build2.log) at
+  259a826bebe5d7e0393becd761102735baced345. Rerunning the corrected M1 boundary;
+  operator acceptance remains pending and nothing is staged.
