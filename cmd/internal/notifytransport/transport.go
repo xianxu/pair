@@ -9,9 +9,11 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/notifyosc"
+	"golang.org/x/sys/unix"
 )
 
 const QueueSize = 32
@@ -26,6 +28,7 @@ type Broker struct {
 	diagnostics             chan error
 	done                    chan struct{}
 	once                    sync.Once
+	stopping                atomic.Bool
 	closeErr                error
 }
 
@@ -113,39 +116,83 @@ func (b *Broker) diagnose(err error) {
 }
 func (b *Broker) receive() {
 	defer close(b.done)
-	defer close(b.messages)
-	defer close(b.diagnostics)
 	buffer := make([]byte, notifyosc.MaxMessageBytes+1)
 	for {
 		n, _, err := b.conn.ReadFromUnix(buffer)
 		if err != nil {
-			if !errors.Is(err, net.ErrClosed) {
+			if !errors.Is(err, net.ErrClosed) && !(b.stopping.Load() && errors.Is(err, os.ErrDeadlineExceeded)) {
 				b.diagnose(err)
 			}
 			return
 		}
-		if n > notifyosc.MaxMessageBytes {
-			b.diagnose(errors.New("notification datagram exceeds 4096 bytes"))
-			continue
-		}
-		message := string(buffer[:n])
-		if message == "" || notifyosc.Sanitize(buffer[:n]) != message {
-			b.diagnose(errors.New("invalid notification datagram"))
-			continue
-		}
-		select {
-		case b.messages <- message:
-		default:
-			b.diagnose(errors.New("notification broker queue full"))
-		}
+		b.accept(buffer[:n])
 	}
 }
 
-// Close interrupts and joins the sole reader before removing owned resources.
+// accept is shared by the live receiver and the joined shutdown drain.
+func (b *Broker) accept(data []byte) {
+	if len(data) > notifyosc.MaxMessageBytes {
+		b.diagnose(errors.New("notification datagram exceeds 4096 bytes"))
+		return
+	}
+	message := string(data)
+	if message == "" || notifyosc.Sanitize(data) != message {
+		b.diagnose(errors.New("invalid notification datagram"))
+		return
+	}
+	select {
+	case b.messages <- message:
+	default:
+		b.diagnose(errors.New("notification broker queue full"))
+	}
+}
+
+// drainPending runs only after receive joins. Raw nonblocking reads bypass the
+// expired Go read deadline and preserve datagrams already accepted by the kernel.
+// A bounded budget prevents senders racing shutdown from extending its lifetime.
+func (b *Broker) drainPending() error {
+	raw, err := b.conn.SyscallConn()
+	if err != nil {
+		return err
+	}
+	var readErr error
+	err = raw.Control(func(fd uintptr) {
+		buffer := make([]byte, notifyosc.MaxMessageBytes+1)
+		for attempt := 0; attempt < QueueSize; attempt++ {
+			n, _, err := unix.Recvfrom(int(fd), buffer, unix.MSG_DONTWAIT)
+			if errors.Is(err, unix.EINTR) {
+				continue
+			}
+			if errors.Is(err, unix.EAGAIN) || errors.Is(err, unix.EWOULDBLOCK) {
+				return
+			}
+			if err != nil {
+				readErr = err
+				return
+			}
+			b.accept(buffer[:n])
+		}
+		b.diagnose(errors.New("notification shutdown drain limit reached; further datagrams may be discarded"))
+	})
+	return errors.Join(err, readErr)
+}
+
+// Close joins the sole reader, drains pending datagrams within the queue budget,
+// and closes both channels before removing owned resources. Callers consume the
+// remaining channel values. Overflow and sends racing shutdown are best-effort.
 func (b *Broker) Close() error {
 	b.once.Do(func() {
-		err := b.conn.Close()
+		b.stopping.Store(true)
+		err := b.conn.SetReadDeadline(time.Now())
+		if err != nil {
+			err = errors.Join(err, b.conn.Close())
+		}
 		<-b.done
+		if err == nil {
+			err = errors.Join(b.drainPending(), b.conn.Close())
+		}
+		close(b.messages)
+		close(b.diagnostics)
 		unlock, lockErr := lockNamespace(b.root)
 		if lockErr != nil {
 			b.closeErr = errors.Join(err, lockErr)

@@ -352,6 +352,7 @@ func TestNotificationHookChild(t *testing.T) {
 	os.Exit(0)
 }
 func TestNotificationBrokerBeforeExecAndCleanup(t *testing.T) {
+	t.Run("pending-hook-at-EOF", testNotificationBrokerDrainedBeforeOutputFinishes)
 	isolateNotificationSockets(t)
 	t.Setenv("PAIR_DATA_DIR", t.TempDir())
 	t.Setenv("PAIR_TAG", "notify-startup")
@@ -439,4 +440,25 @@ func isolateNotificationSockets(t *testing.T) string {
 	})
 	t.Setenv("PAIR_NOTIFY_SOCKET_DIR", dir)
 	return dir
+}
+
+func testNotificationBrokerDrainedBeforeOutputFinishes(t *testing.T) {
+	isolateNotificationSockets(t)
+	binding := filepath.Join(t.TempDir(), "pid")
+	broker, err := notifytransport.Start(binding, os.Getpid())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer broker.Close()
+	if err := notifytransport.Send(binding, "final hook"); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	p := &proxy{notificationBroker: broker, stdout: &out}
+	p.output()
+	// Exercise the exact teardown used by masterPump after it selects EOF.
+	p.finishMasterOutput()
+	if !bytes.Contains(out.Bytes(), notifyosc.Encode("final hook")) {
+		t.Fatalf("accepted hook lost at EOF: %q", out.Bytes())
+	}
 }

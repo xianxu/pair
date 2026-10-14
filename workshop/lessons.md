@@ -1640,6 +1640,7 @@ proof; record the surprising case so the next change starts from evidence.
   leave a success eligible to create again. BR-2/3: reconcile final entity paths
   and classifications, and update user-facing README instructions alongside atlas.
 
+- #519: A successful datagram send establishes kernel acceptance, not consumer delivery. At stream EOF, join the receiver, boundedly drain its kernel backlog, and consume its channel backlog before finishing the sole output writer. Pin both pending-work boundaries with ordered fixtures rather than extending deadlines.
 - #538 integration: expanding a list across documents also expands reconnect and edit consumers. Check catch-up equivalence against every retained note (including source segment), and test a historical note through current admission, owner checks, edit, and submission; a current-document-only oracle hides missing list entries.
 
 - #538 close: distinguish trusted connected-original DOM identity from scored replacement evidence on every surface. Test common-text originals and large pages through each adapter; never use a mutable path to grant original identity. Reconcile plan inventories with actual symbols, capabilities and changed-file status before close.
