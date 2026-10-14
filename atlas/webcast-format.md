@@ -30,7 +30,7 @@ family into files. Splitting and merging are pure functions of `k`:
 ```
 <recording>/
   events.jsonl         head, seg, stop, doc, DOM changes, observer state, context, control, assets, layout
-  notes.jsonl          note, note-state
+  notes.jsonl          note, note-edit, note-state
   pointer.jsonl        stroke
   assets/<hash>        captured bodies (images resampled; CSS and fonts exact), named by content hash
   frames/index.jsonl   frame: the sparse low-res screenshots for the fidelity check (not in the live stream)
@@ -40,7 +40,9 @@ family into files. Splitting and merging are pure functions of `k`:
 
 Reading a recording merges the three record files into one stream by `t`. At equal `t`, events come first, then
 notes, then pointer strokes. `frames/` is never merged in: screenshots are for the fidelity check, and pixels never go to
-viewers (Principle 1).
+viewers (Principle 1). The live writers use `recording.OrderedTime` to advance a
+record by one millisecond when an equal-time transition would reverse this file
+precedence. Splitting and merging therefore preserve the accepted live order.
 
 ## Versioning
 
@@ -192,7 +194,8 @@ top page by the recorder. The viewport position at time t is the top document's 
 | Kind | File | Fields | Meaning |
 |---|---|---|---|
 | `note` | notes | `id` (string), `author` `{id,name,color}`, `text`, `at` `{node,kind,path,sel,text,box,tag,classes,stable,route}`, `region` `[x,y,w,h]`, optional `capture` | A note on a box of the page at its `t` (#488). `region` is the note's box: what the viewer dragged, or the default box of a tap. It is the area captured at draw time, and the board writes it on every note. `capture` is the opaque private capture reference; it exposes no file path or pixels. A note from before #488 may lack it. `at` anchors the note on the smallest element containing the box's centre. `at.node` is the element's id. `at.kind` is `element`. `at.path` is the meaningful containers down to it (`main › article › p#first`). `at.sel` is a stable CSS selector. `at.text` is the element's text, trimmed to 200 characters. `at.box` is the element's box. |
-| `note-state` | notes | `id`, `state`: `open` or `resolved` | A note was resolved or reopened. |
+| `note-edit` | notes | `id`, `text` | A text revision of any open note, admitted against the current document. Preserves the original author, creation time, anchor, region and capture; marks the projected note `edited`. |
+| `note-state` | notes | `id`, `state`: `open` or `resolved`, optional `who` `{id,name,color}` | A note was resolved or reopened. Resolver attribution is retained in `NoteView.ResolvedBy` and note query results. |
 | `stroke` | pointer | `id`, `author`, `color`, `pts` `[[x,y,dt],…]` | One pointer stroke, or one chunk of it; `dt` is ms after the record's `t`. A live stroke streams as several records sharing an `id` (#470: one per viewer POST, about every 50 ms), each continuing it; a viewer's stroke id is its viewer id, `.`, and the shell's own stroke id, so two viewers' strokes never join. |
 | `frame` | frames/index | `file`, `w`, `h`, `scale` | A screenshot of the real tab at `t` (the fidelity check), `w`×`h` image pixels; `scale` is image pixels per CSS pixel, the one source of that mapping for every consumer: 0.5 (the viewport at half its CSS size) whatever the device pixel ratio, except under a ratio of 0.5, where a screenshot isn't upsampled and `scale` is the ratio. `t` is the capture's midpoint. Not in the live stream. |
 
@@ -389,7 +392,7 @@ live phase, so it feeds the active tab's CDP events to the recorder while `Phase
 and a tab switch from `Tracker.Active` emits a new `seg`. `CastConfig` gains the `recording.Live` that fans the
 same records out, and `Server.events` sends them as `rec` events. The route, the token and the shared `broadcast.Host` stay.
 
-**Viewers' strokes and notes (#470).** The original `POST <cast>/stroke`, `/note` and `/note-state` routes read
+**Viewers’ strokes and notes (#470).** The `POST <cast>/stroke`, `/note`, `/note-edit` and `/note-state` routes read
 a body (`webcast/server_board.go`), admitted like the terminal pointer routes: a JSON content type, 4 in flight, a
 budget per cast (strokes 60/s, notes and states 2/s with a burst of 5), a prompt body within 8 KiB. Bodies are parsed
 strictly by `board.Parse*` (each names its `viewer` `{id,name}` and the `seg` it was made on; a note its `node`, the
@@ -407,7 +410,7 @@ changed. Try again.", "This color already has 8 notes. Resolve one first.", "Tha
 showing a page yet.", "The cast is paused."; 410 "The cast has ended."; 429 "Too many requests. Wait a moment."; 400 "That isn't valid.";
 503 "Notes aren't working in this cast." (the board lost track of the page: a bug, logged once).
 **While paused, viewers do nothing (pair#499, reversing #470's "notes allowed while paused"):** the board refuses
-`stroke`, `note` and `note-state` (`ErrPaused`, 409 "The cast is paused."), `OnDoc` drops a record admitted just before
+`stroke`, `note`, `note-edit` and `note-state` (`ErrPaused`, 409 "The cast is paused."), `OnDoc` drops a record admitted just before
 the pause, and the viewer's rail disables its swatches, ✏️ and 💭 until a `seg` resumes (annotate.js `paused()`), as does the
 note dialog's Save and Resolve (collab.js `noteDialog.hold`; a draft keeps its text). `board.Writer` answers a pause
 drop with `ErrPaused`. Notes
@@ -770,3 +773,22 @@ recording. Seats and their keys are memory only: they end after the grace period
   recorder's queue, gated on the recording having opened. The hand-written `driven` fixture is replaced by
   `rec-driven`, a recorded driven session. Two links then: a view link (no drive routes) and a drive link (its own
   token). pair#506 later split the view link into view-only and pointer links (above).
+
+
+### Own-note revisions (#537)
+
+`POST <cast>/note-edit` accepts only `seg`, `id` and `text`. The Host lock gate
+supplies `broadcast.NoteOwnerFromContext` after validating the existing unlock
+cookie; public viewer IDs, names and request headers never grant edit authority.
+Creation records carry a public opaque `owner` digest. Only that session can edit
+an open current-document note; legacy notes without an owner are read-only.
+The trusted operator context uses `OperatorNoteOwner` and cannot edit viewers'
+notes. Board admission and the ordered recorder both enforce annotation state.
+Accepted edits apply in Board order and invalidate submission revisions.
+
+Reducers copy the original note before changing text, so query context still
+comes from its creation record. Catch-up, replay and live pins use the latest
+revision; retired notes cannot be revived by a late edit. Resolve remains shared
+housekeeping and records `who`, including operator submission resolution.
+
+A reconnect catch-up retains note records, revisions and states across documents, with bare segment records preserving anchor provenance. It sends only the latest document snapshot and current-document strokes; off-view notes remain available in the open-note list.

@@ -4,12 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/broadcast"
 	core "github.com/xianxu/pair/cmd/internal/submission"
 	"github.com/xianxu/pair/cmd/internal/webcast/board"
 	"github.com/xianxu/pair/cmd/internal/webcast/notedraft"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -71,7 +74,7 @@ func TestViewerDraftPrepareSavePrivateOwner(t *testing.T) {
 		t.Fatal(status)
 	}
 	n, ok := c.bd.ObservedNote(status.NoteID)
-	if !ok || n.CropUnavailable == "" {
+	if !ok || n.Owner != "private-A" || n.CropUnavailable == "" {
 		t.Fatal(n, ok)
 	}
 	// A request's attribution or guessed public viewer ID never supplies ownership.
@@ -162,3 +165,99 @@ type draftStreamWriter struct {
 }
 
 func (w *draftStreamWriter) Flush() { w.ResponseRecorder.Flush(); w.once.Do(func() { close(w.ready) }) }
+
+func TestDraftOwnerUsesLiveGateProof(t *testing.T) {
+	c := newBoardCast(t)
+	svc, err := notedraft.New(notedraft.Options{Root: t.TempDir(), RecordingPath: t.TempDir(), Capture: unavailableDraftCapture{}, Write: func(ctx context.Context, a board.AnnotationAdmission, n board.NoteReservation, check func() error, settle func(board.OperatorOutcome, error)) error {
+		if err := check(); err != nil {
+			return err
+		}
+		err := c.w.Emit(&n.Note, n.Document)
+		if err != nil {
+			settle(board.OperatorRefused, err)
+		} else {
+			settle(board.OperatorAccepted, nil)
+		}
+		return err
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer svc.Close()
+	locks := &broadcast.LinkLocks{}
+	if err := locks.Mint("pointer", "tok", 4, nil); err != nil {
+		t.Fatal(err)
+	}
+	defer locks.End()
+	srv := NewServer("view", NewFakeBrowser(), time.Second, c.hub, nil).WithBoard(c.bd).WithPointer("tok").WithLocks(locks).WithNoteDrafts(svc, func(r *http.Request) string { return broadcast.NoteOwnerFromContext(r.Context()) })
+	host := broadcast.NewHost(broadcast.HostConfig{Tunnel: &broadcast.FakeTunnel{}, ProbeTimeout: time.Second})
+	mt, err := host.Mount(context.Background(), srv, "tok/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mt.Unmount()
+	unlock := func() *http.Cookie {
+		r := httptest.NewRequest("POST", "/tok/unlock", strings.NewReader(fmt.Sprintf(`{"code":%q}`, locks.LockFor("tok").Code())))
+		r.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		host.ServeHTTP(w, r)
+		if w.Code != 200 {
+			t.Fatal(w.Code, w.Body.String())
+		}
+		return w.Result().Cookies()[0]
+	}
+	first, foreign := unlock(), unlock()
+	request := func(cookie *http.Cookie, route string, body io.Reader) *httptest.ResponseRecorder {
+		r := httptest.NewRequest("POST", "/tok/"+route, body)
+		r.Header.Set("Content-Type", "application/json")
+		r.Header.Set("X-Couch-Annotation-Generation", "1")
+		r.Header.Set(broadcast.NoteOwnerHeader, broadcast.OperatorNoteOwner)
+		if cookie != nil {
+			r.AddCookie(cookie)
+		}
+		w := httptest.NewRecorder()
+		host.ServeHTTP(w, r)
+		return w
+	}
+	prep := fmt.Sprintf(`{"request":"prepare1","seg":1,"node":%d,"box":[1,2,30,40],"region":[1,2,20,20]}`, c.p.ID)
+	for _, cookie := range []*http.Cookie{nil, {Name: "couch_session", Value: "invalid"}} {
+		if w := request(cookie, "prepare-note", strings.NewReader(prep)); w.Code != 401 {
+			t.Fatal(w.Code, w.Body.String())
+		}
+	}
+	w := request(first, "prepare-note", strings.NewReader(prep))
+	if w.Code != 200 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	var status notedraft.Status
+	json.Unmarshal(w.Body.Bytes(), &status)
+	for end := time.Now().Add(time.Second); status.State == "pending" && time.Now().Before(end); {
+		time.Sleep(600 * time.Millisecond)
+		w = request(first, "draft-status", strings.NewReader(`{"request":"prepare1"}`))
+		json.Unmarshal(w.Body.Bytes(), &status)
+	}
+	if status.State != "ready" {
+		t.Fatal(status)
+	}
+	payload, _ := json.Marshal(map[string]any{"request": "save1", "draft": status.Draft, "viewer": map[string]string{"id": "ana", "name": "Ana"}, "color": 0, "text": "hello"})
+	if w := request(foreign, "save-note", strings.NewReader(string(payload))); w.Code == 200 {
+		t.Fatal("foreign session saved draft")
+	}
+	w = request(first, "save-note", strings.NewReader(string(payload)))
+	if w.Code != 200 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	json.Unmarshal(w.Body.Bytes(), &status)
+	n, ok := c.bd.ObservedNote(status.NoteID)
+	if !ok || len(n.Owner) != 64 || n.Owner == broadcast.OperatorNoteOwner || n.Capture == "" {
+		t.Fatal(n, ok)
+	}
+	w = request(first, "prepare-note", &rotateWebNoteBody{Reader: strings.NewReader(strings.ReplaceAll(prep, "prepare1", "prepare2")), rotate: func() {
+		if err := locks.Rotate("pointer"); err != nil {
+			t.Fatal(err)
+		}
+	}})
+	if w.Code != http.StatusForbidden {
+		t.Fatal("revoked during body read was not refused by ownership check", w.Code, w.Body.String())
+	}
+}

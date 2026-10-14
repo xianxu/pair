@@ -22,7 +22,7 @@ func TestLaunchOutputSetupReaderCloseFailureRetainsRealChild(t *testing.T) {
 		}
 		return h, err
 	}
-	h, err := startBlockedChild(context.Background(), starter, "ignored", 0, t.TempDir(), []string{"pair"}, nil, time.Second)
+	h, err := startBlockedChild(context.Background(), starter, "ignored", t.TempDir(), []string{"pair"}, nil, time.Second)
 	if h != nil || err == nil {
 		t.Fatalf("handle=%v err=%v", h, err)
 	}
@@ -86,7 +86,7 @@ func TestLaunchOutputSetupStarterReturnsHandleAndError(t *testing.T) {
 		r.SetExited(h.ID(), 23)
 		return h, cause
 	}
-	h, err := startBlockedChild(context.Background(), starter, "ignored", 0, t.TempDir(), []string{"pair"}, nil, time.Second)
+	h, err := startBlockedChild(context.Background(), starter, "ignored", t.TempDir(), []string{"pair"}, nil, time.Second)
 	var failure *blockedStartError
 	if h != nil || !errors.As(err, &failure) || !errors.Is(err, cause) {
 		t.Fatalf("lost starter failure: h=%v err=%v", h, err)

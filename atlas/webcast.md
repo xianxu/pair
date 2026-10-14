@@ -544,3 +544,19 @@ cache on annotation-clear. Drive drops queued acts and stale batch completions;
 a new capability generation requires fresh consent. Catch-up control and initial
 capability events may arrive in either order; projection retains control evidence
 while closed without admitting input. See web/viewer.js, annotate.js, drive.js.
+
+
+### Existing note editors (#537)
+
+Viewer and isolated operator overlay share the note dialog transition model.
+An existing own-note pin opens an editor even with the pen Off; other notes and
+annotation-disabled/view-only states open read-only. A remote driver suppresses
+operator pins and dialogs independently of annotation state. Watch mode keeps
+the page background interactive. Revised pins refresh their text and `edited`
+marker without replacing note identity.
+
+The operator's `edit-note` request goes through `OperatorSession` and the ordered
+recorder. Its fixed trusted owner can edit only operator-created notes. Unknown
+writes retain their request identity: the existing target note does not prove an
+edit was accepted. See [the format](webcast-format.md#own-note-revisions-537) and
+[session ownership](broadcast.md#own-note-editing-537).

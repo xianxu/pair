@@ -35,7 +35,7 @@ func noteIDs(s *State) string {
 	return strings.Join(ids, ",")
 }
 
-// The catch-up's DOM, assets and current-document notes are the whole
+// The catch-up's DOM, assets and all retained notes are the whole
 // recording's, at every cut point.
 func TestCatchUpEquivalence(t *testing.T) {
 	b, _, _ := twoDocs()
@@ -61,7 +61,7 @@ func TestCatchUpCarriesNotesAcrossResume(t *testing.T) {
 		t.Fatalf("notes %q", got)
 	}
 	cu, _ = Reduce(CatchUp(b.Recs), 1<<62)
-	if got := noteIDs(cu); got != "b1" {
+	if got := noteIDs(cu); got != "a1,old,a2,b1" {
 		t.Fatalf("after navigation, notes %q", got)
 	}
 }
@@ -135,5 +135,16 @@ func TestCatchUpKeepsLatestHoverAndPtr(t *testing.T) {
 	}
 	if err := CheckCatchUp(p.b.Recs, 1<<62); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestCatchUpCarriesHistoricalEditsAndClear(t *testing.T) {
+	b, _, _ := twoDocs()
+	b.Add(&NoteEdit{ID: "a1", Text: "updated off-view"})
+	b.Add(&AnnotationClear{Who: Author{ID: OperatorID}})
+	for cut := 1; cut <= len(b.Recs); cut++ {
+		if err := CheckCatchUp(b.Recs[:cut], 1<<62); err != nil {
+			t.Fatalf("cut %d: %v", cut, err)
+		}
 	}
 }

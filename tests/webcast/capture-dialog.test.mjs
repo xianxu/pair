@@ -29,3 +29,20 @@ test('shared browser mount starts capture at mouseup, retains typing, and new ge
  release({state:'ready',draft:'signed',captured_at:123});for(let i=0;i<12;i++)await Promise.resolve();assert.equal(input.value,'typing before capture');assert.equal(save.disabled,false);
  pointer('pointerdown');for(let i=0;i<8;i++)await Promise.resolve();assert.ok(calls.some(([op])=>op==='cancel-draft'));assert.equal(ui.dialog.open,false);
 });
+
+test('capture draft replacement respects holds and edits never reuse capture save',async()=>{
+ const f=fixture();f.d.draft({request:'r',capturePending:true});f.type('keep me');f.d.hold('Paused');
+ assert.equal(f.d.edit({id:'existing',text:'existing text'}),false);assert.equal(f.discarded.length,0);assert.equal(f.els.input.value,'keep me');
+ f.d.projectDraft('r',{pending:false,message:'✓ Captured'});assert.equal(f.els.save.disabled,true);
+ f.d.hold('');assert.equal(f.d.edit({id:'existing',text:'existing text'}),true);assert.equal(f.discarded.length,1);
+ assert.equal(f.d.projectDraft('r',{blocked:true,message:'late failure'}),false);assert.equal(f.els.input.value,'existing text');
+ f.type('edited without recapture');f.click('save');await new Promise(r=>setTimeout(r,0));assert.equal(f.d.open,false);assert.equal(f.discarded.length,1);
+});
+
+test('capture retry projection rekeys the pending draft without replacing its text',()=>{
+ const f=fixture();f.d.draft({request:'r',capturePending:true});f.type('unchanged');
+ f.d.projectDraft('r',{blocked:true,retry:true,message:'Capture failed'});assert.equal(f.els.retry.hidden,false);
+ f.d.projectDraft('r',{payload:{request:'retry'},pending:true,retry:false,message:'Capturing…'});
+ assert.equal(f.d.projectDraft('r',{pending:false}),false);assert.equal(f.els.input.value,'unchanged');
+ f.d.projectDraft('retry',{pending:false,payload:{draft:'signed'}});assert.equal(f.els.save.disabled,false);
+});

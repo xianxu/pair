@@ -260,6 +260,12 @@ func NoteText(v NoteView, before int64) string {
 	var b strings.Builder
 	n := v.Note
 	fmt.Fprintf(&b, "note %s  t=%d  segment %d  %s  by %s\n", n.ID, n.T, n.Seg, n.State, who(n.Author.ID, n.Author.Name))
+	if n.Edited {
+		b.WriteString("  edited\n")
+	}
+	if n.ResolvedBy != nil {
+		fmt.Fprintf(&b, "  resolved by %s\n", who(n.ResolvedBy.ID, n.ResolvedBy.Name))
+	}
 	fmt.Fprintf(&b, "  %s\n", strconv.Quote(n.Text))
 	fmt.Fprintf(&b, "  on @%d", n.At.Node)
 	if n.At.Sel != "" {
@@ -380,14 +386,15 @@ func notesJSON(vs []NoteView, w io.Writer) error {
 		Box      *recording.Box   `json:"box,omitempty"`
 	}
 	type view struct {
-		Note     json.RawMessage   `json:"note"`
-		State    string            `json:"state"`
-		Seg      int               `json:"seg"`
-		URL      string            `json:"url,omitempty"`
-		Element  string            `json:"element,omitempty"`
-		Context  ctx               `json:"context"`
-		Landmark string            `json:"landmark,omitempty"`
-		Before   []json.RawMessage `json:"before"`
+		ResolvedBy *recording.Author `json:"resolved_by,omitempty"`
+		Note       json.RawMessage   `json:"note"`
+		State      string            `json:"state"`
+		Seg        int               `json:"seg"`
+		URL        string            `json:"url,omitempty"`
+		Element    string            `json:"element,omitempty"`
+		Context    ctx               `json:"context"`
+		Landmark   string            `json:"landmark,omitempty"`
+		Before     []json.RawMessage `json:"before"`
 	}
 	out := []view{}
 	for _, v := range vs {
@@ -395,7 +402,7 @@ func notesJSON(vs []NoteView, w io.Writer) error {
 		if err != nil {
 			return err
 		}
-		jv := view{Note: note, State: v.Note.State, Seg: v.Note.Seg, URL: v.URL, Element: v.Element,
+		jv := view{ResolvedBy: v.Note.ResolvedBy, Note: note, State: v.Note.State, Seg: v.Note.Seg, URL: v.URL, Element: v.Element,
 			Context: ctx{v.Context.Node, v.Context.Landmark, v.Context.Text, v.Context.Box}, Landmark: v.Landmark,
 			Before: []json.RawMessage{}}
 		for _, r := range v.Before {

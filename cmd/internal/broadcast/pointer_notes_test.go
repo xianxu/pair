@@ -38,13 +38,13 @@ func TestPointerNotesAddResolve(t *testing.T) {
 	if _, err := p.addNote(Note{Box: CellBox{1, 1, 2, 1}, Text: "b"}, 80, 24, p.generation()); err != ErrNoteOverlap {
 		t.Fatalf("overlap: %v", err)
 	}
-	if ok, err := p.resolveNote(999); ok || err != nil {
+	if ok, err := p.resolveNote(NoteResolution{ID: 999}); ok || err != nil {
 		t.Fatalf("unknown id: %v %v", ok, err)
 	}
 	if _, v, _ := p.Notes(); v != v1 || closed(changed) {
 		t.Fatal("a refused add or an unknown resolve changed the board")
 	}
-	if ok, err := p.resolveNote(n.ID); !ok || err != nil {
+	if ok, err := p.resolveNote(NoteResolution{ID: n.ID}); !ok || err != nil {
 		t.Fatalf("resolve: %v %v", ok, err)
 	}
 	if notes, v, _ := p.Notes(); len(notes) != 0 || v <= v1 || !closed(changed) {
@@ -57,7 +57,7 @@ func TestPointerNotesRefusedWhileOff(t *testing.T) {
 	if _, err := p.addNote(Note{Box: CellBox{0, 0, 2, 1}, Text: "a"}, 80, 24, p.generation()); err != ErrPointerOff {
 		t.Fatalf("add before on: %v", err)
 	}
-	if _, err := p.resolveNote(1); err != ErrPointerOff {
+	if _, err := p.resolveNote(NoteResolution{ID: 1}); err != ErrPointerOff {
 		t.Fatalf("resolve before on: %v", err)
 	}
 }
@@ -149,7 +149,7 @@ func TestPointerNotesRaceStress(t *testing.T) {
 				default:
 				}
 				if n, err := p.addNote(Note{Box: CellBox{(i % 30) * 2, w, 2, 1}, Color: w, Text: "x"}, 80, 24, p.generation()); err == nil && i%2 == 0 {
-					p.resolveNote(n.ID)
+					p.resolveNote(NoteResolution{ID: n.ID})
 				}
 			}
 		}(w)

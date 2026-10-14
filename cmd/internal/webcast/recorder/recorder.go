@@ -135,7 +135,7 @@ type (
 // emittable: the kinds made outside the recorder. Everything else (the
 // page's DOM and state, segments, assets) is the recorder's own: a new kind
 // is refused until it is listed here.
-var emittable = map[string]bool{"note": true, "note-state": true, "stroke": true, "ctl": true}
+var emittable = map[string]bool{"note": true, "note-edit": true, "note-state": true, "stroke": true, "ctl": true}
 
 // side-worker results and queries, internal inputs.
 type (

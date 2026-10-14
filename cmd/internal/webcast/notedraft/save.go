@@ -93,6 +93,7 @@ func (s *Service) Save(ctx context.Context, owner Owner, request, draft string, 
 		s.mu.Unlock()
 		return Status{}, err
 	}
+	reservation.Note.Owner = r.Owner.Identity
 	reservation.Note.CropUnavailable = r.State.Unavailable
 	r.NoteID = reservation.Note.ID
 	r.Note = &reservation.Note
@@ -174,7 +175,7 @@ func (s *Service) reconcileWrite(ctx context.Context, id string) error {
 		return nil
 	}
 	if present {
-		if observed == nil || observed.ID != r.NoteID || observed.Capture != r.ID {
+		if observed == nil || observed.ID != r.NoteID || observed.Capture != r.ID || observed.Owner != r.Owner.Identity {
 			return errors.New("recorded note differs from capture intent")
 		}
 		problem := r.Problem

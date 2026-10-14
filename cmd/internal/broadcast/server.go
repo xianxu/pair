@@ -39,8 +39,9 @@ type ServerOptions struct {
 	OnPoint func(PointBatch)
 	// OnNote and OnResolve decide whether a well-formed note or resolve
 	// request lands (#447); their errors map to fixed refusal text.
-	OnNote    func(NoteRequest) error
-	OnResolve func(id int) error
+	OnNote     func(NoteRequest) error
+	OnResolve  func(NoteResolutionRequest) error
+	OnNoteEdit func(NoteEditRequest) error
 }
 
 type asset struct{ file, contentType string }
@@ -111,6 +112,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		case "note":
 			s.note(w, r)
+			return
+		case "note-edit":
+			s.noteEdit(w, r)
 			return
 		case "resolve":
 			s.resolve(w, r)
@@ -251,7 +255,26 @@ func (s *Server) note(w http.ResponseWriter, r *http.Request) {
 	defer release()
 	n, err := ParseNote(body)
 	if err == nil {
+		n.Note.Owner = NoteOwnerFromContext(r.Context())
 		err = s.opts.OnNote(n)
+	}
+	refuseNoteErr(w, err)
+}
+
+func (s *Server) noteEdit(w http.ResponseWriter, r *http.Request) {
+	if s.opts.OnNoteEdit == nil {
+		http.NotFound(w, r)
+		return
+	}
+	body, release, ok := s.readPointerBody(w, r, s.opts.Pointer.allowNote, MaxNoteBody)
+	if !ok {
+		return
+	}
+	defer release()
+	in, err := ParseNoteEditRequest(body)
+	if err == nil {
+		in.Owner = NoteOwnerFromContext(r.Context())
+		err = s.opts.OnNoteEdit(in)
 	}
 	refuseNoteErr(w, err)
 }
@@ -267,9 +290,9 @@ func (s *Server) resolve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer release()
-	id, err := ParseResolve(body)
+	in, err := ParseNoteResolution(body)
 	if err == nil {
-		err = s.opts.OnResolve(id)
+		err = s.opts.OnResolve(in)
 	}
 	refuseNoteErr(w, err)
 }
@@ -281,6 +304,10 @@ func refuseNoteErr(w http.ResponseWriter, err error) {
 		w.WriteHeader(http.StatusNoContent)
 	case errors.Is(err, ErrPointerOff):
 		http.Error(w, refusePointerOff, http.StatusForbidden)
+	case errors.Is(err, ErrNoteOwner):
+		http.Error(w, "Only the author can edit this note in its original browser session.", http.StatusForbidden)
+	case errors.Is(err, ErrNoteGone):
+		http.Error(w, "That note is gone.", http.StatusConflict)
 	case errors.Is(err, ErrNoteColorFull):
 		http.Error(w, refuseColorFull, http.StatusConflict)
 	case errors.Is(err, ErrNoteOverlap):

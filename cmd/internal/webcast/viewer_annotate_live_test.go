@@ -71,33 +71,7 @@ func TestAnnotateLiveTwoViewers(t *testing.T) {
 			}
 		}
 	}
-	drafts, err := notedraft.New(notedraft.Options{Root: t.TempDir(), RecordingPath: filepath.Join(t.TempDir(), "replay-fixture"), Capture: replayFixtureCapture{}, Release: bd.ReleaseNoteReservation,
-		Write: func(ctx context.Context, admission board.AnnotationAdmission, n board.NoteReservation, check func() error, settle func(board.OperatorOutcome, error)) error {
-			err := ctx.Err()
-			if err == nil {
-				err = admission.Check()
-			}
-			if err == nil && check != nil {
-				err = check()
-			}
-			if err == nil {
-				err = w.Emit(&n.Note, n.Document)
-			}
-			if err != nil {
-				settle(board.OperatorRefused, err)
-			} else {
-				settle(board.OperatorAccepted, nil)
-			}
-			return nil
-		}, Observe: func(_ context.Context, id string) (*recording.Note, bool, error) {
-			n, ok := bd.ObservedNote(id)
-			return n, ok, nil
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer drafts.Close()
+	drafts := replayNoteDraftService(t, bd, w)
 	viewer := NewServer("view", NewFakeBrowser(), time.Second, hub, nil).WithBoard(bd).WithPointer("tok").WithNoteDrafts(drafts, func(*http.Request) string { return "trusted-fixture-session" }) // private test authentication, independent of viewer attribution
 	viewer.Assets().Bind(store)
 	srv := httptest.NewServer(viewer)
@@ -432,4 +406,38 @@ func within(n *recording.DOMNode, id recording.NodeID) bool {
 		}
 	}
 	return false
+}
+
+// replayNoteDraftService exercises the durable protocol with deterministic pixels
+// when the recorded source fixture has no live browser.
+func replayNoteDraftService(t *testing.T, bd *board.Board, w *board.Writer) *notedraft.Service {
+	t.Helper()
+	drafts, err := notedraft.New(notedraft.Options{Root: t.TempDir(), RecordingPath: filepath.Join(t.TempDir(), "replay-fixture"), Capture: replayFixtureCapture{}, Release: bd.ReleaseNoteReservation,
+		Write: func(ctx context.Context, admission board.AnnotationAdmission, n board.NoteReservation, check func() error, settle func(board.OperatorOutcome, error)) error {
+			err := ctx.Err()
+			if err == nil {
+				err = admission.Check()
+			}
+			if err == nil && check != nil {
+				err = check()
+			}
+			if err == nil {
+				err = w.Emit(&n.Note, n.Document)
+			}
+			if err != nil {
+				settle(board.OperatorRefused, err)
+			} else {
+				settle(board.OperatorAccepted, nil)
+			}
+			return nil
+		}, Observe: func(_ context.Context, id string) (*recording.Note, bool, error) {
+			n, ok := bd.ObservedNote(id)
+			return n, ok, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { drafts.Close() })
+	return drafts
 }

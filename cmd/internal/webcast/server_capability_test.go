@@ -224,7 +224,7 @@ func TestOldReleaseBodyCannotRevokeNewGrant(t *testing.T) {
 }
 
 func TestAnnotationGenerationRejectsPreIngressAcrossOffOn(t *testing.T) {
-	for _, route := range []string{"stroke", "note", "note-state"} {
+	for _, route := range []string{"stroke", "note", "note-state", "note-edit"} {
 		t.Run(route, func(t *testing.T) {
 			c := newBoardCast(t)
 			s := NewServer("view", NewFakeBrowser(), time.Second, c.hub, nil).WithBoard(c.bd).WithPointer("point")

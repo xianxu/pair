@@ -8,7 +8,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// Table reads every process's pid, parent and start identity in ONE sysctl
+// Table reads every process's pid, parent, start identity and niceness in ONE sysctl
 // (kern.proc.all), so a row's parent and identity describe the same process at
 // the same moment (#399 close review BR-15). Identity matches Identity's format.
 func Table() ([]Process, error) {
@@ -26,6 +26,7 @@ func Table() ([]Process, error) {
 			PID:      int(p.Proc.P_pid),
 			PPID:     int(p.Eproc.Ppid),
 			Identity: strconv.FormatInt(started.Sec, 10) + "." + strconv.FormatInt(int64(started.Usec), 10),
+			Nice:     int(p.Proc.P_nice),
 		})
 	}
 	return out, nil

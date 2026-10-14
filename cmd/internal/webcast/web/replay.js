@@ -10,8 +10,8 @@ import { Model } from './model.js';
 import { strokesAt, paintStrokes, pinLayer, liveNotes } from './annotate.js';
 
 // catchUp is recording.CatchUp (catchup.go), record for record: head and
-// the assets before the latest seg, the bare seg the current document began
-// in, the notes, note states and strokes since then, the latest ctl before
+// the assets before the latest seg, every bare seg/stop, all notes, edits,
+// states and clears, current-document strokes, the latest ctl before
 // the latest seg, and everything from the latest seg on except hover and
 // ptr, of which only the latest of each. Go's is the rule: the shared
 // corpus tests/webcast/catchup_corpus.json holds Go's answers at every cut
@@ -34,19 +34,20 @@ export function catchUp(recs) {
   }
   const out = [], kept = new Set();
   recs.forEach((r, i) => {
-    if (i === doc && doc < last) { out.push(r); return; }
     switch (r.k) {
+      case 'seg': case 'stop':
+        out.push(r); return;
       case 'head': case 'asset':
         if (i < last) { out.push(r); return; }
         break;
       case 'note':
-        if (i >= doc) { kept.add(r.id); out.push(r); }
+        kept.add(r.id); out.push(r);
         return;
       case 'annotation-clear':
-        if (i >= doc) { out.push(r); kept.clear(); }
+        out.push(r); kept.clear();
         return;
-      case 'note-state':
-        if (i >= doc && kept.has(r.id)) out.push(r);
+      case 'note-edit': case 'note-state':
+        if (kept.has(r.id)) out.push(r);
         return;
       case 'stroke':
         if (i >= doc) out.push(r);
@@ -462,7 +463,7 @@ export function replayMarks(doc, layer, fromPage, dpr) {
   const pinned = pinLayer(doc, pins, (n, by) => {
     if (shown === n.id) { shown = null; card.hidden = true; return; }
     shown = n.id;
-    card.textContent = `${by}: ${n.text}`;
+    card.textContent = `${by}: ${n.text}${n.edited ? ' (edited)' : ''}`;
     card.dataset.note = n.id;
     placeCard();
   });
@@ -470,6 +471,8 @@ export function replayMarks(doc, layer, fromPage, dpr) {
     const m = player.model, t = player.t;
     const notes = liveNotes(m);
     pinned.draw(notes, (id) => player.renderer.boxOf(id), place);
+    const current = notes.find(n => n.id === shown);
+    if (current) card.textContent = `${current.author?.name || 'A viewer'}: ${current.text}${current.edited ? ' (edited)' : ''}`;
     placeCard();
     const strokes = strokesAt(m, t);
     canvas.dataset.strokes = strokes.map((x) => x.id).join(' ');

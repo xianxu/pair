@@ -581,12 +581,18 @@ After a crash, rerun Couch: the kernel releases the lease, and the selected stor
 and existing slots remain available. Use machine-local filesystems; shared homes
 across machines are unsupported.
 
-Couch starts each slot at nice +10, so the builds, test suites and agents a slot
-runs yield to Couch and your terminal when the machine is saturated; Couch itself
-keeps normal priority. Set `COUCH_SLOT_NICE` (0–20, `0` turns it off) before
-starting Couch to change it. A Couch that already runs nicer than that (started
-from a niced shell) passes its own niceness down instead, since only root can lower it. It applies to slots started or relaunched after
-that; running slots keep their priority until relaunched (or `renice`d by hand).
+Couch keeps the interactive layer at normal priority and lowers the work: every
+5 seconds it lowers whatever each slot's agent has started (Bash commands,
+builds, test suites, MCP servers) to nice +10. The agent itself, the pair
+wrapper, zellij and Couch are never touched. A command runs at normal priority
+for its first few seconds at most, and the UI stays responsive while work runs
+low when the machine is saturated. Set `COUCH_SLOT_NICE` (0–20, `0` turns it off)
+before starting Couch to change the level, and `COUCH_RENICE_INTERVAL` (a
+duration, at least `1s`) to change how often it looks. `couch --actors` shows
+each slot's agent niceness and how many of its processes run low. A slot whose
+agent itself runs below Couch's own priority (started under the earlier
+whole-slot nice) gets one notice; only root can raise a priority again, so relaunch the slot to restore
+it.
 
 **Adopt existing state before cutover.** Stop and upgrade all old Couch binaries
 first. Couch keeps the chosen store in place, along with its Pair data directory
@@ -1050,6 +1056,16 @@ right-clicking it in the box. A note stays where it was placed, whatever scrolls
 underneath. Turning pointing off deletes every note, as it clears the marks,
 and stopping the broadcast ends them too; nothing is saved to disk.
 
+Click a note you created in this unlocked browser session to edit its text.
+**Save** updates the same note, preserving its author and box, and adds an
+**edited** marker; **Cancel** leaves it unchanged. Other people's notes remain
+read-only, though anyone allowed to annotate can resolve them. A page refresh
+keeps edit access. A fresh unlock, code rotation, another browser or another
+link makes earlier notes read-only; a matching display name does not grant
+ownership. Notes made before this feature are also read-only. With annotation
+OFF or a view-only link, existing note icons only show their text.
+
+
 **Web cast (#454).** `Shift+Ctrl+Alt+b` opens a dedicated Chrome for casting
 a web app: a normal window with its own profile (kept at
 `<couch store>/webcast/chrome-profile`, so your logins to the app survive; delete
@@ -1156,6 +1172,17 @@ notes` lists them. The name a viewer gives is theirs to choose: it attributes, i
 doesn't authenticate.
 
 🤖{**Capture when drawing (#538).** Releasing a note box in the viewer or cast Chrome starts its capture and opens the editor immediately. Keep typing while “Capturing…” is shown; the tick confirms capture and Save attaches your text to it. Capture failure keeps your text and offers Retry capture. A busy capture queue or full capture store still allows Save with an explicit unavailable crop; submit or resolve notes to free capacity. Cancel or draw a new box to discard a draft. Saved pixels stay local and retain the original appearance even after navigation or re-rendering; moving the live box does not recapture them.}
+
+Existing web notes use the same own-session editing rule as screen notes:
+click your 💭 pin for a populated editor, **Save** to revise its text, or
+**Cancel** to leave it unchanged. The original author and box stay the same,
+and revised notes show **edited**. The operator's overlay in cast Chrome also
+opens existing pins with the pen Off, but can edit only notes made by the
+operator, not viewers' notes. Annotation OFF and view-only links are read-only;
+while a new note's Save is pending, its text is temporarily locked to prevent
+a duplicate creation. Text revisions and resolver attribution stay in the web
+recording; resolved notes still disappear from the live page.
+
 
 **Submit web notes (#483).** Press **Shift+Ctrl+Alt+Return** in the draft to send
 its text and all open cast-tab notes to the agent in view, with recorded context,

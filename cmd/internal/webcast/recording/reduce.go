@@ -38,13 +38,14 @@ type SheetState struct {
 // NoteView is a note with its current state and the segment it was made in.
 type NoteView struct {
 	*Note
-	State    string
-	Seg      int
-	Revision uint64
+	State      string
+	Seg        int
+	Revision   uint64
+	ResolvedBy *Author
 }
 
 // NoteUnchanged is the writer's conditional-resolution guard. Reopening a
-// note after a submission selected it must not let its late ack resolve it.
+// note or editing its text after submission must not let a late ack resolve it.
 func (s *State) NoteUnchanged(id string, revision uint64) bool {
 	for _, n := range s.Notes {
 		if n.ID == id {
@@ -236,10 +237,34 @@ func (s *State) apply(r Record) error {
 		s.Assets[r.URL] = r
 	case *Note:
 		s.Notes = append(s.Notes, &NoteView{Note: r, State: NoteOpen, Seg: s.Seg})
+	case *NoteEdit:
+		// Catch-up carries historical notes under a bare live seg before the
+		// latest resume snapshot, so live+DocSeg (not Top) is the replay guard.
+		if !s.Live || s.Ended {
+			return errors.New("note edit requires a live segment")
+		}
+		for _, n := range s.Notes {
+			if n.ID == r.ID {
+				if n.State != NoteOpen {
+					return errors.New("note edit requires an open note")
+				}
+				edited := *n.Note
+				edited.Text, edited.Edited = r.Text, true
+				n.Note = &edited
+				n.Revision++
+				return nil
+			}
+		}
+		return fmt.Errorf("note %q is unknown", r.ID)
 	case *NoteState:
 		for _, n := range s.Notes {
 			if n.ID == r.ID {
 				n.State = r.State
+				n.ResolvedBy = nil
+				if r.State == NoteResolved && r.Who != nil {
+					who := *r.Who
+					n.ResolvedBy = &who
+				}
 				n.Revision++
 				return nil
 			}

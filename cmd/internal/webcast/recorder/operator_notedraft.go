@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
+	"github.com/xianxu/pair/cmd/internal/broadcast"
 	"github.com/xianxu/pair/cmd/internal/webcast/board"
 	"github.com/xianxu/pair/cmd/internal/webcast/notedraft"
 )
@@ -39,7 +40,7 @@ func (r *Recorder) handleDraftOperation(session string, contextID int64, req boa
 	}
 	doc, seg := r.m.st.DocSeg, r.m.st.Seg
 	hash := sha256.Sum256([]byte(fmt.Sprintf("operator\x00%s\x00%d\x00%d", session, contextID, doc)))
-	owner := notedraft.Owner{Scope: hex.EncodeToString(hash[:]), Generation: req.Generation}
+	owner := notedraft.Owner{Identity: broadcast.OperatorNoteOwner, Scope: hex.EncodeToString(hash[:]), Generation: req.Generation}
 	r.draftOwner = &operatorDraftOwner{owner, session, contextID, doc}
 	var p board.PreparedNote
 	if req.Op == "prepare-note" {

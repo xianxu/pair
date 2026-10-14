@@ -36,6 +36,7 @@ func (s *Server) noteDraftRoute(w http.ResponseWriter, r *http.Request, rest str
 		http.Error(w, refuseViewOnly, http.StatusForbidden)
 		return true
 	}
+	identity := s.noteOwner(r)
 	scope := s.noteOwnerScope(r)
 	if scope == "" {
 		http.Error(w, refuseViewOnly, http.StatusForbidden)
@@ -62,7 +63,13 @@ func (s *Server) noteDraftRoute(w http.ResponseWriter, r *http.Request, rest str
 		http.Error(w, msg, code)
 		return true
 	}
-	owner := notedraft.Owner{Scope: scope, Generation: generation}
+	// Revalidate the proof after reading the body: session revocation is
+	// synchronous even if context cancellation has not been scheduled yet.
+	if identity == "" || s.noteOwner(r) != identity || s.noteOwnerScope(r) != scope {
+		http.Error(w, refuseViewOnly, http.StatusForbidden)
+		return true
+	}
+	owner := notedraft.Owner{Scope: scope, Identity: identity, Generation: generation}
 	var status notedraft.Status
 	switch rest {
 	case "prepare-note":
@@ -94,7 +101,12 @@ func (s *Server) noteDraftRoute(w http.ResponseWriter, r *http.Request, rest str
 			err = board.ErrShape
 			break
 		}
-		status, err = s.noteDrafts.Save(r.Context(), owner, in.Request, in.Draft, admission, in.Viewer, *in.Color, in.Text, nil)
+		status, err = s.noteDrafts.Save(r.Context(), owner, in.Request, in.Draft, admission, in.Viewer, *in.Color, in.Text, func() error {
+			if s.noteOwner(r) != identity || s.noteOwnerScope(r) != scope {
+				return board.ErrOwner
+			}
+			return nil
+		})
 	default:
 		var in struct {
 			Request string `json:"request"`

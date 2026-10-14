@@ -23,6 +23,19 @@ type Candidate struct {
 	Capacity       int `json:",omitempty"`
 	Supported      bool
 	Alias          string `json:",omitempty"`
+	// Nice is the slot renicer's facts (#502), when it has looked.
+	Nice *NiceFacts `json:",omitempty"`
+}
+
+// NiceFacts is what the slot renicer (#502) last found for a slot: whether
+// it confirmed the agent, the agent's niceness, and how many of its
+// descendants it has lowered, found already lowered, and was refused.
+type NiceFacts struct {
+	Confirmed bool
+	AgentNice int
+	Lowered   int
+	AtLevel   int
+	Denied    int `json:",omitempty"`
 }
 
 // Route is a sender's request: a repository family or exact repo:N, whose

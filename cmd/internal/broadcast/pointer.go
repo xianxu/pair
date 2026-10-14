@@ -32,6 +32,7 @@ type PointerState struct {
 	// The note board (#447). notesVersion only increases, across flips too,
 	// so a snapshot from before a clear is always older than the clear.
 	board        NoteBoard
+	resolutions  []NoteResolution
 	notesVersion uint64
 	notesChanged chan struct{} // closed and replaced on every board change
 	noteLimit    *RateLimit
@@ -193,5 +194,6 @@ func (p *PointerState) stop() {
 	_, _, _ = p.set(false, nil)
 	p.mu.Lock()
 	p.stopped = true
+	p.resolutions = nil
 	p.mu.Unlock()
 }

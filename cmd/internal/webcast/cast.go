@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	core "github.com/xianxu/pair/cmd/internal/submission"
+	"net/http"
 	"os"
 	"path/filepath"
 	"time"
@@ -283,7 +284,7 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 	} else {
 		c.driveOff = "the cast isn't recorded"
 	}
-	srv := NewServer(token, b, cfg.Ping, live, cfg.Presence).WithBoard(bd).WithNoteDrafts(drafts, nil).WithPointer(pointerToken).WithDrive(c.drive, driveToken).WithDriveLog(cfg.Logf).WithLocks(locks)
+	srv := NewServer(token, b, cfg.Ping, live, cfg.Presence).WithBoard(bd).WithNoteDrafts(drafts, func(r *http.Request) string { return broadcast.NoteOwnerFromContext(r.Context()) }).WithPointer(pointerToken).WithDrive(c.drive, driveToken).WithDriveLog(cfg.Logf).WithLocks(locks)
 	srv.proxy = proxy
 	c.server, c.token, c.pointerToken, c.driveToken = srv, token, pointerToken, driveToken
 	c.capCtx = mountCtx

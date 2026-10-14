@@ -191,7 +191,7 @@ func TestOperatorLiveAnnotation(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		if string(eval(`testRoot.querySelector('.annotate').classList.contains('operator-off') && document.activeElement===document.querySelector('#field')`)) != "true" {
+		if string(eval(`[...testRoot.querySelectorAll('.mode')].every(b=>b.getAttribute('aria-pressed')==='false') && document.activeElement===document.querySelector('#field')`)) != "true" {
 			t.Fatalf("page-focused Escape did not disable %s without moving focus", mode)
 		}
 	}
@@ -221,7 +221,7 @@ func TestOperatorLiveAnnotation(t *testing.T) {
 	if string(eval(`testRoot.querySelector('.drag-region').hidden`)) != "false" {
 		t.Fatal("note release did not place the default box")
 	}
-	eval(`testRoot.querySelector('.note-input').value='Held operator draft'`)
+	eval(`(()=>{const e=testRoot.querySelector('.note-input');e.value='Held operator draft';e.dispatchEvent(new Event('input',{bubbles:true}));})()`)
 	// Capture starts at the gesture; typed text survives its asynchronous acknowledgment.
 	deadline = time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
@@ -305,7 +305,7 @@ func TestOperatorLiveAnnotation(t *testing.T) {
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	if string(eval(`testRoot.querySelector('.note-input').value==='Held operator draft' && testRoot.querySelector('.annotate').classList.contains('operator-off')`)) != "true" {
+	if string(eval(`testRoot.querySelector('.note-input').value==='Held operator draft' && [...testRoot.querySelectorAll('.mode')].every(b=>b.getAttribute('aria-pressed')==='false')`)) != "true" {
 		t.Fatal("return did not restore held draft with pen off")
 	}
 	eval(`(()=>{const e=testRoot.querySelector('.note-input');e.value='Operator note';e.dispatchEvent(new Event('input',{bubbles:true}));testRoot.querySelector('.note-buttons').lastElementChild.click()})()`)
@@ -361,6 +361,35 @@ func TestOperatorLiveAnnotation(t *testing.T) {
 	}
 	if string(eval(`testRoot.querySelector('.note-dialog').classList.contains('hidden')`)) != "true" {
 		t.Fatalf("operator save acknowledgment did not close draft: %s", eval(`testRoot.querySelector('.note-msg').textContent`))
+	}
+	// Own operator note: open in watch, cancel without mutation, then save a
+	// text revision through the real isolated command and ordered recorder.
+	waitOverlay := func(expr, want string) {
+		t.Helper()
+		until := time.Now().Add(5 * time.Second)
+		for time.Now().Before(until) {
+			if string(eval(expr)) == want {
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		t.Fatalf("overlay did not reach %s: %s", want, eval(expr))
+	}
+	waitOverlay(`!!testRoot.querySelector('.pin .chip')`, "true")
+	eval(`testRoot.querySelector('.pin .chip').click()`)
+	if string(eval(`testRoot.querySelector('.note-input').value`)) != `"Operator note"` {
+		t.Fatal("own note did not open populated editor")
+	}
+	eval(`(()=>{const e=testRoot.querySelector('.note-input');e.value='cancelled edit';e.dispatchEvent(new Event('input',{bubbles:true}));[...testRoot.querySelectorAll('.note-buttons button')].find(b=>b.textContent==='Cancel').click()})()`)
+	if bd.OperatorView().Notes[0].Text != "Operator note" {
+		t.Fatal("cancel mutated operator note")
+	}
+	eval(`testRoot.querySelector('.pin .chip').click()`)
+	eval(`(()=>{const e=testRoot.querySelector('.note-input');e.value='Operator note edited';e.dispatchEvent(new Event('input',{bubbles:true}));testRoot.querySelector('.note-buttons').lastElementChild.click()})()`)
+	waitOverlay(`testRoot.querySelector('.note-dialog').classList.contains('hidden')`, "true")
+	edited := bd.OperatorView().Notes
+	if len(edited) != 1 || edited[0].ID != v.Notes[0].ID || edited[0].Text != "Operator note edited" || !edited[0].Edited || edited[0].Author != v.Notes[0].Author || edited[0].Capture != v.Notes[0].Capture || *edited[0].Region != *v.Notes[0].Region {
+		t.Fatalf("edited note %+v", edited)
 	}
 	if err = c.SetAnnotationMode("point"); err != nil {
 		t.Fatal(err)

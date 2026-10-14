@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/broadcast"
 	core "github.com/xianxu/pair/cmd/internal/submission"
 	"github.com/xianxu/pair/cmd/internal/webcast/board"
 	"github.com/xianxu/pair/cmd/internal/webcast/notedraft"
@@ -71,7 +72,7 @@ func TestOperatorDraftCaptureDoesNotBlockRecorder(t *testing.T) {
 		t.Fatal(got)
 	}
 	n, ok := b.ObservedNote(got.ID)
-	if !ok || n.CropUnavailable == "" || n.Capture == "" {
+	if !ok || n.Owner != broadcast.OperatorNoteOwner || n.CropUnavailable == "" || n.Capture == "" {
 		t.Fatal(n, ok)
 	}
 }

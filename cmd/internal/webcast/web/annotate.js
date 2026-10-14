@@ -15,7 +15,7 @@
 
 import { captureDraftController } from './capture-draft.js';
 import { annotationPolicy } from './annotation-policy.js';
-import { HEX_COLOR, pointerColor, colorStore, safeStorage, poster, sayer, railAt, renderSwatches, noteDialog, gestureBox, dragMin, boxCentre, validName, VIEWER_NAME_KEY, MAX_VIEWER_NAME } from './collab.js';
+import { HEX_COLOR, pointerColor, colorStore, safeStorage, poster, sayer, railAt, renderSwatches, noteDialog, sessionNoteOwner, gestureBox, noteGesture, dragMin, boxCentre, validName, VIEWER_NAME_KEY, MAX_VIEWER_NAME } from './collab.js';
 
 export { validName };
 
@@ -244,7 +244,6 @@ export const CHIP_ROOM = 34;
 // author) is a tap on a pin's chip. Live and replay share it.
 export function pinLayer(doc, container, open) {
   const els = new Map(); // note id -> element
-  let current = new Map();
   const make = (n) => {
     const pin = doc.createElement('div');
     pin.className = 'pin';
@@ -254,22 +253,24 @@ export function pinLayer(doc, container, open) {
     chip.type = 'button';
     chip.className = 'chip';
     chip.textContent = '💭';
-    const by = n.author && n.author.name ? n.author.name : 'A viewer';
-    chip.title = `${by}: ${n.text}`;
-    chip.setAttribute('aria-label', `Note from ${by}`);
-    chip.addEventListener('click', (e) => { e.stopPropagation(); const latest = current.get(n.id); if (latest) open(latest, latest.author?.name || 'A viewer'); });
+    const entry = { pin, chip, note: n };
+    chip.addEventListener('click', (e) => { e.stopPropagation(); open(entry.note, entry.note.author?.name || 'A viewer'); });
     pin.append(chip);
     container.append(pin);
-    return pin;
+    return entry;
   };
   return {
     draw(notes, boxOf, place, { placementOf } = {}) {
-      current = new Map(notes.map(n => [n.id, n]));
       const ids = new Set(notes.map((n) => n.id));
-      for (const [id, pin] of els) if (!ids.has(id)) { pin.remove(); els.delete(id); }
+      for (const [id, entry] of els) if (!ids.has(id)) { entry.pin.remove(); els.delete(id); }
       for (const n of notes) {
-        const pin = els.get(n.id) || make(n);
-        els.set(n.id, pin);
+        const entry = els.get(n.id) || make(n);
+        entry.note = n;
+        els.set(n.id, entry);
+        const { pin, chip } = entry;
+        const by = n.author?.name || 'A viewer';
+        chip.title = `${by}: ${n.text}${n.edited ? ' (edited)' : ''}`;
+        chip.setAttribute('aria-label', `Note from ${by}${n.edited ? ' (edited)' : ''}`);
         const b = placementOf ? placementOf(n) : noteBox(n, boxOf);
         pin.hidden = !b;
         if (b) {
@@ -284,7 +285,7 @@ export function pinLayer(doc, container, open) {
 
 // NOTE_ROUTES is every request this module makes besides palette.json
 // (collab.js's poster sends them).
-const NOTE_ROUTES = ['stroke', 'note', 'note-state'];
+const NOTE_ROUTES = ['stroke', 'note', 'note-edit', 'note-state'];
 
 export const MODE_TIPS = {
   point: 'Point: draw on the page for everyone. Click again to stop.',
@@ -315,6 +316,7 @@ export async function mountAnnotate(doc, win, v) {
   } catch { answer = null; }
   if (!answer) return null;
   const { palette, annotate } = answer;
+  const owner = await sessionNoteOwner((...args) => win.fetch(...args));
 
   let storage = null;
   try { storage = win.localStorage; } catch { /* no storage: nothing remembered */ }
@@ -333,7 +335,7 @@ export async function mountAnnotate(doc, win, v) {
     } finally { win.clearTimeout(timer); }
   };
   captureCall.context = () => generation;
-  const ui = mountAnnotation(doc, win, v, { captureCall, root: doc.body, box: doc.getElementById('box'), stage: doc.getElementById('stage'), palette, who, colors, post, annotate, annotationAllowed: false });
+  const ui = mountAnnotation(doc, win, v, { captureCall, root: doc.body, box: doc.getElementById('box'), stage: doc.getElementById('stage'), palette, who, colors, post, annotate, owner, annotationAllowed: false });
   v.onCapabilities?.((caps) => {
     const c = caps?.annotation;
     ui.setAnnotationAllowed(c?.allowed === true, generation !== c?.generation, c?.state);
@@ -343,7 +345,7 @@ export async function mountAnnotate(doc, win, v) {
 }
 
 // Both the viewer and the isolated operator world mount the same UI.
-export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, colors, post, operator = false, prepareDraft, captureCall, annotate = true, annotationAllowed = true }) {
+export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, colors, post, operator = false, prepareDraft, captureCall, annotate = true, annotationAllowed = true, owner = '' }) {
   let availabilityState = 'off';
   let picked = colors.get();
   const color = () => pointerColor(picked, 0, palette.length);
@@ -408,6 +410,7 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
     onRetry: () => captures?.retry(),
     color,
     onClose: () => drawDrag(),
+    editRequest: (id, text) => ['note-edit', { seg: v.model.seg, id, text }],
     resolveRequest: (id) => ['note-state', { viewer: who.viewer(), id, state: 'resolved' }],
     beforeSave: () => {
       const n = name.value.trim();
@@ -444,11 +447,12 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
     state.mode = policy.mode;
     layer.classList.toggle('point', state.mode === 'point');
     layer.classList.toggle('note', state.mode === 'note');
-    // Off is transparent in the operator's actual page, including pins.
-    layer.classList.toggle('operator-off', operator && (unavailable() || state.mode === 'watch'));
-    noteRows.classList.toggle('operator-off', operator && (unavailable() || state.mode === 'watch'));
-    layer.classList.toggle('operator-driving', operator && (policy.phase === 'driving' || policy.phase === 'disabled'));
-    dlg.hidden = operator && (policy.phase === 'driving' || policy.phase === 'disabled');
+    // Driving leaves the operator's page untouched. Otherwise only the
+    // chips can take input in watch mode, including read-only OFF notes.
+    layer.classList.toggle('operator-off', operator && !!policy.driver);
+    noteRows.classList.toggle('operator-off', operator && !!policy.driver);
+    layer.classList.toggle('operator-driving', operator && !!policy.driver);
+    dlg.hidden = operator && (!!policy.driver || (policy.phase === 'disabled' && dialog.editable && !dialog.replacementBlocked));
     if (dlg.hidden) input.blur?.();
     renderRail();
     placeRail();
@@ -534,7 +538,7 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
       state.timer = win.setInterval(flush, CHUNK_MS);
       schedule();
     } else {
-      state.drag = { from: p, to: p, pointerType: e.pointerType, dragged: false };
+      state.drag = noteGesture(p, e.pointerType);
       drawDrag();
     }
   });
@@ -545,8 +549,7 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
       strokes.local(state.stroke.full, palette[state.stroke.color], [p], win.performance.now());
       schedule();
     } else if (state.drag) {
-      state.drag.to = p;
-      state.drag.dragged ||= regionOf(state.drag.from, p, pageView(), state.drag.pointerType, { preview: true }) !== null;
+      state.drag.move(p);
       drawDrag();
     }
   });
@@ -623,10 +626,14 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
   };
 
   const openNote = (n, by) => {
-    if (operator && (unavailable() || state.mode === 'watch')) return;
-    author.textContent = by;
-    name.hidden = true;
-    dialog.view({ id: n.id, text: n.text }, { resolvable: annotate });
+    if (operator && !!policy.driver) return;
+    dlg.hidden = false;
+    const opened = annotate && !unavailable() && n.owner && n.owner === (operator ? 'operator' : owner)
+      ? dialog.edit(n) : dialog.view(n, { resolvable: annotate });
+    if (opened) {
+      author.textContent = by + (n.edited ? ' (edited)' : '');
+      name.hidden = true;
+    }
   };
   const pinned = pinLayer(doc, pins, openNote);
   const listed = noteList(doc, noteRows, openNote);
@@ -636,7 +643,7 @@ export function mountAnnotation(doc, win, v, { root, box, stage, palette, who, c
     const placementOf = n => placements.get(n.id);
     pinned.draw(notes, (id) => v.boxOf(id), place, { placementOf });
     listed.draw(notes, placementOf);
-    dialog.update({ notes: notes.map((n) => ({ id: n.id })) });
+    dialog.update({ notes });
   }
 
   function drawStrokes(now) {

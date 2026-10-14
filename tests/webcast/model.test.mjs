@@ -111,3 +111,28 @@ test('annotation clear preserves replay history but removes marks through pause/
   m.apply({t:8,k:'stop',why:'end'});
   assert.throws(()=>m.apply({t:9,k:'annotation-clear',who:{id:'operator'}}),/cast is over/);
 });
+
+test('note edits copy creation records, retain view identity, and attribute resolution', () => {
+ const original = {t:2,k:'note',id:'n',author:{id:'a'},owner:'opaque',text:'original',at:{node:3}};
+ const m=reduce([head,seg(1),doc,original]); const v=m.notes[0];
+ m.apply({t:3,k:'note-edit',id:'n',text:'updated'});
+ assert.equal(v.note.text,'updated'); assert.equal(v.note.edited,true); assert.equal(v.note.t,2);
+ assert.equal(original.text,'original'); assert.equal(m.notes[0],v); assert.equal(v.revision,1);
+ m.apply({t:4,k:'note-state',id:'n',state:'resolved',who:{id:'resolver',name:'Ada'}});
+ assert.deepEqual(v.resolvedBy,{id:'resolver',name:'Ada'});
+ assert.throws(()=>m.apply({t:5,k:'note-edit',id:'n',text:'no'}));
+ m.apply({t:5,k:'note-state',id:'n',state:'open'}); assert.equal(v.resolvedBy,null);
+ for(const text of ['', ' \n', 'x'.repeat(1025), '\u202e', '\ud800']) {
+  assert.throws(()=>m.apply({t:6,k:'note-edit',id:'n',text})); assert.equal(m.t,5);
+ }
+});
+
+test('historical open note edits preserve its original capture, anchor and document identity',()=>{
+ const original={t:2,k:'note',id:'old',author:{id:'a'},owner:'owner',text:'draw-time text',capture:'original-capture',region:[1,2,3,4],at:{node:3,route:'https://old/'}};
+ const m=reduce([head,seg(1),doc,original]);const view=m.notes[0];
+ m.apply({...seg(2,'navigate'),t:3});m.apply({...doc,t:4});
+ m.apply({t:5,k:'note-edit',id:'old',text:'edited from off-view list'});
+ assert.equal(view.note.text,'edited from off-view list');assert.equal(view.revision,1);assert.equal(view.seg,1);
+ assert.equal(view.note.capture,original.capture);assert.deepEqual(view.note.at,original.at);assert.deepEqual(view.note.region,original.region);assert.equal(original.text,'draw-time text');
+ m.apply({t:6,k:'stop',why:'pause'});assert.throws(()=>m.apply({t:7,k:'note-edit',id:'old',text:'paused'}),/live/);
+});

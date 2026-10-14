@@ -24,7 +24,7 @@ func TestSaveUnavailableTokenDoesNotNeedStoreCapacity(t *testing.T) {
 	}
 	defer s.Close()
 	a, p := preparation(t)
-	owner := Owner{Scope: "viewer", Generation: 1}
+	owner := Owner{Scope: "viewer", Identity: "public-author", Generation: 1}
 	now := s.opts.Now()
 	token, err := s.token(&captureRecord{ID: opaqueID(), Owner: owner, Request: "prepare", RecordingPath: s.opts.RecordingPath, Prepared: p, State: State{Phase: Ready, Unavailable: StoreFull}, Created: now, Expires: now.Add(DraftTTL)})
 	if err != nil {
@@ -36,12 +36,16 @@ func TestSaveUnavailableTokenDoesNotNeedStoreCapacity(t *testing.T) {
 			t.Fatal(got, err)
 		}
 	}
-	if len(written) != 1 || written[0].CropUnavailable != StoreFull || written[0].Text != "written despite full store" {
+	if len(written) != 1 || written[0].Owner != "public-author" || written[0].CropUnavailable != StoreFull || written[0].Text != "written despite full store" {
 		t.Fatal(written)
 	}
 	ids, err := s.disk.list()
 	if err != nil || len(ids) != 0 {
 		t.Fatal(ids, err)
+	}
+	// The signed token also binds public ownership independently of scope.
+	if _, err = s.Save(context.Background(), Owner{Scope: owner.Scope, Identity: "forged-author", Generation: 1}, "save", token, a, board.Viewer{}, 0, "no", nil); err == nil {
+		t.Fatal("foreign identity saved using matching private scope")
 	}
 	// A caller cannot use another authenticated owner's preparation.
 	if _, err = s.Save(context.Background(), Owner{Scope: "foreign", Generation: 1}, "save", token, a, board.Viewer{ID: "viewer", Name: "Viewer"}, 0, "no", nil); err == nil {

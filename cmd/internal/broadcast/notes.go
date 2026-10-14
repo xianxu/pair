@@ -34,6 +34,8 @@ var (
 	ErrNoteText      = errors.New("broadcast: note text not allowed")
 	ErrNoteColorFull = errors.New("broadcast: too many notes in one color")
 	ErrNoteOverlap   = errors.New("broadcast: a note is already there")
+	ErrNoteOwner     = errors.New("broadcast: only the note's author can edit it")
+	ErrNoteGone      = errors.New("broadcast: that note is gone")
 )
 
 // Note is one sticky note. Box is the area it is about, in cells (#488):
@@ -44,12 +46,14 @@ var (
 // box, the 💭's chip and its glow are drawn in it. At is when it was saved,
 // which sets its flash phase; it isn't sent to pages.
 type Note struct {
-	ID    int     `json:"id"`
-	Col   int     `json:"col"`
-	Row   int     `json:"row"`
-	Box   CellBox `json:"box"`
-	Color int     `json:"color"`
-	Text  string  `json:"text"`
+	ID     int     `json:"id"`
+	Col    int     `json:"col"`
+	Row    int     `json:"row"`
+	Box    CellBox `json:"box"`
+	Color  int     `json:"color"`
+	Text   string  `json:"text"`
+	Owner  string  `json:"owner,omitempty"`
+	Edited bool    `json:"edited,omitempty"`
 	// Anchor is what the box is on (#488), from the operator's program
 	// (Config.AnchorNote); nil when it gives none. It is the agent's
 	// context (file names, a heading off screen), never on the pages'

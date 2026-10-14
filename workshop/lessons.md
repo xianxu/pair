@@ -1620,3 +1620,24 @@ proof; record the surprising case so the next change starts from evidence.
 
 - #538: A recorded node ID is document-scoped evidence even if the live recorder usually allocates globally. Before giving a connected ID priority over scored anchors, verify the note belongs to the current document; test a same-tag ID reused after navigation.
 - #538: Recovery tests must restart the real lifecycle identity. If a new cast always gets a new recording path, reopening a service with the old path alone misses orphaned save/publication intents; exercise a new cast recovering an inactive prior recording.
+
+- #537 recording review: when record families merge by timestamp plus file rank,
+  live writers must advance tied timestamps before a transition to an earlier
+  file rank. Test real split/merge equivalence around pause, clear and end.
+- #537 UI review: mutually exclusive presentation phases do not erase independent
+  authority facts. Test OFF/view-only/paused crossed with active driving, and
+  preserve held editor text when newly accessible read-only UI is opened.
+- #536: Sharing note-box geometry does not share gesture timing. Keep threshold crossing and drag latching shared too; test each consumer's press, sub-threshold movement, release, and drag back toward its origin.
+
+- #537 verification: adding an authenticated probe or POST route requires updating
+  the static same-origin transport inventory as well as runtime behavior tests.
+  Stage-aware fleet producers and consumers must agree on the new reason before
+  live conformance runs while a smoke checkout is staged.
+
+- #537 close BR-1: pending-input tests must cover creation separately from edits.
+  A successful creation consumes its draft identity; prevent further draft input
+  until acknowledgment or transition explicitly to the committed note, never
+  leave a success eligible to create again. BR-2/3: reconcile final entity paths
+  and classifications, and update user-facing README instructions alongside atlas.
+
+- #538 integration: expanding a list across documents also expands reconnect and edit consumers. Check catch-up equivalence against every retained note (including source segment), and test a historical note through current admission, owner checks, edit, and submission; a current-document-only oracle hides missing list entries.

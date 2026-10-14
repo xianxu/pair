@@ -285,7 +285,7 @@ func (b *Board) note(in NoteIn, operator bool, emit Emit) (string, error) {
 	b.pending[id] = pending{doc: doc, color: in.Color}
 	b.mu.Unlock()
 
-	n := &recording.Note{ID: id, Author: b.author(in.Viewer, in.Color), Text: in.Text, At: at, Region: &region}
+	n := &recording.Note{ID: id, Author: b.author(in.Viewer, in.Color), Owner: in.Owner, Text: in.Text, At: at, Region: &region}
 	if err := emit(n, doc); err != nil {
 		b.mu.Lock()
 		delete(b.pending, id)
@@ -349,7 +349,7 @@ func (b *Board) setState(in StateIn, seg int, operator bool, emit Emit) error {
 	case unchanged:
 		return nil
 	}
-	update := &recording.NoteState{ID: in.ID, State: in.State}
+	update := &recording.NoteState{ID: in.ID, State: in.State, Who: &recording.Author{ID: in.Viewer.ID, Name: in.Viewer.Name}}
 	if in.State == recording.NoteResolved {
 		revision := cur.Revision
 		update.IfRevision = &revision

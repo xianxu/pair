@@ -33,6 +33,7 @@ const DraftTTL = 10 * time.Minute
 const OperationBudget = 36 * time.Second
 
 type Owner struct {
+	Identity   string `json:"identity,omitempty"`
 	Scope      string `json:"scope"`
 	Generation uint64 `json:"generation"`
 }
@@ -651,7 +652,7 @@ func (s *Service) revokeLocked(owner Owner, request string) error {
 }
 
 func validCaptureRecord(r *captureRecord, id string) error {
-	if validRecord(id) != nil || r.ID != id || r.Owner.Scope == "" || len(r.Owner.Scope) > 256 || r.Request == "" || len(r.Request) > 128 || !filepath.IsAbs(r.RecordingPath) || filepath.Clean(r.RecordingPath) != r.RecordingPath || r.Created.IsZero() || r.Expires.Before(r.Created) || r.Prepared.Document < 1 {
+	if validRecord(id) != nil || r.ID != id || r.Owner.Scope == "" || len(r.Owner.Scope) > 256 || len(r.Owner.Identity) > 256 || r.Request == "" || len(r.Request) > 128 || !filepath.IsAbs(r.RecordingPath) || filepath.Clean(r.RecordingPath) != r.RecordingPath || r.Created.IsZero() || r.Expires.Before(r.Created) || r.Prepared.Document < 1 {
 		return errors.New("invalid capture identity or preparation")
 	}
 	switch r.State.Phase {
@@ -662,7 +663,7 @@ func validCaptureRecord(r *captureRecord, id string) error {
 	if (r.State.Phase == Attaching || r.State.Phase == Attached || r.State.Phase == Transferring || r.State.Phase == Bundled) && r.NoteID == "" {
 		return errors.New("capture owner has no note")
 	}
-	if r.Note != nil && (r.Note.ID != r.NoteID || r.Note.Capture != r.ID) {
+	if r.Note != nil && (r.Note.ID != r.NoteID || r.Note.Capture != r.ID || r.Note.Owner != r.Owner.Identity) {
 		return errors.New("capture note identity mismatch")
 	}
 	if r.State.Phase == Transferring && !core.ValidID(r.PendingSubmission) {
@@ -736,7 +737,7 @@ func (s *Service) recoverRecording() error {
 	}
 	for _, r := range s.records {
 		n, present := observed[r.NoteID]
-		if present && n.Capture != r.ID {
+		if present && (n.Capture != r.ID || n.Owner != r.Owner.Identity) {
 			continue
 		}
 		if r.State.Phase == Attaching {

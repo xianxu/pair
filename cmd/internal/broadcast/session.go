@@ -148,7 +148,7 @@ func Start(ctx context.Context, cfg Config) (*Session, error) {
 	}
 	hub := NewHub(hubOpts)
 	server := NewServer(ServerOptions{Token: token, Locks: locks, Hub: hub, Ping: cfg.Ping, Theme: cfg.Theme,
-		Pointer: s.pointer, OnPoint: s.acceptPoint, OnNote: s.acceptNote, OnResolve: s.resolveNote})
+		Pointer: s.pointer, OnPoint: s.acceptPoint, OnNote: s.acceptNote, OnResolve: s.resolveNote, OnNoteEdit: s.editNote})
 	mount, err := host.Mount(ctx, server, token+"/")
 	if err != nil {
 		hub.Close(err)
@@ -484,11 +484,13 @@ func (s *Session) SetNoteAnchor(id int, a NoteAnchor) bool {
 
 // ResolveNote resolves note id for the operator (the terminal's notes menu),
 // as a viewer's Resolve does.
-func (s *Session) ResolveNote(id int) error { return s.resolveNote(id) }
+func (s *Session) ResolveNote(id int) error {
+	return s.resolveNote(NoteResolutionRequest{ID: id, Author: "Operator"})
+}
 
 // resolveNote removes a note; an unknown id is already resolved.
-func (s *Session) resolveNote(id int) error {
-	changed, err := s.pointer.resolveNote(id)
+func (s *Session) resolveNote(in NoteResolutionRequest) error {
+	changed, err := s.pointer.resolveNote(NoteResolution{ID: in.ID, Author: in.Author, At: s.now()})
 	if changed {
 		s.notesChanged()
 	}

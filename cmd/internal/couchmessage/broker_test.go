@@ -655,3 +655,38 @@ func TestFamilyObservesHumanGenerationWithoutInventingRecentActivity(t *testing.
 		t.Fatalf("fresh human generation excluded from family routing: %+v %v", r, err)
 	}
 }
+
+// The slot renicer (#502) reads the connected slots and puts its facts on
+// the listing; a disconnected slot is neither listed nor looked at.
+func TestBrokerConnectedAndNiceView(t *testing.T) {
+	base := time.Unix(1000, 0)
+	b := NewBroker(context.Background(), func() time.Time { return base }, func(context.Context, Binding) (bool, error) { return true, nil })
+	defer b.Close()
+	from, low, gone := brokerBinding("brain:0"), brokerBinding("pair:1"), brokerBinding("pair:2")
+	for _, v := range []Binding{from, low, gone} {
+		_ = b.Register(v, newFakeEndpoint(base))
+	}
+	b.Disconnect(gone)
+	if got := b.Connected(); len(got) != 2 || got[0] != from || got[1] != low {
+		t.Fatalf("connected %v", got)
+	}
+	b.SetNiceView(func(v Binding) (NiceFacts, bool) {
+		return NiceFacts{Confirmed: true, AgentNice: 0, Lowered: 3}, v == low
+	})
+	rows, err := b.Actors(context.Background(), from)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range rows {
+		switch r.Binding {
+		case low:
+			if r.Nice == nil || r.Nice.Lowered != 3 {
+				t.Errorf("low row %+v", r)
+			}
+		case from:
+			if r.Nice != nil {
+				t.Errorf("a slot the renicer hasn't looked at has facts: %+v", r.Nice)
+			}
+		}
+	}
+}

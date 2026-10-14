@@ -73,7 +73,7 @@ func (b *Board) ResolveSelection(ctx context.Context, s Selection) error {
 				continue
 			}
 			rev := n.Revision
-			err := admission.resolveSelected(&recording.NoteState{ID: n.ID, State: recording.NoteResolved, IfRevision: &rev}, 0)
+			err := admission.resolveSelected(&recording.NoteState{ID: n.ID, State: recording.NoteResolved, IfRevision: &rev, Who: &recording.Author{ID: Operator, Name: "Operator"}}, 0)
 			if err != nil && !errors.Is(err, ErrStale) {
 				return err
 			}

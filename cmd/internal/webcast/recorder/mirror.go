@@ -97,6 +97,7 @@ type TextFetch struct {
 // goroutine owns it.
 type mirror struct {
 	st       *rec.State
+	lastKind string
 	next     rec.NodeID
 	sessions map[string]*msession
 	out      []rec.Record
@@ -154,15 +155,14 @@ func (m *mirror) emit(t int64, r rec.Record) bool {
 		// clear strictly after earlier annotations, including at a frozen clock.
 		t = max(t, m.st.T+1)
 	}
-	if t < m.st.T {
-		t = m.st.T
-	}
+	t = rec.OrderedTime(t, m.st.T, m.lastKind, r.Kind())
 	r.SetTime(t)
 	if err := m.st.Apply(r); err != nil {
 		m.Dropped[r.Kind()]++
 		m.note(fmt.Sprintf("t=%d %s: %v", t, r.Kind(), err))
 		return false
 	}
+	m.lastKind = r.Kind()
 	m.out = append(m.out, r)
 	return true
 }

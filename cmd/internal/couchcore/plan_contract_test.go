@@ -817,8 +817,8 @@ func TestIssue149BlockedRunnersDelegateToOneHandshakeAuthority(t *testing.T) {
 	t.Parallel()
 
 	want := map[string]string{
-		"runner.go":    "return startBlockedChild(ctx, startExecChild, r.LaunchHelper, r.Nice, dir, argv, env, timeout)",
-		"ptyrunner.go": "return startBlockedChild(ctx, r.start, r.LaunchHelper, r.Nice, dir, argv, env, timeout)",
+		"runner.go":    "return startBlockedChild(ctx, startExecChild, r.LaunchHelper, dir, argv, env, timeout)",
+		"ptyrunner.go": "return startBlockedChild(ctx, r.start, r.LaunchHelper, dir, argv, env, timeout)",
 	}
 	for name, delegation := range want {
 		raw, err := os.ReadFile(name)
