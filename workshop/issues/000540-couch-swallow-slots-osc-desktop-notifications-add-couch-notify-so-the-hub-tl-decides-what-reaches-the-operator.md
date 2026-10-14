@@ -138,6 +138,17 @@ The operator (2026-10-13):
 
 ## Revisions
 
+### 2026-10-13 — BR-1 corrected
+
+1f5cdc8e05225ed75cf1d8bbec31ce22fd6a1a54 fixes the acknowledged-output class:
+one shared writer retains real outcomes and recovery; best-effort child effects
+explicitly suppress only the stall outcome, while Notify propagates it. Both
+stall cases failed before the fix and pass afterward, including no replay after
+recovery. Full terminal/notifyosc passed (80.446s/0.143s), targeted race passed
+(16.526s). Console/broker/CLI already propagate errors to unconfirmed/nonzero.
+Another full `make -k test` is running at /tmp/pair540-stallfix-full-suite.log
+before re-close. BR-2 acceptance criteria are updated above.
+
 ### 2026-10-13 — close review BR-1/BR-2
 
 First close returned REWORK. BR-1 correctly found that the shared best-effort
