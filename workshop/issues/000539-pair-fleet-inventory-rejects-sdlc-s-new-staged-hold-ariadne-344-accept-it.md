@@ -39,15 +39,17 @@ Accept `staged` through the shared fleet reason grammar. Preserve the producerâ€
 
 - [x] Update the shared grammar and fleet fake (ARCH-DRY); keep classification pure (ARCH-PURE).
 - [x] Add stage evidence and a held explanation after existing safety checks, with regressions.
-- [ ] Run targeted tests, live read-only conformance, and make -k test; close and land.
+- [x] Run targeted tests, live read-only conformance, and make -k test.
 
 ## Log
 
 ### 2026-10-13
 
 - Read producer JudgeCheckout and TreeRow: detached + staged is holds-work; dirty/operation take precedence, unread base remains unknown. Swept Go consumers: one reason grammar, the shared memberGit reader, recovery classifier, and stateful fleet fake. No other hard-coded hold lists found.
-- ARCH-PURPOSE: acceptance also needs a normal-stage recovery explanation. ARCH-DRY/PURE: reuse grammar and existing evidence/classifier seams. No new IO, background work, durable state, or resource budget; ARCH-BOUNDARY/CONSTRAINTS/FUNERAL do not introduce additional mechanisms. Preserve existing safety ordering (ARCH-STATE).
+- ARCH-PURPOSE: acceptance also needs a normal-stage recovery explanation. ARCH-DRY/PURE: reuse grammar and existing evidence/classifier seams. No new IO, background work, durable state, or resource budget; ARCH-SECURE/CONSTRAINTS/FUNERAL do not introduce additional mechanisms. Preserve existing safety ordering (ARCH-ORDER).
 
 - Implemented shared staged grammar, row decoding, fake stage lifecycle, and a dedicated normal hold. Detached safety is shared by ordinary and staged evidence. State-domain coverage includes the new branch/class/hold. Atlas updated.
 - Red: TestKnownFleetReasonGrammar rejected staged before the change. Green: focused grammar/fake/stage lifecycle tests; live fleet conformance and recovery domain checks passed. The class/hold fixture coverage check identified a missing stage fixture; added it and reran successfully.
 - Merged current main before full verification. Running make -k test with complete output at /tmp/pair539-make-k.log.
+
+- Verification: make -k test passed in full (exit 0), /tmp/pair539-make-k.log; couchcore passed in 441.750s. No known-failure exceptions needed. ARCH-MOCK: the stateful fake preserves producer recovery/probe precedence and stage-to-branch/ordinary-detach transitions.
