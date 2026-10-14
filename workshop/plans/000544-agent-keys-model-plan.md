@@ -1,0 +1,142 @@
+# Agent keys and model selection implementation plan
+
+> **For agentic workers:** Consult AGENTS.md Section 3 (Subagent Strategy). Use superpowers-executing-plans for the connected driver work; bounded pure parsing or fixture work may be delegated. Steps use checkboxes for tracking.
+
+**Goal:** Let a verified owning hub drive an idle slot’s agent keys and choose its model/effort with honest, screen-confirmed results and session-only scope by default.
+
+**Architecture:** Add one exact-incarnation wrapper drive capability, executed by the existing single stdin writer. A pure bounded recipe reducer chooses named inputs from fresh styled agent screens. Couch owns authorization/receipts; the wrapper owns input exclusion, parsing and lifetime. Reuse the existing terminal translator, tail rendering, console queue and ownership gate.
+
+**Tech stack:** Go, existing Unix-socket transport and PTY terminal model, recorded Codex/Claude screens, stateful harness fakes and isolated live conformance.
+
+## Approved requirements and design decisions
+
+The 10-14 Revision supersedes a recipe that selects by assumed position: model and effort labels must be observed, and Codex’s session-only `s` action must be explicit. `--scope session|default` defaults to session; default scope requires the existing `--confirm` and a supported recipe. No config file is edited by Couch. Claude session selection must be verified in its captured recipe; default scope is refused unless the live recipe proves that capability.
+
+CLI:
+
+```sh
+couch --keys pair:7 clear-line text:/model submit wait:200 down enter
+couch --set-model pair:7 --model gpt-6.1-sol --effort medium --confirm
+couch --set-model pair:7 --model gpt-6.1-sol --effort medium --scope default --confirm
+```
+
+`--keys` accepts `text:…`, `enter`, `submit`, `up`, `down`, `esc`, `clear-line`, `wait:MS`. Raw keys have no peer-message chrome and return the final styled tail, with JSON available. `enter` traverses Pair’s normal Return translation: newline in the qualified composer, selection inside a picker; `submit` traverses Alt+Return. A lone ESC is a completed separate step, flushed before a subsequent Return. Raw key success means bytes and final observation confirmed, not that an arbitrary command achieved its goal.
+
+Both operations require a verified current hub caller, a different exact connected slot owned by that hub (#546), positive wrapper Settled and a fresh qualified empty agent composer. Unknown/busy/picker/buffered-paste states refuse with “wait until the agent composer is empty and its turn finishes.” TL clarified that the separate Neovim draft is unaffected and needs no guard. No dirty-Git precondition: these operations do not replace a process or checkout.
+
+Choose the wrapper endpoint over Zellij CLI writes: it already pins Binding plus session incarnation and owns the only PTY writer. Zellij would duplicate pane/session discovery and bypass Pair’s key translation. Peer message delivery is also unsuitable: it adds chrome and intentionally accepts messages during active turns. No fallback to an older wrapper’s arbitrary terminal injection; report “relaunch the slot on the new build.”
+
+## Core concepts
+
+### Pure entities
+
+| Name | Kind | Lives in | Status |
+|---|---|---|---|
+| `KeySequence`, `ParseKeySequence` | PURE | `cmd/internal/agentdrive/keys.go` | new |
+| `ModelRequest`, `ModelScope`, `Recipe` | PURE | `cmd/internal/agentdrive/recipe.go` | new |
+| `ScreenEvidence`, `ReadModelScreen` | PURE | `cmd/internal/agentdrive/screen.go` | new |
+| `DriveState`, `DriveEvent`, `ReduceDrive` | PURE | `cmd/internal/agentdrive/model.go` | new |
+| `OperationReceipt`, `ApplyReceiptEvent` | PURE | `cmd/internal/couchmessage/operation.go` | modified |
+| `classifyWait` / model-control confirmation recognition | PURE | `cmd/internal/couchcmd/wait_notice.go` | modified |
+
+`agentdrive` imports neither Couch nor wrapper, avoiding the existing couchmessage→couchcore dependency cycle. One drive owns one parsed request and a bounded observation history. Recipes are one table per agent, selecting parser/state phases rather than hardcoded row numbers. Request equality uses a bounded canonical intent digest in the existing receipt machine; request IDs cannot change text, model, effort or scope. Preserve existing receipt statuses and expiry.
+
+`ScreenEvidence` decodes the existing ‹rev›/‹dim›/‹cursor› grammar, including escaped ‹‹. Match complete normalized model identifiers or their recipe-declared exact display labels, never substring guesses. Require unique selected-row evidence and a recognized picker phase. Navigation uses fresh selected labels and screen generations; reorder/scroll is accepted when recognized, duplicate/ambiguous labels decline. Final confirmation must be a newly painted live status region after the apply key, not old scrollback or a footer that was already present before the action. If effort is omitted, use the picker’s observed selection and verify that observed value.
+
+### Integration points
+
+| Name | Kind | Lives in | Status | Wraps |
+|---|---|---|---|---|
+| `handleAgentDrive`, `installAgentDriveService` | INTEGRATION | `cmd/internal/couchcmd/agent_drive_service.go` | new | authenticated console queue and wrapper capability |
+| `RemoteEndpoint.Drive`, status/cancel RPC | INTEGRATION | `cmd/internal/couchmessage/drive_endpoint.go` | new | existing bounded Unix socket calls |
+| endpoint request/response and drive intent | INTEGRATION | `cmd/internal/couchmessage/endpoint.go`, `protocol.go` | modified | closed typed wire parsing |
+| `dispatchAgentDrive` | INTEGRATION | `cmd/internal/wrapcmd/agent_drive.go` | new | existing stdin writer, input admission and terminal snapshots |
+| wrapper endpoint admission | INTEGRATION | `cmd/internal/wrapcmd/peer_runtime.go` | modified | exact Binding proof and drive mailbox |
+| automatic input owner / command accounting | INTEGRATION | `cmd/internal/wrapcmd/automatic_input.go`, `wrap.go` | modified | shared translator and lifecycle observations |
+| CLI adapter | INTEGRATION | `cmd/internal/couchcmd/agent_drive_cli.go`, `agent_drive_messages.go` | new | argv, admission and read-only receipt polling |
+| stateful drive harness | INTEGRATION | `cmd/internal/wrapcmd/agent_drive_test.go` | new | existing harnessSessionFake / peerLoopFixture |
+| isolated model conformance | INTEGRATION | `cmd/internal/wrapcmd/peer_live_test.go` | modified | fresh real-agent PTYs in disposable repos |
+
+The new wrapper adapter admits one complete bounded sequence/model request and wakes the input loop; RPC goroutines never write the PTY. It uses the same translation logic as ordinary input, with a typed remote origin so recognized model-control submissions do not open a conversational turn. Generic raw `submit` retains ordinary turn accounting. All direct translated writes remain under input admission and the automatic-input lease.
+
+## Operating envelope and lifecycle
+
+Bounds are initial design choices, tested before landing: at most 64 caller-supplied steps, 8 KiB aggregate printable UTF-8 text, 0–1000 ms per explicit wait and 5 seconds aggregate waits. Reject control characters in `text:`; named keys provide them. At most 96 recipe navigation steps, 128 observed labels (128 bytes each), and 200 screen lines; retained result tail capped at 32 KiB. Invalid input names the limit and asks the caller to shorten the sequence.
+
+One absolute 30-second server budget begins at operation admission, including queue wait; reserve its final 3 seconds for safe recipe back-out. CLI observes for at most 36 seconds and existing short RPC deadlines stay unchanged. Polling is read-only and uses fresh screen epochs, not arbitrary sleep assumptions. Timeout returns the last confirmed step, latest bounded tail, and whether prompt recovery was observed. No input effect is automatically retried after transport loss or timeout.
+
+Use the existing canonical per-slot console queue key, so keys/model selection conflict with restart/switch of the same slot. Declare `keys` and `set-model` as process/input effects so #546’s effect gate also orders them against moves; repeat authority and session-token checks inside the gate. The 30-second deadline applies while waiting for that gate. Any owner change queued before the drive is revalidated; owner changes cannot interleave with its effects.
+
+Wrapper has one active drive, sharing automatic input ownership with peer delivery. Competing automatic work gets a named busy refusal; it does not allocate a second scheduler. Existing max 64 operation receipts / five-minute expiry bound result retention (~2 MiB with 32 KiB tails). Wrapper retains at most eight bounded completed drive receipts for five minutes, and removes them on shutdown; the active drive dies with its wrapper/session or absolute deadline. No new durable logs/cache/secret or per-thread model field. Versioned test captures are bounded checked-in fixtures, excluding credentials and identifying paths.
+
+## State and ordering contract (ARCH-ORDER)
+
+`ReduceDrive` owns legal drive transitions; IO performs only its declared write/observe/wait/finish effects. It stores the request, current phase, last observed epoch/selection and confirmed progress, not independent completion booleans.
+
+| State / event | Transition and effects |
+|---|---|
+| absent + validated admission | reserve drive; queued; duplicate exact ID returns held result, changed intent refuses |
+| queued + known-idle/identity proof | running raw sequence or model-command phase; acquire input lease |
+| queued + busy/unknown/stale/deadline | refuse without a byte; release reservation |
+| running + fresh expected screen | choose one observed-label move or select; wait for a newer epoch |
+| running + repeated/stale/incomplete paint | observe within remaining deadline; bounded no-progress refusal |
+| model/effort + recognized selection | select only the observed requested label; enter scope phase |
+| scope + session recipe evidence | Codex `s`; default scope uses recipe’s explicitly verified default action |
+| apply + fresh matching live status | confirmed success with model, effort, scope and bounded tail |
+| running + write failure/lost acknowledgement | unconfirmed outcome; retain last confirmed progress; never replay input |
+| model drive + unknown label/phase/timeout | safe back-out only from an owned recognized picker or owned `/model` composer; verify prompt; report visible choices |
+| any active + operator input | cancel drive before admitting that input; release lease; no later automatic keys or cleanup overwrite the operator |
+| any active + active turn/replacement/disconnect | stop input; cancel/drop pending drive; report uncertain if an effect may have occurred |
+| terminal + late screen/callback | ignore by drive ID/generation; result remains bounded and immutable |
+
+Broker sends one wrapper drive admission, then polls its result. Lost response never resends admission; operation-status is read-only. Caller disconnect cancels the broker-owned drive context and sends an idempotent cancel by ID; wrapper self-expires even if cancellation acknowledgement is lost. Shutdown joins its owned work. Before every key, verify exact wrapper/session, no human input superseded the lease, and no conversational turn is open; picker-induced unsettled status is expected only inside the recognized owned recipe.
+
+Back-out is limited to at most two separate ESC steps plus clear-line only for text positively known to be the driver’s own `/model`. Never send cleanup into an unknown screen, replacement wrapper or a new operator draft. Success/failure must not claim “back at prompt” without fresh empty-composer evidence. If unreachable or an apply outcome is unconfirmed, show “outcome unconfirmed; inspect with couch --peek repo:N before sending anything else”, with the observed tail. Raw keys leave exactly the caller’s sequence result and have no invented model cleanup.
+
+## False waiting notice correction
+
+A recognized model-control drive is a UI command, not a user conversation. Suppress `ObservationUserSubmission` / turn-opening Return observations only while that drive owns the recognized command/picker phase. Do not suppress generic raw submissions or unrelated slash commands. On observed prompt recovery or confirmed success, ordinary settle evaluation resumes from fresh output.
+
+Add pure screen recognition for Codex’s exact model confirmation shape (“Model changed to … for this session only”, plus captured default confirmation) when judging prompt waits. A completed command confirmation alone must not become waitPrompt or waitQuestion. Preserve genuine picker, permission/question and off-resting idle notices; do not blanket-mute the slot or use a ten-minute suppression timer. Test local and remote confirmation screens with Settled both true/false, and confirmations followed by an actual question/dialog. The reported false notices are a design regression contract, not a broad change to idle escalation.
+
+## Tasks (one atomic close boundary)
+
+### 1. Capture recipe evidence and pure driver — RED/GREEN
+
+Files: create `agentdrive/{keys,recipe,screen,model}.go` and colocated tests; versioned raw fixtures under `cmd/internal/wrapcmd/testdata/drive/{codex,claude}/<version>/`.
+
+- [ ] After approval, capture `/model` → model → effort/scope → status and ESC recovery in fresh isolated Codex and Claude PTYs, using existing live harness. Record versions and normalized fields in fixture metadata. Verify session changes leave shared defaults unchanged; default-scope conformance uses a disposable config. No operator slot is driven. If the actual Claude/Codex shapes contradict the chosen phases/scope, stop and append a plan Revision before building.
+- [ ] Write parser/reducer tests first: named key bytes, separate ESC boundary, text/wait/step bounds; unique labels, reordered rows, scroll, incomplete paints, stale epochs, ambiguous choices, omitted effort, session/default scope, final-status mismatch and state/event interruption sequences.
+- [ ] Run `go test ./cmd/internal/agentdrive -count=1` and observe RED; implement minimal pure types/parsers/reducer; rerun PASS. Commit.
+
+### 2. Wrapper capability and lifecycle — RED/GREEN
+
+Files: new `wrapcmd/agent_drive.go`, `couchmessage/drive_endpoint.go`; modify `endpoint.go`, `peer_runtime.go`, `automatic_input.go`, translator/lifecycle seams in `wrap.go`; add stateful tests.
+
+- [ ] Drive the real endpoint, stdin loop, translator and terminal model through a stateful fake application whose received inputs paint recipe screens. Tests first cover raw keys without chrome, correct Return/submit, separately flushed ESC, peer exclusion and model phase observations.
+- [ ] Add controlled interleavings for operator input, queue competition, active turn, replacement/session reconnect, partial write, lost response, deadline and late callback. Assert no automatic replay and no cleanup over operator text. Result/status identity and retention tests cover duplicates/conflicts/expiry.
+- [ ] Run `go test ./cmd/internal/wrapcmd ./cmd/internal/couchmessage -run 'Test(AgentDrive|ModelDrive|DriveEndpoint)' -count=1`; RED then implement and rerun GREEN plus targeted `-race`. Commit.
+
+### 3. Couch CLI, authority, receipts and wait correction — RED/GREEN
+
+Files: new couchcmd drive service/CLI/message adapters; modify `cli.go`, `run.go`, `message_service.go`, `slot_operations.go`, `messages.go`, `couchmessage/{protocol,operation}.go`, `couchcore/{ops,operationdispatch}.go`, `wait_notice.go` and tests.
+
+- [ ] Pin CLI shape, no-args compatibility, scope default, --confirm, unknown/extra fields and all bounds. Wire declared operations and inventory audits; receipt intent includes canonical key/model/effort/scope digest and bounded drive result.
+- [ ] Stateful socket tests prove verified owning hub role, exact slot resolution, self/cross-hub refusal, idle/unknown refusal, queued owner/session changes, effect-gate rechecks, caller disconnect and status-only lost-reply recovery. Refusals name one useful next action. No process switching or Git writes.
+- [ ] Add false-notice regressions and positive question/picker/idle controls; route command observations through the existing lifecycle instead of a second wait controller.
+- [ ] Run `go test ./cmd/internal/couchcmd ./cmd/internal/couchcore ./cmd/internal/couchmessage -run 'Test(AgentDrive|ModelDrive|Drive|Wait|Hub)' -count=1`; RED/GREEN and focused `-race`. Commit.
+
+### 4. Documentation, conformance and acceptance
+
+- [ ] Update README, `atlas/couch.md`, CLI help/cost map and shipped `cmd/internal/couchcmd/skills/couch/SKILL.md`; register new production files in `artifactpath/manifest.go`. Give the hub the verified recipe for its TL skill (TL owns that separate documentation; obtain the exact path/acknowledgement rather than editing another repo silently).
+- [ ] Extend opt-in isolated `TestPeerLiveConformance` with the two agents’ model scenarios and raw named keys, final status and session-scope/default isolation evidence. Use fresh PTYs, repositories and config locations. Keep credentials out of captures. Expose this through existing conformance targets without changing protected CI/gate paths in this issue.
+- [ ] Run full affected packages, focused races, inventory, clean `make build`, then `make -k test` through the native machine gate. Run remaining targets even if a timing check fails; record every failure independently. Reconcile current main (including #549 after its protected-path merge) and affected tests. No custom load wait.
+- [ ] Commit measured evidence and completed active checklist. `sdlc close --issue 544 --verified 'actual evidence'` owns the fresh review; fix findings. Open PR, require green CI, land only on SHIP, and report the PR plus real merge hash to the hub.
+
+## Architectural traceability
+
+ARCH-DRY: one key/recipe driver and shared identity/translator/receipts, not Zellij scraping or a parallel messenger. ARCH-PURE: typed parsing, screen evidence and reducer are IO-free. ARCH-PURPOSE: raw keys, both required agents, effort/scope confirmation and false wait correction are acceptance work. ARCH-MOCK: the fake paints screens after actual translated inputs; versioned/live conformance pins the external contract. ARCH-CONSTRAINTS: fixed input/result/deadline/navigation/concurrency bounds. ARCH-SECURE: strict per-operation wire shapes, trusted broker role, exact incarnation, no control characters hidden in text, no arbitrary RPC command or config edits. ARCH-ORDER: reducer plus single writer/lease, explicit cancellation and confirmed/unconfirmed effects. ARCH-FUNERAL: bounded in-memory receipts expire and all drive work dies with its owner; no durable runtime state.
+
+## Revisions
+
+- 2026-10-14 — first plan incorporates the issue’s 10-14 verified recipe, session-only default, false wait regression and TL clarification that only the agent composer is guarded. This is a plan for approval; no implementation has started and no estimate has been derived.
