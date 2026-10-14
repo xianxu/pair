@@ -419,6 +419,7 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 			d.operatorHoldLocked(operatorHold)
 		}
 	}()
+	automaticAvailable := p.automaticInputAvailable(automaticInputPeer)
 	event := couchmessage.PeerDeliveryEvent{Kind: couchmessage.PeerComposerObserved}
 	switch {
 	case d.exited:
@@ -441,8 +442,8 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 		judged, operatorHold = true, true
 		d.current.Detail = d.pickerHoldDetailLocked(p.pickerEpisode.Load(), p.agentTail)
 		return
-	case !p.automaticInputAvailable(automaticInputPeer):
-		d.current.Detail = "waiting for previous automatic input to clear"
+	case !automaticAvailable:
+		d.current.Detail = "waiting for previous automatic input: " + p.automaticInputCause
 		return
 	case d.replies.inFlight > 0:
 		d.current.Detail = "waiting for forwarded input"
@@ -512,7 +513,7 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 			if d.state.Phase == couchmessage.PeerDeliveryConfirming {
 				event.Kind = couchmessage.PeerConfirmObserved
 				turn := p.turnActive.Load()
-				cleared := d.sawOccupied && composer == PeerComposerEmpty && d.sequence > d.submitSequence
+				cleared := snapshot.Complete && d.sawOccupied && composer == PeerComposerEmpty && d.sequence > d.submitSequence
 				event.Ready = cleared || (turn && !d.turnAtSubmit)
 				event.EmptyConfirmed = cleared
 				d.current.Detail = peerConfirmEvidence(composer, d.sawOccupied, turn, d.turnAtSubmit)
@@ -535,7 +536,7 @@ func (p *proxy) advancePeer(event couchmessage.PeerDeliveryEvent, out io.Writer)
 	}
 	switch effect {
 	case couchmessage.PeerPaste:
-		p.automaticInput.phase = automaticInputPeer
+		p.beginAutomaticInput(automaticInputPeer)
 		if !p.childAcceptsPaste() {
 			p.advancePeer(couchmessage.PeerDeliveryEvent{Kind: couchmessage.PeerOverlayObserved}, out)
 			return

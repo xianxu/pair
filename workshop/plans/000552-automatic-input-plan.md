@@ -94,24 +94,24 @@ Duplicate occurrence bookkeeping is at most one retained occurrence per connecte
 
 Files: `composer_rows.go`, `peer_composer_test.go`, `automatic_input.go`, `automatic_input_test.go`, `peer_delivery.go`, `peer_delivery_test.go`, `peer_integration_test.go` under `cmd/internal/wrapcmd/`.
 
-- [ ] Transfer the sanitized `/status`/model-changed paint reproduction from the scratch overlay. Assert empty, occupied draft, lowercase and capitalized labels, unresolved/loading model/directory, hidden cursor and picker variants. Add a harness delivery/relaunch-idle observation case using the same snapshot parser.
-- [ ] Add consecutive real dispatch tests: paste/occupied echo/submit/empty render confirms the first; release/expire its reservation normally, enqueue a distinct second ID, dispatch without any output or human input. Include a running-turn confirmation case and a case where notification output follows confirmation. Recovery is disabled; assert immediate second paste and zero tripwire reports.
-- [ ] Run `go test ./cmd/internal/wrapcmd -run 'Test.*(StatusCard|ConfirmedEmpty|AutomaticInput|PeerComposer)' -count=1`; record the two expected baseline failures before edits.
-- [ ] Parse only field labels case-insensitively; retain existing resolved-value, startup and composer safety checks. Do not lowercase or reinterpret operator draft content.
-- [ ] Pass post-submit empty confirmation evidence into the transaction completion transition. A confirmed empty delivery returns Idle; other outcomes retain the existing fresh-empty requirement. Keep uncertain/partial writes, turn-only confirmation with no empty render, occupied composer and incomplete synchronized frames blocked.
-- [ ] Run targeted tests and `go test ./cmd/internal/wrapcmd -count=1`. Commit the root fixes and evidence before implementing recovery.
+- [x] Transfer the sanitized `/status`/model-changed paint reproduction from the scratch overlay. Assert empty, occupied draft, lowercase and capitalized labels, unresolved/loading model/directory, hidden cursor and picker variants. Add a harness delivery/relaunch-idle observation case using the same snapshot parser.
+- [x] Add consecutive real dispatch tests: paste/occupied echo/submit/empty render confirms the first; release/expire its reservation normally, enqueue a distinct second ID, dispatch without any output or human input. Include a running-turn confirmation case and a case where notification output follows confirmation. Recovery is disabled; assert immediate second paste and zero tripwire reports.
+- [x] Run `go test ./cmd/internal/wrapcmd -run 'Test.*(StatusCard|ConfirmedEmpty|AutomaticInput|PeerComposer)' -count=1`; record the two expected baseline failures before edits.
+- [x] Parse only field labels case-insensitively; retain existing resolved-value, startup and composer safety checks. Do not lowercase or reinterpret operator draft content.
+- [x] Pass post-submit empty confirmation evidence into the transaction completion transition. A confirmed empty delivery returns Idle; other outcomes retain the existing fresh-empty requirement. Keep uncertain/partial writes, turn-only confirmation with no empty render, occupied composer and incomplete synchronized frames blocked.
+- [x] Run targeted tests and `go test ./cmd/internal/wrapcmd -count=1`. Commit the root fixes and evidence before implementing recovery.
 
 ### 2. Add and prove the exceptional tripwire
 
 Files: transaction model/tests above; new `cmd/internal/couchmessage/automatic_input_stall.go` and tests; `protocol.go`/tests; new `cmd/internal/wrapcmd/automatic_input_report.go` and tests; `peer_runtime.go`; new `cmd/internal/couchcmd/automatic_input_stall.go` and tests; `message_service.go`; relevant artifactpath source inventory.
 
-- [ ] Write table/sequence tests for boundary-before/at/after 30 seconds, no deadline renewal, eligible/ineligible transitions, safe release, unknown/occupied/uncertain refusal, one firing, eventual normal recovery, cancellation and new episodes. Assert root regressions still pass with recovery disabled.
-- [ ] Implement the pure transition and detailed cause projection, then run those tests.
-- [ ] Add strict report/request validation tests (foreign fields, size, identity, enums) before adding the internal broker operation.
-- [ ] Build the bounded runtime reporter and supervisor adapter through the existing diagnostic, transport, notice and presenter seams. Use no subprocess for notification and do not loosen worker `notify` admission.
-- [ ] Exercise the real private-socket path with the existing stateful supervisor rig and fake host: one firing yields one diagnostic, one owning-hub message, one console notice and exactly one OSC notification; duplicate calls do not repeat it. Include hub-origin handling, stale/replaced/disconnected caller, absent hub, old supervisor refusal, closed console, uncertain write, hanging RPC deadline, shutdown while reporting and multiple owned hubs. The input writer must remain usable while report IO is blocked.
-- [ ] Verify new production files join the exhaustive artifact inventory: `go test ./cmd/internal/artifactpath ./cmd/internal/couchmessage ./cmd/internal/couchcmd ./cmd/internal/wrapcmd -count=1`.
-- [ ] Commit the tripwire and test evidence.
+- [x] Write table/sequence tests for boundary-before/at/after 30 seconds, no deadline renewal, eligible/ineligible transitions, safe release, unknown/occupied/uncertain refusal, one firing, eventual normal recovery, cancellation and new episodes. Assert root regressions still pass with recovery disabled.
+- [x] Implement the pure transition and detailed cause projection, then run those tests.
+- [x] Add strict report/request validation tests (foreign fields, size, identity, enums) before adding the internal broker operation.
+- [x] Build the bounded runtime reporter and supervisor adapter through the existing diagnostic, transport, notice and presenter seams. Use no subprocess for notification and do not loosen worker `notify` admission.
+- [x] Exercise the real private-socket path with the existing stateful supervisor rig and fake host: one firing yields one diagnostic, one owning-hub message, one console notice and exactly one OSC notification; duplicate calls do not repeat it. Include hub-origin handling, stale/replaced/disconnected caller, absent hub, old supervisor refusal, closed console, uncertain write, hanging RPC deadline, shutdown while reporting and multiple owned hubs. The input writer must remain usable while report IO is blocked.
+- [x] Verify new production files join the exhaustive artifact inventory: `go test ./cmd/internal/artifactpath ./cmd/internal/couchmessage ./cmd/internal/couchcmd ./cmd/internal/wrapcmd -count=1`.
+- [x] Commit the tripwire and test evidence.
 
 ### 3. Verify and close the atomic item
 
@@ -153,3 +153,11 @@ This revision supersedes the prose test inventories and arbitrary-ID deduplicati
 **Occurrence ordering (PQ-2).** Each wrapper assigns a monotonically increasing uint64 `Sequence` only when a tripwire fires; the report carries it and the request ID is derived from binding PID plus sequence. Never wrap: exhaustion refuses reporting and records a local diagnostic. Supervisor admission is atomic under its stall-record mutex: retain the exact current binding plus high-water sequence, reject `Sequence <= highWater` with no repeated effects, and reserve a strictly newer sequence before IO. Thus receiving 2 then 1, or duplicating 1 after 2, cannot notify again. Outcomes remain attempted/uncertain, not retryable success.
 
 Keep one small record per slot, with the exact binding inside it. A same-binding reconnect preserves the high-water mark; a verified replacement incarnation supersedes it, and old callers fail current-identity checks. Disconnect alone does not erase duplicate evidence. Bound the map to `couchmessage.MaxActors` (128) slots; do not evict suppression evidence to admit a new slot. At capacity refuse the new report explicitly, retaining its wrapper diagnostic. It dies with the supervisor; this creates no durable/restart queue. This paragraph supersedes immediate disconnect cleanup above (ARCH-ORDER, ARCH-FUNERAL). No broad broker or session protocol change is needed.
+
+### 2026-10-14 — implemented integration details
+
+Both root reproductions passed with recovery absent, then explicitly disabled after the tripwire was added. Empty-confirmation evidence travels on the existing in-process PeerDeliveryEvent, without changing endpoint or registration wire shapes. Terminal snapshots now carry completeness captured under the model mutex, preventing a partial synchronized frame from satisfying completion/recovery. The normal idle/owned lease path takes no additional snapshot.
+
+Occurrence IDs now hash the full binding, not just PID, plus the monotonic sequence. A PID-reuse test demonstrated the old collision and proves both replacement-incarnation hub messages are admitted. This is the exact-incarnation rule applied consistently to message IDs as well as high-water records.
+
+The reporter captures a bounded styled screen without IO, owns one worker and a one-slot handoff, records overflow counts locally, and drains accepted diagnostic evidence without network effects on cancellation. Runtime Close is idempotent and joins reporting before the existing wrap-diagnostic teardown; there is no detached reporter. Targeted race tests cover the actual handoff/transport and supervisor adapters.

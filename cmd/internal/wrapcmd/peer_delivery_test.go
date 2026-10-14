@@ -300,6 +300,7 @@ func TestPeerDeliveryConfirmedEmptyNeedsNoExtraFrame(t *testing.T) {
 			now := time.Now()
 			f := newHarnessSessionFake(t, "claude", true)
 			defer f.close()
+			f.proxy.automaticRecoveryAfter = -1
 			f.output(peerEmptyComposer())
 			m := peerTestMessage(now)
 			d := newPeerDelivery(m.To, func() time.Time { return now })
@@ -337,5 +338,27 @@ func TestPeerDeliveryConfirmedEmptyNeedsNoExtraFrame(t *testing.T) {
 				t.Fatalf("second delivery blocked after confirmed empty: %+v", d.receipt())
 			}
 		})
+	}
+}
+
+func TestPeerDeliveryAfterCodexStatusCard(t *testing.T) {
+	now := time.Now()
+	f := newHarnessSessionFake(t, "codex", true)
+	defer f.close()
+	f.proxy.automaticRecoveryAfter = -1
+	f.output("\x1b[?2004h" + codexStatusPaint())
+	m := peerTestMessage(now)
+	d := newPeerDelivery(m.To, func() time.Time { return now })
+	f.proxy.peer = d
+	if err := d.reserve(m.ID, d.sequence); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.enqueue(m); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	f.proxy.dispatchPeer(&out)
+	if !strings.Contains(out.String(), "hello") {
+		t.Fatalf("status card blocked normal delivery: %+v", d.receipt())
 	}
 }

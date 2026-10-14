@@ -1,42 +1,154 @@
 package wrapcmd
 
-// All fields except automaticRenderEpoch are owned by the single stdin writer.
-// The admission mutex fences human input; this lease fences automatic writers
-// across separate paste/render/submit callbacks.
+import (
+	"math"
+	"time"
+
+	"github.com/xianxu/pair/cmd/internal/couchmessage"
+)
+
+// The single stdin writer owns this lease. Only advanceAutomaticInput changes
+// its state; input admission independently fences human input and every paste.
 type automaticInputPhase uint8
 
 const (
 	automaticInputIdle automaticInputPhase = iota
 	automaticInputPeer
 	automaticInputAwaitingEmpty
+	automaticInputAlerted
 )
 
 type automaticInputTransaction struct {
-	phase       automaticInputPhase
-	renderFence uint64
+	phase        automaticInputPhase
+	renderFence  uint64
+	submitted    bool
+	blockedSince time.Time
+	sequence     uint64 // lifetime high-water, retained across successful transactions
+}
+type automaticInputEventKind uint8
+
+const (
+	automaticBegin automaticInputEventKind = iota
+	automaticFinish
+	automaticObserve
+)
+
+type automaticInputEvent struct {
+	kind                      automaticInputEventKind
+	owner                     automaticInputPhase
+	epoch                     uint64
+	confirmedEmpty, submitted bool
+	now                       time.Time
+	composer                  PeerComposerState
+	complete, eligible        bool
+	recoveryAfter             time.Duration // negative disables recovery in root-cause tests
+}
+type automaticInputDecision struct {
+	available bool
+	cause     string
+	report    *couchmessage.AutomaticInputStall
 }
 
+func advanceAutomaticInput(tx automaticInputTransaction, e automaticInputEvent) (automaticInputTransaction, automaticInputDecision) {
+	clear := func() { tx = automaticInputTransaction{sequence: tx.sequence} }
+	d := automaticInputDecision{}
+	switch e.kind {
+	case automaticBegin:
+		if tx.phase == automaticInputIdle {
+			tx.phase = e.owner
+		}
+	case automaticFinish:
+		if tx.phase == e.owner {
+			if e.confirmedEmpty && e.submitted {
+				clear()
+			} else {
+				tx = automaticInputTransaction{phase: automaticInputAwaitingEmpty, renderFence: e.epoch, submitted: e.submitted, sequence: tx.sequence}
+			}
+		}
+	case automaticObserve:
+		if tx.phase == automaticInputAwaitingEmpty || tx.phase == automaticInputAlerted {
+			if e.complete && e.epoch > tx.renderFence && e.composer == PeerComposerEmpty {
+				clear()
+				break
+			}
+			d.cause = "no post-completion render"
+			if !e.complete {
+				d.cause = "incomplete terminal frame"
+			} else if e.composer == PeerComposerUnknown {
+				d.cause = "composer unrecognized"
+			} else if e.composer == PeerComposerOccupied {
+				d.cause = "composer occupied"
+			}
+			eligible := e.eligible && e.complete && e.composer != PeerComposerOccupied
+			if !eligible {
+				tx.blockedSince = time.Time{}
+				break
+			}
+			if e.recoveryAfter <= 0 || tx.phase == automaticInputAlerted {
+				break
+			}
+			if tx.blockedSince.IsZero() {
+				tx.blockedSince = e.now
+				break
+			}
+			if e.now.Before(tx.blockedSince.Add(e.recoveryAfter)) {
+				break
+			}
+			// Exhaustion never wraps into a duplicate occurrence or releases input.
+			if tx.sequence == math.MaxUint64 {
+				d.cause = "tripwire sequence exhausted"
+				break
+			}
+			tx.sequence++
+			cause := couchmessage.AutomaticInputStallNoRender
+			if e.composer == PeerComposerUnknown {
+				cause = couchmessage.AutomaticInputStallUnrecognizedComposer
+			}
+			report := couchmessage.AutomaticInputStall{Sequence: tx.sequence, Cause: cause, WaitMillis: min(e.now.Sub(tx.blockedSince).Milliseconds(), couchmessage.MaxAutomaticInputStallWaitMillis), Fence: tx.renderFence, Epoch: e.epoch, Released: tx.submitted && e.composer == PeerComposerEmpty}
+			d.report = &report
+			if report.Released {
+				clear()
+			} else {
+				tx.phase = automaticInputAlerted
+			}
+		}
+	}
+	d.available = tx.phase == automaticInputIdle || tx.phase == e.owner
+	return tx, d
+}
+
+const automaticInputRecoveryAfter = 30 * time.Second
+
+// Called with inputAdmission and peer.mu held. Only captures evidence and
+// enqueues exceptional work; diagnostic and socket IO run in the runtime worker.
 func (p *proxy) automaticInputAvailable(owner automaticInputPhase) bool {
-	tx := &p.automaticInput
-	if tx.phase == automaticInputAwaitingEmpty {
-		if p.automaticRenderEpoch.Load() <= tx.renderFence || p.terminal == nil ||
-			peerComposerState(p.agentBasename, p.terminal.Snapshot()) != PeerComposerEmpty {
-			return false
-		}
-		tx.phase = automaticInputIdle
+	if p.automaticInput.phase != automaticInputAwaitingEmpty && p.automaticInput.phase != automaticInputAlerted {
+		return p.automaticInput.phase == automaticInputIdle || p.automaticInput.phase == owner
 	}
-	return tx.phase == automaticInputIdle || tx.phase == owner
+	d := p.peer
+	e := automaticInputEvent{kind: automaticObserve, owner: owner, epoch: p.automaticRenderEpoch.Load(), now: d.now(), recoveryAfter: p.automaticRecoveryAfter}
+	if e.recoveryAfter == 0 {
+		e.recoveryAfter = automaticInputRecoveryAfter
+	}
+	var snapshot terminalSnapshot
+	if p.terminal != nil {
+		s := p.terminal.Snapshot()
+		snapshot = s
+		e.composer = peerComposerState(p.agentBasename, s)
+		e.complete = s.Complete && (d.outputPending == 0 || p.terminal.FrameComplete())
+	}
+	e.eligible = !d.exited && !d.interrupted && d.now().Before(d.deadlineLocked()) && p.childAcceptsPaste() && !p.turnActive.Load() && !p.pickerActive.Load() && !d.image && !d.holding && !d.inputBuffered && d.replies.inFlight == 0 && len(d.replies.input) == 0 && (d.lastInput.IsZero() || !d.now().Before(d.lastInput.Add(time.Second)))
+	var decision automaticInputDecision
+	p.automaticInput, decision = advanceAutomaticInput(p.automaticInput, e)
+	p.automaticInputCause = decision.cause
+	if decision.report != nil && p.automaticReport != nil {
+		p.automaticReport(*decision.report, snapshot)
+	}
+	return decision.available
 }
-
+func (p *proxy) beginAutomaticInput(owner automaticInputPhase) {
+	p.automaticInput, _ = advanceAutomaticInput(p.automaticInput, automaticInputEvent{kind: automaticBegin, owner: owner})
+}
 func (p *proxy) finishAutomaticInput(owner automaticInputPhase, confirmedEmpty bool) {
-	if p.automaticInput.phase == owner {
-		if confirmedEmpty {
-			p.automaticInput = automaticInputTransaction{}
-			return
-		}
-		p.automaticInput = automaticInputTransaction{
-			phase:       automaticInputAwaitingEmpty,
-			renderFence: p.automaticRenderEpoch.Load(),
-		}
-	}
+	p.automaticInput, _ = advanceAutomaticInput(p.automaticInput, automaticInputEvent{kind: automaticFinish, owner: owner, epoch: p.automaticRenderEpoch.Load(), confirmedEmpty: confirmedEmpty, submitted: p.peer != nil && p.peer.state.Outcome() == couchmessage.Submitted})
 }

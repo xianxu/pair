@@ -34,20 +34,23 @@ var peerReceiverAgents = map[string]bool{
 const peerActivityInterval = time.Second
 
 type peerRuntime struct {
-	cancel   context.CancelFunc
-	server   *couchmessage.Server
-	workers  sync.WaitGroup
-	delivery *peerDelivery
+	closeOnce sync.Once
+	cancel    context.CancelFunc
+	server    *couchmessage.Server
+	workers   sync.WaitGroup
+	delivery  *peerDelivery
 }
 
 func (r *peerRuntime) Close() {
-	r.cancel()
-	r.delivery.mu.Lock()
-	r.delivery.exited = true
-	r.delivery.mu.Unlock()
-	r.delivery.signal()
-	_ = r.server.Close()
-	r.workers.Wait()
+	r.closeOnce.Do(func() {
+		r.cancel()
+		r.delivery.mu.Lock()
+		r.delivery.exited = true
+		r.delivery.mu.Unlock()
+		r.delivery.signal()
+		_ = r.server.Close()
+		r.workers.Wait()
+	})
 }
 
 func (d *peerDelivery) handleEndpoint(_ context.Context, raw []byte) ([]byte, error) {
@@ -188,6 +191,7 @@ func (p *proxy) startPeerRuntime(executable string) (*peerRuntime, error) {
 	d.mu.Unlock()
 	session.Update(initial)
 	r := &peerRuntime{cancel: stop, server: server, delivery: d}
+	p.startAutomaticInputReporter(lifetime, binding, namespace, &r.workers)
 	p.peer = d
 	p.pickerSink = session
 	r.workers.Add(1)

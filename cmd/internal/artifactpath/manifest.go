@@ -594,6 +594,9 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	"cmd/internal/wrapcmd/automatic_input_report.go",
+	"cmd/internal/couchmessage/automatic_input_stall.go",
+	"cmd/internal/couchcmd/automatic_input_stall.go",
 	// #538 private web evidence and note protocol, outside Pair artifact families.
 	"cmd/internal/submission/publication.go",
 	"cmd/internal/webcast/board/prepared_note.go",

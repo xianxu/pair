@@ -230,6 +230,7 @@ func TestPeerComposerStatusCardLeavesComposerReady(t *testing.T) {
 	}
 	f := newHarnessSessionFake(t, "codex", true)
 	defer f.close()
+	f.proxy.automaticRecoveryAfter = -1
 	f.output(codexStatusPaint())
 	if !f.proxy.settledNow() {
 		t.Fatal("empty /status composer refuses relaunch idle observation")

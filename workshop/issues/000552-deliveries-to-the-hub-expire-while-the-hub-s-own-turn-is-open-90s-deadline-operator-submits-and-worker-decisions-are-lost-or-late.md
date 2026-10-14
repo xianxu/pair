@@ -52,8 +52,8 @@ cause, and `--relaunch` must not report "composer holds text" when the composer 
 
 Durable design: [automatic-input plan](../plans/000552-automatic-input-plan.md).
 
-- [ ] Fix capitalized Codex status labels and confirmed-empty lease completion; both root regressions pass with tripwire recovery disabled.
-- [ ] Add a bounded, safe tripwire with detailed cause, local screen diagnostic, owning-hub notice and supervisor desktop alert; prove admission and shutdown behavior headlessly.
+- [x] Fix capitalized Codex status labels and confirmed-empty lease completion; both root regressions pass with tripwire recovery disabled.
+- [x] Add a bounded, safe tripwire with detailed cause, local screen diagnostic, owning-hub notice and supervisor desktop alert; prove admission and shutdown behavior headlessly.
 - [ ] Replay the preserved parley recording read-only, update atlas, finish the full suite, close review and land after acceptance.
 
 ## Log
@@ -63,6 +63,14 @@ Durable design: [automatic-input plan](../plans/000552-automatic-input-plan.md).
 - Investigation: original wrapper pid 84975 preserved. Production read-only Observe/Tail agrees with raw replay at 94×39. `/status` capitalized field labels cause `codexStartupStatus` to return pending despite an active empty composer; removing only the title row yields Empty. Sanitized scratch regression fails current code.
 - Investigation: real dispatch paste → occupied echo → submit → empty confirmation → Submitted leaves phase AwaitingEmpty with fence=epoch=3. A distinct next delivery, without another render, waits at the exact reported gate. Scratch regression fails without any fallback present.
 - Coordination: initial claim waited for another live SDLC merge; claim subsequently succeeded. Missing caller registration and temporary missing couch command prevented earlier reports. Restart report 5d19956a-58f8-4aa6-8063-869bdecb98a1 queued successfully; TL receipt e4f76aee-471c-4759-b27c-79af37dc4ba8 confirms both root causes and requests this plan. Refreshed start-plan succeeded on the issue branch; no production edits.
+
+### 2026-10-14 — implementation checkpoint
+
+TL approved the plan in 323226c7-e429-4a71-97cb-d259e135af11. Full-flow change-code passed after PQ-1/PQ-2 were addressed and the 2.112h v3.1 estimate was derived; estimate-quality INFO notes reporter integration is tight and shipping verification belongs to the test/review rows. Root regressions failed on refreshed main, then passed with only case-insensitive field labels and same-observation Empty completion added. No recovery existed during this red/green proof. Turn-only and Indeterminate cases retain AwaitingEmpty. Targeted wrapper/message tests passed; full wrapper package passed in 45.183s. Baseline /tmp/pair552-root-red.log; green /tmp/pair552-root-green.log and /tmp/pair552-root-wrap.log. Tripwire model tests are next; backend adapter is independently in progress. Original wrapper untouched.
+
+### 2026-10-14 — tripwire and preserved replay
+
+Pure eligible-time transition, same-snapshot completeness, detailed gate causes, bounded runtime reporter and supervisor-owned notifications implemented. Root tests explicitly disable recovery. Runtime cancellation/blocked IO/timeout/overflow and backend high-water/authority tests pass under race detection: wrapcmd 3.790s, couchcmd 2.043s, couchmessage 1.225s. Full artifactpath package passed in 4.140s. One reporter cancellation test initially exposed selection of a queued item after cancellation; recording cancellation and suppressing the RPC at dequeue resolved it. Full-binding hashed occurrence IDs also fix PID-reuse collision before landing. Original parley raw replay passed: 6,752,804 bytes at 94×39 now reads complete Empty and relaunch-idle accepted; no original process input, attach or restart. Evidence /tmp/pair552-final-target-race.log and /tmp/pair552-preserved-replay.log. Atlas updated; full suite next.
 
 ## Revisions
 
@@ -94,7 +102,3 @@ total: 2.112
 ```
 
 Rows respectively cover status parsing, completion-evidence wiring, the pure lease/tripwire transition, typed report/protocol validation, supervisor notification admission, runtime reporter/shutdown, atlas and one close review. The first two use v2 smaller-module design 0.15 and implementation 0.5; the next uses greenfield design 1.0 and implementation 0.8; three adapters use smaller-module design 0.3 and implementation 0.5. Atlas uses 0.1/0.1; review 0.1/0.5. Design sum 0.48 ×1.15 plus implementation sum 1.56 = 2.112 hours. No arbitrary total or additional discovery allowance.
-
-### 2026-10-14 — implementation checkpoint
-
-TL approved the plan in 323226c7-e429-4a71-97cb-d259e135af11. Full-flow change-code passed after PQ-1/PQ-2 were addressed and the 2.112h v3.1 estimate was derived; estimate-quality INFO notes reporter integration is tight and shipping verification belongs to the test/review rows. Root regressions failed on refreshed main, then passed with only case-insensitive field labels and same-observation Empty completion added. No recovery existed during this red/green proof. Turn-only and Indeterminate cases retain AwaitingEmpty. Targeted wrapper/message tests passed; full wrapper package passed in 45.183s. Baseline /tmp/pair552-root-red.log; green /tmp/pair552-root-green.log and /tmp/pair552-root-wrap.log. Tripwire model tests are next; backend adapter is independently in progress. Original wrapper untouched.
