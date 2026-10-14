@@ -36,7 +36,7 @@ Find when it started failing (bisect on main), confirm the cause, and fix the ro
 
 - [x] Reproduce with ordered fixtures and locate introduction; compare the cited suite failures.
 - [x] Drain accepted notification work before broker/terminal shutdown, keeping existing bounds and validation.
-- [ ] Prove the fix with regression red/green, 20 consecutive startup-test passes, affected-package checks and make -k test; file unrelated cancellation evidence.
+- [x] Prove the fix with regression red/green, 20 consecutive startup-test passes, affected-package checks and make -k test; file unrelated cancellation evidence.
 
 ## Log
 
@@ -72,3 +72,6 @@ Find when it started failing (bisect on main), confirm the cause, and fix the ro
 
 - Qualification: TestNotificationBrokerBeforeExecAndCleanup (including pending-hook-at-EOF) passed 20 consecutive repetitions in 17.365s, /tmp/pair519-qualification.log. One-minute load 28.51 before and 36.22 after (/tmp/pair519-qualification-load.log), meeting TL’s under-approximately-40 requirement.
 - Full make -k test queued under the machine-wide gate; no bypass or extra suite was launched. Output: /tmp/pair519-make-k.log.
+
+- Full make -k test passed (exit 0), /tmp/pair519-make-k.log; couchcore passed in 444.729s and notifytransport in 27.698s. No known-failure exceptions needed.
+- History confirmation: f5449fe5e added namespace isolation only; b05acbdac changed timeout guards in neighboring tests, not the send-then-exit startup test. The shutdown ordering defect exists in d36fef211, where the broker and test originated.
