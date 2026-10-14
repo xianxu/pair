@@ -1,6 +1,6 @@
 ---
 id: 000553
-status: codecomplete
+status: done
 created: 2026-10-14
 updated: 2026-10-14
 estimate_hours:
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: b3340038a14cb6f2462d50297df345e7f1b6cbf1
         evidence_commit: 89da58600a3b8b3451e9efb21408f8cf27e13b14
+        landed_commit: 625957fd4d106619da357793c6bfc108ae95be8c
 ---
 
 # procutil: skip exited processes during native command reads
