@@ -893,9 +893,9 @@ func (s *ThreadStore) advanceSuccessfulStart(address ThreadAddress, expectedRevi
 			return err
 		}
 		nextThreadRaw = append(nextThreadRaw, '\n')
-		// Recovery selects a conversation with an existing configuration; it
-		// does not express a new default agent or startup-parameter preference.
-		if profile == nil || incarnation.Start.RecoveryIntent != nil {
+		// Recovery and warm attachment select an existing configuration; neither
+		// expresses a new default agent or startup-parameter preference.
+		if profile == nil || incarnation.Start.RecoveryIntent != nil || event.Shape == StartWarmReattach {
 			if err := s.writeStoreAtomicLocked(s.recordPath(address), nextThreadRaw); err != nil {
 				return err
 			}

@@ -349,6 +349,10 @@ func TestWarmResumeExecutorIgnoresColdMetadataDefects(t *testing.T) {
 			record := warmDetachedRecord(t)
 			record.StartingPath, record.WorkingPath = "/repo", "/repo"
 			record.Reservation = false
+			preference := PathLaunchPreference{SchemaVersion: PathLaunchPreferenceSchemaVersion, RepoIdentity: "existing-repo", PhysicalPath: "/repo", LastAgent: "codex", ArgvByAgent: map[string][]string{"codex": {"--search"}}, Revision: 1}
+			if err := writePathLaunchPreferenceForTest(env.Couch.Threads, preference); err != nil {
+				t.Fatal(err)
+			}
 			switch defect {
 			case "missing-profile":
 				record.LatestLaunchProfile = nil
@@ -396,6 +400,13 @@ func TestWarmResumeExecutorIgnoresColdMetadataDefects(t *testing.T) {
 			}
 			if after.WorkingPath != created.WorkingPath {
 				t.Fatalf("Continue rewrote saved working path: before=%q after=%q", created.WorkingPath, after.WorkingPath)
+			}
+			afterPreference, found, err := env.Couch.Threads.GetPathLaunchPreference(preference.RepoIdentity, preference.PhysicalPath)
+			if err != nil || !found || !reflect.DeepEqual(afterPreference, preference) {
+				t.Fatalf("Continue changed defaults: %+v found=%v err=%v", afterPreference, found, err)
+			}
+			if len(after.Incarnations) != 1 || !reflect.DeepEqual(after.Incarnations[0].LaunchProfile, created.LatestLaunchProfile) {
+				t.Fatalf("Continue lost existing terminal metadata: %+v", after.Incarnations)
 			}
 			if !reflect.DeepEqual(after.LatestLaunchProfile, created.LatestLaunchProfile) {
 				t.Fatalf("Continue rewrote saved profile: before=%+v after=%+v", created.LatestLaunchProfile, after.LatestLaunchProfile)

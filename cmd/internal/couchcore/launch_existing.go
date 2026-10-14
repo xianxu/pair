@@ -286,6 +286,12 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	stage = "promote registration"
 	registeredThread, err := c.Threads.AdvanceStart(thread.Address, thread.Revision, StartEvent{
 		Kind: StartRegistered, Nonce: in.Nonce, Layout: registeredLayout,
+		Shape: func() StartShape {
+			if in.Warm {
+				return StartWarmReattach
+			}
+			return ""
+		}(),
 	})
 	if err != nil {
 		cause := fmt.Errorf("promote registered thread %+v: %w", thread.Address, err)

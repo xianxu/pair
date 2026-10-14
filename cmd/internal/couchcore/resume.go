@@ -569,7 +569,7 @@ func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, op
 		Nonce: nonce,
 		Owner: SupervisorOwner{PID: owner.PID, Identity: owner.Identity},
 		Profile: func() *LaunchProfile {
-			if detached {
+			if detached && thread.LatestLaunchProfile == nil {
 				return nil
 			}
 			return &eligible.Profile

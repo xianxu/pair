@@ -364,7 +364,7 @@ The final revision in `workshop/plans/000528-slot-recovery-plan.md` supersedes p
   passed the full couchtty package (40.867s). Build passed. Evidence:
   /tmp/pair528-m1-full-after-main.log and /tmp/pair528-m1-ui-sweep-fixed.log.
 
-- 2026-10-13 21:58 PDT — BR-9 correction separates exact warm attach from
+- 2026-10-13 21:54 PDT — BR-9 correction separates exact warm attach from
   cold launch prerequisites throughout core and Pair. Warm claims carry no
   native profile; unavailable original cwd uses the existing host root only
   for the helper, preserving the saved path and hosted artifact scope. Exact
@@ -374,3 +374,11 @@ The final revision in `workshop/plans/000528-slot-recovery-plan.md` supersedes p
   and unchanged persisted profile/path. Existing public-binary harness now
   covers neutral-cwd scope routing and wrong hosted scope/name refusals.
   Full suite running at /tmp/pair528-m1-br9-full.log; no staging.
+
+- 2026-10-13 21:56 PDT — Broader warm-resume tests caught
+  an existing continuation receipt's need for retained incarnation agent
+  metadata. Correction to the preceding note: a warm claim retains the actual
+  optional saved profile when present; it never requires or invents one and
+  sends no cold launch profile to Pair. Successful warm registration skips
+  default/preference edits. The continuation regression plus warm executor and
+  cold eligibility matrix passed independently (1.583s). No new state/schema.
