@@ -154,6 +154,9 @@ unanswered report. You decide whether anything needs resending; do nothing if
 not. The prompt uses normal in-memory delivery/queueing. Reconnect does not
 regenerate it, and Couch does not retain or replay old reports across restarts.
 The prompt is supervisor-generated, not a new assignment or operator approval.
+If admission or delivery cannot be confirmed, Couch shows one notice naming the
+slot; the hub can request fresh status. Startup prompts and automatic waiting
+notices do not create session-file obligations.
 
 ## Scheduling work on another slot
 

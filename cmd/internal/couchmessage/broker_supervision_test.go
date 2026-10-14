@@ -2,6 +2,7 @@ package couchmessage
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -43,4 +44,58 @@ func TestSupervisionSubmission(t *testing.T) {
 	check(4, true)
 	b.Disconnect(worker)
 	check(0, false)
+}
+
+func TestSupervisionReceiptSnapshot(t *testing.T) {
+	for _, end := range []string{"queue expires", "sender disconnects"} {
+		t.Run(end, func(t *testing.T) {
+			var clock atomic.Int64
+			clock.Store(time.Unix(1000, 0).UnixNano())
+			now := func() time.Time { return time.Unix(0, clock.Load()) }
+			b := NewBroker(context.Background(), now, nil)
+			defer b.Close()
+			view, ok := any(b).(interface {
+				ReceiptSnapshot(string) (Receipt, bool)
+			})
+			if !ok {
+				t.Fatal("broker does not expose supervisor receipt snapshots")
+			}
+			if _, ok := view.ReceiptSnapshot("unknown"); ok {
+				t.Fatal("unknown receipt exists")
+			}
+			hub, worker := brokerBinding("ops:0"), brokerBinding("pair:7")
+			if err := b.Register(hub, newFakeEndpoint(now())); err != nil {
+				t.Fatal(err)
+			}
+			endpoint := &busyEndpoint{FakeDeliveryEndpoint: newFakeEndpoint(now()), busy: true}
+			if err := b.Register(worker, endpoint); err != nil {
+				t.Fatal(err)
+			}
+			r, err := b.Send(context.Background(), hub, "prompt", Route{Target: worker.Slot}, "please resend relevant reports")
+			if err != nil || r.Status != Queued {
+				t.Fatalf("send: %+v, %v", r, err)
+			}
+			if got, ok := view.ReceiptSnapshot("prompt"); !ok || got.Status != Queued || got.Message != r.Message {
+				t.Fatalf("queued snapshot: %+v, %v", got, ok)
+			}
+			want := Expired
+			if end == "sender disconnects" {
+				b.Disconnect(hub)
+				want = Cancelled
+				if _, err := b.Status(hub, "prompt"); err == nil {
+					t.Fatal("disconnected caller retained ordinary status access")
+				}
+			} else {
+				clock.Add(int64(QueueWait))
+			}
+			got, ok := view.ReceiptSnapshot("prompt")
+			if !ok || got.Status != want {
+				t.Fatalf("terminal snapshot: %+v, %v; want %s", got, ok, want)
+			}
+			clock.Store(got.RetainUntil.UnixNano())
+			if _, ok := view.ReceiptSnapshot("prompt"); ok {
+				t.Fatal("snapshot kept receipt beyond retention horizon")
+			}
+		})
+	}
 }

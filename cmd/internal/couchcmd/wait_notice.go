@@ -394,7 +394,13 @@ func (w *waitWatcher) tick(ctx context.Context, now time.Time) {
 		body := waitNoticeBody(b.Slot, f.Quiet, reason, summary, w.optOut) + muteErr
 		// From the waiting slot to the hub's exact slot: the notice is an
 		// ordinary message, so it gets the hub's breaker, delivery and ledger.
-		if _, err := w.svc.broker.Send(ctx, b, id, couchmessage.Route{Target: hub.Slot}, body); err != nil {
+		var sendErr error
+		if coordinator != nil {
+			_, sendErr = coordinator.sendGenerated(ctx, b, hub, id, body, false)
+		} else {
+			_, sendErr = w.svc.broker.Send(ctx, b, id, couchmessage.Route{Target: hub.Slot}, body)
+		}
+		if sendErr != nil {
 			continue // hub busy or out of allowance: retried next tick
 		}
 		w.seen[b] = waitEpisode{key: key, notified: true, judged: judged}

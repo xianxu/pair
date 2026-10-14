@@ -709,7 +709,7 @@ func (s *messageService) connectedWorkspace(ctx context.Context, b couchmessage.
 	return identity, nil
 }
 
-func (s *messageService) handle(ctx context.Context, request couchmessage.Request) couchmessage.Response {
+func (s *messageService) handle(ctx context.Context, request couchmessage.Request) (response couchmessage.Response) {
 	switch {
 	case request.Op == "notify":
 		return s.handleNotify(ctx, request)
@@ -738,7 +738,9 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 		}
 		if request.Op == "send" {
 			if c := s.supervision.Load(); c != nil {
-				c.sending(binding, request)
+				if c.sending(binding, request) {
+					defer func() { c.admitted(request.ID, response.Receipt) }()
+				}
 			}
 		}
 		if request.Op == "send" && request.Target == couchmessage.HubTarget {

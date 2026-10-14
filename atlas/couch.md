@@ -530,8 +530,10 @@ When the hub becomes available, each connected worker address gets one normal
 Send attempt asking it to reconsider its last unanswered report. The ordinary
 busy-recipient queue is unchanged. Attempts are marked before sending, so an
 uncertain result or reconnect cannot regenerate the prompt. Original reports
-are never replayed or retained across Couch restarts. Explicit generated IDs
-keep prompts out of session-file obligations; matching prose from a real agent
+are never replayed or retained across Couch restarts. The same tick reads terminal
+broker receipts, reports startup cancellation/expiry/uncertainty once, and drops
+the completed send metadata. There is no separate capped report history. Pending generated IDs
+keep both prompts and ordinary waiting notices out of session-file obligations; matching prose from a real agent
 is not exempt. All episode/attempt metadata dies with the supervisor; disconnected
 bindings lose their report episodes. No feature log or online labeling ships
 here: fact logging is pair#543; Parley's sole file-ping watcher is parley.nvim#321.

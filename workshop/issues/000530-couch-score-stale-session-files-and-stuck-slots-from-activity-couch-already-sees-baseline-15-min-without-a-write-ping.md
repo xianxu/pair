@@ -34,7 +34,18 @@ The operator (2026-10-13): a simple local model (not an LLM), kept simple.
 
 ## Done when
 
-- The 15-minute baseline replaces today's any-delivery ping; the stuck-slot nudge fires on a replay of the 10-12 overnight stall; both log feature vectors with positives and negatives; tests cover the rules and the sampling.
+- A quiet settled worker with an unanswered report nudges the hub at 15 minutes
+  and produces one operator Couch notice at 30 minutes, coalescing earlier wait
+  notices; completion reports remain eligible after return to main.
+- Each worker address receives one startup resend-prompt attempt per supervisor
+  lifetime through normal Send. No reports are replayed across restarts, and
+  admission or later terminal failures are visible without regenerating prompts.
+- Generated prompts and waiting notices do not create session-file obligations
+  or count as conversational replies. Saturation cannot silently disable report
+  or reply observations. Tests cover rules, real socket/queue outcomes and the
+  reconstructed overnight scenario; the full suite runs to completion.
+- parley.nvim#321 owns the 15-minute file-ping baseline, and dependent pair#543
+  owns fact logging with offline labels. Neither is claimed delivered by #530.
 
 ## Plan
 
@@ -146,3 +157,23 @@ claimed as shipped by this rules-only change.
   /tmp/pair530-race-fixed.log and /tmp/pair530-couchcmd-fixed.log. No known
   baseline failures were present. Do not describe the original full run as green.
 - Ready for the mandatory close review; TL accepted headless evidence, no stage.
+
+
+### 2026-10-13 — close review round 1
+
+REWORK BR-1/2/3/4 accepted. All generated notifications now share the same
+provenance registration, including ordinary waiting notices. Pending-send
+metadata is removed after terminal broker receipts; failed report attempts keep
+only the latest per-worker episode, so no separate receipt-history capacity can
+suppress report/reply observations. The existing tick reconciles startup prompt
+cancellation, expiry, and uncertain outcomes into one readable notice, without
+retrying. Normal Send and its queue policy remain unchanged. The primary Done
+when now reflects the approved rules-only scope; prior expanded criteria remain
+recorded in Spec and the earlier revisions, with #321/#543 as their owners.
+
+- Review regression proof: each BR-1/2/3 test fails against pre-fix HEAD through
+  a Go overlay, and passes on the fixed tree. Includes >256 valid authenticated
+  sends refused at admission followed by a valid report/reply, all terminal
+  prompt outcomes, and queued cancellation with no Deliver callback. Targeted
+  rules/wait/broker tests and focused race tests pass. A fresh full make -k test
+  follows the review fixes before the next close attempt.

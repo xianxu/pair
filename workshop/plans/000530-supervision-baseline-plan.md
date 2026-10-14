@@ -418,3 +418,17 @@ barrier fixed it; all integration cases passed 50 repetitions, focused race test
 passed, and the full affected package passed afterward. The snapshot ordering
 regression also passed red/green. Mandatory close review is next; the original
 full-run exit remains nonzero and is recorded honestly in the issue Log.
+
+
+### 2026-10-13 — boundary-review corrections
+
+BR-1/2/3/4: replace the capped two-hour send-ID history with pending-send metadata
+only. The broker remains the one capacity/receipt owner. Generated waiting
+notices use the same normal Send adapter and provenance exclusion as startup
+prompts. New read-only Broker.ReceiptSnapshot exposes retained terminal outcomes
+to supervision even when a caller disconnected; it changes neither the wire nor
+admission. The existing tick reconciles submitted/cancelled/expired/indeterminate
+receipts and then discards metadata. Unconfirmed startup delivery emits one
+notice with the recovery action “hub should request fresh status”; no prompt is
+regenerated. The primary issue Done when now states the approved rules-only
+acceptance, with deferred file pings/logging linked to their companion issues.

@@ -382,6 +382,16 @@ func (b *Broker) Status(caller Binding, id string) (Receipt, error) {
 	return r, nil
 }
 
+// ReceiptSnapshot reads the supervisor's retained receipt without a live
+// caller. It performs no endpoint IO and keeps the normal expiry/retention
+// rules, including when the sender has disconnected.
+func (b *Broker) ReceiptSnapshot(id string) (Receipt, bool) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.sweep()
+	return b.receiptLocked(id)
+}
+
 // receiptLocked is every read of a stored receipt. A queued message's expiry
 // is due whether or not the worker is free to apply it, so a read past
 // QueueWait sees it expired (pair#492).

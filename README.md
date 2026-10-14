@@ -865,6 +865,8 @@ On startup, Couch asks each connected worker once to resend its last unanswered
 hub report only if still relevant. The worker decides what to send. The prompt
 uses the ordinary in-memory busy queue, but Couch stores no old report for replay
 and does not regenerate the prompt on reconnect within the same Couch lifetime.
+If the prompt cannot be delivered or confirmed, a Couch notice names the slot
+and asks the hub to request fresh status.
 
 The tab bar starts with the hub, the checkout you started Couch from, and then
 lists every other slot grouped by repository:

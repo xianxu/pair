@@ -1673,3 +1673,10 @@ proof; record the surprising case so the next change starts from evidence.
   endpoint whose messages the assertion counts. An in-flight startup prompt
   correctly makes a worker Pending; drain its submitted receipt before testing
   an idle-time rule. Preserve facts newer than the liveness snapshot pruning them.
+
+- #530 close: if the contract distinguishes generated traffic from agent traffic,
+  cover every generated-send path, including older reminders. Observe terminal
+  broker receipts as well as endpoint callbacks: queued expiry/cancellation may
+  never call Deliver. A bounded diagnostic cache must not become an admission
+  gate for authoritative facts; retain pending metadata and release it at the
+  existing receipt lifecycle boundary instead of building a second history.

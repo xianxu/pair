@@ -12,9 +12,11 @@ import (
 const startupResendPrompt = "Couch restarted and the hub is available. If your last report to the hub is still unanswered and relevant, resend it now. Otherwise do nothing."
 
 type supervisionSend struct {
-	from   couchmessage.Binding
-	at     time.Time
-	system bool
+	from     couchmessage.Binding
+	at       time.Time
+	system   bool
+	prompt   string
+	admitted bool
 }
 
 // supervisionCoordinator adapts live evidence to the pure rules. Never hold mu
@@ -32,15 +34,7 @@ func newSupervisionCoordinator(s *messageService, notice func(string)) *supervis
 	return &supervisionCoordinator{state: newSupervisionState(), sends: map[string]supervisionSend{}, service: s, now: time.Now, notice: notice}
 }
 func (c *supervisionCoordinator) remember(id string, from couchmessage.Binding, now time.Time, system bool) bool {
-	for key, v := range c.sends {
-		if now.Sub(v.at) > 2*couchmessage.ReceiptLifetime {
-			delete(c.sends, key)
-		}
-	}
 	if _, exists := c.sends[id]; exists {
-		return false
-	}
-	if len(c.sends) >= couchmessage.MaxReceipts {
 		return false
 	}
 	c.sends[id] = supervisionSend{from: from, at: now, system: system}
@@ -49,24 +43,103 @@ func (c *supervisionCoordinator) remember(id string, from couchmessage.Binding, 
 
 // sending is called only for authenticated CLI sends, before resolving hub so
 // a live supervisor can retain the fact of a refused hub report (not its body).
-func (c *supervisionCoordinator) sending(from couchmessage.Binding, r couchmessage.Request) {
+func (c *supervisionCoordinator) sending(from couchmessage.Binding, r couchmessage.Request) bool {
 	hub, hasHub := c.service.hubBinding()
 	toHub := r.Target == couchmessage.HubTarget || (hasHub && r.Target == hub.Slot)
 	if !toHub && (!hasHub || from != hub) {
-		return
+		return false
 	}
 	submission, connected := c.service.broker.Submission(from)
 	if !connected {
-		return
+		return false
+	}
+	// Existing accepted requests are idempotent. Failed attempts retain only the
+	// worker's latest report, not a second receipt history with a competing cap.
+	if _, err := c.service.broker.Status(from, r.ID); err == nil {
+		return false
 	}
 	now := c.now()
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if !c.remember(r.ID, from, now, false) {
-		return
-	}
 	if toHub && (!hasHub || from != hub) {
 		c.state.report(from, r.ID, now, submission, completionHint(r.Body))
+		return false
+	}
+	if hasHub && from == hub && !toHub {
+		return c.remember(r.ID, from, now, false)
+	}
+	return false
+}
+
+// admitted reconciles only a registration owned by this Send invocation.
+func (c *supervisionCoordinator) admitted(id string, receipt *couchmessage.Receipt) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if receipt == nil {
+		delete(c.sends, id)
+		return
+	}
+	if v, ok := c.sends[id]; ok {
+		v.admitted = true
+		c.sends[id] = v
+	}
+}
+
+// sendGenerated shares normal Broker.Send policy, including its busy queue.
+// Metadata exists only while admission/delivery is outstanding; the broker is
+// the single capacity owner. No report or reply is dropped to fit a cache.
+func (c *supervisionCoordinator) sendGenerated(ctx context.Context, from, to couchmessage.Binding, id, body string, prompt bool) (couchmessage.Receipt, error) {
+	c.mu.Lock()
+	c.remember(id, from, c.now(), true)
+	if prompt {
+		v := c.sends[id]
+		v.prompt = to.Slot
+		c.sends[id] = v
+	}
+	c.mu.Unlock()
+	receipt, err := c.service.broker.Send(ctx, from, id, couchmessage.Route{Target: to.Slot}, body)
+	if err != nil {
+		c.admitted(id, nil)
+	} else {
+		c.admitted(id, &receipt)
+	}
+	return receipt, err
+}
+
+// reconcile checks the existing receipts, not delivery payloads. Terminal
+// outcomes include queued expiry/cancellation with no endpoint callback.
+func (c *supervisionCoordinator) reconcile() {
+	c.mu.Lock()
+	pending := make(map[string]supervisionSend, len(c.sends))
+	for id, v := range c.sends {
+		if v.admitted {
+			pending[id] = v
+		}
+	}
+	c.mu.Unlock()
+	for id, v := range pending {
+		receipt, known := c.service.broker.ReceiptSnapshot(id)
+		if known && !receipt.Status.Terminal() {
+			continue
+		}
+		c.mu.Lock()
+		current, exists := c.sends[id]
+		if exists && current == v {
+			delete(c.sends, id)
+		} else {
+			exists = false
+		}
+		c.mu.Unlock()
+		if exists && v.prompt != "" && (!known || receipt.Status != couchmessage.Submitted) {
+			detail := "outcome unavailable"
+			if known {
+				detail = string(receipt.Status)
+				if receipt.Detail != "" {
+					detail += ": " + receipt.Detail
+				}
+			}
+			c.notice(fmt.Sprintf("startup resend prompt to %s unconfirmed: %s; hub should request fresh status", v.prompt, detail))
+		}
 	}
 }
 func (c *supervisionCoordinator) systemMessage(m couchmessage.Message) bool {
@@ -100,6 +173,7 @@ func (c *supervisionCoordinator) waitNudged(b couchmessage.Binding, id string) {
 	c.state.nudged(b, id)
 }
 func (c *supervisionCoordinator) tick(ctx context.Context, now time.Time, muted map[string]bool) {
+	c.reconcile()
 	hub, hasHub := c.service.hubBinding()
 	caller := hub
 	if !hasHub {
@@ -161,14 +235,7 @@ func (c *supervisionCoordinator) tick(ctx context.Context, now time.Time, muted 
 		}
 		id, err := newRequestID()
 		if err == nil {
-			c.mu.Lock()
-			remembered := c.remember(id, from, now, true)
-			c.mu.Unlock()
-			if remembered {
-				_, err = c.service.broker.Send(ctx, from, id, couchmessage.Route{Target: to.Slot}, body)
-			} else {
-				err = fmt.Errorf("supervision observation capacity reached")
-			}
+			_, err = c.sendGenerated(ctx, from, to, id, body, fx.kind == supervisionPrompt)
 		}
 		if err != nil {
 			if fx.kind == supervisionPrompt {
