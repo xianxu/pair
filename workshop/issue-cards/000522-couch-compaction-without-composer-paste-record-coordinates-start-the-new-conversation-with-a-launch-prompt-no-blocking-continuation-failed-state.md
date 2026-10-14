@@ -1,6 +1,6 @@
 ---
 id: 000522
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-13
 estimate_hours: 4.83
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 290eb67d30924bd6ade0d66927ac1d22b252baec
         evidence_commit: 44e6861eb8aab7b574fd36029069e98c3ffa0c48
+        landed_commit: 590a615de416d0cbc9e6b8533775c386440e930e
 ---
 
 # couch: compaction without composer paste: record coordinates, start the new conversation with a launch prompt, no blocking 'continuation failed' state
