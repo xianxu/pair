@@ -444,6 +444,21 @@ func (s *ThreadStore) updateExistingThread(address ThreadAddress, expectedRevisi
 	return result, err
 }
 
+// PreserveRecoveryBeforeRetirement records the validated explicit selection and
+// original screen before the coordinator retires its exact source. The revision
+// binds that authority to the record used for recovery admission.
+func (s *ThreadStore) PreserveRecoveryBeforeRetirement(address ThreadAddress, expectedRevision uint64, intent threadrecord.RecoveryIntent) (ThreadRecord, error) {
+	if err := threadrecord.ValidateRecoveryIntent(intent, threadrecord.Address{RepoScope: address.RepoScope, Tag: string(address.Tag)}); err != nil {
+		return ThreadRecord{}, err
+	}
+	return s.updateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
+		retained := threadrecord.CloneRecoveryContext(&intent.Context)
+		retained.SelectedKey, retained.SelectedNativeID = intent.SelectedKey, intent.NativeID
+		next.RecoveryContext = retained
+		return nil
+	})
+}
+
 func (s *ThreadStore) BeginPark(address ThreadAddress, expectedRevision uint64, identity ParkIdentity) (ThreadRecord, error) {
 	return s.updateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
 		if next.Park != nil {

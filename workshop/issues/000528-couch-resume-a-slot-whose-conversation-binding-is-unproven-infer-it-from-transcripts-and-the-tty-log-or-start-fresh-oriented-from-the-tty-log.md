@@ -262,6 +262,10 @@ M2 build/race checkpoint (2026-10-13 13:16 PDT): make build PASS; /tmp/pair528-m
 
 The final M2 reviewer observed unchanged `TestProvisionRecoveryLostSuccessPublication` fail in its broader couchcore race selection before the intended injection (`weave=0`); an isolated race rerun passed. This is a recorded intermittent failure, not evidence that the broader run passed or that its cause is established. The SHIP review and evidence are in the M2 review sidecar (2026-10-13 13:49 PDT). Per TL receipt 03a3a089-1fce-424f-9bb7-f55e62430275, file a separate issue if this failure recurs in our full run. Full-suite execution remains queued for the TL's capacity signal; no suite was started for this note.
 
+### 2026-10-13 — Full verification and transition guard correction
+
+Per TL 4e054fd4, `make -k test` entered the machine gate and acquired after 312s. All Make prerequisites passed, including the previously load-sensitive capture budget. The complete Go run reached every package and failed only `TestArbitraryLifecycleMutationHasNoDoor`: ResumeCandidate directly supplied a callback to updateExistingThread. Log: /tmp/pair528-full-20261013-final.log. The recorded TestProvisionRecoveryLostSuccessPublication flake did not recur, so no follow-up filed. Corrected the authority boundary with typed ThreadStore.PreserveRecoveryBeforeRetirement, validating the selected intent and retaining clone/CAS semantics. The unchanged architecture guard plus all TestResumeCandidate cases and DeleteStart recovery checks pass (4.117s, /tmp/pair528-transition-fix.log); diff check clean. This is a failed full run followed by passing focused correction verification, not a claimed green rerun. Staging follows for the TL's scratch live acceptance before close.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against

@@ -162,12 +162,7 @@ func (c *Couch) ResumeCandidate(ctx context.Context, t ResumeTarget, key string)
 	if retire != nil {
 		// Persist the original screen and chosen target before quitting a live
 		// source. StartClaim will own the same intent after park completes.
-		retained := *threadrecord.CloneRecoveryContext(&intent.Context)
-		retained.SelectedKey, retained.SelectedNativeID = intent.SelectedKey, intent.NativeID
-		record, err = c.Threads.updateExistingThread(record.Address, record.Revision, func(next *ThreadRecord) error {
-			next.RecoveryContext = threadrecord.CloneRecoveryContext(&retained)
-			return nil
-		})
+		record, err = c.Threads.PreserveRecoveryBeforeRetirement(record.Address, record.Revision, intent)
 		if err != nil {
 			return result, err
 		}

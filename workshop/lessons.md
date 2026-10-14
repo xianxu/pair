@@ -1630,3 +1630,5 @@ proof; record the surprising case so the next change starts from evidence.
 - **#528 primary recovery routing:** a new secondary action does not satisfy the primary recovery contract. Test Enter, mouse, explicit Relaunch and equivalent restart gestures against the shared preview, preserving ordinary healthy behavior.
 
 - **#528 recovery conformance:** extending a native format consumer creates a new contract even when the older scanner still parses the file. Exercise the new production interpretation in installed-native conformance, and prove recovery-only drift fails while legacy inventory remains valid.
+
+- **#528 store authority:** coordinators call named typed ThreadStore transitions, never updateExistingThread callbacks. Include TestArbitraryLifecycleMutationHasNoDoor alongside targeted lifecycle integration checks; behavioral tests alone do not cover the authority boundary.
