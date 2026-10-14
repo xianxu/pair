@@ -1,12 +1,12 @@
 ---
 id: 000542
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-13
 updated: 2026-10-13
 estimate_hours:
-card_mirror: 'ba1a6136f8f80c810967fa5f46b947dace49ab18' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'b6d5ffce807ed752a332ac8bf603f5edf8368f5e' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-13T18:00:12-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "ce386477", done: "92c14d9a"}
+actual_hours: 1.62
 ---
 
 # PTY canceled-before-ack reports a live process group after the child is reaped
