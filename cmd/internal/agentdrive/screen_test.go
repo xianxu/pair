@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func capture(t *testing.T, name string) []string {
@@ -94,7 +95,79 @@ func TestReadModelScreenCurrentStatusCountsHistoricalConfirmations(t *testing.T)
 	}
 }
 
+func TestReadModelScreenCodexExplicitNativeSelection(t *testing.T) {
+	native := capture(t, "native-model-picker")
+	gotNative := ReadModelScreen("codex", Screen{Complete: true, Lines: native})
+	if gotNative.Phase != ScreenModel || gotNative.Selected != "gpt-6.1-sol" {
+		t.Fatalf("actual native capture declined %#v", gotNative)
+	}
+	// Actual Run/native relay conformance on Codex 0.162.1 reports no SGR7/27
+	// before Pair receives output. Preserve the captured row text and explicit
+	// cursor prefix while removing only the older capture's reverse styling.
+	for _, tc := range []struct {
+		name     string
+		phase    ScreenPhase
+		selected string
+	}{{"model-picker", ScreenModel, "gpt-6.1-sol"}, {"effort-picker", ScreenEffort, "low"}, {"more-expanded", ScreenAdvanced, "max"}} {
+		lines := capture(t, tc.name)
+		for i, line := range lines {
+			lines[i] = strings.ReplaceAll(strings.ReplaceAll(line, "‹rev›", ""), "‹/rev›", "")
+		}
+		got := ReadModelScreen("codex", Screen{Complete: true, Lines: lines})
+		if got.Phase != tc.phase || got.Selected != tc.selected {
+			t.Fatalf("%s native prefix declined: %#v", tc.name, got)
+		}
+		if got := ReadModelScreen("codex", Screen{Lines: lines}); got.Phase != ScreenUnknown {
+			t.Fatal("incomplete native picker accepted")
+		}
+	}
+}
+
+func TestReadModelScreenCodexSelectionRequiresUniqueExplicitPrefix(t *testing.T) {
+	base := []string{"Select Model and Effort", "› 1. GPT-6.1-Sol (current)", "2. GPT-6-Astra", "enter select · esc back"}
+	for _, lines := range [][]string{
+		{base[0], "‹rev›1. GPT-6.1-Sol (current)‹/rev›", base[2], base[3]},
+		{base[0], base[1], "› 2. GPT-6-Astra", base[3]},
+		{base[0], base[1], "2. GPT-6.1-Sol", base[3]},
+		{base[0], "‹rev›› 1. GPT-6.1-Sol", base[2], base[3]},
+		{base[0], base[1], base[2], "unrecognized footer"},
+	} {
+		if got := ReadModelScreen("codex", Screen{Complete: true, Lines: lines}); got.Phase != ScreenUnknown {
+			t.Fatalf("ambiguous native picker accepted %#v", got)
+		}
+	}
+}
+
+func TestNativePrefixSelectionRetainsDriveFreshnessGuard(t *testing.T) {
+	now := time.Unix(100, 0)
+	s, err := NewDrive(Request{Model: &ModelRequest{Model: "gpt-6-astra"}}, "codex", now.Add(time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventStart, At: now, Screen: Screen{Epoch: 1, Complete: true, Idle: true}})
+	for i := 0; i < 3; i++ {
+		s, _ = ReduceDrive(s, DriveEvent{Kind: EventWritten, At: now})
+	}
+	screen := Screen{Epoch: 2, Complete: true, Lines: capture(t, "native-model-picker")}
+	s, fx := ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: screen})
+	if len(fx) != 1 || fx[0].Key.Kind != KeyDown {
+		t.Fatalf("native selection not actionable %#v", fx)
+	}
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventWritten, At: now, Screen: screen})
+	_, fx = ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: screen})
+	for _, e := range fx {
+		if e.Kind == EffectWrite {
+			t.Fatal("same native frame replayed navigation")
+		}
+	}
+}
+
 func FuzzReadModelScreen(f *testing.F) {
+	b, err := os.ReadFile("../wrapcmd/testdata/drive/codex/0.162.1/native-model-picker.screen")
+	if err != nil {
+		f.Fatal(err)
+	}
+	f.Add(string(b))
 	for _, path := range []string{"../wrapcmd/testdata/drive/codex/0.162.1/model-picker.screen", "../wrapcmd/testdata/drive/codex/0.162.1/effort-picker.screen", "../wrapcmd/testdata/drive/codex/0.162.1/session-status.screen", "../wrapcmd/testdata/drive/codex/0.162.1/more-entry.screen", "../wrapcmd/testdata/drive/codex/0.162.1/more-expanded.screen", "../wrapcmd/testdata/drive/codex/0.162.1/default-status.screen", "../wrapcmd/testdata/drive/claude/2.1.299/session-before.screen", "../wrapcmd/testdata/drive/claude/2.1.299/session-status.screen"} {
 		b, e := os.ReadFile(path)
 		if e != nil {

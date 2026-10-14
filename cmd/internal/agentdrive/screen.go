@@ -69,8 +69,9 @@ func confirmationCounts(lines []string) map[string]int {
 	return counts
 }
 
-// checkedMarkup rejects incomplete/unknown paints and tracks actual reverse
-// highlighting. Escaped tag spellings never become styling evidence.
+// checkedMarkup rejects incomplete/unknown styling. Native Codex may paint its
+// explicit selection prefix without reverse video; balanced markup is still
+// required before any row can supply evidence.
 func checkedMarkup(s string) (bool, bool) {
 	stack := []string{}
 	rev := false
@@ -124,16 +125,14 @@ func ReadModelScreen(agent string, screen Screen) ScreenEvidence {
 		return unknown
 	}
 	plain := make([]string, len(screen.Lines))
-	reverse := make([]bool, len(plain))
 	for i, line := range screen.Lines {
 		if !utf8.ValidString(line) || len(line) > MaxResultTailBytes {
 			return unknown
 		}
-		r, ok := checkedMarkup(line)
+		_, ok := checkedMarkup(line)
 		if !ok {
 			return unknown
 		}
-		reverse[i] = r
 		plain[i] = tailmarkup.Strip(line)
 	}
 	heading := -1
@@ -182,7 +181,7 @@ func ReadModelScreen(agent string, screen Screen) ScreenEvidence {
 			case ScreenModel:
 				if m := codexRow.FindStringSubmatch(line); m != nil {
 					label = strings.ToLower(m[1])
-					sel = reverse[i] && strings.HasPrefix(strings.TrimSpace(screen.Lines[i]), "‹rev››") && strings.HasPrefix(line, "›")
+					sel = strings.HasPrefix(line, "›")
 				}
 				if line == "enter select · esc back" {
 					if e.Footer != "" {
@@ -194,7 +193,7 @@ func ReadModelScreen(agent string, screen Screen) ScreenEvidence {
 			case ScreenEffort:
 				if m := effortRow.FindStringSubmatch(line); m != nil {
 					label = canonicalEffort(m[1])
-					sel = reverse[i] && strings.HasPrefix(strings.TrimSpace(screen.Lines[i]), "‹rev››") && strings.HasPrefix(line, "›")
+					sel = strings.HasPrefix(line, "›")
 				}
 				if line == "enter default · s session · esc back" || line == "enter select · esc back" {
 					if e.Footer != "" {
@@ -206,7 +205,7 @@ func ReadModelScreen(agent string, screen Screen) ScreenEvidence {
 			case ScreenAdvanced:
 				if m := advancedRow.FindStringSubmatch(line); m != nil {
 					label = canonicalEffort(m[1])
-					sel = reverse[i] && strings.HasPrefix(strings.TrimSpace(screen.Lines[i]), "‹rev››") && strings.HasPrefix(line, "›")
+					sel = strings.HasPrefix(line, "›")
 				}
 				if line == "enter default · s session · esc back" {
 					if e.Footer != "" {
