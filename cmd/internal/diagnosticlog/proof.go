@@ -84,9 +84,47 @@ func VerifyWriters(ctx context.Context, path string, registered []Registration, 
 	return nil
 }
 
-// OSInspection deliberately retains data when lsof/ps is unavailable or denies
+// OSInspection deliberately retains data when lsof/native process inspection is unavailable or denies
 // inspection. It reads process metadata only; no trace contents are inspected.
-type OSInspection struct{}
+type OSInspection struct{ processes processInspection }
+
+type processInspection interface {
+	Snapshot(context.Context) ([]procutil.Observation, error)
+	Identity(string) string
+	StrictIdentity(string) string
+	Environment(int) (map[string]string, error)
+}
+type nativeProcessInspection struct{}
+
+func (nativeProcessInspection) Snapshot(ctx context.Context) ([]procutil.Observation, error) {
+	return procutil.Snapshot(ctx)
+}
+func (nativeProcessInspection) Identity(pid string) string       { return procutil.Identity(pid) }
+func (nativeProcessInspection) StrictIdentity(pid string) string { return procutil.StrictIdentity(pid) }
+func (nativeProcessInspection) Environment(pid int) (map[string]string, error) {
+	return processEnvironment(pid)
+}
+
+var runtimeExecutableNames = []string{"pair", "pair-go", "pair-wrap", "pair-slug", "pair-session-watch", "pair-title-poller", "couch", "nvim", "zellij"}
+
+func isRuntimeExecutable(name string) bool {
+	for _, candidate := range runtimeExecutableNames {
+		if name == candidate {
+			return true
+		}
+	}
+	return false
+}
+
+func possibleRuntimeName(short string) bool {
+	// Kernel comm can be truncated. Unknown names also cannot exclude a writer.
+	for _, candidate := range runtimeExecutableNames {
+		if strings.HasPrefix(candidate, short) {
+			return true
+		}
+	}
+	return false
+}
 
 func command(parent context.Context, name string, args ...string) ([]byte, []byte, error) {
 	ctx, cancel := context.WithTimeout(parent, 2*time.Second)
@@ -148,45 +186,49 @@ func (OSInspection) OpenFiles(ctx context.Context, path string) ([]Registration,
 	}
 	return result, nil
 }
-func (OSInspection) Runtimes(ctx context.Context) ([]Runtime, error) {
-	out, stderr, e := command(ctx, "ps", "-axo", "pid=,comm=")
+func (o OSInspection) Runtimes(ctx context.Context) ([]Runtime, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if e != nil || len(stderr) != 0 {
-		return nil, errors.New("process inventory unavailable")
+	reader := o.processes
+	if reader == nil {
+		reader = nativeProcessInspection{}
+	}
+	rows, err := reader.Snapshot(ctx)
+	if err != nil {
+		return nil, err
 	}
 	var result []Runtime
-	for _, line := range strings.Split(string(out), "\n") {
+	for _, row := range rows {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		fields := strings.Fields(line)
-		if len(fields) < 2 {
+		if row.Err != nil {
+			if possibleRuntimeName(row.Name) {
+				return nil, ErrUnknownWriters
+			}
 			continue
 		}
-		base := filepath.Base(strings.Join(fields[1:], " "))
-		switch base {
-		case "pair", "pair-go", "pair-wrap", "pair-slug", "pair-session-watch", "pair-title-poller", "couch", "nvim", "zellij":
-		default:
+		// Linux appends this marker when an executable is replaced/unlinked;
+		// that still-running generation remains a possible writer.
+		base := strings.TrimSuffix(filepath.Base(row.Executable), " (deleted)")
+		if !isRuntimeExecutable(base) {
 			continue
 		}
-		pid, e := strconv.Atoi(fields[0])
-		if e != nil || pid <= 0 {
+		pid := row.PID
+		birth := reader.StrictIdentity(strconv.Itoa(pid))
+		if birth == "" || row.Identity == "" || reader.Identity(strconv.Itoa(pid)) != row.Identity {
 			return nil, ErrUnknownWriters
 		}
-		birth := procutil.StrictIdentity(strconv.Itoa(pid))
-		if birth == "" {
-			return nil, ErrUnknownWriters
-		}
+
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		env, e := processEnvironment(pid)
+		env, e := reader.Environment(pid)
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if e != nil || procutil.StrictIdentity(strconv.Itoa(pid)) != birth {
+		if e != nil || reader.StrictIdentity(strconv.Itoa(pid)) != birth {
 			return nil, ErrUnknownWriters
 		}
 		root := env["PAIR_DATA_DIR"]

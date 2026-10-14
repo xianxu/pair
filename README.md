@@ -678,16 +678,16 @@ require a resting branch, 30 seconds without operator input or agent output,
 and delivery capacity. Exact sends can clarify work in an occupied slot. Pair
 inserts input only at a qualified empty agent composer; existing composer text,
 images, menus and unknown states prevent automatic submission. Unchanged text
-in the separate draft pane does not block delivery. Claude Code and Codex CLI
-receive at any installed version; fixtures and live checks were captured on
-Claude Code 2.1.286 and Codex CLI 0.159.2, and evidence for newer versions is
-tracked in #368. Messages submit automatically once the composer shows them in
-a layout Pair can verify: plain text with single spaces between words wraps
-predictably, and so do over-long words. That includes long messages that
-Claude collapses to a `[Pasted text #N +M lines]` summary. Tabs and leading,
-trailing or repeated spaces cannot be verified after wrapping; such a message
-waits for a human to submit it. A collapsed summary is accepted only when it alone fills a composer
-that was empty before the paste, and its line count matches the message.
+in the separate draft pane does not block delivery. Claude Code, Codex CLI and
+Qoder CLI receive at any installed version. Fixtures and live checks cover
+Claude Code 2.1.286, Codex CLI 0.159.2 and Qoder CLI 1.1.71; a Qoder 1.1.66
+fixture also covers the first-run folder-trust dialog. The Qoder live smoke
+confirmed registration, live peek, message receipt/reply and idle settling.
+Evidence for newer versions is tracked in #368. Messages are bracketed-pasted
+into an empty composer and submitted automatically after a short delay; the
+wrapper confirms submission from a cleared composer or a newly opened turn.
+It does not reconstruct the pasted envelope from wrapped or collapsed text.
+Existing human input and open pickers hold delivery.
 Prefer short coordination messages pointing to repository artifacts. Human
 Couch acceptance is separate from these receiver checks.
 
@@ -1563,6 +1563,11 @@ public `📁...` name, `pair resume <public-name>` and `pair rename <public-name
 tag, not a public session name.
 
 **Hacking on pair?** Use `pair-dev` instead of `pair` — same arguments, but it rebuilds the `pair` binary from source (`make build`) on launch and on every Alt+n whole-workbench reload, so the zellij-spawned `pair wrap` always matches your working tree. Shift+Alt+N restarts only the already-running wrapper's agent child. (Deployed installs run `pair`, which uses the prebuilt binary and needs no Go toolchain.) Under Couch, start it with `couch-dev` instead of `couch`: it rebuilds once and runs Couch with dev mode on. Slots Couch launches do not rebuild Pair (a rebuild per slot slowed every launch under load), so run `make build` once before relaunching slots onto a new build.
+
+SDLC reviews use the pinned commit’s `.sdlc/review-prepare.json` (version 1,
+`command: ["make", "runtimebundle-generate"]`, `timeout_minutes: 10`) to generate
+the ignored runtime embed assets in a disposable checkout before tests run.
+Preparation leaves tracked sources unchanged. See the [runtime bundle map](atlas/go-migration-inventory.md).
 
 When `pair` runs and there's anything to pick — a detached Pair session owned by this repo **or** a tag from this repo used within the last 14 days — it shows an `fzf` picker. Detached rows come first, then historical rows annotated `(Nd ago, no live session)`, then a `+ new <agent> session` sentinel. A historical row whose session has prompts parked in its queue also carries an amber `[⏎ N queued]` badge, so you don't resume a session without remembering the work you queued up in it. Picking a historical row reuses the repo-local tag and any surviving draft / saved agent config (same path as `pair resume <tag>`). Override the 14-day window with `PAIR_HISTORY_DAYS`; `PAIR_DEBUG_HISTORY=1 pair` prints the scan and exits without launching.
 

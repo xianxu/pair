@@ -3,6 +3,7 @@ package procutil
 import (
 	"os"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -24,27 +25,27 @@ func TestAlive(t *testing.T) {
 }
 
 func TestCommand(t *testing.T) {
+	if runtime.GOOS != "darwin" && runtime.GOOS != "linux" {
+		t.Skip("native inspection unsupported")
+	}
 	if Command("") != "" {
 		t.Error("empty pid must yield empty command")
 	}
 	self := strconv.Itoa(os.Getpid())
 	got := Command(self)
 	if got == "" {
-		// A locked-down environment (sandbox / container) can block `ps`; skip
-		// visibly there rather than hard-fail — `make test` runs on a normal
-		// dev machine where ps works.
-		if !psAvailable() {
-			t.Skip("ps unavailable in this environment (sandbox); skipping command-line probe")
-		}
 		t.Errorf("own pid %s should have a non-empty command line", self)
 	}
-	// No trailing newline (ps -o command= is trimmed).
+	// Native argv contains no output-formatting newline.
 	if len(got) > 0 && got[len(got)-1] == '\n' {
 		t.Errorf("command line should be newline-trimmed, got %q", got)
 	}
 }
 
 func TestIdentity(t *testing.T) {
+	if runtime.GOOS != "darwin" && runtime.GOOS != "linux" {
+		t.Skip("native inspection unsupported")
+	}
 	if Identity("") != "" {
 		t.Error("empty pid must yield empty identity")
 	}
@@ -52,9 +53,6 @@ func TestIdentity(t *testing.T) {
 	first := Identity(self)
 	second := Identity(self)
 	if first == "" {
-		if !psAvailable() {
-			t.Skip("ps unavailable in this environment; skipping identity probe")
-		}
 		t.Fatalf("own pid %s should have a process identity", self)
 	}
 	if second != first {
@@ -103,10 +101,6 @@ func TestDescendantPIDsIncludesNestedChildren(t *testing.T) {
 	}
 }
 
-func psAvailable() bool {
-	return exec.Command("ps", "-p", strconv.Itoa(os.Getpid()), "-o", "command=").Run() == nil
-}
-
 // #220 changed Alive from `kill -0` in a subprocess to a syscall, and declared
 // two behaviours while doing it: a positivePID guard, and EPERM meaning alive.
 // Neither was pinned by a test (BR-6). Signal 0 is the null signal, so what the
@@ -144,7 +138,7 @@ func TestAliveReportsThisProcessAndNotADeadOne(t *testing.T) {
 func TestTableMatchesIdentityAndParent(t *testing.T) {
 	rows, err := Table()
 	if err != nil {
-		t.Skipf("process table unavailable: %v", err)
+		t.Fatalf("process table unavailable: %v", err)
 	}
 	self := os.Getpid()
 	for _, r := range rows {
@@ -176,7 +170,7 @@ func TestTableReadsNice(t *testing.T) {
 	for deadline := time.Now().Add(3 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
 		rows, err := Table()
 		if err != nil {
-			t.Skipf("process table unavailable: %v", err)
+			t.Fatalf("process table unavailable: %v", err)
 		}
 		got, own = -100, -100
 		for _, r := range rows {

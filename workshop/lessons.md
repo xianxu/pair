@@ -1700,6 +1700,11 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
   endpoint when timestamps can tie. Test truncated tails and sequence gaps at
   the endpoint; an equal-time observation cannot exclude a later equal-time event.
 
+- Native process inspection must distinguish full executable identity, mutable argv[0] and truncated kernel comm. Preserve unavailable rows and fence generation across separate command reads; converting a ps table to short kernel names alone silently drops long runtime names. Bound numeric PIDs before narrowing them to kernel argument types. (#547)
+- When replacing a subprocess observation with native IO, sweep shell fixtures as well as Go tests. A PATH fake no longer isolates that native boundary; use an injected observation or a real controlled process topology rather than adding a production test bypass. (#547)
+- A process table can retain exited, unreaped processes whose argv is unavailable. Use native zombie/terminal status from that same table to exclude them from live-command observations; never infer death from EINVAL, permission failure or empty argv. Exercise a real exited child before Wait and real shutdown conformance. (#547)
+
+- #547 BR-1: A subprocess timeout only supervises the direct child. Test helpers that reparent commands must own the process group before launch, handshake startup, and clean the group on failure/cancellation. Verify descendant lifetime with a kernel-held resource; preserve intentional success-path sidecars.
 - #546 integration: an operation queue may have concurrent workers even when admissions are FIFO. Prove effect ordering with barriers; ownership changes need one shared execution gate, and queued mutations must repeat authority checks after acquiring it. Explicit startup and background recovery must consume the same ownership projection to avoid duplicate starts.
 - #546 retry evidence: after a successful move, the original caller may no longer own the target. Authenticate the caller and answer its retained full-intent receipt before checking authority for a new effect. Include persistence mode and destination in deduplication; no-op durable commands must not advance the ownership revision.
 
@@ -1708,3 +1713,7 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
 - #546 multi-owner changes must enumerate observability consumers as well as routing/guards: delivery facts are part of the behavior contract, and a main-only logging predicate can silently lose confirmed secondary-owner evidence.
 
 - #544 ad-hoc review: a queued screen-driven key needs proof from one coherent terminal generation, rechecked at emission. Fence confirmation after the actual write, not after the earlier decision. Route raw keys through ordinary input accounting even when Return remapping is disabled, and prove interruption through the real input loop.
+- #550: A launchable harness can still lack peer messaging entirely. Require an explicit receiver policy for every AgentInventory entry and a captured empty-composer case for every enabled receiver. Prove startup registration through the real endpoint and delivery through the broker seam; Return remapping geometry alone is insufficient.
+
+- #550 BR-1: Expanding a supported receiver set updates README's support/evidence paragraph as well as the atlas. Sweep the whole affected paragraph against the current delivery path; retaining an earlier echo-validation contract alongside a new receiver claim misdescribes the operator's flow.
+- #547 BR-2: Pipe EOF and unavailable process argv can precede terminal kernel metadata. A process-state fixture must await the state its assertion requires, with a bounded deadline and a deterministic live-then-terminal regression.

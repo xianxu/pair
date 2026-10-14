@@ -10,13 +10,13 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
-	"strconv"
 	"strings"
 	"syscall"
 	"testing"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/procutil"
 )
 
 func TestRunStreamingSubcommandRoutesChangelogToInjectedStderr(t *testing.T) {
@@ -345,13 +345,19 @@ func runPublicPairCommand(t *testing.T, timeout time.Duration, dir string, env [
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, name, args...)
+	python, err := exec.LookPath("python3")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Use a real controlled ancestry, independent of the developer's Zellij.
+	helperArgs := append([]string{filepath.Join(dir, "tests", "without-ancestors.py"), "--timeout", fmt.Sprint(timeout.Seconds() - 1), name}, args...)
+	cmd := exec.CommandContext(ctx, python, helperArgs...)
 	cmd.Dir = dir
 	cmd.Env = env
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	err := cmd.Run()
+	err = cmd.Run()
 	result := commandResult{stdout: stdout.String(), stderr: stderr.String()}
 	if ctx.Err() == context.DeadlineExceeded {
 		return result, true
@@ -394,20 +400,11 @@ case "$*" in
 esac
 exit 0
 `
-	ps := `#!/bin/sh
-printf 'ps\t%s\t%s\t%s\n' "$*" "$COUCH_TREE" "$COUCH_STORE_DIR" >> "$PAIR_TEST_COMMAND_LOG"
-case "$*" in
-  *"comm="*) printf 'pair\n' ;;
-  *"ppid="*) printf '1\n' ;;
-esac
-exit 0
-`
 	quiet := "#!/bin/sh\nprintf '%s\\t%s\\t%s\\t%s\\n' \"${0##*/}\" \"$*\" \"$COUCH_TREE\" \"$COUCH_STORE_DIR\" >> \"$PAIR_TEST_COMMAND_LOG\"\nexit 0\n"
 	stubs := map[string]string{
 		"zellij": zellij,
 		"fzf":    fzf,
 		"git":    git,
-		"ps":     ps,
 		"claude": quiet,
 		"lsof":   quiet,
 		"pkill":  quiet,
@@ -529,26 +526,20 @@ func stopPublicPairSidecars(t *testing.T, pair string) {
 }
 
 func publicPairSidecars(pair string) (map[int]string, error) {
-	out, err := exec.Command("/bin/ps", "-axo", "pid=,command=").Output()
+	rows, err := procutil.Snapshot(context.Background())
 	if err != nil {
 		return nil, err
 	}
 	want := []string{pair + " title ", pair + " session-watch "}
 	processes := map[int]string{}
-	for _, line := range strings.Split(string(out), "\n") {
-		line = strings.TrimSpace(line)
-		separator := strings.IndexAny(line, " \t")
-		if separator < 1 {
+	for _, row := range rows {
+		if row.Err != nil {
 			continue
 		}
-		pid, err := strconv.Atoi(line[:separator])
-		if err != nil {
-			continue
-		}
-		argv := strings.TrimSpace(line[separator+1:])
+		argv := strings.Join(row.Args, " ")
 		for _, prefix := range want {
 			if strings.HasPrefix(argv, prefix) {
-				processes[pid] = argv
+				processes[row.PID] = argv
 				break
 			}
 		}

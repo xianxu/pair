@@ -22,7 +22,13 @@ import (
 // exact-version allowlist silently dropped every slot after each agent
 // auto-update. Upgrade safety is to come from evidence gathered in daily use
 // (#368); until then the composer checks still refuse unknown input states.
-var peerReceiverAgents = map[string]bool{"codex": true, "claude": true}
+// Every launcher.AgentInventory entry has an explicit policy (pinned by
+// TestPeerReceiverInventoryHasExplicitPolicy). Disabled harnesses have Return
+// profiles but no captured peer input/placeholder parser yet.
+var peerReceiverAgents = map[string]bool{
+	"codex": true, "claude": true, "qoder": true,
+	"agy": false, "muse": false, "grok": false,
+}
 
 // peerActivityInterval bounds activity frames to one per second while the
 // agent produces output; an idle wrapper sends none (#365).

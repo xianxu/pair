@@ -69,22 +69,6 @@ esac
 SH
 chmod +x "$bin_dir/zellij"
 
-cat >"$bin_dir/ps" <<'SH'
-#!/usr/bin/env bash
-case "$*" in
-  "-o comm= -p "*)
-    printf 'sh\n'
-    ;;
-  "-o ppid= -p "*)
-    printf '1\n'
-    ;;
-  *)
-    exec /bin/ps "$@"
-    ;;
-esac
-SH
-chmod +x "$bin_dir/ps"
-
 # Stub agent CLI: the create path validates the agent resolves on PATH before the
 # zellij handoff. A no-op stub suffices — the stub zellij intercepts the handoff
 # before the agent would actually run.
@@ -128,7 +112,10 @@ touch -t 202001030000 "$pair_data/runtime/$old_c"
 # runs; the `command -v pair` check inside the stub zellij then proves the
 # launcher fronted $pairbin (dir os.Executable) on the session PATH. Without that
 # #104-M3 prepend, `pair` wouldn't resolve inside → exit 21.
-PATH="$bin_dir:/usr/bin:/bin" "$pairbin/pair" resume smoke >/dev/null
+# Native ancestry cannot be replaced by a PATH stub. Reparent this controlled
+# launch to init, so the real process table sees no developer Zellij ancestor.
+python_bin="$(command -v python3)"
+PATH="$bin_dir:/usr/bin:/bin" "$python_bin" "$repo_root/tests/without-ancestors.py" "$pairbin/pair" resume smoke >/dev/null
 
 test -s "$PAIR_SMOKE_ROOT"
 root="$(cat "$PAIR_SMOKE_ROOT")"
