@@ -486,3 +486,32 @@ The final revision in `workshop/plans/000528-slot-recovery-plan.md` supersedes p
   finalized; no gate bypass or review-fence/config change was made. Report the
   environment blocker to TL for a process-capable review. A final full-core
   confirmation run is still in progress. No staging.
+
+### 2026-10-13 23:09 PDT — Round 9 environment counter-measurement
+
+At HEAD `ebc09ad6b143d334fd8900bb15e05369edfbbb56`, reran unsandboxed
+on this machine (unchanged production code from reviewed 73f877e9):
+
+```sh
+go test ./cmd/internal/launcher -run '^TestSelectedRootNativeCreateListAndListedResume$|^TestPreparingReadinessRetainsPreviousAgentEvidence$|^TestColdLaunchUnknownReadinessRefusesUnderLease$|^TestColdLaunchAcceptsProvenDeadRetainedAgent$' -count=1
+```
+
+Exit **0**, launcher **6.376s**, complete output:
+`ok github.com/xianxu/pair/cmd/internal/launcher 6.376s`. Log:
+`/tmp/pair528-ebc09ad6-host-countermeasure.log`. A direct
+`ps -p 1 -o pid=,comm=` also exited **0**, returning `1 /sbin/launchd`.
+The process-observation restriction is specific to the fenced review, not
+the tested production behavior or the host verification environment.
+
+The round issued **no finding ID** for its environment blocker and disposed
+all BR findings. `sdlc finding dispute --help` refuses settled or unissued IDs,
+so no ID is fabricated and the generated ledger is not edited by hand.
+TL approved recording this counter-measurement and re-closing normally; if
+the next round returns only the same sandbox blocker with zero findings,
+report and stop for the operator rather than loop. No gate waiver.
+
+Final full-core confirmation: `go test ./cmd/internal/couchcore -count=1`
+exited **0**, **363.825s** (/tmp/pair528-core-final-confirmation.log), without
+changes or raised deadlines. Together with the corrected full command and
+launcher package runs, every failed package from make -k test has now passed
+in full. Earlier transient workspace-lock failures remain recorded above.
