@@ -853,6 +853,19 @@ A thread whose agent is waiting on a picker (a permission prompt or a question)
 shows red in the tabs and the switcher until the picker closes, even when it's
 the focused tab, and never fades.
 
+Couch also watches reports sent to the hub. If a quiet, settled worker has no
+later confirmed hub message or operator submission after 15 minutes, the hub
+gets one reminder; at 30 minutes Couch shows an operator notice. Earlier waiting
+notices count as the reminder. Explicit landing reports remain eligible after
+the worker returns to main. Inspect the named slot with `couch --peek repo:N`;
+these observations do not prove whether a conversation was meaningfully answered.
+The existing `wait-notice-off` file mutes these reminders too.
+
+On startup, Couch asks each connected worker once to resend its last unanswered
+hub report only if still relevant. The worker decides what to send. The prompt
+uses the ordinary in-memory busy queue, but Couch stores no old report for replay
+and does not regenerate the prompt on reconnect within the same Couch lifetime.
+
 The tab bar starts with the hub, the checkout you started Couch from, and then
 lists every other slot grouped by repository:
 `ops  ariadne  :1  :2  blog  pair  :1  :2`. In the switcher the hub is the first line and the rest sit indented

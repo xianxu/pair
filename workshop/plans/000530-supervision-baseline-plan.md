@@ -381,3 +381,14 @@ service fixtures. ARCH-CONSTRAINTS/FUNERAL: only connected report state plus the
 required per-lifetime attempted-address set; no report body retention, no disk
 queue, no new watcher. ARCH-SECURE: authenticated observations and existing Send
 authority; supervisor effects cannot masquerade as worker reports or hub replies.
+
+
+### 2026-10-13 — implementation seam refinement
+
+The broker exposes a read-only Submission(binding) accessor rather than adding
+operator counters to the public Candidate wire shape. Existing wait-notice-off
+also mutes the new report reminders; picker/prompt notices retain their behavior.
+A bounded volatile send-ID table distinguishes genuine hub replies from generated
+prompts and deduplicates observed CLI attempts; it uses the broker receipt cap and
+lifetime, never message bodies or persistence. The coordinator rechecks report IDs
+before applying effects. No feature-log machinery was added.

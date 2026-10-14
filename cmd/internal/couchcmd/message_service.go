@@ -168,7 +168,8 @@ type messageService struct {
 	replays atomic.Pointer[func() []string]
 	// deliveries records each landed delivery for session-sync owed events
 	// (pair#437); nil records nothing.
-	deliveries atomic.Pointer[deliveryRecorder]
+	deliveries  atomic.Pointer[deliveryRecorder]
+	supervision atomic.Pointer[supervisionCoordinator]
 
 	mu sync.Mutex
 	// workspaces holds each connected binding's verified workspace, for the
@@ -395,6 +396,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 	service.SetReplay(console.ReplayShare, console.SharedReplays)
 	service.SetSubmission(console.Submission)
 	service.recordDeliveries(namespace)
+	service.supervision.Store(newSupervisionCoordinator(service, func(text string) { console.Notify(couchtty.Notice{Kind: "status", Body: text}) }))
 	watcher := newWaitWatcher(service, threshold, namespace)
 	service.workers.Add(1)
 	go func() { defer service.workers.Done(); watcher.run(service.lifetime, waitTick) }()
@@ -734,6 +736,11 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 		if err != nil {
 			return couchmessage.Response{Code: "unavailable", Error: err.Error()}
 		}
+		if request.Op == "send" {
+			if c := s.supervision.Load(); c != nil {
+				c.sending(binding, request)
+			}
+		}
 		if request.Op == "send" && request.Target == couchmessage.HubTarget {
 			hub, refusal := s.hubRecipient(binding)
 			if refusal != nil {
@@ -1045,7 +1052,12 @@ func (e messageEndpoint) Deliver(ctx context.Context, m couchmessage.Message, pr
 		return couchmessage.Receipt{Status: couchmessage.Cancelled, Detail: err.Error()}, nil
 	}
 	receipt, err := e.endpoint.Deliver(ctx, m, progress)
-	if r := e.service.deliveries.Load(); r != nil {
+	system := false
+	if c := e.service.supervision.Load(); c != nil {
+		c.delivered(m, receipt, err)
+		system = c.systemMessage(m)
+	}
+	if r := e.service.deliveries.Load(); r != nil && !system {
 		r.record(m, receipt, err)
 	}
 	return receipt, err

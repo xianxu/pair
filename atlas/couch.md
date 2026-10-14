@@ -505,6 +505,37 @@ table (`couchcmd/cost.go`, pair#490, from timings in that issue's Log).
 which panics on an untagged verb; the skill's "What each verb costs" section
 lists the same tiers, and `cost_test.go` keeps both equal to the table.
 
+### Unanswered-report rules (#530)
+
+`couchcmd/supervision_model.go` owns volatile report episodes and the per-lifetime
+set of slot addresses already offered a startup resend prompt. The coordinator
+in `supervision.go` uses the existing 15-second wait-watcher tick. It does not
+change attach/resume or registry lifecycle transitions.
+
+Authenticated CLI send attempts to `hub` or its exact live address start an
+episode, including hub admission failures visible to this supervisor. A small
+leading-word completion hint keeps a landing report eligible after return to a
+resting branch. A confirmed hub CLI delivery initiated after the report, or an
+increase in the broker's accepted operator submission counter, clears it.
+Queued/uncertain replies and supervisor-generated prompts do not clear it.
+
+Known, settled workers quiet for 30 seconds with no incoming message pending get
+a hub nudge at 15 minutes and one Couch operator notice at 30 minutes. Ordinary
+waiting notices coalesce with the nudge; picker/prompt notices keep their existing
+behavior. The same `wait-notice-off` file mutes report reminders. Operator
+escalation does not require the hub still to be connected and never generates a
+desktop alert. Each notice names one action: inspect with `couch --peek`.
+
+When the hub becomes available, each connected worker address gets one normal
+Send attempt asking it to reconsider its last unanswered report. The ordinary
+busy-recipient queue is unchanged. Attempts are marked before sending, so an
+uncertain result or reconnect cannot regenerate the prompt. Original reports
+are never replayed or retained across Couch restarts. Explicit generated IDs
+keep prompts out of session-file obligations; matching prose from a real agent
+is not exempt. All episode/attempt metadata dies with the supervisor; disconnected
+bindings lose their report episodes. No feature log or online labeling ships
+here: fact logging is pair#543; Parley's sole file-ping watcher is parley.nvim#321.
+
 ### Waiting notices to the hub (#451)
 
 A slot that waits for someone sends nothing, so delivery robustness can't

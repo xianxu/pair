@@ -299,6 +299,13 @@ func (s *messageService) hubBinding() (couchmessage.Binding, bool) {
 }
 
 func (w *waitWatcher) tick(ctx context.Context, now time.Time) {
+	coordinator := w.svc.supervision.Load()
+	if coordinator != nil {
+		defer func() {
+			text, _ := os.ReadFile(w.optOut)
+			coordinator.tick(ctx, now, parseWaitOptOut(string(text)))
+		}()
+	}
 	hub, ok := w.svc.hubBinding()
 	if !ok {
 		return
@@ -319,6 +326,10 @@ func (w *waitWatcher) tick(ctx context.Context, now time.Time) {
 		listed[b] = true
 		if b == hub || !row.Known {
 			continue
+		}
+		reportID := ""
+		if coordinator != nil {
+			reportID, _ = coordinator.waitState(b)
 		}
 		since := row.LastActivity
 		f := waitFacts{Resting: row.Resting, Pending: row.Pending}
@@ -366,6 +377,11 @@ func (w *waitWatcher) tick(ctx context.Context, now time.Time) {
 			w.seen[b] = waitEpisode{key: key, judgedNot: true}
 			continue
 		}
+		if coordinator != nil && reason == waitIdle {
+			if _, notified := coordinator.waitState(b); notified {
+				continue
+			}
+		}
 		judged := string(reason) + "\x00" + summary
 		if ep, ok := w.seen[b]; ok && ep.notified && ep.judged == judged {
 			w.seen[b] = waitEpisode{key: key, notified: true, judged: judged} // output without a turn
@@ -382,6 +398,9 @@ func (w *waitWatcher) tick(ctx context.Context, now time.Time) {
 			continue // hub busy or out of allowance: retried next tick
 		}
 		w.seen[b] = waitEpisode{key: key, notified: true, judged: judged}
+		if coordinator != nil {
+			coordinator.waitNudged(b, reportID)
+		}
 	}
 	for b := range w.seen {
 		if !listed[b] {

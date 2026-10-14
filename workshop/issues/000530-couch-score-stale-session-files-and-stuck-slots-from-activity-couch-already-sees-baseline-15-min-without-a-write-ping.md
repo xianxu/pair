@@ -40,9 +40,9 @@ The operator (2026-10-13): a simple local model (not an LLM), kept simple.
 
 Durable plan: [supervision baseline](../plans/000530-supervision-baseline-plan.md).
 
-- [ ] Obtain TL approval of the durable plan, then pass change-code.
-- [ ] Add pure rules for stuck reports, coalescing and restart prompts.
-- [ ] Wire existing supervision tick and normal Send startup prompts.
+- [x] Obtain TL approval of the durable plan, then pass change-code.
+- [x] Add pure rules for stuck reports, coalescing and restart prompts.
+- [x] Wire existing supervision tick and normal Send startup prompts.
 - [ ] Verify reconstructed overnight scenario, queues, uncertainty and full make -k;
   document and hand off parley.nvim#321 and pair#543, then close and land through SDLC.
 
@@ -107,3 +107,18 @@ reconstructed overnight scenario and transport/coalescing tests; full make -k
 completes, operator notices are documented. File-ping acceptance is owned by
 parley.nvim#321, and logging acceptance by pair#543, not prerequisites falsely
 claimed as shipped by this rules-only change.
+
+
+### Implementation evidence (2026-10-13)
+
+- change-code admitted the current design (inferred quick; close upgrades the
+  review for the actual larger diff). No review or validation bypass requested.
+- Pure rules and private-socket integrations passed targeted tests: confirmed vs
+  uncertain/queued reply, operator submission, failed/forged hub attempt,
+  completion on main, coalescing, startup queue/reconnect/uncertain result, and
+  generated-message provenance. Repository-qualified reports and mute behavior
+  each failed first then passed with their implementation.
+- Whole couchcmd and couchmessage packages passed before the final mute/docs
+  additions; focused race run passed. Full make -k follows this checkpoint.
+- Published dependent pair#543 with the simplified fact-log Spec; parley.nvim#321
+  remains the sole file-ping consumer. Neither is implemented in this branch.

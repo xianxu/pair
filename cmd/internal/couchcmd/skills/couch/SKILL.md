@@ -138,6 +138,23 @@ agent did not write it and does not know it was sent. Peek the slot and unblock
 it, or tell the operator. The slot's next activity ends the episode. To mute a slot, add its `repo:N` on its own line to the
 `wait-notice-off` file the notice names.
 
+## Unanswered reports and restart prompts
+
+After a worker reports to the hub, Couch can remind the hub at 15 minutes and
+show the operator a Couch notice at 30 minutes if the worker is quiet and settled
+and no later hub message or operator submission was observed. A queued or
+uncertain hub reply does not count as an answer. Earlier waiting notices
+coalesce with the reminder. Explicit leading “landed”/“merged” reports (optionally
+prefixed with an issue reference) remain eligible after returning to main.
+Inspect the named slot; the rule observes activity, not conversational meaning.
+The same wait-notice-off file mutes these reminders.
+
+Each Couch lifetime asks connected nonhub slots once to resend a still-relevant
+unanswered report. You decide whether anything needs resending; do nothing if
+not. The prompt uses normal in-memory delivery/queueing. Reconnect does not
+regenerate it, and Couch does not retain or replay old reports across restarts.
+The prompt is supervisor-generated, not a new assignment or operator approval.
+
 ## Scheduling work on another slot
 
 Scheduling is a message plus verification. SDLC enforces the workflow, so do not

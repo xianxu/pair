@@ -283,6 +283,19 @@ func (b *Broker) operatorEvent(binding Binding, kind EventKind) {
 }
 func (b *Broker) OperatorInput(binding Binding) { b.operatorEvent(binding, OperatorInput) }
 
+// Submission reports the accepted genuine operator-submission generation for
+// a connected binding. It reads memory only; stale or rejected observations
+// never advance this counter.
+func (b *Broker) Submission(binding Binding) (uint64, bool) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	a := b.actors[binding]
+	if a == nil || !a.state.Connected() {
+		return 0, false
+	}
+	return a.submission, true
+}
+
 // ReconcileObservation consumes trusted wrapper evidence once per submission
 // generation. A delayed notification cannot replenish an already-spent epoch.
 // Registration adapters may supply their just-verified handshake observation.
