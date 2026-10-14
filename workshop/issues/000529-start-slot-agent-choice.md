@@ -15,6 +15,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "35bda2ae", done: "ab9c3d5e"}
 ---
 
 # Couch start-slot form has no selectable agents
