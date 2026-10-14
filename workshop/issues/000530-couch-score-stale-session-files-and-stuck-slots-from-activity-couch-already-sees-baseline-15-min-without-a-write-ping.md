@@ -37,13 +37,36 @@ The operator (2026-10-13): a simple local model (not an LLM), kept simple.
 
 ## Plan
 
-- [ ]
+Durable plan: [supervision baseline](../plans/000530-supervision-baseline-plan.md).
+
+- [ ] Obtain TL approval of the durable plan, then pass change-code.
+- [ ] Add factual file observations and pure supervision/sampling transitions.
+- [ ] Wire bounded telemetry, existing supervision tick and immediate startup prompts.
+- [ ] Verify reconstructed overnight scenario, queues, uncertainty and full make -k;
+  document and hand off parley.nvim#321, then close and land through SDLC.
 
 ## Log
 
 ### 2026-10-13
 
+- Claimed in pair:7; start-plan completed after its requested weave refresh.
+- Read-only exploration found the ping in Parley's existing session_sync.lua
+  probe: five minutes from oldest owed delivery, not latest file write. Filed
+  and published parley.nvim#321 with deps pair#530; no Parley implementation.
+- Couch cannot see a failed connection made while its supervisor is absent.
+  Startup requests cover that blind spot without storing or replaying reports.
+  Sessionsync owed means not folded into a file, not conversationally unanswered.
+- Drafted the durable plan for TL review. No change-code or implementation yet.
+
 ## Revisions
+
+- 2026-10-13 20:48 PDT — proposed defaults for TL review: stuck hub nudge at
+  15 minutes and operator notice at 30, coalesced with existing wait notices.
+  Explicit completion reports remain eligible after return to a resting branch;
+  otherwise lost landing reports would disappear from supervision. “Unanswered”
+  means no later hub message or operator submission observed, not a semantic
+  claim. Pair delivers producer/supervision and hands off the baseline consumer
+  to parley.nvim#321; overall baseline acceptance requires both halves.
 
 - 2026-10-13 — operator correction, dispatched by TL in receipt
   bf36b43c-848f-4890-ac1c-028230440da0: Couch messages remain EPHEMERAL.
