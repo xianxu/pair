@@ -65,3 +65,7 @@ Open questions for the operator:
   in cloud storage").
 - Operator note: storage is cheap (Google AI Pro: 10 TB for about $20/month), so
   archiving everything instead of deleting anything is the intent.
+
+## Revisions
+
+- 2026-10-14 — add (operator via TL): treat ops' TL QA answers (`teams/*/qa/**`) and paste-image sidecars (`assets/<stem>/`, e.g. `teams/*/assets/`) like prompt files and transcripts: same retention class and the same archive-to-cloud path, as configured roots or a retention class. parley.nvim#328 (prune unreferenced images) stays separate housekeeping.
