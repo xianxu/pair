@@ -15,6 +15,7 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # couch thread startup takes 8.85s and nothing has measured where it goes
@@ -149,9 +150,9 @@ familiarity: 1.0
 item: issue-spec design=0.80 impl=0.08
 item: api-integration design=0.20 impl=0.60
 item: api-integration design=0.40 impl=0.60
-item: smaller-go design=0.04 impl=0.20
+item: smaller-go-module design=0.04 impl=0.20
 item: cross-cutting-refactor design=0.12 impl=0.20
-item: smaller-go design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
 item: tui-screen design=0.20 impl=0.40
 item: cross-cutting-refactor design=0.16 impl=0.20
 item: real-api-discovery design=0 impl=0.24

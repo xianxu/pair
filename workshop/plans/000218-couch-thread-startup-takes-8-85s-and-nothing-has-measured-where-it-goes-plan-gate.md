@@ -43,7 +43,16 @@ rounds:
           note: The superseding test contract names risky functions and gives adversarial strategies with mechanical guards.
           round: 2
       blocked: false
-content_hash: 8b587ef41aeaeeb3315dc9cff2a9aff9225cc3236fd62eb85bb3ff626063af3b
+    - "n": 3
+      timestamp: "2026-10-14T15:12:11-07:00"
+      agent: codex
+      blocked: false
+      protocol_error: no valid findings block
+    - "n": 4
+      timestamp: "2026-10-14T15:12:55-07:00"
+      agent: codex
+      blocked: false
+content_hash: 19af3f233d1dd25a19583bea3162dd2e7c46ea68a30648c2a19e487b1162a6a4
 ---
 
 # Gate ledger — pair#218 (plan-quality)
@@ -69,6 +78,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - PQ-1 — addressed — Fresh narrowed enumeration preserves exactly-one-server authority; ordered competing-claimant tests verify it.
 - PQ-2 — addressed — Registration bypasses pass evidence and discovers post-launch births; cold/create operations remain outside the pass.
 - PQ-3 — addressed — The superseding test contract names risky functions and gives adversarial strategies with mechanical guards.
+
+## Round 3 — 2026-10-14T15:12:11-07:00 (codex) — passed
+
+**Protocol error:** no valid findings block — this round contributed no findings.
+
+## Round 4 — 2026-10-14T15:12:55-07:00 (codex) — passed
 
 ## Open findings
 
