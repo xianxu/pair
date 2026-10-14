@@ -83,7 +83,7 @@ func TestHubSlotMutationGuardsEveryOperationAndQueuedMove(t *testing.T) {
 			req := slotRequest(caller, op, "guarded", "pair:2")
 			req.Confirmed = true
 			// Live-pane recovery callers need no messaging registration.
-			got := r.s.handleHubSlotOperation(context.Background(), caller, req)
+			got := switchCall(t, r, req)
 			if got.Code != "refused" || runner.count() != 0 {
 				t.Fatalf("cross-hub %s admitted: %+v", op, got)
 			}
@@ -94,7 +94,7 @@ func TestHubSlotMutationGuardsEveryOperationAndQueuedMove(t *testing.T) {
 				check = guard
 				return runner.run(key, op, target, opts, started, finished)
 			}
-			got = r.s.handleHubSlotOperation(context.Background(), caller, req)
+			got = switchCall(t, r, req)
 			if got.Code != "accepted" || check == nil {
 				t.Fatalf("same-hub recovery failed: %+v", got)
 			}
@@ -115,16 +115,23 @@ func TestHubSlotMutationGuardsEveryOperationAndQueuedMove(t *testing.T) {
 }
 
 func TestHubSwitchReceiptScope(t *testing.T) {
-	r, _, clock := slotRig(t)
+	r, _, main, _, _ := leanSwitchRig(t)
+	other := r.connect(1)
 	r.s.authority.hubs = guardHubState(t)
 	r.s.authority.hubTarget = func(context.Context, string) (couchcore.HubSlot, error) {
 		return couchcore.HubSlot{Repository: "/repo", Number: 2}, nil
 	}
-	r.slotOps.receipts[receiptKey{"scope", "owner", "one"}] = couchmessage.OperationReceipt{ID: "one", Op: "switch-agent", Target: "pair:2", Status: couchmessage.ReceiptQueued, Admitted: clock.Now()}
-	for _, root := range []string{"/repo0", "/repo1"} {
-		_, ok := r.slotOps.switchStatus("one", r.s.hubReceiptFilter(context.Background(), couchcore.WorkspaceIdentity{WorktreeRoot: root}))
-		if ok != (root == "/repo1") {
-			t.Fatalf("receipt visible to %s = %v", root, ok)
+	r.slotOps.mu.Lock()
+	r.slotOps.receipts[receiptKey{"scope", "owner", "one"}] = couchmessage.OperationReceipt{ID: "one", Op: "switch-agent", Target: "pair:2", Status: couchmessage.ReceiptQueued}
+	r.slotOps.mu.Unlock()
+	for _, caller := range []couchmessage.Binding{main, other} {
+		got := switchCall(t, r, statusRequest(caller, "one"))
+		want := couchmessage.ReceiptUnknown
+		if caller == other {
+			want = couchmessage.ReceiptQueued
+		}
+		if got.Operation == nil || got.Operation.Status != want {
+			t.Fatalf("receipt for %s = %+v", caller.Slot, got)
 		}
 	}
 }
