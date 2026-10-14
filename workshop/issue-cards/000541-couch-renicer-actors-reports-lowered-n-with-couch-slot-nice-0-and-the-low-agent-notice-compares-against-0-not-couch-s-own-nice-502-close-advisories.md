@@ -1,6 +1,6 @@
 ---
 id: 000541
-status: codecomplete
+status: done
 created: 2026-10-13
 updated: 2026-10-13
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 6512f177abaf0595502a1048fd0091aec755cb56
         evidence_commit: f25b683d801b482afe8af4f4a3c2d37d11d3a9ab
+        landed_commit: b2cf856b93181b9db957ad01cc4ee5d2fba76d3f
 ---
 
 # couch renicer: --actors reports lowered=N with COUCH_SLOT_NICE=0, and the low-agent notice compares against 0 not Couch's own nice (#502 close advisories)
