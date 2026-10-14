@@ -120,3 +120,22 @@ Reason: TL relayed operator requirement that both paths have named deterministic
 - Count actual IO bytes and actual parser/decoder input bytes separately, by source family (session index, ledger, catalog, native transcript). Counter seams wrap the real readers/decoders; a decoder repeatedly consuming cached raw bytes must fail even when filesystem reads are zero. Return immutable count snapshots/deltas from reusable test helpers so #204 can consume these exact metrics without copying product cache logic.
 - Stateful fixtures expose 20 distinct scoped owners; stream/reuse immutable synthetic source buffers rather than allocating twenty 30 MB copies at once. Use production-equivalent valid content, no personal transcripts. Cold loads must prove nonzero counters so a disconnected counter cannot pass. Mutating one owner must cause nonzero validation work for that owner and zero extra work for unchanged owners, followed by zero again on the next stable pass. Include same-size rewrite and replace cases.
 - Keep CPU/allocation profiles as diagnostic comparison only; release assertions use exact byte/decode counts, never elapsed-time thresholds. The 20 × 30 MB invariant is part of #559 acceptance, not deferred to #204.
+
+### 2026-10-14 — PQ-1 concrete unit-test function contract
+
+Reason: the plan-quality gate requires function names, beyond the conceptual seams and two release integration tests. This table supersedes the earlier conceptual test-strategy labels; implementation will use these names.
+
+| Named function/method | Adversarial strategy and mechanical guard |
+|---|---|
+| launcher.SessionNameIndexCache.Read | Stateful regular-file world changes identity/content during reads; strict-decoder parity and separate byte/decode counts prohibit stale or repeated work |
+| launcher.advanceIndexCache | Pure state/event sequence tests enumerate miss/hit/load/change/cancel/late completion/eviction; epoch token owns commit authority |
+| launcher.compactSessionNameIndex | Histories with repeated/rebound owners compare against uncached effectiveBindings projection; preserve cross-scope precedence |
+| sessioninventory.readOwnerLaunch / readCurrentLaunch | Shared parser fixture with chosen/previous launches compares CurrentLaunch/PreviousEstablished outputs and exact unchanged ReadAt deltas |
+| sessioninventory.ActivityCache.Query | Mutating dependency world compares uncached QuerySessionContext/ActivityForSession result; zero unchanged decoder/IO deltas and fresh validation after mutation |
+| sessioninventory.activityDependenciesMatch | Pure tuple-set properties reject missing/changed identity, mutation, schema and optional-catalog state; exact set equality permits reuse |
+| sessioninventory.advanceActivityCache | Pure state/event sequence tests fence publication across cancellation, drift, replacement and eviction; only matching generation may publish |
+| threadactivity.OSRuntime.SessionActivity | Two scope runtimes share caller-owned ActivityCache but retain distinct owner keys; new caller is cold |
+| couchcore.ScopedThreadArtifactCollisionChecker.PairSessionName / resolveScopedBindings | Production checker uses one index cache, uncached binding oracle preserves per-scope ambiguity/refusal |
+| couchcmd.messageAuthority.current | Named production message regression drives actual cached checker; cold/mutated controls prove both counters and current identity guards connected |
+
+No new test-case inventory or extra review boundary is introduced. Pure transitions implement the already-approved state/event table; thin methods execute its read/publish effects.

@@ -81,3 +81,5 @@ Important existing behavior: threadactivity already shares OwnerLaunchCache (#50
 ### 2026-10-14 — name both release regression paths
 
 TL relayed the operator's requirement: deterministic bytes-decoded invariants at 20 slots × 30 MB ledgers, covering messageAuthority/ListedPairSessionContext and idle activity QuerySessionContext/ValidateTargetWork separately. Plan now names TestMessageAuthorityUnchangedFilesDecodeZeroBytes and TestIdleActivityTickUnchangedFilesDecodeZeroBytes, with separate actual-read/decoder counters by source family, positive cold/mutated controls, and reusable counter snapshots for #204. Existing Done-when zero-work criteria are strengthened to that exact scale; no timing assertions.
+
+Plan-quality PQ-1: added concrete cache read/query/transition/projection function names with one adversarial strategy and mechanical guard each. This refines the approved design, not scope.
