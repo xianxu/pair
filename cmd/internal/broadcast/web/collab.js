@@ -218,6 +218,8 @@ const HELD_NOTE_RECOVERY = 'Your current note is preserved. Finish or cancel it 
 
 // One pure lifecycle for draft, read-only and existing-note editors. Pending
 // tokens belong to an epoch; neither typing nor a hold permits a second send.
+// Creation locks text until its result: it cannot turn a completed draft into
+// another creation. Existing-note edits can retain newer unsent text safely.
 export function noteDialogTransition(previous, event) {
   let state = previous || closedNote();
   let effect = null;
@@ -229,7 +231,7 @@ export function noteDialogTransition(previous, event) {
     state = { ...closedNote(state.epoch + 1, state.held), mode, target: e.note || null, payload: e.payload || null, text: e.note?.text || '' };
   } else if (e.type === 'dismiss' || e.type === 'retire') {
     state = closedNote(state.epoch + 1, state.held);
-  } else if (e.type === 'input' && ['draft', 'edit'].includes(state.mode)) {
+  } else if (e.type === 'input' && ['draft', 'edit'].includes(state.mode) && state.pending?.kind !== 'save-new') {
     state = { ...state, text: e.text };
   } else if (e.type === 'hold') {
     state = { ...state, held: e.reason || '' };
@@ -266,6 +268,7 @@ export function noteDialog(els, deps) {
     els.root.classList.toggle('draft', editable);
     els.root.classList.toggle('view', state.mode === 'view');
     if (els.input.value !== state.text) els.input.value = state.text;
+    els.input.readOnly = state.pending?.kind === 'save-new';
     els.text.textContent = state.mode === 'view' ? state.text + (state.target?.edited ? ' (edited)' : '') : '';
     els.count.textContent = `${state.target?.edited ? '(edited) · ' : ''}${noteBytes(state.text)} / ${MAX_NOTE_BYTES}`;
     els.msg.textContent = [state.held, state.error].filter(Boolean).join(' ');

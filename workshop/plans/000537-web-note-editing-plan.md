@@ -274,3 +274,57 @@ was sufficient for edit persistence (ARCH-ORDER).
   `staged` reason, reported to TL as an independent rollout compatibility gap.
   The last plan checkbox records smoke/report acceptance; SDLC close and landing
   are now the remaining execution steps, not a claim that landing is complete.
+
+
+### 2026-10-13 17:15 PDT — boundary review corrections (BR-1, BR-2, BR-3)
+
+**BR-1 — committed creation is no longer a draft.** A pending new-note Save
+locks draft input in both the pure transition and DOM adapter. A successful
+reply closes that draft, so another Save cannot create a second note or reuse
+an operator capture that was already consumed. A refusal restores editing;
+existing-note pending-edit behavior still preserves newer unsaved text. Add
+pure and mounted delayed-success regressions that fail on the reviewed code,
+including a subsequent Save after the acknowledgment. This narrows the earlier
+pending-input description for creation without changing existing-note editing.
+
+**BR-2 — final implementation inventory.** The following tables supersede the
+planning-time Core concepts tables and the 16:22 additional-concepts table in
+full. Earlier paths remain as design history, not current entity locations.
+Classifications are explicit; split pure shape/transition from effectful seams.
+
+| Name | Lives in | Status | Classification |
+|---|---|---|---|
+| sessionNoteOwner / noteOwnerProof | cmd/internal/broadcast/note_owner.go | new | PURE: digest and proof data |
+| NoteEdit / Note / NoteState.Who | cmd/internal/webcast/recording/record.go | new / modified / modified | PURE: wire record shapes |
+| NoteView / ResolvedBy and edit reduction | cmd/internal/webcast/recording/reduce.go | modified | PURE: ordered state projection |
+| OrderedTime | cmd/internal/webcast/recording/files.go | new | PURE: file-rank timestamp ordering |
+| EditIn / ParseNoteEdit | cmd/internal/webcast/board/note_edit.go | new | PURE: edit request shape and parser |
+| OperatorEdit | cmd/internal/webcast/board/operator.go | new | PURE: isolated command shape |
+| Note / NoteBoard | cmd/internal/broadcast/notes.go | modified | PURE: terminal note state |
+| NoteEditRequest / ParseNoteEditRequest / NoteBoard.Edit | cmd/internal/broadcast/note_edit.go | new | PURE: terminal validation and edit transition |
+| NoteResolution / NoteResolutionRequest / ParseNoteResolution | cmd/internal/broadcast/note_resolution.go | new | PURE: bounded-lifetime event shape and parser |
+| noteDialogTransition | cmd/internal/broadcast/web/collab.js | new | PURE: authoritative dialog transitions and effects |
+| NoteText | cmd/internal/webcast/query/cli.go | modified | PURE: formatting supplied note projections |
+
+| Name | Lives in | Status | Classification / effect |
+|---|---|---|---|
+| gate / NoteOwnerFromContext | cmd/internal/broadcast/{lockgate,note_owner}.go | modified / new | INTEGRATION: validated cookie, revocation and request context |
+| Board.Edit / AnnotationAdmission.Edit / Board.edit | cmd/internal/webcast/board/note_edit.go | new | INTEGRATION: command lock, admission and record emitter |
+| OperatorSession.EditAdmitted | cmd/internal/webcast/board/operator.go | new | INTEGRATION: bounded request ledger and trusted owner |
+| web note-edit route | cmd/internal/webcast/server_board.go | new | INTEGRATION: HTTP role, generation, size and rate budgets |
+| recorder edit handling | cmd/internal/webcast/recorder/operator.go | modified | INTEGRATION: trusted CDP context and ordered sink |
+| terminal note-edit route | cmd/internal/broadcast/server.go | new | INTEGRATION: HTTP gate and session callback |
+| PointerState.editNote / Session.editNote | cmd/internal/broadcast/note_edit.go | new | INTEGRATION: mutex, generation and note notification |
+| PointerState resolution ring | cmd/internal/broadcast/pointer_notes.go | modified | INTEGRATION: event-before-delete under pointer mutex |
+| Session.Resolutions | cmd/internal/broadcast/note_resolution.go | new | INTEGRATION: synchronized copy of the bounded ring |
+| noteDialog | cmd/internal/broadcast/web/collab.js | modified | INTEGRATION: DOM and injected post transport |
+| pinLayer / mountAnnotation | cmd/internal/webcast/web/annotate.js | modified | INTEGRATION: current model, identity projection and DOM |
+| terminal note adapter | cmd/internal/broadcast/web/viewer.js | modified | INTEGRATION: current notes, identity projection and dialog |
+| operatorTransport adapter | cmd/internal/webcast/operator.js | modified | INTEGRATION: isolated replies and request ledger |
+| notesJSON | cmd/internal/webcast/query/cli.go | modified | INTEGRATION: writes encoded note projections to an io.Writer |
+| Querier.Notes / FakeSurface.Notes | cmd/internal/webcast/query/{querier,fake}.go | unchanged reader / modified fake | INTEGRATION: recording reader and stateful contract fake |
+
+**BR-3 — user-facing instructions.** README's screen-note and web-note sections
+now describe Save/Cancel, edited markers, same-session ownership and its approved
+refresh/unlock/rotation/browser/link lifetime, read-only states, and operator
+own-notes-only behavior. Atlas remains the implementation map.

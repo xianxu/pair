@@ -256,6 +256,7 @@ test('edit save sends only id and text; pending input cannot send twice', async 
   f.d.edit({ id: 7, text: 'old', author: 'Ana', color: 4 });
   assert.equal(f.els.input.value, 'old');
   f.type('revised'); f.els.save.fire('click');
+  assert.equal(f.els.input.readOnly,false,'existing edits retain input while pending');
   f.type('unsent'); f.els.save.fire('click');
   assert.deepEqual(f.posts, [{route:'note-edit',body:{id:7,text:'revised'}}]);
   release({ status:204 }); await f.settle();
@@ -290,7 +291,7 @@ test('terminal notes retain validated owner and edited metadata',()=>{
 
 for (const status of [409, undefined]) test(`dialog result ${status} preserves text and permits a deliberate retry`,()=>{
  const step=collab.noteDialogTransition;
- let s=step(null,{type:'open-draft',payload:{box:[1,2,3,4]}}).state;
+ let s=step(null,{type:'open-edit',note:{id:7,text:'old'}}).state;
  s=step(s,{type:'input',text:'submitted'}).state;
  s=step(s,{type:'save'}).state;const pending=s.pending;
  s=step(s,{type:'input',text:'newer'}).state;
@@ -324,4 +325,38 @@ test('opening another note cannot replace a held draft or its pending request',a
  f.els.cancel.fire('click');
  assert.equal(f.d.view({id:9,text:'existing'},{resolvable:true}),true);
  assert.equal(f.els.text.textContent,'existing');
+});
+
+test('pending creation ignores input and accepted result cannot create another note',()=>{
+ const step=collab.noteDialogTransition;
+ let s=step(null,{type:'open-draft',payload:{draft:'one-use'}}).state;
+ s=step(s,{type:'input',text:'submitted'}).state;
+ const sent=step(s,{type:'save'});assert.equal(sent.effect.kind,'save-new');
+ s=step(sent.state,{type:'input',text:'typed during creation'}).state;
+ assert.equal(s,sent.state,'pending creation input must be an identity transition');
+ s=step(s,{type:'result',pending:sent.state.pending,status:204}).state;
+ assert.equal(s.mode,'closed');assert.equal(step(s,{type:'save'}).effect,null);
+});
+
+test('mounted delayed creation locks text and sends only one POST after acceptance',async()=>{
+ let release;
+ const f=dialog(()=>new Promise(r=>{release=r;}));
+ f.d.draft({draft:'one-use'});f.type('submitted');f.els.save.fire('click');
+ assert.equal(f.els.input.readOnly,true);
+ f.type('typed during creation');f.els.save.fire('click');
+ assert.equal(f.els.input.value,'submitted');assert.equal(f.posts.length,1);
+ release({status:204});await f.settle();
+ assert.equal(f.d.open,false);assert.equal(f.els.input.readOnly,false);
+ f.els.save.fire('click');assert.equal(f.posts.length,1);
+});
+
+for(const status of [409,undefined]) test(`creation ${status} releases text for correction and retry`,async()=>{
+ let release;
+ const f=dialog(()=>new Promise(r=>{release=r;}));
+ f.d.draft({draft:'one-use'});f.type('submitted');f.els.save.fire('click');
+ assert.equal(f.els.input.readOnly,true);
+ release({status,text:'Retry'});await f.settle();
+ assert.equal(f.els.input.readOnly,false);assert.equal(f.els.input.value,'submitted');
+ f.type('corrected');f.els.save.fire('click');
+ assert.equal(f.posts.length,2);assert.equal(f.posts[1].body.text,'corrected');
 });

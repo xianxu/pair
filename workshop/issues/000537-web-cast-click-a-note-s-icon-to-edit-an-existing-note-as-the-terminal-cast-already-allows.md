@@ -176,6 +176,20 @@ total: 4.545
 - Refreshed this slot's private Ariadne substrate to 79779c97 for the new stage
   workflow. TL rebuilt shared sdlc because the tool PATH used that binary.
 
+### 2026-10-13 17:16 PDT — close review round 1 corrections
+
+- REWORK: BR-1 found creation retaining draft mode after typing during a pending
+  success. Reproduced red, then fixed by freezing new-draft input until its
+  result. Four new pure/mounted regressions prove one creation, input release
+  after refusal, and preservation of existing-note pending-edit behavior.
+- BR-2 final entity inventory with correct paths and PURE/INTEGRATION columns
+  appended under plan Revisions, explicitly superseding design-time inventories.
+  BR-3 README now covers both casts, overlay own-note editing, Save/Cancel,
+  edited marker, and the approved ownership lifetime.
+- All 283 Node tests passed; real headless viewer+operator checks passed (15.388s).
+  A second full make -k test is queued under the weighted machine gate. The first
+  full suite's complete evidence and both isolated corrections remain above.
+
 ## Revisions
 
 ### 2026-10-13 16:13 PDT — operator ownership rule and terminal scope

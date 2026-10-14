@@ -1631,3 +1631,9 @@ proof; record the surprising case so the next change starts from evidence.
   the static same-origin transport inventory as well as runtime behavior tests.
   Stage-aware fleet producers and consumers must agree on the new reason before
   live conformance runs while a smoke checkout is staged.
+
+- #537 close BR-1: pending-input tests must cover creation separately from edits.
+  A successful creation consumes its draft identity; prevent further draft input
+  until acknowledgment or transition explicitly to the committed note, never
+  leave a success eligible to create again. BR-2/3: reconcile final entity paths
+  and classifications, and update user-facing README instructions alongside atlas.
