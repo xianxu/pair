@@ -54,6 +54,8 @@ This is independent of #519: it uses couchcore runner/helper code, not notifytra
 
 - #511 readiness fixture passed 50 repetitions under existing parallel host load (3.849s; load 67.32; /tmp/pair542-descendant50.log). Added explicit successful parent-exit confirmation and the same ambiguous-probe path against its surviving descendant. Artifact-source classification passes.
 
+- Final focused qualification: cancellation conformance, ambiguous empty/live groups, unknown-membership safety, and the handshaked survivor fixture all passed 50 consecutive repetitions (8.615s; /tmp/pair542-qualification50.log), load 35.06 → 34.09 (/tmp/pair542-qualification-load.log). Race-enabled same cases passed (1.634s; /tmp/pair542-race.log).
+
 ## Revisions
 
 ### 2026-10-13 — measured ambiguous Darwin group probe
