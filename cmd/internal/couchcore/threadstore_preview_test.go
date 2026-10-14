@@ -4,8 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"golang.org/x/sys/unix"
 	"os"
+	"path/filepath"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/storagegc"
@@ -218,5 +221,137 @@ func TestPreviewThreadSharesDecoderAndUnlockedReadHook(t *testing.T) {
 				t.Fatalf("shared getter/hook: calls=%d preview=%+v err=%v", calls, preview, err)
 			}
 		})
+	}
+}
+
+func TestPreviewThreadRejectsFIFOWithoutWaitingForWriter(t *testing.T) {
+	for _, branch := range []string{"global-record", "global-manifest", "local-record", "routed-legacy", "routed-archive", "routed-record", "routed-local-archive", "aliases", "inspection-record"} {
+		t.Run(branch, func(t *testing.T) {
+			kind := "global"
+			if strings.HasPrefix(branch, "routed-") {
+				kind = "routed-local"
+			}
+			if branch == "local-record" {
+				kind = "local"
+			}
+			store, backend, record := previewThreadFixture(t, kind)
+			path := store.recordPath(record.Address)
+			switch branch {
+			case "global-manifest":
+				path = store.manifestPath()
+			case "routed-archive":
+				path = store.archivePath(record.Address)
+			case "local-record", "routed-record":
+				path = backend.recordPath(record.Address)
+			case "routed-local-archive":
+				record.Address.Tag = "couch-fedcba9876543210"
+				path = backend.archivePath(record.Address)
+			case "aliases":
+				path = store.repositoryAliasPath()
+			}
+			if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+				t.Fatal(err)
+			}
+			if err := unix.Mkfifo(path, 0600); err != nil {
+				t.Fatal(err)
+			}
+			done := make(chan struct{})
+			go func() {
+				defer close(done)
+				time.Sleep(200 * time.Millisecond)
+				fd, err := unix.Open(path, unix.O_RDWR|unix.O_NONBLOCK, 0)
+				if err == nil {
+					_, _ = unix.Write(fd, []byte(`{}`))
+					_ = unix.Close(fd)
+				}
+			}()
+			defer func() { <-done }()
+			ctx, cancel := context.WithTimeout(context.Background(), 25*time.Millisecond)
+			defer cancel()
+			started := time.Now()
+			var readErr error
+			if branch == "aliases" {
+				_, readErr = store.RepositoryNamesContext(ctx)
+			} else if branch == "inspection-record" {
+				readErr = WithStoreInspectionLocks(ctx, []CouchNamespace{store.namespace}, nil, func(inspection *StoreInspection) error {
+					view := *store
+					view.inspection = inspection
+					_, err := view.PreviewThreadContext(ctx, record.Address)
+					return err
+				})
+			} else {
+				_, readErr = store.PreviewThreadContext(ctx, record.Address)
+			}
+			if branch != "routed-legacy" && branch != "routed-archive" && readErr == nil {
+				t.Fatal("FIFO metadata accepted")
+			}
+			info, err := os.Lstat(path)
+			if err != nil || info.Mode()&os.ModeNamedPipe == 0 {
+				t.Fatalf("preview changed FIFO: %v", err)
+			}
+			if elapsed := time.Since(started); elapsed >= 150*time.Millisecond {
+				t.Fatalf("preview waited for FIFO writer: %v", elapsed)
+			}
+		})
+	}
+}
+
+func TestPreviewPersistedMetadataRejectsUnsafeBytes(t *testing.T) {
+	for _, kind := range []string{"global", "local", "routed-local"} {
+		for _, damage := range []string{"symlink", "oversize", "canceled"} {
+			t.Run(kind+"/"+damage, func(t *testing.T) {
+				store, backend, record := previewThreadFixture(t, kind)
+				path := backend.recordPath(record.Address)
+				before, err := os.ReadFile(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				ctx := context.Background()
+				switch damage {
+				case "symlink":
+					external := filepath.Join(t.TempDir(), "record.json")
+					if err := os.WriteFile(external, before, 0600); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.Remove(path); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.Symlink(external, path); err != nil {
+						t.Fatal(err)
+					}
+				case "oversize":
+					file, err := os.OpenFile(path, os.O_WRONLY, 0600)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if err := file.Truncate(localPayloadLimit + 1); err != nil {
+						t.Fatal(err)
+					}
+					file.Close()
+				case "canceled":
+					var cancel context.CancelFunc
+					ctx, cancel = context.WithCancel(ctx)
+					cancel()
+				}
+				metadata, err := os.Lstat(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				_, err = store.PreviewThreadContext(ctx, record.Address)
+				if err == nil {
+					t.Fatal("accepted unsafe/canceled metadata")
+				}
+				if damage == "canceled" && !errors.Is(err, context.Canceled) {
+					t.Fatalf("cancellation=%v", err)
+				}
+				after, err := os.Lstat(path)
+				if err != nil || !os.SameFile(metadata, after) || metadata.Size() != after.Size() {
+					t.Fatalf("preview changed metadata: %v", err)
+				}
+			})
+		}
 	}
 }

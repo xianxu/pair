@@ -19,7 +19,7 @@ func (s *ThreadStore) slotRepositoryManifest() (threadManifest, error) {
 
 func (s *ThreadStore) slotRepositoryManifestContext(ctx context.Context) (threadManifest, error) {
 	var snapshot threadManifest
-	err := s.withReadLockContext(ctx, func() error { manifest, _, _, err := s.loadManifestLocked(); snapshot = manifest; return err })
+	err := s.withReadLockContext(ctx, func() error { manifest, _, _, err := s.loadManifestLockedContext(ctx); snapshot = manifest; return err })
 	return snapshot, err
 }
 
@@ -214,9 +214,9 @@ func (s *ThreadStore) storeForAddressContext(ctx context.Context, address Thread
 	// of damage in some other slot's local metadata.
 	var legacy ThreadRecord
 	legacyErr := s.withReadLockContext(ctx, func() error {
-		raw, err := os.ReadFile(s.recordPath(address))
+		raw, err := s.readPayloadContext(ctx, s.recordPath(address))
 		if errors.Is(err, os.ErrNotExist) {
-			raw, err = s.readRetentionFile(s.archivePath(address))
+			raw, err = s.readRetentionFileContext(ctx, s.archivePath(address))
 		}
 		if err != nil {
 			return err
@@ -253,11 +253,11 @@ func (s *ThreadStore) storeForAddressContext(ctx context.Context, address Thread
 		}
 		matched := false
 		err := local.withReadLockContext(ctx, func() error {
-			manifest, _, _, err := local.loadManifestLocked()
+			manifest, _, _, err := local.loadManifestLockedContext(ctx)
 			if err != nil {
 				// A readable address in a damaged envelope is collision evidence,
 				// never permission to load or mutate that conversation.
-				if raw, readErr := local.readRetentionFile(local.recordPath(address)); readErr == nil {
+				if raw, readErr := local.readRetentionFileContext(ctx, local.recordPath(address)); readErr == nil {
 					var envelope struct {
 						Address ThreadAddress `json:"address"`
 					}
@@ -269,7 +269,7 @@ func (s *ThreadStore) storeForAddressContext(ctx context.Context, address Thread
 			}
 			matched = manifestContains(manifest, address)
 			if !matched {
-				_, err = local.readRetentionFile(local.archivePath(address))
+				_, err = local.readRetentionFileContext(ctx, local.archivePath(address))
 				if err == nil {
 					matched = true
 				} else if !errors.Is(err, os.ErrNotExist) {

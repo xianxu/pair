@@ -969,3 +969,18 @@ No follow-up implementation starts on this branch.
   No skip/dispute. Canceled own obsolete99035 suite process83401 (birth16:40:15,
   parent4470 verified), INT exit130; no complete pass/recorded status claimed.
   Only that run was stopped; the final suite will follow the source correction.
+
+- BR-13 RED confirmed on actual PreviewThreadContext: a FIFO blocked global
+  record201.224ms and routed legacy202.304ms beyond a25ms context. Swept all
+  reachable persisted-byte reads: manifests, global/local records, legacy
+  routing, damaged-local salvage, archive fallback, aliases and inspection.
+  Reused osfs regular metadata admission and extracted its opened-descriptor
+  core; local reads retain descriptor-relative no-follow parent opens. Preview
+  metadata retains the existing4MiB bound; explicit journal migration limits
+  and writable global compatibility remain. No detached read goroutine.
+  Nine FIFO branches plus symlink/oversize/cancellation/journal/inspection tests.
+  A second RED caught local inspection reads losing authority cancellation;
+  one shared context merge now covers global and local inspection reads.
+  Final focused metadata/inspection/preview/broker/fastpeek group PASS:
+  osfs0.090s, core11.815s, cmd1.691s; diff check clean. Normal re-review next;
+  final recorded full suite follows the settled source, before landing.

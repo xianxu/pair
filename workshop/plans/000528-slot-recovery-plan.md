@@ -1190,3 +1190,13 @@ manifest/archive/local/alias branches, symlink/oversize/canceled and unchanged
 record/journal/retention proofs. Existing lock opener already has a regular-file
 contract; verify it rather than adding another mechanism. Re-review normally,
 then run the final recorded full suite after the last source change.
+
+### 2026-10-14 — BR-13 correction measured
+
+The shared metadata reader now covers the preview graph enumerated above,
+including descriptor-relative local and retained inspection reads. A cancelled
+inspection with a background Snapshot reader failed RED before sharing the
+context merge, then passed. Nine FIFO branches and unsafe/oversize/context,
+preview-journal and broker checks pass (osfs0.090s/core11.815s/cmd1.691s).
+Writable global compatibility and explicit migration journal bounds remain.
+Normal M1 re-review and a final recorded full suite are still required.

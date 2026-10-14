@@ -50,7 +50,7 @@ func (s *ThreadStore) RepositoryNamesContext(ctx context.Context) ([]RepositoryN
 	var names []RepositoryName
 	err := view.withPreviewLockContext(ctx, func() error {
 		var err error
-		names, _, err = view.repositoryNamesLocked()
+		names, _, err = view.repositoryNamesLockedContext(ctx)
 		return err
 	})
 	if errors.Is(err, ErrThreadStoreBusy) {
@@ -89,12 +89,15 @@ func (s *ThreadStore) SetRepositoryAlias(primaryRoot, alias string) error {
 }
 
 func (s *ThreadStore) repositoryNamesLocked() ([]RepositoryName, map[string]string, error) {
-	manifest, _, _, err := s.loadManifestLocked()
+	return s.repositoryNamesLockedContext(context.Background())
+}
+func (s *ThreadStore) repositoryNamesLockedContext(ctx context.Context) ([]RepositoryName, map[string]string, error) {
+	manifest, _, _, err := s.loadManifestLockedContext(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
 	aliases := map[string]string{}
-	raw, exists, err := s.readOptionalPayload(s.repositoryAliasPath())
+	raw, exists, err := s.readOptionalPayloadContext(ctx, s.repositoryAliasPath())
 	if err != nil {
 		return nil, nil, err
 	}

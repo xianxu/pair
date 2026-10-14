@@ -72,15 +72,9 @@ func ReadRegularMetadata(ctx context.Context, path string, maxBytes int64) ([]by
 	if !sameMetadataFile(before, opened) {
 		return nil, fmt.Errorf("metadata %q changed during open", path)
 	}
-	raw, err := io.ReadAll(io.LimitReader(contextMetadataReader{ctx: ctx, reader: f}, maxBytes+1))
+	raw, err := ReadOpenedRegularMetadata(ctx, f, maxBytes)
 	if err != nil {
 		return nil, err
-	}
-	if err = ctx.Err(); err != nil {
-		return nil, err
-	}
-	if int64(len(raw)) > maxBytes {
-		return nil, &InvalidMetadataError{Path: path, Kind: MetadataTooLarge}
 	}
 	after, err := f.Stat()
 	if err != nil {
@@ -92,6 +86,48 @@ func ReadRegularMetadata(ctx context.Context, path string, maxBytes int64) ([]by
 	}
 	if !sameMetadataFile(opened, after) || !sameMetadataFile(after, current) {
 		return nil, fmt.Errorf("metadata %q changed during read", path)
+	}
+	return raw, nil
+}
+
+// ReadOpenedRegularMetadata reads an already-open descriptor whose caller owns
+// path admission. It does not close the file or reopen its pathname.
+func ReadOpenedRegularMetadata(ctx context.Context, f *os.File, maxBytes int64) ([]byte, error) {
+	if ctx == nil {
+		return nil, errors.New("metadata read requires context")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if maxBytes <= 0 || maxBytes == math.MaxInt64 {
+		return nil, errors.New("invalid metadata size bound")
+	}
+	before, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if !before.Mode().IsRegular() {
+		return nil, &InvalidMetadataError{Path: f.Name(), Kind: MetadataNotRegular}
+	}
+	if before.Size() > maxBytes {
+		return nil, &InvalidMetadataError{Path: f.Name(), Kind: MetadataTooLarge}
+	}
+	raw, err := io.ReadAll(io.LimitReader(contextMetadataReader{ctx: ctx, reader: f}, maxBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if err = ctx.Err(); err != nil {
+		return nil, err
+	}
+	if int64(len(raw)) > maxBytes {
+		return nil, &InvalidMetadataError{Path: f.Name(), Kind: MetadataTooLarge}
+	}
+	after, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if !sameMetadataFile(before, after) {
+		return nil, fmt.Errorf("metadata %q changed during read", f.Name())
 	}
 	return raw, nil
 }

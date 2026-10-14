@@ -332,7 +332,7 @@ func (s *ThreadStore) readThreadStampedContext(ctx context.Context, address Thre
 		read = true
 		path := s.recordPath(address)
 		info, statErr := os.Lstat(path)
-		record, err := s.readThreadLocked(address)
+		record, err := s.readThreadLockedContext(ctx, address)
 		if err != nil {
 			return err
 		}
@@ -1146,7 +1146,10 @@ func sortThreadAddresses(addresses []ThreadAddress) {
 }
 
 func (s *ThreadStore) readThreadLocked(address ThreadAddress) (ThreadRecord, error) {
-	raw, err := s.readPayload(s.recordPath(address))
+	return s.readThreadLockedContext(context.Background(), address)
+}
+func (s *ThreadStore) readThreadLockedContext(ctx context.Context, address ThreadAddress) (ThreadRecord, error) {
+	raw, err := s.readPayloadContext(ctx, s.recordPath(address))
 	if errors.Is(err, os.ErrNotExist) {
 		return ThreadRecord{}, fmt.Errorf("%w: %+v", ErrThreadNotFound, address)
 	}
@@ -1169,10 +1172,13 @@ func (s *ThreadStore) decodeThreadRaw(address ThreadAddress, raw []byte) (Thread
 }
 
 func (s *ThreadStore) loadManifestLocked() (threadManifest, []byte, bool, error) {
+	return s.loadManifestLockedContext(context.Background())
+}
+func (s *ThreadStore) loadManifestLockedContext(ctx context.Context) (threadManifest, []byte, bool, error) {
 	if s.layout.Local {
-		return s.localMembership()
+		return s.localMembershipContext(ctx)
 	}
-	raw, exists, err := s.readOptionalPayload(s.manifestPath())
+	raw, exists, err := s.readOptionalPayloadContext(ctx, s.manifestPath())
 	if err != nil {
 		return threadManifest{}, nil, false, err
 	}

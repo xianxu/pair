@@ -1,14 +1,16 @@
 package couchcore
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"golang.org/x/sys/unix"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/xianxu/pair/cmd/internal/osfs"
+	"golang.org/x/sys/unix"
 )
 
 // StoreLayout adapts the shared transaction writer to single-current slot
@@ -35,8 +37,11 @@ func (l StoreLayout) journalEntries(entries []storeJournalEntry) []storeJournalE
 }
 
 func (s *ThreadStore) localMembership() (threadManifest, []byte, bool, error) {
+	return s.localMembershipContext(context.Background())
+}
+func (s *ThreadStore) localMembershipContext(ctx context.Context) (threadManifest, []byte, bool, error) {
 	manifest := threadManifest{SchemaVersion: 1, Threads: []ThreadAddress{}}
-	raw, err := s.readRetentionFile(filepath.Join(s.root, "thread.json"))
+	raw, err := s.readRetentionFileContext(ctx, filepath.Join(s.root, "thread.json"))
 	if errors.Is(err, os.ErrNotExist) {
 		return manifest, nil, false, nil
 	}
@@ -125,17 +130,10 @@ func (s *ThreadStore) localBackendMissing() (bool, error) {
 // readOptionalPayload retains ordinary-store compatibility while local metadata
 // uses the same physical-path and size checks as discovery and retention.
 func (s *ThreadStore) readOptionalPayload(path string) ([]byte, bool, error) {
-	if !s.layout.Local {
-		if s.inspection != nil {
-			raw, e := s.readInspectionPayload(path)
-			if errors.Is(e, os.ErrNotExist) {
-				return nil, false, nil
-			}
-			return raw, e == nil, e
-		}
-		return readOptionalFile(path)
-	}
-	raw, err := s.readPayload(path)
+	return s.readOptionalPayloadContext(context.Background(), path)
+}
+func (s *ThreadStore) readOptionalPayloadContext(ctx context.Context, path string) ([]byte, bool, error) {
+	raw, err := s.readPayloadContext(ctx, path)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, false, nil
 	}
@@ -156,18 +154,35 @@ func (s *ThreadStore) payloadLimit(path string) int64 {
 }
 
 func (s *ThreadStore) readPayload(path string) ([]byte, error) {
-	if !s.layout.Local {
-		if s.inspection != nil {
-			return s.readInspectionPayload(path)
-		}
-		return os.ReadFile(path)
+	return s.readPayloadContext(context.Background(), path)
+}
+func (s *ThreadStore) readPayloadContext(ctx context.Context, path string) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
-	return s.readLocalPayload(path, s.payloadLimit(path))
+	if s.layout.Local {
+		return s.readLocalPayloadContext(ctx, path, s.payloadLimit(path))
+	}
+	if s.inspection != nil {
+		return s.readInspectionPayloadContext(ctx, path)
+	}
+	if s.readOnly {
+		return osfs.ReadRegularMetadata(ctx, path, localPayloadLimit)
+	}
+	return os.ReadFile(path)
 }
 
 // Open each component relative to the retained parent descriptor. Unlike a
 // Lstat followed by ReadFile, replacement with a symlink cannot redirect reads.
 func (s *ThreadStore) readLocalPayload(path string, limit int64) ([]byte, error) {
+	return s.readLocalPayloadContext(context.Background(), path, limit)
+}
+func (s *ThreadStore) readLocalPayloadContext(ctx context.Context, path string, limit int64) ([]byte, error) {
+	ctx, cleanup := s.metadataReadContext(ctx)
+	defer cleanup()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if s.slot == nil {
 		return nil, errors.New("local store has no slot identity")
 	}
@@ -186,6 +201,9 @@ func (s *ThreadStore) readLocalPayload(path string, limit int64) ([]byte, error)
 	defer func() { unix.Close(fd) }()
 	parts := strings.Split(rel, string(filepath.Separator))
 	for _, part := range parts[:len(parts)-1] {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		next, err := unix.Openat(fd, part, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
 		if err != nil {
 			return nil, fmt.Errorf("unsafe metadata parent %s: %w", path, err)
@@ -199,19 +217,5 @@ func (s *ThreadStore) readLocalPayload(path string, limit int64) ([]byte, error)
 	}
 	file := os.NewFile(uintptr(fileFD), path)
 	defer file.Close()
-	info, err := file.Stat()
-	if err != nil {
-		return nil, err
-	}
-	if !info.Mode().IsRegular() || info.Size() > limit {
-		return nil, errors.New("invalid local metadata file type or size")
-	}
-	raw, err := io.ReadAll(io.LimitReader(file, limit+1))
-	if err != nil {
-		return nil, err
-	}
-	if int64(len(raw)) > limit {
-		return nil, errors.New("local metadata exceeds size limit")
-	}
-	return raw, nil
+	return osfs.ReadOpenedRegularMetadata(ctx, file, limit)
 }

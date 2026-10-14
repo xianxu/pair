@@ -112,3 +112,39 @@ func TestMetadataSnapshotRejectsReplacementInode(t *testing.T) {
 		t.Fatal("same bytes, size and mtime hid a replacement inode")
 	}
 }
+
+func TestOpenedRegularMetadataKeepsDescriptorAuthority(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "metadata")
+	if err := os.WriteFile(path, []byte("proof"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("absent", path); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := ReadOpenedRegularMetadata(t.Context(), file, 5)
+	if err != nil || string(raw) != "proof" {
+		t.Fatalf("retained descriptor read=%q %v", raw, err)
+	}
+	if _, err := file.Seek(0, 0); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ReadOpenedRegularMetadata(t.Context(), file, 4); err == nil {
+		t.Fatal("oversize descriptor accepted")
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, err := ReadOpenedRegularMetadata(ctx, file, 5); !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled descriptor=%v", err)
+	}
+	if _, err := file.Stat(); err != nil {
+		t.Fatalf("helper closed caller descriptor: %v", err)
+	}
+}

@@ -1790,3 +1790,9 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
   --name suite` on a pushed head. A direct `make -k test` log is valid behavior
   evidence but creates no required sdlc-local/suite status, so landing must run
   the declared suite again. Inspect the declaration before scheduling the run.
+
+- #528 BR-13: Bounding a store lock does not bound persisted-byte reads.
+  Sweep every routing/fallback reader reachable from a preview, retain request
+  and inspection cancellation, and reuse regular-file/type/size admission.
+  Exercise FIFOs at routing, final records, archives and aliases; preserve
+  descriptor-relative local opens rather than reopening an admitted pathname.

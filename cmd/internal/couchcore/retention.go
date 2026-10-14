@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/osfs"
 	"github.com/xianxu/pair/cmd/internal/storagegc"
 	"golang.org/x/sys/unix"
 )
@@ -95,9 +96,15 @@ func (s *ThreadStore) readArchiveGraceLocked(address ThreadAddress) (ArchiveRete
 
 // readRetentionFile rejects symlinks and unexpected types in metadata paths.
 func (s *ThreadStore) readRetentionFile(path string) ([]byte, error) {
+	return s.readRetentionFileContext(context.Background(), path)
+}
+func (s *ThreadStore) readRetentionFileContext(ctx context.Context, path string) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	base := s.namespace.Dir()
 	if s.layout.Local {
-		return s.readLocalPayload(path, localPayloadLimit)
+		return s.readLocalPayloadContext(ctx, path, localPayloadLimit)
 	}
 	rel, err := filepath.Rel(base, path)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
@@ -106,6 +113,9 @@ func (s *ThreadStore) readRetentionFile(path string) ([]byte, error) {
 	cursor := base
 	parts := strings.Split(rel, string(filepath.Separator))
 	for i, part := range parts {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		cursor = filepath.Join(cursor, part)
 		st, err := os.Lstat(cursor)
 		if err != nil {
@@ -122,7 +132,7 @@ func (s *ThreadStore) readRetentionFile(path string) ([]byte, error) {
 			return nil, errors.New("invalid retention metadata file")
 		}
 	}
-	return os.ReadFile(path)
+	return osfs.ReadRegularMetadata(ctx, path, localPayloadLimit)
 }
 
 // retentionSnapshotBackend never recovers or initializes a store. A pending journal is
