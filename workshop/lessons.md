@@ -1713,7 +1713,18 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
 - #546 multi-owner changes must enumerate observability consumers as well as routing/guards: delivery facts are part of the behavior contract, and a main-only logging predicate can silently lose confirmed secondary-owner evidence.
 
 - #544 ad-hoc review: a queued screen-driven key needs proof from one coherent terminal generation, rechecked at emission. Fence confirmation after the actual write, not after the earlier decision. Route raw keys through ordinary input accounting even when Return remapping is disabled, and prove interruption through the real input loop.
+- #545: Every new production source must join artifactpath's exhaustive source
+  inventory (SourceClassifications or NonArtifactSources). Run that package
+  when adding the file; focused tests in the new file's own package cannot
+  detect a missing repository-wide inventory entry.
+
+- #545: A duplicate of a CLOEXEC lease must itself be duplicated atomically
+  with F_DUPFD_CLOEXEC. Plain Dup in a transient-fork fixture creates exec-time
+  inheritance the real lease does not have, so unrelated children can keep the
+  fixture locked after its scheduled close.
 - #550: A launchable harness can still lack peer messaging entirely. Require an explicit receiver policy for every AgentInventory entry and a captured empty-composer case for every enabled receiver. Prove startup registration through the real endpoint and delivery through the broker seam; Return remapping geometry alone is insufficient.
 
 - #550 BR-1: Expanding a supported receiver set updates README's support/evidence paragraph as well as the atlas. Sweep the whole affected paragraph against the current delivery path; retaining an earlier echo-validation contract alongside a new receiver claim misdescribes the operator's flow.
 - #547 BR-2: Pipe EOF and unavailable process argv can precede terminal kernel metadata. A process-state fixture must await the state its assertion requires, with a bounded deadline and a deterministic live-then-terminal regression.
+
+- #551: os.NewFile does not establish atomic close-on-exec for a raw descriptor. Set O_CLOEXEC at the raw open, and sweep transient binding reads and directory paging alongside locks. A final FD_CLOEXEC check alone cannot catch a post-open fork/exec race; defend atomic placement over the whole raw-open family.

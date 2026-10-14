@@ -4,12 +4,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
+	"syscall"
 )
 
 // ErrUnsupported identifies a platform without native process inspection.
 var ErrUnsupported = errors.New("native process inspection unsupported")
+
+// IsProcessGone classifies individual native process reads, never table-wide
+// failures. The kernel may discard argv before publishing a zombie table row.
+func IsProcessGone(err error) bool {
+	return errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ESRCH) || errors.Is(err, syscall.EINVAL)
+}
 
 // CommandInfo keeps the executable independently from the process-controlled argv.
 type CommandInfo struct {
@@ -65,8 +73,15 @@ func snapshot(ctx context.Context, r processReader) ([]Observation, error) {
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
-			if err == nil && r.identity(p.PID) != p.Identity {
-				err = errors.New("process identity changed during command read")
+			if IsProcessGone(err) {
+				continue
+			}
+			identity := r.identity(p.PID)
+			if identity != "" && identity != p.Identity {
+				continue // Only the old snapshot generation is gone; never adopt its replacement.
+			}
+			if err == nil && identity == "" {
+				err = errors.New("process identity unavailable after command read")
 			}
 			if err != nil {
 				o.Err = fmt.Errorf("process %d: %w", p.PID, err)

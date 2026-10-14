@@ -57,6 +57,9 @@ func parseServerCommand(pid int, command string) (SessionServerIdentity, bool) {
 func serverProcesses(rows []procutil.Observation) ([]SessionServerIdentity, error) {
 	var out []SessionServerIdentity
 	for _, row := range rows {
+		if row.Zombie || procutil.IsProcessGone(row.Err) {
+			continue
+		}
 		if row.Err != nil {
 			if row.Name == "zellij" || row.Name == "" {
 				return nil, fmt.Errorf("process inspection unavailable for possible zellij server %d: %w", row.PID, row.Err)

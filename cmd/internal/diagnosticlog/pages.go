@@ -52,7 +52,7 @@ func ensureSegmentDirectory(path, name string, o Options) error {
 	return nil
 }
 func directoryNames(path string, limit int) ([]string, error) {
-	fd, e := syscall.Open(path, syscall.O_RDONLY|syscall.O_DIRECTORY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	fd, e := syscall.Open(path, syscall.O_RDONLY|syscall.O_DIRECTORY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK|syscall.O_CLOEXEC, 0)
 	if e != nil {
 		return nil, e
 	}

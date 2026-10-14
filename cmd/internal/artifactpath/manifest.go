@@ -1076,6 +1076,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/provision_io.go",
 	"cmd/internal/couchcore/provision_lock_unix.go",
 	"cmd/internal/couchcore/provision_request.go",
+	"cmd/internal/couchcore/provision_retry_unix.go",
 	"cmd/internal/couchcore/provision_store.go",
 	"cmd/internal/couchcore/workspace_identity.go",
 	"cmd/internal/couchcore/procops.go",

@@ -203,6 +203,9 @@ func (o OSInspection) Runtimes(ctx context.Context) ([]Runtime, error) {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
+		if row.Zombie || procutil.IsProcessGone(row.Err) {
+			continue
+		}
 		if row.Err != nil {
 			if possibleRuntimeName(row.Name) {
 				return nil, ErrUnknownWriters
@@ -227,6 +230,9 @@ func (o OSInspection) Runtimes(ctx context.Context) ([]Runtime, error) {
 		env, e := reader.Environment(pid)
 		if err := ctx.Err(); err != nil {
 			return nil, err
+		}
+		if procutil.IsProcessGone(e) {
+			continue
 		}
 		if e != nil || reader.StrictIdentity(strconv.Itoa(pid)) != birth {
 			return nil, ErrUnknownWriters
