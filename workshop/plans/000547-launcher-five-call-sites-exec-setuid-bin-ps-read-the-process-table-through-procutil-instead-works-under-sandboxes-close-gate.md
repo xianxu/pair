@@ -176,6 +176,163 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 38bdf06ac1cd89509bcca6a9dbda2735db6387bf
+        tracker_head: bcc331c09ecedd39ca50ccf931ec1ea6e2dbf56a
+        branch_point: 895c7868e0336379c8a6aa33be79b31247999544
+        since: "2026-10-14T00:00:06-07:00"
+        until: "2026-10-14T09:00:41-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-14T00:00:06-07:00"
+              end: "2026-10-14T09:00:41-07:00"
+              began: "2026-10-14T00:00:06-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot5/pair
+        sources:
+            - harness: codex
+              id: 01a138a2-9eab-76d0-860a-978e5ce8d556
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              digest: 3a9583d98156964d9db0711f45caceccb053189f25e8266f5c46cf0ed2ce5823
+              started: "2026-10-14T04:19:04.475Z"
+              spawned: false
+              bytes: 4794798
+              windows:
+                - start: "2026-10-14T00:00:06-07:00"
+                  end: "2026-10-14T09:00:41-07:00"
+            - harness: codex
+              id: 01a13937-d7ad-7a73-afc0-c0d4a9507608
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              parent_id: 01a138a2-9eab-76d0-860a-978e5ce8d556
+              digest: 013c09fa7764ee6dba884e8622d60a0cbd487f4edd85d5bf55735970e3fb4ac2
+              started: "2026-10-14T07:02:03.488Z"
+              spawned: true
+              bytes: 521173
+              windows:
+                - start: "2026-10-14T07:02:03.488Z"
+                  end: "2026-10-14T09:00:41-07:00"
+            - harness: codex
+              id: 01a1393b-3446-70d0-82a5-69734a332945
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              digest: b0a226791d58b6d895dcdf887cc0d23f3a3afc10aa62050252880e5b38928208
+              started: "2026-10-14T07:05:44.034Z"
+              spawned: false
+              bytes: 196805
+              windows:
+                - start: "2026-10-14T07:05:44.034Z"
+                  end: "2026-10-14T09:00:41-07:00"
+            - harness: codex
+              id: 01a1393d-1cda-7f03-b906-4ee7f709fb8b
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              digest: b5a569169aca6f179d2d2178827de542f630c0b48852c70e15207cfb39ec54cc
+              started: "2026-10-14T07:07:48.957Z"
+              spawned: false
+              bytes: 459480
+              windows:
+                - start: "2026-10-14T07:07:48.957Z"
+                  end: "2026-10-14T09:00:41-07:00"
+            - harness: codex
+              id: 01a1393f-d4d6-7f82-9b67-8e961d415089
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              digest: 5f53316bc8fd2d4ef076ba3b61b195371d3e1702a90f7e18f66cb648d949a376
+              started: "2026-10-14T07:10:47.209Z"
+              spawned: false
+              bytes: 412778
+              windows:
+                - start: "2026-10-14T07:10:47.209Z"
+                  end: "2026-10-14T09:00:41-07:00"
+            - harness: codex
+              id: 01a13941-c33d-7ef1-b670-d4ec25b813fb
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              digest: 0828d8eede3927de552ce5bb95c9582d70e8446091e2b20987191a4c0605f9b5
+              started: "2026-10-14T07:12:55.569Z"
+              spawned: false
+              bytes: 413234
+              windows:
+                - start: "2026-10-14T07:12:55.569Z"
+                  end: "2026-10-14T09:00:41-07:00"
+            - harness: codex
+              id: 01a13942-61d5-73c1-afff-edfe55ef44d5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              digest: b4801f5b6c1a3682466fcb9476adc34d0b13bdd700927e55b09be64283089dbb
+              started: "2026-10-14T07:13:34.37Z"
+              spawned: false
+              bytes: 356693
+              windows:
+                - start: "2026-10-14T07:13:34.37Z"
+                  end: "2026-10-14T09:00:41-07:00"
+            - harness: codex
+              id: 01a13943-f8d8-7bc0-8abc-82b4fba500b0
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              parent_id: 01a138a2-9eab-76d0-860a-978e5ce8d556
+              digest: 1f1f25e95d0b42057a67ec5a3589042b454f84656347b92482b3163c2a372a66
+              started: "2026-10-14T07:15:18.406Z"
+              spawned: true
+              bytes: 614214
+              windows:
+                - start: "2026-10-14T07:15:18.406Z"
+                  end: "2026-10-14T09:00:41-07:00"
+            - harness: codex
+              id: 01a1396e-25c5-70f2-8c98-e576833ab08e
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              parent_id: 01a138a2-9eab-76d0-860a-978e5ce8d556
+              digest: d7170e38e0f10f74206f541c760e4d584c183ab149fe9ab47c1907f13326787f
+              started: "2026-10-14T08:01:22.521Z"
+              spawned: true
+              bytes: 450009
+              windows:
+                - start: "2026-10-14T08:01:22.521Z"
+                  end: "2026-10-14T09:00:41-07:00"
+            - harness: codex
+              id: 01a13b13-ac72-74a3-9dfc-c2b44588b560
+              cwd: /Users/xianxu/workspace/worktree/pair-slot5/pair
+              parent_id: 01a138a2-9eab-76d0-860a-978e5ce8d556
+              digest: 2132f8683a758e8dba2a39032e4e251e72e4579d1342c16c2907b6b9159719d6
+              started: "2026-10-14T15:41:47.574Z"
+              spawned: true
+              bytes: 415474
+              windows:
+                - start: "2026-10-14T15:41:47.574Z"
+                  end: "2026-10-14T09:00:41-07:00"
+        excluded_brain_sessions: 1
+        excluded_brain_minutes: 0.052116666666666665
+        cuts:
+            - dispatched: "2026-10-14T00:57:23-07:00"
+              finalized: "2026-10-14T01:00:28-07:00"
+              finalizing: false
+            - dispatched: "2026-10-14T01:06:58-07:00"
+              finalized: "2026-10-14T01:10:41-07:00"
+              finalizing: false
+            - dispatched: "2026-10-14T08:37:24-07:00"
+              finalized: "2026-10-14T08:40:42-07:00"
+              finalizing: false
+      "n": 4
+      timestamp: "2026-10-14T09:05:38-07:00"
+      dispatched: "2026-10-14T09:01:53-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Prior disposition retained. The five owned-process lifecycle tests pass at this head; no remaining defect found.
+          round: 4
+        - id: BR-2
+          disposition: addressed
+          note: zombie_test.go:17-31 waits for native Zombie metadata with a bounded deadline. Both deterministic regressions fail when command-error readiness is restored in a temporary copy. Terminal tests pass count=200, including concurrently with whole-package race count=5.
+          round: 4
+        - id: BR-3
+          disposition: withdrawn
+          note: 'Nested sandbox-exec again exits 71 with sandbox_apply: Operation not permitted before tests execute. Supplied host evidence records six native probes and live quiescence passing under the profile while /bin/ps is refused. git diff confirms fb37a86a8 to reviewed head changes only the dispute ledger. Direct native probes and live quiescence also pass here.'
+          round: 4
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 38bdf06ac1cd89509bcca6a9dbda2735db6387bf
+      blocked: false
 disputes:
     - id: BR-3
       rationale: The outer reviewer fence cannot apply a nested sandbox, so sandbox_apply failure is an environment limit before test execution. Native probes were measured on the host under the required setuid-denying profile using binaries built at fb37a86a8a5f014ba73f6e879e73e59f9d850ad2. The only delta since the reviewed head is BR-2 fixture synchronization plus docs; production behavior is unchanged.
@@ -216,6 +373,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-3** [Important] `sandbox-acceptance-evidence` (kind: unverifiable) Required seatbelt acceptance cannot be verified in this review environment
   Running sandbox-exec -p '(version 1)(allow default)' /tmp/pair547-review-procutil.test with the selected native process probes exited 71 with “sandbox_apply: Operation not permitted”; no test executed under that profile. Direct native probes pass, but /bin/ps also executes here, so those results do not establish the required setuid-denying environment. Provide measured host results from binaries built at the reviewed head for the native probes and launcher process acceptance under the required profile, or an environment permitting that verification.
 
+## Round 4 — 2026-10-14T09:05:38-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Prior disposition retained. The five owned-process lifecycle tests pass at this head; no remaining defect found.
+- BR-2 — addressed — zombie_test.go:17-31 waits for native Zombie metadata with a bounded deadline. Both deterministic regressions fail when command-error readiness is restored in a temporary copy. Terminal tests pass count=200, including concurrently with whole-package race count=5.
+- BR-3 — withdrawn — Nested sandbox-exec again exits 71 with sandbox_apply: Operation not permitted before tests execute. Supplied host evidence records six native probes and live quiescence passing under the profile while /bin/ps is refused. git diff confirms fb37a86a8 to reviewed head changes only the dispute ledger. Direct native probes and live quiescence also pass here.
+
 ## Disputes
 
 Findings the implementer declined (`sdlc finding dispute`), each answered by the
@@ -227,4 +392,4 @@ next review round.
 
 ## Open findings
 
-- **BR-2** [Important] `process-test-state-synchronization` (kind: defect) Zombie fixture returns before the child reaches terminal kernel state
+(none — every finding has been disposed)

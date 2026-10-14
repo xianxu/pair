@@ -46,6 +46,7 @@ Route all five through `procutil` (extend it for argv/command where it lacks it:
 ### 2026-10-13
 
 ### 2026-10-14 — design
+- 2026-10-14: closed — Recorded full sdlc-local/suite pass on integrated 5b28268ce (8m47s, log sha256 11aa2c88e74d); BR-2 subsequent test-only synchronization fix passed deterministic red/green, terminal tests count200 concurrently with full procutil race count5, and race count10. Final suite record on fb37a86a8 is running before landing. Fresh binaries built at fb37a86a8 passed six procutil native/identity/zombie probes and five launcher process probes under sandbox-exec (version 1)(allow default), no skips. PAIR_LIVE_COUCH=1 TestSessionQuiescenceLive passed same profile (1.12s). Same profile refuses /bin/ps with exit71; BR-3 dispute records measured host evidence for the nested sandbox limitation. Linux: portable procfs fixture and cross-build pass; native Linux procutil is untested (pair has no Linux test runner, and pair runs on macOS in practice). Hub accepted this limitation.; review verdict: SHIP
 
 Claimed and started from fresh main. Hub approved sweeping all production ps calls and full flow. Plan above records native argv/executable distinction, per-row uncertainty and snapshot identity fencing (ARCH-DRY, ARCH-ORDER). Prior continuation commit remains on its own branch; untracked pensive preserved. #528 overlap coordinated with pair:2.
 

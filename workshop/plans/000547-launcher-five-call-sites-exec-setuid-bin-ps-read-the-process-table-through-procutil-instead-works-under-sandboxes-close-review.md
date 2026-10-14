@@ -266,3 +266,92 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-14T09:05:38-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 547 — launcher: five call sites exec setuid /bin/ps; read the process table through procutil instead (works under sandboxes) |
+| repo | pair |
+| issue file | workshop/issues/000547-launcher-five-call-sites-exec-setuid-bin-ps-read-the-process-table-through-procutil-instead-works-under-sandboxes.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 895c7868e0336379c8a6aa33be79b31247999544..38bdf06ac1cd89509bcca6a9dbda2735db6387bf |
+| command | sdlc close --issue 547 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-14T09:05:38-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned implementation fulfills the revised issue scope: production process inspection uses procutil, snapshot identities fence PID reuse, and unavailable evidence remains explicit. BR-2 has verified regression coverage. BR-3’s host measurements answer the sandbox limitation; the measured commit and reviewed head have identical executable code. No new blocking findings.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Prior disposition retained. The five owned-process lifecycle tests pass at this head; no remaining defect found.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      zombie_test.go:17-31 waits for native Zombie metadata with a bounded deadline. Both deterministic regressions fail when command-error readiness is restored in a temporary copy. Terminal tests pass count=200, including concurrently with whole-package race count=5.
+  - id: BR-3
+    disposition: withdrawn
+    note: |
+      Nested sandbox-exec again exits 71 with sandbox_apply: Operation not permitted before tests execute. Supplied host evidence records six native probes and live quiescence passing under the profile while /bin/ps is refused. git diff confirms fb37a86a8 to reviewed head changes only the dispute ledger. Direct native probes and live quiescence also pass here.
+```
+
+1. **Strengths**
+
+   - `cmd/internal/procutil/command.go:44` centralizes enrichment, cancellation, identity fencing, and per-row errors.
+   - `cmd/internal/launcher/session_servers.go:57` preserves argv matching and refuses unreadable possible-server evidence.
+   - `cmd/internal/gcruntime/runtime.go:32` shares one injected inspection across both cleanup proofs.
+   - Native parsing, stateful process fixtures, and the production no-ps guard cover meaningful failure modes.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed all five focused packages, procutil race count=5, terminal repetitions, lifecycle fixtures, artifact-source inventory checks, Linux cross-compilation, and public CLI acceptance. BR-2’s temporary regression copy was removed.
+
+   Live quiescence passed in 0.74s with `TMPDIR=/tmp`. The initial attempt failed before process inspection because the review’s long temporary path made Zellij reject the session name. Native Linux execution remains unverified under the plan’s explicitly accepted limitation. I did not rerun the full repository suite.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Shared native decoding and server matching.
+   - **ARCH-PURE — pass:** Pure parsing/projection functions remain separate from native IO adapters.
+   - **ARCH-PURPOSE — pass:** The consumer sweep covers launcher, procutil helpers, and diagnostic inventory; no production Go ps execution remains.
+   - **ARCH-MOCK — pass:** Stateful fixtures exercise disappearance, reuse, and cleanup through production seams; native/live conformance complements them.
+   - **ARCH-CONSTRAINTS — pass:** Serial enrichment, bounded command input, cancellation checks, and no detached work.
+   - **ARCH-SECURE — pass:** Executable identity stays distinct from mutable argv; malformed input and uncertain observations cannot authorize cleanup.
+   - **ARCH-ORDER — pass:** Controlled ordering tests exercise reuse/cancellation; BR-2 now synchronizes on the asserted kernel state.
+   - **ARCH-FUNERAL — pass:** Snapshots end with their scope; test-owned processes have cleanup paths.
+
+   Atlas documents the new architectural surface. No new command, flag, configuration key, or other user-facing usage requires a README update. Core-concept locations and classifications match the code after the recorded revisions.
+
+7. **Plan revision recommendations:** None.
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 4.66566675s
+head: "38bdf06ac1cd89509bcca6a9dbda2735db6387bf"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000411
