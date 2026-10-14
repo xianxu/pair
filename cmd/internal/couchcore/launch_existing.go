@@ -54,33 +54,10 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		return ActorRecord{}, nil, rollback(in.Thread, err)
 	}
 	thread := in.Thread
-	if c.Slots != nil && (!in.Warm || c.Path != nil) {
-		cwd, err := c.Path.Physical(in.Args.WorkingDir())
-		var tree Worktree
-		if err == nil {
-			tree, err = c.ResolveTree(cwd)
-		}
-		if err == nil {
-			_, err = RelativeFamilyPath(string(tree), cwd)
-		}
-		if err == nil {
-			scope, scopeErr := launcher.ResolveRepoScope(string(tree))
-			if scopeErr != nil {
-				err = scopeErr
-			} else if scope.Key != thread.Address.RepoScope {
-				err = errors.New("launch checkout does not match thread scope")
-			}
-		}
-		if err != nil && !in.Warm {
-			return ActorRecord{}, nil, rollback(thread, err)
-		}
-		// Keep the normal repository-root presentation when it is available.
-		// Attachment itself depends on the exact terminal, not this metadata.
-		if err == nil {
-			in.Args.Cwd = cwd
-			in.Args.Worktree = tree
-		}
+	if err := c.normalizeTrackedLaunchArgs(&in.Args, thread.Address, in.Warm); err != nil {
+		return ActorRecord{}, nil, rollback(thread, err)
 	}
+
 	steps.mark("checkout")
 
 	// A warm reattach sends NEITHER a layout flag NOR a trusted resume profile,
@@ -693,6 +670,37 @@ func freshNonceReachesPair(in trackedThreadLaunch) error {
 	}
 	if in.Nonce == "" || (in.Orientation != nil && in.Orientation.Attempt != in.Nonce) {
 		return fmt.Errorf("%w: fresh launch requires a nonce matching any orientation attempt", errFreshNonceUnreachable)
+	}
+	return nil
+}
+
+func (c *Couch) normalizeTrackedLaunchArgs(args *StartArgs, address ThreadAddress, warm bool) error {
+	if c.Slots != nil && (!warm || c.Path != nil) {
+		cwd, err := c.Path.Physical(args.WorkingDir())
+		var tree Worktree
+		if err == nil {
+			tree, err = c.ResolveTree(cwd)
+		}
+		if err == nil {
+			_, err = RelativeFamilyPath(string(tree), cwd)
+		}
+		if err == nil {
+			scope, scopeErr := launcher.ResolveRepoScope(string(tree))
+			if scopeErr != nil {
+				err = scopeErr
+			} else if scope.Key != address.RepoScope {
+				err = errors.New("launch checkout does not match thread scope")
+			}
+		}
+		if err != nil && !warm {
+			return err
+		}
+		// Keep the normal repository-root presentation when it is available.
+		// Attachment itself depends on the exact terminal, not this metadata.
+		if err == nil {
+			args.Cwd = cwd
+			args.Worktree = tree
+		}
 	}
 	return nil
 }

@@ -581,16 +581,7 @@ func (c ScopedThreadArtifactCollisionChecker) DetachedSessions(ctx context.Conte
 	}
 	// Explicit recorded names replace this address's stale index row, while
 	// other addresses' claims still participate in namespace ambiguity.
-	for _, chosen := range exact {
-		filtered := bindings[:0]
-		for _, binding := range bindings {
-			if binding.Address != chosen.Address {
-				filtered = append(filtered, binding)
-			}
-		}
-		bindings = append(filtered, chosen)
-		current[chosen.Address] = chosen.SessionName
-	}
+	bindings = overrideSessionBindings(bindings, current, exact)
 	if len(bindings) == 0 {
 		return nil, nil
 	}
@@ -671,3 +662,52 @@ var (
 	_ NativeBindingResolver   = ScopedThreadArtifactCollisionChecker{}
 	_ DetachedSessionResolver = ScopedThreadArtifactCollisionChecker{}
 )
+
+func overrideSessionBindings(bindings []SessionNameBinding, current map[ThreadAddress]string, exact []SessionNameBinding) []SessionNameBinding {
+	for _, chosen := range exact {
+		filtered := bindings[:0]
+		for _, binding := range bindings {
+			if binding.Address != chosen.Address {
+				filtered = append(filtered, binding)
+			}
+		}
+		bindings = append(filtered, chosen)
+		current[chosen.Address] = chosen.SessionName
+	}
+	return bindings
+}
+
+// ListedPairSessionContext selects one exact terminal using only a positive
+// non-exited list row and the shared address/namespace binding census.
+func (c ScopedThreadArtifactCollisionChecker) ListedPairSessionContext(ctx context.Context, address ThreadAddress, name string) (PairSessionBinding, error) {
+	bindings, current, readable, err := c.resolveScopedBindings(ctx, []ThreadAddress{address}, nil)
+	if err != nil {
+		return PairSessionBinding{}, err
+	}
+	if name != "" {
+		bindings = overrideSessionBindings(bindings, current, []SessionNameBinding{{Address: address, SessionName: name}})
+	}
+	if name == "" {
+		name = current[address]
+	}
+	result := PairSessionBinding{Name: name}
+	if name == "" {
+		if !readable[address.RepoScope] {
+			return result, errors.New("session namespace could not be read")
+		}
+		return result, nil
+	}
+	sessions, err := c.Zellij.LivenessContext(ctx)
+	if err != nil {
+		return result, fmt.Errorf("observe listed session: %w", err)
+	}
+	observation := ProjectSessionPresence(bindings, sessions, nil, claimsFromBindings(current))[address]
+	switch observation.State {
+	case SessionPresent:
+		result.Present = true
+	case SessionAbsent:
+	default:
+		return result, errors.New("selected listed session is not uniquely attributed")
+	}
+	return result, nil
+}

@@ -186,7 +186,9 @@ func (c *Couch) Leave(ctx context.Context, disposition LeaveDisposition) (LeaveR
 	if c == nil || c.Threads == nil {
 		return result, errors.New("thread store is unavailable")
 	}
-	snapshot, err := c.Threads.Snapshot()
+	view := *c.Threads
+	view.readOnly = disposition == LeaveDetach
+	snapshot, err := view.Snapshot()
 	if err != nil {
 		return result, err
 	}
@@ -285,6 +287,13 @@ func (c *Couch) Park(ctx context.Context, address ThreadAddress, mode string) (P
 	}
 	switch mode {
 	case "", "normal":
+		current, err := c.Threads.GetThread(address)
+		if err != nil {
+			return ParkResult{}, err
+		}
+		if _, err := c.adoptOwnedAttachment(ctx, current); err != nil {
+			return ParkResult{}, err
+		}
 		return c.PairLifecycle.Park(ctx, address)
 	case "retry":
 		return c.PairLifecycle.Retry(ctx, address)
@@ -324,6 +333,22 @@ const (
 // addresses; deciding from a row read before the wait would skip a thread a
 // reattach made live meanwhile, and leave that client running past quit.
 func (c *Couch) leaveOne(ctx context.Context, address ThreadAddress, disposition LeaveDisposition) (leaveOutcome, error) {
+	if disposition == LeaveDetach {
+		view := *c.Threads
+		view.readOnly = true
+		observed, err := view.GetThread(address)
+		if err != nil && !errors.Is(err, ErrThreadNotFound) {
+			return leaveNone, err
+		}
+		if err == nil {
+			if handled, err := c.detachBorrowedHelpers(ctx, observed); handled || err != nil {
+				if err != nil {
+					return leaveNone, err
+				}
+				return leaveDetached, nil
+			}
+		}
+	}
 	ctx, release, err := c.holdWait(ctx, address, "leave")
 	if err != nil {
 		return leaveNone, fmt.Errorf("leave couch: wait for %s: %w", address.Tag, err)
@@ -348,6 +373,13 @@ func (c *Couch) leaveOne(ctx context.Context, address ThreadAddress, disposition
 			return leaveNone, fmt.Errorf("leave couch: park %s did not produce verified inactive history", record.Address.Tag)
 		}
 		return leaveParked, nil
+	}
+	if disposition == LeavePark {
+		var err error
+		record, err = c.adoptOwnedAttachment(ctx, record)
+		if err != nil {
+			return leaveNone, err
+		}
 	}
 	if !hasActiveIncarnation(record) {
 		return leaveNone, nil

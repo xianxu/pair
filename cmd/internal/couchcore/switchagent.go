@@ -153,6 +153,11 @@ func (c *Couch) prepareAgentSwitch(ctx context.Context, address ThreadAddress, a
 	if err != nil {
 		return PreparedAgentSwitch{}, err
 	}
+	persisted := record
+	record, _, err = c.ownedAttachmentFacts(record)
+	if err != nil {
+		return PreparedAgentSwitch{}, err
+	}
 	if record.LatestLaunchProfile != nil && record.LatestLaunchProfile.Agent == agent {
 		return PreparedAgentSwitch{}, errors.New("switch-agent: select a different agent")
 	}
@@ -273,7 +278,7 @@ func (c *Couch) prepareAgentSwitch(ctx context.Context, address ThreadAddress, a
 	digest := sha256.Sum256(raw)
 	return PreparedAgentSwitch{
 		Address: address, SourceAgent: source, WorkingPath: record.WorkingPath, SourceRevision: record.Revision,
-		Profile: resolution.Profile, Fingerprint: hex.EncodeToString(digest[:]), record: record, repoIdentity: repoIdentity,
+		Profile: resolution.Profile, Fingerprint: hex.EncodeToString(digest[:]), record: persisted, repoIdentity: repoIdentity,
 		state: state,
 	}, nil
 }
@@ -345,6 +350,10 @@ func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (_ 
 	// PrepareAgentSwitch has already refused a live row with nothing to park, so
 	// this branch always has an incarnation to act on.
 	if prepared.state == ThreadLive {
+		thread, err = c.adoptOwnedAttachment(ctx, thread)
+		if err != nil {
+			return result, err
+		}
 		parked, err := c.PairLifecycle.ParkExpected(ctx, thread.Address, thread.Revision)
 		if err != nil {
 			var revisionErr *ThreadRevisionError

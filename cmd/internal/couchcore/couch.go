@@ -83,6 +83,9 @@ type Couch struct {
 	// returned, so it is never LayoutUnknown and Flag() is always well formed.
 	Layout Layout
 
+	// warmClients proves ownership of direct attach helpers created by this process.
+	// Restored registry entries never populate it; regMu guards both.
+	warmClients               map[ActorID]Handle
 	reg                       Registry
 	names                     NamingTable
 	postAckQuiesceTimeout     time.Duration
@@ -835,6 +838,12 @@ func (c *Couch) AbortStarted(ctx context.Context, start StartResult, cause error
 	helperOnly := func() error {
 		return errors.Join(cause, c.quiescePostAckStart(start.Record.Thread, start.Handle, StartWarmReattach))
 	}
+	c.regMu.Lock()
+	local := c.warmClients[start.Record.ID]
+	c.regMu.Unlock()
+	if local != nil && local.PID() == start.Record.PID && local.Identity() == start.Record.Identity {
+		return errors.Join(helperOnly(), c.Forget(start.Record.Args.Worktree, start.Record.ID))
+	}
 	_, release, holdErr := c.holdWait(ctx, start.Record.Thread, "abort-start")
 	var cleanupErr error
 	switch {
@@ -1299,6 +1308,18 @@ func (c *Couch) mutateRegistry(mutate func(Registry) (Registry, error)) error {
 		return err
 	}
 	c.reg = next
+	for id := range c.warmClients {
+		found := false
+		for _, actor := range next.Records() {
+			if actor.ID == id {
+				found = true
+				break
+			}
+		}
+		if !found {
+			delete(c.warmClients, id)
+		}
+	}
 	return nil
 }
 

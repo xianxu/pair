@@ -134,7 +134,7 @@ func (c *Couch) ensureContinuationAttached(ctx context.Context, record ThreadRec
 		}
 		record = updated
 	}
-	actor, handle, err := c.ResumeContextWith(ctx, record.Address, ResumeOptions{WarmOnly: true})
+	actor, handle, err := c.resumeContextWith(ctx, record.Address, ResumeOptions{WarmOnly: true}, true)
 	if err != nil {
 		return record, actor, handle, err
 	}

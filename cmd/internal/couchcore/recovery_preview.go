@@ -169,7 +169,7 @@ func (c *Couch) recoveryTarget(ctx context.Context, t ResumeTarget) (*ThreadStor
 		return nil, ThreadRecord{}, observed.Err
 	}
 	if observed.Record == nil {
-		return nil, ThreadRecord{}, errors.New("slot has no retained conversation record")
+		return nil, ThreadRecord{}, fmt.Errorf("slot has no retained conversation record: %w", ErrThreadNotFound)
 	}
 	return local, *observed.Record, nil
 }

@@ -408,8 +408,8 @@ func TestWarmResumeExecutorIgnoresColdMetadataDefects(t *testing.T) {
 			if err != nil || !found || !reflect.DeepEqual(afterPreference, preference) {
 				t.Fatalf("Continue changed defaults: %+v found=%v err=%v", afterPreference, found, err)
 			}
-			if len(after.Incarnations) != 1 || !reflect.DeepEqual(after.Incarnations[0].LaunchProfile, created.LatestLaunchProfile) {
-				t.Fatalf("Continue lost existing terminal metadata: %+v", after.Incarnations)
+			if !reflect.DeepEqual(after, created) {
+				t.Fatalf("Continue changed durable thread: before=%+v after=%+v", created, after)
 			}
 			if !reflect.DeepEqual(after.LatestLaunchProfile, created.LatestLaunchProfile) {
 				t.Fatalf("Continue rewrote saved profile: before=%+v after=%+v", created.LatestLaunchProfile, after.LatestLaunchProfile)

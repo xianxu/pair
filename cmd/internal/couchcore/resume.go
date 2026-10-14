@@ -399,7 +399,13 @@ func (c *Couch) confirmResumeReplacementAbsent(ctx context.Context, thread Threa
 }
 
 // ResumeContextWith is ResumeContext narrowed by opts.
-func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, opts ResumeOptions) (retRecord ActorRecord, retHandle Handle, retErr error) {
+func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, opts ResumeOptions) (ActorRecord, Handle, error) {
+	return c.resumeContextWith(ctx, address, opts, false)
+}
+
+// adoptWarm is reserved for explicit continuation recovery, whose caller has
+// independently established authority to reconcile its lifecycle transaction.
+func (c *Couch) resumeContextWith(ctx context.Context, address ThreadAddress, opts ResumeOptions, adoptWarm bool) (retRecord ActorRecord, retHandle Handle, retErr error) {
 	begun := time.Now()
 	if ctx == nil {
 		ctx = context.Background()
@@ -409,6 +415,34 @@ func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, op
 	}
 	if c == nil || c.Threads == nil {
 		return ActorRecord{}, nil, errors.New("resume: Couch is unavailable")
+	}
+	view := *c.Threads
+	view.readOnly = true
+	thread, err := view.GetThread(address)
+	if err != nil {
+		return ActorRecord{}, nil, err
+	}
+
+	// Resolve the binding ONLY where it is the authority -- the cold path, which
+	// is about to pass `--resume <native-id>`. A detached thread resumes warm off
+	// its surviving session and needs no native id, so it asks for none: the
+	// binding resolver is not consulted, cannot slow it down, and cannot fail it.
+	pathExists := c.workingPathExists(thread)
+
+	// An exact positive list row authorizes attachment with or without clients.
+	// Only explicit continuation adoption also requires its detached/source proof.
+	warmSession, detached, err := c.listedTerminal(ctx, thread)
+	if err != nil {
+		return ActorRecord{}, nil, err
+	}
+
+	if detached && adoptWarm {
+		if err := c.confirmStillDetached(ctx, thread, warmSession); err != nil {
+			return ActorRecord{}, nil, err
+		}
+	}
+	if detached && !adoptWarm {
+		return c.attachListedTerminal(ctx, thread, warmSession, opts)
 	}
 	ctx, release, err := c.hold(ctx, address, "resume")
 	if err != nil {
@@ -420,56 +454,19 @@ func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, op
 		return ActorRecord{}, nil, err
 	}
 	defer func() { retErr = errors.Join(retErr, finishRetention(retErr == nil)) }()
-	thread, err := c.Threads.GetThread(address)
+	current, err := c.Threads.GetThread(address)
 	if err != nil {
 		return ActorRecord{}, nil, err
 	}
-	agent := ""
-	if thread.LatestLaunchProfile != nil {
-		agent = thread.LatestLaunchProfile.Agent
+	if current.Revision != thread.Revision {
+		return ActorRecord{}, nil, &ThreadRevisionError{Address: address, Want: thread.Revision, Got: current.Revision}
 	}
 	if err := c.confirmResumeReplacementAbsent(ctx, thread); err != nil {
 		return ActorRecord{}, nil, err
 	}
-	// Resolve the binding ONLY where it is the authority -- the cold path, which
-	// is about to pass `--resume <native-id>`. A detached thread resumes warm off
-	// its surviving session and needs no native id, so it asks for none: the
-	// binding resolver is not consulted, cannot slow it down, and cannot fail it.
-	pathExists := c.workingPathExists(thread)
-
-	// WARM first, for every thread, then COLD only if warm did not answer.
-	//
-	// Both halves used to be gated on `thread.VerifiedPark`, which is the same
-	// receipt-as-authority defect #256 M2 removed from the classifier -- and
-	// keeping it here would have left the guard refusing the resume the
-	// classification advertises, one level below where that was fixed. A
-	// receipt says a park HAPPENED; it does not say a session is gone, and it
-	// carries no conversation id.
-	//
-	// So: ask the session, because a surviving one is the cheapest and safest
-	// authority and the classifier already prefers it; then ask the ledger,
-	// because a cold resume is about to pass `--resume <native-id>` and that id
-	// is the only thing that makes the relaunch land in the right conversation.
-	//
-	// This is the strict-action half of optimistic inventory: one `list-clients`
-	// for the single thread the operator pressed Enter on.
-	detached := false
-	warmSession := ""
-	if resolver, ok := c.Artifacts.(DetachedSessionResolver); ok {
-		observed, observeErr := resolver.DetachedSessions(ctx, []DetachedCandidate{{
-			Address: address, Agent: agent, SessionName: recordSessionName(thread),
-		}})
-		if observeErr != nil {
-			return ActorRecord{}, nil, fmt.Errorf("observe detached session for %+v: %w", address, observeErr)
-		}
-		detached = detachedResumeProofMatches(thread, observed)
-		if detached {
-			warmSession = observed[0].SessionName
-		}
-	}
 	if opts.WarmOnly && !detached {
 		return ActorRecord{}, nil, refuseResume(ResumeNotDetached,
-			"thread has no detached session to reattach to; a warm-only resume never starts an agent")
+			"thread has no positively listed terminal to attach to; an attach-only resume never starts an agent")
 	}
 	var binding NativeBindingResolution
 	var bindings NativeBindingResolver
