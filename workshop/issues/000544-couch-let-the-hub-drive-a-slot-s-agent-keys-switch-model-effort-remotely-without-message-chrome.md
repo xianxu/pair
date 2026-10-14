@@ -130,3 +130,9 @@ Reuse `ttyio.Writer.WriteContext` and context-aware `couchmessage.Call`; jobs re
 ### 2026-10-14 — viewport authority correction from live conformance
 
 Live-wrapper regressions showed that retained scrollback can contain a former picker after the current viewport changes, or duplicate headings after an identical repaint. Picker decisions and effect revalidation therefore read only the coherent current viewport; retained history is separate evidence for result tails and fresh confirmation occurrence counts. Unknown current views authorize no input. This preserves the original no-input-on-an-unknown-screen intent without refusing harmless identical repainting (ARCH-ORDER).
+
+### 2026-10-14 — wrapper writer handoff after raw key drives
+
+**Reason:** TL reported that a raw Zellij /status injection on parley.nvim:1 at07:40 bypassed wrapper input ownership: subsequent Couch deliveries expired with “waiting for previous automatic input to clear”, and relaunch refused busy despite an empty composer. Receipt78b7fb14-68ed-4bef-a090-f3b403c89721 verified.
+
+**Delta:** All --keys effects remain on the wrapper’s existing single input writer; never substitute direct Zellij key injection. Add an integration test through that writer which completes a key drive, observes its final empty composer, then completes a normal Couch paste/submit/confirmation. This defends the shared automatic-input lease handoff and ordinary delivery liveness (ARCH-DRY, ARCH-ORDER). Preserve the hold before live Claude acceptance after #528; no staging, restart or close is authorized by this revision.
