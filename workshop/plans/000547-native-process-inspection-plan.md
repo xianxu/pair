@@ -96,3 +96,7 @@ Shared decoders live in command_parse.go (rather than the provisional table_pars
 ### 2026-10-14 — Linux acceptance limitation
 
 Hub explicitly accepted portable Linux adapter fixtures and cross-build, with native Linux execution untested: the repository has no Linux test runner. Do not start colima or create a runner for this issue. This supersedes the earlier native-Linux-CI verification expectation; Darwin native plus seatbelt remains required and has passed.
+
+### 2026-10-14 — native ancestry test fixture
+
+The full suite exposed an additional ps-dependent fixture in tests/pair-embedded-runtime-test.sh. Replace its synthetic ancestry with tests/without-ancestors.py, a bounded test-only reparented worker preserving command exit status. This tests the real native ancestry path without a production bypass. Other ps test stubs serve negative subprocess assertions, not launcher process inventory, and remain appropriate.

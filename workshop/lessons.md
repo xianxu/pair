@@ -1701,3 +1701,4 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
   the endpoint; an equal-time observation cannot exclude a later equal-time event.
 
 - Native process inspection must distinguish full executable identity, mutable argv[0] and truncated kernel comm. Preserve unavailable rows and fence generation across separate command reads; converting a ps table to short kernel names alone silently drops long runtime names. Bound numeric PIDs before narrowing them to kernel argument types. (#547)
+- When replacing a subprocess observation with native IO, sweep shell fixtures as well as Go tests. A PATH fake no longer isolates that native boundary; use an injected observation or a real controlled process topology rather than adding a production test bypass. (#547)
