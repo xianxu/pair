@@ -1,12 +1,12 @@
 ---
 id: 000539
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-13
 updated: 2026-10-13
 estimate_hours:
-card_mirror: 'd1b69dd4a77990a54447a6264b4f7b604f9f3d94' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '0ed1bbbf6100f3da97d0a96b50af88aa8e1e1d2a' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-13T17:07:37-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "1797c705", done: "50dc2343"}
+actual_hours: 0.65
 ---
 
 # pair: fleet inventory rejects sdlc's new 'staged' hold (ariadne#344); accept it
