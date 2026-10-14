@@ -1651,7 +1651,12 @@ func TestOnlyAStartArmsTheReattachPass(t *testing.T) {
 // exited child failed the attach rather than the mismatch it meant to test.
 func TestBeginConsoleArmsThePassOnlyAfterASuccessfulAttach(t *testing.T) {
 	address := couchcore.ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}
-	start := couchcore.StartResult{Record: couchcore.ActorRecord{Thread: address}}
+	runner := couchcore.NewFakeRunner()
+	handle, err := runner.Start("/repo", []string{"pair"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := couchcore.StartResult{Record: couchcore.ActorRecord{Thread: address}, Handle: handle}
 	for _, tt := range []struct {
 		name      string
 		attachErr error

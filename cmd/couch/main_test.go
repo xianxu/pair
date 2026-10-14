@@ -25,7 +25,7 @@ func TestBareCouchInstalledCommand(t *testing.T) {
 		t.Fatalf("build couch: %v\n%s", err, out)
 	}
 
-	// Use an isolated repository: managed startup enrolls known slot locations.
+	// Use an isolated repository: opening the console must not enroll or launch it.
 	fleet, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -58,7 +58,7 @@ printf 'COUCH_INSTALLED_PAIR_MARKER\n'
 sleep 2
 `, callLog))
 
-	t.Run("pty launches current directory", func(t *testing.T) {
+	t.Run("pty observes current directory without launching", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		cmd := exec.CommandContext(ctx, couchBin)
@@ -76,6 +76,7 @@ sleep 2
 		waitResult := make(chan error, 1)
 		go func() { waitResult <- cmd.Wait() }()
 		readResult := make(chan []byte, 1)
+		consoleReady := make(chan struct{}, 1)
 		go func() {
 			var out bytes.Buffer
 			buf := make([]byte, 4096)
@@ -83,6 +84,12 @@ sleep 2
 				n, readErr := master.Read(buf)
 				if n > 0 {
 					_, _ = out.Write(buf[:n])
+					if bytes.Contains(out.Bytes(), []byte("threads")) {
+						select {
+						case consoleReady <- struct{}{}:
+						default:
+						}
+					}
 				}
 				if readErr != nil {
 					readResult <- out.Bytes()
@@ -90,27 +97,10 @@ sleep 2
 				}
 			}
 		}()
-		pairCalled := make(chan struct{}, 1)
-		go func() {
-			ticker := time.NewTicker(10 * time.Millisecond)
-			defer ticker.Stop()
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-ticker.C:
-					calls, _ := os.ReadFile(callLog)
-					if bytes.Contains(calls, []byte("pair --couch-session-v1 resume ")) {
-						pairCalled <- struct{}{}
-						return
-					}
-				}
-			}
-		}()
 
 		timedOut := false
 		select {
-		case <-pairCalled:
+		case <-consoleReady:
 		case <-time.After(15 * time.Second):
 			timedOut = true
 		}
@@ -125,21 +115,22 @@ sleep 2
 		}
 		if timedOut {
 			calls, _ := os.ReadFile(callLog)
-			t.Fatalf("timed out waiting for installed couch marker; output=%q calls=%q", out, calls)
+			t.Fatalf("timed out waiting for installed couch thread switcher; output=%q calls=%q", out, calls)
 		}
-		calls, err := os.ReadFile(callLog)
-		if err != nil {
-			t.Fatal(err)
+		calls, readErr := os.ReadFile(callLog)
+		if readErr != nil && !os.IsNotExist(readErr) {
+			t.Fatal(readErr)
 		}
-		for _, line := range strings.Split(strings.TrimSpace(string(calls)), "\n") {
-			if strings.HasPrefix(line, "sdlc ") && line != "sdlc workspace --json" {
-				t.Fatalf("unexpected SDLC contract: %q", line)
-			}
+		if len(calls) != 0 {
+			t.Fatalf("observation-only startup invoked launcher contracts: %q", calls)
 		}
-		if !bytes.Contains(calls, []byte("sdlc workspace --json")) {
-			t.Fatal("workspace context was not resolved")
+		if bytes.Contains(out, []byte("COUCH_INSTALLED_PAIR_MARKER")) {
+			t.Fatal("startup launched Pair")
 		}
-		assertExactPairResumeCall(t, calls)
+		if _, err := os.Stat(filepath.Join(launchRoot, ".couch", "thread.json")); !os.IsNotExist(err) {
+			t.Fatalf("startup created slot record: %v", err)
+		}
+
 	})
 
 	t.Run("pipe refuses before effects", func(t *testing.T) {
@@ -155,32 +146,6 @@ sleep 2
 			t.Fatalf("non-terminal launch performed effects: before=%q after=%q", before, after)
 		}
 	})
-}
-
-// The exact shape of the one pair call couch makes. The trailing --layout3 is
-// couch's DEFAULT layout since #198, not a pinned constant: a `couch --layout3`
-// makes the same call with --layout3. What stays exact is the arity and the
-// durable tag in this fresh isolated authority -- a stray positional here would
-// be the regression. The first store/thread in repository alpha is 1-alpha-1.
-func assertExactPairResumeCall(t *testing.T, calls []byte) {
-	t.Helper()
-	var pairCalls [][]string
-	for _, line := range strings.Split(strings.TrimSpace(string(calls)), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) > 0 && fields[0] == "pair" {
-			pairCalls = append(pairCalls, fields)
-		}
-	}
-	if len(pairCalls) != 1 {
-		t.Fatalf("pair calls = %q, want exactly one", pairCalls)
-	}
-	call := pairCalls[0]
-	if len(call) != 5 {
-		t.Fatalf("pair call = %q, want exactly pair --couch-session-v1 resume 1-alpha-1 --layout3", call)
-	}
-	if call[1] != "--couch-session-v1" || call[2] != "resume" || call[3] != "1-alpha-1" || call[4] != "--layout3" {
-		t.Fatalf("pair call = %q, want exactly pair --couch-session-v1 resume 1-alpha-1 --layout3", call)
-	}
 }
 
 func waitInstalled(t *testing.T, cmd *exec.Cmd, cancel context.CancelFunc, waitResult <-chan error) {
