@@ -118,6 +118,40 @@ func TestAgentDriveOperatorInputCancelsBeforeAnotherKey(t *testing.T) {
 		t.Fatal("cancel became success")
 	}
 }
+func TestAgentDriveRealInputLoopForwardsOperatorAndStopsDrive(t *testing.T) {
+	f, d, _ := driveFixture(t)
+	in, operator := io.Pipe()
+	out := newDrainBuffer()
+	done := make(chan struct{})
+	go func() { f.proxy.translateStdinFrom(in, out, time.Millisecond); close(done) }()
+	t.Cleanup(func() {
+		operator.Close()
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+			t.Error("input writer did not stop")
+		}
+	})
+	_, err := driveStart(t, d, agentdrive.Request{Keys: agentdrive.KeySequence{{Kind: agentdrive.KeyText, Text: "first"}, {Kind: agentdrive.KeyWait, WaitMS: 1000}, {Kind: agentdrive.KeyText, Text: "forbidden"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !waitFor(t, func() bool { return strings.Contains(string(out.Bytes()), "first") }) {
+		t.Fatal("input loop did not service drive wake")
+	}
+	if _, err = operator.Write([]byte("operator")); err != nil {
+		t.Fatal(err)
+	}
+	if !waitFor(t, func() bool { return strings.Contains(string(out.Bytes()), "operator") }) {
+		t.Fatal("operator input was blocked")
+	}
+	if !waitFor(t, func() bool { r, _ := d.agentDriveResult("test-drive"); return r.Terminal() }) {
+		t.Fatal("operator input did not cancel drive")
+	}
+	if strings.Contains(string(out.Bytes()), "forbidden") {
+		t.Fatal("automatic input continued after operator")
+	}
+}
 func TestAgentDriveAdmissionProofAndBusyRefusal(t *testing.T) {
 	_, d, _ := driveFixture(t)
 	o := d.agentDriveObservation()
