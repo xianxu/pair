@@ -29,6 +29,7 @@ var verbCosts = map[string]verbCost{
 	"--skill":                  costLight,
 	"--actors":                 costLight,
 	"--send-to":                costLight,
+	"--notify":                 costLight,
 	"--message-status":         costLight,
 	"--operation-status":       costLight,
 	"--switch-agent":           costHeavy,

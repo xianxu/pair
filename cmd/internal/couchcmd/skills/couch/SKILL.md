@@ -63,13 +63,23 @@ queue, or cross-supervisor delivery.
 
 ## What each verb costs
 
-- **light:** `--help`, `--skill`, `--actors`, `--send-to`, `--message-status`, `--operation-status`, `--peek` (its --transcripts option costs seconds), `--broadcast-list`, `--session-sync`, `--archived`, `--adopt-store`, `--broadcast-web-query`, `--broadcast-web-submit`, `--broadcast-web-replay` (then serves until stopped)
+- **light:** `--notify`, `--help`, `--skill`, `--actors`, `--send-to`, `--message-status`, `--operation-status`, `--peek` (its --transcripts option costs seconds), `--broadcast-list`, `--session-sync`, `--archived`, `--adopt-store`, `--broadcast-web-query`, `--broadcast-web-submit`, `--broadcast-web-replay` (then serves until stopped)
 - **seconds:** `--list`, `--show`, `--reconcile`, `--reap`, `--broadcast-web-fidelity` (a headless Chrome)
 - **heavy:** `couch` (launch), `--recover-plan-from-sdlc`, `--resume`, `--reboot`, `--relaunch`, `--reload-context`, `--prepare`, `--recover`, `--switch-agent`
 
 Cost: light is under a second, seconds is a few seconds, heavy is tens of
 seconds of CPU (it stops or boots agents, or runs sdlc across the fleet);
 run heavy verbs one at a time, after checking uptime's load.
+
+## Desktop notifications
+
+Slots' OSC 9/777/99 desktop notifications are swallowed, including the hub's.
+Couch retains diagnostic counts only; ordinary BEL is unchanged. Only the live
+hub may run `couch --notify MESSAGE` or `couch --notify --title T MESSAGE` (light), for a decision the
+operator should see. The default title is `Couch`; titles allow 256 bytes and
+messages 4096 bytes, with terminal controls removed. Other slots must send to
+the hub instead. Success means written to the terminal, not confirmed OS display.
+If the write or its reply is uncertain, do not retry automatically.
 
 ## Sending and receiving
 

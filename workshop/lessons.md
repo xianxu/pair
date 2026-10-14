@@ -1640,6 +1640,21 @@ proof; record the surprising case so the next change starts from evidence.
   leave a success eligible to create again. BR-2/3: reconcile final entity paths
   and classifications, and update user-facing README instructions alongside atlas.
 
+- #540 admission review: when identity checks precede a workspace lookup, test a
+  wrapper replacement during that lookup. Cached connection membership alone
+  does not prove the current wrapper still owns the accepted launch; revalidate
+  at effect admission. Exercise lost acknowledgments after a real side effect
+  through the socket, not only an error-returning client stub.
+- #540 verification: when changing a consumer's notification policy, search
+  upstream integration tests too. Wrapper-to-Couch tests can encode forwarding
+  expectations outside the consumer package. Prove suppression after a positive
+  processing barrier; never wait for an intentionally absent notification.
+- #540 close BR-1: best-effort output helpers may intentionally collapse dropped
+  or timed-out writes into nil. Explicit commands claiming a completed effect
+  must retain the actual write outcome through degradation/recovery; test both
+  pre-existing stalls and stalls caused by the command, including no replay.
+  BR-2: append acceptance criteria when approved revisions expand behavior;
+  a detailed plan revision does not update Done-when by itself.
 - #519: A successful datagram send establishes kernel acceptance, not consumer delivery. At stream EOF, join the receiver, boundedly drain its kernel backlog, and consume its channel backlog before finishing the sole output writer. Pin both pending-work boundaries with ordered fixtures rather than extending deadlines.
 - #538 integration: expanding a list across documents also expands reconnect and edit consumers. Check catch-up equivalence against every retained note (including source segment), and test a historical note through current admission, owner checks, edit, and submission; a current-document-only oracle hides missing list entries.
 

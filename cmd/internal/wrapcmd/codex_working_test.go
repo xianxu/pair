@@ -137,11 +137,18 @@ func captureCodexVisualNotification(t *testing.T) []byte {
 	return written
 }
 
-func TestCodexWorkingNotificationReachesCouchStatusAndSwitcher(t *testing.T) {
+func TestCodexWorkingNotificationIsSuppressedByCouch(t *testing.T) {
 	wrapperBytes := captureCodexVisualNotification(t)
+	if want := notifyosc.Encode("agent stopped working"); !bytes.Equal(wrapperBytes, want) {
+		t.Fatalf("wrapper notification = %q, want %q", wrapperBytes, want)
+	}
 	host := hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80})
 	reader, writer := io.Pipe()
 	con := couchtty.New(host, reader)
+	tracePath := filepath.Join(t.TempDir(), "couch.trace")
+	if err := con.SetEventTrace(tracePath, time.Now()); err != nil {
+		t.Fatal(err)
+	}
 	addresses := []couchcore.ThreadAddress{
 		{RepoScope: "legacy", Tag: "c1"},
 		{RepoScope: "legacy", Tag: "c2"},
@@ -170,20 +177,33 @@ func TestCodexWorkingNotificationReachesCouchStatusAndSwitcher(t *testing.T) {
 	})
 
 	two.Feed(wrapperBytes)
+	// A positive acknowledgement of suppression prevents a no-output check
+	// from passing before the asynchronous child publication reaches Couch.
+	waitForCodexCouch(t, func() bool {
+		trace, err := os.ReadFile(tracePath)
+		return err == nil && strings.Contains(string(trace), "\tnotify-suppressed\tlegacy/c2\t")
+	}, "notification suppression acknowledgement")
 	wantStatus := couchtty.RenderStatusRow(80, couchtty.StatusModel{Actors: []couchtty.StatusActor{
-		{Label: "one", Active: true}, {Label: "two", Bell: true},
+		{Label: "one", Active: true}, {Label: "two"},
 	}}).Body
-	waitForCodexCouch(t, func() bool { return strings.Contains(codexCouchRendered(host.Written()), ansi.Strip(wantStatus)) }, "pending status chip")
+	waitForCodexCouch(t, func() bool { return strings.Contains(codexCouchRendered(host.Written()), ansi.Strip(wantStatus)) }, "status row")
 	if _, err := writer.Write([]byte{0}); err != nil {
 		t.Fatal(err)
 	}
-
-	waitForCodexCouch(t, func() bool { return strings.Contains(codexCouchRendered(host.Written()), "agent stopped working") }, "switcher message")
+	waitForCodexCouch(t, func() bool {
+		return strings.Contains(codexCouchRendered(host.Written()), "threads")
+	}, "switcher render")
+	// Check the complete host history, including the status frame before the
+	// switcher opened. No desktop envelope or notification body may escape.
+	written := host.Written()
+	if strings.Contains(written, "\x1b]777;notify;") || strings.Contains(written, "agent stopped working") {
+		t.Fatalf("Couch leaked the child notification: %q", written)
+	}
 }
 
 func waitForCodexCouch(t *testing.T, ready func() bool, what string) {
 	t.Helper()
-	deadline := time.Now().Add(testwait.Budget(t))
+	deadline := time.Now().Add(min(10*time.Second, testwait.Budget(t)))
 	for time.Now().Before(deadline) {
 		if ready() {
 			return

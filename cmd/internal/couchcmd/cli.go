@@ -56,6 +56,7 @@ type cliInvocation struct {
 	args                     []string
 	messageOp                string
 	messageBody              string
+	notifyTitle              string
 	// messageFile is --message-file's path (pair#486); the send reads the
 	// body from it, so the parser stays free of IO.
 	messageFile string
@@ -106,6 +107,8 @@ func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, e
 	// scanning layout flags, which could otherwise consume a literal body.
 	if len(args) > 0 {
 		switch args[0] {
+		case "--notify":
+			return parseNotifyCLI(args)
 		case submissionFlag:
 			return parseSubmissionCLI(args)
 		case "--adopt-store":

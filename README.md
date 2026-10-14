@@ -451,6 +451,7 @@ couch --send-to repo:N --message TEXT   send to an exact live slot
 couch --send-to repo --message TEXT     select an eligible slot in that family
 couch --send-to repo --agent NAME --message TEXT   ...running that agent
 couch --send-to hub --message TEXT      send to the hub (the slot Couch started from), resolved at send time
+couch --notify [--title T] MESSAGE      hub only: one desktop notification (default title: Couch)
 couch --send-to TARGET [--agent NAME] --message-file PATH
                          any form above, the body read verbatim from PATH (less one trailing newline):
                          write a message containing code or shell syntax with an editor, never quote it
@@ -1617,7 +1618,18 @@ You produce a continuation by pressing **`Alt+Shift+C`** (compact in place — i
 
 ## Notifications
 
-Pair forwards "agent needs attention" signals to your outer terminal automatically — useful for outer wrappers like [cmux](https://github.com/saharNooby/cmux) that surface badges per session.
+Standalone Pair forwards "agent needs attention" signals to your outer terminal automatically — useful for outer wrappers like [cmux](https://github.com/saharNooby/cmux) that surface badges per session.
+
+Couch swallows slots' OSC 9/777/99 desktop notifications, including the hub's,
+and retains diagnostic counts only. The TL in the hub decides when to interrupt
+you with `couch --notify [--title T] MESSAGE`; its default title is `Couch`.
+Other slots are refused and should send their message to the hub instead.
+Titles accept at most 256 bytes and messages 4096 bytes, with terminal controls
+removed. Success means written to the terminal, not confirmation of OS display.
+If a write or reply is uncertain, do not retry automatically.
+After rebuilding, restart Couch to use a newly added command. Existing messaging
+commands remain compatible; if running slots report missing messaging
+registrations, restart Couch to reconnect them.
 
 Agent hooks can send the same signal explicitly with `pair notify "message"`
 or the compatibility name `pair-notify "message"`. Legacy `--osc 9` and
@@ -1644,11 +1656,9 @@ it is the quiet cases — a menu waiting for an answer, a turn that silently wen
 nowhere — that reach it. Set `PAIR_WRAP_IDLE_S` to change the interval, or
 `PAIR_WRAP_IDLE_S=0` to switch the floor off entirely.
 
-Under Couch, unread events color the source actor's existing status label.
-`Ctrl-Space` opens the switcher with the newest unread actor selected; up to
-three messages appear as indented, display-only rows beneath that actor. Enter
-switches to it, and only a successful switch acknowledges the messages that
-were unread when the switch began.
+Under Couch, ordinary BEL attention still colors the source actor's status label.
+`Ctrl-Space` selects the newest unread actor; a successful switch acknowledges
+that attention. Swallowed desktop notifications create no attention messages.
 
 ## Troubleshooting
 

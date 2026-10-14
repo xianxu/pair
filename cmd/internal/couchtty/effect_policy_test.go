@@ -77,7 +77,7 @@ func TestConsoleClipboardPolicyThroughDelivery(t *testing.T) {
 	}
 }
 
-func TestConsoleNotificationUsesCapturedDeliveryFocusOnce(t *testing.T) {
+func TestConsoleNotificationSuppressionSurvivesDeliveryFocusChanges(t *testing.T) {
 	for _, focused := range []bool{false, true} {
 		t.Run(map[bool]string{false: "hidden-at-delivery", true: "focused-at-delivery"}[focused], func(t *testing.T) {
 			c, host := notificationConsole(t)
@@ -97,13 +97,13 @@ func TestConsoleNotificationUsesCapturedDeliveryFocusOnce(t *testing.T) {
 			c.switchTo(next, false, arrivalOrdinary)
 			finishPolicyDelivery(t, c, ch, done)
 			envelope := []byte("\x1b]777;notify;pair;policy-attention\x1b\\")
-			if n := bytes.Count([]byte(host.Written()), envelope); n != 1 {
+			if n := bytes.Count([]byte(host.Written()), envelope); n != 0 {
 				t.Fatalf("outer notification count=%d", n)
 			}
 			c.mu.Lock()
 			attention := attentionTexts(c.attention.Projection(c.panes[origin].thread))
 			c.mu.Unlock()
-			if focused && len(attention) != 0 || !focused && (len(attention) != 1 || attention[0] != "policy-attention") {
+			if len(attention) != 0 {
 				t.Fatalf("focusedAtDelivery=%v attention=%v", focused, attention)
 			}
 			// Redelivery of the same typed batch and later paints cannot repeat effects.
@@ -111,14 +111,14 @@ func TestConsoleNotificationUsesCapturedDeliveryFocusOnce(t *testing.T) {
 			c.onChunk(ch)
 			c.repaint()
 			c.presenter.Flush(context.Background())
-			if n := bytes.Count([]byte(host.Written()), envelope); n != 1 {
+			if n := bytes.Count([]byte(host.Written()), envelope); n != 0 {
 				t.Fatalf("notification replayed=%d", n)
 			}
 		})
 	}
 }
 
-func TestConsoleMappedZellijNotificationsPreserveOriginAndDeliveryFocus(t *testing.T) {
+func TestConsoleMappedZellijNotificationsAreSuppressedOncePerOrigin(t *testing.T) {
 	c, host := notificationConsole(t)
 	c.switchTo("c1", false, arrivalOrdinary)
 	host.Reset()
@@ -129,7 +129,7 @@ func TestConsoleMappedZellijNotificationsPreserveOriginAndDeliveryFocus(t *testi
 		finishPolicyDelivery(t, c, ch, done)
 		ch.ack = nil
 		c.onChunk(ch)
-		if n := bytes.Count([]byte(host.Written()), []byte("\x1b]777;notify;pair;"+message+"\x1b\\")); n != 1 {
+		if n := bytes.Count([]byte(host.Written()), []byte("\x1b]777;notify;pair;"+message+"\x1b\\")); n != 0 {
 			t.Fatalf("%s canonical delivery count=%d", id, n)
 		}
 		c.mu.Lock()
@@ -138,12 +138,12 @@ func TestConsoleMappedZellijNotificationsPreserveOriginAndDeliveryFocus(t *testi
 		if id == "c1" && len(attention) != 0 {
 			t.Fatalf("focused notification created attention: %+v", attention)
 		}
-		if id == "c2" && (len(attention) != 1 || attention[0].Text != message) {
-			t.Fatalf("hidden mapped origin lost: %+v", attention)
+		if id == "c2" && len(attention) != 0 {
+			t.Fatalf("hidden mapped notification created attention: %+v", attention)
 		}
 	}
 	c.switchTo("c2", false, arrivalOrdinary)
-	if n := bytes.Count([]byte(host.Written()), []byte("\x1b]777;notify;pair;mapped-")); n != 2 {
+	if n := bytes.Count([]byte(host.Written()), []byte("\x1b]777;notify;pair;mapped-")); n != 0 {
 		t.Fatalf("switch replayed notifications:%d", n)
 	}
 }

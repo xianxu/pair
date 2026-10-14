@@ -222,6 +222,22 @@ Couch-launched Codex disables shell snapshots for that process so tool shells
 inherit the current slot environment instead of restoring an older slot's
 identity. The override is not persisted into saved agent arguments.
 
+`couch --notify [--title T] MESSAGE` is a light, hub-only operation. The message
+service checks the live registered caller and its connected workspace against
+the supervisor's hub root, then calls Console.NotifyDesktop through the shared
+presenter writer. Other callers get advice to send to the hub instead. There is
+no notification queue, receipt store or automatic retry on an uncertain write.
+Existing CLI messaging verbs omit notification-only fields for older supervisors.
+The CLI distinguishes an explicit unsupported-notify decode refusal from missing
+messaging registration and uncertain replies; only the latter leaves the effect
+unconfirmed. Missing registration and unsupported commands provide restart advice,
+never an automatic resend. The legacy socket regression lives in
+`cmd/internal/couchcmd/messages_compat_test.go`.
+Child OSC9/777/99 notifications are swallowed from all panes; only per-pane
+counts enter the existing COUCH_TRACE diagnostics as `notify-suppressed`, and
+ordinary BEL is unchanged. Each aggregate names the pane endpoint and cumulative
+count; a fresh attachment starts a new counter. No notification text is logged.
+
 `couch --actors`, `--send-to repo[:N]|hub [--agent NAME] --message TEXT|--message-file PATH` and `--message-status ID`
 use bounded Unix stream RPC, without constructing another mutable supervisor.
 `--message-file` (pair#486) reads the body from a file at send time, so an agent writes a message
