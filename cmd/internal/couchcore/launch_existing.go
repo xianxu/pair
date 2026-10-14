@@ -54,7 +54,7 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		return ActorRecord{}, nil, rollback(in.Thread, err)
 	}
 	thread := in.Thread
-	if c.Slots != nil && !in.Warm {
+	if c.Slots != nil && (!in.Warm || c.Path != nil) {
 		cwd, err := c.Path.Physical(in.Args.WorkingDir())
 		var tree Worktree
 		if err == nil {
@@ -71,11 +71,15 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 				err = errors.New("launch checkout does not match thread scope")
 			}
 		}
-		if err != nil {
+		if err != nil && !in.Warm {
 			return ActorRecord{}, nil, rollback(thread, err)
 		}
-		in.Args.Cwd = cwd
-		in.Args.Worktree = tree
+		// Keep the normal repository-root presentation when it is available.
+		// Attachment itself depends on the exact terminal, not this metadata.
+		if err == nil {
+			in.Args.Cwd = cwd
+			in.Args.Worktree = tree
+		}
 	}
 	steps.mark("checkout")
 

@@ -388,3 +388,12 @@ The final revision in `workshop/plans/000528-slot-recovery-plan.md` supersedes p
   NewScopedPaths.Validate/ScopeDir instead of widening the artifact manifest;
   ownership check passed (1.151s) and public real-binary attach regression
   passed (4.839s). Full-suite remainder still running.
+
+- 2026-10-13 22:03 PDT — Full `make -k test` completed
+  with exactly two failures: artifact ownership (corrected and rerun above)
+  and legacy slot subdirectory root presentation. Restored shared checkout
+  normalization as optional metadata for warm attachment; cold failures still
+  refuse. Added nil path-observer coverage. Targeted legacy/warm/continuation
+  tests passed (7.135s); full affected core/artifactpath packages are rerunning
+  at /tmp/pair528-m1-final-packages.log. The full run passed couchcmd 34.926s,
+  couchtty 39.185s, launcher 21.032s and wrapcmd 40.136s. No staging.

@@ -343,9 +343,10 @@ func (a warmSessionArtifacts) NamedPairSessionContext(ctx context.Context, addre
 // Continue consumes the live terminal, not the cold-launch metadata saved for
 // recreating its agent. Exercise the executor, including the child boundary.
 func TestWarmResumeExecutorIgnoresColdMetadataDefects(t *testing.T) {
-	for _, defect := range []string{"missing-profile", "incomplete-profile", "unsupported-agent", "missing-working-path"} {
+	for _, defect := range []string{"missing-profile", "incomplete-profile", "unsupported-agent", "missing-working-path", "missing-path-observer"} {
 		t.Run(defect, func(t *testing.T) {
 			env := newTestEnv(t, "/repo")
+			env.Couch.Slots = &SlotCatalogFake{}
 			record := warmDetachedRecord(t)
 			record.StartingPath, record.WorkingPath = "/repo", "/repo"
 			record.Reservation = false
@@ -364,6 +365,8 @@ func TestWarmResumeExecutorIgnoresColdMetadataDefects(t *testing.T) {
 				record.LatestLaunchProfile.Agent = "old-unsupported-agent"
 			case "missing-working-path":
 				env.Couch.Path.(*FakePathOps).Fail("/repo")
+			case "missing-path-observer":
+				env.Couch.Path = nil
 			}
 			created, err := env.Couch.Threads.CreateThread(record)
 			if err != nil {
