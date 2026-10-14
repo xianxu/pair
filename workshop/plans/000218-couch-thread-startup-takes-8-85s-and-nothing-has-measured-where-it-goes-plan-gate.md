@@ -26,6 +26,24 @@ rounds:
           family: tests-name-functions-and-strategies
           round: 1
       blocked: true
+    - "n": 2
+      timestamp: "2026-10-14T15:10:23-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Fresh narrowed enumeration preserves exactly-one-server authority; ordered competing-claimant tests verify it.
+          round: 2
+        - id: PQ-2
+          disposition: addressed
+          note: Registration bypasses pass evidence and discovers post-launch births; cold/create operations remain outside the pass.
+          round: 2
+        - id: PQ-3
+          disposition: addressed
+          note: The superseding test contract names risky functions and gives adversarial strategies with mechanical guards.
+          round: 2
+      blocked: false
+content_hash: 8b587ef41aeaeeb3315dc9cff2a9aff9225cc3236fd62eb85bb3ff626063af3b
 ---
 
 # Gate ledger — pair#218 (plan-quality)
@@ -44,8 +62,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **PQ-3** [Important] `tests-name-functions-and-strategies` Compress test inventories into named functions and adversarial strategies.
   M1 steps 4/6 and M2 steps 1/4 enumerate cases instead of the required compact test contract. Name the candidate selector, snapshotSelected, exact revalidator, SessionOwnerPass observation method, and affected lifecycle functions; give each risky function one strategy line naming its adversarial input or event class and mechanical guard.
 
+## Round 2 — 2026-10-14T15:10:23-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Fresh narrowed enumeration preserves exactly-one-server authority; ordered competing-claimant tests verify it.
+- PQ-2 — addressed — Registration bypasses pass evidence and discovers post-launch births; cold/create operations remain outside the pass.
+- PQ-3 — addressed — The superseding test contract names risky functions and gives adversarial strategies with mechanical guards.
+
 ## Open findings
 
-- **PQ-1** [Important] `fresh-authority-preserves-exclusivity` Targeted validation does not preserve fresh session-name exclusivity.
-- **PQ-2** [Important] `observation-scope-allows-lifecycle-progress` Define how registration discovers servers created after the pass snapshot.
-- **PQ-3** [Important] `tests-name-functions-and-strategies` Compress test inventories into named functions and adversarial strategies.
+(none — every finding has been disposed)

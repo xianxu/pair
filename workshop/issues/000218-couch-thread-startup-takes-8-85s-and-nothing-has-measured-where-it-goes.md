@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-09-08
 updated: 2026-10-14
-estimate_hours:
-card_mirror: '579de3da835f0469519be66c3cae2008e8d78b6f' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 5.86
+card_mirror: '6bb8facf251995327c3a27ddcdf474eab49ab16b' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-14T15:00:32-07:00
 claimant:
     operator: Xian Xu
@@ -138,3 +138,27 @@ Claimed by pair:5, started from main 9a2aff687 after slot substrate refresh. Ope
 - 2026-10-14 — add (implementation plan): M1 baseline plus native candidate/fencing foundation; M2 shared parent pass and remeasurement/concurrency selection. Child Pair cannot reuse Couch memory, so narrowed standalone discovery is included. Preserve #553 and exact-generation effect checks.
 
 - 2026-10-14 — refine (PQ-1/PQ-2/PQ-3): shared evidence is initial only. Fresh after-pane/effect checks retain name exclusivity via candidate-only enumeration; registration bypasses the pass to observe post-launch births. Compact named-function test strategies supersede procedural case inventories in the durable plan.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only; calibration marked stale/provisional. Existing sysctl/procfs APIs, ServerStates, owner/fleet worlds, controlled Zellij fixture, console reducer and PATH shim supply the mechanisms; no novel library needed. Design discount 0.2 for resolved implementation choices, familiarity 1.0 from #547. Two API-integration items cover baseline/full controlled lifecycle measurement and the 21-session comparative experiment. Smaller-Go items cover candidate reader and pass object; refactors cover launcher consumers and parent lifecycle scope. TUI item covers pass-context/reducer wiring and ordering tests, not a new screen. Three review primitives cover the two milestone boundaries plus final issue close. Impl values use v3.1's 0.4 scale, design buffer 0.15.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.80 impl=0.08
+item: api-integration design=0.20 impl=0.60
+item: api-integration design=0.40 impl=0.60
+item: smaller-go design=0.04 impl=0.20
+item: cross-cutting-refactor design=0.12 impl=0.20
+item: smaller-go design=0.06 impl=0.20
+item: tui-screen design=0.20 impl=0.40
+item: cross-cutting-refactor design=0.16 impl=0.20
+item: real-api-discovery design=0 impl=0.24
+item: milestone-review design=0.04 impl=0.20
+item: milestone-review design=0.04 impl=0.20
+item: milestone-review design=0.04 impl=0.20
+item: atlas-docs design=0.04 impl=0.08
+design-buffer: 0.15
+total: 5.86
+```
