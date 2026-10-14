@@ -44,7 +44,9 @@ type StatusActor struct {
 	Blocked bool
 	// Hub: the hub slot, which leads its section and reverses its colours
 	// (pair#521); a later hub starts a new section after a separator.
-	Hub bool
+	Hub      bool
+	OwnerHub string
+	OtherHub bool
 	// Placeholder marks a thread the reattach pass has not attached yet
 	// (pair#206). It is drawn greyed, and it records NO chip span, so a click on
 	// it resolves to no actor: unclickable by construction, not by a check at
@@ -383,6 +385,9 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 		if a.Hub {
 			style += reverseSGR
 		}
+		if a.OtherHub && !m.Palette.NoColor {
+			style += "\x1b[2m"
+		}
 		appendText(label, style)
 		for _, r := range a.Glyph {
 			glyphStyle := style
@@ -391,6 +396,9 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 				if a.Hub {
 					glyphStyle += reverseSGR
 				}
+			}
+			if a.OtherHub && !m.Palette.NoColor {
+				glyphStyle += "\x1b[2m"
 			}
 			appendText(string(r), glyphStyle)
 		}

@@ -1,6 +1,7 @@
 package couchtty
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
+	"github.com/xianxu/pair/cmd/internal/textwidth"
 )
 
 // pair#491: the hub leads its section; colour composition is tested in hub_inversion_test.go.
@@ -204,5 +206,157 @@ func TestConsoleHubLeadsTheTabBarAcrossTheFirstMenuBuild(t *testing.T) {
 	actors := c.statusModelLocked().Actors
 	if len(actors) != 2 || actors[0].Label != "pair" || !actors[0].Hub || actors[1].Hub {
 		t.Fatalf("tab bar %+v, want the hub pair first", actors)
+	}
+}
+
+func multiHubFixture(t *testing.T) couchcore.HubOwnership {
+	t.Helper()
+	claims, err := couchcore.ParseHubClaims([]byte("pair:7\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := couchcore.NewHubOwnership([]couchcore.HubDefinition{
+		{Root: "/src/ops", Workspace: "/src", Slot: couchcore.HubSlot{Repository: "/src/ops"}},
+		{Root: "/src/bench", Workspace: "/src", Slot: couchcore.HubSlot{Repository: "/src/bench"}, Claims: claims},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return state
+}
+
+func TestHubOwnershipSectionsAndSingleHubCompatibility(t *testing.T) {
+	ownership := multiHubFixture(t)
+	rows := []couchcore.ActionableThreadSummary{presentationSlot("/src/pair", 7), presentationOrdinary("/src/bench", "b"), presentationSlot("/src/pair", 8), presentationOrdinary("/src/ops", "o")}
+	got := PresentThreads(rows, nil, "/src/ops", ownership)
+	want := []string{"ops", "pair:8", "bench", "pair:7"}
+	for i, p := range got {
+		if p.Label != want[i] || p.Hub != (i == 0 || i == 2) {
+			t.Fatalf("row %d: %+v", i, p)
+		}
+		owner := "/src/ops"
+		if i >= 2 {
+			owner = "/src/bench"
+		}
+		if p.OwnerHub != owner {
+			t.Fatalf("owner %q want %q", p.OwnerHub, owner)
+		}
+	}
+	single, err := couchcore.NewHubOwnership(ownership.Hubs()[:1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(PresentThreads(rows, nil, "/src/ops"), PresentThreads(rows, nil, "/src/ops", single)) {
+		t.Fatal("single hub presentation changed")
+	}
+}
+
+func TestConsoleHubOwnershipSurvivesMenuBuildAndFollowsFocus(t *testing.T) {
+	c := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 100}), nil)
+	t.Cleanup(c.Stop)
+	c.SetHubOwnership(multiHubFixture(t))
+	ops, bench := presentationOrdinary("/src/ops", "o"), presentationOrdinary("/src/bench", "b")
+	c.attachThreadActor("ops", "ops", ops.Address, "/src/ops", "ops", ptychild.NewFakeChild(nil))
+	c.attachThreadActor("bench", "bench", bench.Address, "/src/bench", "bench", ptychild.NewFakeChild(nil))
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.ensureMenuLocked(ops.Address)
+	c.menu, _ = ReduceMenu(c.menu, MenuEvent{Kind: MenuEventInventory, Inventory: []couchcore.ActionableThreadSummary{bench, ops}})
+	for _, active := range c.order {
+		c.active = active
+		actors := c.statusModelLocked().Actors
+		for _, a := range actors {
+			if a.OtherHub == a.Active {
+				t.Fatalf("active %v actor %+v", active, a)
+			}
+		}
+	}
+}
+
+func TestHubOtherFadePreservesStatusAndHitSpans(t *testing.T) {
+	for _, blocked := range []bool{false, true} {
+		for _, bell := range []bool{false, true} {
+			actor := hubActor("bench", "bench", 0)
+			actor.Hub = true
+			actor.Blocked = blocked
+			actor.Bell = bell
+			actor.Glyph = "⚑"
+			before := RenderStatusRow(80, StatusModel{Actors: []StatusActor{actor}})
+			actor.OtherHub = true
+			after := RenderStatusRow(80, StatusModel{Actors: []StatusActor{actor}})
+			if !strings.Contains(after.Body, "\x1b[2m") || !strings.Contains(after.Body, reverseSGR) {
+				t.Fatalf("missing dim/reverse: %q", after.Body)
+			}
+			if blocked && !strings.Contains(after.Body, blockedSGR) {
+				t.Fatal("lost blocked red")
+			}
+			if rowPlain(before) != rowPlain(after) || !reflect.DeepEqual(before.Chips, after.Chips) {
+				t.Fatal("fading changed cells or hit spans")
+			}
+			noColor := RenderStatusRow(80, StatusModel{Actors: []StatusActor{actor}, Palette: Palette{NoColor: true}})
+			if strings.Contains(noColor.Body, "\x1b[2m") {
+				t.Fatal("ignored NO_COLOR")
+			}
+		}
+	}
+}
+
+func TestHubSwitcherShowsOwnershipAndFadesRelativeToActivePane(t *testing.T) {
+	ops, bench := presentationOrdinary("/src/ops", "o"), presentationOrdinary("/src/bench", "b")
+	state := NewMenuState([]couchcore.ActionableThreadSummary{bench, ops}, ops.Address)
+	state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventHubOwnership, HubOwnership: multiHubFixture(t)})
+	lines, _ := renderRootMenuFrame(state, state.CurrentFrame(), 140, 30, time.Now(), true)
+	body := strings.Join(lines, "\n")
+	if !strings.Contains(body, "hub bench") || !strings.Contains(body, "hub ops") {
+		t.Fatalf("missing per-row owner: %s", body)
+	}
+	for _, line := range lines {
+		plain := string(ansi.Strip([]byte(line)))
+		if strings.Contains(plain, "hub bench") && !strings.Contains(line, "\x1b[2m") {
+			t.Fatalf("foreign hub not faded: %q", line)
+		}
+		if strings.Contains(plain, "hub ops") && strings.Contains(line, "\x1b[2m") {
+			t.Fatalf("own hub faded: %q", line)
+		}
+	}
+}
+
+func TestHubSwitcherSingleHubFrameBytesAndNarrowOwnership(t *testing.T) {
+	rows := hubRows()
+	now := time.Date(2026, 10, 14, 12, 0, 0, 0, time.UTC)
+	state := NewMenuState(rows, rows[0].Address)
+	state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventHub, Hub: "/src/ops"})
+	original, _ := renderRootMenuFrame(state, state.CurrentFrame(), 120, 40, now, true)
+	single, err := couchcore.NewHubOwnership(multiHubFixture(t).Hubs()[:1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventHubOwnership, HubOwnership: single})
+	explicit, _ := renderRootMenuFrame(state, state.CurrentFrame(), 120, 40, now, true)
+	if !reflect.DeepEqual(original, explicit) {
+		t.Fatal("single hub frame bytes changed")
+	}
+	state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventHubOwnership, HubOwnership: multiHubFixture(t)})
+	for width := 8; width <= 80; width++ {
+		lines, _ := renderRootMenuFrame(state, state.CurrentFrame(), width, 40, now, true)
+		for _, line := range lines {
+			if textwidth.Width(string(ansi.Strip([]byte(line)))) > width {
+				t.Fatalf("width %d overflow: %q", width, line)
+			}
+		}
+	}
+}
+
+func TestHubOwnershipProjectionIgnoresOlderCompletion(t *testing.T) {
+	initial := multiHubFixture(t)
+	moved, err := initial.Apply(couchcore.HubMove{Slots: []couchcore.HubSlot{{Repository: "/src/pair", Number: 8}}, Caller: "/src/ops", Target: "/src/bench", Revision: initial.Revision()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := NewMenuState([]couchcore.ActionableThreadSummary{presentationSlot("/src/pair", 8)}, couchcore.ThreadAddress{})
+	state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventHubOwnership, HubOwnership: moved})
+	state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventHubOwnership, HubOwnership: initial})
+	if state.HubOwnership.Revision() != moved.Revision() {
+		t.Fatal("late completion replaced current ownership")
 	}
 }
