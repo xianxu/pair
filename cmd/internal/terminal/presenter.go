@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	uv "github.com/charmbracelet/ultraviolet"
+	"github.com/xianxu/pair/cmd/internal/notifyosc"
 	"github.com/xianxu/pair/cmd/internal/ttyio"
 	"strings"
 	"sync"
@@ -849,7 +850,7 @@ func (p *Presenter) EmitEffects(ctx context.Context, effects []Effect, policy Ef
 				if policy.Notifications {
 					s = "\x1b]777;notify;" + strings.ReplaceAll(e.Selection, ";", ",") + ";" + e.Text + "\x1b\\"
 				}
-			case DirectoryEffect:
+			case DirectoryEffect, SuppressedNotificationEffect:
 			default:
 				return errors.New("terminal: unknown effect")
 			}
@@ -1043,4 +1044,16 @@ func (p *Presenter) writeWhole(ctx context.Context, control string) (bool, error
 	err := p.write(ctx, []byte(control), true)
 	var failure *WriteFailure
 	return !errors.As(err, &failure) || failure.Accepted == len(control), err
+}
+
+// Notify emits an application-owned desktop notification through the sole host
+// writer. Like Copy, it is a one-shot control and is never replayed on repaint.
+func (p *Presenter) Notify(ctx context.Context, title, body string) error {
+	encoded, err := notifyosc.EncodeDesktop(title, body)
+	if err != nil {
+		return err
+	}
+	return p.call(ctx, func(ctx context.Context) error {
+		return p.writeUnlessStalled(ctx, encoded)
+	})
 }

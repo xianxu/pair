@@ -92,3 +92,34 @@ func FuzzCodec(f *testing.F) {
 		}
 	})
 }
+
+func TestDesktopEnvelope(t *testing.T) {
+	got, err := EncodeDesktop("Café;\a\x1b\u009c", "ready; 世界\n\x00\x7f\u0080")
+	if err != nil || string(got) != "\x1b]777;notify;Café,;ready; 世界\x1b\\" {
+		t.Fatalf("envelope %q, %v", got, err)
+	}
+}
+
+func TestDesktopValidation(t *testing.T) {
+	for _, tc := range []struct {
+		title, body string
+		valid       bool
+	}{
+		{"Couch", "ready", true},
+		{strings.Repeat("é", 128), strings.Repeat("é", 2048), true},
+		{strings.Repeat("x", 257), "ready", false},
+		{"Couch", strings.Repeat("x", 4097), false},
+		{strings.Repeat("\x00", 257), "ready", false},
+		{"Couch", strings.Repeat("\x00", 4097), false},
+		{"", "ready", false}, {" \n\u0080", "ready", false},
+		{"Couch", "", false}, {"Couch", "\n\t \u0080", false},
+	} {
+		if err := ValidateDesktop(tc.title, tc.body); (err == nil) != tc.valid {
+			t.Errorf("validation bytes=%d/%d: %v", len(tc.title), len(tc.body), err)
+		}
+		wire, err := EncodeDesktop(tc.title, tc.body)
+		if (err == nil) != tc.valid || !tc.valid && len(wire) != 0 {
+			t.Errorf("encoding bytes=%d/%d: %q %v", len(tc.title), len(tc.body), wire, err)
+		}
+	}
+}
