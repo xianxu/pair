@@ -3,8 +3,11 @@ package diagnosticlog
 import (
 	"context"
 	"errors"
-	"github.com/xianxu/pair/cmd/internal/procutil"
+	"fmt"
+	"syscall"
 	"testing"
+
+	"github.com/xianxu/pair/cmd/internal/procutil"
 )
 
 type processWorld struct {
@@ -13,6 +16,7 @@ type processWorld struct {
 	strict     string
 	recycle    bool
 	envCalls   int
+	envErr     error
 }
 
 func (w *processWorld) Snapshot(ctx context.Context) ([]procutil.Observation, error) {
@@ -25,7 +29,7 @@ func (w *processWorld) Environment(int) (map[string]string, error) {
 	if w.recycle {
 		w.strict = "new-generation"
 	}
-	return map[string]string{"PAIR_RETENTION_PROTOCOL": "1"}, nil
+	return map[string]string{"PAIR_RETENTION_PROTOCOL": "1"}, w.envErr
 }
 
 func TestRuntimeInventoryUsesFullExecutableAndFencesGeneration(t *testing.T) {
@@ -71,5 +75,52 @@ func TestRuntimeInventoryRecognizesUnlinkedExecutable(t *testing.T) {
 	got, err := (OSInspection{processes: w}).Runtimes(context.Background())
 	if err != nil || len(got) != 1 {
 		t.Fatalf("unlinked running executable disappeared: %+v %v", got, err)
+	}
+}
+
+func TestRuntimeInventorySkipsGoneAndZombieRows(t *testing.T) {
+	for _, gone := range []error{syscall.EINVAL, syscall.ESRCH, syscall.ENOENT} {
+		t.Run(gone.Error(), func(t *testing.T) {
+			w := &processWorld{rows: []procutil.Observation{{Process: procutil.Process{PID: 123, Name: "pair-session-wa", Identity: "old"}, Err: fmt.Errorf("process command: %w", gone)}}, generation: "old", strict: "birth"}
+			got, err := (OSInspection{processes: w}).Runtimes(context.Background())
+			if err != nil || len(got) != 0 || w.envCalls != 0 {
+				t.Fatalf("gone runtimes=%v err=%v environment=%d", got, err, w.envCalls)
+			}
+		})
+	}
+	w := &processWorld{rows: []procutil.Observation{{Process: procutil.Process{PID: 123, Name: "pair", Identity: "old", Zombie: true}, CommandInfo: procutil.CommandInfo{Executable: "/bin/pair", Args: []string{"pair"}}}}, generation: "old", strict: "birth"}
+	got, err := (OSInspection{processes: w}).Runtimes(context.Background())
+	if err != nil || len(got) != 0 || w.envCalls != 0 {
+		t.Fatalf("zombie runtimes=%v err=%v environment=%d", got, err, w.envCalls)
+	}
+}
+func TestRuntimeInventoryEnvironmentGoneAfterSnapshot(t *testing.T) {
+	for _, gone := range []error{syscall.EINVAL, syscall.ESRCH, syscall.ENOENT} {
+		t.Run(gone.Error(), func(t *testing.T) {
+			w := &processWorld{rows: []procutil.Observation{{Process: procutil.Process{PID: 123, Name: "pair", Identity: "old"}, CommandInfo: procutil.CommandInfo{Executable: "/bin/pair", Args: []string{"pair"}}}}, generation: "old", strict: "birth", envErr: fmt.Errorf("environment: %w", gone)}
+			got, err := (OSInspection{processes: w}).Runtimes(context.Background())
+			if err != nil || len(got) != 0 || w.envCalls != 1 {
+				t.Fatalf("gone after snapshot runtimes=%v err=%v environment=%d", got, err, w.envCalls)
+			}
+		})
+	}
+}
+func TestRuntimeInventoryPreservesUnknownAndPermissionFailures(t *testing.T) {
+	for _, failure := range []error{syscall.EPERM, syscall.EACCES, errors.New("unrecognized process read")} {
+		w := &processWorld{rows: []procutil.Observation{{Process: procutil.Process{PID: 123, Name: "pair", Identity: "old"}, Err: fmt.Errorf("command: %w", failure)}}, generation: "old", strict: "birth"}
+		if _, err := (OSInspection{processes: w}).Runtimes(context.Background()); !errors.Is(err, ErrUnknownWriters) {
+			t.Fatalf("command failure became absence: %v", err)
+		}
+		w.rows[0].Err = nil
+		w.rows[0].CommandInfo = procutil.CommandInfo{Executable: "/bin/pair", Args: []string{"pair"}}
+		w.envErr = fmt.Errorf("environment: %w", failure)
+		if _, err := (OSInspection{processes: w}).Runtimes(context.Background()); !errors.Is(err, ErrUnknownWriters) {
+			t.Fatalf("environment failure became absence: %v", err)
+		}
+		w.generation = "reused"
+		before := w.envCalls
+		if _, err := (OSInspection{processes: w}).Runtimes(context.Background()); !errors.Is(err, ErrUnknownWriters) || w.envCalls != before {
+			t.Fatalf("stale generation read environment: %v", err)
+		}
 	}
 }
