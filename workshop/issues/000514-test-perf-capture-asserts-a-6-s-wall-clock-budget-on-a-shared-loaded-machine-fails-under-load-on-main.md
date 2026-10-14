@@ -15,6 +15,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "bd444b79", done: "4bedd11b"}
 ---
 
 # test-perf-capture asserts a 6 s wall-clock budget on a shared loaded machine; fails under load on main
