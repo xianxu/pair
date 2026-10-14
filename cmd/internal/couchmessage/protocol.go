@@ -136,7 +136,7 @@ func validMessageID(id string) bool {
 
 func ValidateRequest(r Request) error {
 	if r.Op != "move-slot" && (r.ToHub != "" || r.Persist) {
-		return errors.New("hub destination and persistence apply only to move-slot")
+		return errors.New("hub destination and persistence apply only to move-slot requests")
 	}
 	if r.Op == "move-slot" {
 		if r.Binding != nil || r.Scope == "" || r.Tag == "" || r.Session == "" || r.Nonce == "" || !validMessageID(r.ID) || r.ToHub == "" || len(r.ToHub) > MaxBindingBytes || r.Body != "" || r.Title != "" || r.Agent != "" || r.Confirmed || r.SameBinary || r.ForceUnknown || r.TailScope != "" || r.TailTag != "" || r.Lines != 0 {

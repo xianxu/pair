@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
@@ -95,5 +96,20 @@ func TestHubStartupOperationUsesDeclaredDispatch(t *testing.T) {
 	}}, couchcore.OperationCall{Name: "start-hub", Args: map[string]string{"path": "/work/bench"}, Implicit: true, Context: context.Background()})
 	if err != nil || !called {
 		t.Fatalf("start-hub dispatch: %v called=%v", err, called)
+	}
+}
+
+func TestHubConflictWarningsNameEqualSpecificityOnly(t *testing.T) {
+	h, defs, _ := moveFixture(t)
+	defs[0].Claims, _ = couchcore.ParseHubClaims([]byte("pair\npair:7\n"))
+	defs[1].Claims, _ = couchcore.ParseHubClaims([]byte("pair\npair:8\n"))
+	state, err := couchcore.NewHubOwnership(defs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.state = state
+	warnings := hubConflictWarnings(state)
+	if len(warnings) != 1 || !strings.Contains(warnings[0], defs[0].Root) || !strings.Contains(warnings[0], defs[1].Root) || !strings.Contains(warnings[0], "pair") {
+		t.Fatalf("warnings %v", warnings)
 	}
 }

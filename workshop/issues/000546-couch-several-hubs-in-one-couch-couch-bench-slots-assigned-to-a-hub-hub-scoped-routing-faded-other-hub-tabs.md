@@ -102,3 +102,17 @@ total: 4.19
 - 2026-10-14 implementation checkpoint: change-code admitted full flow after CLEAN plan review and INFO estimate review (authority/integration allowances may be low). Added pure claim parser, immutable ownership projection/revision transitions and durable edit planner. Initial TestHub run failed on absent APIs; focused suite now passes (0.220s). Additional RED found already-satisfied exact claims moving past comments; GREEN preserves their position. Batch authority, independent runtime/persistence, copy isolation and restart fallback covered. Focused race verification running. #548 details published and claim released.
 
 - 2026-10-14 implementation checkpoint: file adapter covers missing/malformed/symlink configuration, expected-content conflicts, partial writes and lost write acknowledgments. Explicit startup uses the existing queue through declared start-hub, with bare invocation structure unchanged. Added typed move-slot transport/receipt identity (destination plus persistence), authenticated queued dispatch and revision-fenced runtime publication. Focused hub/parser/operation documentation tests pass across couchcmd/core/message (0.768/0.232/0.183s); move persistence/restart/failure tests pass (0.500s). Family filtering preserves global ambiguity checks and exact cross-hub routes (RED/GREEN). UI subagent full couchtty PASS 40.930s and focused race PASS 1.474s; supervision/notification focused race PASS 9.655s. Integration/conformance, complete package runs and full make -k remain outstanding.
+
+### 2026-10-14 — active acceptance after approved revisions
+
+This replaces the original Done-when inheritance/persisted-slot/switcher-move
+clauses. Started hubs load their own bounded `.hub` claims; exact wins over broad,
+then CLI order resolves equal specificity with a warning, then main is fallback.
+Unclaimed new slots belong to main. CLI moves are ephemeral by default, persistent
+only on confirmed claim writes. Only a verified TL moves own/main slots; no new
+operator-identity wire bypass. Switcher ownership display/sections/fading remain;
+its move action is #548. No thread-record hub field or recovery-policy changes.
+The original routing, mutation isolation, shared singleton and bare-launch
+acceptance clauses remain, interpreted using this ownership model.
+
+- 2026-10-14 integration checkpoint: stateful socket tests cover own/main/third-hub move authorization, batch refusal, queued incarnation/revision changes, source changes after prepare, receipt intent conflicts and lost-reply recovery. CLI output names destination and persistence; uncertainty names operation-status. Generated edit sequences cover all 81 combinations of three hub claims and destinations. Focused all-hub races passed couchcmd 27.843s/core 1.304s/message 1.220s; isolated startup/layout shuffle+races passed 17.031s; build passed. First broad package run intentionally exposed in-progress fixture timing/layout assumptions plus new operation dispatch/inventory omissions; those are corrected, not waived. First make -k entered Go while the trusted execution-guard helper was still absent and reported its compile error; remaining checks continue, then full verification will be rerun from a committed tree. No success claimed for either broad run.

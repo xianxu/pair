@@ -15,8 +15,10 @@ import (
 // hubRuntime owns one immutable domain snapshot. It exists only for explicit
 // directory launches; nil retains the legacy implicit-cwd path.
 type hubRuntime struct {
-	mu    sync.RWMutex
-	state couchcore.HubOwnership
+	effectOnce sync.Once
+	effects    chan struct{}
+	mu         sync.RWMutex
+	state      couchcore.HubOwnership
 }
 
 func (h *hubRuntime) snapshot() couchcore.HubOwnership {
@@ -72,7 +74,9 @@ func hubWorkspaceSlot(id couchcore.WorkspaceIdentity) (couchcore.HubSlot, bool) 
 	return slot, slot.Validate() == nil
 }
 func (h *hubRuntime) owner(id couchcore.WorkspaceIdentity) string {
-	state := h.snapshot()
+	return hubOwner(h.snapshot(), id)
+}
+func hubOwner(state couchcore.HubOwnership, id couchcore.WorkspaceIdentity) string {
 	if state.IsHub(id.WorktreeRoot) {
 		return id.WorktreeRoot
 	}
@@ -96,14 +100,15 @@ func (h *hubRuntime) target(name string) (string, error) {
 	return matches[0], nil
 }
 
-// Extra hubs join the existing serial operation queue and background adoption
+// Extra hubs join the existing operation queue and background adoption
 // path, preserving the first hub's focus and the single reattach pass.
 func startExplicitHubs(console *couchtty.Console, hubs *hubRuntime) {
+	console.SetHubOwnership(hubs.snapshot())
 	for _, hub := range hubs.snapshot().Hubs()[1:] {
 		root := hub.Root
 		finish := func(_ any, err error) {
 			if err != nil {
-				console.Notify(couchtty.Notice{Kind: "status", Body: fmt.Sprintf("hub %s failed: %v; open that hub in the switcher to retry", root, err)})
+				console.Notify(couchtty.Notice{Kind: "status", Body: fmt.Sprintf("hub failed; open it in the switcher to retry: %s: %v", root, err)})
 			}
 		}
 		err := console.EnqueueRemoteOperation("hub-start:"+root, "start-hub", func(ctx context.Context) (couchcore.OperationCall, error) {
@@ -123,6 +128,71 @@ func (s *messageService) sameHubBindings(from, to couchmessage.Binding) bool {
 	if !aok || !bok {
 		return false
 	}
-	owner := s.authority.owner(a)
-	return owner != "" && owner == s.authority.owner(b)
+	state := s.authority.hubs.snapshot()
+	owner := hubOwner(state, a)
+	return owner != "" && owner == hubOwner(state, b)
+}
+
+// Equal-specificity conflicts are warned once at startup, including broad
+// claims for future slots. Different specificity is an intentional override.
+func hubConflictWarnings(state couchcore.HubOwnership) []string {
+	seen := map[couchcore.HubSlot]string{}
+	selfOwned := map[couchcore.HubSlot]bool{}
+	for _, hub := range state.Hubs() {
+		selfOwned[hub.Slot] = true
+	}
+	var warnings []string
+	for _, hub := range state.Hubs() {
+		for _, claim := range hub.Claims.Claims() {
+			key := couchcore.HubSlot{Repository: filepath.Join(hub.Workspace, claim.Repository), Number: claim.Slot}
+			if selfOwned[key] {
+				continue
+			}
+			if first := seen[key]; first != "" && first != hub.Root {
+				if len(warnings) < couchcore.MaxHubSlots {
+					name := key.Repository
+					if key.Number >= 0 {
+						name += ":" + strconv.Itoa(key.Number)
+					}
+					warnings = append(warnings, fmt.Sprintf("hub claim conflict for %s: %s wins before %s; edit .hub claims to change ownership", name, first, hub.Root))
+				}
+			} else {
+				seen[key] = hub.Root
+			}
+		}
+	}
+	return warnings
+}
+
+// The existing queue has several workers. Multi-hub ownership changes and
+// process mutations share this cancellable gate so ownership cannot change
+// halfway through an effect. The prepared caller guard runs inside it.
+func dispatchHubOperation(h *hubRuntime, call couchcore.OperationCall, dispatch couchcore.OperationExecutor) (any, error) {
+	if h == nil {
+		return dispatch(call)
+	}
+	op, ok := Resolve(call.Name)
+	if !ok || op.Effect != couchcore.EffectProcess && call.Name != "move-slot" {
+		return dispatch(call)
+	}
+	h.effectOnce.Do(func() { h.effects = make(chan struct{}, 1) })
+	ctx := call.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	select {
+	case h.effects <- struct{}{}:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	defer func() { <-h.effects }()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	payload, err := unwrapHubMutation(ctx, call.TypedPayload)
+	if err != nil {
+		return nil, err
+	}
+	call.TypedPayload = payload
+	return dispatch(call)
 }

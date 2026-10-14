@@ -31,6 +31,9 @@ func (s *messageService) installHubMoves(console *couchtty.Console) {
 	}
 	s.hubMoves.Store(&hubMoveService{enqueue: console.EnqueueRemoteOperation, publish: console.SetHubOwnership})
 	console.SetHubOwnership(s.authority.hubs.snapshot())
+	for _, warning := range hubConflictWarnings(s.authority.hubs.snapshot()) {
+		console.Notify(couchtty.Notice{Kind: "status", Body: warning})
+	}
 }
 func (s *messageService) handleHubMove(ctx context.Context, r couchmessage.Request) couchmessage.Response {
 	refuse := func(err error) couchmessage.Response {
@@ -53,6 +56,20 @@ func (s *messageService) handleHubMove(ctx context.Context, r couchmessage.Reque
 	}
 	if !s.authority.isHub(identity) {
 		return refuse(errors.New("only a verified hub may move slots; ask your hub"))
+	}
+	// A confirmed earlier effect may have moved the slot out of this caller's
+	// group. Authenticate the caller, then answer its retained exact intent
+	// before evaluating authority for a new effect.
+	s.slotOps.mu.Lock()
+	s.slotOps.sweepLocked()
+	previous, held := s.slotOps.receipts[receiptKey{caller.Scope, caller.Tag, r.ID}]
+	s.slotOps.mu.Unlock()
+	if held {
+		_, err := couchmessage.ApplyReceiptEvent(previous, couchmessage.ReceiptEvent{Kind: couchmessage.ReceiptAdmit, ID: r.ID, Op: r.Op, Target: r.Target, ToHub: r.ToHub, Persist: r.Persist})
+		if err != nil {
+			return couchmessage.Response{Code: "id-conflict", Error: err.Error()}
+		}
+		return couchmessage.Response{Code: "accepted", Operation: &previous}
 	}
 	target, err := s.authority.hubs.target(r.ToHub)
 	if err != nil {
@@ -157,11 +174,15 @@ func (h *hubRuntime) applyMove(ctx context.Context, move couchcore.HubMove, pers
 			return fail(fmt.Errorf("claims saved but projection failed: %w", err))
 		}
 	}
-	if err := ctx.Err(); err != nil {
-		return fail(err)
+	postCheck := ctx.Err()
+	if postCheck == nil {
+		postCheck = verify()
 	}
-	if err := verify(); err != nil {
-		return fail(err)
+	if postCheck != nil {
+		if persist {
+			return fail(fmt.Errorf("claims saved but runtime ownership unchanged: %w; inspect claims and retry", postCheck))
+		}
+		return fail(postCheck)
 	}
 	h.state = next
 	return next, nil

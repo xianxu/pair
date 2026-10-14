@@ -85,3 +85,19 @@ func TestHubMoveFailureKeepsOwnershipAndStaleMoveRefuses(t *testing.T) {
 		t.Fatal("accepted stale revision")
 	}
 }
+
+func TestHubMoveSatisfiedPersistDoesNotInvalidateQueuedRevision(t *testing.T) {
+	h, defs, slot := moveFixture(t)
+	move := couchcore.HubMove{Caller: defs[1].Root, Target: defs[1].Root, Slots: []couchcore.HubSlot{slot}, Revision: h.snapshot().Revision()}
+	if _, err := h.applyMove(context.Background(), move, true, hubClaimFiles{}, func() error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+	before := h.snapshot().Revision()
+	move.Revision = before
+	if _, err := h.applyMove(context.Background(), move, true, hubClaimFiles{}, func() error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if h.snapshot().Revision() != before {
+		t.Fatal("already satisfied move changed revision")
+	}
+}

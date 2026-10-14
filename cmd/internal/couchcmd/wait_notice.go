@@ -282,6 +282,9 @@ func (s *messageService) hubBinding() (couchmessage.Binding, bool) {
 }
 
 func (s *messageService) hubBindingFor(from couchmessage.Binding) (couchmessage.Binding, bool) {
+	if s.authority.hubs == nil {
+		return s.hubBinding()
+	}
 	s.mu.Lock()
 	identity, ok := s.workspaces[from]
 	s.mu.Unlock()

@@ -481,7 +481,7 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 				return nil, err
 			}
 			return c.ResumeTarget(ctx, ResumeTarget{Address: address})
-		case "switch", "attach":
+		case "switch", "attach", "move-slot":
 			return nil, fmt.Errorf("%s requires an active couch console", call.Operation.Name)
 		default:
 			return nil, fmt.Errorf("%s is not a live-owner operation", call.Operation.Name)

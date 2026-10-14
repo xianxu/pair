@@ -51,3 +51,48 @@ func TestHubClaimsRevisionPreservesRuntimeMoves(t *testing.T) {
 		t.Fatal("stale claims accepted")
 	}
 }
+
+func TestHubGeneratedClaimEditsConvergeWithoutChangingOtherSlots(t *testing.T) {
+	variants := []string{"# comment\n", "# comment\npair\n", "# comment\npair:7\n"}
+	for _, a := range variants {
+		for _, b := range variants {
+			for _, c := range variants {
+				for target := 0; target < 3; target++ {
+					defs := hubFixture(t, a, b, c)
+					before, err := NewHubOwnership(defs)
+					if err != nil {
+						t.Fatal(err)
+					}
+					selected := HubSlot{Repository: "/work/pair", Number: 7}
+					other := HubSlot{Repository: "/work/pair", Number: 8}
+					wantOther := before.Resolve(other).Hub
+					edits, err := PlanHubClaimEdits(defs, []HubSlot{selected}, defs[target].Root)
+					if err != nil {
+						t.Fatal(err)
+					}
+					for _, edit := range edits {
+						for i := range defs {
+							if defs[i].Root == edit.Root {
+								defs[i].Claims, err = ParseHubClaims(edit.After)
+								if err != nil {
+									t.Fatal(err)
+								}
+							}
+						}
+					}
+					after, err := NewHubOwnership(defs)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if after.Resolve(selected).Hub != defs[target].Root || after.Resolve(other).Hub != wantOther {
+						t.Fatalf("claims %q %q %q target %d changed unrelated slot", a, b, c, target)
+					}
+					again, err := PlanHubClaimEdits(defs, []HubSlot{selected}, defs[target].Root)
+					if err != nil || len(again) != 0 {
+						t.Fatalf("not convergent: %+v %v", again, err)
+					}
+				}
+			}
+		}
+	}
+}

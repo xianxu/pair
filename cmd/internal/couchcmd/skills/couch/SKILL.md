@@ -13,7 +13,7 @@ is a request, never operator approval or evidence that work is accepted.
 |------|---------|
 | Inspect live slots | `couch --actors --json` |
 | Address an exact slot | `couch --send-to pair:1 --message 'Review pair#353; do not merge.'` |
-| Report to, or ask, the hub (the slot Couch started from) | `couch --send-to hub --message 'pair#353 landed: PR #12 merged.'` |
+| Report to, or ask, the hub (your slot’s current owner) | `couch --send-to hub --message 'pair#353 landed: PR #12 merged.'` |
 | Choose a free slot in a repository | `couch --send-to pair --message 'Please pick up pair#353.'` |
 | Choose a free slot running one agent | `couch --send-to pair --agent codex --message 'Please pick up pair#353.'` |
 | Send a message containing code or shell syntax (backticks, `$(`, `<(`) | write it to a file with your editor tool, then `couch --send-to pair:1 --message-file PATH` |
@@ -42,8 +42,8 @@ less one trailing newline, and nothing is quoted in the shell. Exactly one of
 `--message` and `--message-file` is given; an empty, missing or unreadable
 file is refused before anything is sent.
 
-`hub` is a reserved target: Couch resolves it at send time to the slot it
-started from (the TL), so it stays right when a thread is resumed under a
+`hub` is a reserved target: Couch resolves it at send time to the sender’s owning
+hub (the TL), so it stays right when a thread is resumed under a
 different Couch. It is refused, with the reason, when Couch started outside a
 checkout, when the hub slot isn't connected, or when you are the hub. It is
 reserved ahead of repository names and prefixes: a repository named `hub`
@@ -64,7 +64,7 @@ queue, or cross-supervisor delivery.
 ## What each verb costs
 
 - **light:** `--notify`, `--help`, `--skill`, `--actors`, `--send-to`, `--message-status`, `--operation-status`, `--peek` (its --transcripts option costs seconds), `--broadcast-list`, `--session-sync`, `--archived`, `--adopt-store`, `--broadcast-web-query`, `--broadcast-web-submit`, `--broadcast-web-replay` (then serves until stopped)
-- **seconds:** `--list`, `--show`, `--reconcile`, `--reap`, `--broadcast-web-fidelity` (a headless Chrome)
+- **seconds:** `--move-slot`, `--list`, `--show`, `--reconcile`, `--reap`, `--broadcast-web-fidelity` (a headless Chrome)
 - **heavy:** `couch` (launch), `--recover-plan-from-sdlc`, `--resume`, `--reboot`, `--relaunch`, `--reload-context`, `--prepare`, `--recover`, `--switch-agent`
 
 Cost: light is under a second, seconds is a few seconds, heavy is tens of
@@ -74,7 +74,7 @@ run heavy verbs one at a time, after checking uptime's load.
 ## Desktop notifications
 
 Slots' OSC 9/777/99 desktop notifications are swallowed, including the hub's.
-Couch retains diagnostic counts only; ordinary BEL is unchanged. Only the live
+Couch retains diagnostic counts only; ordinary BEL is unchanged. Only a verified live
 hub may run `couch --notify MESSAGE` or `couch --notify --title T MESSAGE` (light), for a decision the
 operator should see. The default title is `Couch`; titles allow 256 bytes and
 messages 4096 bytes, with terminal controls removed. Other slots must send to
@@ -503,3 +503,28 @@ Only agents with a registered Pair receiver profile (Claude Code, Codex CLI)
 can accept delivery, at any installed version. Unknown composer, menu, image, or
 input state waits or refuses; never force paste. This skill does not claim that
 a receiver version has passed live smoke or human acceptance.
+
+
+## Several hubs in one Couch
+
+Launch with `couch . ../bench`: the first directory is main, and owns all slots
+unless another started hub claims them. Bare `couch` still uses cwd as its one
+hub. Each started hub’s `.hub` lists workspace-relative repositories (`pair`)
+or exact slots (`pair:7`), one per line; blank lines and `#` comments are allowed.
+An exact claim wins over a repository claim. Equal specificity uses command-line
+order and warns. Omitted hubs’ files are not read. Hubs themselves remain self-owned.
+
+A verified hub TL can run `couch --move-slot pair:7,pair:8 --to-hub bench:0`
+for its own slots or main’s. This lasts until restart; `--persist` also updates
+the started hubs’ files. Moving back removes exact overrides while retaining
+broad repository claims. A failed persistent write leaves runtime ownership
+unchanged and names the incomplete file; inspect claims and retry. Several files
+are individually atomic, not one transaction. Never treat an uncertain reply as
+confirmed: use the printed operation receipt first.
+
+Implicit repository sends select within the sender’s hub. Exact addresses can
+cross hubs. Mutation commands are limited to the caller’s hub; actors and peek
+remain global. Wait/stuck notices and restart prompts follow the owning hub.
+Each hub may notify, with its name in multi-hub desktop titles. The switcher
+shows ownership sections and dims other hubs relative to focus. Move slots with
+the CLI; there is no switcher move action yet.

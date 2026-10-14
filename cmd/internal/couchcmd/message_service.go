@@ -28,6 +28,8 @@ import (
 // messageAuthority separates live evidence from registry mutation. All probes
 // are read-only; none call mutable Couch domain operations from request workers.
 type messageAuthority struct {
+	// now is the broker clock; nil uses wall time.
+	now        func() time.Time
 	thread     func(context.Context, couchmessage.Binding) (string, error)
 	workspace  func(context.Context, string) (couchcore.WorkspaceIdentity, error)
 	process    func(couchmessage.Binding) error
@@ -475,7 +477,11 @@ func newMessageService(parent context.Context, brokerSocket, registrySocket stri
 	s.connected.Store(&map[couchmessage.Binding]bool{})
 	// Family admission's resting check is on the request path (one git status
 	// per candidate per send); listings read the Console's slot-git cache.
-	s.broker = couchmessage.NewBroker(lifetime, time.Now, func(ctx context.Context, b couchmessage.Binding) (bool, error) {
+	now := authority.now
+	if now == nil {
+		now = time.Now
+	}
+	s.broker = couchmessage.NewBroker(lifetime, now, func(ctx context.Context, b couchmessage.Binding) (bool, error) {
 		identity, err := s.connectedWorkspace(ctx, b)
 		if err != nil {
 			return false, err
@@ -794,7 +800,16 @@ func (s *messageService) hubRecipient(from couchmessage.Binding) (string, *couch
 	}
 	hub, ok := s.hubBindingFor(from)
 	if !ok {
-		return "", &couchmessage.Response{Code: "unavailable", Error: "the hub isn't connected: no live wrapper in " + s.authority.hub}
+		detail := "the hub isn't connected: no live wrapper in " + s.authority.hub
+		if s.authority.hubs != nil {
+			s.mu.Lock()
+			identity, known := s.workspaces[from]
+			s.mu.Unlock()
+			if known {
+				detail = "the hub isn't connected: no live wrapper in " + s.authority.owner(identity)
+			}
+		}
+		return "", &couchmessage.Response{Code: "unavailable", Error: detail}
 	}
 	if hub.Slot == from.Slot {
 		return "", &couchmessage.Response{Code: "refused", Error: "you are the hub (" + hub.Slot + "): a message to hub would reach your own slot"}

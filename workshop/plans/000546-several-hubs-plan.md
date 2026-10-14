@@ -215,3 +215,36 @@ Ops:0 approved plan a5c4842799590f5dfc3aaa09d93a55757810a603 (receipt 676cf232-a
 | `PresentThreads` / `RenderStatusRow` | Generated grouped rows and focus/attention inputs; full terminal-cell validation and hit-span correspondence, plus exact baseline frame equality in single-hub mode. |
 
 Run core tests with `go test ./cmd/internal/couchcore -run 'TestHub' -count=1`; adapters with `go test ./cmd/internal/couchcmd ./cmd/internal/couchmessage -run 'Test(Hub|Message|SlotOperation|AgentSwitch|Notify|ParseCLI|Supervision)' -count=1`; presentation with `go test ./cmd/internal/couchtty -run 'Test(Hub|Status|Console.*Hub)' -count=1`. Then affected full packages, focused races, source inventory, clean build, isolated terminal integration and full `make -k test`. Tests are written RED before implementation. Final function names are reconciled before close.
+
+### 2026-10-14 — implementation seam reconciliation
+
+The single console operation queue already serializes runtime moves with all
+agent mutations; no additional per-slot lock owner is introduced. The queue’s
+existing bounded receipt map owns move outcomes, including destination and
+persistence mode in full-intent deduplication. `move-slot` carries a trusted
+owner-local typed payload; no UI move controls or JSON caller-role fields exist.
+A retained receipt is answered after caller authentication and before new-effect
+source checks, so a successful move does not invalidate its own lost-reply retry.
+
+Final symbol mapping: planned ResolveHub is `HubOwnership.Resolve`;
+ApplyHubClaimEdits is `hubClaimFiles.Apply`; AuthorizeHubMutation is
+`authorizeHubMutation`. CLI move plumbing is in `hub_cli.go` and `hub_move.go`;
+shared queued mutation preparation was extracted to `console_slot_operations.go`.
+`hub_guards.go` owns the additional same-owner check. The projection lives in
+existing couchtty menu/console/presentation files, without menu_hub.go. Explicit
+hub starts use declared `start-hub` -> existing StartInteractive. Integration
+clocks are injected through messageAuthority.now with the real clock as default;
+no test relies on waiting thirty wall-clock seconds for family quietness.
+
+### 2026-10-14 — integration corrects queue execution assumption
+
+A barrier-controlled startup test demonstrated that the existing queue has
+multiple workers: FIFO admission is not serial execution. Replace the preceding
+implementation note’s queue-only serialization assumption with a cancellable
+hub-runtime effect gate around process mutations and move-slot. Nil/default
+startup bypasses the gate. Remote preparations retain a trusted guard with the
+original typed payload; after acquiring the gate, repeat the caller/ownership
+check before the real effect. This gives one ordering owner without extra
+per-slot gates or domain recovery policy changes. Explicit hubs are excluded
+from the background reattach pass by the same immutable ownership projection,
+preventing two successful start/adopt paths for a detached extra hub.

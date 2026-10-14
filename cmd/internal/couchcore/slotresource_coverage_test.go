@@ -44,6 +44,8 @@ var slotStateTokens = []struct {
 // state, each with its reason. Every entry must still match something
 // (TestSlotTokenAllowlistIsCurrent), so a stale exemption cannot linger.
 var slotTokenAllowlist = map[string]string{
+	"move-slot":    "a hub ownership operation name, not a slot environment path",
+	"--move-slot":  "a public ownership CLI flag, not a slot environment path",
 	"add-slot":     "a switcher menu action name, not a path",
 	"unknown-slot": "a slot-operation receipt code, not a path",
 	"reuse-slot":   "a start-resolution fingerprint field, not a path",

@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"bytes"
 	"fmt"
 	"path/filepath"
 	"slices"
@@ -178,11 +179,16 @@ func (s HubOwnership) WithClaims(hubs []HubDefinition, revision uint64) (HubOwne
 	if len(next.hubs) != len(s.hubs) {
 		return s, fmt.Errorf("active hubs changed")
 	}
+	changed := false
 	for i, h := range next.hubs {
 		old := s.hubs[i]
+		changed = changed || !bytes.Equal(h.Claims.Bytes(), old.Claims.Bytes())
 		if h.Root != old.Root || h.Workspace != old.Workspace || h.Slot != old.Slot {
 			return s, fmt.Errorf("active hubs changed")
 		}
+	}
+	if !changed {
+		return s, nil
 	}
 	next.overrides = s.overrides
 	next.revision = s.revision + 1

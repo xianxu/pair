@@ -336,6 +336,13 @@ func reportSlotOperation(stdout, stderr io.Writer, receipt couchmessage.Operatio
 	switch receipt.Status {
 	case couchmessage.ReceiptSucceeded:
 		line := receipt.Target + " " + receipt.Op + " succeeded"
+		if receipt.Op == "move-slot" {
+			mode := "until restart"
+			if receipt.Persist {
+				mode = "persisted"
+			}
+			line += " -> " + receipt.ToHub + " (" + mode + ")"
+		}
 		if receipt.Tag != "" {
 			line += " (tag " + receipt.Tag + ")"
 		}
@@ -361,6 +368,11 @@ func reportSlotOperation(stdout, stderr io.Writer, receipt couchmessage.Operatio
 // printUncertainSlotOperation is the one text for a slot operation whose
 // outcome is unknown: verify with the report before any resend.
 func printUncertainSlotOperation(w io.Writer, r couchmessage.Request, detail string) {
+	if r.Op == "move-slot" {
+		fmt.Fprintf(w, "couch: move-slot %s -> %s (request %s): %s\noutcome uncertain; query couch --operation-status %s before another move; after a Couch restart inspect the started hubs’ .hub claims\n", r.Target, r.ToHub, r.ID, detail, r.ID)
+		return
+	}
+
 	fmt.Fprintf(w, "couch: %s %s (request %s): %s\noutcome uncertain; verify with couch --recover-plan-from-sdlc before resending (a resend is refused harmlessly once the slot is live)\n", r.Op, r.Target, r.ID, detail)
 }
 
