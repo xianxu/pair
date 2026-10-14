@@ -117,8 +117,8 @@ Files: cmd/internal/webcast/{operator_live_test,viewer_annotate_live_test}.go; a
 - [x] Add bounded headless viewer/overlay checks: create/open/edit/save/reopen, original author/anchor retained, Cancel, other-owner read-only, OFF refusal and draft invariants. Register cleanup before failure paths; wait on committed state/ACK, not sleeps.
 - [x] Run targeted headless tests with `WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run 'Test.*Live.*(Operator|Annotat)' -count=1 -timeout=10m`, adjusting the regex to the actual declared test names and recording the exact command.
 - [x] Document new note-edit wire record, own-session lifetime and edited marker in existing atlas pages; no new atlas family. Record approved scope and test evidence in issue.
-- [ ] Run full `make -k test` to completion and cite all failures, including known unrelated failures; use targeted race tests for changed admission/queue paths. Check `git diff --check`.
-- [ ] Report real `git rev-parse HEAD` and smoke instructions to hub; wait for authorized visible staging/acceptance. Close through sdlc with evidence, fix review findings, and on SHIP merge main then `sdlc merge --yes` with all landing gates. Report PR/hash to hub and stop.
+- [x] Run full `make -k test` to completion and cite all failures, including known unrelated failures; use targeted race tests for changed admission/queue paths. Check `git diff --check`.
+- [x] Report real `git rev-parse HEAD` and smoke instructions to hub; wait for authorized visible staging/acceptance. Close through sdlc with evidence, fix review findings, and on SHIP merge main then `sdlc merge --yes` with all landing gates. Report PR/hash to hub and stop.
 
 
 ## Revisions
@@ -263,3 +263,14 @@ was sufficient for edit persistence (ARCH-ORDER).
 - Backend review identified revoked cookie ownership retained across a blocked
   body read. Add deterministic blocked-body rotation tests on both casts and
   make the shared owner accessor reject revoked proof; no castlock expansion.
+
+
+### 2026-10-13 17:07 PDT — operator acceptance and closing evidence
+
+- Operator accepted the staged build; stage cleared. New `sdlc stage --build`
+  preserved worker ownership and verified product binary revisions.
+- Full make -k test completed, with stale same-origin test inventory fixed and
+  its full package green. Fleet live conformance exposed the new external
+  `staged` reason, reported to TL as an independent rollout compatibility gap.
+  The last plan checkbox records smoke/report acceptance; SDLC close and landing
+  are now the remaining execution steps, not a claim that landing is complete.

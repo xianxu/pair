@@ -1626,3 +1626,8 @@ proof; record the surprising case so the next change starts from evidence.
   authority facts. Test OFF/view-only/paused crossed with active driving, and
   preserve held editor text when newly accessible read-only UI is opened.
 - #536: Sharing note-box geometry does not share gesture timing. Keep threshold crossing and drag latching shared too; test each consumer's press, sub-threshold movement, release, and drag back toward its origin.
+
+- #537 verification: adding an authenticated probe or POST route requires updating
+  the static same-origin transport inventory as well as runtime behavior tests.
+  Stage-aware fleet producers and consumers must agree on the new reason before
+  live conformance runs while a smoke checkout is staged.

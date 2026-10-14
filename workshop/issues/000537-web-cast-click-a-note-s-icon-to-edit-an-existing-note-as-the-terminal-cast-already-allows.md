@@ -74,7 +74,7 @@ Durable full-flow plan: [own-note editing](../plans/000537-web-note-editing-plan
 
 - [x] Implement the revision event and authoritative viewer/operator edit paths.
 - [x] Wire shared editor and current pin projections, with regression coverage.
-- [ ] Verify, document, close and land through SDLC.
+- [x] Verify and document implementation (operator smoke passed); close/landing follows through SDLC.
 
 ## Estimate
 
@@ -155,6 +155,26 @@ total: 4.545
   finding. All 273 Node tests and both real headless viewer/operator tests pass.
   Backend review's blocked-body cookie-rotation case is being closed before
   the full suite and landing review.
+
+### 2026-10-13 17:07 PDT — smoke and complete suite
+
+- Operator smoke PASSED (TL receipt a6b30dff-7111-4cb2-b2a4-6a607bf24534:
+  operator said "works") on c9a02b5e9d7267e1368bf77f40ee886d5003c509.
+  `sdlc stage --clear` restored pair:0 to main; owner branch stayed in pair:7.
+- `make -k test` completed all prerequisites and all Go packages (exit 2).
+  Two failures: TestViewerPageLoadsOnlySameOrigin had stale static fetch/route
+  counts (fixed test-only in 3854d8c87; full broadcast package rerun passed,
+  33.022s), and TestFleetInventoryLiveConformance rejected the new SDLC
+  `staged` reason while the approved smoke build was on pair:0. The latter is
+  an independently reported ariadne#344 consumer compatibility gap, not a flake.
+  The complete log is /tmp/pair537-full-suite.log. No early stop.
+  After clearing the stage, the isolated fleet conformance rerun passed (28.278s);
+  this does not fix the reported staged-state grammar gap.
+- All 279 Node tests pass after merging #536; headless viewer+operator tests
+  pass (7.564s). Board/recorder race tests passed. Production source inventory
+  and diff checks passed. Main merge is current. No product change followed smoke.
+- Refreshed this slot's private Ariadne substrate to 79779c97 for the new stage
+  workflow. TL rebuilt shared sdlc because the tool PATH used that binary.
 
 ## Revisions
 
