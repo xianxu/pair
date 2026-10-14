@@ -56,6 +56,19 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - "n": 3
+      timestamp: "2026-10-14T01:43:01-07:00"
+      dispatched: "2026-10-14T01:35:29-07:00"
+      agent: codex
+      dispose:
+        - id: BR-4
+          disposition: addressed
+          note: message_service.go:1095 uses shared isHubBinding classification before delivery. TestSupervisionFactsAllHubRecipientsPreserveDeliveryClassification covers main, secondary and worker recipients, including disconnects. Restoring the old hubBinding comparison makes both secondary cases fail with zero facts instead of one; pinned HEAD passes.
+          round: 3
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 9effccd231e0121e6c54cded1017eb3979f3db26
+      blocked: false
 ---
 
 # Gate ledger — pair#546 (boundary-review)
@@ -87,6 +100,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-4** [Important] `ownership-consumers-share-projection` Secondary-hub deliveries disappear from supervision facts
   cmd/internal/couchcmd/message_service.go:1093-1102 still uses hubBinding(), which resolves only authority.hub (main), to admit hub_delivery facts. A disposable production-adapter test confirmed that main receives one fact while a confirmed secondary-hub delivery receives zero. ARCH-PURPOSE: classify every active hub through the shared ownership projection, retaining recipient evidence across delivery, and test main, secondary, and non-hub recipients.
 
+## Round 3 — 2026-10-14T01:43:01-07:00 (codex) — passed
+
+### Disposed
+
+- BR-4 — addressed — message_service.go:1095 uses shared isHubBinding classification before delivery. TestSupervisionFactsAllHubRecipientsPreserveDeliveryClassification covers main, secondary and worker recipients, including disconnects. Restoring the old hubBinding comparison makes both secondary cases fail with zero facts instead of one; pinned HEAD passes.
+
 ## Open findings
 
-- **BR-4** [Important] `ownership-consumers-share-projection` Secondary-hub deliveries disappear from supervision facts
+(none — every finding has been disposed)

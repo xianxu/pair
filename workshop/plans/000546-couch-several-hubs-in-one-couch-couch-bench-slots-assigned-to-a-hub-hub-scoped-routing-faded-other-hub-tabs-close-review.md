@@ -186,3 +186,72 @@ findings:
 7. **Plan revision recommendation**
 
    Add a `## Revisions` entry stating that supervision fact logging is an ownership consumer: all active hubs must receive delivery facts, with recipient classification retained across delivery. Include regression coverage for main, secondary, and non-hub recipients.
+
+---
+
+## Re-review — 2026-10-14T01:43:00-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 546 — couch: several hubs in one Couch (couch . ../bench): slots assigned to a hub, hub-scoped routing, faded other-hub tabs |
+| repo | pair |
+| issue file | workshop/issues/000546-couch-several-hubs-in-one-couch-couch-bench-slots-assigned-to-a-hub-hub-scoped-routing-faded-other-hub-tabs.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | b63f4bd76e3e81d1433cfeda544bb3bed8501522..9effccd231e0121e6c54cded1017eb3979f3db26 |
+| command | sdlc close --issue 546 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-14T01:43:00-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range implements the revised multi-hub contract and approved CLI-only scope. BR-4 is addressed with regression evidence: the test passes at HEAD and fails for both secondary-hub cases when the old classification is restored. No new findings. The review checkout remains unchanged; the disposable checkout was removed.
+
+```findings
+dispose:
+  - id: BR-4
+    disposition: addressed
+    note: |
+      message_service.go:1095 uses shared isHubBinding classification before delivery. TestSupervisionFactsAllHubRecipientsPreserveDeliveryClassification covers main, secondary and worker recipients, including disconnects. Restoring the old hubBinding comparison makes both secondary cases fail with zero facts instead of one; pinned HEAD passes.
+```
+
+1. **Strengths**
+
+   - Immutable `HubOwnership` centralizes claim precedence, authorization and revision checks; generated edit tests verify convergence and preservation of unrelated slots.
+   - Mutation guards survive preparation and run again inside the effect gate, covering ownership and caller changes.
+   - [Delivery classification](/Users/xianxu/Library/Caches/sdlc/review-checkouts/bf7ca6ca95360476/cmd/internal/couchcmd/message_service.go:1093) retains recipient evidence across external IO and disconnect.
+   - README and atlas document the new CLI, claims, ownership projection and execution ordering.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Full suites passed for `couchcore`, `couchcmd`, `couchmessage`, `couchtty` and `artifactpath`.
+   - Focused race tests passed across the four Couch packages.
+   - BR-4’s regression was independently verified red without the fix and green at HEAD.
+   - Coverage includes partial persistence, stale authority, delayed delivery, startup failures, single-hub frame compatibility and rendering bounds.
+   - Generated runtime assets were required and created only in the disposable checkout. Full `make -k test` and opt-in live conformance were not rerun during this review.
+
+6. **Architectural notes for upcoming work**
+
+   - **ARCH-DRY — pass:** ownership consumers share the projection; remaining main-hub lookups serve legacy fallbacks or global queries.
+   - **ARCH-PURE — pass:** claims, ownership transitions and presentation are pure; filesystem and process work remain in adapters.
+   - **ARCH-PURPOSE — pass:** revised routing, mutation isolation, persistence and presentation are delivered; switcher moves are explicitly deferred to #548.
+   - **ARCH-MOCK — pass:** existing stateful process, socket and terminal seams are reused, with portable temporary storage and scheduled conformance infrastructure.
+   - **ARCH-CONSTRAINTS — pass:** hub, move and claim limits are enforced; rendering introduces no filesystem work.
+   - **ARCH-SECURE — pass:** bounded typed parsing, no-follow claim reads and authenticated capabilities preserve trust boundaries.
+   - **ARCH-ORDER — pass:** revision checks, effect gating and chained startup adoption handle the tested interleavings.
+   - **ARCH-FUNERAL — pass:** claims replace bounded configuration in place; runtime overrides end at restart; existing receipts retain bounded lifetimes.
+
+7. **Plan revision recommendations:** None. The recorded revisions reconcile the original persistence model, CLI-only scope and concurrent queue behavior with the implementation.

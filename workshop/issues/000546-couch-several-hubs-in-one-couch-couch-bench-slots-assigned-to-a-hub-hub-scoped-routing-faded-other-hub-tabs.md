@@ -55,6 +55,8 @@ Durable plan: [Several hubs](../plans/000546-several-hubs-plan.md).
 
 ## Log
 
+
+- 2026-10-14: closed — Full make -k test PASS twice; latest after BR-1/BR-2 exit 0 (couchcmd 46.519s, couchcore 241.978s, couchtty 41.950s). After narrow BR-4 logging correction: full couchcmd PASS 35.680s; facts/supervision/messages race tests PASS; clean make build PASS at 9effccd231e0121e6c54cded1017eb3979f3db26. Review round 2 independently verified BR-1/BR-2 RED when fixes removed and disposed BR-3. BR-4 RED secondary-hub facts absent, GREEN shared active-hub classification before IO with main/secondary/nonhub and disconnect cases. Parser fuzz 11348 executions, generated 81 claim cases, bounds, stateful socket/console integration and inventory PASS. Private stores and fake external processes; no live operator smoke claimed. Atlas, README, help, skill, inventory and plan revisions complete. CLI-only scope; switcher move deferred to #548.; review verdict: SHIP
 ### 2026-10-13
 
 - 2026-10-14 planning: claim/start-plan complete. Reused current authenticated workspace, broker, store-journal and console-operation seams in the design (ARCH-DRY). Stable slot ownership is separate from replaceable thread records to avoid #528 recovery changes. Hub notified that cli.go and narrow run.go startup wiring are unavoidable. Asked how bare couch treats assignments to an omitted hub; proposed retaining unavailable assignments, never silently reassigning. No implementation edits.
