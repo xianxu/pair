@@ -278,10 +278,30 @@ func (w *waitWatcher) run(ctx context.Context, every time.Duration) {
 // the registry's newest admitted incarnation of that slot, so a replacement
 // still settling never makes the choice arbitrary.
 func (s *messageService) hubBinding() (couchmessage.Binding, bool) {
+	return s.hubBindingAt(s.authority.hub)
+}
+
+func (s *messageService) hubBindingFor(from couchmessage.Binding) (couchmessage.Binding, bool) {
+	if s.authority.hubs == nil {
+		return s.hubBinding()
+	}
+	s.mu.Lock()
+	identity, ok := s.workspaces[from]
+	s.mu.Unlock()
+	if !ok {
+		return couchmessage.Binding{}, false
+	}
+	return s.hubBindingAt(s.authority.owner(identity))
+}
+
+func (s *messageService) hubBindingAt(root string) (couchmessage.Binding, bool) {
+	if root == "" {
+		return couchmessage.Binding{}, false
+	}
 	slot := ""
 	s.mu.Lock()
 	for b, identity := range s.workspaces {
-		if s.authority.isHub(identity) {
+		if identity.WorktreeRoot == root {
 			slot = b.Slot
 			break
 		}
@@ -298,6 +318,13 @@ func (s *messageService) hubBinding() (couchmessage.Binding, bool) {
 	return live.Binding, true
 }
 
+func (s *messageService) isHubBinding(b couchmessage.Binding) bool {
+	s.mu.Lock()
+	identity, ok := s.workspaces[b]
+	s.mu.Unlock()
+	return ok && s.authority.isHub(identity)
+}
+
 func (w *waitWatcher) tick(ctx context.Context, now time.Time) {
 	coordinator := w.svc.supervision.Load()
 	if coordinator != nil {
@@ -308,7 +335,11 @@ func (w *waitWatcher) tick(ctx context.Context, now time.Time) {
 	}
 	hub, ok := w.svc.hubBinding()
 	if !ok {
-		return
+		connected := w.svc.broker.Connected()
+		if len(connected) == 0 {
+			return
+		}
+		hub = connected[0]
 	}
 	rows, err := w.svc.broker.Actors(ctx, hub)
 	if err != nil {
@@ -324,7 +355,11 @@ func (w *waitWatcher) tick(ctx context.Context, now time.Time) {
 	for _, row := range rows {
 		b := row.Binding
 		listed[b] = true
-		if b == hub || !row.Known {
+		if w.svc.isHubBinding(b) || !row.Known {
+			continue
+		}
+		hub, hasHub := w.svc.hubBindingFor(b)
+		if !hasHub {
 			continue
 		}
 		reportID := ""
@@ -394,6 +429,11 @@ func (w *waitWatcher) tick(ctx context.Context, now time.Time) {
 		body := waitNoticeBody(b.Slot, f.Quiet, reason, summary, w.optOut) + muteErr
 		// From the waiting slot to the hub's exact slot: the notice is an
 		// ordinary message, so it gets the hub's breaker, delivery and ledger.
+		// Tail reading may yield while ownership changes. Resolve again at admission.
+		hub, hasHub = w.svc.hubBindingFor(b)
+		if !hasHub {
+			continue
+		}
 		var sendErr error
 		if coordinator != nil {
 			_, sendErr = coordinator.sendGenerated(ctx, b, hub, id, body, false)

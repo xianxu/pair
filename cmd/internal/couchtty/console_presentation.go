@@ -70,13 +70,25 @@ func (c *Console) statusModelLocked() StatusModel {
 			rows[index].WorkingPath = rows[index].StartingPath
 		}
 	}
-	for _, entry := range PresentThreads(rows, c.menu.SlotGit, c.menu.Hub) {
+	for _, entry := range PresentThreads(rows, c.menu.SlotGit, c.menu.Hub, c.menu.HubOwnership) {
 		actor, found := members[entry.Row.Address]
 		if !found {
 			continue
 		}
 		actor.Label, actor.GroupKey, actor.SlotNumber, actor.Glyph, actor.Hub = entry.Label, entry.GroupKey, entry.SlotNumber, entry.Glyph, entry.Hub
+		actor.OwnerHub = entry.OwnerHub
 		model.Actors = append(model.Actors, actor)
+	}
+	activeHub := ""
+	for _, a := range model.Actors {
+		if a.Active {
+			activeHub = a.OwnerHub
+			break
+		}
+	}
+	for i := range model.Actors {
+		a := &model.Actors[i]
+		a.OtherHub = activeHub != "" && a.OwnerHub != "" && a.OwnerHub != activeHub
 	}
 	return model
 }
@@ -87,6 +99,15 @@ func (c *Console) statusModelLocked() StatusModel {
 func (c *Console) SetHub(root string) {
 	c.mu.Lock()
 	c.menu, _ = ReduceMenu(c.menu, MenuEvent{Kind: MenuEventHub, Hub: root})
+	c.mu.Unlock()
+	c.repaint()
+}
+
+// SetHubOwnership installs a routing snapshot without IO and keeps the menu and
+// tabs on the same revision. The immutable value can safely outlive the caller.
+func (c *Console) SetHubOwnership(ownership couchcore.HubOwnership) {
+	c.mu.Lock()
+	c.menu, _ = ReduceMenu(c.menu, MenuEvent{Kind: MenuEventHubOwnership, HubOwnership: ownership})
 	c.mu.Unlock()
 	c.repaint()
 }

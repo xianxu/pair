@@ -594,7 +594,7 @@ func TestEveryOperationHasASummaryAndDescribedArgs(t *testing.T) {
 func TestOperationArityMatchesExpectation(t *testing.T) {
 	// Declared in the test rather than read from the operation itself, so
 	// this cannot degrade into asserting X == X.
-	want := map[string]int{"provision-workspace": 3, "request-continuation": 7, "continue-thread": 3, "prepare-switch-agent": 4, "switch-agent": 7, "prepare-start": 3, "start": 5, "list": 0, "show": 2, "reconcile": 1, "peek": 7, "stop": 1, "alias": 3, "publish-description": 3, "switch": 2, "attach": 3, "park": 4, "detach": 3, "leave": 1, "resume": 5, "reboot": 5, "reap": 3, "recover": 3, "archived": 0, "relaunch": 4, "reload-context": 4, "prepare": 5}
+	want := map[string]int{"provision-workspace": 3, "request-continuation": 7, "continue-thread": 3, "prepare-switch-agent": 4, "switch-agent": 7, "prepare-start": 3, "start": 5, "start-hub": 1, "list": 0, "show": 2, "reconcile": 1, "peek": 7, "stop": 1, "alias": 3, "publish-description": 3, "switch": 2, "attach": 3, "park": 4, "detach": 3, "leave": 1, "resume": 5, "reboot": 5, "reap": 3, "recover": 3, "archived": 0, "relaunch": 4, "reload-context": 4, "prepare": 5}
 	for _, op := range couchcore.Operations() {
 		if got := len(op.Args); got != want[op.Name] {
 			t.Errorf("%s has %d args, want %d", op.Name, got, want[op.Name])
@@ -807,7 +807,7 @@ func TestPublicHelpListsOnlyPublicSurface(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d", code)
 	}
-	for _, want := range []string{"couch [path]", "couch --list", "couch --show", "couch --recover-plan-from-sdlc", "couch --resume repo:N", "couch --reboot repo:N --confirm", "couch --help"} {
+	for _, want := range []string{"couch [path ...]", "couch --move-slot repo:N[,repo:N...] --to-hub HUB [--persist]", "couch --list", "couch --show", "couch --recover-plan-from-sdlc", "couch --resume repo:N", "couch --reboot repo:N --confirm", "couch --help"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("help omits %q", want)
 		}

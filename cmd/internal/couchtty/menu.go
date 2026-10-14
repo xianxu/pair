@@ -209,7 +209,8 @@ type MenuState struct {
 	// Hub is the worktree root of the hub slot, the checkout Couch started
 	// from (pair#463), or "" without one. PresentThreads orders and indents
 	// the hub's section by it, for the tab bar and the switcher (pair#491).
-	Hub string
+	Hub          string
+	HubOwnership couchcore.HubOwnership
 }
 
 // MenuOperationOrigin captures the exact frame that emitted asynchronous
@@ -276,6 +277,7 @@ const (
 	MenuEventBlocked
 	// MenuEventHub records the hub's worktree root and reorders (pair#491).
 	MenuEventHub
+	MenuEventHubOwnership
 )
 
 type MenuEvent struct {
@@ -322,7 +324,8 @@ type MenuEvent struct {
 	// Palette is the host terminal's colours as known after one reply.
 	Palette Palette
 	// Hub is the hub slot's worktree root (pair#491).
-	Hub string
+	Hub          string
+	HubOwnership couchcore.HubOwnership
 }
 
 // MenuEffect is an operation request for the thin Console shell.
@@ -452,6 +455,14 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 	if event.Kind == MenuEventBlocked {
 		next.Blocked = event.Blocked
 		return next, nil
+	}
+	if event.Kind == MenuEventHubOwnership {
+		if event.HubOwnership.Revision() < next.HubOwnership.Revision() {
+			return next, nil
+		}
+		next.HubOwnership = event.HubOwnership
+		next.Hub = event.HubOwnership.Main()
+		return reorderMenuInventory(next), nil
 	}
 	if event.Kind == MenuEventHub {
 		next.Hub = event.Hub

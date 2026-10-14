@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "command": [
+    "make",
+    "runtimebundle-generate"
+  ],
+  "timeout_minutes": 10
+}

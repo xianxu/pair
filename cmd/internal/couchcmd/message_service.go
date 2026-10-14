@@ -28,6 +28,8 @@ import (
 // messageAuthority separates live evidence from registry mutation. All probes
 // are read-only; none call mutable Couch domain operations from request workers.
 type messageAuthority struct {
+	// now is the broker clock; nil uses wall time.
+	now        func() time.Time
 	thread     func(context.Context, couchmessage.Binding) (string, error)
 	workspace  func(context.Context, string) (couchcore.WorkspaceIdentity, error)
 	process    func(couchmessage.Binding) error
@@ -55,7 +57,9 @@ type messageAuthority struct {
 	// hub is the worktree root Couch started from: the TL slot, which gets
 	// the larger peer-message bucket (#433). "" when Couch started outside a
 	// checkout.
-	hub string
+	hub       string
+	hubs      *hubRuntime
+	hubTarget func(context.Context, string) (couchcore.HubSlot, error)
 }
 
 // live is the full check, run once per admission: a lifecycle event, never a
@@ -126,6 +130,7 @@ const (
 // pane state, admission results and retry timers. Request goroutines read
 // only the published snapshot of connected bindings.
 type messageService struct {
+	hubMoves  atomic.Pointer[hubMoveService]
 	facts     atomic.Pointer[supervisionFactLog]
 	server    *couchmessage.Server
 	sessions  *couchmessage.SessionServer
@@ -211,7 +216,17 @@ func (s *messageService) Close() {
 
 // isHub reports whether a verified workspace is the TL hub's.
 func (a messageAuthority) isHub(identity couchcore.WorkspaceIdentity) bool {
+	if a.hubs != nil {
+		return a.hubs.snapshot().IsHub(identity.WorktreeRoot)
+	}
 	return a.hub != "" && identity.WorktreeRoot == a.hub
+}
+
+func (a messageAuthority) owner(identity couchcore.WorkspaceIdentity) string {
+	if a.hubs != nil {
+		return a.hubs.owner(identity)
+	}
+	return a.hub
 }
 
 // hubWorktree is the worktree root Couch started in: the TL slot (#433). A
@@ -230,7 +245,7 @@ func hubWorktree(getwd func() (string, error), resolve func(string) (couchcore.W
 
 // startMessageService is called only while the existing supervisor lease is
 // held. Socket cleanup and all child registration live inside that lifetime.
-func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messageService, error) {
+func startMessageService(console *couchtty.Console, c *couchcore.Couch, configuredHubs ...*hubRuntime) (*messageService, error) {
 	resolver, ok := c.Slots.(couchcore.SlotWorkspaceResolver)
 	if !ok {
 		return nil, nil
@@ -382,6 +397,11 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 			return couchcore.ProbeSlotGit(ctx, c.Git, root)
 		},
 	}
+	if len(configuredHubs) > 0 && configuredHubs[0] != nil {
+		authority.hubs = configuredHubs[0]
+		authority.hubTarget = hubTargetResolver(c)
+		authority.hub = authority.hubs.snapshot().Main()
+	}
 	panes := couchmessage.NewPaneMailbox()
 	probe := newLiveRestartProbe(c.Git, c.Proc)
 	c.LiveRestart = probe // before the socket opens: no request can race this write
@@ -393,6 +413,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 	}
 	probe.service.Store(service)
 	service.installAgentSwitchService(console, c, switchGuard)
+	service.installHubMoves(console)
 	service.SetDesktopNotify(console.NotifyDesktop)
 	console.SetMessageBroker(service.broker)
 	service.SetBroadcastStatus(console.BroadcastStatus)
@@ -432,33 +453,6 @@ func (s *messageService) showHub(view interface{ SetHub(root string) }) {
 	view.SetHub(s.authority.hub)
 }
 
-// consoleSlotOperations runs slot operations on the console's queue;
-// PrepareSlotOperation runs on it, so admission is judged against the
-// inventory at execution time, and the queue key resolves repository names
-// from the thread store.
-func consoleSlotOperations(console *couchtty.Console, c *couchcore.Couch, probe *liveRestartProbe) *slotOperations {
-	return newSlotOperations(func(key, op, target string, opts couchcore.LiveRestartOptions, started func(), finished func(any, error)) error {
-		// The admission note and readiness wait are written on the queue
-		// goroutine by prepare and read by finished after the job; the queue
-		// orders the two.
-		var note string
-		var await func(context.Context) error
-		return console.EnqueueRemoteOperation(key, op, func(ctx context.Context) (couchcore.OperationCall, error) {
-			call, n, err := c.PrepareSlotOperation(ctx, op, target, opts)
-			note = n
-			if err == nil {
-				await = probe.readinessAfter(op, call.Args)
-			}
-			return call, err
-		}, started, awaitReadiness(&await, withAdmissionNote(&note, finished)))
-	}, func(ctx context.Context) ([]couchcore.RepositoryName, error) {
-		if c.Threads == nil {
-			return nil, errors.New("no thread store")
-		}
-		return c.Threads.RepositoryNamesContext(ctx)
-	}, time.Now)
-}
-
 func newMessageService(parent context.Context, brokerSocket, registrySocket string, authority messageAuthority, panes *couchmessage.PaneMailbox, slotGit func(string) (couchcore.SlotGitStatus, bool), slotOps *slotOperations, factLogs ...*supervisionFactLog) (*messageService, error) {
 	if authority.thread == nil || authority.agent == nil || authority.workspace == nil || authority.process == nil || authority.wrapperPID == nil || authority.launch == nil || authority.recorded == nil || authority.endpoint == nil || authority.branch == nil || panes == nil || slotGit == nil {
 		return nil, errors.New("message authority is incomplete")
@@ -483,7 +477,11 @@ func newMessageService(parent context.Context, brokerSocket, registrySocket stri
 	s.connected.Store(&map[couchmessage.Binding]bool{})
 	// Family admission's resting check is on the request path (one git status
 	// per candidate per send); listings read the Console's slot-git cache.
-	s.broker = couchmessage.NewBroker(lifetime, time.Now, func(ctx context.Context, b couchmessage.Binding) (bool, error) {
+	now := authority.now
+	if now == nil {
+		now = time.Now
+	}
+	s.broker = couchmessage.NewBroker(lifetime, now, func(ctx context.Context, b couchmessage.Binding) (bool, error) {
 		identity, err := s.connectedWorkspace(ctx, b)
 		if err != nil {
 			return false, err
@@ -497,6 +495,9 @@ func newMessageService(parent context.Context, brokerSocket, registrySocket stri
 		}
 	})
 	s.broker.SetFamilies(authority.families)
+	if authority.hubs != nil {
+		s.broker.SetFamilyEligibility(s.sameHubBindings)
+	}
 	s.broker.SetRestingView(func(b couchmessage.Binding) (bool, bool) {
 		s.mu.Lock()
 		identity, ok := s.workspaces[b]
@@ -733,6 +734,8 @@ func (s *messageService) connectedWorkspace(ctx context.Context, b couchmessage.
 
 func (s *messageService) handle(ctx context.Context, request couchmessage.Request) (response couchmessage.Response) {
 	switch {
+	case request.Op == "move-slot":
+		return s.handleHubMove(ctx, request)
 	case request.Op == "session-write":
 		return s.handleSessionWrite(ctx, request)
 	case request.Op == "notify":
@@ -795,9 +798,18 @@ func (s *messageService) hubRecipient(from couchmessage.Binding) (string, *couch
 	if s.authority.hub == "" {
 		return "", &couchmessage.Response{Code: "refused", Error: "no hub: this Couch started outside a checkout"}
 	}
-	hub, ok := s.hubBinding()
+	hub, ok := s.hubBindingFor(from)
 	if !ok {
-		return "", &couchmessage.Response{Code: "unavailable", Error: "the hub isn't connected: no live wrapper in " + s.authority.hub}
+		detail := "the hub isn't connected: no live wrapper in " + s.authority.hub
+		if s.authority.hubs != nil {
+			s.mu.Lock()
+			identity, known := s.workspaces[from]
+			s.mu.Unlock()
+			if known {
+				detail = "the hub isn't connected: no live wrapper in " + s.authority.owner(identity)
+			}
+		}
+		return "", &couchmessage.Response{Code: "unavailable", Error: detail}
 	}
 	if hub.Slot == from.Slot {
 		return "", &couchmessage.Response{Code: "refused", Error: "you are the hub (" + hub.Slot + "): a message to hub would reach your own slot"}
@@ -1003,13 +1015,13 @@ func (s *messageService) handleSlotOperation(ctx context.Context, request couchm
 	if request.Op == "operation-status" {
 		if authenticated, err := s.switchCaller(ctx, request); err == nil {
 			if identity, err := s.connectedWorkspace(ctx, authenticated); err == nil && s.authority.isHub(identity) {
-				if response, ok := s.slotOps.switchStatus(request.ID); ok {
+				if response, ok := s.slotOps.switchStatus(request.ID, s.hubReceiptFilter(ctx, identity)); ok {
 					return response
 				}
 			}
 		}
 	}
-	return s.slotOps.handle(ctx, caller, request)
+	return s.handleHubSlotOperation(ctx, caller, request)
 }
 
 // liveCaller is the request's identity proved against Couch's records.
@@ -1078,8 +1090,9 @@ func (e messageEndpoint) Deliver(ctx context.Context, m couchmessage.Message, pr
 		return couchmessage.Receipt{Status: couchmessage.Cancelled, Detail: err.Error()}, nil
 	}
 	log := e.service.facts.Load()
-	hub, hasHub := e.service.hubBinding()
-	toHub := hasHub && hub == m.To
+	// Classify before IO: delivery may finish after this hub disconnects.
+	// Explicit cross-hub messages are still deliveries to an active hub.
+	toHub := e.service.isHubBinding(m.To)
 	receipt, err := e.endpoint.Deliver(ctx, m, progress)
 	system := false
 	if c := e.service.supervision.Load(); c != nil {

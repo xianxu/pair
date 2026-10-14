@@ -33,7 +33,7 @@ func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writ
 	if inv.messageOp == couchcore.OpPrepare {
 		return runPrepareCLI(inv, rt, stdout, stderr, call, slotPollClock{now: time.Now, sleep: time.Sleep}, couchcore.OSProvisionIO{})
 	}
-	if couchcore.IsSlotOperation(inv.messageOp) {
+	if couchcore.IsSlotOperation(inv.messageOp) || inv.messageOp == "move-slot" {
 		return runSlotOperationCLI(inv, rt, stdout, stderr, call, slotPollClock{now: time.Now, sleep: time.Sleep})
 	}
 	if inv.messageOp == "broadcast-status" {
@@ -248,6 +248,7 @@ func exchangeSlotOperation(inv cliInvocation, op string, rt Runtime, call messag
 	}
 	admit := callerIdentity(rt, op)
 	admit.Target, admit.Confirmed = inv.ref, inv.confirmed
+	admit.ToHub, admit.Persist = inv.toHub, inv.persistHub
 	admit.SameBinary, admit.ForceUnknown = inv.sameBinary, inv.forceUnknown
 	if admit.ID, err = newRequestID(); err != nil {
 		return none, fmt.Errorf("create request ID: %w", err)
@@ -335,6 +336,13 @@ func reportSlotOperation(stdout, stderr io.Writer, receipt couchmessage.Operatio
 	switch receipt.Status {
 	case couchmessage.ReceiptSucceeded:
 		line := receipt.Target + " " + receipt.Op + " succeeded"
+		if receipt.Op == "move-slot" {
+			mode := "until restart"
+			if receipt.Persist {
+				mode = "persisted"
+			}
+			line += " -> " + receipt.ToHub + " (" + mode + ")"
+		}
 		if receipt.Tag != "" {
 			line += " (tag " + receipt.Tag + ")"
 		}
@@ -360,6 +368,11 @@ func reportSlotOperation(stdout, stderr io.Writer, receipt couchmessage.Operatio
 // printUncertainSlotOperation is the one text for a slot operation whose
 // outcome is unknown: verify with the report before any resend.
 func printUncertainSlotOperation(w io.Writer, r couchmessage.Request, detail string) {
+	if r.Op == "move-slot" {
+		fmt.Fprintf(w, "couch: move-slot %s -> %s (request %s): %s\noutcome uncertain; query couch --operation-status %s before another move; after a Couch restart inspect the started hubs’ .hub claims\n", r.Target, r.ToHub, r.ID, detail, r.ID)
+		return
+	}
+
 	fmt.Fprintf(w, "couch: %s %s (request %s): %s\noutcome uncertain; verify with couch --recover-plan-from-sdlc before resending (a resend is refused harmlessly once the slot is live)\n", r.Op, r.Target, r.ID, detail)
 }
 

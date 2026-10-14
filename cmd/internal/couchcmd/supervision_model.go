@@ -68,13 +68,17 @@ func (s *supervisionState) nudged(b couchmessage.Binding, id string) {
 		s.reports[b] = r
 	}
 }
-func (s *supervisionState) tick(now time.Time, facts []supervisionFacts, hub bool) []supervisionEffect {
+func (s *supervisionState) tick(now time.Time, facts []supervisionFacts, hub bool, availability ...map[couchmessage.Binding]bool) []supervisionEffect {
 	var effects []supervisionEffect
 	live := make(map[couchmessage.Binding]bool, len(facts))
 	for _, f := range facts {
 		b := f.binding
+		ownHub := hub
+		if len(availability) > 0 {
+			ownHub = availability[0][b]
+		}
 		live[b] = true
-		if hub && !s.attempted[b.Slot] {
+		if ownHub && !s.attempted[b.Slot] {
 			s.attempted[b.Slot] = true
 			effects = append(effects, supervisionEffect{kind: supervisionPrompt, binding: b})
 		}
@@ -90,7 +94,7 @@ func (s *supervisionState) tick(now time.Time, facts []supervisionFacts, hub boo
 			continue
 		}
 		age := now.Sub(r.at)
-		if !r.notified && age >= supervisionNudgeAfter && hub {
+		if !r.notified && age >= supervisionNudgeAfter && ownHub {
 			effects = append(effects, supervisionEffect{kind: supervisionNudge, binding: b, report: r.id, age: age})
 		}
 		// Even a disconnected hub must not suppress the operator's escalation.

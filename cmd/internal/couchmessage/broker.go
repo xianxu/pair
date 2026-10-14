@@ -70,6 +70,7 @@ type admission struct {
 }
 type deliveryJob struct{ cancel context.CancelFunc }
 type Broker struct {
+	familyEligible     func(Binding, Binding) bool
 	submissionObserver func(Binding, uint64)
 	mu                 sync.Mutex
 	ctx                context.Context
@@ -85,6 +86,16 @@ type Broker struct {
 	admissions         map[string]*admission
 	jobs               map[string]*deliveryJob
 	workers            sync.WaitGroup
+}
+
+// SetFamilyEligibility installs the supervisor's trusted ownership projection.
+// It filters implicit selection only, after global repository identity checks.
+// Install before serving; the callback must read memory only.
+func (b *Broker) SetFamilyEligibility(eligible func(Binding, Binding) bool) {
+	b.familyEligible = eligible
+}
+func (b *Broker) eligible(from, to Binding) bool {
+	return b.familyEligible == nil || b.familyEligible(from, to)
 }
 
 // SetFamilies installs the enrolled-repository source: every enrolled family
@@ -588,7 +599,7 @@ func (b *Broker) admit(ctx context.Context, from Binding, id string, route Route
 			}
 			candidates = append(candidates, c)
 		}
-		to, err := ResolveRecipient(route, candidates, families, b.now())
+		to, err := ResolveRecipient(route, candidates, families, b.now(), func(to Binding) bool { return b.eligible(from, to) })
 		if err != nil {
 			b.mu.Unlock()
 			return Receipt{}, err
@@ -662,6 +673,9 @@ func (b *Broker) tryAdmission(ctx context.Context, a *SlotActor, seq uint64, fro
 	}
 	if b.actors[to] != a || a.reservation != id || !b.caller(to) || a.sequence != seq || !b.caller(from) {
 		return Receipt{}, ErrUnavailable
+	}
+	if family && !b.eligible(from, to) {
+		return Receipt{}, ErrNoRecipient
 	}
 	if err = b.reconcileObservation(a, obs); err != nil {
 		return Receipt{}, err

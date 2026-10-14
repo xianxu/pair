@@ -46,6 +46,9 @@ type adoptionArgs struct {
 }
 
 type cliInvocation struct {
+	hubPaths   []string
+	toHub      string
+	persistHub bool
 	// relaunch overrides (pair#421)
 	sameBinary, forceUnknown bool
 	adoption                 adoptionArgs
@@ -107,6 +110,8 @@ func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, e
 	// scanning layout flags, which could otherwise consume a literal body.
 	if len(args) > 0 {
 		switch args[0] {
+		case "--move-slot":
+			return parseHubMoveCLI(args)
 		case "--notify":
 			return parseNotifyCLI(args)
 		case submissionFlag:
@@ -234,10 +239,7 @@ func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, e
 		}
 		return inv, nil
 	case "--":
-		if len(args) != 2 || args[1] == "" {
-			return invalid("-- requires exactly one non-empty path")
-		}
-		return cliInvocation{kind: cliLaunch, path: args[1], layout: layout}, nil
+		return parseHubLaunchCLI(args[1:], layout, true)
 	case "--internal":
 		if len(args) < 2 || args[1] == "" {
 			return invalid("--internal requires an operation")
@@ -263,10 +265,7 @@ func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, e
 		if strings.HasPrefix(args[0], "-") {
 			return invalid("unknown option %q", args[0])
 		}
-		if len(args) != 1 {
-			return invalid("path cannot be combined with other arguments")
-		}
-		return cliInvocation{kind: cliLaunch, path: args[0], layout: layout}, nil
+		return parseHubLaunchCLI(args, layout, false)
 	}
 }
 

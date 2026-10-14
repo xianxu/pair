@@ -6,7 +6,7 @@ github_issue:
 created: 2026-10-12
 updated: 2026-10-13
 estimate_hours:
-card_mirror: '934ac00177733ca94e4e14534bcfd194f8c90c17' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '977ec615c4a92f6d0d64c29eb3e2c2e22ab2661f' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T18:20:35-07:00
 claimant:
     operator: Xian Xu
@@ -16,7 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "bd444b79", done: "4bedd11b"}
-actual_hours: 23.76
+actual_hours: 0.35
 ---
 
 # test-perf-capture asserts a 6 s wall-clock budget on a shared loaded machine; fails under load on main
