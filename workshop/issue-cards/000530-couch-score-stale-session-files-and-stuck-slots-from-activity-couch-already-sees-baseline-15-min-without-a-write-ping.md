@@ -1,6 +1,6 @@
 ---
 id: 000530
-status: codecomplete
+status: done
 created: 2026-10-13
 updated: 2026-10-13
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 2b0b19c37c73169826ee96eaefa64ace3f681c30
         evidence_commit: b4305fc273bab635996c6e6fcbd6e7c5f669d61f
+        landed_commit: 0fe5cc59e6e26212f04eea8b4085389c18607057
 ---
 
 # couch: score stale session files and stuck slots from activity Couch already sees (baseline: 15 min without a write → ping)
