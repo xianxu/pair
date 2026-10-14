@@ -594,6 +594,19 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	// #544 bounded input/control: pure recipes and styled markup; wrapper and
+	// Couch adapters reuse authenticated endpoints and ephemeral receipts. No
+	// new Pair artifact filenames or constructor authority.
+	"cmd/internal/agentdrive/keys.go",
+	"cmd/internal/agentdrive/recipe.go",
+	"cmd/internal/agentdrive/screen.go",
+	"cmd/internal/agentdrive/model.go",
+	"cmd/internal/tailmarkup/markup.go",
+	"cmd/internal/couchmessage/drive_endpoint.go",
+	"cmd/internal/wrapcmd/agent_drive.go",
+	"cmd/internal/couchcmd/agent_drive_cli.go",
+	"cmd/internal/couchcmd/agent_drive_messages.go",
+	"cmd/internal/couchcmd/agent_drive_service.go",
 	// #538 private web evidence and note protocol, outside Pair artifact families.
 	"cmd/internal/submission/publication.go",
 	"cmd/internal/webcast/board/prepared_note.go",

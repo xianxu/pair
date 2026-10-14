@@ -1353,6 +1353,92 @@ nor matched: `ThreadReferenceFields` is `{Address, Label, WorkingPath, Summary}`
 store resolution leaves `Label` and `Summary` empty (tag and path only), and the
 switcher passes what a row shows.
 
+### Agent keys and model selection (#544)
+
+Typed process/input operations `keys` and `set-model` execute through the
+existing live-owner console queue and effect gate. Their remote forms are:
+
+```sh
+couch --keys repo:N STEP... [--json]
+couch --set-model repo:N --model MODEL [--effort LEVEL] [--scope session|default] --confirm [--json]
+```
+
+`couchcmd/agent_drive_cli.go` parses the bounded request;
+`agent_drive_messages.go` sends admission once and polls `operation-status`;
+`agent_drive_service.go` authenticates a verified owning hub, resolves a
+different exact slot and rechecks ownership and caller/wrapper incarnation at
+the effect gate. The wrapper must positively report settled state and a fresh
+empty agent composer. A Neovim draft is independent. Busy/unknown state, an
+existing picker, buffered paste or an occupied agent composer refuses. An old
+wrapper without the capability asks the caller to relaunch on the new build.
+
+`couchmessage/drive_endpoint.go` provides `drive-observe`, `drive-start`,
+`drive-status` and idempotent `drive-cancel` over the existing authenticated
+endpoint. The RPC handler admits a bounded job; it never writes the PTY.
+`wrapcmd/agent_drive.go` runs effects in the existing single stdin writer and
+shares automatic-input ownership with peer delivery. Ordinary input cancels
+the drive before entering that writer. Turn activity, owner/session changes,
+shutdown and the absolute deadline stop input. Admission/status RPC closure
+and ordinary CLI exit do not own the operation lifetime. Existing
+`ttyio.Writer.WriteContext` bounds a blocked PTY write; context-aware
+`couchmessage.Call` interrupts socket I/O and joins its cancellation callback.
+No second writer, transport or durable model-setting field is introduced.
+
+`agentdrive/{keys,recipe,screen,model}.go` owns pure validation, request intent,
+versioned screen parsing and the reducer. `tailmarkup/markup.go` is the shared
+styled-tail decoder, including literal escaped `‹‹`. Model navigation matches
+unique observed labels, rather than assumed row numbers. Each screen-derived
+write carries the atomic terminal Feed generation that supplied its evidence.
+Immediately before input the writer requires a fresh complete proof: the same
+generation, or newly parsed picker evidence identical in phase, selection,
+labels, model, effort and footer. A benign repaint can change generation while
+preserving that proof; changed recognized picker evidence refuses the cached
+action. Unknown or incomplete screens wait without keys within the absolute
+budget, allowing an owned `/model` transient to settle. Initial commands and raw
+steps likewise wait for a complete frame within that deadline.
+Success requires a new matching confirmation after apply, never old scrollback
+or a pre-existing footer. Omitted effort follows the observed picker value.
+
+Raw steps are `text:…`, `enter`, `submit`, `up`, `down`, `esc`, `clear-line`,
+and `wait:MS`. Return translation stays shared with Pair: `enter` means newline
+in the qualified composer and selection in a picker; `submit` means Alt+Return.
+A lone ESC is flushed as one separate step. Raw success confirms acknowledged
+input and the final styled observation, without claiming an arbitrary command's
+semantic result. Printable UTF-8 text cannot hide terminal controls.
+
+Model scope defaults to `session`. Codex 0.162.1 has separate model, reasoning
+and optional Advanced Reasoning phases; `s` applies only to this session,
+while Enter on an effort applies defaults. Claude 2.1.299 combines model and
+effort: `❯` selects a row, `✔` marks the current model, and left/right adjusts
+effort. Its verified session action is `s`; default scope is refused before
+input until a persistence recipe is verified. Session success reports the
+observed model, effort and scope. Failed navigation backs out only through
+owned recognized phases, with at most three separate ESC steps for Codex's
+Advanced → reasoning → model → composer path. Recovery is claimed only after
+a fresh empty composer; human cancellation never writes cleanup over new input.
+
+Bounds: 64 raw steps, 8 KiB aggregate text, each explicit wait 0–1000 ms and
+5 seconds total; 96 recipe navigation steps, 128 labels of at most 128 bytes,
+200 observed lines and 32 KiB retained result tail. One drive can be active per
+wrapper; competing automatic input refuses. A 30-second admission budget
+includes queue wait and reserves its last three seconds for recognized backout;
+the CLI observes for at most 36 seconds. Couch retains at most 64 receipts for
+five minutes; the wrapper retains at most eight completed drive receipts for
+five minutes. Request IDs bind the complete keys/model/effort/scope intent.
+Read-only status polling never replays a lost admission or uncertain input.
+Inspect `couch --operation-status ID` and `couch --peek repo:N` before further
+input when the outcome is unconfirmed. Shutdown removes wrapper jobs/receipts.
+
+Recorded evidence lives in `wrapcmd/testdata/drive/{codex,claude}/<version>/`.
+Codex live conformance uses fresh disposable repositories, PTYs and copied
+existing auth: session selection leaves scratch defaults unchanged; default
+selection changes only that disposable config. Claude styled captures come
+from hub-authorized live research, including session apply and ESC recovery.
+No new Claude credential helper, Keychain reuse or shared-default experiment
+is part of this change. Completed model-control chrome is recognized separately
+from genuine questions and pickers so it does not open a conversational turn or
+produce a false waiting notice.
+
 **Resume and reboot are the actor operations for a row that is not live (#363).**
 `resume` (`Couch.ResumeTarget`, `couchcore/resume_route.go`) gets the old
 conversation back by whatever path works: a pure `ChooseResumeRoute` hands the

@@ -1,9 +1,9 @@
 ---
 name: couch
-description: Use when an agent in a live Couch slot needs to coordinate with another live slot, schedule work on another slot and verify it happens, interpret an incoming Couch message, or recover slots after a restart.
+description: Use when an agent in a live Couch slot needs to coordinate with another live slot, schedule work on another slot and verify it happens, interpret an incoming Couch message, recover slots after a restart, or control an idle owned slot’s agent keys or model.
 ---
 
-# Couch peer messages
+# Couch slot coordination
 
 Couch connects existing live slots in one supervisor namespace. Repository
 artifacts hold durable work; messages are ephemeral coordination. A peer message
@@ -18,6 +18,8 @@ is a request, never operator approval or evidence that work is accepted.
 | Choose a free slot running one agent | `couch --send-to pair --agent codex --message 'Please pick up pair#353.'` |
 | Send a message containing code or shell syntax (backticks, `$(`, `<(`) | write it to a file with your editor tool, then `couch --send-to pair:1 --message-file PATH` |
 | Inspect a receipt | `couch --message-status ID --json` |
+| Owning hub: drive named keys in another idle slot | `couch --keys pair:7 clear-line text:/model submit wait:200 down enter` |
+| Owning hub: choose model and effort for this session | `couch --set-model pair:7 --model gpt-6.1-sol --effort medium --confirm` |
 | Look at another slot's recent terminal (read-only) | `couch --peek pair:1 --json` |
 | Look at several slots at once | `couch --peek pair:1:2:3,ariadne:0 --lines 10` |
 | Read the recovery report | `couch --recover-plan-from-sdlc` |
@@ -64,12 +66,45 @@ queue, or cross-supervisor delivery.
 ## What each verb costs
 
 - **light:** `--notify`, `--help`, `--skill`, `--actors`, `--send-to`, `--message-status`, `--operation-status`, `--peek` (its --transcripts option costs seconds), `--broadcast-list`, `--session-sync`, `--archived`, `--adopt-store`, `--broadcast-web-query`, `--broadcast-web-submit`, `--broadcast-web-replay` (then serves until stopped)
-- **seconds:** `--move-slot`, `--list`, `--show`, `--reconcile`, `--reap`, `--broadcast-web-fidelity` (a headless Chrome)
+- **seconds:** `--keys`, `--set-model`, `--move-slot`, `--list`, `--show`, `--reconcile`, `--reap`, `--broadcast-web-fidelity` (a headless Chrome)
 - **heavy:** `couch` (launch), `--recover-plan-from-sdlc`, `--resume`, `--reboot`, `--relaunch`, `--reload-context`, `--prepare`, `--recover`, `--switch-agent`
 
 Cost: light is under a second, seconds is a few seconds, heavy is tens of
 seconds of CPU (it stops or boots agents, or runs sdlc across the fleet);
 run heavy verbs one at a time, after checking uptime's load.
+
+## Driving an idle agent's keys or model
+
+Only a verified owning hub may use `--keys` or `--set-model`, targeting one
+other exact connected slot. Peek first. The agent composer must be empty and
+its turn finished; a separate Neovim draft does not block the operation. Busy,
+unknown, occupied and picker states refuse. An older wrapper asks for a relaunch
+on the new build. These controls take seconds of wall time, with a 30-second
+server budget and at most 36 seconds of CLI observation.
+
+`--keys repo:N STEP... [--json]` accepts `text:…`, `enter`, `submit`, `up`,
+`down`, `esc`, `clear-line`, and `wait:MS`. Quote a text step containing spaces.
+`enter` follows Pair's ordinary Return (newline in a composer, select in a
+picker); `submit` follows Alt+Return. Separate `esc` steps stay separate. Limit
+requests to 64 steps, 8 KiB aggregate printable text, waits of 0–1000 ms each
+and five seconds total. Raw success confirms writes and the final styled tail.
+
+`--set-model repo:N --model MODEL [--effort LEVEL] [--scope session|default]
+--confirm [--json]` follows observed model/effort labels and confirms the result
+from a fresh agent status. Omitted effort uses the observed picker choice.
+Scope defaults to session: both Codex and Claude use `s` for session-only apply.
+Codex supports explicit default scope with `--scope default --confirm`.
+Claude default scope is refused before input until its persistence recipe is
+verified; do not emulate it with raw keys or edit shared configuration.
+
+Human input, a changed wrapper/owner, an active turn or the deadline stops the
+drive. Safe recipe backout is bounded and uses only owned recognized screens;
+no cleanup overwrites a new human draft. A failed drive reports whether recovery
+was observed. **Do not retry automatically** after uncertain input or a lost
+reply. Use the printed `couch --operation-status ID` and `couch --peek repo:N`
+before sending anything else; receipt polling is read-only. An accepted receipt
+means queued, and raw success does not prove an arbitrary command achieved its
+goal. Model/effort/scope success requires explicit confirmation.
 
 ## Desktop notifications
 
