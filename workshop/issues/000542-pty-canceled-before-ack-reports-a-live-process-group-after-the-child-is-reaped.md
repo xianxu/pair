@@ -52,6 +52,8 @@ This is independent of #519: it uses couchcore runner/helper code, not notifytra
 
 - Deterministic recorded-outcome regression failed before the fix (/tmp/pair542-red.log). With the fix, original cancellation conformance and all new group tests passed 20 times (4.908s; /tmp/pair542-green20.log). Load rose from 37.31 to 48.68 during qualification; no timing threshold was changed. Darwin membership queries only run for EPERM; group descendants and snapshot failures remain owned.
 
+- #511 readiness fixture passed 50 repetitions under existing parallel host load (3.849s; load 67.32; /tmp/pair542-descendant50.log). Added explicit successful parent-exit confirmation and the same ambiguous-probe path against its surviving descendant. Artifact-source classification passes.
+
 ## Revisions
 
 ### 2026-10-13 — measured ambiguous Darwin group probe
@@ -59,3 +61,7 @@ This is independent of #519: it uses couchcore runner/helper code, not notifytra
 The cause is treating Darwin EPERM as positive group-membership evidence. The observed post-Wait direct ESRCH/group EPERM sequence and member-free process snapshot demonstrate the false positive; the exact kernel scheduling is not claimed. Published XNU also returns EPERM for zero signalable members, but differs in details of group removal, so a permanent tty-reference explanation was investigated and rejected.
 
 Keep the common signal probe. On EPERM only, Darwin queries kern.proc.pgrp; a successful empty snapshot means absent, any member or query error retains ownership. Other platforms preserve the existing conservative behavior. No retries, sleeps, deadlines or descendant-check weakening. A regression injects the recorded EPERM outcome while retaining a real reaped child and real kernel membership query; live membership and query-failure regressions protect conservative ownership.
+
+### 2026-10-13 — include #511's survivor readiness fixture
+
+TL approved folding #511 into #542 and closing it with a landing pointer. The existing survivor test failed with the old liveness behavior (2/5 PTY repetitions, raw group ESRCH, /tmp/pair542-descendant-baseline.log). Its parent exits concurrently with the child's installation of SIGHUP ignore. Add a FIFO readiness handshake after the trap, before parent exit, with no changed deadline. Redirect survivor stdio away from the PTY so only group membership, not retained terminal descriptors, defines this fixture. Qualify #511's 50 repetitions under natural machine load; do not generate load. The initial full suite was stopped while still queued, before it ran, to preserve a stable test snapshot.
