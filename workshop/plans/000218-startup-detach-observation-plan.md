@@ -114,3 +114,7 @@ The earlier case inventories in M1 steps 4/6 and M2 steps 1/4 are superseded by 
 | Couch.Detach / retireDetachedIncarnation | Stateful generations change between pre-signal and record retirement; signal and conditional retirement require current exact client/server authority, even with shared initial evidence. |
 
 Non-goals: no ownership/contested-name relaxation; no process snapshot serialization to child Pair; no permanent cache; no unconditional parallelism increase; no new supported OS; no optimization of diagnostic writer inventory; no operator-session restart experiment; no redesign of #528 quiescence.
+
+### 2026-10-14 — measurement transparency discovery
+
+The existing zellijcalls instrument wraps internal --server reexec and therefore creates a second exact server argv claimant, making real ownership ambiguous. Fix the instrument with native exec passthrough for leading --server; exclude server lifetime from client timing. A process-level PID/argv/env/status regression must fail on the old wrapper and pass on the transparent exec. This changes measurement instrumentation only, before native discovery optimization. Component and failed-parent-return measurements must not be labeled complete startup evidence; the controlled client first frame and production detach must be observed.
