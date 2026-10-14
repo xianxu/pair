@@ -15,6 +15,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "ce2e88ff", done: "2cf5cde0"}
 ---
 
 # test: TestNotificationBrokerBeforeExecAndCleanup fails on main ('startup hook lost')
