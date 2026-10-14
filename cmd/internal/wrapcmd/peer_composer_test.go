@@ -199,3 +199,44 @@ func TestPeerComposerCapturedPastesReadOccupied(t *testing.T) {
 		}
 	}
 }
+
+// The /status command prints the title again, followed by capitalized fields.
+// It is transcript output above the composer, not an unresolved startup card.
+func codexStatusPaint() string {
+	return "\x1b[1;1H  >_ OpenAI Codex (v0.162.1)\x1b[3;3HModel: GPT-6-Astra (reasoning medium)\x1b[5;3HDirectory: /private/tmp/project\x1b[8;1HModel changed to gpt-6.1-sol medium for this session only\x1b[10;1H\x1b[1m›\x1b[22m \x1b[2mAsk Codex to do anything\x1b[22m\x1b[12;3HGPT-6.1-Sol medium · /private/tmp/project\x1b[?25h\x1b[10;3H"
+}
+func TestPeerComposerStatusCardLeavesComposerReady(t *testing.T) {
+	for _, labels := range []string{"capitalized", "lowercase", "mixed"} {
+		t.Run(labels, func(t *testing.T) {
+			paint := codexStatusPaint()
+			switch labels {
+			case "lowercase":
+				paint = strings.ReplaceAll(strings.ReplaceAll(paint, "Model:", "model:"), "Directory:", "directory:")
+			case "mixed":
+				paint = strings.ReplaceAll(strings.ReplaceAll(paint, "Model:", "mOdEl:"), "Directory:", "dIrEcToRy:")
+			}
+			if got := peerComposerState("codex", peerSnapshot(t, paint)); got != PeerComposerEmpty {
+				t.Fatalf("empty composer after /status = %v", got)
+			}
+		})
+	}
+	for _, field := range []string{"Model: GPT-6-Astra (reasoning medium)", "Directory: /private/tmp/project"} {
+		t.Run(field, func(t *testing.T) {
+			paint := strings.Replace(codexStatusPaint(), field, strings.Split(field, ":")[0]+": loading", 1)
+			if got := peerComposerState("codex", peerSnapshot(t, paint)); got != PeerComposerUnknown {
+				t.Fatalf("unresolved card = %v", got)
+			}
+		})
+	}
+	f := newHarnessSessionFake(t, "codex", true)
+	defer f.close()
+	f.proxy.automaticRecoveryAfter = -1
+	f.output(codexStatusPaint())
+	if !f.proxy.settledNow() {
+		t.Fatal("empty /status composer refuses relaunch idle observation")
+	}
+	f.output("\x1b[10;3H\x1b[0mowned draft\x1b[K\x1b[10;3H")
+	if f.proxy.settledNow() {
+		t.Fatal("real draft appears idle")
+	}
+}

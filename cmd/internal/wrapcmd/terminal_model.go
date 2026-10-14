@@ -55,6 +55,7 @@ type terminalSnapshot struct {
 	Cursor        uv.Position
 	CursorVisible bool
 	AltScreen     bool
+	Complete      bool // one coherent snapshot, outside an unfinished synchronized frame
 	Cells         []uv.Cell
 }
 
@@ -304,6 +305,7 @@ func (m *terminalModel) snapshotLocked() terminalSnapshot {
 		Cursor:        m.emulator.CursorPosition(),
 		CursorVisible: m.synchronized && m.observer.visible,
 		AltScreen:     m.altScreen,
+		Complete:      !m.closed && m.synchronized && !m.observer.frameOpen,
 		Cells:         make([]uv.Cell, width*height),
 	}
 	for y := 0; y < height; y++ {

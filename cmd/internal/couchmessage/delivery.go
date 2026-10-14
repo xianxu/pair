@@ -58,8 +58,11 @@ const (
 // landed. Pair renders, never classifies (pair#427): nothing here inspects
 // how the agent drew the pasted text.
 type PeerDeliveryEvent struct {
-	Kind              PeerDeliveryEventKind
-	Ready             bool
+	Kind  PeerDeliveryEventKind
+	Ready bool
+	// EmptyConfirmed carries the same post-submit empty snapshot used to
+	// confirm this event, so the input lease need not wait for another frame.
+	EmptyConfirmed    bool
 	Written, Expected int
 	Failed            bool
 }

@@ -161,6 +161,12 @@ type messageService struct {
 	slotOps       *slotOperations
 	switches      atomic.Pointer[agentSwitchService]
 	desktopNotify atomic.Pointer[func(context.Context, string, string) error]
+	// Retained across disconnects; only a verified replacement supersedes a slot.
+	stalls struct {
+		sync.Mutex
+		records map[string]automaticInputStallRecord
+	}
+
 	// broadcastStatus answers broadcast-status (pair#413). Installed after the
 	// service is serving, so it is an atomic pointer; nil answers unsupported.
 	broadcastStatus atomic.Pointer[func() (couchmessage.BroadcastStatus, bool)]
@@ -738,6 +744,8 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 		return s.handleHubMove(ctx, request)
 	case request.Op == "session-write":
 		return s.handleSessionWrite(ctx, request)
+	case request.Op == "automatic-input-stall":
+		return s.handleAutomaticInputStall(ctx, request)
 	case request.Op == "notify":
 		return s.handleNotify(ctx, request)
 	case request.Op == "switch-agent":
