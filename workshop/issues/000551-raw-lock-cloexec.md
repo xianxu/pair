@@ -44,8 +44,8 @@ in receipt cc82ffc3-c4f5-4c1c-9e9a-5b2fb14f5340.
 
 ## Plan
 
-- [ ] Add failing kernel FD_CLOEXEC tests for diagnostic regular files and the held notification namespace lock, plus an AST guard over every production raw open in the two modules to prove atomic O_CLOEXEC rather than a later fcntl fix.
-- [ ] Add O_CLOEXEC at all four discovered opens: diagnosticlog.openRegular, diagnosticlog.directoryNames, notifytransport.lockNamespace and notifytransport.readPID. Preserve NOFOLLOW/NONBLOCK, validation, file modes, bounded reads and explicit lock release (ARCH-PURPOSE, ARCH-DRY).
+- [x] Add failing kernel FD_CLOEXEC tests for diagnostic regular files and the held notification namespace lock, plus an AST guard over every production raw open in the two modules to prove atomic O_CLOEXEC rather than a later fcntl fix.
+- [x] Add O_CLOEXEC at all four discovered opens: diagnosticlog.openRegular, diagnosticlog.directoryNames, notifytransport.lockNamespace and notifytransport.readPID. Preserve NOFOLLOW/NONBLOCK, validation, file modes, bounded reads and explicit lock release (ARCH-PURPOSE, ARCH-DRY).
 - [ ] Run both package suites and focused race tests, make -k build, and the required sdlc local-check suite on the pushed head. Close via SDLC review and land on SHIP; this descriptor bugfix creates no new architectural surface.
 
 ## Log
@@ -57,3 +57,15 @@ Filed from #545 investigation; independent follow-up, not started.
 ### 2026-10-14 — pair:3 design
 
 Hub ops:0 assigned this small fix and authorized claim, brief plan, build and landing on SHIP (receipt ca952211-058c-443e-83d8-1229b13c2e65). Claimed in pair:3. start-plan caught up the base layer and required a repeat with its rebuilt binary; the repeat entered planning. Raw-open sweep found the issue's three sites plus diagnosticlog.directoryNames in pages.go. A later CloseOnExec call would retain the fork/exec race, so add the flag to the existing opens; no new IO seam or helper is needed. Kernel flag tests plus the source inventory guard cover the actual descriptor policy and its atomic placement.
+
+### 2026-10-14 — four-site fix verified
+
+The kernel regressions failed on both regular-file modes and the held namespace lock; the atomic-open source guard failed at all four opens. Added O_CLOEXEC directly to the existing syscall/unix.Open flag expressions, with no other production change. Full diagnosticlog package passed (35.570s), full notifytransport package passed (3.229s), and focused race regressions passed for both packages. Existing publication, lock contention/release, PID parsing, paging and safety checks remain covered by those suites.
+
+The namespace flag test matches its private lock inode in a bounded kernel FD scan. A first test fixture incorrectly assumed the parent's temporary directory was 0700 and /dev/fd would enumerate all macOS descriptors; corrected the fixture to let production create its private directory and use Fstat/Getrlimit instead. Both production descriptor tests then failed specifically for missing FD_CLOEXEC before the fix.
+
+## Revisions
+
+### 2026-10-14 — complete raw-open family
+
+The initial one-row plan is expanded to test/fix/verify steps. Include diagnosticlog.directoryNames discovered during the two-module sweep, alongside the filed regular-file lock, namespace lock and PID-binding read. The deliverable remains atomic descriptor hygiene without lifecycle or retry changes.

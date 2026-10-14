@@ -69,7 +69,7 @@ func lockNamespace(root string) (func(), error) {
 	if err := privateDirectory(root); err != nil {
 		return nil, err
 	}
-	fd, err := unix.Open(filepath.Join(root, "lock"), unix.O_RDWR|unix.O_CREAT|unix.O_NOFOLLOW|unix.O_NONBLOCK, 0600)
+	fd, err := unix.Open(filepath.Join(root, "lock"), unix.O_RDWR|unix.O_CREAT|unix.O_NOFOLLOW|unix.O_NONBLOCK|unix.O_CLOEXEC, 0600)
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +131,7 @@ func socketAddressIn(root, canonicalBinding string, pid int) string {
 }
 
 func readPID(binding string) (int, os.FileInfo, error) {
-	fd, err := unix.Open(binding, unix.O_RDONLY|unix.O_NOFOLLOW|unix.O_NONBLOCK, 0)
+	fd, err := unix.Open(binding, unix.O_RDONLY|unix.O_NOFOLLOW|unix.O_NONBLOCK|unix.O_CLOEXEC, 0)
 	if err != nil {
 		return 0, nil, err
 	}
