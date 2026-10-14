@@ -115,6 +115,12 @@ The operator (2026-10-13):
   wrapper-to-Couch forwarding expectations. Only tests/docs changed after the
   completed full suite; no product code changed. Waiting for TL's stage clearance.
 
+- Readiness report attempted from eac0d99ab4cc985eb16b64326bd0c316a52fe512;
+  Couch returned uncertain receipt 05d6ae41-759a-43c1-b6d7-6b91c4b85e93 because
+  its broker socket was absent. The required message-status lookup also failed
+  for the absent socket. No resend or alternate channel attempted; delivery is
+  unconfirmed. Await restored Couch/TL stage instruction; pair:0 remains untouched.
+
 ## Revisions
 
 ### 2026-10-13 — proposed design for TL approval
