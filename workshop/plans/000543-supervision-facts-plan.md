@@ -98,7 +98,7 @@ gaps. The script records no online state and writes output only to stdout.
   writes despite telemetry failure. Controlled endpoints prove delivery remains
   successful when logging fails; submission reconciliation and slot transitions
   produce exactly the observed facts, including unknowns/replacements.
-- [ ] Update README, atlas/couch.md and source inventory for new artifact writers.
+- [x] Update README, atlas/couch.md and source inventory for new artifact writers.
   Run focused Go/Python tests, race tests, and complete `make -k test`; record
   evidence, close review, merge main and land via sdlc. No pair:0 stage.
 
@@ -175,3 +175,8 @@ pass; full suite and the single close review remain outstanding.
 The Core concepts inventory now names the implemented lifecycle, slot projection,
 validated parser and write index; adapter and reader paths reflect their final
 files. This is inventory reconciliation, not a scope expansion.
+
+Full-suite verification completed with the six unchanged creation-lock failures
+recorded in the issue Log; all passed on the isolated rerun. The clean main merge
+and all affected package checks passed. The final SDLC review and landing are
+the remaining workflow gates, not implementation tasks.

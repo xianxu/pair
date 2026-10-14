@@ -60,7 +60,7 @@ and addd69f2-20e6-4697-8404-8fa5396f0d52. Implement after #530 lands.
 - [x] Define fact rows and offline ten-minute labels with focused tests.
 - [x] Add bounded diagnostic recorder and wire existing observations.
 - [x] Verify optional telemetry failures preserve writes and delivery.
-- [ ] Update docs, full suite, close review and land.
+- [x] Update docs and complete full-suite verification; close/landing use SDLC gates.
 
 Durable plan: [supervision facts](../plans/000543-supervision-facts-plan.md).
 
@@ -84,6 +84,22 @@ Durable plan: [supervision facts](../plans/000543-supervision-facts-plan.md).
 - Estimate clarification: focused ship wall clock excludes idle waiting; adapter
   allowance includes private-socket/failure tests, and the review allowance covers
   suite supervision and landing. Offline design reuses stdlib JSON/CLI/test tools.
+
+- Full `make -k test` completed (exit 2, /tmp/pair543-full-suite.log).
+  All non-Go checks and all Go packages except couchcore passed. Exactly six
+  unchanged couchcore tests failed with workspace host creation busy:
+  TestManagedCreateReuseRefusesProfileDriftDuringSetup,
+  TestReconcileResultListsWhatItSetAside, TestSavedWorkIsCollectedPastRetention,
+  TestSetAsideHoldsMatchThePlan, TestSetAsideMovesTheWholeCheckoutAndCanBeRestored,
+  TestSetAsideHostRecordsItsBranch. All six passed unchanged in an isolated
+  rerun (26.819s, /tmp/pair543-core-rerun.log). The 100ms creation-lock settle
+  is outside this patch; no clean-full-suite claim or timeout changes.
+- Merged origin/main including #522 cleanly at
+  a1f9c73defae97c1976c74e48cdd6f819c723891. No code conflict resolution.
+  Post-merge affected packages all passed: couchcmd 72.359s, couchmessage
+  7.212s, diagnosticlog 45.114s, sessionsync 12.829s, artifactpath 10.499s
+  (/tmp/pair543-merged-tests.log). No project across the
+  fleet references pair#543 (sdlc project find); pair:0 untouched.
 
 ## Revisions
 
