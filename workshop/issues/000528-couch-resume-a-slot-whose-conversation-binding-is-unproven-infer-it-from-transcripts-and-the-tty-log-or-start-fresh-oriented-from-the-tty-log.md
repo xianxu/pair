@@ -613,3 +613,20 @@ from origin/main; #528’s console changes are outside this path. The one-second
 completion assertion covers cast/HTTP shutdown as well as writer acknowledgement.
 The exact blocking stack is not yet measured; do not attribute a root cause
 or increase a timeout. Another full run will include the warm-fixture fix.
+
+### 2026-10-14 — approved final M1 acceptance delta
+
+Recorded TL decisions 379f4f5d/4ad3f4a8/b6a98c4d in the plan and atlas:
+explicit attachment retry, pane-independent authenticated broker admission,
+and guarded replacement of a proven-dead client helper only. Real pair:1 stays
+untouched for operator acceptance. Runtime changes need a new final-head suite;
+queued local check 5594eb85 does not cover them.
+
+Shutdown counter-measurement: temporary stack probe (restored afterwards),
+go test ./cmd/internal/couchtty -run '^TestDriveActionShutdownJoinsAndRejectsClicks$'
+-count=10 -v, reproduced one 2.04s failure and nine passes. At one second,
+Console.teardown waited in endWebcastForShutdown -> Cast.End -> Mount.Unmount
+-> Host.beginCloseLocked -> net/http.Server.Shutdown; the writer ACK worker had
+already exited. Existing HTTP shutdown budget is two seconds; this test waits
+one second. Log /tmp/pair528-drive-shutdown-probe-2.log. This is unchanged-main
+HTTP shutdown evidence, not an ACK regression; no timeout or production edits.

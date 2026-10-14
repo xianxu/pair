@@ -29,8 +29,12 @@ and read-only details; M2 must bound that state by owner liveness and age, then
 provide confirmed Resume/Fresh. Agent activity never demotes a positively
 listed session from Continue.
 
-Public Continue borrows the terminal through `couchcore/warm_attach.go`; it does
-not adopt or retire the thread's durable start, park, or incarnation. Its client
+Public Continue attaches through `couchcore/warm_attach.go`. After attachment,
+it may replace only a proven-dead client-helper incarnation with its exact
+locally owned helper, rechecking the old PID/start identity at the write gate.
+Bindings, parks and history remain intact. Open claims or uncertain/live old
+owners leave the record untouched: a borrowed attachment shows the reason.
+Wrapper and agent PIDs never become the client-helper incarnation. Its client
 is tracked in the registry and an in-memory handle map owned by this Couch.
 Detach, ordinary leave and failed-attach cleanup end only that exact helper.
 A persisted registry entry alone is never proof that this Couch owns its handle.
@@ -56,6 +60,12 @@ callers but cannot prevent server death between listing and attach. For legacy
 saved layouts, that resurrection race is accepted and measured on scratch
 sessions; no policy-file authority or custom probe attempts to eliminate it.
 Stable lock inodes occupy 256 stripes in session-locks-v2 and are retained.
+
+First focus, click and hub Continue perform explicit attachment with one bounded
+retry and a visible final failure; startup never runs an attachment sweep.
+Authenticated wrappers reconnect and join the broker independently of panes;
+retained thread/workspace, positive terminal listing, readiness and exact process
+proofs remain the message authority. An unfocused live slot can send and receive.
 
 A broken message channel does not authorize restarting a functioning agent.
 Older wrappers with an unlinked endpoint remain usable by terminal, with

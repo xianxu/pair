@@ -930,3 +930,34 @@ The merge of origin/main 962f3c0478ef4b46766f6e29b4f28092b909735f is
 covered by the next M2/issue-close review window, not the already closed M1.
 Before staging, run the full suite through sdlc local-check run --name suite.
 Operator acceptance still owns live pre-upgrade restart verification.
+
+### 2026-10-14 — explicit attachment, independent messaging and narrow dead-client repair
+
+TL decisions 379f4f5d, 4ad3f4a8 and b6a98c4d authorize this M1 delta.
+Selecting a row, clicking it, or requesting hub Continue is explicit attachment:
+one retry after a short cancellation-aware backoff, fresh positive listing at
+each attempt, and a visible reason if both fail. No background reattach sweep.
+A failed initial listing gets one bounded read retry; failed/absent listing
+never authorizes attach. Read retry and helper retry are separate bounded steps.
+
+Authenticated live wrappers reconnect to the broker independently of panes.
+Admission resolves their retained thread/workspace and exact positively listed
+terminal, retaining ready tag/agent/nonce and exact process identity checks.
+Pane presence is view state, not messaging authority (ARCH-PURPOSE). Exercise
+real Unix wrapper endpoints through broker restart with no pane events and
+bidirectional delivery. Endpoint recreation remains M3.
+
+On successful explicit Continue, replace only a proven-dead client-helper
+incarnation with this Couch's exact locally owned attach helper. Recheck the
+old PID/start identity as dead at the write gate; preserve binding, parks,
+history and all lifecycle claims. Any open claim, uncertain/live old owner or
+changed facts means borrowed attachment with a visible note and no record
+write. Never substitute wrapper or agent PID. Use a guarded named store
+transition, not lifecycle adoption that clears debris or invents a binding.
+
+Acceptance includes the untouched pair:1 case: positively listed 📁1-217,
+server 86286/wrapper 86287/agent 86303 alive, durable client helper 27163 dead.
+Continue must attach and repair only that dead client; never select Fresh.
+Fixtures cover changed owner identity at effect and open claims. The queued
+5594eb85a12fec01e8edb73f57082d45d2987b5f suite predates this runtime delta;
+the final runtime head requires its own recorded full local check before stage.
