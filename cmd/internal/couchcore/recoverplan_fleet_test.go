@@ -141,7 +141,7 @@ func TestKnownFleetReasonGrammar(t *testing.T) {
 	t.Parallel()
 
 	for reason, want := range map[string]bool{
-		"dirty": true, "detached": true, "missing": true, "unlanded-commits": true,
+		"staged": true, "staged:x": false, "dirty": true, "detached": true, "missing": true, "unlanded-commits": true,
 		"operation:rebase-merge": true, "open-issue:pair#000367": true, "claimed:pair#000367": true, "probe:base": true,
 		"operation:": false, "claimed:": false, "": false, "dirty:x": false, "stale": false, "probe": false,
 	} {

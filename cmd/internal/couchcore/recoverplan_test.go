@@ -159,6 +159,8 @@ func primaryRebootOnly(p *planFixture) {
 
 func recoverPlanCases() []recoverPlanCase {
 	return []recoverPlanCase{
+		{name: "healthy stage held", address: "pair:0", want: RecoverStaged, hold: []string{"staged"},
+			setup: func(p *planFixture) { p.fleet.AddSlot("pair:0"); p.fleet.SetStaged("pair:0") }},
 		{name: "dangling claim on a vanished slot", address: "pair:5", want: RecoverDirectoryMissing, hold: []string{"directory-missing"},
 			setup: func(p *planFixture) {
 				p.fleet.AddSlot("pair:0")
@@ -709,7 +711,7 @@ func TestDeriveRecoverPlanIsTotalOverTheEvidenceDomain(t *testing.T) {
 			default:
 				fail("unknown step " + step)
 			}
-			if step == "reboot" && (e.Operation != TriNo || e.DepTree == DepTreeOperation || e.DepTree == DepTreeUnknown || e.Branch == BranchDetached || e.Branch == BranchUnknown || e.gitUnknown() || e.Agent == AgentBusy || e.Agent == AgentUnusableUnknown || e.Agent == AgentOrphaned) {
+			if step == "reboot" && (e.Operation != TriNo || e.DepTree == DepTreeOperation || e.DepTree == DepTreeUnknown || e.Branch.detached() || e.Branch == BranchUnknown || e.gitUnknown() || e.Agent == AgentBusy || e.Agent == AgentUnusableUnknown || e.Agent == AgentOrphaned) {
 				fail("unsafe reboot")
 			}
 		}
@@ -723,6 +725,9 @@ func TestDeriveRecoverPlanIsTotalOverTheEvidenceDomain(t *testing.T) {
 		}
 		if (e.Operation == TriYes || e.DepTree == DepTreeOperation) && slices.Contains(d.Steps, "reboot") {
 			fail("reboot over an operation in some member")
+		}
+		if d.Class == RecoverStaged && (e.Branch != BranchStaged || e.Claims != ClaimsNone || e.DepClaims != DepNone || e.Dirty != TriNo || e.Operation != TriNo || e.gitUnknown() || len(d.Steps) > 0) {
+			fail("stage hold without healthy unclaimed stage evidence")
 		}
 		if d.Class == RecoverIdle && (e.Dirty != TriNo || e.Unlanded != TriNo || e.Operation != TriNo) {
 			fail("unknown or present work read as idle")
@@ -938,7 +943,7 @@ func consistent(e SlotEvidence) bool {
 		e.Offer == OfferReap && e.Agent != AgentOrphaned,
 		e.GitSource == GitSourceUnknown && !(e.Branch == BranchUnknown && e.Dirty == TriUnknown && e.Unlanded == TriUnknown && e.Operation == TriUnknown),
 		e.GitSource == GitSourceLocalProbe && (e.Unlanded != TriUnknown || e.Operation != TriUnknown || e.Dirty == TriUnknown ||
-			e.Branch == BranchTerminalIssue || e.Branch == BranchUnknown || (e.Quality != QualityUnknown && e.Quality != QualityUnsupported)),
+			e.Branch == BranchTerminalIssue || e.Branch == BranchStaged || e.Branch == BranchUnknown || (e.Quality != QualityUnknown && e.Quality != QualityUnsupported)),
 		e.GitSource == GitSourceSDLC && e.Quality == QualityUnsupported,
 		// An unread host read lists no host claims, but a dependency's weaker
 		// read can lower Quality while the host's claims stand: only absent
@@ -954,8 +959,8 @@ func consistent(e SlotEvidence) bool {
 		// The resting-dirty member is itself a dirty tree.
 		e.DepClaims == DepRestingDirty && e.DepTree == DepTreeClean,
 		e.Claims == ClaimsNone && e.Workspace,
-		(e.Claims == ClaimsOneActive || e.Claims == ClaimsManyWithActive) && (e.Branch == BranchResting || e.Branch == BranchOther || e.Branch == BranchDetached),
-		e.Elsewhere && (e.Claims == ClaimsOneActive || e.Claims == ClaimsManyWithActive || e.Branch == BranchResting || e.Branch == BranchOther || e.Branch == BranchDetached),
+		(e.Claims == ClaimsOneActive || e.Claims == ClaimsManyWithActive) && (e.Branch == BranchResting || e.Branch == BranchOther || e.Branch.detached()),
+		e.Elsewhere && (e.Claims == ClaimsOneActive || e.Claims == ClaimsManyWithActive || e.Branch == BranchResting || e.Branch == BranchOther || e.Branch.detached()),
 		e.Dir == DirMissing && e.GitSource != GitSourceUnknown:
 		return false
 	}

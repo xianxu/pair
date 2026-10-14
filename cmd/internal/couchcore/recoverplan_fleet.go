@@ -51,6 +51,7 @@ type FleetRow struct {
 	TreePath     string       `json:"tree_path"`
 	Branch       string       `json:"branch,omitempty"`
 	Detached     bool         `json:"detached"`
+	Staged       bool         `json:"staged,omitempty"`
 	Bare         bool         `json:"bare"`
 	Facts        FleetFacts   `json:"facts"`
 	Issues       []FleetIssue `json:"issues"`
@@ -158,12 +159,12 @@ const (
 	FleetClaimsAbsent  = "absent"
 )
 
-// knownFleetReason is the member reason grammar: dirty | detached | missing |
+// knownFleetReason is the member reason grammar: dirty | detached | staged | missing |
 // unlanded-commits | operation:<x> | open-issue:<ref> | claimed:<ref> |
 // probe:<x>.
 func knownFleetReason(reason string) bool {
 	switch reason {
-	case "dirty", "detached", "missing", "unlanded-commits":
+	case "dirty", "detached", "staged", "missing", "unlanded-commits":
 		return true
 	}
 	kind, value, ok := strings.Cut(reason, ":")
