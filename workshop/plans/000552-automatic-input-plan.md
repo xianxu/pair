@@ -115,12 +115,13 @@ Files: transaction model/tests above; new `cmd/internal/couchmessage/automatic_i
 
 ### 3. Verify and close the atomic item
 
-- [ ] Re-run both root regressions disabled and enabled; neither normal trace produces a tripwire. Check occupied drafts/menus and unknown/loading screens fail closed.
-- [ ] Replay the preserved parley raw bytes locally at its recorded dimensions against the fixed parser and fixed idle/delivery observations. Compare the still-running wrapper read-only if needed; do not type, restart, replace or reattach it. Report the verified result to TL before any live rollout.
-- [ ] Update `atlas/couch.md` (and index summary if needed) with completion-evidence release, detailed status and tripwire ownership/bounds. Record accepted review lessons.
-- [ ] Run the complete `make -k test` through the machine gate; inspect all failures and cite known flakes, never stop early. Run targeted race tests for reporter/runtime/supervisor ordering where supported.
-- [ ] Record actual hashes from `git rev-parse HEAD`, full-suite and headless evidence. No stage/visible window needed unless TL requests it.
+- [x] Re-run both root regressions disabled and enabled; neither normal trace produces a tripwire. Check occupied drafts/menus and unknown/loading screens fail closed.
+- [x] Replay the preserved parley raw bytes locally at its recorded dimensions against the fixed parser and fixed idle/delivery observations. Compare the still-running wrapper read-only if needed; do not type, restart, replace or reattach it. Report the verified result to TL before any live rollout.
+- [x] Update `atlas/couch.md` (and index summary if needed) with completion-evidence release, detailed status and tripwire ownership/bounds. Record accepted review lessons.
+- [x] Run the complete `make -k test` through the machine gate; inspect all failures and cite known flakes, never stop early. Run targeted race tests for reporter/runtime/supervisor ordering where supported.
+- [x] Record actual hashes from `git rev-parse HEAD`, full-suite and headless evidence. No stage/visible window needed unless TL requests it.
 - [ ] After TL acceptance, `sdlc close --issue 552 --verified ...`; address mandatory fresh review findings. Merge latest main, create PR, and on SHIP run `sdlc merge --yes` with validation. Report landed PR/hash to hub and stop.
+
 
 ## Architecture decisions
 

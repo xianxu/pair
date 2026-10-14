@@ -54,7 +54,7 @@ Durable design: [automatic-input plan](../plans/000552-automatic-input-plan.md).
 
 - [x] Fix capitalized Codex status labels and confirmed-empty lease completion; both root regressions pass with tripwire recovery disabled.
 - [x] Add a bounded, safe tripwire with detailed cause, local screen diagnostic, owning-hub notice and supervisor desktop alert; prove admission and shutdown behavior headlessly.
-- [ ] Replay the preserved parley recording read-only, update atlas and finish the full suite for acceptance; SDLC close/landing follow those checks.
+- [x] Replay the preserved parley recording read-only, update atlas and finish the full suite for acceptance; SDLC close/landing follow those checks.
 
 ## Log
 
@@ -75,6 +75,10 @@ Pure eligible-time transition, same-snapshot completeness, detailed gate causes,
 ### 2026-10-14 — acceptance and rollout decision
 
 TL receipt 1625cf7b-db6e-4d6d-8442-220ff0eacc93 verifies dd00dc23 and accepts read-only replay plus disabled-recovery regressions as strong pre-landing evidence. Finish the full suite and close review, then land normally. No stage: pair:0 is reserved for #528. TL owns the post-landing live check after main is rebuilt: relaunch parley.nvim:1, then send one normal Couch delivery. Preserve its current wrapper until that TL-run rollout. The full suite is currently running, after 382 seconds in the machine queue.
+
+### 2026-10-14 — full verification
+
+Complete `make -k test` exited 0 with no failures: /tmp/pair552-full-suite.log. The machine gate queued it for 382s; all shell/terminal checks and `go test ./... -count=1` completed, including couchcore 356.652s, couchcmd 63.254s, couchmessage 7.324s and wrapcmd 45.293s. No known failure/flake exclusions needed. Targeted race checks and preserved raw replay passed as recorded above. Root tests also pass through a temporary test overlay with recovery enabled, complementing committed disabled-recovery regressions; production source unchanged. Latest origin/main merge reports already up to date. Preparing the one mandatory close review, then authorized normal landing; live rollout remains TL-owned after landing.
 
 ## Revisions
 
