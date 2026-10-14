@@ -84,3 +84,72 @@ findings:
     detail: |
       workshop/issues/000540-couch-swallow-slots-osc-desktop-notifications-add-couch-notify-so-the-hub-tl-decides-what-reaches-the-operator.md:36 covers only notifications, while workshop/plans/000540-hub-notifications-plan.md:225 adds legacy messaging compatibility and recovery diagnostics. Add acceptance criteria for existing verbs against the old request contract, missing-registration and unsupported-notify guidance, and preservation of one-shot/no-retry behavior. ARCH-PURPOSE.
 ```
+
+---
+
+## Re-review — 2026-10-13T20:28:11-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 540 — couch: swallow slots' OSC desktop notifications; add couch --notify so the hub (TL) decides what reaches the operator |
+| repo | pair |
+| issue file | workshop/issues/000540-couch-swallow-slots-osc-desktop-notifications-add-couch-notify-so-the-hub-tl-decides-what-reaches-the-operator.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 407f578d0e1ee78b3b75aeacb26e1f726cec230b..0dcc138b6429a7ef620a27723e15e89420d94efe |
+| command | sdlc close --issue 540 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-13T20:28:11-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned implementation satisfies the notification and compatibility contracts. Both prior findings are addressed, including independently verified red/green regression evidence for stalled writes. No new findings. The repository remains unchanged.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      presenter.go:318 preserves stall recovery while returning non-success to Notify. desktop_notify_test.go:148 covers both pre-existing and notification-induced stalls, recovery, and no replay. Routing Notify back through writeUnlessStalled in a temporary pinned-head copy made both regressions fail; restoring the fix made them pass.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Issue #540 Done-when lines 37–42 now require legacy actors/send/status compatibility, accurate restart guidance, single-exchange behavior, and truthful notification outcomes. These match the plan's mixed-version revision and messages_compat_test.go:34; the compatibility regression passed, and its frozen request shape matches the referenced pre-540 source.
+```
+
+1. **Strengths**
+   - Acknowledged notification writes preserve errors without disrupting best-effort child effects (`cmd/internal/terminal/presenter.go:305–328`).
+   - Suppression tests exercise every split position, all three protocols, duplicate delivery, counter lifecycle, and preservation of other terminal effects (`cmd/internal/couchtty/desktop_notify_test.go`).
+   - Admission uses server-owned hub identity and rechecks caller authority before submission; real-socket tests cover lost acknowledgments without retries (`cmd/internal/couchcmd/notify_service_test.go`).
+   - README, atlas, help, embedded skill, and artifact inventory cover the new surface.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+   - Focused encoder, terminal, protocol, Couch CLI/console, and wrapper tests passed.
+   - Initial integration compilation lacked generated runtime assets. Generating the normal bundle in a temporary pinned-head copy resolved this.
+   - BR-1 mutation testing produced the expected failures in both stall cases.
+   - Full-suite and opt-in native/desktop smoke results were not independently rerun. The temporary copy was removed.
+
+6. **Architectural notes**
+   - **ARCH-DRY — pass:** Existing parser, sanitizer, authority checks, writer, and trace reused.
+   - **ARCH-PURE — pass:** Pure validation/encoding remain directly testable; inventory classifications match the code.
+   - **ARCH-PURPOSE — pass:** All child notification origins are suppressed; deliberate hub output remains separate.
+   - **ARCH-MOCK — pass:** Stateful host/broker fixtures share production seams; native conformance fixtures cover the external path.
+   - **ARCH-CONSTRAINTS — pass:** Payload bounds, existing deadlines/backpressure, and fixed-size counters constrain work.
+   - **ARCH-SECURE — pass:** Closed request validation, sanitization, and live caller checks protect ingress.
+   - **ARCH-ORDER — pass:** Existing presenter serialization owns writes; deterministic tests cover replacement, cancellation, stalls, and lost replies.
+   - **ARCH-FUNERAL — pass:** Counters expire with panes; diagnostics use existing bounded retention; no new durable queue or receipt family.
+
+7. **Plan revision recommendations:** None; existing revisions reconcile both prior findings.

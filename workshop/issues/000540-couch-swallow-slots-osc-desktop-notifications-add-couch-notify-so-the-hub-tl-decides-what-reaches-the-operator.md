@@ -15,7 +15,7 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "cafb2d9c", done: "c88d2fe0"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # couch: swallow slots' OSC desktop notifications; add couch --notify so the hub (TL) decides what reaches the operator
@@ -52,6 +52,8 @@ The operator (2026-10-13):
 ## Log
 
 ### 2026-10-13
+- 2026-10-13: closed — Final corrected make -k test passed in full, exit 0 (/tmp/pair540-stallfix-full-suite.log). BR-1 regressions failed before fix and pass after: pre-stalled and notification-induced stalls return failure and never replay after recovery; full terminal/notifyosc and targeted race also passed. BR-2 Done-when includes compatibility, recovery and one-shot outcomes. Real-socket legacy request tests prove existing verbs work and refusals give truthful restart guidance without retries. Operator smoke PASSED per TL receipt 9c269a35: one hub alert, worker refused, child notifications silent. pair:0 stage cleared to main.; review verdict: SHIP
+- 2026-10-13: flow upgraded quick → full — 290 added lines in code files (limit 100); an earlier round of this close already ran the full review
 
 - Claimed in pair:7 after #537 landed (PR #314). Refreshed the clean resting
   checkout with `weave refresh`: Pair 7f68b40238de8040e61d5fb39e3d3c09d64babb7,
