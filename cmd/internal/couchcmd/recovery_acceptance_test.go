@@ -189,10 +189,17 @@ func runRecoveryMenuAcceptance(t *testing.T, mode string) {
 			}
 		}
 		rt.proc.Set(inc.PID, inc.Identity)
-		rt.artifacts.SetDetachedSession(source.Address, "")
+		if mode != "warm" {
+			rt.artifacts.SetDetachedSession(source.Address, "")
+		}
+		// A warm attach retains its positively listed terminal throughout;
+		// clearing it would invent an absence while inventory is running.
 		rt.artifacts.SetPairSession(source.Address, targetSession, true)
 		if mode == "warm" {
-			return nil
+			// Inventory can run after acknowledgement and before adoption. Probe
+			// that point deterministically instead of relying on its scheduler.
+			_, err := c.ActionableThreadInventoryContext(context.Background(), nil)
+			return err
 		}
 		var profile launcher.TrustedLaunchProfile
 		for _, entry := range rt.runner.Child(id).Env {

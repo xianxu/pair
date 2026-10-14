@@ -589,3 +589,27 @@ exactly one hub launch and attached PTY output, waits for readiness before
 cancellation using the original bounded deadline, and keeps pipe refusal.
 Targeted cmd/couch run passes (6.416s); explicit-open + hub regressions pass
 (6.363s). The next full local-check includes both corrections.
+
+Second local-check on 9988efdc72af3c9c19d33fe09549beb112e4f9a1 acquired
+the gate after 1772s and ran 10m36s, exit 2. Installed smoke passes 8.860s;
+full core passes 336.992s; launcher passes 24.093s. Warm recovery acceptance
+failed its no-native-query assertion: its fake SetDetachedSession(empty) deletes
+positive session presence, while SetPairSession restores only the binding. This
+models false absence after acknowledgement. A synchronous inventory probe at
+that point reproduces the original failure (3.08s). Preserving the surviving
+session’s presence fixes it; probe retained and assertions unchanged. Warm
+count10 passes 30.332s, reboot passes 5.062s; production unchanged.
+
+The run also reports TestDriveActionShutdownJoinsAndRejectsClicks (2.05s),
+console_drive_test.go:616, shutdown did not finish after writer settled. Targeted
+repeat investigation is pending; no timeout adjustment or assumed runtime fix.
+Log: /Users/xianxu/workspace/pair/.git/sdlc/local-checks/9988efdc72af3c9c19d33fe09549beb112e4f9a1/suite.log.
+
+Independent shutdown check: go test ./cmd/internal/couchtty -run
+'^TestDriveActionShutdownJoinsAndRejectsClicks$' -count=10 -v reproduces once
+(first iteration 2.14s), then nine passes (0.05–0.08s), package 3.052s.
+Drive implementation/test, teardown, cast and host code are byte-unchanged
+from origin/main; #528’s console changes are outside this path. The one-second
+completion assertion covers cast/HTTP shutdown as well as writer acknowledgement.
+The exact blocking stack is not yet measured; do not attribute a root cause
+or increase a timeout. Another full run will include the warm-fixture fix.
