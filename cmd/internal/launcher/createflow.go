@@ -276,32 +276,12 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 	if intent := opts.Args.CouchSession; intent != nil && intent.Disposition == "attach" {
 		// This is already a selected terminal, never a native launch request.
 		// History, saved agent configuration and cwd cannot choose another one.
-		var sessions []Session
-		var err error
-		for attempt := 0; attempt < 2; attempt++ {
-			sessions, err = rt.SessionLiveness()
-			if err == nil {
-				break
-			}
-		}
-		if err != nil {
-			fmt.Fprintf(stderr, "pair: failed to query zellij sessions: %v\n", err)
-			return launchStep{code: 1}, nil
-		}
-		matches := 0
-		live := false
-		for _, session := range sessions {
-			if session.Name == intent.Name {
-				matches++
-				live = session.State != SessionExited
-			}
-		}
-		if matches != 1 || !live {
-			fmt.Fprintln(stderr, "pair: exact Couch session is not uniquely listed live; refusing attach fallback")
+		if err := verifyCouchSessionAttach(rt, *intent); err != nil {
+			fmt.Fprintf(stderr, "pair: %v\n", err)
 			return launchStep{code: 1}, nil
 		}
 		agent := rt.InferAgent(intent.Tag) // Optional title metadata only; no default or launch profile.
-		code, err, retained := runAttach(opts, env, rt, intent.Tag, intent.Name, agent, nil)
+		code, err, retained := runAttach(opts, env, rt, intent.Tag, intent.Name, agent)
 		if err != nil {
 			fmt.Fprintf(stderr, "pair: failed to attach session '%s': %v\n", intent.Name, err)
 			return launchStep{code: 1}, nil
@@ -406,15 +386,6 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 	}
 	switch decision.Action {
 	case ActionAttach:
-		var ownerProof SessionOwnerObservation
-		if intent := opts.Args.CouchSession; intent != nil {
-			var err error
-			ownerProof, err = verifyCouchSessionAttach(rt, opts.GlobalDataDir, *intent)
-			if err != nil {
-				fmt.Fprintf(stderr, "pair: %v\n", err)
-				return launchStep{code: 1}, nil
-			}
-		}
 		layoutResolution, err := resolveLiveLayout(rt, env.DataDir, decision.Tag, decision.SessionName, opts.Args.Layout)
 		if err != nil {
 			fmt.Fprintf(stderr, "pair: %v\n", err)
@@ -442,7 +413,7 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 			return launchStep{code: 0, session: decision.SessionName, tag: decision.Tag, agent: agent, relaunch: true}, nil
 		}
 
-		code, err, retained := runAttach(opts, env, rt, decision.Tag, decision.SessionName, agent, &ownerProof)
+		code, err, retained := runAttach(opts, env, rt, decision.Tag, decision.SessionName, agent)
 		if err != nil {
 			fmt.Fprintf(stderr, "pair: failed to attach session '%s': %v\n", decision.SessionName, err)
 			return launchStep{code: 1}, nil

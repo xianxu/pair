@@ -255,8 +255,8 @@ func managedSessionOptions(disposition string) LaunchOptions {
 	return opts
 }
 
-func TestCouchSessionRunLaunchRequiresOwnedStableWarmSession(t *testing.T) {
-	for _, scenario := range []string{"owned", "foreign", "unknown", "absent", "changed", "disappeared", "cold profile"} {
+func TestCouchSessionRunLaunchRequiresListedWarmSession(t *testing.T) {
+	for _, scenario := range []string{"owned", "foreign", "unknown", "absent", "changed", "disappeared", "failed listing", "exited", "cold profile"} {
 		t.Run(scenario, func(t *testing.T) {
 			opts := managedSessionOptions("attach")
 			rt := &couchSessionRuntime{fakeRuntime: newFakeRuntime(), ownerState: SessionOwnerOwned}
@@ -272,13 +272,18 @@ func TestCouchSessionRunLaunchRequiresOwnedStableWarmSession(t *testing.T) {
 				rt.changed = true
 			case "disappeared":
 				rt.sessions = nil
+			case "failed listing":
+				rt.sessionsErr = errors.New("listing failed")
+			case "exited":
+				rt.sessions[0].State = SessionExited
 			case "cold profile":
 				opts.Args.ResumeRequired = true
 			}
 			var stderr bytes.Buffer
 			code, err := RunLaunch(opts, rt, &stderr)
-			if scenario == "owned" {
-				if err != nil || code != 0 || len(rt.attached) != 1 || rt.attached[0] != opts.Args.CouchSession.Name || rt.observed != 1 || rt.revalidated != 2 {
+			allowed := scenario != "disappeared" && scenario != "failed listing" && scenario != "exited" && scenario != "cold profile"
+			if allowed {
+				if err != nil || code != 0 || len(rt.attached) != 1 || rt.attached[0] != opts.Args.CouchSession.Name || rt.observed != 0 || rt.revalidated != 0 {
 					t.Fatalf("warm attach code=%d err=%v attached=%v stderr=%s", code, err, rt.attached, &stderr)
 				}
 			} else if err != nil || code == 0 || len(rt.attached) != 0 {
@@ -287,7 +292,7 @@ func TestCouchSessionRunLaunchRequiresOwnedStableWarmSession(t *testing.T) {
 			if rt.launchCount != 0 {
 				t.Fatal("warm attach fell back to create")
 			}
-			if scenario != "owned" && len(rt.files) != 0 {
+			if !allowed && len(rt.files) != 0 {
 				t.Fatalf("refusal mutated sidecars: %v", rt.files)
 			}
 		})
@@ -311,27 +316,27 @@ func TestCouchSessionRunLaunchCreatesExactNameAndReplacesAssociation(t *testing.
 func (f *couchSessionRuntime) RecordOuterTTY(tag string, couch bool) {
 	f.fakeRuntime.RecordOuterTTY(tag, couch)
 	if f.changeDuringOuterTTY {
-		f.changed = true
+		f.sessions = nil
 	}
 }
-func TestCouchSessionWarmGenerationRevalidatedAfterOuterTTY(t *testing.T) {
+func TestCouchSessionWarmListingRecheckedAfterOuterTTY(t *testing.T) {
 	opts := managedSessionOptions("attach")
 	rt := &couchSessionRuntime{fakeRuntime: newFakeRuntime(), ownerState: SessionOwnerOwned, changeDuringOuterTTY: true}
 	rt.sessions = []Session{{Name: opts.Args.CouchSession.Name, State: SessionDetached}}
 	var stderr bytes.Buffer
 	code, err := RunLaunch(opts, rt, &stderr)
 	if err != nil || code == 0 || len(rt.attached) != 0 || rt.launchCount != 0 {
-		t.Fatalf("changed generation reached handoff: code=%d err=%v attached=%v stderr=%s", code, err, rt.attached, &stderr)
+		t.Fatalf("unlisted session reached handoff: code=%d err=%v attached=%v stderr=%s", code, err, rt.attached, &stderr)
 	}
-	if rt.observed != 1 {
-		t.Fatalf("replaced original observation instead of revalidating: %d", rt.observed)
+	if rt.observed != 0 || rt.revalidated != 0 {
+		t.Fatalf("warm attach consulted owner metadata: %d", rt.observed)
 	}
 }
 
 func (f *couchSessionRuntime) CmuxRename(tag, session string) {
 	f.fakeRuntime.CmuxRename(tag, session)
 	if f.changeDuringCmux {
-		f.changed = true
+		f.sessions = nil
 	}
 }
 func (f *couchSessionRuntime) BeginRetention(dataDir, tag string, create bool) (RetentionUse, error) {
@@ -339,11 +344,11 @@ func (f *couchSessionRuntime) BeginRetention(dataDir, tag string, create bool) (
 		f.sessions = []Session{{Name: "📁1-1", State: SessionAttached}}
 	}
 	if f.changeDuringRetention {
-		f.changed = true
+		f.sessions = nil
 	}
 	return &fakeRetentionUse{id: "managed-test", events: new([]string)}, nil
 }
-func TestCouchSessionWarmGenerationRevalidatedAtAttachEffect(t *testing.T) {
+func TestCouchSessionWarmListingRecheckedAtAttachEffect(t *testing.T) {
 	for _, boundary := range []string{"cmux", "retention"} {
 		for _, exported := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/exported=%v", boundary, exported), func(t *testing.T) {
@@ -359,10 +364,10 @@ func TestCouchSessionWarmGenerationRevalidatedAtAttachEffect(t *testing.T) {
 					code, err = RunLaunch(opts, rt, &stderr)
 				}
 				if code == 0 || len(rt.attached) != 0 || rt.launchCount != 0 {
-					t.Fatalf("replacement attached: code=%d err=%v attached=%v stderr=%s", code, err, rt.attached, &stderr)
+					t.Fatalf("unlisted session attached: code=%d err=%v attached=%v stderr=%s", code, err, rt.attached, &stderr)
 				}
-				if rt.observed != 1 {
-					t.Fatalf("original observation not retained: %d", rt.observed)
+				if rt.observed != 0 || rt.revalidated != 0 {
+					t.Fatalf("warm attach consulted owner metadata: %d", rt.observed)
 				}
 				if len(rt.killedPollers) != 1 || rt.killedPollers[0] != opts.Args.ForcedTag {
 					t.Fatalf("failed attach left poller running: %v", rt.killedPollers)
@@ -425,9 +430,22 @@ func TestCouchSessionWarmAttachFromSafeHostDirectory(t *testing.T) {
 			if rt.launchCount != 0 || len(rt.preparedLaunches) != 0 || rt.defaultReads != 0 || len(rt.ledger) != 0 {
 				t.Fatalf("warm attach inferred cold launch: launches=%d prepared=%v defaults=%d ledger=%v", rt.launchCount, rt.preparedLaunches, rt.defaultReads, rt.ledger)
 			}
-			if rt.observed != 1 || rt.revalidated != 2 {
-				t.Fatalf("lost exact owner checks: observed=%d revalidated=%d", rt.observed, rt.revalidated)
+			if rt.observed != 0 || rt.revalidated != 0 {
+				t.Fatalf("warm attach consulted owner metadata: observed=%d revalidated=%d", rt.observed, rt.revalidated)
 			}
 		})
+	}
+}
+
+// The production entry accepts legacy terminals even when the runtime has no
+// custom owner observation capability at all.
+func TestCouchSessionWarmAttachWithoutOwnerObserver(t *testing.T) {
+	opts := managedSessionOptions("attach")
+	rt := newFakeRuntime()
+	rt.sessions = []Session{{Name: opts.Args.CouchSession.Name, State: SessionDetached}}
+	var stderr bytes.Buffer
+	code, err := RunLaunch(opts, rt, &stderr)
+	if err != nil || code != 0 || len(rt.attached) != 1 || rt.attached[0] != opts.Args.CouchSession.Name || rt.launchCount != 0 {
+		t.Fatalf("listed legacy attach code=%d err=%v attached=%v launches=%d stderr=%s", code, err, rt.attached, rt.launchCount, &stderr)
 	}
 }

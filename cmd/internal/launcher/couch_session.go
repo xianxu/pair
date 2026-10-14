@@ -141,19 +141,31 @@ type couchSessionOwnerRuntime interface {
 	RevalidateSessionOwner(context.Context, SessionOwnerObservation) error
 }
 
-func verifyCouchSessionAttach(rt Runtime, globalDataDir string, intent CouchSessionIntent) (SessionOwnerObservation, error) {
-	observer, ok := rt.(couchSessionOwnerRuntime)
-	if !ok {
-		return SessionOwnerObservation{}, errors.New("couch session owner observer unavailable")
+// verifyCouchSessionAttach accepts only an exact positive live listing. Owner
+// metadata belongs to cold creation and retirement, not Continue authorization.
+func verifyCouchSessionAttach(rt Runtime, intent CouchSessionIntent) error {
+	var sessions []Session
+	var err error
+	for attempt := 0; attempt < 2; attempt++ {
+		sessions, err = rt.SessionLiveness()
+		if err == nil {
+			break
+		}
 	}
-	observation, err := observer.ObserveSessionOwner(context.Background(), intent.Name, globalDataDir, intent.Scope, intent.Tag)
 	if err != nil {
-		return observation, err
+		return fmt.Errorf("query zellij sessions: %w", err)
 	}
-	if observation.State != SessionOwnerOwned {
-		return observation, fmt.Errorf("couch session ownership is not proven: %s", observation.Diagnostic)
+	matches, live := 0, false
+	for _, session := range sessions {
+		if session.Name == intent.Name {
+			matches++
+			live = session.State != SessionExited
+		}
 	}
-	return observation, observer.RevalidateSessionOwner(context.Background(), observation)
+	if matches != 1 || !live {
+		return errors.New("exact Couch session is not uniquely listed live; refusing attach fallback")
+	}
+	return nil
 }
 
 type sessionNameReplacer interface{ ReplaceSessionNameIndex(SessionNameEntry) error }
