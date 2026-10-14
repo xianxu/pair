@@ -183,20 +183,21 @@ func TestViewerPageLoadsOnlySameOrigin(t *testing.T) {
 	if strings.Contains(notes, "fetch(") || strings.Contains(notes, "localStorage") {
 		t.Error("notes.js makes no request and keeps nothing; viewer.js's postJSON does the posting")
 	}
-	// Exactly two request functions besides the page's own assets and stream:
+	// Exactly three request functions besides the page's own assets and stream:
 	// postJSON, collab.js's poster, to a relative route from a fixed list (the
 	// pointer POST, #412, and the note routes, #447); and sessionLost's probe
-	// of the gate's own `session` route (pair#495). Both send the link's
+	// of the gate's own `session` route (pair#495), also used by the ownership
+	// projection (pair#537). All send the link's
 	// session cookie (same-origin credentials) and nothing else.
 	if n := strings.Count(viewer, "fetch("); n != 1 || !strings.Contains(viewer, "const postJSON = poster((url, init) => fetch(url, init), POST_ROUTES);") ||
 		!strings.Contains(viewer, "sessionLost: () => sessionLost(fetch),") {
 		t.Errorf("viewer.js has %d fetch calls, want exactly postJSON's and the session probe", n)
 	}
-	if n := strings.Count(collab, "fetchFn("); n != 2 || strings.Count(collab, "fetch(") != 0 || !strings.Contains(collab, "await fetchFn('session', {") {
-		t.Errorf("collab.js requests only through poster's fetchFn and the session probe")
+	if n := strings.Count(collab, "fetchFn("); n != 3 || strings.Count(collab, "fetch(") != 0 || !strings.Contains(collab, "await fetchFn('session', {") {
+		t.Errorf("collab.js requests only through poster and the two session probes")
 	}
-	if !strings.Contains(viewer, "const POST_ROUTES = ['point', 'note', 'resolve'];") || !strings.Contains(collab, "if (!routes.includes(route)) {") ||
-		!strings.Contains(collab, "return fetchFn(route, {") || strings.Count(collab, "credentials: 'same-origin'") != 2 || strings.Contains(collab, "credentials: 'omit'") {
+	if !strings.Contains(viewer, "const POST_ROUTES = ['point', 'note', 'note-edit', 'resolve'];") || !strings.Contains(collab, "if (!routes.includes(route)) {") ||
+		!strings.Contains(collab, "return fetchFn(route, {") || strings.Count(collab, "credentials: 'same-origin'") != 3 || strings.Contains(collab, "credentials: 'omit'") {
 		t.Error("postJSON must target a relative route from POST_ROUTES with same-origin credentials")
 	}
 }
