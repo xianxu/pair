@@ -41,7 +41,7 @@ Capture artifacts remain in the local Couch store before submit. Do not return c
 - [x] All open notes, including hidden and earlier-view notes, submit their original captures without screenshot/settling work at submit.
 - [x] Cancel, unsaved expiry, viewer/cast loss, resolve-before-submit and bundle transfer have tested cleanup and crash/retry behavior; disappearing elements retain evidence.
 - [x] Capture files stay local/private before submission, private-by-default submission rules remain intact, and legacy notes have explicit honest fallback behavior.
-- [ ] Pure scoring/lifecycle tests, controlled server/recorder tests, viewer/overlay browser conformance, affected checks and full-suite evidence are recorded; docs describe the resulting behavior.
+- [x] Pure scoring/lifecycle tests, controlled server/recorder tests, viewer/overlay browser conformance, affected checks and full-suite evidence are recorded; docs describe the resulting behavior.
 
 ## Plan
 
@@ -107,3 +107,5 @@ total: 5.48
 - Merged main at 6788a2dffb4d3383d32fae0b4dbb77f0b5bfe7bb, including #537 landing 51ab81e9815ea65e819577cc92d504d2d524f1f5 (PR #314). Prepared notes now stamp authenticated public ownership independently of private draft scope, with post-body and pre-write revocation checks. Shared edit/capture transitions retain held-editor protection, latest-note lookup and original capture evidence. Historical open-note edits use current-page admission and unchanged owner checks. Reconnect catch-up now preserves all retained notes and original segments; shared Go/JS prefix equivalence covers revisions and resolver metadata. Node browser+terminal suites 334/334; Board/recording race packages pass (1.417/20.043 s); real Chrome viewer ownership/edit, operator edit/capture and two-viewer tests pass (34.702 s, `/tmp/pair538-merge-edit-live.log`). Post-merge stored/opaque crop tests also pass (12.502 s, `/tmp/pair538-merged-crops.log`). Broad affected Go packages remain running; the machine-gated full suite has not started yet, so its eventual snapshot includes this integration.
 
 - Integration committed at 5e129ac4b; clean-tree `make build` passed. All webcast subpackages and core submission passed the broad merged run; broadcast passed in 125.152 s, with couchtty still running at this checkpoint. Artifact inventory passes. Full suite remains queued under the machine gate.
+
+- Broad merged verification completed successfully: all webcast packages, core submission, broadcast (125.152 s), couchtty (67.280 s), inventory, Node 334/334, clean build and five named real-Chrome cases. Hub receipt db65eb48-e62f-4da1-aae3-d02e396daaa5 explicitly authorizes close on this evidence plus PR CI: **full suite starved at the gate, ariadne#357**. The queued run was interrupted without running its targets; no full-suite passing claim. Remaining unchecked Plan row is this close review and subsequent publication/landing; these follow the acceptance gate.
