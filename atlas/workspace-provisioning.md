@@ -127,7 +127,12 @@ remove it.
 ## Ownership and interruption
 
 - One close-only inherited flock at `<common-git-dir>/couch-workspaces/creation.lock`
-  covers host Git creation. Contention returns busy; no silent queue or renumbering.
+  covers host Git creation. Active/unknown ownership returns busy after at most
+  the existing 100ms retry budget. A held/released byte in the same inode is
+  advisory: Close records released before closing, so a retake can back off up
+  to 2s from its first attempt for a fork copy waiting to exec. Ownership changes
+  never renew that budget, and only successful kernel flock admits creation.
+  No queue or renumbering is introduced; live inherited producers still exclude.
   Git children retain exclusion if their Couch parent dies.
 - The legacy `<common-git-dir>/couch-workspaces/<N>/creation.json` is retired
   (#387): reconcile removes one it finds, and nothing writes it any more. Recovery

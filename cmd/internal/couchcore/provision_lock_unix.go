@@ -13,12 +13,8 @@ import (
 
 var ErrHostCreationBusy = errors.New("workspace host creation is busy")
 
-// hostCreationSettle bounds how long a retake waits out a transient holder. A
-// fork in any goroutine copies every descriptor, this lease's included, into a
-// child that holds the lock until its exec closes the copy; a release and
-// retake inside that window (reconcile around compile) must not read as a
-// peer's creation. Measured at 2-9ms under a parallel suite (pair#436); a real
-// peer still reports busy, only this much later.
+// Active or unknown ownership retains a short refusal. A released owner can
+// leave a fork copy behind until exec; creationLeaseRetry bounds that backoff.
 const hostCreationSettle = 100 * time.Millisecond
 
 type HostCreationLease struct{ file *os.File }
@@ -27,13 +23,12 @@ func (l *HostCreationLease) File() *os.File { return l.file }
 
 // Close releases only our descriptor. Inherited descriptors keep exclusion until
 // their producers exit; an explicit LOCK_UN would release their lock too.
-func (l *HostCreationLease) Close() error { return l.file.Close() }
-
-func AcquireHostCreationLease(commonDir string) (*HostCreationLease, error) {
-	return acquireHostCreationLease(commonDir, hostCreationSettle)
+func (l *HostCreationLease) Close() error {
+	_, err := l.file.WriteAt([]byte{'R'}, 0)
+	return errors.Join(err, l.file.Close())
 }
 
-func acquireHostCreationLease(commonDir string, settle time.Duration) (*HostCreationLease, error) {
+func AcquireHostCreationLease(commonDir string) (*HostCreationLease, error) {
 	root, err := unix.Open(commonDir, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
 	if err != nil {
 		return nil, fmt.Errorf("open Git common directory: %w", err)
@@ -57,13 +52,18 @@ func acquireHostCreationLease(commonDir string, settle time.Duration) (*HostCrea
 		file.Close()
 		return nil, errors.New("creation lock must be a regular file")
 	}
-	deadline := time.Now().Add(settle)
-	for {
+	started := time.Now()
+	for attempt := 0; ; attempt++ {
 		err = unix.Flock(fd, unix.LOCK_EX|unix.LOCK_NB)
 		busy := errors.Is(err, unix.EWOULDBLOCK) || errors.Is(err, unix.EAGAIN)
-		if busy && time.Now().Before(deadline) {
-			time.Sleep(2 * time.Millisecond)
-			continue
+		if busy {
+			var hint [1]byte
+			n, readErr := file.ReadAt(hint[:], 0)
+			released := readErr == nil && n == 1 && hint[0] == 'R'
+			if delay := creationLeaseRetry(time.Since(started), attempt, released); delay > 0 {
+				time.Sleep(delay)
+				continue
+			}
 		}
 		if err != nil {
 			file.Close()
@@ -73,6 +73,15 @@ func acquireHostCreationLease(commonDir string, settle time.Duration) (*HostCrea
 			return nil, err
 		}
 		break
+	}
+	return newHostCreationLease(file)
+}
+
+// newHostCreationLease owns an already-locked descriptor, including cleanup if
+// recording ownership fails. A stale R is only bounded retry advice.
+func newHostCreationLease(file *os.File) (*HostCreationLease, error) {
+	if _, err := file.WriteAt([]byte{'H'}, 0); err != nil {
+		return nil, errors.Join(fmt.Errorf("mark creation lease held: %w", err), file.Close())
 	}
 	return &HostCreationLease{file: file}, nil
 }

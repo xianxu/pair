@@ -13,6 +13,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 func TestProvisionLeaseInherited(t *testing.T) {
@@ -140,7 +142,7 @@ func TestProvisionLeaseOutlastsATransientForkCopy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	copyFD, err := syscall.Dup(int(lease.File().Fd()))
+	copyFD, err := unix.FcntlInt(lease.File().Fd(), unix.F_DUPFD_CLOEXEC, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,9 +151,8 @@ func TestProvisionLeaseOutlastsATransientForkCopy(t *testing.T) {
 	}
 	released := time.AfterFunc(20*time.Millisecond, func() { _ = syscall.Close(copyFD) })
 	defer released.Stop()
-	// A generous window keeps the assertion off the scheduler: the copy's
-	// close is late by the timer's latency, never by the code under test.
-	next, err := acquireHostCreationLease(root, 30*time.Second)
+	// Exercise the production release-aware policy; no private timeout override.
+	next, err := AcquireHostCreationLease(root)
 	if err != nil {
 		t.Fatalf("retake behind a transient copy: %v", err)
 	}
