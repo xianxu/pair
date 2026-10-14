@@ -3,6 +3,7 @@ id: 000528
 status: working
 deps: []
 github_issue:
+target: slot-continuity
 created: 2026-10-13
 updated: 2026-10-13
 estimate_hours: 6.3535
@@ -277,6 +278,8 @@ Per TL 4e054fd4, `make -k test` entered the machine gate and acquired after 312s
 2026-10-13 — Recorded operator replacement design from verified TL receipt15876eb2. This is plan-only: no code, test process, layout cleanup, rebuild or restage. pair:0 remains on main after prior rollback. The list→attach race is explicitly unresolved for old saved sessions pending scratch measurement after approval.
 
 - 2026-10-13 20:20 PDT — PLAN ONLY, operator frame via TL receipt 70291ee7-93d3-4b62-b027-9f8162a08357. Appended code-verified state manifest and ordered reconciliation table to the durable plan: exactly Continue / Resume from disk / Start fresh. Audited registry/thread journals, park/start, channels, process generations, native/tty evidence and Zellij. Found ordinary thread reads can replay journals; startup currently reconciles interrupted starts and parks; candidate reads acquire retention leases. These cannot be hidden inside observation-only startup. Existing broker reconnect works, but an unlinked wrapper listener cannot be recreated by old wrappers; Continue by terminal remains valid. Installed Zellij reports 0.45.1; matching upstream source shows list-sessions can unlink connection-refused stale sockets and attach can resurrect legacy saved layouts after a list-to-attach death race. Both explicitly surfaced for operator review, not silently “fixed.” No implementation, build, test, stage or live recovery performed. Plan also closes missing-tty fallback and identity-bound live-stop confirmation gaps. Awaiting operator/TL approval. One fresh-eyes editorial pass identified two gaps, both folded into the plan: effect-time usable-agent evidence for Continue, and exact confirmation keys across proven, inferred and fresh recovery routes.
+
+- 2026-10-13 — Added the operator-approved slot-continuity target verbatim from ops draft, per verified TL receipt 7a3c544d-15c1-4c7a-b01c-5f36479f40f7; linked issue frontmatter and atlas index. Checked the manifest/table against every commitment and appended a target-conformance review to the plan. Conflicts include indefinite pending/retry states and complete-scan prerequisites for Fresh, the proposed native listing write exception, and the old-wrapper reconnect gap; hub authority is now explicit. Target copied byte-for-byte; no implementation authorized or changed.
 
 ## Estimate
 
