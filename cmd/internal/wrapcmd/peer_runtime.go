@@ -204,7 +204,7 @@ func (p *proxy) startPeerRuntime(executable string) (*peerRuntime, error) {
 	d.session = session
 	if p.terminal != nil {
 		d.settleProbe = p.settledNow
-		d.driveProbe = p.agentDriveScreen
+		d.driveProbe = p.agentDriveScreenLocked
 		d.tailProbe = p.agentTail
 		d.viewProbe = p.composerInView
 	}

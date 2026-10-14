@@ -23,7 +23,7 @@ func driveFixture(t *testing.T) (*harnessSessionFake, *peerDelivery, *time.Time)
 	b := couchmessage.Binding{Slot: "pair:1", Repository: "/fixture/.git", Scope: "fixture", Tag: "receiver", Session: "fixture-session", Nonce: "launch", Agent: "claude", Version: "fixture", PID: 1, Start: "fixture-start"}
 	d := newPeerDelivery(b, func() time.Time { return now })
 	f.proxy.peer = d
-	d.driveProbe = f.proxy.agentDriveScreen
+	d.driveProbe = f.proxy.agentDriveScreenLocked
 	d.settled = true
 	return f, d, &now
 }

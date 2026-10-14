@@ -56,7 +56,34 @@ func (p *proxy) agentDriveScreen() agentdrive.Screen {
 	}
 	s.Lines = renderTail(rows, couchmessage.MaxTailLines, snap.Cursor.X, snap.Cursor.Y, vt.Cursor{Hidden: !snap.CursorVisible}).Lines
 	s.TurnActive = turnBefore || p.turnActive.Load()
-	s.Idle = wrapperSettled(peerComposerState(p.agentBasename, evidence.Snapshot), s.TurnActive, pickerBefore || p.pickerActive.Load())
+	picker := pickerBefore || p.pickerActive.Load()
+	s.Idle = wrapperSettled(peerComposerState(p.agentBasename, evidence.Snapshot), s.TurnActive, picker)
+	text, known := qualifiedComposerText(p.agentBasename, evidence.Snapshot)
+	s.Recoverable = known && s.Complete && !s.TurnActive && !picker
+	// Cleanup proof is intentionally one acknowledged native command line. A
+	// multiline composer has no captured clearing contract and grants no cleanup.
+	if s.Recoverable && text == "/model" {
+		s.ComposerText = text
+	}
+	return s
+}
+
+// agentDriveScreenLocked combines display evidence with input ownership. The
+// caller holds peer.mu; plain screen readers never inspect writer-owned state.
+func (p *proxy) agentDriveScreenLocked() agentdrive.Screen {
+	s := p.agentDriveScreen()
+	if d := p.peer; d != nil {
+		s.Recoverable = s.Recoverable && !d.exited && !d.image && !d.inputBuffered && d.replies.inFlight == 0 && len(d.replies.input) == 0 && d.reservation == "" && (d.current.Message.ID == "" || d.current.Status.Terminal())
+		if p.automaticInput.phase == automaticInputPeer {
+			s.Recoverable = false
+		}
+		if p.automaticInput.phase == automaticInputDrive && (d.drive == nil || d.drive.active == nil || !d.drive.active.state.Started()) {
+			s.Recoverable = false
+		}
+	}
+	if !s.Recoverable {
+		s.ComposerText = ""
+	}
 	return s
 }
 
@@ -70,9 +97,10 @@ func (d *peerDelivery) sweepDrivesLocked() {
 		}
 	}
 }
-func (d *peerDelivery) driveIdleLocked() bool {
-	return d.drive != nil && d.drive.active == nil && d.settled && !d.exited && !d.image && !d.inputBuffered && d.replies.inFlight == 0 && len(d.replies.input) == 0 && d.reservation == "" && (d.current.Message.ID == "" || d.current.Status.Terminal())
+func (d *peerDelivery) driveAvailableLocked() bool {
+	return d.drive != nil && d.drive.active == nil && !d.exited && !d.image && !d.inputBuffered && d.replies.inFlight == 0 && len(d.replies.input) == 0 && d.reservation == "" && (d.current.Message.ID == "" || d.current.Status.Terminal())
 }
+func (d *peerDelivery) driveIdleLocked() bool { return d.driveAvailableLocked() && d.settled }
 func (d *peerDelivery) agentDriveObservation() couchmessage.DriveObservation {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -84,6 +112,7 @@ func (d *peerDelivery) agentDriveObservation() couchmessage.DriveObservation {
 	if d.driveProbe != nil {
 		s := d.driveProbe()
 		o.Idle = d.driveIdleLocked() && s.Idle && s.Complete
+		o.Recoverable = d.driveAvailableLocked() && s.Recoverable && s.Complete
 	}
 	return o
 }
@@ -113,7 +142,8 @@ func (d *peerDelivery) startAgentDrive(id string, start couchmessage.DriveStart)
 		return refuse("eight recent drive outcomes are held; wait up to five minutes and try again")
 	}
 	screen := d.driveProbe()
-	if !d.driveIdleLocked() || !screen.Idle || !screen.Complete {
+	admissible := d.driveIdleLocked() && screen.Idle || start.Request.RecoveryOnly() && d.driveAvailableLocked() && screen.Recoverable
+	if !admissible || !screen.Complete {
 		return refuse("agent composer must be empty with no turn or picker; wait until it is idle")
 	}
 	state, err := agentdrive.NewDrive(start.Request, d.binding.Agent, start.Deadline)
@@ -200,7 +230,7 @@ func (p *proxy) dispatchAgentDrive(out io.Writer) {
 		return
 	}
 	r := d.drive.active
-	screen := p.agentDriveScreen()
+	screen := p.agentDriveScreenLocked()
 	if d.exited {
 		d.cancelDriveLocked("wrapper exited")
 	}
@@ -211,19 +241,23 @@ func (p *proxy) dispatchAgentDrive(out io.Writer) {
 		return
 	}
 	if r.ctx.Err() != nil {
-		r.state, r.effects = agentdrive.ReduceDrive(r.state, agentdrive.DriveEvent{Kind: agentdrive.EventTick, At: d.now()})
+		r.state, r.effects = agentdrive.ReduceDrive(r.state, agentdrive.DriveEvent{Kind: agentdrive.EventTick, At: d.now(), Screen: screen})
 		if !r.state.Terminal() {
 			d.cancelDriveLocked("drive context ended")
 		}
 	}
 	if !r.state.Started() && !r.state.Terminal() {
-		screen.Idle = screen.Idle && d.settled && d.sequence == r.start.Sequence && !d.inputBuffered && d.replies.inFlight == 0 && len(d.replies.input) == 0 && d.reservation == "" && (d.current.Message.ID == "" || d.current.Status.Terminal()) && p.automaticInputAvailable(automaticInputDrive)
-		if screen.Idle {
+		recovery := r.start.Request.RecoveryOnly()
+		lease := p.automaticInput.phase == automaticInputIdle || p.automaticInput.phase == automaticInputAwaitingEmpty && (recovery || p.automaticInputAvailable(automaticInputDrive))
+		common := !d.exited && !d.image && d.sequence == r.start.Sequence && !d.inputBuffered && d.replies.inFlight == 0 && len(d.replies.input) == 0 && d.reservation == "" && (d.current.Message.ID == "" || d.current.Status.Terminal()) && lease
+		screen.Idle = screen.Idle && d.settled && common
+		screen.Recoverable = screen.Recoverable && recovery && common
+		if screen.Idle || screen.Recoverable {
 			p.automaticInput.phase = automaticInputDrive
 		}
 		r.state, r.effects = agentdrive.ReduceDrive(r.state, agentdrive.DriveEvent{Kind: agentdrive.EventStart, At: d.now(), Screen: screen})
 	} else if len(r.effects) == 0 && !r.state.Terminal() {
-		r.state, r.effects = agentdrive.ReduceDrive(r.state, agentdrive.DriveEvent{Kind: agentdrive.EventTick, At: d.now()})
+		r.state, r.effects = agentdrive.ReduceDrive(r.state, agentdrive.DriveEvent{Kind: agentdrive.EventTick, At: d.now(), Screen: screen})
 		if len(r.effects) == 0 && !r.state.Terminal() {
 			r.state, r.effects = agentdrive.ReduceDrive(r.state, agentdrive.DriveEvent{Kind: agentdrive.EventScreen, At: d.now(), Screen: screen})
 		}
@@ -259,6 +293,13 @@ func (p *proxy) dispatchAgentDrive(out io.Writer) {
 	if effect.Kind == agentdrive.EffectWrite && !screen.Complete {
 		// Initial commands and raw steps wait for a coherent frame within the
 		// same absolute budget; no bytes enter a partial redraw.
+		d.mu.Unlock()
+		p.inputAdmission.Unlock()
+		return
+	}
+	if effect.Kind == agentdrive.EffectWrite && r.start.Request.RecoveryOnly() && !screen.Recoverable {
+		d.cancelDriveLocked("recovery composer proof changed before input")
+		p.finishAgentDriveLocked(r, screen)
 		d.mu.Unlock()
 		p.inputAdmission.Unlock()
 		return
@@ -324,7 +365,7 @@ func (p *proxy) dispatchAgentDrive(out io.Writer) {
 	}
 	r.state, r.effects = agentdrive.ReduceDrive(r.state, event)
 	if r.state.Terminal() {
-		p.finishAgentDriveLocked(r, p.agentDriveScreen())
+		p.finishAgentDriveLocked(r, p.agentDriveScreenLocked())
 	}
 	d.mu.Unlock()
 }
