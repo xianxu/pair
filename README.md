@@ -398,7 +398,8 @@ normal startup resumes a proven conversation or starts fresh. Other slots are
 observed and attached in the background when projected Continue. Startup never
 launches or resumes their agents, completes interrupted starts, or replays their
 recovery journals. Attachments use bounded parallelism and one retry; a failure
-keeps Continue with a visible reason and a one-click retry. One unavailable slot does not
+reads `Continue · pane failed: <reason> (retry)`. While its pane is loading,
+it reads `Continue · attaching…`; an attached pane reads `Continue`. One unavailable slot does not
 prevent Couch or other slots from opening.
 Choose **Continue** for a session Zellij lists live, **Resume from disk** for a
 recoverable stopped conversation, or the offered **Start fresh** action to begin

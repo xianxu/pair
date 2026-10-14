@@ -827,3 +827,13 @@ code. Recorded suite and new staged build precede repeat operator acceptance.
   identical. Exited rows cause no helper, native launch or teardown. The pass
   keeps the existing bounded lifecycle pool; retention locking may serialize
   external helper entry, so the test asserts its upper bound, not forced overlap.
+
+- TL 23c5d13c narrowed notice ownership to the bare loading placeholder only.
+  Updated test first failed because a real corrupt-manifest error disappeared;
+  removing the loading-owner flag from real errors fixed it. Focused notice tests
+  PASS0.303s. TL 9d117536 added rendering-only pane status: exact row snapshots
+  for Continue · attaching…, Continue, and Continue · pane failed: reason
+  (retry), plus queued/sanitized width cases, PASS0.361s after RED against the
+  old labels. No lifecycle changes. Recorded suite on 8493ccecf is still
+  running and cannot certify this later head; run a new recorded suite before
+  staging the final head. No native recovery or live-slot actions performed.

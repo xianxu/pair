@@ -133,8 +133,12 @@ func TestInventorySuccessClearsOnlyInventoryNotice(t *testing.T) {
 			state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventInventory, Error: initialError})
 		}
 		state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventInventory, Inventory: menuThreads()})
-		if state.Notice != (MenuNotice{}) {
-			t.Fatalf("successful inventory retained stale notice: %+v", state.Notice)
+		want := MenuNotice{}
+		if initialError != "" {
+			want = errorMenuNotice("thread inventory unavailable: " + initialError)
+		}
+		if state.Notice != want {
+			t.Fatalf("successful inventory notice: got %+v want %+v", state.Notice, want)
 		}
 	}
 	for _, notice := range []MenuNotice{infoMenuNotice("borrowed attachment: lifecycle claim is open"), errorMenuNotice("attach failed"), progressMenuNotice("starting hub")} {

@@ -533,7 +533,6 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 		next.RefreshPending = false
 		if event.Error != "" {
 			next.Notice = errorMenuNotice("thread inventory unavailable: " + event.Error)
-			next.Notice.Owner.InventoryRefresh = true
 			// An armed pass stays armed until an inventory it can seed from
 			// (cell 2); a running one carries on, since warm-only re-proves each
 			// thread at attempt time (cell 4).
