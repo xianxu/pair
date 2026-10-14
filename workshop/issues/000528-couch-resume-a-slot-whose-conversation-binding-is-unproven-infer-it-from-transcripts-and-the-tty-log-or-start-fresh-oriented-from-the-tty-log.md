@@ -276,6 +276,8 @@ Per TL 4e054fd4, `make -k test` entered the machine gate and acquired after 312s
 
 2026-10-13 — Recorded operator replacement design from verified TL receipt15876eb2. This is plan-only: no code, test process, layout cleanup, rebuild or restage. pair:0 remains on main after prior rollback. The list→attach race is explicitly unresolved for old saved sessions pending scratch measurement after approval.
 
+- 2026-10-13 20:20 PDT — PLAN ONLY, operator frame via TL receipt 70291ee7-93d3-4b62-b027-9f8162a08357. Appended code-verified state manifest and ordered reconciliation table to the durable plan: exactly Continue / Resume from disk / Start fresh. Audited registry/thread journals, park/start, channels, process generations, native/tty evidence and Zellij. Found ordinary thread reads can replay journals; startup currently reconciles interrupted starts and parks; candidate reads acquire retention leases. These cannot be hidden inside observation-only startup. Existing broker reconnect works, but an unlinked wrapper listener cannot be recreated by old wrappers; Continue by terminal remains valid. Installed Zellij reports 0.45.1; matching upstream source shows list-sessions can unlink connection-refused stale sockets and attach can resurrect legacy saved layouts after a list-to-attach death race. Both explicitly surfaced for operator review, not silently “fixed.” No implementation, build, test, stage or live recovery performed. Plan also closes missing-tty fallback and identity-bound live-stop confirmation gaps. Awaiting operator/TL approval. One fresh-eyes editorial pass identified two gaps, both folded into the plan: effect-time usable-agent evidence for Continue, and exact confirmation keys across proven, inferred and fresh recovery routes.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against
@@ -321,3 +323,7 @@ Design subtotal 2.69 x1.15 = 3.0935; implementation subtotal 3.26;
 central estimate 6.3535 focused ship-hours. Main uncertainty is integration
 across attach/create and existing recovery admission, not future calibration
 collection (automatic enabling is deferred).
+
+## Revisions — 2026-10-13 20:20 PDT
+
+The operator's three-outcome frame supersedes incompatible policy-based and narrow attach revisions. The current design and source-verified state manifest/reconciliation table are the final appendix of `workshop/plans/000528-slot-recovery-plan.md`. Startup observes slots without recovery effects and never blocks Couch; broken messaging does not justify teardown of an attachable live agent. Recovery requires evidence, preserved context and explicit confirmation before stopping a running agent. This is a plan for operator/TL review, not authorization to implement.
