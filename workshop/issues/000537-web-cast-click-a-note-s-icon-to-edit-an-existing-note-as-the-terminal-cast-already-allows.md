@@ -192,6 +192,18 @@ total: 4.545
   A second full make -k test is queued under the weighted machine gate. The first
   full suite's complete evidence and both isolated corrections remain above.
 
+### 2026-10-13 17:47 PDT — repeat-suite cancellation authorized by TL
+
+- TL receipt 985bee07-c515-4cf2-a13a-f95d507224bd directs landing without waiting
+  longer for the queued repeat. Stopped that make process while it was still
+  waiting for the machine gate; no test in the repeat had started.
+- Corrected TL's "test-only" premise explicitly: the BR-1 production input guard
+  and textarea readOnly change followed the first complete full suite. Its
+  four red→green regressions, 283 Node tests, two real headless tests, independent
+  SHIP review and all PR #314 checks pass. The existing close --verified already
+  records that sequence; the instruction to wait for the repeat is superseded.
+- No gate-bypass flags are requested or used. pair:0 remains on main.
+
 ## Revisions
 
 ### 2026-10-13 16:13 PDT — operator ownership rule and terminal scope
