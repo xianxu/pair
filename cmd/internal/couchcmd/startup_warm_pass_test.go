@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -12,12 +13,47 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/x/vt"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchidentity"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
+
+// startupWarmScreen projects terminal writes into visible cells. A delta repaint
+// may reuse an existing prefix, so concatenated write bytes are not screen text.
+func startupWarmScreen(t *testing.T, cols, rows int, written func() string) func() string {
+	t.Helper()
+	em := vt.NewEmulator(cols, rows)
+	em.SetReplyWriter(io.Discard)
+	t.Cleanup(func() { _ = em.Close() })
+	consumed := 0
+	return func() string {
+		stream := written()
+		if _, err := em.WriteString(stream[consumed:]); err != nil {
+			t.Fatal(err)
+		}
+		consumed = len(stream)
+		return em.String()
+	}
+}
+
+func TestStartupWarmScreenReadsFailureAcrossDeltaRepaint(t *testing.T) {
+	written := "worker attachment"
+	screen := startupWarmScreen(t, 80, 2, func() string { return written })
+	if got := screen(); !strings.Contains(got, "worker attachment") {
+		t.Fatal(got)
+	}
+	// Reuse the already painted prefix, just as the production renderer does.
+	written += "\x1b[1;18H unavailable"
+	if strings.Contains(written, "worker attachment unavailable") {
+		t.Fatal("fixture did not split the write-stream phrase")
+	}
+	if got := screen(); !strings.Contains(got, "worker attachment unavailable") {
+		t.Fatalf("visible failure reason missing: %q", got)
+	}
+}
 
 type startupWarmRunner struct {
 	couchcore.Runner
@@ -139,6 +175,7 @@ func TestStartupWarmPassPaintsAndAcceptsInputWhileMixedAttachmentsBlock(t *testi
 		r.c.Artifacts = artifacts
 	})
 	r.host.SetSize(ptychild.Size{Rows: 30, Cols: 240})
+	screen := startupWarmScreen(t, 240, 30, r.host.Written)
 	if !r.console.ReattachPassArmed() {
 		t.Fatal("startup did not arm the automatic warm pass")
 	}
@@ -173,14 +210,32 @@ func TestStartupWarmPassPaintsAndAcceptsInputWhileMixedAttachmentsBlock(t *testi
 		t.Fatal(err)
 	}
 	waitWarmAcceptance(t, "mixed switcher paints before attach completion", func() bool {
-		return strings.Contains(r.host.Written(), "worker-exited") && strings.Contains(r.host.Written(), "worker-failure")
+		paint := screen()
+		return strings.Contains(paint, "Ctrl+Y copy last notice") && strings.Contains(paint, "worker-exited") && strings.Contains(paint, "worker-failure")
 	})
 	once.Do(func() { close(release) })
-	waitWarmAcceptance(t, "failed Continue reason and completed warm pass", func() bool {
+	t.Cleanup(func() {
+		if !t.Failed() {
+			return
+		}
+		runner.mu.Lock()
+		t.Logf("helper attempts=%v active=%d peak=%d", runner.attempts, runner.active, runner.maxActive)
+		runner.mu.Unlock()
+		written := r.host.Written()
+		if len(written) > 6000 {
+			written = written[len(written)-6000:]
+		}
+		t.Logf("last host writes=%q; visible screen=%q", written, screen())
+	})
+	waitWarmAcceptance(t, "two failed automatic helper attempts", func() bool {
 		runner.mu.Lock()
 		n := runner.attempts[failed.Address]
 		runner.mu.Unlock()
-		return n == 2 && strings.Contains(r.host.Written(), "Continue") && strings.Contains(r.host.Written(), "worker attachment unavailable")
+		return n == 2
+	})
+	waitWarmAcceptance(t, "rendered Continue failure reason", func() bool {
+		paint := screen()
+		return strings.Contains(paint, "Continue") && strings.Contains(paint, "worker attachment unavailable")
 	})
 	waitWarmAcceptance(t, "dead client repaired by automatic Continue", func() bool {
 		current, err := r.c.Threads.GetThread(dead.Address)
@@ -224,7 +279,11 @@ func TestStartupWarmPassPaintsAndAcceptsInputWhileMixedAttachmentsBlock(t *testi
 	runner.mu.Lock()
 	runner.allowFailure = true
 	runner.mu.Unlock()
-	if _, err := r.input.Write([]byte("worker-failure\r")); err != nil {
+	if _, err := r.input.Write([]byte("worker-failure")); err != nil {
+		t.Fatal(err)
+	}
+	waitWarmAcceptance(t, "failed Continue selected for explicit retry", func() bool { return strings.Contains(screen(), "filter: worker-failure") })
+	if _, err := r.input.Write([]byte{'\r'}); err != nil {
 		t.Fatal(err)
 	}
 	waitWarmAcceptance(t, "failed Continue user retry repairs its dead client", func() bool {

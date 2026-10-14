@@ -916,3 +916,21 @@ No follow-up implementation starts on this branch.
   cause; no timeout widening or gate bypass. Appended plan Revision. The
   post-merge recorded suite remains queued; no successful M1 re-close or landing
   is claimed. Generated sidecars checkpoint this failed round for the next review.
+
+- Post-merge host suite on95a2b9fe passed, but status publication failed:
+  gh could not connect to api.github.com. Log SHA256
+  2b19da93ed19daa219a22a753a1da867e35bf5df23acb4f0b62cdae8a24b6905;
+  this is host evidence, not recorded gate evidence. Final corrected head needs
+  a recorded rerun. GitHub rate-limit read later succeeded (remaining5000).
+- BR-11 correction is test-only. Original reviewer timing remained unreproduced
+  across30 host repetitions/probes. Controlled incremental repaint demonstrates
+  raw writes can omit a contiguous phrase visible in VT cells. Replaced the
+  raw-render oracle with existing VT projection, explicit menu-open/filter
+  barriers, separate retry-count/reason waits and bounded diagnostics. No
+  deadline increased. Raw-oracle mutation RED1.396s; focused startup/hub group
+  PASS9.231s; corrected integration+oracle10 repetitions PASS18.800s. Complete
+  repair/explicit-retry assertions pass. Append-only plan Revision records the
+  measured scope without inventing the original cause. Normal re-review next.
+- Hub progress sends abbe2e55 and0c60f68a were uncertain (context deadline);
+  follow-up receipt reads reported unavailable. No automatic resend was made.
+  The final landed outcome still needs a fresh report.

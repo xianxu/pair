@@ -1123,3 +1123,19 @@ without raising a timeout. Verify the complete later repair/explicit-retry path,
 then re-run the normal review. The gate's round-cap demotion is not permission
 to ignore the finding. Operator acceptance remains recorded, while automated
 startup regression conformance is reopened until this discrepancy is resolved.
+
+### 2026-10-14 — BR-11 fixture observations corrected; runtime unchanged
+
+Original reviewer timing was not reproduced on the host: original isolated,
+split-observation repetitions and long-TMPDIR probes passed. Do not claim a
+production cause or that a particular original interleaving was reconstructed.
+A controlled delta repaint does establish the test-oracle defect: an existing
+prefix plus cursor-positioned suffix shows the complete failure on screen while
+concatenated raw writes never contain the phrase. Use existing VT cell
+projection; wait for the actual menu header before releasing blocked helpers;
+separate count-two from visible-reason waits; wait for the selected filter before
+Enter. Preserve bounded screen/raw diagnostics and unchanged deadlines. The
+controlled oracle mutation fails with raw writes; corrected integration and
+oracle tests pass10 repetitions18.800s through all repair/retry assertions.
+Focused startup/hub group passes9.231s. Only the test file changes. Re-close
+normally; no dispute, no gate skip, no invented production fix.
