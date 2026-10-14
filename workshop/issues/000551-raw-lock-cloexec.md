@@ -64,6 +64,10 @@ The kernel regressions failed on both regular-file modes and the held namespace 
 
 The namespace flag test matches its private lock inode in a bounded kernel FD scan. A first test fixture incorrectly assumed the parent's temporary directory was 0700 and /dev/fd would enumerate all macOS descriptors; corrected the fixture to let production create its private directory and use Fstat/Getrlimit instead. Both production descriptor tests then failed specifically for missing FD_CLOEXEC before the fix.
 
+### 2026-10-14 — clean build and required suite
+
+Pushed implementation 54aac8349cceb33280711abc1b288b29ec2cb80f. make -k -B bin/pair passed, and its embedded vcs.revision matches that commit with vcs.modified=false; SHA256 f88908cc6f024b3adbf44708e072880228e1e1b052eec8050de38262fee3b9f0. Required sdlc local-check run --name suite is queued behind earlier machine-wide requests. This is a pure flag-hygiene bugfix with no new module interface, operator flow or architectural surface; the close will acknowledge no atlas change via --no-atlas and retain this reason in verification.
+
 ## Revisions
 
 ### 2026-10-14 — complete raw-open family
