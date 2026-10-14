@@ -9,7 +9,7 @@ M.PASTE_END = '\27[201~'
 -- guess is a paste; Claude Code measurably dropped whole middle reads of
 -- 3+-read sends (8 of 11 in the 2026-09 audit). Inside the markers the agent
 -- collects until the end marker however the bytes are chunked. Every profiled
--- harness already takes bracketed pastes (wrapcmd/orientation.go sends one).
+-- harness already takes bracketed pastes (wrapcmd peer delivery sends one).
 -- Paste markers are stripped from the body first, so no text can close the
 -- paste early or open a nested one.
 function M.frame(body)

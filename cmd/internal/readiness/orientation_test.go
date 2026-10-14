@@ -1,27 +1,22 @@
 package readiness
 
 import (
-	"github.com/xianxu/pair/cmd/internal/orientation"
+	"strings"
 	"testing"
 )
 
-func TestOrientationStatusValidation(t *testing.T) {
-	r := ReadyRecord{Tag: "t", Agent: "codex", Session: "s", Nonce: "n", PID: 1, Orientation: &orientation.DeliveryState{Phase: orientation.DeliverySubmitted, BodyWritten: true}}
-	raw, err := Encode(r)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, err := Decode(raw)
-	if err != nil || got.Orientation == nil || got.Orientation.Phase != orientation.DeliverySubmitted {
+// A ready record from a wrapper before #522 may carry its orientation delivery
+// state; it decodes (the slot is still running) and the state is ignored.
+func TestALegacyOrientationStateStillDecodes(t *testing.T) {
+	got, err := Decode(`{"tag":"t","agent":"codex","session":"s","nonce":"n","pid":1,"orientation":{"phase":"submitted","body_written":true}}`)
+	if err != nil || got.Nonce != "n" || got.PID != 1 {
 		t.Fatalf("decode %#v %v", got, err)
 	}
-	for _, state := range []orientation.DeliveryState{{Phase: "bogus"}, {Phase: orientation.DeliverySubmitted}, {Phase: orientation.DeliveryFailed, BodyWritten: true}, {Phase: orientation.DeliveryIndeterminate}, {Phase: orientation.DeliveryCancelled, Reason: "bad\x1b"}} {
-		r.Orientation = &state
-		if _, err := Encode(r); err == nil {
-			t.Fatalf("accepted %#v", state)
-		}
+	raw, err := Encode(ReadyRecord{Tag: "t", Agent: "codex", Session: "s", Nonce: "n", PID: 1})
+	if err != nil || len(raw) == 0 || strings.Contains(raw, "orientation") {
+		t.Fatalf("encode %q %v", raw, err)
 	}
-	if _, err := Decode(`{"tag":"t","agent":"codex","session":"s","nonce":"n","pid":1,"orientation":{"phase":"submitted","body_written":true,"unknown":true}}`); err == nil {
-		t.Fatal("accepted unknown status field")
+	if _, err := Encode(got); err == nil {
+		t.Fatal("the decode-only orientation field was written back")
 	}
 }

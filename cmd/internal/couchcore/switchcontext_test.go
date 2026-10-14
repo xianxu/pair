@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
-	"github.com/xianxu/pair/cmd/internal/orientation"
 	"github.com/xianxu/pair/cmd/internal/readiness"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/testwait"
@@ -74,14 +73,9 @@ func TestSwitchContextMissingAndAmbiguousSourcesStayUnavailable(t *testing.T) {
 	if got.SourceSession != "" || len(got.NativeTranscripts) != 0 || len(got.Unavailable) == 0 {
 		t.Fatalf("guessed context: %+v", got)
 	}
-	got.TargetAgent = "claude"
-	body, err := orientation.BuildPrompt(got)
-	if err != nil || !strings.Contains(body, "unavailable") {
-		t.Fatalf("missing context prevented prompt: %v %s", err, body)
-	}
 }
 
-func TestOrientationStatusRequiresExactReadyIdentity(t *testing.T) {
+func TestReadyReaderRequiresExactReadyIdentity(t *testing.T) {
 	t.Parallel()
 
 	address := verifiedResumeThread(t).Address
@@ -91,13 +85,12 @@ func TestOrientationStatusRequiresExactReadyIdentity(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(readyPath), 0700); err != nil {
 		t.Fatal(err)
 	}
-	ready := readiness.ReadyRecord{Tag: string(address.Tag), Agent: "codex", Session: "pair-exact", Nonce: "attempt-1", PID: os.Getpid(), Orientation: &orientation.DeliveryState{Phase: orientation.DeliverySubmitted, BodyWritten: true}}
-	reader := OSOrientationStatusReader{DataDir: dataDir, Session: func(ThreadAddress) (PairSessionBinding, error) {
+	ready := readiness.ReadyRecord{Tag: string(address.Tag), Agent: "codex", Session: "pair-exact", Nonce: "attempt-1", PID: os.Getpid()}
+	reader := OSReadyReader{DataDir: dataDir, Session: func(ThreadAddress) (PairSessionBinding, error) {
 		return PairSessionBinding{Name: "pair-exact", Present: true}, nil
 	}, Proc: OSProcOps{}}
-	state, err := reader.Read(context.Background(), address, "codex", "attempt-1")
-	if err != nil || state.Phase != orientation.DeliveryWaiting {
-		t.Fatalf("missing status = %+v %v", state, err)
+	if registered, err := reader.Registered(context.Background(), address, "codex", "attempt-1"); err != nil || registered {
+		t.Fatalf("a missing ready record registered: %v %v", registered, err)
 	}
 	for _, change := range []string{"valid", "nonce", "session", "tag", "agent", "oversized"} {
 		candidate := ready
@@ -120,12 +113,12 @@ func TestOrientationStatusRequiresExactReadyIdentity(t *testing.T) {
 		if err := os.WriteFile(readyPath, []byte(raw), 0600); err != nil {
 			t.Fatal(err)
 		}
-		state, err := reader.Read(context.Background(), address, "codex", "attempt-1")
+		registered, err := reader.Registered(context.Background(), address, "codex", "attempt-1")
 		if change == "valid" {
-			if err != nil || state.Phase != orientation.DeliverySubmitted {
-				t.Fatalf("valid status=%+v %v", state, err)
+			if err != nil || !registered {
+				t.Fatalf("valid ready record = %v %v", registered, err)
 			}
-		} else if err == nil {
+		} else if err == nil && registered {
 			t.Fatalf("accepted obsolete %s", change)
 		}
 		if change == "oversized" && !strings.Contains(err.Error(), "size limit") {
@@ -134,7 +127,7 @@ func TestOrientationStatusRequiresExactReadyIdentity(t *testing.T) {
 	}
 }
 
-func TestFreshRegistrationAcceptsReadyBeforeOrientation(t *testing.T) {
+func TestFreshRegistrationAcceptsTheExactReadyRecord(t *testing.T) {
 	t.Parallel()
 
 	record := verifiedResumeThread(t)
@@ -151,40 +144,12 @@ func TestFreshRegistrationAcceptsReadyBeforeOrientation(t *testing.T) {
 	if err := os.WriteFile(path, []byte(raw), 0600); err != nil {
 		t.Fatal(err)
 	}
-	reader := OSOrientationStatusReader{DataDir: filepath.Dir(filepath.Dir(paths.ScopeDir())), Session: func(ThreadAddress) (PairSessionBinding, error) {
+	reader := OSReadyReader{DataDir: filepath.Dir(filepath.Dir(paths.ScopeDir())), Session: func(ThreadAddress) (PairSessionBinding, error) {
 		return PairSessionBinding{Name: "exact-session", Present: true}, nil
 	}, Proc: OSProcOps{}}
 	registered, err := reader.Registered(context.Background(), record.Address, "codex", "attempt")
 	if err != nil || !registered {
 		t.Fatalf("exact child readiness rejected: %v %v", registered, err)
-	}
-	state, err := reader.Read(context.Background(), record.Address, "codex", "attempt")
-	if err != nil || state.Phase != orientation.DeliveryWaiting {
-		t.Fatalf("orientation not waiting: %+v %v", state, err)
-	}
-}
-
-func TestReadOrientationStatusRejectsReplacedIncarnation(t *testing.T) {
-	t.Parallel()
-
-	store, _, record := createControllerThread(t)
-	proc := NewFakeProcOps()
-	proc.Set(42, "pair-helper")
-	calls := 0
-	couch := &Couch{Threads: store, Proc: proc, OrientationStatus: func(context.Context, ThreadAddress, string, string) (orientation.DeliveryState, error) {
-		calls++
-		return orientation.DeliveryState{Phase: orientation.DeliverySubmitted, BodyWritten: true}, nil
-	}}
-	if _, err := couch.ReadOrientationStatus(context.Background(), record.Address, "codex", "attempt"); err != nil || calls != 1 {
-		t.Fatalf("valid incarnation rejected: %v", err)
-	}
-	proc.Set(42, "replacement")
-	if _, err := couch.ReadOrientationStatus(context.Background(), record.Address, "codex", "attempt"); err == nil || calls != 1 {
-		t.Fatal("read status from replaced process")
-	}
-	proc.Set(42, "pair-helper")
-	if _, err := couch.ReadOrientationStatus(context.Background(), record.Address, "claude", "attempt"); err == nil || calls != 1 {
-		t.Fatal("read status from different agent")
 	}
 }
 
@@ -198,7 +163,7 @@ func TestFreshRegistrationWaitsForOldReadyReplacement(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		t.Fatal(err)
 	}
-	reader := OSOrientationStatusReader{DataDir: dataDir, Session: func(ThreadAddress) (PairSessionBinding, error) {
+	reader := OSReadyReader{DataDir: dataDir, Session: func(ThreadAddress) (PairSessionBinding, error) {
 		return PairSessionBinding{Name: "session", Present: true}, nil
 	}, Proc: OSProcOps{}}
 	for _, nonce := range []string{"old-attempt", "new-attempt"} {
@@ -265,7 +230,7 @@ func TestContinuationGenerationReceiptSurvivesTargetDeath(t *testing.T) {
 	if err := os.WriteFile(path, []byte(raw), 0600); err != nil {
 		t.Fatal(err)
 	}
-	reader := OSOrientationStatusReader{DataDir: data, Session: func(ThreadAddress) (PairSessionBinding, error) {
+	reader := OSReadyReader{DataDir: data, Session: func(ThreadAddress) (PairSessionBinding, error) {
 		return PairSessionBinding{Name: "exact-session", Present: false}, nil
 	}, Proc: NewFakeProcOps()}
 	generation, err := reader.Generation(context.Background(), record.Address, "codex", "attempt")
@@ -282,10 +247,10 @@ func TestContinuationGenerationReceiptSurvivesTargetDeath(t *testing.T) {
 	}
 }
 
-func TestOrientationSessionObservationHonorsCallerDeadline(t *testing.T) {
+func TestReadyReaderSessionObservationHonorsCallerDeadline(t *testing.T) {
 	t.Parallel()
 
-	for _, operation := range []string{"generation", "registered", "read"} {
+	for _, operation := range []string{"generation", "registered"} {
 		t.Run(operation, func(t *testing.T) {
 			record := verifiedResumeThread(t)
 			data := t.TempDir()
@@ -308,7 +273,7 @@ func TestOrientationSessionObservationHonorsCallerDeadline(t *testing.T) {
 			ctx, cancel := budget.bind(context.Background())
 			defer cancel()
 			observed := false
-			reader := OSOrientationStatusReader{DataDir: data, Session: func(ThreadAddress) (PairSessionBinding, error) {
+			reader := OSReadyReader{DataDir: data, Session: func(ThreadAddress) (PairSessionBinding, error) {
 				t.Fatal("legacy observer bypassed caller context")
 				return PairSessionBinding{}, nil
 			}, SessionContext: func(got context.Context, _ ThreadAddress) (PairSessionBinding, error) {
@@ -327,8 +292,6 @@ func TestOrientationSessionObservationHonorsCallerDeadline(t *testing.T) {
 				_, err = reader.Generation(ctx, record.Address, "codex", "attempt")
 			case "registered":
 				_, err = reader.Registered(ctx, record.Address, "codex", "attempt")
-			case "read":
-				_, err = reader.Read(ctx, record.Address, "codex", "attempt")
 			}
 			if !observed || !errors.Is(err, context.DeadlineExceeded) {
 				t.Fatalf("observed=%v err=%v", observed, err)
@@ -349,7 +312,7 @@ func TestRecordedSessionReadsReadyFileWithoutSessionObservation(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(readyPath), 0700); err != nil {
 		t.Fatal(err)
 	}
-	reader := OSOrientationStatusReader{DataDir: dataDir, Session: func(ThreadAddress) (PairSessionBinding, error) {
+	reader := OSReadyReader{DataDir: dataDir, Session: func(ThreadAddress) (PairSessionBinding, error) {
 		t.Fatal("RecordedSession observed the Pair session")
 		return PairSessionBinding{}, nil
 	}, Proc: OSProcOps{}}

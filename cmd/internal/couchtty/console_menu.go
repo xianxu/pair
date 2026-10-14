@@ -258,10 +258,6 @@ func (c *Console) showMenuPublishing() {
 // Console's one sequential operation queue.
 func (c *Console) dispatchMenuEffects(effects []MenuEffect) {
 	for _, effect := range effects {
-		if effect.CopyOrientation != nil {
-			c.copyOrientation(*effect.CopyOrientation)
-			continue
-		}
 		if effect.Completion != nil {
 			c.advanceMenuCompletion(latestScheduleEvent[CompletionRequest, CompletionIdentity]{Kind: latestRequested, Request: *effect.Completion})
 			continue

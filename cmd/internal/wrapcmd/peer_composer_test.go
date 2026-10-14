@@ -58,7 +58,7 @@ func TestPeerComposerCapturedFrames(t *testing.T) {
 		{"claude", "testdata/peer/claude/2.1.286/startup-fix-lint.raw"},
 		{"claude", "testdata/peer/claude/2.1.286/startup-write-test.raw"},
 		{"claude", "testdata/peer/claude/2.1.286/startup-create-util.raw"},
-		{"codex", "testdata/orientation/codex/0.154.0/ready.raw"},
+		{"codex", "testdata/peer/codex/0.154.0/ready.raw"},
 		{"codex", "testdata/peer/codex/0.159.2/startup.raw"},
 	} {
 		raw, err := os.ReadFile(tc.path)
@@ -96,7 +96,7 @@ func TestPeerComposerSharedFaintSuggestion(t *testing.T) {
 }
 
 func TestPeerComposerDeclinesCapturedStartupAndMenus(t *testing.T) {
-	for _, path := range []string{"testdata/orientation/codex/0.154.0/loading.raw", "testdata/orientation/codex/0.154.0/trust.raw", "testdata/tty/codex/0.147.0/overlay.raw"} {
+	for _, path := range []string{"testdata/peer/codex/0.154.0/loading.raw", "testdata/peer/codex/0.154.0/trust.raw", "testdata/tty/codex/0.147.0/overlay.raw"} {
 		raw, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatal(err)

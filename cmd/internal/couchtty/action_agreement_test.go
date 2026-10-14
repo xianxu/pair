@@ -25,7 +25,7 @@ import (
 func TestActionOfferedImpliesPermitted(t *testing.T) {
 	// resumeAdmitted is resume's admission as ResumeTarget's route states it:
 	// ResumableState, plus every unusable row, because the route hands those
-	// to OpenSlot, RecoverThread or RetryContinuation, each with its own
+	// to OpenSlot, RecoverThread or Continue, each with its own
 	// refusal -- and an unknown classification is refused by the table, not
 	// here.
 	resumeAdmitted := func(state couchcore.ActionableThreadState, reason couchcore.ThreadReason) bool {

@@ -2,15 +2,21 @@ package couchcore
 
 import (
 	"context"
-	"github.com/xianxu/pair/cmd/internal/checkpoint"
-	"github.com/xianxu/pair/cmd/internal/orientation"
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"strconv"
+	"strings"
 	"sync"
 	"testing"
+
+	"github.com/xianxu/pair/cmd/internal/checkpoint"
+	"github.com/xianxu/pair/cmd/internal/launcher"
 )
 
-func TestContinuationPublishExecuteAndReceipt(t *testing.T) {
+func TestContinuationStartsTheNextConversationWithItsLaunchPrompt(t *testing.T) {
 	t.Parallel()
 
 	env, source := switchEnvWithLiveThread(t)
@@ -39,6 +45,18 @@ func TestContinuationPublishExecuteAndReceipt(t *testing.T) {
 		env.Artifacts.SetPairSession(source.Address, continuationChildSession(t, env.Runner, id), true)
 		return nil
 	}
+	var prompt string
+	env.Runner.AfterBlockedStart = func(id string) {
+		var profile launcher.TrustedLaunchProfile
+		for _, entry := range env.Runner.Child(id).Env {
+			if raw, ok := strings.CutPrefix(entry, launcher.CouchLaunchProfileEnv+"="); ok {
+				if err := json.Unmarshal([]byte(raw), &profile); err != nil {
+					t.Error(err)
+				}
+			}
+		}
+		prompt = profile.Prompt
+	}
 	result, err := env.Couch.Continue(context.Background(), source.Address, status.RequestID)
 	if err != nil {
 		t.Fatal(err)
@@ -47,20 +65,33 @@ func TestContinuationPublishExecuteAndReceipt(t *testing.T) {
 	if !ok || started.Record.Thread != source.Address {
 		t.Fatalf("start = %+v", result)
 	}
-	if result.Status.Phase != checkpoint.Running || result.Orientation == nil {
-		t.Fatalf("premature completion %+v", result)
+	// Registration completes it: the prompt was part of the launch (#522).
+	if result.Status.Phase != checkpoint.Complete || result.Missed != nil {
+		t.Fatalf("not complete at registration: %+v", result)
 	}
-	materialized, err := os.ReadFile(mustContinuationPath(t, env.Couch, source.Address))
+	seed := mustContinuationPath(t, env.Couch, source.Address)
+	materialized, err := os.ReadFile(seed)
 	if err != nil || string(materialized) != body {
 		t.Fatalf("snapshot %q %v", materialized, err)
 	}
-	env.Proc.Set(started.Record.PID, started.Record.Identity)
-	env.Couch.OrientationStatus = func(context.Context, ThreadAddress, string, string) (orientation.DeliveryState, error) {
-		return orientation.DeliveryState{Phase: orientation.DeliverySubmitted}, nil
+	if want := ContinuationPrompt(seed, source.Address.Tag); prompt != want {
+		t.Fatalf("launch prompt %q, want %q", prompt, want)
 	}
-	completed, err := env.Couch.ReconcileContinuation(context.Background(), source.Address, status.RequestID, result.Status.Attempt)
-	if err != nil || completed.Phase != checkpoint.Complete {
-		t.Fatalf("receipt = %+v %v", completed, err)
+	// The coordinates: the conversation it replaced and the continuation.
+	record, err := env.Couch.Threads.GetThread(source.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p := record.PreviousSession; p == nil || p.Continuation != seed || p.Source.PID != 42 {
+		t.Fatalf("previous session %+v", p)
+	}
+	// Said once: no saved profile, start argument or record carries it.
+	raw, err := os.ReadFile(env.Couch.Threads.recordPath(source.Address))
+	if err != nil || strings.Contains(string(raw), "saved continuation at") {
+		t.Fatalf("the thread record carries the prompt: %v", err)
+	}
+	if slices.Contains(started.Record.Args.ExtraArgs, prompt) || slices.Contains(record.LatestLaunchProfile.Argv, prompt) {
+		t.Fatal("the prompt reached a saved argv")
 	}
 }
 
@@ -82,8 +113,10 @@ func TestContinuationRejectsChangedSourceBeforePark(t *testing.T) {
 	if _, err := env.Couch.Continue(context.Background(), source.Address, request.ID); err == nil {
 		t.Fatal("changed generation accepted")
 	}
+	// Before park: the old conversation keeps running, and the line says the
+	// compaction didn't finish without blocking anything.
 	current, _ := env.Couch.Threads.GetThread(source.Address)
-	if current.Continuation.Phase != checkpoint.Failed || current.Park != nil {
+	if current.Continuation != nil || current.Park != nil || len(current.Incarnations) != 1 || current.ContinuationMissed == nil || current.ContinuationMissed.TargetMayExist {
 		t.Fatalf("wrong failure state %+v", current)
 	}
 }
@@ -162,4 +195,18 @@ func mustContinuationPath(t *testing.T, c *Couch, address ThreadAddress) string 
 		t.Fatal(err)
 	}
 	return path
+}
+
+// continuationPromptPath reads the continuation path back out of a launch
+// prompt, as a stand-in agent would.
+func continuationPromptPath(prompt string) (string, error) {
+	rest, ok := strings.CutPrefix(prompt, "Continue from the saved continuation at ")
+	if !ok {
+		return "", fmt.Errorf("not a continuation prompt: %q", prompt)
+	}
+	quoted, err := strconv.QuotedPrefix(rest)
+	if err != nil {
+		return "", err
+	}
+	return strconv.Unquote(quoted)
 }

@@ -98,10 +98,9 @@ func rowPaintedBetween(snapshot terminalSnapshot, y, x0, x1 int) bool {
 const museComposerMaxRows = 20
 
 // musePromptGlyphs is the ONE authority for what may sit at column 0 of a Muse
-// composer prompt row. Both consumers read it — museComposerActive (the Return
-// remap's gate) and orientationPromptOK (the orientation auto-submit gate) —
-// because a glyph accepted by one and rejected by the other is a state where
-// Return inserts a newline in a composer orientation refuses to submit into.
+// composer prompt row: museComposerActive (the Return remap's gate, which peer
+// delivery's composer reading shares) reads it. (#522 retired the orientation
+// auto-submit gate that was its second consumer.)
 //
 // The set is the chevron family Muse's own prompt belongs to. `⟩` is the
 // captured glyph (see testdata/tty/muse/*); the other three are the shapes a UI
@@ -112,8 +111,7 @@ const museComposerMaxRows = 20
 // Selection markers are deliberately NOT here. `!`, `●`, `▶` and `▸` were
 // admitted speculatively and removed (#266 close BR-3): they are how TUIs mark
 // a highlighted menu row, so accepting them invites the opposite failure — the
-// gate calling a picker a composer — and `!` also contradicts orientation's own
-// non-coding-mode guard, which rejects that glyph as row content.
+// gate calling a picker a composer.
 var musePromptGlyphs = map[string]bool{"⟩": true, "›": true, "❯": true, ">": true}
 
 // ruledBoxComposerSpec parameterises the composer shape Claude and Muse share:
@@ -294,11 +292,8 @@ func sameForeground(a, b color.Color) bool {
 const qoderPromptCol = 1
 
 // qoderPromptGlyphs is the ONE authority for what may sit at qoderPromptCol
-// of a Qoder composer prompt row. Both consumers read it — qoderComposerActive
-// (the Return remap's gate) and orientationPromptOK (the orientation
-// auto-submit gate) — because a glyph accepted by one and rejected by the
-// other is a state where Return inserts a newline in a composer orientation
-// refuses to submit into. `>` is the captured default-mode glyph and `*` the
+// of a Qoder composer prompt row; qoderComposerActive (the Return remap's
+// gate) reads it. `>` is the captured default-mode glyph and `*` the
 // captured yolo-mode glyph (see testdata/tty/qoder/1.1.60/*). Menu selection
 // markers are deliberately NOT here: Qoder marks a highlighted picker row with
 // `❯`, which must keep reading as a picker rather than a composer.
@@ -337,13 +332,12 @@ func qoderComposerActive(snapshot terminalSnapshot) bool {
 // glyph at in `--minimal` mode, the mode Pair runs it in (its inline mode
 // still repaints the whole UI in place, so only --minimal reaches native
 // scrollback). The composer and the transcript echo of a submitted prompt
-// share it; the scrollback, distill and orientation consumers derive from it
-// and grokPromptGlyphs. Captured at 1.0.46 (testdata/tty/grok/).
+// share it; the scrollback and distill consumers derive from it and
+// grokPromptGlyphs. Captured at 1.0.46 (testdata/tty/grok/).
 const grokPromptCol = 0
 
 // grokPromptGlyphs is the ONE authority for what may sit at grokPromptCol of a
-// Grok prompt row; the Return remap's recognizer and the orientation gate both
-// read it. `❯` is the captured glyph.
+// Grok prompt row; the Return remap's recognizer reads it. `❯` is the captured glyph.
 var grokPromptGlyphs = map[string]bool{"❯": true}
 
 // grokComposerActive reports whether the cursor rests inside Grok's live

@@ -225,10 +225,7 @@ type Console struct {
 	paletteFG, paletteBG bool
 	// now is the console's clock for idle fading, so tests can cross the day
 	// and three-day bands without waiting.
-	now func() time.Time
-	// orientationFrom records which producer wrote each menu.Orientation entry;
-	// see setOrientationLocked.
-	orientationFrom      map[couchcore.ThreadAddress]string
+	now                  func() time.Time
 	continuationProvider ContinuationProvider
 	continuationResults  chan continuationScanResult
 	continuations        map[couchcore.ThreadAddress]continuationWatch
@@ -1758,21 +1755,8 @@ func (c *Console) runMenuOperation(effect MenuEffect) {
 	c.mu.Lock()
 	fn := c.ops
 	origin := c.menu.InFlight
-	if effect.Operation == "retry-continuation" {
-		origin.ContinuationID = effect.Args["request-id"]
-		origin.PreserveFocus = c.focus.IsPanel()
-		if origin.ContinuationID != "" {
-			watch := c.continuations[origin.Address]
-			watch.status.Address, watch.status.RequestID = origin.Address, origin.ContinuationID
-			watch.queued, watch.handled = true, true
-			watch.marked = c.markThreadExitsLocked(origin.Address)
-			c.continuations[origin.Address] = watch
-			c.reconcileContinuationOrientationLocked()
-			c.menu.InFlight = origin
-		}
-	}
+
 	if effect.Operation == "switch-agent" {
-		c.supersedeOrientationLocked(origin.Address)
 		origin.PanelOrigin = c.focus.IsPanel()
 		c.menu.InFlight.PanelOrigin = origin.PanelOrigin
 	}
@@ -1938,9 +1922,6 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 			completed.remote.finished(completed.value, err)
 		}
 	}()
-	if completed.name == "continuation-status" {
-		return false
-	}
 	address := completed.origin.Address
 	if parked, ok := completed.value.(couchcore.ParkResult); ok && parked.Thread.Address != (couchcore.ThreadAddress{}) {
 		address = parked.Thread.Address

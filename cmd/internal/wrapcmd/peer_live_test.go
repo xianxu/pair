@@ -191,7 +191,7 @@ func TestPeerLiveConformance(t *testing.T) {
 				s := p.terminal.Snapshot()
 				var screen strings.Builder
 				for y := 0; y < s.Height; y++ {
-					screen.WriteString(orientationRowText(s, y))
+					screen.WriteString(terminalRowText(s, y))
 				}
 				v := strings.ReplaceAll(screen.String(), " ", "")
 				if strings.Contains(v, "Accessingworkspace:"+cwd) {
@@ -258,7 +258,7 @@ func TestPeerLiveConformance(t *testing.T) {
 				}
 			}
 			if seeded && !sent && (scenario == "draft" || scenario == "menu") && composer != PeerComposerEmpty {
-				if scenario == "draft" && !strings.Contains(orientationRowText(snapshot, snapshot.Cursor.Y), "operator draft") {
+				if scenario == "draft" && !strings.Contains(terminalRowText(snapshot, snapshot.Cursor.Y), "operator draft") {
 					return harnessTTYWaiting
 				}
 				if !queue() {
@@ -348,7 +348,7 @@ func TestPeerLiveConformance(t *testing.T) {
 			composer, known := peerComposerText(agent, s)
 			t.Logf("composer known=%t state=%d cursor=%+v text=%q", known, peerComposerState(agent, s), s.Cursor, composer)
 			for row := 0; row < s.Height; row++ {
-				line := strings.TrimSpace(orientationRowText(s, row))
+				line := strings.TrimSpace(terminalRowText(s, row))
 				if line != "" && !strings.Contains(line, "http") {
 					t.Logf("screen: %s", line)
 				}

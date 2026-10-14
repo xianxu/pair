@@ -223,14 +223,13 @@ func (r OSRuntime) NewCouchWith(runner couchcore.Runner, namespace couchcore.Cou
 		return nil
 	}
 	if sessions, ok := c.Artifacts.(couchcore.PairSessionIO); ok {
-		status := couchcore.OSOrientationStatusReader{DataDir: dataDir, Session: sessions.PairSession, Proc: c.Proc}
+		status := couchcore.OSReadyReader{DataDir: dataDir, Session: sessions.PairSession, Proc: c.Proc}
 		if observer, ok := c.Artifacts.(interface {
 			PairSessionContext(context.Context, couchcore.ThreadAddress) (couchcore.PairSessionBinding, error)
 		}); ok {
 			status.SessionContext = observer.PairSessionContext
 		}
 
-		c.OrientationStatus = status.Read
 		c.FreshRegistration = status.Registered
 		c.ContinuationGeneration = status.Generation
 	}
@@ -648,7 +647,7 @@ func dispatchInteractiveStart(c *couchcore.Couch, args map[string]string) (couch
 
 func operationUsesCurrentRepoScope(name string) bool {
 	switch name {
-	case "show", "peek", "park", "resume", "reboot", "reap", "recover", "retry-continuation", "dismiss-continuation":
+	case "show", "peek", "park", "resume", "reboot", "reap", "recover":
 		return true
 	default:
 		return false
@@ -658,7 +657,7 @@ func operationUsesCurrentRepoScope(name string) bool {
 // operationOwnsLive is the pure entrypoint policy. Both ways into Couch must
 // acquire the same singleton before they can create a child or take a terminal.
 func operationOwnsLive(name string) bool {
-	return name == "start" || name == "resume" || name == "reboot" || name == "reap" || name == "recover" || name == "retry-continuation"
+	return name == "start" || name == "resume" || name == "reboot" || name == "reap" || name == "recover"
 }
 
 // WantsConsole is the console DECISION, separated from building one.

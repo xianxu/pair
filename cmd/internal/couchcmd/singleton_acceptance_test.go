@@ -294,8 +294,11 @@ func TestSingletonCommandHeldHostLeaseRefusesBeforeStoreConstruction(t *testing.
 	}
 	defer lease.Close()
 	before := adoptionSnapshot(t, f.root)
-	code, _, stderr := f.run("--internal", "retry-continuation", "missing-thread")
-	if code == 0 || !strings.Contains(stderr, "supervised by pid") {
+	// Every owner command is public since #522 retired the internal retry,
+	// so on this unmigrated fixture the adoption gate refuses first; either
+	// refusal must leave the held authority and the sources untouched.
+	code, _, stderr := f.run("--recover", "missing:1")
+	if code == 0 || !(strings.Contains(stderr, "supervised by pid") || strings.Contains(stderr, "UNMIGRATED")) {
 		t.Fatalf("owner contention: %d %s", code, stderr)
 	}
 	if after := adoptionSnapshot(t, f.root); !reflect.DeepEqual(before, after) {

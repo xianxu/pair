@@ -23,67 +23,15 @@ const (
 const MaxFailureBytes = 4096
 
 // AllPhases is the request vocabulary in lifecycle order, so callers and tests
-// enumerate it rather than restating it.
+// enumerate it rather than restating it. Failed is read only: a request that
+// failed before #522 decodes into the thread's one non-blocking line (Miss).
 func AllPhases() []Phase { return []Phase{Pending, Running, Failed, Complete} }
 
-// Exits names what an operator can do about an unfinished request: the ONE
-// wording for every refusal a retained request causes, in couchcore and in
-// pair's CLI. A FAILED request has two exits and every refusal offers both --
-// when retry was the only one named, a thread whose failed handoff the operator
-// had already taken over could not be relaunched without re-delivering it
-// (pair#280). A non-empty tag adds the forms that work after Couch exits. A
-// caller that does not know the phase passes "" and gets phase-neutral wording:
-// dismissal is offered only for a request that failed.
-//
-// The switcher offers different exits by row (pair#363): a live thread keeps
-// retry-continuation and dismiss-continuation, and a thread that is not live
-// offers resume, which retries the request, and reboot, which archives it with
-// the conversation. Refusals reach both kinds of row, so the wording names
-// each row's own actions and never one its row does not offer.
-func Exits(phase Phase, tag string) string {
-	const notLive = "; on a thread that is not live, resume retries it and reboot archives it"
-	if phase == "" {
-		s := "on a live thread, retry-continuation reconciles it, and dismiss-continuation drops it if it failed" + notLive
-		if tag != "" {
-			s += fmt.Sprintf("; after Couch exits, `couch --internal retry-continuation %s`, or `couch --internal dismiss-continuation %s` for a failed one", tag, tag)
-		}
-		return s
-	}
-	if phase == Failed {
-		s := "on a live thread, retry-continuation re-delivers it and dismiss-continuation drops it" + notLive
-		if tag != "" {
-			s += fmt.Sprintf("; after Couch exits, `couch --internal retry-continuation %s` or `couch --internal dismiss-continuation %s`", tag, tag)
-		}
-		return s
-	}
-	s := "on a live thread, retry-continuation reconciles it" + notLive
-	if phase == Pending {
-		// A live thread's pending request runs on its own; the switcher offers
-		// nothing on that row until it does.
-		s = "on a live thread it runs on its own" + notLive
-	}
-	if tag != "" {
-		s += fmt.Sprintf("; after Couch exits, `couch --internal retry-continuation %s`", tag)
-	}
-	return s
-}
-
-// CheckDismissible is the rule for retiring a request by deleting it: only the
-// exact FAILED request, where an empty id means the retained one. Pure, so it
-// is tested on literal requests; couchcore's ThreadStore.DismissFailedContinuation
-// applies it inside the store's revision CAS (pair#280).
-func CheckDismissible(r *Request, id string) error {
-	if r == nil {
-		return errors.New("thread has no continuation request")
-	}
-	if id != "" && r.ID != id {
-		return errors.New("obsolete continuation request")
-	}
-	if r.Phase != Failed {
-		return fmt.Errorf("continuation %s is %s; only a failed continuation can be dismissed", r.ID, r.Phase)
-	}
-	return nil
-}
+// InFlight is the one wording for every refusal an unfinished request causes:
+// it is a compaction in progress, Couch drives it to the end (a new
+// conversation, or the one visible line), and nothing is for the operator to
+// do but wait. A Couch that exits mid-way picks it up when it starts again.
+const InFlight = "a compaction is in progress and Couch finishes it on its own (when Couch next runs, if it has exited)"
 
 type Process struct {
 	PID      int    `json:"pid"`
@@ -239,10 +187,6 @@ type EventKind string
 const (
 	Begin         EventKind = "begin"
 	Registered    EventKind = "registered"
-	Submitted     EventKind = "submitted"
-	Fail          EventKind = "fail"
-	RetryAbsent   EventKind = "retry-absent"
-	RetryObserve  EventKind = "retry-observe"
 	RefreshSource EventKind = "refresh-source"
 	SourceParked  EventKind = "source-parked"
 	SourceAbsent  EventKind = "source-absent"
@@ -256,15 +200,14 @@ type Event struct {
 	Attempt          string
 	Target           *Process
 	Helper           Process
-	Failure          string
 	SourceAbsence    *SourceAbsence
 	TargetGeneration *TargetGeneration
 }
 
-// Advance is the request's lifecycle. Failed leaves it only through retry
-// (RetryAbsent/RetryObserve) here; the other exit is couchcore's
-// ThreadStore.DismissFailedContinuation, which DELETES the request rather than
-// adding a phase, so strict decoders of an older binary still read the record.
+// Advance is the request's lifecycle: Pending, then Running, then Complete
+// at the target's registration (#522). A request that doesn't finish leaves
+// the lifecycle entirely: couchcore's ThreadStore.MissContinuation deletes it
+// and writes the thread's one visible line.
 func Advance(r Request, e Event) (Request, error) {
 	if err := r.Validate(); err != nil {
 		return Request{}, err
@@ -289,34 +232,6 @@ func Advance(r Request, e Event) (Request, error) {
 		}
 		next.Phase = Running
 		next.Attempt = e.Attempt
-	case RetryAbsent:
-		if r.Phase != Failed || !boundedIdentity(e.Attempt) || e.Attempt == r.Attempt {
-			return Request{}, errors.New("retry requires a new attempt and proved absence")
-		}
-		next.Phase = Running
-		next.Attempt = e.Attempt
-		if next.Target != nil && next.Target.Generation != nil {
-			generation := *next.Target.Generation
-			next.PreviousTargetGeneration = &generation
-		}
-		if e.TargetGeneration != nil {
-			generation := *e.TargetGeneration
-			if generation.Attempt != r.Attempt || !r.validTargetGeneration(generation) {
-				return Request{}, errors.New("retry target receipt belongs to another generation")
-			}
-			if r.Target != nil && r.Target.Generation != nil && *r.Target.Generation != generation {
-				return Request{}, errors.New("retry target receipt changed generation")
-			}
-			next.PreviousTargetGeneration = &generation
-		}
-		next.Target = nil
-		next.Failure = ""
-	case RetryObserve:
-		if r.Phase != Failed || e.Attempt != r.Attempt {
-			return Request{}, errors.New("retry observation has obsolete attempt")
-		}
-		next.Phase = Running
-		next.Failure = ""
 	default:
 		if r.Phase != Running || e.Attempt != r.Attempt {
 			return Request{}, errors.New("obsolete continuation attempt or phase")
@@ -346,17 +261,9 @@ func Advance(r Request, e Event) (Request, error) {
 				generation := *r.Target.Generation
 				next.Target.Generation = &generation
 			}
-		case Submitted:
+			// The prompt is part of the launch (#522): a registered target
+			// has its continuation, so there is nothing left to confirm.
 			next.Phase = Complete
-		case Fail:
-			next.Phase = Failed
-			next.Failure = e.Failure
-			if len(next.Failure) > MaxFailureBytes {
-				next.Failure = next.Failure[:MaxFailureBytes]
-				for !utf8.ValidString(next.Failure) {
-					next.Failure = next.Failure[:len(next.Failure)-1]
-				}
-			}
 		case RefreshSource:
 			next.Source.Helper = e.Helper
 		default:

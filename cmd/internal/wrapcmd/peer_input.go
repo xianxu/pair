@@ -15,9 +15,6 @@ func (p *proxy) admitStdin(data []byte, released bool) (human, held bool) {
 			human, held = p.peer.admitInput(data)
 		}
 	}
-	if p.orientation != nil && !held {
-		p.orientation.admitOperatorInput(data)
-	}
 	return human, held
 }
 

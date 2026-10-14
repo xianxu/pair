@@ -4,82 +4,16 @@ import (
 	"context"
 	"errors"
 	"io"
-	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/hostty"
-	"github.com/xianxu/pair/cmd/internal/orientation"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/cmd/internal/testwait"
 )
-
-// failedContinuationCouch is a Couch on a real temp-dir store whose one live
-// thread retains a FAILED continuation -- the shape the operator's pair thread
-// was left in when typing interrupted automatic orientation (#280).
-func failedContinuationCouch(t *testing.T) (*couchcore.Couch, couchcore.ThreadAddress, string) {
-	t.Helper()
-	ns, err := couchcore.ResolveCouchNamespace(t.TempDir(), "/repo")
-	if err != nil {
-		t.Fatal(err)
-	}
-	store := couchcore.NewThreadStore(ns)
-	address := couchcore.ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}
-	cp, err := checkpoint.New("/repo/workshop/continuation/handoff.md", "---\ntype: continuation\nagent: claude\n---\n## NEXT ACTION\nContinue exact work.\n")
-	if err != nil {
-		t.Fatal(err)
-	}
-	request := checkpoint.Request{
-		Version: checkpoint.Version, ID: checkpoint.RequestID(address.RepoScope, string(address.Tag), 2, cp.Digest), Checkpoint: cp,
-		Source:    checkpoint.Source{Agent: "claude", Session: "pair-exact", LaunchOrdinal: 2, Helper: checkpoint.Process{PID: 41, Identity: "source-helper"}},
-		CreatedAt: time.Unix(1, 0).UTC(), Phase: checkpoint.Failed, Attempt: "start-0102",
-		Failure: "continuation delivery cancelled: operator input interrupted automatic orientation",
-	}
-	profile := couchcore.LaunchProfile{Agent: "claude", Argv: []string{}}
-	if _, err := store.CreateThread(couchcore.ThreadRecord{
-		SchemaVersion: couchcore.ThreadSchemaVersion, Address: address,
-		StartingPath: "/repo", WorkingPath: "/repo", CreatedAt: time.Unix(1, 0).UTC(), LastActiveAt: time.Unix(1, 0).UTC(),
-		Incarnations:        []couchcore.ThreadIncarnation{{PID: 42, Identity: "helper", State: couchcore.IncarnationLive, RepoIdentity: "/repo/.git", LaunchProfile: &profile}},
-		LatestLaunchProfile: &profile, Revision: 1, Continuation: &request,
-	}); err != nil {
-		t.Fatal(err)
-	}
-	return &couchcore.Couch{Threads: store}, address, request.ID
-}
-
-func TestContinuationFailedRowKeepsAnExplicitRetry(t *testing.T) {
-	address := menuAddress("failed")
-	row := couchcore.ActionableThreadSummary{Address: address, State: couchcore.ThreadUnusable,
-		Continuation: &couchcore.ContinuationStatus{Address: address, RequestID: "request", Phase: checkpoint.Failed}}
-	// A row that is not live retries its request through resume, which routes
-	// a failed request to RetryContinuation (#363); reboot is its other exit,
-	// and recover leads with whichever the report picks (#399).
-	if !slices.Equal(menuActionItems(row), []string{"recover", "resume", "reboot"}) {
-		t.Fatalf("failed continuation actions: %v", menuActionItems(row))
-	}
-
-	// The offered retry must reach RetryContinuation through the PRODUCTION
-	// dispatcher and live-owner executor, not a fake: the switcher once sent
-	// both `ref` and `tag`, which resolveOperationThread refuses outright, and a
-	// fake executor could never see it (#280).
-	c, live, requestID := failedContinuationCouch(t)
-	liveRow := couchcore.ActionableThreadSummary{Address: live, State: couchcore.ThreadLive,
-		Continuation: &couchcore.ContinuationStatus{Address: live, RequestID: requestID, Phase: checkpoint.Failed}}
-	state := NewMenuState([]couchcore.ActionableThreadSummary{liveRow}, live)
-	_, effects := dispatchThreadOperation(state, "retry-continuation", live)
-	if len(effects) != 1 || effects[0].Args["request-id"] != requestID {
-		t.Fatalf("retry lost selected request: %v", effects)
-	}
-	_, err := couchcore.DispatchOperation(couchcore.OperationExecutors{LiveOwner: couchcore.CouchLiveOwnerExecutor(c)},
-		couchcore.OperationCall{Name: effects[0].Operation, Args: effects[0].Args, Implicit: true})
-	// RetryContinuation's own first refusal on this Couch (no registration
-	// observer is wired) proves the call got past thread resolution.
-	if err == nil || err.Error() != "continuation target observer unavailable" {
-		t.Fatalf("offered retry did not reach RetryContinuation: %v", err)
-	}
-}
 
 func continuationConsole(t *testing.T) (*Console, couchcore.ContinuationStatus) {
 	t.Helper()
@@ -141,7 +75,7 @@ func TestContinuationPollingDeduplicatesUntilCompletionIsConsumed(t *testing.T) 
 func TestContinuationPartialScanKeepsHealthyAndUnseenRequests(t *testing.T) {
 	c, status := continuationConsole(t)
 	unreadable := menuAddress("unreadable")
-	c.continuations[unreadable] = continuationWatch{status: couchcore.ContinuationStatus{Address: unreadable, RequestID: "retained", Phase: checkpoint.Failed}}
+	c.continuations[unreadable] = continuationWatch{status: couchcore.ContinuationStatus{Address: unreadable, RequestID: "retained", Phase: checkpoint.Running}}
 	c.acceptContinuationRequests(continuationScanResult{
 		addresses: []couchcore.ThreadAddress{status.Address, unreadable},
 		statuses:  []couchcore.ContinuationStatus{status}, err: errors.New("one slot unreadable"),
@@ -156,7 +90,7 @@ func TestContinuationPartialScanKeepsHealthyAndUnseenRequests(t *testing.T) {
 
 func TestContinuationSourceReattachmentResumesExecution(t *testing.T) {
 	c, status := continuationConsole(t)
-	c.continuations[status.Address] = continuationWatch{status: status, queued: true, handled: true}
+	c.continuations[status.Address] = continuationWatch{status: status, queued: true}
 	status.Phase = checkpoint.Running
 	c.finishContinuationOperation(operationCompletion{
 		origin: MenuOperationOrigin{Address: status.Address, ContinuationID: status.RequestID},
@@ -171,7 +105,7 @@ func TestContinuationSourceReattachmentResumesExecution(t *testing.T) {
 
 func TestContinuationErrorResultPreservesRequestIdentity(t *testing.T) {
 	c, status := continuationConsole(t)
-	c.continuations[status.Address] = continuationWatch{status: status, queued: true, handled: true}
+	c.continuations[status.Address] = continuationWatch{status: status, queued: true}
 	c.finishContinuationOperation(operationCompletion{
 		origin: MenuOperationOrigin{Address: status.Address, ContinuationID: status.RequestID},
 		value:  couchcore.ContinuationResult{},
@@ -217,14 +151,29 @@ func TestContinuationAdoptsReplacementAndPreservesUnrelatedFocus(t *testing.T) {
 	}
 }
 
-func TestContinuationFailedRequestIsNotRetriedAutomatically(t *testing.T) {
-	c, status := continuationConsole(t)
-	status.Phase = checkpoint.Failed
-	for range 3 {
-		c.acceptContinuationRequests(continuationScanResult{statuses: []couchcore.ContinuationStatus{status}})
-	}
-	if len(c.operationQueue.requests) != 0 {
-		t.Fatal("failed request was retried without an operator action")
+// A request that didn't finish ends its watch and says its one line, once
+// (#522): there is nothing left to drive or retry.
+func TestAMissedContinuationEndsItsWatchWithOneLine(t *testing.T) {
+	for _, routed := range []bool{false, true} {
+		c, status := continuationConsole(t)
+		origin := MenuOperationOrigin{Address: status.Address, ContinuationID: status.RequestID}
+		name := "continue-thread"
+		if routed {
+			origin.ContinuationID, name = "", "resume"
+		}
+		c.continuations[status.Address] = continuationWatch{status: status, queued: !routed}
+		missed := &checkpoint.Miss{RequestID: status.RequestID, Path: "/repo/c.md", Reason: "fork unavailable", At: time.Unix(1, 0)}
+		c.finishContinuationOperation(operationCompletion{name: name, origin: origin, value: couchcore.ContinuationResult{Missed: missed}}, errors.New("fork unavailable"))
+		if _, watched := c.continuations[status.Address]; watched {
+			t.Fatalf("routed=%v: the watch outlived its request", routed)
+		}
+		if got := c.feed.Row().Body; !strings.Contains(got, "compaction didn't finish: fork unavailable; continuation at /repo/c.md") {
+			t.Fatalf("routed=%v: notice %q", routed, got)
+		}
+		c.acceptContinuationRequests(continuationScanResult{addresses: []couchcore.ThreadAddress{status.Address}})
+		if len(c.operationQueue.requests) != 0 {
+			t.Fatalf("routed=%v: a missed request was driven again", routed)
+		}
 	}
 }
 
@@ -237,7 +186,7 @@ func TestContinuationFullQueueRetainsRequestWithoutRetiringSource(t *testing.T) 
 	scan := continuationScanResult{statuses: []couchcore.ContinuationStatus{status}}
 	c.acceptContinuationRequests(scan)
 	watch, retained := c.continuations[status.Address]
-	if !retained || watch.queued || watch.handled || c.expectedExits.has("source") || c.focus != FocusActor("source") {
+	if !retained || watch.queued || c.expectedExits.has("source") || c.focus != FocusActor("source") {
 		t.Fatal("queue overload lost request or prematurely retired the source")
 	}
 	<-c.operationQueue.requests
@@ -249,7 +198,7 @@ func TestContinuationFullQueueRetainsRequestWithoutRetiringSource(t *testing.T) 
 
 func TestContinuationPendingRequestRetriesAdmissionAfterConflict(t *testing.T) {
 	c, status := continuationConsole(t)
-	c.continuations[status.Address] = continuationWatch{status: status, handled: true}
+	c.continuations[status.Address] = continuationWatch{status: status}
 	// A revision conflict before Begin leaves the durable request pending:
 	// there is no target receipt to observe yet.
 	c.acceptContinuationRequests(continuationScanResult{statuses: []couchcore.ContinuationStatus{status}})
@@ -333,7 +282,7 @@ func TestContinuationWorkerPicksUpQuietActorAndJoinsOnStop(t *testing.T) {
 	}
 }
 
-// Resume routes a retained request to RecoverThread or RetryContinuation
+// Resume routes a retained request to RecoverThread or Continue
 // (pair#363), and their ContinuationResult must start the console's watch the
 // way the old recover-thread completion did.
 func TestRoutedResumeResultStartsWatchOnlyForPublishedRequest(t *testing.T) {
@@ -351,7 +300,7 @@ func TestRoutedResumeResultStartsWatchOnlyForPublishedRequest(t *testing.T) {
 			if found != published {
 				t.Fatalf("watch exists = %v, want %v", found, published)
 			}
-			if published && (watch.status.RequestID != status.RequestID || watch.handled) {
+			if published && watch.status.RequestID != status.RequestID {
 				t.Fatalf("lost request or followup execution: %+v", watch)
 			}
 			if _, bad := c.continuations[couchcore.ThreadAddress{}]; bad {
@@ -372,54 +321,6 @@ func TestRecoveryCompletionDoesNotReplaceNewerWatchedRequest(t *testing.T) {
 	}
 }
 
-// A dismissed (or otherwise vanished) request takes the console's per-address
-// continuation state with it: the watch AND the orientation prompt. Otherwise
-// Copy orientation prompt stays on offer for a handoff the operator dropped.
-func TestVanishedRequestTakesItsOrientationPromptWithIt(t *testing.T) {
-	c, status := continuationConsole(t)
-	c.mu.Lock()
-	c.continuations[status.Address] = continuationWatch{status: status}
-	c.setOrientationLocked(status.Address, orientation.Request{Tag: string(status.Address.Tag), Agent: "codex", Attempt: "start-1"}, continuationProducer(status.RequestID))
-	c.mu.Unlock()
-
-	c.acceptContinuationRequests(continuationScanResult{addresses: []couchcore.ThreadAddress{status.Address}})
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if _, ok := c.continuations[status.Address]; ok {
-		t.Fatal("watch outlived its request")
-	}
-	if _, ok := c.menu.Orientation[status.Address]; ok {
-		t.Fatal("orientation prompt outlived its dismissed request")
-	}
-}
-
-func TestReplacedRequestTakesItsOrientationPromptWithIt(t *testing.T) {
-	c, a := continuationConsole(t)
-	c.mu.Lock()
-	c.continuations[a.Address] = continuationWatch{status: a}
-	c.setOrientationLocked(a.Address, orientation.Request{Tag: string(a.Address.Tag), Agent: "codex", Attempt: "start-a"}, continuationProducer(a.RequestID))
-	c.mu.Unlock()
-
-	b := a
-	b.RequestID, b.Phase = "request-b", checkpoint.Failed
-	gone := func(t *testing.T, step string) {
-		t.Helper()
-		c.mu.Lock()
-		defer c.mu.Unlock()
-		if _, ok := c.menu.Orientation[a.Address]; ok {
-			t.Fatalf("A's orientation prompt outlived A: still offered after %s", step)
-		}
-	}
-	c.acceptContinuationRequests(continuationScanResult{addresses: []couchcore.ThreadAddress{a.Address}, statuses: []couchcore.ContinuationStatus{b}})
-	gone(t, "B replaced A")
-	b.Phase = checkpoint.Complete
-	c.acceptContinuationRequests(continuationScanResult{addresses: []couchcore.ThreadAddress{a.Address}, statuses: []couchcore.ContinuationStatus{b}})
-	gone(t, "B completed")
-	c.acceptContinuationRequests(continuationScanResult{addresses: []couchcore.ThreadAddress{a.Address}})
-	gone(t, "B vanished")
-}
-
 // A continue-thread refused because another operation held the thread
 // (pair#205) never ran: it is re-armed for the next scan, its expected-exit
 // marks are dropped, and nothing is announced -- the retry is silent.
@@ -435,7 +336,7 @@ func TestABusyContinuationIsRetriedSilently(t *testing.T) {
 	if len(marked) != 1 || marked[0] != "source" {
 		t.Fatalf("enqueue recorded marks %v, want its own mark on the thread's pane", marked)
 	}
-	c.continuations[status.Address] = continuationWatch{status: status, queued: true, handled: true, marked: marked}
+	c.continuations[status.Address] = continuationWatch{status: status, queued: true, marked: marked}
 	before := c.feed.Row().Body
 
 	c.finishContinuationOperation(operationCompletion{
@@ -506,7 +407,7 @@ func TestARefusalNeverRemovesAnotherOperationsExitMark(t *testing.T) {
 			if !parkFirst {
 				c.expectedExits.mark("source")
 			}
-			c.continuations[status.Address] = continuationWatch{status: status, queued: true, handled: true, marked: marked}
+			c.continuations[status.Address] = continuationWatch{status: status, queued: true, marked: marked}
 			c.finishContinuationOperation(operationCompletion{
 				name:   "continue-thread",
 				origin: MenuOperationOrigin{Address: status.Address, ContinuationID: status.RequestID},

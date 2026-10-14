@@ -25,7 +25,10 @@ type PreviousSession struct {
 	Transcripts   []string                           `json:"transcripts,omitempty"`
 	Capture       *pairlifecycle.PreservedScrollback `json:"capture,omitempty"`
 	CapturedAt    time.Time                          `json:"captured_at"`
-	Unavailable   []string                           `json:"unavailable,omitempty"`
+	// Continuation is the continuation a compaction started the next
+	// conversation from (#522): Couch's private copy, absent after a switch.
+	Continuation string   `json:"continuation,omitempty"`
+	Unavailable  []string `json:"unavailable,omitempty"`
 }
 
 func (p PreviousSession) Validate(address Address) error {
@@ -49,6 +52,9 @@ func (p PreviousSession) Validate(address Address) error {
 	}
 	if !textOK(p.NativeSession, 1024) || len(p.Transcripts) > 8 || len(p.Unavailable) > 16 {
 		return fmt.Errorf("previous session references exceed limits")
+	}
+	if p.Continuation != "" && (!filepath.IsAbs(p.Continuation) || filepath.Clean(p.Continuation) != p.Continuation || !textOK(p.Continuation, 4096)) {
+		return fmt.Errorf("previous continuation must be a bounded absolute path")
 	}
 	for _, path := range p.Transcripts {
 		if !filepath.IsAbs(path) || filepath.Clean(path) != path || !textOK(path, 4096) {

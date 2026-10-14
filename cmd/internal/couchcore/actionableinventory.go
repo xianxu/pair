@@ -7,6 +7,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 )
 
@@ -170,16 +171,19 @@ type ThreadEvidence struct {
 // ActionableThreadSummary contains only fields the ordinary switcher needs.
 // It deliberately excludes diagnostic lifecycle state.
 type ActionableThreadSummary struct {
-	Target           ThreadTarget        `json:"target"`
-	RowKey           ThreadRowKey        `json:"row_key"`
-	Recovery         *RecoveryDecision   `json:"recovery,omitempty"`
-	Continuation     *ContinuationStatus `json:"continuation,omitempty"`
-	Address          ThreadAddress       `json:"address"`
-	StartingPath     string              `json:"starting_path"`
-	WorkingPath      string              `json:"working_path"`
-	Name             string              `json:"name,omitempty"`
-	Description      string              `json:"description,omitempty"`
-	PublishedSummary string              `json:"published_summary,omitempty"`
+	Target       ThreadTarget        `json:"target"`
+	RowKey       ThreadRowKey        `json:"row_key"`
+	Recovery     *RecoveryDecision   `json:"recovery,omitempty"`
+	Continuation *ContinuationStatus `json:"continuation,omitempty"`
+	// ContinuationMissed is the one line a compaction that didn't finish
+	// left (#522). It constrains nothing.
+	ContinuationMissed *checkpoint.Miss `json:"continuation_missed,omitempty"`
+	Address            ThreadAddress    `json:"address"`
+	StartingPath       string           `json:"starting_path"`
+	WorkingPath        string           `json:"working_path"`
+	Name               string           `json:"name,omitempty"`
+	Description        string           `json:"description,omitempty"`
+	PublishedSummary   string           `json:"published_summary,omitempty"`
 	// Slug is a live thread's latest pair-slug orientation line, unfenced
 	// (`<branch> | <focus>`). Display-only (ApplySlugs); "" when there is none.
 	Slug string `json:"slug,omitempty"`
@@ -319,19 +323,20 @@ func ProjectActionableThreads(input ThreadProjectionInput) []ActionableThreadSum
 	for _, record := range records {
 		state, reason := ClassifyThread(record, evidence[record.Address])
 		rows = append(rows, ActionableThreadSummary{
-			Address:          record.Address,
-			Continuation:     continuationStatus(record),
-			Recovery:         ProjectRecoveryChoices(record, evidence[record.Address], state, reason),
-			StartingPath:     record.StartingPath,
-			WorkingPath:      record.WorkingPath,
-			Name:             record.Name,
-			Description:      record.Description,
-			PublishedSummary: record.PublishedSummary,
-			Agent:            launchProfileAgent(record),
-			State:            state,
-			Reason:           reason,
-			Orphan:           orphanOf(state, reason, evidence[record.Address]),
-			LastActiveAt:     record.LastActiveAt,
+			Address:            record.Address,
+			Continuation:       continuationStatus(record),
+			ContinuationMissed: cloneMiss(record.ContinuationMissed),
+			Recovery:           ProjectRecoveryChoices(record, evidence[record.Address], state, reason),
+			StartingPath:       record.StartingPath,
+			WorkingPath:        record.WorkingPath,
+			Name:               record.Name,
+			Description:        record.Description,
+			PublishedSummary:   record.PublishedSummary,
+			Agent:              launchProfileAgent(record),
+			State:              state,
+			Reason:             reason,
+			Orphan:             orphanOf(state, reason, evidence[record.Address]),
+			LastActiveAt:       record.LastActiveAt,
 			// THE normalization point for the layout witness: the raw persisted
 			// value is untrusted, and "" (a pre-#198 record) must read as
 			// Layout2 here regardless of the default for new Couch processes.

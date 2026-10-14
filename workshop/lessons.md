@@ -1640,6 +1640,11 @@ proof; record the surprising case so the next change starts from evidence.
   leave a success eligible to create again. BR-2/3: reconcile final entity paths
   and classifications, and update user-facing README instructions alongside atlas.
 
+## Retiring a feature: sweep its side effects, not just its callers (#522)
+
+Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Add(1)`, which lived inside its terminal observer. Peer delivery's post-submit lease reads that epoch, so the next peer message would have waited forever. Every caller compiled, and the dead-symbol scan was clean. Only a unit test of the surviving consumer, written while retiring the old writer, caught it.
+- **Rule:** before deleting a function, list every state write in its body (counters, flags, channels, files). For each one, name its surviving reader and move the write there.
+- **Rule:** when a retirement leaves one consumer of a shared mechanism, pin that consumer's behaviour directly before deleting the other.
 - #540 admission review: when identity checks precede a workspace lookup, test a
   wrapper replacement during that lookup. Cached connection membership alone
   does not prove the current wrapper still owns the accepted launch; revalidate
