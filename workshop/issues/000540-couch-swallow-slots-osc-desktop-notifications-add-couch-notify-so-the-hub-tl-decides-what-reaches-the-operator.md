@@ -121,6 +121,15 @@ The operator (2026-10-13):
   for the absent socket. No resend or alternate channel attempted; delivery is
   unconfirmed. Await restored Couch/TL stage instruction; pair:0 remains untouched.
 
+- TL authorized staging in verified receipt aa226b2f-e50c-47cb-9102-362c05b73508
+  after Couch restarted. Merged origin/main cleanly; `sdlc stage --build` placed
+  18a2aa74330e6c753cf68bf5ff697cf3b4336cb5 on pair:0 and built matching couch,
+  pair, pair-launch-helper and pair-slug. Existing unrelated pair-hoprtt reports
+  an older revision. Target HEAD verified directly. Hub staging report receipt
+  4bdd3756-c87e-4982-a37c-08e40ecf218d is submitted; desktop smoke still pending.
+  Post-merge Notify/Notification/Skill/Inventory tests passed in couchcmd,
+  couchmessage, couchtty and artifactpath (/tmp/pair540-postmerge.log).
+
 ## Revisions
 
 ### 2026-10-13 — proposed design for TL approval
