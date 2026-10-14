@@ -75,3 +75,5 @@ Find when it started failing (bisect on main), confirm the cause, and fix the ro
 
 - Full make -k test passed (exit 0), /tmp/pair519-make-k.log; couchcore passed in 444.729s and notifytransport in 27.698s. No known-failure exceptions needed.
 - History confirmation: f5449fe5e added namespace isolation only; b05acbdac changed timeout guards in neighboring tests, not the send-then-exit startup test. The shutdown ordering defect exists in d36fef211, where the broker and test originated.
+
+- After the full suite, merged main’s unrelated #538 webcast change (no conflicts in this fix). Regenerated runtime assets and reran focused notification/cleanup checks successfully: /tmp/pair519-postmerge.log. Full wrapcmd package passed in 54.374s in the complete suite.
