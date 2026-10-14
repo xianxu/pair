@@ -81,7 +81,9 @@ func (c *Couch) StartInteractive(ctx context.Context, args StartArgs) (StartResu
 		return StartResult{}, err
 	}
 	if resolution.Target.Kind == ThreadTargetSlot {
-		if resolution.Action != StartOpen {
+		// Explicit actions retain their own contract; only a no-action hub
+		// startup may choose fresh when no existing conversation is proven.
+		if args.Action != "" || resolution.Action != StartOpen {
 			return c.spawnManagedResolution(ctx, resolution)
 		}
 		local, _, err := c.selectedSlot(ctx, resolution.Target.Slot.WorktreeRoot)

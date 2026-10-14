@@ -25,7 +25,7 @@ func TestBareCouchInstalledCommand(t *testing.T) {
 		t.Fatalf("build couch: %v\n%s", err, out)
 	}
 
-	// Use an isolated repository: opening the console must not enroll or launch it.
+	// Bare Couch launches its selected hub in an isolated repository.
 	fleet, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -52,18 +52,56 @@ else
 exit 90
 fi
 `, callLog, identity))
+	// Use the real Pair launcher with the existing stateful terminal fixture:
+	// a server socket, live wrapper/agent processes and a readiness publication.
+	// This exercises the public registration handshake before Couch attaches.
+	pairBin := filepath.Join(binDir, "pair-go")
+	fixtureBin := filepath.Join(binDir, "terminal-fixture")
+	for _, command := range [][]string{
+		{"build", "-o", pairBin, "./cmd/pair-go"},
+		{"test", "-c", "-o", fixtureBin, "./cmd/internal/couchcore"},
+	} {
+		build := exec.Command("go", command...)
+		build.Dir = root
+		if out, err := build.CombinedOutput(); err != nil {
+			t.Fatalf("build registration fixture: %v\n%s", err, out)
+		}
+	}
+	for _, name := range []string{"zellij", "pair-wrap", "claude"} {
+		if err := os.Symlink(fixtureBin, filepath.Join(binDir, name)); err != nil {
+			t.Fatal(err)
+		}
+	}
 	writeExecutable(t, filepath.Join(binDir, "pair"), fmt.Sprintf(`#!/bin/sh
 printf 'pair %%s\n' "$*" >> %q
 printf 'COUCH_INSTALLED_PAIR_MARKER\n'
-sleep 2
-`, callLog))
+exec %q launch "$@"
+`, callLog, pairBin))
+	fixtureFiles := t.TempDir()
+	release := filepath.Join(fixtureFiles, "release")
+	// Darwin Unix sockets must fit their pathname limit.
+	sockets, err := os.MkdirTemp("/tmp", "couch-installed-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(sockets) })
 
-	t.Run("pty observes current directory without launching", func(t *testing.T) {
+	t.Run("pty launches and attaches current hub", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		cmd := exec.CommandContext(ctx, couchBin)
 		cmd.Dir = launchRoot
-		cmd.Env = installedEnv(t, binDir)
+		cmd.Env = append(installedEnv(t, binDir),
+			"PAIR_HOME="+root,
+			"ZELLIJ_SOCKET_DIR="+sockets,
+			"PAIR_TEST_COUCH_TERMINAL_FIXTURE=1",
+			"PAIR_TEST_COUCH_LAUNCH_NATIVE_SIDECAR=1",
+			"PAIR_TEST_ZELLIJ_READY="+filepath.Join(fixtureFiles, "ready"),
+			"PAIR_TEST_ZELLIJ_RELEASE="+release,
+			"PAIR_TEST_ZELLIJ_LOG="+filepath.Join(fixtureFiles, "zellij-calls"),
+			"PAIR_TEST_ZELLIJ_PANES="+filepath.Join(fixtureFiles, "panes.json"),
+		)
+		defer func() { _ = os.WriteFile(release, []byte("release"), 0600) }()
 		master, err := pty.Start(cmd)
 		if err != nil {
 			t.Fatal(err)
@@ -84,7 +122,7 @@ sleep 2
 				n, readErr := master.Read(buf)
 				if n > 0 {
 					_, _ = out.Write(buf[:n])
-					if bytes.Contains(out.Bytes(), []byte("threads")) {
+					if bytes.Contains(out.Bytes(), []byte("COUCH_INSTALLED_PAIR_MARKER")) {
 						select {
 						case consoleReady <- struct{}{}:
 						default:
@@ -99,10 +137,28 @@ sleep 2
 		}()
 
 		timedOut := false
+		startupDeadline := time.NewTimer(15 * time.Second)
+		defer startupDeadline.Stop()
 		select {
 		case <-consoleReady:
-		case <-time.After(15 * time.Second):
+		case <-startupDeadline.C:
 			timedOut = true
+		}
+		if !timedOut {
+			// Attachment can precede agent readiness; observe the fixture's
+			// live wrapper publication before stopping the real launcher.
+			ticker := time.NewTicker(10 * time.Millisecond)
+			waiting := true
+			for waiting {
+				select {
+				case <-ticker.C:
+					_, err := os.Stat(filepath.Join(fixtureFiles, "ready"))
+					waiting = err != nil
+				case <-startupDeadline.C:
+					timedOut, waiting = true, false
+				}
+			}
+			ticker.Stop()
 		}
 		cancel()
 		_ = master.Close()
@@ -115,20 +171,35 @@ sleep 2
 		}
 		if timedOut {
 			calls, _ := os.ReadFile(callLog)
-			t.Fatalf("timed out waiting for installed couch thread switcher; output=%q calls=%q", out, calls)
+			zellijCalls, _ := os.ReadFile(filepath.Join(fixtureFiles, "zellij-calls"))
+			t.Fatalf("timed out waiting for installed couch hub attachment and wrapper; output=%q calls=%q zellij=%q", out, calls, zellijCalls)
 		}
-		calls, readErr := os.ReadFile(callLog)
-		if readErr != nil && !os.IsNotExist(readErr) {
-			t.Fatal(readErr)
+		calls, err := os.ReadFile(callLog)
+		if err != nil {
+			t.Fatal(err)
 		}
-		if len(calls) != 0 {
-			t.Fatalf("observation-only startup invoked launcher contracts: %q", calls)
+		for _, line := range strings.Split(strings.TrimSpace(string(calls)), "\n") {
+			if strings.HasPrefix(line, "sdlc ") && line != "sdlc workspace --json" {
+				t.Fatalf("unexpected SDLC contract: %q", line)
+			}
 		}
-		if bytes.Contains(out, []byte("COUCH_INSTALLED_PAIR_MARKER")) {
-			t.Fatal("startup launched Pair")
+		if !bytes.Contains(calls, []byte("sdlc workspace --json")) {
+			t.Fatal("workspace context was not resolved")
 		}
-		if _, err := os.Stat(filepath.Join(launchRoot, ".couch", "thread.json")); !os.IsNotExist(err) {
-			t.Fatalf("startup created slot record: %v", err)
+		var launches []string
+		for _, line := range strings.Split(strings.TrimSpace(string(calls)), "\n") {
+			if strings.HasPrefix(line, "pair ") {
+				launches = append(launches, line)
+			}
+		}
+		if len(launches) != 1 || launches[0] != "pair --couch-session-v1 resume 1-alpha-1 --layout3" {
+			t.Fatalf("hub launches = %q", launches)
+		}
+		if !bytes.Contains(out, []byte("COUCH_INSTALLED_PAIR_MARKER")) {
+			t.Fatal("selected hub terminal was not attached")
+		}
+		if _, err := os.Stat(filepath.Join(fixtureFiles, "ready")); err != nil {
+			t.Fatalf("hub wrapper readiness publication missing: %v", err)
 		}
 
 	})

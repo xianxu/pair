@@ -567,3 +567,25 @@ unusable/needs-relaunch, and Escape truthfully reported no live focus target.
 The fixture now publishes the exact acknowledged session’s positive listing;
 production projection remains unchanged. Added candidate mutation guard tests
 for both queue preparation and effect. Full suite follows this merge checkpoint.
+
+Full local-check suite on 1c1c3b5ce395a8260885a624299728bf682b7bfd acquired
+the machine gate after 835s and ran for 12m4s, exit 2. All shell/editor checks
+and all Go packages except cmd/couch and couchcore passed. Failures were
+TestBareCouchInstalledCommand/pty_observes_current_directory_without_launching
+(old preview-only startup fixture with a Pair stub that never acknowledges the
+launch helper), and TestExplicitOpenRepairsPartialSlotWithoutCreatingConversation
+(implicit hub fallback incorrectly widened explicit StartOpen). Full log:
+/Users/xianxu/workspace/pair/.git/sdlc/local-checks/1c1c3b5ce395a8260885a624299728bf682b7bfd/suite.log.
+
+Restored explicit action admission: args.Action != empty delegates to the existing
+managed operation; only implicit hub startup selects fresh when no native proof
+exists. The unchanged explicit-open regression and new hub cases pass (6.363s).
+Installed public-command smoke is being adapted to actual hub launch/attach.
+No staging; another full local-check pass is required.
+
+Installed-command smoke now uses real Pair launch/registration and the existing
+stateful terminal fixture (socket/server, wrapper/agent, readiness). It asserts
+exactly one hub launch and attached PTY output, waits for readiness before
+cancellation using the original bounded deadline, and keeps pipe refusal.
+Targeted cmd/couch run passes (6.416s); explicit-open + hub regressions pass
+(6.363s). The next full local-check includes both corrections.
