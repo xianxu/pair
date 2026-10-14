@@ -67,6 +67,7 @@ Durable plan: [supervision facts](../plans/000543-supervision-facts-plan.md).
 ## Log
 
 ### 2026-10-13
+- 2026-10-13: closed — BR-1 reproduced with two failing tests, fixed strict horizon coverage, all 16 Python tests and real Go-to-Python storage integration pass (/tmp/pair543-br1-green.log, /tmp/pair543-br1-integration.log). Full make -k test completed: six unchanged couchcore creation-lock busy failures, all six passed isolated 26.819s; every other package/check passed (/tmp/pair543-full-suite.log, /tmp/pair543-core-rerun.log). Clean main merge; all five affected packages passed after merge (/tmp/pair543-merged-tests.log). Targeted race passed. Only offline comparison/docs/tests changed after full run. Headless checks; pair:0 untouched; README/atlas/inventory updated.; review verdict: SHIP
 
 - Filed as the dependent fact-log half of #530. Design above supersedes the
   online sampling proposal in #530's original draft. Not started.

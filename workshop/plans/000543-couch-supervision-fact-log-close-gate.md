@@ -17,6 +17,19 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - "n": 2
+      timestamp: "2026-10-13T23:13:01-07:00"
+      dispatched: "2026-10-13T23:09:56-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: labels.py:187 requires contiguous evidence strictly beyond the inclusive horizon. Both boundary regressions in test_labels.py:60 and :67 pass at HEAD and fail when the former >= condition is restored in memory. The plan revision at lines 184–191 documents the corrected rule.
+          round: 2
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 7b1264211753fd268f9c6c34a1d7685f89cc8cde
+      blocked: false
 ---
 
 # Gate ledger — pair#543 (boundary-review)
@@ -31,6 +44,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-1** [Critical] `negative-label-requires-complete-coverage` Inclusive horizon is declared complete before all qualifying writes are excluded.
   scripts/supervision-labels/labels.py:186 accepts coverage ending exactly at delivery+600000 ms. Reproduced with delivery(seq=1, ms=0), snapshot(seq=2, ms=600000), snapshot(seq=4, ms=600001): the result is false despite missing seq=3. Restoring seq=3 as a same-subject write at ms=600000 changes it to true. Since timestamps can tie, require contiguous evidence strictly beyond the inclusive horizon before emitting false. Add regressions for both a truncated boundary tail and a boundary sequence gap. ARCH-ORDER, ARCH-PURPOSE.
 
+## Round 2 — 2026-10-13T23:13:01-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — labels.py:187 requires contiguous evidence strictly beyond the inclusive horizon. Both boundary regressions in test_labels.py:60 and :67 pass at HEAD and fail when the former >= condition is restored in memory. The plan revision at lines 184–191 documents the corrected rule.
+
 ## Open findings
 
-- **BR-1** [Critical] `negative-label-requires-complete-coverage` Inclusive horizon is declared complete before all qualifying writes are excluded.
+(none — every finding has been disposed)
