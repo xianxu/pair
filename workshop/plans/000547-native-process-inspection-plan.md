@@ -108,3 +108,7 @@ The preceding fixture note omitted cmd/pair-go/main_test.go's public command acc
 ### 2026-10-14 — live quiescence terminal-process evidence
 
 Real Zellij quiescence under seatbelt exposed a metadata row persisting after process exit while kern.procargs2 returned EINVAL. EINVAL alone must remain unknown. Extend Process with the native terminal/zombie status from the same metadata read, and omit only confirmed terminated rows from command Snapshot; Table retains them for tree consumers. A controlled exited-but-unreaped child will confirm the cause and pin behavior, with fake native rows covering terminal versus unreadable live evidence. This refines the existing disappeared-process contract, not zellij authorization.
+
+### 2026-10-14 — BR-1: test helper owns failure cleanup
+
+The close reviewer reproduced a surviving grandchild after the reparented command timed out. The helper must terminate its private process group before returning on timeout or supervisor cancellation (SIGTERM/SIGINT), including startup races. Successful commands retain their existing sidecar lifetime semantics. Add controlled descendant regressions for timeout and cancellation plus status preservation; this is a test-fixture lifetime correction under ARCH-ORDER/ARCH-FUNERAL.

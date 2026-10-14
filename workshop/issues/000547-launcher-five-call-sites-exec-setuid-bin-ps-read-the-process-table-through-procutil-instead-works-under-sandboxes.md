@@ -91,3 +91,5 @@ total: 3.59
 - Full make -k test rerun passed (all shell/editor and Go packages). Repeating the final full suite after the terminal-state delta; no further production edits planned.
 
 - Final verification after b541927de: make -k test passed with exit 0 (/tmp/pair547-test-verified.log), including all shell/editor tests and go test ./... -count=1. make -k build passed (/tmp/pair547-build-verified.log). Fresh main merged with only #549 issue documentation, no code conflicts. Ready for the single SDLC close review.
+
+- Close round 1 returned REWORK with BR-1 (owned-process-lifetime): the new ancestry fixture could leave a grandchild alive after timeout. Native focused packages and launcher process tests passed in review; nested seatbelt invocation was refused by sandbox_apply and the disposable checkout lacked generated runtime assets. Parent-run final full-suite/build and seatbelt evidence remains recorded above. Addressing helper failure/cancellation cleanup with real descendant regressions before re-close.
