@@ -1,6 +1,6 @@
 ---
 id: 000549
-status: codecomplete
+status: done
 created: 2026-10-14
 updated: 2026-10-14
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 18ad5443214408b6975960662f1d43ee62166eb5
         evidence_commit: a8121a267bc02ec87442a0bbb95f0e6095631ac8
+        landed_commit: ddde88e7295c1d6c9a47db8b0120db1e4d368a60
 ---
 
 # Declare pair's review prepare step (.sdlc/review-prepare.json: make runtimebundle-generate) for ariadne#364
