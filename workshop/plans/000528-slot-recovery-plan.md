@@ -1093,3 +1093,20 @@ attaching… while loading, plain Continue when attached, Continue · pane faile
 reason (retry) on failure. Keep outcome authoritative and add snapshots for the
 three cases. No new lifecycle state or behavior; queued rows retain Continue
 with a queued pane annotation. Final recorded suite must cover this new head.
+
+### 2026-10-14 — accepted M1 lands independently; remaining milestones split
+
+Operator acceptance round2 on fc145480 is confirmed by TL84fbcea7. Land M1
+now; revised M2 execution/confirmation/Fresh completeness goes to #556 and M3
+endpoint repair goes to #557, each with its own future design, review and
+operator acceptance. Historical scope/review entries remain provenance; they do
+not assert either follow-up is completed. The original Done-when ladder is
+carried by those successors. #528's final contract is the accepted M1 startup,
+listed-live attachment, pane-independent messaging, bounded retry, three-outcome
+projection and pre-upgrade restart compatibility, including guarded replacement
+only when a dead retained incarnation still exists. Graceful old-Couch detach
+may already retire that exact dead helper before the new process starts; in
+that case an empty incarnation plus registry-owned borrowed client is intended.
+Append the acceptance evidence and regression result to Log before re-closing
+M1; normal review covers the merged changes and post-close deltas. Do not clear
+the stage until the accepted work lands.

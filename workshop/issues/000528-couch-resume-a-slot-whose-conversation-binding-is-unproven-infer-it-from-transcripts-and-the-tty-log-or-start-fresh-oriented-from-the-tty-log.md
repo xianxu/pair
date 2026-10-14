@@ -858,3 +858,32 @@ queued. Operator restart/repeat acceptance, including pair:1 narrow live record
 repair, remains pending. Keep this stage; no live slot was attached, relaunched
 or mutated by this agent. This log-only checkpoint does not change the tested
 or staged runtime commit. M2/M3 execution remains out of scope.
+
+### 2026-10-14 — operator accepts M1 round 2; graceful shutdown explains rev648
+
+TL receipt84fbcea7-c720-4263-82cf-4e7c3702c1ab (submitted, exact ops:0→pair:2)
+reports operator restart14:33 onto fc145480 ACCEPTED: Couch started, Continue
+rows attached quickly, pair:1 returned Continue and its #542 report reached the
+hub after four earlier not-live failures; all20 wrappers message independently
+of panes. This closes live acceptance, not M2/M3 authorization.
+
+Read-only explanation of pair:1 rev647→648 with no incarnation: thread.json
+mtime14:33:32 precedes new Couch16699 birth14:33:35. Its owned Pair attach
+helper17541 started14:33:46 and Zellij client17693 at14:33:47. Thus the
+removal predates the new attachment. The old2808a71a LeaveDetach path snapshots
+all records, including an unfocused slot with no locally owned helper:
+park.go leaveOne proves exact retained PID/start Dead, clearLifecycleDebris
+calls RetireIncarnation, which removes that sole dead client and adds one
+revision while preserving binding, LastActiveAt and park history. This is the
+intended explicit old-shutdown cleanup, not a startup recovery write or gap.
+The new attach sees zero incarnations and correctly borrows the listed terminal;
+its local handle/registry owns the helper. RepairDeadClientHelper only replaces
+an exact retained dead identity; it deliberately never invents one from empty
+state or writes a wrapper/agent PID. A non-graceful restart retaining the dead
+incarnation still takes the separately tested replacement path. No runtime fix
+or pair:1 mutation is needed; add a stateful graceful-exit/restart regression.
+
+Choose TL's recommended landing of accepted M1 now. Remaining revised M2/M3
+contracts move to #556 (confirmed disk/fresh recovery) and #557 (new-wrapper
+endpoint repair), respectively; preserve their exact acceptance requirements.
+No follow-up implementation starts on this branch.

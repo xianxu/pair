@@ -176,3 +176,55 @@ func TestWarmAttachmentBorrowsVerifiedParkWithoutChangingReceipt(t *testing.T) {
 	}
 	assertWarmRecordUnchanged(t, env, before)
 }
+
+// A graceful old Couch can retire dead client bookkeeping before the next
+// process starts. Continue then owns a new local client without inventing a
+// durable incarnation that narrow replacement repair has no authority to add.
+func TestWarmAttachmentAfterLeaveRetiresDeadClientRemainsBorrowed(t *testing.T) {
+	record := warmDetachedRecord(t)
+	markActionableParked(&record, time.Unix(100, 0).UTC())
+	record.VerifiedPark = nil
+	record.Incarnations = []ThreadIncarnation{{PID: 27163, Identity: "old-dead-client", State: IncarnationLive, StartedAt: time.Unix(110, 0).UTC(), LaunchProfile: record.LatestLaunchProfile}}
+	record.SessionBinding = &couchidentity.SessionBinding{Legacy: true, Name: "pair-surviving-launch", ScopeKey: record.Address.RepoScope, Tag: string(record.Address.Tag), StartNonce: "start-0123456789abcdef"}
+	env, before, _ := readonlyWarmFixture(t, record, Dead)
+	old := env.Couch
+	if _, err := old.Leave(context.Background(), LeaveDetach); err != nil {
+		t.Fatal(err)
+	}
+	retired, err := old.Threads.GetThread(before.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := cloneThreadRecord(before)
+	expected.Revision++
+	expected.Incarnations = []ThreadIncarnation{} // persisted decoding normalizes empty collections
+	if !reflect.DeepEqual(expected, retired) {
+		t.Fatalf("old shutdown changed more than dead-client retirement: expected=%+v got=%+v", expected, retired)
+	}
+	if len(env.Proc.Signals) != 0 || len(env.Artifacts.Quiesces()) != 0 {
+		t.Fatal("retiring dead bookkeeping signalled a process or stopped the surviving session")
+	}
+
+	restarted, err := New(old.Namespace, env.Runner, old.Path, env.Git, env.Proc, NewStore(env.Dir), old.Clock, NewFixedIDGen("restart-client"), newIncrementingEntropy(), env.Artifacts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	actor, handle, err := restarted.ResumeContextWith(context.Background(), before.Address, ResumeOptions{WarmOnly: true})
+	if err != nil || handle == nil || !handle.Alive() {
+		t.Fatalf("warm attachment failed: actor=%+v handle=%v err=%v", actor, handle, err)
+	}
+	t.Cleanup(func() { env.Runner.SetExited(handle.ID(), 0) })
+	if actor.Shape != StartWarmReattach || actor.Thread != before.Address || actor.PID != handle.PID() || actor.Identity != handle.Identity() || restarted.warmClients[actor.ID] != handle {
+		t.Fatalf("attachment is not a locally owned client: %+v", actor)
+	}
+	if !strings.Contains(actor.AttachmentNotice, "BORROWED ATTACH: no unique retained client helper") {
+		t.Fatalf("missing truthful borrowed reason: %s", actor.AttachmentNotice)
+	}
+	after, err := restarted.Threads.GetThread(before.Address)
+	if err != nil || !reflect.DeepEqual(retired, after) {
+		t.Fatalf("restart attachment invented durable state: before=%+v after=%+v err=%v", retired, after, err)
+	}
+	if len(env.Proc.Signals) != 0 || len(env.Artifacts.Quiesces()) != 0 || env.Artifacts.BindingResolutions() != 0 {
+		t.Fatal("warm attachment signalled, tore down, or resolved a native conversation")
+	}
+}
