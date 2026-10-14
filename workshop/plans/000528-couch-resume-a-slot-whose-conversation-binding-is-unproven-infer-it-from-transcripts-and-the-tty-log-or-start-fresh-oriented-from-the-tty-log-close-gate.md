@@ -244,6 +244,43 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - "n": 9
+      timestamp: "2026-10-13T23:03:06-07:00"
+      dispatched: "2026-10-13T22:56:16-07:00"
+      agent: codex
+      dispose:
+        - id: BR-9
+          disposition: addressed
+          note: Public Continue bypasses lifecycle adoption and cold prerequisites. The record-shape regression passes at HEAD and fails when the helper-only route is disabled, reproducing refusals and durable-record mutations.
+          round: 9
+        - id: BR-1
+          disposition: addressed
+          note: Prior disposition retained; failed listing does not authorize Continue, and uncertain ownership prevents executable native resume.
+          round: 9
+        - id: BR-2
+          disposition: addressed
+          note: Prior disposition retained; lifecycle operations retain exact process-identity checks. Listed-session attachment follows the explicitly revised authority contract.
+          round: 9
+        - id: BR-3
+          disposition: addressed
+          note: Prior disposition retained; removed policy admission is not reintroduced into Continue.
+          round: 9
+        - id: BR-4
+          disposition: addressed
+          note: TerminalLease retains the fixed 256-stripe namespace; its bound regression passes.
+          round: 9
+        - id: BR-5
+          disposition: addressed
+          note: Prior disposition retained; bounded regular-metadata regressions pass.
+          round: 9
+        - id: BR-10
+          disposition: addressed
+          note: README documents observation-only startup, listed-live Continue, untouched lifecycle records, recovery choices, and accepted compatibility limits; these agree with the inspected implementation.
+          round: 9
+      boundary: M1
+      recipe: milestone-review
+      isolation: fenced
+      blocked: false
 ---
 
 # Gate ledger — pair#528 (boundary-review)
@@ -346,6 +383,18 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-9 — not-addressed — ARCH-PURPOSE / ARCH-ORDER; family recovery-primary-action-routing remains open. Metadata regressions pass and fail with the old eligibility function restored, but resume.go:556 still calls clearLifecycleDebris, whose lifecycledebris.go:87 refuses an outstanding start owned by a live supervisor. A temporary regression constructed a valid StartClaim, positively listed its exact detached session, verified classification offers Continue, then observed ResumeContextWith(WarmOnly:true) fail with resume-starting before attachment. Separate listed-session attachment from lifecycle retirement; enumerate and test all accepted record shapes through the executor rather than fixing another individual gate.
 - BR-10 — addressed — README.md:395 now documents observation-only startup and explicit actions; the recovery section documents Starting, restricted Fresh execution, legacy attachment race and unavailable messaging. These passages agree with startup.go:73, the menu projection and atlas/couch.md. This is a prose correction and requires no wording-presence regression.
 
+## Round 9 — 2026-10-13T23:03:06-07:00 (codex) — passed
+
+### Disposed
+
+- BR-9 — addressed — Public Continue bypasses lifecycle adoption and cold prerequisites. The record-shape regression passes at HEAD and fails when the helper-only route is disabled, reproducing refusals and durable-record mutations.
+- BR-1 — addressed — Prior disposition retained; failed listing does not authorize Continue, and uncertain ownership prevents executable native resume.
+- BR-2 — addressed — Prior disposition retained; lifecycle operations retain exact process-identity checks. Listed-session attachment follows the explicitly revised authority contract.
+- BR-3 — addressed — Prior disposition retained; removed policy admission is not reintroduced into Continue.
+- BR-4 — addressed — TerminalLease retains the fixed 256-stripe namespace; its bound regression passes.
+- BR-5 — addressed — Prior disposition retained; bounded regular-metadata regressions pass.
+- BR-10 — addressed — README documents observation-only startup, listed-live Continue, untouched lifecycle records, recovery choices, and accepted compatibility limits; these agree with the inspected implementation.
+
 ## Open findings
 
-- **BR-9** [Critical] `recovery-primary-action-routing` Continue is offered where the resume executor still refuses attachment
+(none — every finding has been disposed)

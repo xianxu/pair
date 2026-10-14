@@ -471,3 +471,18 @@ The final revision in `workshop/plans/000528-slot-recovery-plan.md` supersedes p
   as a clean full-suite pass. Final build passed; git diff --check is clean.
   Rerun the corrected M1 boundary with this exact evidence. Operator acceptance
   remains pending, with no staging and no M2 implementation.
+
+- 2026-10-13 23:06 PDT — Boundary round 9 at
+  73f877e9121fb3eb5773cac06b2798c21e7f1c93: all code findings addressed,
+  zero new findings, but REWORK solely for verification environment: the fenced
+  reviewer could not execute /bin/ps. No code or design change was requested.
+  Host reruns of TestSelectedRootNativeCreateListAndListedResume pass 5.972s;
+  TestPreparingReadinessRetainsPreviousAgentEvidence,
+  TestColdLaunchUnknownReadinessRefusesUnderLease and
+  TestColdLaunchAcceptsProvenDeadRetainedAgent pass together 0.745s.
+  A direct ps read succeeds here. Logs are
+  /tmp/pair528-review-host-process-verification.log and
+  /tmp/pair528-review-retained-process-verification.log. The milestone is not
+  finalized; no gate bypass or review-fence/config change was made. Report the
+  environment blocker to TL for a process-capable review. A final full-core
+  confirmation run is still in progress. No staging.

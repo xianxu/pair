@@ -480,3 +480,104 @@ dispose:
 
 7. **Plan revision recommendations**
    - Add a `## Revisions` entry recording the remaining BR-9 lifecycle-gate mismatch and an executor-level sweep of accepted record shapes. Keep the approved listed-live Continue contract; do not broaden the Starting exception to hide this refusal.
+
+---
+
+## Re-review — 2026-10-13T23:03:06-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 528 — couch: resume a slot whose conversation binding is unproven: infer it from transcripts and the tty log, or start fresh oriented from the tty log |
+| repo | pair |
+| issue file | workshop/issues/000528-couch-resume-a-slot-whose-conversation-binding-is-unproven-infer-it-from-transcripts-and-the-tty-log-or-start-fresh-oriented-from-the-tty-log.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | f59a1b6e21d449d9b6d5c5713b8d14083d3bf5a8..73f877e9121fb3eb5773cac06b2798c21e7f1c93 |
+| command | sdlc milestone-close --issue 528 --milestone M1 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-13T23:03:06-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: medium
+```
+
+BR-9’s correction is regression-backed, and I found no new code defect in the inspected paths. However, boundary verification remains incomplete: the environment denies `/bin/ps`, preventing the real-process launcher checks and public-binary resume test from completing. Under the requested unavailable-command rule, this needs a verification rerun in a process-observation-capable environment.
+
+```findings
+dispose:
+  - id: BR-9
+    disposition: addressed
+    note: |
+      Public Continue bypasses lifecycle adoption and cold prerequisites. The record-shape regression passes at HEAD and fails when the helper-only route is disabled, reproducing refusals and durable-record mutations.
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Prior disposition retained; failed listing does not authorize Continue, and uncertain ownership prevents executable native resume.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Prior disposition retained; lifecycle operations retain exact process-identity checks. Listed-session attachment follows the explicitly revised authority contract.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Prior disposition retained; removed policy admission is not reintroduced into Continue.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      TerminalLease retains the fixed 256-stripe namespace; its bound regression passes.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Prior disposition retained; bounded regular-metadata regressions pass.
+  - id: BR-10
+    disposition: addressed
+    note: |
+      README documents observation-only startup, listed-live Continue, untouched lifecycle records, recovery choices, and accepted compatibility limits; these agree with the inspected implementation.
+```
+
+1. **Strengths**
+
+   - `couchcore/resume.go:444` routes public Continue before lifecycle holds, cleanup, and cold-launch prerequisites.
+   - `couchcore/warm_attach_readonly_test.go:14` checks attachment across record shapes and live/dead/unknown owners, including unchanged revisions.
+   - Cleanup tests distinguish locally owned handles from restored registry entries and preserve independent lifecycle owners.
+   - README and atlas explain the revised behavior and the explicit M2/M3 deferrals.
+
+2. **Critical findings**
+
+   None established.
+
+3. **Important findings**
+
+   **Verification blocker:** `launcher/selected_root_test.go:59` cannot reach its public-binary resume assertions because the fixture’s initial creation fails at line 142 with `fork/exec /bin/ps: operation not permitted`. Retained-readiness launcher tests encounter the same restriction. Rerun these checks where process observation is permitted; this is not evidence that production code needs changing.
+
+4. **Minor findings**
+
+   None raised.
+
+5. **Test coverage notes**
+
+   - Focused core, launcher, console, command, metadata-read, and lock-bound regressions passed.
+   - Disabling the helper-only route made the record-shape sweep fail; restoring it returned the focused suite to green.
+   - Complete artifactpath and couchmessage package runs passed.
+   - The broader run overlapped the deliberate mutation; affected command regressions were rerun successfully after restoration.
+   - No clean full-suite pass is claimed. The disposable checkout was removed.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared projection, preview reads, and existing lifecycle transitions are reused.
+   - **ARCH-PURE — pass:** classification remains separate from observation and execution.
+   - **ARCH-PURPOSE — pass:** BR-9 now covers lifecycle shapes and downstream attachment gates.
+   - **ARCH-MOCK — flag, verification only:** stateful seams are exercised; process-dependent checks remain blocked.
+   - **ARCH-CONSTRAINTS — pass:** inspected retry/deadline paths preserve uncertainty on exhaustion.
+   - **ARCH-SECURE — pass:** restored registry entries cannot authorize helper signalling.
+   - **ARCH-ORDER — pass:** Continue preserves independent transactions; explicit lifecycle actions retain adoption checks.
+   - **ARCH-FUNERAL — pass:** local handles are pruned on registry removal; coordination locks remain bounded.
+
+7. **Plan revision recommendations**
+
+   No design revision required. Record the blocked validation and its eventual rerun result; operator acceptance remains outstanding.
