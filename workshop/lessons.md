@@ -1712,6 +1712,15 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
 
 - #546 multi-owner changes must enumerate observability consumers as well as routing/guards: delivery facts are part of the behavior contract, and a main-only logging predicate can silently lose confirmed secondary-owner evidence.
 
+- #545: Every new production source must join artifactpath's exhaustive source
+  inventory (SourceClassifications or NonArtifactSources). Run that package
+  when adding the file; focused tests in the new file's own package cannot
+  detect a missing repository-wide inventory entry.
+
+- #545: A duplicate of a CLOEXEC lease must itself be duplicated atomically
+  with F_DUPFD_CLOEXEC. Plain Dup in a transient-fork fixture creates exec-time
+  inheritance the real lease does not have, so unrelated children can keep the
+  fixture locked after its scheduled close.
 - #550: A launchable harness can still lack peer messaging entirely. Require an explicit receiver policy for every AgentInventory entry and a captured empty-composer case for every enabled receiver. Prove startup registration through the real endpoint and delivery through the broker seam; Return remapping geometry alone is insufficient.
 
 - #550 BR-1: Expanding a supported receiver set updates README's support/evidence paragraph as well as the atlas. Sweep the whole affected paragraph against the current delivery path; retaining an earlier echo-validation contract alongside a new receiver claim misdescribes the operator's flow.
