@@ -1,6 +1,6 @@
 ---
 id: 000529
-status: codecomplete
+status: done
 created: 2026-10-13
 updated: 2026-10-13
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: b4b87fd72559f931db7e04402458e1c57f585b74
         evidence_commit: 3fbb6327e4aaa0c612b2026ddb1ba5a2163c7b47
+        landed_commit: 5dd4898ac2624c2d2347a1ed59dfbeab07fa802f
 ---
 
 # Couch start-slot form has no selectable agents
