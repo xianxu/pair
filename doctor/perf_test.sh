@@ -8,6 +8,10 @@
 set -e
 here=$(cd "$(dirname "$0")" && pwd)
 repo=$(cd "$here/.." && pwd)
+case "${1:-}" in
+    ''|--budget-only) ;;
+    *) echo "usage: $0 [--budget-only]" >&2; exit 2 ;;
+esac
 fails=0
 bad() { echo "FAIL $*" >&2; fails=$((fails + 1)); }
 
@@ -30,10 +34,21 @@ for key in captured_at window_seconds load cpu_idle_pct pair_family_procs \
 	printf '%s\n' "$out" | grep -q "^$key=" || bad "missing key: $key"
 done
 
-# The budget is ENFORCED, not declared.
+# The normal lane checks outcomes on shared hosts. The isolated performance
+# lane retains the real wall-clock ceiling (same opt-in as perfbudget.Check).
 elapsed=$(printf '%s\n' "$out" | sed -n 's/^elapsed_seconds=//p')
 budget=$(printf '%s\n' "$out" | sed -n 's/^budget_seconds=//p')
-[ "$elapsed" -le "$budget" ] || bad "capture took ${elapsed}s over a ${budget}s budget"
+echo "capture timing: elapsed_seconds=$elapsed budget_seconds=$budget"
+case "$elapsed" in ''|*[!0-9]*) bad "invalid elapsed_seconds: $elapsed" ;; esac
+case "$budget" in ''|*[!0-9]*) bad "invalid budget_seconds: $budget" ;; esac
+if [ "$fails" -eq 0 ] && [ "${PAIR_PERF_BUDGETS:-}" = 1 ]; then
+    [ "$elapsed" -le "$budget" ] || bad "capture took ${elapsed}s over a ${budget}s budget"
+fi
+# The isolated lane needs one live measurement, not all parser fixtures.
+if [ "${1:-}" = --budget-only ]; then
+    [ "$fails" -eq 0 ]
+    exit
+fi
 
 # A missing probe degrades to n/a rather than vanishing or printing an empty
 # value a reader would mistake for zero.
