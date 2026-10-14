@@ -1090,8 +1090,9 @@ func (e messageEndpoint) Deliver(ctx context.Context, m couchmessage.Message, pr
 		return couchmessage.Receipt{Status: couchmessage.Cancelled, Detail: err.Error()}, nil
 	}
 	log := e.service.facts.Load()
-	hub, hasHub := e.service.hubBinding()
-	toHub := hasHub && hub == m.To
+	// Classify before IO: delivery may finish after this hub disconnects.
+	// Explicit cross-hub messages are still deliveries to an active hub.
+	toHub := e.service.isHubBinding(m.To)
 	receipt, err := e.endpoint.Deliver(ctx, m, progress)
 	system := false
 	if c := e.service.supervision.Load(); c != nil {
