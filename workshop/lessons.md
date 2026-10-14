@@ -1725,3 +1725,5 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
 
 - #550 BR-1: Expanding a supported receiver set updates README's support/evidence paragraph as well as the atlas. Sweep the whole affected paragraph against the current delivery path; retaining an earlier echo-validation contract alongside a new receiver claim misdescribes the operator's flow.
 - #547 BR-2: Pipe EOF and unavailable process argv can precede terminal kernel metadata. A process-state fixture must await the state its assertion requires, with a bounded deadline and a deterministic live-then-terminal regression.
+
+- #551: os.NewFile does not establish atomic close-on-exec for a raw descriptor. Set O_CLOEXEC at the raw open, and sweep transient binding reads and directory paging alongside locks. A final FD_CLOEXEC check alone cannot catch a post-open fork/exec race; defend atomic placement over the whole raw-open family.
