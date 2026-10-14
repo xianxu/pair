@@ -6,7 +6,7 @@ function fixture(call){let at=0,serial=0;const timers=new Map(),updates=[],calls
 test('prepare projects pending immediately then confirmed tick or explicit unavailable without blocking Save',async()=>{
  let release;const f=fixture(()=>new Promise(r=>release=r));f.c.start({region:[1,2,3,4]},'p1');assert.equal(f.updates[0][1].pending,true);await flush();
  release({state:'ready',draft:'signed-token',captured_at:123});await flush();assert.equal(f.updates.at(-1)[1].pending,false);assert.equal(f.updates.at(-1)[1].capturedAt,123);
- const unavailable=fixture(async()=>({state:'ready',draft:'bound-token',unavailable:'Capture queue is full.'}));unavailable.c.start({},'p2');await flush();assert.equal(unavailable.updates.at(-1)[1].pending,false);assert.equal(unavailable.updates.at(-1)[1].payload.draft,'bound-token');assert.match(unavailable.updates.at(-1)[1].message,/queue is full/);
+ const unavailable=fixture(async()=>({state:'ready',draft:'bound-token',unavailable:'crop unavailable: capture busy'}));unavailable.c.start({},'p2');await flush();assert.equal(unavailable.updates.at(-1)[1].pending,false);assert.equal(unavailable.updates.at(-1)[1].payload.draft,'bound-token');assert.equal(unavailable.updates.at(-1)[1].message,'crop unavailable: capture busy');
 });
 test('a newer gesture cancels pending prepare by request and ignores its late ready answer',async()=>{
  const releases=[];const f=fixture((op)=>op==='prepare-note'?new Promise(r=>releases.push(r)):Promise.resolve({state:'cancelled'}));f.c.start({},'old');await flush();f.c.start({},'new');await flush();

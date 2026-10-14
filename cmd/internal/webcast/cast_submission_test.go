@@ -3,8 +3,10 @@ package webcast
 import (
 	"bytes"
 	"context"
-	"errors"
-	"fmt"
+
+	"github.com/xianxu/pair/cmd/internal/webcast/notedraft"
+	"sync/atomic"
+
 	core "github.com/xianxu/pair/cmd/internal/submission"
 	"github.com/xianxu/pair/cmd/internal/webcast/board"
 	"github.com/xianxu/pair/cmd/internal/webcast/notes"
@@ -12,10 +14,8 @@ import (
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 	"image"
 	"image/png"
-	"math"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 )
@@ -88,7 +88,7 @@ func TestCastSubmissionPrepareAndResolve(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(crops) != 1 || sub.Notes[0].Crop.File != "crop-0.png" || sub.Source.RecordingPath != c.RecordingPath() || *writes != 0 {
+	if len(crops) != 0 || sub.Notes[0].Crop.Unavailable != "not captured when drawn" || sub.Source.RecordingPath != c.RecordingPath() || *writes != 0 {
 		t.Fatal(sub, crops, *writes)
 	}
 	if sub.Notes[0].Replay != "https://replay.test/token/r/recording/#t=10" {
@@ -111,43 +111,16 @@ func TestCastSubmissionPrepareAndResolve(t *testing.T) {
 		t.Fatal("duplicate resolve")
 	}
 }
-func TestCastSubmissionCaptureFailureAndGonePage(t *testing.T) {
-	c, browser, _, writes := castSubmissionFixture(t)
+func TestCastSubmissionNeverCapturesLegacyNotes(t *testing.T) {
+	c, browser, _, _ := castSubmissionFixture(t)
 	selected, _ := c.SubmissionSelection()
 	browser.capture = func(context.Context, int, []core.CaptureRegion, func(core.SubmissionProgress)) ([]recorder.CapturedCrop, error) {
-		return nil, errors.New("navigation during capture")
+		t.Fatal("submission took a fresh screenshot")
+		return nil, nil
 	}
-	if _, _, err := c.PrepareSubmission(context.Background(), "submission", castSubmissionTarget(), selected, "", nil); err == nil {
-		t.Fatal("capture failure ignored")
-	}
-	if *writes != 0 {
-		t.Fatal("resolved on failed preparation")
-	}
-	browser.capture = func(context.Context, int, []core.CaptureRegion, func(core.SubmissionProgress)) ([]recorder.CapturedCrop, error) {
-		return []recorder.CapturedCrop{{Unavailable: "page changed"}}, nil
-	}
-	sub, crops, err := c.PrepareSubmission(context.Background(), "submission", castSubmissionTarget(), selected, "", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(crops) != 0 || sub.Notes[0].Crop.Unavailable != "page changed" {
-		t.Fatal(sub, crops)
-	}
-	sub.Delivery = core.Dispatched
-	sub.Source.RecordingPath = "/another-recording"
-	if err = c.ResolveSubmission(context.Background(), sub); err != nil {
-		t.Fatal(err)
-	}
-	if *writes != 0 {
-		t.Fatal("resolved another cast")
-	}
-	close(c.done)
-	sub.Source.RecordingPath = c.RecordingPath()
-	if err = c.ResolveSubmission(context.Background(), sub); err != nil {
-		t.Fatal(err)
-	}
-	if *writes != 0 {
-		t.Fatal("resolved ended cast")
+	sub, crops, err := c.PrepareSubmission(context.Background(), "legacy", castSubmissionTarget(), selected, "", nil)
+	if err != nil || len(crops) != 0 || sub.Notes[0].Crop.Unavailable != "not captured when drawn" || sub.Privacy != core.Private {
+		t.Fatal(sub, err)
 	}
 }
 func TestCastSubmissionBoundedRecordingAndMalformedLines(t *testing.T) {
@@ -190,310 +163,302 @@ func TestCastSubmissionRejectsRecordingSymlinks(t *testing.T) {
 		t.Fatal("followed recording symlink")
 	}
 }
-func TestCastSubmissionLateAckDoesNotResolveNewDocument(t *testing.T) {
-	c, _, b, writes := castSubmissionFixture(t)
-	selected, _ := c.SubmissionSelection()
-	sub, _, err := c.PrepareSubmission(context.Background(), "submission", castSubmissionTarget(), selected, "", nil)
+
+type storedSubmissionFixture struct {
+	captureRoot string
+	pageURL     string
+	c           *Cast
+	b           *recording.Builder
+	w           *board.Writer
+	browser     *submissionBrowser
+	captures    atomic.Int32
+	pixels      []byte
+	node        recording.NodeID
+}
+
+func newStoredSubmissionFixture(t *testing.T) *storedSubmissionFixture {
+	t.Helper()
+	f := &storedSubmissionFixture{b: recording.NewBuilder("recording")}
+	dir := filepath.Join(t.TempDir(), "recording")
+	disk, err := recording.NewDirWriter(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	prev := len(b.Recs)
-	b.At(30).Page(recording.SegNavigate, "https://example.test/next", b.El("p", nil, b.Txt("Next")))
-	for _, r := range b.Recs[prev:] {
-		if err = c.board.Put(r); err != nil {
+	bd := board.New(notes.Structural{}, func(r recording.Record, doc int) error { return f.w.Emit(r, doc) })
+	f.w = board.NewWriter(recording.Tee(disk, bd), nil)
+	if err = f.w.Put(f.b.Recs[0]); err != nil {
+		t.Fatal(err)
+	}
+	bd.WithAnnotationCleanup(f.w.ClearAnnotations)
+	if err = bd.SetAnnotationAllowed(context.Background(), true); err != nil {
+		t.Fatal(err)
+	}
+	f.browser = &submissionBrowser{FakeBrowser: NewFakeBrowser()}
+	var pixels bytes.Buffer
+	if err = png.Encode(&pixels, image.NewRGBA(image.Rect(0, 0, 2, 2))); err != nil {
+		t.Fatal(err)
+	}
+	f.pixels = pixels.Bytes()
+	f.browser.capture = func(ctx context.Context, doc int, regions []core.CaptureRegion, progress func(core.SubmissionProgress)) ([]recorder.CapturedCrop, error) {
+		f.captures.Add(1)
+		return []recorder.CapturedCrop{{Page: core.PageIdentity{URL: f.pageURL, Title: "draw-time page", Provenance: "cdp"}, Box: regions[0].Box, BoxText: core.BoxText{Region: regions[0].Region, VisibleText: []core.BoxTextEntry{{Element: "button", Text: "original page text"}}}, PNG: f.pixels, Document: doc, CapturedAt: time.Now().UTC(), Settlement: &core.CaptureSettlement{Status: "settled"}}}, nil
+	}
+	f.captureRoot = filepath.Join(t.TempDir(), "captures")
+	svc, err := notedraft.New(notedraft.Options{Root: f.captureRoot, RecordingPath: dir, Capture: castDraftCapture{browser: func(context.Context) (Browser, error) { return f.browser, nil }}, Release: bd.ReleaseNoteReservation,
+		Write: func(ctx context.Context, a board.AnnotationAdmission, n board.NoteReservation, check func() error, settle func(board.OperatorOutcome, error)) error {
+			if err := a.Check(); err != nil {
+				return err
+			}
+			err := f.w.Emit(&n.Note, n.Document)
+			if err != nil {
+				settle(board.OperatorRefused, err)
+			} else {
+				settle(board.OperatorAccepted, nil)
+			}
+			return nil
+		}, Observe: func(ctx context.Context, id string) (*recording.Note, bool, error) {
+			n, ok := bd.ObservedNote(id)
+			return n, ok, nil
+		}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.c = &Cast{browser: f.browser, board: bd, recDir: dir, noteDrafts: svc, done: make(chan struct{})}
+	t.Cleanup(func() { svc.Close(); f.w.Close() })
+	f.page(t, "https://original.test/")
+	return f
+}
+func (f *storedSubmissionFixture) page(t *testing.T, url string) {
+	f.pageURL = url
+	prev := len(f.b.Recs)
+	el := f.b.El("button", []string{"id", "target"}, f.b.Txt("original anchor"))
+	f.node = el.ID
+	why := recording.SegLive
+	if prev > 1 {
+		why = recording.SegNavigate
+	}
+	f.b.At(int64(prev+1)*10).Page(why, url, el)
+	for _, r := range f.b.Recs[prev:] {
+		if err := f.w.Put(r); err != nil {
 			t.Fatal(err)
 		}
 	}
-	sub.Delivery = core.Dispatched
-	if err = c.ResolveSubmission(context.Background(), sub); err != nil {
-		t.Fatal(err)
-	}
-	if *writes != 0 {
-		t.Fatal("late ack emitted note resolution")
-	}
 }
-
-func TestCastSubmissionSettlementAndClipping(t *testing.T) {
-	cases := []struct {
-		name    string
-		mutate  func(*recorder.CapturedCrop)
-		wantErr bool
-	}{
-		{"settled full crop", func(c *recorder.CapturedCrop) { c.Settlement = &core.CaptureSettlement{Status: "settled"} }, false},
-		{"unsettled clipped crop", func(c *recorder.CapturedCrop) {
-			c.Box[0] += 10
-			c.Box[2] -= 10
-			c.ClippedToViewport = true
-			c.Settlement = &core.CaptureSettlement{Status: "unsettled", Reason: "timeout"}
-		}, false},
-		{"clipped without flag", func(c *recorder.CapturedCrop) { c.Box[2] -= 10 }, true},
-		{"flag without clipping", func(c *recorder.CapturedCrop) { c.ClippedToViewport = true }, true},
-		{"outside requested", func(c *recorder.CapturedCrop) { c.Box[0] -= 1; c.ClippedToViewport = true }, true},
-		{"expanded requested", func(c *recorder.CapturedCrop) { c.Box[2] += 1; c.ClippedToViewport = true }, true},
-		{"invalid coordinates", func(c *recorder.CapturedCrop) { c.Box[0] = math.NaN(); c.ClippedToViewport = true }, true},
-		{"changed document", func(c *recorder.CapturedCrop) { c.Document++ }, true},
-		{"invalid settlement", func(c *recorder.CapturedCrop) {
-			c.Settlement = &core.CaptureSettlement{Status: "settled", Reason: "timeout"}
-		}, true},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			c, browser, _, writes := castSubmissionFixture(t)
-			base := browser.capture
-			var captured recorder.CapturedCrop
-			browser.capture = func(ctx context.Context, doc int, regions []core.CaptureRegion, progress func(core.SubmissionProgress)) ([]recorder.CapturedCrop, error) {
-				crops, err := base(ctx, doc, regions, progress)
-				if err != nil {
-					return nil, err
-				}
-				crops[0].BoxText.VisibleText = []core.BoxTextEntry{{Element: "<button>", Text: "current text"}}
-				tc.mutate(&crops[0])
-				captured = crops[0]
-				return crops, nil
-			}
-			selected, err := c.SubmissionSelection()
-			if err != nil {
-				t.Fatal(err)
-			}
-			sub, pngs, err := c.PrepareSubmission(context.Background(), "submission", castSubmissionTarget(), selected, "", nil)
-			if tc.wantErr {
-				if err == nil {
-					t.Fatal("accepted invalid capture", sub)
-				}
-				return
-			}
-			if err != nil {
-				t.Fatal(err)
-			}
-			crop := sub.Notes[0].Crop
-			if crop.Settlement == nil || *crop.Settlement != *captured.Settlement || crop.ClippedToViewport != captured.ClippedToViewport || crop.Box != captured.Box {
-				t.Fatalf("capture metadata not propagated: %+v", crop)
-			}
-			if len(pngs) != 1 || *writes != 0 || sub.Notes[0].BoxText.VisibleText[0].Text != "current text" {
-				t.Fatal("lost evidence or resolved during capture", sub)
-			}
-		})
-	}
-}
-func TestCastSubmissionOutsideViewportPreservesNote(t *testing.T) {
-	c, browser, _, writes := castSubmissionFixture(t)
-	browser.capture = func(context.Context, int, []core.CaptureRegion, func(core.SubmissionProgress)) ([]recorder.CapturedCrop, error) {
-		return []recorder.CapturedCrop{{Unavailable: "outside viewport", BoxText: core.BoxText{Unavailable: "outside viewport"}}}, nil
-	}
-	selected, err := c.SubmissionSelection()
+func (f *storedSubmissionFixture) draw(t *testing.T, request string) notedraft.Status {
+	t.Helper()
+	a, err := f.c.board.AdmitAnnotation()
 	if err != nil {
 		t.Fatal(err)
 	}
-	sub, pngs, err := c.PrepareSubmission(context.Background(), "submission", castSubmissionTarget(), selected, "", nil)
+	p, err := a.PrepareNote(board.PrepareNoteIn{Seg: f.c.board.OperatorView().Seg, Node: f.node, Box: recording.Box{10, 20, 30, 40}, Region: recording.Box{10, 20, 20, 20}}, true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(sub.Notes) != 1 || sub.Notes[0].ID != "n" || sub.Notes[0].At.Text != "Save" || !strings.Contains(sub.Notes[0].Element, "Save") {
-		t.Fatal("unavailable capture lost recorded context", sub)
+	owner := notedraft.Owner{Scope: "private-operator", Generation: 1}
+	status, err := f.c.noteDrafts.Prepare(context.Background(), owner, request, a, p, true)
+	if err != nil {
+		t.Fatal(err)
 	}
-	crop := sub.Notes[0].Crop
-	if crop.Unavailable != "outside viewport" || crop.Settlement != nil || crop.ClippedToViewport || len(pngs) != 0 || *writes != 0 {
-		t.Fatal("unavailable capture has current pixels or delivery effects", sub)
-	}
-}
-func TestCastSubmissionUnavailableRefusesCurrentMetadata(t *testing.T) {
-	for _, mutate := range []func(*recorder.CapturedCrop){
-		func(c *recorder.CapturedCrop) { c.Settlement = &core.CaptureSettlement{Status: "settled"} },
-		func(c *recorder.CapturedCrop) { c.ClippedToViewport = true },
-		func(c *recorder.CapturedCrop) { c.Box = recording.Box{1, 1, 2, 2} },
-		func(c *recorder.CapturedCrop) { c.CapturedAt = time.Now() },
-		func(c *recorder.CapturedCrop) { c.Document = 1 },
-	} {
-		c, browser, _, _ := castSubmissionFixture(t)
-		browser.capture = func(context.Context, int, []core.CaptureRegion, func(core.SubmissionProgress)) ([]recorder.CapturedCrop, error) {
-			crop := recorder.CapturedCrop{Unavailable: "outside viewport"}
-			mutate(&crop)
-			return []recorder.CapturedCrop{crop}, nil
-		}
-		selected, err := c.SubmissionSelection()
+	for end := time.Now().Add(time.Second); status.State == "pending" && time.Now().Before(end); {
+		time.Sleep(time.Millisecond)
+		status, err = f.c.noteDrafts.Status(owner, status.Draft)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, _, err = c.PrepareSubmission(context.Background(), "submission", castSubmissionTarget(), selected, "", nil); err == nil {
-			t.Fatal("unavailable capture silently dropped contradictory current metadata")
+	}
+	if status.State != "ready" {
+		t.Fatal(status)
+	}
+	status, err = f.c.noteDrafts.Save(context.Background(), owner, "save-"+request, status.Draft, a, board.Viewer{}, 0, "authored "+request, nil)
+	if err != nil || status.State != "saved" {
+		t.Fatal(status, err)
+	}
+	return status
+}
+func TestCastSubmissionStoredCaptureSurvivesMutationAndPublication(t *testing.T) {
+	f := newStoredSubmissionFixture(t)
+	saved := f.draw(t, "first")
+	selected, err := f.c.SubmissionSelection()
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.page(t, "https://different.test/")
+	f.browser.capture = func(context.Context, int, []core.CaptureRegion, func(core.SubmissionProgress)) ([]recorder.CapturedCrop, error) {
+		t.Fatal("submission captured current page")
+		return nil, nil
+	}
+	var progress []core.SubmissionProgress
+	sub, crops, err := f.c.PrepareSubmission(context.Background(), "stored", castSubmissionTarget(), selected, "https://replay.test/token", func(p core.SubmissionProgress) { progress = append(progress, p) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := sub.Notes[0]
+	if sub.Version != 3 || n.ID != saved.NoteID || n.CaptureID != saved.Draft || n.Page == nil || n.Page.URL != "https://original.test/" || n.SourceDocument != 1 || !bytes.Equal(crops[n.Crop.File], f.pixels) || n.BoxText.VisibleText[0].Text != "original page text" || f.captures.Load() != 1 {
+		t.Fatalf("lost draw evidence %+v", sub)
+	}
+	if len(progress) != 1 || progress[0].Phase != "context" {
+		t.Fatal(progress)
+	}
+	store, err := core.NewStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.Prepare(sub, crops); err != nil {
+		t.Fatal(err)
+	}
+	obs, err := store.ConfirmPrepared(sub, crops)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = f.c.ReconcilePreparedSubmission(context.Background(), sub, obs); err != nil {
+		t.Fatal(err)
+	}
+	again, crops2, err := f.c.PrepareSubmission(context.Background(), "second", castSubmissionTarget(), selected, "", nil)
+	if err != nil || !bytes.Equal(crops2[again.Notes[0].Crop.File], f.pixels) {
+		t.Fatal("bundle retry lost original", err)
+	}
+	if err = f.c.ReconcilePreparedSubmission(context.Background(), again, core.PublicationObservation{State: core.PublicationAbsent}); err != nil {
+		t.Fatal(err)
+	}
+	sub.Delivery = core.Dispatched
+	if err = f.c.ResolveSubmission(context.Background(), sub); err != nil {
+		t.Fatal(err)
+	}
+	if err = f.c.ResolveSubmission(context.Background(), sub); err != nil {
+		t.Fatal("resolve not idempotent", err)
+	}
+}
+func TestCastSubmissionMultipleDocumentsAndPerNotePrivacy(t *testing.T) {
+	f := newStoredSubmissionFixture(t)
+	f.draw(t, "first")
+	f.page(t, "https://second.test/")
+	f.draw(t, "second")
+	policy, err := core.ParseOriginPolicy([]byte(`{"origins":[{"origin":"https://original.test","privacy":"shareable"}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.c.readOriginPolicy = func() (core.OriginPolicy, string) { return policy, "" }
+	selected, err := f.c.SubmissionSelection()
+	if err != nil || len(selected.Notes) != 2 {
+		t.Fatal(selected, err)
+	}
+	sub, crops, err := f.c.PrepareSubmission(context.Background(), "mixed", castSubmissionTarget(), selected, "", nil)
+	if err != nil || len(crops) != 2 || sub.Privacy != core.Private || sub.Notes[0].Privacy != core.Shareable || sub.Notes[1].Privacy != core.Private || sub.Notes[0].SourceDocument == sub.Notes[1].SourceDocument {
+		t.Fatal(sub, err)
+	}
+	if err = f.c.ReconcilePreparedSubmission(context.Background(), sub, core.PublicationObservation{State: core.PublicationAbsent}); err != nil {
+		t.Fatal(err)
+	}
+	policy, err = core.ParseOriginPolicy([]byte(`{"origins":[{"origin":"https://original.test","privacy":"shareable"},{"origin":"https://second.test","privacy":"shareable"}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sub, _, err = f.c.PrepareSubmission(context.Background(), "shareable", castSubmissionTarget(), selected, "", nil)
+	if err != nil || sub.Privacy != core.Shareable {
+		t.Fatal(sub, err)
+	}
+}
+func TestCastSubmissionMissingCaptureIsExplicitAndNoRecapture(t *testing.T) {
+	f := newStoredSubmissionFixture(t)
+	saved := f.draw(t, "first")
+	// The durable note survives a missing source; never manufacture a replacement.
+	if err := f.c.noteDrafts.Resolve(saved.NoteID); err != nil {
+		t.Fatal(err)
+	}
+	selected, _ := f.c.SubmissionSelection()
+	sub, crops, err := f.c.PrepareSubmission(context.Background(), "missing", castSubmissionTarget(), selected, "", nil)
+	if err != nil || len(crops) != 0 || sub.Notes[0].Crop.Unavailable == "" || f.captures.Load() != 1 {
+		t.Fatal(sub, err)
+	}
+}
+func TestCastSubmissionClaimErrorKeepsIdentityForReconciliation(t *testing.T) {
+	f := newStoredSubmissionFixture(t)
+	f.draw(t, "first")
+	selected, _ := f.c.SubmissionSelection()
+	first, _, err := f.c.PrepareSubmission(context.Background(), "first", castSubmissionTarget(), selected, "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	failed, _, err := f.c.PrepareSubmission(context.Background(), "other", castSubmissionTarget(), selected, "", nil)
+	if err == nil || failed.ID != "other" || len(failed.Notes) != 1 {
+		t.Fatal(failed, err)
+	}
+	if err = f.c.ReconcilePreparedSubmission(context.Background(), first, core.PublicationObservation{State: core.PublicationUnknown}); err != nil {
+		t.Fatal(err)
+	}
+	if err = f.c.ReconcilePreparedSubmission(context.Background(), first, core.PublicationObservation{State: core.PublicationAbsent}); err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = f.c.PrepareSubmission(context.Background(), "retry", castSubmissionTarget(), selected, "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCastSubmissionPartialClaimErrorCanReleaseOnlyItsClaim(t *testing.T) {
+	f := newStoredSubmissionFixture(t)
+	first := f.draw(t, "first")
+	second := f.draw(t, "second")
+	if _, err := f.c.noteDrafts.Claim(context.Background(), "held", []string{second.Draft}); err != nil {
+		t.Fatal(err)
+	}
+	selected, _ := f.c.SubmissionSelection()
+	partial, _, err := f.c.PrepareSubmission(context.Background(), "partial", castSubmissionTarget(), selected, "", nil)
+	if err == nil || partial.ID != "partial" || len(partial.Notes) != 2 {
+		t.Fatal(partial, err)
+	}
+	if err = f.c.ReconcilePreparedSubmission(context.Background(), partial, core.PublicationObservation{State: core.PublicationAbsent}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.c.noteDrafts.Claim(context.Background(), "first-again", []string{first.Draft}); err != nil {
+		t.Fatal("first claim stranded", err)
+	}
+	if _, err = f.c.noteDrafts.Claim(context.Background(), "second-again", []string{second.Draft}); err == nil {
+		t.Fatal("released another submission's uncertain claim")
+	}
+}
+func TestCastSubmissionCorruptPixelsAreUnavailable(t *testing.T) {
+	f := newStoredSubmissionFixture(t)
+	saved := f.draw(t, "first")
+	if err := os.WriteFile(filepath.Join(f.captureRoot, saved.Draft, "capture.png"), []byte("not pixels"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	selected, _ := f.c.SubmissionSelection()
+	sub, crops, err := f.c.PrepareSubmission(context.Background(), "corrupt", castSubmissionTarget(), selected, "", nil)
+	if err != nil || len(crops) != 0 || sub.Notes[0].Crop.Unavailable == "" || f.captures.Load() != 1 {
+		t.Fatal(sub, err)
+	}
+}
+func TestCastDraftCleanupFailureDoesNotReverseRecordedAcknowledgement(t *testing.T) {
+	f := newStoredSubmissionFixture(t)
+	saved := f.draw(t, "first")
+	if err := os.Rename(f.captureRoot, f.captureRoot+".held"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(f.captureRoot, []byte("blocked path"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	logged := false
+	sink := &draftEvidenceSink{sink: f.w, notes: f.c.noteDrafts, ids: map[string]bool{saved.NoteID: true}, logf: func(string, ...any) { logged = true }}
+	state := &recording.NoteState{ID: saved.NoteID, State: recording.NoteResolved}
+	state.SetTime(1000)
+	if err := sink.Put(state); err != nil {
+		t.Fatal("cleanup changed successful record ack", err)
+	}
+	if !logged {
+		t.Fatal("cleanup failure not reported")
+	}
+	recs, err := readSubmissionRecording(context.Background(), f.c.RecordingPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, r := range recs {
+		if n, ok := r.(*recording.NoteState); ok && n.ID == saved.NoteID && n.State == recording.NoteResolved {
+			found = true
 		}
 	}
-}
-
-func TestCastSubmissionPrivacyUsesCaptureAndSurvivesInvalidPolicy(t *testing.T) {
-	for _, tc := range []struct{ url, want, reason string }{
-		{"https://captured.test", "shareable", ""}, {"https://example.test", "private", ""},
-		{"", "private", ""}, {"https://captured.test", "private", "invalid JSON"},
-	} {
-		t.Run(tc.url+tc.reason, func(t *testing.T) {
-			c, b, _, _ := castSubmissionFixture(t)
-			original := b.capture
-			b.capture = func(ctx context.Context, doc int, boxes []core.CaptureRegion, progress func(core.SubmissionProgress)) ([]recorder.CapturedCrop, error) {
-				crops, err := original(ctx, doc, boxes, progress)
-				for i := range crops {
-					if tc.url == "" {
-						crops[i] = recorder.CapturedCrop{Unavailable: "page changed"}
-						continue
-					}
-					crops[i].Page = core.PageIdentity{URL: tc.url, Title: "Captured page", Provenance: "cdp"}
-				}
-				return crops, err
-			}
-			reads := 0
-			notice := ""
-			c.logf = func(format string, args ...any) { notice = fmt.Sprintf(format, args...) }
-			c.readOriginPolicy = func() (core.OriginPolicy, string) {
-				reads++
-				if tc.reason != "" {
-					return core.InvalidOriginPolicy(tc.reason), "/couch/webcast/origin-privacy.json: invalid policy; using private"
-				}
-				p, err := core.ParseOriginPolicy([]byte(`{"origins":[{"origin":"https://captured.test","privacy":"shareable"}]}`))
-				if err != nil {
-					t.Fatal(err)
-				}
-				return p, ""
-			}
-			selected, _ := c.SubmissionSelection()
-			sub, crops, err := c.PrepareSubmission(context.Background(), "privacy", castSubmissionTarget(), selected, "", nil)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if string(sub.Privacy) != tc.want || reads != 1 {
-				t.Fatalf("decision=%+v reads=%d", sub.PrivacyDecision, reads)
-			}
-			if tc.reason != "" && (sub.PrivacyRule.Invalid != tc.reason || !strings.Contains(notice, "origin-privacy.json")) {
-				t.Fatalf("missing invalid-policy evidence %v %s", sub.PrivacyRule, notice)
-			}
-			store, err := core.NewStore(t.TempDir())
-			if err != nil {
-				t.Fatal(err)
-			}
-			if _, err = store.Prepare(sub, crops); err != nil {
-				t.Fatal(err)
-			}
-			for _, event := range []core.Event{core.Begin, core.Ack, core.Complete} {
-				if _, err = store.Transition(sub.ID, sub.Target, event); err != nil {
-					t.Fatal("invalid policy blocked delivery", err)
-				}
-			}
-		})
-	}
-}
-
-func TestCastSubmissionPrivacyDefault(t *testing.T) {
-	c, _, _, _ := castSubmissionFixture(t)
-	selected, _ := c.SubmissionSelection()
-	sub, _, err := c.PrepareSubmission(context.Background(), "privacy", castSubmissionTarget(), selected, "", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if sub.Privacy != core.Private {
-		t.Fatalf("default %q", sub.Privacy)
-	}
-}
-
-func TestCastSubmissionUsesCapturedPageSource(t *testing.T) {
-	c, b, _, _ := castSubmissionFixture(t)
-	selected, _ := c.SubmissionSelection()
-	sub, _, err := c.PrepareSubmission(context.Background(), "page", castSubmissionTarget(), selected, "", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if sub.Source.Page == nil || sub.Source.Page.URL != "http://localhost:4321/blog" || sub.Source.Page.Title != "Local blog" || sub.Notes[0].SourceDocument != sub.Source.Document {
-		t.Fatal(sub)
-	}
-	original := b.capture
-	b.capture = func(ctx context.Context, doc int, boxes []core.CaptureRegion, progress func(core.SubmissionProgress)) ([]recorder.CapturedCrop, error) {
-		crops, err := original(ctx, doc, boxes, progress)
-		crops[0].Page = core.PageIdentity{}
-		return crops, err
-	}
-	if _, _, err = c.PrepareSubmission(context.Background(), "missing-page", castSubmissionTarget(), selected, "", nil); err == nil {
-		t.Fatal("pixels without page accepted")
-	}
-}
-
-func TestCastSubmissionMixedViewportAvailability(t *testing.T) {
-	for _, reason := range []string{"outside viewport", "page changed"} {
-		t.Run(reason, func(t *testing.T) {
-			c, browser, b, _ := castSubmissionFixture(t)
-			box := recording.Box{900, 20, 100, 40}
-			note := &recording.Note{ID: "offscreen", Author: recording.Author{ID: "person"}, Text: "also fix", At: recording.NoteAt{Box: &box}, Region: &box}
-			b.At(11).Add(note)
-			c.board = board.New(notes.Structural{}, func(recording.Record, int) error { return nil })
-			writer := board.NewWriter(c.board, nil)
-			for _, r := range b.Recs {
-				if err := writer.Put(r); err != nil {
-					t.Fatal(err)
-				}
-			}
-			for name, recs := range recording.Split(b.Recs) {
-				var data []byte
-				for _, r := range recs {
-					line, err := recording.Encode(r)
-					if err != nil {
-						t.Fatal(err)
-					}
-					data = append(data, line...)
-					data = append(data, '\n')
-				}
-				if err := os.WriteFile(filepath.Join(c.RecordingPath(), name), data, 0600); err != nil {
-					t.Fatal(err)
-				}
-			}
-			base := browser.capture
-			browser.capture = func(ctx context.Context, doc int, regions []core.CaptureRegion, progress func(core.SubmissionProgress)) ([]recorder.CapturedCrop, error) {
-				crops, err := base(ctx, doc, regions, progress)
-				if err != nil {
-					return nil, err
-				}
-				if len(crops) != 2 {
-					t.Fatalf("want two selected notes, got %d", len(crops))
-				}
-				crops[1] = recorder.CapturedCrop{Unavailable: reason, BoxText: core.BoxText{Unavailable: reason}}
-				return crops, nil
-			}
-			selected, err := c.SubmissionSelection()
-			if err != nil {
-				t.Fatal(err)
-			}
-			sub, crops, err := c.PrepareSubmission(context.Background(), "submission", castSubmissionTarget(), selected, "", nil)
-			if reason == "page changed" {
-				if err == nil {
-					t.Fatal("mixed document availability accepted")
-				}
-				return
-			}
-			if err != nil {
-				t.Fatal(err)
-			}
-			if len(crops) != 1 || sub.Source.Page == nil || len(sub.Notes) != 2 || sub.Notes[1].Crop.Unavailable != reason {
-				t.Fatalf("lost batch evidence: %+v", sub)
-			}
-		})
-	}
-}
-
-func TestCastSubmissionProgressReachesCapture(t *testing.T) {
-	c, b, _, _ := castSubmissionFixture(t)
-	selected, err := c.SubmissionSelection()
-	if err != nil {
-		t.Fatal(err)
-	}
-	original := b.capture
-	var phases []core.SubmissionProgress
-	b.capture = func(ctx context.Context, doc int, boxes []core.CaptureRegion, report func(core.SubmissionProgress)) ([]recorder.CapturedCrop, error) {
-		if len(phases) != 1 || phases[0].Phase != "context" {
-			t.Fatalf("read/build progress before capture=%+v", phases)
-		}
-		report(core.SubmissionProgress{Phase: "capturing", Current: 1, Total: len(boxes)})
-		return original(ctx, doc, boxes, report)
-	}
-	_, _, err = c.PrepareSubmission(context.Background(), "progress", castSubmissionTarget(), selected, "", func(p core.SubmissionProgress) { phases = append(phases, p) })
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(phases) != 2 || phases[1] != (core.SubmissionProgress{Phase: "capturing", Current: 1, Total: 1}) {
-		t.Fatalf("capture progress not forwarded: %+v", phases)
+	if !found {
+		t.Fatal("resolution record missing")
 	}
 }

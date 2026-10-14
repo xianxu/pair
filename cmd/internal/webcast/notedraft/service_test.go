@@ -107,3 +107,29 @@ func TestServiceCancelAndCloseBoundCapture(t *testing.T) {
 		t.Fatal("close blocked on capture")
 	}
 }
+
+func TestCancelBeforePrepareAndUnavailableReply(t *testing.T) {
+	cap := &heldCapture{started: make(chan struct{}, 1)}
+	s, err := New(Options{Root: t.TempDir(), RecordingPath: "/recording", Capture: cap})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	a, p := preparation(t)
+	owner := Owner{Scope: "viewer", Generation: 1}
+	if err = s.Cancel(owner, "abandoned"); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.Prepare(context.Background(), owner, "abandoned", a, p, false)
+	if err != nil || got.State != "cancelled" {
+		t.Fatal(got, err)
+	}
+	now := s.opts.Now()
+	token, _ := s.token(&captureRecord{ID: opaqueID(), Owner: owner, Request: "token", RecordingPath: s.opts.RecordingPath, State: State{Phase: Ready, Unavailable: StoreFull}, Expires: now.Add(DraftTTL)})
+	if err = s.Cancel(owner, token); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.Status(owner, token); err == nil {
+		t.Fatal("cancelled unavailable token remained usable")
+	}
+}

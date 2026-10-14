@@ -18,7 +18,7 @@ func (c heldDraftCapture) Capture(ctx context.Context, p board.PreparedNote) (no
 	case <-ctx.Done():
 		return notedraft.Evidence{}, nil, ctx.Err()
 	case <-c.release:
-		return notedraft.Evidence{Crop: core.Crop{Unavailable: "crop unavailable: test"}}, nil, nil
+		return notedraft.Evidence{Crop: core.Crop{Unavailable: notedraft.CaptureBusy}}, nil, nil
 	}
 }
 func TestOperatorDraftCaptureDoesNotBlockRecorder(t *testing.T) {

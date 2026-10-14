@@ -69,6 +69,9 @@ func (s *Server) WithBoard(b *board.Board) *Server {
 
 // boardRoute serves one POST under link; false when rest isn't a board route.
 func (s *Server) boardRoute(w http.ResponseWriter, r *http.Request, rest string, link castLink) bool {
+	if s.noteDraftRoute(w, r, rest, link) {
+		return true
+	}
 	var admission board.AnnotationAdmission
 	var handle func([]byte) error
 	limit, max := (*boardRoutes).allowNote, int64(board.MaxNoteBody)

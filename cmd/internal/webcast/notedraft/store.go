@@ -5,13 +5,16 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 	"sync"
+	"time"
 
 	core "github.com/xianxu/pair/cmd/internal/submission"
 )
@@ -21,11 +24,13 @@ const maxMetadataBytes = 64 << 10
 var captureID = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
 var stagingID = regexp.MustCompile(`^\.stage-[0-9a-f]{32}$`)
 
-// The service owns one diskStore per root. Its mutex serializes publication and
-// quota checks; multiple processes must not write the same private capture root.
+// Stores in one process share a writer for each canonical root. Independent
+// processes must not write the same private capture root.
+var captureWriters sync.Map
+
 type diskStore struct {
 	root string
-	mu   sync.Mutex
+	mu   *sync.Mutex
 }
 
 func newDiskStore(root string) (*diskStore, error) {
@@ -45,13 +50,19 @@ func newDiskStore(root string) (*diskStore, error) {
 	if err = os.Chmod(canonical, 0700); err != nil {
 		return nil, err
 	}
-	s := &diskStore{root: canonical}
+	lock, _ := captureWriters.LoadOrStore(canonical, &sync.Mutex{})
+	s := &diskStore{root: canonical, mu: lock.(*sync.Mutex)}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	r, err := s.open()
 	if err != nil {
 		return nil, err
 	}
 	defer r.Close()
 	if err = cleanupStaging(r); err != nil {
+		return nil, err
+	}
+	if err = cleanupReferenceStaging(r); err != nil {
 		return nil, err
 	}
 	return s, nil
@@ -318,6 +329,9 @@ func replaceMetadata(r *os.Root, id string, m []byte) error {
 func (s *diskStore) put(id string, m, p []byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.putLocked(id, m, p)
+}
+func (s *diskStore) putLocked(id string, m, p []byte) error {
 	if err := validRecord(id); err != nil {
 		return err
 	}
@@ -430,6 +444,9 @@ func (s *diskStore) update(id string, m []byte) error {
 func (s *diskStore) remove(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.removeLocked(id)
+}
+func (s *diskStore) removeLocked(id string) error {
 	if err := validRecord(id); err != nil {
 		return err
 	}
@@ -476,4 +493,134 @@ func (s *diskStore) remove(id string) error {
 		return err
 	}
 	return syncCaptureDir(r, ".")
+}
+
+// reserve holds the shared writer from budget observation through publication.
+// Every source reserves its metadata maximum; pending captures also reserve PNG.
+func (s *diskStore) reserve(id string, m []byte) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	r, err := s.open()
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+	ids, err := listRecords(r)
+	if err != nil {
+		return err
+	}
+	_, total, err := storeUsage(r)
+	if err != nil {
+		return err
+	}
+	for _, other := range ids {
+		info, e := regularInfo(r, other+"/metadata.json")
+		if e != nil {
+			return errors.New(StoreFull)
+		}
+		total += max(int64(0), int64(maxMetadataBytes)-info.Size())
+		data, e := readMetadata(r, other)
+		var record captureRecord
+		unknown := e != nil || json.Unmarshal(data, &record) != nil || validCaptureRecord(&record, other) != nil
+		if unknown || record.State.Phase == Preparing {
+			total += MaxPNGBytes
+		}
+	}
+
+	if reason := Capacity(len(ids), total, 1, MaxPNGBytes+maxMetadataBytes); reason != "" {
+		return errors.New(reason)
+	}
+	return s.putLocked(id, m, nil)
+}
+func readMetadata(r *os.Root, id string) ([]byte, error) {
+	if err := recordDir(r, id); err != nil {
+		return nil, err
+	}
+	data, err := readBounded(r, id+"/metadata.json", maxMetadataBytes)
+	if err == nil {
+		err = validMetadata(data)
+	}
+	return data, err
+}
+func (s *diskStore) metadata(id string) ([]byte, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	r, err := s.open()
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+	return readMetadata(r, id)
+}
+
+// sweepSources only removes proven unsaved expiry or an unclaimed source whose
+// recording directory is absent. Uncertain writer/publication intents survive.
+func (s *diskStore) sweepSources(now time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	root, err := s.open()
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	ids, err := listRecords(root)
+	if err != nil {
+		return err
+	}
+	for _, id := range ids {
+		data, e := readMetadata(root, id)
+		if e != nil {
+			continue
+		}
+		var r captureRecord
+		if json.Unmarshal(data, &r) != nil || validCaptureRecord(&r, id) != nil {
+			continue
+		}
+		expired := (r.State.Phase == Preparing || r.State.Phase == Ready) && !now.Before(r.Expires)
+		gone := r.State.Phase == Attached && recordingAbsent(r.RecordingPath)
+		if expired || gone || r.State.Phase == Retired {
+			if e = s.removeLocked(id); e != nil {
+				return e
+			}
+		}
+	}
+	if err = referenceDir(root, false); os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	entries, err := boundedEntries(root, ".refs")
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if !strings.HasSuffix(entry.Name(), ".json") {
+			continue
+		}
+		id := strings.TrimSuffix(entry.Name(), ".json")
+		if validRecord(id) != nil {
+			continue
+		}
+		path := ".refs/" + entry.Name()
+		data, err := readBounded(root, path, maxMetadataBytes)
+		if err != nil {
+			continue
+		}
+		var r captureRecord
+		if json.Unmarshal(data, &r) != nil || validCaptureRecord(&r, id) != nil {
+			continue
+		}
+		if r.State.Phase == Retired || (r.State.Phase == Bundled && recordingAbsent(r.RecordingPath)) {
+			if err = s.removeLocked(id); err != nil {
+				return err
+			}
+			if err = root.Remove(path); err != nil {
+				return err
+			}
+		}
+	}
+	if err = syncCaptureDir(root, ".refs"); err != nil {
+		return err
+	}
+	return nil
 }

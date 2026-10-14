@@ -142,3 +142,23 @@ func finiteBox(b recording.Box) error {
 	}
 	return nil
 }
+
+// ContextAt keeps the capture timestamp and narrated DOM evidence coherent.
+// The authored note, frozen anchor, revision and original document are unchanged.
+func ContextAt(recs []recording.Record, n core.Note, at int64) (core.Note, error) {
+	record := &recording.Note{ID: n.ID, Author: n.Author, Text: n.Text, At: n.At}
+	record.SetTime(n.T)
+	view, err := query.New(recs, notes.Structural{}).ContextForNote(record, at, 5000)
+	if err != nil {
+		return n, err
+	}
+	n.T = at
+	n.Context = view.Context
+	n.Element = view.Element
+	n.Before = view.BeforeLines
+	if n.Element == "" {
+		n.Element = "unavailable: recorded element missing at draw time"
+		n.Context = notes.Context{Text: "unavailable: recorded element missing at draw time"}
+	}
+	return n, nil
+}

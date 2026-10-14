@@ -43,7 +43,7 @@ export function captureDraftController({call, project, id, now=()=>Date.now(), s
       const timestamp=typeof answer.captured_at === 'number' ? answer.captured_at : Date.parse(answer.captured_at);
       const capturedAt=timestamp > 0 ? answer.captured_at : undefined;
       notify(entry,{state:'ready',pending:false,blocked:false,retry:false,payload:{draft:answer.draft},capturedAt,
-        unavailable:answer.unavailable||'',message:answer.unavailable?`Capture unavailable: ${answer.unavailable}`:capturedAt?'✓ Captured':'Capture ready'});
+        unavailable:answer.unavailable||'',message:answer.unavailable?answer.unavailable:capturedAt?'✓ Captured':'Capture ready'});
     } catch(error) { if(current===entry)failure(entry,error); }
   };
   const cancel = () => {

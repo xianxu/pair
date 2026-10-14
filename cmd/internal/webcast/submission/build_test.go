@@ -188,3 +188,29 @@ func TestSubmissionBuildMixedDocumentsAndCaptureReferences(t *testing.T) {
 		t.Fatalf("wrong historical sources: %+v", sub)
 	}
 }
+
+func TestDrawContextUsesDrawTimeRatherThanSaveTime(t *testing.T) {
+	b := recording.NewBuilder("draw-context")
+	text := b.Txt("drawn original text")
+	el := b.El("button", []string{"id", "target"}, text)
+	b.Page(recording.SegLive, "https://original.test/", el)
+	b.At(10).Add(&recording.Focus{ID: el.ID})
+	box := recording.Box{1, 2, 30, 40}
+	b.At(20).Add(&recording.Rm{ID: el.ID})
+	b.At(25).Add(&recording.Nav{URL: "https://save-only.test/"})
+	b.At(30).Add(&recording.Note{ID: "saved", Author: recording.Author{ID: "one"}, Text: "body", At: recording.NoteAt{Node: el.ID, Text: "drawn original text", Box: &box}, Region: &box})
+	sub, _, err := Build(b.Recs, board.Selection{Document: 1, TabID: "tab1", Notes: []board.SelectedNote{{ID: "saved", Revision: 7}}}, "submission", target(), "/recording", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := ContextAt(b.Recs, sub.Notes[0], 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.T != 10 || got.Revision != 7 || got.SourceDocument != 1 || got.At.Node != el.ID || !strings.Contains(got.Element, "drawn original text") || !strings.Contains(got.Context.Text, "drawn original text") {
+		t.Fatal(got)
+	}
+	if strings.Contains(strings.Join(got.Before, "\n"), "save-only.test") {
+		t.Fatal("save-time action leaked into draw context", got.Before)
+	}
+}
