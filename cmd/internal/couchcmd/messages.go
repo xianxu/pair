@@ -87,6 +87,16 @@ func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writ
 		printUncertainMessage(stderr, r.ID, result.Error)
 		return 1
 	}
+	// Older supervisors use the recipient error for missing callers too.
+	// Actors/status can only have a missing caller; send may lack either end.
+	// This is registration evidence, not evidence of a protocol version mismatch.
+	if result.Code == "unavailable" && result.Error == couchmessage.ErrUnavailable.Error() {
+		if r.Op == "send" {
+			result.Error = "Couch cannot find a live caller or recipient registration; if the slots are running, restart Couch to reconnect them"
+		} else {
+			result.Error = "this slot is not registered with Couch; restart Couch to reconnect running slots"
+		}
+	}
 	success := result.Code == "ok" || result.Code == "accepted" || result.Code == "not-dispatched"
 	if inv.jsonOutput {
 		if err := json.NewEncoder(stdout).Encode(result); err != nil {

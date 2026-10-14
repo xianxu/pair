@@ -150,6 +150,15 @@ Verify the new CLI against the strict old request contract with registered
 callers before choosing a fix. Preserve one-shot send/notify behavior and never
 replay effects to diagnose a failed call (ARCH-ORDER, ARCH-SECURE).
 
+The strict ccc0ee88 request fixture over a real private socket, using a stateful
+broker, confirms actors/send/status succeed with registered callers. Disconnecting
+the caller reproduces the exact unavailable message. Red tests first demonstrated
+missing recovery guidance; CLI now identifies missing registration and advises
+restart without claiming version skew (TL approval 90580aad-45d0-4fcc-9958-472dff9cbee2).
+The unsupported notify case explicitly rejects Title before admission; it gets
+unsupported-command/restart guidance. All operations remain single-exchange;
+transport/lost-reply uncertainty remains unchanged.
+
 ### 2026-10-13 — proposed design for TL approval
 
 **Approach.** Reuse terminal effects and the presenter's serialized host writer

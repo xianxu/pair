@@ -233,6 +233,15 @@ age from every unavailable response or retry a possibly admitted effect.
 Record the evidence and recovery choice, then clear the accepted stage and
 complete the normal close/landing gates. TL authorized this scope addition.
 
+Recovery choice approved by TL receipt 90580aad-45d0-4fcc-9958-472dff9cbee2:
+keep the wire format and report missing registration with restart guidance,
+without claiming a version mismatch. Actors/status identify the caller; send's
+legacy error cannot distinguish caller from recipient. A pre-notify supervisor
+explicitly rejects unknown Title before admission; explain that --notify is
+unsupported and requires a Couch restart. Lost replies remain unconfirmed with
+no automatic retry. Real-socket tests retain a strict legacy request decoder and
+stateful registered/disconnected broker transitions.
+
 ### 2026-10-13 — full-suite integration consumer follow-up
 
 The completed full suite found an old wrapper-to-Couch integration expectation

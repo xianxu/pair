@@ -54,6 +54,12 @@ func runNotifyCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer, call 
 		fmt.Fprintln(stderr, "couch: notification outcome unconfirmed; do not retry automatically:", result.Error)
 		return 1
 	}
+	// The pre-notify supervisor rejects Title during strict decoding, before
+	// admission. Unlike a lost reply, this proves the new operation is unsupported.
+	if result.Code == "invalid-request" && result.Error == `json: unknown field "Title"` {
+		fmt.Fprintln(stderr, "couch: running Couch does not support --notify; restart Couch to load the new command")
+		return 1
+	}
 	if result.Code != "ok" {
 		fmt.Fprintf(stderr, "couch: %s: %s\n", result.Code, result.Error)
 		return 1
