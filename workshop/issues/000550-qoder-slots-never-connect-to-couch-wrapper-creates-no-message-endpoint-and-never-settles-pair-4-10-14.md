@@ -15,6 +15,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "dd1c99a1", done: "3847ab18"}
 ---
 
 # Qoder slots never connect to Couch: wrapper creates no message endpoint and never settles (pair:4, 10-14)
@@ -59,3 +60,7 @@ Find why a Qoder wrapper never brings up its message endpoint / registration and
 ### 2026-10-14 — root cause established
 
 The initial readiness-gate hypothesis resolves to missing Qoder receiver admission and peer-composer support. Add the receiver profile while retaining unknown-screen refusal and proving trust-dialog blocking; reuse the existing Return geometry and delivery lifecycle. Implementation awaits hub plan approval.
+
+### 2026-10-14 — approved design
+
+Hub ops:0 approved commit 2c62b3c20e32e1472e59bc9d654ff7800b43596d (receipt 3aaacf4f-8c1d-42fc-b7c5-3393d4b8951b). Additional requirement: assert every AgentInventory entry has an explicit peer receiver policy, so a future harness cannot silently fall through admission. Existing non-receiver harnesses retain explicit disabled policies pending their own captured composer support; this issue adds Qoder only. Pair:4 relaunch and harmless live message remain reserved for explicit hub authorization after build/test evidence.
