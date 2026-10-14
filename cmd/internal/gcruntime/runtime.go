@@ -25,19 +25,29 @@ type Report struct {
 	DiagnosticCollectedBytes int64                      `json:"diagnostic_collected_bytes"`
 }
 
-func New(root string) (*Service, error) {
+func New(root string) (*Service, error) { return NewWithInspection(root, diagnosticlog.OSInspection{}) }
+
+// NewWithInspection composes the same process/open-file observation boundary
+// into both legacy runtime and diagnostic writer proofs.
+func NewWithInspection(root string, inspection diagnosticlog.Inspection) (*Service, error) {
+	if inspection == nil {
+		return nil, errors.New("process inspection is required")
+	}
 	c, err := storagegc.NewCoordinator(root)
 	if err != nil {
 		return nil, err
 	}
 	collector := &storagegc.Collector{Coordinator: c, Agents: launcher.AgentInventory(), References: CouchReferences{c}, CleanupOwner: cleanupOwner}
-	collector.LegacyRoot = legacyEvidence(c, diagnosticlog.OSInspection{})
+	collector.LegacyRoot = legacyEvidence(c, inspection)
 	opts := diagnosticlog.EnvironmentOptions(func(key string) string {
 		if key == "PAIR_DATA_DIR" {
 			return c.Root
 		}
 		return ""
 	})
+	opts.Proof = func(ctx context.Context, path string, writers []diagnosticlog.Registration) error {
+		return diagnosticlog.VerifyWriters(ctx, path, writers, inspection)
+	}
 	return &Service{Collector: collector, DiagnosticOptions: opts}, nil
 }
 

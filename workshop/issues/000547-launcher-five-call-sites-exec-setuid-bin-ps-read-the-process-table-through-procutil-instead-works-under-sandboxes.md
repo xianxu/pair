@@ -72,3 +72,10 @@ item: milestone-review design=0.04 impl=0.20
 design-buffer: 0.15
 total: 3.59
 ```
+
+### 2026-10-14 — implementation and focused verification
+
+- Replaced all nine production ps executions with procutil native metadata/argv observations; AST guard failed on the nine original calls and now passes. Launcher ancestry uses one table and cycle detection; server projection retains snapshot identity and refuses unreadable possible servers. Diagnostic inventory distinguishes full executable identity from argv and short names. Both cleanup proof paths share an injected Inspection; the public apply fixture verifies a legacy writer blocks both, then removing it permits collection.
+- Procutil native parser/snapshot implementation delegated as bounded work. Initial API tests failed before implementation. Additional red/green tests enforce Darwin argc allocation bound and reject numeric PIDs that would truncate into a live PID at Darwin's int32 syscall boundary.
+- Full targeted package runs passed: procutil, launcher, diagnosticlog, gccmd, gcruntime. Artifact source inventory test passed. A real argv-spoofed helper was found, classified and authorized through native launcher observations under sandbox-exec (version 1)(allow default), with all six selected tests passing and no skips.
+- Estimate advisory allocation: Darwin API item includes shared snapshot/error/fencing fake tests and seatbelt conformance; Linux API item includes portable procfs fixture/cross-build/native CI verification. Consumer refactors include targeted race/full-suite execution and fresh-main conflict integration; review item covers the single close boundary. Spec hours describe completed shaping, not additional unresolved design.

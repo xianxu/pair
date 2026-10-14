@@ -181,7 +181,7 @@ func TestCanceledProofDoesNotStartNextInspection(t *testing.T) {
 	}
 }
 func TestOSInspectionCommandHonorsMaintenanceDeadline(t *testing.T) {
-	for _, name := range []string{"lsof", "ps"} {
+	for _, name := range []string{"lsof"} {
 		t.Run(name, func(t *testing.T) {
 			dir := t.TempDir()
 			path := filepath.Join(dir, "trace")
@@ -196,11 +196,7 @@ func TestOSInspectionCommandHonorsMaintenanceDeadline(t *testing.T) {
 			defer cancel()
 			start := time.Now()
 			var err error
-			if name == "lsof" {
-				_, err = (OSInspection{}).OpenFiles(ctx, path)
-			} else {
-				_, err = (OSInspection{}).Runtimes(ctx)
-			}
+			_, err = (OSInspection{}).OpenFiles(ctx, path)
 			if !errors.Is(err, context.DeadlineExceeded) {
 				t.Fatalf("deadline error=%v", err)
 			}

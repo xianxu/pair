@@ -1307,3 +1307,19 @@ immutable publications and physical-parent presentation ownership. See
 [Terminal ownership](terminal.md) for boundaries, profile and verification. Couch
 and Pair production use these adapters. Composed live verification and operator
 smoke acceptance remain necessary to establish disappearance of the reported symptoms.
+
+### Native process inspection
+
+`cmd/internal/procutil` owns host process observations without launching `ps`.
+`Table` remains a cheap metadata snapshot (PID, parent, start identity, niceness
+and short kernel name). `Snapshot` enriches rows with native executable/argv and
+rechecks start identity, retaining unavailable evidence per row. Darwin uses
+`kern.proc.all` and `kern.procargs2`; Linux reads `/proc`. Unsupported platforms
+return an explicit unsupported error; legacy string helpers return unavailable.
+
+Launcher ancestry derives from one table. Server discovery keeps argv authority
+and snapshot identities; unreadable possible zellij rows refuse an absence proof.
+Diagnostic inventory uses full executable names, since kernel names truncate,
+and keeps strict identity fencing across environment inspection. Its Inspection
+seam is shared by storage and diagnostic cleanup, including test compositions.
+`TestProductionDoesNotExecPS` guards production Go calls against reintroducing ps.

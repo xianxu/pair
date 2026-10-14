@@ -27,6 +27,7 @@ func Table() ([]Process, error) {
 			PPID:     int(p.Eproc.Ppid),
 			Identity: strconv.FormatInt(started.Sec, 10) + "." + strconv.FormatInt(int64(started.Usec), 10),
 			Nice:     int(p.Proc.P_nice),
+			Name:     unix.ByteSliceToString(p.Proc.P_comm[:]),
 		})
 	}
 	return out, nil
