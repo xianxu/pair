@@ -56,9 +56,13 @@ a complete suite. Preserve parent-death and intentionally inherited lease safety
 - Full make -k test completes, failures are explained, close returns SHIP and
   the PR lands through sdlc with validation.
 
+- Active/unknown hints keep the original 100ms retry budget; released hints may
+  wait at most 2s from the initial attempt, never renewed by owner turnover.
+  Only a successful kernel flock permits creation.
+
 ## Plan
 
-- [ ] Investigate and design the smallest ownership fix; approval before code.
+- [x] Investigate and design the smallest ownership fix; approval before code.
 - [ ] Implement with regression and loaded before/after evidence.
 - [ ] Complete suite, documentation, review and landing.
 
@@ -183,3 +187,23 @@ other provisioning non-artifact sources; the complete artifactpath package then
 passed (13.724s, /tmp/pair545-inventory-rerun.log). The running full suite is
 continuing to completion, as required. This is a manifest correction, not a
 retry behavior change.
+
+### 2026-10-14 — baseline complete and timing reruns
+
+The unchanged natural-load binary completed 400/400 top-level passes: exactly
+50 each of the eight listed tests, including 50 passes of the historically
+failing branch=broken/elsewhere subcase. /tmp/pair545-before-50.log. Fixed
+counts are still pending. Observed load averages reached 25.97 (one-minute),
+with before/fixed binaries overlapping full suites. This sample does not
+reproduce the original natural failure rate.
+
+The full suite /tmp/pair545-final-suite.log completed (exit 2): inventory
+registration failure already fixed; TestRetentionExplicitResumeTouchesButBackgroundReattachDoesNot/false
+exceeded its unchanged 200ms registration budget;
+TestSpawnTimerMeasuresTheCommandNotTheHarness rejected a 19.723ms median under
+load. Both unchanged timing tests passed targeted reruns (2.101s and 2.116s;
+/tmp/pair545-retention-rerun.log, /tmp/pair545-hoprtt-rerun.log). A second
+full suite with the inventory fix continues at /tmp/pair545-complete-suite.log.
+
+Added the approved 100ms/2s admission limits explicitly to Done when (the
+Revisions design already specified them), so acceptance tracks the final scope.
