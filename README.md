@@ -1662,6 +1662,9 @@ Other slots are refused and should send their message to the hub instead.
 Titles accept at most 256 bytes and messages 4096 bytes, with terminal controls
 removed. Success means written to the terminal, not confirmation of OS display.
 If a write or reply is uncertain, do not retry automatically.
+Couch also raises a desktop alert and tells the hub if its input guard
+unexpectedly stalls an otherwise idle slot for 30 seconds. Inspect the named
+slot; the alert says whether delivery recovered or remains blocked.
 After rebuilding, restart Couch to use a newly added command. Existing messaging
 commands remain compatible; if running slots report missing messaging
 registrations, restart Couch to reconnect them.

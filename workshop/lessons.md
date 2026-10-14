@@ -1727,3 +1727,12 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
 - #547 BR-2: Pipe EOF and unavailable process argv can precede terminal kernel metadata. A process-state fixture must await the state its assertion requires, with a bounded deadline and a deterministic live-then-terminal regression.
 
 - #551: os.NewFile does not establish atomic close-on-exec for a raw descriptor. Set O_CLOEXEC at the raw open, and sweep transient binding reads and directory paging alongside locks. A final FD_CLOEXEC check alone cannot catch a post-open fork/exec race; defend atomic placement over the whole raw-open family.
+
+- #552: An occurrence sequence and its transport ID must both name the exact
+  incarnation. PID plus sequence can collide after PID reuse; hash the full
+  binding, and reject reordered sequences through a high-water mark retained
+  across same-binding reconnects. Define that ordering before promising bounded
+  duplicate suppression.
+- #552: Cancellation and a queued item can be ready in the same select. Recheck
+  cancellation after dequeue, preserve accepted diagnostic evidence, and suppress
+  new external effects; test the ordering with a blocked real transport.
