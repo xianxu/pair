@@ -108,3 +108,15 @@ No query result grants action authority: launcher SessionOwnerProbe and Revalida
 ## Approval checkpoint
 
 No production or regression implementation before TL approves this committed design. After approval use full-flow change-code/plan-quality for the expected multi-package change; estimate only after plan-quality as the binary requires.
+
+## Revisions
+
+### 2026-10-14 — explicit message and idle-tick counted release invariants
+
+Reason: TL relayed operator requirement that both paths have named deterministic regressions, reusable by #204 before release. This sharpens Task 1/4; no scope change.
+
+- `TestMessageAuthorityUnchangedFilesDecodeZeroBytes`: drive the production message-authority resolver through ListedPairSessionContext for a 20-slot fixture, with 30 MB owner ledgers and representative legacy/scoped session indexes. Warm every relevant path once, reset counters, then admit/observe further normal peer messages. Require zero decoded bytes and zero body-read bytes for unchanged session indexes/ledgers; retain current process/session authority probes and assert correct recipient identity. Cover exact message admission and subsequent endpoint authority checks, not just direct cache calls.
+- `TestIdleActivityTickUnchangedFilesDecodeZeroBytes`: drive the production idle activity probe across all 20 rows with 30 MB ledgers plus valid catalogs/transcripts. Warm once, reset counters, advance complete repeated activity passes and require zero decoded bytes and zero body-read bytes across ledgers/catalogs/transcripts. Assert the same timestamps and unknown states as uncached query semantics; clock-only ticks do not mutate source evidence.
+- Count actual IO bytes and actual parser/decoder input bytes separately, by source family (session index, ledger, catalog, native transcript). Counter seams wrap the real readers/decoders; a decoder repeatedly consuming cached raw bytes must fail even when filesystem reads are zero. Return immutable count snapshots/deltas from reusable test helpers so #204 can consume these exact metrics without copying product cache logic.
+- Stateful fixtures expose 20 distinct scoped owners; stream/reuse immutable synthetic source buffers rather than allocating twenty 30 MB copies at once. Use production-equivalent valid content, no personal transcripts. Cold loads must prove nonzero counters so a disconnected counter cannot pass. Mutating one owner must cause nonzero validation work for that owner and zero extra work for unchanged owners, followed by zero again on the next stable pass. Include same-size rewrite and replace cases.
+- Keep CPU/allocation profiles as diagnostic comparison only; release assertions use exact byte/decode counts, never elapsed-time thresholds. The 20 × 30 MB invariant is part of #559 acceptance, not deferred to #204.
