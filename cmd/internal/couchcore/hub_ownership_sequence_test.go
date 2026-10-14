@@ -1,6 +1,9 @@
 package couchcore
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestHubMoveBatchIsAtomic(t *testing.T) {
 	state, _ := NewHubOwnership(hubFixture(t, "", "pair:7\n", "pair:8\n"))
@@ -94,5 +97,28 @@ func TestHubGeneratedClaimEditsConvergeWithoutChangingOtherSlots(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+func TestHubMoveCapacityRefusesWholeBatchAndNamesRecovery(t *testing.T) {
+	state, err := NewHubOwnership(hubFixture(t, "", ""))
+	if err != nil {
+		t.Fatal(err)
+	}
+	slots := make([]HubSlot, 128)
+	for i := range slots {
+		slots[i] = HubSlot{Repository: "/work/pair", Number: i}
+	}
+	state, err = state.Apply(HubMove{Caller: "/work/bench", Target: "/work/bench", Revision: state.Revision(), Slots: slots})
+	if err != nil {
+		t.Fatal(err)
+	}
+	extra := HubSlot{Repository: "/work/pair", Number: 128}
+	next, err := state.Apply(HubMove{Caller: "/work/bench", Target: "/work/bench", Revision: state.Revision(), Slots: []HubSlot{extra}})
+	if err == nil || !strings.Contains(err.Error(), "restart Couch") {
+		t.Fatalf("capacity recovery: %v", err)
+	}
+	if next.Revision() != state.Revision() || next.Resolve(extra).Hub != "/work/ops" {
+		t.Fatal("capacity refusal partly moved slot")
 	}
 }

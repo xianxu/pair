@@ -137,3 +137,12 @@ func FuzzHubClaims(f *testing.F) {
 		}
 	})
 }
+
+func TestHubClaimLineBudgetNamesRepair(t *testing.T) {
+	if _, err := ParseHubClaims([]byte(strings.Repeat("# comment\n", 1024))); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ParseHubClaims([]byte(strings.Repeat("# comment\n", 1025))); err == nil || !strings.Contains(err.Error(), "shorten the file and retry") {
+		t.Fatalf("budget: %v", err)
+	}
+}
