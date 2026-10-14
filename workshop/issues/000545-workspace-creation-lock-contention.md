@@ -15,6 +15,7 @@ claimant:
     workspace: pair:7
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "5c79bc89", done: "7cacdd61"}
 ---
 
 # couchcore: eliminate spurious workspace creation lock contention
