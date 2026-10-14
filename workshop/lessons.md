@@ -144,6 +144,15 @@ representative evidence, not an exhaustive index.
 
 ## Authority, ownership, and identity
 
+- An ownership fence must preserve exclusivity as well as the original process
+  identity. A direct PID check can miss a new competing claimant while the
+  original survives unchanged. Share only initial discovery; freshly enumerate
+  candidates around slow IO and before effects. Test that exact interleaving. (#218 PQ-1)
+- A PATH timing shim must transparently exec a service's internal server reexec.
+  Keeping wrapper and child alive can create two exact argv claimants and change
+  the ownership verdict being measured. Assert PID, argv, status and environment
+  preservation, and keep blocking service lifetime out of finite query totals. (#218)
+
 - A judgment about one member of a composite reads that member's own facts;
   a merged view across members is for display only. Keep per-member facts in
   per-member fields so no decision can read the union, and prove it as a
