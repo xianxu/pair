@@ -1379,6 +1379,12 @@ the effect gate. The wrapper must positively report settled state and a fresh
 empty agent composer. A Neovim draft is independent. Busy/unknown state, an
 existing picker, buffered paste or an occupied agent composer refuses. An old
 wrapper without the capability asks the caller to relaunch on the new build.
+The exception is a validated recovery-only key sequence: one or more `esc` or
+`clear-line` steps, with no other steps or model request. A fresh typed
+`Recoverable` projection admits a positively recognized occupied composer while
+retaining the same caller, owner, incarnation and input-exclusion guards. It
+may acquire a leftover awaiting-empty lease, never an active peer/drive lease.
+Generic keys and model selection retain the settled empty-composer requirement.
 
 `couchmessage/drive_endpoint.go` provides `drive-observe`, `drive-start`,
 `drive-status` and idempotent `drive-cancel` over the existing authenticated
@@ -1424,12 +1430,19 @@ observed model, effort and scope. Failed navigation backs out only through
 owned recognized phases, with at most three separate ESC steps for Codex's
 Advanced → reasoning → model → composer path. Recovery is claimed only after
 a fresh empty composer; human cancellation never writes cleanup over new input.
+Timeout cleanup may also clear this drive's acknowledged exact single-line
+`/model` command with Ctrl+U, pinned to current composer evidence. Multiline or
+changed text, uncertain write progress and possibly applied model selections
+authorize no cleanup. Explicit recovery keys are a new operator-directed action,
+not replay of the failed drive; inspect its receipt and slot first, then use
+`couch --keys repo:N clear-line` to clear the current line.
 
 Bounds: 64 raw steps, 8 KiB aggregate text, each explicit wait 0–1000 ms and
 5 seconds total; 96 recipe navigation steps, 128 labels of at most 128 bytes,
 200 observed lines and 32 KiB retained result tail. One drive can be active per
-wrapper; competing automatic input refuses. A 30-second admission budget
-includes queue wait and reserves its last three seconds for recognized backout;
+wrapper; competing automatic input refuses. The 30-second admission budget
+includes queue wait. A model drive reserves min(3 seconds, one tenth of the budget remaining
+at execution start) within that deadline for recognized recovery;
 the CLI observes for at most 36 seconds. Couch retains at most 64 receipts for
 five minutes; the wrapper retains at most eight completed drive receipts for
 five minutes. Request IDs bind the complete keys/model/effort/scope intent.

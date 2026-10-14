@@ -73,6 +73,8 @@ Durable implementation plan: [agent keys and model selection](../plans/000544-ag
 
 - 2026-10-14 — read-only submit investigation checkpoint: target chain is one Pair wrapper → node Codex → native Codex0.162.1; no double wrapper. Live target TERM=pair-vt-256color/TERM_PROGRAM=ghostty/privatePairTERMINFO negotiates CSI>5u and CSI?u, whereas scratch conformance TERM=xterm-256color answered DSR only and captured CSI>7u. No native tui keybinding override or PAIR_WRAP_REMAP_RETURN override. Ordinary kitty Alt+Enter trace translated to native CR; drive writes lack byte tracing, so submit failure remains unresolved. Follow-up must exercise actual Run/inputloop/endpoint and Pair virtual-terminal keyboard query responses, plus isolated multiline CtrlU clearing capture. No live input or scratch PTY was started by the investigator.
 
+- 2026-10-14 — resumed after #553 landed, authorized by verified TL receipt fa4556db-8b96-499c-8856-9fe7a23e4944. Checkpoint aa6ef7d2 restored and origin/main merged cleanly at 006843476c28241b713bb2b47c843186f7e8e312. Pair:0 remains reserved for #528; no staging. Focused agentdrive/couchmessage/couchcmd drive, key and wait tests PASS (0.190s/0.156s/1.125s). Wrapper recovery integration and real Run/socket/native input-protocol conformance proceed as bounded independent tasks. Reference retrieval RED: README, atlas and embedded skill categorically refused occupied-composer recovery; documentation updated to describe only strict ESC/clear-line recovery, preserving empty-composer guards for all other requests and the same absolute deadline.
+
 ## Revisions
 
 - 2026-10-14 02:15 — add (TL, from the first fleet-wide remote switch): (1) `--set-model` takes an explicit scope:

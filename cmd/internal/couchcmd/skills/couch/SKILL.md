@@ -82,6 +82,15 @@ unknown, occupied and picker states refuse. An older wrapper asks for a relaunch
 on the new build. These controls take seconds of wall time, with a 30-second
 server budget and at most 36 seconds of CLI observation.
 
+Recovery-only `--keys` requests containing one or more `clear-line` and/or `esc`
+steps may start on a positively recognized occupied composer, with no turn,
+picker, buffered input or competing automatic input. Inspect an uncertain
+operation's receipt and peek at the slot first, then explicitly request
+`couch --keys pair:7 clear-line` to clear the current line. This is a new action,
+not a retry of the failed drive. Adding text, submit, enter, arrows or waits
+restores the empty-composer requirement, as does model selection. An unknown
+composer still refuses.
+
 `--keys repo:N STEP... [--json]` accepts `text:…`, `enter`, `submit`, `up`,
 `down`, `esc`, `clear-line`, and `wait:MS`. Quote a text step containing spaces.
 `enter` follows Pair's ordinary Return (newline in a composer, select in a

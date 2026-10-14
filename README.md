@@ -471,7 +471,12 @@ couch --adopt-store /absolute/store     preview adoption of an existing store
 other exact live slot with an idle, empty agent composer. The separate Neovim
 draft does not block these controls. A busy turn, open picker, occupied composer
 or unknown wrapper state refuses before input; relaunch an older wrapper on the
-new build if its drive capability is unavailable.
+new build if its drive capability is unavailable. Recovery-only `--keys`
+requests containing solely `clear-line` and/or `esc` may start on a positively
+recognized occupied composer, with no turn, picker, buffered input or competing
+automatic input. After inspecting an uncertain result and the slot, use
+`couch --keys pair:7 clear-line` to clear that composer's current line. Mixed
+requests and model selection still require an empty composer.
 
 ```sh
 couch --keys pair:7 clear-line text:/model submit wait:200 down enter
