@@ -798,3 +798,100 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-14T16:27:23-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 528 — couch: resume a slot whose conversation binding is unproven: infer it from transcripts and the tty log, or start fresh oriented from the tty log |
+| repo | pair |
+| issue file | workshop/issues/000528-couch-resume-a-slot-whose-conversation-binding-is-unproven-infer-it-from-transcripts-and-the-tty-log-or-start-fresh-oriented-from-the-tty-log.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | e272745337452f9b3df2949e5c4a6faa97c85d59..9a167f1fa0667715bd585b87dcaf7d65111c5487 |
+| command | sdlc milestone-close --issue 528 --milestone M1 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-14T16:27:23-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+BR-11 is addressed: the corrected startup test passes repeatedly, and restoring the raw-write oracle makes its regression fail. One new blocker remains: automatic wrapper admission can replay pending store transactions, violating M1’s prohibition on startup journal recovery.
+
+```findings
+dispose:
+  - id: BR-11
+    disposition: addressed
+    note: |
+      The integration and delta-repaint regression passed ten repetitions (17.934s), including repair and explicit retry. Replacing VT screen projection with raw writes makes TestStartupWarmScreenReadsFailureAcrossDeltaRepaint fail; deadlines remain unchanged.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: observation-only-store-access
+    title: |
+      Automatic wrapper admission replays pending thread-store journals
+    detail: |
+      cmd/internal/couchcmd/message_service.go:1224 calls writable GetThread during automatic wrapper admission; GetThread reaches withStoreLock and journal recovery (threadstore.go:205). A temporary overlay regression demonstrated recordChanged=true, journalRemoved=true, resolveErr=<nil>, without any requested lifecycle action. ARCH-PURPOSE / ARCH-ORDER: enforce preview-only storage access across automatic admission and use-time authority reads, sweeping the thread resolver and record/agent callbacks at lines 329 and 338; add pending-journal regressions that assert unchanged records, journals and retention enrollment.
+```
+
+1. **Strengths**
+
+   - Startup integration exercises the real dispatcher and Console with controlled helper barriers, then verifies repair and explicit retry.
+   - Dead-client repair rechecks exact process identity at publication and preserves binding, history and claims.
+   - Borrowed-client cleanup tests distinguish locally owned handles from restored registry entries.
+   - README and atlas describe the revised attachment behavior and separate #556/#557 obligations.
+
+2. **Critical findings**
+
+   - **Automatic admission performs recovery writes.** [message_service.go:1224](/Users/xianxu/Library/Caches/sdlc/review-checkouts/ae1a1f129df4df3e/cmd/internal/couchcmd/message_service.go:1224) uses `GetThread`, whose writable path replays journals. Wrapper reconnection after Couch restart therefore becomes implicit transaction recovery. Introduce a shared preview accessor and use it throughout automatic message authority checks; test both global and slot-local pending journals.
+
+3. **Important findings**
+
+   None.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   - Focused checks passed across couchcmd, couchcore, couchtty, launcher, couchmessage and artifactpath.
+   - BR-11’s integration and oracle tests passed ten repetitions; the raw-oracle mutation failed as expected.
+   - The temporary journal regression failed on pinned HEAD, confirming the new finding. Overlay files were removed; repository files remain unchanged.
+   - Full-suite and live operator acceptance were not independently rerun.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared classification, scheduling and lifecycle owners are reused.
+   - **ARCH-PURE — pass:** classification and menu/registry transitions have direct value tests.
+   - **ARCH-PURPOSE — flag:** automatic message admission bypasses the observation-only startup contract.
+   - **ARCH-MOCK — pass:** stateful doubles and subprocess endpoint tests exercise the relevant seams; live conformance was not rerun.
+   - **ARCH-CONSTRAINTS — flag:** the same writable reads enter blocking store locks without propagating the admission context.
+   - **ARCH-SECURE — flag:** an authentication observation can execute persisted transaction effects.
+   - **ARCH-ORDER — flag:** wrapper arrival triggers journal recovery outside the approved lifecycle-action path.
+   - **ARCH-FUNERAL — pass:** client handles have cleanup owners; terminal locks retain the fixed stripe bound.
+
+7. **Plan revision recommendations**
+
+   Append a `## Revisions` entry requiring automatic broker admission and use-time authority checks to use preview-only storage access. Enumerate the three `GetThread` callbacks and downstream routing reads, and require pending-journal preservation tests across global and slot-local stores.
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 4.110349709s
+head: "9a167f1fa0667715bd585b87dcaf7d65111c5487"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

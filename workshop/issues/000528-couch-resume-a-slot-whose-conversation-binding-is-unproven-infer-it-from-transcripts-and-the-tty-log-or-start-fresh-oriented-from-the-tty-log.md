@@ -934,3 +934,16 @@ No follow-up implementation starts on this branch.
 - Hub progress sends abbe2e55 and0c60f68a were uncertain (context deadline);
   follow-up receipt reads reported unavailable. No automatic resend was made.
   The final landed outcome still needs a fresh report.
+
+- Normal re-review round12 addressed BR-11 (ten repetitions and mutation checked)
+  but found Critical BR-12: automatic broker GetThread calls replay pending
+  journals. Reviewer overlay observed recordChanged=true/journalRemoved=true
+  without lifecycle action. Confirmed three calls in thread/record/agent
+  authority callbacks; families already preview-only/contextual. Appended the
+  correction design before production work. Fix shared preview/context routing
+  and all automatic authority consumers with global/local pending-journal and
+  cancellation regressions, then normal re-review and recorded final suite.
+- Canceled only this agent's obsolete9a167 suite process31870 (exact process
+  birth16:22:19, parent4470 verified) via INT; exit130. It acquired the machine
+  gate after478s and began early script checks before cancellation. No pass or
+  recorded status is claimed. Other slots' suite holders were left alone.

@@ -1139,3 +1139,24 @@ controlled oracle mutation fails with raw writes; corrected integration and
 oracle tests pass10 repetitions18.800s through all repair/retry assertions.
 Focused startup/hub group passes9.231s. Only the test file changes. Re-close
 normally; no dispute, no gate skip, no invented production fix.
+
+### 2026-10-14 — BR-12: broker authority reads must be preview-only
+
+Normal round12 addressed BR-11 but demonstrated a real automatic journal replay:
+message_service.go thread resolver and record/agent callbacks use writable
+GetThread. Automatic reconnect/use-time authorization is observation, not an
+explicit lifecycle action. Add one shared context-aware PreviewThread accessor,
+reuse existing decoder/hooks and readOnly pending-journal refusal, and propagate
+its context through the existing backend/slot-manifest routing reads. Preserve
+background wrappers for existing writable APIs; no context flag or persisted
+state. Record callback/request validation should propagate its existing request
+context. RepositoryNamesContext already uses preview/context and stays as-is.
+
+Owner/files: threadstore.go + threadstore_preview.go getter/lock seam;
+threadstore_location.go contextual routing; message_service.go's three callbacks
+and downstream message-authority consumers. Sweep automatic reads, not explicit
+lifecycle writers. Test global and slot-local pending journals: record/journal
+bytes and retention enrollment unchanged, no write/replay; canceled/contended
+reads remain bounded. Current queued9a167 suite is obsolete and canceled; the
+corrected runtime head requires a new recorded suite, normal re-review, and
+honest operator notification of the narrow observation-only fix. No gate skip.
