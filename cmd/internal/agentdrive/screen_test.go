@@ -2,6 +2,7 @@ package agentdrive
 
 import (
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -66,8 +67,23 @@ func TestReadModelScreenClaudeCaptured(t *testing.T) {
 		t.Fatalf("%#v", got)
 	}
 }
+func TestReadModelScreenCodexAdvancedAndDefaultCaptured(t *testing.T) {
+	entry := ReadModelScreen("codex", Screen{Complete: true, Lines: capture(t, "more-entry")})
+	if entry.Phase != ScreenEffort || entry.Selected != "more" {
+		t.Fatalf("entry %#v", entry)
+	}
+	advanced := ReadModelScreen("codex", Screen{Complete: true, Lines: capture(t, "more-expanded")})
+	if advanced.Phase != ScreenPhase("advanced") || advanced.Selected != "max" || !reflect.DeepEqual(advanced.Labels, []string{"max", "ultra"}) {
+		t.Fatalf("advanced %#v", advanced)
+	}
+	status := ReadModelScreen("codex", Screen{Complete: true, Idle: true, Lines: capture(t, "default-status")})
+	if status.Phase != ScreenStatus || status.Scope != ScopeDefault || status.Effort != "low" {
+		t.Fatalf("default %#v", status)
+	}
+}
+
 func FuzzReadModelScreen(f *testing.F) {
-	for _, path := range []string{"../wrapcmd/testdata/drive/codex/0.162.1/model-picker.screen", "../wrapcmd/testdata/drive/codex/0.162.1/effort-picker.screen", "../wrapcmd/testdata/drive/codex/0.162.1/session-status.screen", "../wrapcmd/testdata/drive/claude/2.1.299/session-before.screen", "../wrapcmd/testdata/drive/claude/2.1.299/session-status.screen"} {
+	for _, path := range []string{"../wrapcmd/testdata/drive/codex/0.162.1/model-picker.screen", "../wrapcmd/testdata/drive/codex/0.162.1/effort-picker.screen", "../wrapcmd/testdata/drive/codex/0.162.1/session-status.screen", "../wrapcmd/testdata/drive/codex/0.162.1/more-entry.screen", "../wrapcmd/testdata/drive/codex/0.162.1/more-expanded.screen", "../wrapcmd/testdata/drive/codex/0.162.1/default-status.screen", "../wrapcmd/testdata/drive/claude/2.1.299/session-before.screen", "../wrapcmd/testdata/drive/claude/2.1.299/session-status.screen"} {
 		b, e := os.ReadFile(path)
 		if e != nil {
 			f.Fatal(e)
@@ -89,7 +105,7 @@ func FuzzReadModelScreen(f *testing.F) {
 			}
 			seen[l] = true
 		}
-		if got.Phase == ScreenModel || got.Phase == ScreenEffort {
+		if got.Phase == ScreenModel || got.Phase == ScreenEffort || got.Phase == ScreenAdvanced {
 			if !seen[got.Selected] {
 				t.Fatal("selection absent")
 			}

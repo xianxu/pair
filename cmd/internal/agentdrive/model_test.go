@@ -111,6 +111,105 @@ func TestDriveFreshNavigationRejectsStaleScreen(t *testing.T) {
 	}
 }
 
+func TestDriveCodexDefaultCaptured(t *testing.T) {
+	s, now := modelAtPicker(t, ModelRequest{Model: "gpt-6.1-sol", Effort: "low", Scope: ScopeDefault})
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 2, Complete: true, Lines: capture(t, "default-model-picker")}})
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventWritten, At: now})
+	s, fx := ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 3, Complete: true, Lines: capture(t, "default-effort-picker")}})
+	if len(fx) != 1 || fx[0].Key.Kind != KeyEnter {
+		t.Fatalf("apply %#v", fx)
+	}
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventWritten, At: now})
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 4, Complete: true, Idle: true, Lines: capture(t, "default-status")}})
+	if s.Result().Outcome != OutcomeConfirmed || s.Result().Scope != ScopeDefault {
+		t.Fatalf("%#v", s.Result())
+	}
+}
+
+func advancedEntry(t *testing.T, effort string) (DriveState, time.Time) {
+	t.Helper()
+	s, now := modelAtPicker(t, ModelRequest{Model: "gpt-6.1-sol", Effort: effort})
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 2, Complete: true, Lines: capture(t, "more-model-picker")}})
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventWritten, At: now})
+	s, fx := ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 3, Complete: true, Lines: capture(t, "more-effort-picker")}})
+	if len(fx) != 1 || fx[0].Key.Kind != KeyDown {
+		t.Fatalf("navigate entry %#v", fx)
+	}
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventWritten, At: now})
+	s, fx = ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 4, Complete: true, Lines: capture(t, "more-entry")}})
+	if len(fx) != 1 || fx[0].Key.Kind != KeyEnter {
+		t.Fatalf("open entry %#v", fx)
+	}
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventWritten, At: now})
+	return s, now
+}
+
+func TestDriveCodexAdvancedCaptured(t *testing.T) {
+	for _, effort := range []string{"max", "ultra"} {
+		s, now := advancedEntry(t, effort)
+		s, fx := ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 5, Complete: true, Lines: capture(t, "more-expanded")}})
+		if len(fx) != 1 {
+			t.Fatalf("advanced %#v", fx)
+		}
+		if effort == "max" {
+			if fx[0].Key.Text != "s" {
+				t.Fatalf("max apply %#v", fx)
+			}
+		} else {
+			if fx[0].Key.Kind != KeyDown {
+				t.Fatalf("ultra navigate %#v", fx)
+			}
+			s, _ = ReduceDrive(s, DriveEvent{Kind: EventWritten, At: now})
+			_, fx = ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 5, Complete: true, Lines: capture(t, "more-expanded")}})
+			for _, effect := range fx {
+				if effect.Kind == EffectWrite {
+					t.Fatal("advanced navigation replayed stale frame")
+				}
+			}
+			lines := capture(t, "more-expanded")
+			for i, line := range lines {
+				if strings.Contains(line, "› 1. Max") {
+					lines[i] = strings.ReplaceAll(strings.ReplaceAll(line, "‹rev››", "  "), "‹/rev›", "")
+				}
+				if strings.Contains(line, "2. Ultra") {
+					lines[i] = "‹rev›› " + strings.TrimSpace(line) + "‹/rev›"
+				}
+			}
+			_, fx = ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 6, Complete: true, Lines: lines}})
+			if len(fx) != 1 || fx[0].Key.Text != "s" {
+				t.Fatalf("observed ultra apply %#v", fx)
+			}
+		}
+	}
+}
+
+func TestDriveAdvancedRequiresObservedModelIdentity(t *testing.T) {
+	s, now := modelAtPicker(t, ModelRequest{Model: "gpt-6.1-sol", Effort: "max"})
+	_, fx := ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 2, Complete: true, Lines: capture(t, "more-expanded")}})
+	for _, effect := range fx {
+		if effect.Kind == EffectWrite && effect.Key.Text == "s" {
+			t.Fatal("advanced selection applied without owned model evidence")
+		}
+	}
+}
+
+func TestDriveCodexAdvancedRecoveryThreeEscapes(t *testing.T) {
+	s, now := advancedEntry(t, "max")
+	s.navigation = MaxNavigationSteps
+	for i, name := range []string{"more-expanded", "more-back-effort", "more-model-picker"} {
+		var fx []DriveEffect
+		s, fx = ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: uint64(5 + i), Complete: true, Lines: capture(t, name)}})
+		if len(fx) != 1 || fx[0].Key.Kind != KeyEsc {
+			t.Fatalf("escape %d %#v %#v", i, fx, s.Result())
+		}
+		s, _ = ReduceDrive(s, DriveEvent{Kind: EventWritten, At: now})
+	}
+	s, _ = ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 8, Complete: true, Idle: true, Lines: capture(t, "default-recovery-prompt")}})
+	if s.Result().Outcome != OutcomeFailed || !strings.Contains(s.Result().Detail, "back at empty prompt") {
+		t.Fatalf("%#v", s.Result())
+	}
+}
+
 func TestDriveClaudeDefaultScopeRefusedBeforeInput(t *testing.T) {
 	_, err := NewDrive(Request{Model: &ModelRequest{Model: "opus 5.5", Scope: ScopeDefault}}, "claude", time.Now().Add(time.Minute))
 	if err == nil {
@@ -161,10 +260,16 @@ func TestDriveRawSequenceAndCancellation(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
+	if s.Started() {
+		t.Fatal("new drive already started")
+	}
 	req.Keys[0].Kind = KeySubmit
 	s, fx := ReduceDrive(s, DriveEvent{Kind: EventStart, At: now, Screen: Screen{Epoch: 1, Complete: true, Idle: true}})
 	if len(fx) != 1 || fx[0].Key.Kind != KeyEsc {
 		t.Fatalf("%#v", fx)
+	}
+	if !s.Started() {
+		t.Fatal("started drive still queued")
 	}
 	stale, _ := ReduceDrive(s, DriveEvent{Kind: EventScreen, At: now, Screen: Screen{Epoch: 1, Complete: true, Idle: true}})
 	if stale.Terminal() {

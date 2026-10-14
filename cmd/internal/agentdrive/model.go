@@ -55,6 +55,7 @@ const (
 	phaseFinal
 	phaseModel
 	phaseEffort
+	phaseAdvanced
 	phaseApplied
 	phaseBackout
 	phaseTerminal
@@ -69,6 +70,7 @@ type DriveState struct {
 	epoch, writeEpoch                    uint64
 	waitUntil                            time.Time
 	effort                               string
+	selectedModel                        string
 	evidence                             ScreenEvidence
 	result                               Result
 	priorConfirmations                   map[string]int
@@ -105,6 +107,7 @@ func cloneDrive(s DriveState) DriveState {
 	return s
 }
 func (s DriveState) Terminal() bool { return s.phase == phaseTerminal }
+func (s DriveState) Started() bool  { return s.phase != phaseNew }
 func (s DriveState) Result() Result {
 	r := s.result
 	r.Tail = append([]string(nil), r.Tail...)
@@ -174,7 +177,7 @@ func commandNext(s DriveState) (DriveState, []DriveEffect) {
 }
 func backout(s DriveState, detail string) (DriveState, []DriveEffect) {
 	s.result.Detail = detail
-	if s.backouts >= 2 {
+	if s.backouts >= 3 {
 		return finish(s, OutcomeUnconfirmed, detail+"; prompt recovery unconfirmed")
 	}
 	s.backouts++
@@ -266,7 +269,7 @@ func ReduceDrive(input DriveState, event DriveEvent) (DriveState, []DriveEffect)
 			if event.Screen.Idle {
 				return finish(s, OutcomeFailed, s.result.Detail+"; back at empty prompt")
 			}
-			if evidence.Phase == ScreenModel || evidence.Phase == ScreenEffort || evidence.Phase == ScreenCombined {
+			if evidence.Phase == ScreenModel || evidence.Phase == ScreenEffort || evidence.Phase == ScreenAdvanced || evidence.Phase == ScreenCombined {
 				return backout(s, s.result.Detail)
 			}
 			return finish(s, OutcomeUnconfirmed, s.result.Detail+"; prompt recovery unconfirmed")
@@ -313,6 +316,7 @@ func ReduceDrive(input DriveState, event DriveEvent) (DriveState, []DriveEffect)
 				return write(s, KeyStep{Kind: k}, phaseModel)
 			}
 			if evidence.Phase == ScreenModel {
+				s.selectedModel = evidence.Selected
 				return write(s, KeyStep{Kind: KeyEnter}, phaseEffort)
 			}
 			s.effort = evidence.Effort
@@ -339,13 +343,16 @@ func ReduceDrive(input DriveState, event DriveEvent) (DriveState, []DriveEffect)
 			}
 			return apply(s)
 		}
-		if evidence.Phase == ScreenEffort {
-			if s.phase != phaseEffort || evidence.Model != target {
+		if evidence.Phase == ScreenEffort || evidence.Phase == ScreenAdvanced {
+			if (evidence.Phase == ScreenEffort && (s.phase != phaseEffort || evidence.Model != target)) || (evidence.Phase == ScreenAdvanced && (s.phase != phaseAdvanced || s.selectedModel != target)) {
 				return backout(s, "unexpected effort picker")
 			}
 			effort := canonicalEffort(s.request.Model.Effort)
 			if effort == "" {
 				effort = evidence.Selected
+			}
+			if evidence.Phase == ScreenEffort && (effort == "max" || effort == "ultra") {
+				effort = "more"
 			}
 			selected, targetIndex := -1, -1
 			for i, label := range evidence.Labels {
@@ -365,7 +372,14 @@ func ReduceDrive(input DriveState, event DriveEvent) (DriveState, []DriveEffect)
 				if selected > targetIndex {
 					k = KeyUp
 				}
-				return write(s, KeyStep{Kind: k}, phaseEffort)
+				next := phaseEffort
+				if evidence.Phase == ScreenAdvanced {
+					next = phaseAdvanced
+				}
+				return write(s, KeyStep{Kind: k}, next)
+			}
+			if evidence.Phase == ScreenEffort && effort == "more" {
+				return write(s, KeyStep{Kind: KeyEnter}, phaseAdvanced)
 			}
 			s.effort = effort
 			return apply(s)

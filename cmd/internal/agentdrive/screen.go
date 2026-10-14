@@ -18,6 +18,7 @@ const (
 	ScreenUnknown  ScreenPhase = ""
 	ScreenModel    ScreenPhase = "model"
 	ScreenEffort   ScreenPhase = "effort"
+	ScreenAdvanced ScreenPhase = "advanced"
 	ScreenStatus   ScreenPhase = "status"
 	ScreenCombined ScreenPhase = "combined"
 )
@@ -32,7 +33,8 @@ type ScreenEvidence struct {
 }
 
 var codexRow = regexp.MustCompile(`^[›]?\s*\d+\.\s+(GPT-[A-Za-z0-9.-]+)(?:\s|$)`)
-var effortRow = regexp.MustCompile(`^[›]?\s*\d+\.\s+(Extra high|Low|Medium|High|Max|Ultra)(?:\s|$)`)
+var effortRow = regexp.MustCompile(`^[›]?\s*\d+\.\s+(Extra high|Low|Medium|High|More reasoning…)(?:\s|$)`)
+var advancedRow = regexp.MustCompile(`^[›]?\s*\d+\.\s+(Max|Ultra)(?:\s|$)`)
 var claudeRow = regexp.MustCompile(`^[❯↓]?\s*\d+\.\s+(Default|(?:Opus|Sonnet|Haiku|Fable) [0-9.]+)(?:\s|$)`)
 var codexStatus = regexp.MustCompile(`^• Model changed to (gpt-[a-z0-9.-]+) (low|medium|high|xhigh|max|ultra)( for this session only)?$`)
 var claudeStatus = regexp.MustCompile(`^⎿\s+Set model to ((?:Opus|Sonnet|Haiku|Fable) [0-9.]+) for this session only$`)
@@ -92,6 +94,8 @@ func canonicalEffort(s string) string {
 	switch strings.ToLower(s) {
 	case "extra high":
 		return "xhigh"
+	case "more reasoning…":
+		return "more"
 	default:
 		return strings.ToLower(s)
 	}
@@ -123,6 +127,9 @@ func ReadModelScreen(agent string, screen Screen) ScreenEvidence {
 		p := ScreenUnknown
 		m := ""
 		if agent == "codex" {
+			if line == "Advanced Reasoning" {
+				p = ScreenAdvanced
+			}
 			if line == "Select Model and Effort" {
 				p = ScreenModel
 			}
@@ -164,6 +171,12 @@ func ReadModelScreen(agent string, screen Screen) ScreenEvidence {
 					label = canonicalEffort(m[1])
 					sel = reverse[i] && strings.HasPrefix(strings.TrimSpace(screen.Lines[i]), "‹rev››") && strings.HasPrefix(line, "›")
 				}
+				footer = footer || line == "enter default · s session · esc back" || line == "enter select · esc back"
+			case ScreenAdvanced:
+				if m := advancedRow.FindStringSubmatch(line); m != nil {
+					label = canonicalEffort(m[1])
+					sel = reverse[i] && strings.HasPrefix(strings.TrimSpace(screen.Lines[i]), "‹rev››") && strings.HasPrefix(line, "›")
+				}
 				footer = footer || line == "enter default · s session · esc back"
 			case ScreenCombined:
 				if m := claudeRow.FindStringSubmatch(line); m != nil {
@@ -195,6 +208,22 @@ func ReadModelScreen(agent string, screen Screen) ScreenEvidence {
 			return unknown
 		}
 		if phase == ScreenEffort && (!strings.HasPrefix(model, "gpt-") || len(model) > MaxModelLabelBytes) {
+			return unknown
+		}
+		if phase == ScreenEffort {
+			expected := "enter default · s session · esc back"
+			if e.Selected == "more" {
+				expected = "enter select · esc back"
+			}
+			found := false
+			for _, line := range plain {
+				found = found || line == expected
+			}
+			if !found {
+				return unknown
+			}
+		}
+		if phase == ScreenAdvanced && (len(e.Labels) != 2 || !seen["max"] || !seen["ultra"]) {
 			return unknown
 		}
 		if phase == ScreenCombined && e.Effort == "" {
