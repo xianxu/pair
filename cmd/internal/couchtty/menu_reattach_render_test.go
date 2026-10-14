@@ -42,7 +42,7 @@ func TestTheSwitcherShowsEachPassStateOnItsRow(t *testing.T) {
 	}
 	for tag, want := range map[string]string{
 		"couch-a": "Continue",
-		"couch-b": "reattach failed: resume-path-missing",
+		"couch-b": "attach failed: resume-path-missing",
 		"couch-c": "reattaching…",
 		"couch-d": "queued",
 	} {
@@ -67,21 +67,21 @@ func TestTheSwitcherShowsEachPassStateOnItsRow(t *testing.T) {
 func TestAPassSuffixIsSanitizedAndLeavesTheLabelItsColumns(t *testing.T) {
 	failed := PassView{State: PassFailed, Diagnostic: "\x1b]0;hijacked\x07spawn failed: " + strings.Repeat("a very long reason ", 20)}
 	for _, width := range []int{120, 60, 40} {
-		suffix := passSuffix(failed, true, width)
+		suffix := passSuffix(failed, true, width, "Continue")
 		if strings.ContainsAny(suffix, "\x1b\x07") {
 			t.Fatalf("width %d: suffix %q carries the error's control bytes", width, suffix)
 		}
 		if got, limit := textwidth.Width(suffix), width-menuLabelFloor; got > limit {
 			t.Fatalf("width %d: suffix is %d columns, leaving the label fewer than %d: %q", width, got, menuLabelFloor, suffix)
 		}
-		if !strings.HasPrefix(suffix, "  reattach failed: ") {
+		if !strings.HasPrefix(suffix, "  Continue · attach ") {
 			t.Fatalf("width %d: suffix %q no longer says the reattach failed", width, suffix)
 		}
 	}
-	if got := passSuffix(PassView{State: PassQueued}, true, 120); got != "  queued" {
+	if got := passSuffix(PassView{State: PassQueued}, true, 120, "Continue"); got != "  queued" {
 		t.Fatalf("queued suffix = %q", got)
 	}
-	if got := passSuffix(PassView{}, false, 120); got != "" {
+	if got := passSuffix(PassView{}, false, 120, "Continue"); got != "" {
 		t.Fatalf("a row the pass does not own got suffix %q", got)
 	}
 }

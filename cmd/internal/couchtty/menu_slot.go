@@ -29,6 +29,19 @@ func menuThreadTarget(state MenuState, key couchcore.ThreadRowKey, address couch
 // or replaced under the row, so the tag is not what names it. Its in-flight
 // operation is then keyed by row, not by an address the operation replaces.
 func dispatchMenuRow(state MenuState, operation string, row couchcore.ActionableThreadSummary) (MenuState, []MenuEffect) {
+	if view, owned := passViewOf(state.Reattach, row.Address); owned && view.State == PassFailed &&
+		couchcore.ContinuityOutcome(row) == couchcore.Continue && (operation == "switch" || operation == "resume") {
+		// A failed listed-live row may look live without a local client. Its
+		// one-click retry attaches that exact retained address; it cannot cold
+		// resume or start fresh if the listing changed since projection.
+		effect := threadEffect("resume", row.Address)
+		effect.Args["warm-only"] = "true"
+		next, effects := dispatchMenuOperation(state, effect, row.Address)
+		if len(effects) > 0 && row.Target.Kind == couchcore.ThreadTargetSlot {
+			next.InFlight.RowKey = menuRowKey(row)
+		}
+		return next, effects
+	}
 	// The primary Fresh gesture uses the same confirmation as the action menu.
 	if operation == "reboot" && (state.CurrentFrame().Kind != MenuFrameConfirmation || state.CurrentFrame().Action != "reboot") {
 		appendMenuFrame(&state, MenuFrame{Kind: MenuFrameConfirmation, RowKey: menuRowKey(row), Thread: row.Address, Action: operation, SelectedItem: "cancel"})

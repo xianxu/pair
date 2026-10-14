@@ -799,3 +799,31 @@ with visible reason/retry, no startup recovery execution. Hubs unchanged.
 Include guarded pair:1 dead-client repair in automatic attachment and the
 inventory notice correction. Appended the authoritative plan Revision before
 code. Recorded suite and new staged build precede repeat operator acceptance.
+
+- 2026-10-14 M1 operator delta verification: inventory loading placeholder was
+  reproduced by `TestInventorySuccessClearsOnlyInventoryNotice` (RED: successful
+  populated inventory retained the bare unavailable notice). Inventory notices
+  now carry their own transient owner; successful refresh clears only that
+  owner, and initial loading does not overwrite borrowed/error/progress notices.
+  AST inventory-read guard remains unchanged. Continue-only pass seeding,
+  every failure reason, current outcome rendering, exact warm-only retry and
+  reducer map-copy tests passed. Full `go test ./cmd/internal/couchtty -count=1`
+  passed in 33.975s after the final UI edits. A run compiled while a renderer
+  fixture was still being updated saw its old exact substring expectation;
+  the settled fixture and complete package rerun passed. No live slot was touched.
+
+- Startup arming exposed a second ordering regression: generic menu reduction
+  painted before Run and before the hub's queued borrowed-attachment notice.
+  The existing first-paint regression failed. ArmReattachPass now configures the
+  same reducer under its mutex without rendering; this pre-Run event emits no
+  operations. The first-paint and successful/failed adoption arming tests passed
+  together (0.304s). This is startup configuration, not a new scheduler.
+
+- Mixed startup integration passed in 1.899s through the real dispatcher and
+  Console with controlled helper barriers: UI paints and processes input before
+  attachment completion, failed Continue exhausts exactly two attempts with a
+  visible reason and a successful third explicit retry, dead client repair
+  changes only helper identity/revision, and live/claim/binding records remain
+  identical. Exited rows cause no helper, native launch or teardown. The pass
+  keeps the existing bounded lifecycle pool; retention locking may serialize
+  external helper entry, so the test asserts its upper bound, not forced overlap.

@@ -395,8 +395,10 @@ still works. See [atlas/couch.md](atlas/couch.md).
 Opening Couch launches or attaches each requested hub, including the cwd hub
 when no directory is given. A hub listed live uses Continue; otherwise its
 normal startup resumes a proven conversation or starts fresh. Other slots are
-observed only: startup does not launch or attach them, resume interrupted starts,
-replay their recovery journals, or repair them. One unavailable slot does not
+observed and attached in the background when projected Continue. Startup never
+launches or resumes their agents, completes interrupted starts, or replays their
+recovery journals. Attachments use bounded parallelism and one retry; a failure
+keeps Continue with a visible reason and a one-click retry. One unavailable slot does not
 prevent Couch or other slots from opening.
 Choose **Continue** for a session Zellij lists live, **Resume from disk** for a
 recoverable stopped conversation, or the offered **Start fresh** action to begin
@@ -798,13 +800,13 @@ slot, which parks it exactly before anything else starts. The next start or
 compaction clears the line. Inner `pair restart` and address-changing rename are
 refused for hosted threads; use Couch's relaunch.
 
-**Every other detached thread comes back too, behind you** (pair#206). Once the
-thread you land on is up, couch reattaches the rest in the background, one at a
-time, most recently active first, without moving your keyboard or your screen.
+**Every other Continue thread comes back too, behind you** (pair#528). Once the
+requested hub is up, Couch attaches positively listed live slots in the background,
+with bounded parallelism, most recently active first, without moving your keyboard or your screen.
 Until a thread is ready it is greyed out: a placeholder on the status row, with
 a spinner on the one starting now, and a `queued` or `reattaching…` row in the
 switcher. Neither can be clicked or selected. A thread that fails to come back
-reads `reattach failed:` with its reason, and you can resume it by hand.
+keeps Continue with its failure reason, and one click retries the warm attachment.
 Quitting part-way leaves the rest detached for next time. Only a bare start
 does this, and it never resumes a parked thread.
 

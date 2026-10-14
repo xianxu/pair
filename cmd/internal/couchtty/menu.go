@@ -143,6 +143,7 @@ type MenuNotice struct {
 }
 
 type MenuProgressOwner struct {
+	InventoryRefresh  bool
 	PreviewGeneration uint64
 	OperationAttempt  uint64
 	Completion        CompletionIdentity
@@ -522,8 +523,9 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 	}
 	if event.Kind == MenuEventRefreshStarted {
 		next.RefreshPending = true
-		if !next.InventoryReady && next.Notice.Level != MenuNoticeProgress {
+		if !next.InventoryReady && (next.Notice == (MenuNotice{}) || next.Notice.Owner.InventoryRefresh) {
 			next.Notice = infoMenuNotice("thread inventory unavailable")
+			next.Notice.Owner.InventoryRefresh = true
 		}
 		return next, nil
 	}
@@ -531,10 +533,14 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 		next.RefreshPending = false
 		if event.Error != "" {
 			next.Notice = errorMenuNotice("thread inventory unavailable: " + event.Error)
+			next.Notice.Owner.InventoryRefresh = true
 			// An armed pass stays armed until an inventory it can seed from
 			// (cell 2); a running one carries on, since warm-only re-proves each
 			// thread at attempt time (cell 4).
 			return advanceReattach(next)
+		}
+		if next.Notice.Owner.InventoryRefresh {
+			next.Notice = MenuNotice{}
 		}
 		if !next.ProjectionPending || event.Generation > next.ProjectionAfterGeneration {
 			next.ProjectionPending = false

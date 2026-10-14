@@ -1059,16 +1059,22 @@ Cancellation/leave cancels the pass's own work and cleans only its client
 helpers; never kills wrapper, agent or terminal. Do not extend the seed after
 the first successful inventory, so explicit later detach stays detached.
 
-- [ ] Update seed and failure transitions with independent pure tests for live,
+- [x] Update seed and failure transitions with independent pure tests for live,
   exited, uncertain, busy and failed rows; failures remain selectable Continue.
-- [ ] Arm startup and add mixed-row stateful integration: named hub stays
+- [x] Arm startup and add mixed-row stateful integration: named hub stays
   focused, worker attachment is parallel and blocked on controlled barriers,
   Couch paints/responds before those barriers release; only Continue rows
   invoke warm-only attachment. Assert no native resume/fresh/teardown, and
   dead-client repair uses the unchanged exact-identity guard.
-- [ ] Reproduce stale inventory loading notice, then clear only inventory-owned
+- [x] Reproduce stale inventory loading notice, then clear only inventory-owned
   notices on successful refresh. Failed reads preserve their details and rows;
   unrelated borrowed/operation notices survive success.
 - [ ] Update atlas/README and Log; checkpoint runtime; run a recorded full suite
   matching the staged head, restage/build pair:0, send the new built hash, then
   operator repeats acceptance. Do not claim the current stage accepted.
+
+Conformance note for this revision: the target's original “startup ... acts on
+nothing” wording is superseded specifically for warm client attachment by the
+operator's d62e0729 decision. The invariant now excludes recovery writes, not
+client attachment. No change is made to the verbatim operator-authored target;
+no native conversation is launched, resumed or torn down by the worker pass.

@@ -18,7 +18,12 @@ const statusSpinnerInterval = 120 * time.Millisecond
 // and BEFORE Run: the Run loop is what admits inventories, so arming first
 // guarantees the first inventory reduced is the one the pass seeds from.
 func (c *Console) ArmReattachPass(root couchcore.ThreadAddress) {
-	c.reduceMenu(MenuEvent{Kind: MenuEventReattachArm, Address: root})
+	// This is pre-Run configuration, not an interactive menu event. Painting
+	// here could expose an empty panel before initial notices are admitted.
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.ensureMenuLocked(couchcore.ThreadAddress{})
+	c.menu, _ = ReduceMenu(c.menu, MenuEvent{Kind: MenuEventReattachArm, Address: root})
 }
 
 // runBackgroundOperation enqueues one reattach-pass attempt. It never touches

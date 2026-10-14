@@ -14,6 +14,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/hostty"
+	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/cmd/internal/testwait"
 )
@@ -36,7 +37,7 @@ type hubStartupRig struct {
 	history  []dispatchedCall
 }
 
-func newHubStartupRig(t *testing.T, detached bool) *hubStartupRig {
+func newHubStartupRig(t *testing.T, detached bool, beforeAdoption ...func(*hubStartupRig)) *hubStartupRig {
 	t.Helper()
 	root, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
@@ -53,8 +54,8 @@ func newHubStartupRig(t *testing.T, detached bool) *hubStartupRig {
 		catalog.Workspaces[p] = identity
 		catalog.Repositories[p] = couchcore.SlotRepository{Identity: identity}
 	}
-	// This detached ordinary slot is visible to startup, but is not one of
-	// the explicitly named hubs and must never be resumed by a sweep.
+	// This live ordinary slot is visible to startup and joins the warm-only
+	// background pass; explicit hubs remain independently queued.
 	ordinary := filepath.Join(root, "ordinary-slot1")
 	if err := os.Mkdir(ordinary, 0700); err != nil {
 		t.Fatal(err)
@@ -112,12 +113,15 @@ func newHubStartupRig(t *testing.T, detached bool) *hubStartupRig {
 		t.Fatal(err)
 	}
 	rig.hubs = hubs
-	wireResolver(console, c, hubs)
 	first, err := c.StartInteractive(context.Background(), couchcore.StartArgs{Cwd: paths[0]})
 	if err != nil {
 		t.Fatal(err)
 	}
 	rig.first = first
+	for _, setup := range beforeAdoption {
+		setup(rig)
+	}
+	wireResolver(console, c, hubs)
 	actual := console.Ops()
 	console.SetOperationDispatcher(func(call couchcore.OperationCall) (any, error) {
 		rig.mu.Lock()
@@ -180,11 +184,12 @@ func TestHubStartupTwoHubsPreserveFirstFocus(t *testing.T) {
 	}
 	r.await(t, "attach")
 	r.assertFirstUsable(t)
+	waitWarmAcceptance(t, "warm worker starts beside hubs", func() bool { r.mu.Lock(); defer r.mu.Unlock(); return len(r.children) == 3 })
 	r.mu.Lock()
 	count := len(r.children)
 	r.mu.Unlock()
-	if count != 2 {
-		t.Fatalf("started %d children, want exactly two", count)
+	if count != 3 {
+		t.Fatalf("started %d children, want two hubs and one warm worker", count)
 	}
 }
 
@@ -200,15 +205,16 @@ func TestHubStartupLaterFailureLeavesFirstUsable(t *testing.T) {
 		return strings.Contains(r.host.Written(), "hub failed; open it in the switcher to retry:")
 	})
 	r.assertFirstUsable(t)
+	waitWarmAcceptance(t, "warm worker starts despite failed hub", func() bool { r.mu.Lock(); defer r.mu.Unlock(); return len(r.children) == 2 })
 	r.mu.Lock()
 	count := len(r.children)
 	r.mu.Unlock()
-	if count != 1 {
-		t.Fatalf("failed hub spawned %d children", count)
+	if count != 2 {
+		t.Fatalf("failed hub should retain first hub plus warm worker, got %d children", count)
 	}
 }
 
-func TestHubStartupDetachedExtraLaunchesWithoutSlotSweep(t *testing.T) {
+func TestHubStartupDetachedExtraLaunchesWithoutDuplicateWarmAttempt(t *testing.T) {
 	r := newHubStartupRig(t, true)
 	entered, release := make(chan struct{}), make(chan struct{})
 	var once sync.Once
@@ -264,8 +270,12 @@ func TestHubStartupDetachedExtraLaunchesWithoutSlotSweep(t *testing.T) {
 	r.mu.Lock()
 	history := append([]dispatchedCall(nil), r.history...)
 	r.mu.Unlock()
+	benchScope, err := launcher.ResolveRepoScope(r.paths[1])
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, call := range history {
-		if call.call.Name == "resume" {
+		if call.call.Name == "resume" && call.call.Args["repo-scope"] == benchScope.Key {
 			t.Fatalf("extra hub was also admitted to reattach pass: %+v, %v", call.call, call.err)
 		}
 	}
@@ -286,13 +296,14 @@ func TestHubStartupSingleHubDoesNotEnqueueAnotherLaunch(t *testing.T) {
 	startExplicitHubs(r.console, single)
 	r.run(t)
 	r.assertFirstUsable(t)
-	if r.console.ReattachPassArmed() {
-		t.Fatal("hub startup armed an unrequested slot sweep")
+	if !r.console.ReattachPassArmed() {
+		t.Fatal("single hub did not arm warm worker attachment")
 	}
+	waitWarmAcceptance(t, "single hub starts warm worker", func() bool { r.mu.Lock(); defer r.mu.Unlock(); return len(r.children) == 2 })
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if len(r.children) != 1 {
-		t.Fatalf("single hub started %d children", len(r.children))
+	if len(r.children) != 2 {
+		t.Fatalf("single hub plus warm worker started %d children", len(r.children))
 	}
 	for _, call := range r.history {
 		if call.call.Name == "start-hub" {

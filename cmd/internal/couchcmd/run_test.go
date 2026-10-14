@@ -1587,8 +1587,8 @@ func TestWarmOnlyIsUnreachableFromTheCommandLine(t *testing.T) {
 	}
 }
 
-// Startup attaches its selected hub child without reopening other slots.
-func TestBeginConsoleAttachesWithoutArmingOtherSlots(t *testing.T) {
+// Startup arms background warm-only attachment after its selected hub adopts.
+func TestBeginConsoleArmsWarmPassOnlyAfterSuccessfulAttach(t *testing.T) {
 	address := couchcore.ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}
 	runner := couchcore.NewFakeRunner()
 	handle, err := runner.Start("/repo", []string{"pair"}, nil)
@@ -1601,7 +1601,7 @@ func TestBeginConsoleAttachesWithoutArmingOtherSlots(t *testing.T) {
 		attachErr error
 		wantArmed bool
 	}{
-		{"a successful hub attach never arms", nil, false},
+		{"a successful hub attach arms", nil, true},
 		{"a failed attach never arms", errors.New("attach refused"), false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1873,8 +1873,8 @@ func TestInitialHubBorrowedAttachmentNoticeAppearsOnFirstPaint(t *testing.T) {
 		if visible != (attachErr == nil) {
 			t.Fatalf("initial borrowed warning visible=%v after adoption error=%v; paint=%q", visible, attachErr, host.Written())
 		}
-		if console.ReattachPassArmed() {
-			t.Fatal("startup notice armed background attachment")
+		if console.ReattachPassArmed() != (attachErr == nil) {
+			t.Fatal("warm pass arming did not follow successful adoption")
 		}
 	}
 }

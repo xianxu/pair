@@ -892,8 +892,9 @@ func recordConsoleExit(failure error) {
 	}
 }
 
-// beginConsole attaches the explicitly started hub child. Other slots remain
-// observed until the operator selects an action; startup never arms a sweep.
+// beginConsole attaches the explicitly started hub child, then arms the existing
+// bounded warm-only pass before Run admits its first inventory. No background
+// attempt may launch or recover a conversation whose terminal is absent.
 func beginConsole(console *couchtty.Console, start couchcore.StartResult) error {
 	if start.Handle == nil {
 		return nil
@@ -901,6 +902,7 @@ func beginConsole(console *couchtty.Console, start couchcore.StartResult) error 
 	if err := dispatchInitialAttach(console, start); err != nil {
 		return err
 	}
+	console.ArmReattachPass(start.Record.Thread)
 	if warning := start.Warning(); warning != "" {
 		// Startup adoption bypasses finishOperation; queue a standing notice
 		// for the first paint so slow startup cannot hide borrowed ownership.

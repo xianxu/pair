@@ -560,7 +560,7 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		// pending thread reads queued or reattaching, a failed one says why.
 		view, owned := passViewOf(state.Reattach, thread.Address)
 		suffix := "  " + rootStateText(thread, now)
-		if pass := passSuffix(view, owned, width); pass != "" {
+		if pass := passSuffix(view, owned, width, rootStateText(thread, now)); pass != "" {
 			suffix = pass
 		}
 		entry := labels[menuRowKey(thread)]
@@ -869,7 +869,7 @@ func passStateText(view PassView) string {
 	case PassLoading:
 		return "reattaching…"
 	case PassFailed:
-		return "reattach failed: " + view.Diagnostic
+		return "attach failed: " + view.Diagnostic
 	}
 	return ""
 }
@@ -882,8 +882,11 @@ const menuLabelFloor = 16
 // does not. A failed row can carry an error's own text (pair#206 decision 11),
 // which is neither short nor trustworthy, so the text is sanitized and fitted
 // here, where the width is known, leaving the label menuLabelFloor columns.
-func passSuffix(view PassView, owned bool, width int) string {
+func passSuffix(view PassView, owned bool, width int, stateText string) string {
 	text := passStateText(view)
+	if view.State == PassFailed {
+		text = stateText + " · " + text
+	}
 	if !owned || text == "" {
 		return ""
 	}

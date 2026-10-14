@@ -47,9 +47,11 @@ recovery keeps its separately authorized adoption path.
 Every command-line hub is an explicit launch/attach request, including the cwd
 hub for bare `couch`. A positively listed hub uses Continue; a stopped hub uses
 the normal proven-resume/fresh startup path. Queued extra hubs follow the same
-rule. Non-hub slots use preview reads only: startup never attaches or launches
-them, completes their interrupted starts/parks, replays slot-store journals, or
-repairs them. An unhealthy slot never blocks Couch or
+rule. Non-hub slots use preview reads and background attachment of every
+Continue row, with bounded parallelism. Startup never launches or resumes their
+agents, completes interrupted starts/parks, or replays slot-store journals.
+The same guarded dead-client-helper replacement applies to these attachments;
+conversation bindings, parks and open claims remain untouched. An unhealthy slot never blocks Couch or
 other slots. Explicit per-slot actions own recovery writes. Zellij listing's
 own connection-refused stale-socket deletion is an accepted native side effect.
 
@@ -61,8 +63,10 @@ saved layouts, that resurrection race is accepted and measured on scratch
 sessions; no policy-file authority or custom probe attempts to eliminate it.
 Stable lock inodes occupy 256 stripes in session-locks-v2 and are retained.
 
-First focus, click and hub Continue perform explicit attachment with one bounded
-retry and a visible final failure; startup never runs an attachment sweep.
+Startup attachments and explicit Continue use the same single bounded retry.
+Background attachment does not block the console or steal focus. Every failure
+keeps its Continue outcome and shows a reason with a one-click warm attach retry;
+a later inventory observation may independently change the outcome.
 Authenticated wrappers reconnect and join the broker independently of panes;
 retained thread/workspace, positive terminal listing, readiness and exact process
 proofs remain the message authority. An unfocused live slot can send and receive.
@@ -2233,7 +2237,7 @@ Two existing guards cover what the gate does not:
   `Console.GoTracked`, so a gate wait never blocks rendering.
 
 A busy refusal reaches the console as `MenuEvent.Busy`, never as a resume
-diagnostic. The reattach pass skips it silently, a refused continuation is
+diagnostic. The reattach pass displays it on the Continue row, a refused continuation is
 re-armed for the next scan, and an operator gesture shows it as a notice.
 
 **Alt+n / Ctrl+Alt+n relaunch a thread from every pane** (`pair#182`,
@@ -2474,22 +2478,22 @@ Where that lands differs by caller, and both matter:
   while looking fixed. `TestNarrowedStartupAnswersAsAFullProofWould` computes
   the inventory both ways and asserts every listed reader agrees; a new reader
   joins that list and that test.
-- **Every other detached thread comes back in the background** (`pair#206`
-  M2). A start arms the reattach pass once its own thread has attached; a
+- **Every other Continue thread attaches in the background** (`pair#206`,
+  revised by `pair#528` M1). A start arms the reattach pass once its own thread has attached; a
   resume of one named thread does not. The pass is pure state in `MenuState`
   (`menu_reattach.go`), so the switcher's one transition authority orders it
   against every operator operation. Its specification is the transitions table
   in the #206 plan. The decisions:
-  - **Seeded once**, from the first successful inventory: threads whose agent
-    still runs behind a client-less session, plus threads whose proof could not
-    be asked (`unknown`), minus the startup thread, most recently active first.
+  - **Seeded once**, from the first successful inventory: rows projected Continue from positive Zellij
+    listing, excluding every requested hub, most recently active first.
+    Unknown, exited and recovery rows are never seeded.
     The queue is never pruned or extended afterwards, because a failed refresh
     reads as "no sessions at all".
-  - **One attempt at a time**, as a `resume` with the implicit `warm-only` arg.
+  - **Bounded parallelism**, as a `resume` with the implicit `warm-only` arg,
+    using the existing lifecycle budget and operation queue.
     It re-proves the thread at its turn, and refuses one that stopped being
     warm, parked meanwhile or its session gone, before any effect. The pass
-    skips such a thread silently. So it can only reattach an agent, never start
-    one. Any other failure marks the row `reattach failed:` with its code, or
+    never starts an agent. Every final failure marks the row `reattach failed:` with its code, or
     with the error's first line when it has none. The row stays selectable,
     and resuming it by hand clears the mark.
   - **Behind the operator.** An attempt never takes the operator's in-flight
