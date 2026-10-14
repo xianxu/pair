@@ -192,7 +192,13 @@ func seedReattach(state MenuState, inventory []couchcore.ActionableThreadSummary
 		return state
 	}
 	var candidates []couchcore.ActionableThreadSummary
-	for _, row := range inventory {
+	for _, entry := range PresentThreads(inventory, nil, state.Hub, state.HubOwnership) {
+		row := entry.Row
+		// Explicit hubs have their own queued startup owner, including warm
+		// resume. The background pass must not race that same launch.
+		if state.HubOwnership.IsHub(entry.Path) {
+			continue
+		}
 		if row.Address == state.Reattach.Root || !reattachCandidate(row) {
 			continue
 		}
