@@ -1,12 +1,20 @@
 ---
 id: 000522
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-12
-updated: 2026-10-12
+updated: 2026-10-13
 estimate_hours:
-card_mirror: '94aec54e4a79c4708b56b2854c053efe2a38628b' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'dd003d5c78c1a8d6cdcc28b3bba19ce9e4ee166a' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-13T17:50:17-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
 ---
 
 # couch: compaction without composer paste: record coordinates, start the new conversation with a launch prompt, no blocking 'continuation failed' state
@@ -28,8 +36,13 @@ The operator (2026-10-12): record the last conversation's coordinates and let th
 
 ## Plan
 
-- [ ]
+Durable plan: [compaction launch prompt plan](../plans/000522-couch-compaction-without-composer-paste-record-coordinates-start-the-new-conversation-with-a-launch-prompt-no-blocking-continuation-failed-state-plan.md).
+
+- [ ] M1 — Launch prompt (one-time, never persisted), coordinates recorded on compaction, completion at registration, one non-blocking line.
+- [ ] M2 — Retire the composer paste and the retry/dismiss surface; sweep references.
+- [ ] Live: a Claude and a Codex slot compact with no paste, after the operator's OK through the TL.
 
 ## Log
 
 ### 2026-10-12
+- 2026-10-13: claimed at pair:3 (TL dispatch). Measured the pipeline; plan written and sent to the hub before building.
