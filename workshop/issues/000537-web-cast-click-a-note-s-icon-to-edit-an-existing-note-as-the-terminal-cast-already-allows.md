@@ -1,12 +1,12 @@
 ---
 id: 000537
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-13
 updated: 2026-10-13
 estimate_hours: 4.545
-card_mirror: '3c2a51180f66e2f0fa4ae71896f82c23070de65f' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '307aac5a282072b655e443de738cb5cdfa63ff0d' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-13T16:03:25-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: 2.36
 ---
 
 # web cast: click a note's icon to edit an existing note (as the terminal cast already allows)
