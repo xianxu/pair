@@ -357,6 +357,8 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 				path = "."
 			}
 			return c.PrepareStart(ctx, StartArgs{Cwd: path, Stack: a["agent"], Action: StartAction(a["action"])})
+		case "start-hub":
+			return c.StartInteractive(ctx, StartArgs{Cwd: a["path"]})
 		case "start":
 			// The SAME inputs the preview resolved from, so re-resolution is
 			// comparable. Passing the RESOLVED agent where the operator gave
@@ -479,7 +481,7 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 				return nil, err
 			}
 			return c.ResumeTarget(ctx, ResumeTarget{Address: address})
-		case "switch", "attach":
+		case "switch", "attach", "move-slot":
 			return nil, fmt.Errorf("%s requires an active couch console", call.Operation.Name)
 		default:
 			return nil, fmt.Errorf("%s is not a live-owner operation", call.Operation.Name)

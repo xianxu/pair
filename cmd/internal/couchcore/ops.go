@@ -214,6 +214,17 @@ func Operations() []Operation {
 			Args: switchAgentArguments(true),
 		},
 		{
+			Name: "move-slot", Summary: "Move exact slots to another active hub",
+			Execution: ExecuteLiveOwner, Effect: EffectConsole, Confirmation: ConfirmNone, Result: ResultConsole,
+			Presentation: PresentationTUI,
+		},
+		{
+			Name: "start-hub", Summary: "Open an explicitly selected hub using normal startup continuity",
+			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmNone, Result: ResultStart,
+			Presentation: PresentationTUI,
+			Args:         []ArgSpec{{Name: "path", Summary: "canonical hub directory", Required: true, Implicit: true}},
+		},
+		{
 			Name: "start", Summary: "Start an agent on a peer repo (or a subdirectory of one)",
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmNone, Result: ResultStart,
 			Presentation: PresentationTUI,

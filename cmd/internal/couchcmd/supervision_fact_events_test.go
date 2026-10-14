@@ -100,3 +100,84 @@ func TestSupervisionFactsGeneratedWaitIsMarked(t *testing.T) {
 		return false
 	})
 }
+
+// The delivery boundary may outlive the recipient's connected workspace. Its
+// diagnostic classification must describe the recipient accepted before IO.
+type factDisconnectEndpoint struct {
+	serviceEndpointFake
+	disconnect func()
+}
+
+func (e factDisconnectEndpoint) Deliver(ctx context.Context, m couchmessage.Message, _ func(couchmessage.Receipt)) (couchmessage.Receipt, error) {
+	if e.disconnect != nil {
+		e.disconnect()
+	}
+	return couchmessage.Receipt{Status: couchmessage.Submitted}, ctx.Err()
+}
+
+func TestSupervisionFactsAllHubRecipientsPreserveDeliveryClassification(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		from, to int
+		want     bool
+	}{
+		{"main-cross-hub", 2, 0, true},
+		{"secondary-cross-hub", 3, 1, true},
+		{"worker", 0, 2, false},
+	} {
+		for _, disconnect := range []bool{false, true} {
+			name := tc.name
+			if disconnect {
+				name += "-disconnect"
+			}
+			t.Run(name, func(t *testing.T) {
+				r, b := hubMessageRig(t)
+				sink := &factSink{}
+				log := testFactLog(t, sink)
+				r.s.facts.Store(log)
+				endpoint := factDisconnectEndpoint{}
+				if disconnect {
+					endpoint.disconnect = func() {
+						r.s.broker.Disconnect(b[tc.to])
+						r.s.mu.Lock()
+						delete(r.s.workspaces, b[tc.to])
+						r.s.mu.Unlock()
+					}
+				}
+				m := couchmessage.Message{ID: "fact-classification", From: b[tc.from], To: b[tc.to], Body: "Landed."}
+				receipt, err := (messageEndpoint{service: r.s, binding: m.To, endpoint: endpoint}).Deliver(context.Background(), m, nil)
+				if err != nil || receipt.Status != couchmessage.Submitted {
+					t.Fatalf("delivery: %+v %v", receipt, err)
+				}
+				// A positive writer barrier also makes the non-hub absence assertion
+				// deterministic; Close intentionally does not drain diagnostic rows.
+				log.submitted(m.From, 1)
+				supervisionEventually(t, "fact writer barrier missing", func() bool {
+					for _, f := range sink.rows(t) {
+						if f.Event == "operator_submit" {
+							return true
+						}
+					}
+					return false
+				})
+				count := 0
+				for _, f := range sink.rows(t) {
+					if f.Event != "hub_delivery" {
+						continue
+					}
+					count++
+					if f.Subject != log.subject(m.To) || f.Sender != log.subject(m.From) || f.Outcome != "confirmed" || f.Generated == nil || *f.Generated {
+						t.Errorf("incorrect delivery evidence: %+v", f)
+					}
+				}
+				want := 0
+				if tc.want {
+					want = 1
+				}
+				if count != want {
+					t.Fatalf("hub_delivery facts=%d, want %d", count, want)
+				}
+			})
+		}
+	}
+}

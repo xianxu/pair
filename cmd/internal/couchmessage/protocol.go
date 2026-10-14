@@ -18,6 +18,8 @@ import (
 // Request has closed per-operation shapes. Wrapper lifecycle operations use a
 // full binding and must pass the supervisor adapter's live identity check.
 type Request struct {
+	ToHub                                            string `json:",omitempty"`
+	Persist                                          bool   `json:",omitempty"`
 	Op, Scope, Tag, Session, Nonce, ID, Target, Body string
 	Title                                            string `json:",omitempty"` // notify only
 	// Agent narrows a send or selects the switch destination harness.
@@ -133,6 +135,33 @@ func validMessageID(id string) bool {
 }
 
 func ValidateRequest(r Request) error {
+	if r.Op != "move-slot" && (r.ToHub != "" || r.Persist) {
+		return errors.New("hub destination and persistence apply only to move-slot requests")
+	}
+	if r.Op == "move-slot" {
+		if r.Binding != nil || r.Scope == "" || r.Tag == "" || r.Session == "" || r.Nonce == "" || !validMessageID(r.ID) || r.ToHub == "" || len(r.ToHub) > MaxBindingBytes || r.Body != "" || r.Title != "" || r.Agent != "" || r.Confirmed || r.SameBinary || r.ForceUnknown || r.TailScope != "" || r.TailTag != "" || r.Lines != 0 {
+			return errors.New("move-slot requires caller identity, request ID, exact slots and a hub")
+		}
+		for _, f := range []string{r.Scope, r.Tag, r.Session, r.Nonce} {
+			if len(f) > MaxBindingBytes {
+				return errors.New("request identity exceeds limit")
+			}
+		}
+		slots := strings.Split(r.Target, ",")
+		if len(slots) > couchcore.MaxHubSlots || len(r.Target) > couchcore.MaxHubSlots*MaxBindingBytes {
+			return errors.New("too many move slots")
+		}
+		for _, slot := range slots {
+			if len(slot) > MaxBindingBytes {
+				return ErrInvalidTarget
+			}
+			if _, _, err := parseSlot(slot); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
 	if r.Op != "notify" && r.Title != "" {
 		return errors.New("a notification title applies only to notify")
 	}

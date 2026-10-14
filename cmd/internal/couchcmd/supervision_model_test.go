@@ -174,3 +174,36 @@ func TestSupervisionSnapshotCannotPruneNewerReport(t *testing.T) {
 		t.Fatal("later disconnected snapshot retained old report")
 	}
 }
+
+func TestHubSupervisionDelayedHubAvailability(t *testing.T) {
+	at := time.Unix(1000, 0)
+	a, b := couchmessage.Binding{Slot: "pair:1"}, couchmessage.Binding{Slot: "pair:2"}
+	state := newSupervisionState()
+	facts := []supervisionFacts{{binding: a, known: true, settled: true, quiet: time.Minute}, {binding: b, known: true, settled: true, quiet: time.Minute}}
+	state.report(a, "a", at, 0, false)
+	state.report(b, "b", at, 0, false)
+	available := map[couchmessage.Binding]bool{a: true, b: false}
+	effects := state.tick(at.Add(15*time.Minute), facts, true, available)
+	for _, e := range effects {
+		if e.binding != a {
+			t.Fatalf("offline own hub received effect: %+v", e)
+		}
+	}
+	if state.attempted[b.Slot] {
+		t.Fatal("startup prompt consumed before own hub connected")
+	}
+	available[b] = true
+	effects = state.tick(at.Add(16*time.Minute), facts, true, available)
+	prompts := 0
+	for _, e := range effects {
+		if e.kind == supervisionPrompt {
+			prompts++
+			if e.binding != b {
+				t.Fatalf("repeated prompt: %+v", e)
+			}
+		}
+	}
+	if prompts != 1 {
+		t.Fatalf("late hub prompts: %+v", effects)
+	}
+}

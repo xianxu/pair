@@ -138,3 +138,15 @@ func TestNotifyLostSocketReplyDoesNotRepeatWrittenNotification(t *testing.T) {
 		t.Fatalf("notifications=%d", n)
 	}
 }
+
+func TestHubNotifyNamesExtraHubAndBoundsCustomTitle(t *testing.T) {
+	w, _ := multiHubWaitRig(t)
+	var title string
+	w.s.SetDesktopNotify(func(_ context.Context, heading, body string) error { title = heading; return nil })
+	req := callerRequest(w.hub, "notify")
+	req.Title, req.Body = strings.Repeat("x", 256), "ready"
+	got := w.s.handleNotify(context.Background(), req)
+	if got.Code != "ok" || !strings.Contains(title, "pair:1") || len(title) > 256 {
+		t.Fatalf("response=%+v title=%q", got, title)
+	}
+}

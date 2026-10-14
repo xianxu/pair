@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 )
 
@@ -404,5 +405,144 @@ func TestSupervisionIntegrationStartupQueuedOnceWithoutOwedRow(t *testing.T) {
 	}
 	if len(entries) != 1 || entries[0].ID != "ordinary-copy" {
 		t.Fatalf("ordinary hub delivery was omitted: %+v", entries)
+	}
+}
+
+// The existing inbox becomes the extra hub; main is a separate connected slot.
+func multiHubWaitRig(t *testing.T) (*waitRig, couchmessage.Binding) {
+	t.Helper()
+	w := newWaitRig(t, true, false, claudePermissionTail)
+	main := w.world.add(3)
+	w.v2wrapper(main, "h3", false)
+	claims, err := couchcore.ParseHubClaims([]byte("repo:2\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := couchcore.NewHubOwnership([]couchcore.HubDefinition{
+		{Root: "/repo3", Workspace: "/", Slot: couchcore.HubSlot{Repository: "/repo", Number: 3}},
+		{Root: "/repo1", Workspace: "/", Slot: couchcore.HubSlot{Repository: "/repo", Number: 1}, Claims: claims},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.s.authority.hub = "/repo3"
+	w.s.authority.hubs = &hubRuntime{state: state}
+	for b, n := range map[couchmessage.Binding]int{w.hub: 1, w.worker: 2, main: 3} {
+		number := n
+		w.world.set(b, func(s *worldSlot) {
+			s.workspace.PrimaryRoot = "/repo"
+			s.workspace.Slot = &number
+			s.workspace.FleetRoot = "/"
+		})
+		w.s.mu.Lock()
+		identity := w.s.workspaces[b]
+		identity.PrimaryRoot = "/repo"
+		identity.Slot = &number
+		identity.FleetRoot = "/"
+		w.s.workspaces[b] = identity
+		w.s.mu.Unlock()
+	}
+	return w, main
+}
+
+func TestHubSupervisionWaitUsesOwnHub(t *testing.T) {
+	w, _ := multiHubWaitRig(t)
+	got := w.tickAt(11 * time.Minute)
+	if len(got) != 1 || got[0].To != w.hub {
+		t.Fatalf("own-hub wait delivery: %+v", got)
+	}
+}
+
+func TestHubSupervisionReplyEvidenceAndResend(t *testing.T) {
+	w, main := multiHubWaitRig(t)
+	c, at := installTestSupervision(w, func(string) {})
+	c.state.report(w.worker, "report", at, 0, true)
+	c.sends["foreign"] = supervisionSend{from: main, at: at.Add(time.Second)}
+	c.delivered(couchmessage.Message{ID: "foreign", From: main, To: w.worker}, couchmessage.Receipt{Status: couchmessage.Submitted}, nil)
+	if !c.state.unanswered(w.worker) {
+		t.Fatal("foreign hub cleared own-hub report")
+	}
+	c.now = func() time.Time { return at.Add(time.Second) }
+	c.sending(w.hub, couchmessage.Request{ID: "own", Target: w.worker.Slot})
+	c.delivered(couchmessage.Message{ID: "own", From: w.hub, To: w.worker}, couchmessage.Receipt{Status: couchmessage.Submitted}, nil)
+	if c.state.unanswered(w.worker) {
+		t.Fatal("own hub reply did not clear report")
+	}
+	c.tick(context.Background(), at, nil)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, send := range c.sends {
+		if send.prompt != "" && (send.prompt != w.worker.Slot || send.from != w.hub) {
+			t.Fatalf("wrong startup prompt: %+v", send)
+		}
+	}
+	if !c.state.attempted[w.worker.Slot] || c.state.attempted[main.Slot] || c.state.attempted[w.hub.Slot] {
+		t.Fatalf("prompt targets: %+v", c.state.attempted)
+	}
+}
+
+func TestHubSupervisionReassignmentChangesBinding(t *testing.T) {
+	w, main := multiHubWaitRig(t)
+	if got, ok := w.s.hubBindingFor(w.worker); !ok || got != w.hub {
+		t.Fatalf("initial owner: %+v %v", got, ok)
+	}
+	h := w.s.authority.hubs
+	h.mu.Lock()
+	next, err := h.state.Apply(couchcore.HubMove{Slots: []couchcore.HubSlot{{Repository: "/repo", Number: 2}}, Caller: "/repo1", Target: "/repo3", Revision: h.state.Revision()})
+	if err == nil {
+		h.state = next
+	}
+	h.mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := w.s.hubBindingFor(w.worker); !ok || got != main {
+		t.Fatalf("moved owner: %+v %v", got, ok)
+	}
+	c, at := installTestSupervision(w, func(string) {})
+	c.state.report(w.worker, "report", at, 0, true)
+	c.sends["old"] = supervisionSend{from: w.hub, at: at.Add(time.Second)}
+	c.delivered(couchmessage.Message{ID: "old", From: w.hub, To: w.worker}, couchmessage.Receipt{Status: couchmessage.Submitted}, nil)
+	if !c.state.unanswered(w.worker) {
+		t.Fatal("old owner cleared report after move")
+	}
+}
+
+func TestHubSupervisionDelayedReplyPreservesAdmissionOwnership(t *testing.T) {
+	for _, scenario := range []string{"foreign-to-own", "own-to-foreign", "same-hub"} {
+		t.Run(scenario, func(t *testing.T) {
+			endpoint := &supervisionControlledEndpoint{busy: true}
+			r, b := hubMessageRigWithWorkerEndpoint(t, endpoint)
+			c := newSupervisionCoordinator(r.s, func(string) {})
+			at := time.Now()
+			c.now = func() time.Time { return at.Add(time.Second) }
+			c.state.report(b[2], "report", at, 0, true)
+			r.s.supervision.Store(c)
+			sender := b[1]
+			if scenario == "foreign-to-own" {
+				sender = b[0]
+			}
+			receipt := supervisionSendCLI(t, r, sender, b[2].Slot, "delayed-reply", "Thanks; stop.")
+			if receipt.Status != couchmessage.Queued {
+				t.Fatalf("want queued: %+v", receipt)
+			}
+			if scenario != "same-hub" {
+				h := r.s.authority.hubs
+				h.mu.Lock()
+				next, err := h.state.Apply(couchcore.HubMove{Slots: []couchcore.HubSlot{{Repository: "/repo", Number: 2}}, Caller: "/repo1", Target: "/repo0", Revision: h.state.Revision()})
+				if err == nil {
+					h.state = next
+				}
+				h.mu.Unlock()
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			endpoint.releaseBusy()
+			supervisionWaitReceipt(t, r, sender, "delayed-reply", couchmessage.Submitted)
+			if got, want := supervisionUnanswered(c, b[2]), scenario != "same-hub"; got != want {
+				t.Fatalf("unanswered=%v, want %v after delayed reply", got, want)
+			}
+		})
 	}
 }

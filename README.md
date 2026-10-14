@@ -394,6 +394,8 @@ still works. See [atlas/couch.md](atlas/couch.md).
 
 ```
 couch [<repo>]           open the Couch TUI (default: .)
+couch . ../bench         open several hubs; first is main
+couch --move-slot pair:7,pair:8 --to-hub bench:0 [--persist]
 couch --layout2          opt into pair's two-pane workbench
 couch --layout3          threads also get pair's right-hand terminal (the default)
 couch --list             every durable work thread across all repositories
@@ -450,7 +452,7 @@ couch --prepare repo:N --confirm [--force-unknown] [--json]
 couch --send-to repo:N --message TEXT   send to an exact live slot
 couch --send-to repo --message TEXT     select an eligible slot in that family
 couch --send-to repo --agent NAME --message TEXT   ...running that agent
-couch --send-to hub --message TEXT      send to the hub (the slot Couch started from), resolved at send time
+couch --send-to hub --message TEXT      send to your slot’s owning hub, resolved at send time
 couch --notify [--title T] MESSAGE      hub only: one desktop notification (default title: Couch)
 couch --send-to TARGET [--agent NAME] --message-file PATH
                          any form above, the body read verbatim from PATH (less one trailing newline):
@@ -882,6 +884,14 @@ focus brackets still mark the active tab, and the selected hub row is bold
 with a cursor arrow. When the tabs don't fit, a repository's numbered slots fold into a
 count (`pair  +2`), starting from the right. A red, belled or focused tab is
 never folded away, and the switcher always lists everything.
+
+With `couch . ../bench`, each directory is a hub. The first owns unclaimed slots;
+each started hub’s `.hub` file can claim repositories or exact slots. Exact claims
+win over broad repository claims; ties use command-line order and warn. The
+switcher shows each hub’s section and ownership, and tabs belonging to other hubs
+are dimmed relative to focus. A hub TL moves its own or main’s slots with
+`couch --move-slot pair:7,pair:8 --to-hub bench:0`; add `--persist` to save claims.
+Without it, the move lasts until Couch restarts. Omitted hubs’ claims are ignored.
 
 Each numbered slot keeps its Couch metadata in its environment's `.couch/`
 directory. Opening it resumes its conversation; **Start fresh** replaces the
