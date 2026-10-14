@@ -10,6 +10,12 @@ import subprocess
 import sys
 import time
 
+args = sys.argv[1:]
+timeout = 30.0
+if args[:1] == ["--timeout"]:
+    timeout = float(args[1])
+    args = args[2:]
+
 read_fd, write_fd = os.pipe()
 intermediate = os.fork()
 if intermediate == 0:
@@ -27,7 +33,7 @@ if intermediate == 0:
             if time.monotonic() >= deadline:
                 raise RuntimeError("test worker was not reparented to init")
             time.sleep(0.01)
-        code = subprocess.run(sys.argv[1:], timeout=30).returncode
+        code = subprocess.run(args, timeout=timeout).returncode
     except Exception as error:
         print(error, file=sys.stderr, flush=True)
     finally:
@@ -49,7 +55,7 @@ with os.fdopen(read_fd) as result:
         raise TimeoutError("reparented test command exceeded its lifetime")
 
     signal.signal(signal.SIGALRM, expired)
-    signal.alarm(40)
+    signal.alarm(int(timeout) + 10)
     try:
         line = result.readline()
         code = int(line) if line else 1

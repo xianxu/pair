@@ -261,9 +261,9 @@ the draft first so the writer reads fresh WIP off disk.
 
 The writer's restart exec (`newContinueRestartCmd`) sets **`PAIR_FAKE_IN_ZELLIJ=1`**:
 the child `pair continue` re-derives "in a pane?" via `InZellijPane`'s process-ancestry
-walk, which the **agent's command sandbox blocks** (process introspection → EPERM) —
-the actual "restart stopped working" root cause found by #105's live smoke, since the
-old agent-run `pair continue` hit the same wall. The writer already confirmed the
+walk. This was introduced after #105 found sandboxed `ps` execution failed.
+#547 now uses native process inspection, which passes the seatbelt conformance
+probe; the existing continuation override is retained by this migration. The writer already confirmed the
 context via the `ZELLIJ_SESSION_NAME` / `PAIR_SESSION_NAME` exact match (no introspection),
 so it fakes *only* that ancestry half; `pair continue`'s own session-name match still
 guards the session identity.

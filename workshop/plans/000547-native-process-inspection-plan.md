@@ -100,3 +100,7 @@ Hub explicitly accepted portable Linux adapter fixtures and cross-build, with na
 ### 2026-10-14 — native ancestry test fixture
 
 The full suite exposed an additional ps-dependent fixture in tests/pair-embedded-runtime-test.sh. Replace its synthetic ancestry with tests/without-ancestors.py, a bounded test-only reparented worker preserving command exit status. This tests the real native ancestry path without a production bypass. Other ps test stubs serve negative subprocess assertions, not launcher process inventory, and remain appropriate.
+
+### 2026-10-14 — complete ancestry fixture sweep
+
+The preceding fixture note omitted cmd/pair-go/main_test.go's public command acceptance helper. Its targeted run reproduced the same inherited-Zellij failure; it now shares the bounded reparented worker and uses native sidecar inspection. That supersedes the claim that only negative ps assertions remained after the shell fix.
