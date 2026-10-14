@@ -57,3 +57,13 @@ Durable plan: [Several hubs](../plans/000546-several-hubs-plan.md).
 ### 2026-10-13
 
 - 2026-10-14 planning: claim/start-plan complete. Reused current authenticated workspace, broker, store-journal and console-operation seams in the design (ARCH-DRY). Stable slot ownership is separate from replaceable thread records to avoid #528 recovery changes. Hub notified that cli.go and narrow run.go startup wiring are unavoidable. Asked how bare couch treats assignments to an omitted hub; proposed retaining unavailable assignments, never silently reassigning. No implementation edits.
+
+## Revisions
+
+### 2026-10-14 — operator replaces slot ownership persistence with hub claims
+
+The original Spec's persisted slot→hub field is superseded. The first command-line hub is main and owns everything by default, with nothing stored. Each started hub reads its own `.hub`: workspace-relative repository entries claim all its slots; `repo:N` entries claim one slot. Exact slot claims beat repository claims across hubs; equal-specificity conflicts use command-line order and warn. An omitted hub contributes no claims; bare Couch remains cwd as sole hub exactly as today.
+
+Runtime `couch --move-slot repo:N[,…] --to-hub HUB` is ephemeral unless `--persist` is supplied. Operator or any verified hub TL may move slots; a hub may move its own or main's. Persistent moves add the target's exact claim and remove obsolete source exact claims; broad source repo claims remain for other/future slots. Moving back removes the exact override. No exclusions syntax, per-slot persisted field or unavailable-hub state. Switcher shows ownership and triggers the same move. Other Spec requirements remain.
+
+Hub explicitly approved a separate startup helper reusing StartInteractive, CLI parsing and narrow run.go wiring, with no recovery/startup-policy changes in #528's core files. The active revised plan is appended under Revisions in the durable plan; initial draft is explicitly superseded, preserved for decision history. Receipts: 8624c810-08e2-4b4c-8606-b305400e94c2, dc433d5b-8668-446d-be63-09fd002bc92d, f6911942-31a8-4b9a-b87c-923f890f7e25.
