@@ -300,7 +300,7 @@ func TestWarmProofMatcherAcceptsOnlyExactSessionEvidence(t *testing.T) {
 		{"absent", nil, false},
 		{"duplicate", []DetachedSessionObservation{valid, valid}, false},
 		{"wrong-address", []DetachedSessionObservation{{Address: ThreadAddress{RepoScope: "other", Tag: record.Address.Tag}, SessionName: valid.SessionName, Agent: valid.Agent}}, false},
-		{"wrong-agent", []DetachedSessionObservation{{Address: record.Address, SessionName: valid.SessionName, Agent: "codex"}}, false},
+		{"saved-agent-does-not-gate-continue", []DetachedSessionObservation{{Address: record.Address, SessionName: valid.SessionName, Agent: "codex"}}, true},
 		{"empty-session", []DetachedSessionObservation{{Address: record.Address, Agent: valid.Agent}}, false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

@@ -235,10 +235,10 @@ func TestPublicPairCommandFamiliesIgnoreCouchStore(t *testing.T) {
 		wantCode       int
 		wantDiagnostic string
 	}{
-		// No-op terminal stubs cannot attest a live agent. Their refusal must be
-		// identical for every Couch store shape, including the unread FIFO.
+		// Fresh launch still requires admission. A positively listed session
+		// attaches without consulting any Couch store, including the unread FIFO.
 		{name: "launch-create", args: []string{"resume", "compiler-fix"}, wantCode: 1, wantDiagnostic: "terminal client exited before admission was verified"},
-		{name: "launch-resume-attach", args: []string{"resume", "compiler-fix"}, liveZellij: true, wantCode: 1, wantDiagnostic: "terminal needs relaunch: live session has no stable exact server identity"},
+		{name: "launch-resume-attach", args: []string{"resume", "compiler-fix"}, liveZellij: true},
 		{name: "launch-picker", liveZellij: true},
 		{name: "list", args: []string{"list"}, liveZellij: true},
 		{name: "rename", args: []string{"rename", "--restart-check", "compiler-fix", "compiler-fixed"}},
