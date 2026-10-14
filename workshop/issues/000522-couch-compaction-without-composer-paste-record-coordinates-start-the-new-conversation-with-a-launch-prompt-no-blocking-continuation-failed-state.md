@@ -41,7 +41,7 @@ Durable plan: [compaction launch prompt plan](../plans/000522-couch-compaction-w
 
 - [x] M1 — Launch prompt (one-time, never persisted), coordinates recorded on compaction, completion at registration, one non-blocking line.
 - [x] M2 — Retire the composer paste and the retry/dismiss surface; sweep references.
-- [ ] Live: a Claude and a Codex slot compact with no paste, after the operator's OK through the TL.
+- [x] Live: a Claude and a Codex slot compact with no paste, after the operator's OK through the TL.
 
 ## Estimate
 
@@ -80,3 +80,8 @@ total: 4.83
   - Failed decodes into the line;
   - retry/dismiss/status and copy-orientation retired.
   The boundary moved: see the plan's Revisions.
+- 2026-10-13: **live check PASSED**: staged 7775cb260 on pair:0 (`sdlc stage --build`); the operator restarted Couch at 21:15.
+  - pair:4 (Claude) and pair:5 (Codex) compacted. Each new conversation's first input was the launch prompt, which `ps` showed as argv[1]. Nothing was pasted.
+  - `--previous` showed the replaced conversation.
+  - The thread records show the request complete, `previous_session.continuation` set, and the prompt in no record, ledger or config.
+  - The relaunch of pair:4 at 22:33 was `--dangerously-skip-permissions --resume <id>` with no prompt, and the agent sat idle.
