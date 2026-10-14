@@ -57,9 +57,9 @@ and addd69f2-20e6-4697-8404-8fa5396f0d52. Implement after #530 lands.
 
 ## Plan
 
-- [ ] Define fact rows and offline ten-minute labels with focused tests.
-- [ ] Add bounded diagnostic recorder and wire existing observations.
-- [ ] Verify optional telemetry failures preserve writes and delivery.
+- [x] Define fact rows and offline ten-minute labels with focused tests.
+- [x] Add bounded diagnostic recorder and wire existing observations.
+- [x] Verify optional telemetry failures preserve writes and delivery.
 - [ ] Update docs, full suite, close review and land.
 
 Durable plan: [supervision facts](../plans/000543-supervision-facts-plan.md).
@@ -70,6 +70,20 @@ Durable plan: [supervision facts](../plans/000543-supervision-facts-plan.md).
 
 - Filed as the dependent fact-log half of #530. Design above supersedes the
   online sampling proposal in #530's original draft. Not started.
+
+- Implementation checkpoint: bounded recorder and all five observation hooks are
+  wired; optional authenticated session-write reporting preserves successful writes.
+  Opt-in diagnostic hard cap leaves default writers unchanged. Offline reader uses
+  closed schemas and bounded input; no online labels or candidate state.
+- Focused Go adapter/storage tests passed (/tmp/pair543-integration.log), including
+  actual Go JSONL through the Python CLI. Recorder/broker/diagnostic targeted race
+  tests passed (/tmp/pair543-race.log); the sessionsync selection had no tests.
+  Full protocol, sessionsync and diagnosticlog package runs passed; Python has
+  14 passing tests. Snapshot maximum-size and generated-notice tests passed
+  (/tmp/pair543-bounds.log). Full make -k test and close review remain.
+- Estimate clarification: focused ship wall clock excludes idle waiting; adapter
+  allowance includes private-socket/failure tests, and the review allowance covers
+  suite supervision and landing. Offline design reuses stdlib JSON/CLI/test tools.
 
 ## Revisions
 

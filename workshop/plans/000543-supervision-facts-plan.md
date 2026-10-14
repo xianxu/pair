@@ -84,13 +84,13 @@ gaps. The script records no online state and writes output only to stdout.
 
 ## Implementation and verification
 
-- [ ] TDD fact schema/hints and offline labels: threshold edges, unknown hints,
+- [x] TDD fact schema/hints and offline labels: threshold edges, unknown hints,
   no secret-bearing fields, same/different subject, missing horizon, restart,
   gaps, duplicates, out-of-order segments and malformed rows. Add script SKILL.md.
-- [ ] TDD optional writer hard cap with failed rotation; recorder serialization,
+- [x] TDD optional writer hard cap with failed rotation; recorder serialization,
   bounded queue, dropped rows, write/open failure, shutdown and private temporary
   directory rotation. Reuse diagnosticlog tests/portable backend, no production paths.
-- [ ] Wire all adapters; private-socket integration tests cover successful and
+- [x] Wire all adapters; private-socket integration tests cover successful and
   rejected CLI write reports, older/unavailable supervisor and successful file
   writes despite telemetry failure. Controlled endpoints prove delivery remains
   successful when logging fails; submission reconciliation and slot transitions
@@ -158,3 +158,13 @@ batch envelope. Parsing/IO is separate from pure `derive_labels(records, gaps)`.
 
 Integration guarantees remain successful delivery/write despite failed telemetry,
 one authenticated write-report attempt, and accepted observation facts only.
+
+### 2026-10-13 — implementation reconciliation
+
+The operator-submit row records the accepted cumulative submission counter,
+rather than its delta: this preserves the broker observation directly, leaving
+any delta calculation offline. Snapshot empty inventories serialize as an
+explicit empty array. Input integers are bounded to the Go wire ranges (uint64
+counters, int64 elapsed times), and unknown snapshot values remain null. Docs,
+source inventory and the full-suite Python target are updated. Focused tests
+pass; full suite and the single close review remain outstanding.

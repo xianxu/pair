@@ -70,20 +70,21 @@ type admission struct {
 }
 type deliveryJob struct{ cancel context.CancelFunc }
 type Broker struct {
-	mu           sync.Mutex
-	ctx          context.Context
-	cancel       context.CancelFunc
-	now          func() time.Time
-	resting      func(context.Context, Binding) (bool, error)
-	restingView  func(Binding) (resting, known bool)
-	niceView     func(Binding) (NiceFacts, bool)
-	families     func(context.Context) (map[string]string, error)
-	actors       map[Binding]*SlotActor
-	receipts     map[string]Receipt
-	destinations map[string]Route
-	admissions   map[string]*admission
-	jobs         map[string]*deliveryJob
-	workers      sync.WaitGroup
+	submissionObserver func(Binding, uint64)
+	mu                 sync.Mutex
+	ctx                context.Context
+	cancel             context.CancelFunc
+	now                func() time.Time
+	resting            func(context.Context, Binding) (bool, error)
+	restingView        func(Binding) (resting, known bool)
+	niceView           func(Binding) (NiceFacts, bool)
+	families           func(context.Context) (map[string]string, error)
+	actors             map[Binding]*SlotActor
+	receipts           map[string]Receipt
+	destinations       map[string]Route
+	admissions         map[string]*admission
+	jobs               map[string]*deliveryJob
+	workers            sync.WaitGroup
 }
 
 // SetFamilies installs the enrolled-repository source: every enrolled family
@@ -321,6 +322,9 @@ func (b *Broker) reconcileObservation(a *SlotActor, observed Observation) error 
 		return err
 	}
 	a.submission = observed.Submission
+	if b.submissionObserver != nil {
+		b.submissionObserver(a.binding, a.submission)
+	}
 	return nil
 }
 
@@ -966,4 +970,12 @@ func (b *Broker) Close() error {
 	b.mu.Unlock()
 	b.workers.Wait()
 	return nil
+}
+
+// SetSubmissionObserver receives accepted counter advances under the broker
+// lock. The observer must only offer bounded memory data, never IO or broker calls.
+func (b *Broker) SetSubmissionObserver(observe func(Binding, uint64)) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.submissionObserver = observe
 }

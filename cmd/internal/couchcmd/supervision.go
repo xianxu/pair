@@ -181,6 +181,9 @@ func (c *supervisionCoordinator) tick(ctx context.Context, now time.Time, muted 
 	if !hasHub {
 		connected := c.service.broker.Connected()
 		if len(connected) == 0 {
+			if log := c.service.facts.Load(); log != nil {
+				log.snapshot(now, nil, nil, c.service.broker)
+			}
 			c.mu.Lock()
 			c.state.tick(now, nil, false)
 			c.mu.Unlock()
@@ -193,6 +196,13 @@ func (c *supervisionCoordinator) tick(ctx context.Context, now time.Time, muted 
 		return
 	}
 	live := c.service.liveness.Load()
+	if log := c.service.facts.Load(); log != nil {
+		liveness := map[string]couchmessage.SlotLiveness{}
+		if live != nil {
+			liveness = *live
+		}
+		log.snapshot(now, rows, liveness, c.service.broker)
+	}
 	var facts []supervisionFacts
 	for _, r := range rows {
 		if hasHub && r.Binding == hub {

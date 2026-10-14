@@ -509,3 +509,16 @@ func TestAnUnreadableGapIsDatedByItsFileSoItCanBeAccepted(t *testing.T) {
 		t.Fatal("an unreadable gap expires by its mtime")
 	}
 }
+
+func TestWriteResultCarriesGuardedOwner(t *testing.T) {
+	r := newRig(t)
+	res, err := r.sync.Write(WriteRequest{File: r.p.File, Section: "Needs you", Body: "new", IfHash: r.hash("Needs you")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Subsequent file edits must not change the report's owner snapshot.
+	r.put(r.p.File, strings.ReplaceAll(r.read(r.p.File), "ops:0", "ops:1"))
+	if res.Owner != "ops:0" {
+		t.Fatalf("owner %q", res.Owner)
+	}
+}

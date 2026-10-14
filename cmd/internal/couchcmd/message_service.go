@@ -126,6 +126,7 @@ const (
 // pane state, admission results and retry timers. Request goroutines read
 // only the published snapshot of connected bindings.
 type messageService struct {
+	facts     atomic.Pointer[supervisionFactLog]
 	server    *couchmessage.Server
 	sessions  *couchmessage.SessionServer
 	broker    *couchmessage.Broker
@@ -203,6 +204,9 @@ func (s *messageService) Close() {
 	_ = s.sessions.Close()
 	_ = s.broker.Close()
 	s.workers.Wait()
+	if log := s.facts.Load(); log != nil {
+		log.Close()
+	}
 }
 
 // isHub reports whether a verified workspace is the TL hub's.
@@ -381,8 +385,10 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 	panes := couchmessage.NewPaneMailbox()
 	probe := newLiveRestartProbe(c.Git, c.Proc)
 	c.LiveRestart = probe // before the socket opens: no request can race this write
-	service, err := newMessageService(context.Background(), brokerSocket, registrySocket, authority, panes, console.MessageSlotGit, consoleSlotOperations(console, c, probe))
+	facts := openSupervisionFacts(artifacts.PairLifecycleDataDir(), namespace)
+	service, err := newMessageService(context.Background(), brokerSocket, registrySocket, authority, panes, console.MessageSlotGit, consoleSlotOperations(console, c, probe), facts)
 	if err != nil {
+		facts.Close()
 		return nil, err
 	}
 	probe.service.Store(service)
@@ -453,7 +459,7 @@ func consoleSlotOperations(console *couchtty.Console, c *couchcore.Couch, probe 
 	}, time.Now)
 }
 
-func newMessageService(parent context.Context, brokerSocket, registrySocket string, authority messageAuthority, panes *couchmessage.PaneMailbox, slotGit func(string) (couchcore.SlotGitStatus, bool), slotOps *slotOperations) (*messageService, error) {
+func newMessageService(parent context.Context, brokerSocket, registrySocket string, authority messageAuthority, panes *couchmessage.PaneMailbox, slotGit func(string) (couchcore.SlotGitStatus, bool), slotOps *slotOperations, factLogs ...*supervisionFactLog) (*messageService, error) {
 	if authority.thread == nil || authority.agent == nil || authority.workspace == nil || authority.process == nil || authority.wrapperPID == nil || authority.launch == nil || authority.recorded == nil || authority.endpoint == nil || authority.branch == nil || panes == nil || slotGit == nil {
 		return nil, errors.New("message authority is incomplete")
 	}
@@ -471,6 +477,9 @@ func newMessageService(parent context.Context, brokerSocket, registrySocket stri
 		after: func(d time.Duration, f func()) { time.AfterFunc(d, f) }, slotOps: slotOps,
 		workspaces: map[couchmessage.Binding]couchcore.WorkspaceIdentity{},
 		prepared:   map[preparedKey]preparedAdmission{}}
+	if len(factLogs) > 0 {
+		s.facts.Store(factLogs[0])
+	}
 	s.connected.Store(&map[couchmessage.Binding]bool{})
 	// Family admission's resting check is on the request path (one git status
 	// per candidate per send); listings read the Console's slot-git cache.
@@ -481,6 +490,11 @@ func newMessageService(parent context.Context, brokerSocket, registrySocket stri
 		}
 		status, err := authority.branch(ctx, identity.WorktreeRoot)
 		return err == nil && !status.Detached && status.Branch == *identity.RestingBranch, err
+	})
+	s.broker.SetSubmissionObserver(func(b couchmessage.Binding, n uint64) {
+		if log := s.facts.Load(); log != nil {
+			log.submitted(b, n)
+		}
 	})
 	s.broker.SetFamilies(authority.families)
 	s.broker.SetRestingView(func(b couchmessage.Binding) (bool, bool) {
@@ -563,6 +577,11 @@ func (s *messageService) loop() {
 	registry := couchmessage.NewRegistry()
 	var step func(e couchmessage.RegistryEvent) error
 	step = func(e couchmessage.RegistryEvent) error {
+		var before map[couchmessage.Binding]factSlotState
+		log := s.facts.Load()
+		if log != nil {
+			before = factStates(registry.Connected(), registry.Liveness())
+		}
 		fx, err := registry.Advance(e)
 		// Publish first: endpoint checks then never admit a binding the broker
 		// is about to drop, nor refuse one it is about to register.
@@ -571,6 +590,9 @@ func (s *messageService) loop() {
 		liveness := registry.Liveness()
 		s.liveness.Store(&liveness)
 		s.publishBlocked(liveness)
+		if log != nil {
+			log.registry(before, factStates(connected, liveness))
+		}
 		var followUps []couchmessage.RegistryEvent
 		for _, effect := range fx {
 			if next := s.execute(effect); next != nil {
@@ -711,6 +733,8 @@ func (s *messageService) connectedWorkspace(ctx context.Context, b couchmessage.
 
 func (s *messageService) handle(ctx context.Context, request couchmessage.Request) (response couchmessage.Response) {
 	switch {
+	case request.Op == "session-write":
+		return s.handleSessionWrite(ctx, request)
 	case request.Op == "notify":
 		return s.handleNotify(ctx, request)
 	case request.Op == "switch-agent":
@@ -1053,11 +1077,17 @@ func (e messageEndpoint) Deliver(ctx context.Context, m couchmessage.Message, pr
 	if err := e.check(ctx); err != nil {
 		return couchmessage.Receipt{Status: couchmessage.Cancelled, Detail: err.Error()}, nil
 	}
+	log := e.service.facts.Load()
+	hub, hasHub := e.service.hubBinding()
+	toHub := hasHub && hub == m.To
 	receipt, err := e.endpoint.Deliver(ctx, m, progress)
 	system := false
 	if c := e.service.supervision.Load(); c != nil {
 		c.delivered(m, receipt, err)
 		system = c.systemMessage(m)
+	}
+	if log != nil && toHub {
+		log.delivery(m, receipt, err, system)
 	}
 	if r := e.service.deliveries.Load(); r != nil && !system {
 		r.record(m, receipt, err)

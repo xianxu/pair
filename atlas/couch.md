@@ -535,8 +535,56 @@ broker receipts, reports startup cancellation/expiry/uncertainty once, and drops
 the completed send metadata. There is no separate capped report history. Pending generated IDs
 keep both prompts and ordinary waiting notices out of session-file obligations; matching prose from a real agent
 is not exempt. All episode/attempt metadata dies with the supervisor; disconnected
-bindings lose their report episodes. No feature log or online labeling ships
-here: fact logging is pair#543; Parley's sole file-ping watcher is parley.nvim#321.
+bindings lose their report episodes. The separate fact log below does not drive
+these rules. Parley's sole file-ping watcher is parley.nvim#321.
+
+### Supervision fact log (#543)
+
+The message service records best-effort JSONL at `<namespace>/supervision.jsonl`.
+`supervision_facts.go` owns its v1 schema; `supervision_factlog.go` owns one bounded
+writer, and `supervision_fact_events.go` adapts existing observations. There is no
+new watcher, candidate tracking, or online labeling. Rows record:
+
+- `hub_delivery`: endpoint completion to the hub, wording hint (landed,
+  waiting-for-operator, progress, unknown), generated flag and confirmed,
+  uncertain or cancelled outcome. Queue-only failures have no delivery row.
+- `session_write`: one authenticated best-effort report after a guarded write.
+  It carries the owner captured under that write guard; the caller must match
+  the owner. Cross-owner writes, missing launch identity, old/unavailable Couch,
+  and lost report calls leave gaps in this coverage. No file paths are sent.
+- `operator_submit`: accepted submission counter advances (a jump is one
+  observation of a total, not invented events). Stale counters are not events.
+- `slot_state`: changed connected/settled/picker observations, including removal
+  and replacement. Unknown booleans are null; no recovery transition changes.
+- `snapshot`: once a minute on the existing tick, bounded current actor facts,
+  including hub/empty inventory, cached resting state and quiet age.
+
+Every row has schema version, supervisor generation, increasing sequence,
+monotonic elapsed milliseconds, UTC observation time and cumulative dropped-row
+count. Slot, incarnation, sender and message IDs are lifetime-salted opaque hashes.
+No message prose, paths, nonces or transcripts are recorded. Different lifetimes
+cannot be joined by identity. Hints are text classifications, not proof of intent.
+
+Producers never perform disk IO: they offer bounded rows to one 256-entry writer
+buffer. Rows exceed neither 32 KiB nor 128 snapshot actors. Full buffers, open/write
+failure and shutdown drop rows without retry; later sequence gaps expose missing
+rows. Logging failure cannot fail delivery. The CLI's one write-report call is
+limited to 200 ms and cannot invalidate the file write. A missing log means
+unavailable evidence, never zero activity.
+
+The existing diagnostic writer registers the stable path with Pair GC. Its new
+opt-in hard generation limit refuses whole rows at 64 MiB if normal rotation
+cannot proceed; normal daily rotation and 365-day retention still apply. This is
+a generation cap, not a total-store cap. The writer and buffered tail end with
+the supervisor; historical generations belong to the existing diagnostic collector.
+
+`python3 scripts/supervision-labels/labels.py LOG...` derives ten-minute labels
+from selected local segments. See its [skill](../scripts/supervision-labels/SKILL.md)
+for the input limits and interpretation. True means a write was observed for the
+hub subject; false requires contiguous same-generation coverage through ten
+minutes; missing, corrupt or dropped evidence gives null. False is only “no
+write observed,” not neglect: failed telemetry calls before admission cannot be
+reconstructed. The script writes JSONL to stdout and changes no runtime behavior.
 
 ### Waiting notices to the hub (#451)
 

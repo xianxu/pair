@@ -1,6 +1,7 @@
 package couchcmd
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/sessionsync"
 )
 
@@ -198,6 +200,7 @@ func runSessionSyncCLI(a *sessionSyncArgs, rt Runtime, stdout, stderr io.Writer)
 		}
 		fmt.Fprintln(stdout, "hash:", res.Hash)
 		reportFolds(stdout, stderr, res)
+		reportSessionWrite(rt, namespace.Dir(), res.Owner)
 	}
 	return 0
 }
@@ -254,4 +257,22 @@ func formatSessionSyncStatus(st sessionsync.Status) string {
 		fmt.Fprintln(&b, "fold each with `write --fold ID` once the file reflects it")
 	}
 	return b.String()
+}
+
+// reportSessionWrite is diagnostic evidence after the guarded write committed.
+// An absent, older or slow supervisor must never change that write's result.
+func reportSessionWrite(rt Runtime, namespace, owner string) {
+	req := callerIdentity(rt, "session-write")
+	req.Target = owner
+	if couchmessage.ValidateRequest(req) != nil {
+		return
+	}
+	socket, err := couchmessage.SocketPath(namespace, "broker")
+	if err != nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	var response couchmessage.Response
+	_ = couchmessage.Call(ctx, socket, req, &response)
 }

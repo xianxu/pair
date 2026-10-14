@@ -1686,3 +1686,7 @@ proof; record the surprising case so the next change starts from evidence.
   Retain generated-message provenance through the broker job lifetime, checked
   atomically with its receipt; test cancellation before a blocked callback returns
   for every producer, plus genuine-message inclusion and eventual cleanup.
+
+- #543 plan review: best-effort diagnostic writers still need explicit ordering,
+  shutdown and late-open ownership. Offline labeling must validate bounded input
+  before inference and treat malformed or incomplete coverage as unknown.

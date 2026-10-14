@@ -142,6 +142,13 @@ func ValidateRequest(r Request) error {
 			return errors.New("request identity exceeds limit")
 		}
 	}
+	if r.Op == "session-write" {
+		if r.Binding != nil || r.Scope == "" || r.Tag == "" || r.Session == "" || r.Nonce == "" || r.ID != "" || r.Body != "" || r.Agent != "" || r.Confirmed || r.SameBinary || r.ForceUnknown || r.TailScope != "" || r.TailTag != "" || r.Lines != 0 {
+			return errors.New("session-write requires only the calling conversation identity and exact owner slot")
+		}
+		_, _, err := parseSlot(r.Target)
+		return err
+	}
 	if r.Op == "notify" {
 		if r.Binding != nil || r.Scope == "" || r.Tag == "" || r.Session == "" || r.Nonce == "" || r.ID != "" || r.Target != "" || r.Agent != "" || r.Confirmed || r.SameBinary || r.ForceUnknown || r.TailScope != "" || r.TailTag != "" || r.Lines != 0 {
 			return errors.New("notify requires only the calling conversation identity, title and message")
