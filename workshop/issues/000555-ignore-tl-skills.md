@@ -44,3 +44,5 @@ Commit exactly weave-generated ignores for xx-tl-lead and xx-tl-worker under .ag
 ### 2026-10-14
 
 TL approved this exact generated maintenance change and quick flow. Initial refresh completed; diff is exactly four ignore additions. No durable plan needed. Full suite will run because the landing gate requires it.
+
+Verified the branch product diff is exactly four .gitignore additions; git check-ignore names all four matching rules. A second weave compile succeeded and git status --short was empty. git diff --check passed. PR #335 is open; required sdlc local-check suite runs on baef02f4534c168b8b195663463deb0d8d2c6844.
