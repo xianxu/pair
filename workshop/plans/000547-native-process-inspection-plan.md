@@ -51,7 +51,7 @@ Tests use a stateful process-reader fake (table and command/identity reads can r
 - [x] Implement native command readers and enriched snapshot with per-row errors, cancellation and identity fencing. Convert Command, ProcessChildren and unsupported Identity. Run pure/fake tests, real Darwin probes, Linux cross-build (Linux native tests in CI).
 - [x] Add failing production no-ps guard and launcher projection/ancestry regressions. Migrate all five launcher sites to typed procutil observations; preserve server identities for reachable and orphaned rows when integrating #528. Run targeted launcher/procutil tests.
 - [x] Migrate diagnostic runtime inventory with full executable names and StrictIdentity checks. Replace ps PATH fixtures with an explicit existing/new inventory injection seam in diagnostic/gccmd tests, preserving maintenance cancellation and isolation from real unrelated processes. Run both package suites.
-- [ ] Update artifact ownership inventory and atlas architecture description. Merge fresh main, resolve overlap preserving both purposes, then run targeted race tests, make -k build and full make -k test in background.
+- [x] Update artifact ownership inventory and atlas architecture description. Merge fresh main, resolve overlap preserving both purposes, then run targeted race tests, make -k build and full make -k test in background.
 - [ ] Build process test binaries and run them under sandbox-exec with (version 1)(allow default); require native process probes and launcher process tests to pass, without ps skips. Record actual commands/results and commit. Close with SDLC fresh-context review, fix findings, then PR/merge and report real hashes to hub.
 
 ## Verification commands
