@@ -1058,6 +1058,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/repositoryname.go",
 	"cmd/internal/couchcore/resume.go",
 	"cmd/internal/couchcore/runner.go",
+	"cmd/internal/couchcore/runner_group_darwin.go",
+	"cmd/internal/couchcore/runner_group_other.go",
 	"cmd/internal/couchcore/runner_fake.go",
 	"cmd/internal/couchcore/startargs.go",
 	"cmd/internal/couchcore/startcleanup.go",

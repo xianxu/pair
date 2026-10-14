@@ -2546,7 +2546,11 @@ registry save failure—treats exec as possible. Both stdio and PTY runners make
 the Pair client the leader of one actor-owned process group; Couch-launched
 session-watcher and title-poller sidecars inherit that group rather than
 detaching. Couch sends TERM and then unconditional KILL to the group, reaps the
-client, and proves the group empty. The remaining process class is the zellij
+client, and proves the group empty. On Darwin, a group signal probe returning
+EPERM is ambiguous even after the client is reaped: Couch confirms membership
+with `kern.proc.pgrp`. An empty successful snapshot proves absence; any member
+(including zombies) or snapshot error retains ownership. Other platforms keep
+the conservative EPERM interpretation. The remaining process class is the zellij
 server and its panes: Couch resolves the exact `{scope, tag}` session-name
 binding, observes its record and exact server PID set, deletes and escalates,
 then requires two stable observations with both absent. Query, deletion, and
