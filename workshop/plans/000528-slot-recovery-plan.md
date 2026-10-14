@@ -420,3 +420,93 @@ BR-7 (ARCH-PURPOSE): the unsafe row's primary recovery action must be the shared
 ### 2026-10-13 — BR-8: recovery-specific native conformance
 
 The second M2 review disposed BR-6 and BR-7, but identified that installed-native conformance only exercises legacy inventory scanners. Extend the existing read-only conformance path through the production recovery parser for Claude and Codex, checking provenance, cwd, activity and authored tails; explicitly report unsupported agents (including Grok recovery) and absent samples rather than claiming coverage. Add a regression where recovery-only field drift leaves legacy scanning valid but fails recovery conformance. Keep bounded reads and redacted output. Run with native-contract changes and the existing monthly operator cadence (ARCH-MOCK); no native writes or slot/process manipulation.
+
+### 2026-10-13 — Final verification and scratch acceptance sequencing
+
+TL receipts 4e054fd4 and 6de1fd5b retire the manual load threshold: run `make -k test` through the machine test lock, then `sdlc stage --build`. TL runs scratch acceptance from the existing hub after the operator restarts Couch onto the stage; close only afterward. Do not mutate a working slot. The procedure below uses the normal data root and authentication, not an isolated supervisor whose ownership checks would reject unrelated host wrappers.
+
+## Scratch acceptance script (TL executes after staging)
+
+**Scope:** create a NEW disposable repository named `recovery-528-<unique>` under a fresh temporary directory, and start its `:0` through Couch's normal start form. Never use pair:6 or any existing working repository. The commands below are separate shell calls from the hub. `SCRATCH_SLOT` is the new displayed address; `SCRATCH_REPO` is its physical checkout path. Keep the operator's menu visible. No cache/layout deletion, default-parameter edits, copied thread records, or duplicate Zellij servers.
+
+1. Create an empty Git repository and initial commit under a new temporary directory. Add that repository via Couch's normal start form, selecting Codex with the operator's working configuration. Record the exact displayed address and path. In its agent pane ask for a distinctive complete paragraph (at least 30 words), with no tool work. Wait for the turn to finish and the composer to be empty.
+2. From the hub, inspect and retain the exact scratch actor and transcript coordinates:
+
+```sh
+couch --actors --json
+couch --show "$SCRATCH_SLOT" --json
+couch --peek "$SCRATCH_SLOT" --transcripts --json
+```
+
+Select exactly one `.Actors[]` by `.Binding.Slot`; retain `.Binding.Repository`, `.Scope`, `.Tag`, `.Session`, `.Nonce`, `.Agent`, `.PID`, `.Start`. PID/Start identify the wrapper, not the Couch helper. Verify Repository resolves to the NEW scratch Git directory. Copy only this actor object to a scratch evidence file. Do not infer tag or scope from the slot number.
+
+### Proven binding and explicit inferred choices
+
+Use the scratch row's **Park** action, confirm, and await completion. Do not press Alt+x in the switcher: that parks all live threads. Alt+x is safe only while focused inside this scratch actor pane. Verify the parked row, then:
+
+```sh
+couch --resume "$SCRATCH_SLOT" --json
+couch --operation-status "$OPERATION_ID" --json
+couch --peek "$SCRATCH_SLOT" --transcripts --json
+```
+
+Use the operation ID returned by the first command; read until terminal status, never blindly resend. Expect the same native conversation ID. Park this scratch row again. List evidence:
+
+```sh
+couch --resume-candidates "$SCRATCH_SLOT" --json
+couch --resume-candidates "$SCRATCH_SLOT"
+```
+
+Expect `automatic:false`, the real scratch native ID among `candidates`, agent/activity/tail score/excerpt, and `fresh`. Candidate K means the opaque `.candidates[K].key`, **not** an integer. Copy a key from the latest preview, then:
+
+```sh
+couch --resume "$SCRATCH_SLOT" --candidate "$CANDIDATE_KEY" --json
+couch --operation-status "$OPERATION_ID" --json
+couch --peek "$SCRATCH_SLOT" --transcripts --json
+couch --peek "$SCRATCH_SLOT" --previous --all
+```
+
+Expect the selected native ID, retained original screen, evidence notice and one orientation delivery (or an explicit pending/uncertain notice, never repeated paste). The chooser is available even with a proven binding, so this tests the inference executor without fabricating unproven ledger state. To show alternatives, use `/new` in the scratch Codex pane, complete a second distinctive turn in the same cwd, then park and list again. Do not create synthetic resumable IDs. Keep at most five native choices plus fresh; a zero-match alternative is still evidence, never an automatic choice. A previously copied key after evidence changes must refuse and request a fresh listing.
+
+### Legacy and contested-policy projection
+
+Start/resume the scratch row and wait idle. Refresh actor coordinates. Discover its exact policy by reading JSON files under `$HOME/.cache/pair/session-policy/` and selecting exactly one whose `scope`, `tag`, `name`, `nonce`, and `agent` match the scratch actor. Its `socket` must name this actor's session; confirm `server_pid` / `server_identity` against that scratch Zellij server. Retain the policy path and bytes outside the cache. Never select a file by filename proximity or globally rename the directory.
+
+While no operation is running for the idle scratch row, **rename only this verified policy file to a unique backup outside the cache**. This is the legacy-policy fault injection; do not stop the wrapper or alter readiness. Observe:
+
+```sh
+couch --show "$SCRATCH_SLOT" --json
+couch --resume-candidates "$SCRATCH_SLOT" --json
+```
+
+Expect `needs-relaunch`, not live. The operator opens this row and uses primary **Relaunch** (also test Enter, cancel, then its explicit Relaunch menu item). It must open the evidence chooser without starting a process. Select the current native key using the menu, or equivalently:
+
+```sh
+couch --resume "$SCRATCH_SLOT" --candidate "$CANDIDATE_KEY" --json
+couch --operation-status "$OPERATION_ID" --json
+```
+
+Recovery should preserve the original screen, park the exact idle source, and start a new terminal generation. Retain the backup as evidence; do not restore old policy over the new generation. If cancelling before any operation, restore the backup only after rechecking that the same socket/server PID/start and actor nonce still exist and no replacement policy appeared.
+
+For a **synthetic contested-generation attestation**, repeat on a newly healthy idle scratch generation, backing up the exact current policy. Atomically replace only `server_identity` with a distinct nonempty test string, leaving every other field unchanged. Expect `needs-relaunch` and the same chooser/action path. This tests conflicting attestation, **not two physical servers**. Physical duplicate-server refusal remains covered by the controlled automated ownership/concurrency fixtures; do not clobber a live socket to simulate it. No launch-policy mutation is performed by ordinary Couch commands; these are deliberate scratch-only fault injections.
+
+### No candidate and tty-oriented fresh fallback
+
+Use a separate new scratch repository/slot, complete one Codex turn, then Park it normally. Record all native transcript paths produced for that exact scratch cwd via peek before parking. Confirm there are no live actors for that scratch slot and no still-running wrapper/agent for its captured scope/tag. Read each candidate transcript's `session_meta` and require its cwd to equal the physical scratch checkout. Move **only those verified scratch transcripts** into a backup directory outside all native scanner roots (record source/destination pairs; never change permissions or move a native root). Do not touch capture, ledger, thread record or another cwd's transcripts.
+
+```sh
+couch --resume-candidates "$SCRATCH_SLOT" --json
+```
+
+Require `incomplete:false`, an empty `candidates` list and a nonempty `fresh.key`. If evidence is incomplete, retain the reason and stop this case: incompleteness is not a successful no-candidate result. Copy `.fresh.key` from that preview:
+
+```sh
+couch --resume "$SCRATCH_SLOT" --candidate "$FRESH_KEY" --json
+couch --operation-status "$OPERATION_ID" --json
+couch --peek "$SCRATCH_SLOT" --previous --all
+couch --peek "$SCRATCH_SLOT" --transcripts --json
+```
+
+Expect a new native conversation and orientation naming the exact previous screen, scratch branch and issue (none for an unclaimed scratch repo). Ask the fresh agent to read that screen only as historical context. Restore quarantined transcript files by rename only when their original paths are still absent; never overwrite a newly written file. Park the scratch row afterward. Keep scratch evidence until acceptance is recorded; cleanup is separate.
+
+**Record for each case:** address, staged commit, old/new native IDs and terminal names, preview JSON, operation receipt/status, menu observation, orientation outcome. Report any refusal verbatim; do not force unknown/busy ownership. TL supplies acceptance or failure before #528 whole-issue close.
