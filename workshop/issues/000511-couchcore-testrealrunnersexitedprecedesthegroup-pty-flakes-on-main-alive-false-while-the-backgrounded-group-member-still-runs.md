@@ -1,12 +1,12 @@
 ---
 id: 000511
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-13
 estimate_hours:
-card_mirror: 'e1b47828c74e029cae30e1bf04c4886b442ba2ee' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '0da0146ce6431f0da6ac772b7dd0ec0a2904b404' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T17:18:58-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "6de427fd", done: "dca3f81b"}
+actual_hours: N/A
 ---
 
 # couchcore: TestRealRunnersExitedPrecedesTheGroup/pty flakes on main (Alive = false while the backgrounded group member still runs)
