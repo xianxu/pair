@@ -101,6 +101,7 @@ would violate the existing child/parent-death tests. Investigating an ownership
 fix rather than increasing 100ms or serializing tests.
 
 ### 2026-10-14 — fork probe and resumed direction
+- 2026-10-14: closed — Full make -k test completed exit 0 after final code (couchcore 378.533s, /tmp/pair545-final-coverage-suite.log); post-main integration provisioning/retry/artifact inventory tests passed (/tmp/pair545-main-integration.log). Matched real paused-fork baseline 50/50 failures versus fixed 0/50; natural-load baseline/fixed each 0/400 failures (50 per historical case), so no natural failure-rate reduction claimed. Live inherited producer, parent-death, cancellation, marker errors and absolute retry bounds covered. Earlier inventory failure fixed; unchanged registration/latency timing failures passed reruns and subsequent complete suites. Main merged without conflicts; follow-up 551 published and released.; review verdict: SHIP
 
 The baseline full make -k test completed successfully (/tmp/pair545-baseline-suite.log).
 The traced full-core binary was accidentally run from the repository root; its
