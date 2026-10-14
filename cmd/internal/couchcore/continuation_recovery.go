@@ -43,6 +43,20 @@ func (c *Couch) checkContinuationWarm(ctx context.Context, record ThreadRecord) 
 // ensureContinuationAttached never starts an agent. A dead helper is retired
 // only after the existing detached-session observer proves unique ownership.
 func (c *Couch) ensureContinuationAttached(ctx context.Context, record ThreadRecord, target bool) (ThreadRecord, ActorRecord, Handle, error) {
+	// Explicit checkpoint execution already holds the thread lifecycle gate.
+	// Reuse this Couch's borrowed client before considering a new attachment.
+	var err error
+	record, err = c.adoptOwnedAttachment(ctx, record)
+	if err != nil {
+		return record, ActorRecord{}, nil, err
+	}
+	if len(record.Incarnations) == 0 {
+		for _, actor := range c.actorRegistry().Records() {
+			if actor.Thread == record.Address && actor.Shape == StartWarmReattach && observeExactProcess(c.Proc, ProcessIdentity{PID: actor.PID, Identity: actor.Identity}) != Dead {
+				return record, ActorRecord{}, nil, errors.New("continuation attachment has no local lifecycle owner")
+			}
+		}
+	}
 	if len(record.Incarnations) == 1 {
 		inc := record.Incarnations[0]
 		live := observeExactProcess(c.Proc, ProcessIdentity{PID: inc.PID, Identity: inc.Identity})

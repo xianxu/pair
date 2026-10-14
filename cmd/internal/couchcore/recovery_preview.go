@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/orientation"
@@ -162,6 +163,9 @@ func (c *Couch) recoveryTarget(ctx context.Context, t ResumeTarget) (*ThreadStor
 		observed, readErr = view.readSlotCurrentLocked()
 		return readErr
 	})
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, ThreadRecord{}, ErrThreadNotFound
+	}
 	if err != nil {
 		return nil, ThreadRecord{}, err
 	}

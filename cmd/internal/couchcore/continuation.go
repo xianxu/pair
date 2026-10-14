@@ -122,11 +122,37 @@ func (c *Couch) RequestContinuation(ctx context.Context, address ThreadAddress, 
 		if record.Continuation != nil && record.Continuation.ID == id {
 			return *continuationStatus(record), nil
 		}
-		incarnation, err := soleParkableIncarnation(record)
+		// Publication records the exact local source helper without adopting its
+		// borrowed terminal. Execution owns any required lifecycle bookkeeping.
+		effective, _, err := c.ownedAttachmentFacts(record)
 		if err != nil {
 			return ContinuationStatus{}, err
 		}
-		if len(record.Incarnations) != 1 || incarnation.State != IncarnationLive || record.Park != nil || observeExactProcess(c.Proc, ProcessIdentity{PID: incarnation.PID, Identity: incarnation.Identity}) != Live {
+		if len(effective.Incarnations) == 0 && record.Park == nil {
+			// The writer publishes from a separate Couch process. A unique exact
+			// live registry helper is sufficient to record source identity, but
+			// confers no authority to adopt, signal, or retire that helper.
+			name, listed, err := c.listedTerminal(ctx, record)
+			if err != nil {
+				return ContinuationStatus{}, err
+			}
+			if listed && name == source.Session {
+				for _, actor := range c.actorRegistry().Records() {
+					if actor.Thread != address || actor.Shape != StartWarmReattach {
+						continue
+					}
+					if observeExactProcess(c.Proc, ProcessIdentity{PID: actor.PID, Identity: actor.Identity}) != Live {
+						return ContinuationStatus{}, errors.New("registered source helper is not provably live")
+					}
+					effective.Incarnations = append(effective.Incarnations, ThreadIncarnation{PID: actor.PID, Identity: actor.Identity, State: IncarnationLive})
+				}
+			}
+		}
+		incarnation, err := soleParkableIncarnation(effective)
+		if err != nil {
+			return ContinuationStatus{}, err
+		}
+		if len(effective.Incarnations) != 1 || incarnation.State != IncarnationLive || record.Park != nil || observeExactProcess(c.Proc, ProcessIdentity{PID: incarnation.PID, Identity: incarnation.Identity}) != Live {
 			return ContinuationStatus{}, errors.New("source helper is not provably live")
 		}
 		request := checkpoint.Request{Version: checkpoint.Version, ID: id, Checkpoint: cp, Source: checkpoint.Source{Agent: source.Agent, Session: source.Session, LaunchOrdinal: source.LaunchOrdinal, Helper: checkpoint.Process{PID: incarnation.PID, Identity: incarnation.Identity}}, CreatedAt: c.Clock.Now(), Phase: checkpoint.Pending}
