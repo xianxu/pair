@@ -15,6 +15,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "0c579d9d", done: "5c85287f"}
 ---
 
 # Review fresh-restore headless Neovim exits without failure diagnostics
