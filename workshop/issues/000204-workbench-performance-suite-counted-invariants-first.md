@@ -112,7 +112,7 @@ Cold and changed-owner controls must prove counters are connected; each warm ope
 - [x] Add actual Console activity and socket-message consumer regressions with cold/mutation/warm/counterfactual controls.
 - [x] Add selected Couch attach strict budget and standalone/continuation/owner-pass ratchets at the process-reader boundary.
 - [x] Document release commands, count boundaries, extension pattern and separate live CPU acceptance; preserve released follow-up backlog.
-- [ ] Run targeted/race and recorded full suite, close through review, merge main and land on SHIP.
+- [x] Run targeted/race and recorded full suite; close through review, merge main and land on SHIP via the binary checkpoints.
 
 Durable plan: workshop/plans/000204-workbench-performance-suite-counted-invariants-first-plan.md.
 
@@ -258,3 +258,7 @@ Integrated targeted group PASS: UI12.212s, message1.348s, launcher0.184s, core9.
 Recorded full suite on52d9b7daf6b97538fce58e44ccf756acca6da49b completed all recipes in9m4s after280s queue wait. Its only failure was TestNoNativeAuthorityShadowInInteractiveConsumers: the extracted test-support fixture duplicated the Codex native storage path. Saved failure log e74cededd3e7ff175d5ee7bbbf6dc708.log, SHA256 prefix67142c241ca3. Every other package passed; no remaining recipes or flaky-failure waiver.
 
 The fixture now obtains its native root from sessioninventory.NewOSRuntime.NativeRoots instead of defining another path (ARCH-DRY). The guard stays unchanged. Targeted native-authority guards, shared fixture and both20x30MB consumer invariants pass: sessioninventory3.828s, support0.280s, UI11.937s, message1.989s. A new recorded full suite is required before close.
+
+### 2026-10-15 — full verification green
+
+Recorded full suite PASS on021cd810983d981f2e58ccda109302a29ed28506: exit0 in8m48s after258s machine-gate wait, log SHA256 prefixe63fe49ae2d2 at .git/sdlc/local-checks/021cd810983d981f2e58ccda109302a29ed28506/suite.log. Every script/editor recipe and Go package completed, including sessioninventory10.642s, core267.644s, UI47.552s, messaging47.491s and launcher44.081s. No failures waived. PR344 conformance and merge-check both pass (runs38740723867/38740723986). Targeted races and deliberate counterfactual failures are recorded above. Close review/landing are the remaining binary checkpoints; the live CPU runbook is guidance, not a claimed operator acceptance.

@@ -86,7 +86,7 @@ Files: atlas/workbench-performance.md (new, link from atlas/index.md), relevant 
 
 - [x] Document stable test names and one normal-suite/targeted command for all three invariant families, what counts, exclusions and how a fourth invariant supplies positive and counterfactual controls.
 - [x] Keep the Revision's live CPU check in the acceptance runbook: 20-slot fixture, restart, attaches settled, average idle CPU <5% over60s. This is operator acceptance guidance, never a CI timing threshold; no operator restart/stage is needed for this test-only delivery unless TL requests it.
-- [ ] Run targeted normal/race tests, then the recorded full suite once on a pushed final source head. Finish any failed recipe's remainder with make -k and report every failure by name.
+- [x] Run targeted normal/race tests, then the recorded full suite once on a pushed final source head. Finish any failed recipe's remainder with make -k and report every failure by name.
 - [ ] Close through the binary-owned fresh review. On SHIP integrate main, run sdlc merge --yes, report real merge hash/PR to hub and stop.
 
 ## Constraints and ordering
