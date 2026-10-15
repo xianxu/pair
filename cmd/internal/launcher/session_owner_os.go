@@ -29,6 +29,11 @@ func (p SessionOwnerProbe) runtime() SessionOwnerIO {
 }
 
 func (p SessionOwnerProbe) Probe(ctx context.Context, name, globalDataDir, scope, tag string) (SessionOwnerObservation, error) {
+	return p.probe(ctx, name, globalDataDir, scope, tag, p.runtime().SessionServers)
+}
+
+// probe varies only the initial evidence; every authority fence reads live IO.
+func (p SessionOwnerProbe) probe(ctx context.Context, name, globalDataDir, scope, tag string, initial func(context.Context, string) ([]SessionServerIdentity, error)) (SessionOwnerObservation, error) {
 	result := SessionOwnerObservation{Name: name}
 	expected, err := sessionExpectedOwner(globalDataDir, scope, tag)
 	if err != nil {
@@ -40,7 +45,7 @@ func (p SessionOwnerProbe) Probe(ctx context.Context, name, globalDataDir, scope
 	ctx, cancel := context.WithTimeout(ctx, zellijQueryTimeout)
 	defer cancel()
 	io := p.runtime()
-	before, err := io.SessionServers(ctx, name)
+	before, err := initial(ctx, name)
 	if err != nil {
 		return result, fmt.Errorf("observe session server: %w", err)
 	}

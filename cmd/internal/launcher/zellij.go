@@ -126,7 +126,32 @@ func (s ZellijSource) run(args ...string) ([]byte, error) {
 	return s.runContext(context.Background(), args...)
 }
 
-func (s ZellijSource) runContext(ctx context.Context, args ...string) ([]byte, error) {
+// ZellijQueryObservation retains bounded copies of a completed CLI query.
+// Stdout and Stderr each keep at most 64 KiB; byte counts describe the original
+// streams, which the production parser consumes without truncation. Err is the
+// caller-visible result; ExitCode retains the subprocess status (-1 if absent).
+type ZellijQueryObservation struct {
+	Args                             []string
+	Started, Finished                time.Time
+	Duration                         time.Duration
+	Stdout, Stderr                   []byte
+	StdoutBytes, StderrBytes         int
+	StdoutTruncated, StderrTruncated bool
+	ExitCode                         int
+	Err                              error
+}
+
+type zellijQueryObserverKey struct{}
+
+// WithZellijQueryObserver scopes optional query measurement to ctx. Callbacks
+// run synchronously after each direct subprocess completes and must not block.
+// Concurrent operations require a synchronized observer. No query is added or
+// retried, and ordinary contexts retain the original execution and output path.
+func WithZellijQueryObserver(ctx context.Context, observe func(ZellijQueryObservation)) context.Context {
+	return context.WithValue(ctx, zellijQueryObserverKey{}, observe)
+}
+
+func (s ZellijSource) runContext(ctx context.Context, args ...string) (output []byte, resultErr error) {
 	path := s.Path
 	if path == "" {
 		path = "zellij"
@@ -137,6 +162,25 @@ func (s ZellijSource) runContext(ctx context.Context, args ...string) ([]byte, e
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
+	if observe, _ := ctx.Value(zellijQueryObserverKey{}).(func(ZellijQueryObservation)); observe != nil {
+		started := time.Now()
+		defer func() {
+			finished := time.Now()
+			exitCode := -1
+			if cmd.ProcessState != nil {
+				exitCode = cmd.ProcessState.ExitCode()
+			}
+			const bound = 64 * 1024
+			observe(ZellijQueryObservation{
+				Args: append([]string(nil), args...), Started: started, Finished: finished,
+				Duration: finished.Sub(started), ExitCode: exitCode, Err: resultErr,
+				Stdout:      append([]byte(nil), stdout.Bytes()[:min(stdout.Len(), bound)]...),
+				Stderr:      append([]byte(nil), stderr.Bytes()[:min(stderr.Len(), bound)]...),
+				StdoutBytes: stdout.Len(), StderrBytes: stderr.Len(),
+				StdoutTruncated: stdout.Len() > bound, StderrTruncated: stderr.Len() > bound,
+			})
+		}()
+	}
 	if err := cmd.Run(); err != nil {
 		if ctx.Err() != nil {
 			err = ctx.Err()

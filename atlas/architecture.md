@@ -1308,21 +1308,70 @@ immutable publications and physical-parent presentation ownership. See
 and Pair production use these adapters. Composed live verification and operator
 smoke acceptance remain necessary to establish disappearance of the reported symptoms.
 
+### Startup timing probes
+
+`PAIR_STARTUP_TIMING=1` enables monotonic child-launch phase lines on stderr.
+Consecutive deltas partition the interval from launcher package initialization
+through the attach/create handoff; elapsed time is cumulative and must not be
+summed. Native loader time and readiness after handoff remain outside that clock.
+The clock stops before a blocking client lifetime. Ordinary launches are silent.
+`launchSteps` retains parent timings in failures and accepts a context-scoped
+observer via `WithLaunchTimingObserver` for the opt-in real lifecycle fixture,
+without emitting UI or disk data. The fleet fixture retains per-operation/tag
+parent stages and copies private diagnostic files before attempt and fixture
+cleanup. Its record+baseline stage includes durability; it does not isolate fsync.
+Nested owner/process durations explain parent stages and are not additive to them.
+Native snapshot diagnostic lines use the same flag and count actual reader calls,
+including failures and disappeared rows; they contain no names, argv or identities.
+They count reader API calls, not kernel syscalls (Darwin raw identity reads also
+query the response size).
+The default path keeps the unwrapped reader. The opt-in fleet fixture in
+`cmd/internal/couchcmd/startup_fleet_timing_live_test.go` drives the actual Console
+worker pool and LeaveDetach, requiring a meaningful alternate-screen agent marker
+for first-frame readiness rather than treating attached-state queries as a frame.
+The fixture can observe the existing ZellijSource query context to retain bounded
+raw parent-operation and verification responses, plus exact process evidence
+before Leave. The per-sample query collector limits records and bytes; truncated
+or omitted evidence makes the sample fail explicitly. Query bytes
+passed to the production parser and direct subprocess cancellation stay unchanged;
+ordinary contexts have no observer or new output.
+
 ### Native process inspection
 
 `cmd/internal/procutil` owns host process observations without launching `ps`.
 `Table` remains a cheap metadata snapshot (PID, parent, start identity, niceness
 and short kernel name). `Snapshot` enriches rows with native executable/argv and
 rechecks start identity, retaining unavailable evidence per live row. Native
-per-process `EINVAL`, `ESRCH` and `ENOENT` mean gone and are omitted, including
-exit races during later environment reads; permission and unknown failures remain visible.
+command reads reporting `EINVAL`, `ESRCH` and `ENOENT` mean gone and are omitted,
+including exit races during later environment reads. Identity reads retain their
+errors separately: only positive absence (`ESRCH`/`ENOENT`) or terminal metadata means gone; a successful empty
+Darwin lookup also requires a separate signal-zero probe returning `ESRCH`.
+An empty lookup with any other probe result remains uncertainty; identity `EINVAL`, `EIO`,
+permission and unknown failures remain visible. `IdentityUnavailableError` keeps
+that provenance through downstream gone classifiers, so identity EINVAL cannot
+be reinterpreted as an argv disappearance. Public identity helpers retain
+unreaped generation tokens for compatibility.
 zombie status excludes confirmed terminated processes from command snapshots
 while metadata tables retain them. Darwin uses
 `kern.proc.all` and `kern.procargs2`; Linux reads `/proc`. Unsupported platforms
 return an explicit unsupported error; legacy string helpers return unavailable.
 
-Launcher ancestry derives from one table. Server discovery keeps argv authority
-and snapshot identities; unreadable possible zellij rows refuse an absence proof.
+Launcher ancestry derives from one table. `SnapshotNamed(ctx, "zellij")` selects
+known zellij and unavailable short names before native argv enrichment; metadata
+is only a candidate filter. Server discovery keeps exact argv authority and
+snapshot identities; unreadable possible zellij rows refuse an absence proof.
+SessionOwnerProbe still freshly enumerates candidates after pane queries and
+before effects, requiring exactly one unchanged generation and socket. A second
+claimant invalidates authority even if the original server survives.
+`SessionOwnerPass` shares one lazy initial ServerStates capture per background
+reattach or LeaveDetach pass; the checker scope and selected data root bind its
+context. Capture failures are memoized; one caller's cancellation leaves siblings
+intact. Console Stop cancels the lifetime without the state mutex; joined
+teardown releases scoped pass state and invokes cleanup outside that mutex. After-pane and final authority reads remain fresh. Registration explicitly
+bypasses the initial map to see newly born generations. Console drops/cancels the
+scope on pass completion or Stop; standalone operations keep fresh discovery.
+The full
+`Snapshot` contract remains available to diagnostic inventory and other consumers.
 Diagnostic inventory uses full executable names, since kernel names truncate,
 and keeps strict identity fencing across environment inspection. Its Inspection
 seam is shared by storage and diagnostic cleanup, including test compositions.

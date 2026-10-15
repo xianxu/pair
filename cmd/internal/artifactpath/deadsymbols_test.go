@@ -49,9 +49,10 @@ var couchcoreDeadSymbolAllowlist = map[string]string{
 
 	// Fakes and hooks. A fake's only job is to be used by tests; these live
 	// outside a _fake.go file, which is the only reason the scan sees them.
-	"NewFakeProcOps":          "fake constructor; procops.go rather than a _fake.go file",
-	"SetUnknown":              "fake helper for the unanswerable-probe case",
-	"newThreadStoreWithHooks": "crash-injection constructor for journal recovery tests",
+	"NewFakeProcOps":           "fake constructor; procops.go rather than a _fake.go file",
+	"SetUnknown":               "fake helper for the unanswerable-probe case",
+	"newThreadStoreWithHooks":  "crash-injection constructor for journal recovery tests",
+	"WithLaunchTimingObserver": "pair#218: context-scoped lifecycle measurement seam for the cross-package opt-in fleet harness; ordinary production operations retain their existing silent timing path",
 
 	// Vocabulary enumerations. Their job is to BE iterated by exhaustiveness
 	// guards -- Go cannot check a switch for exhaustiveness, so the enumeration
