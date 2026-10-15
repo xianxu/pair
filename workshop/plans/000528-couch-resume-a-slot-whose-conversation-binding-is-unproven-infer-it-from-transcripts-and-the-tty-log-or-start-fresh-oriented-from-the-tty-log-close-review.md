@@ -64,3 +64,70 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-14T21:09:35-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 528 — couch: resume a slot whose conversation binding is unproven: infer it from transcripts and the tty log, or start fresh oriented from the tty log |
+| repo | pair |
+| issue file | workshop/issues/000528-couch-resume-a-slot-whose-conversation-binding-is-unproven-infer-it-from-transcripts-and-the-tty-log-or-start-fresh-oriented-from-the-tty-log.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 192b688aa1884d9752c38a86a24b6e208c735086..d0862f78585dcca647c6494d6a8fd6942d7bf5e1 |
+| command | sdlc close --issue 528 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-14T21:09:35-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+No defects found in the interdiff. Both conflict resolutions preserve the intended behavior, and the three new regressions fail when their corresponding corrections are removed. Prior dispositions remain unchanged. Live conformance remains partly unsuccessful, with failures also reproduced using the pinned base fixtures.
+
+```findings
+{}
+```
+
+1. **Strengths**
+   - Cross-scope binding checks retain shared caching and detect changed claims (`artifactcollision.go:438`).
+   - Queued attachments check cancellation before dispatch (`console_reattach.go:68`).
+   - Socket transport preserves its original spelling while aliases retain the same canonical lease identity (`session_handoff_os.go:59`).
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage**
+   - Complete artifactpath suite and focused launcher, couchtty, and couchcore checks passed.
+   - All three new regressions failed under temporary overlays removing their fixes.
+   - Live warm recovery and intent-only mutation passed. Park ownership and checkpoint-registration failures also occurred with base fixtures; they are not attributed to this interdiff.
+   - Full repository suite was not rerun. Checkout remains unchanged.
+
+6. **Architectural notes**
+   - **ARCH-DRY — pass:** conflict resolution reuses the shared index reader.
+   - **ARCH-PURE — pass:** changes remain in integration boundaries without adding business logic to IO adapters.
+   - **ARCH-PURPOSE — pass:** fixes preserve attachment and recovery contracts without expanding scope. No new user-facing surface requires README or atlas changes.
+
+7. **Plan revision recommendations:** None. Appended revisions accurately describe the corrections.
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.650990125s
+head: "d0862f78585dcca647c6494d6a8fd6942d7bf5e1"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
