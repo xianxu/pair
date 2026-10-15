@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-15
 updated: 2026-10-15
-estimate_hours:
-card_mirror: '2e8caee3602676ed455179c518bea7aabf0f4554' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 1.924
+card_mirror: '1d2707e14319bb29e117b2c8557388ade9b4d055' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-15T16:14:38-07:00
 claimant:
     operator: Xian Xu
@@ -15,6 +15,7 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # Couch → Qoder delivery: text typed into Qoder's input but not submitted (pending * prompt); confirm submission
@@ -67,3 +68,22 @@ TL dispatch adds the repeated later-delivery expiry to the issue's purpose. Plan
 ### 2026-10-15 — TL approval
 
 TL approved plan 967b13cd and the terminal policy (receipts c4ac5b82-afee-4dfe-8a1e-70a9c5c367db and 84d5bf3e-f2ba-4f7b-a483-c65b528689f6). Retries require exact complete-envelope ownership in addition to fresh rendered evidence and existing input fences; no automatic deletion or late execution. Live idle/mid-turn checks on pair:4 must be coordinated with TL before landing, ideally before 17:00 PDT. Baseline focused Qoder/delivery/automatic-input tests pass (wrapcmd 3.461s, couchmessage 0.267s); the missing behavior needs new RED tests.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. Provisional because the calibration source is flagged stale. Three smaller existing Go extensions (delivery reducer, automatic-input reducer/reporting, wrapper adapter) each use 0.2h design x0.2 and 0.4h implementation x0.4. One focused terminal-evidence/TUI concern uses 1h design x0.2 and 0.8h implementation x0.4; existing terminal model, composer parser and ANSI library cover the stack. Issue/spec: 1h x0.2 design and 0.2h x0.4 implementation. Docs: 0.1h x0.2 plus 0.1h x0.4. Review: 0.1h x0.2 plus 0.3h x0.4. Native discovery/conformance: 0.6h implementation x0.4. Familiarity 1.0, thorough-plan design buffer 15%; approximate range 1.2–2.8h, selected 1.924h (0.56 x1.15 +1.28).
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: smaller-go-module design=0.04 impl=0.16
+item: smaller-go-module design=0.04 impl=0.16
+item: smaller-go-module design=0.04 impl=0.16
+item: tui-screen design=0.20 impl=0.32
+item: issue-spec design=0.20 impl=0.08
+item: atlas-docs design=0.02 impl=0.04
+item: milestone-review design=0.02 impl=0.12
+item: real-api-discovery design=0 impl=0.24
+design-buffer: 0.15
+total: 1.924
+```
