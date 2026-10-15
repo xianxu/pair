@@ -139,6 +139,9 @@ func (c *Couch) resumeRouted(ctx context.Context, target ResumeTarget, opts Resu
 	}
 	if listed {
 		actor, handle, err := c.attachListedTerminal(ctx, record, session, opts)
+		if err != nil && handle == nil {
+			return nil, err
+		}
 		return StartResult{Record: actor, Handle: handle}, err
 	}
 	if opts.WarmOnly {

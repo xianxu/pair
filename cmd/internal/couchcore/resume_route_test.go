@@ -453,6 +453,20 @@ func TestResumeWarmOnlyIsUnrouted(t *testing.T) {
 	}
 }
 
+func TestResumeWarmFailureDoesNotOfferAnUnstartedChild(t *testing.T) {
+	t.Parallel()
+	env, source := switchEnvWithLiveThread(t)
+	env.Proc.Kill(source.Incarnations[0].PID)
+	env.Artifacts.SetDetachedSession(source.Address, "pair-exact")
+	// Fail preparation before a helper exists. The operation must retain its
+	// original target for failure rendering rather than advertising a zero child.
+	env.Couch.Entropy = strings.NewReader("")
+	value, err := dispatchResume(env.testEnv, map[string]string{"repo-scope": source.Address.RepoScope, "tag": string(source.Address.Tag), "warm-only": "true"})
+	if err == nil || value != nil {
+		t.Fatalf("failed attachment advertised a child: value=%#v err=%v", value, err)
+	}
+}
+
 // The start form's open reaches OpenSlot without resume's top, and still names
 // reboot when nothing can come back (pair#363 M1 review: OpenSlot's refusals
 // had lost their next step).
