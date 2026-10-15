@@ -1156,3 +1156,9 @@ No follow-up implementation starts on this branch.
   recovery_conformance_live_test230: borrowed attach has no durable incarnation.
   Correct fixture child identity and capture bounded diagnostics; original CI
   failure remains under investigation (not presumed transient).
+
+- Recorded full suite PASS atb44d8b80651f1698fbb9390ccf0e96f7c41230b4,
+  exit0 in10m38s, sdlc-local/suite success, log SHA prefix074329a4bf33.
+  Core356.021s, cmd72.750s, tty39.158s, launcher23.547s. This covers
+  #559 merge integration and Stop cancellation fix; live CI remains unresolved
+  and later live-fixture source changes will require final-head suite evidence.
