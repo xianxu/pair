@@ -6,8 +6,8 @@ github_issue:
 target: slot-recovery
 created: 2026-10-15
 updated: 2026-10-15
-estimate_hours:
-card_mirror: 'a248873aec87f020dc341cfa4fb997a46e4f9684' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 5.9
+card_mirror: 'ef90521f95d32c1c536635de27e3eddfa067a423' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-15T10:22:13-07:00
 claimant:
     operator: Xian Xu
@@ -105,3 +105,26 @@ TL receipt6e084767-8928-44a8-8bdf-2b63b4fe1d00 releases the scratch-space restri
 ### 2026-10-15 — plan-quality refinement before implementation
 
 PQ-1/PQ-2 require concrete production policy provenance and named function-level test strategies. Source tracing independently proves the narrow local API-only bootstrap class for both TUI and exec excludes backend-auth cloud loading without inspecting credentials; absent proof stays native compatibility. The durable plan now names that production reader/projector predicate and positive real config fixture, plus per-function adversarial/mechanical guards. Condensed the active issue Plan to its canonical link/tasks; earlier full proposal remains in published history. No implementation before the revised gate passes.
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only, after plan-quality CLEAN (PQ-1/PQ-2 addressed). Calibration source is stale; values are provisional. Familiarity1.0: existing Go inventory/SQLite/admission seams, source investigation already bounded. A real Go TOML library (pelletier/go-toml/v2) supplies parsing, halving that greenfield primitive's design before the thorough-spec x0.2 discount. No hand-written TOML grammar.
+
+Primitives: config projection base1.0d/0.8impl =>0.10/0.32 (library x0.5, spec x0.2, impl x0.4); config reader/policy API2.0/1.5=>0.40/0.60; TUI collector1.0/1.0=>0.20/0.40; exec collector2.0/1.5=>0.40/0.60; Git/trust scope well-specced module0.30/0.50=>0.06/0.20; namespace admission API2.0/1.5=>0.40/0.60; parser/createflow cross-cutting0.80/0.50=>0.16/0.20; real config/SQLite/handoff conformance API1.0/1.0=>0.20/0.40; docs0.20/0.20=>0.04/0.08; one close review0.20/0.50=>0.04/0.20. Design2.0+15%buffer0.30, scaled implementation3.60, total5.90h. No additional queue-wait primitive.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: greenfield-go-module design=0.10 impl=0.32
+item: api-integration design=0.40 impl=0.60
+item: api-integration design=0.20 impl=0.40
+item: api-integration design=0.40 impl=0.60
+item: smaller-go-module design=0.06 impl=0.20
+item: api-integration design=0.40 impl=0.60
+item: cross-cutting-refactor design=0.16 impl=0.20
+item: api-integration design=0.20 impl=0.40
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.04 impl=0.20
+design-buffer: 0.15
+total: 5.90
+```
