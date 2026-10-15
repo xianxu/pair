@@ -46,10 +46,12 @@ Separately, these files are **never rotated**: wrap-events logs of **3.9 GB** (p
 
 ## Done when
 
-- A wrapper under normal agent output writes on the order of what it appends (target: < 3× amplification), measured on a
-  live slot before and after.
-- Logs rotate; total size stays bounded; recovery and `couch --peek --previous` still work across a rotation.
-- Tests: the amplification invariant; rotation and retention; crash-loss bound.
+- Wrapper diagnostics buffer/coalesce records at64KiB or dirty5s; compact reservations contain no payload copy and a healthy batch has one checkpoint rename. The counted real-writer stream stays below3x logical amplification, counting all metadata and reservation bytes.
+- Unchanged validated registry declarations skip content writes. Shared persisted diagnostic policy enforces64MiB current+3 generations (256MiB normal payload cap) across all supported writers; unknown writer proof refuses growth/destruction. Protocol-aware deleted roots do not globally block cleanup, while generation fences and legacy unknown-root refusal remain.
+- A complete interrupted batch recovers by its exact digest; an uncertifiable incomplete batch is preserved as a marked-unverified quarantined generation and a fresh current log starts after safe writer proof. Nothing unverified is adopted or truncated; quarantines participate in the diagnostic generation bound.
+- Raw/events writes flush on250ms/size/orderly shutdown without changing witness identity or raw bytes; raw flush precedes sidecar offset publication. Faithful raw+events size rotation is unassigned #582, outside this issue.
+- Deterministic crash/progress/ownership/rotation/buffer tests, recorded suite, build and mandatory fresh SHIP reviews pass. Receipt, park and recovery synchronization remain intact; process-crash and power-loss bounds are documented.
+- After landing, live process bytes-written versus raw+event bytes-appended and diagnostic state inode-change rates are recorded in ## Log with before/after ratios, exact binary/process/activity context, and reported to hub. Baseline85.8x/10.006s and2187 observed replacements/60.003s remains the comparison.
 
 ## Plan
 
@@ -132,3 +134,12 @@ total: 2.622
 ```
 
 Design subtotal0.68h; implementation1.84h;0.68*1.15+1.84=2.622h. The final smaller-module row is the repeatable live counter harness and post-landing comparison, not an external API integration. No novel external service/library discovery assumed.
+
+
+### 2026-10-15T22:43:57Z — explicit approval restores raw batching and chooses partial quarantine
+
+Hub receipt56cfc2ee-a52f-40c2-871c-a0a691b897f1 is submitted and approves the initial M1/M2 shape including250ms raw/events batching; this supersedes the intermediate raw-batching exclusion, while raw size rotation stays #582. Canonical receipt59106c8f-3364-483c-a0cf-e00246426e28 conveys approval of the compact reservation protocol and requests quarantining uncertain partial batches instead of disabling future diagnostics (receipt outcome indeterminate after submit; local reversible design incorporates that request, with no main publication under the hold). Current Done when above is now updated to the authorized split; previous contract is preserved in git and the scope Revisions.
+
+Delta: preserve an incomplete attempted generation as an immutable marked-unverified diagnostic segment, retain its expected-tail offset/length/digest metadata, and create a fresh current generation only after exact identity and writer proof. Full-length foreign-digest mismatch still refuses. Quarantine uses existing durable rotation/replay, participates in the3-generation retention policy and never supplies verified append authority. Register the recovering current process under the stable log lock before destructive recovery, so its open handle does not falsely fail proof. No truncation/adoption of uncertified bytes. Add named pure ClassifyPartialQuarantine tests and folder-backed fault/restart/continuation regression. Unknown writer proof still prohibits rename/destruction/growth; that stronger safety condition remains explicit.
+
+Implementation evidence so far: compact-append regression failed old code with payload-bearing state intent; now passes one-checkpoint/no-duplicate assertion. Existing legacy intent safety fixtures retained as migration tests. Rotation/deletion interruption tests caught early append recovery claiming their missing paths; transaction-specific recovery now keeps ownership, targeted tests green. Registry no-op and protocol-root fixes have targeted red/green and race evidence from bounded workers. No main publication since hub hold74141e94.
