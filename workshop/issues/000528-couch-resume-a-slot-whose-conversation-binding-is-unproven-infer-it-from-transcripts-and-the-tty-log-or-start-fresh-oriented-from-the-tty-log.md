@@ -1071,3 +1071,20 @@ No follow-up implementation starts on this branch.
   published issue details, archived #555 artifacts and one lesson; no runtime
   source or code-path conflict. New recorded suite must cover the merged head.
   Normal whole-issue close still follows, with no review skip.
+
+- c60e5c6a full suite failed core463.758s (terminal fixture readiness) and
+  tty42.443s (Drive shutdown); cmd84.815s passed. GitHub API publication failed,
+  so this failure has no recorded status. Escalated rate-limit check succeeded
+  afterward (4999). Isolated paircount3 PASScore6.023s/tty5.380s; count10
+  PASScore2.633s but tty reproduced once2.03s. Host load observed472.63 then260.65,
+  but do not attribute failures to load without causality.
+- Exact causes: terminal log says listen unix empty-address invalid argument;
+  its socket request publication is non-atomic, like the prior Ready race.
+  Drive diagnostic overlay reproduces2.04s with no ACK worker left, blocked in
+  HTTP graceful shutdown (existing2s budget, test1s). Only closing test client's
+  idle connections before Stop passes20/20 in0.04–0.06s periteration, deadline
+  unchanged. Plan records fixture-only corrections and repeated verification.
+- Latest peer text205a878e asks leave pair:0 stage untouched and let hub restage.
+  Receipt verification unavailable: broker socket missing, then current Couch
+  says this slot is unregistered. No live recovery attempted; conservatively
+  leave stage untouched. Hub received prior M1 outcome e836ed71 (submitted).

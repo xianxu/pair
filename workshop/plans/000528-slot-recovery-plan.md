@@ -1284,3 +1284,21 @@ lesson publication. No runtime code or conflicting resolution. The queued old
 head check was canceled before admission, and the final merged head owes its
 recorded suite. Whole-issue close reviews the integration and one-line readiness
 fixture fix after the accepted M1 boundary; no bypass is requested.
+
+### 2026-10-14 — final-suite fixture causality, no deadline widening
+
+The c60e5c6a suite failed two test fixtures. Terminal readiness failure includes
+`listen unix : bind: invalid argument`: its request pathname became visible
+before the socket string was written, the same create-before-write race as the
+wrapper Ready artifact. Sweep payload-bearing publications in the retained
+terminal fixture (request, readiness and pane JSON) to the existing atomic
+writer; keep its existing deadlines and real process/session assertions.
+The Drive shutdown test independently reproduces on unchanged main code. A
+failure stack shows ACK worker already exited and Console teardown waiting on
+HTTP Server.Shutdown, whose existing grace budget is2s; the assertion waits1s.
+Countermeasurement closes the fixture client's idle connections before Stop,
+keeping its1s deadline and ACK join/reject barriers, and passes20/20. Isolate
+that unrelated HTTP transport rather than raising the wait or changing runtime.
+Run controlled publication-window RED, repeated corrected tests and related
+fixture/drive groups, then final recorded suite and ordinary whole-issue review.
+No production behavior, component timeout, recovery authority or stage changes.
