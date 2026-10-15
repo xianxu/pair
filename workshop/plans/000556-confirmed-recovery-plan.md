@@ -328,3 +328,30 @@ Core concept locations: `recovery_prepared.go` owns the prepared executor;
 `recovery_retirement_os.go` bridges normal park and confirmed terminal evidence;
 `launcher/recovery_terminal_confirmed.go` owns immutable process attribution
 and confirmed retirement. These supersede the initial coarse task path list.
+
+### 2026-10-15 — read-only M2 native-selector audit (policy clarification pending)
+
+No M2 code has started. Installed help measurements (`codex resume --help`,
+`claude --help`, `grok --help`) confirm native selectors can denote names,
+search/pickers or cwd-latest, rather than an exact native ID. The existing
+extractor can even read Codex `resume --last` as the literal ID `--last` and can
+miss Muse-specific global prefixes. A reservation must never use those aliases
+as distinct keys for one transcript.
+
+Proposed policy for the hub: a normal Pair native-resume launch must provide an
+explicit ID that the existing native inventory validates as the canonical root;
+ambiguous/indirect selectors refuse before launch with exact-ID or Fresh advice.
+Do not guess latest or silently change user arguments/defaults. Reuse the
+resumeform selector table and existing option-value/Fresh validation so no
+second spelling authority appears. Recovery's proven/selected IDs are already
+explicit. This affects direct human Pair CLI selectors, so confirm that policy
+with the hub before implementing it. Caller-chosen new-conversation IDs and fork
+semantics must remain distinguished from a disk resume; do not treat their
+source ID as a second writer without measured evidence.
+
+The wrapper audit confirms one native `pty.Start` site for argv and encoded
+launch commands. Admission transitions must enclose that boundary, not rely on
+best-effort readiness afterward. Strip old admission capability from native
+child/watcher environment and same-PID Fresh exec. Do not independently change
+existing readiness nonce semantics without proof that the reservation protocol
+needs it; each actual native-resume launch gets its own admission attempt.

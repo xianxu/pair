@@ -316,6 +316,18 @@ passes, and the complete recovery/Park selection passes 27.092s plus targeted
 race checks 1.940s. The next recorded suite must still pass on this code before
 M1 re-close; a passed isolated flake rerun is not whole-suite evidence.
 
+### 2026-10-15 — repeated #568 blocks the recorded suite
+
+The next recorded run at `c68e49762163129bba1eb51f5f463cd926379caa`
+again exited 2 before Go after 3m38s, now in `ambiguous-history-does-not-open`.
+Log `c78c884add12c68765db6e7583413142.log`, SHA256 prefix `597c86022693`.
+No recovery source changed between these runs. A diagnostic isolated copy adding
+return code/result JSON still passes after stripping PAIR/COUCH/ZELLIJ session
+environment. This rules out that simple environment hypothesis; the cause is not
+yet established. Pair:3 now owns independent pair#568 from main. The hub and
+owner have the bounded evidence; read-only measurements continue without a
+stacked fix, timeout increase, gate waiver or M1 close claim.
+
 ## Revisions
 
 ### 2026-10-15T05:33-07:00 — overnight M2 dispatch
