@@ -85,28 +85,13 @@ func ActorOperationArgs(row ActionableThreadSummary, op string) map[string]strin
 			scope = resolved.Key
 		}
 		args := map[string]string{"path": row.Target.Slot.WorktreeRoot, "repo-scope": scope}
-		liveRebootArgs(row, op, args)
 		return args
 	}
 	args := map[string]string{"repo-scope": row.Address.RepoScope, "tag": string(row.Address.Tag)}
-	liveRebootArgs(row, op, args)
 	if op == "resume" && row.Detached() {
 		args["warm-only"] = "true"
 	}
 	return args
-}
-
-// liveRebootArgs: the switcher's reboot of a live row (pair#456). The
-// operator is looking at it and confirmed, so an unknown idle state passes
-// and a known busy still refuses. Remote admission overwrites this with its
-// own verdict (prepareLiveRestart). Recover also builds its steps' arguments
-// here, and is kept off live rows only because ActorActions never offers it
-// on one (a live orphan gets reap); the core's live admission is what a
-// verdict-carrying call reaches, so that offer table is the guard.
-func liveRebootArgs(row ActionableThreadSummary, op string, args map[string]string) {
-	if op == OpReboot && row.Live() {
-		args[requireSettledArg] = settledForcedValue
-	}
 }
 
 // SlotOperationCommand is the CLI text that runs op on a slot through the
@@ -166,14 +151,19 @@ func (c *Couch) prepareSlotOperation(ctx context.Context, op, target string, opt
 		return OperationCall{}, "", err
 	}
 	row, err := SelectSlotRow(rows, ref.Number, path)
+	if err != nil && op == OpReboot {
+		if refusal, ok := err.(*SlotOperationError); ok && refusal.Code == SlotOpNoThread {
+			return OperationCall{Name: op, Args: map[string]string{"path": path, "ref": target}, Implicit: true, Context: ctx}, "", nil
+		}
+	}
 	if err != nil {
 		return OperationCall{}, "", err
 	}
-	if op == OpRelaunch || op == OpReloadContext || op == OpPrepare || (op == OpReboot && row.Live() && row.Orphan == nil) {
+	if op == OpRelaunch || op == OpReloadContext || op == OpPrepare {
 		return c.prepareLiveRestart(ctx, op, target, row, path, RestingBranch(ref.Number), opts)
 	}
 	offered := ActorActions(ActorRowFactsOf(row))
-	if !slices.Contains(offered, op) && !(op == "recover" && RecoverOffered(offered)) {
+	if op != "resume" && op != OpReboot && !slices.Contains(offered, op) && !(op == "recover" && RecoverOffered(offered)) {
 		state := string(row.State)
 		if row.Reason != "" {
 			state += " (" + string(row.Reason) + ")"

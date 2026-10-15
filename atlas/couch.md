@@ -20,14 +20,15 @@ Zellij's positive non-EXITED listing authorizes Continue/attach, including
 sessions launched by older Pair binaries without policy files. A failed
 listing never authorizes attachment. Observations get one bounded retry;
 uncertainty is disclosed with a recovery action rather than a pending-only row.
-An attributed running owner prevents executable Resume until the recovery
-confirmation path can retire it. In replacement M1, rows whose Fresh execution
-needs M2 confirmation retain their existing Relaunch/recovery path instead of
-a refused Fresh button. Ineligible native candidates remain read-only evidence.
-An unfinished Couch start claim without a positive listing shows **Starting**
-and read-only details; M2 must bound that state by owner liveness and age, then
-provide confirmed Resume/Fresh. Agent activity never demotes a positively
-listed session from Continue.
+Explicit recovery now uses the shared prepared path in #556 M1: an attributed
+running owner requires confirmation of its exact process generations before any
+stop. The person and authenticated owning hub use the same confirmation; unknown
+or foreign remnants are left untouched and Fresh allocates a new terminal identity.
+An unlisted start claim ceases to be Starting after five minutes or proven owner
+death. Native recovery fences the exact old nonce before making a new claim;
+Fresh archives the source and allocates a new tag. Age never authorizes killing
+the Couch supervisor. Agent activity never demotes a positively listed session
+from Continue.
 
 Public Continue attaches through `couchcore/warm_attach.go`. After attachment,
 it may replace only a proven-dead client-helper incarnation with its exact
@@ -89,8 +90,8 @@ A broken message channel does not authorize restarting a functioning agent.
 Older wrappers with an unlinked endpoint remain usable by terminal, with
 “messaging unavailable until next relaunch.” New-wrapper endpoint repair is a
 separate follow-up (#557). Resume/Fresh execution and confirmation by the person
-or hub are tracked in #556 with a separate acceptance boundary; M1's projection is not a claim
-those revised execution paths have been accepted.
+or hub share #556's prepared recovery path, described below. Native admission
+against concurrent writers is a separate #556 M2 boundary.
 
 Graceful Couch detach can retire a proven-dead helper before the next Couch
 starts. A listed-live terminal with no retained incarnation then attaches as
@@ -1569,47 +1570,35 @@ nor matched: `ThreadReferenceFields` is `{Address, Label, WorkingPath, Summary}`
 store resolution leaves `Label` and `Summary` empty (tag and path only), and the
 switcher passes what a row shows.
 
-**Resume and reboot are the actor operations for a row that is not live (#363).**
-`resume` (`Couch.ResumeTarget`, `couchcore/resume_route.go`) gets the old
-conversation back by whatever path works: a pure `ChooseResumeRoute` hands the
-row to `OpenSlot` (warm, cold, or adopting a conversation whose pointer couch
-lost -- on resume's guessed agent only through the native ledger, which binds
-per agent; a record-less detached survivor is refused `resume-survivor-unproven`
-because the detached proof cannot tell which agent runs), `Continue`,
-`RecoverThread` or `ResumeContextWith`. It takes a slot `path` or a thread
-address; `warm-only` (the background reattach pass) stays a direct warm-only
-resume. A refusal whose transcript cannot come back names reboot; the
-`ResumeRebootAdvice` map classifies every `ResumeDiagnosticCode`, so transient
-refusals say retry instead. `reboot` (`Couch.Reboot`, `couchcore/reboot.go`)
-archives the old record with its evidence and starts a fresh agent with a new
-tag in the same slot or path, without touching the worktree; a pure
-`DecideReboot` picks archive-and-start, archive-only (directory missing, or an
-unreadable `:0`), start-only, or refuse, and `RebootableState` is archive's
-admission rule. The fresh profile resolves before `prepareRetirement`
-(`ArchiveThread`'s admission and quiesce half) stops anything, and the retire
-plus the fresh claimed record commit in one store journal: `replaceSlotCurrent`
-for `:1+`, `ThreadStore.ReplaceThreadExpected` for `:0`, which composes the
-same `archiveJournalEntries` / `createJournalEntries` builders `archiveThread`
-and `CreateThread` use. Fresh records start without the stored name and
-description; the archived record keeps them. Both kinds report the retirement
-half through one `retiredResult`, including a session left unstopped.
+**Resume and Fresh share prepared recovery (#556).**
+`ResumeTargetWith` (`couchcore/resume_route.go`) gives a positively listed terminal
+Continue priority and starts only an attach helper, including the background
+warm-only pass. Lost pointers can adopt one proved existing terminal; they never
+repair a checkout or start an agent. Existing pending/running #522 continuation
+requests retain their exact executors. Actual cold native resume and the thin
+`Reboot`/`ResumeCandidate` facades enter `executePreparedRecovery`
+(`recovery_prepared.go`). Native resume carries no Prompt. Fresh allocates a new
+tag and uses the normal #522 Prompt to point at previous-screen, branch and issue
+evidence. The raw unreadable-primary archive escape stops and launches nothing.
 
-**Reboot of a live row (pair#456).** Relaunch needs a conversation to resume, so
-a live session that never finished a turn (`resume-binding-unbound`) or an
-old-wrapper Codex slot stuck `resume-binding-provisional` has no relaunch; those
-refusals now name reboot (`withRebootHint`, `relaunch.go`). `RebootAdmitted`
-admits a live row only when the call carries an idle verdict
-(`require-settled`): remote `couch --reboot repo:N --confirm` gets it from
-`prepareLiveRestart` / `DecideLiveRestart` (busy refuses, busy-unknown unless
-`--force-unknown`, a dirty tree is only noted), and the switcher's `Tab → reboot`
-on a live row sends `forced` (`liveRebootArgs`; the operator is looking, a known
-busy still refuses). Under the reboot hold the order is: `rebootAdmit`
-classifies and admits with no effect; the fresh-profile preflight resolves; only
-then `rebootStopLive` re-checks busy (`LiveRestart.ConfirmNotBusy`), parks the
-thread with the Pair lifecycle's `ParkExpected` (no binding needed) and
-reclassifies; then `prepareRetirement` and the start run as for a parked reboot.
-So a profile that cannot resolve leaves the live agent running (ARCH-ORDER). A
-call without the verdict (recover's reboot step) still refuses a live row.
+Preparation resolves the normal saved profile, preserves available screen and
+durable selection, and obtains exact, expiring stop acceptance before retirement.
+`--recovery-confirmation TOKEN` lets the owning hub accept the same offer as the
+menu without repeating the target. A settled connected source uses
+`PairLifecycle.ParkExpected`; a damaged source uses the immutable confirmed
+terminal plan (`launcher/recovery_terminal_confirmed.go`). Retirement succeeds
+only after every accepted process generation is independently proved gone.
+`--force-unknown` is not retirement authority. Unproved/foreign owners remain
+untouched; Fresh uses a distinct terminal identity and read-only checkout
+readiness instead of reconciling setup beneath them. Normal workspace repair is
+permitted only after absence is proved. Record replacement uses the existing
+slot/global archive journal, preserving open lifecycle evidence in the archive.
+
+Unconfirmed launch acknowledgment or registration retains the exact pending
+claim, reobserves it once, and reports uncertainty. It never silently kills the
+possible new agent or replaces it with Fresh. A StartClaim whose owner is dead
+or which is older than five minutes offers explicit recovery rather than staying
+Starting. Profile failure still leaves the existing agent untouched.
 
 **The switcher's per-row actions are one pure table (#363 M2).**
 `menuActionItems(row)` is `menuRowActions(menuRowFactsOf(row))`
@@ -1620,8 +1609,10 @@ continuation, resumable, unusable, unknown, busy) plus `ResumeOffered`,
 the Spec table over them. Live rows get detach, relaunch, park and switch coding
 agent (`:0` adds alias and add slot); rows that are not live get resume and
 reboot, and a `:0` among them also gets add slot unless its directory is missing
-(pair#402: a new slot needs the primary checkout, not `:0`'s agent); unknown,
-busy and live-pending rows get nothing, and `menuRowAdviceOf`
+(pair#402: a new slot needs the primary checkout, not `:0`'s agent). The
+legacy action table supplies Relaunch for unknown/needs-relaunch rows and details
+for genuinely in-flight work; the recovery frame adds explicit disk choices and
+Fresh independently of scan/TTY availability. `menuRowAdviceOf`
 reads the same facts to say why ("state could not be checked", "starting
 elsewhere", `RebootDirectoryMissing` on a `:1+`, `RebootCheckoutMissing` on a
 `:0`). It is the one home of every row-facing next step -- the status
@@ -2730,8 +2721,8 @@ included -- whose primary (`:0`, an ordinary target; slot rows are `:1+` and
 never count) is live, detached or parked. Startup reaches the same rows first
 and resumes instead, so the refusal is the start form's: "couch keeps one
 primary slot per repository", naming the thread's label and a fresh step its row
-can take (`primaryFreshStep`: `Tab → reboot` where `RebootableState` permits it,
-otherwise `Alt+Shift+N` inside the live thread). Known debris does not block --
+can take (`primaryFreshStep`; explicit Fresh uses prepared recovery and any
+required exact-stop acceptance). Known debris does not block --
 a repository whose only primary rows are unusable-but-classified must stay
 startable (resolved ambiguity 9). A linked worktree that is not a slot has its
 own scope, so its own primary. Couch starts only inside a Git repository:
@@ -3533,7 +3524,7 @@ consumed by the guard that would otherwise re-derive one:
 |---|---|---|---|
 | switch-agent | `SwitchableState` | `PrepareAgentSwitch` | `live`, `parked`, `binding-lost`, `session-gone` |
 | archive | `ArchivableState` | `Couch.ArchiveThread` (via `classifyForAction`) | `detached`, `parked`, every unusable reason **except** `unknown` |
-| reboot | `RebootAdmitted` (`RebootableState` = `ArchivableState`, or `live` with an idle verdict, pair#456) | `Couch.Reboot` (`rebootAdmit`; preflight; `rebootStopLive` for a live row; then `prepareRetirement`) | archive's set, plus `live` |
+| reboot / Start fresh | explicit Fresh selection, version/config/checkout validation and any exact-stop acceptance | `Couch.Reboot` → shared prepared recovery | Fresh remains available independently of native scan/TTY evidence; unknown owners are left untouched |
 | resume | `ResumableState` | `SelectResumableRoot` | `detached`, `parked` |
 
 The switcher's **offer** is written separately, in the action table
@@ -3842,3 +3833,107 @@ steps. They report retry backoff when it occurs; they do not report cold claims,
 native registration or promotion. Explicit fleet detach shares one lazy owner
 observation scope. Only locally owned warm clients need the borrowed-helper
 preview; managed detach retains its normal generation and session checks.
+
+## Confirmed disk recovery (#556 M1)
+
+`couch --resume-candidates repo:N --json` includes a proven native binding when
+available, plus explicit ranked candidates with their evidence. There are at most
+five disk choices total: a proven default plus four candidates, or the best
+candidate plus four alternatives. Automatic inference stays off. Plain
+`couch --resume repo:N` chooses proven resume; `--candidate KEY` chooses that exact
+ranked evidence snapshot. `couch --reboot repo:N --confirm` requests Fresh, including
+when transcript scans or previous screen evidence are incomplete or absent.
+
+Before retirement the executor resolves the saved configuration, checks workspace
+identity, preserves available screen evidence under its existing retention owner,
+and durably records the selected intent. Native launch rechecks that selection at
+the claim and Pair execution gates. Proven resume needs no screen; inferred resume
+still requires its strict capture/candidate provenance. Fresh uses normal saved
+path/default configuration when no conversation profile remains; agents cannot
+supply recovery argv or edit defaults.
+
+A request that would stop attributed running processes returns an exact stop set
+and a short-lived confirmation command, `couch --recovery-confirmation TOKEN`.
+That standalone command works for the owning authenticated hub without the menu.
+The token is in memory, single-use, valid for two minutes, and bound to the
+confirmer, source revision, selection, native identity and terminal attribution.
+Changed ownership or generations require a new selection/confirmation. Restarting
+Couch forgets unused confirmations. Menu and CLI dispatch the same executor.
+
+Selected recovery intent lives in schema-4 thread/start records; schema-3 records
+are migrated in memory without startup writes. Future schema versions refuse
+mutation. Fresh archives the source through the existing store journal and always
+allocates a new tag, preserving metadata and native files while avoiding namespace
+reuse. Its ordinary #522 first-message Prompt points at the previous-screen peek,
+exact retained paths when available, branch and issue. Native resume has no Prompt.
+The previous-screen reader validates retained capture ownership and file identities;
+orientation is display evidence, never native launch authority.
+
+After an acknowledged or uncertain launch, loss of registration does not authorize
+cleanup or another agent. One bounded exact-attempt reobservation can prove
+success; otherwise the retained claim is reported as unconfirmed with inspection
+coordinates. Pre-exec definite failures retain ordinary rollback behavior.
+Implementation owners: `couchcore/recovery_prepared.go`,
+`recovery_confirmation.go`, `recovery_start_fence.go`, `launch_existing.go`,
+`launcher/recovery_terminal.go`, and `threadrecord/recovery.go`.
+
+The queue's `couch --internal recovery-confirmation --token TOKEN` operation
+shares the same token owner as the standalone public CLI; it is transport plumbing,
+not a second confirmation mechanism. The token argument is never stop authority
+without the bound source/actor/generation rechecks.
+
+`Reboot` is a facade over prepared Fresh, including ordinary saved configuration
+for an explicitly chosen agent. Its earlier independent park/stop/launch pipeline
+is removed. The existing corrupt-primary/no-usable-path archive escape remains:
+exact bytes move through the archive journal with expected-byte CAS, no process
+is stopped, and the result says no fresh agent started. Structurally valid future
+record versions refuse mutation. A numbered slot with no record can still start
+Fresh beside unknown remnants using a distinct tag and read-only checkout
+validation; its notice says workspace setup was not refreshed.
+
+
+## Native conversation admission (#556 M2)
+
+Every new native resume is classified at the common launcher gate, including
+ordinary Pair launches outside Couch. Exact canonical IDs and supported
+Claude/Qoder latest selectors resolve once and use an explicit canonical ID
+before launch identity is published. Codex indirect selectors (latest, picker,
+native names/search or prefixes) preserve native CLI behavior unreserved and show
+one line at actual execution saying concurrent native resume is not guarded.
+This explicit compatibility exception lasts until the faithful adapter in #571;
+it never bypasses a nonempty invalid or replayed grant, and full canonical UUID
+resumes still require admission. Unknown indirect targets are not recorded as
+proven canonical IDs. The classifier follows native command positional grammar after an option terminator: a Codex/Muse resume session ID after `--` remains an identity, while latest/already-bound/top-level prompt text stays literal. Pinning preserves the real delimiter and changes only the selected identity; measured option-value rules are shared with Fresh validation. Forks and newly chosen
+session IDs have separate semantics and never claim the source conversation as
+an existing writer. Saved defaults are not rewritten by resolution.
+
+The bounded cross-repository authority is
+`~/.cache/pair/native-admission-v1.json`, coordinated by the stable adjacent
+`native-admission-v1.lock`. A reservation binds agent, canonical native ID, launch
+attempt, strict helper generation and final argv digest. The wrapper consumes its
+opaque grant once before PTY spawn and publishes its exact child generation before
+readiness or watcher startup. The lock is never held across native spawn or the
+terminal lifetime; different native IDs can proceed independently. Legacy owners
+remain checked through bounded Pair metadata and process evidence, including a
+retained native child whose wrapper has died.
+
+Only definitely unexposed reservations may be cancelled by their helper. On the
+next admission, an unconsumed reserved grant whose exact helper is proven dead
+is revoked under the same store lock used by wrapper Claim; a delayed wrapper
+cannot execute the revoked grant. If Claim wins first, the resulting spawning
+entry stays retained. Uncertain child publication, missing readiness or a dead
+wrapper alone never releases a conversation. A running
+entry is collected only when both exact wrapper and child are proven dead; unknown
+process observations retain it. These are internal authority states, not new menu
+outcomes. Corrupt, oversized or full authority refuses admission rather than silently
+forgetting possible writers. Fresh remains a separate conversation.
+
+Owners: `launcher/native_admission.go`, `native_admission_os.go`,
+`native_createflow_os.go`, `native_resume_selector*.go`,
+`recovery_native_owner*.go`, `sessioninventory/native_selector*.go`, and
+`wrapcmd/native_admission.go`. Provider latest support is constrained by measured native ordering and positively
+resolved effective configuration. Unsupported/incomplete mappings for other
+agents report exact-ID/Fresh advice. Codex's approved unreserved exception is owned
+by the shared CodexIndirectResumeCompatibility policy, with one wrapper notice;
+#571 will read effective configuration from files and verify native DB semantics.
+No app-server configuration process is part of this implementation. Unsupported remote/PR/cloud and other existing-context selectors derive from the same authority as Fresh validation and refuse before launch, including both wrapper entry forms; option values and prompt text remain literal.

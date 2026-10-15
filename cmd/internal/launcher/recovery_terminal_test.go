@@ -3,6 +3,7 @@ package launcher
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"strings"
 	"testing"
@@ -13,11 +14,16 @@ import (
 )
 
 type recoveryTerminalWorld struct {
-	snapshot   recoveryTerminalSnapshot
-	events     []string
-	observeErr error
-	onAcquire  func()
-	onKill     func()
+	snapshot      recoveryTerminalSnapshot
+	events        []string
+	observeErr    error
+	onAcquire     func()
+	onKill        func()
+	onPresent     func()
+	onProcessKill func(int)
+	signals       []string
+	keepProcesses bool
+	cascadeServer bool
 }
 type recoveryTerminalLease struct{ w *recoveryTerminalWorld }
 
@@ -40,7 +46,11 @@ func (w *recoveryTerminalWorld) Observe(ctx context.Context, session string) (re
 	return w.snapshot, nil
 }
 func (w *recoveryTerminalWorld) SessionPresent(context.Context, string) (bool, error) {
-	return len(w.snapshot.Servers) > 0, nil
+	present := len(w.snapshot.Servers) > 0
+	if w.onPresent != nil {
+		w.onPresent()
+	}
+	return present, nil
 }
 func (w *recoveryTerminalWorld) KillServer(server SessionServerIdentity) error {
 	w.events = append(w.events, "kill")
@@ -54,6 +64,20 @@ func (w *recoveryTerminalWorld) KillServer(server SessionServerIdentity) error {
 		}
 	}
 	w.snapshot.Servers = remaining
+	if w.cascadeServer {
+		rows, _ := recoveryRows(w.snapshot)
+		var pids []int
+		for _, p := range w.snapshot.Processes {
+			if recoveryDescendant(server.PID, p.PID, rows) {
+				pids = append(pids, p.PID)
+			}
+		}
+		for _, pid := range pids {
+			w.removeProcess(pid)
+		}
+	}
+	w.removeProcess(server.PID)
+	w.signals = append(w.signals, fmt.Sprint(server.PID))
 	return nil
 }
 func recoveryTerminalFixture(t *testing.T, n int) (*recoveryTerminalWorld, recoveryTerminalDriver) {
@@ -63,7 +87,7 @@ func recoveryTerminalFixture(t *testing.T, n int) (*recoveryTerminalWorld, recov
 		t.Fatal(err)
 	}
 	paths, _ := artifactpath.ResolveScoped(owner.Directory(), owner.Tag)
-	w := &recoveryTerminalWorld{snapshot: recoveryTerminalSnapshot{Commands: map[int]string{}}}
+	w := &recoveryTerminalWorld{cascadeServer: true, snapshot: recoveryTerminalSnapshot{Commands: map[int]string{}}}
 	for i := 0; i < n; i++ {
 		pid := 10 + i*10
 		server := SessionServerIdentity{PID: pid, Identity: "server-start", Session: "session", Socket: "/tmp/sockets/session"}
@@ -208,5 +232,22 @@ func TestRecoveryTerminalAcquireCannotRewriteInitialSnapshot(t *testing.T) {
 	}
 	if !strings.HasSuffix(strings.Join(w.events, ","), "release") {
 		t.Fatal("changed acquisition leaked lease")
+	}
+}
+
+func TestRecoveryTerminalStrictDoesNotMistakeServerExitForOwnerAbsence(t *testing.T) {
+	w, d := recoveryTerminalFixture(t, 1)
+	w.cascadeServer = false
+	p, err := d.prepare(context.Background(), "/data", "0123456789abcdef", "work", "session")
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.timeout = 10 * time.Millisecond
+	d.poll = time.Millisecond
+	if err = d.retire(context.Background(), p); err == nil {
+		t.Fatal("strict retirement succeeded with surviving accepted editor")
+	}
+	if len(w.signals) != 1 || w.signals[0] != "10" {
+		t.Fatalf("strict path expanded authority: %v", w.signals)
 	}
 }

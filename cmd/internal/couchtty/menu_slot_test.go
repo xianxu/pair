@@ -46,7 +46,7 @@ func TestMenuSlotSelectionSurvivesConversationReplacement(t *testing.T) {
 		t.Fatalf("replacement selection %+v", row)
 	}
 }
-func TestMenuSlotRebootConfirmsAndSendsThePath(t *testing.T) {
+func TestMenuSlotRebootDispatchesAndSendsThePath(t *testing.T) {
 	row := menuSlotRow(1, "")
 	items := menuActionItems(row)
 	if !slices.Contains(items, "reboot") {
@@ -56,11 +56,6 @@ func TestMenuSlotRebootConfirmsAndSendsThePath(t *testing.T) {
 	state, _ = reduceRootKey(state, PanelKey{Kind: KeyTab})
 	state.Frames[len(state.Frames)-1].SelectedItem = "reboot"
 	state, effects := reduceActionKey(state, PanelKey{Kind: KeyEnter})
-	if len(effects) != 0 || state.CurrentFrame().Kind != MenuFrameConfirmation {
-		t.Fatalf("reboot bypassed confirmation: %+v", effects)
-	}
-	state.Frames[len(state.Frames)-1].SelectedItem = "reboot"
-	_, effects = reduceConfirmationKey(state, PanelKey{Kind: KeyEnter})
 	if len(effects) != 1 || effects[0].Operation != "reboot" || effects[0].Args["path"] != row.WorkingPath {
 		t.Fatalf("reboot effects %+v", effects)
 	}
@@ -105,15 +100,10 @@ func TestMenuSlotOperationCompletionAcceptsNewConversation(t *testing.T) {
 	}
 }
 
-func confirmSlotFresh(t *testing.T, state MenuState, effects []MenuEffect) (MenuState, []MenuEffect) {
+func assertFreshDispatch(t *testing.T, state MenuState, effects []MenuEffect) (MenuState, []MenuEffect) {
 	t.Helper()
-	if len(effects) != 0 || state.CurrentFrame().Kind != MenuFrameConfirmation || state.CurrentFrame().Action != "reboot" {
-		t.Fatalf("fresh bypassed confirmation: %+v %+v", state.CurrentFrame(), effects)
+	if len(effects) != 1 || effects[0].Operation != "reboot" || state.CurrentFrame().Kind == MenuFrameConfirmation || state.InFlight.Operation != "reboot" {
+		t.Fatalf("Fresh did not dispatch to backend preparation: frame=%+v effects=%+v", state.CurrentFrame(), effects)
 	}
-	state.Frames[len(state.Frames)-1].SelectedItem = "reboot"
-	next, effects := reduceConfirmationKey(state, PanelKey{Kind: KeyEnter})
-	if len(effects) != 1 || effects[0].Operation != "reboot" {
-		t.Fatalf("fresh confirmation effects: %+v", effects)
-	}
-	return next, effects
+	return state, effects
 }

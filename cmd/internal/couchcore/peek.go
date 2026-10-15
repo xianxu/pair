@@ -204,7 +204,7 @@ func (c *Couch) PeekThreadSelection(ctx context.Context, ref string, address Thr
 			result.Unavailable = append(result.Unavailable, "previous tty capture is unavailable")
 			return result, nil
 		}
-		if c.SlotCapture == nil {
+		if source.Capture != nil && c.SlotRetainedCapture == nil || source.Capture == nil && c.SlotCapture == nil {
 			result.Unavailable = append(result.Unavailable, "exact recording reader is unavailable")
 			return result, nil
 		}
@@ -212,10 +212,15 @@ func (c *Couch) PeekThreadSelection(ctx context.Context, ref string, address Thr
 		if selection.All {
 			limit = 0
 		}
-		capture, err := c.SlotCapture(address, source.Agent, source.Token, limit)
+		var capture TerminalRecording
+		if source.Capture != nil {
+			capture, err = c.SlotRetainedCapture(ctx, address, source.Agent, *source.Capture, limit)
+		} else {
+			capture, err = c.SlotCapture(address, source.Agent, source.Token, limit)
+		}
 		result.Raw, result.Events = capture.Raw, capture.Events
 		if err != nil {
-			if selection.All {
+			if selection.All && source.Capture == nil {
 				return result, err
 			}
 			result.Unavailable = append(result.Unavailable, "recording: "+err.Error())

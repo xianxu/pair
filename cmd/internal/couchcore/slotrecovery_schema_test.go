@@ -8,7 +8,7 @@ import (
 )
 
 func TestSlotCurrentObservationMigratesLegacyRecordVersions(t *testing.T) {
-	for _, version := range []int{1, 2} {
+	for _, version := range []int{1, 2, 3} {
 		t.Run(string(rune('0'+version)), func(t *testing.T) {
 			s := testLocalThreadStore(t)
 			record := recordAtCheckout(t, s.slot.WorktreeRoot, s.slot.WorktreeRoot, "couch-0123456789abcdef")

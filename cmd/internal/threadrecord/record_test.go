@@ -146,7 +146,7 @@ func TestDecodeV1MigratesToCurrentSchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DecodePersisted(v1): %v", err)
 	}
-	if record.SchemaVersion != SchemaVersion || SchemaVersion != 3 {
+	if record.SchemaVersion != SchemaVersion || SchemaVersion != 4 {
 		t.Fatalf("schema = %d, current = %d", record.SchemaVersion, SchemaVersion)
 	}
 	if record.LatestLaunchProfile != nil || record.Park != nil || record.VerifiedPark != nil || record.ParkHistory != nil || !record.LastActiveAt.IsZero() {

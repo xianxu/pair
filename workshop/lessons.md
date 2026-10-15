@@ -7,6 +7,12 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- Decode persisted authority into zero values and require its version/collection fields explicitly. Only file absence permits initialization: decoding `{}` over a prefilled default can erase unresolved ownership and admit a second writer. Test missing fields, top-level null and null collections separately from valid empty state. (#556 M2)
+
+- Normalize an advertised choice through its validated key before applying mode-specific admission. A shared candidate route may represent Fresh as well as resume; test explicit and keyed forms against every native-only guard and run the printed command/menu route. (#556 BR-5)
+
+- Never copy a synchronized owner to substitute one dependency for a preview. Pass the read-only store into its existing resolver; construct focused test fixtures from dependencies rather than copying live mutexes. Run copylocks vet after the sweep. (#556 BR-4)
+
 - A getter may replay durable transactions or enroll retention through its lock path. Automatic startup/authentication readers use a shared preview accessor, and regressions preserve a valid pending journal in global and routed slot-local stores; prove explicit lifecycle reads can still replay the same journal. Carry cancellation through routing as well as the final file read. (#528 BR-12)
 
 - Terminal integration assertions read projected cells, not concatenated delta writes: a cursor-positioned suffix can complete a phrase that never occurs contiguously in the byte stream. Await a view-specific marker before releasing concurrent effects; status-bar labels do not prove the switcher opened. Split effect-count and visible-outcome assertions so failures identify the missing observation. (#528 BR-11)
@@ -1882,8 +1888,23 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
 - #564 integration: when upstream changes a public route, move regression observers to the current route and prove the original hazard still applies before retaining a fix. Assert cancellation propagation at the observer before cleanup cancels the child; a final error alone can be produced by a different parent check.
 - #562 close review: enumerate subprocess outcomes before learning monotone bounds. Nonempty diagnostics do not turn a failed/canceled query into acceptance; check cancellation before parsing even validator-looking fragments. Preserve only source-verified complete validator outcomes, with real-subprocess negative and positive controls. Keep Done-when and completed Plan rows at the level of evidence actually delivered: a source-derived fake is not an upstream receiver regression or a captured wire ordering.
 
+- #556: Authenticate a recovery confirmer against the exact live process
+  generation as well as broker nonce/session. A PID-file binding alone survives
+  PID reuse and cannot authorize stopping another slot.
+- #556: Wrapper death does not prove the native transcript has no writer.
+  Native admission must retain the child generation through reparenting and
+  uncertain readiness; explicit Fresh remains the safe alternative.
 - #204 plan/code review: a shared initial process capture is not a total scan budget. Count full enumerations at the reader boundary, including named-snapshot live fences, and propagate one instance through every adapter. Keep ratchets as upper bounds with separate positive connection/success controls so improvements can pass. Consumer regressions must enter actual scheduling/socket/attach paths; cold and mutation controls defend against disconnected observers.
 
+- Recovery under foreign survivors needs read-only readiness on every entry path,
+  including retained-record Fresh; a different terminal tag does not isolate a
+  shared checkout from workspace reconciliation (pair#556 BR-1).
+- Retirement tests must independently assert every advertised process generation
+  is absent. A successful server signal or empty server list does not establish
+  child/native-owner death; model orphan and reparented survivors (pair#556 BR-2).
+- When replacing a public recovery flow, sweep README and older Atlas accounts
+  as well as the new feature section so obsolete admission rules do not survive
+  beside the current contract (pair#556 BR-3).
 - #568: A silent nonzero editor exit can happen after all assertions pass. Capture the return code, pre-exit messages and case-local Neovim log before cleanup. Own filesystem watchers through explicit stop/close before global teardown and invalidate already-queued callbacks; a startup delay or isolated green run does not establish disposal.
 
 - #568 inventory gate: a new native runtime helper needs both its canonical source classification and its generated-mirror classification in artifactpath’s exhaustive manifest. Run that package immediately after adding the file; the embedding build alone does not validate source participation.
@@ -1896,6 +1917,10 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
 - #573 wire verification: when adding a time.Time field, audit whole-struct comparisons across JSON/socket boundaries. Assert nonzero/Equal instant preservation before normalizing process-local monotonic metadata; never drop the field from integrity coverage. Run the real wrapper/broker integration as well as producer and recorder tests.
 
 - #573 close review: canonical deduplication must retain every admitted alias needed for authority. Keep aliases with their historical interval, share the derived inventory across locks and legacy handoff, and test rename/reuse/late delivery. Enforce reader envelopes at every metadata producer before an earlier destructive effect: import, whole-read refresh and section-preserving writes can each exceed a limit independently of the document's current size.
+- #556 M2 review: classify existing-session selectors from the same context authority used by Fresh validation; a remote/PR selector is not an ordinary launch simply because inventory cannot resolve it. Test both native wrapper entry forms and literal option/prompt controls.
+- #556 M2 review: a reserved capability needs revocation as well as consumption. Serialize exact dead-helper revocation with Claim, and test both lock orders: revoke first rejects delayed authority; Claim first retains uncertain spawning ownership. Helper death never proves an already-authorized child dead.
+
+- #556 whole-issue BR-6: an option terminator ends flag recognition, not a native command's positional identity grammar. Parse command/option/positional modes together, including literal -- option values; pin by token identity, not the first raw delimiter. Test canonical IDs after -- through launcher and both wrapper transports, with latest, prompt, fork/new and real value-option controls.
 ### 2026-10-15 — bound filesystem ancestry in discovery tests (#572 BR-1)
 
 A temporary directory is not necessarily outside the checkout: SDLC review

@@ -2,10 +2,10 @@ package couchcore
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"testing"
 
@@ -275,10 +275,16 @@ func TestRecoverPlanStepsConverge(t *testing.T) {
 	if len(after) != len(untouched) {
 		t.Errorf(":5's slot store changed: %v -> %v", untouched, after)
 	}
-	// A resend converges: the slot is live, so resume is not offered.
-	_, _, err = w.env.Couch.PrepareSlotOperation(ctx, "resume", w.address(1), LiveRestartOptions{})
-	var refusal *SlotOperationError
-	if !errors.As(err, &refusal) || refusal.Code != SlotOpNotOffered {
-		t.Fatalf("resend: %v", err)
+	// Resume admission remains valid for a live row: execution chooses Continue
+	// from the positive listing rather than rejecting the slot or creating a
+	// second native conversation. Admission itself has no lifecycle effects.
+	before, readErr := w.env.Couch.Threads.PreviewThreadContext(ctx, w.records[1].Address)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	call, _, err := w.env.Couch.PrepareSlotOperation(ctx, "resume", w.address(1), LiveRestartOptions{})
+	afterRecord, afterErr := w.env.Couch.Threads.PreviewThreadContext(ctx, w.records[1].Address)
+	if err != nil || call.Name != "resume" || afterErr != nil || !reflect.DeepEqual(before, afterRecord) {
+		t.Fatalf("resend admission: call=%+v err=%v recorderr=%v", call, err, afterErr)
 	}
 }

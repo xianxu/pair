@@ -1,0 +1,535 @@
+package couchcore
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/orientation"
+	"github.com/xianxu/pair/cmd/internal/rowtext"
+	"github.com/xianxu/pair/cmd/internal/storagegc"
+	"github.com/xianxu/pair/cmd/internal/threadrecord"
+)
+
+func recoverySelectionDigest(record ThreadRecord, selection RecoverySelection, terminal RecoveryRetirement) string {
+	b, _ := json.Marshal(struct {
+		Record    ThreadRecord
+		Selection RecoverySelection
+		Terminal  string
+		Stops     []RecoveryStopProcess
+	}{record, selection, terminal.Digest, terminal.Stops})
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
+}
+
+func (c *Couch) recoveryObservation(ctx context.Context, record ThreadRecord) RecoveryObservation {
+	observation := RecoveryObservation{Agent: RecordAgent(record), Incomplete: true, Reasons: []string{"Previous screen or native evidence unavailable; working context may be lost."}}
+	if c.RecoveryEvidence != nil {
+		for attempt := 0; attempt < 2; attempt++ {
+			got, err := c.RecoveryEvidence(ctx, record)
+			if err == nil {
+				observation = got
+				if !got.Incomplete {
+					break
+				}
+			} else {
+				observation.Reasons = []string{rowtext.Sanitize(err.Error()), "Previous screen or native evidence unavailable; working context may be lost."}
+			}
+			if ctx.Err() != nil {
+				break
+			}
+		}
+	}
+	if observation.Agent == "" {
+		observation.Agent = RecordAgent(record)
+	}
+	if observation.Branch == "" && c.Git != nil {
+		observation.Branch, observation.Issue = (OSRecoveryEvidenceReader{Git: c.Git}).recoveryBranchIssue(ctx, record)
+	}
+	return observation
+}
+
+func (c *Couch) executePreparedRecovery(ctx context.Context, selection RecoverySelection, confirmation string) (result RecoveryResumeResult, retErr error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if selection.Kind != RecoveryProven && selection.Kind != RecoveryInferred && selection.Kind != RecoveryFresh {
+		return result, errors.New("choose Resume from disk or Start fresh")
+	}
+	_, record, err := c.recoveryTarget(ctx, selection.Target)
+	if err != nil {
+		if selection.Kind == RecoveryFresh && selection.Target.Path != "" && errors.Is(err, ErrThreadNotFound) {
+			return c.startFreshRecoveryWithoutRecord(ctx, selection)
+		}
+		return result, err
+	}
+	ctx, release, err := c.hold(ctx, record.Address, "confirmed-recovery")
+	if err != nil {
+		return result, err
+	}
+	defer release()
+	current, err := c.Threads.PreviewThreadContext(ctx, record.Address)
+	if err != nil {
+		return result, err
+	}
+	record = current
+	selection.Reference, err = c.recoverySlotAddress(ctx, record)
+	if err != nil {
+		return result, err
+	}
+	if selection.Kind == RecoveryProven {
+		listed, listErr := c.observeRecoverySession(ctx, record, RecoveryEvidence{})
+		if listErr == nil && listed.Presence == PresencePresent {
+			actor, handle, err := c.ResumeContextWith(ctx, record.Address, ResumeOptions{WarmOnly: true})
+			return RecoveryResumeResult{Start: StartResult{Record: actor, Handle: handle}, Notice: "Continue"}, err
+		}
+	}
+	// Resolve an advertised key before mode-specific profile and lifecycle
+	// guards: the candidate route can represent Fresh as well as native resume.
+	observe := func() RecoveryObservation {
+		observationCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+		return c.recoveryObservation(observationCtx, record)
+	}
+	keyedSelection := selection.Kind == RecoveryInferred
+	var observed RecoveryObservation
+	var choice RecoveryChoice
+	if keyedSelection {
+		observed = observe()
+		preview, err := DecideSlotRecovery(record, observed, c.Clock.Now())
+		if err != nil {
+			return result, err
+		}
+		choice, err = selectRecoveryChoice(preview, selection.CandidateKey)
+		if err != nil {
+			return result, err
+		}
+		if choice.NativeID == "" {
+			selection.Kind = RecoveryFresh
+		}
+	}
+	profile, err := c.recoveryLaunchProfileForSelection(ctx, record, selection)
+	if err != nil {
+		return result, err
+	}
+	if selection.Kind != RecoveryFresh {
+		if record.Park != nil {
+			return result, errors.New("a park transaction is unfinished; recover that park or Start fresh preserving it")
+		}
+		if err := continuationGuard(record); err != nil {
+			return result, err
+		}
+		if startClaimed(record) {
+			if len(record.Incarnations) != 1 || record.Incarnations[0].Start == nil {
+				return result, errors.New("multiple source claims require Start fresh preserving their records")
+			}
+			claim := record.Incarnations[0].Start
+			owner := observeExactProcess(c.Proc, ProcessIdentity{PID: claim.OwnerPID, Identity: claim.OwnerIdentity})
+			if !DecideStaleStart(record, ThreadEvidence{ObservedAt: c.Clock.Now(), StartOwner: owner}) {
+				return result, errors.New("source is still starting; wait for its bounded launch or choose Start fresh")
+			}
+		}
+	}
+	if !keyedSelection {
+		observed = observe()
+	}
+	if choice.Agent == "" {
+		choice.Agent = profile.Agent
+	} else if choice.NativeID != "" && choice.Agent != profile.Agent {
+		return result, errors.New("candidate no longer matches the saved agent")
+	}
+	if selection.Kind == RecoveryProven {
+		binding, err := c.resumeEvidence(ctx, record)
+		if err != nil {
+			return result, err
+		}
+		if !coldResumeAuthorized(binding) {
+			return result, refuseResolvedBinding(binding)
+		}
+		choice.NativeID = binding.NativeID
+	}
+	var retirement RecoveryRetirement
+	var notes []string
+	if c.RecoveryRetirement != nil {
+		retirement, err = c.RecoveryRetirement(ctx, record)
+		if err != nil {
+			if selection.Kind != RecoveryFresh {
+				return result, fmt.Errorf("source ownership unavailable; Start fresh leaves unproved remnants untouched: %w", err)
+			}
+			notes = append(notes, "unproved remnants left untouched: "+rowtext.Sanitize(err.Error()))
+			retirement = RecoveryRetirement{}
+		}
+	} else if c.RecoveryTerminal != nil && c.recoverySourceInactive(record) == nil {
+		retire, err := c.prepareRecoveryRetirement(ctx, record)
+		if err != nil {
+			return result, err
+		}
+		if retire != nil {
+			retirement = RecoveryRetirement{Digest: "strict inactive source", Check: func(context.Context) error { return c.recoverySourceInactive(record) }, Retire: func(ctx context.Context) error { _, err := retire(ctx, record); return err }}
+		}
+	}
+	if selection.Kind != RecoveryFresh {
+		if err := c.checkRecoveryNativeOwner(ctx, record, choice, true); err != nil {
+			return result, err
+		}
+		if len(retirement.Stops) == 0 {
+			if err := c.recoverySourceInactive(record); err != nil {
+				return result, err
+			}
+			if retirement.Retire == nil {
+				if err := c.confirmRecoveryAbsent(ctx, record); err != nil {
+					return result, err
+				}
+			}
+		}
+	}
+	var parkHelper *ThreadIncarnation
+	if len(retirement.Stops) > 0 {
+		parkHelper = c.recoveryParkHelper(ctx, record)
+		if parkHelper != nil {
+			named := false
+			for _, stop := range retirement.Stops {
+				named = named || stop.PID == parkHelper.PID && stop.Identity == parkHelper.Identity
+			}
+			if !named {
+				retirement.Stops = append(retirement.Stops, RecoveryStopProcess{PID: parkHelper.PID, Identity: parkHelper.Identity, Role: "client-helper"})
+			}
+		}
+	}
+	witness := recoveryConfirmationWitness{Address: record.Address, Revision: record.Revision, Selection: selection, Digest: recoverySelectionDigest(record, selection, retirement), NativeID: choice.NativeID}
+	if confirmation != "" {
+		if err := c.consumeRecoveryConfirmation(ctx, confirmation, witness); err != nil {
+			return result, err
+		}
+	} else if len(retirement.Stops) > 0 {
+		offer, err := c.issueRecoveryConfirmation(ctx, witness, retirement.Stops)
+		if err != nil {
+			return result, err
+		}
+		return result, &RecoveryConfirmationRequired{Offer: offer}
+	}
+	if retirement.Check != nil {
+		if err := retirement.Check(ctx); err != nil {
+			return result, err
+		}
+	}
+	repo, finish, err := c.prepareRecoveryLaunch(ctx, record, profile)
+	if err != nil {
+		return result, err
+	}
+	defer func() { retErr = errors.Join(retErr, finish(retErr == nil)) }()
+	orient := &threadrecord.RecoveryOrientation{Branch: observed.Branch, Issue: observed.Issue}
+	if observed.Capture.RawIdentity.Inode != 0 && !observed.Capture.CapturedAt.IsZero() && !c.Clock.Now().Before(observed.Capture.CapturedAt) && c.Clock.Now().Before(observed.Capture.CapturedAt.Add(storagegc.CaptureRetentionPeriod)) {
+		if c.RecoveryPreserve == nil {
+			return result, errors.New("capture preservation unavailable; source was not stopped")
+		}
+		preserved, err := c.RecoveryPreserve(ctx, record, observed)
+		if err != nil {
+			return result, err
+		}
+		observed = preserved
+		capture := preserved.Capture
+		orient.Capture = &capture
+	} else {
+		orient.Unavailable = "Previous screen unavailable or expired; use branch and issue evidence. Working context may be lost."
+	}
+	intent := threadrecord.RecoveryIntent{Mode: selection.Kind, Address: toPersistedThreadAddress(record.Address), SourceRevision: record.Revision, CreatedAt: c.Clock.Now(), Agent: profile.Agent, Orientation: orient, SelectedKey: fmt.Sprintf("%s:%s:%d", selection.Kind, record.Address.Tag, record.Revision), NativeID: choice.NativeID}
+	if selection.Kind == RecoveryInferred {
+		preview, err := DecideSlotRecovery(record, observed, c.Clock.Now())
+		if err != nil {
+			return result, err
+		}
+		var selected *RecoveryChoice
+		for i := range preview.Candidates {
+			if preview.Candidates[i].NativeID == choice.NativeID && preview.Candidates[i].Agent == choice.Agent {
+				selected = &preview.Candidates[i]
+				break
+			}
+		}
+		if selected == nil || preview.Snapshot == nil {
+			return result, errors.New("selected transcript disappeared during preservation")
+		}
+		choice = *selected
+		intent = threadrecord.RecoveryIntent{Context: *preview.Snapshot, SelectedKey: choice.Key, NativeID: choice.NativeID, SourceRevision: record.Revision}
+	}
+	if err := ctx.Err(); err != nil {
+		return result, err
+	}
+	phase := recoveryPrepared
+	record, err = c.Threads.PreserveRecoveryBeforeRetirement(record.Address, record.Revision, intent)
+	if err != nil {
+		return result, err
+	}
+	phase, err = AdvanceRecoveryExecution(phase, recoveryPreserved)
+	if err != nil {
+		return result, err
+	}
+	if retirement.Check != nil {
+		if err := retirement.Check(ctx); err != nil {
+			return result, err
+		}
+	}
+	if retirement.Retire != nil {
+		if err := ctx.Err(); err != nil {
+			return result, err
+		}
+		record, err = c.parkPreparedRecovery(ctx, record, parkHelper)
+		if err != nil {
+			return result, err
+		}
+		if err := retirement.Retire(ctx); err != nil {
+			return result, err
+		}
+	}
+	phase, err = AdvanceRecoveryExecution(phase, recoveryRetired)
+	if err != nil {
+		return result, err
+	}
+	if selection.Kind == RecoveryFresh {
+		return c.launchRecoveryFreshAddress(ctx, record, selection, profile, intent, phase, repo, notes)
+	}
+	if err := c.confirmRecoveryAbsent(ctx, record); err != nil {
+		return result, fmt.Errorf("source cannot yet be proved stopped; Start fresh can leave it untouched: %w", err)
+	}
+	record, err = c.fenceRecoveryStart(ctx, record, intent)
+	if err != nil {
+		return result, err
+	}
+	if cleared, err := c.clearLifecycleDebris(record); err != nil {
+		return result, err
+	} else if cleared != nil {
+		record = *cleared
+	}
+	if err := c.repairRetiredRecoveryWorkspace(ctx, record); err != nil {
+		return result, err
+	}
+	return c.launchPreparedSelection(ctx, record, selection, profile, intent, choice, phase, repo, notes)
+}
+
+func (c *Couch) launchPreparedSelection(ctx context.Context, record ThreadRecord, selection RecoverySelection, profile LaunchProfile, intent threadrecord.RecoveryIntent, choice RecoveryChoice, phase recoveryExecutionPhase, preparedRepo string, notes []string) (RecoveryResumeResult, error) {
+	var result RecoveryResumeResult
+	if _, err := AdvanceRecoveryExecution(phase, recoveryClaimed); err != nil {
+		return result, err
+	}
+	if err := ctx.Err(); err != nil {
+		return result, err
+	}
+	repo, err := c.resolveRepoIdentity(ctx, record.WorkingPath)
+	if err != nil {
+		return result, err
+	}
+	if repo != preparedRepo {
+		return result, errors.New("working repository changed during recovery; refresh the choice")
+	}
+	owner, err := c.Proc.Current()
+	if err != nil {
+		return result, err
+	}
+	nonce, err := allocateStartNonce(c.Entropy)
+	if err != nil {
+		return result, err
+	}
+	shape := StartColdResume
+	if selection.Kind == RecoveryFresh {
+		shape = StartFreshExisting
+	}
+	record, err = c.Threads.CommitStartClaim(record.Address, record.Revision, repo, c.Clock.Now(), StartEvent{Kind: StartClaimed, Shape: shape, Nonce: nonce, Owner: SupervisorOwner{PID: owner.PID, Identity: owner.Identity}, Profile: &profile, RecoveryIntent: &intent})
+	if err != nil {
+		return result, err
+	}
+	phase, err = AdvanceRecoveryExecution(phase, recoveryClaimed)
+	if err != nil {
+		return result, err
+	}
+	return c.launchRecoveryClaim(ctx, record, nonce, selection, profile, intent, choice, phase, notes, c.Workspaces)
+}
+
+func (c *Couch) launchRecoveryClaim(ctx context.Context, record ThreadRecord, nonce string, selection RecoverySelection, profile LaunchProfile, intent threadrecord.RecoveryIntent, choice RecoveryChoice, phase recoveryExecutionPhase, notes []string, readiness WorkspaceReadiness) (result RecoveryResumeResult, retErr error) {
+	if _, err := AdvanceRecoveryExecution(phase, recoveryLaunched); err != nil {
+		return result, err
+	}
+	fail := func(err error) (RecoveryResumeResult, error) {
+		return result, errors.Join(err, c.rollbackTrackedStart(record, nonce))
+	}
+	if err := c.prepareTrackedWorkspaceWith(ctx, record, nonce, false, readiness); err != nil {
+		return fail(err)
+	}
+	if selection.Kind == RecoveryInferred {
+		observed, err := c.RecoveryEvidence(ctx, record)
+		if err != nil {
+			return fail(err)
+		}
+		source := record
+		source.Revision = intent.SourceRevision
+		preview, err := DecideSlotRecovery(source, observed, c.Clock.Now())
+		if err != nil {
+			return fail(err)
+		}
+		if _, err := selectRecoveryChoice(preview, intent.SelectedKey); err != nil {
+			return fail(err)
+		}
+	} else if selection.Kind == RecoveryProven {
+		binding, err := c.resumeEvidence(ctx, record)
+		if err != nil {
+			return fail(err)
+		}
+		if err := launcher.RequireNativeResumeBinding(intent.NativeID, binding.NativeID, binding.Status); err != nil {
+			return fail(err)
+		}
+	}
+	if selection.Kind != RecoveryFresh {
+		if err := c.checkRecoveryNativeOwner(ctx, record, choice, false); err != nil {
+			return fail(err)
+		}
+	}
+	backend, err := c.Threads.storeForAddress(record.Address)
+	if err != nil {
+		return fail(err)
+	}
+	authority := launcher.RecoveryAuthority{Version: 1, Address: toPersistedThreadAddress(record.Address), Attempt: nonce, RecordRevision: record.Revision, RecordPath: backend.recordPath(record.Address), Intent: intent}
+	raw, err := launcher.BuildCouchRecoveryLaunchProfile(string(record.Address.Tag), profile.Agent, profile.Argv, authority)
+	if err != nil {
+		return fail(err)
+	}
+	orient := intent.Orientation
+	if orient == nil {
+		orient = &threadrecord.RecoveryOrientation{Branch: intent.Context.Branch, Issue: intent.Context.Issue, Capture: &intent.Context.Capture}
+	}
+	context := orientation.RecoveryOrientationContext{SlotAddress: selection.Reference, Branch: orient.Branch, Issue: orient.Issue, NativeID: intent.NativeID}
+	if orient.Capture != nil {
+		context.PreviousRaw, context.PreviousEvents = orient.Capture.Raw, orient.Capture.Events
+	}
+	prompt, err := orientation.BuildRecoveryOrientation(context)
+	if err != nil {
+		return fail(err)
+	}
+	actor, handle, err := c.launchTrackedThread(trackedThreadLaunch{Context: ctx, Thread: record, Nonce: nonce, Args: StartArgs{Worktree: Worktree(record.StartingPath), Cwd: record.WorkingPath, Stack: profile.Agent, ExtraArgs: cloneArgv(profile.Argv)}, StartedAt: c.Clock.Now(), ProfileRaw: raw, Fresh: selection.Kind == RecoveryFresh, Resume: selection.Kind != RecoveryFresh, Prompt: prompt, Recovery: true})
+	if err != nil {
+		return result, err
+	}
+	result.Start = StartResult{Record: actor, Handle: handle}
+	result.Notice = fmt.Sprintf("resumed %s", intent.NativeID)
+	if selection.Kind == RecoveryInferred {
+		result.Notice = fmt.Sprintf("resumed %s: last active %s, %.0f%% tail match", intent.NativeID, choice.LastActivity.Local().Format("15:04 MST"), choice.TailMatch)
+	}
+	if selection.Kind == RecoveryFresh {
+		result.Notice = "started fresh"
+		if orient.Unavailable != "" {
+			notes = append(notes, orient.Unavailable)
+		}
+	}
+	if len(notes) > 0 {
+		result.Notice += "; " + strings.Join(notes, "; ")
+	}
+	return result, nil
+}
+
+func (c *Couch) launchRecoveryFreshAddress(ctx context.Context, old ThreadRecord, selection RecoverySelection, profile LaunchProfile, intent threadrecord.RecoveryIntent, phase recoveryExecutionPhase, preparedRepo string, notes []string) (RecoveryResumeResult, error) {
+	if _, err := AdvanceRecoveryExecution(phase, recoveryClaimed); err != nil {
+		return RecoveryResumeResult{}, err
+	}
+	if err := ctx.Err(); err != nil {
+		return RecoveryResumeResult{}, err
+	}
+	backend, err := c.Threads.storeForAddress(old.Address)
+	if err != nil {
+		return RecoveryResumeResult{}, err
+	}
+	sourceAbsent := c.confirmRecoveryAbsent(ctx, old) == nil
+	if sourceAbsent {
+		if err := c.repairRetiredRecoveryWorkspace(ctx, old); err != nil {
+			return RecoveryResumeResult{}, err
+		}
+	}
+	var observed slotCurrentObservation
+	if backend.layout.Local {
+		observed, err = backend.observeSlotCurrentContext(ctx)
+		if err != nil {
+			return RecoveryResumeResult{}, err
+		}
+		if observed.Record == nil || observed.Record.Revision != old.Revision {
+			return RecoveryResumeResult{}, errors.New("slot changed during fresh recovery")
+		}
+	}
+	repo, err := c.resolveRepoIdentity(ctx, old.WorkingPath)
+	if err != nil {
+		return RecoveryResumeResult{}, err
+	}
+	if repo != preparedRepo {
+		return RecoveryResumeResult{}, errors.New("working repository changed during recovery; refresh the choice")
+	}
+	var nextIntent threadrecord.RecoveryIntent
+	prefix := filepath.Base(old.StartingPath)
+	if backend.slot != nil {
+		prefix = filepath.Base(backend.slot.PrimaryRoot)
+	}
+	next, nonce, err := c.claimFreshRecord(ctx, freshClaimInput{ScopeKey: old.Address.RepoScope, Cwd: old.WorkingPath, RepoIdentity: repo, TagPrefix: prefix, Store: backend, Profile: LaunchProfileResolution{Profile: profile, AgentSource: AgentSourcePath, ArgvSource: ArgvSourcePath}, Commit: func(next ThreadRecord) error {
+		nextIntent = *threadrecord.CloneRecoveryIntent(&intent)
+		nextIntent.Address = toPersistedThreadAddress(next.Address)
+		next.RecoveryIntent = threadrecord.CloneRecoveryIntent(&nextIntent)
+		next.Incarnations[0].Start.RecoveryIntent = threadrecord.CloneRecoveryIntent(&nextIntent)
+		if backend.layout.Local {
+			return backend.replaceSlotCurrent(observed, next)
+		}
+		return backend.ReplaceThreadExpected(old.Address, old.Revision, next)
+	}})
+	if err != nil {
+		return RecoveryResumeResult{}, err
+	}
+	next, err = backend.GetThread(next.Address)
+	if err != nil {
+		return RecoveryResumeResult{}, err
+	}
+	readiness := c.Workspaces
+	if !sourceAbsent || c.confirmRecoveryAbsent(ctx, old) != nil {
+		notes = append(notes, "previous unproved owners were left untouched; using a new terminal identity; workspace setup was not refreshed")
+		if backend.layout.Local {
+			if backend.slot == nil {
+				return RecoveryResumeResult{}, errors.New("local recovery workspace has no slot identity")
+			}
+			readiness = recoveryExistingWorkspace{c: c, slot: *backend.slot}
+		}
+	}
+	phase, err = AdvanceRecoveryExecution(phase, recoveryClaimed)
+	if err != nil {
+		return RecoveryResumeResult{}, err
+	}
+	return c.launchRecoveryClaim(ctx, next, nonce, selection, profile, nextIntent, RecoveryChoice{Agent: profile.Agent}, phase, notes, readiness)
+}
+
+// repairRetiredRecoveryWorkspace reuses normal slot convergence only after the
+// explicit recovery has proved its previous owners absent. It never repairs a
+// workspace underneath foreign survivors; healthy hosts retain one readiness pass.
+func (c *Couch) repairRetiredRecoveryWorkspace(ctx context.Context, record ThreadRecord) error {
+	if c.Slots == nil {
+		return nil
+	}
+	backend, err := c.Threads.storeForAddressContext(ctx, record.Address)
+	if err != nil {
+		return err
+	}
+	if backend.slot == nil {
+		return nil
+	}
+	repository, err := c.Slots.Discover(ctx, backend.slot.PrimaryRoot)
+	if err != nil {
+		return err
+	}
+	for _, candidate := range repository.Slots {
+		if candidate.Identity.WorktreeRoot == backend.slot.WorktreeRoot && (!candidate.Verified || candidate.Err != nil) {
+			if err := c.confirmRecoveryAbsent(ctx, record); err != nil {
+				return err
+			}
+			_, _, err := c.selectedSlot(ctx, backend.slot.WorktreeRoot)
+			return err
+		}
+	}
+	return nil
+}

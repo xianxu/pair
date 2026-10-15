@@ -29,6 +29,16 @@ func menuThreadTarget(state MenuState, key couchcore.ThreadRowKey, address couch
 // or replaced under the row, so the tag is not what names it. Its in-flight
 // operation is then keyed by row, not by an address the operation replaces.
 func dispatchMenuRow(state MenuState, operation string, row couchcore.ActionableThreadSummary) (MenuState, []MenuEffect) {
+	if row.Target.Kind != couchcore.ThreadTargetSlot || row.Target.Validate() != nil {
+		if row.Address.RepoScope == "" || row.Address.Tag == "" {
+			state.Notice = errorMenuNotice("no exact conversation or valid slot target is available")
+			return state, nil
+		}
+		// An invalid slot cannot supply a path; only its exact native address
+		// remains usable. A validated slot can still recover without a record.
+		row.Target = couchcore.ThreadTarget{Kind: couchcore.ThreadTargetOrdinary, Address: row.Address}
+		row.RowKey = couchcore.ThreadRowKey{Kind: couchcore.ThreadTargetOrdinary, Address: row.Address}
+	}
 	if view, owned := passViewOf(state.Reattach, row.Address); owned && view.State == PassFailed &&
 		couchcore.ContinuityOutcome(row) == couchcore.Continue && (operation == "switch" || operation == "resume") {
 		// A failed listed-live row may look live without a local client. Its
@@ -41,11 +51,6 @@ func dispatchMenuRow(state MenuState, operation string, row couchcore.Actionable
 			next.InFlight.RowKey = menuRowKey(row)
 		}
 		return next, effects
-	}
-	// The primary Fresh gesture uses the same confirmation as the action menu.
-	if operation == "reboot" && (state.CurrentFrame().Kind != MenuFrameConfirmation || state.CurrentFrame().Action != "reboot") {
-		appendMenuFrame(&state, MenuFrame{Kind: MenuFrameConfirmation, RowKey: menuRowKey(row), Thread: row.Address, Action: operation, SelectedItem: "cancel"})
-		return state, nil
 	}
 	// Non-live relaunch and starting-row details first observe recovery evidence.
 	// They never dispatch a lifecycle operation merely by opening the preview.
@@ -74,7 +79,7 @@ func actorOperation(operation string) bool {
 // by row (a slot's record can be adopted or replaced), and reboot, which
 // retires its record and starts a fresh one under a new tag (as recover may).
 func menuOperationReplacesAddress(origin MenuOperationOrigin) bool {
-	return origin.RowKey.Kind == couchcore.ThreadTargetSlot || origin.Operation == "reboot" || origin.Operation == "recover"
+	return origin.RowKey.Kind == couchcore.ThreadTargetSlot || origin.Operation == "recovery-confirmation" || origin.Operation == "reboot" || origin.Operation == "recover"
 }
 
 // menuFrameTargetsInFlight reports a frame bound to the row the in-flight

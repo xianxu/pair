@@ -131,3 +131,71 @@ func TestRecoveryRecordDoesNotTreatUnknownAsReady(t *testing.T) {
 		t.Fatal("unknown record authorized another launch")
 	}
 }
+
+func TestOSTaggedFreshAuthorityWithoutScreen(t *testing.T) {
+	for _, screen := range []bool{false, true} {
+		t.Run(strconv.FormatBool(screen), func(t *testing.T) {
+			dir, err := filepath.EvalSymlinks(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			scope, err := ResolveRepoScope(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			a := taggedAuthority(threadrecord.RecoveryFresh)
+			a.Address.RepoScope = scope.Key
+			a.Intent.Address = a.Address
+			a.Intent.CreatedAt = time.Now().UTC().Add(-time.Minute)
+			a.RecordPath = filepath.Join(dir, "thread.json")
+			if screen {
+				capture := testRecoveryAuthority().Intent.Context.Capture
+				a.Intent.Orientation = &threadrecord.RecoveryOrientation{Capture: &capture}
+			}
+			record := recoveryAuthorityRecord(a, dir, "codex", os.Getpid(), procutil.Identity(strconv.Itoa(os.Getpid())))
+			raw, err := json.Marshal(record)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(a.RecordPath, raw, 0600); err != nil {
+				t.Fatal(err)
+			}
+			if err := (OSRuntime{DataDir: dir}).ValidateRecoveryAuthority(context.Background(), a, scope, "work", "codex", dir); err != nil {
+				t.Fatalf("screenless Fresh refused: %v", err)
+			}
+			after, err := os.ReadFile(a.RecordPath)
+			if err != nil || string(after) != string(raw) {
+				t.Fatal("authority check mutated durable claim")
+			}
+		})
+	}
+}
+
+func TestOSTaggedProvenAuthorityRejectsMissingBinding(t *testing.T) {
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", t.TempDir())
+	scope, err := ResolveRepoScope(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := taggedAuthority(threadrecord.RecoveryProven)
+	a.Address.RepoScope = scope.Key
+	a.Intent.Address = a.Address
+	a.Intent.CreatedAt = time.Now().UTC().Add(-time.Minute)
+	a.RecordPath = filepath.Join(dir, "thread.json")
+	record := recoveryAuthorityRecord(a, dir, "codex", os.Getpid(), procutil.Identity(strconv.Itoa(os.Getpid())))
+	raw, err := json.Marshal(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(a.RecordPath, raw, 0600); err != nil {
+		t.Fatal(err)
+	}
+	err = (OSRuntime{DataDir: dir}).ValidateRecoveryAuthority(context.Background(), a, scope, "work", "codex", dir)
+	if LaunchDiagnosticOf(err) != NativeBindingChanged {
+		t.Fatalf("missing native binding not revalidated: %v", err)
+	}
+}

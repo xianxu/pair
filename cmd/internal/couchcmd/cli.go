@@ -67,9 +67,10 @@ type cliInvocation struct {
 	messageAgent string
 	// confirmed is --confirm on a slot operation whose declaration requires
 	// a confirmation (reboot).
-	candidateKey string
-	confirmed    bool
-	jsonOutput   bool
+	candidateKey         string
+	recoveryConfirmation string
+	confirmed            bool
+	jsonOutput           bool
 	// sessionSync is set on cliSessionSync (pair#437).
 	sessionSync *sessionSyncArgs
 	// layout is the couch-wide pair layout to launch threads in. Set only on
@@ -135,7 +136,7 @@ func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, e
 			return parseSessionSyncCLI(args)
 		case "--switch-agent", "--operation-status":
 			return parseSwitchAgentCLI(args)
-		case "--resume-candidates", "--actors", "--send-to", "--message-status", "--skill", "--broadcast-list":
+		case "--recovery-confirmation", "--resume-candidates", "--actors", "--send-to", "--message-status", "--skill", "--broadcast-list":
 			return parseMessageCLI(args)
 		}
 		// Slot operations come from the one verb list (couchcore.IsSlotOperation).
@@ -338,6 +339,11 @@ func parseMessageCLI(args []string) (cliInvocation, error) {
 			return bad()
 		}
 		return cliInvocation{kind: cliMessage, messageOp: "status", ref: args[1], jsonOutput: len(args) == 3}, nil
+	case "--recovery-confirmation":
+		if (len(args) != 2 && !(len(args) == 3 && args[2] == "--json")) || args[1] == "" || strings.HasPrefix(args[1], "-") {
+			return bad()
+		}
+		return cliInvocation{kind: cliMessage, messageOp: "recovery-confirmation", recoveryConfirmation: args[1], jsonOutput: len(args) == 3}, nil
 	case "--resume-candidates":
 		if len(args) != 2 && !(len(args) == 3 && args[2] == "--json") {
 			return bad()

@@ -69,6 +69,7 @@ func (t *startupTiming) handoff(phase string) {
 // user-facing messages are on the writer, the int is the exit code, the returned
 // error is always nil.
 func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
+	rt.SetEnv(NativeAdmissionEnv, "")
 	if opts.startupTiming == nil {
 		opts.startupTiming = newStartupTiming(os.Getenv("PAIR_STARTUP_TIMING"), stderr, time.Now, time.Now())
 	}
@@ -580,6 +581,7 @@ func launchNameTags(args LaunchArgs, base string) []string {
 // tag-restart config picker, compose the per-agent launch args, spawn the
 // sidecars, then hand off to the blocking zellij create.
 func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision LaunchDecision, base, agent string, sessionEntry SessionNameEntry, stderr io.Writer) (result launchStep, resultErr error) {
+	rt.SetEnv(NativeAdmissionEnv, "")
 	// Validate the agent here (create-only; attach re-uses an existing pane's
 	// agent, so shell 1728 defers this past the attach branch).
 	if !rt.CommandExists(agent) {
@@ -691,21 +693,6 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		legacyImported = importLegacyFlatTag(rt, chosenTag, opts.GlobalDataDir, dataDir)
 	}
 	configPath := resolveConfigPath(rt, dataDir, chosenTag, agent)
-	var savedForPicker savedConfig
-	var savedWarnings []string
-	if !opts.Args.ResumeRequired && !opts.Args.FreshRequired && opts.ContinueCheckpoint.Version == 0 {
-		var savedErr error
-		savedForPicker, savedWarnings, savedErr = readSavedConfigForTag(rt, configPath, scope.Key, chosenTag, agent)
-		if savedErr != nil {
-			fmt.Fprintf(stderr, "pair: %v\n", savedErr)
-			return launchStep{code: 1}, nil
-		}
-	}
-	if !opts.SkipConfigPicker {
-		for _, warning := range savedWarnings {
-			fmt.Fprintln(stderr, warning)
-		}
-	}
 
 	var agentDefault AgentDefault
 	var defaultFound bool
@@ -727,14 +714,54 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	// offers to reuse its args / resume its session, unless an explicit resume
 	// token on argv already made the choice.
 	if !opts.SkipConfigPicker && !opts.Args.ResumeRequired && !opts.Args.FreshRequired && opts.ContinueCheckpoint.Version == 0 {
+		callerSelection, parseErr := ParseNativeResumeSelector(agent, agentArgs)
+		if parseErr != nil {
+			fmt.Fprintf(stderr, "pair: native resume selector: %v\n", parseErr)
+			return launchStep{code: 1}, nil
+		}
+		var savedForPicker savedConfig
+		// A native context choice bypasses the saved picker entirely, including
+		// stale saved-session warnings that would falsely report a Fresh launch.
+		if callerSelection.Kind == NativeResumeNone {
+			var warnings []string
+			var savedErr error
+			savedForPicker, warnings, savedErr = readSavedConfigForTag(rt, configPath, scope.Key, chosenTag, agent)
+			if savedErr != nil {
+				fmt.Fprintf(stderr, "pair: %v\n", savedErr)
+				return launchStep{code: 1}, nil
+			}
+			for _, warning := range warnings {
+				fmt.Fprintln(stderr, warning)
+			}
+		}
 		if code, ok := runConfigPicker(rt, configPath, savedForPicker, agent, chosenTag, &agentArgs, stderr); !ok {
 			return launchStep{code: code}, nil
 		}
 	}
 
-	// Pre-capture an explicit --resume/--conversation/`resume` binding. The
-	// launch records this requested target; observation confirms the actual root.
-	explicitResume := extractExplicitResume(agent, agentArgs)
+	// Resolve supported selectors once; the approved Codex indirect exception
+	// preserves the native CLI invocation without inventing a canonical target.
+	selector, err := ParseNativeResumeSelector(agent, agentArgs)
+	if err != nil {
+		fmt.Fprintf(stderr, "pair: native resume selector: %v\n", err)
+		return launchStep{code: 1}, nil
+	}
+	explicitResume := ""
+	unguardedCodex := !opts.Args.ResumeRequired && opts.Args.Recovery == nil && CodexIndirectResumeCompatibility(selector)
+	if !unguardedCodex && (selector.Kind == NativeResumeExplicit || selector.Kind == NativeResumeLatest || selector.Kind == NativeResumePicker) {
+		ctx, cancel := context.WithTimeout(context.Background(), zjTimeout)
+		resolved, err := rt.ResolveNativeResume(ctx, NativeResumeRequest{Agent: agent, CWD: env.Cwd, Selector: selector})
+		cancel()
+		if err != nil || resolved.Status != sessioninventory.NativeSelectorResolved || resolved.NativeID == "" {
+			reason := resolved.Reason
+			if err != nil {
+				reason = err.Error()
+			}
+			fmt.Fprintf(stderr, "pair: native resume unavailable (%s): %s; choose an exact canonical session ID or Start fresh.\n", resolved.Status, reason)
+			return launchStep{code: 1}, nil
+		}
+		agentArgs, explicitResume = resolved.Args, resolved.NativeID
+	}
 
 	// Claude/qoder/grok: mint a deterministic --session-id (uuidgen + collision
 	// retry) so two tags in one cwd can't race for the same new jsonl (#20).
@@ -756,6 +783,50 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	// Codex/grok: force inline mode so the conversation flows through zellij's
 	// scrollback (idempotent; per-agent opt-out via PAIR_<AGENT>_ALT_SCREEN=1).
 	agentArgs = inlineModeArgs(agent, agentArgs, opts.InlineOptOut)
+
+	commandArgs := append([]string{}, agentArgs...)
+	if agent == "codex" && couchOwned {
+		// A resumed Codex shell snapshot can restore the previous slot's env.
+		// Keep current launch identity in tool shells. This is runtime policy,
+		// not a saved user argument; prepend before any prompt/-- delimiter.
+		commandArgs = append([]string{"--disable", "shell_snapshot"}, commandArgs...)
+	}
+	// The prompt rides beside the argv, never in it: the ledger and saved
+	// config above took agentArgs, and the wrapper re-derives a later fresh
+	// start from Argv, so it is said once (#522).
+	command, commandErr := EncodeAgentCommand(AgentCommand{Executable: agent, Argv: commandArgs, Prompt: opts.Args.Prompt})
+	if commandErr != nil {
+		fmt.Fprintf(stderr, "pair: %v\n", commandErr)
+		return launchStep{code: 1}, nil
+	}
+	// A grant is private until the one agent handoff. Only definitely unexposed
+	// reservations can be cancelled; an uncertain terminal start retains ownership.
+	grant, exposed := "", false
+	defer func() {
+		rt.SetEnv(NativeAdmissionEnv, "")
+		if grant != "" && !exposed {
+			ctx, cancel := context.WithTimeout(context.Background(), zjTimeout)
+			defer cancel()
+			if err := rt.CancelNativeResume(ctx, grant); err != nil {
+				fmt.Fprintf(stderr, "pair: native reservation retained after failed cancellation: %v\n", err)
+				result.code = 1
+			}
+		}
+	}()
+	if explicitResume != "" {
+		digest, err := NativeAdmissionCommandDigest(agent, append([]string{agent}, PromptArgs(agent, commandArgs, opts.Args.Prompt)...))
+		if err != nil {
+			fmt.Fprintf(stderr, "pair: %v\n", err)
+			return launchStep{code: 1}, nil
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), zjTimeout)
+		grant, err = rt.ReserveNativeResume(ctx, NativeAdmissionRequest{Agent: agent, NativeID: explicitResume, Attempt: rt.MintLaunchNonce(), CommandDigest: digest})
+		cancel()
+		if err != nil || grant == "" {
+			fmt.Fprintf(stderr, "pair: native admission refused: %v\n", err)
+			return launchStep{code: 1}, nil
+		}
+	}
 
 	var defaultReady <-chan error
 	// Every new Couch wrapper needs readiness evidence, including cold resume.
@@ -902,21 +973,6 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		rt.Remove(configPath)
 	}
 
-	commandArgs := append([]string{}, agentArgs...)
-	if agent == "codex" && couchOwned {
-		// A resumed Codex shell snapshot can restore the previous slot's env.
-		// Keep current launch identity in tool shells. This is runtime policy,
-		// not a saved user argument; prepend before any prompt/-- delimiter.
-		commandArgs = append([]string{"--disable", "shell_snapshot"}, commandArgs...)
-	}
-	// The prompt rides beside the argv, never in it: the ledger and saved
-	// config above took agentArgs, and the wrapper re-derives a later fresh
-	// start from Argv, so it is said once (#522).
-	command, commandErr := EncodeAgentCommand(AgentCommand{Executable: agent, Argv: commandArgs, Prompt: opts.Args.Prompt})
-	if commandErr != nil {
-		fmt.Fprintf(stderr, "pair: %v\n", commandErr)
-		return launchStep{code: 1}, nil
-	}
 	rt.SetEnv(AgentCommandEnv, command)
 	rt.SetEnv("PAIR_SESSION_ID", sessionID)
 	// The pane title is the agent name and nothing more (#133): zellij renders
@@ -969,6 +1025,10 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	layout := filepath.Join(opts.PairHome, "zellij", "layouts", LayoutAssetBasename(layoutResolution.Mode))
 	bound := opts.birthBound()
 	opts.startupTiming.handoff("create-handoff")
+	if grant != "" {
+		exposed = true
+		rt.SetEnv(NativeAdmissionEnv, grant)
+	}
 	code, verdict, err := launchWatched(rt, opts.birthClock(), birthEvidence, session, configDir, layout, bound)
 	if err != nil {
 		restoreLayoutRecord(rt, dataDir, chosenTag, priorLayout)
@@ -1140,8 +1200,13 @@ func promptForTag(rt Runtime, prefill string, compose func(string) string, base 
 // When no saved config applies (absent, or an explicit resume already chose),
 // it is a no-op that returns ok=true.
 func runConfigPicker(rt Runtime, configPath string, saved savedConfig, agent, chosenTag string, agentArgs *[]string, stderr io.Writer) (code int, ok bool) {
-	if extractExplicitResume(agent, *agentArgs) != "" {
-		return 0, true // argv already pinned a resume — nothing to offer.
+	selector, err := ParseNativeResumeSelector(agent, *agentArgs)
+	if err != nil {
+		fmt.Fprintf(stderr, "pair: native resume selector: %v\n", err)
+		return 1, false
+	}
+	if selector.Kind != NativeResumeNone {
+		return 0, true // caller selected native context, including a fork/new ID.
 	}
 	if saved.Agent == "" {
 		return 0, true // unusable config — proceed as if none.
