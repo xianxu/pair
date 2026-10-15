@@ -1061,3 +1061,13 @@ No follow-up implementation starts on this branch.
   osfs atomic writer; no reader retry/deadline expansion. Same stateful reconnect
   test ten repetitions PASS16.546s. Only test import/publication line changed;
   runtime remains the M1-reviewed db08fb647. Final recorded suite rerun required.
+
+- First recorded suite8cd63049 completed exit2 in11m19s, recorded failure,
+  log SHA256prefix f542fcc9ab5d. Only failure is the corrected Ready publication
+  fixture; core425.441s, launcher20.412s and all other packages passed.
+  Canceled only own queued c0d89560 check (PID45257, parent4470, birth17:38:57
+  verified), INT exit130 before machine admission, because origin/main advanced.
+  Integrated main4780a5528 cleanly: #555 generated-TL-skill .gitignore entries,
+  published issue details, archived #555 artifacts and one lesson; no runtime
+  source or code-path conflict. New recorded suite must cover the merged head.
+  Normal whole-issue close still follows, with no review skip.

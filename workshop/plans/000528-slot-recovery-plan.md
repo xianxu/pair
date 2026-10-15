@@ -1275,3 +1275,12 @@ remote commit acknowledgement and remain unchanged. This is a test fixture
 publication correction, not a production protocol change or deadline increase.
 Measure the old publication window and rerun the stateful reconnect test ten
 times; re-review the post-M1 correction normally and rerun the recorded suite.
+
+### 2026-10-14 — final main integration before suite admission
+
+Integrated origin/main4780a5528 cleanly before the corrected suite starts:
+#555 adds generated TL skill ignore entries; other changes are issue/history/
+lesson publication. No runtime code or conflicting resolution. The queued old
+head check was canceled before admission, and the final merged head owes its
+recorded suite. Whole-issue close reviews the integration and one-line readiness
+fixture fix after the accepted M1 boundary; no bypass is requested.
