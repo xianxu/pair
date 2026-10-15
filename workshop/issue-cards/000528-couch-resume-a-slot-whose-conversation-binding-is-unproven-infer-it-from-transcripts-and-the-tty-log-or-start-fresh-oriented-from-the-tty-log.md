@@ -1,6 +1,6 @@
 ---
 id: 000528
-status: codecomplete
+status: done
 created: 2026-10-13
 updated: 2026-10-15
 estimate_hours: 6.3535
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 15bf3855722960fd8a97ddd2f4bf52395e7be08b
         evidence_commit: 4632ae88d43dad1b3c0fbc8e0611009e650636e6
+        landed_commit: 04570d55dfc7e7daf8d7d2c64f1e4a7400dfc8fe
 ---
 
 # couch: resume a slot whose conversation binding is unproven: infer it from transcripts and the tty log, or start fresh oriented from the tty log
