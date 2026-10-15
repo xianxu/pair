@@ -563,6 +563,7 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/pane_identity.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/dom_transport.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/draft_send.lua", Kind: GeneratedMirror},
+	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/fs_watch.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/init.lua", Kind: GeneratedMirror, Families: []string{"draft"}},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/interrupt.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/lifecycle_command.lua", Kind: GeneratedMirror},
@@ -1443,6 +1444,8 @@ var NonArtifactSources = []string{
 	"nvim/pane_identity.lua",
 	"nvim/dom_transport.lua",
 	"nvim/draft_send.lua",
+	// Watch lifetime only; the caller supplies the complete directory binding.
+	"nvim/fs_watch.lua",
 	"nvim/interrupt.lua",
 	"nvim/lifecycle_command.lua",
 	"nvim/marker_codec.lua",
