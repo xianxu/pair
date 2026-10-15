@@ -3798,3 +3798,11 @@ Recovery uses #522’s one-time launch Prompt: a fresh start receives only evide
 coordinates (previous-screen peek, branch, issue and exact retained capture paths),
 never screen contents. Native resume receives no prompt. Launch notices report
 startup, without delivery callbacks or pasted-input status.
+
+Warm Continue attachments share the optional context-scoped launch timing
+observer with native launches, but report their actual attach preparation,
+admission, spawn, acknowledgement, live check, registry/repair and cleanup
+steps. They report retry backoff when it occurs; they do not report cold claims,
+native registration or promotion. Explicit fleet detach shares one lazy owner
+observation scope. Only locally owned warm clients need the borrowed-helper
+preview; managed detach retains its normal generation and session checks.

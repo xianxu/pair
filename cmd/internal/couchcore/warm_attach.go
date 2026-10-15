@@ -14,11 +14,17 @@ import (
 // attachListedTerminal owns a client helper, never the terminal's lifecycle.
 // In particular, an independently owned start or park transaction is unchanged.
 func (c *Couch) attachListedTerminal(ctx context.Context, thread ThreadRecord, session string, opts ResumeOptions) (result ActorRecord, handle Handle, resultErr error) {
+	// Timing is a context-only observation, not retained lifecycle state. Avoid
+	// timing allocations on ordinary Continue, and never report a cold claim.
+	var steps *launchSteps
+	if observe, _ := ctx.Value(launchTimingObserverKey{}).(launchTimingObserver); observe != nil {
+		steps = newLaunchSteps(ctx, time.Time{})
+	}
 	for attempt := 1; attempt <= 2; attempt++ {
 		if err := ctx.Err(); err != nil {
 			return result, handle, errors.Join(resultErr, err)
 		}
-		result, handle, resultErr = c.attachListedTerminalOnce(ctx, thread, session, opts)
+		result, handle, resultErr = c.attachListedTerminalOnce(ctx, thread, session, opts, steps)
 		if resultErr == nil {
 			return result, handle, nil
 		}
@@ -34,14 +40,16 @@ func (c *Couch) attachListedTerminal(ctx context.Context, thread ThreadRecord, s
 		select {
 		case <-ctx.Done():
 			timer.Stop()
+			steps.mark("attach-retry-backoff")
 			return result, handle, errors.Join(resultErr, ctx.Err())
 		case <-timer.C:
 		}
+		steps.mark("attach-retry-backoff")
 	}
 	panic("unreachable attachment attempt")
 }
 
-func (c *Couch) attachListedTerminalOnce(ctx context.Context, thread ThreadRecord, session string, opts ResumeOptions) (result ActorRecord, handle Handle, resultErr error) {
+func (c *Couch) attachListedTerminalOnce(ctx context.Context, thread ThreadRecord, session string, opts ResumeOptions, steps *launchSteps) (result ActorRecord, handle Handle, resultErr error) {
 
 	args := StartArgs{Worktree: Worktree(thread.StartingPath), Cwd: thread.WorkingPath}
 	if profile := thread.LatestLaunchProfile; profile != nil {
@@ -67,15 +75,21 @@ func (c *Couch) attachListedTerminalOnce(ctx context.Context, thread ThreadRecor
 	if !c.workingPathExists(thread) {
 		dir = string(filepath.Separator)
 	}
+	steps.mark("attach-prepare")
 	if err := c.confirmListedTerminal(ctx, thread, session); err != nil {
 		return ActorRecord{}, nil, err
 	}
 	finishRetention, err := c.beginResumeRetention(ctx, thread.Address, !opts.WarmOnly)
+	steps.mark("attach-admission")
 	if err != nil {
 		return ActorRecord{}, nil, err
 	}
-	defer func() { resultErr = errors.Join(resultErr, finishRetention(resultErr == nil)) }()
+	defer func() {
+		resultErr = errors.Join(resultErr, finishRetention(resultErr == nil))
+		steps.mark("attach-cleanup+release")
+	}()
 	h, err := c.Runner.StartBlocked(ctx, dir, []string{"pair", launcher.CouchSessionFlag, "resume", string(thread.Address.Tag)}, env, 10*time.Second)
+	steps.mark("attach-spawn")
 	if err != nil {
 		return ActorRecord{}, nil, err
 	}
@@ -99,8 +113,10 @@ func (c *Couch) attachListedTerminalOnce(ctx context.Context, thread ThreadRecor
 	if err := c.confirmListedTerminal(ctx, thread, session); err != nil {
 		return abort(err, false)
 	}
-	if err := h.Acknowledge(); err != nil {
-		return abort(err, true)
+	ackErr := h.Acknowledge()
+	steps.mark("attach-ack")
+	if ackErr != nil {
+		return abort(ackErr, true)
 	}
 	budget := pairRegistrationTimeout
 	if c.resumeRegistrationTimeout > 0 {
@@ -125,6 +141,7 @@ func (c *Couch) attachListedTerminalOnce(ctx context.Context, thread ThreadRecor
 	if exited {
 		err = errors.New("Pair attachment helper exited before attachment completed")
 	}
+	steps.mark("attach-live-check")
 	if err != nil {
 		return abort(fmt.Errorf("await Pair attachment %+v: %w", thread.Address, err), true)
 	}
@@ -145,7 +162,26 @@ func (c *Couch) attachListedTerminalOnce(ctx context.Context, thread ThreadRecor
 	c.warmClients[actor.ID] = h
 	c.regMu.Unlock()
 	actor.AttachmentNotice = c.attachmentClientNotice(ctx, thread, actor, h)
+	steps.mark("attach-registry+repair")
 	return actor, h, nil
+}
+
+// hasLocalWarmClient screens whether a borrowed-client probe could be needed.
+// It grants no signal authority: detachBorrowedHelpers rechecks the local
+// handle and retained incarnation before acting.
+func (c *Couch) hasLocalWarmClient(address ThreadAddress) bool {
+	for _, actor := range c.actorRegistry().Records() {
+		if actor.Thread != address || actor.Shape != StartWarmReattach {
+			continue
+		}
+		c.regMu.Lock()
+		handle := c.warmClients[actor.ID]
+		c.regMu.Unlock()
+		if handle != nil && handle.PID() == actor.PID && handle.Identity() == actor.Identity {
+			return true
+		}
+	}
+	return false
 }
 
 // detachBorrowedHelpers ends only clients this Couch attached without adopting

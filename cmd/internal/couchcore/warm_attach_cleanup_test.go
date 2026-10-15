@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"os"
@@ -139,6 +140,65 @@ func TestPublicWarmAttachFailuresPreserveIndependentLifecycle(t *testing.T) {
 				t.Fatal("failure signalled independent start owner")
 			}
 			assertWarmRecordUnchanged(t, env, before)
+		})
+	}
+}
+
+func TestBorrowedDetachPreservesJournalArrivingAfterPreview(t *testing.T) {
+	for _, entry := range []string{"detach", "leave"} {
+		t.Run(entry, func(t *testing.T) {
+			record := warmDetachedRecord(t)
+			record.Incarnations = []ThreadIncarnation{{PID: 5151, Identity: "independent-client", State: IncarnationLive, LaunchProfile: record.LatestLaunchProfile}}
+			env, before, session := readonlyWarmFixture(t, record, Live)
+			_, h := assertReadonlyWarmAttach(t, env, before, session)
+			env.Proc.Set(h.PID(), h.Identity())
+			env.Proc.DiesOn[h.PID()] = TermSignal
+			env.Runner.SetDiesOn(h.ID(), TermSignal, 0)
+			env.Proc.OnSignal = func(pid int, _ os.Signal) {
+				if pid == h.PID() {
+					env.Runner.SetExited(h.ID(), 0)
+				}
+			}
+			store := env.Couch.Threads
+			original, err := os.ReadFile(store.recordPath(before.Address))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var pending []byte
+			store.hooks.AfterGetThread = func(ThreadAddress) error {
+				store.hooks.AfterGetThread = nil
+				interrupted := errors.New("borrowed detach journal fixture")
+				store.hooks.AfterJournal = func() error { return interrupted }
+				_, err := store.updateExistingThread(before.Address, before.Revision, func(next *ThreadRecord) error { next.Description = "must stay pending"; return nil })
+				store.hooks.AfterJournal = nil
+				if !errors.Is(err, interrupted) {
+					return err
+				}
+				pending, err = os.ReadFile(store.journalPath())
+				return err
+			}
+			if entry == "leave" {
+				_, err = env.Couch.Leave(t.Context(), LeaveDetach)
+			} else {
+				_, err = env.Couch.Detach(t.Context(), before.Address)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(pending) == 0 {
+				t.Fatal("borrowed detach skipped readonly preview")
+			}
+			after, err := os.ReadFile(store.journalPath())
+			if err != nil || !bytes.Equal(after, pending) {
+				t.Fatalf("borrowed detach recovered journal: %v", err)
+			}
+			after, err = os.ReadFile(store.recordPath(before.Address))
+			if err != nil || !bytes.Equal(after, original) {
+				t.Fatalf("borrowed detach changed record: %v", err)
+			}
+			if len(env.Proc.Signals[h.PID()]) != 1 || env.Proc.Signals[h.PID()][0] != TermSignal || len(env.Proc.Signals[5151]) != 0 || h.Alive() {
+				t.Fatalf("signals=%v borrowedAlive=%t", env.Proc.Signals, h.Alive())
+			}
 		})
 	}
 }

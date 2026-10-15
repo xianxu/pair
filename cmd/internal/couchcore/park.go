@@ -338,10 +338,8 @@ const (
 // addresses; deciding from a row read before the wait would skip a thread a
 // reattach made live meanwhile, and leave that client running past quit.
 func (c *Couch) leaveOne(ctx context.Context, address ThreadAddress, disposition LeaveDisposition) (leaveOutcome, error) {
-	if disposition == LeaveDetach {
-		view := *c.Threads
-		view.readOnly = true
-		observed, err := view.GetThread(address)
+	if disposition == LeaveDetach && c.hasLocalWarmClient(address) {
+		observed, err := c.Threads.PreviewThreadContext(ctx, address)
 		if err != nil && !errors.Is(err, ErrThreadNotFound) {
 			return leaveNone, err
 		}
@@ -420,7 +418,7 @@ func (c *Couch) leaveOne(ctx context.Context, address ThreadAddress, disposition
 	case Unknown:
 		return leaveSkipped, nil
 	}
-	session, err := c.recoverySession(ctx, record.Address)
+	session, err := observeRecordSession(ctx, c.Artifacts, record)
 	if err != nil {
 		return leaveNone, fmt.Errorf("leave couch: observe %s: %w", record.Address.Tag, err)
 	}

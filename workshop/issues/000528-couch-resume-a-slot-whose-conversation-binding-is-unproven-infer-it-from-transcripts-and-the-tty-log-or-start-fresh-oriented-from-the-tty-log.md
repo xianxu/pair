@@ -1253,3 +1253,14 @@ No follow-up implementation starts on this branch.
   No locally owned warm clients exist in that fixture. Shared ownership
   predicate avoids irrelevant borrowed previews; reuse held fresh record for
   session probe. Preserve borrowed preview semantics and exact signal proofs.
+
+- #218 integration corrections verified. Warm timing existing/newretry tests
+  RED0.524s; optionalactualwarmsteps/retry/context tests GREEN15.705s
+  (/tmp/pair528-warm-timing-red.log, /tmp/pair528-warm-timing-green.log).
+  Ordinary Continue retains no timing allocations; cold observer behavior unchanged.
+- Managed detach read regression RED0.573s (3/6 versus expected2/3 reads).
+  After sharedlocalhandlepredicate+held-record observation, ownerpass21fleet
+  and managed/borrowed regressions PASS3reps12.583s. Borrowed test injects
+  a valid journal after preview; checks exacthelper-onlysignal plus unchanged
+  journal/record bytes. Related Leave/Detach/cleanup and symbolguard PASS
+  (core13.969s, artifactpath0.785s), no lock/timeout changes.
