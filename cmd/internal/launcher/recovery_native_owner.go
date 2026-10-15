@@ -63,6 +63,9 @@ func CheckRecoveryNativeOwner(ctx context.Context, check RecoveryNativeOwnerChec
 func checkRecoveryNativeOwners(ctx context.Context, check RecoveryNativeOwnerCheck, observe func(context.Context, string) (recoveryTerminalSnapshot, error), read func(context.Context, string, int64) ([]byte, error)) error {
 	return checkRecoveryNativeOwnersWithDiscovery(ctx, check, observe, read, discoverLegacyNativeOwners)
 }
+
+var errNativeOwnerObservation = errors.New("native owner observation incomplete or changed")
+
 func checkRecoveryNativeOwnersWithDiscovery(ctx context.Context, check RecoveryNativeOwnerCheck, observe func(context.Context, string) (recoveryTerminalSnapshot, error), read func(context.Context, string, int64) ([]byte, error), discover func(context.Context, string) ([]artifactpath.StorageOwner, error)) error {
 	if ctx == nil {
 		return errors.New("native ownership check requires context")
@@ -72,6 +75,18 @@ func checkRecoveryNativeOwnersWithDiscovery(ctx context.Context, check RecoveryN
 	}
 	ctx, cancel := context.WithTimeout(ctx, zjTimeout)
 	defer cancel()
+	// Re-observe once under the SAME budget. A process arriving between the
+	// argv snapshot and final table is uncertainty, not a permanent blocker or
+	// permission to admit it unchecked. No launch/signal effects occur here.
+	for attempt := 0; ; attempt++ {
+		err := checkRecoveryNativeOwnersOnce(ctx, check, observe, read, discover)
+		if attempt == 1 || !errors.Is(err, errNativeOwnerObservation) {
+			return err
+		}
+	}
+}
+
+func checkRecoveryNativeOwnersOnce(ctx context.Context, check RecoveryNativeOwnerCheck, observe func(context.Context, string) (recoveryTerminalSnapshot, error), read func(context.Context, string, int64) ([]byte, error), discover func(context.Context, string) ([]artifactpath.StorageOwner, error)) error {
 	if !filepath.IsAbs(check.DataDir) || check.Agent == "" {
 		return errors.New("native ownership scope unavailable")
 	}
@@ -156,7 +171,7 @@ func checkRecoveryNativeOwnersWithDiscovery(ctx context.Context, check RecoveryN
 		return err
 	}
 	if !reflect.DeepEqual(wrappers, next) {
-		return errors.New("native owner process generation changed; retry")
+		return fmt.Errorf("%w: native owner process generation changed; retry", errNativeOwnerObservation)
 	}
 	afterOrphans, err := observeLegacyNativeOrphans(ctx, check, after, next, read, discover)
 	if err != nil {
@@ -220,9 +235,15 @@ func recoverySourceAncestor(table []procutil.Process, p procutil.Process, pid in
 func recoveryNativeWrappers(root string, snapshot recoveryTerminalSnapshot) ([]recoveryNativeWrapper, error) {
 	wrappers := []recoveryNativeWrapper{}
 	for _, p := range snapshot.Processes {
+		// Metadata selects possible wrappers BEFORE requiring command evidence.
+		// Unknown names remain candidates. argv is still the matching authority;
+		// unreadable system services and terminated rows are not native writers.
+		if p.Zombie || (p.Name != "" && p.Name != "pair" && p.Name != "pair-wrap") {
+			continue
+		}
 		command, ok := snapshot.Commands[p.PID]
 		if !ok || p.Identity == "" {
-			return nil, errors.New("process command ownership is incomplete; retry")
+			return nil, fmt.Errorf("%w: process %d (%s) command ownership is incomplete; retry", errNativeOwnerObservation, p.PID, p.Name)
 		}
 		args, err := splitObservedCommand(command)
 		if err != nil {

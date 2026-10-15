@@ -3917,6 +3917,14 @@ terminal lifetime; different native IDs can proceed independently. Legacy owners
 remain checked through bounded Pair metadata and process evidence, including a
 retained native child whose wrapper has died.
 
+The wrapper scan first selects kernel-name candidates (`pair`, `pair-wrap`, or
+unknown names), then requires stable argv and identity for those candidates.
+Unrelated unreadable services and kernel-confirmed zombies are not live native
+owners, including zombie children referenced by retained readiness. A missing
+candidate command or changed wrapper set gets one complete re-observation under
+the same five-second budget; persistent uncertainty refuses with its PID rather
+than treating the candidate as absent (#584).
+
 Only definitely unexposed reservations may be cancelled by their helper. On the
 next admission, an unconsumed reserved grant whose exact helper is proven dead
 is revoked under the same store lock used by wrapper Claim; a delayed wrapper

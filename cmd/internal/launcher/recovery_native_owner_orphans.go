@@ -87,7 +87,7 @@ func observeLegacyNativeOrphans(ctx context.Context, check RecoveryNativeOwnerCh
 			return nil, errors.New("retained native readiness invalid")
 		}
 		child, found := rows[ready.PID]
-		if !found {
+		if !found || child.Zombie {
 			continue
 		}
 		if child.Identity == "" || ready.AgentIdentity == "" {
