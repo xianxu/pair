@@ -3925,6 +3925,24 @@ candidate command or changed wrapper set gets one complete re-observation under
 the same five-second budget; persistent uncertainty refuses with its PID rather
 than treating the candidate as absent (#584).
 
+Legacy readiness without a child birth can exclude a different conversation only
+through its exact launch ordinal and live direct-child relationship. A matching
+source needs the ledger ID among the native engine's positively held writable
+transcripts. When that launch genuinely has no ID, a complete held-ID set is
+used instead, including for modern owners after their full identity checks.
+Missing, partial, conflicting or malformed evidence remains uncertainty. Both
+observations recheck process births, parent edges and held IDs; nothing is
+persisted. Refusals name the legacy owner and, when uniquely resolvable, its slot
+and relaunch command. Codec filename rules stay owned by sessioninventory.
+
+Ledger snapshots use their finite observed length and the existing regular-file,
+no-symlink, unchanged-generation reader rather than an unsupported reader-only
+size ceiling. A pure projection memo lasts for one admission and reuses results
+only after a fresh snapshot has the same content digest. Each phase proves at
+most four owners concurrently, consumes their results in stable order, and joins
+all workers before returning. The shared strict JSON codec keeps full validation
+while avoiding repeated nested duplicate scans and value-token allocations.
+
 Only definitely unexposed reservations may be cancelled by their helper. On the
 next admission, an unconsumed reserved grant whose exact helper is proven dead
 is revoked under the same store lock used by wrapper Claim; a delayed wrapper

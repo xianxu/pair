@@ -1942,3 +1942,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
   Select possible owners before requiring argv, keep uncertainty for those owners,
   and test new rows arriving between the reads. Fake tables containing only owned
   processes miss fleet-wide false refusals. (#584)
+
+- #584: Before adding a whole-history proof to a foreground gate, measure cold decoding on retained production-sized metadata. Custom JSON field decoders do not inherit unknown-field checks, but need not repeat a whole-row duplicate scan already completed by the outer decoder. Preserve the validation contract with old/new differential tests before optimizing. Independent observations can overlap only with bounded workers, ordered decisions, and cancellation plus joining.

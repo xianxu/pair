@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/procutil"
@@ -30,7 +31,7 @@ type RecoveryNativeOwnerCheck struct {
 	Admissions                               NativeAdmissionOwners
 	io                                       *nativeOwnerCheckIO
 	heldFiles                                nativeHeldFiles
-	ledgers                                  map[nativeOwnerLedgerKey]nativeOwnerLedgerResult
+	ledgers                                  *nativeOwnerLedgerMemo
 }
 
 type recoveryNativeWrapper struct {
@@ -79,7 +80,7 @@ func checkRecoveryNativeOwnersWithDiscovery(ctx context.Context, check RecoveryN
 	}
 	ctx, cancel := context.WithTimeout(ctx, zjTimeout)
 	defer cancel()
-	check.ledgers = make(map[nativeOwnerLedgerKey]nativeOwnerLedgerResult)
+	check.ledgers = &nativeOwnerLedgerMemo{values: make(map[nativeOwnerLedgerKey]nativeOwnerLedgerResult)}
 	// Re-observe once under the SAME budget. A process arriving between the
 	// argv snapshot and final table is uncertainty, not a permanent blocker or
 	// permission to admit it unchecked. No launch/signal effects occur here.
@@ -111,29 +112,34 @@ func checkRecoveryNativeOwnersOnce(ctx context.Context, check RecoveryNativeOwne
 	admitted := map[int]bool{}
 	proofs := map[int]recoveryNativeProof{}
 	for _, wrapper := range wrappers {
-		if wrapper.Agent != check.Agent {
-			continue
-		}
-		if check.Admissions.coversDifferentWrapper(check.Agent, check.NativeID, wrapper.Process, before) {
+		if wrapper.Agent == check.Agent && check.Admissions.coversDifferentWrapper(check.Agent, check.NativeID, wrapper.Process, before) {
 			admitted[wrapper.Process.PID] = true
-			continue
 		}
-		proof, err := recoveryNativeProofForWrapper(ctx, check, before, wrapper, read)
-		if err != nil {
-			return err
+	}
+	err = runOrderedNativeProofs(ctx, wrappers, func(workerCtx context.Context, wrapper recoveryNativeWrapper) (recoveryNativeProof, error) {
+		if wrapper.Agent != check.Agent || admitted[wrapper.Process.PID] {
+			return recoveryNativeProof{}, nil
+		}
+		return recoveryNativeProofForWrapper(workerCtx, check, before, wrapper, read)
+	}, func(wrapper recoveryNativeWrapper, proof recoveryNativeProof) error {
+		if wrapper.Agent != check.Agent || admitted[wrapper.Process.PID] {
+			return nil
 		}
 		proofs[wrapper.Process.PID] = proof
-		ready, native := proof.Ready, proof.NativeID
-		if recoverySourceWrapper(check, before, wrapper, ready) {
+		if recoverySourceWrapper(check, before, wrapper, proof.Ready) {
 			excluded++
 			if excluded > 1 {
 				return errors.New("multiple source wrappers make native ownership uncertain")
 			}
-			continue
+			return nil
 		}
-		if native == check.NativeID || slices.Contains(proof.HeldIDs, check.NativeID) {
+		if proof.NativeID == check.NativeID || slices.Contains(proof.HeldIDs, check.NativeID) {
 			return fmt.Errorf("native conversation %s already has a live wrapper (%s:%s)", check.NativeID, wrapper.Owner.RepoScope, wrapper.Owner.Tag)
 		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 	after, err := observe(ctx, "")
 	if err != nil {
@@ -153,23 +159,28 @@ func checkRecoveryNativeOwnersOnce(ctx context.Context, check RecoveryNativeOwne
 	if !reflect.DeepEqual(beforeOrphans, afterOrphans) {
 		return errors.New("retained native owner generation changed; retry")
 	}
-	for _, wrapper := range next {
+	err = runOrderedNativeProofs(ctx, next, func(workerCtx context.Context, wrapper recoveryNativeWrapper) (recoveryNativeProof, error) {
+		if wrapper.Agent != check.Agent || admitted[wrapper.Process.PID] {
+			return recoveryNativeProof{}, nil
+		}
+		return recoveryNativeProofForWrapper(workerCtx, check, after, wrapper, read)
+	}, func(wrapper recoveryNativeWrapper, proof recoveryNativeProof) error {
 		if wrapper.Agent != check.Agent {
-			continue
+			return nil
 		}
 		if admitted[wrapper.Process.PID] {
 			if !check.Admissions.coversDifferentWrapper(check.Agent, check.NativeID, wrapper.Process, after) {
 				return errors.New("admitted native writer changed; retry")
 			}
-			continue
-		}
-		proof, err := recoveryNativeProofForWrapper(ctx, check, after, wrapper, read)
-		if err != nil {
-			return err
+			return nil
 		}
 		if !reflect.DeepEqual(proofs[wrapper.Process.PID], proof) {
 			return errors.New("native owner readiness generation changed; retry")
 		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 	if excluded > 0 {
 		confirmed := 0
@@ -348,14 +359,26 @@ func readRecoveryNativeID(ctx context.Context, check RecoveryNativeOwnerCheck, o
 	// identical bytes reuse their pure projection during this one admission.
 	key := nativeOwnerLedgerKey{Owner: owner, Agent: check.Agent, Ordinal: ordinal}
 	digest := sha256.Sum256(raw)
-	if prior, ok := check.ledgers[key]; ok && prior.Digest == digest {
-		return prior.ID, prior.Err
+	if check.ledgers != nil {
+		check.ledgers.mu.Lock()
+		prior, ok := check.ledgers.values[key]
+		check.ledgers.mu.Unlock()
+		if ok && prior.Digest == digest {
+			return prior.ID, prior.Err
+		}
 	}
 	id, err := projectRecoveryNativeID(raw, owner, check.Agent, ordinal)
 	if check.ledgers != nil {
-		check.ledgers[key] = nativeOwnerLedgerResult{Digest: digest, ID: id, Err: err}
+		check.ledgers.mu.Lock()
+		check.ledgers.values[key] = nativeOwnerLedgerResult{Digest: digest, ID: id, Err: err}
+		check.ledgers.mu.Unlock()
 	}
 	return id, err
+}
+
+type nativeOwnerLedgerMemo struct {
+	mu     sync.Mutex
+	values map[nativeOwnerLedgerKey]nativeOwnerLedgerResult
 }
 
 type nativeOwnerLedgerKey struct {

@@ -38,10 +38,10 @@
 ## Tasks
 
 - [x] Candidate/zombie/churn regressions fail on original code; minimal candidate fix passes native-owner tests.
-- [ ] Add red legacy tests: different-ID exclusion, matching-ID collision/source exemption, direct parent and birth changes, wrong owner/ordinal/held ID, read-only paths, no proof, other-agent exclusion and modern identity mismatch.
-- [ ] Factor existing exact-ordinal ledger projection once for modern, legacy and orphan consumers; add the injected legacy held-file check without weakening modern readiness.
-- [ ] Add bounded writable-file IO and reuse native filename codecs; fake command/parser tests and read-only host conformance.
-- [ ] Add exact-owner migration diagnostics, with friendly Couch slot resolution through preview reads where available; tests for known and unresolved owners.
+- [x] Add red legacy tests: different-ID exclusion, matching-ID collision/source exemption, direct parent and birth changes, wrong owner/ordinal/held ID, read-only paths, no proof, other-agent exclusion and modern identity mismatch.
+- [x] Factor existing exact-ordinal ledger projection once for modern, legacy and orphan consumers; add the injected legacy held-file check without weakening modern readiness.
+- [x] Add bounded writable-file IO and reuse native filename codecs; fake command/parser tests and read-only host conformance.
+- [x] Add exact-owner migration diagnostics, with friendly Couch slot resolution through preview reads where available; tests for known and unresolved owners.
 - [ ] Update atlas and Log with justification, the 18-wrapper census, host evidence and limitations; targeted tests and build.
 - [ ] Record the full suite on the pushed final code head; close once with the mandatory SDLC review; land on SHIP and report merge to hub. No live migration or resume from this slot.
 
@@ -71,3 +71,11 @@ The host's valid 21 MiB ledger also requires #508's existing contract: no reader
 ### 2026-10-15 — modern absent-only held proof
 
 TL approved fcda041b: apply the complete held-ID-set fallback to modern owners only after full readiness identity and ancestry checks. Conflicting/malformed IDs and identity mismatches remain refusals. The host cold-history decoding cost currently exceeds the existing admission budget; measure a codec repair before any validation-scope or timing change.
+
+### 2026-10-15 — approved equivalent codec performance repair
+
+TL approved bc20aff9 after repeated cold-host checks exposed insufficient margin (codec-only passes 4.321/4.868 s, two runs exhausted 5 s). Keep the exact whole-ledger validation scope and five-second budget. Replace Decoder.Token duplicate traversal in shared strictjson with json.Valid plus key-only duplicate checks; preserve float-overflow rejection, Unicode/escaped key equality, nested duplicates and trailing-data refusal. Differential tests compare the old scanner against the new scanner on adversarial cases, fuzz input and a read-only corpus of real ledger rows. Also remove private ledger fields' redundant duplicate traversals after the strict whole-row check, preserving unknown/null/trailing rejection. Require measured host margin under load before closing. ARCH-DRY: repair the shared codec rather than introducing a weaker ownership-only parser.
+
+### 2026-10-15 — approved bounded proof scheduling
+
+TL approved dcac37b0: prove at most four owners concurrently in each before/after phase. Consume results and business checks in stable wrapper order regardless of completion order; a stable-order failure cancels and joins every worker before returning. Context cancellation also joins. Fresh snapshot IO, whole-ledger validation and both process/evidence fences remain unchanged. The pure memo has a short mutex around map access only; never hold it over IO, hashing or decode. Add deterministic shuffled completion and cancellation/join tests, and run the real multi-owner gate under the race detector. Same five-second total budget and no persistent cache.

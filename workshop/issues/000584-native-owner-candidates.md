@@ -53,6 +53,9 @@ Filter native-owner candidates from kernel metadata before requiring argv; unrel
 - 2026-10-15: Added regressions for projected unreadable root services, zombie wrapper and retained child, unreadable/identity-less possible Pair owners, settling and persistent candidate churn, unrelated churn, a newly visible colliding writer, and changed wrapper ancestry. All new cases fail against the original implementation (also checked using a Go source overlay); the native-owner suite passes after the fix. One changed-generation fixture now asserts the bounded retry before its later missing-child refusal. Retained-readiness changes retain their existing strict refusal.
 - 2026-10-15: Read-only full host preflight advances past the original command-table refusal in 92–120 ms, then refuses `retained native child generation unknown`: legacy readiness repos/11873b98e33bf004/agent-ready-1-pair-7-codex.json has ordinal 71, PID 73724 and no agent_identity, while its node Codex process is still a child of live wrapper 73688. This separate #556 legacy-association blocker was reported to the hub (bc9cbbce-038e-4e6f-a942-43b444c6fdcc); no uncertainty bypass or production mutation was attempted.
 
+- 2026-10-15: Final bounded-scheduling host observation passed five consecutive read-only checks under concurrent targeted/race runs: 1.579, 1.664, 1.562, 1.496 and 4.281 seconds, all inside the unchanged five-second budget (load 12.67/16.96/20.08 at the end). Typical margin is over three seconds; the slowest measured margin is 0.719 seconds, not a guarantee under arbitrary load. No launch, reservation, park, signal or production metadata writes were performed. Earlier serial checks under concurrent build load exhausted the budget and are retained above rather than omitted.
+- 2026-10-15: Targeted affected-package run passed: couchcore 9.030s, launcher 0.725s, procutil 3.345s, sessioninventory 0.186s. The real twelve-owner/two-fence memo test and ordered worker suite pass under -race (five repetitions, 1.681s); worker-only race tests pass twenty repetitions. Sessionledger and strictjson package tests passed. Real-row differential corpus and adversarial differential fuzz pass; native ledger content is retained only locally.
+
 ## Revisions
 
 ### 2026-10-15 15:55 — approved narrow legacy association
@@ -77,6 +80,14 @@ TL approved receipt 5d2dcac0 to use a complete positively held writable native t
 ### 2026-10-15 — approved modern unbound ID set and host timing
 
 TL approved fcda041b: the absent-only complete held-ID fallback also applies after a modern owner passes its full birth and ancestry checks. Malformed/conflicting IDs and identity mismatches still refuse. Both modern and legacy regression matrices pass. A per-admission SHA-256 projection memo retains fresh physical reads at both observations; a changed-byte mutation test proves that stale projections cannot admit changed bindings. The real five-second host check still times out: a separate read-only 15-second diagnostic reached the budget while decoding whole historical ledgers (20–33 MB each); physical reads took milliseconds. No slot effects occurred. Investigating codec cost before claiming the fleet blocker resolved; no deadline increase or weakened validation has been applied.
+
+### 2026-10-15 — shared codec performance, approved
+
+TL approved bc20aff9 the shared json.Valid/key-only duplicate scanner with differential proof against the old scanner, including real ledger rows and adversarial nesting, escaping, Unicode and trailing data. Private ledger field decoders can avoid redundant scans after the outer strict decoder, retaining all rejection semantics. The selective-generation shortcut and larger deadline are unnecessary and are not being implemented. Required host read-only evidence must show margin, beyond a single near-deadline pass.
+
+### 2026-10-15 — approved bounded owner scheduling
+
+TL approved dcac37b0 after serial observation remained marginal during a concurrent build. At most four independent owner proofs per phase; consume in stable wrapper order, cancel and join on failure, keep the memo lock off IO/decode, and retain both fences and the five-second budget. Differential scanner proof: 1,032 rows from the 21 largest retained ledgers, 326,709,546 non-newline bytes, all accepted by both scanners, SHA-256 df55dff5f68e4675c94dfed6ab77f584073e7ea7d842c5caf0b2988b591899fa; adversarial differential fuzz passed 812,261 cases. The corpus test is a local read-only overlay; native content is not committed.
 
 ## Estimate
 

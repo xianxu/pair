@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"slices"
 	"strings"
 	"time"
@@ -150,10 +151,32 @@ type strictField[T any] struct {
 }
 
 func (field *strictField[T]) UnmarshalJSON(raw []byte) error {
-	if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+	trimmed := bytes.TrimSpace(raw)
+	if bytes.Equal(trimmed, []byte("null")) {
 		return errors.New("field must not be null")
 	}
-	if err := strictjson.Decode(raw, &field.Value); err != nil {
+	// These private fields are decoded only inside a whole-row strictjson.Decode,
+	// which already rejects duplicate keys throughout the row. Repeating that
+	// recursive scan for every nested field makes large launch baselines costly.
+	// Scalars have no object fields; compound values still need their own unknown
+	// field check because UnmarshalJSON starts a separate decoder.
+	if len(trimmed) > 0 && trimmed[0] != '{' && trimmed[0] != '[' {
+		if err := json.Unmarshal(raw, &field.Value); err != nil {
+			return err
+		}
+		field.Present = true
+		return nil
+	}
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&field.Value); err != nil {
+		return err
+	}
+	var extra any
+	if err := dec.Decode(&extra); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return errors.New("trailing JSON value")
+		}
 		return err
 	}
 	field.Present = true
