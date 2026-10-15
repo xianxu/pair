@@ -157,6 +157,12 @@ func ParseNativeResumeSelector(agent string, args []string) (NativeResumeSelecto
 			}
 			continue
 		}
+		// Supported resume/new/fork forms above have explicit semantics. Any
+		// remaining context flag from the Fresh authority needs an existing-
+		// session mapping we cannot currently prove, even beside a fork/new ID.
+		if freshAgentSpecs[agent].forbidsFlag(name) {
+			return s, fmt.Errorf("unsupported existing-conversation selector %q; use an exact native ID or Fresh", a)
+		}
 		// A clustered short selector cannot hide from the same option-letter
 		// authority used by Fresh validation. Value-taking letters end the cluster.
 		if strings.HasPrefix(a, "-") && !strings.HasPrefix(a, "--") && len(a) > 2 && !inline {
@@ -261,6 +267,12 @@ func ParseNativeResumeSelector(agent string, args []string) (NativeResumeSelecto
 				if err := selectKind(kind, id); err != nil {
 					return s, err
 				}
+				continue
+			}
+			// Reuse the Fresh command authority rather than restating native
+			// attach/respawn spellings in a second classifier.
+			if err := ValidateFreshAgentArgs(agent, []string{a}); err != nil {
+				return s, fmt.Errorf("unsupported existing-conversation command: %w", err)
 			}
 		}
 	}
