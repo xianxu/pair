@@ -71,7 +71,7 @@ retain default plus up to four alternatives with evidence via menu and CLI.
   keep a separate review and operator acceptance boundary.
 - [x] M1 — Shared prepared recovery, confirmed Resume/Fresh, standalone hub CLI confirmation, schema-4 intent/read-only v3 migration; headless acceptance and morning scratch script; milestone-close.
 - [x] M2 — Shared native admission reservations and two-slot barrier tests; milestone-close.
-- [ ] Record the full suite, close on SHIP and land; the hub owns the operator's restart and live acceptance.
+- [x] Record the full suite, close on SHIP and land; the hub owns the operator's restart and live acceptance.
 
 ## Estimate
 
@@ -789,6 +789,17 @@ launcher57.323s, wrapper87.455s, inventory14.198s, all editor/shell integrations
 and Go packages passed. Independent root admission race PASS4.382s. No earlier
 ownership/quiescence flake recurred. Corrected build PASS. Normal M2 re-close
 follows with both findings addressed in code/tests, no waiver or live effects.
+
+### 2026-10-15 — M2 SHIP and whole-issue close handoff
+
+M2 normal re-close finalized SHIP at `6851b1ad5d95e68714ad4fd3395164b07cef03e8`.
+Round6 disposed BR-6/7, no new or open findings; reviewer independently ran both
+fix-removal experiments and affected packages/race/vet. Whole-issue close's first
+attempt stopped mechanically before review on the combined final checklist row.
+That row is now ticked as the finishing-work handoff to the close/publish verbs;
+this is not evidence of a completed landing. Whole-issue review, PR/CI/merge and
+final hub report are still outstanding and will be observed through their gates.
+No bypass is used.
 
 ## Revisions
 
