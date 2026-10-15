@@ -632,6 +632,41 @@ Pair inventory also does not honor custom CODEX_HOME. Those are concrete remaini
 scope limits, not permission to invent defaults. The hub's decision is still
 required before M2 close/landing.
 
+### 2026-10-15 — final-code suite blocked by scratch capacity; checkpoint
+
+Required recorded suite on
+`32c5e123535f1dfe9b46e2edb9ed433bdb212002` finished **FAIL**, exit 2 in **9m41s**.
+Log `/Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/cc39d5c0201f140329feb371b851c5ef.log`,
+SHA-256 prefix **c2186d200292**. Go linker/vet/package writes failed with
+`no space left on device` under `/Volumes/AgentScratch/tmp/go-build433343417`.
+Read-only measurements: scratch capacity 186Gi, 100% used (119Mi free at first
+measurement, 299Mi after completion); GOCACHE is `/Volumes/AgentScratch/go-build`
+(**184G** by du), GOTMPDIR is `/Volumes/AgentScratch/tmp` (**1.6G** measured),
+while the /tmp Data volume has **257Gi** free. No cache or other agent's files
+were deleted, no global Go environment/configuration was changed, and no full
+suite retry is started against the still-full volume.
+
+The run also failed
+`TestSpawnRetainsOwnershipAndRetriesUntilQuiescenceIsProven` at couch_test.go:1082:
+its returned registration/child-wait error omitted the expected quiescence-hook
+error. This is separate from linker failures; its cause is not established.
+Immediate isolated rerun on the same current code **PASS** 0.537s:
+`go test ./cmd/internal/couchcore -run '^TestSpawnRetainsOwnershipAndRetriesUntilQuiescenceIsProven$' -count=1 -timeout=60s`.
+Do not relabel the full run as passing or attribute this test to disk exhaustion
+without evidence. Preserve the failure for the next clean-capacity full run.
+
+The hub received both the concrete plan decision
+`657c3067-bd4a-4c05-812b-a430cd87626e` and capacity blocker
+`52c58d60-1056-406f-a3fb-d2b98e49d38c` as **submitted**. Capacity report asks for
+shared-volume recovery or an authorized isolated per-run environment override.
+The standard recorded runner inherits the full scratch environment; AGENTS §15
+requires bare sdlc calls, so no ad-hoc prefixed runner or global environment edit
+was used to route around that contract. No latest-selector scope answer has been
+observed. M2 remains unclosed, with no review/landing/stage operation or waiver.
+Next: hub decides selector configuration strategy and machine capacity, rerun the
+required suite on the resulting code head, then normal M2 milestone-close and
+whole-issue close/PR/CI/merge on SHIP. M1 remains normally closed at `69c213c289ac`.
+
 ## Revisions
 
 ### 2026-10-15T05:33-07:00 — overnight M2 dispatch
