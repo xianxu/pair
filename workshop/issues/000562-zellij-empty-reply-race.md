@@ -49,14 +49,14 @@ External posting, upstream installation and operator environment changes require
 
 ## Done when
 
-- A deterministic protocol regression establishes whether unrelated unblock can finish a query before Log and exclude a live ConnStatus probe; preserve raw command outcomes and source version.
+- A source-derived stateful executable fake reproduces early successful completion before query output and verifies Pair preserves uncertainty; pinned upstream source establishes the possible query/ConnStatus interleavings. Actual upstream receiver regressions and captured runtime IPC ordering remain an explicit upstream/#563 dependency, not claimed delivered evidence.
 - The CI empty-PID sidecar is classified separately, with a regression for complete PID publication if that boundary is responsible; no claim that Atoi proved empty CLI stdout.
 - A reviewed correction or explicitly assigned upstream dependency prevents unknown/empty replies from becoming positive absence or detached authority, without retry/sleep workarounds or weakened ownership fences.
 - The upstream draft reflects measured findings and clearly distinguishes hypotheses; external submission occurs only with authorization.
 
 ## Plan
 
-- [x] Reproduce the protocol interleavings deterministically and classify the CI PID publication boundary independently.
+- [x] Verify the possible interleavings in pinned source, reproduce unanswered-query handling with a stateful executable fake, and classify the independent CI PID publication boundary.
 - [x] Design the smallest correction or upstream dependency with the TL; preserve uncertainty and exact-generation effect guards.
 - [x] Verify stateful regressions and applicable live conformance, then hand the stable observation contract to #563.
 
@@ -157,3 +157,15 @@ Recorded full suite PASS on b15c36aa4fddcfcaa13a969e189121a8b0a93a0b: exit0 in9m
 Stable #563 handoff: ErrZellijNoReply means no observed stdout after a successful read, preserving raw exit0 in the query observer. Exact observed no-active-sessions remains distinct. Each explicit query is a fresh observation; there are no retries or relaxed generation checks. A nonempty incomplete inventory remains possible and must not be interpreted as proof that the upstream interleaving was measured. The internal upstream draft includes source-derived receiver scenarios and the evidence limits. TL owns the morning restart look; no stage, operator Couch mutation or external submission occurred.
 
 After that suite, merged current main965fcb814, including #423's test-only inventory-readiness correction, cleanly. A replacement recorded integration suite will run before landing, as required by the gate; the completed pass above remains valid evidence for #562's behavior.
+
+### 2026-10-15 — close review BR-1 / BR-2
+
+The full close review (automatically upgraded from quick at106 added code lines) returned REWORK with two real findings. BR-1: ProbeSessionName still treats nonzero replies with arbitrary diagnostics as positive validator evidence, allowing failed connections or cancellation with partial output to teach monotone acceptance. Enumerate every outcome: context failure first, explicit length refusal, explicit known validator/no-session evidence, successful nonempty stdout, and all other failures/empty success remain unknown. Add subprocess-level failure/partial-output/cancellation regressions and verify the assignment-local acceptor retains that uncertainty.
+
+BR-2: the original Done-when said “A deterministic protocol regression establishes whether unrelated unblock can finish a query before Log and exclude a live ConnStatus probe”; the first Plan row claimed reproduction of both interleavings. That exceeded TL-approved delivery (receipt4efcb022): a source-derived Pair read-boundary fake, source-verified upstream possibilities, and an internal report requesting actual receiver tests. Updated those two statements to the delivered boundary scope, preserving the old criterion here. No ConnStatus receiver model, upstream Rust test or captured runtime ordering is claimed. The explicit outstanding dependency is the internal upstream draft's receiver scenarios plus #563's passive IPC evidence.
+
+The integration suite on77145de9 was still queued and was canceled before acquisition to avoid testing a revision superseded by the required BR-1 code correction. The completed b15c36aa full pass remains recorded.
+
+BR-1 source check: pinned Zellij0.45.1 zellij-utils/src/cli.rs30–51,76–77 attaches validate_session to --session; src/main.rs20 parses before commands.rs409–449 action dispatch. Thus exact exit1/no-stdout action diagnostics (There is no active session!, or this exact requested name missing with one active-name line) prove only length validation. All arbitrary failures, mixed partial stdout, compound discovery failures and cancellation remain unknown. Context failure is checked before any validator-looking text. Added pure diagnostic classification plus real-subprocess controls. The five original regressions failed in20.434s before correction (positive-bound poisoning and canceled negative-bound poisoning with an extra probe); after correction all five pass15.273s. Eleven explicit reply-shape controls pass1.028s.
+
+Full launcher package with the BR-1 correction passes under -race (92.439s, /tmp/pair562-br1-launcher-race.log). The shared Zellij read boundary already checks context/failure before granting output authority; the remaining display-only helper is unchanged. No other authoritative subprocess outcome classifier accepts failed partial output.

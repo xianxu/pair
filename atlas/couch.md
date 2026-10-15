@@ -1152,6 +1152,9 @@ keep uncertainty and perform no automatic retry. The explicit exit1 diagnostic
 A new query is a new observation, and malformed nonempty pane JSON still fails.
 Name-length assignments retain an unanswered probe separately from genuine
 validator refusals, so they cannot learn a monotone length bound from uncertainty.
+Cancellation is checked before parsing partial output. Nonzero name probes accept
+only exact post-parse absence diagnostics: Zellij validates the --session length
+before action dispatch; arbitrary failure diagnostics remain uncertain.
 Native server identity and effect-time generation checks remain required; this
 boundary cannot detect a nonempty discovery result that silently omitted a server.
 

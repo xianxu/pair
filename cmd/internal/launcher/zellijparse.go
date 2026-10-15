@@ -35,6 +35,19 @@ func sessionNameRejected(out string) bool {
 	return strings.Contains(out, "session name must be less than")
 }
 
+// sessionNameAbsentDiagnostic recognizes post-parse action diagnostics from
+// Zellij 0.45.1. Its --session Clap validator runs before these branches.
+func sessionNameAbsentDiagnostic(session, stderr string) bool {
+	diagnostic := strings.TrimSpace(stderr)
+	if diagnostic == "There is no active session!" {
+		return true
+	}
+	heading := "Session '" + session + "' not found. The following sessions are active:\n"
+	active, ok := strings.CutPrefix(diagnostic, heading)
+	return ok && active != "" && !strings.ContainsAny(active, "\r\n") &&
+		active != "No active zellij sessions found." && !strings.HasPrefix(active, "Error occurred:")
+}
+
 // pairSessionNames extracts the Pair session names from `zellij
 // list-sessions --short` output — sorted + deduped, matching the shell's
 // `awk '/^pair-/' | sort` (list flow, shell 1235/232), widened to pair's

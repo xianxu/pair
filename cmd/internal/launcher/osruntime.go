@@ -126,27 +126,27 @@ func (OSRuntime) ProbeSessionName(session string) error {
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	err := cmd.Run()
+	if ctx.Err() != nil {
+		return fmt.Errorf("could not ask zellij about session name %q: %w", session, ctx.Err())
+	}
 	out := append(stdout.Bytes(), stderr.Bytes()...)
 	if sessionNameRejected(string(out)) {
 		return fmt.Errorf("%w: %s", errSessionNameTooLong, session)
 	}
-	// A FAILED observation is not a positive one. Discarding err meant a zellij
-	// that is missing, killed, or past zjTimeout produced empty output,
-	// sessionNameRejected("") said false, and the name read as ACCEPTED. Since
-	// #215 that is worse than one bad answer: acceptance is monotone, so the
-	// bracket generalises a single failed observation to every name of that
-	// length or shorter, arithmetically and without asking again. A timeout here
-	// is reachable under exactly the load this issue is about (zjTimeout is 5s,
-	// and a `zellij action` round-trip was measured at 467ms under load, #203).
-	//
-	// Empty output, including exit0 after an early unblock, is no answer. A
-	// validator refusal has a diagnostic on stderr. Unrelated stderr cannot
-	// substitute for the missing stdout of a successful query.
-	if (err == nil && len(bytes.TrimSpace(stdout.Bytes())) == 0) || len(bytes.TrimSpace(out)) == 0 {
-		if err == nil {
-			err = ErrZellijNoReply
+	if err != nil {
+		// Clap validates --session before action dispatch. These exact
+		// post-parse absence diagnostics prove length acceptance only.
+		var exit *exec.ExitError
+		if errors.As(err, &exit) && exit.ExitCode() == 1 && stdout.Len() == 0 &&
+			sessionNameAbsentDiagnostic(session, stderr.String()) {
+			return nil
 		}
 		return fmt.Errorf("could not ask zellij about session name %q: %w", session, err)
+	}
+	// Empty success after an early unblock is unanswered. Neither failed IO
+	// nor unrelated stderr may teach the assignment's monotone length bounds.
+	if len(bytes.TrimSpace(stdout.Bytes())) == 0 {
+		return fmt.Errorf("could not ask zellij about session name %q: %w", session, ErrZellijNoReply)
 	}
 	return nil
 }
