@@ -1,13 +1,13 @@
 ---
 id: 000556
-status: working
+status: codecomplete
 deps: [pair#528]
 github_issue:
 target: slot-recovery
 created: 2026-10-14
 updated: 2026-10-15
 estimate_hours: 6.75
-card_mirror: '5ecc1a115e45b5f378d73b176e25356b1b1f7292' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '496b67b0e7ba42c7ec169fad56226a71ae5e331f' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-14T15:10:56-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 18.43
 ---
 
 # Couch confirmed disk recovery and always-reachable fresh startup
