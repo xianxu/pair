@@ -1088,3 +1088,16 @@ No follow-up implementation starts on this branch.
   Receipt verification unavailable: broker socket missing, then current Couch
   says this slot is unregistered. No live recovery attempted; conservatively
   leave stage untouched. Hub received prior M1 outcome e836ed71 (submitted).
+
+- Terminal publication-window overlay RED5.357s reproduces the exact empty
+  Unix address plus missing readiness failure. Corrected all five terminal
+  fixture publications with existing atomic writer; no timeout change. Drive
+  test closes its idle client connections before Stop, retaining its1s checks
+  and ACK barriers. Both tests20 repetitions PASScore5.316s/tty1.249s; related
+  Terminal/Registration/DriveAction/DriveACK/Shutdown group PASScore14.723s/
+  tty3.188s. Runtime remains the M1-reviewed implementation.
+- Receipt205a878e became readable later: exact canonical body/current recipient
+  match, delivery status indeterminate (deadline elapsed after submit). It asks
+  stage remain untouched for hub-owned restaging; no stage mutation will occur.
+  Do not claim a submitted receipt or repeat the message. Normal final suite
+  and whole-issue close still precede landing; GitHub access works again.

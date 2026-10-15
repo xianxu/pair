@@ -1814,3 +1814,9 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
   see the creation/truncation window. Reproduce scheduling races by stretching
   that window in an overlay; do not hide them with more reader polling.
 - #555: For generated-output changes, record both consumer and substrate revisions, before/after blob identity, and repeat-generation result. Disposable review checkouts may lack sibling sources; measured host evidence lets review verify provenance without modifying its environment.
+
+- #528 final fixture sweep: An existence-based waiter needs atomic payload
+  publication for socket requests and pane/readiness JSON too. Inspect the
+  underlying error (empty Unix bind address) before calling a timeout load-only.
+  Keep a shutdown-order assertion independent of idle HTTP client cleanup;
+  close fixture idle connections instead of widening its ACK deadline.

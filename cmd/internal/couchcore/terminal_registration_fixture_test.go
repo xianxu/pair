@@ -12,12 +12,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/osfs"
 	"github.com/xianxu/pair/cmd/internal/readiness"
 )
 
 // runRegistrationTerminalFixture models only the terminal process boundary:
 // an exact server command, a real socket, and an owner-bearing live child.
-// Production admission still reads all identities and writes the launch policy.
+// Production admission still reads exact identities and observes the live session.
 func runRegistrationTerminalFixture() int {
 	if err := registrationTerminalFixture(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -46,10 +47,10 @@ func registrationTerminalFixture() error {
 		if err != nil {
 			return err
 		}
-		if err = os.WriteFile(os.Getenv("PAIR_AGENT_READY_PATH"), []byte(raw), 0600); err != nil {
+		if err = (osfs.FS{}).WriteAtomic(os.Getenv("PAIR_AGENT_READY_PATH"), string(raw)); err != nil {
 			return err
 		}
-		if err = os.WriteFile(os.Getenv("PAIR_TEST_ZELLIJ_READY"), []byte("ready"), 0600); err != nil {
+		if err = (osfs.FS{}).WriteAtomic(os.Getenv("PAIR_TEST_ZELLIJ_READY"), "ready"); err != nil {
 			return err
 		}
 		if err := awaitRegistrationFixtureRelease(); err != nil {
@@ -74,7 +75,7 @@ func registrationTerminalFixture() error {
 		}
 		defer func() { _ = child.Process.Kill(); _ = child.Wait() }()
 		pane, _ := json.Marshal([]map[string]any{{"id": 1, "pane_command": strings.Join(child.Args, " ")}})
-		if err = os.WriteFile(os.Getenv("PAIR_TEST_ZELLIJ_PANES"), pane, 0600); err != nil {
+		if err = (osfs.FS{}).WriteAtomic(os.Getenv("PAIR_TEST_ZELLIJ_PANES"), string(pane)); err != nil {
 			return err
 		}
 		if err := awaitRegistrationFixtureRelease(); err != nil {
@@ -87,7 +88,7 @@ func registrationTerminalFixture() error {
 	case strings.Contains(joined, " --new-session-with-layout "):
 		socket := filepath.Join(os.Getenv("ZELLIJ_SOCKET_DIR"), "contract_version_1", os.Getenv("PAIR_SESSION_NAME"))
 		if request := os.Getenv("PAIR_TEST_ZELLIJ_SERVER_REQUEST"); request != "" {
-			if err := os.WriteFile(request, []byte(socket), 0600); err != nil {
+			if err := (osfs.FS{}).WriteAtomic(request, socket); err != nil {
 				return err
 			}
 			return awaitRegistrationFixtureFile(os.Getenv("PAIR_TEST_ZELLIJ_CLIENT_RELEASE"))
@@ -97,7 +98,7 @@ func registrationTerminalFixture() error {
 		server.Stdout, server.Stderr = os.Stdout, os.Stderr
 		return server.Run()
 	case strings.Contains(joined, " attach "):
-		if err := os.WriteFile(os.Getenv("PAIR_TEST_ZELLIJ_ATTACH_READY"), []byte("attach"), 0600); err != nil {
+		if err := (osfs.FS{}).WriteAtomic(os.Getenv("PAIR_TEST_ZELLIJ_ATTACH_READY"), "attach"); err != nil {
 			return err
 		}
 		return awaitRegistrationFixtureFile(os.Getenv("PAIR_TEST_ZELLIJ_ATTACH_RELEASE"))
