@@ -54,6 +54,7 @@ func ParseNativeResumeSelector(agent string, args []string) (NativeResumeSelecto
 	flags := args
 	form := resumeform.Forms()[agent]
 	fork, newID, commandSeen, execSeen, last := false, false, false, false, false
+	codexScopedConfig := false
 	selected := false
 	selectKind := func(kind NativeResumeKind, id string) error {
 		if selected {
@@ -100,6 +101,7 @@ func ParseNativeResumeSelector(agent string, args []string) (NativeResumeSelecto
 				s.CodexConfig.Profile = configValue
 			case "-c", "--config":
 				s.CodexConfig.Overrides = append(s.CodexConfig.Overrides, configValue)
+				codexScopedConfig = codexScopedConfig || commandSeen || execSeen
 			case "--enable":
 				s.CodexConfig.Enable = append(s.CodexConfig.Enable, configValue)
 			case "--disable":
@@ -323,6 +325,20 @@ func ParseNativeResumeSelector(agent string, args []string) (NativeResumeSelecto
 			// attach/respawn spellings in a second classifier.
 			if err := ValidateFreshAgentArgs(agent, []string{a}); err != nil {
 				return s, fmt.Errorf("unsupported existing-conversation command: %w", err)
+			}
+		}
+	}
+	// Native folds global feature toggles into root overrides before prepending
+	// those to subcommand overrides. The flattened invocation cannot represent
+	// that distinction; preserve native selection rather than reverse precedence.
+	if agent == "codex" && codexScopedConfig {
+		for _, features := range [][]string{s.CodexConfig.Enable, s.CodexConfig.Disable} {
+			for _, feature := range features {
+				// Couch injects this independently of selection; its ordering
+				// cannot change the selected history namespace.
+				if feature != "shell_snapshot" {
+					s.CodexConfig.Unsupported = true
+				}
 			}
 		}
 	}

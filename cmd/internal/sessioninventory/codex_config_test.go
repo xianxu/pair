@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"syscall"
 	"testing"
@@ -449,5 +450,133 @@ func TestCodexConfigKnownFeatureFlagsKeepSelectionScope(t *testing.T) {
 				t.Fatalf("worktrees changed: %+v", projection.Scope)
 			}
 		})
+	}
+}
+
+func TestCodexConfigCLITableAssignmentRestoresNativeWorktreeDefault(t *testing.T) {
+	q := CodexConfigInvocation{CWD: "/work", Overrides: []string{"features={worktrees=false}", "features={shell_snapshot=false}"}}
+	cli, err := codexCLIConfigLayer(q, "/home")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := projectCodexConfig(codexConfigEvidence{scope: CodexSelectionScope{CodexHome: "/home/codex", CWD: "/work", Mode: CodexModeTUI}, layers: []codexConfigLayer{{base: "/home/codex", values: map[string]any{"forced_login_method": "api"}}, cli}})
+	if p.Status != CodexConfigComplete || !p.Scope.Worktrees {
+		t.Fatalf("native final features assignment restores default worktrees=true: %+v CLI=%+v", p, cli.values)
+	}
+}
+func TestCodexConfigCLITableAssignmentReplacesSelectorTables(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		overrides []string
+		want      map[string]any
+	}{
+		{"features root", []string{"features={worktrees=false}", "features={shell_snapshot=false}"}, map[string]any{"features": map[string]any{"shell_snapshot": false}}},
+		{"projects root", []string{"projects={first={trust_level='trusted'}}", "projects={second={trust_level='untrusted'}}"}, map[string]any{"projects": map[string]any{"second": map[string]any{"trust_level": "untrusted"}}}},
+		{"providers root", []string{"model_providers={first={name='First'}}", "model_providers={second={name='Second'}}"}, map[string]any{"model_providers": map[string]any{"second": map[string]any{"name": "Second"}}}},
+		{"provider definition", []string{"model_providers.custom={name='Custom',base_url='https://first.invalid'}", "model_providers.custom={base_url='https://second.invalid'}"}, map[string]any{"model_providers": map[string]any{"custom": map[string]any{"base_url": "https://second.invalid"}}}},
+		{"scalar ancestor", []string{"features=false", "features.worktrees=false"}, map[string]any{"features": map[string]any{"worktrees": false}}},
+		{"ordinary feature leaf", []string{"features.worktrees=false", "features.worktrees={enabled=true}"}, map[string]any{"features": map[string]any{"worktrees": map[string]any{"enabled": true}}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			layer, err := codexCLIConfigLayer(CodexConfigInvocation{CWD: "/work", Overrides: tc.overrides}, "/home")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(layer.values, tc.want) {
+				t.Fatalf("got %#v want %#v", layer.values, tc.want)
+			}
+		})
+	}
+}
+
+func TestCodexConfigCLIStructuredFeatureAssignment(t *testing.T) {
+	for _, feature := range []string{"code_mode", "multi_agent_v2", "network_proxy", "sleep_tool"} {
+		for _, prefix := range []string{"features.", "profiles.work.features."} {
+			for _, tc := range []struct {
+				name   string
+				values []string
+				want   map[string]any
+			}{
+				{"boolean then table", []string{"false", "{extra=1}"}, map[string]any{"enabled": false, "extra": int64(1)}},
+				{"table then boolean", []string{"{extra=1}", "true"}, map[string]any{"enabled": true, "extra": int64(1)}},
+				{"table then table", []string{"{first=1}", "{second=2}"}, map[string]any{"first": int64(1), "second": int64(2)}},
+			} {
+				t.Run(prefix+feature+"/"+tc.name, func(t *testing.T) {
+					var overrides []string
+					for _, v := range tc.values {
+						overrides = append(overrides, prefix+feature+"="+v)
+					}
+					layer, err := codexCLIConfigLayer(CodexConfigInvocation{Overrides: overrides}, "/home")
+					if err != nil {
+						t.Fatal(err)
+					}
+					var got any = layer.values
+					for _, segment := range strings.Split(prefix+feature, ".") {
+						got = got.(map[string]any)[segment]
+					}
+					if !reflect.DeepEqual(got, tc.want) {
+						t.Fatalf("got %#v want %#v", got, tc.want)
+					}
+				})
+			}
+			t.Run(prefix+feature+"/intermediate boolean", func(t *testing.T) {
+				layer, err := codexCLIConfigLayer(CodexConfigInvocation{Overrides: []string{prefix + feature + "=false", prefix + feature + ".extra=1"}}, "/home")
+				if err != nil {
+					t.Fatal(err)
+				}
+				var got any = layer.values
+				for _, segment := range strings.Split(prefix+feature, ".") {
+					got = got.(map[string]any)[segment]
+				}
+				want := map[string]any{"enabled": false, "extra": int64(1)}
+				if !reflect.DeepEqual(got, want) {
+					t.Fatalf("got %#v want %#v", got, want)
+				}
+			})
+		}
+	}
+}
+func TestCodexConfigCLITableReplacementDropsBootstrapTrustAndProvider(t *testing.T) {
+	t.Run("project API proof", func(t *testing.T) {
+		r, q, _, cwd := codexTestConfig(t, "")
+		physical, _ := filepath.EvalSymlinks(cwd)
+		folder := filepath.Join(cwd, ".codex")
+		if err := os.Mkdir(folder, 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(folder, "config.toml"), []byte("forced_login_method='api'\n"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		q.Overrides = []string{`projects={"` + physical + `"={trust_level='trusted'}}`}
+		p, err := readCodexSelectionConfig(context.Background(), q, r)
+		if err != nil || p.Status != CodexConfigComplete {
+			t.Fatalf("positive proof disconnected: %+v %v", p, err)
+		}
+		q.Overrides = append(q.Overrides, "projects={}")
+		p, err = readCodexSelectionConfig(context.Background(), q, r)
+		if err != nil || p.Status == CodexConfigComplete {
+			t.Fatalf("deleted CLI trust survived table replacement: %+v %v", p, err)
+		}
+	})
+	t.Run("provider definition", func(t *testing.T) {
+		r, q, _, _ := codexTestConfig(t, "forced_login_method='api'\nmodel_provider='custom'\n")
+		q.Overrides = []string{"model_providers={custom={name='Custom'}}"}
+		p, err := readCodexSelectionConfig(context.Background(), q, r)
+		if err != nil || p.Status != CodexConfigComplete {
+			t.Fatalf("positive provider disconnected: %+v %v", p, err)
+		}
+		q.Overrides = append(q.Overrides, "model_providers={}")
+		p, err = readCodexSelectionConfig(context.Background(), q, r)
+		if err != nil || p.Status == CodexConfigComplete {
+			t.Fatalf("deleted CLI provider survived: %+v %v", p, err)
+		}
+	})
+}
+func TestCodexConfigIndependentLayersStillMergeRecursively(t *testing.T) {
+	r, q, _, _ := codexTestConfig(t, "forced_login_method='api'\n[features]\nworktrees=false\n")
+	q.Overrides = []string{"features={shell_snapshot=false}"}
+	p, err := readCodexSelectionConfig(context.Background(), q, r)
+	if err != nil || p.Status != CodexConfigComplete || p.Scope.Worktrees {
+		t.Fatalf("independent CLI layer erased base worktrees=false: %+v %v", p, err)
 	}
 }

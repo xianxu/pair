@@ -160,7 +160,11 @@ func collectCodexTUILatest(r *nativeSelectorRuntime, q NativeSelectorRequest) (c
 	if len(rows) > 1 && rows[0].ms == rows[1].ms {
 		return codexLatestRow{}, errors.New("ambiguous native activity")
 	}
-	if _, err = codexLatestArtifact(r, rows[0]); err != nil {
+	artifact, err := codexLatestArtifact(r, rows[0])
+	if err != nil {
+		return codexLatestRow{}, err
+	}
+	if err = validateCodexLatestFirst(r, artifact, rows[0].id); err != nil {
 		return codexLatestRow{}, err
 	}
 	return rows[0], nil
@@ -289,6 +293,9 @@ func validateCodexLatestFirst(r *nativeSelectorRuntime, a Artifact, id string) e
 		if len(raw) > RecoveryRecordLimit {
 			return ErrReadLimit
 		}
+		if !codexNativeSessionMetaEligible(raw) {
+			return ErrArtifactChanged
+		}
 		state, diagnostics, err := ValidateCodexDelta(e, nil, []FramedJSONLRecord{{Bytes: raw}})
 		if err != nil || !state.FirstRecordValidated || state.Disputed || state.NativeID != id {
 			return ErrArtifactChanged
@@ -337,10 +344,11 @@ func latestCodexTurnCWD(r *nativeSelectorRuntime, a Artifact) (string, error) {
 			return "", err
 		}
 		if row.Type == "turn_context" {
-			if row.Payload.CWD == "" {
+			cwd, eligible := codexNativeTurnContextCWD(raw)
+			if !eligible {
 				return "", ErrArtifactChanged
 			}
-			return row.Payload.CWD, nil
+			return cwd, nil
 		}
 		return "", nil
 	}

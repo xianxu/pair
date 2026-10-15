@@ -22,7 +22,7 @@ func codexLatestBudgetRuntime(t *testing.T) (*nativeSelectorRuntime, Artifact) {
 	if err = os.MkdirAll(filepath.Dir(p), 0700); err != nil {
 		t.Fatal(err)
 	}
-	if err = os.WriteFile(p, []byte("{\"type\":\"session_meta\",\"payload\":{}}\n"), 0600); err != nil {
+	if err = os.WriteFile(p, []byte("{\"timestamp\":\"2026-08-28T10:00:00Z\",\"type\":\"session_meta\",\"payload\":{\"id\":\"019d1111-1111-7111-8111-000000000001\",\"timestamp\":\"2026-08-28T10:00:00Z\",\"cwd\":\"/selected\",\"originator\":\"codex_cli_rs\",\"cli_version\":\"0.162.1\"}}\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	rt, err := nativeSelectorCodexRuntime(NewOSRuntime(home, filepath.Join(home, "pair")), filepath.Join(home, ".codex"))
@@ -44,7 +44,7 @@ func TestCodexLatestReverseScanCrossesChunksAndRejectsPartialTail(t *testing.T) 
 			r, a := codexLatestBudgetRuntime(t)
 			root := r.NativeRoots(AgentCodex)[0]
 			p := filepath.Join(root.Path, filepath.FromSlash(a.RelativePath))
-			raw := "{\"type\":\"turn_context\",\"payload\":{\"cwd\":\"/selected\"}}\n" + "{\"type\":\"event_msg\",\"payload\":{\"text\":\"" + strings.Repeat("x", 256<<10) + "\"}}\n"
+			raw := "{\"timestamp\":\"2026-08-28T10:00:01Z\",\"type\":\"turn_context\",\"payload\":{\"cwd\":\"/selected\",\"approval_policy\":\"never\",\"sandbox_policy\":{\"type\":\"read-only\"},\"model\":\"test-model\"}}\n" + fmt.Sprintf("{\"timestamp\":\"2026-08-28T10:00:02Z\",\"type\":\"world_state\",\"payload\":{\"full\":true,\"state\":{\"text\":%q}}}\n", strings.Repeat("x", 256<<10))
 			if partial {
 				raw += `{"type":"turn_context",`
 			}
@@ -73,7 +73,7 @@ func TestCodexLatestReverseScanNeverEstablishesAbsenceBeyondBudget(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	line := "{\"type\":\"event_msg\",\"payload\":{\"text\":\"" + strings.Repeat("x", 64<<10) + "\"}}\n"
+	line := fmt.Sprintf("{\"timestamp\":\"2026-08-28T10:00:02Z\",\"type\":\"world_state\",\"payload\":{\"full\":true,\"state\":{\"text\":%q}}}\n", strings.Repeat("x", 64<<10))
 	for n := 0; n < 520; n++ {
 		if _, err = h.WriteString(line); err != nil {
 			t.Fatal(err)

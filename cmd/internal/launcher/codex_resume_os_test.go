@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -40,7 +41,7 @@ func TestCodexResumeOSUsesPrivateAPIOnlyScope(t *testing.T) {
 			}
 			id := "019d1111-1111-7111-8111-111111111111"
 			path := filepath.Join(sessions, "rollout-test-"+id+".jsonl")
-			raw := fmt.Sprintf("{\"timestamp\":\"2026-10-15T10:00:00Z\",\"type\":\"session_meta\",\"payload\":{\"id\":%q,\"source\":\"cli\",\"cwd\":%q}}\n", id, cwd)
+			raw := nativeValidCodexSessionMeta(id, cwd) + nativeValidCodexTurnContext(cwd)
 			if err := os.WriteFile(path, []byte(raw), 0600); err != nil {
 				t.Fatal(err)
 			}
@@ -71,6 +72,68 @@ func TestCodexResumeOSUsesPrivateAPIOnlyScope(t *testing.T) {
 			if err != nil || pinned.NativeID != id || pinned.Kind != NativeResumeExplicit {
 				t.Fatalf("not pinned: %+v %v", pinned, err)
 			}
+			for _, variant := range []string{"malformed-session-meta", "malformed-turn-context", "mixed-scoped-flags"} {
+				if variant == "malformed-turn-context" && len(prefix) == 0 {
+					continue
+				}
+				t.Run(variant, func(t *testing.T) {
+					attemptArgs := append([]string(nil), args...)
+					body := fmt.Sprintf("{\"timestamp\":\"2026-10-15T10:00:00Z\",\"type\":\"session_meta\",\"payload\":{\"id\":%q,\"source\":\"cli\",\"cwd\":%q}}\n", id, cwd) + nativeValidCodexTurnContext(cwd)
+					if variant == "malformed-turn-context" {
+						body = nativeValidCodexSessionMeta(id, cwd) + fmt.Sprintf("{\"timestamp\":\"2026-10-15T10:00:01Z\",\"type\":\"turn_context\",\"payload\":{\"cwd\":%q}}\n", cwd)
+					}
+					if variant == "mixed-scoped-flags" {
+						body = raw
+						attemptArgs = append([]string{"-p", "runtime", "--disable", "worktrees"}, prefix...)
+						attemptArgs = append(attemptArgs, "resume", "--last", "-c", "features={worktrees=true}", "continue work")
+					}
+					if err := os.WriteFile(path, []byte(body), 0600); err != nil {
+						t.Fatal(err)
+					}
+					t.Cleanup(func() {
+						if err := os.WriteFile(path, []byte(raw), 0600); err != nil {
+							t.Error(err)
+						}
+					})
+					fake := newFakeRuntime()
+					resolves, reserves := 0, 0
+					fake.nativeResolve = func(ctx context.Context, q NativeResumeRequest) (NativeResumeResolution, error) {
+						resolves++
+						return rt.ResolveNativeResume(ctx, q)
+					}
+					fake.nativeReserve = func(context.Context, NativeAdmissionRequest) (string, error) {
+						reserves++
+						return "unexpected-grant", nil
+					}
+					opts := baseOpts(LaunchArgs{Agent: "codex", AgentExplicit: true, ForcedTag: "work", AgentArgs: append([]string(nil), attemptArgs...), AgentArgsExplicit: true})
+					opts.Env.Cwd = cwd
+					opts.Env.Home = home
+					opts.SkipConfigPicker = true
+					opts.InlineOptOut = map[string]bool{"codex": true}
+					code, err := run(t, opts, fake)
+					if err != nil || code != 0 || resolves != 1 || reserves != 0 || fake.launchCount != 1 {
+						t.Fatalf("unsupported native evidence gained pinned admission: code=%d err=%v resolves=%d reserves=%d launches=%d", code, err, resolves, reserves, fake.launchCount)
+					}
+					command, err := DecodeAgentCommand(fake.env[AgentCommandEnv])
+					if err != nil {
+						t.Fatal(err)
+					}
+					if !reflect.DeepEqual(command.Argv, attemptArgs) || fake.env[NativeAdmissionEnv] != "" || fake.env["PAIR_SESSION_ID"] != "" {
+						t.Fatalf("unsupported evidence replaced native invocation: %+v grant=%t session=%q", command, fake.env[NativeAdmissionEnv] != "", fake.env["PAIR_SESSION_ID"])
+					}
+				})
+			}
+			// A scoped config must still reproject after Couch adds its
+			// selector-independent snapshot switch at the wrapper boundary.
+			runtimeArgs := append(append([]string(nil), args...), "-c", "features={worktrees=false}", "--disable", "shell_snapshot")
+			runtimeSelector, err := ParseNativeResumeSelector("codex", runtimeArgs)
+			if err != nil {
+				t.Fatal(err)
+			}
+			runtimeResult, err := rt.ResolveNativeResume(t.Context(), NativeResumeRequest{Agent: "codex", CWD: cwd, Selector: runtimeSelector})
+			if err != nil || runtimeResult.Status != si.NativeSelectorResolved || runtimeResult.NativeID != id {
+				t.Fatalf("snapshot injection changed scoped selection: %+v %v", runtimeResult, err)
+			}
 			// A later arrival cannot retarget explicit selection; the same custom home
 			// remains usable even when latest eligibility becomes cloud-unknown.
 			if err := os.WriteFile(filepath.Join(codex, "config.toml"), []byte("sqlite_home='../state'\n"), 0600); err != nil {
@@ -86,4 +149,14 @@ func TestCodexResumeOSUsesPrivateAPIOnlyScope(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Native minimal protocol records: rust-v0.162.1 protocol/src/protocol.rs
+// SessionMeta (3152ff), TurnContextItem (3324ff), rollout/src/lib.rs RolloutLine.
+// Optional typed fields are omitted; session_id is natively backfilled from id.
+func nativeValidCodexSessionMeta(id, cwd string) string {
+	return fmt.Sprintf(`{"timestamp":"2026-10-15T10:00:00Z","type":"session_meta","payload":{"id":%q,"timestamp":"2026-10-15T10:00:00Z","cwd":%q,"originator":"codex_cli_rs","cli_version":"0.162.1","source":"cli"}}`+"\n", id, cwd)
+}
+func nativeValidCodexTurnContext(cwd string) string {
+	return fmt.Sprintf(`{"timestamp":"2026-10-15T10:00:01Z","type":"turn_context","payload":{"cwd":%q,"approval_policy":"never","sandbox_policy":{"type":"read-only"},"model":"gpt-5"}}`+"\n", cwd)
 }

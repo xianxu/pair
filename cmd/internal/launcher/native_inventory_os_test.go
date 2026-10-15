@@ -1,7 +1,6 @@
 package launcher
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -28,7 +27,7 @@ func nativeInventoryFixture(t *testing.T) (OSRuntime, string, string) {
 		}
 	}
 	native := filepath.Join(home, "custom", "sessions", "2026", "08", "28", "rollout-test-"+customHomeNativeID+".jsonl")
-	raw := fmt.Sprintf("{\"type\":\"session_meta\",\"payload\":{\"id\":%q,\"source\":\"cli\",\"cwd\":%q}}\n", customHomeNativeID, cwd)
+	raw := nativeValidCodexSessionMeta(customHomeNativeID, cwd)
 	if err := os.WriteFile(native, []byte(raw), 0600); err != nil {
 		t.Fatal(err)
 	}

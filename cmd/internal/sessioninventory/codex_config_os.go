@@ -275,21 +275,10 @@ func codexCLIConfigLayer(q CodexConfigInvocation, home string) (codexConfigLayer
 				value = codexExpandHome(s, home)
 			}
 		}
-		// Native apply_toml_override splits literal dots; it does not parse TOML
-		// key syntax. Newlines, comments and quotes remain literal key characters.
-		segments := strings.Split(k, ".")
-		layer := map[string]any{}
-		current := layer
-		for i, segment := range segments {
-			if i == len(segments)-1 {
-				current[segment] = value
-				break
-			}
-			next := map[string]any{}
-			current[segment] = next
-			current = next
-		}
-		codexMergeConfig(values, layer)
+		// CLI assignments replace a final dotted-path value. This differs from
+		// recursive merging between independently loaded configuration layers.
+		applyCodexCLIOverride(values, strings.Split(k, "."), value)
+
 	}
 	for _, a := range []struct {
 		names   []string
@@ -301,11 +290,71 @@ func codexCLIConfigLayer(q CodexConfigInvocation, home string) (codexConfigLayer
 			if name != "worktrees" && name != "shell_snapshot" {
 				return codexConfigLayer{}, errCodexConfigObservation
 			}
-			codexMergeConfig(values, map[string]any{"features": map[string]any{name: a.enabled}})
+			applyCodexCLIOverride(values, []string{"features", name}, a.enabled)
 		}
 	}
 	return codexConfigLayer{base: q.CWD, values: values}, nil
 }
+
+// applyCodexCLIOverride mirrors config/src/overrides.rs at rust-v0.162.1.
+// Only the four explicitly structured feature paths retain/merge their fields.
+func applyCodexCLIOverride(root map[string]any, path []string, value any) {
+	current := root
+	for i, segment := range path {
+		prefix := path[:i+1]
+		old, exists := current[segment]
+		if i == len(path)-1 {
+			if exists && codexStructuredFeaturePath(prefix) {
+				oldMap, isMap := old.(map[string]any)
+				newMap, newIsMap := value.(map[string]any)
+				if enabled, ok := value.(bool); isMap && ok {
+					oldMap["enabled"] = enabled
+					return
+				}
+				if enabled, ok := old.(bool); ok && newIsMap {
+					replacement := map[string]any{"enabled": enabled}
+					codexMergeConfig(replacement, newMap)
+					current[segment] = replacement
+					return
+				}
+				if isMap && newIsMap {
+					codexMergeConfig(oldMap, newMap)
+					return
+				}
+			}
+			if m, ok := value.(map[string]any); ok {
+				cloned := map[string]any{}
+				codexMergeConfig(cloned, m)
+				value = cloned
+			}
+			current[segment] = value
+			return
+		}
+		next, ok := old.(map[string]any)
+		if !ok {
+			next = map[string]any{}
+			if enabled, yes := old.(bool); yes && codexStructuredFeaturePath(prefix) {
+				next["enabled"] = enabled
+			}
+			current[segment] = next
+		}
+		current = next
+	}
+}
+func codexStructuredFeaturePath(path []string) bool {
+	if len(path) == 4 && path[0] == "profiles" {
+		path = path[2:]
+	}
+	if len(path) != 2 || path[0] != "features" {
+		return false
+	}
+	switch path[1] {
+	case "code_mode", "multi_agent_v2", "network_proxy", "sleep_tool":
+		return true
+	}
+	return false
+}
+
 func codexMergeConfig(dst, src map[string]any) {
 	for k, v := range src {
 		if m, ok := v.(map[string]any); ok {

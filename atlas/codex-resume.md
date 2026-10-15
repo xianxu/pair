@@ -45,6 +45,11 @@ provider, profile and prompt syntax are not reparsed by a second argv grammar.
 - System/user/profile/trusted-project/session layers retain source precedence.
   Project provider keys are ignored; trusted project SQLite and worktree settings
   may apply. Unsupported managed/MDM requirements remain uncertainty.
+- Ordered CLI assignments replace their final dotted-key value; independent
+  config layers merge. Native's four structured-feature exceptions retain their
+  boolean/table rules. Mixed global worktree toggles and subcommand-scoped config
+  overrides retain compatibility because their native scope ordering is not
+  represented by the flattened invocation.
 - File paths retain their origin directory; CLI values and `CODEX_SQLITE_HOME`
   use effective cwd. Configured `sqlite_home` precedes the environment value;
   the default is Codex home. Transcript and state homes remain separate.
@@ -82,6 +87,10 @@ UpdatedAt has no specified UUID tiebreaker. The adapter retains compatibility
 when timestamp ambiguity prevents proving the native result. Every inspected
 transcript snapshot stays fenced through final inventory validation. DB paths,
 filename IDs and native metadata must agree inside the authorized transcript root.
+`codex_rollout_eligibility.go` checks the source-backed native record subset
+before metadata or turn cwd becomes selection authority. Incomplete required
+fields, invalid typed fields and unsupported complex values retain compatibility;
+the generic legacy inventory reader is not native schema proof.
 
 ## Handoff and budgets
 

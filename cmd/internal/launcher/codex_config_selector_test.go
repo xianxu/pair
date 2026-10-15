@@ -41,6 +41,34 @@ func TestCodexConfigSelectorRetainsOnlyInvocationOptions(t *testing.T) {
 	}
 }
 
+func TestCodexConfigSelectorMixedScopedOverridesAndTogglesStayNative(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		args        []string
+		unsupported bool
+	}{
+		{"resume config after root toggle", []string{"--disable", "worktrees", "resume", "--last", "-c", "features={worktrees=true}"}, true},
+		{"resume toggle after scoped config", []string{"resume", "--last", "--config=features={worktrees=true}", "--disable=worktrees"}, true},
+		{"exec scoped config", []string{"--disable", "worktrees", "exec", "-cfeatures={worktrees=true}", "resume", "--last"}, true},
+		{"exec resume scoped config", []string{"--enable=worktrees", "e", "resume", "--last", "-c", "features={worktrees=false}"}, true},
+		{"root config then toggle", []string{"-c", "features={worktrees=true}", "--disable", "worktrees", "resume", "--last"}, false},
+		{"scoped config alone", []string{"resume", "--last", "-c", "features={worktrees=false}"}, false},
+		{"injected snapshot toggle is selection independent", []string{"resume", "--last", "-c", "features={worktrees=false}", "--disable", "shell_snapshot"}, false},
+		{"prompt is not scoped config", []string{"--disable", "worktrees", "resume", "--last", "continue -c features={worktrees=true}"}, false},
+		{"delimiter is not scoped config", []string{"--disable", "worktrees", "resume", "--last", "--", "-c", "features={worktrees=true}"}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, err := ParseNativeResumeSelector("codex", tc.args)
+			if err != nil || s.CodexConfig.Unsupported != tc.unsupported {
+				t.Fatalf("config=%+v err=%v, want unsupported=%v", s.CodexConfig, err, tc.unsupported)
+			}
+			if !reflect.DeepEqual(s.Args, tc.args) {
+				t.Fatal("compatibility changed original arguments")
+			}
+		})
+	}
+}
+
 func TestCodexLatestCreateAttemptsResolutionBeforeCompatibility(t *testing.T) {
 	rt := newFakeRuntime()
 	calls := 0

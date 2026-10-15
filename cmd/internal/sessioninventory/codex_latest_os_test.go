@@ -2,6 +2,7 @@ package sessioninventory_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -48,7 +49,7 @@ func (f *codexLatestFixture) add(n, ms int, source, cwd, tail string) string {
 	f.t.Helper()
 	id := fmt.Sprintf("019d1111-1111-7111-8111-%012d", n)
 	p := filepath.Join(f.state, "sessions", "2026", "08", "28", "rollout-test-"+id+".jsonl")
-	raw := fmt.Sprintf("{\"timestamp\":\"2026-08-28T10:00:00Z\",\"type\":\"session_meta\",\"payload\":{\"id\":%q,\"source\":\"cli\",\"cwd\":%q}}\n", id, cwd) + tail
+	raw := codexLatestValidMeta(id, cwd) + tail
 	if err := os.WriteFile(p, []byte(raw), 0600); err != nil {
 		f.t.Fatal(err)
 	}
@@ -69,7 +70,7 @@ func TestCodexLatestTUIAndExecHaveDifferentCWDSources(t *testing.T) {
 	f := newCodexLatestFixture(t)
 	other := filepath.Join(f.home, "other")
 	wantTUI := f.add(1, 100, "cli", f.cwd, "")
-	wantExec := f.add(2, 200, "app-server", other, fmt.Sprintf("{\"type\":\"turn_context\",\"payload\":{\"cwd\":%q}}\n", f.cwd))
+	wantExec := f.add(2, 200, "app-server", other, codexLatestValidTurn(f.cwd))
 	for _, tc := range []struct {
 		mode si.CodexInvocationMode
 		want string
@@ -146,7 +147,7 @@ func TestCodexLatestExecPagesAndUsesLastTurn(t *testing.T) {
 	for n := 1; n <= 101; n++ {
 		f.add(n, 1000-n, "cli", other, "")
 	}
-	tail := fmt.Sprintf("{\"type\":\"turn_context\",\"payload\":{\"cwd\":%q}}\n{\"type\":\"event_msg\",\"payload\":{\"text\":%q}}\n{\"type\":\"turn_context\",\"payload\":{\"cwd\":%q}}\n", other, strings.Repeat("x", 256<<10), f.cwd)
+	tail := codexLatestValidTurn(other) + codexLatestValidWorldState(strings.Repeat("x", 256<<10)) + codexLatestValidTurn(f.cwd)
 	want := f.add(102, 1, "exec", other, tail)
 	if r := f.query(si.CodexModeExec, false, f.cwd); r.Status != si.NativeSelectorResolved || r.NativeID != want {
 		t.Fatalf("paged latest: %+v want %s", r, want)
@@ -214,7 +215,7 @@ func TestCodexLatestCannotAuthorizeTranscriptChangedAfterCWDSelection(t *testing
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = fmt.Fprintf(h, "{\"type\":\"turn_context\",\"payload\":{\"cwd\":%q}}\n", filepath.Join(f.home, "other"))
+		_, err = h.WriteString(codexLatestValidTurn(filepath.Join(f.home, "other")))
 		h.Close()
 		if err != nil {
 			t.Fatal(err)
@@ -250,7 +251,7 @@ func TestCodexLatestCannotIgnoreHigherCandidateChangedAfterCWDSelection(t *testi
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = fmt.Fprintf(h, "{\"type\":\"turn_context\",\"payload\":{\"cwd\":%q}}\n", f.cwd)
+		_, err = h.WriteString(codexLatestValidTurn(f.cwd))
 		h.Close()
 		if err != nil {
 			t.Fatal(err)
@@ -328,4 +329,98 @@ func TestCodexLatestExecCursorDoesNotSkipBoundaryTies(t *testing.T) {
 	if got := f.query(si.CodexModeExec, false, f.cwd); got.Status == si.NativeSelectorResolved {
 		t.Fatalf("boundary tie authorized: %+v", got)
 	}
+}
+
+func codexLatestValidMeta(id, cwd string) string {
+	return fmt.Sprintf("{\"timestamp\":\"2026-08-28T10:00:00Z\",\"type\":\"session_meta\",\"payload\":{\"id\":%q,\"timestamp\":\"2026-08-28T10:00:00Z\",\"cwd\":%q,\"originator\":\"codex_cli_rs\",\"cli_version\":\"0.162.1\",\"source\":\"cli\"}}\n", id, cwd)
+}
+func codexLatestValidTurn(cwd string) string {
+	return fmt.Sprintf("{\"timestamp\":\"2026-08-28T10:00:01Z\",\"type\":\"turn_context\",\"payload\":{\"cwd\":%q,\"approval_policy\":\"never\",\"sandbox_policy\":{\"type\":\"read-only\"},\"model\":\"test-model\"}}\n", cwd)
+}
+func codexLatestMutatedRecord(t *testing.T, raw, field string, value any, remove bool, envelope bool) string {
+	t.Helper()
+	var row map[string]any
+	if err := json.Unmarshal([]byte(raw), &row); err != nil {
+		t.Fatal(err)
+	}
+	target := row
+	if !envelope {
+		target = row["payload"].(map[string]any)
+	}
+	if remove {
+		delete(target, field)
+	} else {
+		target[field] = value
+	}
+	out, err := json.Marshal(row)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(out) + "\n"
+}
+func TestCodexLatestRejectsNativeInvalidTurnContext(t *testing.T) {
+	cases := []struct {
+		name, field      string
+		value            any
+		remove, envelope bool
+	}{
+		{name: "missing-approval", field: "approval_policy", remove: true},
+		{name: "missing-sandbox", field: "sandbox_policy", remove: true},
+		{name: "missing-model", field: "model", remove: true},
+		{name: "missing-timestamp", field: "timestamp", remove: true, envelope: true},
+		{name: "null-timestamp", field: "timestamp", envelope: true},
+		{name: "negative-ordinal", field: "ordinal", value: -1, envelope: true},
+		{name: "unknown-approval", field: "approval_policy", value: "future-approval"},
+		{name: "malformed-approval", field: "approval_policy", value: map[string]any{"granular": map[string]any{"rules": true}}},
+		{name: "unknown-sandbox", field: "sandbox_policy", value: map[string]any{"type": "future-sandbox"}},
+		{name: "malformed-sandbox", field: "sandbox_policy", value: map[string]any{"type": "workspace-write", "network_access": "yes"}},
+		{name: "malformed-model", field: "model", value: 123},
+		{name: "malformed-optional-plugins", field: "disabled_plugin_ids", value: []any{1}},
+		{name: "malformed-optional-permissions", field: "permission_profile", value: map[string]any{"garbage": true}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newCodexLatestFixture(t)
+			f.add(1, 100, "exec", f.cwd, "")
+			tail := codexLatestMutatedRecord(t, codexLatestValidTurn(f.cwd), tc.field, tc.value, tc.remove, tc.envelope)
+			f.add(2, 200, "exec", filepath.Join(f.home, "other"), tail)
+			if got := f.query(si.CodexModeExec, false, f.cwd); got.Status == si.NativeSelectorResolved {
+				t.Fatalf("native-invalid turn selected guarded ID: %+v", got)
+			}
+		})
+	}
+}
+func TestCodexLatestRejectsNativeInvalidSessionMeta(t *testing.T) {
+	for _, mode := range []si.CodexInvocationMode{si.CodexModeTUI, si.CodexModeExec} {
+		for _, field := range []string{"timestamp", "cwd", "originator", "cli_version", "session_id", "source", "runtime_workspace_roots", "base_instructions", "history_mode", "git"} {
+			t.Run(string(mode)+field, func(t *testing.T) {
+				f := newCodexLatestFixture(t)
+				f.add(1, 100, "cli", f.cwd, "")
+				id := f.add(2, 200, "cli", f.cwd, "")
+				remove := field == "timestamp" || field == "cwd" || field == "originator" || field == "cli_version"
+				var value any = 123
+				if field == "source" {
+					value = "custom"
+				}
+				if field == "history_mode" {
+					value = "future-history"
+				}
+				if field == "base_instructions" || field == "git" {
+					value = map[string]any{"garbage": true}
+				}
+				raw := codexLatestMutatedRecord(t, codexLatestValidMeta(id, f.cwd), field, value, remove, false)
+				p := filepath.Join(f.state, "sessions", "2026", "08", "28", "rollout-test-"+id+".jsonl")
+				if err := os.WriteFile(p, []byte(raw), 0600); err != nil {
+					t.Fatal(err)
+				}
+				if got := f.query(mode, false, f.cwd); got.Status == si.NativeSelectorResolved {
+					t.Fatalf("native-invalid session meta selected guarded ID: %+v", got)
+				}
+			})
+		}
+	}
+}
+
+func codexLatestValidWorldState(text string) string {
+	return fmt.Sprintf("{\"timestamp\":\"2026-08-28T10:00:02Z\",\"type\":\"world_state\",\"payload\":{\"full\":true,\"state\":{\"text\":%q}}}\n", text)
 }
