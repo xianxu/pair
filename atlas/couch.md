@@ -607,6 +607,9 @@ paste/submit through the real broker seam. Native Qoder submit and reply, live p
 were confirmed by the hub in the authorized #550 pair:4 smoke. Every launcher agent has an explicit receiver policy,
 checked against AgentInventory; Agy, Muse and Grok remain disabled pending
 captured peer-input support. Human Couch acceptance remains a separate step.
+The shipped skill's receiver sentence is pinned to that policy by
+`TestSkillNamesReceiverProfiles` (#558), so an inventory change fails a test
+instead of leaving `couch --skill` stale.
 
 Claude and Codex single-line suggested prompts use shared ANSI faint styling
 and the cursor at the input origin, independent of wording or RGB color.
