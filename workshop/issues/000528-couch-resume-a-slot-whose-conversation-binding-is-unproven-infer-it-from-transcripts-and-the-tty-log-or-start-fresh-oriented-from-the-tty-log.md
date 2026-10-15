@@ -1205,3 +1205,16 @@ No follow-up implementation starts on this branch.
   zero new/open findings, evidencec8e4ef6c2731; mirror37c906de8. Required
   GitHub checks also PASS at mirrorhead (conformance2m40s, merge1m6s).
   Pair:0 stage unchanged; M2/M3 remain unclaimed follow-ups #556/#557.
+
+- Landing blocked externally after normal sdlc merge integrated docs-only main
+  (head d1aa5b0542c01ecaf942ef405a886078fefe1673). Publish replay and instance
+  conformance PASS; no source drift since reviewed d086 head. Required CI run
+  38683787586 attempt2 failed before checkout/tests: codeload returns HTTP404
+  for actions/setup-go commit924ae3a1cded613372ab5595356fb5720e22ba16.
+  Direct curl HEAD confirms404; gh API confirms commit exists. Previous final
+  source conformance passed twice; no CI bypass used. PR337 remains OPEN with
+  no merge commit. Once archive service recovers: rerun failed CI for current
+  PR head, then sdlc merge --yes (push this doc-only checkpoint with sdlc pr
+  first). No new suite unless source changes. Pair:0 stage remains untouched.
+  Hub report789e2d31-2d00-41f5-aa72-6f424bede780 uncertain; receipt unavailable
+  (no connected recipient retains it). No automatic resend or substitute channel.
