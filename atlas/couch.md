@@ -3870,3 +3870,38 @@ is stopped, and the result says no fresh agent started. Structurally valid futur
 record versions refuse mutation. A numbered slot with no record can still start
 Fresh beside unknown remnants using a distinct tag and read-only checkout
 validation; its notice says workspace setup was not refreshed.
+
+
+## Native conversation admission (#556 M2)
+
+Every new native resume passes the common launcher gate, including ordinary Pair
+launches outside Couch. The native selector is resolved once and rewritten to an
+explicit canonical ID before launch identity is published. Forks and newly chosen
+session IDs have separate semantics and never claim the source conversation as
+an existing writer. Saved defaults are not rewritten by resolution.
+
+The bounded cross-repository authority is
+`~/.cache/pair/native-admission-v1.json`, coordinated by the stable adjacent
+`native-admission-v1.lock`. A reservation binds agent, canonical native ID, launch
+attempt, strict helper generation and final argv digest. The wrapper consumes its
+opaque grant once before PTY spawn and publishes its exact child generation before
+readiness or watcher startup. The lock is never held across native spawn or the
+terminal lifetime; different native IDs can proceed independently. Legacy owners
+remain checked through bounded Pair metadata and process evidence, including a
+retained native child whose wrapper has died.
+
+Only definitely unexposed reservations may be cancelled. Uncertain publication,
+missing readiness or a dead wrapper alone never releases a conversation. A running
+entry is collected only when both exact wrapper and child are proven dead; unknown
+process observations retain it. These are internal authority states, not new menu
+outcomes. Corrupt, oversized or full authority refuses admission rather than silently
+forgetting possible writers. Fresh remains a separate conversation.
+
+Owners: `launcher/native_admission.go`, `native_admission_os.go`,
+`native_createflow_os.go`, `native_resume_selector*.go`,
+`recovery_native_owner*.go`, `sessioninventory/native_selector*.go`, and
+`wrapcmd/native_admission.go`. Provider latest support is constrained by measured
+native ordering and positively resolved effective configuration; unsupported or
+incomplete mappings report that limitation with exact-ID/Fresh advice. Production
+Codex effective configuration remains an explicit pending policy/adapter gap;
+fixtures with supplied configuration do not establish production support.

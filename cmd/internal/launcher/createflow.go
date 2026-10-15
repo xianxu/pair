@@ -746,7 +746,11 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		resolved, err := rt.ResolveNativeResume(ctx, NativeResumeRequest{Agent: agent, CWD: env.Cwd, Selector: selector})
 		cancel()
 		if err != nil || resolved.Status != sessioninventory.NativeSelectorResolved || resolved.NativeID == "" {
-			fmt.Fprintf(stderr, "pair: native resume unavailable (%s): %s %v; choose an exact canonical session ID or Start fresh.\n", resolved.Status, resolved.Reason, err)
+			reason := resolved.Reason
+			if err != nil {
+				reason = err.Error()
+			}
+			fmt.Fprintf(stderr, "pair: native resume unavailable (%s): %s; choose an exact canonical session ID or Start fresh.\n", resolved.Status, reason)
 			return launchStep{code: 1}, nil
 		}
 		agentArgs, explicitResume = resolved.Args, resolved.NativeID

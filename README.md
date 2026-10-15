@@ -1446,7 +1446,12 @@ transcript binding or saved agent launch settings. Starting a stopped agent
 instead requires eligible conversation evidence and launch settings. Recovery
 previews list supported candidates with evidence; the operator or hub chooses
 one explicitly. A possibly running old owner prevents native resume until it
-has been safely retired. Existing continuation actions remain available where
+has been safely retired. A shared admission check prevents two Pair slots from
+starting the same native conversation at once, including launches outside Couch.
+An uncertain start retains ownership; missing readiness alone never proves the
+conversation is free. Native latest selectors must resolve uniquely before launch;
+unsupported configuration/provider mappings name that limitation and offer an
+exact session ID or Fresh. Existing continuation actions remain available where
 a continuation request owns the thread.
 
 **Reboot** preserves the old record and available evidence (checkpoint, native

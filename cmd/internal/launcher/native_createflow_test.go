@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
@@ -213,5 +214,69 @@ func TestNativeCreateForkDoesNotReserveOrRecordSourceAsWriter(t *testing.T) {
 	}
 	if rt.env["PAIR_SESSION_ID"] != "" || rt.env[NativeAdmissionEnv] != "" {
 		t.Fatal("fork inherited source writer identity")
+	}
+}
+
+// Keep the first terminal handoff open while a second slot tries admission.
+// The filesystem authority serializes same-ID writers without holding the lock
+// for the long-lived terminal, so independent IDs still reach their handoff.
+func TestNativeCreateTwoSlotAdmissionBarrier(t *testing.T) {
+	for _, same := range []bool{true, false} {
+		t.Run(map[bool]string{true: "same conversation", false: "independent conversations"}[same], func(t *testing.T) {
+			world := newAdmissionWorld()
+			store := world.store(t.TempDir())
+			first, second := newFakeRuntime(), newFakeRuntime()
+			for _, rt := range []*fakeRuntime{first, second} {
+				rt.nativeReserve = func(ctx context.Context, q NativeAdmissionRequest) (string, error) {
+					return store.Reserve(ctx, q, noLegacy)
+				}
+				rt.nativeCancel = store.CancelBeforeHandoff
+			}
+			entered, release := make(chan struct{}), make(chan struct{})
+			first.launchHook = func(int) {
+				close(entered)
+				select {
+				case <-release:
+				case <-time.After(5 * time.Second):
+					t.Error("second slot did not complete admission while first terminal remained open")
+				}
+			}
+			opts := func(tag, id string) LaunchOptions {
+				o := baseOpts(LaunchArgs{Agent: "codex", AgentExplicit: true, ForcedTag: tag, AgentArgs: []string{"resume", id}, AgentArgsExplicit: true})
+				o.SkipConfigPicker = true
+				return o
+			}
+			type result struct {
+				code int
+				err  error
+			}
+			done := make(chan result, 1)
+			go func() { code, err := run(t, opts("slot-one", "native-one"), first); done <- result{code, err} }()
+			select {
+			case <-entered:
+			case <-time.After(5 * time.Second):
+				t.Fatal("first slot never reached native handoff")
+			}
+			id := "native-one"
+			if !same {
+				id = "native-two"
+			}
+			code, err := run(t, opts("slot-two", id), second)
+			close(release)
+			a := <-done
+			if a.code != 0 || a.err != nil {
+				t.Fatalf("first slot failed: %+v", a)
+			}
+			if same {
+				if code == 0 && err == nil {
+					t.Fatal("two slots launched the same native conversation")
+				}
+				if second.launched != "" || len(second.preparedLaunches) != 0 || len(second.ledger["slot-two"]) != 0 {
+					t.Fatal("losing slot published a writer")
+				}
+			} else if code != 0 || err != nil || second.launched == "" {
+				t.Fatalf("independent writer blocked: code=%d err=%v", code, err)
+			}
+		})
 	}
 }

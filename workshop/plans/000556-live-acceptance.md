@@ -87,3 +87,24 @@ couch --peek pair:N --previous --all
 Record the build hash, scratch address, receipt IDs, selected native ID and whether
 previous peek and first-message orientation matched. Report any failed/unconfirmed
 launch with its exact attempt and diagnostics; do not automatically reboot again.
+
+
+## M2 headless native admission
+
+```sh
+go test ./cmd/internal/launcher -run 'TestNativeCreate|TestNativeAdmission|TestAdvanceNativeAdmission|TestRecoveryNativeOwner' -count=1 -timeout=120s
+go test ./cmd/internal/wrapcmd -run 'TestNativeAdmission|TestNativePTY|TestNativeWrapper|TestLayoutNativeAdmission' -count=1 -timeout=120s
+go test ./cmd/internal/sessioninventory -run 'TestNativeSelector' -count=1 -timeout=120s
+```
+
+The two-slot launch barrier holds the first terminal open: a second slot targeting
+the same canonical conversation refuses before ledger publication or handoff, while
+a different conversation reaches handoff. Additional fixtures cover grant replay,
+late wrappers, surviving/reparented children, uncertain publication, exact process
+reuse and bounded storage. Real private-store/PTY tests check ownership publication
+before readiness and child/watcher authority scrubbing. No production native agent
+or slot needs to be stopped to establish these cases.
+
+Native latest-provider limitations remain pending hub direction. Do not use the
+live operator script to test unproved native selection semantics or claim those
+fixtures establish effective production configuration.

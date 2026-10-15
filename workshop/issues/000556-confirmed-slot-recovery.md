@@ -518,6 +518,44 @@ The internal result is honestly Unsupported until that production seam is
 established. No native files/defaults were changed; no live slot effects or stage
 operations occurred. Full M2 verification and its independent boundary remain.
 
+### 2026-10-15 — M2 integrated targeted verification
+
+Integrated selector commit `58cfb5f0a`, store/legacy-owner commit
+`27fec0d77effd4683c451c5b3d1aacc9324dc0f0`, and layout hygiene `be7fd1d4a`.
+The full launcher package passed in 33.579s; focused integrated race checks passed
+launcher 2.337s, wrapcmd 2.679s and inventory 14.045s. Launcher/wrapper/inventory
+vet passed. Artifactpath's complete package passed in 7.680s with the native
+admission constructor, consumers, exact path witnesses, source inventory and
+protected GC classification registered in the existing manifest (ARCH-DRY,
+ARCH-FUNERAL). Store authority has explicit bounded growth, strict process-proof
+collection and permanent lock-inode ownership; readiness is not release authority
+(ARCH-STATE, ARCH-PURE).
+
+The common launcher two-slot barrier now exercises the real portable authority
+while holding the first terminal handoff open: same native ID refuses before
+launch records or handoff, different ID proceeds without waiting for terminal exit.
+The extended native-create matrix passed in 0.235s. Independent store/orphan
+focused race tests passed launcher 2.683s/wrapcmd 2.943s/artifactpath 1.095s.
+Public/preflight owner checks read the same locked authority without mutation or
+recursive locking; a changed/dead old child revokes a different-key exemption.
+Known orphan native children remain protected by retained readiness plus exact
+launch-ordinal association, rather than arbitrary process-name guesses.
+
+Actual layout-shell recording shims went RED on inherited authority in non-agent
+commands, then GREEN 0.361s after scoped clearing for rename helpers and unsetting
+at draft/terminal stanza entry. Agent wrapper receives the original grant; its
+native child/watcher do not. Focused wrapper/launcher integration passed
+1.503s/1.677s; normal runtimebundle generation and embedded layout guards passed
+0.137s. Zellij remains the existing environment transport; no raw rendered layout
+or persistent token transport was added.
+
+The production latest-selector policy remains unresolved. A new concrete report
+was queued to the hub as `7713c3c2-e17f-4574-b432-d1f857c74ee9`; its receipt is
+held because the hub composer is not visible, not evidence of approval or failure.
+Do not close M2 or land while this scope decision is unanswered. Independent
+full verification can proceed. No live slot, native state, default, stage or
+operator process was changed.
+
 ## Revisions
 
 ### 2026-10-15T05:33-07:00 — overnight M2 dispatch
