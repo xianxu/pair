@@ -283,6 +283,24 @@ must not be summed into wall. Durability-containing stage is material; no
 isolated fsync claim. Investigation continues from evidence, not filtering the
 failed sample. Native ownership tests also passed under Seatbelt denying /bin/ps.
 
+Query evidence seam implemented and validated without a wrapper process or
+extra query: context observer copies bounded64KiB streams/status/timestamps,
+while parser receives original bytes. Stateful response tests preserve empty,
+header-only, attached and nonzero classifications with exactly four client
+queries; mutation/cap/isolation/cancellation tests pass. Fleet now retains actual
+attached/postleave rows and one fresh native client snapshot after queries;
+missing/duplicate/unreadable client evidence fails measurement. Focused race
+launcher/couchcmd and full artifactpath guards pass; independent focused
+launcher/couchcmd/procutil rerun passes. Timeout comment now cites measured warm
+phases while retaining #489's hang ceiling and #560's cold scope. Host evidence
+from failed MATRIX3: sampled Couch peak84.3%, host minidle0%, maxload1 29.31;
+startup129parent named snapshots10144argv/10120identity +105child snapshots
+(21full/84named)37140argv/30870identity; Leave75named6001argv/5986identity.
+These are actual reader API calls; elapsed reader sums overlap workers and child
+phases. Request9d15edcb-cd1a-4886-bf25-6620ff2a969f submitted to hub asks whether
+a future fixed schedule may continue only after verified safe resets while
+retaining failure rows; until answered, stop-on-any-error remains unchanged.
+
 ## Revisions
 
 - 2026-10-14 — add (operator via TL): concrete case. At the operator's 14:33 restart, Couch's background attaches spawned 21 zellij clients between 14:33:37 and 14:33:47 (~6 at a time): roughly 2–3 s per attach, against ~10–20 ms for `zellij list-sessions` and an expected ~100–300 ms floor (list, lease, one record write, spawn client, first frame). Detach ("leave couch") is unmeasured but also inspects each slot's session server. Trace one attach and one detach step by step; the likely waste is a whole process-table read (native argv for every process since #547) per slot. Probably one shared snapshot per startup or detach pass instead.

@@ -272,12 +272,122 @@ type fleetSample struct {
 	Clients                                                                  map[string][]fleetClientBirth
 	Errors                                                                   []string
 	ParentStages                                                             []fleetParentStage
+	Queries                                                                  []fleetZellijQuery
+	AttachedRows, PostLeaveRows                                              []launcher.Session
+	ClientsAfterAttachedQueries                                              map[string][]fleetClientObservation
 }
 type fleetClientBirth struct {
 	PID, PPID            int
 	Identity, Executable string
 	KernelStartUTC       string
 	KernelSpawnMS        *float64
+}
+
+type fleetZellijQuery struct {
+	Phase                            string
+	Args                             []string
+	Started, Finished                time.Time
+	DurationMS                       float64
+	Stdout, Stderr                   []byte
+	StdoutBytes, StderrBytes         int
+	StdoutTruncated, StderrTruncated bool
+	ExitCode                         int
+	Error                            string
+}
+
+func fleetQueryContext(ctx context.Context, phase string, events *[]fleetZellijQuery) context.Context {
+	return launcher.WithZellijQueryObserver(ctx, func(e launcher.ZellijQueryObservation) {
+		errText := ""
+		if e.Err != nil {
+			errText = e.Err.Error()
+		}
+		*events = append(*events, fleetZellijQuery{
+			Phase: phase, Args: e.Args, Started: e.Started, Finished: e.Finished,
+			DurationMS: fleetMillis(e.Duration), Stdout: e.Stdout, Stderr: e.Stderr,
+			StdoutBytes: e.StdoutBytes, StderrBytes: e.StderrBytes,
+			StdoutTruncated: e.StdoutTruncated, StderrTruncated: e.StderrTruncated,
+			ExitCode: e.ExitCode, Error: errText,
+		})
+	})
+}
+
+type fleetClientObservation struct {
+	PID                                int
+	ExpectedIdentity, ObservedIdentity string
+	ObservedAt                         time.Time
+	State                              string
+	Found, SameGeneration              bool
+	Error                              string
+}
+
+// A fresh native snapshot excludes terminal processes. Matching a live client
+// generation is separate evidence from server-reported connectivity; neither
+// a prior marker frame nor a persisted identity token proves current attachment.
+func fleetPostQueryClients(clients map[string][]fleetClientBirth, processes []procutil.Observation, snapshotErr error) map[string][]fleetClientObservation {
+	byPID := make(map[int]procutil.Observation, len(processes))
+	for _, process := range processes {
+		byPID[process.PID] = process
+	}
+	observedAt := time.Now()
+	out := make(map[string][]fleetClientObservation, len(clients))
+	for tag, births := range clients {
+		for _, birth := range births {
+			e := fleetClientObservation{PID: birth.PID, ExpectedIdentity: birth.Identity, ObservedAt: observedAt, State: "unknown"}
+			if snapshotErr != nil {
+				e.Error = snapshotErr.Error()
+			} else if process, ok := byPID[birth.PID]; ok {
+				e.Found, e.ObservedIdentity = true, process.Identity
+				if process.Err != nil {
+					e.Error = process.Err.Error()
+				} else if process.Identity == birth.Identity {
+					e.State, e.SameGeneration = "same-generation", true
+				} else {
+					e.State = "replaced"
+				}
+			} else {
+				e.State = "absent-from-snapshot"
+			}
+			out[tag] = append(out[tag], e)
+		}
+	}
+	return out
+}
+
+// These checks validate experiment completeness; production ownership and
+// cleanup continue through their existing paths even when a sample is refused.
+func fleetClientBirthErrors(panes []fleetPane, clients map[string][]fleetClientBirth) []string {
+	var failures []string
+	expected := make(map[string]bool, len(panes))
+	for _, pane := range panes {
+		tag := string(pane.address.Tag)
+		expected[tag] = true
+		births := clients[tag]
+		if len(births) != 1 {
+			failures = append(failures, fmt.Sprintf("native clients %s: observed %d, want exactly 1", tag, len(births)))
+			continue
+		}
+		if births[0].PID <= 0 || births[0].Identity == "" {
+			failures = append(failures, "native client generation unknown "+tag)
+		}
+	}
+	for tag := range clients {
+		if !expected[tag] {
+			failures = append(failures, "unexpected native client tag "+tag)
+		}
+	}
+	return failures
+}
+
+func fleetPostQueryClientErrors(clients map[string][]fleetClientObservation) []string {
+	var failures []string
+	for tag, observations := range clients {
+		for _, e := range observations {
+			if !e.SameGeneration {
+				failures = append(failures, fmt.Sprintf("post-query native client %s pid=%d state=%s: %s", tag, e.PID, e.State, e.Error))
+			}
+		}
+	}
+	return failures
 }
 
 // Retain regular diagnostic files while the private fixture still exists.
@@ -574,9 +684,19 @@ func runFleetSample(t *testing.T, c *couchcore.Couch, tracker *fleetTracker, inn
 			sample.Clients[string(pane.address.Tag)] = append(sample.Clients[string(pane.address.Tag)], birth)
 		}
 	}
+	sample.Errors = append(sample.Errors, fleetClientBirthErrors(panes, sample.Clients)...)
 	// After meaningful model frames, verify all live clients once. No CLI
 	// readiness probes run concurrently with the client handoff.
-	rows, err := (launcher.ZellijSource{}).SnapshotSessionsContext(ctx, fleetSessionNames(panes))
+	rows, err := (launcher.ZellijSource{}).SnapshotSessionsContext(fleetQueryContext(ctx, "attached", &sample.Queries), fleetSessionNames(panes))
+	sample.AttachedRows = append([]launcher.Session(nil), rows...)
+	// Exactly one fresh verification observation, never a retry of the CLI
+	// answer. Preserve absent, replaced and unreadable generations separately.
+	afterProcesses, afterErr := procutil.SnapshotNamed(ctx, "zellij")
+	sample.ClientsAfterAttachedQueries = fleetPostQueryClients(sample.Clients, afterProcesses, afterErr)
+	sample.Errors = append(sample.Errors, fleetPostQueryClientErrors(sample.ClientsAfterAttachedQueries)...)
+	if afterErr != nil {
+		sample.Errors = append(sample.Errors, "post-query native observation: "+afterErr.Error())
+	}
 	if err != nil {
 		sample.Errors = append(sample.Errors, "attached sessions: "+err.Error())
 		return
@@ -587,7 +707,7 @@ func runFleetSample(t *testing.T, c *couchcore.Couch, tracker *fleetTracker, inn
 	}
 	for _, row := range rows {
 		if row.State != launcher.SessionAttached {
-			sample.Errors = append(sample.Errors, "session not attached "+row.Name)
+			sample.Errors = append(sample.Errors, fmt.Sprintf("session not attached %s: state=%s", row.Name, row.State))
 		}
 	}
 	if sample.PeakBackground > min(limit, len(panes)-1) {
@@ -631,7 +751,8 @@ func runFleetSample(t *testing.T, c *couchcore.Couch, tracker *fleetTracker, inn
 			sample.Errors = append(sample.Errors, fmt.Sprintf("incarnation retirement %s: %+v %v", pane.address.Tag, record.Incarnations, err))
 		}
 	}
-	rows, err = (launcher.ZellijSource{}).SnapshotSessionsContext(ctx, fleetSessionNames(panes))
+	rows, err = (launcher.ZellijSource{}).SnapshotSessionsContext(fleetQueryContext(ctx, "postleave", &sample.Queries), fleetSessionNames(panes))
+	sample.PostLeaveRows = append([]launcher.Session(nil), rows...)
 	if err != nil {
 		sample.Errors = append(sample.Errors, err.Error())
 		return
@@ -1312,5 +1433,56 @@ func TestFleetFixtureEnvironmentIsolatesInheritedRuntimePaths(t *testing.T) {
 	want := os.Getenv(keys[0]) + "\n" + os.Getenv(keys[1]) + "\n" + os.Getenv(keys[2]) + "\npair-vt-256color\n"
 	if string(raw) != want {
 		t.Fatalf("child runtime environment=%q want %q", raw, want)
+	}
+}
+
+func TestFleetPostQueryClientEvidencePreservesExactGenerationAndUncertainty(t *testing.T) {
+	clients := map[string][]fleetClientBirth{"same": {{PID: 11, Identity: "birth-a"}}, "reused": {{PID: 12, Identity: "birth-b"}}, "missing": {{PID: 13, Identity: "birth-c"}}, "unreadable": {{PID: 14, Identity: "birth-d"}}}
+	processes := []procutil.Observation{{Process: procutil.Process{PID: 11, Identity: "birth-a"}}, {Process: procutil.Process{PID: 12, Identity: "replacement"}}, {Process: procutil.Process{PID: 14, Identity: "birth-d"}, Err: errors.New("unreadable argv")}}
+	got := fleetPostQueryClients(clients, processes, nil)
+	if !got["same"][0].SameGeneration || got["reused"][0].SameGeneration || got["missing"][0].Found || got["unreadable"][0].SameGeneration || got["unreadable"][0].Error == "" {
+		t.Fatalf("client evidence lost uncertainty: %+v", got)
+	}
+	failed := fleetPostQueryClients(clients, nil, errors.New("snapshot failed"))
+	if failed["same"][0].Error != "snapshot failed" || failed["same"][0].SameGeneration {
+		t.Fatalf("snapshot failure became liveness: %+v", failed)
+	}
+	if got["same"][0].ObservedAt.IsZero() {
+		t.Fatal("missing post-query observation time")
+	}
+}
+
+func TestFleetClientBirthValidationRequiresExactlyOneKnownClientPerExpectedTag(t *testing.T) {
+	panes := []fleetPane{{address: couchcore.ThreadAddress{Tag: "a"}}, {address: couchcore.ThreadAddress{Tag: "b"}}}
+	known := fleetClientBirth{PID: 11, Identity: "generation"}
+	for _, tc := range []struct {
+		name      string
+		births    map[string][]fleetClientBirth
+		wantError bool
+	}{
+		{"complete", map[string][]fleetClientBirth{"a": {known}, "b": {known}}, false},
+		{"missing", map[string][]fleetClientBirth{"a": {known}}, true},
+		{"duplicate", map[string][]fleetClientBirth{"a": {known, known}, "b": {known}}, true},
+		{"unknown", map[string][]fleetClientBirth{"a": {{PID: 11}}, "b": {known}}, true},
+		{"unexpected", map[string][]fleetClientBirth{"a": {known}, "b": {known}, "outside": {known}}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := fleetClientBirthErrors(panes, tc.births)
+			if (len(got) > 0) != tc.wantError {
+				t.Fatalf("validation=%v wantError=%v", got, tc.wantError)
+			}
+		})
+	}
+}
+
+func TestFleetPostQueryClientValidationRejectsContradictoryOrUnknownEvidence(t *testing.T) {
+	for _, state := range []string{"replaced", "absent-from-snapshot", "unknown"} {
+		got := fleetPostQueryClientErrors(map[string][]fleetClientObservation{"tag": {{PID: 11, State: state, Error: "evidence", SameGeneration: false}}})
+		if len(got) != 1 || !strings.Contains(got[0], state) || !strings.Contains(got[0], "tag") {
+			t.Fatalf("state=%s errors=%v", state, got)
+		}
+	}
+	if got := fleetPostQueryClientErrors(map[string][]fleetClientObservation{"tag": {{PID: 11, State: "same-generation", SameGeneration: true}}}); len(got) != 0 {
+		t.Fatalf("known live generation refused: %v", got)
 	}
 }

@@ -401,6 +401,15 @@ func (c *Couch) resolveStartProfile(args StartArgs, canonicalPath string, tree W
 // there), so this only has to catch a launch that is alive and stuck. 2 minutes is ~6x the worst loaded start measured, and leaves room
 // inside the CLI's 5-minute poll (slotOperationPollBudget).
 //
+// Current warm-path attribution (#218) is separate from that historical cold
+// start: an unoptimized single attach took 1.65s in the parent (claim 0.83s,
+// prepare 0.29s, durable record/baseline 0.12s, registration 0.20s, promotion
+// 0.14s, residual 0.06s). Registration overlaps child startup; neither it nor
+// the later attached-state query measures the first rendered frame. The issue
+// Log retains the complete warm fleet/frame measurements and host-load limits;
+// historical cold-start attribution belongs to #560. These observations do not
+// justify changing the hang ceiling or treating it as expected startup latency.
+//
 // The work inside the window must still stay BOUNDED (ARCH-CONSTRAINTS): #215
 // made name assignment O(1) after it grew with the fleet; if anything unbounded
 // moves back in, raising the number is the wrong fix.

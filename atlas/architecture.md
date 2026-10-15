@@ -1323,10 +1323,16 @@ cleanup. Its record+baseline stage includes durability; it does not isolate fsyn
 Nested owner/process durations explain parent stages and are not additive to them.
 Native snapshot diagnostic lines use the same flag and count actual reader calls,
 including failures and disappeared rows; they contain no names, argv or identities.
+They count reader API calls, not kernel syscalls (Darwin raw identity reads also
+query the response size).
 The default path keeps the unwrapped reader. The opt-in fleet fixture in
 `cmd/internal/couchcmd/startup_fleet_timing_live_test.go` drives the actual Console
 worker pool and LeaveDetach, requiring a meaningful alternate-screen agent marker
 for first-frame readiness rather than treating attached-state queries as a frame.
+The fixture can observe the existing ZellijSource query context to retain bounded
+raw verification responses and exact process evidence before Leave. Query bytes
+passed to the production parser and direct subprocess cancellation stay unchanged;
+ordinary contexts have no observer or new output.
 
 ### Native process inspection
 
