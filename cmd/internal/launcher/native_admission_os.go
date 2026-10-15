@@ -113,18 +113,22 @@ func (s NativeAdmissionStore) withStore(ctx context.Context, fn func(context.Con
 		return err
 	}
 	defer func() { err = errors.Join(err, lease.Close()) }()
-	state := nativeAdmissionFile{Version: 1}
+	var state nativeAdmissionFile
 	raw, err := ops.read(ctx, path, maxNativeAdmissionBytes)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
 	if err == nil {
+		// Existing authority must supply its schema explicitly. Decoding onto
+		// defaults would turn missing fields or null into an empty writer set.
 		if err = strictjson.Decode(raw, &state); err != nil {
 			return err
 		}
+	} else {
+		state = nativeAdmissionFile{Version: 1, Entries: []NativeAdmissionEntry{}}
 	}
-	if state.Version != 1 || len(state.Entries) > maxNativeAdmissions {
-		return errors.New("unsupported or oversized native admission store")
+	if state.Version != 1 || state.Entries == nil || len(state.Entries) > maxNativeAdmissions {
+		return errors.New("incomplete, unsupported or oversized native admission store")
 	}
 	seen := make(map[[2]string]bool, len(state.Entries))
 	for _, e := range state.Entries {

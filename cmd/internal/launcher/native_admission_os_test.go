@@ -285,3 +285,64 @@ func TestNativeAdmissionCollectionStopsAtCancellationBetweenProcessProbes(t *tes
 		})
 	}
 }
+
+func TestNativeAdmissionExistingStoreRequiresExplicitNonNullSchema(t *testing.T) {
+	for _, raw := range []string{`{}`, `{"Entries":[]}`, `{"Version":1}`, `null`, `{"Version":1,"Entries":null}`} {
+		t.Run(raw, func(t *testing.T) {
+			world := newAdmissionWorld()
+			store := world.store(t.TempDir())
+			req := admissionRequest(t, "native")
+			reserveAdmission(t, store, req) // Corruption must not turn a known writer into empty authority.
+			path := admissionStorePath(t, store.Home)
+			if err := os.WriteFile(path, []byte(raw), 0600); err != nil {
+				t.Fatal(err)
+			}
+			checks, writes := 0, 0
+			store.io.write = func(string, []byte) error { writes++; return nil }
+			grant, err := store.Reserve(context.Background(), req, func(context.Context, NativeAdmissionOwners) error { checks++; return nil })
+			if err == nil || grant != "" || checks != 0 || writes != 0 {
+				t.Fatalf("incomplete authority admitted a writer: err=%v grant=%t checks=%d writes=%d", err, grant != "", checks, writes)
+			}
+			after, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(after) != raw {
+				t.Fatal("corrupt authority was overwritten")
+			}
+		})
+	}
+}
+func TestNativeAdmissionAbsentOrExplicitEmptyStoreCanInitialize(t *testing.T) {
+	for _, kind := range []string{"absent", "explicit-empty", "canceled-last-reservation"} {
+		t.Run(kind, func(t *testing.T) {
+			world := newAdmissionWorld()
+			store := world.store(t.TempDir())
+			req := admissionRequest(t, "native")
+			path := admissionStorePath(t, store.Home)
+			if kind == "explicit-empty" {
+				if err := durablefile.WriteAtomic(path, []byte(`{"Version":1,"Entries":[]}`), ".test-admission-*"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if kind == "canceled-last-reservation" {
+				grant := reserveAdmission(t, store, req)
+				if err := store.CancelBeforeHandoff(context.Background(), grant); err != nil {
+					t.Fatal(err)
+				}
+				raw, err := os.ReadFile(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var state nativeAdmissionFile
+				if err = json.Unmarshal(raw, &state); err != nil {
+					t.Fatal(err)
+				}
+				if state.Version != 1 || state.Entries == nil || len(state.Entries) != 0 {
+					t.Fatal("empty store lost its explicit entries array")
+				}
+			}
+			reserveAdmission(t, store, req)
+		})
+	}
+}
