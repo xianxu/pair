@@ -26,7 +26,9 @@ const registeredStateMaxBytes = 1 << 20
 
 // Preflight every prospective registered companion before publishing authority
 // or mutating the shared document. Producers and readers share these limits.
-func validateRegisteredMetadata(shadow string, st State) error {
+func validateRegisteredMetadata(shadow string, st State, paths []PathInterval) error {
+	// Reserve the complete legacy handoff representation, not only central bytes.
+	st.SubmitPaths = paths
 	if len(shadow) > documentMaxBytes {
 		return registryLimit()
 	}
@@ -285,6 +287,9 @@ func (s *Sync) Register(path, owner string) (RegistryResult, error) {
 				return RegistryResult{}, err
 			}
 			if change.Changed {
+				if err := t.validateMetadata(*change.Registration); err != nil {
+					return RegistryResult{}, err
+				}
 				err = t.save(next)
 			} else {
 				err = t.confirm()
@@ -335,7 +340,7 @@ func (s *Sync) Register(path, owner string) (RegistryResult, error) {
 		}
 		p := t.metadata(*change.Registration)
 		st.SubmitPaths = nil // registry history is authoritative until a legacy handoff
-		if err := validateRegisteredMetadata(shadow, st); err != nil {
+		if err := validateRegisteredMetadata(shadow, st, change.Registration.Paths); err != nil {
 			return RegistryResult{}, err
 		}
 		if err := saveStateUsing(p, st, t.publish); err != nil {
@@ -445,6 +450,9 @@ func (s *Sync) Rename(oldPath, newPath string) (RegistryResult, error) {
 			return RegistryResult{}, err
 		}
 		if change.Changed {
+			if err := t.validateMetadata(*change.Registration); err != nil {
+				return RegistryResult{}, err
+			}
 			err = t.save(next)
 		} else {
 			err = t.confirm()
@@ -514,6 +522,31 @@ func (s *Sync) Forget(path string) (RegistryResult, error) {
 	})
 }
 
+// loadMetadata applies the registered reader envelope in one place.
+func (t *registryTxn) loadMetadata(d DocumentRegistration) (State, []byte, bool, error) {
+	p := t.metadata(d)
+	if _, err := readRegular(p.State, registeredStateMaxBytes); err != nil {
+		return State{}, nil, false, fmt.Errorf("registered document state unavailable: %w", err)
+	}
+	st, err := LoadState(p)
+	if err != nil {
+		return State{}, nil, false, err
+	}
+	shadow, err := readRegular(p.Shadow, documentMaxBytes)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return State{}, nil, false, err
+	}
+	return st, shadow, err == nil, nil
+}
+
+func (t *registryTxn) validateMetadata(d DocumentRegistration) error {
+	st, shadow, _, err := t.loadMetadata(d)
+	if err != nil {
+		return err
+	}
+	return validateRegisteredMetadata(string(shadow), st, d.Paths)
+}
+
 // Every new-version command selects its route under the registry lock. During
 // a legacy export, central metadata remains authoritative until registry removal.
 func withDocument[T any](s *Sync, path string, fn func(*file) (T, error)) (T, error) {
@@ -532,16 +565,8 @@ func withDocument[T any](s *Sync, path string, fn func(*file) (T, error)) (T, er
 			return zero, err
 		}
 		p := t.metadata(*d)
-		if _, err := readRegular(p.State, registeredStateMaxBytes); err != nil {
-			return zero, fmt.Errorf("registered document state unavailable: %w", err)
-		}
-		st, err := LoadState(p)
+		st, shadow, hasShadow, err := t.loadMetadata(*d)
 		if err != nil {
-			return zero, err
-		}
-		shadow, err := readRegular(p.Shadow, documentMaxBytes)
-		hasShadow := err == nil
-		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			return zero, err
 		}
 		lockPaths, err := documentLockPaths(*d, path)
@@ -596,20 +621,14 @@ func documentLockPaths(d DocumentRegistration, requested string) ([]string, erro
 
 func (t *registryTxn) exportLegacy(d DocumentRegistration, path string) error {
 	_, err := locked(path, func(f *file) (bool, error) {
-		central := t.metadata(d)
-		if _, err := readRegular(central.State, registeredStateMaxBytes); err != nil {
-			return false, err
-		}
-		st, err := LoadState(central)
+		st, shadow, exists, err := t.loadMetadata(d)
 		if err != nil {
 			return false, err
 		}
-		shadow, err := readRegular(central.Shadow, documentMaxBytes)
-		exists := err == nil
-		if err != nil && !errors.Is(err, os.ErrNotExist) {
+		st.SubmitPaths = cloneRegistryPaths(d.Paths)
+		if err := validateRegisteredMetadata(string(shadow), st, d.Paths); err != nil {
 			return false, err
 		}
-		st.SubmitPaths = cloneRegistryPaths(d.Paths)
 		if exists {
 			if err := t.publish(f.paths.Shadow, shadow); err != nil {
 				return false, err

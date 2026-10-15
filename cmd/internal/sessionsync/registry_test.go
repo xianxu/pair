@@ -403,13 +403,24 @@ func TestRegistrySymlinkAliasAndPostRenameMissingLeaf(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	realPath := filepath.Join(dir, "note.md")
-	second, err := r.sync.Register(realPath, "ops:0")
-	if err != nil || !second.Changed || second.Registration.ID != first.Registration.ID {
-		t.Fatalf("alias %+v %v", second, err)
+	realPath, err := filepath.EvalSymlinks(filepath.Join(dir, "note.md"))
+	if err != nil {
+		t.Fatal(err)
 	}
-	retry, err := r.sync.Register(realPath, "ops:0")
-	if err != nil || retry.Changed {
+	second, err := r.sync.Register(realPath, "ops:0")
+	if err != nil || second.Changed || second.Registration.ID != first.Registration.ID {
+		t.Fatalf("canonical retry %+v %v", second, err)
+	}
+	leafAlias := filepath.Join(t.TempDir(), "leaf-alias.md")
+	if err := os.Symlink(realPath, leafAlias); err != nil {
+		t.Fatal(err)
+	}
+	additional, err := r.sync.Register(leafAlias, "ops:0")
+	if err != nil || !additional.Changed || additional.Registration.ID != first.Registration.ID {
+		t.Fatalf("additional alias %+v %v", additional, err)
+	}
+	retry, err := r.sync.Register(leafAlias, "ops:0")
+	if err != nil || retry.Changed || retry.Registration.ID != first.Registration.ID {
 		t.Fatalf("alias retry %+v %v", retry, err)
 	}
 	if _, err := r.sync.Read(old, ""); err != nil {

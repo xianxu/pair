@@ -3,9 +3,12 @@ package sessionsync
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func registeredPaths(t *testing.T, s *Sync, path string) Paths {
@@ -138,5 +141,132 @@ func TestRegisteredWritePreflightsFoldStateSize(t *testing.T) {
 	wantRefusal(t, err, 1, "registry-limit")
 	if r.read(path) != beforeDoc || r.read(p.State) != beforeState || r.read(p.Shadow) != beforeShadow {
 		t.Fatal("oversized fold state changed document or metadata")
+	}
+}
+
+// Size the externally encoded handoff representation, including its newline.
+func handoffSizedState(t *testing.T, since time.Time, size int, paths []PathInterval) State {
+	t.Helper()
+	st := State{Since: since, Folded: []string{"kept", ""}, SubmitPaths: paths}
+	raw, err := json.MarshalIndent(st, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if size < len(raw)+1 {
+		t.Fatal("invalid fixture budget")
+	}
+	st.Folded[1] = strings.Repeat("x", size-len(raw)-1)
+	st.SubmitPaths = nil
+	return st
+}
+
+func TestRegisterReservesHandoffStateEnvelopeAndRoundTrips(t *testing.T) {
+	for _, spare := range []int{64, 4096} {
+		t.Run(fmt.Sprint(spare), func(t *testing.T) {
+			r := newRig(t)
+			st := handoffSizedState(t, r.now, registeredStateMaxBytes-spare, nil)
+			if err := saveState(r.p, st); err != nil {
+				t.Fatal(err)
+			}
+			originalState := r.read(r.p.State)
+			_, err := r.sync.Register(r.p.File, "ops:0")
+			if spare == 64 {
+				wantRefusal(t, err, 1, "registry-limit")
+				if r.read(r.p.State) != originalState {
+					t.Fatal("failed admission changed legacy state")
+				}
+				found, lookupErr := r.sync.Lookup(r.p.File)
+				if lookupErr != nil || found != nil {
+					t.Fatalf("admitted overflowing handoff: %+v %v", found, lookupErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := r.sync.Forget(r.p.File); err != nil {
+				t.Fatal(err)
+			}
+			exported := r.read(r.p.State)
+			if len(exported) > registeredStateMaxBytes {
+				t.Fatal("forget exported unreadable state")
+			}
+			if _, err := r.sync.Register(r.p.File, "ops:0"); err != nil {
+				t.Fatalf("handoff cannot be reimported: %v", err)
+			}
+			p := registeredPaths(t, r.sync, r.p.File)
+			adopted, err := LoadState(p)
+			if err != nil || !reflect.DeepEqual(adopted.Folded, st.Folded) || !adopted.Since.Equal(st.Since) {
+				t.Fatalf("handoff lost folds or horizon: %v", err)
+			}
+		})
+	}
+}
+
+func TestRegisteredGrowthReservesHandoffBeforePublication(t *testing.T) {
+	for _, operation := range []string{"register-alias", "rename", "write"} {
+		t.Run(operation, func(t *testing.T) {
+			r := newRig(t)
+			if _, err := r.sync.Register(r.p.File, "ops:0"); err != nil {
+				t.Fatal(err)
+			}
+			d, err := withRegistry(r.sync, func(tx *registryTxn) (DocumentRegistration, error) {
+				canonical, err := canonicalDocument(r.p.File)
+				if err != nil {
+					return DocumentRegistration{}, err
+				}
+				return *tx.find(canonical), nil
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			st := handoffSizedState(t, r.now, registeredStateMaxBytes-16, d.Paths)
+			p := registeredPaths(t, r.sync, r.p.File)
+			if err := saveState(p, st); err != nil {
+				t.Fatal(err)
+			}
+			// Keep folds live so writing cannot reclaim the reserved state accidentally.
+			ledger, err := r.sync.Ledger.path("ops:0", ".jsonl")
+			if err != nil {
+				t.Fatal(err)
+			}
+			var rows strings.Builder
+			for _, id := range st.Folded {
+				raw, err := json.Marshal(Entry{ID: id, From: "ops:0", At: r.now, Head: "delivery"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				rows.Write(raw)
+				rows.WriteByte('\n')
+			}
+			r.put(ledger, rows.String())
+			registry := filepath.Join(r.sync.registryStore().Dir, "registry.json")
+			beforeRegistry, beforeDoc, beforeState, beforeShadow := r.read(registry), r.read(r.p.File), r.read(p.State), r.read(p.Shadow)
+			switch operation {
+			case "register-alias":
+				alias := filepath.Join(filepath.Dir(r.p.File), "new-alias.md")
+				if err := os.Symlink(r.p.File, alias); err != nil {
+					t.Fatal(err)
+				}
+				_, err = r.sync.Register(alias, "ops:0")
+			case "rename":
+				next := filepath.Join(filepath.Dir(r.p.File), "new-name.md")
+				r.put(next, r.read(r.p.File))
+				r.now = r.now.Add(time.Minute)
+				_, err = r.sync.Rename(r.p.File, next)
+			case "write":
+				_, err = r.sync.Write(WriteRequest{File: r.p.File, Section: "Trains", Body: "new\n", IfHash: r.hash("Trains")})
+			}
+			wantRefusal(t, err, 1, "registry-limit")
+			if r.read(registry) != beforeRegistry || r.read(r.p.File) != beforeDoc || r.read(p.State) != beforeState || r.read(p.Shadow) != beforeShadow {
+				t.Fatal("handoff overflow changed authority, document or metadata")
+			}
+			if _, err := r.sync.Forget(r.p.File); err != nil {
+				t.Fatalf("refused growth stranded valid handoff: %v", err)
+			}
+			if _, err := r.sync.Register(r.p.File, "ops:0"); err != nil {
+				t.Fatalf("valid handoff cannot round trip: %v", err)
+			}
+		})
 	}
 }

@@ -52,7 +52,7 @@ Detailed implementation plan: [agentic document registry](../plans/000573-agenti
 - [x] Build registry model/store and stable document metadata, with idempotent register/forget/rename and read-only membership discovery.
 - [x] Route every sync verb through registration-aware ownership, CAS, owed matching and lock-age refusals, preserving legacy behavior.
 - [x] Expose the agreed Parley CLI/JSON contract and update help, skill, README and atlas.
-- [x] Verify targeted/race/full suites and prepare the candidate for the close review.
+- [ ] Verify targeted/race/full suites and prepare the candidate for the close review.
 
 After verification: the mandatory close review owns SHIP, then land through sdlc. The TL owns the combined operator live check after parley.nvim#332 staging, per the approved revision.
 
@@ -100,6 +100,8 @@ TL confirmed #577 owns the upstream fixture repair; do not fold it into #573, aw
 Required suite passed after BR-1/BR-2 fixes and #572/#577 integration on 0f939be63be6fdb783206d53380b9741aacc0733: exit 0 in 11m35s after 854s queued. Full shell/editor/environment checks and go test ./... pass, including sessionsync 17.847s, couchmessage 7.494s, couchcmd 90.677s, couchcore 436.862s and wrapcmd 70.169s. Log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/0f939be63be6fdb783206d53380b9741aacc0733/suite.log, SHA256 23a49bb8f01b7d3b1706d0f05b6af63fb331d3cffbed4baea3e45a39656e1fa9; recorded sdlc-local/suite success. All server checks also green on this head, native conformance 2m55s. Fresh origin/main has no commits absent from this candidate. Second full close review now due. TL permits no-actual only if the known ariadne#391 incomplete-qoder-metadata defect actually refuses measurement; no project edits, stage or operator acceptance.
 
 Second close refused before dispatch because measured actuals hit ariadne#391: /Users/xianxu/.qoder/projects/-Users-xianxu-workspace-pair/6d3388c7-e99a-4311-96b6-5d90f35d4067/subagents/agent-aExplore-2bcc142b6679e6be.jsonl has incomplete qoder session metadata. TL explicitly authorized the precise --no-actual fallback if this exact defect appeared (receipt 2b81c816-666c-43f2-acfe-b6124984b847, matching body/current sender and recipient). Record N/A and exclude calibration; do not substitute the older 2.76h candidate measurement or any estimate. Retrying close with no-actual plus unchanged full verification; review/project discipline unchanged.
+
+Close round 2 returned REWORK: BR-1 verified addressed; BR-2 remained open because a 1,048,440-byte central state exported as 1,048,829 bytes after adding history, so successful forget could not be re-registered. BR-3 found the symlink test assumed noncanonical TMPDIR when demanding Changed true. Fixed the full handoff rule by reserving encoded State plus path history before register, new alias, rename, shadow refresh and post-fold write, and validating the same export representation. No bounds increased. New initial-admission and alias/rename/write growth regressions all observed RED before the fix, then passed; positive near-boundary register/forget/re-register keeps horizon and folds. The canonical/default TMPDIR symlink checks pass using an explicit additional alias. Focused new tests passed 1.595s; full sessionsync race passed 26.802s and make build passed. A new pushed-head suite and third full close review remain required. Fresh main also includes #556, which will be integrated before that suite.
 
 ## Estimate
 

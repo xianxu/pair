@@ -373,7 +373,7 @@ func (f *file) shadowAfter(section, body, next string, now time.Time) string {
 // in the sidecar first.
 func (f *file) saveShadow(content string) error {
 	if f.registration != nil {
-		if err := validateRegisteredMetadata(content, f.state); err != nil {
+		if err := validateRegisteredMetadata(content, f.state, f.registration.Paths); err != nil {
 			return err
 		}
 	}
@@ -439,7 +439,7 @@ func (s *Sync) write(f *file, req WriteRequest) (Result, error) {
 		if len(next) > documentMaxBytes {
 			return Result{}, registryLimit()
 		}
-		if err := validateRegisteredMetadata(shadow, state); err != nil {
+		if err := validateRegisteredMetadata(shadow, state, f.registration.Paths); err != nil {
 			return Result{}, err
 		}
 	}

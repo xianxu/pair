@@ -72,7 +72,9 @@ refuses and advises `couch --session-sync forget FILE`. Rename history is capped
 at 256 intervals plus 256 additional admitted aliases per document and is never
 pruned merely by age: the delivery ledger can retain old rows below its
 size-triggered trim threshold. Registered document/shadow size is bounded at
-4 MiB and central state at 1 MiB; prospective writes and legacy imports are
+4 MiB and state at 1 MiB including reserved legacy handoff history;
+registration, alias admission, rename, shadow refresh and writes reserve that
+complete representation before growth. Prospective writes and legacy imports are
 checked before changing authority or document content. Registry waits and diff
 execution are bounded at two seconds.
 

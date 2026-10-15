@@ -1908,3 +1908,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
   pre-merge pass may still exercise the old command. Synthetic environment
   fixtures must isolate inherited MAKEFLAGS/MAKEOVERRIDES/MFLAGS; keep explicit
   command-line and recursive Make behavior covered inside the fixture.
+
+- #573 second close: writer/reader compatibility includes every authority handoff's derived fields. Budget the encoded export (history plus mutable state) before accepting growth, then prove forget→re-register at the byte boundary with folds intact. Filesystem tests must create distinct aliases explicitly; canonical paths are already known, regardless of whether TMPDIR happens to use /var or /private/var.

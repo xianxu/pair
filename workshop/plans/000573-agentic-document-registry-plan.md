@@ -95,7 +95,7 @@ Files: couchcmd/session_sync.go, session_sync_test.go, message_deliveries_test.g
 
 ### 4. Verify, review, land
 
-- [x] Commit/push through sdlc pr; run required full suite via sdlc local-check run --name suite on the pushed head. Preserve failures and fix demonstrated regressions; no bypass of CI/local-gates.
+- [ ] Commit/push through sdlc pr; run required full suite via sdlc local-check run --name suite on the pushed head. Preserve failures and fix demonstrated regressions; no bypass of CI/local-gates.
 - [ ] Arrange the required operator live check through the hub before landing: a plain right-pane note submits, locks on next edit, rejects Couch write, unlocks on submit, and remains owed until write --fold. Stage/build only as the hub authorizes; clear stage after use.
 - [ ] Update issue Log/atlas and run sdlc close --issue 573 --verified with exact evidence; the gate owns the mandatory fresh review. Fix Important/Critical findings or dispute with evidence.
 - [ ] On SHIP, integrate main, repeat required checks if code changed, sdlc merge --yes; report landed PR and stop. TL owns project updates.
@@ -169,3 +169,9 @@ BR-2 (ARCH-CONSTRAINTS/FUNERAL): every registered metadata producer must stay wi
 ### 2026-10-15 — review fixes verified
 
 The corrected and main-integrated candidate passed its required recorded suite on 0f939be63be6fdb783206d53380b9741aacc0733 (11m35s) and all server checks. Focused/full race and private real-CLI checks also pass. Full close review remains required to dispose BR-1/BR-2; landing is still pending.
+
+### 2026-10-15 — close round 2 handoff envelope and fixture correction
+
+BR-1 is verified addressed. BR-2's original overflow controls passed mutation checks, but the reviewer reproduced a missing edge: forget adds SubmitPaths to central State and can export more than the next import's 1 MiB envelope. Reserve the complete encoded State plus historical paths before every admission/growth: new registration, additional alias registration, rename, whole-read shadow refresh and write's post-fold state. The central bytes remain smaller; no limit increases. Legacy export validates this same reserved representation before publishing it, so a successful forget remains reimportable. One metadata loader owns the central reader bounds. Boundary tests independently size encoded handoff state, exercise refusals before authority/document/snapshot mutation, and run register → forget → re-register with preserved horizon/folds.
+
+BR-3: the symlink regression now explicitly resolves the already-known canonical spelling and expects Changed false, and uses a separate distinct leaf alias to prove Changed true once and false on retry. Canonical and default TMPDIR runs both pass; no filesystem spelling is assumed.

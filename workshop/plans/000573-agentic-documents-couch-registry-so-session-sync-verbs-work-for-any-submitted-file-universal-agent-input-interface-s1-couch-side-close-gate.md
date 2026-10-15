@@ -149,6 +149,51 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: ebaa2ee4-69d0-4665-99f2-c9449f6667e5
+            repository: github.com/xianxu/pair
+            issue_id: "000573"
+            recipe: milestone-review
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/0b3e50c38dcb4b3a
+            reviewed_head: 284821c42463ed6ba9baebcece98f2f83f087928
+            slot: pair:5
+            requested_at: "2026-10-15T21:20:18.897774Z"
+          phase: finished
+          pid: 77518
+          started_at: "2026-10-15T21:20:19.247907Z"
+          finished_at: "2026-10-15T21:23:50.055358Z"
+          session_id: 01a1416f-f910-7f20-8c3a-35e6858bf076
+          outcome: returned
+      "n": 2
+      timestamp: "2026-10-15T14:23:51-07:00"
+      dispatched: "2026-10-15T14:20:15-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Additional spellings now pass through the bounded registry transition model and feed lock checks and legacy export. Removing existing-registration spelling admission in a disposable copy made both alias-lock and alias-export regression tests fail; restoring it made them pass.
+          round: 2
+        - id: BR-2
+          disposition: not-addressed
+          note: The import, preserved-shadow and fold-state regressions fail when their bounds are removed and pass with the fixes restored. However, registry.go:612-620 adds SubmitPaths during legacy export without accounting for the import reader's 1 MiB limit. A valid 1,048,440-byte state registered successfully; forget succeeded after exporting 1,048,829 bytes; re-registration then failed with registry-limit. Complete the original persisted-writer-reader-envelope rule across import, read refresh, write and legacy handoff, with a round-trip regression. ARCH-CONSTRAINTS / ARCH-FUNERAL / ARCH-PURPOSE.
+          round: 2
+      findings:
+        - kind: defect
+          id: BR-3
+          severity: Important
+          title: Symlink regression assumes the temporary directory has a noncanonical spelling
+          detail: cmd/internal/sessionsync/registry_test.go:408 requires Changed=true when registering realPath after registering its symlink alias. When the temporary directory is already canonical, realPath is the stored canonical File, so Changed=false is correct. The targeted package run and an isolated rerun both fail at line 409. Create another distinct alias to test admission, and separately assert that registering the already-known canonical spelling is unchanged.
+          family: filesystem-independent-test-fixtures
+          round: 2
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#573 (boundary-review)
@@ -165,7 +210,19 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-2** [Critical] `persisted-writer-reader-envelope` (kind: defect) Shadow writers exceed the registered reader limit and strand successful operations
   cmd/internal/sessionsync/sync.go:417 bounds only the resulting document; line 432 can publish a larger section-preserving shadow, while registry.go:496 refuses shadows over 4 MiB. Reproduced with an approximately 2 MiB baseline section, an operator deletion elsewhere, and an approximately 2 MiB section write: Write succeeds, then Read fails with registry-limit. Independently, registry.go:287-311 imports an oversized legacy shadow without validation, returns registration success, and leaves subsequent reads failing. Validate complete prospective metadata before document mutation or registry publication; sweep every metadata writer against its reader limits and add regressions for both paths. ARCH-CONSTRAINTS / ARCH-FUNERAL.
 
+## Round 2 — 2026-10-15T14:23:51-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — Additional spellings now pass through the bounded registry transition model and feed lock checks and legacy export. Removing existing-registration spelling admission in a disposable copy made both alias-lock and alias-export regression tests fail; restoring it made them pass.
+- BR-2 — not-addressed — The import, preserved-shadow and fold-state regressions fail when their bounds are removed and pass with the fixes restored. However, registry.go:612-620 adds SubmitPaths during legacy export without accounting for the import reader's 1 MiB limit. A valid 1,048,440-byte state registered successfully; forget succeeded after exporting 1,048,829 bytes; re-registration then failed with registry-limit. Complete the original persisted-writer-reader-envelope rule across import, read refresh, write and legacy handoff, with a round-trip regression. ARCH-CONSTRAINTS / ARCH-FUNERAL / ARCH-PURPOSE.
+
+### Raised
+
+- **BR-3** [Important] `filesystem-independent-test-fixtures` (kind: defect) Symlink regression assumes the temporary directory has a noncanonical spelling
+  cmd/internal/sessionsync/registry_test.go:408 requires Changed=true when registering realPath after registering its symlink alias. When the temporary directory is already canonical, realPath is the stored canonical File, so Changed=false is correct. The targeted package run and an isolated rerun both fail at line 409. Create another distinct alias to test admission, and separately assert that registering the already-known canonical spelling is unchanged.
+
 ## Open findings
 
-- **BR-1** [Critical] `canonical-document-lock-authority` (kind: defect) Repeated registration discards additional aliases and permits writes under their operator locks
 - **BR-2** [Critical] `persisted-writer-reader-envelope` (kind: defect) Shadow writers exceed the registered reader limit and strand successful operations
+- **BR-3** [Important] `filesystem-independent-test-fixtures` (kind: defect) Symlink regression assumes the temporary directory has a noncanonical spelling

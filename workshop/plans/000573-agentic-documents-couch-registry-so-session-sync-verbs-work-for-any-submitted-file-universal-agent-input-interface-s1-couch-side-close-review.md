@@ -104,3 +104,107 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-15T14:23:50-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 573 — Agentic documents: Couch registry so session-sync verbs work for any submitted file (universal-agent-input-interface S1, Couch side) |
+| repo | pair |
+| issue file | workshop/issues/000573-agentic-documents-couch-registry-so-session-sync-verbs-work-for-any-submitted-file-universal-agent-input-interface-s1-couch-side.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 6b567c2182cce01693eb8eb3c68c2addc4f10ae6..284821c42463ed6ba9baebcece98f2f83f087928 |
+| command | sdlc close --issue 573 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-15T14:23:50-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+BR-1 is verified addressed. BR-2’s original regressions now pass, but its writer/reader rule remains incomplete: successful forget can export metadata that re-registration rejects. A separate filesystem-dependent assertion also fails in this review environment.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Additional spellings now pass through the bounded registry transition model and feed lock checks and legacy export. Removing existing-registration spelling admission in a disposable copy made both alias-lock and alias-export regression tests fail; restoring it made them pass.
+  - id: BR-2
+    disposition: not-addressed
+    note: |
+      The import, preserved-shadow and fold-state regressions fail when their bounds are removed and pass with the fixes restored. However, registry.go:612-620 adds SubmitPaths during legacy export without accounting for the import reader's 1 MiB limit. A valid 1,048,440-byte state registered successfully; forget succeeded after exporting 1,048,829 bytes; re-registration then failed with registry-limit. Complete the original persisted-writer-reader-envelope rule across import, read refresh, write and legacy handoff, with a round-trip regression. ARCH-CONSTRAINTS / ARCH-FUNERAL / ARCH-PURPOSE.
+findings:
+  - id: new
+    severity: Important
+    kind: defect
+    family: filesystem-independent-test-fixtures
+    title: |
+      Symlink regression assumes the temporary directory has a noncanonical spelling
+    detail: |
+      cmd/internal/sessionsync/registry_test.go:408 requires Changed=true when registering realPath after registering its symlink alias. When the temporary directory is already canonical, realPath is the stored canonical File, so Changed=false is correct. The targeted package run and an isolated rerun both fail at line 409. Create another distinct alias to test admission, and separately assert that registering the already-known canonical spelling is unchanged.
+```
+
+1. **Strengths**
+
+   - Registry transitions deep-clone history and enforce bounded alias admission.
+   - Controlled flock barriers test waiting writers against rename and forget.
+   - Broker admission timestamps preserve queued-submit attribution through rename and pathname reuse.
+   - README, atlas and embedded skill document the new commands, uncertainty contract and lock-age rule.
+
+2. **Critical findings**
+
+   - **BR-2 remains open — `registry.go:612-620`.** Make export and subsequent import obey a compatible envelope. Either reserve handoff overhead before accepting growth or accommodate the bounded exported representation during import while validating the extracted central state. Preserve history and folds.
+
+3. **Important findings**
+
+   - **`registry_test.go:408`:** remove the temporary-path assumption described above. Correct canonical-path idempotency currently fails the test.
+
+4. **Minor findings**
+
+   - None.
+
+5. **Test coverage notes**
+
+   - `couchmessage`, `couchcmd` and `artifactpath` package tests passed.
+   - `sessionsync` failed only the identified symlink assertion.
+   - `sessionsync` race tests passed with that test explicitly excluded.
+   - Mutation checks confirmed both prior fixes have meaningful regression tests.
+   - The export/re-registration reproduction failed on unchanged production code. The disposable copy was removed; tracked files remain unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared spelling inventory and metadata validator consolidate behavior.
+   - **ARCH-PURE — pass:** registry decisions and validation remain pure; IO stays in the store/resolver.
+   - **ARCH-PURPOSE — flag:** BR-2’s metadata-producer sweep still omits round-trip handoff compatibility.
+   - **ARCH-MOCK — pass:** isolated filesystem backends and injected publication/locking seams exercise production flow.
+   - **ARCH-CONSTRAINTS — flag:** exported state can exceed its subsequent import envelope.
+   - **ARCH-SECURE — pass:** registry decoding rejects malformed authority; metadata paths derive from validated IDs.
+   - **ARCH-ORDER — pass:** authority transitions, uncertain publication and waiting-writer rechecks have concrete coverage.
+   - **ARCH-FUNERAL — flag:** size accounting excludes history added at handoff; explicit forget otherwise supplies cleanup.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry defining the compatible export/import envelope and naming a register → forget → re-register boundary-size regression. Record that canonical-path registration is already known and need not report a change.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"ebaa2ee4-69d0-4665-99f2-c9449f6667e5","repository":"github.com/xianxu/pair","issue_id":"000573","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/0b3e50c38dcb4b3a","reviewed_head":"284821c42463ed6ba9baebcece98f2f83f087928","slot":"pair:5","requested_at":"2026-10-15T21:20:18.897774Z"},"phase":"finished","pid":77518,"started_at":"2026-10-15T21:20:19.247907Z","finished_at":"2026-10-15T21:23:50.055358Z","session_id":"01a1416f-f910-7f20-8c3a-35e6858bf076","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.087138667s
+head: "284821c42463ed6ba9baebcece98f2f83f087928"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
