@@ -1144,6 +1144,44 @@ while its record file is the one it read (`Couch.ContinuationRequests`,
 22 live threads: a warm activity pass 0.34 s of CPU (was 8.6 s), a warm
 continuation scan 27 µs (was ~100 ms).
 
+**Unchanged evidence reuse (#559).** The long-lived collision checker owns a
+`launcher.SessionNameIndexCache`, shared by `PairSessionName` and
+`resolveScopedBindings`; message authority uses the same reader. It retains the
+latest strict-decoded binding per owner for each legacy/scoped file generation,
+so repeated observations do not decode or traverse historical index rows.
+Live process, PID, readiness and effect-time ownership checks stay fresh.
+
+`threadactivity.NewOSRuntime` also owns one `sessioninventory.ActivityCache`.
+Its compact timestamp result is reusable only while the exact current ledger,
+catalog presence/generation and scanner-observed native file/listing metadata
+still match. A changed input runs the original `QuerySessionContext` and
+`ActivityForSession`; resume identity alone never authorizes activity. Native
+listings, when used by a proofless query, remain dependencies so new candidates
+invalidate it. An unreadable disposable catalog disables caching and retains
+the original proof/native fallback. The existing `OwnerLaunchCache` now shares
+current and previous-established evidence with resume queries too.
+
+Caches use file identity, mutation/ctime, size and timestamps; loads verify
+stable metadata before publication, serialize only the same key, and retry
+movement once. Each cache keeps at most 128 ready entries with LRU eviction;
+activity/index slots include their in-flight entries in that bound. Cache
+saturation runs an uncached safe query. They retain no descriptors or durable
+cache files and die with their caller. Cold or genuinely changing evidence can
+still require full scanner work; #508 owns the large durable rows and #157 the
+full-inventory CLI query.
+
+Release regressions name both paths:
+`TestMessageAuthorityUnchangedFilesDecodeZeroBytes` and
+`TestIdleActivityTickUnchangedFilesDecodeZeroBytes`. They use 20 scoped slots
+with at least 30 MB ledgers, separate real body-read and decoder-input counters,
+and positive cold/mutation controls. The message fixture deliberately never
+reads its metadata-only ledgers; its counters cover indexes, while tiny live
+security-file reads remain fresh. The activity fixture streams and actually
+parses 600,000,000 ledger bytes cold; subsequent unchanged passes read/decode
+zero ledger/catalog/native bytes. Runtime `QueryWorkObserver` and immutable
+counter deltas make those metrics reusable for #204. These are counted
+invariants, not a claim about whole-supervisor CPU after rollout.
+
 ### Slots behind a picker draw red (pair#465)
 
 A live thread whose wrapper reports `Picker` draws in the terminal's red

@@ -6,6 +6,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"os"
 	"path/filepath"
+	"runtime/pprof"
 	"strings"
 	"sync"
 	"testing"
@@ -245,9 +246,11 @@ func BenchmarkIdleActivityTickWarm(b *testing.B) {
 	before := f.counts.snapshot()
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		f.tick(b)
-	}
+	pprof.Do(context.Background(), pprof.Labels("phase", "warm"), func(context.Context) {
+		for i := 0; i < b.N; i++ {
+			f.tick(b)
+		}
+	})
 	b.StopTimer()
 	delta := f.counts.snapshot().delta(before)
 	var read, decoded int64

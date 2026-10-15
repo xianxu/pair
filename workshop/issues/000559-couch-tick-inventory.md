@@ -64,9 +64,9 @@ Rows map to issue/spec, session-name cache, activity cache, ledger reuse, messag
 
 ## Plan
 
-- [ ] Add regression fixtures and capture uncached read/allocation profile.
-- [ ] Cache strict session-name evidence and share existing ledger parsing across long-lived collision queries.
-- [ ] Reuse validated activity projection while its exact dependencies are unchanged; retain changed-input validation.
+- [x] Add regression fixtures and capture uncached read/allocation profile.
+- [x] Cache strict session-name evidence and share existing ledger parsing across long-lived collision queries.
+- [x] Reuse validated activity projection while its exact dependencies are unchanged; retain changed-input validation.
 - [ ] Verify invalidation/races/scale, document cache ownership, run full suite, review, and coordinate acceptance/landing.
 
 ## Log
@@ -88,3 +88,5 @@ Plan-quality PQ-1: added concrete cache read/query/transition/projection functio
 Implementation checkpoint: change-code full flow accepted after plan-quality CLEAN (PQ-1 concrete function contract addressed) and estimate-quality INFO (verification/rollout included in fixture/review rows, activity dependency/publication design remains custom). Bounded subagents implemented strict index cache/checker wiring and shared owner-ledger parse/counters with red-green and targeted race checks. Activity cache implemented with current-launch scanner semantics, metadata dependency capture and per-key publication; separate read-only safety review found a disposable-catalog metadata failure regression, now pinned red then green by TestActivityCacheCatalogMetadataFailureUsesUncachedValidation. Cache falls back to original uncached validation there.
 
 Counted fixture first green: 20 × 30,000,000-byte real streamed ledgers read/decoded 600,000,000 bytes cold, zero read/decode deltas on repeated warm passes. Message fixture cold positive indexes, zero warm bytes while process/thread guards execute. Counterfactual overlays disabling only the relevant cache hit fail both named regressions (activity repeated catalog read/decode; message repeated index read/decode). Integrated targeted activity race checks passed; full sessioninventory package passed during integration, final invariants/benchmark/source inventory validation in progress. No live supervisor mutation, stage, or restart.
+
+Final named regressions passed in /tmp/pair559-final-invariants.log. Warm allocation comparison: 1 KB and 30 MB histories both 297 allocations/query. Twenty-slot benchmark (100 passes): enabled 609,366 B/op and 5,940 allocations/op versus cache-hit-disabled overlay 2,469,997 B/op and 25,047 allocations/op; enabled reads/decodes zero bytes versus 25,109 body/42,629 decoder bytes per pass disabled. Timing measured 6.09 ms vs19.50 ms on this host but is diagnostic only, never the release assertion. Integrated targeted race packages passed; corrected the couchcore test filter to its actual TestPairSessionNameAndScopedBindingsShareIndexCache name. Full source-inventory, launcher, inventory and threadactivity compatibility passed. PR refused uncommitted documentation and suite refused unpushed head; no suite ran in those refused attempts. Commit final docs before publishing, then record suite on pushed head.

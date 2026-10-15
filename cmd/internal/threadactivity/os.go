@@ -12,7 +12,8 @@ import (
 // inventory is built per thread over its own scope directory, the way
 // couchcore's switch context does, because bindings live under the scope.
 // Its ledger cache spans every probe (#507): a ledger is decoded again only
-// when it changes.
+// when it changes. Validated activity timestamps likewise reuse only unchanged
+// ledger/catalog/native dependency observations; changed inputs still validate.
 type OSRuntime struct {
 	Home       string
 	launches   *sessioninventory.OwnerLaunchCache
