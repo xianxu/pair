@@ -665,8 +665,23 @@ func fleetSummarizeCounters(evidence string) error {
 	return os.WriteFile(filepath.Join(evidence, "native-counters-by-sample-pid.json"), data, 0600)
 }
 
+func fleetSchedule(raw string) ([]int, error) {
+	if raw == "" {
+		return []int{6, 20, 40, 20, 40, 6, 40, 6, 20}, nil
+	}
+	limit, err := strconv.Atoi(raw)
+	if err != nil || (limit != 6 && limit != 20 && limit != 40) {
+		return nil, fmt.Errorf("PAIR_STARTUP_FLEET_SMOKE_LIMIT must be empty, 6, 20, or 40")
+	}
+	return []int{limit}, nil
+}
+
 func runStartupFleetTiming(t *testing.T) {
 	const fleetSize = 21
+	schedule, err := fleetSchedule(os.Getenv("PAIR_STARTUP_FLEET_SMOKE_LIMIT"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	evidence := os.Getenv("PAIR_STARTUP_FLEET_EVIDENCE")
 	bin := os.Getenv("PAIR_STARTUP_PERF_BIN_DIR")
 	if !filepath.IsAbs(bin) {
@@ -782,6 +797,7 @@ func runStartupFleetTiming(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	c.Layout = couchcore.Layout2
 	setupCtx, cancelSetup := context.WithTimeout(t.Context(), 4*time.Minute)
 	defer cancelSetup()
 	var seed [6]byte
@@ -881,7 +897,7 @@ func runStartupFleetTiming(t *testing.T) {
 		if err := fixture.KillClient(); err != nil {
 			t.Fatal(err)
 		}
-		_, err = c.Threads.CreateThread(couchcore.ThreadRecord{SchemaVersion: couchcore.ThreadSchemaVersion, Address: address, StartingPath: working, WorkingPath: working, CreatedAt: time.Now(), LastActiveAt: time.Now().Add(-time.Duration(i) * time.Minute), LatestLaunchProfile: &couchcore.LaunchProfile{Agent: "claude", Argv: []string{}}})
+		_, err = c.Threads.CreateThread(fleetThreadRecord(address, working, i))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -902,7 +918,7 @@ func runStartupFleetTiming(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer samples.Close()
-	for sampleIndex, limit := range []int{6, 20, 40, 20, 40, 6, 40, 6, 20} {
+	for sampleIndex, limit := range schedule {
 		sample := runFleetSample(t, c, tracker, inner, &currentConsole, panes, repo, limit, sampleIndex+1, evidence)
 		if err := json.NewEncoder(samples).Encode(sample); err != nil {
 			t.Fatal(err)
@@ -920,6 +936,20 @@ func runStartupFleetTiming(t *testing.T) {
 }
 
 type fleetNativeCounts struct{ Snapshots, Full, Named, Tables, Commands, Identities int }
+
+func fleetThreadRecord(address couchcore.ThreadAddress, working string, index int) couchcore.ThreadRecord {
+	return couchcore.ThreadRecord{SchemaVersion: couchcore.ThreadSchemaVersion, Revision: 1, Layout: couchcore.Layout2, Address: address, StartingPath: working, WorkingPath: working, CreatedAt: time.Now(), LastActiveAt: time.Now().Add(-time.Duration(index) * time.Minute), LatestLaunchProfile: &couchcore.LaunchProfile{Agent: "claude", Argv: []string{}}}
+}
+
+func TestFleetSeededThreadRecordIsValid(t *testing.T) {
+	record := fleetThreadRecord(couchcore.ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0123456789abcdef"}, t.TempDir(), 0)
+	if err := couchcore.ValidateThreadRecord(record); err != nil {
+		t.Fatal(err)
+	}
+	if record.Layout != couchcore.Layout2 {
+		t.Fatalf("fixture record layout %q differs from its retained layout2 session", record.Layout)
+	}
+}
 
 func fleetParseSnapshot(line string) (int, fleetNativeCounts, bool, error) {
 	start := strings.Index(line, "pair startup snapshot:")
@@ -1015,5 +1045,24 @@ func TestFleetNativeCountsUseActualReportedCalls(t *testing.T) {
 	}
 	if _, _, _, err := fleetParseSnapshot("pair startup snapshot: pid=123 kind=named table_calls=1 command_calls=broken identity_calls=2 duration_ms=1"); err == nil {
 		t.Fatal("malformed evidence silently became zero counts")
+	}
+}
+
+func TestFleetScheduleOverrideIsBoundedAndExplicit(t *testing.T) {
+	for _, raw := range []string{"0", "-1", "41", "6,20", "garbage"} {
+		if _, err := fleetSchedule(raw); err == nil {
+			t.Fatalf("accepted unsafe smoke schedule %q", raw)
+		}
+	}
+	for _, raw := range []string{"6", "20", "40"} {
+		schedule, err := fleetSchedule(raw)
+		want, _ := strconv.Atoi(raw)
+		if err != nil || len(schedule) != 1 || schedule[0] != want {
+			t.Fatalf("smoke %q: %v %v", raw, schedule, err)
+		}
+	}
+	schedule, err := fleetSchedule("")
+	if err != nil || fmt.Sprint(schedule) != "[6 20 40 20 40 6 40 6 20]" {
+		t.Fatalf("balanced schedule %v %v", schedule, err)
 	}
 }

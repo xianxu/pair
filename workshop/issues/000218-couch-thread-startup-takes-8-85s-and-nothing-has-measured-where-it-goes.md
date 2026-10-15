@@ -180,6 +180,39 @@ canceled queued workers now recheck cancellation immediately before dispatcher I
 Actual native diagnostics are opt-in and preserve the default unwrapped reader.
 Cold attribution is now the separately published, unassigned #560.
 
+### 2026-10-14 — private fleet smoke and stopped first matrix
+
+Frozen production binaries at4b3ccc608f47322ce3e4f13d408e41700ce5a05d,
+without #559's CPU-loop fix. Smoke1 /tmp/pair218-SMOKE-aw4k478w failed
+fixture setup (missing positive ThreadRecord revision); smoke2
+/tmp/pair218-SMOKE2-nm6wcyu6 refused the default layout3 versus seeded layout2
+before child spawn. Both failures retained, fixture fields corrected without
+relaxing production guards, and fixture validation/schedule tests passed.
+Smoke3 /tmp/pair218-SMOKE3-xgr7yc1s passed32.72s:21 meaningful terminal-model
+first frames plus delivery acknowledgments, actual background peak6, root890.20ms,
+all frames15400.59ms, adoption15410.72ms, LeaveDetach4681.67ms. Couch self CPU
+startup10078.42ms / leave3357.27ms, sampled peak117%; one host sample8.4%idle.
+All21 client kernel births retained; server/agent identities and unrelated
+sentinel survived Leave; exact private fixture cleanup left no scoped processes.
+This is two-pane persistent stand-in workload, not the operator's three-pane
+model sessions, and cannot reconstruct the historical8.85s.
+
+Balanced schedule[6,20,40,20,40,6,40,6,20] began separately at
+/tmp/pair218-MATRIX-_15pmlgy (source/binary hashes and source snapshot in
+source.json). First three samples completed; fourth(limit20) FAILED during
+prepare: possible zellij PID23658, process identity unavailable after command
+read. Stopped immediately; no samples5–9, no hidden retries, no concurrency
+recommendation from incomplete samples. Exact cleanup and failure investigation
+pending at checkpoint. Raw errors/child output/native counters/host samples
+retained, but private launch diagnostic file was removed by fixture cleanup;
+copying diagnostics to the evidence directory must precede future cleanup.
+Parent record/fsync timing is measured in the single-attach baseline, but the
+private context observer is not yet enabled in the couchcmd fleet harness;
+fleet fsync attribution remains an explicit gap. Main now contains #559 PR336;
+this matrix does not. Integrate it before final measurements and preserve
+pre-fix data rather than blending versions. Targeted TestFleet tests pass and
+git diff --check passes for smoke fixture corrections.
+
 ## Revisions
 
 - 2026-10-14 — add (operator via TL): concrete case. At the operator's 14:33 restart, Couch's background attaches spawned 21 zellij clients between 14:33:37 and 14:33:47 (~6 at a time): roughly 2–3 s per attach, against ~10–20 ms for `zellij list-sessions` and an expected ~100–300 ms floor (list, lease, one record write, spawn client, first frame). Detach ("leave couch") is unmeasured but also inspects each slot's session server. Trace one attach and one detach step by step; the likely waste is a whole process-table read (native argv for every process since #547) per slot. Probably one shared snapshot per startup or detach pass instead.
