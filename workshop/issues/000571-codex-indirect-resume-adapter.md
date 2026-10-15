@@ -101,6 +101,12 @@ Independent exact-tag path-utils comparison confirms physical cwd canonicalizati
 
 Final config/collector/selector normal tests passed16.770s and race28.153s; pure platform/path table0.179s; full artifactpath ownership25.701s. No further code edits pending; queue the final full suite next.
 
+### 2026-10-15 — ordinary compatibility failure class
+
+Pre-close launch-boundary audit found ordinary Codex latest refused adapter errors and scope encoding limits, contrary to the approved native fallback contract. Behavioral REDs cover adapter error/deadline/canceled and a real >8KiB scope: code1/no launch before the fix. Strict ResumeRequired, validated recovery and exact-ID controls retain refusal. The fix must preserve the original ordinary invocation and make no reservation; read-only resolution has no uncertain write to recover. The a1839f7f suite was canceled while queued (exit130; no tests executed), so verification must use the corrected head.
+
+Fixed at the launch boundary: ordinary error/deadline/canceled/oversize/missing-scope keeps exact argv, launches once, publishes no native identity and makes no reservation; strict recovery/required/explicit counterparts refuse. Final launcher normal/race regex Test.*(CodexConfig|CodexLatestCreate|NativeResume|NativeCreate) passed7.746s/10.736s; includes existing native resume/create tests as well as the new matrix. Diff check clean.
+
 ### 2026-10-15 — planning under the disk restriction
 
 Append source-backed configuration/selector measurements and a proposal before implementation. No architecture or implementation gate is waived: issue-branch preparation, canonical durable plan and change-code wait until compilation is permitted; admission integration waits for #556 on main. Preserve native passthrough for unresolved scopes, picker/names, incomplete DB evidence and nondeterministic ties instead of changing ordinary resume behavior into a refusal.

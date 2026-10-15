@@ -754,7 +754,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		resolved, err := rt.ResolveNativeResume(ctx, NativeResumeRequest{Agent: agent, CWD: env.Cwd, Selector: selector})
 		cancel()
 		if err != nil || resolved.Status != sessioninventory.NativeSelectorResolved || resolved.NativeID == "" {
-			if !unguardedCodex || err != nil {
+			if !unguardedCodex {
 				reason := resolved.Reason
 				if err != nil {
 					reason = err.Error()
@@ -762,18 +762,21 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 				fmt.Fprintf(stderr, "pair: native resume unavailable (%s): %s; choose an exact canonical session ID or Start fresh.\n", resolved.Status, reason)
 				return launchStep{code: 1}, nil
 			}
-			// Ordinary unsupported/uncertain Codex latest preserves native UX;
+			// Ordinary unsupported, failed or timed-out Codex observation preserves native UX;
 			// the wrapper emits the one compatibility notice, not this helper.
 		} else {
 			if agent == "codex" && resolved.CodexScope != nil {
 				codexScope, err = EncodeNativeAdmissionCodexScope(*resolved.CodexScope)
 				if err != nil {
-					fmt.Fprintln(stderr, "pair: invalid resolved Codex scope")
-					return launchStep{code: 1}, nil
+					if !unguardedCodex {
+						fmt.Fprintln(stderr, "pair: invalid resolved Codex scope")
+						return launchStep{code: 1}, nil
+					}
+					codexScope = ""
 				}
 			}
 			if unguardedCodex && codexScope == "" {
-				// A latest result without proven namespace is still compatibility.
+				// A latest result without a bounded, proven namespace is still compatibility.
 			} else {
 				agentArgs, explicitResume = resolved.Args, resolved.NativeID
 			}

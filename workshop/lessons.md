@@ -1941,3 +1941,6 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #571: Revalidation must accept the final production argv, including flags
   injected after selection. Exercise Couch's shell_snapshot injection through
   the real config reader before Claim; raw argv equality alone misses this.
+- #571: A read-only adapter's unknown/error/encoding-limit result must preserve
+  ordinary native compatibility without a reservation. Test those failures at
+  the launch boundary, alongside strict recovery and exact-ID refusal controls.
