@@ -23,7 +23,8 @@ func recoverySelectionDigest(record ThreadRecord, selection RecoverySelection, t
 		Record    ThreadRecord
 		Selection RecoverySelection
 		Terminal  string
-	}{record, selection, terminal.Digest})
+		Stops     []RecoveryStopProcess
+	}{record, selection, terminal.Digest, terminal.Stops})
 	sum := sha256.Sum256(b)
 	return hex.EncodeToString(sum[:])
 }
@@ -176,6 +177,19 @@ func (c *Couch) executePreparedRecovery(ctx context.Context, selection RecoveryS
 			}
 		}
 	}
+	var parkHelper *ThreadIncarnation
+	if len(retirement.Stops) > 0 {
+		parkHelper = c.recoveryParkHelper(ctx, record)
+		if parkHelper != nil {
+			named := false
+			for _, stop := range retirement.Stops {
+				named = named || stop.PID == parkHelper.PID && stop.Identity == parkHelper.Identity
+			}
+			if !named {
+				retirement.Stops = append(retirement.Stops, RecoveryStopProcess{PID: parkHelper.PID, Identity: parkHelper.Identity, Role: "client-helper"})
+			}
+		}
+	}
 	witness := recoveryConfirmationWitness{Address: record.Address, Revision: record.Revision, Selection: selection, Digest: recoverySelectionDigest(record, selection, retirement), NativeID: choice.NativeID}
 	if confirmation != "" {
 		if err := c.consumeRecoveryConfirmation(ctx, confirmation, witness); err != nil {
@@ -251,6 +265,10 @@ func (c *Couch) executePreparedRecovery(ctx context.Context, selection RecoveryS
 	}
 	if retirement.Retire != nil {
 		if err := ctx.Err(); err != nil {
+			return result, err
+		}
+		record, err = c.parkPreparedRecovery(ctx, record, parkHelper)
+		if err != nil {
 			return result, err
 		}
 		if err := retirement.Retire(ctx); err != nil {

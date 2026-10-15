@@ -76,3 +76,44 @@ func (r OSRecoveryEvidenceReader) recoveryTerminalAddress(ctx context.Context, r
 	}
 	return root, name, nil
 }
+
+// recoveryParkHelper selects only the normal, still-connected lifecycle path.
+// Damaged or unproved sources retain the exact confirmed terminal path instead.
+// The returned helper must also appear in the person's stop summary.
+func (c *Couch) recoveryParkHelper(ctx context.Context, record ThreadRecord) *ThreadIncarnation {
+	if c.PairLifecycle == nil || c.PairLifecycle.validate() != nil || c.Proc == nil || record.Park != nil || record.Continuation != nil || startClaimed(record) {
+		return nil
+	}
+	incarnation, err := soleParkableIncarnation(record)
+	if err != nil || incarnation.State != IncarnationLive || observeExactProcess(c.Proc, ProcessIdentity{PID: incarnation.PID, Identity: incarnation.Identity}) != Live {
+		return nil
+	}
+	binding, err := observeRecordSession(ctx, c.PairLifecycle.Sessions, record)
+	if err != nil || !binding.Present || binding.Name == "" {
+		return nil
+	}
+	return &incarnation
+}
+
+func (c *Couch) parkPreparedRecovery(ctx context.Context, record ThreadRecord, helper *ThreadIncarnation) (ThreadRecord, error) {
+	if helper == nil {
+		return record, nil
+	}
+	switch observeExactProcess(c.Proc, ProcessIdentity{PID: helper.PID, Identity: helper.Identity}) {
+	case Dead:
+		return record, nil
+	case Unknown:
+		return record, errors.New("confirmed recovery client helper could not be rechecked; refresh the recovery choice")
+	}
+	current, err := soleParkableIncarnation(record)
+	if err != nil || current.PID != helper.PID || current.Identity != helper.Identity || current.State != helper.State {
+		return record, errors.New("recovery client helper changed; refresh the recovery choice")
+	}
+	parked, err := c.PairLifecycle.ParkExpected(ctx, record.Address, record.Revision)
+	if err != nil {
+		// A published request or partial completion cannot be replaced with a
+		// second retirement strategy. Preserve its existing transaction to retry.
+		return record, err
+	}
+	return parked.Thread, nil
+}
