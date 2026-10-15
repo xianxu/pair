@@ -231,11 +231,14 @@ var Families = []Family{
 // shell, Lua, and KDL sources.
 // pair:m5-concept pure
 var SourceClassifications = []SourceClassification{
+	{Path: "cmd/internal/couchcore/peek_retained_os.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/couchcore/recovery_evidence_os.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/couchcore/recovery_native_owner.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/couchcore/recovery_retirement_os.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/launcher/recovery_native_owner.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/launcher/recovery_authority_os.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/launcher/recovery_terminal.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/launcher/recovery_terminal_confirmed.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/launcher/recovery_terminal_os.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/threadrecord/recovery.go", Kind: ResolvedConsumer},
 
@@ -613,6 +616,12 @@ var SourceClassifications = []SourceClassification{
 // pair:m5-concept pure
 var NonArtifactSources = []string{
 	"cmd/internal/couchcmd/resume_candidates.go",
+	"cmd/internal/couchcore/recovery_confirmation.go",
+	"cmd/internal/couchcore/recovery_fresh_missing.go",
+	"cmd/internal/couchcore/recovery_plan.go",
+	"cmd/internal/couchcore/recovery_preflight.go",
+	"cmd/internal/couchcore/recovery_prepared.go",
+	"cmd/internal/couchcore/recovery_start_fence.go",
 	"cmd/internal/couchcore/recovery_key.go",
 	"cmd/internal/couchcore/recovery_preview.go",
 	"cmd/internal/couchcore/recovery_native_owner_fake.go",
