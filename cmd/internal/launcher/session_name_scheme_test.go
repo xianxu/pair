@@ -269,7 +269,7 @@ func TestARefusalMessageIsNeverEmptyEvenWhenNothingCanBeMeasured(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			rt := &fakeRuntime{maxSessionNameBytes: tc.budget}
-			accepts, refusedAt := sessionNameAcceptor(rt)
+			accepts, refusedAt, _ := sessionNameAcceptor(rt)
 			// SHORT -- shorter than the 24-byte fallback the old oracle returned.
 			// That is the whole reproduction: a long-socket-dir machine refuses
 			// this name, the fallback says it fits, and sessionNameFits then has

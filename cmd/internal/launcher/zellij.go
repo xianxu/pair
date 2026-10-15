@@ -21,6 +21,12 @@ import (
 // wrong.
 const zellijQueryTimeout = 5 * time.Second
 
+// ErrZellijNoReply distinguishes an unanswered read from an observed empty
+// inventory. A fresh call is new evidence; this boundary never retries.
+var ErrZellijNoReply = errors.New("zellij query returned no reply")
+
+var errSessionNameTooLong = errors.New("session name too long")
+
 // ZellijSource reads zellij session state through the zellij CLI.
 type ZellijSource struct {
 	Path string
@@ -192,6 +198,9 @@ func (s ZellijSource) runContext(ctx context.Context, args ...string) (output []
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("zellij %s: %w", strings.Join(args, " "), err)
+	}
+	if len(bytes.TrimSpace(stdout.Bytes())) == 0 {
+		return nil, fmt.Errorf("zellij %s: %w", strings.Join(args, " "), ErrZellijNoReply)
 	}
 	return stdout.Bytes(), nil
 }

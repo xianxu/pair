@@ -109,10 +109,16 @@ func registrationTerminalFixture() error {
 		}
 		_, err = os.Stdout.Write(raw)
 		return err
+	case strings.Contains(joined, " list-clients "):
+		fmt.Fprintln(os.Stdout, "CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND")
 	case len(args) > 0 && args[0] == "list-sessions":
-		if _, err := os.Stat(os.Getenv("PAIR_TEST_ZELLIJ_READY")); err == nil {
-			fmt.Fprintln(os.Stdout, os.Getenv("PAIR_SESSION_NAME"))
+		if _, err := os.Stat(os.Getenv("PAIR_TEST_ZELLIJ_READY")); err != nil {
+			if os.IsNotExist(err) {
+				return fmt.Errorf("No active zellij sessions found.")
+			}
+			return err
 		}
+		fmt.Fprintln(os.Stdout, os.Getenv("PAIR_SESSION_NAME"))
 	}
 	return nil
 }

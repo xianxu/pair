@@ -1833,6 +1833,7 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
 
 - #559 review: Cache failure tests must recover with unchanged fingerprints and fence an older in-flight loader, not merely reject the failing call. Distinguish a canceled waiter that observed nothing from a failed source observation. Measure retained projections using substantive proof/boundary payloads, and signal cancellation barriers only after the caller actually reaches the wait.
 
+- #562: Exit0 without the requested output is no answer, not an empty inventory or detached client set. Preserve that distinction before monotone caches: failed name probes cannot teach a positive acceptance or a negative length bound. Model the early completion before queued output and require a separately requested observation for recovery. An existence-only readiness check needs atomic value publication when the reader parses contents.
 - #528 cancellation: receiving a queued request does not prove it is still
   admitted. Check its lifetime before dispatch; a cancelled predecessor can
   publish completion while Stop is still closing channels. Preserve the
@@ -1868,6 +1869,7 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
   separately, and capture the failing phase before changing a test budget.
   Isolated rerun passes do not erase a failed broad run or prove its cause.
 
+- #562 fixture sweep: When a read boundary distinguishes an unanswered query from observed absence, update every executable fake that encoded absence as exit0/empty—including shell smoke fixtures, shared helpers, composition fixtures and public-command entrypoints. Search generic launch-only executable stubs as well as literal query strings; a silent default can turn cleanup into an endless wait. A package-only pass cannot cover their separate launcher path. Use the Make wrapper for hosted test-environment isolation.
 - #528/#218 integration: When an approved lifecycle path changes, carry
   instrumentation onto its actual steps instead of restoring old lifecycle
   work to satisfy phase assertions. Optional borrowed-client previews should
@@ -1878,3 +1880,4 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
 - #564: A semantic test must choose its fixture's time authority. Reusing a failure fixture can silently import a tiny real registration deadline despite a fixed domain clock. Use the existing parent-linked registration context seam and bound the caller by its test budget; pin deadline inheritance and cancellation at observer events. Reproduce expiry before the first poll separately, and distinguish later cleanup probes from completed registration observations.
 
 - #564 integration: when upstream changes a public route, move regression observers to the current route and prove the original hazard still applies before retaining a fix. Assert cancellation propagation at the observer before cleanup cancels the child; a final error alone can be produced by a different parent check.
+- #562 close review: enumerate subprocess outcomes before learning monotone bounds. Nonempty diagnostics do not turn a failed/canceled query into acceptance; check cancellation before parsing even validator-looking fragments. Preserve only source-verified complete validator outcomes, with real-subprocess negative and positive controls. Keep Done-when and completed Plan rows at the level of evidence actually delivered: a source-derived fake is not an upstream receiver regression or a captured wire ordering.
