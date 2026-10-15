@@ -1,11 +1,13 @@
 package launcher
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -35,7 +37,8 @@ type recoveryNativeProof struct {
 	NativeID string
 	Child    *procutil.Process
 	// A legacy exemption is tied to this exact file-holding process too.
-	Holder *procutil.Process
+	Holders []procutil.Process
+	HeldIDs []string
 }
 
 func recoveryNativeProofForWrapper(ctx context.Context, check RecoveryNativeOwnerCheck, snapshot recoveryTerminalSnapshot, wrapper recoveryNativeWrapper, read func(context.Context, string, int64) ([]byte, error)) (recoveryNativeProof, error) {
@@ -44,8 +47,9 @@ func recoveryNativeProofForWrapper(ctx context.Context, check RecoveryNativeOwne
 	if err != nil && !errors.As(err, &legacy) {
 		return recoveryNativeProof{}, err
 	}
-	id, err := readRecoveryNativeID(ctx, wrapper.Owner, wrapper.Agent, ready.LaunchOrdinal, read)
-	if err != nil {
+	id, err := readRecoveryNativeID(ctx, check, wrapper.Owner, ready.LaunchOrdinal, read)
+	unbound := errors.Is(err, errNativeOwnerUnbound)
+	if err != nil && !unbound {
 		if legacy != nil && ctx.Err() == nil {
 			legacy.Reason = err.Error()
 			return recoveryNativeProof{}, legacy
@@ -53,7 +57,7 @@ func recoveryNativeProofForWrapper(ctx context.Context, check RecoveryNativeOwne
 		return recoveryNativeProof{}, err
 	}
 	proof := recoveryNativeProof{Ready: ready, NativeID: id}
-	if legacy == nil {
+	if legacy == nil && !unbound {
 		return proof, nil
 	}
 	// A legacy record does not carry a birth token. Its PID is usable only
@@ -66,28 +70,37 @@ func recoveryNativeProofForWrapper(ctx context.Context, check RecoveryNativeOwne
 		}
 	}
 	if child.PID == 0 {
-		legacy.Reason = "readiness does not name a direct live child of the observed wrapper"
-		return recoveryNativeProof{}, legacy
+		return recoveryNativeProof{}, nativeOwnerProofError(legacy, wrapper, ready, "readiness does not name a direct live child of the observed wrapper")
 	}
 	proof.Child = &child
-	if id != check.NativeID {
+	if id != "" && id != check.NativeID {
 		// Approved negative collision exclusion, not a proven source exemption.
 		return proof, nil
 	}
-	holder, err := checkLegacyHeldNative(ctx, check, snapshot, child, id)
+	ids, holders, err := checkLegacyHeldNative(ctx, check, snapshot, child)
+	if err == nil && id != "" && !slices.Contains(ids, id) {
+		err = errors.New("no held writable transcript proves the owner ledger ID")
+	}
 	if err != nil {
 		if ctx.Err() != nil {
 			return recoveryNativeProof{}, ctx.Err()
 		}
-		legacy.Reason = err.Error()
-		return recoveryNativeProof{}, legacy
+		return recoveryNativeProof{}, nativeOwnerProofError(legacy, wrapper, ready, err.Error())
 	}
 	proof.Ready.AgentIdentity = child.Identity
-	proof.Holder = &holder
+	proof.Holders, proof.HeldIDs = holders, ids
 	return proof, nil
 }
 
-func checkLegacyHeldNative(ctx context.Context, check RecoveryNativeOwnerCheck, snapshot recoveryTerminalSnapshot, child procutil.Process, id string) (procutil.Process, error) {
+func nativeOwnerProofError(legacy *LegacyNativeOwnerError, wrapper recoveryNativeWrapper, ready readiness.ReadyRecord, reason string) error {
+	if legacy != nil {
+		legacy.Reason = reason
+		return legacy
+	}
+	return fmt.Errorf("%s native owner %s:%s (child pid %d) has no proven native binding: %s; relaunch its slot to migrate", wrapper.Agent, wrapper.Owner.RepoScope, wrapper.Owner.Tag, ready.PID, reason)
+}
+
+func checkLegacyHeldNative(ctx context.Context, check RecoveryNativeOwnerCheck, snapshot recoveryTerminalSnapshot, child procutil.Process) ([]string, []procutil.Process, error) {
 	holders := []procutil.Process{child}
 	// The Codex node launcher remains the direct PTY child. Only its immediate
 	// native engine qualifies; tool descendants opening transcripts do not.
@@ -110,13 +123,14 @@ func checkLegacyHeldNative(ctx context.Context, check RecoveryNativeOwnerCheck, 
 		read = procutil.LsofWritableNames
 	}
 	roots := sessioninventory.NewOSRuntime(os.Getenv("HOME"), check.DataDir).NativeRoots(sessioninventory.Agent(check.Agent))
+	ids := []string{}
 	for _, holder := range holders {
 		if err := ctx.Err(); err != nil {
-			return procutil.Process{}, err
+			return nil, nil, err
 		}
 		paths, err := read(ctx, strconv.Itoa(holder.PID))
 		if err != nil {
-			continue // One positive held owner transcript is sufficient, never absence.
+			return nil, nil, err // Partial inspection cannot exclude another writer.
 		}
 		for _, path := range paths {
 			for _, root := range roots {
@@ -125,11 +139,19 @@ func checkLegacyHeldNative(ctx context.Context, check RecoveryNativeOwnerCheck, 
 					continue
 				}
 				a := sessioninventory.Artifact{StorageRoot: root.Name, RelativePath: filepath.ToSlash(rel)}
-				if sessioninventory.NativeIDForArtifact(sessioninventory.Agent(check.Agent), a) == id {
-					return holder, nil
+				if id := sessioninventory.NativeIDForArtifact(sessioninventory.Agent(check.Agent), a); id != "" {
+					ids = append(ids, id)
+				} else if filepath.Ext(path) == ".jsonl" {
+					return nil, nil, errors.New("held native transcript identity is unrecognized")
 				}
 			}
 		}
 	}
-	return procutil.Process{}, errors.New("no held writable transcript proves the owner ledger ID")
+	if len(ids) == 0 {
+		return nil, nil, errors.New("no held writable native transcript proves this legacy owner's IDs")
+	}
+	slices.Sort(ids)
+	ids = slices.Compact(ids)
+	slices.SortFunc(holders, func(a, b procutil.Process) int { return cmp.Compare(a.PID, b.PID) })
+	return ids, holders, nil
 }

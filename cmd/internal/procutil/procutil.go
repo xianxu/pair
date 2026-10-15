@@ -192,7 +192,9 @@ func parseLsofWritableNames(raw []byte, pid string) ([]string, error) {
 		return nil
 	}
 	for _, line := range lines[1:] {
-		if len(line) < 2 {
+		// Darwin's non-file descriptors (for example NPOLICY) can emit
+		// an empty name field. REG names remain mandatory in flush.
+		if len(line) == 0 || (len(line) == 1 && line != "n") {
 			return nil, malformed
 		}
 		key, value := line[:1], line[1:]

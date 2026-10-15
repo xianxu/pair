@@ -3,6 +3,7 @@ package launcher
 import (
 	"cmp"
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"os"
@@ -29,6 +30,7 @@ type RecoveryNativeOwnerCheck struct {
 	Admissions                               NativeAdmissionOwners
 	io                                       *nativeOwnerCheckIO
 	heldFiles                                nativeHeldFiles
+	ledgers                                  map[nativeOwnerLedgerKey]nativeOwnerLedgerResult
 }
 
 type recoveryNativeWrapper struct {
@@ -64,6 +66,8 @@ func checkRecoveryNativeOwners(ctx context.Context, check RecoveryNativeOwnerChe
 	return checkRecoveryNativeOwnersWithDiscovery(ctx, check, observe, read, discoverLegacyNativeOwners)
 }
 
+var errNativeOwnerUnbound = errors.New("live wrapper native ownership is unbound")
+
 var errNativeOwnerObservation = errors.New("native owner observation incomplete or changed")
 
 func checkRecoveryNativeOwnersWithDiscovery(ctx context.Context, check RecoveryNativeOwnerCheck, observe func(context.Context, string) (recoveryTerminalSnapshot, error), read func(context.Context, string, int64) ([]byte, error), discover func(context.Context, string) ([]artifactpath.StorageOwner, error)) error {
@@ -75,6 +79,7 @@ func checkRecoveryNativeOwnersWithDiscovery(ctx context.Context, check RecoveryN
 	}
 	ctx, cancel := context.WithTimeout(ctx, zjTimeout)
 	defer cancel()
+	check.ledgers = make(map[nativeOwnerLedgerKey]nativeOwnerLedgerResult)
 	// Re-observe once under the SAME budget. A process arriving between the
 	// argv snapshot and final table is uncertainty, not a permanent blocker or
 	// permission to admit it unchecked. No launch/signal effects occur here.
@@ -126,8 +131,8 @@ func checkRecoveryNativeOwnersOnce(ctx context.Context, check RecoveryNativeOwne
 			}
 			continue
 		}
-		if native == check.NativeID {
-			return fmt.Errorf("native conversation %s already has a live wrapper (%s:%s)", native, wrapper.Owner.RepoScope, wrapper.Owner.Tag)
+		if native == check.NativeID || slices.Contains(proof.HeldIDs, check.NativeID) {
+			return fmt.Errorf("native conversation %s already has a live wrapper (%s:%s)", check.NativeID, wrapper.Owner.RepoScope, wrapper.Owner.Tag)
 		}
 	}
 	after, err := observe(ctx, "")
@@ -330,15 +335,41 @@ type nativeOwnerCheckIO struct {
 	discover func(context.Context, string) ([]artifactpath.StorageOwner, error)
 }
 
-func readRecoveryNativeID(ctx context.Context, owner artifactpath.StorageOwner, agent string, ordinal uint64, read func(context.Context, string, int64) ([]byte, error)) (string, error) {
+func readRecoveryNativeID(ctx context.Context, check RecoveryNativeOwnerCheck, owner artifactpath.StorageOwner, ordinal uint64, read func(context.Context, string, int64) ([]byte, error)) (string, error) {
 	paths, err := artifactpath.ResolveScoped(owner.Directory(), owner.Tag)
 	if err != nil {
 		return "", err
 	}
 	raw, err := read(ctx, paths.Ledger(), -1)
 	if err != nil {
-		return "", fmt.Errorf("live %s wrapper native ownership unavailable: %w", agent, err)
+		return "", fmt.Errorf("live %s wrapper native ownership unavailable: %w", check.Agent, err)
 	}
+	// Every observation still reads and validates the physical file. Only
+	// identical bytes reuse their pure projection during this one admission.
+	key := nativeOwnerLedgerKey{Owner: owner, Agent: check.Agent, Ordinal: ordinal}
+	digest := sha256.Sum256(raw)
+	if prior, ok := check.ledgers[key]; ok && prior.Digest == digest {
+		return prior.ID, prior.Err
+	}
+	id, err := projectRecoveryNativeID(raw, owner, check.Agent, ordinal)
+	if check.ledgers != nil {
+		check.ledgers[key] = nativeOwnerLedgerResult{Digest: digest, ID: id, Err: err}
+	}
+	return id, err
+}
+
+type nativeOwnerLedgerKey struct {
+	Owner   artifactpath.StorageOwner
+	Agent   string
+	Ordinal uint64
+}
+type nativeOwnerLedgerResult struct {
+	Digest [32]byte
+	ID     string
+	Err    error
+}
+
+func projectRecoveryNativeID(raw []byte, owner artifactpath.StorageOwner, agent string, ordinal uint64) (string, error) {
 	parsed := sessionledger.ParseLedger(raw)
 	if len(parsed.MalformedOrdinals) != 0 {
 		return "", errors.New("live wrapper ledger has malformed native ownership")
@@ -362,7 +393,7 @@ func readRecoveryNativeID(ctx context.Context, owner artifactpath.StorageOwner, 
 		native = target.RequestedNativeID
 	}
 	if native == "" {
-		return "", errors.New("live wrapper native ownership is unresolved")
+		return "", fmt.Errorf("%w (%s:%s)", errNativeOwnerUnbound, owner.RepoScope, owner.Tag)
 	}
 	return native, nil
 }

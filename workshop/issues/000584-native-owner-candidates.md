@@ -60,6 +60,24 @@ Filter native-owner candidates from kernel metadata before requiring argv; unrel
 TL approved extending #584 (32f38ca7, refined 61032867) after the host measurement found 18/21 legacy wrappers and migration's circular preflight. Preserve exact modern identities. For legacy readiness, prove current direct child/wrapper kinship from the kernel table and exact owner argv; use its exact readiness ordinal's ledger ID to exclude a different requested ID. For a matching ID, a source exemption additionally needs that owner ID among the native engine's held writable transcript paths, with generations/parent edges rechecked. Same-agent legacy uncertainty with no exclusion remains a refusal naming its owner and relaunch migration advice. Other agent kinds do not block. This is held-file/kinship proof, never cwd/tail inference. Codex needs its node shim's direct native engine child; arbitrary tool descendants are excluded. Durable design: workshop/plans/000584-native-owner-candidates-plan.md.
 
 
+### 2026-10-15 — finite ledger snapshot reader
+
+Read-only host validation reached a further #556 reader-only limit: pair:2's valid ledger is 21,466,623 bytes, exceeding the new guard's 8 MiB whole-file cap. #508 already removed this unsupported cap from sessioninventory. Native ownership now reads the finite observed ledger snapshot through the existing regular-file, no-symlink, cancellation and unchanged-generation reader, preserving readiness's small fixed bound; a >8 MiB valid-ledger regression went red on the old reader and green after the change. No writer policy or ledger schema changed.
+
+### 2026-10-15 — unbound legacy owner, decision requested
+
+The next host check advances in 783 ms to a genuine unbound legacy source: pair:2's readiness ordinal 65 has no requested_native_id and no binding record. Its exact live chain is wrapper 4374 -> node 4461 -> Codex 4470. Writable held rollouts contain one primary source=cli ID (01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd); other held metadata names that ID as its subagent parent. Sent the hub the remaining blocker and a proposed unique-primary held-header fallback; no implementation of that extra rule yet. Current guards preserve this uncertainty. This checkpoint's remaining host failure is expected and reported.
+
+
+### 2026-10-15 — approved unbound legacy ID set
+
+TL approved receipt 5d2dcac0 to use a complete positively held writable native transcript ID set only when the exact legacy launch is genuinely unbound, never conflicting or malformed. The same exact wrapper/child/engine births and parent edges, plus the sorted ID set, are compared at both observations. Matching held IDs remain collisions except the exact source exemption; missing/partial/unrecognized evidence remains unknown. New unbound/different-ID and source cases went red before implementation, and the native suite passes afterwards. Real lsof conformance also found a valid unnamed Darwin NPOLICY descriptor; its real-shaped regression went red and the parser now accepts that non-file shape without accepting unnamed REG files.
+
+
+### 2026-10-15 — approved modern unbound ID set and host timing
+
+TL approved fcda041b: the absent-only complete held-ID fallback also applies after a modern owner passes its full birth and ancestry checks. Malformed/conflicting IDs and identity mismatches still refuse. Both modern and legacy regression matrices pass. A per-admission SHA-256 projection memo retains fresh physical reads at both observations; a changed-byte mutation test proves that stale projections cannot admit changed bindings. The real five-second host check still times out: a separate read-only 15-second diagnostic reached the budget while decoding whole historical ledgers (20–33 MB each); physical reads took milliseconds. No slot effects occurred. Investigating codec cost before claiming the fleet blocker resolved; no deadline increase or weakened validation has been applied.
+
 ## Estimate
 
 Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md, Method A only (calibration marked stale by sdlc). Two smaller Go extensions cover candidate filtering/retry and legacy association; one bounded held-file IO module reuses os/exec and existing filename codecs. Thorough approved design discounts design by 0.2, standard-library availability halves the held-file module's design, implementation uses v3.1's 0.4 scale. Familiarity is 1.0. One review and one real-API discovery budget cover the boundary and host descriptor measurement; docs and issue authoring are separate primitives.
@@ -77,13 +95,3 @@ item: real-api-discovery design=0.0 impl=0.16
 design-buffer: 0.15
 total: 1.3935
 ```
-
-## Revisions
-
-### 2026-10-15 16:12 — finite ledger snapshot reader
-
-Read-only host validation reached a further #556 reader-only limit: pair:2's valid ledger is 21,466,623 bytes, exceeding the new guard's 8 MiB whole-file cap. #508 already removed this unsupported cap from sessioninventory. Native ownership now reads the finite observed ledger snapshot through the existing regular-file, no-symlink, cancellation and unchanged-generation reader, preserving readiness's small fixed bound; a >8 MiB valid-ledger regression went red on the old reader and green after the change. No writer policy or ledger schema changed.
-
-### 2026-10-15 16:14 — unbound legacy owner, decision requested
-
-The next host check advances in 783 ms to a genuine unbound legacy source: pair:2's readiness ordinal 65 has no requested_native_id and no binding record. Its exact live chain is wrapper 4374 -> node 4461 -> Codex 4470. Writable held rollouts contain one primary source=cli ID (01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd); other held metadata names that ID as its subagent parent. Sent the hub the remaining blocker and a proposed unique-primary held-header fallback; no implementation of that extra rule yet. Current guards preserve this uncertainty. This checkpoint's remaining host failure is expected and reported.

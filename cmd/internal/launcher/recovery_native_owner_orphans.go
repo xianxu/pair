@@ -104,7 +104,7 @@ func observeLegacyNativeOrphans(ctx context.Context, check RecoveryNativeOwnerCh
 		if ready.AgentIdentity != "" && child.Identity != ready.AgentIdentity {
 			continue // Positive PID reuse is not the old writer.
 		}
-		id, err := readRecoveryNativeID(ctx, owner, check.Agent, ready.LaunchOrdinal, read)
+		id, err := readRecoveryNativeID(ctx, check, owner, ready.LaunchOrdinal, read)
 		if err != nil {
 			if ready.AgentIdentity == "" && ctx.Err() == nil {
 				return nil, &LegacyNativeOwnerError{Owner: owner, Agent: check.Agent, PID: ready.PID, Reason: err.Error()}

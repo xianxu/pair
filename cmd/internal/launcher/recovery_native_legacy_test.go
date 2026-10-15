@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/procutil"
+	"github.com/xianxu/pair/cmd/internal/sessionledger"
 )
 
 func TestLegacyNativeSourceRequiresHeldOwnerTranscript(t *testing.T) {
@@ -64,7 +65,7 @@ func TestLegacyNativeSourceRequiresHeldOwnerTranscript(t *testing.T) {
 				if pid != holder || mode == "no-held-file" || (mode == "held-file-changed" && w.observations > 1) {
 					return nil, nil
 				}
-				return []string{filepath.Join(home, ".codex", "sessions", "unrelated.jsonl"), root}, nil
+				return []string{filepath.Join(home, ".cache", "unrelated.jsonl"), root}, nil
 			}
 			err := checkRecoveryNativeOwnersWithDiscovery(context.Background(), check, w.Observe, w.Read, orphanOwnerDiscovery(check))
 			allowed := mode == "direct" || mode == "node-engine"
@@ -78,5 +79,70 @@ func TestLegacyNativeSourceRequiresHeldOwnerTranscript(t *testing.T) {
 				t.Fatalf("legacy exemption was not rechecked: observations=%d reads=%d", w.observations, calls)
 			}
 		})
+	}
+}
+
+func TestNativeUnboundUsesCompleteHeldIDSet(t *testing.T) {
+	const id = "019d1111-1111-7111-8111-111111111111"
+	const other = "019d2222-2222-7222-8222-222222222222"
+	for _, legacy := range []bool{false, true} {
+		for _, mode := range []string{"different", "collision", "source", "missing", "partial", "changed-set", "conflicting-ledger", "unrecognized-native", "identity-mismatch"} {
+			t.Run(map[bool]string{true: "legacy/", false: "modern/"}[legacy]+mode, func(t *testing.T) {
+				home := t.TempDir()
+				t.Setenv("HOME", home)
+				w, check := nativeOwnerFixture(t, "codex", id)
+				launch := sessionledger.ParseLedger(w.raw).Records[0]
+				launch.RequestOrigin, launch.RequestedNativeID = "", ""
+				raw, err := sessionledger.EncodeRecord(launch)
+				if err != nil {
+					t.Fatal(err)
+				}
+				w.raw = append(raw, '\n')
+				if mode == "conflicting-ledger" {
+					w.raw = append(w.raw, []byte("malformed\n")...)
+				}
+				if legacy {
+					w.ready.AgentIdentity = ""
+				}
+				if mode == "identity-mismatch" {
+					w.ready.AgentIdentity = "wrong-generation"
+				}
+				s := w.snapshots[0]
+				s.Processes[0].Name, s.Processes[1].Name = "pair-wrap", "codex"
+				w.snapshots = []recoveryTerminalSnapshot{s}
+				check.NativeID = other
+				if mode == "collision" || mode == "source" {
+					check.NativeID = id
+				}
+				if mode == "source" {
+					check.Tag, check.SourcePID, check.SourceIdentity = "other", 7, "helper"
+					w.snapshots[0].Processes[0].PPID = 7
+					w.snapshots[0].Processes = append(w.snapshots[0].Processes, procutil.Process{PID: 7, Name: "pair", Identity: "helper"})
+					w.snapshots[0].Commands[7] = "pair resume other"
+				}
+				check.heldFiles = func(context.Context, string) ([]string, error) {
+					if mode == "missing" {
+						return nil, nil
+					}
+					if mode == "partial" {
+						return []string{"/partial"}, errors.New("partial observation")
+					}
+					heldID := id
+					if mode == "changed-set" && w.observations > 1 {
+						heldID = "019d3333-3333-7333-8333-333333333333"
+					}
+					paths := []string{filepath.Join(home, ".codex", "sessions", "2026", "10", "15", "rollout-2026-10-15T00-00-00-"+heldID+".jsonl")}
+					if mode == "unrecognized-native" {
+						paths = append(paths, filepath.Join(home, ".codex", "sessions", "unknown.jsonl"))
+					}
+					return paths, nil
+				}
+				err = checkRecoveryNativeOwnersWithDiscovery(context.Background(), check, w.Observe, w.Read, orphanOwnerDiscovery(check))
+				allowed := mode == "different" || mode == "source"
+				if (err == nil) != allowed {
+					t.Fatalf("mode=%s err=%v allowed=%t", mode, err, allowed)
+				}
+			})
+		}
 	}
 }

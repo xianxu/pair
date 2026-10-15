@@ -45,6 +45,16 @@ func TestLsofWritableNamesAccess(t *testing.T) {
 	}
 }
 
+func TestLsofWritableNamesDarwinUnnamedPolicyDescriptor(t *testing.T) {
+	// Captured field shape from a Darwin Codex engine: NPOLICY has a name
+	// field with no value. It conveys no regular-file authority.
+	fakeWritableLsof(t, "p42\nfcwd\na \ntDIR\nn/work\nftxt\na \ntREG\nn/app\nf34\na \ntNPOLICY\nn\nf49\nau\ntREG\nn/work/rollout.jsonl\n", "")
+	got, err := LsofWritableNames(context.Background(), "42")
+	if err != nil || !reflect.DeepEqual(got, []string{"/work/rollout.jsonl"}) {
+		t.Fatalf("names=%q err=%v", got, err)
+	}
+}
+
 func TestLsofWritableNamesInvalidPID(t *testing.T) {
 	args := fakeWritableLsof(t, "p42\n", "")
 	for _, pid := range []string{"", "0", "-1", "42,43", "self", "2147483648"} {
@@ -66,6 +76,8 @@ func TestLsofWritableNamesRejectsMalformed(t *testing.T) {
 		"partial after valid": "p42\nf1\naw\ntREG\nn/path\nf2\n",
 		"relative path":       "p42\nf1\naw\ntREG\nnrelative\n",
 		"duplicate field":     "p42\nf1\naw\nar\ntREG\nn/path\n",
+		"empty descriptor":    "p42\nf\n",
+		"empty regular name":  "p42\nf1\naw\ntREG\nn\n",
 	} {
 		t.Run(name, func(t *testing.T) {
 			fakeWritableLsof(t, raw, "")
@@ -155,6 +167,7 @@ func FuzzParseLsofWritableNames(f *testing.F) {
 		"p42\nf2\nau\ntREG\nn/update with spaces\n",
 		"p42\nf1\nar\ntREG\nn/read\n",
 		"p42\nfcwd\ntDIR\nn/work\nftxt\ntREG\nn/app\n",
+		"p42\nf34\na \ntNPOLICY\nn\nf49\nau\ntREG\nn/write\n",
 		"p43\nf1\naw\ntREG\nn/foreign\n", "", "p42\nf1\n",
 	} {
 		f.Add(raw)

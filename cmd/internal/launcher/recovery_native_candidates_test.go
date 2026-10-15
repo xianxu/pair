@@ -167,3 +167,25 @@ func TestRecoveryNativeLegacyExclusionFencesChildBirth(t *testing.T) {
 		t.Fatal("legacy exclusion borrowed a replaced child")
 	}
 }
+
+func TestRecoveryNativeLedgerProjectionRechecksChangedBytes(t *testing.T) {
+	for _, malformed := range []bool{false, true} {
+		w, check := nativeOwnerFixture(t, "codex", "other")
+		changed, _ := nativeOwnerFixture(t, "codex", "selected")
+		read := func(ctx context.Context, path string, limit int64) ([]byte, error) {
+			if strings.Contains(path, "ledger-") && w.reads > 0 {
+				w.raw = changed.raw
+				if malformed {
+					w.raw = []byte("malformed\n")
+				}
+			}
+			return w.Read(ctx, path, limit)
+		}
+		if err := checkRecoveryNativeOwnersWithDiscovery(context.Background(), check, w.Observe, read, noOrphanOwners); err == nil {
+			t.Fatalf("changed ledger admitted (malformed=%t)", malformed)
+		}
+		if w.observations != 2 || w.reads != 2 {
+			t.Fatalf("did not re-read both observations: observations=%d reads=%d", w.observations, w.reads)
+		}
+	}
+}

@@ -61,3 +61,13 @@ This revision supersedes the earlier test-case inventory and makes both admissio
 - Legacy error formatting / Couch friendly-slot advice: pin exact owner fallback and preview-only friendly resolution; a broken catalogue must preserve the original refusal, not invent a slot.
 
 Measured limitations remain explicit: the ready PID can be a node shim, so a positively identified immediate Codex engine is inspected too; arbitrary grandchildren/tools are not. Idle Claude holds no transcript, hence a different exact ledger ID excludes collision, while a matching/unknown one remains guarded. New wrappers do not use this legacy exception.
+
+### 2026-10-15 — approved unbound legacy set and finite ledger read
+
+TL receipt 5d2dcac0 authorizes an exact legacy launch with absent (not conflicting/malformed) ID to use the complete engine-held writable native ID set. This is a positive writer set from the proven wrapper/direct-child/native-engine lineage, decoded by the existing filename grammar. The same holder births, parent edges and sorted ID set are rechecked; a matching requested ID remains blocked except the exact source exemption, different IDs exclude that target, and partial/empty/unrecognized evidence remains unknown. No state is persisted and no cwd/tail evidence is used. The proof carries child birth even for ledger-based negative exclusions.
+
+The host's valid 21 MiB ledger also requires #508's existing contract: no reader-only whole-ledger cutoff below the writer's contract. `readNativeOwnerMetadata` reads a finite size-observed ledger snapshot through the existing no-symlink, regular-file, cancellation and unchanged-generation reader; small readiness files retain their fixed bound. A >8 MiB actual-file regression pins this path.
+
+### 2026-10-15 — modern absent-only held proof
+
+TL approved fcda041b: apply the complete held-ID-set fallback to modern owners only after full readiness identity and ancestry checks. Conflicting/malformed IDs and identity mismatches remain refusals. The host cold-history decoding cost currently exceeds the existing admission budget; measure a codec repair before any validation-scope or timing change.
