@@ -1353,3 +1353,12 @@ scratch live attachment with the ambient macOS TMPDIR. No new mechanism, no
 readiness or liveness policy change (ARCH-PURPOSE, ARCH-DRY). The queued ee59 suite
 was cancelled before admission; its review was cancelled as obsolete, with no
 verdict claimed. Rerun recorded suite and normal review on the corrected head.
+
+### 2026-10-14 — wait for the live input receipt's payload
+
+The corrected official-binary live run passed park attach, then observed an
+empty input file at the warm-input assertion. The shell creates its append
+target before writing; the fixture only waited for existence. Wait with the
+existing deadline/helper for the expected input bytes, then retain the final
+assertion. No runtime change or deadline widening. Cancel the still-unadmitted
+a364 suite; final suite/review must cover this source correction too.
