@@ -67,11 +67,17 @@ func AdvanceStartTransaction(record ThreadRecord, event StartEvent) (ThreadRecor
 			if err := threadrecord.ValidateRecoveryIntent(*event.RecoveryIntent, toPersistedThreadAddress(next.Address)); err != nil {
 				return ThreadRecord{}, err
 			}
-			if incarnation.StartedAt.Before(event.RecoveryIntent.Context.CreatedAt) || !incarnation.StartedAt.Before(event.RecoveryIntent.Context.ExpiresAt) {
-				return ThreadRecord{}, errors.New("recovery intent is outside its lifetime")
+			intent := event.RecoveryIntent
+			if intent.Kind() == threadrecord.RecoveryInferred {
+				if incarnation.StartedAt.Before(intent.Context.CreatedAt) || !incarnation.StartedAt.Before(intent.Context.ExpiresAt) {
+					return ThreadRecord{}, errors.New("recovery intent is outside its lifetime")
+				}
+			} else if incarnation.StartedAt.Before(intent.CreatedAt) {
+				return ThreadRecord{}, errors.New("recovery start predates its selection")
 			}
 		}
 		next.RecoveryContext = nil
+		next.RecoveryIntent = nil
 		incarnation.Start = &ThreadStartClaim{
 			RecoveryIntent: threadrecord.CloneRecoveryIntent(event.RecoveryIntent),
 			Nonce:          event.Nonce,
@@ -321,7 +327,11 @@ func retainStartRecoveryContext(record *ThreadRecord, start *ThreadStartClaim) {
 		return
 	}
 	intent := start.RecoveryIntent
-	record.RecoveryContext = threadrecord.CloneRecoveryContext(&intent.Context)
-	record.RecoveryContext.SelectedKey = intent.SelectedKey
-	record.RecoveryContext.SelectedNativeID = intent.NativeID
+	record.RecoveryIntent = threadrecord.CloneRecoveryIntent(intent)
+	record.RecoveryContext = nil
+	if intent.Kind() == threadrecord.RecoveryInferred {
+		record.RecoveryContext = threadrecord.CloneRecoveryContext(&intent.Context)
+		record.RecoveryContext.SelectedKey = intent.SelectedKey
+		record.RecoveryContext.SelectedNativeID = intent.NativeID
+	}
 }

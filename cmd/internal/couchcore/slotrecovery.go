@@ -54,7 +54,7 @@ func (s *ThreadStore) readSlotCurrentLockedContext(ctx context.Context) (slotCur
 		out.Err = err
 		return out, nil
 	}
-	if envelope.SchemaVersion != 0 && envelope.SchemaVersion != 1 && envelope.SchemaVersion != 2 && envelope.SchemaVersion != ThreadSchemaVersion {
+	if envelope.SchemaVersion != 0 && envelope.SchemaVersion != 1 && envelope.SchemaVersion != 2 && envelope.SchemaVersion != 3 && envelope.SchemaVersion != ThreadSchemaVersion {
 		out.Unsupported = true
 		out.Err = fmt.Errorf("unsupported slot record version %d; use a compatible Couch binary", envelope.SchemaVersion)
 		return out, nil

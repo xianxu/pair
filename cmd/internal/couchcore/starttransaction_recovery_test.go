@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"encoding/json"
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/threadrecord"
 	"reflect"
@@ -164,5 +165,93 @@ func TestDeleteStartRetainsRecoveryContext(t *testing.T) {
 				t.Fatal("rollback changed park truth or retained claim")
 			}
 		})
+	}
+}
+
+func taggedRecoveryIntent(record ThreadRecord, mode threadrecord.RecoveryMode) *threadrecord.RecoveryIntent {
+	intent := &threadrecord.RecoveryIntent{Mode: mode, Address: toPersistedThreadAddress(record.Address), SourceRevision: record.Revision, CreatedAt: record.CreatedAt, Agent: "muse", SelectedKey: "explicit", Orientation: &threadrecord.RecoveryOrientation{Branch: "original", Unavailable: "No capture available"}}
+	if mode == threadrecord.RecoveryProven {
+		intent.NativeID = "native"
+	}
+	return intent
+}
+
+func TestTaggedRecoveryRetainedThroughStart(t *testing.T) {
+	for _, mode := range []threadrecord.RecoveryMode{threadrecord.RecoveryProven, threadrecord.RecoveryFresh} {
+		for _, kind := range []StartEventKind{StartRegistered, StartRecoveredUnknown} {
+			t.Run(string(mode)+"/"+string(kind), func(t *testing.T) {
+				record := admittedStartRecord(t)
+				intent := taggedRecoveryIntent(record, mode)
+				claimed, err := AdvanceStartTransaction(record, StartEvent{Kind: StartClaimed, Nonce: "nonce", Owner: SupervisorOwner{PID: 1, Identity: "owner"}, RecoveryIntent: intent})
+				if err != nil {
+					t.Fatal(err)
+				}
+				intent.Orientation.Branch = "caller mutation"
+				claimed, err = AdvanceStartTransaction(claimed, StartEvent{Kind: StartHelperRecorded, Nonce: "nonce", Helper: ProcessIdentity{PID: 2, Identity: "helper"}})
+				if err != nil {
+					t.Fatal(err)
+				}
+				raw, err := json.Marshal(toPersistedThreadRecord(claimed))
+				if err != nil {
+					t.Fatal(err)
+				}
+				persisted, err := threadrecord.DecodePersisted(raw, toPersistedThreadAddress(record.Address), threadRecordValidators)
+				if err != nil {
+					t.Fatal(err)
+				}
+				completed, err := AdvanceStartTransaction(fromPersistedThreadRecord(persisted), StartEvent{Kind: kind, Nonce: "nonce"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if completed.RecoveryIntent == nil || completed.RecoveryIntent.Kind() != mode || completed.RecoveryContext != nil || completed.RecoveryIntent.Orientation.Branch != "original" {
+					t.Fatalf("lost tagged intent or invented legacy capture: %+v", completed)
+				}
+				for _, copy := range []ThreadRecord{cloneThreadRecord(completed), fromPersistedThreadRecord(toPersistedThreadRecord(completed))} {
+					copy.RecoveryIntent.Orientation.Branch = "output mutation"
+				}
+				if completed.RecoveryIntent.Orientation.Branch != "original" {
+					t.Fatal("retained intent aliases conversion")
+				}
+			})
+		}
+	}
+}
+
+func TestTaggedRecoveryRejectsPrematureStart(t *testing.T) {
+	record := admittedStartRecord(t)
+	intent := taggedRecoveryIntent(record, threadrecord.RecoveryFresh)
+	intent.CreatedAt = record.Incarnations[0].StartedAt.Add(time.Second)
+	before := cloneThreadRecord(record)
+	if _, err := AdvanceStartTransaction(record, StartEvent{Kind: StartClaimed, Nonce: "nonce", Owner: SupervisorOwner{PID: 1, Identity: "owner"}, RecoveryIntent: intent}); err == nil {
+		t.Fatal("accepted intent created after start")
+	}
+	if !reflect.DeepEqual(record, before) {
+		t.Fatal("refusal mutated input")
+	}
+}
+
+func TestPreserveTaggedRecoveryBeforeRetirement(t *testing.T) {
+	store, ns := newTestThreadStore(t)
+	record := admittedStartRecord(t)
+	record.StartingPath, record.WorkingPath = ns.Dir(), ns.Dir()
+	record, err := store.CreateThread(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	intent := taggedRecoveryIntent(record, threadrecord.RecoveryFresh)
+	got, err := store.PreserveRecoveryBeforeRetirement(record.Address, record.Revision, *intent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.RecoveryIntent == nil || got.RecoveryContext != nil {
+		t.Fatalf("retirement lost intent: %+v", got)
+	}
+	intent.Orientation.Branch = "mutated"
+	reread, err := store.GetThread(record.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reread.RecoveryIntent.Orientation.Branch != "original" {
+		t.Fatal("persisted orientation aliased caller")
 	}
 }

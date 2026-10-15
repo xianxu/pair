@@ -481,9 +481,7 @@ func (s *ThreadStore) PreserveRecoveryBeforeRetirement(address ThreadAddress, ex
 		return ThreadRecord{}, err
 	}
 	return s.updateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
-		retained := threadrecord.CloneRecoveryContext(&intent.Context)
-		retained.SelectedKey, retained.SelectedNativeID = intent.SelectedKey, intent.NativeID
-		next.RecoveryContext = retained
+		retainStartRecoveryContext(next, &ThreadStartClaim{RecoveryIntent: &intent})
 		return nil
 	})
 }

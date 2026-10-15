@@ -89,7 +89,7 @@ func TestRecoverySchemaV2MigrationAndStrictBoundaries(t *testing.T) {
 		t.Fatal(err)
 	}
 	migrated, err := DecodePersisted(raw, record.Address, testValidators)
-	if err != nil || migrated.SchemaVersion != 3 || migrated.RecoveryContext != nil || migrated.Incarnations[0].Start.RecoveryIntent != nil {
+	if err != nil || migrated.SchemaVersion != SchemaVersion || migrated.RecoveryContext != nil || migrated.Incarnations[0].Start.RecoveryIntent != nil {
 		t.Fatalf("migration: %+v %v", migrated, err)
 	}
 	for _, version := range []string{"1", "2", "3"} {
@@ -164,5 +164,122 @@ func TestRecoveryCaptureActivityAndTokenBounds(t *testing.T) {
 	c.Capture.LastActivity = c.Capture.CapturedAt.Add(-time.Second)
 	if err := ValidateRecoveryContext(c, c.Address); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestTaggedRecoveryIntentWithoutCapture(t *testing.T) {
+	for _, mode := range []string{"proven", "fresh"} {
+		t.Run(mode, func(t *testing.T) {
+			r := validRecord()
+			wire := map[string]any{"mode": mode, "address": r.Address, "source_revision": r.Revision, "created_at": r.CreatedAt, "agent": "muse", "selected_key": "explicit"}
+			if mode == "proven" {
+				wire["native_id"] = "native"
+			}
+			raw, _ := json.Marshal(wire)
+			var intent RecoveryIntent
+			if err := json.Unmarshal(raw, &intent); err != nil {
+				t.Fatal(err)
+			}
+			if err := ValidateRecoveryIntent(intent, r.Address); err != nil {
+				t.Fatalf("explicit %s requires inference capture: %v", mode, err)
+			}
+		})
+	}
+}
+
+func TestSchemaThreeMigratesRecoveryReadOnly(t *testing.T) {
+	r := validRecord()
+	r.SchemaVersion = 3
+	c := validRecoveryContext()
+	r.RecoveryContext = &c
+	r.Incarnations[0].Start.RecoveryIntent = &RecoveryIntent{Context: c, SelectedKey: "opaque", NativeID: "native"}
+	raw, _ := json.Marshal(r)
+	before := append([]byte(nil), raw...)
+	got, err := DecodePersisted(raw, r.Address, testValidators)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.SchemaVersion != 4 {
+		t.Fatalf("schema=%d, want 4", got.SchemaVersion)
+	}
+	if !reflect.DeepEqual(got.RecoveryContext, r.RecoveryContext) || !reflect.DeepEqual(got.Incarnations[0].Start.RecoveryIntent, r.Incarnations[0].Start.RecoveryIntent) {
+		t.Fatal("legacy inference lost")
+	}
+	if string(raw) != string(before) {
+		t.Fatal("decode mutated input")
+	}
+}
+
+func TestTaggedRecoveryValidationAndCloning(t *testing.T) {
+	base := RecoveryIntent{Mode: RecoveryProven, Address: validRecord().Address, SourceRevision: 1, CreatedAt: time.Unix(100, 0).UTC(), Agent: "muse", SelectedKey: "key", NativeID: "native"}
+	c := validRecoveryContext().Capture
+	base.Orientation = &RecoveryOrientation{Branch: "branch", Issue: "pair#556", Capture: &c}
+	for name, mutate := range map[string]func(*RecoveryIntent){
+		"address":         func(i *RecoveryIntent) { i.Address.Tag = "other" },
+		"revision":        func(i *RecoveryIntent) { i.SourceRevision = 0 },
+		"time":            func(i *RecoveryIntent) { i.CreatedAt = time.Time{} },
+		"agent":           func(i *RecoveryIntent) { i.Agent = "bad/agent" },
+		"selection":       func(i *RecoveryIntent) { i.SelectedKey = "" },
+		"proven identity": func(i *RecoveryIntent) { i.NativeID = "" },
+		"fresh identity":  func(i *RecoveryIntent) { i.Mode = RecoveryFresh },
+		"mode":            func(i *RecoveryIntent) { i.Mode = "other" },
+		"capture":         func(i *RecoveryIntent) { i.Orientation.Capture.Raw = "relative" },
+		"orientation":     func(i *RecoveryIntent) { i.Orientation.Unavailable = "bad\x00" },
+	} {
+		t.Run(name, func(t *testing.T) {
+			i := CloneRecoveryIntent(&base)
+			mutate(i)
+			if ValidateRecoveryIntent(*i, base.Address) == nil {
+				t.Fatal("accepted invalid explicit intent")
+			}
+		})
+	}
+	cloned := CloneRecoveryIntent(&base)
+	cloned.Orientation.Capture.Raw = "changed"
+	cloned.Orientation.Branch = "changed"
+	if base.Orientation.Capture.Raw == "changed" || base.Orientation.Branch == "changed" {
+		t.Fatal("clone aliases orientation")
+	}
+	legacy := RecoveryIntent{SelectedKey: "key", NativeID: "native"}
+	if legacy.Kind() != RecoveryInferred || ValidateRecoveryIntent(legacy, base.Address) == nil {
+		t.Fatal("legacy inference accepted missing capture")
+	}
+}
+
+func TestSchemaThreeRejectsTaggedFieldsByPresence(t *testing.T) {
+	r := validRecord()
+	r.SchemaVersion = 3
+	c := validRecoveryContext()
+	r.Incarnations[0].Start.RecoveryIntent = &RecoveryIntent{Context: c, SelectedKey: "opaque", NativeID: "native"}
+	raw, _ := json.Marshal(r)
+	for _, field := range []string{"mode", "address", "source_revision", "created_at", "agent", "orientation"} {
+		wire := strings.Replace(string(raw), `"recovery_intent":{`, `"recovery_intent":{"`+field+`":null,`, 1)
+		if _, err := DecodePersisted([]byte(wire), r.Address, testValidators); err == nil {
+			t.Fatalf("schema3 accepted %s", field)
+		}
+	}
+	wire := strings.Replace(string(raw), "{", `{"recovery_intent":null,`, 1)
+	if _, err := DecodePersisted([]byte(wire), r.Address, testValidators); err == nil {
+		t.Fatal("schema3 accepted retained intent")
+	}
+}
+
+func TestRetainedTaggedIntentRoundTripAndValidation(t *testing.T) {
+	r := validRecord()
+	r.RecoveryIntent = &RecoveryIntent{Mode: RecoveryFresh, Address: r.Address, SourceRevision: r.Revision, CreatedAt: r.CreatedAt, Agent: "agy", SelectedKey: "explicit"}
+	raw, err := json.Marshal(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := DecodePersisted(raw, r.Address, testValidators)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got.RecoveryIntent, r.RecoveryIntent) {
+		t.Fatal("retained selection lost")
+	}
+	r.RecoveryIntent.Address.Tag = "foreign"
+	if Validate(r, testValidators) == nil {
+		t.Fatal("retained intent escaped validation")
 	}
 }
