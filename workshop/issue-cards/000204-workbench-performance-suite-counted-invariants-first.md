@@ -1,6 +1,6 @@
 ---
 id: 000204
-status: codecomplete
+status: done
 created: 2026-09-06
 updated: 2026-10-15
 estimate_hours: 2.246
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: d7815d8c61d86e8e2e67f2444d29bf5bcb1c819e
         evidence_commit: 334c7984c1d0bd66dd49dc7b349597c694a72656
+        landed_commit: c9c2e893cc9a583dc69951e6f268996e3f440d72
 ---
 
 # workbench performance suite: counted invariants first
