@@ -213,6 +213,22 @@ not refreshed; ordinary Fresh remains strict. The initially retained dead legacy
 API test strategy was replaced with tests of the shipped shared facade rather
 than adding a dead-symbol exemption.
 
+### 2026-10-15 — M1 component verification after corrections
+
+Full `couchcore` passed (223.428s, `go test ./cmd/internal/couchcore -count=1
+-timeout=8m`); full `couchcmd` passed (42.140s); full `couchtty` passed (31.527s).
+The exhaustive artifact classification/dead-symbol guards pass (3.158s), without
+allowlists or waived gates. Candidate dispatch retains its thin typed facade.
+Warm-only/lost-pointer Continue never invokes workspace convergence or launches
+an agent. Actual native cold resume uses prepared recovery; existing #522
+Pending/Running continuation requests retain their separately owned executors
+after positive-listing priority. The old implicit idle-approval argument is gone
+from Fresh requests: the exact returned stop set is their only stop authority.
+
+The recorded full-suite rerun is next on the corrected head; previous failures
+remain recorded on their actual head. No operator acceptance, M1 SHIP, stage or
+M2 implementation is claimed yet.
+
 ## Revisions
 
 ### 2026-10-15T05:33-07:00 — overnight M2 dispatch
