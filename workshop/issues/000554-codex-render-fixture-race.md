@@ -16,6 +16,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "0f1bb428", done: "05c4ceb9"}
 ---
 
 # Codex notification fixture races emulator Close against reader
