@@ -1,13 +1,13 @@
 ---
 id: 000528
-status: working
+status: codecomplete
 deps: []
 github_issue:
 target: slot-continuity
 created: 2026-10-13
-updated: 2026-10-13
+updated: 2026-10-14
 estimate_hours: 6.3535
-card_mirror: 'fb4c11eee48daa5228e9b370920ddf2f84d2321c' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'ffced374c931d344901c04121e8e3804d562f5c9' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-13T08:57:28-07:00
 claimant:
     operator: Xian Xu
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 27.01
 ---
 
 # couch: resume a slot whose conversation binding is unproven: infer it from transcripts and the tty log, or start fresh oriented from the tty log
