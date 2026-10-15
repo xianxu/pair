@@ -62,10 +62,38 @@ type RecoveryContext struct {
 	SelectedNativeID string              `json:"selected_native_id,omitempty"`
 }
 
+type RecoveryMode string
+
+const (
+	RecoveryInferred RecoveryMode = "inferred"
+	RecoveryProven   RecoveryMode = "proven"
+	RecoveryFresh    RecoveryMode = "fresh"
+)
+
+type RecoveryOrientation struct {
+	Branch      string           `json:"branch,omitempty"`
+	Issue       string           `json:"issue,omitempty"`
+	Capture     *RecoveryCapture `json:"capture,omitempty"`
+	Unavailable string           `json:"unavailable,omitempty"`
+}
+
 type RecoveryIntent struct {
-	Context     RecoveryContext `json:"context"`
-	SelectedKey string          `json:"selected_key"`
-	NativeID    string          `json:"native_id,omitempty"`
+	Mode           RecoveryMode         `json:"mode,omitempty"`
+	Address        Address              `json:"address,omitzero"`
+	SourceRevision uint64               `json:"source_revision,omitempty"`
+	CreatedAt      time.Time            `json:"created_at,omitzero"`
+	Agent          string               `json:"agent,omitempty"`
+	Orientation    *RecoveryOrientation `json:"orientation,omitempty"`
+	Context        RecoveryContext      `json:"context,omitzero"`
+	SelectedKey    string               `json:"selected_key"`
+	NativeID       string               `json:"native_id,omitempty"`
+}
+
+func (i RecoveryIntent) Kind() RecoveryMode {
+	if i.Mode == "" {
+		return RecoveryInferred
+	}
+	return i.Mode
 }
 
 func recoveryText(s string, max int, required bool) bool {
@@ -89,20 +117,11 @@ func ValidateRecoveryContext(c RecoveryContext, address Address) error {
 	if !recoveryText(c.Generation, 1024, true) || len(c.Digest) != 64 || strings.Trim(c.Digest, "0123456789abcdef") != "" {
 		return errors.New("invalid recovery generation or digest")
 	}
-	if !recoveryPath(c.Capture.Raw) || !recoveryPath(c.Capture.Events) || c.Capture.Raw == c.Capture.Events || !recoveryFileIdentity(c.Capture.RawIdentity) || !recoveryFileIdentity(c.Capture.EventsIdentity) {
-		return errors.New("invalid recovery capture")
+	if err := validateRecoveryCapture(c.Capture); err != nil {
+		return err
 	}
-	if !recoveryTime(c.Capture.CapturedAt) || !recoveryTime(c.CreatedAt) || !recoveryTime(c.ExpiresAt) || c.CreatedAt.Before(c.Capture.CapturedAt) || !c.ExpiresAt.After(c.CreatedAt) {
+	if !recoveryTime(c.CreatedAt) || !recoveryTime(c.ExpiresAt) || c.CreatedAt.Before(c.Capture.CapturedAt) || !c.ExpiresAt.After(c.CreatedAt) {
 		return errors.New("invalid recovery lifetime")
-	}
-	if c.Capture.Token != "" && (len(c.Capture.Token) > 128 || !componentPattern.MatchString(c.Capture.Token)) {
-		return errors.New("invalid recovery capture token")
-	}
-	if !c.Capture.LastActivity.IsZero() && (!recoveryTime(c.Capture.LastActivity) || c.Capture.LastActivity.After(c.Capture.CapturedAt)) {
-		return errors.New("invalid capture activity cutoff")
-	}
-	if (c.Capture.LaunchOrdinal == 0) != (c.Capture.Nonce == "") || !recoveryText(c.Capture.Nonce, 1024, false) {
-		return errors.New("incomplete recovery producer")
 	}
 	if !recoveryText(c.Branch, 1024, false) || !recoveryText(c.Issue, 1024, false) || len(c.Candidates) > 5 {
 		return errors.New("oversized recovery context")
@@ -144,11 +163,50 @@ func validateRecoverySelection(c RecoveryContext, key, native string) error {
 	// Fresh keys are source-bound by the caller's codec, not inferred here.
 	return nil
 }
-func ValidateRecoveryIntent(i RecoveryIntent, address Address) error {
-	if err := ValidateRecoveryContext(i.Context, address); err != nil {
-		return err
+func validateRecoveryCapture(c RecoveryCapture) error {
+	if !recoveryPath(c.Raw) || !recoveryPath(c.Events) || c.Raw == c.Events || !recoveryFileIdentity(c.RawIdentity) || !recoveryFileIdentity(c.EventsIdentity) || !recoveryTime(c.CapturedAt) {
+		return errors.New("invalid recovery capture")
 	}
-	return validateRecoverySelection(i.Context, i.SelectedKey, i.NativeID)
+	if c.Token != "" && (len(c.Token) > 128 || !componentPattern.MatchString(c.Token)) {
+		return errors.New("invalid recovery capture token")
+	}
+	if !c.LastActivity.IsZero() && (!recoveryTime(c.LastActivity) || c.LastActivity.After(c.CapturedAt)) {
+		return errors.New("invalid capture activity cutoff")
+	}
+	if (c.LaunchOrdinal == 0) != (c.Nonce == "") || !recoveryText(c.Nonce, 1024, false) {
+		return errors.New("incomplete recovery producer")
+	}
+	return nil
+}
+
+func ValidateRecoveryIntent(i RecoveryIntent, address Address) error {
+	switch i.Kind() {
+	case RecoveryInferred:
+		if err := ValidateRecoveryContext(i.Context, address); err != nil {
+			return err
+		}
+		return validateRecoverySelection(i.Context, i.SelectedKey, i.NativeID)
+	case RecoveryProven, RecoveryFresh:
+		if i.Address != address || i.SourceRevision == 0 || !recoveryTime(i.CreatedAt) || !recoveryText(i.Agent, 128, true) || !componentPattern.MatchString(i.Agent) || !recoveryText(i.SelectedKey, 4096, true) || !recoveryText(i.NativeID, 1024, i.Kind() == RecoveryProven) {
+			return errors.New("invalid explicit recovery intent")
+		}
+		if i.Kind() == RecoveryFresh && i.NativeID != "" {
+			return errors.New("fresh recovery cannot select a native identity")
+		}
+		if o := i.Orientation; o != nil {
+			if !recoveryText(o.Branch, 1024, false) || !recoveryText(o.Issue, 1024, false) || !recoveryText(o.Unavailable, 2048, false) {
+				return errors.New("invalid recovery orientation")
+			}
+			if o.Capture != nil {
+				if err := validateRecoveryCapture(*o.Capture); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	default:
+		return errors.New("unknown recovery mode")
+	}
 }
 func CloneRecoveryContext(c *RecoveryContext) *RecoveryContext {
 	if c == nil {
@@ -166,5 +224,13 @@ func CloneRecoveryIntent(i *RecoveryIntent) *RecoveryIntent {
 	}
 	out := *i
 	out.Context = *CloneRecoveryContext(&i.Context)
+	if i.Orientation != nil {
+		orientation := *i.Orientation
+		if orientation.Capture != nil {
+			capture := *orientation.Capture
+			orientation.Capture = &capture
+		}
+		out.Orientation = &orientation
+	}
 	return &out
 }

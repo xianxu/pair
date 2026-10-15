@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -54,9 +55,14 @@ func newRecoveryExecutionFixture(t *testing.T) *recoveryExecutionFixture {
 		return slotReadyResult(local), nil
 	})
 	env.Runner.AfterAcknowledge = func(id string) error {
-		env.Artifacts.SetPaneSidecar(created.Address, "codex")
-		env.Artifacts.SetPairSession(created.Address, continuationChildSession(t, env.Runner, id), true)
-		env.Artifacts.SetSessionPresence(created.Address, SessionObservation{State: SessionPresent})
+		current, err := local.observeSlotCurrent()
+		if err != nil || current.Record == nil {
+			return fmt.Errorf("read current launched claim: %w", err)
+		}
+		address := current.Record.Address
+		env.Artifacts.SetPaneSidecar(address, "codex")
+		env.Artifacts.SetPairSession(address, continuationChildSession(t, env.Runner, id), true)
+		env.Artifacts.SetSessionPresence(address, SessionObservation{State: SessionPresent})
 		return nil
 	}
 	env.Couch.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) { return true, nil }
@@ -126,10 +132,11 @@ func TestResumeCandidateLaunchKeepsExactSelectionAndSavedConfiguration(t *testin
 				t.Fatalf("preference %v %v", found, err)
 			}
 			f.Runner.BeforeAcknowledge = func(id string) error {
-				current, err := f.Couch.Threads.GetThread(f.record.Address)
-				if err != nil {
+				observed, err := f.Couch.Threads.observeSlotCurrent()
+				if err != nil || observed.Record == nil {
 					t.Fatal(err)
 				}
+				current := *observed.Record
 				foundIntent := false
 				for _, inc := range current.Incarnations {
 					if inc.Start != nil && inc.Start.RecoveryIntent != nil {
@@ -157,7 +164,7 @@ func TestResumeCandidateLaunchKeepsExactSelectionAndSavedConfiguration(t *testin
 			if err := json.Unmarshal([]byte(environmentValue(child.Env, launcher.CouchLaunchProfileEnv)), &profile); err != nil {
 				t.Fatal(err)
 			}
-			if profile.Tag != string(f.record.Address.Tag) || profile.Agent != "codex" || !reflect.DeepEqual(profile.Argv, f.record.LatestLaunchProfile.Argv) || profile.Recovery == nil || profile.Recovery.Intent.NativeID != choice.NativeID {
+			if profile.Tag != string(started.Record.Thread.Tag) || profile.Agent != "codex" || !reflect.DeepEqual(profile.Argv, f.record.LatestLaunchProfile.Argv) || profile.Recovery == nil || profile.Recovery.Intent.NativeID != choice.NativeID {
 				t.Fatalf("launch drift: %+v", profile)
 			}
 			if fresh && (!strings.Contains(profile.Prompt, "--previous --all") || !strings.Contains(profile.Prompt, f.observation.Capture.Raw)) {

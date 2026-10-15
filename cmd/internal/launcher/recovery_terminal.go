@@ -12,6 +12,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/procutil"
+	"github.com/xianxu/pair/cmd/internal/readiness"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
 )
 
@@ -19,23 +20,29 @@ import (
 // can populate it; a session name or cached launch policy cannot manufacture it.
 // The caller holds its thread gate and preserves the screen before Retire.
 type RecoveryTerminalPlan struct {
-	owner   artifactpath.StorageOwner
-	session string
-	servers []recoveryAttributedServer
-	valid   bool
+	owner     artifactpath.StorageOwner
+	session   string
+	servers   []recoveryAttributedServer
+	valid     bool
+	confirmed bool
+	ready     map[int]readiness.ReadyRecord
 }
 type recoveryProcessWitness struct {
 	PID, PPID         int
 	Identity, Command string
+	Args              []string
+	Role              string
 }
 type recoveryAttributedServer struct {
 	Server      SessionServerIdentity
+	Witness     recoveryProcessWitness
 	Descendants []recoveryProcessWitness
 }
 type recoveryTerminalSnapshot struct {
 	Servers   []SessionServerIdentity
 	Processes []procutil.Process
 	Commands  map[int]string
+	Args      map[int][]string
 }
 type recoveryTerminalOps interface {
 	Acquire(context.Context, string, []SessionServerIdentity) (io.Closer, error)
@@ -45,6 +52,7 @@ type recoveryTerminalOps interface {
 }
 type recoveryTerminalDriver struct {
 	ops           recoveryTerminalOps
+	read          func(context.Context, string, int64) ([]byte, error)
 	timeout, poll time.Duration
 }
 
@@ -55,7 +63,10 @@ func RetireRecoveryTerminal(ctx context.Context, plan RecoveryTerminalPlan) erro
 	return (recoveryTerminalDriver{ops: newRecoveryTerminalOS(), timeout: zjTimeout, poll: 25 * time.Millisecond}).retire(ctx, plan)
 }
 
-func (d recoveryTerminalDriver) prepare(ctx context.Context, root, scope, tag, session string) (plan RecoveryTerminalPlan, err error) {
+func (d recoveryTerminalDriver) prepare(ctx context.Context, root, scope, tag, session string) (RecoveryTerminalPlan, error) {
+	return d.prepareMode(ctx, root, scope, tag, session, false)
+}
+func (d recoveryTerminalDriver) prepareMode(ctx context.Context, root, scope, tag, session string, confirmed bool) (plan RecoveryTerminalPlan, err error) {
 	if ctx == nil || d.ops == nil || d.timeout <= 0 {
 		return plan, errors.New("recovery terminal requires bounded context and IO")
 	}
@@ -85,11 +96,27 @@ func (d recoveryTerminalDriver) prepare(ctx context.Context, root, scope, tag, s
 	if !sameRecoveryServers(before.Servers, after.Servers) {
 		return plan, errors.New("terminal servers changed while acquiring recovery lease")
 	}
-	servers, err := attributeRecoveryServers(owner, session, after)
+	var servers []recoveryAttributedServer
+	var ready map[int]readiness.ReadyRecord
+	if confirmed {
+		servers, ready, err = d.attributeConfirmed(ctx, owner, session, after)
+	} else {
+		servers, err = attributeRecoveryServers(owner, session, after)
+	}
 	if err != nil {
 		return plan, err
 	}
-	return RecoveryTerminalPlan{owner: owner, session: session, servers: servers, valid: true}, nil
+	plan = RecoveryTerminalPlan{owner: owner, session: session, servers: servers, valid: true, confirmed: confirmed, ready: ready}
+	if confirmed {
+		final, observeErr := d.ops.Observe(ctx, session)
+		if observeErr != nil {
+			return RecoveryTerminalPlan{}, observeErr
+		}
+		if _, checkErr := d.checkConfirmed(ctx, plan, final, false); checkErr != nil {
+			return RecoveryTerminalPlan{}, checkErr
+		}
+	}
+	return plan, nil
 }
 func (d recoveryTerminalDriver) retire(ctx context.Context, plan RecoveryTerminalPlan) (err error) {
 	if ctx == nil || d.ops == nil || d.timeout <= 0 || !plan.valid {
@@ -107,6 +134,12 @@ func (d recoveryTerminalDriver) retire(ctx context.Context, plan RecoveryTermina
 	if err != nil {
 		return err
 	}
+	if plan.confirmed {
+		if _, err := d.checkConfirmed(ctx, plan, snapshot, true); err != nil {
+			return err
+		}
+		return d.retireConfirmed(ctx, plan)
+	}
 	current, err := attributeRecoveryServers(plan.owner, plan.session, snapshot)
 	if err != nil {
 		return err
@@ -114,7 +147,50 @@ func (d recoveryTerminalDriver) retire(ctx context.Context, plan RecoveryTermina
 	if !reflect.DeepEqual(current, plan.servers) {
 		return errors.New("terminal ownership snapshot changed; refresh recovery preview")
 	}
-	return quiesceAuthorizedSession(ctx, plan.session, authorized, recoveryTerminalQuiescence{driver: d, plan: plan, ctx: ctx}, d.timeout, d.poll)
+	if err := quiesceAuthorizedSession(ctx, plan.session, authorized, recoveryTerminalQuiescence{driver: d, plan: plan, ctx: ctx}, d.timeout, d.poll); err != nil {
+		return err
+	}
+	// Strict authorization still signals only servers. Their disappearance
+	// cannot establish that the independently named owners exited with them.
+	for {
+		snapshot, err := d.ops.Observe(ctx, plan.session)
+		if err != nil {
+			return err
+		}
+		if len(snapshot.Servers) != 0 {
+			return errors.New("terminal server appeared after retirement")
+		}
+		rows, err := recoveryRows(snapshot)
+		if err != nil {
+			return err
+		}
+		alive := false
+		for _, process := range plan.Processes() {
+			if _, found := rows[process.PID]; found {
+				alive = true
+			}
+		}
+		if !alive {
+			return ctx.Err()
+		}
+		if err := waitRecoveryTerminalPoll(ctx, d.poll); err != nil {
+			return fmt.Errorf("accepted terminal owner remains: %w", err)
+		}
+	}
+}
+
+func waitRecoveryTerminalPoll(ctx context.Context, poll time.Duration) error {
+	if poll <= 0 {
+		poll = 25 * time.Millisecond
+	}
+	timer := time.NewTimer(poll)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 func recoveryServerIdentities(servers []recoveryAttributedServer) []SessionServerIdentity {
 	result := make([]SessionServerIdentity, 0, len(servers))
@@ -211,7 +287,7 @@ type recoveryTerminalQuiescence struct {
 func (o recoveryTerminalQuiescence) SessionPresent(ctx context.Context, session string) (bool, error) {
 	return o.driver.ops.SessionPresent(ctx, session)
 }
-func (o recoveryTerminalQuiescence) remaining(ctx context.Context) ([]SessionServerIdentity, error) {
+func (o recoveryTerminalQuiescence) remaining(ctx context.Context) (servers []SessionServerIdentity, err error) {
 	snapshot, err := o.driver.ops.Observe(ctx, o.plan.session)
 	if err != nil {
 		return nil, err

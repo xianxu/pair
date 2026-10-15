@@ -3,6 +3,7 @@
 set -eu
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
+layout_terminal_shell=$(grep 'exec pair term' "$ROOT/zellij/layouts/main-3.kdl" | sed 's/^[[:space:]]*args "-c" "//; s/"$//; s/\\"/"/g')
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/pair-term-shortcuts.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT
 
@@ -96,7 +97,7 @@ check_eq "right Alt+r stays local to pair term" "$(actions)" ""
 
 write_panes terminal
 run_shortcut "Alt+Shift+d"
-check_eq "right Alt+Shift+d splits terminal down as a native tiled split" "$(actions)" 'new-pane --direction down --name terminal -- sh -c zellij action rename-pane --pane-id "$ZELLIJ_PANE_ID" terminal 2>/dev/null; exec pair term'
+check_eq "right Alt+Shift+d splits terminal down as a native tiled split" "$(actions)" "new-pane --direction down --name terminal -- sh -c $layout_terminal_shell"
 
 # #216/#243: the from-any-pane right-terminal chords, driven from the DRAFT's
 # focus. They now deliver the GLOBAL chord bytes (Alt+Shift+Left/Right/t =
@@ -299,7 +300,6 @@ grep -Fq '"move-focus", "right"' "$ROOT/cmd/internal/wrapcmd/wrap.go" \
   && pass "right terminal split leaves borderless to the layout, not the call site" \
   || { printf 'FAIL right terminal split passes --borderless; the layout already declares it at all nine rungs\n'; fail=1; }
 
-layout_terminal_shell=$(grep 'exec pair term' "$ROOT/zellij/layouts/main-3.kdl" | sed 's/^[[:space:]]*args "-c" "//; s/"$//; s/\\"/"/g')
 grep -Fq "$layout_terminal_shell" "$ROOT/cmd/internal/termcmd/run.go" \
   && pass "right terminal split command matches layout3 terminal command" \
   || { printf 'FAIL right terminal split command drifted from layout3 terminal command\n'; fail=1; }

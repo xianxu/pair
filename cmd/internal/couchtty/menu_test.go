@@ -923,8 +923,6 @@ func TestMenuOperationCompletionPreservesLaterGlobalStartOverlay(t *testing.T) {
 					state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
 					state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
 					state = selectMenuItem(state, "reboot")
-					state, _ = reduceKey(state, PanelKey{Kind: KeyEnter})
-					state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
 					state, effects = reduceKey(state, PanelKey{Kind: KeyEnter})
 				case "start":
 					state, _ = reduceKey(state, PanelKey{Kind: KeyCtrlSpace})
@@ -1216,13 +1214,14 @@ func unusableMenuRow(reason couchcore.ThreadReason) couchcore.ActionableThreadSu
 	}
 }
 
-// Missing binding cannot authorize Continue; Fresh first names its exact target.
-func TestEnterOnAnUnusableRowRequiresFreshConfirmation(t *testing.T) {
+// Missing binding cannot authorize Continue; Fresh targets its exact record.
+func TestEnterOnAnUnusableRowDispatchesFreshForExactRow(t *testing.T) {
 	row := unusableMenuRow(couchcore.ReasonBindingLost)
 	state := NewMenuState([]couchcore.ActionableThreadSummary{row}, couchcore.ThreadAddress{})
 	got, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
-	if len(effects) != 0 || got.CurrentFrame().Kind != MenuFrameConfirmation || got.CurrentFrame().Action != "reboot" || got.CurrentFrame().Thread != row.Address {
-		t.Fatalf("Fresh did not confirm exact row: %+v %+v", got.CurrentFrame(), effects)
+	_, effects = assertFreshDispatch(t, got, effects)
+	if effects[0].Args["tag"] != string(row.Address.Tag) || effects[0].Args["repo-scope"] != row.Address.RepoScope {
+		t.Fatalf("wrong target: %+v", effects)
 	}
 }
 
@@ -1252,36 +1251,18 @@ func TestUnusableRowOffersReboot(t *testing.T) {
 	}
 }
 
-// Reboot is confirmed, and the confirmation survives the inventory refresh
-// that follows it -- a park confirmation requires its thread to be live, and
-// reusing that rule would drop a reboot confirmation the moment it appeared.
-func TestRebootConfirmationDispatchesAndSurvivesARefresh(t *testing.T) {
+// An inventory refresh preserves the pending backend preparation.
+func TestRebootDispatchSurvivesARefresh(t *testing.T) {
 	row := unusableMenuRow(couchcore.ReasonSessionGone)
-	state := NewMenuState([]couchcore.ActionableThreadSummary{row}, couchcore.ThreadAddress{})
-	state.InventoryReady = true
-
-	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
-	frame := state.CurrentFrame()
-	frame.SelectedItem = "reboot"
-	state.Frames[len(state.Frames)-1] = frame
-	state, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
-	if len(effects) != 0 || state.CurrentFrame().Kind != MenuFrameConfirmation || state.CurrentFrame().Action != "reboot" {
-		t.Fatalf("reboot did not open a confirmation: %+v (effects %+v)", state.CurrentFrame(), effects)
-	}
-
+	state := dispatchRebootFromActions(t, row)
+	origin := state.InFlight
 	state = reconcileMenuFrames(state)
-	if state.CurrentFrame().Kind != MenuFrameConfirmation || state.CurrentFrame().Action != "reboot" {
-		t.Fatalf("the confirmation vanished on refresh: %+v", state.Frames)
-	}
-
-	state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
-	_, effects = reduceKey(state, PanelKey{Kind: KeyEnter})
-	if len(effects) != 1 || effects[0].Operation != "reboot" {
-		t.Fatalf("confirmed reboot dispatched %+v", effects)
+	if state.InFlight != origin || state.CurrentFrame().Kind == MenuFrameConfirmation {
+		t.Fatalf("refresh changed pending backend preparation: %+v", state)
 	}
 }
 
-// A busy row offers Fresh, while confirmation keeps the first gesture inert.
+// A busy row opens a read-only recovery preview.
 func TestEnterOnABusyRowOpensReadOnlyDetails(t *testing.T) {
 	busy := couchcore.ActionableThreadSummary{Address: menuAddress("couch-one"), WorkingPath: "/repo/compiler", State: couchcore.ThreadBusy}
 	state := NewMenuState([]couchcore.ActionableThreadSummary{busy}, couchcore.ThreadAddress{})

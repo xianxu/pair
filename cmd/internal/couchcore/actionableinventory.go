@@ -111,6 +111,8 @@ const (
 // to be `continue` statements in an IO loop, so no test could see them and no
 // row could report one (ARCH-PURE).
 type ThreadEvidence struct {
+	// ObservedAt is the injected clock for this inventory observation.
+	ObservedAt time.Time
 	// Live is this console's proof that it hosts the recorded process.
 	Live []ProcessIdentity
 	// Session is this thread's zellij session: present, absent, or unresolved.
@@ -683,27 +685,35 @@ func startClaimed(record ThreadRecord) bool {
 	return false
 }
 
-// startInFlight is the whole of that "on its own terms" clause, made to happen.
-//
-// A start is in flight while the couch that claimed it is alive, or while its
-// liveness cannot be established. A claim whose owner is provably Dead has no
-// driver: nothing will advance it, nothing will roll it back until the next
-// couch starts, and reporting it as `starting...` tells the operator to wait for
-// an event that is never coming -- while withholding archive and resume, because
-// `busy` offers neither. That is #271's wedge in its last hiding place, one
-// level below where the classifier's other deletions cut.
-//
-// Unknown keeps the row busy, which is the same direction ReconcileStart already
-// fails ("Unknown evidence always keeps capacity occupied"). Releasing on
-// ignorance would offer to archive a thread that is starting normally.
-//
-// Releasing does not decide anything on its own: the row falls through to the
-// world, and reads live, detached or session-gone exactly as any other record
-// with the same evidence would. The claim itself is untouched -- clearing it is
-// a write, and writes belong to reconcileInterruptedStarts and to the archive
-// path, each of which re-probes before acting.
+// DecideStaleStart projects only whether a start claim has stopped being timely.
+func DecideStaleStart(record ThreadRecord, evidence ThreadEvidence) bool {
+	if !startClaimed(record) || evidence.Session.State == SessionPresent {
+		return false
+	}
+	if evidence.StartOwner == Dead {
+		return true
+	}
+	if evidence.ObservedAt.IsZero() {
+		return false
+	}
+	for _, incarnation := range record.Incarnations {
+		if incarnation.Start == nil {
+			continue
+		}
+		// Missing or future timestamps keep the claim within the waiting projection.
+		if incarnation.StartedAt.IsZero() || evidence.ObservedAt.Sub(incarnation.StartedAt) < 5*time.Minute {
+			return false
+		}
+	}
+	return true
+}
+
+// startInFlight is a projection only: a dead owner or a claim at least five
+// minutes old stops advertising Starting. The durable claim remains intact for
+// an explicitly confirmed action to fence and retire. Positive session listing
+// has already won in ClassifyThread and can never be overridden by claim age.
 func startInFlight(record ThreadRecord, evidence ThreadEvidence) bool {
-	return startClaimed(record) && evidence.StartOwner != Dead
+	return startClaimed(record) && !DecideStaleStart(record, evidence)
 }
 
 // detachedResumeProofMatches is the warm-session contract shared by execution
@@ -831,6 +841,10 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 	if err != nil {
 		return ThreadSnapshot{}, nil, err
 	}
+	var observedAt time.Time
+	if c.Clock != nil {
+		observedAt = c.Clock.Now()
+	}
 	// Live proof is the UNION of what the caller can see: a console's own pty
 	// children, plus any recorded process the OS still vouches for. Keeping
 	// them separate is what let one store tell two stories -- the switcher
@@ -927,7 +941,8 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 	for i := range snapshot.Records {
 		record := snapshot.Records[i]
 		item := ThreadEvidence{
-			Live: observed[record.Address], Unproven: unproven[record.Address],
+			ObservedAt: observedAt,
+			Live:       observed[record.Address], Unproven: unproven[record.Address],
 			Session: presence[record.Address],
 		}
 		// Once records are known, exhausted observation budget must not erase

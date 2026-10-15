@@ -131,7 +131,8 @@ func TestPrepareSlotOperation(t *testing.T) {
 	if call.Name != "resume" || !call.Implicit || !maps.Equal(call.Args, map[string]string{"path": local.slot.WorktreeRoot, "repo-scope": slotScope.Key}) {
 		t.Fatalf("call = %+v", call)
 	}
-	// Live: nothing to resume, and the refusal says why.
+	// A positively listed live target reaches shared recovery as Continue;
+	// admission itself performs no teardown or launch.
 	env, local = slotRecoveryOperationFixture(t)
 	scope, _ := launcher.ResolveRepoScope(local.slot.WorktreeRoot)
 	live := validThreadRecord(t)
@@ -144,17 +145,16 @@ func TestPrepareSlotOperation(t *testing.T) {
 	}
 	env.Proc.Set(5151, "slot-live")
 	env.Artifacts.SetSessionPresence(live.Address, SessionObservation{State: SessionPresent})
-	_, _, err = env.Couch.PrepareSlotOperation(ctx, "resume", address, LiveRestartOptions{})
-	var refusal *SlotOperationError
-	if !errors.As(err, &refusal) || refusal.Code != SlotOpNotOffered || refusal.Detail != address+" is live" {
-		t.Fatalf("live slot: %v", err)
+	call, _, err = env.Couch.PrepareSlotOperation(ctx, "resume", address, LiveRestartOptions{})
+	if err != nil || call.Name != "resume" || call.Args["path"] != local.slot.WorktreeRoot || len(env.Runner.Ops) != 0 {
+		t.Fatalf("live Continue admission: %+v %v operations=%v", call, err, env.Runner.Ops)
 	}
 }
 
-// A slot parked with no resolvable conversation (its agent never took a turn)
-// is not offered resume: the socket refuses at admission, nothing launches,
-// and reboot is still offered (pair#367 smoke test).
-func TestPrepareSlotOperationRefusesResumeOfALostConversation(t *testing.T) {
+// Explicit recovery admits the resolved slot to the shared coordinator. A
+// missing native binding still refuses Resume at execution, before any launch;
+// Fresh remains available through the same coordinator.
+func TestPrepareSlotOperationDefersLostConversationProofToRecovery(t *testing.T) {
 	t.Parallel()
 
 	env, local := slotRecoveryOperationFixture(t)
@@ -179,10 +179,16 @@ func TestPrepareSlotOperationRefusesResumeOfALostConversation(t *testing.T) {
 		t.Fatal(err)
 	}
 	// No native binding: the parked conversation cannot be resolved.
-	_, _, err = env.Couch.PrepareSlotOperation(context.Background(), "resume", address, LiveRestartOptions{})
-	var refusal *SlotOperationError
-	if !errors.As(err, &refusal) || refusal.Code != SlotOpNotOffered || !strings.Contains(refusal.Detail, "binding-lost") {
-		t.Fatalf("resume of a lost conversation: %v", err)
+	call, _, err := env.Couch.PrepareSlotOperation(context.Background(), "resume", address, LiveRestartOptions{})
+	if err != nil || call.Name != "resume" {
+		t.Fatalf("explicit recovery admission: %+v %v", call, err)
+	}
+	_, err = DispatchOperation(OperationExecutors{LiveOwner: CouchLiveOwnerExecutor(env.Couch)}, call)
+	if err == nil {
+		t.Fatal("shared recovery resumed without a native binding")
+	}
+	if diagnostic := ResumeDiagnosticOf(err); diagnostic != ResumeBindingUnbound {
+		t.Fatalf("lost native binding refusal: %v (%s)", err, diagnostic)
 	}
 	if call, _, err := env.Couch.PrepareSlotOperation(context.Background(), "reboot", address, LiveRestartOptions{}); err != nil || call.Name != "reboot" {
 		t.Fatalf("reboot of a lost conversation: %+v %v", call, err)
@@ -518,43 +524,32 @@ func TestRequireSettledProducerToConsumer(t *testing.T) {
 	}
 }
 
-// pair#456: reboot of a LIVE slot takes the live admission, not the offer
-// table: busy refuses, unknown needs --force-unknown, a dirty tree is only
-// noted, and the call keeps reboot's slot dialect plus admission's verdict.
+// Explicit Fresh reaches the shared recovery coordinator for idle, busy and
+// unknown live owners alike. Exact stop confirmation replaces the old idle gate.
 func TestPrepareSlotOperationRebootLive(t *testing.T) {
 	t.Parallel()
-
 	env, address, created := liveSlotFixture(t)
-	ctx := context.Background()
 	idle := LiveRestartFacts{Live: true, Session: true, SettledKnown: true, Settled: true, GitKnown: true, Dirty: true}
-	probe := &fakeLiveRestartProbe{facts: idle}
+	probe := &fakeLiveRestartProbe{}
 	env.Couch.LiveRestart = probe
-	call, note, err := env.Couch.PrepareSlotOperation(ctx, OpReboot, address, LiveRestartOptions{})
-	if err != nil {
-		t.Fatal(err)
+	for _, state := range []string{"idle", "busy", "unknown"} {
+		facts := idle
+		if state == "busy" {
+			facts.Settled = false
+		}
+		if state == "unknown" {
+			facts.SettledKnown = false
+		}
+		probe.facts = facts
+		call, _, err := env.Couch.PrepareSlotOperation(t.Context(), OpReboot, address, LiveRestartOptions{})
+		if err != nil || call.Name != OpReboot || call.Args["path"] != created.StartingPath {
+			t.Fatalf("%s Fresh admission: %+v %v", state, call, err)
+		}
 	}
-	if call.Name != OpReboot || call.Args["path"] != created.StartingPath || call.Args[requireSettledArg] != settledKnownValue {
-		t.Fatalf("call = %+v (probe asked %v)", call, probe.asked)
-	}
-	if !strings.Contains(note, "uncommitted changes") {
-		t.Fatalf("dirty tree not reported: %q", note)
-	}
-	busy := idle
-	busy.Settled = false
-	probe.facts = busy
-	if _, _, err := env.Couch.PrepareSlotOperation(ctx, OpReboot, address, LiveRestartOptions{}); slotOperationCode(err) != LiveRestartBusy {
-		t.Fatalf("busy: %v", err)
-	}
-	unknown := idle
-	unknown.SettledKnown = false
-	probe.facts = unknown
-	if _, _, err := env.Couch.PrepareSlotOperation(ctx, OpReboot, address, LiveRestartOptions{}); slotOperationCode(err) != LiveRestartBusyUnknown {
-		t.Fatalf("unknown: %v", err)
-	}
-	if call, _, err := env.Couch.PrepareSlotOperation(ctx, OpReboot, address, LiveRestartOptions{ForceUnknown: true}); err != nil || call.Args[requireSettledArg] != settledForcedValue {
-		t.Fatalf("forced: %+v %v", call.Args, err)
+	if len(probe.asked) != 0 || len(env.Runner.Ops) != 0 {
+		t.Fatalf("Fresh admission performed legacy probes/effects: asked=%v starts=%v", probe.asked, env.Runner.Ops)
 	}
 	if !SlotOperationTakesForceUnknown(OpReboot) {
-		t.Fatal("--force-unknown not accepted for reboot")
+		t.Fatal("legacy --force-unknown CLI compatibility lost")
 	}
 }

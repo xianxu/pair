@@ -54,7 +54,9 @@ type Runtime interface {
 // PaneRoleOther and route every terminal chord wrong.
 const rightTerminalClassifier = "pair term"
 
-const rightTerminalPaneShell = `zellij action rename-pane --pane-id "$ZELLIJ_PANE_ID" terminal 2>/dev/null; exec pair term`
+// The same pane command as main-3.kdl, checked by the layout conformance test.
+// New panes inherit Zellij's retained environment, not the caller's scrubbed one.
+const rightTerminalPaneShell = `unset PAIR_NATIVE_ADMISSION; zellij action rename-pane --pane-id "$ZELLIJ_PANE_ID" terminal 2>/dev/null; exec pair term`
 
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return RunWithRuntime(args, stdin, stdout, stderr, OSRuntime{})

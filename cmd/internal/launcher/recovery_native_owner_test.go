@@ -18,6 +18,7 @@ type nativeOwnerWorld struct {
 	raw                 []byte
 	ready               readiness.ReadyRecord
 	err                 error
+	readErr             error
 	observations, reads int
 }
 
@@ -28,6 +29,9 @@ func (w *nativeOwnerWorld) Observe(context.Context, string) (recoveryTerminalSna
 }
 func (w *nativeOwnerWorld) Read(_ context.Context, path string, _ int64) ([]byte, error) {
 	if strings.Contains(path, "agent-ready-") {
+		if w.readErr != nil {
+			return nil, w.readErr
+		}
 		raw, err := readiness.Encode(w.ready)
 		return []byte(raw), err
 	}

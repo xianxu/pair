@@ -1941,7 +1941,12 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 	// that child spawned but never adopted.
 	if child, ok := completed.value.(couchcore.StartedChild); ok {
 		if started, hasChild := child.Started(); hasChild {
-			address = started.Record.Thread
+			// A failed start may carry an empty typed result. Keep its exact
+			// attempt origin so the reducer can finish it, while retaining a
+			// genuine partial launch's nonempty address.
+			if started.Record.Thread != (couchcore.ThreadAddress{}) {
+				address = started.Record.Thread
+			}
 			if started.Handle != nil {
 				startedHandleID = started.Handle.ID()
 			}
@@ -1973,6 +1978,10 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 		Background: completed.origin.Background,
 	}
 	if err != nil {
+		var required *couchcore.RecoveryConfirmationRequired
+		if errors.As(err, &required) {
+			event.RecoveryConfirmation = &required.Offer
+		}
 		event.Error = couchcore.OperatorError(err)
 		// A code, so the pass tells a skip from a failure without matching text.
 		event.Diagnostic = couchcore.ResumeDiagnosticOf(err)

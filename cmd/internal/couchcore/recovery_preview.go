@@ -34,6 +34,7 @@ type RecoveryPreview struct {
 	Address    ThreadAddress                 `json:"address"`
 	Revision   uint64                        `json:"revision"`
 	Candidates []RecoveryChoice              `json:"candidates"`
+	Proven     *RecoveryChoice               `json:"proven,omitempty"`
 	Fresh      *RecoveryChoice               `json:"fresh,omitempty"`
 	Incomplete bool                          `json:"incomplete"`
 	Reasons    []string                      `json:"reasons,omitempty"`
@@ -222,15 +223,12 @@ func (c *Couch) ResumeCandidates(ctx context.Context, t ResumeTarget) (RecoveryP
 		preview.Incomplete = true
 		preview.Reasons = append(preview.Reasons, err.Error())
 	}
-	if refusal := c.recoverySourceInactive(record); refusal != nil {
-		for i := range preview.Candidates {
-			preview.Candidates[i].Key = ""
+	if binding, err := c.resumeEvidence(ctx, record); err == nil && coldResumeAuthorized(binding) {
+		preview.Proven = &RecoveryChoice{Label: "Resume from disk (confirmed)", Agent: RecordAgent(record), NativeID: binding.NativeID, Excerpt: "Established native binding"}
+		if len(preview.Candidates) > 4 {
+			preview.Candidates = preview.Candidates[:4]
+			preview.Truncated = true
 		}
-		// Fresh is a confirmed separate action, never an implicit native retirement.
-		if preview.Fresh != nil {
-			preview.Fresh.Key = ""
-		}
-		preview.Reasons = append(preview.Reasons, refusal.Error())
 	}
 	return preview, nil
 }

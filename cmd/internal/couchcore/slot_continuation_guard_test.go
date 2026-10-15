@@ -2,6 +2,9 @@ package couchcore
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -46,6 +49,30 @@ func slotContinuationFixture(t *testing.T, phase checkpoint.Phase, target bool) 
 			t.Fatal(err)
 		}
 	}
+	var readyAddress ThreadAddress
+	var readyAgent, readyNonce string
+	env.Runner.AfterAcknowledge = func(id string) error {
+		child := env.Runner.Child(id)
+		var profile launcher.TrustedLaunchProfile
+		if err := json.Unmarshal([]byte(environmentValue(child.Env, launcher.CouchLaunchProfileEnv)), &profile); err != nil {
+			return err
+		}
+		address := ThreadAddress{RepoScope: environmentValue(child.Env, "COUCH_THREAD_SCOPE"), Tag: ThreadTag(profile.Tag)}
+		current, err := local.GetThread(address)
+		if err != nil {
+			return err
+		}
+		if !profile.FreshRequired || profile.ResumeRequired || profile.RequiredSessionID != "" || profile.FreshNonce == "" || profile.Prompt == "" || address == record.Address || current.Incarnations[0].Start == nil || current.Incarnations[0].Start.Nonce != profile.FreshNonce {
+			return fmt.Errorf("Fresh profile does not match the new claim: %+v", profile)
+		}
+		readyAddress, readyAgent, readyNonce = address, profile.Agent, profile.FreshNonce
+		env.Artifacts.SetPairSession(address, continuationChildSession(t, env.Runner, id), true)
+		env.Artifacts.SetSessionPresence(address, SessionObservation{State: SessionPresent})
+		return nil
+	}
+	env.Couch.FreshRegistration = func(_ context.Context, address ThreadAddress, agent, nonce string) (bool, error) {
+		return nonce != "" && nonce == readyNonce && address == readyAddress && agent == readyAgent, nil
+	}
 	return env, local, record
 }
 
@@ -53,10 +80,9 @@ func dispatchSlotContinuation(env *testEnv, op, path string) (any, error) {
 	return DispatchOperation(OperationExecutors{LiveOwner: CouchLiveOwnerExecutor(env.Couch), DirectStore: DirectStoreExecutor(env.Couch)}, OperationCall{Name: op, Args: map[string]string{"path": path, "agent": "claude"}, Implicit: true, Context: context.Background()})
 }
 
-// Reboot is fresh-slot's successor on a slot (pair#363): it retires the
-// record with its retained request and starts fresh, and must refuse while the
-// request's owner is not proved stopped.
-func TestSlotRebootContinuationProtectsLiveAndUnknownOwners(t *testing.T) {
+// Explicit Fresh preserves the retained continuation while starting a new tag.
+// A process without exact retirement authority remains untouched.
+func TestSlotRebootContinuationLeavesUnattributableOwnersUntouched(t *testing.T) {
 	t.Parallel()
 
 	for _, target := range []bool{false, true} {
@@ -82,16 +108,21 @@ func TestSlotRebootContinuationProtectsLiveAndUnknownOwners(t *testing.T) {
 				} else {
 					env.Proc.Set(pid, identity)
 				}
-				_, err := dispatchSlotContinuation(env, "reboot", record.StartingPath)
-				if err == nil {
-					t.Fatal("fresh replaced a continuation whose owner was not proved stopped")
+				result, err := dispatchSlotContinuation(env, "reboot", record.StartingPath)
+				if err != nil {
+					t.Fatal(err)
 				}
-				if !strings.Contains(err.Error(), "not proved dead") && !strings.Contains(err.Error(), "owner") {
-					t.Fatalf("refused for unrelated reason: %v", err)
+				started, ok := result.(StartedChild).Started()
+				if !ok || started.Handle == nil || started.Record.Thread == record.Address {
+					t.Fatalf("not a fresh tag: %+v", result)
 				}
-				current, readErr := local.GetThread(record.Address)
-				if readErr != nil || current.Revision != record.Revision || len(env.Runner.Ops) != 0 {
-					t.Fatalf("refusal changed state: %+v %v %v", current, readErr, env.Runner.Ops)
+				retained, readErr := local.ArchivedThreads()
+				if readErr != nil || len(retained) != 1 || !reflect.DeepEqual(retained[0].Continuation, record.Continuation) {
+					t.Fatalf("continuation evidence changed: %+v %v", retained, readErr)
+				}
+				gotIdentity, identityErr := env.Proc.Identity(pid)
+				if (!unknown && (identityErr != nil || gotIdentity != identity)) || (unknown && identityErr == nil) || len(env.Proc.Signals[pid]) != 0 || len(env.Proc.GroupSignals[pid]) != 0 || len(env.Artifacts.Quiesces()) != 0 {
+					t.Fatalf("unattributable owner changed: identity=%q err=%v signals=%v groups=%v quiesces=%v", gotIdentity, identityErr, env.Proc.Signals, env.Proc.GroupSignals, env.Artifacts.Quiesces())
 				}
 			})
 		}
@@ -114,12 +145,12 @@ func TestSlotRebootRetainsStoppedContinuationInTheArchive(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			start := result.(RebootResult).Start
-			if start.Handle == nil || start.Record.Thread == record.Address {
+			start, started := result.(StartedChild).Started()
+			if !started || start.Handle == nil || start.Record.Thread == record.Address {
 				t.Fatalf("not fresh: %+v", start)
 			}
 			retained, err := local.ArchivedThreads()
-			if err != nil || len(retained) != 1 || retained[0].Continuation == nil || retained[0].Continuation.Phase != phase {
+			if err != nil || len(retained) != 1 || !reflect.DeepEqual(retained[0].Continuation, record.Continuation) {
 				t.Fatalf("continuation evidence lost: %+v %v", retained, err)
 			}
 		})

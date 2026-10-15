@@ -394,7 +394,7 @@ func TestRunLaunchRestartLoopAltNCodexUsesMarkerSessionID(t *testing.T) {
 	rt := newFakeRuntime()
 	rt.uuids = []string{"MINT"} // iteration 1 mints; iteration 2 resumes from marker
 	rt.quitMarkers["📁work"] = true
-	rt.restartMarkers["📁work"] = RestartMarker{Tag: "work", Agent: "codex", SessionID: "SID-LIVE"}
+	rt.restartMarkers["📁work"] = RestartMarker{Tag: "work", Agent: "codex", SessionID: "11111111-1111-4111-8111-111111111111"}
 	code, err := run(t, baseOpts(LaunchArgs{Agent: "codex", ForcedTag: "work"}), rt)
 	if err != nil || code != 0 {
 		t.Fatalf("code=%d err=%v", code, err)
@@ -402,10 +402,10 @@ func TestRunLaunchRestartLoopAltNCodexUsesMarkerSessionID(t *testing.T) {
 	if rt.launchCount != 2 {
 		t.Fatalf("restart loop should hand off twice, got %d", rt.launchCount)
 	}
-	if rt.env["PAIR_SESSION_ID"] != "SID-LIVE" {
-		t.Fatalf("resumed session id = %q, want SID-LIVE", rt.env["PAIR_SESSION_ID"])
+	if rt.env["PAIR_SESSION_ID"] != "11111111-1111-4111-8111-111111111111" {
+		t.Fatalf("resumed session id = %q, want 11111111-1111-4111-8111-111111111111", rt.env["PAIR_SESSION_ID"])
 	}
-	if launchArgsText(t, rt.env) != "resume SID-LIVE --no-alt-screen" {
+	if launchArgsText(t, rt.env) != "resume 11111111-1111-4111-8111-111111111111 --no-alt-screen" {
 		t.Fatalf("AgentCommand = %q, want codex resume marker id", launchArgsText(t, rt.env))
 	}
 }

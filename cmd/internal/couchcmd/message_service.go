@@ -758,7 +758,7 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 		return s.handleAgentSwitch(ctx, request)
 	case couchmessage.IsSubmissionOp(request.Op):
 		return s.handleSubmission(ctx, request)
-	case couchcore.IsSlotOperation(request.Op) || request.Op == "operation-status":
+	case request.Op == "recovery-confirmation" || couchcore.IsSlotOperation(request.Op) || request.Op == "operation-status":
 		return s.handleSlotOperation(ctx, request)
 	case request.Op == "broadcast-status":
 		return s.handleBroadcastStatus(request)
@@ -1025,6 +1025,17 @@ func (s *messageService) handleSlotOperation(ctx context.Context, request couchm
 	if err != nil {
 		return couchmessage.Response{Code: "unavailable", Error: fmt.Sprintf(
 			"caller is not a live Couch slot (thread %s not listed, or this shell's session/launch does not match its record): %v", request.Tag, err)}
+	}
+	if authenticated, authErr := s.switchCaller(ctx, request); authErr == nil {
+		caller = authenticated
+	} else if request.Op == "recovery-confirmation" {
+		return couchmessage.Response{Code: "refused", Error: "recovery confirmation requires an authenticated live hub binding"}
+	}
+	if request.Op == "recovery-confirmation" {
+		identity, err := s.connectedWorkspace(ctx, caller)
+		if err != nil || !s.authority.isHub(identity) {
+			return couchmessage.Response{Code: "refused", Error: "only the owning hub may accept a recovery confirmation"}
+		}
 	}
 	if request.Op == "operation-status" {
 		if authenticated, err := s.switchCaller(ctx, request); err == nil {

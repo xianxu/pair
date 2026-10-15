@@ -14,7 +14,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/strictjson"
 )
 
-const SchemaVersion = 3
+const SchemaVersion = 4
 
 type Validators struct {
 	RepoScope func(string) error
@@ -67,6 +67,7 @@ type Incarnation struct {
 }
 
 type Record struct {
+	RecoveryIntent  *RecoveryIntent               `json:"recovery_intent,omitempty"`
 	RecoveryContext *RecoveryContext              `json:"recovery_context,omitempty"`
 	PreviousSession *PreviousSession              `json:"previous_session,omitempty"`
 	SessionBinding  *couchidentity.SessionBinding `json:"session_binding,omitempty"`
@@ -120,6 +121,11 @@ func ValidateAddress(address Address, validators Validators) error {
 // persisted records. Policy values are evidence interpreted elsewhere; their
 // exact JSON shape is still enforced by Record plus strictjson.Decode.
 func Validate(record Record, validators Validators) error {
+	if record.RecoveryIntent != nil {
+		if err := ValidateRecoveryIntent(*record.RecoveryIntent, record.Address); err != nil {
+			return err
+		}
+	}
 	if record.RecoveryContext != nil {
 		if err := ValidateRecoveryContext(*record.RecoveryContext, record.Address); err != nil {
 			return err
@@ -257,6 +263,11 @@ func DecodePersisted(raw []byte, expected Address, validators Validators) (Recor
 			return Record{}, err
 		}
 	}
+	if version <= 3 {
+		if err := rejectTaggedRecoveryFields(envelope); err != nil {
+			return Record{}, err
+		}
+	}
 	var record Record
 	switch version {
 	case 1:
@@ -265,8 +276,9 @@ func DecodePersisted(raw []byte, expected Address, validators Validators) (Recor
 			return Record{}, err
 		}
 		record = migrateV1(legacy)
-	case 2:
-		// Schema 2 shares the pre-recovery structure; reject v3 fields even when null.
+	case 2, 3:
+		// Earlier schemas migrate only in memory; field-presence guards above
+		// preserve each version's original recovery semantics.
 		if err := strictjson.Decode(raw, &record); err != nil {
 			return Record{}, err
 		}
@@ -345,6 +357,44 @@ func rejectLegacyRecoveryFields(envelope map[string]json.RawMessage) error {
 			}
 			if _, ok := start["recovery_intent"]; ok {
 				return fmt.Errorf("legacy schema cannot contain recovery intent")
+			}
+		}
+	}
+	return nil
+}
+
+// Schema 3 knows only capture-dependent recovery. Reject newer fields by
+// presence, including null, before the shared decoder can erase their version.
+func rejectTaggedRecoveryFields(envelope map[string]json.RawMessage) error {
+	if _, ok := envelope["recovery_intent"]; ok {
+		return fmt.Errorf("legacy schema cannot contain retained recovery intent")
+	}
+	var incarnations []map[string]json.RawMessage
+	if raw, ok := envelope["incarnations"]; ok {
+		if err := strictjson.Decode(raw, &incarnations); err != nil {
+			return err
+		}
+	}
+	for _, incarnation := range incarnations {
+		raw, ok := incarnation["start"]
+		if !ok || string(raw) == "null" {
+			continue
+		}
+		var start map[string]json.RawMessage
+		if err := strictjson.Decode(raw, &start); err != nil {
+			return err
+		}
+		raw, ok = start["recovery_intent"]
+		if !ok || string(raw) == "null" {
+			continue
+		}
+		var intent map[string]json.RawMessage
+		if err := strictjson.Decode(raw, &intent); err != nil {
+			return err
+		}
+		for _, field := range []string{"mode", "address", "source_revision", "created_at", "agent", "orientation"} {
+			if _, ok := intent[field]; ok {
+				return fmt.Errorf("legacy recovery intent cannot contain %s", field)
 			}
 		}
 	}

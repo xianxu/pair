@@ -48,6 +48,7 @@ type testRT struct {
 	ids              couchcore.IDGen
 	currentRepoScope string
 	agentDefaults    map[string]launcher.AgentDefault
+	configureCouch   func(*couchcore.Couch)
 }
 
 // registryRecords reads the persisted registry directly. Couch.List was a
@@ -113,6 +114,9 @@ func (t testRT) NewCouchWith(couchcore.Runner, couchcore.CouchNamespace) (*couch
 	c.RepoAgentDefault = func(repoRoot, agent string) (couchcore.LaunchProfile, bool, error) {
 		value, ok := t.agentDefaults[repoRoot+"\x00"+agent]
 		return couchcore.LaunchProfile{Agent: value.Agent, Argv: append([]string(nil), value.Args...)}, ok, nil
+	}
+	if t.configureCouch != nil {
+		t.configureCouch(c)
 	}
 	return c, nil
 }
@@ -601,7 +605,7 @@ func TestEveryOperationHasASummaryAndDescribedArgs(t *testing.T) {
 func TestOperationArityMatchesExpectation(t *testing.T) {
 	// Declared in the test rather than read from the operation itself, so
 	// this cannot degrade into asserting X == X.
-	want := map[string]int{"provision-workspace": 3, "request-continuation": 7, "continue-thread": 3, "retry-continuation": 4, "dismiss-continuation": 4, "continuation-status": 4, "prepare-switch-agent": 4, "switch-agent": 7, "prepare-start": 3, "start": 5, "start-hub": 1, "list": 0, "show": 2, "reconcile": 1, "peek": 7, "stop": 1, "alias": 3, "publish-description": 3, "switch": 2, "attach": 3, "park": 4, "detach": 3, "leave": 1, "resume": 6, "resume-candidates": 4, "reboot": 5, "reap": 3, "recover": 3, "archived": 0, "relaunch": 4, "reload-context": 4, "prepare": 5}
+	want := map[string]int{"provision-workspace": 3, "request-continuation": 7, "continue-thread": 3, "retry-continuation": 4, "dismiss-continuation": 4, "continuation-status": 4, "prepare-switch-agent": 4, "switch-agent": 7, "prepare-start": 3, "start": 5, "start-hub": 1, "list": 0, "show": 2, "reconcile": 1, "peek": 7, "stop": 1, "alias": 3, "publish-description": 3, "switch": 2, "attach": 3, "park": 4, "detach": 3, "leave": 1, "resume": 6, "resume-candidates": 4, "recovery-confirmation": 1, "reboot": 5, "reap": 3, "recover": 3, "archived": 0, "relaunch": 4, "reload-context": 4, "prepare": 5}
 	for _, op := range couchcore.Operations() {
 		if got := len(op.Args); got != want[op.Name] {
 			t.Errorf("%s has %d args, want %d", op.Name, got, want[op.Name])
@@ -1449,6 +1453,56 @@ func TestConsoleExitForgetsThroughCouchRegistry(t *testing.T) {
 // on that seam, so it is driven in the argument dialect the SWITCHER sends.
 func TestSwitcherDialectReachesReboot(t *testing.T) {
 	rt := newRT(t, "/repo")
+	rt.runner = couchcore.NewFakeRunner()
+	// Registration is a separate boundary from a client helper acknowledging its
+	// launch. Publish only the exact nonce/agent/address of this committed claim.
+	evidence := map[couchcore.ThreadAddress]string{}
+	rt.configureCouch = func(c *couchcore.Couch) {
+		c.FreshRegistration = func(_ context.Context, address couchcore.ThreadAddress, agent, nonce string) (bool, error) {
+			current, err := c.Threads.PreviewThreadContext(context.Background(), address)
+			if err != nil {
+				return false, err
+			}
+			if len(current.Incarnations) != 1 || current.Incarnations[0].Start == nil {
+				return false, fmt.Errorf("missing exact start")
+			}
+			return evidence[address] == nonce && nonce != "" && current.Incarnations[0].Start.Nonce == nonce && current.Incarnations[0].Start.LaunchProfile != nil && current.Incarnations[0].Start.LaunchProfile.Agent == agent, nil
+		}
+		rt.runner.AfterAcknowledge = func(id string) error {
+			var profile launcher.TrustedLaunchProfile
+			for _, entry := range rt.runner.Child(id).Env {
+				if strings.HasPrefix(entry, launcher.CouchLaunchProfileEnv+"=") {
+					if err := json.Unmarshal([]byte(strings.TrimPrefix(entry, launcher.CouchLaunchProfileEnv+"=")), &profile); err != nil {
+						return err
+					}
+				}
+			}
+			if err := launcher.ValidateTrustedLaunchProfile(profile); err != nil {
+				return err
+			}
+			if !profile.FreshRequired || profile.FreshNonce == "" || profile.Recovery == nil || profile.Prompt == "" {
+				return fmt.Errorf("missing strict Fresh authority: %+v", profile)
+			}
+			address := couchcore.ThreadAddress{RepoScope: profile.Recovery.Address.RepoScope, Tag: couchcore.ThreadTag(profile.Tag)}
+			evidence[address] = profile.FreshNonce
+			rt.artifacts.SetPairSession(address, managedChildSession(t, rt.runner, id), true)
+			rt.artifacts.SetNativeBinding(address, profile.Agent, sessioninventory.BindingEstablished, "new-fresh-native")
+			go func() {
+				deadline := time.Now().Add(5 * time.Second)
+				for time.Now().Before(deadline) {
+					current, err := c.Threads.PreviewThreadContext(context.Background(), address)
+					if err == nil && len(current.Incarnations) == 1 && current.Incarnations[0].Start == nil {
+						rt.runner.SetExited(id, 0)
+						return
+					}
+					time.Sleep(time.Millisecond)
+				}
+				rt.runner.SetExited(id, 1)
+			}()
+			return nil
+		}
+	}
+
 	thread := seedThread(t, rt, "/repo")
 	rt.artifacts.SetPairSession(thread.Address, "pair-archive-fixture", false)
 	out, errw, code := runTypedRT(rt, couchcore.OperationCall{

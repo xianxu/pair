@@ -2,6 +2,7 @@ package couchcmd
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strconv"
 	"strings"
@@ -28,6 +29,8 @@ const maxSlotOperationReceipts = 64
 // handlers), started (the queue runner) and finished (the console loop) all
 // take it, and none waits on the queue or the console while holding it.
 type slotOperations struct {
+	reference  func(context.Context, string) (string, error)
+	recovery   func(string, string, couchmessage.Request, func(context.Context) error, func(), func(any, error)) error
 	run        slotOperationRunner
 	guardedRun func(string, string, string, couchcore.LiveRestartOptions, func(context.Context) error, func(), func(any, error)) error
 	preview    func(context.Context, string) (couchcore.RecoveryPreview, error)
@@ -90,6 +93,13 @@ func (s *slotOperations) handle(ctx context.Context, caller couchmessage.Binding
 		return couchmessage.Response{Code: "ok", Operation: &receipt}
 	}
 	return s.admit(ctx, caller, r, func(key string, started func(), finished func(any, error)) error {
+		if s.recovery != nil && (r.Op == "resume" || r.Op == "reboot" || r.Op == "recovery-confirmation") {
+			var guard func(context.Context) error
+			if len(guards) > 0 {
+				guard = guards[0]
+			}
+			return s.recovery(key, recoveryActor(caller), r, guard, started, finished)
+		}
 		if r.CandidateKey != "" {
 			if s.candidate == nil {
 				return errors.New("candidate resume unavailable")
@@ -128,7 +138,7 @@ func (s *slotOperations) admit(ctx context.Context, caller couchmessage.Binding,
 	defer s.mu.Unlock()
 	s.sweepLocked()
 	existing, held := s.receipts[key]
-	receipt, err := couchmessage.ApplyReceiptEvent(existing, couchmessage.ReceiptEvent{Kind: couchmessage.ReceiptAdmit, ID: r.ID, Op: r.Op, Target: r.Target, Agent: r.Agent, CandidateKey: r.CandidateKey, ToHub: r.ToHub, Persist: r.Persist, At: s.now()})
+	receipt, err := couchmessage.ApplyReceiptEvent(existing, couchmessage.ReceiptEvent{Kind: couchmessage.ReceiptAdmit, ID: r.ID, Op: r.Op, Target: r.Target, Agent: r.Agent, CandidateKey: r.CandidateKey, RecoveryConfirmation: r.RecoveryConfirmation, ToHub: r.ToHub, Persist: r.Persist, At: s.now()})
 	switch {
 	case errors.Is(err, couchmessage.ErrReceiptIDConflict):
 		return couchmessage.Response{Code: "id-conflict", Error: err.Error()}
@@ -210,6 +220,10 @@ func (s *slotOperations) queueKey(ctx context.Context, target string) (string, e
 // slot refusal is refused with its code, any other error failed with its
 // resume diagnostic, and a success names the thread left running.
 func slotOperationOutcome(value any, err error) couchmessage.ReceiptOutcome {
+	var confirmation *couchcore.RecoveryConfirmationRequired
+	if errors.As(err, &confirmation) {
+		return couchmessage.ReceiptOutcome{Status: couchmessage.ReceiptRefused, Code: "confirmation-required", Detail: confirmation.Error(), Confirmation: &confirmation.Offer}
+	}
 	var refusal *couchcore.SlotOperationError
 	var recoverRefusal *couchcore.RecoverRefusal
 	var reapRefusal *couchcore.ReapRefusal
@@ -222,9 +236,12 @@ func slotOperationOutcome(value any, err error) couchmessage.ReceiptOutcome {
 		return couchmessage.ReceiptOutcome{Status: couchmessage.ReceiptRefused, Code: "reap-refused", Detail: reapRefusal.Detail}
 	case err != nil:
 		out := couchmessage.ReceiptOutcome{Status: couchmessage.ReceiptFailed, Detail: couchcore.OperatorError(err), Diagnostic: string(couchcore.ResumeDiagnosticOf(err))}
+		var recoveryUnconfirmed *couchcore.RecoveryLaunchUnconfirmed
 		var unconfirmed *couchcore.ReloadUnconfirmed
 		var unready *couchcore.RestartUnready
 		switch {
+		case errors.As(err, &recoveryUnconfirmed):
+			out.Code = "unconfirmed"
 		case errors.As(err, &unconfirmed):
 			out.Code = "unconfirmed"
 		case errors.As(err, &unready):
@@ -307,4 +324,10 @@ func (n notedResult) Warning() string {
 		parts = append(parts, n.note)
 	}
 	return strings.Join(parts, "; ")
+}
+
+// recoveryActor uses only the binding authenticated by the live caller gate.
+func recoveryActor(caller couchmessage.Binding) string {
+	b, _ := json.Marshal(caller)
+	return "hub:" + string(b)
 }

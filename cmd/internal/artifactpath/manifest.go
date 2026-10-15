@@ -57,6 +57,8 @@ type ResolvedBinding struct {
 
 // pair:m5-concept pure
 var ResolvedBindings = append([]ResolvedBinding{
+	{Name: "cache-native-admissions", Family: "native-admission", Resolver: "ResolvePairCache", Member: "NativeAdmissions"},
+	{Name: "cache-native-admission-lock", Family: "native-admission", Resolver: "ResolvePairCache", Member: "NativeAdmissionLease"},
 	{Name: "cache-session-lock", Family: "session-lock", Resolver: "ResolvePairCache", Member: "TerminalLease"},
 	{Name: "matched-changelog-family", Family: "changelog", Resolver: "MatchArtifact"},
 	{Name: "parsed-parked-capture", Family: "parked", Resolver: "ParseParkedCapture"},
@@ -177,6 +179,7 @@ type SourceClassification struct {
 // family requires adding its constructor and classifying every source consumer.
 // pair:m5-concept pure
 var Families = []Family{
+	{Name: "native-admission", Token: "native-admission-v1"},
 	{Name: "session-lock", Token: "session-locks"},
 	{Name: "fullscreen-return", Token: "fullscreen-return-"},
 	{Name: "fullscreen-lock", Token: "fullscreen-lock-"},
@@ -231,11 +234,17 @@ var Families = []Family{
 // shell, Lua, and KDL sources.
 // pair:m5-concept pure
 var SourceClassifications = []SourceClassification{
+	{Path: "cmd/internal/artifactpath/native_admission.go", Kind: Constructor, Families: []string{"native-admission"}},
+	{Path: "cmd/internal/launcher/native_admission_os.go", Kind: ResolvedConsumer, Families: []string{"native-admission"}, BindingNames: []string{"cache-native-admissions", "cache-native-admission-lock"}},
+	{Path: "cmd/internal/launcher/recovery_native_owner_orphans.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/couchcore/peek_retained_os.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/couchcore/recovery_evidence_os.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/couchcore/recovery_native_owner.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/couchcore/recovery_retirement_os.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/launcher/recovery_native_owner.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/launcher/recovery_authority_os.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/launcher/recovery_terminal.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/launcher/recovery_terminal_confirmed.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/launcher/recovery_terminal_os.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/threadrecord/recovery.go", Kind: ResolvedConsumer},
 
@@ -618,8 +627,23 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	"cmd/internal/launcher/native_admission.go",
+	"cmd/internal/launcher/native_createflow_os.go",
+	"cmd/internal/launcher/native_resume_selector.go",
+	"cmd/internal/launcher/native_resume_selector_resolve.go",
+	"cmd/internal/sessioninventory/native_selector.go",
+	"cmd/internal/sessioninventory/native_selector_collect.go",
+	"cmd/internal/sessioninventory/native_selector_io.go",
+	"cmd/internal/sessioninventory/native_selector_os.go",
+	"cmd/internal/wrapcmd/native_admission.go",
 	"internal/reporoot/root.go",
 	"cmd/internal/couchcmd/resume_candidates.go",
+	"cmd/internal/couchcore/recovery_confirmation.go",
+	"cmd/internal/couchcore/recovery_fresh_missing.go",
+	"cmd/internal/couchcore/recovery_plan.go",
+	"cmd/internal/couchcore/recovery_preflight.go",
+	"cmd/internal/couchcore/recovery_prepared.go",
+	"cmd/internal/couchcore/recovery_start_fence.go",
 	"cmd/internal/couchcore/recovery_key.go",
 	"cmd/internal/couchcore/recovery_preview.go",
 	"cmd/internal/couchcore/recovery_native_owner_fake.go",
@@ -1576,6 +1600,7 @@ type GCClassification struct {
 // GCClassifications must cover every artifact family explicitly.
 // pair:m5-concept pure
 var GCClassifications = map[string]GCClassification{
+	"native-admission":          {SessionRetention, GCProtected, "PairCachePaths.NativeAdmissions and NativeAdmissionLease; bounded authority managed only by exact process proof, stable lock never unlinked"},
 	"session-lock":              {SessionRetention, GCProtected, "PairCachePaths.TerminalLease; stable coordination inode, never unlinked"},
 	"agent-default":             {SessionRetention, GCShared, "ScopePaths.AgentDefault"},
 	"native-session":            {SessionRetention, GCProtected, "LifecyclePaths.Request (embedded metadata only)"},

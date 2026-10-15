@@ -55,3 +55,69 @@ func TestResumeCandidatesCLILegacyFreshShowsUnknownActivityWithoutNativeScore(t 
 		t.Fatalf("invented fresh evidence: code=%d output=%s diagnostic=%s", code, rendered, &diagnostic)
 	}
 }
+
+func TestAdvertisedFreshCommandPreservesSelectionThroughCLIRequest(t *testing.T) {
+	for _, tc := range []struct {
+		name, key, operation string
+		explicitCommand      string
+		confirmed            bool
+	}{
+		{name: "keyed Fresh", key: "v1.fresh-opaque_123", operation: "resume"},
+		{name: "keyless Fresh", operation: "reboot", confirmed: true},
+		{name: "explicit reboot", operation: "reboot", confirmed: true, explicitCommand: "couch --reboot pair:1 --confirm"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var out, diagnostic bytes.Buffer
+			command := tc.explicitCommand
+			if command == "" {
+				inv, err := ParseCLI([]string{"--resume-candidates", "pair:1"}, couchcore.Operations())
+				if err != nil {
+					t.Fatal(err)
+				}
+				code := runMessageCLIWithCall(inv, messageRuntime(), &out, &diagnostic, func(_ context.Context, _ string, request any, response any) error {
+					req := request.(couchmessage.Request)
+					if req.Op != "resume-candidates" || req.Target != "pair:1" || req.CandidateKey != "" {
+						t.Fatalf("preview request mutated selection: %+v", req)
+					}
+					*response.(*couchmessage.Response) = couchmessage.Response{Code: "ok", RecoveryPreview: &couchcore.RecoveryPreview{
+						Candidates: []couchcore.RecoveryChoice{{Key: "different-native-key", NativeID: "different-native", Label: "Resume from disk"}},
+						Fresh:      &couchcore.RecoveryChoice{Key: tc.key, Label: "Start fresh"},
+					}}
+					return nil
+				})
+				if code != 0 {
+					t.Fatalf("preview failed: %d %s", code, &diagnostic)
+				}
+				// Execute the command printed for Fresh, rather than constructing
+				// its invocation independently of the advertised surface.
+				for _, line := range strings.Split(out.String(), "\n") {
+					if line = strings.TrimSpace(line); strings.HasPrefix(line, "couch --") {
+						command = line
+					}
+				}
+			}
+			argv := strings.Fields(command)
+			if len(argv) < 2 || argv[0] != "couch" {
+				t.Fatalf("Fresh has no executable command: %q", command)
+			}
+			inv, err := ParseCLI(argv[1:], couchcore.Operations())
+			if err != nil {
+				t.Fatalf("printed command cannot parse: %q: %v", command, err)
+			}
+			out.Reset()
+			calls := 0
+			code := runMessageCLIWithCall(inv, messageRuntime(), &out, &diagnostic, func(_ context.Context, _ string, request any, response any) error {
+				calls++
+				req := request.(couchmessage.Request)
+				if req.Op != tc.operation || req.Target != "pair:1" || req.CandidateKey != tc.key || req.Confirmed != tc.confirmed || req.ID == "" || req.RecoveryConfirmation != "" {
+					t.Fatalf("printed Fresh selection changed in transport: %q -> %+v", command, req)
+				}
+				*response.(*couchmessage.Response) = couchmessage.Response{Code: "accepted", Operation: &couchmessage.OperationReceipt{ID: req.ID, Op: req.Op, Target: req.Target, Status: couchmessage.ReceiptSucceeded}}
+				return nil
+			})
+			if code != 0 || calls != 1 {
+				t.Fatalf("printed Fresh command failed: code=%d calls=%d output=%s diagnostic=%s", code, calls, &out, &diagnostic)
+			}
+		})
+	}
+}

@@ -58,6 +58,7 @@ type ThreadIncarnation struct {
 type PreviousSession = threadrecord.PreviousSession
 
 type ThreadRecord struct {
+	RecoveryIntent      *threadrecord.RecoveryIntent  `json:"recovery_intent,omitempty"`
 	RecoveryContext     *threadrecord.RecoveryContext `json:"recovery_context,omitempty"`
 	PreviousSession     *PreviousSession              `json:"previous_session,omitempty"`
 	SessionBinding      *couchidentity.SessionBinding `json:"session_binding,omitempty"`
@@ -115,6 +116,7 @@ func toPersistedThreadRecord(record ThreadRecord) threadrecord.Record {
 	out := threadrecord.Record{
 		PreviousSession: threadrecord.ClonePreviousSession(record.PreviousSession),
 		RecoveryContext: threadrecord.CloneRecoveryContext(record.RecoveryContext),
+		RecoveryIntent:  threadrecord.CloneRecoveryIntent(record.RecoveryIntent),
 		SessionBinding:  cloneSessionBinding(record.SessionBinding),
 		SchemaVersion:   record.SchemaVersion, Address: toPersistedThreadAddress(record.Address),
 		StartingPath: record.StartingPath, WorkingPath: record.WorkingPath, CreatedAt: record.CreatedAt,
@@ -179,6 +181,7 @@ func fromPersistedThreadRecord(record threadrecord.Record) ThreadRecord {
 	out := ThreadRecord{
 		PreviousSession: threadrecord.ClonePreviousSession(record.PreviousSession),
 		RecoveryContext: threadrecord.CloneRecoveryContext(record.RecoveryContext),
+		RecoveryIntent:  threadrecord.CloneRecoveryIntent(record.RecoveryIntent),
 		SessionBinding:  cloneSessionBinding(record.SessionBinding),
 		SchemaVersion:   record.SchemaVersion,
 		Address:         ThreadAddress{RepoScope: record.Address.RepoScope, Tag: ThreadTag(record.Address.Tag)},
@@ -260,6 +263,7 @@ func fromPersistedThreadRecord(record threadrecord.Record) ThreadRecord {
 
 func cloneThreadRecord(record ThreadRecord) ThreadRecord {
 	copy := record
+	copy.RecoveryIntent = threadrecord.CloneRecoveryIntent(record.RecoveryIntent)
 	copy.RecoveryContext = threadrecord.CloneRecoveryContext(record.RecoveryContext)
 	copy.PreviousSession = threadrecord.ClonePreviousSession(record.PreviousSession)
 	copy.SessionBinding = cloneSessionBinding(record.SessionBinding)
