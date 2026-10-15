@@ -1302,3 +1302,18 @@ that unrelated HTTP transport rather than raising the wait or changing runtime.
 Run controlled publication-window RED, repeated corrected tests and related
 fixture/drive groups, then final recorded suite and ordinary whole-issue review.
 No production behavior, component timeout, recovery authority or stage changes.
+
+### 2026-10-14 — post-close integration with landed #559
+
+Whole-issue close SHIP (evidence2eaddc2a245b; mirror9f457f1a4), PR337 opened.
+The publish gate found newer main with #559 and aborted its conflicting merge,
+leaving the branch clean. Two conflicts: artifactpath classifications and
+artifactcollision scoped-index reads. Preserve #559's shared session-index and
+owner-launch caches/work observer, and route the #528 expanded cross-scope
+binding census through that same cache reader. Preserve #528 explicit names,
+positive-listing Continue semantics and ownership guards. Classifications are a
+union of both feature sets; no semantic alternative or new recovery authority.
+Run #559 cache/count and #528 cross-scope/warm/preview regressions plus artifact
+checks, then a new recorded full suite. Re-close the post-close interdiff using
+--fixed-then-ship with its required --full-suite evidence, then retry the publish
+gate. Pair:0 staging remains entirely hub-owned and untouched.

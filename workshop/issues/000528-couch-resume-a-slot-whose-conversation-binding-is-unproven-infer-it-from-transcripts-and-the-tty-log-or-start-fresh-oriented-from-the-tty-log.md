@@ -1113,3 +1113,11 @@ No follow-up implementation starts on this branch.
   post-boundary changes are fixture corrections and main's ignore/docs merge.
   Proceed to ordinary whole-issue close and landing; pair:0 stage remains
   untouched for the hub's combined restage with #559.
+
+- Whole-issue close round17 SHIP, no findings, evidence2eaddc2a245b; codecomplete
+  mirror9f457f1a4. PR337 created with final-scope description. Publish gate then
+  found landed #559 on newer main and aborted conflicts in artifactpath/manifest
+  and couchcore/artifactcollision. Branch stayed clean. Appended integration
+  Revision before resolving: retain #559 shared caches and #528 cross-scope
+  namespace/positive-listing semantics. New merged-head suite and ordinary
+  fixed-then-ship interdiff review are required; no bypass, no stage mutation.
