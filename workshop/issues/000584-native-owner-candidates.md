@@ -58,6 +58,8 @@ Filter native-owner candidates from kernel metadata before requiring argv; unrel
 
 - 2026-10-15: Three additional host checks while two full-suite slots were occupied passed in 1.882, 2.617 and 4.731 seconds (load 16.50/16.90/19.75). Thus the worst observed final margin is 0.269 seconds; arbitrary system load can still exhaust a bounded foreground observation. This is a safe refusal, not evidence that an owner is absent. Required suite is running on 39d43995c, PR #353; both builds passed.
 
+- 2026-10-15: First recorded suite at 39d43995c found TestProductionArtifactReferencesAreExactlyClassified: the three new launcher production files were absent from the exhaustive source inventory. Classified legacy and finite metadata readers as resolved consumers and the in-memory scheduler as non-artifact source; no quarantine additions. The exact contract test then passed in 2.385s. A new recorded full suite is required for this corrected code head.
+
 ## Revisions
 
 ### 2026-10-15 15:55 — approved narrow legacy association
