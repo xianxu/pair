@@ -118,6 +118,30 @@ func (a messageAuthority) current(ctx context.Context, b couchmessage.Binding) (
 	return root, ctx.Err()
 }
 
+// recordedMessageAuthority shares the use-time file checks with callers that
+// supply their own artifact reader. Every invocation observes readiness afresh;
+// sessionName owns any metadata cache, never live wrapper authority.
+func recordedMessageAuthority(reader couchcore.OSReadyReader, sessionName func(context.Context, couchcore.ThreadAddress) (string, error)) func(context.Context, couchmessage.Binding) error {
+	return func(ctx context.Context, b couchmessage.Binding) error {
+		address := couchcore.ThreadAddress{RepoScope: b.Scope, Tag: couchcore.ThreadTag(b.Tag)}
+		ready, ok, e := reader.RecordedSession(ctx, address, b.Agent, b.Nonce)
+		if e != nil {
+			return fmt.Errorf("wrapper launch registration: %w", e)
+		}
+		if !ok || ready != b.Session {
+			return errors.New("wrapper launch registration unavailable")
+		}
+		name, e := sessionName(ctx, address)
+		if e != nil {
+			return e
+		}
+		if name != b.Session {
+			return errors.New("wrapper conversation changed")
+		}
+		return nil
+	}
+}
+
 // Admissions run concurrently up to this bound, so a broker restart with N
 // surviving wrappers costs N full checks, a few at a time.
 const (
@@ -378,24 +402,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch, configur
 			}
 			return nil
 		},
-		recorded: func(ctx context.Context, b couchmessage.Binding) error {
-			address := couchcore.ThreadAddress{RepoScope: b.Scope, Tag: couchcore.ThreadTag(b.Tag)}
-			ready, ok, e := reader.RecordedSession(ctx, address, b.Agent, b.Nonce)
-			if e != nil {
-				return fmt.Errorf("wrapper launch registration: %w", e)
-			}
-			if !ok || ready != b.Session {
-				return errors.New("wrapper launch registration unavailable")
-			}
-			name, e := sessionName(ctx, address)
-			if e != nil {
-				return e
-			}
-			if name != b.Session {
-				return errors.New("wrapper conversation changed")
-			}
-			return nil
-		},
+		recorded: recordedMessageAuthority(reader, sessionName),
 		endpoint: func(b couchmessage.Binding) couchmessage.DeliveryEndpoint {
 			return couchmessage.RemoteEndpoint{Namespace: namespace, Binding: b}
 		},

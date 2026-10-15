@@ -179,10 +179,10 @@ type ServerStates interface {
 // OSServerStates reads the host. An orphan's start identity is read too, since
 // reap must act on that exact generation; an orphan whose identity cannot be
 // read is unresolved, not orphaned.
-type OSServerStates struct{}
+type OSServerStates struct{ Processes procutil.Source }
 
-func (OSServerStates) ServerStates(ctx context.Context) (map[string]ServerState, error) {
-	rows, err := procutil.SnapshotNamed(ctx, "zellij")
+func (s OSServerStates) ServerStates(ctx context.Context) (map[string]ServerState, error) {
+	rows, err := s.Processes.SnapshotNamed(ctx, "zellij")
 	if err != nil {
 		return nil, err
 	}

@@ -1289,17 +1289,19 @@ cache files and die with their caller. Cold or genuinely changing evidence can
 still require full scanner work; #508 owns the large durable rows and #157 the
 full-inventory CLI query.
 
-Release regressions name both paths:
-`TestMessageAuthorityUnchangedFilesDecodeZeroBytes` and
-`TestIdleActivityTickUnchangedFilesDecodeZeroBytes`. They use 20 scoped slots
-with at least 30 MB ledgers, separate real body-read and decoder-input counters,
-and positive cold/mutation controls. The message fixture deliberately never
-reads its metadata-only ledgers; its counters cover indexes, while tiny live
-security-file reads remain fresh. The activity fixture streams and actually
-parses 600,000,000 ledger bytes cold; subsequent unchanged passes read/decode
-zero ledger/catalog/native bytes. Runtime `QueryWorkObserver` and immutable
-counter deltas make those metrics reusable for #204. These are counted
-invariants, not a claim about whole-supervisor CPU after rollout.
+The release net now enters the actual consumers (#204):
+`TestWorkbenchPerformanceIdleUITick` and
+`TestWorkbenchPerformanceMessageUnchangedEvidence` use 20 scoped owners with
+30,000,000-byte valid ledgers and independently count read/decoder-input bytes.
+The UI test applies real scheduled results to the menu reducer; each unchanged
+pass reads/decodes zero ledger/catalog/native bodies. Every message request must
+reach a submitted receipt and its endpoint, with zero unchanged index/history
+body work. Small fresh security reads remain active. Cold and owner-mutation
+controls prevent disconnected counters from passing; #559's smaller component
+tests retain invalidation/security checks. See [workbench performance](workbench-performance.md)
+for normal-suite commands, strict selected-attach scan counts, other-path scan
+ratchets and the separate 20-slot/60-second CPU acceptance smoke. Counts do not
+claim whole-supervisor CPU behavior after rollout.
 
 ### Slots behind a picker draw red (pair#465)
 

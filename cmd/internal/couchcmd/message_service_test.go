@@ -184,12 +184,16 @@ type serviceRig struct {
 	retries             []func()
 	wrapperStops        map[couchmessage.Binding]func()
 	// slotOps answers resume/reboot/operation-status; nil = unsupported.
-	slotOps *slotOperations
+	slotOps           *slotOperations
+	decorateAuthority func(messageAuthority) messageAuthority
 }
 
-func newServiceRig(t *testing.T) *serviceRig {
+func newServiceRig(t *testing.T, decorate ...func(messageAuthority) messageAuthority) *serviceRig {
 	t.Helper()
 	r := &serviceRig{t: t, world: newMessageWorld(), slotGit: map[string]couchcore.SlotGitStatus{}}
+	if len(decorate) > 0 {
+		r.decorateAuthority = decorate[0]
+	}
 	r.init()
 	return r
 }
@@ -220,7 +224,11 @@ func (r *serviceRig) start() {
 	t := r.t
 	var err error
 	r.panes = couchmessage.NewPaneMailbox()
-	r.s, err = newMessageService(context.Background(), r.brokerSock, r.regSock, r.world.authority(), r.panes, func(root string) (couchcore.SlotGitStatus, bool) {
+	authority := r.world.authority()
+	if r.decorateAuthority != nil {
+		authority = r.decorateAuthority(authority)
+	}
+	r.s, err = newMessageService(context.Background(), r.brokerSock, r.regSock, authority, r.panes, func(root string) (couchcore.SlotGitStatus, bool) {
 		r.mu.Lock()
 		defer r.mu.Unlock()
 		v, ok := r.slotGit[root]
