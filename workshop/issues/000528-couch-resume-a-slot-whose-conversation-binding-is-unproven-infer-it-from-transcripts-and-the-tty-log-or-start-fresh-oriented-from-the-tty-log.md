@@ -1162,3 +1162,12 @@ No follow-up implementation starts on this branch.
   Core356.021s, cmd72.750s, tty39.158s, launcher23.547s. This covers
   #559 merge integration and Stop cancellation fix; live CI remains unresolved
   and later live-fixture source changes will require final-head suite evidence.
+
+- Exact upstream Zellij0.45.1 scratch measurement reproduced the borrowed-helper
+  fixture panic. Correct AfterAcknowledge to use its actual fake handle's PID
+  and identity; ownership expectations remain. Test-only helper now checks
+  numeric attach status and retains a bounded16KiB PTY tail; failure query
+  exposes up to8KiB pane output. No production parser change, deadline widening
+  or PTY/TERM guess. Corrected official-binary live tests PASS9.483s
+  (/tmp/pair528-ci-corrected-official-live.log). Original CI early exits and
+  non-JSON response remain unexplained until required CI reruns.

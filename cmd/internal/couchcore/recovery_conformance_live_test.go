@@ -223,12 +223,11 @@ func runRecoveryLiveFixture(t *testing.T, warm bool) {
 	starts := 0
 	env.Runner.AfterAcknowledge = func(id string) error {
 		starts++
-		record, err := c.Threads.GetThread(source.Address)
-		if err != nil {
-			return err
-		}
-		inc := record.Incarnations[0]
-		env.Proc.Set(inc.PID, inc.Identity)
+		// A warm client is acknowledged before any guarded durable repair;
+		// recovery may already have retired its dead predecessor. The local
+		// handle, not a not-yet-published incarnation, owns this new process.
+		handle := &fakeHandle{id: id, runner: env.Runner}
+		env.Proc.Set(handle.PID(), handle.Identity())
 		if warm {
 			return nil
 		}
@@ -274,7 +273,13 @@ func runRecoveryLiveFixture(t *testing.T, warm bool) {
 	}
 	result, err := c.RecoverThread(ctx, source.Address, checkpointPath)
 	if err != nil {
-		t.Fatal(err)
+		// Preserve the fail-closed result and expose the fixture's own query
+		// bytes on CI; an exit-zero non-JSON response otherwise hides its cause.
+		diagnostic, queryErr := exec.CommandContext(ctx, "zellij", "--session", session, "action", "list-panes", "--json", "--command").CombinedOutput()
+		if len(diagnostic) > 8192 {
+			diagnostic = diagnostic[:8192]
+		}
+		t.Fatalf("%v; fixture pane query: %v output=%q", err, queryErr, diagnostic)
 	}
 	if result.Handle == nil || result.Record.Thread != source.Address || starts != 1 {
 		t.Fatalf("recovery result=%+v starts=%d", result, starts)
