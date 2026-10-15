@@ -341,6 +341,39 @@ cannot explain nonempty malformed bytes until the actual failed query is retaine
 No upstream binary change or installation proposed. Hub receipt
 b3e5ad8c-b2c7-4e11-a766-2ea84a5b22a2 reports this distinction.
 
+### 2026-10-14 — fifth matrix captured inconsistent live discovery
+
+MATRIX5 /tmp/pair218-MATRIX5.vHTGIP source/binaries
+9c4ff8ca0ab8953a1cde5fa42dc6895e50b2c9a7 FAILED sample1/6 warm selection
+(resume-not-detached),16.48s test. Only10/21 frames;5.330s is the last PARTIAL
+frame, not fleet readiness. No Leave timing.155 parent queries retained without
+truncation. Failed tag...0010/session...-15: successful --short at20:36:27.400
+returned20 names excluding target; immediately following --no-formatting at
+20:36:27.450 returned21 including target. Exact bytes/times/status retained in
+listing-disagreement.json. No malformed or empty successful authority-query
+stdout preceded the failure; subsequent context-canceled queries belong to
+teardown. This does NOT prove the earlier malformed JSON cause. Exact fixture
+root absent and diagnostic process inspection found zero scoped rows.
+
+Upstream [assert_socket](https://github.com/zellij-org/zellij/blob/v0.45.1/zellij-utils/src/sessions.rs#L145-L170)
+reads one ConnStatus response, excludes any first message other than Connected,
+and listing can still exit0 with remaining sessions. This is a concrete mechanism
+for silent omission, not proof of the runtime message ordering. Explicit
+[--session actions also enumerate globally](https://github.com/zellij-org/zellij/blob/v0.45.1/src/commands.rs#L404-L451),
+so bypassing our two listing calls does not remove upstream discovery. Parent warm
+resume currently performs four explicit global listings (DetachedSessions twice),
+and child prelude/decision performs additional global listings. Shared initial
+native evidence does not eliminate this distinct O(fleet-squared) RPC work.
+No further experiment without a diagnosed fix or approved protocol/scope change;
+all incomplete matrices remain retained and concurrency default unchanged.
+
+Fresh follow-through review found retained identity EINVAL could be dropped by
+downstream IsProcessGone (launcher serverProcesses and diagnosticlog proof).
+Correcting error provenance centrally while preserving raw command EINVAL exit
+semantics, with regression tests through both consumers. Last scope-report send
+failed before acceptance: Couch cannot find live caller/recipient registration.
+No receipt/no delivery claimed; no operator Couch restart or alternate channel.
+
 ## Revisions
 
 - 2026-10-14 — add (operator via TL): concrete case. At the operator's 14:33 restart, Couch's background attaches spawned 21 zellij clients between 14:33:37 and 14:33:47 (~6 at a time): roughly 2–3 s per attach, against ~10–20 ms for `zellij list-sessions` and an expected ~100–300 ms floor (list, lease, one record write, spawn client, first frame). Detach ("leave couch") is unmeasured but also inspects each slot's session server. Trace one attach and one detach step by step; the likely waste is a whole process-table read (native argv for every process since #547) per slot. Probably one shared snapshot per startup or detach pass instead.
