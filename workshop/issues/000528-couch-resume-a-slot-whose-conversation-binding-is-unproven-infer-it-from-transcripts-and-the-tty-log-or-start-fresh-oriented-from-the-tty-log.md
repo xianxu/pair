@@ -1271,3 +1271,17 @@ No follow-up implementation starts on this branch.
   GitHub conformance/merge/local-guards allPASS at this source head. Normal
   fixed-then-ship review covers four conflicts plus timing/detach corrections;
   no source changes or skipped gates after the recorded suite.
+
+- Post-merge close blocked BEFORE judge dispatch by measurement provenance:
+  `retained measurement code head differs from the completion's reviewed
+  generation`. sdlc actual --issue528 reproduces with no numeric result.
+  Supported repair dry-run (`sdlc issue correct-actual --issue528 --dry-run
+  --reason ...`) refuses `ambiguous calibration close generation; repair target
+  evidence before correcting`. No hours guessed; no sample excluded; no gates
+  skipped. Prior close completion evidence c8e4ef6c2731 reviewed d0862f785,
+  retained measurement pins faa205619. New merged suite857625c23 PASS10m50s.
+  Once SDLC provenance is repaired, rerun normal fixed-then-ship close with
+  full-suite evidence857625c23, update PR337 and sdlc merge --yes. No source
+  changes or repeated suite needed unless new code arrives. Pair:0 stage untouched.
+  Hub message f840aa4e-9bf0-421d-8c10-ea962dd6f4e9 uncertain; receipt
+  unavailable, no automatic resend. Earlier main/#562 report9865a45a submitted.
