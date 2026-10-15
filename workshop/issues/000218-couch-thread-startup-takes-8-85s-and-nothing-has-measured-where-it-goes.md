@@ -398,6 +398,23 @@ returned uncertain receipt e138b787-e4d2-4ca9-96d8-acb8583fb37d; status lookup
 refused because no connected recipient retains it. Delivery is unproven; no
 blind resend or approval inferred.
 
+Corrected candidate fd4a2580dd4a143493e64f0f1a194ce06fd3f6c7 is pushed;
+make -k build PASS. Required sdlc-local/suite is queued for that exact commit
+(session55962), no full tests started at this checkpoint.
+
+Read-only protocol synthesis recommends an isolated, separately authorized
+passive IPC diagnostic on the unchanged workload: associate socket paths and
+complete protobuf reads with each actual listing subprocess. An omitted owned
+session whose first decoded response is UnblockInputThread would establish the
+rejection mechanism; connection/read/decode failure would show another path,
+and Connected would contradict this hypothesis. Trace pane-close timestamps
+separately to attribute the source of an unblock. A run without omission is
+inconclusive, with no automatic retry. Plain syscall timing without received
+frame bytes is insufficient; tracing may change timing. No tracer is installed
+or run here. Switching listing format, combining inventories, or explicitly
+naming an action cannot eliminate upstream discovery. This diagnostic/scope
+choice remains for the hub; no approval inferred.
+
 ## Revisions
 
 - 2026-10-14 — correct the earlier empty-Darwin-lookup inference: only an independent kernel ESRCH establishes absence; retain uncertainty otherwise. No retry or effect-authority relaxation.
