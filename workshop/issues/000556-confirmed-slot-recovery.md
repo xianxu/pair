@@ -1,13 +1,13 @@
 ---
 id: 000556
-status: open
+status: working
 deps: [pair#528]
 github_issue:
-target: slot-continuity
+target: slot-recovery
 created: 2026-10-14
-updated: 2026-10-14
+updated: 2026-10-15
 estimate_hours:
-card_mirror: 'bbfae38f89795c43ebeb471b6b43bb2b99b4c269' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '4f70a6e43e9fd6f5aefbb3b5e731b340a2e25f1d' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-14T15:10:56-07:00
 claimant:
     operator: Xian Xu
@@ -66,8 +66,10 @@ retain default plus up to four alternatives with evidence via menu and CLI.
 
 ## Plan
 
-- [ ] Inspect current owners and revise #528's M2 design before implementation;
+- [x] Inspect current owners and revise #528's M2 design before implementation;
   keep a separate review and operator acceptance boundary.
+- [ ] Implement the approved [confirmed recovery plan](../plans/000556-confirmed-recovery-plan.md), including headless lifecycle acceptance and the morning scratch script.
+- [ ] Record the full suite, close on SHIP and land; the hub owns the operator's restart and live acceptance.
 
 ## Log
 
@@ -75,3 +77,35 @@ retain default plus up to four alternatives with evidence via menu and CLI.
 
 Split from #528 at operator/TL direction84fbcea7 so accepted M1 can land. Source:
 #528 durable plan's revised M2 and Starting exception; no new code authorized.
+
+### 2026-10-15 — claim and measured design audit
+
+Claimed by pair:2 on branch `000556-confirmed-slot-recovery`, based on main
+`09c5b48dd7586d6ba908a45ea86899190ad3dd4a`. Refreshed the stale ariadne
+substrate before starting planning. Two independent, read-only audits covered
+core execution/ownership and menu/CLI admission; no live lifecycle effects ran.
+
+The baseline already has ranked keys, immutable capture preservation, native
+owner checks, opaque exact terminal retirement, ordinary launch Prompt and
+start-claim persistence. Its deliberate M1 restrictions still reject running
+sources, remove Fresh on some rows, require a capture for candidate execution,
+and let Starting last while its supervisor lives. Registration uncertainty also
+enters generic post-ack cleanup. These are the implementation gaps, rather than
+a reason to introduce another recovery queue or launch mechanism (ARCH-DRY).
+
+There is no slot/thread lifecycle CUE model in this Pair tree; the existing
+authorities are `threadrecord/record.go`, `threadrecord/recovery.go`,
+`couchcore/starttransaction.go` and the park reducer. The plan extends those
+owners rather than inventing a second durable lifecycle (ARCH-ORDER).
+
+## Revisions
+
+### 2026-10-15T05:33-07:00 — overnight M2 dispatch
+
+The hub assigned #556 after #528 landed: plan to the hub, implement and land on
+SHIP, with headless acceptance and a short live script for the operator's morning
+restart. The issue now references the newer `slot-recovery` target; the earlier
+`slot-continuity` commitments still constrain teardown, confirmation and Fresh.
+The durable plan is awaiting the hub's approval; no implementation is started.
+No messaging reconciliation (#561), wrapper endpoint reconstruction (#557),
+automatic inference, live-slot experimentation or stage changes are included.
