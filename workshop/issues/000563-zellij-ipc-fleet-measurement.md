@@ -6,7 +6,8 @@ github_issue:
 created: 2026-10-14
 updated: 2026-10-14
 estimate_hours:
-card_mirror: 'c6840a55f9c21b83d8d2ec37dcc263729f02fd9c' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'dd82cc362945b57d565cb57cfb2e3a10aa0f54b2' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-14T21:50:12-07:00
 ---
 
 # Trace Zellij IPC failures and measure attach parallelism

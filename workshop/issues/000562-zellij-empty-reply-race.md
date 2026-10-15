@@ -6,7 +6,8 @@ github_issue:
 created: 2026-10-14
 updated: 2026-10-14
 estimate_hours:
-card_mirror: 'ba16ce1b51ffb8e832e24b3fd3efb72ebbd0c90a' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'de9be9d3ccd59461919470d7facd62791fe3a540' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-14T21:49:51-07:00
 ---
 
 # Zellij CLI queries can finish before their reply
