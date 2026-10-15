@@ -58,7 +58,7 @@ External posting, upstream installation and operator environment changes require
 
 - [x] Reproduce the protocol interleavings deterministically and classify the CI PID publication boundary independently.
 - [x] Design the smallest correction or upstream dependency with the TL; preserve uncertainty and exact-generation effect guards.
-- [ ] Verify stateful regressions and applicable live conformance, then hand the stable observation contract to #563.
+- [x] Verify stateful regressions and applicable live conformance, then hand the stable observation contract to #563.
 
 ## Log
 
@@ -149,3 +149,11 @@ The shell remainder completed green. The second recorded full suite on171587984c
 Root cause: two additional executable fixtures still returned empty successful listings. The composition fixture entered post-ack cleanup awaiting a known-absent session, which the new boundary correctly refused to infer. Its original targeted reproduction timed out at45seconds; explicit exit1/no-active-sessions plus a client header passes both ordinary/fresh-slot cases3.502s and race3repetitions11.255s (/tmp/pair562-core-spawn-{red,green,race}.log). The public-command fixture received the same truthful observation model; its complete namespace/store-family test passes20.445s, retaining exactly-one-create-handoff assertions. Swept Couchcore and public entrypoint executable fixtures, including generic launch-only stubs: no production guard or timeout changed. A new recorded whole-suite pass is still required, including the previously blocked parallel core tests. PR340 conformance on17158798 was green (run38693235094/job116283761799); replacement head must pass independently.
 
 Merged origin/main e85237e7e (including #554 render-fixture fix) before replacement-suite acquisition. The c3de83ab run was canceled while still queued, with no test body started; replacement will test this integration. No conflict or operator environment change.
+
+### 2026-10-15 — complete verification and observation handoff
+
+Recorded full suite PASS on b15c36aa4fddcfcaa13a969e189121a8b0a93a0b: exit0 in9m11s after3943seconds queued, log sha256prefix18ad9a98b2bf; couchcore262.439s, launcher22.875s, pair-go15.196s. Every shell prerequisite and Go package completed. All PR340 CI passed, including couch-zellij-conformance run38699358810/job116303506925 (2m47s). Earlier failed runs remain documented above; no failure was waived as a flake.
+
+Stable #563 handoff: ErrZellijNoReply means no observed stdout after a successful read, preserving raw exit0 in the query observer. Exact observed no-active-sessions remains distinct. Each explicit query is a fresh observation; there are no retries or relaxed generation checks. A nonempty incomplete inventory remains possible and must not be interpreted as proof that the upstream interleaving was measured. The internal upstream draft includes source-derived receiver scenarios and the evidence limits. TL owns the morning restart look; no stage, operator Couch mutation or external submission occurred.
+
+After that suite, merged current main965fcb814, including #423's test-only inventory-readiness correction, cleanly. A replacement recorded integration suite will run before landing, as required by the gate; the completed pass above remains valid evidence for #562's behavior.
