@@ -426,6 +426,26 @@ result), not a synchronized-owner copy. No unrelated source edit is included.
 The previously recorded complete suite passes the preceding code generation;
 a new pushed-head recorded suite follows this correction before M1's re-close.
 
+
+### 2026-10-15 — BR-4 complete verification and reporting
+
+The corrected pushed head `52c5f6aceb31d3f9fc0980d03c34dcd1b050643d`
+passed the required recorded suite: exit 0, **8m38s**, retained log
+`/Users/xianxu/workspace/pair/.git/sdlc/local-checks/52c5f6aceb31d3f9fc0980d03c34dcd1b050643d/suite.log`,
+SHA-256 prefix `e114fbb2b590`. `make build` passed, including rebuilding pair,
+couch and the launch helper. Profile/preflight race tests passed in **2.990s**.
+Core vet remains clean after its reproduced copylocks failure.
+
+Hub messaging subsequently recovered. The round-2 outcome/fix report
+`4ef4dee2-16c8-4492-be13-767b67bf2463` and M2 latest-provider clarification
+`32602d27-64b2-42a4-972f-c2e3e7c10cff` are both verified **submitted** to ops:0.
+The policy question now names measured Codex/Claude/Qoder native ordering versus
+unproved Grok/Muse/Agy indirect selection. Exact canonical IDs remain supported
+by all six inventory scanners. No M2 code or live/stage effects have occurred.
+
+Normal M1 re-close follows the binary's explicit next action for open BR-4;
+no bypass flags or manual ledger dispositions are used.
+
 ## Revisions
 
 ### 2026-10-15T05:33-07:00 — overnight M2 dispatch
