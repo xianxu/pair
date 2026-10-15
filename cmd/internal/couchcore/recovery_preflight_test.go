@@ -284,3 +284,105 @@ func TestRecoveryFreshProfileDoesNotReplayPendingJournal(t *testing.T) {
 		t.Fatalf("profile preview replayed pending journal: %v", err)
 	}
 }
+
+func TestPrepareRecoveryLaunchUsesVerifiedPrimaryForBrokenNumberedHost(t *testing.T) {
+	env, local := slotRecoveryOperationFixture(t)
+	record := slotRecordFixture(t, env, local)
+	env.Couch.Git = ExecGit{}
+	env.Couch.Path = OSPathOps{}
+	fixture := env.Couch.Slots.(*OSSlotCatalog).IO.(*ProvisionFixture)
+	admin := fixture.git(local.slot.WorktreeRoot, "rev-parse", "--absolute-git-dir")
+	pointerPath := filepath.Join(local.slot.WorktreeRoot, ".git")
+	pointer, err := os.ReadFile(pointerPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(admin); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := env.Couch.resolveRepoIdentity(context.Background(), record.WorkingPath); err == nil {
+		t.Fatal("fixture Git still resolves broken host")
+	}
+	repo, finish, err := env.Couch.prepareRecoveryLaunch(context.Background(), record, *record.LatestLaunchProfile)
+	if err != nil {
+		t.Fatalf("verified primary identity did not preflight broken host: %v", err)
+	}
+	if repo != local.slot.RepoIdentity || finish == nil {
+		t.Fatalf("repository %q want %q", repo, local.slot.RepoIdentity)
+	}
+	if err := finish(false); err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.ReadFile(pointerPath)
+	if err != nil || string(after) != string(pointer) {
+		t.Fatal("preflight rewrote broken host Git pointer")
+	}
+	if _, err := os.Stat(admin); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("preflight repaired Git administrative directory: %v", err)
+	}
+	if len(env.Proc.Signals) != 0 || len(env.Runner.Ops) != 0 || len(env.Artifacts.TriggeredQuits()) != 0 {
+		t.Fatal("preflight acted on live source")
+	}
+}
+
+func TestPrepareRecoveryLaunchRejectsUnprovedNumberedFallback(t *testing.T) {
+	env, local := slotRecoveryOperationFixture(t)
+	source := slotRecordFixture(t, env, local)
+	repository, err := env.Couch.Slots.Discover(context.Background(), local.slot.PrimaryRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, scenario := range []string{"no catalog", "no candidate", "foreign candidate", "foreign primary", "foreign scope", "foreign recorded common", "escaped working path", "escaped starting path", "unverified primary", "catalog failure"} {
+		t.Run(scenario, func(t *testing.T) {
+			couch := *env.Couch
+			couch.Threads = local
+			couch.Path = OSPathOps{}
+			couch.Git = NewFakeGit(nil)
+			record := cloneThreadRecord(source)
+			repo := repository
+			repo.Slots = append([]SlotCandidate(nil), repository.Slots...)
+			catalog := &SlotCatalogFake{Repositories: map[string]SlotRepository{}, Errors: map[string]error{}}
+			couch.Slots = catalog
+			switch scenario {
+			case "no catalog":
+				couch.Slots = nil
+			case "no candidate":
+				repo.Slots = nil
+			case "foreign candidate":
+				repo.Slots[0].Identity.RepoIdentity = "/foreign/.git"
+			case "foreign primary":
+				repo.Identity.RepoIdentity = "/foreign/.git"
+			case "foreign scope":
+				record.Address.RepoScope = "ffffffffffffffff"
+			case "foreign recorded common":
+				record.Incarnations = []ThreadIncarnation{{State: IncarnationUnknown, PID: 42, Identity: "foreign", RepoIdentity: "/foreign/.git"}}
+			case "escaped working path":
+				record.WorkingPath = t.TempDir()
+			case "escaped starting path":
+				record.StartingPath = t.TempDir()
+			case "unverified primary":
+				repo.Identity.Kind = "slot"
+			case "catalog failure":
+				catalog.Errors[local.slot.PrimaryRoot] = errors.New("primary observation unavailable")
+			}
+			catalog.Repositories[local.slot.PrimaryRoot] = repo
+			before, err := readRecoveryProfileFiles(local)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, finish, err := couch.prepareRecoveryLaunch(context.Background(), record, *source.LatestLaunchProfile); err == nil || finish != nil {
+				t.Fatalf("unproved repository fallback admitted: %v", err)
+			}
+			after, err := readRecoveryProfileFiles(local)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(before, after) {
+				t.Fatal("failed fallback changed source store")
+			}
+			if len(env.Proc.Signals) != 0 || len(env.Runner.Ops) != 0 {
+				t.Fatal("failed fallback acted on source")
+			}
+		})
+	}
+}
