@@ -55,7 +55,11 @@ func TestRecoveryLaunchProfileIsExplicitAndAttemptBound(t *testing.T) {
 }
 
 func recoveryAuthorityRecord(a RecoveryAuthority, cwd, agent string, pid int, identity string) threadrecord.Record {
-	return threadrecord.Record{SchemaVersion: threadrecord.SchemaVersion, Address: a.Address, StartingPath: cwd, WorkingPath: cwd, CreatedAt: a.Intent.Context.CreatedAt, Revision: a.RecordRevision + 2, Incarnations: []threadrecord.Incarnation{{State: "creating", PID: pid, Identity: identity, StartedAt: a.Intent.Context.CreatedAt, Start: &threadrecord.StartClaim{Nonce: a.Attempt, OwnerPID: 1, OwnerIdentity: "owner", RecoveryIntent: threadrecord.CloneRecoveryIntent(&a.Intent), LaunchProfile: &threadrecord.LaunchProfile{Agent: agent, Argv: []string{}}}}}}
+	at := a.Intent.Context.CreatedAt
+	if a.Intent.Kind() != threadrecord.RecoveryInferred {
+		at = a.Intent.CreatedAt
+	}
+	return threadrecord.Record{SchemaVersion: threadrecord.SchemaVersion, Address: a.Address, StartingPath: cwd, WorkingPath: cwd, CreatedAt: at, Revision: a.RecordRevision + 2, Incarnations: []threadrecord.Incarnation{{State: "creating", PID: pid, Identity: identity, StartedAt: at, Start: &threadrecord.StartClaim{Nonce: a.Attempt, OwnerPID: 1, OwnerIdentity: "owner", RecoveryIntent: threadrecord.CloneRecoveryIntent(&a.Intent), LaunchProfile: &threadrecord.LaunchProfile{Agent: agent, Argv: []string{}}}}}}
 }
 
 func TestRecoveryRecordRequiresExactDurableIntentAndHelper(t *testing.T) {
@@ -174,6 +178,72 @@ func TestRecoveryLaunchRequiresTerminalAttemptAndValidator(t *testing.T) {
 			}
 			if scenario == "missing validator" && !strings.Contains(stderr.String(), "runtime lacks recovery authority validation") {
 				t.Fatal(stderr.String())
+			}
+		})
+	}
+}
+
+func taggedAuthority(mode threadrecord.RecoveryMode) RecoveryAuthority {
+	a := testRecoveryAuthority()
+	a.Intent = threadrecord.RecoveryIntent{Mode: mode, Address: a.Address, SourceRevision: 3, CreatedAt: time.Unix(100, 0).UTC(), Agent: "codex", SelectedKey: "explicit"}
+	if mode == threadrecord.RecoveryProven {
+		a.Intent.NativeID = "native"
+	}
+	return a
+}
+
+func TestTaggedRecoveryProfileAndClaimWithoutCapture(t *testing.T) {
+	for _, mode := range []threadrecord.RecoveryMode{threadrecord.RecoveryProven, threadrecord.RecoveryFresh} {
+		t.Run(string(mode), func(t *testing.T) {
+			a := taggedAuthority(mode)
+			raw, err := BuildCouchRecoveryLaunchProfile("work", "codex", []string{}, a)
+			if err != nil {
+				t.Fatal(err)
+			}
+			args, _, err := ApplyCouchLaunchProfile(LaunchArgs{ForcedTag: "work"}, raw)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if args.Recovery.Intent.Kind() != mode {
+				t.Fatal("tagged intent lost")
+			}
+			record := recoveryAuthorityRecord(a, "/repo", "codex", 42, "helper")
+			if err := validateRecoveryRecord(a, record, RepoScope{Key: a.Address.RepoScope}, "work", "codex", "/repo", 42, "helper", a.Intent.CreatedAt.Add(time.Minute)); err != nil {
+				t.Fatalf("requires absent capture: %v", err)
+			}
+			if _, err := BuildCouchRecoveryLaunchProfile("work", "claude", []string{}, a); err == nil {
+				t.Fatal("profile accepted different agent")
+			}
+			record.Incarnations[0].Start.RecoveryIntent.SourceRevision++
+			if err := validateRecoveryRecord(a, record, RepoScope{Key: a.Address.RepoScope}, "work", "codex", "/repo", 42, "helper", a.Intent.CreatedAt.Add(time.Minute)); err == nil {
+				t.Fatal("accepted claim drift")
+			}
+		})
+	}
+}
+
+func TestTaggedRecoveryClaimRejectsChangedAuthority(t *testing.T) {
+	for name, change := range map[string]func(*RecoveryAuthority, *threadrecord.Record){
+		"future source": func(a *RecoveryAuthority, r *threadrecord.Record) {
+			a.Intent.SourceRevision = a.RecordRevision + 1
+			r.Incarnations[0].Start.RecoveryIntent = threadrecord.CloneRecoveryIntent(&a.Intent)
+		},
+		"premature start": func(a *RecoveryAuthority, r *threadrecord.Record) {
+			r.Incarnations[0].StartedAt = a.Intent.CreatedAt.Add(-time.Second)
+		},
+		"wrong agent": func(a *RecoveryAuthority, r *threadrecord.Record) {
+			a.Intent.Agent = "claude"
+			r.Incarnations[0].Start.RecoveryIntent = threadrecord.CloneRecoveryIntent(&a.Intent)
+		},
+		"changed nonce":  func(a *RecoveryAuthority, r *threadrecord.Record) { r.Incarnations[0].Start.Nonce = "changed" },
+		"changed helper": func(a *RecoveryAuthority, r *threadrecord.Record) { r.Incarnations[0].Identity = "changed" },
+	} {
+		t.Run(name, func(t *testing.T) {
+			a := taggedAuthority(threadrecord.RecoveryFresh)
+			record := recoveryAuthorityRecord(a, "/repo", "codex", 42, "helper")
+			change(&a, &record)
+			if validateRecoveryRecord(a, record, RepoScope{Key: a.Address.RepoScope}, "work", "codex", "/repo", 42, "helper", a.Intent.CreatedAt.Add(time.Minute)) == nil {
+				t.Fatal("accepted changed tagged authority")
 			}
 		})
 	}
