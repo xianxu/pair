@@ -1,12 +1,20 @@
 ---
 id: 000572
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-15
 updated: 2026-10-15
 estimate_hours:
-card_mirror: '513e86566c52758a50757958c33381db6e5eda0d' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'aabfeeed20ee12fe03a322a6a126d37bf118d2fc' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-15T10:52:12-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Build and test with -trimpath so worktrees share the Go build cache
@@ -35,8 +43,17 @@ minutes. The operator approved building with `-trimpath`.
 
 ## Plan
 
-- [ ]
+- [ ] Execute [trimpath plan](../plans/000572-trimpath-cache-plan.md): baseline, path-independent discovery, defaults, cache proof, full qualification and operator gate approval.
 
 ## Log
 
 ### 2026-10-15
+
+- 2026-10-15: claimed in pair:1. Read-only audit identified ten test files,
+  shared recording fixtures, and ten probes using runtime.Caller for assets.
+  Main has no .sdlc/local-checks.json; SDLC supplies implicit make test.
+  The plan makes that declaration explicit and preserves one Make-owned flag.
+- Baseline started with -trimpath added to the host's existing -p=3. A first
+  queued command that replaced GOFLAGS was cancelled before admission and
+  restarted preserving the concurrency cap. Shared cache was not cleared.
+- Local-gates label must be applied by the operator after reviewing the PR.
