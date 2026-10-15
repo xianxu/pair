@@ -1,6 +1,6 @@
 ---
 id: 000423
-status: codecomplete
+status: done
 created: 2026-10-09
 updated: 2026-10-15
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 93648d6f8c4daab194fb46dbd596e9cc3fbc94bf
         evidence_commit: 28281ef3828d6cc1b38a6239f7bca2fca04965fb
+        landed_commit: 9b1247822c5bf7cb0049b3caa4dd1e1e94191e64
 ---
 
 # test: TestColdResumeOfAParkedPrimaryRegistersFromBothOrigins/switcher flakes, Enter races row load
