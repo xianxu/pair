@@ -244,3 +244,11 @@ func TestNativeSelectorCodexRejectsMetadataIDDisagreement(t *testing.T) {
 		t.Fatalf("contradictory native ID admitted: %+v %v", r, err)
 	}
 }
+
+func TestIsCanonicalCodexSessionIDUsesFullNativeIdentity(t *testing.T) {
+	for id, want := range map[string]bool{"019d1111-1111-7111-8111-111111111111": true, "FFFFFFFF-FFFF-4FFF-8FFF-FFFFFFFFFFFF": true, "019d1111": false, "session-name": false, "--last": false, "": false, "019d1111-1111-7111-8111-111111111111 suffix": false} {
+		if got := si.IsCanonicalCodexSessionID(id); got != want {
+			t.Errorf("%q: got%v want%v", id, got, want)
+		}
+	}
+}

@@ -158,3 +158,7 @@ func ResolveNativeSelector(ctx context.Context, rt Runtime, q NativeSelectorRequ
 	}
 	return NativeSelectorResolution{Status: NativeSelectorResolved, NativeID: validation.State.NativeID}, nil
 }
+
+// IsCanonicalCodexSessionID recognizes the same complete UUID shape as native
+// Codex scanner authority. Existence and root eligibility remain separate checks.
+func IsCanonicalCodexSessionID(id string) bool { return uuidPattern.MatchString(id) }

@@ -2,6 +2,7 @@ package launcher
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -147,5 +148,51 @@ func TestNativeResumeSelectorAgyGoFlagForms(t *testing.T) {
 	s, err := ParseNativeResumeSelector("agy", []string{"--continue=false"})
 	if err != nil || s.Kind != NativeResumeNone {
 		t.Errorf("false continue=%+v %v", s, err)
+	}
+}
+
+func TestCodexIndirectResumeCompatibilityKeepsFullUUIDGuarded(t *testing.T) {
+	for _, tc := range []struct {
+		agent string
+		args  []string
+		want  bool
+	}{
+		{"codex", []string{"resume", "--last"}, true},
+		{"codex", []string{"resume"}, true},
+		{"codex", []string{"resume", "session-name"}, true},
+		{"codex", []string{"resume", "019d1111"}, true},
+		{"codex", []string{"resume", "search words"}, true},
+		{"codex", []string{"resume", "019d1111-1111-7111-8111-111111111111"}, false},
+		{"codex", []string{"resume", "FFFFFFFF-FFFF-4FFF-8FFF-FFFFFFFFFFFF"}, false},
+		{"codex", []string{"fork", "--last"}, false},
+		{"codex", []string{"hello"}, false},
+		{"codex", []string{"--session-id", "new"}, false},
+		{"claude", []string{"--continue"}, false},
+		{"qoder", []string{"--continue"}, false},
+		{"muse", []string{"resume", "--last"}, false},
+		{"grok", []string{"--resume", "session-name"}, false},
+		{"agy", []string{"--continue"}, false},
+	} {
+		s, err := ParseNativeResumeSelector(tc.agent, tc.args)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := CodexIndirectResumeCompatibility(s); got != tc.want {
+			t.Errorf("%s %v => compatibility=%v want=%v", tc.agent, tc.args, got, tc.want)
+		}
+		if !reflect.DeepEqual(s.Args, tc.args) {
+			t.Fatal("compatibility changed caller argv")
+		}
+	}
+	if strings.ContainsAny(CodexIndirectResumeCompatibilityNotice, "\r\n") || !strings.Contains(CodexIndirectResumeCompatibilityNotice, "not guarded") {
+		t.Fatalf("notice=%q", CodexIndirectResumeCompatibilityNotice)
+	}
+}
+
+func TestCodexCompatibilityLatestNeverBecomesExplicitIdentity(t *testing.T) {
+	for _, args := range [][]string{{"resume", "--last"}, {"resume", "--last", "prompt"}} {
+		if id := extractExplicitResume("codex", args); id != "" {
+			t.Fatalf("latest became explicit admission key %q for %v", id, args)
+		}
 	}
 }

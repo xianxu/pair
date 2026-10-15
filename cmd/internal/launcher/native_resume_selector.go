@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/xianxu/pair/cmd/internal/resumeform"
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
 type NativeResumeKind string
@@ -343,4 +344,25 @@ func PinNativeResumeSelector(s NativeResumeSelector, nativeID string) ([]string,
 		out = composeResumeArgs(s.Agent, out, nativeID)
 	}
 	return out, nil
+}
+
+// CodexIndirectResumeCompatibilityNotice discloses the operator-approved
+// temporary unreserved path without changing the requested native invocation.
+const CodexIndirectResumeCompatibilityNotice = "Codex resume selector passed through unchanged; concurrent native resume is not guarded for this invocation."
+
+// CodexIndirectResumeCompatibility is the single shared policy used before
+// Pair reservation and at the wrapper boundary. Full native UUIDs remain
+// guarded even when no inventory artifact exists for that ID.
+func CodexIndirectResumeCompatibility(s NativeResumeSelector) bool {
+	if s.Agent != "codex" {
+		return false
+	}
+	switch s.Kind {
+	case NativeResumeLatest, NativeResumePicker:
+		return true
+	case NativeResumeExplicit:
+		return !sessioninventory.IsCanonicalCodexSessionID(s.NativeID)
+	default:
+		return false
+	}
 }
