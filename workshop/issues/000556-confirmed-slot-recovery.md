@@ -705,6 +705,26 @@ current build rerun follows. Final required recorded suite and normal M2 review
 remain outstanding on the approved resulting code head. No live/stage/native
 conversation/configuration effects occurred.
 
+### 2026-10-15 — compatibility checkpoint and remaining capacity gate
+
+Committed common launcher compatibility/saved-picker corrections at
+`ee28678a1`, shared policy `acbaa18e6`, wrapper `85d909865`. Current-code build
+rerun **PASS** with task-private per-command GOCACHE/GOTMPDIR. Merged origin/main
+at `3232e8d3cf968dc8478acd416d0e721c2f47507e`: only #571's published details
+arrived; no code paths changed. Its later details publications are the dispatched
+owner's work, not this slot's edits. No branch stacking or stage operation.
+
+The selector-policy decision is now resolved and implemented. The remaining gate
+is the required recorded full suite on the resulting code head: the standard
+runner inherits the still-full shared scratch cache/temp. Targeted tests and build
+used only task-private per-process environment overrides, which are permitted for
+ordinary go/make commands; no machine defaults were edited. AGENTS §15's bare
+sdlc-call requirement means a prefixed recorded-run exception needs hub direction,
+or shared capacity must be restored. No full-suite pass is claimed for this delta,
+no boundary is waived, and normal M2 milestone-close/review plus whole-issue
+close/PR/CI/merge remain to do after verification. The implementation, docs and
+headless/live script are concrete and checkpointed for the hub's next action.
+
 ## Revisions
 
 ### 2026-10-15T05:33-07:00 — overnight M2 dispatch
