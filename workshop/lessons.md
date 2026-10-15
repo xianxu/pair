@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- Decode persisted authority into zero values and require its version/collection fields explicitly. Only file absence permits initialization: decoding `{}` over a prefilled default can erase unresolved ownership and admit a second writer. Test missing fields, top-level null and null collections separately from valid empty state. (#556 M2)
+
 - Normalize an advertised choice through its validated key before applying mode-specific admission. A shared candidate route may represent Fresh as well as resume; test explicit and keyed forms against every native-only guard and run the printed command/menu route. (#556 BR-5)
 
 - Never copy a synchronized owner to substitute one dependency for a preview. Pass the read-only store into its existing resolver; construct focused test fixtures from dependencies rather than copying live mutexes. Run copylocks vet after the sweep. (#556 BR-4)

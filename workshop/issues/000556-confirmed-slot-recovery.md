@@ -588,6 +588,26 @@ Main has no unintegrated commits after fetch. The corrected head needs its own
 recorded suite. Provider-policy direction remains pending; no M2 close or landing
 has been attempted, and no gate is waived.
 
+### 2026-10-15 — M2 strict persisted authority correction
+
+Inspection found that decoding over a prefilled version silently accepted corrupt
+`{}`, entries-only, version-only, top-level null and null entries as empty valid
+authority. All five fixtures reproduced RED by issuing a new grant after corrupting
+a store which had an existing writer. Corrected in
+`37c5bae2d339d4d407c06d7354feada9b12e8b26`: existing files decode onto zero values
+and require explicit version 1 plus a nonnull entries array. Only absent files
+initialize an empty array. GREEN cases assert no callback/grant/write and unchanged
+corrupt bytes; valid absent/empty/post-cancellation stores remain supported.
+Targeted race passed launcher **2.493s**, wrapper **2.179s**. Complete packages on
+this correction passed launcher **32.211s**, wrapper **48.444s**, inventory **9.083s**.
+The prevention rule is recorded in lessons (ARCH-SECURE, ARCH-STATE).
+
+The recorded suite still running on `8b3274af5fe3b4cab7fa6b41cd4021faea145611`
+contains the cancellation and split-terminal corrections, but predates this
+strict-decoding correction. Its result cannot satisfy final code-head verification.
+The pending latest-selector scope decision may change code again, so final required
+suite/review/landing remain after that decision; no ancestor pass will be relabelled.
+
 ## Revisions
 
 ### 2026-10-15T05:33-07:00 — overnight M2 dispatch

@@ -47,13 +47,9 @@ func buildConfigJSON(agent string, args []string, sid string) (string, error) {
 	return buf.String(), nil
 }
 
-// extractExplicitResume returns the session id an explicit resume token on argv
-// pins, or "" if none. The per-agent spellings live in one table
-// (resumeform.Forms) shared with the strip sites and the fresh-arg validator
-// (BR-15); codex and muse resume via a leading `resume <id>` subcommand
-// instead. Drives both the tag-restart picker gate (a passed-in resume leaves
-// the picker nothing to offer) and the pre-write of config-<tag>-<agent>.json
-// so the id is captured from the start.
+// extractExplicitResume returns only an explicit existing-conversation ID.
+// The shared selector parser distinguishes latest, picker, forks and newly
+// chosen IDs; in particular --last is never captured as a native ID.
 func extractExplicitResume(agent string, args []string) string {
 	selector, err := ParseNativeResumeSelector(agent, args)
 	if err == nil && selector.Kind == NativeResumeExplicit {
