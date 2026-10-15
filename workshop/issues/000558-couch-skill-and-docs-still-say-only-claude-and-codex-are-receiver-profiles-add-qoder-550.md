@@ -1,12 +1,12 @@
 ---
 id: 000558
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-14
 updated: 2026-10-15
 estimate_hours:
-card_mirror: '132954123dc21db83f43eed839243e1c7f4ef548' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'd30c54894a4189bbccf7b5f9f2ce5ce2b863af8c' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-14T15:23:08-07:00
 
 claimant:
@@ -17,6 +17,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "3350e503", done: "24782bbe"}
+actual_hours: N/A
 ---
 
 # couch skill and docs still say only Claude and Codex are receiver profiles; add Qoder (#550)
