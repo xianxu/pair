@@ -2,7 +2,7 @@
 
 > **For agentic workers:** Consult AGENTS.md Section 3 (Subagent Strategy). Use bounded agents for the independent consumer tests; the SDLC gate owns fresh review. Steps use checkboxes for one atomic close, with no Mx boundaries.
 
-**Status:** Proposed to the TL before implementation; the attach scope decision below must be settled first.
+**Status:** TL approved227c8394 with the ratchet addition recorded below; enter implementation only after change-code.
 
 **Goal:** Catch repeat parsing and repeated process enumeration at the interactions that caused operator-visible stalls, using deterministic normal-suite counts.
 
@@ -10,13 +10,13 @@
 
 **Tech Stack:** Go tests, existing Console and message-service fixtures, temporary Pair artifacts and stateful native-process/CLI doubles.
 
-## Scope decision for the TL
+## Approved scope
 
-Recommended delivery is the three Couch invariants in the 2026-10-14 Revision. Original #201/#202/#203 and nonblocking tier-2 timing capture are earlier, broader goals; they are not silently claimed complete by these tests. Before close, make the issue's current Done-when/Plan explicit under a Revision and carry the separate earlier goals in a released follow-up if the TL wants to preserve that backlog.
+TL receipt dcb3f338-41ac-45ae-a098-39ff395ae578 approves the three Couch invariants and closing #204 on them. Earlier #201/#202/#203/tier2 backlog is preserved in unassigned #566. Unassigned #567 owns lowering the other attach counts.
 
-“One process-table scan per attach” must count all full enumerations, not only an initial owner capture. Main #528 now makes selected Couch attach feasible: parent listed attachment uses zero full tables; the Pair helper's ancestry check uses one. Targeted PID identity/liveness reads remain fresh and are not full-table scans. Proposed boundary: public selected Couch attach entry through the helper's blocking attach handoff, excluding the subsequent client lifetime, shutdown and independently scheduled UI inventory.
+Selected Couch attach counts all full enumerations: parent0 plus helper1, through blocking handoff, excluding later client lifetime/cleanup and independent UI inventory. Targeted PID generation/liveness reads remain fresh and do not enumerate a table.
 
-Standalone Pair attach currently has two full scans (ancestry plus orphan-editor sweep); continuation fallthrough can have three. #218's owner pass shares one initial capture but does two additional full-table SessionServers fences per caller (1+2N), so that existing test is not proof of a strict total <=1. If the requested invariant includes standalone/continuation or the owner-probe workflow, this is a runtime redesign as well as a counted suite; return to the TL before implementing that expansion. Recommend protecting the selected Couch path in this delivery, with the limitation explicit.
+Add normal-suite ratchets for every enumerated sibling path: standalone<=2, continuation<=3, owner pass<=1+2N for N Probe+Revalidate callers. #218's initial capture count is not a total count: every native SessionServers fence is another full SnapshotNamed enumeration. Tests count these at the actual source seam; no safety fence is skipped and no budget is silently widened.
 
 ## Approaches
 
@@ -77,7 +77,8 @@ Files: launcher/osruntime.go, procutil/command.go as necessary; new launcher/wor
 - [ ] Run real RunLaunch selected attach with production ancestry/skip-sweep logic and a stateful controlled process/listing/handoff fixture. Assert one actual ancestry enumeration at handoff, exact supplied terminal attached and zero creates.
 - [ ] Exercise public parent ResumeContextWith(WarmOnly) and StartInteractive listed attach. Count/refuse any native owner capture/server-source enumeration, retaining positive listing and PID-generation repair checks. Parent count must be zero, so combined parent/helper bound is <=1.
 - [ ] Include known-live, known-dead and unknown retained helpers where the existing public fixture models them; unknown cannot become absence to save work.
-- [ ] Add an extra source enumeration in a temporary counterfactual and prove the budget fails. Do not weaken effect-time generation fencing or broaden this into standalone launch changes without the TL decision.
+- [ ] Add standalone attach<=2 and continuation fallthrough<=3 ratchets through the same source seam, asserting successful attachment and no creates. Extend the real owner-pass capture/fence fixture to count all tables for N callers, bounded by1+2N. Do not substitute high-level capture counts for actual full enumerations.
+- [ ] Add an extra enumeration in temporary counterfactuals and prove strict/ratchet budgets fail. Preserve effect-time fencing; lowering budgets is the separate redesign follow-up.
 
 ### 4. Publish the release net
 
@@ -100,3 +101,7 @@ ARCH-DRY: extract #559 fixtures/counters and production adapters instead of copy
 - sdlc pr; sdlc local-check run --name suite; sdlc close with exact evidence; merge main; sdlc merge --yes.
 
 There is one atomic review boundary for this suite addition. An incidental runtime defect uncovered by a strict budget is surfaced to the TL before changing scope; never relax counts or hide additional scans under a different label.
+
+## Revisions
+
+2026-10-15 — TL approved227c8394 via dcb3f338-41ac-45ae-a098-39ff395ae578. Replaced pending scope alternatives with the approved selected-Couch strict boundary and the additional standalone2/continuation3/owner1+2N ratchets. Earlier interaction/tier2 goals move to #566; scan reduction is filed separately. No timing gate or safety-fence change is authorized.

@@ -87,60 +87,33 @@ cost changes** — that is the rule this row is here to make hard to skip.
 
 ## Spec
 
-**A performance suite whose tier-1 assertions are counts, not times.**
+Build the three counted Couch release invariants from the 10-14 Revision through their actual consumers, reusing #559's read/decoder counters and #218's process-reader accounting. Counts run in the normal suite; no timing assertions or operator environment access.
 
-- **Tier 1 — counted invariants (blocking).** Deterministic, fast, host- and
-  load-independent, runnable in CI. Assert operation counts at seams: subprocess
-  spawns per interaction, file reads per keystroke, threads requested per
-  session. These are the promises, and the three above are the opening cases.
-- **Tier 2 — timings (non-blocking).** A regression net. Every reading records
-  the conditions that qualify it — for this workbench, **the number of
-  concurrently working agents**, which moved latency 8× on 2026-09-06 with the
-  session population unchanged. A timing without its agent count is not
-  recorded, because it cannot be compared to anything.
+- Idle UI activity: every unchanged completed pass over20 owners with valid30MB ledgers reads and decodes zero historical ledger/catalog/transcript body bytes.
+- Peer messaging: every confirmed unchanged request reads and decodes zero session-index/historical evidence body bytes at that20-owner scale. Fresh PID/readiness/process-generation evidence remains required and separately asserted.
+- Selected Couch attach: at most one full process-table enumeration through handoff (parent0 + helper1), successful exact attachment and zero creates. Independently scheduled inventory and subsequent client lifetime/cleanup are outside that request boundary.
+- Other-path ratchets: standalone attach<=2, continuation fallthrough<=3, owner pass<=1+2N full enumerations for N Probe+Revalidate callers. Named snapshots still count as full enumeration; targeted PID reads do not. Keep all safety fences; lowering these budgets belongs to the follow-up.
 
-Tier 2 never fails a build. It reports drift; a human decides whether the drift
-is real. This is the `under-specify` discipline applied to measurement: spend
-the operator's attention on three promises that cannot flake rather than on
-thirty thresholds that will.
-
-### To settle in the plan
-
-1. **Where the counting seam goes.** Counting subprocess spawns and file reads
-   needs an injection point. `ARCH-PURE`'s existing seams are the candidates —
-   `RunZellijAction` is already an interface method (`termcmd`), and the nvim
-   side would need something equivalent. Prefer counting at a seam the
-   production path already goes through over instrumenting the OS.
-2. **Whether the nvim side can be counted in-process.** `#202`'s invariant is a
-   Lua-level file read; `nvim/annotate_test.lua` is the precedent for testing
-   Lua directly without a buffer.
-3. **What tier 2 runs against, and how often.** A fake workload with a known
-   agent count is reproducible where the operator's real fleet is not.
-
-Out of scope: fixing `#201`/`#202`/`#203` — this issue builds the net that would
-have caught them, and each fix lands against its own issue. Ideally the
-invariants land **first**, red, and each fix turns one green.
+Cold and changed-owner controls must prove counters are connected; each warm operation must independently be zero; temporary counterfactuals must demonstrate each consumer/budget regression can fail. Share fixture/counter support and production adapters instead of copying their behavior. Document reproducible commands and extension/acceptance guidance. Earlier #201/#202/#203 and nonblocking tier2 goals move to #566; attachment scan reduction is a separate approved follow-up.
 
 ## Done when
 
-- The three invariants above exist as tier-1 tests, and each **fails against
-  today's tree** before its fix lands — a green test on unfixed code is not a
-  test of anything.
-- Tier-1 tests pass on a busy host and a quiet one with identical results;
-  demonstrated, not assumed.
-- Tier 2 records agent count alongside every timing, and cannot fail a build.
-- Adding a fourth invariant is documented in a way that does not require reading
-  this issue.
-- `workshop/targets/workbench-latency.md` is the referenced commitment
-  (`target:` frontmatter set), and the suite's structure follows it.
+- Three named consumer-level counted invariants run in the normal suite: unchanged idle UI pass and peer-message requests at20 owners x30MB have zero historical evidence read and decoder-input bytes, and selected Couch attach uses<=1 full scan (parent0/helper1).
+- Standalone<=2, continuation<=3 and owner-pass<=1+2N count ratchets run normally and preserve successful behavior and authority fencing.
+- Cold/mutated controls observe positive work; unchanged recovery is zero; independent counterfactuals fail the named invariant without weakening security checks.
+- The normal full suite and applicable targeted race tests pass; no timing threshold or host-load manipulation is required.
+- The extension guide/runbook names count boundaries and reproducible commands, links the workbench-latency target, and keeps live CPU acceptance separate from CI.
+- Earlier goals are preserved in unassigned #566 and #567; no deferred goal is claimed delivered here.
 
 ## Plan
 
-- [ ] Settle the three plan questions above — especially the counting seam.
-- [ ] Land `#201`'s invariant red; likewise `#202`'s and `#203`'s.
-- [ ] Verify identical tier-1 results on a loaded vs quiet host.
-- [ ] Add tier-2 timing capture with mandatory agent-count recording.
-- [ ] Document how to add an invariant.
+- [ ] Extract/reuse #559 fixture and independent read/decode counters, preserving cache invalidation/security controls.
+- [ ] Add actual Console activity and socket-message consumer regressions with cold/mutation/warm/counterfactual controls.
+- [ ] Add selected Couch attach strict budget and standalone/continuation/owner-pass ratchets at the process-reader boundary.
+- [ ] Document release commands, count boundaries, extension pattern and separate live CPU acceptance; preserve released follow-up backlog.
+- [ ] Run targeted/race and recorded full suite, close through review, merge main and land on SHIP.
+
+Durable plan: workshop/plans/000204-workbench-performance-suite-counted-invariants-first-plan.md.
 
 ## Log
 
@@ -170,3 +143,71 @@ TL receipt2e776e5f-723a-4479-8930-8339f014cd38 dispatches the 10-14 Revision's i
 Read-only inspection finds #559 already has the 20-owner scale tests below the consumers: threadactivity.SessionActivity and a hand-built messageAuthority.current adapter. The missing release protection is actual Console scheduling/message-service wiring and an attach count at the real process-reader boundary. Proposed plan: workshop/plans/000204-workbench-performance-suite-counted-invariants-first-plan.md. It reuses rather than duplicates the counters and makes every zero assertion prove cold/mutation work and successful behavior.
 
 Two scope points require TL plan approval: (1) close this delivery on the three dispatched Couch invariants, with earlier #201/#202/#203/tier2 goals explicitly retained outside its completion claim; (2) strict total process scans<=1 applies to selected Couch attachment (parent0 + helper1). Standalone attach currently scans2, continuation can scan3; #218's owner pass is one initial capture plus2N full-table live fences, not a strict total1. The plan recommends the current selected Couch path, and requests a scope decision before any standalone/fence redesign. Original Done-when/Plan above are not marked fulfilled; update them with their original text preserved in this Revision after the TL settles this delivery.
+
+### 2026-10-15 — TL-approved delivery and ratchets
+
+Receipt dcb3f338-41ac-45ae-a098-39ff395ae578 approves plan227c8394, closes this issue on the three Couch invariants, and adds the exact other-path count ratchets (standalone2, continuation3, owner1+2N) without lowering them here. Earlier interaction/tier2 backlog filed unassigned as #566; scan-redesign follow-up filed unassigned as #567 with current counts. Replaced the active Spec/Done-when/Plan so completion is evaluated against this approved delivery; the superseded sections are preserved below. No runtime implementation has started.
+
+<details>
+<summary>Superseded original contract (preserved)</summary>
+
+> ## Spec
+> 
+> **A performance suite whose tier-1 assertions are counts, not times.**
+> 
+> - **Tier 1 — counted invariants (blocking).** Deterministic, fast, host- and
+>   load-independent, runnable in CI. Assert operation counts at seams: subprocess
+>   spawns per interaction, file reads per keystroke, threads requested per
+>   session. These are the promises, and the three above are the opening cases.
+> - **Tier 2 — timings (non-blocking).** A regression net. Every reading records
+>   the conditions that qualify it — for this workbench, **the number of
+>   concurrently working agents**, which moved latency 8× on 2026-09-06 with the
+>   session population unchanged. A timing without its agent count is not
+>   recorded, because it cannot be compared to anything.
+> 
+> Tier 2 never fails a build. It reports drift; a human decides whether the drift
+> is real. This is the `under-specify` discipline applied to measurement: spend
+> the operator's attention on three promises that cannot flake rather than on
+> thirty thresholds that will.
+> 
+> ### To settle in the plan
+> 
+> 1. **Where the counting seam goes.** Counting subprocess spawns and file reads
+>    needs an injection point. `ARCH-PURE`'s existing seams are the candidates —
+>    `RunZellijAction` is already an interface method (`termcmd`), and the nvim
+>    side would need something equivalent. Prefer counting at a seam the
+>    production path already goes through over instrumenting the OS.
+> 2. **Whether the nvim side can be counted in-process.** `#202`'s invariant is a
+>    Lua-level file read; `nvim/annotate_test.lua` is the precedent for testing
+>    Lua directly without a buffer.
+> 3. **What tier 2 runs against, and how often.** A fake workload with a known
+>    agent count is reproducible where the operator's real fleet is not.
+> 
+> Out of scope: fixing `#201`/`#202`/`#203` — this issue builds the net that would
+> have caught them, and each fix lands against its own issue. Ideally the
+> invariants land **first**, red, and each fix turns one green.
+> 
+> 
+> ## Done when
+> 
+> - The three invariants above exist as tier-1 tests, and each **fails against
+>   today's tree** before its fix lands — a green test on unfixed code is not a
+>   test of anything.
+> - Tier-1 tests pass on a busy host and a quiet one with identical results;
+>   demonstrated, not assumed.
+> - Tier 2 records agent count alongside every timing, and cannot fail a build.
+> - Adding a fourth invariant is documented in a way that does not require reading
+>   this issue.
+> - `workshop/targets/workbench-latency.md` is the referenced commitment
+>   (`target:` frontmatter set), and the suite's structure follows it.
+> 
+> 
+> ## Plan
+> 
+> - [ ] Settle the three plan questions above — especially the counting seam.
+> - [ ] Land `#201`'s invariant red; likewise `#202`'s and `#203`'s.
+> - [ ] Verify identical tier-1 results on a loaded vs quiet host.
+> - [ ] Add tier-2 timing capture with mandatory agent-count recording.
+> - [ ] Document how to add an invariant.
+
+</details>
