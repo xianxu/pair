@@ -40,6 +40,40 @@ rounds:
           family: function-level-test-strategy
           round: 1
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: c948ed4f-52de-448d-ad79-bb12efccb7dc
+            repository: github.com/xianxu/pair
+            issue_id: "000579"
+            recipe: plan-quality
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot3/pair
+            reviewed_head: 33438c1fdb0586a26c364e70caebf16046f07dfd
+            slot: pair:3
+            requested_at: "2026-10-15T22:28:59.724395Z"
+          phase: finished
+          pid: 39264
+          started_at: "2026-10-15T22:29:00.006053Z"
+          finished_at: "2026-10-15T22:29:25.021609Z"
+          session_id: 01a141ae-da56-79e0-a4e2-5ab971fc5793
+          outcome: returned
+      "n": 2
+      timestamp: "2026-10-15T15:29:33-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Persisted schema-v2 limits govern every managed producer, with tightening-only updates, older-binary refusal and multi-writer diagnosticcmd integration coverage.
+          round: 2
+        - id: PQ-2
+          disposition: addressed
+          note: The governing named-function strategy table supersedes historical case inventories and specifies fuzzing, controlled sequences, fault injection and mechanical invariants.
+          round: 2
+      blocked: false
+content_hash: 27e77864b58a30ae7526c81ecee36c0d5c3bed2904caa2cda7bebdf6feb314e1
 ---
 
 # Gate ledger — pair#579 (plan-quality)
@@ -56,7 +90,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **PQ-2** [Important] `function-level-test-strategy` Replace test-case inventories with named-function strategies
   The governing M1/M2 steps enumerate recovery and batching cases but name types/files rather than the new validation, transition and selection functions to be unit-tested. Compress these inventories into named-function strategy lines describing adversarial input or event classes and mechanical guards, using malformed-input fuzzing and controlled sequence/fault testing where applicable.
 
+## Round 2 — 2026-10-15T15:29:33-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Persisted schema-v2 limits govern every managed producer, with tightening-only updates, older-binary refusal and multi-writer diagnosticcmd integration coverage.
+- PQ-2 — addressed — The governing named-function strategy table supersedes historical case inventories and specifies fuzzing, controlled sequences, fault injection and mechanical invariants.
+
 ## Open findings
 
-- **PQ-1** [Important] `shared-policy-enforcement` Enforce diagnostic bounds across every writer to a shared path
-- **PQ-2** [Important] `function-level-test-strategy` Replace test-case inventories with named-function strategies
+(none — every finding has been disposed)

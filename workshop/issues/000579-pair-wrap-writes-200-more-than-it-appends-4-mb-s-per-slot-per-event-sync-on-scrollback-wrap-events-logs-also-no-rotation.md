@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-15
 updated: 2026-10-15
-estimate_hours:
-card_mirror: 'b2a40e6a859cfbcf52526bdeb5f354a7954790a4' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 2.622
+card_mirror: '73739e1a687bd7cb0ba861036e92c0672decd7d8' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-15T15:07:36-07:00
 claimant:
     operator: Xian Xu
@@ -108,3 +108,26 @@ Verified hub receipt8f573644-79af-4c74-99b6-58677b6b5137 explicitly says Go on d
 ### 2026-10-15T22:28:30Z — plan-quality refinements PQ-1/PQ-2
 
 The first plan-quality review correctly found shared adaptation writers could bypass a wrapper-only option. Governing plan now persists schema-v2 DiagnosticLimits and makes every managed writer enforce them; older strict decoders refuse rather than bypass. Limits can tighten but not widen on another handle. Named-function strategy table replaces the earlier prose test inventories as the current contract. No production code changed before the gate.
+
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md, Method A only; source marked stale by sdlc estimate-source, so calibration is provisional. Derived after the two plan-quality findings cleared. Standard Go crypto/sha256, encoding/json, io, timers and the existing coordinated filesystem layer cover the library portion: each greenfield concern uses upper v2 design2h halved for existing libraries and multiplied0.2 for the approved detailed plan (=0.2h), with upper0.8h implementation scaled0.4 (=0.32h). These are two distinct concerns: compact reservation/recovery and bounded asynchronous batching. Smaller existing-policy/registry/proof and integration modules use upper/mid scaled ranges; the record below includes two actual review boundaries and live measurement, not only coding. Familiarity1.0 for this existing Go codebase, thorough-plan design buffer15%.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: greenfield-go-module design=0.20 impl=0.32
+item: greenfield-go-module design=0.20 impl=0.32
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.02 impl=0.12
+item: cross-cutting-refactor design=0.10 impl=0.20
+item: atlas-docs design=0.02 impl=0.08
+item: milestone-review design=0.02 impl=0.20
+item: milestone-review design=0.02 impl=0.20
+item: smaller-go-module design=0.04 impl=0.20
+design-buffer: 0.15
+total: 2.622
+```
+
+Design subtotal0.68h; implementation1.84h;0.68*1.15+1.84=2.622h. The final smaller-module row is the repeatable live counter harness and post-landing comparison, not an external API integration. No novel external service/library discovery assumed.
