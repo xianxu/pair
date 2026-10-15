@@ -170,3 +170,7 @@ Final plan retains separate TUI and exec latest algorithms, NAME.config.toml pro
 ### 2026-10-15 — TL plan approval; implementation held
 
 TL approved the source-derived plan in receipt34e0ac39-2479-4ee2-aa83-463034e5d3d1 (reviewed publication f3cd4848), including pure configuration precedence, inventory-owned native/state homes, separate TUI/exec collectors, reuse of #556 admission, native compatibility for ties/pickers/names/remote/incomplete evidence, and no invented ordering. The final credential prohibition and cloud-unknown compatibility boundary are published in7399d165 and agree with that approval. Do not build, refresh or run tests until the hub releases the scratch-space restriction AND #556 has landed on main. Approval alone does not release either prerequisite.
+
+### 2026-10-15 — scratch space released; dependency still pending
+
+TL receipt6e084767-8928-44a8-8bdf-2b63b4fe1d00 releases the scratch-space restriction after operator-approved cache cleanup. No #571 recorded suite exists to retry: this item remains planning-only. Fresh fetch and sdlc issue show556 --json confirm #556 is still working on pair:2, landing outcome not-landed. The other approved prerequisite therefore remains: wait for #556 on main before building/integration. No suite or refresh started merely to refill the cache.
