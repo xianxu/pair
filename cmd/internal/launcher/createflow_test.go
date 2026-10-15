@@ -262,7 +262,7 @@ func (f *fakeRuntime) ProbeSessionName(session string) error {
 		return f.probeErr
 	}
 	if f.maxSessionNameBytes > 0 && len(session) > f.maxSessionNameBytes {
-		return fmt.Errorf("session name too long")
+		return errSessionNameTooLong
 	}
 	return nil
 }

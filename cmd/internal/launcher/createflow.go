@@ -539,12 +539,15 @@ func assignLaunchSessionNames(rt Runtime, live []Session, repoRoot, globalDataDi
 	// budget measurement any more -- what is shared is the pair of bounds the
 	// probes have narrowed, and since it keys on length alone, tag B is answered
 	// from tag A's observations for free.
-	accepts, _ := sessionNameAcceptor(rt)
+	accepts, _, queryError := sessionNameAcceptor(rt)
 	for _, tag := range tags {
 		if tag == "" {
 			continue
 		}
 		name, updated, err := AssignSessionName(index, live, scope, tag, accepts)
+		if observedErr := queryError(); observedErr != nil {
+			err = observedErr
+		}
 		if err != nil {
 			fmt.Fprintf(stderr, "pair: %v\n", err)
 			return nil, nil, nil, false
@@ -607,8 +610,12 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	// validator and translate the rejection before writing sidecars or spawning
 	// helpers.
 	if err := rt.ProbeSessionName(session); err != nil {
-		fmt.Fprintf(stderr, "pair: tag '%s' makes zellij's session name too long for this\n", chosenTag)
-		fmt.Fprintf(stderr, "      machine's socket path (%s). Pick a shorter tag.\n", session)
+		if errors.Is(err, errSessionNameTooLong) {
+			fmt.Fprintf(stderr, "pair: tag '%s' makes zellij's session name too long for this\n", chosenTag)
+			fmt.Fprintf(stderr, "      machine's socket path (%s). Pick a shorter tag.\n", session)
+		} else {
+			fmt.Fprintf(stderr, "pair: could not validate session name: %v; run the launch again to ask anew.\n", err)
+		}
 		return launchStep{code: 1}, nil
 	}
 	scope, err := ResolveRepoScope(envScopeRoot(env))
@@ -1060,7 +1067,11 @@ func assignSingleSessionName(rt Runtime, live []Session, cwd, tag string, stderr
 		fmt.Fprintf(stderr, "pair: read session-name index: %v\n", err)
 		return "", SessionNameEntry{}, false
 	}
-	name, updated, err := AssignSessionName(index, live, scope, tag, singleUseAcceptor(rt))
+	accepts, _, queryError := sessionNameAcceptor(rt)
+	name, updated, err := AssignSessionName(index, live, scope, tag, accepts)
+	if observedErr := queryError(); observedErr != nil {
+		err = observedErr
+	}
 	if err != nil {
 		fmt.Fprintf(stderr, "pair: %v\n", err)
 		return "", SessionNameEntry{}, false
@@ -1094,8 +1105,12 @@ func promptForTag(rt Runtime, prefill string, compose func(string) string, base 
 	//
 	// The probe is still the oracle: we reach for a NUMBER only once it has
 	// already said no, and only so the refusal can quote something concrete.
-	accepts, refusedAt := sessionNameAcceptor(rt)
+	accepts, refusedAt, queryError := sessionNameAcceptor(rt)
 	if candidate := compose(tag); !accepts(candidate) {
+		if err := queryError(); err != nil {
+			fmt.Fprintf(stderr, "pair: %v; run the launch again to ask anew.\n", err)
+			return "", 1, false
+		}
 		// Quote the observation that made the decision. The old form asked a
 		// separate budget oracle whose fallback could CONTRADICT the probe --
 		// the candidate fits the guessed 24, sessionNameFits returns ok with an
@@ -1109,6 +1124,10 @@ func promptForTag(rt Runtime, prefill string, compose func(string) string, base 
 		} else if refusal, ok := refusedAt(); ok {
 			message = fmt.Sprintf("name '%s' needs %d bytes; zellij refuses names of %d bytes "+
 				"or more on this machine", candidate, len(candidate), refusal)
+		}
+		if err := queryError(); err != nil {
+			fmt.Fprintf(stderr, "pair: %v; run the launch again to ask anew.\n", err)
+			return "", 1, false
 		}
 		fmt.Fprintf(stderr, "pair: %s\n      pick a shorter name.\n", message)
 		return "", 1, false
@@ -1376,14 +1395,6 @@ func measureAcceptedLimit(accepts func(string) bool) (int, bool) {
 	return lo, true
 }
 
-// singleUseAcceptor is sessionNameAcceptor where the caller needs only the
-// predicate. Named rather than inlined so the discarded second value is a
-// deliberate choice at one site instead of an `_` repeated at several.
-func singleUseAcceptor(rt Runtime) func(string) bool {
-	accepts, _ := sessionNameAcceptor(rt)
-	return accepts
-}
-
 // sessionNameAcceptor answers "will zellij take this name" for a whole
 // assignment, in a number of probes bounded by the candidates' distinct LENGTHS
 // rather than by how many threads the repo has ever had.
@@ -1421,11 +1432,17 @@ func singleUseAcceptor(rt Runtime) func(string) bool {
 // "probe, then guess a budget" that can contradict it (ARCH-DRY, and the third
 // finding in the family that produced BR-1 and BR-11: an unmeasured number may
 // EXPLAIN a refusal but must never stand in for the observation).
-func sessionNameAcceptor(rt Runtime) (accepts func(string) bool, refusedAt func() (int, bool)) {
-	probe := func(n string) bool { return rt.ProbeSessionName(n) == nil }
+// queryError retains unanswered observations for the assignment, without
+// learning a length bound or issuing further probes. A new assignment starts fresh.
+func sessionNameAcceptor(rt Runtime) (accepts func(string) bool, refusedAt func() (int, bool), queryError func() error) {
+	var unanswered error
+	queryError = func() error { return unanswered }
 	longestOK, shortestBad := 0, 0
 	refusedAt = func() (int, bool) { return shortestBad, shortestBad > 0 }
 	accepts = func(name string) bool {
+		if unanswered != nil {
+			return false
+		}
 		n := len(name)
 		if longestOK > 0 && n <= longestOK {
 			return true
@@ -1433,16 +1450,21 @@ func sessionNameAcceptor(rt Runtime) (accepts func(string) bool, refusedAt func(
 		if shortestBad > 0 && n >= shortestBad {
 			return false
 		}
-		if probe(name) {
+		err := rt.ProbeSessionName(name)
+		if err == nil {
 			longestOK = n
 			return true
+		}
+		if !errors.Is(err, errSessionNameTooLong) {
+			unanswered = err
+			return false
 		}
 		if shortestBad == 0 || n < shortestBad {
 			shortestBad = n
 		}
 		return false
 	}
-	return accepts, refusedAt
+	return accepts, refusedAt, queryError
 }
 
 // sessionNameProbeMarker prefixes every calibration probe so the names cannot

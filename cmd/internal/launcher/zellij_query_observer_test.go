@@ -36,9 +36,13 @@ esac
 	var events []ZellijQueryObservation
 	ctx := WithZellijQueryObserver(t.Context(), func(e ZellijQueryObservation) { events = append(events, e) })
 	source := ZellijSource{Path: path}
-	for i, want := range []SessionState{SessionDetached, SessionDetached, SessionAttached, ""} {
+	for i, want := range []SessionState{"", SessionDetached, SessionAttached, ""} {
 		rows, err := source.SnapshotSessionsContext(ctx, []string{"pair-observed"})
-		if i == 3 {
+		if i == 0 {
+			if !errors.Is(err, ErrZellijNoReply) || rows != nil {
+				t.Fatalf("empty reply became usable rows: %+v %v", rows, err)
+			}
+		} else if i == 3 {
 			if err == nil || rows != nil {
 				t.Fatalf("failure became usable rows: %+v %v", rows, err)
 			}
@@ -57,6 +61,10 @@ esac
 		if i == 3 {
 			if e.ExitCode != 7 || string(e.Stderr) != "query failed\n" || e.Err == nil {
 				t.Fatalf("failure evidence=%+v", e)
+			}
+		} else if i == 0 {
+			if e.ExitCode != 0 || !errors.Is(e.Err, ErrZellijNoReply) {
+				t.Fatalf("unanswered observation lost exit0: %+v", e)
 			}
 		} else if e.ExitCode != 0 || e.Err != nil {
 			t.Fatalf("success evidence=%+v", e)

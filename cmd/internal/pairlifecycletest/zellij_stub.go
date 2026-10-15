@@ -54,11 +54,18 @@ func StubZellij(t testing.TB, sessions map[string]string) (path, log string) {
 		}
 	}
 
+	listingReply := func(body string) string {
+		if body == "" {
+			return "printf 'No active zellij sessions found.\\n' >&2; exit 1"
+		}
+		return "printf %s " + shellQuote(body)
+	}
+
 	script := "#!/usr/bin/env bash\n" +
 		"printf '%s\\n' \"$*\" >> " + shellQuote(log) + "\n" +
 		"case \"$*\" in\n" +
-		"  'list-sessions --short') printf %s " + shellQuote(short.String()) + " ;;\n" +
-		"  'list-sessions --no-formatting') printf %s " + shellQuote(full.String()) + " ;;\n" +
+		"  'list-sessions --short') " + listingReply(short.String()) + " ;;\n" +
+		"  'list-sessions --no-formatting') " + listingReply(full.String()) + " ;;\n" +
 		clients.String() +
 		"  *) exit 1 ;;\n" +
 		"esac\n"

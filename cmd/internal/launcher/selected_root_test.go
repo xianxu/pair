@@ -83,11 +83,16 @@ func TestSelectedRootNativeCreateListAndListedResume(t *testing.T) {
 case "$1" in
   list-sessions)
     if [ "$PAIR_ROOT_TEST_LIST_FAIL" = 1 ]; then exit 1; fi
-    if [ -f "$PAIR_ROOT_TEST_STATE" ]; then cat "$PAIR_ROOT_TEST_STATE"; fi
-    exit 0 ;;
+    if [ -f "$PAIR_ROOT_TEST_STATE" ]; then cat "$PAIR_ROOT_TEST_STATE"; exit 0; fi
+    printf 'No active zellij sessions found.\n' >&2
+    exit 1 ;;
   --session)
-    # Legacy panes have no launch policy; a positive listing permits attach.
-    printf '%s\n' '{"0":[{"id":0,"title":"claude","terminal_command":"pair wrap claude"},{"id":1,"title":"draft","terminal_command":"nvim draft.md"},{"id":2,"title":"terminal","terminal_command":"pair term"}]}'
+    case "$4" in
+      list-clients) printf 'CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n' ;;
+      list-panes)
+        # Legacy panes have no launch policy; positive panes permit attach.
+        printf '%s\n' '{"0":[{"id":0,"title":"claude","terminal_command":"pair wrap claude"},{"id":1,"title":"draft","terminal_command":"nvim draft.md"},{"id":2,"title":"terminal","terminal_command":"pair term"}]}' ;;
+    esac
     exit 0 ;;
   --config-dir)
     if [ "$3" = attach ]; then
