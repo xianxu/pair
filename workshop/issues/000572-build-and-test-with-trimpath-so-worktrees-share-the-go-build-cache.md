@@ -58,3 +58,21 @@ minutes. The operator approved building with `-trimpath`.
   queued command that replaced GOFLAGS was cancelled before admission and
   restarted preserving the concurrency cap. Shared cache was not cleared.
 - Local-gates label must be applied by the operator after reviewing the PR.
+
+- Baseline `GOFLAGS='-p=3 -trimpath' make -k test` completed (exit 2): 12
+  Go packages failed through Caller-derived test/fixture paths; shell/Lua
+  prerequisites and couchcore passed. Full output: /tmp/pair572-trimpath-baseline.log.
+- Added module-validated cwd discovery (foreign nested modules rejected),
+  converted all Caller-based asset consumers, and routed probes through the
+  existing zellijprobe adapter with explicit PAIR_PROBE_REPO. No live probes.
+  ARCH-DRY: both use internal/reporoot; no compiled-path fallback or cached cwd.
+- Root tests failed before implementation, then passed both with and without
+  trimpath. The recording fixture regression failed at three cwd depths before
+  its fix. Targeted former failures passed (/tmp/pair572-path-tests.log).
+  Probe tests and compilation passed with trimpath.
+- Make flag regression failed before the default, then passed: preserved
+  environment/command-line GOFLAGS, no duplicate trimpath in nested Make, and
+  explicit PAIR_GO_TRIMPATH= opt-out. `make build` passed; go version -m bin/pair
+  confirms -trimpath=true. Required missing oracle assets fail rather than skip.
+- The existing artifact inventory now covers top-level internal/ and its root
+  resolver. Probe discovery stays in the existing shared probe adapter.

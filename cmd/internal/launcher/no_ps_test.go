@@ -7,10 +7,11 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/xianxu/pair/internal/reporoot"
 )
 
 func psExecViolations(root string) ([]string, error) {
@@ -56,8 +57,11 @@ func psExecViolations(root string) ([]string, error) {
 }
 
 func TestProductionDoesNotExecPS(t *testing.T) {
-	_, source, _, _ := runtime.Caller(0)
-	root := filepath.Clean(filepath.Join(filepath.Dir(source), "..", ".."))
+	repo, err := reporoot.Current()
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := filepath.Join(repo, "cmd")
 	violations, err := psExecViolations(root)
 	if err != nil {
 		t.Fatal(err)

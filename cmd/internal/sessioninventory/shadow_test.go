@@ -9,18 +9,18 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/xianxu/pair/internal/reporoot"
 )
 
 func TestNoNativeAuthorityShadowInInteractiveConsumers(t *testing.T) {
 	t.Parallel()
-	_, source, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("locate shadow test")
+	repo, err := reporoot.Current()
+	if err != nil {
+		t.Fatal(err)
 	}
-	repo := filepath.Clean(filepath.Join(filepath.Dir(source), "..", "..", ".."))
 	if violations, err := nativeAuthorityShadowViolations(repo); err != nil {
 		t.Fatal(err)
 	} else if len(violations) != 0 {

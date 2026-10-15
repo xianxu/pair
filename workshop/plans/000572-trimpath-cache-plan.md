@@ -31,21 +31,21 @@ ARCH-DRY: one filesystem discovery implementation shared by tests, recording fix
 
 ### 1. Baseline and root resolution
 
-- [ ] Finish `GOFLAGS='-p=3 -trimpath' make -k test` on unchanged source and retain every failure. The -p value preserves this host's existing GOFLAGS; trimpath is added rather than resetting concurrency limits. If a prerequisite prevents Go tests, run the remaining Go suite with the same flags through the Make environment.
-- [ ] Add `internal/reporoot/root.go` with `Find(start string) (string, error)` walking ancestors to Pair's module declaration, and `Current() (string, error)` using cwd. Reject filesystem errors and outside-checkout roots explicitly. No compiled source path or global cache.
-- [ ] Add root tests for repository root, nested package, unrelated nested module, missing checkout, and explicit errors. Run with and without -trimpath.
-- [ ] Convert the ten affected test files under cmd/internal/{broadcast,checkpoint,couchcmd,launcher,reviewcmd,sessioninventory,terminal,webcast} to cwd-derived paths, preserving fail/skip semantics and resolving before t.Chdir. Convert recording/fixture.go, used across packages, to the same resolver with its existing fail-fast helper contract.
-- [ ] Add regressions proving recording fixtures resolve from multiple package depths, and missing oracle assets remain visible failures where required. Re-run every failing baseline package.
+- [x] Finish `GOFLAGS='-p=3 -trimpath' make -k test` on unchanged source and retain every failure. The -p value preserves this host's existing GOFLAGS; trimpath is added rather than resetting concurrency limits. If a prerequisite prevents Go tests, run the remaining Go suite with the same flags through the Make environment.
+- [x] Add `internal/reporoot/root.go` with `Find(start string) (string, error)` walking ancestors to Pair's module declaration, and `Current() (string, error)` using cwd. Reject filesystem errors and outside-checkout roots explicitly. No compiled source path or global cache.
+- [x] Add root tests for repository root, nested package, unrelated nested module, missing checkout, and explicit errors. Run with and without -trimpath.
+- [x] Convert the ten affected test files under cmd/internal/{broadcast,checkpoint,couchcmd,launcher,reviewcmd,sessioninventory,terminal,webcast} to cwd-derived paths, preserving fail/skip semantics and resolving before t.Chdir. Convert recording/fixture.go, used across packages, to the same resolver with its existing fail-fast helper contract.
+- [x] Add regressions proving recording fixtures resolve from multiple package depths, and missing oracle assets remain visible failures where required. Re-run every failing baseline package.
 
 ### 2. Probes and build defaults
 
-- [ ] Add a probe checkout adapter in probes/zellijprobe: PAIR_PROBE_REPO, when set, must resolve to a valid checkout; otherwise use cwd ancestry. An invalid override fails with an actionable error. Test both paths with temporary module trees.
-- [ ] Route the ten Caller-based probes under probes/ and cmd/probes/ through that adapter. Keep positional/re-exec protocols unchanged and pass already-resolved absolute assets to children. Compile all probes; do not run visible/live sessions.
-- [ ] Register new non-test source files in the artifact inventory and test the inventory package.
-- [ ] Add the default to Makefile.local via exported additive GOFLAGS, preserving caller flags and avoiding duplicate -trimpath. Allow an explicit Go -trimpath=false override if the caller needs diagnostic paths; test the precise Make semantics before selecting the final assignment.
-- [ ] Extend Make environment tests to observe default trimpath in nested Go invocations and preservation of an unrelated caller flag. Keep tests free of expensive recompilation where possible.
-- [ ] Add .sdlc/local-checks.json declaring required suite argv `["make", "test"]`, timeout 30 minutes, weight 1, so Make owns the flag value for both normal and recorded runs. If an explicit flag in recorded argv is required by the TL, use a dedicated Make variable instead of replacing GOFLAGS. Existing main currently uses the same implicit suite command.
-- [ ] Update atlas/index.md build/test notes, relevant probe comments/docs, and README development instructions. Explain that Pair's intentional per-checkout defaultPairHome linker value still differs; the claim is shared package compilation, not byte-identical installed binaries.
+- [x] Add a probe checkout adapter in probes/zellijprobe: PAIR_PROBE_REPO, when set, must resolve to a valid checkout; otherwise use cwd ancestry. An invalid override fails with an actionable error. Test both paths with temporary module trees.
+- [x] Route the ten Caller-based probes under probes/ and cmd/probes/ through that adapter. Keep positional/re-exec protocols unchanged and pass already-resolved absolute assets to children. Compile all probes; do not run visible/live sessions.
+- [x] Register new non-test source files in the artifact inventory and test the inventory package.
+- [x] Add the default to Makefile.local via exported additive GOFLAGS, preserving caller flags and avoiding duplicate -trimpath. Allow an explicit Go -trimpath=false override if the caller needs diagnostic paths; test the precise Make semantics before selecting the final assignment.
+- [x] Extend Make environment tests to observe default trimpath in nested Go invocations and preservation of an unrelated caller flag. Keep tests free of expensive recompilation where possible.
+- [x] Add .sdlc/local-checks.json declaring required suite argv `["make", "test"]`, timeout 30 minutes, weight 1, so Make owns the flag value for both normal and recorded runs. If an explicit flag in recorded argv is required by the TL, use a dedicated Make variable instead of replacing GOFLAGS. Existing main currently uses the same implicit suite command.
+- [x] Update atlas/index.md build/test notes, relevant probe comments/docs, and README development instructions. Explain that Pair's intentional per-checkout defaultPairHome linker value still differs; the claim is shared package compilation, not byte-identical installed binaries.
 
 ### 3. Measurement and qualification
 

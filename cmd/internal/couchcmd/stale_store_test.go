@@ -6,12 +6,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/storagegc"
+
+	"github.com/xianxu/pair/internal/reporoot"
 )
 
 func TestListWithMissingAuxiliaryStoreUsesIsolatedRoots(t *testing.T) {
@@ -76,8 +77,11 @@ func TestIsolatedSmokeEnvironmentProtectsAmbientRegistry(t *testing.T) {
 	if err := os.WriteFile(sentinel, poison, 0600); err != nil {
 		t.Fatal(err)
 	}
-	_, source, _, _ := runtime.Caller(0)
-	script := filepath.Join(filepath.Dir(source), "..", "..", "..", "tests", "with-isolated-pair.sh")
+	repo, err := reporoot.Current()
+	if err != nil {
+		t.Fatal(err)
+	}
+	script := filepath.Join(repo, "tests", "with-isolated-pair.sh")
 	cmd := exec.Command("sh", script, "env", "PAIR346_ISOLATION_CHILD=1", os.Args[0], "-test.run=^TestIsolatedSmokeListChild$", "-test.v")
 	cmd.Env = append(os.Environ(), "COUCH_ISOLATED_ROOT="+operatorFixture, "COUCH_IDENTITY_DIR="+identityDir, "HOME="+operatorHome, "TMPDIR="+operatorHome+"/", "XDG_DATA_HOME="+operatorData, "PAIR_DATA_DIR="+operatorRoot, "COUCH_STORE_DIR="+filepath.Join(operatorRoot, "couch"), "PAIR_LOG_PATH="+filepath.Join(operatorRoot, "poison-log"))
 	output, err := cmd.CombinedOutput()
