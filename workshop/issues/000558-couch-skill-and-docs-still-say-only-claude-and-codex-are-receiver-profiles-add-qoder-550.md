@@ -35,15 +35,21 @@ Update the skill paragraph to name Qoder, and the explicitly disabled agents as 
 
 ## Plan
 
-- [ ] `sdlc claim --issue 558`, then `sdlc start-plan` (fresh branch from main)
-- [ ] wrapcmd: export `PeerReceiverAgents() map[string]bool` (a copy of the policy map in `peer_runtime.go`)
-- [ ] couchcmd test: derive the enabled/disabled display names from that accessor over `launcher.AgentInventory()`; pin SKILL.md's receiver sentence to name exactly the enabled set and mark the disabled set
-- [ ] SKILL.md:502: name Claude Code, Codex CLI and Qoder CLI as receiver profiles; Agy, Muse and Grok as explicitly disabled
-- [ ] re-grep skill, README, atlas, help text for two-agent receiver lists; record results in ## Log
+- [x] `sdlc claim --issue 558`, then `sdlc start-plan` (fresh branch from main)
+- [x] wrapcmd: export `PeerReceiverAgents() map[string]bool` (a copy of the policy map in `peer_runtime.go`)
+- [x] couchcmd test: derive the enabled/disabled display names from that accessor over `launcher.AgentInventory()`; pin SKILL.md's receiver sentence to name exactly the enabled set and mark the disabled set
+- [x] SKILL.md:502: name Claude Code, Codex CLI and Qoder CLI as receiver profiles; Agy, Muse and Grok as explicitly disabled
+- [x] re-grep skill, README, atlas, help text for two-agent receiver lists; record results in ## Log
 - [ ] `sdlc local-check run --name suite`
 - [ ] `sdlc close --issue 558 --verified <evidence>`, then `sdlc merge --yes`
 
 ## Log
+
+### 2026-10-15
+
+- Implemented: exported `wrapcmd.PeerReceiverAgents()`; new `cmd/internal/couchcmd/skill_receivers_test.go` (`TestSkillNamesReceiverProfiles`) derives the enabled/disabled display lists from that policy over `launcher.AgentInventory()` and pins the skill's two receiver clauses (fails on an unlisted inventory agent, a policy flip, or a skill that stops naming the right group); SKILL.md:502 now reads "receiver profile (Claude Code, Codex CLI and Qoder CLI) ... Agy, Muse and Grok have no receiver profile and are explicitly disabled".
+- Evidence: `go test ./cmd/internal/couchcmd/` ok (74.171s, includes the new pin); `go test ./cmd/internal/couchcmd -run TestSkillNamesReceiverProfiles -v` PASS; `go test ./cmd/internal/wrapcmd -run 'TestPeerReceiverInventoryHasExplicitPolicy|TestPeerQoder'` ok; built `./cmd/couch` from the branch — `couch --skill` emits the new paragraph.
+- Re-ran the sweep grep over cmd/ + atlas/ on the fixed tree: clean — remaining hits are the corrected sentence, the already-correct README/atlas text, `atlas/index.md:3` (full inventory, not a receiver claim), binding variable names in `routing_short_test.go`, and the accurate `peer_live_test.go` harness-capability text (logged 2026-10-14 as left deliberately).
 
 ### 2026-10-14
 
