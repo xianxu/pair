@@ -41,7 +41,20 @@ func TestHelperSessionSyncWriter(t *testing.T) {
 // Two processes write the same section with the hash they both read:
 // exactly one wins, the other is told it is stale.
 func TestTwoProcessWritersExactlyOneWins(t *testing.T) {
+	runTwoProcessWriters(t, false)
+}
+
+func TestRegisteredTwoProcessWritersExactlyOneWins(t *testing.T) {
+	runTwoProcessWriters(t, true)
+}
+
+func runTwoProcessWriters(t *testing.T, registered bool) {
 	r := newRig(t)
+	if registered {
+		if _, err := r.sync.Register(r.p.File, "ops:0"); err != nil {
+			t.Fatal(err)
+		}
+	}
 	h := r.hash("Trains")
 	start := filepath.Join(t.TempDir(), "go")
 	var cmds []*exec.Cmd

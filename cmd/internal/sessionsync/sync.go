@@ -1,6 +1,7 @@
 package sessionsync
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -76,6 +77,7 @@ type Result struct {
 // Sync runs the guarded operations. File paths are absolute.
 type Sync struct {
 	Ledger    *Ledger
+	Registry  *registryStore
 	Now       func() time.Time
 	Diff      func(shadow, file string) (string, error)
 	Canonical func(string) string
@@ -97,18 +99,26 @@ func Canonical(p string) string {
 
 // UnifiedDiff is `diff -u` with stable labels; exit 1 means "differs".
 func UnifiedDiff(shadow, file string) (string, error) {
-	out, err := exec.Command("diff", "-u", "--label", "shadow", "--label", "file", shadow, file).Output()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "diff", "-u", "--label", "shadow", "--label", "file", shadow, file).Output()
 	var exit *exec.ExitError
 	if errors.As(err, &exit) && exit.ExitCode() == 1 {
 		err = nil
+	}
+	if ctx.Err() != nil {
+		return "", ctx.Err()
 	}
 	return string(out), err
 }
 
 // file is one read of a session-sync file and its companions.
 type file struct {
-	paths   Paths
-	content string
+	registration *DocumentRegistration
+	lockText     string
+	lockPaths    []string
+	paths        Paths
+	content      string
 	// shadow is the file as the agent last saw it: what it wrote, plus
 	// what it read whole. hasShadow is false before the first write.
 	shadow    string
@@ -188,6 +198,7 @@ func load(path string) (*file, error) {
 		return nil, err
 	}
 	f.holder = ParseHolder(lock, exists)
+	f.lockText = lock
 	f.owner = ParseOwner(content)
 	if f.state, err = LoadState(f.paths); err != nil {
 		return nil, fmt.Errorf("reading %s: %w", f.paths.State, err)
@@ -197,10 +208,14 @@ func load(path string) (*file, error) {
 
 // guard is the human's pessimistic lock: the operator's lock blocks every
 // write.
-func (f *file) guard() error {
+func (f *file) guard(now time.Time) error {
 	if f.holder == HolderOperator {
+		reason := "the operator holds the lock; queue the update until their submit"
+		if age, ok := OperatorLockAge(f.lockText, now); ok && age > 30*time.Minute {
+			reason = fmt.Sprintf("the operator holds the lock (age %s, more than 30 minutes); ping the operator to submit or release it, then queue the update", age.Round(time.Second))
+		}
 		return &Refusal{Exit: ExitOperatorLock, Code: "operator-lock",
-			Reason: "the operator holds the lock; queue the update until their submit"}
+			Reason: reason}
 	}
 	return nil
 }
@@ -229,7 +244,7 @@ type ReadResult struct {
 // Reading the whole file is the agent seeing every edit in it, so it
 // refreshes the shadow and `diff` goes empty (pair#448).
 func (s *Sync) Read(path, section string) (ReadResult, error) {
-	return locked(path, func(f *file) (ReadResult, error) {
+	return withDocument(s, path, func(f *file) (ReadResult, error) {
 		body, err := f.target(section)
 		if err != nil {
 			return ReadResult{}, err
@@ -239,7 +254,7 @@ func (s *Sync) Read(path, section string) (ReadResult, error) {
 				return ReadResult{}, err
 			}
 		}
-		return ReadResult{File: path, Section: section, Hash: Hash(body), Holder: f.holder, Body: body}, nil
+		return ReadResult{File: f.paths.File, Section: section, Hash: Hash(body), Holder: f.holder, Body: body}, nil
 	})
 }
 
@@ -266,7 +281,11 @@ func (s *Sync) owed(f *file, acceptGap bool) ([]Entry, []OwedEvent, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	return rows, Owed(rows, f.state, f.paths.File, s.Canonical), nil
+	paths := f.state.SubmitPaths
+	if f.registration != nil {
+		paths = f.registration.Paths
+	}
+	return rows, OwedForDocument(rows, f.state, f.paths.File, paths, s.Canonical), nil
 }
 
 // folds validates ids against what is owed: folding something not owed is a
@@ -288,7 +307,7 @@ func folds(ids []string, owed []OwedEvent) error {
 // when Couch is not recording deliveries, so "nothing owed" is never a
 // blind spot.
 func (s *Sync) Status(path string) (Status, error) {
-	return locked(path, func(f *file) (Status, error) {
+	return withDocument(s, path, func(f *file) (Status, error) {
 		if err := s.Ledger.Recording(); err != nil {
 			return Status{}, err
 		}
@@ -304,7 +323,7 @@ func (s *Sync) Status(path string) (Status, error) {
 // information, not a gate: a write checks only its own section's hash.
 func (s *Sync) DiffText(path string) (Holder, string, error) {
 	var holder Holder
-	out, err := locked(path, func(f *file) (string, error) {
+	out, err := withDocument(s, path, func(f *file) (string, error) {
 		holder = f.holder
 		if f.content == f.shadow {
 			return "", nil
@@ -313,7 +332,7 @@ func (s *Sync) DiffText(path string) (Holder, string, error) {
 		if _, err := os.Stat(shadow); err != nil {
 			shadow = os.DevNull
 		}
-		return s.Diff(shadow, path)
+		return s.Diff(shadow, f.paths.File)
 	})
 	return holder, out, err
 }
@@ -329,7 +348,7 @@ func (s *Sync) Write(req WriteRequest) (Result, error) {
 	if req.IfHash == "" {
 		return Result{}, refuse("write needs --if-hash: `couch --session-sync read` the section first and pass its hash")
 	}
-	return locked(req.File, func(f *file) (Result, error) { return s.write(f, req) })
+	return withDocument(s, req.File, func(f *file) (Result, error) { req.File = f.paths.File; return s.write(f, req) })
 }
 
 // shadowAfter is the shadow once the agent has written next: a whole-file
@@ -349,12 +368,26 @@ func (f *file) shadowAfter(section, body, next string, now time.Time) string {
 	return Restamp(shadow, now)
 }
 
-// saveShadow is the one writer of the shadow. Rewriting it would move a
-// sidecar-less file's horizon (the shadow's mtime), so the horizon is pinned
-// in the sidecar first.
+// saveShadow prepares a read-all baseline before publishing it. Writes use
+// their prepared bundle, including already-encoded horizon and fold state.
 func (f *file) saveShadow(content string) error {
+	if f.registration != nil {
+		if err := validateRegisteredMetadata(content, f.state, f.registration.Paths); err != nil {
+			return err
+		}
+	}
+	pinState, err := encodeState(f.state)
+	if err != nil {
+		return err
+	}
+	return f.publishShadow(content, pinState)
+}
+
+// publishShadow is the one shadow writer. Preserve a sidecar-less legacy
+// horizon before changing shadow mtime; every byte was prepared before effects.
+func (f *file) publishShadow(content string, pinState []byte) error {
 	if _, err := os.Stat(f.paths.State); errors.Is(err, os.ErrNotExist) {
-		if err := saveState(f.paths, f.state); err != nil {
+		if err := writeAtomic(f.paths.State, pinState); err != nil {
 			return err
 		}
 	} else if err != nil {
@@ -367,8 +400,64 @@ func (f *file) saveShadow(content string) error {
 	return nil
 }
 
+// preparedWrite is the complete immutable publication input. Preparation owns
+// all deterministic refusals; effects never re-validate an older mutable state.
+type preparedWrite struct {
+	document, shadow, hash    string
+	state                     State
+	stateBytes, pinStateBytes []byte
+}
+
+func (f *file) prepareWrite(req WriteRequest, rows []Entry, now time.Time) (preparedWrite, error) {
+	next := req.Body
+	var err error
+	if req.Section != "" {
+		if next, err = ReplaceSection(f.content, req.Section, req.Body); err != nil {
+			return preparedWrite{}, refuse("%v", err)
+		}
+	}
+	validContent := IsSessionSync(next) && ParseOwner(next) == f.owner
+	if f.registration != nil {
+		validContent = EffectiveOwner(next, f.registration.RegisteredOwner) == f.owner && (!IsSessionSync(f.content) || IsSessionSync(next))
+	}
+	if !validContent {
+		if f.registration != nil && !IsSessionSync(f.content) {
+			return preparedWrite{}, refuse("the new content must preserve the effective Couch owner %q", f.owner)
+		}
+		return preparedWrite{}, refuse("the new content must keep the frontmatter (`type: session-sync` and owner %q, as `couch-owner:` or legacy `owner:`)", f.owner)
+	}
+	next = Restamp(next, now)
+	shadow := f.shadowAfter(req.Section, req.Body, next, now)
+	state := f.state
+	state.LastWrite = &now
+	state.Fold(req.Fold, rows)
+	if f.registration != nil {
+		if len(next) > documentMaxBytes {
+			return preparedWrite{}, registryLimit()
+		}
+		if err := validateRegisteredMetadata(shadow, state, f.registration.Paths); err != nil {
+			return preparedWrite{}, err
+		}
+	}
+	target := next
+	if req.Section != "" {
+		if target, err = SectionBody(next, req.Section); err != nil {
+			return preparedWrite{}, refuse("%v", err)
+		}
+	}
+	stateBytes, err := encodeState(state)
+	if err != nil {
+		return preparedWrite{}, err
+	}
+	pinStateBytes, err := encodeState(f.state)
+	if err != nil {
+		return preparedWrite{}, err
+	}
+	return preparedWrite{document: next, shadow: shadow, hash: Hash(target), state: state, stateBytes: stateBytes, pinStateBytes: pinStateBytes}, nil
+}
+
 func (s *Sync) write(f *file, req WriteRequest) (Result, error) {
-	if err := f.guard(); err != nil {
+	if err := f.guard(s.now()); err != nil {
 		return Result{}, err
 	}
 	current, err := f.target(req.Section)
@@ -386,38 +475,47 @@ func (s *Sync) write(f *file, req WriteRequest) (Result, error) {
 	if err := folds(req.Fold, owed); err != nil {
 		return Result{}, err
 	}
-	next := req.Body
-	if req.Section != "" {
-		if next, err = ReplaceSection(f.content, req.Section, req.Body); err != nil {
-			return Result{}, refuse("%v", err)
-		}
-	}
-	if !IsSessionSync(next) || ParseOwner(next) != f.owner {
-		return Result{}, refuse("the new content must keep the frontmatter (`type: session-sync` and owner %q, as `couch-owner:` or legacy `owner:`)", f.owner)
-	}
-	now := s.Now()
-	next = Restamp(next, now)
-	if err := replaceShared(req.File, []byte(next)); err != nil {
-		return Result{}, err
-	}
-	if err := f.saveShadow(f.shadowAfter(req.Section, req.Body, next, now)); err != nil {
-		return Result{}, err
-	}
-	f.state.LastWrite = &now
-	f.state.Fold(req.Fold, rows)
-	if err := saveState(f.paths, f.state); err != nil {
-		return Result{}, err
-	}
-	f.content = next
-	written, err := f.target(req.Section)
+	prepared, err := f.prepareWrite(req, rows, s.now())
 	if err != nil {
 		return Result{}, err
 	}
-	res := Result{Owner: f.owner, Folded: req.Fold, Hash: Hash(written)}
+	if err := replaceShared(req.File, []byte(prepared.document)); err != nil {
+		return Result{}, err
+	}
+	if err := f.publishShadow(prepared.shadow, prepared.pinStateBytes); err != nil {
+		return Result{}, err
+	}
+	if err := writeAtomic(f.paths.State, prepared.stateBytes); err != nil {
+		return Result{}, err
+	}
+	f.content, f.state = prepared.document, prepared.state
+	res := Result{Owner: f.owner, Folded: req.Fold, Hash: prepared.hash}
 	// The guard and the write can't be one step against parley, which takes
 	// no flock; say so when the operator took their turn in between.
-	if lock, exists, _ := readOptional(f.paths.Lock); ParseHolder(lock, exists) == HolderOperator {
-		res.Warning = "the operator took the lock during this write; their buffer reloads with it"
+	lockPaths := f.lockPaths
+	if len(lockPaths) == 0 {
+		lockPaths = []string{f.paths.Lock}
+	}
+	for _, path := range lockPaths {
+		var lock string
+		var exists bool
+		var lockErr error
+		if f.registration != nil {
+			raw, err := readRegular(path, 4096)
+			lock = string(raw)
+			exists = err == nil
+			lockErr = err
+		} else {
+			lock, exists, lockErr = readOptional(path)
+		}
+		if lockErr != nil && !errors.Is(lockErr, os.ErrNotExist) {
+			res.Warning = "the operator lock could not be inspected after this write; check the editor before continuing"
+			break
+		}
+		if ParseHolder(lock, exists) == HolderOperator {
+			res.Warning = "the operator took the lock during this write; their buffer reloads with it"
+			break
+		}
 	}
 	return res, nil
 }
