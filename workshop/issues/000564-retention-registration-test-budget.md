@@ -42,7 +42,7 @@ Reproduce the budget exhaustion through controlled scheduling/storage barriers o
 
 - [x] Establish the deadline boundary and a meaningful red regression under controlled load/order.
 - [x] Correct the test seam or diagnosed behavior while preserving production timeout and retention contracts.
-- [ ] Run semantic retention, intentional timeout and broad couchcore verification.
+- [x] Run semantic retention, intentional timeout and broad couchcore verification.
 
 ## Log
 
@@ -60,3 +60,5 @@ Filed and released as independent follow-up during #218 close. No code change or
 - 2026-10-15: Hub approved the design. The new deadline-propagation regression failed under the unchanged warm fixture: registration had a 200ms deadline while its enclosing test budget had about 590s remaining. Retention-only fixture now injects context.WithCancel through the existing registrationDeadline seam and uses the enclosing remaining test budget; warmDetachedThread and production code are untouched. All three deterministic cases plus the original semantic test passed three repetitions (9.338s). The original exact LastUse, process-list and PAIR_RETENTION_BACKGROUND assertions remain unchanged. Targeted lifecycle/race and broad couchcore checks are running.
 
 - 2026-10-15: Full couchcore package passed on the implementation (258.789s); targeted semantic/timeout/lifecycle -race checks passed three repetitions (22.454s). make -k -B build passed; Pair and Couch embed clean revision 1212443fa837a747a724d52ae4836b31376cf8a5 with vcs.modified=false. Required sdlc-local suite remains in the machine queue. The pre-fix three isolated semantic passes (8.728s) remain distinct from the controlled budget-expiry reproduction and the inherited-deadline red regression.
+
+- 2026-10-15: Required sdlc-local/suite passed on implementation 1212443fa837a747a724d52ae4836b31376cf8a5 (exit 0, 10m50s after 2933s queue); couchcore passed again in the full suite (326.501s). Full log SHA-256: cc615abac0cf4612730414bd3759206faadeaa4b9b5fc44639197f2617e7f273. A temporary parent-detachment mutation in the retention fixture made the cancellation regression fail deterministically (resume incorrectly succeeded); source restored byte-for-byte and git diff clean before close. This confirms the cancellation case is not merely observing final cleanup cancellation. No production, timeout-fixture or retention assertion changed.
