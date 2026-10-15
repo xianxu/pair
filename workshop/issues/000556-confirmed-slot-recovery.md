@@ -487,6 +487,37 @@ receipt; no uncertain delivery is replayed. Read-only peek subsequently confirme
 the hub's terminal is functioning. Next report will name the actual new boundary
 outcome. No stage, restart, native session experiment or M2 code has occurred.
 
+### 2026-10-15 — M2 common launch admission checkpoint
+
+M1 closed normally on SHIP at `69c213c289ac9f98aa7e16a9e9c1b54f76c90d26`;
+M2 implementation now proceeds under the approved split. The first launcher
+regression run failed functionally: all six native resume forms reached handoff
+without a reserved grant, refusal still launched, inherited authority survived
+Fresh, and both cancellation cases had zero reservations. After wiring the
+common Runtime boundary, the same matrix passed in 0.185s. The extended launcher
+regressions passed in 1.565s, including latest resolved once then pinned despite
+a newer native session, unresolved inventory without writer publication, and
+fork source IDs never recorded/reserved as the new writer.
+
+Admission now precedes compatibility/native launch ledger publication. The
+command digest covers the final executable/argv, including launch-only runtime
+arguments. Authority remains private until terminal handoff, after title-helper
+startup; definitely unexposed failures cancel the exact reservation, while an
+uncertain terminal start retains it. The wrapper separately consumes authority
+before PTY spawn, publishes strict child ownership before readiness and removes
+it from native/watcher/Fresh environments (`c24060bd6`). The Zellij handoff still
+uses its existing environment transport; no new persistent token transport or
+layout rendering is introduced. Existing same-user process inspection is not a
+security boundary; a consumed grant cannot start a second native writer.
+
+The inventory provider-policy question remains submitted to the hub
+(`32602d27-64b2-42a4-972f-c2e3e7c10cff`), with no answer observed. In particular,
+Codex effective provider/SQLite-home configuration is not yet positively resolved
+by the OS launcher adapter: do not claim latest support from unit fixtures alone.
+The internal result is honestly Unsupported until that production seam is
+established. No native files/defaults were changed; no live slot effects or stage
+operations occurred. Full M2 verification and its independent boundary remain.
+
 ## Revisions
 
 ### 2026-10-15T05:33-07:00 — overnight M2 dispatch

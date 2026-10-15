@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-
-	"github.com/xianxu/pair/cmd/internal/resumeform"
 )
 
 // Pure create-flow logic behind RunLaunch's create path (#99 M2, ported from
@@ -57,20 +55,9 @@ func buildConfigJSON(agent string, args []string, sid string) (string, error) {
 // the picker nothing to offer) and the pre-write of config-<tag>-<agent>.json
 // so the id is captured from the start.
 func extractExplicitResume(agent string, args []string) string {
-	if id := resumeform.Extract(agent, args); id != "" {
-		return id
-	}
-	if agent == "codex" || agent == "muse" {
-		if i := codexResumeCommandIndex(args); i >= 0 {
-			return args[i+1]
-		}
-		// Muse uses the same `resume <id>` shape but has different global
-		// options than codex; the codex index may miss a `muse --model x
-		// resume <id>` placement. Fall back to a simple leading check which
-		// also covers the canonical `composeResumeArgs` placement at args[0].
-		if len(args) >= 2 && args[0] == "resume" && args[1] != "" {
-			return args[1]
-		}
+	selector, err := ParseNativeResumeSelector(agent, args)
+	if err == nil && selector.Kind == NativeResumeExplicit {
+		return selector.NativeID
 	}
 	return ""
 }
