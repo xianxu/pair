@@ -6,6 +6,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"github.com/xianxu/pair/cmd/internal/couchidentity"
 	"github.com/xianxu/pair/cmd/internal/threadrecord"
+	"reflect"
 )
 
 type ProcessIdentity struct {
@@ -26,6 +27,7 @@ type StartEventKind string
 const (
 	StartSessionBound     StartEventKind = "session-bound"
 	StartClaimed          StartEventKind = "claimed"
+	StartRecoveryFenced   StartEventKind = "recovery-fenced"
 	StartHelperRecorded   StartEventKind = "helper-recorded"
 	StartRegistered       StartEventKind = "registered"
 	StartRecoveredUnknown StartEventKind = "recovered-unknown"
@@ -88,6 +90,19 @@ func AdvanceStartTransaction(record ThreadRecord, event StartEvent) (ThreadRecor
 			profile := cloneLaunchProfile(*event.Profile)
 			incarnation.Start.LaunchProfile = &profile
 		}
+	case StartRecoveryFenced:
+		if len(next.Incarnations) != 1 {
+			return ThreadRecord{}, errors.New("recovery fence requires one exact start")
+		}
+		if _, err := exactStartIncarnation(&next, event.Nonce); err != nil {
+			return ThreadRecord{}, err
+		}
+		if event.RecoveryIntent == nil || next.RecoveryIntent == nil || !reflect.DeepEqual(event.RecoveryIntent, next.RecoveryIntent) {
+			return ThreadRecord{}, errors.New("recovery fence requires the exact retained selection")
+		}
+		// The caller proved this helper dead or never launched. Remove only that
+		// creating incarnation; retained selection, park and thread remain intact.
+		next.Incarnations = nil
 	case StartSessionBound:
 		incarnation, err := exactStartIncarnation(&next, event.Nonce)
 		if err != nil {
