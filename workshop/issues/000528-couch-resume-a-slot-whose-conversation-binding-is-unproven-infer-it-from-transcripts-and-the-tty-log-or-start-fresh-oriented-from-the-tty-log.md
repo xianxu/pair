@@ -1150,3 +1150,9 @@ No follow-up implementation starts on this branch.
   unchanged source (0.273s, cancelled request reached dispatcher); with one
   context check before background dispatch, Stop/pass regression group GREEN
  30 repetitions (0.638s). Existing one-attempt assertion and deadlines unchanged.
+
+- Required GitHub conformance run38677562118 failed park helper exit4 and recovery
+  pane JSON. Scratch overlay reproduces a later deterministic fixture panic at
+  recovery_conformance_live_test230: borrowed attach has no durable incarnation.
+  Correct fixture child identity and capture bounded diagnostics; original CI
+  failure remains under investigation (not presumed transient).

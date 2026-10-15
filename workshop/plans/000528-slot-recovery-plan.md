@@ -1329,3 +1329,14 @@ at the queued background dispatch boundary before invoking the dispatcher
 assertions, limits and deadlines. Add a deterministic enqueue/cancel/execute
 regression, run related tests and the recorded suite, then ordinary fixed-then-ship
 review. Pair:0's stage remains untouched.
+
+### 2026-10-14 — live CI fixture identity and diagnostics
+
+The required live Zellij check found helper exit4 and invalid pane JSON. Scratch
+measurement additionally exposes a deterministic recovery fixture panic: its
+AfterAcknowledge callback indexes a durable incarnation that an approved borrowed
+attachment need not create. Read the fake runner's actual acknowledged child
+identity instead; retain ownership assertions. Capture bounded helper output and
+query bytes on failure so CI diagnoses actual Zellij errors. Investigate the
+original failures with the exact upstream binary; do not waive conformance or
+change production JSON handling without evidence. Stage remains untouched.
