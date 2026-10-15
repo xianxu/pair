@@ -104,6 +104,9 @@ Merged main a0e3e4d27 (including #556 PR349/bcf734588) as e13111215270762629c27e
 
 Sent the hub the staged hash and exact smoke commands, receipt013b70ca-a5d2-45e7-b7be-f0e3bff6df37 submitted. Proposed currently idle ariadne:5 (Codex GPT-6.1-Sol/medium) and parley.nvim:3 (Claude Opus5.5), recheck/relaunch after the operator's one Couch restart, session-only model/medium changes, raw text and separate recovery clear-line, then ordinary delivery/response. The broker requires a verified owning-hub caller for keys/model, so pair:6 cannot impersonate ops:0; hub execution is needed for those requests. Operator restart, live acceptance, close and landing are pending. No live input performed.
 
+
+- Final staged-source recorded suite PASS: `sdlc local-check run --name suite` on e13111215270762629c27e860584429b7ae66a98, main-declared `make PAIR_GO_TRIMPATH=-trimpath test`, exit0 in13m14s, recorded as sdlc-local/suite. All shell/editor and Go checks pass, including couchcmd94.287s, couchcore538.155s, couchmessage7.472s and wrapcmd155.119s. Log `/Users/xianxu/workspace/pair/.git/sdlc/local-checks/e13111215270762629c27e860584429b7ae66a98/suite.log`, SHA256 e07d82adbc090d21bd7ac6ae850c305999b0ec542d40b90f953294e33428b261. Later commits are issue evidence only; pair:0 remains staged at the tested e1311121. Await operator restart and owning-hub live smoke, then close review.
+
 ## Revisions
 
 ### 2026-10-15 — reconcile landed recovery and stall supervision
