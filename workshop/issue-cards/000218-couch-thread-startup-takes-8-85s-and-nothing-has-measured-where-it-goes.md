@@ -1,6 +1,6 @@
 ---
 id: 000218
-status: codecomplete
+status: done
 created: 2026-09-08
 updated: 2026-10-14
 estimate_hours: 5.86
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 36e8111e58ba6d7a4c9669bc083157cfcc8582f0
         evidence_commit: d0374e70fb689f559bbed3271d2981737b83b748
+        landed_commit: e2105c24eda0ac45f7871d9d857ad57988c603fd
 ---
 
 # couch thread startup takes 8.85s and nothing has measured where it goes
