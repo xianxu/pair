@@ -742,6 +742,18 @@ live slot effects were added. The acceptance script appends a Revision supersedi
 its older pending-direction note. Normal M2 milestone-close/review follows with no
 waivers; whole-issue review and landing remain required.
 
+
+### 2026-10-15 — M2 boundary round 1 REWORK
+
+Normal milestone-close reviewed fe5275365 in fenced checkout; verdict REWORK,
+BR-6 Critical existing-session selector bypass and BR-7 Important unreclaimable
+interrupted reserved grant. No milestone finalized. The reviewer passed focused
+and complete affected packages, vet and diff checks. Full suite evidence remains
+6ab8ee419 PASS9m27s. The durable plan appends the correction: full context-selector
+classification and exact reserved-attempt revocation under the Claim lock after
+strict helper death, retaining any already-spawning uncertainty. Bounded independent
+fixes are delegated; TDD and final full verification/re-review remain required.
+
 ## Revisions
 
 ### 2026-10-15T05:33-07:00 — overnight M2 dispatch

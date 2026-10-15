@@ -558,3 +558,28 @@ Current shared scratch exhaustion remains a verification issue independently of
 this now-approved product policy. Complete the compatibility delta, appropriate
 targeted checks, a clean-capacity recorded suite, normal M2 review and landing on
 SHIP. Do not inherit #528 waivers or interpret this decision as a suite bypass.
+
+### 2026-10-15 — M2 boundary BR-6 / BR-7 correction
+
+BR-6 requires the native selector classifier to cover the complete existing
+Fresh context-selector authority, including indirect remote/PR/cloud selectors.
+Existing-session mappings that inventory cannot make exact refuse before native
+spawn; ordinary option values and prompt text are not selectors. The approved
+Codex compatibility exception remains unchanged. Tests cover launcher and both
+wrapper entry forms, with exact-ID and fresh/fork negative controls.
+
+BR-7 requires a real end to interrupted reserved attempts. The next admission
+is the reclamation caller. While holding the same native store lock as Claim,
+it may fence an exact reserved attempt/token only after its strict helper
+generation is proved dead. In reserved phase no wrapper has authority to spawn:
+removing that exact grant atomically revokes every delayed wrapper. A Claim that
+wins the lock first changes the entry to spawning, which is never reclaimed by
+helper death. Thus the fence proves no authorized native child from the reserved
+attempt can exist or start; it does not infer an unobserved spawning tree absent.
+Unknown/live helpers retain the grant, and spawning uncertainty remains retained.
+Replacement reservation and old-grant rejection share this authority and lock;
+legacy owner checks still run before admitting the replacement. Tests exercise
+both lock orderings, replacement and late old grant, unknown/alive helpers, and
+unchanged spawning/running retention. This narrows the earlier tree-absence prose
+for the reserved-only phase; no retirement signal, new UI or durable state family
+is added (ARCH-ORDER, ARCH-FUNERAL, ARCH-PURPOSE).
