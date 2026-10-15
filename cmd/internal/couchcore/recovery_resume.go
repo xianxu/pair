@@ -108,11 +108,12 @@ func (c *Couch) confirmRecoveryAbsent(ctx context.Context, record ThreadRecord) 
 }
 
 // recoverySourceInactive prevents implicit retirement of an attributed source.
-// Confirmation for a live source belongs to the subsequent recovery milestone.
+// The confirmed terminal preparer is required before attributed live owners
+// may be retired; this fallback alone never grants stop authority.
 func (c *Couch) recoverySourceInactive(record ThreadRecord) error {
 	for _, owner := range c.ObserveRecordedProcesses([]ThreadRecord{record}) {
 		if owner.Liveness != Dead {
-			return errors.New("recovery source is running or its ownership is unknown; explicit confirmation is not available yet")
+			return errors.New("recovery source is running or its ownership is unknown; requires exact stop confirmation or Start fresh with a new terminal identity")
 		}
 	}
 	return nil

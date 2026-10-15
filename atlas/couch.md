@@ -20,14 +20,15 @@ Zellij's positive non-EXITED listing authorizes Continue/attach, including
 sessions launched by older Pair binaries without policy files. A failed
 listing never authorizes attachment. Observations get one bounded retry;
 uncertainty is disclosed with a recovery action rather than a pending-only row.
-An attributed running owner prevents executable Resume until the recovery
-confirmation path can retire it. In replacement M1, rows whose Fresh execution
-needs M2 confirmation retain their existing Relaunch/recovery path instead of
-a refused Fresh button. Ineligible native candidates remain read-only evidence.
-An unfinished Couch start claim without a positive listing shows **Starting**
-and read-only details; M2 must bound that state by owner liveness and age, then
-provide confirmed Resume/Fresh. Agent activity never demotes a positively
-listed session from Continue.
+Explicit recovery now uses the shared prepared path in #556 M1: an attributed
+running owner requires confirmation of its exact process generations before any
+stop. The person and authenticated owning hub use the same confirmation; unknown
+or foreign remnants are left untouched and Fresh allocates a new terminal identity.
+An unlisted start claim ceases to be Starting after five minutes or proven owner
+death. Native recovery fences the exact old nonce before making a new claim;
+Fresh archives the source and allocates a new tag. Age never authorizes killing
+the Couch supervisor. Agent activity never demotes a positively listed session
+from Continue.
 
 Public Continue attaches through `couchcore/warm_attach.go`. After attachment,
 it may replace only a proven-dead client-helper incarnation with its exact
@@ -89,8 +90,8 @@ A broken message channel does not authorize restarting a functioning agent.
 Older wrappers with an unlinked endpoint remain usable by terminal, with
 “messaging unavailable until next relaunch.” New-wrapper endpoint repair is a
 separate follow-up (#557). Resume/Fresh execution and confirmation by the person
-or hub are tracked in #556 with a separate acceptance boundary; M1's projection is not a claim
-those revised execution paths have been accepted.
+or hub share #556's prepared recovery path, described below. Native admission
+against concurrent writers is a separate #556 M2 boundary.
 
 Graceful Couch detach can retire a proven-dead helper before the next Couch
 starts. A listed-live terminal with no retained incarnation then attaches as
@@ -3820,3 +3821,46 @@ steps. They report retry backoff when it occurs; they do not report cold claims,
 native registration or promotion. Explicit fleet detach shares one lazy owner
 observation scope. Only locally owned warm clients need the borrowed-helper
 preview; managed detach retains its normal generation and session checks.
+
+## Confirmed disk recovery (#556 M1)
+
+`couch --resume-candidates repo:N --json` includes a proven native binding when
+available, plus explicit ranked candidates with their evidence. There are at most
+five disk choices total: a proven default plus four candidates, or the best
+candidate plus four alternatives. Automatic inference stays off. Plain
+`couch --resume repo:N` chooses proven resume; `--candidate KEY` chooses that exact
+ranked evidence snapshot. `couch --reboot repo:N --confirm` requests Fresh, including
+when transcript scans or previous screen evidence are incomplete or absent.
+
+Before retirement the executor resolves the saved configuration, checks workspace
+identity, preserves available screen evidence under its existing retention owner,
+and durably records the selected intent. Native launch rechecks that selection at
+the claim and Pair execution gates. Proven resume needs no screen; inferred resume
+still requires its strict capture/candidate provenance. Fresh uses normal saved
+path/default configuration when no conversation profile remains; agents cannot
+supply recovery argv or edit defaults.
+
+A request that would stop attributed running processes returns an exact stop set
+and a short-lived confirmation command, `couch --recovery-confirmation TOKEN`.
+That standalone command works for the owning authenticated hub without the menu.
+The token is in memory, single-use, valid for two minutes, and bound to the
+confirmer, source revision, selection, native identity and terminal attribution.
+Changed ownership or generations require a new selection/confirmation. Restarting
+Couch forgets unused confirmations. Menu and CLI dispatch the same executor.
+
+Selected recovery intent lives in schema-4 thread/start records; schema-3 records
+are migrated in memory without startup writes. Future schema versions refuse
+mutation. Fresh archives the source through the existing store journal and always
+allocates a new tag, preserving metadata and native files while avoiding namespace
+reuse. Its ordinary #522 first-message Prompt points at the previous-screen peek,
+exact retained paths when available, branch and issue. Native resume has no Prompt.
+The previous-screen reader validates retained capture ownership and file identities;
+orientation is display evidence, never native launch authority.
+
+After an acknowledged or uncertain launch, loss of registration does not authorize
+cleanup or another agent. One bounded exact-attempt reobservation can prove
+success; otherwise the retained claim is reported as unconfirmed with inspection
+coordinates. Pre-exec definite failures retain ordinary rollback behavior.
+Implementation owners: `couchcore/recovery_prepared.go`,
+`recovery_confirmation.go`, `recovery_start_fence.go`, `launch_existing.go`,
+`launcher/recovery_terminal.go`, and `threadrecord/recovery.go`.

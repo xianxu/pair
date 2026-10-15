@@ -258,3 +258,30 @@ records headless conformance evidence; the hub schedules the operator restart
 check. CI's ordinary suite runs the same portable stateful seams without live
 agents. Morning acceptance is the first release check, not an unattended cron
 or permission to touch working slots.
+
+### 2026-10-15 — M1 integration refinements
+
+Fresh always allocates a new tag and archives the exact retained source through
+the existing journal. This preserves ordinary reboot's metadata/native-file
+contract and also handles unknown remnants without namespace reuse. Tagged
+orientation is read through a bounded, physically validated retained-capture
+reader; it never authorizes inference for a different tag. Missing-record Fresh
+uses the same #522 Prompt and exact Fresh readiness instead of a recovery-only
+delivery route. Saved configuration remains first; Fresh-only missing-profile
+fallback uses normal read-only path/default resolution. No defaults are edited.
+
+The existing `DecideSlotRecovery` continues to own choices, with Proven added
+to its IO-backed preview. `AdvanceRecoveryExecution` in `recovery_plan.go` owns
+the internal preservation/retirement/claim/launch order; confirmation has its
+separate pure single-use transition. No parallel durable recovery lifecycle or
+second classifier is introduced (ARCH-DRY). Existing claim/park reducers retain
+their authority. Native open parks/continuations refuse before any stops; Fresh
+can archive their exact retained bytes instead. Host repair, when needed, occurs
+only after preservation and confirmed retirement, before the new Fresh claim.
+
+Legacy direct `Couch.Reboot` API coverage retains its archive-only and old
+reconciliation contracts. Public menu/CLI recovery dispatch is tested separately
+through the shared prepared executor, including strict Fresh registration; legacy
+fixtures do not pretend that spawning a client proves new-agent registration.
+The live script is `workshop/plans/000556-live-acceptance.md`; rare destructive
+corners run in private stateful headless fixtures, not a working live slot.

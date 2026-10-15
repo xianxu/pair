@@ -18,25 +18,6 @@ import (
 	"github.com/xianxu/pair/cmd/internal/threadrecord"
 )
 
-type recoveryExecutionPhase uint8
-
-const (
-	recoveryPrepared recoveryExecutionPhase = iota
-	recoveryPreserved
-	recoveryRetired
-	recoveryClaimed
-	recoveryLaunched
-)
-
-// AdvanceRecoveryExecution owns the effect order; the coordinator cannot issue
-// a retirement or launch without first accepting the preceding durable event.
-func AdvanceRecoveryExecution(current, next recoveryExecutionPhase) (recoveryExecutionPhase, error) {
-	if next != current+1 {
-		return current, errors.New("out-of-order recovery effect")
-	}
-	return next, nil
-}
-
 func recoverySelectionDigest(record ThreadRecord, selection RecoverySelection, terminal RecoveryRetirement) string {
 	b, _ := json.Marshal(struct {
 		Record    ThreadRecord
@@ -109,16 +90,26 @@ func (c *Couch) executePreparedRecovery(ctx context.Context, selection RecoveryS
 			return RecoveryResumeResult{Start: StartResult{Record: actor, Handle: handle}, Notice: "Continue"}, err
 		}
 	}
-	if record.LatestLaunchProfile == nil || !c.workingPathExists(record) {
-		return result, errors.New("recovery requires the saved agent configuration and working directory")
-	}
-	profile := cloneLaunchProfile(*record.LatestLaunchProfile)
-	if err := launcher.ValidateFreshAgentArgs(profile.Agent, profile.Argv); err != nil {
+	profile, err := c.recoveryLaunchProfile(ctx, record, selection.Kind)
+	if err != nil {
 		return result, err
 	}
-	if c.SwitchLaunchCheck != nil {
-		if err := c.SwitchLaunchCheck(profile.Agent); err != nil {
+	if selection.Kind != RecoveryFresh {
+		if record.Park != nil {
+			return result, errors.New("a park transaction is unfinished; recover that park or Start fresh preserving it")
+		}
+		if err := continuationGuard(record); err != nil {
 			return result, err
+		}
+		if startClaimed(record) {
+			if len(record.Incarnations) != 1 || record.Incarnations[0].Start == nil {
+				return result, errors.New("multiple source claims require Start fresh preserving their records")
+			}
+			claim := record.Incarnations[0].Start
+			owner := observeExactProcess(c.Proc, ProcessIdentity{PID: claim.OwnerPID, Identity: claim.OwnerIdentity})
+			if !DecideStaleStart(record, ThreadEvidence{ObservedAt: c.Clock.Now(), StartOwner: owner}) {
+				return result, errors.New("source is still starting; wait for its bounded launch or choose Start fresh")
+			}
 		}
 	}
 	observationCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -202,8 +193,13 @@ func (c *Couch) executePreparedRecovery(ctx context.Context, selection RecoveryS
 			return result, err
 		}
 	}
+	repo, finish, err := c.prepareRecoveryLaunch(ctx, record, profile)
+	if err != nil {
+		return result, err
+	}
+	defer func() { retErr = errors.Join(retErr, finish(retErr == nil)) }()
 	orient := &threadrecord.RecoveryOrientation{Branch: observed.Branch, Issue: observed.Issue}
-	if observed.Capture.RawIdentity.Inode != 0 && !observed.Capture.CapturedAt.IsZero() && c.Clock.Now().Before(observed.Capture.CapturedAt.Add(storagegc.CaptureRetentionPeriod)) {
+	if observed.Capture.RawIdentity.Inode != 0 && !observed.Capture.CapturedAt.IsZero() && !c.Clock.Now().Before(observed.Capture.CapturedAt) && c.Clock.Now().Before(observed.Capture.CapturedAt.Add(storagegc.CaptureRetentionPeriod)) {
 		if c.RecoveryPreserve == nil {
 			return result, errors.New("capture preservation unavailable; source was not stopped")
 		}
@@ -266,7 +262,7 @@ func (c *Couch) executePreparedRecovery(ctx context.Context, selection RecoveryS
 		return result, err
 	}
 	if selection.Kind == RecoveryFresh {
-		return c.launchRecoveryFreshAddress(ctx, record, selection, profile, intent, notes)
+		return c.launchRecoveryFreshAddress(ctx, record, selection, profile, intent, phase, repo, notes)
 	}
 	if err := c.confirmRecoveryAbsent(ctx, record); err != nil {
 		return result, fmt.Errorf("source cannot yet be proved stopped; Start fresh can leave it untouched: %w", err)
@@ -280,14 +276,26 @@ func (c *Couch) executePreparedRecovery(ctx context.Context, selection RecoveryS
 	} else if cleared != nil {
 		record = *cleared
 	}
-	return c.launchPreparedSelection(ctx, record, selection, profile, intent, choice, phase, notes)
+	if err := c.repairRetiredRecoveryWorkspace(ctx, record); err != nil {
+		return result, err
+	}
+	return c.launchPreparedSelection(ctx, record, selection, profile, intent, choice, phase, repo, notes)
 }
 
-func (c *Couch) launchPreparedSelection(ctx context.Context, record ThreadRecord, selection RecoverySelection, profile LaunchProfile, intent threadrecord.RecoveryIntent, choice RecoveryChoice, phase recoveryExecutionPhase, notes []string) (RecoveryResumeResult, error) {
+func (c *Couch) launchPreparedSelection(ctx context.Context, record ThreadRecord, selection RecoverySelection, profile LaunchProfile, intent threadrecord.RecoveryIntent, choice RecoveryChoice, phase recoveryExecutionPhase, preparedRepo string, notes []string) (RecoveryResumeResult, error) {
 	var result RecoveryResumeResult
+	if _, err := AdvanceRecoveryExecution(phase, recoveryClaimed); err != nil {
+		return result, err
+	}
+	if err := ctx.Err(); err != nil {
+		return result, err
+	}
 	repo, err := c.resolveRepoIdentity(ctx, record.WorkingPath)
 	if err != nil {
 		return result, err
+	}
+	if repo != preparedRepo {
+		return result, errors.New("working repository changed during recovery; refresh the choice")
 	}
 	owner, err := c.Proc.Current()
 	if err != nil {
@@ -305,13 +313,17 @@ func (c *Couch) launchPreparedSelection(ctx context.Context, record ThreadRecord
 	if err != nil {
 		return result, err
 	}
-	if _, err := AdvanceRecoveryExecution(phase, recoveryClaimed); err != nil {
+	phase, err = AdvanceRecoveryExecution(phase, recoveryClaimed)
+	if err != nil {
 		return result, err
 	}
-	return c.launchRecoveryClaim(ctx, record, nonce, selection, profile, intent, choice, notes)
+	return c.launchRecoveryClaim(ctx, record, nonce, selection, profile, intent, choice, phase, notes)
 }
 
-func (c *Couch) launchRecoveryClaim(ctx context.Context, record ThreadRecord, nonce string, selection RecoverySelection, profile LaunchProfile, intent threadrecord.RecoveryIntent, choice RecoveryChoice, notes []string) (result RecoveryResumeResult, retErr error) {
+func (c *Couch) launchRecoveryClaim(ctx context.Context, record ThreadRecord, nonce string, selection RecoverySelection, profile LaunchProfile, intent threadrecord.RecoveryIntent, choice RecoveryChoice, phase recoveryExecutionPhase, notes []string) (result RecoveryResumeResult, retErr error) {
+	if _, err := AdvanceRecoveryExecution(phase, recoveryLaunched); err != nil {
+		return result, err
+	}
 	fail := func(err error) (RecoveryResumeResult, error) {
 		return result, errors.Join(err, c.rollbackTrackedStart(record, nonce))
 	}
@@ -388,10 +400,21 @@ func (c *Couch) launchRecoveryClaim(ctx context.Context, record ThreadRecord, no
 	return result, nil
 }
 
-func (c *Couch) launchRecoveryFreshAddress(ctx context.Context, old ThreadRecord, selection RecoverySelection, profile LaunchProfile, intent threadrecord.RecoveryIntent, notes []string) (RecoveryResumeResult, error) {
+func (c *Couch) launchRecoveryFreshAddress(ctx context.Context, old ThreadRecord, selection RecoverySelection, profile LaunchProfile, intent threadrecord.RecoveryIntent, phase recoveryExecutionPhase, preparedRepo string, notes []string) (RecoveryResumeResult, error) {
+	if _, err := AdvanceRecoveryExecution(phase, recoveryClaimed); err != nil {
+		return RecoveryResumeResult{}, err
+	}
+	if err := ctx.Err(); err != nil {
+		return RecoveryResumeResult{}, err
+	}
 	backend, err := c.Threads.storeForAddress(old.Address)
 	if err != nil {
 		return RecoveryResumeResult{}, err
+	}
+	if c.confirmRecoveryAbsent(ctx, old) == nil {
+		if err := c.repairRetiredRecoveryWorkspace(ctx, old); err != nil {
+			return RecoveryResumeResult{}, err
+		}
 	}
 	var observed slotCurrentObservation
 	if backend.layout.Local {
@@ -406,6 +429,9 @@ func (c *Couch) launchRecoveryFreshAddress(ctx context.Context, old ThreadRecord
 	repo, err := c.resolveRepoIdentity(ctx, old.WorkingPath)
 	if err != nil {
 		return RecoveryResumeResult{}, err
+	}
+	if repo != preparedRepo {
+		return RecoveryResumeResult{}, errors.New("working repository changed during recovery; refresh the choice")
 	}
 	var nextIntent threadrecord.RecoveryIntent
 	prefix := filepath.Base(old.StartingPath)
@@ -432,5 +458,39 @@ func (c *Couch) launchRecoveryFreshAddress(ctx context.Context, old ThreadRecord
 	if c.confirmRecoveryAbsent(ctx, old) != nil {
 		notes = append(notes, "previous unproved owners were left untouched; using a new terminal identity")
 	}
-	return c.launchRecoveryClaim(ctx, next, nonce, selection, profile, nextIntent, RecoveryChoice{Agent: profile.Agent}, notes)
+	phase, err = AdvanceRecoveryExecution(phase, recoveryClaimed)
+	if err != nil {
+		return RecoveryResumeResult{}, err
+	}
+	return c.launchRecoveryClaim(ctx, next, nonce, selection, profile, nextIntent, RecoveryChoice{Agent: profile.Agent}, phase, notes)
+}
+
+// repairRetiredRecoveryWorkspace reuses normal slot convergence only after the
+// explicit recovery has proved its previous owners absent. It never repairs a
+// workspace underneath foreign survivors; healthy hosts retain one readiness pass.
+func (c *Couch) repairRetiredRecoveryWorkspace(ctx context.Context, record ThreadRecord) error {
+	if c.Slots == nil {
+		return nil
+	}
+	backend, err := c.Threads.storeForAddressContext(ctx, record.Address)
+	if err != nil {
+		return err
+	}
+	if backend.slot == nil {
+		return nil
+	}
+	repository, err := c.Slots.Discover(ctx, backend.slot.PrimaryRoot)
+	if err != nil {
+		return err
+	}
+	for _, candidate := range repository.Slots {
+		if candidate.Identity.WorktreeRoot == backend.slot.WorktreeRoot && (!candidate.Verified || candidate.Err != nil) {
+			if err := c.confirmRecoveryAbsent(ctx, record); err != nil {
+				return err
+			}
+			_, _, err := c.selectedSlot(ctx, backend.slot.WorktreeRoot)
+			return err
+		}
+	}
+	return nil
 }

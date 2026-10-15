@@ -161,6 +161,29 @@ Remaining M1 integration covers retained-screen reading, preflight/retention, th
 headless matrix, documentation and acceptance script, then the recorded suite.
 No live slot lifecycle effects or stage changes were performed.
 
+### 2026-10-15 — M1 integrated headless checks
+
+Integrated exact retention/preflight before stops, normal configuration fallback
+for Fresh, safely addressed previous-screen reads after new-tag Fresh, and an
+early young-Starting/native park/continuation guard. Real Git broken-host
+fixtures exposed two actual failures: checkout identity preflight failed before
+confirmation, and readiness attempted repair with unknown agent liveness. The
+fix verifies the primary catalog read-only, then uses normal slot convergence
+only after confirmed retirement/positive absence; post-repair checkout identity
+must still equal the prepared common directory. Operator files survive.
+
+Core recovery/reboot/prepared checks passed at the integration checkpoint
+(15.296s); surface/CLI/menu/protocol/schema/launcher focused checks passed
+(1.906s/0.304s/0.169s/0.140s/0.245s). Integrated expired-claim/young-claim/open-park
+tests passed under race (1.737s). Tagged previous-screen/evidence reads passed
+under race, including independent retention leases. Help/skill cost parity first
+failed for the new standalone confirmation verb, then passed after recording its
+heavy cost and updating the public protocol reference.
+
+The morning script is `workshop/plans/000556-live-acceptance.md`. No live lifecycle
+effects, automatic inference or stage changes ran. M1 now proceeds to the recorded
+suite and its binary-owned boundary review; M2 exclusion is still outstanding.
+
 ## Revisions
 
 ### 2026-10-15T05:33-07:00 — overnight M2 dispatch

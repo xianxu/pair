@@ -65,7 +65,7 @@ queue, or cross-supervisor delivery.
 
 - **light:** `--notify`, `--help`, `--skill`, `--actors`, `--send-to`, `--message-status`, `--operation-status`, `--peek` (its --transcripts option costs seconds), `--broadcast-list`, `--session-sync`, `--archived`, `--adopt-store`, `--broadcast-web-query`, `--broadcast-web-submit`, `--broadcast-web-replay` (then serves until stopped)
 - **seconds:** `--resume-candidates`, `--move-slot`, `--list`, `--show`, `--reconcile`, `--reap`, `--broadcast-web-fidelity` (a headless Chrome)
-- **heavy:** `couch` (launch), `--recover-plan-from-sdlc`, `--resume`, `--reboot`, `--relaunch`, `--reload-context`, `--prepare`, `--recover`, `--switch-agent`
+- **heavy:** `couch` (launch), `--recover-plan-from-sdlc`, `--resume`, `--reboot`, `--relaunch`, `--reload-context`, `--prepare`, `--recover`, `--switch-agent`, `--recovery-confirmation`
 
 Cost: light is under a second, seconds is a few seconds, heavy is tens of
 seconds of CPU (it stops or boots agents, or runs sdlc across the fleet);
@@ -411,6 +411,25 @@ couch --reload-context pair:3 --confirm
 - **A succeeded receipt proves only what Couch did.** `--peek` the slot
   afterwards. A reload-context `failed` with code `unconfirmed` means the
   signal landed but no restart was seen; peek before retrying.
+
+## Confirmed slot recovery
+
+`couch --resume-candidates repo:N --json` lists the proven conversation and
+ranked alternatives with evidence; automatic inference is off. Plain
+`couch --resume repo:N` resumes a proven conversation. Use
+`couch --resume repo:N --candidate KEY` for an explicit ranked choice.
+`couch --reboot repo:N --confirm` requests Start fresh, even when prior-screen
+or transcript scanning is unavailable. Fresh points the new agent at remaining
+screen, branch and issue evidence; native resume receives no launch prompt.
+
+If recovery must stop attributed running processes, inspect the returned exact
+PID/generation/role list. The owning authenticated hub can approve that named
+set with the standalone `couch --recovery-confirmation TOKEN` command. Tokens
+expire after two minutes, survive no Couch restart, and work once for the same
+confirmer and unchanged choice/stop set. A changed set requires a new offer;
+never substitute a PID or bypass confirmation. Unknown/foreign remnants stay
+untouched and Fresh uses a new terminal identity. An unconfirmed launch retains
+its attempt for inspection; peek/show before another recovery request.
 
 ## Reading a broadcast-web recording
 

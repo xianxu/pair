@@ -68,6 +68,24 @@ revalidates it immediately before the attach handoff.
 The owner parser fixtures run in ordinary tests; live Zellij ownership and socket
 budget conformance runs before releases supporting a changed Zellij version.
 
+## Recovery intent compatibility (#556 M1)
+
+Couch thread schema 4 retains the explicit recovery choice independently of the
+pending start. Inferred intent keeps the existing strict capture/candidate
+context. Proven and Fresh are tagged intents carrying address, source revision,
+time, saved agent, selected native identity (Proven only), and optional previous
+screen coordinates plus branch/issue. Optional orientation never proves a native
+conversation. Readable schema-3 records migrate only in memory; startup does not
+rewrite them, and future schema records cannot gain mutation authority.
+
+The same intent is rechecked from the exact record path, revision and start nonce
+before Pair composes native argv. Proven and inferred resume carry no first-message
+Prompt; Fresh uses the ordinary #522 Prompt and an independently allocated thread
+identity. The archived source retains its transcript and terminal coordinates.
+See [confirmed recovery](couch.md#confirmed-disk-recovery-556-m1) for confirmation
+lifetime and uncertain-launch behavior. Cross-slot native writer exclusion is
+#556 M2 and is not implied by the schema or the M1 owner observations.
+
 ## Native-session forest inventory
 
 `cmd/internal/sessioninventory` is the single model and scanner boundary for

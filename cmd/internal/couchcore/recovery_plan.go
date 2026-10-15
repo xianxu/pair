@@ -2,6 +2,7 @@ package couchcore
 
 import (
 	"context"
+	"errors"
 	"github.com/xianxu/pair/cmd/internal/threadrecord"
 )
 
@@ -46,4 +47,23 @@ type RecoveryStopProcess struct {
 	PID      int    `json:"pid"`
 	Identity string `json:"identity"`
 	Role     string `json:"role"`
+}
+
+type recoveryExecutionPhase uint8
+
+const (
+	recoveryPrepared recoveryExecutionPhase = iota
+	recoveryPreserved
+	recoveryRetired
+	recoveryClaimed
+	recoveryLaunched
+)
+
+// AdvanceRecoveryExecution owns the effect order; the coordinator cannot issue
+// a retirement or launch without first accepting the preceding durable event.
+func AdvanceRecoveryExecution(current, next recoveryExecutionPhase) (recoveryExecutionPhase, error) {
+	if next != current+1 {
+		return current, errors.New("out-of-order recovery effect")
+	}
+	return next, nil
 }
