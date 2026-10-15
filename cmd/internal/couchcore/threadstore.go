@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -1355,7 +1356,7 @@ func (s *ThreadStore) archivePath(address ThreadAddress) string {
 // parked, detached and every unusable reason but `unknown`, because the operator
 // is the one who decides a thread is finished.
 func (s *ThreadStore) ArchiveThread(address ThreadAddress) error {
-	return s.archiveThread(address, nil)
+	return s.archiveThread(address, nil, nil)
 }
 
 // ArchiveThreadExpected preserves the exact record inspected before external
@@ -1363,10 +1364,17 @@ func (s *ThreadStore) ArchiveThread(address ThreadAddress) error {
 // older action merely because the newer record is also unoccupied. Revision
 // zero represents an unreadable observation and refuses a newly readable record.
 func (s *ThreadStore) ArchiveThreadExpected(address ThreadAddress, revision uint64) error {
-	return s.archiveThread(address, &revision)
+	return s.archiveThread(address, &revision, nil)
 }
 
-func (s *ThreadStore) archiveThread(address ThreadAddress, expectedRevision *uint64) error {
+// ArchiveThreadExpectedBytes files only the exact observed snapshot, including
+// undecodable bytes. The existing record guards and archive journal still own it.
+func (s *ThreadStore) ArchiveThreadExpectedBytes(address ThreadAddress, raw []byte) error {
+	expected := append([]byte(nil), raw...)
+	return s.archiveThread(address, nil, &expected)
+}
+
+func (s *ThreadStore) archiveThread(address ThreadAddress, expectedRevision *uint64, expectedRaw *[]byte) error {
 	if err := validateThreadAddress(address); err != nil {
 		return err
 	}
@@ -1375,7 +1383,7 @@ func (s *ThreadStore) archiveThread(address ThreadAddress, expectedRevision *uin
 		return routeErr
 	}
 	if backend != s {
-		return backend.archiveThread(address, expectedRevision)
+		return backend.archiveThread(address, expectedRevision, expectedRaw)
 	}
 	return s.withLock(func() error {
 		manifest, manifestRaw, _, err := s.loadManifestLocked()
@@ -1388,6 +1396,9 @@ func (s *ThreadStore) archiveThread(address ThreadAddress, expectedRevision *uin
 		}
 		if !exists {
 			return fmt.Errorf("%w: %+v", ErrThreadNotFound, address)
+		}
+		if expectedRaw != nil && !bytes.Equal(raw, *expectedRaw) {
+			return errors.New("thread record changed before archive; inspect and retry")
 		}
 		// Decode to CHECK, not to gate the move: an undecodable record is
 		// exactly what the operator most wants gone, and refusing to archive it
