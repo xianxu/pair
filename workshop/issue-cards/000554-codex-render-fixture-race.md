@@ -1,6 +1,6 @@
 ---
 id: 000554
-status: codecomplete
+status: done
 created: 2026-10-14
 updated: 2026-10-15
 estimate_hours:
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: a023e96e3143b7dd928e4cdeb5b9a1d8536e9ca9
         evidence_commit: e84c2a9aac629490c8e8deed90c68bcfc796e5f7
+        landed_commit: 60fcd0ccf74e1b50b73bf7c09e94a408616ad25a
 ---
 
 # Codex notification fixture races emulator Close against reader
