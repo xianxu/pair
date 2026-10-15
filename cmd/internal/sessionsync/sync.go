@@ -368,17 +368,26 @@ func (f *file) shadowAfter(section, body, next string, now time.Time) string {
 	return Restamp(shadow, now)
 }
 
-// saveShadow is the one writer of the shadow. Rewriting it would move a
-// sidecar-less file's horizon (the shadow's mtime), so the horizon is pinned
-// in the sidecar first.
+// saveShadow prepares a read-all baseline before publishing it. Writes use
+// their prepared bundle, including already-encoded horizon and fold state.
 func (f *file) saveShadow(content string) error {
 	if f.registration != nil {
 		if err := validateRegisteredMetadata(content, f.state, f.registration.Paths); err != nil {
 			return err
 		}
 	}
+	pinState, err := encodeState(f.state)
+	if err != nil {
+		return err
+	}
+	return f.publishShadow(content, pinState)
+}
+
+// publishShadow is the one shadow writer. Preserve a sidecar-less legacy
+// horizon before changing shadow mtime; every byte was prepared before effects.
+func (f *file) publishShadow(content string, pinState []byte) error {
 	if _, err := os.Stat(f.paths.State); errors.Is(err, os.ErrNotExist) {
-		if err := saveState(f.paths, f.state); err != nil {
+		if err := writeAtomic(f.paths.State, pinState); err != nil {
 			return err
 		}
 	} else if err != nil {
@@ -389,6 +398,62 @@ func (f *file) saveShadow(content string) error {
 	}
 	f.shadow, f.hasShadow = content, true
 	return nil
+}
+
+// preparedWrite is the complete immutable publication input. Preparation owns
+// all deterministic refusals; effects never re-validate an older mutable state.
+type preparedWrite struct {
+	document, shadow, hash    string
+	state                     State
+	stateBytes, pinStateBytes []byte
+}
+
+func (f *file) prepareWrite(req WriteRequest, rows []Entry, now time.Time) (preparedWrite, error) {
+	next := req.Body
+	var err error
+	if req.Section != "" {
+		if next, err = ReplaceSection(f.content, req.Section, req.Body); err != nil {
+			return preparedWrite{}, refuse("%v", err)
+		}
+	}
+	validContent := IsSessionSync(next) && ParseOwner(next) == f.owner
+	if f.registration != nil {
+		validContent = EffectiveOwner(next, f.registration.RegisteredOwner) == f.owner && (!IsSessionSync(f.content) || IsSessionSync(next))
+	}
+	if !validContent {
+		if f.registration != nil && !IsSessionSync(f.content) {
+			return preparedWrite{}, refuse("the new content must preserve the effective Couch owner %q", f.owner)
+		}
+		return preparedWrite{}, refuse("the new content must keep the frontmatter (`type: session-sync` and owner %q, as `couch-owner:` or legacy `owner:`)", f.owner)
+	}
+	next = Restamp(next, now)
+	shadow := f.shadowAfter(req.Section, req.Body, next, now)
+	state := f.state
+	state.LastWrite = &now
+	state.Fold(req.Fold, rows)
+	if f.registration != nil {
+		if len(next) > documentMaxBytes {
+			return preparedWrite{}, registryLimit()
+		}
+		if err := validateRegisteredMetadata(shadow, state, f.registration.Paths); err != nil {
+			return preparedWrite{}, err
+		}
+	}
+	target := next
+	if req.Section != "" {
+		if target, err = SectionBody(next, req.Section); err != nil {
+			return preparedWrite{}, refuse("%v", err)
+		}
+	}
+	stateBytes, err := encodeState(state)
+	if err != nil {
+		return preparedWrite{}, err
+	}
+	pinStateBytes, err := encodeState(f.state)
+	if err != nil {
+		return preparedWrite{}, err
+	}
+	return preparedWrite{document: next, shadow: shadow, hash: Hash(target), state: state, stateBytes: stateBytes, pinStateBytes: pinStateBytes}, nil
 }
 
 func (s *Sync) write(f *file, req WriteRequest) (Result, error) {
@@ -410,55 +475,21 @@ func (s *Sync) write(f *file, req WriteRequest) (Result, error) {
 	if err := folds(req.Fold, owed); err != nil {
 		return Result{}, err
 	}
-	next := req.Body
-	if req.Section != "" {
-		if next, err = ReplaceSection(f.content, req.Section, req.Body); err != nil {
-			return Result{}, refuse("%v", err)
-		}
-	}
-	validContent := IsSessionSync(next) && ParseOwner(next) == f.owner
-	if f.registration != nil {
-		validContent = EffectiveOwner(next, f.registration.RegisteredOwner) == f.owner && (!IsSessionSync(f.content) || IsSessionSync(next))
-		if len(next) > documentMaxBytes {
-			return Result{}, registryLimit()
-		}
-	}
-	if !validContent {
-		if f.registration != nil && !IsSessionSync(f.content) {
-			return Result{}, refuse("the new content must preserve the effective Couch owner %q", f.owner)
-		}
-		return Result{}, refuse("the new content must keep the frontmatter (`type: session-sync` and owner %q, as `couch-owner:` or legacy `owner:`)", f.owner)
-	}
-	now := s.now()
-	next = Restamp(next, now)
-	shadow := f.shadowAfter(req.Section, req.Body, next, now)
-	state := f.state
-	state.LastWrite = &now
-	state.Fold(req.Fold, rows)
-	if f.registration != nil {
-		if len(next) > documentMaxBytes {
-			return Result{}, registryLimit()
-		}
-		if err := validateRegisteredMetadata(shadow, state, f.registration.Paths); err != nil {
-			return Result{}, err
-		}
-	}
-	if err := replaceShared(req.File, []byte(next)); err != nil {
-		return Result{}, err
-	}
-	if err := f.saveShadow(shadow); err != nil {
-		return Result{}, err
-	}
-	f.state = state
-	if err := saveState(f.paths, f.state); err != nil {
-		return Result{}, err
-	}
-	f.content = next
-	written, err := f.target(req.Section)
+	prepared, err := f.prepareWrite(req, rows, s.now())
 	if err != nil {
 		return Result{}, err
 	}
-	res := Result{Owner: f.owner, Folded: req.Fold, Hash: Hash(written)}
+	if err := replaceShared(req.File, []byte(prepared.document)); err != nil {
+		return Result{}, err
+	}
+	if err := f.publishShadow(prepared.shadow, prepared.pinStateBytes); err != nil {
+		return Result{}, err
+	}
+	if err := writeAtomic(f.paths.State, prepared.stateBytes); err != nil {
+		return Result{}, err
+	}
+	f.content, f.state = prepared.document, prepared.state
+	res := Result{Owner: f.owner, Folded: req.Fold, Hash: prepared.hash}
 	// The guard and the write can't be one step against parley, which takes
 	// no flock; say so when the operator took their turn in between.
 	lockPaths := f.lockPaths

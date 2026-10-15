@@ -208,3 +208,97 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-15T14:47:15-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 573 — Agentic documents: Couch registry so session-sync verbs work for any submitted file (universal-agent-input-interface S1, Couch side) |
+| repo | pair |
+| issue file | workshop/issues/000573-agentic-documents-couch-registry-so-session-sync-verbs-work-for-any-submitted-file-universal-agent-input-interface-s1-couch-side.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | a0e3e4d2711bb33b0227c471283f60ead3300c45..e4468d7250773c91e65f0fbc1ef41694bd4089ca |
+| command | sdlc close --issue 573 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-15T14:47:15-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The registry, rename attribution, documentation, and handoff bounds are substantially implemented. BR-3 is fixed. BR-2 remains blocking: a valid near-limit state can pass write preflight, then trigger a size refusal **after the document has changed**.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The shared spelling inventory feeds lock checks and legacy export; the additional-alias regressions pass in the sessionsync package run. The prior disposition stands.
+  - id: BR-2
+    disposition: not-addressed
+    note: |
+      The handoff reservation fixes have meaningful regression coverage: removing SubmitPaths reservation makes admission, alias, rename, and write tests fail. However, sync.go:442 validates post-fold state, then changes the document at line 446; saveShadow at line 449 revalidates the old f.state at line 376. Reproduced with valid handoff state sized to 1 MiB minus 16 bytes, obsolete folds, a new delivery gap, and write --accept-gap: post-fold preflight passes, but shadow publication returns registry-limit with documentChanged=true. This remains the persisted-writer-reader-envelope family: use one prepared, validated metadata state throughout publication, and sweep every subsequent writer/validator for stale-state checks. ARCH-CONSTRAINTS / ARCH-ORDER.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      registry_test.go:406-425 now resolves the canonical spelling and expects an unchanged registration, then uses a distinct leaf alias to test admission and retry. The corrected test passes with an explicitly canonical TMPDIR, and the complete sessionsync package passes.
+```
+
+1. **Strengths**
+
+   Stable identities preserve metadata across rename; shared admitted spellings cover alias locks and export. Broker admission timestamps correctly separate submit attribution from delivery completion. README, atlas, help, and embedded Couch instructions document the new surface.
+
+2. **Critical findings**
+
+   **BR-2 remains open** at [sync.go:449](/Users/xianxu/Library/Caches/sdlc/review-checkouts/7a80633e3ddc7205/cmd/internal/sessionsync/sync.go:449). `owed` adds `GapAccepted` to the loaded state. The prospective state then prunes obsolete folds and fits the envelope, but `saveShadow` validates the unpruned state after document replacement.
+
+   Pass the prepared state through shadow/state publication, ensuring all deterministic validation completes before document mutation. Add a regression asserting that this valid post-pruning write succeeds and publishes consistent document, shadow, and state.
+
+3. **Important findings**
+
+   None additional.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   Passed `go test` for sessionsync, couchmessage, couchcmd, and artifactpath; `git diff --check` also passed. The handoff guard mutation produced the expected regression failures. The additional gap/pruning reproduction failed on pinned HEAD with `registry-limit` and `documentChanged=true`. Disposable copies were removed; the checkout remains unchanged. The full repository suite was not rerun.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared metadata validation and spelling inventory.
+   - **ARCH-PURE — pass:** registry transitions and ownership decisions remain separate from filesystem effects.
+   - **ARCH-PURPOSE — flag:** BR-2 still violates the promised pre-mutation refusal contract.
+   - **ARCH-MOCK — pass:** portable filesystem fixtures and existing broker seams exercise production paths.
+   - **ARCH-CONSTRAINTS — flag:** publication validates a different state from preflight.
+   - **ARCH-SECURE — pass:** bounded regular-file reads and strict registry decoding fail visibly.
+   - **ARCH-ORDER — flag:** a deterministic refusal follows an already-applied document effect.
+   - **ARCH-FUNERAL — pass:** explicit forget, capacity limits, and orphan cleanup bound retained artifacts.
+
+7. **Plan revision recommendation**
+
+   Add a `## Revisions` entry requiring one prepared document/shadow/state bundle for each write, validated before effects and consumed consistently by every publication step. Include the near-limit gap-acceptance plus fold-pruning regression.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"15980d7a-743f-4d5d-94e1-e7dc003f5be5","repository":"github.com/xianxu/pair","issue_id":"000573","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/7a80633e3ddc7205","reviewed_head":"e4468d7250773c91e65f0fbc1ef41694bd4089ca","slot":"pair:5","requested_at":"2026-10-15T21:43:44.532088Z"},"phase":"finished","pid":88042,"started_at":"2026-10-15T21:43:44.895579Z","finished_at":"2026-10-15T21:47:11.70255Z","session_id":"01a14185-6c7a-70a1-be39-49484dd9feda","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.869533584s
+head: "e4468d7250773c91e65f0fbc1ef41694bd4089ca"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

@@ -75,7 +75,9 @@ size-triggered trim threshold. Registered document/shadow size is bounded at
 4 MiB and state at 1 MiB including reserved legacy handoff history;
 registration, alias admission, rename, shadow refresh and writes reserve that
 complete representation before growth. Prospective writes and legacy imports are
-checked before changing authority or document content. Registry waits and diff
+checked before changing authority or document content. Writes prepare their
+document, shadow, post-fold state bytes and result hash together; publication
+consumes that same bundle. Registry waits and diff
 execution are bounded at two seconds.
 
 A held operator lock always blocks agent writes. A valid lock timestamp older

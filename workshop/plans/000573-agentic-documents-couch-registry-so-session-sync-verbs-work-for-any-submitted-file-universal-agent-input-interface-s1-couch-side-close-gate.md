@@ -194,6 +194,47 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 15980d7a-743f-4d5d-94e1-e7dc003f5be5
+            repository: github.com/xianxu/pair
+            issue_id: "000573"
+            recipe: milestone-review
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/7a80633e3ddc7205
+            reviewed_head: e4468d7250773c91e65f0fbc1ef41694bd4089ca
+            slot: pair:5
+            requested_at: "2026-10-15T21:43:44.532088Z"
+          phase: finished
+          pid: 88042
+          started_at: "2026-10-15T21:43:44.895579Z"
+          finished_at: "2026-10-15T21:47:11.70255Z"
+          session_id: 01a14185-6c7a-70a1-be39-49484dd9feda
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-15T14:47:17-07:00"
+      dispatched: "2026-10-15T14:43:40-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: The shared spelling inventory feeds lock checks and legacy export; the additional-alias regressions pass in the sessionsync package run. The prior disposition stands.
+          round: 3
+        - id: BR-2
+          disposition: not-addressed
+          note: 'The handoff reservation fixes have meaningful regression coverage: removing SubmitPaths reservation makes admission, alias, rename, and write tests fail. However, sync.go:442 validates post-fold state, then changes the document at line 446; saveShadow at line 449 revalidates the old f.state at line 376. Reproduced with valid handoff state sized to 1 MiB minus 16 bytes, obsolete folds, a new delivery gap, and write --accept-gap: post-fold preflight passes, but shadow publication returns registry-limit with documentChanged=true. This remains the persisted-writer-reader-envelope family: use one prepared, validated metadata state throughout publication, and sweep every subsequent writer/validator for stale-state checks. ARCH-CONSTRAINTS / ARCH-ORDER.'
+          round: 3
+        - id: BR-3
+          disposition: addressed
+          note: registry_test.go:406-425 now resolves the canonical spelling and expects an unchanged registration, then uses a distinct leaf alias to test admission and retry. The corrected test passes with an explicitly canonical TMPDIR, and the complete sessionsync package passes.
+          round: 3
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#573 (boundary-review)
@@ -222,7 +263,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-3** [Important] `filesystem-independent-test-fixtures` (kind: defect) Symlink regression assumes the temporary directory has a noncanonical spelling
   cmd/internal/sessionsync/registry_test.go:408 requires Changed=true when registering realPath after registering its symlink alias. When the temporary directory is already canonical, realPath is the stored canonical File, so Changed=false is correct. The targeted package run and an isolated rerun both fail at line 409. Create another distinct alias to test admission, and separately assert that registering the already-known canonical spelling is unchanged.
 
+## Round 3 — 2026-10-15T14:47:17-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — The shared spelling inventory feeds lock checks and legacy export; the additional-alias regressions pass in the sessionsync package run. The prior disposition stands.
+- BR-2 — not-addressed — The handoff reservation fixes have meaningful regression coverage: removing SubmitPaths reservation makes admission, alias, rename, and write tests fail. However, sync.go:442 validates post-fold state, then changes the document at line 446; saveShadow at line 449 revalidates the old f.state at line 376. Reproduced with valid handoff state sized to 1 MiB minus 16 bytes, obsolete folds, a new delivery gap, and write --accept-gap: post-fold preflight passes, but shadow publication returns registry-limit with documentChanged=true. This remains the persisted-writer-reader-envelope family: use one prepared, validated metadata state throughout publication, and sweep every subsequent writer/validator for stale-state checks. ARCH-CONSTRAINTS / ARCH-ORDER.
+- BR-3 — addressed — registry_test.go:406-425 now resolves the canonical spelling and expects an unchanged registration, then uses a distinct leaf alias to test admission and retry. The corrected test passes with an explicitly canonical TMPDIR, and the complete sessionsync package passes.
+
 ## Open findings
 
 - **BR-2** [Critical] `persisted-writer-reader-envelope` (kind: defect) Shadow writers exceed the registered reader limit and strand successful operations
-- **BR-3** [Important] `filesystem-independent-test-fixtures` (kind: defect) Symlink regression assumes the temporary directory has a noncanonical spelling

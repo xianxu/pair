@@ -270,3 +270,17 @@ func TestRegisteredGrowthReservesHandoffBeforePublication(t *testing.T) {
 		})
 	}
 }
+
+func TestRegisteredPreparedWriteRejectsAmbiguousResultBeforeEffects(t *testing.T) {
+	r := newRig(t)
+	if _, err := r.sync.Register(r.p.File, "ops:0"); err != nil {
+		t.Fatal(err)
+	}
+	p := registeredPaths(t, r.sync, r.p.File)
+	beforeDoc, beforeShadow, beforeState := r.read(r.p.File), r.read(p.Shadow), r.read(p.State)
+	_, err := r.sync.Write(WriteRequest{File: r.p.File, Section: "Trains", Body: "## Trains\n\nduplicate\n", IfHash: r.hash("Trains")})
+	wantRefusal(t, err, 1, "refused")
+	if r.read(r.p.File) != beforeDoc || r.read(p.Shadow) != beforeShadow || r.read(p.State) != beforeState {
+		t.Fatal("ambiguous prepared result changed document or metadata before refusal")
+	}
+}

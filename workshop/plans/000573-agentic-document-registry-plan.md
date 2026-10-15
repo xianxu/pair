@@ -95,7 +95,7 @@ Files: couchcmd/session_sync.go, session_sync_test.go, message_deliveries_test.g
 
 ### 4. Verify, review, land
 
-- [x] Commit/push through sdlc pr; run required full suite via sdlc local-check run --name suite on the pushed head. Preserve failures and fix demonstrated regressions; no bypass of CI/local-gates.
+- [ ] Commit/push through sdlc pr; run required full suite via sdlc local-check run --name suite on the pushed head. Preserve failures and fix demonstrated regressions; no bypass of CI/local-gates.
 - [ ] Arrange the required operator live check through the hub before landing: a plain right-pane note submits, locks on next edit, rejects Couch write, unlocks on submit, and remains owed until write --fold. Stage/build only as the hub authorizes; clear stage after use.
 - [ ] Update issue Log/atlas and run sdlc close --issue 573 --verified with exact evidence; the gate owns the mandatory fresh review. Fix Important/Critical findings or dispute with evidence.
 - [ ] On SHIP, integrate main, repeat required checks if code changed, sdlc merge --yes; report landed PR and stop. TL owns project updates.
@@ -179,3 +179,13 @@ BR-3: the symlink regression now explicitly resolves the already-known canonical
 ### 2026-10-15 — handoff corrections verified with integrated main
 
 The required suite on 6cbc544ad049612379b84279d0f4dd330ac0ac02 passed in 13m5s, with #556 integrated. Full race (26.802s), focused post-integration checks and all server checks pass. Third close review must dispose the remaining BR-2/BR-3; landing is pending.
+
+### 2026-10-15 — close round 3 prepared publication bundle
+
+BR-1/BR-3 are verified addressed. BR-2 exposed validation of two different states: accepting a gap grows loaded state, prospective Fold prunes obsolete IDs and fits, then the shadow writer rechecked the unpruned state after document replacement. Replace that sequence with one pure preparedWrite bundle: restamped document, section-preserving shadow, post-fold State, exact encoded state/pinned-horizon bytes and result hash. prepareWrite performs every deterministic owner/section/size/encoding check before effects. Publication consumes that exact bundle and does no envelope validation against the older mutable file state. Whole-read refresh keeps its own preflight, then shares the raw shadow publisher. Legacy horizon pinning still precedes shadow mtime, and new folds publish only after successful document and shadow writes.
+
+| Pure concept | Location | Role |
+|--------------|----------|------|
+| preparedWrite / file.prepareWrite | cmd/internal/sessionsync/sync.go | One immutable, validated publication input per write; no IO. |
+
+Risk tests: near-limit State plus accepted gap and obsolete folds must succeed after pruning with consistent document/shadow/state. An ambiguous resulting section must refuse before all effects, since its hash also belongs to preparation. Both regressions observed RED before the bundle, then GREEN.

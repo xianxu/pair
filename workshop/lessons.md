@@ -1935,3 +1935,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
   command-line and recursive Make behavior covered inside the fixture.
 
 - #573 second close: writer/reader compatibility includes every authority handoff's derived fields. Budget the encoded export (history plus mutable state) before accepting growth, then prove forget→re-register at the byte boundary with folds intact. Filesystem tests must create distinct aliases explicitly; canonical paths are already known, regardless of whether TMPDIR happens to use /var or /private/var.
+
+- #573 third close: preflight and effect must consume the same immutable prepared bundle. Checking post-pruning state and then validating an older loaded state during shadow publication can refuse after document mutation. Compile document, shadow, encoded state/horizon and result hash before effects; prove valid gap-acceptance plus pruning succeeds, and ambiguous result sections fail without mutation.
