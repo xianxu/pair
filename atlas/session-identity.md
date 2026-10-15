@@ -519,3 +519,13 @@ legacy unscoped <tag>  (manual import)
 Selecting it copies missing flat sidecars into the current repo scope, including
 queued prompt files, preserves the flat source files, avoids overwriting scoped
 files, and writes a ledger row with `legacy_import: true`.
+
+## Codex physical namespace
+
+The [read-only resume adapter](codex-resume.md) keeps the CODEX_HOME transcript
+namespace separate from sqlite_home. Launcher ledger/native identity and recovery
+validation reuse the inventory-owned selected-home constructor. An invalid custom
+home cannot silently reauthorize a default-home transcript. Complete indirect
+selection carries its namespace through the existing admission request and is
+verified against the actual child environment before Claim; unknown cloud policy
+keeps native compatibility without reading credentials.

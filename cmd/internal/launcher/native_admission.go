@@ -5,6 +5,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"path/filepath"
+
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"github.com/xianxu/pair/cmd/internal/strictjson"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -17,8 +21,12 @@ import (
 const NativeAdmissionEnv = "PAIR_NATIVE_ADMISSION"
 const maxNativeAdmissions = 256
 const maxNativeAdmissionBytes = 1 << 20
+const maxNativeAdmissionGrantBytes = 64 << 10
 
-type NativeAdmissionRequest struct{ Agent, NativeID, Attempt, CommandDigest string }
+type NativeAdmissionRequest struct {
+	Agent, NativeID, Attempt, CommandDigest string
+	CodexScope                              string `json:",omitempty"`
+}
 
 // NativeAdmissionClaim is an opaque exact wrapper/attempt CAS, not a lease.
 type NativeAdmissionClaim struct {
@@ -86,6 +94,14 @@ func validAdmissionDigest(s string) bool {
 	return e == nil && len(raw) == sha256.Size && s == strings.ToLower(s)
 }
 func validateAdmissionRequest(r NativeAdmissionRequest) error {
+	if r.CodexScope != "" {
+		if r.Agent != "codex" {
+			return errors.New("invalid native admission scope agent")
+		}
+		if _, err := decodeNativeAdmissionCodexScope(r.CodexScope); err != nil {
+			return err
+		}
+	}
 	if !slices.Contains(AgentInventory(), r.Agent) || !admissionText(r.NativeID, 4096) || !admissionText(r.Attempt, 1024) || !validAdmissionDigest(r.CommandDigest) {
 		return errors.New("invalid native admission request")
 	}
@@ -215,4 +231,70 @@ func admissionChange(g nativeAdmissionGrant, kind NativeAdmissionTransition, p s
 }
 func sameAdmissionKey(a, b NativeAdmissionRequest) bool {
 	return a.Agent == b.Agent && a.NativeID == b.NativeID
+}
+
+// EncodeNativeAdmissionCodexScope retains only typed selection metadata. The
+// canonical encoding stays comparable inside the existing admission request.
+func EncodeNativeAdmissionCodexScope(scope sessioninventory.CodexSelectionScope) (string, error) {
+	if err := validateNativeAdmissionCodexScope(scope); err != nil {
+		return "", err
+	}
+	raw, err := json.Marshal(scope)
+	if err != nil {
+		return "", err
+	}
+	if len(raw) > 8192 {
+		return "", errors.New("native admission Codex scope too large")
+	}
+	return string(raw), nil
+}
+func validateNativeAdmissionCodexScope(s sessioninventory.CodexSelectionScope) error {
+	validPath := func(p string) bool { return admissionText(p, 4096) && filepath.IsAbs(p) && filepath.Clean(p) == p }
+	if !validPath(s.CodexHome) || !validPath(s.SQLiteHome) || !validPath(s.CWD) || !admissionText(s.Provider, 256) || (s.Mode != sessioninventory.CodexModeTUI && s.Mode != sessioninventory.CodexModeExec) || len(s.CWDs) > 64 {
+		return errors.New("invalid native admission Codex scope")
+	}
+	for _, p := range s.CWDs {
+		if !validPath(p) {
+			return errors.New("invalid native admission Codex cwd scope")
+		}
+	}
+	return nil
+}
+func decodeNativeAdmissionCodexScope(encoded string) (sessioninventory.CodexSelectionScope, error) {
+	var scope sessioninventory.CodexSelectionScope
+	if len(encoded) > 8192 {
+		return scope, errors.New("native admission Codex scope too large")
+	}
+	if err := strictjson.Decode([]byte(encoded), &scope); err != nil {
+		return scope, errors.New("invalid native admission Codex scope")
+	}
+	canonical, err := EncodeNativeAdmissionCodexScope(scope)
+	if err != nil || canonical != encoded {
+		return scope, errors.New("invalid native admission Codex scope")
+	}
+	return scope, nil
+}
+
+// NativeAdmissionScopedCommandDigest extends the legacy digest only when a
+// validated Codex namespace is present. Scope cannot downgrade to legacy argv.
+func NativeAdmissionScopedCommandDigest(agent string, argv []string, encodedScope string) (string, error) {
+	legacy, err := NativeAdmissionCommandDigest(agent, argv)
+	if err != nil || encodedScope == "" {
+		return legacy, err
+	}
+	if agent != "codex" {
+		return "", errors.New("invalid native admission scope agent")
+	}
+	if _, err := decodeNativeAdmissionCodexScope(encodedScope); err != nil {
+		return "", err
+	}
+	raw, err := json.Marshal(struct {
+		Version                   int
+		CommandDigest, CodexScope string
+	}{2, legacy, encodedScope})
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:]), nil
 }

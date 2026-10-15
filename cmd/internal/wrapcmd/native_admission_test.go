@@ -66,9 +66,17 @@ func TestNativeResumeWithoutAdmissionNeverSpawns(t *testing.T) {
 
 type nativeAdmissionWorld struct {
 	state, agent, digest string
+	codexScope           string
 	events               []string
 	childAlive           bool
 	publishErr           error
+}
+
+func (w *nativeAdmissionWorld) InspectCodexScope(grant string) (string, error) {
+	if grant != "valid-grant" {
+		return "", errors.New("invalid grant")
+	}
+	return w.codexScope, nil
 }
 
 func (w *nativeAdmissionWorld) Claim(_ context.Context, grant, agent, digest string) (launcher.NativeAdmissionClaim, error) {

@@ -23,6 +23,7 @@ const (
 // NativeResumeSelector retains the caller invocation. Only Explicit, Latest
 // and Picker select an existing writer; Fork and New allocate a distinct one.
 type NativeResumeSelector struct {
+	CodexConfig           sessioninventory.CodexConfigInvocation
 	Agent                 string
 	Kind                  NativeResumeKind
 	NativeID              string
@@ -44,6 +45,9 @@ type NativeResumeSelector struct {
 // its first positional session ID; remaining positional text is the prompt.
 func ParseNativeResumeSelector(agent string, args []string) (NativeResumeSelector, error) {
 	s := NativeResumeSelector{Agent: agent, Kind: NativeResumeNone, Args: append([]string(nil), args...), remove: map[int]bool{}, replace: map[int]string{}, command: -1, positional: -1, delimiter: -1}
+	if agent == "codex" {
+		s.CodexConfig.Mode = sessioninventory.CodexModeTUI
+	}
 	if !IsSupportedAgent(agent) {
 		return s, nil
 	}
@@ -83,6 +87,31 @@ func ParseNativeResumeSelector(agent string, args []string) (NativeResumeSelecto
 			continue
 		}
 		name, value, inline := strings.Cut(a, "=")
+		if agent == "codex" {
+			configName, configValue, configInline := name, value, inline
+			if !strings.HasPrefix(a, "--") && len(a) > 2 && (strings.HasPrefix(a, "-p") || strings.HasPrefix(a, "-c")) {
+				configName, configValue, configInline = a[:2], a[2:], true
+			}
+			if !configInline && i+1 < len(flags) {
+				configValue = flags[i+1]
+			}
+			switch configName {
+			case "-p", "--profile":
+				s.CodexConfig.Profile = configValue
+			case "-c", "--config":
+				s.CodexConfig.Overrides = append(s.CodexConfig.Overrides, configValue)
+			case "--enable":
+				s.CodexConfig.Enable = append(s.CodexConfig.Enable, configValue)
+			case "--disable":
+				s.CodexConfig.Disable = append(s.CodexConfig.Disable, configValue)
+			case "--oss":
+				s.CodexConfig.OSS = true
+			case "--local-provider":
+				s.CodexConfig.LocalProvider = configValue
+			case "--environment", "--environment-id", "--env", "--exec-server", "--exec-server-url":
+				s.CodexConfig.Unsupported = true
+			}
+		}
 		if (agent == "codex" && strings.HasPrefix(a, "-C") && len(a) > 2) || (agent == "qoder" && strings.HasPrefix(a, "-w") && len(a) > 2) {
 			s.CWD = strings.TrimPrefix(a[2:], "=")
 			continue
@@ -264,6 +293,7 @@ func ParseNativeResumeSelector(agent string, args []string) (NativeResumeSelecto
 		if !commandSeen {
 			if agent == "codex" && !execSeen && (a == "exec" || a == "e") {
 				execSeen = true
+				s.CodexConfig.Mode = sessioninventory.CodexModeExec
 				continue
 			}
 			commandSeen = true
@@ -315,6 +345,10 @@ func ParseNativeResumeSelector(agent string, args []string) (NativeResumeSelecto
 			return s, errors.New("new session ID with resume requires fork")
 		}
 		s.Kind = NativeResumeNew
+	}
+	if agent == "codex" {
+		s.CodexConfig.CWD = s.CWD
+		s.CodexConfig.Unsupported = s.CodexConfig.Unsupported || s.Remote || s.ScopeExpanded
 	}
 	return s, nil
 }

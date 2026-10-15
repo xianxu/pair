@@ -44,10 +44,10 @@ Verification must include read-only comparison against the real DB/configuration
 
 Canonical approved implementation design: [durable plan](../plans/000571-codex-indirect-resume-adapter-plan.md). One atomic full-flow close; named pure/IO entities, source authority, budgets and function-level test strategies are in that plan.
 
-- [ ] Resolve plan-quality findings and estimate, enter change-code.
-- [ ] Build source-faithful read-only config projection and inventory-owned scoped roots; API-only local bootstrap proof or native compatibility.
-- [ ] Build separate TUI and exec collectors with portable real config/SQLite/transcript evidence.
-- [ ] Reuse pin/reserve/claim with namespace-bound handoff and unchanged compatibility UX.
+- [x] Resolve plan-quality findings and estimate, enter change-code.
+- [x] Build source-faithful read-only config projection and inventory-owned scoped roots; API-only local bootstrap proof or native compatibility.
+- [x] Build separate TUI and exec collectors with portable real config/SQLite/transcript evidence.
+- [x] Reuse pin/reserve/claim with namespace-bound handoff and unchanged compatibility UX.
 - [ ] Verify source/machine controls, targeted normal/race and full suite; atlas, close and land on SHIP.
 
 ## Log
@@ -74,6 +74,18 @@ Source links (matching tag):
 - [Official configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference)
 
 ## Revisions
+
+### 2026-10-15 — implementation and adversarial controls
+
+#556 landed bcf73458 and the hub released integration (eeabc985). Merged main, materialized the canonical plan and cleared full-flow change-code after PQ-1/PQ-2 were addressed; estimate5.90h adopted after plan-quality CLEAN. Later estimate review was INFO only. Implementation uses a source-derived local forced-login-api bootstrap as positive evidence, never credentials or a caller completeness flag.
+
+ARCH-DRY/ARCH-SECURE: shared bounded osfs reads enforce no-follow/nonblocking/identity checks for config and Git metadata; inventory owns CODEX_HOME for selector, ledger reuse, binding validation and recovery. Scope travels on existing admission grants and is reprojected before Claim without repeating latest selection. Typed scope is <=8KiB; existing grant limit increased16KiB→64KiB to carry the maximum encoded scope (bounded round-trip regression); durable store remains1MiB. Config total is tightened8MiB→4MiB, with64 reads,128 ancestry and256 worktree registrations. Limits fail to native compatibility, never produce selection authority.
+
+Behavioral RED/GREEN: real private config/profile/SQLite/transcript integration failed against the old OS resolver through a Go overlay (both TUI and exec unsupported), then passed with scoped resolution/pinning. Distinct adversarial REDs covered CLI comment/newline keys forging API-only proof, nonexistent providers, Git-admin aliases inheriting trust native rejects, OFFSET skipping a candidate after an earlier row disappears, transcript mutation of the selected or excluded higher candidate, and custom-home ledger/recovery reads silently using the default root. Fixed literal native dotted-key grammar, provider membership, original Git path validation, timestamp keyset pagination and snapshot fences. Neither UID restrictions nor ID tie-breakers were invented.
+
+Final integrated targeted normal tests passed launcher11.970s, wrapper19.894s, sessioninventory32.126s and selected authority guards0.149s (/tmp/pair571-integrated-final.log). Agent config/Git/osfs race checks passed1.517s/1.179s; no-Cgo config/Git passed0.658s. The broader artifact inventory initially rejected new unclassified files; they are now explicitly recorded as non-Pair-artifact sources, with final ownership/race reruns underway. Full suite and close review remain pending; no completion claim.
+
+Explicit real-machine read-only config conformance opened only named noncredential files,12 bounded reads/47390 bytes across TUI and exec, no native startup/selection/admission. Both remain compatibility: observation-incomplete (secure project-file observation), stricter than the previously source-derived cloud-unknown result; no forced API-only policy was supplied. Earlier source-DB private-snapshot controls remain conditional selection measurements, not guarded support on this machine. Final no-follow classification is being recorded without native paths or contents.
 
 ### 2026-10-15 — planning under the disk restriction
 

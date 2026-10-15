@@ -747,20 +747,37 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		return launchStep{code: 1}, nil
 	}
 	explicitResume := ""
+	codexScope := ""
 	unguardedCodex := !opts.Args.ResumeRequired && opts.Args.Recovery == nil && CodexIndirectResumeCompatibility(selector)
-	if !unguardedCodex && (selector.Kind == NativeResumeExplicit || selector.Kind == NativeResumeLatest || selector.Kind == NativeResumePicker) {
+	if (!unguardedCodex || selector.Kind == NativeResumeLatest) && (selector.Kind == NativeResumeExplicit || selector.Kind == NativeResumeLatest || selector.Kind == NativeResumePicker) {
 		ctx, cancel := context.WithTimeout(context.Background(), zjTimeout)
 		resolved, err := rt.ResolveNativeResume(ctx, NativeResumeRequest{Agent: agent, CWD: env.Cwd, Selector: selector})
 		cancel()
 		if err != nil || resolved.Status != sessioninventory.NativeSelectorResolved || resolved.NativeID == "" {
-			reason := resolved.Reason
-			if err != nil {
-				reason = err.Error()
+			if !unguardedCodex || err != nil {
+				reason := resolved.Reason
+				if err != nil {
+					reason = err.Error()
+				}
+				fmt.Fprintf(stderr, "pair: native resume unavailable (%s): %s; choose an exact canonical session ID or Start fresh.\n", resolved.Status, reason)
+				return launchStep{code: 1}, nil
 			}
-			fmt.Fprintf(stderr, "pair: native resume unavailable (%s): %s; choose an exact canonical session ID or Start fresh.\n", resolved.Status, reason)
-			return launchStep{code: 1}, nil
+			// Ordinary unsupported/uncertain Codex latest preserves native UX;
+			// the wrapper emits the one compatibility notice, not this helper.
+		} else {
+			if agent == "codex" && resolved.CodexScope != nil {
+				codexScope, err = EncodeNativeAdmissionCodexScope(*resolved.CodexScope)
+				if err != nil {
+					fmt.Fprintln(stderr, "pair: invalid resolved Codex scope")
+					return launchStep{code: 1}, nil
+				}
+			}
+			if unguardedCodex && codexScope == "" {
+				// A latest result without proven namespace is still compatibility.
+			} else {
+				agentArgs, explicitResume = resolved.Args, resolved.NativeID
+			}
 		}
-		agentArgs, explicitResume = resolved.Args, resolved.NativeID
 	}
 
 	// Claude/qoder/grok: mint a deterministic --session-id (uuidgen + collision
@@ -814,13 +831,13 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		}
 	}()
 	if explicitResume != "" {
-		digest, err := NativeAdmissionCommandDigest(agent, append([]string{agent}, PromptArgs(agent, commandArgs, opts.Args.Prompt)...))
+		digest, err := NativeAdmissionScopedCommandDigest(agent, append([]string{agent}, PromptArgs(agent, commandArgs, opts.Args.Prompt)...), codexScope)
 		if err != nil {
 			fmt.Fprintf(stderr, "pair: %v\n", err)
 			return launchStep{code: 1}, nil
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), zjTimeout)
-		grant, err = rt.ReserveNativeResume(ctx, NativeAdmissionRequest{Agent: agent, NativeID: explicitResume, Attempt: rt.MintLaunchNonce(), CommandDigest: digest})
+		grant, err = rt.ReserveNativeResume(ctx, NativeAdmissionRequest{Agent: agent, NativeID: explicitResume, Attempt: rt.MintLaunchNonce(), CommandDigest: digest, CodexScope: codexScope})
 		cancel()
 		if err != nil || grant == "" {
 			fmt.Fprintf(stderr, "pair: native admission refused: %v\n", err)

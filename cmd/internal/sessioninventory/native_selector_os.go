@@ -22,7 +22,13 @@ func nativeSelectorCodexRuntime(rt Runtime, home string) (Runtime, error) {
 		for agent, items := range r.roots {
 			roots[agent] = append([]StorageRoot(nil), items...)
 		}
-		roots[AgentCodex] = append(roots[AgentCodex], StorageRoot{Agent: AgentCodex, Name: "codex-state", Path: home})
+		filtered := roots[AgentCodex][:0]
+		for _, root := range roots[AgentCodex] {
+			if root.Name != "codex-state" {
+				filtered = append(filtered, root)
+			}
+		}
+		roots[AgentCodex] = append(filtered, StorageRoot{Agent: AgentCodex, Name: "codex-state", Path: home})
 		r.roots = roots
 		return r, nil
 	}

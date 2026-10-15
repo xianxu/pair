@@ -21,8 +21,10 @@ const (
 // NativeSelectorConfig contains already resolved native configuration, not
 // Pair defaults. A positively resolved empty Provider means the native query
 // intentionally has no provider filter. False resolution flags never imply
-// openai or the default Codex home.
+// openai or the default Codex home. CodexScope carries the separate complete
+// local configuration projection; nil retains the legacy contract.
 type NativeSelectorConfig struct {
+	CodexScope         *CodexSelectionScope
 	Provider           string
 	ProviderResolved   bool
 	SQLiteHome         string
@@ -110,6 +112,9 @@ func ResolveNativeSelector(ctx context.Context, rt Runtime, q NativeSelectorRequ
 	defer cancel()
 	if !validAgent(q.Agent) {
 		return NativeSelectorResolution{Status: NativeSelectorUnsupported, Reason: "unsupported native agent"}, nil
+	}
+	if q.Agent == AgentCodex && q.Latest && q.Config.CodexScope != nil && !q.Config.Remote {
+		return resolveScopedCodexLatest(ctx, rt, q)
 	}
 	if q.Config.Remote || (q.Latest && (q.Config.ScopeExpanded || q.All)) {
 		return NativeSelectorResolution{Status: NativeSelectorUnsupported, Reason: "native selector scope cannot be mapped to one local directory"}, nil

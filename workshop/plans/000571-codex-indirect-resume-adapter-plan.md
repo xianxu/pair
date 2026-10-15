@@ -96,11 +96,11 @@ ARCH-ORDER: observe -> unique selection -> reserve -> explicit argv -> verify sc
 
 ## Tasks (single atomic boundary)
 
-- [ ] Materialize approved plan, answer gate findings, then derive estimate and enter change-code.
-- [ ] RED/GREEN pure config projection and bounded reader, using real source-backed API-only positive fixtures and cloud-unknown negative controls.
-- [ ] RED/GREEN scoped native runtime and separate TUI/exec collectors via private real SQLite/transcript state; retain native fallback.
-- [ ] RED/GREEN parser/createflow and namespace-bound admission/handoff, preserving other agents and old strict routes.
-- [ ] Run read-only private-snapshot real-machine source/query and adapter comparison; explicitly expect cloud-unknown here. Coordinate any live action through hub.
+- [x] Materialize approved plan, answer gate findings, then derive estimate and enter change-code.
+- [x] RED/GREEN pure config projection and bounded reader, using real source-backed API-only positive fixtures and cloud-unknown negative controls.
+- [x] RED/GREEN scoped native runtime and separate TUI/exec collectors via private real SQLite/transcript state; retain native fallback.
+- [x] RED/GREEN parser/createflow and namespace-bound admission/handoff, preserving other agents and old strict routes.
+- [x] Run read-only private-snapshot real-machine source/query and adapter comparison; observe compatibility here. Coordinate any live action through hub.
 - [ ] Update current indexed inventory/recovery atlas and compatibility support/version docs; run targeted normal/race then recorded full suite; close, merge main, land SHIP, report real hashes.
 
 ## Operating envelope and residue
@@ -120,6 +120,10 @@ Targeted: go test ./cmd/internal/sessioninventory ./cmd/internal/launcher ./cmd/
 Race: same packages/regex with -race. Source ownership: artifactpath package plus native-authority-shadow tests. Then sdlc pr; sdlc local-check run --name suite; finish failed recipes with make -k and name all failures; sdlc close with evidence; merge origin/main; sdlc merge --yes. Binary owns fresh review; no bypass.
 
 ## Revisions
+
+### 2026-10-15 — implemented limits and native-fidelity findings
+
+Config budget is4MiB total (stricter than8MiB),64 reads,128 ancestry,256 bounded worktree registrations; native scope8KiB and existing admission grant64KiB (previous16KiB cannot hold worst-case encoded scope); store remains1MiB. Preserve startup cwd separately from -C for relative CODEX_HOME. Literal dot-split CLI keys, provider membership, secure no-follow metadata, original Git pointer alias validation, timestamp cursor pagination and every inspected transcript's identity are required by behavioral regressions. Propagate inventory-owned custom native home through existing ledger/recovery checks, not only latest selection. Real config projection remains unguarded observation-incomplete at the secure project-file boundary; do not infer cloud absence. No credential reads, second native selection, invented UID ownership rule or tie-breaker.
 
 ### 2026-10-15 — PQ-1/PQ-2
 

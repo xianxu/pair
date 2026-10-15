@@ -84,6 +84,33 @@ func DefaultOSRuntime(pairDataDir string) (OSRuntime, error) {
 	return NewOSRuntime(homeDir, pairDataDir), nil
 }
 
+// WithCodexHome scopes only the canonical transcript namespace for an explicit ID.
+func (r OSRuntime) WithCodexHome(home string) (OSRuntime, error) {
+	if !filepath.IsAbs(home) || strings.ContainsRune(home, 0) {
+		return OSRuntime{}, errors.New("Codex home requires an absolute path")
+	}
+	roots := make(map[Agent][]StorageRoot, len(r.roots))
+	for a, v := range r.roots {
+		roots[a] = append([]StorageRoot(nil), v...)
+	}
+	roots[AgentCodex] = []StorageRoot{{Agent: AgentCodex, Name: "codex-sessions", Path: filepath.Join(home, "sessions")}}
+	r.roots = roots
+	return r, nil
+}
+
+// WithCodexScope retains runtime capabilities and gives SQLite its separate home.
+func (r OSRuntime) WithCodexScope(scope CodexSelectionScope) (OSRuntime, error) {
+	if !filepath.IsAbs(scope.SQLiteHome) || strings.ContainsRune(scope.SQLiteHome, 0) {
+		return OSRuntime{}, errors.New("Codex SQLite home requires an absolute path")
+	}
+	r, err := r.WithCodexHome(scope.CodexHome)
+	if err != nil {
+		return OSRuntime{}, err
+	}
+	r.roots[AgentCodex] = append(r.roots[AgentCodex], StorageRoot{Agent: AgentCodex, Name: "codex-state", Path: scope.SQLiteHome})
+	return r, nil
+}
+
 func (r OSRuntime) NativeRoots(agent Agent) []StorageRoot {
 	return append([]StorageRoot(nil), r.roots[agent]...)
 }

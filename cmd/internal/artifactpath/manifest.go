@@ -627,6 +627,14 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	"cmd/internal/launcher/native_inventory_os.go",
+	"cmd/internal/sessioninventory/codex_config.go",
+	"cmd/internal/sessioninventory/codex_config_mdm_darwin.go",
+	"cmd/internal/sessioninventory/codex_config_mdm_nocgo.go",
+	"cmd/internal/sessioninventory/codex_config_mdm_other.go",
+	"cmd/internal/sessioninventory/codex_config_os.go",
+	"cmd/internal/sessioninventory/codex_git_scope.go",
+	"cmd/internal/sessioninventory/codex_latest.go",
 	"cmd/internal/launcher/native_admission.go",
 	"cmd/internal/launcher/native_createflow_os.go",
 	"cmd/internal/launcher/native_resume_selector.go",

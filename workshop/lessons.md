@@ -1927,3 +1927,14 @@ and external temporary roots rather than relying on the host's TMPDIR.
   pre-merge pass may still exercise the old command. Synthetic environment
   fixtures must isolate inherited MAKEFLAGS/MAKEOVERRIDES/MFLAGS; keep explicit
   command-line and recursive Make behavior covered inside the fixture.
+
+- #571: Configuration overrides have their own key grammar. Applying a TOML
+  document parser to a literal dotted key can turn comments or newlines into
+  a different authority-bearing key. Match the native override grammar and
+  prove malformed keys cannot create positive policy evidence.
+- #571: Latest-selection pagination must retain the native cursor semantics.
+  OFFSET can skip a candidate after an earlier row disappears. Fence every
+  inspected transcript, including excluded higher candidates, until the chosen
+  identity is pinned; selection authority depends on those exclusions too.
+- #571: A pre-open Lstat does not enforce no-follow or bounded reads. Use the
+  secure metadata primitive and test a symlink/FIFO swap between check and open.

@@ -296,9 +296,11 @@ func TestNativeCreateCodexIndirectCompatibilityPreservesInvocation(t *testing.T)
 	} {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
 			rt := newFakeRuntime()
-			rt.nativeResolve = func(context.Context, NativeResumeRequest) (NativeResumeResolution, error) {
-				t.Error("compatibility invoked unresolved adapter")
-				return NativeResumeResolution{}, errors.New("not implemented")
+			rt.nativeResolve = func(_ context.Context, q NativeResumeRequest) (NativeResumeResolution, error) {
+				if q.Selector.Kind != NativeResumeLatest {
+					t.Error("picker/name compatibility invoked exact/latest adapter")
+				}
+				return NativeResumeResolution{Status: sessioninventory.NativeSelectorUnsupported, Reason: "cloud-unknown"}, nil
 			}
 			rt.nativeReserve = func(context.Context, NativeAdmissionRequest) (string, error) {
 				t.Error("indirect compatibility invented a reservation")

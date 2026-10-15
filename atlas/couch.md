@@ -3880,11 +3880,10 @@ validation; its notice says workspace setup was not refreshed.
 Every new native resume is classified at the common launcher gate, including
 ordinary Pair launches outside Couch. Exact canonical IDs and supported
 Claude/Qoder latest selectors resolve once and use an explicit canonical ID
-before launch identity is published. Codex indirect selectors (latest, picker,
-native names/search or prefixes) preserve native CLI behavior unreserved and show
-one line at actual execution saying concurrent native resume is not guarded.
-This explicit compatibility exception lasts until the faithful adapter in #571;
-it never bypasses a nonempty invalid or replayed grant, and full canonical UUID
+before launch identity is published. Supported local API-only Codex latest selectors use the [read-only adapter](codex-resume.md)
+and pin a proven UUID. Cloud-unknown, picker/name/prefix and incomplete mappings
+preserve native CLI behavior unreserved, with one not-guarded line at execution.
+This explicit compatibility boundary never bypasses a nonempty invalid or replayed grant, and full canonical UUID
 resumes still require admission. Unknown indirect targets are not recorded as
 proven canonical IDs. The classifier follows native command positional grammar after an option terminator: a Codex/Muse resume session ID after `--` remains an identity, while latest/already-bound/top-level prompt text stays literal. Pinning preserves the real delimiter and changes only the selected identity; measured option-value rules are shared with Fresh validation. Forks and newly chosen
 session IDs have separate semantics and never claim the source conversation as
@@ -3918,5 +3917,5 @@ Owners: `launcher/native_admission.go`, `native_admission_os.go`,
 resolved effective configuration. Unsupported/incomplete mappings for other
 agents report exact-ID/Fresh advice. Codex's approved unreserved exception is owned
 by the shared CodexIndirectResumeCompatibility policy, with one wrapper notice;
-#571 will read effective configuration from files and verify native DB semantics.
+#571 reads effective configuration from noncredential files and verifies distinct TUI/exec DB semantics; complete API-only scope is revalidated before wrapper Claim.
 No app-server configuration process is part of this implementation. Unsupported remote/PR/cloud and other existing-context selectors derive from the same authority as Fresh validation and refuse before launch, including both wrapper entry forms; option values and prompt text remain literal.
