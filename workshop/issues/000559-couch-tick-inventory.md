@@ -67,7 +67,7 @@ Rows map to issue/spec, session-name cache, activity cache, ledger reuse, messag
 - [x] Add regression fixtures and capture uncached read/allocation profile.
 - [x] Cache strict session-name evidence and share existing ledger parsing across long-lived collision queries.
 - [x] Reuse validated activity projection while its exact dependencies are unchanged; retain changed-input validation.
-- [ ] Verify invalidation/races/scale, document cache ownership, run full suite, review, and coordinate acceptance/landing.
+- [x] Verify invalidation/races/scale, document cache ownership, run full suite, review, and coordinate acceptance/landing.
 
 ## Log
 
@@ -107,3 +107,5 @@ Close returned REWORK with BR-1 incomplete-observation invalidation, BR-2 compac
 Review corrections targeted verification: launcher/inventory/threadactivity package run exposed a cold-start regression in the new failure tracker: initial absent catalog is a complete observed absence, not a failed observation. Corrected that distinction; disappearance from a previously present catalog remains incomplete. Both permission and transient missing-catalog recovery tests pass. Updated threadactivity scale/allocation tests pass19.715s; integrated launcher/inventory/core cache race tests pass5.327s/2.160s/1.588s. Activity race tests pass1.310s. Subagent temporal tests pass20race repetitions; mutation guard counterfactuals fail as intended. Ledger substantive valid fixture906,502bytes retains615encoded bytes; current required proof preserved. Final full suite and close review still pending.
 
 TL rollout decision (delivery d7cbe719): live acceptance remains required and hub-owned: after attaches settle, idle CPU under5% over60seconds plus an ordinary delivery round trip, sampled by TL after the operator restarts Couch. Explicit instruction is finish final suite, reclose, and land on SHIP independently of #528; do not touch pair:0. A possible combined stage is TL/operator-controlled and needs a new instruction. This authorizes landing before the coordinated post-land restart check; no headless waiver or current live CPU success is claimed.
+
+Full-suite eaa222a565b6f1532489111402d0e577b7dc6be7 PASSED exit0 in10m48s, recorded sdlc-local/suite log sha256prefixbd8da6d48491. Review-fix packages now pass inventory11.032s/threadactivity18.380s in /tmp/pair559-rework-final-packages.log; targeted race and named invariant results above. Latest main merged cleanly (issue documentation only). Required final-code suite is queued on25e10107666a5911fa283b3965aa97f14a3e5de2, log .git/sdlc/local-checks/25e10107666a5911fa283b3965aa97f14a3e5de2/suite.log. Close local review may proceed while that landing check queues; no claim of its pass. Final verification tick records local evidence and initiated gates; landing still requires final suite/SHIP and hub-directed live rollout after landing.

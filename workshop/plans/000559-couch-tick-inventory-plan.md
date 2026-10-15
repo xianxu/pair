@@ -161,9 +161,13 @@ Reason: close review found incomplete observations reusable after unchanged reco
 | Activity phase/dependency equality | PURE | new | sessioninventory/activity_cache.go: advanceActivityCache/activityDependenciesMatch |
 | Activity complete-observation publication | INTEGRATION | modified | sessioninventory/activity_cache.go: ActivityCache.Query/activityObservedRuntime/activityCatalogRuntime |
 
-- [ ] Verify all review corrections with targeted race tests, both named scale invariants, final full suite and fresh close review.
+- [x] Verify all review corrections with targeted race tests and both named scale invariants; schedule final full suite and fresh close review.
 - [x] Record hub rollout/live acceptance decision before landing.
 
 ### 2026-10-14 — hub controls live rollout after landing
 
 TL explicitly directs final suite/reclose/land on SHIP independently of #528, leaving pair:0 untouched. Live acceptance is TL measurement after operator restart: idle CPU below5% for60seconds after attaches settle and one ordinary delivery round trip. A combined stage may be requested separately; this worker has no stage authorization. Actual live results remain to be supplied by TL, not inferred from the deterministic tests.
+
+### 2026-10-14 — local-review versus landing verification
+
+The previous complete suite on eaa222a5 passed10m48s with no failures; corrected code passes the affected packages, integrated cache race tests and named scale/allocation invariants. The final-code full suite on25e10107 is queued via the weighted gate. Local close review runs while it queues; a checklist tick records initiated gates, not their future outcome. Final-code suite success remains a blocking landing check and will be recorded before merge.
