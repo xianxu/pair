@@ -526,10 +526,12 @@ For automatic discovery, the operator can save that output as
 `couch/SKILL.md` in the agent's configured skill directory. Couch does not edit
 agent configuration or install the skill automatically.
 
-Only agents with a registered Pair receiver profile (Claude Code, Codex CLI)
-can accept delivery, at any installed version. Unknown composer, menu, image, or
-input state waits or refuses; never force paste. This skill does not claim that
-a receiver version has passed live smoke or human acceptance.
+Only agents with a registered Pair receiver profile (Claude Code, Codex CLI
+and Qoder CLI) can accept delivery, at any installed version; Agy, Muse and
+Grok have no receiver profile and are explicitly disabled. Unknown composer,
+menu, image, or input state waits or refuses; never force paste. This skill
+does not claim that a receiver version has passed live smoke or human
+acceptance.
 
 
 ## Several hubs in one Couch
