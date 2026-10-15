@@ -1828,3 +1828,8 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
   admitted. Check its lifetime before dispatch; a cancelled predecessor can
   publish completion while Stop is still closing channels. Preserve the
   shutdown assertion and reproduce the scheduling window before changing it.
+
+- #528 live CI: Canonical paths are identities, not always valid transports.
+  Expanding /var to /private/var can break a Unix socket near its byte limit.
+  Canonicalize the shared lock key while preserving the server's lexical path
+  for the client; test that aliases share a lock without rewriting argv/env.

@@ -53,11 +53,15 @@ func newTerminalOSAttempt(rt OSRuntime, name, config, layout string, create bool
 	if err := os.MkdirAll(filepath.Join(root, "contract_version_1"), 0700); err != nil {
 		return nil, err
 	}
+	// Zellij uses this spelling as a Unix socket pathname. Expanding symlinks
+	// can exceed the platform's socket limit even when its existing server's
+	// original path fits. Only the lease identity needs canonicalization.
+	transportRoot := root
 	root, err := filepath.EvalSymlinks(root)
 	if err != nil {
 		return nil, err
 	}
-	a := &terminalOSAttempt{rt: rt, name: name, config: config, layout: layout, create: create, socketRoot: root, socket: filepath.Join(root, "contract_version_1", name), scope: os.Getenv("PAIR_SCOPE_KEY"), tag: os.Getenv("PAIR_TAG"), agent: os.Getenv("PAIR_AGENT"), nonce: os.Getenv("PAIR_LAUNCH_NONCE")}
+	a := &terminalOSAttempt{rt: rt, name: name, config: config, layout: layout, create: create, socketRoot: transportRoot, socket: filepath.Join(root, "contract_version_1", name), scope: os.Getenv("PAIR_SCOPE_KEY"), tag: os.Getenv("PAIR_TAG"), agent: os.Getenv("PAIR_AGENT"), nonce: os.Getenv("PAIR_LAUNCH_NONCE")}
 	if create && a.tag == "" {
 		return nil, errors.New("terminal thread identity unavailable")
 	}

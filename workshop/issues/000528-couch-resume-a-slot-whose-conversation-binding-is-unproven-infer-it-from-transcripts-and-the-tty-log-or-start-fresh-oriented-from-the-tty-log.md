@@ -1180,3 +1180,10 @@ No follow-up implementation starts on this branch.
   before admission (exit130), and obsolete review31430 (contextcancelled, no
   verdict), both parent4470 and startidentities checked immediately beforeINT.
   No working slots, stage or other test owners affected.
+
+- Transport spelling regression RED0.187s before fix (canonical root substituted
+  for shorter alias). Preserve lexical socketRoot for Zellij, retain canonical
+  socket for the same shared lease across aliases. Launcher/lease tests GREEN
+  10 repetitions (launcher15.728s, artifactpath0.302s). Scratch officialbinary
+  countermeasurement baselineFAIL1.919s / fixPASS2.914s; logs
+  /tmp/pair528-ci-ambient-tmp-live.log and /tmp/pair528-ci-transport-proof.log.
