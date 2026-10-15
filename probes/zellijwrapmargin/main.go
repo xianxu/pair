@@ -74,7 +74,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
@@ -84,12 +83,12 @@ import (
 func main() { os.Exit(run()) }
 
 func run() int {
-	_, self, _, ok := runtime.Caller(0)
-	if !ok {
-		fmt.Println("PROBE-ERROR: cannot locate probe assets")
+	repo, err := zellijprobe.RepoRoot()
+	if err != nil {
+		fmt.Println("PROBE-ERROR:", err)
 		return 1
 	}
-	dir := filepath.Dir(self)
+	dir := filepath.Join(repo, "probes/zellijwrapmargin")
 
 	outFile, err := os.CreateTemp("", "zellijwrapmargin-*.txt")
 	if err != nil {

@@ -3,8 +3,9 @@ package broadcast
 import (
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"testing"
+
+	"github.com/xianxu/pair/internal/reporoot"
 )
 
 // TestViewerNode runs the viewer's node tests (font fit, connection state),
@@ -14,8 +15,11 @@ func TestViewerNode(t *testing.T) {
 	if err != nil {
 		t.Skip("node not installed")
 	}
-	_, file, _, _ := runtime.Caller(0)
-	tests, err := filepath.Glob(filepath.Join(filepath.Dir(file), "../../../tests/broadcast-viewer/*.test.mjs"))
+	repo, err := reporoot.Current()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests, err := filepath.Glob(filepath.Join(repo, "tests/broadcast-viewer/*.test.mjs"))
 	if err != nil || len(tests) < 2 {
 		t.Fatalf("viewer node tests not found: %v %v", tests, err)
 	}

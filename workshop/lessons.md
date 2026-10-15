@@ -1896,3 +1896,9 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
 - #573 wire verification: when adding a time.Time field, audit whole-struct comparisons across JSON/socket boundaries. Assert nonzero/Equal instant preservation before normalizing process-local monotonic metadata; never drop the field from integrity coverage. Run the real wrapper/broker integration as well as producer and recorder tests.
 
 - #573 close review: canonical deduplication must retain every admitted alias needed for authority. Keep aliases with their historical interval, share the derived inventory across locks and legacy handoff, and test rename/reuse/late delivery. Enforce reader envelopes at every metadata producer before an earlier destructive effect: import, whole-read refresh and section-preserving writes can each exceed a limit independently of the document's current size.
+### 2026-10-15 — bound filesystem ancestry in discovery tests (#572 BR-1)
+
+A temporary directory is not necessarily outside the checkout: SDLC review
+places TMPDIR inside it. Tests expecting ancestor discovery to fail must
+establish an explicit foreign-module boundary. Qualify both inside-checkout
+and external temporary roots rather than relying on the host's TMPDIR.

@@ -8,14 +8,45 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
+	"strings"
 	"testing"
 	"time"
 
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/xianxu/pair/cmd/internal/ttyio"
+
+	"github.com/xianxu/pair/internal/reporoot"
 )
+
+// Required oracle coverage must fail visibly when assets are absent, including
+// when the test binary has trimmed source paths.
+func TestRequiredOracleMissingAssets(t *testing.T) {
+	if mode := os.Getenv("PAIR_TEST_MISSING_ORACLE"); mode != "" {
+		root := t.TempDir()
+		if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module github.com/xianxu/pair\n"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		t.Chdir(root)
+		t.Setenv("PAIR_TERMINAL_ORACLE", "1")
+		if mode == "history" {
+			runHistoryOracle(t, 2, 2, "x")
+		} else {
+			runOracle(t, 2, 2, []string{"x"})
+		}
+		t.Fatal("missing oracle did not stop the test")
+	}
+	for _, mode := range []string{"viewport", "history"} {
+		t.Run(mode, func(t *testing.T) {
+			cmd := exec.Command(os.Args[0], "-test.run=^TestRequiredOracleMissingAssets$", "-test.v")
+			cmd.Env = append(os.Environ(), "PAIR_TEST_MISSING_ORACLE="+mode)
+			out, err := cmd.CombinedOutput()
+			if err == nil || !strings.Contains(string(out), "--- FAIL: TestRequiredOracleMissingAssets") || (!strings.Contains(string(out), "required oracle missing") && !strings.Contains(string(out), "node_modules/@xterm/headless/package.json")) {
+				t.Fatalf("missing oracle must fail, not skip: %v\n%s", err, out)
+			}
+		})
+	}
+}
 
 type oracleCell struct {
 	Text                             string
@@ -36,8 +67,11 @@ type oracleScreen struct {
 
 func runOracle(t *testing.T, cols, rows int, chunks []string) []oracleScreen {
 	t.Helper()
-	_, file, _, _ := runtime.Caller(0)
-	dir := filepath.Join(filepath.Dir(file), "../../../tests/terminal-oracle")
+	repo, err := reporoot.Current()
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(repo, "tests/terminal-oracle")
 	if _, err := os.Stat(filepath.Join(dir, "node_modules/@xterm/headless/package.json")); err != nil {
 		if os.Getenv("PAIR_TERMINAL_ORACLE") == "1" {
 			t.Fatal("required oracle missing: run npm ci in tests/terminal-oracle")

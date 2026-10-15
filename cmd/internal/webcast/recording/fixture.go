@@ -6,9 +6,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
+
+	"github.com/xianxu/pair/internal/reporoot"
 )
 
 // Fixtures are the checked-in recordings wave-1 components test against
@@ -32,8 +33,11 @@ func Fixtures() []string {
 // Fixture is the directory of a checked-in fixture, for tests in any
 // package.
 func Fixture(name string) string {
-	_, file, _, _ := runtime.Caller(0)
-	return filepath.Join(filepath.Dir(file), "testdata", "fixtures", name)
+	root, err := reporoot.Current()
+	if err != nil {
+		panic(err) // a test helper: the checkout is required
+	}
+	return filepath.Join(root, "cmd", "internal", "webcast", "recording", "testdata", "fixtures", name)
 }
 
 // Pin is a recording's canonical state at one moment, by hash: what a

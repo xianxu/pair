@@ -1577,6 +1577,14 @@ tag, not a public session name.
 
 **Hacking on pair?** Use `pair-dev` instead of `pair` — same arguments, but it rebuilds the `pair` binary from source (`make build`) on launch and on every Alt+n whole-workbench reload, so the zellij-spawned `pair wrap` always matches your working tree. Shift+Alt+N restarts only the already-running wrapper's agent child. (Deployed installs run `pair`, which uses the prebuilt binary and needs no Go toolchain.) Under Couch, start it with `couch-dev` instead of `couch`: it rebuilds once and runs Couch with dev mode on. Slots Couch launches do not rebuild Pair (a rebuild per slot slowed every launch under load), so run `make build` once before relaunching slots onto a new build.
 
+Builds and tests run through Make add `-trimpath` to existing `GOFLAGS`, so unchanged
+Go packages share compilation cache entries across worktrees. The recorded suite
+uses `make PAIR_GO_TRIMPATH=-trimpath test`; `PAIR_GO_TRIMPATH=` disables the default
+for source-path diagnostics. The `defaultPairHome` linker value still identifies
+the build checkout, so executables need not be byte-identical. Tests find fixtures
+from the current checkout's validated module root. Compiled diagnostic probes run
+outside a checkout need `PAIR_PROBE_REPO=/absolute/path/to/pair` to find their assets.
+
 SDLC reviews use the pinned commit’s `.sdlc/review-prepare.json` (version 1,
 `command: ["make", "runtimebundle-generate"]`, `timeout_minutes: 10`) to generate
 the ignored runtime embed assets in a disposable checkout before tests run.

@@ -6,11 +6,12 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
+
+	"github.com/xianxu/pair/internal/reporoot"
 )
 
 var updateCatchUp = flag.Bool("update-catchup", false, "rewrite tests/webcast/catchup_corpus.json's kept (after a deliberate change to recording.CatchUp; then port it to web/replay.js)")
@@ -21,8 +22,11 @@ var updateCatchUp = flag.Bool("update-catchup", false, "rewrite tests/webcast/ca
 // corpus's answers to Go's rule, and tests/webcast/replay.test.mjs holds
 // the port to the same answers. A change to Go's rule fails here first.
 func TestCatchUpCorpus(t *testing.T) {
-	_, file, _, _ := runtime.Caller(0)
-	path := filepath.Join(filepath.Dir(file), "../../../tests/webcast/catchup_corpus.json")
+	repo, err := reporoot.Current()
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(repo, "tests/webcast/catchup_corpus.json")
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)

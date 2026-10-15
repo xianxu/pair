@@ -3,8 +3,9 @@ package webcast
 import (
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"testing"
+
+	"github.com/xianxu/pair/internal/reporoot"
 )
 
 // TestNode runs the in-page control's and the viewer's node tests, as the
@@ -14,8 +15,11 @@ func TestNode(t *testing.T) {
 	if err != nil {
 		t.Skip("node not installed")
 	}
-	_, file, _, _ := runtime.Caller(0)
-	tests, err := filepath.Glob(filepath.Join(filepath.Dir(file), "../../../tests/webcast/*.test.mjs"))
+	repo, err := reporoot.Current()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests, err := filepath.Glob(filepath.Join(repo, "tests/webcast/*.test.mjs"))
 	if err != nil || len(tests) == 0 {
 		t.Fatalf("webcast node tests not found: %v %v", tests, err)
 	}

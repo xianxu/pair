@@ -30,7 +30,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
@@ -127,12 +126,12 @@ func compare(recorded []byte, trial int, want []byte) result {
 }
 
 func run() int {
-	_, self, _, ok := runtime.Caller(0)
-	if !ok {
-		fmt.Println("PROBE-ERROR: cannot locate probe assets")
+	repo, err := zellijprobe.RepoRoot()
+	if err != nil {
+		fmt.Println("PROBE-ERROR:", err)
 		return 1
 	}
-	dir := filepath.Dir(self)
+	dir := filepath.Join(repo, "probes/zellijwritechars")
 	bin, err := os.Executable()
 	if err != nil {
 		fmt.Println("PROBE-ERROR executable:", err)
@@ -281,4 +280,3 @@ func run() int {
 	}
 	return 0
 }
-

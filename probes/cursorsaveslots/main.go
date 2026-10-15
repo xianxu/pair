@@ -25,7 +25,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -50,14 +49,13 @@ const (
 func main() { os.Exit(run()) }
 
 func run() int {
-	// Assets resolve against THIS file, not the cwd, so the probe runs from
-	// anywhere -- `go run ./probes/cursorsaveslots` from the repo root included.
-	_, self, _, ok := runtime.Caller(0)
-	if !ok {
-		fmt.Println("PROBE-ERROR: cannot locate probe assets")
+	// From outside the checkout, set PAIR_PROBE_REPO to locate the assets.
+	repo, err := zellijprobe.RepoRoot()
+	if err != nil {
+		fmt.Println("PROBE-ERROR:", err)
 		return 1
 	}
-	dir := filepath.Dir(self)
+	dir := filepath.Join(repo, "probes/cursorsaveslots")
 
 	layout, err := zellijprobe.WriteLayout(dir, map[string]string{
 		"PROBE_SH": filepath.Join(dir, "probe.sh"),
