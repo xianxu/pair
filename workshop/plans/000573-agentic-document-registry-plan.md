@@ -97,7 +97,7 @@ Files: couchcmd/session_sync.go, session_sync_test.go, message_deliveries_test.g
 
 - [x] Commit/push through sdlc pr; run required full suite via sdlc local-check run --name suite on the pushed head. Preserve failures and fix demonstrated regressions; no bypass of CI/local-gates.
 - [ ] Arrange the required operator live check through the hub before landing: a plain right-pane note submits, locks on next edit, rejects Couch write, unlocks on submit, and remains owed until write --fold. Stage/build only as the hub authorizes; clear stage after use.
-- [ ] Update issue Log/atlas and run sdlc close --issue 573 --verified with exact evidence; the gate owns the mandatory fresh review. Fix Important/Critical findings or dispute with evidence.
+- [x] Update issue Log/atlas and run sdlc close --issue 573 --verified with exact evidence; the gate owns the mandatory fresh review. Fix Important/Critical findings or dispute with evidence.
 - [ ] On SHIP, integrate main, repeat required checks if code changed, sdlc merge --yes; report landed PR and stop. TL owns project updates.
 
 ## Approval and coordination
@@ -193,3 +193,7 @@ Risk tests: near-limit State plus accepted gap and obsolete folds must succeed a
 ### 2026-10-15 — prepared bundle verified
 
 Required suite passed on d248c5c2efff7e3c258269feba7baec0912bf388 in 12m26s (SHA256 1d38bea94f6c0361d07518d5023bbc5fe6e7473ce44a2d81ff6717f4100d1603); all server checks pass. The exact prepared publication bundle has full-suite and race coverage. Main integration since that result adds issue details only. Fourth full close review and landing remain pending; the combined operator check remains TL-owned after Parley staging.
+
+### 2026-10-15 — final close SHIP
+
+Fourth full close returned SHIP: BR-1, BR-2 and BR-3 addressed, no new findings. Reviewer independently passed relevant package tests, the complete session-sync race suite and wrapper envelope regression; both prepared-publication regressions failed against the previous implementation. Close published codecomplete bound to evidence commit 2a1d217891de5c883ab9a5d02afcd1d5e652be35. Landing remains the next action; combined operator acceptance stays with TL.
