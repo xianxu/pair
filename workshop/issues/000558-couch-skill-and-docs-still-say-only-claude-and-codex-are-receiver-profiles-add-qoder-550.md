@@ -46,6 +46,7 @@ Update the skill paragraph to name Qoder, and the explicitly disabled agents as 
 ## Log
 
 ### 2026-10-15
+- 2026-10-15: closed — Plan-check waived: the one unticked box is the close+merge step itself, in flight now; merge follows on the same SHIP. Evidence: couch --skill on a binary built from the branch prints "receiver profile (Claude Code, Codex CLI and Qoder CLI) ... Agy, Muse and Grok have no receiver profile and are explicitly disabled"; TestSkillNamesReceiverProfiles pins the sentence to wrapcmd.PeerReceiverAgents() over launcher.AgentInventory(); couchcmd + wrapcmd receiver tests ok; sweep over skill/README/atlas/help clean (Log 2026-10-15); full suite sdlc-local/suite exit 0 on 88fd1a99; hub approved no-staging live check and --no-actual (v3 engine qoder-blind: reads only Claude/Codex transcripts).; review verdict: SHIP
 
 - Suite: `sdlc local-check run --name suite` exit 0 in 9m23s, recorded as `sdlc-local/suite` on `88fd1a99` (log sha256 7f05045943a3).
 - Actuals: the v3 engine found no measurable activity — it reads only Claude (`~/.claude/projects`) and Codex (`~/.codex/sessions`) transcripts, and this session is a qoder transcript (`~/.qoder/projects/…/<session>.jsonl`, unsupported shape). Close therefore records `actual_hours: N/A` via `--no-actual` (skips calibration for this sample), with the hub's go; the engine will stay qoder-blind for future closes until it learns qoder transcripts.
