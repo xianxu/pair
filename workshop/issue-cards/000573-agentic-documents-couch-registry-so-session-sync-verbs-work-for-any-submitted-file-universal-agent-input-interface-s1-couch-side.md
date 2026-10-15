@@ -1,6 +1,6 @@
 ---
 id: 000573
-status: codecomplete
+status: done
 created: 2026-10-15
 updated: 2026-10-15
 estimate_hours: 1.704
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 9a428a8590bb98e779e633abcaa63deaa3163b55
         evidence_commit: 2a1d217891de5c883ab9a5d02afcd1d5e652be35
+        landed_commit: 55ae58b124219edbd63c2782e8c00327eeda1327
 ---
 
 # Agentic documents: Couch registry so session-sync verbs work for any submitted file (universal-agent-input-interface S1, Couch side)
