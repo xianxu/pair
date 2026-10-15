@@ -234,6 +234,22 @@ positive absence/terminal evidence as gone, keep malformed/permission/EIO unknow
 No retries, sleeps or effect-fence relaxation. Fleet diagnostics retention and
 existing context observer exposure delegated as bounded independent work.
 
+Native contract fix is GREEN: reaped-after-successful-command regression, raw
+Darwin absence/error table, generation/error matrix, native zombies and full
+procutil pass; race procutil/launcher owner tests pass and Linux cross-build
+passes (native Linux unavailable). Fresh ad-hoc review caught two gaps, both
+resolved: preserve public Identity/StrictIdentity unreaped tokens, and assert
+native argv succeeded before exit. Darwin length-aware SysctlRaw adds a size
+query per lookup; native same-run full1371rows/1352argv/1052identity134.167ms,
+named1372rows/47argv/47identity3.820ms. These API invocation counters are not
+kernel syscall counts. Host load and different timestamps prevent direct
+comparison to M1's75ms baseline. Existing parent timing seam now exposed to
+fleet contexts, with record+baseline explicitly aggregate durability rather
+than isolated fsync. Private regular diagnostics are copied before attempt
+cleanup and final fixture cleanup. Artifactpath dead-symbol check found the
+cross-package diagnostic-only API; a narrow documented allowlist entry retains
+it. No new production flags or lifecycle authority were introduced.
+
 ## Revisions
 
 - 2026-10-14 — add (operator via TL): concrete case. At the operator's 14:33 restart, Couch's background attaches spawned 21 zellij clients between 14:33:37 and 14:33:47 (~6 at a time): roughly 2–3 s per attach, against ~10–20 ms for `zellij list-sessions` and an expected ~100–300 ms floor (list, lease, one record write, spawn client, first frame). Detach ("leave couch") is unmeasured but also inspects each slot's session server. Trace one attach and one detach step by step; the likely waste is a whole process-table read (native argv for every process since #547) per slot. Probably one shared snapshot per startup or detach pass instead.

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -38,13 +37,13 @@ type Observation struct {
 type processReader interface {
 	table() ([]Process, error)
 	command(int) (CommandInfo, error)
-	identity(int) string
+	identity(int) (string, error)
 }
 type nativeReader struct{}
 
 func (nativeReader) table() ([]Process, error)            { return Table() }
 func (nativeReader) command(pid int) (CommandInfo, error) { return nativeCommand(pid) }
-func (nativeReader) identity(pid int) string              { return Identity(strconv.Itoa(pid)) }
+func (nativeReader) identity(pid int) (string, error)     { return nativeIdentity(pid) }
 
 // Snapshot reads the metadata table once and enriches every row with native
 // command evidence, excluding kernel-confirmed terminated rows. Start identities
@@ -96,7 +95,7 @@ func (r *snapshotCallReader) command(pid int) (CommandInfo, error) {
 	return r.processReader.command(pid)
 }
 
-func (r *snapshotCallReader) identity(pid int) string {
+func (r *snapshotCallReader) identity(pid int) (string, error) {
 	r.identities++
 	return r.processReader.identity(pid)
 }
@@ -136,9 +135,15 @@ func snapshotSelected(ctx context.Context, r processReader, selectRow func(Proce
 			if IsProcessGone(err) {
 				continue
 			}
-			identity := r.identity(p.PID)
-			if identity != "" && identity != p.Identity {
+			identity, identityErr := r.identity(p.PID)
+			if errors.Is(identityErr, os.ErrNotExist) || errors.Is(identityErr, syscall.ESRCH) {
+				continue // Positive absence/terminal evidence, never an unreadable identity.
+			}
+			if identityErr == nil && identity != "" && identity != p.Identity {
 				continue // Only the old snapshot generation is gone; never adopt its replacement.
+			}
+			if err == nil && identityErr != nil {
+				err = fmt.Errorf("process identity after command read: %w", identityErr)
 			}
 			if err == nil && identity == "" {
 				err = errors.New("process identity unavailable after command read")

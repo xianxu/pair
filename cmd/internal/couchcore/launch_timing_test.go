@@ -1,7 +1,6 @@
 package couchcore
 
 import (
-	"context"
 	"slices"
 	"strings"
 	"testing"
@@ -17,12 +16,12 @@ func TestLaunchTimingObserverReportsSuccessfulWarmResume(t *testing.T) {
 		return nil
 	}
 	var names []string
-	ctx := context.WithValue(t.Context(), launchTimingObserverKey{}, launchTimingObserver(func(name string, elapsed time.Duration) {
+	ctx := WithLaunchTimingObserver(t.Context(), func(name string, elapsed time.Duration) {
 		if elapsed < 0 {
 			t.Errorf("negative elapsed for %s: %s", name, elapsed)
 		}
 		names = append(names, name)
-	}))
+	})
 	if _, _, err := env.Couch.ResumeContextWith(ctx, address, ResumeOptions{WarmOnly: true}); err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +50,7 @@ func TestLaunchTimingObserverPreservesRegistrationFailureTimings(t *testing.T) {
 	parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
 	env.Artifacts.SetNativeBinding(parked.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
 	var names []string
-	ctx := context.WithValue(t.Context(), launchTimingObserverKey{}, launchTimingObserver(func(name string, _ time.Duration) { names = append(names, name) }))
+	ctx := WithLaunchTimingObserver(t.Context(), func(name string, _ time.Duration) { names = append(names, name) })
 	_, _, err := env.Couch.ResumeContextWith(ctx, parked.Address, ResumeOptions{})
 	text := retainedLaunchError(t, env.Couch, err)
 	if !strings.Contains(text, "[steps: claim ") || !strings.Contains(text, ", registration ") {
@@ -66,12 +65,12 @@ func TestLaunchTimingObserverPreservesRegistrationFailureTimings(t *testing.T) {
 func TestDetachTimingObserverReportsStagesAndIsScopedToContext(t *testing.T) {
 	f := newDetachFixture(t)
 	var names []string
-	ctx := context.WithValue(t.Context(), launchTimingObserverKey{}, launchTimingObserver(func(name string, elapsed time.Duration) {
+	ctx := WithLaunchTimingObserver(t.Context(), func(name string, elapsed time.Duration) {
 		if elapsed < 0 {
 			t.Errorf("negative elapsed for %s: %s", name, elapsed)
 		}
 		names = append(names, name)
-	}))
+	})
 	if _, err := f.couch.Detach(ctx, f.address); err != nil {
 		t.Fatal(err)
 	}

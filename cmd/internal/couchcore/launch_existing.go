@@ -496,6 +496,14 @@ type launchSteps struct {
 type launchTimingObserverKey struct{}
 type launchTimingObserver func(string, time.Duration)
 
+// WithLaunchTimingObserver observes consecutive launch and detach stage durations
+// only within ctx. Callbacks run synchronously in the operation's goroutine;
+// callers sharing the context across operations must synchronize their observer.
+// The observer must not block or change lifecycle behavior.
+func WithLaunchTimingObserver(ctx context.Context, observe func(string, time.Duration)) context.Context {
+	return context.WithValue(ctx, launchTimingObserverKey{}, launchTimingObserver(observe))
+}
+
 func newLaunchSteps(ctx context.Context, begun time.Time) *launchSteps {
 	s := &launchSteps{last: time.Now()}
 	if ctx != nil {

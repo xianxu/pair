@@ -29,12 +29,12 @@ func (r *startupTimingReader) command(pid int) (CommandInfo, error) {
 	r.commands++
 	return value, err
 }
-func (r *startupTimingReader) identity(pid int) string {
+func (r *startupTimingReader) identity(pid int) (string, error) {
 	start := time.Now()
-	value := r.nativeReader.identity(pid)
+	value, err := r.nativeReader.identity(pid)
 	r.identityTime += time.Since(start)
 	r.identities++
-	return value
+	return value, err
 }
 
 func TestStartupNativeSnapshotTimingLive(t *testing.T) {

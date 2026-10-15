@@ -1756,3 +1756,9 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
 - #559: A cache for optional evidence must preserve the uncached fallback when its metadata cannot be observed. A disposable-catalog fingerprint failure cannot become new activity authority or a new requirement for otherwise valid ledger/native proof. Pin parity with the uncached query, and count real decoder inputs separately from filesystem reads so decoding cached bytes cannot hide behind a zero-IO test.
 
 - #559 review: Cache failure tests must recover with unchanged fingerprints and fence an older in-flight loader, not merely reject the failing call. Distinguish a canceled waiter that observed nothing from a failed source observation. Measure retained projections using substantive proof/boundary payloads, and signal cancellation barriers only after the caller actually reaches the wait.
+
+- #218: A native convenience wrapper may erase a successful empty result into a
+  generic IO error. Preserve absence/error distinctions at the native boundary;
+  reproduce exit between successful argv and identity using an owned child, and
+  assert argv succeeded so an older disappearance path cannot make the test pass.
+  Keep public generation-token compatibility separate from snapshot liveness.

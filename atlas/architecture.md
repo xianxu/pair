@@ -1316,7 +1316,10 @@ through the attach/create handoff; elapsed time is cumulative and must not be
 summed. Native loader time and readiness after handoff remain outside that clock.
 The clock stops before a blocking client lifetime. Ordinary launches are silent.
 `launchSteps` retains parent timings in failures and accepts a context-scoped
-observer for the opt-in real lifecycle fixture, without emitting UI or disk data.
+observer via `WithLaunchTimingObserver` for the opt-in real lifecycle fixture,
+without emitting UI or disk data. The fleet fixture retains per-operation/tag
+parent stages and copies private diagnostic files before attempt and fixture
+cleanup. Its record+baseline stage includes durability; it does not isolate fsync.
 Nested owner/process durations explain parent stages and are not additive to them.
 Native snapshot diagnostic lines use the same flag and count actual reader calls,
 including failures and disappeared rows; they contain no names, argv or identities.
@@ -1331,8 +1334,12 @@ for first-frame readiness rather than treating attached-state queries as a frame
 `Table` remains a cheap metadata snapshot (PID, parent, start identity, niceness
 and short kernel name). `Snapshot` enriches rows with native executable/argv and
 rechecks start identity, retaining unavailable evidence per live row. Native
-per-process `EINVAL`, `ESRCH` and `ENOENT` mean gone and are omitted, including
-exit races during later environment reads; permission and unknown failures remain visible.
+command reads reporting `EINVAL`, `ESRCH` and `ENOENT` mean gone and are omitted,
+including exit races during later environment reads. Identity reads retain their
+errors separately: only positive absence (`ESRCH`/`ENOENT`, successful zero-byte
+Darwin lookup) or terminal metadata means gone; identity `EINVAL`, `EIO`,
+permission and unknown failures remain visible. Public identity helpers retain
+unreaped generation tokens for compatibility.
 zombie status excludes confirmed terminated processes from command snapshots
 while metadata tables retain them. Darwin uses
 `kern.proc.all` and `kern.procargs2`; Linux reads `/proc`. Unsupported platforms

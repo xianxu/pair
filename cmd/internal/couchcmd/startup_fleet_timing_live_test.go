@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -116,9 +117,10 @@ func fleetCleanupManifest(evidence string) error {
 	if err != nil || canonical != owned.SocketRoot {
 		return errors.New("refuse noncanonical fixture socket root")
 	}
+	retainErr := fleetRetainDiagnostics(owned.SocketRoot, evidence)
 	for _, session := range owned.Sessions {
 		if !strings.HasPrefix(session, "pair-f21-") || strings.ContainsAny(session, "/\x00\r\n") {
-			return errors.New("refuse nonfixture session cleanup")
+			return errors.Join(retainErr, errors.New("refuse nonfixture session cleanup"))
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		cmd := exec.CommandContext(ctx, owned.Zellij, "delete-session", session, "--force")
@@ -155,7 +157,7 @@ func fleetCleanupManifest(evidence string) error {
 	processes, err := procutil.SnapshotNamed(ctx, "zellij")
 	cancel()
 	if err != nil {
-		return fmt.Errorf("private server cleanup observation: %w", err)
+		return errors.Join(retainErr, fmt.Errorf("private server cleanup observation: %w", err))
 	}
 	for _, process := range processes {
 		if process.Err != nil || len(process.Args) != 3 || process.Args[1] != "--server" {
@@ -171,7 +173,7 @@ func fleetCleanupManifest(evidence string) error {
 			}
 		}
 	}
-	return os.RemoveAll(owned.SocketRoot)
+	return errors.Join(retainErr, os.RemoveAll(owned.SocketRoot))
 }
 func fleetEndExact(pid int, identity string, group bool) {
 	if pid <= 0 || identity == "" || procutil.Identity(strconv.Itoa(pid)) != identity {
@@ -269,12 +271,83 @@ type fleetSample struct {
 	Children                                                                 map[string]string
 	Clients                                                                  map[string][]fleetClientBirth
 	Errors                                                                   []string
+	ParentStages                                                             []fleetParentStage
 }
 type fleetClientBirth struct {
 	PID, PPID            int
 	Identity, Executable string
 	KernelStartUTC       string
 	KernelSpawnMS        *float64
+}
+
+// Retain regular diagnostic files while the private fixture still exists.
+// Sockets, pipes and symlinks are intentionally excluded from this byte copy.
+func fleetRetainDiagnostics(root, evidence string) error {
+	if !filepath.IsAbs(root) || !filepath.IsAbs(evidence) {
+		return errors.New("diagnostic root and evidence must be absolute")
+	}
+	if rel, err := filepath.Rel(root, evidence); err != nil || (rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator))) {
+		return errors.New("diagnostic evidence must be outside the fixture root")
+	}
+	return filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+		if os.IsNotExist(walkErr) && path == root {
+			return nil
+		}
+		if walkErr != nil {
+			return walkErr
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		dest := filepath.Join(evidence, "fixture-diagnostics", rel)
+		if entry.IsDir() {
+			return os.MkdirAll(dest, 0700)
+		}
+		if !entry.Type().IsRegular() {
+			return nil
+		}
+		in, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		out, err := os.OpenFile(dest, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0600)
+		if err != nil {
+			return errors.Join(err, in.Close())
+		}
+		_, copyErr := io.Copy(out, in)
+		return errors.Join(copyErr, in.Close(), out.Close())
+	})
+}
+
+// These are consecutive lifecycle stages, not nested IO timings. In
+// particular record+baseline includes store durability; it does not isolate fsync.
+type fleetParentStage struct {
+	Operation, Tag, Stage string
+	DurationMS            float64
+}
+type fleetParentTimings struct {
+	mu     sync.Mutex
+	events []fleetParentStage
+}
+
+func (p *fleetParentTimings) observer(operation, tag string) func(string, time.Duration) {
+	return func(stage string, elapsed time.Duration) {
+		p.mu.Lock()
+		defer p.mu.Unlock()
+		p.events = append(p.events, fleetParentStage{operation, tag, stage, fleetMillis(elapsed)})
+	}
+}
+func (p *fleetParentTimings) context(ctx context.Context, operation, tag string) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return couchcore.WithLaunchTimingObserver(ctx, p.observer(operation, tag))
+}
+func (p *fleetParentTimings) snapshot() []fleetParentStage {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]fleetParentStage(nil), p.events...)
 }
 
 func fleetMillis(d time.Duration) float64 { return float64(d) / float64(time.Millisecond) }
@@ -302,6 +375,8 @@ func fleetWait(ctx context.Context, condition func() bool) error {
 
 func runFleetSample(t *testing.T, c *couchcore.Couch, tracker *fleetTracker, inner *couchcore.PtyRunner, current **couchtty.Console, panes []fleetPane, repo string, limit, index int, evidence string) (sample fleetSample) {
 	sample = fleetSample{Index: index, Limit: limit, Count: len(panes), FrameMS: map[string]float64{}, Children: map[string]string{}, Clients: map[string][]fleetClientBirth{}}
+	var parentTimings fleetParentTimings
+	defer func() { sample.ParentStages = parentTimings.snapshot() }()
 	fmt.Fprintf(os.Stderr, "fleet sample begin index=%d limit=%d\n", index, limit)
 	defer func() { fmt.Fprintf(os.Stderr, "fleet sample end index=%d\n", index) }()
 	couchcore.LifecycleParallelism = limit
@@ -327,6 +402,9 @@ func runFleetSample(t *testing.T, c *couchcore.Couch, tracker *fleetTracker, inn
 			tracker.mu.Unlock()
 			defer func() { tracker.mu.Lock(); tracker.active--; tracker.mu.Unlock() }()
 		}
+		if call.Name != "leave" {
+			call.Context = parentTimings.context(call.Context, call.Name, call.Args["tag"])
+		}
 		value, err := actual(call)
 		tracker.mu.Lock()
 		defer tracker.mu.Unlock()
@@ -345,6 +423,11 @@ func runFleetSample(t *testing.T, c *couchcore.Couch, tracker *fleetTracker, inn
 	done := make(chan int, 1)
 	startedConsole := false
 	defer func() {
+		// Retain the measured attempt before Stop or client teardown can
+		// rewrite records or remove diagnostics, including an early root error.
+		if err := fleetRetainDiagnostics(os.Getenv("TMPDIR"), filepath.Join(evidence, fmt.Sprintf("sample-%02d", index))); err != nil {
+			sample.Errors = append(sample.Errors, "retain diagnostics: "+err.Error())
+		}
 		console.Stop()
 		_ = input.Close()
 		_ = reader.Close()
@@ -361,6 +444,7 @@ func runFleetSample(t *testing.T, c *couchcore.Couch, tracker *fleetTracker, inn
 		tracker.mu.Lock()
 		children := make([]*fleetChild, 0, len(tracker.children))
 		for _, child := range tracker.children {
+			sample.Children[string(child.address.Tag)] = string(child.prefix)
 			children = append(children, child)
 		}
 		tracker.mu.Unlock()
@@ -381,7 +465,7 @@ func runFleetSample(t *testing.T, c *couchcore.Couch, tracker *fleetTracker, inn
 		return
 	}
 	start := time.Now()
-	initial, err := c.StartInteractive(ctx, couchcore.StartArgs{Cwd: repo, Stack: "claude"})
+	initial, err := c.StartInteractive(parentTimings.context(ctx, "root", "root"), couchcore.StartArgs{Cwd: repo, Stack: "claude"})
 	sample.RootReturnMS = fleetMillis(time.Since(start))
 	if err != nil {
 		sample.Errors = append(sample.Errors, "initial root: "+err.Error())
@@ -520,7 +604,7 @@ func runFleetSample(t *testing.T, c *couchcore.Couch, tracker *fleetTracker, inn
 		return
 	}
 	leaving := time.Now()
-	value, err := console.Ops()(couchcore.OperationCall{Name: "leave", Implicit: true, Context: ctx, Args: map[string]string{"mode": string(couchcore.LeaveDetach)}})
+	value, err := console.Ops()(couchcore.OperationCall{Name: "leave", Implicit: true, Context: parentTimings.context(ctx, "leave", "fleet"), Args: map[string]string{"mode": string(couchcore.LeaveDetach)}})
 	sample.LeaveMS = fleetMillis(time.Since(leaving))
 	cpuEnd, cpuErr = fleetCPUTime()
 	sample.LeaveCPUMS = fleetMillis(cpuEnd - cpuStart)
@@ -699,7 +783,14 @@ func runStartupFleetTiming(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	var panes []fleetPane
 	defer func() {
+		if err := fleetRetainDiagnostics(socketRoot, evidence); err != nil {
+			t.Error(err)
+		}
+		for _, pane := range panes {
+			_ = pane.fixture.Close()
+		}
 		if err := os.RemoveAll(socketRoot); err != nil {
 			t.Error(err)
 		}
@@ -809,7 +900,7 @@ func runStartupFleetTiming(t *testing.T) {
 	if err := os.WriteFile(agentScript, []byte("#!/bin/sh\nprintf '%s' \"$$\" > \"$1\"\nprintf '%s\\n' \"$2\"\nwhile IFS= read -r line; do :; done\n"), 0700); err != nil {
 		t.Fatal(err)
 	}
-	panes := make([]fleetPane, 0, fleetSize)
+	panes = make([]fleetPane, 0, fleetSize)
 	cliPath, err := exec.LookPath("zellij")
 	if err != nil {
 		t.Fatal(err)
@@ -818,24 +909,14 @@ func runStartupFleetTiming(t *testing.T) {
 	for _, key := range []string{"PATH", "HOME", "TMPDIR", "SHELL", "TERM", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME", "XDG_RUNTIME_DIR", "ZELLIJ_SOCKET_DIR", "ZELLIJ_CONFIG_DIR"} {
 		manifest.Env = append(manifest.Env, key+"="+os.Getenv(key))
 	}
-	defer func() {
-		for _, pane := range panes {
-			_ = pane.fixture.Close()
-		}
-	}()
 	for i := 0; i < fleetSize; i++ {
 		address := couchcore.ThreadAddress{RepoScope: scope.Key, Tag: couchcore.ThreadTag(fmt.Sprintf("couch-%016x", i+1))}
 		working := filepath.Join(repo, fmt.Sprintf("thread-%02d", i))
 		if err := os.Mkdir(working, 0700); err != nil {
 			t.Fatal(err)
 		}
-		fixture, err := pairlifecycletest.StartControlledZellij(setupCtx, fmt.Sprintf("pair-f21-%s-%02d", slug, i))
-		if err != nil {
-			t.Fatal(err)
-		}
-		pane := fleetPane{address: address, session: fixture.Session, marker: fmt.Sprintf("F21_%s_%02d", slug, i), pidFile: filepath.Join(base, fmt.Sprintf("agent-%02d.pid", i)), fixture: fixture}
-		panes = append(panes, pane)
-		manifest.Sessions = append(manifest.Sessions, pane.session)
+		session := fmt.Sprintf("pair-f21-%s-%02d", slug, i)
+		manifest.Sessions = append(manifest.Sessions, session)
 		ownedJSON, err := json.Marshal(manifest)
 		if err != nil {
 			t.Fatal(err)
@@ -843,6 +924,12 @@ func runStartupFleetTiming(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(evidence, "owned-fixtures.json"), ownedJSON, 0600); err != nil {
 			t.Fatal(err)
 		}
+		fixture, err := pairlifecycletest.StartControlledZellij(setupCtx, session)
+		if err != nil {
+			t.Fatal(err)
+		}
+		pane := fleetPane{address: address, session: fixture.Session, marker: fmt.Sprintf("F21_%s_%02d", slug, i), pidFile: filepath.Join(base, fmt.Sprintf("agent-%02d.pid", i)), fixture: fixture}
+		panes = append(panes, pane)
 		tracker.markers[address] = pane.marker
 		paths, err := artifactpath.Resolve(artifactpath.Address{DataDir: data, RepoScope: scope.Key, Tag: string(address.Tag)})
 		if err != nil {
@@ -1064,5 +1151,104 @@ func TestFleetScheduleOverrideIsBoundedAndExplicit(t *testing.T) {
 	schedule, err := fleetSchedule("")
 	if err != nil || fmt.Sprint(schedule) != "[6 20 40 20 40 6 40 6 20]" {
 		t.Fatalf("balanced schedule %v %v", schedule, err)
+	}
+}
+
+func TestFleetDiagnosticsSurviveFixtureCleanup(t *testing.T) {
+	for _, phase := range []string{"setup", "startup", "complete"} {
+		t.Run(phase, func(t *testing.T) {
+			root, evidence := t.TempDir(), t.TempDir()
+			logDir := filepath.Join(root, "data", "logs")
+			if err := os.MkdirAll(logDir, 0700); err != nil {
+				t.Fatal(err)
+			}
+			log := filepath.Join(logDir, "pair-launch.log")
+			if err := os.WriteFile(log, []byte("retained "+phase), 0600); err != nil {
+				t.Fatal(err)
+			}
+			// Real roots contain sockets and links too. Never follow a link into
+			// the operator's tree or block opening a special file.
+			if err := os.Symlink("/unrelated/operator/path", filepath.Join(root, "external")); err != nil {
+				t.Fatal(err)
+			}
+			if err := syscall.Mkfifo(filepath.Join(root, "fifo"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			func() {
+				defer os.RemoveAll(root)
+				defer func() {
+					if err := fleetRetainDiagnostics(root, evidence); err != nil {
+						t.Error(err)
+					}
+				}()
+				// The same defer must run on every early-return path.
+				if phase != "complete" {
+					return
+				}
+			}()
+			raw, err := os.ReadFile(filepath.Join(evidence, "fixture-diagnostics", "data", "logs", "pair-launch.log"))
+			if err != nil || string(raw) != "retained "+phase {
+				t.Fatalf("diagnostics=%q err=%v", raw, err)
+			}
+			for _, special := range []string{"external", "fifo"} {
+				if _, err := os.Lstat(filepath.Join(evidence, "fixture-diagnostics", special)); !os.IsNotExist(err) {
+					t.Fatalf("special file copied: %s %v", special, err)
+				}
+			}
+		})
+	}
+}
+
+func TestFleetParentTimingContextsKeepConcurrentAttribution(t *testing.T) {
+	var timings fleetParentTimings
+	var wg sync.WaitGroup
+	for _, tag := range []string{"root", "background-a", "background-b"} {
+		wg.Go(func() {
+			ctx := timings.context(t.Context(), "resume", tag)
+			// Exercise the public observer through Detach is covered in
+			// couchcore; this tests attribution at the collector boundary.
+			observe := timings.observer("resume", tag)
+			if ctx == t.Context() {
+				t.Error("timing context was not scoped")
+			}
+			observe("record+baseline", 3*time.Millisecond)
+		})
+	}
+	wg.Wait()
+	got := timings.snapshot()
+	if len(got) != 3 {
+		t.Fatalf("events=%+v", got)
+	}
+	seen := map[string]bool{}
+	for _, event := range got {
+		if event.Operation != "resume" || event.Stage != "record+baseline" || event.DurationMS != 3 {
+			t.Fatalf("wrong stage attribution: %+v", event)
+		}
+		seen[event.Tag] = true
+	}
+	if len(seen) != 3 {
+		t.Fatalf("lost attribution: %+v", got)
+	}
+}
+
+func TestFleetDiagnosticsRejectEmptyRootAndReportCopyFailure(t *testing.T) {
+	if err := fleetRetainDiagnostics("", t.TempDir()); err == nil {
+		t.Fatal("empty diagnostic root silently lost all evidence")
+	}
+	root, evidence := t.TempDir(), t.TempDir()
+	if err := os.WriteFile(filepath.Join(evidence, "fixture-diagnostics"), []byte("occupied"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := fleetRetainDiagnostics(root, evidence); err == nil {
+		t.Fatal("retention failure was silently discarded")
+	}
+}
+
+func TestFleetParentTimingAcceptsInitialAttachWithoutContext(t *testing.T) {
+	var timings fleetParentTimings
+	// dispatchInitialAttach deliberately leaves OperationCall.Context nil.
+	ctx := timings.context(nil, "attach", "root")
+	if ctx == nil {
+		t.Fatal("missing initial attach context")
 	}
 }
