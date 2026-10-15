@@ -23,9 +23,11 @@ set -eu
 printf '%s\n' "$*" >> "${ZELLIJ_LOG:?}"
 case "$*" in
   "list-sessions --no-formatting"|"list-sessions --short")
-    exit 0
+    printf 'No active zellij sessions found.\n' >&2
+    exit 1
     ;;
   --session*" action list-clients")
+    printf 'CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n'
     exit 0
     ;;
   --config-dir*)
