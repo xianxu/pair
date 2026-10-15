@@ -52,7 +52,7 @@ Detailed implementation plan: [agentic document registry](../plans/000573-agenti
 - [x] Build registry model/store and stable document metadata, with idempotent register/forget/rename and read-only membership discovery.
 - [x] Route every sync verb through registration-aware ownership, CAS, owed matching and lock-age refusals, preserving legacy behavior.
 - [x] Expose the agreed Parley CLI/JSON contract and update help, skill, README and atlas.
-- [ ] Verify targeted/race/full suites and prepare the candidate for the close review.
+- [x] Verify targeted/race/full suites and prepare the candidate for the close review.
 
 After verification: the mandatory close review owns SHIP, then land through sdlc. The TL owns the combined operator live check after parley.nvim#332 staging, per the approved revision.
 
@@ -96,6 +96,8 @@ Required integrated suite on 729680c86961a7e7c2ebd299e69ab7984fba4a88 failed in 
 TL confirmed #577 owns the upstream fixture repair; do not fold it into #573, await its landing then merge main and rerun the recorded suite. Parley requested legacy-adoption and isolation details. Rebuilt candidate, inspected vcs.revision=49c3285c847133f6f10005c12fee584bac30989a (modified only for the unrelated untracked pensive), and ran the real binary against a private singleton initialized by public adoption. Register/lookup/repeat, filesystem rename, metadata rename and old/new lookup passed. A bare empty isolated namespace first refused UNMIGRATED, so bootstrap instructions are recorded in the caller contract and the tested helper /tmp/pair573-isolated-cli.py was sent to Parley (a6560099-ad36-400f-83b2-1b8a32bf7ffb). Existing typed legacy state is adopted before native rename; metadata rename never imports vanished legacy companions. No supervisor or live operator namespace was touched.
 
 #577 landed as PR #350; merged its main repair without conflicts. Focused make PAIR_GO_TRIMPATH=-trimpath test-make-env now exits 0, including marker/session checks and real recursive command-line override checks. The diagnostic Go remainder was still second in queue after 1445s and was cancelled before admission to replace it with the now-unblocked required suite; it produced no Go-test result, and nothing is called passing on its account. All remaining checks will run in the required recorded invocation on this integrated candidate.
+
+Required suite passed after BR-1/BR-2 fixes and #572/#577 integration on 0f939be63be6fdb783206d53380b9741aacc0733: exit 0 in 11m35s after 854s queued. Full shell/editor/environment checks and go test ./... pass, including sessionsync 17.847s, couchmessage 7.494s, couchcmd 90.677s, couchcore 436.862s and wrapcmd 70.169s. Log /Users/xianxu/workspace/pair/.git/sdlc/local-checks/0f939be63be6fdb783206d53380b9741aacc0733/suite.log, SHA256 23a49bb8f01b7d3b1706d0f05b6af63fb331d3cffbed4baea3e45a39656e1fa9; recorded sdlc-local/suite success. All server checks also green on this head, native conformance 2m55s. Fresh origin/main has no commits absent from this candidate. Second full close review now due. TL permits no-actual only if the known ariadne#391 incomplete-qoder-metadata defect actually refuses measurement; no project edits, stage or operator acceptance.
 
 ## Estimate
 

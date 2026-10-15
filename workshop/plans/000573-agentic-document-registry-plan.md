@@ -95,7 +95,7 @@ Files: couchcmd/session_sync.go, session_sync_test.go, message_deliveries_test.g
 
 ### 4. Verify, review, land
 
-- [ ] Commit/push through sdlc pr; run required full suite via sdlc local-check run --name suite on the pushed head. Preserve failures and fix demonstrated regressions; no bypass of CI/local-gates.
+- [x] Commit/push through sdlc pr; run required full suite via sdlc local-check run --name suite on the pushed head. Preserve failures and fix demonstrated regressions; no bypass of CI/local-gates.
 - [ ] Arrange the required operator live check through the hub before landing: a plain right-pane note submits, locks on next edit, rejects Couch write, unlocks on submit, and remains owed until write --fold. Stage/build only as the hub authorizes; clear stage after use.
 - [ ] Update issue Log/atlas and run sdlc close --issue 573 --verified with exact evidence; the gate owns the mandatory fresh review. Fix Important/Critical findings or dispute with evidence.
 - [ ] On SHIP, integrate main, repeat required checks if code changed, sdlc merge --yes; report landed PR and stop. TL owns project updates.
@@ -165,3 +165,7 @@ The required suite passed on 5aea67ee68e0b2103d40305fd28934f6002fde3d in 9m52s; 
 BR-1 (ARCH-ORDER/PURPOSE): repeated register admits new live spellings into the current PathInterval without resetting identity, registration horizon or snapshots. Additional spellings are capped at 256 total per document across all intervals, remain through rename, and are deep-cloned/strictly decoded. One derived spelling inventory supplies live-alias locks and legacy export, filtered by current canonical resolution so reused names cannot affect another occupant. Interval matching also recognizes admitted spellings, including a queued submit completed after its alias was renamed and reused. Missing-old rename considers current interval aliases for a new move; completed-move retries use the previous interval only.
 
 BR-2 (ARCH-CONSTRAINTS/FUNERAL): every registered metadata producer must stay within its reader's envelope. Legacy import checks regular-file state (1 MiB) and shadow (4 MiB) before loading, then validates prospective central metadata before admission. Whole-read shadow refresh validates before publication. Write computes its restamped document, section-preserving shadow and encoded post-fold state before mutating the shared file; overflow or encoding failure refuses with existing authority/snapshots intact. Legacy unregistered behavior and public JSON contracts remain unchanged.
+
+### 2026-10-15 — review fixes verified
+
+The corrected and main-integrated candidate passed its required recorded suite on 0f939be63be6fdb783206d53380b9741aacc0733 (11m35s) and all server checks. Focused/full race and private real-CLI checks also pass. Full close review remains required to dispose BR-1/BR-2; landing is still pending.
