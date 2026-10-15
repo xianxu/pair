@@ -1261,3 +1261,17 @@ The downstream read graph is verified against the production helper:
 Post-handoff explicit quit/restart behavior is preserved; no new automatic
 recovery authority is introduced. The shared Store's pre-existing registry/
 description reads and git discovery remain outside this per-slot correction.
+
+### 2026-10-14 — recorded-suite fixture publication race
+
+The final8cd63049 suite reached couchcmd and failed
+TestMessageUnfocusedWrappersReconnectAndExchangeWithoutAttachment at line202
+with unexpected end of JSON input. The subprocess publishes its ready binding
+using os.WriteFile (create/truncate then write); messageFixtureFile treats file
+existence as publication. A scheduled reader can observe the empty creation
+window. Use the existing osfs atomic writer for this single readiness artifact,
+so visibility certifies a complete binding. Delivery-log reads already follow
+remote commit acknowledgement and remain unchanged. This is a test fixture
+publication correction, not a production protocol change or deadline increase.
+Measure the old publication window and rerun the stateful reconnect test ten
+times; re-review the post-M1 correction normally and rerun the recorded suite.

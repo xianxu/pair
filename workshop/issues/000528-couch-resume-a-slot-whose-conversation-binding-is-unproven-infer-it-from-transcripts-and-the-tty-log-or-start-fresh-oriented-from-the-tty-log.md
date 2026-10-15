@@ -1046,3 +1046,11 @@ No follow-up implementation starts on this branch.
   plus one regression file. Plan matrix and atlas identify each reachable branch,
   its contract and consumer regression. Diff check clean. Normal review and
   final recorded full suite still required; accepted stage remains untouched.
+
+- M1 normal round16 SHIP atdb08fb647, no open findings; evidence commit8cd630492.
+  Recorded suite on8cd63049 found a fixture publication race: couchcmd116.844s
+  failed TestMessageUnfocusedWrappersReconnectAndExchangeWithoutAttachment at
+  line202, unexpected end of JSON input. Ready binding uses non-atomic WriteFile
+  while the reader treats existence as complete publication. Plan Revision
+  records atomic fixture publication correction; runtime stays unchanged. The
+  suite continues other packages; this run is not a pass.
