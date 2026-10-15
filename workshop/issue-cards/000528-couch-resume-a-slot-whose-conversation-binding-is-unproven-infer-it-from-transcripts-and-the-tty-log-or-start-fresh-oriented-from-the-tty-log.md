@@ -17,10 +17,10 @@ actual_hours: N/A
 tracker:
     version: 1
     completion:
-        token: close-73a435b8dd2c
+        token: close-3669fa31fdc4
         repository: github.com/xianxu/pair
-        reviewed_head: 65517e605e94572a4a70be21eb3cd88313368cc1
-        evidence_commit: 48d6b969597357450ac0c3a9a3a81839b9c66fda
+        reviewed_head: 15bf3855722960fd8a97ddd2f4bf52395e7be08b
+        evidence_commit: 4632ae88d43dad1b3c0fbc8e0611009e650636e6
 ---
 
 # couch: resume a slot whose conversation binding is unproven: infer it from transcripts and the tty log, or start fresh oriented from the tty log
