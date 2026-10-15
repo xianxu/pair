@@ -107,3 +107,50 @@ func TestHandleChunkUsesOrderedCaptureBuffer(t *testing.T) {
 		t.Fatalf("sidecar offset mismatch: %q %v", after, err)
 	}
 }
+
+func TestMasterPumpFlushesCaptureOnInjectedTick(t *testing.T) {
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ticks := make(chan time.Time)
+	outputSeen := make(chan struct{}, 1)
+	rawFlushed := make(chan struct{}, 1)
+	raw := newDrainBuffer()
+	events := newDrainBuffer()
+	capture := newCaptureBuffer(writerFunc(func(data []byte) (int, error) {
+		n, err := raw.Write(data)
+		rawFlushed <- struct{}{}
+		return n, err
+	}), events)
+	p := &proxy{ptmx: reader, scrollbackFD: reader, capture: capture, captureFlushTicks: ticks,
+		stdoutPump:    newStdoutPump(writerFunc(func(data []byte) (int, error) { outputSeen <- struct{}{}; return len(data), nil })),
+		agentBasename: "claude", now: time.Now, notifyModeActive: notifyModeDefault, captureWindow: defaultCaptureWindow}
+	done := make(chan struct{})
+	go func() { p.masterPump(); close(done) }()
+	defer func() { _ = writer.Close(); <-done; _ = capture.Close() }()
+	if _, err := writer.Write([]byte("tick-capture")); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-outputSeen:
+	case <-t.Context().Done():
+		t.Fatal("pump did not process output")
+	}
+	if got := raw.Bytes(); len(got) != 0 {
+		t.Fatalf("capture flushed before tick: %q", got)
+	}
+	select {
+	case ticks <- time.Unix(1, 0):
+	case <-t.Context().Done():
+		t.Fatal("pump did not accept capture tick")
+	}
+	select {
+	case <-rawFlushed:
+	case <-t.Context().Done():
+		t.Fatal("capture tick did not flush")
+	}
+	if got := string(raw.Bytes()); got != "tick-capture" {
+		t.Fatalf("capture=%q", got)
+	}
+}

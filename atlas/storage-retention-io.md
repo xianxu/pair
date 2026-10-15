@@ -85,9 +85,24 @@ not only repointing this document to a surviving function.
 Diagnostic payload effects are coordinated separately from meaningful session
 use: `cmd/internal/diagnosticlog/creation.go#ensureCurrent` records an empty
 reserved inode before no-replace publication; `cmd/internal/diagnosticlog/append.go#appendChunk`
-publishes bounded intended bytes before appending. `recoverAppend` validates and
-commits only the observed prefix. Both use the stable per-log lock and do not
-renew session activity. `creation_test.go` and `append_test.go` cover process
-death, cancellation, partial writes and replacement refusal. Ordinary optional
-append metadata uses atomic rename for process-exit recovery; lifecycle
-rotation/collection retain durable synchronization.
+writes a compact reservation in place, appends at most 64 KiB, verifies the exact
+observed batch, then renames one checkpoint. The reservation stores length and
+hash rather than another copy of the payload. `recoverAppend` first reconciles
+legacy payload intents, then complete matching reserved batches. An uncertifiable
+partial batch moves intact to an explicitly unverified generation after writer
+and identity proof; logging continues in a fresh current file. Foreign complete
+tails refuse. Both creation and append use the stable per-log lock and do not
+renew session activity. `compact_append_test.go` and `quarantine_test.go` cover
+interrupted recovery and proof fences; `amplification_test.go` counts actual
+payload, reservation and metadata writes, checkpoint renames and hot syncs.
+
+Long-lived wrapper diagnostics use `buffered.go`: whole records enter a bounded
+256 KiB owner, flush at 64 KiB or on a dirty-only five-second tick, and drain and
+join on close. Empty ticks perform no IO. A healthy process can lose up to five
+seconds of pending diagnostics on a crash, subject to scheduling/IO latency;
+the absolute accepted in-memory bound is 256 KiB per writer. Raw scrollback and
+its offset sidecar use separate 64 KiB buffers, flushed raw first by the capture
+pump every 250 ms and on orderly teardown. These intervals describe process
+crash exposure, not power-loss durability. Receipt, park, recovery, generation
+rotation and destructive collection keep their durable synchronization. Raw
+capture size rotation remains separate work (#582): no VT state is discarded.
