@@ -35,16 +35,19 @@ type NativeResumeSelector struct {
 	remove                map[int]bool
 	replace               map[int]string
 	command               int
+	positional            int
+	delimiter             int
 }
 
 // ParseNativeResumeSelector reads native selectors only in option/command
-// positions. Option values and prompt text after -- retain their literal meaning.
+// positions. A delimiter ends options, but a pending resume command still takes
+// its first positional session ID; remaining positional text is the prompt.
 func ParseNativeResumeSelector(agent string, args []string) (NativeResumeSelector, error) {
-	s := NativeResumeSelector{Agent: agent, Kind: NativeResumeNone, Args: append([]string(nil), args...), remove: map[int]bool{}, replace: map[int]string{}, command: -1}
+	s := NativeResumeSelector{Agent: agent, Kind: NativeResumeNone, Args: append([]string(nil), args...), remove: map[int]bool{}, replace: map[int]string{}, command: -1, positional: -1, delimiter: -1}
 	if !IsSupportedAgent(agent) {
 		return s, nil
 	}
-	flags := resumeform.FlagRegion(args)
+	flags := args
 	form := resumeform.Forms()[agent]
 	fork, newID, commandSeen, execSeen, last := false, false, false, false, false
 	selected := false
@@ -63,6 +66,21 @@ func ParseNativeResumeSelector(agent string, args []string) (NativeResumeSelecto
 		a := flags[i]
 		if strings.ContainsRune(a, 0) {
 			return s, errors.New("native arguments contain NUL")
+		}
+		if s.delimiter >= 0 {
+			if s.command >= 0 && s.positional < 0 && !last {
+				s.positional = i
+				s.NativeID = a
+				if a != "" {
+					s.Kind = NativeResumeExplicit
+				}
+				s.remove[i] = true
+			}
+			continue
+		}
+		if a == "--" {
+			s.delimiter = i
+			continue
 		}
 		name, value, inline := strings.Cut(a, "=")
 		if (agent == "codex" && strings.HasPrefix(a, "-C") && len(a) > 2) || (agent == "qoder" && strings.HasPrefix(a, "-w") && len(a) > 2) {
@@ -236,7 +254,8 @@ func ParseNativeResumeSelector(agent string, args []string) (NativeResumeSelecto
 			}
 			continue
 		}
-		if commandSeen && s.command >= 0 && s.NativeID == "" && !last {
+		if commandSeen && s.command >= 0 && s.positional < 0 && !last {
+			s.positional = i
 			s.NativeID = a
 			s.Kind = NativeResumeExplicit
 			s.remove[i] = true
@@ -258,6 +277,7 @@ func ParseNativeResumeSelector(agent string, args []string) (NativeResumeSelecto
 				if i+1 < len(flags) && !strings.HasPrefix(flags[i+1], "-") {
 					id = flags[i+1]
 					i++
+					s.positional = i
 					s.remove[i] = true
 				}
 				kind := NativeResumePicker
@@ -281,13 +301,9 @@ func ParseNativeResumeSelector(agent string, args []string) (NativeResumeSelecto
 			return s, errors.New("--last requires resume or fork")
 		}
 		// Undo a positional classified as ID: with --last it is the native prompt.
-		if s.NativeID != "" {
-			for i := s.command + 1; i < len(flags); i++ {
-				if s.remove[i] && flags[i] == s.NativeID {
-					delete(s.remove, i)
-					break
-				}
-			}
+		if s.positional >= 0 {
+			delete(s.remove, s.positional)
+			s.positional = -1
 		}
 		s.NativeID = ""
 		s.Kind = NativeResumeLatest
@@ -340,9 +356,24 @@ func PinNativeResumeSelector(s NativeResumeSelector, nativeID string) ([]string,
 		return nil, fmt.Errorf("native selector changed before pinning")
 	}
 	var out []string
+	// Preserve a command's positional ID after -- in place. Moving it would
+	// change the native delimiter/prompt grammar and can duplicate the ID.
+	postDelimiterID := parsed.delimiter >= 0 && parsed.positional > parsed.delimiter
+	inserted := false
 	for i, a := range s.Args {
+		if parsed.command < 0 && i == parsed.delimiter {
+			out = append(out, resumeToken(s.Agent, nativeID)...)
+			inserted = true
+		}
 		if i == parsed.command {
-			out = append(out, "resume", nativeID)
+			out = append(out, "resume")
+			if !postDelimiterID {
+				out = append(out, nativeID)
+			}
+		}
+		if postDelimiterID && i == parsed.positional {
+			out = append(out, nativeID)
+			continue
 		}
 		if parsed.remove[i] {
 			continue
@@ -352,8 +383,8 @@ func PinNativeResumeSelector(s NativeResumeSelector, nativeID string) ([]string,
 		}
 		out = append(out, a)
 	}
-	if parsed.command < 0 {
-		out = composeResumeArgs(s.Agent, out, nativeID)
+	if parsed.command < 0 && !inserted {
+		out = append(out, resumeToken(s.Agent, nativeID)...)
 	}
 	return out, nil
 }
