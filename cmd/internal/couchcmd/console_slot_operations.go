@@ -83,7 +83,9 @@ func consoleSlotOperations(console *couchtty.Console, c *couchcore.Couch, probe 
 				if err != nil {
 					return call, err
 				}
-				call.Args["ref"] = request.Target
+				if call.Args["warm-only"] != "true" {
+					call.Args["ref"] = request.Target
+				}
 			}
 			if guard != nil {
 				call.TypedPayload = hubMutationPayload{original: call.TypedPayload, guard: guard}

@@ -2,6 +2,7 @@ package couchtty
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"strings"
 	"testing"
@@ -48,4 +49,35 @@ func TestRecoveryConfirmationPreparedContextSurvivesQueue(t *testing.T) {
 		t.Fatal(err)
 	}
 	r.drain(t)
+}
+
+func TestRecoveryProvenMenuDispatchesPlainResumeWithoutSavedScreen(t *testing.T) {
+	row := menuSlotRow(1, "source")
+	state := NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
+	state, _ = openRecoveryPreview(state, row)
+	var preview couchcore.RecoveryPreview
+	if err := json.Unmarshal([]byte(`{"proven":{"label":"Resume from disk (confirmed)","agent":"claude","native_id":"proven-native"},"incomplete":true,"fresh":{"label":"Start fresh"}}`), &preview); err != nil {
+		t.Fatal(err)
+	}
+	state, _ = reduceRecoveryPreview(state, MenuEvent{Generation: state.CurrentFrame().Generation, RecoveryPreview: &preview})
+	choices := recoveryChoices(state.CurrentFrame().RecoveryPreview)
+	if len(choices) != 2 || choices[0].NativeID != "proven-native" {
+		t.Fatalf("proven choice missing: %+v", choices)
+	}
+	_, effects := reduceRecoveryKey(state, PanelKey{Kind: KeyEnter})
+	if len(effects) != 1 || effects[0].Operation != "resume" || effects[0].Args["candidate"] != "" || effects[0].Args["path"] != row.Target.Slot.WorktreeRoot {
+		t.Fatalf("proven selection: %+v", effects)
+	}
+}
+
+func TestRecoveryProvenRetainsFourExplicitAlternatives(t *testing.T) {
+	preview := &couchcore.RecoveryPreview{Proven: &couchcore.RecoveryChoice{Label: "Resume from disk (confirmed)", NativeID: "proven"}, Candidates: []couchcore.RecoveryChoice{{Key: "one", Label: "inferred one"}, {Key: "two"}, {Key: "three"}, {Key: "four"}, {Key: "five"}, {Key: "six"}}, Fresh: &couchcore.RecoveryChoice{Label: "Start fresh"}}
+	choices := recoveryChoices(preview)
+	if len(choices) != 6 || choices[0].NativeID != "proven" || choices[1].Key != "one" || choices[4].Key != "four" || choices[5].Label != "Start fresh" {
+		t.Fatalf("choice ordering/cap changed: %+v", choices)
+	}
+	shown := strings.Join(renderRecoveryMenu(MenuFrame{RecoveryPreview: preview}, 160, 60), "\n")
+	if strings.Contains(shown, "best · Resume from disk (confirmed)") || !strings.Contains(shown, "best · inferred one") {
+		t.Fatalf("best label shifted onto proven choice: %s", shown)
+	}
 }

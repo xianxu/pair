@@ -3,6 +3,7 @@ package couchcmd
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"strings"
@@ -132,5 +133,33 @@ func TestRecoveryConfirmationHubOwnershipAndGenerationRechecked(t *testing.T) {
 	}
 	if err := queuedGuard(context.Background()); err == nil {
 		t.Fatal("ownership move retained confirmation authority")
+	}
+}
+
+func TestRecoveryProvenCLIUsesPlainResumeWithoutSavedScreen(t *testing.T) {
+	var preview couchcore.RecoveryPreview
+	if err := json.Unmarshal([]byte(`{"proven":{"label":"Resume from disk (confirmed)","agent":"claude","native_id":"proven-native"},"incomplete":true,"fresh":{"label":"Start fresh"}}`), &preview); err != nil {
+		t.Fatal(err)
+	}
+	var out, diagnostic bytes.Buffer
+	code := runMessageCLIWithCall(cliInvocation{kind: cliMessage, messageOp: "resume-candidates", ref: "pair:1"}, messageRuntime(), &out, &diagnostic, func(_ context.Context, _ string, _ any, response any) error {
+		*response.(*couchmessage.Response) = couchmessage.Response{Code: "ok", RecoveryPreview: &preview}
+		return nil
+	})
+	if code != 0 || !strings.Contains(out.String(), "proven-native") || !strings.Contains(out.String(), "couch --resume pair:1\n") || strings.Contains(out.String(), "--candidate") {
+		t.Fatalf("proven resume lost: %d %s %s", code, &out, &diagnostic)
+	}
+}
+
+func TestRecoveryProvenCLIBoundsAlternativesWithoutInventingScores(t *testing.T) {
+	preview := couchcore.RecoveryPreview{Proven: &couchcore.RecoveryChoice{Label: "Resume from disk (confirmed)", NativeID: "proven-native"}, Candidates: []couchcore.RecoveryChoice{{Key: "one"}, {Key: "two"}, {Key: "three"}, {Key: "four"}, {Key: "five"}}, Fresh: &couchcore.RecoveryChoice{Label: "Start fresh"}}
+	var out, diagnostic bytes.Buffer
+	code := runMessageCLIWithCall(cliInvocation{kind: cliMessage, messageOp: "resume-candidates", ref: "pair:1"}, messageRuntime(), &out, &diagnostic, func(_ context.Context, _ string, _ any, response any) error {
+		*response.(*couchmessage.Response) = couchmessage.Response{Code: "ok", RecoveryPreview: &preview}
+		return nil
+	})
+	text := out.String()
+	if code != 0 || strings.Contains(text, "--candidate five") || !strings.Contains(text, "--candidate four") || !strings.Contains(text, "established native binding") || strings.Contains(text, "0%") {
+		t.Fatalf("alternative bound/proven score: %d %s %s", code, text, &diagnostic)
 	}
 }
