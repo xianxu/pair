@@ -309,3 +309,25 @@ func TestPartialQuarantineRegistersRecovererBeforeProof(t *testing.T) {
 	}
 	assertPreservedQuarantine(t, path, opts)
 }
+
+func TestQuarantinedGenerationExpiresWithSemanticMetadata(t *testing.T) {
+	path, opts := killedPartialForQuarantine(t)
+	w, err := Open(path, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Close()
+	names, _, complete, err := generationPage(path, "", 10, false, opts)
+	if err != nil || !complete || len(names) != 1 {
+		t.Fatal(names, complete, err)
+	}
+	preserved := segmentPath(path, names[0])
+	later := opts.Now().Add(RetentionPeriod + time.Hour)
+	opts.Now = func() time.Time { return later }
+	if _, err := Collect(path, opts, 100); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(preserved); !os.IsNotExist(err) {
+		t.Fatalf("expired quarantine retained: %v", err)
+	}
+}

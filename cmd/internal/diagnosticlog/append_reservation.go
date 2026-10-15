@@ -284,3 +284,15 @@ func ClassifyPartialQuarantine(current, observed generation, r appendReservation
 	g.UnverifiedTail = &unverifiedTail{Offset: current.Size, Length: r.Length, Digest: r.Digest}
 	return g, nil
 }
+
+// Serialized uncertainty is compared by value: distinct JSON decodes allocate
+// distinct pointers for the same exact evidence.
+func generationMetadataEqual(a, b generation) bool {
+	if !sameGeneration(a, b) {
+		return false
+	}
+	if a.UnverifiedTail == nil || b.UnverifiedTail == nil {
+		return a.UnverifiedTail == nil && b.UnverifiedTail == nil
+	}
+	return *a.UnverifiedTail == *b.UnverifiedTail
+}

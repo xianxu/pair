@@ -188,7 +188,7 @@ func recoverDeletion(path string, s *diskState, o Options) error {
 		}
 		var metadata generation
 		if e := readJSON(p+".json", &metadata); e == nil {
-			if metadata != g {
+			if !generationMetadataEqual(metadata, g) {
 				return errors.New("diagnostic deletion metadata changed")
 			}
 		} else if !os.IsNotExist(e) {
