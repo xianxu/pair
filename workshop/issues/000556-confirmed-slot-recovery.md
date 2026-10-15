@@ -184,6 +184,35 @@ The morning script is `workshop/plans/000556-live-acceptance.md`. No live lifecy
 effects, automatic inference or stage changes ran. M1 now proceeds to the recorded
 suite and its binary-owned boundary review; M2 exclusion is still outstanding.
 
+### 2026-10-15 — recorded suite found integration regressions
+
+The first recorded suite on `aab86bd03fb0672e9a36c4b16b63462cb1479288` failed
+(exit 2, 13m54s). Retained log:
+`/Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/5b9ca5e5c1cacb22853c746a916aa39e.log`
+(SHA-256 prefix `cce070e42401`). No waiver is requested. It exposed exhaustive
+artifact inventory omissions, stale command/declaration expectations, lost warm
+resume/advice routing, strict-Fresh fixture gaps, and a regression of the existing
+unreadable-primary no-stop archive escape. Continuation reboot fixtures waited
+for nonexistent fresh registration and reached the core ten-minute test limit.
+
+Corrections classify the actual new artifact consumers (no exemptions), retain
+normal facade entry points while removing the obsolete alternate Reboot
+stop/launch implementation, and preserve exact unreadable bytes through the
+existing archive journal with expected-byte CAS. Valid future versions still
+refuse mutation. The primary no-path archive escape reports honestly that no
+agent started and never touches its unproved processes. Normal readable Fresh
+uses only the prepared executor, including the existing explicit agent choice
+resolved from normal saved configuration. No free-form recovery argv is added.
+
+A separate private-fixture measurement found recordless Fresh inheriting ordinary
+Fresh's absence gate and refusing foreign/unknown remnants. Recovery-only
+admission now allocates a distinct tag in the verified physical checkout, keeps
+all exact claim/repository/readiness checks, and performs no workspace
+convergence beneath those remnants. It leaves/report them and says setup was
+not refreshed; ordinary Fresh remains strict. The initially retained dead legacy
+API test strategy was replaced with tests of the shipped shared facade rather
+than adding a dead-symbol exemption.
+
 ## Revisions
 
 ### 2026-10-15T05:33-07:00 — overnight M2 dispatch

@@ -414,11 +414,11 @@ couch --reload-context pair:3 --confirm
 
 ## Confirmed slot recovery
 
-`couch --resume-candidates repo:N --json` lists the proven conversation and
+`couch --resume-candidates pair:1 --json` lists the proven conversation and
 ranked alternatives with evidence; automatic inference is off. Plain
-`couch --resume repo:N` resumes a proven conversation. Use
-`couch --resume repo:N --candidate KEY` for an explicit ranked choice.
-`couch --reboot repo:N --confirm` requests Start fresh, even when prior-screen
+`couch --resume pair:1` resumes a proven conversation. Use
+`couch --resume pair:1 --candidate KEY` for an explicit ranked choice.
+`couch --reboot pair:1 --confirm` requests Start fresh, even when prior-screen
 or transcript scanning is unavailable. Fresh points the new agent at remaining
 screen, branch and issue evidence; native resume receives no launch prompt.
 

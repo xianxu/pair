@@ -65,6 +65,20 @@ func (c *Couch) recoveryLaunchProfile(ctx context.Context, record ThreadRecord, 
 	if c == nil || c.Threads == nil {
 		return LaunchProfile{}, errors.New("recovery launch profile requires thread store")
 	}
+	return c.freshRecoveryLaunchProfile(ctx, record, "")
+}
+
+func (c *Couch) recoveryLaunchProfileForSelection(ctx context.Context, record ThreadRecord, selection RecoverySelection) (LaunchProfile, error) {
+	if selection.Agent == "" {
+		return c.recoveryLaunchProfile(ctx, record, selection.Kind)
+	}
+	if selection.Kind != RecoveryFresh {
+		return LaunchProfile{}, errors.New("native resume cannot change its agent")
+	}
+	return c.freshRecoveryLaunchProfile(ctx, record, selection.Agent)
+}
+
+func (c *Couch) freshRecoveryLaunchProfile(ctx context.Context, record ThreadRecord, agent string) (LaunchProfile, error) {
 	view := *c
 	store := *c.Threads
 	store.readOnly = true
@@ -74,7 +88,7 @@ func (c *Couch) recoveryLaunchProfile(ctx context.Context, record ThreadRecord, 
 		return LaunchProfile{}, err
 	}
 	if backend.slot != nil {
-		selected, err := view.slotLaunchProfile(backend, *backend.slot, record.WorkingPath, "")
+		selected, err := view.slotLaunchProfile(backend, *backend.slot, record.WorkingPath, agent)
 		if err != nil {
 			return LaunchProfile{}, err
 		}
@@ -83,7 +97,7 @@ func (c *Couch) recoveryLaunchProfile(ctx context.Context, record ThreadRecord, 
 		}
 		return cloneLaunchProfile(selected.Profile), nil
 	}
-	selected, err := view.resolveOrdinaryStartResolution(ctx, StartArgs{Worktree: Worktree(record.StartingPath), Cwd: record.WorkingPath})
+	selected, err := view.resolveOrdinaryStartResolution(ctx, StartArgs{Worktree: Worktree(record.StartingPath), Cwd: record.WorkingPath, Stack: agent})
 	if err != nil {
 		return LaunchProfile{}, err
 	}

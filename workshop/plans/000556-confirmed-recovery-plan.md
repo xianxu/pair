@@ -285,3 +285,22 @@ through the shared prepared executor, including strict Fresh registration; legac
 fixtures do not pretend that spawning a client proves new-agent registration.
 The live script is `workshop/plans/000556-live-acceptance.md`; rare destructive
 corners run in private stateful headless fixtures, not a working live slot.
+
+### 2026-10-15 — full-suite integration correction
+
+The recorded full suite rejected retaining an alternate Reboot implementation
+that production no longer called. Replace it with a thin production facade over
+prepared Fresh, preserving only the existing primary no-path/unreadable raw
+archive exit (no stops or launch, exact-byte CAS, future-schema refusal). This
+supersedes the prior direct-legacy-test strategy: tests now exercise the shared
+shipped path. Existing explicit Fresh agent choice still resolves ordinary saved
+configuration; no argv or default edits enter recovery.
+
+Measured recordless foreign/unknown-owner Fresh now uses distinct-tag admission
+and the same claimed launch/readiness pipeline with a read-only verified-checkout
+readiness adapter. It never runs workspace convergence beneath those remnants;
+notice discloses that setup was not refreshed. Ordinary non-recovery Fresh keeps
+its strict absence gate. Resume routing must retain positively listed warm
+adoption and typed refusal advice while cold native resume uses only the prepared
+owner. Menu requests show only the eventual exact-stop confirmation, removing
+the old preliminary generic Fresh prompt. No new user-visible state is added.

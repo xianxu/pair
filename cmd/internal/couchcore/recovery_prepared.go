@@ -90,7 +90,7 @@ func (c *Couch) executePreparedRecovery(ctx context.Context, selection RecoveryS
 			return RecoveryResumeResult{Start: StartResult{Record: actor, Handle: handle}, Notice: "Continue"}, err
 		}
 	}
-	profile, err := c.recoveryLaunchProfile(ctx, record, selection.Kind)
+	profile, err := c.recoveryLaunchProfileForSelection(ctx, record, selection)
 	if err != nil {
 		return result, err
 	}
@@ -446,7 +446,7 @@ func (c *Couch) launchRecoveryFreshAddress(ctx context.Context, old ThreadRecord
 		if backend.layout.Local {
 			return backend.replaceSlotCurrent(observed, next)
 		}
-		return backend.replaceRecoveryThreadExpected(old.Address, old.Revision, next)
+		return backend.ReplaceThreadExpected(old.Address, old.Revision, next)
 	}})
 	if err != nil {
 		return RecoveryResumeResult{}, err

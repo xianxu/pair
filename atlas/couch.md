@@ -3864,3 +3864,17 @@ coordinates. Pre-exec definite failures retain ordinary rollback behavior.
 Implementation owners: `couchcore/recovery_prepared.go`,
 `recovery_confirmation.go`, `recovery_start_fence.go`, `launch_existing.go`,
 `launcher/recovery_terminal.go`, and `threadrecord/recovery.go`.
+
+The queue's `couch --internal recovery-confirmation --token TOKEN` operation
+shares the same token owner as the standalone public CLI; it is transport plumbing,
+not a second confirmation mechanism. The token argument is never stop authority
+without the bound source/actor/generation rechecks.
+
+`Reboot` is a facade over prepared Fresh, including ordinary saved configuration
+for an explicitly chosen agent. Its earlier independent park/stop/launch pipeline
+is removed. The existing corrupt-primary/no-usable-path archive escape remains:
+exact bytes move through the archive journal with expected-byte CAS, no process
+is stopped, and the result says no fresh agent started. Structurally valid future
+record versions refuse mutation. A numbered slot with no record can still start
+Fresh beside unknown remnants using a distinct tag and read-only checkout
+validation; its notice says workspace setup was not refreshed.

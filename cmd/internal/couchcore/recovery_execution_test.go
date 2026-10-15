@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/threadrecord"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -74,5 +75,20 @@ func TestPreparedFreshUnavailableEvidenceStillLaunches(t *testing.T) {
 				t.Fatalf("profile=%+v notice=%q", profile, result.Notice)
 			}
 		})
+	}
+}
+
+func TestPreparedFreshAgentChoiceUsesNormalConfiguration(t *testing.T) {
+	f := newRecoveryExecutionFixture(t)
+	original := cloneLaunchProfile(*f.record.LatestLaunchProfile)
+	got, err := f.Couch.recoveryLaunchProfileForSelection(t.Context(), f.record, RecoverySelection{Kind: RecoveryFresh, Agent: "grok"})
+	if err != nil || got.Agent != "grok" || len(got.Argv) != 0 {
+		t.Fatalf("profile=%+v err=%v", got, err)
+	}
+	if !reflect.DeepEqual(original, *f.record.LatestLaunchProfile) {
+		t.Fatal("agent choice edited source config")
+	}
+	if _, err = f.Couch.recoveryLaunchProfileForSelection(t.Context(), f.record, RecoverySelection{Kind: RecoveryProven, Agent: "grok"}); err == nil {
+		t.Fatal("native resume changed agent")
 	}
 }

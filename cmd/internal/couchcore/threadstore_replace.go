@@ -8,31 +8,13 @@ import (
 	"reflect"
 )
 
-// ReplaceThreadExpected retires old and publishes next in ONE store journal --
-// the main store's counterpart of the slot store's replaceSlotCurrent, so a :0
-// reboot and a :1+ reboot share one crash-safe shape. A crash before the
-// journal is durable changes nothing; a crash after it is completed by replay.
-// There is never a moment where the path holds both records, or neither.
-//
-// It is archiveThread and CreateThread composed rather than restated: the same
-// journal-entry builders, the same record guard (archivableRecord) and the same
-// routing for next (storeForPath, as CreateThread routes it). The one thing it
-// adds is that the manifest is edited once, for both halves.
-//
-// old must be readable at exactly expectedRevision: an unreadable :0 record has
-// no path to start in, so reboot archives it alone (DecideReboot) and never
-// replaces it.
+// ReplaceThreadExpected retires old and publishes next in one store journal.
+// Readable sources require the exact observed revision. A retained explicit
+// Fresh intent permits bookkeeping replacement even when unproved remnants
+// remain: the exact intent must appear on both the source and new start claim.
+// Ordinary replacement retains the existing archivable-record guard. Neither
+// mode signals processes or grants permission to reuse a native conversation.
 func (s *ThreadStore) ReplaceThreadExpected(old ThreadAddress, expectedRevision uint64, next ThreadRecord) error {
-	return s.replaceThreadExpected(old, expectedRevision, next, false)
-}
-
-// Recovery replaces bookkeeping without claiming that an unattributed remnant
-// died. The exact durable Fresh selection must already be on both records.
-func (s *ThreadStore) replaceRecoveryThreadExpected(old ThreadAddress, revision uint64, next ThreadRecord) error {
-	return s.replaceThreadExpected(old, revision, next, true)
-}
-
-func (s *ThreadStore) replaceThreadExpected(old ThreadAddress, expectedRevision uint64, next ThreadRecord, recovery bool) error {
 	if s.layout.Local {
 		return errors.New("a slot store replaces its current record through replaceSlotCurrent")
 	}
@@ -82,7 +64,7 @@ func (s *ThreadStore) replaceThreadExpected(old ThreadAddress, expectedRevision 
 		if record.Revision != expectedRevision {
 			return &ThreadRevisionError{Address: old, Want: expectedRevision, Got: record.Revision}
 		}
-		if recovery {
+		if record.RecoveryIntent != nil && record.RecoveryIntent.Kind() == threadrecord.RecoveryFresh {
 			if record.RecoveryIntent == nil || next.RecoveryIntent == nil || record.RecoveryIntent.Kind() != threadrecord.RecoveryFresh {
 				return errors.New("fresh replacement lacks retained source selection")
 			}
