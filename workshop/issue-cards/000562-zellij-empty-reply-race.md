@@ -17,10 +17,10 @@ actual_hours: 4.49
 tracker:
     version: 1
     completion:
-        token: close-882724f8570c
+        token: close-74705621ad5c
         repository: github.com/xianxu/pair
-        reviewed_head: 54d5b2defa4d2c44f827a17cd9100c89f3069afd
-        evidence_commit: a02f0bd47951a4e9bba1bb4858e48a93cee8eda3
+        reviewed_head: 98f4336f2382c360894192080638cb678789d9cc
+        evidence_commit: 4bc350ea28cdd18ca77ab7d890ae7b4e5cf35559
 ---
 
 # Zellij CLI queries can finish before their reply
