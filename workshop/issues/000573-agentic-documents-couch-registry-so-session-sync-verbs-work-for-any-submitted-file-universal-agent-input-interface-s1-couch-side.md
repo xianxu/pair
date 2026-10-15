@@ -74,6 +74,8 @@ Queued-submit loss was independently confirmed: delivery recorder timestamps com
 
 Updated embedded Couch reference passed a fresh-reader retrieval/application check: old reference lacked registration/rename/age/unsupported-binary facts; current reference supplied the safe protocol, including null-only absence and never expiring the lock. No user files edited by reference probes.
 
+Final integration checks caught legacy leaf-symlink baselines and operator locks: import the caller's actual legacy companions, export known live aliases before removing central authority, and honor their locks even when a write names the canonical target. A leaf-alias rename retains its addressing interval and retries safely. The regression first observed baseline loss and an allowed write under an alias's lock, then passed; full sessionsync race passed 57.334s. A controlled real-flock test also proves a writer waiting behind rename/forget reloads authority before writing OLD (including saveas where OLD remains). Both operations pass under race. make build passed after main integration. Candidate PR is #348. The initial suite on 1c1bb7468ef3a1739c2c1ca0e5d51bf28a278584 was cancelled with SIGINT while still fifth in the machine queue (no suite execution) so the final concurrency-test candidate receives its own required run; that cancellation is not a test pass.
+
 
 ## Estimate
 

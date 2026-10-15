@@ -5,8 +5,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"syscall"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func TestRegisterIsDurableAndIdempotentWithoutEditingDocument(t *testing.T) {
@@ -36,6 +40,86 @@ func TestRegisterIsDurableAndIdempotentWithoutEditingDocument(t *testing.T) {
 	}
 	_, err = r.sync.Register(path, "ops:0")
 	wantRefusal(t, err, 1, "owner-conflict")
+}
+
+func TestWaitingWriterRechecksRegistrationAfterMetadataMutation(t *testing.T) {
+	for _, operation := range []string{"rename", "forget"} {
+		t.Run(operation, func(t *testing.T) {
+			r := newRig(t)
+			old := filepath.Join(filepath.Dir(r.p.File), "plain.md")
+			r.put(old, "## Work\n\noriginal\n")
+			if _, err := r.sync.Register(old, "ops:0"); err != nil {
+				t.Fatal(err)
+			}
+			read, err := r.sync.Read(old, "Work")
+			if err != nil {
+				t.Fatal(err)
+			}
+			newPath := filepath.Join(filepath.Dir(old), "new.md")
+			r.put(newPath, r.read(old)) // saveas leaves OLD present
+			root := r.sync.registryStore().Dir
+			publishing, release, waiting := make(chan struct{}), make(chan struct{}), make(chan struct{})
+			var releaseOnce sync.Once
+			var workers sync.WaitGroup
+			t.Cleanup(func() { releaseOnce.Do(func() { close(release) }); workers.Wait() })
+			await := func(ch <-chan struct{}, name string) {
+				t.Helper()
+				select {
+				case <-ch:
+				case <-testwait.After(t):
+					t.Fatalf("waiting for %s", name)
+				}
+			}
+			mutator := *r.sync
+			mutator.Registry = &registryStore{Dir: root, Publish: func(path string, raw []byte) error {
+				if filepath.Base(path) == "registry.json" {
+					close(publishing)
+					<-release
+				}
+				return writeAtomic(path, raw)
+			}}
+			var once sync.Once
+			writer := *r.sync
+			writer.Registry = &registryStore{Dir: root, TryLock: func(fd int) error {
+				err := syscall.Flock(fd, syscall.LOCK_EX|syscall.LOCK_NB)
+				if errors.Is(err, syscall.EWOULDBLOCK) {
+					once.Do(func() { close(waiting) })
+				}
+				return err
+			}}
+			mutated := make(chan error, 1)
+			workers.Add(1)
+			go func() {
+				defer workers.Done()
+				var err error
+				if operation == "rename" {
+					_, err = mutator.Rename(old, newPath)
+				} else {
+					_, err = mutator.Forget(old)
+				}
+				mutated <- err
+			}()
+			await(publishing, "metadata publisher")
+			wrote := make(chan error, 1)
+			workers.Add(1)
+			go func() {
+				defer workers.Done()
+				_, err := writer.Write(WriteRequest{File: old, Section: "Work", Body: "must not land", IfHash: read.Hash})
+				wrote <- err
+			}()
+			await(waiting, "writer excluded by real flock")
+			releaseOnce.Do(func() { close(release) })
+			if err := <-mutated; err != nil {
+				t.Fatal(err)
+			}
+			if err := <-wrote; err == nil {
+				t.Fatal("waiting writer reused removed registration")
+			}
+			if r.read(old) != "## Work\n\noriginal\n" {
+				t.Fatal("waiting write changed OLD")
+			}
+		})
+	}
 }
 
 func TestForgetExportFailureKeepsCentralAuthorityUntilRetry(t *testing.T) {

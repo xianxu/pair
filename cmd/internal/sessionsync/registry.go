@@ -33,6 +33,8 @@ type registryStore struct {
 	Dir     string
 	Publish func(string, []byte) error
 	SyncDir func(string) error
+	// TryLock is the nonblocking advisory-lock IO boundary.
+	TryLock func(int) error
 }
 
 type registryTxn struct {
@@ -122,8 +124,12 @@ func withRegistry[T any](s *Sync, fn func(*registryTxn) (T, error)) (T, error) {
 	}
 	defer lock.Close()
 	deadline := time.Now().Add(2 * time.Second)
+	tryLock := store.TryLock
+	if tryLock == nil {
+		tryLock = func(fd int) error { return syscall.Flock(fd, syscall.LOCK_EX|syscall.LOCK_NB) }
+	}
 	for {
-		err = syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+		err = tryLock(int(lock.Fd()))
 		if err == nil {
 			break
 		}
