@@ -58,3 +58,6 @@ ARCH-DRY: one filesystem discovery implementation shared by tests, recording fix
 ## Revisions
 
 - 2026-10-15: TL approved 3a4eb910 with an exact recorded suite argv: `make PAIR_GO_TRIMPATH=-trimpath test`. The Make variable defaults to `-trimpath`; `PAIR_GO_TRIMPATH=` is the explicit diagnostic opt-out. Preserve existing GOFLAGS and avoid adding a duplicate flag. This supersedes the optional recorded-command/override alternatives above. Checkout discovery validates the nearest module and rejects foreign nested modules rather than borrowing enclosing assets.
+- 2026-10-15: BR-1 makes filesystem ancestry explicit in negative fixtures:
+  set a foreign go.mod boundary so tests remain valid when TMPDIR is nested
+  under Pair. Verify both temporary-directory layouts, trimmed and untrimmed.

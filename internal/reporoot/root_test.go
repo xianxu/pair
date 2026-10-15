@@ -38,7 +38,15 @@ func TestFind(t *testing.T) {
 func TestFindRejectsMissingOrUnreadableModule(t *testing.T) {
 	for _, mode := range []string{"missing", "directory", "wrong", "prefix", "comment"} {
 		t.Run(mode, func(t *testing.T) {
-			root := t.TempDir()
+			// Bound ancestry even when TMPDIR lives inside a Pair checkout.
+			parent := t.TempDir()
+			if err := os.WriteFile(filepath.Join(parent, "go.mod"), []byte("module example.com/foreign\n"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			root := filepath.Join(parent, "nested")
+			if err := os.Mkdir(root, 0700); err != nil {
+				t.Fatal(err)
+			}
 			path := filepath.Join(root, "go.mod")
 			switch mode {
 			case "directory":

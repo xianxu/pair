@@ -119,3 +119,19 @@ minutes. The operator approved building with `-trimpath`.
   /Users/xianxu/workspace/pair/.git/sdlc/local-checks/fdedd7dd4d30e0119ee2f42fdbdf8afcb053dd9e/suite.log.
   The recorded checkout binary independently reports -trimpath=true at that SHA.
   Only issue/plan bookkeeping changed since the tested commit.
+
+## Revisions
+
+- 2026-10-15, close review BR-1: negative discovery fixtures must establish
+  their own foreign-module boundary instead of assuming TMPDIR is outside
+  Pair. The review's in-checkout TMPDIR exposed two test failures, reproduced
+  before the fix. Swept both root and probe fixtures, including the explicit
+  override's outside-checkout case. Qualification now covers both TMPDIR
+  layouts, with and without trimpath. Production behavior is unchanged.
+
+## Review follow-up
+
+- Round 1: FIX-THEN-SHIP with one blocking Important finding BR-1; close was
+  not finalized. Fixed the fixture-isolation class. Root/probe/birthrace tests
+  pass in all four TMPDIR/trimpath combinations. A fresh recorded suite will
+  cover this test-only delta before landing; no gate bypass.

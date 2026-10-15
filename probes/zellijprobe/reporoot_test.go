@@ -21,6 +21,16 @@ func probeCheckout(t *testing.T) string {
 	return root
 }
 
+func foreignCheckout(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	// An explicit boundary keeps this outside Pair even with in-checkout TMPDIR.
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/other\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	return root
+}
+
 func TestRepoRootUsesCurrentCheckout(t *testing.T) {
 	root := probeCheckout(t)
 	nested := filepath.Join(root, "nested")
@@ -37,7 +47,7 @@ func TestRepoRootUsesCurrentCheckout(t *testing.T) {
 
 func TestRepoRootExplicitCheckout(t *testing.T) {
 	root := probeCheckout(t)
-	for _, location := range []string{t.TempDir(), probeCheckout(t)} {
+	for _, location := range []string{foreignCheckout(t), probeCheckout(t)} {
 		t.Run(filepath.Base(location), func(t *testing.T) {
 			t.Chdir(location)
 			t.Setenv("PAIR_PROBE_REPO", root)
@@ -59,7 +69,7 @@ func TestRepoRootInvalidOverrideDoesNotFallBack(t *testing.T) {
 }
 
 func TestRepoRootOutsideCheckoutExplainsOverride(t *testing.T) {
-	t.Chdir(t.TempDir())
+	t.Chdir(foreignCheckout(t))
 	t.Setenv("PAIR_PROBE_REPO", "")
 	got, err := zellijprobe.RepoRoot()
 	if err == nil || got != "" || !strings.Contains(err.Error(), "PAIR_PROBE_REPO") {
@@ -83,10 +93,7 @@ func TestRepoRootRelativeOverride(t *testing.T) {
 
 func TestRepoRootWrongModuleOverride(t *testing.T) {
 	t.Chdir(probeCheckout(t))
-	other := t.TempDir()
-	if err := os.WriteFile(filepath.Join(other, "go.mod"), []byte("module example.com/other\n"), 0600); err != nil {
-		t.Fatal(err)
-	}
+	other := foreignCheckout(t)
 	t.Setenv("PAIR_PROBE_REPO", other)
 	got, err := zellijprobe.RepoRoot()
 	if err == nil || got != "" || !strings.Contains(err.Error(), "PAIR_PROBE_REPO") {
