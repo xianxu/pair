@@ -39,22 +39,26 @@ func TestRecoveryActionsShowCheckpointIdentityAndDiagnosis(t *testing.T) {
 		}
 	}
 }
-func TestRecoveryRebootConfirmationInvalidatesWhenRowDisappears(t *testing.T) {
+func TestParkConfirmationInvalidatesWhenRowDisappears(t *testing.T) {
 	row := recoveryMenuRow()
+	row.State, row.Reason = couchcore.ThreadLive, ""
 	state := NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
 	state, _ = reduceRootKey(state, PanelKey{Kind: KeyTab})
-	state.Frames[len(state.Frames)-1].SelectedItem = "reboot"
+	state.Frames[len(state.Frames)-1].SelectedItem = "park"
 	state, _ = reduceActionKey(state, PanelKey{Kind: KeyEnter})
+	if state.CurrentFrame().Kind != MenuFrameConfirmation {
+		t.Fatal("park did not open confirmation")
+	}
 	// A removed row cannot authorize the pending destructive action.
 	state.Inventory = nil
 	next := reconcileMenuFrames(state)
 	if next.CurrentFrame().Kind == MenuFrameConfirmation {
-		t.Fatal("reboot confirmation survived loss of eligibility")
+		t.Fatal("park confirmation survived loss of eligibility")
 	}
-	state.Frames[len(state.Frames)-1].SelectedItem = "reboot"
+	state.Frames[len(state.Frames)-1].SelectedItem = "park"
 	_, effects := reduceConfirmationKey(state, PanelKey{Kind: KeyEnter})
 	if len(effects) != 0 {
-		t.Fatal("reboot dispatched after loss of eligibility")
+		t.Fatal("park dispatched after loss of eligibility")
 	}
 }
 

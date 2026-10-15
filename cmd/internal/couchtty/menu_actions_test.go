@@ -207,7 +207,7 @@ func TestBusyRowSaysStartingElsewhere(t *testing.T) {
 	}
 }
 
-// Primary actions follow proven continuity. Fresh always confirms before effects.
+// Primary actions follow proven continuity; the backend prepares Fresh confirmation.
 func TestEnterUsesContinuityOutcome(t *testing.T) {
 	for _, s := range everyMenuRowShape(t) {
 		state := NewMenuState([]couchcore.ActionableThreadSummary{s.row}, s.row.Address)
@@ -226,14 +226,12 @@ func TestEnterUsesContinuityOutcome(t *testing.T) {
 				t.Errorf("%s: Resume disk effects %+v", s.name, effects)
 			}
 		default:
-			if len(effects) == 0 {
-				if next.CurrentFrame().Kind != MenuFrameConfirmation || next.CurrentFrame().Action != "reboot" || !couchcore.RebootAdmitted(s.row.State, s.row.Reason, true) {
-					t.Errorf("%s: unusable primary: %+v", s.name, next.CurrentFrame())
-				}
-			} else if len(effects) != 1 || (effects[0].Preview == nil && effects[0].Operation != "resume" && effects[0].Operation != "recover") {
+			if len(effects) != 1 || (effects[0].Preview == nil && effects[0].Operation != "resume" && effects[0].Operation != "recover" && effects[0].Operation != "reboot") {
 				t.Errorf("%s: recovery effects %+v", s.name, effects)
 			}
-
+			if next.CurrentFrame().Kind == MenuFrameConfirmation {
+				t.Errorf("%s: local confirmation preceded backend preparation", s.name)
+			}
 		}
 	}
 }
@@ -249,7 +247,7 @@ func TestSlotRowResumeAndRebootSendThePath(t *testing.T) {
 		t.Run(operation+"/slot", func(t *testing.T) {
 			next, effects := dispatchMenuRow(NewMenuState([]couchcore.ActionableThreadSummary{slot}, couchcore.ThreadAddress{}), operation, slot)
 			if operation == "reboot" {
-				next, effects = confirmSlotFresh(t, next, effects)
+				next, effects = assertFreshDispatch(t, next, effects)
 			}
 			if len(effects) != 1 || effects[0].Args["path"] != slot.Target.Slot.WorktreeRoot || effects[0].Args["tag"] != "" {
 				t.Fatalf("effects %+v", effects)
@@ -264,7 +262,7 @@ func TestSlotRowResumeAndRebootSendThePath(t *testing.T) {
 		t.Run(operation+"/primary", func(t *testing.T) {
 			next, effects := dispatchMenuRow(NewMenuState([]couchcore.ActionableThreadSummary{primary}, primary.Address), operation, primary)
 			if operation == "reboot" {
-				_, effects = confirmSlotFresh(t, next, effects)
+				_, effects = assertFreshDispatch(t, next, effects)
 			}
 			if len(effects) != 1 || effects[0].Args["repo-scope"] != "scope" || effects[0].Args["tag"] != "couch-primary" || effects[0].Args["path"] != "" {
 				t.Fatalf("effects %+v", effects)
@@ -305,7 +303,7 @@ func TestSwitcherActorEffectsCarryActorOperationArgs(t *testing.T) {
 			}
 		}
 		next, reboot := dispatchMenuRow(state, "reboot", row)
-		_, reboot = confirmSlotFresh(t, next, reboot)
+		_, reboot = assertFreshDispatch(t, next, reboot)
 		want := maps.Clone(literal[name])
 		delete(want, "warm-only")
 		if len(reboot) != 1 || !maps.Equal(reboot[0].Args, want) || !maps.Equal(reboot[0].Args, couchcore.ActorOperationArgs(row, "reboot")) {
@@ -314,85 +312,54 @@ func TestSwitcherActorEffectsCarryActorOperationArgs(t *testing.T) {
 	}
 }
 
-func openRebootConfirmation(t *testing.T, row couchcore.ActionableThreadSummary) MenuState {
+func dispatchRebootFromActions(t *testing.T, row couchcore.ActionableThreadSummary) MenuState {
 	t.Helper()
 	state := NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
 	state.InventoryReady = true
 	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
 	if state.CurrentFrame().Kind != MenuFrameActions {
-		t.Fatalf("Tab did not open actions: %+v, notice %q", state.CurrentFrame(), state.Notice.Text)
+		t.Fatalf("actions frame: %+v", state.CurrentFrame())
 	}
 	state.Frames[len(state.Frames)-1].SelectedItem = "reboot"
 	state, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
-	if len(effects) != 0 || state.CurrentFrame().Kind != MenuFrameConfirmation || state.CurrentFrame().Action != "reboot" {
-		t.Fatalf("reboot did not confirm: %+v (effects %+v)", state.CurrentFrame(), effects)
-	}
+	state, _ = assertFreshDispatch(t, state, effects)
 	return state
 }
 
-func TestRebootConfirmationNamesItsCost(t *testing.T) {
-	base := couchcore.ActionableThreadSummary{Address: menuAddress("couch-primary"), WorkingPath: "/w/p"}
-	for _, tc := range []struct {
-		state  couchcore.ActionableThreadState
-		reason couchcore.ThreadReason
-		want   string
-	}{
-		{couchcore.ThreadParked, "", " — archives this conversation, starts a fresh agent"},
-		// "may survive": #274's measurement, quiesce reaps by SIGHUP.
-		{couchcore.ThreadDetached, "", " — archives this conversation, starts a fresh agent, stops its session; its running agent may survive"},
-		// pair#456: a live row parks first; the conversation is not resumed.
-		{couchcore.ThreadLive, "", " — archives this conversation, starts a fresh agent; stops its running agent first"},
-		{couchcore.ThreadUnusable, couchcore.ReasonPathMissing, " — checkout missing: archives the record only; restore the checkout to start here again"},
-	} {
-		row := base
-		row.State, row.Reason = tc.state, tc.reason
-		state := openRebootConfirmation(t, row)
-		items := confirmationMenuItems(state, state.CurrentFrame())
-		want := "reboot " + row.Label() + tc.want
-		if len(items) != 2 || items[1] != want {
-			t.Errorf("%s/%s: items %q, want %q", tc.state, tc.reason, items, want)
+func TestRebootActionsDispatchForBackendPreparation(t *testing.T) {
+	for _, kind := range []couchcore.ActionableThreadState{couchcore.ThreadParked, couchcore.ThreadDetached, couchcore.ThreadLive, couchcore.ThreadUnusable} {
+		row := couchcore.ActionableThreadSummary{Address: menuAddress("couch-primary"), WorkingPath: "/w/p", State: kind}
+		if kind == couchcore.ThreadUnusable {
+			row.Reason = couchcore.ReasonPathMissing
+		}
+		state := dispatchRebootFromActions(t, row)
+		if state.InFlight.Address != row.Address {
+			t.Fatalf("wrong target: %+v", state.InFlight)
 		}
 	}
 }
 
-// One rule for every confirmation: it survives only while its row still
-// offers its action (or that action is the one in flight).
-func TestConfirmationRechecksTheOfferForEveryAction(t *testing.T) {
+func TestActionsRecheckTheOfferBeforeFreshDispatch(t *testing.T) {
 	row := couchcore.ActionableThreadSummary{Address: menuAddress("couch-primary"), WorkingPath: "/w/p", State: couchcore.ThreadParked}
-	state := openRebootConfirmation(t, row)
+	state := NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
+	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
+	state.Frames[len(state.Frames)-1].SelectedItem = "reboot"
 	state.Inventory = nil
-	state, _ = reduceConfirmationKey(state, PanelKey{Kind: KeyDown})
-	next, effects := reduceConfirmationKey(state, PanelKey{Kind: KeyEnter})
-	if len(effects) != 0 || next.CurrentFrame().Kind == MenuFrameConfirmation {
-		t.Fatalf("a reboot confirmation on a removed row dispatched %+v / frame %+v", effects, next.CurrentFrame())
-	}
-	refreshed := reconcileMenuFrames(state, []couchcore.ActionableThreadSummary{row})
-	if refreshed.CurrentFrame().Kind == MenuFrameConfirmation {
-		t.Fatalf("a refresh kept a reboot confirmation the row no longer offers")
+	_, effects := reduceActionKey(state, PanelKey{Kind: KeyEnter})
+	if len(effects) != 0 {
+		t.Fatalf("removed row dispatched: %+v", effects)
 	}
 }
 
-// Reboot changes its own row: the :0 row leaves under its old tag and comes
-// back under a new one, a slot row turns live. The frame whose own operation
-// is running must survive that, or the operator reads "no longer applicable"
-// over a reboot that went on to work.
 func TestRebootFrameSurvivesItsOwnStateChange(t *testing.T) {
-	confirmAndDispatch := func(t *testing.T, row couchcore.ActionableThreadSummary) MenuState {
-		state := openRebootConfirmation(t, row)
-		state, _ = reduceConfirmationKey(state, PanelKey{Kind: KeyDown})
-		state, effects := reduceConfirmationKey(state, PanelKey{Kind: KeyEnter})
-		if len(effects) != 1 || effects[0].Operation != "reboot" || state.InFlight.Operation != "reboot" {
-			t.Fatalf("reboot did not dispatch: %+v", effects)
-		}
-		return state
-	}
+	dispatch := dispatchRebootFromActions
 	t.Run("primary vanishes and returns under a new tag", func(t *testing.T) {
 		row := couchcore.ActionableThreadSummary{Address: menuAddress("couch-old"), WorkingPath: "/w/p", State: couchcore.ThreadParked}
-		state := confirmAndDispatch(t, row)
+		state := dispatch(t, row)
 		fresh := couchcore.ActionableThreadSummary{Address: menuAddress("couch-new"), WorkingPath: "/w/p", State: couchcore.ThreadLive}
 		state, previous := replaceMenuInventory(state, []couchcore.ActionableThreadSummary{fresh})
 		state = reconcileMenuFrames(state, previous)
-		if frame := state.CurrentFrame(); frame.Kind != MenuFrameConfirmation || frame.Action != "reboot" || state.Notice.Level == MenuNoticeError || strings.Contains(state.Notice.Text, "no longer") {
+		if frame := state.CurrentFrame(); frame.Kind == MenuFrameConfirmation || state.InFlight.Operation != "reboot" || state.Notice.Level == MenuNoticeError || strings.Contains(state.Notice.Text, "no longer") {
 			t.Fatalf("frame %v/%q notice %q", frame.Kind, frame.Action, state.Notice.Text)
 		}
 		// Its result lands under the NEW tag and still completes the attempt.
@@ -404,12 +371,12 @@ func TestRebootFrameSurvivesItsOwnStateChange(t *testing.T) {
 	t.Run("slot row turns live", func(t *testing.T) {
 		row := menuSlotRow(1, "couch-old")
 		row.State, row.Reason = couchcore.ThreadParked, ""
-		state := confirmAndDispatch(t, row)
+		state := dispatch(t, row)
 		live := menuSlotRow(1, "couch-new")
 		live.State, live.Reason = couchcore.ThreadLive, ""
 		state, previous := replaceMenuInventory(state, []couchcore.ActionableThreadSummary{live})
 		state = reconcileMenuFrames(state, previous)
-		if frame := state.CurrentFrame(); frame.Kind != MenuFrameConfirmation || frame.Action != "reboot" || strings.Contains(state.Notice.Text, "no longer") {
+		if frame := state.CurrentFrame(); frame.Kind == MenuFrameConfirmation || state.InFlight.Operation != "reboot" || strings.Contains(state.Notice.Text, "no longer") {
 			t.Fatalf("frame %v/%q notice %q", frame.Kind, frame.Action, state.Notice.Text)
 		}
 	})
@@ -465,7 +432,7 @@ func TestPathMissingRowExplainsItsNextStep(t *testing.T) {
 		state := NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
 		state.InventoryReady = true
 		next, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
-		if tc.row.Target.Kind == couchcore.ThreadTargetSlot && (len(effects) != 1 || effects[0].Preview == nil) || tc.row.Target.Kind != couchcore.ThreadTargetSlot && (len(effects) != 0 || next.CurrentFrame().Kind != MenuFrameConfirmation) {
+		if tc.row.Target.Kind == couchcore.ThreadTargetSlot && (len(effects) != 1 || effects[0].Preview == nil) || tc.row.Target.Kind != couchcore.ThreadTargetSlot && (len(effects) != 1 || effects[0].Operation != "reboot") {
 			t.Errorf("%s Enter: effects %v, notice %q", row.Label(), effects, next.Notice.Text)
 		}
 	}
@@ -653,20 +620,20 @@ func TestOperationProgressUpdatesOnlyItsOwnNotice(t *testing.T) {
 	}
 }
 
-// pair#456: the switcher's reboot of a live row carries the forced idle
-// verdict (the operator is looking and confirmed; a known busy still refuses),
-// and a stopped row's carries none, so no other route admits a live thread.
-func TestLiveRebootDispatchCarriesTheIdleVerdict(t *testing.T) {
-	for _, tc := range []struct {
-		state couchcore.ActionableThreadState
-		want  string
-	}{{couchcore.ThreadLive, "forced"}, {couchcore.ThreadParked, ""}} {
-		row := couchcore.ActionableThreadSummary{Address: menuAddress("couch-primary"), WorkingPath: "/w/p", State: tc.state}
-		state := openRebootConfirmation(t, row)
-		state, _ = reduceConfirmationKey(state, PanelKey{Kind: KeyDown})
-		_, effects := reduceConfirmationKey(state, PanelKey{Kind: KeyEnter})
-		if len(effects) != 1 || effects[0].Operation != "reboot" || effects[0].Args["require-settled"] != tc.want {
-			t.Fatalf("%s: effects %+v, want require-settled %q", tc.state, effects, tc.want)
+// Dispatch asks the backend to prepare the exact stop offer; no local prompt
+// supplies its approval token.
+func TestRebootDispatchDoesNotManufactureStopApproval(t *testing.T) {
+	for _, kind := range []couchcore.ActionableThreadState{couchcore.ThreadLive, couchcore.ThreadParked} {
+		row := couchcore.ActionableThreadSummary{Address: menuAddress("couch-primary"), WorkingPath: "/w/p", State: kind}
+		state := NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
+		_, effects := dispatchMenuRow(state, "reboot", row)
+		if len(effects) != 1 || effects[0].Operation != "reboot" {
+			t.Fatalf("dispatch: %+v", effects)
+		}
+		for _, key := range []string{"token", "require-settled"} {
+			if _, ok := effects[0].Args[key]; ok {
+				t.Fatalf("premature approval: %+v", effects[0].Args)
+			}
 		}
 	}
 }
