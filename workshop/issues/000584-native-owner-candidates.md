@@ -60,6 +60,8 @@ Filter native-owner candidates from kernel metadata before requiring argv; unrel
 
 - 2026-10-15: First recorded suite at 39d43995c found TestProductionArtifactReferencesAreExactlyClassified: the three new launcher production files were absent from the exhaustive source inventory. Classified legacy and finite metadata readers as resolved consumers and the in-memory scheduler as non-artifact source; no quarantine additions. The exact contract test then passed in 2.385s. A new recorded full suite is required for this corrected code head.
 
+- 2026-10-15: First recorded suite finished in 10m50s with only the already-fixed inventory failure; all behavioral Go packages passed (couchcore 334.393s, launcher 36.660s, procutil 3.976s, strictjson 0.157s, sessionledger 2.273s). Saved log: /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/365104fc4bf87b313b6e646bfb089d97.log. Corrected run on 9979945fb is queued, log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/inflight/79185f3a4b7716015218ff34bc63d1c8/run.log. No suite waiver requested or used.
+
 ## Revisions
 
 ### 2026-10-15 15:55 — approved narrow legacy association
