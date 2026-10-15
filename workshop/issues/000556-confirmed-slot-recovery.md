@@ -777,6 +777,18 @@ lessons updated for both finding classes. A fresh required recorded suite follow
 on the checkpointed head, then normal M2 re-close/review with no waivers. No live
 slot, stage, operator restart or native production session was touched.
 
+
+### 2026-10-15 — corrected BR-6 / BR-7 recorded suite PASS
+
+Normal required `sdlc local-check run --name suite` on pushed
+`4f8c73ce1e7ae28d69d6b2e73b4547467ada87bd` **PASS**, exit0 in **13m18s** after
+1282s machine queue wait. Retained suite.log under that exact head in the common
+Git sdlc/local-checks directory, sha256 prefix `81c18227a083`. Core539.758s,
+launcher57.323s, wrapper87.455s, inventory14.198s, all editor/shell integrations
+and Go packages passed. Independent root admission race PASS4.382s. No earlier
+ownership/quiescence flake recurred. Corrected build PASS. Normal M2 re-close
+follows with both findings addressed in code/tests, no waiver or live effects.
+
 ## Revisions
 
 ### 2026-10-15T05:33-07:00 — overnight M2 dispatch

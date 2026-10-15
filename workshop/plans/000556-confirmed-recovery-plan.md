@@ -141,7 +141,7 @@ Files: `couchcore/recovery_resume.go`, `recovery_evidence_os.go`, `reboot.go`, `
 - [x] Add stateful failing cases: preserve failure before signal; owned damaged wrapper; foreign remnant left byte/process-identical; new descendant/PID reuse mid-retirement; partial retirement; proven resume without screen; fresh incomplete/unsupported scan/missing screen; delayed registration after a real launch.
 - [x] Run `go test ./cmd/internal/couchcore ./cmd/internal/launcher ./cmd/internal/orientation -run 'TestRecovery|TestResumeCandidate|TestReboot|TestStartTransaction' -count=1` and confirm the new cases fail.
 - [x] Implement shared ordering using existing journals, park/exact retirement and launch APIs. Every native resume has empty Prompt; every Fresh uses BuildRecoveryOrientation with available coordinates only. Reobserve uncertain attempts once, never kill/fresh-replace merely because registration timed out. Re-run to PASS and commit.
-- [ ] Before claiming uniqueness, run a deterministic two-slot barrier test: the same native ID admits one writer; different IDs progress independently. Add reservation handoff/death/unconfirmed tests and verify the production wrapper cannot execute a fenced attempt. Commit the common admission protocol separately.
+- [x] Before claiming uniqueness, run a deterministic two-slot barrier test: the same native ID admits one writer; different IDs progress independently. Add reservation handoff/death/unconfirmed tests and verify the production wrapper cannot execute a fenced attempt. Commit the common admission protocol separately.
 
 ### 4. Menu, CLI and authenticated hub parity
 
@@ -155,9 +155,9 @@ Files: `couchcore/ops.go`, `operationdispatch.go`, `slot_operation.go`; `couchcm
 
 Files: extend `couchcore/recovery_resume_integration_test.go`, `recovery_conformance_live_test.go`, `couchcmd/recovery_acceptance_test.go`; update `atlas/couch.md`, `atlas/session-identity.md`, `atlas/index.md`; add `workshop/plans/000556-live-acceptance.md`.
 
-- [ ] Headless stateful matrix: proven, best and fourth alternative, no candidate, incomplete/unsupported scan, missing/expired tty, attributed owner needing confirmation, foreign survivor, expired claim, cancelled/partial effects and uncertain registration. Assert executed identity, one writer per resumed transcript, one native launch, preserved evidence and no unintended signals/files/default edits.
-- [ ] Run targeted recovery packages to PASS, then `sdlc local-check run --name suite` for the final head and `make build`; retain commands/results in the issue Log. Merge main before final verification if it moved; suite evidence must cover the landing head.
-- [ ] Map selection/confirmation lifetime, schema migration and uncertain launch outcomes in atlas; link the newer target. Record the short scratch script below with exact final commands and expected notices.
+- [x] Headless stateful matrix: proven, best and fourth alternative, no candidate, incomplete/unsupported scan, missing/expired tty, attributed owner needing confirmation, foreign survivor, expired claim, cancelled/partial effects and uncertain registration. Assert executed identity, one writer per resumed transcript, one native launch, preserved evidence and no unintended signals/files/default edits.
+- [x] Run targeted recovery packages to PASS, then `sdlc local-check run --name suite` for the final head and `make build`; retain commands/results in the issue Log. Merge main before final verification if it moved; suite evidence must cover the landing head.
+- [x] Map selection/confirmation lifetime, schema migration and uncertain launch outcomes in atlas; link the newer target. Record the short scratch script below with exact final commands and expected notices.
 - [ ] Close normally with `sdlc close --issue 556 --verified '<recorded evidence>'`; answer the binary-owned fresh-context review, no duplicate ad-hoc boundary review or inherited #528 waivers. Land on SHIP through normal PR/CI gates. Report landed PR and real merge hash to hub only; no stage mutation or operator restart.
 
 ## Morning live script outline (final executable commands supplied before close)
