@@ -65,15 +65,15 @@ The final unreconciled-input policy is awaiting TL confirmation: safe bounded es
 
 ### 1. Pin native and state-machine evidence
 
-- [ ] Preserve a bounded read-only pair:4 pending/idle observation and receipt status. Coordinate through the TL before any live input, restart or staging.
-- [ ] Add failing tests using the named function strategies in the revision below. Exercise the production writer with the stateful Qoder receiver and record RED.
-- [ ] Implement the minimal reducer retry event/count and Qoder evidence projection, then wire through the existing PTY writer. Record GREEN and exact wire counts: body pasted once, bounded CR writes, no writes after confirmation/interruption/deadline.
+- [x] Preserve a bounded read-only pair:4 pending/idle observation and receipt status. Coordinate through the TL before any live input, restart or staging.
+- [x] Add failing tests using the named function strategies in the revision below. Exercise the production writer with the stateful Qoder receiver and record RED.
+- [x] Implement the minimal reducer retry event/count and Qoder evidence projection, then wire through the existing PTY writer. Record GREEN and exact wire counts: body pasted once, bounded CR writes, no writes after confirmation/interruption/deadline.
 
 ### 2. Bound failed-transaction recovery
 
-- [ ] Under the approved terminal policy, add RED tests for the recovery invariants using the named function strategies below. Keep reporting, input ownership and next-delivery outcomes independently observable.
-- [ ] Extend the existing typed stall cause/parser and supervisor notice if needed, preserving mixed-version visible refusal and no automatic release on unknown/occupied input. Reuse the report queue, sanitization, incarnation binding and sequence deduplication. Run parser, reducer and supervisor tests, then race tests.
-- [ ] Map the confirmation/retry/recovery behavior in atlas/couch.md; update public guidance only where the operator must act. Add a lesson for any review-discovered rule. Update artifact inventory for a new production source file.
+- [x] Under the approved terminal policy, add RED tests for the recovery invariants using the named function strategies below. Keep reporting, input ownership and next-delivery outcomes independently observable.
+- [x] Extend the existing typed stall cause/parser and supervisor notice if needed, preserving mixed-version visible refusal and no automatic release on unknown/occupied input. Reuse the report queue, sanitization, incarnation binding and sequence deduplication. Run parser, reducer and supervisor tests, then race tests.
+- [x] Map the confirmation/retry/recovery behavior in atlas/couch.md; update public guidance only where the operator must act. Add a lesson for any review-discovered rule. Update artifact inventory for a new production source file.
 
 ### 3. Verify, live check and land
 
@@ -112,3 +112,7 @@ Exact-envelope interpretation: use the complete composer parser and a determinis
 ### 2026-10-15 — TL defers live activation; review now, hold
 
 TL receipt 172b9532-1e96-4fc7-ab4b-a838f7469fea directs the required suite and close review on candidate code 545ac416d19e3a84905081e3791d8b0a69288fdd, then hold. pair:0 is staged for #544 and pair:4 candidate relaunch is blocked by #584's ownership-guard repair. Do not restage, relaunch or merge this item now. TL plans the combined stage/restart and idle, mid-turn and subsequent-delivery probes in the next 07:00 cheap window after #584 lands. The original prelanding live task remains owed, never ticked; close review may assess the prepared implementation now but does not establish native acceptance. Current suite head 81624e3d60b60189fe823b98e6e9e1210aedafde integrates only new issue details beyond that code.
+
+### 2026-10-15 — implementation checkpoint, final suite queued
+
+Tasks 1–2 are complete. Candidate code a7b330872a80118ff1756edde74104805b07225d includes exact-envelope bounded retries, fresh-empty confirmation, immediate one-report quarantine and recovery, uncertainty-preserving refusal and quarantine precedence over picker holds. Native pending fixture matches the wrapped restart envelope. RED/GREEN and focused race/fuzz/inventory/build evidence is recorded in the issue Log. Required suite is queued on this pushed head (PR #352); no pass claim yet. CI is green. Final full-suite row, close review and all native live/landing rows remain unchecked. TL directs review then HOLD; no staging or relaunch.
