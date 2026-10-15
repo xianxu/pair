@@ -1159,7 +1159,11 @@ still match. A changed input runs the original `QuerySessionContext` and
 listings, when used by a proofless query, remain dependencies so new candidates
 invalidate it. An unreadable disposable catalog disables caching and retains
 the original proof/native fallback. The existing `OwnerLaunchCache` now shares
-current and previous-established evidence with resume queries too.
+current and previous-established evidence with resume queries too. The previous
+launch retains only resume identity/status; the current launch drops unused
+baselines and binding history while preserving its scanner authorization proof.
+Actual incomplete observations invalidate reusable evidence and fence older
+loads; a canceled waiter cannot invalidate an independent loader.
 
 Caches use file identity, mutation/ctime, size and timestamps; loads verify
 stable metadata before publication, serialize only the same key, and retry

@@ -162,4 +162,8 @@ Reason: close review found incomplete observations reusable after unchanged reco
 | Activity complete-observation publication | INTEGRATION | modified | sessioninventory/activity_cache.go: ActivityCache.Query/activityObservedRuntime/activityCatalogRuntime |
 
 - [ ] Verify all review corrections with targeted race tests, both named scale invariants, final full suite and fresh close review.
-- [ ] Record hub rollout/live acceptance decision before landing.
+- [x] Record hub rollout/live acceptance decision before landing.
+
+### 2026-10-14 — hub controls live rollout after landing
+
+TL explicitly directs final suite/reclose/land on SHIP independently of #528, leaving pair:0 untouched. Live acceptance is TL measurement after operator restart: idle CPU below5% for60seconds after attaches settle and one ordinary delivery round trip. A combined stage may be requested separately; this worker has no stage authorization. Actual live results remain to be supplied by TL, not inferred from the deterministic tests.
