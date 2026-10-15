@@ -300,6 +300,22 @@ is needed because source inspection and RED tests confirmed them.
 A new recorded suite and normal M1 re-close follow these corrections. M2 remains
 unimplemented, and no operator acceptance or live effects are claimed.
 
+### 2026-10-15 — unrelated shell flake before corrected Go verification
+
+The recorded suite at `db86a287f8c74bbda952dfe00356e3b8f11d4601` exited 2
+after 3m39s in the unchanged `tests/review-fresh-restore-test.sh`, before the Go
+phase. Case `missing-history-does-not-adopt-old-receipt` observed a nonzero
+Neovim return with empty stdout; the assertion omits its return code. Earlier
+cases passed. The identical full script immediately passed all five isolated
+cases. Root cause is unproved; no timeout was increased and this is not waived.
+Retained failed log `eef944b68fc13088226c6a06a1a85b99.log`, SHA256 prefix
+`92b0a48d20e5`. Filed independent unclaimed pair#568 with bounded evidence.
+
+Artifact classification/dead-symbol checks pass (4.608s), the corrected build
+passes, and the complete recovery/Park selection passes 27.092s plus targeted
+race checks 1.940s. The next recorded suite must still pass on this code before
+M1 re-close; a passed isolated flake rerun is not whole-suite evidence.
+
 ## Revisions
 
 ### 2026-10-15T05:33-07:00 — overnight M2 dispatch
