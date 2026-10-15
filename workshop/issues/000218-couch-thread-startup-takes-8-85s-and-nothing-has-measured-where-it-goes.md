@@ -301,6 +301,25 @@ phases. Request9d15edcb-cd1a-4886-bf25-6620ff2a969f submitted to hub asks whethe
 a future fixed schedule may continue only after verified safe resets while
 retaining failure rows; until answered, stop-on-any-error remains unchanged.
 
+### 2026-10-14 — fourth matrix stopped during guarded Leave
+
+MATRIX4 /tmp/pair218-MATRIX4.8L6fzd froze source/binaries
+7dfd7e6315dd67864be6be41c0c78e9e16522a2c. Rows1–6 passed: limits6/20/40/20/40/6,
+all21 first frames13.259/11.821/11.702/12.069/11.016/12.885s; successful
+Leave3.775/3.074/3.396/3.335/3.057/3.569s. Row7/40 rendered all21 in11.537s
+and verified all21 exact client generations after raw attached queries, but
+production Leave REFUSED invalid live pane JSON for session...-17/tag...0012.
+Its2.951s Leave is partial, not successful detach. Stop-on-error retained;
+rows8/9 never ran, no retries or filtered failure. Total run133.42s FAILED.
+Raw attached/postleave queries are now retained, but observer context was only
+on verification queries, not authority queries inside root/background/Leave;
+therefore malformed owner-pane response bytes still missing. Extend the SAME
+observer to all parent operation contexts with a synchronized bounded collector
+before further experiments. This is an instrumentation coverage class, not a
+JSON repair or permission to relax owner proof. Exact fixture root removed;
+no operator environment touched. Hub outcome934a9dea-b86b-4e72-a088-03f848d7b7c3
+submitted; a failed Leave cannot qualify for proposed safe-reset continuation.
+
 ## Revisions
 
 - 2026-10-14 — add (operator via TL): concrete case. At the operator's 14:33 restart, Couch's background attaches spawned 21 zellij clients between 14:33:37 and 14:33:47 (~6 at a time): roughly 2–3 s per attach, against ~10–20 ms for `zellij list-sessions` and an expected ~100–300 ms floor (list, lease, one record write, spawn client, first frame). Detach ("leave couch") is unmeasured but also inspects each slot's session server. Trace one attach and one detach step by step; the likely waste is a whole process-table read (native argv for every process since #547) per slot. Probably one shared snapshot per startup or detach pass instead.
