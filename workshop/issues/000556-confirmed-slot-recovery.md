@@ -471,6 +471,21 @@ the existing transport. Root rerun: tty **PASS** 0.293s, cmd **PASS** 0.296s.
 No production surface change was needed. The next corrected-head recorded suite
 and normal re-close follow; no gate is waived and no M2 code has started.
 
+
+### 2026-10-15 — BR-5 full verification
+
+Corrected code head `7f289c0089052d02c2b82c453dc7ccc5a5a27d02` passed the
+required recorded full suite: exit 0 in **8m42s**, retained log
+`/Users/xianxu/workspace/pair/.git/sdlc/local-checks/7f289c0089052d02c2b82c453dc7ccc5a5a27d02/suite.log`,
+SHA-256 prefix `2c788d3dc827`. `make build` passed, rebuilding pair/couch/helper.
+The subsequent native-selector measurement checkpoint changes only the plan.
+Normal milestone-close must dispose BR-5 before M1 is considered closed.
+
+The round-3/fix report attempted after the commit refused `unavailable` without a
+receipt; no uncertain delivery is replayed. Read-only peek subsequently confirmed
+the hub's terminal is functioning. Next report will name the actual new boundary
+outcome. No stage, restart, native session experiment or M2 code has occurred.
+
 ## Revisions
 
 ### 2026-10-15T05:33-07:00 — overnight M2 dispatch
