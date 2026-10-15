@@ -108,7 +108,7 @@ envelope without knowing what fills it.
 - [ ] Fix what the breakdown indicts, or record irreducibility.
 - [ ] Update `pairRegistrationTimeout`'s comment to cite the breakdown.
 
-- [ ] M1 — baseline attach/detach timings and native candidate/fencing foundation ([durable plan](../plans/000218-startup-detach-observation-plan.md)).
+- [x] M1 — baseline attach/detach timings and native candidate/fencing foundation ([durable plan](../plans/000218-startup-detach-observation-plan.md)).
 - [ ] M2 — shared pass capture, 6/20/40 experiment and measured tuning.
 
 ## Log
@@ -125,6 +125,7 @@ reason this issue is narrow: four plausible suspects are already dead, which is
 worth more than an open-ended "make startup faster".
 
 ### 2026-10-14 — planning trace
+- 2026-10-14: closed M1 — Recorded sdlc-local/suite PASS on71e3380d773ddda553af77a5933dad1884f2aa42 (12m10s, log e43d9c7c917c); only lessons docs changed since. Targeted race, make -k build, Darwin native and Seatbelt denying /bin/ps pass. Same-run native snapshot1356 argv/75.307ms versus named48/2.393ms. Unoptimized real managed attach and production detach attributed in Log; detach residual11.542us; session/incarnation/sentinel assertions pass. Shared initial pass and21-session6/20/40 experiment remain M2. Linux portable procfs fixtures/cross-build pass; native Linux untested, no runner or VM.; review verdict: SHIP
 
 Claimed by pair:5, started from main 9a2aff687 after slot substrate refresh. Operator approved one snapshot per pass; durable implementation plan: [startup/detach observation](../plans/000218-startup-detach-observation-plan.md). Read-only path trace shows two full native snapshots per healthy SessionOwnerProbe, repeated by Couch prelaunch/registration checks and four child Pair checks (approximately twelve scans for healthy single-poll attach), and approximately six on healthy detach. These are path counts, not measurements. Baseline real attach/detach timing and existing zellij PATH trace precede behavior edits. ARCH-DRY reuse ServerStates, ARCH-ORDER exact fresh fences, ARCH-CONSTRAINTS measure 6/20/40 after reducing duplicate observation.
 
