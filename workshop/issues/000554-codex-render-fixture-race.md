@@ -45,8 +45,8 @@ Make the renderer fixture own and join its reply-drain lifetime before disposing
 
 ## Plan
 
-- [ ] Reuse terminalModel for the Codex render fixture; close its reply pipe, join its drainer, then dispose the emulator (ARCH-DRY, ARCH-ORDER).
-- [ ] Add deterministic real-model cleanup regressions for successful rendering and an injected shutdown error, retaining exact rendered text and all notification assertions. Bound fixture rendering/cleanup at 10 seconds or the remaining test budget, whichever is less.
+- [x] Reuse terminalModel for the Codex render fixture; close its reply pipe, join its drainer, then dispose the emulator (ARCH-DRY, ARCH-ORDER).
+- [x] Add deterministic real-model cleanup regressions for successful rendering and an injected shutdown error, retaining exact rendered text and all notification assertions. Bound fixture rendering/cleanup at 10 seconds or the remaining test budget, whichever is less.
 - [ ] Run focused repeated race, full wrapcmd normal/race suites, make -k build and sdlc-local suite; close and land on SHIP.
 
 ## Log
@@ -56,3 +56,5 @@ Make the renderer fixture own and join its reply-drain lifetime before disposing
 - Filed from #544 verification. Main baseline e1cab8eca2041604827a7bda25ed958da5eab7af; focused race failure7.305s. Local diagnostic log `/tmp/pair-baseline-codex-working-race.log` is supplementary; the command and stacks above are the durable reproduction. Runtimebundle generation was the only baseline preparation. Temporary checkout removed after the run. TL requested a separate unassigned issue rather than a fix in #544.
 
 - 2026-10-14: Claimed and started from main 141e055b817765a50ab718224bc3d5c72b7769ff after substrate refresh to ariadne 1643ba28edb46a03318f90c89c225d1a33ac13a0. Reproduced focused -race -count=10 failure: fixture deferred Emulator.Close writes closed while reply drainer Emulator.Read reads it. Existing terminalModel already owns safe pipe-close → drain join → emulator disposal; no library or production change is needed. Plan sent to hub for approval.
+
+- 2026-10-14: Hub approved the quick-flow design. Replaced the raw emulator and unjoined drainer with terminalModel; rendering returns only after Close completes, and preserves close errors. The fixture bounds the combined render/cleanup wait at min(10s, testwait.Budget). Original screen/notification assertions are unchanged. Deterministic real-model regression failed with the former direct-emulator teardown on both lifecycle cases (and lost the injected close error); the shared Close path passes. Exact screen expectation includes all 24 rows. Focused notification/lifecycle -race -count=10 passed (3.918s). Full wrapcmd normal/race checks running. No production or vendored file changed.
