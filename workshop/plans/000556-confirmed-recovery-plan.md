@@ -402,3 +402,54 @@ intact for genuine transcript choices. Regression coverage compares explicit Fre
 ResumeCandidate with the advertised Fresh key, and the declared operation route;
 menu/printed-command tests cover the transport edges and keyless Fresh. Invalid or
 stale keys still refuse without effects. No M2 work or approval change is included.
+
+### 2026-10-15 — measured latest-selector facts, pending provider policy reply
+
+Read-only preparation only; no M2 implementation or policy override. The hub
+clarification is submitted as `32602d27-64b2-42a4-972f-c2e3e7c10cff`.
+Existing canonical-root validation covers exact IDs for all six agents. Recovery
+inference eligibility/activity is not native latest selection.
+
+- **Claude 2.1.299:** shipped readable JS at
+  `~/.local/share/claude/versions/2.1.299`, call chain
+  `zTe(undefined) -> PZr -> Vro -> tNe -> xCt`, with `Zls/wbt` eligibility.
+  `xCt` at byte 202470269 stats UUID JSONL files; `tNe` at 202477625 orders by
+  descending mtime, then creation time. Filters include sidechain/team/daemon,
+  inappropriate SDK/loop entrypoints, bookkeeping-only/superseded/background
+  sessions and cwd slug collisions. Scope can include aliases/relocations;
+  do not silently replace these with max semantic message time.
+- **Qoder 1.1.71:** shipped readable JS at
+  `~/.qoder/bin/qodercli/qodercli-1.1.71`, call chain
+  `continue -> sS -> pB/Gj -> Zy -> JKe`. `JKe` at byte 123692726 uses transcript
+  stat mtime as lastUpdated and requires displayable content or worktree-session
+  metadata. `mke` at 123802179 deduplicates IDs by newest mtime and sorts descending;
+  `sS` at 123807731 reloads the first canonical ID. Native scope can span verified
+  same-repository worktrees; the approved exact-cwd scope must be explicit.
+- **Codex 0.162.1:** matching rust-v0.162.1 source and read-only
+  `~/.codex/state_5.sqlite` schema/query measurements establish archived=false,
+  nonempty preview, source cli/vscode by default; include-non-interactive admits
+  cli/vscode/exec/mcp (AppServer maps to mcp, not appServer). Order is
+  updated_at_ms descending, with no explicit ID tiebreak. Fetch two and refuse
+  equal best timestamps under the unique-resolution rule. Effective provider
+  filtering depends on invocation/profile/managed/cwd configuration: an absent
+  provider field defaults to openai, whereas unsupported config/read means no
+  filter. SQLite home precedence is effective sqlite_home, CODEX_SQLITE_HOME,
+  then resolved Codex home. Unknown configuration/schema/remote or unsupported
+  scope modifiers cannot be guessed. Selected rollout path and ID still need
+  existing canonical-root validation; metadata paths never authorize arbitrary
+  transcript reads. Native unusable-path scan-and-repair is not a read-only
+  resolver operation. Primary sources:
+  [thread queries](https://github.com/openai/codex/blob/rust-v0.162.1/codex-rs/state/src/runtime/threads.rs),
+  [source filters](https://github.com/openai/codex/blob/rust-v0.162.1/codex-rs/app-server/src/filters.rs),
+  [provider selection](https://github.com/openai/codex/blob/rust-v0.162.1/codex-rs/tui/src/app_server_session/provider_selection.rs),
+  [configuration](https://github.com/openai/codex/blob/rust-v0.162.1/codex-rs/core/src/config/mod.rs).
+- **Grok 1.0.50 / Muse 1.4.9-R6297.1 / Agy 1.2.16:** installed help establishes
+  latest selectors, but a faithful ordering/filter resolver remains unproved.
+  Grok's human sessions list and embedded updated_at/last_active_at SQL do not
+  establish its continue call chain. Do not infer support or substitute mtime.
+
+Future implementation uses an explicit resolved/none/ambiguous/incomplete/
+unsupported inventory result, resolves once, revalidates that exact ID, then
+reserves and executes the same ID. A newly arriving session cannot change it.
+No transcript bodies/configuration contents were printed, no native conversation
+was launched, and no native files/database were changed by these measurements.
