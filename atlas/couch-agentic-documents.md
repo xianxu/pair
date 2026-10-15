@@ -40,6 +40,10 @@ New verb refusals exit 1 with `Code`/`Error`: `owner-conflict`, `target-conflict
 `registry-uncertain` where applicable. Ordinary IO errors also exit nonzero.
 Existing writes retain `operator-lock` (exit 3) and `stale` (exit 6).
 
+For an unregistered typed session-sync file, first register OLD successfully
+while it and its legacy companions still exist. Registration imports its
+horizon, shadow, folds and history. Rename never adopts vanished legacy state.
+
 Rename changes Couch metadata **after** the caller's successful filesystem
 operation. OLD can be absent (including a path through symlinked ancestors),
 or can still exist after saveas. NEW must exist. The operation keeps the ID,
@@ -79,3 +83,17 @@ the lock. Invalid/future timestamps retain the refusal with unknown age.
 The TL rebuilds Couch after #573 lands. The combined plain-note live check is
 scheduled after parley.nvim#332 is staged, with operator Couch/nvim restarts;
 automated Couch verification does not claim that editor acceptance.
+
+For real CLI conformance, use an existing fresh temporary root with
+`COUCH_ISOLATED_ROOT` set. Set `COUCH_STORE_DIR`, `COUCH_PAIR_DATA_DIR` and
+`COUCH_IDENTITY_DIR` to distinct directories inside that root; clear inherited
+`PAIR_DATA_DIR`, `XDG_DATA_HOME`, `COUCH_TREE`, `COUCH_THREAD_SCOPE`,
+`COUCH_THREAD_TAG`, `PAIR_SESSION_NAME`, `PAIR_LAUNCH_NONCE` and
+`COUCH_CAPTURE_DIR`. Initialize this empty isolated singleton via public
+`--adopt-store STORE --pair-data PAIR --identity-dir IDENTITY`, then repeat
+with `--apply` and the preview's `digest`. Keep the same environment and roots
+for every command. Registry/ledger live under `STORE/session-sync`; no running
+supervisor is needed for register/lookup/rename. Status additionally needs a
+recording marker/ledger fixture. A store override alone does not isolate the
+account-wide singleton authority, and an uninitialized singleton refuses as
+UNMIGRATED instead of proving absence.
