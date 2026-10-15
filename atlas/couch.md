@@ -504,11 +504,11 @@ then accepts one delivery commit. The broker polls outcome receipts; it never
 retries PTY input after uncertainty. Pair's input owner arbitrates ordinary
 typing, image admission and automatic paste/submit.
 
-**Delivery: submit like the draft pane, confirm after (pair#427).** Pair
-renders, never classifies: nothing compares what the agent drew with the
-envelope. That comparison (exact text, word-wrap projections, Claude's
-collapsed marker) broke for #418's long pastes and again for a paste into a
-still-booting Claude.
+**Delivery: submit like the draft pane, confirm after (pair#427).** Shared
+confirmation reads composer/turn evidence without projecting the body. Exact
+text projections broke for #418's long Claude pastes and boot-time rendering.
+Qoder's bounded submit-key retry below has a narrower ownership check: the
+complete pending composer must still match Couch's known envelope.
 - **Before the paste** the gates are unchanged. No other automatic input is in
   flight, no operator keystroke arrived in the last second, bracketed paste is
   on, and a recognized composer reads empty. Unknown or occupied composers wait.
@@ -597,8 +597,7 @@ auto-updates silently dropped slots). Fixtures under `wrapcmd/testdata/peer/`
 and `TestPeerLiveConformance` were captured on Claude Code 2.1.286 and Codex
 CLI 0.159.2; per-version evidence from daily use is #368. Every captured paste
 shape must read as an occupied composer
-(`TestPeerComposerCapturedPastesReadOccupied`), since that is all delivery reads
-after a paste. Qoder's profile shares the Return recognizer's ruled-box geometry,
+(`TestPeerComposerCapturedPastesReadOccupied`). Qoder's profile shares the Return recognizer's ruled-box geometry,
 reads input from its indented origin, and distinguishes its captured grey
 placeholder from authored text using the painted cursor and matching hint style.
 Qoder idle (1.1.71) and folder trust (1.1.66) fixtures are frozen from pair:4;
@@ -626,6 +625,26 @@ Peer delivery, the one automatic writer since #522 retired the orientation
 paste, holds automatic-input ownership across the entire paste/submit/confirm
 transaction. The next delivery waits for a fresh, empty composer after that
 transaction terminates, including cancellation.
+
+Qoder additionally requires a complete post-submit rendered empty composer to
+confirm (#569); an unrelated turn flag cannot confirm while text remains.
+Within the existing 30-second delivery window it can attempt CR at most three
+times, at least 500 ms apart, without repeating the body. A retry requires the
+complete composer to equal the expected envelope's word-wrapped layout and no
+admitted human input since the paste. Unknown, changed, clipped or unsupported
+renderings decline retry; the native pending fixture qualifies the ordinary
+wrapped restart notice.
+
+Unconfirmed Qoder input enters explicit operator recovery at terminal receipt
+publication. One authenticated tripwire alerts its owning hub; exact pending
+envelopes get the instruction to press Enter or clear the composer, while
+unverifiable input keeps uncertainty wording. Later deliveries refuse promptly
+without pasting. Only a later complete empty render releases this quarantine,
+observed through normal output wakes even without another delivery. There is
+no idle polling, automatic deletion or submit after the old deadline.
+`wrapcmd/peer_qoder_submission.go` owns the Qoder evidence and quarantine adapter;
+the shared delivery and automatic-input reducers own its effects and lifetimes.
+
 
 Transport frames are bounded at 577 KiB to carry all 128 actors with bounded
 4 KiB encoded bindings, or a fully escaped 8 KiB message. Receipt diagnostics

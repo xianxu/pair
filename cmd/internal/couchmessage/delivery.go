@@ -17,9 +17,10 @@ const (
 )
 
 type PeerDeliveryState struct {
-	Phase       PeerDeliveryPhase
-	BodyWritten bool
-	Reason      string
+	SubmitAttempts int
+	Phase          PeerDeliveryPhase
+	BodyWritten    bool
+	Reason         string
 }
 
 func (s PeerDeliveryState) Terminal() bool { return s.Outcome() != "" }
@@ -50,13 +51,16 @@ const (
 	PeerDeadlineElapsed
 	PeerChildExited
 	PeerConfirmObserved
+	PeerRetrySubmit
+	PeerAutomaticInputBlocked
 )
 
 // Ready is the adapter's verdict for the event's phase: on ComposerObserved,
 // the pre-paste gates hold; on RenderObserved, the fixed post-paste delay has
 // passed; on ConfirmObserved, agent-agnostic evidence shows the submission
-// landed. Pair renders, never classifies (pair#427): nothing here inspects
-// how the agent drew the pasted text.
+// landed; on RetrySubmit, the adapter has re-established retry authority
+// (including elapsed time and exact composer ownership). Pair renders, never
+// classifies (pair#427): nothing here inspects how the agent drew the pasted text.
 type PeerDeliveryEvent struct {
 	Kind  PeerDeliveryEventKind
 	Ready bool
@@ -80,6 +84,12 @@ func AdvancePeerDelivery(s PeerDeliveryState, e PeerDeliveryEvent) (PeerDelivery
 	if s.Terminal() {
 		return s, PeerNoEffect
 	}
+	if e.Kind == PeerAutomaticInputBlocked && s.Phase == PeerDeliveryWaiting && !s.BodyWritten {
+		s.Phase = PeerDeliveryCancelled
+		s.Reason = "composer holds an unsubmitted automatic message; press Enter or clear it"
+		return s, PeerPublish
+	}
+
 	switch e.Kind {
 	case PeerOperatorInput, PeerImageInput, PeerOverlayObserved, PeerDeadlineElapsed, PeerChildExited:
 		reason := map[PeerDeliveryEventKind]string{PeerOperatorInput: "operator input interrupted delivery", PeerImageInput: "image input interrupted delivery", PeerOverlayObserved: "dialog interrupted delivery", PeerDeadlineElapsed: "delivery deadline elapsed", PeerChildExited: "recipient exited"}[e.Kind]
@@ -124,6 +134,7 @@ func AdvancePeerDelivery(s PeerDeliveryState, e PeerDeliveryEvent) (PeerDelivery
 	case PeerDeliveryPasted:
 		if e.Kind == PeerRenderObserved && e.Ready {
 			s.Phase = PeerDeliverySubmitting
+			s.SubmitAttempts++
 			return s, PeerSubmit
 		}
 	case PeerDeliverySubmitting:
@@ -136,6 +147,11 @@ func AdvancePeerDelivery(s PeerDeliveryState, e PeerDeliveryEvent) (PeerDelivery
 			s.Phase = PeerDeliveryConfirming
 		}
 	case PeerDeliveryConfirming:
+		if e.Kind == PeerRetrySubmit && e.Ready && s.SubmitAttempts < 3 {
+			s.Phase = PeerDeliverySubmitting
+			s.SubmitAttempts++
+			return s, PeerSubmit
+		}
 		if e.Kind == PeerConfirmObserved && e.Ready {
 			s.Phase = PeerDeliverySubmitted
 			return s, PeerPublish

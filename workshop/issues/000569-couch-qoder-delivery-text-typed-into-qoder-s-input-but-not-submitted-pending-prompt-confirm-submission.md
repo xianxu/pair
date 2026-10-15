@@ -43,8 +43,8 @@ key is dropped by a paste-burst guard (compare #544's Codex paste-burst fix).
 
 ## Plan
 
-- [ ] Add Qoder submit retry and fresh rendered confirmation through the existing peer-delivery reducer.
-- [ ] Bound unreconciled automatic-input recovery under the TL-approved policy and prove next-delivery recovery.
+- [x] Add Qoder submit retry and fresh rendered confirmation through the existing peer-delivery reducer.
+- [x] Bound unreconciled automatic-input recovery under the TL-approved policy and prove next-delivery recovery.
 - [ ] Verify focused/race/full suites, document behavior and complete TL-coordinated idle/mid-turn live checks on pair:4.
 
 Durable plan: [Qoder submit confirmation](../plans/000569-qoder-submit-confirmation-plan.md).
@@ -87,3 +87,9 @@ item: real-api-discovery design=0 impl=0.24
 design-buffer: 0.15
 total: 1.924
 ```
+
+### 2026-10-15 — implementation RED/GREEN checkpoint
+
+New stateful receiver tests reproduced missing retry (one CR, zero acceptance), false turn-edge confirmation with occupied composer, and absent terminal reporting. They now pass with reducer-owned three-attempt budget, >=500 ms key-only retry under exact envelope/input ownership, and post-submit rendered-empty confirmation. Captured only the known native pending restart composer from source bytes [31229919,31238201), SHA256 6271e9fb9dc3faa89ab56bdff75e51220a090b9767fe68beff684a44fe4b24ad; the fixture proves the wrapped notice matches the complete expected layout. Terminal publication emits one authenticated quarantine report before polling stops; later deliveries cancel promptly with recovery advice, and normal render wakes release on later complete empty evidence. No late submit, repaste or deletion.
+
+Core tests observed RED then GREEN, including 1,000 generated event sequences, short writes and terminal no-ops. Full couchmessage passed (7.458s), focused core race passed (1.238s), parser fuzz 63,024 executions. Focused wrapper/message/supervisor tests passed (6.993s/0.179s/0.916s), focused races passed (4.315s/1.226s/1.900s). Supervisor instruction/auth/dedup tests observed RED then GREEN and race passed. Matcher fuzz passed 14,738 executions; artifact inventory package passed 12.516s; make build passed. Additional focused regression controls and full required suite remain to be recorded; live idle/mid-turn pair:4 check is still owed, no native key-drop root cause or live acceptance claimed.

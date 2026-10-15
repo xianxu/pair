@@ -31,7 +31,7 @@ func TestAutomaticInputStallRequestShape(t *testing.T) {
 }
 
 func FuzzParseAutomaticInputStall(f *testing.F) {
-	for _, seed := range []string{`{}`, `null`, `{"Sequence":1,"Cause":"no-render","WaitMillis":30000,"Fence":0,"Epoch":0,"Released":true}`, `{"Sequence":1,"Cause":"unrecognized-composer","WaitMillis":0,"Fence":0,"Epoch":0,"Released":false}`, `{"Sequence":1,"Sequence":2}`, `{} {}`} {
+	for _, seed := range []string{`{}`, `null`, `{"Sequence":1,"Cause":"no-render","WaitMillis":30000,"Fence":0,"Epoch":0,"Released":true}`, `{"Sequence":1,"Cause":"unrecognized-composer","WaitMillis":0,"Fence":0,"Epoch":0,"Released":false}`, `{"Sequence":1,"Cause":"unsubmitted-composer","WaitMillis":0,"Fence":0,"Epoch":0,"Released":false}`, `{"Sequence":1,"Cause":"unsubmitted-composer","WaitMillis":0,"Fence":0,"Epoch":0,"Released":true}`, `{"Sequence":1,"Sequence":2}`, `{} {}`} {
 		f.Add(seed)
 	}
 	f.Fuzz(func(t *testing.T, body string) {
@@ -39,7 +39,7 @@ func FuzzParseAutomaticInputStall(f *testing.F) {
 		if err != nil {
 			return
 		}
-		if r.Sequence == 0 || r.WaitMillis < 0 || r.WaitMillis > MaxAutomaticInputStallWaitMillis || len(body) > MaxAutomaticInputStallBytes || (r.Released && r.Cause != AutomaticInputStallNoRender) {
+		if r.Sequence == 0 || r.WaitMillis < 0 || r.WaitMillis > MaxAutomaticInputStallWaitMillis || len(body) > MaxAutomaticInputStallBytes || (r.Released && r.Cause != AutomaticInputStallNoRender) || (r.Cause != AutomaticInputStallNoRender && r.Cause != AutomaticInputStallUnrecognizedComposer && r.Cause != AutomaticInputStallUnsubmittedComposer) {
 			t.Fatalf("unsafe report %+v", r)
 		}
 	})
@@ -58,5 +58,18 @@ func TestAutomaticInputStallIDExactIncarnation(t *testing.T) {
 	}
 	if id == AutomaticInputStallID(binding, 2) {
 		t.Fatal("sequence omitted")
+	}
+}
+
+func TestParseAutomaticInputStallUnsubmittedComposer(t *testing.T) {
+	body := `{"Sequence":1,"Cause":"unsubmitted-composer","WaitMillis":30000,"Fence":3,"Epoch":3,"Released":false}`
+	report, err := ParseAutomaticInputStall(body)
+	if err != nil || report.Cause != AutomaticInputStallUnsubmittedComposer || report.Released {
+		t.Fatalf("%+v %v", report, err)
+	}
+	for _, bad := range []string{strings.Replace(body, `"Released":false`, `"Released":true`, 1), strings.Replace(body, "unsubmitted-composer", "unknown-cause", 1)} {
+		if _, err := ParseAutomaticInputStall(bad); err == nil {
+			t.Fatalf("accepted %s", bad)
+		}
 	}
 }

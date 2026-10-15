@@ -208,3 +208,37 @@ func TestAutomaticInputTripwireDispatchPreservesAdmission(t *testing.T) {
 		})
 	}
 }
+
+func TestAutomaticInputQuarantineEventSequence(t *testing.T) {
+	tx, _ := advanceAutomaticInput(automaticInputTransaction{}, automaticInputEvent{kind: automaticBegin, owner: automaticInputPeer})
+	e := automaticInputEvent{kind: automaticQuarantine, owner: automaticInputPeer, epoch: 7, reportCause: couchmessage.AutomaticInputStallUnsubmittedComposer, wait: 30 * time.Second}
+	tx, d := advanceAutomaticInput(tx, e)
+	if d.available || d.report == nil || d.report.Released || d.report.Sequence != 1 || tx.phase != automaticInputNeedsOperator {
+		t.Fatalf("quarantine tx=%+v decision=%+v", tx, d)
+	}
+	tx, d = advanceAutomaticInput(tx, e)
+	if d.report != nil || d.available {
+		t.Fatal("quarantine reported twice")
+	}
+	for _, obs := range []automaticInputEvent{
+		{kind: automaticObserve, owner: automaticInputPeer, epoch: 7, composer: PeerComposerEmpty, complete: true},
+		{kind: automaticObserve, owner: automaticInputPeer, epoch: 8, composer: PeerComposerEmpty, complete: false},
+		{kind: automaticObserve, owner: automaticInputPeer, epoch: 8, composer: PeerComposerUnknown, complete: true},
+		{kind: automaticObserve, owner: automaticInputPeer, epoch: 8, composer: PeerComposerOccupied, complete: true},
+	} {
+		tx, d = advanceAutomaticInput(tx, obs)
+		if d.available || d.report != nil {
+			t.Fatal("unsafe evidence released/reported quarantine")
+		}
+	}
+	tx, d = advanceAutomaticInput(tx, automaticInputEvent{kind: automaticObserve, owner: automaticInputPeer, epoch: 9, composer: PeerComposerEmpty, complete: true})
+	if !d.available || tx.phase != automaticInputIdle || tx.sequence != 1 {
+		t.Fatal("positive empty did not reconcile")
+	}
+	tx, _ = advanceAutomaticInput(tx, automaticInputEvent{kind: automaticBegin, owner: automaticInputPeer})
+	e.epoch = 9
+	_, d = advanceAutomaticInput(tx, e)
+	if d.report == nil || d.report.Sequence != 2 {
+		t.Fatal("next occurrence did not retain sequence")
+	}
+}
