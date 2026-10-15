@@ -362,6 +362,45 @@ passing result will support M1's normal re-close. Resolve-and-pin policy is
 approved and recorded for M2, but no M2 implementation or live/stage effects have
 started.
 
+
+### 2026-10-15 — native latest audit and temporarily unavailable hub channel
+
+A read-only M2 audit distinguishes native latest selection from recovery tail
+ranking. Codex 0.162.1 uses provider UpdatedAt and Cli+VsCode by default (Exec and
+AppServer only with include-non-interactive); its worktree/all modifiers can
+broaden cwd scope. Existing inventory validates canonical exact roots for all six
+agents, but does not yet expose all native latest eligibility/order facts.
+Recovery semantic activity, transcript mtime and creation time are not silently
+interchangeable. The proposed narrow resolver must report unsupported/incomplete
+rather than guess; approved resolve-and-pin remains the required behavior where
+resolution is established. This audit starts no M2 code.
+
+A bounded clarification report to the hub alias, then the dispatch slot ops:0
+after read-only actors showed it, both refused `unavailable: Couch cannot find a
+live caller or recipient registration` with no receipt. No uncertain send is
+replayed, no terminal input or live recovery is attempted, and no operator restart
+is requested. Preserve the question for the next verified reachable hub: may
+unmeasurable provider selectors refuse with exact-ID/Fresh advice while measured
+native latest resolution is supported? M1 verification continues independently.
+
+
+### 2026-10-15 — corrected M1 complete verification after #568 integration
+
+Recorded `sdlc local-check run --name suite` on
+`ecb0daa2845ebe248f3fb598ffff2f38f31d12a5`: **PASS**, exit 0, 8m20s.
+Retained log:
+`/Users/xianxu/workspace/pair/.git/sdlc/local-checks/ecb0daa2845ebe248f3fb598ffff2f38f31d12a5/suite.log`,
+SHA-256 prefix `73d52450dbb2`. Fresh-restore and diagnostic regressions now pass
+with main's independent #568 watcher lifecycle repair. Go packages all pass,
+including couchcore 258.739s, couchcmd 50.160s, couchtty 43.056s, launcher 32.579s,
+wrapcmd 45.600s. `make build` also exited 0 on this code generation; no live/stage
+operation was performed. The same M1 headless/morning scratch script remains at
+`workshop/plans/000556-live-acceptance.md`.
+
+This supplies whole-suite evidence for the post-review BR-1/2/3 corrections;
+normal M1 milestone-close answers those findings next. Native admission remains
+M2 and is not claimed by these results.
+
 ## Revisions
 
 ### 2026-10-15T05:33-07:00 — overnight M2 dispatch
