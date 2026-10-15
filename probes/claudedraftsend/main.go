@@ -39,7 +39,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
 	"time"
 
@@ -161,8 +160,12 @@ func run() int {
 		fmt.Println("PROBE-SKIPPED: drives a real Claude and spends tokens; set PAIR_PROBE_CLAUDE=1 to run it.")
 		return 0
 	}
-	_, self, _, _ := runtime.Caller(0)
-	dir := filepath.Dir(self)
+	repo, err := zellijprobe.RepoRoot()
+	if err != nil {
+		fmt.Println("PROBE-ERROR:", err)
+		return 1
+	}
+	dir := filepath.Join(repo, "probes/claudedraftsend")
 	pair := filepath.Join(dir, "..", "..", "bin", "pair")
 	if len(os.Args) > 1 {
 		pair = os.Args[1]

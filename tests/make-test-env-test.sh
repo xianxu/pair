@@ -33,4 +33,20 @@ for s in $session; do
   grep -q "^$s=" <<<"$out" && { echo "FAIL: session variable $s leaked into the test recipe"; fail=1; }
 done
 [ "$fail" -eq 0 ] && echo "PASS make-test-env ($(wc -w <<<"$knobs" | tr -d ' ') derived knobs kept, session identity dropped)"
+# Exercise the real Make defaults through a nested Go command, without builds.
+python3 - <<'PYFLAGS' || fail=1
+import os, pathlib, subprocess, tempfile
+with tempfile.TemporaryDirectory(prefix="pair-go-flags-") as tmp:
+    mk = pathlib.Path(tmp) / "flags.mk"
+    mk.write_text("include Makefile.local\n.PHONY: test-flags test-nested\ntest-flags:\n\t@go env GOFLAGS\ntest-nested:\n\t@$(MAKE) -s --no-print-directory -f " + str(mk) + " test-flags\n")
+    base = dict(os.environ, GOFLAGS="-p=2", PAIR_GO_TRIMPATH="-trimpath", MAKEFLAGS="", MFLAGS="")
+    cases = [([], "-p=2 -trimpath"), (["GOFLAGS=-p=1"], "-p=1 -trimpath"),
+             (["GOFLAGS=-p=1 -trimpath"], "-p=1 -trimpath"),
+             (["PAIR_GO_TRIMPATH="], "-p=2")]
+    for args, want in cases:
+        for target in ["test-flags", "test-nested"]:
+            out = subprocess.check_output(["make", "-s", "--no-print-directory", "-f", str(mk), target, *args], env=base, text=True).strip()
+            assert out == want, (target, args, out, want)
+print("PASS additive Go flags, command-line overrides and nested Make")
+PYFLAGS
 exit "$fail"

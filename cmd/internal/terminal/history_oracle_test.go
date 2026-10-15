@@ -10,10 +10,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/internal/reporoot"
 )
 
 type historyOracleRow struct {
@@ -29,8 +30,11 @@ type historyOracleScreen struct {
 
 func runHistoryOracle(t *testing.T, cols, rows int, chunks ...string) []historyOracleScreen {
 	t.Helper()
-	_, file, _, _ := runtime.Caller(0)
-	dir := filepath.Join(filepath.Dir(file), "../../../tests/terminal-oracle")
+	repo, err := reporoot.Current()
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(repo, "tests/terminal-oracle")
 	if _, err := os.Stat(filepath.Join(dir, "node_modules/@xterm/headless/package.json")); err != nil {
 		if os.Getenv("PAIR_TERMINAL_ORACLE") == "1" {
 			t.Fatal(err)
@@ -58,8 +62,11 @@ func nativeHistoryDump(t *testing.T, cols, rows int, wire string) string {
 	if os.Getenv("PAIR_TERMINAL_NATIVE") != "1" {
 		t.Skip("PAIR_TERMINAL_NATIVE=1 enables disposable Zellij oracle")
 	}
-	_, file, _, _ := runtime.Caller(0)
-	dir := filepath.Join(filepath.Dir(file), "../../../tests/terminal-oracle/discovery")
+	repo, err := reporoot.Current()
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(repo, "tests/terminal-oracle/discovery")
 	data, _ := json.Marshal(map[string]any{"cols": cols, "rows": rows, "wire": wire})
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()

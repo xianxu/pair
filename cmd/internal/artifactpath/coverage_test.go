@@ -18,7 +18,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/runtimebundlegen"
 )
 
-var productionRoots = []string{"cmd", "bin", "nvim", "zellij", "doctor"}
+var productionRoots = []string{"cmd", "internal", "bin", "nvim", "zellij", "doctor"}
 
 func constructorAuthorityViolations(classifications []SourceClassification) []string {
 	var violations []string

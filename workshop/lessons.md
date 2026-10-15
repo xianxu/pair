@@ -1889,3 +1889,10 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
 - #568 inventory gate: a new native runtime helper needs both its canonical source classification and its generated-mirror classification in artifactpath’s exhaustive manifest. Run that package immediately after adding the file; the embedding build alone does not validate source participation.
 
 - #568 review / #570: Unix socket paths have a byte envelope that includes the caller’s TMPDIR prefix. A subprocess test passing under the normal temp root does not prove it works under a deeper review checkout; preserve the refused endpoint and file a separate demonstrated path-length defect rather than treating an environment-shortened run as universal coverage.
+
+### 2026-10-15 — bound filesystem ancestry in discovery tests (#572 BR-1)
+
+A temporary directory is not necessarily outside the checkout: SDLC review
+places TMPDIR inside it. Tests expecting ancestor discovery to fail must
+establish an explicit foreign-module boundary. Qualify both inside-checkout
+and external temporary roots rather than relying on the host's TMPDIR.
