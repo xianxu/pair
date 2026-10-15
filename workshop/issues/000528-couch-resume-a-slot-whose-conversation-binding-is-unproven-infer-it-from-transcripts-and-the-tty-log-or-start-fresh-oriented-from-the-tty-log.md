@@ -1301,3 +1301,10 @@ No follow-up implementation starts on this branch.
   barrier/header-negative check and #528 Resume from disk label. #554 merge
   is unchanged test-only code. No runtime changes; full-suite/fix-review rerun
   required by gate. Stage untouched.
+
+- #423/#554 merged test-only head7005884d3161dbb71499b784648d1c89054096f1:
+  readiness regression PASS10reps15.711s; recorded full suite PASS10m10s
+  after2402s gate wait, log SHA prefixc13e9b95d724. Core348.822s, cmd70.180s,
+  tty39.698s, launcher19.078s. Required GitHub checks PASS (live2m42s).
+  No production changes. Re-close uses only TL-authorized --no-actual for
+  ariadne#384; normal judge/ledger/CI remain required.
