@@ -264,6 +264,25 @@ paths inside the short private root before both fixtures and terminal environmen
 construction. Regression tests must pin inherited environment isolation. This
 is fixture containment, not an explanation of the old identity failure.
 
+### 2026-10-14 — third matrix first-sample disagreement retained
+
+MATRIX3 /tmp/pair218-MATRIX3.WMUt1t froze exact source/binaries at
+e97653bafc6cad12069ebacdc144182de0bb8d29, including #559 and private runtime
+isolation. Failed after sample1/limit6; no samples2–9 and no retries. All21
+meaningful frames23.618s, adoption23.628s, root1.663s, exactly one kernel client
+per21 tags, Couch CPU12.228s startup/3.655s leave, actual background peak6.
+Subsequent SnapshotSessionsContext said session pair-f21-edcfe72b117a-03 was
+not attached. Error omitted its precise state/raw query response; no retained
+proof of whether parser/query or real disconnect caused the disagreement.
+Production Leave completed5.787s; exact server/agent and unrelated sentinel
+survival checks passed. Source/hash manifest, complete sample, native counts,
+host logs and pre-cleanup fixture diagnostics retained. Parent stage medians
+per background operation: claim1842.8ms, prepare861.3ms, record+baseline462.7ms,
+registration703.7ms, promotion+registry509.5ms, spawn8.9ms; overlapping workers
+must not be summed into wall. Durability-containing stage is material; no
+isolated fsync claim. Investigation continues from evidence, not filtering the
+failed sample. Native ownership tests also passed under Seatbelt denying /bin/ps.
+
 ## Revisions
 
 - 2026-10-14 — add (operator via TL): concrete case. At the operator's 14:33 restart, Couch's background attaches spawned 21 zellij clients between 14:33:37 and 14:33:47 (~6 at a time): roughly 2–3 s per attach, against ~10–20 ms for `zellij list-sessions` and an expected ~100–300 ms floor (list, lease, one record write, spawn client, first frame). Detach ("leave couch") is unmeasured but also inspects each slot's session server. Trace one attach and one detach step by step; the likely waste is a whole process-table read (native argv for every process since #547) per slot. Probably one shared snapshot per startup or detach pass instead.
