@@ -118,6 +118,8 @@ Durable plan: workshop/plans/000204-workbench-performance-suite-counted-invarian
 
 ## Log
 
+
+- 2026-10-15: closed — Recorded full suite PASS on 021cd810983d981f2e58ccda109302a29ed28506, exit 0 in 8m48s, SHA256 e63fe49ae2d2; docs-only evidence commit afterward. First suite completed all recipes and exposed only the native-path fixture guard, fixed with canonical NativeRoots; guard unchanged and green in final suite. Targeted normal/race tests pass; disconnected-counter and extra-work counterfactuals fail UI, messaging and attach budgets as intended. PR344 conformance and merge-check green. Unassigned followups566/567 preserve deferred goals; no stage/operator environment action required.; review verdict: SHIP
 ### 2026-09-06
 
 Filed out of the session that produced `#201`/`#202`/`#203`. The suite's design
