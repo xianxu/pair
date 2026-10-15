@@ -863,6 +863,23 @@ build PASS. All #558 receiver changes are included. No prior quiescence flake
 recurrence, no machine-default/cache cleanup, no stage/live effects or waiver.
 Whole-issue re-review follows with the grammar-wide BR-6 correction and evidence.
 
+
+### 2026-10-15 — close SHIP, PR349, integrate newly landed #572
+
+Whole-issue normal round8 finalized SHIP with zero open findings, evidence commit
+`5b9e5e584011a2ae271630ea5a01269911d09958`, reviewed567606271. PR349 opened.
+The normal merge gate then found newly landed #572 and refused its manifest
+conflict, preserving the branch. Manual origin/main integration resolved the only
+conflict in `cmd/internal/artifactpath/manifest.go` by retaining BOTH #572's
+internal/reporoot/root.go non-artifact source and every #556 native admission/
+selector source. Merge commit `8bea62224`; all other paths auto-merged. No
+selector, recovery or launch semantics were changed by this resolution.
+
+Integrated artifactpath tests PASS25.035s and normal make build PASS. Required
+recorded full suite on the integrated head follows, then the merge gate's named
+normal `close --fixed-then-ship --full-suite` review of the post-close conflict
+resolution. No waiver, live slot, stage or unrelated process change.
+
 ## Revisions
 
 ### 2026-10-15T05:33-07:00 — overnight M2 dispatch
