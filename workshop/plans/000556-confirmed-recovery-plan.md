@@ -453,3 +453,34 @@ unsupported inventory result, resolves once, revalidates that exact ID, then
 reserves and executes the same ID. A newly arriving session cannot change it.
 No transcript bodies/configuration contents were printed, no native conversation
 was launched, and no native files/database were changed by these measurements.
+
+### 2026-10-15 — M2 implementation seams after normal M1 SHIP
+
+M1 finalized normally at `69c213c289ac9f98aa7e16a9e9c1b54f76c90d26`, all five
+findings disposed. M2 now implements the approved reserved/spawning/running
+protocol in launcher (already imported by wrapcmd), with a portable cache store,
+opaque grant/claim, full final argv digest and strict process generations.
+The shared Runtime adapter reserves after exact selector resolution; the sole
+wrapper PTY spawn consumes once before native exec and publishes its strict
+child before readiness. Strip authority from child/watcher/Fresh environments.
+Cancellation can release only a definitely unexposed reserved grant; uncertainty
+retains ownership. No readiness or timeout release, default edit or new UI state.
+
+Read-only audit identified two existing-owner integration obligations: the current
+legacy checker discovers live wrappers first and therefore misses a retained
+native child after wrapper death; its unknown-ready wrapper refusal also cannot
+use a new reservation's known different key. Reuse bounded canonical owner
+namespace discovery plus retained readiness/ordinal ledger association to check
+known orphan children and reobserve their exact generations. Pass an immutable,
+private-field NativeAdmissionOwners view to the pre-upgrade callback under the
+same store lock. Only exact different-key admitted wrapper generations may skip
+best-effort readiness; running coverage must still match its live child lineage,
+so a same-PID Fresh re-exec is not exempted by an obsolete running entry. Keep
+unknown pre-claim/legacy ownership conservative, without arbitrary process-name
+blockers, new persistent indexes or new argv attestation mechanisms.
+
+M2 tests add these orphan/pre-readiness/Fresh-generation cases to the approved
+same-ID and different-ID barrier, delayed wrapper, surviving child, cancellation,
+PID reuse, capacity, uncertain publication and replay sequences. This completes
+the existing no-two-writers contract; it does not start the separate endpoint
+rebuild milestone or change the pending latest-provider policy question.
