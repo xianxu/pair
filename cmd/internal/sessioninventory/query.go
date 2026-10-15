@@ -145,7 +145,7 @@ func (inventory IncrementalInventory) ValidateBindingProof(agent Agent, proof se
 	if err := sessionledger.ValidateAuthorizationProof(proof, proof.RootNativeID); err != nil {
 		return TargetValidation{}, nil, err
 	}
-	state, err := DecodeScannerState(proof.ScannerState)
+	state, err := decodeScannerStateObserved(inventory.runtime, Artifact{StorageRoot: inventory.runtime.PairDataRoot().Name, RelativePath: "binding-proof"}, proof.ScannerState)
 	if err != nil || state.Agent != agent || state.NativeID != proof.RootNativeID || state.Role != RoleRoot || state.ScannerSchema != proof.ScannerSchema {
 		return TargetValidation{}, nil, errors.New("binding proof scanner state disagrees with owner")
 	}
@@ -276,7 +276,7 @@ func (inventory IncrementalInventory) catalogPriorForProof(agent Agent, proof se
 			entry.Fingerprint.Size < proofArtifact.Size || entry.ParserCompleteOffset < proofArtifact.ParserCompleteOffset {
 			return TargetValidation{}, false
 		}
-		state, err := DecodeScannerState(entry.ScannerState)
+		state, err := decodeScannerStateObserved(inventory.runtime, queryCatalogArtifact(inventory.runtime), entry.ScannerState)
 		if err != nil || state.Agent != agent || state.NativeID != proof.RootNativeID || state.Role != RoleRoot || state.ScannerSchema != expectedSchema {
 			return TargetValidation{}, false
 		}
@@ -364,36 +364,64 @@ func RootTranscript(root Node) (Artifact, error) {
 }
 
 // readOwnerLaunch reads only Pair-owned identity records, never native bodies.
-func readOwnerLaunch(ctx context.Context, runtime Runtime, scopeKey, tag string, agent Agent) (sessionledger.Current, []sessionledger.Record, bool, []Diagnostic, error) {
+// The cached projection includes the previous established generation needed by
+// chosen-launch fallback, so resume and activity share the same strict parse.
+func readOwnerLaunch(ctx context.Context, runtime Runtime, scopeKey, tag string, agent Agent) (sessionledger.Current, *sessionledger.Current, bool, []Diagnostic, error) {
 	ledger, found, diagnostics, err := findOwnerLedger(ctx, runtime, tag)
 	if err != nil || !found {
 		return sessionledger.Current{}, nil, false, diagnostics, err
 	}
-	current, records, ok, parsed, err := parseOwnerLedger(ctx, runtime, ledger.Artifact, scopeKey, tag, agent)
-	return current, records, ok, append(diagnostics, parsed...), err
-}
-
-// readCurrentLaunch is readOwnerLaunch for a caller that needs only the
-// current launch: through the runtime's OwnerLaunchCache when it has one, so
-// an unchanged ledger is not decoded again (#507).
-func readCurrentLaunch(ctx context.Context, runtime Runtime, scopeKey, tag string, agent Agent) (sessionledger.Current, bool, []Diagnostic, error) {
-	ledger, found, diagnostics, err := findOwnerLedger(ctx, runtime, tag)
-	if err != nil || !found {
-		return sessionledger.Current{}, false, diagnostics, err
-	}
 	cache := ownerLaunchCacheOf(runtime)
 	key := ownerLaunchKey{rootPath: runtime.PairDataRoot().Path, ledger: ledger.Artifact, scopeKey: scopeKey, tag: tag, agent: agent}
-	fingerprint := fingerprintFromEntry(ledger)
-	if hit, ok := cache.get(key, fingerprint); ok {
-		current, cached := hit.answer()
-		return current, hit.ok, append(diagnostics, cached...), nil
-	}
-	current, _, ok, parsed, err := parseOwnerLedger(ctx, runtime, ledger.Artifact, scopeKey, tag, agent)
+	release, err := cache.enter(ctx, key)
 	if err != nil {
-		return sessionledger.Current{}, false, diagnostics, err
+		return sessionledger.Current{}, nil, false, diagnostics, err
 	}
-	cache.put(key, ownerLaunchEntry{fingerprint: fingerprint, current: current, ok: ok, diagnostics: parsed})
-	return current, ok, append(diagnostics, parsed...), nil
+	defer release()
+	for attempt := 0; attempt < 2; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return sessionledger.Current{}, nil, false, diagnostics, err
+		}
+		// A waiter must refresh the source metadata after the preceding loader.
+		if cache != nil {
+			ledger, err = runtime.StatFile(ledger.Artifact)
+			if err != nil {
+				return sessionledger.Current{}, nil, false, diagnostics, err
+			}
+		}
+		if err := ctx.Err(); err != nil {
+			return sessionledger.Current{}, nil, false, diagnostics, err
+		}
+		fingerprint := fingerprintFromEntry(ledger)
+		if hit, ok := cache.get(key, fingerprint); ok {
+			current, previous, cached := hit.answer()
+			return current, previous, hit.ok, append(diagnostics, cached...), nil
+		}
+		current, previous, ok, parsed, err := parseOwnerLedger(ctx, runtime, ledger.Artifact, scopeKey, tag, agent)
+		if err != nil {
+			return sessionledger.Current{}, nil, false, diagnostics, err
+		}
+		if cache != nil {
+			after, err := runtime.StatFile(ledger.Artifact)
+			if err != nil {
+				return sessionledger.Current{}, nil, false, diagnostics, err
+			}
+			if !equalFingerprint(fingerprint, fingerprintFromEntry(after)) {
+				continue
+			}
+		}
+		if err := ctx.Err(); err != nil {
+			return sessionledger.Current{}, nil, false, diagnostics, err
+		}
+		cache.put(key, ownerLaunchEntry{fingerprint: fingerprint, current: current, previous: previous, ok: ok, diagnostics: parsed})
+		return current, previous, ok, append(diagnostics, parsed...), nil
+	}
+	return sessionledger.Current{}, nil, false, diagnostics, ErrArtifactChanged
+}
+
+func readCurrentLaunch(ctx context.Context, runtime Runtime, scopeKey, tag string, agent Agent) (sessionledger.Current, bool, []Diagnostic, error) {
+	current, _, ok, diagnostics, err := readOwnerLaunch(ctx, runtime, scopeKey, tag, agent)
+	return current, ok, diagnostics, err
 }
 
 // findOwnerLedger lists the Pair data root for tag's ledger.
@@ -423,7 +451,7 @@ func findOwnerLedger(ctx context.Context, runtime Runtime, tag string) (FileEntr
 }
 
 // parseOwnerLedger reads and parses one ledger for the owner's current launch.
-func parseOwnerLedger(ctx context.Context, runtime Runtime, ledger Artifact, scopeKey, tag string, agent Agent) (sessionledger.Current, []sessionledger.Record, bool, []Diagnostic, error) {
+func parseOwnerLedger(ctx context.Context, runtime Runtime, ledger Artifact, scopeKey, tag string, agent Agent) (sessionledger.Current, *sessionledger.Current, bool, []Diagnostic, error) {
 	// Both the ledger and its launch boundary snapshots grow without a writer
 	// size cap (#508). Keep chunked reads without imposing a reader-only cutoff.
 	raw, err := readJSONLArtifact(runtime, ledger, unlimitedRecordSize)
@@ -432,6 +460,9 @@ func parseOwnerLedger(ctx context.Context, runtime Runtime, ledger Artifact, sco
 	}
 	if err := ctx.Err(); err != nil {
 		return sessionledger.Current{}, nil, false, nil, err
+	}
+	if observer, ok := runtime.(interface{ DecodeWork(Artifact, int64) }); ok {
+		observer.DecodeWork(ledger, int64(len(raw)))
 	}
 	parsed := sessionledger.ParseLedger(raw)
 	var diagnostics []Diagnostic
@@ -442,7 +473,11 @@ func parseOwnerLedger(ctx context.Context, runtime Runtime, ledger Artifact, sco
 	if !ok {
 		return sessionledger.Current{}, nil, false, diagnostics, nil
 	}
-	return current, parsed.Records, true, diagnostics, nil
+	var previous *sessionledger.Current
+	if earlier, found := sessionledger.PreviousEstablished(parsed.Records, sessionledger.Owner{ScopeKey: scopeKey, Tag: tag, Agent: string(agent)}, current.Launch.Ordinal); found {
+		previous = &earlier
+	}
+	return current, previous, true, diagnostics, nil
 }
 
 // ResumeTarget is durable requested/observed identity, independent of optional
@@ -470,7 +505,7 @@ func QueryResumeTargetContext(ctx context.Context, runtime Runtime, scopeKey, ta
 	if err := ctx.Err(); err != nil {
 		return ResumeTarget{}, err
 	}
-	current, records, ok, diagnostics, err := readOwnerLaunch(ctx, runtime, scopeKey, tag, agent)
+	current, previous, ok, diagnostics, err := readOwnerLaunch(ctx, runtime, scopeKey, tag, agent)
 	result := ResumeTarget{Status: BindingUnbound, Diagnostics: diagnostics}
 	if err != nil || !ok {
 		return result, err
@@ -482,9 +517,8 @@ func QueryResumeTargetContext(ctx context.Context, runtime Runtime, scopeKey, ta
 		// conversation it replaced is the thread's real state (pair#214 D1),
 		// so resume falls back to that generation. Restart decisions read
 		// ResumeTargetForRuntimeLaunch per launch and are unaffected.
-		owner := sessionledger.Owner{ScopeKey: scopeKey, Tag: tag, Agent: string(agent)}
-		if earlier, found := sessionledger.PreviousEstablished(records, owner, current.Launch.Ordinal); found {
-			fallback := ResumeTargetForLaunch(earlier)
+		if previous != nil {
+			fallback := ResumeTargetForLaunch(*previous)
 			fallback.FellBackFrom = current.Launch.Ordinal
 			fallback.Diagnostics = result.Diagnostics
 			result = fallback
@@ -540,7 +574,7 @@ func ResumeTargetForRuntimeLaunch(runtime Runtime, current sessionledger.Current
 // confirmations. Catalog proof reuse is an optimization, never resume authority.
 func (inventory IncrementalInventory) ValidateNamedContent(agent Agent, nativeID string) (TargetValidation, []Diagnostic, error) {
 	for _, entry := range inventory.catalog.Entries {
-		state, err := DecodeScannerState(entry.ScannerState)
+		state, err := decodeScannerStateObserved(inventory.runtime, queryCatalogArtifact(inventory.runtime), entry.ScannerState)
 		if err != nil || entry.Agent != agent || entry.Authorization != AuthorizationAuthorized || state.NativeID != nativeID || state.Role != RoleRoot {
 			continue
 		}

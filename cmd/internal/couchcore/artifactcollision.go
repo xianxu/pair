@@ -81,8 +81,10 @@ func (NoThreadArtifactCollisions) Quiesce(ThreadAddress) error { return nil }
 
 type ScopedThreadArtifactCollisionChecker struct {
 	GlobalDataDir string
-	Sessions      launcher.SessionDeleter
-	OwnerProbe    SessionOwnerProber
+	// SessionIndexes is shared by value copies; nil preserves uncached literals.
+	SessionIndexes *launcher.SessionNameIndexCache
+	Sessions       launcher.SessionDeleter
+	OwnerProbe     SessionOwnerProber
 	// Zellij is how the checker observes sessions. The zero value is the real
 	// zellij on PATH; tests point Path at a stub and count the calls, because
 	// "a reattach asks two sessions for their clients" is a count, not a timing
@@ -101,7 +103,7 @@ func (c ScopedThreadArtifactCollisionChecker) serverStates() launcher.ServerStat
 }
 
 func NewScopedThreadArtifactCollisionChecker(globalDataDir string) ScopedThreadArtifactCollisionChecker {
-	return ScopedThreadArtifactCollisionChecker{GlobalDataDir: globalDataDir, Sessions: launcher.OSRuntime{}}
+	return ScopedThreadArtifactCollisionChecker{GlobalDataDir: globalDataDir, Sessions: launcher.OSRuntime{}, SessionIndexes: launcher.NewSessionNameIndexCache()}
 }
 
 func (c ScopedThreadArtifactCollisionChecker) PairLifecycleIO() LifecycleIO {
@@ -275,8 +277,7 @@ func (c ScopedThreadArtifactCollisionChecker) PairSessionName(ctx context.Contex
 	if err != nil {
 		return "", err
 	}
-	runtime := launcher.NewScopedOSRuntime(c.GlobalDataDir, paths.ScopeDir(), "")
-	index, err := runtime.ReadSessionNameIndex()
+	index, err := c.readSessionIndex(ctx, paths.ScopeDir())
 	if err != nil {
 		return "", fmt.Errorf("read exact Pair session index: %w", err)
 	}
@@ -410,7 +411,7 @@ func (c ScopedThreadArtifactCollisionChecker) resolveScopedBindings(ctx context.
 		if err != nil {
 			return nil, nil, nil, err
 		}
-		index, err := launcher.NewScopedOSRuntime(c.GlobalDataDir, paths.ScopeDir(), "").ReadSessionNameIndex()
+		index, err := c.readSessionIndex(ctx, paths.ScopeDir())
 		if err != nil {
 			continue
 		}
@@ -657,3 +658,10 @@ var (
 	_ NativeBindingResolver   = ScopedThreadArtifactCollisionChecker{}
 	_ DetachedSessionResolver = ScopedThreadArtifactCollisionChecker{}
 )
+
+func (c ScopedThreadArtifactCollisionChecker) readSessionIndex(ctx context.Context, scopeDir string) (launcher.SessionNameIndex, error) {
+	if c.SessionIndexes != nil {
+		return c.SessionIndexes.Read(ctx, c.GlobalDataDir, scopeDir)
+	}
+	return launcher.NewScopedOSRuntime(c.GlobalDataDir, scopeDir, "").ReadSessionNameIndex()
+}
