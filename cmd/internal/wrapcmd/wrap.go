@@ -2586,7 +2586,7 @@ func freshAgentInvocation(wrapperExecutable, scrollbackLog string, currentArgv [
 		launchOrdinal = prepared.Launch.Ordinal
 	}
 
-	nextEnv := setEnv(env, "PAIR_SESSION_ID", sessionID)
+	nextEnv := setEnv(stripNativeAdmissionEnvironment(env), "PAIR_SESSION_ID", sessionID)
 	command, err := launcher.EncodeAgentCommand(launcher.AgentCommand{Executable: currentArgv[0], Argv: append([]string{}, freshArgs...)})
 	if err != nil {
 		return nil, err
@@ -2697,6 +2697,11 @@ func writeAtomic(path string, data []byte) error {
 // name). The returned int is the process exit code: the wrapped child's exit
 // code on success, or 1 on a startup/fatal error (printed to stderr).
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	grant, admissionEnvErr := consumeNativeAdmissionEnvironment(os.Getenv, os.Unsetenv)
+	if admissionEnvErr != nil {
+		fmt.Fprintf(stderr, "pair-wrap: %v\n", admissionEnvErr)
+		return 1
+	}
 	lease, retentionErr := storagegc.AcquireSelectedProcess(context.Background(), os.Getenv, "wrapper")
 	if retentionErr != nil {
 		fmt.Fprintf(stderr, "pair-wrap: protect storage: %v\n", retentionErr)
@@ -2707,7 +2712,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "pair-wrap: release storage: %v\n", err)
 		}
 	}()
-	code, err := run(args, stdin, stdout, stderr)
+	code, err := run(args, stdin, stdout, stderr, grant)
 	if err != nil {
 		var restart *freshExecRequest
 		if errors.As(err, &restart) {
@@ -2723,7 +2728,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return code
 }
 
-func run(args []string, stdin io.Reader, stdout, stderr io.Writer) (int, error) {
+func run(args []string, stdin io.Reader, stdout, stderr io.Writer, admissionGrant string) (int, error) {
 	// Hash this executable first, before anything is spawned (#421): the hash
 	// is read by path, so the earlier it runs the smaller the window in which a
 	// rebuild could replace the file under a still-running old image. ~10ms.
@@ -2873,8 +2878,17 @@ argsDone:
 	cmd := exec.Command(argv[0], launcher.PromptArgs(argv[0], argv[1:], launchPrompt)...)
 	cmd.Env = childEnv
 	agentNotBefore := time.Now()
-	ptmx, err := pty.Start(cmd)
+	ptmx, err := startNativePTY(context.Background(), launcher.NativeAdmissionStore{Home: os.Getenv("HOME")}, admissionGrant, p.agentBasename, cmd, pty.Start)
 	if err != nil {
+		// Only this wrapper's newly created direct child is ours to clean up.
+		// Cleanup does not release a possibly committed native admission.
+		if ptmx != nil {
+			_ = ptmx.Close()
+		}
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+			_, _ = cmd.Process.Wait()
+		}
 		return 0, fmt.Errorf("cannot exec %s: %w", argv[0], err)
 	}
 	p.cmd = cmd
