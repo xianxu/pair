@@ -42,11 +42,6 @@ func dispatchMenuRow(state MenuState, operation string, row couchcore.Actionable
 		}
 		return next, effects
 	}
-	// The primary Fresh gesture uses the same confirmation as the action menu.
-	if operation == "reboot" && (state.CurrentFrame().Kind != MenuFrameConfirmation || state.CurrentFrame().Action != "reboot") {
-		appendMenuFrame(&state, MenuFrame{Kind: MenuFrameConfirmation, RowKey: menuRowKey(row), Thread: row.Address, Action: operation, SelectedItem: "cancel"})
-		return state, nil
-	}
 	// Non-live relaunch and starting-row details first observe recovery evidence.
 	// They never dispatch a lifecycle operation merely by opening the preview.
 	if operation == "resume-candidates" || menuRowNeedsRecoveryPreview(row, operation) {

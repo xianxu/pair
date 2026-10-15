@@ -31,18 +31,18 @@ func TestContinuityRowsAlwaysNameOnePrimaryAction(t *testing.T) {
 	}
 }
 
-func TestFreshPrimaryRequiresExistingConfirmation(t *testing.T) {
+func TestFreshPrimaryRequestsSharedPreparationBeforeStopConfirmation(t *testing.T) {
 	row := menuSlotRow(1, "uncertain")
 	row.State, row.Reason = couchcore.ThreadUnusable, couchcore.ReasonBindingLost
 	state := NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
 	state.InventoryReady = true
 	next, effects := ReduceMenu(state, MenuEvent{Kind: MenuEventKey, Key: PanelKey{Kind: KeyEnter}})
-	if len(effects) != 0 || next.CurrentFrame().Kind != MenuFrameConfirmation || next.CurrentFrame().Action != "reboot" {
-		t.Fatalf("fresh bypassed confirmation: frame=%+v effects=%+v", next.CurrentFrame(), effects)
+	if len(effects) != 1 || effects[0].Operation != "reboot" || next.CurrentFrame().Kind == MenuFrameConfirmation {
+		t.Fatalf("fresh did not request shared preparation: frame=%+v effects=%+v", next.CurrentFrame(), effects)
 	}
 }
 
-func TestFailedRecoveryPreviewStillOffersConfirmedFresh(t *testing.T) {
+func TestFailedRecoveryPreviewFreshConfirmsOnlyExactStopOffer(t *testing.T) {
 	row := menuSlotRow(1, "failed-preview")
 	row.State, row.Reason = couchcore.ThreadUnusable, couchcore.ReasonBindingLost
 	state := NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
@@ -57,7 +57,22 @@ func TestFailedRecoveryPreviewStillOffersConfirmedFresh(t *testing.T) {
 		t.Fatalf("fresh missing on failed scan: %+v", choices)
 	}
 	state, effects = reduceRecoveryKey(state, PanelKey{Kind: KeyEnter})
-	if len(effects) != 0 || state.CurrentFrame().Kind != MenuFrameConfirmation || state.CurrentFrame().Action != "reboot" {
-		t.Fatalf("fresh did not use confirmation: frame=%+v effects=%+v", state.CurrentFrame(), effects)
+	if len(effects) != 1 || effects[0].Operation != "reboot" || state.CurrentFrame().Kind == MenuFrameConfirmation {
+		t.Fatalf("fresh did not request preparation: frame=%+v effects=%+v", state.CurrentFrame(), effects)
+	}
+	offer := &couchcore.RecoveryConfirmationOffer{Token: "fresh-exact-stops", Stops: []couchcore.RecoveryStopProcess{{PID: 4321, Identity: "source-generation", Role: "terminal server"}}}
+	state = reduceOperationResult(state, MenuEvent{Kind: MenuEventOperationResult, Operation: "reboot", Attempt: effects[0].Attempt, Address: row.Address, RecoveryConfirmation: offer})
+	frame := state.CurrentFrame()
+	if frame.Kind != MenuFrameConfirmation || frame.RecoveryConfirmation == nil || frame.SelectedItem != "cancel" || frame.RecoveryConfirmation.Stops[0] != offer.Stops[0] {
+		t.Fatalf("exact stop offer was lost: %+v", frame)
+	}
+	_, effects = reduceConfirmationKey(state, PanelKey{Kind: KeyEnter})
+	if len(effects) != 0 {
+		t.Fatal("cancel dispatched effects")
+	}
+	state, _ = reduceConfirmationKey(state, PanelKey{Kind: KeyDown})
+	_, effects = reduceConfirmationKey(state, PanelKey{Kind: KeyEnter})
+	if len(effects) != 1 || effects[0].Operation != "recovery-confirmation" || effects[0].Args["token"] != offer.Token {
+		t.Fatalf("accept lost exact capability: %+v", effects)
 	}
 }

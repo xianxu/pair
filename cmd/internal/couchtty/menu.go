@@ -888,6 +888,9 @@ func reduceActionKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 			form := &state.Frames[len(state.Frames)-1]
 			form.Path, form.FormField = path, MenuFieldAgent
 			return requestStartPreview(state)
+		case "reboot":
+			// Shared preparation supplies the exact stop set before confirmation.
+			return dispatchMenuRow(state, "reboot", thread)
 		case "resume-candidates":
 			return openRecoveryPreview(state, thread)
 		case "switch-agent":

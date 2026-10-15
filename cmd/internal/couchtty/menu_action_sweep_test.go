@@ -1,7 +1,6 @@
 package couchtty
 
 import (
-	"slices"
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
@@ -57,19 +56,14 @@ func TestEveryOfferedActionIsReachableFromEnter(t *testing.T) {
 							t.Fatal("preview completion dispatched lifecycle")
 						}
 						next, effects = reduceRecoveryKey(next, PanelKey{Kind: KeyEnter})
-						if !slices.Contains(menuActionItems(thread), "reboot") {
-							if len(effects) != 0 || next.InFlight.Operation != "" || next.CurrentFrame().Kind != MenuFrameRecovery {
-								t.Fatal("refused Fresh choice remained executable")
-							}
-						} else {
-							if len(effects) != 0 || next.CurrentFrame().Kind != MenuFrameConfirmation || next.CurrentFrame().Action != "reboot" {
-								t.Fatal("Fresh choice bypassed confirmation")
-							}
-							next.Frames[len(next.Frames)-1].SelectedItem = "reboot"
-							_, effects = reduceConfirmationKey(next, PanelKey{Kind: KeyEnter})
-							if len(effects) != 1 || effects[0].Operation != "reboot" {
-								t.Fatalf("confirmed Fresh did not execute: %+v", effects)
-							}
+						if len(effects) != 1 || effects[0].Operation != "reboot" || next.CurrentFrame().Kind == MenuFrameConfirmation {
+							t.Fatalf("Fresh did not request shared preparation: frame=%+v effects=%+v", next.CurrentFrame(), effects)
+						}
+						return
+					}
+					if action == "reboot" {
+						if len(effects) != 1 || effects[0].Operation != "reboot" || next.CurrentFrame().Kind == MenuFrameConfirmation {
+							t.Fatalf("Fresh bypassed shared preparation: %+v", effects)
 						}
 						return
 					}
@@ -136,7 +130,7 @@ func TestRowActionDeclarationsAndTheMenuAgreeInBothDirections(t *testing.T) {
 // only _test.go occurrence being the concept inventory's own literal, which is
 // why the coverage assertion was passing vacuously.
 func TestEndsItsOwnChildNamesTheDeliberateOnes(t *testing.T) {
-	for _, operation := range []string{"park", "detach", "relaunch", "reap", "recover"} {
+	for _, operation := range []string{"park", "detach", "relaunch", "reap", "recover", "recovery-confirmation"} {
 		if !endsItsOwnChild(operation) {
 			t.Errorf("%q deliberately ends its child but is not named, so its exit raises a spurious notice", operation)
 		}
@@ -174,18 +168,32 @@ func TestAClickRefusedMidOperationDoesNotMarkSomeoneElsesWork(t *testing.T) {
 	}
 }
 
-func TestMissingSlotDirectoryPreviewOffersNoUnexecutableFresh(t *testing.T) {
-	row := menuSlotRow(1, "missing")
-	row.Reason = couchcore.ReasonPathMissing
-	state := NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
-	state, _ = openRecoveryPreview(state, row)
-	frame := state.CurrentFrame()
-	state, effects := ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: frame.Generation, RecoveryPreview: &couchcore.RecoveryPreview{Address: row.Address, Fresh: &couchcore.RecoveryChoice{Label: "Start fresh"}}})
-	if len(effects) != 0 || state.CurrentFrame().RecoveryPreview.Fresh != nil {
-		t.Fatal("missing directory retained unexecutable Fresh")
-	}
-	next, effects := reduceRecoveryKey(state, PanelKey{Kind: KeyEnter})
-	if len(effects) != 0 || next.InFlight.Operation != "" || next.CurrentFrame().Kind != MenuFrameRecovery {
-		t.Fatal("missing directory dispatched lifecycle or confirmation")
+func TestIncompleteRecoveryPreviewsRetainExplicitFresh(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		reason     couchcore.ThreadReason
+		diagnostic string
+	}{
+		{"missing-directory", couchcore.ReasonPathMissing, "workspace directory is missing; recovery will check repair authority"},
+		{"missing-tty", couchcore.ReasonUnreadable, "previous TTY capture is unavailable"},
+		{"unsupported-tty", couchcore.ReasonUnreadable, "previous TTY capture version is unsupported"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			row := menuSlotRow(1, "missing")
+			row.Reason = tc.reason
+			state := NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
+			state, _ = openRecoveryPreview(state, row)
+			frame := state.CurrentFrame()
+			preview := &couchcore.RecoveryPreview{Address: row.Address, Incomplete: true, Reasons: []string{tc.diagnostic}, Fresh: &couchcore.RecoveryChoice{Label: "Start fresh"}}
+			state, effects := ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: frame.Generation, RecoveryPreview: preview})
+			shown := state.CurrentFrame().RecoveryPreview
+			if len(effects) != 0 || shown.Fresh == nil || len(shown.Reasons) != 1 || shown.Reasons[0] != tc.diagnostic {
+				t.Fatal("incomplete preview lost Fresh or its honest diagnostic")
+			}
+			next, effects := reduceRecoveryKey(state, PanelKey{Kind: KeyEnter})
+			if len(effects) != 1 || effects[0].Operation != "reboot" || next.CurrentFrame().Kind == MenuFrameConfirmation {
+				t.Fatal("incomplete preview did not request shared Fresh preparation")
+			}
+		})
 	}
 }
