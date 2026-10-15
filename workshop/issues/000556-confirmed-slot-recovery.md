@@ -98,6 +98,12 @@ authorities are `threadrecord/record.go`, `threadrecord/recovery.go`,
 `couchcore/starttransaction.go` and the park reducer. The plan extends those
 owners rather than inventing a second durable lifecycle (ARCH-ORDER).
 
+Follow-up audit found that the native owner observer explicitly does not lock
+against simultaneous cross-slot creates. The plan includes bounded shared native
+admission reservations at the common Pair resume boundary; the hub must review
+this addition before code. The existing two ownership observations alone cannot
+prove the issue's no-two-live-writers contract.
+
 ## Revisions
 
 ### 2026-10-15T05:33-07:00 — overnight M2 dispatch

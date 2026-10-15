@@ -36,6 +36,7 @@ Considered alternatives: boolean-only confirmation cannot bind the stop set; a n
 | RecoveryIntent / Fresh orientation context | `cmd/internal/threadrecord/recovery.go` | modified |
 | StartTransaction / stale-start decision | `cmd/internal/couchcore/starttransaction.go`, `actionableinventory.go` | modified |
 | RecoveryTerminalPlan attribution | `cmd/internal/launcher/recovery_terminal.go` | modified |
+| Native admission reservation transitions | new `cmd/internal/launcher/native_admission.go` | new |
 
 One prepared decision owns one selection, a record/start generation, an exact attributable stop set, and retained-foreign diagnostics. Selection kinds are proven, inferred and fresh; they cannot be inferred from an empty candidate key. No caller constructs signal authority from display text. The pure transition decides permitted effects; the IO coordinator feeds observed results back through it (ARCH-PURE, ARCH-ORDER).
 
@@ -50,6 +51,7 @@ Keep the legacy capture-backed RecoveryContext validator intact. Extend the exis
 | Recovery evidence/preservation adapter | `cmd/internal/couchcore/recovery_evidence_os.go` | modified | existing capture retention and transcript inventory |
 | Confirmed terminal retirement | `cmd/internal/launcher/recovery_terminal.go`, `recovery_terminal_os.go` | modified | procutil, terminal leases, exact process/tree retirement |
 | Native ownership gate | `cmd/internal/couchcore/recovery_native_owner.go`, `cmd/internal/launcher/recovery_native_owner.go` | modified | existing wrapper/readiness/ledger observation |
+| Native admission store | new `cmd/internal/launcher/native_admission_os.go` | new | portable bounded reservation file under Pair cache and shared flock |
 | Recovery start completion | `cmd/internal/couchcore/launch_existing.go`, `starttransaction.go` | modified | existing runner, registration and durable start claim |
 | Menu and authenticated CLI | `cmd/internal/couchtty/menu_recovery.go`, `cmd/internal/couchcmd/slot_operations.go`, `resume_candidates.go` | modified | existing operation declarations, hub guards, queue and receipts |
 
@@ -78,6 +80,14 @@ Tokens bind the current authenticated confirmer, target, record/start nonce, sel
 | Retry / duplicate receipt / late completion | Reuse operation receipt; no second launch; old nonce cannot advance replacement claim or gain native execution authority |
 
 All store transitions remain CAS-owned by ThreadStore and AdvanceStartTransaction; add only the specific selection/fencing events needed here. A stale start's supervisor PID is never a kill target. At an explicit recovery effect, replace/fence its exact nonce through CAS so an old driver cannot publish or execute native authority for it. Pair's existing second gate validates the new durable selection immediately before native launch.
+
+### Concurrent native admission
+
+Source inspection found a material gap: `recovery_native_owner.go` expressly implements an observation, not a lock against cross-thread creates. Two slots can both pass before either wrapper exists. Per-thread holds and terminal leases do not enforce the issue's one-writer requirement.
+
+Add one shared native-admission owner at Pair's common native-resume boundary, including ordinary proven resumes. Under a shared cache flock, reobserve and reserve `(agent, native ID)` for the exact attempt/helper before launching a wrapper. A live or unresolved reservation refuses another native launch, with Fresh still available. Transfer ownership to the exact wrapper before native exec; its independently observable readiness/ledger generation permits reservation removal under the same lock. A helper's death alone cannot release a reservation while its spawned server/wrapper may still start. Unknown effect retains the reservation until the exact attempt tree is proved absent or explicitly retired. A bounded before-exec wrapper check rejects cancelled/fenced reservations.
+
+The store is one versioned, atomically replaced file, capped at 256 active/unconfirmed entries and 1 MiB; no entry per ordinary fresh conversation. New admissions collect only exact proved-dead attempts; explicit retirement clears its exact reservation. Capacity exhaustion refuses disk resume honestly and offers Fresh. Never expire a reservation solely by wall clock. This additional durable state is required for cross-process uniqueness, not confirmation persistence: approvals still die with Couch (ARCH-ORDER, ARCH-FUNERAL). Test simultaneous same-ID admissions with barriers, different IDs independently, helper death with surviving child, missing readiness and stale completion.
 
 ### Reconciliation and exact write order
 
@@ -126,11 +136,12 @@ Files: new `couchcore/recovery_confirmation.go`, `recovery_confirmation_test.go`
 
 ### 3. Preservation, retirement and one native launch
 
-Files: `couchcore/recovery_resume.go`, `recovery_evidence_os.go`, `reboot.go`, `slotrecovery.go`, `threadstore.go`, `launch_existing.go`, `couch.go`; `launcher/recovery_terminal.go`, `recovery_terminal_os.go`, `recovery_authority.go`, `recovery_authority_os.go`; corresponding recovery/native-owner/start tests.
+Files: `couchcore/recovery_resume.go`, `recovery_evidence_os.go`, `reboot.go`, `slotrecovery.go`, `threadstore.go`, `launch_existing.go`, `couch.go`; `launcher/recovery_terminal.go`, `recovery_terminal_os.go`, `recovery_authority.go`, `recovery_authority_os.go`, `createflow.go`; new `launcher/native_admission.go`, `native_admission_os.go` and tests; `wrapcmd/wrap.go` plus new admission adapter/tests; artifactpath cache resolver/manifest; corresponding recovery/native-owner/start tests.
 
 - [ ] Add stateful failing cases: preserve failure before signal; owned damaged wrapper; foreign remnant left byte/process-identical; new descendant/PID reuse mid-retirement; partial retirement; proven resume without screen; fresh incomplete/unsupported scan/missing screen; delayed registration after a real launch.
 - [ ] Run `go test ./cmd/internal/couchcore ./cmd/internal/launcher ./cmd/internal/orientation -run 'TestRecovery|TestResumeCandidate|TestReboot|TestStartTransaction' -count=1` and confirm the new cases fail.
 - [ ] Implement shared ordering using existing journals, park/exact retirement and launch APIs. Every native resume has empty Prompt; every Fresh uses BuildRecoveryOrientation with available coordinates only. Reobserve uncertain attempts once, never kill/fresh-replace merely because registration timed out. Re-run to PASS and commit.
+- [ ] Before claiming uniqueness, run a deterministic two-slot barrier test: the same native ID admits one writer; different IDs progress independently. Add reservation handoff/death/unconfirmed tests and verify the production wrapper cannot execute a fenced attempt. Commit the common admission protocol separately.
 
 ### 4. Menu, CLI and authenticated hub parity
 
@@ -165,3 +176,7 @@ TL/operator only, after morning Couch restart on the landed build. Use a newly a
 ### 2026-10-15T05:33-07:00 — initial design
 
 Built from source audit at `09c5b48dd7586d6ba908a45ea86899190ad3dd4a`, including independent core/surface audits. Proposed for hub approval before change-code. No changes to the targets: the old continuity document's observe-only startup wording is superseded by accepted #528 auto-attach and the newer recovery target; this issue preserves that behavior.
+
+### 2026-10-15T05:41-07:00 — native concurrency audit
+
+A bounded follow-up verified that current native checks do not serialize competing slots. Added an explicit bounded native admission reservation protocol to meet the existing no-two-writers Done-when. This is a design addition for hub review, not implemented code or a claim that the existing gate already provides exclusion.
