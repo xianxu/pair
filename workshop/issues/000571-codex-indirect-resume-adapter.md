@@ -119,6 +119,8 @@ The ba943894 integrated suite completed all recipes/packages too: same sole pre-
 
 Corrected-head recorded suite8bd4baa1 passed couchcore (407.388s), launcher (40.931s) and sessioninventory (33.836s), including the fixed inventory audit. While remaining packages finish, its only observed failure is TestQuickTunnelAPIFailureIsNotAURL: early fake-process exit reported no output instead of its stderr failure. Unchanged isolated count10 passed1.497s. At the TL's direction filed independent unassigned #585 with exact tested head, run log, first-seen date and the concurrent Wait/stderr-drain hypothesis; no broadcast fix belongs in #571. After the full run finishes, rerun the recorded suite unchanged on8bd4baa138c63cda357c3a447ddb2cba294f1df7 under the approved flake rule.
 
+The8bd4baa1 run completed all recipes and Go packages in13m3s, with only the #585 broadcast failure. Saved log: /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/b2dd3d164d5caad0fd4f624661697ade.log; sha256 prefix40d6d761bed7. The unchanged recorded rerun is now executing on exactly8bd4baa138c63cda357c3a447ddb2cba294f1df7 (run119840be5020067f99a3413fd951e608), after #585 publication. No tests were skipped or aborted.
+
 ### 2026-10-15 — planning under the disk restriction
 
 Append source-backed configuration/selector measurements and a proposal before implementation. No architecture or implementation gate is waived: issue-branch preparation, canonical durable plan and change-code wait until compilation is permitted; admission integration waits for #556 on main. Preserve native passthrough for unresolved scopes, picker/names, incomplete DB evidence and nondeterministic ties instead of changing ordinary resume behavior into a refusal.
