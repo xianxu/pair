@@ -7,6 +7,8 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- Normalize an advertised choice through its validated key before applying mode-specific admission. A shared candidate route may represent Fresh as well as resume; test explicit and keyed forms against every native-only guard and run the printed command/menu route. (#556 BR-5)
+
 - Never copy a synchronized owner to substitute one dependency for a preview. Pass the read-only store into its existing resolver; construct focused test fixtures from dependencies rather than copying live mutexes. Run copylocks vet after the sweep. (#556 BR-4)
 
 - A getter may replay durable transactions or enroll retention through its lock path. Automatic startup/authentication readers use a shared preview accessor, and regressions preserve a valid pending journal in global and routed slot-local stores; prove explicit lifecycle reads can still replay the same journal. Carry cancellation through routing as well as the final file read. (#528 BR-12)

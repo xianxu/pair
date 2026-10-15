@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestProvenRecoveryWithoutScreenUsesNativeConversationOnly(t *testing.T) {
@@ -238,5 +239,89 @@ func TestPreparedRecoveryForeignFreshLeavesRemnantsAndUsesNewTag(t *testing.T) {
 	}
 	if !profile.FreshRequired || profile.ResumeRequired || profile.RequiredSessionID != "" || profile.FreshNonce == "" || profile.Prompt == "" || profile.Tag == string(f.record.Address.Tag) || !strings.Contains(profile.Prompt, f.observation.Capture.Raw) {
 		t.Fatalf("foreign Fresh profile: %+v", profile)
+	}
+}
+
+func TestPreparedFreshRepresentationsBypassOnlyNativeGuards(t *testing.T) {
+	for _, scenario := range []string{"missing saved profile", "unfinished park", "continuation", "young start"} {
+		for _, route := range []string{"explicit", "candidate", "operation"} {
+			t.Run(scenario+"/"+route, func(t *testing.T) {
+				f := newRecoveryExecutionFixture(t)
+				f.Couch.RootAgent = "codex"
+				var err error
+				switch scenario {
+				case "missing saved profile":
+					f.record, err = f.Couch.Threads.updateExistingThread(f.record.Address, f.record.Revision, func(r *ThreadRecord) error {
+						r.LatestLaunchProfile = nil
+						r.Incarnations[0].LaunchProfile = nil
+						return nil
+					})
+				case "unfinished park":
+					f.record, err = f.Couch.Threads.BeginPark(f.record.Address, f.record.Revision, ParkIdentity{Nonce: "park-fresh-equivalence", Address: f.record.Address, PID: 42, ProcessIdentity: "old-helper"})
+				case "continuation":
+					request := testContinuationRequest(t, f.record)
+					f.record, err = f.Couch.Threads.PublishContinuation(f.record.Address, f.record.Revision, request)
+				case "young start":
+					f, _ = prepareRecoveryStartFixture(t, time.Minute)
+					f.Couch.RootAgent = "codex"
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				preview := f.preview(t)
+				if preview.Fresh.Key == "" {
+					t.Fatal("fixture did not advertise keyed Fresh")
+				}
+				before, err := f.Couch.Threads.PreviewThreadContext(t.Context(), f.record.Address)
+				if err != nil {
+					t.Fatal(err)
+				}
+				// The same native-only restrictions still refuse real transcript resumes.
+				if _, err := f.Couch.ResumeCandidate(t.Context(), ResumeTarget{Address: f.record.Address}, preview.Candidates[0].Key); err == nil {
+					t.Fatal("native recovery bypassed its guard")
+				}
+				after, err := f.Couch.Threads.PreviewThreadContext(t.Context(), f.record.Address)
+				if err != nil || !reflect.DeepEqual(before, after) || len(f.Runner.Ops) != 0 || f.preserved != 0 {
+					t.Fatalf("native refusal had effects: %v", err)
+				}
+				target := ResumeTarget{Address: f.record.Address}
+				var result RecoveryResumeResult
+				switch route {
+				case "explicit":
+					result, err = f.Couch.RecoverSelection(t.Context(), RecoverySelection{Target: target, Kind: RecoveryFresh})
+				case "candidate":
+					result, err = f.Couch.ResumeCandidate(t.Context(), target, preview.Fresh.Key)
+				case "operation":
+					var value any
+					value, err = DispatchOperation(OperationExecutors{LiveOwner: CouchLiveOwnerExecutor(f.Couch)}, OperationCall{Name: "resume", Context: t.Context(), Implicit: true, Args: map[string]string{"repo-scope": f.record.Address.RepoScope, "tag": string(f.record.Address.Tag), "candidate": preview.Fresh.Key}})
+					if err == nil {
+						result = value.(RecoveryResumeResult)
+					}
+				}
+				if err != nil {
+					t.Fatalf("advertised Fresh refused through %s: %v", route, err)
+				}
+				if result.Start.Handle == nil {
+					t.Fatal("Fresh returned no launched helper")
+				}
+				child := f.Runner.Child(result.Start.Handle.ID())
+				var profile launcher.TrustedLaunchProfile
+				if err := json.Unmarshal([]byte(environmentValue(child.Env, launcher.CouchLaunchProfileEnv)), &profile); err != nil {
+					t.Fatal(err)
+				}
+				if !profile.FreshRequired || profile.ResumeRequired || profile.RequiredSessionID != "" || profile.Prompt == "" {
+					t.Fatalf("not one oriented Fresh launch: %+v", profile)
+				}
+				starts := 0
+				for _, op := range f.Runner.Ops {
+					if strings.HasPrefix(op, "start ") {
+						starts++
+					}
+				}
+				if starts != 1 || len(f.Proc.Signals) != 0 || len(f.Proc.GroupSignals) != 0 {
+					t.Fatalf("unexpected Fresh effects: starts=%d signals=%v", starts, f.Proc.Signals)
+				}
+			})
+		}
 	}
 }

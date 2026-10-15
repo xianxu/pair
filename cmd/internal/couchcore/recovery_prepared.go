@@ -91,6 +91,30 @@ func (c *Couch) executePreparedRecovery(ctx context.Context, selection RecoveryS
 			return RecoveryResumeResult{Start: StartResult{Record: actor, Handle: handle}, Notice: "Continue"}, err
 		}
 	}
+	// Resolve an advertised key before mode-specific profile and lifecycle
+	// guards: the candidate route can represent Fresh as well as native resume.
+	observe := func() RecoveryObservation {
+		observationCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+		return c.recoveryObservation(observationCtx, record)
+	}
+	keyedSelection := selection.Kind == RecoveryInferred
+	var observed RecoveryObservation
+	var choice RecoveryChoice
+	if keyedSelection {
+		observed = observe()
+		preview, err := DecideSlotRecovery(record, observed, c.Clock.Now())
+		if err != nil {
+			return result, err
+		}
+		choice, err = selectRecoveryChoice(preview, selection.CandidateKey)
+		if err != nil {
+			return result, err
+		}
+		if choice.NativeID == "" {
+			selection.Kind = RecoveryFresh
+		}
+	}
 	profile, err := c.recoveryLaunchProfileForSelection(ctx, record, selection)
 	if err != nil {
 		return result, err
@@ -113,24 +137,13 @@ func (c *Couch) executePreparedRecovery(ctx context.Context, selection RecoveryS
 			}
 		}
 	}
-	observationCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	observed := c.recoveryObservation(observationCtx, record)
-	cancel()
-	choice := RecoveryChoice{Agent: profile.Agent}
-	if selection.Kind == RecoveryInferred {
-		preview, err := DecideSlotRecovery(record, observed, c.Clock.Now())
-		if err != nil {
-			return result, err
-		}
-		choice, err = selectRecoveryChoice(preview, selection.CandidateKey)
-		if err != nil {
-			return result, err
-		}
-		if choice.NativeID == "" {
-			selection.Kind = RecoveryFresh
-		} else if choice.Agent != profile.Agent {
-			return result, errors.New("candidate no longer matches the saved agent")
-		}
+	if !keyedSelection {
+		observed = observe()
+	}
+	if choice.Agent == "" {
+		choice.Agent = profile.Agent
+	} else if choice.NativeID != "" && choice.Agent != profile.Agent {
+		return result, errors.New("candidate no longer matches the saved agent")
 	}
 	if selection.Kind == RecoveryProven {
 		binding, err := c.resumeEvidence(ctx, record)

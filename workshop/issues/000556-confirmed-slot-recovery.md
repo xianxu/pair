@@ -446,6 +446,31 @@ by all six inventory scanners. No M2 code or live/stage effects have occurred.
 Normal M1 re-close follows the binary's explicit next action for open BR-4;
 no bypass flags or manual ledger dispositions are used.
 
+
+### 2026-10-15 — M1 round 3: Fresh candidate normalization correction
+
+Round 3 at `dead1b665bddf4d053df5faba06b54a73420296a` disposed BR-4 (and
+reconfirmed BR-1/2/3), but returned **REWORK**, Critical BR-5. M1 remains open.
+A Fresh key entered as RecoveryInferred and encountered native profile/park/
+continuation/young-start guards before it was recognized as Fresh.
+
+Reproduced all four guard families: explicit Fresh controls passed while keyed
+ResumeCandidate and the declared live-owner operation each refused. The 12-case
+matrix also asserts genuine native candidates still refuse without effects,
+then verifies one Fresh launch, no native session ID, a nonempty orientation
+Prompt and no signals. Corrected the shared owner to validate/select a key and
+normalize its mode before profile resolution and every native-only guard;
+non-keyed modes keep their existing cheaper preflight order. Evidence is read
+once per operation, not replayed. Stale/invalid keys retain their refusal.
+
+RED-to-GREEN matrix **PASS** 2.870s, broad prepared/candidate/Fresh/selection/proven
+suite **PASS** 17.992s; matrix race run **PASS** 4.407s; core vet **PASS**.
+Independent surface tests at `31497237e` execute the actual printed command and
+menu owner queue, preserving keyed Fresh versus keyless/explicit reboot through
+the existing transport. Root rerun: tty **PASS** 0.293s, cmd **PASS** 0.296s.
+No production surface change was needed. The next corrected-head recorded suite
+and normal re-close follow; no gate is waived and no M2 code has started.
+
 ## Revisions
 
 ### 2026-10-15T05:33-07:00 — overnight M2 dispatch

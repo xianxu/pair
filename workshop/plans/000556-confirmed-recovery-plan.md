@@ -392,3 +392,13 @@ Couch (including mutexes) to substitute a read-only store. Pass the preview stor
 through the existing profile resolvers instead; keep the original Couch owner,
 use an independently constructed focused fixture, and verify copylocks plus the
 profile/preflight matrix. No lifecycle semantics, M1/M2 split or approval changes.
+
+### 2026-10-15 — BR-5: normalize every Fresh representation before native guards
+
+Every validated Fresh representation, including a keyed candidate from the menu
+or printed CLI command, resolves to Fresh before profile fallback and mode-specific
+admission. Native-only unfinished park, continuation and start-claim guards remain
+intact for genuine transcript choices. Regression coverage compares explicit Fresh,
+ResumeCandidate with the advertised Fresh key, and the declared operation route;
+menu/printed-command tests cover the transport edges and keyless Fresh. Invalid or
+stale keys still refuse without effects. No M2 work or approval change is included.

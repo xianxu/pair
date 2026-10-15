@@ -204,3 +204,113 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-15T09:18:44-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 556 — Couch confirmed disk recovery and always-reachable fresh startup |
+| repo | pair |
+| issue file | workshop/issues/000556-confirmed-slot-recovery.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | d6a797451cc6ded68c890f10f294db28b94d1708..dead1b665bddf4d053df5faba06b54a73420296a |
+| command | sdlc milestone-close --issue 556 --milestone M1 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-15T09:18:44-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+BR-4 is addressed, and all seven reviewed packages pass. One Critical defect blocks M1: the advertised keyed Fresh choice encounters native-resume guards before being recognized as Fresh, making it fail where explicit Fresh succeeds.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Survivor-safe readiness remains implemented in recovery_prepared.go; retained-record and recordless Fresh regression tests pass.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Confirmed retirement independently proves accepted process absence; survivor, replacement, reparenting and final-listing regressions pass.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      README.md documents standalone confirmation, expiry, Fresh availability and bounded Starting, consistent with the implemented CLI and recovery owners.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      recovery_preflight.go:82 copies only ThreadStore and passes it through the existing resolver; the fixture constructs Couch independently. Core vet passes; a temporary pre-fix overlay reproduces both copylocks diagnostics. Profile/preflight race tests pass.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: fresh-selection-precedes-native-guards
+    title: |
+      Recognize keyed Fresh before applying native-resume admission guards
+    detail: |
+      cmd/internal/couchcore/recovery_prepared.go:94–115 resolves the native profile and checks park, continuation and start claims before lines 125–130 recognize a Fresh candidate key. ResumeCandidate always enters as RecoveryInferred; menu_recovery.go:109–120 and the printed CLI command use that route for keyed Fresh. A temporary regression matrix reproduces failures for unfinished park, missing saved profile and young start claim; explicit RecoveryFresh succeeds in all three controls. This violates always-reachable Fresh (ARCH-PURPOSE). Normalize the validated choice before mode-specific admission, sweep every native-only guard, and add equivalence regressions through the advertised menu/CLI routes.
+```
+
+1. **Strengths**
+
+   - Read-only profile resolution preserves the synchronized `Couch` owner.
+   - Retirement tests independently check process disappearance and control ownership changes between effects.
+   - Uncertain-launch tests retain exact claims without destructive cleanup or duplicate launch.
+   - README and Atlas cover confirmation, schema compatibility and the M1/M2 split.
+
+2. **Critical findings**
+
+   The keyed Fresh routing defect above. Resolve the effective selection before profile and lifecycle admission; preserve candidate validation and exact-stop confirmation.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Package-wide tests passed for `couchcore`, `launcher`, `couchcmd`, `couchtty`, `couchmessage`, `threadrecord` and `artifactpath`. Core vet and focused profile/preflight race tests passed. The recorded suite log matches SHA-256 prefix `e114fbb2b590`.
+
+   Existing tests miss Fresh equivalence across entry points. Temporary overlay tests failed in all three keyed cases described above; their explicit-Fresh controls passed. Overlays were removed; the checkout remains unchanged.
+
+6. **Architectural notes**
+
+   | Principle | Result |
+   |---|---|
+   | ARCH-DRY | Pass: shared preparation, preservation and launch owners. |
+   | ARCH-PURE | Pass: pure decisions and injected IO boundaries remain separated. |
+   | ARCH-PURPOSE | **Flag:** advertised Fresh does not consistently fulfill its admission contract. |
+   | ARCH-MOCK | Pass: stateful lifecycle doubles exercise production seams; scratch conformance is documented. |
+   | ARCH-CONSTRAINTS | Pass: observation, confirmation capacity and retirement waits are bounded. |
+   | ARCH-SECURE | Pass: strict decoding, exact generations and authority rechecks. |
+   | ARCH-ORDER | Pass: durable claims, fencing and uncertainty retain explicit transition ownership; BR-4 is corrected. |
+   | ARCH-FUNERAL | Pass: confirmations expire; durable evidence uses existing retention/archive lifecycles. |
+
+   Cross-slot native exclusion remains explicitly scoped to M2.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry stating that every Fresh representation must resolve to Fresh before mode-specific admission. Enumerate profile fallback, unfinished park, continuation, and start-claim guards, with regression coverage for menu, printed candidate command and explicit Fresh.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"1bb5cde0-e4f1-4dd4-bb7e-8e511095b0bd","repository":"github.com/xianxu/pair","issue_id":"000556","recipe":"milestone-review","round":3,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/99fba32e73b76d2a","reviewed_head":"dead1b665bddf4d053df5faba06b54a73420296a","slot":"pair:2","requested_at":"2026-10-15T16:13:15.841739Z"},"phase":"finished","pid":66084,"started_at":"2026-10-15T16:13:15.934778Z","finished_at":"2026-10-15T16:18:43.595767Z","session_id":"01a14056-da01-7461-94a5-7592a3cda1c7","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.838985s
+head: "dead1b665bddf4d053df5faba06b54a73420296a"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000409
