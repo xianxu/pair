@@ -1,12 +1,12 @@
 ---
 id: 000423
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-09
-updated: 2026-10-14
+updated: 2026-10-15
 estimate_hours:
-card_mirror: '51adfe86b94a675bd5469606e82edb0a97e87587' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '089591d8ffe233bda5ad45e1f4ccbcfd55ea9508' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-14T23:30:55-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "927c867d", done: "8abd4617"}
+actual_hours: 0.46
 ---
 
 # test: TestColdResumeOfAParkedPrimaryRegistersFromBothOrigins/switcher flakes, Enter races row load
