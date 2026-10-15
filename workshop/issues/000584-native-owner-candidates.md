@@ -6,9 +6,9 @@ github_issue:
 target: slot-recovery
 created: 2026-10-15
 updated: 2026-10-15
-estimate_hours:
+estimate_hours: 1.3935
 severity: critical
-card_mirror: '811482386c5355c0c904353332c9bbefeb6ad2e3' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '7405628bc6bfb48c49df259a9ea7af407806f0ff' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-15T15:43:33-07:00
 claimant:
     operator: Xian Xu
@@ -17,7 +17,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "61cdc71d", done: "2f5bc31e"}
+flow: {kind: full, provenance: operator}
 ---
 
 # Native owner scan blocks fleet resume on unrelated processes
@@ -59,3 +59,21 @@ Filter native-owner candidates from kernel metadata before requiring argv; unrel
 
 TL approved extending #584 (32f38ca7, refined 61032867) after the host measurement found 18/21 legacy wrappers and migration's circular preflight. Preserve exact modern identities. For legacy readiness, prove current direct child/wrapper kinship from the kernel table and exact owner argv; use its exact readiness ordinal's ledger ID to exclude a different requested ID. For a matching ID, a source exemption additionally needs that owner ID among the native engine's held writable transcript paths, with generations/parent edges rechecked. Same-agent legacy uncertainty with no exclusion remains a refusal naming its owner and relaunch migration advice. Other agent kinds do not block. This is held-file/kinship proof, never cwd/tail inference. Codex needs its node shim's direct native engine child; arbitrary tool descendants are excluded. Durable design: workshop/plans/000584-native-owner-candidates-plan.md.
 
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md, Method A only (calibration marked stale by sdlc). Two smaller Go extensions cover candidate filtering/retry and legacy association; one bounded held-file IO module reuses os/exec and existing filename codecs. Thorough approved design discounts design by 0.2, standard-library availability halves the held-file module's design, implementation uses v3.1's 0.4 scale. Familiarity is 1.0. One review and one real-API discovery budget cover the boundary and host descriptor measurement; docs and issue authoring are separate primitives.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.15 impl=0.08
+item: smaller-go-module design=0.02 impl=0.20
+item: smaller-go-module design=0.02 impl=0.20
+item: greenfield-go-module design=0.05 impl=0.20
+item: atlas-docs design=0.05 impl=0.02
+item: milestone-review design=0.0 impl=0.20
+item: real-api-discovery design=0.0 impl=0.16
+design-buffer: 0.15
+total: 1.3935
+```
