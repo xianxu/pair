@@ -16,6 +16,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "3f3eb1d4", done: "524a9fa4"}
 ---
 
 # Trimpath command-line assignment breaks the required suite environment probe
