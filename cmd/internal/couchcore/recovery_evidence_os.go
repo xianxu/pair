@@ -404,25 +404,9 @@ func (r OSRecoveryEvidenceReader) recoveryPaths(record ThreadRecord) (artifactpa
 // PrepareTerminal captures exact process authority without retiring anything.
 // The caller preserves the screen before invoking the returned second gate.
 func (r OSRecoveryEvidenceReader) PrepareTerminal(ctx context.Context, record ThreadRecord) (func(context.Context) error, error) {
-	if ctx == nil {
-		return nil, errors.New("recovery terminal requires context")
-	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	root, err := filepath.EvalSymlinks(r.DataDir)
+	root, name, err := r.recoveryTerminalAddress(ctx, record)
 	if err != nil {
 		return nil, err
-	}
-	if _, err := artifactpath.Resolve(artifactpath.Address{DataDir: root, RepoScope: record.Address.RepoScope, Tag: string(record.Address.Tag)}); err != nil {
-		return nil, err
-	}
-	name := recordSessionName(record)
-	if name == "" {
-		name, err = (ScopedThreadArtifactCollisionChecker{GlobalDataDir: root}).PairSessionName(ctx, record.Address)
-		if err != nil {
-			return nil, err
-		}
 	}
 	prepare := r.prepareTerminal
 	if prepare == nil {
