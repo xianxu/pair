@@ -97,3 +97,9 @@ Core tests observed RED then GREEN, including 1,000 generated event sequences, s
 ### 2026-10-15 — live check deferred by TL
 
 TL directs required suite and close review on candidate 545ac416, then HOLD (receipt 172b9532-1e96-4fc7-ab4b-a838f7469fea). pair:0 is staged with #544; replacing it would discard that smoke candidate. pair:4 relaunch is blocked by #584's ownership guard. No staging, relaunch or landing now. TL will coordinate the combined stage/restart and native idle/mid-turn/subsequent-delivery checks in the next Qoder cheap window after #584 lands. The live Done-when remains owed and is not claimed by close review. PR #352 is open; required suite runs on 81624e3d, which adds only issue docs beyond candidate code.
+
+### 2026-10-15 — uncertainty wording correction and suite replacement
+
+An additional RED test showed generic quarantine refusal incorrectly called unknown residue definitely unsubmitted. The automatic-input reducer now retains its typed cause; known pending envelopes get the approved instruction while unverifiable residue preserves unconfirmed wording. Focused wrapper/core tests pass (2.929s/0.226s). The initial suite on 81624e3d acquired after 127s; it is superseded by this code correction and was cancelled during shell checks, not claimed passing.
+
+During runner selection I incorrectly signalled Parley slot2 runner PID13969 despite its cwd identifying another slot. Notified parley.nvim:2 immediately by receipt b9785032-7aeb-4ef4-bdd5-a840cb4d8279 to inspect/restart its check; no checkout file changes. Then positively identified our own runner PID47867 by cwd pair-slot5, parent41373 and its retained log FD before separately signalling it. The mistake and process-ownership rule are recorded in lessons; no further peer-process actions.

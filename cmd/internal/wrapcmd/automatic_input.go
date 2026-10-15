@@ -23,6 +23,7 @@ type automaticInputTransaction struct {
 	phase        automaticInputPhase
 	renderFence  uint64
 	submitted    bool
+	residueCause string
 	blockedSince time.Time
 	sequence     uint64 // lifetime high-water, retained across successful transactions
 }
@@ -72,6 +73,7 @@ func advanceAutomaticInput(tx automaticInputTransaction, e automaticInputEvent) 
 	case automaticQuarantine:
 		if tx.phase == e.owner {
 			tx.phase, tx.renderFence, tx.submitted = automaticInputNeedsOperator, e.epoch, false
+			tx.residueCause = e.reportCause
 			if tx.sequence < math.MaxUint64 {
 				tx.sequence++
 				d.report = &couchmessage.AutomaticInputStall{Sequence: tx.sequence, Cause: e.reportCause, WaitMillis: min(max(e.wait.Milliseconds(), 0), couchmessage.MaxAutomaticInputStallWaitMillis), Fence: e.epoch, Epoch: e.epoch}

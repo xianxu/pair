@@ -451,6 +451,7 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 	case !automaticAvailable:
 		if p.automaticInput.phase == automaticInputNeedsOperator {
 			event.Kind = couchmessage.PeerAutomaticInputBlocked
+			event.Ready = p.automaticInput.residueCause == couchmessage.AutomaticInputStallUnsubmittedComposer
 		} else {
 			d.current.Detail = "waiting for previous automatic input: " + p.automaticInputCause
 			return

@@ -191,7 +191,7 @@ func TestPeerDeliveryRetryStopsAndShortWrites(t *testing.T) {
 }
 
 func TestPeerDeliveryBlockedAutomaticInputRefusesBeforePaste(t *testing.T) {
-	s, fx := AdvancePeerDelivery(PeerDeliveryState{}, PeerDeliveryEvent{Kind: PeerAutomaticInputBlocked})
+	s, fx := AdvancePeerDelivery(PeerDeliveryState{}, PeerDeliveryEvent{Kind: PeerAutomaticInputBlocked, Ready: true})
 	if s.Outcome() != Cancelled || fx != PeerPublish || s.BodyWritten || s.Reason != "composer holds an unsubmitted automatic message; press Enter or clear it" {
 		t.Fatal(s, fx)
 	}
@@ -237,5 +237,12 @@ func TestPeerDeliveryGeneratedEventSequences(t *testing.T) {
 			}
 			s = next
 		}
+	}
+}
+
+func TestPeerAutomaticInputBlockedPreservesUnknownOutcome(t *testing.T) {
+	s, fx := AdvancePeerDelivery(PeerDeliveryState{}, PeerDeliveryEvent{Kind: PeerAutomaticInputBlocked})
+	if fx != PeerPublish || s.Outcome() != Cancelled || !strings.Contains(s.Reason, "unconfirmed") {
+		t.Fatalf("unknown residue claimed unsubmitted: %+v", s)
 	}
 }

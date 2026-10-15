@@ -86,7 +86,10 @@ func AdvancePeerDelivery(s PeerDeliveryState, e PeerDeliveryEvent) (PeerDelivery
 	}
 	if e.Kind == PeerAutomaticInputBlocked && s.Phase == PeerDeliveryWaiting && !s.BodyWritten {
 		s.Phase = PeerDeliveryCancelled
-		s.Reason = "composer holds an unsubmitted automatic message; press Enter or clear it"
+		s.Reason = "automatic message submission is unconfirmed; inspect the composer and press Enter or clear it"
+		if e.Ready {
+			s.Reason = "composer holds an unsubmitted automatic message; press Enter or clear it"
+		}
 		return s, PeerPublish
 	}
 
