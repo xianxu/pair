@@ -250,6 +250,23 @@ and passes afterward; the original mixed-startup acceptance passes unchanged
 (2.94s). New warm failure coverage passes with the warm-route selection (0.710s).
 A fresh recorded suite will cover these corrections; M1 is not closed yet.
 
+### 2026-10-15 — M1 recorded verification ready for boundary review
+
+`sdlc local-check run --name suite` passed
+at `b7fef55184f1c6e5f8f0a929419f0cd214d3d3e9`, exit 0 in 10m40s. The retained
+log is `.git/sdlc/local-checks/b7fef55184f1c6e5f8f0a929419f0cd214d3d3e9/suite.log`
+under the Git common directory; SHA-256 prefix `917e49963187`. Full core passed
+388.885s, cmd 99.348s, tty 60.260s, launcher 42.659s and wrapper 53.973s. No
+waiver, timeout increase or known failure is excluded. `make build` also passed
+on that head; the checkout remains on the issue branch, no stage changed.
+
+The three exact headless commands in `workshop/plans/000556-live-acceptance.md`
+also passed: core 18.149s; cmd/tty/message 1.818/0.233/0.174s; launcher 0.206s.
+The morning live script is ready for the hub/operator, with scratch allocation,
+proven resume, explicit candidate keys, standalone stop-token acceptance, Fresh
+orientation and previous-screen reads. No live acceptance is claimed. M1 does
+not claim cross-slot native exclusion; that remains M2's separate review boundary.
+
 ## Revisions
 
 ### 2026-10-15T05:33-07:00 — overnight M2 dispatch
