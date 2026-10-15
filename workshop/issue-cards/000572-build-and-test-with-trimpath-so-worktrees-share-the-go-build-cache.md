@@ -1,6 +1,6 @@
 ---
 id: 000572
-status: codecomplete
+status: done
 created: 2026-10-15
 updated: 2026-10-15
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 96e5c25094d656db03eb72c64354cb10d7b6fee5
         evidence_commit: da10281019955d6af9b3f83de1451b95cf4eabb6
+        landed_commit: 492d100da57b72e8c3bd24b77951863d527e4846
 ---
 
 # Build and test with -trimpath so worktrees share the Go build cache
