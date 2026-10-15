@@ -85,3 +85,16 @@ Reason: hub receipt e774d4c0-5be6-4c77-8e0a-8e25ceeb3cd4 conveys the operator's 
 Delta: after the fix lands, measure a live slot on the landed binary and record before/after process bytes-written versus actual raw+wrap-event bytes appended, amplification ratio, and diagnostic state inode-change rate in this issue's Log. Record exact binary/commit, PID/generation, paths, sample durations and output/activity context. Inode sampling is a lower bound when replacements occur between observations. Keep the existing before numbers (85.8x over10.006s and2187 observed state replacements over60.003s); do not substitute synthetic counts for the live check. The hub will separately sample whole-disk write rate; do not attribute that aggregate to this slot without its measurement. A staged/pre-merge smoke does not satisfy this additional post-landing check.
 
 - [ ] After landing: record live before/after bytes-written/appended and diagnostic state inode-change rate in ## Log; send results to hub for its whole-disk comparison.
+
+
+### 2026-10-15T22:23:51Z — #579/#582 scope split and append-protocol revision
+
+Reason: hub's submitted scope decision8cb950d6-7819-48dd-9813-e10321f20ad8. #582 is filed unassigned on main with the witnessed raw/events checkpoint and consumer findings. Delta: #579 now owns only diagnostic write amplification and diagnostic size/count bounds, counted regression and live before/after acceptance. Raw capture rotation/retention moves to #582; raw/event producer and readers remain unchanged here. The original raw-rotation Done-when is discharged by this authorized split, not claimed implemented.
+
+Current Done-when for #579:
+- Wrapper diagnostics coalesce writes; each flush uses one small non-payload reservation write and one checkpoint publication instead of per-event intent+commit renames and base64 payload duplication. Healthy synthetic real-writer amplification<3x includes all reservation/metadata bytes; idle and unchanged registry opens write no metadata content.
+- Diagnostic generations enforce64MiB size and current+3 count policy where evidence is certified; unknown proof stops growth, preserves uncertain legacy data and reports the block. Demonstrated protocol-aware removed-root rotation refusal is fixed without weakening legacy/unknown process protection.
+- Legacy pending intent migration, compact reservation crash/partial/error behavior, replacement refusal, buffer/worker lifetime, rotation/retention and cleanup have deterministic red/green regressions; mandatory suite/build/reviews pass.
+- After landing, record live bytes-written/appended and state inode-change rates against the preserved85.8x and2187/minute baseline, exact build/process/activity context, and report to hub. Hub owns aggregate whole-disk sampling.
+
+The governing protocol/tasks and material killed-partial-write tradeoff are appended to the durable plan's latest Revision. This is the proposed executable design for hub approval, not implementation. Initial raw-batching steps are superseded by this narrower scope.
