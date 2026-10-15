@@ -3,9 +3,11 @@ package launcher
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/readiness"
@@ -14,6 +16,7 @@ import (
 func confirmedRecoveryFixture(t *testing.T, n int) (*recoveryTerminalWorld, recoveryTerminalDriver, *readiness.ReadyRecord) {
 	t.Helper()
 	w, d := recoveryTerminalFixture(t, n)
+	w.cascadeServer = false
 	ready := &readiness.ReadyRecord{Tag: "work", Agent: "codex", Session: "session", Nonce: "nonce", PID: 13, AgentIdentity: "native-start", LaunchOrdinal: 1}
 	w.snapshot.Args = map[int][]string{}
 	for _, p := range w.snapshot.Processes {
@@ -112,8 +115,8 @@ func TestConfirmedRecoveryTerminalRechecksAcceptedSetBeforeEverySignal(t *testin
 				t.Fatal(err)
 			}
 			w.events = nil
-			w.onKill = func() {
-				w.onKill = nil
+			w.onProcessKill = func(int) {
+				w.onProcessKill = nil
 				switch kind {
 				case "new-child":
 					w.snapshot.Processes = append(w.snapshot.Processes, procutil.Process{PID: 90, PPID: 20, Identity: "new"})
@@ -130,9 +133,9 @@ func TestConfirmedRecoveryTerminalRechecksAcceptedSetBeforeEverySignal(t *testin
 				}
 			}
 			err = d.retire(context.Background(), plan)
-			kills := strings.Count(strings.Join(w.events, ","), "kill")
+			kills := len(w.signals)
 			if kind == "vanished" {
-				if err != nil || kills != 2 {
+				if err != nil || kills != len(plan.Processes())-1 {
 					t.Fatalf("vanishing accepted child: kills=%d err=%v", kills, err)
 				}
 			} else if err == nil || kills != 1 {
@@ -199,6 +202,14 @@ func TestConfirmedRecoveryTerminalReadOnlyRecheckRefusesStaleEvidence(t *testing
 			if strings.Contains(strings.Join(w.events, ","), "acquire") || strings.Contains(strings.Join(w.events, ","), "kill") {
 				t.Fatal("recheck performed effects")
 			}
+			if kind == "child-gone" {
+				// A normal park between preview and retirement may stop any
+				// accepted member. Missing members never grant new targets.
+				if err := d.retire(context.Background(), p); err != nil {
+					t.Fatal(err)
+				}
+				return
+			}
 			if err := d.retire(context.Background(), p); err == nil {
 				t.Fatal("stale retirement accepted")
 			}
@@ -209,24 +220,168 @@ func TestConfirmedRecoveryTerminalReadOnlyRecheckRefusesStaleEvidence(t *testing
 	}
 }
 
-// The quiescence driver may retry after a signal error. Once an ownership
-// observation refuses, recovery must never resume signalling on a later pass.
+// A transient ownership refusal must end the actual retirement call, even if
+// a later read would return the original evidence again.
 func TestConfirmedRecoveryTerminalOwnershipRefusalIsSticky(t *testing.T) {
-	w, d, _ := confirmedRecoveryFixture(t, 2)
+	w, d, r := confirmedRecoveryFixture(t, 1)
 	p, err := d.prepareConfirmed(context.Background(), "/data", "0123456789abcdef", "work", "session")
 	if err != nil {
 		t.Fatal(err)
 	}
-	q := recoveryTerminalQuiescence{driver: d, plan: p, ctx: context.Background(), refusal: new(error)}
-	w.snapshot.Processes[1].Identity = "replaced"
-	if err := q.KillServer(p.servers[0].Server); err == nil {
-		t.Fatal("changed process accepted")
+	w.onProcessKill = func(int) { w.onProcessKill = nil; r.Nonce = "replaced" }
+	read := d.read
+	d.read = func(ctx context.Context, path string, limit int64) ([]byte, error) {
+		raw, err := read(ctx, path, limit)
+		r.Nonce = "nonce"
+		return raw, err
 	}
-	w.snapshot.Processes[1].Identity = "editor-start"
-	if err := q.KillServer(p.servers[1].Server); err == nil {
-		t.Fatal("ownership refusal was forgotten")
+	if err = d.retire(context.Background(), p); err == nil {
+		t.Fatal("ownership refusal forgotten")
 	}
-	if strings.Contains(strings.Join(w.events, ","), "kill") {
-		t.Fatal("resumed signals after refusal")
+	if got := strings.Join(w.signals, ","); got != "13" {
+		t.Fatalf("resumed signals after refusal: %s", got)
+	}
+}
+
+// A server's disappearance is independent of native/wrapper process lifetime.
+func TestConfirmedRetirementRequiresEveryAcceptedOwnerAbsent(t *testing.T) {
+	w, d, _ := confirmedRecoveryFixture(t, 1)
+	p, err := d.prepareConfirmed(context.Background(), "/data", "0123456789abcdef", "work", "session")
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.events = nil
+	if err = d.retire(context.Background(), p); err != nil {
+		t.Fatal(err)
+	}
+	if len(w.snapshot.Processes) != 0 {
+		t.Fatalf("retirement succeeded with accepted owners alive: %+v", w.snapshot.Processes)
+	}
+	if got := strings.Join(w.signals, ","); got != "13,11,12,10" {
+		t.Fatalf("child-before-parent exact stop order=%s", got)
+	}
+}
+
+func TestConfirmedRetirementRefusesChangedSurvivingOwners(t *testing.T) {
+	for _, kind := range []string{"reparented", "replaced", "new-child"} {
+		t.Run(kind, func(t *testing.T) {
+			w, d, _ := confirmedRecoveryFixture(t, 1)
+			p, err := d.prepareConfirmed(context.Background(), "/data", "0123456789abcdef", "work", "session")
+			if err != nil {
+				t.Fatal(err)
+			}
+			w.events = nil
+			// The first accepted child dies, but another accepted owner changes before
+			// the next signal. Neither that changed process nor a foreign child is a target.
+			w.onProcessKill = func(pid int) {
+				w.onProcessKill = nil
+				switch kind {
+				case "reparented":
+					w.snapshot.Processes[2].PPID = 1
+				case "replaced":
+					w.snapshot.Processes[2].Identity = "replacement"
+				case "new-child":
+					w.snapshot.Processes = append(w.snapshot.Processes, procutil.Process{PID: 90, PPID: 12, Identity: "foreign"})
+					w.snapshot.Args[90] = []string{"sh"}
+				}
+			}
+			if err = d.retire(context.Background(), p); err == nil {
+				t.Fatal("changed surviving owner accepted")
+			}
+			if got := strings.Join(w.signals, ","); got != "13" {
+				t.Fatalf("signals continued after mutation: %s", got)
+			}
+		})
+	}
+}
+
+func TestConfirmedRetirementWaitsForIndependentAbsence(t *testing.T) {
+	w, d, _ := confirmedRecoveryFixture(t, 1)
+	p, err := d.prepareConfirmed(context.Background(), "/data", "0123456789abcdef", "work", "session")
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.timeout = 10 * time.Millisecond
+	d.poll = time.Millisecond
+	w.keepProcesses = true
+	if err = d.retire(context.Background(), p); err == nil {
+		t.Fatal("successful signal mistaken for owner absence")
+	}
+	if got := strings.Join(w.signals, ","); got != "13" {
+		t.Fatalf("signalled parent while child survived: %s", got)
+	}
+}
+
+func (w *recoveryTerminalWorld) KillProcess(ctx context.Context, v recoveryProcessWitness) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	w.signals = append(w.signals, fmt.Sprint(v.PID))
+	w.events = append(w.events, "process-signal")
+	if w.onProcessKill != nil {
+		w.onProcessKill(v.PID)
+	}
+	if !w.keepProcesses {
+		w.removeProcess(v.PID)
+	}
+	return nil
+}
+func (w *recoveryTerminalWorld) removeProcess(pid int) {
+	var remaining []procutil.Process
+	for _, p := range w.snapshot.Processes {
+		if p.PID != pid {
+			remaining = append(remaining, p)
+		}
+	}
+	w.snapshot.Processes = remaining
+}
+
+func TestConfirmedRetirementRechecksAfterTerminalListing(t *testing.T) {
+	w, d, _ := confirmedRecoveryFixture(t, 1)
+	p, err := d.prepareConfirmed(context.Background(), "/data", "0123456789abcdef", "work", "session")
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.onPresent = func() {
+		w.snapshot.Servers = append(w.snapshot.Servers, SessionServerIdentity{PID: 90, Identity: "foreign", Session: "session", Socket: "/tmp/new/session"})
+	}
+	if err = d.retire(context.Background(), p); err == nil {
+		t.Fatal("terminal created during final listing check accepted as absent")
+	}
+	if got := strings.Join(w.signals, ","); got != "13,11,12,10" {
+		t.Fatalf("new server was signalled: %s", got)
+	}
+}
+
+func TestConfirmedRetirementAcceptsOwnersAlreadyStoppedByNormalPark(t *testing.T) {
+	for _, kind := range []string{"all", "native-child"} {
+		t.Run(kind, func(t *testing.T) {
+			w, d, _ := confirmedRecoveryFixture(t, 1)
+			p, err := d.prepareConfirmed(context.Background(), "/data", "0123456789abcdef", "work", "session")
+			if err != nil {
+				t.Fatal(err)
+			}
+			w.events = nil
+			if kind == "all" {
+				w.snapshot.Processes = nil
+				w.snapshot.Servers = nil
+				d.read = func(context.Context, string, int64) ([]byte, error) {
+					t.Fatal("read readiness for gone wrapper")
+					return nil, errors.New("missing")
+				}
+			} else {
+				w.removeProcess(13)
+			}
+			if err = d.retire(context.Background(), p); err != nil {
+				t.Fatal(err)
+			}
+			expected := ""
+			if kind == "native-child" {
+				expected = "11,12,10"
+			}
+			if got := strings.Join(w.signals, ","); got != expected {
+				t.Fatalf("signals=%s want=%s", got, expected)
+			}
+		})
 	}
 }

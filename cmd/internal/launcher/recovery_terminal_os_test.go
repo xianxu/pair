@@ -145,3 +145,77 @@ func TestRecoveryNativeProjectionPreservesArgvBoundariesWithoutAliases(t *testin
 		t.Fatalf("argv roundtrip=%q err=%v", parsed, err)
 	}
 }
+
+// Native adapter conformance uses the same process source and signal seam as
+// production, with a stateful generation reader instead of host processes.
+type recoverySignalReader struct {
+	row  procutil.Process
+	args []string
+	err  error
+}
+
+func (r *recoverySignalReader) Table() ([]procutil.Process, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	if r.row.PID == 0 {
+		return nil, nil
+	}
+	return []procutil.Process{r.row}, nil
+}
+func (r *recoverySignalReader) Command(int) (procutil.CommandInfo, error) {
+	return procutil.CommandInfo{Args: r.args}, r.err
+}
+func (r *recoverySignalReader) Identity(int) (string, error) { return r.row.Identity, r.err }
+func TestRecoveryNativeExactOwnerSignalBoundary(t *testing.T) {
+	for _, kind := range []string{"exact", "gone", "reused", "reparented", "argv", "unknown", "last-identity", "canceled", "invalid"} {
+		t.Run(kind, func(t *testing.T) {
+			witness := recoveryProcessWitness{PID: 13, PPID: 12, Identity: "native-start", Args: []string{"codex", "resume", "native"}}
+			r := &recoverySignalReader{row: procutil.Process{PID: 13, PPID: 12, Identity: witness.Identity}, args: append([]string(nil), witness.Args...)}
+			kills := 0
+			o := recoveryTerminalOS{osSessionQuiescenceOps{processes: procutil.NewSource(r), processIdentity: func(string) string {
+				if kind == "last-identity" {
+					return "replacement"
+				}
+				return r.row.Identity
+			}, killProcess: func(pid int) error {
+				if pid != 13 {
+					t.Fatalf("foreign PID %d", pid)
+				}
+				kills++
+				return nil
+			}}}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			switch kind {
+			case "gone":
+				r.row = procutil.Process{}
+			case "reused":
+				r.row.Identity = "replacement"
+			case "reparented":
+				r.row.PPID = 1
+			case "argv":
+				r.args = []string{"codex", "resume", "foreign"}
+			case "unknown":
+				r.err = errors.New("unreadable")
+			case "canceled":
+				cancel()
+			case "invalid":
+				witness.PID = 0
+			}
+			err := o.KillProcess(ctx, witness)
+			if kind == "exact" {
+				if err != nil || kills != 1 {
+					t.Fatalf("exact signal kills=%d err=%v", kills, err)
+				}
+			} else {
+				if kills != 0 {
+					t.Fatalf("unsafe signal %s", kind)
+				}
+				if kind != "gone" && err == nil {
+					t.Fatal("changed/unknown evidence accepted")
+				}
+			}
+		})
+	}
+}

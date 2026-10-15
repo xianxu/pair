@@ -271,7 +271,18 @@ func (d recoveryTerminalDriver) checkConfirmed(ctx context.Context, plan Recover
 	for wrapperPID, prior := range plan.ready {
 		wrapper, wrapperAlive := rows[wrapperPID]
 		agent, agentAlive := rows[prior.PID]
-		if allowGone && (!wrapperAlive || !agentAlive) {
+		if allowGone && !wrapperAlive {
+			continue
+		}
+		if allowGone && !agentAlive {
+			raw, err := d.readRecoveryReady(ctx, AgentReadyPath(plan.owner.Directory(), plan.owner.Tag, prior.Agent), maxAgentReadyBytes)
+			if err != nil {
+				return nil, err
+			}
+			current, err := readiness.Decode(string(raw))
+			if err != nil || !reflect.DeepEqual(current, prior) {
+				return nil, errors.New("terminal readiness changed during retirement")
+			}
 			continue
 		}
 		if !wrapperAlive || !agentAlive || agent.Identity != prior.AgentIdentity {
@@ -289,4 +300,118 @@ func (d recoveryTerminalDriver) checkConfirmed(ctx context.Context, plan Recover
 		return nil, err
 	}
 	return append([]SessionServerIdentity(nil), snapshot.Servers...), nil
+}
+
+// retireConfirmed never expands the accepted set. Children must be observed
+// absent before their parents are signalled, avoiding induced reparenting of
+// still-running native owners. A signal's success is not absence evidence.
+func (d recoveryTerminalDriver) retireConfirmed(ctx context.Context, plan RecoveryTerminalPlan) error {
+	signal, ok := d.ops.(interface {
+		KillProcess(context.Context, recoveryProcessWitness) error
+	})
+	if !ok {
+		return errors.New("exact owner retirement unavailable")
+	}
+	var targets []recoveryProcessWitness
+	servers := map[int]SessionServerIdentity{}
+	parents := map[int]int{}
+	for _, s := range plan.servers {
+		targets = append(targets, s.Witness)
+		targets = append(targets, s.Descendants...)
+		servers[s.Server.PID] = s.Server
+	}
+	for _, p := range targets {
+		parents[p.PID] = p.PPID
+	}
+	depth := func(pid int) int {
+		n := 0
+		for seen := map[int]bool{}; !seen[pid]; {
+			seen[pid] = true
+			parent, ok := parents[pid]
+			if !ok {
+				break
+			}
+			n++
+			pid = parent
+		}
+		return n
+	}
+	sort.Slice(targets, func(i, j int) bool {
+		a, b := depth(targets[i].PID), depth(targets[j].PID)
+		if a != b {
+			return a > b
+		}
+		return targets[i].PID < targets[j].PID
+	})
+	observe := func() (map[int]procutil.Process, error) {
+		snapshot, err := d.ops.Observe(ctx, plan.session)
+		if err != nil {
+			return nil, err
+		}
+		if _, err = d.checkConfirmed(ctx, plan, snapshot, true); err != nil {
+			return nil, err
+		}
+		return recoveryRows(snapshot)
+	}
+
+	for _, target := range targets {
+		rows, err := observe()
+		if err != nil {
+			return err
+		}
+		if _, alive := rows[target.PID]; !alive {
+			continue
+		}
+		if server, ok := servers[target.PID]; ok {
+			err = d.ops.KillServer(server)
+		} else {
+			err = signal.KillProcess(ctx, target)
+		}
+		if err != nil {
+			return err
+		}
+		for {
+			rows, err = observe()
+			if err != nil {
+				return err
+			}
+			if _, alive := rows[target.PID]; !alive {
+				break
+			}
+			if err = waitRecoveryTerminalPoll(ctx, d.poll); err != nil {
+				return fmt.Errorf("accepted terminal process %d remains: %w", target.PID, err)
+			}
+		}
+	}
+	for {
+		rows, err := observe()
+		if err != nil {
+			return err
+		}
+		for _, p := range targets {
+			if _, alive := rows[p.PID]; alive {
+				return errors.New("accepted terminal owner still present")
+			}
+		}
+		present, err := d.ops.SessionPresent(ctx, plan.session)
+		if err != nil {
+			return err
+		}
+		if !present {
+			// Listing is another IO interval: repeat the process proof after it.
+			final, err := observe()
+			if err != nil {
+				return err
+			}
+			for _, p := range targets {
+				if _, alive := final[p.PID]; alive {
+					return errors.New("accepted terminal owner reappeared")
+				}
+			}
+			return ctx.Err()
+		}
+		if err = waitRecoveryTerminalPoll(ctx, d.poll); err != nil {
+			return fmt.Errorf("terminal listing remains: %w", err)
+		}
+	}
 }

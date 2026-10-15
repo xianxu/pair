@@ -135,10 +135,10 @@ func (d recoveryTerminalDriver) retire(ctx context.Context, plan RecoveryTermina
 		return err
 	}
 	if plan.confirmed {
-		if _, err := d.checkConfirmed(ctx, plan, snapshot, false); err != nil {
+		if _, err := d.checkConfirmed(ctx, plan, snapshot, true); err != nil {
 			return err
 		}
-		return quiesceAuthorizedSession(ctx, plan.session, authorized, recoveryTerminalQuiescence{driver: d, plan: plan, ctx: ctx, refusal: new(error)}, d.timeout, d.poll)
+		return d.retireConfirmed(ctx, plan)
 	}
 	current, err := attributeRecoveryServers(plan.owner, plan.session, snapshot)
 	if err != nil {
@@ -147,7 +147,50 @@ func (d recoveryTerminalDriver) retire(ctx context.Context, plan RecoveryTermina
 	if !reflect.DeepEqual(current, plan.servers) {
 		return errors.New("terminal ownership snapshot changed; refresh recovery preview")
 	}
-	return quiesceAuthorizedSession(ctx, plan.session, authorized, recoveryTerminalQuiescence{driver: d, plan: plan, ctx: ctx}, d.timeout, d.poll)
+	if err := quiesceAuthorizedSession(ctx, plan.session, authorized, recoveryTerminalQuiescence{driver: d, plan: plan, ctx: ctx}, d.timeout, d.poll); err != nil {
+		return err
+	}
+	// Strict authorization still signals only servers. Their disappearance
+	// cannot establish that the independently named owners exited with them.
+	for {
+		snapshot, err := d.ops.Observe(ctx, plan.session)
+		if err != nil {
+			return err
+		}
+		if len(snapshot.Servers) != 0 {
+			return errors.New("terminal server appeared after retirement")
+		}
+		rows, err := recoveryRows(snapshot)
+		if err != nil {
+			return err
+		}
+		alive := false
+		for _, process := range plan.Processes() {
+			if _, found := rows[process.PID]; found {
+				alive = true
+			}
+		}
+		if !alive {
+			return ctx.Err()
+		}
+		if err := waitRecoveryTerminalPoll(ctx, d.poll); err != nil {
+			return fmt.Errorf("accepted terminal owner remains: %w", err)
+		}
+	}
+}
+
+func waitRecoveryTerminalPoll(ctx context.Context, poll time.Duration) error {
+	if poll <= 0 {
+		poll = 25 * time.Millisecond
+	}
+	timer := time.NewTimer(poll)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 func recoveryServerIdentities(servers []recoveryAttributedServer) []SessionServerIdentity {
 	result := make([]SessionServerIdentity, 0, len(servers))
@@ -236,32 +279,18 @@ func attributeRecoveryServers(owner artifactpath.StorageOwner, session string, s
 }
 
 type recoveryTerminalQuiescence struct {
-	driver  recoveryTerminalDriver
-	plan    RecoveryTerminalPlan
-	ctx     context.Context
-	refusal *error // confirmed retirement cannot resume after an ownership refusal
+	driver recoveryTerminalDriver
+	plan   RecoveryTerminalPlan
+	ctx    context.Context
 }
 
 func (o recoveryTerminalQuiescence) SessionPresent(ctx context.Context, session string) (bool, error) {
 	return o.driver.ops.SessionPresent(ctx, session)
 }
 func (o recoveryTerminalQuiescence) remaining(ctx context.Context) (servers []SessionServerIdentity, err error) {
-	if o.refusal != nil {
-		if *o.refusal != nil {
-			return nil, *o.refusal
-		}
-		defer func() {
-			if err != nil {
-				*o.refusal = err
-			}
-		}()
-	}
 	snapshot, err := o.driver.ops.Observe(ctx, o.plan.session)
 	if err != nil {
 		return nil, err
-	}
-	if o.plan.confirmed {
-		return o.driver.checkConfirmed(ctx, o.plan, snapshot, true)
 	}
 	current, err := attributeRecoveryServers(o.plan.owner, o.plan.session, snapshot)
 	if err != nil {
