@@ -469,6 +469,14 @@ var SourceClassifications = []SourceClassification{
 			goCallVocabulary("config", "--config-dir", "os/exec.Command", 1, 1),
 			goCallVocabulary("config", "--config-dir", "os/exec.CommandContext", 2, 1),
 		}},
+	{Path: "cmd/internal/launcher/session_index_cache.go", Kind: ResolvedConsumer,
+		Families: []string{"session-binding"}, BindingNames: []string{"legacy-session-binding", "selected-session-binding"}},
+	{Path: "cmd/internal/sessioninventory/activity_cache.go", Kind: ResolvedConsumer,
+		Families: []string{"ledger"}, BindingNames: []string{"scoped-ledger"}},
+	{Path: "cmd/internal/sessioninventory/activity_runtime.go", Kind: ResolvedConsumer,
+		Families: []string{"session-inventory-catalog"}, BindingNames: []string{"selected-session-inventory-catalog"}},
+	{Path: "cmd/internal/sessioninventory/query_work.go", Kind: ResolvedConsumer,
+		Families: []string{"session-inventory-catalog"}, BindingNames: []string{"selected-session-inventory-catalog"}},
 	{Path: "cmd/internal/sessioninventory/query.go", Kind: ResolvedConsumer,
 		Families: []string{"ledger"}, BindingNames: []string{"direct-ledger-history", "direct-ledger-history-tag"}},
 	{Path: "cmd/internal/sessioninventory/runtime_os.go", Kind: ResolvedConsumer,
@@ -594,6 +602,7 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	"cmd/internal/sessioninventory/file_fingerprint.go",
 	"cmd/internal/wrapcmd/automatic_input_report.go",
 	"cmd/internal/couchmessage/automatic_input_stall.go",
 	"cmd/internal/couchcmd/automatic_input_stall.go",

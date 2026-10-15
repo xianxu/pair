@@ -175,6 +175,7 @@ func ValidateTargetWork(runtime Runtime, agent Agent, eligible []ArtifactObserva
 		}
 		var state ScannerState
 		var found []Diagnostic
+		observeRecordsDecodeWork(runtime, observation.Entry.Artifact, observed.Records)
 		switch agent {
 		case AgentClaude:
 			state, found, err = ValidateClaudeDelta(observation.Entry, nil, observed.Records)
@@ -198,6 +199,7 @@ func ValidateTargetWork(runtime Runtime, agent Agent, eligible []ArtifactObserva
 		if err != nil {
 			continue
 		}
+		observeRecordsDecodeWork(runtime, observation.Entry.Artifact, observed.Records)
 		events, eventDiagnostics := NativeEventsFromRecords(agent, StableID("node", string(agent), fact.NativeID), observed.Records)
 		diagnostics = append(diagnostics, eventDiagnostics...)
 		validations = append(validations, TargetValidation{State: state, Fact: fact, Observations: []ArtifactObservation{observation}, Results: map[string]IncrementalResult{targetArtifactKey(observation.Entry.Artifact): observed}, Events: events})
@@ -240,6 +242,7 @@ func AdvanceTargetValidation(runtime Runtime, prior TargetValidation, current []
 	}
 	state := cloneScannerState(prior.State)
 	var diagnostics []Diagnostic
+	observeRecordsDecodeWork(runtime, observation.Entry.Artifact, observed.Records)
 	switch state.Agent {
 	case AgentClaude:
 		state, diagnostics, err = ValidateClaudeDelta(observation.Entry, &state, observed.Records)
@@ -262,6 +265,7 @@ func AdvanceTargetValidation(runtime Runtime, prior TargetValidation, current []
 	if err != nil {
 		return TargetValidation{}, diagnostics, err
 	}
+	observeRecordsDecodeWork(runtime, observation.Entry.Artifact, observed.Records)
 	newEvents, eventDiagnostics := NativeEventsFromRecords(state.Agent, StableID("node", string(state.Agent), state.NativeID), observed.Records)
 	diagnostics = append(diagnostics, eventDiagnostics...)
 	return TargetValidation{State: state, Fact: fact, Observations: []ArtifactObservation{observation}, Results: map[string]IncrementalResult{key: observed}, Events: append(append([]NativeEventFact(nil), prior.Events...), newEvents...)}, diagnostics, nil
@@ -313,6 +317,7 @@ func advanceAgyTargetValidation(runtime Runtime, prior TargetValidation, current
 			priorDatabase = observation
 		}
 	}
+	observeRecordsDecodeWork(runtime, transcript.Entry.Artifact, observed.Records)
 	if equalFingerprint(fingerprintFromEntry(priorDatabase.Entry), fingerprintFromEntry(database.Entry)) {
 		applyAgyTranscriptRecords(&state, transcript.Entry.Artifact, observed.Records, &diagnostics)
 	} else {
@@ -329,6 +334,7 @@ func advanceAgyTargetValidation(runtime Runtime, prior TargetValidation, current
 	if err != nil {
 		return TargetValidation{}, diagnostics, err
 	}
+	observeRecordsDecodeWork(runtime, transcript.Entry.Artifact, observed.Records)
 	newEvents, found := NativeEventsFromRecords(AgentAgy, StableID("node", string(AgentAgy), state.NativeID), observed.Records)
 	diagnostics = append(diagnostics, found...)
 	return TargetValidation{State: state, Fact: fact, Observations: current, Results: map[string]IncrementalResult{transcriptKey: observed}, Events: append(append([]NativeEventFact(nil), prior.Events...), newEvents...)}, diagnostics, nil
@@ -361,6 +367,7 @@ func validateAgyTargetWork(runtime Runtime, eligible []ArtifactObservation) ([]T
 		if err != nil || len(observed.FrameState.IncompleteTail) != 0 {
 			continue
 		}
+		observeRecordsDecodeWork(runtime, transcript.Entry.Artifact, observed.Records)
 		state, found, err := ValidateAgyDelta(runtime, database.Entry, transcript.Entry, nil, observed.Records)
 		diagnostics = append(diagnostics, found...)
 		if err != nil || state.Disputed || !state.FirstRecordValidated {
@@ -371,6 +378,7 @@ func validateAgyTargetWork(runtime Runtime, eligible []ArtifactObservation) ([]T
 		if err != nil {
 			continue
 		}
+		observeRecordsDecodeWork(runtime, transcript.Entry.Artifact, observed.Records)
 		events, eventDiagnostics := NativeEventsFromRecords(AgentAgy, StableID("node", string(AgentAgy), fact.NativeID), observed.Records)
 		diagnostics = append(diagnostics, eventDiagnostics...)
 		validations = append(validations, TargetValidation{State: state, Fact: fact, Observations: joined, Results: map[string]IncrementalResult{targetArtifactKey(transcript.Entry.Artifact): observed}, Events: events})

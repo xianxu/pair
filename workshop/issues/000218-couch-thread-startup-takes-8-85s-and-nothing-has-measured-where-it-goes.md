@@ -199,11 +199,13 @@ model sessions, and cannot reconstruct the historical8.85s.
 
 Balanced schedule[6,20,40,20,40,6,40,6,20] began separately at
 /tmp/pair218-MATRIX-_15pmlgy (source/binary hashes and source snapshot in
-source.json). First three samples completed; fourth(limit20) FAILED during
+source.json). First three samples completed (limit/all21frame/leave seconds:6/22.740/9.565,
+20/17.669/3.969,40/14.222/4.058; actual peaks6/20/20). Fourth(limit20) FAILED during
 prepare: possible zellij PID23658, process identity unavailable after command
 read. Stopped immediately; no samples5–9, no hidden retries, no concurrency
-recommendation from incomplete samples. Exact cleanup and failure investigation
-pending at checkpoint. Raw errors/child output/native counters/host samples
+recommendation from incomplete samples. Exact cleanup verified: private root absent, zero scoped process rows, PID23658
+absent. Retained client identities/child prefixes do not identify23658; owned
+versus unrelated cannot be reconstructed. Failure cause remains unresolved. Raw errors/child output/native counters/host samples
 retained, but private launch diagnostic file was removed by fixture cleanup;
 copying diagnostics to the evidence directory must precede future cleanup.
 Parent record/fsync timing is measured in the single-attach baseline, but the
@@ -212,6 +214,8 @@ fleet fsync attribution remains an explicit gap. Main now contains #559 PR336;
 this matrix does not. Integrate it before final measurements and preserve
 pre-fix data rather than blending versions. Targeted TestFleet tests pass and
 git diff --check passes for smoke fixture corrections.
+Main #559 merged; its checker constructor gains index/owner caches while
+preserving #218 ownerScope identity. Targeted integration checks pending.
 
 ## Revisions
 

@@ -408,3 +408,11 @@ func cloneSQLite(result sessioninventory.SQLiteResult) sessioninventory.SQLiteRe
 	}
 	return cloned
 }
+
+// ActivityCatalogFingerprint models the same catalog-generation observation
+// as the OS runtime, without cloning or decoding the stateful catalog.
+func (f *FakeRuntime) ActivityCatalogFingerprint() (sessioninventory.ArtifactFingerprint, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	return sessioninventory.ArtifactFingerprint{StableFileID: "fake-catalog", MutationToken: sessioninventory.MutationToken(fmt.Sprint(f.catalog.Generation))}, nil
+}

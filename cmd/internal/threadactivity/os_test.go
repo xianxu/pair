@@ -14,3 +14,13 @@ func TestOSRuntimeSharesOneLedgerCacheAcrossThreads(t *testing.T) {
 		t.Fatal("two runtimes share a cache")
 	}
 }
+
+func TestOSRuntimeOwnsActivityCache(t *testing.T) {
+	r := NewOSRuntime("/home")
+	if r.activities == nil {
+		t.Fatal("long-lived activity runtime has no cache")
+	}
+	if NewOSRuntime("/home").activities == r.activities {
+		t.Fatal("activity evidence shared across caller lifetimes")
+	}
+}
