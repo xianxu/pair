@@ -3,6 +3,8 @@
 package procutil
 
 import (
+	"errors"
+	"fmt"
 	"strconv"
 	"unsafe"
 
@@ -21,18 +23,23 @@ func Identity(pid string) string {
 }
 
 func nativeIdentity(pid int) (string, error) {
-	return darwinIdentity(pid, unix.SysctlRaw)
+	return darwinIdentity(pid, unix.SysctlRaw, func(pid int) error { return unix.Kill(pid, 0) })
 }
 
 // Read the response length before decoding: SysctlKinfoProc collapses a
-// successful zero-byte (absent PID) response into EIO, losing absence evidence.
-func darwinIdentity(pid int, read func(string, ...int) ([]byte, error)) (string, error) {
+// successful zero-byte response into EIO. XNU also omits SIDL/shadow processes,
+// so only an independent signal-zero ESRCH confirms that an empty result is gone.
+func darwinIdentity(pid int, read func(string, ...int) ([]byte, error), exists func(int) error) (string, error) {
 	raw, err := read("kern.proc.pid", pid)
 	if err != nil {
 		return "", err
 	}
 	if len(raw) == 0 {
-		return "", unix.ESRCH
+		probeErr := exists(pid)
+		if errors.Is(probeErr, unix.ESRCH) {
+			return "", unix.ESRCH
+		}
+		return "", fmt.Errorf("empty process identity; existence check: %v: %w", probeErr, unix.EIO)
 	}
 	if len(raw) != unix.SizeofKinfoProc {
 		return "", unix.EIO

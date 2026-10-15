@@ -1767,3 +1767,8 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
   consumers reclassify its errno. Carry typed error provenance through every
   gone classifier; pin launcher absence and diagnostic writer-proof consumers,
   while keeping raw command/environment exit semantics separately tested.
+
+- #218 absence proof: demonstrating absent implies empty does not establish
+  empty implies absent. Check kernel filtering before turning missing metadata
+  into authority; on Darwin require an independent signal-zero ESRCH, retaining
+  alive, permission and other outcomes as uncertainty.

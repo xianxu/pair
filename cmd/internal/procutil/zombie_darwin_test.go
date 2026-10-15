@@ -18,25 +18,41 @@ func TestDarwinIdentityReadClassifiesOnlyPositiveAbsence(t *testing.T) {
 		name      string
 		raw       []byte
 		err, want error
+		probeErr  error
+		probes    int
 	}{
-		{"absent", nil, nil, unix.ESRCH},
-		{"denied", nil, unix.EPERM, unix.EPERM},
-		{"io", nil, unix.EIO, unix.EIO},
-		{"invalid", nil, unix.EINVAL, unix.EINVAL},
-		{"short", []byte{1}, nil, unix.EIO},
-		{"wrong pid", make([]byte, unix.SizeofKinfoProc), nil, unix.EIO},
+		{"empty alive", nil, nil, unix.EIO, nil, 1},
+		{"empty absent", nil, nil, unix.ESRCH, unix.ESRCH, 1},
+		{"empty denied", nil, nil, unix.EIO, unix.EPERM, 1},
+		{"empty io", nil, nil, unix.EIO, unix.EIO, 1},
+		{"empty enoent is not ESRCH", nil, nil, unix.EIO, unix.ENOENT, 1},
+		{"denied", nil, unix.EPERM, unix.EPERM, nil, 0},
+		{"io", nil, unix.EIO, unix.EIO, nil, 0},
+		{"invalid", nil, unix.EINVAL, unix.EINVAL, nil, 0},
+		{"short", []byte{1}, nil, unix.EIO, nil, 0},
+		{"wrong pid", make([]byte, unix.SizeofKinfoProc), nil, unix.EIO, nil, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			calls := 0
+			probes := 0
 			got, err := darwinIdentity(123, func(name string, args ...int) ([]byte, error) {
 				calls++
 				if name != "kern.proc.pid" || !reflect.DeepEqual(args, []int{123}) {
 					t.Fatalf("wrong lookup %s %v", name, args)
 				}
 				return tc.raw, tc.err
+			}, func(pid int) error {
+				probes++
+				if pid != 123 {
+					t.Fatalf("wrong existence PID %d", pid)
+				}
+				return tc.probeErr
 			})
-			if got != "" || !errors.Is(err, tc.want) || calls != 1 {
-				t.Fatalf("identity=%q err=%v calls=%d", got, err, calls)
+			if got != "" || !errors.Is(err, tc.want) || calls != 1 || probes != tc.probes {
+				t.Fatalf("identity=%q err=%v calls=%d probes=%d", got, err, calls, probes)
+			}
+			if tc.want != unix.ESRCH && IsProcessGone(&IdentityUnavailableError{Err: err}) {
+				t.Fatalf("uncertainty became absence: %v", err)
 			}
 		})
 	}

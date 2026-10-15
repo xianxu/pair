@@ -195,3 +195,13 @@ retain malformed success bytes while its verdict remains unresolved. No ownershi
 or retry policy changes. Upstream CLI accepts uncorrelated unblock messages, a
 possible mechanism for empty-success results; exact runtime bytes are still needed
 before classifying this failure.
+
+### 2026-10-14 — require independent absence proof for empty Darwin identity
+
+Supersedes the earlier zero-length classification: XNU proc iteration can omit
+SIDL/shadow rows, so absent-child evidence does not prove the converse. An empty
+successful lookup makes exactly one signal-zero probe; only ESRCH means gone.
+Alive, denied and other probe outcomes retain EIO uncertainty with diagnostic
+text. Normal identities and raw lookup errors take no probe. Deterministic tests
+cover these outcomes and native reaped-child/argv-to-identity exit tests remain.
+Missing metadata cannot authorize absence. Primary-source basis: [XNU proc iteration](https://github.com/apple-oss-distributions/xnu/blob/main/bsd/kern/kern_proc.c#L3853-L3865); upstream main is not pinned to the host kernel, so the implementation keeps conservative uncertainty.

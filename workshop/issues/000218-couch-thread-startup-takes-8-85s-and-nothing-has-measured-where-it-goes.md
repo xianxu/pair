@@ -383,7 +383,24 @@ procutil/launcher/diagnosticlog PASS4.258/2.846/3.832s. No effects or guard
 relaxation. Preparing the pushed candidate's required full local suite; M2 and
 issue remain open because no complete balanced9 or operator live check exists.
 
+Darwin absence-proof review found the earlier inference too strong: an absent
+child returns an empty successful lookup, but XNU iteration can also omit
+SIDL/shadow processes. The empty-result path now requires exactly one independent
+signal-zero probe returning ESRCH; all other outcomes remain uncertainty. Raw
+lookup errors and normal identities do not probe. Deterministic regression was
+observed RED before the correction. The queued suite for3872de336 never started
+tests and was canceled (exit130) to verify the corrected pushed head instead.
+
+Correction verification: race procutil/launcher/diagnosticlog selected identity,
+snapshot, gone, server and writer-proof tests PASS4.601/3.825/1.177s; diff check
+clean. Hub scope report attempted after actors became visible, but transport
+returned uncertain receipt e138b787-e4d2-4ca9-96d8-acb8583fb37d; status lookup
+refused because no connected recipient retains it. Delivery is unproven; no
+blind resend or approval inferred.
+
 ## Revisions
+
+- 2026-10-14 — correct the earlier empty-Darwin-lookup inference: only an independent kernel ESRCH establishes absence; retain uncertainty otherwise. No retry or effect-authority relaxation.
 
 - 2026-10-14 — add (operator via TL): concrete case. At the operator's 14:33 restart, Couch's background attaches spawned 21 zellij clients between 14:33:37 and 14:33:47 (~6 at a time): roughly 2–3 s per attach, against ~10–20 ms for `zellij list-sessions` and an expected ~100–300 ms floor (list, lease, one record write, spawn client, first frame). Detach ("leave couch") is unmeasured but also inspects each slot's session server. Trace one attach and one detach step by step; the likely waste is a whole process-table read (native argv for every process since #547) per slot. Probably one shared snapshot per startup or detach pass instead.
 

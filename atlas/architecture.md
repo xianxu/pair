@@ -1344,8 +1344,9 @@ and short kernel name). `Snapshot` enriches rows with native executable/argv and
 rechecks start identity, retaining unavailable evidence per live row. Native
 command reads reporting `EINVAL`, `ESRCH` and `ENOENT` mean gone and are omitted,
 including exit races during later environment reads. Identity reads retain their
-errors separately: only positive absence (`ESRCH`/`ENOENT`, successful zero-byte
-Darwin lookup) or terminal metadata means gone; identity `EINVAL`, `EIO`,
+errors separately: only positive absence (`ESRCH`/`ENOENT`) or terminal metadata means gone; a successful empty
+Darwin lookup also requires a separate signal-zero probe returning `ESRCH`.
+An empty lookup with any other probe result remains uncertainty; identity `EINVAL`, `EIO`,
 permission and unknown failures remain visible. `IdentityUnavailableError` keeps
 that provenance through downstream gone classifiers, so identity EINVAL cannot
 be reinterpreted as an argv disappearance. Public identity helpers retain
