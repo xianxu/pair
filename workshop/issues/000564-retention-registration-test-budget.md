@@ -6,7 +6,8 @@ github_issue:
 created: 2026-10-14
 updated: 2026-10-14
 estimate_hours:
-card_mirror: '69b42ba1dab32b03d5efee67716d8d2472ae9251' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'f74e3ce7a21858f8abf5fc896430fbaf3b010a88' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-14T22:48:29-07:00
 ---
 
 # Retention resume test expires its registration budget under load
