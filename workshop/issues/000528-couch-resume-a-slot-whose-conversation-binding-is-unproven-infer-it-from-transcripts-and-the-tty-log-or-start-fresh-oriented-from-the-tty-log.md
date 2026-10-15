@@ -1285,3 +1285,10 @@ No follow-up implementation starts on this branch.
   changes or repeated suite needed unless new code arrives. Pair:0 stage untouched.
   Hub message f840aa4e-9bf0-421d-8c10-ea962dd6f4e9 uncertain; receipt
   unavailable, no automatic resend. Earlier main/#562 report9865a45a submitted.
+
+- 2026-10-15 TL unblock verified d5f20635: ariadne#384 owns the retained
+  measurement-generation bug. Authorizes only --no-actual for this re-close:
+  actual was measured/adopted at the first whole-issue close; retained pins
+  faa20561 versus completion reviewed d0862f78 prevent remeasurement. No
+  judgment estimate, --force or other waiver. Run normal review and land on
+  SHIP; Pair:0 stage remains untouched per prior instruction.
