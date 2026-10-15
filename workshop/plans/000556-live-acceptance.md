@@ -120,3 +120,14 @@ canonical Codex UUIDs, including nonexistent ones, remain outside this exception
 missing/mismatched/replayed admission still refuses before native execution.
 Claude/Qoder latest resolution remains pinned and guarded. Do not describe the
 Codex indirect exception as protecting against two live writers.
+
+## Revisions
+
+### 2026-10-15 — approved Codex compatibility boundary
+
+The earlier statement that latest-provider direction is pending is superseded by
+the operator decision relayed in b927c539 and repeated in 5b66d87c: exact-ID
+admission for all six agents, Claude/Qoder latest resolution, and unchanged
+unreserved Codex indirect selectors with the actual-execution notice. #571 owns
+the faithful read-only config adapter. No app-server adapter or production native
+selection experiment is part of this acceptance.

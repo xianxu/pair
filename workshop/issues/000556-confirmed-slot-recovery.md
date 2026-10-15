@@ -725,6 +725,23 @@ no boundary is waived, and normal M2 milestone-close/review plus whole-issue
 close/PR/CI/merge remain to do after verification. The implementation, docs and
 headless/live script are concrete and checkpointed for the hub's next action.
 
+
+### 2026-10-15 — final approved M2 recorded suite PASS
+
+Shared scratch capacity recovered without any cleanup or global environment change
+by this slot. Normal bare `sdlc local-check run --name suite` at pushed head
+`6ab8ee41931fa63c095c7883448f2e39478ba657` **PASS**, exit 0 in **9m27s**.
+Retained log: `/Users/xianxu/workspace/pair/.git/sdlc/local-checks/6ab8ee41931fa63c095c7883448f2e39478ba657/suite.log`, sha256 prefix `28438e0b5015`.
+Core 306.946s, launcher 35.056s, wrapper 64.435s, inventory 8.590s; all shell/editor
+integration and full Go packages passed. The previous ownership/quiescence test
+failure did not recur. The pending environment-prefix request is obsolete.
+
+Repeated verified decision 5b66d87c matches the implemented compatibility boundary;
+#571 is published and the hub has dispatched it. No app-server adapter, stage or
+live slot effects were added. The acceptance script appends a Revision superseding
+its older pending-direction note. Normal M2 milestone-close/review follows with no
+waivers; whole-issue review and landing remain required.
+
 ## Revisions
 
 ### 2026-10-15T05:33-07:00 — overnight M2 dispatch
