@@ -714,13 +714,14 @@ limited to 200 ms and cannot invalidate the file write. A missing log means
 unavailable evidence, never zero activity.
 
 The shared diagnostic writer registers the stable path with Pair GC and
-persists a 64 MiB current-generation cap with three retained immutable
-generations. All writers obey that limit; whole rows refuse when proven
-rotation cannot proceed. Daily rotation and 365-day age expiry also apply;
-count eviction can remove younger diagnostics. Pre-existing oversized evidence
-is reported separately and preserved until certified eviction. The writer and
-buffered tail end with the supervisor; historical generations belong to the
-existing diagnostic collector. See [storage retention](storage-retention.md).
+persists a 64 MiB current-generation cap. Whole rows refuse when proven
+rotation cannot proceed. Daily and size rotation preserve every closed
+supervision generation behind `KeepDiagnosticsUntilBackup`, shared with
+wrap-events, adapt and fullscreen diagnostics. Count and age eviction remain
+disabled pending ops `history-backup` piece 6 (archive before evict); total
+history growth is intentionally unbounded. Pre-existing oversized evidence
+is preserved. The writer and buffered tail end with the supervisor; historical
+generations remain on disk. See [storage retention](storage-retention.md).
 
 `python3 scripts/supervision-labels/labels.py LOG...` derives ten-minute labels
 from selected local segments. See its [skill](../scripts/supervision-labels/SKILL.md)
