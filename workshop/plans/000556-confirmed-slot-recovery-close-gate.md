@@ -956,6 +956,200 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 8993afa2-605d-436e-ac2a-a58154e6ba97
+            repository: github.com/xianxu/pair
+            issue_id: "000556"
+            recipe: milestone-review
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/cafcc7ec02f27c00
+            reviewed_head: 451da7b2d3a7c062ead312ee8ef32d3a31e991e9
+            slot: pair:2
+            requested_at: "2026-10-15T18:33:24.122137Z"
+          phase: finished
+          pid: 75006
+          started_at: "2026-10-15T18:33:24.377152Z"
+          finished_at: "2026-10-15T18:36:38.189937Z"
+          session_id: 01a140d7-285a-7170-b3d7-88696ec61a73
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 451da7b2d3a7c062ead312ee8ef32d3a31e991e9
+        tracker_head: 50f8c8cb91f2f1246ceeaf541fea530c21e26165
+        branch_point: f3cd4848a3fc5924e81635da9ddd0f835a83ea72
+        since: "2026-10-14T15:10:56-07:00"
+        until: "2026-10-15T11:32:43-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-14T15:10:56-07:00"
+              end: "2026-10-14T15:14:20-07:00"
+              began: "2026-10-14T15:10:56-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot2/pair
+            - start: "2026-10-15T05:25:38-07:00"
+              end: "2026-10-15T11:32:43-07:00"
+              began: "2026-10-15T05:25:38-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot2/pair
+        sources:
+            - harness: codex
+              id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: a441b1d93cdf66c439c11108b4b6567290d6c00aefb8eef2657cc3a2fc4b154e
+              started: "2026-10-13T05:05:19.479Z"
+              spawned: false
+              bytes: 78549915
+              windows:
+                - start: "2026-10-14T15:10:56-07:00"
+                  end: "2026-10-14T15:14:20-07:00"
+                - start: "2026-10-15T05:25:38-07:00"
+                  end: "2026-10-15T11:32:43-07:00"
+            - harness: codex
+              id: 01a13f89-c505-75d1-8c3f-68cad2c5cb47
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              digest: bbeeacd1afcdaa1b33d42ed3d8c7410752357d17cf162f91cf77df320c971cd7
+              started: "2026-10-15T12:29:16.072Z"
+              spawned: true
+              bytes: 1014136
+              windows:
+                - start: "2026-10-15T12:29:16.072Z"
+                  end: "2026-10-15T11:32:43-07:00"
+            - harness: codex
+              id: 01a13f89-dd68-7b23-a41e-cab0cafa6d0a
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              digest: b4e8e1faa6bea920f7a1a1865d173c6b275d09debbbf7ae03d95539abd6df5f6
+              started: "2026-10-15T12:29:22.379Z"
+              spawned: true
+              bytes: 718460
+              windows:
+                - start: "2026-10-15T12:29:22.379Z"
+                  end: "2026-10-15T11:32:43-07:00"
+            - harness: codex
+              id: 01a13f93-ba32-71d2-8258-83e78285838e
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 468b366b1838d80815904d33e90c384f5dd2a8f3757e20e84324b8858acb021e
+              started: "2026-10-15T12:40:11.384Z"
+              spawned: false
+              bytes: 874129
+              windows:
+                - start: "2026-10-15T12:40:11.384Z"
+                  end: "2026-10-15T11:32:43-07:00"
+            - harness: codex
+              id: 01a13f96-c4d5-7e33-bbb6-1db19a76ea4c
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: bc5280144f946b797cec25cf25c7432dfe38cf27b44ffe397f429ec15305acfe
+              started: "2026-10-15T12:43:29.43Z"
+              spawned: false
+              bytes: 465487
+              windows:
+                - start: "2026-10-15T12:43:29.43Z"
+                  end: "2026-10-15T11:32:43-07:00"
+            - harness: codex
+              id: 01a13f98-b84b-7ae1-9c78-3b4a9be020a5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: bac5c8a02b3200b8163888f72b9147a79356e4f0baaafccc4496ea53020d1b8f
+              started: "2026-10-15T12:45:36.668Z"
+              spawned: false
+              bytes: 470273
+              windows:
+                - start: "2026-10-15T12:45:36.668Z"
+                  end: "2026-10-15T11:32:43-07:00"
+            - harness: codex
+              id: 01a13f99-5581-7320-b0b0-500317f35f68
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 2ac34b43830c16776c23e74d2b2a7083c63a85eccc3e1d3653c2e46f9b93d669
+              started: "2026-10-15T12:46:17.557Z"
+              spawned: false
+              bytes: 471335
+              windows:
+                - start: "2026-10-15T12:46:17.557Z"
+                  end: "2026-10-15T11:32:43-07:00"
+            - harness: codex
+              id: 01a13f9a-21b2-7b82-b6ba-25e1f19f39fc
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              digest: c9d06048b88f3e85afdc17de0f074e8440846b4dc8b71396b1bee5452c72505b
+              started: "2026-10-15T12:47:08.358Z"
+              spawned: true
+              bytes: 8986997
+              windows:
+                - start: "2026-10-15T12:47:08.358Z"
+                  end: "2026-10-15T11:32:43-07:00"
+            - harness: codex
+              id: 01a13f9b-57c0-7e72-a872-467a305cda3b
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              digest: 3cd8aa7267d66dbfb44ee3a9f6fd8d5d8e89e3ba648101eb1db90925c3f09cd3
+              started: "2026-10-15T12:48:27.78Z"
+              spawned: true
+              bytes: 7221777
+              windows:
+                - start: "2026-10-15T12:48:27.78Z"
+                  end: "2026-10-15T11:32:43-07:00"
+            - harness: codex
+              id: 01a13f9f-1efe-7480-b4d1-a97513916fd3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              digest: 2706f6460aea090beec662d10c1aed7e15d4b26135c69f8f308119c661edc5d9
+              started: "2026-10-15T12:52:35.36Z"
+              spawned: true
+              bytes: 8797848
+              windows:
+                - start: "2026-10-15T12:52:35.36Z"
+                  end: "2026-10-15T11:32:43-07:00"
+        excluded_brain_sessions: 1
+        excluded_brain_minutes: 0.03448333333333333
+        cuts:
+            - boundary: M1
+              dispatched: "2026-10-15T07:25:54-07:00"
+              finalized: "2026-10-15T07:31:14-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-15T08:54:25-07:00"
+              finalized: "2026-10-15T09:00:19-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-15T09:13:14-07:00"
+              finalized: "2026-10-15T09:18:44-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-15T09:33:44-07:00"
+              finalized: "2026-10-15T09:36:05-07:00"
+              finalizing: true
+            - boundary: M2
+              dispatched: "2026-10-15T10:46:56-07:00"
+              finalized: "2026-10-15T10:51:14-07:00"
+              finalizing: false
+      "n": 6
+      timestamp: "2026-10-15T11:36:39-07:00"
+      dispatched: "2026-10-15T11:33:20-07:00"
+      agent: codex
+      dispose:
+        - id: BR-6
+          disposition: addressed
+          note: native_resume_selector.go:163 reuses Fresh's forbidden-selector authority. Removing this guard makes selector tests and real-wrapper tests for --teleport and --from-pr fail in both argv and encoded-command forms.
+          round: 6
+        - id: BR-7
+          disposition: addressed
+          note: native_admission_os.go:258 fences exact dead-helper reserved grants under the Claim lock. Removing reclamation makes replacement-admission and controlled lock-order tests fail; consumed spawning entries remain retained.
+          round: 6
+      boundary: M2
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 451da7b2d3a7c062ead312ee8ef32d3a31e991e9
+      blocked: false
 ---
 
 # Gate ledger — pair#556 (boundary-review)
@@ -1020,7 +1214,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-7** [Important] `fenced-admissions-must-be-reclaimable` (kind: defect) Provide the promised fenced recovery path for interrupted reserved grants
   cmd/internal/launcher/native_admission_os.go:257 excludes reserved entries from collection, while native_admission.go:167–171 permits cancellation only by the original helper; no retirement integration supplies a fencing/removal transition. A helper dying after reservation permanently blocks that native ID even after its pending launch is fenced and its tree proved absent, contrary to the plan at lines 90 and 223–235, and repeated failures consume global capacity. Add exact-attempt fencing and reclamation under the store lock with a sequence test proving replacement admission succeeds and the old grant cannot execute. ARCH-ORDER, ARCH-FUNERAL.
 
+## Round 6 — 2026-10-15T11:36:39-07:00 (codex) — passed
+
+### Disposed
+
+- BR-6 — addressed — native_resume_selector.go:163 reuses Fresh's forbidden-selector authority. Removing this guard makes selector tests and real-wrapper tests for --teleport and --from-pr fail in both argv and encoded-command forms.
+- BR-7 — addressed — native_admission_os.go:258 fences exact dead-helper reserved grants under the Claim lock. Removing reclamation makes replacement-admission and controlled lock-order tests fail; consumed spawning entries remain retained.
+
 ## Open findings
 
-- **BR-6** [Critical] `existing-session-selectors-require-admission` (kind: defect) Classify every existing-session selector before permitting native spawn
-- **BR-7** [Important] `fenced-admissions-must-be-reclaimable` (kind: defect) Provide the promised fenced recovery path for interrupted reserved grants
+(none — every finding has been disposed)

@@ -102,3 +102,86 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-15T11:36:39-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 556 — Couch confirmed disk recovery and always-reachable fresh startup |
+| repo | pair |
+| issue file | workshop/issues/000556-confirmed-slot-recovery.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | c0ccda6133c4420b84e306d415f86ebb10ce9680..451da7b2d3a7c062ead312ee8ef32d3a31e991e9 |
+| command | sdlc milestone-close --issue 556 --milestone M2 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-15T11:36:39-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned M2 implementation addresses both prior findings, with regression tests that fail when each fix is removed. Admission, selector normalization, ownership retention, and documentation match the revised plan, including the approved Codex compatibility exception. No new blocking findings.
+
+```findings
+dispose:
+  - id: BR-6
+    disposition: addressed
+    note: |
+      native_resume_selector.go:163 reuses Fresh's forbidden-selector authority. Removing this guard makes selector tests and real-wrapper tests for --teleport and --from-pr fail in both argv and encoded-command forms.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      native_admission_os.go:258 fences exact dead-helper reserved grants under the Claim lock. Removing reclamation makes replacement-admission and controlled lock-order tests fail; consumed spawning entries remain retained.
+```
+
+1. **Strengths**
+
+   - `native_admission.go:123` centralizes authoritative state transitions and preserves uncertain spawning outcomes.
+   - `native_admission_os_test.go:389` deterministically exercises both Claim/reclamation lock orderings.
+   - `native_selector_boundary_test.go:29` verifies both actual wrapper entry forms.
+   - README and Atlas document guarded launches, reservation lifetime, unsupported selectors, and the Codex exception.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage**
+
+   All five affected packages passed: launcher, wrapcmd, sessioninventory, termcmd, and artifactpath. Focused launcher admission/selector tests passed under race detection; affected-package `go vet` and range `git diff --check` passed. Both fix-removal experiments produced meaningful regression failures. Disposable checkouts were removed; the reviewed checkout remains clean. I did not rerun the repository-wide suite or operator acceptance.
+
+6. **Architecture**
+
+   - **ARCH-DRY — pass:** selector policy reuses existing authorities.
+   - **ARCH-PURE — pass:** deterministic transitions are separated from store/process effects.
+   - **ARCH-PURPOSE — pass:** shared admission reaches launcher and wrapper execution boundaries.
+   - **ARCH-MOCK — pass:** stateful doubles exercise production seams.
+   - **ARCH-CONSTRAINTS — pass:** store size, entry count, scans, and operation deadlines are bounded.
+   - **ARCH-SECURE — pass:** strict decoding, process generations, command digests, and capability scrubbing guard boundaries.
+   - **ARCH-ORDER — pass:** explicit phases and controlled interleavings preserve uncertainty.
+   - **ARCH-FUNERAL — pass:** exact reclamation handles reserved/running entries; uncertain spawning retention has an explicit capacity bound.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"8993afa2-605d-436e-ac2a-a58154e6ba97","repository":"github.com/xianxu/pair","issue_id":"000556","recipe":"milestone-review","round":2,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/cafcc7ec02f27c00","reviewed_head":"451da7b2d3a7c062ead312ee8ef32d3a31e991e9","slot":"pair:2","requested_at":"2026-10-15T18:33:24.122137Z"},"phase":"finished","pid":75006,"started_at":"2026-10-15T18:33:24.377152Z","finished_at":"2026-10-15T18:36:38.189937Z","session_id":"01a140d7-285a-7170-b3d7-88696ec61a73","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.399469916s
+head: "451da7b2d3a7c062ead312ee8ef32d3a31e991e9"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

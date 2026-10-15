@@ -70,7 +70,7 @@ retain default plus up to four alternatives with evidence via menu and CLI.
 - [x] Inspect current owners and revise #528's M2 design before implementation;
   keep a separate review and operator acceptance boundary.
 - [x] M1 — Shared prepared recovery, confirmed Resume/Fresh, standalone hub CLI confirmation, schema-4 intent/read-only v3 migration; headless acceptance and morning scratch script; milestone-close.
-- [ ] M2 — Shared native admission reservations and two-slot barrier tests; milestone-close.
+- [x] M2 — Shared native admission reservations and two-slot barrier tests; milestone-close.
 - [ ] Record the full suite, close on SHIP and land; the hub owns the operator's restart and live acceptance.
 
 ## Estimate
@@ -119,6 +119,7 @@ Split from #528 at operator/TL direction84fbcea7 so accepted M1 can land. Source
 #528 durable plan's revised M2 and Starting exception; no new code authorized.
 
 ### 2026-10-15 — claim and measured design audit
+- 2026-10-15: closed M2 — BR-6 shared Fresh context authority prevents unsupported existing-session selectors before spawn in launcher and both wrapper forms; RED/GREEN and race controls pass. BR-7 exact reserved-grant fence under Claim lock after strict helper death; deterministic both-lock-order tests, stale grant rejection, live/unknown/drift/cancellation controls pass. Corrected normal recorded full suite PASS at4f8c73ce1e7ae28d69d6b2e73b4547467ada87bd exit0 in13m18s after1282s queue, log sha25681c18227a083. Build PASS; exact IDs all six guarded, Claude/Qoder latest pinned, approved Codex indirect unchanged unreserved notice, #571 dispatched. Atlas/lessons/acceptance updated; no waivers or live/stage effects.; review verdict: SHIP
 - 2026-10-15: closed M1 — BR-5 fixed at shared owner: validated candidate key resolves Fresh before profile/park/continuation/start guards. Twelve-case real-core explicit/candidate/operation matrix RED-to-GREEN PASS2.870s; genuine native choices still refuse without effects; broad recovery PASS17.992s, race PASS4.407s, core vet PASS, actual menu queue and printed CLI command tests PASS. Required corrected-head recorded suite PASS on 7f289c0089052d02c2b82c453dc7ccc5a5a27d02, exit0 in8m42s, retained suite.log sha2562c788d3dc827; make build PASS. R3 disposed BR-1/2/3/4. Normal re-close, no waivers. Morning script workshop/plans/000556-live-acceptance.md. No M2/live/stage effects.; review verdict: SHIP
 
 Claimed by pair:2 on branch `000556-confirmed-slot-recovery`, based on main
