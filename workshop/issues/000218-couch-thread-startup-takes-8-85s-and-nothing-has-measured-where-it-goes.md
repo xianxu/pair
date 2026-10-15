@@ -503,6 +503,18 @@ file changes; actual close will adopt the current measurement. Original Plan
 rows superseded by received TL scope and follow-ups stay unchecked; use precise
 no-plan-check acknowledgment rather than falsely ticking deferred work.
 
+Whole-issue review SHIP, medium confidence, zero findings; codecomplete bound
+to evidence d0374e70fb689f559bbed3271d2981737b83b748. Reviewer broad couchcore
+run observed TestRetentionExplicitResumeTouchesButBackgroundReattachDoesNot/false
+expire its inherited200ms registration budget before a completed ownership poll.
+Unchanged test passed3 isolated repetitions; this does not erase the failed
+broad run. Required recorded suite on b289539f passed, and M2's independent
+full couchcore run passed. Inspected source: test and warmDetachedThread timeout
+unchanged from main, existing poll loop unchanged apart from context-value
+cache bypass, which preserves deadline/cancellation. Filed/released independent
+#564 to diagnose and stabilize the fixture without changing production behavior
+or claiming a proven root cause. PR description preserves this limitation.
+
 ## Revisions
 
 - 2026-10-14 — received TL final scope disposition (canonical bd68b37f body, transport rendering confirmation indeterminate): #218 acceptance is native candidate-only enrichment plus shared initial owner pass, preserved fresh effect fences, corrected suite and close review, and honest partial performance/contended-phase records. Full balanced9, passive IPC diagnostic and measured concurrency selection move to unassigned #563 after #562; cold stays #560. Operator live check is TL-owned at next restart with #528, with no :0 staging here. Supersedes original cold/full-matrix/tuning Plan rows and Done-when requirements; those remain unchecked as historical work, not falsely completed. M2 close covers built shared pass and retained incomplete measurement; the default is unchanged.

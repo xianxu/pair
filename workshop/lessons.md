@@ -1777,3 +1777,8 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
   commits hold their mutex. Cancel the lifetime first; release scoped state at
   joined teardown's existing barrier and invoke cleanup outside the mutex. Test
   Stop with an active pass while holding the state lock, not only idle Stop.
+
+- #218 close review: a semantic retention test must not inherit an incidental
+  tiny deadline from a failure-path fixture. Preserve deadline-specific tests
+  separately, and capture the failing phase before changing a test budget.
+  Isolated rerun passes do not erase a failed broad run or prove its cause.
