@@ -904,6 +904,17 @@ run the normal declared suite, then close --fixed-then-ship --full-suite with
 that evidence, update PR and merge on SHIP. Branch stays preserved; no stage,
 working slot, machine environment, test lock or unrelated process modified.
 
+
+### 2026-10-15 — #577 landed; resume final integration verification
+
+Verified pair:1 receipt3beda7a9: #577 landed via PR350, merge
+83e48dc57e6dd34549e608af0bc73b9b680fa295. Merged origin/main cleanly at
+66e98ac862b42eb93a894478d3b548e4644bc47c, retaining the prior manifest resolution.
+Exact local repro make PAIR_GO_TRIMPATH=-trimpath test-make-env now PASS198 knobs
+and additive flags/command-line overrides/nested Make. Integrated make build PASS.
+No production flags or declared suite argv changed. Required full recorded suite
+and narrow post-close integration review follow; no gate is waived.
+
 ## Revisions
 
 ### 2026-10-15T05:33-07:00 — overnight M2 dispatch
