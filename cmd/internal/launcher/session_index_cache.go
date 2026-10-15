@@ -207,9 +207,6 @@ func (c *SessionNameIndexCache) readOne(ctx context.Context, path string) (Sessi
 			entry.fingerprint = stamp
 			entry.index = index
 		}
-		if loadErr != nil {
-			entry.state.ready = false
-		}
 		close(entry.loading)
 		entry.loading = nil
 		c.mu.Unlock()

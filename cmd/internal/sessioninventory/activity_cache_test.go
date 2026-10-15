@@ -113,3 +113,25 @@ func TestActivityCacheCanceledWaiterDoesNotCancelLoader(t *testing.T) {
 		t.Fatalf("loader cache lost ok=%v err=%v", ok, err)
 	}
 }
+
+func TestActivityCacheMissingLedgerCreationInvalidatesAbsence(t *testing.T) {
+	at := time.Now()
+	rt, _, ledger := proofBackedCodexFixture(t, "019d1111-1111-7111-8111-111111111111", &at)
+	entry, err := rt.StatFile(ledger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := rt.ReadFile(ledger, -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt.DeleteFile(ledger)
+	cache := sessioninventory.NewActivityCache()
+	if _, ok, err := cache.Query(context.Background(), rt, "scope", "work", sessioninventory.AgentCodex); err != nil || ok {
+		t.Fatalf("absent=%v,%v", ok, err)
+	}
+	rt.PutFile(entry, raw)
+	if _, ok, err := cache.Query(context.Background(), rt, "scope", "work", sessioninventory.AgentCodex); err != nil || !ok {
+		t.Fatalf("new ledger failed invalidation=%v,%v", ok, err)
+	}
+}
