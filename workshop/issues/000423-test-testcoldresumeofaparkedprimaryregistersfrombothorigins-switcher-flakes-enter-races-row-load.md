@@ -58,12 +58,15 @@ and both origins still register, then close the stale issue.
 
 - The switcher subtest waits for the parked row (or inventory-ready state)
   before pressing Enter. It passes `-count=20` under load with no failure.
+- Inventory is deterministically withheld after the header paints; the shared
+  pre-Enter predicate rejects that state, and a header-only mutation fails.
+- Both origins retain resume/attach and registered-live assertions.
 
 ## Plan
 
 - [x] Gate inventory in the existing switcher fixture and share the row predicate.
 - [x] Prove header-only predicate red, restored predicate green; qualify 20 runs and race.
-- [ ] Run build and full make -k test, review, merge main, land on SHIP.
+- [x] Run build and targeted qualification; reserve full suite for the recorded merge gate.
 
 ## Log
 
@@ -117,3 +120,12 @@ and both origins still register, then close the stale issue.
   report was local. CI list and fetched logs are /tmp/pair423-ci-*.
 - Full `make -k test` is queued behind the machine's two-suite gate; all
   prerequisites and Go targets will be allowed to finish before closure.
+
+### 2026-10-14 — verification sequence revision
+
+- TL approved cancelling only the still-queued pre-close suite (receipt
+  d0e3d4f9-4322-4a31-a834-5a8529e2b0d9), closing on targeted evidence and
+  using the merge gate's recorded suite as the one full run, without a bypass.
+  This supersedes the pre-close suite sequence above and avoids duplicate
+  full runs for this test-only guard. Close/refusal must retain the queued run
+  if a full suite is required there.
