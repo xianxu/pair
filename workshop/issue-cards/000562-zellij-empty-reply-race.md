@@ -1,6 +1,6 @@
 ---
 id: 000562
-status: codecomplete
+status: done
 created: 2026-10-14
 updated: 2026-10-15
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 98f4336f2382c360894192080638cb678789d9cc
         evidence_commit: 4bc350ea28cdd18ca77ab7d890ae7b4e5cf35559
+        landed_commit: eab9e5e5645e530cc089cd749e1bf47ddb2ecc50
 ---
 
 # Zellij CLI queries can finish before their reply
