@@ -1802,3 +1802,9 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
   refusal branches; warm-only absence must exit before lifecycle bookkeeping.
   After reader refactors, run the production-symbol guard before review and
   remove obsolete wrappers rather than exempting them.
+
+- #528 BR-14 downstream: Follow the launched helper through the handoff, not
+  just its parent API. Optional agent presentation must not resolve native
+  conversations; a selected attach must not run migration or orphan cleanup.
+  Include write-only opens in FIFO probes: opening a draft for writing can
+  block just as a ReadFile can.

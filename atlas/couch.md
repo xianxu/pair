@@ -77,6 +77,14 @@ store journals remain untouched until an explicit lifecycle action; an authority
 read cannot enroll retention or recover a transaction merely because a wrapper
 reconnects. Explicit lifecycle getters retain their recovery behavior.
 
+Warm attachment preflight, inventory and optional dead-client repair use the
+same contextual preview readers. An absent warm-only session refuses before
+lifecycle bookkeeping. The launched Pair helper skips proof migration and
+orphan-editor/index housekeeping for a selected terminal; title-agent inference
+reads bounded local metadata without opening native transcripts. Draft opens,
+poller-PID cleanup and quit/restart marker admission reject blocking special
+files. These checks do not change explicit cold launch or recovery authority.
+
 A broken message channel does not authorize restarting a functioning agent.
 Older wrappers with an unlinked endpoint remain usable by terminal, with
 “messaging unavailable until next relaunch.” New-wrapper endpoint repair is a

@@ -1029,3 +1029,18 @@ No follow-up implementation starts on this branch.
   selected-attach migration/hygiene, bound optional inference without native
   lookup, poller cleanup, draft open and post-handoff marker admission. Healthy
   presentation and explicit lifecycle semantics stay intact; no gate bypass.
+
+- BR-14 helper RED: production RunLaunch/runOnce real metadata consumers blocked
+  on FIFO ledger/agent/index/poller/quit; selected attach incorrectly ran migration
+  and orphan sweep; oversized quit object accepted (group4.531s). Separate
+  no-reader draft FIFO RED0.605s. Correction skips only selected-attach migration/
+  orphan-index housekeeping, bounds optional local inference without native
+  dereference (ledger4MiB, agent4KiB), preserves regular draft bytes with a
+  nonblocking/no-follow open, bounds poller PID4KiB, quit64KiB and existing restart
+  marker cap. Empty legacy quit remains valid; explicit cleanup semantics remain.
+- Production helper graph/caps/symlink/healthy-title/final-listing checks PASS
+  0.875s; complete launcher package on final source PASS39.361s; combined artifact
+  and production-symbol guards PASS4.578s. Four existing runtime files changed
+  plus one regression file. Plan matrix and atlas identify each reachable branch,
+  its contract and consumer regression. Diff check clean. Normal review and
+  final recorded full suite still required; accepted stage remains untouched.

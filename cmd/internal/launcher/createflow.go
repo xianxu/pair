@@ -70,7 +70,12 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 		opts.ContinueDoc, opts.ContinueText, opts.ContinueSlug = "", "", ""
 	}
 	env := normalizeEnv(opts.Env)
-	rt.StartProofMigration()
+	selectedAttach := opts.Args.CouchSession != nil && opts.Args.CouchSession.Disposition == "attach"
+	// Continue borrows an already selected terminal. Upgrade migration and
+	// orphan-editor cleanup are unrelated lifecycle work, not attach admission.
+	if !selectedAttach {
+		rt.StartProofMigration()
+	}
 
 	// Prepend the resolved asset root's bin/ to PATH so zellij (and its panes:
 	// pair-wrap, copy_command "copy-on-select", Run "pair-help"/openers, and the
@@ -110,13 +115,15 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 	// clean restart below leaves nothing new to sweep. Liveness, not a full
 	// snapshot: liveTagsForSweep reads names only, and a full one would ask every
 	// live session for its clients (pair#228).
-	if sessions, err := rt.SessionLiveness(); err == nil {
-		index, err := rt.ReadSessionNameIndex()
-		if err != nil {
-			fmt.Fprintf(stderr, "pair: read session-name index: %v\n", err)
-			return 1, nil
+	if !selectedAttach {
+		if sessions, err := rt.SessionLiveness(); err == nil {
+			index, err := rt.ReadSessionNameIndex()
+			if err != nil {
+				fmt.Fprintf(stderr, "pair: read session-name index: %v\n", err)
+				return 1, nil
+			}
+			rt.SweepOrphanNvim(liveTagsForSweep(sessions, index, scopeKeyFromDataDir(opts.GlobalDataDir, env.DataDir)))
 		}
-		rt.SweepOrphanNvim(liveTagsForSweep(sessions, index, scopeKeyFromDataDir(opts.GlobalDataDir, env.DataDir)))
 	}
 
 	pendingSession, pendingMarker := opts.RestartSession, opts.RestartAttempt

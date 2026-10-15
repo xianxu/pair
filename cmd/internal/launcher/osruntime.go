@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/storagegc"
 	"github.com/xianxu/pair/cmd/internal/zellijsession"
+	"golang.org/x/sys/unix"
 	"io"
 	"os"
 	"os/exec"
@@ -55,6 +56,28 @@ func NewOSRuntime(dataDir, pairHome string) *OSRuntime {
 
 func NewScopedOSRuntime(globalDataDir, dataDir, pairHome string) *OSRuntime {
 	return &OSRuntime{DataDir: dataDir, GlobalDataDir: globalDataDir, PairHome: pairHome}
+}
+
+// Touch ensures an ordinary draft/marker exists without opening a FIFO or
+// following a substituted symlink. It preserves existing regular-file bytes.
+func (r OSRuntime) Touch(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+	fd, err := unix.Open(path, unix.O_WRONLY|unix.O_CREAT|unix.O_NONBLOCK|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0644)
+	if err != nil {
+		return err
+	}
+	file := os.NewFile(uintptr(fd), path)
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() {
+		return &osfs.InvalidMetadataError{Path: path, Kind: osfs.MetadataNotRegular}
+	}
+	return file.Close()
 }
 
 func (r OSRuntime) StartProofMigration() {
@@ -626,13 +649,17 @@ func (r OSRuntime) InferAgent(tag string) string {
 	if pathErr != nil {
 		return ""
 	}
-	if entries, err := r.ReadLedger(tag); err == nil {
+	// Agent inference is presentation metadata, not native resume authority.
+	// Read only local bounded records; resolving typed native targets here
+	// would make an optional context meter delay a selected terminal attach.
+	if raw, err := osfs.ReadRegularMetadata(context.Background(), paths.Ledger(), 4*1024*1024); err == nil {
+		entries := parseLedger(string(raw), func(sessionledger.Current) sessioninventory.ResumeTarget { return sessioninventory.ResumeTarget{} })
 		if latest, ok := LatestLedgerEntry(entries); ok && latest.Agent != "" {
 			return latest.Agent
 		}
 	}
-	if raw, err := r.ReadFile(paths.Agent()); err == nil {
-		if a := strings.TrimSpace(raw); a != "" {
+	if raw, err := osfs.ReadRegularMetadata(context.Background(), paths.Agent(), 4096); err == nil {
+		if a := strings.TrimSpace(string(raw)); a != "" {
 			return a
 		}
 	}
@@ -1153,8 +1180,8 @@ func (r OSRuntime) KillTitlePoller(tag string) {
 		return
 	}
 	pf := paths.TitlePID()
-	if raw, err := r.ReadFile(pf); err == nil {
-		if pid := strings.TrimSpace(raw); pid != "" {
+	if raw, err := osfs.ReadRegularMetadata(context.Background(), pf, 4096); err == nil {
+		if pid := strings.TrimSpace(string(raw)); pid != "" {
 			_ = exec.Command("kill", pid).Run()
 		}
 		r.Remove(pf)

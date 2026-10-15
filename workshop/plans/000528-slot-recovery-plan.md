@@ -1245,3 +1245,19 @@ its return; healthy title metadata stays correct and final listing remains the
 effect gate. Detached title polling is asynchronous and cannot block the attach
 handoff; explicit cold native launch/read authority remains unchanged. Run the
 launcher package and artifact guards, then normal review and final recorded suite.
+
+The downstream read graph is verified against the production helper:
+
+| Branch | Enforced contract | Regression |
+| --- | --- | --- |
+| LaunchNative before RunLaunch | Validated intent and namespace/env only; existing git/cwd discovery unchanged, no launch/history/config/native payload | Existing CouchSession process fixtures |
+| Selected RunLaunch migration and orphan/index sweep | Not invoked for a borrowed selected terminal | TestSelectedAttachProductionMetadataDoesNotBlockHandoff index/healthy counters |
+| InferAgent ledger and sidecar | 4MiB/4KiB regular metadata; pure local parsing, no native dereference | Same consumer test ledger/agent; TestOSRuntimeInferAgentBoundsLocalPresentationMetadata |
+| Draft ensure and failed title-poller cleanup | Nonblocking/no-follow regular draft open; 4KiB PID metadata | Consumer draft/failed-poller; TestOSRuntimeTouchPreservesRegularDraftAndRefusesSymlink |
+| Final terminal handoff | Fresh positive listing still required | Consumer changed-at-effect |
+| Handoff return quit/restart marker reads | Regular metadata; 64KiB quit object (legacy empty allowed), existing restart cap | Consumer quit/restart; TestOSRuntimeLifecycleMetadataRejectsOversizeAndKeepsLegacyQuit |
+| Detached title polling | Spawn is asynchronous, no synchronous metadata read in helper | Healthy consumer retains agent environment and poller argv |
+
+Post-handoff explicit quit/restart behavior is preserved; no new automatic
+recovery authority is introduced. The shared Store's pre-existing registry/
+description reads and git discovery remain outside this per-slot correction.
