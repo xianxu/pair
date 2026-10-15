@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -19,7 +20,7 @@ type nativeAdmissionStore interface {
 // startNativePTY is the single native start boundary for both wrapper command
 // forms. A successful return permits readiness; failures never release durable
 // ownership, even if the caller cleans up its newly spawned direct child.
-func startNativePTY(ctx context.Context, store nativeAdmissionStore, grant, agent string, cmd *exec.Cmd, start func(*exec.Cmd) (*os.File, error)) (*os.File, error) {
+func startNativePTY(ctx context.Context, store nativeAdmissionStore, grant, agent string, cmd *exec.Cmd, stderr io.Writer, start func(*exec.Cmd) (*os.File, error)) (*os.File, error) {
 	selector, err := launcher.ParseNativeResumeSelector(agent, cmd.Args[1:])
 	if err != nil {
 		return nil, fmt.Errorf("native resume selection: %w", err)
@@ -32,6 +33,10 @@ func startNativePTY(ctx context.Context, store nativeAdmissionStore, grant, agen
 		return start(cmd)
 	}
 	if grant == "" {
+		if launcher.CodexIndirectResumeCompatibility(selector) {
+			fmt.Fprintln(stderr, launcher.CodexIndirectResumeCompatibilityNotice)
+			return start(cmd)
+		}
 		return nil, errors.New("native resume requires admission; use ordinary Pair with an exact conversation ID, or start Fresh")
 	}
 	if selector.Kind != launcher.NativeResumeExplicit {
