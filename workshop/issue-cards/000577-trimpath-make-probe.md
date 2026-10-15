@@ -1,6 +1,6 @@
 ---
 id: 000577
-status: codecomplete
+status: done
 created: 2026-10-15
 updated: 2026-10-15
 estimate_hours:
@@ -22,6 +22,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 41e851b3f87dbb98701ff8849f2fb886c8df7c02
         evidence_commit: c5ca40fe73399b6ac15935b3832b769335be2899
+        landed_commit: 83e48dc57e6dd34549e608af0bc73b9b680fa295
 ---
 
 # Trimpath command-line assignment breaks the required suite environment probe
