@@ -429,6 +429,14 @@ Strengthen scoped-pass Stop test to hold c.mu across Stop, assert immediate
 context cancellation, then await teardown for exactly-once release/cleared fields.
 Read-only peer review confirmed the cancellation graph and correction.
 
+Shutdown correction GREEN: selected attach-held-mutex, scoped Stop, shared-pass,
+canceled-queue and in-flight-stop tests PASS under race (2.185s); make -k build
+PASS. Both existing attach regression and strengthened scoped-pass test were
+observed RED before the correction. Stop synchronously cancels context
+descendants without c.mu; explicit cleanup runs outside the teardown mutex
+before workers.Wait. No failed-suite result is being treated as a pass; rerun
+required on the corrected pushed head.
+
 ## Revisions
 
 - 2026-10-14 — repair M2 shutdown lock regression found by full suite: preserve mutex-free Stop; release pass fields/callback in joined teardown. No lifecycle authority or retry changes.

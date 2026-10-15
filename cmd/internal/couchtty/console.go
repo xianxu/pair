@@ -661,17 +661,12 @@ func (c *Console) switchTo(id string, force bool, how arrival) (stayed bool) {
 }
 
 // Stop tears the console down. Safe to call more than once, and from any
-// goroutine.
+// goroutine, including while an attach holds c.mu. Lifetime cancellation also
+// cancels pass workers; teardown releases their scoped state after the barrier.
 func (c *Console) Stop() {
 	c.once.Do(func() {
 		c.cancelLifetime()
 		close(c.stop)
-		c.mu.Lock()
-		cancelPass := c.releaseReattachPassLocked()
-		c.mu.Unlock()
-		if cancelPass != nil {
-			cancelPass()
-		}
 	})
 }
 
@@ -1043,7 +1038,11 @@ func (c *Console) teardown(restore func() error) error {
 	}
 	c.mu.Lock()
 	c.started = false
+	cancelPass := c.releaseReattachPassLocked()
 	c.mu.Unlock()
+	if cancelPass != nil {
+		cancelPass()
+	}
 	c.workers.Wait()
 	releaseErr := c.release()
 	c.mu.Lock()

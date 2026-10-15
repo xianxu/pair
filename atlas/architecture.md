@@ -1366,7 +1366,8 @@ claimant invalidates authority even if the original server survives.
 `SessionOwnerPass` shares one lazy initial ServerStates capture per background
 reattach or LeaveDetach pass; the checker scope and selected data root bind its
 context. Capture failures are memoized; one caller's cancellation leaves siblings
-intact. After-pane and final authority reads remain fresh. Registration explicitly
+intact. Console Stop cancels the lifetime without the state mutex; joined
+teardown releases scoped pass state and invokes cleanup outside that mutex. After-pane and final authority reads remain fresh. Registration explicitly
 bypasses the initial map to see newly born generations. Console drops/cancels the
 scope on pass completion or Stop; standalone operations keep fresh discovery.
 The full

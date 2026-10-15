@@ -169,14 +169,22 @@ func TestConsoleStopReleasesPassAndCancelsWorkers(t *testing.T) {
 		c.SetActionableProvider(detachedFleet(root, 21))
 	})
 	contexts := []context.Context{awaitConsolePass(t, started), awaitConsolePass(t, started), awaitConsolePass(t, started)}
+	// Stop must cancel workers even when an attach holds the state mutex.
+	f.con.mu.Lock()
 	f.con.Stop()
+	workersCanceled := true
 	for _, ctx := range contexts {
-		if ctx.Err() == nil {
-			t.Fatal("Stop retained worker context")
-		}
+		workersCanceled = workersCanceled && ctx.Err() != nil
 	}
-	if passContext.Err() == nil || canceled.Load() != 1 {
-		t.Fatalf("Stop retained pass: err=%v cancels=%d", passContext.Err(), canceled.Load())
+	passCanceled := passContext.Err() != nil
+	f.con.mu.Unlock()
+	if !workersCanceled || !passCanceled {
+		t.Fatal("Stop retained pass/worker contexts while state mutex was held")
+	}
+	// Resource release belongs to joined teardown, outside the state mutex.
+	awaitConsolePass(t, f.done)
+	if canceled.Load() != 1 {
+		t.Fatalf("teardown released pass %d times, want 1", canceled.Load())
 	}
 	f.con.mu.Lock()
 	retained := f.con.reattachContext != nil || f.con.reattachCancel != nil
