@@ -16,6 +16,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "3350e503", done: "24782bbe"}
 ---
 
 # couch skill and docs still say only Claude and Codex are receiver profiles; add Qoder (#550)
