@@ -22,7 +22,7 @@
 
 - One registration owns one current path, one stable ID, a fallback owner and historical path intervals. Registration time is the initial owed horizon for a new plain document. A repeated registration never moves this horizon or changes the baseline/folds. A conflicting fallback owner refuses; explicit couch-owner may override it. Legacy owner is interpreted only on session-sync documents.
 - Registry transitions are the only authority for register/forget/rename. Missing + register creates; same binding + register is idempotent; different fallback owner refuses; registered + rename changes its current path, retaining the old path's submit interval; occupied destination refuses; replay of the same rename returns the existing identity. Forget is idempotent and never alters the document or its operator lock. A forgotten plain file refuses ordinary sync operations. An explicitly typed session-sync file still works after forgetting.
-- Historical intervals preserve submits recorded before rename without attributing later submissions from a newly registered document at the old pathname. Normal owner deliveries and ledger gaps retain their existing semantics. Prune expired historical intervals only beyond the existing 14-day ledger retention horizon; never silently evict a live registration.
+- Historical intervals preserve submits recorded before rename without attributing later submissions from a newly registered document at the old pathname. Normal owner deliveries and ledger gaps retain their existing semantics. Historical intervals persist until explicit forget; never infer that an old row has expired from wall-clock age. The fixed history cap refuses additional renames rather than evicting live evidence.
 - Lock age uses Parley's RFC3339 time line and an injected clock. Unknown/malformed/future time remains a blocking operator lock with unknown age. Exactly 30 minutes retains the ordinary refusal; greater than 30 minutes adds the age and an instruction to ping the operator. No lock is expired or removed by Couch.
 
 ### Integration points
@@ -63,7 +63,7 @@ couch --session-sync rename OLD NEW [--json]
 - ARCH-CONSTRAINTS: interactive local commands, normally tens of documents. Bound registry input/output to 1 MiB, 256 live registrations and 256 unexpired aliases per document; bound new registered document/shadow bytes to 4 MiB, with visible refusals before mutation. Existing legacy envelope remains unchanged. Bound registry lock acquisition to 2 seconds and diff subprocess execution to 2 seconds; timeouts refuse without stealing locks. No fan-out/background processing. These are initial engineering limits, not measured performance claims; tests cover each refusal.
 - ARCH-SECURE: registry JSON, paths, lock bytes and markdown are untrusted persisted inputs. Strictly validate version, IDs, absolute normalized paths, unique ownership, timestamps and size/type before use; unknown version/corruption refuses rather than resetting authority. No credentials. Registry paths must be derived from validated IDs, never persisted arbitrary state paths.
 - ARCH-ORDER: state changes go through transition; serialization spans lookup through effects. Test register/register conflict, register/write, write/forget, write/rename, rename retry, repeated filesystem publication failure and process death before/after registry publication. The critical ordering is forget racing a waiting write: the write must reload and refuse. Existing operator/edit race warning remains, rather than claiming flock synchronizes Parley.
-- ARCH-FUNERAL: registry and central state persist until explicit forget (operator-approved forever-until-forgotten policy). At most 256 registrations, each shadow at most 4 MiB plus small state; reaching a cap refuses new growth. Forgotten/unreferenced identity directories are removed under registry serialization; the single coordination flock inode is never deleted. Historical aliases expire with the existing ledger retention horizon; per-registration alias cap refuses further renames until pruning/forget. No automatic removal of missing documents.
+- ARCH-FUNERAL: registry and central state persist until explicit forget (operator-approved forever-until-forgotten policy). At most 256 registrations, each shadow at most 4 MiB plus small state; reaching a cap refuses new growth. Forgotten/unreferenced identity directories are removed under registry serialization; the single coordination flock inode is never deleted. Historical aliases persist until forget, bounded by the per-registration alias cap; reaching it refuses further renames and explains recovery without removing evidence. No automatic removal of missing documents.
 
 ## Implementation tasks (one atomic close boundary)
 
@@ -71,24 +71,24 @@ couch --session-sync rename OLD NEW [--json]
 
 Files: new registry_model.go, registry.go and colocated tests under cmd/internal/sessionsync/; cmd/internal/artifactpath/manifest.go.
 
-- [ ] Write pure transition tests for idempotency, conflicts, rename history/time intervals, forget, validation and growth limits. Run focused tests and observe RED before implementation.
-- [ ] Implement the model, typed parsing and portable store with durable atomic writes and persistent bounded flock. Add filesystem tests for failed/uncertain publication, restart reload, corruption and abandoned-preparation cleanup.
+- [ ] Write unit tests for RegistryState.transition and decodeRegistry using the adversarial strategies below; run focused tests and observe RED before implementation.
+- [ ] Implement RegistryState.transition, decodeRegistry and RegistryStore.withLock/save with durable publication and bounded flock; verify through the fault-injectable temporary-filesystem strategy below.
 - [ ] Add new production source files to artifactpath's exhaustive inventory. Run go test ./cmd/internal/sessionsync ./cmd/internal/artifactpath; commit registry core.
 
 ### 2. Shared sync operations
 
 Files: sessionsync/sync.go, file.go, owed.go and existing/new tests.
 
-- [ ] Write failures covering frontmatter-free read/diff/write/status; first registration horizon; register retry retaining unread edits/folds; explicit-owner precedence; ordinary owner ignored; legacy migration; whole-file ownership guard; symlink aliases sharing metadata; rename retaining old submits without taking new occupants' submits.
+- [ ] Write failures for Sync.resolveDocument, EffectiveOwner, OwedForDocument and Sync.forget using the strategies below.
 - [ ] Route registered operations through the registry resolver and stable metadata; retain unchanged legacy route. Extend owed matching with time-scoped path history. Keep fold publication after successful document/shadow writes.
-- [ ] Write fake-clock tests at 30 minutes, just over, malformed/future lock time and legacy agent lock; add structured/text age without weakening refusal.
-- [ ] Add controlled two-process barriers for write versus rename/forget and same canonical path CAS writers. Run focused tests and race tests; commit integration.
+- [ ] Test OperatorLockAge and file.guard with the injected-clock strategy below; add structured/text age without weakening refusal.
+- [ ] Exercise Sync.withDocument through controlled two-process barriers and independent state invariants as specified below. Run focused tests and race tests; commit integration.
 
 ### 3. Public CLI and documentation
 
 Files: couchcmd/session_sync.go, session_sync_test.go, message_deliveries_test.go, run.go, skills/couch/SKILL.md; atlas/couch.md; workshop/lessons.md if review produces a rule.
 
-- [ ] Add failing parser and runtime tests for all four new verbs, JSON payloads/refusals, no-frontmatter submit delivery/owed/fold, and effective owner. Implement CLI through Sync methods, retaining existing envelope/exit semantics.
+- [ ] Add failing tests for parseSessionSyncCLI and runSessionSyncCLI using the protocol and malformed-input strategies below; implement the five new verbs through Sync methods, retaining existing envelope/exit semantics.
 - [ ] Publish the agreed command/output/error contract to parley.nvim:2; include exact test invocation and fixture semantics. Do not change Parley sources.
 - [ ] Document first-submit registration, forget, metadata-only rename/lock responsibility, legacy compatibility and aged-lock ping rule in CLI help, Couch skill and atlas.
 - [ ] Run go test ./cmd/internal/sessionsync ./cmd/internal/couchcmd ./cmd/internal/artifactpath and focused races, then make build. Record output and exact HEAD.
@@ -111,3 +111,26 @@ Pending TL plan approval and parley.nvim:2 contract agreement. Operator has appr
 TL approved commit 07265d36b87ef30a549ff1a93a7900fe924d5360 with this authoritative delta: registry capacity is **4096 live registrations / 16 MiB registry**, replacing the draft's 256 / 1 MiB everywhere above. On overflow, refuse register with the exact command `couch --session-sync forget FILE` as recovery advice; never evict. Other bounds are approved. Lifetime metadata cost is at most 4096 bounded document shadows plus small per-document state, until explicit forget; no missing-path cleanup. Public verbs wait for parley.nvim:2 contract agreement.
 
 Live verification delta: **land #573 independently without :0 staging**; backward compatibility is verified by tests. TL rebuilds pair:0 after landing. The operator's plain-note end-to-end live check happens after parley.nvim#332 is staged, with one Couch restart plus nvim restart, owned by the TL. This replaces Task 4's prelanding staging/live requirement for this item; no simulated test will be called operator acceptance.
+
+
+### 2026-10-15 11:04 PDT — plan-quality round 1 corrections
+
+PQ-1 (ARCH-ORDER): Forget is an authority handoff, not deletion-first cleanup. For a currently typed session-sync file, under the registry guard and its current canonical legacy flock, export the latest central shadow and State (including historical submit intervals in an additive State.SubmitPaths field) to the current path's legacy companions. Publish both durably before removing the registry entry. The registry remains authoritative after a crash or failure between exports; every new Sync command selects its route under the registry guard, so no new-process legacy reader can observe the intermediate pair as authority. A restart/retry repeats export from the retained central state. Only durable registry removal permits central cleanup. This includes renamed files: export at the current path, never the original path. Missing documents or existing plain documents have no legacy route and can be forgotten without export. Re-registration of a typed file imports State.SubmitPaths into its registry history, preserving the same owed interpretation. Mixed old/new CLI versions concurrently writing the same document are outside the supported operating envelope; unchanged legacy file format/read compatibility is retained.
+
+PQ-2 (ARCH-PURPOSE/FUNERAL): ledger.go trims only above 256 KiB, so rows below that threshold can remain indefinitely. There is **no age-based historical-path pruning**. Retain at most 256 path intervals until explicit forget, and refuse further rename growth with visible advice. Export history when handing a legacy document back, so forget cannot implicitly erase a still-owed pre-rename submit. This supersedes all draft references to expired/unexpired history and pruning, without changing ledger retention policy.
+
+PQ-3: The task prose now points to these named risk strategies rather than duplicating a case inventory. Each target gets colocated tests, RED before implementation, then targeted/race verification.
+
+| Function | Adversarial input class and mechanical guard |
+|----------|--------------------------------------------|
+| RegistryState.transition | Generated legal/illegal event sequences over multiple path occupants and owner bindings; assert independent identity, no-eviction, horizon and effect invariants. |
+| decodeRegistry | Fuzz persisted bytes seeded with truncated/unknown-version/invalid-ID/path/time shapes; typed validation must refuse and never manufacture an empty authority. |
+| EffectiveOwner | Table/property tests over unrelated frontmatter keys and explicit/legacy metadata; only declared routing fields can affect the result. |
+| OwedForDocument | Generate interval/row permutations with reused pathnames; retained owned events survive rename, and events outside the document's ownership intervals never become its submits. |
+| OperatorLockAge / file.guard | Inject a fixed clock and malformed/arbitrary lock time text; boundary comparisons may add advice but cannot permit a write for an extant operator lock. |
+| RegistryStore.withLock/save | Temporary filesystem plus injected publisher/directory-sync failures at durability boundaries; retry must confirm the same identity/effect, bounded waits must not steal locks. |
+| Sync.resolveDocument / Sync.withDocument | Real temp files, symlink spellings and controlled cross-process barriers; resolve metadata under the shared guard, and delayed mutations must recheck current authority. |
+| Sync.forget | Inject failure/crash between each metadata export and registry-removal boundary; restart must use retained central authority until both legacy companions/history are durable. |
+| parseSessionSyncCLI / runSessionSyncCLI | Fuzz argv/value boundaries plus stateful temp namespace/runtime/broker; successful envelopes must match committed state and failed/unrecognized probes must never look like confirmed absence. |
+
+Parley accepted the concrete contract, including rename returning effective Registration plus Changed. An unsupported older binary may emit nonzero usage text rather than JSON; only exit 0 + Code ok + explicit Registration:null proves absence. Nonzero, malformed/missing JSON or a missing Registration field means unavailable. Freeze the shared caller contract in atlas/couch-agentic-documents.md, linked from atlas/index.md, and send its commit/path to parley.nvim:2 before public-verb implementation.
