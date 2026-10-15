@@ -184,3 +184,15 @@ func TestSessionOwnerProbeEmptyInjectedReplyRemainsUnanswered(t *testing.T) {
 		}
 	}
 }
+
+func TestEmptySuccessfulNameProbeCannotUseStderrAsItsReply(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "zellij")
+	if err := os.WriteFile(path, []byte("#!/bin/sh\nprintf 'unrelated warning\\n' >&2\nexit 0\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	if err := (OSRuntime{}).ProbeSessionName("pair-work"); !errors.Is(err, ErrZellijNoReply) {
+		t.Fatalf("stderr-only success accepted name: %v", err)
+	}
+}

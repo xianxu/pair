@@ -122,7 +122,11 @@ func (OSRuntime) SessionBlocksReuse(session string) bool {
 func (OSRuntime) ProbeSessionName(session string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), zjTimeout)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, "zellij", "--session", session, "action", "list-clients").CombinedOutput()
+	cmd := exec.CommandContext(ctx, "zellij", "--session", session, "action", "list-clients")
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	err := cmd.Run()
+	out := append(stdout.Bytes(), stderr.Bytes()...)
 	if sessionNameRejected(string(out)) {
 		return fmt.Errorf("%w: %s", errSessionNameTooLong, session)
 	}
@@ -136,8 +140,9 @@ func (OSRuntime) ProbeSessionName(session string) error {
 	// and a `zellij action` round-trip was measured at 467ms under load, #203).
 	//
 	// Empty output, including exit0 after an early unblock, is no answer. A
-	// validator refusal has a diagnostic on stderr, captured by CombinedOutput.
-	if len(bytes.TrimSpace(out)) == 0 {
+	// validator refusal has a diagnostic on stderr. Unrelated stderr cannot
+	// substitute for the missing stdout of a successful query.
+	if (err == nil && len(bytes.TrimSpace(stdout.Bytes())) == 0) || len(bytes.TrimSpace(out)) == 0 {
 		if err == nil {
 			err = ErrZellijNoReply
 		}
