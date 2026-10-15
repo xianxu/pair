@@ -526,6 +526,13 @@ launches capture stderr; terminal launches label their combined stdout/stderr.
 Inspection strips terminal controls. Abrupt termination before Couch records a
 failure can still leave no diagnostic.
 
+For a startup timing probe, set `PAIR_STARTUP_TIMING=1` before launching Pair
+or Couch. Pair emits phase names, consecutive durations and cumulative elapsed
+milliseconds to stderr, ending at the blocking attach handoff. Native snapshot
+lines report PID, full/named kind, actual table/argv/identity read counts and
+duration, including failed reads. It is silent by default. The clock begins at launcher package initialization; native loader time
+and client readiness after handoff require an outer measurement.
+
 Previous-session peeks select only the saved incarnation's tty recording.
 `--previous --transcripts` refuses: capture native coordinates before switching,
 using the current slot's `--transcripts` read when needed. `--all` returns the

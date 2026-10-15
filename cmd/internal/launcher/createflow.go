@@ -19,6 +19,44 @@ import (
 	"github.com/xianxu/pair/cmd/internal/titlepoller"
 )
 
+// Consecutive deltas partition the measured startup. elapsed_ms is cumulative,
+// not another duration to add. No timing spans the blocking client lifetime.
+type startupTiming struct {
+	out             io.Writer
+	now             func() time.Time
+	start, previous time.Time
+	stopped         bool
+}
+
+// This begins at launcher package initialization, before main's asset/root
+// resolution. Native exec/loader and earlier Go package initialization remain
+// outside this clock and belong to the parent's spawn-to-readiness residual.
+var startupInitializedAt = time.Now()
+
+func newStartupTiming(enabled string, out io.Writer, now func() time.Time, start time.Time) *startupTiming {
+	if enabled != "1" {
+		return nil
+	}
+	return &startupTiming{out: out, now: now, start: start, previous: start}
+}
+
+func (t *startupTiming) mark(phase string) {
+	if t == nil || t.stopped {
+		return
+	}
+	now := t.now()
+	fmt.Fprintf(t.out, "pair startup: phase=%s delta_ms=%.3f elapsed_ms=%.3f\n", phase, float64(now.Sub(t.previous))/float64(time.Millisecond), float64(now.Sub(t.start))/float64(time.Millisecond))
+	t.previous = now
+}
+
+func (t *startupTiming) handoff(phase string) {
+	if t == nil || t.stopped {
+		return
+	}
+	t.mark(phase)
+	t.stopped = true
+}
+
 // RunLaunch is the native launcher's in-process driver (#99 M2 create + M3
 // attach/restart/quit + M5b compaction/pick/rename/continue): a thin loop over the
 // pure deciders (DecideLaunch + createlogic.go + M1's agentargs) that maps each
@@ -31,6 +69,10 @@ import (
 // user-facing messages are on the writer, the int is the exit code, the returned
 // error is always nil.
 func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
+	if opts.startupTiming == nil {
+		opts.startupTiming = newStartupTiming(os.Getenv("PAIR_STARTUP_TIMING"), stderr, time.Now, time.Now())
+	}
+	opts.startupTiming.mark("launch-entry")
 	if err := validateCouchSessionLaunch(opts.Args, opts.Env); err != nil {
 		fmt.Fprintf(stderr, "pair: %v\n", err)
 		return 1, nil
@@ -76,6 +118,7 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 	if !selectedAttach {
 		rt.StartProofMigration()
 	}
+	opts.startupTiming.mark("migration")
 
 	// Prepend the resolved asset root's bin/ to PATH so zellij (and its panes:
 	// pair-wrap, copy_command "copy-on-select", Run "pair-help"/openers, and the
@@ -109,6 +152,7 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 		fmt.Fprintf(stderr, "      detach first (Alt+d) or run pair from a fresh terminal.\n")
 		return 1, nil
 	}
+	opts.startupTiming.mark("ancestry")
 
 	// Startup nvim hygiene (shell 1243): reap embeds whose Pair session is
 	// gone (an external kill / reboot leaves no quit marker). Once, up front — a
@@ -126,6 +170,7 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 		}
 	}
 
+	opts.startupTiming.mark("prelude")
 	pendingSession, pendingMarker := opts.RestartSession, opts.RestartAttempt
 	for {
 		if opts.ContinueCheckpoint.Version != 0 {
@@ -284,11 +329,16 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 	if intent := opts.Args.CouchSession; intent != nil && intent.Disposition == "attach" {
 		// This is already a selected terminal, never a native launch request.
 		// History, saved agent configuration and cwd cannot choose another one.
+		// Keep the timing partition for phases whose result the intent supplies.
+		opts.startupTiming.mark("discovery")
+		opts.startupTiming.mark("decision")
 		if err := verifyCouchSessionAttach(rt, *intent); err != nil {
 			fmt.Fprintf(stderr, "pair: %v\n", err)
 			return launchStep{code: 1}, nil
 		}
+		opts.startupTiming.mark("attach-verification")
 		agent := rt.InferAgent(intent.Tag) // Optional title metadata only; no default or launch profile.
+		opts.startupTiming.mark("attach-layout")
 		code, err, retained := runAttach(opts, env, rt, intent.Tag, intent.Name, agent)
 		if err != nil {
 			fmt.Fprintf(stderr, "pair: failed to attach session '%s': %v\n", intent.Name, err)
@@ -314,6 +364,7 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 		fmt.Fprintf(stderr, "pair: failed to scan session history: %v\n", err)
 		return launchStep{code: 1}, nil
 	}
+	opts.startupTiming.mark("discovery")
 	// A 📁 name typed at `pair resume` is still a NAME here; turn it into a tag
 	// before anything keys off it. Both assignLaunchSessionNames and DecideLaunch
 	// read ForcedTag, so the resolution has to land on opts.Args itself (#130).
@@ -392,8 +443,11 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 			return launchStep{code: 1}, nil
 		}
 	}
+	opts.startupTiming.mark("decision")
 	switch decision.Action {
 	case ActionAttach:
+		opts.startupTiming.mark("attach-verification")
+
 		layoutResolution, err := resolveLiveLayout(rt, env.DataDir, decision.Tag, decision.SessionName, opts.Args.Layout)
 		if err != nil {
 			fmt.Fprintf(stderr, "pair: %v\n", err)
@@ -421,7 +475,9 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 			return launchStep{code: 0, session: decision.SessionName, tag: decision.Tag, agent: agent, relaunch: true}, nil
 		}
 
+		opts.startupTiming.mark("attach-layout")
 		code, err, retained := runAttach(opts, env, rt, decision.Tag, decision.SessionName, agent)
+
 		if err != nil {
 			fmt.Fprintf(stderr, "pair: failed to attach session '%s': %v\n", decision.SessionName, err)
 			return launchStep{code: 1}, nil
@@ -905,6 +961,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	configDir := filepath.Join(opts.PairHome, "zellij")
 	layout := filepath.Join(opts.PairHome, "zellij", "layouts", LayoutAssetBasename(layoutResolution.Mode))
 	bound := opts.birthBound()
+	opts.startupTiming.handoff("create-handoff")
 	code, verdict, err := launchWatched(rt, opts.birthClock(), birthEvidence, session, configDir, layout, bound)
 	if err != nil {
 		restoreLayoutRecord(rt, dataDir, chosenTag, priorLayout)

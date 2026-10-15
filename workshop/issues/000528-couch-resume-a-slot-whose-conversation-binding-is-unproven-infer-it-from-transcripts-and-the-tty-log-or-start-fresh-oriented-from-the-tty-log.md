@@ -1218,3 +1218,25 @@ No follow-up implementation starts on this branch.
   first). No new suite unless source changes. Pair:0 stage remains untouched.
   Hub report789e2d31-2d00-41f5-aa72-6f424bede780 uncertain; receipt unavailable
   (no connected recipient retains it). No automatic resend or substitute channel.
+
+- TL relay verified ef88a4f1: link historical invalid-pane-JSON observation from
+  conformance38677562118 to pair#562 (peer pair:7 owns protocol/empty-PID work).
+  No raw failing authority reply was captured, so no assertion that its bytes
+  were empty or that its mechanism is proven. No empty PID observed in #528.
+  No production JSON workaround was made here. Separate #528 socket spelling
+  bug was independently reproduced/fixed; fixture receipt and borrowed-helper
+  assumptions have their own measured evidence. Report35599328 sent to hub.
+- Integrating origin/main #218 e2105c24 (including prior #559). Four conflicts:
+  park.go retains read-only detach snapshot plus shared owner pass; background
+  reattach retains #218 lazy pass scope plus #528 pre-Run no-paint arm/cancellation;
+  launcher createflow/lifecycle retain timing but positive-listing Continue
+  admission, migration/orphan bypass for selected attach and final listing gate.
+  Targeted tests, full recorded suite and normal fix review required before land.
+
+- Conflict resolutions complete. Launcher timing/listed-attach group PASS0.419s;
+  UI owner-pass/Continue/Stop/background group PASS0.499s; artifactpath complete
+  PASS9.811s. Added pre-Run shared-scope no-paint/arm-once regression. Main's
+  new startup fleet test still passed removed beginConsole bool: compile RED,
+  update to current always-arm signature (same intended true behavior).
+  Core/command checks still running at merge checkpoint; no full pass claimed.
+  codeload setup-go URL now returns200, independently measured2026-10-14 22:57.

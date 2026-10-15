@@ -186,6 +186,11 @@ func (c *Couch) Leave(ctx context.Context, disposition LeaveDisposition) (LeaveR
 	if c == nil || c.Threads == nil {
 		return result, errors.New("thread store is unavailable")
 	}
+	if disposition == LeaveDetach {
+		var cancel context.CancelFunc
+		ctx, cancel = c.WithSessionOwnerPass(ctx)
+		defer cancel()
+	}
 	view := *c.Threads
 	view.readOnly = disposition == LeaveDetach
 	snapshot, err := view.Snapshot()

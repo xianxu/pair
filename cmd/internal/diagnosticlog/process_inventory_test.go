@@ -105,6 +105,25 @@ func TestRuntimeInventoryEnvironmentGoneAfterSnapshot(t *testing.T) {
 		})
 	}
 }
+
+func TestRuntimeInventoryIdentityEINVALStaysUnknown(t *testing.T) {
+	for _, name := range []string{"pair-session-wa", ""} {
+		failure := fmt.Errorf("process 123: %w", &procutil.IdentityUnavailableError{Err: syscall.EINVAL})
+		w := &processWorld{rows: []procutil.Observation{{Process: procutil.Process{PID: 123, Name: name, Identity: "old"}, Err: failure}}, generation: "old", strict: "birth"}
+		if _, err := (OSInspection{processes: w}).Runtimes(context.Background()); !errors.Is(err, ErrUnknownWriters) || w.envCalls != 0 {
+			t.Fatalf("identity failure became absence: name=%q err=%v environment=%d", name, err, w.envCalls)
+		}
+		// The environment seam must preserve a wrapped identity uncertainty too;
+		// raw environment EINVAL remains covered by the disappearance test above.
+		w.rows[0].Name = "pair"
+		w.rows[0].Err = nil
+		w.rows[0].CommandInfo = procutil.CommandInfo{Executable: "/bin/pair", Args: []string{"pair"}}
+		w.envErr = failure
+		if _, err := (OSInspection{processes: w}).Runtimes(context.Background()); !errors.Is(err, ErrUnknownWriters) || w.envCalls != 1 {
+			t.Fatalf("wrapped environment identity failure became absence: err=%v environment=%d", err, w.envCalls)
+		}
+	}
+}
 func TestRuntimeInventoryPreservesUnknownAndPermissionFailures(t *testing.T) {
 	for _, failure := range []error{syscall.EPERM, syscall.EACCES, errors.New("unrecognized process read")} {
 		w := &processWorld{rows: []procutil.Observation{{Process: procutil.Process{PID: 123, Name: "pair", Identity: "old"}, Err: fmt.Errorf("command: %w", failure)}}, generation: "old", strict: "birth"}

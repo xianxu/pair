@@ -1011,6 +1011,8 @@ var NonArtifactSources = []string{
 	// #399 orphaned zellij servers: sockets, process trees and couch operations;
 	// no Pair artifact filenames.
 	"cmd/internal/launcher/session_servers.go",
+	"cmd/internal/launcher/session_owner_pass.go",
+	"cmd/internal/couchcore/session_owner_pass.go",
 	"cmd/internal/launcher/session_reap.go",
 	"cmd/internal/couchcore/reap.go",
 	"cmd/internal/couchcore/recover_action.go",

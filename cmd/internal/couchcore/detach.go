@@ -47,6 +47,12 @@ func (c *Couch) Detach(ctx context.Context, address ThreadAddress) (ThreadRecord
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	// Detach needs no retained timing strings on its ordinary path. The
+	// context-only lifecycle measurement shares launch's optional observer.
+	var steps *launchSteps
+	if observe, _ := ctx.Value(launchTimingObserverKey{}).(launchTimingObserver); observe != nil {
+		steps = newLaunchSteps(ctx, time.Time{})
+	}
 	if err := ctx.Err(); err != nil {
 		return ThreadRecord{}, err
 	}
@@ -79,6 +85,7 @@ func (c *Couch) Detach(ctx context.Context, address ThreadAddress) (ThreadRecord
 		return ThreadRecord{}, err
 	}
 	defer release()
+	steps.mark("claim")
 
 	record, err := c.Threads.GetThread(address)
 	if err != nil {
@@ -102,19 +109,23 @@ func (c *Couch) Detach(ctx context.Context, address ThreadAddress) (ThreadRecord
 	if !before.Present {
 		return ThreadRecord{}, fmt.Errorf("thread %+v has no live Pair session to detach from", address)
 	}
+	steps.mark("read+owner")
 
 	if err := c.Proc.SignalGroup(identity.PID, TermSignal); err != nil {
 		return ThreadRecord{}, fmt.Errorf("detach %+v: %w", address, err)
 	}
+	steps.mark("signal")
 	if err := c.awaitExactProcessExit(ctx, identity); err != nil {
 		return ThreadRecord{}, err
 	}
+	steps.mark("process-exit")
 
 	// And after: the whole point is that it survived its client.
 	detached, err := c.retireDetachedIncarnation(ctx, address, identity, c.Clock.Now())
 	if err != nil {
 		return ThreadRecord{}, err
 	}
+	steps.mark("retirement")
 	return detached, nil
 }
 

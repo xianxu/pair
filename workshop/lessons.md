@@ -153,6 +153,15 @@ representative evidence, not an exhaustive index.
 
 ## Authority, ownership, and identity
 
+- An ownership fence must preserve exclusivity as well as the original process
+  identity. A direct PID check can miss a new competing claimant while the
+  original survives unchanged. Share only initial discovery; freshly enumerate
+  candidates around slow IO and before effects. Test that exact interleaving. (#218 PQ-1)
+- A PATH timing shim must transparently exec a service's internal server reexec.
+  Keeping wrapper and child alive can create two exact argv claimants and change
+  the ownership verdict being measured. Assert PID, argv, status and environment
+  preservation, and keep blocking service lifetime out of finite query totals. (#218)
+
 - A judgment about one member of a composite reads that member's own facts;
   a merged view across members is for display only. Keep per-member facts in
   per-member fields so no decision can read the union, and prove it as a
@@ -1833,3 +1842,28 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
   Expanding /var to /private/var can break a Unix socket near its byte limit.
   Canonicalize the shared lock key while preserving the server's lexical path
   for the client; test that aliases share a lock without rewriting argv/env.
+- #218: A native convenience wrapper may erase a successful empty result into a
+  generic IO error. Preserve absence/error distinctions at the native boundary;
+  reproduce exit between successful argv and identity using an owned child, and
+  assert argv succeeded so an older disappearance path cannot make the test pass.
+  Keep public generation-token compatibility separate from snapshot liveness.
+
+- #218 follow-through: preserving uncertainty at a producer is insufficient when
+  consumers reclassify its errno. Carry typed error provenance through every
+  gone classifier; pin launcher absence and diagnostic writer-proof consumers,
+  while keeping raw command/environment exit semantics separately tested.
+
+- #218 absence proof: demonstrating absent implies empty does not establish
+  empty implies absent. Check kernel filtering before turning missing metadata
+  into authority; on Darwin require an independent signal-zero ESRCH, retaining
+  alive, permission and other outcomes as uncertainty.
+
+- #218 shutdown: cancellation entry points must remain callable while state
+  commits hold their mutex. Cancel the lifetime first; release scoped state at
+  joined teardown's existing barrier and invoke cleanup outside the mutex. Test
+  Stop with an active pass while holding the state lock, not only idle Stop.
+
+- #218 close review: a semantic retention test must not inherit an incidental
+  tiny deadline from a failure-path fixture. Preserve deadline-specific tests
+  separately, and capture the failing phase before changing a test budget.
+  Isolated rerun passes do not erase a failed broad run or prove its cause.

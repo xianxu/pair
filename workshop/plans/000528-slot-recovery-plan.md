@@ -1362,3 +1362,14 @@ target before writing; the fixture only waited for existence. Wait with the
 existing deadline/helper for the expected input bytes, then retain the final
 assertion. No runtime change or deadline widening. Cancel the still-unadmitted
 a364 suite; final suite/review must cover this source correction too.
+
+### 2026-10-14 — integrate landed #218 and assign empty-reply evidence
+
+Per TL request, merge main including #218 owner-observation reuse and timing.
+Preserve its lazy shared pass contexts and instrumentation; preserve #528
+listed-live Continue authority, pre-Run no-paint arm, preview-only detach and
+selected-attach no-migration/no-cleanup. Resolve four conflicts by those rules;
+no new recovery policy. Record historical invalid JSON as #562-owned unresolved
+observation, never silently classify empty replies as absence. Normal targeted
+checks, final merged suite and post-close review cover this merge. Stage stays
+hub-owned. The prior external CI archive404 remains independently classified.

@@ -13,13 +13,22 @@ func Identity(pid string) string {
 	if !ok {
 		return ""
 	}
+	identity, _ := nativeIdentity(n)
+	return identity
+}
+
+func nativeIdentity(n int) (string, error) {
 	raw, err := os.ReadFile("/proc/" + strconv.Itoa(n) + "/stat")
 	if err != nil {
-		return ""
+		return "", err
 	}
 	p, err := parseLinuxStat(n, raw)
 	if err != nil {
-		return ""
+		return "", err
 	}
-	return p.Identity
+	if p.Zombie {
+		// Preserve the public Identity token while snapshots omit terminal rows.
+		return p.Identity, os.ErrNotExist
+	}
+	return p.Identity, nil
 }

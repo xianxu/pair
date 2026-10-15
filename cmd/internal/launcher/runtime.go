@@ -277,6 +277,7 @@ type Runtime interface {
 // the launch environment (Env), the asset root (PairHome, for zellij/nvim/bin
 // paths + PAIR_HOME), and the two create-flow flags the shell reads from env.
 type LaunchOptions struct {
+	startupTiming      *startupTiming
 	Args               LaunchArgs
 	Env                Env
 	PairHome           string

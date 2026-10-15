@@ -134,8 +134,12 @@ func (c *Console) finishMenuRefresh(result menuRefreshResult) {
 			seeded, root, pending = true, c.menu.Reattach.Root, len(pendingPlaceholders(c.menu.Reattach))
 		}
 	}
+	cancelPass := c.completedReattachPassLocked()
 	c.mu.Unlock()
 	landed := "rows=" + strconv.Itoa(len(result.inventory))
+	if cancelPass != nil {
+		cancelPass()
+	}
 	if result.err != nil {
 		landed = "error"
 	}
@@ -178,8 +182,12 @@ func (c *Console) reduceMenu(event MenuEvent) {
 	var effects []MenuEffect
 	c.menu, effects = ReduceMenu(c.menu, event)
 	panelFocused := c.focus.IsPanel()
+	cancelPass := c.completedReattachPassLocked()
 	c.mu.Unlock()
 
+	if cancelPass != nil {
+		cancelPass()
+	}
 	if panelFocused {
 		c.showMenu()
 	}

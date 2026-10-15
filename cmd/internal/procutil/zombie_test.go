@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -95,6 +96,9 @@ func TestSnapshotExcludesExitedUnreapedChild(t *testing.T) {
 		t.Skip("native inspection unsupported")
 	}
 	pid := exitedUnreapedChild(t)
+	if Identity(strconv.Itoa(pid)) == "" || StrictIdentity(strconv.Itoa(pid)) == "" {
+		t.Fatal("public identity APIs must retain an unreaped generation token")
+	}
 	rows, err := Table()
 	if err != nil {
 		t.Fatal(err)

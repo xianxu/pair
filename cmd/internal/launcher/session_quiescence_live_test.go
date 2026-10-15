@@ -56,9 +56,9 @@ func TestSessionQuiescenceLive(t *testing.T) {
 
 	// A second test-owned exact-argv server makes ordinary cleanup contested.
 	sentinelDir := t.TempDir()
-	sentinelBinary := filepath.Join(sentinelDir, "zellij")
+	sentinelBinary := controlledServerExecutable(t, sentinelDir)
 	sentinel := &exec.Cmd{
-		Path: os.Args[0],
+		Path: sentinelBinary,
 		Args: []string{sentinelBinary, "--server", filepath.Join(sentinelDir, session)},
 		Env:  append(os.Environ(), "PAIR_ZELLIJ_KILL_SENTINEL=1"),
 	}

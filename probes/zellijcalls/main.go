@@ -1,6 +1,7 @@
-// probes/zellijcalls is a `zellij` that records every invocation, then runs the
-// real one. Put its build directory first in PATH and every zellij subprocess a
-// pair/couch startup spawns lands in a TSV.
+// probes/zellijcalls is a `zellij` that times client invocations of the real one.
+// Put its build directory first in PATH to record pair/couch startup calls in a
+// TSV. Internal --server reexec is excluded: it replaces this process directly,
+// preserving the native server's PID without timing its lifetime as startup.
 //
 // WHY A SHIM AND NOT INSTRUMENTED CALL SITES. pair spawns zellij from eight
 // distinct places (osruntime.go x6, session_quiescence.go x2), so instrumenting
@@ -26,6 +27,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -52,6 +54,16 @@ func run() int {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "zellijcalls: %v\n", err)
 		return 127
+	}
+	// Zellij reexecs through PATH to start its server. Wrapping that invocation
+	// leaves two processes with --server argv, perturbing SessionOwnerProbe.
+	// Replace the shim instead; the server lifetime is not a client-call duration
+	// and cannot yield a completed timing row here.
+	if len(os.Args) > 1 && os.Args[1] == "--server" {
+		if err := syscall.Exec(real, append([]string{real}, os.Args[1:]...), os.Environ()); err != nil {
+			fmt.Fprintf(os.Stderr, "zellijcalls: exec server: %v\n", err)
+			return 127
+		}
 	}
 
 	start := time.Now()

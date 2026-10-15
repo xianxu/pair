@@ -68,6 +68,7 @@ func attachWithRetention(opts LaunchOptions, env Env, rt Runtime, tag, session, 
 			}
 		}()
 	}
+	opts.startupTiming.mark("attach-retention")
 
 	if session == "" {
 		// Degraded fallback: callers pass the resolved name. Reached only when
@@ -128,6 +129,7 @@ func attachWithRetention(opts LaunchOptions, env Env, rt Runtime, tag, session, 
 		}
 	}()
 
+	opts.startupTiming.mark("attach-setup")
 	if intent := opts.Args.CouchSession; intent != nil {
 		// Preparation can block. Require a fresh positive listing at the final
 		// effect; the native list-to-attach death race remains accepted.
@@ -135,6 +137,8 @@ func attachWithRetention(opts LaunchOptions, env Env, rt Runtime, tag, session, 
 			return 1, err, nil
 		}
 	}
+	opts.startupTiming.mark("attach-revalidation")
+	opts.startupTiming.handoff("attach-handoff")
 	code, resultErr = rt.AttachSession(session, filepath.Join(opts.PairHome, "zellij"))
 	return code, resultErr, use
 }
