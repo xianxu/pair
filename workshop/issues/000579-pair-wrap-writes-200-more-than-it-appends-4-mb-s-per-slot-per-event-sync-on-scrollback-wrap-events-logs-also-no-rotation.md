@@ -98,3 +98,8 @@ Current Done-when for #579:
 - After landing, record live bytes-written/appended and state inode-change rates against the preserved85.8x and2187/minute baseline, exact build/process/activity context, and report to hub. Hub owns aggregate whole-disk sampling.
 
 The governing protocol/tasks and material killed-partial-write tradeoff are appended to the durable plan's latest Revision. This is the proposed executable design for hub approval, not implementation. Initial raw-batching steps are superseded by this narrower scope.
+
+
+### 2026-10-15T22:25:16Z — proceed on the narrowed diagnostic scope
+
+Verified hub receipt8f573644-79af-4c74-99b6-58677b6b5137 explicitly says Go on diagnostic write amplification/bounds and the narrow protocol-aware root resolution fix; raw/events rotation is unassigned #582. Proceed through the full-flow plan gate with the latest governing protocol revision. No raw/event production or reader changes. Post-landing live measurements remain outstanding acceptance work.

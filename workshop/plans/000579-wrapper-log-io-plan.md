@@ -125,3 +125,8 @@ Authority: submitted hub receipt8cb950d6-7819-48dd-9813-e10321f20ad8. Raw+events
 - [ ] Focused packages/race, make -k build and required pushed-head sdlc local-check run --name suite. Update atlas/README/issue and close M2+issue on SHIP, land via SDLC, then perform the specifically requested post-landing live before/after process-byte/inode measurement and record/report it. Coordinate any live-slot relaunch with the hub. Report PR and full real hashes.
 
 **Crash-loss statement:** Normal diagnostic process death can lose at most the512KiB bounded in-memory queue+in-flight batches; with healthy scheduled IO this is normally the last5s. A complete appended batch can recover by its reservation hash even if checkpoint publication was interrupted. A killed partial syscall is retained as uncertain evidence and blocks that optional log rather than inventing bytes. Ongoing IO failure/overload is counted separately and voids the healthy time claim. No bounded host-power-loss guarantee is introduced without hot fsync. Delivery authority/park/capture sync behavior is unchanged.
+
+
+### 2026-10-15T22:25:16Z — proceed on the narrowed diagnostic scope
+
+Verified hub receipt8f573644-79af-4c74-99b6-58677b6b5137 explicitly says Go on diagnostic write amplification/bounds and the narrow protocol-aware root resolution fix; raw/events rotation is unassigned #582. Proceed through the full-flow plan gate with the latest governing protocol revision. No raw/event production or reader changes. Post-landing live measurements remain outstanding acceptance work.
