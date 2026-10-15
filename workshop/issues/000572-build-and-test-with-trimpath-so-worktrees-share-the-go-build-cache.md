@@ -76,3 +76,34 @@ minutes. The operator approved building with `-trimpath`.
   confirms -trimpath=true. Required missing oracle assets fail rather than skip.
 - The existing artifact inventory now covers top-level internal/ and its root
   resolver. Probe discovery stays in the existing shared probe adapter.
+
+### Compile-cache measurement
+
+- Candidate: `9f4413a0e43deb204ccd57af954cf2d1cd90c1a1`, `go version go1.27.1 darwin/arm64`.
+  Two detached worktrees at this commit, one isolated disposable GOCACHE.
+  Package: `github.com/xianxu/pair/cmd/internal/ansi` (not a test-result cache measurement).
+- Per worktree/mode: `GOFLAGS='-p=1' go build -x ./cmd/internal/ansi`, then
+  `go list -export -json ./cmd/internal/ansi` and `go tool buildid <Export>`;
+  repeat with `GOFLAGS='-p=1 -trimpath'`. Builds were niced and sequential.
+
+| Mode | Compiler invocations | Cache growth bytes | Build ID |
+|---|---:|---:|---|
+| plain-a | 1 | 56926516 | `s4VI2Oo5On8kKOcpHmt6/3z3fYG42mhl9TsdlIAxj` |
+| plain-b | 1 | 37913 | `QBnmwDwpJLNJAgUPQkle/K9g5ydMGnX0tz0YF5TUK` |
+| trim-a | 1 | 36875 | `6O5h8DPkXqb2N3fY53LS/bdqCf8oQe2-eKY8E8Hsi` |
+| trim-b | 0 | 0 | `6O5h8DPkXqb2N3fY53LS/bdqCf8oQe2-eKY8E8Hsi` |
+
+- Both trimmed builds returned the identical archive (content key
+  `2afdefdddfc72fe50df7f6bac88ef003900172f74c24d2196f4069ff0fc07352-d`).
+  Worktree B added zero entries (859 before/after) and zero bytes (57,001,304
+  before/after). Untrimmed B added six entries and compiled again.
+- Worktrees and their isolated 57 MB cache were removed. Shared cache untouched.
+  Full paths, counts and compiler traces remain in /tmp/pair572-cache-measure.json
+  and /tmp/pair572-cache-{plain,trim}-{a,b}.log. This is one-package proof of
+  reuse, not a forecast of total disk savings or identical linked binaries.
+- Full webcast/terminal/artifact/probe-adapter package run passed (terminal
+  98.119 s); /tmp/pair572-path-packages.log. All caller-path regressions passed.
+- Merged current main and opened PR #347 at fdedd7dd4d30e0119ee2f42fdbdf8afcb053dd9e.
+  Recorded suite queued; main still supplies implicit make test, which consumes
+  the new Make default. Sent hub PR/head and .sdlc label request (receipt
+  2c13566e-62de-46c2-a663-103dce881888).
