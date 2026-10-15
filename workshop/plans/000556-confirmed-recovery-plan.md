@@ -583,3 +583,20 @@ both lock orderings, replacement and late old grant, unknown/alive helpers, and
 unchanged spawning/running retention. This narrows the earlier tree-absence prose
 for the reserved-only phase; no retirement signal, new UI or durable state family
 is added (ARCH-ORDER, ARCH-FUNERAL, ARCH-PURPOSE).
+
+### 2026-10-15 — whole-issue BR-6 positional delimiter correction
+
+The shared native classifier must follow the native positional grammar as well
+as option spellings. An option terminator is not an unconditional prompt boundary:
+Codex `resume` / `exec resume` and Muse `resume` can still consume a positional
+session identity after `--`. Parse positional identity according to the active
+command; leave `--last` text as prompt, leave prompts after an already supplied ID
+literal, and leave a top-level prompt after `--` literal. Sweep the six agents'
+command/option/glued/inline/delimiter/positional forms and new/fork/continue modes;
+unsupported or ambiguous existing-session mappings cannot be classed as Fresh.
+Pinning must remove only the selected identity and preserve delimiter/prompt
+semantics without duplicate identity. Tests cover shared launcher and both actual
+wrapper transports, canonical exact-ID denial without grant, valid grant success,
+and the approved unchanged Codex indirect exception. This corrects the same
+BR-6 family; no policy expansion or new state is introduced (ARCH-PURPOSE,
+ARCH-SECURE, ARCH-DRY).

@@ -801,6 +801,16 @@ this is not evidence of a completed landing. Whole-issue review, PR/CI/merge and
 final hub report are still outstanding and will be observed through their gates.
 No bypass is used.
 
+### 2026-10-15 — whole-issue review REWORK, delimiter identity bypass
+
+Whole-issue round7 reopens BR-6: Codex `resume -- <canonical UUID>` and
+`exec resume -- <UUID>` were misclassified as picker because FlagRegion drops
+all tokens after `--`, then entered the approved indirect exception. Reviewer
+reproduced native stub spawn through both transports. BR1-5 and7 are addressed;
+no new finding IDs. Close did not finalize. The plan appends native positional
+grammar treatment and full selector-family regression sweep. Fix, build, recorded
+full suite and normal close re-review remain; no waiver or landing claimed.
+
 ## Revisions
 
 ### 2026-10-15T05:33-07:00 — overnight M2 dispatch
