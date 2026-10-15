@@ -43,6 +43,8 @@ Preserve #572's trimpath default, additive Go flags, explicit caller overrides a
 
 ## Log
 
+
+- 2026-10-15: closed — Bare and explicit PAIR_GO_TRIMPATH=-trimpath test-make-env pass; regression failed before fix; all 198 knobs, session scrubbing and recursive overrides retained. Recorded exact-command suite d371b5cfd39e01a7ebae8aea2f549c6593745177 exit0 in9m29s, log sha256 prefix7e1896713f51. Actuals unmeasurable: shared sdlc rejects a Qoder subagent transcript, ariadne#391; correct after it lands. TL authorized precisely --no-actual via receipt aad5d242-5b72-4b2b-9f1e-f4d0ceb4f05f.; review verdict: SHIP
 2026-10-15: #556 integrated #572 cleanly apart from an artifact manifest list conflict resolved by keeping both entries. Recorded suite at c80734525e16 stopped before Go packages: exit2 in4m11s after504s queue; log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/f56b8f2ef9ecc3a5638161bf3707978c.log, sha256 prefix aa446f79e62e. All preceding editor/shell tests passed.
 
 Isolated actual command repro: make PAIR_GO_TRIMPATH=-trimpath test-make-env exits2 with knob failure, while bare make test-make-env exits0 and reports198 derived knobs kept. Probe under assignment exposes MAKEFLAGS containing -- PAIR_GO_TRIMPATH=-trimpath, MAKEOVERRIDES=${-*-command-variables-*-}, and PAIR_GO_TRIMPATH=-trimpath; bare probe has no such assignment. No source changes made for this defect in #556. Filed unclaimed for independent work from main; #556 retains its branch and approved code.
