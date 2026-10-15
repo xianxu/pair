@@ -165,3 +165,19 @@ identity and reject replacements. This fixes the diagnosed contract without
 claiming a cause for PID23658. Before a separately versioned balanced matrix,
 retain fixture diagnostics before cleanup and expose the existing context-only
 launch observer to attribute parent lease/durable-record stages under load.
+
+### 2026-10-14 — capture authoritative query bytes before further measurement
+
+MATRIX3 retained 21 first frames and exact native clients but one later attached
+query disagreed; no raw response or row state survived. Evidence cannot classify
+parser/query versus real disconnect. Add a minimal context-scoped observer at
+ZellijSource.runContext, keeping direct CommandContext cancellation and original
+parser bytes unchanged. Default observer is absent and emits nothing. Bound/copy
+observation data and expose only to the private fleet's verification context;
+retain stdout/stderr/status/timestamps alongside actual row states. Reobserve
+exact client generations immediately after queries, before Leave. Tests prove
+parser/output parity, empty/header-only replies, errors, context isolation and
+cancellation. A Path wrapper with extra supervisors/lifelines was rejected as
+unnecessary lifecycle machinery (ARCH-DRY/ARCH-FUNERAL); reuse the existing query
+boundary. No retry, state substitution or authority change. A new versioned
+experiment follows instrumentation; failed prior versions remain unchanged.
