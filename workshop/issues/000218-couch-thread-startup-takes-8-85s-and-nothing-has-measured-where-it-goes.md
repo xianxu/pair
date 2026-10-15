@@ -1,12 +1,12 @@
 ---
 id: 000218
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-08
 updated: 2026-10-14
 estimate_hours: 5.86
-card_mirror: '6bb8facf251995327c3a27ddcdf474eab49ab16b' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '3fbe70a802e09dd08f976beccf59135071e99c09' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-14T15:00:32-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: 9.40
 ---
 
 # couch thread startup takes 8.85s and nothing has measured where it goes
