@@ -49,10 +49,12 @@ writing anything into the file.
 
 Detailed implementation plan: [agentic document registry](../plans/000573-agentic-document-registry-plan.md).
 
-- [ ] Build registry model/store and stable document metadata, with idempotent register/forget/rename and read-only membership discovery.
-- [ ] Route every sync verb through registration-aware ownership, CAS, owed matching and lock-age refusals, preserving legacy behavior.
-- [ ] Expose the agreed Parley CLI/JSON contract and update help, skill and atlas.
-- [ ] Verify targeted/race/full suites and operator live check, close review, then land on SHIP.
+- [x] Build registry model/store and stable document metadata, with idempotent register/forget/rename and read-only membership discovery.
+- [x] Route every sync verb through registration-aware ownership, CAS, owed matching and lock-age refusals, preserving legacy behavior.
+- [x] Expose the agreed Parley CLI/JSON contract and update help, skill, README and atlas.
+- [ ] Verify targeted/race/full suites and prepare the candidate for the close review.
+
+After verification: the mandatory close review owns SHIP, then land through sdlc. The TL owns the combined operator live check after parley.nvim#332 staging, per the approved revision.
 
 ## Log
 
@@ -98,6 +100,10 @@ total: 1.704
 ```
 
 ## Revisions
+
+### 2026-10-15 — candidate checklist clarification
+
+The implementation checklist now separates completed code/docs and pending automated verification from future close/landing actions. The original prelanding operator-live step was superseded by the TL's explicit independent-landing decision; it remains owed by the project after Parley staging, not marked completed here. README's public command inventory now includes the registry verbs.
 
 ### 2026-10-15 11:21 PDT — queue-safe rename attribution
 

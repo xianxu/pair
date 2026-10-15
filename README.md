@@ -440,9 +440,13 @@ couch --broadcast-web-fidelity [ID|DIR]
                          check a recording (default: the newest) against the tab's screenshots in a headless
                          Chrome; writes DIR/fidelity/report.md; exit 3 when a frame is over tolerance (pair#478)
 couch --session-sync read|write|diff|status ... FILE
-                         the one way an agent changes a session-sync file it owns: refuses under the
+                         the one way an agent changes registered markdown or a legacy session file: refuses under the
                          operator's lock or when the section changed since `read` (write --if-hash), and
-                         lists owed deliveries (see couch --skill)
+                         lists owed deliveries; locks older than 30 minutes add ping advice (see couch --skill)
+couch --session-sync register FILE --owner SLOT [--json]
+                         keep agentic status outside the document until explicitly forgotten
+couch --session-sync lookup FILE | list | forget FILE | rename OLD NEW [--json]
+                         discover bindings or update metadata after a filesystem move; see atlas/couch-agentic-documents.md
 couch --recover-plan-from-sdlc   per-slot recovery report (JSON), see below
 couch --resume repo:N [--json]   from a live slot: resume that slot's agent
 couch --resume-candidates repo:N [--json]
