@@ -81,8 +81,9 @@ func TestSelectedRootNativeCreateListResume(t *testing.T) {
 	fake := `#!/bin/sh
 case "$1" in
   list-sessions)
-    if [ -f "$PAIR_ROOT_TEST_STATE" ]; then cat "$PAIR_ROOT_TEST_STATE"; fi
-    exit 0 ;;
+    if [ -f "$PAIR_ROOT_TEST_STATE" ]; then cat "$PAIR_ROOT_TEST_STATE"; exit 0; fi
+    printf 'No active zellij sessions found.\n' >&2
+    exit 1 ;;
   --session) printf 'CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n'; exit 0 ;;
   --config-dir)
     if [ "$3" = attach ]; then

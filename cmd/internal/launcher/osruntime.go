@@ -93,7 +93,11 @@ func (OSRuntime) SessionLiveness() ([]Session, error) {
 }
 
 func (OSRuntime) SessionBlocksReuse(session string) bool {
-	present, exited := zellijsession.RowState(zj("list-sessions", "--no-formatting"), session)
+	raw, err := (ZellijSource{}).run("list-sessions", "--no-formatting")
+	if err != nil {
+		return true // unavailable is not proof that this name is free.
+	}
+	present, exited := zellijsession.RowState(string(raw), session)
 	if !present {
 		return false // no such session — reuse is free.
 	}
@@ -120,7 +124,7 @@ func (OSRuntime) ProbeSessionName(session string) error {
 	defer cancel()
 	out, err := exec.CommandContext(ctx, "zellij", "--session", session, "action", "list-clients").CombinedOutput()
 	if sessionNameRejected(string(out)) {
-		return fmt.Errorf("session name too long: %s", session)
+		return fmt.Errorf("%w: %s", errSessionNameTooLong, session)
 	}
 	// A FAILED observation is not a positive one. Discarding err meant a zellij
 	// that is missing, killed, or past zjTimeout produced empty output,
@@ -131,9 +135,12 @@ func (OSRuntime) ProbeSessionName(session string) error {
 	// is reachable under exactly the load this issue is about (zjTimeout is 5s,
 	// and a `zellij action` round-trip was measured at 467ms under load, #203).
 	//
-	// Empty output with a non-zero exit is the tell: zellij that ran and refused
-	// says so on stderr, which CombinedOutput captures.
-	if err != nil && len(bytes.TrimSpace(out)) == 0 {
+	// Empty output, including exit0 after an early unblock, is no answer. A
+	// validator refusal has a diagnostic on stderr, captured by CombinedOutput.
+	if len(bytes.TrimSpace(out)) == 0 {
+		if err == nil {
+			err = ErrZellijNoReply
+		}
 		return fmt.Errorf("could not ask zellij about session name %q: %w", session, err)
 	}
 	return nil
@@ -168,8 +175,8 @@ func killOnCancel(cmd *exec.Cmd) *exec.Cmd {
 func (OSRuntime) ProbeLiveLayout(session string) (LayoutMode, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), zjTimeout)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, "zellij", "--session", session, "action",
-		"list-panes", "--json", "--command", "--state").Output()
+	out, err := (ZellijSource{}).runContext(ctx, "--session", session, "action",
+		"list-panes", "--json", "--command", "--state")
 	if err != nil {
 		return "", err
 	}
@@ -219,8 +226,16 @@ func (r OSRuntime) ListSessions() ([]ListRow, error) {
 	if _, err := exec.LookPath("zellij"); err != nil {
 		return nil, fmt.Errorf("zellij not found on PATH") // shell 231-234
 	}
-	raw := zj("list-sessions", "--no-formatting")
-	names := pairSessionNames(zj("list-sessions", "--short"))
+	source := ZellijSource{}
+	raw, err := source.run("list-sessions", "--no-formatting")
+	if err != nil {
+		return nil, err
+	}
+	short, err := source.run("list-sessions", "--short")
+	if err != nil {
+		return nil, err
+	}
+	names := pairSessionNames(string(short))
 	index, err := r.ReadSessionNameIndex()
 	if err != nil {
 		return nil, fmt.Errorf("read session-name index: %w", err)
@@ -228,9 +243,19 @@ func (r OSRuntime) ListSessions() ([]ListRow, error) {
 	// One list-clients per pair session, deliberately: each row renders
 	// "attached (N clients)", so every count IS the output: a justified full
 	// scan, like bare pair's picker (pair#228).
-	return buildListRowsForScope(names, raw, index, scopeKeyFromDataDir(r.GlobalDataDir, r.DataDir), r.InferAgent, func(session string) int {
-		return parseClientCount(zj("--session", session, "action", "list-clients"))
-	}), nil
+	var queryErr error
+	rows := buildListRowsForScope(names, string(raw), index, scopeKeyFromDataDir(r.GlobalDataDir, r.DataDir), r.InferAgent, func(session string) int {
+		if queryErr != nil {
+			return 0
+		}
+		var count int
+		count, queryErr = source.clientCountContext(context.Background(), session)
+		return count
+	})
+	if queryErr != nil {
+		return nil, queryErr
+	}
+	return rows, nil
 }
 
 // --- ContinuationOps -------------------------------------------------------

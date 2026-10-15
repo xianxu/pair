@@ -27,7 +27,7 @@ func TestTheAcceptorAgreesWithRealZellijLive(t *testing.T) {
 		t.Skip("set PAIR_LIVE_COUCH=1 to check the acceptor against real zellij")
 	}
 	rt := OSRuntime{}
-	accepts, refusedAt := sessionNameAcceptor(rt)
+	accepts, refusedAt, _ := sessionNameAcceptor(rt)
 
 	const marker = "pair-probe-zz"
 	pad := func(n int) string { return marker + strings.Repeat("z", n-len(marker)) }
@@ -56,7 +56,7 @@ func TestTheAcceptorAgreesWithRealZellijLive(t *testing.T) {
 
 	// And the acceptor must agree with a raw probe at every length, which is the
 	// property the bracket rests on (acceptance is monotone in length).
-	fresh, _ := sessionNameAcceptor(rt)
+	fresh, _, _ := sessionNameAcceptor(rt)
 	for n := len(marker); n <= 60; n++ {
 		want := rt.ProbeSessionName(pad(n)) == nil
 		if got := fresh(pad(n)); got != want {

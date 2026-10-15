@@ -1144,6 +1144,17 @@ while its record file is the one it read (`Couch.ContinuationRequests`,
 22 live threads: a warm activity pass 0.34 s of CPU (was 8.6 s), a warm
 continuation scan 27 µs (was ~100 ms).
 
+**Unanswered Zellij reads (#562).** A successful CLI exit with empty or
+whitespace-only stdout is no reply, not an empty inventory, detached client set,
+or owner evidence. `launcher.ZellijSource` reports `ErrZellijNoReply`; callers
+keep uncertainty and perform no automatic retry. The explicit exit1 diagnostic
+`No active zellij sessions found.` remains positive empty-inventory evidence.
+A new query is a new observation, and malformed nonempty pane JSON still fails.
+Name-length assignments retain an unanswered probe separately from genuine
+validator refusals, so they cannot learn a monotone length bound from uncertainty.
+Native server identity and effect-time generation checks remain required; this
+boundary cannot detect a nonempty discovery result that silently omitted a server.
+
 **Unchanged evidence reuse (#559).** The long-lived collision checker owns a
 `launcher.SessionNameIndexCache`, shared by `PairSessionName` and
 `resolveScopedBindings`; message authority uses the same reader. It retains the

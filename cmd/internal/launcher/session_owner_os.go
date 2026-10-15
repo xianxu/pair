@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -86,6 +87,9 @@ func (p SessionOwnerProbe) Probe(ctx context.Context, name, globalDataDir, scope
 	if len(after) != 1 || before[0] != after[0] {
 		result.Diagnostic = "session server changed during observation"
 		return result, nil
+	}
+	if len(bytes.TrimSpace(raw)) == 0 {
+		return result, fmt.Errorf("observe live session panes: %w", ErrZellijNoReply)
 	}
 	if !json.Valid(raw) {
 		result.Diagnostic = "invalid live pane JSON"

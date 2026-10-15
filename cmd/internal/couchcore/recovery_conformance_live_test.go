@@ -171,7 +171,11 @@ func runRecoveryLiveFixture(t *testing.T, warm bool) {
 	inputFile := filepath.Join(base, "source-input")
 	paneIDFile := filepath.Join(base, "source-pane")
 	sourceScript := filepath.Join(base, "source-agent.sh")
-	script := "#!/bin/sh\nprintf '%s' \"$ZELLIJ_PANE_ID\" > \"$3\"\nprintf '%s' \"$$\" > \"$1\"\nwhile IFS= read -r line; do printf '%s\\n' \"$line\" >> \"$2\"; printf 'AGENT:%s\\n' \"$line\"; done\n"
+	script := "#!/bin/sh\n" + recoveryFixturePublisher("") + `
+publish_fixture_value "$3" "$ZELLIJ_PANE_ID" || exit 1
+publish_fixture_value "$1" "$$" || exit 1
+while IFS= read -r line; do printf '%s\n' "$line" >> "$2"; printf 'AGENT:%s\n' "$line"; done
+`
 	if err := os.WriteFile(sourceScript, []byte(script), 0700); err != nil {
 		t.Fatal(err)
 	}

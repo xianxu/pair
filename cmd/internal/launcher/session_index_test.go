@@ -409,3 +409,10 @@ func TestProbeCountIsInvariantInBothBudgetRegimes(t *testing.T) {
 		})
 	}
 }
+
+// Test-only adapter for established accept/refuse oracle scenarios. Production
+// callers retain queryError and stop rather than generalize unknown outcomes.
+func singleUseAcceptor(rt Runtime) func(string) bool {
+	accepts, _, _ := sessionNameAcceptor(rt)
+	return accepts
+}
