@@ -82,3 +82,5 @@ The new listed-terminal route still arms resumeRegistrationTimeout through regis
 - Integrated #562 main before final verification at 83e3e7a0a5482f1f7a48bc1abfbd864c68add371. make -k -B build passed; Pair/Couch embed that exact clean revision. Revised semantic/observer -race x3 passed (5.150s) before integration; integrated semantic, intentional timeout and warm lifecycle -race x3 passed (21.110s). Required suite queued on 83e3e7a0; broad couchcore still running.
 
 - Revised integrated broad couchcore passed (396.257s); no filtered failures. Required suite still queued on 83e3e7a0.
+
+- Revised required sdlc-local/suite passed on 83e3e7a0a5482f1f7a48bc1abfbd864c68add371 (exit 0, 9m50s; couchcore 314.343s). Full log SHA-256: 09f4e58873a9aae8e76740020a2c1feece778ff56afa80a0a5102b59b86e92fa. All later commits are evidence-only. Ready for a fresh full close review of the approved revision; earlier SHIP is not being reused.
