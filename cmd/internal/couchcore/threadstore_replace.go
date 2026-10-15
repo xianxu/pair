@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/threadrecord"
+	"reflect"
 )
 
 // ReplaceThreadExpected retires old and publishes next in ONE store journal --
@@ -21,6 +23,16 @@ import (
 // no path to start in, so reboot archives it alone (DecideReboot) and never
 // replaces it.
 func (s *ThreadStore) ReplaceThreadExpected(old ThreadAddress, expectedRevision uint64, next ThreadRecord) error {
+	return s.replaceThreadExpected(old, expectedRevision, next, false)
+}
+
+// Recovery replaces bookkeeping without claiming that an unattributed remnant
+// died. The exact durable Fresh selection must already be on both records.
+func (s *ThreadStore) replaceRecoveryThreadExpected(old ThreadAddress, revision uint64, next ThreadRecord) error {
+	return s.replaceThreadExpected(old, revision, next, true)
+}
+
+func (s *ThreadStore) replaceThreadExpected(old ThreadAddress, expectedRevision uint64, next ThreadRecord, recovery bool) error {
 	if s.layout.Local {
 		return errors.New("a slot store replaces its current record through replaceSlotCurrent")
 	}
@@ -70,7 +82,16 @@ func (s *ThreadStore) ReplaceThreadExpected(old ThreadAddress, expectedRevision 
 		if record.Revision != expectedRevision {
 			return &ThreadRevisionError{Address: old, Want: expectedRevision, Got: record.Revision}
 		}
-		if err := archivableRecord(record); err != nil {
+		if recovery {
+			if record.RecoveryIntent == nil || next.RecoveryIntent == nil || record.RecoveryIntent.Kind() != threadrecord.RecoveryFresh {
+				return errors.New("fresh replacement lacks retained source selection")
+			}
+			expected := threadrecord.CloneRecoveryIntent(record.RecoveryIntent)
+			expected.Address = toPersistedThreadAddress(next.Address)
+			if !reflect.DeepEqual(expected, next.RecoveryIntent) || len(next.Incarnations) != 1 || next.Incarnations[0].Start == nil || !reflect.DeepEqual(expected, next.Incarnations[0].Start.RecoveryIntent) {
+				return errors.New("fresh replacement selection changed")
+			}
+		} else if err := archivableRecord(record); err != nil {
 			return err
 		}
 		if _, exists, err := s.readOptionalPayload(s.recordPath(next.Address)); err != nil {

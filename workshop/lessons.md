@@ -1881,3 +1881,10 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
 
 - #564 integration: when upstream changes a public route, move regression observers to the current route and prove the original hazard still applies before retaining a fix. Assert cancellation propagation at the observer before cleanup cancels the child; a final error alone can be produced by a different parent check.
 - #562 close review: enumerate subprocess outcomes before learning monotone bounds. Nonempty diagnostics do not turn a failed/canceled query into acceptance; check cancellation before parsing even validator-looking fragments. Preserve only source-verified complete validator outcomes, with real-subprocess negative and positive controls. Keep Done-when and completed Plan rows at the level of evidence actually delivered: a source-derived fake is not an upstream receiver regression or a captured wire ordering.
+
+- #556: Authenticate a recovery confirmer against the exact live process
+  generation as well as broker nonce/session. A PID-file binding alone survives
+  PID reuse and cannot authorize stopping another slot.
+- #556: Wrapper death does not prove the native transcript has no writer.
+  Native admission must retain the child generation through reparenting and
+  uncertain readiness; explicit Fresh remains the safe alternative.

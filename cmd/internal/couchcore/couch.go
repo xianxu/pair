@@ -24,9 +24,12 @@ import (
 // method on it. The terminal UI and (later) the advisor's tools are both
 // clients of these methods -- never of two separate implementations.
 type Couch struct {
+	recoveryMu             sync.Mutex
+	recoveryConfirmations  map[string]recoveryConfirmationState
 	RecoveryEvidence       RecoveryEvidenceReader
 	RecoveryPreserve       RecoveryCapturePreserver
 	RecoveryTerminal       RecoveryTerminalPreparation
+	RecoveryRetirement     RecoveryRetirementPreparer
 	Identities             IdentityAllocator
 	Slots                  SlotCatalog
 	Workspaces             WorkspaceReadiness

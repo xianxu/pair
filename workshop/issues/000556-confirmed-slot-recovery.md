@@ -144,6 +144,23 @@ admission reservations at the common Pair resume boundary; the hub must review
 this addition before code. The existing two ownership observations alone cannot
 prove the issue's no-two-live-writers contract.
 
+### 2026-10-15 — M1 implementation checkpoint
+
+Implemented the shared prepared executor and ephemeral exact-stop confirmation
+owner, standalone authenticated hub confirmation, schema-4 tagged recovery with
+read-only schema-3 migration, terminal attribution/rechecking, stale-start fencing,
+and uncertain-launch retention. Native resume carries no Prompt; Fresh uses the
+ordinary #522 launch Prompt pointing at branch/issue and available screen evidence.
+The missing-record Fresh path now carries that orientation and strict readiness.
+
+Targeted integrated checks: `go test ./cmd/internal/couchcore -run
+'^TestProvenRecovery|^TestPrepared|^TestRecoveryConfirmation|^TestResumeCandidate|^TestRecoveryRetirement|^TestRecoveryFresh|^TestRecoveryStartFence'
+-count=1 -timeout=90s` passed (7.124s). Surface and adapter contributors also ran
+their focused regression sets; no full-suite or milestone-close claim yet.
+Remaining M1 integration covers retained-screen reading, preflight/retention, the
+headless matrix, documentation and acceptance script, then the recorded suite.
+No live slot lifecycle effects or stage changes were performed.
+
 ## Revisions
 
 ### 2026-10-15T05:33-07:00 — overnight M2 dispatch
