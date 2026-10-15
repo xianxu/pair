@@ -1,12 +1,20 @@
 ---
 id: 000423
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-09
-updated: 2026-10-09
+updated: 2026-10-14
 estimate_hours:
-card_mirror: 'b8147a24559c7c4f4ba6596588e6765b758d265c' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '51adfe86b94a675bd5469606e82edb0a97e87587' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-14T23:30:55-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # test: TestColdResumeOfAParkedPrimaryRegistersFromBothOrigins/switcher flakes, Enter races row load
@@ -25,6 +33,26 @@ the parked row (`▸ repo … parked`) renders only afterwards.
 
 ## Spec
 
+The root race was fixed in #436 (62a91a14b1687aa5cddf846f33bb884c0b25a2ab):
+wait for the rendered parked row, not the switcher header. Preserve that fix
+and pin its ordering deterministically in the existing cold-resume fixture.
+Gate the real actionable provider with a cancellation-aware channel, observe
+the header with inventory still withheld, and assert that the same readiness
+predicate used before Enter rejects that frame. Release inventory, wait for
+the row, then keep the existing resume/attach and registered-live assertions.
+No production behavior, sleeps, deadline increases, or weaker assertions.
+
+ARCH-DRY/PURE: share one readiness predicate between negative and positive
+checks, wrap the existing provider rather than duplicate inventory behavior.
+ARCH-ORDER: explicitly force header -> withheld inventory -> row -> Enter;
+a header-only predicate must fail before releasing inventory.
+ARCH-MOCK: retain the existing stateful runner/artifacts and real console.
+ARCH-CONSTRAINTS: bounded sequential qualification (20 runs), existing test
+bounds, no synthetic machine load. ARCH-SECURE: fixture-only data and channels.
+ARCH-FUNERAL: cancellation and test cleanup release blocked provider work;
+no durable runtime artifacts. ARCH-PURPOSE: prove the previously flaky ordering
+and both origins still register, then close the stale issue.
+
 ## Done when
 
 - The switcher subtest waits for the parked row (or inventory-ready state)
@@ -32,7 +60,9 @@ the parked row (`▸ repo … parked`) renders only afterwards.
 
 ## Plan
 
-- [ ]
+- [ ] Gate inventory in the existing switcher fixture and share the row predicate.
+- [ ] Prove header-only predicate red, restored predicate green; qualify 20 runs and race.
+- [ ] Run build and full make -k test, review, merge main, land on SHIP.
 
 ## Log
 
@@ -48,3 +78,17 @@ the parked row (`▸ repo … parked`) renders only afterwards.
 - Failure frame excerpt: `threads` / `thread inventory unavailable` /
   `(no match)`, then `error: no selection`, then the row
   `▸ repo /…/TestColdResume… parked`.
+
+### 2026-10-14 — investigation and plan
+
+- Main already contains #436's exact row-wait fix; #423 remained open.
+  The old failure frame and current menu reducer agree: header publication
+  precedes asynchronous inventory; Enter on an empty selection is refused.
+- Prefer a controlled provider barrier over an unbounded load soak or changing
+  production input semantics. The barrier exercises the actual console and
+  retains the production provider under the wrapper.
+
+## Revisions
+
+- 2026-10-14: scope is deterministic coverage and qualification of the landed
+  #436 fix, not reimplementing it; discovered by inspecting main and git history.
