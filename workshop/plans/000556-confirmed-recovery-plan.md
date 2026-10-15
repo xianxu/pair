@@ -177,6 +177,6 @@ TL/operator only, after morning Couch restart on the landed build. Use a newly a
 
 Built from source audit at `09c5b48dd7586d6ba908a45ea86899190ad3dd4a`, including independent core/surface audits. Proposed for hub approval before change-code. No changes to the targets: the old continuity document's observe-only startup wording is superseded by accepted #528 auto-attach and the newer recovery target; this issue preserves that behavior.
 
-### 2026-10-15T05:41-07:00 — native concurrency audit
+### 2026-10-15T05:38-07:00 — native concurrency audit
 
 A bounded follow-up verified that current native checks do not serialize competing slots. Added an explicit bounded native admission reservation protocol to meet the existing no-two-writers Done-when. This is a design addition for hub review, not implemented code or a claim that the existing gate already provides exclusion.
