@@ -320,6 +320,27 @@ JSON repair or permission to relax owner proof. Exact fixture root removed;
 no operator environment touched. Hub outcome934a9dea-b86b-4e72-a088-03f848d7b7c3
 submitted; a failed Leave cannot qualify for proposed safe-reset continuation.
 
+Authority-query observer coverage is now complete for root StartInteractive,
+dispatched background operations/Leave and verification, sharing a mutex-protected
+collector. It snapshots after Console worker join;4096 records/8MiB streams per
+sample, any omitted/truncated evidence explicitly fails measurement. Race
+couchcmd/launcher and full artifactpath pass. A production SessionOwnerProbe test
+captures exact malformed-success pane bytes without changing its unresolved
+verdict. Diagnostic process inspection confirms zero remaining scoped process
+rows for MATRIX2/3/4 roots, beyond root-file absence alone.
+
+Read-only upstream0.45.1 investigation found a possible empty-success mechanism:
+[CLI individual_messages_client](https://github.com/zellij-org/zellij/blob/v0.45.1/zellij-client/src/cli_client.rs#L206-L252)
+accepts an unblock before query Log; [server broadcasts some unblocks](https://github.com/zellij-org/zellij/blob/v0.45.1/zellij-server/src/lib.rs#L1287)
+to all connected clients, including CLI. ClosePane/CloseTab/plugin reload can
+generate those broadcasts. ListClients also has a one-second completion wait in
+[route.rs](https://github.com/zellij-org/zellij/blob/v0.45.1/zellij-server/src/route.rs#L49),
+so delayed output can lose to its own unblock. ListPanes normally emits its Log
+before its own unblock. This supports empty-success as a hypothesis only; it
+cannot explain nonempty malformed bytes until the actual failed query is retained.
+No upstream binary change or installation proposed. Hub receipt
+b3e5ad8c-b2c7-4e11-a766-2ea84a5b22a2 reports this distinction.
+
 ## Revisions
 
 - 2026-10-14 — add (operator via TL): concrete case. At the operator's 14:33 restart, Couch's background attaches spawned 21 zellij clients between 14:33:37 and 14:33:47 (~6 at a time): roughly 2–3 s per attach, against ~10–20 ms for `zellij list-sessions` and an expected ~100–300 ms floor (list, lease, one record write, spawn client, first frame). Detach ("leave couch") is unmeasured but also inspects each slot's session server. Trace one attach and one detach step by step; the likely waste is a whole process-table read (native argv for every process since #547) per slot. Probably one shared snapshot per startup or detach pass instead.

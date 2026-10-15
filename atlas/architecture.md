@@ -1330,7 +1330,9 @@ The default path keeps the unwrapped reader. The opt-in fleet fixture in
 worker pool and LeaveDetach, requiring a meaningful alternate-screen agent marker
 for first-frame readiness rather than treating attached-state queries as a frame.
 The fixture can observe the existing ZellijSource query context to retain bounded
-raw verification responses and exact process evidence before Leave. Query bytes
+raw parent-operation and verification responses, plus exact process evidence
+before Leave. The per-sample query collector limits records and bytes; truncated
+or omitted evidence makes the sample fail explicitly. Query bytes
 passed to the production parser and direct subprocess cancellation stay unchanged;
 ordinary contexts have no observer or new output.
 

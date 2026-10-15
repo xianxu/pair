@@ -181,3 +181,17 @@ cancellation. A Path wrapper with extra supervisors/lifelines was rejected as
 unnecessary lifecycle machinery (ARCH-DRY/ARCH-FUNERAL); reuse the existing query
 boundary. No retry, state substitution or authority change. A new versioned
 experiment follows instrumentation; failed prior versions remain unchanged.
+
+### 2026-10-14 — enumerate query-observer coverage after failed Leave
+
+MATRIX4 failed on a parent authority query, outside the initial observer's
+verification-only context. Compose the same callback into root StartInteractive,
+all dispatched operations (including concurrent resume/Leave), and verification.
+Retain actual session-to-tag attribution, join workers before the final snapshot,
+and bound the synchronized per-sample collector to4096 records/8MiB; overflow or
+truncated evidence must explicitly fail the sample. Preserve child-process
+observation as separate stderr evidence. A production owner-probe test must
+retain malformed success bytes while its verdict remains unresolved. No ownership
+or retry policy changes. Upstream CLI accepts uncorrelated unblock messages, a
+possible mechanism for empty-success results; exact runtime bytes are still needed
+before classifying this failure.

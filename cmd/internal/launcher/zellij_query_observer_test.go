@@ -127,3 +127,28 @@ func TestZellijQueryObserverPreservesCancellation(t *testing.T) {
 		t.Fatalf("canceled query evidence=%+v", e)
 	}
 }
+
+type queryObservedOwnerWorld struct{ *ownerWorld }
+
+func (w *queryObservedOwnerWorld) SessionPanes(ctx context.Context, name string) ([]byte, error) {
+	return (osSessionOwnerIO{}).SessionPanes(ctx, name)
+}
+
+func TestZellijQueryObserverRetainsMalformedAuthoritativePaneResponse(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "zellij")
+	if err := os.WriteFile(path, []byte("#!/bin/sh\nprintf '{malformed pane JSON'\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	world := &queryObservedOwnerWorld{&ownerWorld{present: true, generation: SessionServerIdentity{PID: 11, Identity: "original", Session: "pair-fixture", Socket: "/fixture/socket"}}}
+	var events []ZellijQueryObservation
+	ctx := WithZellijQueryObserver(t.Context(), func(e ZellijQueryObservation) { events = append(events, e) })
+	got, err := (SessionOwnerProbe{IO: world}).Probe(ctx, "pair-fixture", "/tmp/data", "0123456789abcdef", "1-repo-1")
+	if err != nil || got.State != SessionOwnerUnknown || got.Diagnostic != "invalid live pane JSON" {
+		t.Fatalf("ownership classification changed: %+v %v", got, err)
+	}
+	if len(events) != 1 || string(events[0].Stdout) != "{malformed pane JSON" || events[0].ExitCode != 0 || events[0].Err != nil || strings.Join(events[0].Args, " ") != "--session pair-fixture action list-panes --json --command" {
+		t.Fatalf("authoritative response not retained: %+v", events)
+	}
+}

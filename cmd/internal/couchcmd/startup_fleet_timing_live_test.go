@@ -284,7 +284,7 @@ type fleetClientBirth struct {
 }
 
 type fleetZellijQuery struct {
-	Phase                            string
+	Phase, Operation, Tag            string
 	Args                             []string
 	Started, Finished                time.Time
 	DurationMS                       float64
@@ -295,20 +295,77 @@ type fleetZellijQuery struct {
 	Error                            string
 }
 
-func fleetQueryContext(ctx context.Context, phase string, events *[]fleetZellijQuery) context.Context {
-	return launcher.WithZellijQueryObserver(ctx, func(e launcher.ZellijQueryObservation) {
+// The nine-sample schedule retains at most 8 MiB of raw query streams and
+// 4096 query records per sample. Any source/sample truncation or omitted record
+// fails the measurement explicitly; it never changes the production query.
+const fleetQueryByteLimit = 8 * 1024 * 1024
+const fleetQueryEventLimit = 4096
+
+type fleetQueryCollector struct {
+	mu                        sync.Mutex
+	events                    []fleetZellijQuery
+	bytes, omitted, truncated int
+	// Immutable before operations start; Leave's shared context can therefore
+	// attribute each named authority query to its actual fixture thread.
+	sessionTags map[string]string
+}
+
+func (c *fleetQueryCollector) context(ctx context.Context, phase, operation, tag string) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return launcher.WithZellijQueryObserver(ctx, c.observer(phase, operation, tag))
+}
+
+func (c *fleetQueryCollector) observer(phase, operation, tag string) func(launcher.ZellijQueryObservation) {
+	return func(e launcher.ZellijQueryObservation) {
+		queryTag := tag
+		for i, arg := range e.Args {
+			if arg == "--session" && i+1 < len(e.Args) {
+				if actual, ok := c.sessionTags[e.Args[i+1]]; ok {
+					queryTag = actual
+				}
+				break
+			}
+		}
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		if len(c.events) == fleetQueryEventLimit {
+			c.omitted++
+			return
+		}
+		stdoutSize := min(len(e.Stdout), fleetQueryByteLimit-c.bytes)
+		stderrSize := min(len(e.Stderr), fleetQueryByteLimit-c.bytes-stdoutSize)
+		stdoutTruncated := e.StdoutTruncated || stdoutSize < len(e.Stdout)
+		stderrTruncated := e.StderrTruncated || stderrSize < len(e.Stderr)
+		if stdoutTruncated || stderrTruncated {
+			c.truncated++
+		}
 		errText := ""
 		if e.Err != nil {
 			errText = e.Err.Error()
 		}
-		*events = append(*events, fleetZellijQuery{
-			Phase: phase, Args: e.Args, Started: e.Started, Finished: e.Finished,
-			DurationMS: fleetMillis(e.Duration), Stdout: e.Stdout, Stderr: e.Stderr,
+		c.events = append(c.events, fleetZellijQuery{
+			Phase: phase, Operation: operation, Tag: queryTag,
+			Args: append([]string(nil), e.Args...), Started: e.Started, Finished: e.Finished,
+			DurationMS: fleetMillis(e.Duration),
+			Stdout:     append([]byte(nil), e.Stdout[:stdoutSize]...), Stderr: append([]byte(nil), e.Stderr[:stderrSize]...),
 			StdoutBytes: e.StdoutBytes, StderrBytes: e.StderrBytes,
-			StdoutTruncated: e.StdoutTruncated, StderrTruncated: e.StderrTruncated,
+			StdoutTruncated: stdoutTruncated, StderrTruncated: stderrTruncated,
 			ExitCode: e.ExitCode, Error: errText,
 		})
-	})
+		c.bytes += stdoutSize + stderrSize
+	}
+}
+
+func (c *fleetQueryCollector) snapshot() ([]fleetZellijQuery, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	var err error
+	if c.omitted > 0 || c.truncated > 0 {
+		err = fmt.Errorf("query evidence incomplete: omitted=%d truncated=%d (limits %d records, %d raw bytes)", c.omitted, c.truncated, fleetQueryEventLimit, fleetQueryByteLimit)
+	}
+	return append([]fleetZellijQuery(nil), c.events...), err
 }
 
 type fleetClientObservation struct {
@@ -486,7 +543,18 @@ func fleetWait(ctx context.Context, condition func() bool) error {
 func runFleetSample(t *testing.T, c *couchcore.Couch, tracker *fleetTracker, inner *couchcore.PtyRunner, current **couchtty.Console, panes []fleetPane, repo string, limit, index int, evidence string) (sample fleetSample) {
 	sample = fleetSample{Index: index, Limit: limit, Count: len(panes), FrameMS: map[string]float64{}, Children: map[string]string{}, Clients: map[string][]fleetClientBirth{}}
 	var parentTimings fleetParentTimings
-	defer func() { sample.ParentStages = parentTimings.snapshot() }()
+	queries := fleetQueryCollector{sessionTags: make(map[string]string, len(panes))}
+	for _, pane := range panes {
+		queries.sessionTags[pane.session] = string(pane.address.Tag)
+	}
+	defer func() {
+		sample.ParentStages = parentTimings.snapshot()
+		var captureErr error
+		sample.Queries, captureErr = queries.snapshot()
+		if captureErr != nil {
+			sample.Errors = append(sample.Errors, captureErr.Error())
+		}
+	}()
 	fmt.Fprintf(os.Stderr, "fleet sample begin index=%d limit=%d\n", index, limit)
 	defer func() { fmt.Fprintf(os.Stderr, "fleet sample end index=%d\n", index) }()
 	couchcore.LifecycleParallelism = limit
@@ -512,9 +580,13 @@ func runFleetSample(t *testing.T, c *couchcore.Couch, tracker *fleetTracker, inn
 			tracker.mu.Unlock()
 			defer func() { tracker.mu.Lock(); tracker.active--; tracker.mu.Unlock() }()
 		}
+		tag := call.Args["tag"]
 		if call.Name != "leave" {
-			call.Context = parentTimings.context(call.Context, call.Name, call.Args["tag"])
+			call.Context = parentTimings.context(call.Context, call.Name, tag)
+		} else {
+			tag = "fleet"
 		}
+		call.Context = queries.context(call.Context, "operation", call.Name, tag)
 		value, err := actual(call)
 		tracker.mu.Lock()
 		defer tracker.mu.Unlock()
@@ -575,7 +647,7 @@ func runFleetSample(t *testing.T, c *couchcore.Couch, tracker *fleetTracker, inn
 		return
 	}
 	start := time.Now()
-	initial, err := c.StartInteractive(parentTimings.context(ctx, "root", "root"), couchcore.StartArgs{Cwd: repo, Stack: "claude"})
+	initial, err := c.StartInteractive(queries.context(parentTimings.context(ctx, "root", "root"), "startup", "root", "root"), couchcore.StartArgs{Cwd: repo, Stack: "claude"})
 	sample.RootReturnMS = fleetMillis(time.Since(start))
 	if err != nil {
 		sample.Errors = append(sample.Errors, "initial root: "+err.Error())
@@ -687,7 +759,7 @@ func runFleetSample(t *testing.T, c *couchcore.Couch, tracker *fleetTracker, inn
 	sample.Errors = append(sample.Errors, fleetClientBirthErrors(panes, sample.Clients)...)
 	// After meaningful model frames, verify all live clients once. No CLI
 	// readiness probes run concurrently with the client handoff.
-	rows, err := (launcher.ZellijSource{}).SnapshotSessionsContext(fleetQueryContext(ctx, "attached", &sample.Queries), fleetSessionNames(panes))
+	rows, err := (launcher.ZellijSource{}).SnapshotSessionsContext(queries.context(ctx, "attached", "verify", "fleet"), fleetSessionNames(panes))
 	sample.AttachedRows = append([]launcher.Session(nil), rows...)
 	// Exactly one fresh verification observation, never a retry of the CLI
 	// answer. Preserve absent, replaced and unreadable generations separately.
@@ -751,7 +823,7 @@ func runFleetSample(t *testing.T, c *couchcore.Couch, tracker *fleetTracker, inn
 			sample.Errors = append(sample.Errors, fmt.Sprintf("incarnation retirement %s: %+v %v", pane.address.Tag, record.Incarnations, err))
 		}
 	}
-	rows, err = (launcher.ZellijSource{}).SnapshotSessionsContext(fleetQueryContext(ctx, "postleave", &sample.Queries), fleetSessionNames(panes))
+	rows, err = (launcher.ZellijSource{}).SnapshotSessionsContext(queries.context(ctx, "postleave", "verify", "fleet"), fleetSessionNames(panes))
 	sample.PostLeaveRows = append([]launcher.Session(nil), rows...)
 	if err != nil {
 		sample.Errors = append(sample.Errors, err.Error())
@@ -1484,5 +1556,92 @@ func TestFleetPostQueryClientValidationRejectsContradictoryOrUnknownEvidence(t *
 	}
 	if got := fleetPostQueryClientErrors(map[string][]fleetClientObservation{"tag": {{PID: 11, State: "same-generation", SameGeneration: true}}}); len(got) != 0 {
 		t.Fatalf("known live generation refused: %v", got)
+	}
+}
+
+func TestFleetQueryCollectorScopesConcurrentParentOperations(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "zellij")
+	script := "#!/bin/sh\ncase \"$*\" in\n 'list-sessions --short') printf 'pair-fixture\\n' ;;\n 'list-sessions --no-formatting') printf 'pair-fixture [Created]\\n' ;;\n *) printf 'CLIENTS\\n1\\n' ;;\nesac\n"
+	if err := os.WriteFile(path, []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	var collector, unrelated fleetQueryCollector
+	var timings fleetParentTimings
+	type inheritedKey struct{}
+	parent := context.WithValue(t.Context(), inheritedKey{}, "retained")
+	var wg sync.WaitGroup
+	cases := []struct{ phase, operation, tag string }{{"startup", "root", "root"}, {"operation", "resume", "background"}, {"operation", "leave", "fleet"}, {"attached", "verify", "fleet"}, {"postleave", "verify", "fleet"}}
+	for _, tc := range cases {
+		wg.Go(func() {
+			ctx := collector.context(timings.context(parent, tc.operation, tc.tag), tc.phase, tc.operation, tc.tag)
+			if ctx.Value(inheritedKey{}) != "retained" {
+				t.Error("composed observer lost parent context")
+			}
+			rows, err := (launcher.ZellijSource{Path: path}).SnapshotSessionsContext(ctx, []string{"pair-fixture"})
+			if err != nil || len(rows) != 1 || rows[0].State != launcher.SessionAttached {
+				t.Errorf("parser changed: %+v %v", rows, err)
+			}
+		})
+	}
+	wg.Wait()
+	got, err := collector.snapshot()
+	if err != nil || len(got) != 3*len(cases) {
+		t.Fatalf("events=%d err=%v", len(got), err)
+	}
+	counts := map[string]int{}
+	for _, e := range got {
+		counts[e.Phase+"/"+e.Operation+"/"+e.Tag]++
+		if e.ExitCode != 0 || len(e.Stdout) == 0 {
+			t.Fatalf("lost query data: %+v", e)
+		}
+	}
+	for _, tc := range cases {
+		if counts[tc.phase+"/"+tc.operation+"/"+tc.tag] != 3 {
+			t.Fatalf("lost attribution: %v", counts)
+		}
+	}
+	if other, err := unrelated.snapshot(); err != nil || len(other) != 0 {
+		t.Fatalf("collector leaked across samples: %d %v", len(other), err)
+	}
+}
+
+func TestFleetQueryCollectorReportsByteAndEventBounds(t *testing.T) {
+	var bytesBound fleetQueryCollector
+	observe := bytesBound.observer("operation", "leave", "fleet")
+	raw := make([]byte, 64*1024)
+	for i := 0; i <= fleetQueryByteLimit/len(raw); i++ {
+		observe(launcher.ZellijQueryObservation{Stdout: raw, StdoutBytes: len(raw)})
+	}
+	events, err := bytesBound.snapshot()
+	total := 0
+	for _, e := range events {
+		total += len(e.Stdout) + len(e.Stderr)
+	}
+	if err == nil || total > fleetQueryByteLimit || !events[len(events)-1].StdoutTruncated {
+		t.Fatalf("byte bound=%d err=%v", total, err)
+	}
+	var eventBound fleetQueryCollector
+	for i := 0; i <= fleetQueryEventLimit; i++ {
+		eventBound.observer("operation", "resume", "tag")(launcher.ZellijQueryObservation{})
+	}
+	events, err = eventBound.snapshot()
+	if err == nil || len(events) != fleetQueryEventLimit || !strings.Contains(err.Error(), "omitted=1") {
+		t.Fatalf("event bound=%d err=%v", len(events), err)
+	}
+	var sourceTruncated fleetQueryCollector
+	sourceTruncated.observer("operation", "resume", "tag")(launcher.ZellijQueryObservation{StdoutTruncated: true})
+	if _, err := sourceTruncated.snapshot(); err == nil {
+		t.Fatal("source truncation silently accepted as complete evidence")
+	}
+}
+
+func TestFleetQueryCollectorAttributesLeaveFanoutBySession(t *testing.T) {
+	collector := fleetQueryCollector{sessionTags: map[string]string{"pair-first": "first-tag", "pair-second": "second-tag"}}
+	observe := collector.observer("operation", "leave", "fleet")
+	observe(launcher.ZellijQueryObservation{Args: []string{"--session", "pair-first", "action", "list-panes"}})
+	observe(launcher.ZellijQueryObservation{Args: []string{"--session", "pair-second", "action", "list-panes"}})
+	events, err := collector.snapshot()
+	if err != nil || len(events) != 2 || events[0].Tag != "first-tag" || events[1].Tag != "second-tag" || events[1].Operation != "leave" {
+		t.Fatalf("fanout attribution=%+v err=%v", events, err)
 	}
 }
