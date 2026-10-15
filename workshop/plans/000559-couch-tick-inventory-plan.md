@@ -171,3 +171,7 @@ TL explicitly directs final suite/reclose/land on SHIP independently of #528, le
 ### 2026-10-14 — local-review versus landing verification
 
 The previous complete suite on eaa222a5 passed10m48s with no failures; corrected code passes the affected packages, integrated cache race tests and named scale/allocation invariants. The final-code full suite on25e10107 is queued via the weighted gate. Local close review runs while it queues; a checklist tick records initiated gates, not their future outcome. Final-code suite success remains a blocking landing check and will be recorded before merge.
+
+### 2026-10-14 — independent catalog read/write failure controls
+
+Second close confirmed BR-2/BR-3 but demonstrated that the catalog read regression passed without its guard because publication also failed. Read-failure tests now seed real catalog state and allow successful idempotent publication; separate write-failure tests fail only writes. Guard-removal counterfactual fails both permission and observed-present/missing read cases. No production delta; targeted race repetition verifies the independent contract. The queued suite is replaced before acquisition to include the stronger test.

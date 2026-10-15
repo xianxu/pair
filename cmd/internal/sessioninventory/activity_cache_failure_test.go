@@ -3,6 +3,7 @@ package sessioninventory_test
 import (
 	"context"
 	"os"
+	"reflect"
 	"testing"
 	"time"
 
@@ -28,8 +29,18 @@ func (r *failedCatalogReadRuntime) LoadSessionInventoryCatalog() (sessioninvento
 	return r.FakeRuntime.LoadSessionInventoryCatalog()
 }
 func (r *failedCatalogReadRuntime) PublishSessionInventoryValidations(v []sessioninventory.TargetValidation) error {
-	if r.fail {
-		return os.ErrPermission
+	// Successful publication of already persisted validations need not change
+	// metadata. Preserve that complete stateful catalog while reads fail.
+	before, err := r.FakeRuntime.LoadSessionInventoryCatalog()
+	if err != nil {
+		return err
+	}
+	next, err := sessioninventory.CatalogWithTargetValidations(before, v)
+	if err != nil {
+		return err
+	}
+	if reflect.DeepEqual(before, next) {
+		return nil
 	}
 	return r.FakeRuntime.PublishSessionInventoryValidations(v)
 }
@@ -38,6 +49,10 @@ func TestActivityCacheFailedCatalogObservationNeverPublishesFallback(t *testing.
 		t.Run(failure.Error(), func(t *testing.T) {
 			at := time.Now()
 			fake, _, _ := proofBackedCodexFixture(t, "019d1111-1111-7111-8111-111111111111", &at)
+			// Seed the catalog through the real query before failing only reads.
+			if _, err := sessioninventory.QuerySession(fake, "scope", "work", sessioninventory.AgentCodex); err != nil {
+				t.Fatal(err)
+			}
 			rt := &failedCatalogReadRuntime{FakeRuntime: fake, fail: true, failure: failure}
 			cache := sessioninventory.NewActivityCache()
 			query := func() {
@@ -71,6 +86,12 @@ func TestActivityCacheFailedCatalogObservationNeverPublishesFallback(t *testing.
 // catalog and all native fingerprints remain unchanged.
 type failedCatalogPublishRuntime struct{ *failedCatalogReadRuntime }
 
+func (r failedCatalogPublishRuntime) PublishSessionInventoryValidations(v []sessioninventory.TargetValidation) error {
+	if r.fail {
+		return os.ErrPermission
+	}
+	return r.failedCatalogReadRuntime.PublishSessionInventoryValidations(v)
+}
 func (r failedCatalogPublishRuntime) LoadSessionInventoryCatalog() (sessioninventory.Catalog, error) {
 	r.loads++
 	return r.FakeRuntime.LoadSessionInventoryCatalog()

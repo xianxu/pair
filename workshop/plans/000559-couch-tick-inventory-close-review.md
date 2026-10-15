@@ -104,3 +104,92 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000411
+
+---
+
+## Re-review — 2026-10-14T17:46:25-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 559 — Stop reparsing inventory on Couch ticks |
+| repo | pair |
+| issue file | workshop/issues/000559-couch-tick-inventory.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 4780a55286f5a171d64907cf03d9c12c7a2ce656..dbf3acf30224bbaad8ae1c0c1f625d7a538063ae |
+| command | sdlc close --issue 559 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-14T17:46:25-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The cache implementation and measured warm-work reductions look sound. BR-2 and BR-3 are addressed, but BR-1 lacks independent regression evidence for catalog-load failure: its committed test remains green when the load-failure guard is removed. This blocks acceptance under the required “fails without the fix” rule.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: not-addressed
+    note: |
+      Owner invalidation is verified: removing it fails failure→recovery and active-loader regressions. Catalog-load invalidation still lacks independent regression evidence. Removing activity_cache.go:402-404 leaves TestActivityCacheFailedCatalogObservationNeverPublishesFallback green because activity_cache_failure_test.go:30-34 also fails publication, which independently prevents caching. A disposable overlay allowing publication success passes with the load guard and fails without it with “incomplete catalog observation published reusable fallback.” Commit that independent read-failure regression.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Previous evidence is now a ResumeTarget; compactOwnerLaunch removes unused current boundaries, watermarks and binding histories while retaining required authorization proof. The valid substantive fixture measured 906502 source bytes and 615 retained encoded bytes. Removing compaction fails TestCompactOwnerLaunchKeepsCurrentProofDropsUnusedPayloads.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Activity tests now establish an actually queued waiter, cancel an active loader, replace a ledger during blocked loading, and force drift across both bounded attempts. Targeted race checks pass. Bypassing stability validation fails both replacement and repeated-drift regressions.
+```
+
+1. **Strengths**
+   - Caller-owned caches share production readers while keeping live ownership checks fresh.
+   - The idle invariant actually reads/decodes 600 MB cold, then performs zero unchanged ledger/catalog/native body work.
+   - Small and large histories both measured 317 warm allocations.
+   - Atlas documentation covers cache ownership, invalidation and lifetime; no new operator surface requires README changes.
+
+2. **Critical findings**
+   - **BR-1 remains open**, at `cmd/internal/sessioninventory/activity_cache_failure_test.go:30`. Separate catalog read and publication failure controls. Test failed reads with successful publication, uncached fallback, fresh recovery and subsequent reuse. Removing the load-failure guard must fail this committed regression. **ARCH-SECURE, ARCH-ORDER**.
+
+3. **Important findings**
+   - None newly raised.
+
+4. **Minor findings**
+   - None.
+
+5. **Test coverage notes**
+   - Inventory, launcher and threadactivity package checks passed.
+   - Targeted inventory/launcher/couchcore race checks, artifactpath tests and both named release invariants passed.
+   - Counterfactual overlays were removed; repository files remain unchanged.
+   - The broader multi-package run was stopped during couchcore execution. This review does not establish full-suite success.
+
+6. **Architectural notes**
+   - **ARCH-DRY — pass:** existing strict parsers and reducers reused.
+   - **ARCH-PURE — pass:** projection, equality and transition logic have direct tests.
+   - **ARCH-PURPOSE — pass:** both production cache paths are wired and measured.
+   - **ARCH-MOCK — pass:** injected, stateful filesystem/catalog fixtures exercise shared seams.
+   - **ARCH-CONSTRAINTS — pass:** bounded entries, bounded retries and history-independent warm allocations verified.
+   - **ARCH-SECURE — flag:** BR-1’s independent failure regression remains missing.
+   - **ARCH-ORDER — flag:** BR-1 remains; BR-3’s controlled ordering coverage is verified.
+   - **ARCH-FUNERAL — pass:** caller lifetime and eviction remove retained evidence; no new durable artifacts.
+
+7. **Plan revision recommendations**
+   - Add a `## Revisions` entry requiring independent failure injection for each observation/publication seam. Record the catalog read-failure/write-success counterfactual before marking BR-1 complete.
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.180338542s
+head: "dbf3acf30224bbaad8ae1c0c1f625d7a538063ae"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
