@@ -317,17 +317,17 @@ func (c *Couch) launchPreparedSelection(ctx context.Context, record ThreadRecord
 	if err != nil {
 		return result, err
 	}
-	return c.launchRecoveryClaim(ctx, record, nonce, selection, profile, intent, choice, phase, notes)
+	return c.launchRecoveryClaim(ctx, record, nonce, selection, profile, intent, choice, phase, notes, c.Workspaces)
 }
 
-func (c *Couch) launchRecoveryClaim(ctx context.Context, record ThreadRecord, nonce string, selection RecoverySelection, profile LaunchProfile, intent threadrecord.RecoveryIntent, choice RecoveryChoice, phase recoveryExecutionPhase, notes []string) (result RecoveryResumeResult, retErr error) {
+func (c *Couch) launchRecoveryClaim(ctx context.Context, record ThreadRecord, nonce string, selection RecoverySelection, profile LaunchProfile, intent threadrecord.RecoveryIntent, choice RecoveryChoice, phase recoveryExecutionPhase, notes []string, readiness WorkspaceReadiness) (result RecoveryResumeResult, retErr error) {
 	if _, err := AdvanceRecoveryExecution(phase, recoveryLaunched); err != nil {
 		return result, err
 	}
 	fail := func(err error) (RecoveryResumeResult, error) {
 		return result, errors.Join(err, c.rollbackTrackedStart(record, nonce))
 	}
-	if err := c.prepareTrackedWorkspace(ctx, record, nonce, false); err != nil {
+	if err := c.prepareTrackedWorkspaceWith(ctx, record, nonce, false, readiness); err != nil {
 		return fail(err)
 	}
 	if selection.Kind == RecoveryInferred {
@@ -411,7 +411,8 @@ func (c *Couch) launchRecoveryFreshAddress(ctx context.Context, old ThreadRecord
 	if err != nil {
 		return RecoveryResumeResult{}, err
 	}
-	if c.confirmRecoveryAbsent(ctx, old) == nil {
+	sourceAbsent := c.confirmRecoveryAbsent(ctx, old) == nil
+	if sourceAbsent {
 		if err := c.repairRetiredRecoveryWorkspace(ctx, old); err != nil {
 			return RecoveryResumeResult{}, err
 		}
@@ -455,14 +456,21 @@ func (c *Couch) launchRecoveryFreshAddress(ctx context.Context, old ThreadRecord
 	if err != nil {
 		return RecoveryResumeResult{}, err
 	}
-	if c.confirmRecoveryAbsent(ctx, old) != nil {
-		notes = append(notes, "previous unproved owners were left untouched; using a new terminal identity")
+	readiness := c.Workspaces
+	if !sourceAbsent || c.confirmRecoveryAbsent(ctx, old) != nil {
+		notes = append(notes, "previous unproved owners were left untouched; using a new terminal identity; workspace setup was not refreshed")
+		if backend.layout.Local {
+			if backend.slot == nil {
+				return RecoveryResumeResult{}, errors.New("local recovery workspace has no slot identity")
+			}
+			readiness = recoveryExistingWorkspace{c: c, slot: *backend.slot}
+		}
 	}
 	phase, err = AdvanceRecoveryExecution(phase, recoveryClaimed)
 	if err != nil {
 		return RecoveryResumeResult{}, err
 	}
-	return c.launchRecoveryClaim(ctx, next, nonce, selection, profile, nextIntent, RecoveryChoice{Agent: profile.Agent}, phase, notes)
+	return c.launchRecoveryClaim(ctx, next, nonce, selection, profile, nextIntent, RecoveryChoice{Agent: profile.Agent}, phase, notes, readiness)
 }
 
 // repairRetiredRecoveryWorkspace reuses normal slot convergence only after the

@@ -203,6 +203,8 @@ func TestPreparedRecoveryConfirmationRejectsChangedSourceWithoutEffects(t *testi
 
 func TestPreparedRecoveryForeignFreshLeavesRemnantsAndUsesNewTag(t *testing.T) {
 	f := newRecoveryExecutionFixture(t)
+	slot := *f.Couch.Threads.slot
+	f.Couch.Slots = &SlotCatalogFake{Repositories: map[string]SlotRepository{slot.PrimaryRoot: {Slots: []SlotCandidate{{Identity: slot, Verified: true}}}}}
 	f.Proc.Set(42, "foreign-process-generation")
 	f.Artifacts.SetPairSession(f.record.Address, "foreign-terminal", true)
 	f.Couch.RecoveryRetirement = func(context.Context, ThreadRecord) (RecoveryRetirement, error) {
@@ -223,6 +225,12 @@ func TestPreparedRecoveryForeignFreshLeavesRemnantsAndUsesNewTag(t *testing.T) {
 	identity, identityErr := f.Proc.Identity(42)
 	if readErr != nil || identityErr != nil || identity != "foreign-process-generation" || !reflect.DeepEqual(oldBinding, newBinding) || len(f.Proc.Signals[42]) != 0 || len(f.Proc.GroupSignals[42]) != 0 || len(f.Artifacts.Quiesces()) != 0 {
 		t.Fatalf("foreign remnants changed: before=%+v after=%+v identity=%q signals=%v groups=%v quiesces=%v errs=%v/%v", oldBinding, newBinding, identity, f.Proc.Signals, f.Proc.GroupSignals, f.Artifacts.Quiesces(), readErr, identityErr)
+	}
+	if f.prepared != 0 {
+		t.Fatalf("normal workspace convergence ran beneath foreign owner: %d", f.prepared)
+	}
+	if !strings.Contains(result.Notice, "workspace setup was not refreshed") {
+		t.Fatalf("missing read-only readiness notice: %s", result.Notice)
 	}
 	var profile launcher.TrustedLaunchProfile
 	if err := json.Unmarshal([]byte(environmentValue(f.Runner.Child(result.Start.Handle.ID()).Env, launcher.CouchLaunchProfileEnv)), &profile); err != nil {

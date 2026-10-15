@@ -55,7 +55,10 @@ func (r recoveryExistingWorkspace) Ensure(ctx context.Context, request Provision
 		return ProvisionResult{}, err
 	}
 	if request.Path != r.slot.PrimaryRoot || request.Slot != r.slot.Number {
-		return ProvisionResult{}, errors.New("recordless recovery workspace changed")
+		return ProvisionResult{}, errors.New("recovery workspace changed")
+	}
+	if r.c == nil || r.c.Slots == nil {
+		return ProvisionResult{}, errors.New("recovery workspace catalog unavailable")
 	}
 	repository, err := r.c.Slots.Discover(ctx, r.slot.PrimaryRoot)
 	if err != nil {
@@ -66,18 +69,18 @@ func (r recoveryExistingWorkspace) Ensure(ctx context.Context, request Provision
 			continue
 		}
 		if !candidate.Verified || candidate.Err != nil || candidate.Identity != r.slot {
-			return ProvisionResult{}, errors.New("recordless recovery requires an unchanged verified checkout; repair cannot run beside unproved owners")
+			return ProvisionResult{}, errors.New("recovery requires an unchanged verified checkout; repair cannot run beside unproved owners")
 		}
 		physical, err := filepath.EvalSymlinks(candidate.Identity.WorktreeRoot)
 		if err != nil {
 			return ProvisionResult{}, err
 		}
 		if physical != r.slot.WorktreeRoot {
-			return ProvisionResult{}, errors.New("recordless recovery checkout identity changed")
+			return ProvisionResult{}, errors.New("recovery checkout identity changed")
 		}
 		return ProvisionResult{SchemaVersion: 1, Address: fmt.Sprintf("%s:%d", r.slot.Repo, r.slot.Number), Path: r.slot.WorktreeRoot, Disposition: "reused"}, ctx.Err()
 	}
-	return ProvisionResult{}, errors.New("recordless recovery slot disappeared")
+	return ProvisionResult{}, errors.New("recovery slot disappeared")
 }
 func (c *Couch) selectRecordlessRecoverySlot(ctx context.Context, path string) (*ThreadStore, SlotIdentity, WorkspaceReadiness, error) {
 	target, _, err := c.resolveSlotInput(ctx, path)
