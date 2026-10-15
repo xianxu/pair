@@ -47,7 +47,7 @@ Make the renderer fixture own and join its reply-drain lifetime before disposing
 
 - [x] Reuse terminalModel for the Codex render fixture; close its reply pipe, join its drainer, then dispose the emulator (ARCH-DRY, ARCH-ORDER).
 - [x] Add deterministic real-model cleanup regressions for successful rendering and an injected shutdown error, retaining exact rendered text and all notification assertions. Bound fixture rendering/cleanup at 10 seconds or the remaining test budget, whichever is less.
-- [ ] Run focused repeated race, full wrapcmd normal/race suites, make -k build and sdlc-local suite; close and land on SHIP.
+- [x] Run focused repeated race, full wrapcmd normal/race suites, make -k build and sdlc-local suite; close and land on SHIP.
 
 ## Log
 
@@ -62,3 +62,5 @@ Make the renderer fixture own and join its reply-drain lifetime before disposing
 - 2026-10-14: make -k -B build passed on clean 3ae889903862fe5d7944dd490bf29aa5bafa9156; Pair/Couch embed that revision with vcs.modified=false. Full wrapcmd normal suite passed (178.650s). Full-package race run reached the default 10m test-binary watchdog while actively executing Muse every-byte-split fixture replay (shortcuts.raw), not the Codex renderer, with no race report. Re-running unchanged assertions under an explicit 30m package watchdog; no fixture deadline or product behavior changed. Required sdlc-local suite is queued. Two progress sends to hub returned uncertain; receipt queries report unavailable, so delivery is unproven and neither was automatically retried.
 
 - 2026-10-15: Full wrapcmd -race suite passed with the explicit 30m package watchdog (949.370s), unchanged assertions. The initial 10m run's active fixture-replay stack was a package validation-budget limit, not a remaining renderer race. Required full local suite remains queued second in line.
+
+- 2026-10-15: Required sdlc local-check run --name suite passed on implementation 3ae889903862fe5d7944dd490bf29aa5bafa9156 (exit 0, 10m39s after 1751s queue), recorded as sdlc-local/suite. All packages passed including wrapcmd (44.188s); full log has no failure records. SHA-256: 2cd13a45709ee44cd59244bdae0f1ca879f28be948337fc53cd5fdee576f179c. No atlas update is needed: the change repairs a test fixture's private lifetime and introduces no production surface.
