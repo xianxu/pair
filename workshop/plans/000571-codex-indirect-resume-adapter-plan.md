@@ -1,119 +1,126 @@
 # Codex indirect-resume adapter implementation plan
 
-> **For agentic workers:** Consult AGENTS.md Section 3 (Subagent Strategy) to determine the appropriate execution approach. Use bounded subagents for isolated tasks; the binary owns fresh-context review. Steps use checkboxes for tracking.
+> **For agentic workers:** Consult AGENTS.md Section3 for bounded delegation. The SDLC binary owns fresh-context reviews. Checklist rows below are tasks, not milestone boundaries.
 
-**Goal:** Resolve source-faithful read-only Codex configuration and supported latest selectors, reuse native writer admission for complete evidence, and retain native compatibility for uncertainty.
+**Goal:** Source-faithful read-only Codex configuration and distinct TUI/exec latest selection, with exact-ID native admission when complete and unchanged native compatibility otherwise.
 
-**Architecture:** A pure configuration projection and separate TUI/exec metadata collectors feed #556's canonical-ID pin/reserve/claim flow. Canonical native roots stay in inventory. Credential files are forbidden; cloud-unknown never authorizes admission.
+**Architecture:** Inventory owns the pure config projection, canonical native roots and bounded metadata collectors. Launcher/wrapper reuse #556's selector parser, pin/reserve/claim flow and add scope binding at handoff. No credential reads or startup/configuration oracle.
 
-**Tech stack:** Go, a real TOML parser, bounded inventory IO, real private SQLite/JSONL/config fixtures and the existing launcher/wrapper stateful test harness.
+**Tech stack:** Go, a real TOML parser, existing bounded recovery IO/SQLite command seam, portable real config/SQLite/JSONL fixtures, and existing launcher/wrapper stateful harness.
 
----
+## Approval and exclusions
 
-## Approved design — full flow, one atomic close
+TL receipts34e0ac39 and bed8618a approve config precedence, separate selectors, custom homes, native compatibility and credential prohibition. #556 landed bcf734588 and scratch space is released. One full-flow close. No picker/name/prefix resolution, native repair, remote/executor/environment/worktree-creation support, network config fetch, auth/credential/keychain access, secret-env classification, new saved defaults, or second admission engine. Unsupported native contexts continue their original invocation with exactly one not-guarded note; strict recovery/ResumeRequired never downgrades.
 
-TL approved this design in receipt34e0ac39-2479-4ee2-aa83-463034e5d3d1; credential prohibition finalized in bed8618a. Space released and #556 landed as bcf734588, now merged. No implementation before change-code plan-quality gate.
+## Concrete production authority (PQ-1)
 
-**Goal:** Resolve supported local Codex indirect resumes from source-faithful read-only evidence once, reserve the exact ID, and hand off explicit argv in the same physical namespace. Keep unresolved native UX working through #556's one-line compatibility path.
+**Supported class:** local ordinary TUI resume --last or exec/e resume --last whose fully observed pre-cloud bootstrap forces API-only login, with no unresolved managed/system/project inputs or invocation relocation. Complete coverage is derived internally from real config sources; no caller-supplied completeness boolean.
 
-**Architecture:** A pure configuration/selector projection consumes explicit invocation inputs and typed file/metadata observations. Thin inventory-owned readers collect config, native metadata and read-only SQLite evidence. Reuse #556's resolver, argv pinning, reservation and wrapper checks; do not add another admission engine or native-path scanner.
+Source tag rust-v0.162.1:
+- TUI startup_orchestration.rs:142-150 and exec/src/lib.rs:496-515 both load local bootstrap with an empty cloud loader before deriving cloud-loader auth restrictions.
+- core/config/auth_keyring.rs:39-78 retains forced_login_method/local managed auth policy; config/auth_policy.rs:11-39 requires allowed methods satisfy that restriction.
+- login/auth/manager.rs:1221-1268 filters auth by that policy; every backend-auth method maps to ChatGPT. cloud-config/service.rs:52-60 requires backend auth to load cloud policy.
+- Therefore resolved forced_login_method='api' excludes cloud without reading auth files. Use this narrow proof initially. A local API-only requirements policy can be added only if its exact semantics are implemented; otherwise requirements presence is compatibility, not a permissive default.
+- Remote targets clear restrictions (TUI lib.rs:368-376); exec --worktree relocates/bootstraps twice (exec lib.rs:397-487): these contexts are compatibility.
 
-**Tech stack:** Go, a real TOML parser (no regex/line parser; pin a maintained Go TOML module at implementation after checking dependency policy), existing sessioninventory Runtime/RecoveryRuntime and SQLite adapter, private real SQLite/config/transcript fixtures, and native read-only macOS managed-preference observation.
+**Observable provenance:** Read the real system/base/profile/trusted-project/session layers, detect unhandled managed requirements/MDM inputs, apply native precedence/path origins, and project effective forced_login_method. Only the source-backed API-only value plus complete local coverage authorizes the positive status. Unknown/unreadable/malformed/over-budget observations never imply absence. Current machine lacks this proof, so its ordinary invocation remains native compatibility. Real DB measurements are conditional source-query controls, not proof of guarded cloud support.
 
-### Core concepts
+**Positive fixture:** real private CODEX_HOME/config.toml with forced_login_method='api', profile/CLI and trusted-project inputs, native SQLite and transcript tree. This fixture must pass through the SAME OS reader, pure projection, collector, pinning and reservation path used by production; no test-only enablement flag. A recording reader proves no auth path or keychain access. Cloud-unknown uses the same production reader and cannot reserve.
 
-| Pure entity | Planned location | Status / responsibility |
+## Core concepts
+
+| Pure entity | Location | Change |
 |---|---|---|
-| CodexInvocationConfig | cmd/internal/sessioninventory/codex_config.go | new; root/subcommand config overrides, profile, effective cwd, mode, relevant env and feature/provider flags, without secrets |
-| CodexConfigResolution | cmd/internal/sessioninventory/codex_config.go | new; resolved physical transcript home, SQLite home, provider/history-provider and feature scope, or a typed unsupported/invalid/incomplete reason |
-| NativeSelectorConfig / selector query | cmd/internal/sessioninventory/native_selector.go | modified after #556; carry resolved scope/mode rather than assuming a default home or one latest algorithm |
-| Native admission scope | cmd/internal/launcher/native_createflow.go and matching wrapcmd handoff | modified only as needed after #556; bind invocation cwd/effective namespace as well as exact executable/argv/ID |
+| CodexConfigInvocation / CodexInvocationMode | sessioninventory/codex_config.go | new typed cwd/profile/ordered override/mode data; populated by existing launcher selector parser |
+| CodexConfigProjection / CodexSelectionScope | sessioninventory/codex_config.go | new tagged complete/compatibility result, closed reason, minimal homes/provider/cwd/worktrees/mode; no raw configuration, secret env or auth state |
+| NativeSelectorConfig | sessioninventory/native_selector.go | add typed Codex scope; existing other-agent contracts remain |
+| Native admission namespace | launcher/native_admission.go | add optional serialized Codex scope to the existing comparable request/grant, validated and bound to the invocation digest |
 
-| Integration | Planned location | Wraps |
+| IO integration | Location | Wraps |
 |---|---|---|
-| CodexConfigReader | cmd/internal/sessioninventory/codex_config_os.go | new thin bounded filesystem/env/platform observations; no Codex startup, network config fetch, auth refresh or writes |
-| Scoped inventory runtime | cmd/internal/sessioninventory/runtime_os.go | modified canonical root owner; resolved CODEX_HOME separate from SQLite home; preserve recovery interfaces/cache/work observers |
-| Codex latest evidence | cmd/internal/sessioninventory/native_selector_collect.go | modified #556 real read-only SQLite/transcript seam; separate TUI and exec algorithms |
-| Invocation/admission wiring | cmd/internal/launcher/native_createflow_os.go; cmd/internal/wrapcmd/native_admission.go | reuse #556 request/claim/pinning; effect-time scope validation with final command environment |
+| ReadCodexSelectionConfig | sessioninventory/codex_config_os.go | bounded named local config/env/platform/physical-directory observations |
+| Scoped Codex roots | sessioninventory/runtime_os.go | canonical native root owner; separate transcript and SQLite homes while preserving runtime capabilities/cache/work observers |
+| Codex TUI/exec collectors | sessioninventory/native_selector_collect.go plus codex_latest.go | existing read-only SQLite and recovery IO, no migration or scan-and-repair |
+| Resolution and handoff | launcher/native_createflow_os.go / createflow.go; wrapcmd/native_admission.go | existing #556 parser/pinning/reservation/claim/spawn |
 
-ARCH-DRY: native roots stay in inventory, argv pinning and writer admission stay in #556. ARCH-PURE: file loading is separate from precedence/selection; pure tests use typed values, integration tests use real temporary files/DBs.
+ARCH-DRY: one parser/pinner, one canonical-root owner, one admission state machine. ARCH-PURE: projectCodexConfig is pure over typed observed layers; readCodexSelectionConfig is the injected IO shell. Export minimal ReadCodexSelectionConfig and projection/scope types; keep parsed-layer internals private.
 
-### Configuration and selector contract
+## Configuration contract
 
-- Resolve CODEX_HOME exactly as0.162.1: empty/unset defaults to HOME/.codex; nonempty must exist as a directory and canonicalizes physically. Do not trim/expand the env value as though it were sqlite_home. Keep physical transcript root separate from SQLite directory.
-- Read base config.toml and selected NAME.config.toml using profile-v2 rules; missing required profile, malformed/unreadable TOML, legacy profile selectors, invalid types and unavailable custom roots cannot silently become defaults. Parse CLI TOML dotted overrides with native raw-string fallback; preserve root-before-subcommand precedence and flag/prompt boundaries.
-- Resolve paths relative to the originating config directory before merge; CLI and trimmed CODEX_SQLITE_HOME relative to effective cwd. SQLite precedence: exact requirement, merged configured value, env, Codex home. Provider: required, invocation/OSS selection, merged value, openai; history-provider projection follows the TUI source rather than assuming every invocation shares config.model_provider.
-- Include source-backed system/local project layers and trust/root discovery. Project provider keys are ignored by native and must not influence selection; trusted project sqlite_home/features may influence it. Worktrees defaults ON: reproduce corresponding existing cwd sets from validated current/primary/linked checkout metadata, including subdirectory and canonical-path behavior; --all removes the cwd predicate.
-- Detect macOS forced managed values with the source's CoreFoundation forced-preference checks, not plist existence/defaults-read. Relevant unmanaged/unsupported requirement, remote, cloud, packaged or invocation layers must remain explicit uncertainty. Implement local fields only where all material layers are observable; otherwise preserve compatibility with a reason. Do not mistake absent cloud cache for absent cloud policy. Auth and credential files are forbidden inputs, including classification-only reads; do not inspect credentials, keychains, auth metadata or secret environment values to decide eligibility. If non-credential evidence cannot rule out a material cloud layer, classify configuration as cloud-unknown and preserve native pass-through with one one-line not-guarded note. Cache absence is insufficient. No remote configuration requests or fabricated local-only mode. This applies to the current machine: the measurements below do not establish cloud absence or guarded support for its ordinary invocation.
-- **TUI latest:** active, nonempty preview, native interactive sources (plus correct exec/mcp mapping for include-non-interactive), history provider and effective worktree/all cwd scope, UpdatedAt descending. Validate first chosen native row's actual path/root/ID. Do not scan past an unusable limit1 native result to select a different guarded thread; preserve native repair fallback instead.
-- **Exec/e latest:** distinct source algorithm: UpdatedAt pages of100, all native source kinds, provider filter, no SQL cwd restriction. Validate state-only session metadata, then compare last turn_context.cwd from reverse rollout scan (fallback thread.cwd) with normalized invocation cwd; --all bypasses comparison. Do not route this through TUI source/cwd filters. Bound reads with #556's existing recovery budgets; exhausted/incomplete evidence uses compatibility, never a lower candidate that may be wrong.
-- Do not invent ID ordering on equal UpdatedAt maxima. Prove a unique winning result across the relevant candidate boundary or keep compatibility. Explicit IDs retain #556 admission; bare picker, unresolved names/prefixes, remote/fork/new-conversation semantics retain their existing native path unless separately proven faithful. No-match/incomplete DB evidence must preserve scan-and-repair/StartFresh behavior through native passthrough; the adapter itself does neither repair nor native startup.
-- For a complete resolution, reserve agent+canonical ID, reuse PinNativeResumeSelector, preserve unrelated arguments/prompt/defaults, and verify the same physical namespace/cwd at wrapper handoff. Namespace/config changes may invalidate the attempt; never rerun indirect selection after granting it. No newer DB row may change the granted ID.
+CODEX_HOME empty/unset defaults to HOME/.codex; nonempty physically canonicalizes an existing directory, without applying sqlite-env trimming/tilde rules. NAME.config.toml is the runtime profile above base config.toml; legacy profile selection is not profile-v2. File paths resolve against each originating directory before merge, CLI/env paths against effective cwd. TOML dotted CLI overrides use native raw-string fallback and root-before-subcommand ordering. Use a maintained real TOML module, not regex/line parsing.
 
-### Operator-visible projection and authority
+Read source-backed system/base/profile/trusted-project/session layers. Project discovery/trust must include validated main-worktree fallback; project provider keys are ignored, while sqlite_home/features/forced_login_method may apply. Relevant higher managed/requirements/MDM inputs not implemented are explicit compatibility. Forced MDM detection uses native CoreFoundation forced-preference checks, never plist/defaults-read absence inference.
 
-| Internal observation | Person sees | One next action |
+SQLite precedence: exact requirements if supported, merged sqlite_home, trimmed nonempty CODEX_SQLITE_HOME, Codex home. Provider: required if supported, invocation/OSS override, merged provider, openai. TUI history provider follows explicit-layer history rules; unsupported provider or invocation semantics stay native. Preserve defaults/prompt/unrelated flags verbatim.
+
+Worktrees defaults ON. Reproduce validated current/primary/linked corresponding existing cwd directories and canonical aliases from native Git metadata rules; --all removes cwd filtering. No creation or attach/resume side effects during config/selector observation.
+
+## Separate native selectors
+
+**collectCodexTUILatest:** active nonempty-preview records, interactive cli/vscode sources plus exec/mcp when requested, history provider, effective worktree/all cwd scope, updated_at_ms descending. Native requests limit1; fetch enough boundary metadata to prove a unique winner, but never skip its unusable first row to guard a different candidate. Validate actual path/root/ID; preserve native fallback if it would need repair.
+
+**collectCodexExecLatest:** updated_at_ms pages100, all native source kinds, configured provider, no SQL cwd predicate. Validate state-only first session_meta identity; latestCodexTurnCWD reverse-scans for last turn_context.cwd, falling back to DB cwd only after complete absence, and compares normalized cwd; --all bypasses that predicate. Do not reuse TUI filters. Equal timestamp ambiguity or unreadable higher-ranked evidence cannot authorize a lower row.
+
+Native UpdatedAt has no specified ID tiebreaker. Ties, no match, partial DBs, unsupported schema/source scope, canceled or exhausted reads retain native compatibility (and native repair/StartFresh) rather than inventing ordering/absence. Explicit UUIDs retain #556 admission. Pickers/names/remote retain native behavior. NativeSelectorResolved is the only status permitting pin/reservation.
+
+## Existing integration and state ordering
+
+#556 NativeResumeRequest already carries Agent/CWD/Selector/Config; OSRuntime.ResolveNativeResume is the config-loading boundary. Extend ParseNativeResumeSelector's existing option-position walk to retain relevant config/profile/feature/mode inputs, rather than installing a second argv parser. ResolveNativeResume and PinNativeResumeSelector remain the sole ID rewriting path.
+
+createflow.go:750 currently bypasses every Codex indirect selector. Offer latest resolution before compatibility; a non-resolved ordinary result retains the original invocation, no reservation, and only the wrapper's existing single notice. Existing strict recovery/ResumeRequired remains a refusal. Do not let cancellation or partial attempt state start a native child.
+
+Bind resolved Codex physical transcript/SQLite scope and effective cwd into the existing NativeAdmissionRequest/grant and scoped command digest. Namespace metadata is private and validated; it grants no authority alone. Expose a bounded read-only grant-scope inspection before Claim. Wrapper reprojects the actual final invocation environment/cwd through the same reader and compares scope before consuming the grant. Missing/altered scope cannot downgrade to legacy digest, and malformed/forged scope fails the stored request/grant CAS. Keep legacy unrelated-agent and old explicit-UUID request behavior intact.
+
+ARCH-ORDER: observe -> unique selection -> reserve -> explicit argv -> verify scope -> Claim -> spawn -> publish child. Reuse #556 cancellation/uncertainty/teardown transitions. A namespace change before Claim is a retryable refusal with no child; never rerun indirect selection at handoff. A newer DB winner cannot retarget a granted ID. No new persistent state machine.
+
+| Observation | Person sees | One action |
 |---|---|---|
-| Complete faithful selection, reservation granted | Ordinary resume of the pinned conversation | Continue working |
-| Another admitted writer owns that ID | Existing #556 busy/refusal with its conversation identity | End the other writer and retry |
-| Cloud-unknown, unsupported, ambiguous, incomplete, no match, or unresolved config layer | Native resume/picker continues with exactly one not-guarded compatibility reason | Use native UI as usual |
-| Namespace changed after reservation / uncertain grant handoff | Existing actionable failed attempt; no native child starts with a mismatched grant | Retry the launch |
+| Complete selection/admission | Ordinary pinned resume | Continue |
+| Existing writer | Existing actionable busy refusal | End that writer, retry |
+| Unknown cloud/config/selector/evidence | Original native invocation, one not-guarded note | Use native UI |
+| Scope changed before claim | Failed attempt, no mismatched spawn | Retry |
 
-ARCH-ORDER: resolution -> reservation -> explicit command -> scope/grant claim -> native spawn, never a second latest lookup. Reuse #556's state transitions and release/join ownership for failure/cancel/child-exit. A late read from an abandoned attempt cannot publish a reservation; a grant does not turn incomplete scope into authority.
+## Function-level test strategies (PQ-2)
 
-### Implementation sequence (after both blockers clear)
+| Risky function | Strategy and mechanical guard |
+|---|---|
+| ParseNativeResumeSelector / PinNativeResumeSelector | Fuzz malformed/ambiguous argv with option-position seeds; preserve nonselector tokens/prompt and prove reparse is one explicit canonical ID |
+| projectCodexConfig | Pure generated ordered-layer/path-origin combinations against independent precedence oracle; typed invalid/unknown cannot become complete and API-only proof cannot be caller-injected |
+| readCodexSelectionConfig | Stateful real config tree plus recording bounded reader/forced-preference fake; mutate inputs between observations, enforce forbidden-path and read-budget guards |
+| withCodexScope runtime construction | Private canonical/symlink namespaces; existing recovery/root authorization must confine transcript and DB independently without reaching real HOME |
+| collectCodexTUILatest | Real SQLite/transcript fixtures with adversarial ordering/filter/boundary rows; independent source-derived expected result or explicit compatibility, never lower-row guess |
+| collectCodexExecLatest / latestCodexTurnCWD | Real SQLite plus generated/fractured/reverse JSONL records; monotone read budget and snapshot identity prevent partial tails from establishing absent cwd |
+| ResolveNativeResume | Existing stateful runtime with candidate arrivals after selection; exact pinned ID/argv survives without a second selection |
+| NativeAdmissionScopedCommandDigest / grant-scope inspection | Typed serialization round-trip and malformed input generation; missing/mutated binding cannot match a scoped reservation |
+| startNativePTY scope verification | Controllable pre-Claim config/env mutation and existing stateful admission store; assert no Claim/spawn on mismatch and one writer under competing attempts |
 
-- [ ] Start the issue branch from main after space is released; wait for #556 to land before importing/wiring its API. Materialize the canonical durable plan, obtain plan-quality approval and derive the estimate before code.
-- [ ] Add pure table tests in codex_config_test.go for home/env distinctions, profile-v2, legacy rejection, file-vs-CLI relative paths, repeat/dotted overrides, root/subcommand precedence, provider/OSS flags, native defaults, project filtering/trust, requirements and explicit unsupported classifications. Include same-value fields from different path origins and unreadable/changed files.
-- [ ] RED then implement the small config reader/projection and scoped runtime constructor. Test private config trees and metadata; platform seam uses a stateful forced-preference fake and source-backed absence observations. Tests must not read real HOME/auth/managed state. Add a recording file reader and synthetic forbidden-path/secret-env sentinels: cloud-unknown must pass through unchanged, report exactly one not-guarded note, make zero auth/credential/keychain reads and acquire no reservation. Cache absence must remain unknown. Resolved synthetic cases require non-credential evidence that all material layers are accounted for; never insert an eligibility boolean with no production provenance. Share the native policy projection with any CLI parse consumers.
-- [ ] Add real private SQLite/transcript fixtures for TUI latest and exec latest separately: provider/source/cwd/worktree/all filters, negative rows, tied maxima, malformed/out-of-root/path-ID mismatch, differing last turn cwd, stale/deleted rows, missing or incompatible DBs, newer arrivals and scan budget exhaustion. RED then adapt #556's collector and preserve fallback. Canonical root tests include custom CODEX_HOME and independently configured sqlite_home plus symlink aliases.
-- [ ] Add launcher/wrapper integration cases: resolved ID reserved once, exact pinned argv/prompt/environment preserved, scope checked at handoff, newer candidate cannot retarget, two concurrent attempts produce one admitted writer, canceled/late result cannot spawn, changed namespace invalidates rather than redirects. Extend existing #556 fixtures rather than inventing a second process harness. Compatibility tests explicitly preserve native picker/name/no-match/unsupported behavior and one notice; remove that notice only from genuinely guarded successes.
-- [ ] Rerun the source-derived real-machine comparison against the implemented adapter using private snapshot copies/aggregate diagnostics; no native startup, resume, repair, defaults edits or credential output. Compare both TUI effective worktree scope and exec latest-turn cwd, not merely a flat cwd SQL fragment. Coordinate any live acceptance through the hub.
-- [ ] Update atlas/session-inventory.md (or its current indexed recovery page), atlas/couch.md and atlas/index.md for source-version support, selection/namespace flow and honest compatibility limits. Keep README claims within demonstrated support.
-- [ ] Run focused inventory/launcher/wrapper normal and race tests, then the recorded full suite through the machine gate; finish failed recipes with make -k and name all failures. Close through binary fresh review, merge main, land on SHIP and report exact hashes/PR to hub.
+## Tasks (single atomic boundary)
 
-### Operating envelope, privacy and residue
+- [ ] Materialize approved plan, answer gate findings, then derive estimate and enter change-code.
+- [ ] RED/GREEN pure config projection and bounded reader, using real source-backed API-only positive fixtures and cloud-unknown negative controls.
+- [ ] RED/GREEN scoped native runtime and separate TUI/exec collectors via private real SQLite/transcript state; retain native fallback.
+- [ ] RED/GREEN parser/createflow and namespace-bound admission/handoff, preserving other agents and old strict routes.
+- [ ] Run read-only private-snapshot real-machine source/query and adapter comparison; explicitly expect cloud-unknown here. Coordinate any live action through hub.
+- [ ] Update current indexed inventory/recovery atlas and compatibility support/version docs; run targeted normal/race then recorded full suite; close, merge main, land SHIP, report real hashes.
 
-ARCH-CONSTRAINTS: this is one explicit launch attempt, never a UI tick/peer-message scan. Reuse #556's context, per-read/output/candidate budgets; cap each config/metadata read and total traversal with an explicit unsupported result on exhaustion, preserving native UX. Do not cache native selection as enduring authority or add background refresh. Fix a measured safe budget in the durable plan from #556's landed APIs before implementation; no timing-based correctness assertions.
+## Operating envelope and residue
 
-ARCH-SECURE: config, DB rows, transcript paths and filesystem metadata cross native/version boundaries. Decode to typed values, preserve origin, reject path escape and mismatched identities, retain current no-follow/read-budget controls. Use an explicit allowlist of required configuration/native-evidence inputs; no directory scan or symlink resolution may open an auth/credential file. Never access keychains or classify secret environment variables. Keep diagnostics to field names/reasons, never config contents, prompts, auth tokens or raw records. Namespace observation is not writer admission. Real-machine validation opens SQLite only on private copies; native files are read-only inputs.
+ARCH-CONSTRAINTS: explicit launch only, not ticks/messages. Config<=1MiB/file,8MiB total,64 ancestor layers; Git metadata<=64KiB/file. RecoveryScanTimeout30s, RecoveryTotalReadLimit256MiB and metadata<=10000 remain; exec pages100/rows<=10000, reverse chunks<=readChunkSize and<=32MiB per transcript charged to total; SQLite output<=1MiB/page. These are compatibility bounds, not native limits; exhaustion is unknown. No cache of selection authority, background task or timing correctness threshold.
 
-ARCH-MOCK: the external shape is a portable private directory with real TOML, real SQLite and native JSONL/metadata, plus a controlled platform-settings reader; use stateful fixtures and mutation between observations. No function-call fake claiming to emulate Codex selection. Read-only real-machine/source conformance is required in addition to these fixtures; no app-server oracle.
+ARCH-SECURE: bounded named noncredential inputs only; no auth/credential/keychain reads, secret-env classification or network config. Preserve no-follow/path identity controls. Diagnostics only field names/reasons; no raw TOML/native records or prompts. All fixtures use private HOME. Real-machine SQLite comparison opens only temporary DB/WAL snapshot copies.
 
-ARCH-FUNERAL: production creates no new durable artifact/store/process; invocation snapshots die with the attempt and #556 owns reservation/child teardown. Measurement snapshots are private temporary copies removed after closing handles. No copied real DB, tokens or raw native records enter Git.
+ARCH-MOCK: portable real files/DB/JSONL plus stateful forced-preference and existing native process/admission worlds behind production seams. Read-only real-machine/source conformance complements synthetic fixtures; no app-server oracle.
 
-### Alternatives considered
+ARCH-FUNERAL: no new durable production artifact or child outside #556 ownership. Attempt snapshots expire at return; private measurement copies removed after closing handles. Namespace binding is bounded metadata on existing per-attempt grants, removed by existing admission teardown.
 
-1. Recommended: source-derived file/config projection plus bounded native DB/transcript reads, wired into existing admission. Explicit compatibility where provenance is incomplete preserves UX without claiming guard coverage.
-2. App-server/config RPC oracle: rejected; #556 measured startup writes/migrations, omitted defaults/env and runtime-profile incompatibility.
-3. Transcript mtime/newest-file heuristic or a TUI query reused for exec: rejected; wrong filters/order/cwd and no faithful canonical selection.
+## Verification
 
+Targeted: go test ./cmd/internal/sessioninventory ./cmd/internal/launcher ./cmd/internal/wrapcmd -run 'Test.*(CodexConfig|CodexLatest|NativeSelectorCodex|NativeResume|NativeAdmission|NativeCreate)' -count=1
 
-
-## Landed integration and concrete bounds
-
-- #556 ResolveNativeResume accepts NativeResumeRequest{Agent,CWD,Selector,Config}; OSRuntime.ResolveNativeResume is the config-loading boundary. Keep ParseNativeResumeSelector/PinNativeResumeSelector as the only argv authority.
-- createflow.go currently skips resolution for every Codex indirect selector. Change it to offer latest resolution first, preserving compatibility only on non-resolved outcomes (and existing picker/name handling); strict ResumeRequired/recovery must never silently downgrade.
-- NativeSelectorRequest gains Codex mode/scope from a typed config projection; native_selector_collect.go dispatches TUI versus exec. Keep SelectNativeLatest's existing agent/cwd checks; collector candidates project a proven effective cwd rather than weakening other agents' selection policy.
-- Resolve physical roots only once per invocation using inventory-owned runtime construction; preserve Runtime, RecoveryRuntime, QueryNativeSelectorSQLite and work/cache interfaces. Do not make UI activity constructors parse config per tick.
-- NativeAdmissionRequest currently binds only exact executable/argv, not cwd or native environment. Carry a private scope projection through the existing encoded invocation/handoff and require wrapper validation before Claim/spawn; source files/config generation changes yield a retryable refused attempt. Never let a missing scope weaken old explicit grants or require scope for unrelated agents.
-- Configuration limits:1MiB per TOML file,8MiB aggregate,64 ancestor/project layers,64KiB per Git metadata file. These are compatibility bounds, not claims of native limits; exceeding them stays native. No glob scan of CODEX_HOME; only explicitly selected config/profile and known noncredential policy files.
-- Existing RecoveryScanTimeout30s and shared RecoveryTotalReadLimit256MiB bound selector IO; metadata entries<=10000. Exec pages100, at most10000 rows under the same context; reverse-read chunks<=existing readChunkSize, at most32MiB per transcript charged to total. The real-machine16MiB control motivates a bound above1MiB; budgets never imply absence or allow skipping unknown higher-ranked candidates.
-- SQLite output<=1MiB per bounded page. Parameterize or use the existing quote boundary for query values; no process shell. Inspect exact native schema and never migrate/repair. No sidecar writes to native state introduced by configuration discovery.
-- Pure projection API: input contains invocation cwd, home and only allowed environment values, parsed ordered CLI fields, and typed config layers with origin directories. Output is tagged parsed/invalid/unsupported/incomplete configuration plus minimal provider, physical homes, mode/worktree features and policy coverage; no raw TOML, arbitrary env or credentials survive projection.
-- File reader seam exposes only bounded named config/metadata observations, canonical-directory resolution and managed-policy presence. Stateful private fixture mutation covers missing/unreadable/changed inputs and forced settings. Cloud policy defaults Unknown; no permissive zero value or test-only production authorizer.
-
-## Verification commands
-
-Run after each affected TDD step:
-- go test ./cmd/internal/sessioninventory -run 'TestCodexConfig|TestCodexLatest|TestNativeSelectorCodex' -count=1
-- go test ./cmd/internal/launcher ./cmd/internal/wrapcmd -run 'Test.*(Codex|NativeResume|NativeAdmission|NativeCreate)' -count=1
-- go test -race ./cmd/internal/sessioninventory ./cmd/internal/launcher ./cmd/internal/wrapcmd -run 'TestCodexConfig|TestCodexLatest|TestNativeSelectorCodex|Test.*Native(Create|Resume|Admission)' -count=1
-- go test ./cmd/internal/artifactpath ./cmd/internal/sessioninventory -run 'TestNoNativeAuthorityShadow|TestNativeAuthorityShadowSweep|Test.*Inventory|Test.*Manifest' -count=1
-Then sdlc pr; sdlc local-check run --name suite; sdlc close with exact evidence; merge main and sdlc merge --yes. No duplicate fresh review or bypass.
+Race: same packages/regex with -race. Source ownership: artifactpath package plus native-authority-shadow tests. Then sdlc pr; sdlc local-check run --name suite; finish failed recipes with make -k and name all failures; sdlc close with evidence; merge origin/main; sdlc merge --yes. Binary owns fresh review; no bypass.
 
 ## Revisions
 
-### 2026-10-15 — materialized after #556 landing
+### 2026-10-15 — PQ-1/PQ-2
 
-Transferred the approved issue design to its canonical durable path after the two prerequisites cleared. Added concrete landed integration points and bounded-IO tests. No credential classification, app-server oracle, remote configuration fetch, new stored defaults or native repair. All real-machine source-query measurements remain conditional on known local inputs, not a claim of observed cloud absence.
+Replaces the materialized2e712aec design's open policy-provenance obligation with the independently source-verified API-only local bootstrap proof for TUI AND exec; ordinary current-machine config remains cloud-unknown. Replaces case inventories with named function/adversarial/mechanical-guard strategies. Prior full proposal remains versioned on2e712aec and in the approved issue publication history; no scope or credential boundary changed.
