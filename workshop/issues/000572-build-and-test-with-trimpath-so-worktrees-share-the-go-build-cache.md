@@ -15,6 +15,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "d5f0ba4c", done: "7f5d6529"}
 ---
 
 # Build and test with -trimpath so worktrees share the Go build cache
