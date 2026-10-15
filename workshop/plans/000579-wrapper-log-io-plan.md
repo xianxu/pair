@@ -130,3 +130,26 @@ Authority: submitted hub receipt8cb950d6-7819-48dd-9813-e10321f20ad8. Raw+events
 ### 2026-10-15T22:25:16Z — proceed on the narrowed diagnostic scope
 
 Verified hub receipt8f573644-79af-4c74-99b6-58677b6b5137 explicitly says Go on diagnostic write amplification/bounds and the narrow protocol-aware root resolution fix; raw/events rotation is unassigned #582. Proceed through the full-flow plan gate with the latest governing protocol revision. No raw/event production or reader changes. Post-landing live measurements remain outstanding acceptance work.
+
+
+### 2026-10-15T22:28:30Z — resolve PQ-1/PQ-2 before implementation
+
+This revision governs over prior optional-wrapper retention wording and prose test inventories.
+
+**PQ-1 shared policy authority (ARCH-PURPOSE/CONSTRAINTS/FUNERAL):** Persist DiagnosticLimits (generation byte cap and closed-generation count) in diskState schema v2, under the stable per-log lock. Every Open derives initial limits from common diagnosticlog defaults64MiB/3; explicitly smaller Options may tighten an existing bound, never relax it. Every Writer.Write, maintenance rotation and collector uses the persisted limits, regardless of the handle's Options. Thus long-lived wrapper/debug/adaptation emitters, slug and other managed diagnostics, and shell/Lua diagnostic append via diagnosticcmd all use the same authority automatically. No per-wrapper opt-in hard cap remains. Unknown writer proof or incomplete generation inventory causes optional appends to refuse at the cap. Old binaries reject schema v2 (their validate requires version1, and their strict JSON decoder rejects the new limits field); a mixed-version producer may lose optional diagnostics until upgraded but cannot bypass a newly persisted cap. Existing pending v1 intent is recovered before migration and v2 publication. Test concurrent handles with conflicting local options plus the diagnosticcmd subprocess seam against one folder, proving no writer can grow past the persisted cap or enlarge it. Scope includes shared diagnostic policy, not raw captures.
+
+**PQ-2 named risky-function test strategies:** These named strategies supersede the prior enumerated prose case inventories. Executable cases belong in tests, not this document.
+
+| Function under test | Test strategy / mechanical guard |
+|---|---|
+| DecodeAppendReservation / ValidateAppendReservation | Fuzz arbitrary bounded persisted bytes and mutated identities/lengths/digests; strict decoding and cap reject ambiguity without modifying payload. |
+| ClassifyAppendRecovery | Pure observed-generation/hash inputs; require exact Before identity and full bounded batch digest, preserve unknown progress rather than inventing a prefix. |
+| appendChunk / recoverAppend | Folder-backed fault checkpoints plus killed-publisher handshakes across publication/IO results; assert returned confirmed n, exact bytes, no duplicate writes and refusal leaves unknown evidence unchanged. Preserve old persisted-intent migration tests. |
+| BatchTransition | Generated event sequences plus stateful writer/manual-tick integration; assert queue byte/record bounds, FIFO confirmed progress, no idle effects and joined Close despite interleavings/errors. |
+| registerWithHook | Real folder/inode and counted write effects across repeated declarations and injected publication failures; equality skips content writes while unresolved durability is reconfirmed. |
+| ResolveDiagnosticLimits / SelectExcessGenerations | Pure malformed/tightened/shared policy and candidate sets; bounds cannot widen and only certified non-current excess is selected after complete bounded enumeration. |
+| Writer.Write / maintain / recoverDeletion | Multi-writer folder plus diagnosticcmd integration and existing fault replay; persisted size/count bounds survive option drift and interruption, unknown proof blocks growth/deletion without losing replacements. |
+| OSInspection.Runtimes / VerifyWriters | Existing stateful processInspection seam varies protocol/root availability and generation across observations; protocol rows bypass irrelevant canonicalization while unknown legacy rows and unfenced generations refuse. |
+| proxy.traceWrap / wrapper shutdown | Real production wiring with counted sink and manual flush triggers proves emitters use the batched owner, not a disconnected helper. |
+
+Keep the counted1000-record real-writer<3x assertion, initial-open accounting, required suite and post-landing live counters as separate acceptance evidence. The above strategy table is the executable test contract used for subsequent implementation; earlier case lists are historical proposal context only.

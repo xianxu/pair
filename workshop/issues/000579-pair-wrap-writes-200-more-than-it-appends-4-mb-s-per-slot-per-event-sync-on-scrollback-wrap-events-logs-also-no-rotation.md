@@ -103,3 +103,8 @@ The governing protocol/tasks and material killed-partial-write tradeoff are appe
 ### 2026-10-15T22:25:16Z — proceed on the narrowed diagnostic scope
 
 Verified hub receipt8f573644-79af-4c74-99b6-58677b6b5137 explicitly says Go on diagnostic write amplification/bounds and the narrow protocol-aware root resolution fix; raw/events rotation is unassigned #582. Proceed through the full-flow plan gate with the latest governing protocol revision. No raw/event production or reader changes. Post-landing live measurements remain outstanding acceptance work.
+
+
+### 2026-10-15T22:28:30Z — plan-quality refinements PQ-1/PQ-2
+
+The first plan-quality review correctly found shared adaptation writers could bypass a wrapper-only option. Governing plan now persists schema-v2 DiagnosticLimits and makes every managed writer enforce them; older strict decoders refuse rather than bypass. Limits can tighten but not widen on another handle. Named-function strategy table replaces the earlier prose test inventories as the current contract. No production code changed before the gate.
