@@ -334,10 +334,7 @@ func TestPrepareRecoveryLaunchRejectsUnprovedNumberedFallback(t *testing.T) {
 	}
 	for _, scenario := range []string{"no catalog", "no candidate", "foreign candidate", "foreign primary", "foreign scope", "foreign recorded common", "escaped working path", "escaped starting path", "unverified primary", "catalog failure"} {
 		t.Run(scenario, func(t *testing.T) {
-			couch := *env.Couch
-			couch.Threads = local
-			couch.Path = OSPathOps{}
-			couch.Git = NewFakeGit(nil)
+			couch := &Couch{Threads: local, Path: OSPathOps{}, Git: NewFakeGit(nil)}
 			record := cloneThreadRecord(source)
 			repo := repository
 			repo.Slots = append([]SlotCandidate(nil), repository.Slots...)

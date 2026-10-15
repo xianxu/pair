@@ -401,6 +401,31 @@ This supplies whole-suite evidence for the post-review BR-1/2/3 corrections;
 normal M1 milestone-close answers those findings next. Native admission remains
 M2 and is not claimed by these results.
 
+
+### 2026-10-15 — M1 round 2: prior findings addressed; copylocks correction
+
+Normal M1 review round 2 at `a682dc8e4ccfa2ccb6717e9592e30bccc88db27f`
+explicitly disposed BR-1/2/3 as addressed. Its FIX-THEN-SHIP verdict still left
+Important BR-4 open, and the binary **did not finalize** the milestone; its
+explicit next action is fix and re-run milestone-close, without a waiver.
+
+BR-4's class is synchronized owners copied to substitute preview dependencies.
+Reproduced `go vet ./cmd/internal/couchcore` exit 1 at production preflight and
+its test fixture. Recovery now passes a read-only ThreadStore into the existing
+ordinary/profile resolvers, preserving the actual Couch pointer and all its
+mutexes/lifecycle ownership. Numbered profile resolution already accepts its
+store directly. The test now constructs only its needed Couch dependencies.
+Swept all Couch copy assignments; remaining ThreadStore preview copies contain
+configuration/pointers but no synchronization primitives.
+
+After correction: core vet **PASS** exit 0; targeted profile/preflight/prepared/
+Fresh/start-resolution tests **PASS** 13.829s. Broader `go vet ./...` identifies
+one independent pre-existing diagnostic at
+`cmd/internal/pairlifecycletest/live_zellij_diagnostics_test.go:20` (unused String
+result), not a synchronized-owner copy. No unrelated source edit is included.
+The previously recorded complete suite passes the preceding code generation;
+a new pushed-head recorded suite follows this correction before M1's re-close.
+
 ## Revisions
 
 ### 2026-10-15T05:33-07:00 — overnight M2 dispatch

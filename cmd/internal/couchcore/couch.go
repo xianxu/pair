@@ -298,6 +298,12 @@ func (c *Couch) resolveStartResolution(ctx context.Context, args StartArgs) (Sta
 }
 
 func (c *Couch) resolveOrdinaryStartResolution(ctx context.Context, args StartArgs) (StartResolution, error) {
+	return c.resolveOrdinaryStartResolutionWithStore(ctx, args, c.Threads)
+}
+
+// A recovery preview supplies a read-only store without copying the synchronized
+// Couch owner or changing the store used by concurrent lifecycle operations.
+func (c *Couch) resolveOrdinaryStartResolutionWithStore(ctx context.Context, args StartArgs, threads *ThreadStore) (StartResolution, error) {
 	if args.WorkingDir() == "" {
 		return StartResolution{}, fmt.Errorf("spawn: no path given")
 	}
@@ -313,17 +319,21 @@ func (c *Couch) resolveOrdinaryStartResolution(ctx context.Context, args StartAr
 	if err != nil {
 		return StartResolution{}, err
 	}
-	return c.resolveStartProfile(args, canonicalPath, tree, repoIdentity, string(tree))
+	return c.resolveStartProfileWithStore(args, canonicalPath, tree, repoIdentity, string(tree), threads)
 }
 
 func (c *Couch) resolveStartProfile(args StartArgs, canonicalPath string, tree Worktree, repoIdentity, defaultRoot string) (StartResolution, error) {
+	return c.resolveStartProfileWithStore(args, canonicalPath, tree, repoIdentity, defaultRoot, c.Threads)
+}
+
+func (c *Couch) resolveStartProfileWithStore(args StartArgs, canonicalPath string, tree Worktree, repoIdentity, defaultRoot string, threads *ThreadStore) (StartResolution, error) {
 	scope, err := launcher.ResolveRepoScope(string(tree))
 	if err != nil {
 		return StartResolution{}, err
 	}
-	readPreference := c.Threads.getPathLaunchPreference
+	readPreference := threads.getPathLaunchPreference
 	if c.Slots != nil {
-		readPreference = c.Threads.PreviewPathLaunchPreference
+		readPreference = threads.PreviewPathLaunchPreference
 	}
 	preference, found, err := readPreference(repoIdentity, canonicalPath, scope.Key)
 	if err != nil {

@@ -79,16 +79,14 @@ func (c *Couch) recoveryLaunchProfileForSelection(ctx context.Context, record Th
 }
 
 func (c *Couch) freshRecoveryLaunchProfile(ctx context.Context, record ThreadRecord, agent string) (LaunchProfile, error) {
-	view := *c
 	store := *c.Threads
 	store.readOnly = true
-	view.Threads = &store
 	backend, err := store.storeForAddressContext(ctx, record.Address)
 	if err != nil {
 		return LaunchProfile{}, err
 	}
 	if backend.slot != nil {
-		selected, err := view.slotLaunchProfile(backend, *backend.slot, record.WorkingPath, agent)
+		selected, err := c.slotLaunchProfile(backend, *backend.slot, record.WorkingPath, agent)
 		if err != nil {
 			return LaunchProfile{}, err
 		}
@@ -97,7 +95,7 @@ func (c *Couch) freshRecoveryLaunchProfile(ctx context.Context, record ThreadRec
 		}
 		return cloneLaunchProfile(selected.Profile), nil
 	}
-	selected, err := view.resolveOrdinaryStartResolution(ctx, StartArgs{Worktree: Worktree(record.StartingPath), Cwd: record.WorkingPath, Stack: agent})
+	selected, err := c.resolveOrdinaryStartResolutionWithStore(ctx, StartArgs{Worktree: Worktree(record.StartingPath), Cwd: record.WorkingPath, Stack: agent}, &store)
 	if err != nil {
 		return LaunchProfile{}, err
 	}

@@ -183,6 +183,193 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: ae868893-e886-4c83-a394-f1a854b708b0
+            repository: github.com/xianxu/pair
+            issue_id: "000556"
+            recipe: milestone-review
+            round: 2
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/48fa1712f7ee7662
+            reviewed_head: a682dc8e4ccfa2ccb6717e9592e30bccc88db27f
+            slot: pair:2
+            requested_at: "2026-10-15T15:54:27.718592Z"
+          phase: finished
+          pid: 84093
+          started_at: "2026-10-15T15:54:27.80741Z"
+          finished_at: "2026-10-15T16:00:19.180974Z"
+          session_id: 01a14045-a338-7a30-9746-d1e554a0e978
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: a682dc8e4ccfa2ccb6717e9592e30bccc88db27f
+        tracker_head: 8e64700a93e0474ac9bc463d10a685ce5a69936d
+        branch_point: d6a797451cc6ded68c890f10f294db28b94d1708
+        since: "2026-10-14T15:10:56-07:00"
+        until: "2026-10-15T08:54:03-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-14T15:10:56-07:00"
+              end: "2026-10-14T15:14:20-07:00"
+              began: "2026-10-14T15:10:56-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot2/pair
+            - start: "2026-10-15T05:25:38-07:00"
+              end: "2026-10-15T08:54:03-07:00"
+              began: "2026-10-15T05:25:38-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot2/pair
+        sources:
+            - harness: codex
+              id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 4c32becc1c1a402f659d2681c914b5ff746fa5dff81689389672c7255a4f4dbd
+              started: "2026-10-13T05:05:19.479Z"
+              spawned: false
+              bytes: 70040653
+              windows:
+                - start: "2026-10-14T15:10:56-07:00"
+                  end: "2026-10-14T15:14:20-07:00"
+                - start: "2026-10-15T05:25:38-07:00"
+                  end: "2026-10-15T08:54:03-07:00"
+            - harness: codex
+              id: 01a13f89-c505-75d1-8c3f-68cad2c5cb47
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              digest: bbeeacd1afcdaa1b33d42ed3d8c7410752357d17cf162f91cf77df320c971cd7
+              started: "2026-10-15T12:29:16.072Z"
+              spawned: true
+              bytes: 1014136
+              windows:
+                - start: "2026-10-15T12:29:16.072Z"
+                  end: "2026-10-15T08:54:03-07:00"
+            - harness: codex
+              id: 01a13f89-dd68-7b23-a41e-cab0cafa6d0a
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              digest: b4e8e1faa6bea920f7a1a1865d173c6b275d09debbbf7ae03d95539abd6df5f6
+              started: "2026-10-15T12:29:22.379Z"
+              spawned: true
+              bytes: 718460
+              windows:
+                - start: "2026-10-15T12:29:22.379Z"
+                  end: "2026-10-15T08:54:03-07:00"
+            - harness: codex
+              id: 01a13f93-ba32-71d2-8258-83e78285838e
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 468b366b1838d80815904d33e90c384f5dd2a8f3757e20e84324b8858acb021e
+              started: "2026-10-15T12:40:11.384Z"
+              spawned: false
+              bytes: 874129
+              windows:
+                - start: "2026-10-15T12:40:11.384Z"
+                  end: "2026-10-15T08:54:03-07:00"
+            - harness: codex
+              id: 01a13f96-c4d5-7e33-bbb6-1db19a76ea4c
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: bc5280144f946b797cec25cf25c7432dfe38cf27b44ffe397f429ec15305acfe
+              started: "2026-10-15T12:43:29.43Z"
+              spawned: false
+              bytes: 465487
+              windows:
+                - start: "2026-10-15T12:43:29.43Z"
+                  end: "2026-10-15T08:54:03-07:00"
+            - harness: codex
+              id: 01a13f98-b84b-7ae1-9c78-3b4a9be020a5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: bac5c8a02b3200b8163888f72b9147a79356e4f0baaafccc4496ea53020d1b8f
+              started: "2026-10-15T12:45:36.668Z"
+              spawned: false
+              bytes: 470273
+              windows:
+                - start: "2026-10-15T12:45:36.668Z"
+                  end: "2026-10-15T08:54:03-07:00"
+            - harness: codex
+              id: 01a13f99-5581-7320-b0b0-500317f35f68
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 2ac34b43830c16776c23e74d2b2a7083c63a85eccc3e1d3653c2e46f9b93d669
+              started: "2026-10-15T12:46:17.557Z"
+              spawned: false
+              bytes: 471335
+              windows:
+                - start: "2026-10-15T12:46:17.557Z"
+                  end: "2026-10-15T08:54:03-07:00"
+            - harness: codex
+              id: 01a13f9a-21b2-7b82-b6ba-25e1f19f39fc
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              digest: 48b645ecae3feb601d0797d83414e43e5834d1bd281ec5a798de2660000e34b0
+              started: "2026-10-15T12:47:08.358Z"
+              spawned: true
+              bytes: 6590774
+              windows:
+                - start: "2026-10-15T12:47:08.358Z"
+                  end: "2026-10-15T08:54:03-07:00"
+            - harness: codex
+              id: 01a13f9b-57c0-7e72-a872-467a305cda3b
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              digest: 25337c61cbe8c20b54699b46f799e5cc192ed8f72445487cf828c842a6c3f34f
+              started: "2026-10-15T12:48:27.78Z"
+              spawned: true
+              bytes: 5315331
+              windows:
+                - start: "2026-10-15T12:48:27.78Z"
+                  end: "2026-10-15T08:54:03-07:00"
+            - harness: codex
+              id: 01a13f9f-1efe-7480-b4d1-a97513916fd3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              digest: 12c78e0ea342e7db503687050515eb33b931970893d3bf1175376378aca61509
+              started: "2026-10-15T12:52:35.36Z"
+              spawned: true
+              bytes: 6436863
+              windows:
+                - start: "2026-10-15T12:52:35.36Z"
+                  end: "2026-10-15T08:54:03-07:00"
+        cuts:
+            - boundary: M1
+              dispatched: "2026-10-15T07:25:54-07:00"
+              finalized: "2026-10-15T07:31:14-07:00"
+              finalizing: false
+      "n": 2
+      timestamp: "2026-10-15T09:00:19-07:00"
+      dispatched: "2026-10-15T08:54:25-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: recovery_prepared.go:477–484 selects read-only readiness when source absence is unproved. The strengthened foreign-survivor test asserts zero normal readiness calls and unchanged process/session identities; it passed.
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: retireConfirmed now signals accepted generations leaf-first and independently observes their absence. Passing regressions cover survivors, reparenting, replacement, false signal success and final-listing races; settled-owner tests exercise ParkExpected and refusal after park failure.
+          round: 2
+        - id: BR-3
+          disposition: addressed
+          note: README.md:447–455 documents the standalone token command; lines 493–520 explain exact-stop acceptance, two-minute expiry, Fresh availability and bounded Starting. These passages agree with the CLI, confirmation owner and stale-start decision.
+          round: 2
+      findings:
+        - kind: defect
+          id: BR-4
+          severity: Important
+          title: Avoid copying the live Couch for read-only profile resolution
+          detail: cmd/internal/couchcore/recovery_preflight.go:82 copies the entire Couch, including recoveryMu, regMu and gateOnce; recovery_preflight_test.go:337 repeats the pattern. Copying an active synchronized owner violates its synchronization contract and can race concurrent operations. go vet ./cmd/internal/couchcore exits 1 with both copylocks diagnostics. Pass the read-only ThreadStore into profile-resolution helpers instead of cloning Couch, and construct the test fixture without copying its locks. ARCH-ORDER.
+          family: synchronized-owners-must-not-be-copied
+          round: 2
+      boundary: M1
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#556 (boundary-review)
@@ -201,8 +388,19 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-3** [Important] `user-facing-docs-follow-surface` README update appears missing for recovery confirmation and changed Fresh behavior
   cmd/internal/couchcmd/cli.go:342 introduces standalone --recovery-confirmation TOKEN, and run.go:1386 changes reboot usage and confirmation semantics, but README.md is unchanged in the pinned range. README.md:452 still advertises reboot --force-unknown, and lines 495–499 and 1410–1412 retain the earlier restricted Fresh/Starting description. Update the CLI reference and recovery instructions to describe exact-stop confirmation, expiry, always-offered Fresh and bounded Starting. Atlas updates are present.
 
+## Round 2 — 2026-10-15T09:00:19-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — recovery_prepared.go:477–484 selects read-only readiness when source absence is unproved. The strengthened foreign-survivor test asserts zero normal readiness calls and unchanged process/session identities; it passed.
+- BR-2 — addressed — retireConfirmed now signals accepted generations leaf-first and independently observes their absence. Passing regressions cover survivors, reparenting, replacement, false signal success and final-listing races; settled-owner tests exercise ParkExpected and refusal after park failure.
+- BR-3 — addressed — README.md:447–455 documents the standalone token command; lines 493–520 explain exact-stop acceptance, two-minute expiry, Fresh availability and bounded Starting. These passages agree with the CLI, confirmation owner and stale-start decision.
+
+### Raised
+
+- **BR-4** [Important] `synchronized-owners-must-not-be-copied` (kind: defect) Avoid copying the live Couch for read-only profile resolution
+  cmd/internal/couchcore/recovery_preflight.go:82 copies the entire Couch, including recoveryMu, regMu and gateOnce; recovery_preflight_test.go:337 repeats the pattern. Copying an active synchronized owner violates its synchronization contract and can race concurrent operations. go vet ./cmd/internal/couchcore exits 1 with both copylocks diagnostics. Pass the read-only ThreadStore into profile-resolution helpers instead of cloning Couch, and construct the test fixture without copying its locks. ARCH-ORDER.
+
 ## Open findings
 
-- **BR-1** [Critical] `recovery-preserves-surviving-workspaces` Retained-record Fresh still reconciles beneath foreign owners
-- **BR-2** [Critical] `retirement-requires-owner-absence` Confirmed retirement does not prove the advertised stop set stopped
-- **BR-3** [Important] `user-facing-docs-follow-surface` README update appears missing for recovery confirmation and changed Fresh behavior
+- **BR-4** [Important] `synchronized-owners-must-not-be-copied` (kind: defect) Avoid copying the live Couch for read-only profile resolution

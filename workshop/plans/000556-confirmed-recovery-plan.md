@@ -384,3 +384,11 @@ observations. No new user-visible state or extra prompt is introduced.
 M1 still awaits independent #568's landing, the merged-head recorded suite and
 normal boundary re-close. This policy approval authorizes M2's selector behavior;
 it does not claim M1 closed or start M2 code prematurely.
+
+### 2026-10-15 — BR-4: keep synchronized owner identity in preview resolution
+
+M1 round 2 accepted the three earlier corrections but identified copying the live
+Couch (including mutexes) to substitute a read-only store. Pass the preview store
+through the existing profile resolvers instead; keep the original Couch owner,
+use an independently constructed focused fixture, and verify copylocks plus the
+profile/preflight matrix. No lifecycle semantics, M1/M2 split or approval changes.
