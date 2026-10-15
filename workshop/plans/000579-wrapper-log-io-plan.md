@@ -85,3 +85,10 @@ Files: proof.go, process_inventory_test.go; new generation_limit.go/_test.go; wr
 ## Validation commands
 
 Targeted: go test ./cmd/internal/diagnosticlog ./cmd/internal/wrapcmd ./cmd/internal/adapt ./cmd/internal/artifactpath -count=1 (run focused selections during iteration); go test -race on modified integration packages; relevant launcher/scrollback/couch retained-recording selections. Use make wrappers for environment-dependent integration fixtures. Full required suite is exclusively sdlc local-check run --name suite on a pushed head. Builds use make -k build. Exact regression names and red/green evidence enter the issue Log as each test is introduced.
+
+
+## Revisions
+
+### 2026-10-15T22:18:28Z — post-landing live acceptance
+
+The operator explicitly requests a live measurement after landing (verified hub receipt e774d4c0-5be6-4c77-8e0a-8e25ceeb3cd4). In addition to pre-merge qualification, after landing measure the selected live slot on the landed binary using process disk-write counters, raw+wrap-event file growth, and diagnostic state inode-change rate. Record exact commit/build, process generation, paths, durations, activity context, before/after values and ratio in the issue Log. Existing baselines are85.8x over10.006s and2187 observed state replacements/minute. Sampling gives a lower bound on inode replacements. Send the result to hub, which separately owns the whole-disk sample. If binary rollout needs a live-slot relaunch, obtain the hub's specific authorization rather than restarting another slot. This addition is acceptance evidence, not approval of the pending scope split or retention policy.

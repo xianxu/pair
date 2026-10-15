@@ -73,3 +73,15 @@ Pending hub scope approval: the plan separates raw size rotation into a faithful
 
 - Temporary untracked Go overlay probe (no source mutation) used the real diagnostic writer with 1,000 distinct JSONL events: payload44,890 bytes, metadata1,087,924 bytes, exactly2,000 state publications; logical bytes-written/appended25.235x before APFS block/journal overhead. Probe uses existing fault checkpoints after actual metadata publications, marshals the observed disk states, and counts the payload returned by real Write. This is a code-path measurement, not a kernel syscall trace. Scratch overlay under pair579-probe-f2a4f2vd.
 - Rotation blocker demonstrated through the production VerifyWriters/OSInspection seam with a read-only tracing processInspection: PID72769 (Zellij) advertises PAIR_RETENTION_PROTOCOL=1, but its PAIR_DATA_DIR points under removed birthrace-scratch-2453556978. Runtimes attempts EvalSymlinks of that irrelevant root before returning the protocol-aware row; failure becomes diagnostic writer inventory incomplete and blocks all rotation. The protocol row is later exempt from legacy-writer root comparison anyway. Proposed minimal correction: retain generation/environment fences, classify protocol participation before unnecessary root canonicalization; unknown legacy roots must still refuse. This is not authority to stop the leftover process.
+
+- 2026-10-15T22:18:28Z: verified acceptance receipt e774d4c0-5be6-4c77-8e0a-8e25ceeb3cd4; explicit post-landing measurement added below. This is not approval of the pending scope/retention design. Production code remains unchanged.
+
+
+## Revisions
+
+### 2026-10-15T22:18:28Z — operator adds post-landing live acceptance
+
+Reason: hub receipt e774d4c0-5be6-4c77-8e0a-8e25ceeb3cd4 conveys the operator's explicit acceptance request.
+Delta: after the fix lands, measure a live slot on the landed binary and record before/after process bytes-written versus actual raw+wrap-event bytes appended, amplification ratio, and diagnostic state inode-change rate in this issue's Log. Record exact binary/commit, PID/generation, paths, sample durations and output/activity context. Inode sampling is a lower bound when replacements occur between observations. Keep the existing before numbers (85.8x over10.006s and2187 observed state replacements over60.003s); do not substitute synthetic counts for the live check. The hub will separately sample whole-disk write rate; do not attribute that aggregate to this slot without its measurement. A staged/pre-merge smoke does not satisfy this additional post-landing check.
+
+- [ ] After landing: record live before/after bytes-written/appended and diagnostic state inode-change rate in ## Log; send results to hub for its whole-disk comparison.
