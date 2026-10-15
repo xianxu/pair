@@ -1187,3 +1187,11 @@ No follow-up implementation starts on this branch.
   10 repetitions (launcher15.728s, artifactpath0.302s). Scratch officialbinary
   countermeasurement baselineFAIL1.919s / fixPASS2.914s; logs
   /tmp/pair528-ci-ambient-tmp-live.log and /tmp/pair528-ci-transport-proof.log.
+
+- Final exact upstream0.45.1 ambient Darwin TMPDIR live selection GREEN count3
+  (6 cases,13.042s), /tmp/pair528-ci-tracked-transport-live-count3.log.
+  Earlier tracked run passed park but exposed empty input receipt (5.165s);
+  waitUntil now observes expected bytes under the same5s deadline before final
+  assertion. Queued a364 suite69974(parent4470,21:02:33) cancelled before
+  admission (exit130), to record final test source instead. No other owners
+  touched; no runtime or timeout change for this fixture correction.

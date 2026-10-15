@@ -295,7 +295,10 @@ func runRecoveryLiveFixture(t *testing.T, warm bool) {
 		if out, err := exec.CommandContext(ctx, "zellij", "--session", session, "action", "write", "--pane-id", paneID, "13").CombinedOutput(); err != nil {
 			t.Fatalf("submit agent: %v %s", err, out)
 		}
-		waitFile(t, inputFile)
+		waitUntil(t, "same agent input receipt", func() bool {
+			input, err := os.ReadFile(inputFile)
+			return err == nil && strings.Contains(string(input), "WARM-INPUT-250")
+		})
 		input, err := os.ReadFile(inputFile)
 		if err != nil || !strings.Contains(string(input), "WARM-INPUT-250") {
 			t.Fatalf("same agent input: %q %v", input, err)
