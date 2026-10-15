@@ -1,13 +1,13 @@
 ---
 id: 000204
-status: codecomplete
+status: done
 deps: []
 target: workbench-latency
 github_issue:
 created: 2026-09-06
 updated: 2026-10-15
 estimate_hours: 2.246
-card_mirror: 'f1f51afc0373d30cb5814aa8d14a6dac24795356' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '5c380290aa3fbfbf9feac43eccdc0f6acd5e1637' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-15T05:25:29-07:00
 claimant:
     operator: Xian Xu
