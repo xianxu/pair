@@ -217,6 +217,23 @@ git diff --check passes for smoke fixture corrections.
 Main #559 merged; its checker constructor gains index/owner caches while
 preserving #218 ownerScope identity. Targeted integration checks pending.
 
+
+### 2026-10-14 — resumed identity-contract diagnosis
+
+Retained first matrix remains incomplete and unchanged; PID23658 cannot be
+attributed from saved evidence. Local Darwin conformance with an owned reaped
+child confirms kern.proc.pid succeeds with zero bytes, while x/sys
+SysctlKinfoProc converts that response to EIO. Identity collapses this and all
+other errors to empty, so snapshotSelected cannot distinguish confirmed absence
+from unreadable metadata after a successful argv read. Deterministic native
+TestSnapshotDarwinExitAfterSuccessfulCommand is RED: successful command, child
+reaped at the boundary, snapshot retains an unavailable-identity row. This proves
+a contract defect, not the historical sample's exact cause. ARCH-ORDER preserves
+unknown as unknown; use one error-bearing native identity read, classify only
+positive absence/terminal evidence as gone, keep malformed/permission/EIO unknown.
+No retries, sleeps or effect-fence relaxation. Fleet diagnostics retention and
+existing context observer exposure delegated as bounded independent work.
+
 ## Revisions
 
 - 2026-10-14 — add (operator via TL): concrete case. At the operator's 14:33 restart, Couch's background attaches spawned 21 zellij clients between 14:33:37 and 14:33:47 (~6 at a time): roughly 2–3 s per attach, against ~10–20 ms for `zellij list-sessions` and an expected ~100–300 ms floor (list, lease, one record write, spawn client, first frame). Detach ("leave couch") is unmeasured but also inspects each slot's session server. Trace one attach and one detach step by step; the likely waste is a whole process-table read (native argv for every process since #547) per slot. Probably one shared snapshot per startup or detach pass instead.

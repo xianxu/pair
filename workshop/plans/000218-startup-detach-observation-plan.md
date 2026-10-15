@@ -152,3 +152,16 @@ the accepted experiment's actual native counts without inferring them from row
 counts or owner probes. Default discovery keeps the unwrapped reader path.
 The 21-session experiment uses couchcmd's real wireResolver/beginConsole/Console
 worker pool and production LeaveDetach, not a separately modeled fanout.
+
+### 2026-10-14 — identity contract and fleet evidence retention
+
+Stopped sample exposed an empty-identity ambiguity. An owned Darwin reaped-child
+check proves zero-byte successful kern.proc.pid responses are collapsed into EIO
+by the fixed-size helper. Preserve the native error/absence distinction through
+snapshot's identity seam; successful zero-length lookup or terminal status means
+gone, while permission/malformed/EIO remains uncertainty. Regression drives exit
+between successful argv and final identity; deterministic cases retain unreadable
+identity and reject replacements. This fixes the diagnosed contract without
+claiming a cause for PID23658. Before a separately versioned balanced matrix,
+retain fixture diagnostics before cleanup and expose the existing context-only
+launch observer to attribute parent lease/durable-record stages under load.
