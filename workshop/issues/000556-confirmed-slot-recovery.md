@@ -347,6 +347,21 @@ is pending the hub's answer (receipt a2e880d4-619c-43c7-92a1-6d8e5413efcd,
 submitted). No M2 code, stage modification, operator restart or live-slot effects
 have occurred. The completed morning script remains in the plan directory.
 
+### 2026-10-15 — independent suite blocker landed; merged main
+
+Verified peer receipt `03f4a082-3baf-4255-ac04-3460ff3be56f`, then fetched and
+merged origin/main containing pair#568 PR345, merge
+`c0d469a68185402455c1f7ad2e2960d914506740`. The merge was clean; artifact
+classification and lessons auto-merged. Its watcher ownership/teardown repair and
+retained failure diagnostics remain intact alongside #556's recovery changes.
+No history artifacts were read to infer acceptance. Deeper temporary-directory
+socket refusal is separately tracked as #570, not conflated with this blocker.
+
+A new recorded suite and build on the merged #556 head follow; only an actual
+passing result will support M1's normal re-close. Resolve-and-pin policy is
+approved and recorded for M2, but no M2 implementation or live/stage effects have
+started.
+
 ## Revisions
 
 ### 2026-10-15T05:33-07:00 — overnight M2 dispatch
