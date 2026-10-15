@@ -219,3 +219,72 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-15T14:21:13-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 556 — Couch confirmed disk recovery and always-reachable fresh startup |
+| repo | pair |
+| issue file | workshop/issues/000556-confirmed-slot-recovery.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 21eab786bce2f16dc8a79257320bfed86745f6c6..877bc927a07a149b68f9627733b77abde302ecee |
+| command | sdlc close --issue 556 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-15T14:21:13-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The narrow interdiff is ready. The manifest conflict resolution preserves both sides’ source classifications and passes the artifact inventory checks. No scope change or new defect was found. Prior findings remain disposed; none require reopening.
+
+```findings
+{}
+```
+
+1. **Strengths**
+
+   - `cmd/internal/artifactpath/manifest.go:629` retains every native admission/selector entry alongside `internal/reporoot/root.go`.
+   - Existing inventory tests validate source existence, classification uniqueness and non-artifact restrictions.
+   - Tracker changes record review outcomes; the Spec, Done-when and implementation Plan remain unchanged.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   `go test ./cmd/internal/artifactpath -count=1 -timeout=120s` passed in 23.503s. `git diff --check` passed. The full repository suite was not rerun in this narrow review.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** The resolution preserves one source inventory without duplicate entries.
+   - **ARCH-PURE — pass:** No business logic or IO boundary changes.
+   - **ARCH-PURPOSE — pass:** Both conflict sides’ intended classifications survive; no additional behavior or deferred requirement was introduced.
+
+7. **Plan revision recommendations:** None.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"6b36ce08-eed5-4a80-b5d0-65e1cf76f469","repository":"github.com/xianxu/pair","issue_id":"000556","recipe":"fix-review","round":9,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/34b70c5ab91d192d","reviewed_head":"877bc927a07a149b68f9627733b77abde302ecee","slot":"pair:2","requested_at":"2026-10-15T21:20:13.528556Z"},"phase":"finished","pid":73406,"started_at":"2026-10-15T21:20:13.778726Z","finished_at":"2026-10-15T21:21:12.201117Z","session_id":"01a1416f-e48d-7d33-a4b8-4f8b6e0b39fe","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.279898s
+head: "877bc927a07a149b68f9627733b77abde302ecee"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000409
