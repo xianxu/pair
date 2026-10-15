@@ -565,6 +565,202 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - reviewer_runs:
+        - version: 1
+          intent:
+            disposable_root: true
+            id: 5cfe790c-12a5-4715-8bc0-a34bf76088e3
+            repository: github.com/xianxu/pair
+            issue_id: "000556"
+            recipe: milestone-review
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/Library/Caches/sdlc/review-checkouts/dc3b0e3198edcea8
+            reviewed_head: 646c4a5bdb214ee4c755133049c3af386dc679f0
+            slot: pair:2
+            requested_at: "2026-10-15T16:33:46.692911Z"
+          phase: finished
+          pid: 51612
+          started_at: "2026-10-15T16:33:46.781371Z"
+          finished_at: "2026-10-15T16:36:05.093062Z"
+          session_id: 01a14069-a1f6-7241-8712-481a63a68263
+          outcome: returned
+      actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 646c4a5bdb214ee4c755133049c3af386dc679f0
+        tracker_head: 8e64700a93e0474ac9bc463d10a685ce5a69936d
+        branch_point: d6a797451cc6ded68c890f10f294db28b94d1708
+        since: "2026-10-14T15:10:56-07:00"
+        until: "2026-10-15T09:33:28-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-14T15:10:56-07:00"
+              end: "2026-10-14T15:14:20-07:00"
+              began: "2026-10-14T15:10:56-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot2/pair
+            - start: "2026-10-15T05:25:38-07:00"
+              end: "2026-10-15T09:33:28-07:00"
+              began: "2026-10-15T05:25:38-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot2/pair
+        sources:
+            - harness: codex
+              id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 13ed5bf7be5ba1d85632f689f03bd7e5efeed578b37c28558bfbdfb95f3f3c95
+              started: "2026-10-13T05:05:19.479Z"
+              spawned: false
+              bytes: 72204416
+              windows:
+                - start: "2026-10-14T15:10:56-07:00"
+                  end: "2026-10-14T15:14:20-07:00"
+                - start: "2026-10-15T05:25:38-07:00"
+                  end: "2026-10-15T09:33:28-07:00"
+            - harness: codex
+              id: 01a13f89-c505-75d1-8c3f-68cad2c5cb47
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              digest: bbeeacd1afcdaa1b33d42ed3d8c7410752357d17cf162f91cf77df320c971cd7
+              started: "2026-10-15T12:29:16.072Z"
+              spawned: true
+              bytes: 1014136
+              windows:
+                - start: "2026-10-15T12:29:16.072Z"
+                  end: "2026-10-15T09:33:28-07:00"
+            - harness: codex
+              id: 01a13f89-dd68-7b23-a41e-cab0cafa6d0a
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              digest: b4e8e1faa6bea920f7a1a1865d173c6b275d09debbbf7ae03d95539abd6df5f6
+              started: "2026-10-15T12:29:22.379Z"
+              spawned: true
+              bytes: 718460
+              windows:
+                - start: "2026-10-15T12:29:22.379Z"
+                  end: "2026-10-15T09:33:28-07:00"
+            - harness: codex
+              id: 01a13f93-ba32-71d2-8258-83e78285838e
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 468b366b1838d80815904d33e90c384f5dd2a8f3757e20e84324b8858acb021e
+              started: "2026-10-15T12:40:11.384Z"
+              spawned: false
+              bytes: 874129
+              windows:
+                - start: "2026-10-15T12:40:11.384Z"
+                  end: "2026-10-15T09:33:28-07:00"
+            - harness: codex
+              id: 01a13f96-c4d5-7e33-bbb6-1db19a76ea4c
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: bc5280144f946b797cec25cf25c7432dfe38cf27b44ffe397f429ec15305acfe
+              started: "2026-10-15T12:43:29.43Z"
+              spawned: false
+              bytes: 465487
+              windows:
+                - start: "2026-10-15T12:43:29.43Z"
+                  end: "2026-10-15T09:33:28-07:00"
+            - harness: codex
+              id: 01a13f98-b84b-7ae1-9c78-3b4a9be020a5
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: bac5c8a02b3200b8163888f72b9147a79356e4f0baaafccc4496ea53020d1b8f
+              started: "2026-10-15T12:45:36.668Z"
+              spawned: false
+              bytes: 470273
+              windows:
+                - start: "2026-10-15T12:45:36.668Z"
+                  end: "2026-10-15T09:33:28-07:00"
+            - harness: codex
+              id: 01a13f99-5581-7320-b0b0-500317f35f68
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 2ac34b43830c16776c23e74d2b2a7083c63a85eccc3e1d3653c2e46f9b93d669
+              started: "2026-10-15T12:46:17.557Z"
+              spawned: false
+              bytes: 471335
+              windows:
+                - start: "2026-10-15T12:46:17.557Z"
+                  end: "2026-10-15T09:33:28-07:00"
+            - harness: codex
+              id: 01a13f9a-21b2-7b82-b6ba-25e1f19f39fc
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              digest: 0ff886d9d3dc1645a112a6103c6ef6d4d58675a44122451d8ef9a4217c5d6d45
+              started: "2026-10-15T12:47:08.358Z"
+              spawned: true
+              bytes: 7213711
+              windows:
+                - start: "2026-10-15T12:47:08.358Z"
+                  end: "2026-10-15T09:33:28-07:00"
+            - harness: codex
+              id: 01a13f9b-57c0-7e72-a872-467a305cda3b
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              digest: d19521de83a6b374d343c9139d8288e2899b13e1fad6b810258ba5446c392980
+              started: "2026-10-15T12:48:27.78Z"
+              spawned: true
+              bytes: 5372550
+              windows:
+                - start: "2026-10-15T12:48:27.78Z"
+                  end: "2026-10-15T09:33:28-07:00"
+            - harness: codex
+              id: 01a13f9f-1efe-7480-b4d1-a97513916fd3
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              digest: a89b7023804dac0f251b8724f9096e6b7c112ba24b867a0adf56ba50368bc06e
+              started: "2026-10-15T12:52:35.36Z"
+              spawned: true
+              bytes: 7134411
+              windows:
+                - start: "2026-10-15T12:52:35.36Z"
+                  end: "2026-10-15T09:33:28-07:00"
+        cuts:
+            - boundary: M1
+              dispatched: "2026-10-15T07:25:54-07:00"
+              finalized: "2026-10-15T07:31:14-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-15T08:54:25-07:00"
+              finalized: "2026-10-15T09:00:19-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-15T09:13:14-07:00"
+              finalized: "2026-10-15T09:18:44-07:00"
+              finalizing: false
+      "n": 4
+      timestamp: "2026-10-15T09:36:05-07:00"
+      dispatched: "2026-10-15T09:33:44-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Retained and recordless Fresh use read-only checkout readiness beside unproved owners. The retained-owner regression passed and asserts unchanged workspace bytes and no normal provisioning or signals.
+          round: 4
+        - id: BR-2
+          disposition: addressed
+          note: Confirmed retirement independently proves every accepted process absent, with generation checks before signals and after final listing. Survivor, replacement, reparenting and delayed-absence regressions passed under race.
+          round: 4
+        - id: BR-3
+          disposition: addressed
+          note: The pinned README recovery and Reboot passages document standalone confirmation, expiry and survivor-safe Fresh; atlas/couch.md describes the corresponding prepared executor and retirement owners.
+          round: 4
+        - id: BR-4
+          disposition: addressed
+          note: Fresh profile resolution passes a read-only ThreadStore into existing resolvers without copying Couch. Profile regressions and go vet -copylocks passed.
+          round: 4
+        - id: BR-5
+          disposition: addressed
+          note: Validated keyed Fresh is normalized before profile and native-only guards. The four-scenario, three-route matrix passes on head; restoring the pre-fix executor in a disposable copy produces eight candidate/operation failures. Menu and printed-CLI transport regressions also pass.
+          round: 4
+      boundary: M1
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 646c4a5bdb214ee4c755133049c3af386dc679f0
+      blocked: false
 ---
 
 # Gate ledger — pair#556 (boundary-review)
@@ -610,6 +806,16 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-5** [Critical] `fresh-selection-precedes-native-guards` (kind: defect) Recognize keyed Fresh before applying native-resume admission guards
   cmd/internal/couchcore/recovery_prepared.go:94–115 resolves the native profile and checks park, continuation and start claims before lines 125–130 recognize a Fresh candidate key. ResumeCandidate always enters as RecoveryInferred; menu_recovery.go:109–120 and the printed CLI command use that route for keyed Fresh. A temporary regression matrix reproduces failures for unfinished park, missing saved profile and young start claim; explicit RecoveryFresh succeeds in all three controls. This violates always-reachable Fresh (ARCH-PURPOSE). Normalize the validated choice before mode-specific admission, sweep every native-only guard, and add equivalence regressions through the advertised menu/CLI routes.
 
+## Round 4 — 2026-10-15T09:36:05-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Retained and recordless Fresh use read-only checkout readiness beside unproved owners. The retained-owner regression passed and asserts unchanged workspace bytes and no normal provisioning or signals.
+- BR-2 — addressed — Confirmed retirement independently proves every accepted process absent, with generation checks before signals and after final listing. Survivor, replacement, reparenting and delayed-absence regressions passed under race.
+- BR-3 — addressed — The pinned README recovery and Reboot passages document standalone confirmation, expiry and survivor-safe Fresh; atlas/couch.md describes the corresponding prepared executor and retirement owners.
+- BR-4 — addressed — Fresh profile resolution passes a read-only ThreadStore into existing resolvers without copying Couch. Profile regressions and go vet -copylocks passed.
+- BR-5 — addressed — Validated keyed Fresh is normalized before profile and native-only guards. The four-scenario, three-route matrix passes on head; restoring the pre-fix executor in a disposable copy produces eight candidate/operation failures. Menu and printed-CLI transport regressions also pass.
+
 ## Open findings
 
-- **BR-5** [Critical] `fresh-selection-precedes-native-guards` (kind: defect) Recognize keyed Fresh before applying native-resume admission guards
+(none — every finding has been disposed)

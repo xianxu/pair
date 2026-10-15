@@ -69,7 +69,7 @@ retain default plus up to four alternatives with evidence via menu and CLI.
 
 - [x] Inspect current owners and revise #528's M2 design before implementation;
   keep a separate review and operator acceptance boundary.
-- [ ] M1 — Shared prepared recovery, confirmed Resume/Fresh, standalone hub CLI confirmation, schema-4 intent/read-only v3 migration; headless acceptance and morning scratch script; milestone-close.
+- [x] M1 — Shared prepared recovery, confirmed Resume/Fresh, standalone hub CLI confirmation, schema-4 intent/read-only v3 migration; headless acceptance and morning scratch script; milestone-close.
 - [ ] M2 — Shared native admission reservations and two-slot barrier tests; milestone-close.
 - [ ] Record the full suite, close on SHIP and land; the hub owns the operator's restart and live acceptance.
 
@@ -119,6 +119,7 @@ Split from #528 at operator/TL direction84fbcea7 so accepted M1 can land. Source
 #528 durable plan's revised M2 and Starting exception; no new code authorized.
 
 ### 2026-10-15 — claim and measured design audit
+- 2026-10-15: closed M1 — BR-5 fixed at shared owner: validated candidate key resolves Fresh before profile/park/continuation/start guards. Twelve-case real-core explicit/candidate/operation matrix RED-to-GREEN PASS2.870s; genuine native choices still refuse without effects; broad recovery PASS17.992s, race PASS4.407s, core vet PASS, actual menu queue and printed CLI command tests PASS. Required corrected-head recorded suite PASS on 7f289c0089052d02c2b82c453dc7ccc5a5a27d02, exit0 in8m42s, retained suite.log sha2562c788d3dc827; make build PASS. R3 disposed BR-1/2/3/4. Normal re-close, no waivers. Morning script workshop/plans/000556-live-acceptance.md. No M2/live/stage effects.; review verdict: SHIP
 
 Claimed by pair:2 on branch `000556-confirmed-slot-recovery`, based on main
 `09c5b48dd7586d6ba908a45ea86899190ad3dd4a`. Refreshed the stale ariadne

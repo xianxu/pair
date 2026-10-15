@@ -314,3 +314,100 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000409
+
+---
+
+## Re-review — 2026-10-15T09:36:05-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 556 — Couch confirmed disk recovery and always-reachable fresh startup |
+| repo | pair |
+| issue file | workshop/issues/000556-confirmed-slot-recovery.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | d6a797451cc6ded68c890f10f294db28b94d1708..646c4a5bdb214ee4c755133049c3af386dc679f0 |
+| command | sdlc milestone-close --issue 556 --milestone M1 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-15T09:36:05-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned M1 implementation matches the Spec and approved Plan revisions. BR-5 is addressed with demonstrated regression evidence: restoring the pre-fix executor caused eight keyed-Fresh cases to fail, while explicit-Fresh controls passed. No new blocking findings emerged. Cross-slot native exclusion remains explicitly scoped to M2.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Retained and recordless Fresh use read-only checkout readiness beside unproved owners. The retained-owner regression passed and asserts unchanged workspace bytes and no normal provisioning or signals.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Confirmed retirement independently proves every accepted process absent, with generation checks before signals and after final listing. Survivor, replacement, reparenting and delayed-absence regressions passed under race.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      The pinned README recovery and Reboot passages document standalone confirmation, expiry and survivor-safe Fresh; atlas/couch.md describes the corresponding prepared executor and retirement owners.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Fresh profile resolution passes a read-only ThreadStore into existing resolvers without copying Couch. Profile regressions and go vet -copylocks passed.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Validated keyed Fresh is normalized before profile and native-only guards. The four-scenario, three-route matrix passes on head; restoring the pre-fix executor in a disposable copy produces eight candidate/operation failures. Menu and printed-CLI transport regressions also pass.
+```
+
+1. **Strengths**
+
+   - Shared preparation keeps menu, CLI and confirmation execution on one lifecycle path.
+   - Immutable retirement plans preserve exact process authority across effects.
+   - Uncertain launches retain their claims and use bounded observation instead of destructive cleanup.
+   - Schema migration and optional Fresh orientation preserve strict native-resume evidence requirements.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Focused tests passed across couchcore, couchcmd, couchtty, couchmessage, threadrecord and launcher. Additional race checks covered Fresh equivalence, retirement, uncertain launches and retained evidence. Copylocks and diff whitespace checks passed. The mutation-test copy was removed; the checkout remains clean. I did not rerun the entire repository suite or live operator acceptance.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared executor, journal and launch owners.
+   - **ARCH-PURE — pass:** pure selection, validation and transitions separated from injected IO.
+   - **ARCH-PURPOSE — pass:** Fresh representations now obey the same admission rule.
+   - **ARCH-MOCK — pass:** stateful process, runner and lifecycle doubles exercise production seams; live conformance has a defined release cadence.
+   - **ARCH-CONSTRAINTS — pass:** bounded observations, confirmation capacity and expiry.
+   - **ARCH-SECURE — pass:** versioned decoding, physical evidence validation and exact identity checks.
+   - **ARCH-ORDER — pass:** preservation precedes retirement; stale claims and uncertain outcomes retain explicit authority.
+   - **ARCH-FUNERAL — pass:** confirmations expire; durable evidence reuses existing archive and retention lifecycles.
+
+   M2 still requires its planned deterministic cross-slot admission tests before claiming writer exclusion.
+
+7. **Plan revision recommendations:** None required for M1.
+
+<!-- sdlc-review-usage [{"version":1,"intent":{"disposable_root":true,"id":"5cfe790c-12a5-4715-8bc0-a34bf76088e3","repository":"github.com/xianxu/pair","issue_id":"000556","recipe":"milestone-review","round":4,"attempt":1,"agent":"codex","root":"/Users/xianxu/Library/Caches/sdlc/review-checkouts/dc3b0e3198edcea8","reviewed_head":"646c4a5bdb214ee4c755133049c3af386dc679f0","slot":"pair:2","requested_at":"2026-10-15T16:33:46.692911Z"},"phase":"finished","pid":51612,"started_at":"2026-10-15T16:33:46.781371Z","finished_at":"2026-10-15T16:36:05.093062Z","session_id":"01a14069-a1f6-7241-8712-481a63a68263","outcome":"returned"}] -->
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 1.952161375s
+head: "646c4a5bdb214ee4c755133049c3af386dc679f0"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
