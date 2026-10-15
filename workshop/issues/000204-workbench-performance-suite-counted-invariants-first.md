@@ -1,13 +1,21 @@
 ---
 id: 000204
-status: open
+status: working
 deps: []
 target: workbench-latency
 github_issue:
 created: 2026-09-06
-updated: 2026-09-06
+updated: 2026-10-15
 estimate_hours:
-card_mirror: 'd542986871fc3ddda8dc50525f66bb7029563804' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '10150ab62ed25df86f73dcde84ae877b87203003' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-15T05:25:29-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:7
+    worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
+    repository: github.com/xianxu/pair
 ---
 
 # workbench performance suite: counted invariants first
@@ -153,3 +161,12 @@ must name the probe that reproduces it.
 ## Revisions
 
 - 2026-10-14 — add (operator: "think of how to catch those issues before it's released"): a fourth case shipped today. After pair#528 M1, Couch burned 40–100% CPU at idle (pair#559) because every UI activity tick re-decoded each row's launch ledger (15–33 MB), catalog and transcripts, and every peer message re-decoded session-name indexes. Review and the full suite passed; the operator found it through timeouts. Add **counted invariants** for Couch's steady state: (1) bytes read/decoded per idle UI tick with N=20 synthetic slots and 30 MB ledgers = 0 for unchanged files; (2) the same per peer message; (3) process-table scans per attach ≤ 1 (pair#218); (4) an idle-CPU smoke in the acceptance runbook: restart over a 20-slot fixture, Couch CPU < 5% averaged over 60 s after attaches settle. Counted invariants run in the normal suite (deterministic); the CPU smoke is part of every Couch acceptance session.
+
+
+### 2026-10-15 — dispatched counted-invariant delivery (proposed)
+
+TL receipt2e776e5f-723a-4479-8930-8339f014cd38 dispatches the 10-14 Revision's initial three counted Couch invariants, normal suite, no timings, reusing #559/#218. Claimed pair:7 and started the issue; start-plan refreshed only the slot's Ariadne substrate tocea78653e4003d0ca6fa64fbf9ae3b726f5d9b37 and was rerun as instructed. No product implementation yet.
+
+Read-only inspection finds #559 already has the 20-owner scale tests below the consumers: threadactivity.SessionActivity and a hand-built messageAuthority.current adapter. The missing release protection is actual Console scheduling/message-service wiring and an attach count at the real process-reader boundary. Proposed plan: workshop/plans/000204-workbench-performance-suite-counted-invariants-first-plan.md. It reuses rather than duplicates the counters and makes every zero assertion prove cold/mutation work and successful behavior.
+
+Two scope points require TL plan approval: (1) close this delivery on the three dispatched Couch invariants, with earlier #201/#202/#203/tier2 goals explicitly retained outside its completion claim; (2) strict total process scans<=1 applies to selected Couch attachment (parent0 + helper1). Standalone attach currently scans2, continuation can scan3; #218's owner pass is one initial capture plus2N full-table live fences, not a strict total1. The plan recommends the current selected Couch path, and requests a scope decision before any standalone/fence redesign. Original Done-when/Plan above are not marked fulfilled; update them with their original text preserved in this Revision after the TL settles this delivery.
