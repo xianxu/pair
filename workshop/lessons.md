@@ -1911,6 +1911,12 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
 
 - #568 review / #570: Unix socket paths have a byte envelope that includes the caller’s TMPDIR prefix. A subprocess test passing under the normal temp root does not prove it works under a deeper review checkout; preserve the refused endpoint and file a separate demonstrated path-length defect rather than treating an environment-shortened run as universal coverage.
 
+- #573 plan review: removing a routing record can reactivate an older storage authority. Export current folds, gap acknowledgments, snapshots and historical addressing durably before that handoff; a partial export must leave the current authority intact. A size-triggered trim is not an unconditional age expiry, so never prune evidence references solely from its advertised retention age.
+- #573 rename ordering: delivery completion time cannot identify the pathname a queued message addressed. Preserve immutable admission time through queue promotion, use it only for addressing, and retain completion time for delivery/status/retention. Reproduce queue, rename, old-path reuse, then late completion through the actual broker/ledger seam.
+
+- #573 wire verification: when adding a time.Time field, audit whole-struct comparisons across JSON/socket boundaries. Assert nonzero/Equal instant preservation before normalizing process-local monotonic metadata; never drop the field from integrity coverage. Run the real wrapper/broker integration as well as producer and recorder tests.
+
+- #573 close review: canonical deduplication must retain every admitted alias needed for authority. Keep aliases with their historical interval, share the derived inventory across locks and legacy handoff, and test rename/reuse/late delivery. Enforce reader envelopes at every metadata producer before an earlier destructive effect: import, whole-read refresh and section-preserving writes can each exceed a limit independently of the document's current size.
 - #556 M2 review: classify existing-session selectors from the same context authority used by Fresh validation; a remote/PR selector is not an ordinary launch simply because inventory cannot resolve it. Test both native wrapper entry forms and literal option/prompt controls.
 - #556 M2 review: a reserved capability needs revocation as well as consumption. Serialize exact dead-helper revocation with Claim, and test both lock orders: revoke first rejects delayed authority; Claim first retains uncertain spawning ownership. Helper death never proves an already-authorized child dead.
 
@@ -1944,3 +1950,6 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #571: A read-only adapter's unknown/error/encoding-limit result must preserve
   ordinary native compatibility without a reservation. Test those failures at
   the launch boundary, alongside strict recovery and exact-ID refusal controls.
+- #573 second close: writer/reader compatibility includes every authority handoff's derived fields. Budget the encoded export (history plus mutable state) before accepting growth, then prove forget→re-register at the byte boundary with folds intact. Filesystem tests must create distinct aliases explicitly; canonical paths are already known, regardless of whether TMPDIR happens to use /var or /private/var.
+
+- #573 third close: preflight and effect must consume the same immutable prepared bundle. Checking post-pruning state and then validating an older loaded state during shadow publication can refuse after document mutation. Compile document, shadow, encoded state/horizon and result hash before effects; prove valid gap-acceptance plus pruning succeeds, and ambiguous result sections fail without mutation.

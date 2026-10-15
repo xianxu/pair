@@ -81,6 +81,34 @@ func ParseOwner(s string) string {
 	return frontmatter(s, "owner")
 }
 
+// EffectiveOwner ignores business owner metadata on ordinary documents.
+func EffectiveOwner(content, fallback string) string {
+	if owner := frontmatter(content, "couch-owner"); owner != "" {
+		return owner
+	}
+	if IsSessionSync(content) {
+		if owner := ParseOwner(content); owner != "" {
+			return owner
+		}
+	}
+	return fallback
+}
+
+// OperatorLockAge never turns a missing, malformed or future timestamp into
+// permission to write. Age is advisory; ParseHolder remains the lock authority.
+func OperatorLockAge(text string, now time.Time) (time.Duration, bool) {
+	for _, line := range strings.Split(text, "\n") {
+		if value, ok := strings.CutPrefix(line, "time:"); ok {
+			at, err := time.Parse(time.RFC3339, strings.TrimSpace(value))
+			if err != nil || at.After(now) {
+				return 0, false
+			}
+			return now.Sub(at), true
+		}
+	}
+	return 0, false
+}
+
 // IsSessionSync reports whether the frontmatter says `type: session-sync`.
 func IsSessionSync(s string) bool { return frontmatter(s, "type") == "session-sync" }
 
