@@ -52,7 +52,7 @@ Detailed implementation plan: [agentic document registry](../plans/000573-agenti
 - [x] Build registry model/store and stable document metadata, with idempotent register/forget/rename and read-only membership discovery.
 - [x] Route every sync verb through registration-aware ownership, CAS, owed matching and lock-age refusals, preserving legacy behavior.
 - [x] Expose the agreed Parley CLI/JSON contract and update help, skill, README and atlas.
-- [ ] Verify targeted/race/full suites and prepare the candidate for the close review.
+- [x] Verify targeted/race/full suites and prepare the candidate for the close review.
 
 After verification: the mandatory close review owns SHIP, then land through sdlc. The TL owns the combined operator live check after parley.nvim#332 staging, per the approved revision.
 
@@ -84,6 +84,8 @@ Same-head conformance attempt 2 passed (2m33s) at https://github.com/xianxu/pair
 
 
 Required suite on ed386c4a ran after 1841s queued and failed after 8m54s with exactly TestPeerRuntimeBrokerToWrapperSubmitsOnce/{claude,qoder}: CLI changed canonical envelope. All other Go packages passed, including sessionsync (13.240s), couchmessage (6.988s), couchcmd (52.151s) and couchcore (270.529s); preceding shell/editor checks passed. Retained full failure log: /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/9426472ddcea969cf8f776eec2f26b01.log, SHA256 ece6dc2e8cf26b01e58ca857a2266fceff742afef9bd860a6afb2e53e5169cc2. Focused test reproduced both failures. Diagnostic comparison showed identical wire instants; the fixture normalized Deadline before whole-struct comparison but omitted the newly added AcceptedAt monotonic-clock normalization. Added a nonzero/Equal assertion for AcceptedAt, then normalized it only for the final full-envelope comparison, preserving the wire-integrity assertion. Focused race test passed (1.872s). No production change; a fresh pushed-head required suite follows.
+
+Replacement required suite passed on 5aea67ee68e0b2103d40305fd28934f6002fde3d: exit 0 in 9m52s after 1695s queued. Complete shell/editor checks and go test ./... passed, including wrapcmd 46.874s, sessionsync 9.657s, couchmessage 7.322s, couchcmd 61.237s and couchcore 290.175s. Log: /Users/xianxu/workspace/pair/.git/sdlc/local-checks/5aea67ee68e0b2103d40305fd28934f6002fde3d/suite.log; recorded as sdlc-local/suite success on that head. All four server checks also passed on this head, including native conformance 2m39s without retry. Earlier failed attempts remain above. Parley received the focused real-namespace/CLI/broker conformance invocation (receipt f6ef855b-85e3-4300-b315-1342477bf42a submitted). Ready for the sole close review; TL owns project updates and the approved postlanding operator check, so close uses only the precise no-project acknowledgment.
 
 ## Estimate
 

@@ -95,7 +95,7 @@ Files: couchcmd/session_sync.go, session_sync_test.go, message_deliveries_test.g
 
 ### 4. Verify, review, land
 
-- [ ] Commit/push through sdlc pr; run required full suite via sdlc local-check run --name suite on the pushed head. Preserve failures and fix demonstrated regressions; no bypass of CI/local-gates.
+- [x] Commit/push through sdlc pr; run required full suite via sdlc local-check run --name suite on the pushed head. Preserve failures and fix demonstrated regressions; no bypass of CI/local-gates.
 - [ ] Arrange the required operator live check through the hub before landing: a plain right-pane note submits, locks on next edit, rejects Couch write, unlocks on submit, and remains owed until write --fold. Stage/build only as the hub authorizes; clear stage after use.
 - [ ] Update issue Log/atlas and run sdlc close --issue 573 --verified with exact evidence; the gate owns the mandatory fresh review. Fix Important/Critical findings or dispute with evidence.
 - [ ] On SHIP, integrate main, repeat required checks if code changed, sdlc merge --yes; report landed PR and stop. TL owns project updates.
@@ -155,3 +155,7 @@ Test strategy: TestBrokerAcceptanceTimeSurvivesQueuedPromotion advances an atomi
 ### 2026-10-15 11:49 PDT — implementation progress checkpoint
 
 Tasks 1–3 are complete; their RED/GREEN, fault-injection, cross-process and race evidence is recorded in the issue Log. Registry core and integration shipped together in the atomic implementation commit rather than separate module commits. The agreed caller contract and effective-owner/rename semantics are frozen in atlas/couch-agentic-documents.md. Task 4 remains pending the required queued full suite, close review and landing. Its live-check row is superseded by the TL-approved postlanding combined check above; no :0 staging or operator acceptance is claimed.
+
+### 2026-10-15 — verification complete, close pending
+
+The required suite passed on 5aea67ee68e0b2103d40305fd28934f6002fde3d in 9m52s; the issue Log retains both the original failure and its test-only monotonic-time correction. All server checks passed on the corrected head. Task 4 full-suite row is complete; close review and landing remain pending. The live-check row remains superseded by the approved postlanding schedule, owned by TL.
