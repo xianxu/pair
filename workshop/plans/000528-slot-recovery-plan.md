@@ -1221,3 +1221,27 @@ remove unused readOptionalFile/readThreadLocked/localMembership/readLocalPayload
 and any other newly orphaned adapters rather than exempting the symbol guard.
 Run artifactpath acceptance guards and focused automatic-path regressions before
 normal re-review. Final recorded full suite remains required before landing.
+
+### 2026-10-14 — BR-14 downstream Pair attachment boundary
+
+Round15 verified the parent-side fix and all package suites but retained BR-14:
+the launched Pair helper calls InferAgent before attachment, which reads ledger
+and agent sidecar without regular-file bounds and resolves native transcripts
+that optional title metadata does not need (reviewer FIFO probes201.947/200.358ms).
+Extend the same contract through the actual helper, without broadening cold
+recovery: selected Couch terminal attachment skips proof migration and startup
+orphan-editor/index housekeeping, neither of which owns this borrowed terminal.
+InferAgent retains healthy title/context-meter behavior using bounded regular
+ledger/sidecar reads and pure ledger parsing, without native lookups. Failed
+attach poller-PID cleanup uses the same small metadata reader. Draft creation
+also needs nonblocking no-follow regular-file admission: an OpenFile write to
+a FIFO blocks even without reading payload bytes. Keep healthy draft behavior.
+Bound the helper's post-handoff quit/restart marker admission as well, preserving
+explicit quit/restart semantics and existing limits. No new recovery protocol,
+state, callback or runtime interface. Validate the production RunLaunch/runOnce
+path with real OS metadata consumers and stateful terminal facts: malformed
+ledger/agent/index/migration/draft/poller-PID/markers cannot stall attachment or
+its return; healthy title metadata stays correct and final listing remains the
+effect gate. Detached title polling is asynchronous and cannot block the attach
+handoff; explicit cold native launch/read authority remains unchanged. Run the
+launcher package and artifact guards, then normal review and final recorded suite.

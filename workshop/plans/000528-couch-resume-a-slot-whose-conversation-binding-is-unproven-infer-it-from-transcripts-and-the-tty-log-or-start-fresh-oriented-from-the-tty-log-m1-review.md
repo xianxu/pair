@@ -1125,3 +1125,139 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-14T17:16:09-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 528 — couch: resume a slot whose conversation binding is unproven: infer it from transcripts and the tty log, or start fresh oriented from the tty log |
+| repo | pair |
+| issue file | workshop/issues/000528-couch-resume-a-slot-whose-conversation-binding-is-unproven-infer-it-from-transcripts-and-the-tty-log-or-start-fresh-oriented-from-the-tty-log.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | e272745337452f9b3df2949e5c4a6faa97c85d59..137a5bfe6ed0b45694c48488a17ba7c6de77f8a1 |
+| command | sdlc milestone-close --issue 528 --milestone M1 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-14T17:16:09-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The revised M1 startup, attachment separation, and preview-only store access are well covered, and all reviewed package suites pass. BR-15 is addressed. BR-14’s repair-site correction is verified, but its required family-wide rule remains incomplete: downstream automatic attachment still performs unbounded reads before reaching the terminal handoff.
+
+```findings
+dispose:
+  - id: BR-14
+    disposition: not-addressed
+    note: |
+      The repair-site fix is verified: the new production attachment FIFO regression passes at head and fails with the previous repair implementation, taking 202 ms. However, the required rule across ALL automatic M1 reads remains false. createflow.go:284 calls OSRuntime.InferAgent before warm attachment; osruntime.go:629-647 reads the ledger and agent sidecar through unbounded ReadFile. Reviewer-only overlay regressions exercising production runOnce with stateful session facts and real OSRuntime.InferAgent delayed attachment until FIFO writers released those two paths after 201.947 ms and 200.358 ms. Without a writer these reads remain blocked. Keep this fourth finding in family bounded-untrusted-artifact-reads open; enumerate and fix the downstream launcher read graph rather than only these instances. ARCH-CONSTRAINTS, ARCH-SECURE, ARCH-PURPOSE.
+  - id: BR-15
+    disposition: addressed
+    note: |
+      All four reported orphan adapters are removed. The complete artifactpath package passes, including TestNoProductionSymbolIsReferencedOnlyByTests.
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Retain prior disposition; failed or canceled listing does not authorize Continue or attachment.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Retain prior disposition; no new process-generation authority defect identified.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Retain prior disposition; policy admission is removed and retained readiness readers use bounded metadata IO.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      TerminalLease still maps canonical sockets onto exactly 256 permanent lock stripes.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Retain prior disposition for capture/config consumers; shared metadata tests pass. The remaining automatic launcher reads are maintained under BR-14.
+  - id: BR-9
+    disposition: addressed
+    note: |
+      Listed attachment bypasses cold profile, path, and independent lifecycle prerequisites; attachment-shape and cleanup regressions pass.
+  - id: BR-10
+    disposition: addressed
+    note: |
+      README.md:486 documents positive-listing attachment, the legacy resurrection race, explicit recovery selection, and old-wrapper messaging limitations; atlas/couch.md describes the corresponding implementation.
+  - id: BR-11
+    disposition: addressed
+    note: |
+      The VT-based startup regression and complete couchcmd package pass, including the mixed attachment startup flow.
+  - id: BR-12
+    disposition: addressed
+    note: |
+      Broker thread, record, and agent callbacks use PreviewThreadContext; pending-journal preservation regressions pass.
+  - id: BR-13
+    disposition: addressed
+    note: |
+      Preview routing uses bounded contextual readers, including descriptor-relative local reads; FIFO, unsafe-byte, cancellation, and journal-preservation regressions pass.
+```
+
+1. **Strengths**
+
+   - Repair preserves read-only routing while limiting writes to guarded helper replacement: `cmd/internal/couchcore/warm_attach_repair.go:49`.
+   - The new repair regression detects the original bug: reverting the implementation through a temporary Go overlay makes it fail.
+   - Attachment tests cover independent lifecycle claims, changed listings, cancellation, retry, and helper-only cleanup.
+   - README and atlas explain compatibility limits and the separate #556/#557 execution boundaries.
+
+2. **Critical findings**
+
+   **BR-14 remains open — optional metadata can block automatic attachment.**  
+   `cmd/internal/launcher/createflow.go:284` calls `InferAgent` before `runAttach`. Its ledger and sidecar reads at `cmd/internal/launcher/osruntime.go:629` and `:634` reach plain `os.ReadFile`, without file-type, size, or cancellation bounds.
+
+   The reviewer probe used production `runOnce`, the existing stateful session fake, and real `OSRuntime.InferAgent`. Both FIFO cases waited for the delayed writer before invoking attachment.
+
+   Apply the persisted-read rule across the parent **and launched helper**. Optional title metadata should degrade promptly when unavailable. Include launcher startup index reads and transitive ledger/native lookups in the enumeration, with production-path regressions.
+
+3. **Important findings**
+
+   None beyond the maintained blocker.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   Passed complete suites for couchcore (334.436 s), couchcmd (61.139 s), launcher, couchtty, artifactpath, couchmessage, readiness, and osfs. Focused automatic-path tests also passed under `-race`.
+
+   The repair mutation failed as expected; both reviewer launcher FIFO probes exposed the remaining defect. No live-slot operations were performed. The pinned checkout remains unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** obsolete adapters removed; metadata reading is shared.
+   - **ARCH-PURE — pass:** projection and menu decisions remain separate from IO.
+   - **ARCH-PURPOSE — flag:** BR-14’s full consumer enumeration remains incomplete.
+   - **ARCH-MOCK — pass:** production seams have stateful doubles and existing conformance hooks; live conformance was not rerun.
+   - **ARCH-CONSTRAINTS — flag:** optional launcher reads lack enforced bounds.
+   - **ARCH-SECURE — flag:** those persisted inputs still permit blocking special files.
+   - **ARCH-ORDER — pass for reviewed transitions:** repair rechecks identities and cancellation before publication; retry/cleanup sequence tests pass.
+   - **ARCH-FUNERAL — pass:** lock artifacts remain bounded; borrowed handles have cleanup owners.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry expanding the automatic-read graph through the launched Pair helper, including startup indices, title metadata, ledger parsing, and transitive native lookups. Record the enforced read contract and consumer regression for each branch before claiming the family sweep complete.
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 2.495077625s
+head: "137a5bfe6ed0b45694c48488a17ba7c6de77f8a1"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412

@@ -1197,6 +1197,256 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - actual_inputs:
+        version: 1
+        method: active-time-v3-engagement-v1
+        repository: github.com/xianxu/pair
+        code_head: 137a5bfe6ed0b45694c48488a17ba7c6de77f8a1
+        tracker_head: f1e7026ea6e884d2f6cb8da2a8d9febc8f72d2dc
+        branch_point: c07a31921d66b891e36ae300e266bd7794bede3e
+        since: "2026-10-13T08:57:28-07:00"
+        until: "2026-10-14T17:07:22-07:00"
+        brain_root: /Users/xianxu/workspace/brain
+        gap_minutes: 15
+        commit_weight: 1
+        include_assistant: true
+        engagements:
+            - start: "2026-10-13T08:57:28-07:00"
+              end: "2026-10-14T17:07:22-07:00"
+              began: "2026-10-13T08:57:28-07:00"
+              roots:
+                - /Users/xianxu/workspace/worktree/pair-slot2/pair
+        sources:
+            - harness: codex
+              id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 844b6f6efd83290966109a7053d4aeb5ad6471b58bfb2a712190cdc6d05c1cfd
+              started: "2026-10-13T05:05:19.479Z"
+              spawned: false
+              bytes: 47970696
+              windows:
+                - start: "2026-10-13T08:57:28-07:00"
+                  end: "2026-10-14T17:07:22-07:00"
+            - harness: codex
+              id: 01a13604-7f67-7c71-8862-d652ff00507c
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              digest: b41b7a545560a75e22708b5d1399ed0c43c186a6cae81a5f61981dddcb7c3c26
+              started: "2026-10-13T16:07:06.952Z"
+              spawned: true
+              bytes: 687525
+              windows:
+                - start: "2026-10-13T16:07:06.952Z"
+                  end: "2026-10-14T17:07:22-07:00"
+            - harness: codex
+              id: 01a1361a-aa08-77d0-8a39-fcac18d7aec7
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 048dd253370c5d447ca62a2e36eea18b6389d43cdaf73fa89d7cfafd6434d5f5
+              started: "2026-10-13T16:31:19.827Z"
+              spawned: false
+              bytes: 782141
+              windows:
+                - start: "2026-10-13T16:31:19.827Z"
+                  end: "2026-10-14T17:07:22-07:00"
+            - harness: codex
+              id: 01a1361e-8991-7f03-8a7b-3d5973745b61
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 92b2c39dd8e4cb64ba521e35394d47eca35dfc839b69df5ad0f8afee6011c7f5
+              started: "2026-10-13T16:35:33.749Z"
+              spawned: false
+              bytes: 538951
+              windows:
+                - start: "2026-10-13T16:35:33.749Z"
+                  end: "2026-10-14T17:07:22-07:00"
+            - harness: codex
+              id: 01a13620-2019-7901-9606-4ef4c7d27b1c
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 2df34f8d5aa5d7b6c236ce7bc2e70e77e4c35f5180e6f7addab471e95be82791
+              started: "2026-10-13T16:37:17.75Z"
+              spawned: false
+              bytes: 541231
+              windows:
+                - start: "2026-10-13T16:37:17.75Z"
+                  end: "2026-10-14T17:07:22-07:00"
+            - harness: codex
+              id: 01a13620-de40-7632-a9af-061a59f0a52b
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: a3f94580afaea679dbf2cecb0237c4d6ec3d2ae1ef8542ff997cd18a35b3043f
+              started: "2026-10-13T16:38:06.405Z"
+              spawned: false
+              bytes: 521917
+              windows:
+                - start: "2026-10-13T16:38:06.405Z"
+                  end: "2026-10-14T17:07:22-07:00"
+            - harness: codex
+              id: 01a13883-ab89-7992-ab0c-79b093c13b95
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: 750bd23d4285903b71f354129fa6927c5a9776752ffc18e2b00d5ee3b3a5ed3f
+              started: "2026-10-14T03:45:15.863Z"
+              spawned: false
+              bytes: 831906
+              windows:
+                - start: "2026-10-14T03:45:15.863Z"
+                  end: "2026-10-14T17:07:22-07:00"
+            - harness: codex
+              id: 01a13884-4286-73c2-b7b2-17540c9cac4a
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              digest: ee61a169ede4b6e959c5a65aee80abf76ddc3a35ff0c484a0eada3b4c77eca0a
+              started: "2026-10-14T03:45:54.508Z"
+              spawned: false
+              bytes: 492551
+              windows:
+                - start: "2026-10-14T03:45:54.508Z"
+                  end: "2026-10-14T17:07:22-07:00"
+            - harness: codex
+              id: 01a13b23-d0ac-7b81-a844-510e6c4484bd
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              digest: ef3b2239b591af4f1c5b3f9f7195aad53a8700812c6c47e60620fa7b92489f62
+              started: "2026-10-14T15:59:25.5Z"
+              spawned: true
+              bytes: 5569518
+              windows:
+                - start: "2026-10-14T15:59:25.5Z"
+                  end: "2026-10-14T17:07:22-07:00"
+            - harness: codex
+              id: 01a13b23-eb0b-7642-9e0f-496f67490264
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              digest: cc6243fd7178ee354ca679c48f70fe4c573eb09eba800d5f94831a0a98f49efc
+              started: "2026-10-14T15:59:32.235Z"
+              spawned: true
+              bytes: 2730708
+              windows:
+                - start: "2026-10-14T15:59:32.235Z"
+                  end: "2026-10-14T17:07:22-07:00"
+            - harness: codex
+              id: 01a13b24-1965-7260-926a-536a068a83f7
+              cwd: /Users/xianxu/workspace/worktree/pair-slot2/pair
+              parent_id: 01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd
+              digest: eecfb2a3b6b9b0a5e5a2ed4d11ff5b40bc447fc96c3291c31b4961af1048c94d
+              started: "2026-10-14T15:59:44.113Z"
+              spawned: true
+              bytes: 5680675
+              windows:
+                - start: "2026-10-14T15:59:44.113Z"
+                  end: "2026-10-14T17:07:22-07:00"
+        excluded_brain_sessions: 1
+        excluded_brain_minutes: 75.37058333333333
+        cuts:
+            - boundary: M1
+              dispatched: "2026-10-13T10:58:01-07:00"
+              finalized: "2026-10-13T11:01:13-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-13T11:30:13-07:00"
+              finalized: "2026-10-13T11:34:12-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-13T12:03:38-07:00"
+              finalized: "2026-10-13T12:06:16-07:00"
+              finalizing: true
+            - boundary: M2
+              dispatched: "2026-10-13T13:20:56-07:00"
+              finalized: "2026-10-13T13:26:16-07:00"
+              finalizing: false
+            - boundary: M2
+              dispatched: "2026-10-13T13:34:13-07:00"
+              finalized: "2026-10-13T13:39:34-07:00"
+              finalizing: false
+            - boundary: M2
+              dispatched: "2026-10-13T13:44:33-07:00"
+              finalized: "2026-10-13T13:49:02-07:00"
+              finalizing: true
+            - boundary: M1
+              dispatched: "2026-10-13T21:37:49-07:00"
+              finalized: "2026-10-13T21:42:34-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-13T22:08:52-07:00"
+              finalized: "2026-10-13T22:11:38-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-13T22:56:16-07:00"
+              finalized: "2026-10-13T23:03:06-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-13T23:10:32-07:00"
+              finalized: "2026-10-13T23:12:54-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-14T15:16:46-07:00"
+              finalized: "2026-10-14T15:20:38-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-14T16:23:08-07:00"
+              finalized: "2026-10-14T16:27:24-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-14T16:41:22-07:00"
+              finalized: "2026-10-14T16:44:45-07:00"
+              finalizing: false
+            - boundary: M1
+              dispatched: "2026-10-14T16:56:26-07:00"
+              finalized: "2026-10-14T17:01:36-07:00"
+              finalizing: false
+      "n": 15
+      timestamp: "2026-10-14T17:16:10-07:00"
+      dispatched: "2026-10-14T17:08:12-07:00"
+      agent: codex
+      dispose:
+        - id: BR-14
+          disposition: not-addressed
+          note: 'The repair-site fix is verified: the new production attachment FIFO regression passes at head and fails with the previous repair implementation, taking 202 ms. However, the required rule across ALL automatic M1 reads remains false. createflow.go:284 calls OSRuntime.InferAgent before warm attachment; osruntime.go:629-647 reads the ledger and agent sidecar through unbounded ReadFile. Reviewer-only overlay regressions exercising production runOnce with stateful session facts and real OSRuntime.InferAgent delayed attachment until FIFO writers released those two paths after 201.947 ms and 200.358 ms. Without a writer these reads remain blocked. Keep this fourth finding in family bounded-untrusted-artifact-reads open; enumerate and fix the downstream launcher read graph rather than only these instances. ARCH-CONSTRAINTS, ARCH-SECURE, ARCH-PURPOSE.'
+          round: 15
+        - id: BR-15
+          disposition: addressed
+          note: All four reported orphan adapters are removed. The complete artifactpath package passes, including TestNoProductionSymbolIsReferencedOnlyByTests.
+          round: 15
+        - id: BR-1
+          disposition: addressed
+          note: Retain prior disposition; failed or canceled listing does not authorize Continue or attachment.
+          round: 15
+        - id: BR-2
+          disposition: addressed
+          note: Retain prior disposition; no new process-generation authority defect identified.
+          round: 15
+        - id: BR-3
+          disposition: addressed
+          note: Retain prior disposition; policy admission is removed and retained readiness readers use bounded metadata IO.
+          round: 15
+        - id: BR-4
+          disposition: addressed
+          note: TerminalLease still maps canonical sockets onto exactly 256 permanent lock stripes.
+          round: 15
+        - id: BR-5
+          disposition: addressed
+          note: Retain prior disposition for capture/config consumers; shared metadata tests pass. The remaining automatic launcher reads are maintained under BR-14.
+          round: 15
+        - id: BR-9
+          disposition: addressed
+          note: Listed attachment bypasses cold profile, path, and independent lifecycle prerequisites; attachment-shape and cleanup regressions pass.
+          round: 15
+        - id: BR-10
+          disposition: addressed
+          note: README.md:486 documents positive-listing attachment, the legacy resurrection race, explicit recovery selection, and old-wrapper messaging limitations; atlas/couch.md describes the corresponding implementation.
+          round: 15
+        - id: BR-11
+          disposition: addressed
+          note: The VT-based startup regression and complete couchcmd package pass, including the mixed attachment startup flow.
+          round: 15
+        - id: BR-12
+          disposition: addressed
+          note: Broker thread, record, and agent callbacks use PreviewThreadContext; pending-journal preservation regressions pass.
+          round: 15
+        - id: BR-13
+          disposition: addressed
+          note: Preview routing uses bounded contextual readers, including descriptor-relative local reads; FIFO, unsafe-byte, cancellation, and journal-preservation regressions pass.
+          round: 15
+      boundary: M1
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#528 (boundary-review)
@@ -1383,7 +1633,23 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-15** [Important] `reproducible-boundary-acceptance` (kind: defect) Reader refactor leaves four orphaned helpers and fails the required production-symbol guard
   go test ./cmd/internal/artifactpath -run '^TestNoProductionSymbolIsReferencedOnlyByTests$' -count=1 fails reproducibly for readOptionalFile (storejournal.go:115), readThreadLocked (threadstore.go:1148), localMembership (threadstore_layout.go:39), and readLocalPayload (threadstore_layout.go:177). Production-reference inspection confirms these are unused. This is the 2nd finding in family reproducible-boundary-acceptance. Enumerate obsolete adapters left by the refactor, remove or explicitly justify each, and run the repository acceptance guards before re-closing; do not repair only one reported declaration. ARCH-DRY.
 
+## Round 15 — 2026-10-14T17:16:10-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-14 — not-addressed — The repair-site fix is verified: the new production attachment FIFO regression passes at head and fails with the previous repair implementation, taking 202 ms. However, the required rule across ALL automatic M1 reads remains false. createflow.go:284 calls OSRuntime.InferAgent before warm attachment; osruntime.go:629-647 reads the ledger and agent sidecar through unbounded ReadFile. Reviewer-only overlay regressions exercising production runOnce with stateful session facts and real OSRuntime.InferAgent delayed attachment until FIFO writers released those two paths after 201.947 ms and 200.358 ms. Without a writer these reads remain blocked. Keep this fourth finding in family bounded-untrusted-artifact-reads open; enumerate and fix the downstream launcher read graph rather than only these instances. ARCH-CONSTRAINTS, ARCH-SECURE, ARCH-PURPOSE.
+- BR-15 — addressed — All four reported orphan adapters are removed. The complete artifactpath package passes, including TestNoProductionSymbolIsReferencedOnlyByTests.
+- BR-1 — addressed — Retain prior disposition; failed or canceled listing does not authorize Continue or attachment.
+- BR-2 — addressed — Retain prior disposition; no new process-generation authority defect identified.
+- BR-3 — addressed — Retain prior disposition; policy admission is removed and retained readiness readers use bounded metadata IO.
+- BR-4 — addressed — TerminalLease still maps canonical sockets onto exactly 256 permanent lock stripes.
+- BR-5 — addressed — Retain prior disposition for capture/config consumers; shared metadata tests pass. The remaining automatic launcher reads are maintained under BR-14.
+- BR-9 — addressed — Listed attachment bypasses cold profile, path, and independent lifecycle prerequisites; attachment-shape and cleanup regressions pass.
+- BR-10 — addressed — README.md:486 documents positive-listing attachment, the legacy resurrection race, explicit recovery selection, and old-wrapper messaging limitations; atlas/couch.md describes the corresponding implementation.
+- BR-11 — addressed — The VT-based startup regression and complete couchcmd package pass, including the mixed attachment startup flow.
+- BR-12 — addressed — Broker thread, record, and agent callbacks use PreviewThreadContext; pending-journal preservation regressions pass.
+- BR-13 — addressed — Preview routing uses bounded contextual readers, including descriptor-relative local reads; FIFO, unsafe-byte, cancellation, and journal-preservation regressions pass.
+
 ## Open findings
 
 - **BR-14** [Critical] `bounded-untrusted-artifact-reads` (kind: defect) Automatic warm attachment can block indefinitely in dead-client repair
-- **BR-15** [Important] `reproducible-boundary-acceptance` (kind: defect) Reader refactor leaves four orphaned helpers and fails the required production-symbol guard

@@ -1020,3 +1020,12 @@ No follow-up implementation starts on this branch.
 - FIFO fixture cleanup also bounds its own writer wait and skips it if the
   acknowledgement hook never ran; focused final rerun PASS1.526s. No production
   edits after the combined passing group; diff check clean.
+
+- Round15 addressed BR-15, verified the parent BR-14 repair regression/mutation
+  and complete core334.436s/cmd61.139s plus launcher/tty/message/readiness/osfs
+  packages. BR-14 remains open for downstream Pair InferAgent optional metadata:
+  actual helper probes wait201.947/200.358ms on ledger/agent FIFO. Parent callgraph
+  ended too early. Appended downstream helper design before code: skip unrelated
+  selected-attach migration/hygiene, bound optional inference without native
+  lookup, poller cleanup, draft open and post-handoff marker admission. Healthy
+  presentation and explicit lifecycle semantics stay intact; no gate bypass.
