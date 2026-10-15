@@ -45,7 +45,7 @@ key is dropped by a paste-burst guard (compare #544's Codex paste-burst fix).
 
 - [x] Add Qoder submit retry and fresh rendered confirmation through the existing peer-delivery reducer.
 - [x] Bound unreconciled automatic-input recovery under the TL-approved policy and prove next-delivery recovery.
-- [ ] Verify focused/race/full suites, document behavior and complete TL-coordinated idle/mid-turn live checks on pair:4.
+- [ ] Verify focused/race/full suites, document behavior and prepare for the TL-requested close review; live acceptance remains separately pending under the revision below.
 
 Durable plan: [Qoder submit confirmation](../plans/000569-qoder-submit-confirmation-plan.md).
 
@@ -93,3 +93,7 @@ total: 1.924
 New stateful receiver tests reproduced missing retry (one CR, zero acceptance), false turn-edge confirmation with occupied composer, and absent terminal reporting. They now pass with reducer-owned three-attempt budget, >=500 ms key-only retry under exact envelope/input ownership, and post-submit rendered-empty confirmation. Captured only the known native pending restart composer from source bytes [31229919,31238201), SHA256 6271e9fb9dc3faa89ab56bdff75e51220a090b9767fe68beff684a44fe4b24ad; the fixture proves the wrapped notice matches the complete expected layout. Terminal publication emits one authenticated quarantine report before polling stops; later deliveries cancel promptly with recovery advice, and normal render wakes release on later complete empty evidence. No late submit, repaste or deletion.
 
 Core tests observed RED then GREEN, including 1,000 generated event sequences, short writes and terminal no-ops. Full couchmessage passed (7.458s), focused core race passed (1.238s), parser fuzz 63,024 executions. Focused wrapper/message/supervisor tests passed (6.993s/0.179s/0.916s), focused races passed (4.315s/1.226s/1.900s). Supervisor instruction/auth/dedup tests observed RED then GREEN and race passed. Matcher fuzz passed 14,738 executions; artifact inventory package passed 12.516s; make build passed. Additional focused regression controls and full required suite remain to be recorded; live idle/mid-turn pair:4 check is still owed, no native key-drop root cause or live acceptance claimed.
+
+### 2026-10-15 — live check deferred by TL
+
+TL directs required suite and close review on candidate 545ac416, then HOLD (receipt 172b9532-1e96-4fc7-ab4b-a838f7469fea). pair:0 is staged with #544; replacing it would discard that smoke candidate. pair:4 relaunch is blocked by #584's ownership guard. No staging, relaunch or landing now. TL will coordinate the combined stage/restart and native idle/mid-turn/subsequent-delivery checks in the next Qoder cheap window after #584 lands. The live Done-when remains owed and is not claimed by close review. PR #352 is open; required suite runs on 81624e3d, which adds only issue docs beyond candidate code.
