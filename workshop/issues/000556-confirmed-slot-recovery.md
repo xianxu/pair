@@ -880,6 +880,30 @@ recorded full suite on the integrated head follows, then the merge gate's named
 normal `close --fixed-then-ship --full-suite` review of the post-close conflict
 resolution. No waiver, live slot, stage or unrelated process change.
 
+
+### 2026-10-15 — blocked by #577, declared trimpath suite regression
+
+Post-close integrated required suite at c80734525e16 **FAIL**, exit2 in4m11s
+after504s machine queue: Make environment test reports PAIR_GO_TRIMPATH did not
+reach recipe. All preceding editor/shell checks passed; Go suite did not run.
+Retained failure log f56b8f2ef9ecc3a5638161bf3707978c.log under common Git
+sdlc/test-stats/failed, sha256 prefix aa446f79e62e. This is not represented as a
+pass or as a #556 product failure.
+
+Independent reproducible main/#572 defect: bare make test-make-env PASS198 knobs;
+make PAIR_GO_TRIMPATH=-trimpath test-make-env exits2. The command-line value
+propagates in MAKEFLAGS/MAKEOVERRIDES and overrides the test's synthetic knob
+value in nested make. Actual probe confirms the assignment. Filed/published
+**#577**, unclaimed, with exact repro and retained evidence; independent work must
+start from main. No harness source change or gate bypass in #556.
+
+PR349 CI checks all PASS (conformance, merge-check, local-gates-guard). #556 M1,
+M2 and whole close remain normal SHIP. The only unreviewed post-close source delta
+is the additive artifact manifest merge resolution. Once #577 lands: merge main,
+run the normal declared suite, then close --fixed-then-ship --full-suite with
+that evidence, update PR and merge on SHIP. Branch stays preserved; no stage,
+working slot, machine environment, test lock or unrelated process modified.
+
 ## Revisions
 
 ### 2026-10-15T05:33-07:00 — overnight M2 dispatch
