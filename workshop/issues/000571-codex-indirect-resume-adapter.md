@@ -1,13 +1,13 @@
 ---
 id: 000571
-status: open
+status: working
 deps: [pair#556]
 github_issue:
 target: slot-recovery
 created: 2026-10-15
 updated: 2026-10-15
 estimate_hours:
-card_mirror: '642f9229e8bf6e0de143455cdf204533113a9a76' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'a248873aec87f020dc341cfa4fb997a46e4f9684' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-15T10:22:13-07:00
 claimant:
     operator: Xian Xu
