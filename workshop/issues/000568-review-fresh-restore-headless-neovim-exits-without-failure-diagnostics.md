@@ -75,3 +75,5 @@ Delta: add one small fs_watch helper owning start/refusal, stop/close at VimLeav
 2026-10-15: First recorded suite passed the new lifecycle/diagnostic tests (3.331s) and all five fresh-restore cases, then artifactpath’s exhaustive inventory correctly failed the undeclared new helper and embedded mirror. Interrupted that known-red suite before wasting the remaining broad Go phase; retained its failure evidence. Added fs_watch.lua as non-artifact logic (receives an already-bound directory; constructs no artifact filename) and the embedded copy as GeneratedMirror. No gate waiver or known-violations entry. Targeted artifactpath verification and a new recorded suite follow on the corrected code.
 
 2026-10-15: Corrected artifactpath package passes (8.983s), including the exact exhaustive inventory test that failed in the recorded run.
+
+2026-10-15: Rebuilt corrected implementation f6493cbc0e041e32b560bc5302143fb4bdcda31e with make -k -B build successfully. The new required suite runs on that pushed head; Lua watcher/review behavior is unchanged from the prior verified implementation, with only exhaustive inventory declarations corrected.
