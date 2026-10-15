@@ -1137,3 +1137,11 @@ No follow-up implementation starts on this branch.
   decode targeted group PASScore24.252s/cmd10.128s/launcher2.835s/inventory0.201s/
   activity0.525s. Hub received merge-blocker receipt7fb28f59 (submitted).
   Merged-head recorded suite and fixed-then-ship review still required.
+
+- Post-merge suite5f1282e6 failed only TestStopCancelsAnInFlightPassAttemptAndRunsNoMore
+  (2 callbacks, expected1); all other packages passed (core274.776s, cmd53.105s).
+  Full log: common Git directory sdlc/local-checks/5f1282e6c9283dfab22510dde9fbfeec478b34d3/suite.log.
+  Independent audit excludes leaked parallelism: TestMain and observed pass bound1.
+  Scheduling overlay reproduced5/5, context fence countermeasurement20/20.
+  Evidence /tmp/pair528-stop-pass-schedule.log and /tmp/pair528-stop-pass-guard.log.
+  Correct the dispatch boundary, not the test's assertion or timeout.

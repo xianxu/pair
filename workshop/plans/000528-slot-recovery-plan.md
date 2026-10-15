@@ -1317,3 +1317,15 @@ Run #559 cache/count and #528 cross-scope/warm/preview regressions plus artifact
 checks, then a new recorded full suite. Re-close the post-close interdiff using
 --fixed-then-ship with its required --full-suite evidence, then retry the publish
 gate. Pair:0 staging remains entirely hub-owned and untouched.
+
+### 2026-10-14 — cancel queued background attachments before dispatch
+
+The merged-head suite at5f1282e6 failed the existing Stop assertion: a second
+callback began after cancellation. Its bound is correctly1, not a stale parallel
+assumption. A temporary1ms cancellation/stop scheduling window reproduced5/5;
+the second callback received an already-cancelled context. Check cancellation
+at the queued background dispatch boundary before invoking the dispatcher
+(ARCH-DRY: one boundary for every background attempt). Keep the existing Stop
+assertions, limits and deadlines. Add a deterministic enqueue/cancel/execute
+regression, run related tests and the recorded suite, then ordinary fixed-then-ship
+review. Pair:0's stage remains untouched.
