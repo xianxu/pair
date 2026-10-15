@@ -1,6 +1,6 @@
 ---
 id: 000568
-status: codecomplete
+status: done
 created: 2026-10-15
 updated: 2026-10-15
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 8d114ada12f6af3cd52a27ad1aaae235f93c6dd8
         evidence_commit: eba91f5a00ea02d6bda1d0c46646f7abc637c033
+        landed_commit: c0d469a68185402455c1f7ad2e2960d914506740
 ---
 
 # Review fresh-restore headless Neovim exits without failure diagnostics
