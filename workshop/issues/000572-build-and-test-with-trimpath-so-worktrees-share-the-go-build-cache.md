@@ -138,3 +138,11 @@ minutes. The operator approved building with `-trimpath`.
   not finalized. Fixed the fixture-isolation class. Root/probe/birthrace tests
   pass in all four TMPDIR/trimpath combinations. A fresh recorded suite will
   cover this test-only delta before landing; no gate bypass.
+
+- Final recorded full suite PASS on 96e5c25094d656db03eb72c64354cb10d7b6fee5:
+  exit 0 in 10m48s after 1880s queue wait; log SHA-256 prefix c570b1c77391,
+  status sdlc-local/suite. This includes the BR-1 fixture corrections.
+- Round 2 disposed BR-1 and returned SHIP, no new findings. Close evidence
+  da10281019955d6af9b3f83de1451b95cf4eabb6; codecomplete mirror
+  0311c273b135bf5aa4f57acc93f0ca9608f450f2. Only docs changed after the final
+  tested commit; ready for the guarded landing with the operator label.
