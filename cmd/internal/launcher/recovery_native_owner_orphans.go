@@ -13,8 +13,6 @@ import (
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/readiness"
-	"github.com/xianxu/pair/cmd/internal/sessioninventory"
-	"github.com/xianxu/pair/cmd/internal/sessionledger"
 )
 
 // A durable claim supplies a missing ready association only for its exact
@@ -90,12 +88,6 @@ func observeLegacyNativeOrphans(ctx context.Context, check RecoveryNativeOwnerCh
 		if !found || child.Zombie {
 			continue
 		}
-		if child.Identity == "" || ready.AgentIdentity == "" {
-			return nil, errors.New("retained native child generation unknown")
-		}
-		if child.Identity != ready.AgentIdentity {
-			continue
-		} // Positive PID reuse is not the old writer.
 		attached := false
 		for _, wrapper := range wrappers {
 			if wrapper.Owner == owner && wrapper.Agent == check.Agent && recoverySourceAncestor(snapshot.Processes, child, wrapper.Process.PID, wrapper.Process.Identity) {
@@ -106,38 +98,21 @@ func observeLegacyNativeOrphans(ctx context.Context, check RecoveryNativeOwnerCh
 		if attached {
 			continue
 		} // The wrapper path handles readiness, source exclusion and admission proof.
-		if ready.LaunchOrdinal == 0 {
-			return nil, errors.New("retained native launch association unresolved")
+		if child.Identity == "" {
+			return nil, errors.New("retained native child generation unknown")
 		}
-		paths, err := artifactpath.ResolveScoped(owner.Directory(), owner.Tag)
+		if ready.AgentIdentity != "" && child.Identity != ready.AgentIdentity {
+			continue // Positive PID reuse is not the old writer.
+		}
+		id, err := readRecoveryNativeID(ctx, owner, check.Agent, ready.LaunchOrdinal, read)
 		if err != nil {
-			return nil, err
-		}
-		raw, err = read(ctx, paths.Ledger(), 8<<20)
-		if err != nil {
-			return nil, err
-		}
-		parsed := sessionledger.ParseLedger(raw)
-		if len(parsed.MalformedOrdinals) != 0 {
-			return nil, errors.New("retained native ledger malformed")
-		}
-		var generation []sessionledger.Record
-		for _, record := range parsed.Records {
-			if record.Kind == sessionledger.RecordLaunch && record.Ordinal == ready.LaunchOrdinal || record.Kind == sessionledger.RecordBinding && record.LaunchOrdinal == ready.LaunchOrdinal {
-				generation = append(generation, record)
+			if ready.AgentIdentity == "" && ctx.Err() == nil {
+				return nil, &LegacyNativeOwnerError{Owner: owner, Agent: check.Agent, PID: ready.PID, Reason: err.Error()}
 			}
+			return nil, err
 		}
-		current, found := sessionledger.CurrentLaunch(generation, sessionledger.Owner{ScopeKey: owner.RepoScope, Tag: owner.Tag, Agent: check.Agent})
-		if !found || current.Conflict {
-			return nil, errors.New("retained native ownership unresolved")
-		}
-		target := sessioninventory.ResumeTargetForLaunch(current)
-		id := target.NativeID
-		if id == "" {
-			id = target.RequestedNativeID
-		}
-		if id == "" {
-			return nil, errors.New("retained native writer has no resolved root")
+		if ready.AgentIdentity == "" && id == check.NativeID {
+			return nil, &LegacyNativeOwnerError{Owner: owner, Agent: check.Agent, PID: ready.PID, Reason: "retained child has no exact wrapper association"}
 		}
 		if id == check.NativeID {
 			return nil, fmt.Errorf("native conversation %s still has its retained child (%s:%s)", id, owner.RepoScope, owner.Tag)

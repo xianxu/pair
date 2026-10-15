@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
-	"github.com/xianxu/pair/cmd/internal/osfs"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/readiness"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
@@ -29,6 +28,7 @@ type RecoveryNativeOwnerCheck struct {
 	SourceSession, SourceNonce               string
 	Admissions                               NativeAdmissionOwners
 	io                                       *nativeOwnerCheckIO
+	heldFiles                                nativeHeldFiles
 }
 
 type recoveryNativeWrapper struct {
@@ -44,7 +44,7 @@ func CheckRecoveryNativeOwner(ctx context.Context, check RecoveryNativeOwnerChec
 	if check.NativeID == "" {
 		return ctx.Err()
 	}
-	ops := nativeOwnerCheckIO{store: NativeAdmissionStore{Home: os.Getenv("HOME")}, observe: newRecoveryTerminalOS().Observe, read: osfs.ReadRegularMetadata, discover: discoverLegacyNativeOwners}
+	ops := nativeOwnerCheckIO{store: NativeAdmissionStore{Home: os.Getenv("HOME")}, observe: newRecoveryTerminalOS().Observe, read: readNativeOwnerMetadata, discover: discoverLegacyNativeOwners}
 	if check.io != nil {
 		ops = *check.io
 	}
@@ -104,7 +104,7 @@ func checkRecoveryNativeOwnersOnce(ctx context.Context, check RecoveryNativeOwne
 	}
 	excluded := 0
 	admitted := map[int]bool{}
-	proofs := map[int]readiness.ReadyRecord{}
+	proofs := map[int]recoveryNativeProof{}
 	for _, wrapper := range wrappers {
 		if wrapper.Agent != check.Agent {
 			continue
@@ -113,44 +113,12 @@ func checkRecoveryNativeOwnersOnce(ctx context.Context, check RecoveryNativeOwne
 			admitted[wrapper.Process.PID] = true
 			continue
 		}
-		ready, err := recoveryWrapperReady(ctx, before, wrapper, read)
+		proof, err := recoveryNativeProofForWrapper(ctx, check, before, wrapper, read)
 		if err != nil {
 			return err
 		}
-		proofs[wrapper.Process.PID] = ready
-		paths, err := artifactpath.ResolveScoped(wrapper.Owner.Directory(), wrapper.Owner.Tag)
-		if err != nil {
-			return err
-		}
-		raw, err := read(ctx, paths.Ledger(), 8<<20)
-		if err != nil {
-			return fmt.Errorf("live %s wrapper native ownership unavailable: %w", wrapper.Agent, err)
-		}
-		parsed := sessionledger.ParseLedger(raw)
-		if len(parsed.MalformedOrdinals) != 0 {
-			return errors.New("live wrapper ledger has malformed native ownership")
-		}
-		// Only the readiness-proved physical generation may supply native identity.
-		generation := make([]sessionledger.Record, 0)
-		for _, record := range parsed.Records {
-			if (record.Kind == sessionledger.RecordLaunch && record.Ordinal == ready.LaunchOrdinal) || (record.Kind == sessionledger.RecordBinding && record.LaunchOrdinal == ready.LaunchOrdinal) {
-				generation = append(generation, record)
-			}
-		}
-		current, found := sessionledger.CurrentLaunch(generation, sessionledger.Owner{ScopeKey: wrapper.Owner.RepoScope, Tag: wrapper.Owner.Tag, Agent: wrapper.Agent})
-		if !found || current.Conflict {
-			return errors.New("live wrapper native ownership is unresolved or conflicting")
-		}
-		target := sessioninventory.ResumeTargetForLaunch(current)
-		native := target.NativeID
-		// A Pair-chosen UUID is already reserved by this running wrapper even
-		// before the native filename handshake confirms its first authored turn.
-		if native == "" {
-			native = target.RequestedNativeID
-		}
-		if native == "" {
-			return errors.New("live wrapper native ownership is unresolved")
-		}
+		proofs[wrapper.Process.PID] = proof
+		ready, native := proof.Ready, proof.NativeID
 		if recoverySourceWrapper(check, before, wrapper, ready) {
 			excluded++
 			if excluded > 1 {
@@ -190,18 +158,18 @@ func checkRecoveryNativeOwnersOnce(ctx context.Context, check RecoveryNativeOwne
 			}
 			continue
 		}
-		ready, err := recoveryWrapperReady(ctx, after, wrapper, read)
+		proof, err := recoveryNativeProofForWrapper(ctx, check, after, wrapper, read)
 		if err != nil {
 			return err
 		}
-		if !reflect.DeepEqual(proofs[wrapper.Process.PID], ready) {
+		if !reflect.DeepEqual(proofs[wrapper.Process.PID], proof) {
 			return errors.New("native owner readiness generation changed; retry")
 		}
 	}
 	if excluded > 0 {
 		confirmed := 0
 		for _, wrapper := range next {
-			if recoverySourceWrapper(check, after, wrapper, proofs[wrapper.Process.PID]) {
+			if recoverySourceWrapper(check, after, wrapper, proofs[wrapper.Process.PID].Ready) {
 				confirmed++
 			}
 		}
@@ -341,11 +309,14 @@ func recoveryWrapperReady(ctx context.Context, snapshot recoveryTerminalSnapshot
 	if err != nil {
 		return readiness.ReadyRecord{}, fmt.Errorf("live wrapper launch association invalid: %w", err)
 	}
-	if ready.Tag != wrapper.Owner.Tag || ready.Agent != wrapper.Agent || ready.LaunchOrdinal == 0 || ready.AgentIdentity == "" {
+	if ready.Tag != wrapper.Owner.Tag || ready.Agent != wrapper.Agent || ready.LaunchOrdinal == 0 {
 		return readiness.ReadyRecord{}, errors.New("live wrapper launch association is unresolved")
 	}
+	if ready.AgentIdentity == "" {
+		return ready, &LegacyNativeOwnerError{Owner: wrapper.Owner, Agent: wrapper.Agent, PID: ready.PID, Reason: "legacy readiness has no child birth"}
+	}
 	for _, agent := range snapshot.Processes {
-		if agent.PID == ready.PID && agent.Identity == ready.AgentIdentity && agent.PID != wrapper.Process.PID && recoverySourceAncestor(snapshot.Processes, agent, wrapper.Process.PID, wrapper.Process.Identity) {
+		if !agent.Zombie && agent.PID == ready.PID && agent.Identity == ready.AgentIdentity && agent.PID != wrapper.Process.PID && recoverySourceAncestor(snapshot.Processes, agent, wrapper.Process.PID, wrapper.Process.Identity) {
 			return ready, nil
 		}
 	}
@@ -357,4 +328,41 @@ type nativeOwnerCheckIO struct {
 	observe  func(context.Context, string) (recoveryTerminalSnapshot, error)
 	read     func(context.Context, string, int64) ([]byte, error)
 	discover func(context.Context, string) ([]artifactpath.StorageOwner, error)
+}
+
+func readRecoveryNativeID(ctx context.Context, owner artifactpath.StorageOwner, agent string, ordinal uint64, read func(context.Context, string, int64) ([]byte, error)) (string, error) {
+	paths, err := artifactpath.ResolveScoped(owner.Directory(), owner.Tag)
+	if err != nil {
+		return "", err
+	}
+	raw, err := read(ctx, paths.Ledger(), -1)
+	if err != nil {
+		return "", fmt.Errorf("live %s wrapper native ownership unavailable: %w", agent, err)
+	}
+	parsed := sessionledger.ParseLedger(raw)
+	if len(parsed.MalformedOrdinals) != 0 {
+		return "", errors.New("live wrapper ledger has malformed native ownership")
+	}
+	// Only the readiness-proved physical generation may supply native identity.
+	generation := make([]sessionledger.Record, 0)
+	for _, record := range parsed.Records {
+		if (record.Kind == sessionledger.RecordLaunch && record.Ordinal == ordinal) || (record.Kind == sessionledger.RecordBinding && record.LaunchOrdinal == ordinal) {
+			generation = append(generation, record)
+		}
+	}
+	current, found := sessionledger.CurrentLaunch(generation, sessionledger.Owner{ScopeKey: owner.RepoScope, Tag: owner.Tag, Agent: agent})
+	if !found || current.Conflict {
+		return "", errors.New("live wrapper native ownership is unresolved or conflicting")
+	}
+	target := sessioninventory.ResumeTargetForLaunch(current)
+	native := target.NativeID
+	// A Pair-chosen UUID is already reserved by this running wrapper even
+	// before the native filename handshake confirms its first authored turn.
+	if native == "" {
+		native = target.RequestedNativeID
+	}
+	if native == "" {
+		return "", errors.New("live wrapper native ownership is unresolved")
+	}
+	return native, nil
 }

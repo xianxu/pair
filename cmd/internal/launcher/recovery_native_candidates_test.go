@@ -155,3 +155,15 @@ func TestRecoveryNativeLegacyDifferentIDExcludesCollision(t *testing.T) {
 		}
 	}
 }
+
+func TestRecoveryNativeLegacyExclusionFencesChildBirth(t *testing.T) {
+	w, check := nativeOwnerFixture(t, "codex", "other")
+	w.ready.AgentIdentity = ""
+	next := w.snapshots[0]
+	next.Processes = append([]procutil.Process(nil), next.Processes...)
+	next.Processes[1].Identity = "replacement-child"
+	w.snapshots = append(w.snapshots, next)
+	if err := checkRecoveryNativeOwnersWithDiscovery(context.Background(), check, w.Observe, w.Read, noOrphanOwners); err == nil {
+		t.Fatal("legacy exclusion borrowed a replaced child")
+	}
+}

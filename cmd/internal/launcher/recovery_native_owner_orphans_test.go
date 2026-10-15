@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
-	"github.com/xianxu/pair/cmd/internal/osfs"
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/readiness"
 	"github.com/xianxu/pair/cmd/internal/storagegc"
@@ -131,11 +130,11 @@ func TestRecoveryNativeOwnerDiscoversRetainedOrphanFromCanonicalFilesystem(t *te
 	w.snapshots[0].Processes = w.snapshots[0].Processes[1:]
 	w.snapshots[0].Processes[0].PPID = 1
 	delete(w.snapshots[0].Commands, 42)
-	if err = checkRecoveryNativeOwners(context.Background(), check, w.Observe, osfs.ReadRegularMetadata); err == nil {
+	if err = checkRecoveryNativeOwners(context.Background(), check, w.Observe, readNativeOwnerMetadata); err == nil {
 		t.Fatal("canonical retained child was not discovered")
 	}
 	check.NativeID = "different"
-	if err = checkRecoveryNativeOwners(context.Background(), check, w.Observe, osfs.ReadRegularMetadata); err != nil {
+	if err = checkRecoveryNativeOwners(context.Background(), check, w.Observe, readNativeOwnerMetadata); err != nil {
 		t.Fatal("unrelated canonical native key blocked", err)
 	}
 }

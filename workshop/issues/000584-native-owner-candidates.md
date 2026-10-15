@@ -77,3 +77,13 @@ item: real-api-discovery design=0.0 impl=0.16
 design-buffer: 0.15
 total: 1.3935
 ```
+
+## Revisions
+
+### 2026-10-15 16:12 — finite ledger snapshot reader
+
+Read-only host validation reached a further #556 reader-only limit: pair:2's valid ledger is 21,466,623 bytes, exceeding the new guard's 8 MiB whole-file cap. #508 already removed this unsupported cap from sessioninventory. Native ownership now reads the finite observed ledger snapshot through the existing regular-file, no-symlink, cancellation and unchanged-generation reader, preserving readiness's small fixed bound; a >8 MiB valid-ledger regression went red on the old reader and green after the change. No writer policy or ledger schema changed.
+
+### 2026-10-15 16:14 — unbound legacy owner, decision requested
+
+The next host check advances in 783 ms to a genuine unbound legacy source: pair:2's readiness ordinal 65 has no requested_native_id and no binding record. Its exact live chain is wrapper 4374 -> node 4461 -> Codex 4470. Writable held rollouts contain one primary source=cli ID (01a133a3-eaec-77b3-8c1e-dc4ac6b41fbd); other held metadata names that ID as its subagent parent. Sent the hub the remaining blocker and a proposed unique-primary held-header fallback; no implementation of that extra rule yet. Current guards preserve this uncertainty. This checkpoint's remaining host failure is expected and reported.
