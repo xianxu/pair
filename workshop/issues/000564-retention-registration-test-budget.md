@@ -1,13 +1,20 @@
 ---
 id: 000564
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-14
-updated: 2026-10-14
+updated: 2026-10-15
 estimate_hours:
-card_mirror: 'f74e3ce7a21858f8abf5fc896430fbaf3b010a88' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '6339cacd8c8253b1ca30663bd4695ef3a2864b88' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-14T22:48:29-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Retention resume test expires its registration budget under load
@@ -41,3 +48,10 @@ Reproduce the budget exhaustion through controlled scheduling/storage barriers o
 ### 2026-10-14
 
 Filed and released as independent follow-up during #218 close. No code change or extra rerun was made for this issue. The observed review failure and three isolated passes are recorded separately from the successful required suite.
+
+### 2026-10-15 — root cause and proposed quick flow
+
+- Claimed/started from main e85237e7e1951bc61ce3d9527ed7ad2dfb6e47d3; substrate refreshed to ariadne 72bf044e19b3be76bc22851008aaf9fbf2f30dc8. A temporary controlled-deadline probe spent the inherited 200ms registration budget at its arming boundary, before returning to the ownership loop. Resume deterministically failed with `ownership poll consumed the budget`, `0 ownership polls`, `last ownership check: none`; the session remained live. Its one later fake artifact callback belonged to failure cleanup, not a completed registration observation. No sleeps or workload inflation were used; temporary probe removed.
+- Root cause: the retention-semantic case inherits a deadline intended for warm failure tests. The deadline begins after acknowledge and before the first registration observation; wall time can expire before that observer is scheduled. `FixedClock` only controls domain timestamps, while the registration factory defaults to context.WithTimeout.
+- Proposed correction: a retention-only fixture uses the existing registrationDeadline seam with parent-linked context.WithCancel, so only the enclosing test budget/cancellation bounds registration. Keep warmDetachedThread's 200ms budget and all intentional timeout tests unchanged (ARCH-DRY, ARCH-ORDER). Preserve the real storage coordinator and both exact retention/environment assertions.
+- Proposed regression: retain the event-spent-before-first-poll characterization; prove the retention fixture propagates its parent deadline rather than adding a 200ms deadline, and parent cancellation still terminates registration. Run semantic retention and intentional timeout/lifecycle regressions, broad couchcore (normal plus targeted race), make -k build and required sdlc-local suite before SHIP/landing. No production changes expected.
