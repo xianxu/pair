@@ -121,6 +121,10 @@ Race: same packages/regex with -race. Source ownership: artifactpath package plu
 
 ## Revisions
 
+### 2026-10-15 — source comparison portability boundary
+
+Exact tagged path-utils source confirms exec compares fully canonicalized cwd paths, matching the collector on macOS. On WSL it additionally folds ASCII case for /mnt/<single-letter-drive>. Keep Linux physical cwd paths in that domain on native compatibility rather than skip a newer native match and guard an older candidate. No WSL environment or platform-file reads are added; the policy is a pure path/platform predicate. No macOS behavior or accepted bootstrap class changes.
+
 ### 2026-10-15 — implemented limits and native-fidelity findings
 
 Config budget is4MiB total (stricter than8MiB),64 reads,128 ancestry,256 bounded worktree registrations; native scope8KiB and existing admission grant64KiB (previous16KiB cannot hold worst-case encoded scope); store remains1MiB. Preserve startup cwd separately from -C for relative CODEX_HOME. Literal dot-split CLI keys, provider membership, secure no-follow metadata, original Git pointer alias validation, timestamp cursor pagination and every inspected transcript's identity are required by behavioral regressions. Propagate inventory-owned custom native home through existing ledger/recovery checks, not only latest selection. Real config projection remains unguarded observation-incomplete at the secure project-file boundary; do not infer cloud absence. No credential reads, second native selection, invented UID ownership rule or tie-breaker.

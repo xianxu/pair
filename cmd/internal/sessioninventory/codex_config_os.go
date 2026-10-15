@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
@@ -116,6 +117,9 @@ func readCodexSelectionConfig(ctx context.Context, q CodexConfigInvocation, r co
 	cwd, err := filepath.EvalSymlinks(q.CWD)
 	if err != nil {
 		return compat(CodexConfigObservationIncomplete)
+	}
+	if codexUnsupportedLinuxDriveCWD(runtime.GOOS, cwd) {
+		return compat(CodexConfigScopeUnsupported)
 	}
 	st, err := os.Stat(cwd)
 	if err != nil || !st.IsDir() {

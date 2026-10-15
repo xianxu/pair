@@ -56,6 +56,9 @@ provider, profile and prompt syntax are not reparsed by a second argv grammar.
 - The runtime-injected `--disable shell_snapshot` flag is selector-independent
   and remains supported during wrapper revalidation. `worktrees` changes scope;
   other unmodeled feature flags retain compatibility.
+- Linux physical cwd paths under `/mnt/<ASCII drive letter>` retain native
+  compatibility because native WSL selection also folds case. This boundary
+  requires no WSL/environment probe and does not change macOS selection.
 
 On macOS, the small `darwin && cgo` adapter asks CoreFoundation whether the native
 managed preference keys are forced. Darwin builds without CGO cannot prove those

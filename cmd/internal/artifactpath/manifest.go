@@ -635,6 +635,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/sessioninventory/codex_config_os.go",
 	"cmd/internal/sessioninventory/codex_git_scope.go",
 	"cmd/internal/sessioninventory/codex_latest.go",
+	"cmd/internal/sessioninventory/codex_platform_scope.go",
 	"cmd/internal/launcher/native_admission.go",
 	"cmd/internal/launcher/native_createflow_os.go",
 	"cmd/internal/launcher/native_resume_selector.go",

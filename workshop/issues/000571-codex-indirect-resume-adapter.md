@@ -95,6 +95,12 @@ Source sweep found Couch injects --disable shell_snapshot after latest projectio
 
 TL receipt26e39323-7dfb-4957-9f86-82b9defff289: read-only acceptance suffices. This machine remains native-compatible, so a live check would only repeat unchanged pass-through; private API-only fixtures prove the guarded path. Finish the recorded suite onb32d23d8, close and land on SHIP. No pair:0 staging. Local make build passed (/tmp/pair571-build.log).
 
+### 2026-10-15 — final source portability control
+
+Independent exact-tag path-utils comparison confirms physical cwd canonicalization for exec; no nested-symlink mismatch on macOS. It also exposes WSL-only ASCII casefold under /mnt/<single-letter-drive>. A pure platform/path guard keeps that Linux physical cwd domain on native compatibility without extra environment/file probes; otherwise a newer native match could be skipped in favor of an older target. Existing macOS acceptance is unchanged. The b32d23d8 suite was canceled while still queued (exit130; no tests ran) to verify this final safety boundary on the actual final code, not a superseded head.
+
+Final config/collector/selector normal tests passed16.770s and race28.153s; pure platform/path table0.179s; full artifactpath ownership25.701s. No further code edits pending; queue the final full suite next.
+
 ### 2026-10-15 — planning under the disk restriction
 
 Append source-backed configuration/selector measurements and a proposal before implementation. No architecture or implementation gate is waived: issue-branch preparation, canonical durable plan and change-code wait until compilation is permitted; admission integration waits for #556 on main. Preserve native passthrough for unresolved scopes, picker/names, incomplete DB evidence and nondeterministic ties instead of changing ordinary resume behavior into a refusal.
