@@ -103,7 +103,7 @@ func TestDiagnosticRotationPreservesWitnessedPreviousCapture(t *testing.T) {
 	defer lease.Close()
 
 	// This separate artifact family shares the same owner/root. Repeated size
-	// rotation must evict excess diagnostics without touching either capture.
+	// rotation must preserve all diagnostic history and both capture pairs.
 	logPath := paths.WrapEvents()
 	logNow := time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC)
 	opts := diagnosticlog.Options{
@@ -124,13 +124,20 @@ func TestDiagnosticRotationPreservesWitnessedPreviousCapture(t *testing.T) {
 		}
 	}
 	segments, _, complete, err := diagnosticlog.PreviewLegacyPage(logPath, opts, "", 10)
-	if err != nil || !complete || len(segments) != 3 {
-		t.Fatalf("bounded diagnostic generations=%+v complete=%t err=%v", segments, complete, err)
+	if err != nil || !complete || len(segments) != 8 {
+		t.Fatalf("preserved diagnostic generations=%+v complete=%t err=%v", segments, complete, err)
 	}
+	retained := map[string]bool{}
 	for _, segment := range segments {
 		body, err := os.ReadFile(segment.Path)
-		if err != nil || len(body) != 4 || string(body) != "0005" && string(body) != "0006" && string(body) != "0007" {
+		if err != nil || len(body) != 4 || retained[string(body)] {
 			t.Fatalf("diagnostic retention kept wrong bytes: %q %v", body, err)
+		}
+		retained[string(body)] = true
+	}
+	for n := 0; n < 8; n++ {
+		if !retained[fmt.Sprintf("%04d", n)] {
+			t.Fatalf("lost diagnostic record %04d", n)
 		}
 	}
 	for path, original := range members {

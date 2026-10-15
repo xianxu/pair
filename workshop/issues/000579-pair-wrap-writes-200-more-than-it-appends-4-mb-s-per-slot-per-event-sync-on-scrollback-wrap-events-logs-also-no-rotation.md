@@ -47,8 +47,8 @@ Separately, these files are **never rotated**: wrap-events logs of **3.9 GB** (p
 ## Done when
 
 - Wrapper diagnostics buffer/coalesce records at64KiB or dirty5s; compact reservations contain no payload copy and a healthy batch has one checkpoint rename. The counted real-writer stream stays below3x logical amplification, counting all metadata and reservation bytes.
-- Unchanged validated registry declarations skip content writes. Shared persisted diagnostic policy enforces64MiB current+3 generations (256MiB normal payload cap) across all supported writers; unknown writer proof refuses growth/destruction. Protocol-aware deleted roots do not globally block cleanup, while generation fences and legacy unknown-root refusal remain.
-- A complete interrupted batch recovers by its exact digest; an uncertifiable incomplete batch is preserved as a marked-unverified quarantined generation and a fresh current log starts after safe writer proof. Nothing unverified is adopted or truncated; quarantines participate in the diagnostic generation bound.
+- Unchanged validated registry declarations skip content writes. Shared persisted diagnostic policy enforces64MiB individual generations across all supported writers; KeepDiagnosticsUntilBackup preserves every diagnostic generation, with count/age eviction disabled pending ops history-backup piece6. Total retained disk growth is intentionally unbounded; unknown writer proof refuses rotation/growth at the byte cap. Protocol-aware deleted roots do not globally block cleanup, while generation fences and legacy unknown-root refusal remain.
+- A complete interrupted batch recovers by its exact digest; an uncertifiable incomplete batch is preserved as a marked-unverified quarantined generation and a fresh current log starts after safe writer proof. Nothing unverified is adopted or truncated; quarantines remain protected by the diagnostic backup fence.
 - Raw/events writes flush on250ms/size/orderly shutdown without changing witness identity or raw bytes; raw flush precedes sidecar offset publication. Faithful raw+events size rotation is unassigned #582, outside this issue.
 - Deterministic crash/progress/ownership/rotation/buffer tests, recorded suite, build and mandatory fresh SHIP reviews pass. Receipt, park and recovery synchronization remain intact; process-crash and power-loss bounds are documented.
 - After landing, live process bytes-written versus raw+event bytes-appended and diagnostic state inode-change rates are recorded in ## Log with before/after ratios, exact binary/process/activity context, and reported to hub. Baseline85.8x/10.006s and2187 observed replacements/60.003s remains the comparison.
@@ -59,7 +59,7 @@ Proposed durable plan: [wrapper log IO](../plans/000579-wrapper-log-io-plan.md).
 The approved scope and protocol are recorded in the Revisions below and the durable plan; faithful raw capture size rotation is unassigned #582.
 
 - [x] M1 — Coalesced diagnostic IO and authority-preserving raw/event batching.
-- [ ] M2 — Safe bounded diagnostic generations, compatibility and qualification.
+- [ ] M2 — Bounded generation size with archive-before-evict protection, compatibility and qualification.
 
 ## Log
 

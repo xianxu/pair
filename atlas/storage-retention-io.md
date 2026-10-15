@@ -106,7 +106,9 @@ pump every 250 ms, on every pump exit before child wait, and on orderly teardown
 closes admission, so an in-flight resize cannot leave sidecar events behind after
 its clock stops. These intervals describe process
 crash exposure, not power-loss durability. Receipt, park, recovery, generation
-rotation and destructive collection keep their durable synchronization. Raw
+rotation keeps its durable synchronization. Diagnostic deletion is fenced by
+KeepDiagnosticsUntilBackup until ops history-backup piece6 can archive before
+eviction; every historical generation is retained, with no total disk cap. Raw
 capture size rotation remains separate work (#582): no VT state is discarded.
 
 Exact registry declarations reuse unchanged content and inode, but reconfirm the
