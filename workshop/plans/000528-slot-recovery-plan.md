@@ -1397,3 +1397,12 @@ record for session observation rather than re-entering the preview store. Keep
 exact generation checks, all existing lifecycle claims/writes, and3owner reads
 per thread. Add regressions for skipping irrelevant previews and retaining
 borrowed readonly behavior; no new lock or concurrency mechanism.
+
+### 2026-10-15 — merge #423 test synchronization before landing
+
+Normal landing found one code conflict in the newly landed #423 fixture. Keep
+its blocked-inventory barrier and header-only negative readiness assertion;
+use #528's Resume from disk outcome label as the ready-row predicate. Preserve
+main's #554 fixture correction unchanged. No runtime behavior changes. Run
+targeted repetitions, recorded merged suite and normal fix review before retry.
+Only --no-actual remains authorized for ariadne#384; no other waivers.

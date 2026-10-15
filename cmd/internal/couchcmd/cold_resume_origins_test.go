@@ -39,7 +39,7 @@ type dispatchedCall struct {
 	err  error
 }
 
-func newColdResumeRig(t *testing.T) *coldResumeRig {
+func newColdResumeRig(t *testing.T, configure ...func(*couchtty.Console)) *coldResumeRig {
 	t.Helper()
 	root, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
@@ -94,6 +94,9 @@ func newColdResumeRig(t *testing.T) *coldResumeRig {
 		r.calls <- dispatchedCall{call, err}
 		return value, err
 	})
+	for _, setup := range configure {
+		setup(console)
+	}
 	done := make(chan int, 1)
 	go func() { done <- console.Run() }()
 	t.Cleanup(func() {
@@ -168,16 +171,36 @@ func (r *coldResumeRig) assertRegisteredLive(t *testing.T) {
 // live slot (pair#367 smoke test, tools:0).
 func TestColdResumeOfAParkedPrimaryRegistersFromBothOrigins(t *testing.T) {
 	t.Run("switcher", func(t *testing.T) {
-		r := newColdResumeRig(t)
+		inventory := make(chan struct{})
+		r := newColdResumeRig(t, func(console *couchtty.Console) {
+			provider := console.ActionableProvider()
+			console.SetActionableProvider(func(ctx context.Context, observations []couchcore.LiveTTYObservation) ([]couchcore.ActionableThreadSummary, error) {
+				select {
+				case <-inventory:
+					return provider(ctx, observations)
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				}
+			})
+		})
 		if _, err := r.input.Write([]byte{0}); err != nil {
 			t.Fatal(err)
 		}
-		// The header paints before the first inventory lands; Enter on that
-		// empty menu is "no selection". Wait for the parked row itself (pair#436);
-		// its long temp path is truncated, so match its explicit action label.
-		waitWarmAcceptance(t, "switcher row", func() bool {
-			return strings.Contains(r.host.Written(), "threads") && strings.Contains(r.host.Written(), "Resume from disk")
+		// Force the load-dependent ordering from #423: the header is visible,
+		// but the real provider cannot publish a row yet. The predicate used
+		// before Enter must reject this frame (#436), regardless of scheduling.
+		waitWarmAcceptance(t, "switcher header", func() bool {
+			return strings.Contains(r.host.Written(), "threads")
 		})
+		rowReady := func() bool {
+			return strings.Contains(r.host.Written(), "threads") && strings.Contains(r.host.Written(), "Resume from disk")
+		}
+		if rowReady() {
+			t.Fatal("Enter readiness accepted the header before inventory was released")
+		}
+		close(inventory)
+		// The long temp path is truncated, so match the explicit outcome label.
+		waitWarmAcceptance(t, "switcher row", rowReady)
 		if _, err := r.input.Write([]byte{'\r'}); err != nil {
 			t.Fatal(err)
 		}

@@ -1873,3 +1873,4 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
   work to satisfy phase assertions. Optional borrowed-client previews should
   be conditional on local ownership; bounded nonblocking previews can starve
   beside a fleet's explicit writes even when each operation is correct alone.
+- #554: An emulator reply drainer owns a lifetime even in a one-shot screen fixture. Reuse terminalModel instead of pairing raw Emulator.Close with an unjoined io.Copy; close the reply pipe, join the reader, then dispose the emulator. Pin ordering on real EOF and observable disposal, including an injected shutdown error, rather than sleeps or a probabilistic race-only assertion.

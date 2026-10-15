@@ -1294,3 +1294,10 @@ No follow-up implementation starts on this branch.
   faa20561 versus completion reviewed d0862f78 prevent remeasurement. No
   judgment estimate, --force or other waiver. Run normal review and land on
   SHIP; Pair:0 stage remains untouched per prior instruction.
+
+- Re-close round19 SHIP, zero open findings, evidence48d6b9695973; only
+  --no-actual authorized for ariadne#384. Normal landing then found main #423
+  cold_resume_origins_test.go conflict: preserve its deterministic inventory
+  barrier/header-negative check and #528 Resume from disk label. #554 merge
+  is unchanged test-only code. No runtime changes; full-suite/fix-review rerun
+  required by gate. Stage untouched.
