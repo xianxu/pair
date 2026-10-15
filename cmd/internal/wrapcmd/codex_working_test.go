@@ -3,6 +3,7 @@ package wrapcmd
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -12,7 +13,6 @@ import (
 
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
-	vt "github.com/charmbracelet/x/vt"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/hostty"
@@ -186,12 +186,12 @@ func TestCodexWorkingNotificationIsSuppressedByCouch(t *testing.T) {
 	wantStatus := couchtty.RenderStatusRow(80, couchtty.StatusModel{Actors: []couchtty.StatusActor{
 		{Label: "one", Active: true}, {Label: "two"},
 	}}).Body
-	waitForCodexCouch(t, func() bool { return strings.Contains(codexCouchRendered(host.Written()), ansi.Strip(wantStatus)) }, "status row")
+	waitForCodexCouch(t, func() bool { return strings.Contains(codexCouchRendered(t, host.Written()), ansi.Strip(wantStatus)) }, "status row")
 	if _, err := writer.Write([]byte{0}); err != nil {
 		t.Fatal(err)
 	}
 	waitForCodexCouch(t, func() bool {
-		return strings.Contains(codexCouchRendered(host.Written()), "threads")
+		return strings.Contains(codexCouchRendered(t, host.Written()), "threads")
 	}, "switcher render")
 	// Check the complete host history, including the status frame before the
 	// switcher opened. No desktop envelope or notification body may escape.
@@ -244,12 +244,92 @@ func FuzzRecognizeCodexWorkingArbitraryRenderedCells(f *testing.F) {
 	})
 }
 
-func codexCouchRendered(raw string) string {
-	e := vt.NewEmulator(80, 24)
-	defer e.Close()
-	// Drain the emulator's replies: couch's host output now carries its OSC
-	// 10/11 colour query (pair#247), and an unread answer wedges Write.
-	go func() { _, _ = io.Copy(io.Discard, e) }()
-	e.Write([]byte(raw))
-	return e.String()
+// Rendering and its teardown share one bound; a stuck reply drain must not
+// consume the whole package deadline.
+func codexCouchRendered(t *testing.T, raw string) string {
+	t.Helper()
+	model, err := newTerminalModel(80, 24)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text, err := boundedCodexRender(t, raw, model)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return text
+}
+
+func boundedCodexRender(t *testing.T, raw string, model *terminalModel) (string, error) {
+	t.Helper()
+	type result struct {
+		text string
+		err  error
+	}
+	done := make(chan result, 1)
+	go func() {
+		text, err := codexCouchRenderedModel(raw, model)
+		done <- result{text, err}
+	}()
+	timer := time.NewTimer(min(10*time.Second, testwait.Budget(t)))
+	defer timer.Stop()
+	select {
+	case got := <-done:
+		return got.text, got.err
+	case <-timer.C:
+		t.Fatal("Codex fixture rendering or reply-drain cleanup exceeded its budget")
+		return "", nil
+	}
+}
+
+func codexCouchRenderedModel(raw string, model *terminalModel) (text string, err error) {
+	// terminalModel owns pipe shutdown, the reply-drain join and disposal.
+	defer func() { err = errors.Join(err, model.Close()) }()
+	if err := model.Feed([]byte(raw)); err != nil {
+		return "", err
+	}
+	return model.emulator.String(), nil
+}
+
+func TestCodexCouchRenderOwnsReplyDrain(t *testing.T) {
+	shutdownErr := errors.New("reply pipe close failed after shutdown")
+	for _, tc := range []struct {
+		name string
+		err  error
+	}{{"success", nil}, {"close error", shutdownErr}} {
+		t.Run(tc.name, func(t *testing.T) {
+			model, err := newTerminalModel(80, 24)
+			if err != nil {
+				t.Fatal(err)
+			}
+			actualCloser := model.replyCloser
+			joinedBeforeDisposal := false
+			model.replyCloser = closeFunc(func() error {
+				err := actualCloser.Close()
+				// The real drainer must reach EOF while the emulator is still
+				// usable. This orders the assertion without scheduler delays.
+				<-model.drainDone
+				_, probeErr := model.emulator.Write(nil)
+				joinedBeforeDisposal = probeErr == nil
+				return errors.Join(err, probeErr, tc.err)
+			})
+			text, err := boundedCodexRender(t, "\x1b]10;?\x07\x1b]11;?\x07ready", model)
+			if want := "ready" + strings.Repeat("\n", 23); text != want {
+				t.Errorf("rendered = %q, want %q", text, want)
+			}
+			if !errors.Is(err, tc.err) {
+				t.Errorf("render error = %v, want %v", err, tc.err)
+			}
+			if !joinedBeforeDisposal {
+				t.Error("renderer did not close the reply pipe and join its drainer before disposal")
+			}
+			select {
+			case <-model.drainDone:
+			case <-time.After(min(10*time.Second, testwait.Budget(t))):
+				t.Fatal("renderer left its reply drainer running")
+			}
+			if _, err := model.emulator.Write(nil); !errors.Is(err, io.ErrClosedPipe) {
+				t.Errorf("emulator remains usable after render cleanup: %v", err)
+			}
+		})
+	}
 }

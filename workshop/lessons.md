@@ -1782,3 +1782,5 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
   tiny deadline from a failure-path fixture. Preserve deadline-specific tests
   separately, and capture the failing phase before changing a test budget.
   Isolated rerun passes do not erase a failed broad run or prove its cause.
+
+- #554: An emulator reply drainer owns a lifetime even in a one-shot screen fixture. Reuse terminalModel instead of pairing raw Emulator.Close with an unjoined io.Copy; close the reply pipe, join the reader, then dispose the emulator. Pin ordering on real EOF and observable disposal, including an injected shutdown error, rather than sleeps or a probabilistic race-only assertion.
