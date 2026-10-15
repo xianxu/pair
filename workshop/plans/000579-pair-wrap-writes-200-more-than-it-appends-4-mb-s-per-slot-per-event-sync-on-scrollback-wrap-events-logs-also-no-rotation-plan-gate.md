@@ -1,4 +1,24 @@
 ---
+reviewer_runs:
+    - version: 1
+      intent:
+        id: 21cfe188-7784-4fba-8aa7-22c68be3fd4f
+        repository: github.com/xianxu/pair
+        issue_id: "000579"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot3/pair
+        reviewed_head: 990ad678db4c98b5e65eada66cbda5e6cf923f88
+        slot: pair:3
+        requested_at: "2026-10-15T22:30:51.743213Z"
+      phase: finished
+      pid: 1553
+      started_at: "2026-10-15T22:30:51.996626Z"
+      finished_at: "2026-10-15T22:31:27.874425Z"
+      session_id: 01a141b0-8f06-7e72-8ed9-64544f5f52b1
+      outcome: returned
 gate: plan-quality
 issue: 579
 id_prefix: PQ
@@ -73,7 +93,40 @@ rounds:
           note: The governing named-function strategy table supersedes historical case inventories and specifies fuzzing, controlled sequences, fault injection and mechanical invariants.
           round: 2
       blocked: false
-content_hash: 27e77864b58a30ae7526c81ecee36c0d5c3bed2904caa2cda7bebdf6feb314e1
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 8764e6bb-6f5f-4d72-8b97-20a176b80450
+            repository: github.com/xianxu/pair
+            issue_id: "000579"
+            recipe: plan-quality
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot3/pair
+            reviewed_head: 990ad678db4c98b5e65eada66cbda5e6cf923f88
+            slot: pair:3
+            requested_at: "2026-10-15T22:30:23.8985Z"
+          phase: finished
+          pid: 82374
+          started_at: "2026-10-15T22:30:24.242038Z"
+          finished_at: "2026-10-15T22:30:49.569229Z"
+          session_id: 01a141b0-22e9-7491-978e-42ac3c0a7c62
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-15T15:30:49-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Persisted DiagnosticLimits govern all managed writers and maintenance paths; mixed-version writers refuse rather than bypass bounds.
+          round: 3
+        - id: PQ-2
+          disposition: addressed
+          note: The governing named-function strategy table supersedes historical test inventories and identifies adversarial inputs and mechanical guards.
+          round: 3
+      blocked: false
+content_hash: af4d523354d20362b299778ed1c967ca70548c7bdb43938974fec3f3f6a72464
 ---
 
 # Gate ledger — pair#579 (plan-quality)
@@ -96,6 +149,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - PQ-1 — addressed — Persisted schema-v2 limits govern every managed producer, with tightening-only updates, older-binary refusal and multi-writer diagnosticcmd integration coverage.
 - PQ-2 — addressed — The governing named-function strategy table supersedes historical case inventories and specifies fuzzing, controlled sequences, fault injection and mechanical invariants.
+
+## Round 3 — 2026-10-15T15:30:49-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Persisted DiagnosticLimits govern all managed writers and maintenance paths; mixed-version writers refuse rather than bypass bounds.
+- PQ-2 — addressed — The governing named-function strategy table supersedes historical test inventories and identifies adversarial inputs and mechanical guards.
 
 ## Open findings
 
