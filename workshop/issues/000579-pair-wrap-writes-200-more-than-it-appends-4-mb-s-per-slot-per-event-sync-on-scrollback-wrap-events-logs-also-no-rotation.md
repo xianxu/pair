@@ -1,12 +1,20 @@
 ---
 id: 000579
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-15
 updated: 2026-10-15
 estimate_hours:
-card_mirror: '17a6d03a4d8ff4f54f1ce510e58f5cdba6e8056b' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'b2a40e6a859cfbcf52526bdeb5f354a7954790a4' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-15T15:07:36-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
 ---
 
 # pair wrap writes ~200× more than it appends (~4 MB/s per slot): per-event sync on scrollback/wrap-events logs; also no rotation
@@ -49,3 +57,9 @@ Separately, these files are **never rotated**: wrap-events logs of **3.9 GB** (p
 ## Log
 
 ### 2026-10-15
+
+- Claimed and started on pair:3 from main a3beedd0074c536a49396ca68e5e038eebfb35d7. start-plan refreshed sibling Ariadne, then reran successfully.
+- Measurement before design: proc_pid_rusage(pid 73688, RUSAGE_INFO_V2) over 10.006 seconds counted 7,385,088 physical disk-write bytes versus 86,077 appended raw+wrap-event bytes (85.80x). Files grew 63,591 wrap-events +22,486 raw bytes. Python ctypes called libproc directly; no root or mutation of the wrapper. Activity level affects the rate; this is one observed window, not a universal 200x.
+- A 3-second sample of PID73688 found 109 sampled rename frames and 43 write frames; sampling is attribution evidence, not a syscall count. sudo -n fs_usage refused because a password is required. Hub confirmed agents cannot sudo and authorized inode-change/file-growth measurements instead (receipt ee56adcd-39bb-4351-a29b-012021701a6b).
+- Read path: diagnosticlog.appendChunk publishes an intent (including base64 payload), reopens/appends the log, recoverAppend reopens/reads the tail, then republishes state. Both ordinary state publications are nondurable (no hot-path fsync), but each uses create/write/close/rename. Thus per-event atomic metadata churn, not per-event payload fsync, is the concrete hot path. Root registrations are durably republished on each Open, including unchanged entries. Existing diagnostic rotation is 64MiB/24h but refuses on incomplete writer proof and has no count cap for young generations.
+- ARCH-ORDER/ARCH-SECURE: raw/event capture is an identity-bound pair, not two independent diagnostic files. Recovery, park and previous peek validate producer witness plus raw/event identities; naive copy-truncate/rename would invalidate it. Map consumers before choosing the bounded representation. No production change yet.
