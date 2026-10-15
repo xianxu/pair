@@ -1264,3 +1264,10 @@ No follow-up implementation starts on this branch.
   a valid journal after preview; checks exacthelper-onlysignal plus unchanged
   journal/record bytes. Related Leave/Detach/cleanup and symbolguard PASS
   (core13.969s, artifactpath0.785s), no lock/timeout changes.
+
+- Merged #218 full suite PASS857625c236a3f645ac26f334619764bde9cfd948:
+  sdlc-local/suite exit0 in10m50s after1408s gate wait, log SHA
+  prefix8eeffcd2ff92. Core386.950s, cmd87.455s, tty34.873s, launcher20.735s.
+  GitHub conformance/merge/local-guards allPASS at this source head. Normal
+  fixed-then-ship review covers four conflicts plus timing/detach corrections;
+  no source changes or skipped gates after the recorded suite.

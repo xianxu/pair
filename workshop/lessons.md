@@ -1867,3 +1867,9 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
   tiny deadline from a failure-path fixture. Preserve deadline-specific tests
   separately, and capture the failing phase before changing a test budget.
   Isolated rerun passes do not erase a failed broad run or prove its cause.
+
+- #528/#218 integration: When an approved lifecycle path changes, carry
+  instrumentation onto its actual steps instead of restoring old lifecycle
+  work to satisfy phase assertions. Optional borrowed-client previews should
+  be conditional on local ownership; bounded nonblocking previews can starve
+  beside a fleet's explicit writes even when each operation is correct alone.
