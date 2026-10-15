@@ -1200,3 +1200,24 @@ context merge, then passed. Nine FIFO branches and unsafe/oversize/context,
 preview-journal and broker checks pass (osfs0.090s/core11.815s/cmd1.691s).
 Writable global compatibility and explicit migration journal bounds remain.
 Normal M1 re-review and a final recorded full suite are still required.
+
+### 2026-10-14 — BR-14/15: automatic attachment shares the bounded-read rule
+
+Round14 verified BR-13 but found the same class outside broker previews:
+automatic dead-helper repair selected a writable backend then read a FIFO
+without the caller context. Four warm-only reproductions outlived a50ms
+budget until a writer released them207–227ms later. The invariant applies to
+ALL automatic M1 reads, not just broker callbacks: startup inventory/projection,
+attachment preflight and routing, listed-terminal validation, registration,
+and narrow dead-client repair including effect-time rereads. Keep preview-only
+admission for observations; only the existing guarded single-record helper
+repair may write. WarmOnly with no positive listing must refuse before any
+lifecycle hold, retention mutation or journal replay. Use the existing shared
+bounded metadata readers with caller context and descriptor-relative local
+admission; do not change explicit recovery authority or add a new mechanism.
+Add production attachment FIFO/cancellation regressions and absent-session
+pending-journal preservation. Sweep adapter references after the refactor:
+remove unused readOptionalFile/readThreadLocked/localMembership/readLocalPayload
+and any other newly orphaned adapters rather than exempting the symbol guard.
+Run artifactpath acceptance guards and focused automatic-path regressions before
+normal re-review. Final recorded full suite remains required before landing.

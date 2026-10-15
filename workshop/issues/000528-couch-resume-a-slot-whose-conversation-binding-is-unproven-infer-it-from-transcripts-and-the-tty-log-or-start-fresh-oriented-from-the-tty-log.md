@@ -984,3 +984,12 @@ No follow-up implementation starts on this branch.
   Final focused metadata/inspection/preview/broker/fastpeek group PASS:
   osfs0.090s, core11.815s, cmd1.691s; diff check clean. Normal re-review next;
   final recorded full suite follows the settled source, before landing.
+
+- Round14 addressed BR-13 with mutation evidence, but returned Critical BR-14:
+  automatic dead-client repair routed without context and used writable global
+  ReadFile;50ms warm attachment exceeded207–227ms in four FIFO reproductions.
+  Important BR-15: production-symbol guard identifies four orphaned adapters.
+  Extend the existing bounded-read invariant over the whole automatic attach
+  graph and refuse absent WarmOnly before lifecycle work; remove obsolete
+  adapters. Appended plan Revision before source. No cap demotion used to
+  ignore BR-15, no review bypass; final suite follows the correction.

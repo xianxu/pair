@@ -1021,3 +1021,107 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-14T17:01:35-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 528 — couch: resume a slot whose conversation binding is unproven: infer it from transcripts and the tty log, or start fresh oriented from the tty log |
+| repo | pair |
+| issue file | workshop/issues/000528-couch-resume-a-slot-whose-conversation-binding-is-unproven-infer-it-from-transcripts-and-the-tty-log-or-start-fresh-oriented-from-the-tty-log.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | e272745337452f9b3df2949e5c4a6faa97c85d59..a9a38f716bac4c63d44d2ba2538d28f549777dfc |
+| command | sdlc milestone-close --issue 528 --milestone M1 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-14T17:01:35-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+BR-13 is addressed: the preview readers are bounded, and regressions fail when the old global reader is restored. A separate automatic attachment path still performs an unbounded read during dead-client repair. The repository’s production-symbol guard also fails on four orphaned helpers.
+
+```findings
+dispose:
+  - id: BR-13
+    disposition: addressed
+    note: |
+      Traced manifest, routing record/archive, local membership/salvage/archive, final record, aliases and inspection readers. Preview/metadata regressions pass. Restoring global os.ReadFile in a disposable checkout makes global-record, global-manifest and routed-legacy regressions fail at approximately 202ms.
+findings:
+  - id: new
+    severity: Critical
+    kind: defect
+    family: bounded-untrusted-artifact-reads
+    title: |
+      Automatic warm attachment can block indefinitely in dead-client repair
+    detail: |
+      warm_attach_repair.go:51 drops the caller context during routing; lines 56–59 then select a writable target and call readPayload, reaching global os.ReadFile at threadstore_layout.go:172. A controlled warm-only attachment replaced the record with a FIFO after acknowledgement: despite a 50ms deadline, four runs returned only after a writer released them at 207–227ms; without that writer the read remains blocked while holding store.lock. This is the 4th finding in family bounded-untrusted-artifact-reads. Earlier rounds fixed instances. State and enforce the bounded persisted-read rule across every automatic M1 path, including attachment repair, rather than fixing this site alone. Preserve descriptor-relative local admission, propagate context through routing and payload reads, and add cancellation/FIFO regressions through production attachment. ARCH-CONSTRAINTS, ARCH-SECURE, ARCH-ORDER, ARCH-PURPOSE.
+  - id: new
+    severity: Important
+    kind: defect
+    family: reproducible-boundary-acceptance
+    title: |
+      Reader refactor leaves four orphaned helpers and fails the required production-symbol guard
+    detail: |
+      go test ./cmd/internal/artifactpath -run '^TestNoProductionSymbolIsReferencedOnlyByTests$' -count=1 fails reproducibly for readOptionalFile (storejournal.go:115), readThreadLocked (threadstore.go:1148), localMembership (threadstore_layout.go:39), and readLocalPayload (threadstore_layout.go:177). Production-reference inspection confirms these are unused. This is the 2nd finding in family reproducible-boundary-acceptance. Enumerate obsolete adapters left by the refactor, remove or explicitly justify each, and run the repository acceptance guards before re-closing; do not repair only one reported declaration. ARCH-DRY.
+```
+
+1. **Strengths**
+
+   - Preview reads reuse the shared bounded reader while retaining descriptor-relative local-file access.
+   - FIFO regressions exercise nine consumer branches; mutation testing confirms they detect the original blocking behavior.
+   - Stateful startup tests exercise blocked parallel attachments, responsive rendering, visible failures and explicit retry.
+   - README and atlas updates cover changed startup, Continue semantics and the accepted legacy attachment race. Remaining recovery execution is explicitly split into successor issues.
+
+2. **Critical findings**
+
+   - [warm_attach_repair.go:51](/Users/xianxu/Library/Caches/sdlc/review-checkouts/7f3692135a24920c/cmd/internal/couchcore/warm_attach_repair.go:51): automatic repair bypasses bounded contextual reads. Apply the shared read contract throughout automatic attachment, including routing and write-gate rereads.
+
+3. **Important findings**
+
+   - [threadstore_layout.go:39](/Users/xianxu/Library/Caches/sdlc/review-checkouts/7f3692135a24920c/cmd/internal/couchcore/threadstore_layout.go:39): remove or justify all four orphaned adapters identified above; the existing repository guard must pass.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   Passed: metadata/preview/inspection tests, focused core startup/warm-attachment/classification tests, and complete `couchcmd`, `couchtty`, `launcher` and `couchmessage` packages.
+
+   Failed: the artifact-path production-symbol guard and the controlled attachment-repair FIFO regression. The latter reproduced four times. Full repository testing was not run. The disposable reproduction checkout was removed; tracked files remain unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — flag:** orphaned compatibility adapters fail the repository guard.
+   - **ARCH-PURE — pass:** continuity decisions and menu transitions remain separated from IO.
+   - **ARCH-PURPOSE — flag:** the bounded-read sweep omits automatic attachment repair.
+   - **ARCH-MOCK — pass:** touched external interactions use shared seams and stateful fixtures.
+   - **ARCH-CONSTRAINTS — flag:** optional repair can exceed cancellation indefinitely.
+   - **ARCH-SECURE — flag:** repair trusts persisted bytes through an unrestricted reader.
+   - **ARCH-ORDER — flag:** cancellation cannot terminate the repair read after helper registration.
+   - **ARCH-FUNERAL — pass:** coordination files retain the fixed 256-inode bound; attachment notices remain ephemeral.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry extending the bounded persisted-read invariant from broker previews to **all automatic M1 execution**, explicitly enumerating attachment preflight, routing and dead-client repair. Require consumer-level cancellation regressions and the production-symbol guard before re-close.
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 4.223236625s
+head: "a9a38f716bac4c63d44d2ba2538d28f549777dfc"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
