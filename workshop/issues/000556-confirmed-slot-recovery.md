@@ -6,8 +6,8 @@ github_issue:
 target: slot-recovery
 created: 2026-10-14
 updated: 2026-10-15
-estimate_hours:
-card_mirror: '4f70a6e43e9fd6f5aefbb3b5e731b340a2e25f1d' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 6.75
+card_mirror: '5ecc1a115e45b5f378d73b176e25356b1b1f7292' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-14T15:10:56-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: inferred}
 ---
 
 # Couch confirmed disk recovery and always-reachable fresh startup
@@ -71,6 +72,44 @@ retain default plus up to four alternatives with evidence via menu and CLI.
 - [ ] M1 — Shared prepared recovery, confirmed Resume/Fresh, standalone hub CLI confirmation, schema-4 intent/read-only v3 migration; headless acceptance and morning scratch script; milestone-close.
 - [ ] M2 — Shared native admission reservations and two-slot barrier tests; milestone-close.
 - [ ] Record the full suite, close on SHIP and land; the hub owns the operator's restart and live acceptance.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only; the calibration source is marked stale by
+`sdlc estimate-source`, so this is provisional. Derived after plan-quality
+round 2 CLEAN, not a target chosen before decomposition.
+
+M1 has two bounded new Go concerns (prepared selection and ephemeral acceptance),
+one lifecycle integration, a schema extension and the existing menu/CLI seam.
+M2 adds a reservation reducer/store and the Pair/wrapper handoff integration.
+The existing Go JSON, flock, procutil, retention, queue and launch owners avoid a
+novel-stack library assumption. Apply the thorough-plan design discount (0.2)
+to the module/API/TUI primitive design ranges, familiarity 1.0 for this code,
+v3.1's 40% implementation scale exactly once, and the 15% design buffer.
+The three review chunks are M1, M2 and whole-issue close.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.3 impl=0.12
+item: greenfield-go-module design=0.2 impl=0.32
+item: greenfield-go-module design=0.2 impl=0.32
+item: api-integration design=0.6 impl=0.6
+item: smaller-go-module design=0.06 impl=0.2
+item: tui-screen design=0.2 impl=0.4
+item: api-integration design=0.6 impl=0.6
+item: greenfield-go-module design=0.3 impl=0.32
+item: cross-cutting-refactor design=0.1 impl=0.2
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0 impl=0.2
+item: milestone-review design=0 impl=0.2
+item: milestone-review design=0 impl=0.2
+design-buffer: 0.15
+total: 6.75
+```
+
+Design subtotal 2.60h × 1.15 + implementation subtotal 3.76h = **6.75h**.
 
 ## Log
 
