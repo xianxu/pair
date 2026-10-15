@@ -38,8 +38,8 @@ Coordinate with pair:2's suite/environment measurements. Compare the recorded-su
 
 ## Plan
 
-- [ ] Add bounded failure diagnostics first; exercise a deliberately silent nonzero editor exit and a Lua/message failure so missing evidence is red before the harness repair.
-- [ ] Reproduce the suite-context failure using pair:2's measurements and one-variable probes; name the actual cause in Log/Revisions, then add a deterministic regression and minimal fix at that boundary.
+- [x] Add bounded failure diagnostics first; exercise a deliberately silent nonzero editor exit and a Lua/message failure so missing evidence is red before the harness repair.
+- [x] Reproduce the suite-context failure using pair:2's measurements and one-variable probes; name the actual cause in Log/Revisions, then add a deterministic regression and minimal fix at that boundary.
 - [ ] Run the fresh-restore and affected review fixtures, a clean make -k build, and required recorded suite; fresh SHIP review, land, and notify pair:2 plus hub.
 
 ARCH-DRY: reuse ReviewTestEnvironment and current stateful Zellij fake; do not create a parallel product launcher. ARCH-ORDER: evidence must be captured before Neovim exits and before fixture cleanup; diagnostic tests force silent/error exit orderings. ARCH-FUNERAL: diagnostic files remain inside each temporary case, are printed bounded on failure, then removed with their owning fixture; no persistent logs or caller state added.
@@ -67,3 +67,5 @@ ARCH-DRY: reuse ReviewTestEnvironment and current stateful Zellij fake; do not c
 Root cause is draft filesystem watcher lifetime, not an environment-only failure or review assertion. Two valid watchers started by init.lua have no explicit shutdown owner; failures retain those fs_event/async resources during Neovim event-loop teardown and turn a planned exit 0 into 1. A one-variable temporary intervention closes exactly the two created watchers at VimLeavePre; eight full scripts across two workers (40 cases) all pass. Deferring until VimEnter did not fix it. Deterministic real-init regression is red: both real watchers remain open after VimLeavePre, before Neovim's global resource sweep.
 
 Delta: add one small fs_watch helper owning start/refusal, stop/close at VimLeavePre, and queued-callback invalidation; migrate both draft watcher sites. Preserve their paths, callbacks and FocusGained fallback. Unit lifecycle tests cover successful delivery, close exactly once, callbacks queued before/after close, allocation failure and returned/thrown start refusal. No raw blanket uv.walk cleanup, sleeps, retries, budget increases or skipped initialization. Document the new owner in atlas. Required suite and fresh SHIP still follow. ARCH-DRY/ORDER/FUNERAL shape this common owner.
+
+2026-10-15: Root repair green: real-init deterministic regression now observes both watchers closing at VimLeavePre; diagnostics self-test passes (2 tests, 1.838s), fs_watch lifecycle test passes close-once/late-callback/start-refusal cases, and all five real fresh-restore cases pass. Both watcher sites now derive from fs_watch; no background handle sweep, sleeps or timeout changes. Atlas maps the new owner; full review/Lua suites and recorded suite remain.

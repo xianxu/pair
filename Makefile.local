@@ -311,6 +311,7 @@ test-run-headless:
 # runs a Lua script in nvim's interpreter with the full vim.api available, so
 # pure logic AND buffer-manipulation can be asserted without a UI.
 test-lua:
+	nvim -l nvim/fs_watch_test.lua
 	nvim -l nvim/retention_test.lua
 	nvim -l nvim/confirm_quit_test.lua
 	nvim -l nvim/lifecycle_command_test.lua
