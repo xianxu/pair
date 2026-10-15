@@ -366,23 +366,38 @@ func RootTranscript(root Node) (Artifact, error) {
 // readOwnerLaunch reads only Pair-owned identity records, never native bodies.
 // The cached projection includes the previous established generation needed by
 // chosen-launch fallback, so resume and activity share the same strict parse.
-func readOwnerLaunch(ctx context.Context, runtime Runtime, scopeKey, tag string, agent Agent) (sessionledger.Current, *sessionledger.Current, bool, []Diagnostic, error) {
+func readOwnerLaunch(ctx context.Context, runtime Runtime, scopeKey, tag string, agent Agent) (sessionledger.Current, *ResumeTarget, bool, []Diagnostic, error) {
+	cache := ownerLaunchCacheOf(runtime)
+	invalidate := func(fenceLoads bool) {
+		cache.invalidateOwner(runtime.PairDataRoot().Path, scopeKey, tag, agent, fenceLoads)
+	}
 	ledger, found, diagnostics, err := findOwnerLedger(ctx, runtime, tag)
 	if err != nil || !found {
+		// Cancellation before observing a source cannot invalidate an independent
+		// loader; real listing failure or absence invalidates all retained evidence.
+		invalidate(ctx.Err() == nil || len(diagnostics) != 0 || (err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded)))
 		return sessionledger.Current{}, nil, false, diagnostics, err
 	}
-	cache := ownerLaunchCacheOf(runtime)
+	reusable := len(diagnostics) == 0
+	if !reusable {
+		invalidate(true)
+	}
 	key := ownerLaunchKey{rootPath: runtime.PairDataRoot().Path, ledger: ledger.Artifact, scopeKey: scopeKey, tag: tag, agent: agent}
-	release, err := cache.enter(ctx, key)
+	release, load, err := cache.enter(ctx, key)
 	if err != nil {
 		return sessionledger.Current{}, nil, false, diagnostics, err
 	}
 	defer release()
+	success := false
+	defer func() {
+		if !success {
+			cache.invalidateLoad(key, load)
+		}
+	}()
 	for attempt := 0; attempt < 2; attempt++ {
 		if err := ctx.Err(); err != nil {
 			return sessionledger.Current{}, nil, false, diagnostics, err
 		}
-		// A waiter must refresh the source metadata after the preceding loader.
 		if cache != nil {
 			ledger, err = runtime.StatFile(ledger.Artifact)
 			if err != nil {
@@ -393,9 +408,12 @@ func readOwnerLaunch(ctx context.Context, runtime Runtime, scopeKey, tag string,
 			return sessionledger.Current{}, nil, false, diagnostics, err
 		}
 		fingerprint := fingerprintFromEntry(ledger)
-		if hit, ok := cache.get(key, fingerprint); ok {
-			current, previous, cached := hit.answer()
-			return current, previous, hit.ok, append(diagnostics, cached...), nil
+		if reusable {
+			if hit, ok := cache.get(key, fingerprint); ok {
+				current, previous, cached := hit.answer()
+				success = true
+				return current, previous, hit.ok, append(diagnostics, cached...), nil
+			}
 		}
 		current, previous, ok, parsed, err := parseOwnerLedger(ctx, runtime, ledger.Artifact, scopeKey, tag, agent)
 		if err != nil {
@@ -413,7 +431,10 @@ func readOwnerLaunch(ctx context.Context, runtime Runtime, scopeKey, tag string,
 		if err := ctx.Err(); err != nil {
 			return sessionledger.Current{}, nil, false, diagnostics, err
 		}
-		cache.put(key, ownerLaunchEntry{fingerprint: fingerprint, current: current, previous: previous, ok: ok, diagnostics: parsed})
+		if reusable && !cache.put(key, load, ownerLaunchEntry{fingerprint: fingerprint, current: current, previous: previous, ok: ok, diagnostics: parsed}) {
+			return sessionledger.Current{}, nil, false, diagnostics, ErrArtifactChanged
+		}
+		success = true
 		return current, previous, ok, append(diagnostics, parsed...), nil
 	}
 	return sessionledger.Current{}, nil, false, diagnostics, ErrArtifactChanged
@@ -429,9 +450,6 @@ func findOwnerLedger(ctx context.Context, runtime Runtime, tag string) (FileEntr
 	var diagnostics []Diagnostic
 	pairRoot := runtime.PairDataRoot()
 	files, listErr := runtime.ListFiles(pairRoot)
-	if err := ctx.Err(); err != nil {
-		return FileEntry{}, false, diagnostics, err
-	}
 	var issues *ListingIssuesError
 	if listErr != nil && !errors.As(listErr, &issues) {
 		return FileEntry{}, false, diagnostics, listErr
@@ -440,6 +458,9 @@ func findOwnerLedger(ctx context.Context, runtime Runtime, tag string) (FileEntr
 		for _, artifact := range issues.Artifacts {
 			diagnostics = append(diagnostics, artifactDiagnostic(DiagnosticArtifactPathInvalid, "", nil, artifact, "non-regular Pair storage entry rejected"))
 		}
+	}
+	if err := ctx.Err(); err != nil {
+		return FileEntry{}, false, diagnostics, err
 	}
 	for _, file := range files {
 		candidateTag, ok := artifactpath.TagFromHistorySidecar(file.Artifact.RelativePath)
@@ -451,7 +472,7 @@ func findOwnerLedger(ctx context.Context, runtime Runtime, tag string) (FileEntr
 }
 
 // parseOwnerLedger reads and parses one ledger for the owner's current launch.
-func parseOwnerLedger(ctx context.Context, runtime Runtime, ledger Artifact, scopeKey, tag string, agent Agent) (sessionledger.Current, *sessionledger.Current, bool, []Diagnostic, error) {
+func parseOwnerLedger(ctx context.Context, runtime Runtime, ledger Artifact, scopeKey, tag string, agent Agent) (sessionledger.Current, *ResumeTarget, bool, []Diagnostic, error) {
 	// Both the ledger and its launch boundary snapshots grow without a writer
 	// size cap (#508). Keep chunked reads without imposing a reader-only cutoff.
 	raw, err := readJSONLArtifact(runtime, ledger, unlimitedRecordSize)
@@ -473,11 +494,12 @@ func parseOwnerLedger(ctx context.Context, runtime Runtime, ledger Artifact, sco
 	if !ok {
 		return sessionledger.Current{}, nil, false, diagnostics, nil
 	}
-	var previous *sessionledger.Current
+	var previous *ResumeTarget
 	if earlier, found := sessionledger.PreviousEstablished(parsed.Records, sessionledger.Owner{ScopeKey: scopeKey, Tag: tag, Agent: string(agent)}, current.Launch.Ordinal); found {
-		previous = &earlier
+		projection := ResumeTargetForLaunch(earlier)
+		previous = &projection
 	}
-	return current, previous, true, diagnostics, nil
+	return compactOwnerLaunch(current), previous, true, diagnostics, nil
 }
 
 // ResumeTarget is durable requested/observed identity, independent of optional
@@ -518,7 +540,7 @@ func QueryResumeTargetContext(ctx context.Context, runtime Runtime, scopeKey, ta
 		// so resume falls back to that generation. Restart decisions read
 		// ResumeTargetForRuntimeLaunch per launch and are unaffected.
 		if previous != nil {
-			fallback := ResumeTargetForLaunch(*previous)
+			fallback := *previous
 			fallback.FellBackFrom = current.Launch.Ordinal
 			fallback.Diagnostics = result.Diagnostics
 			result = fallback

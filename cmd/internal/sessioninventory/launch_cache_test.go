@@ -219,3 +219,117 @@ func TestOwnerLaunchRepeatedDriftDoesNotPublish(t *testing.T) {
 		t.Fatalf("stable retry=%+v %v", got, err)
 	}
 }
+
+func TestOwnerLaunchIncompleteObservationRequiresFreshRecoveryParse(t *testing.T) {
+	for _, kind := range []string{"list", "partial-list", "missing", "stat"} {
+		t.Run(kind, func(t *testing.T) {
+			rt, ledger := launchCacheFixture()
+			if _, err := sessioninventory.QueryResumeTarget(rt, "scope", "work", sessioninventory.AgentCodex); err != nil {
+				t.Fatal(err)
+			}
+			original, err := rt.StatFile(ledger)
+			if err != nil {
+				t.Fatal(err)
+			}
+			before := rt.decoded.Load()
+			ctx := context.Background()
+			switch kind {
+			case "list":
+				rt.SetError(sessioninventorytest.OperationListFiles, "pair-data", errors.New("EIO"))
+			case "partial-list":
+				rt.SetError(sessioninventorytest.OperationListFiles, "pair-data", &sessioninventory.ListingIssuesError{Artifacts: []sessioninventory.Artifact{{StorageRoot: "pair-data", RelativePath: "unsafe"}}})
+			case "missing":
+				rt.DeleteFile(ledger)
+			case "stat":
+				rt.SetError(sessioninventorytest.OperationStatFile, "pair-data:ledger-work.jsonl", errors.New("EIO"))
+			}
+			_, _ = sessioninventory.QueryResumeTargetContext(ctx, rt, "scope", "work", sessioninventory.AgentCodex)
+			rt.SetError(sessioninventorytest.OperationListFiles, "pair-data", nil)
+			rt.SetError(sessioninventorytest.OperationStatFile, "pair-data:ledger-work.jsonl", nil)
+			if kind == "missing" {
+				rt.PutFile(original, []byte(v1Launch))
+			}
+			afterFailure := rt.decoded.Load()
+			if _, err := sessioninventory.QueryResumeTarget(rt, "scope", "work", sessioninventory.AgentCodex); err != nil {
+				t.Fatal(err)
+			}
+			if rt.decoded.Load() <= afterFailure {
+				t.Fatalf("recovered unchanged metadata reused evidence after %s: before=%d failed=%d final=%d", kind, before, afterFailure, rt.decoded.Load())
+			}
+		})
+	}
+}
+
+type launchWaitingContext struct {
+	context.Context
+	waiting chan struct{}
+	once    sync.Once
+}
+
+func (c *launchWaitingContext) Done() <-chan struct{} {
+	c.once.Do(func() { close(c.waiting) })
+	return c.Context.Done()
+}
+func TestOwnerLaunchCanceledQueuedWaiterDoesNotPoisonLoader(t *testing.T) {
+	rt, _ := launchCacheFixture()
+	entered, release := make(chan struct{}), make(chan struct{})
+	var once sync.Once
+	rt.readHook = func() { once.Do(func() { close(entered); <-release }) }
+	loader := make(chan error, 1)
+	go func() {
+		_, err := sessioninventory.QueryResumeTarget(rt, "scope", "work", sessioninventory.AgentCodex)
+		loader <- err
+	}()
+	<-entered
+	base, cancel := context.WithCancel(context.Background())
+	ctx := &launchWaitingContext{Context: base, waiting: make(chan struct{})}
+	waiter := make(chan error, 1)
+	go func() {
+		_, err := sessioninventory.QueryResumeTargetContext(ctx, rt, "scope", "work", sessioninventory.AgentCodex)
+		waiter <- err
+	}()
+	<-ctx.waiting
+	cancel()
+	if err := <-waiter; !errors.Is(err, context.Canceled) {
+		t.Fatalf("queued waiter=%v", err)
+	}
+	close(release)
+	if err := <-loader; err != nil {
+		t.Fatalf("independent loader poisoned: %v", err)
+	}
+	decoded := rt.decoded.Load()
+	if _, err := sessioninventory.QueryResumeTarget(rt, "scope", "work", sessioninventory.AgentCodex); err != nil {
+		t.Fatal(err)
+	}
+	if rt.decoded.Load() != decoded {
+		t.Fatal("canceling queued waiter discarded independent successful parse")
+	}
+}
+func TestOwnerLaunchIncompleteObservationFencesActiveLoader(t *testing.T) {
+	rt, _ := launchCacheFixture()
+	entered, release := make(chan struct{}), make(chan struct{})
+	var once sync.Once
+	rt.readHook = func() { once.Do(func() { close(entered); <-release }) }
+	loader := make(chan error, 1)
+	go func() {
+		_, err := sessioninventory.QueryResumeTarget(rt, "scope", "work", sessioninventory.AgentCodex)
+		loader <- err
+	}()
+	<-entered
+	rt.SetError(sessioninventorytest.OperationListFiles, "pair-data", errors.New("EIO"))
+	if _, err := sessioninventory.QueryResumeTarget(rt, "scope", "work", sessioninventory.AgentCodex); err == nil {
+		t.Fatal("listing error missing")
+	}
+	rt.SetError(sessioninventorytest.OperationListFiles, "pair-data", nil)
+	close(release)
+	if err := <-loader; !errors.Is(err, sessioninventory.ErrArtifactChanged) {
+		t.Fatalf("late load escaped invalidation: %v", err)
+	}
+	decoded := rt.decoded.Load()
+	if _, err := sessioninventory.QueryResumeTarget(rt, "scope", "work", sessioninventory.AgentCodex); err != nil {
+		t.Fatal(err)
+	}
+	if rt.decoded.Load() <= decoded {
+		t.Fatal("late loader republished invalidated evidence")
+	}
+}

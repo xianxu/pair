@@ -150,6 +150,9 @@ func (c *ActivityCache) Query(ctx context.Context, rt Runtime, scope, tag string
 		return slot.evidence.activity, slot.evidence.present, nil
 	}
 	if err := ctx.Err(); err != nil {
+		if slot != nil {
+			slot.phase = advanceActivityCache(slot.phase, activityDiscard)
+		}
 		return SessionActivity{}, false, err
 	}
 	if slot != nil {
@@ -187,7 +190,7 @@ func (c *ActivityCache) Query(ctx context.Context, rt Runtime, scope, tag string
 		}
 		var queryRuntime Runtime = tracker
 		if advancer, ok := rt.(SessionCatalogAdvancer); ok {
-			queryRuntime = &activityCatalogRuntime{activityObservedRuntime: tracker, advancer: advancer}
+			queryRuntime = &activityCatalogRuntime{activityObservedRuntime: tracker, advancer: advancer, catalogPresent: present}
 		}
 		q, queryErr := QuerySessionContext(ctx, queryRuntime, scope, tag, agent)
 		if queryErr != nil {
@@ -205,6 +208,14 @@ func (c *ActivityCache) Query(ctx context.Context, rt Runtime, scope, tag string
 				activityErr = ctx.Err()
 			}
 			return SessionActivity{}, false, activityErr
+		}
+		// Optional catalog/native failures may still leave an independently valid
+		// fallback. Return that result, but never retain incomplete observations.
+		if tracker.incomplete {
+			if slot != nil {
+				slot.phase = advanceActivityCache(slot.phase, activityDiscard)
+			}
+			return activity, found, nil
 		}
 		evidence := activityEvidence{files: tracker.files, listings: tracker.listings, catalog: catalog, catalogPresent: present, activity: activity, present: found}
 		// A successful query may publish catalog advancement itself. Retry with that
@@ -309,16 +320,17 @@ func activityArtifactKey(a Artifact) Artifact {
 // read supplies its dependency, and do not make unrelated logs invalidate it.
 type activityObservedRuntime struct {
 	Runtime
-	files    map[Artifact]activityDependency
-	listings []activityListing
-	changed  bool
+	files      map[Artifact]activityDependency
+	listings   []activityListing
+	changed    bool
+	incomplete bool
 }
 
 func (r *activityObservedRuntime) observe(a Artifact, entry FileEntry, err error) {
 	a = activityArtifactKey(a)
 	d := activityDependency{artifact: a, present: err == nil}
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		r.changed = true
+		r.incomplete = true
 		return
 	}
 	if err == nil {
@@ -337,17 +349,26 @@ func (r *activityObservedRuntime) StatFile(a Artifact) (FileEntry, error) {
 func (r *activityObservedRuntime) ReadAt(a Artifact, offset, limit int64) ([]byte, bool, error) {
 	_, _ = r.StatFile(a)
 	b, e, err := r.Runtime.ReadAt(a, offset, limit)
+	if err != nil {
+		r.incomplete = true
+	}
 	_, _ = r.StatFile(a)
 	return b, e, err
 }
 func (r *activityObservedRuntime) ReadFile(a Artifact, limit int64) ([]byte, error) {
 	_, _ = r.StatFile(a)
 	b, err := r.Runtime.ReadFile(a, limit)
+	if err != nil {
+		r.incomplete = true
+	}
 	_, _ = r.StatFile(a)
 	return b, err
 }
 func (r *activityObservedRuntime) ListFiles(root StorageRoot) ([]FileEntry, error) {
 	entries, err := r.Runtime.ListFiles(root)
+	if err != nil {
+		r.incomplete = true
+	}
 	if root.Name != r.PairDataRoot().Name {
 		if err != nil {
 			r.changed = true
@@ -372,12 +393,21 @@ func (r *activityObservedRuntime) DecodeWork(a Artifact, n int64) {
 
 type activityCatalogRuntime struct {
 	*activityObservedRuntime
-	advancer SessionCatalogAdvancer
+	advancer       SessionCatalogAdvancer
+	catalogPresent bool
 }
 
 func (r *activityCatalogRuntime) LoadSessionInventoryCatalog() (Catalog, error) {
-	return r.advancer.LoadSessionInventoryCatalog()
+	catalog, err := r.advancer.LoadSessionInventoryCatalog()
+	if err != nil && (r.catalogPresent || !errors.Is(err, os.ErrNotExist)) {
+		r.incomplete = true
+	}
+	return catalog, err
 }
 func (r *activityCatalogRuntime) PublishSessionInventoryValidations(v []TargetValidation) error {
-	return r.advancer.PublishSessionInventoryValidations(v)
+	err := r.advancer.PublishSessionInventoryValidations(v)
+	if err != nil {
+		r.incomplete = true
+	}
+	return err
 }

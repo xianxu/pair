@@ -184,20 +184,17 @@ func TestSessionNameIndexCacheWaiterCancellationAndSingleFlight(t *testing.T) {
 	}
 	entered, release := make(chan struct{}), make(chan struct{})
 	var calls atomic.Int32
-	waiterObserved := make(chan struct{}, 1)
-	var stats atomic.Int32
-	c := NewSessionNameIndexCacheWithIO(SessionNameIndexCacheIO{Stat: func(p string) (os.FileInfo, error) {
-		if stats.Add(1) == 2 {
-			waiterObserved <- struct{}{}
-		}
-		return os.Lstat(p)
-	}, ReadFile: func(p string) ([]byte, error) { calls.Add(1); close(entered); <-release; return os.ReadFile(p) }})
+	waiterObserved := make(chan struct{})
+	c := NewSessionNameIndexCacheWithIO(SessionNameIndexCacheIO{ReadFile: func(p string) ([]byte, error) { calls.Add(1); close(entered); <-release; return os.ReadFile(p) }})
 	first := make(chan error, 1)
 	go func() { _, e := c.Read(context.Background(), dir, dir); first <- e }()
 	<-entered
 	ctx, cancel := context.WithCancel(context.Background())
 	second := make(chan error, 1)
-	go func() { _, e := c.Read(ctx, dir, dir); second <- e }()
+	go func() {
+		_, e := c.Read(&indexWaitContext{Context: ctx, observed: waiterObserved}, dir, dir)
+		second <- e
+	}()
 	<-waiterObserved
 	cancel()
 	if e := <-second; !errors.Is(e, context.Canceled) {
@@ -288,4 +285,162 @@ func TestSessionNameIndexCacheCanceledLoadDoesNotPublish(t *testing.T) {
 	if calls != 2 {
 		t.Fatal("canceled read cached")
 	}
+}
+
+// A failed parallel observation fences a load even if the file recovers with
+// exactly its earlier fingerprint before the older reader finishes.
+func TestSessionNameIndexCacheIncompleteObservationFencesLoading(t *testing.T) {
+	for _, failure := range []string{"permission", "absent", "nonregular", "canceled-stat"} {
+		t.Run(failure, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "session-names.jsonl")
+			raw := []byte(cacheIndexLine("first"))
+			if e := os.WriteFile(path, raw, 0600); e != nil {
+				t.Fatal(e)
+			}
+			var mode atomic.Bool
+			var reads, decodes atomic.Int32
+			entered, release := make(chan struct{}), make(chan struct{})
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			c := NewSessionNameIndexCacheWithIO(SessionNameIndexCacheIO{Stat: func(p string) (os.FileInfo, error) {
+				if mode.Load() {
+					switch failure {
+					case "permission":
+						return nil, os.ErrPermission
+					case "absent":
+						return nil, os.ErrNotExist
+					case "nonregular":
+						return os.Lstat(dir)
+					case "canceled-stat":
+						cancel()
+					}
+				}
+				return os.Lstat(p)
+			}, ReadFile: func(p string) ([]byte, error) {
+				b, e := os.ReadFile(p)
+				if reads.Add(1) == 1 {
+					close(entered)
+					<-release
+				}
+				return b, e
+			}, Decode: func(s string) (SessionNameIndex, error) { decodes.Add(1); return DecodeSessionNameIndex(s) }})
+			first := make(chan error, 1)
+			go func() { _, e := c.Read(context.Background(), dir, dir); first <- e }()
+			<-entered
+			mode.Store(true)
+			_, failed := c.Read(ctx, dir, dir)
+			if failure != "absent" && failed == nil {
+				t.Fatal("incomplete observation unexpectedly succeeded")
+			}
+			mode.Store(false)
+			close(release)
+			if e := <-first; e == nil {
+				t.Fatal("older load survived incomplete observation")
+			}
+			beforeRead, beforeDecode := reads.Load(), decodes.Load()
+			if _, e := c.Read(context.Background(), dir, dir); e != nil {
+				t.Fatal(e)
+			}
+			if reads.Load() != beforeRead+1 || decodes.Load() != beforeDecode+1 {
+				t.Fatalf("recovery reused incomplete evidence: reads=%d decodes=%d", reads.Load()-beforeRead, decodes.Load()-beforeDecode)
+			}
+			beforeRead, beforeDecode = reads.Load(), decodes.Load()
+			if _, e := c.Read(context.Background(), dir, dir); e != nil {
+				t.Fatal(e)
+			}
+			if reads.Load() != beforeRead || decodes.Load() != beforeDecode {
+				t.Fatal("successful recovery did not warm")
+			}
+		})
+	}
+}
+
+func TestSessionNameIndexCacheFailedLoadRequiresFreshUnchangedRecovery(t *testing.T) {
+	for _, stage := range []string{"read-error", "decode-error", "cancel-read", "cancel-decode", "cancel-poststat"} {
+		t.Run(stage, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "session-names.jsonl")
+			if e := os.WriteFile(path, []byte(cacheIndexLine("first")), 0600); e != nil {
+				t.Fatal(e)
+			}
+			failStat, failLoad := false, false
+			reads, decodes, loadStats := 0, 0, 0
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			c := NewSessionNameIndexCacheWithIO(SessionNameIndexCacheIO{Stat: func(p string) (os.FileInfo, error) {
+				if failStat {
+					return nil, os.ErrPermission
+				}
+				if failLoad {
+					loadStats++
+					if stage == "cancel-poststat" && loadStats == 2 {
+						cancel()
+					}
+				}
+				return os.Lstat(p)
+			}, ReadFile: func(p string) ([]byte, error) {
+				reads++
+				if failLoad {
+					switch stage {
+					case "read-error":
+						return nil, os.ErrPermission
+					case "cancel-read":
+						cancel()
+					}
+				}
+				return os.ReadFile(p)
+			}, Decode: func(s string) (SessionNameIndex, error) {
+				decodes++
+				if failLoad {
+					switch stage {
+					case "decode-error":
+						return SessionNameIndex{}, errors.New("injected strict decode failure")
+					case "cancel-decode":
+						cancel()
+					}
+				}
+				return DecodeSessionNameIndex(s)
+			}})
+			if _, e := c.Read(context.Background(), dir, dir); e != nil {
+				t.Fatal(e)
+			}
+			failStat = true
+			if _, e := c.Read(context.Background(), dir, dir); e == nil {
+				t.Fatal("failed stat accepted")
+			}
+			failStat = false
+			failLoad = true
+			if _, e := c.Read(ctx, dir, dir); e == nil {
+				t.Fatal("failed load accepted")
+			}
+			failLoad = false
+			beforeRead, beforeDecode := reads, decodes
+			if _, e := c.Read(context.Background(), dir, dir); e != nil {
+				t.Fatal(e)
+			}
+			if reads != beforeRead+1 || decodes != beforeDecode+1 {
+				t.Fatalf("unchanged recovery reused earlier evidence: reads=%d decode=%d", reads-beforeRead, decodes-beforeDecode)
+			}
+			beforeRead, beforeDecode = reads, decodes
+			if _, e := c.Read(context.Background(), dir, dir); e != nil {
+				t.Fatal(e)
+			}
+			if reads != beforeRead || decodes != beforeDecode {
+				t.Fatal("fresh recovery not cached")
+			}
+		})
+	}
+}
+
+// Done is only observed at the cache wait select, after source stat completed.
+type indexWaitContext struct {
+	context.Context
+	observed chan struct{}
+	once     sync.Once
+}
+
+func (c *indexWaitContext) Done() <-chan struct{} {
+	c.once.Do(func() { close(c.observed) })
+	return c.Context.Done()
 }

@@ -13,7 +13,7 @@ import (
 type OwnerLaunchCache struct {
 	mu      sync.Mutex
 	entries map[ownerLaunchKey]ownerLaunchEntry
-	loading map[ownerLaunchKey]chan struct{}
+	loading map[ownerLaunchKey]*ownerLaunchLoad
 	clock   uint64
 }
 
@@ -31,30 +31,78 @@ type ownerLaunchKey struct {
 type ownerLaunchEntry struct {
 	fingerprint ArtifactFingerprint
 	current     sessionledger.Current
-	previous    *sessionledger.Current
+	previous    *ResumeTarget
 	ok          bool
 	diagnostics []Diagnostic
 	used        uint64
 }
 
+// compactOwnerLaunch keeps just the fields consumed by owner queries. The
+// singular binding proof remains activity authority; launch baselines and
+// conflicting binding payloads have no role after the strict reducer runs.
+func compactOwnerLaunch(current sessionledger.Current) sessionledger.Current {
+	launch := current.Launch
+	current.Launch = sessionledger.Record{Ordinal: launch.Ordinal, Agent: launch.Agent, RequestedNativeID: launch.RequestedNativeID, RequestOrigin: launch.RequestOrigin}
+	current.Bindings = nil
+	if current.Binding != nil {
+		binding := current.Binding
+		current.Binding = &sessionledger.Record{Version: binding.Version, RootNativeID: binding.RootNativeID, AuthorizationProof: binding.AuthorizationProof}
+	}
+	return current
+}
 func cloneLaunch(current sessionledger.Current) sessionledger.Current {
 	if current.Binding != nil {
 		binding := *current.Binding
 		current.Binding = &binding
 	}
-	current.Bindings = append([]sessionledger.Record(nil), current.Bindings...)
 	return current
 }
-
-// A Record's nested evidence is immutable, as it is for parsed ledger readers.
-// Copy the mutable projection containers so answers cannot mutate cache state.
-func (e ownerLaunchEntry) answer() (sessionledger.Current, *sessionledger.Current, []Diagnostic) {
-	var previous *sessionledger.Current
+func (e ownerLaunchEntry) answer() (sessionledger.Current, *ResumeTarget, []Diagnostic) {
+	var previous *ResumeTarget
 	if e.previous != nil {
-		copy := cloneLaunch(*e.previous)
+		copy := *e.previous
 		previous = &copy
 	}
 	return cloneLaunch(e.current), previous, append([]Diagnostic(nil), e.diagnostics...)
+}
+
+type ownerLaunchLoad struct {
+	done    chan struct{}
+	invalid bool
+}
+
+// invalidateOwner also fences loads started before an actual incomplete source
+// observation. An independently canceled waiter does not call this method.
+func (c *OwnerLaunchCache) invalidateOwner(root, scope, tag string, agent Agent, fenceLoads bool) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	matches := func(k ownerLaunchKey) bool {
+		return k.rootPath == root && k.scopeKey == scope && k.tag == tag && k.agent == agent
+	}
+	for k := range c.entries {
+		if matches(k) {
+			delete(c.entries, k)
+		}
+	}
+	for k, load := range c.loading {
+		if fenceLoads && matches(k) {
+			load.invalid = true
+		}
+	}
+}
+func (c *OwnerLaunchCache) invalidateLoad(key ownerLaunchKey, load *ownerLaunchLoad) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.entries, key)
+	if c.loading[key] == load && load != nil {
+		load.invalid = true
+	}
 }
 
 func NewOwnerLaunchCache() *OwnerLaunchCache { return &OwnerLaunchCache{} }
@@ -68,30 +116,30 @@ func ownerLaunchCacheOf(runtime Runtime) *OwnerLaunchCache {
 // enter serializes just one owner's cold reads. Waiters can cancel and unrelated
 // owners run independently. Rechecking metadata after entry prevents a waiter
 // from using the fingerprint it observed before waiting.
-func (c *OwnerLaunchCache) enter(ctx context.Context, key ownerLaunchKey) (func(), error) {
+func (c *OwnerLaunchCache) enter(ctx context.Context, key ownerLaunchKey) (func(), *ownerLaunchLoad, error) {
 	if c == nil {
-		return func() {}, ctx.Err()
+		return func() {}, nil, ctx.Err()
 	}
 	for {
 		if err := ctx.Err(); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		c.mu.Lock()
 		if c.loading == nil {
-			c.loading = make(map[ownerLaunchKey]chan struct{})
+			c.loading = make(map[ownerLaunchKey]*ownerLaunchLoad)
 		}
 		wait, busy := c.loading[key]
 		if !busy {
-			done := make(chan struct{})
-			c.loading[key] = done
+			load := &ownerLaunchLoad{done: make(chan struct{})}
+			c.loading[key] = load
 			c.mu.Unlock()
-			return func() { c.mu.Lock(); delete(c.loading, key); close(done); c.mu.Unlock() }, nil
+			return func() { c.mu.Lock(); delete(c.loading, key); close(load.done); c.mu.Unlock() }, load, nil
 		}
 		c.mu.Unlock()
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-wait:
+			return nil, nil, ctx.Err()
+		case <-wait.done:
 		}
 	}
 }
@@ -115,12 +163,15 @@ func (c *OwnerLaunchCache) get(key ownerLaunchKey, fingerprint ArtifactFingerpri
 	c.entries[key] = entry
 	return entry, true
 }
-func (c *OwnerLaunchCache) put(key ownerLaunchKey, entry ownerLaunchEntry) {
+func (c *OwnerLaunchCache) put(key ownerLaunchKey, load *ownerLaunchLoad, entry ownerLaunchEntry) bool {
 	if c == nil {
-		return
+		return true
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if load == nil || c.loading[key] != load || load.invalid {
+		return false
+	}
 	if c.entries == nil {
 		c.entries = make(map[ownerLaunchKey]ownerLaunchEntry)
 	}
@@ -140,4 +191,5 @@ func (c *OwnerLaunchCache) put(key ownerLaunchKey, entry ownerLaunchEntry) {
 	c.clock++
 	entry.used = c.clock
 	c.entries[key] = entry
+	return true
 }

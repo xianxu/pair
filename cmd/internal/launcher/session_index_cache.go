@@ -25,12 +25,12 @@ type indexCacheState struct {
 	ready      bool
 }
 type indexCacheEvent struct {
-	begin, commit bool
-	generation    uint64
+	begin, commit, invalidate bool
+	generation                uint64
 }
 
 func advanceIndexCache(s indexCacheState, e indexCacheEvent) indexCacheState {
-	if e.begin {
+	if e.begin || e.invalidate {
 		return indexCacheState{generation: s.generation + 1}
 	}
 	if e.commit && e.generation == s.generation {
@@ -149,13 +149,16 @@ func (c *SessionNameIndexCache) readOne(ctx context.Context, path string) (Sessi
 		}
 		fp, err := c.fingerprint(path)
 		if canceled := ctx.Err(); canceled != nil {
-			return SessionNameIndex{}, canceled
+			err = canceled
 		}
 		c.mu.Lock()
 		entry := c.entries[path]
 		if err != nil {
-			if entry != nil && entry.loading == nil {
-				delete(c.entries, path)
+			if entry != nil {
+				entry.state = advanceIndexCache(entry.state, indexCacheEvent{invalidate: true})
+				if entry.loading == nil {
+					delete(c.entries, path)
+				}
 			}
 			c.mu.Unlock()
 			return SessionNameIndex{}, err
@@ -202,6 +205,10 @@ func (c *SessionNameIndexCache) readOne(ctx context.Context, path string) (Sessi
 		c.mu.Unlock()
 		index, stamp, loadErr := c.load(ctx, path, fp)
 		c.mu.Lock()
+		if entry.state.generation != token {
+			loadErr = errors.New("session-name index observation superseded by an incomplete observation")
+			index = SessionNameIndex{}
+		}
 		if loadErr == nil && ctx.Err() == nil && c.entries[path] == entry {
 			entry.state = advanceIndexCache(entry.state, indexCacheEvent{commit: true, generation: token})
 			entry.fingerprint = stamp

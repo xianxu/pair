@@ -143,3 +143,23 @@ No new test-case inventory or extra review boundary is introduced. Pure transiti
 ### 2026-10-14 — local verification and acceptance accounting
 
 Task ticks record implemented work, first passing complete suite and submitted rollout-coordination request; they do not assert the future gate actions in those paragraphs have completed. Mandatory close review now runs; exact-head landing suite is queued. Live acceptance and landing remain pending hub/gate outcomes and will be recorded in the issue Log before shipping. No operator action is inferred from elapsed time.
+
+### 2026-10-14 — close-review BR-1/BR-2/BR-3 corrections
+
+Reason: close review found incomplete observations reusable after unchanged recovery, unnecessarily retained historical proof/boundary payloads, and activity ordering tests that did not exercise their claimed interleavings. Reopen local verification and acceptance until corrections and final gates pass; prior ticks are historical implementation checkpoints, not a SHIP claim.
+
+- Every actual incomplete index/owner observation invalidates ready evidence and fences older active publication. Canceled waiters without source observations cannot cancel independent loaders. A successful activity fallback after a catalog read/write failure remains valid for that call but is never published to the cache; read/stat/list failures are recorded by its observation adapter too. Unchanged recovery must perform fresh content work.
+- Previous-established evidence becomes a compact ResumeTarget. Current launch keeps only ordinal/agent/requested identity/origin; singular binding keeps version/root and the authorization proof required by activity validation. Launch baseline arrays, watermarks and duplicate/conflicting binding payloads are discarded after the strict reducer. A substantive valid boundary/proof fixture measures retained projection bytes; whitespace-only scale tests are insufficient evidence for retention.
+- Activity tests queue a live-context waiter behind a blocked loader before canceling; separately cancel the active loader, replace a dependency during a blocked load, and force drift across both bounded attempts. No canceled/stale load may publish; recovery starts fresh. Counterfactual guard removal must fail these contracts.
+
+| Core concept | Kind | Status | Concrete implementation |
+|---|---|---|---|
+| Index state/publication epoch | PURE | modified | launcher/session_index_cache.go: advanceIndexCache |
+| Index strict observation shell | INTEGRATION | modified | launcher/session_index_cache.go: SessionNameIndexCache.Read |
+| Compact owner launch/fallback projection | PURE | modified | sessioninventory/launch_cache.go: compactOwnerLaunch; query.go: ResumeTargetForLaunch |
+| Owner source/load invalidation | INTEGRATION | modified | sessioninventory/launch_cache.go: invalidateOwner/invalidateLoad; query.go: readOwnerLaunch |
+| Activity phase/dependency equality | PURE | new | sessioninventory/activity_cache.go: advanceActivityCache/activityDependenciesMatch |
+| Activity complete-observation publication | INTEGRATION | modified | sessioninventory/activity_cache.go: ActivityCache.Query/activityObservedRuntime/activityCatalogRuntime |
+
+- [ ] Verify all review corrections with targeted race tests, both named scale invariants, final full suite and fresh close review.
+- [ ] Record hub rollout/live acceptance decision before landing.

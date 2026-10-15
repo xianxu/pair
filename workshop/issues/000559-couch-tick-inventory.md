@@ -67,7 +67,7 @@ Rows map to issue/spec, session-name cache, activity cache, ledger reuse, messag
 - [x] Add regression fixtures and capture uncached read/allocation profile.
 - [x] Cache strict session-name evidence and share existing ledger parsing across long-lived collision queries.
 - [x] Reuse validated activity projection while its exact dependencies are unchanged; retain changed-input validation.
-- [x] Verify invalidation/races/scale, document cache ownership, run full suite, review, and coordinate acceptance/landing.
+- [ ] Verify invalidation/races/scale, document cache ownership, run full suite, review, and coordinate acceptance/landing.
 
 ## Log
 
@@ -98,3 +98,10 @@ Before/after CPU profiles captured for the synthetic20-slot benchmark with phase
 Added missing-ledger→created-ledger activity invalidation regression; passed. Removed redundant direct index-ready mutation after failed load: begin transition already marks the entry unready, so the pure transition remains the sole state writer. Existing strict-load/race tests cover failure publication.
 
 First complete full suite PASSED: bfc7f564aed9e90492dbe49526034fe157699344, make test exit0 in12m4s, recorded sdlc-local/suite, log sha256 prefix8a9878f379f2. No failures or skipped remainder. Subsequent production delta is only collision inventory runtime shared-cache/observer wiring, covered by both core cache integration tests under -race; latest index change removes redundant state assignment and its targeted race passed. Exact-head required suite on eaa222a565b6f1532489111402d0e577b7dc6be7 is queued, and merge cannot proceed without its recorded pass. Close review is local code acceptance, not live rollout acceptance. Hub received the rollout scheduling request (receipt ef32b236-d530-4b36-bc6a-c2be19f4d9d0 submitted); live CPU/delivery acceptance or explicit alternate decision is still pending, and no stage/restart was performed. The final issue Plan row records verification plus initiated acceptance coordination; landing remains governed by close/CI/suite/live gates below, not claimed done by that tick.
+
+
+### 2026-10-14 — close-review corrections in progress
+
+Close returned REWORK with BR-1 incomplete-observation invalidation, BR-2 compact historical payload retention, and BR-3 activity temporal regression coverage. Accepted all three; implementation/verification revised in the durable plan, final verification row reopened. The index regression reproduced all four failed-fingerprint interleavings; ledger failure/recovery controls reproduced stale reuse and its substantive boundary/proof fixture demonstrated unnecessary retention. Activity catalog-read failure reproduced a reusable fallback; fallback now remains uncached after incomplete catalog read/write observation. Final suite/review and hub acceptance remain pending.
+
+Review corrections targeted verification: launcher/inventory/threadactivity package run exposed a cold-start regression in the new failure tracker: initial absent catalog is a complete observed absence, not a failed observation. Corrected that distinction; disappearance from a previously present catalog remains incomplete. Both permission and transient missing-catalog recovery tests pass. Updated threadactivity scale/allocation tests pass19.715s; integrated launcher/inventory/core cache race tests pass5.327s/2.160s/1.588s. Activity race tests pass1.310s. Subagent temporal tests pass20race repetitions; mutation guard counterfactuals fail as intended. Ledger substantive valid fixture906,502bytes retains615encoded bytes; current required proof preserved. Final full suite and close review still pending.
