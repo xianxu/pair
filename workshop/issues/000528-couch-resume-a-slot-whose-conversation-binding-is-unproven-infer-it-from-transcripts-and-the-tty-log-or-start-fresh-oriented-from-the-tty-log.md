@@ -1054,3 +1054,10 @@ No follow-up implementation starts on this branch.
   while the reader treats existence as complete publication. Plan Revision
   records atomic fixture publication correction; runtime stays unchanged. The
   suite continues other packages; this run is not a pass.
+
+- Ready-publication root cause verified: disposable Go overlay stretches the
+  existing empty-file window100ms, reproducing unexpected end of JSON input
+  deterministically (RED0.712s). The child now publishes Ready with the existing
+  osfs atomic writer; no reader retry/deadline expansion. Same stateful reconnect
+  test ten repetitions PASS16.546s. Only test import/publication line changed;
+  runtime remains the M1-reviewed db08fb647. Final recorded suite rerun required.

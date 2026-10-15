@@ -15,6 +15,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/osfs"
 	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
@@ -108,7 +109,7 @@ func TestMessageUnfocusedWrapperProcess(t *testing.T) {
 	}
 	defer server.Close()
 	encoded, _ := json.Marshal(b)
-	if err := os.WriteFile(config.Ready, encoded, 0600); err != nil {
+	if err := (osfs.FS{}).WriteAtomic(config.Ready, string(encoded)); err != nil {
 		t.Fatal(err)
 	}
 	client := couchmessage.NewSessionClient()

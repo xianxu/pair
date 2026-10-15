@@ -1808,3 +1808,8 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
   conversations; a selected attach must not run migration or orphan cleanup.
   Include write-only opens in FIFO probes: opening a draft for writing can
   block just as a ReadFile can.
+
+- #528 final suite: A subprocess readiness file is a publication boundary, not
+  merely a pathname. Use the existing atomic writer so a successful read cannot
+  see the creation/truncation window. Reproduce scheduling races by stretching
+  that window in an overlay; do not hide them with more reader polling.
