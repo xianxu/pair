@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-15
 updated: 2026-10-15
-estimate_hours:
-card_mirror: 'be7948584baebe10fe2a8039655fc41b89c6acdb' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 1.704
+card_mirror: '3a06369e2a8eaecda421654c9bc1535050e6be49' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-15T10:56:32-07:00
 claimant:
     operator: Xian Xu
@@ -15,6 +15,7 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # Agentic documents: Couch registry so session-sync verbs work for any submitted file (universal-agent-input-interface S1, Couch side)
@@ -60,3 +61,24 @@ Detailed implementation plan: [agentic document registry](../plans/000573-agenti
 Claimed on TL dispatch; read ops project's project.md and design.md before design. Scope is S1 Couch only; TL owns the project file. Sent proposed contract to parley.nvim:2, confirmed submitted, and received its integration requirements (read-only membership, canonical missing-old rename paths, explicit partial-effect outcomes). Existing ledger and CAS are reused (ARCH-DRY); stable document identity keeps rename from losing shadow/folds or old-path submits (ARCH-ORDER). Read-only design exploration independently confirmed these integration points. Concrete plan pending hub approval; implementation has not started. start-plan's attempted weave refresh refused due to the preserved unrelated untracked pensive; it explicitly admitted planning on the existing substrate, with ariadne #385/#386 in flight.
 
 TL approved the concrete plan, with 4096 registrations / 16 MiB registry and explicit forget advice on overflow. No :0 staging for #573: land independently, TL rebuilds, and the combined plain-note live check follows parley.nvim#332 staging and operator restarts. Await Parley contract agreement before implementing the public verbs. Full flow is selected for the planned code volume; no estimate derived before plan-quality.
+
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. Calibration source is flagged stale by sdlc, so the result is provisional.
+
+Registry model/store is one greenfield Go concern: base design 2h, halved for existing durablefile/flock/ledger libraries then ×0.2 for the approved concrete plan = 0.2h; implementation 0.7h ×0.4 = 0.28h. Three existing-module extensions cover resolution/CAS, historical owed matching/handoff, and CLI: each base design 0.2h ×0.2 = 0.04h, impl 0.4h ×0.4 = 0.16h. Issue/spec work uses 1h ×0.2 design and 0.2h ×0.4 implementation. Docs use 0.1h ×0.2 design and 0.15h ×0.4 implementation; one review uses 0.1h ×0.2 design and 0.4h ×0.4 implementation. Familiar filesystem/Go stack = 1.0. Thorough-plan design buffer = 15%; Parley implementation and operator live-check time are outside this issue's build scope. Approximate primitive range 1.0–2.1h, selected 1.704h (0.56×1.15 + 1.06).
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.20 impl=0.08
+item: greenfield-go-module design=0.20 impl=0.28
+item: smaller-go-module design=0.04 impl=0.16
+item: smaller-go-module design=0.04 impl=0.16
+item: smaller-go-module design=0.04 impl=0.16
+item: atlas-docs design=0.02 impl=0.06
+item: milestone-review design=0.02 impl=0.16
+design-buffer: 0.15
+total: 1.704
+```
