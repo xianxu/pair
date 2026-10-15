@@ -167,3 +167,48 @@ func TestGroupedMalformedTargetUsesOnlyNativeRouting(t *testing.T) {
 		t.Fatalf("malformed addressless target dispatched: %+v", effects)
 	}
 }
+
+func TestMenuRecoveryNeedsAnExactNativeAddressOrValidatedSlot(t *testing.T) {
+	for _, tc := range []struct {
+		name              string
+		mutate            func(*couchcore.ActionableThreadSummary)
+		wantPath, wantTag string
+		refused           bool
+	}{
+		{name: "recordless-slot", wantPath: "/workspace/worktree/pair-slot1/pair"},
+		{name: "malformed-addressless", mutate: func(row *couchcore.ActionableThreadSummary) { row.Target.Address = menuAddress("contradictory") }, refused: true},
+		{name: "scope-only", mutate: func(row *couchcore.ActionableThreadSummary) {
+			row.Target = couchcore.ThreadTarget{}
+			row.Address.RepoScope = "scope"
+		}, refused: true},
+		{name: "tag-only", mutate: func(row *couchcore.ActionableThreadSummary) {
+			row.Target = couchcore.ThreadTarget{}
+			row.Address.Tag = "native"
+		}, refused: true},
+		{name: "malformed-slot-with-exact-native", mutate: func(row *couchcore.ActionableThreadSummary) {
+			row.Target.Slot.Number = -1
+			row.Address = menuAddress("native")
+		}, wantTag: "native"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			row := groupedRow("/workspace/pair", 1, "")
+			if tc.mutate != nil {
+				tc.mutate(&row)
+			}
+			for _, operation := range []string{"resume", "reboot"} {
+				state := NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
+				// Exercise the routing boundary itself as well as ingestion above.
+				next, effects := dispatchMenuRow(state, operation, row)
+				if tc.refused {
+					if len(effects) != 0 || next.InFlight.Operation != "" || next.Notice.Level != MenuNoticeError {
+						t.Fatalf("%s guessed a target: %+v", operation, effects)
+					}
+					continue
+				}
+				if len(effects) != 1 || effects[0].Operation != operation || effects[0].Args["path"] != tc.wantPath || effects[0].Args["tag"] != tc.wantTag {
+					t.Fatalf("%s routing: %+v", operation, effects)
+				}
+			}
+		})
+	}
+}

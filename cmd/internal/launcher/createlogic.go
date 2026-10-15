@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-
-	"github.com/xianxu/pair/cmd/internal/resumeform"
 )
 
 // Pure create-flow logic behind RunLaunch's create path (#99 M2, ported from
@@ -49,28 +47,13 @@ func buildConfigJSON(agent string, args []string, sid string) (string, error) {
 	return buf.String(), nil
 }
 
-// extractExplicitResume returns the session id an explicit resume token on argv
-// pins, or "" if none. The per-agent spellings live in one table
-// (resumeform.Forms) shared with the strip sites and the fresh-arg validator
-// (BR-15); codex and muse resume via a leading `resume <id>` subcommand
-// instead. Drives both the tag-restart picker gate (a passed-in resume leaves
-// the picker nothing to offer) and the pre-write of config-<tag>-<agent>.json
-// so the id is captured from the start.
+// extractExplicitResume returns only an explicit existing-conversation ID.
+// The shared selector parser distinguishes latest, picker, forks and newly
+// chosen IDs; in particular --last is never captured as a native ID.
 func extractExplicitResume(agent string, args []string) string {
-	if id := resumeform.Extract(agent, args); id != "" {
-		return id
-	}
-	if agent == "codex" || agent == "muse" {
-		if i := codexResumeCommandIndex(args); i >= 0 {
-			return args[i+1]
-		}
-		// Muse uses the same `resume <id>` shape but has different global
-		// options than codex; the codex index may miss a `muse --model x
-		// resume <id>` placement. Fall back to a simple leading check which
-		// also covers the canonical `composeResumeArgs` placement at args[0].
-		if len(args) >= 2 && args[0] == "resume" && args[1] != "" {
-			return args[1]
-		}
+	selector, err := ParseNativeResumeSelector(agent, args)
+	if err == nil && selector.Kind == NativeResumeExplicit {
+		return selector.NativeID
 	}
 	return ""
 }

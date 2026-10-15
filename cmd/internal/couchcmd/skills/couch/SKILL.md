@@ -67,7 +67,7 @@ queue, or cross-supervisor delivery.
 
 - **light:** `--notify`, `--help`, `--skill`, `--actors`, `--send-to`, `--message-status`, `--operation-status`, `--peek` (its --transcripts option costs seconds), `--broadcast-list`, `--session-sync`, `--archived`, `--adopt-store`, `--broadcast-web-query`, `--broadcast-web-submit`, `--broadcast-web-replay` (then serves until stopped)
 - **seconds:** `--keys`, `--set-model`, `--resume-candidates`, `--move-slot`, `--list`, `--show`, `--reconcile`, `--reap`, `--broadcast-web-fidelity` (a headless Chrome)
-- **heavy:** `couch` (launch), `--recover-plan-from-sdlc`, `--resume`, `--reboot`, `--relaunch`, `--reload-context`, `--prepare`, `--recover`, `--switch-agent`
+- **heavy:** `couch` (launch), `--recover-plan-from-sdlc`, `--resume`, `--reboot`, `--relaunch`, `--reload-context`, `--prepare`, `--recover`, `--switch-agent`, `--recovery-confirmation`
 
 Cost: light is under a second, seconds is a few seconds, heavy is tens of
 seconds of CPU (it stops or boots agents, or runs sdlc across the fleet);
@@ -432,12 +432,11 @@ couch --reload-context pair:3 --confirm
   the current binary, keeping the conversation. **`--reload-context`** is
   Shift+Alt+N: a fresh agent conversation in the same Pair, with no new
   binary. Both work only from a live Couch slot and return a receipt.
-- **`--reboot` on a live slot** (pair#456) is the way out when relaunch
-  refuses `resume-binding-unbound` or `resume-binding-provisional` (a session
-  that never finished a turn, or an old-wrapper Codex slot): it stops the slot
-  and starts a fresh agent on the current binary, discarding the conversation.
-  It shares relaunch's `busy`/`busy-unknown` (`--force-unknown`) refusals; a
-  dirty tree is only noted. The console's form is `Tab → reboot`.
+- **`--reboot` on a live slot** requests prepared Fresh recovery: it preserves
+  the previous evidence and returns an exact stop-set confirmation before any
+  attributed running processes stop. Unproved remnants stay untouched under a
+  distinct tag. Missing tty/transcript evidence does not hide Fresh. Its launch
+  Prompt points at remaining branch/issue/screen evidence.
 - **Refusals name the fix:**
   - `busy`: a turn is open, the composer holds text, or input is recent.
     Retry later.
@@ -455,6 +454,25 @@ couch --reload-context pair:3 --confirm
 - **A succeeded receipt proves only what Couch did.** `--peek` the slot
   afterwards. A reload-context `failed` with code `unconfirmed` means the
   signal landed but no restart was seen; peek before retrying.
+
+## Confirmed slot recovery
+
+`couch --resume-candidates pair:1 --json` lists the proven conversation and
+ranked alternatives with evidence; automatic inference is off. Plain
+`couch --resume pair:1` resumes a proven conversation. Use
+`couch --resume pair:1 --candidate KEY` for an explicit ranked choice.
+`couch --reboot pair:1 --confirm` requests Start fresh, even when prior-screen
+or transcript scanning is unavailable. Fresh points the new agent at remaining
+screen, branch and issue evidence; native resume receives no launch prompt.
+
+If recovery must stop attributed running processes, inspect the returned exact
+PID/generation/role list. The owning authenticated hub can approve that named
+set with the standalone `couch --recovery-confirmation TOKEN` command. Tokens
+expire after two minutes, survive no Couch restart, and work once for the same
+confirmer and unchanged choice/stop set. A changed set requires a new offer;
+never substitute a PID or bypass confirmation. Unknown/foreign remnants stay
+untouched and Fresh uses a new terminal identity. An unconfirmed launch retains
+its attempt for inspection; peek/show before another recovery request.
 
 ## Reading a broadcast-web recording
 
@@ -543,10 +561,12 @@ For automatic discovery, the operator can save that output as
 `couch/SKILL.md` in the agent's configured skill directory. Couch does not edit
 agent configuration or install the skill automatically.
 
-Only agents with a registered Pair receiver profile (Claude Code, Codex CLI)
-can accept delivery, at any installed version. Unknown composer, menu, image, or
-input state waits or refuses; never force paste. This skill does not claim that
-a receiver version has passed live smoke or human acceptance.
+Only agents with a registered Pair receiver profile (Claude Code, Codex CLI
+and Qoder CLI) can accept delivery, at any installed version; Agy, Muse and
+Grok have no receiver profile and are explicitly disabled. Unknown composer,
+menu, image, or input state waits or refuses; never force paste. This skill
+does not claim that a receiver version has passed live smoke or human
+acceptance.
 
 
 ## Several hubs in one Couch

@@ -159,7 +159,16 @@ func ValidateFreshAgentArgs(agent string, argv []string) error {
 
 func freshValueOption(agent, flag string) bool {
 	if agent == "codex" {
-		return codexValueGlobalOption(flag)
+		if codexValueGlobalOption(flag) {
+			return true
+		}
+		// Exec values also precede its resume/fork subcommands. Reuse this
+		// authority in the Fresh validator and native selector parser.
+		switch flag {
+		case "--color", "--output-schema", "-o", "--output-last-message", "--thread-source", "--cyber-access-program":
+			return true
+		}
+		return false
 	}
 	var flags string
 	switch agent {
@@ -168,7 +177,7 @@ func freshValueOption(agent, flag string) bool {
 	case "agy":
 		flags = "--add-dir --agent --effort -i --prompt-interactive --input-format --json-schema --log-file --mode --model --new-project --output-format -p --print --prompt --print-timeout --project"
 	case "muse":
-		flags = "--agents --provider --preset --model --reasoning-effort --base-url --image --workspace --worktree-base --worktree-existing --approval-mode --approval-judge --echo-delay-ms --sandbox-network"
+		flags = "-c --config --effort --permission-profile --agents --provider --preset --model --reasoning-effort --base-url --image --workspace --worktree-base --worktree-existing --approval-mode --approval-judge --echo-delay-ms --sandbox-network"
 	case "grok":
 		flags = "--agent --agents --allow --cwd --debug-file --deny --disallowed-tools --json-schema --leader-socket --model --max-turns --output-format --single --permission-mode --prompt-file --prompt-json --reasoning-effort --effort --rules --sandbox --system-prompt-override --system-prompt --tools --worktree --worktree-ref --ref -m -p -w"
 	case "qoder":

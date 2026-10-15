@@ -67,12 +67,48 @@ func hubTargetResolver(c *couchcore.Couch) func(context.Context, string) (couchc
 	}
 }
 func (s *messageService) handleHubSlotOperation(ctx context.Context, caller couchmessage.Binding, r couchmessage.Request) couchmessage.Response {
-	if s.authority.hubs == nil || r.Op == "operation-status" {
+	if r.Op == "recovery-confirmation" {
+		if s.slotOps.reference == nil {
+			return couchmessage.Response{Code: "unsupported", Error: "recovery confirmation unavailable"}
+		}
+		s.slotOps.mu.Lock()
+		s.slotOps.sweepLocked()
+		receipt, held := s.slotOps.receipts[receiptKey{caller.Scope, caller.Tag, r.ID}]
+		s.slotOps.mu.Unlock()
+		if held {
+			if receipt.Op != r.Op || receipt.RecoveryConfirmation != r.RecoveryConfirmation {
+				return couchmessage.Response{Code: "id-conflict", Error: "receipt ID already names another operation"}
+			}
+			r.Target = receipt.Target
+		} else {
+			var err error
+			r.Target, err = s.slotOps.reference(couchcore.WithRecoveryConfirmer(ctx, recoveryActor(caller)), r.RecoveryConfirmation)
+			if err != nil {
+				return couchmessage.Response{Code: "refused", Error: err.Error()}
+			}
+		}
+	}
+	if (s.authority.hubs == nil && r.Op != "recovery-confirmation") || r.Op == "operation-status" {
 		return s.slotOps.handle(ctx, caller, r)
 	}
 	guard := func(ctx context.Context) error {
+		if r.Op == "recovery-confirmation" {
+			current, err := s.switchCaller(ctx, r)
+			if err != nil {
+				return err
+			}
+			if err := s.authority.process(current); err != nil {
+				return err
+			}
+			if current != caller {
+				return fmt.Errorf("recovery confirmer binding generation changed")
+			}
+		}
 		if _, err := s.liveCaller(ctx, r); err != nil {
 			return err
+		}
+		if s.authority.hubs == nil {
+			return nil
 		}
 		root, err := s.authority.thread(ctx, caller)
 		if err != nil {

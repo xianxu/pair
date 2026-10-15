@@ -17,6 +17,7 @@ package zellijprobe
 
 import (
 	"fmt"
+	"github.com/xianxu/pair/internal/reporoot"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -222,4 +223,22 @@ func (s *Session) Close() {
 		_ = s.cmd.Process.Kill()
 	}
 	_ = exec.Command("zellij", "delete-session", s.Name, "--force").Run()
+}
+
+// RepoRoot locates probe assets in the current checkout. Set PAIR_PROBE_REPO
+// explicitly to run a compiled probe from outside that checkout. An invalid
+// override is an error rather than permission to use another checkout.
+func RepoRoot() (string, error) {
+	if explicit := os.Getenv("PAIR_PROBE_REPO"); explicit != "" {
+		root, err := reporoot.Find(explicit)
+		if err != nil {
+			return "", fmt.Errorf("PAIR_PROBE_REPO: %w", err)
+		}
+		return root, nil
+	}
+	root, err := reporoot.Current()
+	if err != nil {
+		return "", fmt.Errorf("locate probe assets: %w; set PAIR_PROBE_REPO to the Pair checkout", err)
+	}
+	return root, nil
 }

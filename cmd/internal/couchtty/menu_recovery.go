@@ -2,7 +2,6 @@ package couchtty
 
 import (
 	"fmt"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -27,13 +26,20 @@ func recoveryChoices(preview *couchcore.RecoveryPreview) []couchcore.RecoveryCho
 		return nil
 	}
 	var choices []couchcore.RecoveryChoice
-	for _, candidate := range preview.Candidates {
+	if preview.Proven != nil {
+		choices = append(choices, *preview.Proven)
+	}
+	limit := 5
+	if preview.Proven != nil {
+		limit = 4
+	}
+	for i, candidate := range preview.Candidates {
+		if i >= limit {
+			break
+		}
 		if candidate.Key != "" {
 			choices = append(choices, candidate)
 		}
-	}
-	if len(choices) > 5 {
-		choices = choices[:5]
 	}
 	if preview.Fresh != nil {
 		choices = append(choices, *preview.Fresh)
@@ -49,38 +55,23 @@ func reduceRecoveryPreview(state MenuState, event MenuEvent) (MenuState, []MenuE
 	if event.Error != "" || event.RecoveryPreview == nil {
 		state.Notice = errorMenuNotice(event.Error)
 		frame.RecoveryPreview = &couchcore.RecoveryPreview{Address: frame.Thread, Incomplete: true, Reasons: []string{event.Error, "Conversation evidence unavailable; starting fresh may lose working context."}, Fresh: &couchcore.RecoveryChoice{Label: "Start fresh"}}
-		restrictRecoveryChoices(&state, frame)
 		frame.SelectedItem = "0"
 		return state, nil
 	}
 	preview := *event.RecoveryPreview
 	preview.Candidates = append([]couchcore.RecoveryChoice(nil), preview.Candidates...)
+	if preview.Proven != nil {
+		proven := *preview.Proven
+		preview.Proven = &proven
+	}
 	preview.Reasons = append([]string(nil), preview.Reasons...)
 	if preview.Fresh != nil {
 		fresh := *preview.Fresh
 		preview.Fresh = &fresh
 	}
 	frame.RecoveryPreview = &preview
-	restrictRecoveryChoices(&state, frame)
 	frame.SelectedItem = "0"
 	return state, nil
-}
-
-// M1 retains evidence without presenting a lifecycle choice whose current
-// admission refuses. M2 adds confirmation-safe retirement for these owners.
-func restrictRecoveryChoices(state *MenuState, frame *MenuFrame) {
-	preview := frame.RecoveryPreview
-	row, known := menuThreadTarget(*state, frame.RowKey, frame.Thread)
-	if !known || row.State == couchcore.ThreadBusy {
-		for i := range preview.Candidates {
-			preview.Candidates[i].Key = ""
-		}
-		preview.Fresh = nil
-		return
-	}
-	if preview.Fresh != nil && preview.Fresh.Key == "" && !slices.Contains(menuActionItems(row), "reboot") {
-		preview.Fresh = nil
-	}
 }
 
 func reduceRecoveryKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
@@ -109,12 +100,16 @@ func reduceRecoveryKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) 
 		if choice.Key == "" {
 			if choice.NativeID == "" {
 				if row, ok := menuThreadTarget(state, frame.RowKey, frame.Thread); ok {
-					return dispatchMenuRow(state, "reboot", row)
+					args := couchcore.ActorOperationArgs(row, "reboot")
+					return dispatchMenuOperation(state, MenuEffect{Operation: "reboot", Args: args}, row.Address)
 				}
+				return state, nil
 			}
-			return state, nil
 		}
-		args := map[string]string{"candidate": choice.Key, "repo-scope": frame.Thread.RepoScope}
+		args := map[string]string{"repo-scope": frame.Thread.RepoScope}
+		if choice.Key != "" {
+			args["candidate"] = choice.Key
+		}
 		if frame.RecoveryTarget.Path != "" {
 			args["path"] = frame.RecoveryTarget.Path
 		} else {
@@ -144,7 +139,7 @@ func renderRecoveryMenu(frame MenuFrame, width, height int) []string {
 			marker = "▸ "
 		}
 		label := choice.Label
-		if i == 0 && len(frame.RecoveryPreview.Candidates) > 0 {
+		if (i == 0 && frame.RecoveryPreview.Proven == nil || i == 1 && frame.RecoveryPreview.Proven != nil) && len(frame.RecoveryPreview.Candidates) > 0 {
 			label = "best · " + label
 		}
 		activity := "unknown"
@@ -152,7 +147,13 @@ func renderRecoveryMenu(frame MenuFrame, width, height int) []string {
 			activity = choice.LastActivity.Local().Format("2006-01-02 15:04 MST")
 		}
 		evidence := "  Original saved screen"
-		if choice.NativeID != "" {
+		if choice.NativeID == "" && choice.Key == "" {
+			evidence = "  Fresh conversation"
+		}
+		if choice.NativeID != "" && choice.Key == "" {
+			evidence = "  Established native binding"
+		}
+		if choice.NativeID != "" && choice.Key != "" {
 			evidence = fmt.Sprintf("  matched %d/%d · tail %.0f%%", choice.Matched, choice.Total, choice.TailMatch)
 		}
 		lines = append(lines, marker+label, fmt.Sprintf("  %s · %s · last activity %s", choice.Agent, choice.NativeID, activity), evidence, "  "+choice.Excerpt)

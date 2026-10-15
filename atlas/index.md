@@ -7,6 +7,7 @@
 - [Architecture](architecture.md) — what the pieces are and how they fit together.
 - [Session identity and storage](session-identity.md) — Pair's scoped address claims, deterministic native-session forests, durable resume targets, launch-specific probation and optional parsed projections, Couch's independent ThreadStore authority, Couch C/N/M allocation and live ownership proof, the standalone `📁` naming scheme, and legacy flat-data recovery.
 - [Slot continuity target](../workshop/targets/slot-continuity.md) — the operator-approved commitment: Continue, Resume from disk or Start fresh, with one action per outcome and recovery available to the person or hub.
+- [Slot recovery target](../workshop/targets/slot-recovery.md) — confirmed disk resume, always reachable Fresh and the crash-only recovery contract; [confirmed recovery](couch.md#confirmed-disk-recovery-556-m1) maps the person/hub execution path.
 - [Go migration inventory](go-migration-inventory.md) — artifact/caller/runtime contract for the staged primary-Go-binary migration.
 - [Workflow](workflow/index.md) — issue-based development loop inherited from the ariadne base layer.
 - [How-to-bring-up-a-new-harness-cli](how-to-bring-up-a-new-harness-cli.md) — guide on integrating a new agent harness CLI.
@@ -19,9 +20,17 @@
 ## See also
 
 - `make test` — the one gate. It runs every shell/Lua suite, then `go test ./...`
-  with the cache off, so it covers every package. Inside a Couch shell it drops
+  with test-result caching off, so it covers every package. Make adds `-trimpath`
+  to existing `GOFLAGS` to share package compilation across worktrees; the recorded
+  suite pins `PAIR_GO_TRIMPATH=-trimpath`. `internal/reporoot` finds test assets by
+  cwd and validated module identity, and `probes/zellijprobe.RepoRoot` accepts
+  `PAIR_PROBE_REPO` for probes launched outside a checkout. Inside a Couch shell it drops
   the session's environment-origin names first (pair#436); a raw `go test ./...`
-  keeps them, so a test that reads one pins it. Its first step,
+  keeps them, so a test that reads one pins it. The environment probe
+  (`tests/make-test-env-test.sh`) exercises both bare and command-line-assigned
+  outer Make invocations; its synthetic fixture clears inherited Make controls
+  so caller assignments cannot override the values under test (#577). Explicit
+  and recursive Go-flag precedence remain covered inside that fixture. Its first step,
   `tests/host-preflight.sh`, refuses a host that cannot bind a unix socket, open
   a PTY or exec `ps` (an agent sandbox), because the suite then fails in ~150
   places that look like code bugs (pair#450). A refusal it does not probe still

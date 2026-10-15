@@ -24,9 +24,12 @@ import (
 // method on it. The terminal UI and (later) the advisor's tools are both
 // clients of these methods -- never of two separate implementations.
 type Couch struct {
+	recoveryMu             sync.Mutex
+	recoveryConfirmations  map[string]recoveryConfirmationState
 	RecoveryEvidence       RecoveryEvidenceReader
 	RecoveryPreserve       RecoveryCapturePreserver
 	RecoveryTerminal       RecoveryTerminalPreparation
+	RecoveryRetirement     RecoveryRetirementPreparer
 	Identities             IdentityAllocator
 	Slots                  SlotCatalog
 	Workspaces             WorkspaceReadiness
@@ -59,8 +62,9 @@ type Couch struct {
 	SwitchContext     SwitchContextResolver
 	SwitchGuard       AgentSwitchGuard
 	// SlotTerminal renders a thread's live terminal recording (peek, pair#362).
-	SlotTerminal SlotTerminalReader
-	SlotCapture  SlotCaptureReader
+	SlotTerminal        SlotTerminalReader
+	SlotCapture         SlotCaptureReader
+	SlotRetainedCapture SlotRetainedCaptureReader
 	// SlotTail reads a thread's live tail from its wrapper (peek, pair#425).
 	SlotTail          SlotTailReader
 	SwitchLaunchCheck func(agent string) error
@@ -294,6 +298,12 @@ func (c *Couch) resolveStartResolution(ctx context.Context, args StartArgs) (Sta
 }
 
 func (c *Couch) resolveOrdinaryStartResolution(ctx context.Context, args StartArgs) (StartResolution, error) {
+	return c.resolveOrdinaryStartResolutionWithStore(ctx, args, c.Threads)
+}
+
+// A recovery preview supplies a read-only store without copying the synchronized
+// Couch owner or changing the store used by concurrent lifecycle operations.
+func (c *Couch) resolveOrdinaryStartResolutionWithStore(ctx context.Context, args StartArgs, threads *ThreadStore) (StartResolution, error) {
 	if args.WorkingDir() == "" {
 		return StartResolution{}, fmt.Errorf("spawn: no path given")
 	}
@@ -309,17 +319,21 @@ func (c *Couch) resolveOrdinaryStartResolution(ctx context.Context, args StartAr
 	if err != nil {
 		return StartResolution{}, err
 	}
-	return c.resolveStartProfile(args, canonicalPath, tree, repoIdentity, string(tree))
+	return c.resolveStartProfileWithStore(args, canonicalPath, tree, repoIdentity, string(tree), threads)
 }
 
 func (c *Couch) resolveStartProfile(args StartArgs, canonicalPath string, tree Worktree, repoIdentity, defaultRoot string) (StartResolution, error) {
+	return c.resolveStartProfileWithStore(args, canonicalPath, tree, repoIdentity, defaultRoot, c.Threads)
+}
+
+func (c *Couch) resolveStartProfileWithStore(args StartArgs, canonicalPath string, tree Worktree, repoIdentity, defaultRoot string, threads *ThreadStore) (StartResolution, error) {
 	scope, err := launcher.ResolveRepoScope(string(tree))
 	if err != nil {
 		return StartResolution{}, err
 	}
-	readPreference := c.Threads.getPathLaunchPreference
+	readPreference := threads.getPathLaunchPreference
 	if c.Slots != nil {
-		readPreference = c.Threads.PreviewPathLaunchPreference
+		readPreference = threads.PreviewPathLaunchPreference
 	}
 	preference, found, err := readPreference(repoIdentity, canonicalPath, scope.Key)
 	if err != nil {
@@ -614,6 +628,8 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, r
 // a created slot's revalidation, a fresh slot's other-owner check -- and runs
 // inside the same rollback as everything else here.
 type claimedLaunch struct {
+	Readiness    WorkspaceReadiness
+	Prompt       string
 	Context      context.Context
 	Thread       ThreadRecord
 	Nonce        string
@@ -630,7 +646,11 @@ type claimedLaunch struct {
 // claim nothing will finish.
 func (c *Couch) launchClaimedThread(in claimedLaunch) (ActorRecord, Handle, error) {
 	ctx, thread, nonce, profile := in.Context, in.Thread, in.Nonce, in.Profile
-	if err := c.prepareTrackedWorkspace(ctx, thread, nonce, false); err != nil {
+	readiness := in.Readiness
+	if readiness == nil {
+		readiness = c.Workspaces
+	}
+	if err := c.prepareTrackedWorkspaceWith(ctx, thread, nonce, false, readiness); err != nil {
 		return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
 	}
 	if in.AfterPrepare != nil {
@@ -638,7 +658,11 @@ func (c *Couch) launchClaimedThread(in claimedLaunch) (ActorRecord, Handle, erro
 			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
 		}
 	}
-	profileRaw, err := launcher.BuildCouchLaunchProfile(
+	buildProfile := launcher.BuildCouchLaunchProfile
+	if in.Prompt != "" {
+		buildProfile = launcher.BuildCouchFreshLaunchProfile
+	}
+	profileRaw, err := buildProfile(
 		string(thread.Address.Tag), profile.Profile.Agent, profile.Profile.Argv,
 		string(profile.AgentSource), string(profile.ArgvSource),
 	)
@@ -652,6 +676,7 @@ func (c *Couch) launchClaimedThread(in claimedLaunch) (ActorRecord, Handle, erro
 		Context: ctx,
 		Thread:  thread, Nonce: nonce, Args: args, StartedAt: in.StartedAt,
 		ProfileRaw: profileRaw, UseRepoDefault: profile.ArgvSource == ArgvSourceRepoDefault,
+		Fresh: in.Prompt != "", Prompt: in.Prompt, Recovery: in.Prompt != "",
 	})
 }
 

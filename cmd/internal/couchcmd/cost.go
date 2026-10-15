@@ -51,6 +51,7 @@ var verbCosts = map[string]verbCost{
 	"--recover-plan-from-sdlc": costHeavy,
 	"--resume":                 costHeavy,
 	"--resume-candidates":      costSeconds,
+	"--recovery-confirmation":  costHeavy,
 	"--reboot":                 costHeavy,
 	"--relaunch":               costHeavy,
 	"--reload-context":         costHeavy,

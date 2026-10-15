@@ -1,0 +1,983 @@
+---
+id: 000556
+status: done
+deps: [pair#528]
+github_issue:
+target: slot-recovery
+created: 2026-10-14
+updated: 2026-10-15
+estimate_hours: 6.75
+card_mirror: '7da9dcdca9f81bf0df7dc161d7abdbbd3b171688' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-14T15:10:56-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
+flow: {kind: full, provenance: inferred}
+actual_hours: N/A
+---
+
+# Couch confirmed disk recovery and always-reachable fresh startup
+
+## Problem
+
+Follow-up to #528's accepted M1. Startup and Continue are accepted; the revised
+M2 disk-recovery execution contract still needs a complete review and operator
+acceptance. Existing ranked candidate/CLI/UI and fresh-orientation code is a
+baseline, not evidence that every recovery edge is complete.
+
+## Spec
+
+Preserve the slot-continuity target's three outcomes. Explicit Resume from disk
+uses a proven native binding or a best-supported/selected ranked candidate with
+evidence. Start fresh is always reachable, including incomplete, unsupported,
+weak or absent scans and missing/expired tty; disclose what context may be lost.
+Use #522's ordinary launch Prompt to point at available previous-screen evidence
+and branch/issue, never embed screen bytes in argv. Native resume has no prompt.
+
+Before stopping an attributed running owner, require short-lived, non-persistent
+person-or-hub confirmation naming exactly what stops. Recheck identities at both
+admission and effect. Unknown/foreign remnants are never killed; leave/report
+them and use a fresh name when needed. Preserve intent/evidence before cleanup;
+retire only attributed owners, then clean exact dead-owned remnants/stale layouts
+without force, revalidate, launch and report registration/readiness honestly.
+No silent fresh replacement after an uncertain successful resume. One bounded
+observation retry, then an actionable outcome rather than pending limbo.
+
+An unfinished StartClaim with no positive listing must exit Starting when its
+owner is dead or its time bound expires, through this confirmed retirement path.
+Automatic inference stays OFF pending a witnessed corpus and approved threshold;
+retain default plus up to four alternatives with evidence via menu and CLI.
+
+## Done when
+
+- Proven, best and alternate inferred resumes select the right native identity;
+  no native transcript has two live owners.
+- Fresh executes despite no/weak/incomplete evidence or missing tty, with truthful
+  orientation from available branch/issue/screen coordinates.
+- Running-owner confirmation works for person and hub; changed identities,
+  cancellation, interrupted effects and uncertain launches preserve evidence.
+- Foreign remnants are left intact and do not strand the row; stale Starting has
+  a bounded exit. No default edits, native-file deletion, git reset or draft loss.
+- Tests use measured native shapes and stateful lifecycle doubles; a recorded
+  full suite and fresh-context review pass. TL schedules scratch-only operator
+  acceptance across proven/inferred/no-candidate/missing-tty/owned/foreign cases.
+
+## Plan
+
+- [x] Inspect current owners and revise #528's M2 design before implementation;
+  keep a separate review and operator acceptance boundary.
+- [x] M1 — Shared prepared recovery, confirmed Resume/Fresh, standalone hub CLI confirmation, schema-4 intent/read-only v3 migration; headless acceptance and morning scratch script; milestone-close.
+- [x] M2 — Shared native admission reservations and two-slot barrier tests; milestone-close.
+- [x] Record the full suite, close on SHIP and land; the hub owns the operator's restart and live acceptance.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only; the calibration source is marked stale by
+`sdlc estimate-source`, so this is provisional. Derived after plan-quality
+round 2 CLEAN, not a target chosen before decomposition.
+
+M1 has two bounded new Go concerns (prepared selection and ephemeral acceptance),
+one lifecycle integration, a schema extension and the existing menu/CLI seam.
+M2 adds a reservation reducer/store and the Pair/wrapper handoff integration.
+The existing Go JSON, flock, procutil, retention, queue and launch owners avoid a
+novel-stack library assumption. Apply the thorough-plan design discount (0.2)
+to the module/API/TUI primitive design ranges, familiarity 1.0 for this code,
+v3.1's 40% implementation scale exactly once, and the 15% design buffer.
+The three review chunks are M1, M2 and whole-issue close.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.3 impl=0.12
+item: greenfield-go-module design=0.2 impl=0.32
+item: greenfield-go-module design=0.2 impl=0.32
+item: api-integration design=0.6 impl=0.6
+item: smaller-go-module design=0.06 impl=0.2
+item: tui-screen design=0.2 impl=0.4
+item: api-integration design=0.6 impl=0.6
+item: greenfield-go-module design=0.3 impl=0.32
+item: cross-cutting-refactor design=0.1 impl=0.2
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0 impl=0.2
+item: milestone-review design=0 impl=0.2
+item: milestone-review design=0 impl=0.2
+design-buffer: 0.15
+total: 6.75
+```
+
+Design subtotal 2.60h × 1.15 + implementation subtotal 3.76h = **6.75h**.
+
+## Log
+
+### 2026-10-14
+
+Split from #528 at operator/TL direction84fbcea7 so accepted M1 can land. Source:
+#528 durable plan's revised M2 and Starting exception; no new code authorized.
+
+### 2026-10-15 — claim and measured design audit
+- 2026-10-15: closed — M1/M2/whole-issue normal SHIP, zero open findings. Post-close main integration only conflict artifactpath/manifest.go resolved by retaining both #572 reporoot and all #556 admission/selector entries at8bea62224; no launch behavior changed. Main #577 fixture fix integrated. Exact required full suite PASS1e454fd4d89e1f10ba832ce4b814c293d02a677e exit0 in12m37s log sha25628276f5e2d73; artifactpath/build PASS. Precise --no-actual authorized by hub receipt ebd9c8ff: normal attempt failed incomplete qoder session metadata for agent-aExplore-2bcc142b6679e6be.jsonl, tracked ariadne#391; original whole-issue actual measured18.43h and adopted, not fabricated. No other waiver, scope change, live or stage effect; narrow review then PR349 merge. (fixed-then-ship; full suite: Recorded suite PASS1e454fd4d89e1f10ba832ce4b814c293d02a677e: make PAIR_GO_TRIMPATH=-trimpath test exit0 in12m37s after863s queue; suite.log sha25628276f5e2d73; all editor/shell and Go packages, both Make env probe modes.); review verdict: SHIP
+- 2026-10-15: closed — M1 SHIP69c213c2, M2 SHIP6851b1ad5d95; final BR6 positional grammar correction d0d409ae2 and measured option authority e1a8e5407: canonical IDs after -- guarded through both real wrapper forms, exact positional pinning preserves argv; latest/prompt/fork/new/literal option controls and related race PASS. Main #558 integrated cleanly. Final normal recorded full suite PASSb719d79bc03cc68fe898a8b24f4194777d96fa44 exit0 in12m7s after1401s queue, log sha256ed7dceb689cd; integrated build PASS. Confirmed Resume/Fresh with schema4/read-only3, exact-ID admission all six, Claude/Qoder latest pinned, approved Codex indirect unchanged unreserved one notice until #571; no app-server adapter. Atlas/README/lessons/headless and live scratch script updated. No waivers or live/stage effects; hub owns restart.; review verdict: SHIP
+- 2026-10-15: closed M2 — BR-6 shared Fresh context authority prevents unsupported existing-session selectors before spawn in launcher and both wrapper forms; RED/GREEN and race controls pass. BR-7 exact reserved-grant fence under Claim lock after strict helper death; deterministic both-lock-order tests, stale grant rejection, live/unknown/drift/cancellation controls pass. Corrected normal recorded full suite PASS at4f8c73ce1e7ae28d69d6b2e73b4547467ada87bd exit0 in13m18s after1282s queue, log sha25681c18227a083. Build PASS; exact IDs all six guarded, Claude/Qoder latest pinned, approved Codex indirect unchanged unreserved notice, #571 dispatched. Atlas/lessons/acceptance updated; no waivers or live/stage effects.; review verdict: SHIP
+- 2026-10-15: closed M1 — BR-5 fixed at shared owner: validated candidate key resolves Fresh before profile/park/continuation/start guards. Twelve-case real-core explicit/candidate/operation matrix RED-to-GREEN PASS2.870s; genuine native choices still refuse without effects; broad recovery PASS17.992s, race PASS4.407s, core vet PASS, actual menu queue and printed CLI command tests PASS. Required corrected-head recorded suite PASS on 7f289c0089052d02c2b82c453dc7ccc5a5a27d02, exit0 in8m42s, retained suite.log sha2562c788d3dc827; make build PASS. R3 disposed BR-1/2/3/4. Normal re-close, no waivers. Morning script workshop/plans/000556-live-acceptance.md. No M2/live/stage effects.; review verdict: SHIP
+
+Claimed by pair:2 on branch `000556-confirmed-slot-recovery`, based on main
+`09c5b48dd7586d6ba908a45ea86899190ad3dd4a`. Refreshed the stale ariadne
+substrate before starting planning. Two independent, read-only audits covered
+core execution/ownership and menu/CLI admission; no live lifecycle effects ran.
+
+The baseline already has ranked keys, immutable capture preservation, native
+owner checks, opaque exact terminal retirement, ordinary launch Prompt and
+start-claim persistence. Its deliberate M1 restrictions still reject running
+sources, remove Fresh on some rows, require a capture for candidate execution,
+and let Starting last while its supervisor lives. Registration uncertainty also
+enters generic post-ack cleanup. These are the implementation gaps, rather than
+a reason to introduce another recovery queue or launch mechanism (ARCH-DRY).
+
+There is no slot/thread lifecycle CUE model in this Pair tree; the existing
+authorities are `threadrecord/record.go`, `threadrecord/recovery.go`,
+`couchcore/starttransaction.go` and the park reducer. The plan extends those
+owners rather than inventing a second durable lifecycle (ARCH-ORDER).
+
+Follow-up audit found that the native owner observer explicitly does not lock
+against simultaneous cross-slot creates. The plan includes bounded shared native
+admission reservations at the common Pair resume boundary; the hub must review
+this addition before code. The existing two ownership observations alone cannot
+prove the issue's no-two-live-writers contract.
+
+### 2026-10-15 — M1 implementation checkpoint
+
+Implemented the shared prepared executor and ephemeral exact-stop confirmation
+owner, standalone authenticated hub confirmation, schema-4 tagged recovery with
+read-only schema-3 migration, terminal attribution/rechecking, stale-start fencing,
+and uncertain-launch retention. Native resume carries no Prompt; Fresh uses the
+ordinary #522 launch Prompt pointing at branch/issue and available screen evidence.
+The missing-record Fresh path now carries that orientation and strict readiness.
+
+Targeted integrated checks: `go test ./cmd/internal/couchcore -run
+'^TestProvenRecovery|^TestPrepared|^TestRecoveryConfirmation|^TestResumeCandidate|^TestRecoveryRetirement|^TestRecoveryFresh|^TestRecoveryStartFence'
+-count=1 -timeout=90s` passed (7.124s). Surface and adapter contributors also ran
+their focused regression sets; no full-suite or milestone-close claim yet.
+Remaining M1 integration covers retained-screen reading, preflight/retention, the
+headless matrix, documentation and acceptance script, then the recorded suite.
+No live slot lifecycle effects or stage changes were performed.
+
+### 2026-10-15 — M1 integrated headless checks
+
+Integrated exact retention/preflight before stops, normal configuration fallback
+for Fresh, safely addressed previous-screen reads after new-tag Fresh, and an
+early young-Starting/native park/continuation guard. Real Git broken-host
+fixtures exposed two actual failures: checkout identity preflight failed before
+confirmation, and readiness attempted repair with unknown agent liveness. The
+fix verifies the primary catalog read-only, then uses normal slot convergence
+only after confirmed retirement/positive absence; post-repair checkout identity
+must still equal the prepared common directory. Operator files survive.
+
+Core recovery/reboot/prepared checks passed at the integration checkpoint
+(15.296s); surface/CLI/menu/protocol/schema/launcher focused checks passed
+(1.906s/0.304s/0.169s/0.140s/0.245s). Integrated expired-claim/young-claim/open-park
+tests passed under race (1.737s). Tagged previous-screen/evidence reads passed
+under race, including independent retention leases. Help/skill cost parity first
+failed for the new standalone confirmation verb, then passed after recording its
+heavy cost and updating the public protocol reference.
+
+The morning script is `workshop/plans/000556-live-acceptance.md`. No live lifecycle
+effects, automatic inference or stage changes ran. M1 now proceeds to the recorded
+suite and its binary-owned boundary review; M2 exclusion is still outstanding.
+
+### 2026-10-15 — recorded suite found integration regressions
+
+The first recorded suite on `aab86bd03fb0672e9a36c4b16b63462cb1479288` failed
+(exit 2, 13m54s). Retained log:
+`/Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/5b9ca5e5c1cacb22853c746a916aa39e.log`
+(SHA-256 prefix `cce070e42401`). No waiver is requested. It exposed exhaustive
+artifact inventory omissions, stale command/declaration expectations, lost warm
+resume/advice routing, strict-Fresh fixture gaps, and a regression of the existing
+unreadable-primary no-stop archive escape. Continuation reboot fixtures waited
+for nonexistent fresh registration and reached the core ten-minute test limit.
+
+Corrections classify the actual new artifact consumers (no exemptions), retain
+normal facade entry points while removing the obsolete alternate Reboot
+stop/launch implementation, and preserve exact unreadable bytes through the
+existing archive journal with expected-byte CAS. Valid future versions still
+refuse mutation. The primary no-path archive escape reports honestly that no
+agent started and never touches its unproved processes. Normal readable Fresh
+uses only the prepared executor, including the existing explicit agent choice
+resolved from normal saved configuration. No free-form recovery argv is added.
+
+A separate private-fixture measurement found recordless Fresh inheriting ordinary
+Fresh's absence gate and refusing foreign/unknown remnants. Recovery-only
+admission now allocates a distinct tag in the verified physical checkout, keeps
+all exact claim/repository/readiness checks, and performs no workspace
+convergence beneath those remnants. It leaves/report them and says setup was
+not refreshed; ordinary Fresh remains strict. The initially retained dead legacy
+API test strategy was replaced with tests of the shipped shared facade rather
+than adding a dead-symbol exemption.
+
+### 2026-10-15 — M1 component verification after corrections
+
+Full `couchcore` passed (223.428s, `go test ./cmd/internal/couchcore -count=1
+-timeout=8m`); full `couchcmd` passed (42.140s); full `couchtty` passed (31.527s).
+The exhaustive artifact classification/dead-symbol guards pass (3.158s), without
+allowlists or waived gates. Candidate dispatch retains its thin typed facade.
+Warm-only/lost-pointer Continue never invokes workspace convergence or launches
+an agent. Actual native cold resume uses prepared recovery; existing #522
+Pending/Running continuation requests retain their separately owned executors
+after positive-listing priority. The old implicit idle-approval argument is gone
+from Fresh requests: the exact returned stop set is their only stop authority.
+
+The recorded full-suite rerun is next on the corrected head; previous failures
+remain recorded on their actual head. No operator acceptance, M1 SHIP, stage or
+M2 implementation is claimed yet.
+
+### 2026-10-15 — recorded rerun finds failed-attach completion regression
+
+The suite at `2630da264cf785423b5e165e7f0b9dee1421a240` exited 2 after
+9m7s (retained failed log `da88df7467432ddf832660f8a97202b9.log`, SHA-256
+prefix `6ccb29b2acd1`). It passed full core
+(284.887s), launcher (44.057s), tty (45.070s) and the other reported packages,
+but `TestStartupWarmPassPaintsAndAcceptsInputWhileMixedAttachmentsBlock` failed
+waiting for its rendered failed-attach reason. This was a real regression, not
+a load waiver: both attach attempts finished, yet the row remained attaching.
+The shared resume route returned an empty `StartResult` on pre-helper failure;
+`Started()` advertised it and Console replaced the operation's exact target
+with a zero address, so the completion could not finish the row's attempt.
+
+The producer now returns no child for that definite no-helper failure. The
+Console boundary also keeps its original target when a malformed/empty child
+result has no address, while preserving genuine partial launch addresses and
+handles on errors. The stateful console reproduction failed before the guard
+and passes afterward; the original mixed-startup acceptance passes unchanged
+(2.94s). New warm failure coverage passes with the warm-route selection (0.710s).
+A fresh recorded suite will cover these corrections; M1 is not closed yet.
+
+### 2026-10-15 — M1 recorded verification ready for boundary review
+
+`sdlc local-check run --name suite` passed
+at `b7fef55184f1c6e5f8f0a929419f0cd214d3d3e9`, exit 0 in 10m40s. The retained
+log is `.git/sdlc/local-checks/b7fef55184f1c6e5f8f0a929419f0cd214d3d3e9/suite.log`
+under the Git common directory; SHA-256 prefix `917e49963187`. Full core passed
+388.885s, cmd 99.348s, tty 60.260s, launcher 42.659s and wrapper 53.973s. No
+waiver, timeout increase or known failure is excluded. `make build` also passed
+on that head; the checkout remains on the issue branch, no stage changed.
+
+The three exact headless commands in `workshop/plans/000556-live-acceptance.md`
+also passed: core 18.149s; cmd/tty/message 1.818/0.233/0.174s; launcher 0.206s.
+The morning live script is ready for the hub/operator, with scratch allocation,
+proven resume, explicit candidate keys, standalone stop-token acceptance, Fresh
+orientation and previous-screen reads. No live acceptance is claimed. M1 does
+not claim cross-slot native exclusion; that remains M2's separate review boundary.
+
+### 2026-10-15 — M1 review round 1: REWORK, three families addressed
+
+The normal boundary review at `a2b67ce4127cd90c06961204a4feed4c213dd1b2`
+returned REWORK with BR-1/2 Critical and BR-3 Important. No milestone was closed.
+The retained sidecar and close ledger record all findings; no dispute or waiver
+is needed because source inspection and RED tests confirmed them.
+
+- BR-1 (`recovery-preserves-surviving-workspaces`): retained and recordless Fresh
+  share read-only readiness while source absence is unproved, rechecking after
+  claim. The strengthened foreign fixture initially counted one forbidden normal
+  readiness call. The fix leaves fixture sentinel/files/processes intact; absent
+  sources retain normal readiness. Focused tests passed 6.619s; broader recovery
+  tests passed 15.466s. Invalid/unavailable host evidence refuses without repair.
+- BR-2 (`retirement-requires-owner-absence`): exact confirmed retirement now
+  checks immutable generations before each leaf-first signal and independently
+  waits for every named process to disappear; server absence alone never succeeds.
+  Surviving/reparented/replaced/new owners, false signal success and final listing
+  races are covered. Strict old retirement gains only the absence oracle, not
+  broader kill authority. Full launcher race tests passed 80.131s. Connected
+  settled owners use ParkExpected after preservation; the helper is named in the
+  same stop offer. Failed park retains its transaction without fallback. New
+  stateful park ordering/failed-publication/unknown-helper tests pass; core race
+  selection passed 1.940s and broader recovery/Park selection 27.092s.
+- BR-3 (`user-facing-docs-follow-surface`): README and the older Atlas accounts
+  now describe standalone exact-stop confirmation, expiry, always-available Fresh,
+  bounded Starting, retained uncertainty and survivor-safe workspace handling.
+  README documentation guards passed 0.415/0.653s; deleted flow names were swept
+  from the obsolete Atlas reboot account. Plan Revisions and lessons record the
+  classes and their independent test oracles.
+
+A new recorded suite and normal M1 re-close follow these corrections. M2 remains
+unimplemented, and no operator acceptance or live effects are claimed.
+
+### 2026-10-15 — unrelated shell flake before corrected Go verification
+
+The recorded suite at `db86a287f8c74bbda952dfe00356e3b8f11d4601` exited 2
+after 3m39s in the unchanged `tests/review-fresh-restore-test.sh`, before the Go
+phase. Case `missing-history-does-not-adopt-old-receipt` observed a nonzero
+Neovim return with empty stdout; the assertion omits its return code. Earlier
+cases passed. The identical full script immediately passed all five isolated
+cases. Root cause is unproved; no timeout was increased and this is not waived.
+Retained failed log `eef944b68fc13088226c6a06a1a85b99.log`, SHA256 prefix
+`92b0a48d20e5`. Filed independent unclaimed pair#568 with bounded evidence.
+
+Artifact classification/dead-symbol checks pass (4.608s), the corrected build
+passes, and the complete recovery/Park selection passes 27.092s plus targeted
+race checks 1.940s. The next recorded suite must still pass on this code before
+M1 re-close; a passed isolated flake rerun is not whole-suite evidence.
+
+### 2026-10-15 — repeated #568 blocks the recorded suite
+
+The next recorded run at `c68e49762163129bba1eb51f5f463cd926379caa`
+again exited 2 before Go after 3m38s, now in `ambiguous-history-does-not-open`.
+Log `c78c884add12c68765db6e7583413142.log`, SHA256 prefix `597c86022693`.
+No recovery source changed between these runs. A diagnostic isolated copy adding
+return code/result JSON still passes after stripping PAIR/COUCH/ZELLIJ session
+environment. This rules out that simple environment hypothesis; the cause is not
+yet established. Pair:3 now owns independent pair#568 from main. The hub and
+owner have the bounded evidence; read-only measurements continue without a
+stacked fix, timeout increase, gate waiver or M1 close claim.
+
+### 2026-10-15 — checkpoint while independent suite repair and policy reply wait
+
+All M1 review corrections are committed; no M1 milestone-close is finalized.
+The passing complete suite is on the earlier pre-review-correction head. The two
+corrected recorded attempts stopped before Go in independent pair#568, now owned
+by pair:3. The bounded probe caught Neovim rc=1 after valid result JSON and an
+`uv_loop_close() hang?` log; live fs_event/timer handles exist in successful runs
+too, so the responsible handle/race is not yet proved. Probe evidence is under
+`/var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair568-diag-el_buyz1` and was
+sent to the owner and hub. No #568 code/claim is taken in this branch.
+
+Next: after #568 lands, merge main, run the recorded suite on that head, record
+its actual result/build, and re-run normal M1 milestone-close to answer BR-1/2/3.
+Do not skip any gate or reuse #528 waivers. Then implement M2 at its separate
+boundary; the direct native-selector policy question in the latest plan Revision
+is pending the hub's answer (receipt a2e880d4-619c-43c7-92a1-6d8e5413efcd,
+submitted). No M2 code, stage modification, operator restart or live-slot effects
+have occurred. The completed morning script remains in the plan directory.
+
+### 2026-10-15 — independent suite blocker landed; merged main
+
+Verified peer receipt `03f4a082-3baf-4255-ac04-3460ff3be56f`, then fetched and
+merged origin/main containing pair#568 PR345, merge
+`c0d469a68185402455c1f7ad2e2960d914506740`. The merge was clean; artifact
+classification and lessons auto-merged. Its watcher ownership/teardown repair and
+retained failure diagnostics remain intact alongside #556's recovery changes.
+No history artifacts were read to infer acceptance. Deeper temporary-directory
+socket refusal is separately tracked as #570, not conflated with this blocker.
+
+A new recorded suite and build on the merged #556 head follow; only an actual
+passing result will support M1's normal re-close. Resolve-and-pin policy is
+approved and recorded for M2, but no M2 implementation or live/stage effects have
+started.
+
+
+### 2026-10-15 — native latest audit and temporarily unavailable hub channel
+
+A read-only M2 audit distinguishes native latest selection from recovery tail
+ranking. Codex 0.162.1 uses provider UpdatedAt and Cli+VsCode by default (Exec and
+AppServer only with include-non-interactive); its worktree/all modifiers can
+broaden cwd scope. Existing inventory validates canonical exact roots for all six
+agents, but does not yet expose all native latest eligibility/order facts.
+Recovery semantic activity, transcript mtime and creation time are not silently
+interchangeable. The proposed narrow resolver must report unsupported/incomplete
+rather than guess; approved resolve-and-pin remains the required behavior where
+resolution is established. This audit starts no M2 code.
+
+A bounded clarification report to the hub alias, then the dispatch slot ops:0
+after read-only actors showed it, both refused `unavailable: Couch cannot find a
+live caller or recipient registration` with no receipt. No uncertain send is
+replayed, no terminal input or live recovery is attempted, and no operator restart
+is requested. Preserve the question for the next verified reachable hub: may
+unmeasurable provider selectors refuse with exact-ID/Fresh advice while measured
+native latest resolution is supported? M1 verification continues independently.
+
+
+### 2026-10-15 — corrected M1 complete verification after #568 integration
+
+Recorded `sdlc local-check run --name suite` on
+`ecb0daa2845ebe248f3fb598ffff2f38f31d12a5`: **PASS**, exit 0, 8m20s.
+Retained log:
+`/Users/xianxu/workspace/pair/.git/sdlc/local-checks/ecb0daa2845ebe248f3fb598ffff2f38f31d12a5/suite.log`,
+SHA-256 prefix `73d52450dbb2`. Fresh-restore and diagnostic regressions now pass
+with main's independent #568 watcher lifecycle repair. Go packages all pass,
+including couchcore 258.739s, couchcmd 50.160s, couchtty 43.056s, launcher 32.579s,
+wrapcmd 45.600s. `make build` also exited 0 on this code generation; no live/stage
+operation was performed. The same M1 headless/morning scratch script remains at
+`workshop/plans/000556-live-acceptance.md`.
+
+This supplies whole-suite evidence for the post-review BR-1/2/3 corrections;
+normal M1 milestone-close answers those findings next. Native admission remains
+M2 and is not claimed by these results.
+
+
+### 2026-10-15 — M1 round 2: prior findings addressed; copylocks correction
+
+Normal M1 review round 2 at `a682dc8e4ccfa2ccb6717e9592e30bccc88db27f`
+explicitly disposed BR-1/2/3 as addressed. Its FIX-THEN-SHIP verdict still left
+Important BR-4 open, and the binary **did not finalize** the milestone; its
+explicit next action is fix and re-run milestone-close, without a waiver.
+
+BR-4's class is synchronized owners copied to substitute preview dependencies.
+Reproduced `go vet ./cmd/internal/couchcore` exit 1 at production preflight and
+its test fixture. Recovery now passes a read-only ThreadStore into the existing
+ordinary/profile resolvers, preserving the actual Couch pointer and all its
+mutexes/lifecycle ownership. Numbered profile resolution already accepts its
+store directly. The test now constructs only its needed Couch dependencies.
+Swept all Couch copy assignments; remaining ThreadStore preview copies contain
+configuration/pointers but no synchronization primitives.
+
+After correction: core vet **PASS** exit 0; targeted profile/preflight/prepared/
+Fresh/start-resolution tests **PASS** 13.829s. Broader `go vet ./...` identifies
+one independent pre-existing diagnostic at
+`cmd/internal/pairlifecycletest/live_zellij_diagnostics_test.go:20` (unused String
+result), not a synchronized-owner copy. No unrelated source edit is included.
+The previously recorded complete suite passes the preceding code generation;
+a new pushed-head recorded suite follows this correction before M1's re-close.
+
+
+### 2026-10-15 — BR-4 complete verification and reporting
+
+The corrected pushed head `52c5f6aceb31d3f9fc0980d03c34dcd1b050643d`
+passed the required recorded suite: exit 0, **8m38s**, retained log
+`/Users/xianxu/workspace/pair/.git/sdlc/local-checks/52c5f6aceb31d3f9fc0980d03c34dcd1b050643d/suite.log`,
+SHA-256 prefix `e114fbb2b590`. `make build` passed, including rebuilding pair,
+couch and the launch helper. Profile/preflight race tests passed in **2.990s**.
+Core vet remains clean after its reproduced copylocks failure.
+
+Hub messaging subsequently recovered. The round-2 outcome/fix report
+`4ef4dee2-16c8-4492-be13-767b67bf2463` and M2 latest-provider clarification
+`32602d27-64b2-42a4-972f-c2e3e7c10cff` are both verified **submitted** to ops:0.
+The policy question now names measured Codex/Claude/Qoder native ordering versus
+unproved Grok/Muse/Agy indirect selection. Exact canonical IDs remain supported
+by all six inventory scanners. No M2 code or live/stage effects have occurred.
+
+Normal M1 re-close follows the binary's explicit next action for open BR-4;
+no bypass flags or manual ledger dispositions are used.
+
+
+### 2026-10-15 — M1 round 3: Fresh candidate normalization correction
+
+Round 3 at `dead1b665bddf4d053df5faba06b54a73420296a` disposed BR-4 (and
+reconfirmed BR-1/2/3), but returned **REWORK**, Critical BR-5. M1 remains open.
+A Fresh key entered as RecoveryInferred and encountered native profile/park/
+continuation/young-start guards before it was recognized as Fresh.
+
+Reproduced all four guard families: explicit Fresh controls passed while keyed
+ResumeCandidate and the declared live-owner operation each refused. The 12-case
+matrix also asserts genuine native candidates still refuse without effects,
+then verifies one Fresh launch, no native session ID, a nonempty orientation
+Prompt and no signals. Corrected the shared owner to validate/select a key and
+normalize its mode before profile resolution and every native-only guard;
+non-keyed modes keep their existing cheaper preflight order. Evidence is read
+once per operation, not replayed. Stale/invalid keys retain their refusal.
+
+RED-to-GREEN matrix **PASS** 2.870s, broad prepared/candidate/Fresh/selection/proven
+suite **PASS** 17.992s; matrix race run **PASS** 4.407s; core vet **PASS**.
+Independent surface tests at `31497237e` execute the actual printed command and
+menu owner queue, preserving keyed Fresh versus keyless/explicit reboot through
+the existing transport. Root rerun: tty **PASS** 0.293s, cmd **PASS** 0.296s.
+No production surface change was needed. The next corrected-head recorded suite
+and normal re-close follow; no gate is waived and no M2 code has started.
+
+
+### 2026-10-15 — BR-5 full verification
+
+Corrected code head `7f289c0089052d02c2b82c453dc7ccc5a5a27d02` passed the
+required recorded full suite: exit 0 in **8m42s**, retained log
+`/Users/xianxu/workspace/pair/.git/sdlc/local-checks/7f289c0089052d02c2b82c453dc7ccc5a5a27d02/suite.log`,
+SHA-256 prefix `2c788d3dc827`. `make build` passed, rebuilding pair/couch/helper.
+The subsequent native-selector measurement checkpoint changes only the plan.
+Normal milestone-close must dispose BR-5 before M1 is considered closed.
+
+The round-3/fix report attempted after the commit refused `unavailable` without a
+receipt; no uncertain delivery is replayed. Read-only peek subsequently confirmed
+the hub's terminal is functioning. Next report will name the actual new boundary
+outcome. No stage, restart, native session experiment or M2 code has occurred.
+
+### 2026-10-15 — M2 common launch admission checkpoint
+
+M1 closed normally on SHIP at `69c213c289ac9f98aa7e16a9e9c1b54f76c90d26`;
+M2 implementation now proceeds under the approved split. The first launcher
+regression run failed functionally: all six native resume forms reached handoff
+without a reserved grant, refusal still launched, inherited authority survived
+Fresh, and both cancellation cases had zero reservations. After wiring the
+common Runtime boundary, the same matrix passed in 0.185s. The extended launcher
+regressions passed in 1.565s, including latest resolved once then pinned despite
+a newer native session, unresolved inventory without writer publication, and
+fork source IDs never recorded/reserved as the new writer.
+
+Admission now precedes compatibility/native launch ledger publication. The
+command digest covers the final executable/argv, including launch-only runtime
+arguments. Authority remains private until terminal handoff, after title-helper
+startup; definitely unexposed failures cancel the exact reservation, while an
+uncertain terminal start retains it. The wrapper separately consumes authority
+before PTY spawn, publishes strict child ownership before readiness and removes
+it from native/watcher/Fresh environments (`c24060bd6`). The Zellij handoff still
+uses its existing environment transport; no new persistent token transport or
+layout rendering is introduced. Existing same-user process inspection is not a
+security boundary; a consumed grant cannot start a second native writer.
+
+The inventory provider-policy question remains submitted to the hub
+(`32602d27-64b2-42a4-972f-c2e3e7c10cff`), with no answer observed. In particular,
+Codex effective provider/SQLite-home configuration is not yet positively resolved
+by the OS launcher adapter: do not claim latest support from unit fixtures alone.
+The internal result is honestly Unsupported until that production seam is
+established. No native files/defaults were changed; no live slot effects or stage
+operations occurred. Full M2 verification and its independent boundary remain.
+
+### 2026-10-15 — M2 integrated targeted verification
+
+Integrated selector commit `58cfb5f0a`, store/legacy-owner commit
+`27fec0d77effd4683c451c5b3d1aacc9324dc0f0`, and layout hygiene `be7fd1d4a`.
+The full launcher package passed in 33.579s; focused integrated race checks passed
+launcher 2.337s, wrapcmd 2.679s and inventory 14.045s. Launcher/wrapper/inventory
+vet passed. Artifactpath's complete package passed in 7.680s with the native
+admission constructor, consumers, exact path witnesses, source inventory and
+protected GC classification registered in the existing manifest (ARCH-DRY,
+ARCH-FUNERAL). Store authority has explicit bounded growth, strict process-proof
+collection and permanent lock-inode ownership; readiness is not release authority
+(ARCH-STATE, ARCH-PURE).
+
+The common launcher two-slot barrier now exercises the real portable authority
+while holding the first terminal handoff open: same native ID refuses before
+launch records or handoff, different ID proceeds without waiting for terminal exit.
+The extended native-create matrix passed in 0.235s. Independent store/orphan
+focused race tests passed launcher 2.683s/wrapcmd 2.943s/artifactpath 1.095s.
+Public/preflight owner checks read the same locked authority without mutation or
+recursive locking; a changed/dead old child revokes a different-key exemption.
+Known orphan native children remain protected by retained readiness plus exact
+launch-ordinal association, rather than arbitrary process-name guesses.
+
+Actual layout-shell recording shims went RED on inherited authority in non-agent
+commands, then GREEN 0.361s after scoped clearing for rename helpers and unsetting
+at draft/terminal stanza entry. Agent wrapper receives the original grant; its
+native child/watcher do not. Focused wrapper/launcher integration passed
+1.503s/1.677s; normal runtimebundle generation and embedded layout guards passed
+0.137s. Zellij remains the existing environment transport; no raw rendered layout
+or persistent token transport was added.
+
+The production latest-selector policy remains unresolved. A new concrete report
+was queued to the hub as `7713c3c2-e17f-4574-b432-d1f857c74ee9`; its receipt is
+held because the hub composer is not visible, not evidence of approval or failure.
+Do not close M2 or land while this scope decision is unanswered. Independent
+full verification can proceed. No live slot, native state, default, stage or
+operator process was changed.
+
+### 2026-10-15 — M2 cancellation correction and first recorded suite
+
+The first required recorded suite at `2851d4009c94f4df0f8a9bb117b37dfd04e88650`
+failed after **2m41s**, exit 2, at the existing dynamic-terminal/layout drift
+assertion in `tests/term-pane-shortcuts-test.sh`. Retained failed log:
+`/Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/f1ba2682786170e2cfac1c07962fc0cc.log`,
+SHA-256 prefix `a4cad0725b64`. Its declared `make test` stops at that first failure;
+this is not a full pass or evidence about later Go targets. Earlier independent
+complete inventory/artifactpath runs passed 8.336s/4.188s; build passed.
+
+The failure is ours: static layout hygiene missed the existing dynamic split
+producer. Swept all command producers and fixed the sole sibling
+`termcmd.rightTerminalPaneShell` in `cad1e7ce0`. An actual emitted-shell regression
+went RED on grant inheritance in rename helper and terminal, then GREEN. The
+shell conformance now derives its expected command from the layout instead of a
+second handwritten stanza (ARCH-DRY). Complete shortcut script **PASS**, complete
+termcmd **PASS** 0.588s, wrapper layout checks **PASS** 0.470s. `make pair` rebuilt
+the current binary and generated runtime assets normally.
+
+Inspection also found cancellation observed only after the store's whole GC
+loop. Regression RED: cancelling on probe one/two still made all six probes and
+called the legacy check. Corrected in
+`34d250c3aa6c6c6e5a9f0fc957c7dfe1cb7789e9`: exact one/two probes, no subsequent
+entry/callback/grant/write, original bytes unchanged; targeted race launcher
+**PASS** 2.193s and wrapper **PASS** 2.313s. Duplicate-key validation is linear.
+A single already-running synchronous process probe must still return before
+cancellation can be observed; no stronger timeout guarantee is claimed.
+
+Main has no unintegrated commits after fetch. The corrected head needs its own
+recorded suite. Provider-policy direction remains pending; no M2 close or landing
+has been attempted, and no gate is waived.
+
+### 2026-10-15 — M2 strict persisted authority correction
+
+Inspection found that decoding over a prefilled version silently accepted corrupt
+`{}`, entries-only, version-only, top-level null and null entries as empty valid
+authority. All five fixtures reproduced RED by issuing a new grant after corrupting
+a store which had an existing writer. Corrected in
+`37c5bae2d339d4d407c06d7354feada9b12e8b26`: existing files decode onto zero values
+and require explicit version 1 plus a nonnull entries array. Only absent files
+initialize an empty array. GREEN cases assert no callback/grant/write and unchanged
+corrupt bytes; valid absent/empty/post-cancellation stores remain supported.
+Targeted race passed launcher **2.493s**, wrapper **2.179s**. Complete packages on
+this correction passed launcher **32.211s**, wrapper **48.444s**, inventory **9.083s**.
+The prevention rule is recorded in lessons (ARCH-SECURE, ARCH-STATE).
+
+The recorded suite still running on `8b3274af5fe3b4cab7fa6b41cd4021faea145611`
+contains the cancellation and split-terminal corrections, but predates this
+strict-decoding correction. Its result cannot satisfy final code-head verification.
+The pending latest-selector scope decision may change code again, so final required
+suite/review/landing remain after that decision; no ancestor pass will be relabelled.
+
+### 2026-10-15 — M2 recorded integration pass and private config measurement
+
+The cancellation/split correction head
+`8b3274af5fe3b4cab7fa6b41cd4021faea145611` passed its required recorded suite:
+exit 0 in **9m25s**, log
+`/Users/xianxu/workspace/pair/.git/sdlc/local-checks/8b3274af5fe3b4cab7fa6b41cd4021faea145611/suite.log`,
+SHA-256 prefix **ab7907c786d9** (core 306.734s, launcher 34.215s,
+wrapper 65.721s). This is integration evidence, not final-head clearance, because
+the strict-decoding correction followed it. The required suite on
+`32c5e123535f1dfe9b46e2edb9ed433bdb212002` is now running and includes that fix.
+A current-code `make build` passed, rebuilding Pair, Couch and launch helper.
+
+The bounded private Codex configuration experiment is durably retained at
+`workshop/plans/000556-codex-config-probe.md`; the plan appends a pending decision,
+not an approved mechanism. Only private scratch state was used; no authentication,
+conversation/model RPC, production native state, live slot or stage was used.
+All owned metadata-server children exited and were reaped. The API is merged
+configuration rather than complete resolved runtime configuration, has no runtime
+profile selector, and server startup writes/migrates metadata. Forwarding a profile
+flag or translating it to the retired profile config key does not work. Existing
+Pair inventory also does not honor custom CODEX_HOME. Those are concrete remaining
+scope limits, not permission to invent defaults. The hub's decision is still
+required before M2 close/landing.
+
+### 2026-10-15 — final-code suite blocked by scratch capacity; checkpoint
+
+Required recorded suite on
+`32c5e123535f1dfe9b46e2edb9ed433bdb212002` finished **FAIL**, exit 2 in **9m41s**.
+Log `/Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/cc39d5c0201f140329feb371b851c5ef.log`,
+SHA-256 prefix **c2186d200292**. Go linker/vet/package writes failed with
+`no space left on device` under `/Volumes/AgentScratch/tmp/go-build433343417`.
+Read-only measurements: scratch capacity 186Gi, 100% used (119Mi free at first
+measurement, 299Mi after completion); GOCACHE is `/Volumes/AgentScratch/go-build`
+(**184G** by du), GOTMPDIR is `/Volumes/AgentScratch/tmp` (**1.6G** measured),
+while the /tmp Data volume has **257Gi** free. No cache or other agent's files
+were deleted, no global Go environment/configuration was changed, and no full
+suite retry is started against the still-full volume.
+
+The run also failed
+`TestSpawnRetainsOwnershipAndRetriesUntilQuiescenceIsProven` at couch_test.go:1082:
+its returned registration/child-wait error omitted the expected quiescence-hook
+error. This is separate from linker failures; its cause is not established.
+Immediate isolated rerun on the same current code **PASS** 0.537s:
+`go test ./cmd/internal/couchcore -run '^TestSpawnRetainsOwnershipAndRetriesUntilQuiescenceIsProven$' -count=1 -timeout=60s`.
+Do not relabel the full run as passing or attribute this test to disk exhaustion
+without evidence. Preserve the failure for the next clean-capacity full run.
+
+The hub received both the concrete plan decision
+`657c3067-bd4a-4c05-812b-a430cd87626e` and capacity blocker
+`52c58d60-1056-406f-a3fb-d2b98e49d38c` as **submitted**. Capacity report asks for
+shared-volume recovery or an authorized isolated per-run environment override.
+The standard recorded runner inherits the full scratch environment; AGENTS §15
+requires bare sdlc calls, so no ad-hoc prefixed runner or global environment edit
+was used to route around that contract. No latest-selector scope answer has been
+observed. M2 remains unclosed, with no review/landing/stage operation or waiver.
+Next: hub decides selector configuration strategy and machine capacity, rerun the
+required suite on the resulting code head, then normal M2 milestone-close and
+whole-issue close/PR/CI/merge on SHIP. M1 remains normally closed at `69c213c289ac`.
+
+### 2026-10-15 — approved Codex compatibility delta verified
+
+Shared policy `acbaa18e6` reuses the inventory UUID-shape authority; wrapper
+`85d909865` permits only empty-grant Codex indirect invocations, preserves argv,
+and prints the shared one-line notice once at actual execution. A nonempty bad,
+mismatched or replayed grant never selects the exception; full canonical IDs
+remain guarded. Root launch skips resolution/reservation for that explicit
+compatibility route, publishes no guessed native identity, and keeps trusted
+required/recovery targets on the guarded path. #571 remains unassigned on main;
+the hub received its number (receipt **submitted**).
+
+Meaningful RED-to-GREEN: all five common launcher cases (last, profile+last+
+prompt, picker, name/search, prefix) originally invoked the unavailable resolver
+and refused. They now launch unchanged without resolver/reservation or invented
+identity. Eight actual argv/from-launch-env PTY cases independently went RED,
+then GREEN with exactly one notice and no claim/publication; exact-ID and
+nonempty-grant negative controls still refuse. Updated exact-ID fixture shapes
+to actual canonical UUIDs rather than accidentally exercising the exception.
+
+The same tests caught unrelated saved-session warnings falsely saying
+`starting fresh` before an explicit native choice. Saved-picker reads/warnings
+now occur only when the caller has not chosen native context. A fork regression
+went RED when stale saved config reopened the picker and aborted, then GREEN;
+new chosen-ID sibling cases also verify one launch, unchanged argv and no source
+reservation. README, atlas and headless acceptance document the intentional
+unguarded exception and #571 boundary (no app-server process added).
+
+Private per-command test cache/temp (no global environment edit or shared-cache
+deletion) allowed full packages to pass despite shared scratch exhaustion:
+launcher **35.182s**, wrapper **58.671s**, inventory **11.583s**; focused race
+launcher **2.799s**, wrapper **7.626s**, inventory **1.288s**. After the final
+fork/new-picker correction, complete launcher **PASS 34.708s**, focused mixed
+selection/recovery/config/restart checks **PASS 0.225s**. Build passed using the
+same private per-command environment before that final small picker correction;
+current build rerun follows. Final required recorded suite and normal M2 review
+remain outstanding on the approved resulting code head. No live/stage/native
+conversation/configuration effects occurred.
+
+### 2026-10-15 — compatibility checkpoint and remaining capacity gate
+
+Committed common launcher compatibility/saved-picker corrections at
+`ee28678a1`, shared policy `acbaa18e6`, wrapper `85d909865`. Current-code build
+rerun **PASS** with task-private per-command GOCACHE/GOTMPDIR. Merged origin/main
+at `3232e8d3cf968dc8478acd416d0e721c2f47507e`: only #571's published details
+arrived; no code paths changed. Its later details publications are the dispatched
+owner's work, not this slot's edits. No branch stacking or stage operation.
+
+The selector-policy decision is now resolved and implemented. The remaining gate
+is the required recorded full suite on the resulting code head: the standard
+runner inherits the still-full shared scratch cache/temp. Targeted tests and build
+used only task-private per-process environment overrides, which are permitted for
+ordinary go/make commands; no machine defaults were edited. AGENTS §15's bare
+sdlc-call requirement means a prefixed recorded-run exception needs hub direction,
+or shared capacity must be restored. No full-suite pass is claimed for this delta,
+no boundary is waived, and normal M2 milestone-close/review plus whole-issue
+close/PR/CI/merge remain to do after verification. The implementation, docs and
+headless/live script are concrete and checkpointed for the hub's next action.
+
+
+### 2026-10-15 — final approved M2 recorded suite PASS
+
+Shared scratch capacity recovered without any cleanup or global environment change
+by this slot. Normal bare `sdlc local-check run --name suite` at pushed head
+`6ab8ee41931fa63c095c7883448f2e39478ba657` **PASS**, exit 0 in **9m27s**.
+Retained log: `/Users/xianxu/workspace/pair/.git/sdlc/local-checks/6ab8ee41931fa63c095c7883448f2e39478ba657/suite.log`, sha256 prefix `28438e0b5015`.
+Core 306.946s, launcher 35.056s, wrapper 64.435s, inventory 8.590s; all shell/editor
+integration and full Go packages passed. The previous ownership/quiescence test
+failure did not recur. The pending environment-prefix request is obsolete.
+
+Repeated verified decision 5b66d87c matches the implemented compatibility boundary;
+#571 is published and the hub has dispatched it. No app-server adapter, stage or
+live slot effects were added. The acceptance script appends a Revision superseding
+its older pending-direction note. Normal M2 milestone-close/review follows with no
+waivers; whole-issue review and landing remain required.
+
+
+### 2026-10-15 — M2 boundary round 1 REWORK
+
+Normal milestone-close reviewed fe5275365 in fenced checkout; verdict REWORK,
+BR-6 Critical existing-session selector bypass and BR-7 Important unreclaimable
+interrupted reserved grant. No milestone finalized. The reviewer passed focused
+and complete affected packages, vet and diff checks. Full suite evidence remains
+6ab8ee419 PASS9m27s. The durable plan appends the correction: full context-selector
+classification and exact reserved-attempt revocation under the Claim lock after
+strict helper death, retaining any already-spawning uncertainty. Bounded independent
+fixes are delegated; TDD and final full verification/re-review remain required.
+
+
+### 2026-10-15 — BR-6 / BR-7 corrected and targeted verification
+
+BR-6 correction `61d335ba9764d6a11f59594876fa3ae037aee646` reuses Fresh's
+context-selector authority for unsupported flags and commands. RED launcher0.187s /
+wrapper3.065s reproduced harmless actual stub spawns through argv and from-launch-env;
+GREEN plus targeted race launcher2.835s / wrapper7.310s. Tests cover all Fresh flag
+families, unsupported-plus-resume/new/fork, literal values/prompts, valid granted
+resume and unchanged approved Codex passthrough. No duplicate selector table.
+
+BR-7 correction `7af210ada02ec76499c5b170f9fc71f144b56aa0` adds exact
+reserved-attempt revocation under the existing store/Claim lock after strict helper
+death. RED reproduced blocked replacement. GREEN targeted1.251s, independent
+root rerun1.168s. Deterministic lock contention covers revocation first (replacement
+admitted, old grant rejected) and Claim first (spawning retained, replacement
+refused), plus live/unknown helper, token/request/generation drift and cancellation.
+No already-authorized child is inferred dead from helper death.
+
+Corrected-code normal `make build` PASS (pair, couch, launch helper). Atlas and
+lessons updated for both finding classes. A fresh required recorded suite follows
+on the checkpointed head, then normal M2 re-close/review with no waivers. No live
+slot, stage, operator restart or native production session was touched.
+
+
+### 2026-10-15 — corrected BR-6 / BR-7 recorded suite PASS
+
+Normal required `sdlc local-check run --name suite` on pushed
+`4f8c73ce1e7ae28d69d6b2e73b4547467ada87bd` **PASS**, exit0 in **13m18s** after
+1282s machine queue wait. Retained suite.log under that exact head in the common
+Git sdlc/local-checks directory, sha256 prefix `81c18227a083`. Core539.758s,
+launcher57.323s, wrapper87.455s, inventory14.198s, all editor/shell integrations
+and Go packages passed. Independent root admission race PASS4.382s. No earlier
+ownership/quiescence flake recurred. Corrected build PASS. Normal M2 re-close
+follows with both findings addressed in code/tests, no waiver or live effects.
+
+### 2026-10-15 — M2 SHIP and whole-issue close handoff
+
+M2 normal re-close finalized SHIP at `6851b1ad5d95e68714ad4fd3395164b07cef03e8`.
+Round6 disposed BR-6/7, no new or open findings; reviewer independently ran both
+fix-removal experiments and affected packages/race/vet. Whole-issue close's first
+attempt stopped mechanically before review on the combined final checklist row.
+That row is now ticked as the finishing-work handoff to the close/publish verbs;
+this is not evidence of a completed landing. Whole-issue review, PR/CI/merge and
+final hub report are still outstanding and will be observed through their gates.
+No bypass is used.
+
+### 2026-10-15 — whole-issue review REWORK, delimiter identity bypass
+
+Whole-issue round7 reopens BR-6: Codex `resume -- <canonical UUID>` and
+`exec resume -- <UUID>` were misclassified as picker because FlagRegion drops
+all tokens after `--`, then entered the approved indirect exception. Reviewer
+reproduced native stub spawn through both transports. BR1-5 and7 are addressed;
+no new finding IDs. Close did not finalize. The plan appends native positional
+grammar treatment and full selector-family regression sweep. Fix, build, recorded
+full suite and normal close re-review remain; no waiver or landing claimed.
+
+
+### 2026-10-15 — whole-issue BR-6 grammar correction verified
+
+`d0d409ae2c070c210892388414a89e42af280c31` replaces raw FlagRegion truncation
+with one command/option/positional parser. RED launcher0.224s / wrapper6.577s
+reproduced full canonical Codex resume and exec-resume IDs after `--` bypassing
+both actual transports. GREEN launcher0.201s / wrapper2.763s. Pinning retains an
+exact post-delimiter argv and replaces only the selected positional ID; latest,
+already-bound prompts, leading delimiter, fork/new, flag-valued agents and literal
+mandatory-option `--` values have independent controls. Related native/Fresh/
+Codex compatibility race tests PASS launcher3.396s / wrapper16.279s.
+
+Measured installed help sweep of all six, plus Codex exec/resume and Muse
+exec/resume, found shared value-option omissions corrected at
+`e1a8e54075f684341e03818a171e88e7fedf5dbc`: Muse -c/config/effort/permission-profile;
+Codex exec color/output-last-message/output-schema/thread-source/cyber-access-program.
+Before correction their values could hide resume or become the wrong ID. New
+RED matrix, focused GREEN0.190s and adjacent GREEN0.133s. No additional concrete
+existing-session gaps established for Claude/Agy/Qoder/Grok inspected forms.
+No native launches beyond harmless help and private stub/PTY fixtures.
+
+Corrected normal build PASS; root inspected both code changes. Atlas and lessons
+record the grammar rule. A new normal recorded suite and whole-issue re-review
+follow; M1/M2 closed boundaries remain historical, no waiver or live/stage effect.
+
+
+### 2026-10-15 — integrate landed #558 before final recorded verification
+
+While eedeba2e7's required suite was still queued (not running tests), main gained
+#558's receiver-profile code/docs plus published issues. Canceled only this slot's
+owned sdlc process7164 with INT after ps/cwd verification; queued runner exited130.
+No pass/failure of code is claimed for that canceled run. Merged origin/main
+cleanly, preserving #558 receiver-list/Qoder behavior and #556 recovery/admission;
+no conflict resolution. New recorded suite will cover the integrated head rather
+than consuming a full run whose head immediately needs integration. No other
+process, test lock, working slot or stage was changed.
+
+
+### 2026-10-15 — final integrated grammar correction suite PASS
+
+Required normal recorded suite on pushed integrated
+`b719d79bc03cc68fe898a8b24f4194777d96fa44` **PASS**, exit0 in **12m7s**, following
+1401s machine queue wait. Retained suite.log at that exact head in common Git
+sdlc/local-checks, sha256 prefix `ed7dceb689cd`. Core481.330s, launcher70.320s,
+wrapper58.512s, inventory12.085s; all shell/editor integration and Go packages
+passed. Root independent delimiter rerun launcher0.115s/wrapper1.086s; integrated
+build PASS. All #558 receiver changes are included. No prior quiescence flake
+recurrence, no machine-default/cache cleanup, no stage/live effects or waiver.
+Whole-issue re-review follows with the grammar-wide BR-6 correction and evidence.
+
+
+### 2026-10-15 — close SHIP, PR349, integrate newly landed #572
+
+Whole-issue normal round8 finalized SHIP with zero open findings, evidence commit
+`5b9e5e584011a2ae271630ea5a01269911d09958`, reviewed567606271. PR349 opened.
+The normal merge gate then found newly landed #572 and refused its manifest
+conflict, preserving the branch. Manual origin/main integration resolved the only
+conflict in `cmd/internal/artifactpath/manifest.go` by retaining BOTH #572's
+internal/reporoot/root.go non-artifact source and every #556 native admission/
+selector source. Merge commit `8bea62224`; all other paths auto-merged. No
+selector, recovery or launch semantics were changed by this resolution.
+
+Integrated artifactpath tests PASS25.035s and normal make build PASS. Required
+recorded full suite on the integrated head follows, then the merge gate's named
+normal `close --fixed-then-ship --full-suite` review of the post-close conflict
+resolution. No waiver, live slot, stage or unrelated process change.
+
+
+### 2026-10-15 — blocked by #577, declared trimpath suite regression
+
+Post-close integrated required suite at c80734525e16 **FAIL**, exit2 in4m11s
+after504s machine queue: Make environment test reports PAIR_GO_TRIMPATH did not
+reach recipe. All preceding editor/shell checks passed; Go suite did not run.
+Retained failure log f56b8f2ef9ecc3a5638161bf3707978c.log under common Git
+sdlc/test-stats/failed, sha256 prefix aa446f79e62e. This is not represented as a
+pass or as a #556 product failure.
+
+Independent reproducible main/#572 defect: bare make test-make-env PASS198 knobs;
+make PAIR_GO_TRIMPATH=-trimpath test-make-env exits2. The command-line value
+propagates in MAKEFLAGS/MAKEOVERRIDES and overrides the test's synthetic knob
+value in nested make. Actual probe confirms the assignment. Filed/published
+**#577**, unclaimed, with exact repro and retained evidence; independent work must
+start from main. No harness source change or gate bypass in #556.
+
+PR349 CI checks all PASS (conformance, merge-check, local-gates-guard). #556 M1,
+M2 and whole close remain normal SHIP. The only unreviewed post-close source delta
+is the additive artifact manifest merge resolution. Once #577 lands: merge main,
+run the normal declared suite, then close --fixed-then-ship --full-suite with
+that evidence, update PR and merge on SHIP. Branch stays preserved; no stage,
+working slot, machine environment, test lock or unrelated process modified.
+
+
+### 2026-10-15 — #577 landed; resume final integration verification
+
+Verified pair:1 receipt3beda7a9: #577 landed via PR350, merge
+83e48dc57e6dd34549e608af0bc73b9b680fa295. Merged origin/main cleanly at
+66e98ac862b42eb93a894478d3b548e4644bc47c, retaining the prior manifest resolution.
+Exact local repro make PAIR_GO_TRIMPATH=-trimpath test-make-env now PASS198 knobs
+and additive flags/command-line overrides/nested Make. Integrated make build PASS.
+No production flags or declared suite argv changed. Required full recorded suite
+and narrow post-close integration review follow; no gate is waived.
+
+
+### 2026-10-15 — post-close integrated required suite PASS
+
+Normal recorded `make PAIR_GO_TRIMPATH=-trimpath test` at
+`1e454fd4d89e1f10ba832ce4b814c293d02a677e` **PASS**, exit0 in **12m37s** after
+863s queue. Retained suite.log in common Git sdlc/local-checks under that head,
+sha256 prefix `28276f5e2d73`. Both Make environment modes PASS198 knobs plus
+additive/override/nested checks; all editor/shell integrations and Go packages
+passed. Core495.693s, launcher57.435s, wrapper77.091s, inventory11.528s.
+Integrated build passed. No test or review gate is waived.
+
+Narrow fixed-then-ship review now covers the additive manifest resolution from
+#572 main integration, with #577's fixture correction retained from main.
+Verified hub receipt ebd9c8ff authorizes only --no-actual if close encounters the
+specific incomplete Qoder session metadata measurement bug, ariadne#391; normal
+measurement is attempted first. No other waiver authorized or needed.
+
+## Revisions
+
+### 2026-10-15T05:33-07:00 — overnight M2 dispatch
+
+The hub assigned #556 after #528 landed: plan to the hub, implement and land on
+SHIP, with headless acceptance and a short live script for the operator's morning
+restart. The issue now references the newer `slot-recovery` target; the earlier
+`slot-continuity` commitments still constrain teardown, confirmation and Fresh.
+The durable plan is awaiting the hub's approval; no implementation is started.
+No messaging reconciliation (#561), wrapper endpoint reconstruction (#557),
+automatic inference, live-slot experimentation or stage changes are included.
+
+### 2026-10-15 — approved milestone split
+
+Verified hub receipt `249a1bbd-5f2f-457a-b009-c2581eae3da9` approves the plan
+with two separate milestone-close boundaries. M1 implements confirmed recovery
+and schema migration, including standalone `couch --recovery-confirmation TOKEN`
+for the hub and the morning scratch script. M2 separately enforces native
+admission against concurrent writers. Tokens/reservations/schema are internal;
+visible outcomes stay Continue / Resume from disk (confirmed) / Start fresh,
+plus needs relaunch, with only the actual stop confirmation shown. Retain the
+five-minute stale-Starting bound and one exact reobservation. Change-code next.
+
+### 2026-10-15 — M2 selector policy decision
+
+Verified hub receipt `14aba7d7-b325-43dc-a16c-6d8d23907f23`: resolve and pin
+indirect latest selectors through existing native inventory for exact cwd/agent;
+reserve and execute the same explicit canonical ID. Refuse only unresolved or
+ambiguous selectors/name mappings; do not regress supported continue/last or edit
+saved defaults. The durable plan Revision supersedes the earlier blanket-refusal
+proposal. Native admission remains M2, after M1's independent verification block.
+
+
+### 2026-10-15 — approved primary-agent compatibility and #571 split
+
+Verified decision `b927c539-6b36-4710-b39e-8b9142e1721b`: land exact canonical-ID
+admission for all, Claude/Qoder latest resolution, and unchanged unreserved Codex
+indirect passthrough with one one-line unguarded notice until a faithful adapter
+exists. The durable plan appends the implementation boundary and explicit-ID
+negative controls; no metadata app-server adapter is authorized or added.
+
+Filed/published **pair#571**, unassigned, via `sdlc issue new --no-claim`, details
+`workshop/issues/000571-codex-indirect-resume-adapter.md` on origin/main. Target
+slot-recovery; dependency #556 for admission integration; source/profile/env/Codex
+home/state-home semantics read only from files and verified against the real DB.
+The hub received the number in receipt `86bf24fa-23d7-481f-a998-17093dde4e28`.
+Implementation of the approved compatibility delta proceeds independently of
+shared scratch capacity; final required suite and normal gates still apply.

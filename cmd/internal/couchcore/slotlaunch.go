@@ -12,6 +12,14 @@ import (
 // the existing start claim reserves this process incarnation. Callers retain
 // rollback and final conversation proof: compile may change external evidence.
 func (c *Couch) prepareTrackedWorkspace(ctx context.Context, thread ThreadRecord, nonce string, warm bool) error {
+	var readiness WorkspaceReadiness
+	if c != nil {
+		readiness = c.Workspaces
+	}
+	return c.prepareTrackedWorkspaceWith(ctx, thread, nonce, warm, readiness)
+}
+
+func (c *Couch) prepareTrackedWorkspaceWith(ctx context.Context, thread ThreadRecord, nonce string, warm bool, readiness WorkspaceReadiness) error {
 	if warm {
 		return nil
 	}
@@ -65,10 +73,10 @@ func (c *Couch) prepareTrackedWorkspace(ctx context.Context, thread ThreadRecord
 	if err := recheck(); err != nil {
 		return err
 	}
-	if c.Workspaces == nil {
+	if readiness == nil {
 		return errors.New("numbered workspace readiness is unavailable")
 	}
-	result, err := c.Workspaces.Ensure(ctx, ProvisionRequest{Path: slot.PrimaryRoot, Slot: slot.Number, Progress: c.WorkspaceProgress})
+	result, err := readiness.Ensure(ctx, ProvisionRequest{Path: slot.PrimaryRoot, Slot: slot.Number, Progress: c.WorkspaceProgress})
 	if err != nil {
 		return err
 	}

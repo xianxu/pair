@@ -74,11 +74,12 @@ const (
 
 // MenuFrame owns the navigation state for exactly one menu level.
 type MenuFrame struct {
-	RecoveryTarget  couchcore.ResumeTarget
-	RecoveryPreview *couchcore.RecoveryPreview
-	SwitchPrepared  *couchcore.PreparedAgentSwitch
-	SwitchStage     int
-	SwitchEdited    bool
+	RecoveryConfirmation *couchcore.RecoveryConfirmationOffer
+	RecoveryTarget       couchcore.ResumeTarget
+	RecoveryPreview      *couchcore.RecoveryPreview
+	SwitchPrepared       *couchcore.PreparedAgentSwitch
+	SwitchStage          int
+	SwitchEdited         bool
 	// Rune distance from the end; zero keeps newly prefilled parameters at end.
 	SwitchCursorFromEnd int
 
@@ -286,14 +287,15 @@ const (
 )
 
 type MenuEvent struct {
-	RecoveryPreview *couchcore.RecoveryPreview
-	RowKey          couchcore.ThreadRowKey
-	Kind            MenuEventKind
-	Key             PanelKey
-	Address         couchcore.ThreadAddress
-	Inventory       []couchcore.ActionableThreadSummary
-	InventorySet    bool
-	Operation       string
+	RecoveryConfirmation *couchcore.RecoveryConfirmationOffer
+	RecoveryPreview      *couchcore.RecoveryPreview
+	RowKey               couchcore.ThreadRowKey
+	Kind                 MenuEventKind
+	Key                  PanelKey
+	Address              couchcore.ThreadAddress
+	Inventory            []couchcore.ActionableThreadSummary
+	InventorySet         bool
+	Operation            string
 	// Mode is the operation's disposition where it has one: which of park or
 	// detach a whole-couch `leave` applies to every live thread.
 	Mode       string
@@ -714,7 +716,7 @@ func reduceRootKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 // resolve a frame's thread: the sites ask about frame SCOPE, which is a real
 // property, instead of each re-deriving what leave means.
 func menuFrameBindsThread(frame MenuFrame) bool {
-	if frame.Kind == MenuFrameConfirmation && frame.Action == "leave" {
+	if frame.Kind == MenuFrameConfirmation && (frame.Action == "leave" || frame.RecoveryConfirmation != nil) {
 		return false
 	}
 	return frame.Kind == MenuFrameRecovery || frame.Kind == MenuFrameSwitchAgent || frame.Kind == MenuFrameActions || frame.Kind == MenuFrameConfirmation || frame.Kind == MenuFrameText
@@ -886,6 +888,9 @@ func reduceActionKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 			form := &state.Frames[len(state.Frames)-1]
 			form.Path, form.FormField = path, MenuFieldAgent
 			return requestStartPreview(state)
+		case "reboot":
+			// Shared preparation supplies the exact stop set before confirmation.
+			return dispatchMenuRow(state, "reboot", thread)
 		case "resume-candidates":
 			return openRecoveryPreview(state, thread)
 		case "switch-agent":
@@ -924,6 +929,25 @@ func reduceActionKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 func reduceConfirmationKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 	key = hierarchyNavigationKey(key, KeyEnter)
 	frame := &state.Frames[len(state.Frames)-1]
+	if frame.RecoveryConfirmation != nil {
+		switch key.Kind {
+		case KeyEscape, KeyLeft:
+			state.Frames = state.Frames[:len(state.Frames)-1]
+		case KeyUp:
+			frame.SelectedItem = "cancel"
+		case KeyDown:
+			frame.SelectedItem = "recovery-confirmation"
+		case KeyEnter:
+			if frame.SelectedItem == "cancel" {
+				state.Frames = state.Frames[:len(state.Frames)-1]
+				return state, nil
+			}
+			if frame.SelectedItem == "recovery-confirmation" {
+				return dispatchMenuOperation(state, MenuEffect{Operation: "recovery-confirmation", Args: map[string]string{"token": frame.RecoveryConfirmation.Token}}, frame.Thread)
+			}
+		}
+		return state, nil
+	}
 	binds := menuFrameBindsThread(*frame)
 	var thread couchcore.ActionableThreadSummary
 	if binds {
@@ -1373,6 +1397,14 @@ func unusableThreadNotice(thread couchcore.ActionableThreadSummary) string {
 // that many agents stop, any of them possibly mid-turn -- exactly as the
 // per-thread park names the thread it kills.
 func confirmationMenuItems(state MenuState, frame MenuFrame) []string {
+	if offer := frame.RecoveryConfirmation; offer != nil {
+		names := make([]string, 0, len(offer.Stops))
+		for _, stop := range offer.Stops {
+			names = append(names, fmt.Sprintf("%s PID %d (%s)", stop.Role, stop.PID, stop.Identity))
+		}
+		return []string{"cancel", "recovery-confirmation stop " + strings.Join(names, ", ")}
+	}
+
 	if frame.Action == "leave" {
 		live := 0
 		for _, thread := range menuRows(state) {
@@ -1709,6 +1741,12 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 		return state
 	}
 	state.InFlight = MenuOperationOrigin{}
+	if event.RecoveryConfirmation != nil {
+		offer := *event.RecoveryConfirmation
+		offer.Stops = append([]couchcore.RecoveryStopProcess(nil), offer.Stops...)
+		appendMenuFrame(&state, MenuFrame{Kind: MenuFrameConfirmation, Action: "recovery-confirmation", Thread: origin.Address, RowKey: origin.RowKey, SelectedItem: "cancel", RecoveryConfirmation: &offer})
+		return state
+	}
 	if origin.Address != (couchcore.ThreadAddress{}) && !menuOperationReplacesAddress(origin) {
 		if _, stillActionable := menuThread(state, origin.Address); !stillActionable {
 			return state
@@ -1754,7 +1792,7 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 		if origin.FrameKind == MenuFrameText && originVisible && originFrame.Thread == origin.Address && originFrame.Action == event.Operation {
 			state.Frames = state.Frames[:origin.Depth-1]
 		}
-	case "start", "reboot", "recover":
+	case "start", "reboot", "recover", "recovery-confirmation":
 		// recover may end in a reboot, which hands back a new address.
 		if originVisible {
 			if origin.RowKey.Kind == couchcore.ThreadTargetSlot {
@@ -1807,7 +1845,7 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 // child a recover's resume starts is excluded by handle at completion.
 func endsItsOwnChild(operation string) bool {
 	switch operation {
-	case "park", "detach", "relaunch", "switch-agent", "continue-thread", "reap", "recover":
+	case "park", "detach", "relaunch", "switch-agent", "continue-thread", "reap", "recover", "recovery-confirmation":
 		return true
 	}
 	return false

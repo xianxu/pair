@@ -52,13 +52,23 @@ func runResumeCandidatesCLI(inv cliInvocation, rt Runtime, out, diagnostic io.Wr
 		return 0
 	}
 	fmt.Fprintln(out, "Recovery choices for", inv.ref, "(explicit selection required)")
-	choices := append([]couchcore.RecoveryChoice(nil), preview.Candidates...)
+	choices := []couchcore.RecoveryChoice{}
+	if preview.Proven != nil {
+		choices = append(choices, *preview.Proven)
+	}
+	candidateStart := len(choices)
+	limit := 5
+	if preview.Proven != nil {
+		limit = 4
+	}
+	candidates := preview.Candidates[:min(len(preview.Candidates), limit)]
+	choices = append(choices, candidates...)
 	if preview.Fresh != nil {
 		choices = append(choices, *preview.Fresh)
 	}
 	for i, c := range choices {
 		label := c.Label
-		if i == 0 && len(preview.Candidates) > 0 {
+		if i == candidateStart && len(preview.Candidates) > 0 {
 			label = "best · " + label
 		}
 		activity := "unknown"
@@ -66,10 +76,24 @@ func runResumeCandidatesCLI(inv cliInvocation, rt Runtime, out, diagnostic io.Wr
 			activity = c.LastActivity.Local().Format("2006-01-02 15:04 MST")
 		}
 		evidence := "original saved screen"
-		if c.NativeID != "" {
+		if c.NativeID == "" && c.Key == "" {
+			evidence = "fresh conversation"
+		}
+		if c.NativeID != "" && c.Key == "" {
+			evidence = "established native binding"
+		}
+		if c.NativeID != "" && c.Key != "" {
 			evidence = fmt.Sprintf("matched %d/%d · tail %.0f%%", c.Matched, c.Total, c.TailMatch)
 		}
-		fmt.Fprintf(out, "%d. %s [%s] %s\n   last activity %s · %s\n   %s\n   couch --resume %s --candidate %s\n", i+1, rowtext.Sanitize(label), rowtext.Sanitize(c.Agent), rowtext.Sanitize(c.NativeID), activity, evidence, rowtext.Sanitize(c.Excerpt), inv.ref, c.Key)
+		command := "couch --resume " + inv.ref + " --candidate " + c.Key
+		if c.Key == "" {
+			if c.NativeID != "" {
+				command = "couch --resume " + inv.ref
+			} else {
+				command = couchcore.SlotOperationCommand("reboot", inv.ref)
+			}
+		}
+		fmt.Fprintf(out, "%d. %s [%s] %s\n   last activity %s · %s\n   %s\n   %s\n", i+1, rowtext.Sanitize(label), rowtext.Sanitize(c.Agent), rowtext.Sanitize(c.NativeID), activity, evidence, rowtext.Sanitize(c.Excerpt), command)
 	}
 	for _, reason := range preview.Reasons {
 		fmt.Fprintln(out, rowtext.Sanitize(reason))

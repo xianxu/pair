@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "checks": [
+    {
+      "name": "suite",
+      "command": ["make", "PAIR_GO_TRIMPATH=-trimpath", "test"],
+      "required": true,
+      "timeout_minutes": 30,
+      "weight": 1
+    }
+  ]
+}

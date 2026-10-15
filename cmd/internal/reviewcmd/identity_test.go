@@ -8,10 +8,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/internal/reporoot"
 )
 
 func identityRepo(t *testing.T) string {
@@ -92,8 +93,11 @@ func TestPrepareRealFirstOpenReceipt(t *testing.T) {
 				identityGit(t, dir, "add", ".")
 				identityGit(t, dir, "commit", "-qm", "track")
 			}
-			_, source, _, _ := runtime.Caller(0)
-			home := filepath.Clean(filepath.Join(filepath.Dir(source), "../../.."))
+			repo, err := reporoot.Current()
+			if err != nil {
+				t.Fatal(err)
+			}
+			home := repo
 			data := t.TempDir()
 			opts := ReadinessOptions{File: file, Prepare: true, PairHome: home, DataDir: data, Tag: "t", SessionID: "sid"}
 			var out bytes.Buffer

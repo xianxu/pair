@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -139,7 +140,7 @@ func (o recoveryTerminalOS) Observe(ctx context.Context, session string) (recove
 // unstable or unavailable descendant argv remains missing evidence, and a
 // changed exact named server refuses the observation rather than moving authority.
 func projectRecoveryTerminalSnapshot(session string, rows []procutil.Observation, after []procutil.Process) (recoveryTerminalSnapshot, error) {
-	result := recoveryTerminalSnapshot{Processes: after, Commands: map[int]string{}}
+	result := recoveryTerminalSnapshot{Processes: after, Commands: map[int]string{}, Args: map[int][]string{}}
 	current := make(map[int]procutil.Process, len(after))
 	for _, p := range after {
 		if _, exists := current[p.PID]; exists {
@@ -182,6 +183,7 @@ func projectRecoveryTerminalSnapshot(session string, rows []procutil.Observation
 		command := strings.TrimSpace(strings.Join(row.Args, " "))
 		if command != "" {
 			result.Commands[row.PID] = command
+			result.Args[row.PID] = append([]string(nil), row.Args...)
 		}
 	}
 	servers, err := serverProcesses(rows)
@@ -203,4 +205,38 @@ func projectRecoveryTerminalSnapshot(session string, rows []procutil.Observation
 		result.Servers = append(result.Servers, server)
 	}
 	return result, nil
+}
+
+// KillProcess rechecks the exact accepted generation and argv at the native
+// signal boundary. The driver has just rechecked the whole immutable plan.
+func (o recoveryTerminalOS) KillProcess(ctx context.Context, witness recoveryProcessWitness) error {
+	if witness.PID <= 0 || witness.Identity == "" || len(witness.Args) == 0 {
+		return errors.New("invalid exact owner signal authority")
+	}
+	rows, err := o.processes.Snapshot(ctx)
+	if err != nil {
+		return err
+	}
+	for _, row := range rows {
+		if row.PID != witness.PID {
+			continue
+		}
+		if row.Err != nil {
+			return row.Err
+		}
+		if row.Identity != witness.Identity || row.PPID != witness.PPID || !reflect.DeepEqual(row.Args, witness.Args) {
+			return errors.New("accepted owner changed before signal")
+		}
+		if row.Zombie {
+			return nil
+		}
+		if o.identity()(strconv.Itoa(witness.PID)) != witness.Identity {
+			return errors.New("accepted owner generation changed before signal")
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		return o.killer()(witness.PID)
+	}
+	return nil // Positively absent from a successful native snapshot.
 }

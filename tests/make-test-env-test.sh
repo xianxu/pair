@@ -6,6 +6,31 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# Run the same assertions under real outer Make command-line precedence. The
+# private fixture target prevents recursion; the temporary Makefile is removed
+# even when a case fails. Neither invocation builds Go packages.
+if [ "${1:-}" != --fixture ]; then
+  fixture=$(mktemp "${TMPDIR:-/tmp}/pair-make-env.XXXXXX")
+  trap 'rm -f "$fixture"' EXIT
+  cat >"$fixture" <<'MAKEFIXTURE'
+include Makefile
+.PHONY: test-make-env-fixture
+test-make-env-fixture:
+	@bash tests/make-test-env-test.sh --fixture
+MAKEFIXTURE
+  for assignment in '' 'PAIR_GO_TRIMPATH=-trimpath'; do
+    env -u MAKEFLAGS -u MAKEOVERRIDES -u MFLAGS make -s --no-print-directory \
+      -f "$fixture" test-make-env-fixture ${assignment:+"$assignment"}
+  done
+  exit 0
+fi
+
+# This fixture supplies its own environment. Outer Make assignments otherwise
+# outrank those synthetic values in every child make (pair#577). Clear only
+# Make's inherited controls; the explicit override/recursive tests below still
+# exercise real command-line precedence within their own invocations.
+unset MAKEFLAGS MAKEOVERRIDES MFLAGS
+
 production=$(make -s --no-print-directory test-make-env-production-names)
 [ -n "$production" ] || { echo "FAIL: production name scan found nothing"; exit 1; }
 
@@ -33,4 +58,20 @@ for s in $session; do
   grep -q "^$s=" <<<"$out" && { echo "FAIL: session variable $s leaked into the test recipe"; fail=1; }
 done
 [ "$fail" -eq 0 ] && echo "PASS make-test-env ($(wc -w <<<"$knobs" | tr -d ' ') derived knobs kept, session identity dropped)"
+# Exercise the real Make defaults through a nested Go command, without builds.
+python3 - <<'PYFLAGS' || fail=1
+import os, pathlib, subprocess, tempfile
+with tempfile.TemporaryDirectory(prefix="pair-go-flags-") as tmp:
+    mk = pathlib.Path(tmp) / "flags.mk"
+    mk.write_text("include Makefile.local\n.PHONY: test-flags test-nested\ntest-flags:\n\t@go env GOFLAGS\ntest-nested:\n\t@$(MAKE) -s --no-print-directory -f " + str(mk) + " test-flags\n")
+    base = dict(os.environ, GOFLAGS="-p=2", PAIR_GO_TRIMPATH="-trimpath", MAKEFLAGS="", MFLAGS="")
+    cases = [([], "-p=2 -trimpath"), (["GOFLAGS=-p=1"], "-p=1 -trimpath"),
+             (["GOFLAGS=-p=1 -trimpath"], "-p=1 -trimpath"),
+             (["PAIR_GO_TRIMPATH="], "-p=2")]
+    for args, want in cases:
+        for target in ["test-flags", "test-nested"]:
+            out = subprocess.check_output(["make", "-s", "--no-print-directory", "-f", str(mk), target, *args], env=base, text=True).strip()
+            assert out == want, (target, args, out, want)
+print("PASS additive Go flags, command-line overrides and nested Make")
+PYFLAGS
 exit "$fail"

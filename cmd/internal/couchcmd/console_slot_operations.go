@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/couchtty"
 )
 
@@ -45,6 +46,53 @@ func consoleSlotOperations(console *couchtty.Console, c *couchcore.Couch, probe 
 		}
 		return c.Threads.RepositoryNamesContext(ctx)
 	}, time.Now)
+	ops.reference = c.RecoveryConfirmationReference
+	ops.recovery = func(key, actor string, request couchmessage.Request, guard func(context.Context) error, started func(), finished func(any, error)) error {
+		return console.EnqueueRemoteOperation(key, request.Op, func(ctx context.Context) (couchcore.OperationCall, error) {
+			ctx = couchcore.WithRecoveryConfirmer(ctx, actor)
+			if guard != nil {
+				if err := guard(ctx); err != nil {
+					return couchcore.OperationCall{}, err
+				}
+			}
+			var call couchcore.OperationCall
+			if request.Op == "recovery-confirmation" {
+				ref, err := c.RecoveryConfirmationReference(ctx, request.RecoveryConfirmation)
+				if err != nil {
+					return call, err
+				}
+				if ref != request.Target {
+					return call, errors.New("confirmation target changed")
+				}
+				call = couchcore.OperationCall{Name: request.Op, Args: map[string]string{"token": request.RecoveryConfirmation}, Context: ctx, Implicit: true}
+			} else if request.CandidateKey != "" {
+				resolved, err := recoveryTargetForReference(ctx, c, request.Target)
+				if err != nil {
+					return call, err
+				}
+				args := map[string]string{"ref": request.Target, "candidate": request.CandidateKey, "repo-scope": resolved.Address.RepoScope}
+				if resolved.Path != "" {
+					args["path"] = resolved.Path
+				} else {
+					args["tag"] = string(resolved.Address.Tag)
+				}
+				call = couchcore.OperationCall{Name: "resume", Args: args, Context: ctx, Implicit: true}
+			} else {
+				var err error
+				call, _, err = c.PrepareSlotOperation(ctx, request.Op, request.Target, couchcore.LiveRestartOptions{SameBinary: request.SameBinary, ForceUnknown: request.ForceUnknown})
+				if err != nil {
+					return call, err
+				}
+				if call.Args["warm-only"] != "true" {
+					call.Args["ref"] = request.Target
+				}
+			}
+			if guard != nil {
+				call.TypedPayload = hubMutationPayload{original: call.TypedPayload, guard: guard}
+			}
+			return call, nil
+		}, started, finished)
+	}
 	ops.guardedRun = run
 	ops.preview = func(ctx context.Context, target string) (couchcore.RecoveryPreview, error) {
 		resolved, err := recoveryTargetForReference(ctx, c, target)

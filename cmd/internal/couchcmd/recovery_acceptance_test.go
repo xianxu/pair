@@ -24,6 +24,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/cmd/internal/readiness"
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
 	"github.com/xianxu/pair/cmd/internal/testwait"
 )
@@ -162,11 +163,68 @@ func runRecoveryMenuAcceptance(t *testing.T, mode string) {
 	receipt := couchcore.OSReadyReader{DataDir: data, Session: rt.artifacts.PairSession, Proc: rt.proc}
 	c.FreshRegistration = receipt.Registered
 	c.ContinuationGeneration = receipt.Generation
-	rt.runner.AfterAcknowledge = func(id string) error {
+	freshAcknowledged := make(chan error, 1)
+	rt.runner.AfterAcknowledge = func(id string) (ackErr error) {
 		if mode == "reboot" {
-			// The fresh agent is a new record under a new tag; the old one
-			// is already in the archive, which the result loop asserts.
-			return nil
+			defer func() { freshAcknowledged <- ackErr }()
+		}
+		if mode == "reboot" {
+			// Pair publishes the exact committed recovery attempt after its native
+			// child starts. Exercise the production ready reader instead of treating
+			// acknowledging the helper as proof that the fresh agent is ready.
+			var profile launcher.TrustedLaunchProfile
+			for _, entry := range rt.runner.Child(id).Env {
+				if strings.HasPrefix(entry, launcher.CouchLaunchProfileEnv+"=") {
+					if err := json.Unmarshal([]byte(strings.TrimPrefix(entry, launcher.CouchLaunchProfileEnv+"=")), &profile); err != nil {
+						return err
+					}
+				}
+			}
+			if err := launcher.ValidateTrustedLaunchProfile(profile); err != nil {
+				return err
+			}
+			if profile.Recovery == nil || !profile.FreshRequired || profile.ResumeRequired || profile.FreshNonce == "" || profile.Prompt == "" || profile.RequiredSessionID != "" || !reflect.DeepEqual(profile.Argv, source.LatestLaunchProfile.Argv) {
+				return fmt.Errorf("Fresh did not carry saved configuration and exact recovery authority: %+v", profile)
+			}
+			address := couchcore.ThreadAddress{RepoScope: profile.Recovery.Address.RepoScope, Tag: couchcore.ThreadTag(profile.Tag)}
+			current, err := c.Threads.GetThread(address)
+			if err != nil {
+				return err
+			}
+			if len(current.Incarnations) != 1 || current.Incarnations[0].Start == nil || current.Incarnations[0].Start.Nonce != profile.FreshNonce {
+				return fmt.Errorf("Fresh launch nonce differs from committed claim")
+			}
+			inc := current.Incarnations[0]
+			targetSession := managedChildSession(t, rt.runner, id)
+			if targetSession == session {
+				return fmt.Errorf("Fresh reused retired source terminal")
+			}
+			targetPaths, err := artifactpath.Resolve(artifactpath.Address{DataDir: data, RepoScope: address.RepoScope, Tag: string(address.Tag)})
+			if err != nil {
+				return err
+			}
+			runtime := launcher.NewScopedOSRuntime(data, targetPaths.ScopeDir(), "")
+			if err := runtime.ReplaceSessionNameIndex(launcher.SessionNameEntry{SessionName: targetSession, ScopeKey: address.RepoScope, Tag: string(address.Tag), RepoRoot: repo, RepoName: "repo"}); err != nil {
+				return err
+			}
+			rt.proc.Set(inc.PID, inc.Identity)
+			rt.artifacts.SetDetachedSession(address, "")
+			rt.artifacts.SetPairSession(address, targetSession, true)
+			rt.artifacts.SetNativeBinding(address, profile.Agent, sessioninventory.BindingEstablished, "fresh-native-250")
+			target, err := ledger.Append(targetPaths.Ledger(), sessionledger.Record{Version: 1, Kind: sessionledger.RecordLaunch, ScopeKey: address.RepoScope, Tag: string(address.Tag), Agent: profile.Agent})
+			if err != nil {
+				return err
+			}
+			ready := readiness.ReadyRecord{Tag: string(address.Tag), Agent: profile.Agent, Session: targetSession, Nonce: profile.FreshNonce, PID: inc.PID, LaunchOrdinal: target.Ordinal}
+			raw, err := readiness.Encode(ready)
+			if err != nil {
+				return err
+			}
+			readyPath, err := targetPaths.AgentReadyChecked(profile.Agent)
+			if err != nil {
+				return err
+			}
+			return os.WriteFile(readyPath, []byte(raw), 0600)
 		}
 		current, err := c.Threads.GetThread(source.Address)
 		if err != nil {
@@ -328,6 +386,11 @@ func runRecoveryMenuAcceptance(t *testing.T, mode string) {
 	var start couchcore.StartResult
 	for start.Handle == nil {
 		select {
+		case err := <-freshAcknowledged:
+			if err != nil {
+				t.Fatalf("fixture Fresh registration: %v", err)
+			}
+			freshAcknowledged = nil
 		case result := <-results:
 			if result.err != nil {
 				t.Fatalf("%s: %v", result.call.Name, result.err)
@@ -344,11 +407,14 @@ func runRecoveryMenuAcceptance(t *testing.T, mode string) {
 					if got, err := os.ReadFile(paths.Log()); err != nil || !bytes.Equal(got, history) {
 						t.Fatalf("reboot changed prompt history: %q %v", got, err)
 					}
-					rebooted, ok := result.value.(couchcore.RebootResult)
-					if !ok || rebooted.Start.Record.Thread == source.Address || rebooted.Start.Record.Thread == (couchcore.ThreadAddress{}) {
+					rebooted, ok := result.value.(couchcore.StartedChild)
+					if !ok {
+						t.Fatalf("reboot returned %T", result.value)
+					}
+					fresh, ok := rebooted.Started()
+					if !ok || fresh.Record.Thread == source.Address || fresh.Record.Thread == (couchcore.ThreadAddress{}) {
 						t.Fatalf("reboot did not start a fresh tag: %#v", result.value)
 					}
-					return
 				}
 				child, ok := result.value.(couchcore.StartedChild)
 				if !ok {
@@ -364,6 +430,27 @@ func runRecoveryMenuAcceptance(t *testing.T, mode string) {
 		}
 	}
 	t.Cleanup(func() { rt.runner.SetExited(start.Handle.ID(), 0) })
+	if mode == "reboot" {
+		// The dispatcher finishes before the console adopts the returned child.
+		// Wait for that exact adoption event before feeding terminal output.
+		adopted := false
+		for !adopted {
+			select {
+			case result := <-results:
+				if result.err != nil {
+					t.Fatalf("Fresh adoption %s: %v", result.call.Name, result.err)
+				}
+				adopted = result.call.Name == "attach" && result.call.Args["tag"] == string(start.Record.Thread.Tag)
+			case <-testwait.After(t):
+				t.Fatal("Fresh terminal was not adopted")
+			}
+		}
+		// Reboot returns to the menu. Select its newly adopted thread through
+		// the same console operation used by the root row's Enter action.
+		if _, err := console.Ops()(couchcore.OperationCall{Name: "switch", Args: map[string]string{"repo-scope": start.Record.Thread.RepoScope, "tag": string(start.Record.Thread.Tag)}, Implicit: true, Context: context.Background()}); err != nil {
+			t.Fatalf("select Fresh terminal: %v", err)
+		}
+	}
 	terminal := start.Handle.(couchcore.TerminalHandle).Terminal()
 	terminal.Feed([]byte("RECOVERED-TERMINAL-250"))
 	waitWarmAcceptance(t, "recovery output", func() bool { return strings.Contains(host.Written(), "RECOVERED-TERMINAL-250") })
@@ -373,6 +460,20 @@ func runRecoveryMenuAcceptance(t *testing.T, mode string) {
 	waitWarmAcceptance(t, "recovery input", func() bool { return bytes.Contains(bytes.Join(terminal.Writes(), nil), []byte("recovery-input-250")) })
 	if got, err := os.ReadFile(paths.Log()); err != nil || !bytes.Equal(got, history) {
 		t.Fatalf("history changed: %q %v", got, err)
+	}
+	if mode == "reboot" {
+		current, err := c.Threads.GetThread(start.Record.Thread)
+		if err != nil || current.Address == source.Address || current.SessionBinding == nil || current.SessionBinding.Name != managedChildSession(t, rt.runner, start.Handle.ID()) {
+			t.Fatalf("Fresh terminal identity: %+v %v", current, err)
+		}
+		if !reflect.DeepEqual(current.LatestLaunchProfile, source.LatestLaunchProfile) {
+			t.Fatalf("Fresh changed saved launch configuration: before=%+v after=%+v", source.LatestLaunchProfile, current.LatestLaunchProfile)
+		}
+		binding, err := rt.artifacts.ResolveEstablished(context.Background(), current.Address.RepoScope, string(current.Address.Tag), "claude")
+		if err != nil || binding.NativeID != "fresh-native-250" {
+			t.Fatalf("Fresh native identity %+v %v", binding, err)
+		}
+		return
 	}
 	current, err := c.Threads.GetThread(source.Address)
 	if err != nil || current.Address != source.Address {

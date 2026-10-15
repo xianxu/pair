@@ -82,7 +82,7 @@ func everyThreadShape(t *testing.T) []classifyCase {
 	starting := detached()
 	starting.Address.Tag = "couch-000000000000000c"
 	starting.Incarnations = []ThreadIncarnation{{
-		State: IncarnationCreating,
+		State: IncarnationCreating, StartedAt: active,
 		Start: &ThreadStartClaim{
 			Nonce: "start-0123456789abcdef", OwnerPID: 4242, OwnerIdentity: "supervisor",
 		},
@@ -332,8 +332,15 @@ func everyThreadShape(t *testing.T) []classifyCase {
 			// classify `session-gone` -- an archive-eligible reason -- for a
 			// thread starting normally.
 			name: "start this couch is driving", record: starting,
-			evidence:  resolved(ThreadEvidence{StartOwner: Live}),
+			evidence:  resolved(ThreadEvidence{StartOwner: Live, ObservedAt: active}),
 			wantState: ThreadBusy,
+		},
+		{
+			// #556: an expired start stops advertising Starting without
+			// clearing its nonce or treating the live supervisor as a target.
+			name: "start whose live owner exceeded the five minute window", record: starting,
+			evidence:  resolved(ThreadEvidence{StartOwner: Live, ObservedAt: active.Add(5 * time.Minute)}),
+			wantState: ThreadUnusable, wantReason: ReasonSessionGone,
 		},
 		{
 			// Fail closed. An owner nothing could probe is not a dead owner,

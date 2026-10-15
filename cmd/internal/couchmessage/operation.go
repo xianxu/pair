@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/xianxu/pair/cmd/internal/agentdrive"
+	"github.com/xianxu/pair/cmd/internal/couchcore"
 )
 
 // ReceiptStatus is a slot-operation receipt's state (pair#367 M2). A receipt
@@ -45,16 +46,18 @@ const ReceiptRetention = 5 * time.Minute
 
 // OperationReceipt is the typed outcome of one resume or reboot request.
 type OperationReceipt struct {
-	IntentDigest string             `json:",omitempty"`
-	Drive        *agentdrive.Result `json:",omitempty"`
-	ToHub        string             `json:",omitempty"`
-	Persist      bool               `json:",omitempty"`
-	ID           string
-	Op           string
-	Target       string
-	Agent        string `json:",omitempty"`
-	CandidateKey string `json:",omitempty"`
-	Status       ReceiptStatus
+	IntentDigest         string                               `json:",omitempty"`
+	Drive                *agentdrive.Result                   `json:",omitempty"`
+	RecoveryConfirmation string                               `json:",omitempty"`
+	Confirmation         *couchcore.RecoveryConfirmationOffer `json:",omitempty"`
+	ToHub                string                               `json:",omitempty"`
+	Persist              bool                                 `json:",omitempty"`
+	ID                   string
+	Op                   string
+	Target               string
+	Agent                string `json:",omitempty"`
+	CandidateKey         string `json:",omitempty"`
+	Status               ReceiptStatus
 	// Code is a refusal's code (SlotOperationError's, e.g. not-offered).
 	Code string `json:",omitempty"`
 	// Detail is the refusal's or failure's factual text.
@@ -94,6 +97,7 @@ const (
 // ReceiptOutcome is a finish event's terminal result.
 type ReceiptOutcome struct {
 	Drive                                                  *agentdrive.Result
+	Confirmation                                           *couchcore.RecoveryConfirmationOffer
 	Status                                                 ReceiptStatus
 	Code, Detail, Diagnostic, Tag, Archived, Warning, Path string
 }
@@ -101,6 +105,7 @@ type ReceiptOutcome struct {
 // ReceiptEvent drives ApplyReceiptEvent.
 type ReceiptEvent struct {
 	IntentDigest                        string
+	RecoveryConfirmation                string
 	ToHub                               string
 	Persist                             bool
 	Kind                                ReceiptEventKind
@@ -129,9 +134,9 @@ func ApplyReceiptEvent(r OperationReceipt, e ReceiptEvent) (OperationReceipt, er
 		return r, nil
 	case ReceiptAdmit:
 		if r.Status == ReceiptNone {
-			return OperationReceipt{CandidateKey: e.CandidateKey, IntentDigest: e.IntentDigest, ID: e.ID, Op: e.Op, Target: e.Target, Agent: e.Agent, ToHub: e.ToHub, Persist: e.Persist, Status: ReceiptQueued, Admitted: e.At}, nil
+			return OperationReceipt{CandidateKey: e.CandidateKey, RecoveryConfirmation: e.RecoveryConfirmation, IntentDigest: e.IntentDigest, ID: e.ID, Op: e.Op, Target: e.Target, Agent: e.Agent, ToHub: e.ToHub, Persist: e.Persist, Status: ReceiptQueued, Admitted: e.At}, nil
 		}
-		if e.CandidateKey != r.CandidateKey || e.IntentDigest != r.IntentDigest || e.Op != r.Op || e.Target != r.Target || e.Agent != r.Agent || e.ToHub != r.ToHub || e.Persist != r.Persist {
+		if e.RecoveryConfirmation != r.RecoveryConfirmation || e.CandidateKey != r.CandidateKey || e.IntentDigest != r.IntentDigest || e.Op != r.Op || e.Target != r.Target || e.Agent != r.Agent || e.ToHub != r.ToHub || e.Persist != r.Persist {
 			return r, ErrReceiptIDConflict
 		}
 		return r, nil
@@ -153,6 +158,7 @@ func ApplyReceiptEvent(r OperationReceipt, e ReceiptEvent) (OperationReceipt, er
 		if r.Drive != nil {
 			o.Detail = r.Drive.Detail
 		}
+		r.Confirmation = o.Confirmation
 		r.Status, r.Code, r.Detail, r.Diagnostic, r.Tag, r.Archived, r.Warning, r.Path, r.Finished = o.Status, o.Code, o.Detail, o.Diagnostic, o.Tag, o.Archived, o.Warning, o.Path, e.At
 		return r, nil
 	case ReceiptExpire:

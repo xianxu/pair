@@ -30,6 +30,17 @@ var peerReceiverAgents = map[string]bool{
 	"agy": false, "muse": false, "grok": false,
 }
 
+// PeerReceiverAgents reports the peer-delivery receiver policy per launcher
+// inventory agent: true receives, false is explicitly disabled. The shipped
+// couch skill's drift check reads the policy here instead of restating it.
+func PeerReceiverAgents() map[string]bool {
+	out := make(map[string]bool, len(peerReceiverAgents))
+	for agent, enabled := range peerReceiverAgents {
+		out[agent] = enabled
+	}
+	return out
+}
+
 // peerActivityInterval bounds activity frames to one per second while the
 // agent produces output; an idle wrapper sends none (#365).
 const peerActivityInterval = time.Second

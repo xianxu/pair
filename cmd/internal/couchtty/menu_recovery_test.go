@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 	"strings"
 	"testing"
 	"time"
@@ -39,22 +40,26 @@ func TestRecoveryActionsShowCheckpointIdentityAndDiagnosis(t *testing.T) {
 		}
 	}
 }
-func TestRecoveryRebootConfirmationInvalidatesWhenRowDisappears(t *testing.T) {
+func TestParkConfirmationInvalidatesWhenRowDisappears(t *testing.T) {
 	row := recoveryMenuRow()
+	row.State, row.Reason = couchcore.ThreadLive, ""
 	state := NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
 	state, _ = reduceRootKey(state, PanelKey{Kind: KeyTab})
-	state.Frames[len(state.Frames)-1].SelectedItem = "reboot"
+	state.Frames[len(state.Frames)-1].SelectedItem = "park"
 	state, _ = reduceActionKey(state, PanelKey{Kind: KeyEnter})
+	if state.CurrentFrame().Kind != MenuFrameConfirmation {
+		t.Fatal("park did not open confirmation")
+	}
 	// A removed row cannot authorize the pending destructive action.
 	state.Inventory = nil
 	next := reconcileMenuFrames(state)
 	if next.CurrentFrame().Kind == MenuFrameConfirmation {
-		t.Fatal("reboot confirmation survived loss of eligibility")
+		t.Fatal("park confirmation survived loss of eligibility")
 	}
-	state.Frames[len(state.Frames)-1].SelectedItem = "reboot"
+	state.Frames[len(state.Frames)-1].SelectedItem = "park"
 	_, effects := reduceConfirmationKey(state, PanelKey{Kind: KeyEnter})
 	if len(effects) != 0 {
-		t.Fatal("reboot dispatched after loss of eligibility")
+		t.Fatal("park dispatched after loss of eligibility")
 	}
 }
 
@@ -140,5 +145,65 @@ func TestWarmRecoveryAdoptsExactTerminalWithoutCreatingContinuation(t *testing.T
 	defer f.con.mu.Unlock()
 	if len(f.con.continuations) != 0 {
 		t.Fatalf("warm attachment fabricated continuation watch: %+v", f.con.continuations)
+	}
+}
+
+func TestAdvertisedFreshSelectionReachesTheQueuedRecoveryRoute(t *testing.T) {
+	for _, tc := range []struct {
+		name, key, operation string
+		explicitReboot       bool
+	}{
+		{name: "keyed Fresh", key: "v1.fresh-opaque_123", operation: "resume"},
+		{name: "keyless Fresh", operation: "reboot"},
+		{name: "explicit reboot", operation: "reboot", explicitReboot: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t, 24, 120)
+			row := menuSlotRow(1, "fresh-source")
+			state := NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
+			var effects []MenuEffect
+			if tc.explicitReboot {
+				state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventKey, Key: PanelKey{Kind: KeyTab}})
+				state.Frames[len(state.Frames)-1].SelectedItem = "reboot"
+				state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventKey, Key: PanelKey{Kind: KeyEnter}})
+			} else {
+				state, _ = openRecoveryPreview(state, row)
+				preview := &couchcore.RecoveryPreview{Address: row.Address,
+					Candidates: []couchcore.RecoveryChoice{{Key: "different-native-key", NativeID: "different-native", Label: "Resume from disk"}},
+					Fresh:      &couchcore.RecoveryChoice{Key: tc.key, Label: "Start fresh"}}
+				state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: state.CurrentFrame().Generation, RecoveryPreview: preview})
+				if len(effects) != 0 {
+					t.Fatal("read-only preview executed recovery")
+				}
+				state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventKey, Key: PanelKey{Kind: KeyDown}})
+				paint := strings.Join(renderRecoveryMenu(state.CurrentFrame(), 120, 30), "\n")
+				if !strings.Contains(paint, "▸ Start fresh") {
+					t.Fatalf("fixture did not select advertised Fresh: %s", paint)
+				}
+				state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventKey, Key: PanelKey{Kind: KeyEnter}})
+			}
+			if len(effects) != 1 || state.CurrentFrame().Kind == MenuFrameConfirmation {
+				t.Fatalf("Fresh did not request common preparation: %+v", effects)
+			}
+			calls := make(chan couchcore.OperationCall, 2)
+			f.con.SetOperationDispatcher(func(call couchcore.OperationCall) (any, error) {
+				return couchcore.DispatchOperation(couchcore.OperationExecutors{LiveOwner: func(call couchcore.OperationCall) (any, error) {
+					calls <- call
+					return nil, nil
+				}}, call)
+			})
+			f.con.mu.Lock()
+			f.con.menu, f.con.menuReady = state, true
+			f.con.mu.Unlock()
+			f.con.dispatchMenuEffects(effects)
+			select {
+			case call := <-calls:
+				if call.Name != tc.operation || call.Args["candidate"] != tc.key || call.Args["path"] != row.Target.Slot.WorktreeRoot || call.Args["warm-only"] != "" {
+					t.Fatalf("advertised Fresh changed at queued dispatch: %+v", call)
+				}
+			case <-testwait.After(t):
+				t.Fatal("Fresh did not reach the owner queue")
+			}
+		})
 	}
 }

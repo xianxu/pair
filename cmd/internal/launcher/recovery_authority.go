@@ -79,7 +79,10 @@ func validateRecoveryProfile(p TrustedLaunchProfile) error {
 	if p.FreshRequired && p.FreshNonce != a.Attempt {
 		return errors.New("recovery fresh nonce mismatch")
 	}
-	if a.Intent.NativeID != "" {
+	if a.Intent.Kind() != threadrecord.RecoveryInferred && a.Intent.Agent != p.Agent {
+		return errors.New("recovery intent agent mismatch")
+	}
+	if a.Intent.Kind() == threadrecord.RecoveryInferred && a.Intent.NativeID != "" {
 		for _, c := range a.Intent.Context.Candidates {
 			if c.Key == a.Intent.SelectedKey && c.Agent != p.Agent {
 				return errors.New("recovery candidate agent mismatch")

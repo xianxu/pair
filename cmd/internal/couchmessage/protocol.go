@@ -25,8 +25,9 @@ type Request struct {
 	Op, Scope, Tag, Session, Nonce, ID, Target, Body string
 	Title                                            string `json:",omitempty"` // notify only
 	// Agent narrows a send or selects the switch destination harness.
-	Agent        string `json:",omitempty"`
-	CandidateKey string `json:",omitempty"`
+	Agent                string `json:",omitempty"`
+	RecoveryConfirmation string `json:",omitempty"`
+	CandidateKey         string `json:",omitempty"`
 	// Confirmed declares the operator's confirmation for an operation whose
 	// declaration requires one (reboot); resume and reboot only.
 	Confirmed bool `json:",omitempty"`
@@ -141,6 +142,9 @@ func validMessageID(id string) bool {
 func ValidateRequest(r Request) error {
 	if r.Drive != nil && r.Op != "keys" && r.Op != "set-model" {
 		return errors.New("drive intent applies only to keys and set-model")
+	}
+	if r.RecoveryConfirmation != "" && (r.Op != "recovery-confirmation" || !validMessageID(r.RecoveryConfirmation) || len(r.RecoveryConfirmation) > 128) {
+		return errors.New("recovery confirmation requires a bounded opaque token")
 	}
 	if r.CandidateKey != "" && (r.Op != "resume" || !utf8.ValidString(r.CandidateKey) || len(r.CandidateKey) > 512 || strings.IndexFunc(r.CandidateKey, unicode.IsSpace) >= 0 || strings.IndexFunc(r.CandidateKey, unicode.IsControl) >= 0) {
 		return errors.New("candidate key applies only to resume and must be a bounded opaque token")
@@ -285,6 +289,10 @@ func ValidateRequest(r Request) error {
 		}
 		if (r.Op == "set-model") != (r.Drive.Model != nil) || (r.Op == "set-model") != r.Confirmed {
 			return errors.New("set-model requires model intent and --confirm; keys takes no confirmation")
+		}
+	case r.Op == "recovery-confirmation":
+		if !validMessageID(r.ID) || r.RecoveryConfirmation == "" || r.Target != "" || r.Body != "" || r.Agent != "" || r.Confirmed || r.CandidateKey != "" || r.Title != "" || r.TailScope != "" || r.TailTag != "" || r.Lines != 0 {
+			return errors.New("recovery-confirmation requires only a request ID and token")
 		}
 	case r.Op == "resume-candidates":
 		if r.ID != "" || r.Body != "" || r.Agent != "" || r.Confirmed || r.SameBinary || r.ForceUnknown {
