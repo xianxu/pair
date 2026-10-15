@@ -2,6 +2,7 @@ package wrapcmd
 
 import (
 	"bytes"
+	"errors"
 	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
 	"io"
 	"os"
@@ -152,5 +153,61 @@ func TestMasterPumpFlushesCaptureOnInjectedTick(t *testing.T) {
 	}
 	if got := string(raw.Bytes()); got != "tick-capture" {
 		t.Fatalf("capture=%q", got)
+	}
+}
+
+func TestMasterPumpDrainsCaptureBeforeReturningOnEOF(t *testing.T) {
+	for _, failFlush := range []bool{false, true} {
+		t.Run(map[bool]string{false: "drain", true: "report-error"}[failFlush], func(t *testing.T) {
+			reader, writer, err := os.Pipe()
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer reader.Close()
+			var raw bytes.Buffer
+			writeFailure := errors.New("capture sink failed")
+			sink := writerFunc(func(data []byte) (int, error) {
+				if failFlush {
+					return 0, writeFailure
+				}
+				return raw.Write(data)
+			})
+			capture := newCaptureBuffer(sink, io.Discard)
+			debugPath := filepath.Join(t.TempDir(), "debug")
+			p := &proxy{ptmx: reader, scrollbackFD: reader, capture: capture, captureFlushTicks: make(chan time.Time),
+				stdoutPump: newStdoutPump(io.Discard), agentBasename: "claude", now: time.Now, notifyModeActive: notifyModeDefault,
+				captureWindow: defaultCaptureWindow, debugLogPath: debugPath,
+				diagnosticOptions: func() diagnosticlog.Options { return diagnosticlog.Options{FlushTicks: make(chan time.Time)} }}
+			defer p.closeDebug()
+			done := make(chan struct{})
+			go func() { p.masterPump(); close(done) }()
+			if _, err := writer.Write([]byte("accepted-eof")); err != nil {
+				t.Fatal(err)
+			}
+			if err := writer.Close(); err != nil {
+				t.Fatal(err)
+			}
+			select {
+			case <-done:
+			case <-t.Context().Done():
+				t.Fatal("pump did not return after EOF")
+			}
+			if capture.Offset() != int64(len("accepted-eof")) {
+				t.Fatalf("capture offset=%d", capture.Offset())
+			}
+			if !failFlush {
+				if raw.String() != "accepted-eof" {
+					t.Fatalf("pump stopped its flush owner with accepted bytes pending: %q", raw.String())
+				}
+				return
+			}
+			if err := p.closeDebug(); err != nil {
+				t.Fatal(err)
+			}
+			b, err := os.ReadFile(debugPath)
+			if err != nil || !bytes.Contains(b, []byte("SCROLLBACK-flush-fail")) || !bytes.Contains(b, []byte(writeFailure.Error())) {
+				t.Fatalf("pump exit hid capture flush failure: %s %v", b, err)
+			}
+		})
 	}
 }

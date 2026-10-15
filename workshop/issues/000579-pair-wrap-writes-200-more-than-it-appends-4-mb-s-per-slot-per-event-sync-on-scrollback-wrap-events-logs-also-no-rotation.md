@@ -159,3 +159,9 @@ Hub requests end-to-end qualification of parked raw/events/capture-metadata expi
 ### M1 quarantine expiry regression
 
 Self-review caught a metadata comparison class: adding a pointer-valued unverified marker made separately decoded identical generation metadata compare unequal, blocking eventual expiry. TestQuarantinedGenerationExpiresWithSemanticMetadata reproduced diagnostic deletion metadata changed (RED0.96s). Compare complete generation evidence including marker contents by value; future count-pruning uses the same equality helper. This prevents safe preservation from becoming permanent retention.
+
+### M1 review BR-1 — drain before the capture flush owner stops
+
+Round1 returned REWORK for a reproduced capture lifecycle gap: masterPump stopped its flush timer on PTY EOF, while capture.Close waited beyond cmd.Wait. A child can close its terminal and remain alive. TestMasterPumpDrainsCaptureBeforeReturningOnEOF fails on the reviewed head with accepted offset12 but an empty raw sink, and independently fails missing flush-error diagnostics. A common deferred flush now covers every masterPump exit before child wait, using the same flush-and-report helper as interval ticks. This addresses family drain-before-owner-stop (ARCH-ORDER/ARCH-CONSTRAINTS); descriptors remain owned by Run. Targeted race verification follows before the next review round.
+
+BR-1 verification: EOF-drain and error-reporting regression was RED on the reviewed head (both cases); GREEN selected capture/debug/trace/clock tests under -race in1.939s. Main-integrated full focused packages passed before the correction: diagnosticlog84.821s, wrapcmd81.923s, adapt1.585s, artifactpath14.488s. New common defer covers all pump returns, not only normal EOF.

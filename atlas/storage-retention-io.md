@@ -102,7 +102,7 @@ join on close. Empty ticks perform no IO. A healthy process can lose up to five
 seconds of pending diagnostics on a crash, subject to scheduling/IO latency;
 the absolute accepted in-memory bound is 256 KiB per writer. Raw scrollback and
 its offset sidecar use separate 64 KiB buffers, flushed raw first by the capture
-pump every 250 ms and on orderly teardown. These intervals describe process
+pump every 250 ms, on every pump exit before child wait, and on orderly teardown. These intervals describe process
 crash exposure, not power-loss durability. Receipt, park, recovery, generation
 rotation and destructive collection keep their durable synchronization. Raw
 capture size rotation remains separate work (#582): no VT state is discarded.

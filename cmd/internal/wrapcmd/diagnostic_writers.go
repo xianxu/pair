@@ -60,3 +60,11 @@ func (p *proxy) closeCapture() error {
 	}
 	return err
 }
+
+// The pump's flush clock can end before the child does (PTY EOF is independent
+// of process exit). Drain accepted bytes at that ownership boundary as well.
+func (p *proxy) flushCapture() {
+	if err := p.capture.Flush(); err != nil {
+		p.debug("SCROLLBACK-flush-fail", err.Error())
+	}
+}

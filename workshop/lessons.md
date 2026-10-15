@@ -1939,3 +1939,5 @@ and external temporary roots rather than relying on the host's TMPDIR.
 - #573 third close: preflight and effect must consume the same immutable prepared bundle. Checking post-pruning state and then validating an older loaded state during shadow publication can refuse after document mutation. Compile document, shadow, encoded state/horizon and result hash before effects; prove valid gap-acceptance plus pruning succeeds, and ambiguous result sections fail without mutation.
 
 - #579: when persisted metadata gains optional pointer fields, sweep every equality check on that metadata type. Compare decoded evidence by value; pointer identity differs after JSON replay and can permanently block exact-generation cleanup. Defend both interrupted recovery and eventual expiry.
+
+- #579 BR-1: a pump's EOF and its child process exit are separate lifecycle events. A timer-owned buffer must drain when its scheduling owner stops, before any later child wait; test EOF with the flush clock withheld and exercise flush-error reporting.

@@ -3074,6 +3074,7 @@ argsDone:
 //
 // Returns when the master pipe closes (child exited).
 func (p *proxy) masterPump() {
+	defer p.flushCapture()
 	type readEv struct {
 		data []byte
 		err  error
@@ -3253,9 +3254,7 @@ func (p *proxy) masterPump() {
 				captureFlushTicks = nil
 				continue
 			}
-			if err := p.capture.Flush(); err != nil {
-				p.debug("SCROLLBACK-flush-fail", err.Error())
-			}
+			p.flushCapture()
 		case <-captureTick.C:
 			p.captureMu.Lock()
 			due := p.captureActive && !time.Now().Before(p.captureDeadline)
