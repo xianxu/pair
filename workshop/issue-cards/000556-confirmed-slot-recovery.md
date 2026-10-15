@@ -1,6 +1,6 @@
 ---
 id: 000556
-status: codecomplete
+status: done
 created: 2026-10-14
 updated: 2026-10-15
 estimate_hours: 6.75
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 877bc927a07a149b68f9627733b77abde302ecee
         evidence_commit: d9b96a332081cf4cf8746e338a0c4e9322074b3b
+        landed_commit: bcf734588842eb7e0b7f6a74d52e6b7d5ed0d525
 ---
 
 # Couch confirmed disk recovery and always-reachable fresh startup
