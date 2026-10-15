@@ -6,8 +6,102 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"sync"
 	"testing"
+
+	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/procutil"
 )
+
+// Both production server adapters share this reader. Any full enumeration in
+// the parent is visible even if no candidate argv can be enriched.
+type warmAttachProcessReader struct {
+	mu     sync.Mutex
+	tables int
+}
+
+func (r *warmAttachProcessReader) Table() ([]procutil.Process, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.tables++
+	return nil, nil
+}
+func (r *warmAttachProcessReader) count() int { r.mu.Lock(); defer r.mu.Unlock(); return r.tables }
+func (*warmAttachProcessReader) Command(int) (procutil.CommandInfo, error) {
+	return procutil.CommandInfo{}, errors.New("unexpected parent argv read")
+}
+func (*warmAttachProcessReader) Identity(int) (string, error) {
+	return "", errors.New("unexpected parent source identity read")
+}
+
+type warmAttachProc struct {
+	*FakeProcOps
+	exists, identities int
+}
+
+func (p *warmAttachProc) Exists(pid int) Liveness { p.exists++; return p.FakeProcOps.Exists(pid) }
+func (p *warmAttachProc) Identity(pid int) (string, error) {
+	p.identities++
+	return p.FakeProcOps.Identity(pid)
+}
+
+func TestWorkbenchPerformanceListedAttachParentHasNoTableScan(t *testing.T) {
+	for _, entry := range []string{"resume", "startup"} {
+		for _, owner := range []Liveness{Live, Dead, Unknown} {
+			t.Run(fmt.Sprintf("%s/owner=%v", entry, owner), func(t *testing.T) {
+				record := warmDetachedRecord(t)
+				record.Incarnations = []ThreadIncarnation{{PID: 42, Identity: "retained-client", State: IncarnationLive}}
+				scope, err := launcher.ResolveRepoScope("/repo")
+				if err != nil {
+					t.Fatal(err)
+				}
+				record.Address.RepoScope = scope.Key
+				env, before, session := readonlyWarmFixture(t, record, owner)
+				data := t.TempDir()
+				indexSession(t, data, before.Address, session)
+				checker, _ := sandboxedChecker(t, data, map[string]string{session: "attached"})
+				reader := &warmAttachProcessReader{}
+				source := procutil.NewSource(reader)
+				checker.Servers = launcher.OSServerStates{Processes: source}
+				checker.OwnerProbe = launcher.SessionOwnerProbe{Processes: source}
+				env.Couch.Artifacts = checker
+				proc := &warmAttachProc{FakeProcOps: env.Proc}
+				env.Couch.Proc = proc
+				var actor ActorRecord
+				var handle Handle
+				if entry == "resume" {
+					actor, handle, err = env.Couch.ResumeContextWith(t.Context(), before.Address, ResumeOptions{WarmOnly: true})
+				} else {
+					var result StartResult
+					result, err = env.Couch.StartInteractive(t.Context(), StartArgs{Cwd: "/repo"})
+					actor, handle = result.Record, result.Handle
+				}
+				if err != nil || handle == nil {
+					t.Fatalf("listed attach: actor=%+v handle=%v err=%v", actor, handle, err)
+				}
+				t.Cleanup(func() { env.Runner.SetExited(handle.ID(), 0) })
+				child := env.Runner.Child(handle.ID())
+				if actor.Shape != StartWarmReattach || actor.Thread != before.Address || !slices.Equal(child.Argv, []string{"pair", launcher.CouchSessionFlag, "resume", string(before.Address.Tag)}) {
+					t.Fatalf("attach changed terminal or created an agent: actor=%+v argv=%v", actor, child.Argv)
+				}
+				if tables := reader.count(); tables != 0 {
+					t.Fatalf("parent full tables=%d, want 0 (helper budget 1 is tested in launcher)", tables)
+				}
+				if proc.exists == 0 {
+					t.Fatal("client generation/liveness screen was bypassed")
+				}
+				if owner == Live && proc.identities == 0 {
+					t.Fatal("live retained helper was not generation checked")
+				}
+				if owner == Dead {
+					assertWarmClientRepair(t, env, before, actor)
+				} else {
+					assertWarmRecordUnchanged(t, env, before)
+				}
+			})
+		}
+	}
+}
 
 // Use the same accepted shapes as the classifier contract: a positive exact
 // terminal listing must not become permission to retire somebody else's work.

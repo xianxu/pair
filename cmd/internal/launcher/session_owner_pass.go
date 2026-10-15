@@ -25,7 +25,7 @@ type SessionOwnerPass struct {
 // A nil source uses native server discovery; probe retains its native/fake IO.
 func NewSessionOwnerPass(parent context.Context, source ServerStates, probe SessionOwnerProbe) *SessionOwnerPass {
 	if source == nil {
-		source = OSServerStates{}
+		source = OSServerStates{Processes: probe.Processes}
 	}
 	return &SessionOwnerPass{parent: parent, source: source, probe: probe, done: make(chan struct{})}
 }

@@ -54,38 +54,38 @@ Fresh ready/PID files and targeted process-generation checks are security eviden
 
 Files: existing threadactivity/idle_decode_invariant_test.go, couchcmd/message_decode_invariant_test.go; new internal/workbenchperftest support and tests.
 
-- [ ] Extract only artifact building, mutation helpers and thread-safe counter snapshot/delta operations. Keep source construction and cache ownership in production code.
-- [ ] Retain separate read/decode counters and owner/path identity; cold controls must assert each relevant family is connected. Do not make zero assertions pass with empty maps or no callbacks.
-- [ ] Preserve #559's ledger mutation, transcript replacement, stale index and fresh PID regressions; reduce their fixture scale if a new consumer test replaces their 20-owner scale coverage, avoiding duplicate 600MB cold parses.
-- [ ] Verify existing tests unchanged in meaning before adding consumers. No independent event-state machine or broad performance library.
+- [x] Extract only artifact building, mutation helpers and thread-safe counter snapshot/delta operations. Keep source construction and cache ownership in production code.
+- [x] Retain separate read/decode counters and owner/path identity; cold controls must assert each relevant family is connected. Do not make zero assertions pass with empty maps or no callbacks.
+- [x] Preserve #559's ledger mutation, transcript replacement, stale index and fresh PID regressions; reduce their fixture scale if a new consumer test replaces their 20-owner scale coverage, avoiding duplicate 600MB cold parses.
+- [x] Verify existing tests unchanged in meaning before adding consumers. No independent event-state machine or broad performance library.
 
 ### 2. Exercise the actual idle UI pass and message request
 
 Files: couchtty/console_activity_test.go or a colocated workbench invariant file; couchcmd/run.go, message_service.go, message_service_test.go and new counted invariant tests.
 
-- [ ] Share production activity-probe construction with the test (one persistent observed threadactivity runtime). Drive the actual Console activity request/advance/finish path with existing fixtures. Await generation completion through existing in-package scheduler/result seams, not sleeps or a shortened periodic ticker.
-- [ ] If package ownership prevents reuse of production probe construction, keep the adapter in its owning package and use an instance-local injected runtime plus the Console's existing public request installation path. Do not export a new product API solely to expose private menu state.
-- [ ] Share production recorded-evidence closure with serviceRig and add a pre-construction authority decorator. Use its real private sockets/mailbox/wrapper clients to send unique request IDs and await submitted delivery receipts.
-- [ ] Assert each warm operation independently is zero, not only a batch average. Assert cold work, one-owner mutation, the next zero pass, fresh authority and replacement refusal.
-- [ ] Counterfactual: recreate/bypass the relevant cache at the production adapter and confirm each consumer regression fails; remove the mutation/control connection and confirm cold/control assertions fail. Overlays stay temporary.
+- [x] Share production activity-probe construction with the test (one persistent observed threadactivity runtime). Drive the actual Console activity request/advance/finish path with existing fixtures. Await generation completion through existing in-package scheduler/result seams, not sleeps or a shortened periodic ticker.
+- [x] If package ownership prevents reuse of production probe construction, keep the adapter in its owning package and use an instance-local injected runtime plus the Console's existing public request installation path. Do not export a new product API solely to expose private menu state.
+- [x] Share production recorded-evidence closure with serviceRig and add a pre-construction authority decorator. Use its real private sockets/mailbox/wrapper clients to send unique request IDs and await submitted delivery receipts.
+- [x] Assert each warm operation independently is zero, not only a batch average. Assert cold work, one-owner mutation, the next zero pass, fresh authority and replacement refusal.
+- [x] Counterfactual: recreate/bypass the relevant cache at the production adapter and confirm each consumer regression fails; remove the mutation/control connection and confirm cold/control assertions fail. Overlays stay temporary.
 
 ### 3. Defend selected Couch attachment's total scan budget
 
 Files: launcher/osruntime.go, procutil/command.go as necessary; new launcher/workbench_attach_invariant_test.go and existing couchcore/warm_attach_readonly_test.go.
 
-- [ ] Reuse the native process-reader count boundary with an instance-local controlled source; cover Table, full/named snapshot enumeration and targeted identity reads distinctly. Never use a global counter or time output as the oracle.
-- [ ] Run real RunLaunch selected attach with production ancestry/skip-sweep logic and a stateful controlled process/listing/handoff fixture. Assert one actual ancestry enumeration at handoff, exact supplied terminal attached and zero creates.
-- [ ] Exercise public parent ResumeContextWith(WarmOnly) and StartInteractive listed attach. Count/refuse any native owner capture/server-source enumeration, retaining positive listing and PID-generation repair checks. Parent count must be zero, so combined parent/helper bound is <=1.
-- [ ] Include known-live, known-dead and unknown retained helpers where the existing public fixture models them; unknown cannot become absence to save work.
-- [ ] Add standalone attach<=2 and continuation fallthrough<=3 ratchets through the same source seam, asserting successful attachment and no creates. Extend the real owner-pass capture/fence fixture to count all tables for N callers, bounded by1+2N. Do not substitute high-level capture counts for actual full enumerations.
-- [ ] Add an extra enumeration in temporary counterfactuals and prove strict/ratchet budgets fail. Preserve effect-time fencing; lowering budgets is the separate redesign follow-up.
+- [x] Reuse the native process-reader count boundary with an instance-local controlled source; cover Table, full/named snapshot enumeration and targeted identity reads distinctly. Never use a global counter or time output as the oracle.
+- [x] Run real RunLaunch selected attach with production ancestry/skip-sweep logic and a stateful controlled process/listing/handoff fixture. Assert one actual ancestry enumeration at handoff, exact supplied terminal attached and zero creates.
+- [x] Exercise public parent ResumeContextWith(WarmOnly) and StartInteractive listed attach. Count/refuse any native owner capture/server-source enumeration, retaining positive listing and PID-generation repair checks. Parent count must be zero, so combined parent/helper bound is <=1.
+- [x] Include known-live, known-dead and unknown retained helpers where the existing public fixture models them; unknown cannot become absence to save work.
+- [x] Add standalone attach<=2 and continuation fallthrough<=3 ratchets through the same source seam, asserting successful attachment and no creates. Extend the real owner-pass capture/fence fixture to count all tables for N callers, bounded by1+2N. Do not substitute high-level capture counts for actual full enumerations.
+- [x] Add an extra enumeration in temporary counterfactuals and prove strict/ratchet budgets fail. Preserve effect-time fencing; lowering budgets is the separate redesign follow-up.
 
 ### 4. Publish the release net
 
 Files: atlas/workbench-performance.md (new, link from atlas/index.md), relevant Couch acceptance runbook, issue Done-when/Plan/Revisions.
 
-- [ ] Document stable test names and one normal-suite/targeted command for all three invariant families, what counts, exclusions and how a fourth invariant supplies positive and counterfactual controls.
-- [ ] Keep the Revision's live CPU check in the acceptance runbook: 20-slot fixture, restart, attaches settled, average idle CPU <5% over60s. This is operator acceptance guidance, never a CI timing threshold; no operator restart/stage is needed for this test-only delivery unless TL requests it.
+- [x] Document stable test names and one normal-suite/targeted command for all three invariant families, what counts, exclusions and how a fourth invariant supplies positive and counterfactual controls.
+- [x] Keep the Revision's live CPU check in the acceptance runbook: 20-slot fixture, restart, attaches settled, average idle CPU <5% over60s. This is operator acceptance guidance, never a CI timing threshold; no operator restart/stage is needed for this test-only delivery unless TL requests it.
 - [ ] Run targeted normal/race tests, then the recorded full suite once on a pushed final source head. Finish any failed recipe's remainder with make -k and report every failure by name.
 - [ ] Close through the binary-owned fresh review. On SHIP integrate main, run sdlc merge --yes, report real merge hash/PR to hub and stop.
 
@@ -138,3 +138,7 @@ No SessionOwnerCapture product type is introduced; that phrase describes the exi
 PQ-2 named oracle functions and strategies: Counter.RecordRead(family,owner,path,n), Counter.RecordDecode(family,owner,path,n), Counter.Snapshot(), and Snapshot.Delta(before) live in workbenchperftest/counts.go. Counter.Observer(owner) adapts QueryWorkObserver without introducing a second accounting implementation. Test record/delta arithmetic against an independent serial reference over generated adversarial update sequences; verify snapshots own independent map copies; verify controlled concurrent update totals with joins under -race. Negative deltas are not silently clamped, so reset/disconnection is visible. Consumer cold controls assert all required families are present before checking zeros.
 
 Source.Table/Source.Snapshot/Source.SnapshotNamed tests use a stateful injected Reader through actual snapshotCapture, proving exact enumeration counts, candidate/identity evidence preservation and cancellation/error propagation without host access. The launcher and owner-pass ratchets use that same low-level Reader; adding a second enumeration must be observed even when no argv enrichment occurs. These are integration tests, not declarations of a pure core.
+
+### 2026-10-15 — activity adapter ownership
+
+Implementation uses couchtty.ThreadActivityProbe(dataDir,runtime) for the row-to-thread adapter, called by both wireIdleFading and the Console consumer test. This keeps the thin UI adapter in the package owning ActivityProbe and avoids exposing menu state or copying the production closure across packages. The test is the scheduler's sole owner, drives the exact request/advance/finish events used by Run's ticker, and awaits each result/reducer application through private existing channels. No sleeps, ticker shortening, trace-dependent barrier or new product control API.

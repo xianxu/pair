@@ -108,10 +108,10 @@ Cold and changed-owner controls must prove counters are connected; each warm ope
 
 ## Plan
 
-- [ ] Extract/reuse #559 fixture and independent read/decode counters, preserving cache invalidation/security controls.
-- [ ] Add actual Console activity and socket-message consumer regressions with cold/mutation/warm/counterfactual controls.
-- [ ] Add selected Couch attach strict budget and standalone/continuation/owner-pass ratchets at the process-reader boundary.
-- [ ] Document release commands, count boundaries, extension pattern and separate live CPU acceptance; preserve released follow-up backlog.
+- [x] Extract/reuse #559 fixture and independent read/decode counters, preserving cache invalidation/security controls.
+- [x] Add actual Console activity and socket-message consumer regressions with cold/mutation/warm/counterfactual controls.
+- [x] Add selected Couch attach strict budget and standalone/continuation/owner-pass ratchets at the process-reader boundary.
+- [x] Document release commands, count boundaries, extension pattern and separate live CPU acceptance; preserve released follow-up backlog.
 - [ ] Run targeted/race and recorded full suite, close through review, merge main and land on SHIP.
 
 Durable plan: workshop/plans/000204-workbench-performance-suite-counted-invariants-first-plan.md.
@@ -236,3 +236,19 @@ item: milestone-review design=0.04 impl=0.20
 design-buffer: 0.15
 total: 2.246
 ```
+
+### 2026-10-15 — counted consumer implementation checkpoint
+
+change-code passed the full flow after PQ-1/PQ-2 refinement and the derived2.246h estimate. Estimate-quality INFO notes compressed source/attach/verification implementation allocations; this is retained as calibration risk, not a reason to guess actuals. Native Source is zero-value compatible, instance-local and never caches observations; explicit owner IO still wins. Shared test artifacts/counters reuse canonical artifact paths/ledger recognition and keep independent read and decode totals.
+
+UI consumer20x30,000,000-byte valid ledgers passes12.019s before extracting the row adapter; production now calls the same couchtty.ThreadActivityProbe used by the actual request/advance/finish/menu-reducer test. Post-extraction activity tests pass9.261s; UI race31.260s. Recreating activity/launch caches per row in an overlay fails warm-byte invariants (37.88s), and disconnecting the observer fails cold controls (5.24s). Each unchanged completed generation is measured separately; one ledger mutation causes only its owner work, followed by zero again.
+
+Message consumer uses real private socket requests, broker submission receipts and endpoint delivery through the shared production recordedMessageAuthority. Twenty owners at30MB and60 sends measure zero warm historical/index bytes per request; cold read/decode29641bytes proves the seam. Cache-bypass and disconnected-observer overlays both fail. Existing smaller authority tests retain replacement/PID/readiness/thread refusal; fresh small security reads are not optimized away. Normal and targeted race message tests pass.
+
+Selected attach parent0/helper<=1 and ratchets standalone<=2, continuation<=3, owner<=1+2N are connected to one low process Reader through real production ancestry, snapshot parsing and live fencing. Owner formula covers N1,3,21. Normal/race source/launcher/core tests pass. Additional-enumeration overlays fail selected2>1, standalone3>2, continuation5>3; owner5>3,13>7,85>43; all six public parent shapes fail4>0. Bounds allow future reductions; connected source and successful exact attach/no-create assertions prevent empty tests.
+
+New production source inventory initially failed for moved test-support files and Source; corrected explicit classifications and reused artifactpath.IsLedgerHistorySidecar instead of inventing filename vocabulary. Artifactpath and support tests pass14.051s/0.408s. Shared counter arithmetic/race tests and a negative-delta-clamping counterfactual pass/fail as expected. The lower #559 idle test is reduced to3x4096 while its benchmark and allocation-history comparison remain; actual20x30MB scale belongs to the consumer test.
+
+Atlas now documents normal-suite commands, count boundaries, adding an invariant and a separate TL/operator CPU smoke. No stage, live operator action or machine setting change. Integrated targeted group is running before the pushed-head recorded full suite; close/landing remain pending.
+
+Integrated targeted group PASS: UI12.212s, message1.348s, launcher0.184s, core9.676s, procutil0.167s, threadactivity1.156s, support0.321s (/tmp/pair204-integrated-targeted.log). Temporary counterfactual sources live only outside the checkout.

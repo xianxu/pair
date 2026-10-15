@@ -416,6 +416,11 @@ var SourceClassifications = []SourceClassification{
 	// and, through panebirth, the launch's pane evidence -- never the draft.
 	{Path: "cmd/internal/threadactivity/activity.go", Kind: ResolvedConsumer,
 		Families: []string{"log"}, BindingNames: []string{"scoped-log"}},
+	// #204 shared test-only evidence/counters use the same namespace resolver.
+	{Path: "cmd/internal/workbenchperftest/fixture.go", Kind: ResolvedConsumer,
+		Families: []string{"ledger"}, BindingNames: []string{"composite-ledger"}},
+	{Path: "cmd/internal/workbenchperftest/counts.go", Kind: ResolvedConsumer,
+		Families: []string{"ledger"}, BindingNames: []string{"direct-ledger-history"}},
 	{Path: "cmd/internal/workbenchshortcut/shortcut.go", Kind: ResolvedConsumer,
 		Families:     []string{"last-left-pane", "last-terminal-pane", "terminal-panes"},
 		BindingNames: []string{"scoped-wrapper-last-left-pane", "scoped-wrapper-last-terminal-pane", "scoped-wrapper-terminal-panes"}},
@@ -1018,6 +1023,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/recover_action.go",
 	"cmd/internal/couchcore/progress.go",
 	"cmd/internal/procutil/command.go",
+	"cmd/internal/procutil/source.go",
 	"cmd/internal/procutil/command_parse.go",
 	"cmd/internal/procutil/command_procfs.go",
 	"cmd/internal/procutil/command_darwin.go",

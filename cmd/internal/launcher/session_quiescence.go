@@ -129,13 +129,19 @@ func quiescenceContext(parent context.Context, session string, ops sessionQuiesc
 }
 
 type osSessionQuiescenceOps struct {
+	processes       procutil.Source
 	processIdentity func(string) string
 	processCommand  func(string) string
 	killProcess     func(int) error
 }
 
-func newOSSessionQuiescenceOps() osSessionQuiescenceOps {
+func newOSSessionQuiescenceOps(sources ...procutil.Source) osSessionQuiescenceOps {
+	var source procutil.Source
+	if len(sources) > 0 {
+		source = sources[0]
+	}
 	return osSessionQuiescenceOps{
+		processes:       source,
 		processIdentity: procutil.Identity,
 		processCommand:  procutil.Command,
 		killProcess: func(pid int) error {
@@ -162,7 +168,7 @@ func (osSessionQuiescenceOps) SessionPresent(ctx context.Context, session string
 }
 
 func (o osSessionQuiescenceOps) SessionServers(ctx context.Context, session string) ([]SessionServerIdentity, error) {
-	rows, err := procutil.SnapshotNamed(ctx, "zellij")
+	rows, err := o.processes.SnapshotNamed(ctx, "zellij")
 	if err != nil {
 		return nil, err
 	}

@@ -64,14 +64,14 @@ func (nativeReader) identity(pid int) (string, error)     { return nativeIdentit
 // fence PID reuse during each read. It keeps
 // per-row failures; cancellation or table failure aborts the whole observation.
 func Snapshot(ctx context.Context) ([]Observation, error) {
-	return snapshotCapture(ctx, nativeReader{}, nil, os.Getenv("PAIR_STARTUP_TIMING"), os.Stderr, time.Now)
+	return (Source{}).Snapshot(ctx)
 }
 
 // SnapshotNamed enriches only rows with the exact short kernel name or an
 // unavailable name. Metadata selects candidates; native executable and argv
 // evidence still determine their meaning. Unknown names retain uncertainty.
 func SnapshotNamed(ctx context.Context, name string) ([]Observation, error) {
-	return snapshotCapture(ctx, nativeReader{}, func(p Process) bool { return processNameCandidate(p, name) }, os.Getenv("PAIR_STARTUP_TIMING"), os.Stderr, time.Now)
+	return (Source{}).SnapshotNamed(ctx, name)
 }
 
 // Capture diagnostics count calls at the reader boundary, including failed

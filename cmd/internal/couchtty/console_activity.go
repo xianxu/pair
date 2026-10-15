@@ -6,12 +6,26 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/threadactivity"
 )
 
 // ActivityProbe reads one live thread's last activity (pair#247): the
 // operator's input or its agent's work. Production wires threadactivity.Latest;
 // it must honour ctx. A zero time means the thread left no signal at all.
 type ActivityProbe func(ctx context.Context, row couchcore.ActionableThreadSummary) (time.Time, error)
+
+// ThreadActivityProbe adapts the shared thread-activity definition to Console
+// rows. Its runtime owns caches across rows and passes; each query stays scoped
+// to that row's repository and exact thread address.
+func ThreadActivityProbe(dataDir string, runtime threadactivity.Runtime) ActivityProbe {
+	return func(ctx context.Context, row couchcore.ActionableThreadSummary) (time.Time, error) {
+		thread, err := threadactivity.InScope(dataDir, row.Address.RepoScope, string(row.Address.Tag), row.Agent)
+		if err != nil {
+			return time.Time{}, err
+		}
+		return threadactivity.Latest(ctx, runtime, thread), nil
+	}
+}
 
 const (
 	// defaultActivityInterval is how stale an idle fade may get. The bands are a
