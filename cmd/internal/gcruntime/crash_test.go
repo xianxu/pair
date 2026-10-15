@@ -14,7 +14,7 @@ import (
 
 // Couch crash files sit inside a registered store, which the inventory walk
 // excludes, so pair gc reaches them through its own sweep (#397).
-func TestCrashFilesInRegisteredStoresAgeOut(t *testing.T) {
+func TestCrashFilesInRegisteredStoresAwaitBackup(t *testing.T) {
 	ctx := context.Background()
 	s, err := New(t.TempDir())
 	if err != nil {
@@ -53,8 +53,11 @@ func TestCrashFilesInRegisteredStoresAgeOut(t *testing.T) {
 	eligible := map[string]bool{}
 	for _, row := range preview.Diagnostics {
 		eligible[row.Path] = row.Eligible
+		if row.Reason != diagnosticlog.BackupFenceReason {
+			t.Fatalf("crash backup fence not reported: %+v", row)
+		}
 	}
-	if !eligible[old] || eligible[young] {
+	if len(eligible) != 2 || eligible[old] || eligible[young] {
 		t.Fatalf("preview diagnostics %+v", preview.Diagnostics)
 	}
 	if err := c.CompleteMigration(ctx, []string{store}); err != nil {
@@ -64,11 +67,11 @@ func TestCrashFilesInRegisteredStoresAgeOut(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if applied.DiagnosticCollectedBytes != int64(len("panic: x\n")) {
+	if applied.DiagnosticCollectedBytes != 0 {
 		t.Fatalf("applied %+v", applied)
 	}
-	if _, err := os.Stat(old); !os.IsNotExist(err) {
-		t.Fatalf("expired crash file kept: %v", err)
+	if body, err := os.ReadFile(old); err != nil || string(body) != "panic: x\n" {
+		t.Fatalf("backup-fenced crash changed: %q %v", body, err)
 	}
 	if _, err := os.Stat(young); err != nil {
 		t.Fatalf("young crash file removed: %v", err)

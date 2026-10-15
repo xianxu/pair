@@ -276,8 +276,8 @@ func TestMaintenanceDiagnosticPagesDoNotEvaluateSessionOwners(t *testing.T) {
 		t.Fatal("diagnostic pass did not complete")
 	}
 	for _, tag := range []string{"tag", "extra0"} {
-		if _, err := os.Stat(filepath.Join(c.Root, "wrap-events-"+tag+".jsonl")); !os.IsNotExist(err) {
-			t.Fatalf("diagnostic remains: %s %v", tag, err)
+		if body, err := os.ReadFile(filepath.Join(c.Root, "wrap-events-"+tag+".jsonl")); err != nil || string(body) != "expired diagnostic" {
+			t.Fatalf("backup-fenced diagnostic changed %s: %q %v", tag, body, err)
 		}
 	}
 }

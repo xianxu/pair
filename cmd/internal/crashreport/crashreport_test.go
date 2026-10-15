@@ -217,7 +217,7 @@ func TestClassify(t *testing.T) {
 	}
 }
 
-func TestSweepAgesOutAndSparesTheLiveOwner(t *testing.T) {
+func TestSweepKeepsDiagnosticsUntilBackupAndReportsLiveOwner(t *testing.T) {
 	dir := t.TempDir()
 	now := time.Now()
 	old := now.Add(-(diagnosticlog.RetentionPeriod + 24*time.Hour))
@@ -248,10 +248,17 @@ func TestSweepAgesOutAndSparesTheLiveOwner(t *testing.T) {
 	eligible := map[string]bool{}
 	for _, row := range preview {
 		eligible[filepath.Base(row.Path)] = row.Eligible
+		wantReason := diagnosticlog.BackupFenceReason
+		if filepath.Base(row.Path) == "20251001T000000Z-3.log" {
+			wantReason = "couch that owns it is running"
+		}
+		if row.Reason != wantReason {
+			t.Fatalf("diagnostic backup/live-owner reason = %q, want %q", row.Reason, wantReason)
+		}
 	}
 	want := map[string]bool{
-		"20251001T000000Z-1.crash": true,
-		"20251001T000000Z-2.log":   true,
+		"20251001T000000Z-1.crash": false,
+		"20251001T000000Z-2.log":   false,
 		"20251001T000000Z-3.log":   false,
 		"20261006T000000Z-4.crash": false,
 	}
@@ -273,9 +280,9 @@ func TestSweepAgesOutAndSparesTheLiveOwner(t *testing.T) {
 		t.Fatal(err)
 	}
 	for name, e := range want {
-		_, err := os.Stat(filepath.Join(dir, name))
-		if gone := os.IsNotExist(err); gone != e {
-			t.Fatalf("%s removed = %v, want %v", name, gone, e)
+		body, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil || string(body) != "x" || e {
+			t.Fatalf("backup-fenced diagnostic changed %s: %q %v", name, body, err)
 		}
 	}
 }
@@ -287,9 +294,9 @@ func TestSweepMissingDirIsEmpty(t *testing.T) {
 	}
 }
 
-// Over the bound, gc still drains the first MaxEntries and reports the rest,
-// instead of refusing the directory forever.
-func TestSweepDrainsAnOverfullDirectory(t *testing.T) {
+// Over the bound, inspection remains bounded and reports the overflow while
+// preserving every diagnostic until backup is available.
+func TestSweepRetainsAnOverfullDirectoryUntilBackup(t *testing.T) {
 	dir := t.TempDir()
 	old := time.Now().Add(-(diagnosticlog.RetentionPeriod + 24*time.Hour))
 	for i := 1; i <= MaxEntries+1; i++ {
@@ -308,9 +315,17 @@ func TestSweepDrainsAnOverfullDirectory(t *testing.T) {
 	if rows[0].Eligible || !strings.Contains(rows[0].Reason, "more than") {
 		t.Fatalf("overflow not reported first: %+v", rows[0])
 	}
+	if len(rows) != MaxEntries+1 {
+		t.Fatalf("bounded inspection returned %d rows, want %d", len(rows), MaxEntries+1)
+	}
+	for _, row := range rows[1:] {
+		if row.Eligible || row.Reason != diagnosticlog.BackupFenceReason {
+			t.Fatalf("overflow inspection bypassed backup fence: %+v", row)
+		}
+	}
 	left, _ := os.ReadDir(dir)
-	if len(left) != 1 {
-		t.Fatalf("%d files left, want one past the bound", len(left))
+	if len(left) != MaxEntries+1 {
+		t.Fatalf("%d files left, want all %d retained", len(left), MaxEntries+1)
 	}
 }
 

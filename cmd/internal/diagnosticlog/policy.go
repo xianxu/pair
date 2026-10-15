@@ -6,6 +6,14 @@ import (
 	"time"
 )
 
+// KeepDiagnosticsUntilBackup fences all diagnostic payload eviction until the
+// history-backup owner provides archive-before-evict. Rotation still preserves
+// generations without a count limit; persisted count limits remain dormant.
+const KeepDiagnosticsUntilBackup = true
+const BackupFenceReason = "diagnostic eviction awaits history backup"
+
+var ErrBackupRequired = errors.New(BackupFenceReason)
+
 const MaxClosedGenerations = 3
 const maxPolicyCandidates = 64
 
@@ -121,6 +129,9 @@ func policyGenerations(path string, o Options) ([]generation, error) {
 // Caller has proven the complete writer inventory under the matching log lock.
 // Existing durable deletion intents own every destructive effect and its replay.
 func trimDiagnosticGenerations(path string, s *diskState, o Options, keep int) ([]Segment, error) {
+	if KeepDiagnosticsUntilBackup {
+		return nil, nil
+	}
 	candidates, err := policyGenerations(path, o)
 	if err != nil {
 		return nil, err
@@ -161,6 +172,9 @@ func trimDiagnosticGenerations(path string, s *diskState, o Options, keep int) (
 // reads generation metadata or proves writers. Full certification and pruning
 // belong to maintenance. Pre-existing/tightened excess blocks further growth.
 func diagnosticCountDebt(path string, limits DiagnosticLimits, o Options) (bool, error) {
+	if KeepDiagnosticsUntilBackup {
+		return false, nil
+	}
 	names, _, complete, err := generationPage(path, "", limits.MaxGenerations+1, false, o)
 	if err != nil {
 		return false, err

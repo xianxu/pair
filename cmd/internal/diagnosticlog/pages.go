@@ -305,8 +305,12 @@ func previewPageLocked(path string, o Options, cursor string, limit int, cleanup
 	if e != nil {
 		return nil, cursor, false, e
 	}
-	candidates, inventoryErr := policyGenerations(path, o)
-	if inventoryErr == nil {
+	var candidates []generation
+	var inventoryErr error
+	if !KeepDiagnosticsUntilBackup {
+		candidates, inventoryErr = policyGenerations(path, o)
+	}
+	if !KeepDiagnosticsUntilBackup && inventoryErr == nil {
 		excess, selectionErr := SelectExcessGenerations(o.Now(), candidates, limits, true)
 		if selectionErr != nil {
 			return nil, cursor, false, selectionErr
@@ -314,7 +318,7 @@ func previewPageLocked(path string, o Options, cursor string, limit int, cleanup
 		for _, g := range excess {
 			excessPaths[segmentPath(path, g.Name)] = true
 		}
-	} else if !errors.Is(inventoryErr, ErrMore) {
+	} else if !KeepDiagnosticsUntilBackup && !errors.Is(inventoryErr, ErrMore) {
 		return nil, cursor, false, inventoryErr
 	}
 	add := func(p string, g generation) error {
@@ -328,7 +332,7 @@ func previewPageLocked(path string, o Options, cursor string, limit int, cleanup
 		if e = matches(st, g); e != nil {
 			return e
 		}
-		eligible := reason == "" && (DecideSegment(o.Now(), g.LastWrite) || excessPaths[p])
+		eligible := !KeepDiagnosticsUntilBackup && reason == "" && (DecideSegment(o.Now(), g.LastWrite) || excessPaths[p])
 		why := reason
 		if why == "" && excessPaths[p] {
 			why = "diagnostic generation count limit"
@@ -336,6 +340,9 @@ func previewPageLocked(path string, o Options, cursor string, limit int, cleanup
 		oversized := g.Size > limits.MaxBytes
 		if why == "" && oversized {
 			why = "pre-existing diagnostic generation exceeds byte limit"
+		}
+		if why == "" && KeepDiagnosticsUntilBackup {
+			why = BackupFenceReason
 		}
 		if why == "" && !eligible {
 			why = RetainedReason

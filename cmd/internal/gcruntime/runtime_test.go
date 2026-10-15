@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-func TestLegacyDiagnosticsExpireWithoutSessionGrace(t *testing.T) {
+func TestLegacyDiagnosticsAwaitBackupWithoutSessionGrace(t *testing.T) {
 	root := t.TempDir()
 	s, err := New(root)
 	if err != nil {
@@ -30,7 +30,7 @@ func TestLegacyDiagnosticsExpireWithoutSessionGrace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(preview.Diagnostics) != 1 || !preview.Diagnostics[0].Eligible {
+	if len(preview.Diagnostics) != 1 || preview.Diagnostics[0].Eligible || preview.Diagnostics[0].Reason != diagnosticlog.BackupFenceReason {
 		t.Fatalf("%+v", preview)
 	}
 	if _, err := os.Stat(filepath.Join(c.Root, ".retention")); !os.IsNotExist(err) {
@@ -43,11 +43,11 @@ func TestLegacyDiagnosticsExpireWithoutSessionGrace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if applied.DiagnosticCollectedBytes != 14 {
+	if applied.DiagnosticCollectedBytes != 0 {
 		t.Fatalf("%+v", applied)
 	}
-	if _, err := os.Stat(path); !os.IsNotExist(err) {
-		t.Fatal("old diagnostic retained", err)
+	if body, err := os.ReadFile(path); err != nil || string(body) != "old diagnostic" {
+		t.Fatalf("backup-fenced diagnostic changed: %q %v", body, err)
 	}
 }
 

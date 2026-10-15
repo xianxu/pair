@@ -68,7 +68,7 @@ func TestPreviewDoesNotInitializeOrRecover(t *testing.T) {
 	*now = now.Add(RetentionPeriod + 24*time.Hour)
 	state, _ := os.ReadFile(filepath.Join(directory(path), "state.json"))
 	rows, e := Preview(path, opts, 100)
-	if e != nil || len(rows) != 1 || !rows[0].Eligible {
+	if e != nil || len(rows) != 1 || rows[0].Eligible {
 		t.Fatalf("preview %v %v", rows, e)
 	}
 	stateAfter, _ := os.ReadFile(filepath.Join(directory(path), "state.json"))
@@ -124,13 +124,17 @@ func TestPausedOpenerRepublishesAfterRetirement(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	w.Write([]byte("expired"))
+	// This fixture retires only an abandoned, empty current reservation.
 	w.Close()
 	s, e := load(path)
 	if e != nil {
 		t.Fatal(e)
 	}
 	s.Writers = nil
+	s.Current = generation{}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
 	if e = save(path, s, true, Options{}); e != nil {
 		t.Fatal(e)
 	}
@@ -195,10 +199,14 @@ func TestRetirementCrashKeepsDiscoverableRecovery(t *testing.T) {
 			if e != nil {
 				t.Fatal(e)
 			}
-			w.Write([]byte("expired"))
+			// This fixture retires only an abandoned, empty current reservation.
 			w.Close()
 			s, _ := load(path)
 			s.Writers = nil
+			s.Current = generation{}
+			if err := os.Remove(path); err != nil {
+				t.Fatal(err)
+			}
 			save(path, s, true, Options{})
 			*now = now.Add(RetentionPeriod + 24*time.Hour)
 			opts.Fault = func(step string) error {

@@ -310,7 +310,7 @@ func TestPartialQuarantineRegistersRecovererBeforeProof(t *testing.T) {
 	assertPreservedQuarantine(t, path, opts)
 }
 
-func TestQuarantinedGenerationExpiresWithSemanticMetadata(t *testing.T) {
+func TestQuarantinedGenerationPreservedUntilBackup(t *testing.T) {
 	path, opts := killedPartialForQuarantine(t)
 	w, err := Open(path, opts)
 	if err != nil {
@@ -327,7 +327,7 @@ func TestQuarantinedGenerationExpiresWithSemanticMetadata(t *testing.T) {
 	if _, err := Collect(path, opts, 100); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(preserved); !os.IsNotExist(err) {
-		t.Fatalf("expired quarantine retained: %v", err)
+	if body, err := os.ReadFile(preserved); err != nil || string(body) != "baseta" {
+		t.Fatalf("quarantine evicted before backup: %q %v", body, err)
 	}
 }

@@ -46,7 +46,7 @@ func TestDiagnosticLimitsPersistAcrossConflictingWriters(t *testing.T) {
 		t.Fatal(string(body), err)
 	}
 }
-func TestDiagnosticGenerationCountBound(t *testing.T) {
+func TestDiagnosticGenerationsStayUntilBackup(t *testing.T) {
 	path, _, opts := fixture(t)
 	opts.MaxBytes = 4
 	w, err := Open(path, opts)
@@ -59,9 +59,9 @@ func TestDiagnosticGenerationCountBound(t *testing.T) {
 			t.Fatal(record, n, err)
 		}
 	}
-	names, _, complete, err := generationPage(path, "", 65, false, opts)
-	if err != nil || !complete || len(names) != 3 {
-		t.Fatalf("retained=%d complete=%t err=%v", len(names), complete, err)
+	names, _, done, err := generationPage(path, "", 100, false, opts)
+	if err != nil || !done || len(names) != 6 {
+		t.Fatal(names, done, err)
 	}
 }
 
@@ -140,7 +140,7 @@ func TestSelectExcessGenerationsRequiresCertifiedCompleteInventory(t *testing.T)
 		t.Fatal(selected, err)
 	}
 }
-func TestDiagnosticQuarantineCountsAndDeletesWithExactMetadata(t *testing.T) {
+func TestDiagnosticQuarantinePreservedBeyondCountLimit(t *testing.T) {
 	path, opts := killedPartialForQuarantine(t)
 	opts.MaxBytes = 6
 	opts.MaxGenerations = 1
@@ -150,83 +150,63 @@ func TestDiagnosticQuarantineCountsAndDeletesWithExactMetadata(t *testing.T) {
 	}
 	defer w.Close()
 	assertPreservedQuarantine(t, path, opts)
+	for _, record := range []string{"next12", "fresh3"} {
+		if _, err = w.Write([]byte(record)); err != nil {
+			t.Fatal(err)
+		}
+	}
 	rows, err := Preview(path, opts, 100)
 	if err != nil {
 		t.Fatal(err)
 	}
 	marked := false
 	for _, row := range rows {
+		if row.Eligible {
+			t.Fatal("backup fence bypassed", row)
+		}
 		if row.Unverified {
 			marked = true
+			body, err := os.ReadFile(row.Path)
+			if err != nil || string(body) != "baseta" {
+				t.Fatal(string(body), err)
+			}
 		}
 	}
 	if !marked {
-		t.Fatal("preview hides quarantined uncertainty")
-	}
-
-	if _, err = w.Write([]byte("next12")); err != nil {
-		t.Fatal(err)
-	}
-	if _, err = w.Write([]byte("fresh3")); err != nil {
-		t.Fatal(err)
-	}
-	names, _, done, err := generationPage(path, "", 65, false, opts)
-	if err != nil || !done || len(names) != 1 {
-		t.Fatal(names, done, err)
-	}
-	var g generation
-	if err = readJSON(segmentPath(path, names[0])+".json", &g); err != nil {
-		t.Fatal(err)
-	}
-	if g.UnverifiedTail != nil {
-		t.Fatal("old quarantine escaped generation count")
-	}
-	body, err := os.ReadFile(segmentPath(path, names[0]))
-	if err != nil || string(body) != "next12" {
-		t.Fatal(string(body), err)
+		t.Fatal("quarantine evicted")
 	}
 }
-func TestDiagnosticPolicyDeletionReplay(t *testing.T) {
+
+func TestDiagnosticPolicyDoesNotStartDeletionBeforeBackup(t *testing.T) {
 	for _, step := range []string{"delete-intent", "delete-payload", "delete-metadata", "delete-retire-intent"} {
 		t.Run(step, func(t *testing.T) {
 			path, _, opts := fixture(t)
 			opts.MaxBytes = 4
 			opts.MaxGenerations = 1
+			hit := false
+			opts.Fault = func(s string) error {
+				if s == step {
+					hit = true
+					return errors.New(step)
+				}
+				return nil
+			}
 			w, err := Open(path, opts)
 			if err != nil {
 				t.Fatal(err)
 			}
-			for _, record := range []string{"0000", "1111"} {
+			defer w.Close()
+			for _, record := range []string{"0000", "1111", "2222"} {
 				if _, err = w.Write([]byte(record)); err != nil {
 					t.Fatal(err)
 				}
 			}
-			stop := errors.New(step)
-			w.options.Fault = func(s string) error {
-				if s == step {
-					return stop
-				}
-				return nil
+			if hit {
+				t.Fatal("eviction began before backup")
 			}
-			if _, err = w.Write([]byte("2222")); !errors.Is(err, stop) {
-				t.Fatal(err)
-			}
-			w.Close()
-			w, err = Open(path, opts)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer w.Close()
-			if _, err = w.Write([]byte("2222")); err != nil {
-				t.Fatal(err)
-			}
-			names, _, done, err := generationPage(path, "", 65, false, opts)
-			if err != nil || !done || len(names) != 1 {
+			names, _, done, err := generationPage(path, "", 100, false, opts)
+			if err != nil || !done || len(names) != 2 {
 				t.Fatal(names, done, err)
-			}
-			body, err := os.ReadFile(path)
-			if err != nil || string(body) != "2222" {
-				t.Fatal(string(body), err)
 			}
 		})
 	}
@@ -283,7 +263,7 @@ func TestDiagnosticLegacyIntentRecoveredBeforeLimitsMigration(t *testing.T) {
 		t.Fatal(string(body), err)
 	}
 }
-func TestDiagnosticIncompleteInventoryRefusesGrowth(t *testing.T) {
+func TestDiagnosticLargeInventoryDoesNotBlockRotation(t *testing.T) {
 	path, _, opts := fixture(t)
 	opts.MaxBytes = 4
 	w, err := Open(path, opts)
@@ -324,11 +304,11 @@ func TestDiagnosticIncompleteInventoryRefusesGrowth(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if n, err := w.Write([]byte("next")); n != 0 || !errors.Is(err, ErrMore) {
-		t.Fatal("incomplete inventory authorized growth", n, err)
+	if n, err := w.Write([]byte("next")); n != 4 || err != nil {
+		t.Fatal("backup-fenced inventory blocked rotation", n, err)
 	}
 	body, err := os.ReadFile(path)
-	if err != nil || string(body) != "base" {
+	if err != nil || string(body) != "next" {
 		t.Fatal(string(body), err)
 	}
 	for i := 0; i < maxPolicyCandidates+1; i++ {
@@ -369,7 +349,7 @@ func TestDiagnosticV2RefusesLegacyStrictReader(t *testing.T) {
 	}
 }
 
-func TestDiagnosticOversizedLegacyGenerationReportedUntilCountEviction(t *testing.T) {
+func TestDiagnosticOversizedLegacyGenerationPreservedUntilBackup(t *testing.T) {
 	path, now, opts := fixture(t)
 	opts.MaxBytes = 4
 	w, err := Open(path, opts)
@@ -441,12 +421,12 @@ func TestDiagnosticOversizedLegacyGenerationReportedUntilCountEviction(t *testin
 	if _, err = w.Write([]byte("3333")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = os.Stat(p); !os.IsNotExist(err) {
-		t.Fatal("old certified legacy segment escaped count eviction", err)
+	if _, err = os.Stat(p); err != nil {
+		t.Fatal("legacy segment evicted before backup", err)
 	}
 }
 
-func TestDiagnosticTightenedCountDebtBlocksEveryOpenWriter(t *testing.T) {
+func TestDiagnosticCountDebtDormantUntilBackup(t *testing.T) {
 	path, now, opts := fixture(t)
 	opts.MaxBytes = 4
 	owner, err := Open(path, opts)
@@ -467,40 +447,22 @@ func TestDiagnosticTightenedCountDebtBlocksEveryOpenWriter(t *testing.T) {
 	defer peer.Close()
 	tightened := opts
 	tightened.MaxGenerations = 1
-	unknown := func(context.Context, string, []Registration) error { return ErrUnknownWriters }
-	tightened.Proof = unknown
+	tightened.Proof = func(context.Context, string, []Registration) error { return ErrUnknownWriters }
 	narrow, err := Open(path, tightened)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer narrow.Close()
-	owner.options.Proof = unknown
-	peer.options.Proof = unknown
 	for _, writer := range []*Writer{owner, peer, narrow} {
-		if n, err := writer.Write([]byte("a")); n != 0 || !errors.Is(err, ErrLimit) || !errors.Is(err, ErrUnknownWriters) {
-			t.Fatal("count debt allowed growth", n, err)
+		if n, err := writer.Write([]byte("a")); n != 1 || err != nil {
+			t.Fatal("dormant count debt blocked growth", n, err)
 		}
-	}
-	body, err := os.ReadFile(path)
-	if err != nil || string(body) != "z" {
-		t.Fatal(string(body), err)
-	}
-	names, _, done, err := generationPage(path, "", 65, false, opts)
-	if err != nil || !done || len(names) != 3 {
-		t.Fatal("unknown proof changed evidence", names, done, err)
 	}
 	if err = Maintain(path, opts); err != nil {
 		t.Fatal(err)
 	}
-	if n, err := peer.Write([]byte("a")); n != 1 || err != nil {
-		t.Fatal(n, err)
-	}
-	state, err := load(path)
-	if err != nil || state.Limits.MaxGenerations != 1 {
-		t.Fatal(state.Limits, err)
-	}
-	names, _, done, err = generationPage(path, "", 65, false, opts)
-	if err != nil || !done || len(names) != 1 {
-		t.Fatal(names, done, err)
+	names, _, done, err := generationPage(path, "", 100, false, opts)
+	if err != nil || !done || len(names) != 4 {
+		t.Fatal("count eviction before backup", names, done, err)
 	}
 }

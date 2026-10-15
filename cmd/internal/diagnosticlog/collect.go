@@ -180,6 +180,9 @@ func recoverDeletion(path string, s *diskState, o Options) error {
 	if err := o.checkContext(); err != nil {
 		return err
 	}
+	if KeepDiagnosticsUntilBackup {
+		return ErrBackupRequired
+	}
 	g := *s.Deleting
 	p := path
 	if g.Name != "" {
