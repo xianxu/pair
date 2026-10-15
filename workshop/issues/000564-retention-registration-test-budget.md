@@ -1,12 +1,12 @@
 ---
 id: 000564
-status: codecomplete
+status: working
 deps: []
 github_issue:
 created: 2026-10-14
 updated: 2026-10-15
 estimate_hours:
-card_mirror: '9a0177e2f4fd55794b373b82b2eb325f5f50cd4f' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'c3a852f0a2d33e0f256d699a9a46ffe667533608' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-14T22:48:29-07:00
 claimant:
     operator: Xian Xu
@@ -64,3 +64,11 @@ Filed and released as independent follow-up during #218 close. No code change or
 - 2026-10-15: Full couchcore package passed on the implementation (258.789s); targeted semantic/timeout/lifecycle -race checks passed three repetitions (22.454s). make -k -B build passed; Pair and Couch embed clean revision 1212443fa837a747a724d52ae4836b31376cf8a5 with vcs.modified=false. Required sdlc-local suite remains in the machine queue. The pre-fix three isolated semantic passes (8.728s) remain distinct from the controlled budget-expiry reproduction and the inherited-deadline red regression.
 
 - 2026-10-15: Required sdlc-local/suite passed on implementation 1212443fa837a747a724d52ae4836b31376cf8a5 (exit 0, 10m50s after 2933s queue); couchcore passed again in the full suite (326.501s). Full log SHA-256: cc615abac0cf4612730414bd3759206faadeaa4b9b5fc44639197f2617e7f273. A temporary parent-detachment mutation in the retention fixture made the cancellation regression fail deterministically (resume incorrectly succeeded); source restored byte-for-byte and git diff clean before close. This confirms the cancellation case is not merely observing final cleanup cancellation. No production, timeout-fixture or retention assertion changed.
+
+## Revisions
+
+### 2026-10-15 — integration with #528 public warm attachment
+
+- Reason: main advanced after the first integrated suite. Merging #528 at e0db8d94a51ffd320dbaafb943c1dea432473da5 moved public warm resume from lifecycle ownership registration to listed-terminal attachment. The original retention-semantic test passes, but the three new regressions were observing the retired public route. The integrated suite failed exactly those three tests (9m50s); this is an actionable integration failure, not a flaky rerun to ignore.
+- Delta proposed to hub: retain historical zero-ownership-poll expiry characterization directly through awaitResumeRegistration. Move the current resume deadline/cancellation observations to ListedSessionHook, preserving the parent-linked registrationDeadline factory and exact semantic assertions. No production changes or extra timer. Reopen working; obtain refreshed close review after targeted/broad/suite checks.
+- Merge stopped with SIGINT while SDLC queued its upstream-baseline diagnostic, before any landing. Earlier integrated 0d87637085789339fb4c823ecac6b46ee9a73069 suite passed (10m10s after 3305s queue); original implementation suite and SHIP remain historical evidence, not validation of this revised integration.
