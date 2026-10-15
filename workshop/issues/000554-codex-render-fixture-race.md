@@ -51,6 +51,8 @@ Make the renderer fixture own and join its reply-drain lifetime before disposing
 
 ## Log
 
+
+- 2026-10-15: closed — Fixture now reuses terminalModel pipe-close/drain-join/disposal ownership; exact screen and notification assertions kept. Deterministic real-model success/close-error regression failed with direct-emulator disposal and passes with shared Close. Focused -race x10 passed; full wrapcmd normal passed (178.650s), full wrapcmd -race passed with explicit 30m package watchdog (949.370s; initial default 10m watchdog expired during exhaustive Muse replay). make -k -B build passed with clean embedded revision 3ae889903862fe5d7944dd490bf29aa5bafa9156. Required sdlc-local/suite passed on that commit (exit 0, 10m39s). No atlas: test/docs-only fixture-lifetime repair, no production or vendored changes.; review verdict: SHIP
 ### 2026-10-14
 
 - Filed from #544 verification. Main baseline e1cab8eca2041604827a7bda25ed958da5eab7af; focused race failure7.305s. Local diagnostic log `/tmp/pair-baseline-codex-working-race.log` is supplementary; the command and stacks above are the durable reproduction. Runtimebundle generation was the only baseline preparation. Temporary checkout removed after the run. TL requested a separate unassigned issue rather than a fix in #544.
