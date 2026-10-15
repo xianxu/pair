@@ -328,6 +328,25 @@ yet established. Pair:3 now owns independent pair#568 from main. The hub and
 owner have the bounded evidence; read-only measurements continue without a
 stacked fix, timeout increase, gate waiver or M1 close claim.
 
+### 2026-10-15 — checkpoint while independent suite repair and policy reply wait
+
+All M1 review corrections are committed; no M1 milestone-close is finalized.
+The passing complete suite is on the earlier pre-review-correction head. The two
+corrected recorded attempts stopped before Go in independent pair#568, now owned
+by pair:3. The bounded probe caught Neovim rc=1 after valid result JSON and an
+`uv_loop_close() hang?` log; live fs_event/timer handles exist in successful runs
+too, so the responsible handle/race is not yet proved. Probe evidence is under
+`/var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair568-diag-el_buyz1` and was
+sent to the owner and hub. No #568 code/claim is taken in this branch.
+
+Next: after #568 lands, merge main, run the recorded suite on that head, record
+its actual result/build, and re-run normal M1 milestone-close to answer BR-1/2/3.
+Do not skip any gate or reuse #528 waivers. Then implement M2 at its separate
+boundary; the direct native-selector policy question in the latest plan Revision
+is pending the hub's answer (receipt a2e880d4-619c-43c7-92a1-6d8e5413efcd,
+submitted). No M2 code, stage modification, operator restart or live-slot effects
+have occurred. The completed morning script remains in the plan directory.
+
 ## Revisions
 
 ### 2026-10-15T05:33-07:00 — overnight M2 dispatch
