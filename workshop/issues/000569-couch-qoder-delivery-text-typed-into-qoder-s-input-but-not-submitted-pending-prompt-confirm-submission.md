@@ -1,12 +1,20 @@
 ---
 id: 000569
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-15
 updated: 2026-10-15
 estimate_hours:
-card_mirror: 'deb8c85bb8b36e7870c60d40b35e9d80f07483e5' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '2e8caee3602676ed455179c518bea7aabf0f4554' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-15T16:14:38-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:5
+    worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Couch → Qoder delivery: text typed into Qoder's input but not submitted (pending * prompt); confirm submission
@@ -34,8 +42,24 @@ key is dropped by a paste-burst guard (compare #544's Codex paste-burst fix).
 
 ## Plan
 
-- [ ]
+- [ ] Add Qoder submit retry and fresh rendered confirmation through the existing peer-delivery reducer.
+- [ ] Bound unreconciled automatic-input recovery under the TL-approved policy and prove next-delivery recovery.
+- [ ] Verify focused/race/full suites, document behavior and complete TL-coordinated idle/mid-turn live checks on pair:4.
+
+Durable plan: [Qoder submit confirmation](../plans/000569-qoder-submit-confirmation-plan.md).
 
 ## Log
 
 ### 2026-10-15
+
+### 2026-10-15 — initial investigation
+
+Claimed/start-plan in pair:5 after pair#573 landed. Live peek confirms the restart notice 44c73545-5fed-4759-9c68-fd4865c10085 is still in the `*` Qoder composer. Its original receipt is unavailable after restart, so no exact historical receipt outcome is inferred. The shared delivery reducer has one CR submit and confirmation, with no retry for any receiver; #544 is a separate native-drive pacing fix. Occupied composers are excluded from the existing automatic-input tripwire, explaining why this residual state does not alert or release. Qoder's native first-CR suppression cause remains unproven. Proposed retry/confirmation and terminal-residue policy is in the durable plan; TL clarification requested by receipt 791e44c3-d7a6-4e49-b3cb-de6f3240b303. No live input or staging performed.
+
+Planning catch-up initially refused because weave refresh sees the unrelated untracked pensive file as dirt. Refreshed the slot-private ariadne substrate directly (its own clean checkout), preserving the pensive in place; rerun start-plan succeeded. No operator checkout modified.
+
+## Revisions
+
+### 2026-10-15 — explicit bounded recovery
+
+TL dispatch adds the repeated later-delivery expiry to the issue's purpose. Planned coverage includes bounded key-only retry, fresh rendered acceptance evidence, explicit unreconciled-input escalation and positive-empty next-delivery recovery. Automatic clearing or execution after an expired delivery is not assumed authorized; the terminal recovery policy is being agreed with TL before implementation.
