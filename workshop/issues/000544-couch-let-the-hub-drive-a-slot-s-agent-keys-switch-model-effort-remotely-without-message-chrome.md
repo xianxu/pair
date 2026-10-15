@@ -95,6 +95,15 @@ Durable implementation plan: [agent keys and model selection](../plans/000544-ag
 
 - Recorded integrated suite PASS: `sdlc local-check run --name suite` on exact source commit23e4f40a96f231da94daf5e0b10a4cc0241d7578, exit0 in12m13s after727s native gate wait. All shell/editor integrations and `go test ./... -count=1` passed, including couchcmd111.960s, couchcore472.304s, couchmessage8.187s and wrapcmd76.279s. Saved log: `/Users/xianxu/workspace/pair/.git/sdlc/local-checks/23e4f40a96f231da94daf5e0b10a4cc0241d7578/suite.log`, SHA256 d33ad0dddcef7274ab9e0e9f77b0ef1e31fdceeb83f3f154e0acb5ea0cad4566. Recorded passing sdlc-local/suite status. Subsequent issue-log commits change no tested source. Ready for the hub to schedule the live proposal above; acceptance, close and landing remain pending.
 
+
+### 2026-10-15 — staged for the combined operator restart
+
+Merged main a0e3e4d27 (including #556 PR349/bcf734588) as e13111215270762629c27e860584429b7ae66a98. Focused race verification PASS: agentdrive1.266s, wrapcmd11.420s, couchmessage1.141s, couchcmd2.488s, launcher2.784s; coverage includes drive/recovery/operations and native admission/selector boundaries. Independent protocol/service recovery races PASS1.367s/3.869s. Core operation/dispatch/recovery-confirmation/candidate checks PASS3.349s. Inventory PASS12.640s; root discovery PASS0.127s. Actual Run/socket/native Codex0.162.1 boundary PASS22.591s (scratch11.16s, Pair virtual11.11s), confirming session selection, explicit dirty-composer recovery, unchanged CR/s bytes and joined relay cleanup. The fixture used the merged source before commit; no source changed between it and e1311121.
+
+`sdlc stage --build` placed e13111215270762629c27e860584429b7ae66a98 on pair:0. Verified its HEAD, clean checkout, and Pair/Couch/launch-helper metadata: exact revision, vcs.modified=false. Staging reports an unrelated pre-existing pair-hoprtt revision warning; Pair and Couch are exact. The declared recorded suite runs on the same source commit through `sdlc local-check run --name suite` (make PAIR_GO_TRIMPATH=-trimpath test). No passing-suite claim yet for this new commit.
+
+Sent the hub the staged hash and exact smoke commands, receipt013b70ca-a5d2-45e7-b7be-f0e3bff6df37 submitted. Proposed currently idle ariadne:5 (Codex GPT-6.1-Sol/medium) and parley.nvim:3 (Claude Opus5.5), recheck/relaunch after the operator's one Couch restart, session-only model/medium changes, raw text and separate recovery clear-line, then ordinary delivery/response. The broker requires a verified owning-hub caller for keys/model, so pair:6 cannot impersonate ops:0; hub execution is needed for those requests. Operator restart, live acceptance, close and landing are pending. No live input performed.
+
 ## Revisions
 
 ### 2026-10-15 — reconcile landed recovery and stall supervision
