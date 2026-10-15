@@ -3,6 +3,7 @@ package couchcore
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -105,40 +106,37 @@ func TestRecoverReportRowFor(t *testing.T) {
 	}
 }
 
-// Strategy (Couch.Recover, shell): the orphan fixture is outside any enrolled
-// repository, so its steps are the ActorActions fallback [reap, resume]; the
-// reaper's hook records how many children had started when it ran, proving
-// reap precedes resume, and the result is resume's own started child. Recover
-// asks nothing: choosing it is the consent (#399, 2026-10-07).
-func TestRecoverReapsThenResumes(t *testing.T) {
+// Unsafe terminals require explicit relaunch. Recover must not turn the
+// inventory's orphan identity into permission to kill and resume automatically.
+func TestRecoverOrphansRequireManualRelaunch(t *testing.T) {
 	t.Parallel()
-
-	env, address, server, reaper := resumableOrphanEnv(t)
-	startsAtReap := -1
-	reaper.hook = func() { startsAtReap = countStarts(env.Runner) }
-	before := countStarts(env.Runner)
-	value, err := env.Couch.Recover(context.Background(), RecoverTarget{Address: address})
-	if err != nil {
-		t.Fatal(err)
+	for _, hosted := range []bool{false, true} {
+		t.Run(fmt.Sprintf("hosted=%v", hosted), func(t *testing.T) {
+			var env *testEnv
+			var address ThreadAddress
+			var reaper *fakeOrphanReaper
+			if hosted {
+				env, address, _, reaper, _ = liveOrphanEnv(t)
+			} else {
+				env, address, _, reaper = resumableOrphanEnv(t)
+			}
+			before := countStarts(env.Runner)
+			polls := 0
+			env.Couch.sleep = func(time.Duration) { polls++ }
+			var progress []string
+			ctx := WithOperationProgress(context.Background(), func(text string) { progress = append(progress, text) })
+			_, err := env.Couch.Recover(ctx, RecoverTarget{Address: address})
+			var refusal *RecoverRefusal
+			if !errors.As(err, &refusal) || refusal.Code != RecoverHeld || !strings.Contains(refusal.Detail, string(HoldNoActorAction)) {
+				t.Fatalf("err=%v want held", err)
+			}
+			if len(reaper.reaped) != 0 || countStarts(env.Runner) != before || polls != 0 || len(progress) != 0 {
+				t.Fatalf("held recovery acted: reaped=%v starts=%d polls=%d progress=%v", reaper.reaped, countStarts(env.Runner)-before, polls, progress)
+			}
+		})
 	}
-	if len(reaper.reaped) != 1 || reaper.reaped[0] != server || startsAtReap != before {
-		t.Fatalf("reaped %+v with %d starts (before %d)", reaper.reaped, startsAtReap, before)
-	}
-	assertResumedChild(t, env, value, before)
 }
 
-func assertResumedChild(t *testing.T, env *testEnv, value any, before int) {
-	t.Helper()
-	child, ok := value.(StartedChild)
-	if !ok {
-		t.Fatalf("result %T is not resume's started child", value)
-	}
-	if started, ok := child.Started(); !ok || started.Handle == nil || countStarts(env.Runner) != before+1 {
-		t.Fatalf("resume started %+v; starts %d → %d", started, before, countStarts(env.Runner))
-	}
-}
-
-// A held row refuses, typed and naming the hold, before any step runs.
 func TestRecoverRefusesAHeldRowWithNoEffect(t *testing.T) {
 	t.Parallel()
 
@@ -190,7 +188,7 @@ func liveOrphanEnv(t *testing.T) (env *testEnv, address ThreadAddress, server la
 	return env, address, server, reaper, exit
 }
 
-// Reap admits a live orphan: the row carries Orphan though it stays live.
+// Explicit Reap admits an orphan with a hosted helper; the row retains its exact identity.
 func TestReapAdmitsALiveOrphan(t *testing.T) {
 	t.Parallel()
 
@@ -200,78 +198,6 @@ func TestReapAdmitsALiveOrphan(t *testing.T) {
 	}
 	if len(reaper.reaped) != 1 || reaper.reaped[0] != server {
 		t.Fatalf("reaped %+v", reaper.reaped)
-	}
-}
-
-// Recover on a live orphan reaps, waits for the hosted client's exit to land
-// (it does a moment after the reap returns), then resumes, returning resume's
-// child. Without the wait the row still reads live and resume is refused.
-func TestRecoverOnALiveOrphanReapsWaitsThenResumes(t *testing.T) {
-	t.Parallel()
-
-	env, address, server, reaper, exit := liveOrphanEnv(t)
-	polls := 0
-	env.Couch.sleep = func(d time.Duration) {
-		if d == recoverSettlePoll {
-			if polls++; polls == 2 {
-				exit()
-			}
-		}
-	}
-	before := countStarts(env.Runner)
-	value, err := env.Couch.Recover(context.Background(), RecoverTarget{Address: address})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(reaper.reaped) != 1 || reaper.reaped[0] != server || polls != 2 {
-		t.Fatalf("reaped %+v after %d polls", reaper.reaped, polls)
-	}
-	assertResumedChild(t, env, value, before)
-}
-
-// A hosted client that never exits bounds the wait: recover stops before
-// resume, typed, having reaped.
-func TestRecoverStopsWhenTheRowNeverAdmitsTheNextStep(t *testing.T) {
-	t.Parallel()
-
-	env, address, _, reaper, _ := liveOrphanEnv(t)
-	before := countStarts(env.Runner)
-	_, err := env.Couch.Recover(context.Background(), RecoverTarget{Address: address})
-	var refusal *RecoverRefusal
-	if !errors.As(err, &refusal) || refusal.Code != RecoverChanged || !strings.Contains(err.Error(), "after reap") {
-		t.Fatalf("err = %v", err)
-	}
-	if len(reaper.reaped) != 1 || countStarts(env.Runner) != before {
-		t.Fatalf("reaped %+v, starts %d → %d", reaper.reaped, before, countStarts(env.Runner))
-	}
-}
-
-// recover is several slow steps; the operator sees which one is running
-// (#399 live acceptance: "very slowly, recovered"). Each step reports its
-// position, and reap reports its own phases inside its step.
-func TestRecoverReportsEachStepAsItRuns(t *testing.T) {
-	t.Parallel()
-
-	env, address, _, _ := resumableOrphanEnv(t)
-	var seen []string
-	ctx := WithOperationProgress(context.Background(), func(text string) { seen = append(seen, text) })
-	if _, err := env.Couch.Recover(ctx, RecoverTarget{Address: address}); err != nil {
-		t.Fatal(err)
-	}
-	want := []string{
-		"step 1/2: reaping orphaned server PID 9090",
-		"step 1/2: confirming server PID 9090 is still orphaned",
-		"step 1/2: ending server PID 9090 and everything under it",
-		"step 2/2: resuming",
-	}
-	at := 0
-	for _, text := range seen {
-		if at < len(want) && strings.HasPrefix(text, want[at]) {
-			at++
-		}
-	}
-	if at != len(want) {
-		t.Fatalf("progress %q does not contain %q in order (matched %d)", seen, want, at)
 	}
 }
 

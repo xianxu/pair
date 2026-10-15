@@ -1,14 +1,13 @@
 package scrollbackcmd
 
 import (
+	"context"
 	"fmt"
-	"io"
-	"os"
 
 	"github.com/charmbracelet/x/vt"
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/osfs"
 	"github.com/xianxu/pair/cmd/internal/storagegc"
-	"golang.org/x/sys/unix"
 )
 
 const (
@@ -40,12 +39,24 @@ func RenderBoundedLines(rawPath, eventsPath string, maxLines int) ([]string, err
 	return renderBoundedLines(rawPath, eventsPath, maxLines, maxRenderedRows)
 }
 
+// RenderBoundedLinesContext permits a supervisor to cancel recording replay.
+func RenderBoundedLinesContext(ctx context.Context, rawPath, eventsPath string, maxLines int) ([]string, error) {
+	return renderBoundedLinesContext(ctx, rawPath, eventsPath, maxLines, maxRenderedRows)
+}
+
 func renderBoundedLines(rawPath, eventsPath string, maxLines, rowLimit int) ([]string, error) {
-	raw, err := readBoundedRecording(rawPath, maxRawBytes)
+	return renderBoundedLinesContext(context.Background(), rawPath, eventsPath, maxLines, rowLimit)
+}
+
+func renderBoundedLinesContext(ctx context.Context, rawPath, eventsPath string, maxLines, rowLimit int) ([]string, error) {
+	if ctx == nil {
+		return nil, fmt.Errorf("recording replay requires context")
+	}
+	raw, err := osfs.ReadRegularMetadata(ctx, rawPath, maxRawBytes)
 	if err != nil {
 		return nil, err
 	}
-	data, err := readBoundedRecording(eventsPath, maxEventsBytes)
+	data, err := osfs.ReadRegularMetadata(ctx, eventsPath, maxEventsBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -55,6 +66,9 @@ func renderBoundedLines(rawPath, eventsPath string, maxLines, rowLimit int) ([]s
 	}
 	var previousOffset int64
 	for _, e := range events {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		if e.Offset < previousOffset || e.Offset > int64(len(raw)) {
 			return nil, fmt.Errorf("recording %s: %s offset %d outside ordered raw range %d..%d", eventsPath, e.Type, e.Offset, previousOffset, len(raw))
 		}
@@ -66,7 +80,7 @@ func renderBoundedLines(rawPath, eventsPath string, maxLines, rowLimit int) ([]s
 			return nil, fmt.Errorf("recording %s: resize %dx%d exceeds %d screen cells", eventsPath, e.Cols, e.Rows, maxScreenCells)
 		}
 	}
-	r, err := replayData(raw, events, true, rowLimit+1, rowLimit)
+	r, err := replayDataWithLimitsContext(ctx, raw, events, true, rowLimit+1, rowLimit, boundedReplayLimits(rowLimit))
 	if err != nil {
 		return nil, fmt.Errorf("recording raw %s events %s: %w", rawPath, eventsPath, err)
 	}
@@ -75,36 +89,6 @@ func renderBoundedLines(rawPath, eventsPath string, maxLines, rowLimit int) ([]s
 		r.lines = r.lines[min(len(r.lines), r.viewportTop-1-maxLines):]
 	}
 	return r.lines, nil
-}
-
-// Read a finite snapshot of a regular file. NOFOLLOW and NONBLOCK close the
-// lstat/open substitution race for links and FIFOs; fstat validates the actual
-// descriptor. LimitReader prevents a growing producer from extending allocation.
-func readBoundedRecording(path string, limit int64) ([]byte, error) {
-	fd, err := unix.Open(path, unix.O_RDONLY|unix.O_CLOEXEC|unix.O_NOFOLLOW|unix.O_NONBLOCK, 0)
-	if err != nil {
-		return nil, fmt.Errorf("recording %s: %w", path, err)
-	}
-	f := os.NewFile(uintptr(fd), path)
-	defer f.Close()
-	st, err := f.Stat()
-	if err != nil {
-		return nil, fmt.Errorf("recording %s: %w", path, err)
-	}
-	if !st.Mode().IsRegular() {
-		return nil, fmt.Errorf("recording %s: requires a regular file", path)
-	}
-	if st.Size() > limit {
-		return nil, fmt.Errorf("recording %s: exceeds %d bytes", path, limit)
-	}
-	data, err := io.ReadAll(io.LimitReader(f, limit+1))
-	if err != nil {
-		return nil, fmt.Errorf("recording %s: %w", path, err)
-	}
-	if int64(len(data)) > limit {
-		return nil, fmt.Errorf("recording %s: exceeds %d bytes", path, limit)
-	}
-	return data, nil
 }
 
 // replayOwnedCapture is the replay IO seam for deterministic collection ordering.

@@ -3,10 +3,12 @@ package couchcmd
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func TestHubMutationPayloadRechecksAfterPreparation(t *testing.T) {
@@ -88,6 +90,45 @@ func TestHubPreparedSwitchRechecksOwnershipAndSourceAtEffect(t *testing.T) {
 			}
 			if effected {
 				t.Fatal("effect ran before authority check")
+			}
+		})
+	}
+}
+
+func TestCandidateResumeRechecksHubAuthorityBeforePreparationAndEffect(t *testing.T) {
+	for _, refuseAt := range []int{1, 2} {
+		t.Run(map[int]string{1: "prepare", 2: "effect"}[refuseAt], func(t *testing.T) {
+			r := newColdResumeRig(t)
+			hubs := guardHubState(t)
+			guardCalls, effects := 0, 0
+			guard := func(context.Context) error {
+				guardCalls++
+				if guardCalls == refuseAt {
+					return errors.New("ownership changed")
+				}
+				return nil
+			}
+			r.console.SetOperationDispatcher(func(call couchcore.OperationCall) (any, error) {
+				return dispatchHubOperation(hubs, call, func(couchcore.OperationCall) (any, error) {
+					effects++
+					return nil, nil
+				})
+			})
+			done := make(chan error, 1)
+			ops := consoleSlotOperations(r.console, r.c, nil)
+			if err := ops.candidate("guarded-candidate", r.address, "candidate-token", func() {}, func(_ any, err error) { done <- err }, guard); err != nil {
+				t.Fatal(err)
+			}
+			select {
+			case err := <-done:
+				if err == nil || !strings.Contains(err.Error(), "ownership changed") {
+					t.Fatalf("candidate resume refusal: %v", err)
+				}
+			case <-testwait.After(t):
+				t.Fatal("candidate resume did not finish")
+			}
+			if guardCalls != refuseAt || effects != 0 {
+				t.Fatalf("candidate bypassed authority: guards=%d effects=%d", guardCalls, effects)
 			}
 		})
 	}

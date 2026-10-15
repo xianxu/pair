@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/hostty"
+	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
@@ -247,5 +249,27 @@ func TestConsoleCanceledPassRefusesQueuedWorkerIO(t *testing.T) {
 	})
 	if calls.Load() != 0 {
 		t.Fatalf("canceled queued pass invoked worker IO %d times", calls.Load())
+	}
+}
+
+func TestArmSharedOwnerPassBeforeRunDoesNotPaint(t *testing.T) {
+	host := hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 100})
+	con := New(host, nil)
+	defer con.Stop()
+	con.focus = FocusPanel()
+	var factories int
+	con.SetSessionOwnerPass(func(ctx context.Context) (context.Context, context.CancelFunc) {
+		factories++
+		return context.WithCancel(ctx)
+	})
+	host.Reset()
+	root := menuAddress("hub")
+	con.ArmReattachPass(root)
+	con.ArmReattachPass(menuAddress("different-root"))
+	if factories != 1 || con.menu.Reattach.Phase != ReattachArmed || con.menu.Reattach.Root != root || con.reattachContext == nil {
+		t.Fatalf("arming lost shared pass once/root semantics: factories=%d pass=%+v", factories, con.menu.Reattach)
+	}
+	if got := host.Written(); got != "" {
+		t.Fatalf("pre-Run arming painted before initial notices: %q", got)
 	}
 }

@@ -212,7 +212,7 @@ func TestLifecycleStartDetachReattachReplaceRestart(t *testing.T) {
 	r.waitConnected(b, true)
 
 	r.attach(b, "")
-	r.waitConnected(b, false)
+	r.waitConnected(b, true)
 	r.attach(b, "h2b")
 	r.waitConnected(b, true)
 
@@ -225,8 +225,8 @@ func TestLifecycleStartDetachReattachReplaceRestart(t *testing.T) {
 		t.Fatalf("send after exec %+v", resp)
 	}
 
-	// Couch restart: surviving wrappers reconnect, the Console replays panes.
-	r.restart(map[couchmessage.ThreadKey]couchmessage.PaneHandle{from.Thread(): "h1", b.Thread(): "h2b"})
+	// Couch restart: surviving wrappers reconnect without any client panes.
+	r.restart(nil)
 	r.waitConnected(from, true)
 	r.waitConnected(b, true)
 	if resp := r.send(from, "after-restart", b.Slot); resp.Code != "accepted" {

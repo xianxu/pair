@@ -115,9 +115,20 @@ touch -t 202001030000 "$pair_data/runtime/$old_c"
 # launcher fronted $pairbin (dir os.Executable) on the session PATH. Without that
 # #104-M3 prepend, `pair` wouldn't resolve inside → exit 21.
 # Native ancestry cannot be replaced by a PATH stub. Reparent this controlled
-# launch to init, so the real process table sees no developer Zellij ancestor.
+# launch to init, so discovery sees no developer Zellij ancestor.
 python_bin="$(command -v python3)"
-PATH="$bin_dir:/usr/bin:/bin" "$python_bin" "$repo_root/tests/without-ancestors.py" "$pairbin/pair" resume smoke >/dev/null
+# Extraction/invocation starts no real server or agent: stub exit is not proof
+# of an interactive terminal. Preserve the admission refusal assertion.
+if PATH="$bin_dir:/usr/bin:/bin" "$python_bin" "$repo_root/tests/without-ancestors.py" "$pairbin/pair" resume smoke >"$tmp/launch.out" 2>&1; then
+  printf 'unverified terminal fixture was admitted\n' >&2
+  exit 1
+fi
+if ! grep -q 'terminal client exited before admission was verified' "$tmp/launch.out"; then
+  cat "$tmp/launch.out" >&2
+  printf 'expected terminal admission refusal after embedded runtime invocation\n' >&2
+  exit 1
+fi
+
 
 test -s "$PAIR_SMOKE_ROOT"
 root="$(cat "$PAIR_SMOKE_ROOT")"

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 )
 
@@ -72,5 +73,29 @@ func TestLeaveDetachScopesEveryObservationToOneOwnerPass(t *testing.T) {
 	}
 	if single.captures != 0 || single.reads != 2 {
 		t.Fatalf("standalone captures=%d reads=%d", single.captures, single.reads)
+	}
+}
+
+func TestManagedDetachDoesNotReadForAbsentLocalWarmClients(t *testing.T) {
+	for _, entry := range []string{"detach", "leave"} {
+		t.Run(entry, func(t *testing.T) {
+			c, _, records := leaveFleet(t, 1)
+			var reads atomic.Int32
+			c.Threads.hooks.AfterGetThread = func(ThreadAddress) error { reads.Add(1); return nil }
+			want := int32(2) // current managed record and retirement revision read
+			var err error
+			if entry == "leave" {
+				_, err = c.Leave(t.Context(), LeaveDetach)
+				want++
+			} else {
+				_, err = c.Detach(t.Context(), records[0].Address)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := reads.Load(); got != want {
+				t.Fatalf("managed detach performed irrelevant preview reads: got%d want%d", got, want)
+			}
+		})
 	}
 }

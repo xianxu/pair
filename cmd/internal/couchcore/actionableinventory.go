@@ -449,7 +449,7 @@ func ArchivableState(state ActionableThreadState, reason ThreadReason) bool {
 		return true
 	case ThreadUnusable:
 		// An orphan's conversation is still running (#399).
-		return reason != ReasonUnknown && reason != ReasonOrphanedServer
+		return reason != ReasonUnknown && reason != ReasonOrphanedServer && reason != ReasonNeedsRelaunch
 	}
 	return false
 }
@@ -475,29 +475,6 @@ func RebootAdmitted(state ActionableThreadState, reason ThreadReason, liveVerdic
 	return RebootableState(state, reason) || (liveVerdict && state == ThreadLive)
 }
 
-// ResumableState is resume's admission rule over the classification.
-//
-// It reads no reason, and that is a property of ClassifyThread rather than an
-// oversight: resume authority is checked BEFORE either resume-shaped state is
-// emitted (the path, the profile, the agent, and for `parked` the ledger), so a
-// row that carries a reason at all is a row whose resume was already refused.
-// The parameter stays for the signature the action table iterates.
-//
-// Unlike the other two this has no couch-level guard to pair with:
-// ResumeContextWith gathers its own strict evidence -- one `list-clients` for
-// the thread the operator pressed Enter on, then the ledger only if that did
-// not answer -- and re-deriving the classification there would buy a second
-// whole evidence round for a question already decided (ARCH-CONSTRAINTS). Its
-// consumer is SelectResumableRoot, which is the other place production asks
-// "can this row be resumed" and hand-listed the same two states.
-func ResumableState(state ActionableThreadState, _ ThreadReason) bool {
-	switch state {
-	case ThreadDetached, ThreadParked:
-		return true
-	}
-	return false
-}
-
 // ClassifyThread is the single, TOTAL lifecycle rule: every record and its
 // evidence produce a state, and an unusable one always says why.
 //
@@ -518,28 +495,26 @@ func ResumableState(state ActionableThreadState, _ ThreadReason) bool {
 // is not a liveness claim: it is couch's durable record of its OWN in-flight
 // operation, with recovery semantics of its own (see startClaimed).
 func ClassifyThread(record ThreadRecord, evidence ThreadEvidence) (ActionableThreadState, ThreadReason) {
+	// A positive exact listing outranks stale persisted lifecycle metadata.
+	if evidence.Session.State == SessionPresent {
+		if len(evidence.Live) != 0 {
+			return ThreadLive, ""
+		}
+		return ThreadDetached, ""
+	}
 	if ValidateThreadRecord(record) != nil {
 		return ThreadUnusable, ReasonInvalid
 	}
 	if record.Reservation {
 		return ThreadUnusable, ReasonNeverStarted
 	}
-	// A start couch claimed, has not finished, and is still driving. This must
-	// precede every session verdict: between claiming a start and the launcher
-	// acquiring a pid there is no session yet, and without this branch a thread
-	// starting NORMALLY would classify `session-gone` -- an archive-eligible
-	// reason.
+	// Without a positive listing, an actively driven start remains occupied.
 	if startInFlight(record, evidence) {
 		return ThreadBusy, ""
 	}
-	// Couch hosts this thread's process right now. The union behind
-	// evidence.Live is POSITIVE-ONLY: its absence proves nothing and falls
-	// through to the session, which is the whole of #272's fix. It stays a
-	// union (console pty children plus OS-vouched recorded processes) because
-	// the CLI passes no observations of its own and would otherwise read every
-	// running thread as detached -- #181's "one store, two stories".
+	// A surviving attributed owner must not get a duplicate native resume.
 	if len(evidence.Live) != 0 {
-		return ThreadLive, ""
+		return ThreadUnusable, agentUsabilityReason(evidence.Session)
 	}
 	// No live proof, and a recorded process couch could not ask about. That is
 	// ignorance, not absence, and every verdict below is a positive claim: the
@@ -564,14 +539,9 @@ func ClassifyThread(record ThreadRecord, evidence ThreadEvidence) (ActionableThr
 	// list-sessions no longer lists it, so the ledger alone would call it
 	// `parked` and offer a resume onto a conversation still being written.
 	if evidence.Session.State == SessionOrphaned {
-		return ThreadUnusable, ReasonOrphanedServer
+		return ThreadUnusable, ReasonNeedsRelaunch
 	}
-	// Resume authority gates BOTH the warm and the cold path, and must be
-	// checked before either. Reattaching still goes through DecideResume, which
-	// needs the path and the profile -- so a row shown `detached` without them
-	// would be offered a resume that always fails, the precise anti-pattern this
-	// issue exists to remove. These are checked AFTER the live branch, because a
-	// thread couch is hosting is not made unusable by a directory that moved.
+	// Disk resume additionally requires a usable saved launch and path.
 	if evidence.PathError != nil {
 		return ThreadUnusable, ReasonPathMissing
 	}
@@ -580,13 +550,6 @@ func ClassifyThread(record ThreadRecord, evidence ThreadEvidence) (ActionableThr
 	}
 	if !launcher.IsSupportedAgent(record.LatestLaunchProfile.Agent) || record.LatestLaunchProfile.Argv == nil {
 		return ThreadUnusable, ReasonAgentUnsupported
-	}
-	if evidence.Session.State == SessionPresent {
-		// The session outlived whatever hosted it. Reattaching is a fresh
-		// `pair resume` onto the surviving session; no cold-resume proof is
-		// needed, because nothing is being relaunched. Warm beats cold, so this
-		// stays above the park branch.
-		return ThreadDetached, ""
 	}
 	// COLD-RESUME authority is the LEDGER, and it is DURABLE: it does not depend
 	// on the session existing, because a parked thread's session was torn down
@@ -691,13 +654,13 @@ func bindingFailureReason(code ResumeDiagnosticCode) (ThreadReason, bool) {
 
 // orphanOf is the row's orphaned server: present when the classifier called
 // the thread orphaned, or kept it live over a session that is orphaned (the
-// live orphan, #399). ClassifyThread's precedence is untouched: live stays
-// live, and busy and unknown carry nothing.
+// live orphan, #399). Unsafe terminals now need relaunch; their identity
+// remains available to explicitly authorized reap. Busy and unknown carry nothing.
 func orphanOf(state ActionableThreadState, reason ThreadReason, evidence ThreadEvidence) *launcher.SessionServerIdentity {
 	if evidence.Session.State != SessionOrphaned {
 		return nil
 	}
-	if state == ThreadLive || reason == ReasonOrphanedServer {
+	if state == ThreadLive || reason == ReasonOrphanedServer || reason == ReasonNeedsRelaunch {
 		return evidence.Session.Orphan
 	}
 	return nil
@@ -750,12 +713,11 @@ func startInFlight(record ThreadRecord, evidence ThreadEvidence) bool {
 // thread. Occupancy belongs to the caller's lifecycle stage, since the final
 // recheck runs after the attempt has claimed a creating incarnation.
 func detachedResumeProofMatches(record ThreadRecord, observations []DetachedSessionObservation) bool {
-	if record.LatestLaunchProfile == nil || !launcher.IsSupportedAgent(record.LatestLaunchProfile.Agent) || record.LatestLaunchProfile.Argv == nil || len(observations) != 1 {
+	if len(observations) != 1 {
 		return false
 	}
 	observation := observations[0]
 	return observation.Address == record.Address && observation.SessionName != "" &&
-		observation.Agent == record.LatestLaunchProfile.Agent &&
 		(recordSessionName(record) == "" || observation.SessionName == recordSessionName(record))
 }
 
@@ -865,7 +827,7 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 	if err := ctx.Err(); err != nil {
 		return ThreadSnapshot{}, nil, err
 	}
-	snapshot, err := c.Threads.Snapshot()
+	snapshot, err := c.Threads.PreviewSnapshotContext(ctx)
 	if err != nil {
 		return ThreadSnapshot{}, nil, err
 	}
@@ -894,6 +856,26 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 	}
 	for _, observation := range observations {
 		add(observation.Address, observation.Process)
+	}
+	// A borrowed terminal client deliberately has no durable incarnation.
+	// Its local handle still proves this Couch hosts it; a restored registry
+	// entry alone does not. Include that view without adopting thread state.
+	for _, actor := range c.actorRegistry().Records() {
+		c.regMu.Lock()
+		handle := c.warmClients[actor.ID]
+		c.regMu.Unlock()
+		if handle == nil || handle.PID() != actor.PID || handle.Identity() != actor.Identity {
+			continue
+		}
+		select {
+		case <-handle.Exited():
+			continue
+		default:
+		}
+		process := ProcessIdentity{PID: actor.PID, Identity: actor.Identity}
+		if observeExactProcess(c.Proc, process) == Live {
+			add(actor.Thread, process)
+		}
 	}
 	unproven := map[ThreadAddress][]ProcessIdentity{}
 	for _, observation := range c.ObserveRecordedProcesses(snapshot.Records) {
@@ -930,8 +912,12 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 		// proof map, and two different "what we saw" values under one name in
 		// one function is how a reader loses track of which world is being
 		// described.
-		if resolved, presenceErr := presenceResolver.SessionPresence(ctx, addresses); presenceErr == nil {
-			presence = resolved
+		for attempt := 0; attempt < 2 && ctx.Err() == nil; attempt++ {
+			resolved, presenceErr := presenceResolver.SessionPresence(ctx, addresses)
+			if presenceErr == nil {
+				presence = resolved
+				break
+			}
 		}
 	}
 
@@ -940,12 +926,15 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 	resolver, _ := c.Artifacts.(NativeBindingResolver)
 	for i := range snapshot.Records {
 		record := snapshot.Records[i]
-		if err := ctx.Err(); err != nil {
-			return ThreadSnapshot{}, nil, err
-		}
 		item := ThreadEvidence{
 			Live: observed[record.Address], Unproven: unproven[record.Address],
 			Session: presence[record.Address],
+		}
+		// Once records are known, exhausted observation budget must not erase
+		// the inventory. Unasked evidence stays unresolved and projects Fresh.
+		if ctx.Err() != nil {
+			evidence[record.Address] = item
+			continue
 		}
 		// Who is driving this thread's start, if anything is. Gathered BEFORE
 		// the resume-shaped gate below, because a record mid-start has no
@@ -1049,9 +1038,6 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 		}
 		evidence[record.Address] = item
 	}
-	if err := ctx.Err(); err != nil {
-		return ThreadSnapshot{}, nil, err
-	}
 
 	for _, observation := range resumable {
 		item := evidence[observation.Address]
@@ -1059,9 +1045,6 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 		evidence[observation.Address] = item
 	}
 
-	if err := ctx.Err(); err != nil {
-		return ThreadSnapshot{}, nil, err
-	}
 	return snapshot, evidence, nil
 }
 
@@ -1165,4 +1148,29 @@ func DisambiguateLabels(rows []LabelRow) map[ThreadAddress]string {
 		out[row.Address] = row.Label + "·" + tag
 	}
 	return out
+}
+
+// ContinuityAction is an ephemeral presentation choice, not a stored lifecycle.
+type ContinuityAction string
+
+const (
+	Continue   ContinuityAction = "continue"
+	ResumeDisk ContinuityAction = "resume-disk"
+	Fresh      ContinuityAction = "fresh"
+	// ContinuityStarting describes an unfinished operation, not a new lifecycle state.
+	ContinuityStarting ContinuityAction = "starting"
+)
+
+// ContinuityOutcome reuses the inventory classifier's proof boundary.
+func ContinuityOutcome(row ActionableThreadSummary) ContinuityAction {
+	switch row.State {
+	case ThreadLive, ThreadDetached:
+		return Continue
+	case ThreadParked:
+		return ResumeDisk
+	case ThreadBusy:
+		return ContinuityStarting
+	default:
+		return Fresh
+	}
 }

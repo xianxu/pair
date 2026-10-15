@@ -12,6 +12,101 @@ the pty console, actor panel, notices, and complete local lifecycle shipped in
 
 ## What exists today
 
+### Slot continuity and capture provenance (#528)
+
+The [slot-continuity target](../workshop/targets/slot-continuity.md) defines
+three outcomes: **Continue**, **Resume from disk**, and **Start fresh**.
+Zellij's positive non-EXITED listing authorizes Continue/attach, including
+sessions launched by older Pair binaries without policy files. A failed
+listing never authorizes attachment. Observations get one bounded retry;
+uncertainty is disclosed with a recovery action rather than a pending-only row.
+An attributed running owner prevents executable Resume until the recovery
+confirmation path can retire it. In replacement M1, rows whose Fresh execution
+needs M2 confirmation retain their existing Relaunch/recovery path instead of
+a refused Fresh button. Ineligible native candidates remain read-only evidence.
+An unfinished Couch start claim without a positive listing shows **Starting**
+and read-only details; M2 must bound that state by owner liveness and age, then
+provide confirmed Resume/Fresh. Agent activity never demotes a positively
+listed session from Continue.
+
+Public Continue attaches through `couchcore/warm_attach.go`. After attachment,
+it may replace only a proven-dead client-helper incarnation with its exact
+locally owned helper, rechecking the old PID/start identity at the write gate.
+Bindings, parks and history remain intact. Open claims or uncertain/live old
+owners leave the record untouched: a borrowed attachment shows the reason.
+Wrapper and agent PIDs never become the client-helper incarnation. Its client
+is tracked in the registry and an in-memory handle map owned by this Couch.
+Detach, ordinary leave and failed-attach cleanup end only that exact helper.
+A persisted registry entry alone is never proof that this Couch owns its handle.
+Public completion and Pair’s final attach handoff also use positive listing,
+not lifecycle owner metadata. Explicit Park/relaunch/switch may adopt the exact
+locally owned helper through existing transactions after their admission checks;
+foreign or unresolved lifecycle owners remain protected. Explicit continuation
+recovery keeps its separately authorized adoption path.
+
+Every command-line hub is an explicit launch/attach request, including the cwd
+hub for bare `couch`. A positively listed hub uses Continue; a stopped hub uses
+the normal proven-resume/fresh startup path. Queued extra hubs follow the same
+rule. Non-hub slots use preview reads and background attachment of every
+Continue row, with bounded parallelism. Startup never launches or resumes their
+agents, completes interrupted starts/parks, or replays slot-store journals.
+The same guarded dead-client-helper replacement applies to these attachments;
+conversation bindings, parks and open claims remain untouched. An unhealthy slot never blocks Couch or
+other slots. Explicit per-slot actions own recovery writes. Zellij listing's
+own connection-refused stale-socket deletion is an accepted native side effect.
+
+Pair retains its canonical socket-keyed attach lease and disables layout
+serialization for newly created sessions. Attach is a write, never a probe;
+it is invoked only after a positive live listing. The lease serializes Pair
+callers but cannot prevent server death between listing and attach. For legacy
+saved layouts, that resurrection race is accepted and measured on scratch
+sessions; no policy-file authority or custom probe attempts to eliminate it.
+Stable lock inodes occupy 256 stripes in session-locks-v2 and are retained.
+
+Startup attachments and explicit Continue use the same single bounded retry.
+Background attachment does not block the console or steal focus. Every failure
+keeps its Continue outcome and shows a reason with a one-click warm attach retry;
+a later inventory observation may independently change the outcome.
+Authenticated wrappers reconnect and join the broker independently of panes;
+retained thread/workspace, positive terminal listing, readiness and exact process
+proofs remain the message authority. An unfocused live slot can send and receive.
+
+Automatic broker admission and use-time thread/agent/tail authority use the
+shared context-bounded preview getter, including backend-routing reads. Pending
+store journals remain untouched until an explicit lifecycle action; an authority
+read cannot enroll retention or recover a transaction merely because a wrapper
+reconnects. Explicit lifecycle getters retain their recovery behavior.
+
+Warm attachment preflight, inventory and optional dead-client repair use the
+same contextual preview readers. An absent warm-only session refuses before
+lifecycle bookkeeping. The launched Pair helper skips proof migration and
+orphan-editor/index housekeeping for a selected terminal; title-agent inference
+reads bounded local metadata without opening native transcripts. Draft opens,
+poller-PID cleanup and quit/restart marker admission reject blocking special
+files. These checks do not change explicit cold launch or recovery authority.
+
+A broken message channel does not authorize restarting a functioning agent.
+Older wrappers with an unlinked endpoint remain usable by terminal, with
+“messaging unavailable until next relaunch.” New-wrapper endpoint repair is a
+separate follow-up (#557). Resume/Fresh execution and confirmation by the person
+or hub are tracked in #556 with a separate acceptance boundary; M1's projection is not a claim
+those revised execution paths have been accepted.
+
+Graceful Couch detach can retire a proven-dead helper before the next Couch
+starts. A listed-live terminal with no retained incarnation then attaches as
+borrowed: the registry and local handle own the client. Narrow dead-client
+repair replaces an existing exact identity only; it never invents a durable
+incarnation, agent PID or wrapper PID from this empty state.
+
+New tty captures start with an events witness naming their file identities,
+capture generation and producing launch ordinal/nonce. Archive metadata v2
+preserves that witness; v1 remains readable. Certification additionally needs
+a native binding for the same launch ordinal. A capture witness alone is not
+conversation proof, and historical files are never retroactively certified.
+Implementation: launcher/session_handoff*.go, launcher/session_lease.go,
+couchcore/startup.go, couchcore/sessionevidence.go and
+artifactpath/capture_witness.go.
+
 [DOM submission](webcast-submission.md) (#483) sends the cast tab's open notes
 from the draft's Shift+Ctrl+Alt+Return chord. Couch owns the durable JSON/PNG
 bundle and acknowledgment; the existing authored-draft transaction delivers
@@ -305,31 +400,36 @@ holds one long-lived session on the namespace's `registry` socket
 (`couchmessage.SessionClient` / `SessionServer`). The hello carries the binding,
 and the kernel's peer PID must equal `Binding.PID`. The connection closing *is*
 the death or exec event: Go sockets are close-on-exec, so a SIGUSR2 re-exec
-reconnects as a new session even when its binding is byte-identical. The
-Console posts each thread's current pane to a coalescing
-`couchmessage.PaneMailbox`. `SubscribeMessageLifecycle` replays the panes
-attached before the service started (the startup pane and the reattach pass).
+reconnects as a new session even when its binding is byte-identical. A live
+wrapper reconnects after Couch restarts without an attached or focused client.
+The message service does not subscribe to Console pane events; attachment and
+messaging have independent owners. No startup enumeration or reattach sweep is
+needed for registration.
 
 One pure `couchmessage.Registry` decides which bindings may receive:
-- **Admission:** a binding is connected when its newest session is admitted
-  against the thread's current pane. `messageService` executes the registry's
-  effects: one full authority check per admission, then broker
+- **Admission:** the wrapper hello immediately requests admission, including
+  when Couch has no pane for its thread. `messageService` executes the registry's
+  effects: one full authority check per wrapper admission, then broker
   `Register`/`Disconnect`.
 - **Ordering:** the registry owns same-slot displacement, the newest session
-  wins, and late admission results for a closed session or a replaced pane are
-  discarded.
+  wins, and late admission results for a closed or displaced session are
+  discarded. Local pane replacement or detachment does not change membership.
 - **Failed checks:** retry on a bounded ladder (0.5–8 s), then the session goes
-  dormant until something touches it: an attach, a submit, a reconnect, or a
+  dormant until something touches it: a submit, a reconnect, or a
   send that targets its slot.
 - **Exact recipient:** the newest admitted session wins. A request already
   committed to the old incarnation may still finish there, or end
   `Indeterminate`; it is never redirected to the new one.
 
-A full check (`messageAuthority.live`) runs the ps/zellij ownership probe, so it
-runs only at admission. Observe, Reserve, Deliver and a sending caller use
-`messageAuthority.current` instead, which spawns nothing. It checks the pane is
-live, the PID file still names the wrapper, and the launch's recorded ready file
-and session index still name its nonce and session.
+A full check (`messageAuthority.live`) verifies the wrapper's exact process
+identity, workspace, launch nonce and ready agent, plus its positively listed
+terminal. Observe, Reserve, Deliver and a sending caller use
+`messageAuthority.current`: `messageThreadResolver` reads the retained working
+path and performs the native session listing for that exact terminal, while the
+PID file, ready file and session index must still name this wrapper, nonce and
+session. These use-time reads can spawn the native listing command; they never
+attach, launch, stop, or mutate a retained record. Admission additionally runs
+the full ready-agent/process ownership probes. None runs on an idle timer.
 
 The wrapper pushes observation changes coalesced to at most one frame a second,
 submissions at once, and nothing while idle. `--actors` reads that memory. An
@@ -965,9 +1065,10 @@ and `couch --reboot repo:N --confirm` act on one slot from a live Couch slot:
 2. `messageService.handle` intercepts the three ops before the broker
    protocol: `ValidateRequest` (one exact `repo:N`, `Confirmed` only on
    resume/reboot), then `liveCaller`, which authenticates by Couch's own
-   liveness rather than messaging registration (operator decision after the
-   smoke test): the thread named by the request's scope and tag has a live
-   Couch pane (`authority.thread`), and the launch its record names
+   listed-terminal and launch identity rather than messaging registration
+   (operator decision after the smoke test): the thread named by the request's
+   scope and tag retains a working path and has a positively listed terminal
+   (`authority.thread`), and the launch its record names
    (`authority.agent` reads the agent) records this shell's session and nonce
    (`authority.recorded`). No broker binding or wrapper PID is needed, so a
    slot whose wrapper's peer setup failed can still recover others. A
@@ -2241,7 +2342,7 @@ Two existing guards cover what the gate does not:
   `Console.GoTracked`, so a gate wait never blocks rendering.
 
 A busy refusal reaches the console as `MenuEvent.Busy`, never as a resume
-diagnostic. The reattach pass skips it silently, a refused continuation is
+diagnostic. The reattach pass displays it on the Continue row, a refused continuation is
 re-armed for the next scan, and an operator gesture shows it as a notice.
 
 **Alt+n / Ctrl+Alt+n relaunch a thread from every pane** (`pair#182`,
@@ -2482,22 +2583,22 @@ Where that lands differs by caller, and both matter:
   while looking fixed. `TestNarrowedStartupAnswersAsAFullProofWould` computes
   the inventory both ways and asserts every listed reader agrees; a new reader
   joins that list and that test.
-- **Every other detached thread comes back in the background** (`pair#206`
-  M2). A start arms the reattach pass once its own thread has attached; a
+- **Every other Continue thread attaches in the background** (`pair#206`,
+  revised by `pair#528` M1). A start arms the reattach pass once its own thread has attached; a
   resume of one named thread does not. The pass is pure state in `MenuState`
   (`menu_reattach.go`), so the switcher's one transition authority orders it
   against every operator operation. Its specification is the transitions table
   in the #206 plan. The decisions:
-  - **Seeded once**, from the first successful inventory: threads whose agent
-    still runs behind a client-less session, plus threads whose proof could not
-    be asked (`unknown`), minus the startup thread, most recently active first.
+  - **Seeded once**, from the first successful inventory: rows projected Continue from positive Zellij
+    listing, excluding every requested hub, most recently active first.
+    Unknown, exited and recovery rows are never seeded.
     The queue is never pruned or extended afterwards, because a failed refresh
     reads as "no sessions at all".
-  - **One attempt at a time**, as a `resume` with the implicit `warm-only` arg.
+  - **Bounded parallelism**, as a `resume` with the implicit `warm-only` arg,
+    using the existing lifecycle budget and operation queue.
     It re-proves the thread at its turn, and refuses one that stopped being
     warm, parked meanwhile or its session gone, before any effect. The pass
-    skips such a thread silently. So it can only reattach an agent, never start
-    one. Any other failure marks the row `reattach failed:` with its code, or
+    never starts an agent. Every final failure marks the row `reattach failed:` with its code, or
     with the error's first line when it has none. The row stays selectable,
     and resuming it by hand clears the mark.
   - **Behind the operator.** An attempt never takes the operator's in-flight
@@ -3677,6 +3778,8 @@ boundaries with exact bytes, geometry and timing. Regular Couch is supported;
 `COUCH_ISOLATED_ROOT` remains optional. Capture stays disabled by default. See the
 [live capture runbook](couch-live-capture.md) for launch, limits and extraction.
 
+Recovery candidates are an explicit choice: `couch --resume-candidates repo:N --json` lists the best candidate and up to four alternatives with native identity, last activity, tail match and a stable selection key. `couch --resume repo:N --candidate KEY` selects that evidence snapshot. The menu uses the same preview and offers fresh startup from the previous screen. Automatic inference is disabled pending a witnessed calibration corpus.
+
 Explicit multi-directory launches enqueue the typed `start-hub` operation on
 the existing console operation queue. It reuses StartInteractive for each extra
 hub while preserving the first hub’s focus and the one supervisor lifetime.
@@ -3704,3 +3807,16 @@ and focus-relative fading use memory-only projection; the cast remains a singlet
 Switcher move controls are deferred to #548. Confirmed delivery facts cover every
 active hub; recipient hub classification is retained before external delivery so
 a disconnect during completion does not erase the evidence.
+
+Recovery uses #522’s one-time launch Prompt: a fresh start receives only evidence
+coordinates (previous-screen peek, branch, issue and exact retained capture paths),
+never screen contents. Native resume receives no prompt. Launch notices report
+startup, without delivery callbacks or pasted-input status.
+
+Warm Continue attachments share the optional context-scoped launch timing
+observer with native launches, but report their actual attach preparation,
+admission, spawn, acknowledgement, live check, registry/repair and cleanup
+steps. They report retry backoff when it occurs; they do not report cold claims,
+native registration or promotion. Explicit fleet detach shares one lazy owner
+observation scope. Only locally owned warm clients need the borrowed-helper
+preview; managed detach retains its normal generation and session checks.

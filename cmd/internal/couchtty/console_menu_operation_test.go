@@ -115,6 +115,7 @@ func TestConsoleMenuResumeLandsOnExactReturnedHandle(t *testing.T) {
 		t.Fatalf("resume effects = %+v", effects)
 	}
 	started, _ := attachStartResult(t, "resumed-actor", target)
+	started.Record.AttachmentNotice = "BORROWED ATTACH: lifecycle claim is open; retained client state was left unchanged."
 	started.Handle.(couchcore.TerminalHandle).Terminal().Feed([]byte("RESUMED-EXACT-SCREEN"))
 	setTestOps(f.con, func(name string, _ map[string]string) (any, error) {
 		if name != "resume" {
@@ -135,6 +136,12 @@ func TestConsoleMenuResumeLandsOnExactReturnedHandle(t *testing.T) {
 		f.con.mu.Unlock()
 		return active == started.Handle.ID() && focus == FocusActor(started.Handle.ID()) && inflight == "" && strings.Contains(f.host.Written(), "RESUMED-EXACT-SCREEN")
 	})
+	if got := f.con.menuSnapshot().Notice.Text; got != started.Warning() {
+		t.Fatalf("borrowed attachment notice lost after landing: %q", got)
+	}
+	if !strings.Contains(f.screenText(), "BORROWED ATTACH: lifecycle claim is open") {
+		t.Fatalf("borrowed attachment reason was not painted: %q", f.host.Written())
+	}
 	if strings.Contains(f.screenText(), "threads") {
 		t.Fatalf("successful resume repainted the switcher: %q", f.host.Written())
 	}

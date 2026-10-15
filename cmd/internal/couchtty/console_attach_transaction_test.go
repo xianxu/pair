@@ -89,3 +89,26 @@ func TestConsoleStopDuringAttachRefusesPartialPaneAndKeepsTerminalRestored(t *te
 		t.Fatal("stopped attach left a pane installed")
 	}
 }
+
+func TestSwitchWithoutLocalPaneResumesExactThread(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	address := menuAddress("surviving-terminal")
+	f.con.menu = NewMenuState([]couchcore.ActionableThreadSummary{{Address: address, State: couchcore.ThreadLive}}, address)
+	started, _ := attachStartResult(t, "surviving-client", address)
+	calls := 0
+	f.con.SetOperationDispatcher(func(call couchcore.OperationCall) (any, error) {
+		calls++
+		if call.Name != "resume" || call.Args["repo-scope"] != address.RepoScope || call.Args["tag"] != string(address.Tag) || call.Args["warm-only"] != "true" {
+			t.Fatalf("unexpected fallback: %+v", call)
+		}
+		return started, nil
+	})
+	value, err := f.con.ExecuteConsoleOperation(couchcore.OperationCall{Name: "switch", Context: context.Background(), Args: map[string]string{"repo-scope": address.RepoScope, "tag": string(address.Tag)}})
+	if err != nil || calls != 1 {
+		t.Fatalf("Continue without pane: calls=%d err=%v", calls, err)
+	}
+	result, ok := value.(couchcore.StartResult)
+	if !ok || result.Handle != started.Handle {
+		t.Fatalf("missing attach completion: %#v", value)
+	}
+}

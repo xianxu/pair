@@ -20,6 +20,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycletest"
+	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/readiness"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
 )
@@ -226,12 +227,11 @@ while IFS= read -r line; do printf '%s\n' "$line" >> "$2"; printf 'AGENT:%s\n' "
 	starts := 0
 	env.Runner.AfterAcknowledge = func(id string) error {
 		starts++
-		record, err := c.Threads.GetThread(source.Address)
-		if err != nil {
-			return err
-		}
-		inc := record.Incarnations[0]
-		env.Proc.Set(inc.PID, inc.Identity)
+		// A warm client is acknowledged before any guarded durable repair;
+		// recovery may already have retired its dead predecessor. The local
+		// handle, not a not-yet-published incarnation, owns this new process.
+		handle := &fakeHandle{id: id, runner: env.Runner}
+		env.Proc.Set(handle.PID(), handle.Identity())
 		if warm {
 			return nil
 		}
@@ -277,7 +277,13 @@ while IFS= read -r line; do printf '%s\n' "$line" >> "$2"; printf 'AGENT:%s\n' "
 	}
 	result, err := c.RecoverThread(ctx, source.Address, checkpointPath)
 	if err != nil {
-		t.Fatal(err)
+		// Preserve the fail-closed result and expose the fixture's own query
+		// bytes on CI; an exit-zero non-JSON response otherwise hides its cause.
+		diagnostic, queryErr := exec.CommandContext(ctx, "zellij", "--session", session, "action", "list-panes", "--json", "--command").CombinedOutput()
+		if len(diagnostic) > 8192 {
+			diagnostic = diagnostic[:8192]
+		}
+		t.Fatalf("%v; fixture pane query: %v output=%q", err, queryErr, diagnostic)
 	}
 	if result.Handle == nil || result.Record.Thread != source.Address || starts != 1 {
 		t.Fatalf("recovery result=%+v starts=%d", result, starts)
@@ -293,7 +299,10 @@ while IFS= read -r line; do printf '%s\n' "$line" >> "$2"; printf 'AGENT:%s\n' "
 		if out, err := exec.CommandContext(ctx, "zellij", "--session", session, "action", "write", "--pane-id", paneID, "13").CombinedOutput(); err != nil {
 			t.Fatalf("submit agent: %v %s", err, out)
 		}
-		waitFile(t, inputFile)
+		waitUntil(t, "same agent input receipt", func() bool {
+			input, err := os.ReadFile(inputFile)
+			return err == nil && strings.Contains(string(input), "WARM-INPUT-250")
+		})
 		input, err := os.ReadFile(inputFile)
 		if err != nil || !strings.Contains(string(input), "WARM-INPUT-250") {
 			t.Fatalf("same agent input: %q %v", input, err)
@@ -348,7 +357,7 @@ func TestRecoveryLiveAgentStandIn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	raw, err := readiness.Encode(readiness.ReadyRecord{Tag: os.Getenv("PAIR_RECOVERY_LIVE_TAG"), Agent: "claude", Session: os.Getenv("ZELLIJ_SESSION_NAME"), Nonce: os.Getenv("PAIR_RECOVERY_LIVE_NONCE"), PID: os.Getpid(), LaunchOrdinal: ordinal})
+	raw, err := readiness.Encode(readiness.ReadyRecord{Tag: os.Getenv("PAIR_RECOVERY_LIVE_TAG"), Agent: "claude", Session: os.Getenv("ZELLIJ_SESSION_NAME"), Nonce: os.Getenv("PAIR_RECOVERY_LIVE_NONCE"), PID: os.Getpid(), AgentIdentity: procutil.Identity(strconv.Itoa(os.Getpid())), LaunchOrdinal: ordinal})
 	if err != nil {
 		t.Fatal(err)
 	}

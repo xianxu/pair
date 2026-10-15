@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -76,6 +77,18 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 		fmt.Fprintf(stderr, "pair: %v\n", err)
 		return 1, nil
 	}
+	if a := opts.Args.Recovery; a != nil {
+		p := TrustedLaunchProfile{Tag: opts.Args.ForcedTag, Agent: opts.Args.Agent, Recovery: a, FreshRequired: opts.Args.FreshRequired, FreshNonce: opts.Args.FreshNonce, ResumeRequired: opts.Args.ResumeRequired, RequiredSessionID: opts.Args.RequiredSessionID}
+		if err := validateRecoveryProfile(p); err != nil {
+			fmt.Fprintf(stderr, "pair: %v\n", err)
+			return 1, nil
+		}
+		session := opts.Args.CouchSession
+		if session == nil || session.Disposition != "create" || session.Nonce != a.Attempt || session.Scope != a.Address.RepoScope || session.Tag != a.Address.Tag {
+			fmt.Fprintln(stderr, "pair: recovery requires its matching Couch terminal start")
+			return 1, nil
+		}
+	}
 	if opts.Args.Prompt != "" {
 		if !opts.Args.FreshRequired {
 			fmt.Fprintln(stderr, "pair: a launch prompt requires a fresh launch")
@@ -99,7 +112,12 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 		opts.ContinueDoc, opts.ContinueText, opts.ContinueSlug = "", "", ""
 	}
 	env := normalizeEnv(opts.Env)
-	rt.StartProofMigration()
+	selectedAttach := opts.Args.CouchSession != nil && opts.Args.CouchSession.Disposition == "attach"
+	// Continue borrows an already selected terminal. Upgrade migration and
+	// orphan-editor cleanup are unrelated lifecycle work, not attach admission.
+	if !selectedAttach {
+		rt.StartProofMigration()
+	}
 	opts.startupTiming.mark("migration")
 
 	// Prepend the resolved asset root's bin/ to PATH so zellij (and its panes:
@@ -141,13 +159,15 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 	// clean restart below leaves nothing new to sweep. Liveness, not a full
 	// snapshot: liveTagsForSweep reads names only, and a full one would ask every
 	// live session for its clients (pair#228).
-	if sessions, err := rt.SessionLiveness(); err == nil {
-		index, err := rt.ReadSessionNameIndex()
-		if err != nil {
-			fmt.Fprintf(stderr, "pair: read session-name index: %v\n", err)
-			return 1, nil
+	if !selectedAttach {
+		if sessions, err := rt.SessionLiveness(); err == nil {
+			index, err := rt.ReadSessionNameIndex()
+			if err != nil {
+				fmt.Fprintf(stderr, "pair: read session-name index: %v\n", err)
+				return 1, nil
+			}
+			rt.SweepOrphanNvim(liveTagsForSweep(sessions, index, scopeKeyFromDataDir(opts.GlobalDataDir, env.DataDir)))
 		}
-		rt.SweepOrphanNvim(liveTagsForSweep(sessions, index, scopeKeyFromDataDir(opts.GlobalDataDir, env.DataDir)))
 	}
 
 	opts.startupTiming.mark("prelude")
@@ -306,6 +326,26 @@ type launchStep struct {
 // natively (#99 M5c — no shell to fall back to): a handled abort/error returns
 // handedOff=false with the exit code already messaged on stderr.
 func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchStep, error) {
+	if intent := opts.Args.CouchSession; intent != nil && intent.Disposition == "attach" {
+		// This is already a selected terminal, never a native launch request.
+		// History, saved agent configuration and cwd cannot choose another one.
+		// Keep the timing partition for phases whose result the intent supplies.
+		opts.startupTiming.mark("discovery")
+		opts.startupTiming.mark("decision")
+		if err := verifyCouchSessionAttach(rt, *intent); err != nil {
+			fmt.Fprintf(stderr, "pair: %v\n", err)
+			return launchStep{code: 1}, nil
+		}
+		opts.startupTiming.mark("attach-verification")
+		agent := rt.InferAgent(intent.Tag) // Optional title metadata only; no default or launch profile.
+		opts.startupTiming.mark("attach-layout")
+		code, err, retained := runAttach(opts, env, rt, intent.Tag, intent.Name, agent)
+		if err != nil {
+			fmt.Fprintf(stderr, "pair: failed to attach session '%s': %v\n", intent.Name, err)
+			return launchStep{code: 1}, nil
+		}
+		return launchStep{code: code, session: intent.Name, tag: intent.Tag, agent: agent, handedOff: true, retention: retained}, nil
+	}
 	agent := opts.Args.Agent
 	// The agent the forwarded `-- <args>` were typed against. If a pick below
 	// resolves a DIFFERENT agent (resume-by-name inference), those args are
@@ -406,16 +446,8 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 	opts.startupTiming.mark("decision")
 	switch decision.Action {
 	case ActionAttach:
-		var ownerProof SessionOwnerObservation
-		if intent := opts.Args.CouchSession; intent != nil {
-			var err error
-			ownerProof, err = verifyCouchSessionAttach(rt, opts.GlobalDataDir, *intent)
-			if err != nil {
-				fmt.Fprintf(stderr, "pair: %v\n", err)
-				return launchStep{code: 1}, nil
-			}
-		}
 		opts.startupTiming.mark("attach-verification")
+
 		layoutResolution, err := resolveLiveLayout(rt, env.DataDir, decision.Tag, decision.SessionName, opts.Args.Layout)
 		if err != nil {
 			fmt.Fprintf(stderr, "pair: %v\n", err)
@@ -444,7 +476,8 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 		}
 
 		opts.startupTiming.mark("attach-layout")
-		code, err, retained := runAttach(opts, env, rt, decision.Tag, decision.SessionName, agent, &ownerProof)
+		code, err, retained := runAttach(opts, env, rt, decision.Tag, decision.SessionName, agent)
+
 		if err != nil {
 			fmt.Fprintf(stderr, "pair: failed to attach session '%s': %v\n", decision.SessionName, err)
 			return launchStep{code: 1}, nil
@@ -618,15 +651,25 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		fmt.Fprintf(stderr, "pair: cannot claim thread '%s': %v\n", chosenTag, addressErr)
 		return launchStep{code: 1}, nil
 	}
-	if opts.Args.ResumeRequired {
+	if opts.Args.Recovery != nil {
+		verifier, ok := rt.(RecoveryAuthorityRuntime)
+		if !ok {
+			fmt.Fprintln(stderr, "pair: runtime lacks recovery authority validation")
+			return launchStep{code: 1}, nil
+		}
+		if err := verifier.ValidateRecoveryAuthority(context.Background(), *opts.Args.Recovery, scope, chosenTag, agent, env.Cwd); err != nil {
+			fmt.Fprintf(stderr, "pair: recovery authority changed: %v\n", err)
+			return launchStep{code: 1}, nil
+		}
+	} else if opts.Args.ResumeRequired {
 		actual, status := rt.EstablishedSessionID(scope.Key, chosenTag, agent)
 		if err := RequireNativeResumeBinding(opts.Args.RequiredSessionID, actual, status); err != nil {
 			fmt.Fprintf(stderr, "pair: %v\n", err)
 			return launchStep{code: 1}, nil
 		}
 	}
-	// Free the name (clear a stale EXITED resurrect record) and guard against a
-	// live session unexpectedly occupying it before any source-of-truth writes.
+	// Guard the name before source-of-truth writes. Saved layouts are retained;
+	// final locked admission also refuses orphaned or contested servers.
 	if opts.Args.CouchSession != nil {
 		current, err := rt.SessionLiveness()
 		if err != nil || sessionNamePresent(current, session) {
@@ -719,6 +762,9 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	// The native conversation survives resume; the wrapper incarnation does not.
 	if opts.Args.FreshRequired || couchOwned {
 		nonce := opts.Args.FreshNonce
+		if opts.Args.Recovery != nil {
+			nonce = opts.Args.Recovery.Attempt
+		}
 		if _, err := prepareLaunchReadinessWithNonce(rt, chosenTag, agent, session, nonce); err != nil {
 			fmt.Fprintf(stderr, "pair: %v\n", err)
 			return launchStep{code: 1}, nil
@@ -726,7 +772,10 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	} else if opts.Args.AgentArgsExplicit && !opts.Args.AgentArgsFromCouch && !opts.Args.ResumeRequired && opts.ContinueCheckpoint.Version == 0 {
 		defaultReady = startAgentDefaultPersistence(rt, chosenTag, agent, session, opts.Args.AgentArgs, 5*time.Second)
 	} else {
-		rt.SetEnv("PAIR_LAUNCH_NONCE", "")
+		if _, err := prepareLaunchReadiness(rt, chosenTag, agent, session); err != nil {
+			fmt.Fprintf(stderr, "pair: %v\n", err)
+			return launchStep{code: 1}, nil
+		}
 	}
 
 	sessionID := firstNonEmpty(explicitResume, newSid)
@@ -948,7 +997,8 @@ func prepareLaunchReadiness(rt Runtime, tag, agent, session string) (ReadyExpect
 	return prepareLaunchReadinessWithNonce(rt, tag, agent, session, "")
 }
 func prepareLaunchReadinessWithNonce(rt Runtime, tag, agent, session, nonce string) (ReadyExpectation, error) {
-	rt.RemoveReadyRecord(tag, agent)
+	// Keep the previous agent evidence until the locked handoff has checked it.
+	// A fresh nonce prevents old readiness from satisfying this attempt.
 	if nonce == "" {
 		nonce = rt.MintLaunchNonce()
 	}

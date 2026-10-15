@@ -5,7 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
+	"os"
 	"path/filepath"
+	"syscall"
 	"time"
 )
 
@@ -112,6 +115,10 @@ func (e RemoteEndpoint) call(ctx context.Context, r EndpointRequest) (EndpointRe
 	}
 	var response EndpointResponse
 	if err := Call(ctx, socket, r, &response); err != nil {
+		var dial *net.OpError
+		if errors.As(err, &dial) && dial.Op == "dial" && (errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ECONNREFUSED)) {
+			return EndpointResponse{}, fmt.Errorf("messaging unavailable until next relaunch: %w", err)
+		}
 		return EndpointResponse{}, err
 	}
 	switch {

@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"sort"
+
+	"github.com/xianxu/pair/cmd/internal/osfs"
 )
 
 type inspectedStore struct {
@@ -104,7 +105,7 @@ func WithStoreInspectionLocks(ctx context.Context, namespaces []CouchNamespace, 
 			continue
 		}
 		var manifest threadManifest
-		e := inspection.withRoot(store, func() error { var e error; manifest, _, _, e = store.loadManifestLocked(); return e })
+		e := inspection.withRoot(store, func() error { var e error; manifest, _, _, e = store.loadManifestLockedContext(ctx); return e })
 		if e != nil {
 			return e
 		}
@@ -239,15 +240,30 @@ func ObserveMigrationProcesses(ctx context.Context, proc ProcOps, records []Thre
 	return out, nil
 }
 
-func (s *ThreadStore) readInspectionPayload(path string) ([]byte, error) {
-	file, e := openSupervisorObservation(path)
-	if e != nil {
-		return nil, e
+// metadataReadContext preserves the request and the retained inspection's
+// cancellation for path reads and descriptor-relative local reads alike.
+func (s *ThreadStore) metadataReadContext(ctx context.Context) (context.Context, func()) {
+	if s.inspection == nil || ctx.Err() != nil {
+		return ctx, func() {}
+	}
+	if s.inspection.ctx.Err() != nil {
+		return s.inspection.ctx, func() {}
+	}
+	merged, cancel := context.WithCancel(ctx)
+	stop := context.AfterFunc(s.inspection.ctx, cancel)
+	return merged, func() { stop(); cancel() }
+}
+
+func (s *ThreadStore) readInspectionPayloadContext(ctx context.Context, path string) ([]byte, error) {
+	ctx, cleanup := s.metadataReadContext(ctx)
+	defer cleanup()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	file, err := openSupervisorObservation(path)
+	if err != nil {
+		return nil, err
 	}
 	defer file.Close()
-	raw, e := io.ReadAll(io.LimitReader(file, localPayloadLimit+1))
-	if e == nil && int64(len(raw)) > localPayloadLimit {
-		return nil, fmt.Errorf("inspection payload exceeds %d bytes: %s", localPayloadLimit, path)
-	}
-	return raw, e
+	return osfs.ReadOpenedRegularMetadata(ctx, file, localPayloadLimit)
 }

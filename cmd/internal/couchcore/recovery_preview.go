@@ -1,0 +1,236 @@
+package couchcore
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"github.com/xianxu/pair/cmd/internal/storagegc"
+	"github.com/xianxu/pair/cmd/internal/threadrecord"
+)
+
+type RecoveryChoice struct {
+	Key          string    `json:"key"`
+	Label        string    `json:"label"`
+	Agent        string    `json:"agent"`
+	NativeID     string    `json:"native_id,omitempty"`
+	Excerpt      string    `json:"excerpt,omitempty"`
+	LastActivity time.Time `json:"last_activity"`
+	TailMatch    float64   `json:"tail_match"`
+	Matched      int       `json:"matched"`
+	Total        int       `json:"total"`
+}
+
+// RecoveryPreview is shared by the menu and authenticated read-only CLI.
+// Automatic remains false until a separate reviewed calibration policy exists.
+type RecoveryPreview struct {
+	Address    ThreadAddress                 `json:"address"`
+	Revision   uint64                        `json:"revision"`
+	Candidates []RecoveryChoice              `json:"candidates"`
+	Fresh      *RecoveryChoice               `json:"fresh,omitempty"`
+	Incomplete bool                          `json:"incomplete"`
+	Reasons    []string                      `json:"reasons,omitempty"`
+	Automatic  bool                          `json:"automatic"`
+	Truncated  bool                          `json:"truncated"`
+	Snapshot   *threadrecord.RecoveryContext `json:"-"`
+}
+
+// RecoveryObservation contains bounded IO facts, not permission to stop/start.
+type RecoveryObservation struct {
+	Capture                          threadrecord.RecoveryCapture
+	Generation, Agent, Branch, Issue string
+	Ranked                           []sessioninventory.RankedRecoveryCandidate
+	Incomplete                       bool
+	Reasons                          []string
+}
+
+type RecoveryEvidenceReader func(context.Context, ThreadRecord) (RecoveryObservation, error)
+
+type RecoveryResumeResult struct {
+	Start  StartResult
+	Notice string
+}
+
+func (r RecoveryResumeResult) Started() (StartResult, bool) { return r.Start, r.Start.Handle != nil }
+
+func (r RecoveryResumeResult) Warning() string {
+	parts := []string{}
+	for _, note := range []string{r.Notice, r.Start.Warning()} {
+		if note != "" {
+			parts = append(parts, note)
+		}
+	}
+	return strings.Join(parts, "; ")
+}
+
+// DecideSlotRecovery offers explicit choices even for a sole perfect match.
+// Every key binds the original capture and complete ordered evidence snapshot;
+// changed rank, root identity or capture requires a new explicit selection.
+func DecideSlotRecovery(record ThreadRecord, observation RecoveryObservation, now time.Time) (RecoveryPreview, error) {
+	p := RecoveryPreview{Address: record.Address, Revision: record.Revision, Candidates: []RecoveryChoice{}, Incomplete: observation.Incomplete, Reasons: append([]string(nil), observation.Reasons...)}
+	// Always project Fresh. An empty key is deliberately not native-resume
+	// authority: the UI uses its existing confirmed fresh-start action instead.
+	p.Fresh = &RecoveryChoice{Label: "Start fresh", Agent: observation.Agent, LastActivity: observation.Capture.LastActivity}
+
+	if observation.Incomplete {
+		return p, nil
+	}
+	capture := observation.Capture
+	expiry := capture.CapturedAt.Add(storagegc.CaptureRetentionPeriod)
+	if capture.CapturedAt.IsZero() || now.Before(capture.CapturedAt) || !now.Before(expiry) {
+		p.Reasons = append(p.Reasons, "Previous screen is unavailable or expired; a fresh conversation may lose its working context.")
+		return p, nil
+	}
+	snapshot := threadrecord.RecoveryContext{Version: 1, Address: threadrecord.Address{RepoScope: record.Address.RepoScope, Tag: string(record.Address.Tag)}, Capture: capture, Generation: observation.Generation, CreatedAt: now, ExpiresAt: expiry, Branch: observation.Branch, Issue: observation.Issue}
+	for _, ranked := range observation.Ranked {
+		candidate := ranked.Candidate
+		if candidate.Incomplete || !candidate.RootEligible || candidate.Interactive.State != sessioninventory.InteractiveYes || candidate.CWD != record.WorkingPath {
+			continue
+		}
+		if len(snapshot.Candidates) == 5 {
+			p.Truncated = true
+			break
+		}
+		entry := candidate.Entry
+		if entry.ModTime == nil || candidate.SemanticLast.IsZero() {
+			return p, errors.New("recovery candidate has incomplete activity evidence")
+		}
+		snapshot.Candidates = append(snapshot.Candidates, threadrecord.RecoveryCandidate{Agent: string(candidate.Agent), NativeID: candidate.NativeID, ArtifactRoot: entry.Artifact.StorageRoot, ArtifactRelativePath: entry.Artifact.RelativePath, StableFileID: string(entry.StableFileID), GenerationToken: string(entry.GenerationToken), MutationToken: string(entry.MutationToken), Size: entry.Size, ModTime: *entry.ModTime, Score: ranked.Score.Percent, Matched: ranked.Score.Matched, Total: ranked.Score.Total, LastActivity: candidate.SemanticLast, Excerpt: ranked.Score.Excerpt, Eligible: true})
+	}
+	// Time of listing and chosen key are not source evidence. Omitting them
+	// keeps an unchanged listing stable without creating a durable preview store.
+	evidence := snapshot
+	evidence.CreatedAt = time.Time{}
+	encoded, err := json.Marshal(struct {
+		Revision uint64
+		Evidence threadrecord.RecoveryContext
+	}{record.Revision, evidence})
+	if err != nil {
+		return p, err
+	}
+	sum := sha256.Sum256(encoded)
+	snapshot.Digest = hex.EncodeToString(sum[:])
+	for i := range snapshot.Candidates {
+		candidate := &snapshot.Candidates[i]
+		key, err := EncodeRecoveryCandidateKey(RecoveryCandidateSelector{Version: 1, Address: record.Address, Agent: candidate.Agent, NativeID: candidate.NativeID, Digest: snapshot.Digest})
+		if err != nil {
+			return p, err
+		}
+		candidate.Key = key
+		label := "resume (best candidate)"
+		if i > 0 {
+			label = fmt.Sprintf("resume (option %d)", i)
+		}
+		p.Candidates = append(p.Candidates, RecoveryChoice{Key: key, Label: label, Agent: candidate.Agent, NativeID: candidate.NativeID, Excerpt: candidate.Excerpt, LastActivity: candidate.LastActivity, TailMatch: candidate.Score, Matched: candidate.Matched, Total: candidate.Total})
+	}
+	key, err := EncodeRecoveryCandidateKey(RecoveryCandidateSelector{Version: 1, Address: record.Address, Agent: observation.Agent, Digest: snapshot.Digest})
+	if err != nil {
+		return p, err
+	}
+	p.Fresh = &RecoveryChoice{Key: key, Label: "start fresh from previous screen", Agent: observation.Agent, LastActivity: capture.LastActivity}
+	if err := threadrecord.ValidateRecoveryContext(snapshot, snapshot.Address); err != nil {
+		return p, err
+	}
+	p.Snapshot = &snapshot
+	return p, nil
+}
+
+func (c *Couch) recoveryTarget(ctx context.Context, t ResumeTarget) (*ThreadStore, ThreadRecord, error) {
+	if c == nil || c.Threads == nil || (t.Path == "") == (t.Address == ThreadAddress{}) {
+		return nil, ThreadRecord{}, errors.New("recovery needs exactly one slot path or thread address")
+	}
+	if t.Path == "" {
+		view := *c.Threads
+		view.readOnly = true
+		record, err := view.PreviewThreadContext(ctx, t.Address)
+		return c.Threads, record, err
+	}
+	if c.Slots == nil {
+		return nil, ThreadRecord{}, errors.New("slot services unavailable")
+	}
+	target, _, err := c.resolveSlotInput(ctx, t.Path)
+	if err != nil {
+		return nil, ThreadRecord{}, err
+	}
+	if target == nil || target.Kind != ThreadTargetSlot {
+		return nil, ThreadRecord{}, errors.New("recovery path does not identify an existing slot")
+	}
+	local := newSlotThreadStore(c.Namespace, target.Slot)
+	local.coordinator = c.Threads.coordinator
+	view := *local
+	view.readOnly = true
+	var observed slotCurrentObservation
+	err = view.withPreviewLockContext(ctx, func() error {
+		var readErr error
+		observed, readErr = view.readSlotCurrentLockedContext(ctx)
+		return readErr
+	})
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, ThreadRecord{}, ErrThreadNotFound
+	}
+	if err != nil {
+		return nil, ThreadRecord{}, err
+	}
+	if observed.Unsupported {
+		return nil, ThreadRecord{}, observed.Err
+	}
+	if observed.Record == nil {
+		return nil, ThreadRecord{}, fmt.Errorf("slot has no retained conversation record: %w", ErrThreadNotFound)
+	}
+	return local, *observed.Record, nil
+}
+
+// ResumeCandidates performs no lifecycle writes and never launches an agent.
+func (c *Couch) ResumeCandidates(ctx context.Context, t ResumeTarget) (RecoveryPreview, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	_, record, err := c.recoveryTarget(ctx, t)
+	if err != nil {
+		return RecoveryPreview{Address: t.Address, Incomplete: true, Reasons: []string{err.Error()}, Fresh: &RecoveryChoice{Label: "Start fresh"}}, nil
+	}
+	observation := RecoveryObservation{Agent: RecordAgent(record)}
+	if c.RecoveryEvidence == nil {
+		observation.Incomplete = true
+		observation.Reasons = []string{"recovery evidence reader unavailable; a fresh conversation may lose working context"}
+	} else {
+		for attempt := 0; attempt < 2; attempt++ {
+			observation, err = c.RecoveryEvidence(ctx, record)
+			if err == nil && !observation.Incomplete {
+				break
+			}
+			if ctx.Err() != nil {
+				break
+			}
+		}
+		if err != nil {
+			observation = RecoveryObservation{Agent: RecordAgent(record), Incomplete: true, Reasons: []string{err.Error(), "Conversation evidence unavailable; a fresh conversation may lose working context."}}
+		}
+	}
+	preview, err := DecideSlotRecovery(record, observation, c.Clock.Now())
+	if err != nil {
+		preview.Candidates = nil
+		preview.Incomplete = true
+		preview.Reasons = append(preview.Reasons, err.Error())
+	}
+	if refusal := c.recoverySourceInactive(record); refusal != nil {
+		for i := range preview.Candidates {
+			preview.Candidates[i].Key = ""
+		}
+		// Fresh is a confirmed separate action, never an implicit native retirement.
+		if preview.Fresh != nil {
+			preview.Fresh.Key = ""
+		}
+		preview.Reasons = append(preview.Reasons, refusal.Error())
+	}
+	return preview, nil
+}

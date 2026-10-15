@@ -23,6 +23,7 @@ func TestArchiveRefusesAThreadCouchHostsWithNoIncarnation(t *testing.T) {
 
 	env, created := registeredActorFixture(t)
 	env.Proc.Set(4242, "hosted")
+	env.Artifacts.SetSessionPresence(created.Address, SessionObservation{State: SessionPresent})
 
 	state, reason, err := env.Couch.classifyForAction(context.Background(), created.Address)
 	if err != nil {
@@ -107,6 +108,7 @@ func TestALiveRegistryActorOutranksAnUnprovableOne(t *testing.T) {
 		PID:  4343, Identity: "running",
 	})
 	env.Proc.Set(4343, "running")
+	env.Artifacts.SetSessionPresence(created.Address, SessionObservation{State: SessionPresent})
 
 	state, reason, err := env.Couch.classifyForAction(context.Background(), created.Address)
 	if err != nil {
@@ -137,35 +139,7 @@ func TestArchiveRefusesAnUnprovableRegistryActor(t *testing.T) {
 	}
 }
 
-// SelectResumableRoot's eligibility and ResumableState must be the same
-// question. They were two hand-written lists of the same two states, which is
-// the drift the action tables exist to catch, one layer below the switcher.
-func TestStartupSelectionDerivesFromResumableState(t *testing.T) {
-	t.Parallel()
-
-	for _, state := range AllThreadStates() {
-		for _, reason := range append(AllThreadReasons(), "") {
-			if (state == ThreadUnusable) != (reason != "") {
-				continue
-			}
-			rows := []ActionableThreadSummary{{
-				Address:     ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0000000000000001"},
-				State:       state,
-				Reason:      reason,
-				WorkingPath: "/repo",
-			}}
-			_, selected := SelectResumableRoot(rows, "816fc349d3faebf8")
-			if selected != ResumableState(state, reason) {
-				t.Errorf("%s/%s: startup selects=%v, the resumable rule says %v",
-					state, reason, selected, ResumableState(state, reason))
-			}
-		}
-	}
-}
-
-// Every classification archive refuses must have something to say about itself.
-// A refusal with an empty or generic message is how "it cannot be archived"
-// became the answer for four different situations with four different fixes.
+// Every refused classification provides an actionable explanation.
 func TestArchiveRefusalCoversEveryRefusedClassification(t *testing.T) {
 	t.Parallel()
 
@@ -319,9 +293,8 @@ func TestArchiveKeepsAnUnprovenIncarnationItCouldNotProveDead(t *testing.T) {
 	if err == nil {
 		t.Fatal("archived a thread whose recorded helper could not be proved dead")
 	}
-	// DISCRIMINATING: the classification is what must refuse, so its answer has
-	// to be in the message. A bare err != nil would pass on any of four guards.
-	if !strings.Contains(err.Error(), ReasonUnknown.Label()) {
+	// Continue remains available, but archive must still prove owner death.
+	if !strings.Contains(err.Error(), "recorded process could not be proved dead") {
 		t.Fatalf("refusal does not name the unresolved classification: %v", err)
 	}
 	if got := artifacts.Quiesces(); len(got) != 0 {

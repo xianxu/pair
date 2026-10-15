@@ -1,8 +1,8 @@
 threads
 Ctrl+Y copy last notice
-▸ pair+  /workspace/pair  live
-    pair:1  /workspace/worktree/p  live
+▸ pair+  /workspace/pair  Continue
+    pair:1  /workspace/worktr  Continue
     └─ review ready
-    pair:2*  /workspace/worktree/p  live
+    pair:2*  /workspace/worktr  Continue
 TAB BAR
 pair+  [:1]  :2*

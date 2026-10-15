@@ -86,7 +86,11 @@ func TestAnUnprovableRecordedProcessIsNotConfirmedAbsence(t *testing.T) {
 			}
 			proc := NewFakeProcOps()
 			tc.arrange(proc)
-			couch := &Couch{Threads: store, Artifacts: NewFakeThreadArtifactCollisionChecker(), Proc: proc, Path: NewFakePathOps(nil)}
+			artifacts := NewFakeThreadArtifactCollisionChecker()
+			if tc.wantState == ThreadLive {
+				artifacts.SetSessionPresence(created.Address, SessionObservation{State: SessionPresent})
+			}
+			couch := &Couch{Threads: store, Artifacts: artifacts, Proc: proc, Path: NewFakePathOps(nil)}
 
 			rows, err := couch.ActionableThreadInventory(nil)
 			if err != nil || len(rows) != 1 || rows[0].Address != withIncarnation.Address {

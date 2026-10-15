@@ -67,8 +67,9 @@ type cliInvocation struct {
 	messageAgent string
 	// confirmed is --confirm on a slot operation whose declaration requires
 	// a confirmation (reboot).
-	confirmed  bool
-	jsonOutput bool
+	candidateKey string
+	confirmed    bool
+	jsonOutput   bool
 	// sessionSync is set on cliSessionSync (pair#437).
 	sessionSync *sessionSyncArgs
 	// layout is the couch-wide pair layout to launch threads in. Set only on
@@ -134,7 +135,7 @@ func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, e
 			return parseSessionSyncCLI(args)
 		case "--switch-agent", "--operation-status":
 			return parseSwitchAgentCLI(args)
-		case "--actors", "--send-to", "--message-status", "--skill", "--broadcast-list":
+		case "--resume-candidates", "--actors", "--send-to", "--message-status", "--skill", "--broadcast-list":
 			return parseMessageCLI(args)
 		}
 		// Slot operations come from the one verb list (couchcore.IsSlotOperation).
@@ -337,6 +338,14 @@ func parseMessageCLI(args []string) (cliInvocation, error) {
 			return bad()
 		}
 		return cliInvocation{kind: cliMessage, messageOp: "status", ref: args[1], jsonOutput: len(args) == 3}, nil
+	case "--resume-candidates":
+		if len(args) != 2 && !(len(args) == 3 && args[2] == "--json") {
+			return bad()
+		}
+		if ref, ok, err := couchcore.ParseWorkspaceReference(args[1]); err != nil || !ok || ref.Repo == "" {
+			return bad()
+		}
+		return cliInvocation{kind: cliMessage, messageOp: "resume-candidates", ref: args[1], jsonOutput: len(args) == 3}, nil
 	case slotOperationFlag(args[0]):
 		// One exact slot, then --json and the declared --confirm, each once.
 		// relaunch (pair#421) also takes its two overrides.
@@ -351,7 +360,17 @@ func parseMessageCLI(args []string) (cliInvocation, error) {
 		allowed := map[string]bool{"--json": true, "--confirm": true}
 		allowed["--same-binary"] = couchcore.SlotOperationTakesSameBinary(op)
 		allowed["--force-unknown"] = couchcore.SlotOperationTakesForceUnknown(op)
-		for _, flag := range args[2:] {
+		candidateKey := ""
+		for i := 2; i < len(args); i++ {
+			flag := args[i]
+			if flag == "--candidate" && op == "resume" {
+				if candidateKey != "" || i+1 >= len(args) || args[i+1] == "" || strings.HasPrefix(args[i+1], "-") {
+					return bad()
+				}
+				i++
+				candidateKey = args[i]
+				continue
+			}
 			if !allowed[flag] || seen[flag] {
 				return bad()
 			}
@@ -364,7 +383,7 @@ func parseMessageCLI(args []string) (cliInvocation, error) {
 			return cliInvocation{}, fmt.Errorf("%s takes no --confirm", args[0])
 		}
 		return cliInvocation{kind: cliMessage, messageOp: op, ref: args[1], confirmed: seen["--confirm"], jsonOutput: seen["--json"],
-			sameBinary: seen["--same-binary"], forceUnknown: seen["--force-unknown"]}, nil
+			sameBinary: seen["--same-binary"], forceUnknown: seen["--force-unknown"], candidateKey: candidateKey}, nil
 	case "--send-to":
 		agent := ""
 		if len(args) == 6 && args[2] == "--agent" {

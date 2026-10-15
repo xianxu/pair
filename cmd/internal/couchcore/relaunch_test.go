@@ -52,6 +52,7 @@ func withParkLifecycle(t *testing.T, env *testEnv, live ThreadRecord, pid int, i
 	model.SetSession("pair-exact", true)
 	lifecycle := &fakeControllerLifecycle{model: model, store: env.Couch.Threads}
 	env.Artifacts.SetPairSession(live.Address, "pair-exact", true)
+	env.Artifacts.SetSessionPresence(live.Address, SessionObservation{State: SessionPresent})
 	env.Artifacts.SetNativeBinding(live.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
 	env.Proc.Set(pid, identity)
 
@@ -70,10 +71,12 @@ func withParkLifecycle(t *testing.T, env *testEnv, live ThreadRecord, pid int, i
 			return err
 		}
 		env.Artifacts.SetPairSession(live.Address, lifecycle.lastRequest.Session, false)
+		env.Artifacts.SetSessionPresence(live.Address, SessionObservation{State: SessionAbsent})
 		return nil
 	}
 	env.Runner.AfterAcknowledge = func(id string) error {
 		env.Artifacts.SetPairSession(live.Address, continuationChildSession(t, env.Runner, id), true)
+		env.Artifacts.SetSessionPresence(live.Address, SessionObservation{State: SessionPresent})
 		return nil
 	}
 	env.Couch.PairLifecycle = &PairLifecycleController{

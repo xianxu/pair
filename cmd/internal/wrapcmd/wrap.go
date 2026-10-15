@@ -69,6 +69,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/layoutcmd"
 	"github.com/xianxu/pair/cmd/internal/notifytransport"
+	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/readiness"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
 	"github.com/xianxu/pair/cmd/internal/sessionwatch"
@@ -235,12 +236,14 @@ type proxy struct {
 	bellFallback     bool
 
 	// Resolved paths (empty when env didn't provide PAIR_TAG)
-	agentOutputFile string
-	captureOutPath  string
-	captureDonePath string
-	capturePIDPath  string
-	agentPIDPath    string
-	agentReadyPath  string
+	agentOutputFile      string
+	captureOutPath       string
+	captureDonePath      string
+	capturePIDPath       string
+	agentPIDPath         string
+	agentReadyPath       string
+	readyProcessPID      int
+	readyProcessIdentity string
 
 	// PTY
 	ptmx          *os.File
@@ -612,7 +615,21 @@ func (p *proxy) publishAgentReady(pid int) error {
 		}
 		launchOrdinal = parsed
 	}
+	// Pin the child's generation once; later ready publications must not
+	// refresh a reused PID into authority for a different process.
+	if p.readyProcessIdentity == "" {
+		identity := procutil.Identity(strconv.Itoa(pid))
+		if identity == "" {
+			return errors.New("ready record: agent process identity unavailable")
+		}
+		p.readyProcessPID = pid
+		p.readyProcessIdentity = identity
+	}
+	if p.readyProcessPID != pid {
+		return errors.New("ready record: agent process changed")
+	}
 	raw, err := readiness.Encode(readiness.ReadyRecord{
+		AgentIdentity: p.readyProcessIdentity,
 		LaunchOrdinal: launchOrdinal,
 		Tag:           tag,
 		Agent:         p.agentBasename,
@@ -2796,27 +2813,15 @@ argsDone:
 		}
 	}
 
-	// Open the exact scrollback raw/events bindings. The launcher exports both;
-	// pair-wrap never derives one companion from the other.
-	// Disable scrollback entirely on any open failure; never block startup.
-	if p.scrollbackLog != "" {
-		f, err := os.OpenFile(p.scrollbackLog, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	// Invalidate old events authority before truncating raw (which retains its
+	// inode). A failed second open must never leave an old witness over new bytes.
+	if p.scrollbackLog != "" && p.scrollbackEvents != "" {
+		raw, events, err := openWitnessedCapture(p.scrollbackLog, p.scrollbackEvents, os.Getenv)
 		if err != nil {
-			p.debug("SCROLLBACK-open-fail", fmt.Sprintf("%q: %v", p.scrollbackLog, err))
+			p.debug("SCROLLBACK-open-fail", err.Error())
 		} else {
-			p.scrollbackFD = f
-			p.debug("SCROLLBACK-open", p.scrollbackLog)
-			if p.scrollbackEvents == "" {
-				p.debug("EVENTS-open-fail", "PAIR_SCROLLBACK_EVENTS_PATH is empty")
-			} else {
-				ef, err := os.OpenFile(p.scrollbackEvents, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-				if err != nil {
-					p.debug("EVENTS-open-fail", fmt.Sprintf("%q: %v", p.scrollbackEvents, err))
-				} else {
-					p.eventsFD = ef
-					p.debug("EVENTS-open", p.scrollbackEvents)
-				}
-			}
+			p.scrollbackFD = raw
+			p.eventsFD = events
 		}
 	}
 

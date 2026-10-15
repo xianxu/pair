@@ -24,12 +24,12 @@ import (
 // these predicates also answer callers that reach the API without a row.
 func TestActionOfferedImpliesPermitted(t *testing.T) {
 	// resumeAdmitted is resume's admission as ResumeTarget's route states it:
-	// ResumableState, plus every unusable row, because the route hands those
+	// Parked/detached, plus every unusable row, because the route hands those
 	// to OpenSlot, RecoverThread or Continue, each with its own
 	// refusal -- and an unknown classification is refused by the table, not
 	// here.
 	resumeAdmitted := func(state couchcore.ActionableThreadState, reason couchcore.ThreadReason) bool {
-		return couchcore.ResumableState(state, reason) || state == couchcore.ThreadUnusable
+		return state == couchcore.ThreadParked || state == couchcore.ThreadDetached || state == couchcore.ThreadUnusable
 	}
 	actions := []struct {
 		item      string
@@ -72,6 +72,20 @@ func TestActionOfferedImpliesPermitted(t *testing.T) {
 	for i, action := range actions {
 		if !everOffered[i] {
 			t.Errorf("no row offers %s at all; this table is passing by vacuity", action.item)
+		}
+	}
+}
+
+func TestNonLiveUncertainPrimaryOpensRecoveryWithoutLifecycleEffects(t *testing.T) {
+	for _, row := range []couchcore.ActionableThreadSummary{
+		{Address: menuAddress("unknown"), State: couchcore.ThreadUnusable, Reason: couchcore.ReasonUnknown},
+		{Address: menuAddress("legacy"), State: couchcore.ThreadUnusable, Reason: couchcore.ReasonNeedsRelaunch},
+		{Address: menuAddress("busy"), State: couchcore.ThreadBusy},
+	} {
+		state := NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
+		next, effects := reduceRootKey(state, PanelKey{Kind: KeyEnter})
+		if len(effects) != 1 || effects[0].Preview == nil || effects[0].Operation != "" || next.CurrentFrame().Kind != MenuFrameRecovery {
+			t.Errorf("%s/%s: expected recovery preview, got %+v %+v", row.State, row.Reason, next.CurrentFrame(), effects)
 		}
 	}
 }

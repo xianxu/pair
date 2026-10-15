@@ -354,7 +354,7 @@ func TestManagedPartialSlotPathPreviewsWithoutCreatingHost(t *testing.T) {
 	}
 }
 
-func TestStartInteractiveRepairsPartialSlotWithoutCreatingConversation(t *testing.T) {
+func TestExplicitOpenRepairsPartialSlotWithoutCreatingConversation(t *testing.T) {
 	t.Parallel()
 
 	f := newProvisionFixture(t)
@@ -368,7 +368,7 @@ func TestStartInteractiveRepairsPartialSlotWithoutCreatingConversation(t *testin
 	env.Couch.Path = OSPathOps{}
 	env.Couch.Slots = NewOSSlotCatalog(f)
 	env.Couch.Workspaces = NewWorkspaceProvisioner(f)
-	_, err := env.Couch.StartInteractive(context.Background(), StartArgs{Cwd: f.host(1)})
+	_, err := env.Couch.StartInteractive(context.Background(), StartArgs{Cwd: f.host(1), Action: StartOpen})
 	if err == nil {
 		t.Fatal("missing conversation silently became fresh")
 	}
@@ -383,7 +383,7 @@ func TestStartInteractiveRepairsPartialSlotWithoutCreatingConversation(t *testin
 	}
 }
 
-func TestPrimaryStartupEnrollsExistingDirectoriesBeforeInventory(t *testing.T) {
+func TestPrimaryStartupLaunchesHubWithoutOpeningExistingSlots(t *testing.T) {
 	t.Parallel()
 
 	f := newProvisionFixture(t)
@@ -401,8 +401,8 @@ func TestPrimaryStartupEnrollsExistingDirectoriesBeforeInventory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(snapshot.Slots) != 1 || snapshot.Slots[0].Identity.WorktreeRoot != f.host(1) {
-		t.Fatalf("primary hid existing slot: %+v", snapshot.Slots)
+	if len(env.Runner.Ops) != 2 {
+		t.Fatalf("hub startup did not launch exactly one helper: slots=%+v ops=%v", snapshot.Slots, env.Runner.Ops)
 	}
 }
 
@@ -590,6 +590,9 @@ func TestManagedCreateReusesHoleWithParkedSiblingNotice(t *testing.T) {
 	if _, err := local.FinalizePark(old.Record.Address, begun.Revision, identity, 1, env.Now); err != nil {
 		t.Fatal(err)
 	}
+	// A completed park ends both the helper and the ready terminal.
+	env.Proc.Kill(second.PID)
+	env.Artifacts.SetSessionPresence(old.Record.Address, SessionObservation{State: SessionAbsent})
 	env.Artifacts.SetNativeBinding(old.Record.Address, "claude", sessioninventory.BindingEstablished, "native-slot2-park")
 	prepared, err := env.Couch.PrepareStart(context.Background(), args)
 	if err != nil || prepared.Resolution.Target.Slot.Number != 1 {

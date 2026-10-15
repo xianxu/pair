@@ -403,6 +403,34 @@ type parkHelperConfig struct {
 	CompletedAt                                                    time.Time
 }
 
+// Keep only the latest fixture-client diagnostics; the live PTY still drains
+// continuously, without retaining an unbounded terminal transcript.
+type parkHelperCapture struct {
+	mu   sync.Mutex
+	tail []byte
+}
+
+func (c *parkHelperCapture) Write(p []byte) (int, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	n := len(p)
+	const limit = 16 * 1024
+	if len(p) >= limit {
+		c.tail = append(c.tail[:0], p[len(p)-limit:]...)
+	} else {
+		if keep := limit - len(p); len(c.tail) > keep {
+			c.tail = c.tail[len(c.tail)-keep:]
+		}
+		c.tail = append(c.tail, p...)
+	}
+	return n, nil
+}
+func (c *parkHelperCapture) String() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return string(c.tail)
+}
+
 func startParkLifecycleHelper(t *testing.T, ctx context.Context, cfg parkHelperConfig) (*exec.Cmd, *os.File, <-chan error) {
 	t.Helper()
 	baseline, err := zellijClientCount(ctx, cfg.Session)
@@ -427,7 +455,9 @@ func startParkLifecycleHelper(t *testing.T, ctx context.Context, cfg parkHelperC
 	if err != nil {
 		t.Fatal(err)
 	}
-	go func() { _, _ = io.Copy(io.Discard, terminal) }()
+	capture := new(parkHelperCapture)
+	drained := make(chan struct{})
+	go func() { _, _ = io.Copy(capture, terminal); close(drained) }()
 	wait := make(chan error, 1)
 	go func() { wait <- cmd.Wait() }()
 
@@ -440,9 +470,15 @@ func startParkLifecycleHelper(t *testing.T, ctx context.Context, cfg parkHelperC
 		}
 		select {
 		case err := <-wait:
-			t.Fatalf("production handoff helper exited before attaching: %v", err)
+			// Wait can beat the PTY reader to the helper's final diagnostic.
+			// The master can remain open, so joining the drain must be bounded.
+			select {
+			case <-drained:
+			case <-time.After(100 * time.Millisecond):
+			}
+			t.Fatalf("production handoff helper exited before attaching: %v; PTY=%q", err, capture.String())
 		case <-ctx.Done():
-			t.Fatalf("production handoff helper did not attach: %v (last query: %v)", ctx.Err(), countErr)
+			t.Fatalf("production handoff helper did not attach: %v (last query: %v); PTY=%q", ctx.Err(), countErr, capture.String())
 		case <-ticker.C:
 		}
 	}
@@ -481,11 +517,13 @@ func runParkLifecycleHelper() int {
 	scoped := launcher.NewScopedPaths(globalDataDir, launcher.RepoScope{Key: scope}, tag)
 	runtime := launcher.NewScopedOSRuntime(globalDataDir, scoped.ScopeDir(), pairHome)
 	env := launcher.Env{DataDir: scoped.ScopeDir()}
-	if _, err := launcher.AttachExistingSession(launcher.LaunchOptions{Env: env, PairHome: pairHome}, env, runtime, tag, session, "claude"); err != nil {
+	if code, err := launcher.AttachExistingSession(launcher.LaunchOptions{Env: env, PairHome: pairHome}, env, runtime, tag, session, "claude"); err != nil || code != 0 {
+		fmt.Fprintf(os.Stderr, "park helper attach returned code=%d error=%v\n", code, err)
 		return 3
 	}
 	intent, present, err := runtime.TakeQuitIntent(session)
 	if err != nil || !present || intent.Kind != launcher.QuitIntentCouch || intent.Request == nil {
+		fmt.Fprintf(os.Stderr, "park helper quit intent: present=%v kind=%q has-request=%v error=%v\n", present, intent.Kind, intent.Request != nil, err)
 		return 4
 	}
 	ref := *intent.Request

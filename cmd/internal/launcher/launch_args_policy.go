@@ -44,17 +44,18 @@ func RequireNativeResumeBinding(required, actual string, status sessioninventory
 }
 
 type TrustedLaunchProfile struct {
-	FreshNonce        string   `json:"fresh_nonce,omitempty"`
-	Prompt            string   `json:"prompt,omitempty"`
-	SchemaVersion     int      `json:"schema_version"`
-	Tag               string   `json:"tag"`
-	Agent             string   `json:"agent"`
-	Argv              []string `json:"argv"`
-	AgentSource       string   `json:"agent_source"`
-	ArgvSource        string   `json:"argv_source"`
-	FreshRequired     bool     `json:"fresh_required,omitempty"`
-	ResumeRequired    bool     `json:"resume_required,omitempty"`
-	RequiredSessionID string   `json:"required_session_id,omitempty"`
+	Recovery          *RecoveryAuthority `json:"recovery,omitempty"`
+	FreshNonce        string             `json:"fresh_nonce,omitempty"`
+	Prompt            string             `json:"prompt,omitempty"`
+	SchemaVersion     int                `json:"schema_version"`
+	Tag               string             `json:"tag"`
+	Agent             string             `json:"agent"`
+	Argv              []string           `json:"argv"`
+	AgentSource       string             `json:"agent_source"`
+	ArgvSource        string             `json:"argv_source"`
+	FreshRequired     bool               `json:"fresh_required,omitempty"`
+	ResumeRequired    bool               `json:"resume_required,omitempty"`
+	RequiredSessionID string             `json:"required_session_id,omitempty"`
 }
 
 func BuildCouchLaunchProfile(tag, agent string, argv []string, agentSource, argvSource string) (string, error) {
@@ -107,6 +108,9 @@ func BuildCouchFreshLaunchProfile(tag, agent string, argv []string, agentSource,
 }
 
 func ValidateTrustedLaunchProfile(profile TrustedLaunchProfile) error {
+	if err := validateRecoveryProfile(profile); err != nil {
+		return err
+	}
 	if profile.FreshNonce != "" {
 		if !profile.FreshRequired || len(profile.FreshNonce) > 1024 || !utf8.ValidString(profile.FreshNonce) || strings.IndexFunc(profile.FreshNonce, unicode.IsControl) >= 0 {
 			return fmt.Errorf("invalid fresh launch nonce")
@@ -188,6 +192,7 @@ func ApplyCouchLaunchProfile(args LaunchArgs, raw string) (LaunchArgs, string, e
 	}
 	args.AgentArgsExplicit = true
 	args.AgentArgsFromCouch = true
+	args.Recovery = cloneRecoveryAuthority(profile.Recovery)
 	args.Prompt = profile.Prompt
 	args.FreshRequired = profile.FreshRequired
 	args.FreshNonce = profile.FreshNonce

@@ -44,13 +44,7 @@ func TestProjectionNormalizesAbsentLayoutIndependentlyOfDefault(t *testing.T) {
 	if row.Layout != Layout2 {
 		t.Fatalf("legacy layout = %q; want Layout2", row.Layout)
 	}
-	if got := ResolveLayoutConflicts(Layout2, []ActionableThreadSummary{row}); len(got) != 0 {
-		t.Fatalf("legacy record conflicts with explicit layout2: %+v", got)
-	}
-	env := newTestEnv(t, "/repo")
-	if got := ResolveLayoutConflicts(env.Couch.Layout, []ActionableThreadSummary{row}); len(got) != 1 {
-		t.Fatalf("legacy record must conflict with default layout3: %+v", got)
-	}
+
 }
 
 func TestProjectionCarriesARecordedLayout(t *testing.T) {
@@ -63,7 +57,7 @@ func TestProjectionCarriesARecordedLayout(t *testing.T) {
 }
 
 // ARCH-SECURE: an unreadable value must not become a plausible default. It
-// surfaces as LayoutUnknown, which refuses visibly against either request.
+// surfaces as LayoutUnknown rather than claiming a known layout.
 func TestProjectionMarksUnreadableLayoutUnknown(t *testing.T) {
 	t.Parallel()
 
@@ -72,11 +66,7 @@ func TestProjectionMarksUnreadableLayoutUnknown(t *testing.T) {
 	if row.Layout != LayoutUnknown {
 		t.Fatalf("row layout = %q; want LayoutUnknown", row.Layout)
 	}
-	for _, requested := range []Layout{Layout2, Layout3} {
-		if got := ResolveLayoutConflicts(requested, []ActionableThreadSummary{row}); len(got) != 1 {
-			t.Fatalf("requested %v: an unreadable layout did not refuse: %+v", requested, got)
-		}
-	}
+
 }
 
 // The witness has to survive the persistence hop, or the guard reads a field

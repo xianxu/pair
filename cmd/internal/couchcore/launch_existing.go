@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/couchidentity"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -36,8 +37,8 @@ type trackedThreadLaunch struct {
 	Begun time.Time
 }
 
-// launchTrackedThread is the single post-claim launch path for both a newly
-// allocated thread and an exact cold resume.
+// launchTrackedThread is the post-claim helper path for a new thread,
+// an exact cold resume, or attachment to an existing terminal.
 func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle, error) {
 	ctx := in.Context
 	if ctx == nil {
@@ -55,29 +56,10 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		return ActorRecord{}, nil, rollback(in.Thread, err)
 	}
 	thread := in.Thread
-	if c.Slots != nil {
-		cwd, err := c.Path.Physical(in.Args.WorkingDir())
-		var tree Worktree
-		if err == nil {
-			tree, err = c.ResolveTree(cwd)
-		}
-		if err == nil {
-			_, err = RelativeFamilyPath(string(tree), cwd)
-		}
-		if err == nil {
-			scope, scopeErr := launcher.ResolveRepoScope(string(tree))
-			if scopeErr != nil {
-				err = scopeErr
-			} else if scope.Key != thread.Address.RepoScope {
-				err = errors.New("launch checkout does not match thread scope")
-			}
-		}
-		if err != nil {
-			return ActorRecord{}, nil, rollback(thread, err)
-		}
-		in.Args.Cwd = cwd
-		in.Args.Worktree = tree
+	if err := c.normalizeTrackedLaunchArgs(&in.Args, thread.Address, in.Warm); err != nil {
+		return ActorRecord{}, nil, rollback(thread, err)
 	}
+
 	steps.mark("checkout")
 
 	// A warm reattach sends NEITHER a layout flag NOR a trusted resume profile,
@@ -172,7 +154,13 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	env = append(env, launcher.CouchSessionIntentEnv+"="+string(intent))
 	steps.mark("prepare")
 	stage = "spawn"
-	h, err := c.Runner.StartBlocked(ctx, in.Args.WorkingDir(), argv, env, 10*time.Second)
+	launchDir := in.Args.WorkingDir()
+	if in.Warm && !c.workingPathExists(thread) {
+		// A client attaches independently of the pane's original checkout.
+		// Keep recorded paths intact; use a neutral existing helper directory.
+		launchDir = string(filepath.Separator)
+	}
+	h, err := c.Runner.StartBlocked(ctx, launchDir, argv, env, 10*time.Second)
 	steps.mark("spawn")
 	if err != nil {
 		return ActorRecord{}, nil, rollback(thread, fmt.Errorf("spawn %s: %w", in.Args.Worktree, err))
@@ -273,6 +261,12 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	stage = "promote registration"
 	registeredThread, err := c.Threads.AdvanceStart(thread.Address, thread.Revision, StartEvent{
 		Kind: StartRegistered, Nonce: in.Nonce, Layout: registeredLayout,
+		Shape: func() StartShape {
+			if in.Warm {
+				return StartWarmReattach
+			}
+			return ""
+		}(),
 	})
 	if err != nil {
 		cause := fmt.Errorf("promote registered thread %+v: %w", thread.Address, err)
@@ -698,6 +692,37 @@ func freshNonceReachesPair(in trackedThreadLaunch) error {
 	}
 	if in.Nonce == "" {
 		return fmt.Errorf("%w: fresh launch requires a nonce", errFreshNonceUnreachable)
+	}
+	return nil
+}
+
+func (c *Couch) normalizeTrackedLaunchArgs(args *StartArgs, address ThreadAddress, warm bool) error {
+	if c.Slots != nil && (!warm || c.Path != nil) {
+		cwd, err := c.Path.Physical(args.WorkingDir())
+		var tree Worktree
+		if err == nil {
+			tree, err = c.ResolveTree(cwd)
+		}
+		if err == nil {
+			_, err = RelativeFamilyPath(string(tree), cwd)
+		}
+		if err == nil {
+			scope, scopeErr := launcher.ResolveRepoScope(string(tree))
+			if scopeErr != nil {
+				err = scopeErr
+			} else if scope.Key != address.RepoScope {
+				err = errors.New("launch checkout does not match thread scope")
+			}
+		}
+		if err != nil && !warm {
+			return err
+		}
+		// Keep the normal repository-root presentation when it is available.
+		// Attachment itself depends on the exact terminal, not this metadata.
+		if err == nil {
+			args.Cwd = cwd
+			args.Worktree = tree
+		}
 	}
 	return nil
 }
