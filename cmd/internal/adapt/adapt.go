@@ -100,6 +100,18 @@ func New(w io.Writer, comp, agent string) *Logger {
 // Returns nil (a no-op Logger) when $PAIR_TAG is unset or the file can't be
 // opened — telemetry failures are never fatal. The caller owns Close.
 func Open(comp, agent string) *Logger {
+	return open(comp, agent, func(path string) (io.WriteCloser, error) {
+		return diagnosticlog.Open(path, diagnosticlog.EnvironmentOptions(os.Getenv))
+	})
+}
+
+// OpenBuffered gives a long-lived emitter one bounded, joined diagnostic owner.
+// Short-lived CLI emitters retain Open's synchronous append contract.
+func OpenBuffered(comp, agent string, options diagnosticlog.Options) *Logger {
+	return open(comp, agent, func(path string) (io.WriteCloser, error) { return diagnosticlog.OpenBuffered(path, options) })
+}
+
+func open(comp, agent string, opener func(string) (io.WriteCloser, error)) *Logger {
 	tag := os.Getenv("PAIR_TAG")
 	if tag == "" {
 		return nil
@@ -109,7 +121,7 @@ func Open(comp, agent string) *Logger {
 		return nil
 	}
 	path := paths.AdaptLog()
-	f, err := diagnosticlog.Open(path, diagnosticlog.EnvironmentOptions(os.Getenv))
+	f, err := opener(path)
 	if err != nil {
 		return nil
 	}

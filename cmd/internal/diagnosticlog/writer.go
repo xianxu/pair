@@ -40,7 +40,20 @@ type Registration struct {
 	Root  string `json:"root,omitempty"`
 }
 type Proof func(ctx context.Context, path string, writers []Registration) error
+
+// IOEffect reports actual completed write bytes and publication operations.
+// It is diagnostic accounting, not a model of filesystem block/journal bytes.
+type IOEffect struct {
+	Operation, Path string
+	Bytes           int
+}
+
 type Options struct {
+	ObserveIO func(IOEffect)
+	// FlushTicks optionally supplies a caller-owned clock for buffered writes.
+	// nil gives the buffered owner its own stopped-and-joined wall ticker.
+	FlushTicks <-chan time.Time
+
 	// appendWrite injects real partial-write outcomes in durability tests.
 	appendWrite func(*os.File, []byte) (int, error)
 	appendSync  func(*os.File) error
@@ -74,7 +87,15 @@ type identity struct {
 	Device uint64 `json:"device"`
 	Inode  uint64 `json:"inode"`
 }
+type unverifiedTail struct {
+	Offset int64  `json:"offset"`
+	Length int    `json:"expected_length"`
+	Digest string `json:"expected_digest"`
+}
+
 type generation struct {
+	UnverifiedTail *unverifiedTail `json:"unverified_tail,omitempty"`
+
 	Name      string    `json:"name"`
 	Identity  identity  `json:"identity"`
 	Start     time.Time `json:"start"`
@@ -91,6 +112,12 @@ type diskState struct {
 	Writers   []Registration `json:"writers"`
 	Pending   *generation    `json:"pending,omitempty"`
 	Deleting  *generation    `json:"deleting,omitempty"`
+}
+
+func (o Options) observe(op, path string, n int) {
+	if o.ObserveIO != nil {
+		o.ObserveIO(IOEffect{op, path, n})
+	}
 }
 
 func normalized(opts Options) Options {
@@ -160,15 +187,7 @@ func Open(path string, options Options) (*Writer, error) {
 		if e := recoverCreation(p, &s, options); e != nil {
 			return e
 		}
-		if e := recoverAppend(p, &s, options, false); e != nil {
-			return e
-		}
-		if s.Pending == nil && s.Deleting == nil {
-			if e := ensureCurrent(p, &s, options); e != nil {
-				return e
-			}
-		}
-
+		beforeWriters := append([]Registration(nil), s.Writers...)
 		found := false
 		out := s.Writers[:0]
 		for _, r := range s.Writers {
@@ -186,7 +205,31 @@ func Open(path string, options Options) (*Writer, error) {
 		if len(s.Writers) > 1024 {
 			return errors.New("too many diagnostic writers")
 		}
-		return save(p, s, true, options)
+		changed := len(beforeWriters) != len(s.Writers)
+		if !changed {
+			for i := range beforeWriters {
+				if beforeWriters[i] != s.Writers[i] {
+					changed = true
+					break
+				}
+			}
+		}
+		if changed {
+			if err := save(p, s, true, options); err != nil {
+				return err
+			}
+		}
+
+		if e := recoverAppend(p, &s, options, false); e != nil {
+			return e
+		}
+		if s.Pending == nil && s.Deleting == nil {
+			if e := ensureCurrent(p, &s, options); e != nil {
+				return e
+			}
+		}
+
+		return nil
 	})
 	if e != nil {
 		return nil, e
@@ -442,6 +485,9 @@ func validate(s diskState, path string) error {
 	if s.Version != 1 || s.Path != path {
 		return errors.New("invalid diagnostic identity")
 	}
+	if s.Current.UnverifiedTail != nil {
+		return errors.New("unverified diagnostic generation cannot be current")
+	}
 	if s.Current.Name != "" {
 		return errors.New("diagnostic current cannot name a segment")
 	}
@@ -463,7 +509,7 @@ func validate(s diskState, path string) error {
 		return errors.New("conflicting diagnostic operations")
 	}
 	validGeneration := func(g generation) bool {
-		return g.Identity != (identity{}) && !g.Start.IsZero() && !g.LastWrite.IsZero() && !g.ModTime.IsZero() && g.Size >= 0
+		return g.Identity != (identity{}) && !g.Start.IsZero() && !g.LastWrite.IsZero() && !g.ModTime.IsZero() && g.Size >= 0 && validUnverifiedTail(g)
 	}
 	if s.Creating != nil && (!validGeneration(*s.Creating) || s.Creating.Size != 0 || s.Creating.Name != "" || s.Current.Identity != (identity{})) {
 		return errors.New("invalid creation intent")
@@ -529,13 +575,19 @@ func publishJSON(stageDir, path string, value any, durable bool, o Options, afte
 	if err := o.checkContext(); err != nil {
 		return err
 	}
-	if _, err := f.Write(b); err != nil {
-		return err
+	n, writeErr := f.Write(b)
+	o.observe("write", path, n)
+	if writeErr != nil {
+		return writeErr
+	}
+	if n != len(b) {
+		return io.ErrShortWrite
 	}
 	if durable {
 		if err := o.checkContext(); err != nil {
 			return err
 		}
+		o.observe("sync", f.Name(), 0)
 		if err := f.Sync(); err != nil {
 			return err
 		}
@@ -554,6 +606,7 @@ func publishJSON(stageDir, path string, value any, durable bool, o Options, afte
 	if err := os.Rename(stage, path); err != nil {
 		return err
 	}
+	o.observe("rename", path, 0)
 	if durable {
 		if stageDir != filepath.Dir(path) {
 			return errors.Join(syncDir(stageDir), syncDir(filepath.Dir(path)))
@@ -624,10 +677,13 @@ func validSegment(name string) bool {
 	return e == nil
 }
 func rotate(path string, s *diskState, o Options) error {
+	return rotateGeneration(path, s, s.Current, o)
+}
+
+func rotateGeneration(path string, s *diskState, g generation, o Options) error {
 	if err := o.checkContext(); err != nil {
 		return err
 	}
-	g := s.Current
 	// Hot appends are atomically tracked but best-effort durable. Flush and
 	// revalidate their payload before publishing durable rotation authority.
 	f, e := openRegular(path, syscall.O_RDONLY)

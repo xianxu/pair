@@ -260,6 +260,9 @@ func retireEmpty(path string, s diskState, o Options) error {
 			return nil
 		}
 	}
+	if e := removeReservation(path, o); e != nil {
+		return e
+	}
 	f, e := os.Open(directory(path))
 	if e != nil {
 		return e

@@ -2,8 +2,10 @@ package diagnosticlog
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -240,4 +242,145 @@ func FuzzDecideSegmentAge(f *testing.F) {
 func registryEntriesForTest(root string) ([]RegistryEntry, error) {
 	page, err := EnumerateRoot(context.Background(), root, 0, 100)
 	return page.Entries, err
+}
+
+func TestRegistryRepeatedOpenPreservesDeclaration(t *testing.T) {
+	path, _, opts := fixture(t)
+	root := t.TempDir()
+	opts.Registry = func(ctx context.Context, entry RegistryEntry) error { return register(ctx, root, entry) }
+	w, err := Open(path, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	canonicalPath, err := canonical(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entry := RegistryEntry{Version: 1, Path: canonicalPath, Directory: directory(canonicalPath), Lock: lockPath(canonicalPath)}
+	sum := sha256.Sum256([]byte(entry.Path))
+	declaration := filepath.Join(RegistryDirectory(root), fmt.Sprintf("%x.json", sum))
+	before, err := os.Stat(declaration)
+	if err != nil {
+		t.Fatal(err)
+	}
+	staged := false
+	if err := registerWithHook(context.Background(), root, entry, func() error { staged = true; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if staged {
+		t.Error("unchanged registry declaration staged a replacement")
+	}
+	for range 3 {
+		w, err = Open(path, opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := w.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	after, err := os.Stat(declaration)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !os.SameFile(before, after) || !before.ModTime().Equal(after.ModTime()) {
+		t.Error("repeated Open rewrote unchanged registry declaration")
+	}
+	if err := os.Remove(declaration); err != nil {
+		t.Fatal(err)
+	}
+	staged = false
+	if err := registerWithHook(context.Background(), root, entry, func() error { staged = true; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if !staged {
+		t.Error("missing registry declaration was not republished")
+	}
+	if _, err := os.Stat(declaration); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRegistryRegisterRefusesExistingChangedDeclaration(t *testing.T) {
+	for _, kind := range []string{"altered", "malformed", "unknown-field", "symlink", "directory"} {
+		t.Run(kind, func(t *testing.T) {
+			root := t.TempDir()
+			path, err := canonical(filepath.Join(root, "trace.log"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			entry := RegistryEntry{Version: 1, Path: path, Directory: directory(path), Lock: lockPath(path)}
+			if err := register(context.Background(), root, entry); err != nil {
+				t.Fatal(err)
+			}
+			sum := sha256.Sum256([]byte(path))
+			declaration := filepath.Join(RegistryDirectory(root), fmt.Sprintf("%x.json", sum))
+			switch kind {
+			case "altered":
+				changed := entry
+				changed.Lock += ".changed"
+				b, err := json.Marshal(changed)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(declaration, b, 0600); err != nil {
+					t.Fatal(err)
+				}
+			case "malformed":
+				if err := os.WriteFile(declaration, []byte("{"), 0600); err != nil {
+					t.Fatal(err)
+				}
+			case "unknown-field":
+				b, err := json.Marshal(entry)
+				if err != nil {
+					t.Fatal(err)
+				}
+				b = append(b[:len(b)-1], []byte(",\"unknown\":true}")...)
+				if err := os.WriteFile(declaration, b, 0600); err != nil {
+					t.Fatal(err)
+				}
+			case "symlink", "directory":
+				if err := os.Remove(declaration); err != nil {
+					t.Fatal(err)
+				}
+				if kind == "symlink" {
+					target := filepath.Join(root, "target")
+					b, err := json.Marshal(entry)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if err := os.WriteFile(target, b, 0600); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.Symlink(target, declaration); err != nil {
+						t.Fatal(err)
+					}
+				} else if err := os.Mkdir(declaration, 0700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			before, err := os.Lstat(declaration)
+			if err != nil {
+				t.Fatal(err)
+			}
+			staged := false
+			err = registerWithHook(context.Background(), root, entry, func() error { staged = true; return nil })
+			if err == nil {
+				t.Error("unsafe or changed declaration was overwritten")
+			}
+			if staged {
+				t.Error("replacement was staged before declaration validation")
+			}
+			after, err := os.Lstat(declaration)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !os.SameFile(before, after) || !before.ModTime().Equal(after.ModTime()) {
+				t.Error("refusal mutated existing declaration")
+			}
+		})
+	}
 }
