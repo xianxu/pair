@@ -54,3 +54,7 @@ ARCH-DRY: one filesystem discovery implementation shared by tests, recording fix
 - [ ] Run make build and the full suite with defaults; preserve all failures and distinguish pre-existing ones from trimpath regressions. Use the recorded suite for final candidate verification where possible to avoid redundant full runs.
 - [ ] Close through SDLC's fresh-context review; address findings. Open PR and tell the hub its exact URL/head and .sdlc delta for the operator's local-gates-verified label. Never apply that label ourselves.
 - [ ] Once the operator-controlled gate and required checks pass, merge main and land via sdlc merge --yes. Report real merge hash and measurements to hub, then stop.
+
+## Revisions
+
+- 2026-10-15: TL approved 3a4eb910 with an exact recorded suite argv: `make PAIR_GO_TRIMPATH=-trimpath test`. The Make variable defaults to `-trimpath`; `PAIR_GO_TRIMPATH=` is the explicit diagnostic opt-out. Preserve existing GOFLAGS and avoid adding a duplicate flag. This supersedes the optional recorded-command/override alternatives above. Checkout discovery validates the nearest module and rejects foreign nested modules rather than borrowing enclosing assets.
