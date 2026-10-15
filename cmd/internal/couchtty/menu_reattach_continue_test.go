@@ -100,9 +100,11 @@ func TestContinuePassPendingRowsLeaveUnrelatedOperationsResponsive(t *testing.T)
 
 func TestFailedContinueRetryUsesExactSlotAddressAndKeepsFailureWhenBlocked(t *testing.T) {
 	row := reattachRow("worker", couchcore.ThreadLive, 0)
-	row.Target.Kind = couchcore.ThreadTargetSlot
-	row.Target.Slot.WorktreeRoot = "/slot"
-	row.RowKey = couchcore.ThreadRowKey{Kind: couchcore.ThreadTargetSlot, SlotPath: "/slot"}
+	slot := menuSlotRow(1, "worker")
+	row.Target, row.RowKey = slot.Target, slot.RowKey
+	if err := row.Target.Validate(); err != nil {
+		t.Fatal(err)
+	}
 	state := NewMenuState([]couchcore.ActionableThreadSummary{row}, menuAddress("couch-root"))
 	state.Reattach.Failed = map[couchcore.ThreadAddress]string{row.Address: "helper failed"}
 	blocked := state
