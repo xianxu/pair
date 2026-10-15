@@ -72,6 +72,7 @@ Rows map to issue/spec, session-name cache, activity cache, ledger reuse, messag
 ## Log
 
 ### 2026-10-14
+- 2026-10-14: closed — Full make test passed eaa222a565b6f1532489111402d0e577b7dc6be7 (10m48s, sdlc-local/suite bd8da6d48491). Corrected production passes affected packages, integrated cache races, both named 20slot x30MB zero-body/decoder invariants and history-independent allocations. BR2/BR3 accepted last review. Independent BR1 read-failure/write-success test now passes20race repeats and fails when only catalog-load failure guard is removed; separate write-failure test retained. No production delta since prior review. Final full suite includes strengthened test and remains a landing gate. TL directs land on SHIP then hub/operator live CPU below5percent over60s plus ordinary delivery after restart; pair:0 untouched.; review verdict: SHIP
 
 Claimed as separate #559 because #157's complete forest CLI contract is materially broader. start-plan refreshed pair and Ariadne and required its normal retry; no branch/code existed before the successful retry. Read-only samples: /tmp/pair-hotloop-live.sample (3 seconds) and /tmp/pair559-live-5s.sample (5 seconds). ps observed pid 16699 at 95.3% CPU, cumulative CPU 47:48.82 at elapsed 2:00:33. The first sample catches Broker messageAuthority.current -> ListedPairSessionContext -> resolveScopedBindings -> ReadSessionNameIndex -> DecodeSessionNameIndex. The second also catches advanceActivity -> wireIdleFading -> QuerySessionContext -> ValidateTargetWork. Stack occurrence counts are not CPU percentages.
 

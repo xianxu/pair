@@ -193,3 +193,88 @@ output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/inte
 
 truncated: false
 retained-bytes: 0000000412
+
+---
+
+## Re-review — 2026-10-14T17:55:26-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 559 — Stop reparsing inventory on Couch ticks |
+| repo | pair |
+| issue file | workshop/issues/000559-couch-tick-inventory.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 4780a55286f5a171d64907cf03d9c12c7a2ce656..6488217f14d78860407e5adcb466e1487d1a1c8a |
+| command | sdlc close --issue 559 |
+| reviewer | codex |
+| isolation | fenced |
+| timestamp | 2026-10-14T17:55:26-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range satisfies the cache-reuse contract without weakening scanner or live-ownership checks. BR-1 is now supported by independent regressions that fail when its guards are removed. No new blocking findings were found.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      query.go:369-395 invalidates incomplete owner observations; activity_cache.go:400-410 records catalog failures and prevents publication at lines 214-218. Removing owner invalidation failed all four recovery cases and active-loader fencing; removing only catalog-read tracking failed both read-failure subcases. Unmodified tests pass.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Prior disposition upheld. compactOwnerLaunch retains consumed current authority and compact previous resume identity; substantive retention and current-proof preservation tests pass.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Prior disposition upheld. Barrier-controlled waiter cancellation, active cancellation, replacement, and repeated-drift regressions exercise production cache publication and pass under the race detector.
+```
+
+1. **Strengths**
+
+   - Strict index decoding and existing ledger/scanner reducers remain authoritative.
+   - Caller-owned caches share evidence across runtime copies while preserving fresh ownership checks.
+   - The idle release fixture parses 600,000,000 ledger bytes cold, then performs zero unchanged body reads or decodes.
+   - Atlas documentation describes ownership, invalidation, bounded retention, and remaining cold costs.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   All six affected packages passed: launcher, sessioninventory, threadactivity, couchcore, couchcmd, and artifactpath. Targeted cache and wiring tests passed with `-race`. Both named release regressions passed; warm allocations were identical for 1 KB and 30 MB histories. BR-1 counterfactuals failed as expected. `git diff --check` passed. The repository-wide required suite was not rerun during this review.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** existing parsers, reducers, fingerprints, and authority rules are reused.
+   - **ARCH-PURE — pass:** projections, equality, and transitions are directly tested; IO remains in observation adapters.
+   - **ARCH-PURPOSE — pass:** collision, resume-resolution, and activity consumers use the intended shared caches.
+   - **ARCH-MOCK — pass:** stateful file/catalog fixtures exercise the production seams; no new external dependency.
+   - **ARCH-CONSTRAINTS — pass:** bounded entries, bounded retries, and deterministic warm-work measurements match the declared envelope.
+   - **ARCH-SECURE — pass:** incomplete observations invalidate evidence or prevent publication.
+   - **ARCH-ORDER — pass:** serialized loads, publication fencing, and controlled interleavings cover the applicable ordering risks.
+   - **ARCH-FUNERAL — pass:** caches introduce no durable artifacts; eviction and caller lifetime bound retention.
+
+7. **Plan revision recommendations:** None. The revisions accurately distinguish local review from separately gated suite, landing, and hub-owned live acceptance.
+
+## Review preparation and protocol diagnostics
+
+Quoted values are diagnostic data, not review verdicts.
+Preparation attempt 1; duration 3.577884542s
+head: "6488217f14d78860407e5adcb466e1487d1a1c8a"
+command: "make" "runtimebundle-generate"
+error: ""
+output: "go run ./cmd/internal/runtimebundle/generatecmd --repo . --out cmd/internal/runtimebundle/assets/runtime\n"
+
+truncated: false
+retained-bytes: 0000000412
