@@ -1145,3 +1145,8 @@ No follow-up implementation starts on this branch.
   Scheduling overlay reproduced5/5, context fence countermeasurement20/20.
   Evidence /tmp/pair528-stop-pass-schedule.log and /tmp/pair528-stop-pass-guard.log.
   Correct the dispatch boundary, not the test's assertion or timeout.
+
+- Cancellation regression: deterministic enqueue/cancel/dequeue test RED on
+  unchanged source (0.273s, cancelled request reached dispatcher); with one
+  context check before background dispatch, Stop/pass regression group GREEN
+ 30 repetitions (0.638s). Existing one-attempt assertion and deadlines unchanged.

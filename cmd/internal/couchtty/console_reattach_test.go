@@ -512,3 +512,26 @@ func TestTheFrameThePassLeavesBehindIsPainted(t *testing.T) {
 		return false
 	})
 }
+
+// A completion can schedule another queued attempt while Stop is cancelling
+// the pass. Dequeueing that request must not invoke a cancelled dispatcher.
+func TestQueuedBackgroundAttachCancelledBeforeDispatch(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	dispatched := false
+	c := &Console{lifetime: ctx, operationQueue: newOperationQueue(1)}
+	c.ops = func(call couchcore.OperationCall) (any, error) {
+		dispatched = true
+		return nil, call.Context.Err()
+	}
+	c.runBackgroundOperation(MenuEffect{Operation: "resume", Attempt: 1})
+	request := <-c.operationQueue.requests
+	cancel()
+	_, err := request.run()
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("queued cancelled request error = %v", err)
+	}
+	if dispatched {
+		t.Fatal("cancelled queued attachment reached dispatcher")
+	}
+}

@@ -63,6 +63,11 @@ func (c *Console) runBackgroundOperation(effect MenuEffect) {
 	_, err := c.operationQueue.Enqueue(operationRequest{key: key, name: effect.Operation, origin: origin, run: func() (any, error) {
 		operationContext, cancelOperation := context.WithCancel(c.lifetime)
 		defer cancelOperation()
+		// Stop can cancel the pass after this request was enqueued. Do not
+		// dispatch another attachment while its cancelled predecessor finishes.
+		if err := operationContext.Err(); err != nil {
+			return nil, err
+		}
 		return fn(couchcore.OperationCall{Name: effect.Operation, Args: requestArgs, Implicit: true, Context: operationContext})
 	}})
 	if err != nil {
