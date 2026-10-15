@@ -811,6 +811,31 @@ no new finding IDs. Close did not finalize. The plan appends native positional
 grammar treatment and full selector-family regression sweep. Fix, build, recorded
 full suite and normal close re-review remain; no waiver or landing claimed.
 
+
+### 2026-10-15 — whole-issue BR-6 grammar correction verified
+
+`d0d409ae2c070c210892388414a89e42af280c31` replaces raw FlagRegion truncation
+with one command/option/positional parser. RED launcher0.224s / wrapper6.577s
+reproduced full canonical Codex resume and exec-resume IDs after `--` bypassing
+both actual transports. GREEN launcher0.201s / wrapper2.763s. Pinning retains an
+exact post-delimiter argv and replaces only the selected positional ID; latest,
+already-bound prompts, leading delimiter, fork/new, flag-valued agents and literal
+mandatory-option `--` values have independent controls. Related native/Fresh/
+Codex compatibility race tests PASS launcher3.396s / wrapper16.279s.
+
+Measured installed help sweep of all six, plus Codex exec/resume and Muse
+exec/resume, found shared value-option omissions corrected at
+`e1a8e54075f684341e03818a171e88e7fedf5dbc`: Muse -c/config/effort/permission-profile;
+Codex exec color/output-last-message/output-schema/thread-source/cyber-access-program.
+Before correction their values could hide resume or become the wrong ID. New
+RED matrix, focused GREEN0.190s and adjacent GREEN0.133s. No additional concrete
+existing-session gaps established for Claude/Agy/Qoder/Grok inspected forms.
+No native launches beyond harmless help and private stub/PTY fixtures.
+
+Corrected normal build PASS; root inspected both code changes. Atlas and lessons
+record the grammar rule. A new normal recorded suite and whole-issue re-review
+follow; M1/M2 closed boundaries remain historical, no waiver or live/stage effect.
+
 ## Revisions
 
 ### 2026-10-15T05:33-07:00 — overnight M2 dispatch

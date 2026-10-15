@@ -1913,3 +1913,5 @@ Deleting the orientation delivery also deleted the only `automaticRenderEpoch.Ad
 
 - #556 M2 review: classify existing-session selectors from the same context authority used by Fresh validation; a remote/PR selector is not an ordinary launch simply because inventory cannot resolve it. Test both native wrapper entry forms and literal option/prompt controls.
 - #556 M2 review: a reserved capability needs revocation as well as consumption. Serialize exact dead-helper revocation with Claim, and test both lock orders: revoke first rejects delayed authority; Claim first retains uncertain spawning ownership. Helper death never proves an already-authorized child dead.
+
+- #556 whole-issue BR-6: an option terminator ends flag recognition, not a native command's positional identity grammar. Parse command/option/positional modes together, including literal -- option values; pin by token identity, not the first raw delimiter. Test canonical IDs after -- through launcher and both wrapper transports, with latest, prompt, fork/new and real value-option controls.

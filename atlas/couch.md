@@ -3883,7 +3883,7 @@ one line at actual execution saying concurrent native resume is not guarded.
 This explicit compatibility exception lasts until the faithful adapter in #571;
 it never bypasses a nonempty invalid or replayed grant, and full canonical UUID
 resumes still require admission. Unknown indirect targets are not recorded as
-proven canonical IDs. Forks and newly chosen
+proven canonical IDs. The classifier follows native command positional grammar after an option terminator: a Codex/Muse resume session ID after `--` remains an identity, while latest/already-bound/top-level prompt text stays literal. Pinning preserves the real delimiter and changes only the selected identity; measured option-value rules are shared with Fresh validation. Forks and newly chosen
 session IDs have separate semantics and never claim the source conversation as
 an existing writer. Saved defaults are not rewritten by resolution.
 
