@@ -20,11 +20,14 @@ import (
 // truncated: enough to recognize a submit (`submitted: <path>`), and no more
 // message content than that is kept.
 type Entry struct {
-	ID        string
-	From      string
-	At        time.Time
-	Head      string
-	Uncertain bool `json:",omitempty"`
+	ID   string
+	From string
+	At   time.Time
+	// AddressedAt is broker admission time, used only to attribute renamed
+	// paths. At remains the delivery horizon, display and retention authority.
+	AddressedAt time.Time `json:",omitempty"`
+	Head        string
+	Uncertain   bool `json:",omitempty"`
 }
 
 // The ledger's bound (ARCH-FUNERAL): a slot's file is trimmed when it grows

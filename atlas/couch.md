@@ -787,6 +787,16 @@ report it. `waitWatcher` (`couchcmd/wait_notice.go`) ticks every 15s
 for a `type: session-sync` file (parley.nvim#313's turn-based operator/agent
 file). Package `sessionsync` owns the rules; `couchcmd/session_sync.go` is the
 CLI. It runs in-process against the store and needs no supervisor.
+- **Agentic documents (#573):** a namespace registry admits plain markdown
+  without changing frontmatter. Stable document identities preserve central
+  shadow/state through metadata-only rename; register/lookup/list/forget are
+  documented in the [Parley caller contract](couch-agentic-documents.md).
+  Explicit couch-owner wins; plain owner metadata is not routing authority.
+  Registration persists until forget, which durably exports current metadata
+  before handing a typed session file back to its legacy route. Historical
+  pathname intervals retain pre-rename owed submits and never expire by age.
+  Operator locks older than 30 minutes still refuse writes, with age/ping
+  advice. The registry is bounded and refuses growth without eviction.
 - **Owner (#443):** the frontmatter's `couch-owner:` names the owning slot
   (parley.nvim#316); a bare `owner:` is a legacy alias read only when
   `couch-owner:` is absent. `ParseOwner` reads the frontmatter line by line,
@@ -798,9 +808,11 @@ CLI. It runs in-process against the store and needs no supervisor.
   16 hex) of the section body as stored (or the whole file), and `write
   --if-hash H` replaces it only if it still hashes to H, else refuses `stale`
   (exit 6, current hash in `Refusal.Hash` / JSON `Hash`). A write without
-  `--if-hash` refuses. Edits in other sections never block. Every verb holds
+  `--if-hash` refuses. Edits in other sections never block. Every legacy-file verb holds
   `flock(LOCK_EX)` on `.<file>.flock` from read to last write, so two couch
-  writers can't both pass the check; parley takes no flock (its lock fences
+  writers can't both pass the check. Registered-file operations and registry
+  changes share the namespace's persistent registry flock; route selection
+  occurs under it, including during a legacy handoff. Parley takes no flock (its lock fences
   it). `release` is a retired no-op (one release, then removed). Sections match
   whole `## HEADING` lines only (`section()` in `file.go`, shared by read and
   replace). Every file a write touches is published by temp+fsync+rename, so a
@@ -827,6 +839,11 @@ CLI. It runs in-process against the store and needs no supervisor.
   `couchmessage` is untouched.
 - **Ledger bound:** a file past 256 KiB is rewritten keeping at most 512 rows
   younger than 14 days, within half the size bound.
+- **Rename attribution (#573):** immutable broker admission time becomes the
+  row's AddressedAt for pathname interval matching; older rows fall back to At.
+  At remains delivery completion time for horizon, status and retention. A
+  queued old-path submit completed after rename/reuse still belongs to the
+  original document, rather than the replacement at its former pathname.
 - **Missing data refuses:** `recording.json` marks a recording Couch, and
   `status` refuses `not-recording` without it.
   - An append failure writes a per-slot `<slot>.gap` record. A restart does not

@@ -47,6 +47,12 @@ func SubmitPath(head string) (string, bool) {
 // for itself. canonical maps a path to its comparable form (symlinks
 // resolved); the caller passes it so this stays pure.
 func Owed(rows []Entry, st State, file string, canonical func(string) string) []OwedEvent {
+	return OwedForDocument(rows, st, file, st.SubmitPaths, canonical)
+}
+
+// OwedForDocument uses the historical binding at the event's timestamp; a
+// reused old pathname does not inherit the former document's submissions.
+func OwedForDocument(rows []Entry, st State, file string, paths []PathInterval, canonical func(string) string) []OwedEvent {
 	folded := make(map[string]bool, len(st.Folded))
 	for _, id := range st.Folded {
 		folded[id] = true
@@ -62,7 +68,24 @@ func Owed(rows []Entry, st State, file string, canonical func(string) string) []
 		// A submit names an absolute path; a malformed one stays owed as a
 		// plain delivery rather than vanishing.
 		if p, ok := SubmitPath(r.Head); ok && filepath.IsAbs(p) {
-			if canonical(p) != self {
+			matches := canonical(p) == self
+			if len(paths) > 0 {
+				matches = false
+				addressedAt := r.AddressedAt
+				if addressedAt.IsZero() {
+					addressedAt = r.At
+				}
+				for _, binding := range paths {
+					if addressedAt.Before(binding.From) || (binding.Until != nil && !addressedAt.Before(*binding.Until)) {
+						continue
+					}
+					if canonical(p) == binding.File || p == binding.Spelling {
+						matches = true
+						break
+					}
+				}
+			}
+			if !matches {
 				continue
 			}
 			kind = KindSubmit

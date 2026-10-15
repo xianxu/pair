@@ -88,6 +88,93 @@ func runSS(t *testing.T, rt testRT, args ...string) (int, string, string) {
 	return code, out.String(), errout.String()
 }
 
+func TestSessionSyncRegistryCLIContract(t *testing.T) {
+	rt, _ := sessionSyncRT(t)
+	file := filepath.Join(t.TempDir(), "ordinary note.md")
+	if err := os.WriteFile(file, []byte("## Work\n\nplain\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	call := func(args ...string) map[string]any {
+		t.Helper()
+		code, out, errout := runSS(t, rt, args...)
+		if code != 0 {
+			t.Fatalf("%v: exit%d %s %s", args, code, out, errout)
+		}
+		var response map[string]any
+		if err := json.Unmarshal([]byte(out), &response); err != nil {
+			t.Fatal(err)
+		}
+		if response["Code"] != "ok" {
+			t.Fatalf("response %+v", response)
+		}
+		return response
+	}
+	if response := call("lookup", file, "--json"); response["Registration"] != nil {
+		t.Fatalf("absence %+v", response)
+	}
+	first := call("register", file, "--owner", "ops:0", "--json")
+	registration := first["Registration"].(map[string]any)
+	if registration["Owner"] != "ops:0" || registration["RegisteredOwner"] != "ops:0" || registration["ID"] == "" || first["Changed"] != true {
+		t.Fatalf("registration %+v", first)
+	}
+	if replay := call("register", file, "--owner", "ops:0", "--json"); replay["Changed"] != false || replay["Registration"].(map[string]any)["ID"] != registration["ID"] {
+		t.Fatalf("replay %+v", replay)
+	}
+	if response := call("list", "--json"); len(response["Registrations"].([]any)) != 1 {
+		t.Fatalf("list %+v", response)
+	}
+	status := call("status", file, "--json")
+	if status["Status"].(map[string]any)["Owner"] != "ops:0" {
+		t.Fatalf("status %+v", status)
+	}
+	newFile := filepath.Join(filepath.Dir(file), "renamed.md")
+	if err := os.Rename(file, newFile); err != nil {
+		t.Fatal(err)
+	}
+	move := call("rename", file, newFile, "--json")
+	if move["Registration"].(map[string]any)["ID"] != registration["ID"] {
+		t.Fatalf("move %+v", move)
+	}
+	call("forget", newFile, "--json")
+	if response := call("lookup", newFile, "--json"); response["Registration"] != nil {
+		t.Fatalf("forgotten %+v", response)
+	}
+}
+
+func TestSessionSyncRegistryLookupFailureCannotBeAbsence(t *testing.T) {
+	rt, _ := sessionSyncRT(t)
+	file := filepath.Join(t.TempDir(), "note.md")
+	if err := os.WriteFile(file, []byte("note"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if code, out, errout := runSS(t, rt, "register", file, "--owner", "ops:0", "--json"); code != 0 {
+		t.Fatalf("register %s %s", out, errout)
+	}
+	if err := os.Remove(file); err != nil {
+		t.Fatal(err)
+	}
+	code, out, _ := runSS(t, rt, "lookup", file, "--json")
+	if code == 0 {
+		t.Fatalf("unavailable succeeded: %s", out)
+	}
+	var response map[string]any
+	if err := json.Unmarshal([]byte(out), &response); err != nil {
+		t.Fatal(err)
+	}
+	if response["Code"] == "ok" || response["Error"] == "" {
+		t.Fatalf("unavailable: %+v", response)
+	}
+}
+
+func TestSessionSyncLookupJSONUsageFailureIsUnavailable(t *testing.T) {
+	rt,_:=sessionSyncRT(t)
+	code,out,_:=runSS(t,rt,"lookup","--json")
+	if code==0{t.Fatal("invalid lookup succeeded")}
+	var response map[string]any
+	if err:=json.Unmarshal([]byte(out),&response);err!=nil{t.Fatalf("missing refusal envelope: %q: %v",out,err)}
+	if response["Code"]=="ok"||response["Error"]==""{t.Fatalf("invalid lookup looked absent: %+v",response)}
+}
+
 func TestSessionSyncStatusJSONIsTheAgreedEnvelope(t *testing.T) {
 	rt, file := sessionSyncRT(t)
 	code, out, errout := runSS(t, rt, "status", "--json", file)

@@ -134,3 +134,20 @@ PQ-3: The task prose now points to these named risk strategies rather than dupli
 | parseSessionSyncCLI / runSessionSyncCLI | Fuzz argv/value boundaries plus stateful temp namespace/runtime/broker; successful envelopes must match committed state and failed/unrecognized probes must never look like confirmed absence. |
 
 Parley accepted the concrete contract, including rename returning effective Registration plus Changed. An unsupported older binary may emit nonzero usage text rather than JSON; only exit 0 + Code ok + explicit Registration:null proves absence. Nonzero, malformed/missing JSON or a missing Registration field means unavailable. Freeze the shared caller contract in atlas/couch-agentic-documents.md, linked from atlas/index.md, and send its commit/path to parley.nvim:2 before public-verb implementation.
+
+### 2026-10-15 11:21 PDT — admitted-submit attribution across delayed delivery
+
+TL explicitly approved this scoped delta after implementation exposed a real ordering gap: Entry.At is when delivery completes, so a submit admitted before a rename can finish afterward and be incorrectly filtered by pathname intervals. Add immutable broker-owned Message.AcceptedAt, stamped at direct admission/enqueue and retained by queue promotion. The recorder persists it as Entry.AddressedAt. Only interval matching uses AddressedAt (falling back to At for older rows); the existing delivery horizon, status display and retention continue to use At. No public command/Parley contract change. A stable submit document ID is outside this bounded fix; the caller still registers and submits before its subsequent rename transaction.
+
+| Pure entity | Lives in | Status |
+|-------------|----------|--------|
+| Message.AcceptedAt | cmd/internal/couchmessage/model.go | modified |
+| Entry.AddressedAt | cmd/internal/sessionsync/ledger.go | modified |
+| OwedForDocument | cmd/internal/sessionsync/owed.go | modified |
+
+| Integration point | Lives in | Status | Wraps |
+|-------------------|----------|--------|-------|
+| Broker admission/enqueue | cmd/internal/couchmessage/broker.go | modified | broker clock and immutable message |
+| Delivery recorder | cmd/internal/couchcmd/message_deliveries.go | modified | completion-time ledger append |
+
+Test strategy: TestBrokerAcceptanceTimeSurvivesQueuedPromotion advances an atomic fake clock through real broker admission/promotion; acceptance stays fixed while the deadline changes. TestQueuedSubmitRemainsOwedAfterRenameAndOldPathReuse uses the real message service/ledger and an endpoint barrier: enqueue before rename, reuse OLD for a new registration, then complete delivery; the original document must owe the submit and its replacement must not. Observed RED before the recorder/matcher change, then GREEN. ARCH-ORDER distinguishes address-time identity from completion-time delivery evidence; neither timestamp substitutes for the other.

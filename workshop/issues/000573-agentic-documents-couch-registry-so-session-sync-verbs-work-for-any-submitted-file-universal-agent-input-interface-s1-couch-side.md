@@ -63,6 +63,18 @@ Claimed on TL dispatch; read ops project's project.md and design.md before desig
 TL approved the concrete plan, with 4096 registrations / 16 MiB registry and explicit forget advice on overflow. No :0 staging for #573: land independently, TL rebuilds, and the combined plain-note live check follows parley.nvim#332 staging and operator restarts. Await Parley contract agreement before implementing the public verbs. Full flow is selected for the planned code volume; no estimate derived before plan-quality.
 
 
+
+### 2026-10-15 — implementation checkpoint
+
+Plan-quality round 1 found stale legacy metadata on forget, an incorrect assumption of unconditional 14-day ledger expiration, and verbose test inventories; all three were addressed. Rounds 2 and 3 returned CLEAN/high with no open findings. change-code admitted full flow after derived 1.704h estimate (calibration flagged stale). Estimate-quality INFO cautioned that durability/handoff and verification allowances are optimistic; own verification, coordination and landing are included in the module/review allocations, while the TL's combined postlanding editor acceptance is separate. Actual remains measured at close.
+
+Parley accepted register/lookup/rename semantics and filesystem ownership; frozen caller contract committed at 432fab15c7f655d2392d823053e37b575638ee7b in atlas/couch-agentic-documents.md and sent to parley.nvim:2. The producer model was delegated as a bounded pure task; metadata/CLI integration stayed here. Core implementation supports all registered verbs, stable central state, durable legacy handoff and old-path submits. Tests captured plain-file refusal/stale legacy handoff/missing aged-lock advice before integration, then passed. A private-publication fault keeps central authority through partial legacy export. Same-identity register after uncertain publication retains registration horizon. Real symlink-parent and two-process registered CAS controls pass.
+
+Queued-submit loss was independently confirmed: delivery recorder timestamps completion, potentially long after a rename. Requested and received TL approval for the additive AcceptedAt/AddressedAt delta; real broker queue/rename/path-reuse/late-completion test first lost the original submit, then passed after using address-time evidence. Broker focused/full/race tests passed independently (0.162s/7.043s/1.191s). Focused races passed sessionsync/couchmessage/couchcmd (4.768s/1.488s/2.816s); earlier complete sessionsync race passed 10.061s. CLI contract/status/read tests passed 2.055s; make build passed. Latest full sessionsync/artifactpath package checks remain in flight at this checkpoint; required pushed-head full suite, close review and landing remain outstanding. No :0 staging or operator acceptance claimed.
+
+Updated embedded Couch reference passed a fresh-reader retrieval/application check: old reference lacked registration/rename/age/unsupported-binary facts; current reference supplied the safe protocol, including null-only absence and never expiring the lock. No user files edited by reference probes.
+
+
 ## Estimate
 
 Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. Calibration source is flagged stale by sdlc, so the result is provisional.
@@ -82,3 +94,9 @@ item: milestone-review design=0.02 impl=0.16
 design-buffer: 0.15
 total: 1.704
 ```
+
+## Revisions
+
+### 2026-10-15 11:21 PDT — queue-safe rename attribution
+
+TL approved immutable broker AcceptedAt and additive ledger AddressedAt for historical pathname matching only. Completion time retains its existing delivery/status/retention meaning. This fixes queued pre-rename submits completed after rename, without changing the public caller contract. The durable plan records the exact state ordering and cross-service regression.

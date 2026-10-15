@@ -12,9 +12,12 @@ import (
 // It is bounded by the ledger: Folded is pruned to IDs still in the ledger
 // on every save.
 type State struct {
-	Since     time.Time
-	LastWrite *time.Time `json:",omitempty"`
-	Folded    []string
+	// SubmitPaths preserves renamed paths when a registration hands authority
+	// back to a legacy session-sync file. Registered documents use the registry.
+	SubmitPaths []PathInterval `json:",omitempty"`
+	Since       time.Time
+	LastWrite   *time.Time `json:",omitempty"`
+	Folded      []string
 	// GapAccepted is the latest ledger gap the agent acknowledged for this
 	// file (--accept-gap); a later gap refuses again.
 	GapAccepted *time.Time `json:",omitempty"`
@@ -59,9 +62,13 @@ func (st *State) Fold(ids []string, rows []Entry) {
 }
 
 func saveState(p Paths, st State) error {
+	return saveStateUsing(p, st, writeAtomic)
+}
+
+func saveStateUsing(p Paths, st State, publish func(string, []byte) error) error {
 	raw, err := json.MarshalIndent(st, "", "  ")
 	if err != nil {
 		return err
 	}
-	return writeAtomic(p.State, append(raw, '\n'))
+	return publish(p.State, append(raw, '\n'))
 }
