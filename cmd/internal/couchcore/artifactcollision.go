@@ -81,6 +81,11 @@ func (NoThreadArtifactCollisions) Quiesce(ThreadAddress) error { return nil }
 
 type ScopedThreadArtifactCollisionChecker struct {
 	GlobalDataDir string
+	// SessionIndexes is shared by value copies; nil preserves uncached literals.
+	SessionIndexes *launcher.SessionNameIndexCache
+	// OwnerLaunches spans scoped inventory runtimes created by this checker.
+	OwnerLaunches *sessioninventory.OwnerLaunchCache
+	InventoryWork sessioninventory.QueryWorkObserver
 	Sessions      launcher.SessionDeleter
 	OwnerProbe    SessionOwnerProber
 	// Zellij is how the checker observes sessions. The zero value is the real
@@ -101,7 +106,7 @@ func (c ScopedThreadArtifactCollisionChecker) serverStates() launcher.ServerStat
 }
 
 func NewScopedThreadArtifactCollisionChecker(globalDataDir string) ScopedThreadArtifactCollisionChecker {
-	return ScopedThreadArtifactCollisionChecker{GlobalDataDir: globalDataDir, Sessions: launcher.OSRuntime{}}
+	return ScopedThreadArtifactCollisionChecker{GlobalDataDir: globalDataDir, Sessions: launcher.OSRuntime{}, SessionIndexes: launcher.NewSessionNameIndexCache(), OwnerLaunches: sessioninventory.NewOwnerLaunchCache()}
 }
 
 func (c ScopedThreadArtifactCollisionChecker) PairLifecycleIO() LifecycleIO {
@@ -275,8 +280,7 @@ func (c ScopedThreadArtifactCollisionChecker) PairSessionName(ctx context.Contex
 	if err != nil {
 		return "", err
 	}
-	runtime := launcher.NewScopedOSRuntime(c.GlobalDataDir, paths.ScopeDir(), "")
-	index, err := runtime.ReadSessionNameIndex()
+	index, err := c.readSessionIndex(ctx, paths.ScopeDir())
 	if err != nil {
 		return "", fmt.Errorf("read exact Pair session index: %w", err)
 	}
@@ -431,7 +435,7 @@ func (c ScopedThreadArtifactCollisionChecker) resolveScopedBindings(ctx context.
 		if err != nil {
 			return nil, nil, nil, err
 		}
-		index, err := launcher.NewScopedOSRuntime(c.GlobalDataDir, scopeDir, "").ReadSessionNameIndex()
+		index, err := c.readSessionIndex(ctx, scopeDir)
 		if err != nil {
 			continue
 		}
@@ -654,7 +658,7 @@ func (c ScopedThreadArtifactCollisionChecker) ResolveEstablished(ctx context.Con
 		return NativeBindingResolution{}, err
 	}
 	return (SessionInventoryNativeBindingResolver{
-		Runtime: sessioninventory.NewOSRuntime(home, paths.ScopeDir()),
+		Runtime: sessioninventory.NewOSRuntime(home, paths.ScopeDir()).WithOwnerLaunchCache(c.OwnerLaunches).WithWorkObserver(c.InventoryWork),
 	}).ResolveEstablished(ctx, repoScope, tag, agent)
 }
 
@@ -710,4 +714,11 @@ func (c ScopedThreadArtifactCollisionChecker) ListedPairSessionContext(ctx conte
 		return result, errors.New("selected listed session is not uniquely attributed")
 	}
 	return result, nil
+}
+
+func (c ScopedThreadArtifactCollisionChecker) readSessionIndex(ctx context.Context, scopeDir string) (launcher.SessionNameIndex, error) {
+	if c.SessionIndexes != nil {
+		return c.SessionIndexes.Read(ctx, c.GlobalDataDir, scopeDir)
+	}
+	return launcher.NewScopedOSRuntime(c.GlobalDataDir, scopeDir, "").ReadSessionNameIndex()
 }

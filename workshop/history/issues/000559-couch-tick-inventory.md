@@ -1,0 +1,115 @@
+---
+id: 000559
+status: done
+deps: []
+github_issue:
+created: 2026-10-14
+updated: 2026-10-14
+estimate_hours: 2.106
+card_mirror: '74ee15933d75dbcfb4110c1f4fda6f0675e0f101' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-14T16:33:51-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:7
+    worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
+    repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
+actual_hours: 2.20
+---
+
+# Stop reparsing inventory on Couch ticks
+
+## Problem
+
+The operator's Couch supervisor pid 16699 (reported build fc145480, staged #528 M1) continuously consumes 40–100% CPU; messaging/socket replies miss deadlines under load. Repeated UI/activity and message-authority observations decode unchanged session indexes and inventory evidence. #157 concerns the full-inventory CLI, whereas this issue is the long-lived Couch hot loop. #508 owns oversized durable ledger rows, not this repeated consumption.
+
+## Spec
+
+- Unchanged warm Couch activity and session-name collision observations perform metadata checks, not index/ledger/native-content JSON decoding proportional to historical bytes.
+- Reuse existing strict parsers, owner-launch cache, artifact fingerprints and scanner authority (ARCH-DRY). Do not replace scanner validation with a filename/native-ID guess.
+- Keep current launch selection, previous-established resume fallback, cross-scope collision rules, and unknown/fail-closed behavior. Cache parsed durable evidence only; live server ownership and effect revalidation remain fresh.
+- Invalidate on append, rewrite, truncation, replacement, disappearance/recreation, catalog/schema changes and any incomplete observation. A failed read never revives earlier success.
+- Caches belong to long-lived callers, are bounded, retain no open descriptors, and disappear at caller exit. No durable schema change, new watcher, TTL authority, UI tick slowdown, or deadline increase.
+- See durable plan workshop/plans/000559-couch-tick-inventory-plan.md. TL reviews before change-code.
+
+## Done when
+
+- Production-wired repeated collision/index observations read/decode unchanged files once; legacy/scoped precedence and ambiguity stay identical to uncached behavior.
+- Production-wired repeated idle activity queries read/decode no unchanged ledger, catalog or transcript bodies after warmup, with memory allocations independent of historical file size.
+- Every changed input triggers existing validation; tests reject stale authority after same-size rewrite, replacement, missing/corrupt inputs and concurrent change/cancellation.
+- A synthetic 15–33 MiB fixture gives before/after CPU or allocation profiles plus deterministic byte/read-count regression; native growth and previous-launch tests remain correct.
+- Targeted/race checks and full required suite pass; close review SHIP; rollout/live CPU and normal-delivery check coordinated with hub.
+
+## Estimate
+
+Produced via brain/data/life/42shots/velocity/estimate-logic-v3.1.md against baseline-v3.1.md. Method A only; calibration is flagged stale by sdlc, so provisional. Use v2.1 thorough-spec design ×0.2 and +15% design buffer, v3.1 implementation ×0.40, familiarity ×1.0. Standard-library synchronization and existing fingerprint/parser/catalog APIs avoid a novel stack; session-index cache design receives the library-availability half. No new external API discovery.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.10 impl=0.08
+item: greenfield-go-module design=0.05 impl=0.32
+item: greenfield-go-module design=0.10 impl=0.32
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: atlas-docs design=0.01 impl=0.08
+item: milestone-review design=0.00 impl=0.20
+design-buffer: 0.15
+total: 2.106
+```
+
+Rows map to issue/spec, session-name cache, activity cache, ledger reuse, message invariant fixture, idle invariant fixture, atlas, one close review. Greenfield implementation uses upper v2 0.8h ×0.4; smaller modules use upper 0.5h ×0.4 for stateful/race coverage. Design subtotal 0.44h, buffered 0.506h; implementation 1.60h, total 2.106h. Prior high-estimate warnings noted: no extra generic risk multiplier or second implementation scale applied.
+
+## Plan
+
+- [x] Add regression fixtures and capture uncached read/allocation profile.
+- [x] Cache strict session-name evidence and share existing ledger parsing across long-lived collision queries.
+- [x] Reuse validated activity projection while its exact dependencies are unchanged; retain changed-input validation.
+- [x] Verify invalidation/races/scale, document cache ownership, run full suite, review, and coordinate acceptance/landing.
+
+## Log
+
+### 2026-10-14
+- 2026-10-14: closed — Full make test passed eaa222a565b6f1532489111402d0e577b7dc6be7 (10m48s, sdlc-local/suite bd8da6d48491). Corrected production passes affected packages, integrated cache races, both named 20slot x30MB zero-body/decoder invariants and history-independent allocations. BR2/BR3 accepted last review. Independent BR1 read-failure/write-success test now passes20race repeats and fails when only catalog-load failure guard is removed; separate write-failure test retained. No production delta since prior review. Final full suite includes strengthened test and remains a landing gate. TL directs land on SHIP then hub/operator live CPU below5percent over60s plus ordinary delivery after restart; pair:0 untouched.; review verdict: SHIP
+
+Claimed as separate #559 because #157's complete forest CLI contract is materially broader. start-plan refreshed pair and Ariadne and required its normal retry; no branch/code existed before the successful retry. Read-only samples: /tmp/pair-hotloop-live.sample (3 seconds) and /tmp/pair559-live-5s.sample (5 seconds). ps observed pid 16699 at 95.3% CPU, cumulative CPU 47:48.82 at elapsed 2:00:33. The first sample catches Broker messageAuthority.current -> ListedPairSessionContext -> resolveScopedBindings -> ReadSessionNameIndex -> DecodeSessionNameIndex. The second also catches advanceActivity -> wireIdleFading -> QuerySessionContext -> ValidateTargetWork. Stack occurrence counts are not CPU percentages.
+
+Important existing behavior: threadactivity already shares OwnerLaunchCache (#507), so adding another ledger-current cache would duplicate it. QueryResumeTarget reads the full owner ledger uncached, and QuerySession loads/validates content/catalog even after an unchanged launch-cache hit. Read-only subagent exploration confirmed these paths and warned that metadata-only resume identity is weaker than current scanner-authorized activity. No operator state, wrapper, or staged checkout changed.
+
+## Revisions
+
+### 2026-10-14 — name both release regression paths
+
+TL relayed the operator's requirement: deterministic bytes-decoded invariants at 20 slots × 30 MB ledgers, covering messageAuthority/ListedPairSessionContext and idle activity QuerySessionContext/ValidateTargetWork separately. Plan now names TestMessageAuthorityUnchangedFilesDecodeZeroBytes and TestIdleActivityTickUnchangedFilesDecodeZeroBytes, with separate actual-read/decoder counters by source family, positive cold/mutated controls, and reusable counter snapshots for #204. Existing Done-when zero-work criteria are strengthened to that exact scale; no timing assertions.
+
+Plan-quality PQ-1: added concrete cache read/query/transition/projection function names with one adversarial strategy and mechanical guard each. This refines the approved design, not scope.
+
+Implementation checkpoint: change-code full flow accepted after plan-quality CLEAN (PQ-1 concrete function contract addressed) and estimate-quality INFO (verification/rollout included in fixture/review rows, activity dependency/publication design remains custom). Bounded subagents implemented strict index cache/checker wiring and shared owner-ledger parse/counters with red-green and targeted race checks. Activity cache implemented with current-launch scanner semantics, metadata dependency capture and per-key publication; separate read-only safety review found a disposable-catalog metadata failure regression, now pinned red then green by TestActivityCacheCatalogMetadataFailureUsesUncachedValidation. Cache falls back to original uncached validation there.
+
+Counted fixture first green: 20 × 30,000,000-byte real streamed ledgers read/decoded 600,000,000 bytes cold, zero read/decode deltas on repeated warm passes. Message fixture cold positive indexes, zero warm bytes while process/thread guards execute. Counterfactual overlays disabling only the relevant cache hit fail both named regressions (activity repeated catalog read/decode; message repeated index read/decode). Integrated targeted activity race checks passed; full sessioninventory package passed during integration, final invariants/benchmark/source inventory validation in progress. No live supervisor mutation, stage, or restart.
+
+Final named regressions passed in /tmp/pair559-final-invariants.log. Warm allocation comparison: 1 KB and 30 MB histories both 297 allocations/query. Twenty-slot benchmark (100 passes): enabled 609,366 B/op and 5,940 allocations/op versus cache-hit-disabled overlay 2,469,997 B/op and 25,047 allocations/op; enabled reads/decodes zero bytes versus 25,109 body/42,629 decoder bytes per pass disabled. Timing measured 6.09 ms vs19.50 ms on this host but is diagnostic only, never the release assertion. Integrated targeted race packages passed; corrected the couchcore test filter to its actual TestPairSessionNameAndScopedBindingsShareIndexCache name. Full source-inventory, launcher, inventory and threadactivity compatibility passed. PR refused uncommitted documentation and suite refused unpushed head; no suite ran in those refused attempts. Commit final docs before publishing, then record suite on pushed head.
+
+Final wiring audit found ResolveEstablished still recreated an inventory runtime without the shared cache. Added TestCollisionNativeBindingReusesLedgerAcrossRuntimeCopies (red missing caller-owned cache/observer, then green), initialized the checker's OwnerLaunches and wired every scoped runtime through it. Both cache integration tests passed -race (1.618s). The already-started full suite remains pinned to bfc7f564; a fresh required suite will run on this final code head rather than treating the old record as final evidence.
+
+Before/after CPU profiles captured for the synthetic20-slot benchmark with phase=warm labels: /tmp/pair559-warm.cpu and /tmp/pair559-disabled.cpu; matching top reports in /tmp/pair559-warm-top.txt and /tmp/pair559-disabled-top.txt. Filtered warm samples show0.21s CPU with caching versus0.97s cache-disabled; the enabled profile has metadata syscalls and no catalog/scanner decoder stacks, while disabled includes CatalogStore.Read, DecodeScannerState and ValidateBindingProof. Sampling/timing is diagnostic, not a threshold or live-supervisor acceptance claim. Profile benchmark allocation values603,317 B/5,941 allocs vs2,500,179 B/25,066 allocs per20-row pass; observed bytes again0/0 enabled versus25,118 body/42,638 decoder disabled. Cold setup is excluded by the warm label.
+
+Added missing-ledger→created-ledger activity invalidation regression; passed. Removed redundant direct index-ready mutation after failed load: begin transition already marks the entry unready, so the pure transition remains the sole state writer. Existing strict-load/race tests cover failure publication.
+
+First complete full suite PASSED: bfc7f564aed9e90492dbe49526034fe157699344, make test exit0 in12m4s, recorded sdlc-local/suite, log sha256 prefix8a9878f379f2. No failures or skipped remainder. Subsequent production delta is only collision inventory runtime shared-cache/observer wiring, covered by both core cache integration tests under -race; latest index change removes redundant state assignment and its targeted race passed. Exact-head required suite on eaa222a565b6f1532489111402d0e577b7dc6be7 is queued, and merge cannot proceed without its recorded pass. Close review is local code acceptance, not live rollout acceptance. Hub received the rollout scheduling request (receipt ef32b236-d530-4b36-bc6a-c2be19f4d9d0 submitted); live CPU/delivery acceptance or explicit alternate decision is still pending, and no stage/restart was performed. The final issue Plan row records verification plus initiated acceptance coordination; landing remains governed by close/CI/suite/live gates below, not claimed done by that tick.
+
+
+### 2026-10-14 — close-review corrections in progress
+
+Close returned REWORK with BR-1 incomplete-observation invalidation, BR-2 compact historical payload retention, and BR-3 activity temporal regression coverage. Accepted all three; implementation/verification revised in the durable plan, final verification row reopened. The index regression reproduced all four failed-fingerprint interleavings; ledger failure/recovery controls reproduced stale reuse and its substantive boundary/proof fixture demonstrated unnecessary retention. Activity catalog-read failure reproduced a reusable fallback; fallback now remains uncached after incomplete catalog read/write observation. Final suite/review and hub acceptance remain pending.
+
+Review corrections targeted verification: launcher/inventory/threadactivity package run exposed a cold-start regression in the new failure tracker: initial absent catalog is a complete observed absence, not a failed observation. Corrected that distinction; disappearance from a previously present catalog remains incomplete. Both permission and transient missing-catalog recovery tests pass. Updated threadactivity scale/allocation tests pass19.715s; integrated launcher/inventory/core cache race tests pass5.327s/2.160s/1.588s. Activity race tests pass1.310s. Subagent temporal tests pass20race repetitions; mutation guard counterfactuals fail as intended. Ledger substantive valid fixture906,502bytes retains615encoded bytes; current required proof preserved. Final full suite and close review still pending.
+
+TL rollout decision (delivery d7cbe719): live acceptance remains required and hub-owned: after attaches settle, idle CPU under5% over60seconds plus an ordinary delivery round trip, sampled by TL after the operator restarts Couch. Explicit instruction is finish final suite, reclose, and land on SHIP independently of #528; do not touch pair:0. A possible combined stage is TL/operator-controlled and needs a new instruction. This authorizes landing before the coordinated post-land restart check; no headless waiver or current live CPU success is claimed.
+
+Full-suite eaa222a565b6f1532489111402d0e577b7dc6be7 PASSED exit0 in10m48s, recorded sdlc-local/suite log sha256prefixbd8da6d48491. Review-fix packages now pass inventory11.032s/threadactivity18.380s in /tmp/pair559-rework-final-packages.log; targeted race and named invariant results above. Latest main merged cleanly (issue documentation only). Required final-code suite is queued on25e10107666a5911fa283b3965aa97f14a3e5de2, log .git/sdlc/local-checks/25e10107666a5911fa283b3965aa97f14a3e5de2/suite.log. Close local review may proceed while that landing check queues; no claim of its pass. Final verification tick records local evidence and initiated gates; landing still requires final suite/SHIP and hub-directed live rollout after landing.
+
+Second close review accepted BR-2 and BR-3, retaining BR-1 because the read-failure test also failed publication and therefore did not independently prove the read guard. Split read and write failure controls: seed a valid stateful catalog, permit successful idempotent publication while reads alone fail, test permission and observed-present→missing failures; separate publish failure test remains. Removing only LoadSessionInventoryCatalog failure tracking now fails both read subcases with incomplete-observation reusable-fallback assertion. Production code unchanged. Canceled the still-queued25e10107 run before acquisition so the final suite includes this corrected test.

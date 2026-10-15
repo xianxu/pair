@@ -30,6 +30,7 @@ type OSRuntime struct {
 	roots    map[Agent][]StorageRoot
 	pairRoot StorageRoot
 	launches *OwnerLaunchCache
+	work     QueryWorkObserver
 }
 
 // WithOwnerLaunchCache is this runtime keeping owners' current launches in
@@ -40,6 +41,21 @@ func (r OSRuntime) WithOwnerLaunchCache(cache *OwnerLaunchCache) OSRuntime {
 }
 
 func (r OSRuntime) OwnerLaunchCache() *OwnerLaunchCache { return r.launches }
+
+func (r OSRuntime) WithWorkObserver(observer QueryWorkObserver) OSRuntime {
+	r.work = observer
+	return r
+}
+func (r OSRuntime) ReadWork(artifact Artifact, bytes int64) {
+	if r.work != nil {
+		r.work.ReadWork(artifact, bytes)
+	}
+}
+func (r OSRuntime) DecodeWork(artifact Artifact, bytes int64) {
+	if r.work != nil {
+		r.work.DecodeWork(artifact, bytes)
+	}
+}
 
 var _ Runtime = OSRuntime{}
 
@@ -79,7 +95,7 @@ func (r OSRuntime) LoadSessionInventoryCatalog() (Catalog, error) {
 	if err != nil {
 		return Catalog{}, err
 	}
-	return (CatalogStore{Runtime: CatalogOSRuntime{}}).Read(paths.SessionInventoryCatalog())
+	return (CatalogStore{Runtime: observedCatalogRuntime{owner: r, artifact: Artifact{StorageRoot: r.pairRoot.Name, RelativePath: filepath.Base(paths.SessionInventoryCatalog())}}}).Read(paths.SessionInventoryCatalog())
 }
 
 func (r OSRuntime) PublishSessionInventoryValidations(validations []TargetValidation) error {
@@ -87,7 +103,7 @@ func (r OSRuntime) PublishSessionInventoryValidations(validations []TargetValida
 	if err != nil {
 		return err
 	}
-	return PublishTargetValidations(CatalogStore{Runtime: CatalogOSRuntime{}}, paths.SessionInventoryCatalog(), validations)
+	return PublishTargetValidations(CatalogStore{Runtime: observedCatalogRuntime{owner: r, artifact: Artifact{StorageRoot: r.pairRoot.Name, RelativePath: filepath.Base(paths.SessionInventoryCatalog())}}}, paths.SessionInventoryCatalog(), validations)
 }
 
 func (r OSRuntime) ListFiles(requested StorageRoot) ([]FileEntry, error) {
@@ -194,9 +210,12 @@ func (r OSRuntime) ReadFile(artifact Artifact, limit int64) ([]byte, error) {
 	}
 	defer file.Close()
 	if limit == unlimitedRecordSize {
-		return io.ReadAll(file)
+		content, err := io.ReadAll(file)
+		r.ReadWork(artifact, int64(len(content)))
+		return content, err
 	}
 	content, err := io.ReadAll(io.LimitReader(file, limit+1))
+	r.ReadWork(artifact, int64(len(content)))
 	if err != nil {
 		return nil, err
 	}
@@ -221,6 +240,7 @@ func (r OSRuntime) ReadAt(artifact Artifact, offset, limit int64) ([]byte, bool,
 	defer file.Close()
 	content := make([]byte, int(limit))
 	read, err := file.ReadAt(content, offset)
+	r.ReadWork(artifact, int64(read))
 	if err != nil && !errors.Is(err, io.EOF) {
 		return nil, false, err
 	}
@@ -251,6 +271,8 @@ func (r OSRuntime) QuerySQLite(artifact Artifact, query string, limit int64) (SQ
 	if stdout.exceeded {
 		return SQLiteResult{}, ErrReadLimit
 	}
+	r.ReadWork(artifact, int64(len(stdout.Bytes())))
+	r.DecodeWork(artifact, int64(len(stdout.Bytes())))
 	records, err := csv.NewReader(bytes.NewReader(stdout.Bytes())).ReadAll()
 	if err != nil {
 		return SQLiteResult{}, fmt.Errorf("parse sqlite3 csv: %w", err)

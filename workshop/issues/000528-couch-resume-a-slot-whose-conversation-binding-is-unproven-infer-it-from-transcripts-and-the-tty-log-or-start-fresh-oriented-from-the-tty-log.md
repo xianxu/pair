@@ -1121,3 +1121,19 @@ No follow-up implementation starts on this branch.
   Revision before resolving: retain #559 shared caches and #528 cross-scope
   namespace/positive-listing semantics. New merged-head suite and ordinary
   fixed-then-ship interdiff review are required; no bypass, no stage mutation.
+
+- #559 conflict resolution: retained constructor-owned SessionIndexes,
+  OwnerLaunches and InventoryWork; the expanded #528 cross-scope census now calls
+  readSessionIndex(ctx, scopeDir). Kept ListedPairSessionContext/explicit binding
+  overrides and all #528 ownership rules. Artifact manifest unions cache consumer
+  classifications and non-artifact entries with #528 entries, while retaining
+  removal of obsolete osruntime config vocabulary (no such call remains).
+- Added TestScopedBindingsCacheUnselectedScopeAndInvalidateChangedClaims. It
+  fails RED0.226s with the old uncached census (instrumented cache never
+  traversed); correct merged route passes, proving cold read/decode, warm zero
+  bytes/decodes with unselected-scope fingerprint checks, and updated conflicting
+  claims after that scope changes. No cache-method mock can mask a bypass.
+  Complete artifact guard PASS7.289s. Cache/warm/listed/startup/unfocused/idle-
+  decode targeted group PASScore24.252s/cmd10.128s/launcher2.835s/inventory0.201s/
+  activity0.525s. Hub received merge-blocker receipt7fb28f59 (submitted).
+  Merged-head recorded suite and fixed-then-ship review still required.
