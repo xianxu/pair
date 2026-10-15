@@ -1,12 +1,12 @@
 ---
 id: 000559
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-14
 updated: 2026-10-14
 estimate_hours: 2.106
-card_mirror: '87180bbb553fae5be0306e1b1cf1e32494bb0686' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '9394c2b852de29e3e0ace5ebeb9aef660ddf0281' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-14T16:33:51-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot7/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: 2.20
 ---
 
 # Stop reparsing inventory on Couch ticks
