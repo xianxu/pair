@@ -1,4 +1,24 @@
 ---
+reviewer_runs:
+    - version: 1
+      intent:
+        id: 1af1ee1f-bc83-4010-9724-7947f97ea220
+        repository: github.com/xianxu/pair
+        issue_id: "000571"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot7/pair
+        reviewed_head: 48778b41b58d853e2596555f9524f3ab14a56969
+        slot: pair:7
+        requested_at: "2026-10-15T21:34:16.771244Z"
+      phase: finished
+      pid: 64332
+      started_at: "2026-10-15T21:34:16.943735Z"
+      finished_at: "2026-10-15T21:34:39.719253Z"
+      session_id: 01a1417c-c082-7122-a0fa-e0e3da0cc318
+      outcome: returned
 gate: plan-quality
 issue: 571
 id_prefix: PQ
@@ -73,7 +93,40 @@ rounds:
           note: Replaces inventories with named function strategies covering invalid configuration, malformed argv/JSONL, bounded reads, and controllable handoff ordering.
           round: 2
       blocked: false
-content_hash: 14d17a55f03738a6eeba06582bfc546fa0e443ebc70bedab1ea18ba45f61859c
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 7384fb18-b3fd-4035-919e-2572c0433415
+            repository: github.com/xianxu/pair
+            issue_id: "000571"
+            recipe: plan-quality
+            round: 3
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot7/pair
+            reviewed_head: 48778b41b58d853e2596555f9524f3ab14a56969
+            slot: pair:7
+            requested_at: "2026-10-15T21:33:33.190202Z"
+          phase: finished
+          pid: 62411
+          started_at: "2026-10-15T21:33:33.376221Z"
+          finished_at: "2026-10-15T21:34:15.586229Z"
+          session_id: 01a1417c-1628-7022-a694-967d63271267
+          outcome: returned
+      "n": 3
+      timestamp: "2026-10-15T14:34:15-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Production authority derives from observed API-only bootstrap policy; positive fixtures traverse the production path.
+          round: 3
+        - id: PQ-2
+          disposition: addressed
+          note: Named risky functions have concise adversarial strategies and mechanical guards.
+          round: 3
+      blocked: false
+content_hash: dfc14de4a16980fab7c7dd8f11738f4d471b573123e442db9a126f82ce31fb0f
 ---
 
 # Gate ledger — pair#571 (plan-quality)
@@ -96,6 +149,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - PQ-1 — addressed — Defines source-backed API-only bootstrap eligibility, complete production observations, and a positive fixture through the same reader-to-reservation path.
 - PQ-2 — addressed — Replaces inventories with named function strategies covering invalid configuration, malformed argv/JSONL, bounded reads, and controllable handoff ordering.
+
+## Round 3 — 2026-10-15T14:34:15-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Production authority derives from observed API-only bootstrap policy; positive fixtures traverse the production path.
+- PQ-2 — addressed — Named risky functions have concise adversarial strategies and mechanical guards.
 
 ## Open findings
 
