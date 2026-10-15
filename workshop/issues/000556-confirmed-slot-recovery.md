@@ -369,3 +369,12 @@ admission against concurrent writers. Tokens/reservations/schema are internal;
 visible outcomes stay Continue / Resume from disk (confirmed) / Start fresh,
 plus needs relaunch, with only the actual stop confirmation shown. Retain the
 five-minute stale-Starting bound and one exact reobservation. Change-code next.
+
+### 2026-10-15 — M2 selector policy decision
+
+Verified hub receipt `14aba7d7-b325-43dc-a16c-6d8d23907f23`: resolve and pin
+indirect latest selectors through existing native inventory for exact cwd/agent;
+reserve and execute the same explicit canonical ID. Refuse only unresolved or
+ambiguous selectors/name mappings; do not regress supported continue/last or edit
+saved defaults. The durable plan Revision supersedes the earlier blanket-refusal
+proposal. Native admission remains M2, after M1's independent verification block.

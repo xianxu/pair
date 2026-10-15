@@ -355,3 +355,32 @@ best-effort readiness afterward. Strip old admission capability from native
 child/watcher environment and same-PID Fresh exec. Do not independently change
 existing readiness nonce semantics without proof that the reservation protocol
 needs it; each actual native-resume launch gets its own admission attempt.
+
+### 2026-10-15 — M2 selector policy approved: resolve and pin
+
+Hub receipt `14aba7d7-b325-43dc-a16c-6d8d23907f23` supersedes the preceding
+proposal to refuse all indirect selectors. Preserve the human's `--continue`
+and `resume --last`: resolve the selector through the existing native inventory
+using its own meaning, latest eligible session for the exact cwd and agent.
+Require one exact canonical root ID, reserve that ID, then replace the indirect
+selector in this invocation with the explicit ID. The native CLI therefore
+cannot make a different choice after admission. This is temporary launch
+normalization, not an edit to saved startup parameters/defaults.
+
+Refuse with exact-ID/Fresh advice only when resolution cannot yield exactly one
+ID (none, ambiguity, or names/search terms the inventory cannot map faithfully).
+Never use a name, search string, `--last` or an empty value as an admission key.
+Fix the extractor and share its selector/option-value authority rather than
+creating a second spelling table. New-conversation `--session-id` and forks
+remain distinct from resuming the original transcript.
+
+Add deterministic tests for exact cwd/agent and eligible-root filtering, latest
+selection and ties, absent/incomplete/unsupported resolution, unsupported name
+mapping, preservation of unrelated argv/prompt, and a newly arriving session
+between resolution and execution: the admitted explicit ID must remain pinned.
+The same pinned ID must appear in reservation, launch argv and durable launch
+observations. No new user-visible state or extra prompt is introduced.
+
+M1 still awaits independent #568's landing, the merged-head recorded suite and
+normal boundary re-close. This policy approval authorizes M2's selector behavior;
+it does not claim M1 closed or start M2 code prematurely.
