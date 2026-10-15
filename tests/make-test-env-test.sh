@@ -6,6 +6,31 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# Run the same assertions under real outer Make command-line precedence. The
+# private fixture target prevents recursion; the temporary Makefile is removed
+# even when a case fails. Neither invocation builds Go packages.
+if [ "${1:-}" != --fixture ]; then
+  fixture=$(mktemp "${TMPDIR:-/tmp}/pair-make-env.XXXXXX")
+  trap 'rm -f "$fixture"' EXIT
+  cat >"$fixture" <<'MAKEFIXTURE'
+include Makefile
+.PHONY: test-make-env-fixture
+test-make-env-fixture:
+	@bash tests/make-test-env-test.sh --fixture
+MAKEFIXTURE
+  for assignment in '' 'PAIR_GO_TRIMPATH=-trimpath'; do
+    env -u MAKEFLAGS -u MAKEOVERRIDES -u MFLAGS make -s --no-print-directory \
+      -f "$fixture" test-make-env-fixture ${assignment:+"$assignment"}
+  done
+  exit 0
+fi
+
+# This fixture supplies its own environment. Outer Make assignments otherwise
+# outrank those synthetic values in every child make (pair#577). Clear only
+# Make's inherited controls; the explicit override/recursive tests below still
+# exercise real command-line precedence within their own invocations.
+unset MAKEFLAGS MAKEOVERRIDES MFLAGS
+
 production=$(make -s --no-print-directory test-make-env-production-names)
 [ -n "$production" ] || { echo "FAIL: production name scan found nothing"; exit 1; }
 
