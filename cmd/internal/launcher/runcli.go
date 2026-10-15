@@ -49,6 +49,8 @@ func newLaunchOptions(args LaunchArgs, env Env, pairHome, dataDir string, useRep
 // are already on stdout/stderr, and the error is always nil (no shell to fall back
 // to).
 func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer) (int, error) {
+	timing := newStartupTiming(os.Getenv("PAIR_STARTUP_TIMING"), stderr, time.Now, startupInitializedAt)
+	timing.mark("native-entry")
 	expectedDigest := os.Getenv(checkpoint.DigestEnv)
 	_ = os.Unsetenv(checkpoint.DigestEnv)
 	useRepoDefault := consumeRepoDefaultPolicy(os.Getenv, os.Unsetenv)
@@ -156,6 +158,7 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 		return runQuit(rt, os.Getenv("ZELLIJ_SESSION_NAME"), stderr), nil
 	}
 	opts := newLaunchOptions(args, env, pairHome, dataDir, useRepoDefault, os.Getenv, parkPromptTimeout())
+	opts.startupTiming = timing
 
 	if args.Command == "continue" {
 		if args.ContinueRetry != "" {
@@ -198,6 +201,7 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 		}
 	}
 
+	timing.mark("native-resolution")
 	return RunLaunch(opts, rt, stderr)
 }
 

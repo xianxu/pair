@@ -66,9 +66,9 @@ func TestSessionQuiescenceLive(t *testing.T) {
 	// OS kill operation rather than merely enter KillServer after the real
 	// server has already disappeared.
 	sentinelDir := t.TempDir()
-	sentinelBinary := filepath.Join(sentinelDir, "zellij")
+	sentinelBinary := controlledServerExecutable(t, sentinelDir)
 	sentinel := &exec.Cmd{
-		Path: os.Args[0],
+		Path: sentinelBinary,
 		Args: []string{sentinelBinary, "--server", filepath.Join(sentinelDir, session)},
 		Env:  append(os.Environ(), "PAIR_ZELLIJ_KILL_SENTINEL=1"),
 	}

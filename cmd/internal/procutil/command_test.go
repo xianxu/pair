@@ -98,14 +98,15 @@ func FuzzLinuxParsers(f *testing.F) {
 }
 
 type snapshotWorld struct {
-	rows          []Process
-	commands      map[int]CommandInfo
-	commandErrors map[int]error
-	identities    map[int]string
-	calls         []int
-	tableCalls    int
-	after         func(int)
-	err           error
+	rows           []Process
+	commands       map[int]CommandInfo
+	commandErrors  map[int]error
+	identities     map[int]string
+	identityErrors map[int]error
+	calls          []int
+	tableCalls     int
+	after          func(int)
+	err            error
 }
 
 func (w *snapshotWorld) table() ([]Process, error) { w.tableCalls++; return w.rows, w.err }
@@ -120,7 +121,52 @@ func (w *snapshotWorld) command(pid int) (CommandInfo, error) {
 	}
 	return c, w.commandErrors[pid]
 }
-func (w *snapshotWorld) identity(pid int) string { return w.identities[pid] }
+func (w *snapshotWorld) identity(pid int) (string, error) {
+	return w.identities[pid], w.identityErrors[pid]
+}
+
+func TestSnapshotIdentityEvidenceAfterCommand(t *testing.T) {
+	for _, identityErr := range []error{os.ErrNotExist, syscall.ESRCH, syscall.EPERM, syscall.EACCES, syscall.EIO, syscall.EINVAL, ErrUnsupported, nil} {
+		t.Run(fmt.Sprint(identityErr), func(t *testing.T) {
+			w := &snapshotWorld{
+				rows:           []Process{{PID: 1, Identity: "old", Name: "zellij"}},
+				commands:       map[int]CommandInfo{1: {Executable: "/zellij", Args: []string{"zellij"}}},
+				identityErrors: map[int]error{1: identityErr},
+			}
+			got, err := snapshot(context.Background(), w)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if errors.Is(identityErr, os.ErrNotExist) || errors.Is(identityErr, syscall.ESRCH) {
+				if len(got) != 0 {
+					t.Fatalf("retained confirmed gone: %+v", got)
+				}
+				return
+			}
+			if len(got) != 1 || got[0].Err == nil || got[0].Executable != "" || len(got[0].Args) != 0 {
+				t.Fatalf("identity uncertainty became authority or absence: %+v", got)
+			}
+			if identityErr != nil && !errors.Is(got[0].Err, identityErr) {
+				t.Fatalf("lost identity error: %v", got[0].Err)
+			}
+		})
+	}
+}
+
+func TestSnapshotIdentityEINVALRemainsUnknownToGoneClassifier(t *testing.T) {
+	w := &snapshotWorld{
+		rows:           []Process{{PID: 1, Identity: "old", Name: "zellij"}},
+		commands:       map[int]CommandInfo{1: {Executable: "/zellij", Args: []string{"zellij"}}},
+		identityErrors: map[int]error{1: syscall.EINVAL},
+	}
+	rows, err := snapshot(context.Background(), w)
+	if err != nil || len(rows) != 1 {
+		t.Fatalf("snapshot = %+v, %v", rows, err)
+	}
+	if !errors.Is(rows[0].Err, syscall.EINVAL) || IsProcessGone(rows[0].Err) {
+		t.Fatalf("identity uncertainty classified as disappearance: %v", rows[0].Err)
+	}
+}
 func TestSnapshotSkipsProcessExitDuringCommandRead(t *testing.T) {
 	for _, gone := range []error{syscall.EINVAL, syscall.ESRCH, os.ErrNotExist} {
 		w := &snapshotWorld{rows: []Process{{PID: 1, Identity: "old", Name: "zellij"}, {PID: 2, Identity: "live"}}, commands: map[int]CommandInfo{1: {}, 2: {Executable: "/app", Args: []string{"ok"}}}, commandErrors: map[int]error{1: fmt.Errorf("procargs: %w", gone)}, identities: map[int]string{1: "old", 2: "live"}}

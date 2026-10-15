@@ -126,7 +126,7 @@ func (osSessionQuiescenceOps) SessionPresent(ctx context.Context, session string
 }
 
 func (o osSessionQuiescenceOps) SessionServers(ctx context.Context, session string) ([]SessionServerIdentity, error) {
-	rows, err := procutil.Snapshot(ctx)
+	rows, err := procutil.SnapshotNamed(ctx, "zellij")
 	if err != nil {
 		return nil, err
 	}

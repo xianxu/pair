@@ -18,7 +18,52 @@ const statusSpinnerInterval = 120 * time.Millisecond
 // and BEFORE Run: the Run loop is what admits inventories, so arming first
 // guarantees the first inventory reduced is the one the pass seeds from.
 func (c *Console) ArmReattachPass(root couchcore.ThreadAddress) {
-	c.reduceMenu(MenuEvent{Kind: MenuEventReattachArm, Address: root})
+	c.reattachArmOnce.Do(func() {
+		c.mu.Lock()
+		factory := c.sessionOwnerPass
+		c.mu.Unlock()
+		ctx, cancel := context.WithCancel(c.lifetime)
+		if factory != nil {
+			scoped, cancelScope := factory(ctx)
+			ctx = scoped
+			cancelParent := cancel
+			cancel = func() {
+				cancelScope()
+				cancelParent()
+			}
+		}
+		c.mu.Lock()
+		if c.lifetime.Err() != nil {
+			c.mu.Unlock()
+			cancel()
+			return
+		}
+		c.reattachContext, c.reattachCancel = ctx, cancel
+		c.mu.Unlock()
+		c.reduceMenu(MenuEvent{Kind: MenuEventReattachArm, Address: root})
+	})
+}
+
+// SetSessionOwnerPass supplies a lazy context factory before ArmReattachPass.
+// Creating the scope must perform no process or session observation; workers
+// capture evidence when they run. Ordinary operations keep the console lifetime.
+func (c *Console) SetSessionOwnerPass(factory func(context.Context) (context.Context, context.CancelFunc)) {
+	c.mu.Lock()
+	c.sessionOwnerPass = factory
+	c.mu.Unlock()
+}
+
+func (c *Console) releaseReattachPassLocked() context.CancelFunc {
+	cancel := c.reattachCancel
+	c.reattachContext, c.reattachCancel = nil, nil
+	return cancel
+}
+
+func (c *Console) completedReattachPassLocked() context.CancelFunc {
+	if c.menu.Reattach.Phase != ReattachDone {
+		return nil
+	}
+	return c.releaseReattachPassLocked()
 }
 
 // runBackgroundOperation enqueues one reattach-pass attempt. It never touches
@@ -41,6 +86,10 @@ func (c *Console) runBackgroundOperation(effect MenuEffect) {
 	c.traceEvent(traceReattachStart, origin.Address, fmt.Sprintf("attempt=%d", effect.Attempt))
 	c.mu.Lock()
 	fn := c.ops
+	parent := c.reattachContext
+	if parent == nil {
+		parent = c.lifetime
+	}
 	c.mu.Unlock()
 	if fn == nil {
 		c.finishOperation(operationCompletion{name: effect.Operation, origin: origin, err: errors.New("no action dispatcher wired")})
@@ -56,8 +105,11 @@ func (c *Console) runBackgroundOperation(effect MenuEffect) {
 	// being unique, finish a refused attempt here, as the error path below
 	// does (#206 close review).
 	_, err := c.operationQueue.Enqueue(operationRequest{key: key, name: effect.Operation, origin: origin, run: func() (any, error) {
-		operationContext, cancelOperation := context.WithCancel(c.lifetime)
+		operationContext, cancelOperation := context.WithCancel(parent)
 		defer cancelOperation()
+		if err := operationContext.Err(); err != nil {
+			return nil, err
+		}
 		return fn(couchcore.OperationCall{Name: effect.Operation, Args: requestArgs, Implicit: true, Context: operationContext})
 	}})
 	if err != nil {
