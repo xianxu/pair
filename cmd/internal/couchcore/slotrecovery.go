@@ -323,11 +323,29 @@ func (c *Couch) StartFreshSlot(ctx context.Context, path, agent string) (StartRe
 // before quiescing), so it is not re-resolved here; it is distinct from
 // accepted, which also triggers revalidateCreatedSlot.
 func (c *Couch) startFreshSlot(ctx context.Context, path, agent string, requireEmpty bool, accepted *StartResolution, preflight *LaunchProfileResolution) (StartResult, error) {
-	return c.startFreshSlotWithPrompt(ctx, path, agent, requireEmpty, accepted, preflight, "")
+	return c.startFreshSlotWithPrompt(ctx, path, agent, requireEmpty, accepted, preflight, "", freshSlotOrdinary)
 }
 
-func (c *Couch) startFreshSlotWithPrompt(ctx context.Context, path, agent string, requireEmpty bool, accepted *StartResolution, preflight *LaunchProfileResolution, prompt string) (StartResult, error) {
-	local, slot, err := c.selectedSlot(ctx, path)
+type freshSlotMode uint8
+
+const (
+	freshSlotOrdinary freshSlotMode = iota
+	freshSlotRecordlessRecovery
+)
+
+func (c *Couch) startFreshSlotWithPrompt(ctx context.Context, path, agent string, requireEmpty bool, accepted *StartResolution, preflight *LaunchProfileResolution, prompt string, mode freshSlotMode) (StartResult, error) {
+	var local *ThreadStore
+	var slot SlotIdentity
+	var readiness WorkspaceReadiness
+	var err error
+	if mode == freshSlotRecordlessRecovery {
+		local, slot, readiness, err = c.selectRecordlessRecoverySlot(ctx, path)
+		requireEmpty = true
+	} else if mode == freshSlotOrdinary {
+		local, slot, err = c.selectedSlot(ctx, path)
+	} else {
+		return StartResult{}, errors.New("invalid Fresh slot admission mode")
+	}
 	if err != nil {
 		return StartResult{}, err
 	}
@@ -350,10 +368,10 @@ func (c *Couch) startFreshSlotWithPrompt(ctx context.Context, path, agent string
 		return StartResult{}, ErrStartResolutionChanged
 	}
 	observation, err := c.ObserveSlotSessions(ctx, slot)
-	if err != nil {
+	if err != nil && mode != freshSlotRecordlessRecovery {
 		return StartResult{}, err
 	}
-	if !observation.Absent {
+	if !observation.Absent && mode != freshSlotRecordlessRecovery {
 		return StartResult{}, errors.New("slot has a live or unresolved owner; park the running conversation before starting fresh")
 	}
 	var profile LaunchProfileResolution
@@ -391,11 +409,13 @@ func (c *Couch) startFreshSlotWithPrompt(ctx context.Context, path, agent string
 		return StartResult{}, err
 	}
 	actor, handle, err := c.launchClaimedThread(claimedLaunch{
-		Context: ctx, Thread: record, Nonce: nonce, StartedAt: c.Clock.Now(), Profile: profile, Prompt: prompt,
+		Context: ctx, Thread: record, Nonce: nonce, StartedAt: c.Clock.Now(), Profile: profile, Prompt: prompt, Readiness: readiness,
 		Args: StartArgs{Worktree: Worktree(slot.WorktreeRoot), Cwd: cwd},
 		AfterPrepare: func() error {
-			if err := c.verifyOtherSlotOwnersAbsent(ctx, slot, record.Address); err != nil {
-				return err
+			if mode == freshSlotOrdinary {
+				if err := c.verifyOtherSlotOwnersAbsent(ctx, slot, record.Address); err != nil {
+					return err
+				}
 			}
 			if accepted != nil {
 				return c.revalidateCreatedSlot(ctx, *accepted)

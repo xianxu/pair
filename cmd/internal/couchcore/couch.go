@@ -618,6 +618,7 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, r
 // a created slot's revalidation, a fresh slot's other-owner check -- and runs
 // inside the same rollback as everything else here.
 type claimedLaunch struct {
+	Readiness    WorkspaceReadiness
 	Prompt       string
 	Context      context.Context
 	Thread       ThreadRecord
@@ -635,7 +636,11 @@ type claimedLaunch struct {
 // claim nothing will finish.
 func (c *Couch) launchClaimedThread(in claimedLaunch) (ActorRecord, Handle, error) {
 	ctx, thread, nonce, profile := in.Context, in.Thread, in.Nonce, in.Profile
-	if err := c.prepareTrackedWorkspace(ctx, thread, nonce, false); err != nil {
+	readiness := in.Readiness
+	if readiness == nil {
+		readiness = c.Workspaces
+	}
+	if err := c.prepareTrackedWorkspaceWith(ctx, thread, nonce, false, readiness); err != nil {
 		return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
 	}
 	if in.AfterPrepare != nil {

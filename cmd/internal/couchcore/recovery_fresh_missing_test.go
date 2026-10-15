@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -103,5 +104,117 @@ func TestRecoveryFreshOrdinarySlotKeepsOrdinaryLaunch(t *testing.T) {
 	}
 	if profile.Prompt != "" || profile.FreshRequired || profile.FreshNonce != "" || readyChecks != 0 {
 		t.Fatalf("ordinary Fresh changed: %+v checks=%d", profile, readyChecks)
+	}
+}
+
+type recordlessRecoveryArrival struct {
+	*FakeThreadArtifactCollisionChecker
+	arrive func()
+}
+
+func (a recordlessRecoveryArrival) Claim(address ThreadAddress) (ThreadArtifactClaim, error) {
+	claim, err := a.FakeThreadArtifactCollisionChecker.Claim(address)
+	if err == nil && a.arrive != nil {
+		a.arrive()
+	}
+	return claim, err
+}
+
+func TestRecoveryFreshMissingRecordLeavesForeignOwnersUntouched(t *testing.T) {
+	for _, mode := range []string{"listed-foreign", "unknown-foreign", "arrives-during-prepare"} {
+		t.Run(mode, func(t *testing.T) {
+			env, local := slotRecoveryOperationFixture(t)
+			scope, _ := launcher.ResolveRepoScope(local.slot.WorktreeRoot)
+			foreign := ThreadAddress{RepoScope: scope.Key, Tag: "couch-5555555555555555"}
+			arrive := func() {
+				env.Artifacts.SetSessionPresence(foreign, SessionObservation{State: SessionPresent})
+				env.Artifacts.SetPairSession(foreign, "foreign-terminal", true)
+				env.Proc.Set(777, "foreign-generation")
+			}
+			if mode == "arrives-during-prepare" {
+				env.Couch.Artifacts = recordlessRecoveryArrival{FakeThreadArtifactCollisionChecker: env.Artifacts, arrive: arrive}
+			} else {
+				arrive()
+			}
+			if mode == "unknown-foreign" {
+				env.Artifacts.BeforePairSession = func(address ThreadAddress) error {
+					if address == foreign {
+						return errors.New("foreign identity unavailable")
+					}
+					return nil
+				}
+			}
+			preparations := 0
+			env.Couch.Workspaces = slotReadinessFunc(func(context.Context, ProvisionRequest) (ProvisionResult, error) {
+				preparations++
+				return ProvisionResult{}, errors.New("must not reconcile beside unproved owners")
+			})
+			nativeArtifact := filepath.Join(local.slot.WorktreeRoot, "foreign-session-context")
+			original := []byte("foreign session state must stay byte-identical")
+			if err := os.WriteFile(nativeArtifact, original, 0600); err != nil {
+				t.Fatal(err)
+			}
+			var profile launcher.TrustedLaunchProfile
+			readyAddress := ThreadAddress{}
+			readyNonce := ""
+			env.Runner.AfterAcknowledge = func(id string) error {
+				child := env.Runner.Child(id)
+				if err := json.Unmarshal([]byte(environmentValue(child.Env, launcher.CouchLaunchProfileEnv)), &profile); err != nil {
+					return err
+				}
+				address := ThreadAddress{RepoScope: environmentValue(child.Env, "COUCH_THREAD_SCOPE"), Tag: ThreadTag(profile.Tag)}
+				current, err := local.GetThread(address)
+				if err != nil {
+					return err
+				}
+				if current.Incarnations[0].Start == nil || current.Incarnations[0].Start.Nonce != profile.FreshNonce {
+					return errors.New("Fresh nonce differs from claim")
+				}
+				readyAddress, readyNonce = address, profile.FreshNonce
+				env.Artifacts.SetPairSession(address, continuationChildSession(t, env.Runner, id), true)
+				env.Artifacts.SetSessionPresence(address, SessionObservation{State: SessionPresent})
+				return nil
+			}
+			env.Couch.FreshRegistration = func(_ context.Context, address ThreadAddress, _ string, nonce string) (bool, error) {
+				return nonce != "" && nonce == readyNonce && address == readyAddress, nil
+			}
+			result, err := env.Couch.RecoverSelection(t.Context(), RecoverySelection{Target: ResumeTarget{Path: local.slot.WorktreeRoot}, Kind: RecoveryFresh})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.Start.Handle == nil || result.Start.Record.Thread == foreign || profile.Prompt == "" || !profile.FreshRequired || profile.ResumeRequired || profile.FreshNonce == "" || (!strings.Contains(result.Notice, "untouched") || !strings.Contains(result.Notice, "workspace setup was not refreshed")) {
+				t.Fatalf("recordless Fresh lost isolation: %+v profile=%+v", result, profile)
+			}
+			raw, readErr := os.ReadFile(nativeArtifact)
+			identity, identityErr := env.Proc.Identity(777)
+			if preparations != 0 || readErr != nil || !bytes.Equal(raw, original) || identityErr != nil || identity != "foreign-generation" || len(env.Proc.Signals[777]) != 0 || len(env.Proc.GroupSignals[777]) != 0 || len(env.Artifacts.Quiesces()) != 0 {
+				t.Fatalf("foreign owner changed: prepare=%d bytes=%q identity=%q signals=%v groups=%v quiesces=%v err=%v/%v", preparations, raw, identity, env.Proc.Signals, env.Proc.GroupSignals, env.Artifacts.Quiesces(), readErr, identityErr)
+			}
+		})
+	}
+}
+
+func TestRecoveryFreshMissingRecordNeverRepairsBesideForeignOwner(t *testing.T) {
+	env, local := slotRecoveryOperationFixture(t)
+	scope, _ := launcher.ResolveRepoScope(local.slot.WorktreeRoot)
+	foreign := ThreadAddress{RepoScope: scope.Key, Tag: "couch-5555555555555555"}
+	env.Artifacts.SetSessionPresence(foreign, SessionObservation{State: SessionPresent})
+	env.Artifacts.SetPairSession(foreign, "foreign-terminal", true)
+	fixture := env.Couch.Slots.(*OSSlotCatalog).IO.(*ProvisionFixture)
+	admin := fixture.git(local.slot.WorktreeRoot, "rev-parse", "--absolute-git-dir")
+	if err := os.RemoveAll(admin); err != nil {
+		t.Fatal(err)
+	}
+	preparations := 0
+	env.Couch.Workspaces = slotReadinessFunc(func(context.Context, ProvisionRequest) (ProvisionResult, error) {
+		preparations++
+		return ProvisionResult{}, errors.New("repair forbidden")
+	})
+	_, err := env.Couch.RecoverSelection(t.Context(), RecoverySelection{Target: ResumeTarget{Path: local.slot.WorktreeRoot}, Kind: RecoveryFresh})
+	if err == nil || preparations != 0 || len(env.Runner.Ops) != 0 || len(env.Artifacts.Quiesces()) != 0 {
+		t.Fatalf("unverified host acted: err=%v preparations=%d starts=%v quiesces=%v", err, preparations, env.Runner.Ops, env.Artifacts.Quiesces())
+	}
+	if _, err := os.Stat(admin); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("unproved owner's host repaired: %v", err)
 	}
 }
