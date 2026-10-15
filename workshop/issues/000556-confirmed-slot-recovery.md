@@ -556,6 +556,38 @@ Do not close M2 or land while this scope decision is unanswered. Independent
 full verification can proceed. No live slot, native state, default, stage or
 operator process was changed.
 
+### 2026-10-15 — M2 cancellation correction and first recorded suite
+
+The first required recorded suite at `2851d4009c94f4df0f8a9bb117b37dfd04e88650`
+failed after **2m41s**, exit 2, at the existing dynamic-terminal/layout drift
+assertion in `tests/term-pane-shortcuts-test.sh`. Retained failed log:
+`/Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/f1ba2682786170e2cfac1c07962fc0cc.log`,
+SHA-256 prefix `a4cad0725b64`. Its declared `make test` stops at that first failure;
+this is not a full pass or evidence about later Go targets. Earlier independent
+complete inventory/artifactpath runs passed 8.336s/4.188s; build passed.
+
+The failure is ours: static layout hygiene missed the existing dynamic split
+producer. Swept all command producers and fixed the sole sibling
+`termcmd.rightTerminalPaneShell` in `cad1e7ce0`. An actual emitted-shell regression
+went RED on grant inheritance in rename helper and terminal, then GREEN. The
+shell conformance now derives its expected command from the layout instead of a
+second handwritten stanza (ARCH-DRY). Complete shortcut script **PASS**, complete
+termcmd **PASS** 0.588s, wrapper layout checks **PASS** 0.470s. `make pair` rebuilt
+the current binary and generated runtime assets normally.
+
+Inspection also found cancellation observed only after the store's whole GC
+loop. Regression RED: cancelling on probe one/two still made all six probes and
+called the legacy check. Corrected in
+`34d250c3aa6c6c6e5a9f0fc957c7dfe1cb7789e9`: exact one/two probes, no subsequent
+entry/callback/grant/write, original bytes unchanged; targeted race launcher
+**PASS** 2.193s and wrapper **PASS** 2.313s. Duplicate-key validation is linear.
+A single already-running synchronous process probe must still return before
+cancellation can be observed; no stronger timeout guarantee is claimed.
+
+Main has no unintegrated commits after fetch. The corrected head needs its own
+recorded suite. Provider-policy direction remains pending; no M2 close or landing
+has been attempted, and no gate is waived.
+
 ## Revisions
 
 ### 2026-10-15T05:33-07:00 — overnight M2 dispatch
