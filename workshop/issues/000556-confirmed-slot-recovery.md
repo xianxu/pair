@@ -229,6 +229,27 @@ The recorded full-suite rerun is next on the corrected head; previous failures
 remain recorded on their actual head. No operator acceptance, M1 SHIP, stage or
 M2 implementation is claimed yet.
 
+### 2026-10-15 — recorded rerun finds failed-attach completion regression
+
+The suite at `2630da264cf785423b5e165e7f0b9dee1421a240` exited 2 after
+9m7s (retained failed log `da88df7467432ddf832660f8a97202b9.log`, SHA-256
+prefix `6ccb29b2acd1`). It passed full core
+(284.887s), launcher (44.057s), tty (45.070s) and the other reported packages,
+but `TestStartupWarmPassPaintsAndAcceptsInputWhileMixedAttachmentsBlock` failed
+waiting for its rendered failed-attach reason. This was a real regression, not
+a load waiver: both attach attempts finished, yet the row remained attaching.
+The shared resume route returned an empty `StartResult` on pre-helper failure;
+`Started()` advertised it and Console replaced the operation's exact target
+with a zero address, so the completion could not finish the row's attempt.
+
+The producer now returns no child for that definite no-helper failure. The
+Console boundary also keeps its original target when a malformed/empty child
+result has no address, while preserving genuine partial launch addresses and
+handles on errors. The stateful console reproduction failed before the guard
+and passes afterward; the original mixed-startup acceptance passes unchanged
+(2.94s). New warm failure coverage passes with the warm-route selection (0.710s).
+A fresh recorded suite will cover these corrections; M1 is not closed yet.
+
 ## Revisions
 
 ### 2026-10-15T05:33-07:00 — overnight M2 dispatch

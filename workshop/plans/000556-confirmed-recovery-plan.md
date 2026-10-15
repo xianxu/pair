@@ -122,34 +122,34 @@ Fresh's new tag avoids contested terminal artifacts; do not weaken all OpenSlot/
 
 Files: new `cmd/internal/couchcore/recovery_plan.go`, `recovery_plan_test.go`; modify `cmd/internal/threadrecord/recovery.go`, `record.go`, `recovery_context_test.go`, `record_test.go`; adapt `couchcore/slotrecovery.go` version admission and schema tests.
 
-- [ ] Add failing pure tests: three selection kinds; strict inferred capture unchanged; proven without tty; fresh without tty; unsupported future record; schema-3 read without writes.
-- [ ] Run `go test ./cmd/internal/threadrecord ./cmd/internal/couchcore -run 'TestRecoverySelection|TestRecoveryContext|TestSlotRecoverySchema|TestThreadRecord' -count=1`; confirm the new cases fail.
-- [ ] Implement typed variants, version migration and pure transition; re-run to PASS. Commit with issue reference and agent trailers.
+- [x] Add failing pure tests: three selection kinds; strict inferred capture unchanged; proven without tty; fresh without tty; unsupported future record; schema-3 read without writes.
+- [x] Run `go test ./cmd/internal/threadrecord ./cmd/internal/couchcore -run 'TestRecoverySelection|TestRecoveryContext|TestSlotRecoverySchema|TestThreadRecord' -count=1`; confirm the new cases fail.
+- [x] Implement typed variants, version migration and pure transition; re-run to PASS. Commit with issue reference and agent trailers.
 
 ### 2. Shared preparation, exact confirmation and stale Starting
 
 Files: new `couchcore/recovery_confirmation.go`, `recovery_confirmation_test.go`; modify `recovery_preview.go`, `recovery_resume.go`, `recovery_native_owner.go`, `actionableinventory.go`, `starttransaction.go`, `lifecycledebris.go`; extend their colocated tests.
 
-- [ ] Add failing sequence tests for expired/replayed confirmation, changed PID/start/nonce, changed candidate, wrong hub/target, cancelled acceptance and stale Starting with live supervisor.
-- [ ] Run `go test ./cmd/internal/couchcore -run 'TestRecoveryConfirmation|TestRecoveryPlan|TestStartClaim|TestStarting' -count=1` to establish RED.
-- [ ] Implement preparation/capability ownership and pure expiry projection; keep Continue first and startup read-only. CAS-fence stale claims only on explicit recovery. Re-run to PASS and commit.
+- [x] Add failing sequence tests for expired/replayed confirmation, changed PID/start/nonce, changed candidate, wrong hub/target, cancelled acceptance and stale Starting with live supervisor.
+- [x] Run `go test ./cmd/internal/couchcore -run 'TestRecoveryConfirmation|TestRecoveryPlan|TestStartClaim|TestStarting' -count=1` to establish RED.
+- [x] Implement preparation/capability ownership and pure expiry projection; keep Continue first and startup read-only. CAS-fence stale claims only on explicit recovery. Re-run to PASS and commit.
 
 ### 3. Preservation, retirement and one native launch
 
 Files: `couchcore/recovery_resume.go`, `recovery_evidence_os.go`, `reboot.go`, `slotrecovery.go`, `threadstore.go`, `launch_existing.go`, `couch.go`; `launcher/recovery_terminal.go`, `recovery_terminal_os.go`, `recovery_authority.go`, `recovery_authority_os.go`, `createflow.go`; new `launcher/native_admission.go`, `native_admission_os.go` and tests; `wrapcmd/wrap.go` plus new admission adapter/tests; artifactpath cache resolver/manifest; corresponding recovery/native-owner/start tests.
 
-- [ ] Add stateful failing cases: preserve failure before signal; owned damaged wrapper; foreign remnant left byte/process-identical; new descendant/PID reuse mid-retirement; partial retirement; proven resume without screen; fresh incomplete/unsupported scan/missing screen; delayed registration after a real launch.
-- [ ] Run `go test ./cmd/internal/couchcore ./cmd/internal/launcher ./cmd/internal/orientation -run 'TestRecovery|TestResumeCandidate|TestReboot|TestStartTransaction' -count=1` and confirm the new cases fail.
-- [ ] Implement shared ordering using existing journals, park/exact retirement and launch APIs. Every native resume has empty Prompt; every Fresh uses BuildRecoveryOrientation with available coordinates only. Reobserve uncertain attempts once, never kill/fresh-replace merely because registration timed out. Re-run to PASS and commit.
+- [x] Add stateful failing cases: preserve failure before signal; owned damaged wrapper; foreign remnant left byte/process-identical; new descendant/PID reuse mid-retirement; partial retirement; proven resume without screen; fresh incomplete/unsupported scan/missing screen; delayed registration after a real launch.
+- [x] Run `go test ./cmd/internal/couchcore ./cmd/internal/launcher ./cmd/internal/orientation -run 'TestRecovery|TestResumeCandidate|TestReboot|TestStartTransaction' -count=1` and confirm the new cases fail.
+- [x] Implement shared ordering using existing journals, park/exact retirement and launch APIs. Every native resume has empty Prompt; every Fresh uses BuildRecoveryOrientation with available coordinates only. Reobserve uncertain attempts once, never kill/fresh-replace merely because registration timed out. Re-run to PASS and commit.
 - [ ] Before claiming uniqueness, run a deterministic two-slot barrier test: the same native ID admits one writer; different IDs progress independently. Add reservation handoff/death/unconfirmed tests and verify the production wrapper cannot execute a fenced attempt. Commit the common admission protocol separately.
 
 ### 4. Menu, CLI and authenticated hub parity
 
 Files: `couchcore/ops.go`, `operationdispatch.go`, `slot_operation.go`; `couchcmd/cli.go`, `resume_candidates.go`, `slot_operations.go`, `console_slot_operations.go`; `couchmessage/protocol.go`; `couchtty/menu_recovery.go` and existing confirmation/menu state files; colocated declaration/protocol/hub/menu tests.
 
-- [ ] Add failing tests: Fresh command never has empty candidate key; all scan failures and missing tty retain executable Fresh; default/four alternatives stable; owned stop summary shared by menu/CLI; hub ownership changes and duplicate receipts cannot stop or launch.
-- [ ] Run `go test ./cmd/internal/couchcmd ./cmd/internal/couchtty ./cmd/internal/couchmessage -run 'TestRecovery|TestResumeCandidates|TestMenuRecovery|TestSlotOperation|TestHubMutation' -count=1` to RED.
-- [ ] Route choices and confirmations through the existing queue and shared executor; remove M1-only choice suppression for expired/dead-owner Starting. Show actual launch/registration result and retained foreign context. Re-run to PASS and commit.
+- [x] Add failing tests: Fresh command never has empty candidate key; all scan failures and missing tty retain executable Fresh; default/four alternatives stable; owned stop summary shared by menu/CLI; hub ownership changes and duplicate receipts cannot stop or launch.
+- [x] Run `go test ./cmd/internal/couchcmd ./cmd/internal/couchtty ./cmd/internal/couchmessage -run 'TestRecovery|TestResumeCandidates|TestMenuRecovery|TestSlotOperation|TestHubMutation' -count=1` to RED.
+- [x] Route choices and confirmations through the existing queue and shared executor; remove M1-only choice suppression for expired/dead-owner Starting. Show actual launch/registration result and retained foreign context. Re-run to PASS and commit.
 
 ### 5. Headless acceptance, documentation and close
 
