@@ -19,6 +19,25 @@ reviewer_runs:
       finished_at: "2026-10-15T22:31:27.874425Z"
       session_id: 01a141b0-8f06-7e72-8ed9-64544f5f52b1
       outcome: returned
+    - version: 1
+      intent:
+        id: cf2a2086-c627-4cbe-9f75-0c0e510bbd2d
+        repository: github.com/xianxu/pair
+        issue_id: "000579"
+        recipe: estimate-quality
+        round: 1
+        attempt: 1
+        agent: codex
+        root: /Users/xianxu/workspace/worktree/pair-slot3/pair
+        reviewed_head: 69c78e25636f319de270050dd669797f17911fdc
+        slot: pair:3
+        requested_at: "2026-10-15T22:44:25.879981Z"
+      phase: finished
+      pid: 5804
+      started_at: "2026-10-15T22:44:26.030571Z"
+      finished_at: "2026-10-15T22:44:51.16508Z"
+      session_id: 01a141bc-fa2d-78b1-8e54-4d85c4f3a21b
+      outcome: returned
 gate: plan-quality
 issue: 579
 id_prefix: PQ
@@ -126,7 +145,40 @@ rounds:
           note: The governing named-function strategy table supersedes historical test inventories and identifies adversarial inputs and mechanical guards.
           round: 3
       blocked: false
-content_hash: af4d523354d20362b299778ed1c967ca70548c7bdb43938974fec3f3f6a72464
+    - reviewer_runs:
+        - version: 1
+          intent:
+            id: 6d710bf1-5e75-4caf-a726-71a6d77261a9
+            repository: github.com/xianxu/pair
+            issue_id: "000579"
+            recipe: plan-quality
+            round: 4
+            attempt: 1
+            agent: codex
+            root: /Users/xianxu/workspace/worktree/pair-slot3/pair
+            reviewed_head: 69c78e25636f319de270050dd669797f17911fdc
+            slot: pair:3
+            requested_at: "2026-10-15T22:44:02.675733Z"
+          phase: finished
+          pid: 2672
+          started_at: "2026-10-15T22:44:02.837092Z"
+          finished_at: "2026-10-15T22:44:24.712246Z"
+          session_id: 01a141bc-9fc5-7d30-8bbf-663e7fd398f2
+          outcome: returned
+      "n": 4
+      timestamp: "2026-10-15T15:44:24-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Persisted limits govern every managed writer, with cross-handle and subprocess enforcement tests.
+          round: 4
+        - id: PQ-2
+          disposition: addressed
+          note: Named-function adversarial strategies explicitly supersede historical prose test inventories.
+          round: 4
+      blocked: false
+content_hash: e76fc4cf23cd8cb15cf6273bbb64abff19c8e38556ba03f1057b76aa4a1ff2af
 ---
 
 # Gate ledger — pair#579 (plan-quality)
@@ -156,6 +208,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - PQ-1 — addressed — Persisted DiagnosticLimits govern all managed writers and maintenance paths; mixed-version writers refuse rather than bypass bounds.
 - PQ-2 — addressed — The governing named-function strategy table supersedes historical test inventories and identifies adversarial inputs and mechanical guards.
+
+## Round 4 — 2026-10-15T15:44:24-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Persisted limits govern every managed writer, with cross-handle and subprocess enforcement tests.
+- PQ-2 — addressed — Named-function adversarial strategies explicitly supersede historical prose test inventories.
 
 ## Open findings
 
