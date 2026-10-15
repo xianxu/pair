@@ -80,3 +80,5 @@ The new listed-terminal route still arms resumeRegistrationTimeout through regis
 - Revised red/green: public spent-budget attachment and direct production-used registration characterization pass. All four regressions and exact semantic cases pass x3 (2.855s). Restoring a 200ms timer fails the attachment parent-deadline assertion; detaching the parent fails cancellation inside the listed-session hook before cleanup. Both mutations restored byte-for-byte.
 
 - Integrated #562 main before final verification at 83e3e7a0a5482f1f7a48bc1abfbd864c68add371. make -k -B build passed; Pair/Couch embed that exact clean revision. Revised semantic/observer -race x3 passed (5.150s) before integration; integrated semantic, intentional timeout and warm lifecycle -race x3 passed (21.110s). Required suite queued on 83e3e7a0; broad couchcore still running.
+
+- Revised integrated broad couchcore passed (396.257s); no filtered failures. Required suite still queued on 83e3e7a0.
