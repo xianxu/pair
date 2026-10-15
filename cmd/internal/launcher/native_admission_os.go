@@ -126,15 +126,22 @@ func (s NativeAdmissionStore) withStore(ctx context.Context, fn func(context.Con
 	if state.Version != 1 || len(state.Entries) > maxNativeAdmissions {
 		return errors.New("unsupported or oversized native admission store")
 	}
-	for i, e := range state.Entries {
+	seen := make(map[[2]string]bool, len(state.Entries))
+	for _, e := range state.Entries {
+		if err = ctx.Err(); err != nil {
+			return err
+		}
 		if err = validateAdmissionEntry(e); err != nil {
 			return err
 		}
-		for _, prior := range state.Entries[:i] {
-			if sameAdmissionKey(e.Request, prior.Request) {
-				return errors.New("duplicate native admission key")
-			}
+		key := [2]string{e.Request.Agent, e.Request.NativeID}
+		if seen[key] {
+			return errors.New("duplicate native admission key")
 		}
+		seen[key] = true
+	}
+	if err = ctx.Err(); err != nil {
+		return err
 	}
 	before, _ := json.Marshal(state)
 	if err = fn(ctx, &state, ops); err != nil {
@@ -223,8 +230,14 @@ func (s NativeAdmissionStore) Reserve(ctx context.Context, r NativeAdmissionRequ
 	}
 	var grant nativeAdmissionGrant
 	err := s.withStore(ctx, func(ctx context.Context, state *nativeAdmissionFile, ops nativeAdmissionIO) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		self, err := ops.self()
 		if err != nil {
+			return err
+		}
+		if err := ctx.Err(); err != nil {
 			return err
 		}
 		if !validAdmissionProcess(self) {
@@ -233,11 +246,24 @@ func (s NativeAdmissionStore) Reserve(ctx context.Context, r NativeAdmissionRequ
 		// Only both-dead running entries are collectable. Unknown spawning effects
 		// and dead helpers without a completed handoff remain deliberately retained.
 		for i := len(state.Entries) - 1; i >= 0; i-- {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			e := state.Entries[i]
 			if e.Phase != NativeAdmissionRunning {
 				continue
 			}
-			w, c := ops.inspect(e.Wrapper), ops.inspect(e.Child)
+			// ProcessProbe is synchronous and has no context API. A single
+			// probe must return before cancellation can be observed; never
+			// start the next probe or transition after that cancellation.
+			w := ops.inspect(e.Wrapper)
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			c := ops.inspect(e.Child)
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			if w == storagegc.ProcessDead && c == storagegc.ProcessDead {
 				if err := applyAdmission(state, nativeAdmissionGrant{Request: e.Request}, NativeAdmissionChange{Transition: NativeAdmissionCollect, WrapperLiveness: w, ChildLiveness: c}); err != nil {
 					return err
@@ -245,6 +271,9 @@ func (s NativeAdmissionStore) Reserve(ctx context.Context, r NativeAdmissionRequ
 			}
 		}
 		for _, e := range state.Entries {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			if sameAdmissionKey(e.Request, r) {
 				return errors.New("native conversation already has an active or unresolved writer; use Fresh")
 			}
@@ -257,6 +286,9 @@ func (s NativeAdmissionStore) Reserve(ctx context.Context, r NativeAdmissionRequ
 		}
 		token, err := newAdmissionToken()
 		if err != nil {
+			return err
+		}
+		if err := ctx.Err(); err != nil {
 			return err
 		}
 		grant = nativeAdmissionGrant{Version: 1, Request: r, Helper: self, Token: token}
@@ -276,9 +308,15 @@ func (s NativeAdmissionStore) Claim(ctx context.Context, raw, agent, digest stri
 		return claim, errors.New("native admission invocation changed")
 	}
 	err = s.withStore(ctx, func(ctx context.Context, state *nativeAdmissionFile, ops nativeAdmissionIO) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		self, e := ops.self()
 		if e != nil {
 			return e
+		}
+		if err := ctx.Err(); err != nil {
+			return err
 		}
 		if e = applyAdmission(state, grant, admissionChange(grant, NativeAdmissionSpawn, self)); e != nil {
 			return e
@@ -296,9 +334,15 @@ func (s NativeAdmissionStore) PublishChild(ctx context.Context, claim NativeAdmi
 		return errors.New("invalid native admission claim")
 	}
 	return s.withStore(ctx, func(ctx context.Context, state *nativeAdmissionFile, ops nativeAdmissionIO) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		self, e := ops.self()
 		if e != nil {
 			return e
+		}
+		if err := ctx.Err(); err != nil {
+			return err
 		}
 		if self != claim.wrapper {
 			return errors.New("native wrapper generation changed")
@@ -306,6 +350,9 @@ func (s NativeAdmissionStore) PublishChild(ctx context.Context, claim NativeAdmi
 		child, parent, e := ops.child(pid)
 		if e != nil {
 			return e
+		}
+		if err := ctx.Err(); err != nil {
+			return err
 		}
 		if parent != self.PID {
 			return errors.New("native child does not belong to claimed wrapper")
@@ -326,9 +373,15 @@ func (s NativeAdmissionStore) CancelBeforeHandoff(ctx context.Context, raw strin
 		return err
 	}
 	return s.withStore(ctx, func(ctx context.Context, state *nativeAdmissionFile, ops nativeAdmissionIO) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		self, e := ops.self()
 		if e != nil {
 			return e
+		}
+		if err := ctx.Err(); err != nil {
+			return err
 		}
 		return applyAdmission(state, g, admissionChange(g, NativeAdmissionCancel, self))
 	})
@@ -339,6 +392,9 @@ func (s NativeAdmissionStore) CancelBeforeHandoff(ctx context.Context, raw strin
 func withNativeAdmissionOwners(ctx context.Context, state *nativeAdmissionFile, ops nativeAdmissionIO, check func(context.Context, NativeAdmissionOwners) error) error {
 	facts := make([]NativeAdmissionEntry, 0, len(state.Entries))
 	for _, e := range state.Entries {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if e.Phase == NativeAdmissionSpawning || e.Phase == NativeAdmissionRunning {
 			e.Token = ""
 			facts = append(facts, e)
@@ -347,5 +403,24 @@ func withNativeAdmissionOwners(ctx context.Context, state *nativeAdmissionFile, 
 	var active atomic.Bool
 	active.Store(true)
 	defer active.Store(false)
-	return check(ctx, NativeAdmissionOwners{entries: facts, process: ops.child, active: &active})
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	process := func(pid int) (storagegc.ProcessIdentity, int, error) {
+		if err := ctx.Err(); err != nil {
+			return storagegc.ProcessIdentity{}, 0, err
+		}
+		identity, parent, err := ops.child(pid)
+		if err != nil {
+			return identity, parent, err
+		}
+		if err := ctx.Err(); err != nil {
+			return storagegc.ProcessIdentity{}, 0, err
+		}
+		return identity, parent, nil
+	}
+	if err := check(ctx, NativeAdmissionOwners{entries: facts, process: process, active: &active}); err != nil {
+		return err
+	}
+	return ctx.Err()
 }

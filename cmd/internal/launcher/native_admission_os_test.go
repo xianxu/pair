@@ -1,9 +1,11 @@
 package launcher
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -227,5 +229,59 @@ func TestNativeAdmissionOwnershipViewCannotEscapeTheLockedCallback(t *testing.T)
 	snapshot := recoveryTerminalSnapshot{Processes: []procutil.Process{{PID: 12, PPID: 1, Identity: "wrapper"}}}
 	if escaped.coversDifferentWrapper("codex", "native", snapshot.Processes[0], snapshot) {
 		t.Fatal("ownership facts escaped their locked check")
+	}
+}
+
+func TestNativeAdmissionCollectionStopsAtCancellationBetweenProcessProbes(t *testing.T) {
+	for _, cancelAt := range []int{1, 2} {
+		t.Run(fmt.Sprint(cancelAt), func(t *testing.T) {
+			world := newAdmissionWorld()
+			store := world.store(t.TempDir())
+			req := admissionRequest(t, "selected")
+			rawGrant := reserveAdmission(t, store, req)
+			grant, err := decodeAdmissionGrant(rawGrant)
+			if err != nil {
+				t.Fatal(err)
+			}
+			state := nativeAdmissionFile{Version: 1}
+			for i := 0; i < 3; i++ {
+				old := req
+				old.NativeID = fmt.Sprintf("old-%d", i)
+				state.Entries = append(state.Entries, NativeAdmissionEntry{Request: old, Token: grant.Token, Helper: grant.Helper, Phase: NativeAdmissionRunning, Wrapper: storagegc.ProcessIdentity{PID: 12 + i*10, Birth: "wrapper"}, Child: storagegc.ProcessIdentity{PID: 13 + i*10, Birth: "child"}})
+			}
+			path := admissionStorePath(t, store.Home)
+			before, err := json.Marshal(state)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err = os.WriteFile(path, before, 0600); err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			probes, checks, writes := 0, 0, 0
+			store.io.inspect = func(storagegc.ProcessIdentity) storagegc.Liveness {
+				probes++
+				if probes == cancelAt {
+					cancel()
+				}
+				return storagegc.ProcessDead
+			}
+			store.io.write = func(string, []byte) error { writes++; return nil }
+			obtained, err := store.Reserve(ctx, req, func(context.Context, NativeAdmissionOwners) error { checks++; return nil })
+			if !errors.Is(err, context.Canceled) || obtained != "" {
+				t.Fatalf("grant=%q err=%v", obtained, err)
+			}
+			if probes != cancelAt || checks != 0 || writes != 0 {
+				t.Fatalf("work continued after cancellation: probes=%d wanted=%d checks=%d writes=%d", probes, cancelAt, checks, writes)
+			}
+			after, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(before, after) {
+				t.Fatal("canceled collection changed authority")
+			}
+		})
 	}
 }
