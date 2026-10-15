@@ -444,14 +444,15 @@ couch --session-sync read|write|diff|status ... FILE
                          operator's lock or when the section changed since `read` (write --if-hash), and
                          lists owed deliveries (see couch --skill)
 couch --recover-plan-from-sdlc   per-slot recovery report (JSON), see below
-couch --resume repo:N [--json]   from a live slot: resume that slot's agent
+couch --resume repo:N [--json]   from a live slot: Continue if listed live, otherwise resume a proven conversation
 couch --resume-candidates repo:N [--json]
-                         list explicit recovery choices with activity and tty-tail evidence; automatic choice is off
+                         list the best choice and up to four alternatives with activity and tty-tail evidence; automatic choice is off
 couch --resume repo:N --candidate KEY [--json]
-                         choose a listed conversation or fresh-from-previous-screen fallback; stale evidence refuses
-couch --reboot repo:N --confirm [--force-unknown] [--json]
-                         from a live slot: archive and replace it with a fresh agent on the current binary;
-                         a live target is stopped first unless busy (busy-unknown needs --force-unknown)
+                         choose an inferred conversation explicitly; stale evidence refuses
+couch --reboot repo:N --confirm [--json]
+                         request Start fresh on the current binary; attributed running processes require an exact stop-set offer
+couch --recovery-confirmation TOKEN [--json]
+                         approve that offer from the authenticated owning hub; no repeated target or TUI is needed
 couch --switch-agent repo:N --agent NAME --confirm [--json]
                          from the hub: switch another idle, clean slot using saved target-agent settings
 couch --operation-status ID [--json]   inspect an asynchronous operation receipt
@@ -491,10 +492,32 @@ the saved layout.
 
 For a slot whose state needs recovery, **Relaunch** opens a read-only candidate
 preview with transcript and terminal evidence. Selection is explicit; Couch
-does not automatically choose an inferred conversation. Evidence whose old
-owner may still be running is readable but cannot be selected for native resume.
-Fresh is offered where its existing confirmed execution path is available.
-An unfinished Couch start shows **Starting**, with read-only details on Enter.
+does not automatically choose an inferred conversation. Native resume requires
+its old owners to be absent or safely retired through the exact confirmation
+below; unproved ownership still blocks that native launch.
+**Start fresh** remains offered when the old TTY capture or transcript scan is
+missing, expired, incomplete or unsupported. The choice still checks supported
+records, launch settings and workspace identity before launching; an offer is
+not a claim that repair or launch has succeeded. A fresh agent receives an
+orientation from available screen, branch and issue evidence, with missing TTY
+evidence stated honestly. Native resume receives no launch prompt.
+
+If recovery requires stopping running processes, Couch first shows an exact
+PID, process-generation identity and role list. The person accepts that list in
+the switcher; the authenticated owning hub runs the printed standalone
+`couch --recovery-confirmation TOKEN [--json]` command. Inspect asynchronous
+results with `couch --operation-status ID --json`, including any confirmation
+offer. The token resolves its target internally, expires after two minutes,
+works once for the same confirmer and is lost on Couch restart. Changed source
+records, choices or stop sets require a new offer. Canceling stops nothing.
+`--confirm` requests Fresh; it does not approve a later exact stop set, and
+`--force-unknown` is not recovery stop authority. That override remains only for
+the separate idle checks on relaunch, reload-context and prepare.
+
+An unlisted start claim shows **Starting**, with read-only details on Enter,
+for at most five minutes or until its exact owner is proved dead. It then offers
+explicit recovery instead of remaining Starting forever. A positively listed
+session remains Continue; claim age never authorizes killing its supervisor.
 An older live wrapper with a broken message endpoint remains usable through its
 terminal and reports “messaging unavailable until next relaunch.”
 
@@ -1374,12 +1397,14 @@ Couch owns that thread's restarts. Leaving
 never depends on there being something live to act on, so an empty switcher is
 never a dead end. `Tab → recover` is the default recovery gesture: it runs the
 steps the recovery report computes for that row (resume; reap then resume for an
-orphaned server; or reboot), asks for confirmation when they include reap or
-reboot, and refuses with the report's hold when there is no safe step.
-`Tab → reboot` archives a conversation that will not come back
-and starts a fresh agent in its place (see below). On a live row it stops the
-running agent first (a known-busy one refuses): the way out when relaunch has no
-conversation to resume, such as a session that never finished a turn. The archived record can be
+orphaned server; or reboot), asks before reap and presents an exact stop offer
+when recovery needs to retire attributed processes. It refuses with the report's
+hold when there is no safe step.
+`Tab → reboot` requests **Start fresh** (see below), including when relaunch
+has no conversation to resume, such as a session that never finished a turn.
+The request prepares recovery first; only an exact named stop offer opens a
+confirmation. It does not reuse relaunch's busy/unknown override as permission
+to stop processes. The archived record can be
 restored by moving the file back from `threadstore/archive/` and re-adding its
 address to the manifest. `couch --archived` lists what has been retired. `Escape` clears
 the filter or returns to an attached actor;
@@ -1395,21 +1420,23 @@ ordinary filter text—there is no command namespace or numbered jump mode.
 
 | Row | Actions |
 |---|---|
-| live `:0` | detach, relaunch, park, switch coding agent, alias, add slot |
-| live `:1+` | detach, relaunch, park, switch coding agent |
+| live `:0` | detach, relaunch, park, switch coding agent, reboot, alias, add slot |
+| live `:1+` | detach, relaunch, park, switch coding agent, reboot |
 | live, compaction running or pending | nothing yet; Couch finishes it on its own |
 | any row whose compaction didn't finish | that row's own actions, unchanged |
 | parked or detached, any slot | resume, reboot (`:0` adds add slot) |
 | cannot be entered, but resume has a route | resume, reboot (`:0` adds add slot) |
 | cannot be entered otherwise (`:0`) | reboot, add slot |
-| state could not be checked | Relaunch opens read-only recovery evidence |
-| directory missing | `:0`: reboot (archives the record only; restore the checkout to start there again); `:1+`: add slot recreates it (it reuses the leftover number and reconciles it); `couch --reconcile repo:N` does the same from the CLI |
-| starting elsewhere, with no listed live session | Starting; Enter opens read-only details |
+| state could not be checked | Relaunch opens read-only recovery evidence, including Start fresh |
+| directory missing | Relaunch opens recovery evidence with Start fresh and a missing-directory reason; a missing host requires safe repair before a launch. `:0` reboot can archive only; add slot or `couch --reconcile repo:N` can recreate a numbered checkout |
+| starting elsewhere, with no listed live session | Starting for at most five minutes or until its exact owner is proved dead; Enter opens read-only details, then explicit recovery is available |
 
 `Enter` follows the row's continuity action: Continue attaches to a positively
 listed session; Resume from disk resumes an eligible stopped conversation;
 Relaunch opens recovery evidence for an uncertain row. Starting opens read-only
-details. Start fresh uses the row's existing reboot confirmation where offered.
+details during its bounded launch window. Start fresh always remains a recovery
+choice, including without a readable old TTY; confirmation approves only the
+exact running-process stop set returned by preparation.
 A missing `:1+` directory can be recreated with add slot on the repository's
 `:0`, or `couch --reconcile repo:N`. Add slot needs nothing from `:0`'s agent,
 so a parked `:0` offers it too; a `:0` whose checkout is gone does not.
@@ -1422,22 +1449,24 @@ one explicitly. A possibly running old owner prevents native resume until it
 has been safely retired. Existing continuation actions remain available where
 a continuation request owns the thread.
 
-**Reboot** archives the record with its evidence (checkpoint, native binding,
-scrollback) and starts a fresh agent in the same slot or path under a new tag,
-in one crash-safe store journal. It never changes the branch or the worktree. A
-detached row's session is stopped first, and its confirmation says so -- and that
-the agent may survive the stop until #274 lands; the
-fresh agent's profile resolves before anything is stopped, so an agent that
-cannot launch leaves the old one running. The stored name and description are not
-carried to the fresh record. A `:0` row whose directory is gone (or whose record
-cannot be read) is archived without starting anything. Rebooting a thread whose
-continuation is unfinished requires its source and target to be proved stopped.
+**Reboot** preserves the old record and available evidence (checkpoint, native
+binding and scrollback), then starts a fresh agent under a new tag in the same
+slot or path. The fresh profile and orientation resolve before any stop, and
+retirement requires the exact named process confirmation described above.
+Unknown or foreign owners remain untouched; Fresh uses a distinct terminal
+identity and, beside unresolved owners, requires a healthy verified checkout
+without refreshing workspace setup. It does not change the branch. The stored
+name and description stay in the archive, and an unfinished continuation stays
+with its archived evidence rather than being implicitly resumed or parked.
+A `:0` whose directory is gone or whose record cannot be read can be archived
+without starting anything. Unsupported future records still refuse mutation.
 
 Unknown ownership and active clients leave a diagnostic instead of guessing that
 a process died. An open **park** transaction no longer decides anything: a park
-whose owner died used to read `parking…` forever, so the classification consults
-the session instead (`#256`). Inspection and resume do not stop a surviving
-session; reboot is the confirmed action that does.
+whose owner died used to read `parking…` forever, so classification consults the
+session instead (`#256`). Inspection and recovery previews stop nothing.
+An unconfirmed launch retains its exact attempt; use show/peek and the operation
+receipt before requesting another recovery rather than assuming it never ran.
 
 Slow start/park/resume actions show local progress, and validation or operation
 failures remain in the switcher banner. Every thread in the store gets a row
