@@ -107,3 +107,7 @@ minutes. The operator approved building with `-trimpath`.
   Recorded suite queued; main still supplies implicit make test, which consumes
   the new Make default. Sent hub PR/head and .sdlc label request (receipt
   2c13566e-62de-46c2-a663-103dce881888).
+- Operator applied local-gates-verified on PR #347 (TL receipt
+  4d51ae06-fce6-4253-b6a3-e5d472e1a678, verified submitted). GitHub's
+  local-gates guard, conformance, and merge check are green. Recorded suite
+  retains its queue position; no second full run started.
