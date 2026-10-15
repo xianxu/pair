@@ -1,13 +1,21 @@
 ---
 id: 000577
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-15
 updated: 2026-10-15
 estimate_hours:
 severity: high
-card_mirror: '19ed3d1be973c214195aeb61130a2f179048cb06' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '756825062ebfa0fd6cd3aa2daedbe62c172ccba7' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-15T13:11:23-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Trimpath command-line assignment breaks the required suite environment probe
@@ -28,8 +36,14 @@ Preserve #572's trimpath default, additive Go flags, explicit caller overrides a
 
 ## Plan
 
+- [ ] Reproduce the recorded-command failure and add a regression running the real environment probe under bare and command-line-assigned outer Make invocations.
+- [ ] Clear inherited Make control variables at the synthetic fixture boundary; keep real caller-override and recursive Make assertions. Preserve the recorded command and trimpath defaults (ARCH-DRY: one probe implementation).
+- [ ] Run both targeted invocations, the recorded suite, and close/land through the gates; notify pair:2.
+
 ## Log
 
 2026-10-15: #556 integrated #572 cleanly apart from an artifact manifest list conflict resolved by keeping both entries. Recorded suite at c80734525e16 stopped before Go packages: exit2 in4m11s after504s queue; log /Users/xianxu/workspace/pair/.git/sdlc/test-stats/failed/f56b8f2ef9ecc3a5638161bf3707978c.log, sha256 prefix aa446f79e62e. All preceding editor/shell tests passed.
 
 Isolated actual command repro: make PAIR_GO_TRIMPATH=-trimpath test-make-env exits2 with knob failure, while bare make test-make-env exits0 and reports198 derived knobs kept. Probe under assignment exposes MAKEFLAGS containing -- PAIR_GO_TRIMPATH=-trimpath, MAKEOVERRIDES=${-*-command-variables-*-}, and PAIR_GO_TRIMPATH=-trimpath; bare probe has no such assignment. No source changes made for this defect in #556. Filed unclaimed for independent work from main; #556 retains its branch and approved code.
+
+2026-10-15: Reproduced the exact command: exit2, only PAIR_GO_TRIMPATH synthetic-knob check fails; additive/recursive Go flags assertions pass. The inherited command-line assignment is authoritative in nested Make. Fix the fixture boundary rather than removing knob coverage or changing the approved recorded command.
