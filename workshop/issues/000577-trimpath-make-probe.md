@@ -37,8 +37,8 @@ Preserve #572's trimpath default, additive Go flags, explicit caller overrides a
 
 ## Plan
 
-- [ ] Reproduce the recorded-command failure and add a regression running the real environment probe under bare and command-line-assigned outer Make invocations.
-- [ ] Clear inherited Make control variables at the synthetic fixture boundary; keep real caller-override and recursive Make assertions. Preserve the recorded command and trimpath defaults (ARCH-DRY: one probe implementation).
+- [x] Reproduce the recorded-command failure and add a regression running the real environment probe under bare and command-line-assigned outer Make invocations.
+- [x] Clear inherited Make control variables at the synthetic fixture boundary; keep real caller-override and recursive Make assertions. Preserve the recorded command and trimpath defaults (ARCH-DRY: one probe implementation).
 - [ ] Run both targeted invocations, the recorded suite, and close/land through the gates; notify pair:2.
 
 ## Log
@@ -48,3 +48,5 @@ Preserve #572's trimpath default, additive Go flags, explicit caller overrides a
 Isolated actual command repro: make PAIR_GO_TRIMPATH=-trimpath test-make-env exits2 with knob failure, while bare make test-make-env exits0 and reports198 derived knobs kept. Probe under assignment exposes MAKEFLAGS containing -- PAIR_GO_TRIMPATH=-trimpath, MAKEOVERRIDES=${-*-command-variables-*-}, and PAIR_GO_TRIMPATH=-trimpath; bare probe has no such assignment. No source changes made for this defect in #556. Filed unclaimed for independent work from main; #556 retains its branch and approved code.
 
 2026-10-15: Reproduced the exact command: exit2, only PAIR_GO_TRIMPATH synthetic-knob check fails; additive/recursive Go flags assertions pass. The inherited command-line assignment is authoritative in nested Make. Fix the fixture boundary rather than removing knob coverage or changing the approved recorded command.
+
+2026-10-15: Added a bounded wrapper running the same real assertions through a temporary Makefile under bare and explicit trimpath assignment. Before the fix, the bare case passed and the assigned case failed with the original knob diagnostic. Fixture-local removal of MAKEFLAGS/MAKEOVERRIDES/MFLAGS isolates all synthetic child Make invocations; explicit overrides created inside the Go-flags matrix remain intact. No build configuration or production behavior changes.
