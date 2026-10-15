@@ -489,6 +489,17 @@ Corrected suite still queued on b289539f; all subsequent changes, including
 merging main's target/follow-up details, are Markdown-only. No review or close
 claimed yet.
 
+Corrected full local suite PASS on b289539f9ce2211ce3b63d2d1bc71d4b5efef4cd:
+sdlc-local/suite recorded success, exit0 in10m33s after2620s queue wait,
+logSHA256 prefix2f571ffec711, retained under the common Git sdlc/local-checks
+commit directory. Full couchcore294.995s, couchtty39.722s, launcher24.886s,
+procutil0.348s and diagnosticlog73.085s passed, as did the remaining suite.
+Original failed fd4a suite remains retained. Later commits are Markdown-only.
+M2 dry-run passed mechanical guards and measured actuals without dispatch or
+file changes; actual close will adopt the current measurement. Original Plan
+rows superseded by received TL scope and follow-ups stay unchecked; use precise
+no-plan-check acknowledgment rather than falsely ticking deferred work.
+
 ## Revisions
 
 - 2026-10-14 — received TL final scope disposition (canonical bd68b37f body, transport rendering confirmation indeterminate): #218 acceptance is native candidate-only enrichment plus shared initial owner pass, preserved fresh effect fences, corrected suite and close review, and honest partial performance/contended-phase records. Full balanced9, passive IPC diagnostic and measured concurrency selection move to unassigned #563 after #562; cold stays #560. Operator live check is TL-owned at next restart with #528, with no :0 staging here. Supersedes original cold/full-matrix/tuning Plan rows and Done-when requirements; those remain unchecked as historical work, not falsely completed. M2 close covers built shared pass and retained incomplete measurement; the default is unchanged.
